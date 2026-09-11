@@ -1,32 +1,29 @@
 /**
  * Operations & Public Info Real PostgreSQL Integration Tests
- * Covers Announcements, Season Public Info, and Feedback Reports
+ * Covers Announcements, Season Public Info, and Feedback Abuse Behavior
  */
 import { randomUUID } from "node:crypto";
 import { drizzle } from "drizzle-orm/node-postgres";
-import { Pool } from "pg";
 import { describe, expect, it } from "vitest";
 import * as schema from "../../../src/db/schema";
-import { seasons, users } from "../../../src/db/schema";
+import { announcements, communityGroups, feedbackReports, seasons, users } from "../../../src/db/schema";
+import { eq } from "drizzle-orm";
 import { createAnnouncementInTx, updateAnnouncementInTx, setAnnouncementStatusInTx } from "../../../src/lib/announcements/commands";
-import { listPublicAnnouncements, getLatestSeasonAnnouncement } from "../../../src/lib/announcements/read-model";
+import { getRelevantAttentionAnnouncement, listPublicAnnouncements } from "../../../src/lib/announcements/read-model";
 import { submitFeedbackInTx, setFeedbackStatusInTx } from "../../../src/lib/feedback/commands";
+import { createCommunityGroupInTx, createSeasonContactInTx, updateCommunityGroupInTx, upsertSeasonPublicInfoInTx } from "../../../src/lib/season-public-info/commands";
 import { getPublicSeasonInfo } from "../../../src/lib/season-public-info/read-model";
-import { upsertSeasonPublicInfoInTx, createCommunityGroupInTx, updateCommunityGroupInTx, createSeasonContactInTx } from "../../../src/lib/season-public-info/commands";
-import { localDatabaseUrl } from "./harness/database";
+import { createLocalPool } from "./harness/database";
 
-const databaseUrl = localDatabaseUrl();
-
-describe("operations real PostgreSQL lifecycle", () => {
+describe("operations real PostgreSQL lifecycle & abuse hardening", () => {
   it("enforces announcement draft -> publish -> public visibility and withdraw lifecycle", async () => {
-    const pool = new Pool({ connectionString: databaseUrl, ssl: false, max: 2 });
-    const database = drizzle(pool, { schema });
+    const pool = createLocalPool({ max: 2 });
+    const client = await pool.connect();
+    const database = drizzle(client, { schema });
     const actorId = randomUUID();
     const seasonId = randomUUID();
 
     try {
-      await pool.query("BEGIN");
-
       await database.insert(users).values({
         id: actorId,
         email: `admin-${actorId}@test.local`,
@@ -70,11 +67,15 @@ describe("operations real PostgreSQL lifecycle", () => {
 
       expect(published.status).toBe("published");
 
-      // Published announcement is visible in public read model
       const publicAfterPublish = await listPublicAnnouncements(seasonId);
-      const found = publicAfterPublish.find((a) => a.id === draft.id);
-      expect(found).toBeDefined();
-      expect(found?.title).toBe("赛程调整通知（草稿）");
+      expect(publicAfterPublish).toEqual(expect.arrayContaining([
+        expect.objectContaining({ id: draft.id, title: "赛程调整通知（草稿）" }),
+      ]));
+
+      const [beforeEdit] = await database
+        .select({ status: announcements.status, updatedAt: announcements.updatedAt })
+        .from(announcements)
+        .where(eq(announcements.id, draft.id));
 
       // 3. Edit published announcement - must remain published and update updatedAt
       const updated = await database.transaction((tx) =>
@@ -90,9 +91,40 @@ describe("operations real PostgreSQL lifecycle", () => {
       );
 
       expect(updated.id).toBe(draft.id);
+      const [afterEdit] = await database
+        .select({ status: announcements.status, updatedAt: announcements.updatedAt })
+        .from(announcements)
+        .where(eq(announcements.id, draft.id));
+      expect(afterEdit?.status).toBe("published");
+      expect(afterEdit?.updatedAt.getTime()).toBeGreaterThanOrEqual(beforeEdit?.updatedAt.getTime() ?? 0);
 
-      const latest = await getLatestSeasonAnnouncement(seasonId);
-      expect(latest?.title).toBe("赛程调整通知（正式）");
+      const siteAttention = await database.transaction((tx) =>
+        createAnnouncementInTx(tx, adminContext, {
+          scope: "site",
+          seasonId: null,
+          type: "important_alert",
+          title: "全站提醒",
+          body: "全站维护提醒。",
+          requiresAttention: true,
+          attentionUntil: new Date(Date.now() + 3_600_000),
+        }),
+      );
+      await database.transaction((tx) => setAnnouncementStatusInTx(tx, adminContext, siteAttention.id, "published"));
+
+      const seasonAttention = await getRelevantAttentionAnnouncement(seasonId);
+      expect(seasonAttention?.id).toBe(draft.id);
+
+      await database.transaction((tx) => updateAnnouncementInTx(tx, adminContext, draft.id, {
+        scope: "season",
+        seasonId,
+        type: "important_alert",
+        title: "赛程调整通知（正式）",
+        body: "首轮正式延期至 19:30 开始。",
+        requiresAttention: true,
+        attentionUntil: new Date(Date.now() - 1_000),
+      }));
+      const fallbackAttention = await getRelevantAttentionAnnouncement(seasonId);
+      expect(fallbackAttention?.id).toBe(siteAttention.id);
 
       // 4. Withdraw announcement
       await database.transaction((tx) =>
@@ -103,20 +135,21 @@ describe("operations real PostgreSQL lifecycle", () => {
       const publicAfterWithdraw = await listPublicAnnouncements(seasonId);
       expect(publicAfterWithdraw.some((a) => a.id === draft.id)).toBe(false);
     } finally {
-      await pool.query("ROLLBACK");
+      await database.delete(seasons).where(eq(seasons.id, seasonId));
+      await database.delete(users).where(eq(users.id, actorId));
+      client.release();
       await pool.end();
     }
   });
 
-  it("enforces season public info permissions, storage lifetime, and closed group projection", async () => {
-    const pool = new Pool({ connectionString: databaseUrl, ssl: false, max: 2 });
-    const database = drizzle(pool, { schema });
+  it("enforces season public info permissions and closed group projection", async () => {
+    const pool = createLocalPool({ max: 2 });
+    const client = await pool.connect();
+    const database = drizzle(client, { schema });
     const actorId = randomUUID();
     const seasonId = randomUUID();
 
     try {
-      await pool.query("BEGIN");
-
       await database.insert(users).values({
         id: actorId,
         email: `admin-${actorId}@test.local`,
@@ -125,173 +158,222 @@ describe("operations real PostgreSQL lifecycle", () => {
 
       await database.insert(seasons).values({
         id: seasonId,
-        slug: `info-test-${seasonId.slice(0, 8)}`,
-        name: "Info Test Season",
+        slug: `ops-info-${seasonId.slice(0, 8)}`,
+        name: "Public Info Season",
         kind: "major",
-        status: "playing",
+        status: "registration",
         stagePlan: [],
       });
 
       const adminContext = { actorId, role: "super_admin" as const, seasonIds: [seasonId] };
 
-      // 1. Upsert public info (rules)
+      // 1. Upsert rules entry
       await database.transaction((tx) =>
         upsertSeasonPublicInfoInTx(tx, adminContext, {
           seasonId,
-          rulesLabel: "竞赛规程 V2",
-          rulesHref: "https://rivalhub.com/rules/major",
+          rulesLabel: "赛事规程与行为守则",
+          rulesHref: "/rules",
         })
       );
 
-      // 2. Add community groups (active group with groupNumber, and closed group)
-      const activeGroup = await database.transaction((tx) =>
+      // 2. Create a group through the group-number-first workflow.
+      const group = await database.transaction((tx) =>
         createCommunityGroupInTx(tx, adminContext, {
           seasonId,
-          label: "官方正赛群",
-          audience: "参赛选手",
-          groupNumber: "987654321",
-          qrImagePath: `season-public-assets/${seasonId}/qr-active.png`,
-          joinUrl: "https://qun.qq.com/join/active",
-          note: "实名进群",
-        })
-      );
-
-      const closedGroup = await database.transaction((tx) =>
-        createCommunityGroupInTx(tx, adminContext, {
-          seasonId,
-          label: "预选赛历史群",
-          audience: null,
+          label: "选手交流群",
+          audience: "参赛选手及领队",
           groupNumber: "123456789",
-          qrImagePath: `season-public-assets/${seasonId}/qr-closed.png`,
-          joinUrl: "https://qun.qq.com/join/closed",
-          note: "已关闭",
+          joinUrl: null,
+          qrImagePath: null,
+          note: "入群请备注队伍名",
         })
       );
 
-      await database.transaction((tx) =>
-        updateCommunityGroupInTx(tx, adminContext, closedGroup.id, {
-          label: "预选赛历史群",
-          audience: null,
-          status: "closed",
-          groupNumber: "123456789",
-          qrImagePath: `season-public-assets/${seasonId}/qr-closed.png`,
-          joinUrl: "https://qun.qq.com/join/closed",
-          note: "已关闭",
-        })
-      );
+      const contact = await database.transaction((tx) => createSeasonContactInTx(tx, adminContext, {
+        seasonId,
+        label: "赛委会",
+        publicName: "运营组",
+        value: "ops@example.com",
+        href: "mailto:ops@example.com",
+        note: null,
+      }));
 
-      // 3. Add contact
-      await database.transaction((tx) =>
-        createSeasonContactInTx(tx, adminContext, {
-          seasonId,
-          label: "裁判长",
-          publicName: "张裁判",
-          value: "referee@rivalhub.com",
-          href: "mailto:referee@rivalhub.com",
-          note: "工作日在线",
-        })
-      );
-
-      // 4. Query public projection
       const publicInfo = await getPublicSeasonInfo(seasonId);
+      expect(publicInfo.rules).toEqual({ label: "赛事规程与行为守则", href: "/rules" });
+      expect(publicInfo.groups).toEqual(expect.arrayContaining([
+        expect.objectContaining({ id: group.id, status: "active", groupNumber: "123456789" }),
+      ]));
+      expect(publicInfo.contacts).toEqual(expect.arrayContaining([
+        expect.objectContaining({ id: contact.id, value: "ops@example.com", href: "mailto:ops@example.com" }),
+      ]));
 
-      expect(publicInfo.rules.label).toBe("竞赛规程 V2");
-      expect(publicInfo.rules.href).toBe("https://rivalhub.com/rules/major");
-
-      // Active group has groupNumber, joinUrl
-      const activeProj = publicInfo.groups.find((g) => g.id === activeGroup.id);
-      expect(activeProj?.groupNumber).toBe("987654321");
-      expect(activeProj?.joinUrl).toBe("https://qun.qq.com/join/active");
-      expect(activeProj?.status).toBe("active");
-
-      // Closed group MUST NOT expose groupNumber, qr, or joinUrl in public projection!
-      const closedProj = publicInfo.groups.find((g) => g.id === closedGroup.id);
-      expect(closedProj).toBeDefined();
-      expect(closedProj?.status).toBe("closed");
-      expect(closedProj?.groupNumber).toBe(null);
-      expect(closedProj?.qrImageUrl).toBe(null);
-      expect(closedProj?.joinUrl).toBe(null);
-
-      // Contacts projection
-      expect(publicInfo.contacts).toHaveLength(1);
-      expect(publicInfo.contacts[0]?.publicName).toBe("张裁判");
+      // 4. Close group -> active projection hides join facts and QR URL
+      await database.transaction((tx) =>
+        updateCommunityGroupInTx(tx, adminContext, group.id, {
+          label: group.label,
+          audience: group.audience,
+          status: "closed",
+          groupNumber: null,
+          joinUrl: null,
+          note: group.note,
+          qrImagePath: null,
+        })
+      );
+      const [closedRow] = await database.select().from(communityGroups).where(eq(communityGroups.id, group.id));
+      expect(closedRow.status).toBe("closed");
+      expect(closedRow.qrImagePath).toBeNull();
+      expect(closedRow.groupNumber).toBeNull();
+      const publicAfterClose = await getPublicSeasonInfo(seasonId);
+      expect(publicAfterClose.groups.find((item) => item.id === group.id)).toMatchObject({
+        status: "closed",
+        groupNumber: null,
+        joinUrl: null,
+        qrImageUrl: null,
+      });
     } finally {
-      await pool.query("ROLLBACK");
+      await database.delete(seasons).where(eq(seasons.id, seasonId));
+      await database.delete(users).where(eq(users.id, actorId));
+      client.release();
       await pool.end();
     }
   });
 
-  it("enforces feedback triage lifecycle (new -> triaged -> resolved) and anonymous/authenticated insert", async () => {
-    const pool = new Pool({ connectionString: databaseUrl, ssl: false, max: 2 });
-    const database = drizzle(pool, { schema });
+  it("enforces feedback triage lifecycle and abuse prevention contracts", async () => {
+    const pool = createLocalPool({ max: 2 });
+    const client = await pool.connect();
+    const database = drizzle(client, { schema });
     const actorId = randomUUID();
     const userId = randomUUID();
     const seasonId = randomUUID();
 
     try {
-      await pool.query("BEGIN");
-
       await database.insert(users).values([
-        { id: actorId, email: `admin-${actorId}@test.local`, role: "super_admin" },
-        { id: userId, email: `user-${userId}@test.local`, role: "user" },
+        {
+          id: actorId,
+          email: `admin-${actorId}@test.local`,
+          role: "super_admin",
+        },
+        {
+          id: userId,
+          email: `user-${userId}@test.local`,
+          role: "user",
+        },
       ]);
 
       await database.insert(seasons).values({
         id: seasonId,
-        slug: `feedback-test-${seasonId.slice(0, 8)}`,
-        name: "Feedback Test Season",
+        slug: `ops-fb-${seasonId.slice(0, 8)}`,
+        name: "Feedback Season",
         kind: "major",
         status: "playing",
         stagePlan: [],
       });
 
-      // 1. Submit feedback by authenticated user
-      const userFb = await database.transaction((tx) =>
-        submitFeedbackInTx(tx, {
-          actorUserId: userId,
-          seasonId,
-          category: "problem",
-          body: "队伍报名提交后页面没有即时刷新。",
-          pathname: `/${seasonId}/register`,
-          releaseVersion: "2.8.4",
-        })
-      );
-      expect(userFb.accepted).toBe(true);
-      expect(userFb.id).toBeDefined();
-
-      // 2. Submit anonymous feedback
-      const anonFb = await database.transaction((tx) =>
+      // 1. Behavior: 60s duplicate body reject.
+      const duplicateBody = "Duplicate issue content across requests";
+      await database.transaction((tx) =>
         submitFeedbackInTx(tx, {
           actorUserId: null,
-          seasonId: null,
           category: "feature_suggestion",
-          body: "建议在选手主页增加历史赛事徽章展示。",
-          pathname: "/players",
-          releaseVersion: "2.8.4",
+          body: duplicateBody,
+          pathname: "/test",
+          seasonId: null,
+          releaseVersion: "test",
         })
       );
-      expect(anonFb.accepted).toBe(true);
 
-      // 3. Super admin triages feedback: new -> triaged -> resolved
-      const triaged = await database.transaction((tx) =>
-        setFeedbackStatusInTx(tx, {
-          id: userFb.id!,
-          status: "triaged",
-          actorId,
+      // Immediately submitting the same body must reject with duplicate error
+      await expect(
+        database.transaction((tx) =>
+          submitFeedbackInTx(tx, {
+            actorUserId: null,
+            category: "feature_suggestion",
+            body: duplicateBody,
+            pathname: "/test",
+            seasonId: null,
+            releaseVersion: "test",
+          })
+        )
+      ).rejects.toThrowError(/相同反馈刚刚已经提交过了/);
+
+      // 2. Behavior: Authenticated 30s cooldown reject.
+      await database.transaction((tx) =>
+        submitFeedbackInTx(tx, {
+          actorUserId: userId,
+          category: "other",
+          body: `User first submission ${randomUUID()}`,
+          pathname: "/test",
+          seasonId: null,
+          releaseVersion: "test",
         })
+      );
+
+      await expect(
+        database.transaction((tx) =>
+          submitFeedbackInTx(tx, {
+            actorUserId: userId,
+            category: "other",
+            body: `User second submission within cooldown ${randomUUID()}`,
+            pathname: "/test",
+            seasonId: null,
+            releaseVersion: "test",
+          })
+        )
+      ).rejects.toThrowError(/反馈提交较频繁/);
+
+      // 3. Status triage lifecycle: new -> triaged -> resolved.
+      const triageSubject = await database.transaction((tx) =>
+        submitFeedbackInTx(tx, {
+          actorUserId: null,
+          category: "problem",
+          body: "Specific issue for triage lifecycle test",
+          pathname: "/seasons/test",
+          seasonId,
+          releaseVersion: "test",
+        })
+      );
+
+      expect(triageSubject.id).toBeDefined();
+      const [insertedRow] = await database.select().from(feedbackReports).where(eq(feedbackReports.id, triageSubject.id!));
+      expect(insertedRow.status).toBe("new");
+
+      const triaged = await database.transaction((tx) =>
+        setFeedbackStatusInTx(tx, { id: triageSubject.id!, status: "triaged", actorId })
       );
       expect(triaged.status).toBe("triaged");
 
       const resolved = await database.transaction((tx) =>
-        setFeedbackStatusInTx(tx, {
-          id: userFb.id!,
-          status: "resolved",
-          actorId,
-        })
+        setFeedbackStatusInTx(tx, { id: triageSubject.id!, status: "resolved", actorId })
       );
       expect(resolved.status).toBe("resolved");
+
+      // 4. Behavior: the anonymous coarse limit rejects the 21st row in one minute.
+      // Two anonymous rows already exist above, so add 18 more before probing the boundary.
+      for (let i = 0; i < 18; i++) {
+        await database.transaction((tx) => submitFeedbackInTx(tx, {
+          actorUserId: null,
+          category: "problem",
+          body: `Unique problem body #${i} ${randomUUID()}`,
+          pathname: "/test",
+          seasonId: null,
+          releaseVersion: "test",
+        }));
+      }
+      await expect(
+        database.transaction((tx) => submitFeedbackInTx(tx, {
+          actorUserId: null,
+          category: "problem",
+          body: `21st problem body ${randomUUID()}`,
+          pathname: "/test",
+          seasonId: null,
+          releaseVersion: "test",
+        })),
+      ).rejects.toThrowError(/反馈较多，请稍后再试/);
     } finally {
-      await pool.query("ROLLBACK");
+      await database.delete(seasons).where(eq(seasons.id, seasonId));
+      await database.delete(users).where(eq(users.id, actorId));
+      await database.delete(users).where(eq(users.id, userId));
+      client.release();
       await pool.end();
     }
   });

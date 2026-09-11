@@ -5,7 +5,7 @@ import { AppError, ErrorCode } from "@/lib/errors";
 
 export type SeasonInfoAdminContext = { role: "season_admin" | "super_admin"; seasonIds: readonly string[]; actorId: string };
 
-function assertSeasonAccess(context: SeasonInfoAdminContext, seasonId: string): void {
+export function assertSeasonAccess(context: SeasonInfoAdminContext, seasonId: string): void {
   if (context.role !== "super_admin" && !context.seasonIds.includes(seasonId)) throw new AppError(ErrorCode.FORBIDDEN, "你没有管理该赛事公开信息的权限。 ");
 }
 

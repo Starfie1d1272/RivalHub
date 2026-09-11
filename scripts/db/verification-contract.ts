@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { Pool } from "pg";
 import {
   assertDeclaredDatabaseTarget,
@@ -11,6 +11,7 @@ import {
 import { DATABASE_ACCESS_MATRIX, verifyDatabaseAccessMatrix } from "./access-matrix";
 import { verifyEducationEvidenceBucket, verifySeasonPublicAssetsBucket } from "./verify-migrations";
 import { SCHEDULER_JOB_DEFINITIONS } from "../../src/lib/scheduler/definitions";
+import { SEASON_PUBLIC_ASSETS_BUCKET } from "../../src/lib/season-public-info/presentation";
 
 export async function verifyDatabaseContract(): Promise<void> {
   assertDeclaredDatabaseTarget(process.env);
@@ -83,6 +84,7 @@ export async function verifySupabaseServices(): Promise<void> {
     if (await verifySeasonPublicAssetsBucket(pool) !== "verified") {
       throw new Error("Local Supabase 缺少 season-public-assets Storage bucket。");
     }
+    await verifySeasonPublicAssetsLifecycle(client);
     await verifySchedulerDispatch(pool, apiUrl);
 
     const email = `verify-${randomUUID()}@rivalhub.local`;
@@ -184,6 +186,51 @@ export async function verifySupabaseServices(): Promise<void> {
     }
     await pool.end();
   }
+}
+
+async function verifySeasonPublicAssetsLifecycle(client: SupabaseClient): Promise<void> {
+  const seasonId = `verify-${randomUUID()}`;
+  const groupId = `verify-${randomUUID()}`;
+  const prefix = `${seasonId}/community-groups/${groupId}`;
+  const initialPath = `${prefix}/initial.png`;
+  const replacementPath = `${prefix}/replacement.png`;
+  const initialBytes = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+  const replacementBytes = new Uint8Array([0x52, 0x49, 0x56, 0x41, 0x4c, 0x48, 0x55, 0x42]);
+  const bucket = client.storage.from(SEASON_PUBLIC_ASSETS_BUCKET);
+
+  try {
+    const initialUpload = await bucket.upload(initialPath, new Blob([initialBytes], { type: "image/png" }), {
+      upsert: false,
+      contentType: "image/png",
+    });
+    if (initialUpload.error) throw new Error(`QR initial object upload 验证失败：${initialUpload.error.message}`);
+
+    const initialRead = await bucket.download(initialPath);
+    if (initialRead.error || !initialRead.data || initialRead.data.size !== initialBytes.byteLength) {
+      throw new Error(`QR initial object readback 验证失败：${initialRead.error?.message ?? "content mismatch"}`);
+    }
+
+    const replacementUpload = await bucket.upload(replacementPath, new Blob([replacementBytes], { type: "image/png" }), {
+      upsert: false,
+      contentType: "image/png",
+    });
+    if (replacementUpload.error) throw new Error(`QR replacement object upload 验证失败：${replacementUpload.error.message}`);
+
+    const removedInitial = await bucket.remove([initialPath]);
+    if (removedInitial.error) throw new Error(`QR old object remove 验证失败：${removedInitial.error.message}`);
+    const oldRead = await bucket.download(initialPath);
+    if (!oldRead.error || oldRead.data) throw new Error("QR old object remove 后仍可读取。");
+
+    const replacementRead = await bucket.download(replacementPath);
+    if (replacementRead.error || !replacementRead.data || replacementRead.data.size !== replacementBytes.byteLength) {
+      throw new Error(`QR replacement object readback 验证失败：${replacementRead.error?.message ?? "content mismatch"}`);
+    }
+  } finally {
+    const cleanup = await bucket.remove([initialPath, replacementPath]);
+    if (cleanup.error) throw new Error(`QR Storage lifecycle cleanup 失败：${cleanup.error.message}`);
+  }
+
+  console.log("Supabase season-public-assets lifecycle passed: upload, replacement, old-object removal, readback, cleanup.");
 }
 
 async function verifySchedulerDispatch(pool: Pool, apiUrl: string): Promise<void> {

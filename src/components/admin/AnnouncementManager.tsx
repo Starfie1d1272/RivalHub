@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { setAnnouncementStatus } from "@/actions/announcements";
 import { ClearFilters, ListToolbar, useListQueryParams } from "@/components/rivalhub";
 import { Button } from "@/components/ui/button";
-import { ANNOUNCEMENT_TYPE_LABELS } from "@/lib/announcements/presentation";
+import { ANNOUNCEMENT_TYPE_LABELS, toAnnouncementExcerpt } from "@/lib/announcements/presentation";
 import type { AnnouncementAdminRow } from "@/lib/announcements/read-model";
 
 type SeasonOption = { id: string; name: string };
@@ -79,7 +79,7 @@ export function AnnouncementManager({ rows }: { rows: Row[]; seasons: SeasonOpti
                   <p className="text-xs text-[var(--color-fg-mid)]">
                     {row.scope === "site" ? "全站" : row.seasonName ?? "赛事"} · {row.updatedAt.toLocaleString("zh-CN")}
                   </p>
-                  <p className="line-clamp-2 whitespace-pre-wrap text-sm text-[var(--color-fg-mid)]">{row.body}</p>
+                  <p className="line-clamp-2 whitespace-pre-wrap text-sm text-[var(--color-fg-mid)]">{toAnnouncementExcerpt(row.body)}</p>
                 </div>
                 <div className="flex shrink-0 flex-wrap gap-2">
                   <Button size="sm" variant="outline" asChild>

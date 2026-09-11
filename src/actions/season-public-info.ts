@@ -8,7 +8,7 @@ import { communityGroups, seasonContacts, seasons } from "@/db/schema";
 import { actionError, failValidation } from "@/lib/action-utils";
 import { auditActorId, requireAdmin } from "@/lib/auth/session";
 import { LOGO_ALLOWED_TYPES, LOGO_MAX_BYTES } from "@/lib/config/upload-limits";
-import { createCommunityGroupInTx, createSeasonContactInTx, deleteCommunityGroupInTx, deleteSeasonContactInTx, moveCommunityGroupInTx, moveSeasonContactInTx, updateCommunityGroupInTx, updateSeasonContactInTx, upsertSeasonPublicInfoInTx } from "@/lib/season-public-info/commands";
+import { assertSeasonAccess, createCommunityGroupInTx, createSeasonContactInTx, deleteCommunityGroupInTx, deleteSeasonContactInTx, moveCommunityGroupInTx, moveSeasonContactInTx, updateCommunityGroupInTx, updateSeasonContactInTx, upsertSeasonPublicInfoInTx } from "@/lib/season-public-info/commands";
 import { isSafePublicHref } from "@/lib/season-public-info/presentation";
 import { seasonPublicAssetsStorage } from "@/lib/season-public-info/storage";
 import { fail, ok, type ActionResult } from "@/types/action";
@@ -117,6 +117,7 @@ export async function uploadCommunityGroupQr(groupId: string, formData: FormData
     const admin = await requireAdmin();
     const [group] = await db.select().from(communityGroups).where(eq(communityGroups.id, groupId)).limit(1);
     if (!group) return fail({ code: "NOT_FOUND", message: "交流群不存在。" });
+    assertSeasonAccess(context(admin), group.seasonId);
     if (group.status === "closed") return failValidation("已关闭的交流群不能上传二维码，请重新启用并配置加入方式。 ");
     const extension = file.type === "image/png" ? "png" : file.type === "image/webp" ? "webp" : "jpg";
     const path = `${group.seasonId}/community-groups/${group.id}/${Date.now()}.${extension}`;
@@ -139,6 +140,7 @@ export async function removeCommunityGroupQr(groupId: string): Promise<ActionRes
     const admin = await requireAdmin();
     const [group] = await db.select().from(communityGroups).where(eq(communityGroups.id, groupId)).limit(1);
     if (!group) return fail({ code: "NOT_FOUND", message: "交流群不存在。" });
+    assertSeasonAccess(context(admin), group.seasonId);
     await db.transaction((tx) => updateCommunityGroupInTx(tx, context(admin), group.id, { label: group.label, audience: group.audience, groupNumber: group.groupNumber, joinUrl: group.joinUrl, note: group.note, status: group.status, qrImagePath: null }));
     if (group.qrImagePath) await seasonPublicAssetsStorage.remove(group.qrImagePath);
     revalidateSeasonInfo(group.seasonId, await seasonSlug(group.seasonId));

@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState, useTransition } from "react";
+import * as React from "react";
+import { useCallback, useEffect, useId, useRef, useState, useSyncExternalStore, useTransition } from "react";
 import { usePathname } from "next/navigation";
-import { Info } from "lucide-react";
+import { Info, X } from "lucide-react";
 import { toast } from "sonner";
 import { submitFeedback } from "@/actions/feedback";
 import { Button } from "@/components/ui/button";
@@ -29,7 +30,29 @@ export function InformationFeedbackLauncher(props: Props) {
   const [attentionOpen, setAttentionOpen] = useState(false);
   const [attentionAnnouncement, setAttentionAnnouncement] = useState<PublicAnnouncement | null>(props.attentionAnnouncement);
   const [launcherPulse, setLauncherPulse] = useState(false);
+  const [ackVersion, setAckVersion] = useState(0);
   const pathname = usePathname();
+  const panelRef = useRef<HTMLDivElement>(null);
+  const launcherButtonRef = useRef<HTMLButtonElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const panelId = useId();
+  const panelTitleId = useId();
+
+  const subscribe = useCallback((onStoreChange: () => void) => {
+    window.addEventListener("storage", onStoreChange);
+    return () => window.removeEventListener("storage", onStoreChange);
+  }, []);
+
+  const acknowledged = useSyncExternalStore(
+    subscribe,
+    () => {
+      // ackVersion dependency ensures local state updates force re-evaluation
+      void ackVersion;
+      if (!props.latestAnnouncement) return true;
+      return isAcknowledged(props.latestAnnouncement);
+    },
+    () => true // SSR snapshot defaults to true to avoid hydration mismatch
+  );
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -43,97 +66,197 @@ export function InformationFeedbackLauncher(props: Props) {
     return () => window.clearTimeout(timer);
   }, [props.attentionAnnouncement]);
 
+  // Click outside to close desktop floating panel
+  useEffect(() => {
+    if (!panelOpen) return;
+    function handleClickOutside(event: MouseEvent) {
+      if (panelRef.current && !panelRef.current.contains(event.target as Node)) {
+        // Also ensure we didn't click the launcher toggle button
+        const target = event.target as HTMLElement;
+        if (target.closest("[data-launcher-button]")) return;
+        setPanelOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [panelOpen]);
+
+  useEffect(() => {
+    if (!panelOpen) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      setPanelOpen(false);
+      launcherButtonRef.current?.focus();
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    closeButtonRef.current?.focus();
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [panelOpen]);
+
   if (pathname.startsWith("/admin")) return null;
 
-  const acknowledged = props.latestAnnouncement ? isAcknowledged(props.latestAnnouncement) : false;
-  const markAcknowledged = (announcement: PublicAnnouncement | null) => {
+  const markLatestAcknowledged = () => {
+    if (!props.latestAnnouncement) return;
+    try {
+      window.localStorage.setItem(ACK_PREFIX + props.latestAnnouncement.id, props.latestAnnouncement.updatedAt);
+    } catch {
+      /* local storage is optional */
+    }
+    setAckVersion((v) => v + 1);
+  };
+
+  const handleOpenPanel = () => {
+    const next = !panelOpen;
+    if (next) markLatestAcknowledged();
+    setPanelOpen(next);
+  };
+
+  const handleAttentionAcknowledge = (announcement: PublicAnnouncement | null) => {
     if (!announcement) return;
     try {
       window.localStorage.setItem(ACK_PREFIX + announcement.id, announcement.updatedAt);
     } catch {
       /* local storage is optional */
     }
+    setAckVersion((v) => v + 1);
     if (attentionAnnouncement?.id === announcement.id) setAttentionAnnouncement(null);
     setAttentionOpen(false);
     setLauncherPulse(true);
     window.setTimeout(() => setLauncherPulse(false), 240);
   };
 
+  const hasUnread = Boolean(attentionAnnouncement || (!acknowledged && props.latestAnnouncement));
+
   return (
     <>
-      <button
-        type="button"
-        aria-label="信息与反馈"
-        aria-expanded={panelOpen}
-        onClick={() => setPanelOpen(true)}
-        className={`fixed bottom-[max(1rem,env(safe-area-inset-bottom))] right-4 z-[var(--z-sticky)] inline-flex size-11 items-center justify-center rounded-sm border border-[var(--color-border-static)] bg-[var(--color-surface-floating)] text-[var(--color-fg-primary)] shadow-lg transition-transform duration-[var(--duration-normal)] hover:border-[var(--color-accent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-border-focus)] motion-reduce:transition-none motion-reduce:scale-100 ${launcherPulse ? "scale-110" : ""}`}
-      >
-        <Info className="size-5" />
-        {(attentionAnnouncement || (!acknowledged && Boolean(props.latestAnnouncement))) && (
-          <span aria-label="有新公告" className="absolute -right-1 -top-1 size-3 rounded-full bg-[var(--color-accent)] ring-2 ring-[var(--color-surface-floating)]" />
-        )}
-      </button>
+      <div className="fixed bottom-[max(1rem,env(safe-area-inset-bottom))] right-4 z-[var(--z-sticky)] group">
+        <button
+          type="button"
+          data-launcher-button
+          ref={launcherButtonRef}
+          aria-label="信息与反馈"
+          aria-expanded={panelOpen}
+          aria-controls={panelOpen ? panelId : undefined}
+          onClick={handleOpenPanel}
+          className={`inline-flex size-11 items-center justify-center rounded-sm border border-[var(--color-border-static)] bg-[var(--color-surface-floating)] text-[var(--color-fg-primary)] shadow-lg transition-transform duration-[var(--duration-normal)] hover:border-[var(--color-accent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-border-focus)] motion-reduce:transition-none motion-reduce:scale-100 ${launcherPulse ? "scale-110" : ""}`}
+        >
+          <Info className="size-5" />
+          {hasUnread && (
+            <span aria-label="有新公告" className="absolute -right-1 -top-1 size-3 rounded-full bg-[var(--color-accent)] ring-2 ring-[var(--color-surface-floating)]" />
+          )}
+        </button>
 
-      <Dialog open={panelOpen} onOpenChange={setPanelOpen}>
-        <DialogContent size="md">
-          <DialogHeader>
-            <DialogTitle>信息与反馈</DialogTitle>
-            <DialogDescription>找到最新信息，也可以告诉我们使用中遇到的问题。</DialogDescription>
-          </DialogHeader>
-          <DialogBody className="space-y-5">
-            <section className="space-y-2">
-              <h2 className="font-semibold text-[var(--color-fg-primary)]">最新公告</h2>
+        {/* Lightweight Tooltip on Desktop */}
+        <div className="pointer-events-none absolute bottom-full right-0 mb-2 hidden whitespace-nowrap rounded bg-[var(--color-surface-tooltip)] px-2.5 py-1 text-xs text-[var(--color-fg-inverse)] opacity-0 shadow-md transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100 md:block">
+          信息与反馈
+        </div>
+      </div>
+
+      {/* Desktop Anchored Floating Panel & Mobile Sheet */}
+      {panelOpen && (
+        <div
+          id={panelId}
+          ref={panelRef}
+          role="dialog"
+          aria-labelledby={panelTitleId}
+          data-launcher-panel
+          tabIndex={-1}
+          className="fixed inset-x-0 bottom-0 z-[var(--z-sticky)] max-h-[min(70dvh,32rem)] overflow-y-auto rounded-t-md border border-[var(--color-border-static)] bg-[var(--color-surface-floating)] p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] shadow-2xl backdrop-blur animate-in fade-in slide-in-from-bottom-2 duration-150 sm:inset-x-auto sm:bottom-[calc(max(1rem,env(safe-area-inset-bottom))+3.5rem)] sm:right-4 sm:w-[380px] sm:max-w-[calc(100vw-2rem)] sm:rounded-sm sm:pb-5"
+        >
+          <div className="flex items-start justify-between border-b border-[var(--color-border)] pb-3">
+            <div>
+              <h2 id={panelTitleId} className="text-base font-semibold text-[var(--color-fg-primary)]">信息与反馈</h2>
+              <p className="text-xs text-[var(--color-fg-secondary)]">找到最新信息，也可以告诉我们遇到的问题</p>
+            </div>
+            <button
+              type="button"
+              ref={closeButtonRef}
+              onClick={() => {
+                setPanelOpen(false);
+                launcherButtonRef.current?.focus();
+              }}
+              className="rounded-sm p-1 text-[var(--color-fg-secondary)] hover:bg-[var(--color-accent-soft)] hover:text-[var(--color-fg-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-border-focus)]"
+              aria-label="关闭面板"
+            >
+              <X className="size-4" />
+            </button>
+          </div>
+
+          <div className="mt-4 space-y-4 text-sm">
+            <section className="space-y-1.5">
+              <h3 className="font-medium text-[var(--color-fg-primary)]">最新公告</h3>
               {props.latestAnnouncement ? (
                 <>
-                  <p className="text-sm font-medium text-[var(--color-fg-primary)]">{props.latestAnnouncement.title}</p>
-                  <p className="text-xs text-[var(--color-fg-secondary)]">{props.latestAnnouncement.scopeLabel} · {new Date(props.latestAnnouncement.publishedAt).toLocaleDateString("zh-CN")}</p>
+                  <p className="font-medium text-[var(--color-fg-primary)]">{props.latestAnnouncement.title}</p>
+                  <p className="text-xs text-[var(--color-fg-secondary)]">
+                    {props.latestAnnouncement.scopeLabel} · {new Date(props.latestAnnouncement.publishedAt).toLocaleDateString("zh-CN")}
+                  </p>
                   <Link
                     href={props.season ? `/${props.season.slug}/announcements` : "/announcements"}
-                    className="inline-flex text-sm text-[var(--color-accent)] hover:underline"
-                    onClick={() => setPanelOpen(false)}
+                    className="inline-flex text-xs text-[var(--color-accent)] hover:underline"
+                    onClick={() => {
+                      setPanelOpen(false);
+                      markLatestAcknowledged();
+                    }}
                   >
                     查看全部公告 →
                   </Link>
                 </>
               ) : (
-                <p className="text-sm text-[var(--color-fg-secondary)]">暂时没有新的公告。</p>
+                <p className="text-xs text-[var(--color-fg-secondary)]">暂时没有新的公告。</p>
               )}
             </section>
 
-            <section className="space-y-2">
-              <h2 className="font-semibold text-[var(--color-fg-primary)]">赛事信息</h2>
+            <section className="space-y-1.5 border-t border-[var(--color-border)] pt-3">
+              <h3 className="font-medium text-[var(--color-fg-primary)]">赛事信息</h3>
               {props.season && props.seasonInfo ? (
                 <>
-                  <div className="flex flex-wrap gap-2 text-sm text-[var(--color-fg-secondary)]">
-                    <Link href={`/${props.season.slug}/info`} onClick={() => setPanelOpen(false)} className="text-[var(--color-accent)] hover:underline">
-                      {props.seasonInfo.rules.label}
-                    </Link>
-                    <span>·</span>
-                    <Link href={`/${props.season.slug}/info`} onClick={() => setPanelOpen(false)} className="text-[var(--color-accent)] hover:underline">
-                      交流群（{activeGroupCount(props.seasonInfo)} 个）
-                    </Link>
-                    <span>·</span>
-                    <Link href={`/${props.season.slug}/info`} onClick={() => setPanelOpen(false)} className="text-[var(--color-accent)] hover:underline">
-                      联系方式
-                    </Link>
-                  </div>
-                  <Link href={`/${props.season.slug}/info`} onClick={() => setPanelOpen(false)} className="inline-flex text-sm text-[var(--color-accent)] hover:underline">
+                  {(() => {
+                    const groupCount = activeGroupCount(props.seasonInfo);
+                    const hasContacts = props.seasonInfo.contacts.length > 0;
+                    return (
+                      <div className="flex flex-wrap items-center gap-1.5 text-xs text-[var(--color-fg-secondary)]">
+                        <Link href={`/${props.season.slug}/info`} onClick={() => setPanelOpen(false)} className="text-[var(--color-accent)] hover:underline">
+                          {props.seasonInfo.rules.label}
+                        </Link>
+                        {groupCount > 0 && (
+                          <>
+                            <span>·</span>
+                            <Link href={`/${props.season.slug}/info`} onClick={() => setPanelOpen(false)} className="text-[var(--color-accent)] hover:underline">
+                              交流群（{groupCount} 个）
+                            </Link>
+                          </>
+                        )}
+                        {hasContacts && (
+                          <>
+                            <span>·</span>
+                            <Link href={`/${props.season.slug}/info`} onClick={() => setPanelOpen(false)} className="text-[var(--color-accent)] hover:underline">
+                              联系方式
+                            </Link>
+                          </>
+                        )}
+                      </div>
+                    );
+                  })()}
+                  <Link href={`/${props.season.slug}/info`} onClick={() => setPanelOpen(false)} className="inline-flex text-xs text-[var(--color-accent)] hover:underline">
                     查看完整赛事信息 →
                   </Link>
                 </>
               ) : (
-                <Link href="/seasons" onClick={() => setPanelOpen(false)} className="inline-flex text-sm text-[var(--color-accent)] hover:underline">
+                <Link href="/seasons" onClick={() => setPanelOpen(false)} className="inline-flex text-xs text-[var(--color-accent)] hover:underline">
                   浏览正在进行与历史赛事 →
                 </Link>
               )}
             </section>
 
-            <section className="space-y-2">
-              <h2 className="font-semibold text-[var(--color-fg-primary)]">遇到问题？</h2>
-              <p className="text-sm text-[var(--color-fg-secondary)]">向 RivalHub 团队提交功能反馈或体验问题。</p>
+            <section className="space-y-1.5 border-t border-[var(--color-border)] pt-3">
+              <h3 className="font-medium text-[var(--color-fg-primary)]">遇到问题？</h3>
+              <p className="text-xs text-[var(--color-fg-secondary)]">向 RivalHub 团队提交功能反馈或体验问题。</p>
               <Button
                 variant="outline"
                 size="sm"
+                className="mt-1"
                 onClick={() => {
                   setPanelOpen(false);
                   setFeedbackOpen(true);
@@ -142,15 +265,17 @@ export function InformationFeedbackLauncher(props: Props) {
                 提交反馈
               </Button>
             </section>
-          </DialogBody>
-        </DialogContent>
-      </Dialog>
+          </div>
+        </div>
+      )}
 
+      {/* Feedback Dialog */}
       <Dialog open={feedbackOpen} onOpenChange={setFeedbackOpen}>
         <FeedbackDialog pathname={pathname} seasonId={props.season?.id ?? null} />
       </Dialog>
 
-      <Dialog open={attentionOpen} onOpenChange={(open) => { if (!open) markAcknowledged(attentionAnnouncement); }}>
+      {/* Attention Announcement Modal */}
+      <Dialog open={attentionOpen} onOpenChange={(open) => { if (!open) handleAttentionAcknowledge(attentionAnnouncement); }}>
         <DialogContent size="md">
           <DialogHeader>
             <DialogTitle>重要提醒</DialogTitle>
@@ -163,7 +288,7 @@ export function InformationFeedbackLauncher(props: Props) {
             </div>
           </DialogBody>
           <DialogFooter>
-            <Button onClick={() => markAcknowledged(attentionAnnouncement)}>知道了，收进入口</Button>
+            <Button onClick={() => handleAttentionAcknowledge(attentionAnnouncement)}>知道了，收起提醒</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

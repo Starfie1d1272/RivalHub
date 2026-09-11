@@ -1,6 +1,6 @@
 import { publicCompetitionEntryCondition, publicCompetitionEntryLabel } from "@/lib/competition-entries/public-visibility";
 import Link from "next/link";
-import { Suspense } from "react";
+import { Fragment, Suspense, type ReactNode } from "react";
 import { connection } from "next/server";
 import { notFound } from "next/navigation";
 import { eq, count, or, and, sql } from "drizzle-orm";
@@ -280,19 +280,39 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
             )}
             {hasSeasonInfo && (
               <Panel label="赛事信息">
-                <div className="flex flex-wrap gap-2 text-sm">
-                  <Link href={`/${seasonSlug}/info`} className="text-[var(--color-accent)] hover:underline">
-                    {seasonInfo.rules.label}
-                  </Link>
-                  <span className="text-[var(--color-fg-dim)]">·</span>
-                  <Link href={`/${seasonSlug}/info`} className="text-[var(--color-accent)] hover:underline">
-                    交流群（{activeGroupCount(seasonInfo)} 个）
-                  </Link>
-                  <span className="text-[var(--color-fg-dim)]">·</span>
-                  <Link href={`/${seasonSlug}/info`} className="text-[var(--color-accent)] hover:underline">
-                    联系方式
-                  </Link>
-                </div>
+                {(() => {
+                  const groupCount = activeGroupCount(seasonInfo);
+                  const hasContacts = seasonInfo.contacts.length > 0;
+                  const parts: ReactNode[] = [
+                    <Link key="rules" href={`/${seasonSlug}/info`} className="text-[var(--color-accent)] hover:underline">
+                      {seasonInfo.rules.label}
+                    </Link>,
+                  ];
+                  if (groupCount > 0) {
+                    parts.push(
+                      <Link key="groups" href={`/${seasonSlug}/info`} className="text-[var(--color-accent)] hover:underline">
+                        交流群（{groupCount} 个）
+                      </Link>
+                    );
+                  }
+                  if (hasContacts) {
+                    parts.push(
+                      <Link key="contacts" href={`/${seasonSlug}/info`} className="text-[var(--color-accent)] hover:underline">
+                        联系方式
+                      </Link>
+                    );
+                  }
+                  return (
+                    <div className="flex flex-wrap items-center gap-2 text-sm">
+                      {parts.map((part, idx) => (
+                        <Fragment key={idx}>
+                          {idx > 0 && <span className="text-[var(--color-fg-dim)]">·</span>}
+                          {part}
+                        </Fragment>
+                      ))}
+                    </div>
+                  );
+                })()}
                 <Link href={`/${seasonSlug}/info`} className="mt-3 inline-flex text-sm text-[var(--color-accent)] hover:underline">
                   查看完整赛事信息 →
                 </Link>
