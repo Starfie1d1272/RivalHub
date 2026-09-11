@@ -26,7 +26,10 @@ vi.mock("@/lib/auth/session", () => ({ getUserSession: mocks.session }));
 vi.mock("@/lib/teams/public-profile", () => ({ getPublicTeamProfile: vi.fn().mockResolvedValue(null) }));
 
 vi.mock("@/components/season/ParticipantDirectoryToolbar", () => ({ ParticipantDirectoryToolbar: () => <div /> }));
-vi.mock("@/lib/teams/map-profile", () => ({ getPublicTeamMapProfile: vi.fn().mockResolvedValue({ own: [], experience: [], preferences: [] }) }));
+vi.mock("@/lib/teams/map-profile", () => ({
+  getPublicTeamMapProfile: vi.fn().mockResolvedValue({ own: [], experience: [], preferences: [] }),
+  getBatchPublicTeamMapPreviews: vi.fn().mockResolvedValue(new Map()),
+}));
 vi.mock("@/lib/seasons/public-results", () => ({ getPublicSeasonResults: vi.fn().mockResolvedValue({ champion: null, final: null, placements: [], honors: [], completedAt: null, finishedMatches: 0 }) }));
 import TeamsPage from "@/app/[seasonSlug]/teams/page";
 import PlayersPage from "@/app/[seasonSlug]/players/page";

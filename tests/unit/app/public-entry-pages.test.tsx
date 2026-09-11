@@ -9,7 +9,10 @@ vi.mock("@/lib/auth/session", () => ({ getUserSession: mocks.session }));
 vi.mock("@/components/layout/AdminShortcutSlot", () => ({ AdminShortcutSlot: () => null }));
 vi.mock("@/db/client", () => ({ db: { query: { competitionEntries: { findMany: mocks.entries, findFirst: mocks.entry }, eventRosters: { findFirst: mocks.eventRoster }, matches: { findMany: mocks.matches } }, select: mocks.select } }));
 vi.mock("@/components/season/ParticipantDirectoryToolbar", () => ({ ParticipantDirectoryToolbar: () => <div /> }));
-vi.mock("@/lib/teams/map-profile", () => ({ getPublicTeamMapProfile: vi.fn().mockResolvedValue({ own: [], experience: [], preferences: [] }) }));
+vi.mock("@/lib/teams/map-profile", () => ({
+  getPublicTeamMapProfile: vi.fn().mockResolvedValue({ own: [], experience: [], preferences: [] }),
+  getBatchPublicTeamMapPreviews: vi.fn().mockResolvedValue(new Map()),
+}));
 vi.mock("@/lib/seasons/public-results", () => ({ getPublicSeasonResults: vi.fn().mockResolvedValue({ champion: null, final: null, placements: [], honors: [], completedAt: null, finishedMatches: 0 }) }));
 import ListPage from "@/app/[seasonSlug]/teams/page";
 import DetailPage from "@/app/[seasonSlug]/teams/[entryId]/page";
