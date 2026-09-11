@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { spawnSync } from "node:child_process";
+import { performance } from "node:perf_hooks";
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -52,13 +53,20 @@ async function main(): Promise<void> {
     const migration = await readProductionMigrationIdentity(environment.databaseUrl);
     const source = await resolveProductionSourceIdentity();
     const activeStorageReferencesBeforeSnapshot = await readManagedStorageReferencesFromProduction(environment.databaseUrl);
+    const dbDumpStart = performance.now();
     const databaseRoot = await createDatabaseSnapshot(environment.databaseUrl, stagingRoot);
+    const dbDumpDuration = Math.round(performance.now() - dbDumpStart);
+    console.log(`timing DB dump: ${dbDumpDuration}ms`);
+
+    const storageStart = performance.now();
     const storage = await snapshotStorage(
       createClient(environment.supabaseUrl, environment.supabaseSecretKey, {
         auth: { autoRefreshToken: false, persistSession: false },
       }),
       join(stagingRoot, "storage"),
     );
+    const storageDuration = Math.round(performance.now() - storageStart);
+    console.log(`timing Storage snapshot: ${storageDuration}ms`);
     const activeStorageReferencesAfterSnapshot = await readManagedStorageReferencesFromProduction(environment.databaseUrl);
     assertActiveStorageReferencesStable(activeStorageReferencesBeforeSnapshot, activeStorageReferencesAfterSnapshot);
     assertActiveStorageReferencesCaptured(activeStorageReferencesBeforeSnapshot, storage.records);
@@ -100,10 +108,13 @@ async function main(): Promise<void> {
 
     const manifestPath = join(stagingRoot, "manifest.json");
     writeFileSync(manifestPath, serializeManifest(manifest), { flag: "wx" });
+    const encryptStart = performance.now();
     const archivePath = join(tempRoot, `${runId}.tar.gz`);
     runCommand("tar", ["-czf", archivePath, "-C", tempRoot, "backup"]);
     const artifactPath = join(tempRoot, `${runId}.tar.gz.age`);
     runCommand("age", ["-r", environment.ageRecipient, "-o", artifactPath, archivePath]);
+    const encryptDuration = Math.round(performance.now() - encryptStart);
+    console.log(`timing encrypt/archive: ${encryptDuration}ms`);
 
     const artifactBytes = readFileSync(artifactPath).byteLength;
     const artifactSha256 = sha256File(artifactPath);
@@ -134,6 +145,7 @@ async function main(): Promise<void> {
     };
     writeFileSync(completionPath, serializeCompletionMarker(completion), { flag: "wx" });
 
+    const r2Start = performance.now();
     const r2 = createR2Client(environment.r2);
     r2.put(artifactPath, keys.artifact, {
       contentType: "application/octet-stream",
@@ -153,6 +165,8 @@ async function main(): Promise<void> {
       metadata: { sha256: completionSha256, "run-id": runId, "backup-class": backupClass },
     });
     verifyR2Object(r2, keys.completion, completionPath, join(tempRoot, "completion.readback"));
+    const r2Duration = Math.round(performance.now() - r2Start);
+    console.log(`timing R2 upload/readback: ${r2Duration}ms`);
 
     console.log(
       `Production backup complete: class=${backupClass}, run=${runId}, artifactBytes=${artifactBytes}, storageObjects=${storage.objectCount}, storageBytes=${storage.totalBytes}, artifactSha256=${artifactSha256}.`,

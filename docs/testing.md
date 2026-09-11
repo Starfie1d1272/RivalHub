@@ -36,7 +36,7 @@ PR CI 保留 `static`、`postgres`、`system` 三条 capability lane，按 L0–
 - Draft 与 Ready PR 均使用同一个 Evidence Planner 根据 changed surface 计算所需的 affected capability 与 task。Draft PR 汇总为非 required 的 `draft-gate`，用于开发阶段快速反馈；Ready PR 产生 ruleset required 的 `ci-gate`，作为合并所需的代码正确性证据。Ready 状态不自动将测试深度升级为 FULL。
 - 普通业务变更（L1 Static、L2 PostgreSQL）仅运行对应 affected tests，不再仅因涉及报名、队伍或页面重要性自动触发 Local Supabase / browser system flow。
 - System（L3）仅在真实 Auth、Session、Storage provider 或 browser/provider glue 变更时进入 critical path。
-- FULL（L4）不再是普通 Ready PR 或 `main` push 的默认行为，仅作为明确的收敛事件（CI/toolchain/harness/unknown/destructive 改动、手动 `workflow_dispatch`、release 发布或 nightly 定时收敛）。
+- FULL（L4）不再是普通 Ready PR 或 `main` push 的默认行为，仅作为明确的收敛事件（CI/toolchain/harness/unknown/destructive 改动、手动 `workflow_dispatch` 或 nightly 定时收敛）。Release 直接消费 exact tag commit SHA 在 `main` 上的 canonical CI evidence，不在 production activation 后补跑第二套代码正确性 CI。
 - `main` push 采用 changed-surface 规划 affected smoke，不默认重复执行 FULL。精确 planner 与 job 以 `.github/workflows/ci.yml`、`scripts/ci/plan.mjs` 为 authority，排障见 [`operations/ci.md`](./operations/ci.md)。
 
 CI 只负责选择和阻断 evidence，不成为业务测试语义的第二 owner。

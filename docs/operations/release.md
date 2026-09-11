@@ -14,7 +14,7 @@ pnpm exec changeset version
 
 ## 2. Release commit 与 tag
 
-合并后从远端 `main` read back 实际 squash commit SHA，并确认该 exact commit 的完整 convergence CI 通过。只在这个 commit 上创建 immutable `vX.Y.Z` 或显式 semver prerelease tag；普通 `main` merge 不会自动 production deploy。
+合并后从远端 `main` read back 实际 squash commit SHA，并确认该 exact commit 在 `main` 上的 canonical CI workflow run（event=push, branch=main, head_sha=RELEASE_SHA）已通过。只在这个 commit 上创建 immutable `vX.Y.Z` 或显式 semver prerelease tag；普通 `main` merge 不会自动 production deploy。即使提前打 tag，Release workflow 自身的 preflight 也会 machine-enforce 此项 exact-SHA prerequisite。
 
 ## 3. Protected Release workflow
 
@@ -22,14 +22,25 @@ Push tag 或显式 retry 已存在 tag 后，GitHub Actions **Release** 围绕�
 
 ```text
 validate tag belongs to main
-→ validate active migration chain + previous-release compatibility
+→ verify exact-SHA CI prerequisite (canonical push run on main = success)
+→ validate active migration chain (DB-only local rehearsal) + previous-release compatibility
 → fresh pre-release backup + R2 read-back
 → migrate + verify production database
-→ deploy exact tag commit to Vercel Production
-→ protected deployment smoke + canonical production identity read-back
+→ deploy staged candidate to Vercel Production (--prod --skip-domain)
+→ smoke exact candidate deployment (OIDC token)
+→ promote candidate to canonical production (no rebuild)
+→ smoke canonical production identity + release read-back (rollback routing on failure)
 → provision + verify production scheduler
 → publish/update GitHub Release notes
 ```
+
+关键安全与执行边界：
+
+1. **Exact-SHA CI prerequisite**：在任何 backup、migration 或 deploy 之前，Release 必须验证当前 immutable tag 对应的 `RELEASE_SHA` 在 `main` 上的 canonical CI push run 结果为 `completed && success`；在途 run 进行 bounded poll，missing/failed/cancelled/timed out 全部 fail closed。
+2. **DB-only migration rehearsal**：本地 migration rehearsal 仅启动 PostgreSQL 容器（`pnpm db:local:start-db`），不启动 Local Supabase 的 Auth/Storage/browser 等无关服务；CI ephemeral runner 结束时自动回收容器，不再支付无意义的 stop 开销。
+3. **Staged Production deployment**：使用 `vercel deploy --prod --skip-domain` 在 Production 环境完成构建，但不将生产域名指向该 candidate；先用短期 GitHub OIDC token 对 exact candidate URL 完成 `/` 与 `/api/system/release` smoke 验证。
+4. **Promotion 与 Rollback 边界**：Candidate smoke 通过后，执行 `vercel promote <deployment> --yes` 将生产流量切换至该 deployment，无需二次构建。Promote 前记录旧版本 identity；若切换后 canonical smoke 失败，release 自动触发 `vercel rollback` 将 Vercel 路由恢复至 previous deployment 并校验域名恢复，但**绝不自动回滚 PostgreSQL migration**（旧版本兼容性由 `db:release-compat` 保证）。
+5. **Phase timing evidence**：各阶段耗时由 `scripts/ci/timing.mjs` 统一记录并写入 Step Summary，包含 backup 内部子阶段（DB dump、Storage snapshot、encrypt/archive、R2 upload/readback）及各部署步骤。
 
 production secrets、target confirmations 与 remote-write authorization 只存在于 protected production Environment/canonical wrappers。`VERCEL_TOKEN` 必须是 project-scoped deploy credential，只负责 exact production deploy。Release job 使用 `id-token: write`，在运行时向 GitHub OIDC endpoint 申请短期 token，audience 为 `https://github.com/Starfie1d1272`；protected exact `https://<deployment>.vercel.app` smoke 只发送 `x-vercel-trusted-oidc-idp-token`。canonical `https://match.starfie1d.top` 使用普通 HTTPS read-back，不携带 OIDC header。
 

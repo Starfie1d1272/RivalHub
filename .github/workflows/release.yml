@@ -18,13 +18,17 @@ concurrency:
 
 jobs:
   release:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     environment: production
     permissions:
+      actions: read
       contents: write
       id-token: write
     env:
       NEXT_TELEMETRY_DISABLED: 1
+      CI: true
+      RIVALHUB_TIMING: 1
+      RIVALHUB_TIMING_TITLE: "Release phase timing"
       # Fixed non-secret Vercel target. VERCEL_TOKEN is the project-scoped
       # deployment credential. Protected smoke obtains a short-lived GitHub
       # OIDC token at runtime. DATABASE_URL is a GitHub production Environment
@@ -38,6 +42,9 @@ jobs:
       RIVALHUB_PRODUCTION_DB_HOST_CONFIRM: aws-0-ap-northeast-1.pooler.supabase.com:6543
       RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
     steps:
+      - name: Capture workflow timing start
+        run: echo "RELEASE_WORKFLOW_START_MS=$(date +%s%3N)" >> "$GITHUB_ENV"
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ inputs.tag || github.ref }}
@@ -64,6 +71,9 @@ jobs:
           fi
           echo "RELEASE_SHA=$RELEASE_SHA" >> "$GITHUB_ENV"
 
+      - name: Start bootstrap/install timing
+        run: echo "RELEASE_BOOTSTRAP_START_MS=$(date +%s%3N)" >> "$GITHUB_ENV"
+
       - uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
         with:
           cache: true
@@ -71,6 +81,15 @@ jobs:
 
       - name: Install pinned Vercel CLI
         run: pnpm add --global vercel@59.11.7
+
+      - name: Record bootstrap/install timing
+        run: node scripts/ci/timing.mjs record --label "bootstrap/install" --start-ms "$RELEASE_BOOTSTRAP_START_MS"
+
+      - name: Verify exact-SHA CI prerequisite
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: node scripts/ci/timing.mjs "preflight exact-SHA CI wait" -- pnpm release:ci-prerequisite
 
       - name: Require Vercel deploy credential
         env:
@@ -86,10 +105,10 @@ jobs:
       - name: Validate active migration chain locally
         run: |
           pnpm db:check
-          pnpm db:local:start
+          node scripts/ci/timing.mjs "DB-only local readiness" -- pnpm db:local:start-db
 
       - name: Validate previous release compatibility
-        run: pnpm db:release-compat
+        run: node scripts/ci/timing.mjs "migration rehearsal" -- pnpm db:release-compat
 
       - name: Install age encryption tool
         run: |
@@ -107,7 +126,7 @@ jobs:
           RIVALHUB_R2_BUCKET: ${{ vars.RIVALHUB_R2_BUCKET }}
           RIVALHUB_R2_ACCESS_KEY_ID: ${{ secrets.RIVALHUB_R2_ACCESS_KEY_ID }}
           RIVALHUB_R2_SECRET_ACCESS_KEY: ${{ secrets.RIVALHUB_R2_SECRET_ACCESS_KEY }}
-        run: pnpm db:recovery:backup pre-release
+        run: node scripts/ci/timing.mjs "fresh backup total" -- pnpm db:recovery:backup pre-release
 
       - name: Migrate and verify production database
         env:
@@ -117,19 +136,22 @@ jobs:
             echo "GitHub production environment secret DATABASE_URL is required." >&2
             exit 1
           fi
-          RIVALHUB_ALLOW_REMOTE_DB_WRITE=production pnpm db:production:migrate
-          pnpm db:production:verify
+          node scripts/ci/timing.mjs "production migration" -- env RIVALHUB_ALLOW_REMOTE_DB_WRITE=production pnpm db:production:migrate
+          node scripts/ci/timing.mjs "production verify" -- pnpm db:production:verify
 
-      - name: Deploy exact release commit to Vercel Production
+      - name: Deploy candidate to Vercel Production (staged)
         id: deploy
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: |
-          DEPLOYMENT_URL="$(vercel deploy --prod --yes --token="$VERCEL_TOKEN" \
+          DEPLOY_START="$(date +%s%3N)"
+          DEPLOYMENT_URL="$(vercel deploy --prod --skip-domain --yes --token="$VERCEL_TOKEN" \
             --build-env RIVALHUB_RELEASE_TAG="$RELEASE_TAG" \
             --build-env RIVALHUB_RELEASE_COMMIT="$RELEASE_SHA")"
+          DEPLOY_END="$(date +%s%3N)"
+          node scripts/ci/timing.mjs record --label "Vercel candidate build/deploy" --start-ms "$DEPLOY_START" --end-ms "$DEPLOY_END"
           echo "url=$DEPLOYMENT_URL" >> "$GITHUB_OUTPUT"
-          echo "Production deployment: $DEPLOYMENT_URL"
+          echo "Staged candidate deployment: $DEPLOYMENT_URL"
 
       - name: Mint GitHub OIDC token for Vercel Trusted Sources
         id: oidc
@@ -149,12 +171,13 @@ jobs:
           echo "::add-mask::$oidc_token"
           echo "token=$oidc_token" >> "$GITHUB_OUTPUT"
 
-      - name: Smoke test production deployment
+      - name: Smoke test candidate deployment
         env:
           DEPLOYMENT_URL: ${{ steps.deploy.outputs.url }}
           VERCEL_TRUSTED_OIDC_IDP_TOKEN: ${{ steps.oidc.outputs.token }}
         run: |
           set -euo pipefail
+          SMOKE_START="$(date +%s%3N)"
           if [[ ! "$DEPLOYMENT_URL" =~ ^https://[a-z0-9][a-z0-9-]*\.vercel\.app/?$ ]]; then
             echo "Vercel deployment URL is not an exact *.vercel.app HTTPS target: $DEPLOYMENT_URL" >&2
             exit 1
@@ -167,19 +190,89 @@ jobs:
             --retry 8 --retry-all-errors --retry-delay 5 \
             -H "x-vercel-trusted-oidc-idp-token: $VERCEL_TRUSTED_OIDC_IDP_TOKEN" \
             "$DEPLOYMENT_URL/api/system/release")"
-          curl --fail --silent --show-error \
-            --retry 8 --retry-all-errors --retry-delay 5 \
-            "$RIVALHUB_PRODUCTION_BASE_URL/" >/dev/null
-          canonical_identity="$(curl --fail --silent --show-error \
-            --retry 8 --retry-all-errors --retry-delay 5 \
+          jq -e --arg tag "$RELEASE_TAG" --arg commit "$RELEASE_SHA" '
+            (keys | sort) == ["releaseCommit", "releaseTag"]
+            and .releaseTag == $tag
+            and .releaseCommit == $commit
+          ' <<<"$deployment_identity" >/dev/null
+          SMOKE_END="$(date +%s%3N)"
+          node scripts/ci/timing.mjs record --label "exact deployment smoke" --start-ms "$SMOKE_START" --end-ms "$SMOKE_END"
+          echo "Candidate deployment smoke verified identity: $deployment_identity"
+
+      - name: Promote candidate to canonical production
+        id: promote
+        env:
+          DEPLOYMENT_URL: ${{ steps.deploy.outputs.url }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          set -euo pipefail
+          # 严格获取并校验 promote 前 canonical production 的 release identity，fail-closed 防止盲切
+          PREVIOUS_IDENTITY="$(curl --fail --silent --show-error \
+            --retry 5 --retry-all-errors --retry-delay 3 \
             "$RIVALHUB_PRODUCTION_BASE_URL/api/system/release")"
-          for identity in "$deployment_identity" "$canonical_identity"; do
+          jq -e '
+            (keys | sort) == ["releaseCommit", "releaseTag"]
+            and (.releaseTag | test("^v[0-9]+\\.[0-9]+\\.[0-9]+(-[0-9A-Za-z.-]+)?$"))
+            and (.releaseCommit | test("^[0-9a-fA-F]{40}$"))
+          ' <<<"$PREVIOUS_IDENTITY" >/dev/null
+          PREVIOUS_TAG="$(jq -r .releaseTag <<<"$PREVIOUS_IDENTITY")"
+          PREVIOUS_COMMIT="$(jq -r .releaseCommit <<<"$PREVIOUS_IDENTITY")"
+          echo "previous_tag=$PREVIOUS_TAG" >> "$GITHUB_OUTPUT"
+          echo "previous_commit=$PREVIOUS_COMMIT" >> "$GITHUB_OUTPUT"
+          echo "Previous canonical production identity confirmed: tag=$PREVIOUS_TAG, commit=$PREVIOUS_COMMIT"
+
+          PROMOTE_START="$(date +%s%3N)"
+          vercel promote "$DEPLOYMENT_URL" --yes --token="$VERCEL_TOKEN"
+          PROMOTE_END="$(date +%s%3N)"
+          node scripts/ci/timing.mjs record --label "promotion" --start-ms "$PROMOTE_START" --end-ms "$PROMOTE_END"
+          echo "Promoted $DEPLOYMENT_URL to canonical production."
+
+      - name: Smoke test canonical production
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          PREVIOUS_TAG: ${{ steps.promote.outputs.previous_tag }}
+          PREVIOUS_COMMIT: ${{ steps.promote.outputs.previous_commit }}
+        run: |
+          set -euo pipefail
+          CANONICAL_START="$(date +%s%3N)"
+          smoke_canonical() {
+            curl --fail --silent --show-error \
+              --retry 8 --retry-all-errors --retry-delay 5 \
+              "$RIVALHUB_PRODUCTION_BASE_URL/" >/dev/null || return 1
+            canonical_identity="$(curl --fail --silent --show-error \
+              --retry 8 --retry-all-errors --retry-delay 5 \
+              "$RIVALHUB_PRODUCTION_BASE_URL/api/system/release")" || return 1
             jq -e --arg tag "$RELEASE_TAG" --arg commit "$RELEASE_SHA" '
               (keys | sort) == ["releaseCommit", "releaseTag"]
               and .releaseTag == $tag
               and .releaseCommit == $commit
-            ' <<<"$identity" >/dev/null
-          done
+            ' <<<"$canonical_identity" >/dev/null || return 1
+            echo "Canonical production identity confirmed: $canonical_identity"
+            return 0
+          }
+
+          if ! smoke_canonical; then
+            echo "::error::Canonical production smoke failed after promotion; initiating Vercel routing rollback..." >&2
+            if vercel rollback --yes --token="$VERCEL_TOKEN"; then
+              echo "Vercel rollback command succeeded; verifying canonical domain restored previous release identity..."
+              sleep 5
+              reverted_identity="$(curl --fail --silent --show-error \
+                --retry 5 --retry-all-errors --retry-delay 3 \
+                "$RIVALHUB_PRODUCTION_BASE_URL/api/system/release")"
+              echo "Reverted canonical identity: $reverted_identity"
+              jq -e --arg tag "$PREVIOUS_TAG" --arg commit "$PREVIOUS_COMMIT" '
+                (keys | sort) == ["releaseCommit", "releaseTag"]
+                and .releaseTag == $tag
+                and .releaseCommit == $commit
+              ' <<<"$reverted_identity" >/dev/null
+              echo "Canonical domain successfully restored previous identity: tag=$PREVIOUS_TAG, commit=$PREVIOUS_COMMIT."
+            else
+              echo "::error::Vercel rollback command failed! Manual intervention required." >&2
+            fi
+            exit 1
+          fi
+          CANONICAL_END="$(date +%s%3N)"
+          node scripts/ci/timing.mjs record --label "canonical smoke" --start-ms "$CANONICAL_START" --end-ms "$CANONICAL_END"
 
       - name: Provision and verify production scheduler
         env:
@@ -191,8 +284,11 @@ jobs:
             echo "GitHub production environment secret CRON_SECRET is required." >&2
             exit 1
           fi
-          RIVALHUB_ALLOW_REMOTE_DB_WRITE=production pnpm db:production:scheduler:provision
-          pnpm db:production:scheduler:verify
+          node scripts/ci/timing.mjs "scheduler provision/verify" -- bash -c '
+            set -euo pipefail
+            RIVALHUB_ALLOW_REMOTE_DB_WRITE=production pnpm db:production:scheduler:provision
+            pnpm db:production:scheduler:verify
+          '
 
       - name: Extract changelog for this version
         run: |
@@ -208,6 +304,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          RELEASE_PUB_START="$(date +%s%3N)"
           VERSION="${RELEASE_TAG#v}"
           if [[ "$VERSION" == *-* ]]; then
             RELEASE_FLAGS=(--prerelease --latest=false)
@@ -230,7 +327,13 @@ jobs:
               --notes-file /tmp/release-notes.md \
               "${RELEASE_FLAGS[@]}"
           fi
+          RELEASE_PUB_END="$(date +%s%3N)"
+          node scripts/ci/timing.mjs record --label "GitHub Release publish" --start-ms "$RELEASE_PUB_START" --end-ms "$RELEASE_PUB_END"
 
-      - name: Stop Local Supabase
+      - name: Record workflow total wall time and summary
         if: always()
-        run: pnpm db:local:stop || true
+        run: |
+          if [[ -n "$RELEASE_WORKFLOW_START_MS" ]]; then
+            node scripts/ci/timing.mjs record --label "TOTAL wall time" --start-ms "$RELEASE_WORKFLOW_START_MS"
+          fi
+          node scripts/ci/timing.mjs summary

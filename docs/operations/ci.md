@@ -12,7 +12,7 @@ plan ─→ static ─────┐
    └─→ dependency-review（PR）
 ```
 
-`draft-gate` 汇总 Draft PR 的 affected evidence，用于开发中快速反馈，不能满足 ruleset 的 merge requirement。`ci-gate` 由 Ready PR、`main` push、merge queue、release、nightly schedule 和手动运行产生；它是代码正确性 evidence 的 required check：planner 明确允许跳过的 job 可以 skipped；本应运行却 failure / cancelled / unexpected skipped 的 capability 会阻断合并。PR metadata policy 由独立的 `pr-title` check 负责；要使其阻断合并，Main ruleset 需与 `ci-gate` 一起要求该 check。
+`draft-gate` 汇总 Draft PR 的 affected evidence，用于开发中快速反馈，不能满足 ruleset 的 merge requirement。`ci-gate` 由 Ready PR、`main` push、merge queue、nightly schedule 和手动运行产生；它是代码正确性 evidence 的 required check：planner 明确允许跳过的 job 可以 skipped；本应运行却 failure / cancelled / unexpected skipped 的 capability 会阻断合并。PR metadata policy 由独立的 `pr-title` check 负责；要使其阻断合并，Main ruleset 需与 `ci-gate` 一起要求该 check。
 
 ## Capabilities
 
@@ -63,7 +63,7 @@ CI 遵循 L0–L4 风险分层与最低且足够可信证据原则：
 - **L1 Static**：pure rule、formatter、presenter、component、UI/layout 等不跨 persistence/provider 边界的变化，运行 affected type/lint/architecture/unit。
 - **L2 PostgreSQL**：Server Action persistence、DB query、transaction、migration 等，运行 L1 + real PostgreSQL。
 - **L3 System**：Auth、Session、Storage provider 或 browser/provider glue，运行 L1/L2 + Local Supabase + targeted E2E。
-- **L4 Full convergence**：CI/toolchain/harness/unknown/destructive 改动、手动 FULL、release 发布或 nightly 定时收敛，运行完整 static + postgres + system。
+- **L4 Full convergence**：CI/toolchain/harness/unknown/destructive 改动、手动 FULL 或 nightly 定时收敛，运行完整 static + postgres + system。Release 直接消费 exact release SHA 在 `main` 上的 canonical CI evidence，不重复触发或等待第二套 FULL CI。
 
 Pull Request 的 Draft / Ready 仅代表协作与合并准入状态，不直接决定测试深度：
 
@@ -74,7 +74,15 @@ Pull Request 的 Draft / Ready 仅代表协作与合并准入状态，不直接�
 
 `scripts/ci/timing.mjs` 的 command wrapper 是 project wall-time owner。`vitest-timing-reporter.ts` 只输出 per-project facts 与 top 15 per-file diagnostic duration，Step Summary 会明确区分两者。
 
-`push` 到 `main`、merge queue、release 和手动 workflow 运行完整 convergence gate。
+`push` 到 `main` 同样采用 changed-surface 规划 affected evidence 并产生 exact-SHA CI evidence，遇到未知/破坏性/工具链变更时 fail closed 到 FULL；merge queue、nightly 与手动 workflow 运行完整 convergence gate。Release 消费 exact tag commit SHA 的 push CI 成功证据，不重复执行代码正确性 CI。
+
+## Concurrency 与 exact-SHA 证据隔离
+
+CI 的 concurrency 分组策略兼顾 PR 快速取消与 release exact-SHA 证据保护：
+
+- **Pull Request**：按 PR 编号独立分组（`ci-CI-pull_request-<number>`），启用 `cancel-in-progress: true`；同 PR 的新 push 立即取消旧 SHA 的在途 run，避免积压 CI 资源。
+- **main push**：按 exact commit SHA 独立分组（`ci-CI-push-<sha>`），配置 `cancel-in-progress: false`；每个进入 main 的 commit run 独立执行，不被后续 main push 误取消，确保 release 所需的 exact-SHA CI 证据永久可靠。
+- **schedule / merge queue / workflow_dispatch**：按各自 event 语义稳定分组。
 
 `ci.yml` 只响应会改变代码 evidence 的 PR event（opened、synchronize、reopened、ready_for_review）。`.github/workflows/pr-metadata.yml` 在上述事件和 `edited` 上独立运行 `pr-title`；因此 title/body 编辑不会取消、覆盖或重跑当前 head 的 `ci-gate`，而新 commit 的 `synchronize` 仍会为其 SHA 重新产生 title check。Ready PR 的新 push 必须等待该 SHA 的 FULL CI 完成，不能沿用旧 SHA 的成功结果。
 
