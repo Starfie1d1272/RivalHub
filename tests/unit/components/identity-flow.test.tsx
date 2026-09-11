@@ -9,14 +9,13 @@ import { EducationVerificationPanel } from "@/components/settings/EducationVerif
 import { IdentityManager } from "@/components/settings/IdentityManager";
 import { EducationVerificationReviewQueue } from "@/components/admin/EducationVerificationReviewQueue";
 
-const { loginWithPasswordMock, signUpMock, resendSignupConfirmationMock, getInstitutionSearchMock, submitEducationVerificationMock, submitAdmissionNoticeEducationMock, getEducationManualEvidenceUrlMock, toastSuccessMock, toastErrorMock, refreshMock, replaceMock, pushMock, searchParamsMock } = vi.hoisted(() => ({
+const { loginWithPasswordMock, signUpMock, resendSignupConfirmationMock, getInstitutionSearchMock, submitEducationVerificationMock, submitAdmissionNoticeEducationMock, toastSuccessMock, toastErrorMock, refreshMock, replaceMock, pushMock, searchParamsMock } = vi.hoisted(() => ({
   loginWithPasswordMock: vi.fn(),
   signUpMock: vi.fn(),
   resendSignupConfirmationMock: vi.fn(),
   getInstitutionSearchMock: vi.fn(),
   submitEducationVerificationMock: vi.fn(),
   submitAdmissionNoticeEducationMock: vi.fn(),
-  getEducationManualEvidenceUrlMock: vi.fn(),
   toastSuccessMock: vi.fn(),
   toastErrorMock: vi.fn(),
   refreshMock: vi.fn(),
@@ -32,7 +31,7 @@ vi.mock("next/navigation", () => ({
 }));
 vi.mock("sonner", () => ({ toast: { success: toastSuccessMock, error: toastErrorMock } }));
 vi.mock("@/actions/auth", () => ({ loginWithPassword: loginWithPasswordMock, signUp: signUpMock, resendSignupConfirmation: resendSignupConfirmationMock, resendCurrentEmailVerification: vi.fn() }));
-vi.mock("@/actions/education-verifications", () => ({ declareInstitutionalEmailEducation: vi.fn(), getEducationManualEvidenceUrl: getEducationManualEvidenceUrlMock, getInstitutionSearch: getInstitutionSearchMock, submitAdmissionNoticeEducation: submitAdmissionNoticeEducationMock, submitEducationVerification: submitEducationVerificationMock, reviewEducationVerification: vi.fn() }));
+vi.mock("@/actions/education-verifications", () => ({ declareInstitutionalEmailEducation: vi.fn(), getInstitutionSearch: getInstitutionSearchMock, submitAdmissionNoticeEducation: submitAdmissionNoticeEducationMock, submitEducationVerification: submitEducationVerificationMock, reviewEducationVerification: vi.fn() }));
 vi.mock("@/actions/identity", () => ({ requestSecondaryEmailIdentity: vi.fn(), revokeSecondaryEmailIdentity: vi.fn() }));
 vi.mock("@/components/auth/TurnstileWidget", () => ({
   TurnstileWidget: ({ onVerify, onError }: { onVerify: (token: string) => void; onError: (failure: { kind: "challenge_error"; errorCode: string }) => void }) => {
@@ -265,7 +264,10 @@ describe("identity flow UI", () => {
     render(<EducationVerificationReviewQueue emptyState="no-pending" rows={[{ id: "33333333-3333-4333-8333-333333333333", email: "player@example.test", displayName: null, institution: "南京大学", code: "4132010284", academicStatus: "enrolled", evidenceLabel: "录取通知书材料", chsiEvidenceCode: null, manualEvidenceAvailable: true, status: "pending", submittedAt: new Date().toISOString(), reviewNote: null }]} />);
 
     expect(screen.getByText("材料：录取通知书材料")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "查看材料" })).toBeInTheDocument();
+    const link = screen.getByRole("link", { name: "查看材料" });
+    expect(link).toHaveAttribute("href", "/admin/education-verifications/33333333-3333-4333-8333-333333333333/evidence");
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(link).toHaveAttribute("rel", "noopener noreferrer");
     expect(screen.queryByText("manual_other")).not.toBeInTheDocument();
     expect(screen.queryByText("evidence_object_key")).not.toBeInTheDocument();
   });

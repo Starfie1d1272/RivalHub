@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 import { toast } from "sonner";
-import { getEducationManualEvidenceUrl, reviewEducationVerification } from "@/actions/education-verifications";
+import { reviewEducationVerification } from "@/actions/education-verifications";
 import { EmptyState, Panel } from "@/components/rivalhub";
 import { Button } from "@/components/ui/button";
 import { formatCST } from "@/lib/utils/date";
@@ -49,24 +49,6 @@ export function EducationVerificationReviewQueue({ rows, emptyState }: Education
     }
   });
 
-  const openManualEvidence = (id: string) => startTransition(async () => {
-    // Reserve the tab during the click gesture; the signed URL arrives after
-    // the server action and would otherwise be vulnerable to popup blocking.
-    const popup = window.open("about:blank", "_blank", "noopener,noreferrer");
-    const result = await getEducationManualEvidenceUrl({ id });
-    if (!result.success) {
-      popup?.close();
-      toast.error(result.error.message);
-      return;
-    }
-    if (popup) {
-      popup.location.href = result.data;
-      return;
-    }
-    const opened = window.open(result.data, "_blank", "noopener,noreferrer");
-    if (!opened) toast.error("浏览器阻止了材料窗口，请允许弹出窗口后重试。");
-  });
-
   return (
     <div className="min-w-0 space-y-4">
       {pending && <div className="flex justify-end"><span className="text-xs text-[var(--color-accent)]">处理中…</span></div>}
@@ -96,7 +78,15 @@ export function EducationVerificationReviewQueue({ rows, emptyState }: Education
                     <a className="text-sm underline" href="https://www.chsi.com.cn/xlcx/bgcx.jsp" target="_blank" rel="noopener noreferrer">在学信网核验 ↗</a>
                   </div>
                 ) : row.evidenceLabel === "录取通知书材料" && row.manualEvidenceAvailable ? (
-                  <Button size="sm" variant="outline" disabled={pending} onClick={() => openManualEvidence(row.id)}>查看材料</Button>
+                  <Button size="sm" variant="outline" asChild data-pending={pending || undefined}>
+                    <a
+                      href={`/admin/education-verifications/${row.id}/evidence`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-disabled={pending}
+                      onClick={pending ? (event) => event.preventDefault() : undefined}
+                    >查看材料</a>
+                  </Button>
                 ) : row.status !== "pending" && row.evidenceLabel === "录取通知书材料" ? (
                   <p className="text-sm text-[var(--color-fg-mid)]">录取通知书材料：已按保留策略清理</p>
                 ) : row.status !== "pending" && isChsiEvidenceLabel(row.evidenceLabel) ? (
