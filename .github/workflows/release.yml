@@ -285,6 +285,7 @@ jobs:
             exit 1
           fi
           node scripts/ci/timing.mjs "scheduler provision/verify" -- bash -c '
+            set -euo pipefail
             RIVALHUB_ALLOW_REMOTE_DB_WRITE=production pnpm db:production:scheduler:provision
             pnpm db:production:scheduler:verify
           '

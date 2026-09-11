@@ -304,7 +304,7 @@ describe("deployment and operations contracts", () => {
     expect(workflow).not.toContain("|| true");
   });
 
-  it("provisions the primary scheduler only after production smoke", () => {
+  it("provisions the primary scheduler only after production smoke with strict fail-fast", () => {
     const release = readProjectFile(".github/workflows/release.yml");
 
     expect(release).toContain("Provision and verify production scheduler");
@@ -313,6 +313,13 @@ describe("deployment and operations contracts", () => {
     expect(release).toContain("pnpm db:production:scheduler:verify");
     expect(release.indexOf("Smoke test canonical production")).toBeLessThan(release.indexOf("Provision and verify production scheduler"));
     expect(release.indexOf("Provision and verify production scheduler")).toBeLessThan(release.indexOf("Extract changelog for this version"));
+
+    // Verify bash -c fail-fast safety
+    const schedulerStep = release.slice(
+      release.indexOf("Provision and verify production scheduler"),
+      release.indexOf("Extract changelog for this version"),
+    );
+    expect(schedulerStep).toMatch(/bash -c '\s*set -euo pipefail/);
   });
 
   it("enforces Issue #603 release orchestration and CI convergence contract", () => {
