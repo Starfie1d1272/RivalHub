@@ -14,9 +14,9 @@
 ## Draft → Ready 开发与 CI
 
 - 新功能、修复和文档工作默认以 **Draft PR** 开始。Draft 期间每次 push 由 Evidence Planner 根据 changed surface 选择 affected static、PostgreSQL integration spec 和 semantic browser flow，并以 `draft-gate` 汇总；该结果用于快速反馈，不是最终 merge evidence。
-- 本地迭代只执行与当前改动匹配的 host-only 快速检查。不要为了每次修改重复启动 PostgreSQL、Local Supabase 或 browser 重型环境；对应真实环境证据由 Draft CI 按需运行，失败复现时再按 [`docs/operations/local-development.md`](docs/operations/local-development.md) 启动最小层级。
-- 实现和本地快速检查完成、准备交付时，才将 PR 标记为 **Ready for review**。`ready_for_review` 事件必须触发一次不受 affected planner 削减的 FULL CI，覆盖完整 static、postgres、system capability；Ready PR 后续每次 push 也必须重新产生该 commit 的 FULL CI。
-- 只有最新 commit 的 FULL CI、required `ci-gate` / `pr-title` 及 ruleset 要求的其它 checks 全部成功，且 strict up-to-date 与 review thread 条件满足后，才可以 merge。Ready PR 的新 push 会使旧 commit 的 FULL evidence 失效，不能沿用旧结果。
+- 本地迭代只执行与当前改动匹配的 host-only 快速检查。不要为了每次修改重复启动 PostgreSQL、Local Supabase 或 browser 重型环境；对应真实环境证据由 CI 按需运行，失败复现时再按 [`docs/operations/local-development.md`](docs/operations/local-development.md) 启动最小层级。
+- 实现和本地快速检查完成、准备交付时，将 PR 标记为 **Ready for review**。Ready PR 使用同一个 Evidence Planner 规划与变更风险相匹配的最低充分 evidence（遵循 L0–L4 风险分层，不机械升级为 FULL），并产生 ruleset required 的 `ci-gate`。
+- 只有最新 commit 的 required `ci-gate` / `pr-title` 及 ruleset 要求的其它 checks 全部成功，且 strict up-to-date 与 review thread 条件满足后，才可以 merge。新 push 会使旧 commit 的 evidence 失效，不能沿用旧结果。
 
 ## Changeset and release
 

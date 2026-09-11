@@ -30,7 +30,10 @@ describe("changed-surface planner", () => {
   it.each([
     ["src/actions/auth.ts", ["static", "postgres", "system"]],
     ["src/lib/auth/supabase.ts", ["static", "system"]],
-    ["src/app/[seasonSlug]/register/page.tsx", ["static", "postgres", "system"]],
+    ["src/app/[seasonSlug]/register/page.tsx", ["static", "postgres"]],
+    ["src/actions/register.ts", ["static", "postgres"]],
+    ["src/actions/competition-entries.ts", ["static", "postgres"]],
+    ["src/lib/education/storage.ts", ["static", "system"]],
     ["src/app/api/test/e2e/auth/route.ts", ["static", "system"]],
     ["scripts/ci/timing.mjs", ["static"]],
     ["scripts/db/pg17-integration.ts", ["static", "postgres"]],
@@ -50,31 +53,121 @@ describe("changed-surface planner", () => {
     expect(classifyChangedFiles([]).requiredJobs).toEqual(["static", "postgres", "system"]);
   });
 
-  it("uses the full evidence plan for a Ready PR while Draft PRs stay affected", () => {
-    const entry = [{ status: "M", paths: ["tests/unit/components/Foo.test.tsx"] }];
-    const draft = classifyChangedFiles(entry, { draft: true });
+  it("decouples Draft and Ready PR from evidence depth and only alters gateName", () => {
+    const pureUiEntry = [{ status: "M", paths: ["src/components/layout/Footer.tsx"] }];
+    
+    // Draft pure UI -> affected static + draft-gate
+    const draft = classifyChangedFiles(pureUiEntry, { draft: true });
     expect(draft.full).toBe(false);
+    expect(draft.requiredJobs).toEqual(["static"]);
     expect(draft.gateName).toBe("draft-gate");
-    expect(draft.staticMatrix).toEqual(expect.arrayContaining([
-      expect.objectContaining({ task: "type-tests" }),
-      expect.objectContaining({ task: "unit-explicit-unit-react-jsdom", mode: "explicit", explicitTests: ["tests/unit/components/Foo.test.tsx"] }),
-    ]));
 
-    const ready = classifyChangedFiles(entry, { draft: false });
-    expect(ready.full).toBe(true);
+    // Ready pure UI -> same affected static + ci-gate, NOT full
+    const ready = classifyChangedFiles(pureUiEntry, { draft: false });
+    expect(ready.full).toBe(false);
+    expect(ready.requiredJobs).toEqual(["static"]);
     expect(ready.gateName).toBe("ci-gate");
-    expect(ready.staticMatrix.map(({ task }) => task)).toContain("unit-react");
-    expect(ready.staticMatrix.map(({ task }) => task)).toContain("build");
   });
 
-  it("keeps Draft full fallback separate from the final merge gate", () => {
-    const draftFallback = classifyChangedFiles([{ status: "M", paths: ["pnpm-lock.yaml"] }], { draft: true });
-    const finalGate = classifyChangedFiles([{ status: "M", paths: ["docs/testing.md"] }], { forceFull: true, draft: false });
+  it("keeps Ready Server Action / registration transaction on static + PG without triggering system", () => {
+    const registrationAction = [{ status: "M", paths: ["src/actions/register.ts"] }];
+    const plan = classifyChangedFiles(registrationAction, { draft: false });
+    expect(plan.full).toBe(false);
+    expect(plan.requiredJobs).toEqual(["static", "postgres"]);
+    expect(plan.runSystem).toBe(false);
+    expect(plan.gateName).toBe("ci-gate");
+  });
 
-    expect(draftFallback.full).toBe(true);
-    expect(draftFallback.gateName).toBe("draft-gate");
-    expect(finalGate.full).toBe(true);
-    expect(finalGate.gateName).toBe("ci-gate");
+  it("routes Auth and Storage providers to system", () => {
+    const authProvider = classifyChangedFiles([{ status: "M", paths: ["src/lib/auth/supabase.ts"] }], { draft: false });
+    expect(authProvider.requiredJobs).toContain("system");
+    expect(authProvider.e2eSpecs).toEqual(["tests/e2e/flows/major-entry.spec.ts"]);
+
+    const storageProvider = classifyChangedFiles([{ status: "M", paths: ["src/lib/education/storage.ts"] }], { draft: false });
+    expect(storageProvider.requiredJobs).toContain("system");
+    expect(storageProvider.e2eSpecs).toEqual(["tests/e2e/flows/education-manual-fallback.spec.ts"]);
+
+    const educationCommands = classifyChangedFiles([{ status: "M", paths: ["src/lib/education/commands.ts"] }], { draft: false });
+    expect(educationCommands.requiredJobs).toContain("system");
+    expect(educationCommands.e2eSpecs).toEqual(["tests/e2e/flows/education-manual-fallback.spec.ts"]);
+
+    const educationAction = classifyChangedFiles([{ status: "M", paths: ["src/actions/education-verifications.ts"] }], { draft: false });
+    expect(educationAction.requiredJobs).toContain("system");
+    expect(educationAction.e2eSpecs).toEqual(["tests/e2e/flows/education-manual-fallback.spec.ts"]);
+
+    const educationPanel = classifyChangedFiles([{ status: "M", paths: ["src/components/settings/EducationVerificationPanel.tsx"] }], { draft: false });
+    expect(educationPanel.requiredJobs).toContain("system");
+    expect(educationPanel.e2eSpecs).toEqual(["tests/e2e/flows/education-manual-fallback.spec.ts"]);
+
+    const educationValidation = classifyChangedFiles([{ status: "M", paths: ["src/lib/education/validation.ts"] }], { draft: false });
+    expect(educationValidation.runSystem).toBe(false);
+    expect(educationValidation.requiredJobs).not.toContain("system");
+  });
+
+  it("enforces invariant: any evidence with e2eSpecs must activate system capability", () => {
+    const plan = classifyChangedFiles([{ status: "M", paths: ["src/actions/education-verifications.ts"] }], { draft: true });
+    expect(plan.e2eSpecs.length).toBeGreaterThan(0);
+    expect(plan.runSystem).toBe(true);
+    expect(plan.requiredJobs).toContain("system");
+  });
+
+  it("keeps migration on PG without triggering system", () => {
+    const migration = classifyChangedFiles([{ status: "A", paths: ["drizzle/migrations/0048_new_feature.sql"] }], { draft: false });
+    expect(migration.full).toBe(false);
+    expect(migration.requiredJobs).toEqual(["postgres"]);
+    expect(migration.runSystem).toBe(false);
+  });
+
+  it("selects targeted system for E2E spec and falls back to full system / L4 for shared harness", () => {
+    const e2eSpec = classifyChangedFiles([{ status: "M", paths: ["tests/e2e/flows/major-entry.spec.ts"] }], { draft: false });
+    expect(e2eSpec.full).toBe(false);
+    expect(e2eSpec.requiredJobs).toEqual(["static", "system"]);
+    expect(e2eSpec.e2eSpecs).toEqual(["tests/e2e/flows/major-entry.spec.ts"]);
+
+    const e2eFixture = classifyChangedFiles([{ status: "M", paths: ["tests/e2e/fixtures.ts"] }], { draft: false });
+    expect(e2eFixture.requiredJobs).toEqual(["static", "system"]);
+    expect(e2eFixture.e2eSpecs).toEqual([]); // full system suite fallback
+  });
+
+  it("fails closed to FULL for workflow, planner, toolchain, unknown, and rename/delete", () => {
+    expect(classifyChangedFiles([{ status: "M", paths: [".github/workflows/ci.yml"] }]).full).toBe(true);
+    expect(classifyChangedFiles([{ status: "M", paths: ["package.json"] }]).full).toBe(true);
+    expect(classifyChangedFiles([{ status: "M", paths: ["unknown-tooling/something.bin"] }]).full).toBe(true);
+    expect(classifyChangedFiles([{ status: "R100", paths: ["src/a.ts", "src/b.ts"] }]).full).toBe(true);
+    expect(classifyChangedFiles([{ status: "D", paths: ["src/old.ts"] }]).full).toBe(true);
+  });
+
+  it("treats docs and Changeset as L0 metadata with planner + gate only", () => {
+    const docsPlan = classifyChangedFiles([{ status: "M", paths: ["docs/testing.md"] }], { draft: true });
+    expect(docsPlan.full).toBe(false);
+    expect(docsPlan.requiredJobs).toEqual([]);
+    expect(docsPlan.runStatic).toBe(false);
+    expect(docsPlan.gateName).toBe("draft-gate");
+
+    const readyDocsPlan = classifyChangedFiles([{ status: "M", paths: ["docs/testing.md"] }], { draft: false });
+    expect(readyDocsPlan.full).toBe(false);
+    expect(readyDocsPlan.requiredJobs).toEqual([]);
+    expect(readyDocsPlan.gateName).toBe("ci-gate");
+  });
+
+  it("plans main ordinary business merge as affected instead of FULL", () => {
+    const mainPushChanges = [
+      { status: "M", paths: ["src/actions/register.ts"] },
+      { status: "M", paths: ["src/components/ui/button.tsx"] },
+    ];
+    // on main push: forceFull=false, draft=false
+    const mainPlan = classifyChangedFiles(mainPushChanges, { forceFull: false, draft: false });
+    expect(mainPlan.full).toBe(false);
+    expect(mainPlan.requiredJobs).toEqual(["static", "postgres"]);
+    expect(mainPlan.runSystem).toBe(false);
+    expect(mainPlan.gateName).toBe("ci-gate");
+  });
+
+  it("forces FULL for manual, release, or scheduled convergence", () => {
+    const plan = classifyChangedFiles([{ status: "M", paths: ["src/components/ui/button.tsx"] }], { forceFull: true, draft: false });
+    expect(plan.full).toBe(true);
+    expect(plan.requiredJobs).toEqual(["static", "postgres", "system"]);
+    expect(plan.gateName).toBe("ci-gate");
   });
 
   it("separates related sources from explicit tests and keeps global contracts executable", () => {
@@ -91,20 +184,6 @@ describe("changed-surface planner", () => {
     ]));
   });
 
-  it("selects conservative PG and browser evidence for affected draft changes", () => {
-    const result = classifyChangedFiles([
-      { status: "M", paths: ["tests/integration/db/team-registration.test.ts"] },
-      { status: "M", paths: ["src/app/team-invites/[token]/page.tsx"] },
-    ], { draft: true });
-
-    expect(result.integrationSpecs).toEqual(["tests/integration/db/team-registration.test.ts"]);
-    expect(result.e2eSpecs).toEqual(["tests/e2e/flows/team-invitations.spec.ts"]);
-    expect(result.staticMatrix).toEqual(expect.arrayContaining([
-      expect.objectContaining({ task: "type-app" }),
-      expect.objectContaining({ task: "type-tests" }),
-    ]));
-  });
-
   it("does not send generated migration metadata to eslint", () => {
     const result = classifyChangedFiles([
       { status: "A", paths: ["drizzle/migrations/meta/0047_snapshot.json"] },
@@ -115,23 +194,5 @@ describe("changed-surface planner", () => {
     expect(result.staticMatrix).toEqual(expect.arrayContaining([
       expect.objectContaining({ task: "lint-changed", changedPaths: ["scripts/db/scheduler.ts"] }),
     ]));
-  });
-
-  it("direct-selects only test specs and falls back to full lane evidence for support files", () => {
-    const e2eSpec = classifyChangedFiles([{ status: "M", paths: ["tests/e2e/flows/major-entry.spec.ts"] }], { draft: true });
-    const e2eFixture = classifyChangedFiles([{ status: "M", paths: ["tests/e2e/fixtures.ts"] }], { draft: true });
-    const e2eHelper = classifyChangedFiles([{ status: "M", paths: ["tests/e2e/helpers/session.ts"] }], { draft: true });
-    const e2eSnapshot = classifyChangedFiles([{ status: "M", paths: ["tests/e2e/visual/ui-system.spec.ts-snapshots/privacy-1440x900-chromium.png"] }], { draft: true });
-    const integrationSpec = classifyChangedFiles([{ status: "M", paths: ["tests/integration/db/team-registration.test.ts"] }], { draft: true });
-    const integrationSupport = classifyChangedFiles([{ status: "M", paths: ["tests/integration/db/support.ts"] }], { draft: true });
-
-    expect(e2eSpec.e2eSpecs).toEqual(["tests/e2e/flows/major-entry.spec.ts"]);
-    for (const plan of [e2eFixture, e2eHelper, e2eSnapshot]) {
-      expect(plan.requiredJobs).toEqual(["static", "system"]);
-      expect(plan.e2eSpecs).toEqual([]);
-    }
-    expect(integrationSpec.integrationSpecs).toEqual(["tests/integration/db/team-registration.test.ts"]);
-    expect(integrationSupport.requiredJobs).toEqual(["static", "postgres"]);
-    expect(integrationSupport.integrationSpecs).toEqual([]);
   });
 });

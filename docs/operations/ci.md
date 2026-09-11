@@ -12,7 +12,7 @@ plan ─→ static ─────┐
    └─→ dependency-review（PR）
 ```
 
-`draft-gate` 只汇总 Draft affected evidence，不能满足 ruleset 的 merge requirement。`ci-gate` 只由 Ready PR、Ready 后新 push、`main`、merge queue、release 和手动 FULL 运行产生；它是代码正确性 evidence 的 required check：planner 明确允许跳过的 job 可以 skipped；本应运行却 failure / cancelled / unexpected skipped 的 capability 会阻断合并。PR metadata policy 由独立的 `pr-title` check 负责；要使其阻断合并，Main ruleset 需与 `ci-gate` 一起要求该 check。
+`draft-gate` 汇总 Draft PR 的 affected evidence，用于开发中快速反馈，不能满足 ruleset 的 merge requirement。`ci-gate` 由 Ready PR、`main` push、merge queue、release、nightly schedule 和手动运行产生；它是代码正确性 evidence 的 required check：planner 明确允许跳过的 job 可以 skipped；本应运行却 failure / cancelled / unexpected skipped 的 capability 会阻断合并。PR metadata policy 由独立的 `pr-title` check 负责；要使其阻断合并，Main ruleset 需与 `ci-gate` 一起要求该 check。
 
 ## Capabilities
 
@@ -57,21 +57,20 @@ Pull Request 额外运行 dependency review；达到 workflow 设定的严重度
 
 ## Selective vs full
 
-Pull Request 使用 Draft → Ready 两阶段流程。新 PR 默认保持 Draft：
+CI 遵循 L0–L4 风险分层与最低且足够可信证据原则：
 
-1. Draft 的 `opened` / `synchronize` 由 changed-surface planner 选择本次改动需要的 capability 和 evidence task，并以 `draft-gate` 汇总。static 可以只跑 affected Vitest project 与 changed-file lint，postgres/system 可以只跑明确的 integration spec 或 semantic E2E flow；只有真实 `*.test.*` / `*.spec.*` 文件可作为 direct selector，fixture、helper、snapshot 与 harness 改动会保留对应 lane 的 full suite。
-2. 实现完成并标记 Ready for review 时，`ready_for_review` 以 `PR_DRAFT=false` 重新运行 planner，直接输出 FULL matrix。该事件必须产生完整 static、postgres、system evidence，不得被 affected heuristic 削减。
-3. Ready PR 后续的每次 `synchronize` 仍然是 FULL；新 commit 产生后，旧 commit 的 FULL CI 不再是当前 merge evidence。
+- **L0 Metadata**：docs、Changeset、纯 release metadata，仅保留 planner + gate，不启动测试容器。
+- **L1 Static**：pure rule、formatter、presenter、component、UI/layout 等不跨 persistence/provider 边界的变化，运行 affected type/lint/architecture/unit。
+- **L2 PostgreSQL**：Server Action persistence、DB query、transaction、migration 等，运行 L1 + real PostgreSQL。
+- **L3 System**：Auth、Session、Storage provider 或 browser/provider glue，运行 L1/L2 + Local Supabase + targeted E2E。
+- **L4 Full convergence**：CI/toolchain/harness/unknown/destructive 改动、手动 FULL、release 发布或 nightly 定时收敛，运行完整 static + postgres + system。
 
-Draft planner 的 capability 规则为：
+Pull Request 的 Draft / Ready 仅代表协作与合并准入状态，不直接决定测试深度：
 
-- docs-only 可以只保留 planner + gate；
-- pure app/domain/presentation 通常需要 static；
-- DB-backed code / schema / migration 需要 postgres；
-- Auth、Supabase service 或 browser critical path 需要 system；
-- rename/delete、workflow/toolchain、无法分类的变化 fail closed 到 full。
-
-Draft PR 还会由同一个 planner 输出 static matrix、related source、explicit test、PG integration spec 和 semantic E2E flow；Vitest project 只把 source 交给 `vitest related`，而变更的 unit test 与 global contract 以 `vitest run <test path>` 直接执行。affected plan 只用于 Draft 快速反馈，不降低最终 merge evidence。只有最新 commit 的 FULL CI、required `ci-gate` / `pr-title` 和 ruleset 要求的其它 checks 全绿，才能 merge。
+1. Draft PR 由 changed-surface planner 输出本次改动所需最低充分 evidence，以 `draft-gate` 汇总，供开发阶段快速迭代。
+2. Ready PR 使用同一个 changed-surface planner 输出匹配风险的 evidence，并以 required `ci-gate` 汇总；不因 Ready 状态机械升级为 FULL。普通 UI / Server Action PR 仅支付对应静态或 PG 验证时间，不进入昂贵的 system 冷启动。
+3. `push` 到 `main` 同样使用 changed-surface 规划 affected smoke，不默认重复跑 FULL。
+4. 无法分类的变化、rename/delete、CI/toolchain/harness 改动 fail closed 到 FULL。
 
 `scripts/ci/timing.mjs` 的 command wrapper 是 project wall-time owner。`vitest-timing-reporter.ts` 只输出 per-project facts 与 top 15 per-file diagnostic duration，Step Summary 会明确区分两者。
 

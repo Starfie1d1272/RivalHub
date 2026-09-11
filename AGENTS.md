@@ -31,7 +31,7 @@ RivalHub 是基于 Next.js App Router、TypeScript、Drizzle/PostgreSQL、Supaba
 
 按风险选择 [`docs/testing.md`](docs/testing.md) 中的最小 evidence。日常优先使用与 changed surface 匹配的 `pnpm type-check:*`、定向 Vitest 和文件级 ESLint；`pnpm type-check`、`pnpm lint`、`pnpm test`、`pnpm db:check`、`pnpm knip`、`pnpm knip --production`、`pnpm verify` 是按风险选择的 broad host-only 或最终检查，不是每次迭代默认全跑。提交前检查完整 diff、未跟踪文件、敏感信息和临时产物。
 
-默认开发与交付流程是 Draft → Ready：开发阶段使用 Draft PR，push 后由 Evidence Planner 只运行与 changed surface 匹配的 affected evidence；本地只执行匹配改动的 host-only 快速检查，不为每次迭代默认启动 PostgreSQL、Local Supabase 或 browser 重型环境。准备交付时将 PR 标记为 Ready for review；`ready_for_review` 及 Ready PR 后续每次 push 必须触发该 commit 的 FULL CI。只有最新 FULL CI 与 required checks 全绿后才能 merge；新 push 会使旧 commit 的最终 evidence 失效。
+默认开发与交付流程是 Draft → Ready：开发阶段使用 Draft PR，push 后由 Evidence Planner 运行与 changed surface 匹配的 affected evidence 并产生 `draft-gate`；本地只执行匹配改动的 host-only 快速检查，不为每次迭代默认启动 PostgreSQL、Local Supabase 或 browser 重型环境。准备交付时将 PR 标记为 Ready for review；Ready PR 使用同一个 Evidence Planner 运行匹配改动风险的 affected evidence 并产生 required 的 `ci-gate`（不因 Ready 状态机械升级为 FULL）。只有最新 required checks 全绿后才能 merge；新 push 会使旧 commit 的 evidence 失效。
 
 本地 `pnpm check` / `pnpm verify` 是可选 broad host-only gate，不是每次迭代或每次 push 的默认要求。需要真实数据库、Supabase 或 browser 复现时，按 [`docs/operations/local-development.md`](docs/operations/local-development.md) 只启动最小层级。
 

@@ -38,26 +38,46 @@ const SYSTEM_APP_PREFIXES = [
   "src/app/login/",
   "src/app/forgot-password/",
   "src/app/reset-password/",
-  "src/app/my/",
-  "src/app/team-invites/",
-  "src/app/teams/",
-  "src/app/[seasonSlug]/register/",
   "src/app/api/test/e2e/",
 ];
 const SYSTEM_ACTION_PREFIXES = [
   "src/actions/auth",
-  "src/actions/competition-entries.ts",
-  "src/actions/major-prestart.ts",
-  "src/actions/register.ts",
 ];
 
 const SYSTEM_FLOW_MAP = [
-  { prefixes: ["src/app/auth/", "src/app/login/", "src/actions/auth", "src/lib/auth/", "src/lib/session/"], specs: ["tests/e2e/flows/major-entry.spec.ts"] },
-  { prefixes: ["src/app/settings/education", "src/actions/education", "src/lib/education/"], specs: ["tests/e2e/flows/education-manual-fallback.spec.ts"] },
-  { prefixes: ["src/app/team-invites/", "src/app/teams/", "src/actions/team"], specs: ["tests/e2e/flows/team-invitations.spec.ts"] },
-  { prefixes: ["src/app/[seasonSlug]/register/", "src/actions/competition-entries.ts", "src/actions/register.ts", "src/actions/major-prestart.ts"], specs: ["tests/e2e/flows/major-entry.spec.ts"] },
-  { prefixes: ["src/app/teams/", "src/app/players/"], specs: ["tests/e2e/flows/public-discovery.spec.ts"] },
+  {
+    prefixes: [
+      "src/app/auth/",
+      "src/app/login/",
+      "src/app/forgot-password/",
+      "src/app/reset-password/",
+      "src/actions/auth",
+      "src/lib/auth/",
+      "src/lib/session/",
+    ],
+    specs: ["tests/e2e/flows/major-entry.spec.ts"],
+  },
+  {
+    prefixes: [
+      "src/lib/education/storage.ts",
+      "src/lib/education/commands.ts",
+      "src/actions/education-verifications.ts",
+      "src/components/settings/EducationVerificationPanel.tsx",
+      "src/app/settings/education",
+    ],
+    specs: ["tests/e2e/flows/education-manual-fallback.spec.ts"],
+  },
 ];
+
+function systemSpecsForPath(path) {
+  const specs = new Set();
+  for (const mapping of SYSTEM_FLOW_MAP) {
+    if (mapping.prefixes.some((prefix) => path === prefix || path.startsWith(prefix))) {
+      for (const spec of mapping.specs) specs.add(spec);
+    }
+  }
+  return [...specs];
+}
 
 const CODE_EXTENSIONS = /\.(?:[cm]?[jt]sx?|vue|svelte)$/;
 const LINT_EXTENSIONS = /\.[cm]?[jt]sx?$/;
@@ -68,10 +88,8 @@ export function classifyChangedFiles(entries, options = {}) {
   const { forceFull = false, draft = true } = options;
   const gateName = draft ? "draft-gate" : "ci-gate";
   const result = (...args) => ({ ...resultFor(...args), gateName });
-  if (forceFull || !draft) {
-    return result(CAPABILITIES, true, forceFull
-      ? "受保护分支、merge queue、release 或手动运行，强制 full gate"
-      : "Ready for review PR 使用 FULL evidence gate");
+  if (forceFull) {
+    return result(CAPABILITIES, true, "受保护分支、merge queue、release 或手动运行，强制 full gate");
   }
   if (entries.length === 0) {
     return result(CAPABILITIES, true, "无法取得 changed-surface，fail closed 到 full gate");
@@ -106,9 +124,13 @@ export function classifyChangedFiles(entries, options = {}) {
     collectEvidence(path, classification, evidence);
   }
 
+  if (evidence.e2eSpecs.size > 0) {
+    capabilities.add("system");
+  }
+
   if (capabilities.size === 0) {
     return docsOnly
-      ? result([], false, "docs-only surface：只保留 planner + draft-gate")
+      ? result([], false, `docs-only surface：只保留 planner + ${gateName}`)
       : result(CAPABILITIES, true, "changed-surface 未命中已声明 capability，fail closed 到 full gate");
   }
 
@@ -200,9 +222,11 @@ function classifyPath(path) {
 
   if (path.startsWith("scripts/")) return classifyScriptPath(path);
 
+  const flowSpecs = systemSpecsForPath(path);
+
   if (path.startsWith("src/actions/")) {
     const capabilities = ["static", "postgres"];
-    if (SYSTEM_ACTION_PREFIXES.some((prefix) => path.startsWith(prefix)) || source.usesSupabase) {
+    if (SYSTEM_ACTION_PREFIXES.some((prefix) => path.startsWith(prefix)) || source.usesSupabase || flowSpecs.length > 0) {
       capabilities.push("system");
     }
     return {
@@ -216,7 +240,7 @@ function classifyPath(path) {
     if (DB_BACKED_APP_PREFIXES.some((prefix) => path.startsWith(prefix)) || source.usesDatabase) {
       capabilities.push("postgres");
     }
-    if (SYSTEM_APP_PREFIXES.some((prefix) => path.startsWith(prefix)) || source.usesSupabase) {
+    if (SYSTEM_APP_PREFIXES.some((prefix) => path.startsWith(prefix)) || source.usesSupabase || flowSpecs.length > 0) {
       capabilities.push("system");
     }
     return { capabilities, reason: `App Router surface: ${path}` };
@@ -225,7 +249,7 @@ function classifyPath(path) {
   if (path.startsWith("src/components/")) {
     const capabilities = ["static"];
     if (source.usesDatabase) capabilities.push("postgres");
-    if (source.usesSupabase) capabilities.push("system");
+    if (source.usesSupabase || flowSpecs.length > 0) capabilities.push("system");
     return { capabilities, reason: `UI surface: ${path}` };
   }
 
@@ -236,7 +260,7 @@ function classifyPath(path) {
   if (path.startsWith("src/lib/")) {
     const capabilities = ["static"];
     if (source.usesDatabase) capabilities.push("postgres");
-    if (source.usesSupabase || path === "src/lib/auth/session.ts" || path.startsWith("src/lib/session/")) {
+    if (source.usesSupabase || path === "src/lib/auth/session.ts" || path.startsWith("src/lib/session/") || flowSpecs.length > 0) {
       capabilities.push("system");
     }
     return { capabilities, reason: `library surface: ${path}` };
@@ -295,10 +319,8 @@ function collectEvidence(path, classification, evidence) {
     evidence.unitExplicitTests.get("unit-domain-node").add(GLOBAL_CONTRACTS.productLanguage.path);
   }
 
-  for (const mapping of SYSTEM_FLOW_MAP) {
-    if (mapping.prefixes.some((prefix) => path.startsWith(prefix))) {
-      for (const spec of mapping.specs) evidence.e2eSpecs.add(spec);
-    }
+  for (const spec of systemSpecsForPath(path)) {
+    evidence.e2eSpecs.add(spec);
   }
 }
 
@@ -414,8 +436,7 @@ function gitChangedFiles() {
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  const eventName = process.env.GITHUB_EVENT_NAME ?? "";
-  const forceFull = process.env.FORCE_FULL === "1" || process.env.FORCE_FULL === "true" || eventName !== "pull_request";
+  const forceFull = process.env.FORCE_FULL === "1" || process.env.FORCE_FULL === "true";
   const draft = process.env.PR_DRAFT !== "false";
   const entries = gitChangedFiles();
   const plan = classifyChangedFiles(entries, { forceFull, draft });
