@@ -67,10 +67,16 @@ export function validateRunMatchesReleasePrerequisites(
       reason: `event 不是 push：实际 ${run.event}（拒绝 PR run / schedule / workflow_dispatch / other 冒充）`,
     };
   }
-  if (run.path && !run.path.endsWith(".github/workflows/ci.yml") && run.name !== "CI") {
+  if (run.name !== "CI") {
     return {
       valid: false,
-      reason: `workflow 并非 CI：实际 name=${run.name}, path=${run.path}`,
+      reason: `workflow name 并非 CI：实际 name=${run.name}`,
+    };
+  }
+  if (run.path && run.path !== ".github/workflows/ci.yml") {
+    return {
+      valid: false,
+      reason: `workflow path 并非 .github/workflows/ci.yml：实际 path=${run.path}`,
     };
   }
   return { valid: true };
@@ -106,7 +112,7 @@ export async function fetchCiWorkflowRuns(
   token: string,
   fetchFn: typeof fetch = fetch,
 ): Promise<GitHubWorkflowRun[]> {
-  const url = `https://api.github.com/repos/${repository}/actions/runs?head_sha=${commitSha}&event=push&branch=main`;
+  const url = `https://api.github.com/repos/${repository}/actions/workflows/ci.yml/runs?head_sha=${commitSha}&event=push&branch=main`;
   const response = await fetchFn(url, {
     headers: {
       Accept: "application/vnd.github+json",
@@ -234,7 +240,6 @@ async function cliMain(): Promise<void> {
     ? Number(process.env.CI_POLL_TIMEOUT_MS)
     : DEFAULT_POLL_TIMEOUT_MS;
 
-  const startMs = performance.now();
   try {
     await verifyExactShaCiPrerequisite({
       repository,
@@ -244,8 +249,6 @@ async function cliMain(): Promise<void> {
       pollIntervalMs,
       pollTimeoutMs,
     });
-    const duration = Math.round(performance.now() - startMs);
-    console.log(`timing preflight exact-SHA CI wait: ${duration}ms`);
     process.exit(0);
   } catch (error) {
     console.error(error instanceof Error ? error.message : String(error));

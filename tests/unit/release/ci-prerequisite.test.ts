@@ -80,8 +80,9 @@ describe("release CI prerequisite validator", () => {
     }
   });
 
-  it("rejects runs from non-CI workflows", () => {
-    const run: GitHubWorkflowRun = {
+  it("rejects runs from non-CI workflows or mismatched workflow paths", () => {
+    // Both wrong
+    const runBothWrong: GitHubWorkflowRun = {
       id: 105,
       name: "Release",
       head_branch: "main",
@@ -91,11 +92,42 @@ describe("release CI prerequisite validator", () => {
       status: "completed",
       conclusion: "success",
     };
-    const result = validateRunMatchesReleasePrerequisites(run, TEST_SHA);
-    expect(result.valid).toBe(false);
-    if (!result.valid) {
-      expect(result.reason).toContain("workflow 并非 CI");
-    }
+    expect(validateRunMatchesReleasePrerequisites(runBothWrong, TEST_SHA)).toEqual({
+      valid: false,
+      reason: "workflow name 并非 CI：实际 name=Release",
+    });
+
+    // Name matches CI but path is different
+    const runWrongPath: GitHubWorkflowRun = {
+      id: 106,
+      name: "CI",
+      head_branch: "main",
+      head_sha: TEST_SHA,
+      path: ".github/workflows/other.yml",
+      event: "push",
+      status: "completed",
+      conclusion: "success",
+    };
+    expect(validateRunMatchesReleasePrerequisites(runWrongPath, TEST_SHA)).toEqual({
+      valid: false,
+      reason: "workflow path 并非 .github/workflows/ci.yml：实际 path=.github/workflows/other.yml",
+    });
+
+    // Path matches ci.yml but name is not CI
+    const runWrongName: GitHubWorkflowRun = {
+      id: 107,
+      name: "Nightly",
+      head_branch: "main",
+      head_sha: TEST_SHA,
+      path: ".github/workflows/ci.yml",
+      event: "push",
+      status: "completed",
+      conclusion: "success",
+    };
+    expect(validateRunMatchesReleasePrerequisites(runWrongName, TEST_SHA)).toEqual({
+      valid: false,
+      reason: "workflow name 并非 CI：实际 name=Nightly",
+    });
   });
 });
 
@@ -217,6 +249,14 @@ describe("verifyExactShaCiPrerequisite orchestration", () => {
     expect(result.runId).toBe(301);
     expect(result.pollCount).toBe(1);
     expect(result.htmlUrl).toBe(mockRun.html_url);
+    expect(mockFetch).toHaveBeenCalledWith(
+      `https://api.github.com/repos/Starfie1d1272/RivalHub/actions/workflows/ci.yml/runs?head_sha=${TEST_SHA}&event=push&branch=main`,
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          Authorization: "Bearer fake-token",
+        }),
+      }),
+    );
   });
 
   it("polls boundedly when status is in_progress then succeeds", async () => {

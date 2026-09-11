@@ -328,13 +328,26 @@ describe("deployment and operations contracts", () => {
     expect(release).toContain("runs-on: ubuntu-24.04");
     expect(release).toContain("actions: read\n      contents: write\n      id-token: write");
 
-    // Ordering: CI prerequisite before backup and DB mutations
+    // Ordering: dependency setup before preflight, preflight before backup and DB mutations
+    const pnpmSetupIdx = release.indexOf("uses: pnpm/setup");
     const ciPrereqIdx = release.indexOf("Verify exact-SHA CI prerequisite");
     const backupIdx = release.indexOf("Create protected pre-release backup");
     const migrateIdx = release.indexOf("Migrate and verify production database");
-    expect(ciPrereqIdx).toBeGreaterThan(0);
+    expect(pnpmSetupIdx).toBeGreaterThan(0);
+    expect(pnpmSetupIdx).toBeLessThan(ciPrereqIdx);
     expect(ciPrereqIdx).toBeLessThan(backupIdx);
     expect(backupIdx).toBeLessThan(migrateIdx);
+
+    // Knip entries registration
+    const knipConfig = JSON.parse(readProjectFile("knip.json")) as { entry: string[] };
+    expect(knipConfig.entry).toContain("scripts/release/ci-prerequisite.ts!");
+    expect(knipConfig.entry).toContain("scripts/release/production-deployment.ts!");
+
+    // Shell safety: fail-closed previous identity and no error swallowing in smoke
+    expect(release).toContain('PREVIOUS_IDENTITY="$(curl --fail');
+    expect(release).not.toMatch(/PREVIOUS_IDENTITY=.*\|\|\s*true/);
+    expect(release).toContain('"$RIVALHUB_PRODUCTION_BASE_URL/" >/dev/null || return 1');
+    expect(release).toContain('"$RIVALHUB_PRODUCTION_BASE_URL/api/system/release")" || return 1');
 
     // DB-only local rehearsal
     expect(release).toContain("pnpm db:local:start-db");

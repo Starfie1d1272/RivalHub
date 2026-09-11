@@ -71,12 +71,6 @@ jobs:
           fi
           echo "RELEASE_SHA=$RELEASE_SHA" >> "$GITHUB_ENV"
 
-      - name: Verify exact-SHA CI prerequisite
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-          GITHUB_REPOSITORY: ${{ github.repository }}
-        run: node scripts/ci/timing.mjs "preflight exact-SHA CI wait" -- pnpm release:ci-prerequisite
-
       - name: Start bootstrap/install timing
         run: echo "RELEASE_BOOTSTRAP_START_MS=$(date +%s%3N)" >> "$GITHUB_ENV"
 
@@ -90,6 +84,12 @@ jobs:
 
       - name: Record bootstrap/install timing
         run: node scripts/ci/timing.mjs record --label "bootstrap/install" --start-ms "$RELEASE_BOOTSTRAP_START_MS"
+
+      - name: Verify exact-SHA CI prerequisite
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: node scripts/ci/timing.mjs "preflight exact-SHA CI wait" -- pnpm release:ci-prerequisite
 
       - name: Require Vercel deploy credential
         env:
@@ -206,15 +206,20 @@ jobs:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: |
           set -euo pipefail
-          # 记录 promote 前 canonical production 的 release identity，供失败回滚验证
+          # 严格获取并校验 promote 前 canonical production 的 release identity，fail-closed 防止盲切
           PREVIOUS_IDENTITY="$(curl --fail --silent --show-error \
             --retry 5 --retry-all-errors --retry-delay 3 \
-            "$RIVALHUB_PRODUCTION_BASE_URL/api/system/release" || true)"
-          PREVIOUS_TAG="$(jq -r .releaseTag <<<"$PREVIOUS_IDENTITY" 2>/dev/null || true)"
-          PREVIOUS_COMMIT="$(jq -r .releaseCommit <<<"$PREVIOUS_IDENTITY" 2>/dev/null || true)"
+            "$RIVALHUB_PRODUCTION_BASE_URL/api/system/release")"
+          jq -e '
+            (keys | sort) == ["releaseCommit", "releaseTag"]
+            and (.releaseTag | test("^v[0-9]+\\.[0-9]+\\.[0-9]+(-[0-9A-Za-z.-]+)?$"))
+            and (.releaseCommit | test("^[0-9a-fA-F]{40}$"))
+          ' <<<"$PREVIOUS_IDENTITY" >/dev/null
+          PREVIOUS_TAG="$(jq -r .releaseTag <<<"$PREVIOUS_IDENTITY")"
+          PREVIOUS_COMMIT="$(jq -r .releaseCommit <<<"$PREVIOUS_IDENTITY")"
           echo "previous_tag=$PREVIOUS_TAG" >> "$GITHUB_OUTPUT"
           echo "previous_commit=$PREVIOUS_COMMIT" >> "$GITHUB_OUTPUT"
-          echo "Previous canonical production identity: tag=$PREVIOUS_TAG, commit=$PREVIOUS_COMMIT"
+          echo "Previous canonical production identity confirmed: tag=$PREVIOUS_TAG, commit=$PREVIOUS_COMMIT"
 
           PROMOTE_START="$(date +%s%3N)"
           vercel promote "$DEPLOYMENT_URL" --yes --token="$VERCEL_TOKEN"
@@ -233,16 +238,17 @@ jobs:
           smoke_canonical() {
             curl --fail --silent --show-error \
               --retry 8 --retry-all-errors --retry-delay 5 \
-              "$RIVALHUB_PRODUCTION_BASE_URL/" >/dev/null
+              "$RIVALHUB_PRODUCTION_BASE_URL/" >/dev/null || return 1
             canonical_identity="$(curl --fail --silent --show-error \
               --retry 8 --retry-all-errors --retry-delay 5 \
-              "$RIVALHUB_PRODUCTION_BASE_URL/api/system/release")"
+              "$RIVALHUB_PRODUCTION_BASE_URL/api/system/release")" || return 1
             jq -e --arg tag "$RELEASE_TAG" --arg commit "$RELEASE_SHA" '
               (keys | sort) == ["releaseCommit", "releaseTag"]
               and .releaseTag == $tag
               and .releaseCommit == $commit
-            ' <<<"$canonical_identity" >/dev/null
+            ' <<<"$canonical_identity" >/dev/null || return 1
             echo "Canonical production identity confirmed: $canonical_identity"
+            return 0
           }
 
           if ! smoke_canonical; then
@@ -252,17 +258,14 @@ jobs:
               sleep 5
               reverted_identity="$(curl --fail --silent --show-error \
                 --retry 5 --retry-all-errors --retry-delay 3 \
-                "$RIVALHUB_PRODUCTION_BASE_URL/api/system/release" || true)"
+                "$RIVALHUB_PRODUCTION_BASE_URL/api/system/release")"
               echo "Reverted canonical identity: $reverted_identity"
-              if [[ -n "$PREVIOUS_TAG" && -n "$PREVIOUS_COMMIT" ]]; then
-                if jq -e --arg tag "$PREVIOUS_TAG" --arg commit "$PREVIOUS_COMMIT" '
-                  .releaseTag == $tag and .releaseCommit == $commit
-                ' <<<"$reverted_identity" >/dev/null 2>&1; then
-                  echo "Canonical domain successfully restored previous identity: tag=$PREVIOUS_TAG, commit=$PREVIOUS_COMMIT."
-                else
-                  echo "::warning::Canonical domain did not immediately reflect previous identity ($reverted_identity vs expected $PREVIOUS_TAG/$PREVIOUS_COMMIT)." >&2
-                fi
-              fi
+              jq -e --arg tag "$PREVIOUS_TAG" --arg commit "$PREVIOUS_COMMIT" '
+                (keys | sort) == ["releaseCommit", "releaseTag"]
+                and .releaseTag == $tag
+                and .releaseCommit == $commit
+              ' <<<"$reverted_identity" >/dev/null
+              echo "Canonical domain successfully restored previous identity: tag=$PREVIOUS_TAG, commit=$PREVIOUS_COMMIT."
             else
               echo "::error::Vercel rollback command failed! Manual intervention required." >&2
             fi
