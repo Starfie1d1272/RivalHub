@@ -7,8 +7,13 @@ import { migrationFiles, replayMigration, withScratchDatabase } from "../harness
 const TARGET_MIGRATION = "0042_identity_foundation.sql";
 const ACCESS_MATRIX_AT_TARGET = DATABASE_ACCESS_MATRIX.filter(
   (entry) => ![
+    "announcements",
+    "community_groups",
+    "feedback_reports",
     "scheduled_job_health",
     "competition_stage_bracket_states",
+    "season_contacts",
+    "season_public_info",
   ].includes(entry.table),
 );
 const IGNORED_TABLES_AT_TARGET = ["competition_bracket_states", "swiss_standings"] as const;
