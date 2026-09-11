@@ -130,11 +130,13 @@ describe("deployment and operations contracts", () => {
     expect(release).not.toContain("VERCEL_AUTOMATION_BYPASS_SECRET");
     expect(release).not.toContain("protection-bypass");
     expect(release).not.toContain("x-vercel-protection-bypass");
-    const smokeStart = release.indexOf("      - name: Smoke test production deployment");
+    const smokeStart = release.indexOf("      - name: Smoke test candidate deployment");
     const schedulerStart = release.indexOf("      - name: Provision and verify production scheduler");
     const smoke = release.slice(smokeStart, schedulerStart);
     expect(smoke).toContain("^https://[a-z0-9][a-z0-9-]*\\.vercel\\.app/?$");
-    expect(smoke).not.toContain("VERCEL_TOKEN");
+    const candidateSmoke = smoke.slice(0, smoke.indexOf("- name: Promote candidate"));
+    expect(candidateSmoke).not.toContain("VERCEL_TOKEN");
+    expect(candidateSmoke).toContain("x-vercel-trusted-oidc-idp-token: $VERCEL_TRUSTED_OIDC_IDP_TOKEN");
     const canonicalIdentity = smoke.slice(smoke.indexOf("canonical_identity="));
     expect(canonicalIdentity).not.toContain("x-vercel-trusted-oidc-idp-token");
     const productionSerialization = "concurrency:\n  group: rivalhub-production-state-serialization\n  queue: max\n  cancel-in-progress: false";
@@ -258,8 +260,8 @@ describe("deployment and operations contracts", () => {
 
     expect(release).toContain("fetch-depth: 0");
     expect(release).toContain("RIVALHUB_PRODUCTION_STABLE_REF: origin/main");
-    expect(release).toContain("run: pnpm db:release-compat");
-    expect(release.indexOf("run: pnpm db:release-compat")).toBeLessThan(release.indexOf("pnpm db:production:migrate"));
+    expect(release).toContain("pnpm db:release-compat");
+    expect(release.indexOf("pnpm db:release-compat")).toBeLessThan(release.indexOf("pnpm db:production:migrate"));
   });
 
   it("retries an immutable GitHub Release without editing its published metadata", () => {
@@ -285,7 +287,6 @@ describe("deployment and operations contracts", () => {
 
     expect(workflow).toContain("fail-fast: false");
     expect(workflow).toContain("timeout-minutes: 5");
-    expect(workflow).toContain("matrix:");
     for (const jobKey of jobKeys) expect(workflow).toContain(`- job_key: ${jobKey}`);
     expect(workflow).toContain("/api/cron/${CRON_JOB_KEY}");
     expect(workflow).toContain("CRON_SECRET: ${{ secrets.CRON_SECRET }}");
@@ -310,7 +311,43 @@ describe("deployment and operations contracts", () => {
     expect(release).toContain("RIVALHUB_SCHEDULER_BASE_URL: https://match.starfie1d.top");
     expect(release).toContain("RIVALHUB_ALLOW_REMOTE_DB_WRITE=production pnpm db:production:scheduler:provision");
     expect(release).toContain("pnpm db:production:scheduler:verify");
-    expect(release.indexOf("Smoke test production deployment")).toBeLessThan(release.indexOf("Provision and verify production scheduler"));
+    expect(release.indexOf("Smoke test canonical production")).toBeLessThan(release.indexOf("Provision and verify production scheduler"));
     expect(release.indexOf("Provision and verify production scheduler")).toBeLessThan(release.indexOf("Extract changelog for this version"));
+  });
+
+  it("enforces Issue #603 release orchestration and CI convergence contract", () => {
+    const ci = readProjectFile(".github/workflows/ci.yml");
+    const release = readProjectFile(".github/workflows/release.yml");
+
+    // CI triggers & concurrency
+    expect(ci).not.toMatch(/^\s+release:\s*$/m);
+    expect(ci).toContain("group: ci-${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || (github.event_name == 'push' && github.sha || github.ref) }}");
+    expect(ci).toContain("cancel-in-progress: ${{ github.event_name == 'pull_request' }}");
+
+    // Release runner & permissions
+    expect(release).toContain("runs-on: ubuntu-24.04");
+    expect(release).toContain("actions: read\n      contents: write\n      id-token: write");
+
+    // Ordering: CI prerequisite before backup and DB mutations
+    const ciPrereqIdx = release.indexOf("Verify exact-SHA CI prerequisite");
+    const backupIdx = release.indexOf("Create protected pre-release backup");
+    const migrateIdx = release.indexOf("Migrate and verify production database");
+    expect(ciPrereqIdx).toBeGreaterThan(0);
+    expect(ciPrereqIdx).toBeLessThan(backupIdx);
+    expect(backupIdx).toBeLessThan(migrateIdx);
+
+    // DB-only local rehearsal
+    expect(release).toContain("pnpm db:local:start-db");
+    expect(release).not.toContain("pnpm db:local:start\n");
+    expect(release).not.toContain("pnpm db:local:stop");
+
+    // Staged production deployment and promotion
+    expect(release).toContain("vercel deploy --prod --skip-domain");
+    expect(release).toContain('vercel promote "$DEPLOYMENT_URL" --yes');
+    expect(release).toContain("vercel rollback --yes");
+
+    // Phase timing evidence
+    expect(release).toContain('RIVALHUB_TIMING_TITLE: "Release phase timing"');
+    expect(release).toContain('node scripts/ci/timing.mjs summary');
   });
 });

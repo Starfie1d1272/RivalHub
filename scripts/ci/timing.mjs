@@ -82,8 +82,9 @@ function renderSummary() {
   const summaryPath = env.GITHUB_STEP_SUMMARY;
   if (!summaryPath) return;
 
+  const heading = env.RIVALHUB_TIMING_TITLE ?? `CI timing${env.GITHUB_JOB ? ` · ${env.GITHUB_JOB}` : ""}`;
   const lines = [
-    `## CI timing${env.GITHUB_JOB ? ` · ${env.GITHUB_JOB}` : ""}`,
+    `## ${heading}`,
     "",
     "| metric | wall time | evidence |",
     "| --- | ---: | --- |",

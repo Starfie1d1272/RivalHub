@@ -15,7 +15,7 @@
 
 ## Release identity
 
-`main` 是唯一长期 releasable trunk；不可移动的 `vX.Y.Z` tag 才是 shipped production identity。正式发布围绕同一个 tag commit 完成 migration、verify、exact-source deployment、smoke 与 GitHub Release；失败时重试同一安全步骤，不移动已公开 tag。
+`main` 是唯一长期 releasable trunk；不可移动的 `vX.Y.Z` tag 才是 shipped production identity。正式发布在验证 exact tag SHA 拥有成功的 canonical CI 证据后，围绕同一个 tag commit 完成 pre-release backup、DB-only migration rehearsal、production migration/verify、staged production deployment (`--prod --skip-domain`)、candidate smoke、promotion、canonical domain smoke 与 GitHub Release；失败时重试同一安全步骤，不移动已公开 tag。
 
 Production 对外提供 public、no-store 的 `/api/system/release` read-back endpoint，只返回 deployed `releaseTag` 与 `releaseCommit`；受保护 backup runner 以该响应作为 production source identity，并在本地 checkout 验证 tag 到 commit 的关系。
 

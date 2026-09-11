@@ -89,7 +89,7 @@ export function classifyChangedFiles(entries, options = {}) {
   const gateName = draft ? "draft-gate" : "ci-gate";
   const result = (...args) => ({ ...resultFor(...args), gateName });
   if (forceFull) {
-    return result(CAPABILITIES, true, "受保护分支、merge queue、release 或手动运行，强制 full gate");
+    return result(CAPABILITIES, true, "受保护分支、merge queue、schedule 或手动运行，强制 full gate");
   }
   if (entries.length === 0) {
     return result(CAPABILITIES, true, "无法取得 changed-surface，fail closed 到 full gate");
