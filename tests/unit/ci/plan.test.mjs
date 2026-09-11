@@ -137,6 +137,10 @@ describe("changed-surface planner", () => {
     expect(classifyChangedFiles([{ status: "D", paths: ["src/old.ts"] }]).full).toBe(true);
   });
 
+  it("keeps the Ready gate name when a deleted file forces FULL", () => {
+    expect(classifyChangedFiles([{ status: "D", paths: ["src/old.ts"] }], { draft: false }).gateName).toBe("ci-gate");
+  });
+
   it("treats docs and Changeset as L0 metadata with planner + gate only", () => {
     const docsPlan = classifyChangedFiles([{ status: "M", paths: ["docs/testing.md"] }], { draft: true });
     expect(docsPlan.full).toBe(false);
