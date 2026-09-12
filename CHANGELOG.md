@@ -1,5 +1,23 @@
 # Changelog
 
+## [2.9.3]
+
+### Changed
+
+#### 个人工作区与赛事上下文
+
+收口个人工作区的任务、队伍角色和赛事上下文展示。
+
+#### Major 赛前身份与实力参考
+
+收口 Major 赛前与种子参考页面的人物身份和实力证据展示，避免账号邮箱与内部排序数值作为普通产品信息泄露。
+
+### Fixed
+
+#### 公开选手身份与头像
+
+修复公开选手身份投影遗漏头像的问题，并统一赛事目录、选秀和比赛身份卡片的头像展示契约。
+
 ## [2.9.2]
 
 ### Fixed
@@ -2145,6 +2163,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[2.9.3]: https://github.com/Starfie1d1272/RivalHub/compare/v2.9.2...v2.9.3
 [2.9.2]: https://github.com/Starfie1d1272/RivalHub/compare/v2.9.1...v2.9.2
 [2.9.1]: https://github.com/Starfie1d1272/RivalHub/compare/v2.9.0...v2.9.1
 [2.9.0]: https://github.com/Starfie1d1272/RivalHub/compare/v2.8.4...v2.9.0
