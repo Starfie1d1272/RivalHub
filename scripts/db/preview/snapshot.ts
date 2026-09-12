@@ -149,6 +149,16 @@ function parsePublicStorageUrl(value: string): { bucket: MirrorAsset["bucket"]; 
   } catch { return null; }
 }
 
+function assertSanitizedTeamMembership(row: Record<string, unknown>): void {
+  if (!Object.hasOwn(row, "status") || !Object.hasOwn(row, "ended_at") || !Object.hasOwn(row, "ended_reason")) throw new Error("Invalid mirror team membership period.");
+  const ended = row.ended_at !== null;
+  const endedReason = row.ended_reason;
+  if (endedReason !== null && endedReason !== "left") throw new Error("Unsanitized mirror team membership end reason.");
+  const activeStatus = row.status === "active" || row.status === "benched";
+  if ((ended && (row.status !== "left" || endedReason !== "left"))
+    || (!ended && (!activeStatus || endedReason !== null))) throw new Error("Invalid mirror team membership period.");
+}
+
 export function readSnapshot(path: string): MirrorSnapshot {
   const snapshot = JSON.parse(readFileSync(path, "utf8")) as MirrorSnapshot;
   if (snapshot.format !== 2 || !/^[a-f0-9]{40}$/.test(snapshot.sourceCommit)
@@ -166,6 +176,7 @@ export function readSnapshot(path: string): MirrorSnapshot {
     const allowed = new Set(PREVIEW_COLUMNS[table].split(" "));
     if (table === "users") ["email", "role", "auth_id", "email_verified_at", "email_verification_source"].forEach((key) => allowed.add(key));
     if (table === "season_registrations") allowed.add("screenshot_urls");
+    if (table === "team_memberships") allowed.add("ended_reason");
     if (["post_event_adjudications", "tournament_honors"].includes(table)) allowed.add("client_request_id");
     if (table === "post_event_adjudications") allowed.add("reason");
     if (!Array.isArray(rows)) throw new Error("Invalid mirror rows.");
@@ -173,6 +184,7 @@ export function readSnapshot(path: string): MirrorSnapshot {
       if (!row || Object.keys(row).some((key) => !allowed.has(key))) throw new Error(`Unexpected mirror field: ${table}`);
       if (table === "users" && (row.email !== `${row.id}@preview.invalid` || row.role !== "user" || row.auth_id || row.email_verified_at)) throw new Error("Unsanitized mirror identity.");
       if (table === "season_registrations" && JSON.stringify(row.screenshot_urls) !== "[]") throw new Error("Private screenshot in mirror.");
+      if (table === "team_memberships") assertSanitizedTeamMembership(row);
       if (table === "community_groups" && row.qr_image_path && !String(row.qr_image_path).startsWith("public/")) throw new Error("Private group QR leaked into mirror.");
     }
   }
