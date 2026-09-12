@@ -8,13 +8,13 @@ test.use({ scenarioProfile: "major-entry" });
  * Storage → DB → Auth 顺序清理。
  *
  * 覆盖：auth boundary（未登录访问 /my/teams 被送回登录页）→ 真实 Supabase
- * 登录 → 长期 Team 创建 → 在已发布 Major 的报名页
+ * 登录 → 队伍创建 → 在已发布 Major 的报名页
  * 创建 CompetitionEntry → 页面呈现与服务端 canonical 状态一致（待提交 + 报名检查），
  * 且 /my/competitions 与报名页读到同一份 Entry 状态。
  */
 test.skip(({ viewport }) => (viewport?.width ?? 0) < 800, "有状态的报名流程只在桌面项目执行一次，避免并发 project 在共享 fixture 状态上竞争。");
 
-test("队长可以登录、建立长期队伍并发起本届 Major 报名", async ({ page, scenario }) => {
+test("队长可以登录、建立队伍并发起本届 Major 报名", async ({ page, scenario }) => {
   const captain = account(scenario, "captain");
 
   // Auth boundary：未登录访问“我的队伍”必须被送回登录页，而不是泄露页面内容。

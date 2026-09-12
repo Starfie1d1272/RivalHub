@@ -41,7 +41,7 @@ test("未入队用户可以从 /my 和 /teams 发现并处理 direct invitation"
     await expect(inviteePage.getByText("接受邀请即加入队伍，不需要再次申请或等待队长审核。", { exact: true })).toBeVisible();
     await inviteePage.getByRole("button", { name: "接受", exact: true }).click();
     await expect(inviteePage.getByText("队伍身份", { exact: true })).toBeVisible();
-    await expect(inviteePage.getByRole("button", { name: "退出长期队伍", exact: true })).toBeVisible();
+    await expect(inviteePage.getByRole("button", { name: "退出队伍", exact: true })).toBeVisible();
     for (const control of ["保存资料", "直接邀请", "发布招募", "交接队长", "解散队伍", "更换队伍图标"]) {
       await expect(inviteePage.getByRole("button", { name: control, exact: true })).toHaveCount(0);
     }

@@ -44,6 +44,8 @@
 
 长期 Team membership、Entry roster、EventRoster、MatchRoster 和 StageRun entrant 是不同事实；UI 必须使用对应业务名称，不能为了简化展示把一种状态冒充另一种。
 
+内部模型和领域文档可以使用 long-lived Team / 长期 Team 来区分 CompetitionEntry；用户可见界面统一称为「队伍」。普通界面不得出现「长期 Team」「长期队伍」或「active 队伍」；涉及赛事上下文时使用「队伍」「本届赛事」「本届名单」或「赛事队伍」等业务名称。
+
 ### Personal Workspace composition
 
 `/my` 是登录用户的私有任务路由：`/my` 先展示需要本人处理的事项，再展示接下来、当前队伍、当前赛事、长期资料与历史；管理员审核中的事项不冒充用户任务。`/my/teams` 按无队伍、成员、队长三种身份组合内容：成员只读队伍身份和成员列表，队长才看到资料、招募、邀请、成员管理与解散操作。`/my/competitions` 以赛季和参与上下文组织报名、参赛确认、比赛与历史，不把长期 Team membership 解释为已确认参赛。

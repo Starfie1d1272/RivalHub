@@ -22,10 +22,10 @@ export default async function SettingsPage() {
   ];
 
   return <div className="space-y-6">
-    <PageHeader title="设置与参赛资料" description="这里维护长期个人资料；报名和赛事资格只在具体赛事上下文中按冻结规则核验。" />
+    <PageHeader title="设置与参赛资料" description="这里维护个人资料；报名和赛事资格只在具体赛事上下文中按冻结规则核验。" />
     {readiness.ready
-      ? <StatusBanner tone="success" title="长期参赛资料已齐全" sub="具体赛事的报名、确认加入和首发资格仍会按该届冻结规则复核。" />
-      : <StatusBanner tone="warn" title={`还缺 ${readyItems.length} 项长期参赛资料`} sub="完成以下项目可保持个人资料完整；具体赛事是否满足资格请在对应报名页查看。" />}
+      ? <StatusBanner tone="success" title="参赛资料已齐全" sub="具体赛事的报名、确认加入和首发资格仍会按该届冻结规则复核。" />
+      : <StatusBanner tone="warn" title={`还缺 ${readyItems.length} 项参赛资料`} sub="完成以下项目可保持个人资料完整；具体赛事是否满足资格请在对应报名页查看。" />}
 
     <Panel label="参赛资料" contentClassName="p-5">
       <ProfileForm current={{ displayName: user?.displayName ?? null, steamName: user?.steamName ?? null, perfectName: user?.perfectName ?? null, steam64: user?.steam64 ?? null, steamProfileUrl: user?.steamProfileUrl ?? null, qq: user?.qq ?? null, liveStreamUrl: user?.liveStreamUrl ?? null, gameplayStyle: user?.gameplayStyle ?? null, competitionHistory: user?.competitionHistory ?? null }} />

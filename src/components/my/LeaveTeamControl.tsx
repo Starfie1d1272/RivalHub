@@ -22,5 +22,5 @@ export function LeaveTeamControl({ teamId }: { teamId: string }) {
     });
   }
 
-  return <div className="space-y-3 border-t border-[var(--color-border)] pt-5"><p className="text-sm leading-6 text-[var(--color-fg-mid)]">退出长期队伍只会结束当前成员关系，不会自动改写已经提交、审核通过或冻结的赛事名单；如需退出某届赛事，请前往该赛事的报名或名单页面处理。</p>{confirming ? <InlineConfirm title="退出长期队伍？" sub="确认后将结束你与这支长期队伍的当前成员关系。" danger confirmLabel="确认退出" onConfirm={confirmLeave} onCancel={() => setConfirming(false)} /> : <Button type="button" variant="outline" disabled={pending} onClick={() => setConfirming(true)}>退出长期队伍</Button>}</div>;
+  return <div className="space-y-3 border-t border-[var(--color-border)] pt-5"><p className="text-sm leading-6 text-[var(--color-fg-mid)]">退出队伍只会结束当前队伍成员关系，不会自动改写已经提交、审核通过或冻结的赛事名单；如需退出某届赛事，请前往该赛事的报名或名单页面处理。</p>{confirming ? <InlineConfirm title="退出队伍？" sub="确认后将结束你与这支队伍的当前成员关系。" danger confirmLabel="确认退出" onConfirm={confirmLeave} onCancel={() => setConfirming(false)} /> : <Button type="button" variant="outline" disabled={pending} onClick={() => setConfirming(true)}>退出队伍</Button>}</div>;
 }

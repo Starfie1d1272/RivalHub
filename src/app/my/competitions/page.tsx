@@ -15,5 +15,5 @@ export default async function MyCompetitionsPage() {
   const session = await getUserSession();
   if (!session) redirect("/login?next=/my/competitions");
   const grouped = groupMyCompetitionContexts(await loadMyCompetitionContexts(session.userId));
-  return <div className="space-y-8"><PageHeader title="我的赛事" description="按赛季查看你负责、确认参加或通过长期队伍关联的赛事；赛事身份和报名状态分别展示。" /><CompetitionGroup title="当前参与" description="未结束赛季按赛季创建时间倒序展示。" contexts={grouped.current} /><CompetitionGroup title="历史赛事" description="已结束和已归档赛季按赛季创建时间倒序展示。" contexts={grouped.history} /></div>;
+  return <div className="space-y-8"><PageHeader title="我的赛事" description="按赛季查看你负责或参与的赛事，以及当前报名、参赛确认和比赛状态。" /><CompetitionGroup title="当前参与" description="未结束赛季按赛季创建时间倒序展示。" contexts={grouped.current} /><CompetitionGroup title="历史赛事" description="已结束和已归档赛季按赛季创建时间倒序展示。" contexts={grouped.history} /></div>;
 }

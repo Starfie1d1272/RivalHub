@@ -92,7 +92,7 @@ export function CompetitionEntryFlow(props: Props) {
 
   if (!props.entry) {
     if (!props.capabilities.canStartRegistration) return <StatusBanner tone="info" title={props.capabilities.readOnlyReason ?? "报名尚未开放"} />;
-    if (props.captainedTeams.length === 0) return <Panel contentClassName="p-6"><StatusBanner tone="info" title={props.currentTeam ? `你当前已属于 ${props.currentTeam.name}` : "创建队伍或寻找正在招募的队伍"} sub={props.currentTeam ? "本届组队报名由队长发起，请联系队长准备本届名单。" : "可以创建自己的长期队伍，也可以先找到合适的队伍再参加本届赛事。"} /><div className="mt-4 flex flex-wrap gap-2"><Button asChild><Link href={props.currentTeam ? "/my/teams" : "/my/teams#create-team"}>{props.currentTeam ? "查看我的队伍" : "创建队伍"}</Link></Button>{!props.currentTeam && <Button variant="outline" asChild><Link href={recruitmentHref("teams", { targetSeasonId: props.competitionId })}>寻找正在招募的队伍</Link></Button>}</div></Panel>;
+    if (props.captainedTeams.length === 0) return <Panel contentClassName="p-6"><StatusBanner tone="info" title={props.currentTeam ? `你当前已属于 ${props.currentTeam.name}` : "创建队伍或寻找正在招募的队伍"} sub={props.currentTeam ? "本届组队报名由队长发起，请联系队长准备本届名单。" : "可以创建自己的队伍，也可以先找到合适的队伍再参加本届赛事。"} /><div className="mt-4 flex flex-wrap gap-2"><Button asChild><Link href={props.currentTeam ? "/my/teams" : "/my/teams#create-team"}>{props.currentTeam ? "查看我的队伍" : "创建队伍"}</Link></Button>{!props.currentTeam && <Button variant="outline" asChild><Link href={recruitmentHref("teams", { targetSeasonId: props.competitionId })}>寻找正在招募的队伍</Link></Button>}</div></Panel>;
     return <Panel label="建立报名" contentClassName="p-6">{recruitmentHint}<p className="mb-4 text-sm leading-6 text-[var(--color-fg-mid)]">选择你担任队长的队伍，创建本届赛事的报名记录。赛事期间会保留当时的队名和图标。</p><div className="flex flex-wrap gap-2"><Select value={teamId} onValueChange={setTeamId}><SelectTrigger className="min-w-60"><SelectValue /></SelectTrigger><SelectContent>{props.captainedTeams.map((team) => <SelectItem key={team.id} value={team.id}>{team.name}</SelectItem>)}</SelectContent></Select><Button disabled={pending || !teamId} onClick={() => run(() => createCompetitionEntry({ competitionId: props.competitionId, teamId }), "报名记录已创建")}>开始报名</Button></div></Panel>;
   }
 
@@ -102,9 +102,9 @@ export function CompetitionEntryFlow(props: Props) {
   const editable = representative && props.capabilities.canEditCurrentRoster;
   const invitationConflictSub = !props.invitationConflict ? null
     : representative && (props.capabilities.canEditCurrentRoster || props.capabilities.canRequestRosterChange)
-      ? `你目前是「${entry.name}」的赛事负责人。若要更换队伍，请先在下方把赛事负责人交接给另一位已确认成员，再退出本届赛事；这不会退出你的长期队伍。`
+      ? `你目前是「${entry.name}」的赛事负责人。若要更换队伍，请先在下方把赛事负责人交接给另一位已确认成员，再退出本届赛事；这不会退出你当前的队伍。`
       : !representative && props.capabilities.canWithdrawParticipation
-        ? `你目前已确认代表「${entry.name}」参加本届赛事。若要更换队伍，请先在“我的参赛确认”中退出当前本届赛事；这不会退出你的长期队伍。退出后页面会显示待处理的新邀请。`
+        ? `你目前已确认代表「${entry.name}」参加本届赛事。若要更换队伍，请先在“我的参赛确认”中退出当前本届赛事；这不会退出你当前的队伍。退出后页面会显示待处理的新邀请。`
         : props.capabilities.readOnlyReason ?? "当前名单不能自行调整；如需更换参赛队伍，请联系赛事管理员处理。";
   const unsaved = selected.length !== entry.roster.length || selected.some((id) => !entry.roster.some((member) => member.userId === id))
     || starters.length !== entry.roster.filter((member) => member.primary).length || starters.some((id) => !entry.roster.some((member) => member.userId === id && member.primary));
@@ -140,8 +140,8 @@ export function CompetitionEntryFlow(props: Props) {
   const registration = presentCompetitionEntryRegistration(entry.status, entry.revisionOrigin);
   const rosterExplanation = "本届赛事名单独立于日常队伍名单；在“我的队伍”中增减成员不会自动修改本届报名。";
   const participantWithdrawalExplanation = entry.status === "approved"
-    ? "退出只影响本届赛事参赛名单，不会退出你的长期队伍；退出后该队本届名单需要重新调整并再次提交审核。"
-    : "退出只影响本届赛事参赛名单，不会退出你的长期队伍。";
+    ? "退出只影响本届赛事参赛名单，不会退出你当前的队伍；退出后该队本届名单需要重新调整并再次提交审核。"
+    : "退出只影响本届赛事参赛名单，不会退出你当前的队伍。";
   const ready = blockers.filter((item) => item.state !== "pending").every((item) => item.state === "complete");
 
   const toggleSelected = (userId: string) => {
