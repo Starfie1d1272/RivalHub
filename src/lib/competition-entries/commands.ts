@@ -41,6 +41,7 @@ import { requestCompetitionEntryRosterChangeInTx } from "@/lib/competition-entri
 import { reconcileMajorPrestartRosterAfterApprovalInTx } from "@/lib/major/prestart-roster";
 import { normalizeAffiliationRules, normalizeTeamRegistrationConfig } from "@/lib/seasons/compatibility";
 import { assessEntryRosterReadiness } from "@/lib/competition-entries/readiness";
+import { normalizePerfectTeamId } from "@/lib/competition-entries/perfect-team-id";
 import { ensureRegistrationOpenForParticipantInTx } from "@/lib/seasons/registration-recovery";
 
 const editableStatuses = ["draft", "changes_requested"] as const;
@@ -242,7 +243,11 @@ export async function createCompetitionEntryInTx(tx: TxDb, input: { competitionI
   return { entryId: entry.id, seasonSlug: season.slug };
 }
 
-export async function saveCompetitionEntryRosterInTx(tx: TxDb, input: { entryId: string; userIds: string[]; primaryStarterUserIds: string[]; perfectTeamId?: string; userId: string; actorId: string }): Promise<{ seasonSlug: string }> {
+export async function saveCompetitionEntryRosterInTx(tx: TxDb, input: { entryId: string; userIds: string[]; primaryStarterUserIds: string[]; perfectTeamId?: string | null; userId: string; actorId: string }): Promise<{ seasonSlug: string }> {
+  const perfectTeamId = normalizePerfectTeamId(input.perfectTeamId);
+  if (input.perfectTeamId !== null && input.perfectTeamId !== undefined && input.perfectTeamId !== "" && perfectTeamId === null) {
+    throw new AppError(ErrorCode.VALIDATION_FAILED, "完美战队 ID 只能包含数字。");
+  }
   const entry = await lockRepresentativeEntry(tx, input.entryId, input.userId);
   await assertRosterNotFrozen(tx, entry.id);
   if (!editableStatuses.includes(entry.registrationStatus as typeof editableStatuses[number])) throw new AppError(ErrorCode.REGISTRATION_INVALID_TRANSITION, "当前报名版本不可编辑。");
@@ -284,7 +289,7 @@ export async function saveCompetitionEntryRosterInTx(tx: TxDb, input: { entryId:
   await tx.delete(competitionEntryRosterMembers).where(eq(competitionEntryRosterMembers.revisionId, revision.id));
   await tx.insert(competitionEntryRosterMembers).values(input.userIds.map((userId) => ({ revisionId: revision.id, participantId: participantByUser.get(userId)!.id, userId, teamMembershipId: currentMemberships.find((row) => row.userId === userId)?.id ?? null, isPrimaryStarter: input.primaryStarterUserIds.includes(userId) })));
   const [teamIdentity] = !entry.logoUrl ? await tx.select({ logoUrl: teams.logoUrl }).from(teams).where(eq(teams.id, entry.teamId)) : [];
-  await tx.update(competitionEntries).set({ perfectTeamId: input.perfectTeamId || null, ...(!entry.logoUrl && teamIdentity?.logoUrl ? { logoUrl: teamIdentity.logoUrl } : {}), updatedAt: new Date() }).where(eq(competitionEntries.id, entry.id));
+  await tx.update(competitionEntries).set({ perfectTeamId, ...(!entry.logoUrl && teamIdentity?.logoUrl ? { logoUrl: teamIdentity.logoUrl } : {}), updatedAt: new Date() }).where(eq(competitionEntries.id, entry.id));
   await auditEntry(tx, { action: "competition_entry.roster.save", actorId: input.actorId, entryId: entry.id, competitionId: entry.competitionId, meta: { revision: revision.revisionNumber, rosterSize: input.userIds.length, primaryStarterCount: input.primaryStarterUserIds.length } });
   return { seasonSlug: season.slug };
 }

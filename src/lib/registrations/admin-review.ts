@@ -26,6 +26,7 @@ import { assessEntryRosterReadiness } from "@/lib/competition-entries/readiness"
 import { escapeLikePattern } from "@/lib/db/search";
 import { loadActiveSanctionsInTx } from "@/lib/discipline/service";
 import { getDisplayName } from "@/lib/identity/display-name";
+import { normalizePerfectTeamId } from "@/lib/competition-entries/perfect-team-id";
 import { normalizeSteamProfileUrl } from "@/lib/external-url";
 import { normalizeAffiliationRules, normalizeTeamRegistrationConfig } from "@/lib/seasons/compatibility";
 import type { Season } from "@/types/season";
@@ -330,7 +331,7 @@ async function projectTeamRegistrationRows(
       source: entry.source,
       status: entry.status as Exclude<TeamRegistrationReviewStatus, "all">,
       reviewReason: entry.reviewReason,
-      perfectTeamId: entry.perfectTeamId,
+      perfectTeamId: normalizePerfectTeamId(entry.perfectTeamId),
       logoUrl: entry.logoUrl,
       updatedAt: entry.updatedAt.toISOString(),
       representativeName: getDisplayName(entry.representative),
