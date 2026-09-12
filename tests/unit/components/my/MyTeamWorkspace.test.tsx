@@ -57,6 +57,7 @@ describe("MyTeamWorkspace member composition", () => {
     render(<MyTeamWorkspace model={{ kind: "none", pendingInvitations: [], history: [{ id: "membership-old", teamId: "team-old", teamSlug: "old-team", teamName: "Old Team", status: "left", startedAt: "2026-01-01T00:00:00.000Z", endedAt: "2026-06-01T00:00:00.000Z" }] }} />);
 
     expect(screen.getByText("Old Team · 已离队")).toBeInTheDocument();
-    expect(screen.queryByText(/队长|成员/)).not.toBeInTheDocument();
+    expect(screen.queryByText("Old Team · 队长")).not.toBeInTheDocument();
+    expect(screen.queryByText("Old Team · 成员")).not.toBeInTheDocument();
   });
 });
