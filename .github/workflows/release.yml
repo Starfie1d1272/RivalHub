@@ -30,9 +30,10 @@ jobs:
       RIVALHUB_TIMING: 1
       RIVALHUB_TIMING_TITLE: "Release phase timing"
       # Fixed non-secret Vercel target. VERCEL_TOKEN is the project-scoped
-      # deployment credential. Protected smoke obtains a short-lived GitHub
-      # OIDC token at runtime. DATABASE_URL is a GitHub production Environment
-      # secret dedicated to the protected migration runner.
+      # credential for deployment and project-scoped promotion/rollback API
+      # calls. Protected smoke obtains a short-lived GitHub OIDC token at
+      # runtime. DATABASE_URL is a GitHub production Environment secret
+      # dedicated to the protected migration runner.
       VERCEL_ORG_ID: team_0eIkBawGTdVjwYHdyrb20ZVV
       VERCEL_PROJECT_ID: prj_3bjmfKrSqRh4szrkEE4HpavnhI0E
       RIVALHUB_DB_TARGET: production
@@ -100,7 +101,7 @@ jobs:
             exit 1
           fi
           # VERCEL_TOKEN must remain project-scoped (`rivalhub-release`) and is
-          # used only by the exact production deploy command below.
+          # used only by the exact production deploy and routing API calls below.
 
       - name: Validate active migration chain locally
         run: |
@@ -221,8 +222,89 @@ jobs:
           echo "previous_commit=$PREVIOUS_COMMIT" >> "$GITHUB_OUTPUT"
           echo "Previous canonical production identity confirmed: tag=$PREVIOUS_TAG, commit=$PREVIOUS_COMMIT"
 
+          CANONICAL_DOMAIN="${RIVALHUB_PRODUCTION_BASE_URL#https://}"
+          CANONICAL_DOMAIN="${CANONICAL_DOMAIN%%/*}"
+          PREVIOUS_PROJECT_STATE="$(curl --fail --silent --show-error \
+            --retry 5 --retry-all-errors --retry-delay 3 \
+            -H "Authorization: Bearer $VERCEL_TOKEN" \
+            "https://api.vercel.com/v9/projects/${VERCEL_PROJECT_ID}?rollbackInfo=true&teamId=${VERCEL_ORG_ID}")"
+          PREVIOUS_DEPLOYMENT_ID="$(jq -er --arg domain "$CANONICAL_DOMAIN" '
+            [
+              .alias[]?
+              | select(.domain == $domain)
+              | .deployment.id?
+              | strings
+              | select(startswith("dpl_"))
+            ]
+            | last
+            // error("Canonical domain is not mapped to a deployment")
+          ' <<<"$PREVIOUS_PROJECT_STATE")"
+          echo "Previous canonical deployment resolved for rollback."
+
+          wait_for_alias_job() {
+            local expected_deployment_id="$1"
+            local deadline="$(($(date +%s) + 180))"
+            local project_state
+            local job_status
+            local to_deployment_id
+
+            while :; do
+              project_state="$(curl --fail --silent --show-error \
+                --retry 5 --retry-all-errors --retry-delay 3 \
+                -H "Authorization: Bearer $VERCEL_TOKEN" \
+                "https://api.vercel.com/v9/projects/${VERCEL_PROJECT_ID}?rollbackInfo=true&teamId=${VERCEL_ORG_ID}")"
+              job_status="$(jq -r '.lastAliasRequest.jobStatus // empty' <<<"$project_state")"
+              to_deployment_id="$(jq -r '.lastAliasRequest.toDeploymentId // empty' <<<"$project_state")"
+
+              if [[ "$job_status" == "succeeded" && "$to_deployment_id" == "$expected_deployment_id" ]]; then
+                return 0
+              fi
+              if [[ "$job_status" == "failed" && "$to_deployment_id" == "$expected_deployment_id" ]]; then
+                echo "Vercel alias operation failed for deployment $expected_deployment_id." >&2
+                return 1
+              fi
+              if (( $(date +%s) >= deadline )); then
+                echo "Timed out waiting for Vercel alias operation for deployment $expected_deployment_id (status=$job_status, target=$to_deployment_id)." >&2
+                return 1
+              fi
+              sleep 2
+            done
+          }
+
           PROMOTE_START="$(date +%s%3N)"
-          vercel promote "$DEPLOYMENT_URL" --yes --token="$VERCEL_TOKEN"
+          DEPLOYMENT_HOST="${DEPLOYMENT_URL#https://}"
+          if [[ "$DEPLOYMENT_HOST" == "$DEPLOYMENT_URL" || "$DEPLOYMENT_HOST" == */* ]]; then
+            echo "Vercel deployment URL is not an exact HTTPS hostname: $DEPLOYMENT_URL" >&2
+            exit 1
+          fi
+          DEPLOYMENT_HOST_ENCODED="$(jq -rn --arg host "$DEPLOYMENT_HOST" '$host | @uri')"
+          DEPLOYMENT_INFO="$(curl --fail --silent --show-error \
+            --retry 5 --retry-all-errors --retry-delay 3 \
+            -H "Authorization: Bearer $VERCEL_TOKEN" \
+            "https://api.vercel.com/v13/deployments/${DEPLOYMENT_HOST_ENCODED}?teamId=${VERCEL_ORG_ID}")"
+          jq -e --arg project "$VERCEL_PROJECT_ID" --arg host "$DEPLOYMENT_HOST" '
+            (.id | strings | startswith("dpl_"))
+            and .projectId == $project
+            and .url == $host
+            and .target == "production"
+            and .readyState == "READY"
+          ' <<<"$DEPLOYMENT_INFO" >/dev/null
+          PROMOTE_DEPLOYMENT_ID="$(jq -er '.id | strings | select(startswith("dpl_"))' <<<"$DEPLOYMENT_INFO")"
+
+          PROMOTE_STATUS="$(curl --fail --silent --show-error \
+            --request POST \
+            -H "Authorization: Bearer $VERCEL_TOKEN" \
+            -H "Content-Type: application/json" \
+            --data '{}' \
+            --output /dev/null \
+            --write-out '%{http_code}' \
+            "https://api.vercel.com/v10/projects/${VERCEL_PROJECT_ID}/promote/${PROMOTE_DEPLOYMENT_ID}?teamId=${VERCEL_ORG_ID}")"
+          if [[ "$PROMOTE_STATUS" != "201" && "$PROMOTE_STATUS" != "202" ]]; then
+            echo "Unexpected Vercel promote response status: $PROMOTE_STATUS" >&2
+            exit 1
+          fi
+          echo "Vercel promote request accepted for $PROMOTE_DEPLOYMENT_ID (HTTP $PROMOTE_STATUS); waiting for alias completion."
+          wait_for_alias_job "$PROMOTE_DEPLOYMENT_ID"
           PROMOTE_END="$(date +%s%3N)"
           node scripts/ci/timing.mjs record --label "promotion" --start-ms "$PROMOTE_START" --end-ms "$PROMOTE_END"
           echo "Promoted $DEPLOYMENT_URL to canonical production."
@@ -235,6 +317,36 @@ jobs:
         run: |
           set -euo pipefail
           CANONICAL_START="$(date +%s%3N)"
+          wait_for_alias_job() {
+            local expected_deployment_id="$1"
+            local deadline="$(($(date +%s) + 180))"
+            local project_state
+            local job_status
+            local to_deployment_id
+
+            while :; do
+              project_state="$(curl --fail --silent --show-error \
+                --retry 5 --retry-all-errors --retry-delay 3 \
+                -H "Authorization: Bearer $VERCEL_TOKEN" \
+                "https://api.vercel.com/v9/projects/${VERCEL_PROJECT_ID}?rollbackInfo=true&teamId=${VERCEL_ORG_ID}")"
+              job_status="$(jq -r '.lastAliasRequest.jobStatus // empty' <<<"$project_state")"
+              to_deployment_id="$(jq -r '.lastAliasRequest.toDeploymentId // empty' <<<"$project_state")"
+
+              if [[ "$job_status" == "succeeded" && "$to_deployment_id" == "$expected_deployment_id" ]]; then
+                return 0
+              fi
+              if [[ "$job_status" == "failed" && "$to_deployment_id" == "$expected_deployment_id" ]]; then
+                echo "Vercel alias operation failed for deployment $expected_deployment_id." >&2
+                return 1
+              fi
+              if (( $(date +%s) >= deadline )); then
+                echo "Timed out waiting for Vercel alias operation for deployment $expected_deployment_id (status=$job_status, target=$to_deployment_id)." >&2
+                return 1
+              fi
+              sleep 2
+            done
+          }
+
           smoke_canonical() {
             curl --fail --silent --show-error \
               --retry 8 --retry-all-errors --retry-delay 5 \
@@ -253,21 +365,31 @@ jobs:
 
           if ! smoke_canonical; then
             echo "::error::Canonical production smoke failed after promotion; initiating Vercel routing rollback..." >&2
-            if vercel rollback --yes --token="$VERCEL_TOKEN"; then
-              echo "Vercel rollback command succeeded; verifying canonical domain restored previous release identity..."
-              sleep 5
-              reverted_identity="$(curl --fail --silent --show-error \
-                --retry 5 --retry-all-errors --retry-delay 3 \
-                "$RIVALHUB_PRODUCTION_BASE_URL/api/system/release")"
-              echo "Reverted canonical identity: $reverted_identity"
-              jq -e --arg tag "$PREVIOUS_TAG" --arg commit "$PREVIOUS_COMMIT" '
-                (keys | sort) == ["releaseCommit", "releaseTag"]
-                and .releaseTag == $tag
-                and .releaseCommit == $commit
-              ' <<<"$reverted_identity" >/dev/null
-              echo "Canonical domain successfully restored previous identity: tag=$PREVIOUS_TAG, commit=$PREVIOUS_COMMIT."
+            if ROLLBACK_STATUS="$(curl --fail --silent --show-error \
+              --request POST \
+              -H "Authorization: Bearer $VERCEL_TOKEN" \
+              -H "Content-Type: application/json" \
+              --data '{}' \
+              --output /dev/null \
+              --write-out '%{http_code}' \
+              "https://api.vercel.com/v1/projects/${VERCEL_PROJECT_ID}/rollback/${PREVIOUS_DEPLOYMENT_ID}?teamId=${VERCEL_ORG_ID}")"; then
+              if [[ "$ROLLBACK_STATUS" == "201" ]] && wait_for_alias_job "$PREVIOUS_DEPLOYMENT_ID"; then
+                echo "Vercel rollback request succeeded; verifying canonical domain restored previous release identity..."
+                reverted_identity="$(curl --fail --silent --show-error \
+                  --retry 5 --retry-all-errors --retry-delay 3 \
+                  "$RIVALHUB_PRODUCTION_BASE_URL/api/system/release")"
+                echo "Reverted canonical identity: $reverted_identity"
+                jq -e --arg tag "$PREVIOUS_TAG" --arg commit "$PREVIOUS_COMMIT" '
+                  (keys | sort) == ["releaseCommit", "releaseTag"]
+                  and .releaseTag == $tag
+                  and .releaseCommit == $commit
+                ' <<<"$reverted_identity" >/dev/null
+                echo "Canonical domain successfully restored previous identity: tag=$PREVIOUS_TAG, commit=$PREVIOUS_COMMIT."
+              else
+                echo "::error::Vercel rollback did not complete successfully (HTTP $ROLLBACK_STATUS). Manual intervention required." >&2
+              fi
             else
-              echo "::error::Vercel rollback command failed! Manual intervention required." >&2
+              echo "::error::Vercel rollback request failed! Manual intervention required." >&2
             fi
             exit 1
           fi

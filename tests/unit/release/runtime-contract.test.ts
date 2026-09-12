@@ -363,8 +363,10 @@ describe("deployment and operations contracts", () => {
 
     // Staged production deployment and promotion
     expect(release).toContain("vercel deploy --prod --skip-domain");
-    expect(release).toContain('vercel promote "$DEPLOYMENT_URL" --yes');
-    expect(release).toContain("vercel rollback --yes");
+    expect(release).toContain("https://api.vercel.com/v10/projects/${VERCEL_PROJECT_ID}/promote/${PROMOTE_DEPLOYMENT_ID}?teamId=${VERCEL_ORG_ID}");
+    expect(release).toContain("https://api.vercel.com/v1/projects/${VERCEL_PROJECT_ID}/rollback/${PREVIOUS_DEPLOYMENT_ID}?teamId=${VERCEL_ORG_ID}");
+    expect(release).not.toContain('vercel promote "$DEPLOYMENT_URL" --yes');
+    expect(release).not.toContain("vercel rollback --yes");
 
     // Phase timing evidence
     expect(release).toContain('RIVALHUB_TIMING_TITLE: "Release phase timing"');
