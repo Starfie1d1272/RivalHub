@@ -10,6 +10,7 @@ import { APP_BRAND } from "@/lib/branding";
 import { GlobalInformationFeedbackLauncher } from "@/components/operations/GlobalInformationFeedbackLauncher";
 import { OperationsProvider } from "@/components/operations/OperationsContext";
 import { Suspense } from "react";
+import { isPreview } from "@/lib/runtime/preview";
 
 const geist = Geist({
   variable: "--font-geist",
@@ -56,6 +57,9 @@ export default function RootLayout({
       </head>
       <body className={`${geist.variable} ${jetbrainsMono.variable} ${notoSansSC.variable} antialiased min-h-screen flex flex-col`}>
         <OperationsProvider>
+          {isPreview() && <aside className="border-b border-border bg-muted px-4 py-2 text-center text-xs text-muted-foreground">
+            <span className="font-mono">PR PREVIEW</span> · 脱敏镜像，只读浏览 · 角色测试请使用 dev 专属账号
+          </aside>}
           <Header />
           <main className="flex-1">{children}</main>
           <Footer />

@@ -2,9 +2,11 @@ import "server-only";
 
 import { createClient } from "@supabase/supabase-js";
 import { providerFetch } from "@/lib/observability/fetch";
+import { assertPreviewAuthEnvironment, assertPreviewMutationAllowed } from "@/lib/runtime/preview";
 
 /** Service-role client. This module is server-only because the key bypasses RLS. */
 export function createServiceClient() {
+  assertPreviewMutationAllowed();
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
@@ -20,6 +22,7 @@ export function createServiceClient() {
 
 /** Server-side anonymous client for public Auth flows such as sign-up. */
 export function createPublicAuthClient() {
+  assertPreviewAuthEnvironment();
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,

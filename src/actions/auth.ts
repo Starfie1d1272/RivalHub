@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { createPublicAuthClient, createServiceClient } from "@/lib/auth/supabase-server";
 import { db } from "@/db/client";
 import { users } from "@/db/schema";
@@ -22,6 +22,7 @@ import {
 import { claimAdminInviteInTx } from "@/lib/auth/admin-invites";
 import { providerFetch } from "@/lib/observability/fetch";
 import { captureException, logEvent, traceOperation } from "@/lib/observability/server";
+import { isPreview } from "@/lib/runtime/preview";
 
 export async function loginWithPassword(
   email: string,
@@ -36,7 +37,8 @@ export async function loginWithPassword(
   const normalizedEmail = normalizeEmail(email);
 
   try {
-    const supabase = createServiceClient();
+    const preview = isPreview();
+    const supabase = preview ? createPublicAuthClient() : createServiceClient();
     const { data, error } = await traceOperation("provider.supabase.auth.sign_in", {
       scope: "provider",
       operation: "auth.sign_in",
@@ -53,7 +55,9 @@ export async function loginWithPassword(
       return fail({ code: ErrorCode.UNAUTHORIZED, message: "邮箱或密码错误" });
     }
 
-    const userRow = await db.transaction(async (tx) => {
+    const userRow = preview ? (await db.select({ id: users.id, email: users.email })
+      .from(users).where(and(eq(users.authId, data.user.id), eq(users.status, "active"), eq(users.email, normalizedEmail))).limit(1))[0]
+      : await db.transaction(async (tx) => {
       const canonicalUser = await resolveOrCreateCanonicalUserInTx(tx, {
         authId: data.user.id,
         email: normalizedEmail,
@@ -63,6 +67,8 @@ export async function loginWithPassword(
       });
       return bootstrapConfiguredOwnerInTx(tx, canonicalUser);
     });
+
+    if (!userRow) return fail({ code: ErrorCode.UNAUTHORIZED, message: "此账号未绑定预览身份，请使用镜像测试账号。" });
 
     await createUserSession({
       userId: userRow.id,
