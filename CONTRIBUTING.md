@@ -30,6 +30,8 @@ Changeset/CHANGELOG 只描述 release-relevant 可观察影响，不复制 commi
 
 Node/pnpm contract 只由 `package.json` 的 `packageManager`、`devEngines.runtime`、`engines.node` 与 lockfile 共同声明。workflow、文档或个人脚本不要复制另一份版本常量；安装和 CI 使用仓库 manifest/lockfile 的 canonical runtime。
 
+未声明为项目依赖的一次性 CLI 使用 `pnpm dlx <package>@<version>`；`pnpm exec` 只用于已安装的项目 dependency binary。检查/查询命令不得隐式安装依赖或改写 lockfile。
+
 ## Documentation
 
 active docs 只保存当前稳定知识。改 architecture/domain/workflow/policy/shared UI contract 时同 PR 更新对应 canonical doc；优先**重写原段落为终态**，不要在旧说明后持续追加实施历史。实时工作状态留在 Issues/PRs，旧设计和已失效过程材料进入 `docs/archive/`。
