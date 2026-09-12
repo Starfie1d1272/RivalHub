@@ -1,4 +1,4 @@
-import type { MajorStrengthFact, MajorStrengthRecommendationTeam, MajorStrengthStarter, MajorStrengthTeam } from "./types";
+import type { MajorStrengthFact, MajorStrengthStarter, MajorStrengthTeam, MajorStrengthTieState } from "./types";
 
 export type ProjectableStrengthFact = {
   rank: string;
@@ -57,48 +57,44 @@ export function projectStrengthFact(fact: ProjectableStrengthFact | null): Major
 }
 
 export function projectStrengthStarter(starter: StrengthStarterProjection): MajorStrengthStarter {
+  const historicalPeak = projectStrengthFact(starter.input.historicalPeak);
+  const referenceSeasonPeak = projectStrengthFact(starter.input.previousSeasonPeak);
+  const currentSeasonPeak = projectStrengthFact(starter.input.currentSeasonPeak);
+  const recentPeak = projectStrengthFact(starter.breakdown.effectiveRecentPeak)
+    ?? currentSeasonPeak;
   return {
     userId: starter.userId,
     label: starter.label,
-    historicalPeak: projectStrengthFact(starter.input.historicalPeak),
-    previousSeasonPeak: projectStrengthFact(starter.input.previousSeasonPeak),
-    currentSeasonPeak: projectStrengthFact(starter.input.currentSeasonPeak),
-    recentSeasonPeaks: (starter.input.recentSeasonPeaks ?? []).map(projectStrengthFact),
-    effectiveRecentPeak: projectStrengthFact(starter.breakdown.effectiveRecentPeak),
-    breakdown: {
+    presentation: {
+      historicalPeak,
+      referenceSeasonPeak,
+      currentSeasonPeak,
+      recentPeak,
+      historicalRating: starter.breakdown.historicalRating,
       available: starter.breakdown.available ?? true,
       blockers: [...(starter.breakdown.blockers ?? [])],
-      weightedRank: starter.breakdown.weightedRank,
-      historicalValue: starter.breakdown.historicalValue,
-      previousValue: starter.breakdown.previousValue,
-      currentValue: starter.breakdown.currentValue,
-      effectiveRecentPeak: projectStrengthFact(starter.breakdown.effectiveRecentPeak),
-      historicalRating: starter.breakdown.historicalRating,
     },
   };
 }
 
-type CompleteStrengthTeamProjection = StrengthTeamProjection & {
-  teamSeedStrength: number;
-  teamSeedStrengthScaled: number;
-  recommendationRank: number;
-  tieGroup: number;
-  displayOrder: number;
-};
+function projectTieState(team: StrengthTeamProjection, tieGroupSize: number): MajorStrengthTieState {
+  if (team.recommendationRank === null || team.tieGroup === null) return "not_ranked";
+  return tieGroupSize > 1 ? "tied" : "not_tied";
+}
 
-export function projectStrengthTeam(team: CompleteStrengthTeamProjection): MajorStrengthRecommendationTeam;
-export function projectStrengthTeam(team: StrengthTeamProjection): MajorStrengthTeam;
-export function projectStrengthTeam(team: StrengthTeamProjection): MajorStrengthTeam {
-  return {
+export function projectStrengthTeams(teams: readonly StrengthTeamProjection[]): MajorStrengthTeam[] {
+  const tieGroupSizes = new Map<number, number>();
+  for (const team of teams) {
+    if (team.tieGroup !== null) tieGroupSizes.set(team.tieGroup, (tieGroupSizes.get(team.tieGroup) ?? 0) + 1);
+  }
+
+  return teams.map((team) => ({
     teamId: team.teamId,
     teamName: team.teamName,
     available: team.available,
     blockers: [...team.blockers],
-    teamSeedStrength: team.teamSeedStrength,
-    teamSeedStrengthScaled: team.teamSeedStrengthScaled,
     recommendationRank: team.recommendationRank,
-    tieGroup: team.tieGroup,
-    displayOrder: team.displayOrder,
+    tieState: projectTieState(team, team.tieGroup === null ? 0 : tieGroupSizes.get(team.tieGroup) ?? 0),
     starters: team.starters.map(projectStrengthStarter),
-  };
+  }));
 }

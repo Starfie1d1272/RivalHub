@@ -39,7 +39,7 @@ import {
 import type { CompetitiveProfileConfig } from "@/types/season";
 import type { Season } from "@/db/schema/seasons";
 import type { MajorPrestartPageData, MajorPrestartStrengthPreview } from "./types";
-import { projectStrengthTeam } from "./strength";
+import { projectStrengthTeams } from "./strength";
 
 type MajorEntrantRow = {
   id: string;
@@ -55,7 +55,7 @@ type MajorRosterMemberRow = {
   eventRosterId: string;
   userId: string;
   participantId: string | null;
-  email?: string;
+  label: string;
   educationVerificationId: string | null;
   isPrimaryStarter: boolean;
 };
@@ -79,7 +79,7 @@ function projectLiveStrengthPreview(
     conversionPolicyId: context.conversionPolicyId ?? null,
     conversionPolicyVersion: context.conversionPolicyVersion ?? null,
     blockers: [],
-    teams: recommendations.map(projectStrengthTeam),
+    teams: projectStrengthTeams(recommendations),
   };
 }
 
@@ -90,32 +90,34 @@ function projectRecommendationSnapshot(
 ): MajorPrestartPageData["seedManagement"]["recommendation"] {
   if (!snapshot || status !== "ready") return null;
   const context = snapshot.context;
+  const recommendations = snapshot.recommendations
+    .filter((recommendation) => recommendation.teamSeedStrength !== null && recommendation.recommendationRank !== null && recommendation.tieGroup !== null && recommendation.displayOrder !== null)
+    .sort((left, right) => left.displayOrder! - right.displayOrder!);
+  const projectedTeams = projectStrengthTeams(recommendations.map((recommendation) => ({
+    teamId: recommendation.competitionEntryId,
+    teamName: recommendation.teamName,
+    available: true,
+    blockers: [],
+    teamSeedStrength: recommendation.teamSeedStrength,
+    teamSeedStrengthScaled: recommendation.teamSeedStrengthScaled,
+    recommendationRank: recommendation.recommendationRank,
+    tieGroup: recommendation.tieGroup,
+    displayOrder: recommendation.displayOrder,
+    starters: recommendation.starters,
+  })));
   return {
     version: context.version,
     generatedAt: snapshot.generatedAt.toISOString(),
     platform: context.competitiveContext.platform,
     conversionPolicyId: context.competitiveContext.conversionPolicyId,
     conversionPolicyVersion: context.competitiveContext.conversionPolicyVersion,
-    teams: snapshot.recommendations
-      .filter((recommendation) => recommendation.teamSeedStrength !== null && recommendation.recommendationRank !== null && recommendation.tieGroup !== null && recommendation.displayOrder !== null)
-      .sort((left, right) => left.displayOrder! - right.displayOrder!)
-      .map((recommendation) => ({
-        entrantId: recommendation.entrantId,
-        ...projectStrengthTeam({
-          teamId: recommendation.competitionEntryId,
-          teamName: recommendation.teamName,
-          available: true,
-          blockers: [],
-          teamSeedStrength: recommendation.teamSeedStrength!,
-          teamSeedStrengthScaled: recommendation.teamSeedStrengthScaled!,
-          recommendationRank: recommendation.recommendationRank!,
-          tieGroup: recommendation.tieGroup!,
-          displayOrder: recommendation.displayOrder!,
-          starters: recommendation.starters,
-        }),
-        finalSeed: seedDecision?.finalSeedByTeamId[recommendation.competitionEntryId] ?? null,
-        finalOrderStatus: seedDecision?.rowStatusByTeamId[recommendation.competitionEntryId] ?? "unsaved",
-      })),
+    teams: recommendations.map((recommendation, index) => ({
+      entrantId: recommendation.entrantId,
+      ...projectedTeams[index]!,
+      recommendationRank: recommendation.recommendationRank!,
+      finalSeed: seedDecision?.finalSeedByTeamId[recommendation.competitionEntryId] ?? null,
+      finalOrderStatus: seedDecision?.rowStatusByTeamId[recommendation.competitionEntryId] ?? "unsaved",
+    })),
   };
 }
 
@@ -147,7 +149,7 @@ export function buildMajorReadiness(
       teamId: entrant.teamId,
       teamLabel: entrant.teamName ?? entrant.teamId,
       playerIds: (rosterByEntrant.get(entrant.id) ?? []).map((member) => member.userId),
-      playerLabels: Object.fromEntries((rosterByEntrant.get(entrant.id) ?? []).map((member) => [member.userId, member.email ?? member.userId])),
+      playerLabels: Object.fromEntries((rosterByEntrant.get(entrant.id) ?? []).map((member) => [member.userId, member.label])),
       educationVerificationIds: (rosterByEntrant.get(entrant.id) ?? []).map((member) => member.educationVerificationId),
     })),
     entrantsLocked: Boolean(state?.entrantsLockedAt),
@@ -183,6 +185,9 @@ export async function loadMajorPrestartPageData(season: Season): Promise<MajorPr
     approvedRevisionIds.length === 0 ? Promise.resolve([]) : db.select({
       entryId: competitionEntryRosterRevisions.entryId,
       userId: competitionEntryRosterMembers.userId,
+      displayName: users.displayName,
+      perfectName: users.perfectName,
+      steamName: users.steamName,
       email: users.email,
       isPrimaryStarter: competitionEntryRosterMembers.isPrimaryStarter,
     }).from(competitionEntryRosterMembers)
@@ -198,10 +203,10 @@ export async function loadMajorPrestartPageData(season: Season): Promise<MajorPr
       email: users.email,
     }).from(users).where(inArray(users.id, representativeIds)),
   ]);
-  const approvedMembersByEntryId = new Map<string, Array<{ userId: string; email: string; isPrimaryStarter: boolean }>>();
+  const approvedMembersByEntryId = new Map<string, Array<{ userId: string; label: string; isPrimaryStarter: boolean }>>();
   for (const member of approvedMemberRows) {
     const members = approvedMembersByEntryId.get(member.entryId) ?? [];
-    members.push({ userId: member.userId, email: member.email ?? "", isPrimaryStarter: member.isPrimaryStarter });
+    members.push({ userId: member.userId, label: getDisplayName(member), isPrimaryStarter: member.isPrimaryStarter });
     approvedMembersByEntryId.set(member.entryId, members);
   }
   const representativeNameById = new Map(representativeRows.map((user) => [user.id, getDisplayName(user)]));
@@ -233,7 +238,7 @@ export async function loadMajorPrestartPageData(season: Season): Promise<MajorPr
           ? toPlayerStrengthInput(fact, competitiveProfile)
           : {
             userId: member.userId,
-            label: member.email || "未知选手",
+            label: member.label,
             historicalPeak: null,
             previousSeasonPeak: null,
             currentSeasonPeak: null,
@@ -257,16 +262,13 @@ export async function loadMajorPrestartPageData(season: Season): Promise<MajorPr
         blockers: [capabilities.teamRegistrationConfig.requireCompetitiveProfile
           ? "本届冻结的竞技平台目录不完整，暂时无法计算实时队伍实力参考。"
           : "本届赛事缺少实力参考所需的竞技上下文。"],
-        teamSeedStrength: null,
-        teamSeedStrengthScaled: null,
         recommendationRank: null,
-        tieGroup: null,
-        displayOrder: null,
+        tieState: "not_ranked" as const,
         starters: [],
       })),
     };
 
-  const [state, entrantRows, rosterRows, issueRows, seedRows, snapshot, stageRunRows] = await Promise.all([
+  const [state, entrantRows, rawRosterRows, issueRows, seedRows, snapshot, stageRunRows] = await Promise.all([
     db.query.majorPrestartStates.findFirst({ where: eq(majorPrestartStates.seasonId, season.id) }),
     db.select({
       id: majorTournamentEntrants.id,
@@ -280,7 +282,7 @@ export async function loadMajorPrestartPageData(season: Season): Promise<MajorPr
       .innerJoin(eventRosters, eq(majorTournamentEntrants.competitionEntryId, eventRosters.entryId))
       .where(eq(majorTournamentEntrants.seasonId, season.id))
       .orderBy(asc(competitionEntries.name)),
-    db.select({ entrantId: majorTournamentEntrants.id, eventRosterId: eventRosterMembers.eventRosterId, userId: eventRosterMembers.userId, participantId: eventRosterMembers.participantId, email: users.email, educationVerificationId: eventRosterMembers.educationVerificationId, isPrimaryStarter: eventRosterMembers.isPrimaryStarter })
+    db.select({ entrantId: majorTournamentEntrants.id, eventRosterId: eventRosterMembers.eventRosterId, userId: eventRosterMembers.userId, participantId: eventRosterMembers.participantId, displayName: users.displayName, perfectName: users.perfectName, steamName: users.steamName, email: users.email, educationVerificationId: eventRosterMembers.educationVerificationId, isPrimaryStarter: eventRosterMembers.isPrimaryStarter })
       .from(eventRosterMembers)
       .innerJoin(eventRosters, eq(eventRosterMembers.eventRosterId, eventRosters.id))
       .innerJoin(majorTournamentEntrants, eq(majorTournamentEntrants.competitionEntryId, eventRosters.entryId))
@@ -298,6 +300,10 @@ export async function loadMajorPrestartPageData(season: Season): Promise<MajorPr
     db.select({ id: majorStageRuns.id }).from(majorStageRuns).where(eq(majorStageRuns.seasonId, season.id)),
   ]);
 
+  const rosterRows: MajorRosterMemberRow[] = rawRosterRows.map(({ displayName, perfectName, steamName, email, ...member }) => ({
+    ...member,
+    label: getDisplayName({ displayName, perfectName, steamName, email }),
+  }));
   const frozenTeams = frozenTeamsForSnapshot(entrantRows, rosterRows);
   const frozenSetFingerprint = buildFrozenSetFingerprint(season.id, frozenTeams);
   const recommendationStatus = getSeedRecommendationSnapshotStatus({ snapshot, seasonId: season.id, frozenSetFingerprint });
@@ -309,11 +315,11 @@ export async function loadMajorPrestartPageData(season: Season): Promise<MajorPr
   });
   const entrantIds = new Set(entrantRows.map((entrant) => entrant.id));
   const selectedEntryIds = new Set(entrantRows.map((entrant) => entrant.teamId));
-  const rosterByEntrant = new Map<string, Array<{ userId: string; email: string; educationVerificationId: string | null; isPrimaryStarter: boolean }>>();
+  const rosterByEntrant = new Map<string, Array<{ userId: string; label: string; educationVerificationId: string | null; isPrimaryStarter: boolean }>>();
   for (const member of rosterRows) {
     if (!entrantIds.has(member.entrantId)) continue;
     const roster = rosterByEntrant.get(member.entrantId) ?? [];
-    roster.push({ userId: member.userId, email: member.email ?? "", educationVerificationId: member.educationVerificationId, isPrimaryStarter: member.isPrimaryStarter });
+    roster.push({ userId: member.userId, label: member.label, educationVerificationId: member.educationVerificationId, isPrimaryStarter: member.isPrimaryStarter });
     rosterByEntrant.set(member.entrantId, roster);
   }
 
@@ -347,7 +353,7 @@ export async function loadMajorPrestartPageData(season: Season): Promise<MajorPr
         rosterStatus: entrant.rosterStatus,
         roster: (rosterByEntrant.get(entrant.id) ?? []).map((member) => ({
           userId: member.userId,
-          email: member.email,
+          label: member.label,
           isPrimaryStarter: member.isPrimaryStarter,
           educationVerified: Boolean(member.educationVerificationId),
         })),

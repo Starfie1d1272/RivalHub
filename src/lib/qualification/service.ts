@@ -4,6 +4,7 @@ import { competitiveRankFacts, educationVerifications, institutions, users } fro
 import { BUILT_IN_COMPETITIVE_PLATFORMS, isBuiltInCompetitivePlatformKey, isBuiltInStarRank } from "@/lib/competitive/builtins";
 import { convertFiveeToPerfect } from "@/lib/competitive/conversion-policy";
 import { comparePlayerStrengthFacts, evaluateExternalStrengthRule, getPlayerStrengthFindings, type PlayerStrengthFact, type PlayerStrengthInput } from "@/lib/major/player-strength";
+import { getDisplayName } from "@/lib/identity/display-name";
 import {
   blockersFromQualificationFindings,
   uniqueQualificationFindings,
@@ -168,7 +169,7 @@ function createCompetitiveCandidateResolver(context: CompetitiveProfileConfig | 
 
 /** Adapts long-term facts to the event's frozen evidence policy in one place. */
 export function toPlayerStrengthInput(
-  fact: Pick<ParticipantQualificationFacts, "userId" | "displayName" | "perfectName" | "email" | "historicalPeak" | "seasonPeaks" | "fallbackFacts">,
+  fact: Pick<ParticipantQualificationFacts, "userId" | "displayName" | "perfectName" | "steamName" | "email" | "historicalPeak" | "seasonPeaks" | "fallbackFacts">,
   context: CompetitiveProfileConfig | null,
 ): PlayerStrengthInput {
   const policy = context?.evidencePolicy;
@@ -185,7 +186,7 @@ export function toPlayerStrengthInput(
   const recentSeasonKeys = policy?.recentSeasonKeys ?? (context?.currentSeasonKey ? [context.currentSeasonKey] : []);
   return {
     userId: fact.userId ?? "",
-    label: fact.displayName ?? fact.perfectName ?? fact.email ?? "未知选手",
+    label: getDisplayName(fact),
     historicalPeak: resolve(fact.historicalPeak, fact.fallbackFacts?.historicalPeak),
     previousSeasonPeak: resolve(fact.seasonPeaks?.get(referenceSeasonKey), fallbackFor(referenceSeasonKey)),
     currentSeasonPeak: resolve(fact.seasonPeaks?.get(context?.currentSeasonKey ?? ""), fallbackFor(context?.currentSeasonKey ?? "")),
@@ -510,7 +511,7 @@ export async function getParticipantReadiness(userId: string, config: Competitiv
 
 export interface RosterQualificationMember {
   userId: string;
-  email: string;
+  label: string;
   emailVerifiedAt: Date | null;
   educationHistory: SeasonEducationVerification[];
   /** Whether this member counts as an institutional ("home") member. */
@@ -556,7 +557,7 @@ export async function evaluateRosterQualificationFromFacts(input: {
   const education = evaluateRosterEducationEligibility(
     members.map((member) => ({
       userId: member.userId,
-      email: member.email,
+      label: member.label,
       emailVerifiedAt: member.emailVerifiedAt,
       verificationHistory: member.educationHistory,
     })),

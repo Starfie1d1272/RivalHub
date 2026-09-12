@@ -12,6 +12,7 @@ import {
 } from "@/db/schema";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { evaluateRosterEducationEligibility, resolveSeasonEducationVerification } from "@/lib/education/eligibility";
+import { getDisplayName } from "@/lib/identity/display-name";
 import { assertSinglePrestartEntryCoherenceInTx, type PrestartEntryCoherence } from "@/lib/major/prestart-entry";
 import { assertMajorPrestartEntrantsMutable, ensureMajorPrestartStateInTx } from "@/lib/major/prestart-state";
 import { loadParticipantQualificationFacts } from "@/lib/qualification/service";
@@ -33,7 +34,7 @@ async function loadApprovedRosterEducation(
   const facts = await loadParticipantQualificationFacts(userIds, { executor: tx, includeCompetitiveFacts: false });
   const resolved = [...facts.entries()].map(([userId, fact]) => ({
     userId,
-    email: fact.email ?? "",
+    label: getDisplayName(fact),
     emailVerifiedAt: fact.emailVerifiedAt,
     verificationHistory: fact.educationHistory,
     verification: resolveSeasonEducationVerification(fact.educationHistory, affiliationRules).selectedVerification,

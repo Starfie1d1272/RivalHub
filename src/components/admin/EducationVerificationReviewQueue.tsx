@@ -65,7 +65,7 @@ export function EducationVerificationReviewQueue({ rows, emptyState }: Education
             <Panel key={row.id} contentClassName="p-5">
               <div className="space-y-2">
                 <p className="font-semibold">
-                  {row.displayName || row.email} · {row.status === "pending" ? "待审核" : row.status === "approved" ? "已通过" : "已驳回"}
+                  {row.displayName ?? "未知用户"} · {row.status === "pending" ? "待审核" : row.status === "approved" ? "已通过" : "已驳回"}
                 </p>
                 <p className="text-sm text-[var(--color-fg-mid)]">账号：{row.email}</p>
                 <p className="text-sm">声明学校：{row.institution}{row.code ? `（${row.code}）` : ""} · {row.academicStatus === "enrolled" ? "在读" : "已毕业"}</p>

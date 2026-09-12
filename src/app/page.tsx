@@ -27,6 +27,7 @@ import { HomeSeasonPanel, shouldLoadRegistrationPositionCounts } from "@/compone
 import { SeasonCardGrid } from "@/components/home/SeasonCardGrid";
 import { EmptyState, PageLayout, Panel } from "@/components/rivalhub";
 import { getParticipantSummary } from "@/lib/participants/summary";
+import { getPublicDisplayName } from "@/lib/identity/display-name";
 
 export default function HomePage() {
   return (
@@ -114,6 +115,7 @@ async function HomeContent() {
           .select({
             displayName: users.displayName,
             perfectName: users.perfectName,
+            steamName: users.steamName,
             voteCount: count(),
           })
           .from(captainVotes)
@@ -123,10 +125,10 @@ async function HomeContent() {
           )
           .innerJoin(users, and(eq(seasonRegistrations.userId, users.id), eq(users.status, "active")))
           .where(eq(seasonRegistrations.seasonId, featured.id))
-          .groupBy(users.id, users.displayName, users.perfectName)
+          .groupBy(users.id, users.displayName, users.perfectName, users.steamName)
           .orderBy(desc(count()))
           .limit(3)
-      : Promise.resolve([] as { displayName: string | null; perfectName: string | null; voteCount: number }[]),
+      : Promise.resolve([] as { displayName: string | null; perfectName: string | null; steamName: string | null; voteCount: number }[]),
     // 进行期的近期比赛入口
     featured.status === "playing"
       ? db
@@ -156,7 +158,7 @@ async function HomeContent() {
   ]);
 
   const namedCandidates = topCandidatesWithNames.map((candidate) => ({
-    name: candidate.displayName ?? candidate.perfectName ?? "未知选手",
+    name: getPublicDisplayName(candidate),
     voteCount: Number(candidate.voteCount),
   }));
 

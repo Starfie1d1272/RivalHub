@@ -40,7 +40,7 @@ describe("MajorPrestartManagement", () => {
         teamId: "team-1",
         teamName: "Team One",
         rosterStatus: "confirmed",
-        roster: [{ userId: "user-1", email: "player@example.com", isPrimaryStarter: true, educationVerified: true }],
+        roster: [{ userId: "user-1", label: "Player One", isPrimaryStarter: true, educationVerified: true }],
       }],
       issues: [],
     }} />);
@@ -68,20 +68,20 @@ describe("MajorPrestartManagement", () => {
             teamName: "Strong Team",
             available: true,
             blockers: [],
-            teamSeedStrength: 12.34,
-            teamSeedStrengthScaled: 1234,
             recommendationRank: 1,
-            tieGroup: 1,
-            displayOrder: 1,
+            tieState: "not_tied",
             starters: [{
               userId: "user-strong",
               label: "Strong Player",
-              historicalPeak: { rank: "A", stars: null, sourcePlatform: null, sourceSeasonKey: null, sourceRank: null, sourceStars: null, conversionVersion: null },
-              previousSeasonPeak: { rank: "A", stars: null, sourcePlatform: null, sourceSeasonKey: null, sourceRank: null, sourceStars: null, conversionVersion: null },
-              currentSeasonPeak: { rank: "A", stars: null, sourcePlatform: null, sourceSeasonKey: null, sourceRank: null, sourceStars: null, conversionVersion: null },
-              recentSeasonPeaks: [],
-              effectiveRecentPeak: null,
-              breakdown: { available: true, blockers: [], weightedRank: 12.34, historicalValue: 12, previousValue: 12, currentValue: 13, effectiveRecentPeak: null, historicalRating: 1000 },
+              presentation: {
+                historicalPeak: { rank: "A", stars: null, sourcePlatform: null, sourceSeasonKey: null, sourceRank: null, sourceStars: null, conversionVersion: null },
+                referenceSeasonPeak: { rank: "A", stars: null, sourcePlatform: null, sourceSeasonKey: null, sourceRank: null, sourceStars: null, conversionVersion: null },
+                currentSeasonPeak: { rank: "A", stars: null, sourcePlatform: null, sourceSeasonKey: null, sourceRank: null, sourceStars: null, conversionVersion: null },
+                recentPeak: { rank: "A", stars: null, sourcePlatform: null, sourceSeasonKey: null, sourceRank: null, sourceStars: null, conversionVersion: null },
+                historicalRating: 1000,
+                available: true,
+                blockers: [],
+              },
             }],
           },
           {
@@ -89,11 +89,8 @@ describe("MajorPrestartManagement", () => {
             teamName: "Blocked Team",
             available: false,
             blockers: ["缺少当前赛季最高段位及 Rating。"],
-            teamSeedStrength: null,
-            teamSeedStrengthScaled: null,
             recommendationRank: null,
-            tieGroup: null,
-            displayOrder: null,
+            tieState: "not_ranked",
             starters: [],
           },
         ],
@@ -107,7 +104,10 @@ describe("MajorPrestartManagement", () => {
 
     expect(screen.getByRole("heading", { name: "实时队伍实力参考" })).toBeVisible();
     expect(screen.getByText("#1 · Strong Team")).toBeVisible();
+    expect(screen.getByText("系统参考顺序")).toBeVisible();
     expect(screen.getByText("Strong Player")).toBeVisible();
+    expect(screen.queryByText("12.34")).not.toBeInTheDocument();
+    expect(screen.queryByText(/并列组/)).not.toBeInTheDocument();
     expect(screen.getByText("无法计算，不按 0 参与排序")).toBeVisible();
     expect(screen.getByText("缺少当前赛季最高段位及 Rating。", { exact: false })).toBeVisible();
     expect(screen.getByText("不自动选择正式参赛队，不改变资格结论")).toBeVisible();

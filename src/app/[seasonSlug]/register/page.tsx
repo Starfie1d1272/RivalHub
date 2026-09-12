@@ -183,7 +183,7 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
               const education = resolveSeasonEducationVerification(fact?.educationHistory ?? [], affiliationRules).selectedVerification;
               return {
                 userId: member.userId,
-                email: fact?.email ?? member.email,
+                label: getPublicDisplayName(fact ?? member),
                 emailVerifiedAt: fact?.emailVerifiedAt ?? null,
                 educationHistory: fact?.educationHistory ?? [],
                 isHome: isHomeAffiliatedMember(education ?? { institutionCode: null, academicStatus: null }, affiliationRules),

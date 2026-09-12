@@ -252,6 +252,13 @@ describe("identity flow UI", () => {
     expect(screen.getByRole("button", { name: "通过" })).toBeInTheDocument();
   });
 
+  it("uses the canonical identity in the review title while retaining email as explicit account detail", () => {
+    render(<EducationVerificationReviewQueue emptyState="no-pending" rows={[{ id: "55555555-5555-4555-8555-555555555555", email: "private@example.test", displayName: "玩家甲", institution: "南京大学", code: "4132010284", academicStatus: "enrolled", evidenceLabel: "学信网学历材料", chsiEvidenceCode: null, manualEvidenceAvailable: false, status: "pending", submittedAt: new Date().toISOString(), reviewNote: null }]} />);
+
+    expect(screen.getByText("玩家甲 · 待审核")).toBeInTheDocument();
+    expect(screen.getByText("账号：private@example.test")).toBeInTheDocument();
+  });
+
   it("shows cleared CHSI evidence as a retention-policy state", () => {
     render(<EducationVerificationReviewQueue emptyState="no-results" rows={[{ id: "22222222-2222-4222-8222-222222222222", email: "player@example.test", displayName: null, institution: "南京大学", code: "4132010284", academicStatus: "graduated", evidenceLabel: "学信网学历材料", chsiEvidenceCode: null, manualEvidenceAvailable: false, status: "approved", submittedAt: new Date().toISOString(), reviewNote: null }]} />);
 

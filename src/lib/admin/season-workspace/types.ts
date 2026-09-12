@@ -46,42 +46,31 @@ export interface MajorStrengthFact {
 export interface MajorStrengthStarter {
   userId: string;
   label: string;
-  historicalPeak: MajorStrengthFact | null;
-  previousSeasonPeak: MajorStrengthFact | null;
-  currentSeasonPeak: MajorStrengthFact | null;
-  recentSeasonPeaks: Array<MajorStrengthFact | null>;
-  effectiveRecentPeak: MajorStrengthFact | null;
-  breakdown: {
+  presentation: {
+    historicalPeak: MajorStrengthFact | null;
+    referenceSeasonPeak: MajorStrengthFact | null;
+    currentSeasonPeak: MajorStrengthFact | null;
+    recentPeak: MajorStrengthFact | null;
+    historicalRating: number | null;
     available: boolean;
     blockers: string[];
-    weightedRank: number | null;
-    historicalValue: number | null;
-    previousValue: number | null;
-    currentValue: number | null;
-    effectiveRecentPeak: MajorStrengthFact | null;
-    historicalRating: number | null;
   };
 }
+
+export type MajorStrengthTieState = "not_ranked" | "not_tied" | "tied";
 
 export interface MajorStrengthTeam {
   teamId: string;
   teamName: string;
   available: boolean;
   blockers: string[];
-  teamSeedStrength: number | null;
-  teamSeedStrengthScaled: number | null;
   recommendationRank: number | null;
-  tieGroup: number | null;
-  displayOrder: number | null;
+  tieState: MajorStrengthTieState;
   starters: MajorStrengthStarter[];
 }
 
-export type MajorStrengthRecommendationTeam = Omit<MajorStrengthTeam, "teamSeedStrength" | "teamSeedStrengthScaled" | "recommendationRank" | "tieGroup" | "displayOrder"> & {
-  teamSeedStrength: number;
-  teamSeedStrengthScaled: number;
+export type MajorStrengthRecommendationTeam = Omit<MajorStrengthTeam, "recommendationRank"> & {
   recommendationRank: number;
-  tieGroup: number;
-  displayOrder: number;
 };
 
 export interface MajorPrestartStrengthPreview {
@@ -113,7 +102,7 @@ export interface MajorPrestartPageData {
       roster: {
         memberCount: number;
         primaryStarterCount: number;
-        members: Array<{ userId: string; email: string; isPrimaryStarter: boolean }>;
+        members: Array<{ userId: string; label: string; isPrimaryStarter: boolean }>;
       };
     }>;
     entrants: Array<{
@@ -121,7 +110,7 @@ export interface MajorPrestartPageData {
       teamId: string;
       teamName: string;
       rosterStatus: "preparing" | "confirmed" | "frozen";
-      roster: Array<{ userId: string; email: string; isPrimaryStarter: boolean; educationVerified: boolean }>;
+      roster: Array<{ userId: string; label: string; isPrimaryStarter: boolean; educationVerified: boolean }>;
     }>;
     issues: Array<{ id: string; category: "qualification" | "administration"; label: string; resolved: boolean }>;
   };

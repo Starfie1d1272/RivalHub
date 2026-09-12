@@ -39,21 +39,21 @@ export function MajorStrengthStarterSummary({
   recentLabel?: string;
   showProvenance?: boolean;
 }) {
+  const { presentation } = starter;
   const provenanceFacts = [
-    starter.historicalPeak,
-    starter.previousSeasonPeak,
-    starter.currentSeasonPeak,
-    ...starter.recentSeasonPeaks,
-    starter.effectiveRecentPeak,
+    { label: "历史最高", fact: presentation.historicalPeak },
+    { label: "参考", fact: presentation.referenceSeasonPeak },
+    { label: recentLabel, fact: presentation.recentPeak },
+    { label: "当前赛季候选", fact: presentation.currentSeasonPeak },
   ]
-    .filter(isConverted)
-    .filter((fact, index, facts) => facts.findIndex((other) =>
-      other.rank === fact.rank &&
-      other.sourcePlatform === fact.sourcePlatform &&
-      other.sourceSeasonKey === fact.sourceSeasonKey &&
-      other.sourceRank === fact.sourceRank &&
-      other.sourceStars === fact.sourceStars &&
-      other.conversionVersion === fact.conversionVersion,
+    .filter((item): item is { label: string; fact: MajorStrengthFact } => isConverted(item.fact))
+    .filter((item, index, items) => items.findIndex((other) =>
+      other.fact.rank === item.fact.rank &&
+      other.fact.sourcePlatform === item.fact.sourcePlatform &&
+      other.fact.sourceSeasonKey === item.fact.sourceSeasonKey &&
+      other.fact.sourceRank === item.fact.sourceRank &&
+      other.fact.sourceStars === item.fact.sourceStars &&
+      other.fact.conversionVersion === item.fact.conversionVersion,
     ) === index);
 
   return (
@@ -61,32 +61,27 @@ export function MajorStrengthStarterSummary({
       <summary className="cursor-pointer list-none text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]">
         <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
           <span className="font-medium text-[var(--color-fg)]">{starter.label}</span>
-          <span className="font-mono text-[var(--color-fg-mid)]">历史 {formatStrengthFact(starter.historicalPeak, platform)}</span>
-          <span className="font-mono text-[var(--color-fg-mid)]">综合 {starter.breakdown.weightedRank === null ? "无法计算" : starter.breakdown.weightedRank.toFixed(2)}</span>
-          <span className="font-mono text-[var(--color-fg-mid)]">近期 {formatStrengthFact(starter.effectiveRecentPeak, platform)}</span>
-          <ProvenanceBadge fact={starter.historicalPeak} />
-          <ProvenanceBadge fact={starter.effectiveRecentPeak} />
+          <span className="font-mono text-[var(--color-fg-mid)]">历史 {formatStrengthFact(presentation.historicalPeak, platform)}</span>
+          <span className="font-mono text-[var(--color-fg-mid)]">参考 {formatStrengthFact(presentation.referenceSeasonPeak, platform)}</span>
+          <span className="font-mono text-[var(--color-fg-mid)]">近期 {formatStrengthFact(presentation.recentPeak, platform)}</span>
+          <ProvenanceBadge fact={presentation.historicalPeak} />
+          <ProvenanceBadge fact={presentation.referenceSeasonPeak} />
+          <ProvenanceBadge fact={presentation.recentPeak} />
         </span>
       </summary>
       <div className="mt-2 space-y-1 border-t border-[var(--color-border)] pt-2 text-[11px] leading-5 text-[var(--color-fg-mid)]">
-        <FactLine label="历史最高" fact={starter.historicalPeak} platform={platform} />
-        <FactLine label="前一完整赛季" fact={starter.previousSeasonPeak} platform={platform} />
-        <FactLine label="当前赛季候选" fact={starter.currentSeasonPeak} platform={platform} />
-        <FactLine label={recentLabel} fact={starter.effectiveRecentPeak} platform={platform} />
-        <p>
-          综合参考值 {starter.breakdown.weightedRank === null ? "无法计算" : starter.breakdown.weightedRank.toFixed(2)}
-          {starter.breakdown.historicalValue === null || starter.breakdown.previousValue === null || starter.breakdown.currentValue === null
-            ? ""
-            : ` · 历史/前一赛季/近期参考 ${starter.breakdown.historicalValue}/${starter.breakdown.previousValue}/${starter.breakdown.currentValue}`}
-          {starter.breakdown.historicalRating === null ? "" : ` · 历史 Rating ${starter.breakdown.historicalRating}`}
-        </p>
-        {showProvenance && provenanceFacts.map((fact, index) => (
+        <FactLine label="历史最高" fact={presentation.historicalPeak} platform={platform} />
+        <FactLine label="前一完整赛季" fact={presentation.referenceSeasonPeak} platform={platform} />
+        <FactLine label="当前赛季候选" fact={presentation.currentSeasonPeak} platform={platform} />
+        <FactLine label={recentLabel} fact={presentation.recentPeak} platform={platform} />
+        {presentation.historicalRating !== null && <p>历史 Rating {presentation.historicalRating}</p>}
+        {showProvenance && provenanceFacts.map(({ label, fact }, index) => (
           <p key={`${starter.userId}-source-${index}`}>
-            来源：{sourceLabel(fact.sourcePlatform)}{fact.sourceSeasonKey ? ` · 赛季 ${fact.sourceSeasonKey}` : ""} · 原始 {fact.sourceRank}{fact.sourceStars === null ? "" : ` · ${fact.sourceStars} 星`} · 换算版本 {fact.conversionVersion ?? "未记录"}
+            来源（{label}）：{sourceLabel(fact.sourcePlatform)}{fact.sourceSeasonKey ? ` · 赛季 ${fact.sourceSeasonKey}` : ""} · 原始 {fact.sourceRank}{fact.sourceStars === null ? "" : ` · ${fact.sourceStars} 星`} · 换算版本 {fact.conversionVersion ?? "未记录"}
           </p>
         ))}
-        {!starter.breakdown.available && <ul className="list-disc pl-4 text-[var(--color-warn)]">
-          {starter.breakdown.blockers.map((blocker) => <li key={blocker}>{blocker}</li>)}
+        {!presentation.available && <ul className="list-disc pl-4 text-[var(--color-warn)]">
+          {presentation.blockers.map((blocker) => <li key={blocker}>{blocker}</li>)}
         </ul>}
       </div>
     </details>

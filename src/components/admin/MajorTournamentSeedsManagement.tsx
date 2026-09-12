@@ -24,7 +24,6 @@ export function MajorTournamentSeedsManagement({ data }: { data: MajorTournament
   const saved = [...data.seeds].sort((a, b) => a.tournamentSeed - b.tournamentSeed).map((seed) => seed.teamId);
   const recommendationOrder = data.recommendation?.teams
     .slice()
-    .sort((a, b) => a.displayOrder - b.displayOrder)
     .map((team) => team.teamId) ?? [];
   const initialOrder = saved.length === capacity
     ? saved
@@ -43,14 +42,7 @@ export function MajorTournamentSeedsManagement({ data }: { data: MajorTournament
 
   const teamById = useMemo(() => new Map(data.entrants.map((entrant) => [entrant.teamId, entrant])), [data.entrants]);
   const recommendation = data.recommendation;
-  const analysisRows = useMemo(() => [...(recommendation?.teams ?? [])].sort((left, right) => left.displayOrder - right.displayOrder), [recommendation]);
-  const tieGroupSizes = useMemo(() => {
-    const sizes = new Map<number, number>();
-    for (const team of recommendation?.teams ?? []) {
-      sizes.set(team.tieGroup, (sizes.get(team.tieGroup) ?? 0) + 1);
-    }
-    return sizes;
-  }, [recommendation]);
+  const analysisRows = useMemo(() => [...(recommendation?.teams ?? [])], [recommendation]);
   const recommendationReady = data.recommendationStatus === "ready";
   const confirmed = data.seedsConfirmed;
   const orderMatchesSaved = order.length === saved.length && order.every((teamId, index) => teamId === saved[index]);
@@ -98,9 +90,9 @@ export function MajorTournamentSeedsManagement({ data }: { data: MajorTournament
             <span className="text-xs text-[var(--color-fg-mid)]">按系统建议排序 · 不改变最终种子</span>
           </div>
           <div className="overflow-x-auto border border-[var(--color-border)]">
-            <table className="min-w-[1160px] w-full text-left text-xs">
-              <thead className="bg-[var(--color-panel-low)] text-[var(--color-fg-mid)]"><tr><th className="px-3 py-2">系统建议</th><th className="px-3 py-2">队伍参考实力</th><th className="px-3 py-2">最终种子 / 调整状态</th><th className="px-3 py-2">已确认主力 · 竞技资料</th></tr></thead>
-            <tbody>{analysisRows.map((team) => <tr key={team.teamId} className="border-t border-[var(--color-border)] align-top"><td className="w-36 px-3 py-3"><p className="font-medium text-[var(--color-fg)]">#{team.recommendationRank} · {team.teamName}</p><p className="mt-1 text-[var(--color-fg-mid)]">{(tieGroupSizes.get(team.tieGroup) ?? 0) > 1 ? `系统并列 · 组 ${team.tieGroup}` : "无系统并列"}</p></td><td className="w-32 px-3 py-3 font-mono text-[var(--color-fg)]">{team.teamSeedStrength.toFixed(2)}</td><td className="w-28 px-3 py-3 font-mono text-[var(--color-fg)]">{team.finalSeed === null ? "未保存" : `#${team.finalSeed}`}<p className="mt-1 font-sans text-[11px] text-[var(--color-fg-mid)]">{FINAL_ORDER_STATUS_LABEL[team.finalOrderStatus]}</p></td><td className="px-3 py-3"><div className="grid gap-2 md:grid-cols-5">{team.starters.map((starter) => <MajorStrengthStarterSummary key={starter.userId} starter={starter} platform={data.recommendation!.platform} recentLabel="近期（实际参与 30%）" showProvenance />)}</div></td></tr>)}</tbody>
+            <table className="min-w-[980px] w-full text-left text-xs">
+              <thead className="bg-[var(--color-panel-low)] text-[var(--color-fg-mid)]"><tr><th className="px-3 py-2">系统建议</th><th className="px-3 py-2">最终种子 / 调整状态</th><th className="px-3 py-2">已确认主力 · 竞技资料</th></tr></thead>
+            <tbody>{analysisRows.map((team) => <tr key={team.teamId} className="border-t border-[var(--color-border)] align-top"><td className="w-48 px-3 py-3"><p className="font-medium text-[var(--color-fg)]">#{team.recommendationRank} · {team.teamName}</p><p className="mt-1 text-[var(--color-fg-mid)]">{team.tieState === "tied" ? "系统并列" : "系统参考顺序"}</p></td><td className="w-28 px-3 py-3 font-mono text-[var(--color-fg)]">{team.finalSeed === null ? "未保存" : `#${team.finalSeed}`}<p className="mt-1 font-sans text-[11px] text-[var(--color-fg-mid)]">{FINAL_ORDER_STATUS_LABEL[team.finalOrderStatus]}</p></td><td className="px-3 py-3"><div className="grid gap-2 md:grid-cols-5">{team.starters.map((starter) => <MajorStrengthStarterSummary key={starter.userId} starter={starter} platform={data.recommendation!.platform} recentLabel="近期（实际参与 30%）" showProvenance />)}</div></td></tr>)}</tbody>
             </table>
           </div>
         </section>}

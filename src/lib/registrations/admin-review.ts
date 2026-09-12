@@ -314,7 +314,7 @@ async function projectTeamRegistrationRows(
             const education = resolveSeasonEducationVerification(fact?.educationHistory ?? [], affiliationRules).selectedVerification;
             return {
               userId: member.userId,
-              email: fact?.email ?? member.email,
+              label: member.label,
               emailVerifiedAt: fact?.emailVerifiedAt ?? null,
               educationHistory: fact?.educationHistory ?? [],
               isHome: isHomeAffiliatedMember(education ?? { institutionCode: null, academicStatus: null }, affiliationRules),
