@@ -116,13 +116,14 @@ export async function fetchAuditLogs(filters: AuditLogFilters = {}) {
       }
     }
 
-    const normalizedTargets = rows.map((row) => normalizeAuditTarget({
+    const targetRefs = rows.map((row) => ({
       action: row.action,
       meta: row.meta,
       targetType: row.targetType,
       targetId: row.targetId,
     }));
-    const targetMap = await resolveAuditTargets(normalizedTargets);
+    const normalizedTargets = targetRefs.map(normalizeAuditTarget);
+    const targetMap = await resolveAuditTargets(targetRefs);
 
     const logs: AuditLogView[] = rows.map((row, index) => {
       const action = getAuditActionPresentation(row.action);
