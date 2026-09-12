@@ -40,6 +40,8 @@
 
 公开页面只消费 public DTO/read model。email、QQ、`studentId`、`authId`、教育证据、管理员范围和内部备注默认不进入 public HTML/Client props。
 
+人物主标签统一按公开或内部工作流的 canonical identity fallback 展示：displayName、perfectName、steamName，只有明确的账号/联系/核验/归并等细节才展示邮箱。Major 实力参考只展示历史、参考赛季与近期的实际段位/星级及来源；系统参考顺序、并列状态和最终种子保持语义化表达，内部评分、ordinal 中间值、换算数值和并列组编号不进入普通 UI。
+
 长期 Team membership、Entry roster、EventRoster、MatchRoster 和 StageRun entrant 是不同事实；UI 必须使用对应业务名称，不能为了简化展示把一种状态冒充另一种。
 
 ### Public Team profile composition

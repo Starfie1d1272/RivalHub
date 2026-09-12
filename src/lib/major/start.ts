@@ -25,6 +25,7 @@ import { makeMajorRunSnapshotV4 } from "@/lib/major/run-snapshot";
 import { loadActiveRestrictionOverridesInTx, unresolvedQualificationFindings } from "@/lib/competition-entries/restriction-overrides";
 import { assertSeasonAllowsTournamentMutationInTx } from "@/lib/postevent/guard";
 import { getStandardMajorDefinition } from "@/lib/major/standard";
+import { getDisplayName } from "@/lib/identity/display-name";
 import {
   buildFrozenSetFingerprint,
   frozenTeamsForSnapshot,
@@ -275,7 +276,7 @@ export async function startMajorInTransaction(
         const fact = qualificationFacts.get(member.userId);
         return {
           userId: member.userId,
-          email: fact?.email ?? "",
+          label: fact ? getDisplayName(fact) : member.userId,
           emailVerifiedAt: fact?.emailVerifiedAt ?? null,
           educationHistory: fact?.educationHistory ?? [],
         };
@@ -317,7 +318,7 @@ export async function startMajorInTransaction(
     );
     return {
       userId,
-      label: effective?.label ?? fact?.displayName ?? fact?.perfectName ?? fact?.email ?? userId,
+      label: effective?.label ?? (fact ? getDisplayName(fact) : userId),
       historicalPeak: competitiveProfile ? serialize(effective?.historicalPeak) : null,
       previousSeasonPeak: competitiveProfile
         ? serialize(effective?.previousSeasonPeak)

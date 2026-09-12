@@ -56,11 +56,10 @@ function StrengthPreview({ preview }: { preview: MajorPrestartStrengthPreview })
         {preview.blockers.map((blocker) => <p key={blocker}>{blocker}</p>)}
       </div>}
       {preview.status === "ready" && (preview.teams.length === 0 ? <p className="mt-3 text-sm text-[var(--color-fg-mid)]">当前没有可比较的已批准候选队伍。</p> : <div className="mt-3 overflow-x-auto border border-[var(--color-border)]">
-        <table className="min-w-[980px] w-full text-left text-xs">
+        <table className="min-w-[820px] w-full text-left text-xs">
           <thead className="bg-[var(--color-panel-low)] text-[var(--color-fg-mid)]">
             <tr>
               <th className="px-3 py-2">系统参考</th>
-              <th className="px-3 py-2">队伍参考实力</th>
               <th className="px-3 py-2">5 名预定主力与证据</th>
               <th className="px-3 py-2">资料状态</th>
             </tr>
@@ -73,11 +72,8 @@ function StrengthPreview({ preview }: { preview: MajorPrestartStrengthPreview })
                     {team.recommendationRank === null ? "—" : `#${team.recommendationRank}`} · {team.teamName}
                   </p>
                   <p className="mt-1 text-[var(--color-fg-mid)]">
-                    {team.tieGroup === null ? "未进入参考排序" : `并列组 ${team.tieGroup}`}
+                    {team.tieState === "not_ranked" ? "未进入参考排序" : team.tieState === "tied" ? "系统并列" : "系统参考顺序"}
                   </p>
-                </td>
-                <td className="w-32 px-3 py-3 font-mono text-[var(--color-fg)]">
-                  {team.teamSeedStrength === null ? "无法计算" : team.teamSeedStrength.toFixed(2)}
                 </td>
                 <td className="px-3 py-3">
                   {team.starters.length > 0 ? <div className="grid gap-2 md:grid-cols-5">
@@ -125,7 +121,7 @@ function ApprovedCandidate({
           已审核报名名单：{rosterSummary(candidate.roster)}
         </span>
         <span className="mt-2 block text-xs text-[var(--color-fg-mid)]">
-          {candidate.roster.members.map((member) => `${member.email}${member.isPrimaryStarter ? "（主力）" : ""}`).join("、") || "名单成员缺失"}
+          {candidate.roster.members.map((member) => `${member.label}${member.isPrimaryStarter ? "（主力）" : ""}`).join("、") || "名单成员缺失"}
         </span>
       </span>
     </label>
@@ -144,7 +140,7 @@ function SyncedEntrant({ entrant }: { entrant: MajorPrestartManagementData["entr
       <ul className="mt-2 grid gap-1 text-sm text-[var(--color-fg-mid)]">
         {entrant.roster.map((member) => (
           <li key={member.userId}>
-            {member.email}{member.isPrimaryStarter ? " · 主力" : ""} · {member.educationVerified ? "学籍资料已确认" : "学籍资料待补全"}
+            {member.label}{member.isPrimaryStarter ? " · 主力" : ""} · {member.educationVerified ? "学籍资料已确认" : "学籍资料待补全"}
           </li>
         ))}
       </ul>

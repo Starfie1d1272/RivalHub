@@ -173,7 +173,7 @@ async function validateEntryRoster(
       const userFacts = qualificationFacts.get(row.userId);
       const history = userFacts?.educationHistory ?? [];
       const selected = resolveSeasonEducationVerification(history, affiliationRules).selectedVerification;
-      return { userId: row.userId, email: userFacts?.email ?? "", emailVerifiedAt: userFacts?.emailVerifiedAt ?? null, educationHistory: history, isHome: isHomeAffiliatedMember({ institutionCode: selected?.institutionCode ?? null, academicStatus: selected?.academicStatus ?? null }, affiliationRules) };
+      return { userId: row.userId, label: userLabels.get(row.userId) ?? row.userId, emailVerifiedAt: userFacts?.emailVerifiedAt ?? null, educationHistory: history, isHome: isHomeAffiliatedMember({ institutionCode: selected?.institutionCode ?? null, academicStatus: selected?.academicStatus ?? null }, affiliationRules) };
     });
     qualification = await evaluateRosterQualificationFromFacts({
       members,

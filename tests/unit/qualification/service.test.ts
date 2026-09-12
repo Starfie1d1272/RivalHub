@@ -203,6 +203,12 @@ describe("participant readiness", () => {
     expect(readiness.blockers).not.toContain("请填写完美平台昵称。");
   });
 
+  it("uses the Steam nickname before the private email fallback", () => {
+    const readiness = computeParticipantReadiness(fullFact({ displayName: null, perfectName: null, steamName: "Steam Only", email: "private@example.test" }), CONTEXT);
+    expect(readiness.strength.label).toBe("Steam Only");
+    expect(readiness.strength.label).not.toContain("@");
+  });
+
   it("uses an explicitly frozen 5E mapping only when primary season facts are unavailable", () => {
     const context: CompetitiveProfileConfig = {
       ...CONTEXT,

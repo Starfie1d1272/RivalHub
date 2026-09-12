@@ -2,8 +2,8 @@ import type { InstitutionAffiliationRule } from "@/types/season";
 
 export type EducationEligibilityMember = {
   userId: string;
+  label: string;
   emailVerifiedAt: Date | null;
-  email: string;
   /** Optional: callers may pass only `verificationHistory` when they already loaded assertions. */
   verification?: {
     id: string;
@@ -72,21 +72,21 @@ export function evaluateRosterEducationEligibility(
 
   for (const member of members) {
     if (!member.emailVerifiedAt) {
-      blockers.push(`${member.email} 的邮箱尚未验证，请先验证当前账号邮箱。`);
+      blockers.push(`${member.label} 的邮箱尚未验证，请先验证当前账号邮箱。`);
       continue;
     }
     const resolution = resolveSeasonEducationVerification(member.verificationHistory ?? (member.verification ? [member.verification] : []), rules);
     const verification = resolution.selectedVerification;
     if (!verification) {
-      blockers.push(`${member.email} 尚未完成教育身份认证。`);
+      blockers.push(`${member.label} 尚未完成教育身份认证。`);
       continue;
     }
     if (verification.status === "pending") {
-      blockers.push(`${member.email} 的教育身份认证仍在审核中。`);
+      blockers.push(`${member.label} 的教育身份认证仍在审核中。`);
       continue;
     }
     if (verification.status === "rejected") {
-      blockers.push(`${member.email} 的教育身份认证已被驳回，请重新提交。`);
+      blockers.push(`${member.label} 的教育身份认证已被驳回，请重新提交。`);
       continue;
     }
     selectedVerificationIds.set(member.userId, verification.id);

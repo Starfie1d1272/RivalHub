@@ -15,18 +15,20 @@ describe("MajorStrengthStarterSummary", () => {
       starter={{
         userId: "player-1",
         label: "不争",
-        historicalPeak: { rank: "黄金S", stars: 10, sourcePlatform: "fivee", sourceSeasonKey: "5e-s20", sourceRank: "S", sourceStars: 10, conversionVersion: "v1" },
-        previousSeasonPeak: null,
-        currentSeasonPeak: null,
-        recentSeasonPeaks: [],
-        effectiveRecentPeak: { rank: "A++", stars: null, sourcePlatform: null, sourceSeasonKey: null, sourceRank: null, sourceStars: null, conversionVersion: null },
-        breakdown: { available: true, blockers: [], weightedRank: 11.4, historicalValue: 12, previousValue: 10, currentValue: 11, effectiveRecentPeak: null, historicalRating: null },
+        presentation: {
+          historicalPeak: { rank: "黄金S", stars: 10, sourcePlatform: "fivee", sourceSeasonKey: "5e-s20", sourceRank: "S", sourceStars: 10, conversionVersion: "v1" },
+          referenceSeasonPeak: null,
+          recentPeak: { rank: "A++", stars: null, sourcePlatform: null, sourceSeasonKey: null, sourceRank: null, sourceStars: null, conversionVersion: null },
+          available: true,
+          blockers: [],
+        },
       }}
     />);
 
     expect(screen.getByText("历史 黄金S · 10 星")).toBeVisible();
-    expect(screen.getByText("综合 11.40")).toBeVisible();
+    expect(screen.getByText("参考 暂无")).toBeVisible();
     expect(screen.getByText("近期 A++")).toBeVisible();
+    expect(screen.queryByText(/综合|历史 Rating|历史\/前一赛季\/近期参考/)).not.toBeInTheDocument();
     const badge = screen.getAllByText("采用 5E 等效")[0];
     expect(badge).toHaveClass("inline-flex", "whitespace-nowrap", "shrink-0");
   });

@@ -13,5 +13,6 @@ describe("display names", () => {
   it("prefers public identity fields without needing private contact data", () => {
     expect(getPublicDisplayName({ displayName: "Display", perfectName: "Perfect", steamName: "Steam" })).toBe("Display");
     expect(getPublicDisplayName({ displayName: null, perfectName: "Perfect", steamName: "Steam" })).toBe("Perfect");
+    expect(getPublicDisplayName({ displayName: null, perfectName: null, steamName: "Steam" })).toBe("Steam");
   });
 });
