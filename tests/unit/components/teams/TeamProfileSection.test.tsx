@@ -24,6 +24,9 @@ describe("TeamProfileSection", () => {
   it("lets the captain edit the existing Team logo beside the profile fields", () => {
     render(<TeamProfileSection {...baseProps} />);
 
+    const profile = document.getElementById("team-profile");
+    expect(profile).toBeInTheDocument();
+    expect(profile).toContainElement(screen.getByTestId("team-logo-upload"));
     expect(screen.getByTestId("team-logo-upload")).toHaveAttribute("data-team-id", "team-1");
     expect(screen.getByTestId("team-logo-upload")).toHaveAttribute("data-logo-url", "https://example.com/team.png");
     expect(screen.getByTestId("team-logo-upload")).toHaveAttribute("data-can-edit", "true");

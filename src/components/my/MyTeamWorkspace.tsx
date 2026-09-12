@@ -11,25 +11,31 @@ import { groupMyCompetitionContexts, type MyCompetitionContext } from "@/lib/my/
 import type { MyTeamHistory, MyTeamWorkspaceModel } from "@/lib/my/team-workspace";
 import { formatCSTShortDate } from "@/lib/utils/date";
 
+const HISTORY_STATUS_LABELS: Record<MyTeamHistory["status"], string> = {
+  active: "在队",
+  benched: "替补",
+  left: "已离队",
+};
+
 function HistorySection({ history, excludeTeamId }: { history: MyTeamHistory[]; excludeTeamId?: string }) {
   const entries = excludeTeamId ? history.filter((row) => row.teamId !== excludeTeamId || row.endedAt !== null) : history;
   if (entries.length === 0) return null;
-  return <Section><SectionHeader title="成员历史" description="长期队伍成员关系按加入时间记录；赛事名单不会随之改写。" /><Panel contentClassName="p-5"><div className="space-y-2">{entries.map((row) => <Link key={row.id} href={`/teams/${row.teamSlug}`} className="flex flex-wrap justify-between gap-2 border-b border-[var(--color-border)] py-2 text-sm last:border-b-0"><span>{row.teamName} · {row.role === "captain" ? "队长" : "成员"}</span><span className="text-[var(--color-fg-mid)]">{formatCSTShortDate(row.startedAt)} — {row.endedAt ? formatCSTShortDate(row.endedAt) : "至今"}</span></Link>)}</div></Panel></Section>;
+  return <Section><SectionHeader title="成员历史" description="队伍成员关系按加入时间记录；赛事名单不会随之改写。" /><Panel contentClassName="p-5"><div className="space-y-2">{entries.map((row) => <Link key={row.id} href={`/teams/${row.teamSlug}`} className="flex flex-wrap justify-between gap-2 border-b border-[var(--color-border)] py-2 text-sm last:border-b-0"><span>{row.teamName} · {HISTORY_STATUS_LABELS[row.status]}</span><span className="text-[var(--color-fg-mid)]">{formatCSTShortDate(row.startedAt)} — {row.endedAt ? formatCSTShortDate(row.endedAt) : "至今"}</span></Link>)}</div></Panel></Section>;
 }
 
 function CompetitionSection({ contexts, title, description }: { contexts: MyCompetitionContext[]; title: string; description: string }) {
-  return <Section><SectionHeader title={title} description={description} />{contexts.length > 0 ? <div className="grid gap-4 xl:grid-cols-2">{contexts.map((context) => <MyCompetitionCard key={context.entryId} context={context} />)}</div> : <EmptyState title="暂无相关赛事" sub="长期队伍关系与赛事报名、名单事实分别维护。" />}</Section>;
+  return <Section><SectionHeader title={title} description={description} />{contexts.length > 0 ? <div className="grid gap-4 xl:grid-cols-2">{contexts.map((context) => <MyCompetitionCard key={context.entryId} context={context} />)}</div> : <EmptyState title="暂无相关赛事" sub="队伍关系与赛事报名、名单事实分别维护。" />}</Section>;
 }
 
 export function MyTeamWorkspace({ model }: { model: MyTeamWorkspaceModel }) {
   if (model.kind === "none") {
-    return <div className="space-y-8"><PageHeader title="我的队伍" description="处理队伍邀请，或开始组建长期队伍。" /><NoTeamWorkspace pendingInvitations={model.pendingInvitations} /><HistorySection history={model.history} /></div>;
+    return <div className="space-y-8"><PageHeader title="我的队伍" description="处理队伍邀请，或开始组建队伍。" /><NoTeamWorkspace pendingInvitations={model.pendingInvitations} /><HistorySection history={model.history} /></div>;
   }
 
   const grouped = groupMyCompetitionContexts(model.competitions);
   const roleDescription = model.kind === "captain"
     ? "先处理当前赛事与招募意向，再维护队伍资料、成员和邀请。"
-    : "查看你与长期队伍的关系、相关赛事和本人可执行的操作。";
+    : "查看你与队伍的关系、相关赛事和本人可执行的操作。";
   return <div className="space-y-8">
     <PageHeader title="我的队伍" description={roleDescription} />
     <MyTeamIdentity team={model.team} />

@@ -26,7 +26,7 @@ const context: MyCompetitionContext = {
 
 const readiness: MyReadinessModel = {
   displayName: "选手甲",
-  profile: item("长期个人资料"),
+  profile: item("个人资料"),
   education: item("教育认证"),
   competitiveProfiles: [{ key: "perfect_world", displayName: "完美世界竞技", state: "ready", blockers: [] }],
   team: item("当前队伍"),
@@ -61,9 +61,24 @@ describe("MyReadinessDashboard", () => {
     expect(screen.queryByText(/等待赛事管理员处理/)).not.toBeInTheDocument();
   });
 
+  it("renders shared responsibility without duplicating the owner phrase", () => {
+    const tasks = [
+      item("资料与审核", "waiting", "self_and_admin"),
+      item("赛事负责人处理", "waiting", "representative"),
+      item("负责人和管理员处理", "waiting", "representative_and_admin"),
+      item("管理员处理", "waiting", "admin"),
+    ];
+    render(<MyReadinessDashboard model={{ ...model, tasks }} />);
+
+    expect(screen.getByText("需要你与赛事管理员共同处理")).toBeInTheDocument();
+    expect(screen.getByText("等待赛事负责人处理")).toBeInTheDocument();
+    expect(screen.getByText("等待赛事负责人和赛事管理员处理")).toBeInTheDocument();
+    expect(screen.getByText("等待赛事管理员处理")).toBeInTheDocument();
+  });
+
   it("keeps member team identity and event participation separate", () => {
     render(<MyReadinessDashboard model={{ ...model, currentTeam: { id: "team-1", slug: "rival-five", name: "Rival Five", logoUrl: null, description: null, captainUserId: "captain-1", viewerRole: "member" } }} />);
-    expect(screen.getByText((_content, element) => element?.textContent === "你是成员；长期队伍成员变更不会改写已经提交、审核通过或冻结的赛事名单。")).toBeInTheDocument();
+    expect(screen.getByText((_content, element) => element?.textContent === "你是成员；队伍成员变更不会改写已经提交、审核通过或冻结的赛事名单。")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "查看我的队伍" })).toHaveAttribute("href", "/my/teams");
     expect(screen.getByText(/参赛确认：已确认参赛/)).toBeInTheDocument();
   });

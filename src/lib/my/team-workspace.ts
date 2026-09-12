@@ -35,7 +35,6 @@ export interface MyTeamHistory {
   teamId: string;
   teamSlug: string;
   teamName: string;
-  role: "captain" | "member";
   status: "active" | "benched" | "left";
   startedAt: string;
   endedAt: string | null;
@@ -77,7 +76,7 @@ export type MyTeamWorkspaceModel =
       recruitmentInterests: Array<{ userId: string; name: string; positions: Cs2Position[]; currentTeamName: string | null }>;
     });
 
-type MembershipPeriod = {
+export type MembershipPeriod = {
   membership: {
     id: string;
     userId: string;
@@ -92,13 +91,12 @@ function presentInvitation(row: { id: string; teamId: string; teamName: string; 
   return { ...row, expiresAt: row.expiresAt.toISOString() };
 }
 
-function presentHistory(row: MembershipPeriod): MyTeamHistory {
+export function presentMyTeamHistory(row: MembershipPeriod): MyTeamHistory {
   return {
     id: row.membership.id,
     teamId: row.team.id,
     teamSlug: row.team.slug,
     teamName: row.team.name,
-    role: row.team.captainUserId === row.membership.userId ? "captain" : "member",
     status: row.membership.status,
     startedAt: row.membership.startedAt.toISOString(),
     endedAt: row.membership.endedAt?.toISOString() ?? null,
@@ -149,7 +147,7 @@ export const loadMyTeamWorkspace = cache(async (userId: string): Promise<MyTeamW
     .orderBy(desc(teamMemberships.startedAt));
 
   const current = periods.find((row) => row.membership.endedAt === null && row.team.status === "active") as MembershipPeriod | undefined;
-  const history = periods.map((row) => presentHistory(row as MembershipPeriod));
+  const history = periods.map((row) => presentMyTeamHistory(row as MembershipPeriod));
   if (!current) {
     const pendingInvitations = await getPendingDirectTeamInvitations(userId);
     return {

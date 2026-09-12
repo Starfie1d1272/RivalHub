@@ -110,11 +110,11 @@ export function isSettingsProfileReadinessReady(
 
 export function presentMyReadinessResponsibility(responsibility: MyReadinessResponsibility): string {
   switch (responsibility) {
-    case "self": return "你";
-    case "self_and_admin": return "你与赛事管理员";
-    case "representative": return "赛事负责人";
-    case "representative_and_admin": return "赛事负责人和赛事管理员";
-    case "admin": return "赛事管理员";
+    case "self": return "需要你处理";
+    case "self_and_admin": return "需要你与赛事管理员共同处理";
+    case "representative": return "等待赛事负责人处理";
+    case "representative_and_admin": return "等待赛事负责人和赛事管理员处理";
+    case "admin": return "等待赛事管理员处理";
   }
 }
 
@@ -157,13 +157,13 @@ function latestEducationState(fact: ParticipantQualificationFacts | null): MyRea
 
 function profileState(fact: ParticipantQualificationFacts | null): MyReadinessItem {
   if (!fact) {
-    return item("profile", "长期个人资料", "unknown", "个人资料暂时无法确认。", "admin", { href: "/settings", label: "查看参赛资料" });
+    return item("profile", "个人资料", "unknown", "个人资料暂时无法确认。", "admin", { href: "/settings", label: "查看参赛资料" });
   }
   const blockers = getParticipantIdentityBlockers(fact);
   if (blockers.length === 0) {
-    return item("profile", "长期个人资料", "ready", "展示昵称、Steam64、完美平台 ID、QQ 与邮箱验证已齐全。", undefined, { href: "/settings", label: "查看参赛资料" });
+    return item("profile", "个人资料", "ready", "展示昵称、Steam64、完美平台 ID、QQ 与邮箱验证已齐全。", undefined, { href: "/settings", label: "查看参赛资料" });
   }
-  return item("profile", "长期个人资料", "incomplete", blockers.join(" "), "self", { href: "/settings", label: "完善参赛资料" });
+  return item("profile", "个人资料", "incomplete", blockers.join(" "), "self", { href: "/settings", label: "完善参赛资料" });
 }
 
 function teamState(currentTeam: { id: string; name: string; role: "captain" | "member" } | null, pendingDirectInvitationCount: number): MyReadinessItem {

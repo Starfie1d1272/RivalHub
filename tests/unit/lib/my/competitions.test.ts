@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@/db/client", () => ({ db: {} }));
 
-import { groupMyCompetitionContexts, projectMyCompetitionContext, type MyCompetitionSource } from "@/lib/my/competitions";
+import { groupMyCompetitionContexts, projectMyCompetitionContext, selectCanonicalMyCompetitionSources, type MyCompetitionSource, type MyCompetitionSourceCandidate } from "@/lib/my/competitions";
 import { MAJOR_TEAM_CONFIG } from "@/lib/competition/templates";
 
 const USER_ID = "user-1";
@@ -24,6 +24,11 @@ function source(overrides: Partial<MyCompetitionSource> = {}): MyCompetitionSour
     teamRegistrationConfig: { ...MAJOR_TEAM_CONFIG },
     ...overrides,
   };
+}
+
+function candidate(overrides: Partial<MyCompetitionSourceCandidate> = {}): MyCompetitionSourceCandidate {
+  const { activeClaimEntryId = null, ...sourceOverrides } = overrides;
+  return { ...source(sourceOverrides), activeClaimEntryId };
 }
 
 describe("个人赛事上下文投影", () => {
@@ -50,6 +55,17 @@ describe("个人赛事上下文投影", () => {
     expect(result.primaryAction).toEqual({ href: "/fall-2026", label: "查看赛事" });
   });
 
+  it("按报名页优先级每个赛季只保留一个个人赛事 Entry", () => {
+    const oldEntry = candidate({ id: "entry-old", entryUpdatedAt: new Date("2026-08-01T00:00:00Z"), participantStatus: "confirmed" });
+    const pendingInvitation = candidate({ id: "entry-pending", entryUpdatedAt: new Date("2026-08-03T00:00:00Z"), participantStatus: "invited" });
+    const activeClaim = candidate({ id: "entry-active", entryUpdatedAt: new Date("2026-08-02T00:00:00Z"), participantStatus: "confirmed", activeClaimEntryId: "entry-active" });
+
+    expect(selectCanonicalMyCompetitionSources([oldEntry, pendingInvitation, activeClaim], USER_ID).map((entry) => entry.id)).toEqual(["entry-active"]);
+    expect(selectCanonicalMyCompetitionSources([oldEntry, pendingInvitation], USER_ID).map((entry) => entry.id)).toEqual(["entry-pending"]);
+    expect(selectCanonicalMyCompetitionSources([oldEntry, candidate({ id: "entry-latest", entryUpdatedAt: new Date("2026-08-04T00:00:00Z"), participantStatus: "confirmed" })], USER_ID).map((entry) => entry.id)).toEqual(["entry-latest"]);
+    expect(selectCanonicalMyCompetitionSources([candidate({ id: "entry-representative", participantStatus: null, representativeUserId: USER_ID })], USER_ID).map((entry) => entry.id)).toEqual(["entry-representative"]);
+  });
+
   it("不会把个人比赛事实挂到只有长期队伍关联的成员上", () => {
     const result = projectMyCompetitionContext(source({ participantStatus: null, seasonStatus: "playing" }), USER_ID, {
       matchId: "match-1",
@@ -61,6 +77,21 @@ describe("个人赛事上下文投影", () => {
     });
     expect(result.nextMatch).toBeUndefined();
     expect(result.primaryAction).toEqual({ href: "/fall-2026", label: "查看赛事" });
+  });
+
+  it("只把按 Entry 绑定的下一场比赛投影给对应个人赛事", () => {
+    const canonical = projectMyCompetitionContext(source({ id: "entry-canonical", seasonStatus: "playing" }), USER_ID, {
+      matchId: "match-canonical",
+      seasonId: "season-1",
+      seasonSlug: "fall-2026",
+      opponentName: "当前对手",
+      scheduledAt: new Date("2026-09-01T10:00:00Z"),
+      status: "scheduled",
+    });
+    const oldEntry = projectMyCompetitionContext(source({ id: "entry-old", seasonStatus: "playing" }), USER_ID);
+
+    expect(canonical.nextMatch?.href).toBe("/fall-2026/matches/match-canonical");
+    expect(oldEntry.nextMatch).toBeUndefined();
   });
 
   it("把比赛期的真实下一场和已结束赛事分别映射到主动作", () => {

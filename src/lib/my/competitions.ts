@@ -5,6 +5,7 @@ import { and, asc, desc, eq, inArray, or, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
   competitionEntries,
+  competitionEntryActiveClaims,
   competitionEntryParticipants,
   competitionEntryRosterRevisions,
   eventRosterMembers,
@@ -12,6 +13,10 @@ import {
   matches,
   seasons,
 } from "@/db/schema";
+import {
+  selectCompetitionEntryParticipantContext,
+  type CompetitionEntrySelectionEntry,
+} from "@/lib/competition-entries/participant-context";
 import {
   presentCompetitionEntryParticipation,
   presentCompetitionEntryRegistration,
@@ -37,6 +42,10 @@ export interface MyCompetitionSource {
   participantStatus: CompetitionEntryParticipantStatus | null;
   representativeUserId: string;
   teamRegistrationConfig: Parameters<typeof normalizeTeamRegistrationConfig>[0];
+}
+
+export interface MyCompetitionSourceCandidate extends MyCompetitionSource {
+  activeClaimEntryId: string | null;
 }
 
 export interface MyCompetitionAction {
@@ -73,8 +82,48 @@ export interface MyCompetitionContext {
   entryUpdatedAt: Date;
 }
 
+function selectionEntry(source: MyCompetitionSourceCandidate): CompetitionEntrySelectionEntry {
+  return { id: source.id, name: source.name, updatedAt: source.entryUpdatedAt };
+}
+
+export function selectCanonicalMyCompetitionSources(
+  rows: readonly MyCompetitionSourceCandidate[],
+  userId: string,
+): MyCompetitionSource[] {
+  const rowsBySeason = new Map<string, MyCompetitionSourceCandidate[]>();
+  for (const row of rows) {
+    const seasonRows = rowsBySeason.get(row.seasonId) ?? [];
+    seasonRows.push(row);
+    rowsBySeason.set(row.seasonId, seasonRows);
+  }
+
+  const canonical: MyCompetitionSource[] = [];
+  for (const seasonRows of rowsBySeason.values()) {
+    const selection = selectCompetitionEntryParticipantContext({
+      participantRows: seasonRows.flatMap((row) => row.participantStatus === null
+        ? []
+        : [{ entry: selectionEntry(row), participantStatus: row.participantStatus }]),
+      representativeEntries: seasonRows
+        .filter((row) => row.representativeUserId === userId)
+        .map(selectionEntry),
+      activeClaimEntries: seasonRows
+        .filter((row) => row.activeClaimEntryId === row.id)
+        .map(selectionEntry),
+    });
+    const selected = selection.primaryEntry
+      ? seasonRows.find((row) => row.id === selection.primaryEntry!.id)
+      : undefined;
+    if (selected) {
+      const source = { ...selected };
+      Reflect.deleteProperty(source, "activeClaimEntryId");
+      canonical.push(source);
+    }
+  }
+  return canonical;
+}
+
 export const loadMyCompetitionSources = cache(async (userId: string): Promise<MyCompetitionSource[]> => {
-  return db
+  const rows = await db
     .select({
       id: competitionEntries.id,
       name: competitionEntries.name,
@@ -90,6 +139,7 @@ export const loadMyCompetitionSources = cache(async (userId: string): Promise<My
       participantStatus: competitionEntryParticipants.status,
       representativeUserId: competitionEntries.representativeUserId,
       teamRegistrationConfig: seasons.teamRegistrationConfig,
+      activeClaimEntryId: competitionEntryActiveClaims.entryId,
     })
     .from(competitionEntries)
     .innerJoin(seasons, eq(seasons.id, competitionEntries.competitionId))
@@ -98,8 +148,21 @@ export const loadMyCompetitionSources = cache(async (userId: string): Promise<My
       competitionEntryParticipants,
       and(eq(competitionEntryParticipants.entryId, competitionEntries.id), eq(competitionEntryParticipants.userId, userId)),
     )
-    .where(or(eq(competitionEntries.representativeUserId, userId), eq(competitionEntryParticipants.userId, userId)))
+    .leftJoin(
+      competitionEntryActiveClaims,
+      and(
+        eq(competitionEntryActiveClaims.entryId, competitionEntries.id),
+        eq(competitionEntryActiveClaims.competitionId, competitionEntries.competitionId),
+        eq(competitionEntryActiveClaims.userId, userId),
+      ),
+    )
+    .where(or(
+      eq(competitionEntries.representativeUserId, userId),
+      eq(competitionEntryParticipants.userId, userId),
+      eq(competitionEntryActiveClaims.userId, userId),
+    ))
     .orderBy(desc(seasons.createdAt), desc(competitionEntries.updatedAt), asc(competitionEntries.id));
+  return selectCanonicalMyCompetitionSources(rows, userId);
 });
 
 export const loadTeamCompetitionSources = cache(async (teamId: string, userId: string): Promise<MyCompetitionSource[]> => {
@@ -144,15 +207,14 @@ export async function loadMyCompetitionNextMatches(userId: string): Promise<Map<
       inArray(eventRosters.status, ["confirmed", "frozen"]),
     ));
 
-  const entryIdsBySeason = new Map<string, Set<string>>();
-  const seasonSlugs = new Map<string, string>();
+  const entryContexts = new Map<string, { seasonId: string; seasonSlug: string }>();
   for (const row of rosterRows) {
-    const entryIds = entryIdsBySeason.get(row.seasonId) ?? new Set<string>();
-    entryIds.add(row.entryId);
-    entryIdsBySeason.set(row.seasonId, entryIds);
-    seasonSlugs.set(row.seasonId, row.seasonSlug);
+    entryContexts.set(row.entryId, { seasonId: row.seasonId, seasonSlug: row.seasonSlug });
   }
-  if (entryIdsBySeason.size === 0) return new Map();
+  if (entryContexts.size === 0) return new Map();
+
+  const entryIds = [...entryContexts.keys()];
+  const seasonIds = [...new Set([...entryContexts.values()].map((context) => context.seasonId))];
 
   const upcoming = await db
     .select({
@@ -165,27 +227,29 @@ export async function loadMyCompetitionNextMatches(userId: string): Promise<Map<
     })
     .from(matches)
     .where(and(
-      inArray(matches.seasonId, [...entryIdsBySeason.keys()]),
+      inArray(matches.seasonId, seasonIds),
       inArray(matches.status, ["scheduled", "in_progress"]),
       or(
-        inArray(matches.entryAId, [...entryIdsBySeason.values()].flatMap((ids) => [...ids])),
-        inArray(matches.entryBId, [...entryIdsBySeason.values()].flatMap((ids) => [...ids])),
+        inArray(matches.entryAId, entryIds),
+        inArray(matches.entryBId, entryIds),
       ),
     ))
     .orderBy(sql`case when ${matches.status} = 'in_progress' then 0 else 1 end`, asc(matches.scheduledAt), asc(matches.id));
 
-  const validMatches = upcoming.filter((match) => {
-    const ownEntryIds = entryIdsBySeason.get(match.seasonId);
-    return ownEntryIds && (ownEntryIds.has(match.entryAId) || ownEntryIds.has(match.entryBId));
+  const validMatches = upcoming.flatMap((match) => {
+    const ownA = entryContexts.get(match.entryAId);
+    const ownB = entryContexts.get(match.entryBId);
+    if ((ownA && ownB) || (!ownA && !ownB)) return [];
+    const own = ownA ?? ownB;
+    if (!own || own.seasonId !== match.seasonId) return [];
+    return [{
+      match,
+      ownEntryId: ownA ? match.entryAId : match.entryBId,
+      own,
+      opponentId: ownA ? match.entryBId : match.entryAId,
+    }];
   });
-  const opponentIds = [...new Set(validMatches.flatMap((match) => {
-    const ownEntryIds = entryIdsBySeason.get(match.seasonId);
-    if (!ownEntryIds) return [];
-    const ownA = ownEntryIds.has(match.entryAId);
-    const ownB = ownEntryIds.has(match.entryBId);
-    if (ownA && ownB) return [];
-    return [ownA ? match.entryBId : match.entryAId];
-  }))];
+  const opponentIds = [...new Set(validMatches.map(({ opponentId }) => opponentId))];
   if (opponentIds.length === 0) return new Map();
 
   const opponents = await db
@@ -194,23 +258,17 @@ export async function loadMyCompetitionNextMatches(userId: string): Promise<Map<
     .where(inArray(competitionEntries.id, opponentIds));
   const opponentNames = new Map(opponents.map((opponent) => [opponent.id, opponent.name]));
   const result = new Map<string, MyCompetitionNextMatch>();
-  for (const match of validMatches) {
-    if (result.has(match.seasonId)) continue;
-    const ownEntryIds = entryIdsBySeason.get(match.seasonId);
-    if (!ownEntryIds) continue;
-    const ownA = ownEntryIds.has(match.entryAId);
-    const ownB = ownEntryIds.has(match.entryBId);
-    if (ownA && ownB) continue;
-    const opponentId = ownA ? match.entryBId : match.entryAId;
-    const opponentName = opponentNames.get(opponentId);
+  for (const candidate of validMatches) {
+    if (result.has(candidate.ownEntryId)) continue;
+    const opponentName = opponentNames.get(candidate.opponentId);
     if (!opponentName) continue;
-    result.set(match.seasonId, {
-      matchId: match.id,
-      seasonId: match.seasonId,
-      seasonSlug: seasonSlugs.get(match.seasonId) ?? "",
+    result.set(candidate.ownEntryId, {
+      matchId: candidate.match.id,
+      seasonId: candidate.match.seasonId,
+      seasonSlug: candidate.own.seasonSlug,
       opponentName,
-      scheduledAt: match.scheduledAt,
-      status: match.status === "in_progress" ? "in_progress" : "scheduled",
+      scheduledAt: candidate.match.scheduledAt,
+      status: candidate.match.status === "in_progress" ? "in_progress" : "scheduled",
     });
   }
   return result;
@@ -291,14 +349,14 @@ export function projectMyCompetitionContext(
 
 export const loadMyCompetitionContexts = cache(async (userId: string): Promise<MyCompetitionContext[]> => {
   const [sources, nextMatches] = await Promise.all([loadMyCompetitionSources(userId), loadMyCompetitionNextMatches(userId)]);
-  return sources.map((source) => projectMyCompetitionContext(source, userId, nextMatches.get(source.seasonId)));
+  return sources.map((source) => projectMyCompetitionContext(source, userId, nextMatches.get(source.id)));
 });
 
 export const loadTeamCompetitionContexts = cache(async (teamId: string, userId: string): Promise<MyCompetitionContext[]> => {
   const [sources, nextMatches] = await Promise.all([loadTeamCompetitionSources(teamId, userId), loadMyCompetitionNextMatches(userId)]);
   return sources.map((source) => {
     const hasPersonalEntryContext = source.representativeUserId === userId || source.participantStatus !== null;
-    return projectMyCompetitionContext(source, userId, hasPersonalEntryContext ? nextMatches.get(source.seasonId) : undefined);
+    return projectMyCompetitionContext(source, userId, hasPersonalEntryContext ? nextMatches.get(source.id) : undefined);
   });
 });
 

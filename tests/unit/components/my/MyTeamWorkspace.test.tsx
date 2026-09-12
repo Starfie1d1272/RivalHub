@@ -37,7 +37,7 @@ describe("MyTeamWorkspace member composition", () => {
 
     expect(screen.getByRole("heading", { name: "Rival Five", level: 2 })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "查看赛事" })).toHaveAttribute("href", "/fall-2026");
-    expect(screen.getByRole("button", { name: "退出长期队伍" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "退出队伍" })).toBeInTheDocument();
     for (const label of ["保存资料", "直接邀请", "发布招募", "交接队长", "解散队伍", "更换队伍图标"]) {
       expect(screen.queryByText(label)).not.toBeInTheDocument();
       expect(screen.queryByRole("button", { name: label })).not.toBeInTheDocument();
@@ -46,10 +46,17 @@ describe("MyTeamWorkspace member composition", () => {
     expect(screen.queryByRole("textbox", { name: "简介" })).not.toBeInTheDocument();
   });
 
-  it("explains that leaving the long-lived Team does not rewrite event rosters", () => {
+  it("explains that leaving the team does not rewrite event rosters", () => {
     render(<MyTeamWorkspace model={model} />);
-    fireEvent.click(screen.getByRole("button", { name: "退出长期队伍" }));
+    fireEvent.click(screen.getByRole("button", { name: "退出队伍" }));
     expect(screen.getByText(/不会自动改写已经提交、审核通过或冻结的赛事名单/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "确认退出" })).toBeInTheDocument();
+  });
+
+  it("shows historical membership status without inferring a past role", () => {
+    render(<MyTeamWorkspace model={{ kind: "none", pendingInvitations: [], history: [{ id: "membership-old", teamId: "team-old", teamSlug: "old-team", teamName: "Old Team", status: "left", startedAt: "2026-01-01T00:00:00.000Z", endedAt: "2026-06-01T00:00:00.000Z" }] }} />);
+
+    expect(screen.getByText("Old Team · 已离队")).toBeInTheDocument();
+    expect(screen.queryByText(/队长|成员/)).not.toBeInTheDocument();
   });
 });
