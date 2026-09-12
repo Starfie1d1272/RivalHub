@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import React, { useState } from "react";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
+import { PlayerAvatar } from "@/components/players/PlayerAvatar";
 import { positionLabel } from "@/lib/validators/registration";
 import type { DraftTeamSlot } from "@/lib/draft/data";
 
@@ -81,7 +82,8 @@ export function TeamDraftGrid({
                 <div className="px-3 pb-3 space-y-1 border-t border-[var(--color-border)]">
                   {/* 队长行 */}
                   <div className="flex items-center justify-between py-1">
-                    <span className="text-xs text-[var(--color-fg-mid)]">
+                    <span className="flex min-w-0 items-center gap-2 text-xs text-[var(--color-fg-mid)]">
+                      <PlayerAvatar name={getPublicDisplayName(team.captain)} avatarUrl={team.captain.avatarUrl} size="sm" />
                       <span className="text-[var(--color-fg-dim)]">队长 </span>
                       {getPublicDisplayName(team.captain)}
                     </span>
@@ -95,7 +97,8 @@ export function TeamDraftGrid({
                       key={`${team.entryId}-${m.pickNumber || index}`}
                       className="flex items-center justify-between py-1"
                     >
-                      <span className="text-xs text-[var(--color-fg)]">
+                      <span className="flex min-w-0 items-center gap-2 text-xs text-[var(--color-fg)]">
+                        <PlayerAvatar name={getPublicDisplayName(m)} avatarUrl={m.avatarUrl} size="sm" />
                         {getPublicDisplayName(m)}
                         {m.autoPicked && (
                           <span className="text-[var(--color-warn)] ml-0.5">⚡</span>
@@ -161,7 +164,8 @@ export function TeamDraftGrid({
               {/* 队长 */}
               <div className="text-xs mb-1">
                 <span className="text-[var(--color-fg-dim)]">队长 </span>
-                <span className="text-[var(--color-fg)] font-medium">
+                <span className="inline-flex items-center gap-2 text-[var(--color-fg)] font-medium">
+                  <PlayerAvatar name={getPublicDisplayName(team.captain)} avatarUrl={team.captain.avatarUrl} size="sm" />
                   {getPublicDisplayName(team.captain)}
                 </span>
                 <span className="text-[var(--color-fg-dim)] ml-1">
@@ -175,7 +179,10 @@ export function TeamDraftGrid({
                   <span className="text-[var(--color-fg-mid)]">
                     R{m.pickRound}P{m.pickNumber}{" "}
                   </span>
-                  <span className="text-[var(--color-fg)]">{getPublicDisplayName(m)}</span>
+                  <span className="inline-flex items-center gap-2 text-[var(--color-fg)]">
+                    <PlayerAvatar name={getPublicDisplayName(m)} avatarUrl={m.avatarUrl} size="sm" />
+                    {getPublicDisplayName(m)}
+                  </span>
                   <span className="text-[var(--color-fg-dim)] ml-1">
                     {positionLabel(m.primaryPosition)}
                   </span>

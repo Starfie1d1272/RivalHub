@@ -21,12 +21,14 @@ export interface DraftTeamSlot {
   draftOrder: number;
   captain: {
     steamName: string;
+    avatarUrl: string | null;
     displayName: string | null;
     perfectName: string | null;
     primaryPosition: string;
   };
   members: {
     steamName: string;
+    avatarUrl: string | null;
     perfectName: string | null;
     displayName: string | null;
     primaryPosition: string;
@@ -39,7 +41,7 @@ export interface DraftTeamSlot {
 /** Fields allowed on the anonymous spectator draft page. */
 export interface PublicDraftPlayer {
   userId: string;
-  avatarUrl?: string | null;
+  avatarUrl: string | null;
   steamName: string;
   perfectName: string | null;
   displayName: string | null;
@@ -114,7 +116,7 @@ export interface DraftAdminData {
 
 interface DraftPlayerSource {
   registrationId: string;
-  avatarUrl?: string | null;
+  avatarUrl: string | null;
   userId: string;
   steamName: string | null;
   perfectName: string | null;
@@ -281,6 +283,7 @@ async function loadDraftBase(seasonId: string): Promise<DraftBaseData> {
         const pick = picksByRegistrationId.get(member.registrationId);
         return {
           steamName: member.steamName ?? "未知选手",
+          avatarUrl: member.avatarUrl,
           perfectName: member.perfectName ?? null,
           displayName: member.displayName ?? null,
           primaryPosition: member.primaryPosition,
@@ -297,6 +300,7 @@ async function loadDraftBase(seasonId: string): Promise<DraftBaseData> {
       draftOrder: team.draftOrder,
       captain: {
         steamName: captain?.steamName ?? "未知队长",
+        avatarUrl: captain?.avatarUrl ?? null,
         displayName: captain?.displayName ?? null,
         perfectName: captain?.perfectName ?? null,
         primaryPosition: captain?.primaryPosition ?? "未知",

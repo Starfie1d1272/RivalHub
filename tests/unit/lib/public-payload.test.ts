@@ -60,6 +60,7 @@ describe("public payload serializers", () => {
     const source = {
       registrationId: "registration-2",
       userId: "user-2",
+      avatarUrl: null,
       steamName: "SteamPlayer",
       perfectName: null,
       displayName: "PublicPlayer",

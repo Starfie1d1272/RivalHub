@@ -16,6 +16,7 @@ import {
   type CompetitionEntryRegistrationStatus,
 } from "@/lib/competition-entries/presentation";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
+import type { PublicPlayerIdentity } from "@/lib/identity/public-player";
 import type { StatusPresentation } from "@/lib/presentation";
 import type { MatchStatus } from "@/types/match";
 
@@ -62,10 +63,7 @@ export interface PublicEventTeamContext {
     tone: StatusPresentation["tone"];
     detail: string;
   };
-  roster: Array<{
-    userId: string;
-    avatarUrl?: string | null;
-    name: string;
+  roster: Array<PublicPlayerIdentity & {
     isStarter: boolean;
   }>;
   rosterLabel: string;

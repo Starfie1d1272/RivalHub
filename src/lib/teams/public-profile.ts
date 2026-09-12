@@ -19,6 +19,7 @@ import {
   publicCompetitionEntryCondition,
 } from "@/lib/competition-entries/public-visibility";
 import { getPublicTeamRecruitment, type PublicRecruitmentIntent } from "@/lib/recruitment/data";
+import type { PublicPlayerIdentity } from "@/lib/identity/public-player";
 
 const publicName = sql<string>`coalesce(${users.displayName}, ${users.perfectName}, ${users.steamName}, '未知用户')`;
 
@@ -36,11 +37,8 @@ export interface PublicTeamIdentity {
 
 export interface PublicTeamProfile {
   team: PublicTeamIdentity;
-  currentMembers: Array<{
+  currentMembers: Array<PublicPlayerIdentity & {
     id: string;
-    userId: string;
-    avatarUrl?: string | null;
-    name: string;
     status: PublicTeamMembershipStatus;
   }>;
   entries: Array<{

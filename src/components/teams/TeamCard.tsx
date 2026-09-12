@@ -8,7 +8,7 @@ import { formatStat } from "@/lib/stats";
 
 interface PlayerPreview {
   name: string;
-  avatarUrl?: string | null;
+  avatarUrl: string | null;
   isStarter: boolean;
   userId?: string | null;
 }

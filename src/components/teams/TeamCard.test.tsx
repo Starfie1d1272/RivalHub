@@ -15,11 +15,13 @@ const props = {
   players: [
     {
       name: "Captain Star",
+      avatarUrl: null,
       isStarter: true,
       userId: "player-1",
     },
     {
       name: "Anchor Star",
+      avatarUrl: null,
       isStarter: true,
       userId: "player-2",
     },

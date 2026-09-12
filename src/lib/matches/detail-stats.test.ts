@@ -102,6 +102,7 @@ describe("match detail stats", () => {
             perfectName: "Perfect",
             primaryPosition: "rifler",
             userId: "user-1",
+            avatarUrl: "https://cdn.test/player.webp",
           },
           {
             id: "member-2",
@@ -111,6 +112,7 @@ describe("match detail stats", () => {
             perfectName: null,
             primaryPosition: "awper",
             userId: "user-2",
+            avatarUrl: null,
           },
         ],
         "team-a",
@@ -123,6 +125,7 @@ describe("match detail stats", () => {
         registrationPosition: "rifler",
         isStarter: true,
         userId: "user-1",
+        avatarUrl: "https://cdn.test/player.webp",
       },
     ]);
   });
@@ -135,7 +138,7 @@ describe("match detail stats", () => {
         statRow({ mapId: "map-2", matchId: "match-2", perfectName: "Alpha", userId: "user-1", kills: 10, deaths: 10, firstKills: 1, hsPercent: 30, adr: 70, ratingPro: 1, we: 7 }),
       ],
       ["user-1"],
-      new Map([["user-1", { id: "member-1", teamId: "team-a", steamName: "Steam", displayName: null, perfectName: "Alpha", primaryPosition: "rifler", userId: "user-1" }]]),
+      new Map([["user-1", { id: "member-1", teamId: "team-a", steamName: "Steam", displayName: null, perfectName: "Alpha", primaryPosition: "rifler", userId: "user-1", avatarUrl: "https://cdn.test/player.webp" }]]),
       new Map([
         ["map-1", 24],
         ["map-2", 30],

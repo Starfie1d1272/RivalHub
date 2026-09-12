@@ -34,6 +34,7 @@ const baseProps = {
     {
       registrationId: "33333333-3333-4333-8333-333333333333",
       userId: "55555555-5555-4555-8555-555555555555",
+      avatarUrl: "https://cdn.test/neo.webp",
       steamName: "Neo",
       perfectName: null,
       displayName: null,
@@ -105,5 +106,11 @@ describe("CaptainDraftPanel", () => {
       "href",
       `/players/${baseProps.players[0].userId}`,
     );
+  });
+
+  it("renders the shared avatar for draft candidates", () => {
+    render(<CaptainDraftPanel {...baseProps} />);
+
+    expect(screen.getAllByRole("img", { name: "Neo" })).toHaveLength(2);
   });
 });

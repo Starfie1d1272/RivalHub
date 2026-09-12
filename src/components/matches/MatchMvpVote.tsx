@@ -1,14 +1,16 @@
 "use client";
 
-import { useState, useEffect, useMemo, useTransition } from "react";
+import React, { useState, useEffect, useMemo, useTransition } from "react";
 import Link from "next/link";
 import { Panel } from "@/components/rivalhub";
+import { PlayerAvatar } from "@/components/players/PlayerAvatar";
 import { castMatchMvpVote } from "@/actions/player-stats";
 import { isDeadlinePassed, MVP_DEADLINE_MS } from "@/lib/utils/date";
 import { formatStat, type StatMetric } from "@/lib/stats";
 
 interface MvpCandidate {
   userId: string | null;
+  avatarUrl: string | null;
   perfectName: string;
   kills: number | null;
   deaths: number | null;
@@ -94,7 +96,8 @@ export function MatchMvpVote({
       <Panel contentClassName="space-y-5 p-6">
         <div className="text-center space-y-1">
           <p className="text-sm text-[var(--color-fg-mid)]">本场 MVP</p>
-          <p className="text-2xl font-bold text-[var(--color-accent)]">
+          <div className="flex items-center justify-center gap-2 text-2xl font-bold text-[var(--color-accent)]">
+            {mvpStats && <PlayerAvatar name={mvp?.playerName ?? "MVP"} avatarUrl={mvpStats.avatarUrl} size="md" />}
             {mvp?.playerUserId ? (
               <Link href={`/players/${mvp.playerUserId}`} className="hover:underline">
                 {mvp?.playerName ?? "—"}
@@ -102,7 +105,7 @@ export function MatchMvpVote({
             ) : (
               mvp?.playerName ?? "—"
             )}
-          </p>
+          </div>
           <p className="text-sm text-[var(--color-fg-mid)]">
             {mvp?.count ?? 0} 票
           </p>
@@ -144,7 +147,11 @@ export function MatchMvpVote({
               .sort((a, b) => b.count - a.count)
               .map((v) => (
                 <div key={v.playerName} className="flex justify-between text-[var(--color-fg-mid)]">
-                  <span>
+                  <span className="inline-flex items-center gap-1">
+                    {(() => {
+                      const candidate = candidates.find((c) => c.perfectName === v.playerName);
+                      return candidate ? <PlayerAvatar name={v.playerName} avatarUrl={candidate.avatarUrl} size="sm" /> : null;
+                    })()}
                     {v.playerUserId ? (
                       <Link href={`/players/${v.playerUserId}`} className="hover:text-[var(--color-accent)] transition-colors">
                         {v.playerName}
@@ -198,8 +205,9 @@ export function MatchMvpVote({
                 isLeading && !isVoted ? "border border-[var(--color-accent)] bg-[var(--color-accent-soft)]" : "",
               ].join(" ").trim()}
             >
-              <div className="flex items-center justify-between mb-2">
-                <span className="font-semibold text-[var(--color-fg)]">
+              <div className="flex items-center justify-between mb-2 gap-2">
+                <span className="inline-flex min-w-0 items-center gap-2 font-semibold text-[var(--color-fg)]">
+                  <PlayerAvatar name={c.perfectName} avatarUrl={c.avatarUrl} size="sm" />
                   {c.perfectName}
                 </span>
                 <span

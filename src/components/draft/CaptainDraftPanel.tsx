@@ -12,6 +12,7 @@ import { positionLabel } from "@/lib/validators/registration";
 import { MapPreferenceChips } from "@/components/rivalhub/MapPreferenceChips";
 import { PosChip } from "@/components/rivalhub/PosChip";
 import { PlayerInfoPopover } from "./PlayerInfoPopover";
+import { PlayerAvatar } from "@/components/players/PlayerAvatar";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
 import { sortByRank } from "@/lib/utils/rank";
 import { selectAutoPickCandidate } from "@/lib/draft/auto-pick";
@@ -32,7 +33,7 @@ interface CaptainDraftPanelProps {
   players: CaptainDraftPlayer[];
   seasonPositions: string[];
   /** Already picked members for roster summary */
-  rosterMembers: { steamName: string; perfectName: string | null; displayName: string | null; primaryPosition: string }[];
+  rosterMembers: { steamName: string; avatarUrl: string | null; perfectName: string | null; displayName: string | null; primaryPosition: string }[];
   captainPosition: string;
   readonly?: boolean;
 }
@@ -208,6 +209,7 @@ export function CaptainDraftPanel({
                 </div>
                 {rosterMembers.map((member, i) => (
                   <div key={i} className="flex items-center gap-2 text-xs text-[var(--color-fg)]">
+                    <PlayerAvatar name={getPublicDisplayName(member)} avatarUrl={member.avatarUrl} size="sm" />
                     <PosChip pos={positionLabel(member.primaryPosition)} small />
                     <span>{getPublicDisplayName(member)}</span>
                   </div>
@@ -295,6 +297,7 @@ export function CaptainDraftPanel({
                   }`}
                 >
                   <div className="hidden md:flex items-center gap-3">
+                    <PlayerAvatar name={displayedName} avatarUrl={player.avatarUrl} size="sm" />
                     {/* Rank badges: peak + current */}
                     <div className="flex shrink-0 items-center gap-1">
                       <span
@@ -385,6 +388,7 @@ export function CaptainDraftPanel({
 
                   <div className="md:hidden space-y-1.5">
                     <div className="flex items-center gap-2">
+                      <PlayerAvatar name={displayedName} avatarUrl={player.avatarUrl} size="sm" />
                       <div className="flex shrink-0 items-center gap-1">
                         <span
                           className="inline-flex items-center rounded-sm border px-1.5 py-0.5 text-[10px] font-bold"
