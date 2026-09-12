@@ -8,13 +8,13 @@ test.use({ scenarioProfile: "major-entry" });
  * Storage → DB → Auth 顺序清理。
  *
  * 覆盖：auth boundary（未登录访问 /my/teams 被送回登录页）→ 真实 Supabase
- * 登录 → 长期 Team 创建 → 在已发布 Major 的报名页
+ * 登录 → 队伍创建 → 在已发布 Major 的报名页
  * 创建 CompetitionEntry → 页面呈现与服务端 canonical 状态一致（待提交 + 报名检查），
  * 且 /my/competitions 与报名页读到同一份 Entry 状态。
  */
 test.skip(({ viewport }) => (viewport?.width ?? 0) < 800, "有状态的报名流程只在桌面项目执行一次，避免并发 project 在共享 fixture 状态上竞争。");
 
-test("队长可以登录、建立长期队伍并发起本届 Major 报名", async ({ page, scenario }) => {
+test("队长可以登录、建立队伍并发起本届 Major 报名", async ({ page, scenario }) => {
   const captain = account(scenario, "captain");
 
   // Auth boundary：未登录访问“我的队伍”必须被送回登录页，而不是泄露页面内容。
@@ -27,7 +27,7 @@ test("队长可以登录、建立长期队伍并发起本届 Major 报名", asyn
   await page.getByLabel("密码", { exact: true }).fill(scenario.password);
   await page.locator('button[type="submit"]').click();
   await page.waitForURL((url) => url.pathname === "/my/teams");
-  await expect(page.getByText("我的队伍", { exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "我的队伍", exact: true })).toBeVisible();
   await page.goto("/my/teams");
 
   // 每个 scenario 从无 Team 的确定初始状态开始，创建动作必须发生。
@@ -54,11 +54,12 @@ test("队长可以登录、建立长期队伍并发起本届 Major 报名", asyn
   await expect(entryChecklist).toBeVisible();
   await expect(page.getByText(/· 待提交/)).toBeVisible();
 
-  // “我的赛事”与报名页读到同一份 CompetitionEntry 状态（header 导航也含赛季名，取卡片）。
+  // “我的赛事”与报名页读到同一份 CompetitionEntry 状态（按赛季展示，取卡片）。
   await page.goto("/my/competitions");
+  await expect(page.getByRole("heading", { name: "当前参与", exact: true })).toBeVisible();
   await expect(page.getByText(scenario.seasonName).first()).toBeVisible();
-  await expect(page.getByText("赛事报名").first()).toBeVisible();
-  await expect(page.getByText("待提交", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText(/报名：待提交/)).toBeVisible();
+  await expect(page.getByRole("link", { name: "继续报名", exact: true })).toBeVisible();
 });
 
 function account(scenario: E2EFixtureCredentials, key: E2EFixtureCredentials["accounts"][number]["key"]): E2EFixtureCredentials["accounts"][number] {

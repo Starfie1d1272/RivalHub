@@ -36,7 +36,7 @@ export function TeamRegistrationProgress({ progress }: { progress: TeamRegistrat
               <article key={draft.id} className="grid gap-3 p-4 lg:grid-cols-[minmax(0,1.3fr)_repeat(3,minmax(6rem,auto))_minmax(0,1.5fr)] lg:items-center">
                 <div className="min-w-0">
                   <h3 className="truncate font-semibold">{draft.name}</h3>
-                  <p className="mt-1 text-xs text-[var(--color-fg-mid)]">负责人：{draft.representativeName} · {draft.source === "linked_team" ? "长期队伍报名" : "赛事组队"}</p>
+                  <p className="mt-1 text-xs text-[var(--color-fg-mid)]">负责人：{draft.representativeName} · {draft.source === "linked_team" ? "队伍报名" : "赛事组队"}</p>
                   <p className="mt-1 text-xs text-[var(--color-fg-dim)]">最后更新：{formatCST(draft.updatedAt)}</p>
                 </div>
                 <ProgressFact label="名单" value={`${draft.rosterCount}/${draft.minRoster}–${draft.maxRoster}`} />

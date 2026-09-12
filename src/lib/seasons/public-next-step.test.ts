@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { presentUpcomingMatchTask } from "./public-next-step";
+import { presentPersonalNextStep, presentUpcomingMatchTask } from "./public-next-step";
 
 describe("public season personal next step", () => {
   it("presents an explicitly started match as the current task", () => {
@@ -19,5 +19,15 @@ describe("public season personal next step", () => {
       detail: "对阵 对手队 · 待进行",
       href: "/autumn-2026/matches/match-1",
     });
+  });
+  it("does not turn an admin-owned waiting item into a personal task", () => {
+    expect(presentPersonalNextStep([{
+      id: "entry-1",
+      title: "当前报名状态",
+      state: "waiting",
+      detail: "报名已提交，等待赛事管理员审核。",
+      responsibility: "admin",
+      cta: { href: "/autumn-2026/register", label: "查看本届报名" },
+    }])).toBeNull();
   });
 });

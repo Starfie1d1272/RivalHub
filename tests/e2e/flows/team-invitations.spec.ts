@@ -18,7 +18,6 @@ test("未入队用户可以从 /my 和 /teams 发现并处理 direct invitation"
     await expect(captainWorkspace).toBeVisible();
 
     await signInProgrammatically(inviteePage, invitee, scenario, "/my/teams");
-    const inviteeWorkspace = inviteePage.getByText("队伍资料", { exact: true });
     const pendingInvitations = inviteePage.getByText("待处理邀请", { exact: true });
     await page.getByPlaceholder("已注册邮箱").fill(invitee.email);
     await page.getByRole("button", { name: "直接邀请", exact: true }).click();
@@ -30,19 +29,23 @@ test("未入队用户可以从 /my 和 /teams 发现并处理 direct invitation"
     await expect(page.getByText("接受一次后失效；可由队长撤销。", { exact: true })).toBeVisible();
 
     await inviteePage.goto("/my");
-    await expect(inviteePage.getByText(/你有 \d+ 个待处理的队伍邀请/)).toBeVisible();
-    await expect(inviteePage.getByRole("link", { name: "处理队伍邀请", exact: true })).toHaveAttribute("href", "/my/teams");
+    await expect(inviteePage.getByText(/你有 \d+ 个待处理的队伍邀请/).first()).toBeVisible();
+    await expect(inviteePage.getByRole("link", { name: "处理队伍邀请", exact: true }).first()).toHaveAttribute("href", "/my/teams");
 
     await inviteePage.goto("/teams");
-    await expect(inviteePage.getByRole("link", { name: "处理队伍邀请", exact: true })).toHaveAttribute("href", "/my/teams");
+    await expect(inviteePage.getByRole("link", { name: "处理队伍邀请", exact: true }).first()).toHaveAttribute("href", "/my/teams");
 
     await inviteePage.goto("/my/teams");
     await expect(pendingInvitations).toBeVisible();
     await expect(inviteePage.getByText(teamName, { exact: true })).toBeVisible();
     await expect(inviteePage.getByText("接受邀请即加入队伍，不需要再次申请或等待队长审核。", { exact: true })).toBeVisible();
     await inviteePage.getByRole("button", { name: "接受", exact: true }).click();
-    await expect(inviteeWorkspace).toBeVisible();
-    await expect(inviteePage.getByLabel("队伍名称")).toHaveValue(teamName);
+    await expect(inviteePage.getByText("队伍身份", { exact: true })).toBeVisible();
+    await expect(inviteePage.getByRole("button", { name: "退出队伍", exact: true })).toBeVisible();
+    for (const control of ["保存资料", "直接邀请", "发布招募", "交接队长", "解散队伍", "更换队伍图标"]) {
+      await expect(inviteePage.getByRole("button", { name: control, exact: true })).toHaveCount(0);
+    }
+    await expect(inviteePage.getByRole("textbox", { name: "队伍名称", exact: true })).toHaveCount(0);
   } finally {
     await inviteeContext.close();
   }

@@ -106,7 +106,7 @@ export function CompetitiveProfileForm({ contexts }: { contexts: CompetitiveSeas
 
   return <Panel label="竞技资料" contentClassName="p-5"><div className="space-y-5">
     {platformSelect}
-    <StatusBanner tone="info" title={`${context.platformDisplayName} · 长期竞技资料`} sub="未录入表示尚未声明；未定级是有效事实；已定级必须填写段位、星段位的准确星数与 Rating。具体赛事会按当届冻结规则单独核验。" />
+    <StatusBanner tone="info" title={`${context.platformDisplayName} · 竞技资料`} sub="未录入表示尚未声明；未定级是有效事实；已定级必须填写段位、星段位的准确星数与 Rating。具体赛事会按当届冻结规则单独核验。" />
     {editor("历史最高", HISTORICAL_KEY, historical, setHistorical, false, { after: <div className="max-w-sm space-y-1.5"><Label htmlFor="competitive-achieved-season">历史最高达成赛季（可选）</Label><Select value={achievedSeasonKey} onValueChange={(value) => { setSaved(false); setAchievedSeasonKey(value); }}><SelectTrigger id="competitive-achieved-season"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="unknown">不确定 / 暂不填写</SelectItem>{context.seasons.map((season) => <SelectItem key={season.seasonKey} value={season.seasonKey}>{season.label}</SelectItem>)}</SelectContent></Select></div> })}
     <section aria-labelledby="recent-seasons-heading" className="space-y-4">
       <div><h2 id="recent-seasons-heading" className="text-base font-semibold">近期赛季</h2><p className="mt-1 text-sm text-[var(--color-fg-mid)]">当前、上一赛季可直接维护。</p></div>

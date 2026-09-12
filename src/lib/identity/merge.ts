@@ -276,7 +276,7 @@ export async function buildUserMergePreflight(
   const blockers: Array<[keyof CollisionFacts, string, string]> = [
     ["team_current_conflict", "team:current-conflict", "两个账号当前属于不同队伍，不能自动选择当前队伍。"],
     ["team_membership_overlap", "team:history-overlap", "两个账号在不同队伍的历史成员时间区间重叠，必须先人工核对。"],
-    ["active_captaincy_conflict", "team:captaincy-conflict", "两个账号分别担任不同 active 队伍队长，不能自动选择。"],
+    ["active_captaincy_conflict", "team:captaincy-conflict", "两个账号分别担任不同当前队伍队长，不能自动选择。"],
     ["competition_commitment_conflict", "competition:confirmed-different-entry", "两个账号在同一赛事形成了不同参赛条目的确认承诺。"],
     ["competition_roster_conflict", "competition:approved-or-frozen-duplicate", "已批准或已确认/冻结名单中出现无法确定归属的重复成员。"],
     ["stats_conflict", "stats:formal-conflict", "同一场比赛同一张地图存在两份正式比赛数据，不能自动选择其中一份。"],
