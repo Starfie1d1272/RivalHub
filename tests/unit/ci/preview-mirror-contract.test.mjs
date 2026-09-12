@@ -27,4 +27,10 @@ describe("preview mirror workflow contract", () => {
     expect(workflow).toContain("RIVALHUB_PREVIEW_PUBLIC_ASSET_ALLOWLIST");
     expect(workflow).not.toContain("RIVALHUB_PREVIEW_RO_PASSWORD");
   });
+
+  it("defers the Preview mirror banner query until request time", () => {
+    const layout = readFileSync(new URL("../../../src/app/layout.tsx", import.meta.url), "utf8");
+    expect(layout).toContain("<Suspense fallback={null}><PreviewMirrorBanner /></Suspense>");
+    expect(layout.indexOf("await connection();")).toBeLessThan(layout.indexOf("await readPreviewMirrorIdentity()"));
+  });
 });
