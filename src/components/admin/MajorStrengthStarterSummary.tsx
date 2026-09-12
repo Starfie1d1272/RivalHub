@@ -19,8 +19,13 @@ function isConverted(fact: MajorStrengthFact | null): fact is MajorStrengthFact 
   return fact?.sourcePlatform === "fivee" && Boolean(fact.sourceRank);
 }
 
+function ProvenanceBadge({ fact }: { fact: MajorStrengthFact | null }) {
+  if (!isConverted(fact)) return null;
+  return <span className="inline-flex shrink-0 whitespace-nowrap rounded border border-[var(--color-accent)] px-1 py-0.5 text-[10px] text-[var(--color-accent)]">采用 5E 等效</span>;
+}
+
 function FactLine({ label, fact, platform }: { label: string; fact: MajorStrengthFact | null; platform: string | null }) {
-  return <p>{label}：{formatStrengthFact(fact, platform)} {isConverted(fact) && <span className="ml-1 rounded border border-[var(--color-accent)] px-1 py-0.5 text-[10px] text-[var(--color-accent)]">采用 5E 等效</span>}</p>;
+  return <p>{label}：{formatStrengthFact(fact, platform)} <ProvenanceBadge fact={fact} /></p>;
 }
 
 export function MajorStrengthStarterSummary({
@@ -34,7 +39,6 @@ export function MajorStrengthStarterSummary({
   recentLabel?: string;
   showProvenance?: boolean;
 }) {
-  const primaryFact = starter.effectiveRecentPeak ?? starter.currentSeasonPeak ?? starter.previousSeasonPeak ?? starter.historicalPeak;
   const provenanceFacts = [
     starter.historicalPeak,
     starter.previousSeasonPeak,
@@ -55,9 +59,14 @@ export function MajorStrengthStarterSummary({
   return (
     <details className="border border-[var(--color-border)] bg-[var(--color-panel-low)] px-2 py-1.5">
       <summary className="cursor-pointer list-none text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]">
-        <span className="font-medium text-[var(--color-fg)]">{starter.label}</span>
-        <span className="ml-2 font-mono text-[var(--color-fg-mid)]">{formatStrengthFact(primaryFact, platform)}</span>
-        {isConverted(primaryFact) && <span className="ml-2 rounded border border-[var(--color-accent)] px-1 py-0.5 text-[10px] text-[var(--color-accent)]">采用 5E 等效</span>}
+        <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          <span className="font-medium text-[var(--color-fg)]">{starter.label}</span>
+          <span className="font-mono text-[var(--color-fg-mid)]">历史 {formatStrengthFact(starter.historicalPeak, platform)}</span>
+          <span className="font-mono text-[var(--color-fg-mid)]">综合 {starter.breakdown.weightedRank === null ? "无法计算" : starter.breakdown.weightedRank.toFixed(2)}</span>
+          <span className="font-mono text-[var(--color-fg-mid)]">近期 {formatStrengthFact(starter.effectiveRecentPeak, platform)}</span>
+          <ProvenanceBadge fact={starter.historicalPeak} />
+          <ProvenanceBadge fact={starter.effectiveRecentPeak} />
+        </span>
       </summary>
       <div className="mt-2 space-y-1 border-t border-[var(--color-border)] pt-2 text-[11px] leading-5 text-[var(--color-fg-mid)]">
         <FactLine label="历史最高" fact={starter.historicalPeak} platform={platform} />
