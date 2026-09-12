@@ -64,6 +64,8 @@ export async function loginWithPassword(
       return bootstrapConfiguredOwnerInTx(tx, canonicalUser);
     });
 
+    if (!userRow) return fail({ code: ErrorCode.UNAUTHORIZED, message: "账号不存在，请重新登录。" });
+
     await createUserSession({
       userId: userRow.id,
       email: userRow.email,

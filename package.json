@@ -36,6 +36,8 @@
     "db:recovery:restore": "tsx scripts/db/recovery/restore.ts",
     "db:recovery:verify": "tsx scripts/db/recovery/verify.ts",
     "db:recovery:lifecycle": "tsx scripts/db/recovery/lifecycle.ts",
+    "db:preview:export": "tsx scripts/db/preview/snapshot.ts",
+    "db:preview:refresh": "tsx scripts/db/preview/refresh.ts",
     "db:recovery:r2:apply": "tsx scripts/db/recovery/r2-config.ts apply",
     "db:recovery:r2:verify": "tsx scripts/db/recovery/r2-config.ts verify",
     "db:studio": "tsx scripts/db/local.ts studio",

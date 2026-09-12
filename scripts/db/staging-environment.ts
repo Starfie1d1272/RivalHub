@@ -14,6 +14,7 @@ const stagingConfig: ProtectedRemoteDatabaseConfig = {
   requiresPgbouncer: true,
   passwordKey: "RIVALHUB_STAGING_DB_PASSWORD",
   projectConfirmationKey: "RIVALHUB_STAGING_PROJECT_CONFIRM",
+  hostConfirmationKey: "RIVALHUB_STAGING_DB_HOST_CONFIRM",
   databaseUrlKey: "RIVALHUB_STAGING_DATABASE_URL",
   requireExplicitTarget: false,
 };
