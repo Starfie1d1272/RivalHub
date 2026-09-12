@@ -114,7 +114,7 @@ async function verifyValidatedConstraints(pool: Pick<Pool, "query">): Promise<vo
   }
 }
 
-async function verifyForeignKeys(pool: Pick<Pool, "query">): Promise<number> {
+export async function verifyForeignKeys(pool: Pick<Pool, "query">): Promise<number> {
   const constraints = await pool.query<ForeignKeyDefinition>(`
     SELECT
       c.conname,

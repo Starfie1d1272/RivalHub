@@ -6,6 +6,7 @@ import * as schema from "./schema";
 // imports intentionally bypass the Next server-only facade.
 import { captureException, logEvent } from "../lib/observability/logger";
 import { traceOperation } from "../lib/observability/tracing";
+import { assertPreviewDatabaseUrl } from "../lib/runtime/preview";
 
 function createPool(): Pool {
   const connectionString = requireDatabaseUrl();
@@ -160,6 +161,7 @@ function requireDatabaseUrl(): string {
   } catch {
     throw new Error("[db] DATABASE_URL 格式无效。");
   }
+  assertPreviewDatabaseUrl(value);
   return value;
 }
 
