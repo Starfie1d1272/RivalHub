@@ -1,11 +1,12 @@
 "use server";
 
+import { writeAuditInTx } from "@/lib/audit/write";
+
 import { randomUUID } from "node:crypto";
 import { and, count, eq, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
-  auditLogs,
-  captainVotes,
+    captainVotes,
   competitionEntries,
   competitionEntryParticipants,
   competitionEntryRepresentativeChanges,
@@ -104,13 +105,11 @@ export async function castVote(
       return vote.id;
     });
 
-    await db.insert(auditLogs).values({
+    await writeAuditInTx(db, {
       seasonId: null,
       action: "captain.cast_vote",
       actorId: session.userId,
-      targetId: parsed.data.candidateRegistrationId,
-      targetType: "captain_vote",
-      meta: { voteId, voterRegistrationId: parsed.data.voterRegistrationId },
+      targetId: parsed.data.candidateRegistrationId,meta: { voteId, voterRegistrationId: parsed.data.voterRegistrationId },
     });
 
     await revalidateCaptainPaths(parsed.data.voterRegistrationId);
@@ -170,13 +169,11 @@ export async function retractVote(
         );
     });
 
-    await db.insert(auditLogs).values({
+    await writeAuditInTx(db, {
       seasonId: null,
       action: "captain.retract_vote",
       actorId: session.userId,
-      targetId: parsed.data.candidateRegistrationId,
-      targetType: "captain_vote",
-      meta: { voterRegistrationId: parsed.data.voterRegistrationId },
+      targetId: parsed.data.candidateRegistrationId,meta: { voterRegistrationId: parsed.data.voterRegistrationId },
     });
 
     await revalidateCaptainPaths(parsed.data.voterRegistrationId);
@@ -346,13 +343,11 @@ export async function confirmCaptains(
         .set({ status: "drafting", updatedAt: new Date() })
         .where(eq(seasons.id, season.id));
 
-      await tx.insert(auditLogs).values({
+      await writeAuditInTx(tx, {
         seasonId: season.id,
         action: "captain.confirm",
         actorId: auditActorId(admin),
-        targetId: season.id,
-        targetType: "season",
-        meta: {
+        targetId: season.id,meta: {
           captainRegistrationIds: seeds.map((seed) => seed.registrationId),
           entryIds: createdEntryIds,
         },

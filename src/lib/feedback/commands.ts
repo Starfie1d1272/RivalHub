@@ -1,7 +1,9 @@
 import { createHash } from "node:crypto";
+import { writeAuditInTx } from "@/lib/audit/write";
+
 import { and, count, eq, gte, isNull } from "drizzle-orm";
 import type { TxDb } from "@/db/client";
-import { auditLogs, feedbackReports } from "@/db/schema";
+import { feedbackReports } from "@/db/schema";
 import { AppError, ErrorCode } from "@/lib/errors";
 import type { FeedbackCategory } from "./validation";
 
@@ -54,6 +56,6 @@ export async function setFeedbackStatusInTx(tx: TxDb, input: { id: string; statu
   if (!existing) throw new AppError(ErrorCode.NOT_FOUND, "反馈不存在。 ");
   const [row] = await tx.update(feedbackReports).set({ status: input.status, updatedAt: new Date() }).where(eq(feedbackReports.id, input.id)).returning({ id: feedbackReports.id, status: feedbackReports.status, seasonId: feedbackReports.seasonId });
   if (!row) throw new AppError(ErrorCode.INTERNAL_ERROR, "反馈状态更新失败。 ");
-  await tx.insert(auditLogs).values({ seasonId: row.seasonId, action: "feedback.status_update", actorId: input.actorId, targetId: row.id, targetType: "feedback_report", meta: { from: existing.status, to: input.status } });
+  await writeAuditInTx(tx, { seasonId: row.seasonId, action: "feedback.status_update", actorId: input.actorId, targetId: row.id,meta: { from: existing.status, to: input.status } });
   return row;
 }

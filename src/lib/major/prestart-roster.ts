@@ -1,8 +1,9 @@
 import { and, asc, eq, inArray } from "drizzle-orm";
+import { writeAuditInTx } from "@/lib/audit/write";
+
 import type { TxDb } from "@/db/client";
 import {
-  auditLogs,
-  competitionEntryParticipants,
+    competitionEntryParticipants,
   competitionEntryRosterMembers,
   eventRosterMembers,
   eventRosters,
@@ -266,13 +267,11 @@ export async function reconcileMajorPrestartRosterAfterApprovalInTx(
     actorId: input.actorId,
   });
   if (result.changed) {
-    await tx.insert(auditLogs).values({
+    await writeAuditInTx(tx, {
       seasonId: season.id,
       action: "major_prestart.reconcile_roster",
       actorId: input.actorId,
-      targetId: entrant.id,
-      targetType: "major_tournament_entrant",
-      meta: {
+      targetId: entrant.id,meta: {
         sourceRosterRevisionId: coherent.approvedRevision.id,
         rosterSize: result.rosterSize,
         eventRosterId: result.eventRosterId,
@@ -370,13 +369,11 @@ export async function saveMajorPrestartRosterInTx(
   await assertSinglePrestartEntryCoherenceInTx(tx, season.id, {
     competitionEntryId: entrant.competitionEntryId,
   });
-  await tx.insert(auditLogs).values({
+  await writeAuditInTx(tx, {
     seasonId: season.id,
     action: "major_prestart.repair_roster",
     actorId: input.actorId,
-    targetId: entrant.id,
-    targetType: "major_prestart_entrant",
-    meta: { rosterSize: input.userIds.length, sourceRosterRevisionId: coherent.approvedRevision.id, reason },
+    targetId: entrant.id,meta: { rosterSize: input.userIds.length, sourceRosterRevisionId: coherent.approvedRevision.id, reason },
   });
   return { seasonSlug: season.slug };
 }

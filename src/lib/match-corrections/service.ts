@@ -1,8 +1,9 @@
 import { and, eq, ne } from "drizzle-orm";
+import { writeAuditInTx } from "@/lib/audit/write";
+
 import type { TxDb } from "@/db/client";
 import {
-  auditLogs,
-  majorFinalResults,
+    majorFinalResults,
   majorStageRuns,
   matches,
   type Match,
@@ -487,13 +488,11 @@ export async function applyResultCorrectionInTx(
     rolledBackToFinalized: null,
   };
 
-  await tx.insert(auditLogs).values({
+  await writeAuditInTx(tx, {
     seasonId: locked.seasonId,
     action: "match.result.corrected",
     actorId: args.actorId,
-    targetId: locked.id,
-    targetType: "match",
-    meta: {
+    targetId: locked.id,meta: {
       prevScoreA: locked.scoreA,
       prevScoreB: locked.scoreB,
       prevIsForfeit: locked.isForfeit,
@@ -524,13 +523,11 @@ export async function applyResultCorrectionInTx(
       .returning({ id: matches.id, managedKey: matches.managedKey });
     if (deleted.length === 0) continue;
     applied.invalidatedDownstreamMatches.push(deleted[0]!.id);
-    await tx.insert(auditLogs).values({
+    await writeAuditInTx(tx, {
       seasonId: locked.seasonId,
       action: "match.managed.invalidated",
       actorId: args.actorId,
-      targetId: deleted[0]!.id,
-      targetType: "match",
-      meta: {
+      targetId: deleted[0]!.id,meta: {
         reason: "upstream_result_correction",
         sourceMatchId: locked.id,
         managedKey: deleted[0]!.managedKey,
@@ -549,13 +546,11 @@ export async function applyResultCorrectionInTx(
         .set({ finalizedRound: rollbackTo })
         .where(and(eq(majorStageRuns.id, locked.majorStageRunId), ne(majorStageRuns.finalizedRound, rollbackTo)));
       applied.rolledBackToFinalized = rollbackTo;
-      await tx.insert(auditLogs).values({
+      await writeAuditInTx(tx, {
         seasonId: locked.seasonId,
         action: "major.stage.finalized_round.revoked",
         actorId: args.actorId,
-        targetId: locked.majorStageRunId,
-        targetType: "major_stage_run",
-        meta: { stageKey: plan.stageKey, revokedFrom: target.status, rolledBackTo: rollbackTo },
+        targetId: locked.majorStageRunId,meta: { stageKey: plan.stageKey, revokedFrom: target.status, rolledBackTo: rollbackTo },
       });
     }
   }
@@ -578,13 +573,11 @@ export async function recordRecoveryAdjudicationInTx(
   if (!args.note.trim()) {
     throw new AppError(ErrorCode.VALIDATION_FAILED, "裁决说明不能为空。");
   }
-  await tx.insert(auditLogs).values({
+  await writeAuditInTx(tx, {
     seasonId: locked.seasonId,
     action: "match.recovery.adjudicated",
     actorId: args.actorId,
-    targetId: locked.id,
-    targetType: "match",
-    meta: {
+    targetId: locked.id,meta: {
       note: args.note.trim(),
       stageKey: locked.stage,
       scoreA: locked.scoreA,

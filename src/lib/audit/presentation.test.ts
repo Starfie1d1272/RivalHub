@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   AUDIT_ACTION_DEFINITIONS,
   AUDIT_ACTION_KEYS,
+  AUDIT_EVENT_REGISTRY,
   getAuditActionFilterOptions,
   getAuditActionPresentation,
   getAuditTargetTypeLabel,
@@ -71,6 +72,13 @@ describe("audit presentation owner", () => {
     expect(options.some((option) => option.value === "education_verification.approved")).toBe(true);
     expect(options.some((option) => option.value === "competitive_profile.self_declare")).toBe(true);
     expect(options.some((option) => option.value === "map_preferences.self_declare")).toBe(true);
+  });
+
+  it("retains canonical non-default targets in the registry", () => {
+    expect(AUDIT_EVENT_REGISTRY["conversion_policy.approve"].target).toMatchObject({ type: "conversion_policy", lifecycle: "stable" });
+    expect(AUDIT_EVENT_REGISTRY["major.swiss.finalize_round"].target).toMatchObject({ type: "major_stage_run", lifecycle: "stable" });
+    expect(AUDIT_EVENT_REGISTRY["match.generate_schedule"].target).toMatchObject({ type: "season", lifecycle: "stable" });
+    expect(AUDIT_EVENT_REGISTRY["match.delete"].target).toMatchObject({ type: "match", lifecycle: "tombstone" });
   });
 
   it("uses a human fallback for unknown actions", () => {

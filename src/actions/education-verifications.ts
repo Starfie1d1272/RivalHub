@@ -1,9 +1,11 @@
 "use server";
 
+import { writeAuditInTx } from "@/lib/audit/write";
+
 import { and, eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/db/client";
-import { auditLogs, educationVerifications, institutionEmailDomains, institutions, userIdentities } from "@/db/schema";
+import { educationVerifications, institutionEmailDomains, institutions, userIdentities } from "@/db/schema";
 import { actionError } from "@/lib/action-utils";
 import { auditActorId, requireAuth, requireSuperAdmin } from "@/lib/auth/session";
 import {
@@ -101,7 +103,7 @@ export async function declareInstitutionalEmailEducation(input: unknown): Promis
         userId: session.userId, institutionId: mapping.institutionId, academicStatus: "enrolled",
         evidenceType: "institutional_email", status: "approved", reviewedBy: "system:institutional_email", reviewedAt: new Date(),
       }).returning({ id: educationVerifications.id });
-      await tx.insert(auditLogs).values({ action: "education_verification.institutional_email", actorId: auditActorId(session), targetId: verification?.id, targetType: "education_verification", meta: { institutionId: mapping.institutionId } });
+      await writeAuditInTx(tx, { action: "education_verification.institutional_email", actorId: auditActorId(session), targetId: verification?.id,meta: { institutionId: mapping.institutionId } });
     });
     refresh();
     return ok(undefined);
@@ -132,7 +134,7 @@ export async function reviewEducationVerification(input: { id: string; decision:
         throw new AppError(ErrorCode.VALIDATION_FAILED, "录取通知书材料已按保留策略清理，无法通过该认证。 ");
       }
       await tx.update(educationVerifications).set({ status: parsed.data.decision, reviewedBy: auditActorId(admin), reviewedAt: new Date(), reviewNote: parsed.data.reviewNote || null, updatedAt: new Date() }).where(eq(educationVerifications.id, verification.id));
-      await tx.insert(auditLogs).values({ action: `education_verification.${parsed.data.decision}`, actorId: auditActorId(admin), targetId: verification.id, targetType: "education_verification", meta: { reviewNote: Boolean(parsed.data.reviewNote) } });
+      await writeAuditInTx(tx, { action: `education_verification.${parsed.data.decision}`, actorId: auditActorId(admin), targetId: verification.id,meta: { reviewNote: Boolean(parsed.data.reviewNote) } });
     });
     refresh();
     return ok(undefined);

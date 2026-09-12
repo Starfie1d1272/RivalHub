@@ -1,8 +1,10 @@
 import "server-only";
 
+import { writeAuditInTx } from "@/lib/audit/write";
+
 import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { db, type DB, type TxDb } from "@/db/client";
-import { auditLogs, conversionPolicies, seasons, users } from "@/db/schema";
+import { conversionPolicies, seasons, users } from "@/db/schema";
 import { getDisplayName } from "@/lib/identity/display-name";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { normalizeTeamRegistrationConfig } from "@/lib/seasons/compatibility";
@@ -259,13 +261,11 @@ export async function createConversionPolicyDraftInTx(
     updatedAt: new Date(),
   }).returning({ id: conversionPolicies.id });
   if (!created) throw new AppError(ErrorCode.INTERNAL_ERROR, "创建换算策略草稿失败。 ");
-  await tx.insert(auditLogs).values({
+  await writeAuditInTx(tx, {
     seasonId: null,
     action: "conversion_policy.create_draft",
     actorId,
-    targetId: created.id,
-    targetType: "conversion_policy",
-    meta: { ...policyAuditMeta({ ...base, id: created.id, version }), clonedFromId: base.id },
+    targetId: created.id,meta: { ...policyAuditMeta({ ...base, id: created.id, version }), clonedFromId: base.id },
   });
   return created;
 }
@@ -287,13 +287,11 @@ export async function updateConversionPolicyDraftInTx(
     ...(input.internalNote === undefined ? {} : { internalNote: normalizedNote(input.internalNote) }),
     updatedAt: new Date(),
   }).where(eq(conversionPolicies.id, policy.id));
-  await tx.insert(auditLogs).values({
+  await writeAuditInTx(tx, {
     seasonId: null,
     action: "conversion_policy.update_draft",
     actorId,
-    targetId: policy.id,
-    targetType: "conversion_policy",
-    meta: policyAuditMeta(policy),
+    targetId: policy.id,meta: policyAuditMeta(policy),
   });
 }
 
@@ -313,13 +311,11 @@ export async function approveConversionPolicyInTx(tx: TxDb, id: string, actorId:
     approvedBy: actorId,
     updatedAt: approvedAt,
   }).where(eq(conversionPolicies.id, policy.id));
-  await tx.insert(auditLogs).values({
+  await writeAuditInTx(tx, {
     seasonId: null,
     action: "conversion_policy.approve",
     actorId,
-    targetId: policy.id,
-    targetType: "conversion_policy",
-    meta: { ...policyAuditMeta(policy), approvedAt: approvedAt.toISOString() },
+    targetId: policy.id,meta: { ...policyAuditMeta(policy), approvedAt: approvedAt.toISOString() },
   });
 }
 
@@ -353,13 +349,11 @@ export async function setCurrentConversionPolicyInTx(tx: TxDb, id: string, actor
     eq(conversionPolicies.isCurrent, true),
   ));
   await tx.update(conversionPolicies).set({ isCurrent: true, updatedAt: new Date() }).where(eq(conversionPolicies.id, policy.id));
-  await tx.insert(auditLogs).values({
+  await writeAuditInTx(tx, {
     seasonId: null,
     action: "conversion_policy.set_current",
     actorId,
-    targetId: policy.id,
-    targetType: "conversion_policy",
-    meta: { ...policyAuditMeta(policy), fromVersion: previous?.version ?? null, toVersion: policy.version },
+    targetId: policy.id,meta: { ...policyAuditMeta(policy), fromVersion: previous?.version ?? null, toVersion: policy.version },
   });
 }
 
@@ -369,13 +363,11 @@ export async function retireConversionPolicyInTx(tx: TxDb, id: string, actorId: 
   if (policy.status !== "approved") throw new AppError(ErrorCode.VALIDATION_FAILED, "只有已批准策略可以退役。 ");
   if (policy.isCurrent) throw new AppError(ErrorCode.VALIDATION_FAILED, "当前策略不能直接退役，请先切换当前版本。 ");
   await tx.update(conversionPolicies).set({ status: "retired", updatedAt: new Date() }).where(eq(conversionPolicies.id, policy.id));
-  await tx.insert(auditLogs).values({
+  await writeAuditInTx(tx, {
     seasonId: null,
     action: "conversion_policy.retire",
     actorId,
-    targetId: policy.id,
-    targetType: "conversion_policy",
-    meta: policyAuditMeta(policy),
+    targetId: policy.id,meta: policyAuditMeta(policy),
   });
 }
 

@@ -1,8 +1,9 @@
 import { and, eq, inArray, sql } from "drizzle-orm";
+import { writeAuditInTx } from "@/lib/audit/write";
+
 import type { TxDb } from "@/db/client";
 import {
-  auditLogs,
-  disciplinaryCases,
+    disciplinaryCases,
   users,
   type DisciplinaryCase,
 } from "@/db/schema";
@@ -235,13 +236,11 @@ export async function issueSanctionInTx(
     })
     .returning({ id: disciplinaryCases.id });
 
-  await tx.insert(auditLogs).values({
+  await writeAuditInTx(tx, {
     seasonId: args.seasonId,
     action: "sanction.issue",
     actorId: args.actorId,
-    targetId: created!.id,
-    targetType: "disciplinary_case",
-    meta: { subjectUserId: args.subjectUserId, effects },
+    targetId: created!.id,meta: { subjectUserId: args.subjectUserId, effects },
   });
   return { caseId: created!.id };
 }
@@ -272,13 +271,11 @@ export async function revokeSanctionInTx(
     })
     .where(eq(disciplinaryCases.id, locked.id));
 
-  await tx.insert(auditLogs).values({
+  await writeAuditInTx(tx, {
     seasonId: locked.seasonId,
     action: "sanction.revoke",
     actorId: args.actorId,
-    targetId: locked.id,
-    targetType: "disciplinary_case",
-    meta: { subjectUserId: locked.subjectUserId, reason: args.reason.trim() || null },
+    targetId: locked.id,meta: { subjectUserId: locked.subjectUserId, reason: args.reason.trim() || null },
   });
   return { alreadyRevoked: false, caseId: locked.id };
 }
@@ -302,13 +299,11 @@ export async function markSanctionExpiredInTx(
     .set({ status: "expired", updatedAt: new Date() })
     .where(eq(disciplinaryCases.id, locked.id));
 
-  await tx.insert(auditLogs).values({
+  await writeAuditInTx(tx, {
     seasonId: locked.seasonId,
     action: "sanction.expire",
     actorId: args.actorId,
-    targetId: locked.id,
-    targetType: "disciplinary_case",
-    meta: { subjectUserId: locked.subjectUserId },
+    targetId: locked.id,meta: { subjectUserId: locked.subjectUserId },
   });
   return { alreadyExpired: false, caseId: locked.id };
 }

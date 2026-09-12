@@ -3,6 +3,8 @@ import type { TxDb } from "@/db/client";
 import { db } from "@/db/client";
 import {
   adminInvites,
+  announcements,
+  communityGroups,
   communityAwardEvidence,
   communityAwards,
   competitionEntries,
@@ -13,6 +15,7 @@ import {
   draftPicks,
   draftState,
   educationVerifications,
+  feedbackReports,
   institutions,
   majorFinalResults,
   majorPrestartIssues,
@@ -27,20 +30,36 @@ import {
   recruitmentInterests,
   recruitmentIntents,
   seasonRegistrations,
+  seasonContacts,
+  seasonPublicInfo,
   seasons,
   teams,
   tournamentHonors,
   users,
 } from "@/db/schema";
 import { getDisplayName } from "@/lib/identity/display-name";
-import { getAuditTargetFallbackLabel, getAuditTargetTypeLabel } from "@/lib/audit/presentation";
+import {
+  AUDIT_EVENT_REGISTRY,
+  getAuditTargetFallbackLabel,
+  getAuditTargetTypeLabel,
+  type AuditAction,
+  type AuditTargetLifecycle,
+} from "@/lib/audit/presentation";
 
 // Server-only owner. Keep this module out of Client Component import graphs.
 export type AuditDatabaseExecutor = typeof db | TxDb;
 
 export interface AuditTargetRef {
+  action?: string | null | undefined;
+  meta?: unknown;
   targetType: string | null | undefined;
   targetId: string | null | undefined;
+}
+
+export interface NormalizedAuditTargetRef {
+  targetType: string | null;
+  targetId: string | null;
+  lifecycle: AuditTargetLifecycle;
 }
 
 export interface AuditTargetPresentation {
@@ -53,18 +72,46 @@ export function auditTargetKey(targetType: string, targetId: string): string {
   return `${targetType}:${targetId}`;
 }
 
+/**
+ * Immutable audit rows keep their stored target untouched. At read time, use
+ * the action registry plus explicitly safe metadata to project retired target
+ * shapes into the current target contract.
+ */
+export function normalizeAuditTarget(ref: AuditTargetRef): NormalizedAuditTargetRef {
+  const storedType = ref.targetType?.trim() || null;
+  const storedId = ref.targetId?.trim() || null;
+  const definition = ref.action ? AUDIT_EVENT_REGISTRY[ref.action as AuditAction] : undefined;
+  if (!definition) return { targetType: storedType, targetId: storedId, lifecycle: "stable" };
+
+  const targetType = definition.target.type;
+  let targetId = storedId;
+  if (
+    (ref.action === "recruitment.interest.withdraw" || ref.action === "recruitment.interest.dismiss")
+    && storedType === "recruitment_interest"
+  ) {
+    targetId = safeMetaString(ref.meta, "recruitmentIntentId") ?? storedId;
+  }
+
+  return { targetType, targetId, lifecycle: definition.target.lifecycle };
+}
+
+function safeMetaString(meta: unknown, key: string): string | null {
+  if (!meta || typeof meta !== "object" || Array.isArray(meta)) return null;
+  const value = (meta as Record<string, unknown>)[key];
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
 /** Group and de-duplicate IDs before any database access. */
 export function groupAuditTargets(refs: readonly AuditTargetRef[]): Map<string, string[]> {
-  const grouped = new Map<string, Set<string>>();
+  const targetIdSets = new Map<string, Set<string>>();
   for (const ref of refs) {
-    const targetType = ref.targetType?.trim();
-    const targetId = ref.targetId?.trim();
+    const { targetType, targetId } = normalizeAuditTarget(ref);
     if (!targetType || !targetId) continue;
-    const ids = grouped.get(targetType) ?? new Set<string>();
+    const ids = targetIdSets.get(targetType) ?? new Set<string>();
     ids.add(targetId);
-    grouped.set(targetType, ids);
+    targetIdSets.set(targetType, ids);
   }
-  return new Map([...grouped].map(([type, ids]) => [type, [...ids]]));
+  return new Map([...targetIdSets].map(([type, ids]) => [type, [...ids]]));
 }
 
 type AuditUserRow = {
@@ -146,21 +193,30 @@ export async function resolveAuditTargets(
   refs: readonly AuditTargetRef[],
   executor: AuditDatabaseExecutor = db,
 ): Promise<Record<string, AuditTargetPresentation>> {
-  const grouped = groupAuditTargets(refs);
+  const normalizedRefs = refs.map(normalizeAuditTarget);
+  const targetIdSets = new Map<string, Set<string>>();
+  for (const ref of normalizedRefs) {
+    if (!ref.targetType || !ref.targetId) continue;
+    const ids = targetIdSets.get(ref.targetType) ?? new Set<string>();
+    ids.add(ref.targetId);
+    targetIdSets.set(ref.targetType, ids);
+  }
+  const targetGroups = new Map([...targetIdSets].map(([type, ids]) => [type, [...ids]]));
   const result: Record<string, AuditTargetPresentation> = {};
 
   // Seed the result with a human-readable category and a weak short-ID
   // fallback. A deleted target therefore never becomes raw type:uuid text.
-  for (const [targetType, ids] of grouped) {
-    for (const targetId of ids) {
+  for (const ref of normalizedRefs) {
+    if (!ref.targetType || !ref.targetId) continue;
+    const { targetType, targetId } = ref;
       result[auditTargetKey(targetType, targetId)] = {
         typeLabel: getAuditTargetTypeLabel(targetType),
-        label: getAuditTargetFallbackLabel(targetId),
+        label: getAuditTargetFallbackLabel(targetId, ref.lifecycle),
         found: false,
       };
-    }
   }
 
+  const grouped = targetGroups;
   const userIds = grouped.get("user") ?? [];
   if (userIds.length) {
     const rows = await selectUsers(executor, userIds);
@@ -178,6 +234,42 @@ export async function resolveAuditTargets(
     const rows = await executor.select({ id: teams.id, name: teams.name })
       .from(teams).where(inArray(teams.id, teamIds));
     for (const row of rows) setTarget(result, "team", row.id, row.name);
+  }
+
+  const announcementIds = grouped.get("announcement") ?? [];
+  if (announcementIds.length) {
+    const rows = await executor.select({ id: announcements.id, title: announcements.title })
+      .from(announcements).where(inArray(announcements.id, announcementIds));
+    for (const row of rows) setTarget(result, "announcement", row.id, compactLabel(row.title));
+  }
+
+  const publicInfoIds = grouped.get("season_public_info") ?? [];
+  if (publicInfoIds.length) {
+    const rows = await executor.select({ id: seasonPublicInfo.id, seasonId: seasonPublicInfo.seasonId })
+      .from(seasonPublicInfo).where(inArray(seasonPublicInfo.id, publicInfoIds));
+    const seasonsById = new Map((await selectSeasons(executor, rows.map((row) => row.seasonId))).map((row) => [row.id, row.name]));
+    for (const row of rows) setTarget(result, "season_public_info", row.id, `公开信息 · ${seasonsById.get(row.seasonId) ?? "未知赛季"}`);
+  }
+
+  const groupIds = grouped.get("community_group") ?? [];
+  if (groupIds.length) {
+    const rows = await executor.select({ id: communityGroups.id, label: communityGroups.label })
+      .from(communityGroups).where(inArray(communityGroups.id, groupIds));
+    for (const row of rows) setTarget(result, "community_group", row.id, `群组 · ${compactLabel(row.label)}`);
+  }
+
+  const contactIds = grouped.get("season_contact") ?? [];
+  if (contactIds.length) {
+    const rows = await executor.select({ id: seasonContacts.id, label: seasonContacts.label })
+      .from(seasonContacts).where(inArray(seasonContacts.id, contactIds));
+    for (const row of rows) setTarget(result, "season_contact", row.id, `联系方式 · ${compactLabel(row.label)}`);
+  }
+
+  const feedbackIds = grouped.get("feedback_report") ?? [];
+  if (feedbackIds.length) {
+    const rows = await executor.select({ id: feedbackReports.id, category: feedbackReports.category })
+      .from(feedbackReports).where(inArray(feedbackReports.id, feedbackIds));
+    for (const row of rows) setTarget(result, "feedback_report", row.id, `反馈 · ${row.category}`);
   }
 
   const entryTypes = ["competition_entry", "team_application"];

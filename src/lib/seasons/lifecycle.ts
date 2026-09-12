@@ -1,6 +1,9 @@
 import { and, count, desc, eq } from "drizzle-orm";
+import { writeAuditInTx } from "@/lib/audit/write";
+import type { AuditAction } from "@/lib/audit/presentation";
+
 import type { db as dbClient } from "@/db/client";
-import { auditLogs, competitionEntries, conversionPolicies, matches, seasonRegistrations, seasons } from "@/db/schema";
+import { competitionEntries, conversionPolicies, matches, seasonRegistrations, seasons } from "@/db/schema";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { fallbackCatalogReferencesExist, resolveLiveCompetitiveContext, type ResolvedCatalogContext } from "@/lib/competitive/catalog";
 import { resolveCompetitiveContext } from "@/lib/qualification/service";
@@ -59,19 +62,17 @@ export function unfreezeBuiltInCompetitiveContext(season: {
  */
 export async function transitionSeasonStatusInTx(
   tx: Transaction,
-  input: { seasonId: string; from: SeasonStatus; to: SeasonStatus; action: string; actorId: string; failureMessage: string },
+  input: { seasonId: string; from: SeasonStatus; to: SeasonStatus; action: AuditAction; actorId: string; failureMessage: string },
 ): Promise<{ slug: string }> {
   const [season] = await tx.select().from(seasons).where(eq(seasons.id, input.seasonId)).for("update");
   if (!season) throw new AppError(ErrorCode.SEASON_NOT_FOUND, "赛季不存在。");
   if (season.status !== input.from) throw new AppError(ErrorCode.SEASON_INVALID_STATUS, input.failureMessage);
   await tx.update(seasons).set({ status: input.to, updatedAt: new Date() }).where(eq(seasons.id, season.id));
-  await tx.insert(auditLogs).values({
+  await writeAuditInTx(tx, {
     seasonId: season.id,
     action: input.action,
     actorId: input.actorId,
-    targetId: season.id,
-    targetType: "season",
-    meta: { slug: season.slug, from: season.status, to: input.to },
+    targetId: season.id,meta: { slug: season.slug, from: season.status, to: input.to },
   });
   return { slug: season.slug };
 }
@@ -322,13 +323,11 @@ export async function openSeasonRegistrationInTx(
     teamRegistrationConfig,
     updatedAt: now,
   }).where(eq(seasons.id, season.id));
-  await tx.insert(auditLogs).values({
+  await writeAuditInTx(tx, {
     seasonId: season.id,
     action: "season.registration_open",
     actorId: input.actorId,
-    targetId: season.id,
-    targetType: "season",
-    meta: { slug: season.slug, registrationOpensAt: configuredOpenAt.toISOString(), competitiveContextFrozen: config.requireCompetitiveProfile },
+    targetId: season.id,meta: { slug: season.slug, registrationOpensAt: configuredOpenAt.toISOString(), competitiveContextFrozen: config.requireCompetitiveProfile },
   });
   return { slug: season.slug, opened: true };
 }

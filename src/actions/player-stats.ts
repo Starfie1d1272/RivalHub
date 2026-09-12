@@ -1,5 +1,7 @@
 "use server";
 
+import { writeAuditInTx } from "@/lib/audit/write";
+
 import { and, eq, desc, sql, inArray, isNotNull } from "drizzle-orm";
 import { db } from "@/db/client";
 import { matchMaps } from "@/db/schema/match-maps";
@@ -7,7 +9,6 @@ import { matches } from "@/db/schema/matches";
 import { matchPlayerStats } from "@/db/schema/player-stats";
 import { matchMvpVotes } from "@/db/schema/mvp-votes";
 import { matchRosters, matchRosterPlayers } from "@/db/schema/match-rosters";
-import { auditLogs } from "@/db/schema/audit";
 import { users } from "@/db/schema/users";
 import { eventRosterMembers, eventRosters } from "@/db/schema/competition-entries";
 import { ok, fail, type ActionResult } from "@/types/action";
@@ -190,13 +191,11 @@ export async function savePlayerStats(
         );
       }
 
-      await tx.insert(auditLogs).values({
+      await writeAuditInTx(tx, {
         seasonId: match.seasonId,
         action: "match.save_player_stats",
         actorId: actor,
-        targetId: mapId,
-        targetType: "match_map",
-        meta: { playerCount: stats.length, matchId: map.matchId },
+        targetId: mapId,meta: { playerCount: stats.length, matchId: map.matchId },
       });
     });
 
@@ -395,13 +394,11 @@ export async function deletePlayerStatsByMap(mapId: string): Promise<ActionResul
 
     await db.transaction(async (tx) => {
       await tx.delete(matchPlayerStats).where(eq(matchPlayerStats.mapId, mapId));
-      await tx.insert(auditLogs).values({
+      await writeAuditInTx(tx, {
         seasonId: match.seasonId,
         action: "match.delete_player_stats",
         actorId: auditActorId(session),
-        targetId: mapId,
-        targetType: "match_map",
-        meta: { mapId },
+        targetId: mapId,meta: { mapId },
       });
     });
 

@@ -1,8 +1,9 @@
 import { and, eq } from "drizzle-orm";
+import { writeAuditInTx } from "@/lib/audit/write";
+
 import type { TxDb } from "@/db/client";
 import {
-  auditLogs,
-  competitionEntries,
+    competitionEntries,
   competitionEntryRosterMembers,
   competitionEntryRosterRevisions,
   eventRosters,
@@ -56,6 +57,6 @@ export async function requestCompetitionEntryRosterChangeInTx(
   const members = await tx.select().from(competitionEntryRosterMembers).where(eq(competitionEntryRosterMembers.revisionId, approved.id));
   if (members.length > 0) await tx.insert(competitionEntryRosterMembers).values(members.map((member) => ({ revisionId: next.id, participantId: member.participantId, userId: member.userId, teamMembershipId: member.teamMembershipId, isPrimaryStarter: member.isPrimaryStarter })));
   await tx.update(competitionEntries).set({ registrationStatus: "changes_requested", currentRosterRevisionId: next.id, reviewReason: null, updatedAt: new Date() }).where(eq(competitionEntries.id, entry.id));
-  await tx.insert(auditLogs).values({ seasonId: entry.competitionId, action: "competition_entry.roster_change.request", actorId: input.actorId, targetId: entry.id, targetType: "competition_entry", meta: { approvedRevision: approved.revisionNumber, nextRevision, prestartInvalidated, source: input.source ?? "representative_roster_change" } });
+  await writeAuditInTx(tx, { seasonId: entry.competitionId, action: "competition_entry.roster_change.request", actorId: input.actorId, targetId: entry.id,meta: { approvedRevision: approved.revisionNumber, nextRevision, prestartInvalidated, source: input.source ?? "representative_roster_change" } });
   return { seasonSlug: season.slug };
 }

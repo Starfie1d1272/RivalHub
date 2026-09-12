@@ -1,5 +1,7 @@
 import "server-only";
 
+import { writeAuditInTx } from "@/lib/audit/write";
+
 import { and, asc, count, eq, isNotNull, lt, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
@@ -13,8 +15,7 @@ import {
   draftState,
   draftPicks,
   seasonRegistrations,
-  auditLogs,
-} from "@/db/schema";
+  } from "@/db/schema";
 import { AppError, ErrorCode, ERROR_MESSAGES } from "@/lib/errors";
 import { logEvent } from "@/lib/observability/server";
 import { DRAFT_ROUND_TIMEOUT_SECONDS, DRAFT_TOTAL_ROUNDS } from "@/types/draft";
@@ -276,13 +277,11 @@ export async function executeDraftPick(
     isPrimaryStarter: isStarterRound(ds.currentRound),
   });
 
-  await tx.insert(auditLogs).values({
+  await writeAuditInTx(tx, {
     seasonId: input.seasonId,
     action: "draft.pick",
     actorId: input.captainUserId ?? "system:auto-pick",
-    targetId: pick.id,
-    targetType: "draft_pick",
-    meta: {
+    targetId: pick.id,meta: {
       entryId: input.entryId,
       registrationId: input.registrationId,
       round: ds.currentRound,

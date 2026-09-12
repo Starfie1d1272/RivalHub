@@ -1,10 +1,12 @@
 "use server";
 
+import { writeAuditInTx } from "@/lib/audit/write";
+
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { db } from "@/db/client";
-import { auditLogs, competitivePlatforms, competitivePlatformRanks, competitivePlatformSeasons, competitiveRankFacts, userCompetitiveRoles, userMapPreferences } from "@/db/schema";
+import { competitivePlatforms, competitivePlatformRanks, competitivePlatformSeasons, competitiveRankFacts, userCompetitiveRoles, userMapPreferences } from "@/db/schema";
 import { actionError } from "@/lib/action-utils";
 import { auditActorId, requireAuth } from "@/lib/auth/session";
 import { AppError, ErrorCode } from "@/lib/errors";
@@ -43,13 +45,11 @@ export async function saveCompetitiveRoles(input: unknown): Promise<ActionResult
         role,
         isPrimary: role === parsed.data.primaryRole,
       })));
-      await tx.insert(auditLogs).values({
+      await writeAuditInTx(tx, {
         seasonId: null,
         action: "competitive_roles.self_declare",
         actorId: auditActorId(session),
-        targetId: session.userId,
-        targetType: "user",
-        meta: { roles: parsed.data.roles, primaryRole: parsed.data.primaryRole },
+        targetId: session.userId,meta: { roles: parsed.data.roles, primaryRole: parsed.data.primaryRole },
       });
     });
     revalidatePath("/settings/competitive");
@@ -125,7 +125,7 @@ export async function saveCompetitiveProfile(input: unknown): Promise<ActionResu
         if (existing) await tx.update(competitiveRankFacts).set(values).where(eq(competitiveRankFacts.id, existing.id));
         else await tx.insert(competitiveRankFacts).values({ userId: session.userId, platform, kind: fact.kind, platformSeasonKey: fact.platformSeasonKey, ...values });
       }
-      await tx.insert(auditLogs).values({ action: "competitive_profile.self_declare", actorId: auditActorId(session), targetId: session.userId, targetType: "user", meta: { platform, seasonKeys: seasonPeaks.map((peak) => peak.seasonKey) } });
+      await writeAuditInTx(tx, { action: "competitive_profile.self_declare", actorId: auditActorId(session), targetId: session.userId,meta: { platform, seasonKeys: seasonPeaks.map((peak) => peak.seasonKey) } });
     });
     updatePublicPlayerTag(session.userId);
     return ok(undefined);
@@ -149,13 +149,11 @@ export async function saveMapPreferences(input: unknown): Promise<ActionResult<v
           target: userMapPreferences.userId,
           set: { mapPreferences: parsed.data.mapPreferences, updatedAt: now },
         });
-      await tx.insert(auditLogs).values({
+      await writeAuditInTx(tx, {
         seasonId: null,
         action: "map_preferences.self_declare",
         actorId: auditActorId(session),
-        targetId: session.userId,
-        targetType: "user",
-        meta: { mapCount: parsed.data.mapPreferences.length },
+        targetId: session.userId,meta: { mapCount: parsed.data.mapPreferences.length },
       });
     });
     revalidatePath("/settings/competitive");

@@ -1,10 +1,12 @@
 "use server";
 
+import { writeAuditInTx } from "@/lib/audit/write";
+
 import { revalidatePath } from "next/cache";
 import { and, count, eq, ne } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db/client";
-import { users, seasons, seasonRegistrations, registrationDrafts, auditLogs } from "@/db/schema";
+import { users, seasons, seasonRegistrations, registrationDrafts } from "@/db/schema";
 import { ok, fail } from "@/types/action";
 import { AppError, ErrorCode, ERROR_MESSAGES } from "@/lib/errors";
 import { actionError } from "@/lib/action-utils";
@@ -376,13 +378,11 @@ export async function submitRegistration(input: RegistrationFormData) {
             ),
           );
 
-        await tx.insert(auditLogs).values({
+        await writeAuditInTx(tx, {
           seasonId: data.seasonId,
           action: "registration.submit",
           actorId: session.userId,
-          targetId: savedRegistration.id,
-          targetType: "registration",
-          meta: { email: data.email, primaryPosition: data.primaryPosition },
+          targetId: savedRegistration.id,meta: { email: data.email, primaryPosition: data.primaryPosition },
         });
 
         return { registration: savedRegistration, seasonSlug: currentSeason.slug };

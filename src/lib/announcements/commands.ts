@@ -1,6 +1,9 @@
 import { and, eq } from "drizzle-orm";
+import { writeAuditInTx } from "@/lib/audit/write";
+import type { AuditAction } from "@/lib/audit/presentation";
+
 import type { TxDb } from "@/db/client";
-import { announcements, auditLogs, type Announcement } from "@/db/schema";
+import { announcements, type Announcement } from "@/db/schema";
 import { AppError, ErrorCode } from "@/lib/errors";
 
 export type AnnouncementAdminContext = {
@@ -40,14 +43,12 @@ function assertScopeAccess(context: AnnouncementAdminContext, scope: Announcemen
   }
 }
 
-function auditAnnouncement(tx: TxDb, input: { seasonId: string | null; action: string; actorId: string; announcementId: string; meta?: Record<string, unknown> }) {
-  return tx.insert(auditLogs).values({
+function auditAnnouncement(tx: TxDb, input: { seasonId: string | null; action: AuditAction; actorId: string; announcementId: string; meta?: Record<string, unknown> }) {
+  return writeAuditInTx(tx, {
     seasonId: input.seasonId,
     action: input.action,
     actorId: input.actorId,
-    targetId: input.announcementId,
-    targetType: "announcement",
-    meta: input.meta ?? null,
+    targetId: input.announcementId,meta: input.meta ?? null,
   });
 }
 

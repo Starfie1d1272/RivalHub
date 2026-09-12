@@ -1,8 +1,10 @@
 "use server";
 
+import { writeAuditInTx } from "@/lib/audit/write";
+
 import { eq, and, count, asc, sql } from "drizzle-orm";
 import { db } from "@/db/client";
-import { matches, competitionEntries, auditLogs, seasons } from "@/db/schema";
+import { matches, competitionEntries, seasons } from "@/db/schema";
 import { ok } from "@/types/action";
 import type { ActionResult } from "@/types/action";
 import { AppError, ErrorCode } from "@/lib/errors";
@@ -51,7 +53,7 @@ export async function generateSchedule(
         firstStage,
         transition.orderedEntrants.map(({ entry }) => entry),
       );
-      await tx.insert(auditLogs).values({ seasonId, action: "match.generate_schedule", actorId: session.email, targetId: seasonId, targetType: "season", meta: { matchCount, stageKey: firstStage.key } });
+      await writeAuditInTx(tx, { seasonId, action: "match.generate_schedule", actorId: session.email, targetId: seasonId,meta: { matchCount, stageKey: firstStage.key } });
       return { matchCount, slug: season.slug };
     });
     revalidateSeasonPaths(outcome.slug, ["matches", "adminMatches"]);
@@ -105,13 +107,11 @@ export async function createMatch(
         .values({ seasonId, entryAId, entryBId, stage, format, status: "scheduled" })
         .returning({ id: matches.id });
 
-      await tx.insert(auditLogs).values({
+      await writeAuditInTx(tx, {
         seasonId,
         action: "match.create",
         actorId: session.email,
-        targetId: row.id,
-        targetType: "match",
-        meta: { entryAId, entryBId, stage, format },
+        targetId: row.id,meta: { entryAId, entryBId, stage, format },
       });
 
       return [row];
@@ -197,13 +197,11 @@ export async function initializeStage(
       qualifiers,
     );
 
-    await db.insert(auditLogs).values({
+    await writeAuditInTx(db, {
       seasonId,
       action: "match.initialize_stage",
       actorId: session.email,
-      targetId: seasonId,
-      targetType: "season",
-      meta: { matchCount, stageKey: stage.key },
+      targetId: seasonId,meta: { matchCount, stageKey: stage.key },
     });
 
     revalidateSeasonPaths(season.slug, ["matches", "adminMatches"]);

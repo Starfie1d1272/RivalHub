@@ -1,9 +1,11 @@
 import { randomUUID } from "node:crypto";
+import { writeAuditInTx } from "@/lib/audit/write";
+import type { AuditAction } from "@/lib/audit/presentation";
+
 import { and, count, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { TxDb } from "@/db/client";
 import {
-  auditLogs,
-  eventRosters,
+    eventRosters,
   competitionEntries,
   competitionEntryActiveClaims,
   competitionEntryParticipants,
@@ -69,8 +71,8 @@ async function loadSeasonOrThrow(tx: TxDb, competitionId: string) {
   return season;
 }
 
-async function auditEntry(tx: TxDb, args: { action: string; actorId: string; entryId: string; competitionId: string; meta?: Record<string, unknown> }) {
-  await tx.insert(auditLogs).values({ seasonId: args.competitionId, action: args.action, actorId: args.actorId, targetId: args.entryId, targetType: "competition_entry", meta: args.meta ?? null });
+async function auditEntry(tx: TxDb, args: { action: AuditAction; actorId: string; entryId: string; competitionId: string; meta?: Record<string, unknown> }) {
+  await writeAuditInTx(tx, { seasonId: args.competitionId, action: args.action, actorId: args.actorId, targetId: args.entryId,meta: args.meta ?? null });
 }
 
 async function nextRepresentativeChangeAt(tx: TxDb, entryId: string): Promise<Date> {

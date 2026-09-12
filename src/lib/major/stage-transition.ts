@@ -1,6 +1,8 @@
 import { and, eq } from "drizzle-orm";
+import { writeAuditInTx } from "@/lib/audit/write";
+
 import type { TxDb } from "@/db/client";
-import { auditLogs, majorStageEntrants, majorStageRuns, matches } from "@/db/schema";
+import { majorStageEntrants, majorStageRuns, matches } from "@/db/schema";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { validateSeriesScore } from "@/lib/matches/result-rules";
 import { assertSeasonAllowsTournamentMutationInTx } from "@/lib/postevent/guard";
@@ -156,13 +158,11 @@ export async function transitionMajorSwissStageInTransaction(
     managedKey: `r1-${index + 1}`,
   }))).returning({ id: matches.id });
   if (createdMatches.length !== 8) throw new AppError(ErrorCode.INTERNAL_ERROR, "下一 StageRun 首轮比赛创建数量异常。");
-  await tx.insert(auditLogs).values({
+  await writeAuditInTx(tx, {
     seasonId: input.seasonId,
     action: "major.stage.transition",
     actorId: input.actorId,
-    targetId: stageRun.id,
-    targetType: "major_stage_run",
-    meta: { sourceStageRunId: sourceRun.id, sourceStageKey: sourceRun.stageKey, stageKey: nextSwissStage.key, directEntrants: directCount, advancingEntrants: qualifiers.length, managedMatches: createdMatches.length },
+    targetId: stageRun.id,meta: { sourceStageRunId: sourceRun.id, sourceStageKey: sourceRun.stageKey, stageKey: nextSwissStage.key, directEntrants: directCount, advancingEntrants: qualifiers.length, managedMatches: createdMatches.length },
   });
   return { sourceStageRunId: sourceRun.id, stageRunId: stageRun.id, stageKey: nextSwissStage.key, created: true, matchCount: createdMatches.length };
 }

@@ -1,5 +1,7 @@
 "use server";
 
+import { writeAuditInTx } from "@/lib/audit/write";
+
 import { revalidatePath } from "next/cache";
 import { randomBytes } from "crypto";
 import { eq, and, count } from "drizzle-orm";
@@ -7,8 +9,7 @@ import { db } from "@/db/client";
 import {
   seasons,
   seasonRegistrations,
-  auditLogs,
-  adminInvites,
+    adminInvites,
   seasonAdminGrants,
   users,
   draftPicks,
@@ -109,13 +110,11 @@ export async function reviewRegistration(input: ReviewInput) {
         .set({ status: targetStatus, updatedAt: new Date() })
         .where(eq(seasonRegistrations.id, registrationId));
 
-      await tx.insert(auditLogs).values({
+      await writeAuditInTx(tx, {
         seasonId: reg.seasonId,
         action: `registration.${targetStatus}`,
         actorId: auditActorId(admin),
-        targetId: registrationId,
-        targetType: "registration",
-        meta: {
+        targetId: registrationId,meta: {
           from: reg.status,
           to: targetStatus,
           reason: reason ?? null,
@@ -205,13 +204,11 @@ export async function createInviteCode(input: {
       .returning({ id: adminInvites.id });
     if (!created) throw new Error("邀请码创建失败");
 
-    await tx.insert(auditLogs).values({
+    await writeAuditInTx(tx, {
       seasonId: inviteSeasonId,
       action: "admin.create_invite",
       actorId: auditActorId(admin),
-      targetId: created.id,
-      targetType: "admin_invite",
-      meta: { role, maxUses, expiresAt: expiresAt?.toISOString() ?? null },
+      targetId: created.id,meta: { role, maxUses, expiresAt: expiresAt?.toISOString() ?? null },
     });
     return created;
   });
@@ -243,13 +240,11 @@ export async function deactivateInviteCode(inviteId: string) {
       .set({ isActive: false })
       .where(eq(adminInvites.id, inviteId));
 
-    await tx.insert(auditLogs).values({
+    await writeAuditInTx(tx, {
       seasonId: invite.seasonId,
       action: "admin.deactivate_invite",
       actorId: auditActorId(admin),
-      targetId: inviteId,
-      targetType: "admin_invite",
-    });
+      targetId: inviteId,});
   });
 
   revalidatePath("/admin/invites");
@@ -289,13 +284,11 @@ export async function revokeUserAdminRole(userId: string) {
         .set({ role: "user", updatedAt: new Date() })
         .where(eq(users.id, userId));
 
-      await tx.insert(auditLogs).values({
+      await writeAuditInTx(tx, {
         seasonId: null,
         action: "admin.revoke_role",
         actorId: auditActorId(session),
-        targetId: userId,
-        targetType: "user",
-        meta: { from: target.role, seasonIds: grants.map((grant) => grant.seasonId) },
+        targetId: userId,meta: { from: target.role, seasonIds: grants.map((grant) => grant.seasonId) },
       });
     });
 

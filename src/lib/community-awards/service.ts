@@ -1,6 +1,8 @@
 import { and, eq } from "drizzle-orm";
+import { writeAuditInTx } from "@/lib/audit/write";
+
 import type { TxDb } from "@/db/client";
-import { auditLogs, communityAwardEvidence, communityAwards, matches, seasons } from "@/db/schema";
+import { communityAwardEvidence, communityAwards, matches, seasons } from "@/db/schema";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { getSeasonAwardCandidates } from "@/lib/community-awards/read-model";
 
@@ -38,13 +40,11 @@ export async function submitCommunityAwardInTx(
     prize: args.prize,
     supplementaryNote: args.supplementaryNote ?? null,
   }).returning({ id: communityAwards.id });
-  await tx.insert(auditLogs).values({
+  await writeAuditInTx(tx, {
     seasonId: args.seasonId,
     action: "community_award.submit",
     actorId: args.submitterId,
-    targetId: award!.id,
-    targetType: "community_award",
-    meta: { name: args.name },
+    targetId: award!.id,meta: { name: args.name },
   });
   return { awardId: award!.id };
 }
@@ -67,13 +67,11 @@ export async function reviseCommunityAwardInTx(
     reviewNote: null,
     updatedAt: new Date(),
   }).where(eq(communityAwards.id, award.id));
-  await tx.insert(auditLogs).values({
+  await writeAuditInTx(tx, {
     seasonId: award.seasonId,
     action: "community_award.revise",
     actorId: args.submitterId,
-    targetId: award.id,
-    targetType: "community_award",
-    meta: {},
+    targetId: award.id,meta: {},
   });
   return { seasonId: award.seasonId };
 }
@@ -93,13 +91,11 @@ export async function reviewCommunityAwardInTx(
     reviewedAt: now,
     updatedAt: now,
   }).where(eq(communityAwards.id, award.id));
-  await tx.insert(auditLogs).values({
+  await writeAuditInTx(tx, {
     seasonId: award.seasonId,
     action: `community_award.${args.status}`,
     actorId: args.actorId,
-    targetId: award.id,
-    targetType: "community_award",
-    meta: { hasPublicNote: !!args.publicNote, hasReviewNote: !!args.reviewNote },
+    targetId: award.id,meta: { hasPublicNote: !!args.publicNote, hasReviewNote: !!args.reviewNote },
   });
   return { seasonId: award.seasonId };
 }
@@ -112,13 +108,11 @@ export async function requestCommunityAwardSupplementInTx(
   if (award.status !== "pending_review") throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "只有待审核社区奖可以要求补充。 ");
   await tx.update(communityAwards).set({ reviewNote: args.note, updatedAt: new Date() })
     .where(eq(communityAwards.id, award.id));
-  await tx.insert(auditLogs).values({
+  await writeAuditInTx(tx, {
     seasonId: award.seasonId,
     action: "community_award.request_supplement",
     actorId: args.actorId,
-    targetId: award.id,
-    targetType: "community_award",
-    meta: {},
+    targetId: award.id,meta: {},
   });
   return { seasonId: award.seasonId };
 }
@@ -133,13 +127,11 @@ export async function withdrawCommunityAwardInTx(
   const now = new Date();
   await tx.update(communityAwards).set({ status: "withdrawn", recipientUserId: null, outcomeNote: "发起人撤回", outcomeByUserId: args.submitterId, outcomeAt: now, updatedAt: now })
     .where(eq(communityAwards.id, award.id));
-  await tx.insert(auditLogs).values({
+  await writeAuditInTx(tx, {
     seasonId: award.seasonId,
     action: "community_award.withdraw",
     actorId: args.submitterId,
-    targetId: award.id,
-    targetType: "community_award",
-    meta: { from: award.status },
+    targetId: award.id,meta: { from: award.status },
   });
   return { seasonId: award.seasonId };
 }
@@ -165,13 +157,11 @@ export async function addCommunityAwardEvidenceInTx(
     explanation: args.explanation,
     videoUrl: args.videoUrl ?? null,
   }).returning({ id: communityAwardEvidence.id });
-  await tx.insert(auditLogs).values({
+  await writeAuditInTx(tx, {
     seasonId: award.seasonId,
     action: "community_award.evidence.submit",
     actorId: args.submitterId,
-    targetId: evidence!.id,
-    targetType: "community_award_evidence",
-    meta: { awardId: award.id, candidateUserId: args.candidateUserId ?? null, matchId: args.matchId ?? null },
+    targetId: evidence!.id,meta: { awardId: award.id, candidateUserId: args.candidateUserId ?? null, matchId: args.matchId ?? null },
   });
   return { seasonId: award.seasonId, evidenceId: evidence!.id };
 }
@@ -196,13 +186,11 @@ export async function resolveCommunityAwardInTx(
     outcomeAt: now,
     updatedAt: now,
   }).where(eq(communityAwards.id, award.id));
-  await tx.insert(auditLogs).values({
+  await writeAuditInTx(tx, {
     seasonId: award.seasonId,
     action: `community_award.${args.status}`,
     actorId: args.actorId,
-    targetId: award.id,
-    targetType: "community_award",
-    meta: { previousStatus: award.status, previousRecipientUserId: award.recipientUserId, recipientUserId: args.recipientUserId ?? null },
+    targetId: award.id,meta: { previousStatus: award.status, previousRecipientUserId: award.recipientUserId, recipientUserId: args.recipientUserId ?? null },
   });
   return { seasonId: award.seasonId };
 }
