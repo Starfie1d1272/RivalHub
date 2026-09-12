@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.9.2]
+
+### Fixed
+#### 审计日志历史目标
+修复操作日志读取路径在解析已删除目标时丢失 tombstone 生命周期的问题，确保历史删除目标显示为“已删除 / 历史目标”。
+
 ## [2.9.1]
 
 ### Added
@@ -2139,6 +2145,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[2.9.2]: https://github.com/Starfie1d1272/RivalHub/compare/v2.9.1...v2.9.2
 [2.9.1]: https://github.com/Starfie1d1272/RivalHub/compare/v2.9.0...v2.9.1
 [2.9.0]: https://github.com/Starfie1d1272/RivalHub/compare/v2.8.4...v2.9.0
 [2.8.4]: https://github.com/Starfie1d1272/RivalHub/compare/v2.8.3...v2.8.4
