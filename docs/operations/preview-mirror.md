@@ -16,7 +16,7 @@ RivalHub 的所有 Vercel Preview 固定连接 `rivalhub-dev`，不连接 produc
 Vercel Preview environment 只配置 dev-scoped 值：
 
 - `DATABASE_URL`：`postgres.cueazphyskstwdhnzsxx` 的 Transaction Pooler URL（6543、`pgbouncer=true`）；
-- `NEXT_PUBLIC_SUPABASE_URL`/`NEXT_PUBLIC_SUPABASE_ANON_KEY` 与 `SUPABASE_SERVICE_ROLE_KEY`：`rivalhub-dev` credential；
+- `NEXT_PUBLIC_SUPABASE_URL`/`NEXT_PUBLIC_SUPABASE_ANON_KEY` 与 `SUPABASE_SECRET_KEY`：`rivalhub-dev` credential；`SUPABASE_SERVICE_ROLE_KEY` 只作为尚未迁移环境的临时 fallback；
 - 独立 Preview `ADMIN_SESSION_SECRET`，以及仅用于 dev/sandbox 的邮件、OCR 或其它 provider credential。
 
 Preview runtime 拒绝非 `rivalhub-dev` database/public Auth URL 与缺失的 server credential；production DB/Auth/Storage/provider credential 永远不得出现。正常的 dev 写入、Auth、Storage 和 sandbox provider 行为不受 Preview 专用限制；没有 sandbox provider credential 的单项能力应独立 fail closed。

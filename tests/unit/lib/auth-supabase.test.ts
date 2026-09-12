@@ -10,11 +10,22 @@ describe("Supabase client boundaries", () => {
   beforeEach(() => {
     process.env.NEXT_PUBLIC_SUPABASE_URL = "https://project.supabase.test";
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = "anon-key";
+    process.env.SUPABASE_SECRET_KEY = "sb_secret-key";
     process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-key";
     vi.clearAllMocks();
   });
 
-  it("uses the service role only for server clients with persistent auth disabled", () => {
+  it("uses the secret key for server clients with persistent auth disabled", () => {
+    createServiceClient();
+    expect(createClientMock).toHaveBeenCalledWith(
+      "https://project.supabase.test",
+      "sb_secret-key",
+      expect.objectContaining({ auth: { autoRefreshToken: false, persistSession: false }, global: { fetch: expect.any(Function) } }),
+    );
+  });
+
+  it("falls back to the legacy service role for an unmigrated environment", () => {
+    delete process.env.SUPABASE_SECRET_KEY;
     createServiceClient();
     expect(createClientMock).toHaveBeenCalledWith(
       "https://project.supabase.test",
