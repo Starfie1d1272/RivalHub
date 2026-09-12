@@ -67,3 +67,7 @@ Release workflow 在 deployment smoke 成功后，使用受保护 production env
 - 测试证据：[`testing.md`](./testing.md)
 
 provider project ID、host、secret 和 workflow 具体实现由受保护配置/代码拥有，不在本文件复制。
+
+## Preview 数据边界
+
+Vercel Preview 使用生产派生的脱敏 `rivalhub-dev` mirror，只读 role，不直接访问 production，也不使用 #569 的正式 R2 DR artifact。刷新由受保护的 [`Refresh Preview Data`](./operations/preview-mirror.md) workflow 执行；详见 [Preview 脱敏镜像运行手册](./operations/preview-mirror.md)。

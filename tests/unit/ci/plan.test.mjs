@@ -1,7 +1,23 @@
 import { describe, expect, it } from "vitest";
-import { classifyChangedFiles, parseNameStatus } from "../../../scripts/ci/plan.mjs";
+import { classifyChangedFiles, parseNameStatus, planPreviewDataMode } from "../../../scripts/ci/plan.mjs";
 
 describe("changed-surface planner", () => {
+  it("marks reviewed presentation as mirror-compatible without routing credentials", () => {
+    expect(planPreviewDataMode([{ status: "M", paths: ["src/components/layout/Footer.tsx"] }])).toEqual({
+      previewDataMode: "mirror_compatible",
+      previewDataReason: expect.stringContaining("presentation"),
+    });
+  });
+
+  it.each(["drizzle/migrations/0050.sql", "src/lib/auth/supabase.ts", ".github/workflows/ci.yml", "unknown/file.bin"])("fails closed for %s", (path) => {
+    expect(planPreviewDataMode([{ status: "M", paths: [path] }]).previewDataMode).toBe("non_production_like");
+  });
+
+  it("fails closed for fork or incomplete context", () => {
+    const entries = [{ status: "M", paths: ["src/components/layout/Footer.tsx"] }];
+    expect(planPreviewDataMode(entries, { trusted: false }).previewDataMode).toBe("non_production_like");
+    expect(planPreviewDataMode([], {}).previewDataMode).toBe("non_production_like");
+  });
   it.each([
     ["docs-only", ["docs/testing.md", "README.md"], [], false],
     ["Changeset-only", [".changeset/ci-planner.md", ".changeset/config.json"], [], false],

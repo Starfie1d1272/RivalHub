@@ -57,3 +57,7 @@ Staging rehearsal 不：
 - 没有依赖手工 dashboard patch 才能通过。
 
 如果 rehearsal 暴露数据库漂移或兼容性问题，应回到 migration/code 修复，再重新完整运行，而不是在 staging 手工“修到能过”。
+
+## Preview mirror
+
+`rivalhub-dev` 同时承载受保护的生产派生脱敏 Preview mirror。它不是 production 的 fallback，也不是灾备 artifact；只由 [Preview mirror workflow](./preview-mirror.md) 在 staging environment 中 reset/refresh。普通 PR、Vercel Preview 和本地 shell 均不得写入该目标。

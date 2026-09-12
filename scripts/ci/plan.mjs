@@ -87,7 +87,10 @@ const INTEGRATION_SPEC_FILE = /^tests\/integration\/db\/(?!harness\/).+\.(?:test
 export function classifyChangedFiles(entries, options = {}) {
   const { forceFull = false, draft = true } = options;
   const gateName = draft ? "draft-gate" : "ci-gate";
-  const result = (...args) => ({ ...resultFor(...args), gateName });
+  const result = (...args) => ({ ...resultFor(...args), ...planPreviewDataMode(entries, {
+    trusted: options.previewTrusted !== false,
+    inventoryComplete: options.previewInventoryComplete !== false,
+  }), gateName });
   if (forceFull) {
     return result(CAPABILITIES, true, "受保护分支、merge queue、schedule 或手动运行，强制 full gate");
   }
@@ -148,6 +151,38 @@ export function classifyChangedFiles(entries, options = {}) {
       e2eSpecs: [...evidence.e2eSpecs].sort(),
     },
   );
+}
+
+/**
+ * Preview deployments always use the sanitized rivalhub-dev mirror. This is a
+ * diagnostic planner mode only; it never selects credentials or a database.
+ */
+export function planPreviewDataMode(entries, options = {}) {
+  if (options.trusted === false || options.inventoryComplete === false) {
+    return { previewDataMode: "non_production_like", previewDataReason: "untrusted or incomplete changed-surface context" };
+  }
+  if (!Array.isArray(entries) || entries.length === 0) {
+    return { previewDataMode: "non_production_like", previewDataReason: "missing changed-surface inventory; fail closed" };
+  }
+  for (const entry of entries) {
+    if (entry.status === "R" || entry.status === "D" || entry.status.startsWith("R") || entry.status.startsWith("D")) {
+      return { previewDataMode: "non_production_like", previewDataReason: `rename/delete surface: ${entry.paths.join(" -> ")}` };
+    }
+    const path = entry.paths[entry.paths.length - 1] ?? "";
+    if (isPreviewNonMirrorPath(path)) {
+      return { previewDataMode: "non_production_like", previewDataReason: `runtime/security surface: ${path}` };
+    }
+  }
+  return { previewDataMode: "mirror_compatible", previewDataReason: "reviewed presentation/docs surface; Preview remains mirror-backed" };
+}
+
+function isPreviewNonMirrorPath(path) {
+  if (path.startsWith("docs/") || path.startsWith(".changeset/") || path.startsWith("public/") || path.startsWith("styles/") || path.endsWith(".css")) return false;
+  if (path.startsWith("src/components/")) {
+    const dependency = readSourceDependencies(path);
+    return dependency.unreadable || dependency.usesDatabase || dependency.usesSupabase;
+  }
+  return true;
 }
 
 export function parseNameStatus(raw) {
@@ -439,7 +474,10 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   const forceFull = process.env.FORCE_FULL === "1" || process.env.FORCE_FULL === "true";
   const draft = process.env.PR_DRAFT !== "false";
   const entries = gitChangedFiles();
-  const plan = classifyChangedFiles(entries, { forceFull, draft });
+  const trustedPreview = process.env.PR_IS_FORK !== "true"
+    && process.env.PR_HEAD_REPO === (process.env.GITHUB_REPOSITORY || "Starfie1d127/RivalHub")
+    && ["OWNER", "MEMBER", "COLLABORATOR", "CONTRIBUTOR"].includes(process.env.PR_AUTHOR_ASSOCIATION || "OWNER");
+  const plan = classifyChangedFiles(entries, { forceFull, draft, previewTrusted: trustedPreview, previewInventoryComplete: entries.length > 0 });
   console.log(`CI plan: ${plan.full ? "FULL" : plan.requiredJobs.join(" + ")} | ${plan.reason}`);
   for (const entry of entries) console.log(`changed ${entry.status}\t${entry.paths.join("\t")}`);
   output("full", String(plan.full));
@@ -456,4 +494,6 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   output("system_mode", plan.e2eSpecs.length > 0 ? "affected" : "full");
   output("e2e_specs", JSON.stringify(plan.e2eSpecs));
   output("gate_name", plan.gateName);
+  output("preview_data_mode", plan.previewDataMode);
+  output("preview_data_reason", plan.previewDataReason);
 }

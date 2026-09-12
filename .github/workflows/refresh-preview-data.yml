@@ -1,0 +1,103 @@
+name: Refresh Preview Data
+
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+  workflow_run:
+    workflows: [Release]
+    types: [completed]
+
+concurrency:
+  group: rivalhub-preview-mirror-refresh
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  export-production:
+    name: export sanitized production mirror
+    if: github.event_name != 'workflow_run' || (github.event.workflow_run.name == 'Release' && github.event.workflow_run.conclusion == 'success')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    environment: production
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
+        with:
+          cache: true
+          require-lockfile: true
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Export read-only sanitized snapshot
+        env:
+          RIVALHUB_DB_TARGET: production
+          RIVALHUB_PRODUCTION_PROJECT_CONFIRM: sucokfotkypwqkckfynp
+          RIVALHUB_PRODUCTION_DB_HOST_CONFIRM: aws-0-ap-northeast-1.pooler.supabase.com:6543
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          RIVALHUB_PRODUCTION_SUPABASE_URL: https://sucokfotkypwqkckfynp.supabase.co
+          GITHUB_ACTIONS: true
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_REF: refs/heads/main
+          GITHUB_WORKFLOW: Refresh Preview Data
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+        run: pnpm db:preview:export .agent-tmp/preview-mirror.json
+      - name: Upload private short-lived mirror artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: preview-mirror-${{ github.run_id }}
+          path: .agent-tmp/preview-mirror.json
+          if-no-files-found: error
+          retention-days: 1
+
+  refresh-dev:
+    name: refresh rivalhub-dev and verify role
+    needs: export-production
+    if: needs.export-production.result == 'success'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment: staging
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
+        with:
+          cache: true
+          require-lockfile: true
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Download sanitized snapshot
+        uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4.2.1
+        with:
+          name: preview-mirror-${{ github.run_id }}
+          path: .agent-tmp
+      - name: Refresh dev mirror with explicit target authorization
+        env:
+          RIVALHUB_DB_TARGET: staging
+          RIVALHUB_STAGING_PROJECT_CONFIRM: cueazphyskstwdhnzsxx
+          RIVALHUB_STAGING_DB_HOST_CONFIRM: aws-0-ap-northeast-1.pooler.supabase.com:6543
+          RIVALHUB_ALLOW_REMOTE_DB_WRITE: staging
+          RIVALHUB_PREVIEW_RESET_CONFIRM: cueazphyskstwdhnzsxx
+          RIVALHUB_STAGING_DB_PASSWORD: ${{ secrets.RIVALHUB_STAGING_DB_PASSWORD }}
+          RIVALHUB_PREVIEW_DEV_SECRET_KEY: ${{ secrets.RIVALHUB_PREVIEW_DEV_SECRET_KEY }}
+          RIVALHUB_PREVIEW_PERSONA_PASSWORD: ${{ secrets.RIVALHUB_PREVIEW_PERSONA_PASSWORD }}
+          RIVALHUB_PREVIEW_RO_PASSWORD: ${{ secrets.RIVALHUB_PREVIEW_RO_PASSWORD }}
+          RIVALHUB_PREVIEW_PUBLIC_ASSET_ALLOWLIST: ${{ vars.RIVALHUB_PREVIEW_PUBLIC_ASSET_ALLOWLIST }}
+          GITHUB_ACTIONS: true
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_REF: refs/heads/main
+          GITHUB_WORKFLOW: Refresh Preview Data
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+        run: pnpm db:preview:refresh .agent-tmp/preview-mirror.json
+      - name: Verify SELECT-only role, ready identity, and mutation rejection
+        env:
+          RIVALHUB_PREVIEW_RO_PASSWORD: ${{ secrets.RIVALHUB_PREVIEW_RO_PASSWORD }}
+          VERCEL_ENV: preview
+        run: pnpm db:preview:verify

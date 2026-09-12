@@ -26,7 +26,9 @@ export function assertPreviewDatabaseUrl(value: string, env: NodeJS.ProcessEnv =
 export function assertPreviewAuthEnvironment(env: NodeJS.ProcessEnv = process.env): void {
   if (!isPreview(env)) return;
   if (env.NEXT_PUBLIC_SUPABASE_URL !== `https://${PREVIEW_PROJECT_REF}.supabase.co`
-    || env.SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_SECRET_KEY) {
+    || env.SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_SECRET_KEY
+    || env.NEXT_PUBLIC_RIVALHUB_PREVIEW_READONLY !== "1"
+    || env.RIVALHUB_PREVIEW_MIRROR_MODE !== "production-derived") {
     throw new Error("Preview Auth 只允许 dev public credential，不允许 privileged key。");
   }
 }

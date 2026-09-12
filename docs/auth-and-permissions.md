@@ -69,3 +69,7 @@ Fresh deployment 的 owner bootstrap 只通过 `RIVALHUB_OWNER_EMAIL`：当尚�
 - secret 不进入 `NEXT_PUBLIC_*`、Client props、Issue/PR、fixture 或日志。
 - recovery/signup/token、Cookie、Authorization 和教育证据遵守相同的默认敏感边界。
 - runtime 日志的脱敏与安全序列化见 [`operations/observability.md`](./operations/observability.md)。
+
+## Preview personas
+
+Preview 只允许登录 refresh workflow 生成的 deterministic dev personas（`player`、`invited`、`captain`、`season-admin`、`super-admin`）。它使用 `rivalhub-dev` 的 public Auth credential；service/secret key 永远不进入 Vercel Preview。注册、重置、邮件和其它 mutation 在 Preview fail closed，数据库的 `rivalhub_preview_ro` role 继续拒绝 DML/DDL/function mutation。

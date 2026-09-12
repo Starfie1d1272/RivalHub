@@ -11,6 +11,7 @@ import { GlobalInformationFeedbackLauncher } from "@/components/operations/Globa
 import { OperationsProvider } from "@/components/operations/OperationsContext";
 import { Suspense } from "react";
 import { isPreview } from "@/lib/runtime/preview";
+import { readPreviewMirrorIdentity } from "@/lib/preview/mirror-state";
 
 const geist = Geist({
   variable: "--font-geist",
@@ -45,11 +46,12 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const mirror = isPreview() ? await readPreviewMirrorIdentity() : null;
   return (
     <html lang="zh-CN" className="dark">
       <head>
@@ -58,7 +60,7 @@ export default function RootLayout({
       <body className={`${geist.variable} ${jetbrainsMono.variable} ${notoSansSC.variable} antialiased min-h-screen flex flex-col`}>
         <OperationsProvider>
           {isPreview() && <aside className="border-b border-border bg-muted px-4 py-2 text-center text-xs text-muted-foreground">
-            <span className="font-mono">PR PREVIEW</span> · 脱敏镜像，只读浏览 · 角色测试请使用 dev 专属账号
+            <span className="font-mono">PR PREVIEW</span> · 脱敏镜像，只读浏览 · {mirror?.ready ? `镜像 ${mirror.sourceTag} · ${mirror.refreshedAt.toLocaleString("zh-CN")}` : "镜像尚未就绪"} · 角色测试请使用 dev 专属账号
           </aside>}
           <Header />
           <main className="flex-1">{children}</main>

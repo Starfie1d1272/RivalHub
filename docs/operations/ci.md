@@ -134,3 +134,7 @@ RIVALHUB_ALLOW_LOCAL_CONTAINERS=1 pnpm verify:services
 3. 在本地用同一 canonical pnpm command 复现；
 4. PostgreSQL / system 失败时确认是测试本身、环境启动还是 cleanup；
 5. 只有 planner 分类错误时才修改 planner，不要为了缩短 CI 把必要证据降级成 skipped。
+
+## Preview mirror planner
+
+CI planner 的 `preview_data_mode` 只表示 changed surface 是否与固定的 production-derived sanitized mirror 兼容：`mirror_compatible` 或 `non_production_like`。它不路由 credential、不改变 Preview 数据源；未知、fork、schema/auth/provider/CI 变化均 fail closed。

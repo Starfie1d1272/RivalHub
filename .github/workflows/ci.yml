@@ -43,6 +43,8 @@ jobs:
       system_mode: ${{ steps.plan.outputs.system_mode }}
       e2e_specs: ${{ steps.plan.outputs.e2e_specs }}
       gate_name: ${{ steps.plan.outputs.gate_name }}
+      preview_data_mode: ${{ steps.plan.outputs.preview_data_mode }}
+      preview_data_reason: ${{ steps.plan.outputs.preview_data_reason }}
     steps:
       - name: Capture workflow timing start
         id: timing-start
@@ -57,6 +59,10 @@ jobs:
         env:
           BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
           HEAD_SHA: ${{ github.sha }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          PR_HEAD_REPO: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name || github.repository }}
+          PR_AUTHOR_ASSOCIATION: ${{ github.event_name == 'pull_request' && github.event.pull_request.author_association || 'OWNER' }}
+          PR_IS_FORK: ${{ github.event_name == 'pull_request' && (github.event.pull_request.head.repo.full_name != github.repository) || 'false' }}
 
       - name: Plan changed surface
         id: plan
@@ -66,6 +72,15 @@ jobs:
           HEAD_SHA: ${{ github.sha }}
           FORCE_FULL: ${{ github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' || github.event_name == 'merge_group' || (github.event_name == 'push' && (github.event.before == '0000000000000000000000000000000000000000' || github.event.before == '')) }}
           PR_DRAFT: ${{ github.event_name == 'pull_request' && github.event.pull_request.draft || 'false' }}
+
+      - name: Summarize Preview data mode
+        run: |
+          {
+            echo "### Preview data mode"
+            echo "- mode: `${{ steps.plan.outputs.preview_data_mode }}`"
+            echo "- reason: ${{ steps.plan.outputs.preview_data_reason }}"
+            echo "- credentials: fixed sanitized \`rivalhub-dev\` mirror (planner never selects credentials)"
+          } >> "$GITHUB_STEP_SUMMARY"
 
   static:
     name: static / ${{ matrix.task }}

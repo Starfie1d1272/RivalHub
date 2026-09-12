@@ -22,12 +22,13 @@ import {
 import { claimAdminInviteInTx } from "@/lib/auth/admin-invites";
 import { providerFetch } from "@/lib/observability/fetch";
 import { captureException, logEvent, traceOperation } from "@/lib/observability/server";
-import { isPreview } from "@/lib/runtime/preview";
+import { assertPreviewMutationAllowed, isPreview } from "@/lib/runtime/preview";
 
 export async function loginWithPassword(
   email: string,
   password: string,
 ): Promise<ActionResult<{ email: string }>> {
+  try { assertPreviewMutationAllowed(); } catch (error) { return actionError("signUp", error); }
   if (!email || !email.includes("@")) {
     return fail({ code: ErrorCode.VALIDATION_FAILED, message: "请输入有效的邮箱地址" });
   }
@@ -184,6 +185,7 @@ export async function signUp(
 
 /** Safe ambiguous resend endpoint for the signup waiting state. */
 export async function resendSignupConfirmation(email: string, next?: string): Promise<ActionResult<void>> {
+  try { assertPreviewMutationAllowed(); } catch (error) { return actionError("resendSignupConfirmation", error); }
   if (!email || !email.includes("@")) return fail({ code: ErrorCode.VALIDATION_FAILED, message: "请输入有效的邮箱地址" });
   try {
     const { error } = await traceOperation("provider.supabase.auth.resend", {
@@ -202,6 +204,7 @@ export async function resendSignupConfirmation(email: string, next?: string): Pr
 
 /** Existing accounts prove control of their already-bound email without account creation. */
 export async function resendCurrentEmailVerification(): Promise<ActionResult<void>> {
+  try { assertPreviewMutationAllowed(); } catch (error) { return actionError("resendCurrentEmailVerification", error); }
   try {
     const session = await requireAuth();
     const user = await db.query.users.findFirst({ where: eq(users.id, session.userId) });
@@ -238,6 +241,7 @@ function safeNextPath(next: string | undefined): string | null {
 }
 
 export async function sendPasswordResetEmail(email: string): Promise<ActionResult<undefined>> {
+  try { assertPreviewMutationAllowed(); } catch (error) { return actionError("sendPasswordResetEmail", error); }
   if (!email || !email.includes("@")) {
     return fail({ code: ErrorCode.VALIDATION_FAILED, message: "请输入有效的邮箱地址" });
   }

@@ -45,6 +45,8 @@ export const PREVIEW_COLUMNS: Record<string, string> = {
   community_awards: "id season_id submitted_by_user_id name condition prize public_note status reviewed_by_user_id reviewed_at recipient_user_id outcome_note outcome_by_user_id outcome_at created_at updated_at",
   announcements: "id scope season_id type title body status requires_attention attention_until published_at created_by updated_by created_at updated_at",
   season_public_info: "id season_id rules_label rules_href created_at updated_at",
+  community_groups: "id season_id label audience group_number qr_image_path join_url note status sort_order created_at updated_at",
+  season_contacts: "id season_id label public_name value href note sort_order created_at updated_at",
   competition_stage_bracket_states: "competition_id stage_key data updated_at",
   post_event_adjudications: "id season_id status kind target impacts target_entry_id target_user_id target_match_id public_explanation created_by created_at revoked_by revoked_at",
   tournament_honors: "id season_id honor_key type label state basis placement_from placement_to entry_id user_id source_final_result_id adjudication_id awarded_by awarded_at revoked_by revoked_at created_at updated_at",
@@ -71,7 +73,7 @@ export const EXCLUDED_TABLES = new Set(`identity_link_requests user_identities u
   competition_entry_legacy_identities competition_entry_restriction_overrides major_prestart_issues major_seed_recommendation_snapshots
   audit_logs admin_invites admin_invite_claims season_admin_grants match_mvp_votes match_time_proposals
   user_sessions disciplinary_case_idempotency disciplinary_cases community_award_evidence
-  scheduled_job_health community_groups season_contacts feedback_reports`.split(/\s+/));
+  scheduled_job_health feedback_reports`.split(/\s+/));
 
 export function quoteIdentifier(value: string): string {
   if (!/^[a-z][a-z0-9_]*$/.test(value)) throw new Error("Invalid mirror identifier");

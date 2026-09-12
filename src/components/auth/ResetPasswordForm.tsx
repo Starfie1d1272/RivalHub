@@ -13,9 +13,14 @@ export function ResetPasswordForm() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
+  const previewReadonly = process.env.NEXT_PUBLIC_RIVALHUB_PREVIEW_READONLY === "1";
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (previewReadonly) {
+      toast.error("预览镜像仅供浏览，密码操作不可用");
+      return;
+    }
     if (!isPasswordPolicySatisfied(password)) {
       toast.error(PASSWORD_POLICY_MESSAGE);
       return;
@@ -41,7 +46,7 @@ export function ResetPasswordForm() {
       <Field id="password" label="新密码" type="password" placeholder={`至少 ${MIN_PASSWORD_LENGTH} 位，含大小写/数字/特殊字符`} value={password} onChange={setPassword} required minLength={MIN_PASSWORD_LENGTH} autoComplete="new-password" />
       <Field id="confirm-password" label="确认新密码" type="password" placeholder="再次输入密码" value={confirmPassword} onChange={setConfirmPassword} required minLength={MIN_PASSWORD_LENGTH} autoComplete="new-password" />
       <p className="text-xs text-[var(--color-fg-mid)]">{PASSWORD_POLICY_MESSAGE}。</p>
-      <Button type="submit" className="w-full" disabled={isPending}>{isPending ? "设置中…" : "设置新密码"}</Button>
+      <Button type="submit" className="w-full" disabled={isPending || previewReadonly}>{previewReadonly ? "预览只读" : isPending ? "设置中…" : "设置新密码"}</Button>
     </form>
   );
 }

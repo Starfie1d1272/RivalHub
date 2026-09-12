@@ -1,5 +1,5 @@
 import { buildProductionEnvironment } from "../production-environment";
-import { buildStagingEnvironment, STAGING_PROJECT_REF } from "../staging-environment";
+import { buildStagingEnvironment, buildStagingReadonlyDatabaseUrl, STAGING_PROJECT_REF } from "../staging-environment";
 
 export function assertRefreshRunner(env: NodeJS.ProcessEnv = process.env): void {
   if (env.GITHUB_ACTIONS !== "true" || env.GITHUB_REPOSITORY !== "Starfie1d1272/RivalHub"
@@ -25,5 +25,5 @@ export function targetEnvironment(env: NodeJS.ProcessEnv = process.env) {
   if (!secretKey || !personaPassword || personaPassword.length < 24 || !readOnlyPassword || readOnlyPassword.length < 32) {
     throw new Error("Mirror dev Auth, persona and read-only role credentials must be provisioned first.");
   }
-  return { databaseUrl, secretKey, personaPassword, readOnlyPassword, supabaseUrl: `https://${STAGING_PROJECT_REF}.supabase.co` };
+  return { databaseUrl, readOnlyDatabaseUrl: buildStagingReadonlyDatabaseUrl(readOnlyPassword), secretKey, personaPassword, readOnlyPassword, supabaseUrl: `https://${STAGING_PROJECT_REF}.supabase.co` };
 }
