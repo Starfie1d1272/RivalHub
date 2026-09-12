@@ -95,6 +95,7 @@ export function exportQuery(table: string): string {
   const expressions = columns.split(" ").map(quoteIdentifier);
   if (table === "users") expressions.push(`id::text || '@preview.invalid' AS email`, `'user' AS role`);
   if (table === "season_registrations") expressions.push(`ARRAY[]::text[] AS screenshot_urls`);
+  if (table === "team_memberships") expressions.push(`CASE WHEN "ended_at" IS NOT NULL THEN 'left'::team_membership_end_reason ELSE NULL END AS ended_reason`);
   if (table === "post_event_adjudications" || table === "tournament_honors") expressions.push(`id AS client_request_id`);
   if (table === "post_event_adjudications") expressions.push(`'预览已脱敏' AS reason`);
   // Only public, final facts; pending private review evidence is not a preview seed.
