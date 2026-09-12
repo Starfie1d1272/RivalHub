@@ -2,7 +2,7 @@ import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSy
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Pool, type PoolClient } from "pg";
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { assertActiveChainPrefix, readExpectedMigrations } from "../production-preflight";
@@ -13,6 +13,59 @@ import { quoteIdentifier } from "./policy";
 import { deterministicUserId, PREVIEW_PERSONAS, PREVIEW_PERSONA_PASSWORD, syntheticUserId, type PersonaBinding } from "./personas";
 
 const MIRROR_STATE_TABLE = "preview_mirror_state";
+const PREVIEW_TEAM_LOGO_BUCKET = "team-logos";
+const PREVIEW_TEAM_LOGO_BUCKET_OPTIONS = {
+  public: true,
+  fileSizeLimit: 1_048_576,
+  allowedMimeTypes: ["image/jpeg", "image/png", "image/webp"],
+};
+
+export type PreviewRefreshPhase =
+  | "dev storage preflight"
+  | "db reset"
+  | "db migrate"
+  | "db import"
+  | "db state setup"
+  | "persona auth"
+  | "persona db binding"
+  | "public asset upload"
+  | "mirror state commit";
+
+export class PreviewRefreshPhaseError extends Error {
+  constructor(readonly phase: PreviewRefreshPhase) {
+    super(`Preview mirror phase failed: ${phase}`);
+    this.name = "PreviewRefreshPhaseError";
+  }
+}
+
+export async function runPreviewRefreshPhase<T>(
+  phase: PreviewRefreshPhase,
+  operation: () => Promise<T>,
+  log: (message: string) => void = console.log,
+): Promise<T> {
+  log(`Preview mirror phase: ${phase}`);
+  try {
+    const result = await operation();
+    log(`Preview mirror phase complete: ${phase}`);
+    return result;
+  } catch {
+    throw new PreviewRefreshPhaseError(phase);
+  }
+}
+
+export async function ensurePreviewTeamLogoBucket(
+  storage: Pick<SupabaseClient["storage"], "getBucket" | "createBucket" | "updateBucket">,
+): Promise<void> {
+  const existing = await storage.getBucket(PREVIEW_TEAM_LOGO_BUCKET);
+  if (existing.error && !isMissingStorageBucketError(existing.error)) {
+    throw new Error("Preview team logo bucket preflight failed.");
+  }
+
+  const result = existing.data
+    ? await storage.updateBucket(PREVIEW_TEAM_LOGO_BUCKET, PREVIEW_TEAM_LOGO_BUCKET_OPTIONS)
+    : await storage.createBucket(PREVIEW_TEAM_LOGO_BUCKET, PREVIEW_TEAM_LOGO_BUCKET_OPTIONS);
+  if (result.error) throw new Error("Preview team logo bucket bootstrap failed.");
+}
 
 async function resetDevSchema(client: PoolClient): Promise<void> {
   await client.query("DROP SCHEMA IF EXISTS public CASCADE");
@@ -114,43 +167,58 @@ async function provisionPersonas(snapshot: MirrorSnapshot, target: ReturnType<ty
 export async function refreshMirror(path: string): Promise<void> {
   const target = targetEnvironment();
   const snapshot = readSnapshot(path);
+  const storage = createClient(target.supabaseUrl, target.secretKey, { auth: { persistSession: false, autoRefreshToken: false } }).storage;
+  await runPreviewRefreshPhase("dev storage preflight", () => ensurePreviewTeamLogoBucket(storage));
   const pool = new Pool({ connectionString: target.databaseUrl, ssl: { rejectUnauthorized: false }, max: 1 });
   const client = await pool.connect();
   try {
-    await resetDevSchema(client);
-    await migrateToSource(client, snapshot);
-    await importAndMigrateSnapshot(client, snapshot, target.applyCurrentMigrations);
-    await ensureMirrorState(client);
+    await runPreviewRefreshPhase("db reset", () => resetDevSchema(client));
+    await runPreviewRefreshPhase("db migrate", () => migrateToSource(client, snapshot));
+    await runPreviewRefreshPhase("db import", () => importAndMigrateSnapshot(client, snapshot, target.applyCurrentMigrations));
+    await runPreviewRefreshPhase("db state setup", () => ensureMirrorState(client));
 
-    const bindings = await provisionPersonas(snapshot, target);
-    await client.query("BEGIN");
-    for (const binding of bindings) {
-      const role = binding.persona === "super-admin" ? "super_admin" : "user";
-      // A sparse production snapshot may not contain five distinct active
-      // users. Synthetic persona rows are added after the bulk import, so
-      // insert the missing row before binding its deterministic Auth identity.
-      await client.query(
-        `INSERT INTO public.users (id, status, display_name, email, role)
-         VALUES ($1, 'active', $2, $3, $4)
-         ON CONFLICT (id) DO NOTHING`,
-        [binding.userId, `Preview ${binding.persona}`, binding.email, role],
-      );
-      await client.query("UPDATE public.users SET auth_id=$1, email=$2, email_verified_at=now(), email_verification_source='admin_migration', role=$3, updated_at=now() WHERE id=$4", [binding.authId, binding.email, binding.persona === "super-admin" ? "super_admin" : "user", binding.userId]);
-      await client.query(`INSERT INTO public.user_identities (user_id, kind, provider, provider_subject, normalized_value, verified_at, provenance, is_primary)
-        VALUES ($1, 'auth', 'supabase_auth', $2, $3, now(), 'admin_migration', true), ($1, 'email', 'email', $3, $3, now(), 'admin_migration', true) ON CONFLICT DO NOTHING`, [binding.userId, binding.authId, binding.email]);
-      if (binding.persona === "season-admin" && snapshot.personaCandidates.currentSeasonId) await client.query("INSERT INTO public.season_admin_grants (user_id, season_id) VALUES ($1, $2) ON CONFLICT DO NOTHING", [binding.userId, snapshot.personaCandidates.currentSeasonId]);
-    }
-    await uploadAssets(snapshot, target);
-    await client.query(`INSERT INTO public.${MIRROR_STATE_TABLE} (id, source_tag, source_commit, refreshed_at, persona_count, asset_count)
-      VALUES (true, $1, $2, now(), $3, $4)
-      ON CONFLICT (id) DO UPDATE SET source_tag=EXCLUDED.source_tag, source_commit=EXCLUDED.source_commit,
-      refreshed_at=EXCLUDED.refreshed_at, persona_count=EXCLUDED.persona_count, asset_count=EXCLUDED.asset_count`, [snapshot.sourceTag, snapshot.sourceCommit, bindings.length, snapshot.assets.length]);
-    await client.query("COMMIT");
+    const bindings = await runPreviewRefreshPhase("persona auth", () => provisionPersonas(snapshot, target));
+    await runPreviewRefreshPhase("persona db binding", async () => {
+      await client.query("BEGIN");
+      for (const binding of bindings) {
+        const role = binding.persona === "super-admin" ? "super_admin" : "user";
+        // A sparse production snapshot may not contain five distinct active
+        // users. Synthetic persona rows are added after the bulk import, so
+        // insert the missing row before binding its deterministic Auth identity.
+        await client.query(
+          `INSERT INTO public.users (id, status, display_name, email, role)
+           VALUES ($1, 'active', $2, $3, $4)
+           ON CONFLICT (id) DO NOTHING`,
+          [binding.userId, `Preview ${binding.persona}`, binding.email, role],
+        );
+        await client.query("UPDATE public.users SET auth_id=$1, email=$2, email_verified_at=now(), email_verification_source='admin_migration', role=$3, updated_at=now() WHERE id=$4", [binding.authId, binding.email, binding.persona === "super-admin" ? "super_admin" : "user", binding.userId]);
+        await client.query(`INSERT INTO public.user_identities (user_id, kind, provider, provider_subject, normalized_value, verified_at, provenance, is_primary)
+          VALUES ($1, 'auth', 'supabase_auth', $2, $3, now(), 'admin_migration', true), ($1, 'email', 'email', $3, $3, now(), 'admin_migration', true) ON CONFLICT DO NOTHING`, [binding.userId, binding.authId, binding.email]);
+        if (binding.persona === "season-admin" && snapshot.personaCandidates.currentSeasonId) await client.query("INSERT INTO public.season_admin_grants (user_id, season_id) VALUES ($1, $2) ON CONFLICT DO NOTHING", [binding.userId, snapshot.personaCandidates.currentSeasonId]);
+      }
+    });
+    await runPreviewRefreshPhase("public asset upload", () => uploadAssets(snapshot, target));
+    await runPreviewRefreshPhase("mirror state commit", async () => {
+      await client.query(`INSERT INTO public.${MIRROR_STATE_TABLE} (id, source_tag, source_commit, refreshed_at, persona_count, asset_count)
+        VALUES (true, $1, $2, now(), $3, $4)
+        ON CONFLICT (id) DO UPDATE SET source_tag=EXCLUDED.source_tag, source_commit=EXCLUDED.source_commit,
+        refreshed_at=EXCLUDED.refreshed_at, persona_count=EXCLUDED.persona_count, asset_count=EXCLUDED.asset_count`, [snapshot.sourceTag, snapshot.sourceCommit, bindings.length, snapshot.assets.length]);
+      await client.query("COMMIT");
+    });
     console.log(`Mirror refreshed: source=${snapshot.sourceTag} commit=${snapshot.sourceCommit} personas=${bindings.length} assets=${snapshot.assets.length}`);
   } catch (error) {
     await client.query("ROLLBACK").catch(() => {});
     throw error;
   } finally { client.release(); await pool.end(); }
+}
+
+function isMissingStorageBucketError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const candidate = error as { status?: unknown; statusCode?: unknown; code?: unknown };
+  return candidate.status === 404
+    || candidate.statusCode === 404
+    || candidate.statusCode === "404"
+    || candidate.code === "NotFound";
 }
 
 async function uploadAssets(snapshot: MirrorSnapshot, target: ReturnType<typeof targetEnvironment>): Promise<void> {
@@ -162,4 +230,7 @@ async function uploadAssets(snapshot: MirrorSnapshot, target: ReturnType<typeof 
   }
 }
 
-if (process.argv[1]?.endsWith("preview/refresh.ts")) refreshMirror(process.argv[2]).catch(() => { console.error("Mirror refresh failed; provider errors and row values are not logged."); process.exitCode = 1; });
+if (process.argv[1]?.endsWith("preview/refresh.ts")) refreshMirror(process.argv[2]).catch((error: unknown) => {
+  console.error(error instanceof PreviewRefreshPhaseError ? `${error.message}; provider errors and row values are not logged.` : "Mirror refresh failed; provider errors and row values are not logged.");
+  process.exitCode = 1;
+});
