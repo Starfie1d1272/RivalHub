@@ -40,6 +40,7 @@ export async function getVerifiedPlayerStatsBySeason(
     JOIN matches m ON m.id = mps.match_id
     JOIN match_maps mm ON mm.id = mps.map_id
     WHERE m.season_id = ${seasonId}
+      AND m.status = 'finished'
       AND mps.verified_by_admin IS NOT NULL
       AND mps.user_id IS NOT NULL
       ${userFilter}
@@ -57,4 +58,26 @@ export async function getVerifiedPlayerStatsBySeason(
       },
     ]),
   );
+}
+
+/** Historical player-map experience: samples are player-map observations, not team W/L. */
+export async function getPublicPlayerMapExperience(userIds: readonly string[]) {
+  if (!userIds.length) return [];
+  const result = await db.execute(sql`
+    SELECT mm.map_name, count(*)::int AS samples, count(distinct mps.user_id)::int AS players,
+      ${simpleAvg("mps.rating_pro")} AS rating, ${roundWeightedAvg("mps.adr")} AS adr,
+      ${ratioOfSums("mps.kills", "mps.deaths")} AS kd
+    FROM match_player_stats mps
+    JOIN matches m ON m.id = mps.match_id
+    JOIN match_maps mm ON mm.id = mps.map_id
+    JOIN seasons s ON s.id = m.season_id
+    WHERE m.status = 'finished' AND s.status <> 'draft'
+      AND mps.verified_by_admin IS NOT NULL
+      AND mps.user_id IN (${sql.join([...new Set(userIds)].map((id) => sql`${id}`), sql`, `)})
+    GROUP BY mm.map_name ORDER BY count(*) DESC, mm.map_name
+  `);
+  return (result.rows as unknown as { map_name: string; samples: number; players: number; rating: number | null; adr: number | null; kd: number | null }[]).map((row) => ({
+    mapName: row.map_name, samples: Number(row.samples), players: Number(row.players),
+    rating: row.rating === null ? null : Number(row.rating), adr: row.adr === null ? null : Number(row.adr), kd: row.kd === null ? null : Number(row.kd),
+  }));
 }

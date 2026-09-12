@@ -97,20 +97,6 @@ export function MatchHeroHeader({
         </div>
 
         <div className="text-center px-4">
-          {match.status === "in_progress" && (
-            <div
-              className="inline-block mb-2 px-2.5 py-0.5 rounded-sm font-bold"
-              style={{
-                background: "var(--color-danger)",
-                color: "var(--color-accent-fg)",
-                fontFamily: "var(--font-mono)",
-                fontSize: 10,
-                letterSpacing: "var(--tracking-label)",
-              }}
-            >
-              ● LIVE
-            </div>
-          )}
           {isFinished ? (
             <div
               className="font-bold text-4xl sm:text-[56px]"
@@ -121,9 +107,9 @@ export function MatchHeroHeader({
                 lineHeight: 1,
               }}
             >
-              {match.scoreA ?? 0}
+              {match.scoreA ?? "—"}
               <span className="mx-3" style={{ color: "var(--color-fg-dim)", fontSize: 24 }}>:</span>
-              {match.scoreB ?? 0}
+              {match.scoreB ?? "—"}
             </div>
           ) : (
             <div

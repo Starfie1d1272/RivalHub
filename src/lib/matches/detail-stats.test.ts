@@ -47,6 +47,8 @@ describe("match detail stats", () => {
         { entryAId: "team-a", entryBId: "team-b", scoreA: 1, scoreB: 0 },
         { entryAId: "team-c", entryBId: "team-a", scoreA: 1, scoreB: 0 },
         { entryAId: "team-a", entryBId: "team-d", scoreA: null, scoreB: null },
+        { entryAId: "other-a", entryBId: "other-b", scoreA: 0, scoreB: 2 },
+        { entryAId: "team-a", entryBId: "team-d", scoreA: 1, scoreB: null },
       ]),
     ).toEqual({ wins: 1, losses: 1 });
   });
@@ -118,7 +120,7 @@ describe("match detail stats", () => {
         steamName: "Steam",
         displayName: null,
         perfectName: "Perfect",
-        primaryPosition: "rifler",
+        registrationPosition: "rifler",
         isStarter: true,
         userId: "user-1",
       },

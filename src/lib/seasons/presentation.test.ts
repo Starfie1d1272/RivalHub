@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   getSeasonLifecycleGroup,
+  presentSeasonDirectoryActivity,
   groupSeasonsByLifecycle,
   presentSeasonLifecycleSummary,
   presentSeasonParticipationState,
@@ -44,12 +45,31 @@ describe("season lifecycle directory presentation", () => {
     expect(grouped.archived.map((season) => season.id)).toEqual(["archived"]);
     expect(Object.values(grouped).flat()).toHaveLength(seasons.length);
   });
+
+  it("orders historical seasons by canonical completion facts", () => {
+    const grouped = groupSeasonsByLifecycle([
+      { id: "ingested-last", status: "finished" as const, lastCompletedAt: new Date("2026-01-01") },
+      { id: "completed-last", status: "finished" as const, lastCompletedAt: new Date("2026-03-01") },
+    ]);
+
+    expect(grouped.recent.map((season) => season.id)).toEqual(["completed-last", "ingested-last"]);
+  });
+});
+
+describe("season directory lifecycle activity", () => {
+  it("adapts the compact card to an active lifecycle without inventing a live match", () => {
+    expect(presentSeasonDirectoryActivity({ status: "voting" })).toBe("队长投票正在进行");
+    expect(presentSeasonDirectoryActivity({ status: "drafting" })).toBe("选秀正在进行");
+    expect(presentSeasonDirectoryActivity({ status: "playing" }, "季后赛")).toBe("赛程进行中 · 季后赛");
+    expect(presentSeasonDirectoryActivity({ status: "registration" })).toBeNull();
+  });
 });
 
 describe("season status presentation", () => {
   it("keeps normal UI labels out of internal enum vocabulary", () => {
     expect(presentSeasonStatus("registration")).toEqual({ label: "已发布", tone: "success" });
-    expect(presentSeasonStatus("playing")).toEqual({ label: "LIVE", tone: "danger" });
+    expect(presentSeasonStatus("playing")).toEqual({ label: "比赛中", tone: "accent" });
+    expect(presentSeasonStatus("finished")).toEqual({ label: "已结束", tone: "neutral" });
   });
 
   it("derives public participation labels from the canonical registration window", () => {

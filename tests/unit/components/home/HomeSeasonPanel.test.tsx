@@ -32,7 +32,7 @@ describe("HomeSeasonPanel registration mode", () => {
     expect(shouldLoadRegistrationPositionCounts(season)).toBe(true);
     expect(screen.getByText("igl")).toBeInTheDocument();
     expect(screen.getByText("3 / 10")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /立即报名/ })).toHaveAttribute("href", "/nju-major-2026/register");
+    expect(screen.queryByRole("link", { name: /立即报名/ })).not.toBeInTheDocument();
   });
 
   it("shows team participation stats without individual position quotas", () => {
@@ -44,6 +44,6 @@ describe("HomeSeasonPanel registration mode", () => {
     expect(screen.getByText("已通过审核")).toBeInTheDocument();
     expect(screen.getByText("6")).toBeInTheDocument();
     expect(screen.getByText("38")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /组队报名/ })).toHaveAttribute("href", "/nju-major-2026/register");
+    expect(screen.getByRole("link", { name: /组队大厅/ })).toHaveAttribute("href", "/teams/recruitment");
   });
 });

@@ -82,7 +82,6 @@ export interface MajorPublicParticipantPlayer {
   entryName: string;
   name: string;
   isStarter: boolean;
-  isRepresentative: boolean;
   stats: VerifiedPlayerSeasonStats | null;
 }
 
@@ -219,13 +218,12 @@ function addToMap<T>(map: Map<string, T[]>, key: string, value: T): void {
   map.set(key, [...(map.get(key) ?? []), value]);
 }
 
-function publicRosterMember(row: RosterMemberRow, representativeUserId: string) {
+function publicRosterMember(row: RosterMemberRow) {
   return {
     userId: row.userId,
     name: getPublicDisplayName(row),
     avatarUrl: row.avatarUrl ?? null,
     isStarter: row.isStarter,
-    isRepresentative: row.userId === representativeUserId,
   };
 }
 
@@ -249,14 +247,14 @@ async function loadMajorPublicParticipantState(
         eq(competitionEntries.competitionId, season.id),
         eq(competitionEntries.registrationStatus, "approved"),
       ))
-      .orderBy(asc(competitionEntries.formationOrder), asc(competitionEntries.createdAt), asc(competitionEntries.id)),
+      .orderBy(asc(competitionEntries.formationOrder), asc(competitionEntries.id)),
     db
       .select({
         entryId: majorTournamentEntrants.competitionEntryId,
       })
       .from(majorTournamentEntrants)
       .where(eq(majorTournamentEntrants.seasonId, season.id))
-      .orderBy(asc(majorTournamentEntrants.createdAt), asc(majorTournamentEntrants.id)),
+      .orderBy(asc(majorTournamentEntrants.id)),
     db.query.majorPrestartStates.findFirst({
       where: eq(majorPrestartStates.seasonId, season.id),
       columns: { entrantsLockedAt: true, seedsConfirmedAt: true },
@@ -406,7 +404,7 @@ async function loadMajorPublicParticipantState(
         ? seed === null ? "正式参赛队" : `#${seed} 种子`
         : "已通过报名审核",
       participation,
-      roster: roster.map((member) => publicRosterMember(member, entry.representativeUserId)),
+      roster: roster.map(publicRosterMember),
       rosterLabel: isOfficial
         ? lifecycle.phase === "rosters_frozen" ? "最终参赛名单" : "当前参赛名单"
         : "已审核报名名单",
@@ -422,7 +420,6 @@ async function loadMajorPublicParticipantState(
     entryName: team.entry.name,
     name: member.name,
     isStarter: member.isStarter,
-    isRepresentative: member.isRepresentative,
     stats: null,
   })));
 

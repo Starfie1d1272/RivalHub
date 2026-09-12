@@ -2,10 +2,10 @@ import Link from "next/link";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
 
 interface RosterPlayer {
+  registrationPosition?: string;
   steamName: string;
   displayName: string | null;
   perfectName: string | null;
-  primaryPosition: string;
   isStarter: boolean;
   userId?: string | null;
 }
@@ -44,12 +44,7 @@ function RosterColumn({ teamName, roster }: { teamName: string; roster: RosterPl
               ) : (
                 <span>{getPublicDisplayName(p)}</span>
               )}
-              <span
-                className="text-xs"
-                style={{ fontFamily: "var(--font-mono)", color: "var(--color-fg-dim)", letterSpacing: "0.06em" }}
-              >
-                {p.primaryPosition}
-              </span>
+              {p.registrationPosition && <span className="text-xs text-[var(--color-fg-dim)]">报名位置 · {p.registrationPosition}</span>}
             </div>
           ))}
           {subs.length > 0 && (

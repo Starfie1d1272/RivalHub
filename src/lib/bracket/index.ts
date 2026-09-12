@@ -369,3 +369,18 @@ export function collectResolvedMatches(data: Database): ResolvedBracketMatch[] {
   }
   return resolved;
 }
+
+/** Resolve a final by provider topology, never by display name or array order. */
+export function resolveFinalBracketNodeId(data: BracketData): number | null {
+  if (data.stage.length !== 1) return null;
+  const stage = data.stage[0];
+  if (stage.type !== "single_elimination" && stage.type !== "double_elimination") return null;
+  const groups = data.group.filter((group) => group.stage_id === stage.id && group.number === (stage.type === "double_elimination" ? 3 : 1));
+  if (groups.length !== 1) return null;
+  const rounds = data.round.filter((round) => round.group_id === groups[0].id);
+  const lastNumber = Math.max(...rounds.map((round) => round.number));
+  const lastRounds = rounds.filter((round) => round.number === lastNumber);
+  if (lastRounds.length !== 1) return null;
+  const finals = data.match.filter((match) => match.round_id === lastRounds[0].id);
+  return finals.length === 1 ? finals[0].id : null;
+}

@@ -1,15 +1,15 @@
 import React from "react";
 import { PlayerAvatar } from "@/components/players/PlayerAvatar";
 import Link from "next/link";
-import { Panel, PosChip } from "@/components/rivalhub";
+import { Panel } from "@/components/rivalhub";
 import { TeamLogo } from "@/components/teams/TeamLogo";
+import { mapLabel } from "@/lib/maps";
 import { formatStat } from "@/lib/stats";
 
 interface PlayerPreview {
   name: string;
   avatarUrl?: string | null;
   isStarter: boolean;
-  isRepresentative: boolean;
   userId?: string | null;
 }
 
@@ -26,6 +26,9 @@ interface TeamCardProps {
     losses: number;
     winRate: string;
   };
+  placement?: string;
+  stages?: string[];
+  maps?: { mapName: string; wins: number; played: number }[];
   summary?: {
     maps: number;
     avgRating: number | null;
@@ -55,10 +58,13 @@ export function TeamCard({
   players,
   record,
   summary,
+  placement,
+  stages,
+  maps,
 }: TeamCardProps) {
   const starters = players.filter((p) => p.isStarter);
   const subs = players.filter((p) => !p.isStarter);
-  const representative = players.find((p) => p.isRepresentative);
+
   return (
     <Panel className="h-full hover:border-[var(--color-border-hi)] transition-colors">
       <div className="space-y-4">
@@ -86,25 +92,25 @@ export function TeamCard({
         </div>
 
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[var(--color-fg-mid)]">
-          <span>
-            代表人 <span className="font-medium text-[var(--color-fg)]">{representative?.name ?? "待定"}</span>
-          </span>
           <span>{starters.length} 首发</span>
           {subs.length > 0 && <span>{subs.length} 替补</span>}
         </div>
 
-        <div className="grid grid-cols-3 gap-2">
+        {stages && stages.length > 0 && <p className="text-xs text-[var(--color-fg-mid)]">已参赛 · {stages.join(" / ")}</p>}
+        {placement && <p className="text-sm font-semibold text-[var(--color-accent)]">{placement}</p>}
+        {maps && <div className="text-xs text-[var(--color-fg-mid)]"><p className="mb-1">本届正式地图表现</p>{maps.length ? <div className="flex flex-wrap gap-3">{maps.slice(0, 3).map((map) => <span key={map.mapName}>{mapLabel(map.mapName)} · {map.wins} 胜 {map.played - map.wins} 负</span>)}</div> : <Link href={`/${seasonSlug}/teams/${entryId}`}>暂无队伍样本 · 查看阵容地图经验 →</Link>}</div>}
+
+        {summary && <div className="grid grid-cols-3 gap-2">
           <SummaryStat label="地图" value={summary?.maps ?? "—"} />
           <SummaryStat label="Rating" value={formatStat("ratingPro", summary?.avgRating)} />
           <SummaryStat label="ADR" value={formatStat("adr", summary?.avgAdr)} />
-        </div>
+        </div>}
 
         <div className="space-y-1.5 border-t border-[var(--color-border)] pt-3">
           {starters.map((p) => (
             <div key={p.name} className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2 min-w-0">
                 <PlayerAvatar name={p.name} avatarUrl={p.avatarUrl} size="sm" />
-                {p.isRepresentative && <PosChip pos="R" small />}
                 {p.userId ? (
                   <Link href={`/players/${p.userId}`} className="text-sm text-[var(--color-fg)] hover:text-[var(--color-accent)] transition-colors truncate">
                     {p.name}

@@ -16,7 +16,6 @@ describe("MajorPlayerDirectoryRow", () => {
           entryName: "Entry Alpha",
           name: "选手甲",
           isStarter: true,
-          isRepresentative: true,
           stats: { maps: 8, avgRating: 1.21, avgAdr: 82.4, avgKd: 1.36 },
         }}
       />,
@@ -25,7 +24,7 @@ describe("MajorPlayerDirectoryRow", () => {
     expect(screen.getByRole("link", { name: "选手甲" })).toHaveAttribute("href", "/players/player-1");
     expect(screen.getByRole("link", { name: "Entry Alpha" })).toHaveAttribute("href", "/nju-major/teams/entry-1");
     expect(screen.getByText("首发")).toBeInTheDocument();
-    expect(screen.getByText("队伍代表")).toBeInTheDocument();
+    expect(screen.queryByText("队伍代表")).not.toBeInTheDocument();
     expect(screen.getByText("1.21")).toBeInTheDocument();
   });
 
@@ -39,14 +38,13 @@ describe("MajorPlayerDirectoryRow", () => {
           entryName: "Entry Beta",
           name: "选手乙",
           isStarter: false,
-          isRepresentative: false,
           stats: null,
         }}
       />,
     );
 
     expect(screen.getByText("替补")).toBeInTheDocument();
-    expect(screen.getByText("暂无本届已验证数据")).toBeInTheDocument();
+    expect(screen.getByText("暂无本届正式比赛数据")).toBeInTheDocument();
     expect(screen.queryByText("报名位置")).not.toBeInTheDocument();
   });
 });

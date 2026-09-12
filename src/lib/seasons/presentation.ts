@@ -9,6 +9,7 @@ export type SeasonLifecycleGroup = "active" | "upcoming" | "draft" | "recent" | 
 export interface SeasonLifecycleInput {
   status: SeasonStatus;
   registrationOpenedAt?: Date | string | null;
+  lastCompletedAt?: Date | string | null;
 }
 
 export interface SeasonLifecycleGroupDefinition {
@@ -45,8 +46,8 @@ const SEASON_STATUS_PRESENTATIONS: Record<SeasonStatus, StatusPresentation> = {
   registration: { label: "已发布", tone: "success" },
   voting: { label: "投票中", tone: "warn" },
   drafting: { label: "选秀中", tone: "accent" },
-  playing: { label: "LIVE", tone: "danger" },
-  finished: { label: "FT", tone: "neutral" },
+  playing: { label: "比赛中", tone: "accent" },
+  finished: { label: "已结束", tone: "neutral" },
   archived: { label: "已归档", tone: "neutral" },
 };
 
@@ -85,6 +86,23 @@ export function presentSeasonLifecycleSummary(season: SeasonLifecycleInput): str
   return presentSeasonStatus(season.status).label;
 }
 
+/** Concise lifecycle-specific copy for discovery cards; it never infers match state. */
+export function presentSeasonDirectoryActivity(
+  season: Pick<SeasonLifecycleInput, "status">,
+  nextStageName?: string | null,
+): string | null {
+  switch (season.status) {
+    case "voting":
+      return "队长投票正在进行";
+    case "drafting":
+      return "选秀正在进行";
+    case "playing":
+      return nextStageName ? `赛程进行中 · ${nextStageName}` : "赛程正在进行";
+    default:
+      return null;
+  }
+}
+
 export function groupSeasonsByLifecycle<T extends SeasonLifecycleInput>(
   seasons: readonly T[],
 ): Record<SeasonLifecycleGroup, T[]> {
@@ -100,7 +118,25 @@ export function groupSeasonsByLifecycle<T extends SeasonLifecycleInput>(
     grouped[getSeasonLifecycleGroup(season)].push(season);
   }
 
+  // Historical ordering follows the latest canonical completed match fact;
+  // creation time is ingestion metadata and must not stand in for result time.
+  for (const key of ["recent", "archived"] as const) {
+    grouped[key].sort((a, b) => {
+      const completionDifference = getTimestamp(b.lastCompletedAt) - getTimestamp(a.lastCompletedAt);
+      if (completionDifference) return completionDifference;
+      const aId = "id" in a && typeof a.id === "string" ? a.id : "";
+      const bId = "id" in b && typeof b.id === "string" ? b.id : "";
+      return aId.localeCompare(bId);
+    });
+  }
+
   return grouped;
+}
+
+function getTimestamp(value: Date | string | null | undefined): number {
+  if (value == null) return Number.NEGATIVE_INFINITY;
+  const timestamp = typeof value === "string" ? Date.parse(value) : value.getTime();
+  return Number.isFinite(timestamp) ? timestamp : Number.NEGATIVE_INFINITY;
 }
 
 /** Public participation label for a published Season; lifecycle status stays

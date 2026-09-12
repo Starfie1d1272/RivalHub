@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { createStageBracket, ensureResolvedBracketMatch, serializeStageBracket } from "@/lib/bracket";
+import { resolveFinalBracketNodeId, createStageBracket, ensureResolvedBracketMatch, serializeStageBracket } from "@/lib/bracket";
 
 function makeTeams(count: number) {
   return Array.from({ length: count }, (_, index) => ({
@@ -11,6 +11,15 @@ function makeTeams(count: number) {
 }
 
 describe("stage-scoped bracket adapter", () => {
+  it("identifies a final by topology regardless of stage display name", async () => {
+    const { data } = await createStageBracket({ key: "playoff", name: "任意名称", type: "single_elim" }, makeTeams(4));
+    const finalId = resolveFinalBracketNodeId(serializeStageBracket(data));
+    const final = data.match.find((match) => match.id === finalId);
+    expect(final).toBeDefined();
+    expect(data.round.find((round) => round.id === final?.round_id)?.number).toBe(2);
+    expect(resolveFinalBracketNodeId({ ...serializeStageBracket(data), stage: [] })).toBeNull();
+  });
+
   it("creates one provider stage and preserves stable RivalHub participant identity", async () => {
     const { data, resolvedMatches } = await createStageBracket(
       { key: "playoff", name: "展示名", type: "single_elim" },

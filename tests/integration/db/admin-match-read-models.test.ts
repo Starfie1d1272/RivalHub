@@ -1,3 +1,5 @@
+import { getPublicTeamMapProfile } from "@/lib/teams/map-profile";
+import { getPublicPlayerMapExperience } from "@/lib/stats/public-query";
 import { randomUUID } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 import { createLocalPool } from "./harness/database";
@@ -196,6 +198,22 @@ describe("admin match read models PostgreSQL integration", () => {
         [ids.matchA, ids.admin],
       );
 
+      await pool.query(
+        `INSERT INTO match_player_stats (match_id, map_id, user_id, perfect_name, rating_pro, adr, verified_by_admin)
+         VALUES ($1, $2, $3, 'Alpha', 0, 0, $5), ($1, $2, $4, 'Beta', 9, 999, NULL)`,
+        [ids.matchA, ids.mapA, ids.playerA, ids.playerB, ids.admin],
+      );
+      const ownProfile = await getPublicTeamMapProfile([ids.entryA], [ids.playerA, ids.playerB]);
+      expect(ownProfile.own).toEqual([{ mapName: "de_inferno", wins: 1, played: 1 }]);
+      expect(ownProfile.experience).toEqual([{ mapName: "de_inferno", samples: 1, players: 1, rating: 0, adr: 0, kd: null }]);
+      const coldStart = await getPublicTeamMapProfile([ids.entryC], [ids.playerA]);
+      expect(coldStart.own).toEqual([]);
+      expect(coldStart.experience).toEqual(ownProfile.experience);
+      await pool.query("UPDATE seasons SET status = 'draft' WHERE id = $1", [ids.seasonA]);
+      expect(await getPublicPlayerMapExperience([ids.playerA])).toEqual([]);
+      expect((await getPublicTeamMapProfile([ids.entryA], [])).own).toEqual([]);
+      await pool.query("UPDATE seasons SET status = 'playing' WHERE id = $1", [ids.seasonA]);
+
       requireSeasonAdminMock.mockResolvedValue({ userId: ids.admin });
 
       const workbench = await loadAdminMatchWorkbench({ seasonSlug: seasonASlug, matchId: ids.matchA });
@@ -243,6 +261,7 @@ describe("admin match read models PostgreSQL integration", () => {
         await cleanupClient.query("DELETE FROM match_commentators WHERE match_id IN ($1, $2)", [ids.matchA, ids.matchB]);
         await cleanupClient.query("DELETE FROM match_roster_players WHERE roster_id IN ($1, $2)", [ids.rosterA, ids.rosterB]);
         await cleanupClient.query("DELETE FROM match_rosters WHERE id IN ($1, $2)", [ids.rosterA, ids.rosterB]);
+        await cleanupClient.query("DELETE FROM match_player_stats WHERE match_id IN ($1, $2)", [ids.matchA, ids.matchB]);
         await cleanupClient.query("DELETE FROM match_maps WHERE id = $1", [ids.mapA]);
         await cleanupClient.query("DELETE FROM matches WHERE id IN ($1, $2)", [ids.matchA, ids.matchB]);
         await cleanupClient.query("DELETE FROM event_roster_members WHERE id IN ($1, $2)", [ids.memberA, ids.memberB]);

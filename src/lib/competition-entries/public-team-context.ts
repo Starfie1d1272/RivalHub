@@ -41,6 +41,7 @@ export type PublicEventTeamMatch = {
   isForfeit: boolean;
   scheduledAt: Date | null;
   completedAt: Date | null;
+  stage?: string;
   ownScore: number | null;
   opponentScore: number | null;
 };
@@ -66,7 +67,6 @@ export interface PublicEventTeamContext {
     avatarUrl?: string | null;
     name: string;
     isStarter: boolean;
-    isRepresentative: boolean;
   }>;
   rosterLabel: string;
   rosterStatus: "preparing" | "confirmed" | "frozen" | null;
@@ -122,6 +122,7 @@ type CollectedMatchFacts = {
 };
 
 type PublicMatchRow = {
+  stage?: string;
   id: string;
   entryAId: string;
   entryBId: string;
@@ -170,6 +171,7 @@ function collectMatchFacts(
           isForfeit: match.isForfeit,
           scheduledAt: match.scheduledAt,
           completedAt: match.completedAt,
+          stage: match.stage,
           ownScore: side.ownScore,
           opponentScore: side.opponentScore,
         });
@@ -190,6 +192,7 @@ async function loadMatchRows(seasonId: string, entryIds: readonly string[]) {
       ),
       columns: {
         id: true,
+        stage: true,
         entryAId: true,
         entryBId: true,
         status: true,
@@ -199,7 +202,7 @@ async function loadMatchRows(seasonId: string, entryIds: readonly string[]) {
         scoreA: true,
         scoreB: true,
       },
-      orderBy: [asc(matches.createdAt), asc(matches.id)],
+      orderBy: [asc(matches.completedAt), asc(matches.scheduledAt), asc(matches.id)],
     });
 }
 
@@ -316,7 +319,6 @@ export async function getPublicCompetitionEntryTeamContext(
       name: getPublicDisplayName(member),
       avatarUrl: member.avatarUrl,
       isStarter: member.isStarter,
-      isRepresentative: member.userId === entry.representativeUserId,
     })),
     rosterLabel: "本届参赛名单",
     rosterStatus: eventRoster?.status ?? null,

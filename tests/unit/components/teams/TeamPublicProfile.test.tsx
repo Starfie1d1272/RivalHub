@@ -13,8 +13,8 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 const longLivedTeam: PublicTeamProfile = {
   team: { id: "team-1", slug: "rival-team", name: "Rival Team", logoUrl: null, description: "队伍简介", status: "active", captainUserId: "captain-1" },
   currentMembers: [{ id: "member-1", userId: "captain-1", name: "队长甲", status: "active" }, { id: "member-2", userId: "member-1", name: "选手乙", status: "benched" }],
-  entries: [{ id: "entry-1", name: "Rival Entry", status: "approved", seasonName: "2026 秋季赛", seasonSlug: "autumn-2026", createdAt: new Date("2026-08-01T00:00:00Z") }],
-  nameChanges: [{ id: "name-1", oldName: null, newName: "Rival Team", changedAt: new Date("2026-08-01T00:00:00Z") }],
+  entries: [{ id: "entry-1", name: "Rival Entry", seasonName: "2026 秋季赛", seasonSlug: "autumn-2026", seasonStatus: "finished", completedAt: new Date("2026-08-01T00:00:00Z") }],
+  nameChanges: [{ id: "name-1", oldName: "Old Team", newName: "Rival Team", changedAt: new Date("2026-08-01T00:00:00Z") }],
   captainChanges: [{ id: "captain-1", name: "队长甲", changedAt: new Date("2026-08-01T00:00:00Z") }],
   playedCount: 4,
   wins: 3,
@@ -29,7 +29,7 @@ const linkedEvent: PublicEventTeamContext = {
   entry: { id: "entry-1", name: "Frozen Entry", logoUrl: null, registrationStatus: "approved", representativeUserId: "captain-1", teamId: "team-1" },
   cardLabel: "已通过报名审核",
   participation: { label: "已通过", tone: "success", detail: "报名已通过审核。" },
-  roster: [{ userId: "captain-1", name: "赛事队长", isStarter: true, isRepresentative: true }, { userId: "event-only-player", name: "赛事选手", isStarter: false, isRepresentative: false }],
+  roster: [{ userId: "captain-1", name: "赛事队长", isStarter: true }, { userId: "event-only-player", name: "赛事选手", isStarter: false }],
   rosterLabel: "本届参赛名单",
   rosterStatus: "frozen",
   seed: null,
@@ -41,7 +41,7 @@ const linkedEvent: PublicEventTeamContext = {
 const eventNative: PublicEventTeamContext = {
   ...linkedEvent,
   entry: { ...linkedEvent.entry, id: "entry-native", name: "Event Native Entry", teamId: null, representativeUserId: "event-only-player" },
-  roster: [{ userId: "event-only-player", name: "赛事选手", isStarter: true, isRepresentative: true }],
+  roster: [{ userId: "event-only-player", name: "赛事选手", isStarter: true }],
 };
 
 describe("TeamPublicProfile", () => {
@@ -55,12 +55,26 @@ describe("TeamPublicProfile", () => {
     expect(screen.queryByRole("button", { name: "表达加入意向" })).not.toBeInTheDocument();
     expect(screen.getAllByText("当前成员").length).toBeGreaterThan(0);
     expect(screen.getByText("赛事记录")).toBeInTheDocument();
-    expect(screen.getByText("已通过")).toBeInTheDocument();
+    expect(screen.getByText("完赛")).toBeInTheDocument();
     expect(screen.getByText("Rival Entry")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /2026 秋季赛/ })).toHaveAttribute("href", "/autumn-2026/teams/entry-1");
     expect(screen.getByText("队伍历史")).toBeInTheDocument();
     expect(screen.getByText("名称变更")).toBeInTheDocument();
     expect(screen.getByText("队长变更")).toBeInTheDocument();
+  });
+
+  it("keeps an active event out of the completed career list", () => {
+    render(<TeamPublicProfile team={{
+      ...longLivedTeam,
+      entries: [
+        { id: "entry-current", name: "Current Entry", seasonName: "2026 冬季赛", seasonSlug: "winter-2026", seasonStatus: "playing", completedAt: null },
+        ...longLivedTeam.entries,
+      ],
+    }} />);
+
+    expect(screen.getAllByRole("link", { name: /2026 冬季赛/ })).toHaveLength(1);
+    expect(screen.getByRole("link", { name: /Current Entry/ })).toHaveAttribute("href", "/winter-2026/teams/entry-current");
+    expect(screen.getByText("Rival Entry")).toBeInTheDocument();
   });
 
   it("composes a linked event snapshot with long-lived Team facts without mixing them", () => {
@@ -72,9 +86,9 @@ describe("TeamPublicProfile", () => {
     expect(screen.getAllByText("名单已冻结")).not.toHaveLength(0);
     expect(screen.getByText("赛事队长")).toBeInTheDocument();
     expect(screen.getByText("赛事选手")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "长期队伍资料" })).toHaveAttribute("href", "/teams/rival-team");
     expect(screen.getByRole("link", { name: "返回赛事队伍" })).toHaveAttribute("href", "/autumn-2026/teams");
-    expect(screen.getByRole("link", { name: "查看完整长期资料" })).toHaveAttribute("href", "/teams/rival-team");
+    expect(screen.getByRole("link", { name: "查看队伍资料" })).toHaveAttribute("href", "/teams/rival-team");
+    expect(screen.getAllByRole("link", { name: /队伍资料/ })).toHaveLength(1);
     expect(screen.getAllByText("本届比赛")).not.toHaveLength(0);
     expect(screen.getByText("对阵 Opponent")).toBeInTheDocument();
   });

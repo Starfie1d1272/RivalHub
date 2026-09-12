@@ -1,3 +1,4 @@
+import { getPublicSeasonResults } from "../../../src/lib/seasons/public-results";
 /**
  * PR H2 — 赛后裁决、荣誉、确认与归档的真实 PostgreSQL 集成测试。
  *
@@ -161,6 +162,12 @@ async function main(): Promise<void> {
     const repeatedConfirmation = await database.transaction((tx) => confirmMajorFinalResultInTx(tx, { seasonId: f.seasonId, actorId: ACTOR }));
     expect(repeatedConfirmation.alreadyConfirmed && repeatedConfirmation.resultId === f.resultId,  "P2 重复确认必须幂等返回同一结果。").toBe(true);
 
+    const publicSeason = await database.query.seasons.findFirst({ where: eq(schema.seasons.id, f.seasonId) });
+    if (!publicSeason) throw new Error("fixture season missing");
+    const confirmedPublicResults = await getPublicSeasonResults(publicSeason);
+    expect(confirmedPublicResults.champion?.entryId).toBe(f.championId);
+    expect(confirmedPublicResults.placements).toHaveLength(32);
+
     // 3–6: explicit Champion + Runner-up honors; revoke does not promote anyone.
     const championRequestId = randomUUID();
     const championHonor = await database.transaction((tx) => grantTournamentHonorInTx(tx, {
@@ -175,6 +182,10 @@ async function main(): Promise<void> {
     }));
     const revokeChampion = await database.transaction((tx) => revokeTournamentHonorInTx(tx, { honorId: championHonor.honorId, actorId: ACTOR, reason: "explicit revocation" }));
     expect(!revokeChampion.alreadyRevoked,  "P4 首次冠军撤销必须生效。").toBe(true);
+    const revokedPublicResults = await getPublicSeasonResults(publicSeason);
+    expect(revokedPublicResults.champion).toBeNull();
+    expect(revokedPublicResults.placements).toEqual(confirmedPublicResults.placements);
+    expect(revokedPublicResults.honors.some((honor) => honor.entryId === f.championId)).toBe(false);
     const honorState = await pool.query<{ champion: string; runner_up: string }>(
       `SELECT
          (SELECT state::text FROM tournament_honors WHERE id = $1) AS champion,

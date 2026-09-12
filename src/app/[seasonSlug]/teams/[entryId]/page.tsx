@@ -1,3 +1,6 @@
+import { getPublicSeasonResults } from "@/lib/seasons/public-results";
+import { getPublicSeasonStagePresentation } from "@/lib/seasons/public-stage";
+import { getPublicTeamMapProfile } from "@/lib/teams/map-profile";
 import { notFound } from "next/navigation";
 
 import { TeamPublicProfile } from "@/components/teams/TeamPublicProfile";
@@ -25,9 +28,14 @@ export default async function CompetitionEntryDetailPage({ params }: { params: P
     ? await getPublicTeamProfile(event.entry.teamId, session?.userId)
     : null;
 
+  const [mapProfile, results, stagePresentation] = await Promise.all([
+    getPublicTeamMapProfile([event.entry.id], event.roster.map((member) => member.userId)),
+    getPublicSeasonResults(season),
+    getPublicSeasonStagePresentation(season),
+  ]);
   return (
     <PageLayout as="div" variant="standard" className="space-y-8">
-      <TeamPublicProfile team={team} event={event} />
+      <TeamPublicProfile team={team} event={event} mapProfile={mapProfile} results={results} stageLabels={stagePresentation.labels} />
     </PageLayout>
   );
 }

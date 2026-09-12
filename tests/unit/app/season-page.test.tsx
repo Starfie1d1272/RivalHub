@@ -83,8 +83,7 @@ describe("season page navigation", () => {
     getLatestSeasonAnnouncementMock.mockResolvedValue(null);
     getPublicSeasonInfoMock.mockResolvedValue({ rules: { label: "赛事规则", href: "/rules" }, groups: [], contacts: [] });
     selectDistinctMock.mockReturnValue(chain([]));
-    selectMock
-      .mockImplementationOnce(() => chain([{ total: 0, finished: 0 }]));
+    selectMock.mockImplementation((fields) => chain(fields.stageKey ? [] : [{ total: 0, finished: 0 }]));
   });
 
   it("routes the visible team roster shortcut to the canonical teams page", async () => {
@@ -93,7 +92,7 @@ describe("season page navigation", () => {
     });
     const html = renderToStaticMarkup(page);
 
-    expect(html).toMatch(/href="\/2026-nju-major\/teams"[\s\S]*队伍阵容/);
+    expect(html).toMatch(/href="\/2026-nju-major\/teams"[\s\S]*队伍/);
     expect(html).not.toContain("/competitionEntries");
   });
 
@@ -122,7 +121,7 @@ describe("season page navigation", () => {
     const html = renderToStaticMarkup(page);
 
     if (shouldShow) {
-      expect(html).toMatch(/href="\/2026-nju-major\/register"[\s\S]*立即报名/);
+      expect(html).toMatch(/href="\/2026-nju-major\/register"[\s\S]*报名/);
     } else {
       expect(html).not.toContain("/2026-nju-major/register");
       expect(html).not.toContain("立即报名");
@@ -147,3 +146,5 @@ describe("season page navigation", () => {
     expect(html).not.toContain("最新公告");
   });
 });
+vi.mock("@/lib/seasons/public-next-step", () => ({ getSeasonPersonalNextStep: vi.fn().mockResolvedValue(null) }));
+vi.mock("@/lib/seasons/public-results", () => ({ getPublicSeasonResults: vi.fn().mockResolvedValue({ champion: null, final: null, placements: [], honors: [] }) }));

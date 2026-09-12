@@ -360,8 +360,8 @@ async function insertFixture(client: PoolClient, scenario: ScenarioDefinition, a
 async function insertMajorSeason(client: PoolClient, scenario: ScenarioDefinition): Promise<void> {
   const capabilities = createCapabilities(scenario);
   await client.query(
-    `INSERT INTO seasons (id, slug, name, kind, status, registration_opens_at, registration_opened_at, registration_closes_at, registration_mode, has_captain_voting, has_draft, stage_plan, registration_config, team_registration_config, affiliation_rules, min_team_size, max_team_size, starter_count, positions)
-     VALUES ($1, $2, $3, 'Major', 'registration', now() - interval '1 hour', now() - interval '1 hour', now() + interval '7 days', $4, $5, $6, $7::json, $8::json, $9::json, $10::json, $11, $12, $13, $14::text[])`,
+    `INSERT INTO seasons (id, slug, name, kind, competition_template, status, registration_opens_at, registration_opened_at, registration_closes_at, registration_mode, has_captain_voting, has_draft, stage_plan, registration_config, team_registration_config, affiliation_rules, min_team_size, max_team_size, starter_count, positions)
+     VALUES ($1, $2, $3, 'Major', 'major', 'registration', now() - interval '1 hour', now() - interval '1 hour', now() + interval '7 days', $4, $5, $6, $7::json, $8::json, $9::json, $10::json, $11, $12, $13, $14::text[])`,
     [scenario.seasonId, scenario.slug, scenario.seasonName, capabilities.registrationMode, capabilities.hasCaptainVoting, capabilities.hasDraft, JSON.stringify(capabilities.stagePlan), JSON.stringify(capabilities.registrationConfig), JSON.stringify(capabilities.teamRegistrationConfig), JSON.stringify(capabilities.affiliationRules), capabilities.minTeamSize, capabilities.maxTeamSize, capabilities.starterCount, capabilities.positions],
   );
 }
