@@ -45,8 +45,8 @@ export async function createCompetitionEntry(input: { competitionId: string; tea
   } catch (error) { return actionError("createCompetitionEntry", error); }
 }
 
-export async function saveCompetitionEntryRoster(input: { entryId: string; userIds: string[]; primaryStarterUserIds: string[]; perfectTeamId?: string }): Promise<ActionResult<void>> {
-  const parsed = z.object({ entryId: uuid, userIds: z.array(uuid).min(1).max(9), primaryStarterUserIds: z.array(uuid).max(5), perfectTeamId: z.string().trim().max(128).optional() }).safeParse(input);
+export async function saveCompetitionEntryRoster(input: { entryId: string; userIds: string[]; primaryStarterUserIds: string[]; perfectTeamId?: string | null }): Promise<ActionResult<void>> {
+  const parsed = z.object({ entryId: uuid, userIds: z.array(uuid).min(1).max(9), primaryStarterUserIds: z.array(uuid).max(5), perfectTeamId: z.union([z.literal(""), z.string().max(128).regex(/^[0-9]+$/), z.null()]).optional() }).safeParse(input);
   if (!parsed.success || new Set(parsed.data.userIds).size !== parsed.data.userIds.length || new Set(parsed.data.primaryStarterUserIds).size !== parsed.data.primaryStarterUserIds.length || parsed.data.primaryStarterUserIds.some((id) => !parsed.data.userIds.includes(id))) return failValidation("赛事名单或预定主力无效。");
   try {
     const session = await requireAuth();

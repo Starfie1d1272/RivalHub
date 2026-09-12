@@ -43,4 +43,16 @@ describe("CompetitionEntry action input boundary", () => {
       error: { code: ErrorCode.VALIDATION_FAILED },
     });
   });
+
+  it.each(["team-1", "１２３", "123 456", " 123", "123 ", "123-456"])("rejects non-numeric Perfect Team ID %j before database access", async (perfectTeamId) => {
+    await expect(saveCompetitionEntryRoster({
+      entryId: "00000000-0000-4000-8000-000000000001",
+      userIds: ["00000000-0000-4000-8000-000000000002"],
+      primaryStarterUserIds: ["00000000-0000-4000-8000-000000000002"],
+      perfectTeamId,
+    })).resolves.toMatchObject({
+      success: false,
+      error: { code: ErrorCode.VALIDATION_FAILED },
+    });
+  });
 });

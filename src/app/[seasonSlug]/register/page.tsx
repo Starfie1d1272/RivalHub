@@ -209,7 +209,6 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
         status: entry.registrationStatus,
         revisionOrigin: revision?.origin ?? null,
         representativeUserId: entry.representativeUserId,
-        perfectTeamId: entry.perfectTeamId,
         reviewReason: revision?.origin === "self_roster_change" ? null : entry.reviewReason,
         qualificationFindings: qualification.findings,
         candidates,
@@ -253,7 +252,6 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
             maxRoster={season.maxTeamSize}
             starterCount={season.starterCount}
             requiresCompetitiveProfile={season.teamRegistrationConfig?.requireCompetitiveProfile ?? false}
-            showsPerfectTeamId={season.teamRegistrationConfig?.competitiveProfile?.platform === "perfect_world"}
             currentTeam={currentTeamRows[0] ?? null}
             captainedTeams={captainedTeams}
             invitationConflict={participantContext.invitationConflict}
