@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       apply_current_migrations:
-        description: Apply the selected ref's current migrations to rivalhub-dev before importing the sanitized snapshot
+        description: Apply the selected ref's current migrations to the imported production-derived data in rivalhub-dev
         required: false
         default: false
         type: boolean
