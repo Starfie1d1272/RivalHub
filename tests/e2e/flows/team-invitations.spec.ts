@@ -29,7 +29,7 @@ test("未入队用户可以从 /my 和 /teams 发现并处理 direct invitation"
     await expect(page.getByText("接受一次后失效；可由队长撤销。", { exact: true })).toBeVisible();
 
     await inviteePage.goto("/my");
-    await expect(inviteePage.getByText(/你有 \d+ 个待处理的队伍邀请/)).toBeVisible();
+    await expect(inviteePage.getByText(/你有 \d+ 个待处理的队伍邀请/).first()).toBeVisible();
     await expect(inviteePage.getByRole("link", { name: "处理队伍邀请", exact: true })).toHaveAttribute("href", "/my/teams");
 
     await inviteePage.goto("/teams");

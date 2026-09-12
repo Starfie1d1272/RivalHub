@@ -27,7 +27,7 @@ test("队长可以登录、建立长期队伍并发起本届 Major 报名", asyn
   await page.getByLabel("密码", { exact: true }).fill(scenario.password);
   await page.locator('button[type="submit"]').click();
   await page.waitForURL((url) => url.pathname === "/my/teams");
-  await expect(page.getByText("我的队伍", { exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "我的队伍", exact: true })).toBeVisible();
   await page.goto("/my/teams");
 
   // 每个 scenario 从无 Team 的确定初始状态开始，创建动作必须发生。
