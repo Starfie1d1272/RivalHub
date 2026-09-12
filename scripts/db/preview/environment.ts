@@ -20,14 +20,10 @@ export function targetEnvironment(env: NodeJS.ProcessEnv = process.env) {
   if (env.RIVALHUB_PREVIEW_RESET_CONFIRM !== STAGING_PROJECT_REF) throw new Error("Explicit dev mirror reset confirmation required.");
   const databaseUrl = buildStagingEnvironment(env, { requiresWriteAuthorization: true }).DATABASE_URL!;
   const secretKey = env.RIVALHUB_PREVIEW_DEV_SECRET_KEY;
-  const personaPassword = env.RIVALHUB_PREVIEW_PERSONA_PASSWORD;
-  if (!secretKey || !personaPassword || personaPassword.length < 24) {
-    throw new Error("Mirror dev Auth and persona credentials must be provisioned first.");
-  }
+  if (!secretKey) throw new Error("Mirror dev Auth credential must be provisioned first.");
   return {
     databaseUrl,
     secretKey,
-    personaPassword,
     applyCurrentMigrations: env.RIVALHUB_PREVIEW_APPLY_CURRENT_MIGRATIONS === "true",
     supabaseUrl: `https://${STAGING_PROJECT_REF}.supabase.co`,
   };

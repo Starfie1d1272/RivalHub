@@ -67,11 +67,12 @@ Fresh deployment 的 owner bootstrap 只通过 `RIVALHUB_OWNER_EMAIL`：当尚�
 - `X-RivalHub-Cron-Source` 只用于 primary/watchdog/manual/legacy execution 分支与健康投影，不替代 `Authorization: Bearer CRON_SECRET`；缺失 header 兼容 legacy，未知值拒绝。
 - `scheduled_job_health` 是 server-only 的有界当前投影，默认 RLS deny 且撤销 `anon`/`authenticated` grants；不提供浏览器 Data API 或 Realtime surface。
 - secret 不进入 `NEXT_PUBLIC_*`、Client props、Issue/PR、fixture 或日志。
+- Preview persona password 是公开的 disposable fixture credential，不属于 secret contract；具体账号和统一密码由 [`operations/preview-mirror.md`](./operations/preview-mirror.md) 维护。
 - recovery/signup/token、Cookie、Authorization 和教育证据遵守相同的默认敏感边界。
 - runtime 日志的脱敏与安全序列化见 [`operations/observability.md`](./operations/observability.md)。
 
 ## Preview personas
 
-Preview 固定使用 `rivalhub-dev` 的 Auth。refresh 会提供 deterministic `player`、`invited`、`captain`、`season-admin`、`super-admin` 便捷测试账号：队长优先绑定当前赛事 linked Team 的 captain，season-admin 获得当前赛季 grant，super-admin 独立选择。它们不是唯一允许登录的账号；正常 dev 注册、登录、重置和业务写入都可用。
+Preview 固定使用 `rivalhub-dev` 的 Auth。refresh 会提供 deterministic `player`、`invited`、`captain`、`season-admin`、`super-admin` 便捷测试账号：队长优先绑定当前赛事 linked Team 的 captain，season-admin 获得当前赛季 grant，super-admin 独立选择。它们使用公开、统一、可重置的 disposable fixture credential，不是安全边界；Vercel Deployment Protection 仍负责 Preview 访问控制。它们不是唯一允许登录的账号；正常 dev 注册、登录、重置和业务写入都可用。
 
 Vercel Preview 仅可配置 dev-scoped Supabase URL、anon/secret credential、独立 `ADMIN_SESSION_SECRET` 与必要的 dev/sandbox provider credential；`SUPABASE_SERVICE_ROLE_KEY` 仅作为尚未迁移环境的 fallback。privileged credential 可以存在，但其权限必须只限 `rivalhub-dev`；production credential 永远不得进入 Preview。

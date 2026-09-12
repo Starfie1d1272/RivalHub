@@ -1,9 +1,14 @@
 import { describe, expect, it, vi } from "vitest";
-import { deterministicUserId, syntheticUserId } from "../../../scripts/db/preview/personas";
+import { deterministicUserId, PREVIEW_PERSONA_PASSWORD, PREVIEW_PERSONAS, syntheticUserId } from "../../../scripts/db/preview/personas";
 import { selectPersonaCandidates } from "../../../scripts/db/preview/snapshot";
 
 describe("preview persona selection", () => {
   const users = [{ id: "00000000-0000-4000-8000-000000000001", status: "active" }, { id: "00000000-0000-4000-8000-000000000002", status: "active" }];
+
+  it("owns the public resettable fixture credential for all five personas", () => {
+    expect(PREVIEW_PERSONAS).toEqual(["player", "invited", "captain", "season-admin", "super-admin"]);
+    expect(PREVIEW_PERSONA_PASSWORD).toBe("rivalhub-preview-persona-resettable");
+  });
 
   it("prefers the current-event candidate and remains stable", () => {
     const candidates = { currentSeasonId: "season", playerUserId: users[1].id, invitedUserId: null, captainUserId: null, seasonAdminUserId: null, superAdminUserId: null };

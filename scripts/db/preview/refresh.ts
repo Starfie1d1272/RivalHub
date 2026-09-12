@@ -10,7 +10,7 @@ import { verifyForeignKeys } from "../recovery/verify";
 import { targetEnvironment } from "./environment";
 import { readSnapshot, type MirrorSnapshot } from "./snapshot";
 import { quoteIdentifier } from "./policy";
-import { deterministicUserId, PREVIEW_PERSONAS, syntheticUserId, type PersonaBinding } from "./personas";
+import { deterministicUserId, PREVIEW_PERSONAS, PREVIEW_PERSONA_PASSWORD, syntheticUserId, type PersonaBinding } from "./personas";
 
 const MIRROR_STATE_TABLE = "preview_mirror_state";
 
@@ -100,8 +100,8 @@ async function provisionPersonas(snapshot: MirrorSnapshot, target: ReturnType<ty
     const email = `preview-${persona}@preview.invalid`;
     const existing = listing.data.users.find((user) => user.email === email);
     const result = existing
-      ? await auth.auth.admin.updateUserById(existing.id, { password: target.personaPassword, email_confirm: true })
-      : await auth.auth.admin.createUser({ email, password: target.personaPassword, email_confirm: true });
+      ? await auth.auth.admin.updateUserById(existing.id, { password: PREVIEW_PERSONA_PASSWORD, email_confirm: true })
+      : await auth.auth.admin.createUser({ email, password: PREVIEW_PERSONA_PASSWORD, email_confirm: true });
     if (result.error || !result.data.user) throw new Error(`Dev persona provisioning failed: ${persona}`);
     const row = snapshot.tables.users.find((user) => String(user.id) === id);
     if (!row) throw new Error("Persona source row disappeared during refresh.");
