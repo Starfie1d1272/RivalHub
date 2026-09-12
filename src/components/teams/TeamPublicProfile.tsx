@@ -37,6 +37,8 @@ export function TeamPublicProfile({ team, event = null, mapProfile, results }: T
   const participation = event?.participation ?? null;
   const nextMatch = event?.matches.filter((match) => match.status === "scheduled" || match.status === "in_progress").sort((a, b) => (a.scheduledAt?.getTime() ?? Infinity) - (b.scheduledAt?.getTime() ?? Infinity))[0];
   const rosterStatus = event ? presentCompetitionEntryRosterStatus(event.rosterStatus) : null;
+  const currentEntries = team?.entries.filter((entry) => !["finished", "archived"].includes(entry.seasonStatus)) ?? [];
+  const historicalEntries = team?.entries.filter((entry) => ["finished", "archived"].includes(entry.seasonStatus)) ?? [];
 
   return (
     <div className="space-y-6">
@@ -145,7 +147,7 @@ export function TeamPublicProfile({ team, event = null, mapProfile, results }: T
       </Panel>}
 
       {!event && team && <>
-        <Panel label="当前赛事"><div className="space-y-2">{team.entries.filter((entry) => !["finished", "archived"].includes(entry.seasonStatus)).map((entry) => <Link key={entry.id} className="block text-sm" href={`/${entry.seasonSlug}/teams/${entry.id}`}>{entry.seasonName} · {entry.name} →</Link>)}{team.entries.every((entry) => ["finished", "archived"].includes(entry.seasonStatus)) && <p className="text-sm text-[var(--color-fg-mid)]">暂无进行中的赛事</p>}</div></Panel>
+        <Panel label="当前赛事"><div className="space-y-2">{currentEntries.map((entry) => <Link key={entry.id} className="block text-sm" href={`/${entry.seasonSlug}/teams/${entry.id}`}>{entry.seasonName} · {entry.name} →</Link>)}{currentEntries.length === 0 && <p className="text-sm text-[var(--color-fg-mid)]">暂无进行中的赛事</p>}</div></Panel>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <Stat label="当前成员" value={currentMembers.length} />
           <Stat label="赛事记录" value={team.entries.length} />
@@ -172,14 +174,14 @@ export function TeamPublicProfile({ team, event = null, mapProfile, results }: T
           {mapProfile && <TeamMapProfile profile={mapProfile} />}
           <Panel label="赛事履历" contentClassName="p-5">
             <div className="divide-y divide-[var(--color-border)]">
-              {team.entries.length > 0 ? team.entries.map((entry) => (
+              {historicalEntries.length > 0 ? historicalEntries.map((entry) => (
                 <Link key={entry.id} href={`/${entry.seasonSlug}/teams/${entry.id}`} className="flex flex-wrap items-center justify-between gap-3 py-3 hover:bg-[var(--color-panel-hi)]">
                   <span className="flex min-w-0 flex-col gap-1 text-sm"><span className="break-words font-medium">{entry.seasonName}</span><span className="break-words text-xs text-[var(--color-fg-mid)]">{entry.name}</span></span>
                   <span className="flex shrink-0 flex-col items-end gap-1">
-                    <StatusPill label={["finished", "archived"].includes(entry.seasonStatus) ? "完赛" : "参赛中"} tone={["finished", "archived"].includes(entry.seasonStatus) ? "neutral" : "accent"} />
+                    <StatusPill label="完赛" tone="neutral" />
                   </span>
                 </Link>
-              )) : <EmptyState title="尚无赛事记录。" />}
+              )) : <EmptyState title="尚无已结束赛事记录。" />}
             </div>
           </Panel>
         </div>

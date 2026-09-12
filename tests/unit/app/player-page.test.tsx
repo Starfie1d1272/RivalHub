@@ -123,5 +123,28 @@ describe("player page education wiring", () => {
     expect(html).toContain("当前偏稳健控图");
     expect(html).toContain("参加过 NJU Major");
   });
+
+  it("orders seasonal performance by the last completed match, not the season import time", async () => {
+    selectMock.mockImplementation((selection?: Record<string, unknown>) => {
+      if (selection && "seasonCompletedAt" in selection) {
+        return chain([
+          {
+            mapId: "map-imported-late", userId: "user-1", perfectName: "玩家甲", kills: 20, deaths: 10, assists: 5, hsPercent: 50, firstKills: 2, multiKills: 3, clutches: 1, adr: 80, rws: 10, ratingPro: 1.2, we: 8,
+            seasonId: "season-2024", seasonName: "2024 赛事", seasonSlug: "event-2024", seasonCompletedAt: new Date("2024-12-01T00:00:00Z"), rounds: 24,
+          },
+          {
+            mapId: "map-normal", userId: "user-1", perfectName: "玩家甲", kills: 18, deaths: 12, assists: 4, hsPercent: 45, firstKills: 1, multiKills: 2, clutches: 0, adr: 75, rws: 9, ratingPro: 1.1, we: 7,
+            seasonId: "season-2025", seasonName: "2025 赛事", seasonSlug: "event-2025", seasonCompletedAt: new Date("2025-12-01T00:00:00Z"), rounds: 24,
+          },
+        ]);
+      }
+      return chain([]);
+    });
+
+    const page = await PlayerPageContent({ params: Promise.resolve({ userId: "user-1" }) });
+    const html = renderToStaticMarkup(page);
+
+    expect(html.indexOf("2025 赛事")).toBeLessThan(html.indexOf("2024 赛事"));
+  });
 });
 vi.mock("@/lib/stats/public-query", () => ({ getPublicPlayerMapExperience: vi.fn().mockResolvedValue([]) }));

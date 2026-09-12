@@ -14,7 +14,7 @@ describe("postmatch PostgreSQL invariants", () => {
     const { addCommunityAwardEvidenceInTx, requestCommunityAwardSupplementInTx, resolveCommunityAwardInTx, reviewCommunityAwardInTx, reviseCommunityAwardInTx, submitCommunityAwardInTx, withdrawCommunityAwardInTx } = await import("../../../src/lib/community-awards/service");
     const { isPublicCommunityAward } = await import("../../../src/lib/community-awards/read-model");
     const pool = new Pool({ connectionString: databaseUrl, ssl: false }); const db = drizzle(pool, { schema });
-    const seasonId = randomUUID(), adminA = randomUUID(), adminB = randomUUID(), adminC = randomUUID(), outsider = randomUUID(), representative = randomUUID(), entryA = randomUUID(), entryB = randomUUID(), revisionA = randomUUID(), revisionB = randomUUID(), matchId = randomUUID(), cancelledMatchId = randomUUID();
+    const seasonId = randomUUID(), adminA = randomUUID(), adminB = randomUUID(), adminC = randomUUID(), outsider = randomUUID(), representative = randomUUID(), entryA = randomUUID(), entryB = randomUUID(), revisionA = randomUUID(), revisionB = randomUUID(), matchId = randomUUID(), cancelledMatchId = randomUUID(), eventRosterId = randomUUID(), statsMapId = randomUUID();
     try {
       const rls = await pool.query<{ table_name: string; rls: boolean; anon_can_select: boolean; authenticated_can_select: boolean }>(
         `SELECT c.relname AS table_name, c.relrowsecurity AS rls,
@@ -54,7 +54,16 @@ describe("postmatch PostgreSQL invariants", () => {
       const frozen = await pool.query("DELETE FROM match_commentators WHERE match_id=$1 AND user_id=$2", [matchId, adminA]).then(() => undefined, (error: { code?: string }) => error); expect(frozen?.code).toBe("23514");
       await db.transaction((tx) => setMatchVideoUrlInTx(tx, { matchId, videoUrl: "https://video.example/match", actorId: adminA })); expect(getPostMatchCompletion(new Date(), "https://video.example/match")).toBe("completed");
       await db.transaction((tx) => revokePostMatchSubmissionInTx(tx, { matchId, actorId: adminA }));
+      await pool.query("INSERT INTO match_maps (id,match_id,map_order,map_name,score_a,score_b) VALUES ($1,$2,1,'de_inferno',13,10)", [statsMapId, matchId]);
+      await pool.query("INSERT INTO match_player_stats (match_id,map_id,perfect_name,user_id,kills,deaths,adr,rating_pro,verified_by_admin,verified_at) VALUES ($1,$2,'解说甲',$3,20,10,80,1.2,$3,now())", [matchId, statsMapId, adminA]);
+      const { getVerifiedPlayerStatsBySeason } = await import("../../../src/lib/stats/public-query");
+      expect((await getVerifiedPlayerStatsBySeason(seasonId, [adminA])).get(adminA)?.maps).toBe(1);
+      await pool.query("UPDATE matches SET status='scheduled' WHERE id=$1", [matchId]);
+      expect((await getVerifiedPlayerStatsBySeason(seasonId, [adminA])).has(adminA)).toBe(false);
+      await pool.query("UPDATE matches SET status='finished' WHERE id=$1", [matchId]);
       const columns = await pool.query("SELECT column_name FROM information_schema.columns WHERE table_name='match_commentators' AND column_name IN ('confirmed_fee_cents','settled_at')"); expect(columns.rows).toHaveLength(0);
+      await pool.query("INSERT INTO event_rosters (id,entry_id) VALUES ($1,$2)", [eventRosterId, entryA]);
+      await pool.query("INSERT INTO event_roster_members (event_roster_id,user_id) VALUES ($1,$2)", [eventRosterId, adminA]);
       const award = await db.transaction((tx) => submitCommunityAwardInTx(tx, { seasonId, submitterId: outsider, name: "最佳解说", condition: "以实际解说记录为准", prize: "纪念奖品" }));
       await db.transaction((tx) => reviewCommunityAwardInTx(tx, { awardId: award.awardId, status: "approved", reviewNote: null, actorId: adminA }));
       await expect(db.transaction((tx) => addCommunityAwardEvidenceInTx(tx, { awardId: award.awardId, submitterId: outsider, candidateUserId: outsider, matchId, explanation: "不在赛事范围" }))).rejects.toMatchObject({ code: "VALIDATION_FAILED" });
@@ -63,6 +72,9 @@ describe("postmatch PostgreSQL invariants", () => {
       const { getPublicCommunityAwardBoardData } = await import("../../../src/lib/community-awards/data");
       const { awards: publicAwards } = await getPublicCommunityAwardBoardData(db, { seasonId, currentUserId: null, stagePlan: [] });
       expect(publicAwards.find((item) => item.id === award.awardId)).toMatchObject({ recipientUserId: adminA, recipientName: "解说甲", recipientTarget: null });
+      await pool.query("UPDATE event_rosters SET status='confirmed',confirmed_at=now(),confirmed_by='local-test' WHERE id=$1", [eventRosterId]);
+      const { awards: confirmedRosterAwards } = await getPublicCommunityAwardBoardData(db, { seasonId, currentUserId: null, stagePlan: [] });
+      expect(confirmedRosterAwards.find((item) => item.id === award.awardId)).toMatchObject({ recipientTarget: `/players/${adminA}` });
       await db.transaction((tx) => resolveCommunityAwardInTx(tx, { awardId: award.awardId, status: "not_awarded", recipientUserId: null, outcomeNote: "更正结果", actorId: adminB }));
 
       const supplementWithdraw = await db.transaction((tx) => submitCommunityAwardInTx(tx, { seasonId, submitterId: outsider, name: "待补充撤回奖", condition: "原条件", prize: "原奖品" }));
@@ -94,6 +106,10 @@ describe("postmatch PostgreSQL invariants", () => {
         await cleanupClient.query("DELETE FROM community_awards WHERE season_id = $1", [seasonId]);
         await cleanupClient.query("DELETE FROM post_match_reports WHERE match_id IN ($1, $2)", [matchId, cancelledMatchId]);
         await cleanupClient.query("DELETE FROM match_commentators WHERE match_id IN ($1, $2)", [matchId, cancelledMatchId]);
+        await cleanupClient.query("DELETE FROM match_player_stats WHERE map_id=$1", [statsMapId]);
+        await cleanupClient.query("DELETE FROM match_maps WHERE id=$1", [statsMapId]);
+        await cleanupClient.query("DELETE FROM event_roster_members WHERE event_roster_id=$1", [eventRosterId]);
+        await cleanupClient.query("DELETE FROM event_rosters WHERE id=$1", [eventRosterId]);
         await cleanupClient.query("DELETE FROM matches WHERE id IN ($1, $2)", [matchId, cancelledMatchId]);
         await cleanupClient.query("DELETE FROM competition_entry_roster_revisions WHERE entry_id IN ($1, $2)", [entryA, entryB]);
         await cleanupClient.query("DELETE FROM competition_entry_representative_changes WHERE entry_id IN ($1, $2)", [entryA, entryB]);

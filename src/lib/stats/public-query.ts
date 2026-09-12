@@ -40,6 +40,7 @@ export async function getVerifiedPlayerStatsBySeason(
     JOIN matches m ON m.id = mps.match_id
     JOIN match_maps mm ON mm.id = mps.map_id
     WHERE m.season_id = ${seasonId}
+      AND m.status = 'finished'
       AND mps.verified_by_admin IS NOT NULL
       AND mps.user_id IS NOT NULL
       ${userFilter}

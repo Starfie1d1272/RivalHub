@@ -63,7 +63,7 @@ type PlayerStatRow = Pick<
   seasonId: string;
   seasonName: string;
   seasonSlug: string;
-  seasonCreatedAt: Date;
+  seasonCompletedAt: Date | null;
   rounds: number | null;
 };
 
@@ -71,7 +71,7 @@ type PlayerSeasonStats = AggregatedPlayerStats & {
   seasonId: string;
   seasonName: string;
   seasonSlug: string;
-  seasonCreatedAt: Date;
+  seasonCompletedAt: Date | null;
   avgKills: number | null;
   avgDeaths: number | null;
   avgAssists: number | null;
@@ -103,7 +103,7 @@ function aggregateSeasonRows(rows: PlayerStatRow[]): PlayerSeasonStats {
     seasonId: rows[0].seasonId,
     seasonName: rows[0].seasonName,
     seasonSlug: rows[0].seasonSlug,
-    seasonCreatedAt: rows[0].seasonCreatedAt,
+    seasonCompletedAt: rows.reduce<Date | null>((latest, row) => !latest || (row.seasonCompletedAt && row.seasonCompletedAt > latest) ? row.seasonCompletedAt : latest, null),
     avgKills: avgNums(rows.map((row) => row.kills)),
     avgDeaths: avgNums(rows.map((row) => row.deaths)),
     avgAssists: avgNums(rows.map((row) => row.assists)),
@@ -192,7 +192,7 @@ export async function PlayerPageContent({ params }: PlayerPageProps) {
         seasonId: seasons.id,
         seasonName: seasons.name,
         seasonSlug: seasons.slug,
-        seasonCreatedAt: seasons.createdAt,
+        seasonCompletedAt: matches.completedAt,
         rounds: sql<number | null>`${matchMaps.scoreA} + ${matchMaps.scoreB}`,
       })
       .from(matchPlayerStats)
@@ -207,7 +207,7 @@ export async function PlayerPageContent({ params }: PlayerPageProps) {
           sql`${matchPlayerStats.verifiedByAdmin} IS NOT NULL`,
         )
       )
-      .orderBy(asc(seasons.createdAt)),
+      .orderBy(asc(matches.completedAt), asc(seasons.name)),
     db.select().from(competitiveRankFacts).where(eq(competitiveRankFacts.userId, userId)),
     db.select().from(userCompetitiveRoles).where(eq(userCompetitiveRoles.userId, userId)),
     db.select().from(userMapPreferences).where(eq(userMapPreferences.userId, userId)),
@@ -236,7 +236,7 @@ export async function PlayerPageContent({ params }: PlayerPageProps) {
   }
   const playerStats = [...rowsBySeason.values()]
     .map(aggregateSeasonRows)
-    .sort((a, b) => a.seasonCreatedAt.getTime() - b.seasonCreatedAt.getTime());
+    .sort((a, b) => (a.seasonCompletedAt?.getTime() ?? -Infinity) - (b.seasonCompletedAt?.getTime() ?? -Infinity) || a.seasonName.localeCompare(b.seasonName));
   const careerStats = rawPlayerStats.length > 0
     ? aggregatePlayerRows(rawPlayerStats.map(toStatInput))
     : null;

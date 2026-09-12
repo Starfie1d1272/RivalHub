@@ -304,9 +304,9 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
             <Panel
               label={
                 <div className="flex items-center justify-between w-full">
-                  <span>下一场比赛</span>
+                  <span>NEXT MATCHES</span>
                   <Button size="sm" variant="ghost" asChild>
-                    <Link href={`/${seasonSlug}/matches`}>查看全部 →</Link>
+                    <Link href={`/${seasonSlug}/matches`}>VIEW ALL →</Link>
                   </Button>
                 </div>
               }
@@ -323,11 +323,11 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
                     >
                       <div className="flex items-center gap-2 flex-1 min-w-0">
                         <span className="text-sm font-semibold text-[var(--color-fg)] truncate flex-1 text-right">
-                          {match.teamAName ?? "待定"}
+                          {match.teamAName ?? "TBD"}
                         </span>
                         <span className="font-mono text-xs text-[var(--color-fg-dim)] shrink-0">vs</span>
                         <span className="text-sm font-semibold text-[var(--color-fg)] truncate flex-1">
-                          {match.teamBName ?? "待定"}
+                          {match.teamBName ?? "TBD"}
                         </span>
                       </div>
                       <div className="shrink-0 flex flex-col items-end gap-0.5">
@@ -341,7 +341,7 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
                             {formatCSTDateTime(match.scheduledAt)}
                           </span>
                         ) : (
-                          <span className="font-mono text-[10px] text-[var(--color-fg-dim)]">待定</span>
+                          <span className="font-mono text-[10px] text-[var(--color-fg-dim)]">TBD</span>
                         )}
                       </div>
                     </div>

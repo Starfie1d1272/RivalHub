@@ -1,12 +1,13 @@
 import { and, asc, eq, inArray, isNotNull, or } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import type { TxDb } from "@/db/client";
-import { communityAwardEvidence, communityAwards, competitionEntries, eventRosterMembers, eventRosters, matches, seasonRegistrations, users } from "@/db/schema";
+import { communityAwardEvidence, communityAwards, competitionEntries, eventRosterMembers, eventRosters, matches, users } from "@/db/schema";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
 import { presentMatchLabel } from "@/lib/matches/presentation";
 import { formatCST } from "@/lib/utils/date";
 import { getSeasonAwardCandidates, isPublicCommunityAward, PUBLIC_COMMUNITY_AWARD_STATUSES } from "@/lib/community-awards/read-model";
 import { normalizeStagePlan } from "@/lib/seasons/compatibility";
+import { publicEventRosterPlayerCondition } from "@/lib/competition-entries/public-visibility";
 
 type CommunityAwardQueryable = Pick<TxDb, "select" | "selectDistinct">;
 type StagePlan = ReturnType<typeof normalizeStagePlan>;
@@ -62,21 +63,14 @@ export async function getPublicCommunityAwardBoardData(executor: CommunityAwardQ
     getMatchOptions(executor, args.seasonId, args.stagePlan),
   ]);
   const recipientUserIds = [...new Set(rows.map((r) => r.recipientUserId).filter((id): id is string => Boolean(id)))];
-  const [playerRosterRows, regRows] = await Promise.all([
-    recipientUserIds.length > 0 ? executor
-      .select({ userId: eventRosterMembers.userId })
-      .from(eventRosterMembers)
-      .innerJoin(eventRosters, eq(eventRosterMembers.eventRosterId, eventRosters.id))
-      .innerJoin(competitionEntries, eq(eventRosters.entryId, competitionEntries.id))
-      .where(and(eq(competitionEntries.competitionId, args.seasonId), inArray(eventRosterMembers.userId, recipientUserIds)))
-      : [],
-    recipientUserIds.length > 0 ? executor
-      .select({ userId: seasonRegistrations.userId })
-      .from(seasonRegistrations)
-      .where(and(eq(seasonRegistrations.seasonId, args.seasonId), eq(seasonRegistrations.status, "approved"), inArray(seasonRegistrations.userId, recipientUserIds)))
-      : [],
-  ]);
-  const playerUserIdSet = new Set([...playerRosterRows.map((r) => r.userId), ...regRows.map((r) => r.userId)]);
+  const playerRosterRows = recipientUserIds.length > 0 ? await executor
+    .select({ userId: eventRosterMembers.userId })
+    .from(eventRosterMembers)
+    .innerJoin(eventRosters, eq(eventRosterMembers.eventRosterId, eventRosters.id))
+    .innerJoin(competitionEntries, eq(eventRosters.entryId, competitionEntries.id))
+    .where(and(publicEventRosterPlayerCondition(args.seasonId), inArray(eventRosterMembers.userId, recipientUserIds)))
+    : [];
+  const playerUserIdSet = new Set(playerRosterRows.map((r) => r.userId));
 
   return {
     awards: rows.filter((row) => row.submittedByUserId === args.currentUserId || isPublicCommunityAward(row.status, row.reviewedAt)).map((row) => ({

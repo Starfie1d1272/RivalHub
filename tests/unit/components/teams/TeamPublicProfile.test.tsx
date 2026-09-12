@@ -63,6 +63,20 @@ describe("TeamPublicProfile", () => {
     expect(screen.getByText("队长变更")).toBeInTheDocument();
   });
 
+  it("keeps an active event out of the completed career list", () => {
+    render(<TeamPublicProfile team={{
+      ...longLivedTeam,
+      entries: [
+        { id: "entry-current", name: "Current Entry", seasonName: "2026 冬季赛", seasonSlug: "winter-2026", seasonStatus: "playing", completedAt: null },
+        ...longLivedTeam.entries,
+      ],
+    }} />);
+
+    expect(screen.getAllByRole("link", { name: /2026 冬季赛/ })).toHaveLength(1);
+    expect(screen.getByRole("link", { name: /Current Entry/ })).toHaveAttribute("href", "/winter-2026/teams/entry-current");
+    expect(screen.getByText("Rival Entry")).toBeInTheDocument();
+  });
+
   it("composes a linked event snapshot with long-lived Team facts without mixing them", () => {
     render(<TeamPublicProfile team={longLivedTeam} event={linkedEvent} />);
 

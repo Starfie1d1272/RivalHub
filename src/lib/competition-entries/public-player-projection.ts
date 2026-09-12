@@ -1,10 +1,10 @@
 import "server-only";
 
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 
 import { db } from "@/db/client";
 import { competitionEntries, eventRosterMembers, eventRosters, users } from "@/db/schema";
-import { publicCompetitionEntryCondition } from "@/lib/competition-entries/public-visibility";
+import { publicEventRosterPlayerCondition } from "@/lib/competition-entries/public-visibility";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
 import { getVerifiedPlayerStatsBySeason, type VerifiedPlayerSeasonStats } from "@/lib/stats/public-query";
 
@@ -37,11 +37,7 @@ export async function getPublicEventRosterPlayerProjection(seasonId: string): Pr
     .innerJoin(eventRosters, eq(eventRosters.id, eventRosterMembers.eventRosterId))
     .innerJoin(competitionEntries, eq(competitionEntries.id, eventRosters.entryId))
     .innerJoin(users, eq(users.id, eventRosterMembers.userId))
-    .where(and(
-      eq(competitionEntries.competitionId, seasonId),
-      publicCompetitionEntryCondition(),
-      inArray(eventRosters.status, ["confirmed", "frozen"]),
-    ))
+    .where(publicEventRosterPlayerCondition(seasonId))
     .orderBy(asc(competitionEntries.name), asc(users.id));
   const statsByUserId = await getVerifiedPlayerStatsBySeason(seasonId, rows.map((row) => row.userId));
 

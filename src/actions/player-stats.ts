@@ -129,6 +129,9 @@ export async function savePlayerStats(
       where: eq(matches.id, map.matchId),
     });
     if (!match) throw new AppError(ErrorCode.NOT_FOUND, "比赛记录不存在");
+    if (match.status !== "finished") {
+      throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "只有已结束比赛可以确认选手数据。");
+    }
     const session = await requireSeasonAdmin(match.seasonId);
     const actor = auditActorId(session);
 
