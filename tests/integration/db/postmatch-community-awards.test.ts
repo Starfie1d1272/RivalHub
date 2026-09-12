@@ -55,7 +55,7 @@ describe("postmatch PostgreSQL invariants", () => {
       await db.transaction((tx) => setMatchVideoUrlInTx(tx, { matchId, videoUrl: "https://video.example/match", actorId: adminA })); expect(getPostMatchCompletion(new Date(), "https://video.example/match")).toBe("completed");
       await db.transaction((tx) => revokePostMatchSubmissionInTx(tx, { matchId, actorId: adminA }));
       await pool.query("INSERT INTO match_maps (id,match_id,map_order,map_name,score_a,score_b) VALUES ($1,$2,1,'de_inferno',13,10)", [statsMapId, matchId]);
-      await pool.query("INSERT INTO match_player_stats (match_id,map_id,perfect_name,user_id,kills,deaths,adr,rating_pro,verified_by_admin,verified_at) VALUES ($1,$2,'解说甲',$3,20,10,80,1.2,$3,now())", [matchId, statsMapId, adminA]);
+      await pool.query("INSERT INTO match_player_stats (match_id,map_id,perfect_name,user_id,kills,deaths,adr,rating_pro,verified_by_admin,verified_at) VALUES ($1,$2,'解说甲',$3,20,10,80,1.2,$3::text,now())", [matchId, statsMapId, adminA]);
       const { getVerifiedPlayerStatsBySeason } = await import("../../../src/lib/stats/public-query");
       expect((await getVerifiedPlayerStatsBySeason(seasonId, [adminA])).get(adminA)?.maps).toBe(1);
       await pool.query("UPDATE matches SET status='scheduled' WHERE id=$1", [matchId]);
