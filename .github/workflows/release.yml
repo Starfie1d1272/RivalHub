@@ -236,6 +236,7 @@ jobs:
             and .readyState == "READY"
           ' <<<"$PREVIOUS_DEPLOYMENT_INFO" >/dev/null
           PREVIOUS_DEPLOYMENT_ID="$(jq -er '.id | strings | select(startswith("dpl_"))' <<<"$PREVIOUS_DEPLOYMENT_INFO")"
+          echo "previous_deployment_id=$PREVIOUS_DEPLOYMENT_ID" >> "$GITHUB_OUTPUT"
           echo "Previous canonical deployment resolved for rollback."
 
           wait_for_alias_job() {
@@ -311,6 +312,7 @@ jobs:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           PREVIOUS_TAG: ${{ steps.promote.outputs.previous_tag }}
           PREVIOUS_COMMIT: ${{ steps.promote.outputs.previous_commit }}
+          PREVIOUS_DEPLOYMENT_ID: ${{ steps.promote.outputs.previous_deployment_id }}
         run: |
           set -euo pipefail
           CANONICAL_START="$(date +%s%3N)"
