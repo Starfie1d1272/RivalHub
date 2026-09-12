@@ -72,4 +72,6 @@ Fresh deployment 的 owner bootstrap 只通过 `RIVALHUB_OWNER_EMAIL`：当尚�
 
 ## Preview personas
 
-Preview 只允许登录 refresh workflow 生成的 deterministic dev personas（`player`、`invited`、`captain`、`season-admin`、`super-admin`）。它使用 `rivalhub-dev` 的 public Auth credential；service/secret key 永远不进入 Vercel Preview。注册、重置、邮件和其它 mutation 在 Preview fail closed，数据库的 `rivalhub_preview_ro` role 继续拒绝 DML/DDL/function mutation。
+Preview 固定使用 `rivalhub-dev` 的 Auth。refresh 会提供 deterministic `player`、`invited`、`captain`、`season-admin`、`super-admin` 便捷测试账号：队长优先绑定当前赛事 linked Team 的 captain，season-admin 获得当前赛季 grant，super-admin 独立选择。它们不是唯一允许登录的账号；正常 dev 注册、登录、重置和业务写入都可用。
+
+Vercel Preview 仅可配置 dev-scoped Supabase URL、anon/service credential、独立 `ADMIN_SESSION_SECRET` 与必要的 dev/sandbox provider credential。privileged credential 可以存在，但其权限必须只限 `rivalhub-dev`；production credential 永远不得进入 Preview。

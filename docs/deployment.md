@@ -7,7 +7,7 @@
 | 环境 | 用途 | 写入边界 |
 | --- | --- | --- |
 | local | 开发、migration replay、integration、E2E | 只允许 loopback Local Supabase/PostgreSQL |
-| preview | PR / branch 应用预览 | 不获得 staging/production 数据库写权限 |
+| preview | PR / branch 应用预览 | 只写入可重置的 `rivalhub-dev`，永不获得 production credential |
 | staging | 远程 migration/schema rehearsal | 仅受保护 workflow |
 | production | 正式赛事与真实用户 | 仅正式 release path |
 
@@ -70,4 +70,4 @@ provider project ID、host、secret 和 workflow 具体实现由受保护配置/
 
 ## Preview 数据边界
 
-Vercel Preview 使用生产派生的脱敏 `rivalhub-dev` mirror，只读 role，不直接访问 production，也不使用 #569 的正式 R2 DR artifact。刷新由受保护的 [`Refresh Preview Data`](./operations/preview-mirror.md) workflow 执行；详见 [Preview 脱敏镜像运行手册](./operations/preview-mirror.md)。
+Vercel Preview 固定使用可牺牲、可重置的 `rivalhub-dev`。它拥有正常的 dev 写入体验，却永不连接或持有 production DB/Auth/Storage/provider credential。该环境由 production 派生的脱敏快照定期恢复基线，不使用 #569 的正式 R2 DR artifact；详见 [Preview 脱敏镜像运行手册](./operations/preview-mirror.md)。

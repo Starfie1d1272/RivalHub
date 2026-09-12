@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -14,6 +13,13 @@ import { quoteIdentifier } from "./policy";
 import { deterministicUserId, PREVIEW_PERSONAS, syntheticUserId, type PersonaBinding } from "./personas";
 
 const MIRROR_STATE_TABLE = "preview_mirror_state";
+
+async function resetDevSchema(client: PoolClient): Promise<void> {
+  await client.query("DROP SCHEMA IF EXISTS public CASCADE");
+  await client.query("CREATE SCHEMA public");
+  await client.query("GRANT ALL ON SCHEMA public TO postgres");
+  await client.query("DROP SCHEMA IF EXISTS drizzle CASCADE");
+}
 
 async function migrateToSource(client: PoolClient, snapshot: MirrorSnapshot): Promise<void> {
   const exists = await client.query("SELECT to_regclass('drizzle.__drizzle_migrations') AS ledger");
@@ -31,41 +37,15 @@ async function migrateToSource(client: PoolClient, snapshot: MirrorSnapshot): Pr
   } finally { rmSync(folder, { recursive: true, force: true }); }
 }
 
-export async function provisionReadOnlyRole(client: PoolClient, password: string): Promise<void> {
-  if (!/^[A-Za-z0-9_-]{32,}$/.test(password)) throw new Error("Read-only credential must use the protected random token format.");
-  await client.query(`DO $$ BEGIN CREATE ROLE rivalhub_preview_ro LOGIN; EXCEPTION WHEN duplicate_object THEN NULL; END $$`);
-  await client.query(`ALTER ROLE rivalhub_preview_ro WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS PASSWORD '${password}'`);
-  await client.query(`REVOKE CREATE, TEMPORARY ON DATABASE postgres FROM PUBLIC;
-    REVOKE ALL ON SCHEMA public FROM rivalhub_preview_ro;
-    GRANT USAGE ON SCHEMA public TO rivalhub_preview_ro;
-    GRANT CONNECT ON DATABASE postgres TO rivalhub_preview_ro;
-    REVOKE ALL ON ALL TABLES IN SCHEMA public FROM rivalhub_preview_ro;
-    REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM rivalhub_preview_ro;
-    REVOKE EXECUTE ON ALL FUNCTIONS IN SCHEMA public FROM PUBLIC, rivalhub_preview_ro;
-    GRANT SELECT ON ALL TABLES IN SCHEMA public TO rivalhub_preview_ro;
-    ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public GRANT SELECT ON TABLES TO rivalhub_preview_ro;
-    ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC`);
-  const tables = await client.query<{ tablename: string }>("SELECT tablename FROM pg_tables WHERE schemaname='public' AND tablename <> $1", [MIRROR_STATE_TABLE]);
-  for (const { tablename } of tables.rows) {
-    const table = `public.${quoteIdentifier(tablename)}`;
-    await client.query(`ALTER TABLE ${table} ENABLE ROW LEVEL SECURITY`);
-    await client.query(`DROP POLICY IF EXISTS rivalhub_preview_read ON ${table}`);
-    await client.query(`CREATE POLICY rivalhub_preview_read ON ${table} FOR SELECT TO rivalhub_preview_ro USING (true)`);
-  }
-  const stateTable = `public.${MIRROR_STATE_TABLE}`;
-  await client.query(`ALTER TABLE ${stateTable} ENABLE ROW LEVEL SECURITY`);
-  await client.query(`GRANT SELECT ON ${stateTable} TO rivalhub_preview_ro`);
-  await client.query(`DROP POLICY IF EXISTS rivalhub_preview_read ON ${stateTable}`);
-  await client.query(`CREATE POLICY rivalhub_preview_read ON ${stateTable} FOR SELECT TO rivalhub_preview_ro USING (true)`);
+async function migrateCurrent(client: PoolClient): Promise<void> {
+  await migrate(drizzle(client), { migrationsFolder: "drizzle/migrations" });
 }
 
 async function ensureMirrorState(client: PoolClient): Promise<void> {
   await client.query(`CREATE TABLE IF NOT EXISTS public.${MIRROR_STATE_TABLE} (
-    id boolean PRIMARY KEY DEFAULT true CHECK (id), ready boolean NOT NULL DEFAULT false,
-    source_tag text NOT NULL DEFAULT '', source_commit char(40) NOT NULL DEFAULT repeat('0', 40),
-    source_migration_hash text NOT NULL DEFAULT '', source_migration_when bigint NOT NULL DEFAULT 0,
-    refreshed_at timestamptz NOT NULL DEFAULT now(), snapshot_sha256 char(64) NOT NULL DEFAULT repeat('0', 64),
-    persona_count integer NOT NULL DEFAULT 0, asset_count integer NOT NULL DEFAULT 0, reason text
+    id boolean PRIMARY KEY DEFAULT true CHECK (id), source_tag text NOT NULL,
+    source_commit char(40) NOT NULL, refreshed_at timestamptz NOT NULL,
+    persona_count integer NOT NULL, asset_count integer NOT NULL
   )`);
 }
 
@@ -100,22 +80,13 @@ async function provisionPersonas(snapshot: MirrorSnapshot, target: ReturnType<ty
 export async function refreshMirror(path: string): Promise<void> {
   const target = targetEnvironment();
   const snapshot = readSnapshot(path);
-  const snapshotSha256 = createHash("sha256").update(readFileSync(path)).digest("hex");
   const pool = new Pool({ connectionString: target.databaseUrl, ssl: { rejectUnauthorized: false }, max: 1 });
   const client = await pool.connect();
   try {
+    await resetDevSchema(client);
     await migrateToSource(client, snapshot);
+    if (target.applyCurrentMigrations) await migrateCurrent(client);
     await ensureMirrorState(client);
-    await client.query("SELECT pg_advisory_lock(hashtext('rivalhub-preview-mirror-refresh'))");
-    const prior = await client.query(`SELECT ready, snapshot_sha256 FROM public.${MIRROR_STATE_TABLE} WHERE id = true FOR UPDATE`);
-    if (prior.rows[0]?.ready === true && prior.rows[0].snapshot_sha256 === snapshotSha256) {
-      await provisionReadOnlyRole(client, target.readOnlyPassword);
-      await client.query("COMMIT");
-      console.log(`Mirror already ready: source=${snapshot.sourceTag} commit=${snapshot.sourceCommit}`);
-      return;
-    }
-    await client.query(`INSERT INTO public.${MIRROR_STATE_TABLE} (id, ready, reason) VALUES (true, false, 'refreshing') ON CONFLICT (id) DO UPDATE SET ready=false, reason='refreshing', refreshed_at=now()`);
-    await client.query("COMMIT");
 
     await client.query("BEGIN");
     await client.query("SET LOCAL session_replication_role = 'replica'");
@@ -148,16 +119,17 @@ export async function refreshMirror(path: string): Promise<void> {
         VALUES ($1, 'auth', 'supabase_auth', $2, $3, now(), 'admin_migration', true), ($1, 'email', 'email', $3, $3, now(), 'admin_migration', true) ON CONFLICT DO NOTHING`, [binding.userId, binding.authId, binding.email]);
       if (binding.persona === "season-admin" && snapshot.personaCandidates.currentSeasonId) await client.query("INSERT INTO public.season_admin_grants (user_id, season_id) VALUES ($1, $2) ON CONFLICT DO NOTHING", [binding.userId, snapshot.personaCandidates.currentSeasonId]);
     }
-    await provisionReadOnlyRole(client, target.readOnlyPassword);
     await uploadAssets(snapshot, target);
-    const migration = snapshot.migrations[snapshot.migrations.length - 1];
-    await client.query(`UPDATE public.${MIRROR_STATE_TABLE} SET ready=true, source_tag=$1, source_commit=$2, source_migration_hash=$3, source_migration_when=$4, refreshed_at=now(), snapshot_sha256=$5, persona_count=$6, asset_count=$7, reason=NULL WHERE id=true`, [snapshot.sourceTag, snapshot.sourceCommit, migration.hash, migration.when, snapshotSha256, bindings.length, snapshot.assets.length]);
+    await client.query(`INSERT INTO public.${MIRROR_STATE_TABLE} (id, source_tag, source_commit, refreshed_at, persona_count, asset_count)
+      VALUES (true, $1, $2, now(), $3, $4)
+      ON CONFLICT (id) DO UPDATE SET source_tag=EXCLUDED.source_tag, source_commit=EXCLUDED.source_commit,
+      refreshed_at=EXCLUDED.refreshed_at, persona_count=EXCLUDED.persona_count, asset_count=EXCLUDED.asset_count`, [snapshot.sourceTag, snapshot.sourceCommit, bindings.length, snapshot.assets.length]);
     await client.query("COMMIT");
     console.log(`Mirror refreshed: source=${snapshot.sourceTag} commit=${snapshot.sourceCommit} personas=${bindings.length} assets=${snapshot.assets.length}`);
   } catch (error) {
     await client.query("ROLLBACK").catch(() => {});
     throw error;
-  } finally { await client.query("SELECT pg_advisory_unlock(hashtext('rivalhub-preview-mirror-refresh'))").catch(() => {}); client.release(); await pool.end(); }
+  } finally { client.release(); await pool.end(); }
 }
 
 async function uploadAssets(snapshot: MirrorSnapshot, target: ReturnType<typeof targetEnvironment>): Promise<void> {

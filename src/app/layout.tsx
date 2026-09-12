@@ -60,7 +60,7 @@ export default async function RootLayout({
       <body className={`${geist.variable} ${jetbrainsMono.variable} ${notoSansSC.variable} antialiased min-h-screen flex flex-col`}>
         <OperationsProvider>
           {isPreview() && <aside className="border-b border-border bg-muted px-4 py-2 text-center text-xs text-muted-foreground">
-            <span className="font-mono">PR PREVIEW</span> · 脱敏镜像，只读浏览 · {mirror?.ready ? `镜像 ${mirror.sourceTag} · ${mirror.refreshedAt.toLocaleString("zh-CN")}` : "镜像尚未就绪"} · 角色测试请使用 dev 专属账号
+            <span className="font-mono">PR PREVIEW / DEV MIRROR</span> · source {mirror?.sourceTag ?? "unknown"} · refreshed {mirror?.refreshedAt.toLocaleString("zh-CN") ?? "unknown"}
           </aside>}
           <Header />
           <main className="flex-1">{children}</main>

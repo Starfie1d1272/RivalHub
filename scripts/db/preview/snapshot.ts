@@ -87,7 +87,7 @@ function rewriteTeamLogoUrls(tables: MirrorSnapshot["tables"]): void {
   }
 }
 
-async function selectPersonaCandidates(client: PoolClient, tables: MirrorSnapshot["tables"]): Promise<PersonaCandidates> {
+export async function selectPersonaCandidates(client: Pick<PoolClient, "query">, tables: MirrorSnapshot["tables"]): Promise<PersonaCandidates> {
   const current = [...tables.seasons].sort((a, b) => {
     const rank = (status: unknown) => ({ playing: 0, drafting: 1, voting: 2, registration: 3 } as Record<string, number>)[String(status)] ?? 9;
     return rank(a.status) - rank(b.status) || String(b.registration_opened_at ?? b.updated_at ?? "").localeCompare(String(a.registration_opened_at ?? a.updated_at ?? "")) || String(a.id).localeCompare(String(b.id));
@@ -97,10 +97,16 @@ async function selectPersonaCandidates(client: PoolClient, tables: MirrorSnapsho
   const currentEntries = new Set(tables.competition_entries.filter((entry) => !seasonId || String(entry.competition_id ?? "") === seasonId).map((entry) => String(entry.id)));
   const participant = tables.competition_entry_participants.filter((row) => currentEntries.has(String(row.entry_id)) && row.status === "confirmed").map((row) => String(row.user_id)).sort()[0] ?? null;
   const invited = tables.competition_entry_participants.filter((row) => currentEntries.has(String(row.entry_id)) && row.status === "invited").map((row) => String(row.user_id)).sort()[0] ?? null;
-  const captain = tables.teams.filter((team) => team.status !== "disbanded" && active.includes(String(team.captain_user_id)) && currentEntries.size > 0).map((team) => String(team.captain_user_id)).sort()[0]
+  const currentTeamIds = new Set(tables.competition_entries
+    .filter((entry) => seasonId && String(entry.competition_id) === seasonId && entry.team_id)
+    .map((entry) => String(entry.team_id)));
+  const captain = tables.teams.filter((team) => currentTeamIds.has(String(team.id)) && team.status !== "disbanded" && active.includes(String(team.captain_user_id))).map((team) => String(team.captain_user_id)).sort()[0]
     ?? tables.teams.filter((team) => active.includes(String(team.captain_user_id))).map((team) => String(team.captain_user_id)).sort()[0] ?? null;
-  const seasonAdmin = active.find((id) => tables.users.some((user) => String(user.id) === id && user.role === "super_admin")) ?? null;
-  const superAdmin = seasonAdmin;
+  const seasonAdmin = seasonId ? (await client.query<{ user_id: string }>(`SELECT grants.user_id FROM public.season_admin_grants grants
+    JOIN public.users ON users.id = grants.user_id
+    WHERE grants.season_id = $1 AND users.status = 'active'
+    ORDER BY grants.granted_at, grants.user_id LIMIT 1`, [seasonId])).rows[0]?.user_id ?? null : null;
+  const superAdmin = active.find((id) => tables.users.some((user) => String(user.id) === id && user.role === "super_admin")) ?? null;
   return { currentSeasonId: seasonId, playerUserId: participant, invitedUserId: invited, captainUserId: captain, seasonAdminUserId: seasonAdmin, superAdminUserId: superAdmin };
 }
 

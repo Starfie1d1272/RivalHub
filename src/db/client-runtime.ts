@@ -6,7 +6,7 @@ import * as schema from "./schema";
 // imports intentionally bypass the Next server-only facade.
 import { captureException, logEvent } from "../lib/observability/logger";
 import { traceOperation } from "../lib/observability/tracing";
-import { assertPreviewDatabaseUrl, assertPreviewMutationAllowed, isPreview } from "../lib/runtime/preview";
+import { assertPreviewDatabaseUrl } from "../lib/runtime/preview";
 
 function createPool(): Pool {
   const connectionString = requireDatabaseUrl();
@@ -41,11 +41,6 @@ let _db: DB | null = null;
 // Proxy 确保 Pool 重建后 db 始终指向新 drizzle 实例
 export const db = new Proxy({} as DB, {
   get(_target, prop) {
-    // Raw SQL/transactions can contain arbitrary effects. Preview reads use the
-    // typed select/query builders; the DB role remains the independent boundary.
-    if (isPreview() && ["insert", "update", "delete", "execute", "transaction", "$client"].includes(String(prop))) {
-      assertPreviewMutationAllowed();
-    }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return (getDatabase() as any)[prop];
   },

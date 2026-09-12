@@ -1,5 +1,5 @@
 import { buildProductionEnvironment } from "../production-environment";
-import { buildStagingEnvironment, buildStagingReadonlyDatabaseUrl, STAGING_PROJECT_REF } from "../staging-environment";
+import { buildStagingEnvironment, STAGING_PROJECT_REF } from "../staging-environment";
 
 export function assertRefreshRunner(env: NodeJS.ProcessEnv = process.env): void {
   if (env.GITHUB_ACTIONS !== "true" || env.GITHUB_REPOSITORY !== "Starfie1d1272/RivalHub"
@@ -21,9 +21,14 @@ export function targetEnvironment(env: NodeJS.ProcessEnv = process.env) {
   const databaseUrl = buildStagingEnvironment(env, { requiresWriteAuthorization: true }).DATABASE_URL!;
   const secretKey = env.RIVALHUB_PREVIEW_DEV_SECRET_KEY;
   const personaPassword = env.RIVALHUB_PREVIEW_PERSONA_PASSWORD;
-  const readOnlyPassword = env.RIVALHUB_PREVIEW_RO_PASSWORD;
-  if (!secretKey || !personaPassword || personaPassword.length < 24 || !readOnlyPassword || readOnlyPassword.length < 32) {
-    throw new Error("Mirror dev Auth, persona and read-only role credentials must be provisioned first.");
+  if (!secretKey || !personaPassword || personaPassword.length < 24) {
+    throw new Error("Mirror dev Auth and persona credentials must be provisioned first.");
   }
-  return { databaseUrl, readOnlyDatabaseUrl: buildStagingReadonlyDatabaseUrl(readOnlyPassword), secretKey, personaPassword, readOnlyPassword, supabaseUrl: `https://${STAGING_PROJECT_REF}.supabase.co` };
+  return {
+    databaseUrl,
+    secretKey,
+    personaPassword,
+    applyCurrentMigrations: env.RIVALHUB_PREVIEW_APPLY_CURRENT_MIGRATIONS === "true",
+    supabaseUrl: `https://${STAGING_PROJECT_REF}.supabase.co`,
+  };
 }

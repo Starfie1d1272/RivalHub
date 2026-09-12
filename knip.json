@@ -57,7 +57,6 @@
     "scripts/db/production-preflight.ts!",
     "scripts/db/preview/snapshot.ts!",
     "scripts/db/preview/refresh.ts!",
-    "scripts/db/preview/verify.ts!",
     "scripts/db/production-identity-merge-preflight.ts!",
     "scripts/db/identity-merge-preflight.ts!",
     "scripts/db/recovery/backup.ts!",

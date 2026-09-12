@@ -16,6 +16,7 @@ export const PREVIEW_COLUMNS: Record<string, string> = {
   team_slug_aliases: "slug team_id created_at",
   team_name_changes: "id team_id old_name new_name changed_at changed_by_actor_id",
   team_captain_changes: "id team_id from_user_id to_user_id changed_at changed_by_actor_id",
+  recruitment_intents: "id kind team_id user_id positions target_season_id status expires_at created_at updated_at",
   competition_entries: "id competition_id source team_id source_registration_id formation_order name logo_url representative_user_id registration_status perfect_team_id current_roster_revision_id approved_roster_revision_id submitted_at reviewed_at created_at updated_at",
   competition_entry_participants: "id entry_id user_id status invited_by_user_id confirmed_at withdrawn_at created_at updated_at",
   competition_entry_active_claims: "competition_id user_id entry_id participant_id created_at",
@@ -66,10 +67,11 @@ export const OMITTED_COLUMNS: Record<string, string> = {
   community_awards: "supplementary_note review_note",
   post_event_adjudications: "client_request_id reason internal_evidence revocation_reason",
   tournament_honors: "client_request_id revocation_reason",
+  recruitment_intents: "note",
 };
 
 export const EXCLUDED_TABLES = new Set(`identity_link_requests user_identities user_merge_authorizations user_merge_ledger
-  institution_email_domains conversion_policies registration_drafts team_invitations recruitment_intents recruitment_interests
+  institution_email_domains conversion_policies registration_drafts team_invitations recruitment_interests
   competition_entry_legacy_identities competition_entry_restriction_overrides major_prestart_issues major_seed_recommendation_snapshots
   audit_logs admin_invites admin_invite_claims season_admin_grants match_mvp_votes match_time_proposals
   user_sessions disciplinary_case_idempotency disciplinary_cases community_award_evidence

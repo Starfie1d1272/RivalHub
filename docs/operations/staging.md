@@ -60,4 +60,4 @@ Staging rehearsal 不：
 
 ## Preview mirror
 
-`rivalhub-dev` 同时承载受保护的生产派生脱敏 Preview mirror。它不是 production 的 fallback，也不是灾备 artifact；只由 [Preview mirror workflow](./preview-mirror.md) 在 staging environment 中 reset/refresh。普通 PR、Vercel Preview 和本地 shell 均不得写入该目标。
+`rivalhub-dev` 是可牺牲的 shared staging，同时承载 production 派生的脱敏 Preview mirror。它不是 production fallback 或灾备 artifact；[Preview mirror workflow](./preview-mirror.md) 负责 reset/refresh。Vercel Preview 可正常写入它，下一次 refresh 会覆盖这些测试数据；普通本地 shell 仍不得直接写入该目标。

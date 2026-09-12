@@ -4,6 +4,17 @@ on:
   schedule:
     - cron: "17 3 * * *"
   workflow_dispatch:
+    inputs:
+      apply_current_migrations:
+        description: Apply the selected ref's current migrations to rivalhub-dev before importing the sanitized snapshot
+        required: false
+        default: false
+        type: boolean
+      migration_ref:
+        description: Ref to use only when applying current migrations
+        required: false
+        default: main
+        type: string
   workflow_run:
     workflows: [Release]
     types: [completed]
@@ -46,6 +57,7 @@ jobs:
           GITHUB_REF: refs/heads/main
           GITHUB_WORKFLOW: Refresh Preview Data
           GITHUB_EVENT_NAME: ${{ github.event_name }}
+          RIVALHUB_PREVIEW_PUBLIC_ASSET_ALLOWLIST: ${{ vars.RIVALHUB_PREVIEW_PUBLIC_ASSET_ALLOWLIST }}
         run: pnpm db:preview:export .agent-tmp/preview-mirror.json
       - name: Upload private short-lived mirror artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -56,7 +68,7 @@ jobs:
           retention-days: 1
 
   refresh-dev:
-    name: refresh rivalhub-dev and verify role
+    name: reset and refresh rivalhub-dev
     needs: export-production
     if: needs.export-production.result == 'success'
     runs-on: ubuntu-24.04
@@ -65,7 +77,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          ref: main
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.migration_ref || 'main' }}
           fetch-depth: 0
       - uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
         with:
@@ -88,16 +100,10 @@ jobs:
           RIVALHUB_STAGING_DB_PASSWORD: ${{ secrets.RIVALHUB_STAGING_DB_PASSWORD }}
           RIVALHUB_PREVIEW_DEV_SECRET_KEY: ${{ secrets.RIVALHUB_PREVIEW_DEV_SECRET_KEY }}
           RIVALHUB_PREVIEW_PERSONA_PASSWORD: ${{ secrets.RIVALHUB_PREVIEW_PERSONA_PASSWORD }}
-          RIVALHUB_PREVIEW_RO_PASSWORD: ${{ secrets.RIVALHUB_PREVIEW_RO_PASSWORD }}
-          RIVALHUB_PREVIEW_PUBLIC_ASSET_ALLOWLIST: ${{ vars.RIVALHUB_PREVIEW_PUBLIC_ASSET_ALLOWLIST }}
+          RIVALHUB_PREVIEW_APPLY_CURRENT_MIGRATIONS: ${{ github.event_name == 'workflow_dispatch' && inputs.apply_current_migrations || 'false' }}
           GITHUB_ACTIONS: true
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_REF: refs/heads/main
           GITHUB_WORKFLOW: Refresh Preview Data
           GITHUB_EVENT_NAME: ${{ github.event_name }}
         run: pnpm db:preview:refresh .agent-tmp/preview-mirror.json
-      - name: Verify SELECT-only role, ready identity, and mutation rejection
-        env:
-          RIVALHUB_PREVIEW_RO_PASSWORD: ${{ secrets.RIVALHUB_PREVIEW_RO_PASSWORD }}
-          VERCEL_ENV: preview
-        run: pnpm db:preview:verify

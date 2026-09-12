@@ -11,7 +11,6 @@ const {
   destroyUserSessionMock,
   claimAdminInviteInTxMock,
   signInWithPasswordMock,
-  publicSignInWithPasswordMock,
   resetPasswordForEmailMock,
   resendMock,
   signUpMock,
@@ -28,7 +27,6 @@ const {
     destroyUserSessionMock: vi.fn(),
     claimAdminInviteInTxMock: vi.fn(),
     signInWithPasswordMock: vi.fn(),
-    publicSignInWithPasswordMock: vi.fn(),
     resetPasswordForEmailMock: vi.fn(),
     resendMock: vi.fn(),
     signUpMock: vi.fn(),
@@ -59,7 +57,7 @@ vi.mock("@/lib/auth/supabase-server", () => ({
       signUp: signUpMock,
     },
   }),
-  createPublicAuthClient: () => ({ auth: { signUp: signUpMock, resend: resendMock, signInWithPassword: publicSignInWithPasswordMock } }),
+  createPublicAuthClient: () => ({ auth: { signUp: signUpMock, resend: resendMock } }),
 }));
 
 vi.mock("next/cache", () => ({
@@ -202,18 +200,19 @@ describe("loginWithPassword", () => {
     expect(bootstrapConfiguredOwnerInTxMock).toHaveBeenCalledWith(expect.anything(), MOCK_USER_ROW);
   });
 
-  it("Preview 允许使用 dev public Auth 登录 persona，但不打开业务写入", async () => {
+  it("Preview 使用 dev service client 走正常的 canonical 登录路径", async () => {
     process.env.VERCEL_ENV = "preview";
-    publicSignInWithPasswordMock.mockResolvedValue({
-      data: { user: null },
-      error: { message: "Invalid credentials" },
+    signInWithPasswordMock.mockResolvedValue({
+      data: { user: { id: "dev-auth-uuid" } },
+      error: null,
     });
 
     try {
       const result = await loginWithPassword(VALID_EMAIL, VALID_PASSWORD);
 
-      expect(result).toMatchObject({ success: false, error: { code: ErrorCode.UNAUTHORIZED } });
-      expect(publicSignInWithPasswordMock).toHaveBeenCalledWith({ email: VALID_EMAIL, password: VALID_PASSWORD });
+      expect(result.success).toBe(true);
+      expect(signInWithPasswordMock).toHaveBeenCalledWith({ email: VALID_EMAIL, password: VALID_PASSWORD });
+      expect(resolveOrCreateCanonicalUserInTxMock).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ authId: "dev-auth-uuid" }));
     } finally {
       delete process.env.VERCEL_ENV;
     }

@@ -18,12 +18,13 @@ describe("preview mirror workflow contract", () => {
     expect(workflow).toContain("RIVALHUB_PREVIEW_RESET_CONFIRM");
   });
 
-  it("keeps idempotency and readiness in the implementation", () => {
+  it("keeps the refresh implementation focused on reset/import rather than a read-only role", () => {
     const refresh = readFileSync(new URL("../../../scripts/db/preview/refresh.ts", import.meta.url), "utf8");
-    expect(refresh).toContain("pg_advisory_lock");
-    expect(refresh).toContain("snapshot_sha256");
-    expect(refresh).toContain("ready=true");
-    expect(refresh).toContain("ready=false");
-    expect(refresh).toContain("ON CONFLICT (id) DO NOTHING");
+    expect(refresh).toContain("DROP SCHEMA IF EXISTS public CASCADE");
+    expect(refresh).toContain("TRUNCATE");
+    expect(refresh).toContain("applyCurrentMigrations");
+    expect(refresh).not.toContain("rivalhub_preview_ro");
+    expect(workflow).toContain("RIVALHUB_PREVIEW_PUBLIC_ASSET_ALLOWLIST");
+    expect(workflow).not.toContain("RIVALHUB_PREVIEW_RO_PASSWORD");
   });
 });

@@ -31,11 +31,3 @@ export function buildStagingEnvironment(
 export function assertStagingDatabaseUrl(value: string | undefined): string {
   return assertProtectedRemoteDatabaseUrl(value, stagingConfig);
 }
-
-export function buildStagingReadonlyDatabaseUrl(password: string): string {
-  if (!/^[A-Za-z0-9_-]{32,}$/.test(password)) throw new Error("Preview read-only credential must use the protected random token format.");
-  return assertProtectedRemoteDatabaseUrl(
-    `postgresql://rivalhub_preview_ro.${STAGING_PROJECT_REF}:${encodeURIComponent(password)}@aws-0-ap-northeast-1.pooler.supabase.com:6543/postgres?pgbouncer=true`,
-    { ...stagingConfig, databaseUrlKey: "RIVALHUB_PREVIEW_READONLY_DATABASE_URL" },
-  );
-}

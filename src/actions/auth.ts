@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { createPublicAuthClient, createServiceClient } from "@/lib/auth/supabase-server";
 import { db } from "@/db/client";
 import { users } from "@/db/schema";
@@ -22,7 +22,6 @@ import {
 import { claimAdminInviteInTx } from "@/lib/auth/admin-invites";
 import { providerFetch } from "@/lib/observability/fetch";
 import { captureException, logEvent, traceOperation } from "@/lib/observability/server";
-import { assertPreviewMutationAllowed, isPreview } from "@/lib/runtime/preview";
 
 export async function loginWithPassword(
   email: string,
@@ -37,8 +36,7 @@ export async function loginWithPassword(
   const normalizedEmail = normalizeEmail(email);
 
   try {
-    const preview = isPreview();
-    const supabase = preview ? createPublicAuthClient() : createServiceClient();
+    const supabase = createServiceClient();
     const { data, error } = await traceOperation("provider.supabase.auth.sign_in", {
       scope: "provider",
       operation: "auth.sign_in",
@@ -55,9 +53,7 @@ export async function loginWithPassword(
       return fail({ code: ErrorCode.UNAUTHORIZED, message: "邮箱或密码错误" });
     }
 
-    const userRow = preview ? (await db.select({ id: users.id, email: users.email })
-      .from(users).where(and(eq(users.authId, data.user.id), eq(users.status, "active"), eq(users.email, normalizedEmail))).limit(1))[0]
-      : await db.transaction(async (tx) => {
+    const userRow = await db.transaction(async (tx) => {
       const canonicalUser = await resolveOrCreateCanonicalUserInTx(tx, {
         authId: data.user.id,
         email: normalizedEmail,
@@ -68,7 +64,7 @@ export async function loginWithPassword(
       return bootstrapConfiguredOwnerInTx(tx, canonicalUser);
     });
 
-    if (!userRow) return fail({ code: ErrorCode.UNAUTHORIZED, message: "此账号未绑定预览身份，请使用镜像测试账号。" });
+    if (!userRow) return fail({ code: ErrorCode.UNAUTHORIZED, message: "账号不存在，请重新登录。" });
 
     await createUserSession({
       userId: userRow.id,
@@ -184,7 +180,6 @@ export async function signUp(
 
 /** Safe ambiguous resend endpoint for the signup waiting state. */
 export async function resendSignupConfirmation(email: string, next?: string): Promise<ActionResult<void>> {
-  try { assertPreviewMutationAllowed(); } catch (error) { return actionError("resendSignupConfirmation", error); }
   if (!email || !email.includes("@")) return fail({ code: ErrorCode.VALIDATION_FAILED, message: "请输入有效的邮箱地址" });
   try {
     const { error } = await traceOperation("provider.supabase.auth.resend", {
@@ -203,7 +198,6 @@ export async function resendSignupConfirmation(email: string, next?: string): Pr
 
 /** Existing accounts prove control of their already-bound email without account creation. */
 export async function resendCurrentEmailVerification(): Promise<ActionResult<void>> {
-  try { assertPreviewMutationAllowed(); } catch (error) { return actionError("resendCurrentEmailVerification", error); }
   try {
     const session = await requireAuth();
     const user = await db.query.users.findFirst({ where: eq(users.id, session.userId) });
@@ -240,7 +234,6 @@ function safeNextPath(next: string | undefined): string | null {
 }
 
 export async function sendPasswordResetEmail(email: string): Promise<ActionResult<undefined>> {
-  try { assertPreviewMutationAllowed(); } catch (error) { return actionError("sendPasswordResetEmail", error); }
   if (!email || !email.includes("@")) {
     return fail({ code: ErrorCode.VALIDATION_FAILED, message: "请输入有效的邮箱地址" });
   }
