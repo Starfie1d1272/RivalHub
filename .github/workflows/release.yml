@@ -224,21 +224,18 @@ jobs:
 
           CANONICAL_DOMAIN="${RIVALHUB_PRODUCTION_BASE_URL#https://}"
           CANONICAL_DOMAIN="${CANONICAL_DOMAIN%%/*}"
-          PREVIOUS_PROJECT_STATE="$(curl --fail --silent --show-error \
+          CANONICAL_DOMAIN_ENCODED="$(jq -rn --arg host "$CANONICAL_DOMAIN" '$host | @uri')"
+          PREVIOUS_DEPLOYMENT_INFO="$(curl --fail --silent --show-error \
             --retry 5 --retry-all-errors --retry-delay 3 \
             -H "Authorization: Bearer $VERCEL_TOKEN" \
-            "https://api.vercel.com/v9/projects/${VERCEL_PROJECT_ID}?rollbackInfo=true&teamId=${VERCEL_ORG_ID}")"
-          PREVIOUS_DEPLOYMENT_ID="$(jq -er --arg domain "$CANONICAL_DOMAIN" '
-            [
-              .alias[]?
-              | select(.domain == $domain)
-              | .deployment.id?
-              | strings
-              | select(startswith("dpl_"))
-            ]
-            | last
-            // error("Canonical domain is not mapped to a deployment")
-          ' <<<"$PREVIOUS_PROJECT_STATE")"
+            "https://api.vercel.com/v13/deployments/${CANONICAL_DOMAIN_ENCODED}?teamId=${VERCEL_ORG_ID}")"
+          jq -e --arg project "$VERCEL_PROJECT_ID" '
+            (.id | strings | startswith("dpl_"))
+            and .projectId == $project
+            and .target == "production"
+            and .readyState == "READY"
+          ' <<<"$PREVIOUS_DEPLOYMENT_INFO" >/dev/null
+          PREVIOUS_DEPLOYMENT_ID="$(jq -er '.id | strings | select(startswith("dpl_"))' <<<"$PREVIOUS_DEPLOYMENT_INFO")"
           echo "Previous canonical deployment resolved for rollback."
 
           wait_for_alias_job() {
