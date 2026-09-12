@@ -99,7 +99,6 @@ jobs:
           RIVALHUB_PREVIEW_RESET_CONFIRM: cueazphyskstwdhnzsxx
           RIVALHUB_STAGING_DB_PASSWORD: ${{ secrets.RIVALHUB_STAGING_DB_PASSWORD }}
           RIVALHUB_PREVIEW_DEV_SECRET_KEY: ${{ secrets.RIVALHUB_PREVIEW_DEV_SECRET_KEY }}
-          RIVALHUB_PREVIEW_PERSONA_PASSWORD: ${{ secrets.RIVALHUB_PREVIEW_PERSONA_PASSWORD }}
           RIVALHUB_PREVIEW_APPLY_CURRENT_MIGRATIONS: ${{ github.event_name == 'workflow_dispatch' && inputs.apply_current_migrations || 'false' }}
           GITHUB_ACTIONS: true
           GITHUB_REPOSITORY: ${{ github.repository }}

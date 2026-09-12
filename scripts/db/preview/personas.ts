@@ -3,6 +3,9 @@ import { createHash } from "node:crypto";
 export const PREVIEW_PERSONAS = ["player", "invited", "captain", "season-admin", "super-admin"] as const;
 export type PreviewPersona = (typeof PREVIEW_PERSONAS)[number];
 
+/** Public, disposable fixture credential; never source it from protected environment config. */
+export const PREVIEW_PERSONA_PASSWORD = "rivalhub-preview-persona-resettable";
+
 export type PersonaCandidates = {
   currentSeasonId: string | null;
   playerUserId: string | null;
