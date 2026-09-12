@@ -4,13 +4,11 @@ import Link from "next/link";
 import { Panel } from "@/components/rivalhub";
 import { DirectoryMetric } from "@/components/players/DirectoryMetric";
 import { formatStat } from "@/lib/stats";
+import type { PublicPlayerIdentity } from "@/lib/identity/public-player";
 
-export interface EventPlayerDirectoryRowData {
-  userId: string;
-  avatarUrl?: string | null;
+export interface EventPlayerDirectoryRowData extends PublicPlayerIdentity {
   entryId: string;
   entryName: string;
-  name: string;
   isStarter: boolean;
   stats: {
     maps: number;

@@ -23,6 +23,7 @@ import {
 } from "@/lib/competition-entries/public-team-context";
 import type { PublicSeason } from "@/lib/data/public-seasons";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
+import type { PublicPlayerIdentity } from "@/lib/identity/public-player";
 import { getStandardMajorDefinition } from "@/lib/major/standard";
 import { getVerifiedPlayerStatsBySeason, type VerifiedPlayerSeasonStats } from "@/lib/stats/public-query";
 
@@ -75,12 +76,9 @@ export interface MajorPublicParticipantSummary extends MajorPublicParticipantOve
   finishedMatchCount: number;
 }
 
-export interface MajorPublicParticipantPlayer {
-  userId: string;
-  avatarUrl?: string | null;
+export interface MajorPublicParticipantPlayer extends PublicPlayerIdentity {
   entryId: string;
   entryName: string;
-  name: string;
   isStarter: boolean;
   stats: VerifiedPlayerSeasonStats | null;
 }
@@ -100,7 +98,7 @@ type PublicEntryRow = {
 
 type RosterMemberRow = {
   entryId: string;
-  avatarUrl?: string | null;
+  avatarUrl: string | null;
   userId: string;
   displayName: string | null;
   perfectName: string | null;
@@ -416,6 +414,7 @@ async function loadMajorPublicParticipantState(
   const visibleTeams = teams.filter((team) => visibleEntryIds.includes(team.entry.id));
   const players = visibleTeams.flatMap((team) => team.roster.map((member) => ({
     userId: member.userId,
+    avatarUrl: member.avatarUrl,
     entryId: team.entry.id,
     entryName: team.entry.name,
     name: member.name,

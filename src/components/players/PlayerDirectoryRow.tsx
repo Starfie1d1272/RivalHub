@@ -9,7 +9,7 @@ import { formatStat } from "@/lib/stats";
 export interface PlayerDirectoryData {
   userId: string;
   registrationId: string;
-  avatarUrl?: string | null;
+  avatarUrl: string | null;
   displayName: string;
   primaryPosition: string;
   secondaryPosition: string | null;

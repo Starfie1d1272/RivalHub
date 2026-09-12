@@ -57,7 +57,7 @@ const team = {
   },
   cardLabel: "正式参赛队",
   participation: { label: "正式参赛队", tone: "success", detail: "已进入本届正式参赛队，当前参赛名单仍可能调整。" },
-  roster: [{ userId: "player-1", name: "选手甲", isStarter: true }],
+  roster: [{ userId: "player-1", name: "选手甲", avatarUrl: "https://cdn.test/player-1.webp", isStarter: true }],
   rosterLabel: "当前参赛名单",
   rosterStatus: "confirmed",
   seed: null,
@@ -81,6 +81,7 @@ const projection = {
   playerCount: 1,
   players: [{
     userId: "player-1",
+    avatarUrl: "https://cdn.test/player-1.webp",
     entryId: "entry-1",
     entryName: "正式队伍",
     name: "选手甲",
@@ -137,6 +138,7 @@ describe("Major public participant pages", () => {
     expect(html).toContain("选手甲");
     expect(html).toContain("/nju-major/teams/entry-1");
     expect(html).toContain("暂无本届正式比赛数据");
+    expect(html).toContain("cdn.test");
     expect(html).not.toContain("Peak Rank");
     expect(html).not.toContain("registrationId");
   });

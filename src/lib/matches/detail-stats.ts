@@ -83,6 +83,7 @@ interface TeamMemberSummary {
   perfectName: string | null;
   primaryPosition: string;
   userId?: string | null;
+  avatarUrl: string | null;
 }
 
 export interface RosterPlayer {
@@ -92,6 +93,7 @@ export interface RosterPlayer {
   perfectName: string | null;
   isStarter: boolean;
   userId?: string | null;
+  avatarUrl: string | null;
 }
 
 export function buildRoster(
@@ -110,6 +112,7 @@ export function buildRoster(
       ...(m.primaryPosition ? { registrationPosition: m.primaryPosition } : {}),
       isStarter: playerMap.get(m.id) ?? false,
       userId: m.userId ?? null,
+      avatarUrl: m.avatarUrl,
     }));
 }
 

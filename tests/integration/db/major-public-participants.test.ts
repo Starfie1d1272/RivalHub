@@ -50,6 +50,7 @@ async function insertFixture(pool: Pool): Promise<Fixture> {
     email: `major-public-${entryIndex}-${userIndex}-${seasonId}@local.test`,
     displayName: `公开选手 ${entryIndex}-${userIndex}`,
     perfectName: `完美选手 ${entryIndex}-${userIndex}`,
+    avatarUrl: entryIndex === 0 && userIndex === 1 ? "https://cdn.test/major-player-0-1.webp" : null,
   })));
   const participantRows = entries.flatMap((entry) => entry.userIds.map((userId, userIndex) => ({
     participantId: entry.participantIds[userIndex]!,
@@ -92,15 +93,16 @@ async function insertFixture(pool: Pool): Promise<Fixture> {
     );
 
     await client.query(
-      `INSERT INTO users (id, email, display_name, perfect_name)
-       SELECT user_id, email, display_name, perfect_name
-       FROM unnest($1::uuid[], $2::text[], $3::text[], $4::text[])
-       AS rows(user_id, email, display_name, perfect_name)`,
+      `INSERT INTO users (id, email, display_name, perfect_name, avatar_url)
+       SELECT user_id, email, display_name, perfect_name, avatar_url
+       FROM unnest($1::uuid[], $2::text[], $3::text[], $4::text[], $5::text[])
+       AS rows(user_id, email, display_name, perfect_name, avatar_url)`,
       [
         userRows.map((row) => row.userId),
         userRows.map((row) => row.email),
         userRows.map((row) => row.displayName),
         userRows.map((row) => row.perfectName),
+        userRows.map((row) => row.avatarUrl),
       ],
     );
     await client.query(
@@ -373,6 +375,7 @@ describe("Major public participant read model PostgreSQL integration", () => {
 
       const candidatePlayers = await getMajorPublicParticipantProjection(fixture.season);
       expect(candidatePlayers.players).toHaveLength(33 * 5);
+      expect(candidatePlayers.players.find((player) => player.userId === fixture.entries[0]?.userIds[1])?.avatarUrl).toBe("https://cdn.test/major-player-0-1.webp");
 
       const candidateDetail = await getMajorPublicParticipantTeam(fixture.season, fixture.entries[32]!.entryId);
       expect(candidateDetail?.participation).toMatchObject({
@@ -389,6 +392,8 @@ describe("Major public participant read model PostgreSQL integration", () => {
       expect(final.playerCount).toBe(32 * 5);
       expect(final.teams.every((team) => team.rosterLabel === "当前参赛名单")).toBe(true);
       expect(final.teams.find((team) => team.entry.id === fixture.entries[0]?.entryId)?.roster.some((member) => member.name === "公开选手 0-1")).toBe(true);
+      const finalPlayers = await getMajorPublicParticipantProjection(fixture.season);
+      expect(finalPlayers.players.find((player) => player.userId === fixture.entries[0]?.userIds[1])?.avatarUrl).toBe("https://cdn.test/major-player-0-1.webp");
 
       await addSeedFacts(pool, fixture, false);
       const partialSeeds = await getMajorPublicParticipantSummary(fixture.season);
@@ -407,6 +412,8 @@ describe("Major public participant read model PostgreSQL integration", () => {
 
       const frozenTeam = frozen.teams.find((team) => team.entry.id === fixture.entries[0]?.entryId);
       expect(frozenTeam?.roster.find((member) => member.userId === fixture.entries[0]?.userIds[1])?.isStarter).toBe(true);
+      const frozenPlayers = await getMajorPublicParticipantProjection(fixture.season);
+      expect(frozenPlayers.players.find((player) => player.userId === fixture.entries[0]?.userIds[1])?.avatarUrl).toBe("https://cdn.test/major-player-0-1.webp");
     } finally {
       await cleanupFixture(pool, fixture);
       await pool.end();

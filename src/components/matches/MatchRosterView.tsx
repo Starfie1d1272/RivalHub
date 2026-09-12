@@ -1,4 +1,6 @@
+import React from "react";
 import Link from "next/link";
+import { PlayerAvatar } from "@/components/players/PlayerAvatar";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
 
 interface RosterPlayer {
@@ -8,6 +10,7 @@ interface RosterPlayer {
   perfectName: string | null;
   isStarter: boolean;
   userId?: string | null;
+  avatarUrl: string | null;
 }
 
 interface MatchRosterViewProps {
@@ -38,11 +41,15 @@ function RosterColumn({ teamName, roster }: { teamName: string; roster: RosterPl
               style={{ color: "var(--color-fg)" }}
             >
               {p.userId ? (
-                <Link href={`/players/${p.userId}`} className="hover:text-[var(--color-accent)] transition-colors">
+                <Link href={`/players/${p.userId}`} className="flex min-w-0 items-center gap-2 hover:text-[var(--color-accent)] transition-colors">
+                  <PlayerAvatar name={getPublicDisplayName(p)} avatarUrl={p.avatarUrl} size="sm" />
                   {getPublicDisplayName(p)}
                 </Link>
               ) : (
-                <span>{getPublicDisplayName(p)}</span>
+                <span className="flex min-w-0 items-center gap-2">
+                  <PlayerAvatar name={getPublicDisplayName(p)} avatarUrl={p.avatarUrl} size="sm" />
+                  {getPublicDisplayName(p)}
+                </span>
               )}
               {p.registrationPosition && <span className="text-xs text-[var(--color-fg-dim)]">报名位置 · {p.registrationPosition}</span>}
             </div>
@@ -53,14 +60,18 @@ function RosterColumn({ teamName, roster }: { teamName: string; roster: RosterPl
               style={{ borderTop: "1px solid var(--color-border)", color: "var(--color-fg-mid)" }}
             >
               替补：{subs.map((p, i) => (
-                <span key={i}>
+                <span key={i} className="inline-flex items-center gap-1">
                   {i > 0 && "、"}
                   {p.userId ? (
                     <Link href={`/players/${p.userId}`} className="hover:text-[var(--color-accent)] transition-colors">
+                      <PlayerAvatar name={getPublicDisplayName(p)} avatarUrl={p.avatarUrl} size="sm" />
                       {getPublicDisplayName(p)}
                     </Link>
                   ) : (
-                    <>{getPublicDisplayName(p)}</>
+                    <>
+                      <PlayerAvatar name={getPublicDisplayName(p)} avatarUrl={p.avatarUrl} size="sm" />
+                      {getPublicDisplayName(p)}
+                    </>
                   )}
                 </span>
               ))}

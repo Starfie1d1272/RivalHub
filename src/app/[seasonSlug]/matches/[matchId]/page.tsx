@@ -93,6 +93,7 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
           displayName: users.displayName,
           perfectName: users.perfectName,
           userId: users.id,
+          avatarUrl: users.avatarUrl,
         })
         .from(eventRosterMembers)
         .innerJoin(eventRosters, eq(eventRosterMembers.eventRosterId, eventRosters.id))
@@ -277,7 +278,7 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
   let isCaptainA = false;
   let isCaptainB = false;
   let isSeasonAdmin = false;
-  let captainTeamMembers: { id: string; steamName: string; displayName: string | null; perfectName: string | null; primaryPosition: string }[] = [];
+  let captainTeamMembers: { id: string; steamName: string; avatarUrl: string | null; displayName: string | null; perfectName: string | null; primaryPosition: string }[] = [];
 
   if (userSession?.userId) {
     try {
@@ -297,6 +298,7 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
         .map((r) => ({
           id: r.id,
           steamName: r.steamName ?? "未知",
+          avatarUrl: r.avatarUrl,
           displayName: r.displayName ?? null,
           perfectName: r.perfectName ?? null,
           primaryPosition: r.primaryPosition,
@@ -327,6 +329,7 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
     rws: number | null;
     ratingPro: number | null;
     we: number | null;
+    avatarUrl: string | null;
   }[] = [];
   let mvpVoteResults: Awaited<ReturnType<typeof getMatchMvpResults>> = [];
   let userVoted: string | null = null;
@@ -354,7 +357,10 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
     });
 
     const aggregatedStats = aggregateFinishedPlayerStats(allStats, userIdToTeamId, match.entryAId, match.entryBId, currentMapRoundsMap);
-    mvpCandidates = aggregatedStats.mvpCandidates;
+    mvpCandidates = aggregatedStats.mvpCandidates.map((candidate) => ({
+      ...candidate,
+      avatarUrl: candidate.userId ? userIdToMember.get(candidate.userId)?.avatarUrl ?? null : null,
+    }));
     summaryPlayers = aggregatedStats.summaryPlayers;
 
     mvpVoteResults = await getMatchMvpResults(match.id);

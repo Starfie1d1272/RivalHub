@@ -12,7 +12,7 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 
 const longLivedTeam: PublicTeamProfile = {
   team: { id: "team-1", slug: "rival-team", name: "Rival Team", logoUrl: null, description: "队伍简介", status: "active", captainUserId: "captain-1" },
-  currentMembers: [{ id: "member-1", userId: "captain-1", name: "队长甲", status: "active" }, { id: "member-2", userId: "member-1", name: "选手乙", status: "benched" }],
+  currentMembers: [{ id: "member-1", userId: "captain-1", name: "队长甲", avatarUrl: null, status: "active" }, { id: "member-2", userId: "member-1", name: "选手乙", avatarUrl: null, status: "benched" }],
   entries: [{ id: "entry-1", name: "Rival Entry", seasonName: "2026 秋季赛", seasonSlug: "autumn-2026", seasonStatus: "finished", completedAt: new Date("2026-08-01T00:00:00Z") }],
   nameChanges: [{ id: "name-1", oldName: "Old Team", newName: "Rival Team", changedAt: new Date("2026-08-01T00:00:00Z") }],
   captainChanges: [{ id: "captain-1", name: "队长甲", changedAt: new Date("2026-08-01T00:00:00Z") }],
@@ -29,7 +29,7 @@ const linkedEvent: PublicEventTeamContext = {
   entry: { id: "entry-1", name: "Frozen Entry", logoUrl: null, registrationStatus: "approved", representativeUserId: "captain-1", teamId: "team-1" },
   cardLabel: "已通过报名审核",
   participation: { label: "已通过", tone: "success", detail: "报名已通过审核。" },
-  roster: [{ userId: "captain-1", name: "赛事队长", isStarter: true }, { userId: "event-only-player", name: "赛事选手", isStarter: false }],
+  roster: [{ userId: "captain-1", name: "赛事队长", avatarUrl: null, isStarter: true }, { userId: "event-only-player", name: "赛事选手", avatarUrl: null, isStarter: false }],
   rosterLabel: "本届参赛名单",
   rosterStatus: "frozen",
   seed: null,
@@ -41,7 +41,7 @@ const linkedEvent: PublicEventTeamContext = {
 const eventNative: PublicEventTeamContext = {
   ...linkedEvent,
   entry: { ...linkedEvent.entry, id: "entry-native", name: "Event Native Entry", teamId: null, representativeUserId: "event-only-player" },
-  roster: [{ userId: "event-only-player", name: "赛事选手", isStarter: true }],
+  roster: [{ userId: "event-only-player", name: "赛事选手", avatarUrl: null, isStarter: true }],
 };
 
 describe("TeamPublicProfile", () => {

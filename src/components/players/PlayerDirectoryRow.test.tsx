@@ -9,6 +9,7 @@ import { PlayerDirectoryRow } from "./PlayerDirectoryRow";
 const player = {
   userId: "player-1",
   registrationId: "registration-1",
+  avatarUrl: null,
   displayName: "Star Entry",
   primaryPosition: "opener",
   secondaryPosition: "closer",

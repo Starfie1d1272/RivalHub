@@ -12,6 +12,7 @@ describe("MajorPlayerDirectoryRow", () => {
         seasonSlug="nju-major"
         player={{
           userId: "player-1",
+          avatarUrl: null,
           entryId: "entry-1",
           entryName: "Entry Alpha",
           name: "选手甲",
@@ -34,6 +35,7 @@ describe("MajorPlayerDirectoryRow", () => {
         seasonSlug="nju-major"
         player={{
           userId: "player-2",
+          avatarUrl: null,
           entryId: "entry-2",
           entryName: "Entry Beta",
           name: "选手乙",
