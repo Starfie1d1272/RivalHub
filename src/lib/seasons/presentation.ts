@@ -123,7 +123,7 @@ export function groupSeasonsByLifecycle<T extends SeasonLifecycleInput>(
   for (const key of ["recent", "archived"] as const) {
     grouped[key].sort((a, b) => {
       const completionDifference = getTimestamp(b.lastCompletedAt) - getTimestamp(a.lastCompletedAt);
-      if (completionDifference !== 0) return completionDifference;
+      if (completionDifference) return completionDifference;
       const aId = "id" in a && typeof a.id === "string" ? a.id : "";
       const bId = "id" in b && typeof b.id === "string" ? b.id : "";
       return aId.localeCompare(bId);

@@ -29,7 +29,7 @@ const linkedEvent: PublicEventTeamContext = {
   entry: { id: "entry-1", name: "Frozen Entry", logoUrl: null, registrationStatus: "approved", representativeUserId: "captain-1", teamId: "team-1" },
   cardLabel: "已通过报名审核",
   participation: { label: "已通过", tone: "success", detail: "报名已通过审核。" },
-  roster: [{ userId: "captain-1", name: "赛事队长", isStarter: true, isRepresentative: true }, { userId: "event-only-player", name: "赛事选手", isStarter: false, isRepresentative: false }],
+  roster: [{ userId: "captain-1", name: "赛事队长", isStarter: true }, { userId: "event-only-player", name: "赛事选手", isStarter: false }],
   rosterLabel: "本届参赛名单",
   rosterStatus: "frozen",
   seed: null,
@@ -41,7 +41,7 @@ const linkedEvent: PublicEventTeamContext = {
 const eventNative: PublicEventTeamContext = {
   ...linkedEvent,
   entry: { ...linkedEvent.entry, id: "entry-native", name: "Event Native Entry", teamId: null, representativeUserId: "event-only-player" },
-  roster: [{ userId: "event-only-player", name: "赛事选手", isStarter: true, isRepresentative: true }],
+  roster: [{ userId: "event-only-player", name: "赛事选手", isStarter: true }],
 };
 
 describe("TeamPublicProfile", () => {

@@ -1,5 +1,6 @@
 import "server-only";
-import { and, asc, eq, inArray, or } from "drizzle-orm";
+import { and, asc, eq, inArray, or, sql } from "drizzle-orm";
+import { presentMatchStatus } from "@/lib/matches/presentation";
 import { db } from "@/db/client";
 import { competitionEntries, eventRosterMembers, eventRosters, matches } from "@/db/schema";
 import { getUserSession } from "@/lib/auth/session";
@@ -13,10 +14,11 @@ export function presentUpcomingMatchTask(input: {
   seasonSlug: string;
   opponentName: string;
   scheduledAt: Date | null;
+  status?: "scheduled" | "in_progress";
 }) {
   return {
-    title: "你的下一场",
-    detail: input.scheduledAt ? `对阵 ${input.opponentName} · 赛程已安排` : `对阵 ${input.opponentName} · 时间待定`,
+    title: input.status === "in_progress" ? "你的当前比赛" : "你的下一场",
+    detail: `对阵 ${input.opponentName} · ${presentMatchStatus(input.status ?? "scheduled", { scheduledAt: input.scheduledAt }).label}`,
     href: `/${input.seasonSlug}/matches/${input.matchId}`,
   };
 }
@@ -39,6 +41,7 @@ async function getPlayingSeasonNextStep(season: PublicSeason, userId: string) {
   const upcoming = await db
     .select({
       id: matches.id,
+      status: matches.status,
       entryAId: matches.entryAId,
       entryBId: matches.entryBId,
       scheduledAt: matches.scheduledAt,
@@ -46,10 +49,10 @@ async function getPlayingSeasonNextStep(season: PublicSeason, userId: string) {
     .from(matches)
     .where(and(
       eq(matches.seasonId, season.id),
-      eq(matches.status, "scheduled"),
+      inArray(matches.status, ["scheduled", "in_progress"]),
       or(inArray(matches.entryAId, entryIds), inArray(matches.entryBId, entryIds)),
     ))
-    .orderBy(asc(matches.scheduledAt), asc(matches.id));
+    .orderBy(sql`case when ${matches.status} = 'in_progress' then 0 else 1 end`, asc(matches.scheduledAt), asc(matches.id));
   const match = upcoming[0];
   if (!match) return null;
 
@@ -59,7 +62,7 @@ async function getPlayingSeasonNextStep(season: PublicSeason, userId: string) {
     columns: { name: true },
   });
   if (!opponent) return null;
-  return presentUpcomingMatchTask({ matchId: match.id, seasonSlug: season.slug, opponentName: opponent.name, scheduledAt: match.scheduledAt });
+  return presentUpcomingMatchTask({ matchId: match.id, seasonSlug: season.slug, opponentName: opponent.name, scheduledAt: match.scheduledAt, status: match.status === "in_progress" ? "in_progress" : "scheduled" });
 }
 
 /** Authenticated handoff only; all mutations remain in their existing workflow. */

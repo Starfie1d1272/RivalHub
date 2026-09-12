@@ -2,6 +2,7 @@ import Link from "next/link";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
 
 interface RosterPlayer {
+  registrationPosition?: string;
   steamName: string;
   displayName: string | null;
   perfectName: string | null;
@@ -43,6 +44,7 @@ function RosterColumn({ teamName, roster }: { teamName: string; roster: RosterPl
               ) : (
                 <span>{getPublicDisplayName(p)}</span>
               )}
+              {p.registrationPosition && <span className="text-xs text-[var(--color-fg-dim)]">报名位置 · {p.registrationPosition}</span>}
             </div>
           ))}
           {subs.length > 0 && (

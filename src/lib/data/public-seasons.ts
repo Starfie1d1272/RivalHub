@@ -42,7 +42,6 @@ export type PublicSeason = Pick<
   | "registrationClosesAt"
   | "rosterChangeClosesAt"
   | "endAt"
-  | "createdAt"
 >;
 
 export type PublicSeasonWithCompletion = PublicSeason & {
@@ -75,7 +74,6 @@ const publicSeasonColumns = {
   registrationClosesAt: seasons.registrationClosesAt,
   rosterChangeClosesAt: seasons.rosterChangeClosesAt,
   endAt: seasons.endAt,
-  createdAt: seasons.createdAt,
 } as const;
 
 /**
@@ -94,13 +92,13 @@ export async function getPublicSeasonCatalog(): Promise<PublicSeasonWithCompleti
     .select(publicSeasonColumns)
     .from(seasons)
     .where(ne(seasons.status, "draft"))
-    .orderBy(desc(seasons.createdAt));
+    .orderBy(desc(seasons.registrationOpenedAt), seasons.id);
   if (rows.length === 0) return [];
 
   const completionRows = await db
     .select({ seasonId: matches.seasonId, lastCompletedAt: max(matches.completedAt) })
     .from(matches)
-    .where(inArray(matches.seasonId, rows.map((row) => row.id)))
+    .where(and(inArray(matches.seasonId, rows.map((row) => row.id)), eq(matches.status, "finished")))
     .groupBy(matches.seasonId);
   const lastCompletedAtBySeasonId = new Map(completionRows.map((row) => [row.seasonId, row.lastCompletedAt]));
   return rows.map((row) => ({ ...row, lastCompletedAt: lastCompletedAtBySeasonId.get(row.id) ?? null }));

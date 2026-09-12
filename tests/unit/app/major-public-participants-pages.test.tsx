@@ -1,3 +1,4 @@
+vi.mock("@/lib/seasons/public-stage", () => ({ getPublicSeasonStagePresentation: vi.fn().mockResolvedValue({ stagePlan: [], labels: {}, initializedStageKeys: [], currentStageKey: null, currentStageLabel: null }) }));
 import * as React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -56,7 +57,7 @@ const team = {
   },
   cardLabel: "正式参赛队",
   participation: { label: "正式参赛队", tone: "success", detail: "已进入本届正式参赛队，当前参赛名单仍可能调整。" },
-  roster: [{ userId: "player-1", name: "选手甲", isStarter: true, isRepresentative: true }],
+  roster: [{ userId: "player-1", name: "选手甲", isStarter: true }],
   rosterLabel: "当前参赛名单",
   rosterStatus: "confirmed",
   seed: null,
@@ -84,7 +85,6 @@ const projection = {
     entryName: "正式队伍",
     name: "选手甲",
     isStarter: true,
-    isRepresentative: true,
     stats: null,
   }],
 };

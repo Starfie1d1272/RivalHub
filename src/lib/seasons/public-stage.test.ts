@@ -7,6 +7,14 @@ const stagePlan = [
 ];
 
 describe("public stage presentation", () => {
+  it("prefers the latest Major StageRun over pre-created match stages", () => {
+    const result = buildPublicStagePresentation(
+      { id: "season-1", competitionTemplate: "major", stagePlan },
+      [{ stageKey: "stage1", ruleSnapshot: { version: 4, stagePlan: stagePlan.map((stage) => ({ ...stage, finalFormat: stage.finalFormat ?? null })), rosterRules: { minTeamSize: 5, maxTeamSize: 5, starterCount: 5 }, affiliationRules: [], competitiveProfile: null, frozenCompetitiveFacts: [], runOptions: {} } }],
+      ["stage1", "playoff"],
+    );
+    expect(result.currentStageKey).toBe("stage1");
+  });
   it("uses actual initialized event stages instead of lifecycle status", () => {
     const result = buildPublicStagePresentation(
       { id: "season-1", competitionTemplate: "major", stagePlan },

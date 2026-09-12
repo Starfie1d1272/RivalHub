@@ -58,7 +58,7 @@ describe("featured season selector", () => {
     expect(selectFeaturedSeason([newestArchived, newerRegistration, oldPlaying])?.id).toBe("playing");
   });
 
-  it("uses newer creation time as the deterministic tie breaker", () => {
+  it("uses a stable identity tie breaker when no operational date exists", () => {
     const older = featuredSeason({
       id: "older",
       status: "voting",

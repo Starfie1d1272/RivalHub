@@ -6,7 +6,6 @@ export interface FeaturedSeasonInput {
   id: string;
   status: SeasonStatus;
   registrationOpenedAt?: Date | string | null;
-  createdAt: Date | string;
   lastCompletedAt?: Date | string | null;
 }
 
@@ -54,10 +53,10 @@ export function selectFeaturedSeason<T extends FeaturedSeasonInput>(
       const isHistorical = a.season.status === "finished" || a.season.status === "archived";
       if (isHistorical) {
         const completedAtDifference = getTimestamp(b.season.lastCompletedAt) - getTimestamp(a.season.lastCompletedAt);
-        if (completedAtDifference !== 0) return completedAtDifference;
+        if (completedAtDifference) return completedAtDifference;
       } else {
-        const createdAtDifference = getTimestamp(b.season.createdAt) - getTimestamp(a.season.createdAt);
-        if (createdAtDifference !== 0) return createdAtDifference;
+        const openedAtDifference = getTimestamp(b.season.registrationOpenedAt) - getTimestamp(a.season.registrationOpenedAt);
+        if (openedAtDifference) return openedAtDifference;
       }
 
       const idDifference = a.season.id.localeCompare(b.season.id);

@@ -10,7 +10,6 @@ interface PlayerPreview {
   name: string;
   avatarUrl?: string | null;
   isStarter: boolean;
-  isRepresentative: boolean;
   userId?: string | null;
 }
 

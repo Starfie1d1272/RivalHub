@@ -24,7 +24,7 @@ export interface PublicStagePresentation {
  * for a Stage identity. */
 export function resolvePublicStagePlan(
   season: PublicStageSeason,
-  stageRuns: readonly { stageKey: string; ruleSnapshot: unknown }[] = [],
+  stageRuns: readonly { stageKey: string; ruleSnapshot: unknown; startedAt?: Date }[] = [],
 ): StagePlan {
   return season.competitionTemplate === "major"
     ? resolveMajorStagePlan(normalizeStagePlan(season.stagePlan), stageRuns)
@@ -33,12 +33,18 @@ export function resolvePublicStagePlan(
 
 export function buildPublicStagePresentation(
   season: PublicStageSeason,
-  stageRuns: readonly { stageKey: string; ruleSnapshot: unknown }[] = [],
+  stageRuns: readonly { stageKey: string; ruleSnapshot: unknown; startedAt?: Date }[] = [],
   initializedStageKeys: readonly string[] = [],
 ): PublicStagePresentation {
   const stagePlan = resolvePublicStagePlan(season, stageRuns);
   const initialized = new Set(initializedStageKeys);
-  const currentStage = [...stagePlan].reverse().find((stage) => initialized.has(stage.key)) ?? null;
+  const runKeys = new Set(stageRuns.map((run) => run.stageKey));
+  const latestRun = [...stageRuns].filter((run) => run.startedAt).sort((a, b) => b.startedAt!.getTime() - a.startedAt!.getTime())[0];
+  const currentStage = (latestRun ? stagePlan.find((stage) => stage.key === latestRun.stageKey) : null) ?? [...stagePlan].reverse().find((stage) =>
+    season.competitionTemplate === "major" && runKeys.size > 0
+      ? runKeys.has(stage.key)
+      : initialized.has(stage.key),
+  ) ?? null;
   return {
     stagePlan,
     labels: Object.fromEntries(
@@ -53,15 +59,10 @@ export function buildPublicStagePresentation(
 export async function getPublicSeasonStagePresentation(
   season: PublicStageSeason,
 ): Promise<PublicStagePresentation> {
-  // Some lightweight public route callers (and their contract tests) only
-  // need the participant projection. A missing legacy stage plan means there
-  // is no public Stage fact to resolve, so avoid opening a database connection.
-  if (!season.stagePlan) return buildPublicStagePresentation(season, [], []);
-
   const [stageRuns, matchStageRows] = await Promise.all([
     season.competitionTemplate === "major"
       ? db
-        .select({ stageKey: majorStageRuns.stageKey, ruleSnapshot: majorStageRuns.ruleSnapshot })
+        .select({ stageKey: majorStageRuns.stageKey, ruleSnapshot: majorStageRuns.ruleSnapshot, startedAt: majorStageRuns.startedAt })
         .from(majorStageRuns)
         .where(eq(majorStageRuns.seasonId, season.id))
       : Promise.resolve([] as { stageKey: string; ruleSnapshot: unknown }[]),

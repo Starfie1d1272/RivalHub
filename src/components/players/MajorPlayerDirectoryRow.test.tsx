@@ -16,7 +16,6 @@ describe("MajorPlayerDirectoryRow", () => {
           entryName: "Entry Alpha",
           name: "选手甲",
           isStarter: true,
-          isRepresentative: true,
           stats: { maps: 8, avgRating: 1.21, avgAdr: 82.4, avgKd: 1.36 },
         }}
       />,
@@ -39,7 +38,6 @@ describe("MajorPlayerDirectoryRow", () => {
           entryName: "Entry Beta",
           name: "选手乙",
           isStarter: false,
-          isRepresentative: false,
           stats: null,
         }}
       />,

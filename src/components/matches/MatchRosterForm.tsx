@@ -92,7 +92,7 @@ export function MatchRosterForm({
     <div className="space-y-4">
       {isMatchStarted ? (
         <div className="rounded border p-3" style={{ borderColor: "var(--color-danger-edge)", background: "var(--color-danger-soft)" }}>
-          <p className="text-sm text-[var(--color-fg)]">比赛已开始，名单不可修改</p>
+          <p className="text-sm text-[var(--color-fg)]">{matchStatus === "cancelled" ? "比赛已取消，名单不可修改" : matchStatus === "finished" ? "比赛已结束，名单不可修改" : "比赛已开始，名单不可修改"}</p>
           <p className="text-xs text-[var(--color-fg-dim)] mt-1">
             如需调整请联系管理员
           </p>
@@ -129,7 +129,7 @@ export function MatchRosterForm({
               className={playerBtnClass(selectedStarterIds.includes(m.id), rosterLocked || isMatchStarted)}
             >
               <span className="text-sm font-medium">{getDisplayName(m)}</span>
-              <PosChip pos={m.primaryPosition} />
+              {m.primaryPosition && <span className="text-xs">报名位置 · <PosChip pos={m.primaryPosition} /></span>}
             </button>
           ))}
         </div>
@@ -153,7 +153,7 @@ export function MatchRosterForm({
               )}
             >
               <span className="text-sm font-medium">{getDisplayName(m)}</span>
-              <PosChip pos={m.primaryPosition} />
+              {m.primaryPosition && <span className="text-xs">报名位置 · <PosChip pos={m.primaryPosition} /></span>}
             </button>
           ))}
         </div>

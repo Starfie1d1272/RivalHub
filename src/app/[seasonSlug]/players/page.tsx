@@ -55,11 +55,10 @@ export default async function PlayersPage({ params, searchParams }: PlayersPageP
           description={projection.presentation.playerDescription}
         />
 
-        <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
           <Stat label="选手" value={projection.players.length} />
           <Stat label="所属队伍" value={teamCount} />
           <Stat label="正式比赛数据" value={playersWithStats} accent />
-          <Stat label="参赛队" value={projection.teamCount} />
         </div>
 
         <ParticipantDirectoryToolbar query={query.q} team={query.team} teams={teamOptions} total={visiblePlayers.length} />
@@ -86,7 +85,7 @@ export default async function PlayersPage({ params, searchParams }: PlayersPageP
     return (
       <PageLayout as="div" variant="wide" className="space-y-8">
         <PageHeader title="选手" eyebrow={season.name} description="以下选手来自本届已确认参赛名单。" />
-        <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
           <Stat label="选手" value={projection.players.length} />
           <Stat label="所属队伍" value={projection.teamCount} />
           <Stat label="正式比赛数据" value={playersWithStats} accent />
@@ -97,7 +96,7 @@ export default async function PlayersPage({ params, searchParams }: PlayersPageP
         ) : (
           <div className="space-y-3">
             {visiblePlayers.map((player) => (
-              <EventPlayerDirectoryRow key={`${player.entryId}-${player.userId}`} player={{ ...player, isRepresentative: false }} seasonSlug={seasonSlug} />
+              <EventPlayerDirectoryRow key={`${player.entryId}-${player.userId}`} player={player} seasonSlug={seasonSlug} />
             ))}
           </div>
         )}

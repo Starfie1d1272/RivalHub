@@ -4,7 +4,7 @@ import { isHttpUrl } from "@/lib/external-url";
 
 const MATCH_STATUS_PRESENTATIONS: Record<MatchStatus, StatusPresentation> = {
   scheduled: { label: "待进行", tone: "neutral" },
-  in_progress: { label: "待进行", tone: "neutral" },
+  in_progress: { label: "进行中", tone: "accent" },
   finished: { label: "已结束", tone: "success" },
   cancelled: { label: "已取消", tone: "danger" },
 };

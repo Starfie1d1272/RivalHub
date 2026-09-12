@@ -120,6 +120,7 @@ describe("match detail stats", () => {
         steamName: "Steam",
         displayName: null,
         perfectName: "Perfect",
+        registrationPosition: "rifler",
         isStarter: true,
         userId: "user-1",
       },

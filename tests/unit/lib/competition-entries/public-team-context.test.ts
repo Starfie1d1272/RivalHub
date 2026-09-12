@@ -86,7 +86,7 @@ describe("getPublicCompetitionEntryTeamContext", () => {
         teamId: "team-1",
       },
       rosterStatus: "frozen",
-      roster: [{ userId: "representative-1", name: "Current Name", isStarter: true, isRepresentative: true }],
+      roster: [{ userId: "representative-1", name: "Current Name", isStarter: true }],
       record: { played: 1, wins: 1, losses: 0 },
       matches: [{ opponentName: "Opponent Snapshot", ownScore: 1, opponentScore: 0 }],
     });

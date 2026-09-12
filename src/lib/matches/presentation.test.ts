@@ -3,7 +3,7 @@ import { presentMatchFormat, presentMatchLabel, presentMatchStatus } from "@/lib
 
 describe("match status presentation", () => {
   it("keeps match status labels readable in public surfaces", () => {
-    expect(presentMatchStatus("in_progress")).toEqual({ label: "待进行", tone: "neutral" });
+    expect(presentMatchStatus("in_progress")).toEqual({ label: "进行中", tone: "accent" });
     expect(presentMatchStatus("finished")).toEqual({ label: "已结束", tone: "success" });
     expect(presentMatchFormat("bo3")).toEqual({ label: "BO3", tone: "neutral" });
   });

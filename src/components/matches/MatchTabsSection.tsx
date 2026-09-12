@@ -40,7 +40,7 @@ export function MatchTabsSection({
   return (
     <Tabs defaultValue={isHistorical || activeMatches.length === 0 ? "done" : "active"} className="w-full">
       <TabsList className="bg-[var(--color-panel)] border border-[var(--color-border)] p-1">
-        <TabsTrigger value="active" className="text-xs data-[state=active]:bg-[var(--color-accent)] data-[state=active]:text-[var(--color-accent-fg)]">待进行</TabsTrigger>
+        <TabsTrigger value="active" className="text-xs data-[state=active]:bg-[var(--color-accent)] data-[state=active]:text-[var(--color-accent-fg)]">当前赛程</TabsTrigger>
         <TabsTrigger value="done" className="text-xs data-[state=active]:bg-[var(--color-accent)] data-[state=active]:text-[var(--color-accent-fg)]">已结束</TabsTrigger>
       </TabsList>
       <TabsContent value="active" className="mt-4">
@@ -65,7 +65,7 @@ export function MatchTabsSection({
             ))}
           </div>
         ) : (
-          <div className="text-center py-8 text-[var(--color-fg-mid)] text-sm">暂无待进行比赛</div>
+          <div className="text-center py-8 text-[var(--color-fg-mid)] text-sm">暂无未结束比赛</div>
         )}
       </TabsContent>
       <TabsContent value="done" className="mt-4">

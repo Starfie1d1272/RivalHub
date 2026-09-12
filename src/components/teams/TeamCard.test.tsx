@@ -16,13 +16,11 @@ const props = {
     {
       name: "Captain Star",
       isStarter: true,
-      isRepresentative: true,
       userId: "player-1",
     },
     {
       name: "Anchor Star",
       isStarter: true,
-      isRepresentative: false,
       userId: "player-2",
     },
   ],

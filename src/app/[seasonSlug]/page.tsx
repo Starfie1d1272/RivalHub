@@ -1,3 +1,5 @@
+import { MatchStatusBadge } from "@/components/matches/MatchStatusBadge";
+import type { MatchStatus } from "@/types/match";
 import { getPublicSeasonResults } from "@/lib/seasons/public-results";
 import { getPublicSeasonStagePresentation } from "@/lib/seasons/public-stage";
 import { SeasonResults } from "@/components/season/SeasonResults";
@@ -324,15 +326,8 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
                         <span className="font-mono text-[10px] text-[var(--color-fg-dim)] uppercase tracking-wider">
                           {stageLabelByKey.get(match.stage) ?? "比赛阶段"}
                         </span>
-                        {match.status === "in_progress" ? (
-                          <span className="font-mono text-[10px] text-[var(--color-ok)]">待进行</span>
-                        ) : match.scheduledAt ? (
-                          <span className="font-mono text-[10px] text-[var(--color-fg-dim)]">
-                            {formatCSTDateTime(match.scheduledAt)}
-                          </span>
-                        ) : (
-                          <span className="font-mono text-[10px] text-[var(--color-fg-dim)]">TBD</span>
-                        )}
+                        <MatchStatusBadge status={match.status as MatchStatus} scheduledAt={match.scheduledAt} />
+                        {match.scheduledAt && <span className="font-mono text-[10px] text-[var(--color-fg-dim)]">{formatCSTDateTime(match.scheduledAt)}</span>}
                       </div>
                     </div>
                   </Link>
@@ -363,8 +358,8 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
 
       {/* Stat 四格：只呈现可计数的赛事事实；阶段名称由真实 Stage 事实驱动。 */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <Stat label="队伍" value={publicTeamCount} />
-        <Stat label="选手" value={publicPlayerCount} />
+        <Stat label="TEAMS" value={publicTeamCount} />
+        <Stat label="PLAYERS" value={publicPlayerCount} />
         <Stat
           label="MATCHES"
           value={(matchCountRow?.total ?? 0) > 0

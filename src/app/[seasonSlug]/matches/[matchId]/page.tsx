@@ -48,6 +48,7 @@ import { getSeasonFinishedMatches } from "@/lib/matches/detail-data";
 import { MatchHeroHeader } from "@/components/matches/MatchHeroHeader";
 import { MatchMapTabsNavigation } from "@/components/matches/MatchMapTabsNavigation";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
+import { supportsRegistrationPositionDirectory } from "@/lib/players/directory-query";
 import { isHttpUrl } from "@/lib/external-url";
 import { getPublicOrAuthorizedDraftSeason } from "@/lib/data/public-seasons";
 
@@ -91,19 +92,11 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
           steamName: users.steamName,
           displayName: users.displayName,
           perfectName: users.perfectName,
-          primaryPosition: seasonRegistrations.primaryPosition,
           userId: users.id,
         })
         .from(eventRosterMembers)
         .innerJoin(eventRosters, eq(eventRosterMembers.eventRosterId, eventRosters.id))
         .innerJoin(users, eq(eventRosterMembers.userId, users.id))
-        .leftJoin(
-          seasonRegistrations,
-          and(
-            eq(seasonRegistrations.userId, eventRosterMembers.userId),
-            eq(seasonRegistrations.seasonId, season.id),
-          ),
-        )
         .where(inArray(eventRosters.entryId, [match.entryAId, match.entryBId])),
       getSeasonFinishedMatches(season.id, match.entryAId),
       getSeasonFinishedMatches(season.id, match.entryBId),
@@ -116,9 +109,15 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
   const timeProposals = await getMatchTimeProposalViews(match.id, userSession?.userId);
 
 
+  const registrationPositions = supportsRegistrationPositionDirectory(season.competitionTemplate)
+    ? await db.select({ userId: seasonRegistrations.userId, position: seasonRegistrations.primaryPosition })
+      .from(seasonRegistrations)
+      .where(and(eq(seasonRegistrations.seasonId, season.id), inArray(seasonRegistrations.userId, allTeamMemberRows.map((row) => row.userId))))
+    : [];
+  const positionByUserId = new Map(registrationPositions.map((row) => [row.userId, row.position]));
   const allTeamMembers = allTeamMemberRows.map((row) => ({
     ...row,
-    primaryPosition: row.primaryPosition ?? "—",
+    primaryPosition: positionByUserId.get(row.userId) ?? "",
   }));
 
   // 从赛季对局列表计算战绩、H2H
@@ -300,7 +299,7 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
           steamName: r.steamName ?? "未知",
           displayName: r.displayName ?? null,
           perfectName: r.perfectName ?? null,
-          primaryPosition: r.primaryPosition ?? "—",
+          primaryPosition: r.primaryPosition,
         }));
     }
   }

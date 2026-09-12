@@ -12,7 +12,6 @@ export interface EventPlayerDirectoryRowData {
   entryName: string;
   name: string;
   isStarter: boolean;
-  isRepresentative?: boolean;
   stats: {
     maps: number;
     avgRating: number | null;

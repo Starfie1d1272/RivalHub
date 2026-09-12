@@ -1,3 +1,5 @@
+import { MatchStatusBadge } from "@/components/matches/MatchStatusBadge";
+import type { MatchStatus } from "@/types/match";
 import React from "react";
 import Link from "next/link";
 import type { RegistrationMode, SeasonStatus } from "@/types/season";
@@ -113,7 +115,7 @@ export function HomeSeasonPanel({
 
   if (season.status === "voting") {
     return (
-      <Panel label="投票排行 · TOP 3">
+      <Panel label="VOTING · TOP 3">
         <div className="grid gap-3">
           {topCandidatesWithNames.length > 0 ? (
             topCandidatesWithNames.map((candidate, index) => (
@@ -139,12 +141,12 @@ export function HomeSeasonPanel({
   }
 
   if (season.status === "drafting") {
-    return <Panel label="选秀进行中"><SeasonPanelTitle season={season} /><p className="my-4 text-sm text-[var(--color-fg-mid)]">关注选人进度与正在形成的赛事阵容。</p><Button asChild><Link href={`/${season.slug}/draft`}>查看选秀 →</Link></Button></Panel>;
+    return <Panel label="DRAFT"><SeasonPanelTitle season={season} /><p className="my-4 text-sm text-[var(--color-fg-mid)]">关注选人进度与正在形成的赛事阵容。</p><Button asChild><Link href={`/${season.slug}/draft`}>查看选秀 →</Link></Button></Panel>;
   }
 
   if (season.status === "playing") {
     return (
-      <Panel label="下一场">
+      <Panel label="MATCHES">
         <div className="grid gap-3.5">
           <SeasonPanelTitle season={season} />
           <div className="grid gap-2 py-3 border-y border-[var(--color-border)]">
@@ -170,7 +172,7 @@ export function HomeSeasonPanel({
   }
 
   return (
-    <Panel label={getSeasonLifecycleGroup(season) === "upcoming" ? "即将开始" : "当前赛事"}>
+    <Panel label={getSeasonLifecycleGroup(season) === "upcoming" ? "UPCOMING" : "EVENT"}>
       <div className="grid gap-3.5">
         <SeasonPanelTitle season={season} useLifecycleSummary />
         <div className="flex items-center gap-2">
@@ -288,30 +290,7 @@ function MatchTickerRow({ match }: { match: HomeMatchSummary }) {
     <div className="flex items-center justify-between">
       <div className="flex flex-wrap items-center gap-2">
         {(match.teamAName || match.teamBName) && <span className="text-sm">{match.teamAName ?? "待定"} vs {match.teamBName ?? "待定"}</span>}
-        {match.status === "in_progress" && (
-          <span
-            style={{
-              fontFamily: "var(--font-mono)",
-              fontSize: 10,
-              color: "var(--color-ok)",
-              letterSpacing: "var(--tracking-label)",
-            }}
-          >
-            待进行
-          </span>
-        )}
-        {match.status === "scheduled" && (
-          <span
-            style={{
-              fontFamily: "var(--font-mono)",
-              fontSize: 10,
-              color: "var(--color-fg-dim)",
-              letterSpacing: "var(--tracking-label)",
-            }}
-          >
-            NEXT
-          </span>
-        )}
+        <MatchStatusBadge status={match.status as MatchStatus} scheduledAt={match.scheduledAt} />
       </div>
       <span
         style={{

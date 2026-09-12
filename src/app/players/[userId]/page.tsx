@@ -245,7 +245,7 @@ export async function PlayerPageContent({ params }: PlayerPageProps) {
     ? await db
       .select({ seasonId: matches.seasonId, lastCompletedAt: max(matches.completedAt) })
       .from(matches)
-      .where(inArray(matches.seasonId, [...new Set(registrations.map((registration) => registration.seasonId))]))
+      .where(and(inArray(matches.seasonId, [...new Set(registrations.map((registration) => registration.seasonId))]), eq(matches.status, "finished")))
       .groupBy(matches.seasonId)
     : [];
   const registrationCompletionBySeasonId = new Map(

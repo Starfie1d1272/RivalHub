@@ -67,7 +67,6 @@ export interface PublicEventTeamContext {
     avatarUrl?: string | null;
     name: string;
     isStarter: boolean;
-    isRepresentative: boolean;
   }>;
   rosterLabel: string;
   rosterStatus: "preparing" | "confirmed" | "frozen" | null;
@@ -320,7 +319,6 @@ export async function getPublicCompetitionEntryTeamContext(
       name: getPublicDisplayName(member),
       avatarUrl: member.avatarUrl,
       isStarter: member.isStarter,
-      isRepresentative: member.userId === entry.representativeUserId,
     })),
     rosterLabel: "本届参赛名单",
     rosterStatus: eventRoster?.status ?? null,
