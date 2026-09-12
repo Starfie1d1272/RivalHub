@@ -133,6 +133,16 @@ export async function refreshMirror(path: string): Promise<void> {
     const bindings = await provisionPersonas(snapshot, target);
     await client.query("BEGIN");
     for (const binding of bindings) {
+      const role = binding.persona === "super-admin" ? "super_admin" : "user";
+      // A sparse production snapshot may not contain five distinct active
+      // users. Synthetic persona rows are added after the bulk import, so
+      // insert the missing row before binding its deterministic Auth identity.
+      await client.query(
+        `INSERT INTO public.users (id, status, display_name, email, role)
+         VALUES ($1, 'active', $2, $3, $4)
+         ON CONFLICT (id) DO NOTHING`,
+        [binding.userId, `Preview ${binding.persona}`, binding.email, role],
+      );
       await client.query("UPDATE public.users SET auth_id=$1, email=$2, email_verified_at=now(), email_verification_source='admin_migration', role=$3, updated_at=now() WHERE id=$4", [binding.authId, binding.email, binding.persona === "super-admin" ? "super_admin" : "user", binding.userId]);
       await client.query(`INSERT INTO public.user_identities (user_id, kind, provider, provider_subject, normalized_value, verified_at, provenance, is_primary)
         VALUES ($1, 'auth', 'supabase_auth', $2, $3, now(), 'admin_migration', true), ($1, 'email', 'email', $3, $3, now(), 'admin_migration', true) ON CONFLICT DO NOTHING`, [binding.userId, binding.authId, binding.email]);

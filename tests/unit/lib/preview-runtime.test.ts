@@ -10,8 +10,9 @@ describe("Preview mirror runtime boundary", () => {
   });
 
   it("rejects privileged or un-wired Auth environment", () => {
-    const env = { ...process.env, VERCEL_ENV: "preview", NEXT_PUBLIC_SUPABASE_URL: "https://cueazphyskstwdhnzsxx.supabase.co", NEXT_PUBLIC_RIVALHUB_PREVIEW_READONLY: "1", RIVALHUB_PREVIEW_MIRROR_MODE: "production-derived" };
+    const env = { ...process.env, VERCEL_ENV: "preview", NEXT_PUBLIC_SUPABASE_URL: "https://cueazphyskstwdhnzsxx.supabase.co", NEXT_PUBLIC_SUPABASE_ANON_KEY: "dev-anon-key", NEXT_PUBLIC_RIVALHUB_PREVIEW_READONLY: "1", RIVALHUB_PREVIEW_MIRROR_MODE: "production-derived" };
     expect(() => assertPreviewAuthEnvironment(env)).not.toThrow();
+    expect(() => assertPreviewAuthEnvironment({ ...env, NEXT_PUBLIC_SUPABASE_ANON_KEY: "" })).toThrow();
     expect(() => assertPreviewAuthEnvironment({ ...env, SUPABASE_SECRET_KEY: "secret" })).toThrow();
     expect(() => assertPreviewAuthEnvironment({ ...env, NEXT_PUBLIC_SUPABASE_URL: "https://sucokfotkypwqkckfynp.supabase.co" })).toThrow();
   });

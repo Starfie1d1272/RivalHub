@@ -24,5 +24,6 @@ describe("preview mirror workflow contract", () => {
     expect(refresh).toContain("snapshot_sha256");
     expect(refresh).toContain("ready=true");
     expect(refresh).toContain("ready=false");
+    expect(refresh).toContain("ON CONFLICT (id) DO NOTHING");
   });
 });

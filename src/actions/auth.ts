@@ -28,7 +28,6 @@ export async function loginWithPassword(
   email: string,
   password: string,
 ): Promise<ActionResult<{ email: string }>> {
-  try { assertPreviewMutationAllowed(); } catch (error) { return actionError("signUp", error); }
   if (!email || !email.includes("@")) {
     return fail({ code: ErrorCode.VALIDATION_FAILED, message: "请输入有效的邮箱地址" });
   }
