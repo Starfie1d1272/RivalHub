@@ -59,15 +59,18 @@ export function projectStrengthFact(fact: ProjectableStrengthFact | null): Major
 export function projectStrengthStarter(starter: StrengthStarterProjection): MajorStrengthStarter {
   const historicalPeak = projectStrengthFact(starter.input.historicalPeak);
   const referenceSeasonPeak = projectStrengthFact(starter.input.previousSeasonPeak);
+  const currentSeasonPeak = projectStrengthFact(starter.input.currentSeasonPeak);
   const recentPeak = projectStrengthFact(starter.breakdown.effectiveRecentPeak)
-    ?? projectStrengthFact(starter.input.currentSeasonPeak);
+    ?? currentSeasonPeak;
   return {
     userId: starter.userId,
     label: starter.label,
     presentation: {
       historicalPeak,
       referenceSeasonPeak,
+      currentSeasonPeak,
       recentPeak,
+      historicalRating: starter.breakdown.historicalRating,
       available: starter.breakdown.available ?? true,
       blockers: [...(starter.breakdown.blockers ?? [])],
     },

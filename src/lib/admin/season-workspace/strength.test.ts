@@ -9,7 +9,7 @@ function starter(userId: string): RawStarter {
   return {
     userId,
     label: userId,
-    input: { historicalPeak: fact, previousSeasonPeak: fact, currentSeasonPeak: fact },
+    input: { historicalPeak: fact, previousSeasonPeak: fact, currentSeasonPeak: { ...fact, rank: "A+" } },
     breakdown: {
       available: true,
       blockers: [],
@@ -39,7 +39,7 @@ function team(teamId: string, tieGroup: number | null, recommendationRank: numbe
 }
 
 describe("season workspace strength projection", () => {
-  it("exposes evidence and semantic tie state without evaluator internals", () => {
+  it("exposes real evidence and semantic tie state without evaluator internals", () => {
     const [tied, tiedAgain, unique, unavailable] = projectStrengthTeams([
       team("tied-a", 1, 1),
       team("tied-b", 1, 1),
@@ -54,7 +54,9 @@ describe("season workspace strength projection", () => {
     expect(tied?.starters[0]?.presentation).toMatchObject({
       historicalPeak: { rank: "A" },
       referenceSeasonPeak: { rank: "A" },
+      currentSeasonPeak: { rank: "A+" },
       recentPeak: { rank: "A++" },
+      historicalRating: 1000,
     });
     expect(tied).not.toHaveProperty("teamSeedStrength");
     expect(tied).not.toHaveProperty("tieGroup");

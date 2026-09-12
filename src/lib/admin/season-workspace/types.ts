@@ -49,7 +49,9 @@ export interface MajorStrengthStarter {
   presentation: {
     historicalPeak: MajorStrengthFact | null;
     referenceSeasonPeak: MajorStrengthFact | null;
+    currentSeasonPeak: MajorStrengthFact | null;
     recentPeak: MajorStrengthFact | null;
+    historicalRating: number | null;
     available: boolean;
     blockers: string[];
   };

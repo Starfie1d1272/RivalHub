@@ -41,7 +41,9 @@ const data: MajorTournamentSeedsManagementData = {
         presentation: {
           historicalPeak: { rank: "黄金S", stars: 10, sourcePlatform: "fivee", sourceSeasonKey: "5E-S20", sourceRank: "S", sourceStars: 10, conversionVersion: "v1" },
           referenceSeasonPeak: { rank: "A", stars: null, sourcePlatform: null, sourceSeasonKey: null, sourceRank: null, sourceStars: null, conversionVersion: null },
+          currentSeasonPeak: { rank: "A+", stars: null, sourcePlatform: null, sourceSeasonKey: null, sourceRank: null, sourceStars: null, conversionVersion: null },
           recentPeak: { rank: "A++", stars: null, sourcePlatform: null, sourceSeasonKey: null, sourceRank: null, sourceStars: null, conversionVersion: null },
+          historicalRating: 1000,
           available: true,
           blockers: [],
         },
@@ -62,8 +64,9 @@ describe("MajorTournamentSeedsManagement", () => {
     expect(screen.getByText("历史 黄金S · 10 星")).toBeVisible();
     expect(screen.getByText("参考 A")).toBeVisible();
     expect(screen.getByText("近期 A++")).toBeVisible();
+    expect(screen.getByText("历史 Rating 1000")).toBeInTheDocument();
     expect(screen.queryByText("12.34")).not.toBeInTheDocument();
     expect(screen.queryByText(/并列组/)).not.toBeInTheDocument();
-    expect(screen.queryByText(/综合|历史 Rating|历史\/前一赛季\/近期参考/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/综合|历史\/前一赛季\/近期参考/)).not.toBeInTheDocument();
   });
 });

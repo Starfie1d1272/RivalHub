@@ -44,6 +44,7 @@ export function MajorStrengthStarterSummary({
     { label: "历史最高", fact: presentation.historicalPeak },
     { label: "参考", fact: presentation.referenceSeasonPeak },
     { label: recentLabel, fact: presentation.recentPeak },
+    { label: "当前赛季候选", fact: presentation.currentSeasonPeak },
   ]
     .filter((item): item is { label: string; fact: MajorStrengthFact } => isConverted(item.fact))
     .filter((item, index, items) => items.findIndex((other) =>
@@ -71,7 +72,9 @@ export function MajorStrengthStarterSummary({
       <div className="mt-2 space-y-1 border-t border-[var(--color-border)] pt-2 text-[11px] leading-5 text-[var(--color-fg-mid)]">
         <FactLine label="历史最高" fact={presentation.historicalPeak} platform={platform} />
         <FactLine label="前一完整赛季" fact={presentation.referenceSeasonPeak} platform={platform} />
+        <FactLine label="当前赛季候选" fact={presentation.currentSeasonPeak} platform={platform} />
         <FactLine label={recentLabel} fact={presentation.recentPeak} platform={platform} />
+        {presentation.historicalRating !== null && <p>历史 Rating {presentation.historicalRating}</p>}
         {showProvenance && provenanceFacts.map(({ label, fact }, index) => (
           <p key={`${starter.userId}-source-${index}`}>
             来源（{label}）：{sourceLabel(fact.sourcePlatform)}{fact.sourceSeasonKey ? ` · 赛季 ${fact.sourceSeasonKey}` : ""} · 原始 {fact.sourceRank}{fact.sourceStars === null ? "" : ` · ${fact.sourceStars} 星`} · 换算版本 {fact.conversionVersion ?? "未记录"}
