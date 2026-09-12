@@ -4,11 +4,12 @@ import { toLongLivedTeamDto } from "@/lib/teams/workspace";
 
 describe("队伍目录入口", () => {
   it.each([
-    [true, 3, { href: "/my/teams", label: "管理我的队伍" }],
-    [false, 2, { href: "/my/teams", label: "处理队伍邀请" }],
-    [false, 0, { href: "/my/teams#create-team", label: "创建队伍" }],
-  ] as const)("按当前 Team 与 pending invitation 选择 CTA", (currentTeam, invitationCount, expected) => {
-    expect(getTeamDirectoryCta(currentTeam, invitationCount)).toEqual(expected);
+    ["captain", 3, { href: "/my/teams", label: "管理我的队伍" }],
+    ["member", 2, { href: "/my/teams", label: "查看我的队伍" }],
+    [null, 2, { href: "/my/teams", label: "处理队伍邀请" }],
+    [null, 0, { href: "/my/teams#create-team", label: "创建队伍" }],
+  ] as const)("按当前 Team 角色与 pending invitation 选择 CTA", (role, invitationCount, expected) => {
+    expect(getTeamDirectoryCta(role, invitationCount)).toEqual(expected);
   });
 });
 

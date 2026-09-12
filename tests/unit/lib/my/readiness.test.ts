@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@/db/client", () => ({ db: {} }));
 
-import { buildMyReadinessModel, isSettingsProfileReadinessReady, selectMyCompetitiveProfilePlatformKeys, type MyCompetitionSource, type MySanctionSource } from "@/lib/my/readiness";
+import { buildMyReadinessModel, isMyReadinessActionable, isSettingsProfileReadinessReady, selectMyCompetitiveProfilePlatformKeys, selectMyPrimaryAction, type MyCompetitionSource, type MySanctionSource } from "@/lib/my/readiness";
 import type { SanctionEffect } from "@/lib/discipline/service";
 import type { ParticipantQualificationFacts } from "@/lib/qualification/service";
 import { MAJOR_TEAM_CONFIG } from "@/lib/competition/templates";
@@ -32,9 +32,13 @@ function competition(overrides: Partial<MyCompetitionSource> = {}): MyCompetitio
   return {
     id: "entry-1",
     name: "RivalHub Alpha",
+    teamId: "team-1",
     seasonId: "season-1",
     seasonName: "2026 秋季赛",
     seasonSlug: "major-2026",
+    seasonStatus: "registration",
+    seasonCreatedAt: new Date("2026-08-01T00:00:00Z"),
+    entryUpdatedAt: new Date("2026-08-02T00:00:00Z"),
     registrationStatus: "approved",
     participantStatus: "confirmed",
     representativeUserId: USER_ID,
@@ -131,9 +135,9 @@ describe("我的 readiness read model", () => {
       qualificationFactsByPlatform: new Map([["perfect_world", incompleteCompetitive]]),
     });
 
-    expect(result.education).toMatchObject({ state: "incomplete", owner: undefined, cta: { href: "/settings/education" } });
+    expect(result.education).toMatchObject({ state: "incomplete", responsibility: "self", cta: { href: "/settings/education" } });
     expect(result.competitiveProfiles[0]).toMatchObject({ state: "incomplete" });
-    expect(result.competitions[0]?.qualification).toMatchObject({ state: "blocked", owner: undefined });
+    expect(result.competitions[0]?.qualification).toMatchObject({ state: "blocked", responsibility: "self" });
   });
 
   it.each([
@@ -154,7 +158,7 @@ describe("我的 readiness read model", () => {
       })],
     });
 
-    expect(result.competitions[0]?.entry).toMatchObject({ state: "waiting", owner: "我" });
+    expect(result.competitions[0]?.entry).toMatchObject({ state: "waiting", responsibility: "self" });
     expect(result.competitions[0]?.entry.detail).toContain("需要重新确认");
   });
 
@@ -235,5 +239,21 @@ describe("我的 readiness read model", () => {
       state: "not_applicable",
       title: "个人竞技资料",
     });
+  });
+
+  it("uses typed responsibility to separate self action from admin waiting", () => {
+    const waitingForAdmin = model({
+      baseFact: fullFact({ approvedEducation: false, educationHistory: [{ id: "education-1", status: "pending" } as never] }),
+    });
+    expect(waitingForAdmin.education.responsibility).toBe("admin");
+    expect(isMyReadinessActionable(waitingForAdmin.education)).toBe(false);
+    expect(isMyReadinessActionable(waitingForAdmin.competitions[0]!.entry)).toBe(false);
+  });
+
+  it("selects blocked and waiting self-owned items, but ignores blocked admin work", () => {
+    const adminItem = { id: "admin", title: "审核", state: "blocked" as const, detail: "等待审核", responsibility: "admin" as const, cta: { href: "/admin", label: "查看" } };
+    const selfItem = { id: "self", title: "确认", state: "waiting" as const, detail: "请确认", responsibility: "self" as const, cta: { href: "/confirm", label: "确认" } };
+    expect(selectMyPrimaryAction([adminItem, selfItem])).toBe(selfItem);
+    expect(isMyReadinessActionable({ ...selfItem, state: "ready" })).toBe(false);
   });
 });

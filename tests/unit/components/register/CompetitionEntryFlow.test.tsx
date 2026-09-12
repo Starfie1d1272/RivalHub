@@ -17,7 +17,7 @@ describe("CompetitionEntryFlow", () => {
   it("makes missing logo actionable and blocks review submission", () => {
     const p = props(); p.entry!.logoUrl = null; render(<CompetitionEntryFlow {...p} />);
     expect(screen.getByRole("button", { name: "提交审核" })).toBeDisabled();
-    expect(screen.getByRole("link", { name: "前往我的队伍上传图标" })).toHaveAttribute("href", "/my/teams");
+    expect(screen.getByRole("link", { name: "前往我的队伍上传图标" })).toHaveAttribute("href", "/my/teams#team-profile");
   });
   it("does not show Perfect Team ID in the standard registration flow", () => {
     const p = props(); p.requiresTeamLogo = false; p.entry!.logoUrl = null; render(<CompetitionEntryFlow {...p} />);

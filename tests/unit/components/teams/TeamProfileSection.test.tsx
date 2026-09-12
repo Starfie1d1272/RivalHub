@@ -18,28 +18,18 @@ const baseProps = {
   onNameChange: vi.fn(),
   onDescriptionChange: vi.fn(),
   onSave: vi.fn(),
-  onLeave: vi.fn(),
 };
 
 describe("TeamProfileSection", () => {
   it("lets the captain edit the existing Team logo beside the profile fields", () => {
-    render(<TeamProfileSection {...baseProps} isCaptain />);
+    render(<TeamProfileSection {...baseProps} />);
 
     expect(screen.getByTestId("team-logo-upload")).toHaveAttribute("data-team-id", "team-1");
     expect(screen.getByTestId("team-logo-upload")).toHaveAttribute("data-logo-url", "https://example.com/team.png");
     expect(screen.getByTestId("team-logo-upload")).toHaveAttribute("data-can-edit", "true");
     expect(screen.getByRole("button", { name: "保存资料" })).toBeInTheDocument();
-    expect(screen.queryByRole("switch")).not.toBeInTheDocument();
-  });
-
-  it("shows the logo to a member without exposing upload or edit controls", () => {
-    render(<TeamProfileSection {...baseProps} isCaptain={false} />);
-
-    expect(screen.getByTestId("team-logo-upload")).toHaveAttribute("data-can-edit", "false");
-    expect(screen.getByLabelText("队伍名称")).toBeDisabled();
-    expect(screen.getByLabelText("简介")).toBeDisabled();
-    expect(screen.getByRole("button", { name: "退出队伍" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "保存资料" })).not.toBeInTheDocument();
+    expect(screen.getByLabelText("队伍名称")).not.toBeDisabled();
+    expect(screen.getByLabelText("简介")).not.toBeDisabled();
     expect(screen.queryByRole("switch")).not.toBeInTheDocument();
   });
 });

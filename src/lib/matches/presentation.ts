@@ -21,6 +21,26 @@ export function presentMatchStatus(status: MatchStatus, options?: { isForfeit?: 
   return MATCH_STATUS_PRESENTATIONS[status];
 }
 
+export interface PersonalMatchTask {
+  title: "你的当前比赛" | "你的下一场";
+  detail: string;
+  href: string;
+}
+
+export function presentPersonalMatchTask(input: {
+  matchId: string;
+  seasonSlug: string;
+  opponentName: string;
+  scheduledAt: Date | null;
+  status?: "scheduled" | "in_progress";
+}): PersonalMatchTask {
+  return {
+    title: input.status === "in_progress" ? "你的当前比赛" : "你的下一场",
+    detail: `对阵 ${input.opponentName} · ${presentMatchStatus(input.status ?? "scheduled", { scheduledAt: input.scheduledAt }).label}`,
+    href: `/${input.seasonSlug}/matches/${input.matchId}`,
+  };
+}
+
 export function presentMatchFormat(format: MatchFormat): StatusPresentation {
   return MATCH_FORMAT_PRESENTATIONS[format];
 }

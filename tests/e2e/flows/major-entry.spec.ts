@@ -54,11 +54,12 @@ test("队长可以登录、建立长期队伍并发起本届 Major 报名", asyn
   await expect(entryChecklist).toBeVisible();
   await expect(page.getByText(/· 待提交/)).toBeVisible();
 
-  // “我的赛事”与报名页读到同一份 CompetitionEntry 状态（header 导航也含赛季名，取卡片）。
+  // “我的赛事”与报名页读到同一份 CompetitionEntry 状态（按赛季展示，取卡片）。
   await page.goto("/my/competitions");
+  await expect(page.getByRole("heading", { name: "当前参与", exact: true })).toBeVisible();
   await expect(page.getByText(scenario.seasonName).first()).toBeVisible();
-  await expect(page.getByText("赛事报名").first()).toBeVisible();
   await expect(page.getByText("待提交", { exact: true }).first()).toBeVisible();
+  await expect(page.getByRole("link", { name: "继续报名", exact: true })).toBeVisible();
 });
 
 function account(scenario: E2EFixtureCredentials, key: E2EFixtureCredentials["accounts"][number]["key"]): E2EFixtureCredentials["accounts"][number] {
