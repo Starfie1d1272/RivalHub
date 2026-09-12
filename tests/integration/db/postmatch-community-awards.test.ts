@@ -62,7 +62,7 @@ describe("postmatch PostgreSQL invariants", () => {
       expect((await getVerifiedPlayerStatsBySeason(seasonId, [adminA])).has(adminA)).toBe(false);
       await pool.query("UPDATE matches SET status='finished' WHERE id=$1", [matchId]);
       const columns = await pool.query("SELECT column_name FROM information_schema.columns WHERE table_name='match_commentators' AND column_name IN ('confirmed_fee_cents','settled_at')"); expect(columns.rows).toHaveLength(0);
-      await pool.query("INSERT INTO event_rosters (id,entry_id) VALUES ($1,$2)", [eventRosterId, entryA]);
+      await pool.query("INSERT INTO event_rosters (id,entry_id,source_roster_revision_id) VALUES ($1,$2,$3)", [eventRosterId, entryA, revisionA]);
       await pool.query("INSERT INTO event_roster_members (event_roster_id,user_id) VALUES ($1,$2)", [eventRosterId, adminA]);
       const award = await db.transaction((tx) => submitCommunityAwardInTx(tx, { seasonId, submitterId: outsider, name: "最佳解说", condition: "以实际解说记录为准", prize: "纪念奖品" }));
       await db.transaction((tx) => reviewCommunityAwardInTx(tx, { awardId: award.awardId, status: "approved", reviewNote: null, actorId: adminA }));
