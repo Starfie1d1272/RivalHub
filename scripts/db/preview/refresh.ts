@@ -49,6 +49,40 @@ async function ensureMirrorState(client: PoolClient): Promise<void> {
   )`);
 }
 
+type RefreshDataPhases = {
+  importSnapshot: (client: PoolClient, snapshot: MirrorSnapshot) => Promise<void>;
+  verify: (client: PoolClient) => Promise<unknown>;
+  migrateCurrent: (client: PoolClient) => Promise<void>;
+};
+
+export async function importSnapshot(client: PoolClient, snapshot: MirrorSnapshot): Promise<void> {
+  await client.query("BEGIN");
+  await client.query("SET LOCAL session_replication_role = 'replica'");
+  const tables = await client.query<{ tablename: string }>("SELECT tablename FROM pg_tables WHERE schemaname='public' AND tablename <> $1", [MIRROR_STATE_TABLE]);
+  if (tables.rows.length) await client.query(`TRUNCATE ${tables.rows.map(({ tablename }) => `public.${quoteIdentifier(tablename)}`).join(", ")} CASCADE`);
+  for (const [table, rows] of Object.entries(snapshot.tables)) {
+    if (!rows.length) continue;
+    const columns = [...new Set(rows.flatMap((row) => Object.keys(row)))].map(quoteIdentifier).join(", ");
+    await client.query(`INSERT INTO public.${quoteIdentifier(table)} (${columns}) SELECT ${columns} FROM jsonb_populate_recordset(NULL::public.${quoteIdentifier(table)}, $1::jsonb)`, [JSON.stringify(rows)]);
+  }
+  await client.query("SET LOCAL session_replication_role = 'origin'");
+  await client.query("COMMIT");
+}
+
+export async function importAndMigrateSnapshot(
+  client: PoolClient,
+  snapshot: MirrorSnapshot,
+  applyCurrentMigrations: boolean,
+  phases: RefreshDataPhases = { importSnapshot, verify: verifyForeignKeys, migrateCurrent },
+): Promise<void> {
+  await phases.importSnapshot(client, snapshot);
+  await phases.verify(client);
+  if (applyCurrentMigrations) {
+    await phases.migrateCurrent(client);
+    await phases.verify(client);
+  }
+}
+
 async function provisionPersonas(snapshot: MirrorSnapshot, target: ReturnType<typeof targetEnvironment>): Promise<PersonaBinding[]> {
   const auth = createClient(target.supabaseUrl, target.secretKey, { auth: { persistSession: false, autoRefreshToken: false } });
   const active = snapshot.tables.users.filter((user) => user.status === "active");
@@ -85,21 +119,8 @@ export async function refreshMirror(path: string): Promise<void> {
   try {
     await resetDevSchema(client);
     await migrateToSource(client, snapshot);
-    if (target.applyCurrentMigrations) await migrateCurrent(client);
+    await importAndMigrateSnapshot(client, snapshot, target.applyCurrentMigrations);
     await ensureMirrorState(client);
-
-    await client.query("BEGIN");
-    await client.query("SET LOCAL session_replication_role = 'replica'");
-    const tables = await client.query<{ tablename: string }>("SELECT tablename FROM pg_tables WHERE schemaname='public' AND tablename <> $1", [MIRROR_STATE_TABLE]);
-    if (tables.rows.length) await client.query(`TRUNCATE ${tables.rows.map(({ tablename }) => `public.${quoteIdentifier(tablename)}`).join(", ")} CASCADE`);
-    for (const [table, rows] of Object.entries(snapshot.tables)) {
-      if (!rows.length) continue;
-      const columns = [...new Set(rows.flatMap((row) => Object.keys(row)))].map(quoteIdentifier).join(", ");
-      await client.query(`INSERT INTO public.${quoteIdentifier(table)} (${columns}) SELECT ${columns} FROM jsonb_populate_recordset(NULL::public.${quoteIdentifier(table)}, $1::jsonb)`, [JSON.stringify(rows)]);
-    }
-    await client.query("SET LOCAL session_replication_role = 'origin'");
-    await verifyForeignKeys(client);
-    await client.query("COMMIT");
 
     const bindings = await provisionPersonas(snapshot, target);
     await client.query("BEGIN");

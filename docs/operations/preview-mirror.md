@@ -9,7 +9,7 @@ RivalHub 的所有 Vercel Preview 固定连接 `rivalhub-dev`，不连接 produc
 - dev job 只使用 staging environment 的 dev DB password、dev Supabase secret 和 persona password；它不能读取 production credential。
 - snapshot 只包含审查过的 public/domain projections。Auth identity、邮件、教育证据、邀请 token、审计、`recruitment_interests` 和 private bucket 不导出；公共 Team 招募 projection、team logo 与显式 allowlist 的赛事公共 asset 可以镜像。
 - `preview_mirror_state` 只记录 source tag/commit、refresh 时间和计数，供 Preview banner 诊断；它不是 availability 状态机。
-- manual dispatch 可选择把指定 ref 的当前 migration 应用到 shared dev，再导入同一脱敏 snapshot。旧 Preview 因共享 schema/data 失效是可接受的 trade-off；daily/post-release refresh 始终用 `main`。
+- refresh 先 reset 并应用 snapshot source migrations，再导入脱敏 production snapshot 和验证外键；manual dispatch 可随后把指定 ref 的当前 migration 应用到这份 production-derived 数据并再次验证，最后才 provision persona、公共 assets 与 mirror state。旧 Preview 因共享 schema/data 失效是可接受的 trade-off；daily/post-release refresh 始终用 `main`。
 
 ## Vercel Preview 必须配置
 
