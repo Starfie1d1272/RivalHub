@@ -244,6 +244,7 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
             key={entry ? `${entry.id}:${entry.updatedAt.toISOString()}` : "new"}
             capabilities={capabilities}
             requiresTeamLogo={normalizeTeamRegistrationConfig(season.teamRegistrationConfig).requireTeamLogo}
+            canManageEntryTeamProfile={Boolean(entry?.teamId && captainedTeams.some((team) => team.id === entry.teamId))}
             approvedTeamCount={approvedCount?.value ?? 0}
             competitionId={season.id}
             competitionName={season.name}
