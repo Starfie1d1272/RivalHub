@@ -1,5 +1,37 @@
 # Changelog
 
+## [2.9.1]
+
+### Added
+
+#### 公共赛事浏览与档案体验
+
+公共赛事页面新增队伍地图画像和 Bilibili 站内观看入口，并改进社区奖浏览体验。
+
+### Changed
+
+#### 公共赛事信息展示
+
+优化公共赛事页面与队伍、选手档案体验，赛事状态、参赛名单和历史赛果现在更加清晰；赛程筛选与相关公开信息入口也完成统一。
+
+#### 报名资料
+
+报名页不再收集完美战队 ID，仅保留纯数字的兼容记录供管理端查看。
+
+### Fixed
+
+#### 审计日志动作与目标展示
+
+收口审计事件 registry 与统一 writer，修复公告、公开信息和招募删除操作的审计展示与长期目标解析。历史审计记录继续保持可读，删除后的目标显示明确的历史目标状态。
+
+#### Major 实力摘要
+
+修正 Major 管理端实力摘要的历史、综合与近期参考语义，并改善 5E 等效标识的窄屏展示。
+
+#### 赛事与统计历史展示
+
+修复部分统计、比赛比分和历史赛事展示不准确的问题。
+
 ## [2.9.0]
 
 ### Added
@@ -2107,6 +2139,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[2.9.1]: https://github.com/Starfie1d1272/RivalHub/compare/v2.9.0...v2.9.1
 [2.9.0]: https://github.com/Starfie1d1272/RivalHub/compare/v2.8.4...v2.9.0
 [2.8.4]: https://github.com/Starfie1d1272/RivalHub/compare/v2.8.3...v2.8.4
 [2.8.3]: https://github.com/Starfie1d1272/RivalHub/compare/v2.8.2...v2.8.3
