@@ -80,15 +80,15 @@ export function buildHomeEyebrow(
 ): HomeEyebrow {
   if (status === "registration") {
     if (registrationOpenedAt == null) {
-      return { text: "● REGISTRATION UPCOMING", color: "var(--color-warn)" };
+      return { text: "● 报名即将开放", color: "var(--color-warn)" };
     }
-    return { text: "● REGISTRATION OPEN", color: "var(--color-ok)" };
+    return { text: "● 报名开放", color: "var(--color-ok)" };
   }
   if (status === "voting") {
-    return { text: "● CAPTAIN VOTING", color: "var(--color-warn)" };
+    return { text: "● 队长投票中", color: "var(--color-warn)" };
   }
   if (status === "playing") {
-    return { text: "● SEASON IN PROGRESS", color: "var(--color-ok)" };
+    return { text: "● 比赛进行中", color: "var(--color-ok)" };
   }
   return {
     text: `[ RIVALHUB / ${slug.replace(/-/g, " ").toUpperCase()} ]`,

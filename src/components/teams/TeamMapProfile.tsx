@@ -13,7 +13,7 @@ export function TeamMapProfile({ profile, event = false }: { profile: PublicTeam
     </section>
     <details open={profile.own.length === 0} className="space-y-3"><summary className="cursor-pointer font-semibold">当前阵容成员 · 历史正式地图经验</summary>
       <p className="text-xs text-[var(--color-fg-mid)]">成员在过往正式赛事中的个人表现；样本按选手出场地图计数。</p>
-      {profile.experience.length ? <div className="grid gap-3 sm:grid-cols-2">{profile.experience.map((map) => <div key={map.mapName} className="text-sm"><span className="font-medium">{mapLabel(map.mapName)}</span><p className="text-xs text-[var(--color-fg-mid)]">{map.players} 位成员 · {map.samples} 人次地图 · Rating {formatStat("ratingPro", map.rating)} · ADR {formatStat("adr", map.adr)}</p></div>)}</div> : <p className="text-sm text-[var(--color-fg-mid)]">暂无成员历史正式地图数据。</p>}
+      {profile.experience.length ? <div className="grid gap-3 sm:grid-cols-2">{profile.experience.map((map) => <div key={map.mapName} className="text-sm"><span className="font-medium">{mapLabel(map.mapName)}</span><p className="text-xs text-[var(--color-fg-mid)]">{map.players} 位成员 · 共 {map.samples} 次正式地图出场 · Rating {formatStat("ratingPro", map.rating)} · ADR {formatStat("adr", map.adr)}</p></div>)}</div> : <p className="text-sm text-[var(--color-fg-mid)]">暂无成员历史正式地图数据。</p>}
     </details>
     <details className="space-y-3"><summary className="cursor-pointer font-semibold">成员自报地图熟练度</summary>{profile.preferences.length ? profile.preferences.map((member) => <div key={member.userId} className="space-y-2"><Link className="text-sm" href={`/players/${member.userId}`}>{member.name}</Link><MapPreferenceChips preferences={member.preferences} minLevel="none" /></div>) : <p className="text-sm text-[var(--color-fg-mid)]">成员尚未填写。</p>}</details>
   </Panel>;

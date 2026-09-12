@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   getSeasonLifecycleGroup,
+  presentSeasonDirectoryActivity,
   groupSeasonsByLifecycle,
   presentSeasonLifecycleSummary,
   presentSeasonParticipationState,
@@ -46,10 +47,20 @@ describe("season lifecycle directory presentation", () => {
   });
 });
 
+describe("season directory lifecycle activity", () => {
+  it("adapts the compact card to an active lifecycle without inventing a live match", () => {
+    expect(presentSeasonDirectoryActivity({ status: "voting" })).toBe("队长投票正在进行");
+    expect(presentSeasonDirectoryActivity({ status: "drafting" })).toBe("选秀正在进行");
+    expect(presentSeasonDirectoryActivity({ status: "playing" }, "季后赛")).toBe("赛程进行中 · 季后赛");
+    expect(presentSeasonDirectoryActivity({ status: "registration" })).toBeNull();
+  });
+});
+
 describe("season status presentation", () => {
   it("keeps normal UI labels out of internal enum vocabulary", () => {
     expect(presentSeasonStatus("registration")).toEqual({ label: "已发布", tone: "success" });
     expect(presentSeasonStatus("playing")).toEqual({ label: "比赛中", tone: "accent" });
+    expect(presentSeasonStatus("finished")).toEqual({ label: "已结束", tone: "neutral" });
   });
 
   it("derives public participation labels from the canonical registration window", () => {

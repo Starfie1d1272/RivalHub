@@ -170,7 +170,7 @@ export function HomeSeasonPanel({
   }
 
   return (
-    <Panel label={getSeasonLifecycleGroup(season) === "upcoming" ? "UPCOMING" : "CURRENT SEASON"}>
+    <Panel label={getSeasonLifecycleGroup(season) === "upcoming" ? "即将开始" : "当前赛事"}>
       <div className="grid gap-3.5">
         <SeasonPanelTitle season={season} useLifecycleSummary />
         <div className="flex items-center gap-2">

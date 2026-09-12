@@ -13,7 +13,7 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 const longLivedTeam: PublicTeamProfile = {
   team: { id: "team-1", slug: "rival-team", name: "Rival Team", logoUrl: null, description: "队伍简介", status: "active", captainUserId: "captain-1" },
   currentMembers: [{ id: "member-1", userId: "captain-1", name: "队长甲", status: "active" }, { id: "member-2", userId: "member-1", name: "选手乙", status: "benched" }],
-  entries: [{ id: "entry-1", name: "Rival Entry", status: "approved", seasonName: "2026 秋季赛", seasonSlug: "autumn-2026", seasonStatus: "finished", createdAt: new Date("2026-08-01T00:00:00Z") }],
+  entries: [{ id: "entry-1", name: "Rival Entry", seasonName: "2026 秋季赛", seasonSlug: "autumn-2026", seasonStatus: "finished", completedAt: new Date("2026-08-01T00:00:00Z") }],
   nameChanges: [{ id: "name-1", oldName: "Old Team", newName: "Rival Team", changedAt: new Date("2026-08-01T00:00:00Z") }],
   captainChanges: [{ id: "captain-1", name: "队长甲", changedAt: new Date("2026-08-01T00:00:00Z") }],
   playedCount: 4,
@@ -72,9 +72,9 @@ describe("TeamPublicProfile", () => {
     expect(screen.getAllByText("名单已冻结")).not.toHaveLength(0);
     expect(screen.getByText("赛事队长")).toBeInTheDocument();
     expect(screen.getByText("赛事选手")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "长期队伍资料" })).toHaveAttribute("href", "/teams/rival-team");
     expect(screen.getByRole("link", { name: "返回赛事队伍" })).toHaveAttribute("href", "/autumn-2026/teams");
-    expect(screen.getByRole("link", { name: "查看完整长期资料" })).toHaveAttribute("href", "/teams/rival-team");
+    expect(screen.getByRole("link", { name: "查看队伍资料" })).toHaveAttribute("href", "/teams/rival-team");
+    expect(screen.getAllByRole("link", { name: /队伍资料/ })).toHaveLength(1);
     expect(screen.getAllByText("本届比赛")).not.toHaveLength(0);
     expect(screen.getByText("对阵 Opponent")).toBeInTheDocument();
   });

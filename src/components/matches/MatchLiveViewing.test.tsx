@@ -1,7 +1,9 @@
 import React from "react";
+/** @vitest-environment jsdom */
+import { fireEvent, render, screen } from "@testing-library/react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { MatchLiveViewing, parseBilibiliLiveRoomId } from "./MatchLiveViewing";
+import { getBilibiliEmbedUrl, MatchLiveViewing, parseBilibiliLiveRoomId } from "./MatchLiveViewing";
 
 const commentators = [
   { userId: "commentator", displayName: "解说甲", perfectName: null, steamName: null, liveStreamUrl: "https://live.example/room" },
@@ -32,6 +34,7 @@ describe("match live viewing", () => {
     it("correctly parses numeric bilibili room IDs", () => {
       expect(parseBilibiliLiveRoomId("https://live.bilibili.com/123456")).toBe("123456");
       expect(parseBilibiliLiveRoomId("https://live.bilibili.com/123456/")).toBe("123456");
+      expect(parseBilibiliLiveRoomId("http://live.bilibili.com/123456?broadcast_type=0")).toBe("123456");
       expect(parseBilibiliLiveRoomId("https://live.bilibili.com/abc")).toBe(null);
       expect(parseBilibiliLiveRoomId("https://example.com/123456")).toBe(null);
       expect(parseBilibiliLiveRoomId(null)).toBe(null);
@@ -43,6 +46,16 @@ describe("match live viewing", () => {
       expect(html).toContain("在 Bilibili 打开");
       expect(html).toContain("https://live.bilibili.com/123456");
       expect(html).not.toContain("LIVE");
+    });
+
+    it("mounts the documented activity player after the user chooses in-page viewing", () => {
+      render(<MatchLiveViewing status="in_progress" commentators={bilibiliCommentators} />);
+
+      fireEvent.click(screen.getByRole("button", { name: "加载站内播放器" }));
+
+      const frame = screen.getByTitle("Bilibili 直播播放器");
+      expect(frame).toHaveAttribute("src", getBilibiliEmbedUrl("123456"));
+      expect(frame).toHaveAttribute("allow", "autoplay; fullscreen");
     });
 
     it("renders compact room link during scheduled without auto-expanding iframe", () => {

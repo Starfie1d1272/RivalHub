@@ -296,7 +296,7 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
         </ScrollHint>
       </Panel>
 
-      {/* NEXT MATCHES + STANDINGS — dual column layout */}
+      {/* Upcoming matches and standings share a dual-column layout. */}
       {(upcomingMatches.length > 0 || standings.length > 0) && (
         <div className="grid grid-cols-1 lg:grid-cols-[1.5fr_1fr] gap-4">
           {/* Left: 近期比赛 */}
@@ -304,9 +304,9 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
             <Panel
               label={
                 <div className="flex items-center justify-between w-full">
-                  <span>NEXT MATCHES</span>
+                  <span>下一场比赛</span>
                   <Button size="sm" variant="ghost" asChild>
-                    <Link href={`/${seasonSlug}/matches`}>VIEW ALL →</Link>
+                    <Link href={`/${seasonSlug}/matches`}>查看全部 →</Link>
                   </Button>
                 </div>
               }
@@ -323,11 +323,11 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
                     >
                       <div className="flex items-center gap-2 flex-1 min-w-0">
                         <span className="text-sm font-semibold text-[var(--color-fg)] truncate flex-1 text-right">
-                          {match.teamAName ?? "TBD"}
+                          {match.teamAName ?? "待定"}
                         </span>
                         <span className="font-mono text-xs text-[var(--color-fg-dim)] shrink-0">vs</span>
                         <span className="text-sm font-semibold text-[var(--color-fg)] truncate flex-1">
-                          {match.teamBName ?? "TBD"}
+                          {match.teamBName ?? "待定"}
                         </span>
                       </div>
                       <div className="shrink-0 flex flex-col items-end gap-0.5">

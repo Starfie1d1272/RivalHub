@@ -68,7 +68,6 @@ export function TeamPublicProfile({ team, event = null, mapProfile, results }: T
         )}
         actions={event ? (
           <div className="flex flex-wrap items-center gap-2">
-            {team && <Button size="sm" variant="outline" asChild><Link href={`/teams/${team.team.slug}`}>长期队伍资料</Link></Button>}
             <Link href={`/${event.season.slug}/teams`} className="text-sm text-[var(--color-fg-secondary)] hover:text-[var(--color-fg-primary)]">返回赛事队伍</Link>
           </div>
         ) : (team && currentUserMembership && team.team.status === "active") ? (
@@ -122,7 +121,7 @@ export function TeamPublicProfile({ team, event = null, mapProfile, results }: T
         </Panel>
       </>}
 
-      {event && team && <Panel label="长期队伍资料" contentClassName="p-5">
+      {event && team && <Panel label="队伍资料" contentClassName="p-5">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex min-w-0 items-start gap-3">
             <TeamLogo logoUrl={team.team.logoUrl} teamName={team.team.name} />
@@ -140,7 +139,7 @@ export function TeamPublicProfile({ team, event = null, mapProfile, results }: T
             {currentUserMembership && team.team.status === "active" && (
               <Button size="sm" asChild><Link href="/my/teams">管理我的队伍</Link></Button>
             )}
-            <Link href={`/teams/${team.team.slug}`} className="text-sm text-[var(--color-accent)] hover:underline">查看完整长期资料</Link>
+            <Link href={`/teams/${team.team.slug}`} className="text-sm text-[var(--color-accent)] hover:underline">查看队伍资料</Link>
           </div>
         </div>
       </Panel>}

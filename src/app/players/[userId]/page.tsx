@@ -5,7 +5,7 @@ import { publicCompetitionEntryCondition } from "@/lib/competition-entries/publi
 import { Suspense } from "react";
 import { notFound, redirect } from "next/navigation";
 import { connection } from "next/server";
-import { eq, and, asc, desc, sql, ne, isNull } from "drizzle-orm";
+import { eq, and, asc, desc, sql, ne, isNull, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
 import { teamMemberships, teams, competitionEntries, educationVerifications, eventRosterMembers, eventRosters, institutions, seasonRegistrations, seasons, matches, matchMaps, competitiveRankFacts, userCompetitiveRoles, userMapPreferences } from "@/db/schema";
 import { getPublicPlayerById } from "@/lib/data/public-players";
@@ -265,7 +265,7 @@ export async function PlayerPageContent({ params }: PlayerPageProps) {
     .innerJoin(eventRosters, eq(eventRosterMembers.eventRosterId, eventRosters.id))
     .innerJoin(competitionEntries, eq(eventRosters.entryId, competitionEntries.id))
     .innerJoin(seasons, eq(competitionEntries.competitionId, seasons.id))
-    .where(and(eq(eventRosterMembers.userId, userId), ne(seasons.status, "draft"), publicCompetitionEntryCondition()));
+    .where(and(eq(eventRosterMembers.userId, userId), inArray(eventRosters.status, ["confirmed", "frozen"]), ne(seasons.status, "draft"), publicCompetitionEntryCondition()));
 
   const teamBySeasonId = new Map(teamMemberRows.map((r) => [r.seasonId, r]));
   const publicCompetitiveProfile = presentPublicCompetitiveProfile(competitiveCatalog, competitiveFacts);

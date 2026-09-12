@@ -62,7 +62,7 @@ describe("postmatch PostgreSQL invariants", () => {
       await db.transaction((tx) => resolveCommunityAwardInTx(tx, { awardId: award.awardId, status: "awarded", recipientUserId: adminA, outcomeNote: "确认获奖", actorId: adminB }));
       const { getPublicCommunityAwardBoardData } = await import("../../../src/lib/community-awards/data");
       const { awards: publicAwards } = await getPublicCommunityAwardBoardData(db, { seasonId, currentUserId: null, stagePlan: [] });
-      expect(publicAwards.find((item) => item.id === award.awardId)).toMatchObject({ recipientUserId: adminA, recipientName: "解说甲" });
+      expect(publicAwards.find((item) => item.id === award.awardId)).toMatchObject({ recipientUserId: adminA, recipientName: "解说甲", recipientTarget: null });
       await db.transaction((tx) => resolveCommunityAwardInTx(tx, { awardId: award.awardId, status: "not_awarded", recipientUserId: null, outcomeNote: "更正结果", actorId: adminB }));
 
       const supplementWithdraw = await db.transaction((tx) => submitCommunityAwardInTx(tx, { seasonId, submitterId: outsider, name: "待补充撤回奖", condition: "原条件", prize: "原奖品" }));

@@ -29,6 +29,19 @@ export function parseBilibiliLiveRoomId(url: string | null): string | null {
   }
 }
 
+/** The documented Bilibili activity player is the only iframe endpoint we embed. */
+export function getBilibiliEmbedUrl(roomId: string): string {
+  const url = new URL("https://www.bilibili.com/blackboard/live/live-activity-player.html");
+  url.search = new URLSearchParams({
+    cid: roomId,
+    danmaku: "1",
+    fullscreen: "1",
+    entrance: "1",
+    recommend: "0",
+  }).toString();
+  return url.toString();
+}
+
 export function MatchLiveViewing({
   status,
   commentators,
@@ -75,17 +88,15 @@ export function MatchLiveViewing({
           <div className="relative aspect-video w-full overflow-hidden rounded-md border border-[var(--color-border)] bg-black">
             {isLoaded ? (
               <iframe
-                src={`https://live.bilibili.com/blank?roomId=${bilibiliRoomId}`}
-                title={`Bilibili 直播间 ${bilibiliRoomId}`}
+                src={getBilibiliEmbedUrl(bilibiliRoomId)}
+                title="Bilibili 直播播放器"
                 className="h-full w-full border-0"
                 allow="autoplay; fullscreen"
                 sandbox="allow-scripts allow-same-origin allow-popups"
               />
             ) : (
               <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center">
-                <p className="text-sm text-[var(--color-fg-mid)]">
-                  解说 · {getPublicDisplayName(activeCommentator)}（Bilibili 房间号 {bilibiliRoomId}）
-                </p>
+                <p className="text-sm text-[var(--color-fg-mid)]">解说 · {getPublicDisplayName(activeCommentator)}</p>
                 <div className="flex flex-wrap items-center justify-center gap-3">
                   <Button
                     onClick={() =>
@@ -108,7 +119,7 @@ export function MatchLiveViewing({
             )}
           </div>
           <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-[var(--color-fg-dim)]">
-            <span>官方嵌入播放器 · Click-to-load 模式</span>
+            <span>加载后可在页面内观看</span>
             <a
               href={activeCommentator.liveStreamUrl!}
               target="_blank"

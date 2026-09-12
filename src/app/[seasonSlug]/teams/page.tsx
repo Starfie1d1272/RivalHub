@@ -71,7 +71,7 @@ export default async function CompetitionEntriesPage({ params, searchParams }: {
   const entries = await db.query.competitionEntries.findMany({ where: and(eq(competitionEntries.competitionId, season.id), publicCompetitionEntryCondition()), orderBy: [asc(competitionEntries.formationOrder), asc(competitionEntries.createdAt)] });
   if (entries.length === 0) return <PageLayout variant="wide" className="py-16 text-center text-[var(--color-fg-mid)]">赛事队伍尚未形成</PageLayout>;
   const members = await db.select({ entryId: eventRosters.entryId, userId: users.id, steamName: users.steamName, avatarUrl: users.avatarUrl, perfectName: users.perfectName, displayName: users.displayName, isStarter: eventRosterMembers.isPrimaryStarter })
-    .from(eventRosterMembers).innerJoin(eventRosters, eq(eventRosters.id, eventRosterMembers.eventRosterId)).innerJoin(users, eq(users.id, eventRosterMembers.userId)).where(inArray(eventRosters.entryId, entries.map((entry) => entry.id)));
+    .from(eventRosterMembers).innerJoin(eventRosters, eq(eventRosters.id, eventRosterMembers.eventRosterId)).innerJoin(users, eq(users.id, eventRosterMembers.userId)).where(and(inArray(eventRosters.entryId, entries.map((entry) => entry.id)), inArray(eventRosters.status, ["confirmed", "frozen"])));
   const matchSummary = await getPublicEventTeamMatchSummary(season.id, entries.map((entry) => entry.id));
   const membersByEntry = new Map<string, typeof members>();
   for (const member of members) membersByEntry.set(member.entryId, [...(membersByEntry.get(member.entryId) ?? []), member]);
@@ -88,7 +88,7 @@ export default async function CompetitionEntriesPage({ params, searchParams }: {
   ]);
   return <PageLayout as="div" variant="wide" className="space-y-8">
     <PageHeader title={publicCompetitionEntryLabel(season)} eyebrow={season.name} actions={<Suspense fallback={null}><AdminShortcutSlot href={`/admin/${seasonSlug}/settings`} label="赛事管理" /></Suspense>} />
-    <div className="grid grid-cols-3 gap-3 sm:gap-4"><Stat label={publicCompetitionEntryLabel(season)} value={entries.length} /><Stat label="正式选手" value={members.length} /><Stat label="比赛" value={`${matchSummary.finished}/${matchSummary.total}`} /></div>
+    <div className="grid grid-cols-3 gap-3 sm:gap-4"><Stat label={publicCompetitionEntryLabel(season)} value={entries.length} /><Stat label="已确认选手" value={members.length} /><Stat label="比赛" value={`${matchSummary.finished}/${matchSummary.total}`} /></div>
     <p className="text-xs text-[var(--color-fg-dim)]">{season.registrationMode === "team" && season.status === "registration" ? "审核通过后进入正赛候选池，正式正赛名额由赛委会确认。" : "这里展示本届赛事队伍；队伍资料与历史请到队伍页面查看。"}</p>
     <ParticipantDirectoryToolbar query={q} total={visibleEntries.length} />
     {visibleEntries.length === 0 ? (

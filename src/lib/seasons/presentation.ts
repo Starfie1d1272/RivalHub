@@ -46,7 +46,7 @@ const SEASON_STATUS_PRESENTATIONS: Record<SeasonStatus, StatusPresentation> = {
   voting: { label: "投票中", tone: "warn" },
   drafting: { label: "选秀中", tone: "accent" },
   playing: { label: "比赛中", tone: "accent" },
-  finished: { label: "FT", tone: "neutral" },
+  finished: { label: "已结束", tone: "neutral" },
   archived: { label: "已归档", tone: "neutral" },
 };
 
@@ -83,6 +83,23 @@ export function presentSeasonLifecycleSummary(season: SeasonLifecycleInput): str
     return "已发布 · 报名未开放";
   }
   return presentSeasonStatus(season.status).label;
+}
+
+/** Concise lifecycle-specific copy for discovery cards; it never infers match state. */
+export function presentSeasonDirectoryActivity(
+  season: Pick<SeasonLifecycleInput, "status">,
+  nextStageName?: string | null,
+): string | null {
+  switch (season.status) {
+    case "voting":
+      return "队长投票正在进行";
+    case "drafting":
+      return "选秀正在进行";
+    case "playing":
+      return nextStageName ? `赛程进行中 · ${nextStageName}` : "赛程正在进行";
+    default:
+      return null;
+  }
 }
 
 export function groupSeasonsByLifecycle<T extends SeasonLifecycleInput>(

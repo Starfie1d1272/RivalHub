@@ -122,7 +122,7 @@ describe("home navigation helpers", () => {
 
   it("describes the active phase eyebrow", () => {
     expect(buildHomeEyebrow("voting", "nju-rivals-2026")).toEqual({
-      text: "● CAPTAIN VOTING",
+      text: "● 队长投票中",
       color: "var(--color-warn)",
     });
 
@@ -131,7 +131,7 @@ describe("home navigation helpers", () => {
       color: "var(--color-accent)",
     });
     expect(buildHomeEyebrow("registration", "nju-rivals-2026", null)).toEqual({
-      text: "● REGISTRATION UPCOMING",
+      text: "● 报名即将开放",
       color: "var(--color-warn)",
     });
   });

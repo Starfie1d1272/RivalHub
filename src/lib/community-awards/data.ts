@@ -50,7 +50,7 @@ async function getMatchOptions(executor: CommunityAwardQueryable, seasonId: stri
   const bIds = [...new Set(matchRows.map((row) => row.bId))];
   const bRows = bIds.length ? await executor.select({ id: competitionEntries.id, name: competitionEntries.name }).from(competitionEntries).where(inArray(competitionEntries.id, bIds)) : [];
   const bNames = new Map(bRows.map((row) => [row.id, row.name]));
-  return matchRows.map((row) => ({ id: row.id, label: presentMatchLabel({ stage: row.stage, stageName: stagePlan.find((stage) => stage.key === row.stage)?.name, round: row.round, entryRound: row.entryRound, teamAName: row.aName, teamBName: bNames.get(row.bId) ?? "TBD" }) }));
+  return matchRows.map((row) => ({ id: row.id, label: presentMatchLabel({ stage: row.stage, stageName: stagePlan.find((stage) => stage.key === row.stage)?.name, round: row.round, entryRound: row.entryRound, teamAName: row.aName, teamBName: bNames.get(row.bId) ?? "待定" }) }));
 }
 
 export async function getPublicCommunityAwardBoardData(executor: CommunityAwardQueryable, args: { seasonId: string; currentUserId: string | null; stagePlan: StagePlan }): Promise<CommunityAwardBoardData> {

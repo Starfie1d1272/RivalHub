@@ -7,6 +7,8 @@ import { Panel, StatusPill } from "@/components/rivalhub";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogBody, DialogDescription } from "@/components/ui/dialog";
 import { CommunityAwardsBoard } from "./CommunityAwardsBoard";
+import { CommunityAwardEvidenceForm } from "./CommunityAwardEvidenceForm";
+import { CommunityAwardSubmissionForm } from "./CommunityAwardSubmissionForm";
 import type { CommunityAwardModel } from "@/lib/community-awards/data";
 
 export function PublicCommunityAwards({ seasonId, awards, currentUserId, candidates, matches }: {
@@ -21,7 +23,7 @@ export function PublicCommunityAwards({ seasonId, awards, currentUserId, candida
   ];
   const own = awards.filter((award) => award.submittedByUserId === currentUserId && ["pending_review", "rejected"].includes(award.status));
   return <div className="space-y-8">
-    {currentUserId ? <Dialog><DialogTrigger asChild><Button>提出社区奖</Button></DialogTrigger><DialogContent><DialogHeader><DialogTitle>提出社区奖</DialogTitle><DialogDescription>说明奖项条件与奖品，提交给赛事方审核。</DialogDescription></DialogHeader><DialogBody><CommunityAwardsBoard {...shared} awards={[]} /></DialogBody></DialogContent></Dialog> : <Button asChild><Link href="/login">登录后提出社区奖</Link></Button>}
+    {currentUserId ? <Dialog><DialogTrigger asChild><Button>提出社区奖</Button></DialogTrigger><DialogContent><DialogHeader><DialogTitle>提出社区奖</DialogTitle><DialogDescription>说明奖项条件与奖品，提交给赛事方审核。</DialogDescription></DialogHeader><DialogBody><CommunityAwardSubmissionForm seasonId={seasonId} /></DialogBody></DialogContent></Dialog> : <Button asChild><Link href="/login">登录后提出社区奖</Link></Button>}
     {groups.map((group) => {
       const items = awards.filter((award) => group.statuses.includes(award.status));
       if (!items.length) return null;
@@ -32,7 +34,7 @@ export function PublicCommunityAwards({ seasonId, awards, currentUserId, candida
         <p className="text-sm">{award.condition}</p><p className="text-sm text-[var(--color-fg-mid)]">奖品 · {award.prize}</p>
         {award.outcomeNote && <p className="text-sm">{award.outcomeNote}</p>}
         <details className="text-sm"><summary className="cursor-pointer text-[var(--color-fg-mid)]">奖项说明</summary><p className="mt-2">发起人 · {award.submitterName}</p>{award.supplementaryNote && <p>{award.supplementaryNote}</p>}{award.publicNote && <p>{award.publicNote}</p>}</details>
-        {award.status === "approved" && currentUserId && <Dialog><DialogTrigger asChild><Button size="sm" variant="outline">提交候选证据</Button></DialogTrigger><DialogContent><DialogHeader><DialogTitle>{award.name} · 候选证据</DialogTitle><DialogDescription>候选人可为本届赛事相关人员。</DialogDescription></DialogHeader><DialogBody><CommunityAwardsBoard {...shared} awards={[award]} allowSubmission={false} /></DialogBody></DialogContent></Dialog>}
+        {award.status === "approved" && currentUserId && <Dialog><DialogTrigger asChild><Button size="sm" variant="outline">提交候选证据</Button></DialogTrigger><DialogContent><DialogHeader><DialogTitle>{award.name} · 候选证据</DialogTitle><DialogDescription>候选人可为本届赛事相关人员。</DialogDescription></DialogHeader><DialogBody><CommunityAwardEvidenceForm awardId={award.id} candidates={candidates} matches={matches} /></DialogBody></DialogContent></Dialog>}
       </Panel>)}</div></section>;
     })}
     {awards.length === 0 && <Panel><p className="text-sm text-[var(--color-fg-mid)]">社区奖公布后会在这里展示。</p></Panel>}

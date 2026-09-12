@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, asc, desc, eq, inArray, ne, or, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, ne, or, sql } from "drizzle-orm";
 
 import { db } from "@/db/client";
 import {
@@ -18,9 +18,6 @@ import {
 import {
   publicCompetitionEntryCondition,
 } from "@/lib/competition-entries/public-visibility";
-import {
-  type CompetitionEntryRegistrationStatus,
-} from "@/lib/competition-entries/presentation";
 import { getPublicTeamRecruitment, type PublicRecruitmentIntent } from "@/lib/recruitment/data";
 
 const publicName = sql<string>`coalesce(${users.displayName}, ${users.perfectName}, ${users.steamName}, '未知用户')`;
@@ -49,11 +46,10 @@ export interface PublicTeamProfile {
   entries: Array<{
     id: string;
     name: string;
-    status: CompetitionEntryRegistrationStatus;
     seasonName: string;
     seasonSlug: string;
     seasonStatus: string;
-    createdAt: Date;
+    completedAt: Date | null;
   }>;
   nameChanges: Array<{
     id: string;
@@ -173,11 +169,9 @@ export async function getPublicTeamProfile(
       .select({
         id: competitionEntries.id,
         name: competitionEntries.name,
-        status: competitionEntries.registrationStatus,
         seasonName: seasons.name,
         seasonSlug: seasons.slug,
         seasonStatus: seasons.status,
-        createdAt: competitionEntries.createdAt,
       })
       .from(competitionEntries)
       .innerJoin(seasons, eq(seasons.id, competitionEntries.competitionId))
@@ -186,7 +180,7 @@ export async function getPublicTeamProfile(
         ne(seasons.status, "draft"),
         publicCompetitionEntryCondition(),
       ))
-      .orderBy(desc(competitionEntries.createdAt)),
+      .orderBy(asc(seasons.name), asc(competitionEntries.id)),
     getPublicTeamRecruitment(team.id),
   ]);
 
@@ -196,13 +190,25 @@ export async function getPublicTeamProfile(
   const entryIds = entries.map((entry) => entry.id);
   const played = entryIds.length
     ? await db
-      .select({ entryAId: matches.entryAId, entryBId: matches.entryBId, scoreA: matches.scoreA, scoreB: matches.scoreB })
+      .select({ entryAId: matches.entryAId, entryBId: matches.entryBId, scoreA: matches.scoreA, scoreB: matches.scoreB, completedAt: matches.completedAt })
       .from(matches)
       .where(and(
         eq(matches.status, "finished"),
         or(inArray(matches.entryAId, entryIds), inArray(matches.entryBId, entryIds)),
       ))
     : [];
+  const completedAtByEntryId = new Map<string, Date>();
+  for (const match of played) {
+    if (!match.completedAt) continue;
+    for (const entryId of [match.entryAId, match.entryBId]) {
+      if (!entryIds.includes(entryId)) continue;
+      const current = completedAtByEntryId.get(entryId);
+      if (!current || current < match.completedAt) completedAtByEntryId.set(entryId, match.completedAt);
+    }
+  }
+  const careerEntries = entries
+    .map((entry) => ({ ...entry, completedAt: completedAtByEntryId.get(entry.id) ?? null }))
+    .sort((a, b) => (b.completedAt?.getTime() ?? -Infinity) - (a.completedAt?.getTime() ?? -Infinity) || a.seasonName.localeCompare(b.seasonName));
   const wins = played.filter((match) => {
     const isA = entryIds.includes(match.entryAId);
     const ownScore = isA ? match.scoreA : match.scoreB;
@@ -225,7 +231,7 @@ export async function getPublicTeamProfile(
   return {
     team,
     currentMembers,
-    entries,
+    entries: careerEntries,
     nameChanges: names.filter((n) => n.oldName !== null),
     captainChanges: captains.filter((c) => c.fromUserId !== null),
     playedCount: played.length,
