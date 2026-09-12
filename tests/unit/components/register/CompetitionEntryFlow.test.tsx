@@ -10,7 +10,7 @@ vi.mock("@/actions/competition-entries", () => ({
 const season = { status: "registration" as const, registrationOpensAt: new Date("2026-01-01"), registrationOpenedAt: new Date("2026-01-01"), registrationClosesAt: new Date("2027-01-01") };
 function props(size = 5): Parameters<typeof CompetitionEntryFlow>[0] {
   const roster = Array.from({ length: size }, (_, i) => ({ membershipId: `m${i}`, userId: `u${i}`, participantId: `p${i}`, label: `选手${i}`, status: "active" as const, roles: [], primaryRole: null, confirmation: "confirmed" as const, primary: i < 5 }));
-  return { competitionId: "event", competitionName: "Major", currentUserId: "u0", minRoster: 5, maxRoster: 9, starterCount: 5, requiresCompetitiveProfile: false, requiresTeamLogo: true, approvedTeamCount: 0, captainedTeams: [], invitationConflict: null, capabilities: getCompetitionEntryCapabilities({ season, entry: { status: "draft", hasApprovedRoster: false }, revision: { status: "draft", origin: "initial" }, rosterFrozen: false }), entry: { id: "entry", name: "队伍", status: "draft", logoUrl: "/logo.png", representativeUserId: "u0", reviewReason: null, qualificationFindings: [], roster, candidates: roster } };
+  return { competitionId: "event", competitionName: "Major", currentUserId: "u0", minRoster: 5, maxRoster: 9, starterCount: 5, requiresCompetitiveProfile: false, requiresTeamLogo: true, canManageEntryTeamProfile: true, approvedTeamCount: 0, captainedTeams: [], invitationConflict: null, capabilities: getCompetitionEntryCapabilities({ season, entry: { status: "draft", hasApprovedRoster: false }, revision: { status: "draft", origin: "initial" }, rosterFrozen: false }), entry: { id: "entry", name: "队伍", status: "draft", logoUrl: "/logo.png", representativeUserId: "u0", reviewReason: null, qualificationFindings: [], roster, candidates: roster } };
 }
 describe("CompetitionEntryFlow", () => {
   beforeEach(() => vi.stubGlobal("React", React));
@@ -18,6 +18,13 @@ describe("CompetitionEntryFlow", () => {
     const p = props(); p.entry!.logoUrl = null; render(<CompetitionEntryFlow {...p} />);
     expect(screen.getByRole("button", { name: "提交审核" })).toBeDisabled();
     expect(screen.getByRole("link", { name: "前往我的队伍上传图标" })).toHaveAttribute("href", "/my/teams#team-profile");
+  });
+  it("does not offer a dead-end logo editor link to a representative who is not the team captain", () => {
+    const p = props(); p.entry!.logoUrl = null; p.canManageEntryTeamProfile = false; render(<CompetitionEntryFlow {...p} />);
+    expect(screen.getByRole("button", { name: "提交审核" })).toBeDisabled();
+    expect(screen.queryByRole("link", { name: "前往我的队伍上传图标" })).not.toBeInTheDocument();
+    expect(screen.getByText("队伍图标未上传：请联系当前队长在“我的队伍”中上传，再保存本届名单")).toBeInTheDocument();
+    expect(screen.getByText("队伍图标尚未上传，请联系当前队长在“我的队伍”中上传后，再保存本届名单。")).toBeInTheDocument();
   });
   it("does not show Perfect Team ID in the standard registration flow", () => {
     const p = props(); p.requiresTeamLogo = false; p.entry!.logoUrl = null; render(<CompetitionEntryFlow {...p} />);
