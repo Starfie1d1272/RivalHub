@@ -7,6 +7,7 @@ import { db } from "@/db/client";
 import { competitionEntries, eventRosterMembers, eventRosters, seasonRegistrations, users } from "@/db/schema";
 import { PageHeader, PageLayout, Stat } from "@/components/rivalhub";
 import { MajorPlayerDirectoryRow } from "@/components/players/MajorPlayerDirectoryRow";
+import { EventPlayerDirectoryRow } from "@/components/players/EventPlayerDirectoryRow";
 import { PlayerDirectoryRow } from "@/components/players/PlayerDirectoryRow";
 import { countDirectoryPlayersWithTeam, sortPlayerDirectory } from "@/lib/players/directory-order";
 import { positionLabel, positionValues } from "@/lib/validators/registration";
@@ -58,7 +59,7 @@ export default async function PlayersPage({ params, searchParams }: PlayersPageP
           <Stat label="选手" value={projection.players.length} />
           <Stat label="所属队伍" value={teamCount} />
           <Stat label="正式比赛数据" value={playersWithStats} accent />
-          <Stat label="队伍范围" value={projection.presentation.teamCollectionLabel} />
+          <Stat label="参赛队" value={projection.teamCount} />
         </div>
 
         <ParticipantDirectoryToolbar query={query.q} team={query.team} teams={teamOptions} total={visiblePlayers.length} />
@@ -89,7 +90,6 @@ export default async function PlayersPage({ params, searchParams }: PlayersPageP
           <Stat label="选手" value={projection.players.length} />
           <Stat label="所属队伍" value={projection.teamCount} />
           <Stat label="正式比赛数据" value={playersWithStats} accent />
-          <Stat label="参赛名单" value="已确认" />
         </div>
         <ParticipantDirectoryToolbar query={query.q} team={query.team} teams={teamOptions} total={visiblePlayers.length} />
         {visiblePlayers.length === 0 ? (
@@ -97,7 +97,7 @@ export default async function PlayersPage({ params, searchParams }: PlayersPageP
         ) : (
           <div className="space-y-3">
             {visiblePlayers.map((player) => (
-              <MajorPlayerDirectoryRow key={`${player.entryId}-${player.userId}`} player={{ ...player, isRepresentative: false }} seasonSlug={seasonSlug} />
+              <EventPlayerDirectoryRow key={`${player.entryId}-${player.userId}`} player={{ ...player, isRepresentative: false }} seasonSlug={seasonSlug} />
             ))}
           </div>
         )}

@@ -35,7 +35,7 @@ export function SeasonNav({
   const isHistorical = status === "finished" || status === "archived";
 
   const items: NavItem[] = [
-    { label: "首页", href: `/${slug}` },
+    { label: "赛事首页", href: `/${slug}` },
     ...(!isHistorical ? [{ label: "报名", href: `/${slug}/register` }] : []),
     ...(hasCaptainVoting ? [{ label: "队长投票", href: `/${slug}/captains` }] : []),
     ...(hasDraft ? [{ label: "选秀", href: `/${slug}/draft` }] : []),

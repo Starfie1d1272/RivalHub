@@ -76,7 +76,7 @@ export async function loadMajorSwissStageReadModel(
       eq(matches.majorStageRunId, stageRun.id),
       eq(matches.ownership, "major_stage"),
     ),
-    orderBy: [asc(matches.round), asc(matches.createdAt)],
+    orderBy: [asc(matches.round), asc(matches.completedAt), asc(matches.scheduledAt), asc(matches.id)],
   });
   const nameByEntryId = new Map(entrantRows.map((row) => [row.entryId, row.teamName]));
   const finalizedRound = asFinalizedRound(stageRun.finalizedRound);

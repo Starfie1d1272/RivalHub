@@ -22,10 +22,11 @@ export interface TeamPublicProfileProps {
   team: PublicTeamProfile | null;
   mapProfile?: PublicTeamMapProfile;
   results?: PublicSeasonResults;
+  stageLabels?: Readonly<Record<string, string>>;
   event?: PublicEventTeamContext | null;
 }
 
-export function TeamPublicProfile({ team, event = null, mapProfile, results }: TeamPublicProfileProps) {
+export function TeamPublicProfile({ team, event = null, mapProfile, results, stageLabels = {} }: TeamPublicProfileProps) {
   const identity = event?.entry ?? team?.team;
   if (!identity) return null;
 
@@ -108,7 +109,7 @@ export function TeamPublicProfile({ team, event = null, mapProfile, results }: T
         </Panel>
 
         {mapProfile && <TeamMapProfile profile={mapProfile} event />}
-        {nextMatch && <Panel label="下一场"><Link className="font-semibold" href={`/${event.season.slug}/matches/${nextMatch.id}`}>{nextMatch.stage && results?.stageNames?.[nextMatch.stage] ? `${results.stageNames[nextMatch.stage]} · ` : ""}对阵 {nextMatch.opponentName ?? "待定"} →</Link><p className="mt-1 text-sm text-[var(--color-fg-mid)]">待进行{nextMatch.scheduledAt ? ` · ${formatCSTShortDate(nextMatch.scheduledAt)}` : " · 时间待定"}</p></Panel>}
+        {nextMatch && <Panel label="下一场"><Link className="font-semibold" href={`/${event.season.slug}/matches/${nextMatch.id}`}>{nextMatch.stage && stageLabels[nextMatch.stage] ? `${stageLabels[nextMatch.stage]} · ` : ""}对阵 {nextMatch.opponentName ?? "待定"} →</Link><p className="mt-1 text-sm text-[var(--color-fg-mid)]">待进行{nextMatch.scheduledAt ? ` · ${formatCSTShortDate(nextMatch.scheduledAt)}` : " · 时间待定"}</p></Panel>}
         {results?.placements.filter((entry) => entry.entryId === event.entry.id).map((entry) => <Panel key={entry.entryId} label="本届最终名次"><p className="text-2xl font-bold">{entry.label}</p></Panel>)}
         {results?.honors.filter((honor) => honor.entryId === event.entry.id).map((honor) => <p key={honor.id} className="font-semibold text-[var(--color-accent)]">{honor.label}</p>)}
         <Panel label="本届比赛" contentClassName="p-5">

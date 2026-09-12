@@ -1,9 +1,9 @@
-import { resolveMajorStagePlan } from "@/lib/major/run-snapshot";
 import { getPublicSeasonResults } from "@/lib/seasons/public-results";
+import { getPublicSeasonStagePresentation } from "@/lib/seasons/public-stage";
 import { SeasonResults } from "@/components/season/SeasonResults";
 import { getSeasonPersonalNextStep } from "@/lib/seasons/public-next-step";
 import { SeasonNextStep } from "@/components/season/SeasonNextStep";
-import { publicCompetitionEntryCondition, publicCompetitionEntryLabel } from "@/lib/competition-entries/public-visibility";
+import { publicCompetitionEntryCondition } from "@/lib/competition-entries/public-visibility";
 import Link from "next/link";
 import { Fragment, Suspense, type ReactNode } from "react";
 import { connection } from "next/server";
@@ -12,16 +12,14 @@ import { eq, count, or, and, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { UserPlus, Vote, Users, Swords, Shuffle, BarChart3, UserRoundSearch, Trophy } from "lucide-react";
 import { db } from "@/db/client";
-import { matches, competitionEntries, majorStageRuns } from "@/db/schema";
+import { matches, competitionEntries } from "@/db/schema";
 import { formatCSTDateTime } from "@/lib/utils/date";
-import { normalizeStagePlan } from "@/lib/seasons/compatibility";
 import type { SeasonStatus } from "@/types/season";
 import { showStats } from "@/lib/utils/season";
 import {
   isRegistrationActuallyOpen,
   presentRegistrationSchedule,
   presentSeasonParticipationState,
-  presentSeasonStatus,
   presentStageMarker,
 } from "@/lib/seasons/presentation";
 import { PageLayout, SectionHeader, StatusPill, Panel, ScrollHint, Stat, PhaseStep } from "@/components/rivalhub";
@@ -67,19 +65,12 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
   ]);
   const results = ["finished", "archived"].includes(season.status) ? await getPublicSeasonResults(season) : null;
   const personalTask = await getSeasonPersonalNextStep(season);
-  const stageRuns = season.competitionTemplate === "major" ? await db.select({ stageKey: majorStageRuns.stageKey, ruleSnapshot: majorStageRuns.ruleSnapshot }).from(majorStageRuns).where(eq(majorStageRuns.seasonId, season.id)) : [];
-  const stagePlan = season.competitionTemplate === "major" ? resolveMajorStagePlan(normalizeStagePlan(season.stagePlan), stageRuns) : normalizeStagePlan(season.stagePlan);
-  const stageLabelByKey = new Map(
-    stagePlan.map((stage) => [stage.key, presentStageMarker(stage, season.competitionTemplate)]),
-  );
+  const stagePresentation = await getPublicSeasonStagePresentation(season);
+  const stagePlan = stagePresentation.stagePlan;
+  const stageLabelByKey = new Map(Object.entries(stagePresentation.labels));
   const hasMatches = stagePlan.length > 0;
 
-  // 查询已初始化的赛程阶段（有 match 记录的 stage）
-  const matchStageRows = await db
-    .selectDistinct({ stage: matches.stage })
-    .from(matches)
-    .where(eq(matches.seasonId, season.id));
-  const initializedStages = new Set(matchStageRows.map((r) => r.stage));
+  const initializedStages = new Set(stagePresentation.initializedStageKeys);
 
   // ── 统计数据 + 即将到来的比赛 ────────────────────────────────────────
   const teamA = alias(competitionEntries, "team_a");
@@ -125,7 +116,6 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
     ]);
   const publicTeamCount = majorParticipantOverview?.teamCount ?? Number(teamCountRow?.value ?? 0);
   const publicPlayerCount = majorParticipantOverview?.playerCount ?? participantSummary?.count ?? 0;
-  const publicTeamLabel = majorParticipantOverview?.presentation.teamCollectionLabel ?? publicCompetitionEntryLabel(season);
 
   // ── 动态阶段列表 ──────────────────────────────────────────
   interface Phase {
@@ -201,42 +191,42 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
   const quickLinks = [
     {
       href: `/${seasonSlug}/register`,
-      label: "立即报名",
+      label: "报名",
       description: "提交报名信息",
       icon: UserPlus,
       show: !isHistorical && registrationIsOpen && !personalTask,
     },
     {
       href: `/${seasonSlug}/players`,
-      label: "选手名单",
+      label: "选手",
       description: majorParticipantOverview?.presentation.playerDescription ?? "已通过审核的参赛选手",
       icon: UserRoundSearch,
       show: true,
     },
     {
       href: `/${seasonSlug}/captains`,
-      label: isHistorical ? "队长投票结果" : "队长投票",
+      label: "队长投票",
       description: isHistorical ? "查看最终投票结果" : "为心仪队长投票",
       icon: Vote,
       show: season.hasCaptainVoting,
     },
     {
       href: `/${seasonSlug}/draft`,
-      label: isHistorical ? "选秀回顾" : "选秀",
+      label: "选秀",
       description: isHistorical ? "查看完整选人记录" : "实时观看选秀进度",
       icon: Shuffle,
       show: season.hasDraft,
     },
     {
       href: `/${seasonSlug}/teams`,
-      label: "队伍阵容",
+      label: "队伍",
       description: "查看各队选手分布",
       icon: Users,
       show: true,
     },
     {
       href: `/${seasonSlug}/matches`,
-      label: "赛程对决",
+      label: "赛程",
       description: "Bracket + 战报",
       icon: Swords,
       show: hasMatches,
@@ -371,6 +361,19 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
         </div>
       )}
 
+      {/* Stat 四格：只呈现可计数的赛事事实；阶段名称由真实 Stage 事实驱动。 */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <Stat label="队伍" value={publicTeamCount} />
+        <Stat label="选手" value={publicPlayerCount} />
+        <Stat
+          label="MATCHES"
+          value={(matchCountRow?.total ?? 0) > 0
+            ? `${matchCountRow?.finished ?? 0}/${matchCountRow?.total ?? 0}`
+            : "—"}
+        />
+        <Stat label="STAGE" value={stagePresentation.currentStageLabel ?? "—"} accent />
+      </div>
+
       <SectionHeader title="赛事导航" description="快速访问各功能模块" />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -395,18 +398,6 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
         ))}
       </div>
 
-      {/* Stat 四格 */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <Stat label={publicTeamLabel} value={publicTeamCount} />
-        <Stat label="选手" value={publicPlayerCount} />
-        <Stat
-          label="MATCHES"
-          value={(matchCountRow?.total ?? 0) > 0
-            ? `${matchCountRow?.finished ?? 0}/${matchCountRow?.total ?? 0}`
-            : "—"}
-        />
-        <Stat label="STAGE" value={presentSeasonStatus(season.status).label} accent />
-      </div>
       {(() => {
         const hasSeasonInfo = hasPublicSeasonInfo(seasonInfo);
         if (!latestSeasonAnnouncement && !hasSeasonInfo) return null;

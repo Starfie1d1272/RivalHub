@@ -4,9 +4,8 @@ import { db } from "@/db/client";
 import { competitionEntries, majorFinalResults, majorStageRuns, matches, tournamentHonors, users } from "@/db/schema";
 import { loadStageBracketViews, resolveFinalBracketNodeId } from "@/lib/bracket";
 import { parseMajorFinalPlacementGroups } from "@/lib/major/placement";
-import { resolveMajorStagePlan } from "@/lib/major/run-snapshot";
 import { publicCompetitionEntryCondition } from "@/lib/competition-entries/public-visibility";
-import { normalizeStagePlan } from "@/lib/seasons/compatibility";
+import { resolvePublicStagePlan } from "@/lib/seasons/public-stage";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
 import type { PublicSeason } from "@/lib/data/public-seasons";
 
@@ -22,7 +21,7 @@ export async function getPublicSeasonResults(season: PublicSeason) {
     season.competitionTemplate === "major" ? db.select({ stageKey: majorStageRuns.stageKey, ruleSnapshot: majorStageRuns.ruleSnapshot }).from(majorStageRuns).where(eq(majorStageRuns.seasonId, season.id)) : [],
   ]);
   const names = new Map(entries.map((entry) => [entry.id, entry.name]));
-  const stages = season.competitionTemplate === "major" ? resolveMajorStagePlan(normalizeStagePlan(season.stagePlan), runs) : normalizeStagePlan(season.stagePlan);
+  const stages = resolvePublicStagePlan(season, runs);
   const lastStage = stages.at(-1);
   const brackets = lastStage && season.competitionTemplate !== "major" ? await loadStageBracketViews(db, season.id) : null;
   const finalNode = lastStage && brackets?.get(lastStage.key) ? resolveFinalBracketNodeId(brackets.get(lastStage.key)!) : null;
@@ -40,7 +39,6 @@ export async function getPublicSeasonResults(season: PublicSeason) {
     ? (final.scoreA > final.scoreB ? [final.entryAId, final.entryBId] : [final.entryBId, final.entryAId]).map((entryId, index) => ({ entryId, name: names.get(entryId) ?? "队伍", label: `第 ${index + 1} 名` }))
     : [];
   return {
-    stageNames: Object.fromEntries(stages.map((stage) => [stage.key, stage.name])),
     champion: championId && names.has(championId) ? { entryId: championId, name: names.get(championId)! } : null,
     final: final ? { id: final.id, teamA: names.get(final.entryAId) ?? "待定", teamB: names.get(final.entryBId) ?? "待定", scoreA: final.scoreA, scoreB: final.scoreB } : null,
     placements: placements.filter((entry) => names.has(entry.entryId)),

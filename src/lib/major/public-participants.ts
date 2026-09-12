@@ -249,14 +249,14 @@ async function loadMajorPublicParticipantState(
         eq(competitionEntries.competitionId, season.id),
         eq(competitionEntries.registrationStatus, "approved"),
       ))
-      .orderBy(asc(competitionEntries.formationOrder), asc(competitionEntries.createdAt), asc(competitionEntries.id)),
+      .orderBy(asc(competitionEntries.formationOrder), asc(competitionEntries.id)),
     db
       .select({
         entryId: majorTournamentEntrants.competitionEntryId,
       })
       .from(majorTournamentEntrants)
       .where(eq(majorTournamentEntrants.seasonId, season.id))
-      .orderBy(asc(majorTournamentEntrants.createdAt), asc(majorTournamentEntrants.id)),
+      .orderBy(asc(majorTournamentEntrants.id)),
     db.query.majorPrestartStates.findFirst({
       where: eq(majorPrestartStates.seasonId, season.id),
       columns: { entrantsLockedAt: true, seedsConfirmedAt: true },

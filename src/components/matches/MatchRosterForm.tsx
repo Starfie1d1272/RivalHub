@@ -117,7 +117,7 @@ export function MatchRosterForm({
         {hasExistingRoster && <span className="text-xs text-[var(--color-fg-dim)]">已提交</span>}
       </div>
 
-      {allowSubstitutes && <div className="space-y-2">
+      <div className="space-y-2">
         <p className="text-sm font-medium text-[var(--color-fg)]">首发</p>
         <div className="flex flex-wrap gap-2">
           {teamMembers.map((m) => (
@@ -136,9 +136,9 @@ export function MatchRosterForm({
         <p className="text-sm text-[var(--color-fg-dim)]">
           已选 {selectedStarterIds.length}/5 名首发
         </p>
-      </div>}
+      </div>
 
-      <div className="space-y-2">
+      {allowSubstitutes && <div className="space-y-2">
         <p className="text-sm font-medium text-[var(--color-fg)]">替补</p>
         <div className="flex flex-wrap gap-2">
           {teamMembers.map((m) => (
@@ -160,7 +160,7 @@ export function MatchRosterForm({
         <p className="text-sm text-[var(--color-fg-dim)]">
           已选 {selectedSubstituteIds.length}/2 名替补（可不选）
         </p>
-      </div>
+      </div>}
 
       {!rosterLocked && !isMatchStarted && (
         <Button

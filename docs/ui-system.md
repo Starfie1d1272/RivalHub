@@ -6,6 +6,8 @@
 
 参赛者与管理员界面优先使用自然中文，直接表达当前目标、状态、未满足项和下一步。品牌、CS2 通用缩写及专有名词可保留英文；用户不应理解内部 enum/key 才能完成任务。专业赛事术语（如 Major、Stage 1、BO3）不等于实现术语：实体名、revision、snapshot、算法字段和序列化诊断只留在代码、审计或明确的技术详情中，不能成为正常操作流程的正文。
 
+中英混排按视觉层级处理：mono/uppercase tactical chrome 可以保留简短、约定俗成的英文（如 `TBD`、`BO3`、`STAGE2`）；导航、动作、状态和解释正文使用自然中文。同一视觉层的标签保持同一语言语义，不把生命周期结果、回顾或阵容等说明塞进 destination 名称。
+
 账号入口稳定区分「我的参赛」（私有任务）、「个人主页」（公开资料）与「账号设置」。CS2 canonical position key 保持 `igl`、`awper`、`opener`、`closer`、`anchor`。
 
 ## Tokens and primitives

@@ -45,6 +45,15 @@ describe("season lifecycle directory presentation", () => {
     expect(grouped.archived.map((season) => season.id)).toEqual(["archived"]);
     expect(Object.values(grouped).flat()).toHaveLength(seasons.length);
   });
+
+  it("orders historical seasons by canonical completion facts", () => {
+    const grouped = groupSeasonsByLifecycle([
+      { id: "ingested-last", status: "finished" as const, lastCompletedAt: new Date("2026-01-01") },
+      { id: "completed-last", status: "finished" as const, lastCompletedAt: new Date("2026-03-01") },
+    ]);
+
+    expect(grouped.recent.map((season) => season.id)).toEqual(["completed-last", "ingested-last"]);
+  });
 });
 
 describe("season directory lifecycle activity", () => {

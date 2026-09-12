@@ -5,7 +5,7 @@ import { publicCompetitionEntryCondition } from "@/lib/competition-entries/publi
 import { Suspense } from "react";
 import { notFound, redirect } from "next/navigation";
 import { connection } from "next/server";
-import { eq, and, asc, desc, sql, ne, isNull, inArray } from "drizzle-orm";
+import { eq, and, asc, desc, max, sql, ne, isNull, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
 import { teamMemberships, teams, competitionEntries, educationVerifications, eventRosterMembers, eventRosters, institutions, seasonRegistrations, seasons, matches, matchMaps, competitiveRankFacts, userCompetitiveRoles, userMapPreferences } from "@/db/schema";
 import { getPublicPlayerById } from "@/lib/data/public-players";
@@ -171,7 +171,7 @@ export async function PlayerPageContent({ params }: PlayerPageProps) {
           ne(seasons.status, "draft"),
         )
       )
-      .orderBy(asc(seasons.createdAt)),
+      .orderBy(asc(seasons.name), asc(seasonRegistrations.id)),
     getMvpWinCount(userId),
     db
       .select({
@@ -241,6 +241,22 @@ export async function PlayerPageContent({ params }: PlayerPageProps) {
     ? aggregatePlayerRows(rawPlayerStats.map(toStatInput))
     : null;
 
+  const registrationCompletionRows = registrations.length > 0
+    ? await db
+      .select({ seasonId: matches.seasonId, lastCompletedAt: max(matches.completedAt) })
+      .from(matches)
+      .where(inArray(matches.seasonId, [...new Set(registrations.map((registration) => registration.seasonId))]))
+      .groupBy(matches.seasonId)
+    : [];
+  const registrationCompletionBySeasonId = new Map(
+    registrationCompletionRows.map((row) => [row.seasonId, row.lastCompletedAt]),
+  );
+  const registrationSnapshots = [...registrations].sort((a, b) => {
+    const aCompletedAt = registrationCompletionBySeasonId.get(a.seasonId)?.getTime() ?? Number.NEGATIVE_INFINITY;
+    const bCompletedAt = registrationCompletionBySeasonId.get(b.seasonId)?.getTime() ?? Number.NEGATIVE_INFINITY;
+    return bCompletedAt - aCompletedAt || a.seasonName.localeCompare(b.seasonName) || a.id.localeCompare(b.id);
+  });
+
   // ── 六维数据：仅对有数据的赛季查询 ──────────────────────────────────
   const hexagonBySeasonSlug = new Map<string, HexagonScores>();
   await Promise.all(
@@ -282,6 +298,8 @@ export async function PlayerPageContent({ params }: PlayerPageProps) {
   const effectiveMapPrefs = mapPreferences[0]?.mapPreferences ?? [];
 
   // ── 生涯总计预计算 ──────────────────────────────────────────────────
+  const historicalTeamMemberRows = teamMemberRows.filter((entry) => ["finished", "archived"].includes(entry.seasonStatus));
+  const currentEventTeamMemberRows = teamMemberRows.filter((entry) => !["finished", "archived"].includes(entry.seasonStatus));
   const totalMaps = careerStats?.maps ?? 0;
   const mvpCount = mvpWinCount;
 
@@ -332,16 +350,16 @@ export async function PlayerPageContent({ params }: PlayerPageProps) {
         </div>
       </div>
 
-      <Panel label="当前活动"><div className="space-y-3">{currentTeams.map((team) => <Link key={team.slug} className="block font-semibold" href={`/teams/${team.slug}`}>当前队伍 · {team.name} →</Link>)}{teamMemberRows.filter((entry) => !["finished", "archived"].includes(entry.seasonStatus)).map((entry) => <Link key={entry.teamId} className="block text-sm" href={`/${entry.seasonSlug}/teams/${entry.teamId}`}>{entry.seasonName} · {entry.teamName} →</Link>)}{currentTeams.length === 0 && <p className="text-sm text-[var(--color-fg-mid)]">暂无长期队伍</p>}</div></Panel>
+      <Panel label="当前活动"><div className="space-y-3">{currentTeams.map((team) => <Link key={team.slug} className="block font-semibold" href={`/teams/${team.slug}`}>当前队伍 · {team.name} →</Link>)}{currentEventTeamMemberRows.map((entry) => <Link key={entry.teamId} className="block text-sm" href={`/${entry.seasonSlug}/teams/${entry.teamId}`}>{entry.seasonName} · {entry.teamName} →</Link>)}{currentTeams.length === 0 && currentEventTeamMemberRows.length === 0 && <p className="text-sm text-[var(--color-fg-mid)]">暂无当前赛事或长期队伍</p>}</div></Panel>
       {playerLft && <section className="space-y-3"><SectionHeading>正在找队</SectionHeading><Panel contentClassName="p-4"><div className="space-y-3"><div className="flex flex-wrap gap-2">{playerLft.positions.map((position) => <PosChip key={position} pos={position} />)}</div>{playerLft.targetSeasonName && <p className="text-sm text-[var(--color-fg-mid)]">目标赛事 · {playerLft.targetSeasonName}</p>}{playerLft.note && <p className="text-sm leading-6 text-[var(--color-fg-mid)]">{playerLft.note}</p>}<Link href="/teams/recruitment?view=players" className="text-sm text-[var(--color-accent)]">查看组队大厅 →</Link></div></Panel></section>}
 
-      <section className="space-y-3"><SectionHeading>赛事履历</SectionHeading>{teamMemberRows.map((entry) => <Link key={entry.teamId} className="block text-sm" href={`/${entry.seasonSlug}/teams/${entry.teamId}`}>{entry.seasonName} · {entry.teamName} →</Link>)}</section>
+      <section className="space-y-3"><SectionHeading>赛事履历</SectionHeading>{historicalTeamMemberRows.length > 0 ? historicalTeamMemberRows.map((entry) => <Link key={entry.teamId} className="block text-sm" href={`/${entry.seasonSlug}/teams/${entry.teamId}`}>{entry.seasonName} · {entry.teamName} →</Link>) : <p className="text-sm text-[var(--color-fg-mid)]">暂无已结束赛事记录</p>}</section>
       {/* Immutable event-registration snapshots, deliberately separate from the long-lived profile above. */}
       {registrations.length > 0 && (
         <section className="space-y-3">
           <SectionHeading>报名档案（报名时资料）</SectionHeading>
           <div className="space-y-2">
-            {[...registrations].reverse().map((reg) => {
+            {registrationSnapshots.map((reg) => {
               const teamInfo = teamBySeasonId.get(reg.seasonId);
               const posLabel = POSITION_LABELS[reg.primaryPosition as keyof typeof POSITION_LABELS]?.cn ?? reg.primaryPosition;
               const peakParts = [`${reg.peakRank} (${reg.peakRankSeason})`, `Rating ${reg.peakRating.toFixed(2)}`];

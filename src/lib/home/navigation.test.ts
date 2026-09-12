@@ -165,8 +165,8 @@ describe("home navigation helpers", () => {
     }, { isAuthenticated: false });
 
     expect(entries.some((entry) => entry.key === "register")).toBe(false);
-    expect(entries.find((entry) => entry.key === "captains")).toMatchObject({ label: "队长投票结果" });
-    expect(entries.find((entry) => entry.key === "draft")).toMatchObject({ label: "选秀回顾" });
+    expect(entries.find((entry) => entry.key === "captains")).toMatchObject({ label: "队长投票", meta: "结果已归档" });
+    expect(entries.find((entry) => entry.key === "draft")).toMatchObject({ label: "选秀", meta: "选人回顾" });
     expect(entries.map((entry) => entry.key)).toContain("teams");
     expect(entries.map((entry) => entry.key)).toContain("matches");
     expect(entries.map((entry) => entry.key)).toContain("stats");

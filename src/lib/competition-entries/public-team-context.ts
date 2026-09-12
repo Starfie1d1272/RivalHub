@@ -203,7 +203,7 @@ async function loadMatchRows(seasonId: string, entryIds: readonly string[]) {
         scoreA: true,
         scoreB: true,
       },
-      orderBy: [asc(matches.createdAt), asc(matches.id)],
+      orderBy: [asc(matches.completedAt), asc(matches.scheduledAt), asc(matches.id)],
     });
 }
 

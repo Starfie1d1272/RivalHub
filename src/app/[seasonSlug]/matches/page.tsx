@@ -3,7 +3,7 @@ import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import { and, eq, asc } from "drizzle-orm";
 import { db } from "@/db/client";
-import { majorFinalResults, majorStageRuns, matches, competitionEntries } from "@/db/schema";
+import { majorFinalResults, matches, competitionEntries } from "@/db/schema";
 import { loadStageBracketViews } from "@/lib/bracket";
 import { calculateStandings } from "@/lib/standings";
 import { PageHeader, PageLayout, Panel } from "@/components/rivalhub";
@@ -17,14 +17,12 @@ import {
   resolveDefaultStageKey,
 } from "@/lib/matches/stage-views";
 import { resolveStrictHistoricalRoundRobinEntryIds } from "@/lib/matches/historical-round-robin";
-import { normalizeStagePlan } from "@/lib/seasons/compatibility";
-import { presentStageMarker } from "@/lib/seasons/presentation";
+import { getPublicSeasonStagePresentation } from "@/lib/seasons/public-stage";
 import { MatchTabsSection } from "@/components/matches/MatchTabsSection";
 import { AdminShortcutSlot } from "@/components/layout/AdminShortcutSlot";
 import { getPublicOrAuthorizedDraftSeason } from "@/lib/data/public-seasons";
 import { getMatchMapRoundScores } from "@/lib/data/standings";
 import { loadMajorSwissStageReadModel } from "@/lib/matches/stage-read-model";
-import { resolveMajorStagePlan } from "@/lib/major/run-snapshot";
 
 interface MatchesPageProps {
   params: Promise<{ seasonSlug: string }>;
@@ -38,30 +36,24 @@ export default async function MatchesPage({ params, searchParams }: MatchesPageP
   const season = await getPublicOrAuthorizedDraftSeason(seasonSlug);
   if (!season) notFound();
 
-  const [allTeams, allMatches, finalResult, stageRunRows] = await Promise.all([
+  const [allTeams, allMatches, finalResult, stagePresentation] = await Promise.all([
     db.query.competitionEntries.findMany({
       where: and(eq(competitionEntries.competitionId, season.id), publicCompetitionEntryCondition()),
       orderBy: [asc(competitionEntries.formationOrder)],
     }),
     db.query.matches.findMany({
       where: eq(matches.seasonId, season.id),
-      orderBy: [asc(matches.createdAt)],
+      orderBy: [asc(matches.completedAt), asc(matches.scheduledAt), asc(matches.id)],
     }),
     db.query.majorFinalResults.findFirst({ where: eq(majorFinalResults.seasonId, season.id) }),
-    season.competitionTemplate === "major"
-      ? db.select({ stageKey: majorStageRuns.stageKey, ruleSnapshot: majorStageRuns.ruleSnapshot })
-          .from(majorStageRuns)
-          .where(eq(majorStageRuns.seasonId, season.id))
-      : Promise.resolve([] as { stageKey: string; ruleSnapshot: unknown }[]),
+    getPublicSeasonStagePresentation(season),
   ]);
 
   const teamMap = new Map(allTeams.map((team) => [team.id, team.name]));
   const roundScoresByMatchId = await getMatchMapRoundScores(
     allMatches.filter((match) => match.status === "finished").map((match) => match.id),
   );
-  const stagePlan = season.competitionTemplate === "major"
-    ? resolveMajorStagePlan(normalizeStagePlan(season.stagePlan), stageRunRows)
-    : normalizeStagePlan(season.stagePlan);
+  const stagePlan = stagePresentation.stagePlan;
   const { views: stageViews, unconfiguredMatches } = buildStageViews<typeof allMatches[number]>(stagePlan, allMatches);
   const swissReadModels = new Map(
     (await Promise.all(
@@ -76,13 +68,13 @@ export default async function MatchesPage({ params, searchParams }: MatchesPageP
   const sortActiveMatches = (stageMatches: typeof allMatches) =>
     [...stageMatches].sort((a, b) => {
       const timeDifference = (a.scheduledAt?.getTime() ?? Infinity) - (b.scheduledAt?.getTime() ?? Infinity);
-      return timeDifference || a.createdAt.getTime() - b.createdAt.getTime();
+      return timeDifference || a.id.localeCompare(b.id);
     });
   const sortDoneMatches = (stageMatches: typeof allMatches) =>
     [...stageMatches].sort((a, b) => {
       const timeDifference = (b.completedAt ?? b.scheduledAt)?.getTime() ?? 0;
       const otherTime = (a.completedAt ?? a.scheduledAt)?.getTime() ?? 0;
-      return timeDifference - otherTime || b.createdAt.getTime() - a.createdAt.getTime();
+      return timeDifference - otherTime || b.id.localeCompare(a.id);
     });
   const splitMatches = (stageMatches: typeof allMatches) => ({
     active: sortActiveMatches(
@@ -144,13 +136,13 @@ export default async function MatchesPage({ params, searchParams }: MatchesPageP
                   value={stage.key}
                   className="data-[state=active]:bg-[var(--color-accent)] data-[state=active]:text-[var(--color-accent-fg)]"
                 >
-                  {presentStageMarker(stage, season.competitionTemplate)}
+                  {stagePresentation.labels[stage.key]}
                 </TabsTrigger>
               ))}
             </TabsList>
 
             {stageViews.map(({ stage, matches: allStageMatches }) => {
-              const stageLabel = presentStageMarker(stage, season.competitionTemplate);
+              const stageLabel = stagePresentation.labels[stage.key] ?? stage.name;
               const stageMatches = [...allStageMatches];
               const { active, done } = splitMatches(stageMatches);
               const swissReadModel = swissReadModels.get(stage.key);

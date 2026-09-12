@@ -89,7 +89,6 @@ export interface RosterPlayer {
   steamName: string;
   displayName: string | null;
   perfectName: string | null;
-  primaryPosition: string;
   isStarter: boolean;
   userId?: string | null;
 }
@@ -107,7 +106,6 @@ export function buildRoster(
       steamName: m.steamName ?? "未知",
       displayName: m.displayName ?? null,
       perfectName: m.perfectName ?? null,
-      primaryPosition: m.primaryPosition,
       isStarter: playerMap.get(m.id) ?? false,
       userId: m.userId ?? null,
     }));

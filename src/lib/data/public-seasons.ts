@@ -1,10 +1,10 @@
 import "server-only";
 
 import { cacheLife, cacheTag } from "next/cache";
-import { and, desc, eq, ne } from "drizzle-orm";
+import { and, desc, eq, inArray, max, ne } from "drizzle-orm";
 
 import { db } from "@/db/client";
-import { seasons } from "@/db/schema";
+import { matches, seasons } from "@/db/schema";
 import type { Season } from "@/db/schema/seasons";
 import { getCurrentUserAuthorization } from "@/lib/auth/session";
 import {
@@ -45,6 +45,11 @@ export type PublicSeason = Pick<
   | "createdAt"
 >;
 
+export type PublicSeasonWithCompletion = PublicSeason & {
+  /** Latest canonical completed match fact; never derived from ingestion time. */
+  lastCompletedAt: Date | null;
+};
+
 const publicSeasonColumns = {
   id: seasons.id,
   slug: seasons.slug,
@@ -80,16 +85,25 @@ const publicSeasonColumns = {
  */
 const PUBLIC_CACHE_LIFE = "seconds" as const;
 
-export async function getPublicSeasonCatalog(): Promise<PublicSeason[]> {
+export async function getPublicSeasonCatalog(): Promise<PublicSeasonWithCompletion[]> {
   "use cache";
   cacheLife(PUBLIC_CACHE_LIFE);
   cacheTag(PUBLIC_SEASON_CATALOG_TAG);
 
-  return db
+  const rows = await db
     .select(publicSeasonColumns)
     .from(seasons)
     .where(ne(seasons.status, "draft"))
     .orderBy(desc(seasons.createdAt));
+  if (rows.length === 0) return [];
+
+  const completionRows = await db
+    .select({ seasonId: matches.seasonId, lastCompletedAt: max(matches.completedAt) })
+    .from(matches)
+    .where(inArray(matches.seasonId, rows.map((row) => row.id)))
+    .groupBy(matches.seasonId);
+  const lastCompletedAtBySeasonId = new Map(completionRows.map((row) => [row.seasonId, row.lastCompletedAt]));
+  return rows.map((row) => ({ ...row, lastCompletedAt: lastCompletedAtBySeasonId.get(row.id) ?? null }));
 }
 
 export async function getPublicSeasonBySlug(slug: string): Promise<PublicSeason | null> {

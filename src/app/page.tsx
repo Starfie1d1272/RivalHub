@@ -20,6 +20,7 @@ import {
   selectFeaturedSeason,
   selectHomeNavTiers,
 } from "@/lib/home/navigation";
+import { groupSeasonsByLifecycle } from "@/lib/seasons/presentation";
 import { HomeHero } from "@/components/home/HomeHero";
 import { HomeNavigation } from "@/components/home/HomeNavigation";
 import { HomeSeasonPanel, shouldLoadRegistrationPositionCounts } from "@/components/home/HomeSeasonPanel";
@@ -61,8 +62,14 @@ async function HomeContent() {
     getSeasonPersonalNextStep(featured),
   ]);
   const results = ["finished", "archived"].includes(featured.status) ? await getPublicSeasonResults(featured) : null;
-  const archivedSeasons = allSeasons
-    .filter((season) => ["finished", "archived"].includes(season.status) && season.id !== featured.id)
+  const historicalSeasons = groupSeasonsByLifecycle(allSeasons);
+  const archivedSeasons = [...historicalSeasons.recent, ...historicalSeasons.archived]
+    .filter((season) => season.id !== featured.id)
+    .sort((a, b) => {
+      const completedDifference = (b.lastCompletedAt?.getTime() ?? Number.NEGATIVE_INFINITY)
+        - (a.lastCompletedAt?.getTime() ?? Number.NEGATIVE_INFINITY);
+      return completedDifference || a.id.localeCompare(b.id);
+    })
     .slice(0, 6);
 
   // 并行查询：基础统计 + 按状态的动态数据
@@ -74,8 +81,12 @@ async function HomeContent() {
     topCandidatesWithNames,
     liveAndUpcomingMatches,
   ] = await Promise.all([
-    db.select({ value: count() }).from(competitionEntries).where(and(eq(competitionEntries.competitionId, featured.id), publicCompetitionEntryCondition())),
-    getParticipantSummary(featured),
+    featured.competitionTemplate === "major"
+      ? Promise.resolve([] as { value: number }[])
+      : db.select({ value: count() }).from(competitionEntries).where(and(eq(competitionEntries.competitionId, featured.id), publicCompetitionEntryCondition())),
+    featured.competitionTemplate === "major"
+      ? Promise.resolve({ count: 0, hasPlayers: false })
+      : getParticipantSummary(featured),
     // 仅 registration 状态时查询
     shouldLoadRegistrationPositionCounts(featured)
       ? db

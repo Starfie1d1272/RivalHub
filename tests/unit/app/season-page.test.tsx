@@ -92,7 +92,7 @@ describe("season page navigation", () => {
     });
     const html = renderToStaticMarkup(page);
 
-    expect(html).toMatch(/href="\/2026-nju-major\/teams"[\s\S]*队伍阵容/);
+    expect(html).toMatch(/href="\/2026-nju-major\/teams"[\s\S]*队伍/);
     expect(html).not.toContain("/competitionEntries");
   });
 
@@ -121,7 +121,7 @@ describe("season page navigation", () => {
     const html = renderToStaticMarkup(page);
 
     if (shouldShow) {
-      expect(html).toMatch(/href="\/2026-nju-major\/register"[\s\S]*立即报名/);
+      expect(html).toMatch(/href="\/2026-nju-major\/register"[\s\S]*报名/);
     } else {
       expect(html).not.toContain("/2026-nju-major/register");
       expect(html).not.toContain("立即报名");

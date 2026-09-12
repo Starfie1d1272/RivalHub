@@ -7,6 +7,7 @@ export interface FeaturedSeasonInput {
   status: SeasonStatus;
   registrationOpenedAt?: Date | string | null;
   createdAt: Date | string;
+  lastCompletedAt?: Date | string | null;
 }
 
 export interface HomeNavSeason {
@@ -50,8 +51,14 @@ export function selectFeaturedSeason<T extends FeaturedSeasonInput>(
     .sort((a, b) => {
       if (a.priority !== b.priority) return a.priority - b.priority;
 
-      const createdAtDifference = getTimestamp(b.season.createdAt) - getTimestamp(a.season.createdAt);
-      if (createdAtDifference !== 0) return createdAtDifference;
+      const isHistorical = a.season.status === "finished" || a.season.status === "archived";
+      if (isHistorical) {
+        const completedAtDifference = getTimestamp(b.season.lastCompletedAt) - getTimestamp(a.season.lastCompletedAt);
+        if (completedAtDifference !== 0) return completedAtDifference;
+      } else {
+        const createdAtDifference = getTimestamp(b.season.createdAt) - getTimestamp(a.season.createdAt);
+        if (createdAtDifference !== 0) return createdAtDifference;
+      }
 
       const idDifference = a.season.id.localeCompare(b.season.id);
       return idDifference !== 0 ? idDifference : a.index - b.index;
@@ -68,7 +75,8 @@ function getFeaturedSeasonPriority(season: FeaturedSeasonInput): number | null {
   return null;
 }
 
-function getTimestamp(value: Date | string): number {
+function getTimestamp(value: Date | string | null | undefined): number {
+  if (value == null) return Number.NEGATIVE_INFINITY;
   const timestamp = typeof value === "string" ? Date.parse(value) : value.getTime();
   return Number.isFinite(timestamp) ? timestamp : Number.NEGATIVE_INFINITY;
 }
@@ -105,7 +113,7 @@ export function buildHomeNavEntries(
     {
       key: "register",
       href: `/${season.slug}/register`,
-      label: season.registrationMode === "team" ? "组队报名" : "报名参赛",
+      label: "报名",
       mono: "REGISTER",
       meta: season.registrationMode === "team" ? "创建或加入队伍" : "个人报名",
       show: season.status === "registration" && isRegistrationActuallyOpen(season),
@@ -113,39 +121,39 @@ export function buildHomeNavEntries(
     {
       key: "captains",
       href: `/${season.slug}/captains`,
-      label: isHistorical ? "队长投票结果" : "队长投票",
+      label: "队长投票",
       mono: "CAPTAINS",
-      meta: isHistorical ? "最终结果" : "实时票数",
+      meta: isHistorical ? "结果已归档" : "实时票数",
       show: season.hasCaptainVoting,
     },
     {
       key: "draft",
       href: `/${season.slug}/draft`,
-      label: isHistorical ? "选秀回顾" : "选秀",
+      label: "选秀",
       mono: "DRAFT ROOM",
-      meta: season.status === "drafting" ? "选人进行中" : "选人记录",
+      meta: isHistorical ? "选人回顾" : season.status === "drafting" ? "选人进行中" : "选人记录",
       show: season.hasDraft,
     },
     {
       key: "teams",
       href: `/${season.slug}/teams`,
-      label: "战队阵容",
+      label: "队伍",
       mono: "TEAMS",
-      meta: "战队展示",
+      meta: "赛事参赛队伍",
       show: true,
     },
     {
       key: "matches",
       href: `/${season.slug}/matches`,
-      label: "赛程对决",
+      label: "赛程",
       mono: "MATCHES",
-      meta: "Bracket · 赛果",
+      meta: "赛程与赛果",
       show: true,
     },
     {
       key: "stats",
       href: `/${season.slug}/stats`,
-      label: "数据排行",
+      label: "数据统计",
       mono: "STATS",
       meta: "Rating · ADR",
       show: showStats(season),

@@ -32,7 +32,7 @@ export async function getStandings(seasonId: string): Promise<TeamStanding[]> {
     }),
     db.query.matches.findMany({
       where: and(eq(matches.seasonId, seasonId), eq(matches.status, "finished")),
-      orderBy: [asc(matches.createdAt)],
+      orderBy: [asc(matches.completedAt), asc(matches.id)],
     }),
   ]);
 

@@ -10,11 +10,11 @@ import type { Metadata } from "next";
 import { connection } from "next/server";
 import { getPublicSeasonCatalog } from "@/lib/data/public-seasons";
 import { presentRegistrationSchedule, presentSeasonDirectoryActivity, presentSeasonParticipationState } from "@/lib/seasons/presentation";
+import { getPublicSeasonStagePresentation } from "@/lib/seasons/public-stage";
 import { PageHeader, PageLayout, Panel, StatusPill } from "@/components/rivalhub";
 import { and, asc, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
 import { matches } from "@/db/schema";
-import { normalizeStagePlan } from "@/lib/seasons/compatibility";
 
 export const metadata: Metadata = { title: "赛事中心" };
 
@@ -44,6 +44,11 @@ async function SeasonsContent() {
     const current = nextMatchBySeason.get(row.seasonId);
     if (!current || (row.status === "in_progress" && current.status !== "in_progress")) nextMatchBySeason.set(row.seasonId, row);
   }
+  const stagePresentations = new Map(await Promise.all(
+    allSeasons
+      .filter((season) => nextMatchBySeason.has(season.id))
+      .map(async (season) => [season.id, await getPublicSeasonStagePresentation(season)] as const),
+  ));
   const summaries = new Map(await Promise.all(allSeasons.map(async (season) => [season.id, { participants: season.competitionTemplate === "major" ? { count: (await getMajorPublicParticipantOverview(season)).playerCount } : await getParticipantSummary(season), results: ["finished", "archived"].includes(season.status) ? await getPublicSeasonResults(season) : null }] as const)));
 
   return (
@@ -61,7 +66,7 @@ async function SeasonsContent() {
                 const summary = summaries.get(season.id)!;
                 const schedule = presentRegistrationSchedule(season);
                 const nextMatch = nextMatchBySeason.get(season.id);
-                const nextStageName = nextMatch ? normalizeStagePlan(season.stagePlan).find((stage) => stage.key === nextMatch.stage)?.name ?? null : null;
+                const nextStageName = nextMatch ? stagePresentations.get(season.id)?.labels[nextMatch.stage] ?? null : null;
                 const activity = presentSeasonDirectoryActivity(season, nextStageName);
                 return <Panel key={season.id} hoverable contentClassName="space-y-4 p-5">
                   <Link href={`/${season.slug}`} className="block">

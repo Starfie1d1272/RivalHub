@@ -9,6 +9,7 @@ export type SeasonLifecycleGroup = "active" | "upcoming" | "draft" | "recent" | 
 export interface SeasonLifecycleInput {
   status: SeasonStatus;
   registrationOpenedAt?: Date | string | null;
+  lastCompletedAt?: Date | string | null;
 }
 
 export interface SeasonLifecycleGroupDefinition {
@@ -117,7 +118,25 @@ export function groupSeasonsByLifecycle<T extends SeasonLifecycleInput>(
     grouped[getSeasonLifecycleGroup(season)].push(season);
   }
 
+  // Historical ordering follows the latest canonical completed match fact;
+  // creation time is ingestion metadata and must not stand in for result time.
+  for (const key of ["recent", "archived"] as const) {
+    grouped[key].sort((a, b) => {
+      const completionDifference = getTimestamp(b.lastCompletedAt) - getTimestamp(a.lastCompletedAt);
+      if (completionDifference !== 0) return completionDifference;
+      const aId = "id" in a && typeof a.id === "string" ? a.id : "";
+      const bId = "id" in b && typeof b.id === "string" ? b.id : "";
+      return aId.localeCompare(bId);
+    });
+  }
+
   return grouped;
+}
+
+function getTimestamp(value: Date | string | null | undefined): number {
+  if (value == null) return Number.NEGATIVE_INFINITY;
+  const timestamp = typeof value === "string" ? Date.parse(value) : value.getTime();
+  return Number.isFinite(timestamp) ? timestamp : Number.NEGATIVE_INFINITY;
 }
 
 /** Public participation label for a published Season; lifecycle status stays
