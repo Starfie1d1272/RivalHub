@@ -1,8 +1,9 @@
 import { and, asc, count, eq, inArray } from "drizzle-orm";
+import { writeAuditInTx } from "@/lib/audit/write";
+
 import type { TxDb } from "@/db/client";
 import {
-  auditLogs,
-  eventRosterMembers,
+    eventRosterMembers,
   eventRosters,
   majorTournamentEntrants,
   majorPrestartIssues,
@@ -412,13 +413,11 @@ export async function startMajorInTransaction(
     updatedAt: now,
   }).where(eq(majorPrestartStates.id, state.id));
   await tx.update(seasons).set({ status: "playing", updatedAt: now }).where(eq(seasons.id, season.id));
-  await tx.insert(auditLogs).values({
+  await writeAuditInTx(tx, {
     seasonId: season.id,
     action: "major.start",
     actorId: input.actorId,
-    targetId: stageRun.id,
-    targetType: "major_stage_run",
-    meta: {
+    targetId: stageRun.id,meta: {
       stageKey: stage.key,
       lockedEntrants: entrantCapacity,
       lockedRosters: entrantCapacity,

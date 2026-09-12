@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   auditTargetKey,
   groupAuditTargets,
+  normalizeAuditTarget,
   resolveAuditTargets,
   type AuditDatabaseExecutor,
 } from "@/lib/audit/targets";
@@ -131,5 +132,48 @@ describe("audit target resolver", () => {
     expect(target).toMatchObject({ typeLabel: "教育认证", found: false });
     expect(target.label).toContain("记录未找到");
     expect(target.label).not.toContain("education_verification:");
+  });
+
+  it("projects legacy recruitment interest removals onto their stable intent", async () => {
+    const legacyRef = {
+      action: "recruitment.interest.withdraw",
+      targetType: "recruitment_interest",
+      targetId: "deleted-interest",
+      meta: { recruitmentIntentId: "intent-1" },
+    };
+    expect(normalizeAuditTarget(legacyRef)).toEqual({ targetType: "recruitment_intent", targetId: "intent-1", lifecycle: "stable" });
+
+    const { executor } = fakeExecutor(new Map());
+    const targets = await resolveAuditTargets([legacyRef], executor);
+    expect(targets[auditTargetKey("recruitment_intent", "intent-1")]).toMatchObject({
+      typeLabel: "招募意向",
+      found: false,
+    });
+  });
+
+  it("projects legacy public-info child rows from their action contract", () => {
+    expect(normalizeAuditTarget({
+      action: "season_public_info.group.delete",
+      targetType: "season_public_info",
+      targetId: "group-1",
+    })).toEqual({ targetType: "community_group", targetId: "group-1", lifecycle: "tombstone" });
+    expect(normalizeAuditTarget({
+      action: "season_public_info.contact.update",
+      targetType: "season_public_info",
+      targetId: "contact-1",
+    })).toEqual({ targetType: "season_contact", targetId: "contact-1", lifecycle: "stable" });
+  });
+
+  it("uses an explicit historical fallback for intentional tombstones", async () => {
+    const { executor } = fakeExecutor(new Map());
+    const result = await resolveAuditTargets([{
+      action: "season_public_info.group.delete",
+      targetType: "season_public_info",
+      targetId: "deleted-group",
+    }], executor);
+    const target = result[auditTargetKey("community_group", "deleted-group")];
+
+    expect(target).toMatchObject({ typeLabel: "社区群组", found: false });
+    expect(target.label).toContain("已删除 / 历史目标");
   });
 });

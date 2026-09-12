@@ -1,8 +1,9 @@
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
+import { writeAuditInTx } from "@/lib/audit/write";
+
 import type { TxDb } from "@/db/client";
 import {
-  auditLogs,
-  eventRosterMembers,
+    eventRosterMembers,
   eventRosters,
   majorPrestartStates,
   majorSeedRecommendationSnapshots,
@@ -156,13 +157,11 @@ export async function saveMajorTournamentSeedsInTx(
     seedsConfirmedBy: null,
     updatedAt: new Date(),
   }).where(eq(majorPrestartStates.id, state.id));
-  await tx.insert(auditLogs).values({
+  await writeAuditInTx(tx, {
     seasonId: season.id,
     action: "major_prestart.save_tournament_seeds",
     actorId: input.actorId,
-    targetId: state.id,
-    targetType: "major_prestart_state",
-    meta: {
+    targetId: state.id,meta: {
       seedCount: entrantCapacity,
       seedRecommendationDiverged: decision.divergesFromRecommendation,
       systemTieResolution: decision.resolvesSystemTie,
@@ -212,13 +211,11 @@ export async function confirmMajorTournamentSeedsInTx(
     seedsConfirmedBy: input.actorId,
     updatedAt: now,
   }).where(eq(majorPrestartStates.id, state.id));
-  await tx.insert(auditLogs).values({
+  await writeAuditInTx(tx, {
     seasonId: season.id,
     action: "major_prestart.confirm_tournament_seeds",
     actorId: input.actorId,
-    targetId: state.id,
-    targetType: "major_prestart_state",
-    meta: {
+    targetId: state.id,meta: {
       seedCount: entrantCapacity,
       seedRecommendationDiverged: decision.divergesFromRecommendation,
       systemTieResolution: decision.resolvesSystemTie,

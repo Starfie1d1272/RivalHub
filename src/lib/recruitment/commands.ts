@@ -1,12 +1,15 @@
 import { and, eq, inArray, isNull, sql } from "drizzle-orm";
+import { writeAuditInTx } from "@/lib/audit/write";
+import type { AuditAction } from "@/lib/audit/presentation";
+
 import type { TxDb } from "@/db/client";
-import { auditLogs, competitionEntries, recruitmentIntents, recruitmentInterests, seasons, teamMemberships, teams } from "@/db/schema";
+import { competitionEntries, recruitmentIntents, recruitmentInterests, seasons, teamMemberships, teams } from "@/db/schema";
 import { AppError, ErrorCode } from "@/lib/errors";
 import type { Cs2Position } from "@/lib/config/cs2-positions";
 import { isRecruitmentTargetAvailable, isTeamRecruitmentTargetAvailable, recruitmentTargetExpiresAt } from "@/lib/recruitment/target-policy";
 
-async function auditRecruitment(tx: TxDb, action: string, actorId: string, targetId: string, targetType: "recruitment_intent" | "recruitment_interest", meta?: Record<string, unknown>) {
-  await tx.insert(auditLogs).values({ seasonId: null, action, actorId, targetId, targetType, meta: meta ?? null });
+async function auditRecruitment(tx: TxDb, action: AuditAction, actorId: string, targetId: string, meta?: Record<string, unknown>) {
+  await writeAuditInTx(tx, { seasonId: null, action, actorId, targetId, meta: meta ?? null });
 }
 
 async function lockTeam(tx: TxDb, teamId: string) {
@@ -65,11 +68,11 @@ export async function upsertTeamRecruitmentInTx(
     if (existing.status !== "open" || existing.expiresAt <= now) {
       await tx.delete(recruitmentInterests).where(eq(recruitmentInterests.recruitmentIntentId, existing.id));
     }
-    await auditRecruitment(tx, "recruitment.team.upsert", input.actorId, existing.id, "recruitment_intent", { teamId: input.teamId, positions: input.positions, targetSeasonId: input.targetSeasonId });
+    await auditRecruitment(tx, "recruitment.team.upsert", input.actorId, existing.id, { teamId: input.teamId, positions: input.positions, targetSeasonId: input.targetSeasonId });
     return intent;
   }
   const [intent] = await tx.insert(recruitmentIntents).values({ kind: "team_recruiting", teamId: input.teamId, positions: input.positions, targetSeasonId: input.targetSeasonId, note: input.note, expiresAt }).returning({ id: recruitmentIntents.id, expiresAt: recruitmentIntents.expiresAt });
-  await auditRecruitment(tx, "recruitment.team.create", input.actorId, intent.id, "recruitment_intent", { teamId: input.teamId, positions: input.positions, targetSeasonId: input.targetSeasonId });
+  await auditRecruitment(tx, "recruitment.team.create", input.actorId, intent.id, { teamId: input.teamId, positions: input.positions, targetSeasonId: input.targetSeasonId });
   return intent;
 }
 
@@ -79,7 +82,7 @@ export async function closeTeamRecruitmentInTx(tx: TxDb, input: { teamId: string
   if (!intent || intent.status === "closed") throw new AppError(ErrorCode.NOT_FOUND, "当前没有公开招募信息。");
   await tx.update(recruitmentIntents).set({ status: "closed", updatedAt: new Date() }).where(eq(recruitmentIntents.id, intent.id));
   await tx.delete(recruitmentInterests).where(eq(recruitmentInterests.recruitmentIntentId, intent.id));
-  await auditRecruitment(tx, "recruitment.team.close", input.actorId, intent.id, "recruitment_intent", { teamId: input.teamId });
+  await auditRecruitment(tx, "recruitment.team.close", input.actorId, intent.id, { teamId: input.teamId });
 }
 
 /** Called by the Team lifecycle owner; its disband audit is the canonical record. */
@@ -100,11 +103,11 @@ export async function upsertPlayerLftInTx(
   const [existing] = await tx.select().from(recruitmentIntents).where(eq(recruitmentIntents.userId, input.userId)).for("update");
   if (existing) {
     const [intent] = await tx.update(recruitmentIntents).set({ positions: input.positions, targetSeasonId: input.targetSeasonId, note: input.note, status: "open", expiresAt, updatedAt: now }).where(eq(recruitmentIntents.id, existing.id)).returning({ id: recruitmentIntents.id, expiresAt: recruitmentIntents.expiresAt });
-    await auditRecruitment(tx, "recruitment.player.upsert", input.actorId, existing.id, "recruitment_intent", { positions: input.positions, targetSeasonId: input.targetSeasonId });
+    await auditRecruitment(tx, "recruitment.player.upsert", input.actorId, existing.id, { positions: input.positions, targetSeasonId: input.targetSeasonId });
     return intent;
   }
   const [intent] = await tx.insert(recruitmentIntents).values({ kind: "player_lft", userId: input.userId, positions: input.positions, targetSeasonId: input.targetSeasonId, note: input.note, expiresAt }).returning({ id: recruitmentIntents.id, expiresAt: recruitmentIntents.expiresAt });
-  await auditRecruitment(tx, "recruitment.player.create", input.actorId, intent.id, "recruitment_intent", { positions: input.positions, targetSeasonId: input.targetSeasonId });
+  await auditRecruitment(tx, "recruitment.player.create", input.actorId, intent.id, { positions: input.positions, targetSeasonId: input.targetSeasonId });
   return intent;
 }
 
@@ -113,7 +116,7 @@ export async function closePlayerLftInTx(tx: TxDb, input: { userId: string; acto
   const [intent] = await tx.select().from(recruitmentIntents).where(and(eq(recruitmentIntents.userId, input.userId), eq(recruitmentIntents.status, "open"))).for("update");
   if (!intent) return;
   await tx.update(recruitmentIntents).set({ status: "closed", updatedAt: new Date() }).where(eq(recruitmentIntents.id, intent.id));
-  if (input.actorId) await auditRecruitment(tx, "recruitment.player.close", input.actorId, intent.id, "recruitment_intent");
+  if (input.actorId) await auditRecruitment(tx, "recruitment.player.close", input.actorId, intent.id);
 }
 
 export async function expressRecruitmentInterestInTx(tx: TxDb, input: { recruitmentIntentId: string; userId: string; actorId: string }): Promise<void> {
@@ -127,7 +130,7 @@ export async function expressRecruitmentInterestInTx(tx: TxDb, input: { recruitm
   if (currentMembership) throw new AppError(ErrorCode.VALIDATION_FAILED, "你当前已是该队成员，无需表达加入意向。");
   const [interest] = await tx.insert(recruitmentInterests).values({ recruitmentIntentId: intent.id, userId: input.userId }).onConflictDoNothing().returning({ id: recruitmentInterests.id });
   if (!interest) throw new AppError(ErrorCode.REGISTRATION_DUPLICATE, "你已表达过加入意向。");
-  await auditRecruitment(tx, "recruitment.interest.create", input.actorId, interest.id, "recruitment_interest", { recruitmentIntentId: intent.id, teamId: intent.teamId });
+  await auditRecruitment(tx, "recruitment.interest.create", input.actorId, interest.id, { recruitmentIntentId: intent.id, teamId: intent.teamId });
 }
 
 export async function withdrawRecruitmentInterestInTx(tx: TxDb, input: { recruitmentIntentId: string; userId: string; actorId: string }): Promise<void> {
@@ -138,7 +141,7 @@ export async function withdrawRecruitmentInterestInTx(tx: TxDb, input: { recruit
   const [interest] = await tx.select().from(recruitmentInterests).where(and(eq(recruitmentInterests.recruitmentIntentId, input.recruitmentIntentId), eq(recruitmentInterests.userId, input.userId))).for("update");
   if (!interest) throw new AppError(ErrorCode.NOT_FOUND, "加入意向不存在。");
   await tx.delete(recruitmentInterests).where(eq(recruitmentInterests.id, interest.id));
-  await auditRecruitment(tx, "recruitment.interest.withdraw", input.actorId, interest.id, "recruitment_interest", { recruitmentIntentId: input.recruitmentIntentId });
+  await auditRecruitment(tx, "recruitment.interest.withdraw", input.actorId, input.recruitmentIntentId, { recruitmentIntentId: input.recruitmentIntentId, recruitmentInterestId: interest.id });
 }
 
 export async function dismissRecruitmentInterestInTx(tx: TxDb, input: { recruitmentIntentId: string; interestUserId: string; userId: string; actorId: string }): Promise<void> {
@@ -148,7 +151,7 @@ export async function dismissRecruitmentInterestInTx(tx: TxDb, input: { recruitm
   const [interest] = await tx.select().from(recruitmentInterests).where(and(eq(recruitmentInterests.recruitmentIntentId, input.recruitmentIntentId), eq(recruitmentInterests.userId, input.interestUserId))).for("update");
   if (!interest) throw new AppError(ErrorCode.NOT_FOUND, "加入意向不存在。");
   await tx.delete(recruitmentInterests).where(eq(recruitmentInterests.id, interest.id));
-  await auditRecruitment(tx, "recruitment.interest.dismiss", input.actorId, interest.id, "recruitment_interest", { recruitmentIntentId: input.recruitmentIntentId, teamId, userId: input.interestUserId });
+  await auditRecruitment(tx, "recruitment.interest.dismiss", input.actorId, input.recruitmentIntentId, { recruitmentIntentId: input.recruitmentIntentId, recruitmentInterestId: interest.id, teamId, userId: input.interestUserId });
 }
 
 export async function clearTeamInterestAfterDirectInvitationInTx(tx: TxDb, teamId: string, userId: string): Promise<void> {

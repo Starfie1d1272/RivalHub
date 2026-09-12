@@ -1,8 +1,10 @@
 import "server-only";
 
+import { writeAuditInTx } from "@/lib/audit/write";
+
 import { and, eq, isNotNull, isNull, lte } from "drizzle-orm";
 import { db } from "@/db/client";
-import { matchTimeProposals, matches, auditLogs, seasons } from "@/db/schema";
+import { matchTimeProposals, matches, seasons } from "@/db/schema";
 import {
   TIME_CONFIRMATION_BUFFER_HOURS,
   getTimeConfirmationCutoff,
@@ -157,13 +159,11 @@ async function autoAcceptSingleProposal(
       .set({ scheduledAt: proposal.proposedTime, updatedAt: now })
       .where(eq(matches.id, matchId));
 
-    await tx.insert(auditLogs).values({
+    await writeAuditInTx(tx, {
       seasonId: match.seasonId,
       action: "match.auto_accept_proposal_timeout",
       actorId: "system",
-      targetId: matchId,
-      targetType: "match",
-      meta: {
+      targetId: matchId,meta: {
         proposalId: proposal.id,
         proposedBy: proposal.proposedBy,
         scheduledAt: proposal.proposedTime.toISOString(),
@@ -228,13 +228,11 @@ async function autoAwardMatchTime(
       .set({ status: "accepted", responseAt: now, updatedAt: now })
       .where(eq(matchTimeProposals.id, proposal.id));
 
-    await tx.insert(auditLogs).values({
+    await writeAuditInTx(tx, {
       seasonId: match.seasonId,
       action: "match.auto_award_time",
       actorId: "system",
-      targetId: match.id,
-      targetType: "match",
-      meta: {
+      targetId: match.id,meta: {
         proposalId: proposal.id,
         proposedBy: proposal.proposedBy,
         scheduledAt: proposal.proposedTime.toISOString(),

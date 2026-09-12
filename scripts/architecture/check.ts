@@ -13,7 +13,8 @@ const SERVER_OWNER_PATHS = [
 export type ArchitectureRuleId =
   | "ARCH_CLIENT_SERVER"
   | "ARCH_LIB_ENTRYPOINT"
-  | "ARCH_CANONICAL_PROVIDER";
+  | "ARCH_CANONICAL_PROVIDER"
+  | "ARCH_AUDIT_WRITER";
 
 export interface ArchitectureViolation {
   ruleId: ArchitectureRuleId;
@@ -79,6 +80,7 @@ export function checkArchitecture(options: ArchitectureCheckOptions = {}): Archi
     for (const edge of record.allEdges) {
       checkCanonicalProvider(record, edge.specifier, report);
     }
+    checkAuditWriter(record, report);
   }
 
   const libraryVisited = new Set<string>();
@@ -96,6 +98,25 @@ export function checkArchitecture(options: ArchitectureCheckOptions = {}): Archi
   return graph.violations.sort((a, b) =>
     `${a.file}|${a.ruleId}|${a.target ?? ""}`.localeCompare(`${b.file}|${b.ruleId}|${b.target ?? ""}`),
   );
+}
+
+function checkAuditWriter(record: SourceRecord, report: (violation: ArchitectureViolation) => void): void {
+  if (record.path === "src/lib/audit/write.ts") return;
+  const visit = (node: ts.Node): void => {
+    if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression) && node.expression.name.text === "insert") {
+      const target = node.arguments[0];
+      if (target && ts.isIdentifier(target) && target.text === "auditLogs") {
+        report({
+          ruleId: "ARCH_AUDIT_WRITER",
+          file: record.path,
+          target: "src/lib/audit/write.ts",
+          message: "普通业务代码必须经 writeAuditInTx() 写入 audit_logs。",
+        });
+      }
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(record.ast);
 }
 
 export function formatArchitectureViolation(violation: ArchitectureViolation): string {

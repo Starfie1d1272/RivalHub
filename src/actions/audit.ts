@@ -13,7 +13,7 @@ import {
   summarizeAuditMeta,
   type AuditLogView,
 } from "@/lib/audit/presentation";
-import { auditTargetKey, resolveAuditTargets } from "@/lib/audit/targets";
+import { auditTargetKey, normalizeAuditTarget, resolveAuditTargets } from "@/lib/audit/targets";
 import { ok } from "@/types/action";
 
 function parseCSTDateStart(value: string) {
@@ -116,15 +116,19 @@ export async function fetchAuditLogs(filters: AuditLogFilters = {}) {
       }
     }
 
-    const targetMap = await resolveAuditTargets(rows.map((row) => ({
+    const normalizedTargets = rows.map((row) => normalizeAuditTarget({
+      action: row.action,
+      meta: row.meta,
       targetType: row.targetType,
       targetId: row.targetId,
-    })));
+    }));
+    const targetMap = await resolveAuditTargets(normalizedTargets);
 
-    const logs: AuditLogView[] = rows.map((row) => {
+    const logs: AuditLogView[] = rows.map((row, index) => {
       const action = getAuditActionPresentation(row.action);
-      const target = row.targetType && row.targetId
-        ? targetMap[auditTargetKey(row.targetType, row.targetId)]
+      const normalizedTarget = normalizedTargets[index];
+      const target = normalizedTarget?.targetType && normalizedTarget.targetId
+        ? targetMap[auditTargetKey(normalizedTarget.targetType, normalizedTarget.targetId)]
         : undefined;
       return {
         id: row.id,
@@ -134,7 +138,7 @@ export async function fetchAuditLogs(filters: AuditLogFilters = {}) {
         categoryLabel: action.categoryLabel,
         categoryColor: action.categoryColor,
         actorLabel: actorLabel(row.actorId, actorNameMap),
-        targetTypeLabel: target?.typeLabel ?? getAuditTargetTypeLabel(row.targetType),
+        targetTypeLabel: target?.typeLabel ?? getAuditTargetTypeLabel(normalizedTarget?.targetType),
         targetLabel: target?.label ?? "未指定目标",
         summary: summarizeAuditMeta(row.action, row.meta),
       };

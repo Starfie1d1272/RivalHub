@@ -1,6 +1,8 @@
 import { and, eq } from "drizzle-orm";
+import { writeAuditInTx } from "@/lib/audit/write";
+
 import type { TxDb } from "@/db/client";
-import { auditLogs, majorStageRuns, matches } from "@/db/schema";
+import { majorStageRuns, matches } from "@/db/schema";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { validateSeriesScore } from "@/lib/matches/result-rules";
 import { assertSeasonAllowsTournamentMutationInTx } from "@/lib/postevent/guard";
@@ -172,13 +174,11 @@ export async function finalizeMajorSwissRoundInTransaction(
     }
     createdNextRound = created.length;
   }
-  await tx.insert(auditLogs).values({
+  await writeAuditInTx(tx, {
     seasonId: input.seasonId,
     action: "major.swiss.finalize_round",
     actorId: input.actorId,
-    targetId: stageRun.id,
-    targetType: "major_stage_run",
-    meta: {
+    targetId: stageRun.id,meta: {
       stageKey: stage.key,
       finalizedRound: input.expectedRound,
       completedMatches: currentFacts.length,

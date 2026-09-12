@@ -1,6 +1,9 @@
 import { and, asc, desc, eq, gt, lt } from "drizzle-orm";
+import { writeAuditInTx } from "@/lib/audit/write";
+import type { AuditAction } from "@/lib/audit/presentation";
+
 import type { TxDb } from "@/db/client";
-import { auditLogs, communityGroups, seasonContacts, seasonPublicInfo } from "@/db/schema";
+import { communityGroups, seasonContacts, seasonPublicInfo } from "@/db/schema";
 import { AppError, ErrorCode } from "@/lib/errors";
 
 export type SeasonInfoAdminContext = { role: "season_admin" | "super_admin"; seasonIds: readonly string[]; actorId: string };
@@ -9,8 +12,8 @@ export function assertSeasonAccess(context: SeasonInfoAdminContext, seasonId: st
   if (context.role !== "super_admin" && !context.seasonIds.includes(seasonId)) throw new AppError(ErrorCode.FORBIDDEN, "你没有管理该赛事公开信息的权限。 ");
 }
 
-function audit(tx: TxDb, seasonId: string, actorId: string, action: string, targetId: string, meta?: Record<string, unknown>) {
-  return tx.insert(auditLogs).values({ seasonId, actorId, action, targetId, targetType: "season_public_info", meta: meta ?? null });
+function audit(tx: TxDb, seasonId: string, actorId: string, action: AuditAction, targetId: string, meta?: Record<string, unknown>) {
+  return writeAuditInTx(tx, { seasonId, actorId, action, targetId, meta: meta ?? null });
 }
 
 export async function upsertSeasonPublicInfoInTx(tx: TxDb, context: SeasonInfoAdminContext, input: { seasonId: string; rulesLabel: string; rulesHref: string }) {

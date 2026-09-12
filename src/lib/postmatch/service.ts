@@ -1,6 +1,8 @@
 import { and, eq } from "drizzle-orm";
+import { writeAuditInTx } from "@/lib/audit/write";
+
 import type { TxDb } from "@/db/client";
-import { auditLogs, matchCommentators, matches, postMatchReports, seasonAdminGrants } from "@/db/schema";
+import { matchCommentators, matches, postMatchReports, seasonAdminGrants } from "@/db/schema";
 import { AppError, ErrorCode } from "@/lib/errors";
 
 async function lockMatchInTx(tx: TxDb, matchId: string) {
@@ -27,21 +29,21 @@ export async function addMatchCommentatorInTx(tx: TxDb, args: { matchId: string;
   const current = await tx.select({ userId: matchCommentators.userId }).from(matchCommentators).where(eq(matchCommentators.matchId, match.id));
   if (current.length >= 2 && !current.some((row) => row.userId === args.userId)) throw new AppError(ErrorCode.VALIDATION_FAILED, "每场最多登记 2 名实际解说。");
   const [created] = await tx.insert(matchCommentators).values({ matchId: match.id, userId: args.userId, addedByUserId: args.actorId }).onConflictDoNothing().returning({ matchId: matchCommentators.matchId });
-  if (created) await tx.insert(auditLogs).values({ seasonId: match.seasonId, action: "postmatch.commentator.add", actorId: args.actorId, targetId: match.id, targetType: "match", meta: { commentatorUserId: args.userId } });
+  if (created) await writeAuditInTx(tx, { seasonId: match.seasonId, action: "postmatch.commentator.add", actorId: args.actorId, targetId: match.id,meta: { commentatorUserId: args.userId } });
   return { seasonId: match.seasonId, added: Boolean(created) };
 }
 export async function removeMatchCommentatorInTx(tx: TxDb, args: { matchId: string; userId: string; actorId: string }) {
   const match = await lockMatchInTx(tx, args.matchId);
   await assertRosterEditableInTx(tx, match.id);
   const [removed] = await tx.delete(matchCommentators).where(and(eq(matchCommentators.matchId, match.id), eq(matchCommentators.userId, args.userId))).returning({ userId: matchCommentators.userId });
-  if (removed) await tx.insert(auditLogs).values({ seasonId: match.seasonId, action: "postmatch.commentator.remove", actorId: args.actorId, targetId: match.id, targetType: "match", meta: { commentatorUserId: args.userId } });
+  if (removed) await writeAuditInTx(tx, { seasonId: match.seasonId, action: "postmatch.commentator.remove", actorId: args.actorId, targetId: match.id,meta: { commentatorUserId: args.userId } });
   return { seasonId: match.seasonId, removed: Boolean(removed) };
 }
 export async function setMatchVideoUrlInTx(tx: TxDb, args: { matchId: string; videoUrl: string | null; actorId: string }) {
   const match = await lockMatchInTx(tx, args.matchId);
   if (match.status !== "finished") throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "只有已结束比赛可以记录录像链接。");
   await tx.update(matches).set({ videoUrl: args.videoUrl, updatedAt: new Date() }).where(eq(matches.id, match.id));
-  await tx.insert(auditLogs).values({ seasonId: match.seasonId, action: "postmatch.video.update", actorId: args.actorId, targetId: match.id, targetType: "match", meta: { hasVideoUrl: Boolean(args.videoUrl) } });
+  await writeAuditInTx(tx, { seasonId: match.seasonId, action: "postmatch.video.update", actorId: args.actorId, targetId: match.id,meta: { hasVideoUrl: Boolean(args.videoUrl) } });
   return { seasonId: match.seasonId };
 }
 export async function submitPostMatchReportInTx(tx: TxDb, args: { matchId: string; actorId: string }) {
@@ -51,7 +53,7 @@ export async function submitPostMatchReportInTx(tx: TxDb, args: { matchId: strin
   if (!commentator) throw new AppError(ErrorCode.FORBIDDEN, "只有本场已登记的解说可以提交赛后资料。");
   if (await lockSubmissionInTx(tx, match.id)) throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "本场赛后资料已经提交。");
   await tx.insert(postMatchReports).values({ matchId: match.id, submittedByUserId: args.actorId });
-  await tx.insert(auditLogs).values({ seasonId: match.seasonId, action: "postmatch.report.submit", actorId: args.actorId, targetId: match.id, targetType: "match", meta: { submittedByUserId: args.actorId } });
+  await writeAuditInTx(tx, { seasonId: match.seasonId, action: "postmatch.report.submit", actorId: args.actorId, targetId: match.id,meta: { submittedByUserId: args.actorId } });
   return { seasonId: match.seasonId };
 }
 export async function revokePostMatchSubmissionInTx(tx: TxDb, args: { matchId: string; actorId: string }) {
@@ -59,7 +61,7 @@ export async function revokePostMatchSubmissionInTx(tx: TxDb, args: { matchId: s
   const submission = await lockSubmissionInTx(tx, match.id);
   if (!submission) throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "本场尚未提交赛后资料。");
   await tx.delete(postMatchReports).where(eq(postMatchReports.matchId, match.id));
-  await tx.insert(auditLogs).values({ seasonId: match.seasonId, action: "postmatch.report.revoke", actorId: args.actorId, targetId: match.id, targetType: "match", meta: { submittedByUserId: submission.submittedByUserId } });
+  await writeAuditInTx(tx, { seasonId: match.seasonId, action: "postmatch.report.revoke", actorId: args.actorId, targetId: match.id,meta: { submittedByUserId: submission.submittedByUserId } });
   return { seasonId: match.seasonId };
 }
 export type PostMatchCompletion = "pending_collection" | "waiting_video" | "completed";

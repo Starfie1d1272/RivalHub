@@ -1,11 +1,13 @@
 "use server";
 
+import { writeAuditInTx } from "@/lib/audit/write";
+
 import { resolveSteamAvatarForProfile } from "@/lib/steam";
 
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/db/client";
-import { users, auditLogs } from "@/db/schema";
+import { users } from "@/db/schema";
 import { createServiceClient } from "@/lib/auth/supabase-server";
 import { requireAuth } from "@/lib/auth/session";
 import { ok, fail, type ActionResult } from "@/types/action";
@@ -48,13 +50,11 @@ export async function changeUserPassword(
       throw new AppError(ErrorCode.INTERNAL_ERROR, "密码更新失败，请重试");
     }
 
-    await db.insert(auditLogs).values({
+    await writeAuditInTx(db, {
       seasonId: null,
       action: "user.change_password",
       actorId: session.userId,
-      targetId: session.userId,
-      targetType: "user",
-    });
+      targetId: session.userId,});
 
     return ok(undefined);
   } catch (e) {

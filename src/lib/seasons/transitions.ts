@@ -1,8 +1,10 @@
 import "server-only";
 
+import { writeAuditInTx } from "@/lib/audit/write";
+
 import { and, count, eq, inArray, not } from "drizzle-orm";
 import type { TxDb } from "@/db/client";
-import { auditLogs, matches, seasonRegistrations, seasons } from "@/db/schema";
+import { matches, seasonRegistrations, seasons } from "@/db/schema";
 import { normalizeRegistrationConfig, normalizeStagePlan } from "@/lib/seasons/compatibility";
 
 async function getApprovedCountInTx(tx: TxDb, seasonId: string): Promise<number> {
@@ -53,13 +55,11 @@ export async function maybeAdvanceFromRegistration(
     .set({ status: nextStatus, updatedAt: new Date() })
     .where(eq(seasons.id, seasonId));
 
-  await tx.insert(auditLogs).values({
+  await writeAuditInTx(tx, {
     seasonId,
     action: "season.auto_advance",
     actorId: "system",
-    targetId: seasonId,
-    targetType: "season",
-    meta: {
+    targetId: seasonId,meta: {
       from: "registration",
       to: nextStatus,
       reason: full ? "capacity_reached" : "deadline_passed",
@@ -106,13 +106,11 @@ export async function maybeFinishSeason(
     .set({ status: "finished", updatedAt: new Date() })
     .where(eq(seasons.id, seasonId));
 
-  await tx.insert(auditLogs).values({
+  await writeAuditInTx(tx, {
     seasonId,
     action: "season.auto_finish",
     actorId: "system",
-    targetId: seasonId,
-    targetType: "season",
-    meta: { from: "playing", to: "finished", reason: "all_matches_completed" },
+    targetId: seasonId,meta: { from: "playing", to: "finished", reason: "all_matches_completed" },
   });
 
   return season.slug;

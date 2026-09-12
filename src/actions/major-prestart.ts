@@ -1,12 +1,13 @@
 "use server";
 
+import { writeAuditInTx } from "@/lib/audit/write";
+
 import { and, eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/db/client";
 import {
-  auditLogs,
-  eventRosterMembers,
+    eventRosterMembers,
   eventRosters,
   majorTournamentEntrants,
   majorPrestartIssues,
@@ -129,9 +130,9 @@ export async function confirmMajorPrestartRoster(input: z.input<typeof rosterExc
       if (duplicate.rows.length > 0) throw new AppError(ErrorCode.VALIDATION_FAILED, "同一选手不能同时出现在多支正式参赛队的最终名单中。");
       const now = new Date();
       await tx.update(eventRosters).set({ status: "confirmed", confirmedAt: now, confirmedBy: auditActorId(admin), updatedAt: now }).where(eq(eventRosters.id, coherent.eventRoster.id));
-      await tx.insert(auditLogs).values({
+      await writeAuditInTx(tx, {
         seasonId: season.id, action: "major_prestart.confirm_roster", actorId: auditActorId(admin),
-        targetId: entrant.id, targetType: "major_tournament_entrant", meta: { rosterSize: roster.length, reason: parsed.data.reason },
+        targetId: entrant.id,meta: { rosterSize: roster.length, reason: parsed.data.reason },
       });
     });
     revalidateMajorPrestart(season.slug);
@@ -155,7 +156,7 @@ export async function reopenMajorPrestartRoster(input: z.input<typeof rosterExce
       if (roster.status === "frozen") throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "最终赛事名单已冻结，不能重新开放。");
       if (roster.status === "confirmed") {
         await tx.update(eventRosters).set({ status: "preparing", confirmedAt: null, confirmedBy: null, frozenAt: null, frozenBy: null, updatedAt: new Date() }).where(eq(eventRosters.id, roster.id));
-        await tx.insert(auditLogs).values({ seasonId: season.id, action: "major_prestart.reopen_roster", actorId: auditActorId(admin), targetId: entrant.id, targetType: "major_tournament_entrant", meta: { eventRosterId: roster.id, reason: parsed.data.reason } });
+        await writeAuditInTx(tx, { seasonId: season.id, action: "major_prestart.reopen_roster", actorId: auditActorId(admin), targetId: entrant.id,meta: { eventRosterId: roster.id, reason: parsed.data.reason } });
       }
     });
     revalidateMajorPrestart(season.slug);
@@ -172,9 +173,9 @@ export async function addMajorPrestartIssue(input: { seasonId: string; category:
       const state = await ensureMajorPrestartStateInTx(tx, season.id);
       assertMajorPrestartEntrantsMutable(state);
       const [issue] = await tx.insert(majorPrestartIssues).values({ ...parsed.data }).returning({ id: majorPrestartIssues.id });
-      await tx.insert(auditLogs).values({
+      await writeAuditInTx(tx, {
         seasonId: season.id, action: "major_prestart.add_issue", actorId: auditActorId(admin),
-        targetId: issue?.id, targetType: "major_prestart_issue", meta: { category: parsed.data.category },
+        targetId: issue?.id,meta: { category: parsed.data.category },
       });
     });
     revalidateMajorPrestart(season.slug);
@@ -193,9 +194,9 @@ export async function resolveMajorPrestartIssue(input: { seasonId: string; issue
       if (!issue) throw new AppError(ErrorCode.NOT_FOUND, "待处理事项不存在。");
       await tx.update(majorPrestartIssues).set({ resolvedAt: new Date(), resolvedBy: auditActorId(admin), updatedAt: new Date() })
         .where(eq(majorPrestartIssues.id, issue.id));
-      await tx.insert(auditLogs).values({
+      await writeAuditInTx(tx, {
         seasonId: season.id, action: "major_prestart.resolve_issue", actorId: auditActorId(admin),
-        targetId: issue.id, targetType: "major_prestart_issue", meta: { category: issue.category },
+        targetId: issue.id,meta: { category: issue.category },
       });
     });
     revalidateMajorPrestart(season.slug);

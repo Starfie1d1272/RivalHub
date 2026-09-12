@@ -1,6 +1,8 @@
 import { and, asc, eq, inArray } from "drizzle-orm";
+import { writeAuditInTx } from "@/lib/audit/write";
+
 import type { TxDb } from "@/db/client";
-import { auditLogs, majorFinalResults, majorStageEntrants, majorStageRuns, matches } from "@/db/schema";
+import { majorFinalResults, majorStageEntrants, majorStageRuns, matches } from "@/db/schema";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { validateSeriesScore } from "@/lib/matches/result-rules";
 import { assertSeasonAllowsTournamentMutationInTx } from "@/lib/postevent/guard";
@@ -117,7 +119,7 @@ export async function startMajorPlayoffInTransaction(
     ownership: "major_stage" as const, majorStageRunId: playoffRun.id, managedKey: `qf-${pairing.slot}`,
   }))).returning({ id: matches.id });
   if (created.length !== 4) throw new AppError(ErrorCode.INTERNAL_ERROR, "淘汰赛八强赛创建数量异常。");
-  await tx.insert(auditLogs).values({ seasonId: input.seasonId, action: "major.playoff.start", actorId: input.actorId, targetId: playoffRun.id, targetType: "major_stage_run", meta: { sourceStageRunId: sourceRun.id, stageKey: playoffStage.key, entrants: 8, managedMatches: 4, hasThirdPlaceMatch: input.hasThirdPlaceMatch === true } });
+  await writeAuditInTx(tx, { seasonId: input.seasonId, action: "major.playoff.start", actorId: input.actorId, targetId: playoffRun.id,meta: { sourceStageRunId: sourceRun.id, stageKey: playoffStage.key, entrants: 8, managedMatches: 4, hasThirdPlaceMatch: input.hasThirdPlaceMatch === true } });
   return { sourceStageRunId: sourceRun.id, stageRunId: playoffRun.id, created: true, matchCount: created.length };
 }
 
@@ -207,7 +209,7 @@ export async function finalizeMajorPlayoffRoundInTransaction(
       managedKey: semifinal.managedKey,
     }))).returning({ id: matches.id });
     if (created.length !== missing.length) throw new AppError(ErrorCode.INTERNAL_ERROR, "半决赛创建数量异常。 ");
-    await tx.insert(auditLogs).values({ seasonId: input.seasonId, action: "major.playoff.finalize_round", actorId: input.actorId, targetId: run.id, targetType: "major_stage_run", meta: { finalizedRound: "quarterfinal", createdNextRound: created.length } });
+    await writeAuditInTx(tx, { seasonId: input.seasonId, action: "major.playoff.finalize_round", actorId: input.actorId, targetId: run.id,meta: { finalizedRound: "quarterfinal", createdNextRound: created.length } });
     return { stageRunId: run.id, finalizedRound: "quarterfinal", createdNextRound: created.length, resultPendingConfirmation: false, alreadyFinalized: false };
   }
   const semifinals = expectedMatches(managed, "semifinal", 2);
@@ -226,7 +228,7 @@ export async function finalizeMajorPlayoffRoundInTransaction(
       ...(frozen.hasThirdPlaceMatch ? [{ seasonId: input.seasonId, entryAId: sfFacts[0]!.winnerId === semifinals[0]!.entryAId ? semifinals[0]!.entryBId : semifinals[0]!.entryAId, entryBId: sfFacts[1]!.winnerId === semifinals[1]!.entryAId ? semifinals[1]!.entryBId : semifinals[1]!.entryAId, stage: run.stageKey, entryRound: "third_place" as const, format: "bo3" as const, status: "scheduled" as const, ownership: "major_stage" as const, majorStageRunId: run.id, managedKey: "third-1" }] : []),
     ]).returning({ id: matches.id });
     if (created.length !== (frozen.hasThirdPlaceMatch ? 2 : 1)) throw new AppError(ErrorCode.INTERNAL_ERROR, "淘汰赛后续比赛创建失败。 ");
-    await tx.insert(auditLogs).values({ seasonId: input.seasonId, action: "major.playoff.finalize_round", actorId: input.actorId, targetId: run.id, targetType: "major_stage_run", meta: { finalizedRound: "semifinal", createdNextRound: created.length, hasThirdPlaceMatch: frozen.hasThirdPlaceMatch } });
+    await writeAuditInTx(tx, { seasonId: input.seasonId, action: "major.playoff.finalize_round", actorId: input.actorId, targetId: run.id,meta: { finalizedRound: "semifinal", createdNextRound: created.length, hasThirdPlaceMatch: frozen.hasThirdPlaceMatch } });
     return { stageRunId: run.id, finalizedRound: "semifinal", createdNextRound: created.length, resultPendingConfirmation: false, alreadyFinalized: false };
   }
   const existingResult = await tx.select().from(majorFinalResults).where(eq(majorFinalResults.playoffStageRunId, run.id)).for("update");
@@ -240,9 +242,9 @@ export async function finalizeMajorPlayoffRoundInTransaction(
   const placements = buildFinalMajorPlacements({ tournamentTeams: allTournamentEntrants.map(({ competitionEntryId, tournamentSeed }) => ({ teamId: competitionEntryId, tournamentSeed })), ...swiss, playoffMatches: playoffFacts, hasThirdPlaceMatch: frozen.hasThirdPlaceMatch });
   const [result] = await tx.insert(majorFinalResults).values({ seasonId: input.seasonId, playoffStageRunId: run.id, championEntryId: playoff.championId, placementGroups: parseMajorFinalPlacementGroups(placements, playoff.championId), status: "pending_confirmation", finalizedBy: input.actorId }).returning({ id: majorFinalResults.id });
   if (!result) throw new AppError(ErrorCode.INTERNAL_ERROR, "正式最终名次创建失败。 ");
-  await tx.insert(auditLogs).values([
-    { seasonId: input.seasonId, action: "major.playoff.finalize_round", actorId: input.actorId, targetId: run.id, targetType: "major_stage_run", meta: { finalizedRound: "final", createdNextRound: 0 } },
-    { seasonId: input.seasonId, action: "major.result.pending_confirmation", actorId: input.actorId, targetId: result.id, targetType: "major_final_result", meta: { playoffStageRunId: run.id, championEntryId: playoff.championId, placementGroupCount: placements.length, hasThirdPlaceMatch: frozen.hasThirdPlaceMatch } },
+  await writeAuditInTx(tx, [
+    { seasonId: input.seasonId, action: "major.playoff.finalize_round", actorId: input.actorId, targetId: run.id,meta: { finalizedRound: "final", createdNextRound: 0 } },
+    { seasonId: input.seasonId, action: "major.result.pending_confirmation", actorId: input.actorId, targetId: result.id,meta: { playoffStageRunId: run.id, championEntryId: playoff.championId, placementGroupCount: placements.length, hasThirdPlaceMatch: frozen.hasThirdPlaceMatch } },
   ]);
   return { stageRunId: run.id, finalizedRound: "final", createdNextRound: 0, resultPendingConfirmation: true, alreadyFinalized: false };
 }

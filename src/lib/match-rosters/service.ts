@@ -1,8 +1,9 @@
 import { and, eq } from "drizzle-orm";
+import { writeAuditInTx } from "@/lib/audit/write";
+
 import type { TxDb } from "@/db/client";
 import {
-  auditLogs,
-  competitionEntries,
+    competitionEntries,
   educationVerifications,
   eventRosterMembers,
   eventRosters,
@@ -494,13 +495,11 @@ export async function confirmMatchRosterInTx(
     .set({ status: "confirmed", confirmedAt: now, confirmedBy: args.actorId, updatedAt: now })
     .where(eq(matchRosters.id, roster.id));
 
-  await tx.insert(auditLogs).values({
+  await writeAuditInTx(tx, {
     seasonId: match.seasonId,
     action: "match.roster.confirm",
     actorId: args.actorId,
-    targetId: roster.id,
-    targetType: "match_roster",
-    meta: { matchId: match.id, entryId: roster.entryId, starterIds, substituteIds },
+    targetId: roster.id,meta: { matchId: match.id, entryId: roster.entryId, starterIds, substituteIds },
   });
 
   return { rosterId: roster.id, matchId: match.id, entryId: roster.entryId, starterIds, alreadyConfirmed: false };
@@ -542,13 +541,11 @@ export async function applyMatchStatusTransitionInTx(
     .set({ status: args.nextStatus, updatedAt: new Date() })
     .where(eq(matches.id, args.matchId));
 
-  await tx.insert(auditLogs).values({
+  await writeAuditInTx(tx, {
     seasonId: locked.seasonId,
     action: args.nextStatus === "in_progress" ? "match.start" : "match.status_update",
     actorId: args.actorId,
-    targetId: args.matchId,
-    targetType: "match",
-    meta: {
+    targetId: args.matchId,meta: {
       from: locked.status,
       to: args.nextStatus,
       ...(lineups

@@ -1,9 +1,10 @@
 "use server";
 
+import { writeAuditInTx } from "@/lib/audit/write";
+
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/db/client";
-import { auditLogs } from "@/db/schema";
 import { actionError, failValidation } from "@/lib/action-utils";
 import { auditActorId, requireSuperAdmin } from "@/lib/auth/session";
 import { executeScheduledJobManually } from "@/lib/scheduler/execution";
@@ -23,13 +24,11 @@ export async function runSchedulerJobManually(input: unknown): Promise<ActionRes
     const definition = getSchedulerJobDefinition(jobKey);
     if (!definition) return failValidation("定时任务标识无效。");
 
-    await db.insert(auditLogs).values({
+    await writeAuditInTx(db, {
       seasonId: null,
       action: "scheduler.manual_trigger",
       actorId: auditActorId(admin),
-      targetId: jobKey,
-      targetType: "scheduler_job",
-      meta: { jobKey, force: true, source: "super-admin-manual" },
+      targetId: jobKey,meta: { jobKey, force: true, source: "super-admin-manual" },
     });
 
     const result = await executeScheduledJobManually(jobKey, () => runSchedulerJobByKey(jobKey));

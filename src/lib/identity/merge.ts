@@ -1,9 +1,10 @@
 import { createHash } from "node:crypto";
+import { writeAuditInTx } from "@/lib/audit/write";
+
 import { and, eq, inArray, sql } from "drizzle-orm";
 import type { DB, TxDb } from "@/db/client";
 import {
-  auditLogs,
-  identityLinkRequests,
+    identityLinkRequests,
   userIdentities,
   userMergeAuthorizations,
   userMergeLedger,
@@ -555,7 +556,7 @@ export async function executeUserMergeInTx(tx: TxDb, input: ExecuteUserMergeInpu
     domainSummary: { ...preflight.summary, ...preflight.impact },
     mergedAt: now,
   });
-  await tx.insert(auditLogs).values({ action: "user_identity.merge", actorId: input.actorUserId, targetId: input.canonicalUserId, targetType: "user", meta: { mergedUserId: input.mergedUserId, evidenceClass: input.evidenceClass, planFingerprint: preflight.fingerprint, summary: preflight.summary } });
+  await writeAuditInTx(tx, { action: "user_identity.merge", actorId: input.actorUserId, targetId: input.canonicalUserId,meta: { mergedUserId: input.mergedUserId, evidenceClass: input.evidenceClass, planFingerprint: preflight.fingerprint, summary: preflight.summary } });
   await assertMergePostflightInTx(tx, input.canonicalUserId, input.mergedUserId);
   return preflight;
 }

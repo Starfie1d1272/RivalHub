@@ -1,8 +1,10 @@
 "use server";
 
+import { writeAuditInTx } from "@/lib/audit/write";
+
 import { and, eq, or } from "drizzle-orm";
 import { db } from "@/db/client";
-import { competitionEntries, matchTimeProposals, matches, auditLogs, seasons } from "@/db/schema";
+import { competitionEntries, matchTimeProposals, matches, seasons } from "@/db/schema";
 import { ok, type ActionResult } from "@/types/action";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { requireAuth, requireSeasonAdmin } from "@/lib/auth/session";
@@ -49,13 +51,11 @@ export async function proposeMatchTime(
       })
       .returning({ id: matchTimeProposals.id });
 
-    await db.insert(auditLogs).values({
+    await writeAuditInTx(db, {
       seasonId: match.seasonId,
       action: "match.propose_time",
       actorId: session.userId,
-      targetId: matchId,
-      targetType: "match",
-      meta: { proposalId: proposal.id, proposedTime: proposedTime.toISOString() },
+      targetId: matchId,meta: { proposalId: proposal.id, proposedTime: proposedTime.toISOString() },
     });
 
     revalidateMatchPaths(season.slug, matchId);
@@ -130,13 +130,11 @@ export async function respondToTimeProposal(
       return { seasonSlug: season.slug, matchId: match.id, seasonId: match.seasonId };
     });
 
-    await db.insert(auditLogs).values({
+    await writeAuditInTx(db, {
       seasonId: outcome.seasonId,
       action: "match.respond_time_proposal",
       actorId: session.userId,
-      targetId: proposalId,
-      targetType: "match_time_proposal",
-      meta: { matchId: outcome.matchId, action, rejectReason: rejectReason ?? null },
+      targetId: proposalId,meta: { matchId: outcome.matchId, action, rejectReason: rejectReason ?? null },
     });
 
     revalidateMatchPaths(outcome.seasonSlug, outcome.matchId);
@@ -181,13 +179,11 @@ export async function forceSetMatchTime(
         .update(matches)
         .set({ scheduledAt: time, updatedAt: new Date() })
         .where(eq(matches.id, matchId));
-      await tx.insert(auditLogs).values({
+      await writeAuditInTx(tx, {
         seasonId: match.seasonId,
         action: "match.force_set_time",
         actorId: admin.email,
-        targetId: matchId,
-        targetType: "match",
-        meta: { scheduledAt: time.toISOString() },
+        targetId: matchId,meta: { scheduledAt: time.toISOString() },
       });
     });
 

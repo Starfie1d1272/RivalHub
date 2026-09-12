@@ -1,9 +1,11 @@
 "use server";
 
+import { writeAuditInTx } from "@/lib/audit/write";
+
 import { revalidatePath } from "next/cache";
 import { eq, and, inArray, isNull } from "drizzle-orm";
 import { db } from "@/db/client";
-import { seasons, matches, matchMaps, matchVetoSteps, matchRosters, matchRosterPlayers, auditLogs, matchTimeProposals } from "@/db/schema";
+import { seasons, matches, matchMaps, matchVetoSteps, matchRosters, matchRosterPlayers, matchTimeProposals } from "@/db/schema";
 import { ok } from "@/types/action";
 import type { ActionResult } from "@/types/action";
 import { AppError, ErrorCode } from "@/lib/errors";
@@ -227,13 +229,11 @@ export async function recordMapResult(
         finishedSlug = await maybeFinishSeason(tx, match.seasonId);
       }
 
-      await tx.insert(auditLogs).values({
+      await writeAuditInTx(tx, {
         seasonId: locked.seasonId,
         action: "match.record_map_result",
         actorId: session.email,
-        targetId: matchId,
-        targetType: "match",
-        meta: { mapOrder, mapName, scoreA, scoreB, seriesFinished },
+        targetId: matchId,meta: { mapOrder, mapName, scoreA, scoreB, seriesFinished },
       });
     }));
 
@@ -289,13 +289,11 @@ export async function updateMatchScheduledAt(
           );
       }
 
-      await tx.insert(auditLogs).values({
+      await writeAuditInTx(tx, {
         seasonId: match.seasonId,
         action: "match.update_scheduled_at",
         actorId: session.email,
-        targetId: matchId,
-        targetType: "match",
-        meta: { scheduledAt: scheduledAt?.toISOString() ?? null },
+        targetId: matchId,meta: { scheduledAt: scheduledAt?.toISOString() ?? null },
       });
     });
 
@@ -343,13 +341,11 @@ export async function updateMatchCompletionDeadline(
         .set({ completionDeadline, updatedAt: new Date() })
         .where(eq(matches.id, matchId));
 
-      await tx.insert(auditLogs).values({
+      await writeAuditInTx(tx, {
         seasonId: match.seasonId,
         action: "match.update_completion_deadline",
         actorId: session.email,
-        targetId: matchId,
-        targetType: "match",
-        meta: { completionDeadline: completionDeadline?.toISOString() ?? null },
+        targetId: matchId,meta: { completionDeadline: completionDeadline?.toISOString() ?? null },
       });
     });
 
@@ -412,13 +408,11 @@ export async function batchSetCompletionDeadline(input: {
         .set({ completionDeadline: input.completionDeadline, updatedAt: new Date() })
         .where(inArray(matches.id, matchIds));
 
-      await tx.insert(auditLogs).values({
+      await writeAuditInTx(tx, {
         seasonId: input.seasonId,
         action: "match.batch_set_completion_deadline",
         actorId: admin.email,
-        targetId: input.seasonId,
-        targetType: "season",
-        meta: {
+        targetId: input.seasonId,meta: {
           stage: input.stage,
           round: input.round ?? null,
           entryRound: input.entryRound ?? null,
@@ -477,13 +471,11 @@ export async function deleteMatch(matchId: string): Promise<ActionResult<void>> 
       // 最后删除比赛本身
       await tx.delete(matches).where(eq(matches.id, matchId));
 
-      await tx.insert(auditLogs).values({
+      await writeAuditInTx(tx, {
         seasonId: match.seasonId,
         action: "match.delete",
         actorId: auditActorId(session),
-        targetId: matchId,
-        targetType: "match",
-        meta: { stage: match.stage, format: match.format, entryAId: match.entryAId, entryBId: match.entryBId },
+        targetId: matchId,meta: { stage: match.stage, format: match.format, entryAId: match.entryAId, entryBId: match.entryBId },
       });
     });
 
@@ -524,13 +516,11 @@ export async function updateMatchCompletedAt(
         .set({ completedAt, updatedAt: new Date() })
         .where(eq(matches.id, matchId));
 
-      await tx.insert(auditLogs).values({
+      await writeAuditInTx(tx, {
         seasonId: match.seasonId,
         action: "update_match_completed_at",
         actorId: auditActorId(session),
-        targetId: matchId,
-        targetType: "match",
-        meta: { completedAt: completedAt?.toISOString() ?? null },
+        targetId: matchId,meta: { completedAt: completedAt?.toISOString() ?? null },
       });
     });
 
@@ -622,13 +612,11 @@ export async function correctMapScore(
         .set({ scoreA: mapWinsA, scoreB: mapWinsB, updatedAt: new Date() })
         .where(eq(matches.id, mapRecord.matchId));
 
-      await tx.insert(auditLogs).values({
+      await writeAuditInTx(tx, {
         seasonId: match.seasonId,
         action: "match.correct_map_score",
         actorId: auditActorId(session),
-        targetId: mapRecord.matchId,
-        targetType: "match",
-        meta: { mapId, mapName: mapRecord.mapName, prevScoreA: mapRecord.scoreA, prevScoreB: mapRecord.scoreB, scoreA, scoreB, seriesA: mapWinsA, seriesB: mapWinsB },
+        targetId: mapRecord.matchId,meta: { mapId, mapName: mapRecord.mapName, prevScoreA: mapRecord.scoreA, prevScoreB: mapRecord.scoreB, scoreA, scoreB, seriesA: mapWinsA, seriesB: mapWinsB },
       });
     });
 
@@ -713,13 +701,11 @@ export async function forfeitMatch(
 
       finishedSlug = await maybeFinishSeason(tx, match.seasonId);
 
-      await tx.insert(auditLogs).values({
+      await writeAuditInTx(tx, {
         seasonId: match.seasonId,
         action: "match.forfeit",
         actorId: auditActorId(session),
-        targetId: matchId,
-        targetType: "match",
-        meta: { loserTeamId, scoreA, scoreB, format: match.format, reason: normalizedReason },
+        targetId: matchId,meta: { loserTeamId, scoreA, scoreB, format: match.format, reason: normalizedReason },
       });
     });
 

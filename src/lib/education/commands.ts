@@ -1,10 +1,12 @@
 import "server-only";
 
+import { writeAuditInTx } from "@/lib/audit/write";
+
 import { randomUUID } from "node:crypto";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import type { TxDb } from "@/db/client";
 import { db } from "@/db/client";
-import { auditLogs, educationVerifications, institutions, userIdentities, users } from "@/db/schema";
+import { educationVerifications, institutions, userIdentities, users } from "@/db/schema";
 import { auditActorId, type UserSession } from "@/lib/auth/session";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { logEvent } from "@/lib/observability/server";
@@ -194,11 +196,9 @@ async function insertEducationSubmissionAudit(
   tx: Pick<TxDb, "insert">,
   input: { actorId: string; targetId: string; institutionId: string; evidenceType: "chsi_enrollment_report" | "chsi_education_report" | "manual_other" },
 ): Promise<void> {
-  await tx.insert(auditLogs).values({
+  await writeAuditInTx(tx, {
     action: "education_verification.submit",
     actorId: input.actorId,
-    targetId: input.targetId,
-    targetType: "education_verification",
-    meta: { institutionId: input.institutionId, evidenceType: input.evidenceType },
+    targetId: input.targetId,meta: { institutionId: input.institutionId, evidenceType: input.evidenceType },
   });
 }

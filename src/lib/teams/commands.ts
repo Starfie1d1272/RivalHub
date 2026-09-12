@@ -1,9 +1,11 @@
 import { and, count, desc, eq, gte, inArray, isNull, ne, sql } from "drizzle-orm";
+import { writeAuditInTx } from "@/lib/audit/write";
+import type { AuditAction } from "@/lib/audit/presentation";
+
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import type { TxDb } from "@/db/client";
 import {
-  auditLogs,
-  competitionEntries,
+    competitionEntries,
   seasons,
   teamCaptainChanges,
   teamInvitations,
@@ -44,8 +46,8 @@ async function requireLockedCaptain(tx: TxDb, teamId: string, userId: string) {
   return team;
 }
 
-async function auditTeam(tx: TxDb, action: string, actorId: string, teamId: string, meta?: Record<string, unknown>) {
-  await tx.insert(auditLogs).values({ seasonId: null, action, actorId, targetId: teamId, targetType: "team", meta: meta ?? null });
+async function auditTeam(tx: TxDb, action: AuditAction, actorId: string, teamId: string, meta?: Record<string, unknown>) {
+  await writeAuditInTx(tx, { seasonId: null, action, actorId, targetId: teamId,meta: meta ?? null });
 }
 
 async function nextCaptainChangeAt(tx: TxDb, teamId: string): Promise<Date> {

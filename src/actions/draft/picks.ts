@@ -1,8 +1,10 @@
 "use server";
 
+import { writeAuditInTx } from "@/lib/audit/write";
+
 import { and, asc, eq, isNotNull, sql } from "drizzle-orm";
 import { db } from "@/db/client";
-import { auditLogs, competitionEntries, draftState, seasons } from "@/db/schema";
+import { competitionEntries, draftState, seasons } from "@/db/schema";
 import { ok, type ActionResult } from "@/types/action";
 import { AppError, ErrorCode, ERROR_MESSAGES } from "@/lib/errors";
 import { auditActorId, requireAuth, requireSeasonAdmin } from "@/lib/auth/session";
@@ -108,13 +110,11 @@ export async function skipDraftTurn(
           actorId: auditActorId(admin),
         });
 
-        await tx.insert(auditLogs).values({
+        await writeAuditInTx(tx, {
           seasonId: parsed.data.seasonId,
           action: "draft.skip_turn",
           actorId: auditActorId(admin),
-          targetId: ds.id,
-          targetType: "draft_state",
-          meta: { skippedEntryId, round: skippedRound, draftCompleted: true, actorEmail: admin.email },
+          targetId: ds.id,meta: { skippedEntryId, round: skippedRound, draftCompleted: true, actorEmail: admin.email },
         });
 
         return { slug: season.slug, completed: true };
@@ -132,13 +132,11 @@ export async function skipDraftTurn(
         })
         .where(eq(draftState.id, ds.id));
 
-      await tx.insert(auditLogs).values({
+      await writeAuditInTx(tx, {
         seasonId: parsed.data.seasonId,
         action: "draft.skip_turn",
         actorId: auditActorId(admin),
-        targetId: ds.id,
-        targetType: "draft_state",
-        meta: {
+        targetId: ds.id,meta: {
           skippedEntryId,
           round: skippedRound,
           nextEntryId: next.entryId,
