@@ -30,10 +30,10 @@ test("未入队用户可以从 /my 和 /teams 发现并处理 direct invitation"
 
     await inviteePage.goto("/my");
     await expect(inviteePage.getByText(/你有 \d+ 个待处理的队伍邀请/).first()).toBeVisible();
-    await expect(inviteePage.getByRole("link", { name: "处理队伍邀请", exact: true })).toHaveAttribute("href", "/my/teams");
+    await expect(inviteePage.getByRole("link", { name: "处理队伍邀请", exact: true }).first()).toHaveAttribute("href", "/my/teams");
 
     await inviteePage.goto("/teams");
-    await expect(inviteePage.getByRole("link", { name: "处理队伍邀请", exact: true })).toHaveAttribute("href", "/my/teams");
+    await expect(inviteePage.getByRole("link", { name: "处理队伍邀请", exact: true }).first()).toHaveAttribute("href", "/my/teams");
 
     await inviteePage.goto("/my/teams");
     await expect(pendingInvitations).toBeVisible();

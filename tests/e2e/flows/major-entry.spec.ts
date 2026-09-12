@@ -58,7 +58,7 @@ test("队长可以登录、建立长期队伍并发起本届 Major 报名", asyn
   await page.goto("/my/competitions");
   await expect(page.getByRole("heading", { name: "当前参与", exact: true })).toBeVisible();
   await expect(page.getByText(scenario.seasonName).first()).toBeVisible();
-  await expect(page.getByText("待提交", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText(/报名：待提交/)).toBeVisible();
   await expect(page.getByRole("link", { name: "继续报名", exact: true })).toBeVisible();
 });
 
