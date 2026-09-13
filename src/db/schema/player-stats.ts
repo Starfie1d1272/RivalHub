@@ -2,6 +2,7 @@ import { pgTable, uuid, integer, real, text, timestamp, unique, index } from "dr
 import { matches } from "./matches";
 import { matchMaps } from "./match-maps";
 import { users } from "./users";
+import { matchDemoImports } from "./demo-integration";
 
 export const matchPlayerStats = pgTable("match_player_stats", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -19,7 +20,10 @@ export const matchPlayerStats = pgTable("match_player_stats", {
   assists: integer("assists"),
   hsPercent: integer("hs_percent"),   // 0–100
   firstKills: integer("first_kills"),
+  firstDeaths: integer("first_deaths"),
   multiKills: integer("multi_kills"),
+  tradeKills: integer("trade_kills"),
+  kastRounds: integer("kast_rounds"),
   clutches: integer("clutches"),
 
   // 统计数据（小数类）
@@ -27,6 +31,9 @@ export const matchPlayerStats = pgTable("match_player_stats", {
   rws: real("rws"),           // 两位小数
   ratingPro: real("rating_pro"), // 两位小数
   we: real("we"),             // 一位小数，0–16
+
+  /** Non-null only for the DAK-owned projection; OCR fields remain mergeable. */
+  dakImportId: uuid("dak_import_id").references(() => matchDemoImports.id, { onDelete: "set null" }),
 
   // 审核信息
   verifiedByAdmin: text("verified_by_admin"),

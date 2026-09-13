@@ -1,0 +1,113 @@
+{
+  "contractVersion": "rivalhub-dak-events/1",
+  "generatedAt": "2026-09-13T00:00:00.000Z",
+  "events": [
+    {
+      "id": "10000000-0000-4000-8000-000000000001",
+      "seasonId": "10000000-0000-4000-8000-000000000001",
+      "slug": "contract-fixture",
+      "name": "Contract Fixture Event",
+      "kind": "league",
+      "revision": "fixture-revision-1",
+      "stages": [
+        {
+          "key": "stage-1",
+          "name": "Stage 1",
+          "type": "swiss",
+          "teamCount": 2,
+          "advanceCount": 1,
+          "matchFormat": "bo1",
+          "finalFormat": null
+        }
+      ],
+      "teams": [
+        {
+          "key": "10000000-0000-4000-8000-000000000005",
+          "name": "Canonical A",
+          "players": [
+            { "entryId": "10000000-0000-4000-8000-000000000005", "userId": "20000000-0000-4000-8000-000000000001", "eventRosterMemberId": "30000000-0000-4000-8000-000000000001", "steamId64": "76561198000000001", "name": "A1", "isStarter": true },
+            { "entryId": "10000000-0000-4000-8000-000000000005", "userId": "20000000-0000-4000-8000-000000000002", "eventRosterMemberId": "30000000-0000-4000-8000-000000000002", "steamId64": "76561198000000002", "name": "A2", "isStarter": true },
+            { "entryId": "10000000-0000-4000-8000-000000000005", "userId": "20000000-0000-4000-8000-000000000003", "eventRosterMemberId": "30000000-0000-4000-8000-000000000003", "steamId64": "76561198000000003", "name": "A3", "isStarter": true },
+            { "entryId": "10000000-0000-4000-8000-000000000005", "userId": "20000000-0000-4000-8000-000000000004", "eventRosterMemberId": "30000000-0000-4000-8000-000000000004", "steamId64": "76561198000000004", "name": "A4", "isStarter": true },
+            { "entryId": "10000000-0000-4000-8000-000000000005", "userId": "20000000-0000-4000-8000-000000000005", "eventRosterMemberId": "30000000-0000-4000-8000-000000000005", "steamId64": "76561198000000005", "name": "A5", "isStarter": true }
+          ]
+        },
+        {
+          "key": "10000000-0000-4000-8000-000000000006",
+          "name": "Canonical B",
+          "players": [
+            { "entryId": "10000000-0000-4000-8000-000000000006", "userId": "20000000-0000-4000-8000-000000000006", "eventRosterMemberId": "30000000-0000-4000-8000-000000000006", "steamId64": "76561198000000006", "name": "B1", "isStarter": true },
+            { "entryId": "10000000-0000-4000-8000-000000000006", "userId": "20000000-0000-4000-8000-000000000007", "eventRosterMemberId": "30000000-0000-4000-8000-000000000007", "steamId64": "76561198000000007", "name": "B2", "isStarter": true },
+            { "entryId": "10000000-0000-4000-8000-000000000006", "userId": "20000000-0000-4000-8000-000000000008", "eventRosterMemberId": "30000000-0000-4000-8000-000000000008", "steamId64": "76561198000000008", "name": "B3", "isStarter": true },
+            { "entryId": "10000000-0000-4000-8000-000000000006", "userId": "20000000-0000-4000-8000-000000000009", "eventRosterMemberId": "30000000-0000-4000-8000-000000000009", "steamId64": "76561198000000009", "name": "B4", "isStarter": true },
+            { "entryId": "10000000-0000-4000-8000-000000000006", "userId": "20000000-0000-4000-8000-000000000010", "eventRosterMemberId": "30000000-0000-4000-8000-000000000010", "steamId64": "76561198000000010", "name": "B5", "isStarter": true }
+          ]
+        }
+      ],
+      "series": [
+        {
+          "id": "10000000-0000-4000-8000-000000000003",
+          "key": "stage-1:10000000-0000-4000-8000-000000000003",
+          "stageKey": "stage-1",
+          "round": 1,
+          "entryRound": null,
+          "bracketNodeId": null,
+          "status": "finished",
+          "format": "bo1",
+          "entryAId": "10000000-0000-4000-8000-000000000005",
+          "entryBId": "10000000-0000-4000-8000-000000000006",
+          "teamAKey": "10000000-0000-4000-8000-000000000005",
+          "teamBKey": "10000000-0000-4000-8000-000000000006",
+          "teamAName": "Canonical A",
+          "teamBName": "Canonical B",
+          "scoreA": 13,
+          "scoreB": 9,
+          "scheduledAt": null,
+          "completedAt": "2026-09-13T00:00:00.000Z",
+          "teamARecordBefore": null,
+          "teamBRecordBefore": null,
+          "maps": [
+            {
+              "id": "10000000-0000-4000-8000-000000000004",
+              "order": 1,
+              "mapName": "de_ancient",
+              "scoreA": 13,
+              "scoreB": 9,
+              "completedAt": "2026-09-13T00:00:00.000Z",
+              "evidenceRevision": "fixture-revision-1",
+              "target": {
+                "seasonId": "10000000-0000-4000-8000-000000000001",
+                "stageKey": "stage-1",
+                "stageRunId": null,
+                "matchId": "10000000-0000-4000-8000-000000000003",
+                "matchMapId": "10000000-0000-4000-8000-000000000004",
+                "mapOrder": 1,
+                "entryAId": "10000000-0000-4000-8000-000000000005",
+                "entryBId": "10000000-0000-4000-8000-000000000006",
+                "expectedMapName": "de_ancient",
+                "evidenceRevision": "fixture-revision-1"
+              },
+              "lineup": [
+                { "entryId": "10000000-0000-4000-8000-000000000005", "userId": "20000000-0000-4000-8000-000000000001", "eventRosterMemberId": "30000000-0000-4000-8000-000000000001", "steamId64": "76561198000000001", "name": "A1", "isStarter": true },
+                { "entryId": "10000000-0000-4000-8000-000000000005", "userId": "20000000-0000-4000-8000-000000000002", "eventRosterMemberId": "30000000-0000-4000-8000-000000000002", "steamId64": "76561198000000002", "name": "A2", "isStarter": true },
+                { "entryId": "10000000-0000-4000-8000-000000000005", "userId": "20000000-0000-4000-8000-000000000003", "eventRosterMemberId": "30000000-0000-4000-8000-000000000003", "steamId64": "76561198000000003", "name": "A3", "isStarter": true },
+                { "entryId": "10000000-0000-4000-8000-000000000005", "userId": "20000000-0000-4000-8000-000000000004", "eventRosterMemberId": "30000000-0000-4000-8000-000000000004", "steamId64": "76561198000000004", "name": "A4", "isStarter": true },
+                { "entryId": "10000000-0000-4000-8000-000000000005", "userId": "20000000-0000-4000-8000-000000000005", "eventRosterMemberId": "30000000-0000-4000-8000-000000000005", "steamId64": "76561198000000005", "name": "A5", "isStarter": true },
+                { "entryId": "10000000-0000-4000-8000-000000000006", "userId": "20000000-0000-4000-8000-000000000006", "eventRosterMemberId": "30000000-0000-4000-8000-000000000006", "steamId64": "76561198000000006", "name": "B1", "isStarter": true },
+                { "entryId": "10000000-0000-4000-8000-000000000006", "userId": "20000000-0000-4000-8000-000000000007", "eventRosterMemberId": "30000000-0000-4000-8000-000000000007", "steamId64": "76561198000000007", "name": "B2", "isStarter": true },
+                { "entryId": "10000000-0000-4000-8000-000000000006", "userId": "20000000-0000-4000-8000-000000000008", "eventRosterMemberId": "30000000-0000-4000-8000-000000000008", "steamId64": "76561198000000008", "name": "B3", "isStarter": true },
+                { "entryId": "10000000-0000-4000-8000-000000000006", "userId": "20000000-0000-4000-8000-000000000009", "eventRosterMemberId": "30000000-0000-4000-8000-000000000009", "steamId64": "76561198000000009", "name": "B4", "isStarter": true },
+                { "entryId": "10000000-0000-4000-8000-000000000006", "userId": "20000000-0000-4000-8000-000000000010", "eventRosterMemberId": "30000000-0000-4000-8000-000000000010", "steamId64": "76561198000000010", "name": "B5", "isStarter": true }
+              ],
+              "demoStatus": "finished_pending_demo",
+              "demoIssues": [],
+              "importId": null,
+              "demoSha256": null
+            }
+          ],
+          "veto": null
+        }
+      ]
+    }
+  ]
+}

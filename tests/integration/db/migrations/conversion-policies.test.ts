@@ -14,6 +14,10 @@ const ACCESS_MATRIX_AT_TARGET = DATABASE_ACCESS_MATRIX.filter(
     "competition_stage_bracket_states",
     "season_contacts",
     "season_public_info",
+    "dak_pairing_intents",
+    "dak_pairings",
+    "match_demo_imports",
+    "match_round_facts",
   ].includes(entry.table),
 );
 const IGNORED_TABLES_AT_TARGET = ["competition_bracket_states", "swiss_standings"] as const;

@@ -22,6 +22,7 @@ export * from "./admin-invites";
 export * from "./admin-invite-claims";
 export * from "./season-admin-grants";
 export * from "./player-stats";
+export * from "./demo-integration";
 export * from "./mvp-votes";
 export * from "./match-time-proposals";
 export * from "./match-rosters";
