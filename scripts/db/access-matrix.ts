@@ -224,6 +224,20 @@ export const DATABASE_ACCESS_MATRIX: readonly DatabaseAccessEntry[] = [
     "版本化换算策略是服务端产品配置，冻结快照由注册开放 owner 管理。",
   ),
   serverOnly(
+    "dak_pairing_intents",
+    "DAK 集成 / 设备配对",
+    "一次性轮询 hash、授权状态与 TTL",
+    "src/lib/demo-integration/pairing.ts",
+    "轮询凭据只保存单向 hash；配对授权与交付状态由服务端事务维护，不形成浏览器 Data API 或 Realtime surface。",
+  ),
+  serverOnly(
+    "dak_pairings",
+    "DAK 集成 / 设备配对",
+    "长期设备 credential hash、scope 与赛季范围",
+    "src/lib/demo-integration/pairing.ts; src/app/api/integrations/dak/pairings/[pairingId]/route.ts",
+    "设备 credential 只由服务端 hash 校验、按 scope 鉴权和撤销；原始 token 不写数据库。",
+  ),
+  serverOnly(
     "competitive_rank_facts",
     "个人竞技资料",
     "个人竞技事实",
@@ -371,6 +385,13 @@ export const DATABASE_ACCESS_MATRIX: readonly DatabaseAccessEntry[] = [
     "解说分配和提交冻结由服务端 scope guard 维护。",
   ),
   serverOnly(
+    "match_demo_imports",
+    "比赛 / DAK 证据",
+    "不可变 Demo Evidence artifact 与接收状态",
+    "src/lib/demo-integration/submit.ts; src/lib/demo-integration/read.ts",
+    "证据 payload、identity、revision 与 decision 仅由服务端 owner 维护，公开赛事只经显式 remote DTO 投影。",
+  ),
+  serverOnly(
     "match_maps",
     "比赛 / BP",
     "地图选择与比分事实",
@@ -404,6 +425,13 @@ export const DATABASE_ACCESS_MATRIX: readonly DatabaseAccessEntry[] = [
     "比赛阵容状态",
     "src/lib/match-rosters/service.ts; src/actions/matches/roster.ts",
     "阵容提交、确认和 starter preflight 是服务端操作。",
+  ),
+  serverOnly(
+    "match_round_facts",
+    "比赛 / DAK 证据",
+    "已确认 Demo 的规范化回合事实",
+    "src/lib/demo-integration/submit.ts",
+    "回合事实是 DAK evidence 的服务端投影，不通过 Data API 或 Realtime 暴露。",
   ),
   serverOnly(
     "match_time_proposals",

@@ -77,6 +77,7 @@ function projectStage(stage: ReturnType<typeof normalizeStagePlan>[number]): Riv
 }
 
 function projectPlayer(row: {
+  entryId: string;
   userId: string;
   eventRosterMemberId: string;
   steam64: string | null;
@@ -87,6 +88,7 @@ function projectPlayer(row: {
 }): RivalHubRemotePlayer | null {
   if (!validSteam64(row.steam64)) return null;
   return {
+    entryId: row.entryId,
     userId: row.userId,
     eventRosterMemberId: row.eventRosterMemberId,
     steamId64: row.steam64,
@@ -95,18 +97,21 @@ function projectPlayer(row: {
   };
 }
 
-function projectDemoStatus(
+export function projectDemoStatus(
   match: { status: "scheduled" | "in_progress" | "finished" | "cancelled" },
   map: { completedAt: Date | null; scoreA: number | null; scoreB: number | null },
   latest: typeof matchDemoImports.$inferSelect | undefined,
 ): RivalHubRemoteMap["demoStatus"] {
-  if (match.status === "in_progress") return "live";
-  if (match.status !== "finished" || map.completedAt == null || map.scoreA == null || map.scoreB == null) return "not_started";
-  if (!latest) return "finished_pending_demo";
-  if (latest.status === "confirmed") return "synced";
-  if (latest.status === "pending") return "demo_processing";
-  if (["needs_attention", "stale", "rejected", "superseded"].includes(latest.status)) return "needs_attention";
-  return "finished_pending_demo";
+  const mapFinished = map.completedAt != null && map.scoreA != null && map.scoreB != null;
+  if (mapFinished) {
+    if (!latest) return "finished_pending_demo";
+    if (latest.status === "confirmed") return "synced";
+    if (latest.status === "pending") return "demo_processing";
+    if (["needs_attention", "stale", "rejected", "superseded"].includes(latest.status)) return "needs_attention";
+    return "finished_pending_demo";
+  }
+  const mapStarted = map.completedAt != null || map.scoreA != null || map.scoreB != null;
+  return match.status === "in_progress" && mapStarted ? "live" : "not_started";
 }
 
 function projectVeto(
@@ -251,6 +256,7 @@ export async function readRivalHubEvents(pairing: PairingScope): Promise<RivalHu
         key: entry.id,
         name: entry.name,
         players: (rosterByEntry.get(entry.id) ?? []).map((row) => projectPlayer({
+          entryId: row.entryId,
           userId: row.userId,
           eventRosterMemberId: row.eventRosterMemberId,
           steam64: row.steam64,

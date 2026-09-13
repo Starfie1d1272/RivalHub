@@ -163,6 +163,81 @@ function round(value: number, digits: number): number {
   return Math.round(value * factor) / factor;
 }
 
+/**
+ * OCR is optional evidence. Before the first DAK projection, compare only
+ * fields whose source semantics are shared by the scoreboard and DAK. A
+ * missing OCR field never blocks; an actual disagreement keeps the import in
+ * needs_attention and prevents auto-confirm.
+ */
+async function crossCheckOcrStats(
+  tx: TxDb,
+  evidence: RivalHubEvidenceSubmission,
+  target: CanonicalTarget,
+): Promise<IntegrationIssue[]> {
+  const existing = await tx.select({
+    userId: matchPlayerStats.userId,
+    dakImportId: matchPlayerStats.dakImportId,
+    kills: matchPlayerStats.kills,
+    deaths: matchPlayerStats.deaths,
+    assists: matchPlayerStats.assists,
+    hsPercent: matchPlayerStats.hsPercent,
+    firstKills: matchPlayerStats.firstKills,
+    multiKills: matchPlayerStats.multiKills,
+    clutches: matchPlayerStats.clutches,
+    adr: matchPlayerStats.adr,
+  }).from(matchPlayerStats).where(eq(matchPlayerStats.mapId, target.map.id));
+  const ocrByUser = new Map<string, Array<typeof existing[number]>>();
+  for (const row of existing) {
+    if (!row.userId || row.dakImportId) continue;
+    const rows = ocrByUser.get(row.userId) ?? [];
+    rows.push(row);
+    ocrByUser.set(row.userId, rows);
+  }
+
+  const participantBySteam = new Map(evidence.participants.map((participant) => [participant.steamId64, participant]));
+  const issues: IntegrationIssue[] = [];
+  for (const summary of evidence.summaries.playerMaps) {
+    const participant = participantBySteam.get(summary.steamId64);
+    if (!participant || participant.resolution.status !== "matched") continue;
+    const dakValues = {
+      kills: summary.kills,
+      deaths: summary.deaths,
+      assists: summary.assists,
+      hsPercent: summary.kills > 0 ? Math.round((summary.headshots / summary.kills) * 100) : 0,
+      firstKills: summary.firstKills,
+      multiKills: summary.twoKillRounds + summary.threeKillRounds + summary.fourKillRounds + summary.fiveKillRounds,
+      clutches: summary.clutchWins,
+      adr: round(summary.damage / Math.max(summary.rounds, 1), 2),
+    } as const;
+    const fields = [
+      ["kills", "K"],
+      ["deaths", "D"],
+      ["assists", "A"],
+      ["hsPercent", "HS%"],
+      ["firstKills", "FK"],
+      ["multiKills", "MK"],
+      ["clutches", "残局"],
+      ["adr", "ADR"],
+    ] as const;
+    for (const row of ocrByUser.get(participant.resolution.userId) ?? []) {
+      for (const [field, label] of fields) {
+        const ocrValue = row[field];
+        const dakValue = dakValues[field];
+        if (ocrValue == null || dakValue == null || !Number.isFinite(ocrValue) || !Number.isFinite(dakValue)) continue;
+        const same = field === "adr" ? Math.abs(ocrValue - dakValue) <= 0.01 : ocrValue === dakValue;
+        if (!same) {
+          issues.push(issue(
+            "OCR_CONFLICT",
+            `OCR ${label} 与 Demo 不一致：OCR=${ocrValue}，Demo=${dakValue}。`,
+            `summaries.playerMaps.${summary.steamId64}.${field}`,
+          ));
+        }
+      }
+    }
+  }
+  return issues;
+}
+
 async function projectPlayerStats(
   tx: TxDb,
   importId: string,
@@ -266,6 +341,7 @@ export async function submitRivalHubEvidence(args: SubmitEvidenceArgs): Promise<
     const currentRevision = revisionFor(target);
     const issues = validateCanonicalTarget(evidence, target);
     if (evidence.target.evidenceRevision !== currentRevision) issues.push(issue("STALE_EVIDENCE", "Demo Evidence 基于旧的赛事/阵容/比分快照，请刷新后重新生成。", "target.evidenceRevision"));
+    issues.push(...await crossCheckOcrStats(tx, evidence, target));
 
     const priorRows = await tx.select().from(matchDemoImports)
       .where(eq(matchDemoImports.matchMapId, target.map.id)).orderBy(desc(matchDemoImports.createdAt)).for("update");

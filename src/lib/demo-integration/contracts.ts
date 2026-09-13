@@ -22,6 +22,7 @@ const integrationIssueSchema = z.object({
 }).strict();
 
 const remotePlayerSchema = z.object({
+  entryId: z.guid(),
   userId: z.guid(),
   eventRosterMemberId: z.guid(),
   steamId64: z.string().regex(/^\d{17}$/),

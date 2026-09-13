@@ -118,3 +118,48 @@ CREATE INDEX "match_demo_imports_season_status_idx" ON "match_demo_imports" USIN
 CREATE INDEX "match_round_facts_import_id_idx" ON "match_round_facts" USING btree ("import_id");--> statement-breakpoint
 -- rivalhub:migration-risk: locking-reviewed the new DAK projection reference is nullable for all existing stats rows
 ALTER TABLE "match_player_stats" ADD CONSTRAINT "match_player_stats_dak_import_id_match_demo_imports_id_fk" FOREIGN KEY ("dak_import_id") REFERENCES "public"."match_demo_imports"("id") ON DELETE set null ON UPDATE no action;
+--> statement-breakpoint
+-- Issue #641: DAK pairing and Demo evidence tables remain server-only.
+-- Keep the browser Data API denied, add RLS as defense in depth, and remove
+-- any accidental Realtime membership from the active publication.
+REVOKE ALL PRIVILEGES ON TABLE "dak_pairing_intents", "dak_pairings", "match_demo_imports", "match_round_facts" FROM anon, authenticated;
+--> statement-breakpoint
+ALTER TABLE "dak_pairing_intents" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "dak_pairings" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "match_demo_imports" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "match_round_facts" ENABLE ROW LEVEL SECURITY;
+--> statement-breakpoint
+DO $$
+DECLARE
+  table_name text;
+BEGIN
+  FOR table_name IN
+    SELECT unnest(ARRAY[
+      'dak_pairing_intents',
+      'dak_pairings',
+      'match_demo_imports',
+      'match_round_facts'
+    ]::text[])
+  LOOP
+    IF EXISTS (
+      SELECT 1
+      FROM pg_publication AS publication
+      JOIN pg_publication_rel AS publication_relation
+        ON publication_relation.prpubid = publication.oid
+      JOIN pg_class AS table_object
+        ON table_object.oid = publication_relation.prrelid
+      JOIN pg_namespace AS table_schema
+        ON table_schema.oid = table_object.relnamespace
+      WHERE publication.pubname = 'supabase_realtime'
+        AND table_schema.nspname = 'public'
+        AND table_object.relname = table_name
+    ) THEN
+      EXECUTE format(
+        'ALTER PUBLICATION %I DROP TABLE %I.%I',
+        'supabase_realtime',
+        'public',
+        table_name
+      );
+    END IF;
+  END LOOP;
+END $$;

@@ -119,8 +119,8 @@ export async function pollDakPairing(pairingId: string, pollToken: string): Prom
   const [intent] = await db.select().from(dakPairingIntents).where(and(eq(dakPairingIntents.id, pairingId), eq(dakPairingIntents.pollTokenHash, tokenHash)));
   if (!intent) throw new AppError(ErrorCode.UNAUTHORIZED, "连接请求无效。");
 
-  if (intent.status === "pending" && intent.expiresAt.getTime() <= Date.now()) {
-    await db.update(dakPairingIntents).set({ status: "expired" }).where(and(eq(dakPairingIntents.id, pairingId), eq(dakPairingIntents.status, "pending")));
+  if (intent.expiresAt.getTime() <= Date.now()) {
+    await db.update(dakPairingIntents).set({ status: "expired" }).where(and(eq(dakPairingIntents.id, pairingId), eq(dakPairingIntents.status, intent.status)));
     return { status: "expired", expiresAt: intent.expiresAt.toISOString() };
   }
   if (intent.status === "pending") return { status: "pending", expiresAt: intent.expiresAt.toISOString() };
@@ -129,14 +129,13 @@ export async function pollDakPairing(pairingId: string, pollToken: string): Prom
   const [pairing] = await db.select().from(dakPairings).where(eq(dakPairings.pairingIntentId, intent.id));
   if (!pairing || pairing.status !== "active") throw new AppError(ErrorCode.FORBIDDEN, "DAK 连接已撤销。");
 
-  const delivered = await db.transaction(async (tx) => {
-    const [locked] = await tx.select({ deliveredAt: dakPairingIntents.deliveredAt })
-      .from(dakPairingIntents).where(eq(dakPairingIntents.id, intent.id)).for("update");
-    if (!locked || locked.deliveredAt) return false;
-    await tx.update(dakPairingIntents).set({ deliveredAt: new Date() }).where(and(eq(dakPairingIntents.id, intent.id), isNull(dakPairingIntents.deliveredAt)));
-    return true;
-  });
-  if (!delivered) return { status: "authorized", expiresAt: intent.expiresAt.toISOString(), accessToken: "" };
+  // deliveredAt is audit metadata only. A lost authorized response must be
+  // recoverable without an ACK protocol, so every valid poll inside the intent
+  // TTL returns the same deterministic credential.
+  if (!intent.deliveredAt) {
+    await db.update(dakPairingIntents).set({ deliveredAt: new Date() })
+      .where(and(eq(dakPairingIntents.id, intent.id), isNull(dakPairingIntents.deliveredAt)));
+  }
 
   return {
     status: "authorized",
