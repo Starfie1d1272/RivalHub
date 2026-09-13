@@ -76,6 +76,10 @@ describe("DAK evidence submit persistence", () => {
           approvedRosterRevisionId: ids.revisionB,
         },
       ]);
+      await database.insert(schema.competitionEntryRepresentativeChanges).values([
+        { entryId: ids.entryA, fromUserId: null, toUserId: userIds[0]!, changedByActorId: "integration-test" },
+        { entryId: ids.entryB, fromUserId: null, toUserId: userIds[5]!, changedByActorId: "integration-test" },
+      ]);
       await database.insert(schema.competitionEntryRosterRevisions).values([
         { id: ids.revisionA, entryId: ids.entryA, revisionNumber: 1, status: "approved", createdBy: userIds[0]!, approvedAt: now },
         { id: ids.revisionB, entryId: ids.entryB, revisionNumber: 1, status: "approved", createdBy: userIds[5]!, approvedAt: now },
