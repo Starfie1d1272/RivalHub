@@ -8141,7 +8141,7 @@
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 1,
-          "fireDamage": 16,
+          "fireDamage": 0,
           "smokesThrown": 0,
           "utilityKills": 0
         }
