@@ -101,17 +101,42 @@ export function projectDemoStatus(
   match: { status: "scheduled" | "in_progress" | "finished" | "cancelled" },
   map: { completedAt: Date | null; scoreA: number | null; scoreB: number | null },
   latest: typeof matchDemoImports.$inferSelect | undefined,
+  currentEvidenceRevision?: string,
 ): RivalHubRemoteMap["demoStatus"] {
   const mapFinished = map.completedAt != null && map.scoreA != null && map.scoreB != null;
   if (mapFinished) {
     if (!latest) return "finished_pending_demo";
-    if (latest.status === "confirmed") return "synced";
+    if (latest.status === "confirmed") {
+      return currentEvidenceRevision != null && latest.evidenceRevision !== currentEvidenceRevision
+        ? "needs_attention"
+        : "synced";
+    }
     if (latest.status === "pending") return "demo_processing";
     if (["needs_attention", "stale", "rejected", "superseded"].includes(latest.status)) return "needs_attention";
     return "finished_pending_demo";
   }
   const mapStarted = map.completedAt != null || map.scoreA != null || map.scoreB != null;
   return match.status === "in_progress" && mapStarted ? "live" : "not_started";
+}
+
+const staleEvidenceIssue: IntegrationIssue = {
+  code: "STALE_EVIDENCE",
+  path: "target.evidenceRevision",
+  message: "赛事阵容/比分上下文已变化，请重新生成并同步 Demo Evidence。",
+};
+
+export function projectDemoIssues(
+  latest: typeof matchDemoImports.$inferSelect | undefined,
+  latestConfirmed: typeof matchDemoImports.$inferSelect | undefined,
+  currentEvidenceRevision: string,
+): IntegrationIssue[] {
+  const issues = projectIssues(latest?.issues);
+  if (
+    latestConfirmed != null
+    && latestConfirmed.evidenceRevision !== currentEvidenceRevision
+    && !issues.some((row) => row.code === staleEvidenceIssue.code)
+  ) issues.push(staleEvidenceIssue);
+  return issues;
 }
 
 function projectVeto(
@@ -219,6 +244,10 @@ export async function readRivalHubEvents(pairing: PairingScope): Promise<RivalHu
 
   const latestImportByMap = new Map<string, typeof matchDemoImports.$inferSelect>();
   for (const row of importRows) if (!latestImportByMap.has(row.matchMapId)) latestImportByMap.set(row.matchMapId, row);
+  const latestConfirmedImportByMap = new Map<string, typeof matchDemoImports.$inferSelect>();
+  for (const row of importRows) {
+    if (row.status === "confirmed" && !latestConfirmedImportByMap.has(row.matchMapId)) latestConfirmedImportByMap.set(row.matchMapId, row);
+  }
   const entryById = new Map(entries.map((entry) => [entry.id, entry]));
   const rosterByEntry = new Map<string, typeof rosterRows>();
   for (const row of rosterRows) {
@@ -291,6 +320,9 @@ export async function readRivalHubEvents(pairing: PairingScope): Promise<RivalHu
             roster: revisionRoster,
           });
           const latest = latestImportByMap.get(map.id);
+          const latestConfirmed = latestConfirmedImportByMap.get(map.id);
+          const confirmedIsStale = latestConfirmed != null && latestConfirmed.evidenceRevision !== evidenceRevision;
+          const demoIssues = projectDemoIssues(latest, latestConfirmed, evidenceRevision);
           return {
             id: map.id,
             order: map.mapOrder,
@@ -312,8 +344,8 @@ export async function readRivalHubEvents(pairing: PairingScope): Promise<RivalHu
               evidenceRevision,
             },
             lineup: matchRoster,
-            demoStatus: projectDemoStatus(match, map, latest),
-            demoIssues: projectIssues(latest?.issues),
+            demoStatus: confirmedIsStale ? "needs_attention" : projectDemoStatus(match, map, latest, evidenceRevision),
+            demoIssues,
             importId: latest?.status === "confirmed" ? latest.id : null,
             demoSha256: latest?.status === "confirmed" ? latest.demoSha256 : null,
           };

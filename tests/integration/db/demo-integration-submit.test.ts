@@ -260,6 +260,89 @@ describe("DAK evidence submit persistence", () => {
       ));
       expect(autoConfirmAudits).toHaveLength(1);
       expect((autoConfirmAudits[0]?.meta as { retryPromotion?: boolean } | null)?.retryPromotion).toBe(true);
+
+      const revisedCompletedAt = new Date(now.getTime() + 1_000);
+      await database.update(schema.matchMaps).set({ completedAt: revisedCompletedAt }).where(eq(schema.matchMaps.id, ids.map));
+      const evidenceRevisionNPlusOne = buildEvidenceRevision({
+        seasonId: ids.season,
+        stageKey: "fixture-stage",
+        stageRunId: null,
+        matchId: ids.match,
+        matchMapId: ids.map,
+        mapOrder: 1,
+        mapName: "de_ancient",
+        mapScoreA: 13,
+        mapScoreB: 9,
+        mapCompletedAt: revisedCompletedAt.toISOString(),
+        matchStatus: "finished",
+        entryAId: ids.entryA,
+        entryBId: ids.entryB,
+        roster: userIds.map((userId, index) => ({
+          entryId: index < 5 ? ids.entryA : ids.entryB,
+          eventRosterMemberId: eventMemberIds[index]!,
+          userId,
+          steam64: `765611980000000${String(index + 1).padStart(2, "0")}`,
+          isStarter: true,
+        })),
+      });
+      const evidenceNPlusOne: RivalHubEvidenceSubmission = {
+        ...evidence,
+        target: { ...evidence.target, evidenceRevision: evidenceRevisionNPlusOne },
+      };
+      const revised = await submitRivalHubEvidence({
+        input: evidenceNPlusOne,
+        pairingId: ids.pairing,
+        pairingScope: { seasonIds: [ids.season] },
+        idempotencyKey: "dak-retry-evidence-revision-2",
+      });
+      expect(revised.status).toBe("synced");
+      expect(revised.importId).not.toBe(importId);
+      const revisedImportId = revised.importId;
+      if (!revisedImportId) throw new Error("测试未创建 revision N+1 Demo import");
+
+      const importsAfterRevision = await database.select().from(schema.matchDemoImports).where(eq(schema.matchDemoImports.matchMapId, ids.map));
+      expect(importsAfterRevision).toHaveLength(2);
+      expect(importsAfterRevision.find((row) => row.id === importId)).toMatchObject({ status: "superseded" });
+      expect(importsAfterRevision.find((row) => row.id === revisedImportId)).toMatchObject({
+        status: "confirmed",
+        evidenceRevision: evidenceRevisionNPlusOne,
+        supersedesImportId: importId,
+        issues: [],
+      });
+      expect(importsAfterRevision.find((row) => row.id === revisedImportId)?.payload).toEqual(evidenceNPlusOne);
+      expect(await database.select().from(schema.matchRoundFacts).where(eq(schema.matchRoundFacts.importId, revisedImportId))).toHaveLength(evidenceNPlusOne.sourceFacts.rounds.length);
+      expect(await database.select().from(schema.matchRoundFacts).where(eq(schema.matchRoundFacts.importId, importId))).toHaveLength(factsAfterPromotion.length);
+      expect((await database.select().from(schema.matchPlayerStats).where(eq(schema.matchPlayerStats.id, ids.ocrStat)))[0]).toMatchObject({ dakImportId: revisedImportId });
+
+      const retryRevision = await submitRivalHubEvidence({
+        input: evidenceNPlusOne,
+        pairingId: ids.pairing,
+        pairingScope: { seasonIds: [ids.season] },
+        idempotencyKey: "dak-retry-evidence-revision-2",
+      });
+      expect(retryRevision).toMatchObject({ status: "synced", importId: revisedImportId, issues: [] });
+      expect(await database.select().from(schema.matchDemoImports).where(eq(schema.matchDemoImports.matchMapId, ids.map))).toHaveLength(2);
+      expect(await database.select().from(schema.matchRoundFacts).where(eq(schema.matchRoundFacts.importId, revisedImportId))).toHaveLength(evidenceNPlusOne.sourceFacts.rounds.length);
+      const revisedAudits = await database.select().from(schema.auditLogs).where(and(
+        eq(schema.auditLogs.action, "match.demo.auto_confirm"),
+        eq(schema.auditLogs.targetId, revisedImportId),
+      ));
+      expect(revisedAudits).toHaveLength(1);
+      expect((await database.select().from(schema.matchPlayerStats).where(eq(schema.matchPlayerStats.id, ids.ocrStat)))[0]).toMatchObject({ dakImportId: revisedImportId });
+
+      const conflictingEvidence: RivalHubEvidenceSubmission = {
+        ...evidenceNPlusOne,
+        source: { ...evidenceNPlusOne.source, demoSha256: "b".repeat(64) },
+      };
+      const conflict = await submitRivalHubEvidence({
+        input: conflictingEvidence,
+        pairingId: ids.pairing,
+        pairingScope: { seasonIds: [ids.season] },
+        idempotencyKey: "dak-retry-evidence-conflict-3",
+      });
+      expect(conflict.status).toBe("needs_attention");
+      expect(conflict.issues.some((row) => row.code === "CONTENT_CONFLICT")).toBe(true);
+      expect(await database.select().from(schema.matchDemoImports).where(eq(schema.matchDemoImports.matchMapId, ids.map))).toHaveLength(3);
     } finally {
       await client.query("ROLLBACK").catch(() => {});
       await client.query("BEGIN").catch(() => {});

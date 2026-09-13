@@ -369,8 +369,19 @@ async function confirmImport(
   target: CanonicalTarget,
   pairingId: string,
   retryPromotion: boolean,
+  supersededImportId: string | null = null,
 ): Promise<void> {
-  await tx.update(matchDemoImports).set({ status: "confirmed", issues: [], confirmedAt: new Date() }).where(eq(matchDemoImports.id, row.id));
+  if (supersededImportId) {
+    await tx.update(matchDemoImports)
+      .set({ status: "superseded" })
+      .where(eq(matchDemoImports.id, supersededImportId));
+  }
+  await tx.update(matchDemoImports).set({
+    status: "confirmed",
+    issues: [],
+    confirmedAt: new Date(),
+    ...(supersededImportId ? { supersedesImportId: supersededImportId } : {}),
+  }).where(eq(matchDemoImports.id, row.id));
   await insertRoundFacts(tx, row.id, evidence);
   await projectPlayerStats(tx, row.id, evidence, target, pairingId);
   await writeAuditInTx(tx, {
@@ -383,6 +394,7 @@ async function confirmImport(
       playerCount: evidence.participants.length,
       rounds: evidence.sourceFacts.rounds.length,
       ...(retryPromotion ? { retryPromotion: true } : {}),
+      ...(supersededImportId ? { supersedesImportId: supersededImportId } : {}),
     },
   });
 }
@@ -419,21 +431,24 @@ export async function submitRivalHubEvidence(args: SubmitEvidenceArgs): Promise<
       .where(eq(matchDemoImports.matchMapId, target.map.id)).orderBy(desc(matchDemoImports.createdAt)).for("update");
     const same = idempotent ?? priorRows.find((row) => sameContent(row, evidence, payloadSha256));
     const confirmedPrior = priorRows.find((row) => row.status === "confirmed" && row.id !== same?.id);
+    const sameDemoConfirmed = confirmedPrior?.demoSha256 === evidence.source.demoSha256 ? confirmedPrior : undefined;
+    const differentDemoConfirmed = confirmedPrior && confirmedPrior.demoSha256 !== evidence.source.demoSha256 ? confirmedPrior : undefined;
     if (same) {
       if (same.status === "confirmed") {
-        return responseFor(same, []);
+        if (same.evidenceRevision === currentRevision && issues.length === 0) return responseFor(same, []);
+        return { ...responseFor(same, issues), status: "needs_attention" };
       }
-      if (confirmedPrior) {
+      if (differentDemoConfirmed) {
         issues.push(issue("CONTENT_CONFLICT", "该地图已有另一份已确认 Demo；不同内容必须显式进入冲突处理，不能静默覆盖。", "source.demoSha256"));
       }
       if (same.status === "needs_attention" && issues.length === 0) {
-        await confirmImport(tx, same, evidence, target, args.pairingId, true);
+        await confirmImport(tx, same, evidence, target, args.pairingId, true, sameDemoConfirmed?.id ?? null);
         return { ...responseFor({ ...same, status: "confirmed" }), status: "synced", issues: [] };
       }
       await tx.update(matchDemoImports).set({ issues }).where(eq(matchDemoImports.id, same.id));
       return responseFor(same, issues);
     }
-    if (confirmedPrior) issues.push(issue("CONTENT_CONFLICT", "该地图已有另一份已确认 Demo；不同内容必须显式进入冲突处理，不能静默覆盖。", "source.demoSha256"));
+    if (differentDemoConfirmed) issues.push(issue("CONTENT_CONFLICT", "该地图已有另一份已确认 Demo；不同内容必须显式进入冲突处理，不能静默覆盖。", "source.demoSha256"));
 
     const now = new Date();
     const status = issues.length > 0 ? "needs_attention" : "confirmed";
@@ -453,14 +468,14 @@ export async function submitRivalHubEvidence(args: SubmitEvidenceArgs): Promise<
       payload: evidence,
       submittedByPairingId: args.pairingId,
       idempotencyKey: args.idempotencyKey ?? null,
-      supersedesImportId: confirmedPrior?.id ?? null,
+      supersedesImportId: status === "confirmed" ? sameDemoConfirmed?.id ?? null : null,
       issues,
       confirmedAt: status === "confirmed" ? now : null,
     }).returning();
     if (!created) throw new AppError(ErrorCode.INTERNAL_ERROR, "保存 Demo Evidence 失败。");
 
     if (status === "confirmed") {
-      await confirmImport(tx, created, evidence, target, args.pairingId, false);
+      await confirmImport(tx, created, evidence, target, args.pairingId, false, sameDemoConfirmed?.id ?? null);
     } else {
       await writeAuditInTx(tx, {
         seasonId: target.match.seasonId,
