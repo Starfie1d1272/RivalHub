@@ -23,7 +23,7 @@
     "sourceSchemaVersion": "cs2-demo-format/3.0",
     "exporterVersion": "cs2df/3.1.0",
     "parserVersion": "demoparser2/0.41.3",
-    "assistantVersion": "rivalhub-demo-assistant/0.1.0-fixture",
+    "producerVersion": "cs2dak-rivalhub-evidence/0.1.0",
     "generatedAt": "2026-09-13T04:50:32.914Z"
   },
   "quality": {

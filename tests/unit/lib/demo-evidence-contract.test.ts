@@ -24,6 +24,7 @@ describe("RivalHubDemoEvidenceV1", () => {
       semanticProfile: "dak-stable/1",
       analysisVersion: "cs2-demo-analysis-kit/1.0",
     });
+    expect(evidence.source.producerVersion).toBe("cs2dak-rivalhub-evidence/0.1.0");
     expect(evidence.sourceFacts.rounds).toHaveLength(22);
     expect(evidence.semanticFacts.playerRounds).toHaveLength(220);
   });

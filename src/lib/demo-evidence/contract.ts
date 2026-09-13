@@ -61,7 +61,7 @@ export const rivalHubDemoEvidenceV1Schema = z.object({
     sourceSchemaVersion: z.string().min(1),
     exporterVersion: z.string().min(1),
     parserVersion: z.string().min(1),
-    assistantVersion: z.string().min(1),
+    producerVersion: z.string().min(1),
     generatedAt: z.string().datetime(),
   }).strict(),
   quality: z.object({
