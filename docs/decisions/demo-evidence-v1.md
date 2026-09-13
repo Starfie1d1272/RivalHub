@@ -12,7 +12,7 @@ RivalHub 需要接收 DAK 对正式比赛 Demo 的赛后分析结果，用于比
 
 一份 `RivalHubDemoEvidenceV1` 固定对应一张 official `MatchMap`。原始 `.dem` 始终在 DAK Studio 本地解析，不上传 RivalHub；DAK Studio 通过可撤销的设备级配对读取赛事目录并提交 evidence，正常路径由 RivalHub 服务端自动校验、确认并投影，异常才进入轻量 needs-attention 状态。
 
-RivalHub 的远程赛事源复用 DAK Studio 现有的 `EventsView` 与 Event → Stage → Series → Map 目录。远程事件只以现有 Event/Series/Map record 的增量元数据缓存身份、revision、名单、目标与 Demo 同步状态；手工或 R2 赛事仍按原有本地路径工作。连接授权在系统浏览器完成，Studio 的长期 credential 由桌面 Keychain 保存，浏览器开发环境只保存在进程内存。
+RivalHub 的远程赛事源复用 DAK Studio 现有的 `EventsView` 与 Event → Stage → Series → Map 目录。远程事件只以现有 Event/Series/Map record 的增量元数据缓存身份、revision、名单、目标与 Demo 同步状态；手工或 R2 赛事仍按原有本地路径工作。连接授权在系统浏览器完成，Studio 的长期 credential 由操作系统安全凭据存储（macOS Keychain / Windows Credential Manager）保存，浏览器开发环境只保存在进程内存。
 
 Evidence 按以下权威关系组织：
 
