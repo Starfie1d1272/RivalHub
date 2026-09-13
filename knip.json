@@ -39,6 +39,7 @@
     "scripts/release/ci-prerequisite.ts!",
     "scripts/release/production-deployment.ts!",
     "scripts/architecture/check.ts!",
+    "scripts/demo-evidence/generate-json-schema.ts!",
     "scripts/db/block-drizzle-push.ts!",
     "scripts/db/local.ts!",
     "scripts/db/integration-runner.ts!",

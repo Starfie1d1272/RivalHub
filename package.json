@@ -15,6 +15,8 @@
     "type-check:scripts": "tsc -p tsconfig.scripts.json --noEmit",
     "type-check": "pnpm type-check:app && pnpm type-check:tests && pnpm type-check:scripts",
     "architecture:check": "tsx scripts/architecture/check.ts",
+    "demo-evidence:schema": "tsx scripts/demo-evidence/generate-json-schema.ts",
+    "demo-evidence:schema:check": "tsx scripts/demo-evidence/generate-json-schema.ts --check",
     "check": "pnpm type-check && pnpm lint && pnpm architecture:check && pnpm db:check && pnpm test",
     "verify": "pnpm check && env -u DATABASE_URL -u RIVALHUB_LOCAL_DATABASE_URL -u NEXT_PUBLIC_SUPABASE_URL -u NEXT_PUBLIC_SUPABASE_ANON_KEY -u SUPABASE_SERVICE_ROLE_KEY -u RIVALHUB_DB_TARGET pnpm build",
     "verify:services": "tsx scripts/db/local.ts verify-services",
