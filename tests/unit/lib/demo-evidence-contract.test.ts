@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { parseRivalHubDemoEvidenceV1, rivalHubDemoEvidenceV1Schema, type RivalHubDemoEvidenceV1 } from "@/lib/demo-evidence/contract";
+import { rivalHubDemoEvidenceV1SchemaPath, serializeRivalHubDemoEvidenceV1JsonSchema } from "../../../scripts/demo-evidence/generate-json-schema";
 
 const fixturePath = resolve(process.cwd(), "tests/fixtures/demo-evidence/normal-map-v1.json");
 const fixture = JSON.parse(readFileSync(fixturePath, "utf8")) as unknown;
@@ -12,6 +13,10 @@ function cloneFixture(): RivalHubDemoEvidenceV1 {
 }
 
 describe("RivalHubDemoEvidenceV1", () => {
+  it("keeps the checked-in JSON Schema in lockstep with the Zod contract", () => {
+    expect(readFileSync(rivalHubDemoEvidenceV1SchemaPath, "utf8")).toBe(serializeRivalHubDemoEvidenceV1JsonSchema());
+  });
+
   it("accepts the real normal-map golden fixture and cross-checks its summaries", () => {
     const evidence = parseRivalHubDemoEvidenceV1(fixture);
     expect(evidence.contract).toEqual({
@@ -19,7 +24,6 @@ describe("RivalHubDemoEvidenceV1", () => {
       semanticProfile: "dak-stable/1",
       analysisVersion: "cs2-demo-analysis-kit/1.0",
     });
-    expect(evidence.quality.normalConfirmable).toBe(true);
     expect(evidence.sourceFacts.rounds).toHaveLength(22);
     expect(evidence.semanticFacts.playerRounds).toHaveLength(220);
   });
@@ -78,5 +82,17 @@ describe("RivalHubDemoEvidenceV1", () => {
     const drift = cloneFixture();
     drift.summaries.playerMaps[0]!.kills += 1;
     expect(() => parseRivalHubDemoEvidenceV1(drift)).toThrow("playerMaps 与 playerRounds 不一致");
+
+    const multiKillDrift = cloneFixture();
+    multiKillDrift.summaries.playerMaps[0]!.twoKillRounds += 1;
+    expect(() => parseRivalHubDemoEvidenceV1(multiKillDrift)).toThrow("playerMaps 与 playerRounds 不一致");
+
+    const conversionDrift = cloneFixture();
+    conversionDrift.semanticFacts.teamConversions[1]!.teamKey = "teamA";
+    expect(() => parseRivalHubDemoEvidenceV1(conversionDrift)).toThrow("teamConversions 必须恰好覆盖双方各一次");
+
+    const advantageDrift = cloneFixture();
+    advantageDrift.semanticFacts.teamConversions[0]!.manAdvantage[3]!.advantage = "5v3";
+    expect(() => parseRivalHubDemoEvidenceV1(advantageDrift)).toThrow("manAdvantage 必须恰好覆盖四种状态各一次");
   });
 });

@@ -251,15 +251,11 @@
             "clutches"
           ],
           "additionalProperties": false
-        },
-        "normalConfirmable": {
-          "type": "boolean"
         }
       },
       "required": [
         "qa",
-        "capabilities",
-        "normalConfirmable"
+        "capabilities"
       ],
       "additionalProperties": false
     },

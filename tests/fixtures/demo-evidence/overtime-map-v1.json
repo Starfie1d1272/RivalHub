@@ -42,8 +42,7 @@
       "bombs": "available",
       "utility": "available",
       "clutches": "available"
-    },
-    "normalConfirmable": true
+    }
   },
   "participants": [
     {
@@ -3808,13 +3807,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -3840,13 +3839,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -3872,13 +3871,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -3904,13 +3903,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -3936,13 +3935,13 @@
           "enemyBlindSeconds": 5.185,
           "teamBlindSeconds": 9.022,
           "enemyBlindVictims": 3,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -3971,13 +3970,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -4003,13 +4002,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -4035,13 +4034,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -4065,15 +4064,15 @@
         "utility": {
           "flashesThrown": 1,
           "enemyBlindSeconds": 0,
-          "teamBlindSeconds": 3.363,
+          "teamBlindSeconds": 5.118,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -4099,13 +4098,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -4131,13 +4130,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -4163,13 +4162,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -4195,13 +4194,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -4227,13 +4226,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -4259,13 +4258,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -4291,13 +4290,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -4323,13 +4322,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -4355,13 +4354,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -4387,13 +4386,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -4419,13 +4418,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -4449,15 +4448,15 @@
         "utility": {
           "flashesThrown": 1,
           "enemyBlindSeconds": 10.362,
-          "teamBlindSeconds": 0,
+          "teamBlindSeconds": 1.924,
           "enemyBlindVictims": 3,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -4483,13 +4482,13 @@
           "enemyBlindSeconds": 8.285,
           "teamBlindSeconds": 2.316,
           "enemyBlindVictims": 3,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -4515,13 +4514,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -4550,13 +4549,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -4580,15 +4579,15 @@
         "utility": {
           "flashesThrown": 1,
           "enemyBlindSeconds": 9.152,
-          "teamBlindSeconds": 0,
+          "teamBlindSeconds": 1.66,
           "enemyBlindVictims": 3,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -4614,13 +4613,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -4646,13 +4645,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 35,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -4678,13 +4677,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 31,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -4710,13 +4709,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 6,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -4742,13 +4741,13 @@
           "enemyBlindSeconds": 3.046,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 1,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 3,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -4774,13 +4773,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -4806,13 +4805,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -4839,15 +4838,15 @@
         "utility": {
           "flashesThrown": 1,
           "enemyBlindSeconds": 6.665,
-          "teamBlindSeconds": 0.274,
+          "teamBlindSeconds": 4.077,
           "enemyBlindVictims": 3,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -4871,15 +4870,15 @@
         "utility": {
           "flashesThrown": 1,
           "enemyBlindSeconds": 0.593,
-          "teamBlindSeconds": 2.64,
+          "teamBlindSeconds": 5.539,
           "enemyBlindVictims": 1,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -4903,15 +4902,15 @@
         "utility": {
           "flashesThrown": 1,
           "enemyBlindSeconds": 0,
-          "teamBlindSeconds": 1.581,
+          "teamBlindSeconds": 3.8630000000000004,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 2,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -4935,15 +4934,15 @@
         "utility": {
           "flashesThrown": 1,
           "enemyBlindSeconds": 0,
-          "teamBlindSeconds": 0,
+          "teamBlindSeconds": 1.559,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 15,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -4969,13 +4968,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -5001,13 +5000,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 9.625,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 24,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -5031,15 +5030,15 @@
         "utility": {
           "flashesThrown": 2,
           "enemyBlindSeconds": 14.413,
-          "teamBlindSeconds": 0.854,
+          "teamBlindSeconds": 3.87,
           "enemyBlindVictims": 6,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -5065,13 +5064,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -5100,13 +5099,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -5132,13 +5131,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -5164,13 +5163,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -5196,13 +5195,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -5228,13 +5227,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -5260,13 +5259,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -5292,13 +5291,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -5324,13 +5323,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -5356,13 +5355,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 51,
           "fireThrows": 1,
           "fireDamage": 25,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -5388,13 +5387,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -5418,15 +5417,15 @@
         "utility": {
           "flashesThrown": 1,
           "enemyBlindSeconds": 0,
-          "teamBlindSeconds": 0,
+          "teamBlindSeconds": 0.156,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -5452,13 +5451,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -5484,13 +5483,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -5514,15 +5513,15 @@
         "utility": {
           "flashesThrown": 2,
           "enemyBlindSeconds": 2.474,
-          "teamBlindSeconds": 4.922,
+          "teamBlindSeconds": 10.033999999999999,
           "enemyBlindVictims": 1,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -5546,15 +5545,15 @@
         "utility": {
           "flashesThrown": 2,
           "enemyBlindSeconds": 1.423,
-          "teamBlindSeconds": 0,
-          "enemyBlindVictims": 3,
+          "teamBlindSeconds": 3.375,
+          "enemyBlindVictims": 4,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -5578,15 +5577,15 @@
         "utility": {
           "flashesThrown": 1,
           "enemyBlindSeconds": 2.6710000000000003,
-          "teamBlindSeconds": 0,
+          "teamBlindSeconds": 0.724,
           "enemyBlindVictims": 2,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 1,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -5612,13 +5611,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -5647,13 +5646,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -5679,13 +5678,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -5709,15 +5708,15 @@
         "utility": {
           "flashesThrown": 1,
           "enemyBlindSeconds": 0,
-          "teamBlindSeconds": 0,
+          "teamBlindSeconds": 0.312,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -5743,13 +5742,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -5778,13 +5777,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 2.708,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -5808,15 +5807,15 @@
         "utility": {
           "flashesThrown": 1,
           "enemyBlindSeconds": 4.17,
-          "teamBlindSeconds": 0,
+          "teamBlindSeconds": 3.376,
           "enemyBlindVictims": 1,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -5842,13 +5841,13 @@
           "enemyBlindSeconds": 0.792,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 1,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -5872,15 +5871,15 @@
         "utility": {
           "flashesThrown": 1,
           "enemyBlindSeconds": 0,
-          "teamBlindSeconds": 0,
+          "teamBlindSeconds": 0.235,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -5906,13 +5905,13 @@
           "enemyBlindSeconds": 1.869,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 2,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -5938,13 +5937,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -5970,13 +5969,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 2,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -6002,13 +6001,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -6034,13 +6033,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -6066,13 +6065,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -6098,13 +6097,13 @@
           "enemyBlindSeconds": 6.759,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 2,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -6130,13 +6129,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -6162,13 +6161,13 @@
           "enemyBlindSeconds": 6.962000000000001,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 3,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -6194,13 +6193,13 @@
           "enemyBlindSeconds": 0.801,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 1,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -6224,15 +6223,15 @@
         "utility": {
           "flashesThrown": 1,
           "enemyBlindSeconds": 0,
-          "teamBlindSeconds": 0,
+          "teamBlindSeconds": 0.778,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -6258,13 +6257,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -6290,13 +6289,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -6322,13 +6321,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 28,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -6352,15 +6351,15 @@
         "utility": {
           "flashesThrown": 1,
           "enemyBlindSeconds": 0,
-          "teamBlindSeconds": 0,
+          "teamBlindSeconds": 1.28,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -6389,13 +6388,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -6419,15 +6418,15 @@
         "utility": {
           "flashesThrown": 1,
           "enemyBlindSeconds": 10.075,
-          "teamBlindSeconds": 0,
+          "teamBlindSeconds": 3.417,
           "enemyBlindVictims": 3,
+          "flashAssists": 1,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 1
+          "utilityKills": 0
         }
       },
       {
@@ -6453,13 +6452,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 21,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -6485,13 +6484,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 3.63,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -6517,13 +6516,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 1
+          "utilityKills": 0
         }
       },
       {
@@ -6552,13 +6551,13 @@
           "enemyBlindSeconds": 1.8920000000000001,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 2,
+          "flashAssists": 1,
           "heThrows": 2,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 1
+          "utilityKills": 0
         }
       },
       {
@@ -6584,13 +6583,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -6616,13 +6615,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -6648,13 +6647,13 @@
           "enemyBlindSeconds": 5.042999999999999,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 3,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 2,
-          "utilityKills": 0,
-          "flashAssists": 1
+          "utilityKills": 0
         }
       },
       {
@@ -6680,13 +6679,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -6712,13 +6711,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 72,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -6742,15 +6741,15 @@
         "utility": {
           "flashesThrown": 1,
           "enemyBlindSeconds": 0,
-          "teamBlindSeconds": 0,
+          "teamBlindSeconds": 2.389,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -6776,13 +6775,13 @@
           "enemyBlindSeconds": 0.982,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 2,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -6808,13 +6807,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0.258,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -6838,15 +6837,15 @@
         "utility": {
           "flashesThrown": 1,
           "enemyBlindSeconds": 0,
-          "teamBlindSeconds": 0,
+          "teamBlindSeconds": 0.991,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -6872,13 +6871,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -6904,13 +6903,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -6936,13 +6935,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -6968,13 +6967,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -7000,13 +6999,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -7032,13 +7031,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -7065,15 +7064,15 @@
         "utility": {
           "flashesThrown": 1,
           "enemyBlindSeconds": 2.495,
-          "teamBlindSeconds": 0.602,
+          "teamBlindSeconds": 0.848,
           "enemyBlindVictims": 2,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -7097,15 +7096,15 @@
         "utility": {
           "flashesThrown": 1,
           "enemyBlindSeconds": 7.364,
-          "teamBlindSeconds": 0.76,
+          "teamBlindSeconds": 4.7669999999999995,
           "enemyBlindVictims": 3,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 16,
           "smokesThrown": 2,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -7131,13 +7130,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -7163,13 +7162,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 2,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -7198,13 +7197,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -7230,13 +7229,13 @@
           "enemyBlindSeconds": 1.423,
           "teamBlindSeconds": 0.275,
           "enemyBlindVictims": 1,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 38,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -7262,13 +7261,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -7294,13 +7293,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -7326,13 +7325,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 9,
           "fireThrows": 1,
           "fireDamage": 1,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -7358,13 +7357,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -7390,13 +7389,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -7425,13 +7424,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 10,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -7457,13 +7456,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -7489,13 +7488,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -7521,13 +7520,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 24,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -7553,13 +7552,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -7585,13 +7584,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -7617,13 +7616,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -7649,13 +7648,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -7684,13 +7683,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -7716,13 +7715,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -7748,13 +7747,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -7780,13 +7779,13 @@
           "enemyBlindSeconds": 10.756,
           "teamBlindSeconds": 7.870000000000001,
           "enemyBlindVictims": 3,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -7812,13 +7811,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -7844,13 +7843,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -7879,13 +7878,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -7911,13 +7910,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -7941,15 +7940,15 @@
         "utility": {
           "flashesThrown": 2,
           "enemyBlindSeconds": 2.5700000000000003,
-          "teamBlindSeconds": 4.076,
+          "teamBlindSeconds": 4.185,
           "enemyBlindVictims": 2,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 2,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -7975,13 +7974,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -8007,13 +8006,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -8039,13 +8038,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -8071,13 +8070,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -8103,13 +8102,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -8138,13 +8137,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 16,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -8170,13 +8169,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -8202,13 +8201,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -8232,15 +8231,15 @@
         "utility": {
           "flashesThrown": 1,
           "enemyBlindSeconds": 0,
-          "teamBlindSeconds": 0,
+          "teamBlindSeconds": 0.599,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 4,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 1,
-          "flashAssists": 0
+          "utilityKills": 1
         }
       },
       {
@@ -8264,15 +8263,15 @@
         "utility": {
           "flashesThrown": 2,
           "enemyBlindSeconds": 0,
-          "teamBlindSeconds": 0,
+          "teamBlindSeconds": 2.883,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -8298,13 +8297,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -8330,13 +8329,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -8362,13 +8361,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -8394,13 +8393,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -8424,15 +8423,15 @@
         "utility": {
           "flashesThrown": 1,
           "enemyBlindSeconds": 0,
-          "teamBlindSeconds": 0,
+          "teamBlindSeconds": 0.891,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -8458,13 +8457,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -8488,15 +8487,15 @@
         "utility": {
           "flashesThrown": 1,
           "enemyBlindSeconds": 0,
-          "teamBlindSeconds": 0,
+          "teamBlindSeconds": 1.707,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 17,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -8522,13 +8521,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -8554,13 +8553,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -8584,15 +8583,15 @@
         "utility": {
           "flashesThrown": 2,
           "enemyBlindSeconds": 0,
-          "teamBlindSeconds": 8.589,
+          "teamBlindSeconds": 9.286000000000001,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -8618,13 +8617,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 2.918,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -8650,13 +8649,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -8680,15 +8679,15 @@
         "utility": {
           "flashesThrown": 1,
           "enemyBlindSeconds": 0,
-          "teamBlindSeconds": 1.356,
+          "teamBlindSeconds": 1.6440000000000001,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -8714,13 +8713,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -8746,13 +8745,13 @@
           "enemyBlindSeconds": 3.583,
           "teamBlindSeconds": 0.922,
           "enemyBlindVictims": 1,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -8778,13 +8777,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -8810,13 +8809,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 4,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -8842,13 +8841,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -8874,13 +8873,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -8906,13 +8905,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 48,
           "fireThrows": 1,
           "fireDamage": 25,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -8941,13 +8940,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -8971,15 +8970,15 @@
         "utility": {
           "flashesThrown": 1,
           "enemyBlindSeconds": 2.013,
-          "teamBlindSeconds": 0,
+          "teamBlindSeconds": 0.115,
           "enemyBlindVictims": 1,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -9003,15 +9002,15 @@
         "utility": {
           "flashesThrown": 1,
           "enemyBlindSeconds": 0,
-          "teamBlindSeconds": 0.962,
+          "teamBlindSeconds": 1.77,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -9037,13 +9036,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -9069,13 +9068,13 @@
           "enemyBlindSeconds": 3.71,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 1,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 17,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -9099,15 +9098,15 @@
         "utility": {
           "flashesThrown": 1,
           "enemyBlindSeconds": 0,
-          "teamBlindSeconds": 3.765,
+          "teamBlindSeconds": 3.906,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 1,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -9136,13 +9135,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 2,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -9166,15 +9165,15 @@
         "utility": {
           "flashesThrown": 1,
           "enemyBlindSeconds": 1.669,
-          "teamBlindSeconds": 0,
+          "teamBlindSeconds": 0.866,
           "enemyBlindVictims": 2,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -9198,15 +9197,15 @@
         "utility": {
           "flashesThrown": 1,
           "enemyBlindSeconds": 8.076,
-          "teamBlindSeconds": 0,
+          "teamBlindSeconds": 0.156,
           "enemyBlindVictims": 2,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -9230,15 +9229,15 @@
         "utility": {
           "flashesThrown": 2,
           "enemyBlindSeconds": 14.737,
-          "teamBlindSeconds": 4.714,
-          "enemyBlindVictims": 2,
+          "teamBlindSeconds": 5.2620000000000005,
+          "enemyBlindVictims": 4,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -9264,13 +9263,13 @@
           "enemyBlindSeconds": 16.581,
           "teamBlindSeconds": 1.6909999999999998,
           "enemyBlindVictims": 4,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -9296,13 +9295,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -9329,15 +9328,15 @@
         "utility": {
           "flashesThrown": 1,
           "enemyBlindSeconds": 5.641,
-          "teamBlindSeconds": 3.621,
+          "teamBlindSeconds": 5.068,
           "enemyBlindVictims": 2,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -9363,13 +9362,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 31,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -9395,13 +9394,13 @@
           "enemyBlindSeconds": 5.427,
           "teamBlindSeconds": 11.465,
           "enemyBlindVictims": 2,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -9427,13 +9426,13 @@
           "enemyBlindSeconds": 4.136,
           "teamBlindSeconds": 1.012,
           "enemyBlindVictims": 1,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 9,
           "fireThrows": 1,
           "fireDamage": 61,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -9459,13 +9458,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -9491,13 +9490,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -9523,13 +9522,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -9558,13 +9557,13 @@
           "enemyBlindSeconds": 0.617,
           "teamBlindSeconds": 18.193,
           "enemyBlindVictims": 1,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 2,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -9590,13 +9589,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -9622,13 +9621,13 @@
           "enemyBlindSeconds": 14.368,
           "teamBlindSeconds": 7.425,
           "enemyBlindVictims": 4,
+          "flashAssists": 1,
           "heThrows": 1,
           "heDamage": 4,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 1
+          "utilityKills": 0
         }
       },
       {
@@ -9655,15 +9654,15 @@
         "utility": {
           "flashesThrown": 1,
           "enemyBlindSeconds": 10.119,
-          "teamBlindSeconds": 5.503,
+          "teamBlindSeconds": 6.444,
           "enemyBlindVictims": 3,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 9,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -9687,15 +9686,15 @@
         "utility": {
           "flashesThrown": 1,
           "enemyBlindSeconds": 3.407,
-          "teamBlindSeconds": 3.532,
+          "teamBlindSeconds": 5.227,
           "enemyBlindVictims": 1,
+          "flashAssists": 0,
           "heThrows": 2,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 1
+          "utilityKills": 0
         }
       },
       {
@@ -9721,13 +9720,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -9753,13 +9752,13 @@
           "enemyBlindSeconds": 4.643000000000001,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 2,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 2,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -9785,13 +9784,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 5,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -9817,13 +9816,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 50,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -9849,13 +9848,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 14,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -9879,15 +9878,15 @@
         "utility": {
           "flashesThrown": 2,
           "enemyBlindSeconds": 0.804,
-          "teamBlindSeconds": 0.379,
+          "teamBlindSeconds": 0.886,
           "enemyBlindVictims": 1,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -9916,13 +9915,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 5.460999999999999,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -9948,13 +9947,13 @@
           "enemyBlindSeconds": 4.79,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 2,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -9980,13 +9979,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 2,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -10012,13 +10011,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 49,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -10047,13 +10046,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -10079,13 +10078,13 @@
           "enemyBlindSeconds": 1.4180000000000001,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 2,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -10111,13 +10110,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -10143,13 +10142,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -10175,13 +10174,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -10207,13 +10206,13 @@
           "enemyBlindSeconds": 8.293,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 2,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 2,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -10239,13 +10238,13 @@
           "enemyBlindSeconds": 4.753,
           "teamBlindSeconds": 4.58,
           "enemyBlindVictims": 1,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -10271,13 +10270,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -10303,13 +10302,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -10335,13 +10334,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -10365,15 +10364,15 @@
         "utility": {
           "flashesThrown": 2,
           "enemyBlindSeconds": 2.455,
-          "teamBlindSeconds": 0,
+          "teamBlindSeconds": 1.625,
           "enemyBlindVictims": 2,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -10399,13 +10398,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -10431,13 +10430,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -10466,13 +10465,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -10498,13 +10497,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -10528,15 +10527,15 @@
         "utility": {
           "flashesThrown": 1,
           "enemyBlindSeconds": 0,
-          "teamBlindSeconds": 0,
+          "teamBlindSeconds": 1.714,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 2,
           "fireDamage": 0,
           "smokesThrown": 2,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -10560,15 +10559,15 @@
         "utility": {
           "flashesThrown": 1,
           "enemyBlindSeconds": 0,
-          "teamBlindSeconds": 0.923,
+          "teamBlindSeconds": 1.492,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -10594,13 +10593,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -10626,13 +10625,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 111,
           "smokesThrown": 2,
-          "utilityKills": 1,
-          "flashAssists": 0
+          "utilityKills": 1
         }
       },
       {
@@ -10658,13 +10657,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -10690,13 +10689,13 @@
           "enemyBlindSeconds": 2.1639999999999997,
           "teamBlindSeconds": 2.807,
           "enemyBlindVictims": 3,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -10720,15 +10719,15 @@
         "utility": {
           "flashesThrown": 1,
           "enemyBlindSeconds": 13.568000000000001,
-          "teamBlindSeconds": 0,
+          "teamBlindSeconds": 1.047,
           "enemyBlindVictims": 4,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -10754,13 +10753,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -10786,13 +10785,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -10819,15 +10818,15 @@
         "utility": {
           "flashesThrown": 1,
           "enemyBlindSeconds": 0,
-          "teamBlindSeconds": 2.5869999999999997,
+          "teamBlindSeconds": 3.561,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -10853,13 +10852,13 @@
           "enemyBlindSeconds": 1.979,
           "teamBlindSeconds": 2.556,
           "enemyBlindVictims": 1,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 2,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -10885,13 +10884,13 @@
           "enemyBlindSeconds": 2.307,
           "teamBlindSeconds": 2.9530000000000003,
           "enemyBlindVictims": 1,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -10917,13 +10916,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -10949,13 +10948,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 3,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -10984,13 +10983,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -11014,15 +11013,15 @@
         "utility": {
           "flashesThrown": 1,
           "enemyBlindSeconds": 0,
-          "teamBlindSeconds": 4.078,
+          "teamBlindSeconds": 5.376,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -11046,15 +11045,15 @@
         "utility": {
           "flashesThrown": 1,
           "enemyBlindSeconds": 8.272,
-          "teamBlindSeconds": 6.275,
+          "teamBlindSeconds": 6.985,
           "enemyBlindVictims": 2,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -11078,15 +11077,15 @@
         "utility": {
           "flashesThrown": 1,
           "enemyBlindSeconds": 4.758,
-          "teamBlindSeconds": 0,
+          "teamBlindSeconds": 1.868,
           "enemyBlindVictims": 1,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 13,
           "fireThrows": 1,
           "fireDamage": 3,
           "smokesThrown": 1,
-          "utilityKills": 1,
-          "flashAssists": 0
+          "utilityKills": 1
         }
       },
       {
@@ -11115,13 +11114,13 @@
           "enemyBlindSeconds": 2.502,
           "teamBlindSeconds": 8.522,
           "enemyBlindVictims": 1,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -11147,13 +11146,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 4.195,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -11179,13 +11178,13 @@
           "enemyBlindSeconds": 3.034,
           "teamBlindSeconds": 7.827,
           "enemyBlindVictims": 1,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 10,
           "smokesThrown": 2,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -11209,15 +11208,15 @@
         "utility": {
           "flashesThrown": 1,
           "enemyBlindSeconds": 0.41,
-          "teamBlindSeconds": 1.392,
+          "teamBlindSeconds": 6.259,
           "enemyBlindVictims": 1,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -11246,13 +11245,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -11278,13 +11277,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0.659,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -11310,13 +11309,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -11342,13 +11341,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -11374,13 +11373,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 7,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -11406,13 +11405,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -11441,13 +11440,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 2,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -11471,15 +11470,15 @@
         "utility": {
           "flashesThrown": 2,
           "enemyBlindSeconds": 2.245,
-          "teamBlindSeconds": 0,
+          "teamBlindSeconds": 0.96,
           "enemyBlindVictims": 1,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -11505,13 +11504,13 @@
           "enemyBlindSeconds": 10.565,
           "teamBlindSeconds": 2.541,
           "enemyBlindVictims": 5,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 2,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -11537,13 +11536,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -11569,13 +11568,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -11601,13 +11600,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -11631,15 +11630,15 @@
         "utility": {
           "flashesThrown": 1,
           "enemyBlindSeconds": 3.976,
-          "teamBlindSeconds": 0,
+          "teamBlindSeconds": 1,
           "enemyBlindVictims": 1,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -11665,13 +11664,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -11698,15 +11697,15 @@
         "utility": {
           "flashesThrown": 1,
           "enemyBlindSeconds": 1.945,
-          "teamBlindSeconds": 3.039,
+          "teamBlindSeconds": 7.045,
           "enemyBlindVictims": 1,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 2,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -11732,13 +11731,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -11764,13 +11763,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -11796,13 +11795,13 @@
           "enemyBlindSeconds": 4.13,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 2,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -11826,15 +11825,15 @@
         "utility": {
           "flashesThrown": 3,
           "enemyBlindSeconds": 13.898,
-          "teamBlindSeconds": 2.301,
-          "enemyBlindVictims": 2,
+          "teamBlindSeconds": 3.2420000000000004,
+          "enemyBlindVictims": 4,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -11860,13 +11859,13 @@
           "enemyBlindSeconds": 7.211,
           "teamBlindSeconds": 1.81,
           "enemyBlindVictims": 2,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -11892,13 +11891,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -11924,13 +11923,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -11959,13 +11958,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 45,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -11989,15 +11988,15 @@
         "utility": {
           "flashesThrown": 2,
           "enemyBlindSeconds": 1.859,
-          "teamBlindSeconds": 4.54,
-          "enemyBlindVictims": 2,
+          "teamBlindSeconds": 10.555,
+          "enemyBlindVictims": 3,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -12023,13 +12022,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 32,
           "fireThrows": 1,
           "fireDamage": 10,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -12055,13 +12054,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -12087,13 +12086,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -12119,13 +12118,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -12151,13 +12150,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 7.792,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 38,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -12183,13 +12182,13 @@
           "enemyBlindSeconds": 4.092,
           "teamBlindSeconds": 4.861000000000001,
           "enemyBlindVictims": 1,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 18,
           "smokesThrown": 2,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -12215,13 +12214,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -12245,15 +12244,15 @@
         "utility": {
           "flashesThrown": 1,
           "enemyBlindSeconds": 0,
-          "teamBlindSeconds": 1.765,
+          "teamBlindSeconds": 1.996,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 1,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -12279,13 +12278,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -12311,13 +12310,13 @@
           "enemyBlindSeconds": 1.023,
           "teamBlindSeconds": 4.456,
           "enemyBlindVictims": 1,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -12343,13 +12342,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -12375,13 +12374,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -12410,13 +12409,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -12440,15 +12439,15 @@
         "utility": {
           "flashesThrown": 1,
           "enemyBlindSeconds": 0.555,
-          "teamBlindSeconds": 2.803,
+          "teamBlindSeconds": 5.6739999999999995,
           "enemyBlindVictims": 1,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 2,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -12474,13 +12473,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -12506,13 +12505,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -12538,13 +12537,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -12570,13 +12569,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0.666,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -12602,13 +12601,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -12632,15 +12631,15 @@
         "utility": {
           "flashesThrown": 1,
           "enemyBlindSeconds": 0.645,
-          "teamBlindSeconds": 0,
+          "teamBlindSeconds": 1.631,
           "enemyBlindVictims": 1,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -12669,13 +12668,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -12701,13 +12700,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 13,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -12733,13 +12732,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 5,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -12765,13 +12764,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -12797,13 +12796,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 1,
           "fireThrows": 1,
           "fireDamage": 6,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -12829,13 +12828,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -12861,13 +12860,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -12893,13 +12892,13 @@
           "enemyBlindSeconds": 1.264,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 1,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -12925,13 +12924,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -12955,15 +12954,15 @@
         "utility": {
           "flashesThrown": 2,
           "enemyBlindSeconds": 0,
-          "teamBlindSeconds": 0,
+          "teamBlindSeconds": 3.865,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 2,
           "heDamage": 0,
           "fireThrows": 2,
           "fireDamage": 0,
           "smokesThrown": 2,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -12987,15 +12986,15 @@
         "utility": {
           "flashesThrown": 1,
           "enemyBlindSeconds": 0,
-          "teamBlindSeconds": 0,
+          "teamBlindSeconds": 0.312,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -13024,13 +13023,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -13056,13 +13055,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -13088,13 +13087,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -13120,13 +13119,13 @@
           "enemyBlindSeconds": 1.893,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 3,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -13152,13 +13151,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -13184,13 +13183,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -13216,13 +13215,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -13248,13 +13247,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -13278,15 +13277,15 @@
         "utility": {
           "flashesThrown": 2,
           "enemyBlindSeconds": 6.3469999999999995,
-          "teamBlindSeconds": 4.226,
+          "teamBlindSeconds": 8.049,
           "enemyBlindVictims": 2,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -13312,13 +13311,13 @@
           "enemyBlindSeconds": 1.429,
           "teamBlindSeconds": 3.6020000000000003,
           "enemyBlindVictims": 1,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -13347,13 +13346,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 1
+          "utilityKills": 0
         }
       },
       {
@@ -13379,13 +13378,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -13409,15 +13408,15 @@
         "utility": {
           "flashesThrown": 1,
           "enemyBlindSeconds": 6.105,
-          "teamBlindSeconds": 5.078,
+          "teamBlindSeconds": 8.467,
           "enemyBlindVictims": 3,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -13443,13 +13442,13 @@
           "enemyBlindSeconds": 8.181999999999999,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 4,
+          "flashAssists": 1,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 2,
-          "utilityKills": 0,
-          "flashAssists": 1
+          "utilityKills": 0
         }
       },
       {
@@ -13473,15 +13472,15 @@
         "utility": {
           "flashesThrown": 1,
           "enemyBlindSeconds": 0,
-          "teamBlindSeconds": 0,
+          "teamBlindSeconds": 0.3,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -13507,13 +13506,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -13539,13 +13538,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -13574,13 +13573,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -13604,15 +13603,15 @@
         "utility": {
           "flashesThrown": 1,
           "enemyBlindSeconds": 9.286999999999999,
-          "teamBlindSeconds": 0.692,
+          "teamBlindSeconds": 1.236,
           "enemyBlindVictims": 3,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -13638,13 +13637,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -13670,13 +13669,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -13702,13 +13701,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -13734,13 +13733,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -13766,13 +13765,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -13798,13 +13797,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -13830,13 +13829,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 40,
           "fireThrows": 1,
           "fireDamage": 10,
           "smokesThrown": 0,
-          "utilityKills": 1,
-          "flashAssists": 0
+          "utilityKills": 1
         }
       },
       {
@@ -13865,13 +13864,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -13897,13 +13896,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -13929,13 +13928,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -13961,13 +13960,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -13991,15 +13990,15 @@
         "utility": {
           "flashesThrown": 1,
           "enemyBlindSeconds": 8.963000000000001,
-          "teamBlindSeconds": 0.606,
+          "teamBlindSeconds": 1.126,
           "enemyBlindVictims": 3,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 2,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -14025,13 +14024,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -14055,15 +14054,15 @@
         "utility": {
           "flashesThrown": 2,
           "enemyBlindSeconds": 0,
-          "teamBlindSeconds": 4.214,
+          "teamBlindSeconds": 7.979000000000001,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -14089,13 +14088,13 @@
           "enemyBlindSeconds": 0.773,
           "teamBlindSeconds": 3.572,
           "enemyBlindVictims": 1,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 16,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -14121,13 +14120,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -14156,13 +14155,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -14188,13 +14187,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -14220,13 +14219,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -14252,13 +14251,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -14284,13 +14283,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -14316,13 +14315,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 1,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -14348,13 +14347,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -14380,13 +14379,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -14412,13 +14411,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 37,
           "fireThrows": 1,
           "fireDamage": 3,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -14444,13 +14443,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -14474,15 +14473,15 @@
         "utility": {
           "flashesThrown": 1,
           "enemyBlindSeconds": 0,
-          "teamBlindSeconds": 1.159,
+          "teamBlindSeconds": 2.17,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -14508,13 +14507,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -14540,13 +14539,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -14570,15 +14569,15 @@
         "utility": {
           "flashesThrown": 1,
           "enemyBlindSeconds": 0.151,
-          "teamBlindSeconds": 0,
+          "teamBlindSeconds": 4.229,
           "enemyBlindVictims": 1,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -14602,15 +14601,15 @@
         "utility": {
           "flashesThrown": 1,
           "enemyBlindSeconds": 10.827000000000002,
-          "teamBlindSeconds": 4.109,
+          "teamBlindSeconds": 4.651,
           "enemyBlindVictims": 4,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -14634,15 +14633,15 @@
         "utility": {
           "flashesThrown": 1,
           "enemyBlindSeconds": 0,
-          "teamBlindSeconds": 0.971,
+          "teamBlindSeconds": 2.781,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -14668,13 +14667,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -14700,13 +14699,13 @@
           "enemyBlindSeconds": 0.562,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 1,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -14732,13 +14731,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 3,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -14767,13 +14766,13 @@
           "enemyBlindSeconds": 0.401,
           "teamBlindSeconds": 1.438,
           "enemyBlindVictims": 1,
+          "flashAssists": 0,
           "heThrows": 0,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -14797,15 +14796,15 @@
         "utility": {
           "flashesThrown": 1,
           "enemyBlindSeconds": 0,
-          "teamBlindSeconds": 0,
+          "teamBlindSeconds": 1.004,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -14832,15 +14831,15 @@
         "utility": {
           "flashesThrown": 1,
           "enemyBlindSeconds": 9.736,
-          "teamBlindSeconds": 3.058,
+          "teamBlindSeconds": 6.237,
           "enemyBlindVictims": 4,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -14864,15 +14863,15 @@
         "utility": {
           "flashesThrown": 1,
           "enemyBlindSeconds": 5.468,
-          "teamBlindSeconds": 4.16,
+          "teamBlindSeconds": 6.087,
           "enemyBlindVictims": 3,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 51,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -14898,13 +14897,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -14930,13 +14929,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 8.074,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 1,
           "fireThrows": 1,
           "fireDamage": 25,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -14962,13 +14961,13 @@
           "enemyBlindSeconds": 8.815,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 2,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -14994,13 +14993,13 @@
           "enemyBlindSeconds": 0,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 0,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 0,
           "fireThrows": 0,
           "fireDamage": 0,
           "smokesThrown": 0,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -15026,13 +15025,13 @@
           "enemyBlindSeconds": 7.8469999999999995,
           "teamBlindSeconds": 0,
           "enemyBlindVictims": 2,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 28,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 3,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       },
       {
@@ -15057,14 +15056,14 @@
           "flashesThrown": 2,
           "enemyBlindSeconds": 10.707,
           "teamBlindSeconds": 8.019,
-          "enemyBlindVictims": 2,
+          "enemyBlindVictims": 3,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 53,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 1,
-          "flashAssists": 0
+          "utilityKills": 1
         }
       },
       {
@@ -15090,28 +15089,28 @@
           "enemyBlindSeconds": 0.933,
           "teamBlindSeconds": 2.575,
           "enemyBlindVictims": 1,
+          "flashAssists": 0,
           "heThrows": 1,
           "heDamage": 1,
           "fireThrows": 1,
           "fireDamage": 0,
           "smokesThrown": 1,
-          "utilityKills": 0,
-          "flashAssists": 0
+          "utilityKills": 0
         }
       }
     ],
     "economyMatrix": [
       {
-        "lowEconomy": "eco",
-        "highEconomy": "full",
-        "rounds": 4,
-        "lowEconomyWins": 0
-      },
-      {
         "lowEconomy": "full",
         "highEconomy": "full",
         "rounds": 24,
         "lowEconomyWins": 11
+      },
+      {
+        "lowEconomy": "eco",
+        "highEconomy": "full",
+        "rounds": 4,
+        "lowEconomyWins": 0
       },
       {
         "lowEconomy": "semi",

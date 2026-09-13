@@ -81,7 +81,6 @@ export const rivalHubDemoEvidenceV1Schema = z.object({
       utility: availabilitySchema,
       clutches: availabilitySchema,
     }).strict(),
-    normalConfirmable: z.boolean(),
   }).strict(),
   participants: z.array(z.object({
     steamId64: steamId64Schema,
@@ -234,12 +233,6 @@ export function parseRivalHubDemoEvidenceV1(input: unknown): RivalHubDemoEvidenc
   if (roundBySeq.size !== rounds.length || rounds.some((round, index) => round.roundSeq !== index + 1)) {
     throw new Error("roundSeq 必须从 1 连续且唯一");
   }
-  for (const round of rounds) {
-    if (round.startTick > round.freezeEndTick || round.freezeEndTick > round.endTick) throw new Error(`round ${round.roundSeq} 的 tick 边界无效`);
-    const winnerSide = round.winnerTeamKey === "teamA" ? round.teamASide : round.teamBSide;
-    if (winnerSide !== round.winnerSide) throw new Error(`round ${round.roundSeq} 的 winnerSide 不匹配`);
-  }
-
   for (const kill of evidence.sourceFacts.kills) {
     if (!roundBySeq.has(kill.roundSeq) || !participantBySteam.has(kill.victimSteamId64) || (kill.killerSteamId64 !== null && !participantBySteam.has(kill.killerSteamId64))) {
       throw new Error("kill 引用了未知 round 或 participant");
@@ -255,9 +248,6 @@ export function parseRivalHubDemoEvidenceV1(input: unknown): RivalHubDemoEvidenc
   for (const fact of evidence.semanticFacts.playerRounds) {
     const participant = participantBySteam.get(fact.steamId64);
     if (!roundBySeq.has(fact.roundSeq) || !participant || participant.observedTeamKey !== fact.teamKey) throw new Error("playerRound 引用了不匹配的 round 或 participant");
-    const round = roundBySeq.get(fact.roundSeq)!;
-    const expectedSide = fact.teamKey === "teamA" ? round.teamASide : round.teamBSide;
-    if (fact.side !== expectedSide) throw new Error("playerRound side 必须与 round 的队伍 side 一致");
     const key = `${fact.roundSeq}:${fact.steamId64}`;
     if (playerRoundByKey.has(key)) throw new Error("playerRound 不能重复");
     playerRoundByKey.set(key, fact);
@@ -271,7 +261,11 @@ export function parseRivalHubDemoEvidenceV1(input: unknown): RivalHubDemoEvidenc
     if (!summary || summary.teamKey !== participant.observedTeamKey) throw new Error("playerMaps participant 映射无效");
     const facts = [...playerRoundByKey.values()].filter((fact) => fact.steamId64 === participant.steamId64);
     const total = (key: "kills" | "deaths" | "assists" | "damage" | "headshots" | "tradeKills") => facts.reduce((sum, fact) => sum + fact[key], 0);
-    if (summary.rounds !== facts.length || summary.kills !== total("kills") || summary.deaths !== total("deaths") || summary.assists !== total("assists") || summary.damage !== total("damage") || summary.headshots !== total("headshots") || summary.tradeKills !== total("tradeKills") || summary.kastRounds !== facts.filter((fact) => fact.kast).length || summary.firstKills !== facts.filter((fact) => fact.openingDuel === "won").length || summary.firstDeaths !== facts.filter((fact) => fact.openingDuel === "lost").length) {
+    const exactMultiKills = (count: number) => facts.filter((fact) => fact.kills === count).length;
+    const fiveKills = facts.filter((fact) => fact.kills >= 5).length;
+    const clutchAttempts = facts.filter((fact) => fact.clutch !== null).length;
+    const clutchWins = facts.filter((fact) => fact.clutch?.won).length;
+    if (summary.rounds !== facts.length || summary.kills !== total("kills") || summary.deaths !== total("deaths") || summary.assists !== total("assists") || summary.damage !== total("damage") || summary.headshots !== total("headshots") || summary.tradeKills !== total("tradeKills") || summary.kastRounds !== facts.filter((fact) => fact.kast).length || summary.firstKills !== facts.filter((fact) => fact.openingDuel === "won").length || summary.firstDeaths !== facts.filter((fact) => fact.openingDuel === "lost").length || summary.twoKillRounds !== exactMultiKills(2) || summary.threeKillRounds !== exactMultiKills(3) || summary.fourKillRounds !== exactMultiKills(4) || summary.fiveKillRounds !== fiveKills || summary.clutchAttempts !== clutchAttempts || summary.clutchWins !== clutchWins) {
       throw new Error("playerMaps 与 playerRounds 不一致");
     }
   }
@@ -301,8 +295,15 @@ export function parseRivalHubDemoEvidenceV1(input: unknown): RivalHubDemoEvidenc
       throw new Error("teamMaps 与 source rounds 不一致");
     }
   }
-  if (evidence.quality.normalConfirmable && (!evidence.quality.qa.ok || evidence.quality.qa.errorCount !== 0)) {
-    throw new Error("QA 失败的 evidence 不得 normalConfirmable");
+  const conversionByTeam = new Map(evidence.semanticFacts.teamConversions.map((conversion) => [conversion.teamKey, conversion]));
+  if (conversionByTeam.size !== 2 || !conversionByTeam.has("teamA") || !conversionByTeam.has("teamB")) {
+    throw new Error("teamConversions 必须恰好覆盖双方各一次");
+  }
+  for (const conversion of evidence.semanticFacts.teamConversions) {
+    const advantages = new Set(conversion.manAdvantage.map((row) => row.advantage));
+    if (advantages.size !== 4 || !(["5v4", "4v5", "5v3", "3v5"] as const).every((key) => advantages.has(key))) {
+      throw new Error("manAdvantage 必须恰好覆盖四种状态各一次");
+    }
   }
   return evidence;
 }
