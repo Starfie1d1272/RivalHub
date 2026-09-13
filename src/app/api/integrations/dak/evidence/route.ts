@@ -23,6 +23,7 @@ export async function POST(request: Request): Promise<Response> {
     return integrationJson(request, await submitRivalHubEvidence({
       input,
       pairingId: principal.pairing.id,
+      pairingScope: principal.pairing,
       idempotencyKey: request.headers.get("idempotency-key"),
     }));
   } catch (error) {

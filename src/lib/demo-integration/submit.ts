@@ -14,16 +14,19 @@ import {
   matches,
   users,
   matchRoundFacts,
+  type DakPairing,
 } from "@/db/schema";
 import { writeAuditInTx } from "@/lib/audit/write";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { parseRivalHubDemoEvidenceV1 } from "@/lib/demo-evidence/contract";
+import { pairingCanReadSeason } from "./pairing";
 import { type IntegrationIssue, type EvidenceSubmissionResponse, type RivalHubEvidenceSubmission } from "./contracts";
 import { buildEvidenceRevision, sha256Json, type EvidenceRevisionRosterMember } from "./revision";
 
-interface SubmitEvidenceArgs {
+export interface SubmitEvidenceArgs {
   input: unknown;
   pairingId: string;
+  pairingScope: Pick<DakPairing, "seasonIds">;
   idempotencyKey?: string | null;
 }
 
@@ -45,6 +48,15 @@ function issue(code: string, message: string, path?: string): IntegrationIssue {
 
 function statusOf(row: typeof matchDemoImports.$inferSelect): EvidenceSubmissionResponse["status"] {
   return row.status === "confirmed" ? "synced" : "needs_attention";
+}
+
+export function assertEvidenceSeasonInPairingScope(
+  pairing: Pick<DakPairing, "seasonIds">,
+  seasonId: string,
+): void {
+  if (!pairingCanReadSeason(pairing, seasonId)) {
+    throw new AppError(ErrorCode.FORBIDDEN, "DAK 连接无权提交该赛季的 Demo Evidence。");
+  }
 }
 
 async function loadCanonicalTarget(tx: TxDb, evidence: RivalHubEvidenceSubmission): Promise<CanonicalTarget> {
@@ -163,6 +175,36 @@ function round(value: number, digits: number): number {
   return Math.round(value * factor) / factor;
 }
 
+export type ScoreboardStatField = "kills" | "deaths" | "assists" | "hsPercent" | "firstKills" | "multiKills" | "clutches" | "adr";
+type PlayerMapSummary = RivalHubEvidenceSubmission["summaries"]["playerMaps"][number];
+
+/**
+ * These are the DAK stable/1 values that have the same meaning as the
+ * scoreboard columns. FK is a won opening duel, MK is the sum of 2K/3K/4K/5K
+ * rounds (with DAK's 5K bucket meaning >=5), and clutches counts won clutch
+ * attempts. Keep this mapping identical to the projection below before using
+ * any of these fields as an OCR hard blocker.
+ */
+export function dakStableScoreboardValues(summary: PlayerMapSummary): Record<ScoreboardStatField, number> {
+  return {
+    kills: summary.kills,
+    deaths: summary.deaths,
+    assists: summary.assists,
+    hsPercent: summary.kills > 0 ? Math.round((summary.headshots / summary.kills) * 100) : 0,
+    firstKills: summary.firstKills,
+    multiKills: summary.twoKillRounds + summary.threeKillRounds + summary.fourKillRounds + summary.fiveKillRounds,
+    clutches: summary.clutchWins,
+    adr: round(summary.damage / Math.max(summary.rounds, 1), 2),
+  };
+}
+
+/** Perfect scoreboard display precision: integer columns are shown as whole
+ * numbers and ADR is shown to one decimal place. Compare the rendered value,
+ * not a raw floating-point tolerance. */
+export function scoreboardStatDisplay(field: ScoreboardStatField, value: number): string {
+  return field === "adr" ? value.toFixed(1) : Math.round(value).toFixed(0);
+}
+
 /**
  * OCR is optional evidence. Before the first DAK projection, compare only
  * fields whose source semantics are shared by the scoreboard and DAK. A
@@ -199,16 +241,7 @@ async function crossCheckOcrStats(
   for (const summary of evidence.summaries.playerMaps) {
     const participant = participantBySteam.get(summary.steamId64);
     if (!participant || participant.resolution.status !== "matched") continue;
-    const dakValues = {
-      kills: summary.kills,
-      deaths: summary.deaths,
-      assists: summary.assists,
-      hsPercent: summary.kills > 0 ? Math.round((summary.headshots / summary.kills) * 100) : 0,
-      firstKills: summary.firstKills,
-      multiKills: summary.twoKillRounds + summary.threeKillRounds + summary.fourKillRounds + summary.fiveKillRounds,
-      clutches: summary.clutchWins,
-      adr: round(summary.damage / Math.max(summary.rounds, 1), 2),
-    } as const;
+    const dakValues = dakStableScoreboardValues(summary);
     const fields = [
       ["kills", "K"],
       ["deaths", "D"],
@@ -224,7 +257,7 @@ async function crossCheckOcrStats(
         const ocrValue = row[field];
         const dakValue = dakValues[field];
         if (ocrValue == null || dakValue == null || !Number.isFinite(ocrValue) || !Number.isFinite(dakValue)) continue;
-        const same = field === "adr" ? Math.abs(ocrValue - dakValue) <= 0.01 : ocrValue === dakValue;
+        const same = scoreboardStatDisplay(field, ocrValue) === scoreboardStatDisplay(field, dakValue);
         if (!same) {
           issues.push(issue(
             "OCR_CONFLICT",
@@ -255,7 +288,7 @@ async function projectPlayerStats(
     if (!participant || participant.resolution.status !== "matched") continue;
     const userId = participant.resolution.userId;
     const existingRow = byUser.get(userId) ?? (byName.get(participant.nameSnapshot)?.userId == null ? byName.get(participant.nameSnapshot) : undefined);
-    const rounds = Math.max(summary.rounds, 1);
+    const scoreboardValues = dakStableScoreboardValues(summary);
     const values = {
       matchId: target.match.id,
       mapId: target.map.id,
@@ -264,14 +297,14 @@ async function projectPlayerStats(
       kills: summary.kills,
       deaths: summary.deaths,
       assists: summary.assists,
-      hsPercent: summary.kills > 0 ? Math.round((summary.headshots / summary.kills) * 100) : 0,
-      firstKills: summary.firstKills,
+      hsPercent: scoreboardValues.hsPercent,
+      firstKills: scoreboardValues.firstKills,
       firstDeaths: summary.firstDeaths,
-      multiKills: summary.twoKillRounds + summary.threeKillRounds + summary.fourKillRounds + summary.fiveKillRounds,
+      multiKills: scoreboardValues.multiKills,
       tradeKills: summary.tradeKills,
       kastRounds: summary.kastRounds,
-      clutches: summary.clutchWins,
-      adr: round(summary.damage / rounds, 2),
+      clutches: scoreboardValues.clutches,
+      adr: scoreboardValues.adr,
       dakImportId: importId,
       verifiedByAdmin: `dak:${pairingId}`,
       verifiedAt: new Date(),
@@ -316,6 +349,44 @@ function sameContent(row: typeof matchDemoImports.$inferSelect, evidence: RivalH
   return row.payloadSha256 === payloadSha256 && row.demoSha256 === evidence.source.demoSha256;
 }
 
+function responseFor(
+  row: typeof matchDemoImports.$inferSelect,
+  issues: readonly IntegrationIssue[] = row.issues ?? [],
+): EvidenceSubmissionResponse {
+  return {
+    status: statusOf(row),
+    importId: row.id,
+    matchMapId: row.matchMapId,
+    demoSha256: row.demoSha256,
+    issues: [...issues],
+  };
+}
+
+async function confirmImport(
+  tx: TxDb,
+  row: typeof matchDemoImports.$inferSelect,
+  evidence: RivalHubEvidenceSubmission,
+  target: CanonicalTarget,
+  pairingId: string,
+  retryPromotion: boolean,
+): Promise<void> {
+  await tx.update(matchDemoImports).set({ status: "confirmed", issues: [], confirmedAt: new Date() }).where(eq(matchDemoImports.id, row.id));
+  await insertRoundFacts(tx, row.id, evidence);
+  await projectPlayerStats(tx, row.id, evidence, target, pairingId);
+  await writeAuditInTx(tx, {
+    seasonId: target.match.seasonId,
+    action: "match.demo.auto_confirm",
+    actorId: `dak:${pairingId}`,
+    targetId: row.id,
+    meta: {
+      mapOrder: target.map.mapOrder,
+      playerCount: evidence.participants.length,
+      rounds: evidence.sourceFacts.rounds.length,
+      ...(retryPromotion ? { retryPromotion: true } : {}),
+    },
+  });
+}
+
 export async function submitRivalHubEvidence(args: SubmitEvidenceArgs): Promise<EvidenceSubmissionResponse> {
   let evidence: RivalHubEvidenceSubmission;
   try {
@@ -323,17 +394,18 @@ export async function submitRivalHubEvidence(args: SubmitEvidenceArgs): Promise<
   } catch (error) {
     throw new AppError(ErrorCode.VALIDATION_FAILED, `Demo Evidence V1 校验失败：${error instanceof Error ? error.message : "格式不合法"}`);
   }
+  assertEvidenceSeasonInPairingScope(args.pairingScope, evidence.target.seasonId);
   if (args.idempotencyKey && (args.idempotencyKey.length < 8 || args.idempotencyKey.length > 200)) {
     throw new AppError(ErrorCode.VALIDATION_FAILED, "Idempotency-Key 长度不合法。");
   }
   const payloadSha256 = sha256Json(evidence);
 
   return db.transaction(async (tx) => {
+    let idempotent: typeof matchDemoImports.$inferSelect | undefined;
     if (args.idempotencyKey) {
-      const [idempotent] = await tx.select().from(matchDemoImports).where(eq(matchDemoImports.idempotencyKey, args.idempotencyKey)).for("update");
+      [idempotent] = await tx.select().from(matchDemoImports).where(eq(matchDemoImports.idempotencyKey, args.idempotencyKey)).for("update");
       if (idempotent) {
         if (!sameContent(idempotent, evidence, payloadSha256)) throw new AppError(ErrorCode.VALIDATION_FAILED, "Idempotency-Key 已用于另一份 Demo Evidence。");
-        return { status: statusOf(idempotent), importId: idempotent.id, matchMapId: idempotent.matchMapId, demoSha256: idempotent.demoSha256, issues: [...(idempotent.issues ?? [])] };
       }
     }
 
@@ -345,14 +417,22 @@ export async function submitRivalHubEvidence(args: SubmitEvidenceArgs): Promise<
 
     const priorRows = await tx.select().from(matchDemoImports)
       .where(eq(matchDemoImports.matchMapId, target.map.id)).orderBy(desc(matchDemoImports.createdAt)).for("update");
-    const same = priorRows.find((row) => sameContent(row, evidence, payloadSha256));
+    const same = idempotent ?? priorRows.find((row) => sameContent(row, evidence, payloadSha256));
+    const confirmedPrior = priorRows.find((row) => row.status === "confirmed" && row.id !== same?.id);
     if (same) {
-      if (same.status === "confirmed" && evidence.target.evidenceRevision === currentRevision && issues.length === 0) {
-        return { status: "synced", importId: same.id, matchMapId: same.matchMapId, demoSha256: same.demoSha256, issues: [] };
+      if (same.status === "confirmed") {
+        return responseFor(same, []);
       }
-      return { status: statusOf(same), importId: same.id, matchMapId: same.matchMapId, demoSha256: same.demoSha256, issues: [...(same.issues ?? []), ...issues] };
+      if (confirmedPrior) {
+        issues.push(issue("CONTENT_CONFLICT", "该地图已有另一份已确认 Demo；不同内容必须显式进入冲突处理，不能静默覆盖。", "source.demoSha256"));
+      }
+      if (same.status === "needs_attention" && issues.length === 0) {
+        await confirmImport(tx, same, evidence, target, args.pairingId, true);
+        return { ...responseFor({ ...same, status: "confirmed" }), status: "synced", issues: [] };
+      }
+      await tx.update(matchDemoImports).set({ issues }).where(eq(matchDemoImports.id, same.id));
+      return responseFor(same, issues);
     }
-    const confirmedPrior = priorRows.find((row) => row.status === "confirmed");
     if (confirmedPrior) issues.push(issue("CONTENT_CONFLICT", "该地图已有另一份已确认 Demo；不同内容必须显式进入冲突处理，不能静默覆盖。", "source.demoSha256"));
 
     const now = new Date();
@@ -380,15 +460,7 @@ export async function submitRivalHubEvidence(args: SubmitEvidenceArgs): Promise<
     if (!created) throw new AppError(ErrorCode.INTERNAL_ERROR, "保存 Demo Evidence 失败。");
 
     if (status === "confirmed") {
-      await insertRoundFacts(tx, created.id, evidence);
-      await projectPlayerStats(tx, created.id, evidence, target, args.pairingId);
-      await writeAuditInTx(tx, {
-        seasonId: target.match.seasonId,
-        action: "match.demo.auto_confirm",
-        actorId: `dak:${args.pairingId}`,
-        targetId: created.id,
-        meta: { mapOrder: target.map.mapOrder, playerCount: evidence.participants.length, rounds: evidence.sourceFacts.rounds.length },
-      });
+      await confirmImport(tx, created, evidence, target, args.pairingId, false);
     } else {
       await writeAuditInTx(tx, {
         seasonId: target.match.seasonId,

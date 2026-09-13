@@ -295,7 +295,6 @@ export async function readRivalHubEvents(pairing: PairingScope): Promise<RivalHu
             id: map.id,
             order: map.mapOrder,
             mapName: map.mapName,
-            status: match.status,
             scoreA: map.scoreA,
             scoreB: map.scoreB,
             completedAt: iso(map.completedAt),
