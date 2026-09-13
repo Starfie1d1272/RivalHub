@@ -1,5 +1,19 @@
 # Changelog
 
+## [2.9.4]
+
+### Added
+
+#### DAK Studio 赛事与赛后数据接入
+
+赛事管理员现可为 DAK Studio 设备完成受控配对。已授权设备可读取赛事、赛程与地图状态，并提交匹配到官方阵容、地图和比分的 Demo 赛后证据；原始 Demo 文件不会上传到 RivalHub。
+
+### Changed
+
+#### Demo 证据的确认与重新同步
+
+Demo 证据按当前官方阵容、比分与地图上下文验证并保留审计记录。官方上下文更新后，旧同步结果会明确标记为需要重新同步；同一 Demo 在新上下文下可重新确认，冲突或无法可靠匹配的数据则保留给人工处理。
+
 ## [2.9.3]
 
 ### Changed
@@ -2163,6 +2177,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[2.9.4]: https://github.com/Starfie1d1272/RivalHub/compare/v2.9.3...v2.9.4
 [2.9.3]: https://github.com/Starfie1d1272/RivalHub/compare/v2.9.2...v2.9.3
 [2.9.2]: https://github.com/Starfie1d1272/RivalHub/compare/v2.9.1...v2.9.2
 [2.9.1]: https://github.com/Starfie1d1272/RivalHub/compare/v2.9.0...v2.9.1
