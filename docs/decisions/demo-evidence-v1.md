@@ -10,7 +10,9 @@ RivalHub 需要接收 DAK 对正式比赛 Demo 的赛后分析结果，用于比
 
 ## Decision
 
-一份 `RivalHubDemoEvidenceV1` 固定对应一张 official `MatchMap`。原始 `.dem` 始终在本地解析，不上传 RivalHub；Phase 1 由独立 RivalHub Demo Assistant 生成 evidence，经 RivalHub pending review / human confirm 后才进入官方赛事统计。
+一份 `RivalHubDemoEvidenceV1` 固定对应一张 official `MatchMap`。原始 `.dem` 始终在 DAK Studio 本地解析，不上传 RivalHub；DAK Studio 通过可撤销的设备级配对读取赛事目录并提交 evidence，正常路径由 RivalHub 服务端自动校验、确认并投影，异常才进入轻量 needs-attention 状态。
+
+RivalHub 的远程赛事源复用 DAK Studio 现有的 `EventsView` 与 Event → Stage → Series → Map 目录。远程事件只以现有 Event/Series/Map record 的增量元数据缓存身份、revision、名单、目标与 Demo 同步状态；手工或 R2 赛事仍按原有本地路径工作。连接授权在系统浏览器完成，Studio 的长期 credential 由桌面 Keychain 保存，浏览器开发环境只保存在进程内存。
 
 Evidence 按以下权威关系组织：
 
@@ -27,7 +29,7 @@ RivalHub confirmed projections
 - `sourceFacts` 保存紧凑的 normalized Demo facts，例如 rounds、kills、objectives。
 - `semanticFacts` 保存 DAK 拥有定义权的 Stable semantics，例如 player-round、trade、KAST、opening、economy 与 conversion；RivalHub 不从 source facts 重新实现这些算法。
 - `summaries` 是可由前述事实重建并 cross-check 的传输/查询 cache，不是另一份独立 truth。
-- RivalHub confirmed projections 是人工确认后供官方产品与公开 read model 使用的持久化结果。
+- RivalHub confirmed projections 是服务端硬校验通过后供官方产品与公开 read model 使用的持久化结果；自动确认、异常处理、配对撤销均保留 audit fact。
 
 Base V1 只保存当前赛事统计所需的低维 sufficient facts。`playerRounds` 除基础 combat facts 外，应包含可加总的 utility facts，包括 flash throws、enemy/team blind seconds、enemy blind victims、flash assists、HE/fire throws 与 damage、smokes thrown、utility kills。逐颗 grenade/blind event、raw damage stream、spatial/heatmap source、reaction/preaim/mechanics、Coach/anti-strat 等不进入 Base V1；确有消费需求时通过 versioned extension 增加。
 

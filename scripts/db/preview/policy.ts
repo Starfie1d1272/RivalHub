@@ -37,7 +37,7 @@ export const PREVIEW_COLUMNS: Record<string, string> = {
   draft_state: "id season_id current_round current_entry_id round_deadline is_active updated_at",
   matches: "id season_id entry_a_id entry_b_id stage round format entry_round score_a score_b status is_forfeit bracket_node_id ownership major_stage_run_id managed_key scheduled_at completion_deadline completed_at mvp_winner_user_id created_at updated_at",
   match_maps: "id match_id map_order map_name picked_by_entry_id team_a_start_side score_a score_b completed_at created_at",
-  match_player_stats: "id match_id map_id perfect_name user_id kills deaths assists hs_percent first_kills multi_kills clutches adr rws rating_pro we verified_by_admin verified_at created_at",
+  match_player_stats: "id match_id map_id perfect_name user_id kills deaths assists hs_percent first_kills first_deaths multi_kills trade_kills kast_rounds clutches adr rws rating_pro we verified_by_admin verified_at created_at",
   match_rosters: "id match_id entry_id submitted_by source status locked_at confirmed_at confirmed_by created_at updated_at",
   match_roster_players: "roster_id event_roster_member_id is_starter",
   match_veto_steps: "id match_id step_order action_type map_name entry_id side created_at",
@@ -68,6 +68,7 @@ export const OMITTED_COLUMNS: Record<string, string> = {
   post_event_adjudications: "client_request_id reason internal_evidence revocation_reason",
   tournament_honors: "client_request_id revocation_reason",
   recruitment_intents: "note",
+  match_player_stats: "dak_import_id",
 };
 
 export const EXCLUDED_TABLES = new Set(`identity_link_requests user_identities user_merge_authorizations user_merge_ledger
@@ -75,7 +76,7 @@ export const EXCLUDED_TABLES = new Set(`identity_link_requests user_identities u
   competition_entry_legacy_identities competition_entry_restriction_overrides major_prestart_issues major_seed_recommendation_snapshots
   audit_logs admin_invites admin_invite_claims season_admin_grants match_mvp_votes match_time_proposals
   user_sessions disciplinary_case_idempotency disciplinary_cases community_award_evidence
-  scheduled_job_health feedback_reports`.split(/\s+/));
+  scheduled_job_health feedback_reports dak_pairing_intents dak_pairings match_demo_imports match_round_facts`.split(/\s+/));
 
 export function quoteIdentifier(value: string): string {
   if (!/^[a-z][a-z0-9_]*$/.test(value)) throw new Error("Invalid mirror identifier");

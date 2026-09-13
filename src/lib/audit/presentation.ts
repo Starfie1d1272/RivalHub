@@ -66,6 +66,8 @@ const DEFAULT_TARGETS: Record<AuditCategory, AuditTargetContract> = {
 };
 
 const TARGET_OVERRIDES: Readonly<Partial<Record<AuditAction, AuditTargetContract>>> = {
+  "admin.dak.pair": { type: "dak_pairing", lifecycle: "stable" },
+  "admin.dak.revoke_pairing": { type: "dak_pairing", lifecycle: "tombstone" },
   "admin.create_invite": { type: "admin_invite", lifecycle: "stable" },
   "admin.deactivate_invite": { type: "admin_invite", lifecycle: "stable" },
   "admin.revoke_role": { type: "user", lifecycle: "stable" },
@@ -92,6 +94,8 @@ const TARGET_OVERRIDES: Readonly<Partial<Record<AuditAction, AuditTargetContract
   "draft.pick": { type: "draft_pick", lifecycle: "stable" },
   "draft.start": { type: "season", lifecycle: "stable" },
   "match.save_player_stats": { type: "match_map", lifecycle: "stable" },
+  "match.demo.auto_confirm": { type: "match_demo_import", lifecycle: "stable" },
+  "match.demo.needs_attention": { type: "match_demo_import", lifecycle: "stable" },
   "match.delete_player_stats": { type: "match_map", lifecycle: "tombstone" },
   "match.generate_schedule": { type: "season", lifecycle: "stable" },
   "match.initialize_stage": { type: "season", lifecycle: "stable" },
@@ -156,6 +160,8 @@ const TARGET_OVERRIDES: Readonly<Partial<Record<AuditAction, AuditTargetContract
  * producer has been retired.
  */
 export const AUDIT_ACTION_DEFINITIONS = {
+  "admin.dak.pair": { label: "连接 DAK Studio", category: "admin" },
+  "admin.dak.revoke_pairing": { label: "撤销 DAK Studio 连接", category: "admin" },
   "announcement.create": { label: "创建公告", category: "season" },
   "announcement.update": { label: "更新公告", category: "season" },
   "announcement.publish": { label: "发布公告", category: "season" },
@@ -205,6 +211,8 @@ export const AUDIT_ACTION_DEFINITIONS = {
   "match.record_result": { label: "录入比赛比分", category: "match" },
   "match.record_map_result": { label: "录入地图比分", category: "match" },
   "match.save_player_stats": { label: "录入地图选手数据", category: "match" },
+  "match.demo.auto_confirm": { label: "自动接收 Demo 证据", category: "match" },
+  "match.demo.needs_attention": { label: "标记 Demo 证据待处理", category: "match" },
   "match.delete_player_stats": { label: "删除地图选手数据", category: "match" },
   "match.status_update": { label: "更新比赛状态", category: "match" },
   "match.start": { label: "开始比赛", category: "match" },
