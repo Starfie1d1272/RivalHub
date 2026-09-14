@@ -53,7 +53,7 @@ CS2 地图同样区分稳定地图目录、当前轮换、长期用户熟练度�
 
 - `competitionTemplate` 表达模板身份；`kind` 只用于展示/历史。
 - `stagePlan` 是定义态，不是已启动赛事的运行时真相。
-- 发布与实际报名开放是不同事实；需要冻结的报名/竞技上下文在实际开放时形成。
+- 发布与实际报名开放是不同事实；`registrationOpensAt` 是运营计划时间，`registrationOpenedAt` 是实际 transition fact，需要冻结的报名/竞技上下文在实际开放时形成。按计划补开时保留原计划时间；无计划的明确立即开放同时初始化两者；未来计划的提前开放必须是明确的 force-open 语义并将有效计划时间改为当前时间。
 - 系统不存在持久化的“全局当前赛事”；首页 featured season 和后台生命周期分组都是 presentation projection。
 - 社区奖是否存在由独立 capability 表达，不从 `season.status` 推导。
 

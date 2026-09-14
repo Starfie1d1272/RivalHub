@@ -296,23 +296,53 @@ export async function freezeCompetitiveContext(
   };
 }
 
+export type RegistrationOpeningMode =
+  | "scheduled"
+  | "explicit_immediate"
+  | "explicit_early_force";
+
 /**
  * Canonical participation-open transition. It row-locks the published event,
  * freezes its competitive evidence exactly once, and records the audit fact in
- * the same transaction. Both the admin "open now" action and scheduled cron
- * processing use this owner so a catalog change cannot race an application.
+ * the same transaction. Scheduled catch-up, an unscheduled explicit open, and
+ * a future-schedule early force-open have distinct modes so a manual action
+ * cannot accidentally rewrite a planned opening while catching up.
  */
 export async function openSeasonRegistrationInTx(
   tx: Transaction,
-  input: { seasonId: string; actorId: string; now?: Date; openNow?: boolean },
+  input: { seasonId: string; actorId: string; now?: Date; mode: RegistrationOpeningMode },
 ): Promise<{ slug: string; opened: boolean }> {
   const now = input.now ?? new Date();
   const [season] = await tx.select().from(seasons).where(eq(seasons.id, input.seasonId)).for("update");
   if (!season) throw new AppError(ErrorCode.SEASON_NOT_FOUND, "赛事不存在。");
   if (season.status !== "registration") throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "只有已发布赛事可以开放报名。");
   if (season.registrationOpenedAt) return { slug: season.slug, opened: false };
-  const configuredOpenAt = input.openNow ? now : season.registrationOpensAt;
-  if (!configuredOpenAt || configuredOpenAt.getTime() > now.getTime()) return { slug: season.slug, opened: false };
+
+  let configuredOpenAt: Date | null;
+  switch (input.mode) {
+    case "scheduled":
+      if (!season.registrationOpensAt || season.registrationOpensAt.getTime() > now.getTime()) {
+        return { slug: season.slug, opened: false };
+      }
+      configuredOpenAt = season.registrationOpensAt;
+      break;
+    case "explicit_immediate":
+      if (!season.registrationOpensAt) {
+        configuredOpenAt = now;
+        break;
+      }
+      if (season.registrationOpensAt.getTime() > now.getTime()) {
+        throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "报名尚未到计划开放时间；如需提前开放，请使用提前开放报名操作。");
+      }
+      configuredOpenAt = season.registrationOpensAt;
+      break;
+    case "explicit_early_force":
+      if (!season.registrationOpensAt || season.registrationOpensAt.getTime() <= now.getTime()) {
+        throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "只有未来计划的赛事可以提前开放报名。");
+      }
+      configuredOpenAt = now;
+      break;
+  }
   const config = normalizeTeamRegistrationConfig(season.teamRegistrationConfig);
   const teamRegistrationConfig = config.requireCompetitiveProfile
     ? await freezeCompetitiveContext(tx, season)
@@ -327,7 +357,15 @@ export async function openSeasonRegistrationInTx(
     seasonId: season.id,
     action: "season.registration_open",
     actorId: input.actorId,
-    targetId: season.id,meta: { slug: season.slug, registrationOpensAt: configuredOpenAt.toISOString(), competitiveContextFrozen: config.requireCompetitiveProfile },
+    targetId: season.id,
+    meta: {
+      slug: season.slug,
+      registrationOpeningMode: input.mode,
+      scheduledRegistrationOpensAt: season.registrationOpensAt?.toISOString() ?? null,
+      registrationOpensAt: configuredOpenAt.toISOString(),
+      registrationOpenedAt: now.toISOString(),
+      competitiveContextFrozen: config.requireCompetitiveProfile,
+    },
   });
   return { slug: season.slug, opened: true };
 }

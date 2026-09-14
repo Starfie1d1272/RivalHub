@@ -122,7 +122,15 @@ const seasonFormBaseSchema = z.object({
 });
 
 export const seasonFormSchema = withSeasonRefinements(seasonFormBaseSchema);
-export const seasonUpdateFormSchema = withSeasonRefinements(seasonFormBaseSchema.extend({ id: z.guid() }));
+const seasonUpdateFormBaseSchema = seasonFormBaseSchema.extend({ id: z.guid() });
+
+/**
+ * Validates the shape of an update request before the persisted row is read.
+ * Cross-field date rules are applied later to the capability-projected dates,
+ * because a locked date is not client-owned input.
+ */
+export const seasonUpdatePayloadSchema = seasonUpdateFormBaseSchema;
+export const seasonUpdateFormSchema = withSeasonRefinements(seasonUpdateFormBaseSchema);
 
 type SeasonFormSchemaInput = z.input<typeof seasonFormSchema>;
 type SeasonFormData = Omit<SeasonFormSchemaInput, "registrationConfig" | "teamRegistrationConfig" | "affiliationRules"> & {
@@ -333,11 +341,6 @@ function sameJson(left: unknown, right: unknown): boolean {
   );
 }
 
-function sameDate(left: Date | null | undefined, right: Date | null | undefined): boolean {
-  if (!left || !right) return left === right;
-  return left.getTime() === right.getTime();
-}
-
 /**
  * Published competitive-policy references are created by the publish/freeze
  * owner, not by the Season form. Compare only the operator-editable rule
@@ -364,12 +367,25 @@ function withFallback(config: TeamRegistrationConfig, fallback: CompetitiveFallb
   return { ...config, competitiveProfile };
 }
 
+type SeasonDateProjection = Pick<typeof seasons.$inferInsert, "registrationOpensAt" | "registrationClosesAt" | "rosterChangeClosesAt">;
+
+function assertValidDateProjection({ registrationOpensAt, registrationClosesAt, rosterChangeClosesAt }: SeasonDateProjection): void {
+  if (registrationOpensAt && registrationClosesAt && registrationClosesAt.getTime() <= registrationOpensAt.getTime()) {
+    throw new AppError(ErrorCode.VALIDATION_FAILED, "报名截止时间必须晚于报名开始时间");
+  }
+  if (registrationClosesAt && rosterChangeClosesAt && rosterChangeClosesAt.getTime() < registrationClosesAt.getTime()) {
+    throw new AppError(ErrorCode.VALIDATION_FAILED, "名单调整截止时间不能早于报名截止时间");
+  }
+}
+
 /**
  * Plans one season edit against the persisted row. The capability contract is
  * the only lifecycle authority: draft edits are canonicalized by the selected
- * template, while published edits reject every unauthorized delta instead of
- * silently dropping it. The temporary Major fallback exception only returns a
- * team config whose sole changed leaf is competitiveProfile.fallbackConversion.
+ * template, published public-rule edits reject unauthorized deltas, and
+ * lifecycle-owned dates are projected from the persisted row whenever the
+ * client has no write authority. The temporary Major fallback exception only
+ * returns a team config whose sole changed leaf is
+ * competitiveProfile.fallbackConversion.
  */
 export function planSeasonUpdate(existing: SeasonRow, parsed: ParsedSeasonForm): { template: CompetitionTemplate; set: SeasonUpdateSet } {
   const template = parsed.template ?? existing.competitionTemplate ?? "custom";
@@ -387,15 +403,18 @@ export function planSeasonUpdate(existing: SeasonRow, parsed: ParsedSeasonForm):
   const data = resolveCompetitionDefinition(parsed, capabilities.canEditTemplate && template !== "custom");
   assertUniqueStageKeys(data.stagePlan as StagePlan);
   const submittedDates = toDbDates(data);
-  if (!capabilities.canEditRegistrationOpenSchedule && !sameDate(existing.registrationOpensAt, submittedDates.registrationOpensAt)) {
-    throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "报名实际开放后不能修改报名开放时间");
-  }
-  if (!capabilities.canEditRegistrationDeadlines && (
-    !sameDate(existing.registrationClosesAt, submittedDates.registrationClosesAt) ||
-    !sameDate(existing.rosterChangeClosesAt, submittedDates.rosterChangeClosesAt)
-  )) {
-    throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "比赛开始后不能修改报名运营截止时间");
-  }
+  const projectedDates: SeasonDateProjection = {
+    registrationOpensAt: capabilities.canEditRegistrationOpenSchedule
+      ? submittedDates.registrationOpensAt
+      : existing.registrationOpensAt,
+    registrationClosesAt: capabilities.canEditRegistrationDeadlines
+      ? submittedDates.registrationClosesAt
+      : existing.registrationClosesAt,
+    rosterChangeClosesAt: capabilities.canEditRegistrationDeadlines
+      ? submittedDates.rosterChangeClosesAt
+      : existing.rosterChangeClosesAt,
+  };
+  assertValidDateProjection(projectedDates);
   const normalizedTeamConfig = normalizeTeamRegistrationConfig(
     (data.teamRegistrationConfig ?? {}) as TeamRegistrationConfig,
   );
@@ -431,12 +450,16 @@ export function planSeasonUpdate(existing: SeasonRow, parsed: ParsedSeasonForm):
     kind: data.kind,
     competitionTemplate: template,
     themeColor: data.themeColor,
-    registrationOpensAt: capabilities.canEditRegistrationOpenSchedule ? submittedDates.registrationOpensAt : existing.registrationOpensAt,
-    registrationClosesAt: capabilities.canEditRegistrationDeadlines ? submittedDates.registrationClosesAt : existing.registrationClosesAt,
-    rosterChangeClosesAt: capabilities.canEditRegistrationDeadlines ? submittedDates.rosterChangeClosesAt : existing.rosterChangeClosesAt,
     endAt: submittedDates.endAt,
     updatedAt: new Date(),
   };
+  if (capabilities.canEditRegistrationOpenSchedule) {
+    metadata.registrationOpensAt = submittedDates.registrationOpensAt;
+  }
+  if (capabilities.canEditRegistrationDeadlines) {
+    metadata.registrationClosesAt = submittedDates.registrationClosesAt;
+    metadata.rosterChangeClosesAt = submittedDates.rosterChangeClosesAt;
+  }
 
   if (!capabilities.canEditPublicRules) {
     return {

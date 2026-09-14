@@ -133,6 +133,7 @@ dbTransactionMock.mockImplementation(async (work: (tx: unknown) => unknown) =>
 import {
   createSeason,
   updateSeason,
+  openSeasonRegistration,
   publishSeason,
   deleteSeason,
 } from "@/actions/seasons";
@@ -212,8 +213,8 @@ function draftSeason(overrides?: Record<string, unknown>) {
   };
 }
 
-function nonDraftSeason(status = "registration") {
-  return draftSeason({ status });
+function nonDraftSeason(status = "registration", overrides: Record<string, unknown> = {}) {
+  return draftSeason({ status, ...overrides });
 }
 
 // ── createSeason ────────────────────────────────────────────────────────────
@@ -397,6 +398,33 @@ describe("updateSeason", () => {
     expect(updateSetCalls.length).toBeGreaterThanOrEqual(1);
   });
 
+  it("报名已开放后忽略恶意 open time replay 仍允许保存合法 deadline", async () => {
+    const openedAt = new Date("2026-09-08T08:00:03.838Z");
+    seasonsFindFirstMock.mockResolvedValue(nonDraftSeason("registration", {
+      registrationOpensAt: openedAt,
+      registrationOpenedAt: openedAt,
+      registrationClosesAt: new Date("2026-09-15T08:00:00.000Z"),
+      rosterChangeClosesAt: new Date("2026-10-08T08:00:00.000Z"),
+    }));
+
+    const result = await updateSeason({
+      ...VALID_INPUT,
+      id: SEASON_ID,
+      // This malicious value is after the submitted deadline. The update
+      // planner must validate against the persisted frozen opening instead.
+      registrationOpensAt: "2026-09-20T16:00",
+      registrationClosesAt: "2026-09-18T16:00",
+      rosterChangeClosesAt: "2026-10-08T16:00",
+    });
+
+    expect(result).toMatchObject({ success: true });
+    const update = updateSetCalls.find((value) => value && typeof value === "object" && "registrationClosesAt" in value) as Record<string, unknown>;
+    expect(update).toEqual(expect.objectContaining({
+      registrationClosesAt: new Date("2026-09-18T08:00:00.000Z"),
+    }));
+    expect(update).not.toHaveProperty("registrationOpensAt");
+  });
+
   it("非 draft 状态下修改核心配置返回 fail", async () => {
     seasonsFindFirstMock.mockResolvedValue(nonDraftSeason("registration"));
 
@@ -422,6 +450,37 @@ describe("updateSeason", () => {
     expect(result).toMatchObject({ success: false, error: { code: ErrorCode.SEASON_INVALID_STATUS } });
   });
 
+});
+
+// ── openSeasonRegistration ─────────────────────────────────────────────────
+
+describe("openSeasonRegistration", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    resetAuditTracking(insertValuesCalls, updateSetCalls);
+    requireSuperAdminMock.mockResolvedValue(superAdminSession);
+  });
+
+  it("future schedule requires an explicit early-force mode", async () => {
+    const future = new Date("2999-09-08T08:00:00.000Z");
+    seasonsFindFirstMock.mockResolvedValue(nonDraftSeason("registration", {
+      registrationOpensAt: future,
+    }));
+
+    const immediate = await openSeasonRegistration(SEASON_ID);
+    expect(immediate).toMatchObject({ success: false, error: { code: ErrorCode.SEASON_INVALID_STATUS } });
+    expect(updateSetCalls).toHaveLength(0);
+
+    const early = await openSeasonRegistration(SEASON_ID, "early_force");
+    expect(early).toMatchObject({ success: true, data: { slug: "test-2026" } });
+    expect(updateSetCalls).toContainEqual(expect.objectContaining({
+      registrationOpenedAt: expect.any(Date),
+      registrationOpensAt: expect.any(Date),
+    }));
+    expect(findAuditEntry(insertValuesCalls, "season.registration_open")).toMatchObject({
+      meta: expect.objectContaining({ registrationOpeningMode: "explicit_early_force" }),
+    });
+  });
 });
 
 // ── publishSeason ───────────────────────────────────────────────────────────
