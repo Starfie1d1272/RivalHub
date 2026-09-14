@@ -212,7 +212,7 @@ async function exerciseCompetitiveFreezeLifecycle(pool: Pool): Promise<void> {
   await pool.query("UPDATE seasons SET status = 'registration', registration_opens_at = now() - interval '1 minute' WHERE id = $1", [seasonId]);
   let frozen: { competitiveProfile: Record<string, unknown> } | null = null;
   await db.transaction(async (tx) => {
-    const opened = await globals.openSeasonRegistrationInTx(tx, { seasonId, actorId: "system" });
+    const opened = await globals.openSeasonRegistrationInTx(tx, { seasonId, actorId: "system", mode: "scheduled" });
     expect(opened.opened, "报名开放必须在同一事务中冻结竞技参考策略。").toBe(true);
     const [season] = await tx.select().from(globals.schema.seasons).where(eq(globals.schema.seasons.id, seasonId));
     frozen = season.teamRegistrationConfig as unknown as { competitiveProfile: Record<string, unknown> };

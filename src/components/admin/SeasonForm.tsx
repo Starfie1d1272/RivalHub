@@ -15,6 +15,7 @@ import {
 import { checkStandardMajorCapabilities } from "@/lib/competition/definition";
 import { createCompetitionTemplate, type CompetitionTemplate } from "@/lib/competition/templates";
 import { getSeasonEditCapabilities, type SeasonEditPhase } from "@/lib/seasons/edit";
+import { parseCSTInput } from "@/lib/utils/date";
 import { PLAYER_TYPE_LABELS } from "@/lib/seasons/presentation";
 import { rankValues, RANK_LABELS } from "@/lib/validators/registration";
 import { Button } from "@/components/ui/button";
@@ -55,7 +56,10 @@ const PLAYER_TYPES: PlayerType[] = ["enrolled", "graduated", "external"];
 
 interface SeasonFormProps {
   mode: "create" | "edit";
-  initial?: SeasonFormInput & { registrationOpenedAt?: Date | null; conversionPolicyProvenance?: ConversionPolicyProvenance | null };
+  initial?: SeasonFormInput & {
+    registrationOpenedAt?: Date | null;
+    conversionPolicyProvenance?: ConversionPolicyProvenance | null;
+  };
   competitivePlatforms: CompetitivePlatformOption[];
 }
 
@@ -117,6 +121,7 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
   const [themeColor, setThemeColor] = useState(initial?.themeColor ?? "");
   const [pendingTemplate, setPendingTemplate] = useState<CompetitionTemplate | null>(null);
   const [publishConfirmationOpen, setPublishConfirmationOpen] = useState(false);
+  const [earlyOpenConfirmationOpen, setEarlyOpenConfirmationOpen] = useState(false);
   const [dangerAction, setDangerAction] = useState<"delete" | "revert-draft" | "revert-registration" | "finish" | "archive" | null>(null);
   const [registrationOpensAt, setRegistrationOpensAt] = useState(initial?.registrationOpensAt ?? "");
   const [registrationClosesAt, setRegistrationClosesAt] = useState(initial?.registrationClosesAt ?? "");
@@ -237,9 +242,9 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
       kind,
       template,
       themeColor: emptyToNull(themeColor),
-      registrationOpensAt: emptyToNull(registrationOpensAt),
-      registrationClosesAt: emptyToNull(registrationClosesAt),
-      rosterChangeClosesAt: emptyToNull(rosterChangeClosesAt),
+      registrationOpensAt: editCapabilities.canEditRegistrationOpenSchedule ? emptyToNull(registrationOpensAt) : null,
+      registrationClosesAt: editCapabilities.canEditRegistrationDeadlines ? emptyToNull(registrationClosesAt) : null,
+      rosterChangeClosesAt: editCapabilities.canEditRegistrationDeadlines ? emptyToNull(rosterChangeClosesAt) : null,
       endAt: emptyToNull(endAt),
       registrationMode,
       hasCaptainVoting: registrationMode === "team" ? false : hasCaptainVoting,
@@ -302,11 +307,11 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
     });
   }
 
-  function handleOpenRegistration() {
+  function handleOpenRegistration(mode: "immediate" | "early_force" = "immediate") {
     if (!initial?.id) return;
     const seasonId = initial.id;
     startTransition(async () => {
-      const result = await openSeasonRegistration(seasonId);
+      const result = await openSeasonRegistration(seasonId, mode);
       if (result.success) {
         toast.success("报名已开放，竞技参考策略已冻结");
         router.refresh();
@@ -314,6 +319,15 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
         toast.error(result.error.message);
       }
     });
+  }
+
+  function requestOpenRegistration() {
+    const scheduledOpenAt = parseCSTInput(registrationOpensAt || null);
+    if (scheduledOpenAt && scheduledOpenAt.getTime() > Date.now()) {
+      setEarlyOpenConfirmationOpen(true);
+      return;
+    }
+    handleOpenRegistration();
   }
 
   function handleDelete() {
@@ -649,7 +663,7 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
         </div>
         <div className="mt-5 flex flex-wrap items-center justify-end gap-3 border-t border-[var(--color-border)] pt-4">
           {initial?.status === "draft" && <Button type="button" variant="outline" disabled={isPending} onClick={() => setPublishConfirmationOpen(true)}>发布赛季</Button>}
-          {initial?.status === "registration" && !initial.registrationOpenedAt && <Button type="button" disabled={isPending} onClick={handleOpenRegistration}>立即开放报名</Button>}
+          {initial?.status === "registration" && !initial.registrationOpenedAt && <Button type="button" disabled={isPending} onClick={requestOpenRegistration}>立即开放报名</Button>}
         </div>
         {saveButton}
       </SettingsPanel>
@@ -808,6 +822,21 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
           <AlertDialogFooter>
             <AlertDialogCancel>取消</AlertDialogCancel>
             <AlertDialogAction onClick={() => { setPublishConfirmationOpen(false); handlePublish(); }}>确认发布</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={earlyOpenConfirmationOpen} onOpenChange={setEarlyOpenConfirmationOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>提前开放报名？</AlertDialogTitle>
+            <AlertDialogDescription>
+              当前报名计划时间为 {registrationOpensAt || "待定"}。确认后会明确提前改变报名计划，并将实际开放时间记录为新的报名开放时间。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction onClick={() => { setEarlyOpenConfirmationOpen(false); handleOpenRegistration("early_force"); }}>确认提前开放</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
