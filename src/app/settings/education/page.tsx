@@ -13,7 +13,7 @@ export default async function EducationSettingsPage() {
   const user = await db.query.users.findFirst({ where: and(eq(users.id, session.userId), eq(users.status, "active")) });
   if (!user) redirect("/login");
   const [rows, identities] = await Promise.all([
-    db.select({ id: educationVerifications.id, institution: institutions.name, code: institutions.moeInstitutionCode, academicStatus: educationVerifications.academicStatus, status: educationVerifications.status, reviewNote: educationVerifications.reviewNote, submittedAt: educationVerifications.submittedAt }).from(educationVerifications).innerJoin(institutions, eq(educationVerifications.institutionId, institutions.id)).where(eq(educationVerifications.userId, user.id)).orderBy(desc(educationVerifications.submittedAt)),
+    db.select({ id: educationVerifications.id, institutionId: educationVerifications.institutionId, institution: institutions.name, institutionCode: institutions.moeInstitutionCode, province: institutions.province, evidenceType: educationVerifications.evidenceType, academicStatus: educationVerifications.academicStatus, status: educationVerifications.status, reviewNote: educationVerifications.reviewNote, submittedAt: educationVerifications.submittedAt }).from(educationVerifications).innerJoin(institutions, eq(educationVerifications.institutionId, institutions.id)).where(eq(educationVerifications.userId, user.id)).orderBy(desc(educationVerifications.submittedAt)),
     listVerifiedEmailIdentities(db, user.id),
   ]);
   const identityDomains = [...new Set(identities.map((identity) => emailDomain(identity.email)).filter((domain): domain is string => Boolean(domain)))];

@@ -14,5 +14,5 @@ export default async function CommunityAwardsPage({ params }: { params: Promise<
   if (!season.hasCommunityAwards) notFound();
   const authorization = await getCurrentUserAuthorization();
   const data = await getPublicCommunityAwardBoardData(db, { seasonId: season.id, currentUserId: authorization?.userId ?? null, stagePlan: normalizeStagePlan(season.stagePlan) });
-  return <PageLayout variant="narrow" className="space-y-6"><div><h1 className="text-2xl font-bold">社区奖 · {season.name}</h1><p className="mt-1 text-sm text-[var(--color-fg-mid)]">社区提出创意，赛事方审核与确认结果；不替代正式赛事荣誉。</p></div><PublicCommunityAwards seasonId={season.id} awards={data.awards} currentUserId={authorization?.userId ?? null} candidates={data.candidates} matches={data.matches} /></PageLayout>;
+  return <PageLayout variant="wide" className="space-y-6"><div><h1 className="text-2xl font-bold">社区奖 · {season.name}</h1><p className="mt-1 text-sm text-[var(--color-fg-mid)]">社区提出创意，赛事方审核与确认结果；不替代正式赛事荣誉。</p></div><PublicCommunityAwards seasonId={season.id} awards={data.awards} currentUserId={authorization?.userId ?? null} candidates={data.candidates} matches={data.matches} /></PageLayout>;
 }

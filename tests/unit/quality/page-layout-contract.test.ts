@@ -59,9 +59,26 @@ describe("page layout ownership", () => {
     expect(registrations).not.toContain("max-w-3xl");
     expect(registrations).toContain("min-w-0 space-y-6");
     expect(communityAwards).not.toContain("container");
-    expect(communityAwards).toContain("max-w-4xl");
+    expect(communityAwards).toContain("min-w-0 space-y-6");
+    expect(communityAwards).not.toContain("max-w-4xl");
     expect(settings).not.toContain("container");
     expect(settings).toContain("max-w-3xl");
+  });
+
+  it("keeps representative page width semantics explicit", () => {
+    const semanticConsumers = [
+      ["src/app/login/page.tsx", 'variant="narrow"'],
+      ["src/app/rules/page.tsx", 'variant="standard"'],
+      ["src/app/teams/page.tsx", 'variant="wide"'],
+      ["src/app/[seasonSlug]/community-awards/page.tsx", 'variant="wide"'],
+      ["src/app/players/[userId]/page.tsx", 'variant="standard"'],
+      ["src/app/admin/invites/page.tsx", 'variant="wide"'],
+      ["src/app/admin/[seasonSlug]/layout.tsx", 'variant="workbench"'],
+    ] as const;
+
+    for (const [path, semantic] of semanticConsumers) {
+      expect(readFileSync(resolve(projectRoot, path), "utf8"), path).toContain(semantic);
+    }
   });
 
   it("keeps Match Detail normal, loading, and error states on standard width", () => {

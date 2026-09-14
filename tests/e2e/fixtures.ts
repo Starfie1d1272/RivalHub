@@ -25,13 +25,14 @@ export type E2EFixtureCredentials = {
 };
 
 type FixtureManifest = E2EFixtureCredentials & { authUserIds: string[] };
-export type E2EFixtureProfile = "auth" | "team-invite" | "major-entry" | "education";
+export type E2EFixtureProfile = "auth" | "team-invite" | "major-entry" | "education" | "layout";
 
 const PROFILE_ACCOUNT_KEYS: Record<E2EFixtureProfile, readonly E2EFixtureCredentials["accounts"][number]["key"][]> = {
   auth: ["player3"],
   "team-invite": ["player1", "player2"],
   "major-entry": ["captain"],
   education: ["player1", "admin"],
+  layout: ["player2", "admin"],
 };
 
 type E2EAttemptRecord = {

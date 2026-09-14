@@ -304,7 +304,7 @@ export async function PlayerPageContent({ params }: PlayerPageProps) {
   const mvpCount = mvpWinCount;
 
   return (
-    <PageLayout variant="narrow" className="space-y-10">
+    <PageLayout variant="standard" className="space-y-10">
 
       {/* 头像 + 基本信息 */}
       <div className="flex items-center gap-6">
@@ -581,7 +581,7 @@ export async function PlayerPageContent({ params }: PlayerPageProps) {
 
 function PlayerPageFallback() {
   return (
-    <PageLayout variant="narrow" className="min-h-[60vh]" aria-busy="true">
+    <PageLayout variant="standard" className="min-h-[60vh]" aria-busy="true">
       <span className="sr-only">正在加载选手页面…</span>
     </PageLayout>
   );
