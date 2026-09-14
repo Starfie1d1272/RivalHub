@@ -25,7 +25,7 @@ export default async function AdminInvitesPage({ searchParams }: PageProps) {
   ]);
 
   return (
-    <PageLayout as="div" variant="narrow">
+    <PageLayout as="div" variant="wide">
       <PageHeader title="邀请码管理" />
       <InviteManager history={history} seasons={seasonRows} />
     </PageLayout>

@@ -25,6 +25,7 @@ export const MAJOR_BROWSER_PROFILE_ACCOUNT_KEYS = {
   "team-invite": ["player1", "player2"],
   "major-entry": ["captain"],
   education: ["player1", "admin"],
+  layout: ["player2", "admin"],
 } as const satisfies Record<string, readonly MajorBrowserAccountKey[]>;
 export type MajorBrowserScenarioProfile = keyof typeof MAJOR_BROWSER_PROFILE_ACCOUNT_KEYS;
 
@@ -326,7 +327,7 @@ async function removeFixtureDatabaseRows(client: PoolClient, scenario: ScenarioD
 }
 
 async function insertFixture(client: PoolClient, scenario: ScenarioDefinition, authIds: Map<string, string>): Promise<void> {
-  if (scenario.profile === "major-entry") await insertMajorSeason(client, scenario);
+  if (scenario.profile === "major-entry" || scenario.profile === "layout") await insertMajorSeason(client, scenario);
 
   for (const [index, account] of scenario.accounts.entries()) {
     const ready = account.key !== "player1";
@@ -345,9 +346,12 @@ async function insertFixture(client: PoolClient, scenario: ScenarioDefinition, a
     }
   }
 
-  if (scenario.profile === "education") return;
+  if (scenario.profile === "education") {
+    await insertRejectedChsiVerification(client, scenario);
+    return;
+  }
   if (scenario.profile === "team-invite") await insertInvitationTeam(client, scenario);
-  if (scenario.profile === "major-entry") {
+  if (scenario.profile === "major-entry" || scenario.profile === "layout") {
     await seedCompetitivePlatformCatalog(client, scenario.platform, [
       { seasonKey: scenario.previousSeasonKey, label: "Browser 上一赛季", sortOrder: 0, isCurrent: false },
       { seasonKey: scenario.currentSeasonKey, label: "Browser 当前赛季", sortOrder: 1, isCurrent: true },
@@ -411,6 +415,17 @@ async function insertEducationVerifications(client: PoolClient, scenario: Scenar
       [deterministicUuid(`${scenario.scenarioId}:education:${account.key}`), account.userId],
     );
   }
+}
+
+async function insertRejectedChsiVerification(client: PoolClient, scenario: ScenarioDefinition): Promise<void> {
+  const player = scenario.accounts.find(({ key }) => key === "player1");
+  if (!player) throw new Error("education fixture 缺少 player1。");
+  await client.query(
+    `INSERT INTO education_verifications (id, user_id, institution_id, academic_status, evidence_type, evidence_code, status, reviewed_by, reviewed_at, review_note)
+     SELECT $1, $2, id, 'enrolled', 'chsi_enrollment_report', $3, 'rejected', 'local-browser-admin', now(), '在线验证报告已过期，无法在线验证。'
+     FROM institutions WHERE moe_institution_code = '4132010284'`,
+    [deterministicUuid(scenario.scenarioId + ":education:rejected-chsi"), player.userId, "ABCD1234EFGH5678"],
+  );
 }
 
 function createCapabilities(scenario: ScenarioDefinition) {

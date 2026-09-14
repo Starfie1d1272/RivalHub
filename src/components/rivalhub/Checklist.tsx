@@ -1,4 +1,4 @@
-import React from "react";
+import React, { type ReactNode } from "react";
 import Link from "next/link";
 
 type ChecklistState = "complete" | "blocked" | "pending" | "manual";
@@ -8,6 +8,7 @@ export interface ChecklistItem {
   detail?: string;
   state: ChecklistState;
   href?: string;
+  action?: ReactNode;
 }
 
 const STATE: Record<ChecklistState, { glyph: string; color: string; label: string }> = {
@@ -39,8 +40,17 @@ export function Checklist({ items, className = "" }: { items: ChecklistItem[]; c
           </>
         );
         const classes = "flex min-w-0 gap-3 px-3 py-2.5 transition-colors";
+        if (!item.action) {
+          return <li key={`${item.label}-${item.detail ?? ""}`}>
+            {item.href ? <Link href={item.href as never} className={`${classes} hover:bg-[var(--color-panel-hi)]`}>{content}</Link> : <div className={classes}>{content}</div>}
+          </li>;
+        }
+
         return <li key={`${item.label}-${item.detail ?? ""}`}>
-          {item.href ? <Link href={item.href as never} className={`${classes} hover:bg-[var(--color-panel-hi)]`}>{content}</Link> : <div className={classes}>{content}</div>}
+          <div className={`${classes} items-start justify-between`}>
+            {item.href ? <Link href={item.href as never} className="flex min-w-0 flex-1 gap-3 hover:bg-[var(--color-panel-hi)]">{content}</Link> : <div className="flex min-w-0 flex-1 gap-3">{content}</div>}
+            {item.action}
+          </div>
         </li>;
       })}
     </ul>
