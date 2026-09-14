@@ -17,7 +17,7 @@ describe("RivalHubDemoEvidenceV1", () => {
     expect(readFileSync(rivalHubDemoEvidenceV1SchemaPath, "utf8")).toBe(serializeRivalHubDemoEvidenceV1JsonSchema());
   });
 
-  it("accepts the real normal-map golden fixture and cross-checks its summaries", () => {
+  it("accepts the real normal-map golden fixture", () => {
     const evidence = parseRivalHubDemoEvidenceV1(fixture);
     expect(evidence.contract).toEqual({
       contractVersion: "rivalhub-demo-evidence/1",
@@ -75,18 +75,41 @@ describe("RivalHubDemoEvidenceV1", () => {
     expect(() => parseRivalHubDemoEvidenceV1(wrongEntry)).toThrow("entryId 必须属于 evidence target");
   });
 
-  it("rejects broken event references and summary drift", () => {
+  it("rejects broken event references while keeping playerMap summaries producer-owned", () => {
     const invalidKill = cloneFixture();
     invalidKill.sourceFacts.kills[0]!.victimSteamId64 = "76561198000999999";
     expect(() => parseRivalHubDemoEvidenceV1(invalidKill)).toThrow("kill 引用了未知 round 或 participant");
 
-    const drift = cloneFixture();
-    drift.summaries.playerMaps[0]!.kills += 1;
-    expect(() => parseRivalHubDemoEvidenceV1(drift)).toThrow("playerMaps 与 playerRounds 不一致");
+    const metricDrift = cloneFixture();
+    const summary = metricDrift.summaries.playerMaps[0]!;
+    summary.kills += 1;
+    summary.deaths += 1;
+    summary.assists += 1;
+    summary.damage += 1;
+    summary.kastRounds += 1;
+    summary.headshots += 1;
+    summary.firstKills += 1;
+    summary.firstDeaths += 1;
+    summary.tradeKills += 1;
+    summary.twoKillRounds += 1;
+    summary.threeKillRounds += 1;
+    summary.fourKillRounds += 1;
+    summary.fiveKillRounds += 1;
+    summary.clutchAttempts += 1;
+    summary.clutchWins += 1;
+    expect(parseRivalHubDemoEvidenceV1(metricDrift).summaries.playerMaps[0]).toEqual(summary);
 
-    const multiKillDrift = cloneFixture();
-    multiKillDrift.summaries.playerMaps[0]!.twoKillRounds += 1;
-    expect(() => parseRivalHubDemoEvidenceV1(multiKillDrift)).toThrow("playerMaps 与 playerRounds 不一致");
+    const roundsDrift = cloneFixture();
+    roundsDrift.summaries.playerMaps[0]!.rounds += 1;
+    expect(() => parseRivalHubDemoEvidenceV1(roundsDrift)).toThrow("playerMaps rounds 必须匹配 source rounds");
+
+    const unknownPlayerMap = cloneFixture();
+    unknownPlayerMap.summaries.playerMaps[0]!.steamId64 = "76561198000999999";
+    expect(() => parseRivalHubDemoEvidenceV1(unknownPlayerMap)).toThrow("playerMaps participant 映射无效");
+
+    const duplicatePlayerMap = cloneFixture();
+    duplicatePlayerMap.summaries.playerMaps.push({ ...duplicatePlayerMap.summaries.playerMaps[0]! });
+    expect(() => parseRivalHubDemoEvidenceV1(duplicatePlayerMap)).toThrow("playerMaps 必须恰好覆盖每名 participant 一次");
 
     const conversionDrift = cloneFixture();
     conversionDrift.semanticFacts.teamConversions[1]!.teamKey = "teamA";

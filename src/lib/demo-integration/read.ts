@@ -10,8 +10,6 @@ import {
   dakPairings,
   matchDemoImports,
   matchMaps,
-  matchRosterPlayers,
-  matchRosters,
   matchVetoSteps,
   matches,
   seasons,
@@ -22,9 +20,10 @@ import { getMatchMapRoundScores } from "@/lib/data/standings";
 import { loadMajorSwissStageReadModel } from "@/lib/matches/stage-read-model";
 import { calculateStageRoundRobinStandings } from "@/lib/matches/stage-standings";
 import { buildStageViews } from "@/lib/matches/stage-views";
+import { loadEffectiveMatchRoster } from "@/lib/match-rosters/effective";
 import { normalizeRegistrationConfig, normalizeStagePlan } from "@/lib/seasons/compatibility";
 import { pairingCanReadSeason } from "./pairing";
-import { buildEvidenceRevision, sha256Json, type EvidenceRevisionRosterMember } from "./revision";
+import { buildEvidenceRevisionForTarget, sha256Json } from "./revision";
 import { projectStage } from "./stage-projection";
 import type {
   IntegrationIssue,
@@ -207,24 +206,7 @@ export async function readRivalHubEvents(pairing: PairingScope): Promise<RivalHu
   const vetoRows = matchIds.length > 0
     ? await db.select().from(matchVetoSteps).where(inArray(matchVetoSteps.matchId, matchIds)).orderBy(asc(matchVetoSteps.stepOrder))
     : [];
-  const matchRosterRows = matchIds.length > 0
-    ? await db.select({
-        matchId: matchRosters.matchId,
-        entryId: matchRosters.entryId,
-        rosterId: matchRosters.id,
-        eventRosterMemberId: eventRosterMembers.id,
-        userId: users.id,
-        steam64: users.steam64,
-        displayName: users.displayName,
-        steamName: users.steamName,
-        perfectName: users.perfectName,
-        isStarter: matchRosterPlayers.isStarter,
-      }).from(matchRosterPlayers)
-        .innerJoin(matchRosters, eq(matchRosters.id, matchRosterPlayers.rosterId))
-        .innerJoin(eventRosterMembers, eq(eventRosterMembers.id, matchRosterPlayers.eventRosterMemberId))
-        .innerJoin(users, eq(users.id, eventRosterMembers.userId))
-        .where(and(inArray(matchRosters.matchId, matchIds), eq(matchRosters.status, "confirmed"), eq(matchRosterPlayers.isStarter, true)))
-    : [];
+  const matchRosterRows = await loadEffectiveMatchRoster(db, matchIds);
   const importRows = mapRows.length > 0
     ? await db.select().from(matchDemoImports).where(inArray(matchDemoImports.matchMapId, mapRows.map((map) => map.id))).orderBy(desc(matchDemoImports.createdAt))
     : [];
@@ -325,23 +307,11 @@ export async function readRivalHubEvents(pairing: PairingScope): Promise<RivalHu
         const entryA = entryById.get(match.entryAId)!;
         const entryB = entryById.get(match.entryBId)!;
         const matchRoster = (matchRosterByMatch.get(match.id) ?? []).map((row) => projectPlayer(row)).filter((row): row is RivalHubRemotePlayer => row != null);
-        const revisionRoster: EvidenceRevisionRosterMember[] = (matchRosterByMatch.get(match.id) ?? []).map((row) => ({ entryId: row.entryId, eventRosterMemberId: row.eventRosterMemberId, userId: row.userId, steam64: row.steam64, isStarter: row.isStarter }));
         const mapRecords: RivalHubRemoteMap[] = (mapsByMatch.get(match.id) ?? []).map((map) => {
-          const evidenceRevision = buildEvidenceRevision({
-            seasonId: season.id,
-            stageKey: match.stage,
-            stageRunId: match.majorStageRunId,
-            matchId: match.id,
-            matchMapId: map.id,
-            mapOrder: map.mapOrder,
-            mapName: map.mapName,
-            mapScoreA: map.scoreA,
-            mapScoreB: map.scoreB,
-            mapCompletedAt: iso(map.completedAt),
-            matchStatus: match.status,
-            entryAId: match.entryAId,
-            entryBId: match.entryBId,
-            roster: revisionRoster,
+          const evidenceRevision = buildEvidenceRevisionForTarget({
+            match,
+            map,
+            roster: matchRosterByMatch.get(match.id) ?? [],
           });
           const latest = latestImportByMap.get(map.id);
           const latestConfirmed = latestConfirmedImportByMap.get(map.id);

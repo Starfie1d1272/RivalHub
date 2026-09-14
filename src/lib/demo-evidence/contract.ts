@@ -255,19 +255,11 @@ export function parseRivalHubDemoEvidenceV1(input: unknown): RivalHubDemoEvidenc
   if (playerRoundByKey.size !== rounds.length * evidence.participants.length) throw new Error("normal V1 必须为每名 participant 提供每回合 playerRound");
 
   const playerSummaries = new Map(evidence.summaries.playerMaps.map((summary) => [summary.steamId64, summary]));
-  if (playerSummaries.size !== evidence.participants.length) throw new Error("playerMaps 必须恰好覆盖每名 participant 一次");
+  if (evidence.summaries.playerMaps.length !== evidence.participants.length || playerSummaries.size !== evidence.participants.length) throw new Error("playerMaps 必须恰好覆盖每名 participant 一次");
   for (const participant of evidence.participants) {
     const summary = playerSummaries.get(participant.steamId64);
     if (!summary || summary.teamKey !== participant.observedTeamKey) throw new Error("playerMaps participant 映射无效");
-    const facts = [...playerRoundByKey.values()].filter((fact) => fact.steamId64 === participant.steamId64);
-    const total = (key: "kills" | "deaths" | "assists" | "damage" | "headshots" | "tradeKills") => facts.reduce((sum, fact) => sum + fact[key], 0);
-    const exactMultiKills = (count: number) => facts.filter((fact) => fact.kills === count).length;
-    const fiveKills = facts.filter((fact) => fact.kills >= 5).length;
-    const clutchAttempts = facts.filter((fact) => fact.clutch !== null).length;
-    const clutchWins = facts.filter((fact) => fact.clutch?.won).length;
-    if (summary.rounds !== facts.length || summary.kills !== total("kills") || summary.deaths !== total("deaths") || summary.assists !== total("assists") || summary.damage !== total("damage") || summary.headshots !== total("headshots") || summary.tradeKills !== total("tradeKills") || summary.kastRounds !== facts.filter((fact) => fact.kast).length || summary.firstKills !== facts.filter((fact) => fact.openingDuel === "won").length || summary.firstDeaths !== facts.filter((fact) => fact.openingDuel === "lost").length || summary.twoKillRounds !== exactMultiKills(2) || summary.threeKillRounds !== exactMultiKills(3) || summary.fourKillRounds !== exactMultiKills(4) || summary.fiveKillRounds !== fiveKills || summary.clutchAttempts !== clutchAttempts || summary.clutchWins !== clutchWins) {
-      throw new Error("playerMaps 与 playerRounds 不一致");
-    }
+    if (summary.rounds !== rounds.length) throw new Error("playerMaps rounds 必须匹配 source rounds");
   }
   const weaponFacts = new Map<string, { kills: number; headshotKills: number }>();
   for (const kill of evidence.sourceFacts.kills) {
