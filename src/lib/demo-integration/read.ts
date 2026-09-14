@@ -17,16 +17,21 @@ import {
   seasons,
   users,
 } from "@/db/schema";
+import { loadStageBracketViews, projectStageBracketNodes } from "@/lib/bracket";
+import { getMatchMapRoundScores } from "@/lib/data/standings";
+import { loadMajorSwissStageReadModel } from "@/lib/matches/stage-read-model";
+import { calculateStageRoundRobinStandings } from "@/lib/matches/stage-standings";
+import { buildStageViews } from "@/lib/matches/stage-views";
 import { normalizeRegistrationConfig, normalizeStagePlan } from "@/lib/seasons/compatibility";
 import { pairingCanReadSeason } from "./pairing";
 import { buildEvidenceRevision, sha256Json, type EvidenceRevisionRosterMember } from "./revision";
+import { projectStage } from "./stage-projection";
 import type {
   IntegrationIssue,
   RivalHubEventsResponse,
   RivalHubRemoteMap,
   RivalHubRemotePlayer,
   RivalHubRemoteSeries,
-  RivalHubRemoteStage,
   RivalHubRemoteTeam,
 } from "./contracts";
 
@@ -56,24 +61,6 @@ function projectIssues(value: unknown): IntegrationIssue[] {
       message: issue.message,
     }];
   });
-}
-
-function stageType(type: string): RivalHubRemoteStage["type"] {
-  return type === "round_robin" || type === "swiss" || type === "single_elim" || type === "double_elim" || type === "gsl_group"
-    ? type
-    : "round_robin";
-}
-
-function projectStage(stage: ReturnType<typeof normalizeStagePlan>[number]): RivalHubRemoteStage {
-  return {
-    key: stage.key,
-    name: stage.name,
-    type: stageType(stage.type),
-    teamCount: stage.teamCount,
-    advanceCount: stage.advanceTiers.reduce((sum, tier) => sum + tier.count, 0),
-    matchFormat: stage.matchFormat ?? null,
-    finalFormat: stage.finalFormat ?? null,
-  };
 }
 
 function projectPlayer(row: {
@@ -190,7 +177,7 @@ export async function readRivalHubEvents(pairing: PairingScope): Promise<RivalHu
     return {
       contractVersion: "rivalhub-dak-events/1",
       generatedAt: new Date().toISOString(),
-      events: seasonRows.map((season) => ({ id: season.id, seasonId: season.id, slug: season.slug, name: season.name, kind: season.kind, revision: sha256Json({ seasonId: season.id, updatedAt: season.updatedAt.toISOString() }), stages: normalizeStagePlan(season.stagePlan).map(projectStage), teams: [], series: [] })),
+      events: seasonRows.map((season) => ({ id: season.id, seasonId: season.id, slug: season.slug, name: season.name, kind: season.kind, revision: sha256Json({ seasonId: season.id, updatedAt: season.updatedAt.toISOString() }), stages: normalizeStagePlan(season.stagePlan).map((stage) => projectStage(stage)), teams: [], series: [] })),
     };
   }
 
@@ -274,6 +261,43 @@ export async function readRivalHubEvents(pairing: PairingScope): Promise<RivalHu
     vetoByMatch.set(row.matchId, list);
   }
 
+  const stageProjectionBySeasonId = new Map(
+    await Promise.all(seasonRows.map(async (season) => {
+      const seasonEntries = entries.filter((entry) => entry.competitionId === season.id);
+      const seasonEntryIds = new Set(seasonEntries.map((entry) => entry.id));
+      const seasonMatches = matchRows.filter((match) => match.seasonId === season.id && seasonEntryIds.has(match.entryAId) && seasonEntryIds.has(match.entryBId));
+      const stagePlan = normalizeStagePlan(season.stagePlan);
+      const { views: stageViews } = buildStageViews(stagePlan, seasonMatches);
+      const [roundScoresByMatchId, bracketDataByStage, swissReadModels] = await Promise.all([
+        getMatchMapRoundScores(seasonMatches.filter((match) => match.status === "finished").map((match) => match.id)),
+        loadStageBracketViews(db, season.id),
+        Promise.all(stagePlan
+          .filter((stage) => stage.type === "swiss")
+          .map(async (stage) => [stage.key, await loadMajorSwissStageReadModel(season.id, stage.key)] as const)),
+      ]);
+      const swissReadModelByStage = new Map(
+        swissReadModels.filter((entry): entry is readonly [string, NonNullable<typeof entry[1]>] => entry[1] !== null),
+      );
+      return [season.id, stageViews.map(({ stage, matches: stageMatches }) => {
+        const bracketData = bracketDataByStage.get(stage.key);
+        const standings = stage.type === "round_robin"
+          ? calculateStageRoundRobinStandings({
+              stage,
+              stageMatches,
+              entries: seasonEntries,
+              roundScoresByMatchId,
+              stageEntrantIds: bracketData?.participant.map((participant) => participant.rivalhubEntryId),
+            })
+          : undefined;
+        return projectStage(stage, {
+          standings,
+          swissReadModel: swissReadModelByStage.get(stage.key),
+          bracketNodes: bracketData ? projectStageBracketNodes(bracketData) : undefined,
+        });
+      })] as const;
+    })),
+  );
+
   return {
     contractVersion: "rivalhub-dak-events/1",
     generatedAt: new Date().toISOString(),
@@ -295,7 +319,7 @@ export async function readRivalHubEvents(pairing: PairingScope): Promise<RivalHu
           isStarter: row.isStarter,
         })).filter((row): row is RivalHubRemotePlayer => row != null),
       }));
-      const stages = normalizeStagePlan(season.stagePlan).map(projectStage);
+      const stages = stageProjectionBySeasonId.get(season.id) ?? normalizeStagePlan(season.stagePlan).map((stage) => projectStage(stage));
       const mapPool = normalizeRegistrationConfig(season.registrationConfig).mapPool;
       const series: RivalHubRemoteSeries[] = seasonMatches.map((match) => {
         const entryA = entryById.get(match.entryAId)!;
@@ -381,7 +405,12 @@ export async function readRivalHubEvents(pairing: PairingScope): Promise<RivalHu
         slug: season.slug,
         name: season.name,
         kind: season.kind,
-        revision: sha256Json({ seasonId: season.id, updatedAt: season.updatedAt.toISOString(), matches: series.map((item) => ({ id: item.id, maps: item.maps.map((map) => ({ id: map.id, evidenceRevision: map.evidenceRevision })) })) }),
+        revision: sha256Json({
+          seasonId: season.id,
+          updatedAt: season.updatedAt.toISOString(),
+          stages,
+          matches: series.map((item) => ({ id: item.id, maps: item.maps.map((map) => ({ id: map.id, evidenceRevision: map.evidenceRevision })) })),
+        }),
         stages,
         teams,
         series,

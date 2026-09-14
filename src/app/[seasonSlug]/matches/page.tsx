@@ -5,7 +5,6 @@ import { and, eq, asc } from "drizzle-orm";
 import { db } from "@/db/client";
 import { majorFinalResults, matches, competitionEntries } from "@/db/schema";
 import { loadStageBracketViews } from "@/lib/bracket";
-import { calculateStandings } from "@/lib/standings";
 import { PageHeader, PageLayout, Panel } from "@/components/rivalhub";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BracketView } from "@/components/matches/BracketView";
@@ -16,7 +15,7 @@ import {
   buildStageViews,
   resolveDefaultStageKey,
 } from "@/lib/matches/stage-views";
-import { resolveStrictHistoricalRoundRobinEntryIds } from "@/lib/matches/historical-round-robin";
+import { calculateStageRoundRobinStandings } from "@/lib/matches/stage-standings";
 import { getPublicSeasonStagePresentation } from "@/lib/seasons/public-stage";
 import { MatchTabsSection } from "@/components/matches/MatchTabsSection";
 import { AdminShortcutSlot } from "@/components/layout/AdminShortcutSlot";
@@ -146,21 +145,13 @@ export default async function MatchesPage({ params, searchParams }: MatchesPageP
               const stageMatches = [...allStageMatches];
               const { active, done } = splitMatches(stageMatches);
               const swissReadModel = swissReadModels.get(stage.key);
-              const standings = stage.type === "round_robin" && allStageMatches.length > 0
-                ? (() => {
-                    const providerEntryIds = bracketDataByStage.get(stage.key)?.participant.map((participant) => participant.rivalhubEntryId) ?? [];
-                    const entryIds = providerEntryIds.length > 0
-                      ? providerEntryIds
-                      : resolveStrictHistoricalRoundRobinEntryIds(stage.teamCount, allStageMatches);
-                    if (!entryIds) return [];
-                    const stageEntries = allTeams.filter((team) => entryIds.includes(team.id));
-                    return calculateStandings(
-                      stageEntries,
-                      allStageMatches.filter((match) => match.status === "finished"),
-                      roundScoresByMatchId,
-                    );
-                  })()
-                : [];
+              const standings = calculateStageRoundRobinStandings({
+                stage,
+                stageMatches: allStageMatches,
+                entries: allTeams,
+                roundScoresByMatchId,
+                stageEntrantIds: bracketDataByStage.get(stage.key)?.participant.map((participant) => participant.rivalhubEntryId),
+              });
               const isPlayoff = stage.type === "double_elim" || stage.type === "single_elim";
               const bracketData = isPlayoff ? bracketDataByStage.get(stage.key) ?? null : null;
               const matchNodeMap = new Map<string, string>(

@@ -36,6 +36,21 @@ const remoteTeamSchema = z.object({
   players: z.array(remotePlayerSchema),
 }).strict();
 
+/** Official stage standings facts supplied by RivalHub; DAK never derives rank. */
+const remoteStandingSchema = z.object({
+  entryId: z.string().min(1),
+  teamName: z.string().min(1).optional(),
+  rank: z.number().int().positive(),
+  wins: z.number().int().nonnegative(),
+  losses: z.number().int().nonnegative(),
+  roundWins: z.number().int().nonnegative().optional(),
+  roundLosses: z.number().int().nonnegative().optional(),
+  roundDiff: z.number().int().optional(),
+  tiebreakFacts: z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()])).optional(),
+  status: z.string().min(1).optional(),
+  outcome: z.string().min(1).optional(),
+}).strict();
+
 const remoteStageSchema = z.object({
   key: z.string().min(1),
   name: z.string().min(1),
@@ -52,6 +67,7 @@ const remoteStageSchema = z.object({
     nextWinNodeId: z.string().nullable(),
     nextLossNodeId: z.string().nullable(),
   }).strict()).optional(),
+  standings: z.array(remoteStandingSchema).optional(),
 }).strict();
 
 const remoteMapSchema = z.object({
@@ -150,6 +166,7 @@ export const rivalHubEventsResponseSchema = z.object({
 
 export type RivalHubRemotePlayer = z.infer<typeof remotePlayerSchema>;
 export type RivalHubRemoteTeam = z.infer<typeof remoteTeamSchema>;
+export type RivalHubRemoteStanding = z.infer<typeof remoteStandingSchema>;
 export type RivalHubRemoteStage = z.infer<typeof remoteStageSchema>;
 export type RivalHubRemoteMap = z.infer<typeof remoteMapSchema>;
 export type RivalHubRemoteSeries = z.infer<typeof remoteSeriesSchema>;

@@ -16,12 +16,11 @@ import {
 import { requireSeasonAdmin } from "@/lib/auth/session";
 import { getMatchMapRoundScores } from "@/lib/data/standings";
 import { getDisplayName } from "@/lib/identity/display-name";
-import { calculateStandings } from "@/lib/standings";
 import {
   buildStageViews,
   resolveDefaultStageKey,
 } from "@/lib/matches/stage-views";
-import { resolveStrictHistoricalRoundRobinEntryIds } from "@/lib/matches/historical-round-robin";
+import { calculateStageRoundRobinStandings } from "@/lib/matches/stage-standings";
 import { loadStageBracketEntrantIds } from "@/lib/bracket";
 import { loadMajorSwissStageReadModel } from "@/lib/matches/stage-read-model";
 import { normalizeStagePlan } from "@/lib/seasons/compatibility";
@@ -174,17 +173,13 @@ export async function loadAdminMatchOverview({
       .filter((view) => view.stage.type === "round_robin" && view.matches.length > 0)
       .map((view) => [
         view.stage.key,
-        calculateStandings(
-          allTeams.filter((team) => {
-            const providerIds = stageEntrantIdsByKey.get(view.stage.key);
-            const entryIds = providerIds && providerIds.length > 0
-              ? providerIds
-              : resolveStrictHistoricalRoundRobinEntryIds(view.stage.teamCount, view.matches);
-            return entryIds?.includes(team.id) ?? false;
-          }),
-          view.matches.filter((match) => match.status === "finished"),
+        calculateStageRoundRobinStandings({
+          stage: view.stage,
+          stageMatches: view.matches,
+          entries: allTeams,
           roundScoresByMatchId,
-        ),
+          stageEntrantIds: stageEntrantIdsByKey.get(view.stage.key),
+        }),
       ]),
   );
   const matchCount = allMatches.length;
