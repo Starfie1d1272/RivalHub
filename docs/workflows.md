@@ -30,6 +30,7 @@ Major:  draft → registration → playing → finished → archived
 关键边界：
 
 - **publish ≠ registration open**：发布让赛事公开；实际开放报名才记录 `registrationOpenedAt` 并冻结需要的竞技/资格上下文。
+- `registrationOpensAt` 是计划开放时间，`registrationOpenedAt` 是实际 transition fact。scheduler 或参与者 recovery 的到期补开保留原计划时间；无计划赛事的明确立即开放同时写入当前时间；未来计划的提前开放必须由管理员明确确认，使用独立的 force-open 语义并将有效计划时间改为当前时间。
 - 报名开放后，已经冻结的 policy/context 不随全局目录变化；运营 deadline 只在其允许的生命周期内调整。
 - draft 撤回/删除必须通过无既有业务事实的 guard；不能靠 UI 隐藏按钮代替 server validation。
 - 后台生命周期分组和首页 featured season 是 presentation projection，不创建全局 `currentSeason` 事实。

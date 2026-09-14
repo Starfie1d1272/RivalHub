@@ -15,7 +15,7 @@ import { normalizeRegistrationConfig, normalizeTeamRegistrationConfig } from "@/
 import type { StagePlan, TeamRegistrationConfig } from "@/types/season";
 import { validateCompetitionDefinition } from "@/lib/competition/definition";
 import { assertSeasonHasNoHistoricalFacts, openSeasonRegistrationInTx, resolveConversionPolicyForPublish, transitionSeasonStatusInTx, unfreezeBuiltInCompetitiveContext } from "@/lib/seasons/lifecycle";
-import { seasonFormSchema, seasonUpdateFormSchema, planSeasonCreate, planSeasonUpdate, type SeasonFormInput } from "@/lib/seasons/edit";
+import { seasonFormSchema, seasonUpdatePayloadSchema, planSeasonCreate, planSeasonUpdate, type SeasonFormInput } from "@/lib/seasons/edit";
 import { updatePublicSeasonTags } from "@/lib/revalidation";
 
 export type { SeasonFormInput };
@@ -79,7 +79,7 @@ export async function createSeason(input: SeasonFormInput): Promise<ActionResult
 export async function updateSeason(input: SeasonFormInput): Promise<ActionResult<{ slug: string }>> {
   try {
     const admin = await requireSuperAdmin();
-    const parsed = seasonUpdateFormSchema.safeParse(input);
+    const parsed = seasonUpdatePayloadSchema.safeParse(input);
     if (!parsed.success) {
       return fail({
         code: ErrorCode.VALIDATION_FAILED,
@@ -189,14 +189,21 @@ export async function publishSeason(seasonId: string): Promise<ActionResult<{ sl
   }
 }
 
-/** Explicit operator action for an already-published unscheduled/upcoming event. */
-export async function openSeasonRegistration(seasonId: string): Promise<ActionResult<{ slug: string }>> {
+const registrationOpeningModeSchema = z.enum(["immediate", "early_force"]);
+
+/** Explicit operator action for a published event; future schedules require an explicit early force. */
+export async function openSeasonRegistration(
+  seasonId: string,
+  mode: "immediate" | "early_force" = "immediate",
+): Promise<ActionResult<{ slug: string }>> {
   try {
     const admin = await requireSuperAdmin();
+    const parsedMode = registrationOpeningModeSchema.safeParse(mode);
+    if (!parsedMode.success) return fail({ code: ErrorCode.VALIDATION_FAILED, message: "报名开放方式无效。" });
     const result = await db.transaction((tx) => openSeasonRegistrationInTx(tx, {
       seasonId,
       actorId: auditActorId(admin),
-      openNow: true,
+      mode: parsedMode.data === "early_force" ? "explicit_early_force" : "explicit_immediate",
     }));
     if (!result.opened) throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "报名已开放，或尚未满足开放条件。");
     updatePublicSeasonTags(result.slug);

@@ -34,6 +34,7 @@ export async function ensureRegistrationOpenForParticipantInTx(
     seasonId,
     actorId: "system",
     now,
+    mode: "scheduled",
   });
   const [currentSeason] = await tx
     .select()
