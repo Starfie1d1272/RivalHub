@@ -42,7 +42,7 @@ describe("team registration operations presentation", () => {
         confirmedCount: 3,
         starterCount: 4,
         requiredStarterCount: 5,
-        primaryBlockers: ["还差 3 名成员确认", "还差 1 名预定主力", "队伍图标尚未上传"],
+        primaryBlockers: ["还差 3 名成员确认。", "还差 1 名预定主力。", "队伍图标尚未上传。"],
       }],
       summary: { total: 7, draft: 7, submitted: 0, approved: 0, changesRequested: 0, waitlisted: 0, rejected: 0, withdrawn: 0 },
     }} />);
@@ -51,7 +51,9 @@ describe("team registration operations presentation", () => {
     expect(screen.getByText("Dry Pull & Pray")).toBeInTheDocument();
     expect(screen.getByText("6/5–9")).toBeInTheDocument();
     expect(screen.getByText("3/6")).toBeInTheDocument();
-    expect(screen.getByText(/还差 3 名成员确认；还差 1 名预定主力/)).toBeInTheDocument();
+    expect(screen.getByText("还差 3 名成员确认。", { exact: true })).toBeInTheDocument();
+    expect(screen.getByText("还差 1 名预定主力。", { exact: true })).toBeInTheDocument();
+    expect(screen.queryByText(/。；/)).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "批准" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "候补" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "要求补正" })).not.toBeInTheDocument();

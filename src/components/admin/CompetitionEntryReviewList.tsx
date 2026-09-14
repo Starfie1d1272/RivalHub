@@ -227,7 +227,7 @@ export function CompetitionEntryReviewList({
           </div>;
         })}
       </section>}
-      <div className="mt-4 grid gap-2 lg:grid-cols-2">{entry.members.map((member) => <div key={member.participantId} className="border border-[var(--color-border)] p-3 text-sm"><div className="flex flex-wrap items-center gap-2"><span className="font-medium">{member.label}</span><Badge variant="outline">{PARTICIPANT_STATUS[member.status]}</Badge>{member.primary && <Badge variant="outline">预定主力</Badge>}</div><p className="mt-1 text-xs text-[var(--color-fg-mid)]">学籍：{member.readiness?.educationApproved ? "已通过" : "待核验"} · 竞技档案：{member.readiness ? (member.readiness.ready ? "完整" : "存在未满足项") : "不要求或待审核核验"}</p>{member.readiness && !member.readiness.ready && <p className="mt-1 text-xs text-[var(--color-warn)]">{member.readiness.blockers.join("；")}</p>}</div>)}</div>
+      <div className="mt-4 grid gap-2 lg:grid-cols-2">{entry.members.map((member) => <div key={member.participantId} className="border border-[var(--color-border)] p-3 text-sm"><div className="flex flex-wrap items-center gap-2"><span className="font-medium">{member.label}</span><Badge variant="outline">{PARTICIPANT_STATUS[member.status]}</Badge>{member.primary && <Badge variant="outline">预定主力</Badge>}</div><p className="mt-1 text-xs text-[var(--color-fg-mid)]">学籍：{member.readiness?.educationApproved ? "已通过" : "待核验"} · 竞技档案：{member.readiness ? (member.readiness.ready ? "完整" : "存在未满足项") : "不要求或待审核核验"}</p>{member.readiness && !member.readiness.ready && <ul className="mt-1 list-disc pl-4 text-xs text-[var(--color-warn)]">{member.readiness.blockers.map((blocker, index) => <li key={`${blocker}-${index}`}>{blocker}</li>)}</ul>}</div>)}</div>
     </Panel>;
     })}</div>}
     <PaginationControls
