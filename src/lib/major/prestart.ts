@@ -13,8 +13,6 @@ export type MajorPrestartCheckKey =
   | "rosters"
   | "duplicate-players"
   | "confirmations"
-  | "qualification"
-  | "administration"
   | "seeds"
   | "seed-recommendation"
   | "reconfirmations"
@@ -45,12 +43,6 @@ export interface MajorPrestartTeamConfirmationFact {
   confirmed: boolean;
 }
 
-/** 资格或管理事项由拥有它的上游流程提供；未接入时传 null，而不是空数组。 */
-export interface MajorPrestartIssueFact {
-  label: string;
-  resolved: boolean;
-}
-
 export interface MajorPrestartTournamentSeedFact {
   teamId: string;
   tournamentSeed: number;
@@ -66,8 +58,6 @@ export interface MajorPrestartReadinessInput {
   teams: readonly MajorPrestartTeamFact[] | null;
   entrantsLocked: boolean | null;
   confirmations: readonly MajorPrestartTeamConfirmationFact[] | null;
-  qualificationIssues: readonly MajorPrestartIssueFact[] | null;
-  administrativeIssues: readonly MajorPrestartIssueFact[] | null;
   tournamentSeeds: readonly MajorPrestartTournamentSeedFact[] | null;
   seedConfirmation: { confirmed: boolean } | null;
   seedRecommendation: MajorPrestartSeedRecommendationFact | null;
@@ -228,18 +218,6 @@ function checkTeamConfirmations(
   return blockers.length === 0 ? ready(key, label) : blocked(key, label, blockers);
 }
 
-function checkIssues(
-  key: "qualification" | "administration",
-  label: string,
-  facts: readonly MajorPrestartIssueFact[] | null,
-): MajorPrestartCheck {
-  if (facts === null) return unavailable(key, label);
-  const blockers = facts
-    .filter((fact) => !fact.resolved)
-    .map((fact) => `${label}未完成：${fact.label || "未命名事项"}。`);
-  return blockers.length === 0 ? ready(key, label) : blocked(key, label, blockers);
-}
-
 function checkEntrantsLocked(entrantsLocked: boolean | null): MajorPrestartCheck {
   if (entrantsLocked === null) return unavailable("entrants-locked", "正式参赛队锁定");
   return entrantsLocked
@@ -348,8 +326,6 @@ export function evaluateMajorPrestartReadiness(
   checks.push(checkRosters(input.teams, input.capabilities));
   checks.push(checkDuplicatePlayers(input.teams));
   checks.push(checkTeamConfirmations("confirmations", "参赛确认", input.confirmations, input.teams));
-  checks.push(checkIssues("qualification", "资格事项", input.qualificationIssues));
-  checks.push(checkIssues("administration", "管理事项", input.administrativeIssues));
   const seedResult = checkSeeds(input.teams, input.tournamentSeeds, entrantCapacity);
   checks.push(seedResult.check);
   checks.push(checkSeedRecommendation(input.seedRecommendation));

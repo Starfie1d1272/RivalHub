@@ -25,7 +25,6 @@ const data: SeasonWorkspaceOverviewData = {
     entrantCount: 2,
     frozenEntrantCount: 1,
     matchCount: 0,
-    unresolvedPrestartIssues: 2,
     scheduledMatchesWithoutConfirmedLineups: 0,
     finalResultPendingConfirmation: false,
     activeAdjudications: 0,

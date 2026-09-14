@@ -4,7 +4,6 @@ import type { CompetitionTemplate } from "@/lib/competition/templates";
 
 export interface AdminExceptionSummaryData {
   competitionTemplate: CompetitionTemplate;
-  unresolvedPrestartIssues: number;
   unconfirmedEntrants: number;
   scheduledMatchesWithoutConfirmedLineups: number;
   finalResultPendingConfirmation: boolean;
@@ -14,7 +13,6 @@ export interface AdminExceptionSummaryData {
 export function AdminExceptionSummary({ seasonSlug, data }: { seasonSlug: string; data: AdminExceptionSummaryData }) {
   const items = [
     ...(data.competitionTemplate === "major" ? [
-      { label: "赛前待解决事项", value: data.unresolvedPrestartIssues, href: `/admin/${seasonSlug}/prestart` },
       { label: "未确认参赛名单", value: data.unconfirmedEntrants, href: `/admin/${seasonSlug}/prestart` },
     ] : []),
     { label: "已排期但名单未确认", value: data.scheduledMatchesWithoutConfirmedLineups, href: `/admin/${seasonSlug}/matches` },

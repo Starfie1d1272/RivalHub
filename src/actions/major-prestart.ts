@@ -7,10 +7,9 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/db/client";
 import {
-    eventRosterMembers,
+  eventRosterMembers,
   eventRosters,
   majorTournamentEntrants,
-  majorPrestartIssues,
   seasons,
 } from "@/db/schema";
 import { actionError, failValidation } from "@/lib/action-utils";
@@ -31,7 +30,6 @@ import { assertMajorPrestartEntrantsMutable, ensureMajorPrestartStateInTx } from
 import { confirmMajorTournamentSeedsInTx, saveMajorTournamentSeedsInTx } from "@/lib/major/prestart-seeds";
 
 const uuid = z.guid();
-const issueCategory = z.enum(["qualification", "administration"]);
 const rosterRepairInput = z.object({ seasonId: uuid, entrantId: uuid, userIds: z.array(uuid).min(1).max(16), reason: z.string().trim().min(1).max(1000) });
 const rosterExceptionInput = z.object({ seasonId: uuid, entrantId: uuid, reason: z.string().trim().min(1).max(1000) });
 const entrantSelectionInput = z.object({ seasonId: uuid, competitionEntryIds: z.array(uuid) });
@@ -162,46 +160,6 @@ export async function reopenMajorPrestartRoster(input: z.input<typeof rosterExce
     revalidateMajorPrestart(season.slug);
     return ok(undefined);
   } catch (error) { return actionError("reopenMajorPrestartRoster", error); }
-}
-
-export async function addMajorPrestartIssue(input: { seasonId: string; category: "qualification" | "administration"; label: string }): Promise<ActionResult<void>> {
-  const parsed = z.object({ seasonId: uuid, category: issueCategory, label: z.string().trim().min(1).max(240) }).safeParse(input);
-  if (!parsed.success) return failValidation("待处理事项输入无效。");
-  try {
-    const { season, admin } = await seasonAndAdminOrThrow(parsed.data.seasonId);
-    await db.transaction(async (tx) => {
-      const state = await ensureMajorPrestartStateInTx(tx, season.id);
-      assertMajorPrestartEntrantsMutable(state);
-      const [issue] = await tx.insert(majorPrestartIssues).values({ ...parsed.data }).returning({ id: majorPrestartIssues.id });
-      await writeAuditInTx(tx, {
-        seasonId: season.id, action: "major_prestart.add_issue", actorId: auditActorId(admin),
-        targetId: issue?.id,meta: { category: parsed.data.category },
-      });
-    });
-    revalidateMajorPrestart(season.slug);
-    return ok(undefined);
-  } catch (error) { return actionError("addMajorPrestartIssue", error); }
-}
-
-export async function resolveMajorPrestartIssue(input: { seasonId: string; issueId: string }): Promise<ActionResult<void>> {
-  const parsed = z.object({ seasonId: uuid, issueId: uuid }).safeParse(input);
-  if (!parsed.success) return failValidation("赛季或事项标识无效。");
-  try {
-    const { season, admin } = await seasonAndAdminOrThrow(parsed.data.seasonId);
-    await db.transaction(async (tx) => {
-      const [issue] = await tx.select().from(majorPrestartIssues)
-        .where(and(eq(majorPrestartIssues.id, parsed.data.issueId), eq(majorPrestartIssues.seasonId, season.id)));
-      if (!issue) throw new AppError(ErrorCode.NOT_FOUND, "待处理事项不存在。");
-      await tx.update(majorPrestartIssues).set({ resolvedAt: new Date(), resolvedBy: auditActorId(admin), updatedAt: new Date() })
-        .where(eq(majorPrestartIssues.id, issue.id));
-      await writeAuditInTx(tx, {
-        seasonId: season.id, action: "major_prestart.resolve_issue", actorId: auditActorId(admin),
-        targetId: issue.id,meta: { category: issue.category },
-      });
-    });
-    revalidateMajorPrestart(season.slug);
-    return ok(undefined);
-  } catch (error) { return actionError("resolveMajorPrestartIssue", error); }
 }
 
 export async function lockMajorPrestartEntrants(input: { seasonId: string }): Promise<ActionResult<void>> {

@@ -3,15 +3,11 @@
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import {
-  addMajorPrestartIssue,
   lockMajorPrestartEntrants,
-  resolveMajorPrestartIssue,
   selectMajorEntrants,
 } from "@/actions/major-prestart";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Marker, Panel } from "@/components/rivalhub";
 import { MajorStrengthStarterSummary, sourceLabel } from "@/components/admin/MajorStrengthStarterSummary";
 import type { MajorPrestartPageData, MajorPrestartStrengthPreview } from "@/lib/admin/season-workspace/types";
@@ -153,8 +149,6 @@ export function MajorPrestartManagement({ data }: { data: MajorPrestartManagemen
   const selectedEntrantIdsKey = data.entrants.map((entrant) => entrant.teamId).join(",");
   const [selectionKey, setSelectionKey] = useState(selectedEntrantIdsKey);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set(data.entrants.map((entrant) => entrant.teamId)));
-  const [issueLabel, setIssueLabel] = useState("");
-  const [issueCategory, setIssueCategory] = useState<"qualification" | "administration">("qualification");
   const locked = data.entrantsLocked;
   const entrantCapacity = data.entrantCapacity;
   const selectedCount = selectedIds.size;
@@ -233,18 +227,6 @@ export function MajorPrestartManagement({ data }: { data: MajorPrestartManagemen
         <div className="p-4 pt-0">{candidatePanel}</div>
       </details> : candidatePanel}
 
-      <Panel label="资格与管理事项">
-        {!locked && <form className="mb-4 flex flex-wrap gap-2" onSubmit={(event) => { event.preventDefault(); startTransition(() => void showResult(async () => {
-          const result = await addMajorPrestartIssue({ seasonId: data.seasonId, category: issueCategory, label: issueLabel });
-          if (result.success) setIssueLabel("");
-          return result;
-        }, "赛前事项已记录")); }}>
-          <Select value={issueCategory} onValueChange={(value) => setIssueCategory(value as typeof issueCategory)}><SelectTrigger className="w-32"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="qualification">资格事项</SelectItem><SelectItem value="administration">管理事项</SelectItem></SelectContent></Select>
-          <Input value={issueLabel} onChange={(event) => setIssueLabel(event.target.value)} placeholder="例如：资格材料复核" className="max-w-sm" />
-          <Button type="submit" disabled={isPending || !issueLabel.trim()}>添加事项</Button>
-        </form>}
-        {data.issues.length === 0 ? <p className="text-sm text-[var(--color-fg-mid)]">尚未记录待处理事项。</p> : <ul className="space-y-2 text-sm">{data.issues.map((issue) => <li key={issue.id} className="flex flex-wrap items-center justify-between gap-2 border border-[var(--color-border)] px-3 py-2"><span>{issue.category === "qualification" ? "资格" : "管理"} · {issue.label} · <span className={issue.resolved ? "text-[var(--color-ok)]" : "text-[var(--color-warn)]"}>{issue.resolved ? "已处理" : "未处理"}</span></span>{!locked && !issue.resolved && <Button size="sm" variant="outline" disabled={isPending} onClick={() => startTransition(() => void showResult(() => resolveMajorPrestartIssue({ seasonId: data.seasonId, issueId: issue.id }), "事项已标记为已处理"))}>标记已处理</Button>}</li>)}</ul>}
-      </Panel>
     </div>
   );
 }

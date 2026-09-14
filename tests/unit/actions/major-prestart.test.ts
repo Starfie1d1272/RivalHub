@@ -5,12 +5,10 @@ vi.mock("@/db/client", () => ({ db: {} }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn(), updateTag: vi.fn() }));
 
 import {
-  addMajorPrestartIssue,
   confirmMajorPrestartRoster,
   confirmMajorTournamentSeeds,
   lockMajorPrestartEntrants,
   reopenMajorPrestartRoster,
-  resolveMajorPrestartIssue,
   repairMajorPrestartRoster,
   saveMajorTournamentSeeds,
   selectMajorEntrants,
@@ -33,13 +31,7 @@ describe("Major prestart actions input boundary", () => {
     });
   });
 
-  it("rejects malformed unresolved-work, lock, and independent-seed inputs", async () => {
-    await expect(addMajorPrestartIssue({ seasonId: "bad", category: "qualification", label: "" })).resolves.toMatchObject({
-      success: false, error: { code: ErrorCode.VALIDATION_FAILED },
-    });
-    await expect(resolveMajorPrestartIssue({ seasonId: "bad", issueId: "bad" })).resolves.toMatchObject({
-      success: false, error: { code: ErrorCode.VALIDATION_FAILED },
-    });
+  it("rejects malformed lock and independent-seed inputs", async () => {
     await expect(lockMajorPrestartEntrants({ seasonId: "bad" })).resolves.toMatchObject({
       success: false, error: { code: ErrorCode.VALIDATION_FAILED },
     });

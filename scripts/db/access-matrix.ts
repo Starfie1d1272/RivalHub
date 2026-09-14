@@ -329,13 +329,6 @@ export const DATABASE_ACCESS_MATRIX: readonly DatabaseAccessEntry[] = [
     "最终结果需 confirmation/adjudication 后归档，禁止客户端旁路写入。",
   ),
   serverOnly(
-    "major_prestart_issues",
-    "Major prestart",
-    "开赛前内部 blocker 与审计",
-    "src/actions/major-prestart.ts; src/lib/audit/targets.ts",
-    "prestart issue 只供管理员修复和审计使用。",
-  ),
-  serverOnly(
     "major_prestart_states",
     "Major prestart",
     "开赛前状态与锁定事实",

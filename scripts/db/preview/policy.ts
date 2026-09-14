@@ -73,7 +73,7 @@ export const OMITTED_COLUMNS: Record<string, string> = {
 
 export const EXCLUDED_TABLES = new Set(`identity_link_requests user_identities user_merge_authorizations user_merge_ledger
   institution_email_domains conversion_policies registration_drafts team_invitations recruitment_interests
-  competition_entry_legacy_identities competition_entry_restriction_overrides major_prestart_issues major_seed_recommendation_snapshots
+  competition_entry_legacy_identities competition_entry_restriction_overrides major_seed_recommendation_snapshots
   audit_logs admin_invites admin_invite_claims season_admin_grants match_mvp_votes match_time_proposals
   user_sessions disciplinary_case_idempotency disciplinary_cases community_award_evidence
   scheduled_job_health feedback_reports dak_pairing_intents dak_pairings match_demo_imports match_round_facts`.split(/\s+/));

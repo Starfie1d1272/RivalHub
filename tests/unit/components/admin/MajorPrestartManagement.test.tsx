@@ -10,9 +10,7 @@ import type { MajorPrestartManagementData } from "@/components/admin/MajorPresta
 Object.assign(globalThis, { React });
 
 vi.mock("@/actions/major-prestart", () => ({
-  addMajorPrestartIssue: vi.fn(),
   lockMajorPrestartEntrants: vi.fn(),
-  resolveMajorPrestartIssue: vi.fn(),
   selectMajorEntrants: vi.fn(),
 }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
@@ -42,13 +40,13 @@ describe("MajorPrestartManagement", () => {
         rosterStatus: "confirmed",
         roster: [{ userId: "user-1", label: "Player One", isPrimaryStarter: true, educationVerified: true }],
       }],
-      issues: [],
     }} />);
 
     expect(screen.getByText("报名已通过 · 候选")).toBeVisible();
     expect(screen.getByText("已审核报名名单：5 人 · 5 名主力")).toBeVisible();
     expect(screen.getByText("学籍资料已确认", { exact: false })).toBeVisible();
     expect(screen.queryByText(/EventRoster|approved roster|revision|materialize/)).not.toBeInTheDocument();
+    expect(screen.queryByText("资格与管理事项")).not.toBeInTheDocument();
   });
 
   it("shows the live read-only strength reference and keeps incomplete teams out of ranking", () => {
@@ -97,7 +95,6 @@ describe("MajorPrestartManagement", () => {
       },
       approvedCandidates: [],
       entrants: [],
-      issues: [],
     };
 
     render(<MajorPrestartManagement data={data} />);
@@ -137,7 +134,6 @@ describe("MajorPrestartManagement", () => {
         rosterStatus: "frozen",
         roster: [{ userId: "user-1", label: "Player One", isPrimaryStarter: true, educationVerified: true }],
       }],
-      issues: [],
     }} />);
 
     expect(screen.getByText("正式参赛名单 (1/32)")).toBeVisible();

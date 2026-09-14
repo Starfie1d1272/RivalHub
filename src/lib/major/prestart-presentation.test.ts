@@ -37,8 +37,6 @@ describe("Major prestart operator presentation", () => {
         { key: "rosters", label: "队伍名单", state: "ready", blockers: [] },
         { key: "duplicate-players", label: "重复选手检查", state: "ready", blockers: [] },
         { key: "confirmations", label: "参赛确认", state: "ready", blockers: [] },
-        { key: "qualification", label: "资格事项", state: "ready", blockers: [] },
-        { key: "administration", label: "管理事项", state: "ready", blockers: [] },
         { key: "seeds", label: "赛事 1–32 种子", state: "blocked", blockers: ["赛事种子 1 尚未分配。"] },
         { key: "seed-recommendation", label: "系统种子参考", state: "blocked", blockers: ["系统种子参考尚未生成。"] },
         { key: "reconfirmations", label: "种子重新确认", state: "blocked", blockers: ["赛事种子已变化，必须重新确认后才能开赛。"] },

@@ -64,7 +64,6 @@ export function SeasonWorkspaceOverview({ data }: { data: SeasonWorkspaceOvervie
 
       <AdminExceptionSummary seasonSlug={season.slug} data={{
         competitionTemplate: season.competitionTemplate,
-        unresolvedPrestartIssues: summary.unresolvedPrestartIssues,
         unconfirmedEntrants: summary.entrantCount - summary.frozenEntrantCount,
         scheduledMatchesWithoutConfirmedLineups: summary.scheduledMatchesWithoutConfirmedLineups,
         finalResultPendingConfirmation: summary.finalResultPendingConfirmation,

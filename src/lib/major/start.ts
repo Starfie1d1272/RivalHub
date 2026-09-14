@@ -3,10 +3,9 @@ import { writeAuditInTx } from "@/lib/audit/write";
 
 import type { TxDb } from "@/db/client";
 import {
-    eventRosterMembers,
+  eventRosterMembers,
   eventRosters,
   majorTournamentEntrants,
-  majorPrestartIssues,
   majorPrestartStates,
   majorStageEntrants,
   majorStageRuns,
@@ -130,12 +129,6 @@ export async function startMajorInTransaction(
   }).from(eventRosterMembers)
     .innerJoin(eventRosters, eq(eventRosters.id, eventRosterMembers.eventRosterId))
     .where(and(inArray(eventRosterMembers.eventRosterId, eventRosterIds), eq(eventRosters.status, "frozen"))).for("update");
-  const issueRows = await tx.select({
-    category: majorPrestartIssues.category,
-    label: majorPrestartIssues.label,
-    resolvedAt: majorPrestartIssues.resolvedAt,
-  }).from(majorPrestartIssues)
-    .where(eq(majorPrestartIssues.seasonId, season.id)).for("update");
   const seedRows = await tx.select({
     entrantId: majorTournamentSeeds.tournamentEntrantId,
     tournamentSeed: majorTournamentSeeds.seed,
@@ -206,10 +199,6 @@ export async function startMajorInTransaction(
     }),
     entrantsLocked: Boolean(state.entrantsLockedAt),
     confirmations: entrantRows.map((entrant) => ({ teamId: entrant.competitionEntryId, confirmed: coherenceRows.find((row) => row.entry.id === entrant.competitionEntryId)?.eventRoster.status === "frozen" })),
-    qualificationIssues: issueRows.filter((issue) => issue.category === "qualification")
-      .map((issue) => ({ label: issue.label, resolved: Boolean(issue.resolvedAt) })),
-    administrativeIssues: issueRows.filter((issue) => issue.category === "administration")
-      .map((issue) => ({ label: issue.label, resolved: Boolean(issue.resolvedAt) })),
     tournamentSeeds: seeds,
     seedConfirmation: { confirmed: state.seedsConfirmedAt !== null && state.seedsConfirmedBy !== null },
     seedRecommendation: { status: recommendationStatus },

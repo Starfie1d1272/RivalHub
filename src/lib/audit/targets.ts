@@ -18,7 +18,6 @@ import {
   feedbackReports,
   institutions,
   majorFinalResults,
-  majorPrestartIssues,
   majorPrestartStates,
   majorStageRuns,
   majorTournamentEntrants,
@@ -438,13 +437,6 @@ export async function resolveAuditTargets(
         if ((grouped.get(type) ?? []).includes(row.id)) setTarget(result, type, row.id, `Major 参赛队 · ${entries.get(row.competitionEntryId) ?? "未知队伍"}`);
       }
     }
-  }
-
-  const issueIds = grouped.get("major_prestart_issue") ?? [];
-  if (issueIds.length) {
-    const rows = await executor.select({ id: majorPrestartIssues.id, label: majorPrestartIssues.label })
-      .from(majorPrestartIssues).where(inArray(majorPrestartIssues.id, issueIds));
-    for (const row of rows) setTarget(result, "major_prestart_issue", row.id, `Major 赛前问题 · ${compactLabel(row.label)}`);
   }
 
   const stageRunIds = grouped.get("major_stage_run") ?? [];

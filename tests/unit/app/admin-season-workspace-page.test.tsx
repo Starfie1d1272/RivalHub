@@ -38,7 +38,6 @@ describe("AdminSeasonOverviewPage", () => {
         entrantCount: 0,
         frozenEntrantCount: 0,
         matchCount: 0,
-        unresolvedPrestartIssues: 0,
         scheduledMatchesWithoutConfirmedLineups: 0,
         finalResultPendingConfirmation: false,
         activeAdjudications: 0,

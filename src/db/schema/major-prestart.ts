@@ -4,7 +4,6 @@ import {
   foreignKey,
   integer,
   jsonb,
-  pgEnum,
   pgTable,
   text,
   timestamp,
@@ -18,11 +17,6 @@ import type {
 } from "@/lib/major/seed-recommendation-snapshot";
 import { seasons } from "./seasons";
 import { competitionEntries } from "./competition-entries";
-
-export const majorPrestartIssueCategoryEnum = pgEnum("major_prestart_issue_category", [
-  "qualification",
-  "administration",
-]);
 
 /**
  * Per-season lifecycle facts. The lack of a row means the Major has not yet
@@ -104,22 +98,7 @@ export const majorSeedRecommendationSnapshots = pgTable("major_seed_recommendati
   recommendations: jsonb("recommendations").$type<SeedRecommendationTeamV1[]>().notNull(),
 });
 
-/** Explicit work items. Empty means none are recorded, never an inferred fact. */
-export const majorPrestartIssues = pgTable("major_prestart_issues", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  seasonId: uuid("season_id").notNull().references(() => seasons.id),
-  category: majorPrestartIssueCategoryEnum("category").notNull(),
-  label: text("label").notNull(),
-  resolvedAt: timestamp("resolved_at", { withTimezone: true }),
-  resolvedBy: text("resolved_by"),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-}, (t) => ({
-  seasonCategoryIndex: index("major_prestart_issues_season_category_idx").on(t.seasonId, t.category),
-}));
-
 export type MajorPrestartState = typeof majorPrestartStates.$inferSelect;
 export type MajorTournamentEntrant = typeof majorTournamentEntrants.$inferSelect;
 export type MajorTournamentSeed = typeof majorTournamentSeeds.$inferSelect;
 export type MajorSeedRecommendationSnapshot = typeof majorSeedRecommendationSnapshots.$inferSelect;
-export type MajorPrestartIssue = typeof majorPrestartIssues.$inferSelect;

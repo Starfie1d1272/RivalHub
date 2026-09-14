@@ -7,7 +7,6 @@ import {
   eventRosterMembers,
   eventRosters,
   majorFinalResults,
-  majorPrestartIssues,
   majorPrestartStates,
   majorSeedRecommendationSnapshots,
   majorTournamentEntrants,
@@ -29,7 +28,6 @@ import type { SeasonWorkspaceOverviewData, SeasonWorkspaceOverviewSummary } from
 type MajorOverviewFacts = {
   entrants: Array<{ id: string; teamId: string; teamName: string | null; eventRosterId: string; sourceRosterRevisionId: string | null; rosterStatus: "preparing" | "confirmed" | "frozen" }>;
   rosterRows: Array<{ entrantId: string; eventRosterId: string; userId: string; participantId: string | null; label: string; educationVerificationId: string | null; isPrimaryStarter: boolean }>;
-  issueRows: Array<{ category: "qualification" | "administration"; label: string; resolvedAt: Date | null }>;
   seedRows: Array<{ teamId: string; tournamentSeed: number }>;
   state: typeof majorPrestartStates.$inferSelect | undefined;
   seedRecommendation: { status: "missing" | "ready" | "mismatch" };
@@ -51,7 +49,7 @@ async function loadRegistrationCounts(season: Season) {
 }
 
 async function loadMajorOverviewFacts(season: Season): Promise<MajorOverviewFacts> {
-  const [state, entrants, rawRosterRows, issueRows, seedRows, snapshot, finalResult] = await Promise.all([
+  const [state, entrants, rawRosterRows, seedRows, snapshot, finalResult] = await Promise.all([
     db.query.majorPrestartStates.findFirst({ where: eq(majorPrestartStates.seasonId, season.id) }),
     db.select({
       id: majorTournamentEntrants.id,
@@ -70,9 +68,6 @@ async function loadMajorOverviewFacts(season: Season): Promise<MajorOverviewFact
       .innerJoin(majorTournamentEntrants, eq(majorTournamentEntrants.competitionEntryId, eventRosters.entryId))
       .innerJoin(users, eq(eventRosterMembers.userId, users.id))
       .where(eq(majorTournamentEntrants.seasonId, season.id)),
-    db.select({ category: majorPrestartIssues.category, label: majorPrestartIssues.label, resolvedAt: majorPrestartIssues.resolvedAt })
-      .from(majorPrestartIssues)
-      .where(eq(majorPrestartIssues.seasonId, season.id)),
     db.select({ teamId: majorTournamentEntrants.competitionEntryId, tournamentSeed: majorTournamentSeeds.seed })
       .from(majorTournamentSeeds)
       .innerJoin(majorTournamentEntrants, eq(majorTournamentSeeds.tournamentEntrantId, majorTournamentEntrants.id))
@@ -92,7 +87,6 @@ async function loadMajorOverviewFacts(season: Season): Promise<MajorOverviewFact
     state,
     entrants,
     rosterRows,
-    issueRows,
     seedRows,
     seedRecommendation: { status: recommendationStatus },
     finalResultStatus: finalResult?.status ?? null,
@@ -138,14 +132,13 @@ export async function loadSeasonWorkspaceOverview(seasonSlug: string): Promise<S
     entrantCount: majorFacts?.entrants.length ?? (season.registrationMode === "team" ? registrationSummary.formedTeamCount : 0),
     frozenEntrantCount: majorFacts?.entrants.filter((entrant) => entrant.rosterStatus === "frozen").length ?? (season.registrationMode === "team" ? registrationSummary.formedTeamCount : 0),
     matchCount: Number(matchCountRows[0]?.count ?? 0),
-    unresolvedPrestartIssues: majorFacts?.issueRows.filter((issue) => !issue.resolvedAt).length ?? 0,
     scheduledMatchesWithoutConfirmedLineups: scheduledMatchRows.filter((match) => (confirmedLineupsByMatch.get(match.id) ?? 0) < 2).length,
     finalResultPendingConfirmation: majorFacts?.finalResultStatus === "pending_confirmation",
     activeAdjudications: Number(activeAdjudicationRows[0]?.count ?? 0),
   };
 
   const readiness = majorFacts
-    ? buildMajorReadiness(season, majorFacts.state, majorFacts.entrants, majorFacts.rosterRows, majorFacts.issueRows, majorFacts.seedRows, {
+    ? buildMajorReadiness(season, majorFacts.state, majorFacts.entrants, majorFacts.rosterRows, majorFacts.seedRows, {
       seedRecommendation: majorFacts.seedRecommendation,
     })
     : null;

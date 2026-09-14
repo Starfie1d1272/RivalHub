@@ -18,8 +18,6 @@ const OPERATOR_TASKS: Partial<Record<MajorPrestartCheckKey, string>> = {
   rosters: "完善正式名单",
   "duplicate-players": "处理重复选手",
   confirmations: "确认正式参赛名单",
-  qualification: "处理资格事项",
-  administration: "处理运营事项",
   seeds: "保存最终种子",
   reconfirmations: "确认最终种子",
 };
@@ -31,8 +29,6 @@ const PRESTART_PREREQUISITES = new Set<MajorPrestartCheckKey>([
   "rosters",
   "duplicate-players",
   "confirmations",
-  "qualification",
-  "administration",
 ]);
 
 const DERIVED_CHECK_DEPENDENCIES: Partial<Record<MajorPrestartCheckKey, readonly MajorPrestartCheckKey[]>> = {

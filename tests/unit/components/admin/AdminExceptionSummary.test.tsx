@@ -10,14 +10,13 @@ describe("AdminExceptionSummary", () => {
   it("links each canonical exception count to its existing operator surface", () => {
     render(<AdminExceptionSummary seasonSlug="nju-major" data={{
       competitionTemplate: "major",
-      unresolvedPrestartIssues: 1,
       unconfirmedEntrants: 3,
       scheduledMatchesWithoutConfirmedLineups: 4,
       finalResultPendingConfirmation: true,
       activeAdjudications: 5,
     }} />);
 
-    expect(screen.getByRole("link", { name: /赛前待解决事项/ })).toHaveAttribute("href", "/admin/nju-major/prestart");
+    expect(screen.getByRole("link", { name: /未确认参赛名单/ })).toHaveAttribute("href", "/admin/nju-major/prestart");
     expect(screen.getByRole("link", { name: /已排期但名单未确认/ })).toHaveAttribute("href", "/admin/nju-major/matches");
     expect(screen.getByRole("link", { name: /最终结果待确认/ })).toHaveAttribute("href", "/admin/nju-major/post-event");
     expect(screen.getByText("5")).toBeInTheDocument();
@@ -26,7 +25,6 @@ describe("AdminExceptionSummary", () => {
   it("omits zero-valued exceptions and renders a light empty state", () => {
     render(<AdminExceptionSummary seasonSlug="rivals-s1" data={{
       competitionTemplate: "rivals",
-      unresolvedPrestartIssues: 0,
       unconfirmedEntrants: 0,
       scheduledMatchesWithoutConfirmedLineups: 0,
       finalResultPendingConfirmation: false,
