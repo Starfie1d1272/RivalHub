@@ -365,7 +365,7 @@ async function prepareReadyMajor(
   if (registrationFreeze) {
     const database = drizzle(pool, { schema });
     try {
-      await database.transaction((tx) => openSeasonRegistrationInTx(tx, { seasonId, actorId: "local-admin", openNow: false }));
+      await database.transaction((tx) => openSeasonRegistrationInTx(tx, { seasonId, actorId: "local-admin", mode: "scheduled" }));
     } catch (error) {
       await cleanupMajorFixture(pool, { seasonId, userIds, cleanupCatalogSeasons });
       throw error;

@@ -72,6 +72,7 @@ describe("registration opening recovery", () => {
       seasonId: baseSeason.id,
       actorId: "system",
       now: new Date("2026-09-09T05:00:00.000Z"),
+      mode: "scheduled",
     });
     expect(result).toEqual({ season: openedSeason, opened: true });
   });
