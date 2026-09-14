@@ -41,7 +41,7 @@ const CURRENT_PRODUCER_ACTIONS = [
   "map_preferences.self_declare",
   "major.start", "major.archive", "major_prestart.add_entrant", "major_prestart.remove_entrant", "major_prestart.save_roster",
   "major_prestart.select_entrants", "major_prestart.reconcile_roster", "major_prestart.repair_roster",
-  "major_prestart.confirm_roster", "major_prestart.reopen_roster", "major_prestart.add_issue", "major_prestart.resolve_issue",
+  "major_prestart.confirm_roster", "major_prestart.reopen_roster",
   "major_prestart.lock_entrants", "major_prestart.save_tournament_seeds", "major_prestart.confirm_tournament_seeds",
   "major.swiss.finalize_round", "major.stage.transition", "major.playoff.start", "major.playoff.finalize_round",
   "major.result.pending_confirmation", "major.result.confirm", "major.stage.finalized_round.revoked",

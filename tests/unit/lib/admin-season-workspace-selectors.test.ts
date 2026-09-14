@@ -9,7 +9,6 @@ const baseSummary: SeasonWorkspaceOverviewSummary = {
   entrantCount: 0,
   frozenEntrantCount: 0,
   matchCount: 0,
-  unresolvedPrestartIssues: 0,
   scheduledMatchesWithoutConfirmedLineups: 0,
   finalResultPendingConfirmation: false,
   activeAdjudications: 0,
@@ -78,5 +77,7 @@ describe("season workspace selectors", () => {
       blockedReadiness,
     );
     expect(registrationWithBlocker.href).toBe("/admin/blocked-event/prestart");
+    expect(registrationWithBlocker.detail).toBe("赛前检查仍有事项需要处理。");
+    expect(registrationWithBlocker.detail).not.toContain("名单仍待确认");
   });
 });

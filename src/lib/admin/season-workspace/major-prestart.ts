@@ -8,7 +8,6 @@ import {
   competitionEntryRosterRevisions,
   eventRosterMembers,
   eventRosters,
-  majorPrestartIssues,
   majorPrestartStates,
   majorSeedRecommendationSnapshots,
   majorStageRuns,
@@ -58,13 +57,6 @@ type MajorRosterMemberRow = {
   label: string;
   educationVerificationId: string | null;
   isPrimaryStarter: boolean;
-};
-
-type MajorIssueRow = {
-  id?: string;
-  category: "qualification" | "administration";
-  label: string;
-  resolvedAt: Date | null;
 };
 
 type MajorSeedRow = { teamId: string; tournamentSeed: number };
@@ -126,7 +118,6 @@ export function buildMajorReadiness(
   state: typeof majorPrestartStates.$inferSelect | undefined,
   entrants: readonly MajorEntrantRow[],
   rosterRows: readonly MajorRosterMemberRow[],
-  issueRows: readonly MajorIssueRow[],
   seedRows: readonly MajorSeedRow[],
   options: {
     seedRecommendation: { status: "missing" | "ready" | "mismatch" };
@@ -154,8 +145,6 @@ export function buildMajorReadiness(
     })),
     entrantsLocked: Boolean(state?.entrantsLockedAt),
     confirmations: entrants.map((entrant) => ({ teamId: entrant.teamId, confirmed: entrant.rosterStatus === "frozen" })),
-    qualificationIssues: issueRows.filter((issue) => issue.category === "qualification").map((issue) => ({ label: issue.label, resolved: Boolean(issue.resolvedAt) })),
-    administrativeIssues: issueRows.filter((issue) => issue.category === "administration").map((issue) => ({ label: issue.label, resolved: Boolean(issue.resolvedAt) })),
     tournamentSeeds: seedRows,
     seedConfirmation: state ? { confirmed: state.seedsConfirmedAt !== null && state.seedsConfirmedBy !== null } : null,
     seedRecommendation: options.seedRecommendation,
@@ -268,7 +257,7 @@ export async function loadMajorPrestartPageData(season: Season): Promise<MajorPr
       })),
     };
 
-  const [state, entrantRows, rawRosterRows, issueRows, seedRows, snapshot, stageRunRows] = await Promise.all([
+  const [state, entrantRows, rawRosterRows, seedRows, snapshot, stageRunRows] = await Promise.all([
     db.query.majorPrestartStates.findFirst({ where: eq(majorPrestartStates.seasonId, season.id) }),
     db.select({
       id: majorTournamentEntrants.id,
@@ -288,9 +277,6 @@ export async function loadMajorPrestartPageData(season: Season): Promise<MajorPr
       .innerJoin(majorTournamentEntrants, eq(majorTournamentEntrants.competitionEntryId, eventRosters.entryId))
       .innerJoin(users, eq(eventRosterMembers.userId, users.id))
       .where(eq(majorTournamentEntrants.seasonId, season.id)),
-    db.select().from(majorPrestartIssues)
-      .where(eq(majorPrestartIssues.seasonId, season.id))
-      .orderBy(asc(majorPrestartIssues.createdAt)),
     db.select({ teamId: majorTournamentEntrants.competitionEntryId, tournamentSeed: majorTournamentSeeds.seed })
       .from(majorTournamentSeeds)
       .innerJoin(majorTournamentEntrants, eq(majorTournamentSeeds.tournamentEntrantId, majorTournamentEntrants.id))
@@ -310,7 +296,7 @@ export async function loadMajorPrestartPageData(season: Season): Promise<MajorPr
   const seedDecision = recommendationStatus === "ready" && snapshot
     ? analyzeFinalSeedOrder(seedRows.map((seed) => seed.teamId), snapshot.recommendations)
     : null;
-  const readiness = buildMajorReadiness(season, state, entrantRows, rosterRows, issueRows, seedRows, {
+  const readiness = buildMajorReadiness(season, state, entrantRows, rosterRows, seedRows, {
     seedRecommendation: { status: recommendationStatus },
   });
   const entrantIds = new Set(entrantRows.map((entrant) => entrant.id));
@@ -358,7 +344,6 @@ export async function loadMajorPrestartPageData(season: Season): Promise<MajorPr
           educationVerified: Boolean(member.educationVerificationId),
         })),
       })),
-      issues: issueRows.map((issue) => ({ id: issue.id, category: issue.category, label: issue.label, resolved: Boolean(issue.resolvedAt) })),
     },
     seedManagement: {
       seasonId: season.id,

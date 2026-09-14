@@ -330,10 +330,10 @@ export const DATABASE_ACCESS_MATRIX: readonly DatabaseAccessEntry[] = [
   ),
   serverOnly(
     "major_prestart_issues",
-    "Major prestart",
-    "开赛前内部 blocker 与审计",
-    "src/actions/major-prestart.ts; src/lib/audit/targets.ts",
-    "prestart issue 只供管理员修复和审计使用。",
+    "Major prestart / compatibility shell",
+    "历史兼容 contract（无 active business owner）",
+    "src/db/schema/major-prestart.ts（deprecated N/N+1 compatibility shell；无 active consumer）",
+    "Release N+1 已移除所有业务 consumer；为 previous stable migration window 保留物理表与 schema declaration，待后续 release contract cleanup。",
   ),
   serverOnly(
     "major_prestart_states",

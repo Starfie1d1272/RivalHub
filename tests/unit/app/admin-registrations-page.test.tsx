@@ -134,7 +134,7 @@ describe("AdminRegistrationsPage projection boundary", () => {
     const page = await AdminRegistrationsPage({
       params: Promise.resolve({ seasonSlug: "rivals-s1" }),
     });
-    renderToStaticMarkup(page);
+    const html = renderToStaticMarkup(page);
 
     expect(registrationReviewListMock).toHaveBeenCalledTimes(1);
     const passedRegistrations: RegistrationRow[] =
@@ -144,5 +144,7 @@ describe("AdminRegistrationsPage projection boundary", () => {
     expect(passedRegistrations[0].steamProfileUrl).toBe("https://steamcommunity.com/id/valid_player");
     expect(passedRegistrations[1].steamProfileUrl).toBeNull();
     expect(passedRegistrations[2].steamProfileUrl).toBeNull();
+    expect(html).not.toContain("赛季状态：");
+    expect(html).not.toContain("份草稿");
   });
 });

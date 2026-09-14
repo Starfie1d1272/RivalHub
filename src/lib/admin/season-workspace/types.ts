@@ -14,7 +14,6 @@ export interface SeasonWorkspaceOverviewSummary {
   entrantCount: number;
   frozenEntrantCount: number;
   matchCount: number;
-  unresolvedPrestartIssues: number;
   scheduledMatchesWithoutConfirmedLineups: number;
   finalResultPendingConfirmation: boolean;
   activeAdjudications: number;
@@ -112,7 +111,6 @@ export interface MajorPrestartPageData {
       rosterStatus: "preparing" | "confirmed" | "frozen";
       roster: Array<{ userId: string; label: string; isPrimaryStarter: boolean; educationVerified: boolean }>;
     }>;
-    issues: Array<{ id: string; category: "qualification" | "administration"; label: string; resolved: boolean }>;
   };
   seedManagement: {
     seasonId: string;

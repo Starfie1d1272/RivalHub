@@ -60,7 +60,7 @@ describe("MajorTournamentSeedsManagement", () => {
     render(<MajorTournamentSeedsManagement data={data} />);
 
     expect(screen.getByText("#1 · Team One")).toBeVisible();
-    expect(screen.getByText("系统参考顺序")).toBeVisible();
+    expect(screen.getAllByText("系统参考顺序").length).toBeGreaterThan(0);
     expect(screen.getByText("历史 黄金S · 10 星")).toBeVisible();
     expect(screen.getByText("参考 A")).toBeVisible();
     expect(screen.getByText("近期 A++")).toBeVisible();
@@ -68,5 +68,29 @@ describe("MajorTournamentSeedsManagement", () => {
     expect(screen.queryByText("12.34")).not.toBeInTheDocument();
     expect(screen.queryByText(/并列组/)).not.toBeInTheDocument();
     expect(screen.queryByText(/综合|历史\/前一赛季\/近期参考/)).not.toBeInTheDocument();
+  });
+
+  it("explains entry cohorts by seed ranges without duplicating the full order", () => {
+    const entrants = Array.from({ length: 32 }, (_, index) => ({
+      teamId: `team-${index + 1}`,
+      teamName: `Team ${index + 1}`,
+    }));
+    const seeds = entrants.map((entrant, index) => ({ ...entrant, tournamentSeed: index + 1 }));
+
+    render(<MajorTournamentSeedsManagement data={{
+      ...data,
+      entrants,
+      seeds,
+      recommendationStatus: "missing",
+      recommendation: null,
+      firstRound: null,
+    }} />);
+
+    const cohorts = screen.getByRole("heading", { name: "入场批次" }).closest("section");
+    expect(cohorts).toHaveTextContent("#1–8");
+    expect(cohorts).toHaveTextContent("#9–16");
+    expect(cohorts).toHaveTextContent("#17–32");
+    expect(cohorts).not.toHaveTextContent("Team 1");
+    expect(screen.getByText("Team 1")).toBeInTheDocument();
   });
 });

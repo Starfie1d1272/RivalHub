@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, isNull } from "drizzle-orm";
+import { and, asc, eq, inArray } from "drizzle-orm";
 import { writeAuditInTx } from "@/lib/audit/write";
 
 import type { TxDb } from "@/db/client";
@@ -7,7 +7,6 @@ import {
   competitionEntryRosterMembers,
   eventRosterMembers,
   eventRosters,
-  majorPrestartIssues,
   majorPrestartStates,
   majorSeedRecommendationSnapshots,
   majorTournamentEntrants,
@@ -310,11 +309,6 @@ export async function lockMajorPrestartEntrantsInTx(
       seenUsers.add(member.userId);
     }
   }
-
-  const [unresolved] = await tx.select({ id: majorPrestartIssues.id }).from(majorPrestartIssues)
-    .where(and(eq(majorPrestartIssues.seasonId, season.id), isNull(majorPrestartIssues.resolvedAt)))
-    .limit(1);
-  if (unresolved) throw new AppError(ErrorCode.VALIDATION_FAILED, "请先处理所有资格和管理事项。 ");
 
   const coherenceByEntryId = new Map(coherent.map((row) => [row.entry.id, row]));
   const frozenIdentities = frozenTeamsForSnapshot(

@@ -30,5 +30,6 @@ describe("SeasonPostEventOverview", () => {
     expect(html).toContain(">2<");
     expect(html).toContain(">1<");
     expect(html).not.toContain("官方最终结果确认");
+    expect(html).not.toMatch(/模板|能力/);
   });
 });

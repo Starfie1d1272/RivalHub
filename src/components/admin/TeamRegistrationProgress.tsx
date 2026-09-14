@@ -44,7 +44,12 @@ export function TeamRegistrationProgress({ progress }: { progress: TeamRegistrat
                 <ProgressFact label="预定主力" value={`${draft.starterCount}/${draft.requiredStarterCount}`} />
                 <div>
                   <p className="font-mono text-[10px] uppercase tracking-[var(--tracking-label)] text-[var(--color-fg-dim)]">主要待办</p>
-                  <p className="mt-1 text-sm text-[var(--color-fg-mid)]">{draft.primaryBlockers.length > 0 ? draft.primaryBlockers.join("；") : "暂无明显待办"}</p>
+                  {draft.primaryBlockers.length > 0 ? <ul className="mt-1 space-y-1 text-sm text-[var(--color-fg-mid)]">
+                    {draft.primaryBlockers.map((blocker, index) => <li key={`${blocker}-${index}`} className="flex gap-1.5">
+                      <span aria-hidden="true">•</span>
+                      <span>{blocker}</span>
+                    </li>)}
+                  </ul> : <p className="mt-1 text-sm text-[var(--color-fg-mid)]">暂无明显待办</p>}
                 </div>
               </article>
             ))}

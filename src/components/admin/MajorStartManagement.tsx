@@ -31,21 +31,12 @@ export function MajorStartManagement({
         <p className="mt-1 text-sm text-[var(--color-fg-mid)]">开始后会再次检查并锁定正式 32 队、最终名单和 1–32 种子，然后创建 Stage 1 首轮。开赛后这些内容不能在此处普通修改。</p>
       </div>
 
-      {openingPlan && <>
-        <section className="grid gap-3 md:grid-cols-3">
-          <Cohort label="Stage 3 直入" range="#1–8" count={openingPlan.stage3.directEntrants.length} />
-          <Cohort label="Stage 2 直入" range="#9–16" count={openingPlan.stage2.directEntrants.length} />
-          <Cohort label="Stage 1 参赛" range="#17–32" count={openingPlan.stage1.entrants.length} />
-        </section>
-        <section>
-          <h3 className="font-medium text-[var(--color-fg)]">将创建的 Stage 1 首轮比赛（8 场）</h3>
-          <ol className="mt-2 grid gap-2 text-sm md:grid-cols-2">
-            {openingPlan.firstRound.pairings.map((pairing, index) => <li key={`${pairing.higherSeed.teamId}-${pairing.lowerSeed.teamId}`} className="border border-[var(--color-border)] px-3 py-2">
-              {index + 1}. #{pairing.higherSeed.tournamentSeed} vs #{pairing.lowerSeed.tournamentSeed} · {pairing.format.toUpperCase()}
-            </li>)}
-          </ol>
-        </section>
-      </>}
+      {openingPlan && <section className="border border-[var(--color-border)] p-3">
+        <h3 className="font-medium text-[var(--color-fg)]">开赛安排</h3>
+        <p className="mt-1 text-sm leading-6 text-[var(--color-fg-mid)]">
+          确认后将按最终种子 #1–8 → Stage 3、#9–16 → Stage 2、#17–32 → Stage 1，创建 {openingPlan.firstRound.pairings.length} 场 Stage 1 首轮比赛。完整对阵预览只在种子编辑区展示。
+        </p>
+      </section>}
 
       {!started && <label className="flex items-start gap-2 border border-[var(--color-border)] p-3 text-sm text-[var(--color-fg-mid)]">
         <Checkbox checked={confirmed} disabled={!canStart || isPending} onChange={(event) => setConfirmed(event.target.checked)} />
@@ -58,8 +49,4 @@ export function MajorStartManagement({
       })}>正式开始 Major</Button>}
     </div>
   </Panel>;
-}
-
-function Cohort({ label, range, count }: { label: string; range: string; count: number }) {
-  return <div className="border border-[var(--color-border)] p-3"><p className="font-medium text-[var(--color-fg)]">{label}</p><p className="mt-1 text-sm text-[var(--color-fg-mid)]">{range} · {count} 支队伍</p></div>;
 }

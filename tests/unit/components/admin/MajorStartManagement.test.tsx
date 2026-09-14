@@ -45,5 +45,7 @@ describe("MajorStartManagement", () => {
 
     expect(screen.getByRole("checkbox")).toBeDisabled();
     expect(screen.getByRole("button", { name: "正式开始 Major" })).toBeDisabled();
+    expect(screen.getByText(/创建 1 场 Stage 1 首轮比赛/)).toBeInTheDocument();
+    expect(screen.queryByText(/#1 vs #32/)).not.toBeInTheDocument();
   });
 });

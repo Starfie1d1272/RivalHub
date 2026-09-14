@@ -18,8 +18,6 @@ function makeInput(): MajorPrestartReadinessInput {
     })),
     entrantsLocked: true,
     confirmations: teamIds.map((teamId) => ({ teamId, confirmed: true })),
-    qualificationIssues: [],
-    administrativeIssues: [],
     tournamentSeeds: teamIds.map((teamId, index) => ({ teamId, tournamentSeed: index + 1 })),
     seedConfirmation: { confirmed: true },
     seedRecommendation: { status: "ready" },
@@ -57,8 +55,6 @@ describe("evaluateMajorPrestartReadiness", () => {
       index === 0 ? { ...team, playerIds: [team.playerIds[0]!, team.playerIds[1]!, "player-6"] } : team
     ));
     input.confirmations = input.confirmations!.map((fact, index) => ({ ...fact, confirmed: index !== 0 }));
-    input.qualificationIssues = [{ label: "资格材料复核", resolved: false }];
-    input.administrativeIssues = [{ label: "裁判排班", resolved: false }];
     input.tournamentSeeds = input.tournamentSeeds!.map((fact, index) => (
       index === 31 ? { ...fact, tournamentSeed: 31 } : fact
     ));
@@ -72,8 +68,6 @@ describe("evaluateMajorPrestartReadiness", () => {
     expect(result.blockers.join("\n")).toContain("名单不足 5 人");
     expect(result.checks.find((check) => check.key === "duplicate-players")?.state).toBe("blocked");
     expect(result.blockers.join("\n")).toContain("尚未参赛确认");
-    expect(result.blockers.join("\n")).toContain("资格事项未完成");
-    expect(result.blockers.join("\n")).toContain("管理事项未完成");
     expect(result.blockers.join("\n")).toContain("赛事种子 32 尚未分配");
     expect(result.blockers.join("\n")).toContain("赛事种子已变化，必须重新确认");
   });
@@ -81,8 +75,6 @@ describe("evaluateMajorPrestartReadiness", () => {
   it("fails closed when schema-less facts are not connected", () => {
     const input = makeInput();
     input.confirmations = null;
-    input.qualificationIssues = null;
-    input.administrativeIssues = null;
     input.tournamentSeeds = null;
     input.entrantsLocked = null;
     input.seedConfirmation = null;
@@ -92,7 +84,7 @@ describe("evaluateMajorPrestartReadiness", () => {
     expect(result.canStart).toBe(false);
     expect(result.openingPlan).toBeNull();
     expect(result.checks.filter((check) => check.state === "unavailable").map((check) => check.key)).toEqual([
-      "entrants-locked", "confirmations", "qualification", "administration", "seeds", "reconfirmations",
+      "entrants-locked", "confirmations", "seeds", "reconfirmations",
     ]);
     expect(result.blockers.every((blocker) => blocker.includes("尚未接入/不可确认") || blocker.includes("开赛计划"))).toBe(true);
   });
@@ -179,8 +171,6 @@ describe("evaluateMajorPrestartReadiness", () => {
     input.teams = input.teams!.map((team) => ({ ...team, playerIds: [], educationVerificationIds: [] }));
     input.entrantsLocked = false;
     input.confirmations = input.confirmations!.map((fact) => ({ ...fact, confirmed: false }));
-    input.qualificationIssues = [{ label: "资格材料复核", resolved: false }];
-    input.administrativeIssues = [{ label: "裁判排班", resolved: false }];
     input.seedConfirmation = null;
 
     const result = evaluateMajorPrestartReadiness(input);
@@ -189,5 +179,11 @@ describe("evaluateMajorPrestartReadiness", () => {
     expect(result.openingPlan).not.toBeNull();
     expect(result.openingPlan?.firstRound.pairings).toHaveLength(8);
     expect(result.checks.find((check) => check.key === "opening-plan")).toMatchObject({ state: "ready", blockers: [] });
+  });
+
+  it("does not create a generic qualification or administration blocker", () => {
+    const result = evaluateMajorPrestartReadiness(makeInput());
+
+    expect(result.checks.map((check) => check.key)).not.toEqual(expect.arrayContaining(["qualification", "administration"]));
   });
 });

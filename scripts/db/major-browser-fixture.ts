@@ -308,7 +308,6 @@ async function removeFixtureDatabaseRows(client: PoolClient, scenario: ScenarioD
   await client.query("DELETE FROM competition_entry_representative_changes WHERE entry_id IN (SELECT id FROM competition_entries WHERE competition_id = $1)", [scenario.seasonId]);
   await client.query("DELETE FROM competition_entry_legacy_identities WHERE entry_id IN (SELECT id FROM competition_entries WHERE competition_id = $1)", [scenario.seasonId]);
   await client.query("DELETE FROM competition_entries WHERE competition_id = $1", [scenario.seasonId]);
-  await client.query("DELETE FROM major_prestart_issues WHERE season_id = $1", [scenario.seasonId]);
   await client.query("DELETE FROM major_prestart_states WHERE season_id = $1", [scenario.seasonId]);
   await client.query("DELETE FROM season_registrations WHERE season_id = $1", [scenario.seasonId]);
   await client.query("DELETE FROM audit_logs WHERE season_id = $1", [scenario.seasonId]);

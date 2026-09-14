@@ -52,12 +52,17 @@ vi.mock("@/lib/auth/admin-invites", () => ({
 vi.mock("@/lib/auth/supabase-server", () => ({
   createServiceClient: () => ({
     auth: {
-      signInWithPassword: signInWithPasswordMock,
       resetPasswordForEmail: resetPasswordForEmailMock,
       signUp: signUpMock,
     },
   }),
-  createPublicAuthClient: () => ({ auth: { signUp: signUpMock, resend: resendMock } }),
+  createPublicAuthClient: () => ({
+    auth: {
+      signInWithPassword: signInWithPasswordMock,
+      signUp: signUpMock,
+      resend: resendMock,
+    },
+  }),
 }));
 
 vi.mock("next/cache", () => ({
@@ -200,7 +205,7 @@ describe("loginWithPassword", () => {
     expect(bootstrapConfiguredOwnerInTxMock).toHaveBeenCalledWith(expect.anything(), MOCK_USER_ROW);
   });
 
-  it("Preview 使用 dev service client 走正常的 canonical 登录路径", async () => {
+  it("Preview 使用 dev public auth client 走正常的 canonical 登录路径", async () => {
     process.env.VERCEL_ENV = "preview";
     signInWithPasswordMock.mockResolvedValue({
       data: { user: { id: "dev-auth-uuid" } },
