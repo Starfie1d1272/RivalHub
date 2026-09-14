@@ -129,7 +129,7 @@ const seasonUpdateFormBaseSchema = seasonFormBaseSchema.extend({ id: z.guid() })
  * Cross-field date rules are applied later to the capability-projected dates,
  * because a locked date is not client-owned input.
  */
-export const seasonUpdatePayloadSchema = seasonUpdateFormBaseSchema;
+export const seasonUpdatePayloadSchema = withStructuralSeasonRefinements(seasonUpdateFormBaseSchema);
 export const seasonUpdateFormSchema = withSeasonRefinements(seasonUpdateFormBaseSchema);
 
 type SeasonFormSchemaInput = z.input<typeof seasonFormSchema>;
@@ -155,7 +155,7 @@ type SeasonRefinementFields = {
   rosterChangeClosesAt: string | null;
 };
 
-function withSeasonRefinements<T extends z.ZodType>(schema: T): T {
+function withStructuralSeasonRefinements<T extends z.ZodType>(schema: T): T {
   return schema
     .refine((data) => {
       const value = data as SeasonRefinementFields;
@@ -170,7 +170,11 @@ function withSeasonRefinements<T extends z.ZodType>(schema: T): T {
     }, {
       path: ["minTeamSize"],
       message: "最小人数不能超过最大人数",
-    })
+    }) as unknown as T;
+}
+
+function withDateSeasonRefinements<T extends z.ZodType>(schema: T): T {
+  return schema
     .refine(
       (data) => {
         const value = data as SeasonRefinementFields;
@@ -193,6 +197,10 @@ function withSeasonRefinements<T extends z.ZodType>(schema: T): T {
         message: "名单调整截止时间不能早于报名截止时间",
       },
     ) as unknown as T;
+}
+
+function withSeasonRefinements<T extends z.ZodType>(schema: T): T {
+  return withDateSeasonRefinements(withStructuralSeasonRefinements(schema));
 }
 
 function assertUniqueStageKeys(stagePlan: StagePlan): void {

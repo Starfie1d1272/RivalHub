@@ -386,6 +386,38 @@ describe("updateSeason", () => {
     expect(update.registrationOpensAt).not.toBe("2026-05-01T10:00");
   });
 
+  it("custom draft update rejects starterCount above maxTeamSize", async () => {
+    seasonsFindFirstMock.mockResolvedValue(draftSeason({ competitionTemplate: "custom" }));
+
+    const result = await updateSeason({
+      ...VALID_INPUT,
+      id: SEASON_ID,
+      template: "custom",
+      starterCount: 9,
+      maxTeamSize: 8,
+    });
+
+    expect(result).toMatchObject({ success: false, error: { code: ErrorCode.VALIDATION_FAILED } });
+    if (!result.success) expect(result.error.fieldErrors?.starterCount).toBeDefined();
+    expect(updateSetCalls).toHaveLength(0);
+  });
+
+  it("custom draft update rejects minTeamSize above maxTeamSize", async () => {
+    seasonsFindFirstMock.mockResolvedValue(draftSeason({ competitionTemplate: "custom" }));
+
+    const result = await updateSeason({
+      ...VALID_INPUT,
+      id: SEASON_ID,
+      template: "custom",
+      minTeamSize: 9,
+      maxTeamSize: 8,
+    });
+
+    expect(result).toMatchObject({ success: false, error: { code: ErrorCode.VALIDATION_FAILED } });
+    if (!result.success) expect(result.error.fieldErrors?.minTeamSize).toBeDefined();
+    expect(updateSetCalls).toHaveLength(0);
+  });
+
   it("已发布状态下相同的核心配置仍可保存 metadata", async () => {
     seasonsFindFirstMock.mockResolvedValue(nonDraftSeason("registration"));
 
