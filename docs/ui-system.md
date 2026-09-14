@@ -32,6 +32,15 @@
 
 不要在页面级重新组合 `container`、`mx-auto`、`max-w-*`、`px-*`、`py-*`。局部表单或长文的 inner width 可以保留，但不能再次拥有整页 gutter。赛事导航条和 breadcrumb 等 full-bleed/navigation surface 内部的 alignment frame 是例外：它只对齐导航内容，不负责 page body 的宽度或垂直几何。
 
+四种 PageLayout variant 按信息架构和交互密度选择：
+
+- narrow：auth、single action、confirmation、长文阅读、单列长表单和小型纵向状态页；目标是阅读 measure 与任务聚焦。
+- standard：entity/detail page 和中等复杂度 workflow；纵向内容为主，但需要正常的数据、卡片和指标横向空间。
+- wide：directory、card grid、searchable/filterable list、standalone admin list、data browsing 和多区域 workspace。
+- workbench：高密度 operator canvas 与 season-admin 多任务工作区；父级拥有最大可用页面宽度，子页面不再对整页重新加 max-w-*。
+
+选择 variant 时先看页面的信息架构和交互密度，不按历史 max-w-* 机械套用。inner max-w-* 只服务真实的阅读或表单 measure；如果它包住整个 list、grid、operator workspace 或多区块 detail page，它实际上又在决定 page sizing，应回到 PageLayout 语义重新审查。
+
 颜色不能单独承担 success/warning/danger；状态同时使用文字、图标或结构表达。10–11px mono 只用于 code、marker、ticker 和 compact metadata，不承担正文解释。
 
 ## Information hierarchy

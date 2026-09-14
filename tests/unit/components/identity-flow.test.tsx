@@ -118,11 +118,35 @@ describe("identity flow UI", () => {
   });
 
   it("shows current email and education verification states without evidence URLs", () => {
-    render(<EducationVerificationPanel email="player@example.test" emailVerified={false} institutionalIdentities={[]} verifications={[{ id: "1", institution: "南京大学", code: "4132010284", academicStatus: "enrolled", status: "rejected", reviewNote: "学校不一致", submittedAt: new Date().toISOString() }]} />);
+    render(<EducationVerificationPanel email="player@example.test" emailVerified={false} institutionalIdentities={[]} verifications={[{ id: "1", institutionId: "institution-1", institution: "南京大学", institutionCode: "4132010284", province: "江苏", evidenceType: "chsi_enrollment_report", academicStatus: "enrolled", status: "rejected", reviewNote: "学校不一致", submittedAt: new Date().toISOString() }]} />);
     expect(screen.getByText("当前登录邮箱尚未验证")).toBeInTheDocument();
     expect(screen.getByText("南京大学 · 在读 · 已驳回")).toBeInTheDocument();
-    expect(screen.getByText("审核说明：学校不一致")).toBeInTheDocument();
+    expect(screen.getByText(/审核说明：学校不一致/)).toBeInTheDocument();
     expect(screen.queryByText(/chsi\.com\.cn/)).not.toBeInTheDocument();
+  });
+
+  it("offers rejected CHSI claims a retry without restoring the historical evidence code", () => {
+    render(<EducationVerificationPanel email="player@example.test" emailVerified institutionalIdentities={[]} verifications={[{ id: "1", institutionId: "institution-1", institution: "南京大学", institutionCode: "4132010284", province: "江苏", evidenceType: "chsi_education_report", academicStatus: "graduated", status: "rejected", reviewNote: "在线验证报告已过期", submittedAt: new Date().toISOString() }]} />);
+
+    expect(screen.getByText(/修正材料后可以重新提交；如果只是在线验证报告已过期/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "重新提交" }));
+
+    expect(document.querySelector("#chsi-verification-form")).toHaveTextContent("南京大学");
+    expect(screen.getByRole("button", { name: "已毕业" })).toHaveClass("bg-primary");
+    expect(screen.getByLabelText("学信网在线验证码")).toHaveValue("");
+    expect(screen.queryByText("ABCD1234EFGH5678")).not.toBeInTheDocument();
+  });
+
+  it("does not offer CHSI retry guidance for pending, approved, or manual history", () => {
+    render(<EducationVerificationPanel email="player@example.test" emailVerified institutionalIdentities={[]} verifications={[
+      { id: "rejected-manual", institutionId: "institution-1", institution: "南京大学", institutionCode: "4132010284", province: "江苏", evidenceType: "manual_other", academicStatus: "enrolled", status: "rejected", reviewNote: "材料不清晰", submittedAt: new Date().toISOString() },
+      { id: "pending-chsi", institutionId: "institution-1", institution: "南京大学", institutionCode: "4132010284", province: "江苏", evidenceType: "chsi_enrollment_report", academicStatus: "enrolled", status: "pending", reviewNote: null, submittedAt: new Date().toISOString() },
+      { id: "approved-chsi", institutionId: "institution-1", institution: "南京大学", institutionCode: "4132010284", province: "江苏", evidenceType: "chsi_enrollment_report", academicStatus: "enrolled", status: "approved", reviewNote: null, submittedAt: new Date().toISOString() },
+    ]} />);
+
+    expect(screen.queryByRole("button", { name: "重新提交" })).not.toBeInTheDocument();
+    expect(screen.queryByText(/原在线验证码仍可重新使用/)).not.toBeInTheDocument();
+    expect(screen.getByText("审核说明：材料不清晰")).toBeInTheDocument();
   });
 
   it("explains the verified-secondary-email path with one clear banner", () => {
