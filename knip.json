@@ -34,6 +34,7 @@
     "scripts/ci/prepare-system-artifacts.mjs!",
     "scripts/ci/run-static-task.mjs!",
     "scripts/ci/timing.mjs!",
+    "scripts/ci/assert-no-flaky.mjs!",
     "scripts/ci/validate-pr-title.mjs!",
     "scripts/ci/vitest-timing-reporter.ts!",
     "scripts/release/ci-prerequisite.ts!",
