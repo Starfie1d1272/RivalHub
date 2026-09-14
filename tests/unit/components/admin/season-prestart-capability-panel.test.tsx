@@ -11,14 +11,14 @@ describe("SeasonPrestartCapabilityPanel", () => {
     render(<SeasonPrestartCapabilityPanel seasonSlug="rivals-s1" seasonName="Rivals S1" hasCaptainVoting hasDraft stagePlan={[]} />);
 
     expect(screen.getByRole("link", { name: /队长确认/ })).toHaveAttribute("href", "/admin/rivals-s1/captains");
-    expect(screen.getByRole("link", { name: /选秀控制/ })).toHaveAttribute("href", "/admin/rivals-s1/draft");
+    expect(screen.getByRole("link", { name: /选秀管理/ })).toHaveAttribute("href", "/admin/rivals-s1/draft");
   });
 
   it("does not invent a prestart module when no capability is connected", () => {
     render(<SeasonPrestartCapabilityPanel seasonSlug="custom-s1" seasonName="Custom S1" hasCaptainVoting={false} hasDraft={false} stagePlan={[]} />);
 
-    expect(screen.getByText("当前赛事没有额外的已接入赛前运营模块。"))
+    expect(screen.getByText("本届暂无额外赛前操作。"))
       .toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: /队长确认|选秀控制/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /队长确认|选秀管理/ })).not.toBeInTheDocument();
   });
 });

@@ -11,13 +11,6 @@ import { Marker, Panel } from "@/components/rivalhub";
 
 export type MajorTournamentSeedsManagementData = MajorPrestartPageData["seedManagement"];
 
-const FINAL_ORDER_STATUS_LABEL: Record<NonNullable<MajorTournamentSeedsManagementData["recommendation"]>["teams"][number]["finalOrderStatus"], string> = {
-  aligned: "与系统一致",
-  tie_resolved: "系统并列 · 人工定序",
-  adjusted: "人工调整",
-  unsaved: "未保存",
-};
-
 export function MajorTournamentSeedsManagement({ data }: { data: MajorTournamentSeedsManagementData }) {
   const [isPending, startTransition] = useTransition();
   const capacity = data.entrants.length;
@@ -90,9 +83,9 @@ export function MajorTournamentSeedsManagement({ data }: { data: MajorTournament
             <span className="text-xs text-[var(--color-fg-mid)]">按系统建议排序 · 不改变最终种子</span>
           </div>
           <div className="overflow-x-auto border border-[var(--color-border)]">
-            <table className="min-w-[980px] w-full text-left text-xs">
-              <thead className="bg-[var(--color-panel-low)] text-[var(--color-fg-mid)]"><tr><th className="px-3 py-2">系统建议</th><th className="px-3 py-2">最终种子 / 调整状态</th><th className="px-3 py-2">已确认主力 · 竞技资料</th></tr></thead>
-            <tbody>{analysisRows.map((team) => <tr key={team.teamId} className="border-t border-[var(--color-border)] align-top"><td className="w-48 px-3 py-3"><p className="font-medium text-[var(--color-fg)]">#{team.recommendationRank} · {team.teamName}</p><p className="mt-1 text-[var(--color-fg-mid)]">{team.tieState === "tied" ? "系统并列" : "系统参考顺序"}</p></td><td className="w-28 px-3 py-3 font-mono text-[var(--color-fg)]">{team.finalSeed === null ? "未保存" : `#${team.finalSeed}`}<p className="mt-1 font-sans text-[11px] text-[var(--color-fg-mid)]">{FINAL_ORDER_STATUS_LABEL[team.finalOrderStatus]}</p></td><td className="px-3 py-3"><div className="grid gap-2 md:grid-cols-5">{team.starters.map((starter) => <MajorStrengthStarterSummary key={starter.userId} starter={starter} platform={data.recommendation!.platform} recentLabel="近期（实际参与 30%）" showProvenance />)}</div></td></tr>)}</tbody>
+            <table className="min-w-[820px] w-full text-left text-xs">
+              <thead className="bg-[var(--color-panel-low)] text-[var(--color-fg-mid)]"><tr><th className="px-3 py-2">系统参考顺序</th><th className="px-3 py-2">已确认主力 · 竞技资料</th></tr></thead>
+            <tbody>{analysisRows.map((team) => <tr key={team.teamId} className="border-t border-[var(--color-border)] align-top"><td className="w-48 px-3 py-3"><p className="font-medium text-[var(--color-fg)]">#{team.recommendationRank} · {team.teamName}</p><p className="mt-1 text-[var(--color-fg-mid)]">{team.tieState === "tied" ? "系统并列" : "系统参考顺序"}</p></td><td className="px-3 py-3"><div className="grid gap-2 md:grid-cols-5">{team.starters.map((starter) => <MajorStrengthStarterSummary key={starter.userId} starter={starter} platform={data.recommendation!.platform} recentLabel="近期（实际参与 30%）" showProvenance />)}</div></td></tr>)}</tbody>
             </table>
           </div>
         </section>}
@@ -103,18 +96,21 @@ export function MajorTournamentSeedsManagement({ data }: { data: MajorTournament
         </section>
 
 
-        {data.seeds.length === capacity ? <div className="grid gap-3 lg:grid-cols-3">
-          <SeedCohort label="Stage 3 · #1–8" seeds={data.seeds.filter((seed) => seed.tournamentSeed <= 8)} teams={teamById} />
-          <SeedCohort label="Stage 2 · #9–16" seeds={data.seeds.filter((seed) => seed.tournamentSeed >= 9 && seed.tournamentSeed <= 16)} teams={teamById} />
-          <SeedCohort label="Stage 1 · #17–32" seeds={data.seeds.filter((seed) => seed.tournamentSeed >= 17)} teams={teamById} />
-        </div> : <p className="text-sm text-[var(--color-fg-mid)]">保存后将按 Stage 3 #1–8、Stage 2 #9–16、Stage 1 #17–32 展示入场批次。</p>}
+        {data.seeds.length === capacity ? <section aria-labelledby="major-seed-cohorts-title">
+          <h3 id="major-seed-cohorts-title" className="font-medium text-[var(--color-fg)]">入场批次</h3>
+          <div className="mt-2 grid gap-3 lg:grid-cols-3">
+            <SeedCohort label="Stage 3" range="#1–8" />
+            <SeedCohort label="Stage 2" range="#9–16" />
+            <SeedCohort label="Stage 1" range="#17–32" />
+          </div>
+        </section> : <p className="text-sm text-[var(--color-fg-mid)]">保存后将按 #1–8 → Stage 3、#9–16 → Stage 2、#17–32 → Stage 1 展示入场批次。</p>}
 
-        <section><h3 className="font-medium text-[var(--color-fg)]">第一轮预览</h3>{data.firstRound ? <ol className="mt-2 grid gap-2 text-sm md:grid-cols-2">{data.firstRound.map((pairing) => <li key={`${pairing.higherSeed}-${pairing.lowerSeed}`} className="border border-[var(--color-border)] px-3 py-2">#{pairing.higherSeed} {teamById.get(data.seeds.find((seed) => seed.tournamentSeed === pairing.higherSeed)?.teamId ?? "")?.teamName} vs #{pairing.lowerSeed} {teamById.get(data.seeds.find((seed) => seed.tournamentSeed === pairing.lowerSeed)?.teamId ?? "")?.teamName} · {pairing.format.toUpperCase()}</li>)}</ol> : <p className="mt-1 text-sm text-[var(--color-fg-mid)]">需先保存完整种子才能构造预览。</p>}<p className="mt-2 text-sm text-[var(--color-fg-mid)]">这是保存前的对阵预览；保存种子前不会创建比赛。</p></section>
+        <section aria-labelledby="major-first-round-preview-title"><h3 id="major-first-round-preview-title" className="font-medium text-[var(--color-fg)]">Stage 1 首轮预览</h3>{data.firstRound ? <ol className="mt-2 grid gap-2 text-sm md:grid-cols-2">{data.firstRound.map((pairing) => <li key={`${pairing.higherSeed}-${pairing.lowerSeed}`} className="border border-[var(--color-border)] px-3 py-2">#{pairing.higherSeed} {teamById.get(data.seeds.find((seed) => seed.tournamentSeed === pairing.higherSeed)?.teamId ?? "")?.teamName} vs #{pairing.lowerSeed} {teamById.get(data.seeds.find((seed) => seed.tournamentSeed === pairing.lowerSeed)?.teamId ?? "")?.teamName} · {pairing.format.toUpperCase()}</li>)}</ol> : <p className="mt-1 text-sm text-[var(--color-fg-mid)]">需先保存完整种子才能构造预览。</p>}<p className="mt-2 text-sm text-[var(--color-fg-mid)]">首轮完整对阵预览只在这里展示；保存种子前不会创建比赛。</p></section>
       </div>}
     </Panel>
   );
 }
 
-function SeedCohort({ label, seeds, teams }: { label: string; seeds: MajorTournamentSeedsManagementData["seeds"]; teams: Map<string, { teamId: string; teamName: string }> }) {
-  return <section className="border border-[var(--color-border)] p-3"><h3 className="font-medium text-[var(--color-fg)]">{label}</h3><ol className="mt-2 space-y-1 text-sm text-[var(--color-fg-mid)]">{[...seeds].sort((a, b) => a.tournamentSeed - b.tournamentSeed).map((seed) => <li key={seed.teamId}>#{seed.tournamentSeed} {teams.get(seed.teamId)?.teamName}</li>)}</ol></section>;
+function SeedCohort({ label, range }: { label: string; range: string }) {
+  return <div className="border border-[var(--color-border)] p-3"><p className="font-medium text-[var(--color-fg)]">{range}</p><p className="mt-1 text-sm text-[var(--color-fg-mid)]">进入 {label}</p></div>;
 }

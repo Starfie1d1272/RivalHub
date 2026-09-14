@@ -78,5 +78,7 @@ describe("season workspace selectors", () => {
       blockedReadiness,
     );
     expect(registrationWithBlocker.href).toBe("/admin/blocked-event/prestart");
+    expect(registrationWithBlocker.detail).toBe("赛前检查仍有事项需要处理。");
+    expect(registrationWithBlocker.detail).not.toContain("名单仍待确认");
   });
 });

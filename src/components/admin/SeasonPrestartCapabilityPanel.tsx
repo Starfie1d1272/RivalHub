@@ -18,15 +18,15 @@ export function SeasonPrestartCapabilityPanel({
   stagePlan: Array<{ key: string; name: string; type: StageType }>;
 }) {
   const links = [
-    hasCaptainVoting ? { label: "队长确认", href: `/admin/${seasonSlug}/captains`, detail: "保留的队长确认入口" } : null,
-    hasDraft ? { label: "选秀控制", href: `/admin/${seasonSlug}/draft`, detail: "保留的选秀运营入口" } : null,
+    hasCaptainVoting ? { label: "队长确认", href: `/admin/${seasonSlug}/captains`, detail: "处理本届队长确认" } : null,
+    hasDraft ? { label: "选秀管理", href: `/admin/${seasonSlug}/draft`, detail: "管理本届选秀流程" } : null,
   ].filter((link): link is { label: string; href: string; detail: string } => link !== null);
 
   return (
     <div className="space-y-5">
-      <Marker sub="按赛事 capability 提供可用的赛前模块">赛前 · {seasonName}</Marker>
-      <Panel label="赛前能力">
-        {links.length === 0 ? <p className="text-sm text-[var(--color-fg-mid)]">当前赛事没有额外的已接入赛前运营模块。</p> : <div className="grid gap-3 sm:grid-cols-2">
+      <Marker sub={`赛前工作区 · ${seasonName}`}>赛前流程</Marker>
+      <Panel label="赛前入口">
+        {links.length === 0 ? <p className="text-sm text-[var(--color-fg-mid)]">本届暂无额外赛前操作。</p> : <div className="grid gap-3 sm:grid-cols-2">
           {links.map((link) => <Link key={link.href} href={link.href as never} className="border border-[var(--color-border)] p-3 transition-colors hover:bg-[var(--color-panel-hi)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]"><span className="font-medium">{link.label} →</span><span className="mt-1 block text-sm text-[var(--color-fg-mid)]">{link.detail}</span></Link>)}
         </div>}
       </Panel>

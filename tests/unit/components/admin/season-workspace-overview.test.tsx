@@ -30,7 +30,12 @@ const data: SeasonWorkspaceOverviewData = {
     finalResultPendingConfirmation: false,
     activeAdjudications: 0,
   },
-  readiness: null,
+  readiness: {
+    canStart: false,
+    blockers: ["内部检查细节不应直接进入总览。"],
+    checks: [{ key: "teams", label: "队伍", state: "blocked", blockers: ["内部检查细节不应直接进入总览。"] }],
+    openingPlan: null,
+  },
   nextAction: {
     label: "处理报名审核",
     detail: "1 份报名等待管理员处理。",
@@ -47,6 +52,8 @@ describe("SeasonWorkspaceOverview", () => {
     expect(html).toContain("正式参赛队");
     expect(html).toContain('href="/admin/nju-major-2026/registrations"');
     expect(html).toContain("进入下一步");
+    expect(html).not.toContain("内部检查细节不应直接进入总览");
+    expect(html).not.toContain("readiness");
     expect(html).not.toContain("正式开赛确认");
     expect(html).not.toContain("赛事 1–32 种子");
   });
@@ -62,7 +69,8 @@ describe("SeasonWorkspaceOverview", () => {
     expect(html).toContain("已形成队伍");
     expect(html).toContain(">4<");
     expect(html).not.toContain("正式参赛队");
-    expect(html).toContain("待审核个人报名");
+    expect(html).toContain("待审核报名");
+    expect(html).not.toContain("待审核个人报名");
     expect(html).not.toContain("未确认参赛名单");
     expect(html).not.toContain("最终结果待确认");
   });

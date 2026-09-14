@@ -112,4 +112,39 @@ describe("MajorPrestartManagement", () => {
     expect(screen.getByText("缺少当前赛季最高段位及 Rating。", { exact: false })).toBeVisible();
     expect(screen.getByText("不自动选择正式参赛队，不改变资格结论")).toBeVisible();
   });
+
+  it("folds the candidate pool after the official entrants are frozen", () => {
+    render(<MajorPrestartManagement data={{
+      seasonId: "season-1",
+      entrantCapacity: 32,
+      entrantsLocked: true,
+      strengthPreview: { status: "ready", platform: "perfect_world", conversionPolicyId: null, conversionPolicyVersion: null, blockers: [], teams: [] },
+      approvedCandidates: [{
+        id: "team-1",
+        name: "Team One",
+        representativeName: "负责人",
+        submittedAt: null,
+        reviewedAt: null,
+        approvedAt: null,
+        qualificationStatus: "approved",
+        selectedAsEntrant: true,
+        roster: { memberCount: 5, primaryStarterCount: 5, members: [] },
+      }],
+      entrants: [{
+        id: "entrant-1",
+        teamId: "team-1",
+        teamName: "Team One",
+        rosterStatus: "frozen",
+        roster: [{ userId: "user-1", label: "Player One", isPrimaryStarter: true, educationVerified: true }],
+      }],
+      issues: [],
+    }} />);
+
+    expect(screen.getByText("正式参赛名单 (1/32)")).toBeVisible();
+    const details = screen.getByText("查看已通过审核的候选队伍").closest("details");
+    expect(details).not.toHaveAttribute("open");
+    expect(screen.queryByRole("heading", { name: "实时队伍实力参考" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "统一冻结正式名单" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "保存选择并同步名单" })).not.toBeInTheDocument();
+  });
 });
