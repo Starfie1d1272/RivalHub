@@ -1,6 +1,8 @@
 import { defineConfig } from "vitest/config";
 import { resolve } from "path";
 
+const vitestCiRetry = process.env.GITHUB_ACTIONS === "true" ? 1 : 0;
+
 export default defineConfig({
   resolve: {
     alias: {
@@ -62,6 +64,7 @@ export default defineConfig({
           pool: "forks",
           setupFiles: ["./tests/setup-dom.ts"],
           include: ["tests/unit/**/*.test.tsx", "src/**/*.test.tsx"],
+          retry: vitestCiRetry,
         },
       },
     ],

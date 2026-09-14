@@ -3,6 +3,7 @@
  */
 import React from "react";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { LoginForm } from "@/components/auth/LoginForm";
 import { EducationVerificationPanel } from "@/components/settings/EducationVerificationPanel";
@@ -59,15 +60,16 @@ describe("identity flow UI", () => {
   });
 
   it("takes a correctly authenticated unverified user to the resend path", async () => {
+    const user = userEvent.setup();
     loginWithPasswordMock.mockResolvedValue({
       success: false,
       error: { code: "EMAIL_NOT_CONFIRMED", message: "邮箱尚未验证" },
     });
     render(<LoginForm />);
 
-    fireEvent.change(screen.getByLabelText("邮箱地址"), { target: { value: "player@example.test" } });
-    fireEvent.change(screen.getByLabelText("密码"), { target: { value: "Aa1!xx" } });
-    fireEvent.click(screen.getAllByRole("button", { name: "登录" })[1]);
+    await user.type(screen.getByLabelText("邮箱地址"), "player@example.test");
+    await user.type(screen.getByLabelText("密码"), "Aa1!xx");
+    await user.click(screen.getAllByRole("button", { name: "登录" })[1]!);
 
     expect(await screen.findByRole("button", { name: "重新发送验证邮件" })).toBeInTheDocument();
     expect(screen.getByText(/检查垃圾邮件、广告邮件或其它分类/)).toBeInTheDocument();
@@ -95,6 +97,7 @@ describe("identity flow UI", () => {
   });
 
   it("after a successful resend, disables repeated sends for the configured cooldown", async () => {
+    const user = userEvent.setup();
     loginWithPasswordMock.mockResolvedValue({
       success: false,
       error: { code: "EMAIL_NOT_CONFIRMED", message: "邮箱尚未验证" },
@@ -102,14 +105,15 @@ describe("identity flow UI", () => {
     resendSignupConfirmationMock.mockResolvedValue({ success: true, data: undefined });
     render(<LoginForm />);
 
-    fireEvent.change(screen.getByLabelText("邮箱地址"), { target: { value: "player@example.test" } });
-    fireEvent.change(screen.getByLabelText("密码"), { target: { value: "Aa1!xx" } });
-    fireEvent.click(screen.getAllByRole("button", { name: "登录" })[1]);
+    await user.type(screen.getByLabelText("邮箱地址"), "player@example.test");
+    await user.type(screen.getByLabelText("密码"), "Aa1!xx");
+    await user.click(screen.getAllByRole("button", { name: "登录" })[1]!);
     const resend = await screen.findByRole("button", { name: "重新发送验证邮件" });
-    fireEvent.click(resend);
+    await waitFor(() => expect(resend).toBeEnabled());
+    await user.click(resend);
 
-    await waitFor(() => expect(resendSignupConfirmationMock).toHaveBeenCalledTimes(1));
     expect(await screen.findByRole("button", { name: "请等待 60 秒后重试" })).toBeDisabled();
+    await waitFor(() => expect(resendSignupConfirmationMock).toHaveBeenCalledTimes(1));
     expect(toastSuccessMock).toHaveBeenCalledWith("已提交验证邮件重发请求；如果该邮箱仍待验证，请检查收件箱及垃圾邮件等分类。");
   });
 

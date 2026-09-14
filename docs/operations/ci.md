@@ -27,6 +27,8 @@ plan ─→ static ─────┐
 - dead-code / dependency hygiene；
 - production build。
 
+Vitest 的 React/jsdom project 只在 GitHub Actions 使用一次 diagnostic retry，本地默认不 retry。每个 static matrix task 完成后，React project 由 `scripts/ci/assert-no-flaky.mjs` 读取 `vitest-timing-reporter.ts` 产出的 machine-readable evidence；首次失败、retry 通过会被标记为 flaky 并让 static job 非零退出。其它 Vitest project 不继承该 retry，普通 PR 也不传入 `repeats`。
+
 ### postgres
 
 使用 PostgreSQL 17 service container，验证：
@@ -49,7 +51,7 @@ CI 不使用 mock 来替代 constraint、transaction、locking 或并发证据�
 浏览器 lane 使用 runner 已有 Chrome，不需要在每个 run 重新安装 Playwright browser。
 同一个 system job 只启动一次 Supabase：`start-services → bootstrap-services → verify-supabase → test:e2e`。E2E 每个 test attempt 创建独立的 DB/Auth scenario；除 `major-entry` 的 canonical UI 登录外，其它已登录流程通过受保护的 test-only route 调用同一个 `loginWithPassword`，不会伪造应用 cookie。
 
-CI 会把 bootstrap、各 capability lane、Vitest project、真实 PG integration、E2E body 与 FULL wall time 写入 GitHub Step Summary。system 失败或 retry/flaky 时保留 trace、screenshot、HTML report、脱敏 Next 日志和 scenario/attempt manifest；成功 run 不上传这些大体积 artifact。Playwright 在 CI 使用一次 retry，并以 `failOnFlakyTests` 阻断“首次失败、重试成功”的假绿。
+CI 会把 bootstrap、各 capability lane、Vitest project、真实 PG integration、E2E body 与 FULL wall time 写入 GitHub Step Summary；其中 Vitest flaky evidence 会列出 project、file、full test name、首次失败、retry 通过和 retry count。system 失败或 retry/flaky 时保留 trace、screenshot、HTML report、脱敏 Next 日志和 scenario/attempt manifest；成功 run 不上传这些大体积 artifact。Playwright 在 CI 使用一次 retry，并以 `failOnFlakyTests` 阻断“首次失败、重试成功”的假绿；Vitest 使用同一原则，但由显式 flaky guard 保留 static job 的失败语义。
 
 ### dependency review
 
