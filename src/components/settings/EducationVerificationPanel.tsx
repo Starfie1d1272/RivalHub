@@ -26,8 +26,11 @@ import {
 
 type Verification = {
   id: string;
+  institutionId: string;
   institution: string;
-  code: string | null;
+  institutionCode: string | null;
+  province: string | null;
+  evidenceType: "institutional_email" | "chsi_enrollment_report" | "chsi_education_report" | "manual_other";
   academicStatus: "enrolled" | "graduated";
   status: "pending" | "approved" | "rejected";
   reviewNote: string | null;
@@ -37,6 +40,11 @@ type InstitutionalIdentity = { identityId: string; email: string; institution: s
 
 const statusLabel = { pending: "待审核", approved: "已认证", rejected: "已驳回" } as const;
 const acceptedMimeTypes = EDUCATION_EVIDENCE_ALLOWED_MIME_TYPES.join(",");
+const CHSI_RECOVERY_GUIDANCE = "修正材料后可以重新提交；如果只是在线验证报告已过期，请先在学信网延长有效期，延长后原在线验证码仍可重新使用。";
+
+function isChsiEvidenceType(evidenceType: Verification["evidenceType"]): boolean {
+  return evidenceType === "chsi_enrollment_report" || evidenceType === "chsi_education_report";
+}
 
 function outcomeMessage(outcome: EducationSubmissionOutcome): string {
   if (outcome === "already_pending") return "该学校的教育认证正在等待审核，无需重复提交。";
@@ -92,6 +100,15 @@ export function EducationVerificationPanel({
     run(() => submitAdmissionNoticeEducation(formData), outcomeMessage);
   }
 
+  function retryChsiVerification(item: Verification) {
+    if (!emailVerified || item.status !== "rejected" || !isChsiEvidenceType(item.evidenceType)) return;
+    setChsiInstitution({ id: item.institutionId, name: item.institution, code: item.institutionCode, province: item.province });
+    setAcademicStatus(item.academicStatus);
+    setEvidenceCode("");
+    document.getElementById("chsi-verification-form")?.scrollIntoView?.({ behavior: "smooth", block: "start" });
+    document.getElementById("chsi-evidence-code")?.focus();
+  }
+
   const fastPathLabel = institutionalIdentities.length > 0 ? "1 · 学校邮箱快速认证" : "学校邮箱快速认证";
   const chsiLabel = institutionalIdentities.length > 0 ? "2 · 学信网材料人工审核" : "1 · 学信网材料人工审核";
   const manualLabel = institutionalIdentities.length > 0 ? "3 · 录取通知书人工审核" : "2 · 录取通知书人工审核";
@@ -124,7 +141,7 @@ export function EducationVerificationPanel({
       </div>
     </Panel>}
 
-    {emailVerified && <Panel label={chsiLabel} contentClassName="p-5">
+    {emailVerified && <div id="chsi-verification-form" className="scroll-mt-6"><Panel label={chsiLabel} contentClassName="p-5">
       <div className="space-y-4">
         <p className="text-sm leading-6 text-[var(--color-fg-mid)]">需要认证在读或已毕业身份时，可在学信档案申请在线验证报告进行人工审核。平台只会将报告中的在线验证码提供给超级管理员在学信网核验，不会公开展示，也不会保存学信网账号。</p>
         <a className="inline-flex text-sm underline" href="https://my.chsi.com.cn/archive/index.jsp" target="_blank" rel="noreferrer">前往学信档案申请在线验证报告</a>
@@ -137,7 +154,7 @@ export function EducationVerificationPanel({
         <div className="space-y-1.5"><Label htmlFor="chsi-evidence-code">学信网在线验证码</Label><Input id="chsi-evidence-code" value={evidenceCode} onChange={(event) => setEvidenceCode(event.target.value)} placeholder="请输入报告中的在线验证码" autoComplete="off" /></div>
         <Button disabled={pending || !chsiInstitution || !evidenceCode.trim()} onClick={() => run(() => submitEducationVerification({ institutionId: chsiInstitution?.id, academicStatus, evidenceCode }), outcomeMessage)}>提交认证材料</Button>
       </div>
-    </Panel>}
+    </Panel></div>}
 
     {emailVerified && <div className="space-y-3">
       <Button type="button" variant="outline" aria-expanded={manualOpen} aria-controls="education-manual-fallback" onClick={() => setManualOpen((open) => !open)}>{manualOpen ? "收起录取通知书人工审核" : "暂时无法获取学信网材料？"}</Button>
@@ -165,8 +182,11 @@ export function EducationVerificationPanel({
     <Panel label="认证记录" contentClassName="p-0">
       {verifications.length === 0 ? <p className="p-5 text-sm text-[var(--color-fg-mid)]">尚无教育认证记录。</p> : <Checklist items={verifications.map((item) => ({
         label: `${item.institution} · ${item.academicStatus === "enrolled" ? "在读" : "已毕业"} · ${statusLabel[item.status]}`,
-        detail: item.status === "rejected" && item.reviewNote ? `审核说明：${item.reviewNote}` : `提交于 ${item.submittedAt}`,
+        detail: item.status === "rejected"
+          ? [item.reviewNote ? `审核说明：${item.reviewNote}` : null, isChsiEvidenceType(item.evidenceType) ? CHSI_RECOVERY_GUIDANCE : null].filter(Boolean).join(" ") || `提交于 ${item.submittedAt}`
+          : `提交于 ${item.submittedAt}`,
         state: item.status === "approved" ? "complete" as const : item.status === "rejected" ? "blocked" as const : "pending" as const,
+        action: emailVerified && item.status === "rejected" && isChsiEvidenceType(item.evidenceType) ? <Button type="button" size="sm" variant="outline" className="shrink-0" onClick={() => retryChsiVerification(item)}>重新提交</Button> : undefined,
       }))} />}
     </Panel>
     <p className="text-xs text-[var(--color-fg-mid)]">赛事报名需要邮箱已验证和已认证教育身份。<Link className="underline" href="/">返回首页</Link></p>

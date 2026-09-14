@@ -58,3 +58,24 @@ test("新生可以提交录取通知书并由 super admin 查看后审核", asyn
     await adminContext.close();
   }
 });
+
+test("已驳回的 CHSI claim 可以恢复上下文后重新提交", async ({ page, scenario }) => {
+  const player = scenario.accounts.find((account) => account.key === "player1");
+  if (!player) throw new Error(`E2E scenario ${scenario.scenarioId} 缺少教育流程账号。`);
+  const historicalCode = "ABCD1234EFGH5678";
+
+  await signInProgrammatically(page, player, scenario, "/settings/education");
+  await expect(page.getByText("南京大学 · 在读 · 已驳回", { exact: true })).toBeVisible();
+  await expect(page.getByText(historicalCode, { exact: true })).toHaveCount(0);
+
+  await page.getByRole("button", { name: "重新提交" }).click();
+  await expect(page.locator("#chsi-verification-form")).toContainText("南京大学");
+  await expect(page.getByRole("button", { name: "在读", exact: true })).toHaveClass(/bg-primary/);
+  await expect(page.locator("#chsi-evidence-code")).toHaveValue("");
+
+  await page.locator("#chsi-evidence-code").fill(historicalCode);
+  await page.getByRole("button", { name: "提交认证材料" }).click();
+  await expect(page.getByText("教育认证已提交，等待管理员审核。", { exact: true })).toBeVisible();
+  await expect(page.getByText("南京大学 · 在读 · 待审核", { exact: true })).toBeVisible();
+  await expect(page.getByText("南京大学 · 在读 · 已驳回", { exact: true })).toBeVisible();
+});
