@@ -41,6 +41,8 @@ export interface MajorSwissStageReadModel {
     seed: number;
     wins: number;
     losses: number;
+    /** Canonical Swiss Buchholz/difficulty fact from the domain projection. */
+    difficultyScore: number;
     status: MajorSwissStatus;
   }>;
 }
@@ -158,6 +160,7 @@ export async function loadMajorSwissStageReadModel(
       seed: team.currentStageSeed,
       wins: team.wins,
       losses: team.losses,
+      difficultyScore: team.difficultyScore,
       status: team.status,
     })),
   };

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { resolveFinalBracketNodeId, createStageBracket, ensureResolvedBracketMatch, serializeStageBracket } from "@/lib/bracket";
+import { createStageBracket, ensureResolvedBracketMatch, projectStageBracketNodes, resolveFinalBracketNodeId, serializeStageBracket } from "@/lib/bracket";
 
 function makeTeams(count: number) {
   return Array.from({ length: count }, (_, index) => ({
@@ -52,6 +52,59 @@ describe("stage-scoped bracket adapter", () => {
       number: expect.any(Number),
       status: expect.any(Number),
     }));
+  });
+
+  it("projects single-elimination edges from provider topology", async () => {
+    const { data } = await createStageBracket(
+      { key: "playoff", name: "Playoff", type: "single_elim" },
+      makeTeams(8),
+    );
+
+    expect(projectStageBracketNodes(serializeStageBracket(data)).map((node) => ({
+      id: node.id,
+      round: node.round,
+      lane: node.lane,
+      nextWinNodeId: node.nextWinNodeId,
+      nextLossNodeId: node.nextLossNodeId,
+    }))).toEqual([
+      { id: "0", round: 1, lane: "single", nextWinNodeId: "4", nextLossNodeId: null },
+      { id: "1", round: 1, lane: "single", nextWinNodeId: "4", nextLossNodeId: null },
+      { id: "2", round: 1, lane: "single", nextWinNodeId: "5", nextLossNodeId: null },
+      { id: "3", round: 1, lane: "single", nextWinNodeId: "5", nextLossNodeId: null },
+      { id: "4", round: 2, lane: "single", nextWinNodeId: "6", nextLossNodeId: null },
+      { id: "5", round: 2, lane: "single", nextWinNodeId: "6", nextLossNodeId: null },
+      { id: "6", round: 3, lane: "single", nextWinNodeId: null, nextLossNodeId: null },
+    ]);
+  });
+
+  it("projects double-elimination winner, loser and grand-final edges", async () => {
+    const { data } = await createStageBracket(
+      { key: "playoff", name: "Playoff", type: "double_elim" },
+      makeTeams(8),
+    );
+
+    expect(projectStageBracketNodes(serializeStageBracket(data)).map((node) => ({
+      id: node.id,
+      round: node.round,
+      lane: node.lane,
+      nextWinNodeId: node.nextWinNodeId,
+      nextLossNodeId: node.nextLossNodeId,
+    }))).toEqual([
+      { id: "0", round: 1, lane: "winner", nextWinNodeId: "4", nextLossNodeId: "7" },
+      { id: "1", round: 1, lane: "winner", nextWinNodeId: "4", nextLossNodeId: "7" },
+      { id: "2", round: 1, lane: "winner", nextWinNodeId: "5", nextLossNodeId: "8" },
+      { id: "3", round: 1, lane: "winner", nextWinNodeId: "5", nextLossNodeId: "8" },
+      { id: "4", round: 2, lane: "winner", nextWinNodeId: "6", nextLossNodeId: "10" },
+      { id: "5", round: 2, lane: "winner", nextWinNodeId: "6", nextLossNodeId: "9" },
+      { id: "6", round: 3, lane: "winner", nextWinNodeId: "13", nextLossNodeId: "12" },
+      { id: "7", round: 2, lane: "loser", nextWinNodeId: "9", nextLossNodeId: null },
+      { id: "8", round: 2, lane: "loser", nextWinNodeId: "10", nextLossNodeId: null },
+      { id: "9", round: 3, lane: "loser", nextWinNodeId: "11", nextLossNodeId: null },
+      { id: "10", round: 3, lane: "loser", nextWinNodeId: "11", nextLossNodeId: null },
+      { id: "11", round: 4, lane: "loser", nextWinNodeId: "12", nextLossNodeId: null },
+      { id: "12", round: 5, lane: "loser", nextWinNodeId: "13", nextLossNodeId: null },
+      { id: "13", round: 6, lane: "grand", nextWinNodeId: null, nextLossNodeId: null },
+    ]);
   });
 
   it("treats an exact resolved node as idempotent and rejects divergent reuse", async () => {

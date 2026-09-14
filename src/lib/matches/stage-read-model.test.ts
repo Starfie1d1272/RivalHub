@@ -81,5 +81,6 @@ describe("Major Swiss stage read model", () => {
     expect(data?.stageName).toBe("冻结瑞士轮");
     expect(data?.rounds[0]?.groups.map((group) => group.record)).toEqual(["0:0"]);
     expect(data?.rounds[1]?.groups.map((group) => group.record)).toContain("1:0");
+    expect(data?.competitionEntries[0]?.difficultyScore).toEqual(expect.any(Number));
   });
 });
