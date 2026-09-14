@@ -7,14 +7,15 @@ import { describe, expect, it } from "vitest";
 import * as schema from "../../../src/db/schema";
 import { parseRivalHubDemoEvidenceV1 } from "../../../src/lib/demo-evidence/contract";
 import type { RivalHubEvidenceSubmission } from "../../../src/lib/demo-integration/contracts";
+import { readRivalHubEvents } from "../../../src/lib/demo-integration/read";
 import { buildEvidenceRevision } from "../../../src/lib/demo-integration/revision";
-import { submitRivalHubEvidence } from "../../../src/lib/demo-integration/submit";
+import { dakStableScoreboardValues, submitRivalHubEvidence } from "../../../src/lib/demo-integration/submit";
 import { createLocalPool } from "./harness/database";
 
 const fixturePath = resolve(process.cwd(), "tests/fixtures/demo-evidence/normal-map-v1.json");
 
 describe("DAK evidence submit persistence", () => {
-  it("promotes the same needs_attention artifact after an OCR conflict clears without duplicating projections", async () => {
+  it("adopts a submitted 10-player roster despite OCR scoreboard drift and preserves OCR-owned stats", async () => {
     const pool = createLocalPool();
     const client = await pool.connect();
     const database = drizzle(client, { schema });
@@ -132,8 +133,8 @@ describe("DAK evidence submit persistence", () => {
         completedAt: now,
       });
       await database.insert(schema.matchRosters).values([
-        { id: ids.rosterA, matchId: ids.match, entryId: ids.entryA, source: "admin_select", status: "confirmed", confirmedAt: now, confirmedBy: userIds[0]! },
-        { id: ids.rosterB, matchId: ids.match, entryId: ids.entryB, source: "admin_select", status: "confirmed", confirmedAt: now, confirmedBy: userIds[5]! },
+        { id: ids.rosterA, matchId: ids.match, entryId: ids.entryA, source: "admin_select", status: "submitted" },
+        { id: ids.rosterB, matchId: ids.match, entryId: ids.entryB, source: "admin_select", status: "submitted" },
       ]);
       await database.insert(schema.matchRosterPlayers).values(userIds.map((userId, index) => ({
         rosterId: index < 5 ? ids.rosterA : ids.rosterB,
@@ -209,8 +210,24 @@ describe("DAK evidence submit persistence", () => {
         perfectName: "OCR display name",
         userId: userIds[0]!,
         kills: evidence.summaries.playerMaps[0]!.kills + 1,
+        deaths: evidence.summaries.playerMaps[0]!.deaths + 1,
+        assists: evidence.summaries.playerMaps[0]!.assists + 1,
+        hsPercent: dakStableScoreboardValues(evidence.summaries.playerMaps[0]!).hsPercent + 1,
+        firstKills: evidence.summaries.playerMaps[0]!.firstKills + 1,
+        multiKills: dakStableScoreboardValues(evidence.summaries.playerMaps[0]!).multiKills + 1,
+        clutches: dakStableScoreboardValues(evidence.summaries.playerMaps[0]!).clutches + 1,
+        adr: dakStableScoreboardValues(evidence.summaries.playerMaps[0]!).adr + 1,
+        rws: 7.5,
+        ratingPro: 1.25,
+        we: 8,
       });
       await client.query("COMMIT");
+
+      const remote = await readRivalHubEvents({ seasonIds: [ids.season] });
+      const remoteMap = remote.events[0]?.series[0]?.maps[0];
+      expect(remoteMap?.lineup).toHaveLength(10);
+      expect(remoteMap?.lineup.every((player) => player.isStarter)).toBe(true);
+      expect(remoteMap?.evidenceRevision).toBe(evidence.target.evidenceRevision);
 
       const first = await submitRivalHubEvidence({
         input: evidence,
@@ -218,13 +235,10 @@ describe("DAK evidence submit persistence", () => {
         pairingScope: { seasonIds: [ids.season] },
         idempotencyKey: "dak-retry-evidence-1",
       });
-      expect(first.status).toBe("needs_attention");
-      expect(first.issues.some((row) => row.code === "OCR_CONFLICT")).toBe(true);
+      expect(first).toMatchObject({ status: "synced", issues: [] });
       const importId = first.importId;
       expect(importId).not.toBeNull();
       if (!importId) throw new Error("测试未创建 Demo import");
-
-      await database.update(schema.matchPlayerStats).set({ kills: evidence.summaries.playerMaps[0]!.kills }).where(eq(schema.matchPlayerStats.id, ids.ocrStat));
 
       const second = await submitRivalHubEvidence({
         input: evidence,
@@ -243,6 +257,9 @@ describe("DAK evidence submit persistence", () => {
       expect((await database.select().from(schema.matchPlayerStats).where(eq(schema.matchPlayerStats.id, ids.ocrStat)))[0]).toMatchObject({
         perfectName: "Fixture Player 01",
         dakImportId: importId,
+        rws: 7.5,
+        ratingPro: 1.25,
+        we: 8,
       });
 
       const third = await submitRivalHubEvidence({

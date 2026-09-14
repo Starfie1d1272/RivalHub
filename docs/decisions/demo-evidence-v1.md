@@ -28,7 +28,7 @@ RivalHub confirmed projections
 
 - `sourceFacts` 保存紧凑的 normalized Demo facts，例如 rounds、kills、objectives。
 - `semanticFacts` 保存 DAK 拥有定义权的 Stable semantics，例如 player-round、trade、KAST、opening、economy 与 conversion；RivalHub 不从 source facts 重新实现这些算法。
-- `summaries` 是可由前述事实重建并 cross-check 的传输/查询 cache，不是另一份独立 truth。
+- `summaries` 是 DAK 生成的传输/查询 cache；RivalHub 保留 participant identity/shape/basic invariant，并继续校验 contract 明确要求的 source/team/weapon 一致性，但不从 `playerRounds` 重算 `playerMaps` 的统计指标。
 - RivalHub confirmed projections 是服务端硬校验通过后供官方产品与公开 read model 使用的持久化结果；自动确认、异常处理、配对撤销均保留 audit fact。
 
 Base V1 只保存当前赛事统计所需的低维 sufficient facts。`playerRounds` 除基础 combat facts 外，应包含可加总的 utility facts，包括 flash throws、enemy/team blind seconds、enemy blind victims、flash assists、HE/fire throws 与 damage、smokes thrown、utility kills。逐颗 grenade/blind event、raw damage stream、spatial/heatmap source、reaction/preaim/mechanics、Coach/anti-strat 等不进入 Base V1；确有消费需求时通过 versioned extension 增加。

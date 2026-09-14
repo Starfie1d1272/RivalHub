@@ -5,23 +5,20 @@ import { and, desc, eq } from "drizzle-orm";
 import type { TxDb } from "@/db/client";
 import { db } from "@/db/client";
 import {
-  eventRosterMembers,
   matchDemoImports,
   matchMaps,
   matchPlayerStats,
-  matchRosterPlayers,
-  matchRosters,
   matches,
-  users,
   matchRoundFacts,
   type DakPairing,
 } from "@/db/schema";
 import { writeAuditInTx } from "@/lib/audit/write";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { parseRivalHubDemoEvidenceV1 } from "@/lib/demo-evidence/contract";
+import { loadEffectiveMatchRoster, type EffectiveMatchRosterPlayer } from "@/lib/match-rosters/effective";
 import { pairingCanReadSeason } from "./pairing";
 import { type IntegrationIssue, type EvidenceSubmissionResponse, type RivalHubEvidenceSubmission } from "./contracts";
-import { buildEvidenceRevision, sha256Json, type EvidenceRevisionRosterMember } from "./revision";
+import { buildEvidenceRevisionForTarget, sha256Json } from "./revision";
 
 export interface SubmitEvidenceArgs {
   input: unknown;
@@ -33,13 +30,7 @@ export interface SubmitEvidenceArgs {
 interface CanonicalTarget {
   match: typeof matches.$inferSelect;
   map: typeof matchMaps.$inferSelect;
-  roster: Array<{
-    entryId: string;
-    eventRosterMemberId: string;
-    userId: string;
-    steam64: string | null;
-    isStarter: boolean;
-  }>;
+  roster: EffectiveMatchRosterPlayer[];
 }
 
 function issue(code: string, message: string, path?: string): IntegrationIssue {
@@ -69,21 +60,7 @@ async function loadCanonicalTarget(tx: TxDb, evidence: RivalHubEvidenceSubmissio
     .where(and(eq(matchMaps.id, evidence.target.matchMapId), eq(matchMaps.matchId, match.id)));
   if (!map) throw new AppError(ErrorCode.NOT_FOUND, "目标地图不存在或不属于该比赛。");
 
-  const roster = await tx.select({
-    entryId: matchRosters.entryId,
-    eventRosterMemberId: eventRosterMembers.id,
-    userId: users.id,
-    steam64: users.steam64,
-    isStarter: matchRosterPlayers.isStarter,
-  }).from(matchRosterPlayers)
-    .innerJoin(matchRosters, eq(matchRosters.id, matchRosterPlayers.rosterId))
-    .innerJoin(eventRosterMembers, eq(eventRosterMembers.id, matchRosterPlayers.eventRosterMemberId))
-    .innerJoin(users, eq(users.id, eventRosterMembers.userId))
-    .where(and(
-      eq(matchRosters.matchId, match.id),
-      eq(matchRosters.status, "confirmed"),
-      eq(matchRosterPlayers.isStarter, true),
-    ));
+  const roster = await loadEffectiveMatchRoster(tx, [match.id]);
 
   return { match, map, roster };
 }
@@ -116,36 +93,36 @@ function validateCanonicalTarget(
   const rosterUserIds = new Set<string>();
   for (const member of roster) {
     if (!/^\d{17}$/.test(member.steam64 ?? "")) {
-      issues.push(issue("ROSTER_STEAM64_MISSING", "Canonical MatchRoster 成员缺少可校验的 Steam64。", "roster"));
+      issues.push(issue("ROSTER_STEAM64_MISSING", "本场首发成员缺少可校验的 Steam64。", "roster"));
       continue;
     }
-    if (rosterBySteam.has(member.steam64!)) issues.push(issue("ROSTER_STEAM64_DUPLICATE", "Canonical MatchRoster 存在重复 Steam64。", "roster"));
+    if (rosterBySteam.has(member.steam64!)) issues.push(issue("ROSTER_STEAM64_DUPLICATE", "本场首发存在重复 Steam64。", "roster"));
     rosterBySteam.set(member.steam64!, member);
-    if (rosterUserIds.has(member.userId)) issues.push(issue("ROSTER_USER_DUPLICATE", "Canonical MatchRoster 存在重复用户。", "roster"));
+    if (rosterUserIds.has(member.userId)) issues.push(issue("ROSTER_USER_DUPLICATE", "本场首发存在重复用户。", "roster"));
     rosterUserIds.add(member.userId);
   }
-  if (roster.length !== evidence.participants.length) issues.push(issue("ROSTER_SIZE_MISMATCH", "Demo 选手数必须等于已确认的 Canonical MatchRoster 首发数。", "participants"));
-  if (roster.length !== 10) issues.push(issue("ROSTER_NOT_COMPLETE", "当前自动接收要求双方各 5 名已确认首发。", "roster"));
+  if (roster.length !== evidence.participants.length) issues.push(issue("ROSTER_SIZE_MISMATCH", "Demo 选手数必须等于本场首发人数。", "participants"));
+  if (roster.length !== 10) issues.push(issue("ROSTER_NOT_COMPLETE", "当前自动接收要求本场双方各 5 名首发。", "roster"));
 
   const participants = new Set<string>();
   for (const participant of evidence.participants) {
     participants.add(participant.steamId64);
     const expected = rosterBySteam.get(participant.steamId64);
     if (!expected) {
-      issues.push(issue("PARTICIPANT_NOT_IN_ROSTER", "Demo Steam64 不在当前 Canonical MatchRoster 中。", `participants.${participant.steamId64}`));
+      issues.push(issue("PARTICIPANT_NOT_IN_ROSTER", "Demo Steam64 不在本场首发名单中。", `participants.${participant.steamId64}`));
       continue;
     }
     const expectedTeam = expected.entryId === match.entryAId ? "teamA" : expected.entryId === match.entryBId ? "teamB" : null;
-    if (expectedTeam !== participant.observedTeamKey) issues.push(issue("PARTICIPANT_TEAM_MISMATCH", "Demo 队伍与 Canonical MatchRoster 不一致。", `participants.${participant.steamId64}`));
+    if (expectedTeam !== participant.observedTeamKey) issues.push(issue("PARTICIPANT_TEAM_MISMATCH", "Demo 队伍与本场首发名单不一致。", `participants.${participant.steamId64}`));
     if (participant.resolution.status !== "matched") {
       issues.push(issue("PARTICIPANT_IDENTITY_UNRESOLVED", "选手身份未能以 Steam64 唯一匹配，不能自动接收。", `participants.${participant.steamId64}`));
       continue;
     }
     if (participant.resolution.userId !== expected.userId || participant.resolution.eventRosterMemberId !== expected.eventRosterMemberId || participant.resolution.entryId !== expected.entryId) {
-      issues.push(issue("PARTICIPANT_IDENTITY_MISMATCH", "Demo 身份映射与 Canonical MatchRoster 不一致。", `participants.${participant.steamId64}`));
+      issues.push(issue("PARTICIPANT_IDENTITY_MISMATCH", "Demo 身份映射与本场首发名单不一致。", `participants.${participant.steamId64}`));
     }
   }
-  for (const steam64 of rosterBySteam.keys()) if (!participants.has(steam64)) issues.push(issue("ROSTER_PARTICIPANT_MISSING", "Canonical MatchRoster 成员未出现在 Demo participant 集合中。", "participants"));
+  for (const steam64 of rosterBySteam.keys()) if (!participants.has(steam64)) issues.push(issue("ROSTER_PARTICIPANT_MISSING", "本场首发成员未出现在 Demo participant 集合中。", "participants"));
   return issues;
 }
 
@@ -179,11 +156,9 @@ export type ScoreboardStatField = "kills" | "deaths" | "assists" | "hsPercent" |
 type PlayerMapSummary = RivalHubEvidenceSubmission["summaries"]["playerMaps"][number];
 
 /**
- * These are the DAK stable/1 values that have the same meaning as the
- * scoreboard columns. FK is a won opening duel, MK is the sum of 2K/3K/4K/5K
- * rounds (with DAK's 5K bucket meaning >=5), and clutches counts won clutch
- * attempts. Keep this mapping identical to the projection below before using
- * any of these fields as an OCR hard blocker.
+ * Project DAK-owned map-stat columns from the producer-owned playerMap summary.
+ * FK is a won opening duel, MK is the sum of 2K/3K/4K/5K rounds (with DAK's 5K
+ * bucket meaning >=5), and clutches counts won clutch attempts.
  */
 export function dakStableScoreboardValues(summary: PlayerMapSummary): Record<ScoreboardStatField, number> {
   return {
@@ -196,79 +171,6 @@ export function dakStableScoreboardValues(summary: PlayerMapSummary): Record<Sco
     clutches: summary.clutchWins,
     adr: round(summary.damage / Math.max(summary.rounds, 1), 2),
   };
-}
-
-/** Perfect scoreboard display precision: integer columns are shown as whole
- * numbers and ADR is shown to one decimal place. Compare the rendered value,
- * not a raw floating-point tolerance. */
-export function scoreboardStatDisplay(field: ScoreboardStatField, value: number): string {
-  return field === "adr" ? value.toFixed(1) : Math.round(value).toFixed(0);
-}
-
-/**
- * OCR is optional evidence. Before the first DAK projection, compare only
- * fields whose source semantics are shared by the scoreboard and DAK. A
- * missing OCR field never blocks; an actual disagreement keeps the import in
- * needs_attention and prevents auto-confirm.
- */
-async function crossCheckOcrStats(
-  tx: TxDb,
-  evidence: RivalHubEvidenceSubmission,
-  target: CanonicalTarget,
-): Promise<IntegrationIssue[]> {
-  const existing = await tx.select({
-    userId: matchPlayerStats.userId,
-    dakImportId: matchPlayerStats.dakImportId,
-    kills: matchPlayerStats.kills,
-    deaths: matchPlayerStats.deaths,
-    assists: matchPlayerStats.assists,
-    hsPercent: matchPlayerStats.hsPercent,
-    firstKills: matchPlayerStats.firstKills,
-    multiKills: matchPlayerStats.multiKills,
-    clutches: matchPlayerStats.clutches,
-    adr: matchPlayerStats.adr,
-  }).from(matchPlayerStats).where(eq(matchPlayerStats.mapId, target.map.id));
-  const ocrByUser = new Map<string, Array<typeof existing[number]>>();
-  for (const row of existing) {
-    if (!row.userId || row.dakImportId) continue;
-    const rows = ocrByUser.get(row.userId) ?? [];
-    rows.push(row);
-    ocrByUser.set(row.userId, rows);
-  }
-
-  const participantBySteam = new Map(evidence.participants.map((participant) => [participant.steamId64, participant]));
-  const issues: IntegrationIssue[] = [];
-  for (const summary of evidence.summaries.playerMaps) {
-    const participant = participantBySteam.get(summary.steamId64);
-    if (!participant || participant.resolution.status !== "matched") continue;
-    const dakValues = dakStableScoreboardValues(summary);
-    const fields = [
-      ["kills", "K"],
-      ["deaths", "D"],
-      ["assists", "A"],
-      ["hsPercent", "HS%"],
-      ["firstKills", "FK"],
-      ["multiKills", "MK"],
-      ["clutches", "残局"],
-      ["adr", "ADR"],
-    ] as const;
-    for (const row of ocrByUser.get(participant.resolution.userId) ?? []) {
-      for (const [field, label] of fields) {
-        const ocrValue = row[field];
-        const dakValue = dakValues[field];
-        if (ocrValue == null || dakValue == null || !Number.isFinite(ocrValue) || !Number.isFinite(dakValue)) continue;
-        const same = scoreboardStatDisplay(field, ocrValue) === scoreboardStatDisplay(field, dakValue);
-        if (!same) {
-          issues.push(issue(
-            "OCR_CONFLICT",
-            `OCR ${label} 与 Demo 不一致：OCR=${ocrValue}，Demo=${dakValue}。`,
-            `summaries.playerMaps.${summary.steamId64}.${field}`,
-          ));
-        }
-      }
-    }
-  }
-  return issues;
 }
 
 async function projectPlayerStats(
@@ -317,32 +219,6 @@ async function projectPlayerStats(
     count += 1;
   }
   return count;
-}
-
-function revisionFor(target: CanonicalTarget): string {
-  const roster: EvidenceRevisionRosterMember[] = target.roster.map((row) => ({
-    entryId: row.entryId,
-    eventRosterMemberId: row.eventRosterMemberId,
-    userId: row.userId,
-    steam64: row.steam64,
-    isStarter: row.isStarter,
-  }));
-  return buildEvidenceRevision({
-    seasonId: target.match.seasonId,
-    stageKey: target.match.stage,
-    stageRunId: target.match.majorStageRunId,
-    matchId: target.match.id,
-    matchMapId: target.map.id,
-    mapOrder: target.map.mapOrder,
-    mapName: target.map.mapName,
-    mapScoreA: target.map.scoreA,
-    mapScoreB: target.map.scoreB,
-    mapCompletedAt: target.map.completedAt?.toISOString() ?? null,
-    matchStatus: target.match.status,
-    entryAId: target.match.entryAId,
-    entryBId: target.match.entryBId,
-    roster,
-  });
 }
 
 function sameContent(row: typeof matchDemoImports.$inferSelect, evidence: RivalHubEvidenceSubmission, payloadSha256: string): boolean {
@@ -422,10 +298,9 @@ export async function submitRivalHubEvidence(args: SubmitEvidenceArgs): Promise<
     }
 
     const target = await loadCanonicalTarget(tx, evidence);
-    const currentRevision = revisionFor(target);
+    const currentRevision = buildEvidenceRevisionForTarget(target);
     const issues = validateCanonicalTarget(evidence, target);
     if (evidence.target.evidenceRevision !== currentRevision) issues.push(issue("STALE_EVIDENCE", "Demo Evidence 基于旧的赛事/阵容/比分快照，请刷新后重新生成。", "target.evidenceRevision"));
-    issues.push(...await crossCheckOcrStats(tx, evidence, target));
 
     const priorRows = await tx.select().from(matchDemoImports)
       .where(eq(matchDemoImports.matchMapId, target.map.id)).orderBy(desc(matchDemoImports.createdAt)).for("update");
