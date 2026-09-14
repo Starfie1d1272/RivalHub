@@ -119,6 +119,14 @@ describe("DAK stage projection PostgreSQL integration", () => {
             [revisionIds[index], entryId, now],
           );
         }
+        await entryClient.query(
+          `INSERT INTO competition_entry_representative_changes (
+             entry_id, from_user_id, to_user_id, changed_by_actor_id
+           )
+           SELECT entry_id, NULL, $2, $3
+           FROM unnest($1::uuid[]) AS rows(entry_id)`,
+          [entryIds, ids.user, "stage-projection-test"],
+        );
         await entryClient.query("COMMIT");
       } catch (error) {
         await entryClient.query("ROLLBACK");
