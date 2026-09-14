@@ -63,7 +63,9 @@ pnpm exec vitest run --project unit-react-jsdom path/to/related.spec.tsx
 
 环境启动和单层复现见 [`operations/local-development.md`](./operations/local-development.md)。
 
-Vitest 的三个 project（domain Node、server Node、React jsdom）是独立 evidence owner。FULL static 会并行执行三个 project；Draft affected static 将 source 交给 Vitest `related`，而变更的 test 文件与 architecture/E2E 等 repository contract 以显式 test path 直接运行。project 的 wall time 由外层 timing wrapper 记录，reporter 只记录 test count、failure/flaky count 和按文件排序的 diagnostic duration，不把并发文件 duration 总和伪装成 project wall time。
+Vitest 的三个 project（domain Node、server Node、React jsdom）是独立 evidence owner。FULL static 会并行执行三个 project；Draft affected static 将 source 交给 Vitest `related`，而变更的 test 文件与 architecture/E2E 等 repository contract 以显式 test path 直接运行。React/jsdom 的异步交互测试使用 `userEvent.setup()` 和 awaited interaction，并分别等待元素存在与可交互状态；只有时间推进本身是被测 contract 时才使用 fake timers。`unit-react-jsdom` 仅在 GitHub Actions 中配置一次 `retry`，本地默认保持 `0`；static matrix 在该 project 测试后执行 `scripts/ci/assert-no-flaky.mjs`，所以 retry-pass 仍会使 static job 失败。project 的 wall time 由外层 timing wrapper 记录，`vitest-timing-reporter.ts` 继续作为唯一 evidence producer，除 test count、failure/flaky count 和按文件排序的 diagnostic duration 外，为每个 flaky test 写入 project、file、full test name 与 retry count，不解析 console 文本伪造失败信息，也不把并发文件 duration 总和伪装成 project wall time。
+
+对疑似 flake 的本地诊断可以显式运行 `pnpm exec vitest run --project unit-react-jsdom --retry 1 path/to/related.spec.tsx`；`repeats` 只作为聚焦诊断或手动/nightly 入口，不进入普通 PR 的 planner、required path 或 flaky allowlist。
 
 System failure/flaky 时 Playwright 生成 failure screenshot；artifact sanitizer 仅从 test-results 保留小型 PNG/JPEG，trace archive 与所有文本继续脱敏，成功 run 不上传大体积 artifacts。每条 stateful E2E 使用自己的 fixture profile 与 attempt namespace。
 

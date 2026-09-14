@@ -99,7 +99,12 @@ jobs:
           STATIC_CHANGED_PATHS: ${{ toJSON(matrix.changedPaths) }}
           STATIC_RELATED_SOURCES: ${{ toJSON(matrix.relatedSources) }}
           STATIC_EXPLICIT_TESTS: ${{ toJSON(matrix.explicitTests) }}
+          RIVALHUB_VITEST_PROJECT: ${{ matrix.project || '' }}
         run: node scripts/ci/timing.mjs "static/${{ matrix.task }}" -- node scripts/ci/run-static-task.mjs
+
+      - name: Assert no flaky Vitest tests
+        if: ${{ always() && matrix.project == 'unit-react-jsdom' }}
+        run: node scripts/ci/assert-no-flaky.mjs --project unit-react-jsdom
 
       - name: Write timing summary
         if: always()
