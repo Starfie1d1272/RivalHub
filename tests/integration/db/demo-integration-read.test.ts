@@ -144,7 +144,7 @@ describe("DAK stage projection PostgreSQL integration", () => {
       );
       await pool.query(
         `INSERT INTO major_stage_entrants (id, stage_run_id, season_id, tournament_entrant_id, stage_seed)
-         VALUES ${stageEntrantIds.map((_, index) => `($${index * 2 + 3}, $1, $2, $${index * 2 + 4}, $${index * 2 + 5})`).join(", ")}`,
+         VALUES ${stageEntrantIds.map((_, index) => `($${index * 3 + 3}, $1, $2, $${index * 3 + 4}, $${index * 3 + 5})`).join(", ")}`,
         [ids.stageRun, ids.season, ...stageEntrantIds.flatMap((stageEntrantId, index) => [stageEntrantId, tournamentEntrantIds[index], index + 1])],
       );
 
