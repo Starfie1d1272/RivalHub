@@ -259,6 +259,7 @@ export function parseRivalHubDemoEvidenceV1(input: unknown): RivalHubDemoEvidenc
   for (const participant of evidence.participants) {
     const summary = playerSummaries.get(participant.steamId64);
     if (!summary || summary.teamKey !== participant.observedTeamKey) throw new Error("playerMaps participant 映射无效");
+    if (summary.rounds !== rounds.length) throw new Error("playerMaps rounds 必须匹配 source rounds");
   }
   const weaponFacts = new Map<string, { kills: number; headshotKills: number }>();
   for (const kill of evidence.sourceFacts.kills) {

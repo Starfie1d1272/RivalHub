@@ -80,9 +80,8 @@ describe("RivalHubDemoEvidenceV1", () => {
     invalidKill.sourceFacts.kills[0]!.victimSteamId64 = "76561198000999999";
     expect(() => parseRivalHubDemoEvidenceV1(invalidKill)).toThrow("kill 引用了未知 round 或 participant");
 
-    const drift = cloneFixture();
-    const summary = drift.summaries.playerMaps[0]!;
-    summary.rounds += 1;
+    const metricDrift = cloneFixture();
+    const summary = metricDrift.summaries.playerMaps[0]!;
     summary.kills += 1;
     summary.deaths += 1;
     summary.assists += 1;
@@ -98,7 +97,11 @@ describe("RivalHubDemoEvidenceV1", () => {
     summary.fiveKillRounds += 1;
     summary.clutchAttempts += 1;
     summary.clutchWins += 1;
-    expect(parseRivalHubDemoEvidenceV1(drift).summaries.playerMaps[0]).toEqual(summary);
+    expect(parseRivalHubDemoEvidenceV1(metricDrift).summaries.playerMaps[0]).toEqual(summary);
+
+    const roundsDrift = cloneFixture();
+    roundsDrift.summaries.playerMaps[0]!.rounds += 1;
+    expect(() => parseRivalHubDemoEvidenceV1(roundsDrift)).toThrow("playerMaps rounds 必须匹配 source rounds");
 
     const unknownPlayerMap = cloneFixture();
     unknownPlayerMap.summaries.playerMaps[0]!.steamId64 = "76561198000999999";

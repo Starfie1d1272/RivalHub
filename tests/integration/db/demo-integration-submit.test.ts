@@ -276,7 +276,11 @@ describe("DAK evidence submit persistence", () => {
         eq(schema.auditLogs.targetId, importId),
       ));
       expect(autoConfirmAudits).toHaveLength(1);
-      expect((autoConfirmAudits[0]?.meta as { retryPromotion?: boolean } | null)?.retryPromotion).toBe(true);
+      expect(autoConfirmAudits[0]?.meta).toMatchObject({
+        mapOrder: 1,
+        playerCount: evidence.participants.length,
+        rounds: evidence.sourceFacts.rounds.length,
+      });
 
       const revisedCompletedAt = new Date(now.getTime() + 1_000);
       await database.update(schema.matchMaps).set({ completedAt: revisedCompletedAt }).where(eq(schema.matchMaps.id, ids.map));
