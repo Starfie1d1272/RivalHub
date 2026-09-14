@@ -36,7 +36,7 @@ export async function loginWithPassword(
   const normalizedEmail = normalizeEmail(email);
 
   try {
-    const supabase = createServiceClient();
+    const supabase = createPublicAuthClient();
     const { data, error } = await traceOperation("provider.supabase.auth.sign_in", {
       scope: "provider",
       operation: "auth.sign_in",
