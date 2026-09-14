@@ -4,6 +4,7 @@ import {
   foreignKey,
   integer,
   jsonb,
+  pgEnum,
   pgTable,
   text,
   timestamp,
@@ -17,6 +18,16 @@ import type {
 } from "@/lib/major/seed-recommendation-snapshot";
 import { seasons } from "./seasons";
 import { competitionEntries } from "./competition-entries";
+
+/**
+ * @deprecated N/N+1 compatibility shell.
+ * No application consumer may depend on this enum.
+ * Remove only after the relation contract has been cleaned up safely.
+ */
+export const majorPrestartIssueCategoryEnum = pgEnum("major_prestart_issue_category", [
+  "qualification",
+  "administration",
+]);
 
 /**
  * Per-season lifecycle facts. The lack of a row means the Major has not yet
@@ -98,7 +109,28 @@ export const majorSeedRecommendationSnapshots = pgTable("major_seed_recommendati
   recommendations: jsonb("recommendations").$type<SeedRecommendationTeamV1[]>().notNull(),
 });
 
+/**
+ * @deprecated N/N+1 compatibility shell.
+ * No application consumer may depend on this relation.
+ * Drop only after the release containing the consumer removal becomes the
+ * previous production stable.
+ */
+export const majorPrestartIssues = pgTable("major_prestart_issues", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  seasonId: uuid("season_id").notNull().references(() => seasons.id),
+  category: majorPrestartIssueCategoryEnum("category").notNull(),
+  label: text("label").notNull(),
+  resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+  resolvedBy: text("resolved_by"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  seasonCategoryIndex: index("major_prestart_issues_season_category_idx").on(t.seasonId, t.category),
+}));
+
 export type MajorPrestartState = typeof majorPrestartStates.$inferSelect;
 export type MajorTournamentEntrant = typeof majorTournamentEntrants.$inferSelect;
 export type MajorTournamentSeed = typeof majorTournamentSeeds.$inferSelect;
 export type MajorSeedRecommendationSnapshot = typeof majorSeedRecommendationSnapshots.$inferSelect;
+/** @deprecated N/N+1 compatibility shell; no active application consumer. */
+export type MajorPrestartIssue = typeof majorPrestartIssues.$inferSelect;

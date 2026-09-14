@@ -4,7 +4,7 @@
 
 ## 结论
 
-- 当前 active chain 的 79 张 application-owned `public` base table 全部归类为 `server_only`。业务数据库只由 server-side Drizzle 访问，browser Data API consumer 为零。
+- 当前 active chain 的 80 张 application-owned `public` base table 全部归类为 `server_only`。业务数据库只由 server-side Drizzle 访问，browser Data API consumer 为零。
 - `users`、`user_sessions`、`admin_invites`、`admin_invite_claims`、`season_admin_grants`、`audit_logs`、education evidence、Major prestart/runtime 和 bracket runtime 均按高敏感 server-only 处理。
 - 通用 provider bracket state 按 `(competition_id, stage_key)` 归属 canonical logical Stage；Major Swiss standings 只由 StageRun entrants、managed matches 与 finalized round 投影。
 - `DraftLiveRoom` 与 `CaptainVotingPanel` 的 Realtime subscription 已删除。两处继续使用既有 10 秒 polling fallback；`ResetPasswordForm` 保留 browser Supabase client，但仅调用 Supabase Auth，不调用 public table Data API。
@@ -51,6 +51,7 @@
 | institutions | 高校目录与官方编码 | 教育目录 | src/lib/qualification/service.ts; src/actions/education-verifications.ts | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 机构目录可能被公开 projection 间接使用，但原始表仍由服务端控制。 |
 | identity_link_requests | 高敏感邮箱绑定挑战 | 身份 / credential | src/lib/identity/linking.ts; src/actions/identity.ts | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 绑定请求包含邮箱和一次性挑战状态，只能在服务端验证与消费。 |
 | major_final_results | 官方最终结果事实 | Major post-event | src/lib/postevent/service.ts; src/lib/major/placement.ts | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 最终结果需 confirmation/adjudication 后归档，禁止客户端旁路写入。 |
+| major_prestart_issues | 历史兼容 contract（无 active business owner） | Major prestart / compatibility shell | src/db/schema/major-prestart.ts（deprecated N/N+1 compatibility shell；无 active consumer） | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | Release N+1 已移除所有业务 consumer；为 previous stable migration window 保留物理表与 schema declaration，待后续 release contract cleanup。 |
 | major_prestart_states | 开赛前状态与锁定事实 | Major prestart | src/actions/major-prestart.ts; src/lib/major/prestart-state.ts | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | entrant/seed lock 是开赛门禁，不是客户端状态。 |
 | major_seed_recommendation_snapshots | 高敏感冻结竞技事实与来源 | Major prestart | src/lib/major/prestart-entrants.ts; src/lib/major/prestart-seeds.ts; src/lib/admin/season-workspace/major-prestart.ts | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 系统建议快照绑定冻结 entrant/EventRoster、竞技 provenance 与 ConversionPolicy，只由服务端 freeze/read model 访问，不能通过 Data API 暴露。 |
 | major_stage_entrants | 阶段参赛事实 | Major stage runtime | src/lib/major/run-entrants.ts; src/lib/major/stage-transition.ts | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | stage entrant 与 StageRun 的一致性由 Major runtime owner 维护。 |

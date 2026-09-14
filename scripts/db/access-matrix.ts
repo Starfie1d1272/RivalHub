@@ -329,6 +329,13 @@ export const DATABASE_ACCESS_MATRIX: readonly DatabaseAccessEntry[] = [
     "最终结果需 confirmation/adjudication 后归档，禁止客户端旁路写入。",
   ),
   serverOnly(
+    "major_prestart_issues",
+    "Major prestart / compatibility shell",
+    "历史兼容 contract（无 active business owner）",
+    "src/db/schema/major-prestart.ts（deprecated N/N+1 compatibility shell；无 active consumer）",
+    "Release N+1 已移除所有业务 consumer；为 previous stable migration window 保留物理表与 schema declaration，待后续 release contract cleanup。",
+  ),
+  serverOnly(
     "major_prestart_states",
     "Major prestart",
     "开赛前状态与锁定事实",

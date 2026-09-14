@@ -52,12 +52,8 @@ const demoIntegrationMigration = readFileSync(
   join(root, "drizzle/migrations/0051_sour_grim_reaper.sql"),
   "utf8",
 );
-const majorPrestartCleanupMigration = readFileSync(
-  join(root, "drizzle/migrations/0052_cold_boomerang.sql"),
-  "utf8",
-);
-const migration = `${terminalMigration}\n${restrictionOverrideMigration}\n${conversionPolicyMigration}\n${seedRecommendationSnapshotMigration}\n${identityMigration}\n${schedulerMigration}\n${stageConvergenceMigration}\n${contractCleanupMigration}\n${operationsMigration}\n${demoIntegrationMigration}\n${majorPrestartCleanupMigration}`;
-const droppedTables = [...migration.matchAll(/DROP TABLE "([^"]+)"/g)].map((match) => match[1]);
+const migration = `${terminalMigration}\n${restrictionOverrideMigration}\n${conversionPolicyMigration}\n${seedRecommendationSnapshotMigration}\n${identityMigration}\n${schedulerMigration}\n${stageConvergenceMigration}\n${contractCleanupMigration}\n${operationsMigration}\n${demoIntegrationMigration}`;
+const droppedTables = [...contractCleanupMigration.matchAll(/DROP TABLE "([^"]+)"/g)].map((match) => match[1]);
 
 function expectedFacts(): DatabaseAccessFacts[] {
   return DATABASE_ACCESS_MATRIX.map((entry) => ({
@@ -73,13 +69,13 @@ function expectedFacts(): DatabaseAccessFacts[] {
 describe("database access matrix", () => {
   it("classifies every current public application table and keeps the generated document aligned", () => {
     const snapshot = JSON.parse(
-      readFileSync(join(root, "drizzle/migrations/meta/0052_snapshot.json"), "utf8"),
+      readFileSync(join(root, "drizzle/migrations/meta/0051_snapshot.json"), "utf8"),
     ) as { tables: Record<string, unknown> };
     const snapshotTables = Object.keys(snapshot.tables)
       .map((table) => table.replace(/^public\./, ""))
       .sort();
 
-    expect(DATABASE_ACCESS_MATRIX).toHaveLength(79);
+    expect(DATABASE_ACCESS_MATRIX).toHaveLength(80);
     expect(new Set(DATABASE_ACCESS_TABLES).size).toBe(DATABASE_ACCESS_TABLES.length);
     expect(snapshotTables).toEqual([...DATABASE_ACCESS_TABLES].sort());
     expect(renderDatabaseAccessMatrixMarkdown()).toBe(
@@ -127,8 +123,6 @@ describe("database access matrix", () => {
       "REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA public FROM anon, authenticated;",
     );
     expect(migration).toContain("ALTER PUBLICATION %I DROP TABLE %I.%I");
-    expect(majorPrestartCleanupMigration).toContain('DROP TABLE "major_prestart_issues";');
-    expect(majorPrestartCleanupMigration).toContain('DROP TYPE "public"."major_prestart_issue_category";');
     expect(() => validateDatabaseAccessMatrixConfig()).not.toThrow();
     expect(DATABASE_ACCESS_MATRIX.every((entry) =>
       entry.targetClass === "server_only" &&
