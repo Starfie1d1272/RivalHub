@@ -1,5 +1,37 @@
 # Changelog
 
+## [2.9.5]
+
+### Added
+
+#### DAK 赛事阶段官方投影
+
+DAK 赛事事件接口新增阶段官方积分榜与淘汰赛拓扑投影，复用阶段范围的赛事读模型与 canonical bracket adapter。
+
+### Changed
+
+#### 管理端赛事运营视图
+
+收口管理端报名审核、赛事总览和 Major 赛前视图，减少重复状态呈现并突出当前可行动事项；候选队伍、种子与首轮预览按生命周期整理。
+
+### Fixed
+
+#### DAK Demo Evidence 接收与本场阵容同步
+
+修正本场首发读取与统计接收边界：已提交的本场名单可正常同步；独立生成的选手地图汇总与 OCR 重叠记分板差异不再阻塞自动采用，同时保留 OCR 专属字段。
+
+#### 密码登录认证客户端
+
+密码登录改用面向用户认证的 public auth client，避免错误复用高权限 service client，并兼容新的 Supabase publishable / secret key 模型。
+
+#### 已开放赛事报名运营时间保存
+
+修复已开放赛事保存报名运营时间时对客户端有损回放的误判，明确区分计划开放、实际开放与提前强制开放语义。
+
+#### 信息与反馈入口及页面布局
+
+修复信息与反馈入口与页脚的桌面空间冲突，补齐学信网认证驳回后的重新提交引导，并校准社区奖、选手资料和邀请码页面的宽度语义。
+
 ## [2.9.4]
 
 ### Added
@@ -2177,6 +2209,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[2.9.5]: https://github.com/Starfie1d1272/RivalHub/compare/v2.9.4...v2.9.5
 [2.9.4]: https://github.com/Starfie1d1272/RivalHub/compare/v2.9.3...v2.9.4
 [2.9.3]: https://github.com/Starfie1d1272/RivalHub/compare/v2.9.2...v2.9.3
 [2.9.2]: https://github.com/Starfie1d1272/RivalHub/compare/v2.9.1...v2.9.2
