@@ -89,7 +89,7 @@ describe("admin platform operations PostgreSQL read model", () => {
                   ($3, $5, $4, 'benched', $7, NULL, NULL, $2, $7, $7),
                   ($6, $5, $8, 'active', $7, NULL, NULL, $2, $7, $7),
                   ($9, $5, $10, 'left', $11, $12, 'left', $2, $11, $12)`,
-          [ids.captainMembership, ids.captain, ids.memberMembership, ids.member, ids.activeTeam, ids.mergedMembership, ids.merged, ids.endedMembership, ids.lft, endedStartedAt, endedAt],
+          [ids.captainMembership, ids.captain, ids.memberMembership, ids.member, ids.activeTeam, ids.mergedMembership, recent, ids.merged, ids.endedMembership, ids.lft, endedStartedAt, endedAt],
         );
         await fixture.query(
           `INSERT INTO education_verifications (id, user_id, institution_id, academic_status, evidence_type, status, reviewed_by, submitted_at, reviewed_at, created_at, updated_at)
