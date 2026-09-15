@@ -647,12 +647,11 @@ async function reconcileAmbiguousMutation(
   const stage: RoutingFailureDetails["stage"] = kind === "promote" ? "promotion" : "compensation";
   const startedAt = context.nowFn();
   const timeoutMs = context.ambiguousReconciliationTimeoutMs;
-  let polls = 0;
   let stablePreviousObservations = 0;
+  let reconciliationWindowSafeToRetry = unchangedDeploymentId !== undefined;
   let lastState: AliasState = { jobStatus: null, toDeploymentId: null };
 
   while (true) {
-    polls += 1;
     try {
       lastState = await context.vercelClient.readAliasState({
         stage,
@@ -689,6 +688,7 @@ async function reconcileAmbiguousMutation(
         stablePreviousObservations += 1;
       } else {
         stablePreviousObservations = 0;
+        reconciliationWindowSafeToRetry = false;
       }
 
       context.logFn(
@@ -701,9 +701,6 @@ async function reconcileAmbiguousMutation(
           ", stablePreviousObservations=" +
           stablePreviousObservations,
       );
-      if (stablePreviousObservations >= 2) {
-        return { outcome: "safe_to_retry", lastState };
-      }
     } catch (error) {
       const failure = asRoutingError(error, {
         stage,
@@ -722,6 +719,7 @@ async function reconcileAmbiguousMutation(
         }, error);
       }
       stablePreviousObservations = 0;
+      reconciliationWindowSafeToRetry = false;
       context.logFn(
         "[Release Routing] ambiguous " +
           kind +
@@ -730,7 +728,16 @@ async function reconcileAmbiguousMutation(
       );
     }
 
-    if (pollExpired(context, startedAt, polls, timeoutMs)) {
+    const elapsedMs = Math.max(0, context.nowFn() - startedAt);
+    if (elapsedMs >= timeoutMs) {
+      if (reconciliationWindowSafeToRetry && stablePreviousObservations >= 2) {
+        context.logFn(
+          "[Release Routing] ambiguous " +
+            kind +
+            " reconciliation window 完整结束，previous routing 全程稳定；允许一次 bounded retry。",
+        );
+        return { outcome: "safe_to_retry", lastState };
+      }
       throw routingError({
         stage,
         operation: "reconcile_" + kind + "_outcome",
@@ -742,11 +749,11 @@ async function reconcileAmbiguousMutation(
         expectedReleaseTag: context.releaseTag,
         expectedReleaseCommit: context.releaseCommit,
         attempt,
-        elapsedMs: Math.max(0, context.nowFn() - startedAt),
+        elapsedMs,
         sideEffectMayHaveOccurred: true,
       }, ambiguousError);
     }
-    await context.sleepFn(context.pollIntervalMs);
+    await context.sleepFn(Math.min(context.pollIntervalMs, timeoutMs - elapsedMs));
   }
 }
 

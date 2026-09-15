@@ -373,6 +373,8 @@ describe("deployment and operations contracts", () => {
     expect(routing).toContain("DEFAULT_ROUTING_SEMANTIC_TIMEOUT_MS = 120_000");
     expect(routing).toContain("DEFAULT_ROUTING_AMBIGUOUS_RECONCILIATION_TIMEOUT_MS = 15_000");
     expect(routing).toContain("stablePreviousObservations");
+    expect(routing).toContain("reconciliationWindowSafeToRetry");
+    expect(routing).toContain("elapsedMs >= timeoutMs");
     expect(routing).toContain("rate_limited");
     expect(routing).toContain("convergence_timeout");
     expect(routing).toContain("rollback_failed");

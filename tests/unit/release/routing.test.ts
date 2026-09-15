@@ -277,6 +277,27 @@ describe("release routing controller", () => {
     expect(requestCount(harness, "/promote/")).toBe(1);
   });
 
+  it("keeps an ambiguous promote to one POST when previous repeats before candidate appears", async () => {
+    const harness = createHarness({
+      canonical: [
+        identity("v2.9.4", PREVIOUS_COMMIT),
+        identity("v2.9.5", CANDIDATE_COMMIT),
+      ],
+      promote: [new Error("request timed out")],
+      alias: [
+        aliasState(PREVIOUS_DEPLOYMENT_ID, "succeeded"),
+        aliasState(PREVIOUS_DEPLOYMENT_ID, "succeeded"),
+        aliasState(CANDIDATE_DEPLOYMENT_ID, "succeeded"),
+      ],
+    });
+
+    await expect(runReleaseRouting(harness.options)).resolves.toMatchObject({
+      promotionOutcome: "reconciled",
+    });
+    expect(requestCount(harness, "/promote/")).toBe(1);
+    expect(requestCount(harness, "/rollback/")).toBe(0);
+  });
+
   it("retries a rate-limited mutation with bounded backoff", async () => {
     const harness = createHarness({
       canonical: [
