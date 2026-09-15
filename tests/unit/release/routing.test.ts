@@ -55,7 +55,9 @@ function deployment(host: string, id: string): Record<string, string> {
   return {
     id,
     projectId: PROJECT_ID,
-    url: host,
+    // Vercel resolves a custom domain to the deployment, while `url` remains
+    // the deployment's generated hostname.
+    url: host === CANONICAL_HOST ? "rivalhub-previous.vercel.app" : host,
     target: "production",
     readyState: "READY",
   };
