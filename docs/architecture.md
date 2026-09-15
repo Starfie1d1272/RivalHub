@@ -123,6 +123,7 @@ Major Swiss 不经过通用 provider adapter：它由 `majorStageEntrants`、off
 | CS2 map / position catalogs | `src/lib/config/cs2-maps.ts`, `src/lib/config/cs2-positions.ts`, `src/lib/maps.ts` |
 | Identity / education / competitive | `src/lib/identity/`, `src/lib/competitive/`, `src/lib/qualification/` |
 | Teams / CompetitionEntry / recruitment | `src/lib/teams/`, `src/lib/competition-entries/`, `src/lib/recruitment/` |
+| Admin platform operations read model | `src/lib/admin/platform-operations/` |
 | Rivals voting / draft | `src/lib/captains/`, `src/lib/draft/`, corresponding actions |
 | Major prestart / runtime | `src/lib/major/` |
 | Match / roster / result | `src/lib/matches/`, `src/lib/match-rosters/`, match actions |

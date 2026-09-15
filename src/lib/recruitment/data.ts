@@ -49,8 +49,13 @@ export interface PlayerLftCardData extends PublicRecruitmentIntent {
   competitiveSummary: PublicCompetitiveProfilePlatform[];
 }
 
+/** Shared base predicate for a publicly discoverable, non-expired intent. */
+export function openRecruitmentIntentConditions(kind: "team_recruiting" | "player_lft", now: Date) {
+  return [eq(recruitmentIntents.kind, kind), eq(recruitmentIntents.status, "open"), gt(recruitmentIntents.expiresAt, now)];
+}
+
 function openConditions(kind: "team_recruiting" | "player_lft", filters: RecruitmentFilters, now: Date) {
-  const conditions = [eq(recruitmentIntents.kind, kind), eq(recruitmentIntents.status, "open"), gt(recruitmentIntents.expiresAt, now)];
+  const conditions = [...openRecruitmentIntentConditions(kind, now)];
   if (filters.q) {
     const pattern = `%${escapeLikePattern(filters.q)}%`;
     conditions.push(kind === "team_recruiting"

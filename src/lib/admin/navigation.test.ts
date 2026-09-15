@@ -5,12 +5,13 @@ describe("admin navigation", () => {
   it("keeps operations but hides feedback from season admins", () => {
     const operations = getAdminNavigation("season_admin").find((group) => group.key === "operations");
     expect(operations?.items.map((item) => item.href)).toEqual([
+      "/admin/operations",
       "/admin/operations/announcements",
       "/admin/operations/season-info",
     ]);
   });
 
   it("shows all operations to super admins", () => {
-    expect(getAdminNavigation("super_admin").find((group) => group.key === "operations")?.items).toHaveLength(3);
+    expect(getAdminNavigation("super_admin").find((group) => group.key === "operations")?.items).toHaveLength(4);
   });
 });
