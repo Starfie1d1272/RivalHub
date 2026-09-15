@@ -32,10 +32,14 @@ interface RequestRecord {
   headers: Headers;
 }
 
-function jsonResponse(body: unknown, status = 200): Response {
+function jsonResponse(
+  body: unknown,
+  status = 200,
+  headers: Record<string, string> = {},
+): Response {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", ...headers },
   });
 }
 
@@ -67,6 +71,7 @@ function createHarness(scenario: Scenario) {
   const calls: RequestRecord[] = [];
   const summaries: string[] = [];
   const logs: string[] = [];
+  const sleeps: number[] = [];
   const canonicalValues = Array.isArray(scenario.canonical) ? scenario.canonical : undefined;
   const aliasValues = scenario.alias ?? [aliasState(CANDIDATE_DEPLOYMENT_ID, "succeeded")];
   const promoteValues = scenario.promote ?? [jsonResponse({}, 202)];
@@ -135,6 +140,7 @@ function createHarness(scenario: Scenario) {
     vercelProjectId: PROJECT_ID,
     fetchFn,
     sleepFn: async (milliseconds) => {
+      sleeps.push(milliseconds);
       clock += Math.max(1, milliseconds);
     },
     nowFn: () => clock,
@@ -142,12 +148,15 @@ function createHarness(scenario: Scenario) {
     errorFn: (message) => logs.push("error: " + message),
     summaryFn: (markdown) => summaries.push(markdown),
     pollIntervalMs: 10,
-    pollTimeoutMs: 30,
+    providerRoutingTimeoutMs: 30,
+    semanticConvergenceTimeoutMs: 30,
+    ambiguousReconciliationTimeoutMs: 30,
+    requestTimeoutMs: 1_000,
     transportRetryAttempts: 3,
     transportRetryDelayMs: 1,
   };
 
-  return { calls, fetchFn, logs, options, summaries };
+  return { calls, fetchFn, logs, options, sleeps, summaries };
 }
 
 function requestCount(harness: ReturnType<typeof createHarness>, fragment: string): number {
@@ -249,6 +258,44 @@ describe("release routing controller", () => {
     expect(harness.logs.some((line) => line.includes("不重复 side-effect POST"))).toBe(true);
   });
 
+  it("keeps an ambiguous promote to one POST when stale previous becomes candidate", async () => {
+    const harness = createHarness({
+      canonical: [
+        identity("v2.9.4", PREVIOUS_COMMIT),
+        identity("v2.9.5", CANDIDATE_COMMIT),
+      ],
+      promote: [new Error("request timed out")],
+      alias: [
+        aliasState(PREVIOUS_DEPLOYMENT_ID, "succeeded"),
+        aliasState(CANDIDATE_DEPLOYMENT_ID, "succeeded"),
+      ],
+    });
+
+    await expect(runReleaseRouting(harness.options)).resolves.toMatchObject({
+      promotionOutcome: "reconciled",
+    });
+    expect(requestCount(harness, "/promote/")).toBe(1);
+  });
+
+  it("retries a rate-limited mutation with bounded backoff", async () => {
+    const harness = createHarness({
+      canonical: [
+        identity("v2.9.4", PREVIOUS_COMMIT),
+        identity("v2.9.5", CANDIDATE_COMMIT),
+      ],
+      promote: [
+        jsonResponse({}, 429, { "retry-after": "0" }),
+        jsonResponse({}, 202),
+      ],
+    });
+
+    await expect(runReleaseRouting(harness.options)).resolves.toMatchObject({
+      promotionOutcome: "retried",
+    });
+    expect(requestCount(harness, "/promote/")).toBe(2);
+    expect(harness.sleeps).toContain(0);
+  });
+
   it("compensates when the provider alias job explicitly fails", async () => {
     const harness = createHarness({
       canonical: [identity("v2.9.4", PREVIOUS_COMMIT)],
@@ -328,6 +375,22 @@ describe("release routing controller", () => {
     expect(harness.summaries[0]).toContain("manual intervention: required");
   });
 
+  it("keeps accepted promotion outcome when semantic convergence fails", async () => {
+    const harness = createHarness({
+      canonical: () => identity("v2.9.4", PREVIOUS_COMMIT),
+      alias: [
+        aliasState(CANDIDATE_DEPLOYMENT_ID, "succeeded"),
+        aliasState(PREVIOUS_DEPLOYMENT_ID, "succeeded"),
+      ],
+    });
+
+    await expect(runReleaseRouting(harness.options)).rejects.toMatchObject({
+      details: { classification: "convergence_timeout" },
+    });
+    expect(harness.summaries[0]).toContain("promotion outcome: " + "\u0060accepted\u0060");
+    expect(harness.summaries[0]).not.toContain("promotion outcome: " + "\u0060failed\u0060");
+  });
+
   it("treats a malformed release identity payload as deterministic contract failure", async () => {
     const harness = createHarness({
       canonical: (readIndex, rollbackStarted) => {
@@ -365,5 +428,51 @@ describe("release routing controller", () => {
     );
     expect(canonicalRequest?.headers.has("authorization")).toBe(false);
     expect(providerRequest?.headers.get("authorization")).toBe("Bearer " + TOKEN);
+  });
+
+  it("aborts a never-resolving canonical request at the request-level timeout", async () => {
+    const harness = createHarness({
+      canonical: [identity("v2.9.4", PREVIOUS_COMMIT)],
+      alias: [
+        aliasState(CANDIDATE_DEPLOYMENT_ID, "succeeded"),
+        aliasState(PREVIOUS_DEPLOYMENT_ID, "succeeded"),
+      ],
+    });
+    const delegate = harness.options.fetchFn as typeof fetch;
+    let releaseReadCount = 0;
+    let abortedRequests = 0;
+    const fetchFn = vi.fn(async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+      const url = String(input);
+      if (url.includes("/api/system/release")) {
+        if (releaseReadCount === 0 || harness.calls.some((call) => call.url.includes("/rollback/"))) {
+          releaseReadCount += 1;
+          return delegate(input, init);
+        }
+        releaseReadCount += 1;
+        return new Promise<Response>((_, reject) => {
+          const signal = init?.signal;
+          if (!signal) {
+            reject(new Error("request signal missing"));
+            return;
+          }
+          const onAbort = () => {
+            abortedRequests += 1;
+            reject(new Error("aborted"));
+          };
+          if (signal.aborted) onAbort();
+          else signal.addEventListener("abort", onAbort, { once: true });
+        });
+      }
+      return delegate(input, init);
+    });
+    harness.options.fetchFn = fetchFn;
+    harness.options.requestTimeoutMs = 5;
+
+    await expect(runReleaseRouting(harness.options)).rejects.toMatchObject({
+      details: { classification: "convergence_timeout" },
+    });
+    expect(abortedRequests).toBeGreaterThan(0);
+    expect(requestCount(harness, "/rollback/")).toBe(1);
+    expect(harness.summaries[0]).toContain("verified");
   });
 });

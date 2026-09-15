@@ -1,57 +1,41 @@
 import { appendFileSync } from "node:fs";
 import { assertReleaseIdentity, RELEASE_TAG_PATTERN, type ReleaseIdentity } from "../../src/lib/release/identity";
+import {
+  createRoutingHttpClient,
+  createVercelRoutingClient,
+  classifyHttpStatus as classifyVercelHttpStatus,
+  DEFAULT_REQUEST_TIMEOUT_MS,
+  DEFAULT_TRANSPORT_RETRY_ATTEMPTS,
+  DEFAULT_TRANSPORT_RETRY_DELAY_MS,
+  ReleaseRoutingError,
+  routingError,
+  type AliasState,
+  type RequestMetadata,
+  type RoutingFailureClassification,
+  type RoutingFailureDetails,
+  type RoutingHttpClient,
+  type VercelRoutingClient,
+} from "./vercel-routing";
 
 export const DEFAULT_ROUTING_POLL_INTERVAL_MS = 2_000;
-export const DEFAULT_ROUTING_POLL_TIMEOUT_MS = 120_000;
-export const DEFAULT_TRANSPORT_RETRY_ATTEMPTS = 5;
-export const DEFAULT_TRANSPORT_RETRY_DELAY_MS = 3_000;
+export const DEFAULT_ROUTING_PROVIDER_TIMEOUT_MS = 180_000;
+export const DEFAULT_ROUTING_SEMANTIC_TIMEOUT_MS = 120_000;
+export const DEFAULT_ROUTING_AMBIGUOUS_RECONCILIATION_TIMEOUT_MS = 15_000;
+/** @deprecated Use DEFAULT_ROUTING_SEMANTIC_TIMEOUT_MS. */
+export const DEFAULT_ROUTING_POLL_TIMEOUT_MS = DEFAULT_ROUTING_SEMANTIC_TIMEOUT_MS;
+export const classifyHttpStatus = classifyVercelHttpStatus;
 
-export type RoutingFailureClassification =
-  | "transport_transient"
-  | "rate_limited"
-  | "hard_auth"
-  | "provider_contract"
-  | "not_converged"
-  | "convergence_timeout"
-  | "ambiguous_side_effect"
-  | "rollback_failed"
-  | "configuration";
-
-export interface RoutingFailureDetails {
-  stage: "preflight" | "promotion" | "canonical_convergence" | "compensation";
-  operation: string;
-  classification: RoutingFailureClassification;
-  reason?: string;
-  httpStatus?: number;
-  providerJobStatus?: string;
-  expectedDeploymentId?: string;
-  observedDeploymentId?: string;
-  expectedReleaseTag?: string;
-  expectedReleaseCommit?: string;
-  observedReleaseTag?: string;
-  observedReleaseCommit?: string;
-  attempt?: number;
-  elapsedMs?: number;
-  sideEffectMayHaveOccurred?: boolean;
-}
-
-export class ReleaseRoutingError extends Error {
-  readonly details: RoutingFailureDetails;
-
-  constructor(details: RoutingFailureDetails, cause?: unknown) {
-    super(formatRoutingFailure(details));
-    this.name = "ReleaseRoutingError";
-    this.details = details;
-    if (cause !== undefined) {
-      Object.defineProperty(this, "cause", {
-        configurable: true,
-        enumerable: false,
-        value: cause,
-        writable: false,
-      });
-    }
-  }
-}
+export {
+  DEFAULT_REQUEST_TIMEOUT_MS,
+  DEFAULT_TRANSPORT_RETRY_ATTEMPTS,
+  DEFAULT_TRANSPORT_RETRY_DELAY_MS,
+  ReleaseRoutingError,
+} from "./vercel-routing";
+export type {
+  RequestMetadata,
+  RoutingFailureClassification,
+  RoutingFailureDetails,
+} from "./vercel-routing";
 
 export interface ReleaseRoutingOptions {
   candidateDeploymentUrl: string;
@@ -69,7 +53,12 @@ export interface ReleaseRoutingOptions {
   summaryFn?: (markdown: string) => void;
   summaryPath?: string;
   pollIntervalMs?: number;
+  /** @deprecated Use semanticConvergenceTimeoutMs. */
   pollTimeoutMs?: number;
+  semanticConvergenceTimeoutMs?: number;
+  providerRoutingTimeoutMs?: number;
+  ambiguousReconciliationTimeoutMs?: number;
+  requestTimeoutMs?: number;
   transportRetryAttempts?: number;
   transportRetryDelayMs?: number;
 }
@@ -85,19 +74,6 @@ export interface ReleaseRoutingSuccess {
   durationMs: number;
 }
 
-interface DeploymentInfo {
-  id: string;
-  projectId: string;
-  url: string;
-  target: string;
-  readyState: string;
-}
-
-interface AliasState {
-  jobStatus: string | null;
-  toDeploymentId: string | null;
-}
-
 interface RoutingConfig {
   candidateDeploymentUrl: string;
   candidateDeploymentHost: string;
@@ -109,13 +85,17 @@ interface RoutingConfig {
   vercelOrgId: string;
   vercelProjectId: string;
   pollIntervalMs: number;
-  pollTimeoutMs: number;
+  providerRoutingTimeoutMs: number;
+  semanticConvergenceTimeoutMs: number;
+  ambiguousReconciliationTimeoutMs: number;
+  requestTimeoutMs: number;
   transportRetryAttempts: number;
   transportRetryDelayMs: number;
 }
 
 interface RoutingContext extends RoutingConfig {
-  fetchFn: typeof fetch;
+  httpClient: RoutingHttpClient;
+  vercelClient: VercelRoutingClient;
   sleepFn: (milliseconds: number) => Promise<void>;
   nowFn: () => number;
   logFn: (message: string) => void;
@@ -147,27 +127,6 @@ interface RoutingMutationResult {
   outcome: "accepted" | "reconciled" | "retried";
 }
 
-interface RequestMetadata {
-  stage: RoutingFailureDetails["stage"];
-  operation: string;
-  authenticated?: boolean;
-  expectedDeploymentId?: string;
-  expectedReleaseTag?: string;
-  expectedReleaseCommit?: string;
-}
-
-export function classifyHttpStatus(
-  status: number,
-  mutation = false,
-): RoutingFailureClassification {
-  if (status === 401 || status === 403) return "hard_auth";
-  if (status === 429) return "rate_limited";
-  if (status === 408 || status === 425 || (status >= 500 && status <= 599)) {
-    return mutation ? "ambiguous_side_effect" : "transport_transient";
-  }
-  return "provider_contract";
-}
-
 export async function runReleaseRouting(
   options: ReleaseRoutingOptions,
 ): Promise<ReleaseRoutingSuccess> {
@@ -189,20 +148,27 @@ export async function runReleaseRouting(
   let promotionMayHaveOccurred = false;
   let aliasPolls = 0;
   let canonicalPolls = 0;
+  let canonicalConvergenceStarted = false;
 
   try {
     const previousIdentity = await readCanonicalIdentity(context, "preflight");
-    const previousDeployment = await resolveDeployment(
-      context,
+    const previousDeployment = await context.vercelClient.resolveDeployment(
       context.canonicalHost,
-      "previous",
-      "preflight",
+      {
+        stage: "preflight",
+        operation: "resolve_previous_deployment",
+        expectedReleaseTag: context.releaseTag,
+        expectedReleaseCommit: context.releaseCommit,
+      },
     );
-    const candidateDeployment = await resolveDeployment(
-      context,
+    const candidateDeployment = await context.vercelClient.resolveDeployment(
       context.candidateDeploymentHost,
-      "candidate",
-      "preflight",
+      {
+        stage: "preflight",
+        operation: "resolve_candidate_deployment",
+        expectedReleaseTag: context.releaseTag,
+        expectedReleaseCommit: context.releaseCommit,
+      },
     );
 
     if (previousDeployment.id === candidateDeployment.id) {
@@ -253,6 +219,7 @@ export async function runReleaseRouting(
         candidateDeployment.id,
         "promotion",
       )).polls;
+      canonicalConvergenceStarted = true;
       canonicalPolls = (await waitForCanonicalIdentity(context, {
         releaseTag: context.releaseTag,
         releaseCommit: context.releaseCommit,
@@ -260,8 +227,10 @@ export async function runReleaseRouting(
       summary.canonical = "converged";
     } catch (error) {
       if (mayHaveSideEffect(error)) promotionMayHaveOccurred = true;
-      summary.promotion = "failed";
-      summary.canonical = "failed";
+      if (summary.promotion === "not_attempted") summary.promotion = "failed";
+      if (canonicalConvergenceStarted && summary.canonical === "not_attempted") {
+        summary.canonical = "failed";
+      }
       throw error;
     }
 
@@ -390,10 +359,25 @@ function normalizeOptions(options: ReleaseRoutingOptions): RoutingConfig {
       DEFAULT_ROUTING_POLL_INTERVAL_MS,
       "poll interval",
     ),
-    pollTimeoutMs: positiveNumber(
-      options.pollTimeoutMs,
-      DEFAULT_ROUTING_POLL_TIMEOUT_MS,
-      "poll timeout",
+    providerRoutingTimeoutMs: positiveNumber(
+      options.providerRoutingTimeoutMs,
+      DEFAULT_ROUTING_PROVIDER_TIMEOUT_MS,
+      "provider routing timeout",
+    ),
+    semanticConvergenceTimeoutMs: positiveNumber(
+      options.semanticConvergenceTimeoutMs ?? options.pollTimeoutMs,
+      DEFAULT_ROUTING_SEMANTIC_TIMEOUT_MS,
+      "semantic convergence timeout",
+    ),
+    ambiguousReconciliationTimeoutMs: positiveNumber(
+      options.ambiguousReconciliationTimeoutMs,
+      DEFAULT_ROUTING_AMBIGUOUS_RECONCILIATION_TIMEOUT_MS,
+      "ambiguous reconciliation timeout",
+    ),
+    requestTimeoutMs: positiveNumber(
+      options.requestTimeoutMs,
+      DEFAULT_REQUEST_TIMEOUT_MS,
+      "request timeout",
     ),
     transportRetryAttempts: positiveInteger(
       options.transportRetryAttempts,
@@ -500,9 +484,24 @@ function createContext(config: RoutingConfig, options: ReleaseRoutingOptions): R
         }
       };
 
+  const httpClient = createRoutingHttpClient({
+    token: config.vercelToken,
+    fetchFn: options.fetchFn,
+    sleepFn: options.sleepFn,
+    nowFn: options.nowFn,
+    requestTimeoutMs: config.requestTimeoutMs,
+    transportRetryAttempts: config.transportRetryAttempts,
+    transportRetryDelayMs: config.transportRetryDelayMs,
+  });
+
   return {
     ...config,
-    fetchFn: options.fetchFn ?? fetch,
+    httpClient,
+    vercelClient: createVercelRoutingClient({
+      orgId: config.vercelOrgId,
+      projectId: config.vercelProjectId,
+      httpClient,
+    }),
     sleepFn: options.sleepFn ?? ((milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds))),
     nowFn: options.nowFn ?? (() => Date.now()),
     logFn: options.logFn ?? console.log,
@@ -511,66 +510,26 @@ function createContext(config: RoutingConfig, options: ReleaseRoutingOptions): R
   };
 }
 
-async function resolveDeployment(
-  context: RoutingContext,
-  host: string,
-  role: "previous" | "candidate",
-  stage: RoutingFailureDetails["stage"],
-): Promise<DeploymentInfo> {
-  const url =
-    "https://api.vercel.com/v13/deployments/" +
-    encodeURIComponent(host) +
-    "?teamId=" +
-    encodeURIComponent(context.vercelOrgId);
-  const raw = await requestJson(context, url, {
-    stage,
-    operation: "resolve_" + role + "_deployment",
-    authenticated: true,
-    expectedReleaseTag: context.releaseTag,
-    expectedReleaseCommit: context.releaseCommit,
-  });
-  const record = asRecord(raw);
-  const id = record?.id;
-  const projectId = record?.projectId;
-  const deploymentUrl = record?.url;
-  const target = record?.target;
-  const readyState = record?.readyState;
-  if (
-    typeof id !== "string" ||
-    !id.startsWith("dpl_") ||
-    typeof projectId !== "string" ||
-    typeof deploymentUrl !== "string" ||
-    typeof target !== "string" ||
-    typeof readyState !== "string" ||
-    projectId !== context.vercelProjectId ||
-    deploymentUrl !== host ||
-    target !== "production" ||
-    readyState !== "READY"
-  ) {
-    throw routingError({
-      stage,
-      operation: "resolve_" + role + "_deployment",
-      classification: "provider_contract",
-      reason: role + " deployment 不属于当前 Vercel project、production target 或 READY state。",
-      observedDeploymentId: idString(id),
-      expectedReleaseTag: context.releaseTag,
-      expectedReleaseCommit: context.releaseCommit,
-    });
-  }
-  return { id, projectId, url: deploymentUrl, target, readyState };
-}
-
 async function readCanonicalIdentity(
   context: RoutingContext,
   stage: RoutingFailureDetails["stage"],
+  deadlineAtMs?: number,
+  expectedIdentity: ReleaseIdentity = {
+    releaseTag: context.releaseTag,
+    releaseCommit: context.releaseCommit,
+  },
 ): Promise<ReleaseIdentity> {
-  const raw = await requestJson(context, context.canonicalBaseUrl + "/api/system/release", {
-    stage,
-    operation: "read_canonical_release_identity",
-    authenticated: false,
-    expectedReleaseTag: context.releaseTag,
-    expectedReleaseCommit: context.releaseCommit,
-  });
+  const raw = await context.httpClient.requestJson(
+    context.canonicalBaseUrl + "/api/system/release",
+    {
+      stage,
+      operation: "read_canonical_release_identity",
+      authenticated: false,
+      expectedReleaseTag: expectedIdentity.releaseTag,
+      expectedReleaseCommit: expectedIdentity.releaseCommit,
+      deadlineAtMs,
+    },
+  );
   try {
     return assertReleaseIdentity(raw, "canonical production release identity");
   } catch (error) {
@@ -579,67 +538,10 @@ async function readCanonicalIdentity(
       operation: "read_canonical_release_identity",
       classification: "provider_contract",
       reason: "canonical /api/system/release payload 不符合 release identity contract。",
-      expectedReleaseTag: context.releaseTag,
-      expectedReleaseCommit: context.releaseCommit,
+      expectedReleaseTag: expectedIdentity.releaseTag,
+      expectedReleaseCommit: expectedIdentity.releaseCommit,
     }, error);
   }
-}
-
-async function readAliasState(
-  context: RoutingContext,
-  stage: RoutingFailureDetails["stage"],
-  operation: string,
-): Promise<AliasState> {
-  const url =
-    "https://api.vercel.com/v9/projects/" +
-    encodeURIComponent(context.vercelProjectId) +
-    "?rollbackInfo=true&teamId=" +
-    encodeURIComponent(context.vercelOrgId);
-  const raw = await requestJson(context, url, {
-    stage,
-    operation,
-    authenticated: true,
-    expectedReleaseTag: context.releaseTag,
-    expectedReleaseCommit: context.releaseCommit,
-  });
-  const record = asRecord(raw);
-  if (!record || !Object.prototype.hasOwnProperty.call(record, "lastAliasRequest")) {
-    return { jobStatus: null, toDeploymentId: null };
-  }
-  const alias = record.lastAliasRequest;
-  if (alias === null || alias === undefined) {
-    return { jobStatus: null, toDeploymentId: null };
-  }
-  const aliasRecord = asRecord(alias);
-  if (!aliasRecord) {
-    throw routingError({
-      stage,
-      operation,
-      classification: "provider_contract",
-      reason: "Vercel lastAliasRequest payload 无效。",
-      expectedReleaseTag: context.releaseTag,
-      expectedReleaseCommit: context.releaseCommit,
-    });
-  }
-  const jobStatus = aliasRecord.jobStatus;
-  const toDeploymentId = aliasRecord.toDeploymentId;
-  if (
-    (jobStatus !== undefined && typeof jobStatus !== "string") ||
-    (toDeploymentId !== undefined && typeof toDeploymentId !== "string")
-  ) {
-    throw routingError({
-      stage,
-      operation,
-      classification: "provider_contract",
-      reason: "Vercel alias operation status/target payload 无效。",
-      expectedReleaseTag: context.releaseTag,
-      expectedReleaseCommit: context.releaseCommit,
-    });
-  }
-  return {
-    jobStatus: typeof jobStatus === "string" ? jobStatus : null,
-    toDeploymentId: typeof toDeploymentId === "string" ? toDeploymentId : null,
-  };
 }
 
 async function mutateRouting(
@@ -651,7 +553,18 @@ async function mutateRouting(
   const stage: RoutingFailureDetails["stage"] = kind === "promote" ? "promotion" : "compensation";
   for (let attempt = 1; attempt <= 2; attempt += 1) {
     try {
-      await postRouting(context, kind, targetDeploymentId, stage);
+      const metadata: RequestMetadata = {
+        stage,
+        operation: kind,
+        expectedDeploymentId: targetDeploymentId,
+        expectedReleaseTag: context.releaseTag,
+        expectedReleaseCommit: context.releaseCommit,
+      };
+      if (kind === "promote") {
+        await context.vercelClient.promote(targetDeploymentId, metadata);
+      } else {
+        await context.vercelClient.rollback(targetDeploymentId, metadata);
+      }
       return { outcome: attempt === 1 ? "accepted" : "retried" };
     } catch (error) {
       const failure = asRoutingError(error, {
@@ -663,39 +576,33 @@ async function mutateRouting(
         expectedReleaseCommit: context.releaseCommit,
         sideEffectMayHaveOccurred: true,
       });
-      if (failure.details.classification !== "ambiguous_side_effect") throw failure;
-
-      let aliasState: AliasState;
-      try {
-        aliasState = await readAliasState(
-          context,
-          stage,
-          "reconcile_" + kind + "_outcome",
-        );
-      } catch (reconciliationError) {
-        throw routingError({
-          ...failure.details,
-          reason: "mutation outcome ambiguous，provider reconciliation 也未完成。",
-          expectedDeploymentId: targetDeploymentId,
-          sideEffectMayHaveOccurred: true,
-        }, reconciliationError);
-      }
-
-      if (aliasState.toDeploymentId === targetDeploymentId) {
-        if (aliasState.jobStatus === "failed") {
+      if (failure.details.classification === "rate_limited") {
+        if (attempt === 2) {
           throw routingError({
-            stage,
-            operation: kind,
-            classification: "provider_contract",
-            reason: "provider alias job 明确失败。",
-            providerJobStatus: aliasState.jobStatus,
-            expectedDeploymentId: targetDeploymentId,
-            observedDeploymentId: aliasState.toDeploymentId,
-            expectedReleaseTag: context.releaseTag,
-            expectedReleaseCommit: context.releaseCommit,
-            sideEffectMayHaveOccurred: true,
+            ...failure.details,
+            attempt,
           }, error);
         }
+        const delayMs = failure.details.retryAfterMs ?? retryDelay(context, attempt);
+        context.logFn(
+          "[Release Routing] " +
+            kind +
+            " 被 rate limited；按 bounded Retry-After/backoff 重试一次。",
+        );
+        await context.sleepFn(delayMs);
+        continue;
+      }
+      if (failure.details.classification !== "ambiguous_side_effect") throw failure;
+
+      const reconciliation = await reconcileAmbiguousMutation(
+        context,
+        kind,
+        targetDeploymentId,
+        unchangedDeploymentId,
+        attempt,
+        error,
+      );
+      if (reconciliation.outcome === "reconciled") {
         context.logFn(
           "[Release Routing] " +
             kind +
@@ -705,26 +612,20 @@ async function mutateRouting(
         );
         return { outcome: "reconciled" };
       }
-
-      const safeToRetry =
-        attempt === 1 &&
-        unchangedDeploymentId !== undefined &&
-        aliasState.toDeploymentId === unchangedDeploymentId &&
-        aliasState.jobStatus === "succeeded";
-      if (safeToRetry) {
+      if (attempt === 1) {
         context.logFn(
           "[Release Routing] " +
             kind +
-            " 明确仍保持 previous routing；执行一次 bounded retry。",
+            " 在稳定 observation window 内确认 previous routing 未变更；执行一次 bounded retry。",
         );
         continue;
       }
-
       throw routingError({
         ...failure.details,
-        reason: "mutation outcome 在 provider reconciliation 后仍不明确；拒绝盲目重复 side-effect POST。",
+        reason: "mutation outcome 已稳定显示 previous，但 retry budget 已耗尽；拒绝继续重复 side-effect POST。",
         expectedDeploymentId: targetDeploymentId,
-        observedDeploymentId: aliasState.toDeploymentId ?? undefined,
+        observedDeploymentId: reconciliation.lastState.toDeploymentId ?? undefined,
+        providerJobStatus: reconciliation.lastState.jobStatus ?? undefined,
         sideEffectMayHaveOccurred: true,
       }, error);
     }
@@ -732,67 +633,123 @@ async function mutateRouting(
   throw new Error("unreachable");
 }
 
-async function postRouting(
+interface MutationReconciliationResult {
+  outcome: "reconciled" | "safe_to_retry";
+  lastState: AliasState;
+}
+
+async function reconcileAmbiguousMutation(
   context: RoutingContext,
   kind: "promote" | "rollback",
-  deploymentId: string,
-  stage: RoutingFailureDetails["stage"],
-): Promise<void> {
-  const endpoint =
-    kind === "promote"
-      ? "https://api.vercel.com/v10/projects/" +
-        encodeURIComponent(context.vercelProjectId) +
-        "/promote/" +
-        encodeURIComponent(deploymentId) +
-        "?teamId=" +
-        encodeURIComponent(context.vercelOrgId)
-      : "https://api.vercel.com/v1/projects/" +
-        encodeURIComponent(context.vercelProjectId) +
-        "/rollback/" +
-        encodeURIComponent(deploymentId) +
-        "?teamId=" +
-        encodeURIComponent(context.vercelOrgId);
-  let response: Response;
-  try {
-    response = await context.fetchFn(endpoint, {
-      method: "POST",
-      headers: {
-        Accept: "application/json",
-        Authorization: "Bearer " + context.vercelToken,
-        "Content-Type": "application/json",
-        "User-Agent": "RivalHub-Release-Routing",
-      },
-      body: "{}",
-    });
-  } catch (error) {
-    throw routingError({
-      stage,
-      operation: kind,
-      classification: "ambiguous_side_effect",
-      reason: "routing mutation transport failure，side effect outcome 未知。",
-      expectedDeploymentId: deploymentId,
-      expectedReleaseTag: context.releaseTag,
-      expectedReleaseCommit: context.releaseCommit,
-      sideEffectMayHaveOccurred: true,
-    }, error);
-  }
+  targetDeploymentId: string,
+  unchangedDeploymentId: string | undefined,
+  attempt: number,
+  ambiguousError: unknown,
+): Promise<MutationReconciliationResult> {
+  const stage: RoutingFailureDetails["stage"] = kind === "promote" ? "promotion" : "compensation";
+  const startedAt = context.nowFn();
+  const timeoutMs = context.ambiguousReconciliationTimeoutMs;
+  let polls = 0;
+  let stablePreviousObservations = 0;
+  let lastState: AliasState = { jobStatus: null, toDeploymentId: null };
 
-  if (response.status === 201 || response.status === 202) return;
-  const classification = classifyHttpStatus(response.status, true);
-  throw routingError({
-    stage,
-    operation: kind,
-    classification,
-    reason:
-      classification === "ambiguous_side_effect"
-        ? "routing mutation 返回 transient provider status，side effect outcome 未知。"
-        : "routing mutation 返回非 accepted status。",
-    httpStatus: response.status,
-    expectedDeploymentId: deploymentId,
-    expectedReleaseTag: context.releaseTag,
-    expectedReleaseCommit: context.releaseCommit,
-    sideEffectMayHaveOccurred: classification === "ambiguous_side_effect",
-  });
+  while (true) {
+    polls += 1;
+    try {
+      lastState = await context.vercelClient.readAliasState({
+        stage,
+        operation: "reconcile_" + kind + "_outcome",
+        expectedDeploymentId: targetDeploymentId,
+        expectedReleaseTag: context.releaseTag,
+        expectedReleaseCommit: context.releaseCommit,
+        deadlineAtMs: startedAt + timeoutMs,
+      });
+
+      if (lastState.toDeploymentId === targetDeploymentId) {
+        if (isTerminalAliasFailure(lastState.jobStatus)) {
+          throw routingError({
+            stage,
+            operation: "reconcile_" + kind + "_outcome",
+            classification: "provider_contract",
+            reason: "provider alias job 明确失败或被拒绝。",
+            providerJobStatus: lastState.jobStatus ?? undefined,
+            expectedDeploymentId: targetDeploymentId,
+            observedDeploymentId: lastState.toDeploymentId,
+            expectedReleaseTag: context.releaseTag,
+            expectedReleaseCommit: context.releaseCommit,
+            sideEffectMayHaveOccurred: true,
+          });
+        }
+        return { outcome: "reconciled", lastState };
+      }
+
+      if (
+        unchangedDeploymentId !== undefined &&
+        lastState.toDeploymentId === unchangedDeploymentId &&
+        lastState.jobStatus === "succeeded"
+      ) {
+        stablePreviousObservations += 1;
+      } else {
+        stablePreviousObservations = 0;
+      }
+
+      context.logFn(
+        "[Release Routing] ambiguous " +
+          kind +
+          " reconciliation poll: observed=" +
+          (lastState.toDeploymentId ?? "none") +
+          ", status=" +
+          (lastState.jobStatus ?? "none") +
+          ", stablePreviousObservations=" +
+          stablePreviousObservations,
+      );
+      if (stablePreviousObservations >= 2) {
+        return { outcome: "safe_to_retry", lastState };
+      }
+    } catch (error) {
+      const failure = asRoutingError(error, {
+        stage,
+        operation: "reconcile_" + kind + "_outcome",
+        classification: "ambiguous_side_effect",
+        expectedDeploymentId: targetDeploymentId,
+        expectedReleaseTag: context.releaseTag,
+        expectedReleaseCommit: context.releaseCommit,
+        sideEffectMayHaveOccurred: true,
+      });
+      if (!isPollTransient(failure)) {
+        throw routingError({
+          ...failure.details,
+          expectedDeploymentId: targetDeploymentId,
+          sideEffectMayHaveOccurred: true,
+        }, error);
+      }
+      stablePreviousObservations = 0;
+      context.logFn(
+        "[Release Routing] ambiguous " +
+          kind +
+          " reconciliation read transient failure，继续 observation window: classification=" +
+          failure.details.classification,
+      );
+    }
+
+    if (pollExpired(context, startedAt, polls, timeoutMs)) {
+      throw routingError({
+        stage,
+        operation: "reconcile_" + kind + "_outcome",
+        classification: "ambiguous_side_effect",
+        reason: "mutation outcome 在 bounded observation window 后仍不明确；拒绝重复 side-effect POST。",
+        expectedDeploymentId: targetDeploymentId,
+        observedDeploymentId: lastState.toDeploymentId ?? undefined,
+        providerJobStatus: lastState.jobStatus ?? undefined,
+        expectedReleaseTag: context.releaseTag,
+        expectedReleaseCommit: context.releaseCommit,
+        attempt,
+        elapsedMs: Math.max(0, context.nowFn() - startedAt),
+        sideEffectMayHaveOccurred: true,
+      }, ambiguousError);
+    }
+    await context.sleepFn(context.pollIntervalMs);
+  }
 }
 
 async function waitForAliasOperation(
@@ -801,34 +758,40 @@ async function waitForAliasOperation(
   stage: "promotion" | "compensation",
 ): Promise<AliasWaitResult> {
   const startedAt = context.nowFn();
+  const timeoutMs = context.providerRoutingTimeoutMs;
+  const deadlineAtMs = startedAt + timeoutMs;
   let polls = 0;
   let lastState: AliasState = { jobStatus: null, toDeploymentId: null };
 
   while (true) {
     polls += 1;
     try {
-      lastState = await readAliasState(context, stage, "wait_" + stage + "_alias_operation");
+      lastState = await context.vercelClient.readAliasState({
+        stage,
+        operation: "wait_" + stage + "_alias_operation",
+        expectedDeploymentId,
+        expectedReleaseTag: context.releaseTag,
+        expectedReleaseCommit: context.releaseCommit,
+        deadlineAtMs,
+      });
       if (
         lastState.jobStatus === "succeeded" &&
         lastState.toDeploymentId === expectedDeploymentId
       ) {
         return { polls, durationMs: Math.max(0, context.nowFn() - startedAt) };
       }
-      if (
-        lastState.jobStatus === "failed" &&
-        lastState.toDeploymentId === expectedDeploymentId
-      ) {
+      if (lastState.toDeploymentId === expectedDeploymentId && isTerminalAliasFailure(lastState.jobStatus)) {
         throw routingError({
           stage,
           operation: "wait_" + stage + "_alias_operation",
           classification: "provider_contract",
-          reason: "provider alias job 明确失败。",
-          providerJobStatus: lastState.jobStatus,
-          expectedDeploymentId: expectedDeploymentId,
+          reason: "provider alias job 明确失败或被拒绝。",
+          providerJobStatus: lastState.jobStatus ?? undefined,
+          expectedDeploymentId,
           observedDeploymentId: lastState.toDeploymentId,
           expectedReleaseTag: context.releaseTag,
           expectedReleaseCommit: context.releaseCommit,
-          sideEffectMayHaveOccurred: stage === "promotion",
+          sideEffectMayHaveOccurred: true,
         });
       }
       context.logFn(
@@ -853,17 +816,9 @@ async function waitForAliasOperation(
         "[Release Routing] alias state read transient failure，继续 bounded poll: classification=" +
           failure.details.classification,
       );
-      if (pollExpired(context, startedAt, polls)) {
-        throw timeoutError(context, stage, "wait_" + stage + "_alias_operation", {
-          expectedDeploymentId,
-          observedDeploymentId: lastState.toDeploymentId ?? undefined,
-          providerJobStatus: lastState.jobStatus ?? undefined,
-          elapsedMs: Math.max(0, context.nowFn() - startedAt),
-        });
-      }
     }
 
-    if (pollExpired(context, startedAt, polls)) {
+    if (pollExpired(context, startedAt, polls, timeoutMs)) {
       throw timeoutError(context, stage, "wait_" + stage + "_alias_operation", {
         expectedDeploymentId,
         observedDeploymentId: lastState.toDeploymentId ?? undefined,
@@ -881,19 +836,27 @@ async function waitForCanonicalIdentity(
   stage: "promotion" | "compensation",
 ): Promise<CanonicalWaitResult> {
   const startedAt = context.nowFn();
+  const timeoutMs = context.semanticConvergenceTimeoutMs;
+  const deadlineAtMs = startedAt + timeoutMs;
   let polls = 0;
   let observedIdentity: ReleaseIdentity | undefined;
 
   while (true) {
     polls += 1;
     try {
-      await requestStatus(context, context.canonicalBaseUrl + "/", {
+      await context.httpClient.requestStatus(context.canonicalBaseUrl + "/", {
         stage,
         operation: "read_canonical_root",
         expectedReleaseTag: expectedIdentity.releaseTag,
         expectedReleaseCommit: expectedIdentity.releaseCommit,
+        deadlineAtMs,
       });
-      observedIdentity = await readCanonicalIdentity(context, stage);
+      observedIdentity = await readCanonicalIdentity(
+        context,
+        stage,
+        deadlineAtMs,
+        expectedIdentity,
+      );
       if (
         observedIdentity.releaseTag === expectedIdentity.releaseTag &&
         observedIdentity.releaseCommit === expectedIdentity.releaseCommit.toLowerCase()
@@ -925,7 +888,7 @@ async function waitForCanonicalIdentity(
       );
     }
 
-    if (pollExpired(context, startedAt, polls)) {
+    if (pollExpired(context, startedAt, polls, timeoutMs)) {
       throw timeoutError(context, stage, "wait_canonical_release_identity", {
         expectedReleaseTag: expectedIdentity.releaseTag,
         expectedReleaseCommit: expectedIdentity.releaseCommit.toLowerCase(),
@@ -938,111 +901,6 @@ async function waitForCanonicalIdentity(
   }
 }
 
-async function requestJson(
-  context: RoutingContext,
-  url: string,
-  metadata: RequestMetadata,
-): Promise<unknown> {
-  for (let attempt = 1; attempt <= context.transportRetryAttempts; attempt += 1) {
-    let response: Response;
-    try {
-      const headers: Record<string, string> = {
-        Accept: "application/json",
-        "User-Agent": "RivalHub-Release-Routing",
-      };
-      if (metadata.authenticated) {
-        headers.Authorization = "Bearer " + context.vercelToken;
-      }
-      response = await context.fetchFn(url, {
-        headers,
-      });
-    } catch (error) {
-      if (attempt < context.transportRetryAttempts) {
-        await context.sleepFn(retryDelay(context, attempt));
-        continue;
-      }
-      throw routingError({
-        ...metadata,
-        classification: "transport_transient",
-        reason: "provider GET transport failure after bounded retries。",
-        attempt,
-        sideEffectMayHaveOccurred: false,
-      }, error);
-    }
-
-    if (response.status < 200 || response.status >= 300) {
-      const classification = classifyHttpStatus(response.status);
-      if (isReadTransientClassification(classification) && attempt < context.transportRetryAttempts) {
-        await context.sleepFn(retryDelay(context, attempt));
-        continue;
-      }
-      throw routingError({
-        ...metadata,
-        classification,
-        reason: "provider GET returned non-success status。",
-        httpStatus: response.status,
-        attempt,
-        sideEffectMayHaveOccurred: false,
-      });
-    }
-
-    try {
-      return await response.json();
-    } catch (error) {
-      throw routingError({
-        ...metadata,
-        classification: "provider_contract",
-        reason: "provider JSON payload 无法解析。",
-        attempt,
-        sideEffectMayHaveOccurred: false,
-      }, error);
-    }
-  }
-  throw new Error("unreachable");
-}
-
-async function requestStatus(
-  context: RoutingContext,
-  url: string,
-  metadata: RequestMetadata,
-): Promise<void> {
-  for (let attempt = 1; attempt <= context.transportRetryAttempts; attempt += 1) {
-    let response: Response;
-    try {
-      response = await context.fetchFn(url, {
-        headers: { "User-Agent": "RivalHub-Release-Routing" },
-      });
-    } catch (error) {
-      if (attempt < context.transportRetryAttempts) {
-        await context.sleepFn(retryDelay(context, attempt));
-        continue;
-      }
-      throw routingError({
-        ...metadata,
-        classification: "transport_transient",
-        reason: "canonical root transport failure after bounded retries。",
-        attempt,
-        sideEffectMayHaveOccurred: false,
-      }, error);
-    }
-    if (response.status >= 200 && response.status < 300) return;
-    const classification = classifyHttpStatus(response.status);
-    if (isReadTransientClassification(classification) && attempt < context.transportRetryAttempts) {
-      await context.sleepFn(retryDelay(context, attempt));
-      continue;
-    }
-    throw routingError({
-      ...metadata,
-      classification,
-      reason: "canonical root returned non-success status。",
-      httpStatus: response.status,
-      attempt,
-      sideEffectMayHaveOccurred: false,
-    });
-  }
-  throw new Error("unreachable");
-}
-
 function retryDelay(context: RoutingContext, attempt: number): number {
   return Math.min(
     30_000,
@@ -1050,10 +908,20 @@ function retryDelay(context: RoutingContext, attempt: number): number {
   );
 }
 
-function pollExpired(context: RoutingContext, startedAt: number, polls: number): boolean {
+function isTerminalAliasFailure(jobStatus: string | null): boolean {
+  return jobStatus !== null &&
+    ["failed", "rejected", "error", "canceled", "cancelled"].includes(jobStatus.toLowerCase());
+}
+
+function pollExpired(
+  context: RoutingContext,
+  startedAt: number,
+  polls: number,
+  timeoutMs: number,
+): boolean {
   return (
-    context.nowFn() - startedAt >= context.pollTimeoutMs ||
-    polls * context.pollIntervalMs >= context.pollTimeoutMs
+    context.nowFn() - startedAt >= timeoutMs ||
+    polls * context.pollIntervalMs >= timeoutMs
   );
 }
 
@@ -1099,10 +967,6 @@ function asRoutingError(
   return routingError(fallback, error);
 }
 
-function routingError(details: RoutingFailureDetails, cause?: unknown): ReleaseRoutingError {
-  return new ReleaseRoutingError(details, cause);
-}
-
 function renderSummary(
   context: RoutingContext,
   summary: RoutingSummaryState,
@@ -1143,36 +1007,6 @@ function summaryValue(value: string | number | undefined): string {
   return codeMark + String(value).replaceAll(codeMark, "'").replaceAll("\n", " ") + codeMark;
 }
 
-function formatRoutingFailure(details: RoutingFailureDetails): string {
-  const parts = [
-    "[Release Routing] " + details.classification,
-    "stage=" + details.stage,
-    "operation=" + details.operation,
-  ];
-  if (details.reason) parts.push(details.reason);
-  if (details.httpStatus !== undefined) parts.push("httpStatus=" + details.httpStatus);
-  if (details.providerJobStatus) parts.push("providerJobStatus=" + details.providerJobStatus);
-  if (details.expectedDeploymentId) parts.push("expectedDeploymentId=" + details.expectedDeploymentId);
-  if (details.observedDeploymentId) parts.push("observedDeploymentId=" + details.observedDeploymentId);
-  if (details.expectedReleaseTag) parts.push("expectedReleaseTag=" + details.expectedReleaseTag);
-  if (details.expectedReleaseCommit) parts.push("expectedReleaseCommit=" + details.expectedReleaseCommit);
-  if (details.observedReleaseTag) parts.push("observedReleaseTag=" + details.observedReleaseTag);
-  if (details.observedReleaseCommit) parts.push("observedReleaseCommit=" + details.observedReleaseCommit);
-  if (details.attempt !== undefined) parts.push("attempt=" + details.attempt);
-  if (details.elapsedMs !== undefined) parts.push("elapsedMs=" + Math.round(details.elapsedMs));
-  return parts.join(" ");
-}
-
-function asRecord(value: unknown): Record<string, unknown> | null {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? value as Record<string, unknown>
-    : null;
-}
-
-function idString(value: unknown): string | undefined {
-  return typeof value === "string" ? value : undefined;
-}
-
 function parseOptionalNumber(raw: string | undefined): number | undefined {
   if (raw === undefined || raw.trim() === "") return undefined;
   const value = Number(raw);
@@ -1190,7 +1024,10 @@ async function cliMain(): Promise<void> {
       vercelOrgId: process.env.VERCEL_ORG_ID ?? "",
       vercelProjectId: process.env.VERCEL_PROJECT_ID ?? "",
       pollIntervalMs: parseOptionalNumber(process.env.RELEASE_ROUTING_POLL_INTERVAL_MS),
-      pollTimeoutMs: parseOptionalNumber(process.env.RELEASE_ROUTING_POLL_TIMEOUT_MS),
+      providerRoutingTimeoutMs: parseOptionalNumber(process.env.RELEASE_ROUTING_PROVIDER_TIMEOUT_MS),
+      semanticConvergenceTimeoutMs: parseOptionalNumber(process.env.RELEASE_ROUTING_SEMANTIC_TIMEOUT_MS),
+      ambiguousReconciliationTimeoutMs: parseOptionalNumber(process.env.RELEASE_ROUTING_RECONCILIATION_TIMEOUT_MS),
+      requestTimeoutMs: parseOptionalNumber(process.env.RELEASE_ROUTING_REQUEST_TIMEOUT_MS),
       transportRetryAttempts: parseOptionalNumber(process.env.RELEASE_ROUTING_TRANSPORT_RETRY_ATTEMPTS),
       transportRetryDelayMs: parseOptionalNumber(process.env.RELEASE_ROUTING_TRANSPORT_RETRY_DELAY_MS),
     });

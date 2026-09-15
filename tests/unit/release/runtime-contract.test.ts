@@ -152,6 +152,7 @@ describe("deployment and operations contracts", () => {
   it("freezes the exact release identity into Vercel builds and reads it back after deploy", () => {
     const release = readProjectFile(".github/workflows/release.yml");
     const routing = readProjectFile("scripts/release/routing.ts");
+    const vercelRouting = readProjectFile("scripts/release/vercel-routing.ts");
     const nextConfig = readProjectFile("next.config.ts");
 
     expect(release).toContain('--build-env RIVALHUB_RELEASE_TAG="$RELEASE_TAG"');
@@ -160,6 +161,8 @@ describe("deployment and operations contracts", () => {
     expect(release).toContain('"$DEPLOYMENT_URL/api/system/release"');
     expect(routing).toContain("/api/system/release");
     expect(routing).toContain("assertReleaseIdentity");
+    expect(routing).toContain("createVercelRoutingClient");
+    expect(vercelRouting).toContain("DEFAULT_REQUEST_TIMEOUT_MS = 15_000");
     expect(nextConfig).toContain('RIVALHUB_RELEASE_TAG: process.env.RIVALHUB_RELEASE_TAG ?? ""');
     expect(nextConfig).toContain('RIVALHUB_RELEASE_COMMIT: process.env.RIVALHUB_RELEASE_COMMIT ?? ""');
   });
@@ -352,16 +355,25 @@ describe("deployment and operations contracts", () => {
 
     // Routing state machine ownership and workflow wiring
     const routing = readProjectFile("scripts/release/routing.ts");
+    const vercelRouting = readProjectFile("scripts/release/vercel-routing.ts");
     expect(release).toContain("Route candidate and verify canonical production");
     expect(release).toContain("pnpm release:routing");
     expect(release).not.toContain("wait_for_alias_job");
     expect(release).not.toContain("PREVIOUS_IDENTITY");
     expect(release).not.toContain("PROMOTE_STATUS");
     expect(release).not.toContain("ROLLBACK_STATUS");
-    expect(routing).toContain("https://api.vercel.com/v13/deployments/");
-    expect(routing).toContain("https://api.vercel.com/v10/projects/");
-    expect(routing).toContain("https://api.vercel.com/v1/projects/");
-    expect(routing).toContain("lastAliasRequest");
+    expect(vercelRouting).toContain("https://api.vercel.com/v13/deployments/");
+    expect(vercelRouting).toContain("https://api.vercel.com/v10/projects/");
+    expect(vercelRouting).toContain("https://api.vercel.com/v1/projects/");
+    expect(vercelRouting).toContain("lastAliasRequest");
+    expect(vercelRouting).toContain("AbortController");
+    expect(vercelRouting).toContain("requestTimeoutMs");
+    expect(vercelRouting).toContain('"retry-after"');
+    expect(routing).toContain("DEFAULT_ROUTING_PROVIDER_TIMEOUT_MS = 180_000");
+    expect(routing).toContain("DEFAULT_ROUTING_SEMANTIC_TIMEOUT_MS = 120_000");
+    expect(routing).toContain("DEFAULT_ROUTING_AMBIGUOUS_RECONCILIATION_TIMEOUT_MS = 15_000");
+    expect(routing).toContain("stablePreviousObservations");
+    expect(routing).toContain("rate_limited");
     expect(routing).toContain("convergence_timeout");
     expect(routing).toContain("rollback_failed");
 
