@@ -38,6 +38,7 @@
     "scripts/ci/validate-pr-title.mjs!",
     "scripts/ci/vitest-timing-reporter.ts!",
     "scripts/release/ci-prerequisite.ts!",
+    "scripts/release/routing.ts!",
     "scripts/release/production-deployment.ts!",
     "scripts/architecture/check.ts!",
     "scripts/demo-evidence/generate-json-schema.ts!",

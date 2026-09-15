@@ -28,8 +28,7 @@ validate tag belongs to main
 → migrate + verify production database
 → deploy staged candidate to Vercel Production (--prod --skip-domain)
 → smoke exact candidate deployment (OIDC token)
-→ promote candidate to canonical production (no rebuild)
-→ smoke canonical production identity + release read-back (rollback routing on failure)
+→ invoke `scripts/release/routing.ts` (promote → alias convergence → canonical semantic convergence; rollback compensation on failure)
 → provision + verify production scheduler
 → publish/update GitHub Release notes
 ```
@@ -39,12 +38,22 @@ validate tag belongs to main
 1. **Exact-SHA CI prerequisite**：在任何 backup、migration 或 deploy 之前，Release 必须验证当前 immutable tag 对应的 `RELEASE_SHA` 在 `main` 上的 canonical CI push run 结果为 `completed && success`；在途 run 进行 bounded poll，missing/failed/cancelled/timed out 全部 fail closed。
 2. **DB-only migration rehearsal**：本地 migration rehearsal 仅启动 PostgreSQL 容器（`pnpm db:local:start-db`），不启动 Local Supabase 的 Auth/Storage/browser 等无关服务；CI ephemeral runner 结束时自动回收容器，不再支付无意义的 stop 开销。
 3. **Staged Production deployment**：使用 `vercel deploy --prod --skip-domain` 在 Production 环境完成构建，但不将生产域名指向该 candidate；先用短期 GitHub OIDC token 对 exact candidate URL 完成 `/` 与 `/api/system/release` smoke 验证。
-4. **Promotion 与 Rollback 边界**：Candidate smoke 通过后，Release 使用 Vercel REST API `POST /v10/projects/{projectId}/promote/{deploymentId}` 搭配固定 `teamId` 将生产流量切换至该 deployment，无需二次构建；不调用需要 user-scope lookup 的 `vercel promote` CLI。Promote 前记录旧版本 identity，并通过 deployment URL API 解析 canonical domain 当前对应的 deployment ID；若切换后 canonical smoke 失败，使用 `POST /v1/projects/{projectId}/rollback/{deploymentId}` 将 Vercel 路由恢复至 previous deployment 并校验域名恢复，但**绝不自动回滚 PostgreSQL migration**（旧版本兼容性由 `db:release-compat` 保证）。
+4. **Promotion 与 Rollback 边界**：Candidate smoke 通过后，唯一 executable owner `scripts/release/routing.ts`（workflow 通过 `pnpm release:routing` 调用）在任何 routing mutation 前冻结 previous canonical identity、previous deployment 和 candidate deployment 的 project/target/readiness。它通过 `scripts/release/vercel-routing.ts` 复用 Vercel REST API `POST /v10/projects/{projectId}/promote/{deploymentId}` 与 `POST /v1/projects/{projectId}/rollback/{deploymentId}`，不调用需要 user-scope lookup 的 CLI；promote 不触发二次构建。YAML 只负责受保护配置和 controller wiring。
 5. **Phase timing evidence**：各阶段耗时由 `scripts/ci/timing.mjs` 统一记录并写入 Step Summary，包含 backup 内部子阶段（DB dump、Storage snapshot、encrypt/archive、R2 upload/readback）及各部署步骤。
 
 production secrets、target confirmations 与 remote-write authorization 只存在于 protected production Environment/canonical wrappers。`VERCEL_TOKEN` 必须是 project-scoped credential，仅用于 exact production deployment、project-scoped promotion/rollback API calls；不得为了解决 CLI scope lookup 改用 Full Account/user/team token。Release job 使用 `id-token: write`，在运行时向 GitHub OIDC endpoint 申请短期 token，audience 为 `https://github.com/Starfie1d1272`；protected exact `https://<deployment>.vercel.app` smoke 只发送 `x-vercel-trusted-oidc-idp-token`。canonical `https://match.starfie1d.top` 使用普通 HTTPS read-back，不携带 OIDC header。
 
 不得使用长期 bypass secret、Full Account/user/team token 或降低 Deployment Protection 代替 Trusted Source。deployment URL 与 canonical domain 的 `/api/system/release` 都必须严格只返回 `releaseTag`、`releaseCommit`，并精确等于当前 immutable tag 与 tag commit；任一失败都阻止后续 release。pre-release backup 失败会阻止 production migration。
+
+### Release routing controller
+
+`scripts/release/routing.ts` 是 release routing 的唯一 executable owner；`scripts/release/vercel-routing.ts` 是它使用的 Vercel provider adapter，不是额外的 workflow entrypoint。两者保留当前 production release 的 endpoint、project-scoped Vercel credential 和 release identity contract；workflow 不再在 YAML/Bash 中复制 deployment parsing、alias wait、semantic smoke 或 rollback state machine。
+
+provider adapter 为每个 HTTP request 设置 request-level timeout；GET 的 network failure、429 和选定的 5xx 只在有限 attempt 内重试，并与业务状态等待分开。Promote/rollback POST 只把 HTTP 201/202 视为 accepted；429 明确按 `Retry-After`/backoff 做一次 bounded retry，timeout/5xx 等 ambiguous outcome 则进入短的 bounded reconciliation observation window。完整 observation window 内持续观察 previous routing；只有窗口结束、至少有两次有效 observation 且全程都是 exact previous + succeeded、没有 transient/unknown/unrelated state 时才允许一次 retry；发现目标已被 provider 接受时立即 reconciled 且绝不重复 POST，observation 仍不明确则 fail closed。
+
+promotion accepted 后，controller 分别等待 provider alias operation 和 canonical `/`、`/api/system/release`。HTTP 200 但 release identity 仍是合法旧值是 `not_converged`，不是立即失败；只有 exact `releaseTag`/`releaseCommit` 才算成功。provider alias convergence 保持 180 秒 deadline；canonical semantic convergence 使用独立的 120 秒 deadline，poll interval 为 2 秒，ambiguous reconciliation 默认 observation window 为 15 秒。malformed identity、401/403 和不可重试 provider contract 直接 fail fast，deadline 到期归类为 `convergence_timeout`。
+
+promote 后的 terminal failure 会以 mutation 前冻结的 previous deployment 为唯一 rollback 目标。Rollback accepted 后仍必须等待 alias operation，并等待 canonical identity 精确恢复 previous tag/SHA；恢复未确认时 Release 保持 failed，controller 输出 `rollback_failed` 与人工介入提示，不继续 scheduler/GitHub Release，也不自动 reverse PostgreSQL migration。每次 controller run 都写入低敏 Step Summary，至少包含 candidate/previous deployment、promotion、canonical convergence、rollback outcome 和 terminal classification。
 
 ### Vercel Trusted Source（owner-only）
 

@@ -134,33 +134,35 @@ describe("deployment and operations contracts", () => {
     const schedulerStart = release.indexOf("      - name: Provision and verify production scheduler");
     const smoke = release.slice(smokeStart, schedulerStart);
     expect(smoke).toContain("^https://[a-z0-9][a-z0-9-]*\\.vercel\\.app/?$");
-    const candidateSmoke = smoke.slice(0, smoke.indexOf("- name: Promote candidate"));
+    const candidateSmoke = smoke.slice(0, smoke.indexOf("- name: Route candidate"));
     expect(candidateSmoke).not.toContain("VERCEL_TOKEN");
     expect(candidateSmoke).toContain("x-vercel-trusted-oidc-idp-token: $VERCEL_TRUSTED_OIDC_IDP_TOKEN");
-    const canonicalIdentity = smoke.slice(smoke.indexOf("canonical_identity="));
-    expect(canonicalIdentity).not.toContain("x-vercel-trusted-oidc-idp-token");
+    expect(release).toContain("Route candidate and verify canonical production");
+    expect(release).toContain("pnpm release:routing");
     const productionSerialization = "concurrency:\n  group: rivalhub-production-state-serialization\n  queue: max\n  cancel-in-progress: false";
     expect(backup).toContain(productionSerialization);
     expect(release).toContain(productionSerialization);
     expect(r2).not.toContain(productionSerialization);
     expect(backup).not.toContain("cancel-in-progress: true");
     expect(release).not.toContain("cancel-in-progress: true");
-    expect(release).toContain("$RIVALHUB_PRODUCTION_BASE_URL/api/system/release");
-    expect(release).toContain('(keys | sort) == ["releaseCommit", "releaseTag"]');
     expect(nextConfig).toContain("RIVALHUB_RELEASE_TAG: process.env.RIVALHUB_RELEASE_TAG ?? \"\"");
     expect(nextConfig).toContain("RIVALHUB_RELEASE_COMMIT: process.env.RIVALHUB_RELEASE_COMMIT ?? \"\"");
   });
 
   it("freezes the exact release identity into Vercel builds and reads it back after deploy", () => {
     const release = readProjectFile(".github/workflows/release.yml");
+    const routing = readProjectFile("scripts/release/routing.ts");
+    const vercelRouting = readProjectFile("scripts/release/vercel-routing.ts");
     const nextConfig = readProjectFile("next.config.ts");
 
     expect(release).toContain('--build-env RIVALHUB_RELEASE_TAG="$RELEASE_TAG"');
     expect(release).toContain('--build-env RIVALHUB_RELEASE_COMMIT="$RELEASE_SHA"');
     expect(release).toContain('deployment_identity="$(curl --fail');
     expect(release).toContain('"$DEPLOYMENT_URL/api/system/release"');
-    expect(release).toContain("$RIVALHUB_PRODUCTION_BASE_URL/api/system/release");
-    expect(release).toContain('(keys | sort) == ["releaseCommit", "releaseTag"]');
+    expect(routing).toContain("/api/system/release");
+    expect(routing).toContain("assertReleaseIdentity");
+    expect(routing).toContain("createVercelRoutingClient");
+    expect(vercelRouting).toContain("DEFAULT_REQUEST_TIMEOUT_MS = 15_000");
     expect(nextConfig).toContain('RIVALHUB_RELEASE_TAG: process.env.RIVALHUB_RELEASE_TAG ?? ""');
     expect(nextConfig).toContain('RIVALHUB_RELEASE_COMMIT: process.env.RIVALHUB_RELEASE_COMMIT ?? ""');
   });
@@ -311,7 +313,7 @@ describe("deployment and operations contracts", () => {
     expect(release).toContain("RIVALHUB_SCHEDULER_BASE_URL: https://match.starfie1d.top");
     expect(release).toContain("RIVALHUB_ALLOW_REMOTE_DB_WRITE=production pnpm db:production:scheduler:provision");
     expect(release).toContain("pnpm db:production:scheduler:verify");
-    expect(release.indexOf("Smoke test canonical production")).toBeLessThan(release.indexOf("Provision and verify production scheduler"));
+    expect(release.indexOf("Route candidate and verify canonical production")).toBeLessThan(release.indexOf("Provision and verify production scheduler"));
     expect(release.indexOf("Provision and verify production scheduler")).toBeLessThan(release.indexOf("Extract changelog for this version"));
 
     // Verify bash -c fail-fast safety
@@ -349,12 +351,33 @@ describe("deployment and operations contracts", () => {
     const knipConfig = JSON.parse(readProjectFile("knip.json")) as { entry: string[] };
     expect(knipConfig.entry).toContain("scripts/release/ci-prerequisite.ts!");
     expect(knipConfig.entry).toContain("scripts/release/production-deployment.ts!");
+    expect(knipConfig.entry).toContain("scripts/release/routing.ts!");
 
-    // Shell safety: fail-closed previous identity and no error swallowing in smoke
-    expect(release).toContain('PREVIOUS_IDENTITY="$(curl --fail');
-    expect(release).not.toMatch(/PREVIOUS_IDENTITY=.*\|\|\s*true/);
-    expect(release).toContain('"$RIVALHUB_PRODUCTION_BASE_URL/" >/dev/null || return 1');
-    expect(release).toContain('"$RIVALHUB_PRODUCTION_BASE_URL/api/system/release")" || return 1');
+    // Routing state machine ownership and workflow wiring
+    const routing = readProjectFile("scripts/release/routing.ts");
+    const vercelRouting = readProjectFile("scripts/release/vercel-routing.ts");
+    expect(release).toContain("Route candidate and verify canonical production");
+    expect(release).toContain("pnpm release:routing");
+    expect(release).not.toContain("wait_for_alias_job");
+    expect(release).not.toContain("PREVIOUS_IDENTITY");
+    expect(release).not.toContain("PROMOTE_STATUS");
+    expect(release).not.toContain("ROLLBACK_STATUS");
+    expect(vercelRouting).toContain("https://api.vercel.com/v13/deployments/");
+    expect(vercelRouting).toContain("https://api.vercel.com/v10/projects/");
+    expect(vercelRouting).toContain("https://api.vercel.com/v1/projects/");
+    expect(vercelRouting).toContain("lastAliasRequest");
+    expect(vercelRouting).toContain("AbortController");
+    expect(vercelRouting).toContain("requestTimeoutMs");
+    expect(vercelRouting).toContain('"retry-after"');
+    expect(routing).toContain("DEFAULT_ROUTING_PROVIDER_TIMEOUT_MS = 180_000");
+    expect(routing).toContain("DEFAULT_ROUTING_SEMANTIC_TIMEOUT_MS = 120_000");
+    expect(routing).toContain("DEFAULT_ROUTING_AMBIGUOUS_RECONCILIATION_TIMEOUT_MS = 15_000");
+    expect(routing).toContain("stablePreviousObservations");
+    expect(routing).toContain("reconciliationWindowSafeToRetry");
+    expect(routing).toContain("elapsedMs >= timeoutMs");
+    expect(routing).toContain("rate_limited");
+    expect(routing).toContain("convergence_timeout");
+    expect(routing).toContain("rollback_failed");
 
     // DB-only local rehearsal
     expect(release).toContain("pnpm db:local:start-db");
@@ -363,9 +386,6 @@ describe("deployment and operations contracts", () => {
 
     // Staged production deployment and promotion
     expect(release).toContain("vercel deploy --prod --skip-domain");
-    expect(release).toContain("https://api.vercel.com/v13/deployments/${CANONICAL_DOMAIN_ENCODED}?teamId=${VERCEL_ORG_ID}");
-    expect(release).toContain("https://api.vercel.com/v10/projects/${VERCEL_PROJECT_ID}/promote/${PROMOTE_DEPLOYMENT_ID}?teamId=${VERCEL_ORG_ID}");
-    expect(release).toContain("https://api.vercel.com/v1/projects/${VERCEL_PROJECT_ID}/rollback/${PREVIOUS_DEPLOYMENT_ID}?teamId=${VERCEL_ORG_ID}");
     expect(release).not.toContain('vercel promote "$DEPLOYMENT_URL" --yes');
     expect(release).not.toContain("vercel rollback --yes");
 
