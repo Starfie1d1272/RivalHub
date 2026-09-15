@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { formatCST } from "@/lib/utils/date";
 import { PageHeader, PageLayout, Panel } from "@/components/rivalhub";
 import type { PlatformOperationsGrowthDay, PlatformOperationsOverview as PlatformOperationsOverviewData } from "@/lib/admin/platform-operations/types";
@@ -31,10 +32,10 @@ function GrowthDay({ day }: { day: PlatformOperationsGrowthDay }) {
     <li className="min-w-0 border border-[var(--color-border)] p-3">
       <p className="font-mono text-xs font-semibold text-[var(--color-fg)]">{day.label}</p>
       <dl className="mt-3 space-y-2 text-xs">
-        <div className="flex items-center justify-between gap-2"><dt className="text-[var(--color-fg-mid)]">新增用户</dt><dd className="font-semibold tabular-nums">{day.newActiveUsers}</dd></div>
+        <div className="flex items-center justify-between gap-2"><dt className="text-[var(--color-fg-mid)]">新增用户</dt><dd className="font-semibold tabular-nums">{day.newUsers}</dd></div>
         <div className="flex items-center justify-between gap-2"><dt className="text-[var(--color-fg-mid)]">认证通过</dt><dd className="font-semibold tabular-nums">{day.newEducationApprovals}</dd></div>
-        <div className="flex items-center justify-between gap-2"><dt className="text-[var(--color-fg-mid)]">新增队伍</dt><dd className="font-semibold tabular-nums">{day.newActiveTeams}</dd></div>
-        <div className="flex items-center justify-between gap-2"><dt className="text-[var(--color-fg-mid)]">新增成员关系</dt><dd className="font-semibold tabular-nums">{day.newActiveMemberships}</dd></div>
+        <div className="flex items-center justify-between gap-2"><dt className="text-[var(--color-fg-mid)]">新增队伍</dt><dd className="font-semibold tabular-nums">{day.newTeams}</dd></div>
+        <div className="flex items-center justify-between gap-2"><dt className="text-[var(--color-fg-mid)]">新增成员关系</dt><dd className="font-semibold tabular-nums">{day.newMemberships}</dd></div>
       </dl>
     </li>
   );
@@ -48,16 +49,16 @@ export function PlatformOperationsOverview({ data }: { data: PlatformOperationsO
     <PageLayout variant="wide" className="space-y-6">
       <PageHeader
         title="运营概览"
-        description={`平台长期人口、队伍与组队供给的聚合快照。数据截至 ${formatCST(data.asOf)}。`}
+        description={`平台人口、当前队伍与组队供给的聚合快照。数据截至 ${formatCST(data.asOf)}。`}
       />
 
       <section aria-labelledby="platform-population-heading" className="space-y-3">
         <h2 id="platform-population-heading" className="text-lg font-semibold text-[var(--color-fg)]">平台人口</h2>
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <HeadlineMetric label="有效用户" value={population.activeUsers} sub="当前有效账号" />
+          <HeadlineMetric label="有效用户" value={population.activeUsers} sub="当前有效平台用户" />
           <HeadlineMetric label="7 日活跃用户" value={population.activeUsers7d} sub={`24h ${population.activeUsers24h} · 30d ${population.activeUsers30d}`} />
-          <HeadlineMetric label="已教育认证用户" value={population.certifiedUsers} sub="当前有效用户中的 distinct 用户" />
-          <HeadlineMetric label="活跃队伍" value={population.activeTeams} sub="当前仍在存续的队伍" />
+          <HeadlineMetric label="已教育认证用户" value={population.certifiedUsers} sub="当前已通过教育认证的用户，按用户去重" />
+          <HeadlineMetric label="当前队伍" value={population.activeTeams} sub="当前仍在存续的队伍" />
         </div>
       </section>
 
@@ -66,8 +67,8 @@ export function PlatformOperationsOverview({ data }: { data: PlatformOperationsO
           <PoolMetric label="当前在队伍" value={playerPool.currentTeamUsers} />
           <PoolMetric label="认证且当前无队伍" value={playerPool.certifiedWithoutTeam} />
           <PoolMetric label="当前在队但未认证" value={playerPool.teamWithoutCertification} />
-          <PoolMetric label="公开 Player LFT" value={playerPool.publicPlayerLft} />
-          <PoolMetric label="公开 Team Recruiting" value={playerPool.publicTeamRecruiting} />
+          <PoolMetric label="选手找队" value={playerPool.publicPlayerLft} />
+          <PoolMetric label="队伍招募" value={playerPool.publicTeamRecruiting} />
         </div>
         <p className="mt-4 text-xs leading-5 text-[var(--color-fg-mid)]">以上是平台当前供给结构，不代表任何一届赛事的报名资格或参赛队伍数量。</p>
       </Panel>
@@ -94,15 +95,14 @@ export function PlatformOperationsOverview({ data }: { data: PlatformOperationsO
 
         <Panel label="组队大厅" contentClassName="p-5">
           <div className="space-y-3 text-sm leading-6 text-[var(--color-fg-mid)]">
-            <p><span className="font-semibold text-[var(--color-fg)]">{playerPool.publicPlayerLft}</span> 条公开 Player LFT，代表当前正在找队的玩家供给。</p>
-            <p><span className="font-semibold text-[var(--color-fg)]">{playerPool.publicTeamRecruiting}</span> 条公开 Team Recruiting，代表当前正在招募的队伍供给。</p>
-            <p className="text-xs">统计沿用组队大厅现有的开放、未过期、账号与队伍仍有效、以及目标赛事可用性口径。</p>
+            <p>查看具体的选手找队与队伍招募信息，进入组队大厅下钻。</p>
+            <Link href="/teams/recruitment" className="inline-block text-sm text-[var(--color-accent)] underline underline-offset-4 focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]">打开组队大厅 →</Link>
           </div>
         </Panel>
       </div>
 
       <Panel label="平台增长 · 最近 7 天" contentClassName="p-5">
-        <p className="text-xs leading-5 text-[var(--color-fg-mid)]">每天按 Asia/Shanghai（CST）自然日边界聚合；当天数据为截至当前时间的部分日。</p>
+        <p className="text-xs leading-5 text-[var(--color-fg-mid)]">按 Asia/Shanghai（CST）自然日边界统计创建、认证通过和加入事件；历史对象后续失效不会改写过去日期，当天数据为截至当前时间的部分日。</p>
         <ol className="mt-4 grid list-none gap-2 p-0 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
           {growth.map((day) => <GrowthDay key={day.date} day={day} />)}
         </ol>

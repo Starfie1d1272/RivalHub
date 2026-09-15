@@ -4,14 +4,14 @@ import { getPlatformOperationsOverview } from "../../../src/lib/admin/platform-o
 import { createLocalPool } from "./harness/database";
 
 describe("admin platform operations PostgreSQL read model", () => {
-  it("keeps platform counts separate from season state and filters inactive owners and memberships", async () => {
+  it("keeps current counts separate and preserves historical growth events", async () => {
     const pool = createLocalPool({ max: 8 });
     const now = new Date("2026-09-15T04:00:00.000Z");
     const recent = new Date("2026-09-14T16:30:00.000Z");
     const oldTenDays = new Date("2026-09-05T04:00:00.000Z");
     const oldThirtyOneDays = new Date("2026-08-15T04:00:00.000Z");
-    const endedStartedAt = new Date("2026-09-01T04:00:00.000Z");
-    const endedAt = new Date("2026-09-02T04:00:00.000Z");
+    const endedStartedAt = new Date("2026-09-12T04:00:00.000Z");
+    const endedAt = new Date("2026-09-13T04:00:00.000Z");
     const ids = {
       captain: randomUUID(),
       member: randomUUID(),
@@ -22,6 +22,7 @@ describe("admin platform operations PostgreSQL read model", () => {
       disbandedTeam: randomUUID(),
       institution: randomUUID(),
       captainVerification: randomUUID(),
+      captainVerificationDuplicate: randomUUID(),
       certifiedVerification: randomUUID(),
       teamIntent: randomUUID(),
       lftIntent: randomUUID(),
@@ -98,6 +99,10 @@ describe("admin platform operations PostgreSQL read model", () => {
           [ids.captainVerification, ids.captain, ids.institution, ids.certifiedVerification, recent, recent, ids.certifiedNoTeam],
         );
         await fixture.query(
+          "INSERT INTO education_verifications (id, user_id, institution_id, academic_status, evidence_type, status, reviewed_by, submitted_at, reviewed_at, created_at, updated_at) VALUES ($1, $2, $3, 'enrolled', 'institutional_email', 'approved', 'platform-operations-test', $4, $4, $4, $4)",
+          [ids.captainVerificationDuplicate, ids.captain, ids.institution, recent],
+        );
+        await fixture.query(
           `INSERT INTO user_sessions (user_id, last_active_at)
            VALUES ($1, $6), ($2, $7), ($3, $8), ($4, $9), ($5, $6)`,
           [ids.captain, ids.member, ids.certifiedNoTeam, ids.lft, ids.merged, new Date(now.getTime() - 60 * 60 * 1000), new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000), new Date(now.getTime() - 10 * 24 * 60 * 60 * 1000), new Date(now.getTime() - 31 * 24 * 60 * 60 * 1000)],
@@ -138,17 +143,21 @@ describe("admin platform operations PostgreSQL read model", () => {
       const beforeGrowth = before.growth.find((day) => day.date === "2026-09-15");
       const afterGrowth = after.growth.find((day) => day.date === "2026-09-15");
       expect(afterGrowth).toBeDefined();
-      expect(afterGrowth!.newActiveUsers - (beforeGrowth?.newActiveUsers ?? 0)).toBe(2);
+      expect(afterGrowth!.newUsers - (beforeGrowth?.newUsers ?? 0)).toBe(3);
       expect(afterGrowth!.newEducationApprovals - (beforeGrowth?.newEducationApprovals ?? 0)).toBe(2);
-      expect(afterGrowth!.newActiveTeams - (beforeGrowth?.newActiveTeams ?? 0)).toBe(1);
-      expect(afterGrowth!.newActiveMemberships - (beforeGrowth?.newActiveMemberships ?? 0)).toBe(2);
+      expect(afterGrowth!.newTeams - (beforeGrowth?.newTeams ?? 0)).toBe(1);
+      expect(afterGrowth!.newMemberships - (beforeGrowth?.newMemberships ?? 0)).toBe(3);
+      const historicalGrowth = after.growth.find((day) => day.date === "2026-09-12");
+      const beforeHistoricalGrowth = before.growth.find((day) => day.date === "2026-09-12");
+      expect(historicalGrowth!.newTeams - (beforeHistoricalGrowth?.newTeams ?? 0)).toBe(1);
+      expect(historicalGrowth!.newMemberships - (beforeHistoricalGrowth?.newMemberships ?? 0)).toBe(1);
     } finally {
       const cleanup = await pool.connect();
       try {
         await cleanup.query("BEGIN");
         await cleanup.query("SET LOCAL session_replication_role = replica");
         await cleanup.query("DELETE FROM recruitment_intents WHERE id IN ($1, $2, $3, $4)", [ids.teamIntent, ids.lftIntent, ids.mergedIntent, ids.disbandedTeamIntent]);
-        await cleanup.query("DELETE FROM education_verifications WHERE id IN ($1, $2)", [ids.captainVerification, ids.certifiedVerification]);
+        await cleanup.query("DELETE FROM education_verifications WHERE id IN ($1, $2, $3)", [ids.captainVerification, ids.captainVerificationDuplicate, ids.certifiedVerification]);
         await cleanup.query("DELETE FROM user_sessions WHERE user_id = ANY($1::uuid[])", [userIds]);
         await cleanup.query("DELETE FROM team_memberships WHERE id = ANY($1::uuid[])", [[ids.captainMembership, ids.memberMembership, ids.mergedMembership, ids.endedMembership]]);
         await cleanup.query("DELETE FROM team_captain_changes WHERE id IN ($1, $2)", [ids.activeCaptainChange, ids.disbandedCaptainChange]);

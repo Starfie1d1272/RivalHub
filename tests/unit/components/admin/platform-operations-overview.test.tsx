@@ -26,6 +26,7 @@ const data: PlatformOperationsOverviewData = {
     totalMemberCount: 18,
     medianTeamSize: 3.5,
     sizeDistribution: [
+      { key: "0", label: "0 人", count: 0 },
       { key: "1", label: "1 人", count: 1 },
       { key: "2", label: "2 人", count: 1 },
       { key: "3", label: "3 人", count: 1 },
@@ -41,10 +42,10 @@ const data: PlatformOperationsOverviewData = {
   growth: Array.from({ length: 7 }, (_, index) => ({
     date: `2026-09-${String(index + 9).padStart(2, "0")}`,
     label: `${index + 9}月${index + 9}日`,
-    newActiveUsers: index === 6 ? 2 : 0,
+    newUsers: index === 6 ? 2 : 0,
     newEducationApprovals: 0,
-    newActiveTeams: 0,
-    newActiveMemberships: 0,
+    newTeams: 0,
+    newMemberships: 0,
   })),
 };
 
@@ -62,10 +63,20 @@ describe("PlatformOperationsOverview", () => {
     expect(html).toContain("玩家池结构");
     expect(html).toContain("队伍成员人数分布");
     expect(html).toContain("组队大厅");
+    expect(html).toContain('href="/teams/recruitment"');
     expect(html).toContain("平台增长 · 最近 7 天");
     expect(html).toContain("7 日活跃用户");
     expect(html).toContain("已教育认证用户");
+    expect(html).toContain("当前有效平台用户");
+    expect(html).toContain("当前队伍");
     expect(html).toContain("认证且当前无队伍");
+    expect(html).toContain("选手找队");
+    expect(html).toContain("队伍招募");
+    expect(html).toContain("按用户去重");
+    expect(html).not.toContain("活跃队伍");
+    expect(html).not.toContain("Player LFT");
+    expect(html).not.toContain("Team Recruiting");
+    expect(html).not.toContain("distinct");
     expect(html).toContain("10+ 人");
     expect(html).toContain("Asia/Shanghai");
     expect(html).not.toContain("Auth");

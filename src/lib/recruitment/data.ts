@@ -207,7 +207,7 @@ export async function getPublicTeamRecruitment(teamId: string): Promise<PublicRe
   const now = new Date();
   const [intent] = await db.select({ id: recruitmentIntents.id, positions: recruitmentIntents.positions, targetSeasonId: recruitmentIntents.targetSeasonId, targetSeasonName: seasons.name, note: recruitmentIntents.note, expiresAt: recruitmentIntents.expiresAt, updatedAt: recruitmentIntents.updatedAt })
     .from(recruitmentIntents).innerJoin(teams, and(eq(teams.id, recruitmentIntents.teamId), eq(teams.status, "active"))).leftJoin(seasons, eq(seasons.id, recruitmentIntents.targetSeasonId))
-    .where(and(eq(recruitmentIntents.teamId, teamId), eq(recruitmentIntents.kind, "team_recruiting"), eq(recruitmentIntents.status, "open"), gt(recruitmentIntents.expiresAt, now), or(isNull(recruitmentIntents.targetSeasonId), teamRecruitmentTargetAvailableCondition(now, recruitmentIntents.teamId))))
+    .where(and(eq(recruitmentIntents.teamId, teamId), ...openRecruitmentIntentConditions("team_recruiting", now), or(isNull(recruitmentIntents.targetSeasonId), teamRecruitmentTargetAvailableCondition(now, recruitmentIntents.teamId))))
     .limit(1);
   return intent ? { ...intent, positions: intent.positions as Cs2Position[] } : null;
 }
@@ -216,7 +216,7 @@ export async function getPublicPlayerLft(userId: string): Promise<PublicRecruitm
   const now = new Date();
   const [intent] = await db.select({ id: recruitmentIntents.id, positions: recruitmentIntents.positions, targetSeasonId: recruitmentIntents.targetSeasonId, targetSeasonName: seasons.name, note: recruitmentIntents.note, expiresAt: recruitmentIntents.expiresAt, updatedAt: recruitmentIntents.updatedAt })
     .from(recruitmentIntents).innerJoin(users, and(eq(users.id, recruitmentIntents.userId), eq(users.status, "active"))).leftJoin(seasons, eq(seasons.id, recruitmentIntents.targetSeasonId))
-    .where(and(eq(recruitmentIntents.userId, userId), eq(recruitmentIntents.kind, "player_lft"), eq(recruitmentIntents.status, "open"), gt(recruitmentIntents.expiresAt, now), or(isNull(recruitmentIntents.targetSeasonId), recruitmentTargetAvailableCondition(now))))
+    .where(and(eq(recruitmentIntents.userId, userId), ...openRecruitmentIntentConditions("player_lft", now), or(isNull(recruitmentIntents.targetSeasonId), recruitmentTargetAvailableCondition(now))))
     .limit(1);
   return intent ? { ...intent, positions: intent.positions as Cs2Position[] } : null;
 }

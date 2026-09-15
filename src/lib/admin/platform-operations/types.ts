@@ -1,10 +1,12 @@
+import { formatCSTShortDate, getCSTDateKey, getCSTDayStart } from "@/lib/utils/date";
+
 export const PLATFORM_OPERATIONS_GROWTH_DAYS = 7;
 
 export type PlatformOperationsGrowthEventKind =
-  | "active_user"
+  | "user_created"
   | "education_approval"
-  | "active_team"
-  | "active_membership";
+  | "team_created"
+  | "membership_started";
 
 export interface PlatformOperationsGrowthEvent {
   kind: PlatformOperationsGrowthEventKind;
@@ -15,10 +17,10 @@ export interface PlatformOperationsGrowthEvent {
 export interface PlatformOperationsGrowthDay {
   date: string;
   label: string;
-  newActiveUsers: number;
+  newUsers: number;
   newEducationApprovals: number;
-  newActiveTeams: number;
-  newActiveMemberships: number;
+  newTeams: number;
+  newMemberships: number;
 }
 
 export interface PlatformOperationsTeamSizeBucket {
@@ -64,10 +66,10 @@ export interface PlatformOperationsCurrentMembershipRow {
   userId: string | null;
 }
 
-const CST_OFFSET_MS = 8 * 60 * 60 * 1000;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 const TEAM_SIZE_BUCKETS: ReadonlyArray<{ key: string; label: string; matches: (size: number) => boolean }> = [
+  { key: "0", label: "0 人", matches: (size) => size === 0 },
   { key: "1", label: "1 人", matches: (size) => size === 1 },
   { key: "2", label: "2 人", matches: (size) => size === 2 },
   { key: "3", label: "3 人", matches: (size) => size === 3 },
@@ -80,35 +82,11 @@ const TEAM_SIZE_BUCKETS: ReadonlyArray<{ key: string; label: string; matches: (s
   { key: "10-plus", label: "10+ 人", matches: (size) => size >= 10 },
 ];
 
-function asDate(value: Date | string): Date {
-  return value instanceof Date ? value : new Date(value);
-}
-
-function cstParts(value: Date | string): { year: number; month: number; day: number } {
-  const shifted = new Date(asDate(value).getTime() + CST_OFFSET_MS);
-  return {
-    year: shifted.getUTCFullYear(),
-    month: shifted.getUTCMonth() + 1,
-    day: shifted.getUTCDate(),
-  };
-}
-
-export function getCstDateKey(value: Date | string): string {
-  const { year, month, day } = cstParts(value);
-  return `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-}
-
-/** Return the UTC instant corresponding to local midnight in Asia/Shanghai. */
-export function getCstDayStart(value: Date): Date {
-  const { year, month, day } = cstParts(value);
-  return new Date(Date.UTC(year, month - 1, day) - CST_OFFSET_MS);
-}
-
 export function getPlatformOperationsGrowthStart(
   now: Date,
   dayCount = PLATFORM_OPERATIONS_GROWTH_DAYS,
 ): Date {
-  return new Date(getCstDayStart(now).getTime() - Math.max(1, dayCount) * DAY_MS + DAY_MS);
+  return new Date(getCSTDayStart(now).getTime() - Math.max(1, dayCount) * DAY_MS + DAY_MS);
 }
 
 export function buildTeamSizeDistribution(teamSizes: readonly number[]): PlatformOperationsTeamSizeBucket[] {
@@ -175,24 +153,23 @@ export function buildPlatformOperationsGrowth(
   const start = getPlatformOperationsGrowthStart(now, count);
   const days = Array.from({ length: count }, (_, index) => {
     const dayStart = new Date(start.getTime() + index * DAY_MS);
-    const { month, day } = cstParts(dayStart);
     return {
-      date: getCstDateKey(dayStart),
-      label: `${month}月${day}日`,
-      newActiveUsers: 0,
+      date: getCSTDateKey(dayStart),
+      label: formatCSTShortDate(dayStart),
+      newUsers: 0,
       newEducationApprovals: 0,
-      newActiveTeams: 0,
-      newActiveMemberships: 0,
+      newTeams: 0,
+      newMemberships: 0,
     };
   });
   const byDate = new Map(days.map((day) => [day.date, day]));
   const educationUsersByDate = new Map<string, Set<string>>();
 
   for (const event of events) {
-    const day = byDate.get(getCstDateKey(event.occurredAt));
+    const day = byDate.get(getCSTDateKey(event.occurredAt));
     if (!day) continue;
     switch (event.kind) {
-      case "active_user": day.newActiveUsers += 1; break;
+      case "user_created": day.newUsers += 1; break;
       case "education_approval": {
         const users = educationUsersByDate.get(day.date) ?? new Set<string>();
         if (!users.has(event.entityId)) {
@@ -202,8 +179,8 @@ export function buildPlatformOperationsGrowth(
         educationUsersByDate.set(day.date, users);
         break;
       }
-      case "active_team": day.newActiveTeams += 1; break;
-      case "active_membership": day.newActiveMemberships += 1; break;
+      case "team_created": day.newTeams += 1; break;
+      case "membership_started": day.newMemberships += 1; break;
     }
   }
 

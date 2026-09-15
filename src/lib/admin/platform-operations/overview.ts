@@ -116,15 +116,16 @@ async function loadRecruitmentCounts(now: Date): Promise<{ publicPlayerLft: numb
 
 async function loadGrowthEvents(now: Date): Promise<PlatformOperationsGrowthEvent[]> {
   const start = getPlatformOperationsGrowthStart(now);
+  // Growth is an event trend. Current lifecycle/status filters would erase
+  // historical creations after a user merge, Team disband, or membership end.
   const [newUsers, educationApprovals, newTeams, newMemberships] = await Promise.all([
     db
       .select({ entityId: users.id, occurredAt: users.createdAt })
       .from(users)
-      .where(and(eq(users.status, "active"), gte(users.createdAt, start), lt(users.createdAt, now))),
+      .where(and(gte(users.createdAt, start), lt(users.createdAt, now))),
     db
       .select({ entityId: educationVerifications.userId, occurredAt: educationVerifications.reviewedAt })
       .from(educationVerifications)
-      .innerJoin(users, and(eq(users.id, educationVerifications.userId), eq(users.status, "active")))
       .where(and(
         eq(educationVerifications.status, "approved"),
         isNotNull(educationVerifications.reviewedAt),
@@ -134,26 +135,23 @@ async function loadGrowthEvents(now: Date): Promise<PlatformOperationsGrowthEven
     db
       .select({ entityId: teams.id, occurredAt: teams.createdAt })
       .from(teams)
-      .where(and(eq(teams.status, "active"), gte(teams.createdAt, start), lt(teams.createdAt, now))),
+      .where(and(gte(teams.createdAt, start), lt(teams.createdAt, now))),
     db
       .select({ entityId: teamMemberships.id, occurredAt: teamMemberships.startedAt })
       .from(teamMemberships)
-      .innerJoin(teams, and(eq(teams.id, teamMemberships.teamId), eq(teams.status, "active")))
-      .innerJoin(users, and(eq(users.id, teamMemberships.userId), eq(users.status, "active")))
       .where(and(
-        isNull(teamMemberships.endedAt),
         gte(teamMemberships.startedAt, start),
         lt(teamMemberships.startedAt, now),
       )),
   ]);
 
   return [
-    ...newUsers.map((row) => ({ kind: "active_user" as const, ...row })),
+    ...newUsers.map((row) => ({ kind: "user_created" as const, ...row })),
     ...educationApprovals.flatMap((row) => row.occurredAt
       ? [{ kind: "education_approval" as const, entityId: row.entityId, occurredAt: row.occurredAt }]
       : []),
-    ...newTeams.map((row) => ({ kind: "active_team" as const, ...row })),
-    ...newMemberships.map((row) => ({ kind: "active_membership" as const, ...row })),
+    ...newTeams.map((row) => ({ kind: "team_created" as const, ...row })),
+    ...newMemberships.map((row) => ({ kind: "membership_started" as const, ...row })),
   ];
 }
 
