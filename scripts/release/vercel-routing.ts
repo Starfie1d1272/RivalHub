@@ -164,6 +164,8 @@ export function createVercelRoutingClient(options: {
       const deploymentUrl = record?.url;
       const target = record?.target;
       const readyState = record?.readyState;
+      // Resolving a custom domain returns the deployment's generated hostname
+      // in `url`; the requested alias is validated by the API lookup itself.
       if (
         typeof id !== "string" ||
         !id.startsWith("dpl_") ||
@@ -172,7 +174,6 @@ export function createVercelRoutingClient(options: {
         typeof target !== "string" ||
         typeof readyState !== "string" ||
         projectId !== options.projectId ||
-        deploymentUrl !== host ||
         target !== "production" ||
         readyState !== "READY"
       ) {
