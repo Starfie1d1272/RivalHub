@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.9.6]
+
+### Added
+
+#### 平台运营概览
+
+新增平台运营概览，聚合展示有效用户、活跃度、教育认证、队伍生态、组队供给与最近 7 天增长趋势，并将平台事实与赛事总览明确分开。
+
 ## [2.9.5]
 
 ### Added
@@ -2209,6 +2217,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[2.9.6]: https://github.com/Starfie1d1272/RivalHub/compare/v2.9.5...v2.9.6
 [2.9.5]: https://github.com/Starfie1d1272/RivalHub/compare/v2.9.4...v2.9.5
 [2.9.4]: https://github.com/Starfie1d1272/RivalHub/compare/v2.9.3...v2.9.4
 [2.9.3]: https://github.com/Starfie1d1272/RivalHub/compare/v2.9.2...v2.9.3
