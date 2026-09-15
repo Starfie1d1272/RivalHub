@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.9.7]
+
+### Fixed
+
+#### Vercel 自定义域名 deployment read-back
+
+修复生产发布 routing 对 Vercel 自定义域名 deployment identity 的误判，确保候选发布能够通过安全的 production read-back 校验。
+
 ## [2.9.6]
 
 ### Added
@@ -2217,6 +2225,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[2.9.7]: https://github.com/Starfie1d1272/RivalHub/compare/v2.9.6...v2.9.7
 [2.9.6]: https://github.com/Starfie1d1272/RivalHub/compare/v2.9.5...v2.9.6
 [2.9.5]: https://github.com/Starfie1d1272/RivalHub/compare/v2.9.4...v2.9.5
 [2.9.4]: https://github.com/Starfie1d1272/RivalHub/compare/v2.9.3...v2.9.4
