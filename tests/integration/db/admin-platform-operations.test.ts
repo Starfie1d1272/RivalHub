@@ -51,11 +51,11 @@ describe("admin platform operations PostgreSQL read model", () => {
         );
         await fixture.query(
           `INSERT INTO users (id, email, status, merged_into_user_id, merged_at, created_at, updated_at)
-           VALUES ($1, $2, 'active', NULL, NULL, $7, $7),
-                  ($3, $4, 'active', NULL, NULL, $7, $7),
-                  ($5, $6, 'active', NULL, NULL, $8, $8),
-                  ($9, $10, 'active', NULL, NULL, $11, $11),
-                  ($12, $13, 'merged', $1, $7, $7, $7)`,
+           VALUES ($1, $2, 'active', NULL, NULL, $11, $11),
+                  ($3, $4, 'active', NULL, NULL, $11, $11),
+                  ($5, $6, 'active', NULL, NULL, $12, $12),
+                  ($7, $8, 'active', NULL, NULL, $13, $13),
+                  ($9, $10, 'merged', $1, $11, $11, $11)`,
           [
             ids.captain, `platform-operations-captain-${ids.captain}@local.test`,
             ids.member, `platform-operations-member-${ids.member}@local.test`,
