@@ -2,6 +2,27 @@ const CST_LOCALE = "zh-CN";
 const CST_TZ = "Asia/Shanghai";
 const CST_OFFSET_MS = 8 * 60 * 60 * 1000;
 
+function cstParts(value: Date | string): { year: number; month: number; day: number } {
+  const date = typeof value === "string" ? new Date(value) : value;
+  const shifted = new Date(date.getTime() + CST_OFFSET_MS);
+  return {
+    year: shifted.getUTCFullYear(),
+    month: shifted.getUTCMonth() + 1,
+    day: shifted.getUTCDate(),
+  };
+}
+
+export function getCSTDateKey(value: Date | string): string {
+  const { year, month, day } = cstParts(value);
+  return `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+/** Return the UTC instant corresponding to local midnight in Asia/Shanghai. */
+export function getCSTDayStart(value: Date): Date {
+  const { year, month, day } = cstParts(value);
+  return new Date(Date.UTC(year, month - 1, day) - CST_OFFSET_MS);
+}
+
 export function formatCST(date: Date | string): string {
   const d = typeof date === "string" ? new Date(date) : date;
   return d.toLocaleString(CST_LOCALE, {

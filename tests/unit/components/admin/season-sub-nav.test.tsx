@@ -57,7 +57,7 @@ describe("SeasonSubNav", () => {
   it("organizes the workspace by lifecycle and keeps the governance routes available", () => {
     renderNav();
 
-    expect(screen.getByRole("link", { name: "总览" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "赛事总览" })).toHaveAttribute(
       "href",
       "/admin/nju-major-2026",
     );
@@ -100,7 +100,7 @@ describe("SeasonSubNav", () => {
     renderNav();
 
     expect(screen.getByRole("link", { name: "比赛" })).toHaveAttribute("aria-current", "page");
-    expect(screen.getByRole("link", { name: "总览" })).not.toHaveAttribute("aria-current");
+    expect(screen.getByRole("link", { name: "赛事总览" })).not.toHaveAttribute("aria-current");
   });
 
   it("hides the community-awards tab when the season capability is disabled", () => {
@@ -114,7 +114,7 @@ describe("SeasonSubNav", () => {
     renderNav();
 
     expect(screen.getByRole("link", { name: "赛前" }).style.borderBottom).toContain("var(--color-accent)");
-    expect(screen.getByRole("link", { name: "总览" })).not.toHaveAttribute("aria-current");
+    expect(screen.getByRole("link", { name: "赛事总览" })).not.toHaveAttribute("aria-current");
     expect(screen.queryByRole("link", { name: "选秀控制" })).not.toBeInTheDocument();
   });
 
@@ -122,6 +122,6 @@ describe("SeasonSubNav", () => {
     renderNav({ showSettings: false });
 
     expect(screen.queryByRole("link", { name: "设置" })).not.toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "总览" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "赛事总览" })).toBeInTheDocument();
   });
 });

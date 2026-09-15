@@ -7,7 +7,7 @@ import { loadCompetitivePlatformCatalog } from "../../../src/lib/competitive/cat
 import { acceptTeamInvitationInTx } from "../../../src/lib/teams/invitations";
 import { inviteTeamMemberInTx } from "../../../src/lib/teams/commands";
 import { closeTeamRecruitmentInTx, expressRecruitmentInterestInTx, upsertPlayerLftInTx, upsertTeamRecruitmentInTx } from "../../../src/lib/recruitment/commands";
-import { getPublicTeamRecruitment, getRecruitmentLobbyData, getTeamRecruitmentWorkspace } from "../../../src/lib/recruitment/data";
+import { getPublicPlayerLft, getPublicTeamRecruitment, getRecruitmentLobbyData, getTeamRecruitmentWorkspace } from "../../../src/lib/recruitment/data";
 import { ErrorCode } from "../../../src/lib/errors";
 import { localDatabaseUrl } from "./harness/database";
 
@@ -126,6 +126,8 @@ describe("recruitment PostgreSQL invariants", () => {
       expect((await getTeamRecruitmentWorkspace(ids.team, true)).recruitment).toMatchObject({ isPubliclyActive: true, targetSeasonId: ids.replacementSeason });
       const playerIntent = (await pool.query<{ id: string }>("INSERT INTO recruitment_intents (kind, user_id, target_season_id, positions, status, expires_at) VALUES ('player_lft', $1, $2, ARRAY[]::cs2_role[], 'open', now() + interval '1 day') RETURNING id", [ids.interested, ids.replacementSeason])).rows[0];
       if (!playerIntent) throw new Error("could not create recruitment player intent");
+      await pool.query("INSERT INTO recruitment_intents (kind, user_id, target_season_id, positions, status, expires_at) VALUES ('player_lft', $1, NULL, ARRAY[]::cs2_role[], 'open', now() - interval '1 second')", [ids.member]);
+      expect(await getPublicPlayerLft(ids.member)).toBeNull();
       await pool.query(
         "INSERT INTO recruitment_intents (kind, user_id, target_season_id, positions, status, expires_at) VALUES ('player_lft', $1, $2, ARRAY[]::cs2_role[], 'open', now() + interval '1 day'), ('player_lft', $3, NULL, ARRAY[]::cs2_role[], 'open', now() + interval '1 day'), ('player_lft', $4, NULL, ARRAY[]::cs2_role[], 'open', now() + interval '1 day')",
         [ids.targetUnknown, ids.replacementSeason, ids.contender, ids.invitee],

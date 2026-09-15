@@ -26,6 +26,7 @@ const ADMIN_NAV_GROUPS: readonly AdminNavGroupDefinition[] = [
     key: "operations",
     label: "运营",
     items: [
+      { href: "/admin/operations", label: "运营概览" },
       { href: "/admin/operations/announcements", label: "公告" },
       { href: "/admin/operations/season-info", label: "赛事信息" },
       { href: "/admin/operations/feedback", label: "用户反馈", superAdminOnly: true },
