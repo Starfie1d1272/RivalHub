@@ -54,6 +54,8 @@ describe("registration opening PostgreSQL", () => {
       const missingLogo = await capturePostgresError(client, () => submitCompetitionEntryInTx(tx, { entryId, userId, actorId: userId }));
       expect(missingLogo).toMatchObject({ message: "请先上传队伍图标并保存本届名单。" });
       await database.update(schema.teams).set({ logoUrl: "https://local.test/first.png" }).where(eq(schema.teams.id, teamId));
+      const missingSnapshot = await capturePostgresError(client, () => submitCompetitionEntryInTx(tx, { entryId, userId, actorId: userId }));
+      expect(missingSnapshot).toMatchObject({ message: "队伍图标已更新，请保存本届名单以用于本届赛事。" });
       await save();
       await database.update(schema.teams).set({ logoUrl: "https://local.test/second.png" }).where(eq(schema.teams.id, teamId));
       await save();

@@ -17,7 +17,10 @@ const { uploadTeamLogoMock } = vi.hoisted(() => ({
 
 vi.mock("@/actions/teams", () => ({ uploadTeamLogo: uploadTeamLogoMock }));
 vi.mock("next/image", () => ({
-  default: () => null,
+  default: ({ alt, fill, unoptimized, ...props }: { alt?: string; fill?: boolean; unoptimized?: boolean; [key: string]: unknown }) => (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img {...props} alt={alt ?? ""} data-fill={String(Boolean(fill))} data-unoptimized={String(Boolean(unoptimized))} />
+  ),
 }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
@@ -51,6 +54,8 @@ describe("TeamLogoUpload", () => {
     await waitFor(() => {
       expect(uploadTeamLogoMock).toHaveBeenCalledWith("team-1", expect.any(FormData));
       expect(onUploaded).toHaveBeenCalledWith("https://storage.test/teams/team-1/logo.png");
+      expect(screen.getByRole("img", { name: "Rival Team的队伍图标" })).toHaveAttribute("src", "https://storage.test/teams/team-1/logo.png");
+      expect(screen.getByRole("img", { name: "Rival Team的队伍图标" })).toHaveAttribute("data-unoptimized", "true");
     });
   });
 

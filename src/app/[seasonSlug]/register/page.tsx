@@ -138,11 +138,16 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
     let entryView: Parameters<typeof CompetitionEntryFlow>[0]["entry"] = null;
     let capabilities = getCompetitionEntryCapabilities({ season, entry: null, revision: null, rosterFrozen: false });
     if (entry) {
-      const [revision] = await db.select({ id: competitionEntryRosterRevisions.id, status: competitionEntryRosterRevisions.status, origin: competitionEntryRosterRevisions.origin })
-        .from(competitionEntryRosterRevisions)
-        .where(and(eq(competitionEntryRosterRevisions.id, entry.currentRosterRevisionId), eq(competitionEntryRosterRevisions.entryId, entry.id)))
-        .limit(1);
-      const [eventRoster] = await db.select({ status: eventRosters.status }).from(eventRosters).where(eq(eventRosters.entryId, entry.id));
+      const [[revision], [eventRoster], [entryTeam]] = await Promise.all([
+        db.select({ id: competitionEntryRosterRevisions.id, status: competitionEntryRosterRevisions.status, origin: competitionEntryRosterRevisions.origin })
+          .from(competitionEntryRosterRevisions)
+          .where(and(eq(competitionEntryRosterRevisions.id, entry.currentRosterRevisionId), eq(competitionEntryRosterRevisions.entryId, entry.id)))
+          .limit(1),
+        db.select({ status: eventRosters.status }).from(eventRosters).where(eq(eventRosters.entryId, entry.id)),
+        entry.teamId
+          ? db.select({ logoUrl: teams.logoUrl }).from(teams).where(eq(teams.id, entry.teamId)).limit(1)
+          : Promise.resolve([]),
+      ]);
       capabilities = getCompetitionEntryCapabilities({ season, entry: { status: entry.registrationStatus, hasApprovedRoster: !!entry.approvedRosterRevisionId }, revision: revision ?? null, rosterFrozen: eventRoster?.status === "frozen" });
       const candidateRows = entry.teamId
         ? await db.select({ membershipId: teamMemberships.id, userId: teamMemberships.userId, status: teamMemberships.status, email: users.email, displayName: users.displayName, perfectName: users.perfectName, steamName: users.steamName })
@@ -206,6 +211,7 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
         id: entry.id,
         name: entry.name,
         logoUrl: entry.logoUrl,
+        teamLogoUrl: entryTeam?.logoUrl ?? null,
         status: entry.registrationStatus,
         revisionOrigin: revision?.origin ?? null,
         representativeUserId: entry.representativeUserId,

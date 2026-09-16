@@ -42,6 +42,15 @@ describe("AdminSeasonOverviewPage", () => {
         finalResultPendingConfirmation: false,
         activeAdjudications: 0,
       },
+      registrationFunnel: {
+        mode: "team",
+        total: 0,
+        draft: 0,
+        submitted: 0,
+        approved: 0,
+        deadline: null,
+        windowPhase: "hidden",
+      },
       readiness: null,
       nextAction: { label: "查看赛事工作区", detail: "继续当前运营流程。", href: "/admin/nju-major-2026/prestart" },
     });

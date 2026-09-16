@@ -15,6 +15,10 @@ describe("admin season workspace overview PostgreSQL integration", () => {
       eventRoster: randomUUID(),
       member: randomUUID(),
       user: randomUUID(),
+      draftEntry: randomUUID(),
+      draftRevision: randomUUID(),
+      submittedEntry: randomUUID(),
+      submittedRevision: randomUUID(),
     };
     const seasonSlug = `admin-major-overview-${ids.season}`;
     const capabilities = createMajorDefaultCapabilities();
@@ -29,8 +33,8 @@ describe("admin season workspace overview PostgreSQL integration", () => {
            id, slug, name, kind, competition_template, status, registration_mode,
            has_captain_voting, has_draft, stage_plan, registration_config,
            team_registration_config, affiliation_rules, min_team_size, max_team_size,
-           starter_count, positions
-         ) VALUES ($1, $2, 'Admin Major Overview', 'Major', 'major', 'playing', $3, $4, $5, $6::json, $7::json, $8::json, $9::json, $10, $11, $12, $13::text[])`,
+           starter_count, positions, registration_closes_at
+         ) VALUES ($1, $2, 'Admin Major Overview', 'Major', 'major', 'playing', $3, $4, $5, $6::json, $7::json, $8::json, $9::json, $10, $11, $12, $13::text[], $14)`,
         [
           ids.season,
           seasonSlug,
@@ -45,6 +49,7 @@ describe("admin season workspace overview PostgreSQL integration", () => {
           capabilities.maxTeamSize,
           capabilities.starterCount,
           capabilities.positions,
+          new Date(Date.now() + 24 * 60 * 60 * 1000),
         ],
       );
       await client.query(
@@ -59,6 +64,20 @@ describe("admin season workspace overview PostgreSQL integration", () => {
            registration_status
          ) VALUES ($1, $2, 'event_native', 'Overview Entry', $3, 1, $4, $4, 'approved')`,
         [ids.entry, ids.season, ids.user, ids.revision],
+      );
+      await client.query(
+        `INSERT INTO competition_entries (
+           id, competition_id, source, name, representative_user_id,
+           current_roster_revision_id, registration_status
+         ) VALUES ($1, $2, 'event_native', 'Draft Entry', $3, $4, 'draft'),
+                  ($5, $2, 'event_native', 'Submitted Entry', $3, $6, 'submitted')`,
+        [ids.draftEntry, ids.season, ids.user, ids.draftRevision, ids.submittedEntry, ids.submittedRevision],
+      );
+      await client.query(
+        `INSERT INTO competition_entry_roster_revisions (id, entry_id, revision_number, status, created_by)
+         VALUES ($1, $2, 1, 'draft', 'admin-season-workspace-overview'),
+                ($3, $4, 1, 'submitted', 'admin-season-workspace-overview')`,
+        [ids.draftRevision, ids.draftEntry, ids.submittedRevision, ids.submittedEntry],
       );
       await client.query(
         `INSERT INTO competition_entry_representative_changes (
@@ -108,10 +127,18 @@ describe("admin season workspace overview PostgreSQL integration", () => {
           registrationMode: "team",
         },
         summary: {
+          pendingApplications: 1,
           approvedEntries: 1,
           formedTeamCount: 1,
           entrantCount: 1,
           frozenEntrantCount: 1,
+        },
+        registrationFunnel: {
+          total: 3,
+          draft: 1,
+          submitted: 1,
+          approved: 1,
+          windowPhase: "hidden",
         },
       });
       expect(overview?.readiness).not.toBeNull();
@@ -125,8 +152,10 @@ describe("admin season workspace overview PostgreSQL integration", () => {
         await client.query("DELETE FROM event_roster_members WHERE id = $1", [ids.member]);
         await client.query("DELETE FROM event_rosters WHERE id = $1", [ids.eventRoster]);
         await client.query("DELETE FROM competition_entry_roster_revisions WHERE id = $1", [ids.revision]);
+        await client.query("DELETE FROM competition_entry_roster_revisions WHERE id = ANY($1::uuid[])", [[ids.draftRevision, ids.submittedRevision]]);
         await client.query("DELETE FROM competition_entry_representative_changes WHERE entry_id = $1", [ids.entry]);
         await client.query("DELETE FROM competition_entries WHERE id = $1", [ids.entry]);
+        await client.query("DELETE FROM competition_entries WHERE id = ANY($1::uuid[])", [[ids.draftEntry, ids.submittedEntry]]);
         await client.query("DELETE FROM seasons WHERE id = $1", [ids.season]);
         await client.query("DELETE FROM users WHERE id = $1", [ids.user]);
         await client.query("COMMIT");

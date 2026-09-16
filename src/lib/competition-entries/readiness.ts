@@ -33,6 +33,8 @@ export function assessEntryRosterReadiness(input: {
   qualificationFindings: readonly QualificationFinding[];
   registrationBlockedUserIds: ReadonlySet<string>;
   rosterBlockedUserIds: ReadonlySet<string>;
+  /** 当前队伍资料事实，与赛事所属的图标快照保持分离。 */
+  currentTeamLogoUrl?: string | null;
   currentTeamMemberUserIds?: ReadonlySet<string>;
   requireCurrentTeamMembership: boolean;
   requireActiveRestrictionOverrides: boolean;
@@ -69,7 +71,11 @@ export function assessEntryRosterReadiness(input: {
       blockers.push("当前名单中有人已不再是这支队伍的当前成员；选择会保留，但提交前必须明确处理。");
     }
   }
-  if (config.requireTeamLogo && !input.entry.logoUrl) blockers.push("请先上传队伍图标并保存本届名单。");
+  if (config.requireTeamLogo && !input.entry.logoUrl) {
+    blockers.push(input.currentTeamLogoUrl
+      ? "队伍图标已更新，请保存本届名单以用于本届赛事。"
+      : "请先上传队伍图标并保存本届名单。");
+  }
   if (input.qualificationFindings.length > 0) {
     const unresolved = input.requireActiveRestrictionOverrides
       ? unresolvedQualificationFindings(input.qualificationFindings, input.activeRestrictionOverrides ?? [])

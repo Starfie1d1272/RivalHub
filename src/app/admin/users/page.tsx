@@ -33,6 +33,8 @@ export default async function AdminUsersPage({ searchParams }: PageProps) {
           id: users.id,
           email: users.email,
           steamName: users.steamName,
+          steam64: users.steam64,
+          liveStreamUrl: users.liveStreamUrl,
           displayName: users.displayName,
           perfectName: users.perfectName,
           role: users.role,
@@ -50,6 +52,8 @@ export default async function AdminUsersPage({ searchParams }: PageProps) {
       id: string;
       email: string;
       steamName: string | null;
+      steam64: string | null;
+      liveStreamUrl: string | null;
       displayName: string | null;
       perfectName: string | null;
       role: "user" | "super_admin";
@@ -65,6 +69,8 @@ export default async function AdminUsersPage({ searchParams }: PageProps) {
           id: row.id,
           email: row.email,
           steamName: row.steamName,
+          steam64: row.steam64,
+          liveStreamUrl: row.liveStreamUrl,
           displayName: row.displayName,
           perfectName: row.perfectName,
           role: row.role,
@@ -84,6 +90,8 @@ export default async function AdminUsersPage({ searchParams }: PageProps) {
             id: u.id,
             email: u.email,
             steamName: u.steamName,
+            steam64: u.steam64,
+            liveStreamUrl: u.liveStreamUrl,
             displayName: u.displayName,
             perfectName: u.perfectName,
             role: u.role === "super_admin" ? "super_admin" : "season_admin",

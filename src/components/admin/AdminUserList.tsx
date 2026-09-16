@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import React, { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { revokeUserAdminRole } from "@/actions/admin";
 import { getDisplayName } from "@/lib/identity/display-name";
@@ -13,6 +13,8 @@ interface AdminUserRow {
   id: string;
   email: string;
   steamName: string | null;
+  steam64: string | null;
+  liveStreamUrl: string | null;
   displayName: string | null;
   perfectName: string | null;
   role: "super_admin" | "season_admin";
@@ -42,6 +44,16 @@ export function AdminUserList({ users, seasonMap, currentUserId }: AdminUserList
     });
   }
 
+  async function copyValue(label: string, value: string) {
+    try {
+      if (!navigator.clipboard) throw new Error("当前环境不支持复制");
+      await navigator.clipboard.writeText(value);
+      toast.success(`${label}已复制`);
+    } catch {
+      toast.error(`无法复制${label}，请手动复制`);
+    }
+  }
+
   if (localUsers.length === 0) {
     return (
       <Panel contentClassName="p-8 text-center text-sm text-[var(--color-fg-mid)]">
@@ -52,67 +64,88 @@ export function AdminUserList({ users, seasonMap, currentUserId }: AdminUserList
 
   return (
     <Panel contentClassName="p-0" className="overflow-hidden">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="border-b border-[var(--color-border)] text-[10px] uppercase tracking-wider text-[var(--color-fg-dim)]">
-            <th className="px-4 py-3 text-left">管理员</th>
-            <th className="px-4 py-3 text-left">邮箱</th>
-            <th className="px-4 py-3 text-left">权限范围</th>
-            <th className="px-4 py-3 text-right">加入时间</th>
-            <th className="px-4 py-3" />
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-[var(--color-border)]">
-          {localUsers.map((u) => (
-            <tr key={u.id} className="hover:bg-[var(--color-surface-raised)] transition-colors">
-              <td className="px-4 py-3 font-medium text-[var(--color-fg)]">
-                <span className="flex items-center gap-2">
-                  {getDisplayName(u)}
-                  {u.id === currentUserId && (
-                    <span className="text-[10px] text-[var(--color-fg-dim)] border border-[var(--color-border)] rounded px-1 py-px">
-                      你
-                    </span>
-                  )}
-                </span>
-              </td>
-              <td className="px-4 py-3 text-xs text-[var(--color-fg-mid)]">{u.email}</td>
-              <td className="px-4 py-3">
-                <span className="flex items-center gap-1.5 flex-wrap">
-                  <Badge variant={u.role === "super_admin" ? "default" : "outline"} className="text-[10px]">
-                    {u.role === "super_admin" ? "超级管理员" : "赛季管理员"}
-                  </Badge>
-                  {u.role === "season_admin" &&
-                    u.seasonIds.map((sid) => {
-                      const name = seasonMap[sid];
-                      if (!name) return null;
-                      return (
-                        <span key={sid} className="text-[10px] text-[var(--color-fg-dim)]">
-                          {name}
-                        </span>
-                      );
-                    })}
-                </span>
-              </td>
-              <td className="px-4 py-3 text-right text-xs text-[var(--color-fg-dim)] tabular-nums">
-                {formatCST(u.createdAt)}
-              </td>
-              <td className="px-4 py-3 text-right">
-                {u.id !== currentUserId && (
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => handleRevoke(u.id)}
-                    className="text-[var(--color-danger)] hover:text-[var(--color-danger)]"
-                  >
-                    撤销
-                  </Button>
-                )}
-              </td>
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[980px] text-sm">
+          <thead>
+            <tr className="border-b border-[var(--color-border)] text-[10px] uppercase tracking-wider text-[var(--color-fg-dim)]">
+              <th className="px-4 py-3 text-left">管理员</th>
+              <th className="px-4 py-3 text-left">邮箱</th>
+              <th className="px-4 py-3 text-left">权限范围</th>
+              <th className="px-4 py-3 text-left">Steam64</th>
+              <th className="px-4 py-3 text-left">直播间</th>
+              <th className="px-4 py-3 text-right">加入时间</th>
+              <th className="px-4 py-3" />
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody className="divide-y divide-[var(--color-border)]">
+            {localUsers.map((u) => (
+              <tr key={u.id} className="hover:bg-[var(--color-surface-raised)] transition-colors">
+                <td className="px-4 py-3 font-medium text-[var(--color-fg)]">
+                  <span className="flex items-center gap-2">
+                    {getDisplayName(u)}
+                    {u.id === currentUserId && (
+                      <span className="text-[10px] text-[var(--color-fg-dim)] border border-[var(--color-border)] rounded px-1 py-px">
+                        你
+                      </span>
+                    )}
+                  </span>
+                </td>
+                <td className="px-4 py-3 text-xs text-[var(--color-fg-mid)]">{u.email}</td>
+                <td className="px-4 py-3">
+                  <span className="flex items-center gap-1.5 flex-wrap">
+                    <Badge variant={u.role === "super_admin" ? "default" : "outline"} className="text-[10px]">
+                      {u.role === "super_admin" ? "超级管理员" : "赛季管理员"}
+                    </Badge>
+                    {u.role === "super_admin" && <span className="text-[10px] text-[var(--color-fg-dim)]">全局</span>}
+                    {u.role === "season_admin" &&
+                      u.seasonIds.map((sid) => {
+                        const name = seasonMap[sid];
+                        if (!name) return null;
+                        return (
+                          <span key={sid} className="text-[10px] text-[var(--color-fg-dim)]">
+                            {name}
+                          </span>
+                        );
+                      })}
+                  </span>
+                </td>
+                <td className="px-4 py-3">
+                  {u.steam64 ? (
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-xs text-[var(--color-fg-mid)]">{u.steam64}</span>
+                      <Button type="button" size="sm" variant="ghost" className="shrink-0" onClick={() => void copyValue("Steam64", u.steam64!)} aria-label="复制 Steam64">复制</Button>
+                    </div>
+                  ) : <span className="text-xs text-[var(--color-fg-dim)]">未填写 Steam64</span>}
+                </td>
+                <td className="px-4 py-3">
+                  {u.liveStreamUrl ? (
+                    <div className="flex items-center gap-2">
+                      <a href={u.liveStreamUrl} target="_blank" rel="noopener noreferrer" className="max-w-56 truncate text-xs text-[var(--color-fg-mid)] underline underline-offset-2 hover:text-[var(--color-fg)]">{u.liveStreamUrl}</a>
+                      <Button type="button" size="sm" variant="ghost" className="shrink-0" onClick={() => void copyValue("直播间", u.liveStreamUrl!)} aria-label="复制直播间">复制</Button>
+                    </div>
+                  ) : <span className="text-xs text-[var(--color-fg-dim)]">未填写直播间</span>}
+                </td>
+                <td className="px-4 py-3 text-right text-xs text-[var(--color-fg-dim)] tabular-nums">
+                  {formatCST(u.createdAt)}
+                </td>
+                <td className="px-4 py-3 text-right">
+                  {u.id !== currentUserId && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => handleRevoke(u.id)}
+                      className="text-[var(--color-danger)] hover:text-[var(--color-danger)]"
+                    >
+                      撤销
+                    </Button>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </Panel>
   );
 }
