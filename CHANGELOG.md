@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.10.1]
+
+### Fixed
+
+#### DAK Demo Evidence 自杀事件武器汇总
+
+修正 Demo Evidence V1 对自杀事件的武器汇总校验，避免 `dak-stable/2` 重基线把 `world` suicide 错误要求为选手武器击杀。
+
 ## [2.10.0]
 
 ### Added
@@ -2239,6 +2247,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[2.10.1]: https://github.com/Starfie1d1272/RivalHub/compare/v2.10.0...v2.10.1
 [2.10.0]: https://github.com/Starfie1d1272/RivalHub/compare/v2.9.7...v2.10.0
 [2.9.7]: https://github.com/Starfie1d1272/RivalHub/compare/v2.9.6...v2.9.7
 [2.9.6]: https://github.com/Starfie1d1272/RivalHub/compare/v2.9.5...v2.9.6
