@@ -263,7 +263,8 @@ export function parseRivalHubDemoEvidenceV1(input: unknown): RivalHubDemoEvidenc
   }
   const weaponFacts = new Map<string, { kills: number; headshotKills: number }>();
   for (const kill of evidence.sourceFacts.kills) {
-    if (kill.killerSteamId64 === null) continue;
+    // DAK stable performance semantics count non-suicide player kills; teamkills remain attributed to the killer.
+    if (kill.killerSteamId64 === null || kill.killerSteamId64 === kill.victimSteamId64) continue;
     const key = `${kill.killerSteamId64}:${kill.weapon}`;
     const row = weaponFacts.get(key) ?? { kills: 0, headshotKills: 0 };
     row.kills += 1;
