@@ -10,13 +10,13 @@ import {
 } from "./local-environment";
 import { assertLocalContainerAccess } from "./local-container-guard";
 import { acquireLocalVerificationLock } from "./local-lock";
+import { replayActiveMigrationChain } from "./migration-replay";
 
 const PROJECT_ID = "rivalhub";
 const DOCKER_NETWORK = "rivalhub-local";
 const projectRoot = resolve(process.cwd());
 const binSuffix = process.platform === "win32" ? ".cmd" : "";
 const supabaseBin = resolve(projectRoot, `node_modules/.bin/supabase${binSuffix}`);
-const drizzleBin = resolve(projectRoot, `node_modules/.bin/drizzle-kit${binSuffix}`);
 const tsxBin = resolve(projectRoot, `node_modules/.bin/tsx${binSuffix}`);
 const nextBin = resolve(projectRoot, `node_modules/.bin/next${binSuffix}`);
 const playwrightBin = resolve(projectRoot, `node_modules/.bin/playwright${binSuffix}`);
@@ -194,16 +194,7 @@ function startLocalServices(): void {
 
 function migrateLocalDatabase(): void {
   const status = readLocalDatabaseStatus();
-  run(
-    drizzleBin,
-    ["migrate", "--config=drizzle.local.config.ts"],
-    {
-      env: {
-        ...sanitizedEnvironment(),
-        RIVALHUB_LOCAL_DATABASE_URL: status.databaseUrl,
-      },
-    },
-  );
+  replayActiveMigrationChain(status.databaseUrl, sanitizedEnvironment());
 }
 
 function seedLocalDatabase(): void {

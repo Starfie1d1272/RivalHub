@@ -69,6 +69,8 @@ Vitest 的三个 project（domain Node、server Node、React jsdom）是独立 e
 
 System failure/flaky 时 Playwright 生成 failure screenshot；artifact sanitizer 仅从 test-results 保留小型 PNG/JPEG，trace archive 与所有文本继续脱敏，成功 run 不上传大体积 artifacts。每条 stateful E2E 使用自己的 fixture profile 与 attempt namespace。
 
+Public event participant search 的 mobile-chrome 回归必须证明真实 debounce/router/server re-render 竞态已消除：聚焦运行 `tests/e2e/flows/public-event-experience.spec.ts` 至少 10 次，要求 retry=0、flaky=0。修复应收敛在 `ListSearchField` / list-query owner，不得通过增加 timeout、`waitForTimeout`、重复 fill/click 或关闭 `failOnFlakyTests` 掩盖竞态；其它 `ListSearchField` consumer 仍需通过共享组件单测。
+
 ## Maintenance rules
 
 - regression test 保护明确 contract，而不是只覆盖代码行。

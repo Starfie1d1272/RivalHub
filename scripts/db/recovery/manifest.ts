@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { readFileSync, statSync } from "node:fs";
 import { basename } from "node:path";
-import { assertBackupClass, type BackupClass } from "./environment";
+import { assertRecoveryArtifactClass, type RecoveryArtifactClass } from "./environment";
 
 export const RECOVERY_FORMAT_VERSION = 2 as const;
 
@@ -47,7 +47,7 @@ export interface RecoveryManifest {
   supabaseCliVersion: string;
   producer: RecoveryProducerIdentity;
   source: RecoverySourceIdentity;
-  backupClass: BackupClass;
+  backupClass: RecoveryArtifactClass;
   database: {
     schemas: readonly ["public", "auth"];
     files: readonly RecoveryFileDigest[];
@@ -63,7 +63,7 @@ export interface RecoverySidecar {
   artifactSha256: string;
   manifestSha256: string;
   createdAt: string;
-  backupClass: BackupClass;
+  backupClass: RecoveryArtifactClass;
 }
 
 export interface RecoveryCompletionMarker {
@@ -159,7 +159,7 @@ export function assertRecoveryManifest(value: unknown): RecoveryManifest {
   if (!/^[0-9a-f]{40}$/i.test(source.deployedCommit)) {
     throw new Error("Recovery manifest deployed source commit identity 无效。 ");
   }
-  assertBackupClass(manifest.backupClass);
+  assertRecoveryArtifactClass(manifest.backupClass);
 
   assertMigrationIdentity(source.databaseMigrationTerminal, "Recovery manifest database migration terminal");
 
@@ -202,6 +202,13 @@ export function assertRecoveryManifest(value: unknown): RecoveryManifest {
   ) {
     throw new Error("Recovery manifest Storage snapshot summary 无效。 ");
   }
+  if (manifest.backupClass === "release-db" && (
+    storage.bucketCount !== 0
+    || storage.objectCount !== 0
+    || storage.totalBytes !== 0
+  )) {
+    throw new Error("release-db checkpoint 不得包含 Storage snapshot；请使用 full checkpoint。 ");
+  }
   return manifest as RecoveryManifest;
 }
 
@@ -228,7 +235,7 @@ export function assertRecoverySidecar(value: unknown): RecoverySidecar {
     throw new Error("Recovery sidecar manifest checksum/size 无效。 ");
   }
   assertUtcTimestamp(sidecar.createdAt, "Recovery sidecar createdAt");
-  assertBackupClass(sidecar.backupClass);
+  assertRecoveryArtifactClass(sidecar.backupClass);
   return sidecar as RecoverySidecar;
 }
 
@@ -257,7 +264,7 @@ export function assertRecoveryCompletionMarker(value: unknown): RecoveryCompleti
 }
 
 function assertRecoveryArtifactKey(value: string): string {
-  if (!/^production\/(?:daily|pre-release|manual)\/\d{4}-\d{2}-\d{2}\/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.tar\.gz\.age$/i.test(value)) {
+  if (!/^production\/(?:daily|pre-release|manual|release-db)\/\d{4}-\d{2}-\d{2}\/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.tar\.gz\.age$/i.test(value)) {
     throw new Error("Recovery artifact key identity 无效。 ");
   }
   return value;

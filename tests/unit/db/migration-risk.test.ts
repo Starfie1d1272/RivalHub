@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  classifyMigrationRisk,
   classifyMigrationSql,
   extractMigrationContractOwners,
   MIGRATION_CONTRACT_ANNOTATION,
@@ -7,6 +8,25 @@ import {
 } from "../../../scripts/db/migration-risk";
 
 describe("migration risk classifier", () => {
+  it("resolves known additive migrations as forward-compatible", () => {
+    expect(classifyMigrationRisk(`
+      CREATE TABLE teams_next (id uuid PRIMARY KEY);
+      ALTER TABLE teams_next ADD COLUMN display_name text;
+      CREATE INDEX CONCURRENTLY teams_next_id_idx ON teams_next (id);
+    `).risk).toBe("forward-compatible");
+  });
+
+  it("fails closed for destructive and unknown migration statements", () => {
+    expect(classifyMigrationRisk("DROP TABLE old_teams;").risk).toBe("irreversible");
+    expect(classifyMigrationRisk("UPDATE teams SET display_name = 'unknown';").unknownStatements).toHaveLength(1);
+    expect(classifyMigrationRisk("UPDATE teams SET display_name = 'unknown';").risk).toBe("irreversible");
+  });
+
+  it("requires a locking review before classifying an existing-table index as forward-compatible", () => {
+    expect(classifyMigrationRisk("CREATE INDEX teams_name_idx ON teams (name);").risk).toBe("irreversible");
+    expect(classifyMigrationRisk(`${MIGRATION_LOCKING_ANNOTATION}\nCREATE INDEX teams_name_idx ON teams (name);`).risk).toBe("forward-compatible");
+  });
+
   it("does not classify additive DDL or concurrently-built indexes", () => {
     expect(classifyMigrationSql(`
       CREATE TABLE teams_next (id uuid PRIMARY KEY);

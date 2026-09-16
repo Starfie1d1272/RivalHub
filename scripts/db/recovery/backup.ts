@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { performance } from "node:perf_hooks";
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { createClient } from "@supabase/supabase-js";
@@ -14,15 +14,9 @@ import {
 import {
   RECOVERY_FORMAT_VERSION,
   digestFile,
-  serializeCompletionMarker,
-  serializeManifest,
-  serializeSidecar,
-  sha256File,
-  type RecoveryCompletionMarker,
   type RecoveryManifest,
-  type RecoverySidecar,
 } from "./manifest";
-import { buildRecoveryR2Keys, createR2Client, assertR2ContentReadback, assertR2HeadReadback } from "./r2";
+import { publishRecoveryArtifact } from "./artifact";
 import {
   assertActiveStorageReferencesCaptured,
   assertActiveStorageReferencesStable,
@@ -106,77 +100,25 @@ async function main(): Promise<void> {
       },
     };
 
-    const manifestPath = join(stagingRoot, "manifest.json");
-    writeFileSync(manifestPath, serializeManifest(manifest), { flag: "wx" });
-    const encryptStart = performance.now();
-    const archivePath = join(tempRoot, `${runId}.tar.gz`);
-    runCommand("tar", ["-czf", archivePath, "-C", tempRoot, "backup"]);
-    const artifactPath = join(tempRoot, `${runId}.tar.gz.age`);
-    runCommand("age", ["-r", environment.ageRecipient, "-o", artifactPath, archivePath]);
-    const encryptDuration = Math.round(performance.now() - encryptStart);
-    console.log(`timing encrypt/archive: ${encryptDuration}ms`);
-
-    const artifactBytes = readFileSync(artifactPath).byteLength;
-    const artifactSha256 = sha256File(artifactPath);
-    const manifestSha256 = sha256File(manifestPath);
-    const keys = buildRecoveryR2Keys(backupClass, runId, createdAt);
-    const sidecarPath = join(tempRoot, `${runId}.manifest.json`);
-    const sidecar: RecoverySidecar = {
-      formatVersion: RECOVERY_FORMAT_VERSION,
-      runId,
-      artifactKey: keys.artifact,
-      artifactBytes,
-      artifactSha256,
-      manifestSha256,
-      createdAt,
+    const artifact = publishRecoveryArtifact({
+      environment,
       backupClass,
-    };
-    writeFileSync(sidecarPath, serializeSidecar(sidecar), { flag: "wx" });
-    const sidecarSha256 = sha256File(sidecarPath);
-
-    const completionPath = join(tempRoot, `${runId}.complete.json`);
-    const completion: RecoveryCompletionMarker = {
-      formatVersion: RECOVERY_FORMAT_VERSION,
       runId,
-      artifactKey: keys.artifact,
-      artifactSha256,
-      manifestSha256,
-      completedAt: new Date().toISOString(),
-    };
-    writeFileSync(completionPath, serializeCompletionMarker(completion), { flag: "wx" });
-
-    const r2Start = performance.now();
-    const r2 = createR2Client(environment.r2);
-    r2.put(artifactPath, keys.artifact, {
-      contentType: "application/octet-stream",
-      metadata: { sha256: artifactSha256, "run-id": runId, "backup-class": backupClass },
+      createdAt,
+      tempRoot,
+      stagingRoot,
+      manifest,
     });
-    verifyR2Object(r2, keys.artifact, artifactPath, join(tempRoot, "artifact.readback"));
-
-    r2.put(sidecarPath, keys.manifest, {
-      contentType: "application/json",
-      metadata: { sha256: sidecarSha256, "run-id": runId, "backup-class": backupClass },
-    });
-    verifyR2Object(r2, keys.manifest, sidecarPath, join(tempRoot, "manifest.readback"));
-
-    const completionSha256 = sha256File(completionPath);
-    r2.put(completionPath, keys.completion, {
-      contentType: "application/json",
-      metadata: { sha256: completionSha256, "run-id": runId, "backup-class": backupClass },
-    });
-    verifyR2Object(r2, keys.completion, completionPath, join(tempRoot, "completion.readback"));
-    const r2Duration = Math.round(performance.now() - r2Start);
-    console.log(`timing R2 upload/readback: ${r2Duration}ms`);
 
     console.log(
-      `Production backup complete: class=${backupClass}, run=${runId}, artifactBytes=${artifactBytes}, storageObjects=${storage.objectCount}, storageBytes=${storage.totalBytes}, artifactSha256=${artifactSha256}.`,
+      `Production backup complete: class=${backupClass}, run=${runId}, artifactBytes=${artifact.artifactBytes}, storageObjects=${storage.objectCount}, storageBytes=${storage.totalBytes}, artifactSha256=${artifact.artifactSha256}.`,
     );
   } finally {
     rmSync(tempRoot, { recursive: true, force: true });
   }
 }
 
-async function createDatabaseSnapshot(
+export async function createDatabaseSnapshot(
   databaseUrl: string,
   stagingRoot: string,
 ): Promise<{ roles: ReturnType<typeof digestFile>; schema: ReturnType<typeof digestFile>; data: ReturnType<typeof digestFile> }> {
@@ -210,7 +152,7 @@ function runSupabaseDump(databaseUrl: string, flags: readonly string[], outputPa
   );
 }
 
-async function readProductionMigrationIdentity(databaseUrl: string): Promise<{
+export async function readProductionMigrationIdentity(databaseUrl: string): Promise<{
   postgresVersion: string;
   ledger: RecoveryManifest["source"]["databaseMigrationTerminal"];
 }> {
@@ -239,7 +181,7 @@ async function readProductionMigrationIdentity(databaseUrl: string): Promise<{
   }
 }
 
-function readSupabaseCliVersion(): string {
+export function readSupabaseCliVersion(): string {
   const result = spawnSync(pnpmBin, ["exec", "supabase", "--version"], {
     cwd: projectRoot,
     encoding: "utf8",
@@ -253,13 +195,13 @@ function readSupabaseCliVersion(): string {
   return version;
 }
 
-function readPackageVersion(): string {
+export function readPackageVersion(): string {
   const packageJson = JSON.parse(readFileSync(join(projectRoot, "package.json"), "utf8")) as { version?: unknown };
   if (typeof packageJson.version !== "string" || !packageJson.version) throw new Error("package.json version is invalid; backup aborted. ");
   return packageJson.version;
 }
 
-function readGitCommit(): string {
+export function readGitCommit(): string {
   const result = spawnSync("git", ["rev-parse", "HEAD"], { cwd: projectRoot, encoding: "utf8" });
   if (result.status !== 0 || !/^[0-9a-f]{40}$/i.test(result.stdout.trim())) throw new Error("Git commit identity unavailable; backup aborted. ");
   return result.stdout.trim();
@@ -272,18 +214,6 @@ async function readManagedStorageReferencesFromProduction(databaseUrl: string): 
   } finally {
     await pool.end();
   }
-}
-
-function verifyR2Object(
-  r2: ReturnType<typeof createR2Client>,
-  key: string,
-  localPath: string,
-  readbackPath: string,
-): void {
-  const expected = { bytes: readFileSync(localPath).byteLength, sha256: sha256File(localPath) };
-  assertR2HeadReadback(r2.head(key), expected);
-  r2.download(key, readbackPath);
-  assertR2ContentReadback(readbackPath, expected);
 }
 
 function runCommand(executable: string, args: readonly string[]): void {

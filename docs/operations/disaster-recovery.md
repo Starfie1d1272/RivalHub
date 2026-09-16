@@ -8,7 +8,7 @@ RivalHub 使用 Recovery format 2 的全量 logical snapshot：production Supaba
 
 数据恢复目标与窗口定义如下：
 
-- **RPO**：正常情况下日常定时备份保障 RPO ≤ 24h；每次 production release 前强制执行 pre-release backup 作为 hard gate；关键比赛日或高价值操作前后，可按需手动触发 manual backup。
+- **RPO**：正常情况下日常定时备份保障 RPO ≤ 24h；关键比赛日或高价值操作前后，可按需手动触发 manual backup。Release 不再机械触发 full backup：只有 Release Plan 识别到 Storage object mutation 时才创建 full checkpoint，识别到不可逆数据库变更时创建 DB-only checkpoint。
 - **RTO**：在第一次真实 production snapshot → isolated restore drill 完成前，achievable RTO 保持为 `unverified`，待首次演练测定后记录真实基线。
 
 数据库 dump 与 Storage inventory/download 是顺序操作，不是跨系统原子快照；`createdAt` 是 run identity，不代表严格 point-in-time。backup 在 database dump 前由 [`storage-policy.ts`](../../scripts/db/recovery/storage-policy.ts) 读取 managed references，Storage snapshot 完成后再次读取；两次 reference set 必须 exact equal，且第一组 references 必须全部出现在同一份 Storage inventory 中，否则整个 run fail closed。
@@ -18,8 +18,10 @@ RivalHub 使用 Recovery format 2 的全量 logical snapshot：production Supaba
 | Owner | 作用 |
 | --- | --- |
 | `.github/workflows/recovery-backup.yml` | 每日低峰（00:15 UTC）定时执行，并支持受保护的 manual dispatch |
-| `.github/workflows/release.yml` | production migration 前执行 `pre-release` backup hard gate |
+| `.github/workflows/release.yml` | 消费 Release Plan，并按 mutation/risk 条件编排 checkpoint、migration、deploy 与 scheduler |
 | `scripts/db/recovery/backup.ts` | 唯一 logical backup、Storage snapshot、age、R2 PUT/HEAD/GET read-back owner |
+| `scripts/db/recovery/checkpoint.ts` | 不读取 Storage 的 DB-only release checkpoint owner |
+| `scripts/db/recovery/artifact.ts` | backup 与 checkpoint 共用的 manifest、age、R2 PUT/HEAD/GET read-back owner |
 | `scripts/db/recovery/storage-policy.ts` | Storage recovery policy 与 managed DB reference owner |
 | `scripts/db/recovery/r2-config.ts` | R2 lifecycle、bucket lock、private-access provider contract owner |
 | `scripts/db/recovery/fetch.ts` | offline R2 completion → sidecar → artifact fetch owner，代码路径严格只读，不解密、不连接数据库 |
@@ -42,6 +44,8 @@ backup/
 ```
 
 `manifest.json` 包含 format version、UTC 时间、固定 production project identity、PostgreSQL/Supabase CLI identity、SQL digest、Storage count/bytes/inventory digest 和 backup class。Storage private object key 只存在于 encrypted artifact 的 `index.ndjson`，不进入 CI summary、Issue 或 PR。
+
+DB-only release checkpoint 使用 `backupClass=release-db`，仍包含完整 logical database dump、manifest/checksum、encrypted artifact、sidecar 与 completion marker，但 Storage inventory 固定为空；它不连接 Supabase Storage，也不代替 full recovery snapshot。`daily`、`manual` 和按需 `pre-release` artifact 才包含真实 Storage inventory/object copy。
 
 ## Storage policy 与 retention 语义
 
@@ -115,7 +119,7 @@ Cloudflare 默认的 `Default Multipart Abort Rule` 只清理 incomplete multipa
 | --- | --- | ---: | ---: |
 | `rivalhub-production-30d` / `rivalhub-production-lock` | `production/` | 30d | 30d |
 
-所有 `daily`、`pre-release`、`manual` 产物均归属于 `production/` 前缀，30 天内由 Cloudflare R2 bucket lock 保护不可被覆盖或删除，30 天后由 lifecycle 规则自动清理。字段与 API payload 以 [Cloudflare R2 Lifecycle API](https://developers.cloudflare.com/api/resources/r2/subresources/buckets/subresources/lifecycle/)、[Object lifecycles](https://developers.cloudflare.com/r2/buckets/object-lifecycles/) 和 [Bucket Lock API](https://developers.cloudflare.com/api/resources/r2/subresources/buckets/subresources/locks/) 为准。
+所有 `daily`、`pre-release`、`manual`、`release-db` 产物均归属于 `production/` 前缀，30 天内由 Cloudflare R2 bucket lock 保护不可被覆盖或删除，30 天后由 lifecycle 规则自动清理。字段与 API payload 以 [Cloudflare R2 Lifecycle API](https://developers.cloudflare.com/api/resources/r2/subresources/buckets/subresources/lifecycle/)、[Object lifecycles](https://developers.cloudflare.com/r2/buckets/object-lifecycles/) 和 [Bucket Lock API](https://developers.cloudflare.com/api/resources/r2/subresources/buckets/subresources/locks/) 为准。
 
 `release.yml` 与 `recovery-backup.yml` 共享 `rivalhub-production-state-serialization` concurrency group（`queue: max`、`cancel-in-progress: false`），确保 backup dump 与 release migration 不发生竞态；`.github/workflows/recovery-r2.yml` 属于独立的 provider 对象策略管理工作流，不参与生产数据库状态排队。
 
@@ -127,9 +131,12 @@ Cloudflare 默认的 `Default Multipart Abort Rule` 只清理 incomplete multipa
 pnpm db:recovery:backup daily
 pnpm db:recovery:backup manual
 pnpm db:recovery:backup pre-release
+pnpm db:recovery:checkpoint
 ```
 
-命令必须通过 production target/project/host/URL、Session Pooler、Supabase key、age recipient 与 R2 writer 校验；它不要求 remote DB write authorization，也不执行 application mutation。任何 database dump、policy-owned reference read、Storage snapshot、加密、R2 PUT/HEAD/real GET/hash read-back 失败，整个 run 失败且不得产生可信 completion 状态；workflow 不上传明文 Actions artifact。
+`db:recovery:backup` 必须通过 production target/project/host/URL、Session Pooler、Supabase key、age recipient 与 R2 writer 校验；`db:recovery:checkpoint` 只通过 production database、age recipient 与 R2 writer 校验。两者都不要求 remote DB write authorization，也不执行 application mutation。任何 database dump、policy-owned reference read、Storage snapshot（full backup/checkpoint）、加密、R2 PUT/HEAD/real GET/hash read-back 失败，整个 run 失败且不得产生可信 completion 状态；workflow 不上传明文 Actions artifact。
+
+`pnpm db:recovery:checkpoint` 是不可逆 migration 的 DB-only gate：它只要求 database、age recipient 与 R2 credentials，不要求 Supabase Storage secret；完成 marker 出现前，Release 不得执行 production mutation。普通 application-only、forward-compatible migration 或仅 Vercel/release infra 的发布不自动执行上述 backup/checkpoint。
 
 ## Offline read-only fetch
 

@@ -25,30 +25,41 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  release:
+  preflight:
     runs-on: ubuntu-24.04
-    environment: production
     permissions:
       actions: read
-      contents: write
-      id-token: write
+      contents: read
     env:
       NEXT_TELEMETRY_DISABLED: 1
       CI: true
       RIVALHUB_TIMING: 1
       RIVALHUB_TIMING_TITLE: "Release 阶段耗时"
-      # 固定的非敏感 Vercel target。VERCEL_TOKEN 是 project-scoped credential，仅用于 deployment 与
-      # project-scoped promote/rollback API。受保护 smoke test 在运行时获取短期 GitHub OIDC token。
-      # DATABASE_URL 是 GitHub production Environment secret，仅供受保护 migration runner 使用。
-      VERCEL_ORG_ID: team_0eIkBawGTdVjwYHdyrb20ZVV
-      VERCEL_PROJECT_ID: prj_3bjmfKrSqRh4szrkEE4HpavnhI0E
-      RIVALHUB_DB_TARGET: production
       RIVALHUB_PRODUCTION_BASE_URL: https://match.starfie1d.top
       RIVALHUB_PRODUCTION_PROJECT_CONFIRM: sucokfotkypwqkckfynp
       RIVALHUB_PRODUCTION_DB_HOST_CONFIRM: aws-0-ap-northeast-1.pooler.supabase.com:6543
       RIVALHUB_RETRY_PREVIOUS_RELEASE_TAG: ${{ inputs.previous_release_tag || '' }}
       RIVALHUB_RETRY_PREVIOUS_RELEASE_COMMIT: ${{ inputs.previous_release_commit || '' }}
       RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+    outputs:
+      release_tag: ${{ steps.release_identity.outputs.release_tag }}
+      release_sha: ${{ steps.release_identity.outputs.release_sha }}
+      previous_release_tag: ${{ steps.frozen_identity.outputs.previous_release_tag }}
+      previous_release_commit: ${{ steps.frozen_identity.outputs.previous_release_commit }}
+      release_mode: ${{ steps.frozen_identity.outputs.release_mode }}
+      application_changed: ${{ steps.plan.outputs.applicationChanged }}
+      migration_changed: ${{ steps.plan.outputs.migrationChanged }}
+      migration_risk: ${{ steps.plan.outputs.migrationRisk }}
+      storage_mutation_changed: ${{ steps.plan.outputs.storageMutationChanged }}
+      scheduler_changed: ${{ steps.plan.outputs.schedulerChanged }}
+      requires_scheduler_provision: ${{ steps.plan.outputs.requiresSchedulerProvision }}
+      recovery_infra_changed: ${{ steps.plan.outputs.recoveryInfraChanged }}
+      release_infra_changed: ${{ steps.plan.outputs.releaseInfraChanged }}
+      requires_migration_rehearsal: ${{ steps.plan.outputs.requiresMigrationRehearsal }}
+      requires_production_migration: ${{ steps.plan.outputs.requiresProductionMigration }}
+      requires_db_checkpoint: ${{ steps.plan.outputs.requiresDbCheckpoint }}
+      requires_full_checkpoint: ${{ steps.plan.outputs.requiresFullCheckpoint }}
+      checkpoint_kind: ${{ steps.checkpoint_kind.outputs.kind }}
     steps:
       - name: 记录 workflow 耗时起点
         run: echo "RELEASE_WORKFLOW_START_MS=$(date +%s%3N)" >> "$GITHUB_ENV"
@@ -57,11 +68,11 @@ jobs:
         with:
           ref: ${{ inputs.tag || github.ref }}
           fetch-depth: 0
-        # 无论 tag push 还是显式 retry，DB、deployment、CHANGELOG 与 GitHub Release
-        # 都必须来自同一个 immutable tag commit。
 
       - name: 验证 release tag 位于 main
+        id: release_identity
         run: |
+          set -euo pipefail
           if [[ ! "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
             echo "Release tag $RELEASE_TAG 无效。" >&2
             exit 1
@@ -78,6 +89,9 @@ jobs:
             exit 1
           fi
           echo "RELEASE_SHA=$RELEASE_SHA" >> "$GITHUB_ENV"
+          echo "RIVALHUB_RELEASE_SHA=$RELEASE_SHA" >> "$GITHUB_ENV"
+          echo "release_tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
+          echo "release_sha=$RELEASE_SHA" >> "$GITHUB_OUTPUT"
 
       - name: 记录 bootstrap 耗时起点
         run: echo "RELEASE_BOOTSTRAP_START_MS=$(date +%s%3N)" >> "$GITHUB_ENV"
@@ -90,9 +104,36 @@ jobs:
       - name: 冻结 previous Production identity
         run: node scripts/ci/timing.mjs "Freeze previous Production identity" -- pnpm release:freeze-identity
 
-      - name: 安装固定版本 Vercel CLI
-        if: env.RIVALHUB_RELEASE_MODE == 'fresh'
-        run: pnpm add --global vercel@59.11.7
+      - name: 导出 frozen release identity
+        id: frozen_identity
+        run: |
+          set -euo pipefail
+          echo "previous_release_tag=$RIVALHUB_PREVIOUS_RELEASE_TAG" >> "$GITHUB_OUTPUT"
+          echo "previous_release_commit=$RIVALHUB_PREVIOUS_RELEASE_COMMIT" >> "$GITHUB_OUTPUT"
+          echo "release_mode=$RIVALHUB_RELEASE_MODE" >> "$GITHUB_OUTPUT"
+
+      - name: 生成 machine-readable Release Plan
+        id: plan
+        run: node scripts/ci/timing.mjs "Release plan" -- pnpm release:plan
+
+      - name: 运行 changed migration checks
+        if: steps.plan.outputs.migrationChanged == 'true'
+        run: node scripts/ci/timing.mjs "Migration checks" -- pnpm db:check
+
+      - name: 验证 previous Production compatibility
+        if: steps.plan.outputs.migrationChanged == 'true'
+        run: node scripts/ci/timing.mjs "Migration compatibility" -- pnpm db:release-compat
+
+      - name: 计算 recovery checkpoint gate
+        id: checkpoint_kind
+        run: |
+          if [[ "${{ steps.plan.outputs.requiresFullCheckpoint }}" == "true" ]]; then
+            echo "kind=full" >> "$GITHUB_OUTPUT"
+          elif [[ "${{ steps.plan.outputs.requiresDbCheckpoint }}" == "true" ]]; then
+            echo "kind=db-only" >> "$GITHUB_OUTPUT"
+          else
+            echo "kind=none" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: 记录 bootstrap 耗时
         run: node scripts/ci/timing.mjs record --label "Bootstrap" --start-ms "$RELEASE_BOOTSTRAP_START_MS"
@@ -103,37 +144,93 @@ jobs:
           GITHUB_REPOSITORY: ${{ github.repository }}
         run: node scripts/ci/timing.mjs "Wait exact-SHA CI prerequisite" -- pnpm release:ci-prerequisite
 
-      - name: 验证 Vercel deployment credential
-        if: env.RIVALHUB_RELEASE_MODE == 'fresh'
+  migration_rehearsal:
+    if: needs.preflight.result == 'success' && needs.preflight.outputs.release_mode == 'fresh' && needs.preflight.outputs.requires_migration_rehearsal == 'true'
+    needs: preflight
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: postgres:17
         env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-        run: |
-          if [[ -z "$VERCEL_TOKEN" || "$VERCEL_TOKEN" == "[SENSITIVE]" ]]; then
-            echo "GitHub production Environment secret VERCEL_TOKEN 未设置。" >&2
-            exit 1
-          fi
-          # VERCEL_TOKEN 必须保持 project-scoped（`rivalhub-release`），且只能用于下方的
-          # exact production deployment 和 routing API。
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    permissions:
+      contents: read
+    env:
+      CI: true
+      RIVALHUB_TIMING: 1
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+      RIVALHUB_LOCAL_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+      RIVALHUB_DB_TARGET: local
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ needs.preflight.outputs.release_tag }}
+          fetch-depth: 0
 
-      - name: 运行 DB-only local rehearsal
-        if: env.RIVALHUB_RELEASE_MODE == 'fresh'
-        run: |
-          pnpm db:check
-          node scripts/ci/timing.mjs "DB-only local readiness" -- pnpm db:local:start-db
+      - uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
+        with:
+          cache: true
+          require-lockfile: true
 
-      - name: 验证 previous Production compatibility
-        if: env.RIVALHUB_RELEASE_MODE == 'fresh'
-        run: node scripts/ci/timing.mjs "Migration compatibility rehearsal" -- pnpm db:release-compat
+      - name: 回放 PG17 active migration chain
+        run: node scripts/ci/timing.mjs "PG17 migration rehearsal" -- pnpm db:release-rehearsal
+
+  checkpoint:
+    if: needs.preflight.result == 'success' && needs.preflight.outputs.release_mode == 'fresh' && needs.preflight.outputs.checkpoint_kind != 'none'
+    needs: preflight
+    runs-on: ubuntu-24.04
+    environment: production
+    permissions:
+      contents: read
+    env:
+      CI: true
+      RIVALHUB_TIMING: 1
+      RIVALHUB_DB_TARGET: production
+      RIVALHUB_PRODUCTION_BASE_URL: https://match.starfie1d.top
+      RIVALHUB_PRODUCTION_PROJECT_CONFIRM: sucokfotkypwqkckfynp
+      RIVALHUB_PRODUCTION_DB_HOST_CONFIRM: aws-0-ap-northeast-1.pooler.supabase.com:6543
+      RELEASE_TAG: ${{ needs.preflight.outputs.release_tag }}
+      RELEASE_SHA: ${{ needs.preflight.outputs.release_sha }}
+      RIVALHUB_RELEASE_SHA: ${{ needs.preflight.outputs.release_sha }}
+      CHECKPOINT_KIND: ${{ needs.preflight.outputs.checkpoint_kind }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ needs.preflight.outputs.release_tag }}
+          fetch-depth: 0
+
+      - uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
+        with:
+          cache: true
+          require-lockfile: true
 
       - name: 安装 age
-        if: env.RIVALHUB_RELEASE_MODE == 'fresh'
         run: |
           sudo apt-get update -qq
           sudo apt-get install --yes --no-install-recommends age
           age --version
 
-      - name: 创建 pre-release backup
-        if: env.RIVALHUB_RELEASE_MODE == 'fresh'
+      - name: 创建 DB-only release checkpoint
+        if: env.CHECKPOINT_KIND == 'db-only'
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          RIVALHUB_BACKUP_AGE_RECIPIENT: ${{ vars.RIVALHUB_BACKUP_AGE_RECIPIENT }}
+          RIVALHUB_R2_ACCOUNT_ID: ${{ vars.RIVALHUB_R2_ACCOUNT_ID }}
+          RIVALHUB_R2_BUCKET: ${{ vars.RIVALHUB_R2_BUCKET }}
+          RIVALHUB_R2_ACCESS_KEY_ID: ${{ secrets.RIVALHUB_R2_ACCESS_KEY_ID }}
+          RIVALHUB_R2_SECRET_ACCESS_KEY: ${{ secrets.RIVALHUB_R2_SECRET_ACCESS_KEY }}
+        run: node scripts/ci/timing.mjs "DB-only release checkpoint" -- pnpm db:recovery:checkpoint
+
+      - name: 创建 full release checkpoint
+        if: env.CHECKPOINT_KIND == 'full'
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
@@ -143,19 +240,69 @@ jobs:
           RIVALHUB_R2_BUCKET: ${{ vars.RIVALHUB_R2_BUCKET }}
           RIVALHUB_R2_ACCESS_KEY_ID: ${{ secrets.RIVALHUB_R2_ACCESS_KEY_ID }}
           RIVALHUB_R2_SECRET_ACCESS_KEY: ${{ secrets.RIVALHUB_R2_SECRET_ACCESS_KEY }}
-        run: node scripts/ci/timing.mjs "Pre-release backup" -- pnpm db:recovery:backup pre-release
+        run: node scripts/ci/timing.mjs "Full release checkpoint" -- pnpm db:recovery:backup pre-release
 
-      - name: 运行 production migration 与验证
+  release:
+    if: >-
+      always() &&
+      needs.preflight.result == 'success' &&
+      (needs.migration_rehearsal.result == 'success' || needs.migration_rehearsal.result == 'skipped') &&
+      (needs.checkpoint.result == 'success' || needs.checkpoint.result == 'skipped')
+    needs: [preflight, migration_rehearsal, checkpoint]
+    runs-on: ubuntu-24.04
+    environment: production
+    permissions:
+      actions: read
+      contents: write
+      id-token: write
+    env:
+      NEXT_TELEMETRY_DISABLED: 1
+      CI: true
+      RIVALHUB_TIMING: 1
+      RIVALHUB_TIMING_TITLE: "Release 阶段耗时"
+      VERCEL_ORG_ID: team_0eIkBawGTdVjwYHdyrb20ZVV
+      VERCEL_PROJECT_ID: prj_3bjmfKrSqRh4szrkEE4HpavnhI0E
+      RIVALHUB_DB_TARGET: production
+      RIVALHUB_PRODUCTION_BASE_URL: https://match.starfie1d.top
+      RIVALHUB_PRODUCTION_PROJECT_CONFIRM: sucokfotkypwqkckfynp
+      RIVALHUB_PRODUCTION_DB_HOST_CONFIRM: aws-0-ap-northeast-1.pooler.supabase.com:6543
+      RELEASE_TAG: ${{ needs.preflight.outputs.release_tag }}
+      RELEASE_SHA: ${{ needs.preflight.outputs.release_sha }}
+      RIVALHUB_RELEASE_SHA: ${{ needs.preflight.outputs.release_sha }}
+      RIVALHUB_PREVIOUS_RELEASE_TAG: ${{ needs.preflight.outputs.previous_release_tag }}
+      RIVALHUB_PREVIOUS_RELEASE_COMMIT: ${{ needs.preflight.outputs.previous_release_commit }}
+      RIVALHUB_RELEASE_MODE: ${{ needs.preflight.outputs.release_mode }}
+      APPLICATION_CHANGED: ${{ needs.preflight.outputs.application_changed }}
+      MIGRATION_CHANGED: ${{ needs.preflight.outputs.migration_changed }}
+      REQUIRES_PRODUCTION_MIGRATION: ${{ needs.preflight.outputs.requires_production_migration }}
+      REQUIRES_SCHEDULER_PROVISION: ${{ needs.preflight.outputs.requires_scheduler_provision }}
+    steps:
+      - name: 记录 workflow 耗时起点
+        run: echo "RELEASE_WORKFLOW_START_MS=$(date +%s%3N)" >> "$GITHUB_ENV"
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ needs.preflight.outputs.release_tag }}
+          fetch-depth: 0
+
+      - uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
+        with:
+          cache: true
+          require-lockfile: true
+
+      - name: 安装固定版本 Vercel CLI
+        if: env.RIVALHUB_RELEASE_MODE == 'fresh'
+        run: pnpm add --global vercel@59.11.7
+
+      - name: 验证 Vercel deployment credential
         if: env.RIVALHUB_RELEASE_MODE == 'fresh'
         env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: |
-          if [[ -z "$DATABASE_URL" || "$DATABASE_URL" == "[SENSITIVE]" ]]; then
-            echo "GitHub production Environment secret DATABASE_URL 未设置。" >&2
+          if [[ -z "$VERCEL_TOKEN" || "$VERCEL_TOKEN" == "[SENSITIVE]" ]]; then
+            echo "GitHub production Environment secret VERCEL_TOKEN 未设置。" >&2
             exit 1
           fi
-          node scripts/ci/timing.mjs "Production migration" -- env RIVALHUB_ALLOW_REMOTE_DB_WRITE=production pnpm db:production:migrate
-          node scripts/ci/timing.mjs "Production DB verify" -- pnpm db:production:verify
 
       - name: 部署 Vercel candidate
         if: env.RIVALHUB_RELEASE_MODE == 'fresh'
@@ -190,6 +337,18 @@ jobs:
           oidc_token="$(jq -er '.value | strings | select(length > 0)' <<<"$oidc_response")"
           echo "::add-mask::$oidc_token"
           echo "token=$oidc_token" >> "$GITHUB_OUTPUT"
+
+      - name: 运行 production migration 与验证
+        if: env.RIVALHUB_RELEASE_MODE == 'fresh' && env.REQUIRES_PRODUCTION_MIGRATION == 'true'
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          if [[ -z "$DATABASE_URL" || "$DATABASE_URL" == "[SENSITIVE]" ]]; then
+            echo "GitHub production Environment secret DATABASE_URL 未设置。" >&2
+            exit 1
+          fi
+          node scripts/ci/timing.mjs "Production migration" -- env RIVALHUB_ALLOW_REMOTE_DB_WRITE=production pnpm db:production:migrate
+          node scripts/ci/timing.mjs "Production DB verify" -- pnpm db:production:verify
 
       - name: 运行 candidate smoke test
         if: env.RIVALHUB_RELEASE_MODE == 'fresh'
@@ -228,6 +387,7 @@ jobs:
         run: node scripts/ci/timing.mjs "Release routing / rollback" -- pnpm release:routing
 
       - name: 配置并验证 production scheduler
+        if: env.REQUIRES_SCHEDULER_PROVISION == 'true'
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           CRON_SECRET: ${{ secrets.CRON_SECRET }}

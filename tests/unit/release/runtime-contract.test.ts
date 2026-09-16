@@ -74,7 +74,7 @@ describe("deployment and operations contracts", () => {
 
     expectPnpmSetup(ci, ["static", "postgres", "system"]);
     expectPnpmSetup(staging, ["staging"]);
-    expectPnpmSetup(release, ["release"]);
+    expectPnpmSetup(release, ["preflight", "migration_rehearsal", "checkpoint", "release"]);
     expectPnpmSetup(recoveryBackup, ["backup"]);
     expectPnpmSetup(recoveryR2, ["retention"]);
     expect(readWorkflowJob(ci, "plan")).not.toContain("pnpm/setup");
@@ -112,10 +112,13 @@ describe("deployment and operations contracts", () => {
     expect(r2).toContain("pnpm db:recovery:r2:apply");
     expect(r2).toContain("environment: production");
 
-    expect(release).toContain("创建 pre-release backup");
+    expect(release).toContain("创建 DB-only release checkpoint");
+    expect(release).toContain("创建 full release checkpoint");
     expect(release).toContain("RIVALHUB_PRODUCTION_BASE_URL: https://match.starfie1d.top");
-    expect(release.indexOf("创建 pre-release backup")).toBeLessThan(release.indexOf("pnpm db:production:migrate"));
+    expect(release.indexOf("创建 full release checkpoint")).toBeLessThan(release.indexOf("pnpm db:production:migrate"));
+    expect(release).toContain("pnpm db:recovery:checkpoint");
     expect(release).toContain("pnpm db:recovery:backup pre-release");
+    expect(release.indexOf("部署 Vercel candidate")).toBeLessThan(release.indexOf("运行 production migration 与验证"));
     expect(release).toContain("SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}");
     expect(release).toContain("SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}");
     expect(release).not.toContain("RIVALHUB_BACKUP_HEARTBEAT_URL");
@@ -139,6 +142,11 @@ describe("deployment and operations contracts", () => {
     expect(candidateSmoke).toContain("x-vercel-trusted-oidc-idp-token: $VERCEL_TRUSTED_OIDC_IDP_TOKEN");
     expect(release).toContain("执行 release routing / rollback");
     expect(release).toContain("pnpm release:routing");
+    expect(release).toContain("requiresFullCheckpoint");
+    expect(release).toContain("requiresSchedulerProvision");
+    const checkpointJob = readWorkflowJob(release, "checkpoint");
+    const dbOnlyCheckpoint = checkpointJob.slice(0, checkpointJob.indexOf("- name: 创建 full release checkpoint"));
+    expect(dbOnlyCheckpoint).not.toContain("SUPABASE_SECRET_KEY");
     const productionSerialization = "concurrency:\n  group: rivalhub-production-state-serialization\n  queue: max\n  cancel-in-progress: false";
     expect(backup).toContain(productionSerialization);
     expect(release).toContain(productionSerialization);
@@ -221,6 +229,16 @@ describe("deployment and operations contracts", () => {
     expect(config.regions).toEqual(["hnd1"]);
     expect(config.git?.deploymentEnabled).toEqual({ main: false });
     expect(config.git?.deploymentEnabled).not.toBe(false);
+  });
+
+  it("keeps the production build hermetic", () => {
+    const build = readProjectFile("scripts/vercel-build.ts");
+
+    expect(build).toContain("assertProductionReleaseBuild");
+    expect(build).toContain("next${binSuffix}");
+    expect(build).not.toContain("verify-migrations");
+    expect(build).not.toContain("PRODUCTION_DATABASE_URL");
+    expect(build).not.toContain("SUPABASE_SECRET_KEY");
   });
 
   it("keeps staging as a protected manual database-only rehearsal", () => {
@@ -347,12 +365,12 @@ describe("deployment and operations contracts", () => {
     // Ordering: dependency setup before preflight, preflight before backup and DB mutations
     const pnpmSetupIdx = release.indexOf("uses: pnpm/setup");
     const ciPrereqIdx = release.indexOf("验证 exact-SHA CI prerequisite");
-    const backupIdx = release.indexOf("创建 pre-release backup");
+    const checkpointIdx = release.indexOf("创建 full release checkpoint");
     const migrateIdx = release.indexOf("运行 production migration 与验证");
     expect(pnpmSetupIdx).toBeGreaterThan(0);
     expect(pnpmSetupIdx).toBeLessThan(ciPrereqIdx);
-    expect(ciPrereqIdx).toBeLessThan(backupIdx);
-    expect(backupIdx).toBeLessThan(migrateIdx);
+    expect(ciPrereqIdx).toBeLessThan(checkpointIdx);
+    expect(checkpointIdx).toBeLessThan(migrateIdx);
 
     // Knip entries registration
     const knipConfig = JSON.parse(readProjectFile("knip.json")) as { entry: string[] };
@@ -391,7 +409,11 @@ describe("deployment and operations contracts", () => {
     expect(routing).toContain("previousReleaseCommit");
 
     // DB-only local rehearsal
-    expect(release).toContain("pnpm db:local:start-db");
+    expect(release).toContain("image: postgres:17");
+    expect(release).toContain("pnpm db:release-rehearsal");
+    expect(readProjectFile("scripts/db/release-rehearsal.ts")).toContain("scripts/db/verify-migrations.ts");
+    expect(readProjectFile("scripts/db/release-rehearsal.ts")).not.toContain("scripts/db/verify-db.ts");
+    expect(release).not.toContain("pnpm db:local:start-db");
     expect(release).not.toContain("pnpm db:local:start\n");
     expect(release).not.toContain("pnpm db:local:stop");
 

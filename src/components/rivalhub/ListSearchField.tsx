@@ -36,23 +36,40 @@ export const ListSearchField = React.forwardRef<ListSearchFieldHandle, ListSearc
   className,
 }, ref) {
   const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const pendingValueRef = useRef<string | undefined>(undefined);
+  const lastCommittedValueRef = useRef(value);
+  const latestChangeRef = useRef(onDebouncedChange);
   const [localValue, setLocalValue] = useState(value);
   const inputId = id ?? defaultId(queryKey);
-  const cancelPending = useCallback(() => {
+  const clearPendingTimer = useCallback(() => {
     clearTimeout(timerRef.current);
     timerRef.current = undefined;
   }, []);
+  const cancelPending = useCallback(() => {
+    clearPendingTimer();
+    pendingValueRef.current = undefined;
+  }, [clearPendingTimer]);
+
+  useEffect(() => {
+    latestChangeRef.current = onDebouncedChange;
+  }, [onDebouncedChange]);
 
   useImperativeHandle(ref, () => ({
     reset(nextValue = "") {
       cancelPending();
+      lastCommittedValueRef.current = nextValue;
       setLocalValue(nextValue);
     },
     cancelPending,
   }), [cancelPending]);
 
   useEffect(() => {
+    // A router transition can render the old controlled value once before or
+    // after the debounced callback. Keep the user's edit until the controlled
+    // value acknowledges it, but still accept a genuinely external change.
+    if (pendingValueRef.current !== undefined && value === lastCommittedValueRef.current) return;
     cancelPending();
+    lastCommittedValueRef.current = value;
     setLocalValue(value);
   }, [cancelPending, value]);
 
@@ -63,10 +80,11 @@ export const ListSearchField = React.forwardRef<ListSearchFieldHandle, ListSearc
   function handleChange(event: ChangeEvent<HTMLInputElement>) {
     const nextValue = event.target.value;
     setLocalValue(nextValue);
-    cancelPending();
+    clearPendingTimer();
+    pendingValueRef.current = nextValue;
     timerRef.current = setTimeout(() => {
       timerRef.current = undefined;
-      onDebouncedChange(nextValue);
+      latestChangeRef.current(nextValue);
     }, debounceMs);
   }
 

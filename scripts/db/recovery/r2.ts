@@ -2,7 +2,7 @@ import { spawnSync } from "node:child_process";
 import { statSync } from "node:fs";
 import { resolve } from "node:path";
 import { redactText } from "../../../src/lib/observability/redact";
-import type { BackupClass, R2ObjectEnvironment } from "./environment";
+import type { RecoveryArtifactClass, R2ObjectEnvironment } from "./environment";
 import { sha256File } from "./manifest";
 
 const MAX_PROVIDER_DIAGNOSTIC_LENGTH = 1_200;
@@ -114,7 +114,7 @@ export function createR2Client(config: R2ObjectEnvironment): RecoveryR2Client {
 }
 
 export function buildRecoveryR2Keys(
-  backupClass: BackupClass,
+  backupClass: RecoveryArtifactClass,
   runId: string,
   createdAt: string,
 ): RecoveryR2Keys {

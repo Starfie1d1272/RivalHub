@@ -41,6 +41,8 @@ Vitest 的 React/jsdom project 只在 GitHub Actions 使用一次 diagnostic ret
 
 CI 不使用 mock 来替代 constraint、transaction、locking 或并发证据。
 
+Release 的 migration rehearsal 使用同一套 plain `postgres:17` service、`preparePg17Database()` 和 active migration replay owner；它不启动 Local Supabase。CI PostgreSQL lane、Release workflow 与本地 `db:local:migrate` 共享 `scripts/db/migration-replay.ts`，避免出现第二套只在发布时运行的 migration runner。
+
 ### system
 
 启动最小 Local Supabase services，并运行：
@@ -61,7 +63,7 @@ Pull Request 额外运行 dependency review；达到 workflow 设定的严重度
 
 CI 遵循 L0–L4 风险分层与最低且足够可信证据原则：
 
-- **L0 Metadata**：docs、Changeset、纯 release metadata，仅保留 planner + gate，不启动测试容器。
+- **L0 Metadata**：docs、Changeset，以及只改变 `package.json` 顶层 `version` 的 release metadata（可伴随 `CHANGELOG.md` 与 Changeset），仅保留 planner + gate，不启动测试容器。package dependency、script、packageManager、lockfile 或任意 source 变化都不能走该 bypass。
 - **L1 Static**：pure rule、formatter、presenter、component、UI/layout 等不跨 persistence/provider 边界的变化，运行 affected type/lint/architecture/unit。
 - **L2 PostgreSQL**：Server Action persistence、DB query、transaction、migration 等，运行 L1 + real PostgreSQL。
 - **L3 System**：Auth、Session、Storage provider 或 browser/provider glue，运行 L1/L2 + Local Supabase + targeted E2E。

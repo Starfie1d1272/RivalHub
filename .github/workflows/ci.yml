@@ -43,6 +43,7 @@ jobs:
       system_mode: ${{ steps.plan.outputs.system_mode }}
       e2e_specs: ${{ steps.plan.outputs.e2e_specs }}
       gate_name: ${{ steps.plan.outputs.gate_name }}
+      release_metadata_only: ${{ steps.plan.outputs.release_metadata_only }}
     steps:
       - name: Capture workflow timing start
         id: timing-start

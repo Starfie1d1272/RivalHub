@@ -90,6 +90,25 @@ describe("recovery contracts", () => {
     expect(serializeManifest({ ...manifest, storage: { ...manifest.storage } })).toBe(serializeManifest(manifest));
   });
 
+  it("accepts a DB-only release checkpoint without a Storage snapshot", () => {
+    const manifest = {
+      ...validManifest(),
+      backupClass: "release-db" as const,
+      storage: {
+        bucketCount: 0,
+        bucketInventorySha256: SHA256,
+        objectCount: 0,
+        totalBytes: 0,
+        inventorySha256: SHA256,
+      },
+    };
+    expect(assertRecoveryManifest(manifest).backupClass).toBe("release-db");
+    expect(buildRecoveryR2Keys("release-db", RUN_ID, CREATED_AT).artifact).toBe(
+      `production/release-db/2026-09-10/${RUN_ID}.tar.gz.age`,
+    );
+    expect(() => assertRecoveryManifest({ ...manifest, storage: { ...manifest.storage, objectCount: 1 } })).toThrow();
+  });
+
   it("rejects incomplete or tampered recovery identities", () => {
     const manifest = validManifest();
     expect(() => assertRecoveryManifest({ ...manifest, database: { ...manifest.database, files: [] } })).toThrow();
@@ -352,6 +371,7 @@ describe("recovery contracts", () => {
 
   it("checks managed Storage references around the complete snapshot window", () => {
     const backupSource = readFileSync(join(process.cwd(), "scripts/db/recovery/backup.ts"), "utf8");
+    const artifactSource = readFileSync(join(process.cwd(), "scripts/db/recovery/artifact.ts"), "utf8");
     const firstReferenceRead = backupSource.indexOf("readManagedStorageReferencesFromProduction(environment.databaseUrl)");
     const databaseSnapshot = backupSource.indexOf("createDatabaseSnapshot(environment.databaseUrl, stagingRoot)");
     const storageSnapshot = backupSource.indexOf("snapshotStorage(");
@@ -366,8 +386,9 @@ describe("recovery contracts", () => {
     expect(secondReferenceRead).toBeLessThan(stabilityCheck);
     expect(stabilityCheck).toBeLessThan(captureCheck);
 
-    const completionReadback = backupSource.indexOf("verifyR2Object(r2, keys.completion");
+    const completionReadback = artifactSource.indexOf("verifyR2Object(r2, keys.completion");
     expect(completionReadback).toBeGreaterThan(-1);
+    expect(backupSource).toContain("publishRecoveryArtifact");
     expect(backupSource).not.toContain("heartbeat");
     expect(backupSource).not.toContain("education_verifications");
     expect(backupSource).toContain("readManagedStorageReferences(pool)");
