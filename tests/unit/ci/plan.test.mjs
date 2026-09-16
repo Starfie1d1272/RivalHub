@@ -168,6 +168,24 @@ describe("changed-surface planner", () => {
     expect(educationValidation.requiredJobs).not.toContain("system");
   });
 
+  it("routes ListSearchField to the focused mobile public-event evidence", () => {
+    const plan = classifyChangedFiles([{ status: "M", paths: ["src/components/rivalhub/ListSearchField.tsx"] }], { draft: false });
+
+    expect(plan.requiredJobs).toContain("system");
+    expect(plan.e2eSpecs).toEqual(["tests/e2e/flows/public-event-experience.spec.ts"]);
+    expect(plan.mobileSearchEvidence).toBe(true);
+  });
+
+  it("keeps focused mobile evidence when another changed surface forces FULL", () => {
+    const plan = classifyChangedFiles([
+      { status: "M", paths: [".github/workflows/ci.yml"] },
+      { status: "M", paths: ["src/components/rivalhub/ListSearchField.tsx"] },
+    ], { draft: false });
+
+    expect(plan.full).toBe(true);
+    expect(plan.mobileSearchEvidence).toBe(true);
+  });
+
   it("enforces invariant: any evidence with e2eSpecs must activate system capability", () => {
     const plan = classifyChangedFiles([{ status: "M", paths: ["src/actions/education-verifications.ts"] }], { draft: true });
     expect(plan.e2eSpecs.length).toBeGreaterThan(0);

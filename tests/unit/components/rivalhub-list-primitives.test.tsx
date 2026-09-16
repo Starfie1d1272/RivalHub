@@ -233,6 +233,31 @@ describe("shared list query mechanics", () => {
     }
   });
 
+  it("keeps a newer edit when an earlier dispatched search acknowledgement arrives late", () => {
+    vi.useFakeTimers();
+    try {
+      const onDebouncedChange = vi.fn();
+      const view = render(<ListSearchField queryKey="q" label="搜索用户" value="old" onDebouncedChange={onDebouncedChange} />);
+      const input = screen.getByLabelText("搜索用户");
+
+      fireEvent.change(input, { target: { value: "A" } });
+      act(() => vi.advanceTimersByTime(300));
+      expect(onDebouncedChange).toHaveBeenLastCalledWith("A");
+
+      fireEvent.change(input, { target: { value: "B" } });
+      view.rerender(<ListSearchField queryKey="q" label="搜索用户" value="A" onDebouncedChange={onDebouncedChange} />);
+
+      expect(input).toHaveValue("B");
+      act(() => vi.advanceTimersByTime(300));
+      expect(onDebouncedChange).toHaveBeenLastCalledWith("B");
+      expect(onDebouncedChange).toHaveBeenCalledTimes(2);
+      view.rerender(<ListSearchField queryKey="q" label="搜索用户" value="B" onDebouncedChange={onDebouncedChange} />);
+      expect(input).toHaveValue("B");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("composes delayed search with clear filters through one controller", () => {
     vi.useFakeTimers();
     try {

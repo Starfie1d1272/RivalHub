@@ -3,6 +3,7 @@ import { dirname, join, resolve } from "node:path";
 import {
   assertRecoveryFetchEnvironment,
   assertR2BucketName,
+  recoveryArtifactKindForClass,
   type R2ObjectEnvironment,
 } from "./environment";
 import {
@@ -114,7 +115,11 @@ function assertCompletionIdentity(
   identity: RecoveryObjectIdentity,
   artifactKey: string,
 ): void {
-  if (completion.runId !== identity.runId || completion.artifactKey !== artifactKey) {
+  if (
+    completion.runId !== identity.runId
+    || completion.artifactKey !== artifactKey
+    || completion.artifactKind !== recoveryArtifactKindForClass(identity.backupClass)
+  ) {
     throw new Error("Recovery completion marker does not match its object key; fetch aborted. ");
   }
 }
@@ -129,6 +134,7 @@ function assertSidecarIdentity(
     sidecar.runId !== completion.runId
     || sidecar.artifactKey !== artifactKey
     || sidecar.artifactSha256 !== completion.artifactSha256
+    || sidecar.artifactKind !== completion.artifactKind
     || sidecar.backupClass !== identity.backupClass
     || sidecar.createdAt.slice(0, 10) !== identity.date
   ) {

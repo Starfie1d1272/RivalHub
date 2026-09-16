@@ -20,7 +20,7 @@ on:
         type: string
 
 concurrency:
-  group: rivalhub-production-state-serialization
+  group: rivalhub-release-lineage
   queue: max
   cancel-in-progress: false
 
@@ -61,9 +61,6 @@ jobs:
       requires_full_checkpoint: ${{ steps.plan.outputs.requiresFullCheckpoint }}
       checkpoint_kind: ${{ steps.checkpoint_kind.outputs.kind }}
     steps:
-      - name: 记录 workflow 耗时起点
-        run: echo "RELEASE_WORKFLOW_START_MS=$(date +%s%3N)" >> "$GITHUB_ENV"
-
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ inputs.tag || github.ref }}
@@ -144,6 +141,10 @@ jobs:
           GITHUB_REPOSITORY: ${{ github.repository }}
         run: node scripts/ci/timing.mjs "Wait exact-SHA CI prerequisite" -- pnpm release:ci-prerequisite
 
+      - name: Write timing summary
+        if: always()
+        run: node scripts/ci/timing.mjs summary
+
   migration_rehearsal:
     if: needs.preflight.result == 'success' && needs.preflight.outputs.release_mode == 'fresh' && needs.preflight.outputs.requires_migration_rehearsal == 'true'
     needs: preflight
@@ -182,6 +183,10 @@ jobs:
 
       - name: 回放 PG17 active migration chain
         run: node scripts/ci/timing.mjs "PG17 migration rehearsal" -- pnpm db:release-rehearsal
+
+      - name: Write timing summary
+        if: always()
+        run: node scripts/ci/timing.mjs summary
 
   checkpoint:
     if: needs.preflight.result == 'success' && needs.preflight.outputs.release_mode == 'fresh' && needs.preflight.outputs.checkpoint_kind != 'none'
@@ -242,19 +247,21 @@ jobs:
           RIVALHUB_R2_SECRET_ACCESS_KEY: ${{ secrets.RIVALHUB_R2_SECRET_ACCESS_KEY }}
         run: node scripts/ci/timing.mjs "Full release checkpoint" -- pnpm db:recovery:backup pre-release
 
-  release:
-    if: >-
-      always() &&
-      needs.preflight.result == 'success' &&
-      (needs.migration_rehearsal.result == 'success' || needs.migration_rehearsal.result == 'skipped') &&
-      (needs.checkpoint.result == 'success' || needs.checkpoint.result == 'skipped')
-    needs: [preflight, migration_rehearsal, checkpoint]
+      - name: Write timing summary
+        if: always()
+        run: node scripts/ci/timing.mjs summary
+
+  candidate_build:
+    if: needs.preflight.result == 'success' && needs.preflight.outputs.release_mode == 'fresh'
+    needs: preflight
     runs-on: ubuntu-24.04
     environment: production
     permissions:
       actions: read
-      contents: write
+      contents: read
       id-token: write
+    outputs:
+      deployment_url: ${{ steps.deploy.outputs.url }}
     env:
       NEXT_TELEMETRY_DISABLED: 1
       CI: true
@@ -262,24 +269,10 @@ jobs:
       RIVALHUB_TIMING_TITLE: "Release 阶段耗时"
       VERCEL_ORG_ID: team_0eIkBawGTdVjwYHdyrb20ZVV
       VERCEL_PROJECT_ID: prj_3bjmfKrSqRh4szrkEE4HpavnhI0E
-      RIVALHUB_DB_TARGET: production
-      RIVALHUB_PRODUCTION_BASE_URL: https://match.starfie1d.top
-      RIVALHUB_PRODUCTION_PROJECT_CONFIRM: sucokfotkypwqkckfynp
-      RIVALHUB_PRODUCTION_DB_HOST_CONFIRM: aws-0-ap-northeast-1.pooler.supabase.com:6543
       RELEASE_TAG: ${{ needs.preflight.outputs.release_tag }}
       RELEASE_SHA: ${{ needs.preflight.outputs.release_sha }}
       RIVALHUB_RELEASE_SHA: ${{ needs.preflight.outputs.release_sha }}
-      RIVALHUB_PREVIOUS_RELEASE_TAG: ${{ needs.preflight.outputs.previous_release_tag }}
-      RIVALHUB_PREVIOUS_RELEASE_COMMIT: ${{ needs.preflight.outputs.previous_release_commit }}
-      RIVALHUB_RELEASE_MODE: ${{ needs.preflight.outputs.release_mode }}
-      APPLICATION_CHANGED: ${{ needs.preflight.outputs.application_changed }}
-      MIGRATION_CHANGED: ${{ needs.preflight.outputs.migration_changed }}
-      REQUIRES_PRODUCTION_MIGRATION: ${{ needs.preflight.outputs.requires_production_migration }}
-      REQUIRES_SCHEDULER_PROVISION: ${{ needs.preflight.outputs.requires_scheduler_provision }}
     steps:
-      - name: 记录 workflow 耗时起点
-        run: echo "RELEASE_WORKFLOW_START_MS=$(date +%s%3N)" >> "$GITHUB_ENV"
-
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ needs.preflight.outputs.release_tag }}
@@ -291,11 +284,9 @@ jobs:
           require-lockfile: true
 
       - name: 安装固定版本 Vercel CLI
-        if: env.RIVALHUB_RELEASE_MODE == 'fresh'
         run: pnpm add --global vercel@59.11.7
 
       - name: 验证 Vercel deployment credential
-        if: env.RIVALHUB_RELEASE_MODE == 'fresh'
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: |
@@ -305,7 +296,6 @@ jobs:
           fi
 
       - name: 部署 Vercel candidate
-        if: env.RIVALHUB_RELEASE_MODE == 'fresh'
         id: deploy
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
@@ -320,7 +310,6 @@ jobs:
           echo "Candidate deployment ready: $DEPLOYMENT_URL"
 
       - name: 获取 Vercel Trusted Source OIDC token
-        if: env.RIVALHUB_RELEASE_MODE == 'fresh'
         id: oidc
         env:
           VERCEL_TRUSTED_SOURCE_AUDIENCE: https://github.com/Starfie1d1272
@@ -338,20 +327,7 @@ jobs:
           echo "::add-mask::$oidc_token"
           echo "token=$oidc_token" >> "$GITHUB_OUTPUT"
 
-      - name: 运行 production migration 与验证
-        if: env.RIVALHUB_RELEASE_MODE == 'fresh' && env.REQUIRES_PRODUCTION_MIGRATION == 'true'
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-        run: |
-          if [[ -z "$DATABASE_URL" || "$DATABASE_URL" == "[SENSITIVE]" ]]; then
-            echo "GitHub production Environment secret DATABASE_URL 未设置。" >&2
-            exit 1
-          fi
-          node scripts/ci/timing.mjs "Production migration" -- env RIVALHUB_ALLOW_REMOTE_DB_WRITE=production pnpm db:production:migrate
-          node scripts/ci/timing.mjs "Production DB verify" -- pnpm db:production:verify
-
       - name: 运行 candidate smoke test
-        if: env.RIVALHUB_RELEASE_MODE == 'fresh'
         env:
           DEPLOYMENT_URL: ${{ steps.deploy.outputs.url }}
           VERCEL_TRUSTED_OIDC_IDP_TOKEN: ${{ steps.oidc.outputs.token }}
@@ -379,67 +355,32 @@ jobs:
           node scripts/ci/timing.mjs record --label "Exact candidate smoke" --start-ms "$SMOKE_START" --end-ms "$SMOKE_END"
           echo "Candidate smoke verified release identity: $deployment_identity"
 
-      - name: 执行 release routing / rollback
-        if: env.RIVALHUB_RELEASE_MODE == 'fresh'
-        env:
-          DEPLOYMENT_URL: ${{ steps.deploy.outputs.url }}
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-        run: node scripts/ci/timing.mjs "Release routing / rollback" -- pnpm release:routing
-
-      - name: 配置并验证 production scheduler
-        if: env.REQUIRES_SCHEDULER_PROVISION == 'true'
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          CRON_SECRET: ${{ secrets.CRON_SECRET }}
-          RIVALHUB_SCHEDULER_BASE_URL: https://match.starfie1d.top
-        run: |
-          if [[ -z "$CRON_SECRET" || "$CRON_SECRET" == "[SENSITIVE]" ]]; then
-            echo "GitHub production Environment secret CRON_SECRET 未设置。" >&2
-            exit 1
-          fi
-          node scripts/ci/timing.mjs "Production scheduler provision/verify" -- bash -c '
-            set -euo pipefail
-            RIVALHUB_ALLOW_REMOTE_DB_WRITE=production pnpm db:production:scheduler:provision
-            pnpm db:production:scheduler:verify
-          '
-
-      - name: 生成 Production delta release notes
-        run: pnpm release:notes > /tmp/release-notes.md
-
-      - name: 创建或更新 GitHub Release
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          RELEASE_PUB_START="$(date +%s%3N)"
-          VERSION="${RELEASE_TAG#v}"
-          if [[ "$VERSION" == *-* ]]; then
-            RELEASE_FLAGS=(--prerelease --latest=false)
-          else
-            RELEASE_FLAGS=(--prerelease=false --latest)
-          fi
-
-          if gh release view "$RELEASE_TAG" &>/dev/null; then
-            if [[ "$(gh release view "$RELEASE_TAG" --json isImmutable --jq .isImmutable)" == "true" ]]; then
-              echo "GitHub Release $RELEASE_TAG 已 immutable；保留已发布 metadata。"
-            else
-              echo "GitHub Release $RELEASE_TAG 已存在，更新 notes…"
-              gh release edit "$RELEASE_TAG" \
-                --notes-file /tmp/release-notes.md \
-                "${RELEASE_FLAGS[@]}"
-            fi
-          else
-            gh release create "$RELEASE_TAG" \
-              --title "$RELEASE_TAG" \
-              --notes-file /tmp/release-notes.md \
-              "${RELEASE_FLAGS[@]}"
-          fi
-          RELEASE_PUB_END="$(date +%s%3N)"
-          node scripts/ci/timing.mjs record --label "GitHub Release publish" --start-ms "$RELEASE_PUB_START" --end-ms "$RELEASE_PUB_END"
-
-      - name: 记录 workflow 总耗时并生成 summary
+      - name: Write timing summary
         if: always()
-        run: |
-          if [[ -n "$RELEASE_WORKFLOW_START_MS" ]]; then
-            node scripts/ci/timing.mjs record --label "Total" --start-ms "$RELEASE_WORKFLOW_START_MS"
-          fi
-          node scripts/ci/timing.mjs summary
+        run: node scripts/ci/timing.mjs summary
+
+  release:
+    if: >-
+      always() &&
+      needs.preflight.result == 'success' &&
+      (needs.candidate_build.result == 'success' || needs.candidate_build.result == 'skipped') &&
+      (needs.migration_rehearsal.result == 'success' || needs.migration_rehearsal.result == 'skipped') &&
+      (needs.checkpoint.result == 'success' || needs.checkpoint.result == 'skipped')
+    needs: [preflight, candidate_build, migration_rehearsal, checkpoint]
+    permissions:
+      actions: read
+      contents: write
+    uses: ./.github/workflows/release-finalize.yml
+    with:
+      release_tag: ${{ needs.preflight.outputs.release_tag }}
+      release_sha: ${{ needs.preflight.outputs.release_sha }}
+      previous_release_tag: ${{ needs.preflight.outputs.previous_release_tag }}
+      previous_release_commit: ${{ needs.preflight.outputs.previous_release_commit }}
+      release_mode: ${{ needs.preflight.outputs.release_mode }}
+      application_changed: ${{ needs.preflight.outputs.application_changed }}
+      migration_changed: ${{ needs.preflight.outputs.migration_changed }}
+      requires_production_migration: ${{ needs.preflight.outputs.requires_production_migration }}
+      requires_scheduler_provision: ${{ needs.preflight.outputs.requires_scheduler_provision }}
+      deployment_url: ${{ needs.candidate_build.outputs.deployment_url }}
+      workflow_started_at: ${{ github.run_started_at }}
+    secrets: inherit

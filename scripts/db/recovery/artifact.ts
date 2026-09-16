@@ -2,7 +2,11 @@ import { performance } from "node:perf_hooks";
 import { spawnSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
-import type { ProductionBackupEnvironment, RecoveryArtifactClass } from "./environment";
+import {
+  recoveryArtifactKindForClass,
+  type ProductionBackupEnvironment,
+  type RecoveryArtifactClass,
+} from "./environment";
 import {
   RECOVERY_FORMAT_VERSION,
   serializeCompletionMarker,
@@ -36,6 +40,9 @@ export interface RecoveryArtifactResult {
 /** Finalize one encrypted, immutable R2 recovery artifact for backup/checkpoint callers. */
 export function publishRecoveryArtifact(input: RecoveryArtifactInput): RecoveryArtifactResult {
   const { environment, backupClass, runId, createdAt, tempRoot, stagingRoot, manifest } = input;
+  if (manifest.backupClass !== backupClass || manifest.artifactKind !== recoveryArtifactKindForClass(backupClass)) {
+    throw new Error("Recovery artifact manifest kind/class 不匹配；canonical artifact aborted。 ");
+  }
   const manifestPath = join(stagingRoot, "manifest.json");
   writeFileSync(manifestPath, serializeManifest(manifest), { flag: "wx" });
 
@@ -59,6 +66,7 @@ export function publishRecoveryArtifact(input: RecoveryArtifactInput): RecoveryA
     artifactSha256,
     manifestSha256,
     createdAt,
+    artifactKind: manifest.artifactKind,
     backupClass,
   };
   writeFileSync(sidecarPath, serializeSidecar(sidecar), { flag: "wx" });
@@ -71,6 +79,7 @@ export function publishRecoveryArtifact(input: RecoveryArtifactInput): RecoveryA
     artifactKey: keys.artifact,
     artifactSha256,
     manifestSha256,
+    artifactKind: manifest.artifactKind,
     completedAt: new Date().toISOString(),
   };
   writeFileSync(completionPath, serializeCompletionMarker(completion), { flag: "wx" });
@@ -79,20 +88,20 @@ export function publishRecoveryArtifact(input: RecoveryArtifactInput): RecoveryA
   const r2 = createR2Client(environment.r2);
   r2.put(artifactPath, keys.artifact, {
     contentType: "application/octet-stream",
-    metadata: { sha256: artifactSha256, "run-id": runId, "backup-class": backupClass },
+    metadata: { sha256: artifactSha256, "run-id": runId, "backup-class": backupClass, "artifact-kind": manifest.artifactKind },
   });
   verifyR2Object(r2, keys.artifact, artifactPath, join(tempRoot, "artifact.readback"));
 
   r2.put(sidecarPath, keys.manifest, {
     contentType: "application/json",
-    metadata: { sha256: sidecarSha256, "run-id": runId, "backup-class": backupClass },
+    metadata: { sha256: sidecarSha256, "run-id": runId, "backup-class": backupClass, "artifact-kind": manifest.artifactKind },
   });
   verifyR2Object(r2, keys.manifest, sidecarPath, join(tempRoot, "manifest.readback"));
 
   const completionSha256 = sha256File(completionPath);
   r2.put(completionPath, keys.completion, {
     contentType: "application/json",
-    metadata: { sha256: completionSha256, "run-id": runId, "backup-class": backupClass },
+    metadata: { sha256: completionSha256, "run-id": runId, "backup-class": backupClass, "artifact-kind": manifest.artifactKind },
   });
   verifyR2Object(r2, keys.completion, completionPath, join(tempRoot, "completion.readback"));
   console.log(`timing R2 upload/readback: ${Math.round(performance.now() - r2Start)}ms`);

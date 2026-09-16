@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -15,7 +15,9 @@ beforeAll(() => {
   runGit(["config", "user.email", "rivalhub-release-plan@example.invalid"]);
   runGit(["config", "user.name", "RivalHub Release Plan Test"]);
   writePackageVersion("2.10.0");
+  writeReleaseTimeCapabilities(false);
   runGit(["add", "package.json"]);
+  runGit(["add", "scripts/release/release-time-capabilities.json"]);
   runGit(["commit", "--quiet", "-m", "baseline"]);
   previousReleaseCommit = runGit(["rev-parse", "HEAD"]);
   writePackageVersion("2.10.1");
@@ -44,6 +46,12 @@ function writePackageVersion(version: string): void {
     scripts: { build: "next build" },
     dependencies: { next: "16.0.0" },
   }, null, 2) + "\n");
+}
+
+function writeReleaseTimeCapabilities(storageMutation: boolean): void {
+  const path = join(fixtureDirectory, "scripts/release/release-time-capabilities.json");
+  mkdirSync(join(fixtureDirectory, "scripts/release"), { recursive: true });
+  writeFileSync(path, JSON.stringify({ storageMutation }, null, 2) + "\n");
 }
 
 describe("release plan", () => {
@@ -90,21 +98,53 @@ describe("release plan", () => {
     expect(result.requiresDbCheckpoint).toBe(true);
   });
 
-  it("separates Storage, scheduler, release, and recovery infrastructure flags", () => {
+  it("does not confuse application Storage callers with release-time Storage mutation", () => {
     const result = plan([
       { status: "M", paths: ["src/components/teams/TeamLogoUpload.tsx"] },
       { status: "M", paths: ["src/actions/season-public-info.ts"] },
       { status: "M", paths: ["src/lib/education/retention.ts"] },
-      { status: "M", paths: ["src/app/api/cron/draft-timeout/route.ts"] },
+      { status: "M", paths: ["src/app/admin/settings/page.tsx"] },
+      { status: "M", paths: ["src/components/admin/SchedulerHealthPanel.tsx"] },
+      { status: "M", paths: ["src/lib/scheduler/execution.ts"] },
+      { status: "M", paths: ["package.json"] },
       { status: "M", paths: ["scripts/release/plan.ts"] },
       { status: "M", paths: ["scripts/db/recovery/manifest.ts"] },
     ]);
 
     expect(result.applicationChanged).toBe(true);
-    expect(result.storageMutationChanged).toBe(true);
-    expect(result.schedulerChanged).toBe(true);
+    expect(result.storageMutationChanged).toBe(false);
+    expect(result.schedulerChanged).toBe(false);
     expect(result.releaseInfraChanged).toBe(true);
     expect(result.recoveryInfraChanged).toBe(true);
+    expect(result.requiresFullCheckpoint).toBe(false);
+  });
+
+  it("requires a full checkpoint only when the release-time capability declares a Storage mutation", () => {
+    writeReleaseTimeCapabilities(true);
+    runGit(["add", "scripts/release/release-time-capabilities.json"]);
+    runGit(["commit", "--quiet", "-m", "enable release-time storage capability"]);
+    const capabilityReleaseSha = runGit(["rev-parse", "HEAD"]);
+    const result = buildReleasePlan({
+      cwd: fixtureDirectory,
+      releaseSha: capabilityReleaseSha,
+      previousReleaseCommit,
+      entries: [{ status: "M", paths: ["scripts/release/release-time-capabilities.json"] }],
+    });
+
+    expect(result.storageMutationChanged).toBe(true);
     expect(result.requiresFullCheckpoint).toBe(true);
+  });
+
+  it("only provisions the production scheduler for its provisioning contract", () => {
+    const runtime = plan([{ status: "M", paths: ["src/lib/scheduler/execution.ts"] }]);
+    const route = plan([{ status: "M", paths: ["src/app/api/cron/draft-timeout/route.ts"] }]);
+    const definitions = plan([{ status: "M", paths: ["src/lib/scheduler/definitions.ts"] }]);
+    const unknownOwnerPath = plan([{ status: "A", paths: ["src/lib/scheduler/provider-contract.ts"] }]);
+
+    expect(runtime.schedulerChanged).toBe(false);
+    expect(runtime.requiresSchedulerProvision).toBe(false);
+    expect(route.schedulerChanged).toBe(false);
+    expect(definitions.schedulerChanged).toBe(true);
+    expect(unknownOwnerPath.schedulerChanged).toBe(true);
   });
 });

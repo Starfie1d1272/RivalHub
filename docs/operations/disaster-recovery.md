@@ -4,11 +4,11 @@
 
 ## 目标与当前边界
 
-RivalHub 使用 Recovery format 2 的全量 logical snapshot：production Supabase 数据库与真实 Storage objects 共享一个 run identity，runner 在临时目录生成明文、计算 checksum、压缩后用 age 公钥加密，最后只上传 private Cloudflare R2 中的 encrypted artifact、sidecar manifest 和 completion marker。`producer` 是生成工具的 code/package identity；`source` 是备份时 production 实际部署的 release/commit 与 database migration terminal；两者可以不同。
+RivalHub 使用 Recovery format 2 的 typed recovery artifact：full artifact 将 production Supabase 数据库与真实 Storage objects 绑定到同一个 run identity；DB-only checkpoint 只捕获 logical database。runner 在临时目录生成明文、计算 checksum、压缩后用 age 公钥加密，最后只上传 private Cloudflare R2 中的 encrypted artifact、sidecar manifest 和 completion marker。`producer` 是生成工具的 code/package identity；`source` 是备份时 production 实际部署的 release/commit 与 database migration terminal；两者可以不同。
 
 数据恢复目标与窗口定义如下：
 
-- **RPO**：正常情况下日常定时备份保障 RPO ≤ 24h；关键比赛日或高价值操作前后，可按需手动触发 manual backup。Release 不再机械触发 full backup：只有 Release Plan 识别到 Storage object mutation 时才创建 full checkpoint，识别到不可逆数据库变更时创建 DB-only checkpoint。
+- **RPO**：正常情况下日常定时备份保障 RPO ≤ 24h；关键比赛日或高价值操作前后，可按需手动触发 manual backup。Release 不再机械触发 full backup：只有 Release Plan 识别到 release-time Storage mutation capability（发布过程将不可逆修改既有 Production Storage object）时才创建 full checkpoint，识别到不可逆数据库变更时创建 DB-only checkpoint。
 - **RTO**：在第一次真实 production snapshot → isolated restore drill 完成前，achievable RTO 保持为 `unverified`，待首次演练测定后记录真实基线。
 
 数据库 dump 与 Storage inventory/download 是顺序操作，不是跨系统原子快照；`createdAt` 是 run identity，不代表严格 point-in-time。backup 在 database dump 前由 [`storage-policy.ts`](../../scripts/db/recovery/storage-policy.ts) 读取 managed references，Storage snapshot 完成后再次读取；两次 reference set 必须 exact equal，且第一组 references 必须全部出现在同一份 Storage inventory 中，否则整个 run fail closed。
@@ -32,6 +32,7 @@ RivalHub 使用 Recovery format 2 的全量 logical snapshot：production Supaba
 artifact 逻辑内容为：
 
 ```text
+# full artifact
 backup/
 ├── roles.sql
 ├── schema.sql
@@ -41,11 +42,18 @@ backup/
 │   ├── index.ndjson
 │   └── objects/*.bin
 └── manifest.json
+
+# db-checkpoint artifact
+backup/
+├── roles.sql
+├── schema.sql
+├── data.sql
+└── manifest.json
 ```
 
-`manifest.json` 包含 format version、UTC 时间、固定 production project identity、PostgreSQL/Supabase CLI identity、SQL digest、Storage count/bytes/inventory digest 和 backup class。Storage private object key 只存在于 encrypted artifact 的 `index.ndjson`，不进入 CI summary、Issue 或 PR。
+`manifest.json` 包含 format version、UTC 时间、固定 production project identity、PostgreSQL/Supabase CLI identity、`artifactKind`、SQL digest、以及 full artifact 的 Storage count/bytes/inventory digest 和 backup class。Release Plan 的 `scripts/release/release-time-capabilities.json` 单独声明发布过程是否具备 release-time Storage mutation capability；业务源码路径不会改变 artifact kind。Storage private object key 只存在于 encrypted full artifact 的 `index.ndjson`，不进入 CI summary、Issue 或 PR。
 
-DB-only release checkpoint 使用 `backupClass=release-db`，仍包含完整 logical database dump、manifest/checksum、encrypted artifact、sidecar 与 completion marker，但 Storage inventory 固定为空；它不连接 Supabase Storage，也不代替 full recovery snapshot。`daily`、`manual` 和按需 `pre-release` artifact 才包含真实 Storage inventory/object copy。
+DB-only release checkpoint 使用 `artifactKind=db-checkpoint` 与 `backupClass=release-db`，只包含 logical database dump、manifest/checksum、encrypted artifact、sidecar 与 completion marker；artifact 中没有 Storage snapshot，也不连接 Supabase Storage。`db:recovery:restore` 只接受 `artifactKind=full`，DB-only 产物必须使用显式的 `db:recovery:restore-db-checkpoint` 数据库恢复/验证 contract，不能把“未采集 Storage”伪装成空 Storage snapshot。`daily`、`manual` 和按需 `pre-release` artifact 才包含真实 Storage inventory/object copy，并使用 `artifactKind=full`。
 
 ## Storage policy 与 retention 语义
 
@@ -121,7 +129,7 @@ Cloudflare 默认的 `Default Multipart Abort Rule` 只清理 incomplete multipa
 
 所有 `daily`、`pre-release`、`manual`、`release-db` 产物均归属于 `production/` 前缀，30 天内由 Cloudflare R2 bucket lock 保护不可被覆盖或删除，30 天后由 lifecycle 规则自动清理。字段与 API payload 以 [Cloudflare R2 Lifecycle API](https://developers.cloudflare.com/api/resources/r2/subresources/buckets/subresources/lifecycle/)、[Object lifecycles](https://developers.cloudflare.com/r2/buckets/object-lifecycles/) 和 [Bucket Lock API](https://developers.cloudflare.com/api/resources/r2/subresources/buckets/subresources/locks/) 为准。
 
-`release.yml` 与 `recovery-backup.yml` 共享 `rivalhub-production-state-serialization` concurrency group（`queue: max`、`cancel-in-progress: false`），确保 backup dump 与 release migration 不发生竞态；`.github/workflows/recovery-r2.yml` 属于独立的 provider 对象策略管理工作流，不参与生产数据库状态排队。
+`recovery-backup.yml` 与 release finalize reusable workflow 中真正执行 production migration/scheduler mutation 的 job 共享 `rivalhub-production-state-serialization` concurrency group（`queue: max`、`cancel-in-progress: false`），确保 backup dump 与 production state mutation 不发生竞态。Release workflow 使用独立的 `rivalhub-release-lineage` workflow-level group，让 release 与 release 保持 lineage 串行，同时 application-only release 不因 daily backup 的 production-state lock 排队；candidate build、PG17 rehearsal 和 checkpoint 也不持有该 backup lock。`.github/workflows/recovery-r2.yml` 属于独立的 provider 对象策略管理工作流，不参与生产数据库状态排队。
 
 ## Backup 命令与失败语义
 
@@ -134,7 +142,7 @@ pnpm db:recovery:backup pre-release
 pnpm db:recovery:checkpoint
 ```
 
-`db:recovery:backup` 必须通过 production target/project/host/URL、Session Pooler、Supabase key、age recipient 与 R2 writer 校验；`db:recovery:checkpoint` 只通过 production database、age recipient 与 R2 writer 校验。两者都不要求 remote DB write authorization，也不执行 application mutation。任何 database dump、policy-owned reference read、Storage snapshot（full backup/checkpoint）、加密、R2 PUT/HEAD/real GET/hash read-back 失败，整个 run 失败且不得产生可信 completion 状态；workflow 不上传明文 Actions artifact。
+`db:recovery:backup` 必须通过 production target/project/host/URL、Session Pooler、Supabase key、age recipient 与 R2 writer 校验；`db:recovery:checkpoint` 只通过 production database、age recipient 与 R2 writer 校验。两者都不要求 remote DB write authorization，也不执行 application mutation。任何 database dump、policy-owned reference read、full artifact 的 Storage snapshot、加密、R2 PUT/HEAD/real GET/hash read-back 失败，整个 run 失败且不得产生可信 completion 状态；DB-only checkpoint 不读取 Storage，workflow 不上传明文 Actions artifact。
 
 `pnpm db:recovery:checkpoint` 是不可逆 migration 的 DB-only gate：它只要求 database、age recipient 与 R2 credentials，不要求 Supabase Storage secret；完成 marker 出现前，Release 不得执行 production mutation。普通 application-only、forward-compatible migration 或仅 Vercel/release infra 的发布不自动执行上述 backup/checkpoint。
 
@@ -173,10 +181,19 @@ export RIVALHUB_BACKUP_AGE_IDENTITY_FILE='/private/path/recovery-identity.txt'
 unset RIVALHUB_ALLOW_REMOTE_DB_WRITE
 ```
 
-restore 必须运行在 exact shipped tag 的兼容 application release；它按 snapshot 的 migration terminal 截取 active prefix，不自动推进 fresh target，也不 downgrade 既有 ledger。目标已有 application/Auth/Storage rows 或 Drizzle migrations 时拒绝继续，必须换 disposable target。
+full restore 必须运行在 exact shipped tag 的兼容 application release；它按 snapshot 的 migration terminal 截取 active prefix，不自动推进 fresh target，也不 downgrade 既有 ledger。目标已有 application/Auth/Storage rows 或 Drizzle migrations 时拒绝继续，必须换 disposable target。DB-only restore 同样要求 exact shipped tag 与 fresh isolated PostgreSQL target，但不要求 Supabase API/Storage credentials。
 
 ```bash
 pnpm db:recovery:restore \
+  --artifact /private/path/new-recovery-run/artifact.tar.gz.age \
+  --manifest /private/path/new-recovery-run/sidecar.json \
+  --completion /private/path/new-recovery-run/completion.json
+```
+
+上面的 `db:recovery:restore` 是 full recovery restore，只接受 `artifactKind=full`，要求 isolated Supabase API/Storage target。DB-only checkpoint 使用下面的显式入口；它只接受 `artifactKind=db-checkpoint`，只要求 isolated PostgreSQL target，不读取或写入 Supabase Storage：
+
+```bash
+pnpm db:recovery:restore-db-checkpoint \
   --artifact /private/path/new-recovery-run/artifact.tar.gz.age \
   --manifest /private/path/new-recovery-run/sidecar.json \
   --completion /private/path/new-recovery-run/completion.json
@@ -193,6 +210,17 @@ sidecar/completion/artifact checksum
 → canonical education retention reconciliation
 → policy-driven Storage bucket/object restore + per-object read-back
 → final DB/domain/privacy verification + application smoke
+```
+
+DB-only restore 使用独立的简化顺序：
+
+```text
+sidecar/completion/artifact checksum
+→ age decrypt + safe archive inspection（拒绝任何 Storage snapshot）
+→ artifactKind=db-checkpoint + compatible shipped release
+→ fresh PostgreSQL target empty check + exact migration prefix
+→ DB data restore + database integrity/domain verification
+→ explicit DB-only verification summary（Storage=not-captured）
 ```
 
 `roles.sql` 只作审查证据，不由普通 isolated command 自动回放；`schema.sql` 也不是 replay input，目标 schema 由 active migration prefix 重建。恢复后的 active business copy 继续遵守 7 天 policy；旧 snapshot 中过期或失去 active reference 的 temporary-sensitive evidence 不重新激活。
@@ -219,7 +247,7 @@ Verifier 分为两层：
 | Supabase | project/plan；physical backup/PITR capability 与 retention；Auth settings/API keys；Realtime settings；required DB extensions/settings；Storage bucket/config；Edge Functions/triggers/policies |
 | Cloudflare R2 | account/bucket identity；30d lifecycle/lock；managed/custom domain disabled；标准 S3 credentials presence |
 | Vercel | project/Production target；Trusted Source issuer/audience/claims；deployment protection remains enabled |
-| GitHub | `production` Environment；required secrets/vars presence；OIDC `id-token: write`；release/recovery workflow permissions；concurrency group |
+| GitHub | `production` Environment；required secrets/vars presence；OIDC `id-token: write`；release/recovery workflow permissions；`rivalhub-release-lineage` 与 `rivalhub-production-state-serialization` concurrency groups |
 | Scheduler | pg_cron/pg_net capability；named schedules；Vault secret names；provision/verify owner |
 
 Supabase database backup 不包含 Storage objects；clone/restore 还需人工重建上述 Storage/Auth/Realtime/extension/provider 配置。没有 provider read-back 时，不能把 automatic backup、PITR、scheduler 或 cutover 写成已可用；R2 logical snapshot 也不能代替 provider physical backup。

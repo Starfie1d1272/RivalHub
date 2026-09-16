@@ -13,6 +13,7 @@ const RECOVERY_TARGET = "isolated" as const;
 
 export type BackupClass = "daily" | "pre-release" | "manual";
 export type RecoveryArtifactClass = BackupClass | "release-db";
+export type RecoveryArtifactKind = "full" | "db-checkpoint";
 
 const BACKUP_CLASSES: readonly BackupClass[] = ["daily", "pre-release", "manual"];
 const RECOVERY_ARTIFACT_CLASSES: readonly RecoveryArtifactClass[] = [...BACKUP_CLASSES, "release-db"];
@@ -41,6 +42,10 @@ export interface R2ObjectEnvironment {
 export interface IsolatedRecoveryEnvironment {
   databaseUrl: string;
   supabase: LocalSupabaseStatus;
+}
+
+export interface IsolatedRecoveryDatabaseEnvironment {
+  databaseUrl: string;
 }
 
 export function assertProductionBackupEnvironment(
@@ -173,6 +178,17 @@ export function assertRecoveryArtifactClass(value: string | undefined): Recovery
   return value as RecoveryArtifactClass;
 }
 
+export function recoveryArtifactKindForClass(value: RecoveryArtifactClass): RecoveryArtifactKind {
+  return value === "release-db" ? "db-checkpoint" : "full";
+}
+
+export function assertRecoveryArtifactKind(value: string | undefined): RecoveryArtifactKind {
+  if (value !== "full" && value !== "db-checkpoint") {
+    throw new Error("recovery artifact kind 必须是 full | db-checkpoint。 ");
+  }
+  return value;
+}
+
 export function buildIsolatedRecoveryEnvironment(
   env: Readonly<Record<string, string | undefined>> = process.env,
   localStatus?: LocalSupabaseStatus,
@@ -187,6 +203,12 @@ export function buildIsolatedRecoveryEnvironment(
     throw new Error("Recovery database 与 Supabase status 不一致；拒绝继续。 ");
   }
   return { databaseUrl, supabase };
+}
+
+export function buildIsolatedRecoveryDatabaseEnvironment(
+  env: Readonly<Record<string, string | undefined>> = process.env,
+): IsolatedRecoveryDatabaseEnvironment {
+  return { databaseUrl: assertIsolatedRecoveryDatabaseUrl(env) };
 }
 
 export function assertIsolatedRecoveryDatabaseUrl(

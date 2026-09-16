@@ -38,7 +38,7 @@ export function commandFor(name, projectName, relatedSources = [], explicitTests
     case "dead-code":
       return ["exec", "bash", "-c", "pnpm knip && pnpm knip --production"];
     case "build":
-      return ["exec", "env", "-u", "DATABASE_URL", "next", "build"];
+      return ["exec", "node", "scripts/ci/hermetic-production-build.mjs"];
     default:
       const fullTask = projectName === "unit-domain-node" ? "unit-domain"
         : projectName === "unit-server-node" ? "unit-server"

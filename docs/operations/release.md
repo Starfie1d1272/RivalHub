@@ -25,17 +25,24 @@ validate tag belongs to main
 → freeze previous Production identity (tag + commit)
 → generate machine-readable Release Plan from previousReleaseCommit → RELEASE_SHA
 → verify exact-SHA CI prerequisite (canonical push run on main = success)
-→ if migrationChanged: `db:check` + N/N+1 compatibility || PostgreSQL 17 active-chain replay
-→ if irreversible migration: DB-only encrypted R2 checkpoint; if Storage mutation: full checkpoint
-→ if requiresProductionMigration: migrate + verify production database
-→ if fresh: deploy staged candidate → OIDC smoke → `scripts/release/routing.ts`
-→ if requiresSchedulerProvision: provision + verify production scheduler
+├─ if migrationChanged: `db:check` + N/N+1 compatibility
+├─ if migrationChanged: PostgreSQL 17 active-chain replay
+├─ if irreversible migration: DB-only encrypted R2 checkpoint
+├─ if release-time Storage mutation capability: full encrypted R2 checkpoint
+└─ if fresh: staged candidate build/deploy + OIDC smoke
+   ↓ all pre-promotion evidence complete
+release lineage gate (`rivalhub-release-lineage`)
+→ if requiresProductionMigration: production migration + verify
+→ if fresh: `scripts/release/routing.ts`
+→ if requiresSchedulerProvision: scheduler provision + verify
 → publish/update Production-delta GitHub Release notes
 ```
 
-`scripts/release/plan.ts` 是 Release Plan 的唯一 owner。它只使用已冻结的 `previousReleaseCommit` 与当前 `RELEASE_SHA`，输出 `applicationChanged`、`migrationChanged`、`migrationRisk`、`storageMutationChanged`、`schedulerChanged`、`recoveryInfraChanged`、`releaseInfraChanged` 以及 `requiresMigrationRehearsal`、`requiresProductionMigration`、`requiresDbCheckpoint`、`requiresFullCheckpoint`、`requiresSchedulerProvision`。无法识别的 migration SQL 按 `irreversible` 处理并要求 DB checkpoint；不根据 commit message 猜测风险。scheduler definition、provisioning/verification owner、cron/auth 或相关 secret contract 的不确定变更按需要 provision fail closed。
+PG17 rehearsal、checkpoint 与 candidate build 在 preflight 完成后并行；candidate build 不等待数据库证据。Release workflow 使用独立的 `rivalhub-release-lineage` workflow-level concurrency，called finalize workflow 只让真正的 production migration/scheduler mutation job 与 daily backup 共享 `rivalhub-production-state-serialization`，因此 application-only release 不因 daily backup 排队。
 
-因此，application-only 或纯 release metadata 发布不会启动 PostgreSQL 17、Local Supabase、Storage snapshot、生产 migration 或备份；没有 Storage mutation 的普通 source/migration/Vercel deploy 也不会触发 full checkpoint。只有 Storage object mutation 才要求 full checkpoint，破坏性/不可逆数据库变更要求 DB-only checkpoint。
+`scripts/release/plan.ts` 是 Release Plan 的唯一 owner。它只使用已冻结的 `previousReleaseCommit` 与当前 `RELEASE_SHA`，输出 `applicationChanged`、`migrationChanged`、`migrationRisk`、`storageMutationChanged`、`schedulerChanged`、`recoveryInfraChanged`、`releaseInfraChanged` 以及 `requiresMigrationRehearsal`、`requiresProductionMigration`、`requiresDbCheckpoint`、`requiresFullCheckpoint`、`requiresSchedulerProvision`。`scripts/release/release-time-capabilities.json` 是 release-time capability 的显式声明：当前 `storageMutation=false`，只有 Release/operation 确实会不可逆写入既有 Production Storage object 时才允许改为 `true`；业务上传、Storage retention 或普通 Vercel/source 变更不会通过路径推断触发 full checkpoint。无法识别的 migration SQL 按 `irreversible` 处理并要求 DB checkpoint；不根据 commit message 猜测风险。scheduler definition、provisioning/verification owner、cron/auth 或相关 secret contract 才会触发 provision；现有 endpoint implementation、health/admin UI 不触发，canonical scheduler namespace 中无法识别的文件则 fail closed 到 provision。
+
+因此，application-only 或纯 release metadata 发布不会启动 PostgreSQL 17、Local Supabase、Storage snapshot、生产 migration 或备份；普通 source/migration/Vercel deploy 也不会触发 full checkpoint，除非发布过程自身具备会不可逆修改既有 Production Storage object 的 release-time capability。破坏性/不可逆数据库变更要求 DB-only checkpoint。
 
 关键安全与执行边界：
 
@@ -43,13 +50,13 @@ validate tag belongs to main
 2. **Exact-SHA CI prerequisite**：Release 必须验证当前 immutable tag 对应的 `RELEASE_SHA` 在 `main` 上的 canonical CI push run 结果为 `completed && success`；在途 run 进行 bounded poll，missing/failed/cancelled/timed out 全部 fail closed。
 3. **PG17 migration rehearsal**：`migration_rehearsal` job 使用 plain `postgres:17` service，调用 `pnpm db:release-rehearsal`；该入口复用 `preparePg17Database()` 与 `scripts/db/migration-replay.ts`。CI PostgreSQL lane、Release rehearsal 和本地 `db:local:migrate` 不再各自维护第二套 replay runner，不启动 Local Supabase 的 Auth/Storage/browser 服务。
 4. **Conditional recovery checkpoint**：`checkpoint` 是独立 protected job。DB-only checkpoint 只执行 logical DB dump、manifest/checksum、age 加密、private R2 PUT/HEAD/real GET read-back；full checkpoint 才读取 Storage inventory/objects。两者共用 `scripts/db/recovery/artifact.ts` 的 artifact/sidecar/completion owner。
-5. **Hermetic production build**：`scripts/vercel-build.ts` 只校验 production release markers 后构建，不连接 live production DB；DB compatibility、migration/verify 和 exact candidate smoke 分别由 Release workflow 的对应 gate 负责。
-6. **Staged Production deployment**：使用 `vercel deploy --prod --skip-domain` 在 Production 环境完成构建，但不将生产域名指向该 candidate；先用短期 GitHub OIDC token 对 exact candidate URL 完成 `/` 与 `/api/system/release` smoke 验证。
+5. **Hermetic production build**：`scripts/ci/hermetic-production-build.mjs` 在 CI 中真实走 `VERCEL_ENV=production` 的 `vercel.json → scripts/vercel-build.ts` 分支，注入有效的 synthetic release markers，并显式移除 DB/Supabase privileged credentials；该分支只构建，不连接 live production DB。DB compatibility、migration/verify 和 exact candidate smoke 分别由 Release workflow 的对应 gate 负责。
+6. **Staged Production deployment**：使用 `vercel deploy --prod --skip-domain` 在 Production 环境完成构建，但不将生产域名指向该 candidate；先用短期 GitHub OIDC token 对 exact candidate URL 完成 `/` 与 `/api/system/release` smoke 验证。candidate build 与 PG17/checkpoint 并行，routing 仍在 release lineage gate 内执行。
 7. **Promotion / rollback boundary**：Candidate smoke 通过后，唯一 executable owner `scripts/release/routing.ts`（workflow 通过 `pnpm release:routing` 调用）只消费 release 开始时冻结的 previous Production identity，并在任何 routing mutation 前冻结 previous deployment 与 candidate deployment 的 project/target/readiness。它通过 `scripts/release/vercel-routing.ts` 复用 Vercel REST API `POST /v10/projects/{projectId}/promote/{deploymentId}` 与 `POST /v1/projects/{projectId}/rollback/{deploymentId}`，不调用需要 user-scope lookup 的 CLI；promote 不触发二次构建。YAML 只负责 protected config 与 controller wiring。Issue #637 不改变 Issue #636 routing owner 或 semantics。
 8. **Same-tag resume**：若某次 run 已完成 promote，canonical Production 已等于 candidate，但后续 scheduler 或 GitHub Release 步骤失败，retry 不得把 candidate 自己当作 previous，也不得重新执行 checkpoint/migration/deploy/routing。此时 workflow dispatch 必须显式提供首次 run 冻结的 `previous_release_tag` / `previous_release_commit`；脚本验证 canonical 已精确等于 candidate、previous pair 合法且位于 candidate ancestry 后设置 `RIVALHUB_RELEASE_MODE=resume`，仅继续幂等的 post-promotion 步骤。若 canonical 仍是旧版，则这些 resume inputs 反而是错误配置并 fail closed，正常走 fresh path。
-9. **Phase timing evidence**：各阶段耗时由 `scripts/ci/timing.mjs` 统一记录并写入 Step Summary，至少区分 Release Plan、bootstrap、PG17 replay、DB-only/full checkpoint、production migration、candidate build/smoke、routing、scheduler、GitHub Release 与 Total。
+9. **Phase timing evidence**：各阶段耗时由 `scripts/ci/timing.mjs` 统一记录并写入 Step Summary，至少区分 Release Plan、bootstrap、PG17 replay、DB-only/full checkpoint、production migration、candidate build/smoke、routing、scheduler、GitHub Release 与 Total。最终 publish job 使用调用 workflow 的 `github.run_started_at` 作为 `Total` 起点，覆盖 job waiting 与并行阶段。
 
-production secrets、target confirmations 与 remote-write authorization 只存在于 protected production Environment/canonical wrappers。`VERCEL_TOKEN` 必须是 project-scoped credential，仅用于 exact production deployment、project-scoped promotion/rollback API calls；不得为了解决 CLI scope lookup 改用 Full Account/user/team token。Release job 使用 `id-token: write`，在运行时向 GitHub OIDC endpoint 申请短期 token，audience 为 `https://github.com/Starfie1d1272`；protected exact `https://<deployment>.vercel.app` smoke 只发送 `x-vercel-trusted-oidc-idp-token`。canonical `https://match.starfie1d.top` 使用普通 HTTPS read-back，不携带 OIDC header。
+production secrets、target confirmations 与 remote-write authorization 只存在于 protected production Environment/canonical wrappers。`VERCEL_TOKEN` 必须是 project-scoped credential，仅用于 exact production deployment、project-scoped promotion/rollback API calls；不得为了解决 CLI scope lookup 改用 Full Account/user/team token。`candidate_build` job 使用 `id-token: write`，在运行时向 GitHub OIDC endpoint 申请短期 token，audience 为 `https://github.com/Starfie1d1272`；protected exact `https://<deployment>.vercel.app` smoke 只发送 `x-vercel-trusted-oidc-idp-token`。canonical `https://match.starfie1d.top` 使用普通 HTTPS read-back，不携带 OIDC header。
 
 不得使用长期 bypass secret、Full Account/user/team token 或降低 Deployment Protection 代替 Trusted Source。deployment URL 与 canonical domain 的 `/api/system/release` 都必须严格只返回 `releaseTag`、`releaseCommit`，并精确等于对应 immutable tag 与 tag commit；任一失败都阻止后续 release。要求 checkpoint 的 release 中，checkpoint 失败会阻止 production migration；没有相应 mutation 时不创建 checkpoint。
 
@@ -120,7 +127,7 @@ active `education-evidence` business copy 继续是 7 天 retention；encrypted 
 
 ## 5. 并发与重试
 
-`release.yml` 与 `recovery-backup.yml` 共享 `rivalhub-production-state-serialization` group，配置 `queue: max` 与 `cancel-in-progress: false`。这样 release migration 与 backup reference window 不会被互相取消或产生竞态覆盖；`recovery-r2.yml` 是独立 provider config verification workflow，不参与 DB serialization。
+Release workflow 使用 `rivalhub-release-lineage` group，配置 `queue: max` 与 `cancel-in-progress: false`，保持 release 与 release 的 previous/candidate lineage 串行。只有 called finalize workflow 中的 production migration/scheduler mutation jobs 与 `recovery-backup.yml` 共享 `rivalhub-production-state-serialization`，因此 application-only release 不会因 daily backup 排队；`recovery-r2.yml` 是独立 provider config verification workflow，不参与 DB serialization。
 
 workflow dispatch 可以 retry 同一个已存在 tag，但分两种情况：
 
@@ -141,7 +148,7 @@ Recovery acceptance 还要人工确认 Supabase plan/physical backup/PITR、Auth
 
 - tag、实际 release commit、production deployment identity 对齐；
 - previous Production tag/SHA 已冻结并校验，migration compatibility、routing 与 release notes 使用同一 baseline；
-- Release Plan 要求的 DB-only 或 full checkpoint 已完成并通过 R2 HEAD/real GET/hash read-back；application-only、metadata-only 与普通 forward-compatible migration 不机械创建 checkpoint；
+- Release Plan 要求的 DB-only 或 full checkpoint 已完成并通过 R2 HEAD/real GET/hash read-back；application-only、metadata-only、普通 source/migration/Vercel deploy 与普通 forward-compatible migration 不机械创建 full checkpoint；
 - 仅在 Release Plan 标记时执行 production migration/verify、scheduler provision/verify 或 Storage full checkpoint；Vercel protected smoke、canonical identity read-back 始终通过；
 - GitHub Release notes 使用真实 previous Production → current Production delta，failed intermediate tag 不被表述为曾上线；
 - Vercel Trusted Source 已由 owner 配置并以短期 GitHub OIDC exact deployment smoke 证明；

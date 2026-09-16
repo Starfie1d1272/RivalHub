@@ -42,6 +42,7 @@ jobs:
       integration_specs: ${{ steps.plan.outputs.integration_specs }}
       system_mode: ${{ steps.plan.outputs.system_mode }}
       e2e_specs: ${{ steps.plan.outputs.e2e_specs }}
+      mobile_search_evidence: ${{ steps.plan.outputs.mobile_search_evidence }}
       gate_name: ${{ steps.plan.outputs.gate_name }}
       release_metadata_only: ${{ steps.plan.outputs.release_metadata_only }}
     steps:
@@ -225,6 +226,16 @@ jobs:
           PLAYWRIGHT_WORKERS: 1
           RIVALHUB_E2E_SPECS: ${{ needs.plan.outputs.e2e_specs }}
         run: node scripts/ci/timing.mjs "system/E2E body" -- pnpm test:e2e
+
+      - name: Mobile public event search evidence (10x, no retry)
+        if: needs.plan.outputs.mobile_search_evidence == 'true'
+        env:
+          RIVALHUB_TIMING_TEST_KIND: e2e
+          PLAYWRIGHT_CHANNEL: chrome
+          PLAYWRIGHT_WORKERS: 1
+          PLAYWRIGHT_RETRIES: 0
+          RIVALHUB_E2E_SPECS: '["tests/e2e/flows/public-event-experience.spec.ts"]'
+        run: node scripts/ci/timing.mjs "system/mobile public event search ×10" -- pnpm test:e2e -- --project=mobile-chrome --repeat-each=10
 
       - name: Prepare safe system artifacts
         if: failure()

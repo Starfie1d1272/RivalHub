@@ -1,21 +1,27 @@
 import { spawnSync } from "node:child_process";
-import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, relative, resolve } from "node:path";
 import { createClient } from "@supabase/supabase-js";
 import { Pool } from "pg";
 import {
+  buildIsolatedRecoveryDatabaseEnvironment,
   buildIsolatedRecoveryEnvironment,
   parseLocalRecoveryStatus,
   PRODUCTION_PROJECT_REF,
+  type RecoveryArtifactKind,
+  type IsolatedRecoveryDatabaseEnvironment,
   type IsolatedRecoveryEnvironment,
 } from "./environment";
 import {
   assertRecoveryCompletionMarker,
   assertRecoveryManifest,
   assertRecoverySidecar,
+  isFullRecoveryManifest,
   sha256File,
   type RecoveryCompletionMarker,
+  type DbCheckpointManifest,
+  type FullRecoveryManifest,
   type RecoveryManifest,
   type RecoverySidecar,
 } from "./manifest";
@@ -35,15 +41,17 @@ import { readExpectedMigrations, type ExpectedMigration, type Migration } from "
 const projectRoot = resolve(process.cwd());
 const pnpmBin = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
 
+type RestoreMode = "full" | "db-checkpoint";
+
 interface RestoreArguments {
   artifactPath: string;
   manifestPath: string;
   completionPath: string;
+  mode: RestoreMode;
 }
 
 async function main(): Promise<void> {
   const args = parseArguments(process.argv.slice(2));
-  const target = readRecoveryTarget();
   const tempRoot = mkdtempSync(join(tmpdir(), "rivalhub-restore-"));
   const archivePath = join(tempRoot, "backup.tar.gz");
 
@@ -51,6 +59,7 @@ async function main(): Promise<void> {
     const sidecar = readJson(args.manifestPath, assertRecoverySidecar);
     const completion = readJson(args.completionPath, assertRecoveryCompletionMarker);
     assertCompletionMatchesSidecar(completion, sidecar);
+    assertRestoreArtifactMode(sidecar.artifactKind, args.mode);
     assertArtifactMatchesSidecar(args.artifactPath, sidecar);
     decryptArtifact(args.artifactPath, archivePath);
     extractSafeArchive(archivePath, tempRoot);
@@ -62,46 +71,24 @@ async function main(): Promise<void> {
     }
     assertManifestCompatibility(manifest);
     assertSnapshotIdentity(manifest, sidecar);
+    assertRestoreArtifactMode(manifest.artifactKind, args.mode);
     verifyStagedFiles(stagingRoot, manifest);
 
-    const pool = new Pool({ connectionString: target.databaseUrl, ssl: false, max: 1 });
-    try {
-      const expectedBuckets = readStorageBuckets(resolve(stagingRoot, "storage/buckets.json"));
-      await assertRecoveryTargetIsEmpty(pool, expectedBuckets);
-      await ensureTargetMigration(pool, manifest, target.databaseUrl, tempRoot);
-      await prepareTargetForDataImport(pool);
-      applyDatabaseData(target.databaseUrl, resolve(stagingRoot, "data.sql"), tempRoot);
-
-      await verifyRecoveryDatabase(pool, {
-        expectedMigration: manifest.source.databaseMigrationTerminal,
-        skipExpiredSensitiveEvidence: true,
-      });
-      runLifecycleReconciliation(target);
-      const activeStorageReferences = await readManagedStorageReferences(pool);
-      const storageClient = createClient(target.supabase.apiUrl, target.supabase.serviceRoleKey, {
-        auth: { autoRefreshToken: false, persistSession: false },
-      });
-      const bucketCount = await restoreStorageBuckets(storageClient, resolve(stagingRoot, "storage"));
-      if (bucketCount !== manifest.storage.bucketCount) {
-        throw new Error("Restored Storage bucket count does not match the backup manifest; restore aborted. ");
+    if (args.mode === "full") {
+      if (!isFullRecoveryManifest(manifest)) {
+        throw new Error("db-checkpoint artifact 不能由 full recovery restore 恢复；请使用 db:recovery:restore-db-checkpoint。 ");
       }
-      const storageResult = await restoreStorageSnapshot(
-        storageClient,
-        resolve(stagingRoot, "storage"),
-        activeStorageReferences,
+      await restoreFullArtifact(readRecoveryTarget(), manifest, stagingRoot, tempRoot);
+    } else {
+      if (isFullRecoveryManifest(manifest)) {
+        throw new Error("full recovery artifact 不能由 DB-only restore 恢复；请使用 db:recovery:restore。 ");
+      }
+      await restoreDbCheckpointArtifact(
+        buildIsolatedRecoveryDatabaseEnvironment(process.env),
+        manifest,
+        stagingRoot,
+        tempRoot,
       );
-      if (storageResult.restoredObjects + storageResult.skippedInactiveTemporaryObjects !== manifest.storage.objectCount) {
-        throw new Error("Restored Storage object count does not match the backup manifest; restore aborted. ");
-      }
-      if (storageResult.restoredBytes + storageResult.skippedInactiveTemporaryObjectBytes !== manifest.storage.totalBytes) {
-        throw new Error("Restored Storage byte count does not match the backup manifest; restore aborted. ");
-      }
-      await verifyRecoveryDatabase(pool, { expectedMigration: manifest.source.databaseMigrationTerminal });
-      console.log(
-        `Isolated recovery restore verified: run=${manifest.runId}, migration=${manifest.source.databaseMigrationTerminal.terminalTag}, storageObjects=${storageResult.restoredObjects}, skippedInactiveTemporaryObjects=${storageResult.skippedInactiveTemporaryObjects}.`,
-      );
-    } finally {
-      await pool.end();
     }
   } finally {
     rmSync(tempRoot, { recursive: true, force: true });
@@ -120,11 +107,29 @@ function parseArguments(args: readonly string[]): RestoreArguments {
     index += 1;
   }
   const artifactPath = required(values.get("artifact"), "--artifact");
+  const modeValue = values.get("mode");
   return {
     artifactPath,
     manifestPath: required(values.get("manifest"), "--manifest"),
     completionPath: required(values.get("completion"), "--completion"),
+    mode: modeValue === undefined ? "full" : parseRestoreMode(modeValue),
   };
+}
+
+function parseRestoreMode(value: string): RestoreMode {
+  if (value !== "full" && value !== "db-checkpoint") {
+    throw new Error("--mode 必须是 full | db-checkpoint。 ");
+  }
+  return value;
+}
+
+function assertRestoreArtifactMode(artifactKind: RecoveryArtifactKind, mode: RestoreMode): void {
+  const expected = mode === "full" ? "full" : "db-checkpoint";
+  if (artifactKind === expected) return;
+  if (mode === "full") {
+    throw new Error("db-checkpoint artifact 不能由 db:recovery:restore 恢复；请使用 db:recovery:restore-db-checkpoint。 ");
+  }
+  throw new Error("full recovery artifact 不能由 db-checkpoint restore 恢复；请使用 db:recovery:restore。 ");
 }
 
 function readRecoveryTarget(): IsolatedRecoveryEnvironment {
@@ -138,6 +143,77 @@ function readRecoveryTarget(): IsolatedRecoveryEnvironment {
     return buildIsolatedRecoveryEnvironment(environment, status);
   }
   return buildIsolatedRecoveryEnvironment(process.env);
+}
+
+async function restoreFullArtifact(
+  target: IsolatedRecoveryEnvironment,
+  manifest: FullRecoveryManifest,
+  stagingRoot: string,
+  tempRoot: string,
+): Promise<void> {
+  const pool = new Pool({ connectionString: target.databaseUrl, ssl: false, max: 1 });
+  try {
+    const expectedBuckets = readStorageBuckets(resolve(stagingRoot, "storage/buckets.json"));
+    await assertRecoveryTargetIsEmpty(pool, expectedBuckets);
+    await ensureTargetMigration(pool, manifest, target.databaseUrl, tempRoot);
+    await prepareTargetForDataImport(pool);
+    applyDatabaseData(target.databaseUrl, resolve(stagingRoot, "data.sql"), tempRoot);
+
+    await verifyRecoveryDatabase(pool, {
+      expectedMigration: manifest.source.databaseMigrationTerminal,
+      skipExpiredSensitiveEvidence: true,
+    });
+    runLifecycleReconciliation(target);
+    const activeStorageReferences = await readManagedStorageReferences(pool);
+    const storageClient = createClient(target.supabase.apiUrl, target.supabase.serviceRoleKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+    const bucketCount = await restoreStorageBuckets(storageClient, resolve(stagingRoot, "storage"));
+    if (bucketCount !== manifest.storage.bucketCount) {
+      throw new Error("Restored Storage bucket count does not match the backup manifest; restore aborted. ");
+    }
+    const storageResult = await restoreStorageSnapshot(
+      storageClient,
+      resolve(stagingRoot, "storage"),
+      activeStorageReferences,
+    );
+    if (storageResult.restoredObjects + storageResult.skippedInactiveTemporaryObjects !== manifest.storage.objectCount) {
+      throw new Error("Restored Storage object count does not match the backup manifest; restore aborted. ");
+    }
+    if (storageResult.restoredBytes + storageResult.skippedInactiveTemporaryObjectBytes !== manifest.storage.totalBytes) {
+      throw new Error("Restored Storage byte count does not match the backup manifest; restore aborted. ");
+    }
+    await verifyRecoveryDatabase(pool, { expectedMigration: manifest.source.databaseMigrationTerminal });
+    console.log(
+      `Isolated recovery restore verified: run=${manifest.runId}, migration=${manifest.source.databaseMigrationTerminal.terminalTag}, storageObjects=${storageResult.restoredObjects}, skippedInactiveTemporaryObjects=${storageResult.skippedInactiveTemporaryObjects}.`,
+    );
+  } finally {
+    await pool.end();
+  }
+}
+
+async function restoreDbCheckpointArtifact(
+  target: IsolatedRecoveryDatabaseEnvironment,
+  manifest: DbCheckpointManifest,
+  stagingRoot: string,
+  tempRoot: string,
+): Promise<void> {
+  const pool = new Pool({ connectionString: target.databaseUrl, ssl: false, max: 1 });
+  try {
+    await assertRecoveryDatabaseTargetIsEmpty(pool);
+    await ensureTargetMigration(pool, manifest, target.databaseUrl, tempRoot);
+    await prepareTargetForDataImport(pool);
+    applyDatabaseData(target.databaseUrl, resolve(stagingRoot, "data.sql"), tempRoot);
+    const verification = await verifyRecoveryDatabase(pool, {
+      expectedMigration: manifest.source.databaseMigrationTerminal,
+      skipExpiredSensitiveEvidence: true,
+    });
+    console.log(
+      `Isolated DB-only recovery restore verified: run=${manifest.runId}, migration=${manifest.source.databaseMigrationTerminal.terminalTag}, storage=not-captured, invariants=${verification.invariantCount}, foreignKeys=${verification.foreignKeyCount}.`,
+    );
+  } finally {
+    await pool.end();
+  }
 }
 
 function readLocalSupabaseStatus() {
@@ -159,6 +235,7 @@ function assertCompletionMatchesSidecar(
     || completion.artifactKey !== sidecar.artifactKey
     || completion.artifactSha256 !== sidecar.artifactSha256
     || completion.manifestSha256 !== sidecar.manifestSha256
+    || completion.artifactKind !== sidecar.artifactKind
   ) {
     throw new Error("Recovery completion marker does not match the artifact sidecar; restore aborted. ");
   }
@@ -226,6 +303,12 @@ function verifyStagedFiles(stagingRoot: string, manifest: RecoveryManifest): voi
       throw new Error("Recovery database dump checksum mismatch; restore aborted. ");
     }
   }
+  if (manifest.artifactKind === "db-checkpoint") {
+    if (existsSync(resolve(stagingRoot, "storage"))) {
+      throw new Error("db-checkpoint artifact 不得包含 Storage snapshot；restore aborted. ");
+    }
+    return;
+  }
   const bucketsPath = resolve(stagingRoot, "storage/buckets.json");
   const indexPath = resolve(stagingRoot, "storage/index.ndjson");
   assertStagedPath(stagingRoot, bucketsPath);
@@ -260,6 +343,7 @@ function assertSnapshotIdentity(manifest: RecoveryManifest, sidecar: RecoverySid
   if (
     manifest.runId !== sidecar.runId
     || manifest.createdAt !== sidecar.createdAt
+    || manifest.artifactKind !== sidecar.artifactKind
     || manifest.backupClass !== sidecar.backupClass
     || sidecar.artifactKey !== buildRecoveryR2Keys(manifest.backupClass, manifest.runId, manifest.createdAt).artifact
   ) {
@@ -297,6 +381,25 @@ async function assertRecoveryTargetIsEmpty(pool: Pool, expectedBuckets: readonly
     );
     if (Number(result.rows[0]?.count ?? 0) > 0) {
       throw new Error("Recovery target is not empty; use a fresh isolated target and retry. ");
+    }
+  }
+}
+
+async function assertRecoveryDatabaseTargetIsEmpty(pool: Pool): Promise<void> {
+  const tables = await pool.query<{ schema_name: string; table_name: string }>(
+    `SELECT schemaname AS schema_name, tablename AS table_name
+     FROM pg_catalog.pg_tables
+     WHERE schemaname = ANY($1::text[])
+       AND NOT (schemaname = 'auth' AND tablename = 'schema_migrations')
+     ORDER BY schemaname, tablename`,
+    [["public", "auth"]],
+  );
+  for (const table of tables.rows) {
+    const result = await pool.query<{ count: string }>(
+      `SELECT count(*)::text AS count FROM ${quoteQualified(table.schema_name, table.table_name)}`,
+    );
+    if (Number(result.rows[0]?.count ?? 0) > 0) {
+      throw new Error("Recovery DB-only target is not empty; use a fresh isolated PostgreSQL target and retry. ");
     }
   }
 }

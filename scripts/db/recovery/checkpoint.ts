@@ -1,5 +1,5 @@
-import { randomUUID, createHash } from "node:crypto";
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { randomUUID } from "node:crypto";
+import { mkdtempSync, mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { publishRecoveryArtifact } from "./artifact";
@@ -32,7 +32,6 @@ async function main(): Promise<void> {
     const migration = await readProductionMigrationIdentity(environment.databaseUrl);
     const source = await resolveProductionSourceIdentity();
     const databaseRoot = await createDatabaseSnapshot(environment.databaseUrl, stagingRoot);
-    const storage = createEmptyStorageSnapshot(stagingRoot);
     const manifest: RecoveryManifest = {
       formatVersion: RECOVERY_FORMAT_VERSION,
       runId,
@@ -50,12 +49,12 @@ async function main(): Promise<void> {
         ...source,
         databaseMigrationTerminal: migration.ledger,
       },
+      artifactKind: "db-checkpoint",
       backupClass: "release-db",
       database: {
         schemas: ["public", "auth"],
         files: [databaseRoot.roles, databaseRoot.schema, databaseRoot.data],
       },
-      storage,
     };
 
     const artifact = publishRecoveryArtifact({
@@ -73,22 +72,6 @@ async function main(): Promise<void> {
   } finally {
     rmSync(tempRoot, { recursive: true, force: true });
   }
-}
-
-function createEmptyStorageSnapshot(stagingRoot: string): RecoveryManifest["storage"] {
-  const storageRoot = join(stagingRoot, "storage");
-  mkdirSync(join(storageRoot, "objects"), { recursive: true });
-  const buckets = "[]\n";
-  const index = "";
-  writeFileSync(join(storageRoot, "buckets.json"), buckets, { flag: "wx" });
-  writeFileSync(join(storageRoot, "index.ndjson"), index, { flag: "wx" });
-  return {
-    bucketCount: 0,
-    bucketInventorySha256: createHash("sha256").update(buckets).digest("hex"),
-    objectCount: 0,
-    totalBytes: 0,
-    inventorySha256: createHash("sha256").update(index).digest("hex"),
-  };
 }
 
 main().catch((error) => {

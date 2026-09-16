@@ -82,6 +82,7 @@ async function main(): Promise<void> {
         ...source,
         databaseMigrationTerminal: migration.ledger,
       },
+      artifactKind: "full",
       backupClass,
       database: {
         schemas: ["public", "auth"],

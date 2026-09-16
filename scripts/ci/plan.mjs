@@ -43,6 +43,8 @@ const SYSTEM_APP_PREFIXES = [
 const SYSTEM_ACTION_PREFIXES = [
   "src/actions/auth",
 ];
+const MOBILE_PUBLIC_EVENT_SEARCH_SPEC = "tests/e2e/flows/public-event-experience.spec.ts";
+const MOBILE_PUBLIC_EVENT_SEARCH_SOURCES = new Set(["src/components/rivalhub/ListSearchField.tsx"]);
 
 const SYSTEM_FLOW_MAP = [
   {
@@ -67,6 +69,10 @@ const SYSTEM_FLOW_MAP = [
     ],
     specs: ["tests/e2e/flows/education-manual-fallback.spec.ts"],
   },
+  {
+    prefixes: ["src/components/rivalhub/ListSearchField.tsx"],
+    specs: [MOBILE_PUBLIC_EVENT_SEARCH_SPEC],
+  },
 ];
 
 function systemSpecsForPath(path) {
@@ -83,40 +89,13 @@ const CODE_EXTENSIONS = /\.(?:[cm]?[jt]sx?|vue|svelte)$/;
 const LINT_EXTENSIONS = /\.[cm]?[jt]sx?$/;
 const E2E_SPEC_FILE = /^tests\/e2e\/.+\.spec\.(?:[cm]?[jt]sx?)$/;
 const INTEGRATION_SPEC_FILE = /^tests\/integration\/db\/(?!harness\/).+\.(?:test|spec)\.(?:[cm]?[jt]sx?)$/;
-const STORAGE_MUTATION_PATH_PATTERNS = [
-  /^src\/lib\/(?:education|season-public-info)\/.*storage\.ts$/,
-  /^src\/lib\/education\/(?:commands|retention|retention-core)\.ts$/,
-  /^src\/actions\/(?:education-verifications|season-public-info|teams)\.ts$/,
-  /^src\/components\/teams\/TeamLogoUpload\.tsx$/,
-  /(?:^|\/)(?:storage|upload)(?:[-_/]|\.|$)/i,
-];
-const SCHEDULER_PATH_PATTERNS = [
-  /^src\/lib\/scheduler\//,
-  /^src\/actions\/scheduler\.ts$/,
-  /^src\/app\/api\/cron\//,
-  /^src\/app\/admin\/settings\//,
-  /^src\/components\/admin\/SchedulerHealthPanel\.tsx$/,
-  /^src\/lib\/cron-auth\.ts$/,
-  /^src\/lib\/education\/retention-core\.ts$/,
-  /^scripts\/db\/(?:access-matrix|verification-contract)\.ts$/,
-  /^scripts\/db\/scheduler\.ts$/,
-  /^src\/db\/schema\/scheduler\.ts$/,
-  /^\.github\/workflows\/cron\.yml$/,
-];
-
-export function isStorageMutationPath(path) {
-  if (path.startsWith("scripts/db/recovery/") || path.startsWith("docs/")) return false;
-  return STORAGE_MUTATION_PATH_PATTERNS.some((pattern) => pattern.test(path));
-}
-
-export function isSchedulerPath(path) {
-  return SCHEDULER_PATH_PATTERNS.some((pattern) => pattern.test(path));
-}
-
 export function classifyChangedFiles(entries, options = {}) {
   const { forceFull = false, draft = true } = options;
   const gateName = draft ? "draft-gate" : "ci-gate";
-  const result = (...args) => ({ ...resultFor(...args), gateName });
+  const mobileSearchEvidence = entries.some((entry) =>
+    (entry.paths ?? []).some((path) => MOBILE_PUBLIC_EVENT_SEARCH_SOURCES.has(path) || path === MOBILE_PUBLIC_EVENT_SEARCH_SPEC),
+  );
+  const result = (...args) => ({ ...resultFor(...args), gateName, mobileSearchEvidence });
   if (forceFull) {
     return result(CAPABILITIES, true, "受保护分支、merge queue、schedule 或手动运行，强制 full gate");
   }
@@ -538,6 +517,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   output("integration_specs", JSON.stringify(plan.integrationSpecs));
   output("system_mode", plan.e2eSpecs.length > 0 ? "affected" : "full");
   output("e2e_specs", JSON.stringify(plan.e2eSpecs));
+  output("mobile_search_evidence", String(plan.mobileSearchEvidence));
   output("gate_name", plan.gateName);
   output("release_metadata_only", String(isReleaseMetadataOnly(entries, {
     packageJsonBefore: readPackageJsonAtRevision(process.env.BASE_SHA),

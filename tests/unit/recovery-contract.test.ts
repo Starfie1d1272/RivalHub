@@ -62,6 +62,7 @@ function validManifest() {
         terminalWhen: terminal.when,
       },
     },
+    artifactKind: "full" as const,
     backupClass: "daily" as const,
     database: {
       schemas: ["public", "auth"] as const,
@@ -91,22 +92,29 @@ describe("recovery contracts", () => {
   });
 
   it("accepts a DB-only release checkpoint without a Storage snapshot", () => {
+    const { storage, ...databaseOnlyBase } = validManifest();
+    void storage;
     const manifest = {
-      ...validManifest(),
+      ...databaseOnlyBase,
+      artifactKind: "db-checkpoint" as const,
       backupClass: "release-db" as const,
-      storage: {
-        bucketCount: 0,
-        bucketInventorySha256: SHA256,
-        objectCount: 0,
-        totalBytes: 0,
-        inventorySha256: SHA256,
-      },
     };
-    expect(assertRecoveryManifest(manifest).backupClass).toBe("release-db");
+    expect(assertRecoveryManifest(manifest)).toEqual(manifest);
     expect(buildRecoveryR2Keys("release-db", RUN_ID, CREATED_AT).artifact).toBe(
       `production/release-db/2026-09-10/${RUN_ID}.tar.gz.age`,
     );
-    expect(() => assertRecoveryManifest({ ...manifest, storage: { ...manifest.storage, objectCount: 1 } })).toThrow();
+    expect(() => assertRecoveryManifest({ ...manifest, storage: {} })).toThrow(/不得包含 Storage snapshot/);
+  });
+
+  it("keeps full recovery and DB-only restore capabilities separate", () => {
+    const restoreSource = readFileSync(join(process.cwd(), "scripts/db/recovery/restore.ts"), "utf8");
+
+    expect(restoreSource).toContain("--mode");
+    expect(restoreSource).toContain("buildIsolatedRecoveryDatabaseEnvironment");
+    expect(restoreSource).toContain("Isolated DB-only recovery restore verified");
+    expect(restoreSource).toContain("storage=not-captured");
+    expect(restoreSource).toContain("db-checkpoint artifact 不能由 db:recovery:restore 恢复");
+    expect(restoreSource).toContain("db-checkpoint artifact 不得包含 Storage snapshot");
   });
 
   it("rejects incomplete or tampered recovery identities", () => {

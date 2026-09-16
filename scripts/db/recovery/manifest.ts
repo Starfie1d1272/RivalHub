@@ -1,7 +1,14 @@
 import { createHash } from "node:crypto";
 import { readFileSync, statSync } from "node:fs";
 import { basename } from "node:path";
-import { assertRecoveryArtifactClass, type RecoveryArtifactClass } from "./environment";
+import {
+  assertRecoveryArtifactClass,
+  assertRecoveryArtifactKind,
+  recoveryArtifactKindForClass,
+  type BackupClass,
+  type RecoveryArtifactClass,
+  type RecoveryArtifactKind,
+} from "./environment";
 
 export const RECOVERY_FORMAT_VERSION = 2 as const;
 
@@ -11,7 +18,7 @@ export interface RecoveryFileDigest {
   sha256: string;
 }
 
-interface RecoveryStorageSummary {
+export interface RecoveryStorageSummary {
   bucketCount: number;
   bucketInventorySha256: string;
   objectCount: number;
@@ -37,7 +44,7 @@ export interface RecoverySourceIdentity {
   databaseMigrationTerminal: RecoveryMigrationIdentity;
 }
 
-export interface RecoveryManifest {
+interface RecoveryManifestBase {
   formatVersion: typeof RECOVERY_FORMAT_VERSION;
   runId: string;
   createdAt: string;
@@ -47,13 +54,24 @@ export interface RecoveryManifest {
   supabaseCliVersion: string;
   producer: RecoveryProducerIdentity;
   source: RecoverySourceIdentity;
-  backupClass: RecoveryArtifactClass;
   database: {
     schemas: readonly ["public", "auth"];
     files: readonly RecoveryFileDigest[];
   };
+}
+
+export interface FullRecoveryManifest extends RecoveryManifestBase {
+  artifactKind: "full";
+  backupClass: BackupClass;
   storage: RecoveryStorageSummary;
 }
+
+export interface DbCheckpointManifest extends RecoveryManifestBase {
+  artifactKind: "db-checkpoint";
+  backupClass: "release-db";
+}
+
+export type RecoveryManifest = FullRecoveryManifest | DbCheckpointManifest;
 
 export interface RecoverySidecar {
   formatVersion: typeof RECOVERY_FORMAT_VERSION;
@@ -63,6 +81,7 @@ export interface RecoverySidecar {
   artifactSha256: string;
   manifestSha256: string;
   createdAt: string;
+  artifactKind: RecoveryArtifactKind;
   backupClass: RecoveryArtifactClass;
 }
 
@@ -72,6 +91,7 @@ export interface RecoveryCompletionMarker {
   artifactKey: string;
   artifactSha256: string;
   manifestSha256: string;
+  artifactKind: RecoveryArtifactKind;
   completedAt: string;
 }
 
@@ -99,6 +119,10 @@ export function serializeCompletionMarker(marker: RecoveryCompletionMarker): str
   return `${stableSerialize(marker)}\n`;
 }
 
+export function isFullRecoveryManifest(manifest: RecoveryManifest): manifest is FullRecoveryManifest {
+  return manifest.artifactKind === "full";
+}
+
 function stableSerialize(value: unknown): string {
   return JSON.stringify(sortKeys(value));
 }
@@ -107,7 +131,7 @@ export function assertRecoveryManifest(value: unknown): RecoveryManifest {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     throw new Error("Recovery manifest 格式无效。 ");
   }
-  const manifest = value as Partial<RecoveryManifest>;
+  const manifest = value as Partial<RecoveryManifest> & Record<string, unknown>;
   if (
     manifest.formatVersion !== RECOVERY_FORMAT_VERSION
     || manifest.sourceEnvironment !== "production"
@@ -119,7 +143,6 @@ export function assertRecoveryManifest(value: unknown): RecoveryManifest {
     || !manifest.producer
     || !manifest.source
     || !manifest.database
-    || !manifest.storage
     || !manifest.backupClass
   ) {
     throw new Error("Recovery manifest 缺少必要的版本、来源或 checksum 字段。 ");
@@ -159,7 +182,13 @@ export function assertRecoveryManifest(value: unknown): RecoveryManifest {
   if (!/^[0-9a-f]{40}$/i.test(source.deployedCommit)) {
     throw new Error("Recovery manifest deployed source commit identity 无效。 ");
   }
-  assertRecoveryArtifactClass(manifest.backupClass);
+  const backupClass = assertRecoveryArtifactClass(manifest.backupClass);
+  const artifactKind = manifest.artifactKind === undefined
+    ? recoveryArtifactKindForClass(backupClass)
+    : assertRecoveryArtifactKind(manifest.artifactKind);
+  if (artifactKind !== recoveryArtifactKindForClass(backupClass)) {
+    throw new Error("Recovery manifest artifact kind 与 backup class 不匹配。 ");
+  }
 
   assertMigrationIdentity(source.databaseMigrationTerminal, "Recovery manifest database migration terminal");
 
@@ -191,6 +220,13 @@ export function assertRecoveryManifest(value: unknown): RecoveryManifest {
   }
   if (filePaths.size !== 3) throw new Error("Recovery manifest database files 不完整。 ");
 
+  if (artifactKind === "db-checkpoint") {
+    if (Object.prototype.hasOwnProperty.call(manifest, "storage")) {
+      throw new Error("db-checkpoint artifact 不得包含 Storage snapshot；请使用 full artifact。 ");
+    }
+    return { ...manifest, artifactKind: "db-checkpoint", backupClass: "release-db" } as DbCheckpointManifest;
+  }
+
   const storage = manifest.storage as RecoveryStorageSummary | undefined;
   if (
     !storage
@@ -202,14 +238,7 @@ export function assertRecoveryManifest(value: unknown): RecoveryManifest {
   ) {
     throw new Error("Recovery manifest Storage snapshot summary 无效。 ");
   }
-  if (manifest.backupClass === "release-db" && (
-    storage.bucketCount !== 0
-    || storage.objectCount !== 0
-    || storage.totalBytes !== 0
-  )) {
-    throw new Error("release-db checkpoint 不得包含 Storage snapshot；请使用 full checkpoint。 ");
-  }
-  return manifest as RecoveryManifest;
+  return { ...manifest, artifactKind: "full", backupClass } as FullRecoveryManifest;
 }
 
 export function assertRecoverySidecar(value: unknown): RecoverySidecar {
@@ -235,8 +264,14 @@ export function assertRecoverySidecar(value: unknown): RecoverySidecar {
     throw new Error("Recovery sidecar manifest checksum/size 无效。 ");
   }
   assertUtcTimestamp(sidecar.createdAt, "Recovery sidecar createdAt");
-  assertRecoveryArtifactClass(sidecar.backupClass);
-  return sidecar as RecoverySidecar;
+  const backupClass = assertRecoveryArtifactClass(sidecar.backupClass);
+  const artifactKind = sidecar.artifactKind === undefined
+    ? recoveryArtifactKindForClass(backupClass)
+    : assertRecoveryArtifactKind(sidecar.artifactKind);
+  if (artifactKind !== recoveryArtifactKindForClass(backupClass)) {
+    throw new Error("Recovery sidecar artifact kind 与 backup class 不匹配。 ");
+  }
+  return { ...sidecar, artifactKind, backupClass } as RecoverySidecar;
 }
 
 export function assertRecoveryCompletionMarker(value: unknown): RecoveryCompletionMarker {
@@ -260,7 +295,8 @@ export function assertRecoveryCompletionMarker(value: unknown): RecoveryCompleti
     throw new Error("Recovery completion marker checksum 无效。 ");
   }
   assertUtcTimestamp(marker.completedAt, "Recovery completion marker completedAt");
-  return marker as RecoveryCompletionMarker;
+  const artifactKind = marker.artifactKind === undefined ? "full" : assertRecoveryArtifactKind(marker.artifactKind);
+  return { ...marker, artifactKind } as RecoveryCompletionMarker;
 }
 
 function assertRecoveryArtifactKey(value: string): string {

@@ -2,7 +2,6 @@ import { execFileSync } from "node:child_process";
 import { appendFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { isSchedulerPath, isStorageMutationPath } from "../ci/plan.mjs";
 import { classifyMigrationRisk, type MigrationRiskLevel } from "../db/migration-risk";
 
 export type ReleasePlanMigrationRisk = MigrationRiskLevel;
@@ -40,6 +39,27 @@ export interface BuildReleasePlanOptions {
 
 const METADATA_PATHS = new Set(["CHANGELOG.md", "package.json"]);
 const SOURCE_ROOTS = ["src/", "public/", "styles/"];
+const RELEASE_TIME_CAPABILITIES_PATH = "scripts/release/release-time-capabilities.json";
+const RELEASE_SCHEDULER_PATHS = new Set([
+  "src/lib/scheduler/definitions.ts",
+  "src/lib/cron-auth.ts",
+  "scripts/db/scheduler.ts",
+  "scripts/db/verification-contract.ts",
+  ".github/workflows/cron.yml",
+]);
+const SCHEDULER_RUNTIME_PATHS = new Set([
+  "src/actions/scheduler.ts",
+  "src/lib/scheduler/admin.ts",
+  "src/lib/scheduler/execution.ts",
+  "src/lib/scheduler/health.ts",
+  "src/lib/scheduler/runners.ts",
+]);
+const AMBIGUOUS_SCHEDULER_PATH_PREFIXES = [
+  "src/lib/scheduler/",
+  "src/lib/cron-",
+  "scripts/db/scheduler",
+];
+
 export function buildReleasePlan(options: BuildReleasePlanOptions = {}): ReleasePlan {
   const cwd = options.cwd ?? process.cwd();
   const releaseSha = resolveCommit(
@@ -66,13 +86,11 @@ export function buildReleasePlan(options: BuildReleasePlanOptions = {}): Release
   const migrationRisk = migrationChanged
     ? resolveMigrationRisk(cwd, releaseSha, entries, migrationPaths, options.migrationContents)
     : "none";
-  const storageMutationChanged = changedPaths.some(isStorageMutationPath);
-  const schedulerChanged = changedPaths.some(isSchedulerPath)
-    || (changedPaths.includes("package.json")
-      && !isPackageVersionOnlyChange(options, cwd, releaseSha, previousReleaseCommit, entries))
+  const storageMutationChanged = readReleaseTimeStorageMutationCapability(cwd, releaseSha);
+  const schedulerChanged = changedPaths.some(isReleaseSchedulerPath)
     || migrationPaths.some((path) => {
       const text = migrationText(cwd, releaseSha, path, options.migrationContents);
-      return text === undefined || Boolean(text.match(/\b(?:scheduler|cron)\b/i));
+      return text === undefined || isSchedulerMigration(text);
     });
   const recoveryInfraChanged = changedPaths.some((path) =>
     path.startsWith("scripts/db/recovery/") || path.startsWith(".github/workflows/recovery-"),
@@ -81,7 +99,8 @@ export function buildReleasePlan(options: BuildReleasePlanOptions = {}): Release
     path.startsWith("scripts/release/")
     || path === "scripts/vercel-build.ts"
     || path === "vercel.json"
-    || path === ".github/workflows/release.yml",
+    || path === ".github/workflows/release.yml"
+    || path === ".github/workflows/release-finalize.yml",
   );
 
   return {
@@ -101,6 +120,43 @@ export function buildReleasePlan(options: BuildReleasePlanOptions = {}): Release
     requiresFullCheckpoint: storageMutationChanged,
     requiresSchedulerProvision: schedulerChanged,
   };
+}
+
+export function isReleaseSchedulerPath(path: string): boolean {
+  if (RELEASE_SCHEDULER_PATHS.has(path) || SCHEDULER_RUNTIME_PATHS.has(path)) {
+    return RELEASE_SCHEDULER_PATHS.has(path);
+  }
+  return AMBIGUOUS_SCHEDULER_PATH_PREFIXES.some((prefix) => path.startsWith(prefix));
+}
+
+function readReleaseTimeStorageMutationCapability(
+  cwd: string,
+  releaseSha: string,
+): boolean {
+  let raw: string;
+  try {
+    raw = readGitFile(cwd, releaseSha, RELEASE_TIME_CAPABILITIES_PATH);
+  } catch {
+    // A missing declaration is an ambiguous release-time contract; keep the
+    // recovery gate conservative instead of assuming no mutation.
+    return true;
+  }
+
+  try {
+    const value = JSON.parse(raw) as unknown;
+    if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("invalid capabilities");
+    const capabilities = value as Record<string, unknown>;
+    if (typeof capabilities.storageMutation !== "boolean") throw new Error("invalid storage capability");
+    return capabilities.storageMutation;
+  } catch {
+    // An unreadable or malformed capability declaration must not silently
+    // downgrade a release that may write existing Production Storage objects.
+    return true;
+  }
+}
+
+function isSchedulerMigration(sql: string): boolean {
+  return /(?:pg_(?:cron|net)|cron\.(?:job|schedule|unschedule)|vault\.(?:create_secret|update_secret)|dispatch_rivalhub_scheduler_job|scheduled_job_health|rivalhub_(?:scheduler_base_url|cron_secret))/i.test(sql);
 }
 
 function resolveMigrationRisk(
@@ -152,7 +208,7 @@ function isApplicationPath(
 ): boolean {
   if (path.startsWith("drizzle/migrations/") || path.startsWith("scripts/db/recovery/")) return false;
   if (path.startsWith("scripts/release/") || path === "scripts/vercel-build.ts") return false;
-  if (path.startsWith(".github/workflows/recovery-") || path === ".github/workflows/release.yml") return false;
+  if (path.startsWith(".github/workflows/recovery-") || path === ".github/workflows/release.yml" || path === ".github/workflows/release-finalize.yml") return false;
   if (path.startsWith("docs/") || path.endsWith(".md") || path.endsWith(".mdx") || path.startsWith(".changeset/")) return false;
   if (METADATA_PATHS.has(path)) {
     return !isPackageVersionOnlyChange(options, cwd, releaseSha, previousReleaseCommit, entries);

@@ -1,10 +1,15 @@
 import { defineConfig, devices } from "@playwright/test";
 
+const configuredRetries = process.env.PLAYWRIGHT_RETRIES;
+const retries = configuredRetries === undefined
+  ? (process.env.CI ? 1 : 0)
+  : Number(configuredRetries);
+
 export default defineConfig({
   testDir: "./tests/e2e",
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 1 : 0,
+  retries,
   failOnFlakyTests: !!process.env.CI,
   workers: process.env.CI ? Number(process.env.PLAYWRIGHT_WORKERS ?? 1) : undefined,
   reporter: "html",
