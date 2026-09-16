@@ -82,8 +82,10 @@ describe("admin season workspace overview PostgreSQL integration", () => {
       await client.query(
         `INSERT INTO competition_entry_representative_changes (
            entry_id, from_user_id, to_user_id, changed_by_actor_id
-         ) VALUES ($1, NULL, $2, 'admin-season-workspace-overview')`,
-        [ids.entry, ids.user],
+         ) VALUES ($1, NULL, $2, 'admin-season-workspace-overview'),
+                  ($3, NULL, $4, 'admin-season-workspace-overview'),
+                  ($5, NULL, $6, 'admin-season-workspace-overview')`,
+        [ids.entry, ids.user, ids.draftEntry, ids.user, ids.submittedEntry, ids.user],
       );
       await client.query(
         `INSERT INTO competition_entry_roster_revisions (
@@ -153,7 +155,7 @@ describe("admin season workspace overview PostgreSQL integration", () => {
         await client.query("DELETE FROM event_rosters WHERE id = $1", [ids.eventRoster]);
         await client.query("DELETE FROM competition_entry_roster_revisions WHERE id = $1", [ids.revision]);
         await client.query("DELETE FROM competition_entry_roster_revisions WHERE id = ANY($1::uuid[])", [[ids.draftRevision, ids.submittedRevision]]);
-        await client.query("DELETE FROM competition_entry_representative_changes WHERE entry_id = $1", [ids.entry]);
+        await client.query("DELETE FROM competition_entry_representative_changes WHERE entry_id = ANY($1::uuid[])", [[ids.entry, ids.draftEntry, ids.submittedEntry]]);
         await client.query("DELETE FROM competition_entries WHERE id = $1", [ids.entry]);
         await client.query("DELETE FROM competition_entries WHERE id = ANY($1::uuid[])", [[ids.draftEntry, ids.submittedEntry]]);
         await client.query("DELETE FROM seasons WHERE id = $1", [ids.season]);
