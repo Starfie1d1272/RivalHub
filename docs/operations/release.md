@@ -1,84 +1,93 @@
-# 发布操作
+# Release operations
 
-RivalHub 使用单主干与不可变 tag。`main` 是唯一可发布主干；`vX.Y.Z` 或 semver 预发布 tag 提供候选版本身份标识，权威生产环境回读才是已发布生产版本的事实来源。本文件是发布流程的唯一负责人；协作与 Changeset 规则见 [`../../CONTRIBUTING.md`](../../CONTRIBUTING.md)，可执行实现见 [`.github/workflows/release.yml`](../../.github/workflows/release.yml)。任何发布、tag、部署或生产环境写操作前必须完整读取本文件。
+RivalHub 使用 single-trunk + immutable tag。`main` 是唯一 releasable trunk；`vX.Y.Z` 或 semver prerelease tag 是 immutable release candidate / audit artifact，canonical Production `/api/system/release` 才是“哪个版本实际在线”的 authoritative runtime fact。本文件是 release procedure 的唯一 owner；协作与 Changeset 规则见 [`../../CONTRIBUTING.md`](../../CONTRIBUTING.md)，可执行实现见 [`.github/workflows/release.yml`](../../.github/workflows/release.yml)。任何 release、tag、deploy 或 production mutation 前必须完整读取本文件。
 
-## 1. 发布 PR
+## 1. Release PR
 
-从最新 `main` 创建短期发布分支，消费待发布 Changesets：
+从最新 `main` 创建短期 release branch，消费待发布 Changesets：
 
 ```bash
 pnpm exec changeset version
 ```
 
-提交前确认软件包版本、CHANGELOG 分类/对比链接、发布相关的 feat/fix/security/migration 均准确；仍需生产环境或外部验收的事项必须保持未验收表述。发布 PR 按普通 PR 进入 `main`，通过必需的持续集成检查后执行压缩合并。CHANGELOG 的对比链接可比较相邻的不可变 tag，已发布 tag 不移动；正式发布说明由权威上一生产版本身份标识到当前版本身份标识的完整差异生成。
+提交前确认 package version、CHANGELOG 分类/compare 链接、release-relevant feat/fix/security/migration 均准确；仍需 production/external acceptance 的事项必须保持未验收表述。Release PR 按普通 PR 进入 `main`，通过 required CI 后 squash merge。CHANGELOG 的 compare link 可以比较相邻 immutable tag，但正式 GitHub Release notes 必须覆盖真实 previous Production → current Production 的完整 delta；failed intermediate tag 不得被描述为曾经上线。
 
-## 2. 发布提交与 tag
+## 2. Release commit 与 tag
 
-合并后从远端 `main` 回读实际压缩合并提交 SHA，并确认该精确提交在 `main` 上的权威持续集成工作流运行记录（event=push、branch=main、head_sha=RELEASE_SHA）已通过。只在这个提交上创建不可变的 `vX.Y.Z` 或显式 semver 预发布 tag；普通 `main` 合并不会自动部署到生产环境。即使提前打 tag，发布工作流自身的预检查也会强制执行这项精确 SHA 前置条件。
+合并后从远端 `main` read back 实际 squash commit SHA，并确认该 exact commit 在 `main` 上的 canonical CI workflow run（event=push, branch=main, head_sha=RELEASE_SHA）已通过。只在这个 commit 上创建 immutable `vX.Y.Z` 或显式 semver prerelease tag；普通 `main` merge 不会自动 production deploy。即使提前打 tag，Release workflow 自身的 preflight 也会 machine-enforce 此项 exact-SHA prerequisite。
 
-## 3. 受保护的发布工作流
+## 3. Protected Release workflow
 
-推送 tag 或显式重试已有 tag 后，GitHub Actions 的 **Release** 工作流围绕同一个不可变 tag 提交执行：
+Push tag 或显式 retry 已存在 tag 后，GitHub Actions **Release** 围绕同一个 immutable tag commit 执行：
 
 ```text
-验证 tag 属于 main
-→ 冻结权威上一生产版本身份标识（tag + 提交，精确配对）
-→ 验证精确 SHA 前置条件（main 上的权威推送运行记录 = 成功）
-→ 验证有效迁移链（仅数据库的本地演练）+ 上一版本兼容性
-→ 新建发布前备份 + R2 回读
-→ 迁移并验证生产数据库
-→ 将候选版本分阶段部署到 Vercel 生产环境（--prod --skip-domain）
-→ 对精确候选部署执行冒烟检查（OIDC 令牌）
-→ 调用 `scripts/release/routing.ts`（切换 → 别名收敛 → 权威语义收敛；失败时执行回退补偿）
-→ 配置并验证生产环境定时任务
-→ 发布或更新 GitHub 发布说明
+validate tag belongs to main
+→ freeze previous Production identity (tag + commit)
+→ verify exact-SHA CI prerequisite (canonical push run on main = success)
+→ validate active migration chain (DB-only local rehearsal) + N/N+1 compatibility
+→ fresh pre-release backup + R2 read-back
+→ migrate + verify production database
+→ deploy staged candidate to Vercel Production (--prod --skip-domain)
+→ smoke exact candidate deployment (OIDC token)
+→ invoke `scripts/release/routing.ts` (promote → alias convergence → canonical semantic convergence; rollback compensation on failure)
+→ provision + verify production scheduler
+→ publish/update Production-delta GitHub Release notes
 ```
 
 关键安全与执行边界：
 
-1. **冻结上一生产版本身份标识**：在任何持续集成等待、备份、迁移、部署或路由写操作之前，`scripts/release/production-identity.ts` 只读取一次权威 `/api/system/release`，冻结 `RIVALHUB_PREVIOUS_RELEASE_TAG` 与 `RIVALHUB_PREVIOUS_RELEASE_COMMIT` 这一不可分割的配对，并写入后续工作流步骤。tag 必须精确指向该 SHA；上一版本提交必须位于候选版本的 `main` 提交链上且包含已发布源代码，候选版本不能与上一版本相同。身份标识缺失、不一致、无法解析或不满足提交链要求时，全部拒绝继续。
-2. **精确 SHA 持续集成前置条件**：在任何备份、迁移或部署之前，发布流程必须验证当前不可变 tag 对应的 `RELEASE_SHA` 在 `main` 上的权威推送运行记录结果为 `completed && success`；运行中的记录进行有限次查询，缺失、失败、取消或超时全部拒绝继续。
-3. **仅数据库迁移演练**：本地迁移演练仅启动 PostgreSQL 容器（`pnpm db:local:start-db`），不启动本地 Supabase 的认证/存储/浏览器等无关服务；持续集成的临时运行器结束时自动回收容器，不再支付无意义的停止开销。
-4. **分阶段部署到生产环境**：使用 `vercel deploy --prod --skip-domain` 在生产环境完成构建，但不把生产域名指向该候选版本；先用短期 GitHub OIDC 令牌对精确候选 URL 完成 `/` 与 `/api/system/release` 冒烟检查。
-5. **切换与回退边界**：候选版本冒烟检查通过后，唯一可执行负责人 `scripts/release/routing.ts`（工作流通过 `pnpm release:routing` 调用）只消费发布开始时冻结的上一生产版本身份标识，并在任何路由写操作前冻结上一部署和候选部署的项目、目标环境与就绪状态。它通过 `scripts/release/vercel-routing.ts` 复用 Vercel REST API `POST /v10/projects/{projectId}/promote/{deploymentId}` 与 `POST /v1/projects/{projectId}/rollback/{deploymentId}`，不调用需要用户级查找的 CLI；切换不会触发二次构建。YAML 只负责受保护配置和控制器接线。
-6. **阶段耗时证据**：各阶段耗时由 `scripts/ci/timing.mjs` 统一记录并写入步骤摘要，包含备份内部子阶段（数据库导出、存储快照、加密归档、R2 上传与回读）及各部署步骤。
+1. **Previous Production identity**：在任何 backup、migration、deploy 或 routing mutation 前，`scripts/release/production-identity.ts` 读取 canonical `/api/system/release`，冻结 `RIVALHUB_PREVIOUS_RELEASE_TAG` + `RIVALHUB_PREVIOUS_RELEASE_COMMIT`。Production path 后续的 migration compatibility、routing/rollback 与 release notes 必须消费同一组 pair，不得各自通过 Git tag history 重新推导 previous stable。
+2. **Exact-SHA CI prerequisite**：Release 必须验证当前 immutable tag 对应的 `RELEASE_SHA` 在 `main` 上的 canonical CI push run 结果为 `completed && success`；在途 run 进行 bounded poll，missing/failed/cancelled/timed out 全部 fail closed。
+3. **DB-only migration rehearsal**：本地 migration rehearsal 仅启动 PostgreSQL 容器（`pnpm db:local:start-db`），不启动 Local Supabase 的 Auth/Storage/browser 等无关服务；CI ephemeral runner 结束时自动回收容器，不再支付无意义的 stop 开销。
+4. **Staged Production deployment**：使用 `vercel deploy --prod --skip-domain` 在 Production 环境完成构建，但不将生产域名指向该 candidate；先用短期 GitHub OIDC token 对 exact candidate URL 完成 `/` 与 `/api/system/release` smoke 验证。
+5. **Promotion / rollback boundary**：Candidate smoke 通过后，唯一 executable owner `scripts/release/routing.ts`（workflow 通过 `pnpm release:routing` 调用）只消费 release 开始时冻结的 previous Production identity，并在任何 routing mutation 前冻结 previous deployment 与 candidate deployment 的 project/target/readiness。它通过 `scripts/release/vercel-routing.ts` 复用 Vercel REST API `POST /v10/projects/{projectId}/promote/{deploymentId}` 与 `POST /v1/projects/{projectId}/rollback/{deploymentId}`，不调用需要 user-scope lookup 的 CLI；promote 不触发二次构建。YAML 只负责 protected config 与 controller wiring。
+6. **Same-tag resume**：若某次 run 已完成 promote，canonical Production 已等于 candidate，但后续 scheduler 或 GitHub Release 步骤失败，retry 不得把 candidate 自己当作 previous，也不得重新执行 backup/migration/deploy/routing。此时 workflow dispatch 必须显式提供首次 run 冻结的 `previous_release_tag` / `previous_release_commit`；脚本验证 canonical 已精确等于 candidate、previous pair 合法且位于 candidate ancestry 后设置 `RIVALHUB_RELEASE_MODE=resume`，仅继续幂等的 post-promotion 步骤。若 canonical 仍是旧版，则这些 resume inputs 反而是错误配置并 fail closed，正常走 fresh path。
+7. **Phase timing evidence**：各阶段耗时由 `scripts/ci/timing.mjs` 统一记录并写入 Step Summary，包含 backup 内部子阶段（DB dump、Storage snapshot、encrypt/archive、R2 upload/readback）及各 deployment step。
 
-生产环境密钥、目标确认和远程写入授权只存在于受保护的生产环境、权威封装函数中。`VERCEL_TOKEN` 必须是项目级凭据，仅用于精确的生产部署和项目级切换/回退 API 调用；不得为了解决 CLI 的作用域查找而改用完整账户、用户或团队令牌。发布任务使用 `id-token: write`，运行时向 GitHub OIDC 接口申请短期令牌，受众为 `https://github.com/Starfie1d1272`；受保护的精确 `https://<deployment>.vercel.app` 冒烟检查只发送 `x-vercel-trusted-oidc-idp-token`。权威 `https://match.starfie1d.top` 使用普通 HTTPS 回读，不携带 OIDC 请求头。
+production secrets、target confirmations 与 remote-write authorization 只存在于 protected production Environment/canonical wrappers。`VERCEL_TOKEN` 必须是 project-scoped credential，仅用于 exact production deployment、project-scoped promotion/rollback API calls；不得为了解决 CLI scope lookup 改用 Full Account/user/team token。Release job 使用 `id-token: write`，在运行时向 GitHub OIDC endpoint 申请短期 token，audience 为 `https://github.com/Starfie1d1272`；protected exact `https://<deployment>.vercel.app` smoke 只发送 `x-vercel-trusted-oidc-idp-token`。canonical `https://match.starfie1d.top` 使用普通 HTTPS read-back，不携带 OIDC header。
 
-不得使用长期绕过密钥、完整账户/用户/团队令牌或降低部署保护来代替 Trusted Source。部署 URL 与权威域名的 `/api/system/release` 都必须严格只返回 `releaseTag`、`releaseCommit`，并精确等于当前不可变 tag 与 tag 提交；任一失败都阻止后续发布。发布前备份失败会阻止生产数据库迁移。
+不得使用长期 bypass secret、Full Account/user/team token 或降低 Deployment Protection 代替 Trusted Source。deployment URL 与 canonical domain 的 `/api/system/release` 都必须严格只返回 `releaseTag`、`releaseCommit`，并精确等于对应 immutable tag 与 tag commit；任一失败都阻止后续 release。pre-release backup 失败会阻止 production migration。
 
-### 冻结上一生产版本身份标识
+### Previous Production identity
 
-`production-identity.ts` 的权威回读是发布开始时唯一的上一生产版本快照：它发生在精确 tag 检出后、精确 SHA 持续集成等待之前，并在工作流后续步骤中保持不变。`RIVALHUB_PREVIOUS_RELEASE_TAG` 与 `RIVALHUB_PREVIOUS_RELEASE_COMMIT` 必须作为同一组配对值传给迁移兼容性检查、路由切换、生产版本增量发布说明以及其他上一生产版本消费者；任何消费者都不能重新从“最新稳定 tag”、`origin/main` 或服务商当前状态推导基线。
+正常 fresh release 中，`production-identity.ts` 的 canonical read-back 是本次 run 唯一的 previous Production snapshot，并在后续 step 中保持不变。failed stable-looking tag 只是 immutable release attempt artifact，不是 Production lineage；例如：
 
-`RIVALHUB_PRODUCTION_STABLE_REF` 与基于 Git 推导最近稳定版本的辅助函数仅供开发环境/持续集成兼容性演练使用。生产发布设置显式身份标识硬门槛，永远不以失败的中间 tag 作为上一生产版本：失败的不可变 tag 只是一次发布尝试的产物，不是已发布的生产版本身份，也不应在发布说明中声称已经上线。发布说明必须覆盖冻结的上一版本到当前版本的完整 CHANGELOG 差异，因此会包含中间条目，但会明确中间版本并未成功发布。
+```text
+v2.9.5 canonical Production
+→ v2.9.6 tag exists, release failed before promote
+→ v2.9.7 candidate
+```
 
-### 发布路由控制器
+则 `v2.9.7` 的 previous Production 必须仍是 `v2.9.5`，migration compatibility 与 GitHub Release notes 都覆盖 `v2.9.5 → v2.9.7`。`RIVALHUB_PRODUCTION_STABLE_REF` 与 Git-derived recent-stable helper 仅供 developer/CI rehearsal 使用，Production Release 设置 explicit identity hard gate，不允许 silent fallback。
 
-`scripts/release/routing.ts` 是发布路由切换的唯一可执行负责人；`scripts/release/vercel-routing.ts` 是它使用的 Vercel 服务商适配器，不是额外的工作流入口。两者保留当前生产发布的接口、Vercel 项目级凭据和版本身份标识契约；工作流不再在 YAML/Bash 中复制部署解析、别名等待、语义冒烟检查或回退状态机。
+如果同一个 tag 已经完成 promote、canonical identity 已经是 candidate，canonical read-back 只能证明“candidate 已在线”，不能恢复 promote 之前的历史 baseline。因此 same-tag resume 要求 operator 从首次 run 的 freeze log/summary 提供原始 previous tag/SHA；这组值仅用于恢复该 immutable run 的历史 baseline，不成为新的 Production truth source，也不允许在 fresh path 覆盖 canonical read-back。
 
-服务商适配器为每个 HTTP 请求设置请求级超时；GET 的网络失败、429 和选定的 5xx 只在有限次数内重试，并与业务状态等待分开。切换/回退 POST 只把 HTTP 201/202 视为 `accepted`（已接受）；429 明确按 `Retry-After`/退避策略执行一次有限重试，超时/5xx 等结果不明确的情况则进入短暂的状态核对观察窗口。完整观察窗口内持续观察上一版本路由；只有窗口结束、至少有两次有效观察，且全程都是精确的上一版本且状态为 `succeeded`（成功），没有 `transient`（暂时性失败）、`unknown`（未知）或 `unrelated`（无关）状态时才允许一次重试；发现目标已被服务商接受时立即记为 `reconciled`（已核对），绝不重复 POST，观察仍不明确则拒绝继续。
+### Release routing controller
 
-切换 `accepted`（已接受）后，控制器分别等待服务商别名操作和权威 `/`、`/api/system/release`。HTTP 200 但版本身份标识仍是合法旧值属于 `not_converged`（尚未收敛），不是立即失败；只有精确的 `releaseTag`/`releaseCommit` 才算成功。服务商别名收敛保持 180 秒截止时间；权威语义收敛使用独立的 120 秒截止时间，查询间隔为 2 秒，结果不明确时默认状态核对观察窗口为 15 秒。格式错误的身份标识、401/403 和不可重试的服务商契约直接快速失败，截止时间到期归类为 `convergence_timeout`（收敛超时）。
+`scripts/release/routing.ts` 是 release routing 的唯一 executable owner；`scripts/release/vercel-routing.ts` 是它使用的 Vercel provider adapter，不是额外的 workflow entrypoint。两者保留当前 production release endpoint、project-scoped Vercel credential 和 release identity contract；workflow 不再在 YAML/Bash 中复制 deployment parsing、alias wait、semantic smoke 或 rollback state machine。
 
-切换后的最终失败会以写操作前冻结的上一部署为唯一回退目标。回退 `accepted`（已接受）后仍必须等待别名操作，并等待权威身份标识精确恢复上一 tag/SHA；恢复未确认时发布保持 `failed`（失败），控制器输出 `rollback_failed`（回退失败）与人工介入提示，不继续配置定时任务或发布 GitHub 版本，也不自动反向执行 PostgreSQL 迁移。每次控制器运行都会写入低敏步骤摘要，至少包含候选/上一部署、切换、权威收敛、回退结果和最终分类。
+provider adapter 为每个 HTTP request 设置 request-level timeout；GET 的 network failure、429 和选定的 5xx 只在有限 attempt 内重试，并与业务状态等待分开。Promote/rollback POST 只把 HTTP 201/202 视为 accepted；429 明确按 `Retry-After`/backoff 做一次 bounded retry，timeout/5xx 等 ambiguous outcome 则进入短的 bounded reconciliation observation window。完整 observation window 内持续观察 previous routing；只有窗口结束、至少有两次有效 observation 且全程都是 exact previous + succeeded、没有 transient/unknown/unrelated state 时才允许一次 retry；发现目标已被 provider 接受时立即 reconciled 且绝不重复 POST，observation 仍不明确则 fail closed。
 
-### Vercel Trusted Source（仅所有者配置）
+promotion accepted 后，controller 分别等待 provider alias operation 和 canonical `/`、`/api/system/release`。HTTP 200 但 release identity 仍是合法旧值是 `not_converged`，不是立即失败；只有 exact `releaseTag`/`releaseCommit` 才算成功。provider alias convergence 保持 180 秒 deadline；canonical semantic convergence 使用独立的 120 秒 deadline，poll interval 为 2 秒，ambiguous reconciliation 默认 observation window 为 15 秒。malformed identity、401/403 和不可重试 provider contract 直接 fail fast，deadline 到期归类为 `convergence_timeout`。
 
-首次受保护发布前，Vercel 所有者必须在 `Settings → Deployment Protection → Trusted Sources → External Services → Add → GitHub Actions` 建立 Trusted Source。引导字段和原始声明使用以下真实值：
+promote 后的 terminal failure 会以 mutation 前冻结的 previous deployment 为唯一 rollback target。Rollback accepted 后仍必须等待 alias operation，并等待 canonical identity 精确恢复 previous tag/SHA；恢复未确认时 Release 保持 failed，controller 输出 `rollback_failed` 与人工介入提示，不继续 scheduler/GitHub Release，也不自动 reverse PostgreSQL migration。每次 controller run 都写入低敏 Step Summary，至少包含 candidate/previous deployment、promotion、canonical convergence、rollback outcome 和 terminal classification。
 
-| 控制台字段 | 值 |
+### Vercel Trusted Source（owner-only）
+
+首次受保护 release 前，Vercel owner 必须在 `Settings → Deployment Protection → Trusted Sources → External Services → Add → GitHub Actions` 建立 Trusted Source。引导字段和 raw claims 使用以下真实值：
+
+| Dashboard field | Value |
 | --- | --- |
-| GitHub 账户 | `Starfie1d1272` |
-| 仓库 | `RivalHub` |
-| 分支 | 留空（发布使用版本 tag） |
-| GitHub Actions 环境 | `production` |
-| 受众 | `https://github.com/Starfie1d1272` |
-| 适用环境 | `Production` |
+| GitHub account | `Starfie1d1272` |
+| Repository | `RivalHub` |
+| Branch | 留空（release 使用版本 tag） |
+| GitHub Actions environment | `production` |
+| Audience | `https://github.com/Starfie1d1272` |
+| Applies to environments | `Production` |
 
-签发者固定为 `https://token.actions.githubusercontent.com`。点击 `Edit raw claims`（编辑原始声明），加入以下精确匹配声明（名称和值区分大小写）：
+issuer 固定为 `https://token.actions.githubusercontent.com`。切换 `Edit raw claims`，加入以下 exact matching claims（名称和值区分大小写）：
 
-| 原始声明 | 精确值 |
+| Raw claim | Exact value |
 | --- | --- |
 | `aud` | `https://github.com/Starfie1d1272` |
 | `repository` | `Starfie1d1272/RivalHub` |
@@ -88,42 +97,49 @@ pnpm exec changeset version
 | `sub` | `repo:Starfie1d1272/RivalHub:environment:production` |
 | `event_name` | `push`, `workflow_dispatch` |
 
-不填写 `ref` 或 `workflow_ref`：推送 tag 时的 ref 是变量 `refs/tags/v<version>`，手动触发时的 ref 也不是固定值，Trusted Source 的声明匹配采用精确匹配。工作流自行验证 tag 提交属于 `main`；Trusted Source 通过 `repository`、`repository_id`、`workflow`、`environment`、`sub` 和 `event_name` 收窄范围。代码只能申请 OIDC 令牌并发送请求头，不能替代所有者在控制台中的配置；在控制台配置完成且精确部署冒烟检查真实通过前，受保护冒烟检查保持未验收。
+不填写 `ref` 或 `workflow_ref`：tag push 的 ref 是变量 `refs/tags/v<version>`，workflow dispatch 的 ref 也不是固定值，Trusted Source claim matching 使用 exact match。workflow 自己验证 tag commit 属于 `main`；Trusted Source 用 repository、repository id、workflow、environment、sub 和 event_name 收窄范围。代码只能申请 OIDC token 和发送 header，不能替代 owner Dashboard 配置；在 Dashboard 配置存在且 exact deployment smoke 真实通过前，protected smoke 保持未验收。
 
-## 4. 恢复能力发布门槛
+## 4. Recovery capability release gate
 
-恢复能力加固作为独立发布能力进入 `main` 后，仍须完成一次真实验收，才能关闭对应 Issue 或放行后续高风险迁移：
+Recovery hardening 作为独立 release capability 进入 `main` 后，仍须完成一次真实 acceptance 才能关闭对应 Issue 或放行后续高风险 migration：
 
 ```text
-生产环境加密备份
-→ 私有 R2 工件/旁车文件/完成标记 PUT + HEAD + 实际 GET/哈希回读
-→ 离线只读获取
-→ 本地离线解密 age 私钥
-→ 一次性隔离目标恢复/验证/应用冒烟检查
+production encrypted backup
+→ private R2 artifact/sidecar/completion PUT + HEAD + real GET/hash read-back
+→ offline read-only fetch
+→ local offline age private key decrypt
+→ disposable isolated target restore/verify/application smoke
 ```
 
-处于 active 状态的 `education-evidence` 业务副本继续保留 7 天；加密 DR 副本最多保留 30 天，过期证据不会在恢复过程中重新激活。恢复策略注册表允许 `team-logos` 与 `season-public-assets` 使用 `durable/always`，允许 `education-evidence` 使用 `temporary-sensitive/active-reference-only`；未知 `bucket/type` 必须拒绝继续。`season-public-assets` 是公开的赛事运营图片 bucket，当前用于群二维码；迁移、存储验证与恢复清单必须共同证明其公开、1 MiB、JPEG/PNG/WebP 契约。
+active `education-evidence` business copy 继续是 7 天 retention；encrypted DR copy 最多 30 天，过期 evidence 不会在 restore 中重新激活。Recovery policy registry 允许 `team-logos` 与 `season-public-assets` durable/always，以及 `education-evidence` temporary-sensitive/active-reference-only；未知 bucket/type 必须 fail closed。`season-public-assets` 是公开赛事运营图片 bucket，当前用于群二维码，migration、Storage verification 与 recovery inventory 必须共同证明其 public、1 MiB、JPEG/PNG/WebP contract。
 
 ## 5. 并发与重试
 
-`release.yml` 与 `recovery-backup.yml` 共享 `rivalhub-production-state-serialization` 组，配置 `queue: max` 与 `cancel-in-progress: false`。这样发布迁移与备份引用窗口不会被互相取消或产生竞态覆盖；`recovery-r2.yml` 是独立的服务商配置校验工作流，不参与数据库串行排队。手动触发可以重试同一个已存在的 tag 或对应操作；不得移动 tag、手工修补生产数据库、用未经验证的本地构建覆盖生产环境，或绕过失败的强制门槛。
+`release.yml` 与 `recovery-backup.yml` 共享 `rivalhub-production-state-serialization` group，配置 `queue: max` 与 `cancel-in-progress: false`。这样 release migration 与 backup reference window 不会被互相取消或产生竞态覆盖；`recovery-r2.yml` 是独立 provider config verification workflow，不参与 DB serialization。
 
-## 6. 冷启动配置回读
+workflow dispatch 可以 retry 同一个已存在 tag，但分两种情况：
 
-恢复能力验收还要人工确认 Supabase 方案/物理备份/PITR、认证/API 密钥、Realtime、必要的数据库扩展和设置、存储配置、Vercel Trusted Source、GitHub 环境/OIDC/密钥/变量、R2 30 天生命周期/锁定/私有域名，以及调度器 pg_cron/pg_net/Vault 名称。只记录是否存在、负责人、能力和保留期，不记录密钥值、PII、签名 URL 或导出文件。Supabase 数据库备份不包含存储对象，因此服务商克隆或恢复后必须单独重建这些配置。
+- canonical Production 仍是 previous release：不填写 `previous_release_tag` / `previous_release_commit`，按 fresh path 重新执行完整 release；
+- canonical Production 已经是当前 candidate：必须填写首次 run 冻结的 previous pair，进入 `resume`，跳过已完成的 pre-promotion mutation，只重新执行 scheduler 与 GitHub Release 等 post-promotion steps。
 
-这次变更不迁移 PostgreSQL TLS 配置，不把现有 `service_role` 变量做全仓库改名或扩大权限；恢复/备份只使用现代 `SUPABASE_SECRET_KEY`，并为既有配置保留明确的旧配置回退。离线获取复用标准 R2 凭据；该凭据本身可能具备写权限，但获取代码路径只暴露 `HEAD/GET`，不调用 R2 写接口，也不读取数据库、部署信息或 age 私钥凭据。
+不得移动 tag、手工 patch production DB、用未经验证的 local build 覆盖 production，或绕过 failed hard gate。
 
-## 7. 发布完成条件
+## 6. Cold-start 配置 read-back
 
-只有以下条件全部成立才算发布完成：
+Recovery acceptance 还要人工确认 Supabase plan/physical backup/PITR、Auth/API keys、Realtime、required DB extensions/settings、Storage config、Vercel Trusted Source、GitHub Environment/OIDC/secrets/vars、R2 30d lifecycle/lock/private domains 和 scheduler pg_cron/pg_net/Vault names。只记录 presence/owner/capability/retention，不记录 secret value、PII、signed URL 或 dump。Supabase database backup 不包含 Storage objects，provider clone/restore 后必须单独重建这些配置。
 
-- tag、实际发布提交、生产部署身份标识对齐；
-- 发布开始时已冻结并校验权威上一生产版本身份标识，且 tag/SHA 配对在兼容性检查、路由切换与发布说明中保持一致；
-- 发布前备份、R2 HEAD/实际 GET/哈希回读通过；
-- 生产迁移与验证、Vercel 受保护冒烟检查、权威身份标识回读、调度任务配置与验证通过；
-- GitHub 发布说明使用上一版本到当前版本的生产差异，且不把失败的中间 tag 表述为已上线；CHANGELOG 对比链接正确；
-- Vercel Trusted Source 已由所有者配置，并以短期 GitHub OIDC 精确部署冒烟检查证明；
-- 需要生产环境验收的 Issue 在具备真实证据后再关闭。
+这次变更不迁移 PostgreSQL TLS 配置，不把现有 `service_role` 变量做全仓库改名或权限扩大；recovery/backup 只使用现代 `SUPABASE_SECRET_KEY`，并为既有配置保留明确的 legacy fallback。offline fetch 复用标准 R2 credential；该 credential 本身可能具备写权限，但 fetch path 只暴露 `HEAD/GET`，不调用 R2 write API，也不读取 DB、deploy 或 age private-key credential。
 
-生产环境破坏性恢复、服务商切换、事故冻结和 Issue 关闭不是普通发布重试的隐含副作用；必须满足各自明确的授权与独立证据门槛。
+## 7. Release 完成条件
+
+只有以下条件全部成立才算 release 完成：
+
+- tag、实际 release commit、production deployment identity 对齐；
+- previous Production tag/SHA 已冻结并校验，migration compatibility、routing 与 release notes 使用同一 baseline；
+- pre-release backup、R2 HEAD/real GET/hash read-back 通过（same-tag `resume` 复用首次已完成 run 的该阶段，不重复写）；
+- production migration/verify、Vercel protected smoke、canonical identity read-back、scheduler provision/verify 通过；
+- GitHub Release notes 使用真实 previous Production → current Production delta，failed intermediate tag 不被表述为曾上线；
+- Vercel Trusted Source 已由 owner 配置并以短期 GitHub OIDC exact deployment smoke 证明；
+- 需要 production acceptance 的 Issue 具备真实 evidence 后再关闭。
+
+Production destructive restore、provider cutover、incident freeze 和 Issue close 不是普通 release retry 的隐含副作用；必须满足各自明确授权与独立证据门槛。
