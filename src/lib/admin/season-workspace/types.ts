@@ -1,4 +1,5 @@
 import type { MajorPrestartReadiness } from "@/lib/major/prestart";
+import type { RegistrationWindowPhase } from "@/lib/registration/window";
 import type { SeedOrderRowStatus } from "@/lib/major/team-seed-recommendation";
 import type { Season } from "@/db/schema/seasons";
 
@@ -25,9 +26,20 @@ export interface SeasonWorkspaceNextAction {
   href: string;
 }
 
+export interface SeasonWorkspaceTeamRegistrationFunnel {
+  mode: "team";
+  total: number;
+  draft: number;
+  submitted: number;
+  approved: number;
+  deadline: Date | null;
+  windowPhase: RegistrationWindowPhase;
+}
+
 export interface SeasonWorkspaceOverviewData {
   season: SeasonWorkspaceOverviewSeason;
   summary: SeasonWorkspaceOverviewSummary;
+  registrationFunnel: SeasonWorkspaceTeamRegistrationFunnel | null;
   readiness: MajorPrestartReadiness | null;
   nextAction: SeasonWorkspaceNextAction;
 }

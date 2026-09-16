@@ -1,6 +1,6 @@
 import type { MajorPrestartReadiness } from "@/lib/major/prestart";
 import type { SeasonStatus } from "@/types/season";
-import type { SeasonWorkspaceNextAction, SeasonWorkspaceOverviewSummary } from "./types";
+import type { SeasonWorkspaceNextAction, SeasonWorkspaceOverviewSummary, SeasonWorkspaceTeamRegistrationFunnel } from "./types";
 
 export interface SeasonWorkspaceLifecycleInput {
   slug: string;
@@ -11,6 +11,23 @@ export interface SeasonWorkspaceLifecycleInput {
 export interface RegistrationSummaryRow {
   status: string;
   count: number;
+}
+
+export function projectTeamRegistrationFunnel(
+  rows: readonly RegistrationSummaryRow[],
+  input: Pick<SeasonWorkspaceTeamRegistrationFunnel, "deadline" | "windowPhase">,
+): SeasonWorkspaceTeamRegistrationFunnel {
+  const statusCounts = new Map<string, number>();
+  for (const row of rows) statusCounts.set(row.status, (statusCounts.get(row.status) ?? 0) + row.count);
+  return {
+    mode: "team",
+    total: [...statusCounts.values()].reduce((sum, value) => sum + value, 0),
+    draft: statusCounts.get("draft") ?? 0,
+    submitted: statusCounts.get("submitted") ?? 0,
+    approved: statusCounts.get("approved") ?? 0,
+    deadline: input.deadline,
+    windowPhase: input.windowPhase,
+  };
 }
 
 export function projectRegistrationSummary(

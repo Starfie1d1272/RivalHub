@@ -20,9 +20,10 @@ import {
 } from "@/db/schema";
 import type { Season } from "@/db/schema/seasons";
 import { getDisplayName } from "@/lib/identity/display-name";
+import { getRegistrationWindowState } from "@/lib/registration/window";
 import { buildMajorReadiness } from "./major-prestart";
 import { buildFrozenSetFingerprint, frozenTeamsForSnapshot, getSeedRecommendationSnapshotStatus } from "@/lib/major/seed-recommendation-snapshot";
-import { projectRegistrationSummary, selectSeasonWorkspaceNextAction } from "./selectors";
+import { projectRegistrationSummary, projectTeamRegistrationFunnel, selectSeasonWorkspaceNextAction } from "./selectors";
 import type { SeasonWorkspaceOverviewData, SeasonWorkspaceOverviewSummary } from "./types";
 
 type MajorOverviewFacts = {
@@ -122,6 +123,12 @@ export async function loadSeasonWorkspaceOverview(seasonSlug: string): Promise<S
     registrationRows.map((row) => ({ status: row.status, count: Number(row.count) })),
     formedTeamCount ?? 0,
   );
+  const registrationFunnel = season.registrationMode === "team"
+    ? projectTeamRegistrationFunnel(
+      registrationRows.map((row) => ({ status: row.status, count: Number(row.count) })),
+      { deadline: season.registrationClosesAt, windowPhase: getRegistrationWindowState(season).phase },
+    )
+    : null;
   const confirmedLineupsByMatch = new Map<string, number>();
   for (const row of matchRosterRows) {
     if (row.status === "confirmed") confirmedLineupsByMatch.set(row.matchId, (confirmedLineupsByMatch.get(row.matchId) ?? 0) + 1);
@@ -160,6 +167,7 @@ export async function loadSeasonWorkspaceOverview(seasonSlug: string): Promise<S
   return {
     season: overviewSeason,
     summary,
+    registrationFunnel,
     readiness,
     nextAction: selectSeasonWorkspaceNextAction(overviewSeason, summary, readiness),
   };

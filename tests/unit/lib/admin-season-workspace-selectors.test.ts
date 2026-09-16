@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { projectRegistrationSummary, selectSeasonWorkspaceNextAction } from "@/lib/admin/season-workspace/selectors";
+import { projectRegistrationSummary, projectTeamRegistrationFunnel, selectSeasonWorkspaceNextAction } from "@/lib/admin/season-workspace/selectors";
 import type { SeasonWorkspaceOverviewSummary } from "@/lib/admin/season-workspace/types";
 
 const baseSummary: SeasonWorkspaceOverviewSummary = {
@@ -32,6 +32,23 @@ describe("season workspace selectors", () => {
       { status: "submitted", count: 3 },
       { status: "approved", count: 12 },
     ], 0)).toEqual({ pendingApplications: 3, approvedEntries: 12, formedTeamCount: 12 });
+  });
+
+  it("projects the season-scoped team entry funnel without inventing solo statuses", () => {
+    expect(projectTeamRegistrationFunnel([
+      { status: "draft", count: 2 },
+      { status: "submitted", count: 3 },
+      { status: "approved", count: 4 },
+      { status: "changes_requested", count: 1 },
+    ], { deadline: null, windowPhase: "closed" })).toEqual({
+      mode: "team",
+      total: 10,
+      draft: 2,
+      submitted: 3,
+      approved: 4,
+      deadline: null,
+      windowPhase: "closed",
+    });
   });
 
   it("prioritizes lifecycle before residual counts", () => {

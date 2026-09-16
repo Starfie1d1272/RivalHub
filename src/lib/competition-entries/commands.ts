@@ -160,11 +160,14 @@ async function validateEntryRoster(
         .from(users).where(inArray(users.id, rows.map((row) => row.userId)));
     userLabels = new Map(participantUsers.map((user) => [user.id, getDisplayName(user)]));
   }
-  const [registrationBlocks, rosterBlocks, activeMemberships] = await Promise.all([
+  const [registrationBlocks, rosterBlocks, activeMemberships, currentTeamIdentity] = await Promise.all([
     loadActiveSanctionsInTx(tx, { seasonId: season.id, subjectUserIds: rows.map((row) => row.userId), effect: "registration_block" }),
     loadActiveSanctionsInTx(tx, { seasonId: season.id, subjectUserIds: rows.map((row) => row.userId), effect: "roster_block" }),
     options.requireCurrentTeamMembership && entry.teamId
       ? tx.select({ userId: teamMemberships.userId }).from(teamMemberships).where(and(eq(teamMemberships.teamId, entry.teamId), eq(teamMemberships.status, "active"), isNull(teamMemberships.endedAt), inArray(teamMemberships.userId, rows.map((row) => row.userId))))
+      : Promise.resolve([]),
+    config.requireTeamLogo && entry.teamId
+      ? tx.select({ logoUrl: teams.logoUrl }).from(teams).where(eq(teams.id, entry.teamId)).limit(1)
       : Promise.resolve([]),
   ]);
   let qualification: RosterQualificationResult | null = null;
@@ -193,6 +196,7 @@ async function validateEntryRoster(
     qualificationFindings: qualification?.findings ?? [],
     registrationBlockedUserIds: new Set(registrationBlocks.keys()),
     rosterBlockedUserIds: new Set(rosterBlocks.keys()),
+    currentTeamLogoUrl: currentTeamIdentity[0]?.logoUrl ?? null,
     currentTeamMemberUserIds: new Set(activeMemberships.map((membership) => membership.userId)),
     requireCurrentTeamMembership: options.requireCurrentTeamMembership,
     requireActiveRestrictionOverrides: Boolean(options.requireActiveRestrictionOverrides),

@@ -10,6 +10,8 @@ const ENVIRONMENT_KEYS = [
   "RIVALHUB_MIGRATION_BASE_SHA",
   "RIVALHUB_MIGRATION_HEAD_SHA",
   "RIVALHUB_PREVIOUS_RELEASE_TAG",
+  "RIVALHUB_PREVIOUS_RELEASE_COMMIT",
+  "RIVALHUB_REQUIRE_EXPLICIT_PREVIOUS_RELEASE",
   "RIVALHUB_PRODUCTION_STABLE_REF",
 ] as const;
 const originalEnvironment = new Map(ENVIRONMENT_KEYS.map((key) => [key, process.env[key]]));
@@ -51,12 +53,13 @@ describe("release compatibility gate", () => {
         ? { "src/lib/legacy-reader.ts": "import { oldTeams } from \"@/db/schema\"; export const read = oldTeams;\n" }
         : undefined,
     });
+    configureExplicitPreviousRelease(fixture);
     const result = checkReleaseCompatibility(fixture.directory);
 
     expect(result.failures).toHaveLength(1);
     expect(result.failures[0]).toMatch(/drizzle\/migrations\/0002_next\.sql:2 \[(?:drop|rename)\]/);
     expect(result.failures[0]).toContain("src/db/schema/teams.ts:");
-    expect(result.failures[0]).toContain("previous stable");
+    expect(result.failures[0]).toContain("上一生产版本");
   });
 
   it("allows an unconsumed legacy relation declaration in previous stable source", () => {
@@ -81,7 +84,7 @@ export type NewOldTeam = typeof oldTeams.$inferInsert;
     const result = checkReleaseCompatibility(fixture.directory);
 
     expect(result.findings[0]).toMatchObject({ status: "fail", finding: { category: "drop" } });
-    expect(result.failures[0]).toContain("annotation 只声明 cleanup 意图");
+    expect(result.failures[0]).toContain("迁移注解只声明清理意图");
   });
 
   it("passes after previous stable has switched to the new column owner", () => {
@@ -116,8 +119,8 @@ export type NewOldTeam = typeof oldTeams.$inferInsert;
     const result = checkReleaseCompatibility(fixture.directory);
 
     expect(result.failures).toHaveLength(1);
-    expect(result.failures[0]).toMatch(/fail closed/);
-    expect(result.failures[0]).toContain("annotation 不能绕过此 gate");
+    expect(result.failures[0]).toMatch(/直接拒绝继续/);
+    expect(result.failures[0]).toContain("迁移注解不能绕过此门槛");
   });
 
   it("passes additive migrations", () => {
@@ -174,7 +177,7 @@ export type NewOldTeam = typeof oldTeams.$inferInsert;
 
   it("uses an explicit stable release tag when it is resolvable", () => {
     const fixture = createFixture({ migration: `ALTER TABLE "teams" ADD COLUMN "new_column" text;` });
-    process.env.RIVALHUB_PREVIOUS_RELEASE_TAG = "v1.0.0";
+    configureExplicitPreviousRelease(fixture);
 
     const result = checkReleaseCompatibility(fixture.directory);
 
@@ -182,11 +185,58 @@ export type NewOldTeam = typeof oldTeams.$inferInsert;
     expect(result.failures).toEqual([]);
   });
 
-  it("rejects an explicitly resolvable prerelease ref", () => {
-    const fixture = createFixture({ migration: `ALTER TABLE "teams" ADD COLUMN "new_column" text;` });
-    process.env.RIVALHUB_PREVIOUS_RELEASE_TAG = "v1.1.0-rc.1";
+  it("accepts an explicit semver prerelease production identity", () => {
+    const fixture = createFixture({
+      migration: `ALTER TABLE "teams" ADD COLUMN "new_column" text;`,
+      prereleaseTag: "v1.1.0-rc.1",
+    });
+    configureExplicitPreviousRelease(fixture, "v1.1.0-rc.1");
 
-    expect(() => checkReleaseCompatibility(fixture.directory)).toThrow(/production stable tag vX\.Y\.Z/);
+    const result = checkReleaseCompatibility(fixture.directory);
+
+    expect(result.previousRelease.ref).toBe("v1.1.0-rc.1");
+  });
+
+  it("uses the explicit production pair instead of a newer failed intermediate tag", () => {
+    const fixture = createFixture({
+      migration: `ALTER TABLE "teams" ADD COLUMN "new_column" text;`,
+      stableTags: ["v1.1.0"],
+      candidateTag: "v1.2.0",
+    });
+    configureExplicitPreviousRelease(fixture);
+
+    const result = checkReleaseCompatibility(fixture.directory);
+
+    expect(result.previousRelease).toEqual({
+      ref: "v1.0.0",
+      commit: runGit(fixture.directory, ["rev-parse", "refs/tags/v1.0.0^{commit}"]),
+    });
+  });
+
+  it("fails closed when production release did not freeze a previous identity", () => {
+    const fixture = createFixture({ migration: `ALTER TABLE "teams" ADD COLUMN "new_column" text;` });
+    process.env.RIVALHUB_REQUIRE_EXPLICIT_PREVIOUS_RELEASE = "1";
+    delete process.env.RIVALHUB_PRODUCTION_STABLE_REF;
+
+    expect(() => checkReleaseCompatibility(fixture.directory)).toThrow(/禁止回退到 Git 推导的稳定 tag/);
+  });
+
+  it("rejects a previous tag and commit mismatch", () => {
+    const fixture = createFixture({ migration: `ALTER TABLE "teams" ADD COLUMN "new_column" text;` });
+    process.env.RIVALHUB_PREVIOUS_RELEASE_TAG = "v1.0.0";
+    process.env.RIVALHUB_PREVIOUS_RELEASE_COMMIT = "f".repeat(40);
+
+    expect(() => checkReleaseCompatibility(fixture.directory)).toThrow(/不匹配/);
+  });
+
+  it("rejects a previous identity that is the candidate commit", () => {
+    const fixture = createFixture({
+      migration: `ALTER TABLE "teams" ADD COLUMN "new_column" text;`,
+      candidateTag: "v1.2.0",
+    });
+    configureExplicitPreviousRelease(fixture, "v1.2.0");
+
+    expect(() => checkReleaseCompatibility(fixture.directory)).toThrow(/与候选版本相同/);
   });
 
   it("selects the latest stable tag on the production lineage and ignores prereleases", () => {
@@ -304,4 +354,12 @@ function writeFixtureFile(directory: string, path: string, content: string): voi
 
 function runGit(directory: string, args: string[]): string {
   return execFileSync("git", args, { cwd: directory, encoding: "utf8" }).trim();
+}
+
+function configureExplicitPreviousRelease(fixture: Fixture, tag = "v1.0.0"): void {
+  process.env.RIVALHUB_PREVIOUS_RELEASE_TAG = tag;
+  process.env.RIVALHUB_PREVIOUS_RELEASE_COMMIT = runGit(fixture.directory, [
+    "rev-parse",
+    `refs/tags/${tag}^{commit}`,
+  ]);
 }

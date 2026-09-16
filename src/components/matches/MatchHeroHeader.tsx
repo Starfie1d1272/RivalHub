@@ -1,8 +1,8 @@
 import React from "react";
-import Image from "next/image";
 import Link from "next/link";
 import { MatchStatusBadge } from "@/components/matches/MatchStatusBadge";
-import { PosChip, TeamBadge } from "@/components/rivalhub";
+import { PosChip } from "@/components/rivalhub";
+import { TeamLogoImage } from "@/components/teams/TeamLogoImage";
 import { formatCSTDateTime } from "@/lib/utils/date";
 import { MATCH_FORMAT_LABELS, MATCH_STAGE_LABELS } from "@/types/match";
 import { teamBadgeData } from "@/lib/matches/detail-stats";
@@ -81,17 +81,15 @@ export function MatchHeroHeader({
           </div>
           {teamA && (
             <div className="w-12 h-12 sm:w-16 sm:h-16 shrink-0">
-              {teamA.logoUrl ? (
-                <Image
-                  src={teamA.logoUrl}
-                  alt={teamA.name}
-                  width={64}
-                  height={64}
-                  className="w-full h-full rounded-full object-cover"
-                />
-              ) : (
-                <TeamBadge team={teamBadgeData(teamA.name, 0)} size={64} />
-              )}
+              <TeamLogoImage
+                logoUrl={teamA.logoUrl}
+                teamName={teamA.name}
+                width={64}
+                height={64}
+                sizes="64px"
+                imageClassName="h-full w-full rounded-full object-cover"
+                fallbackClassName="rounded-full bg-[var(--color-panel-low)] text-xl"
+              />
             </div>
           )}
         </div>
@@ -134,17 +132,15 @@ export function MatchHeroHeader({
         <div className="flex items-center gap-4">
           {teamB && (
             <div className="w-12 h-12 sm:w-16 sm:h-16 shrink-0">
-              {teamB.logoUrl ? (
-                <Image
-                  src={teamB.logoUrl}
-                  alt={teamB.name}
-                  width={64}
-                  height={64}
-                  className="w-full h-full rounded-full object-cover"
-                />
-              ) : (
-                <TeamBadge team={teamBadgeData(teamB.name, 1)} size={64} />
-              )}
+              <TeamLogoImage
+                logoUrl={teamB.logoUrl}
+                teamName={teamB.name}
+                width={64}
+                height={64}
+                sizes="64px"
+                imageClassName="h-full w-full rounded-full object-cover"
+                fallbackClassName="rounded-full bg-[var(--color-panel-low)] text-xl"
+              />
             </div>
           )}
           <div className="min-w-0">

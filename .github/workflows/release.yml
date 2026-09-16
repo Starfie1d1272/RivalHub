@@ -7,8 +7,16 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "已存在的 release tag（仅用于失败后的安全重试）"
+        description: "重试已有 release tag"
         required: true
+        type: string
+      previous_release_tag:
+        description: "仅当该 tag 已经成为 canonical Production 时填写：首次 run 冻结的 previous release tag"
+        required: false
+        type: string
+      previous_release_commit:
+        description: "与 previous_release_tag 配对：首次 run 冻结的 previous release commit SHA"
+        required: false
         type: string
 
 concurrency:
@@ -28,51 +36,50 @@ jobs:
       NEXT_TELEMETRY_DISABLED: 1
       CI: true
       RIVALHUB_TIMING: 1
-      RIVALHUB_TIMING_TITLE: "Release phase timing"
-      # Fixed non-secret Vercel target. VERCEL_TOKEN is the project-scoped
-      # credential for deployment and project-scoped promotion/rollback API
-      # calls. Protected smoke obtains a short-lived GitHub OIDC token at
-      # runtime. DATABASE_URL is a GitHub production Environment secret
-      # dedicated to the protected migration runner.
+      RIVALHUB_TIMING_TITLE: "Release 阶段耗时"
+      # 固定的非敏感 Vercel target。VERCEL_TOKEN 是 project-scoped credential，仅用于 deployment 与
+      # project-scoped promote/rollback API。受保护 smoke test 在运行时获取短期 GitHub OIDC token。
+      # DATABASE_URL 是 GitHub production Environment secret，仅供受保护 migration runner 使用。
       VERCEL_ORG_ID: team_0eIkBawGTdVjwYHdyrb20ZVV
       VERCEL_PROJECT_ID: prj_3bjmfKrSqRh4szrkEE4HpavnhI0E
       RIVALHUB_DB_TARGET: production
       RIVALHUB_PRODUCTION_BASE_URL: https://match.starfie1d.top
-      RIVALHUB_PRODUCTION_STABLE_REF: origin/main
       RIVALHUB_PRODUCTION_PROJECT_CONFIRM: sucokfotkypwqkckfynp
       RIVALHUB_PRODUCTION_DB_HOST_CONFIRM: aws-0-ap-northeast-1.pooler.supabase.com:6543
+      RIVALHUB_RETRY_PREVIOUS_RELEASE_TAG: ${{ inputs.previous_release_tag || '' }}
+      RIVALHUB_RETRY_PREVIOUS_RELEASE_COMMIT: ${{ inputs.previous_release_commit || '' }}
       RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
     steps:
-      - name: Capture workflow timing start
+      - name: 记录 workflow 耗时起点
         run: echo "RELEASE_WORKFLOW_START_MS=$(date +%s%3N)" >> "$GITHUB_ENV"
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ inputs.tag || github.ref }}
           fetch-depth: 0
-        # 无论 tag push 或显式 retry，数据库、部署、changelog 与 GitHub Release
-        # 都必须来自同一个不可变 tag commit。
+        # 无论 tag push 还是显式 retry，DB、deployment、CHANGELOG 与 GitHub Release
+        # 都必须来自同一个 immutable tag commit。
 
-      - name: Require release tag commit on main
+      - name: 验证 release tag 位于 main
         run: |
           if [[ ! "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
-            echo "Release tag $RELEASE_TAG is invalid." >&2
+            echo "Release tag $RELEASE_TAG 无效。" >&2
             exit 1
           fi
           git fetch origin main --tags
           RELEASE_SHA="$(git rev-parse HEAD)"
           TAG_SHA="$(git rev-parse "refs/tags/$RELEASE_TAG^{commit}")"
           if [[ "$RELEASE_SHA" != "$TAG_SHA" ]]; then
-            echo "Release checkout does not match tag $RELEASE_TAG." >&2
+            echo "Checkout 与 tag $RELEASE_TAG 不一致。" >&2
             exit 1
           fi
           if ! git merge-base --is-ancestor "$RELEASE_SHA" origin/main; then
-            echo "Release tag $RELEASE_TAG does not point to a commit contained in main." >&2
+            echo "Release tag $RELEASE_TAG 未指向 main 包含的 commit。" >&2
             exit 1
           fi
           echo "RELEASE_SHA=$RELEASE_SHA" >> "$GITHUB_ENV"
 
-      - name: Start bootstrap/install timing
+      - name: 记录 bootstrap 耗时起点
         run: echo "RELEASE_BOOTSTRAP_START_MS=$(date +%s%3N)" >> "$GITHUB_ENV"
 
       - uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
@@ -80,44 +87,53 @@ jobs:
           cache: true
           require-lockfile: true
 
-      - name: Install pinned Vercel CLI
+      - name: 冻结 previous Production identity
+        run: node scripts/ci/timing.mjs "Freeze previous Production identity" -- pnpm release:freeze-identity
+
+      - name: 安装固定版本 Vercel CLI
+        if: env.RIVALHUB_RELEASE_MODE == 'fresh'
         run: pnpm add --global vercel@59.11.7
 
-      - name: Record bootstrap/install timing
-        run: node scripts/ci/timing.mjs record --label "bootstrap/install" --start-ms "$RELEASE_BOOTSTRAP_START_MS"
+      - name: 记录 bootstrap 耗时
+        run: node scripts/ci/timing.mjs record --label "Bootstrap" --start-ms "$RELEASE_BOOTSTRAP_START_MS"
 
-      - name: Verify exact-SHA CI prerequisite
+      - name: 验证 exact-SHA CI prerequisite
         env:
           GITHUB_TOKEN: ${{ github.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}
-        run: node scripts/ci/timing.mjs "preflight exact-SHA CI wait" -- pnpm release:ci-prerequisite
+        run: node scripts/ci/timing.mjs "Wait exact-SHA CI prerequisite" -- pnpm release:ci-prerequisite
 
-      - name: Require Vercel deploy credential
+      - name: 验证 Vercel deployment credential
+        if: env.RIVALHUB_RELEASE_MODE == 'fresh'
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: |
           if [[ -z "$VERCEL_TOKEN" || "$VERCEL_TOKEN" == "[SENSITIVE]" ]]; then
-            echo "GitHub production environment secret VERCEL_TOKEN is required." >&2
+            echo "GitHub production Environment secret VERCEL_TOKEN 未设置。" >&2
             exit 1
           fi
-          # VERCEL_TOKEN must remain project-scoped (`rivalhub-release`) and is
-          # used only by the exact production deploy and routing API calls below.
+          # VERCEL_TOKEN 必须保持 project-scoped（`rivalhub-release`），且只能用于下方的
+          # exact production deployment 和 routing API。
 
-      - name: Validate active migration chain locally
+      - name: 运行 DB-only local rehearsal
+        if: env.RIVALHUB_RELEASE_MODE == 'fresh'
         run: |
           pnpm db:check
           node scripts/ci/timing.mjs "DB-only local readiness" -- pnpm db:local:start-db
 
-      - name: Validate previous release compatibility
-        run: node scripts/ci/timing.mjs "migration rehearsal" -- pnpm db:release-compat
+      - name: 验证 previous Production compatibility
+        if: env.RIVALHUB_RELEASE_MODE == 'fresh'
+        run: node scripts/ci/timing.mjs "Migration compatibility rehearsal" -- pnpm db:release-compat
 
-      - name: Install age encryption tool
+      - name: 安装 age
+        if: env.RIVALHUB_RELEASE_MODE == 'fresh'
         run: |
           sudo apt-get update -qq
           sudo apt-get install --yes --no-install-recommends age
           age --version
 
-      - name: Create protected pre-release backup
+      - name: 创建 pre-release backup
+        if: env.RIVALHUB_RELEASE_MODE == 'fresh'
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
@@ -127,20 +143,22 @@ jobs:
           RIVALHUB_R2_BUCKET: ${{ vars.RIVALHUB_R2_BUCKET }}
           RIVALHUB_R2_ACCESS_KEY_ID: ${{ secrets.RIVALHUB_R2_ACCESS_KEY_ID }}
           RIVALHUB_R2_SECRET_ACCESS_KEY: ${{ secrets.RIVALHUB_R2_SECRET_ACCESS_KEY }}
-        run: node scripts/ci/timing.mjs "fresh backup total" -- pnpm db:recovery:backup pre-release
+        run: node scripts/ci/timing.mjs "Pre-release backup" -- pnpm db:recovery:backup pre-release
 
-      - name: Migrate and verify production database
+      - name: 运行 production migration 与验证
+        if: env.RIVALHUB_RELEASE_MODE == 'fresh'
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: |
           if [[ -z "$DATABASE_URL" || "$DATABASE_URL" == "[SENSITIVE]" ]]; then
-            echo "GitHub production environment secret DATABASE_URL is required." >&2
+            echo "GitHub production Environment secret DATABASE_URL 未设置。" >&2
             exit 1
           fi
-          node scripts/ci/timing.mjs "production migration" -- env RIVALHUB_ALLOW_REMOTE_DB_WRITE=production pnpm db:production:migrate
-          node scripts/ci/timing.mjs "production verify" -- pnpm db:production:verify
+          node scripts/ci/timing.mjs "Production migration" -- env RIVALHUB_ALLOW_REMOTE_DB_WRITE=production pnpm db:production:migrate
+          node scripts/ci/timing.mjs "Production DB verify" -- pnpm db:production:verify
 
-      - name: Deploy candidate to Vercel Production (staged)
+      - name: 部署 Vercel candidate
+        if: env.RIVALHUB_RELEASE_MODE == 'fresh'
         id: deploy
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
@@ -152,16 +170,17 @@ jobs:
           DEPLOY_END="$(date +%s%3N)"
           node scripts/ci/timing.mjs record --label "Vercel candidate build/deploy" --start-ms "$DEPLOY_START" --end-ms "$DEPLOY_END"
           echo "url=$DEPLOYMENT_URL" >> "$GITHUB_OUTPUT"
-          echo "Staged candidate deployment: $DEPLOYMENT_URL"
+          echo "Candidate deployment ready: $DEPLOYMENT_URL"
 
-      - name: Mint GitHub OIDC token for Vercel Trusted Sources
+      - name: 获取 Vercel Trusted Source OIDC token
+        if: env.RIVALHUB_RELEASE_MODE == 'fresh'
         id: oidc
         env:
           VERCEL_TRUSTED_SOURCE_AUDIENCE: https://github.com/Starfie1d1272
         run: |
           set -euo pipefail
           if [[ -z "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" || -z "${ACTIONS_ID_TOKEN_REQUEST_TOKEN:-}" ]]; then
-            echo "GitHub Actions OIDC request endpoint is unavailable." >&2
+            echo "GitHub Actions OIDC endpoint 不可用。" >&2
             exit 1
           fi
           oidc_response="$(curl --fail --silent --show-error --get \
@@ -172,7 +191,8 @@ jobs:
           echo "::add-mask::$oidc_token"
           echo "token=$oidc_token" >> "$GITHUB_OUTPUT"
 
-      - name: Smoke test candidate deployment
+      - name: 运行 candidate smoke test
+        if: env.RIVALHUB_RELEASE_MODE == 'fresh'
         env:
           DEPLOYMENT_URL: ${{ steps.deploy.outputs.url }}
           VERCEL_TRUSTED_OIDC_IDP_TOKEN: ${{ steps.oidc.outputs.token }}
@@ -180,7 +200,7 @@ jobs:
           set -euo pipefail
           SMOKE_START="$(date +%s%3N)"
           if [[ ! "$DEPLOYMENT_URL" =~ ^https://[a-z0-9][a-z0-9-]*\.vercel\.app/?$ ]]; then
-            echo "Vercel deployment URL is not an exact *.vercel.app HTTPS target: $DEPLOYMENT_URL" >&2
+            echo "Vercel deployment URL 不是 exact *.vercel.app HTTPS target：$DEPLOYMENT_URL" >&2
             exit 1
           fi
           curl --fail --silent --show-error \
@@ -197,42 +217,36 @@ jobs:
             and .releaseCommit == $commit
           ' <<<"$deployment_identity" >/dev/null
           SMOKE_END="$(date +%s%3N)"
-          node scripts/ci/timing.mjs record --label "exact deployment smoke" --start-ms "$SMOKE_START" --end-ms "$SMOKE_END"
-          echo "Candidate deployment smoke verified identity: $deployment_identity"
+          node scripts/ci/timing.mjs record --label "Exact candidate smoke" --start-ms "$SMOKE_START" --end-ms "$SMOKE_END"
+          echo "Candidate smoke verified release identity: $deployment_identity"
 
-      - name: Route candidate and verify canonical production
+      - name: 执行 release routing / rollback
+        if: env.RIVALHUB_RELEASE_MODE == 'fresh'
         env:
           DEPLOYMENT_URL: ${{ steps.deploy.outputs.url }}
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-        run: node scripts/ci/timing.mjs "routing convergence and compensation" -- pnpm release:routing
+        run: node scripts/ci/timing.mjs "Release routing / rollback" -- pnpm release:routing
 
-      - name: Provision and verify production scheduler
+      - name: 配置并验证 production scheduler
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
           RIVALHUB_SCHEDULER_BASE_URL: https://match.starfie1d.top
         run: |
           if [[ -z "$CRON_SECRET" || "$CRON_SECRET" == "[SENSITIVE]" ]]; then
-            echo "GitHub production environment secret CRON_SECRET is required." >&2
+            echo "GitHub production Environment secret CRON_SECRET 未设置。" >&2
             exit 1
           fi
-          node scripts/ci/timing.mjs "scheduler provision/verify" -- bash -c '
+          node scripts/ci/timing.mjs "Production scheduler provision/verify" -- bash -c '
             set -euo pipefail
             RIVALHUB_ALLOW_REMOTE_DB_WRITE=production pnpm db:production:scheduler:provision
             pnpm db:production:scheduler:verify
           '
 
-      - name: Extract changelog for this version
-        run: |
-          VERSION="${RELEASE_TAG#v}"
-          # 兼容两种标题：手写 `## [1.30.0] - date` 与 changeset 生成的 `## 1.30.0`
-          awk -v ver="$VERSION" '
-            $0 ~ "^## \\[?" ver "(\\]| |$)" { found=1; next }
-            found && $0 ~ "^## \\[?[0-9]" { exit }
-            found { print }
-          ' CHANGELOG.md > /tmp/release-notes.md
+      - name: 生成 Production delta release notes
+        run: pnpm release:notes > /tmp/release-notes.md
 
-      - name: Create GitHub Release
+      - name: 创建或更新 GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -246,9 +260,9 @@ jobs:
 
           if gh release view "$RELEASE_TAG" &>/dev/null; then
             if [[ "$(gh release view "$RELEASE_TAG" --json isImmutable --jq .isImmutable)" == "true" ]]; then
-              echo "Release $RELEASE_TAG is immutable; keeping published metadata."
+              echo "GitHub Release $RELEASE_TAG 已 immutable；保留已发布 metadata。"
             else
-              echo "Release $RELEASE_TAG already exists, updating notes..."
+              echo "GitHub Release $RELEASE_TAG 已存在，更新 notes…"
               gh release edit "$RELEASE_TAG" \
                 --notes-file /tmp/release-notes.md \
                 "${RELEASE_FLAGS[@]}"
@@ -262,10 +276,10 @@ jobs:
           RELEASE_PUB_END="$(date +%s%3N)"
           node scripts/ci/timing.mjs record --label "GitHub Release publish" --start-ms "$RELEASE_PUB_START" --end-ms "$RELEASE_PUB_END"
 
-      - name: Record workflow total wall time and summary
+      - name: 记录 workflow 总耗时并生成 summary
         if: always()
         run: |
           if [[ -n "$RELEASE_WORKFLOW_START_MS" ]]; then
-            node scripts/ci/timing.mjs record --label "TOTAL wall time" --start-ms "$RELEASE_WORKFLOW_START_MS"
+            node scripts/ci/timing.mjs record --label "Total" --start-ms "$RELEASE_WORKFLOW_START_MS"
           fi
           node scripts/ci/timing.mjs summary

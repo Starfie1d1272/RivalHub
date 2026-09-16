@@ -29,6 +29,15 @@ const data: SeasonWorkspaceOverviewData = {
     finalResultPendingConfirmation: false,
     activeAdjudications: 0,
   },
+  registrationFunnel: {
+    mode: "team",
+    total: 4,
+    draft: 1,
+    submitted: 1,
+    approved: 2,
+    deadline: new Date("2026-10-01T00:00:00.000Z"),
+    windowPhase: "unscheduled",
+  },
   readiness: {
     canStart: false,
     blockers: ["内部检查细节不应直接进入总览。"],
@@ -49,6 +58,10 @@ describe("SeasonWorkspaceOverview", () => {
     expect(html).toContain("NJU Major 2026");
     expect(html).toContain("已发布 · 报名未开放");
     expect(html).toContain("正式参赛队");
+    expect(html).toContain("队伍报名概览");
+    expect(html).toContain("报名总数");
+    expect(html).toContain("报名时间待定");
+    expect(html).toContain("报名截止");
     expect(html).toContain('href="/admin/nju-major-2026/registrations"');
     expect(html).toContain("进入下一步");
     expect(html).not.toContain("内部检查细节不应直接进入总览");
@@ -62,6 +75,7 @@ describe("SeasonWorkspaceOverview", () => {
       ...data,
       season: { ...data.season, slug: "rivals-s1", name: "Rivals S1", competitionTemplate: "rivals", registrationMode: "solo" },
       summary: { ...data.summary, pendingApplications: 8, approvedEntries: 24, formedTeamCount: 4, entrantCount: 0, frozenEntrantCount: 0 },
+      registrationFunnel: null,
       nextAction: { label: "处理报名审核", detail: "8 份报名等待管理员处理。", href: "/admin/rivals-s1/registrations" },
     }} />);
 
@@ -72,5 +86,6 @@ describe("SeasonWorkspaceOverview", () => {
     expect(html).not.toContain("待审核个人报名");
     expect(html).not.toContain("未确认参赛名单");
     expect(html).not.toContain("最终结果待确认");
+    expect(html).not.toContain("队伍报名概览");
   });
 });

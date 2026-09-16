@@ -112,15 +112,15 @@ describe("deployment and operations contracts", () => {
     expect(r2).toContain("pnpm db:recovery:r2:apply");
     expect(r2).toContain("environment: production");
 
-    expect(release).toContain("Create protected pre-release backup");
+    expect(release).toContain("创建 pre-release backup");
     expect(release).toContain("RIVALHUB_PRODUCTION_BASE_URL: https://match.starfie1d.top");
-    expect(release.indexOf("Create protected pre-release backup")).toBeLessThan(release.indexOf("pnpm db:production:migrate"));
+    expect(release.indexOf("创建 pre-release backup")).toBeLessThan(release.indexOf("pnpm db:production:migrate"));
     expect(release).toContain("pnpm db:recovery:backup pre-release");
     expect(release).toContain("SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}");
     expect(release).toContain("SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}");
     expect(release).not.toContain("RIVALHUB_BACKUP_HEARTBEAT_URL");
     expect(release).toContain("contents: write\n      id-token: write");
-    expect(release).toContain("Mint GitHub OIDC token for Vercel Trusted Sources");
+    expect(release).toContain("获取 Vercel Trusted Source OIDC token");
     expect(release).toContain("ACTIONS_ID_TOKEN_REQUEST_URL");
     expect(release).toContain("ACTIONS_ID_TOKEN_REQUEST_TOKEN");
     expect(release).toContain("audience=$VERCEL_TRUSTED_SOURCE_AUDIENCE");
@@ -130,14 +130,14 @@ describe("deployment and operations contracts", () => {
     expect(release).not.toContain("VERCEL_AUTOMATION_BYPASS_SECRET");
     expect(release).not.toContain("protection-bypass");
     expect(release).not.toContain("x-vercel-protection-bypass");
-    const smokeStart = release.indexOf("      - name: Smoke test candidate deployment");
-    const schedulerStart = release.indexOf("      - name: Provision and verify production scheduler");
+    const smokeStart = release.indexOf("      - name: 运行 candidate smoke test");
+    const schedulerStart = release.indexOf("      - name: 配置并验证 production scheduler");
     const smoke = release.slice(smokeStart, schedulerStart);
     expect(smoke).toContain("^https://[a-z0-9][a-z0-9-]*\\.vercel\\.app/?$");
-    const candidateSmoke = smoke.slice(0, smoke.indexOf("- name: Route candidate"));
+    const candidateSmoke = smoke.slice(0, smoke.indexOf("- name: 执行 release routing / rollback"));
     expect(candidateSmoke).not.toContain("VERCEL_TOKEN");
     expect(candidateSmoke).toContain("x-vercel-trusted-oidc-idp-token: $VERCEL_TRUSTED_OIDC_IDP_TOKEN");
-    expect(release).toContain("Route candidate and verify canonical production");
+    expect(release).toContain("执行 release routing / rollback");
     expect(release).toContain("pnpm release:routing");
     const productionSerialization = "concurrency:\n  group: rivalhub-production-state-serialization\n  queue: max\n  cancel-in-progress: false";
     expect(backup).toContain(productionSerialization);
@@ -194,7 +194,7 @@ describe("deployment and operations contracts", () => {
     const releaseRunbook = readProjectFile("docs/operations/release.md");
     const recoveryRunbook = readProjectFile("docs/operations/disaster-recovery.md");
 
-    expect(releaseRunbook).toContain("fetch");
+    expect(releaseRunbook).toContain("offline read-only fetch");
     expect(releaseRunbook).toContain("temporary-sensitive/active-reference-only");
     expect(recoveryRunbook).toContain("30d");
     expect(recoveryRunbook).toContain("Cold-start provider configuration inventory");
@@ -250,6 +250,7 @@ describe("deployment and operations contracts", () => {
   it("runs the previous-release compatibility gate in the existing PostgreSQL and release lanes", () => {
     const ci = readProjectFile(".github/workflows/ci.yml");
     const release = readProjectFile(".github/workflows/release.yml");
+    const productionIdentity = readProjectFile("scripts/release/production-identity.ts");
 
     expect(ci).toContain("fetch-depth: 0");
     expect(ci).toContain("RIVALHUB_MIGRATION_BASE_SHA:");
@@ -261,8 +262,13 @@ describe("deployment and operations contracts", () => {
     expect(ci.indexOf("pnpm test:integration:pg17")).toBeGreaterThan(ci.indexOf("pnpm db:release-compat"));
 
     expect(release).toContain("fetch-depth: 0");
-    expect(release).toContain("RIVALHUB_PRODUCTION_STABLE_REF: origin/main");
+    expect(release).toContain("冻结 previous Production identity");
+    expect(release).toContain("pnpm release:freeze-identity");
+    expect(productionIdentity).toContain("RIVALHUB_PREVIOUS_RELEASE_TAG");
+    expect(productionIdentity).toContain("RIVALHUB_PREVIOUS_RELEASE_COMMIT");
+    expect(release).not.toContain("RIVALHUB_PRODUCTION_STABLE_REF: origin/main");
     expect(release).toContain("pnpm db:release-compat");
+    expect(release.indexOf("冻结 previous Production identity")).toBeLessThan(release.indexOf("验证 exact-SHA CI prerequisite"));
     expect(release.indexOf("pnpm db:release-compat")).toBeLessThan(release.indexOf("pnpm db:production:migrate"));
   });
 
@@ -270,7 +276,7 @@ describe("deployment and operations contracts", () => {
     const release = readProjectFile(".github/workflows/release.yml");
 
     expect(release).toContain('gh release view "$RELEASE_TAG" --json isImmutable --jq .isImmutable');
-    expect(release).toContain('Release $RELEASE_TAG is immutable; keeping published metadata.');
+    expect(release).toContain('GitHub Release $RELEASE_TAG 已 immutable；保留已发布 metadata。');
     expect(release).toMatch(
       /if \[\[ "\$\(gh release view "\$RELEASE_TAG" --json isImmutable --jq \.isImmutable\)" == "true" \]\]; then[\s\S]*?else[\s\S]*?gh release edit "\$RELEASE_TAG"/,
     );
@@ -309,17 +315,18 @@ describe("deployment and operations contracts", () => {
   it("provisions the primary scheduler only after production smoke with strict fail-fast", () => {
     const release = readProjectFile(".github/workflows/release.yml");
 
-    expect(release).toContain("Provision and verify production scheduler");
+    expect(release).toContain("配置并验证 production scheduler");
     expect(release).toContain("RIVALHUB_SCHEDULER_BASE_URL: https://match.starfie1d.top");
     expect(release).toContain("RIVALHUB_ALLOW_REMOTE_DB_WRITE=production pnpm db:production:scheduler:provision");
     expect(release).toContain("pnpm db:production:scheduler:verify");
-    expect(release.indexOf("Route candidate and verify canonical production")).toBeLessThan(release.indexOf("Provision and verify production scheduler"));
-    expect(release.indexOf("Provision and verify production scheduler")).toBeLessThan(release.indexOf("Extract changelog for this version"));
+    expect(release.indexOf("执行 release routing / rollback")).toBeLessThan(release.indexOf("配置并验证 production scheduler"));
+    expect(release).toContain("生成 Production delta release notes");
+    expect(release.indexOf("配置并验证 production scheduler")).toBeLessThan(release.indexOf("生成 Production delta release notes"));
 
     // Verify bash -c fail-fast safety
     const schedulerStep = release.slice(
-      release.indexOf("Provision and verify production scheduler"),
-      release.indexOf("Extract changelog for this version"),
+      release.indexOf("配置并验证 production scheduler"),
+      release.indexOf("生成 Production delta release notes"),
     );
     expect(schedulerStep).toMatch(/bash -c '\s*set -euo pipefail/);
   });
@@ -339,9 +346,9 @@ describe("deployment and operations contracts", () => {
 
     // Ordering: dependency setup before preflight, preflight before backup and DB mutations
     const pnpmSetupIdx = release.indexOf("uses: pnpm/setup");
-    const ciPrereqIdx = release.indexOf("Verify exact-SHA CI prerequisite");
-    const backupIdx = release.indexOf("Create protected pre-release backup");
-    const migrateIdx = release.indexOf("Migrate and verify production database");
+    const ciPrereqIdx = release.indexOf("验证 exact-SHA CI prerequisite");
+    const backupIdx = release.indexOf("创建 pre-release backup");
+    const migrateIdx = release.indexOf("运行 production migration 与验证");
     expect(pnpmSetupIdx).toBeGreaterThan(0);
     expect(pnpmSetupIdx).toBeLessThan(ciPrereqIdx);
     expect(ciPrereqIdx).toBeLessThan(backupIdx);
@@ -350,13 +357,15 @@ describe("deployment and operations contracts", () => {
     // Knip entries registration
     const knipConfig = JSON.parse(readProjectFile("knip.json")) as { entry: string[] };
     expect(knipConfig.entry).toContain("scripts/release/ci-prerequisite.ts!");
+    expect(knipConfig.entry).toContain("scripts/release/production-identity.ts!");
+    expect(knipConfig.entry).toContain("scripts/release/changelog.ts!");
     expect(knipConfig.entry).toContain("scripts/release/production-deployment.ts!");
     expect(knipConfig.entry).toContain("scripts/release/routing.ts!");
 
     // Routing state machine ownership and workflow wiring
     const routing = readProjectFile("scripts/release/routing.ts");
     const vercelRouting = readProjectFile("scripts/release/vercel-routing.ts");
-    expect(release).toContain("Route candidate and verify canonical production");
+    expect(release).toContain("执行 release routing / rollback");
     expect(release).toContain("pnpm release:routing");
     expect(release).not.toContain("wait_for_alias_job");
     expect(release).not.toContain("PREVIOUS_IDENTITY");
@@ -378,6 +387,8 @@ describe("deployment and operations contracts", () => {
     expect(routing).toContain("rate_limited");
     expect(routing).toContain("convergence_timeout");
     expect(routing).toContain("rollback_failed");
+    expect(routing).toContain("previousReleaseTag");
+    expect(routing).toContain("previousReleaseCommit");
 
     // DB-only local rehearsal
     expect(release).toContain("pnpm db:local:start-db");
@@ -390,7 +401,7 @@ describe("deployment and operations contracts", () => {
     expect(release).not.toContain("vercel rollback --yes");
 
     // Phase timing evidence
-    expect(release).toContain('RIVALHUB_TIMING_TITLE: "Release phase timing"');
+    expect(release).toContain('RIVALHUB_TIMING_TITLE: "Release 阶段耗时"');
     expect(release).toContain('node scripts/ci/timing.mjs summary');
   });
 });

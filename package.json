@@ -33,6 +33,8 @@
     "db:production:scheduler:verify": "tsx scripts/db/scheduler.ts verify",
     "db:production:identity-merge-preflight": "tsx scripts/db/production-identity-merge-preflight.ts",
     "release:ci-prerequisite": "tsx scripts/release/ci-prerequisite.ts",
+    "release:freeze-identity": "tsx scripts/release/production-identity.ts",
+    "release:notes": "tsx scripts/release/changelog.ts",
     "release:routing": "tsx scripts/release/routing.ts",
     "db:recovery:backup": "tsx scripts/db/recovery/backup.ts",
     "db:recovery:fetch": "tsx scripts/db/recovery/fetch.ts",
