@@ -58,7 +58,7 @@ export function SeasonWorkspaceOverview({ data }: { data: SeasonWorkspaceOvervie
       </Panel>
 
       {data.registrationFunnel && (
-        <Panel label="队伍报名漏斗">
+        <Panel label="队伍报名概览">
           <div className="grid gap-3 grid-cols-2 sm:grid-cols-4">
             <Stat label="报名总数" value={data.registrationFunnel.total} accent={data.registrationFunnel.total > 0} />
             <Stat label="草稿" value={data.registrationFunnel.draft} />

@@ -48,9 +48,9 @@ export function AdminUserList({ users, seasonMap, currentUserId }: AdminUserList
     try {
       if (!navigator.clipboard) throw new Error("当前环境不支持复制");
       await navigator.clipboard.writeText(value);
-      toast.success(`${label}已复制`);
+      toast.success(`${label} 已复制`);
     } catch {
-      toast.error(`无法复制${label}，请手动复制`);
+      toast.error(`无法复制 ${label}，请手动复制`);
     }
   }
 

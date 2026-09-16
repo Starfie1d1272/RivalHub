@@ -29,12 +29,13 @@ export function TeamLogoImage({
   const [failedLogoUrl, setFailedLogoUrl] = useState<string | null>(null);
   const initial = teamName.trim()[0]?.toUpperCase() ?? "?";
   const resolvedLogoUrl = logoUrl && logoUrl !== failedLogoUrl ? logoUrl : null;
+  const accessibleLabel = `队伍图标：${teamName}`;
 
   if (!resolvedLogoUrl) {
     return (
       <span
         role="img"
-        aria-label={`${teamName}的队伍图标`}
+        aria-label={accessibleLabel}
         className={cn("flex h-full w-full items-center justify-center font-bold text-[var(--color-fg-dim)]", fallbackClassName)}
       >
         {initial}
@@ -46,7 +47,7 @@ export function TeamLogoImage({
   return fill ? (
     <Image
       src={resolvedLogoUrl}
-      alt={`${teamName}的队伍图标`}
+      alt={accessibleLabel}
       fill
       sizes={sizes}
       className={imageClassName}
@@ -56,7 +57,7 @@ export function TeamLogoImage({
   ) : (
     <Image
       src={resolvedLogoUrl}
-      alt={`${teamName}的队伍图标`}
+      alt={accessibleLabel}
       width={width}
       height={height}
       sizes={sizes}
