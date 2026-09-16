@@ -112,15 +112,15 @@ describe("deployment and operations contracts", () => {
     expect(r2).toContain("pnpm db:recovery:r2:apply");
     expect(r2).toContain("environment: production");
 
-    expect(release).toContain("创建受保护的发布前备份");
+    expect(release).toContain("创建 pre-release backup");
     expect(release).toContain("RIVALHUB_PRODUCTION_BASE_URL: https://match.starfie1d.top");
-    expect(release.indexOf("创建受保护的发布前备份")).toBeLessThan(release.indexOf("pnpm db:production:migrate"));
+    expect(release.indexOf("创建 pre-release backup")).toBeLessThan(release.indexOf("pnpm db:production:migrate"));
     expect(release).toContain("pnpm db:recovery:backup pre-release");
     expect(release).toContain("SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}");
     expect(release).toContain("SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}");
     expect(release).not.toContain("RIVALHUB_BACKUP_HEARTBEAT_URL");
     expect(release).toContain("contents: write\n      id-token: write");
-    expect(release).toContain("获取用于 Vercel Trusted Source 的 GitHub OIDC 令牌");
+    expect(release).toContain("获取 Vercel Trusted Source OIDC token");
     expect(release).toContain("ACTIONS_ID_TOKEN_REQUEST_URL");
     expect(release).toContain("ACTIONS_ID_TOKEN_REQUEST_TOKEN");
     expect(release).toContain("audience=$VERCEL_TRUSTED_SOURCE_AUDIENCE");
@@ -130,14 +130,14 @@ describe("deployment and operations contracts", () => {
     expect(release).not.toContain("VERCEL_AUTOMATION_BYPASS_SECRET");
     expect(release).not.toContain("protection-bypass");
     expect(release).not.toContain("x-vercel-protection-bypass");
-    const smokeStart = release.indexOf("      - name: 对候选部署执行冒烟检查");
-    const schedulerStart = release.indexOf("      - name: 配置并验证生产环境调度任务");
+    const smokeStart = release.indexOf("      - name: 运行 candidate smoke test");
+    const schedulerStart = release.indexOf("      - name: 配置并验证 production scheduler");
     const smoke = release.slice(smokeStart, schedulerStart);
     expect(smoke).toContain("^https://[a-z0-9][a-z0-9-]*\\.vercel\\.app/?$");
-    const candidateSmoke = smoke.slice(0, smoke.indexOf("- name: 切换候选版本"));
+    const candidateSmoke = smoke.slice(0, smoke.indexOf("- name: 执行 release routing / rollback"));
     expect(candidateSmoke).not.toContain("VERCEL_TOKEN");
     expect(candidateSmoke).toContain("x-vercel-trusted-oidc-idp-token: $VERCEL_TRUSTED_OIDC_IDP_TOKEN");
-    expect(release).toContain("切换候选版本并验证权威生产环境");
+    expect(release).toContain("执行 release routing / rollback");
     expect(release).toContain("pnpm release:routing");
     const productionSerialization = "concurrency:\n  group: rivalhub-production-state-serialization\n  queue: max\n  cancel-in-progress: false";
     expect(backup).toContain(productionSerialization);
@@ -172,21 +172,12 @@ describe("deployment and operations contracts", () => {
     const recoveryRunbook = readProjectFile("docs/operations/disaster-recovery.md");
 
     for (const runbook of [releaseRunbook, recoveryRunbook]) {
-      if (runbook === releaseRunbook) {
-        expect(runbook).toContain("GitHub 账户 | `Starfie1d1272`");
-        expect(runbook).toContain("仓库 | `RivalHub`");
-        expect(runbook).toContain("分支 | 留空（发布使用版本 tag");
-        expect(runbook).toContain("GitHub Actions 环境 | `production`");
-        expect(runbook).toContain("受众 | `https://github.com/Starfie1d1272`");
-        expect(runbook).toContain("适用环境 | `Production`");
-      } else {
-        expect(runbook).toContain("GitHub account | `Starfie1d1272`");
-        expect(runbook).toContain("Repository | `RivalHub`");
-        expect(runbook).toContain("Branch | 留空（release 使用版本 tag");
-        expect(runbook).toContain("GitHub Actions environment | `production`");
-        expect(runbook).toContain("Audience | `https://github.com/Starfie1d1272`");
-        expect(runbook).toContain("Applies to environments | `Production`");
-      }
+      expect(runbook).toContain("GitHub account | `Starfie1d1272`");
+      expect(runbook).toContain("Repository | `RivalHub`");
+      expect(runbook).toContain("Branch | 留空（release 使用版本 tag");
+      expect(runbook).toContain("GitHub Actions environment | `production`");
+      expect(runbook).toContain("Audience | `https://github.com/Starfie1d1272`");
+      expect(runbook).toContain("Applies to environments | `Production`");
       expect(runbook).toContain("Edit raw claims");
       expect(runbook).toContain("`repository_id` | `1231811932`");
       expect(runbook).toContain("`workflow` | `Release`");
@@ -203,13 +194,13 @@ describe("deployment and operations contracts", () => {
     const releaseRunbook = readProjectFile("docs/operations/release.md");
     const recoveryRunbook = readProjectFile("docs/operations/disaster-recovery.md");
 
-    expect(releaseRunbook).toContain("离线只读获取");
+    expect(releaseRunbook).toContain("offline read-only fetch");
     expect(releaseRunbook).toContain("temporary-sensitive/active-reference-only");
     expect(recoveryRunbook).toContain("30d");
     expect(recoveryRunbook).toContain("Cold-start provider configuration inventory");
-    expect(releaseRunbook).toContain("生产环境加密备份");
-    expect(releaseRunbook).toContain("私有 R2 工件/旁车文件/完成标记 PUT + HEAD + 实际 GET/哈希回读");
-    expect(releaseRunbook).toContain("本地离线解密 age 私钥");
+    expect(releaseRunbook).toContain("production encrypted backup");
+    expect(releaseRunbook).toContain("private R2 artifact/sidecar/completion PUT + HEAD + real GET/hash read-back");
+    expect(releaseRunbook).toContain("local offline age private key decrypt");
   });
 
   it("uses main as the sole long-lived CI ref", () => {
@@ -271,13 +262,13 @@ describe("deployment and operations contracts", () => {
     expect(ci.indexOf("pnpm test:integration:pg17")).toBeGreaterThan(ci.indexOf("pnpm db:release-compat"));
 
     expect(release).toContain("fetch-depth: 0");
-    expect(release).toContain("冻结权威上一生产版本身份标识");
+    expect(release).toContain("冻结 previous Production identity");
     expect(release).toContain("pnpm release:freeze-identity");
     expect(productionIdentity).toContain("RIVALHUB_PREVIOUS_RELEASE_TAG");
     expect(productionIdentity).toContain("RIVALHUB_PREVIOUS_RELEASE_COMMIT");
     expect(release).not.toContain("RIVALHUB_PRODUCTION_STABLE_REF: origin/main");
     expect(release).toContain("pnpm db:release-compat");
-    expect(release.indexOf("冻结权威上一生产版本身份标识")).toBeLessThan(release.indexOf("验证精确 SHA 持续集成前置条件"));
+    expect(release.indexOf("冻结 previous Production identity")).toBeLessThan(release.indexOf("验证 exact-SHA CI prerequisite"));
     expect(release.indexOf("pnpm db:release-compat")).toBeLessThan(release.indexOf("pnpm db:production:migrate"));
   });
 
@@ -285,7 +276,7 @@ describe("deployment and operations contracts", () => {
     const release = readProjectFile(".github/workflows/release.yml");
 
     expect(release).toContain('gh release view "$RELEASE_TAG" --json isImmutable --jq .isImmutable');
-    expect(release).toContain('发布 $RELEASE_TAG 不可变；保留已发布元数据。');
+    expect(release).toContain('GitHub Release $RELEASE_TAG 已 immutable；保留已发布 metadata。');
     expect(release).toMatch(
       /if \[\[ "\$\(gh release view "\$RELEASE_TAG" --json isImmutable --jq \.isImmutable\)" == "true" \]\]; then[\s\S]*?else[\s\S]*?gh release edit "\$RELEASE_TAG"/,
     );
@@ -324,18 +315,18 @@ describe("deployment and operations contracts", () => {
   it("provisions the primary scheduler only after production smoke with strict fail-fast", () => {
     const release = readProjectFile(".github/workflows/release.yml");
 
-    expect(release).toContain("配置并验证生产环境调度任务");
+    expect(release).toContain("配置并验证 production scheduler");
     expect(release).toContain("RIVALHUB_SCHEDULER_BASE_URL: https://match.starfie1d.top");
     expect(release).toContain("RIVALHUB_ALLOW_REMOTE_DB_WRITE=production pnpm db:production:scheduler:provision");
     expect(release).toContain("pnpm db:production:scheduler:verify");
-    expect(release.indexOf("切换候选版本并验证权威生产环境")).toBeLessThan(release.indexOf("配置并验证生产环境调度任务"));
-    expect(release).toContain("构建生产版本差异发布说明");
-    expect(release.indexOf("配置并验证生产环境调度任务")).toBeLessThan(release.indexOf("构建生产版本差异发布说明"));
+    expect(release.indexOf("执行 release routing / rollback")).toBeLessThan(release.indexOf("配置并验证 production scheduler"));
+    expect(release).toContain("生成 Production delta release notes");
+    expect(release.indexOf("配置并验证 production scheduler")).toBeLessThan(release.indexOf("生成 Production delta release notes"));
 
     // Verify bash -c fail-fast safety
     const schedulerStep = release.slice(
-      release.indexOf("配置并验证生产环境调度任务"),
-      release.indexOf("构建生产版本差异发布说明"),
+      release.indexOf("配置并验证 production scheduler"),
+      release.indexOf("生成 Production delta release notes"),
     );
     expect(schedulerStep).toMatch(/bash -c '\s*set -euo pipefail/);
   });
@@ -355,9 +346,9 @@ describe("deployment and operations contracts", () => {
 
     // Ordering: dependency setup before preflight, preflight before backup and DB mutations
     const pnpmSetupIdx = release.indexOf("uses: pnpm/setup");
-    const ciPrereqIdx = release.indexOf("验证精确 SHA 持续集成前置条件");
-    const backupIdx = release.indexOf("创建受保护的发布前备份");
-    const migrateIdx = release.indexOf("迁移并验证生产数据库");
+    const ciPrereqIdx = release.indexOf("验证 exact-SHA CI prerequisite");
+    const backupIdx = release.indexOf("创建 pre-release backup");
+    const migrateIdx = release.indexOf("运行 production migration 与验证");
     expect(pnpmSetupIdx).toBeGreaterThan(0);
     expect(pnpmSetupIdx).toBeLessThan(ciPrereqIdx);
     expect(ciPrereqIdx).toBeLessThan(backupIdx);
@@ -374,7 +365,7 @@ describe("deployment and operations contracts", () => {
     // Routing state machine ownership and workflow wiring
     const routing = readProjectFile("scripts/release/routing.ts");
     const vercelRouting = readProjectFile("scripts/release/vercel-routing.ts");
-    expect(release).toContain("切换候选版本并验证权威生产环境");
+    expect(release).toContain("执行 release routing / rollback");
     expect(release).toContain("pnpm release:routing");
     expect(release).not.toContain("wait_for_alias_job");
     expect(release).not.toContain("PREVIOUS_IDENTITY");
@@ -410,7 +401,7 @@ describe("deployment and operations contracts", () => {
     expect(release).not.toContain("vercel rollback --yes");
 
     // Phase timing evidence
-    expect(release).toContain('RIVALHUB_TIMING_TITLE: "发布阶段耗时"');
+    expect(release).toContain('RIVALHUB_TIMING_TITLE: "Release 阶段耗时"');
     expect(release).toContain('node scripts/ci/timing.mjs summary');
   });
 });
