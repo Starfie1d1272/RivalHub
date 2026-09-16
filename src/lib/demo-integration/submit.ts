@@ -312,9 +312,16 @@ export async function submitRivalHubEvidence(args: SubmitEvidenceArgs): Promise<
     const priorRows = await tx.select().from(matchDemoImports)
       .where(eq(matchDemoImports.matchMapId, target.map.id)).orderBy(desc(matchDemoImports.createdAt)).for("update");
     const same = idempotent ?? priorRows.find((row) => sameContent(row, evidence, payloadSha256));
-    const currentConfirmedPrior = priorRows.find((row) => row.status === "confirmed" && isCurrentDakSemanticProfile(row.semanticProfile) && row.id !== same?.id);
-    const sameDemoPrior = priorRows.find((row) => row.demoSha256 === evidence.source.demoSha256 && row.status !== "superseded" && row.id !== same?.id);
-    const differentDemoConfirmed = currentConfirmedPrior && currentConfirmedPrior.demoSha256 !== evidence.source.demoSha256 ? currentConfirmedPrior : undefined;
+    // Content conflict is owned by every confirmed import, including retired semantic profiles.
+    const confirmedPrior = priorRows.find((row) => row.status === "confirmed" && row.id !== same?.id);
+    // Same-demo lineage may replace a confirmed, needs-attention, or stale snapshot;
+    // rejected and pending rows remain explicit workflow states.
+    const sameDemoPrior = priorRows.find((row) =>
+      row.demoSha256 === evidence.source.demoSha256
+      && ["confirmed", "needs_attention", "stale"].includes(row.status)
+      && row.id !== same?.id,
+    );
+    const differentDemoConfirmed = confirmedPrior && confirmedPrior.demoSha256 !== evidence.source.demoSha256 ? confirmedPrior : undefined;
     if (same) {
       if (same.status === "confirmed") {
         if (same.evidenceRevision === currentRevision && issues.length === 0) return responseFor(same, []);
