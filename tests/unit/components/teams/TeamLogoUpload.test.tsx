@@ -54,8 +54,8 @@ describe("TeamLogoUpload", () => {
     await waitFor(() => {
       expect(uploadTeamLogoMock).toHaveBeenCalledWith("team-1", expect.any(FormData));
       expect(onUploaded).toHaveBeenCalledWith("https://storage.test/teams/team-1/logo.png");
-      expect(screen.getByRole("img", { name: "Rival Team的队伍图标" })).toHaveAttribute("src", "https://storage.test/teams/team-1/logo.png");
-      expect(screen.getByRole("img", { name: "Rival Team的队伍图标" })).toHaveAttribute("data-unoptimized", "true");
+      expect(screen.getByRole("img", { name: "队伍图标：Rival Team" })).toHaveAttribute("src", "https://storage.test/teams/team-1/logo.png");
+      expect(screen.getByRole("img", { name: "队伍图标：Rival Team" })).toHaveAttribute("data-unoptimized", "true");
     });
   });
 

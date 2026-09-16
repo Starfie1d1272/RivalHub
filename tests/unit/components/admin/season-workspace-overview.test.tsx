@@ -58,7 +58,7 @@ describe("SeasonWorkspaceOverview", () => {
     expect(html).toContain("NJU Major 2026");
     expect(html).toContain("已发布 · 报名未开放");
     expect(html).toContain("正式参赛队");
-    expect(html).toContain("队伍报名漏斗");
+    expect(html).toContain("队伍报名概览");
     expect(html).toContain("报名总数");
     expect(html).toContain("报名时间待定");
     expect(html).toContain("报名截止");
@@ -86,6 +86,6 @@ describe("SeasonWorkspaceOverview", () => {
     expect(html).not.toContain("待审核个人报名");
     expect(html).not.toContain("未确认参赛名单");
     expect(html).not.toContain("最终结果待确认");
-    expect(html).not.toContain("队伍报名漏斗");
+    expect(html).not.toContain("队伍报名概览");
   });
 });

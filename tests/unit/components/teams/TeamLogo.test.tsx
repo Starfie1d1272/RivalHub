@@ -16,22 +16,22 @@ describe("TeamLogo", () => {
   it("bypasses the optimizer for a normal public team logo", () => {
     render(<TeamLogo logoUrl="https://storage.test/team.png" teamName="Rival Team" />);
 
-    expect(screen.getByRole("img", { name: "Rival Team的队伍图标" })).toHaveAttribute("src", "https://storage.test/team.png");
-    expect(screen.getByRole("img", { name: "Rival Team的队伍图标" })).toHaveAttribute("data-unoptimized", "true");
+    expect(screen.getByRole("img", { name: "队伍图标：Rival Team" })).toHaveAttribute("src", "https://storage.test/team.png");
+    expect(screen.getByRole("img", { name: "队伍图标：Rival Team" })).toHaveAttribute("data-unoptimized", "true");
   });
 
   it("uses a stable initial fallback when the logo is missing", () => {
     const { container } = render(<TeamLogo logoUrl={null} teamName="Rival Team" />);
 
-    expect(screen.getByRole("img", { name: "Rival Team的队伍图标" })).toHaveTextContent("R");
+    expect(screen.getByRole("img", { name: "队伍图标：Rival Team" })).toHaveTextContent("R");
     expect(container.querySelector("img")).toBeNull();
   });
 
   it("replaces a failed remote image with the same stable fallback", () => {
     const { container } = render(<TeamLogo logoUrl="https://storage.test/team.png" teamName="Rival Team" />);
-    fireEvent.error(screen.getByRole("img", { name: "Rival Team的队伍图标" }));
+    fireEvent.error(screen.getByRole("img", { name: "队伍图标：Rival Team" }));
 
-    expect(screen.getByRole("img", { name: "Rival Team的队伍图标" })).toHaveTextContent("R");
+    expect(screen.getByRole("img", { name: "队伍图标：Rival Team" })).toHaveTextContent("R");
     expect(container.querySelector("img")).toBeNull();
   });
 });

@@ -74,7 +74,7 @@ describe("AdminUserList", () => {
       expect(navigator.clipboard.writeText).toHaveBeenNthCalledWith(1, "76561198000000001");
       expect(navigator.clipboard.writeText).toHaveBeenNthCalledWith(2, "https://live.example/admin");
     });
-    expect(toastSuccessMock).toHaveBeenCalledWith("Steam64已复制");
-    expect(toastSuccessMock).toHaveBeenCalledWith("直播间已复制");
+    expect(toastSuccessMock).toHaveBeenCalledWith("Steam64 已复制");
+    expect(toastSuccessMock).toHaveBeenCalledWith("直播间 已复制");
   });
 });

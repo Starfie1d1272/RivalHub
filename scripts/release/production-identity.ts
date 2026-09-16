@@ -50,7 +50,7 @@ export function resolveConfiguredPreviousProductionIdentity(
 
   const candidateCommit = resolveGitRevision(cwd, candidateHead, "candidate commit");
   if (candidateCommit.toLowerCase() === identity.releaseCommit) {
-    throw new Error(`${PREVIOUS_RELEASE_TAG_ENV} ${identity.releaseTag} 与 candidate 相同；previous Production identity 必须早于 candidate。`);
+    throw new Error(`${PREVIOUS_RELEASE_TAG_ENV} ${identity.releaseTag} 与候选版本相同；previous Production identity 必须早于 candidate。`);
   }
   if (!isAncestor(cwd, identity.releaseCommit, candidateCommit)) {
     throw new Error(`previous Production commit ${identity.releaseCommit} 不在 candidate ${candidateCommit} 的 main 提交链上；拒绝猜测 release baseline。`);

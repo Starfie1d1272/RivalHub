@@ -161,7 +161,7 @@ describe("canonical previous production identity", () => {
         [PREVIOUS_RELEASE_COMMIT_ENV]: fixture.candidateCommit,
       },
       fixture.candidateCommit,
-    )).toThrow(/与 candidate 相同/);
+    )).toThrow(/与候选版本相同/);
   });
 });
 
