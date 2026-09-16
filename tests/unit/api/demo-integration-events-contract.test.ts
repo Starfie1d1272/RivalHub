@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { rivalHubEventsResponseSchema } from "@/lib/demo-integration/contracts";
-import { projectDemoIssues, projectDemoStatus } from "@/lib/demo-integration/read";
+import { projectDemoIssues, projectDemoStatus, selectCurrentDemoImport } from "@/lib/demo-integration/read";
 
 describe("rivalhub-dak-events/1 fixture", () => {
   it("is accepted by RivalHub's response schema", () => {
@@ -44,6 +44,30 @@ describe("rivalhub-dak-events/1 fixture", () => {
     )).toBe("needs_attention");
     expect(projectDemoIssues(confirmed, confirmed, "revision-n-plus-one")).toEqual([
       expect.objectContaining({ code: "STALE_EVIDENCE" }),
+    ]);
+  });
+
+  it("keeps a late retired profile out of the active read model", () => {
+    const legacy = {
+      id: "legacy",
+      semanticProfile: "dak-stable/1",
+      status: "needs_attention",
+    } as unknown as Parameters<typeof selectCurrentDemoImport>[0][number];
+    const current = {
+      id: "current",
+      semanticProfile: "dak-stable/2",
+      status: "confirmed",
+    } as unknown as Parameters<typeof selectCurrentDemoImport>[0][number];
+
+    expect(selectCurrentDemoImport([legacy, current])).toBe(current);
+    expect(selectCurrentDemoImport([legacy])).toBeUndefined();
+    expect(projectDemoStatus(
+      { status: "in_progress" },
+      { completedAt: new Date("2026-09-13T00:00:00.000Z"), scoreA: 13, scoreB: 9 },
+      legacy,
+    )).toBe("needs_attention");
+    expect(projectDemoIssues(legacy, undefined, "revision")).toEqual([
+      expect.objectContaining({ code: "UNSUPPORTED_SEMANTIC_PROFILE" }),
     ]);
   });
 });

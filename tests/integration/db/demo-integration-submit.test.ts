@@ -203,6 +203,14 @@ describe("DAK evidence submit persistence", () => {
           isStarter: true,
         })),
       });
+      const legacyEvidence = parseRivalHubDemoEvidenceV1({
+        ...evidence,
+        contract: {
+          ...evidence.contract,
+          semanticProfile: "dak-stable/1",
+          analysisVersion: "cs2-demo-analysis-kit/1.0",
+        },
+      });
       await database.insert(schema.matchPlayerStats).values({
         id: ids.ocrStat,
         matchId: ids.match,
@@ -229,6 +237,21 @@ describe("DAK evidence submit persistence", () => {
       expect(remoteMap?.lineup.every((player) => player.isStarter)).toBe(true);
       expect(remoteMap?.evidenceRevision).toBe(evidence.target.evidenceRevision);
 
+      const legacy = await submitRivalHubEvidence({
+        input: legacyEvidence,
+        pairingId: ids.pairing,
+        pairingScope: { seasonIds: [ids.season] },
+        idempotencyKey: "dak-legacy-evidence-1",
+      });
+      expect(legacy.status).toBe("needs_attention");
+      expect(legacy.issues).toEqual([
+        expect.objectContaining({ code: "UNSUPPORTED_SEMANTIC_PROFILE" }),
+      ]);
+      const legacyImportId = legacy.importId;
+      expect(legacyImportId).not.toBeNull();
+      if (!legacyImportId) throw new Error("测试未创建历史 Demo import");
+      expect(await database.select().from(schema.matchRoundFacts).where(eq(schema.matchRoundFacts.importId, legacyImportId))).toHaveLength(0);
+
       const first = await submitRivalHubEvidence({
         input: evidence,
         pairingId: ids.pairing,
@@ -239,6 +262,7 @@ describe("DAK evidence submit persistence", () => {
       const importId = first.importId;
       expect(importId).not.toBeNull();
       if (!importId) throw new Error("测试未创建 Demo import");
+      expect(importId).not.toBe(legacyImportId);
 
       const second = await submitRivalHubEvidence({
         input: evidence,
@@ -249,9 +273,10 @@ describe("DAK evidence submit persistence", () => {
       expect(second).toMatchObject({ status: "synced", importId, issues: [] });
 
       const importsAfterPromotion = await database.select().from(schema.matchDemoImports).where(eq(schema.matchDemoImports.matchMapId, ids.map));
-      expect(importsAfterPromotion).toHaveLength(1);
-      expect(importsAfterPromotion[0]).toMatchObject({ status: "confirmed", issues: [] });
-      expect(importsAfterPromotion[0]?.confirmedAt).not.toBeNull();
+      expect(importsAfterPromotion).toHaveLength(2);
+      expect(importsAfterPromotion.find((row) => row.id === legacyImportId)).toMatchObject({ status: "superseded" });
+      expect(importsAfterPromotion.find((row) => row.id === importId)).toMatchObject({ status: "confirmed", issues: [], supersedesImportId: legacyImportId });
+      expect(importsAfterPromotion.find((row) => row.id === importId)?.confirmedAt).not.toBeNull();
       const factsAfterPromotion = await database.select().from(schema.matchRoundFacts).where(eq(schema.matchRoundFacts.importId, importId));
       expect(factsAfterPromotion).toHaveLength(evidence.sourceFacts.rounds.length);
       expect((await database.select().from(schema.matchPlayerStats).where(eq(schema.matchPlayerStats.id, ids.ocrStat)))[0]).toMatchObject({
@@ -269,7 +294,7 @@ describe("DAK evidence submit persistence", () => {
         idempotencyKey: "dak-retry-evidence-1",
       });
       expect(third).toMatchObject({ status: "synced", importId, issues: [] });
-      expect(await database.select().from(schema.matchDemoImports).where(eq(schema.matchDemoImports.matchMapId, ids.map))).toHaveLength(1);
+      expect(await database.select().from(schema.matchDemoImports).where(eq(schema.matchDemoImports.matchMapId, ids.map))).toHaveLength(2);
       expect(await database.select().from(schema.matchRoundFacts).where(eq(schema.matchRoundFacts.importId, importId))).toHaveLength(factsAfterPromotion.length);
       const autoConfirmAudits = await database.select().from(schema.auditLogs).where(and(
         eq(schema.auditLogs.action, "match.demo.auto_confirm"),
@@ -322,7 +347,7 @@ describe("DAK evidence submit persistence", () => {
       if (!revisedImportId) throw new Error("测试未创建 revision N+1 Demo import");
 
       const importsAfterRevision = await database.select().from(schema.matchDemoImports).where(eq(schema.matchDemoImports.matchMapId, ids.map));
-      expect(importsAfterRevision).toHaveLength(2);
+      expect(importsAfterRevision).toHaveLength(3);
       expect(importsAfterRevision.find((row) => row.id === importId)).toMatchObject({ status: "superseded" });
       expect(importsAfterRevision.find((row) => row.id === revisedImportId)).toMatchObject({
         status: "confirmed",
@@ -342,7 +367,7 @@ describe("DAK evidence submit persistence", () => {
         idempotencyKey: "dak-retry-evidence-revision-2",
       });
       expect(retryRevision).toMatchObject({ status: "synced", importId: revisedImportId, issues: [] });
-      expect(await database.select().from(schema.matchDemoImports).where(eq(schema.matchDemoImports.matchMapId, ids.map))).toHaveLength(2);
+      expect(await database.select().from(schema.matchDemoImports).where(eq(schema.matchDemoImports.matchMapId, ids.map))).toHaveLength(3);
       expect(await database.select().from(schema.matchRoundFacts).where(eq(schema.matchRoundFacts.importId, revisedImportId))).toHaveLength(evidenceNPlusOne.sourceFacts.rounds.length);
       const revisedAudits = await database.select().from(schema.auditLogs).where(and(
         eq(schema.auditLogs.action, "match.demo.auto_confirm"),
@@ -363,7 +388,7 @@ describe("DAK evidence submit persistence", () => {
       });
       expect(conflict.status).toBe("needs_attention");
       expect(conflict.issues.some((row) => row.code === "CONTENT_CONFLICT")).toBe(true);
-      expect(await database.select().from(schema.matchDemoImports).where(eq(schema.matchDemoImports.matchMapId, ids.map))).toHaveLength(3);
+      expect(await database.select().from(schema.matchDemoImports).where(eq(schema.matchDemoImports.matchMapId, ids.map))).toHaveLength(4);
     } finally {
       await client.query("ROLLBACK").catch(() => {});
       await client.query("BEGIN").catch(() => {});

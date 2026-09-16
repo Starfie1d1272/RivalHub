@@ -25,6 +25,7 @@ import { normalizeRegistrationConfig, normalizeStagePlan } from "@/lib/seasons/c
 import { pairingCanReadSeason } from "./pairing";
 import { buildEvidenceRevisionForTarget, sha256Json } from "./revision";
 import { projectStage } from "./stage-projection";
+import { dakSemanticProfileIssueMessage, isCurrentDakSemanticProfile } from "./semantic-profile";
 import type {
   IntegrationIssue,
   RivalHubEventsResponse,
@@ -62,6 +63,18 @@ function projectIssues(value: unknown): IntegrationIssue[] {
   });
 }
 
+export function selectCurrentDemoImport(
+  rows: readonly (typeof matchDemoImports.$inferSelect)[],
+): typeof matchDemoImports.$inferSelect | undefined {
+  return rows.find((row) => isCurrentDakSemanticProfile(row.semanticProfile) && row.status !== "superseded");
+}
+
+function selectLatestNonCanonicalDemoImport(
+  rows: readonly (typeof matchDemoImports.$inferSelect)[],
+): typeof matchDemoImports.$inferSelect | undefined {
+  return rows.find((row) => !isCurrentDakSemanticProfile(row.semanticProfile) && row.status !== "superseded");
+}
+
 function projectPlayer(row: {
   entryId: string;
   userId: string;
@@ -92,6 +105,7 @@ export function projectDemoStatus(
   const mapFinished = map.completedAt != null && map.scoreA != null && map.scoreB != null;
   if (mapFinished) {
     if (!latest) return "finished_pending_demo";
+    if (latest.semanticProfile != null && !isCurrentDakSemanticProfile(latest.semanticProfile)) return "needs_attention";
     if (latest.status === "confirmed") {
       return currentEvidenceRevision != null && latest.evidenceRevision !== currentEvidenceRevision
         ? "needs_attention"
@@ -117,6 +131,17 @@ export function projectDemoIssues(
   currentEvidenceRevision: string,
 ): IntegrationIssue[] {
   const issues = projectIssues(latest?.issues);
+  if (
+    latest?.semanticProfile != null
+    && !isCurrentDakSemanticProfile(latest.semanticProfile)
+    && !issues.some((row) => row.code === "UNSUPPORTED_SEMANTIC_PROFILE")
+  ) {
+    issues.unshift({
+      code: "UNSUPPORTED_SEMANTIC_PROFILE",
+      path: "contract.semanticProfile",
+      message: dakSemanticProfileIssueMessage(latest.semanticProfile),
+    });
+  }
   if (
     latestConfirmed != null
     && latestConfirmed.evidenceRevision !== currentEvidenceRevision
@@ -211,11 +236,22 @@ export async function readRivalHubEvents(pairing: PairingScope): Promise<RivalHu
     ? await db.select().from(matchDemoImports).where(inArray(matchDemoImports.matchMapId, mapRows.map((map) => map.id))).orderBy(desc(matchDemoImports.createdAt))
     : [];
 
-  const latestImportByMap = new Map<string, typeof matchDemoImports.$inferSelect>();
-  for (const row of importRows) if (!latestImportByMap.has(row.matchMapId)) latestImportByMap.set(row.matchMapId, row);
-  const latestConfirmedImportByMap = new Map<string, typeof matchDemoImports.$inferSelect>();
+  const importsByMap = new Map<string, Array<typeof matchDemoImports.$inferSelect>>();
   for (const row of importRows) {
-    if (row.status === "confirmed" && !latestConfirmedImportByMap.has(row.matchMapId)) latestConfirmedImportByMap.set(row.matchMapId, row);
+    const rows = importsByMap.get(row.matchMapId) ?? [];
+    rows.push(row);
+    importsByMap.set(row.matchMapId, rows);
+  }
+  const latestCurrentImportByMap = new Map<string, typeof matchDemoImports.$inferSelect>();
+  const latestNonCanonicalImportByMap = new Map<string, typeof matchDemoImports.$inferSelect>();
+  const latestConfirmedImportByMap = new Map<string, typeof matchDemoImports.$inferSelect>();
+  for (const [mapId, rows] of importsByMap) {
+    const current = selectCurrentDemoImport(rows);
+    const nonCanonical = selectLatestNonCanonicalDemoImport(rows);
+    const currentConfirmed = rows.find((row) => isCurrentDakSemanticProfile(row.semanticProfile) && row.status === "confirmed");
+    if (current) latestCurrentImportByMap.set(mapId, current);
+    if (nonCanonical) latestNonCanonicalImportByMap.set(mapId, nonCanonical);
+    if (currentConfirmed) latestConfirmedImportByMap.set(mapId, currentConfirmed);
   }
   const entryById = new Map(entries.map((entry) => [entry.id, entry]));
   const rosterByEntry = new Map<string, typeof rosterRows>();
@@ -313,7 +349,7 @@ export async function readRivalHubEvents(pairing: PairingScope): Promise<RivalHu
             map,
             roster: matchRosterByMatch.get(match.id) ?? [],
           });
-          const latest = latestImportByMap.get(map.id);
+          const latest = latestCurrentImportByMap.get(map.id) ?? latestNonCanonicalImportByMap.get(map.id);
           const latestConfirmed = latestConfirmedImportByMap.get(map.id);
           const confirmedIsStale = latestConfirmed != null && latestConfirmed.evidenceRevision !== evidenceRevision;
           const demoIssues = projectDemoIssues(latest, latestConfirmed, evidenceRevision);

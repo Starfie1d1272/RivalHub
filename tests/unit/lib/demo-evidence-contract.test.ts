@@ -21,8 +21,8 @@ describe("RivalHubDemoEvidenceV1", () => {
     const evidence = parseRivalHubDemoEvidenceV1(fixture);
     expect(evidence.contract).toEqual({
       contractVersion: "rivalhub-demo-evidence/1",
-      semanticProfile: "dak-stable/1",
-      analysisVersion: "cs2-demo-analysis-kit/1.0",
+      semanticProfile: "dak-stable/2",
+      analysisVersion: "cs2-demo-analysis-kit/1.0.2",
     });
     expect(evidence.source.producerVersion).toBe("cs2dak-rivalhub-evidence/0.1.0");
     expect(evidence.sourceFacts.rounds).toHaveLength(22);
