@@ -1,5 +1,19 @@
 # Changelog
 
+## [2.10.0]
+
+### Added
+
+#### 队伍报名与运营信息
+
+补齐队伍报名模式赛事总览的报名统计、审核入口和报名时间；收口队伍图标直出与赛事快照提示，并在管理员解说资料中展示与快捷复制 Steam64、直播间信息。
+
+### Fixed
+
+#### DAK Demo Evidence 语义基线
+
+将 DAK Demo Evidence 的 canonical semantic profile 切换到 `dak-stable/2`：`dak-stable/1` 保留为只读历史，并在同一 Demo 重生成时通过现有 lineage 安全 supersede，避免旧 profile 回退为当前统计基线。
+
 ## [2.9.7]
 
 ### Fixed
@@ -2225,6 +2239,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[2.10.0]: https://github.com/Starfie1d1272/RivalHub/compare/v2.9.7...v2.10.0
 [2.9.7]: https://github.com/Starfie1d1272/RivalHub/compare/v2.9.6...v2.9.7
 [2.9.6]: https://github.com/Starfie1d1272/RivalHub/compare/v2.9.5...v2.9.6
 [2.9.5]: https://github.com/Starfie1d1272/RivalHub/compare/v2.9.4...v2.9.5
