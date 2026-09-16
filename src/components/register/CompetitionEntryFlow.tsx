@@ -37,7 +37,7 @@ type Candidate = { membershipId: string; userId: string; label: string; status: 
 type RosterMember = Candidate & { participantId: string; confirmation: CompetitionEntryParticipantStatus; primary: boolean };
 
 const ROLE: Record<Role, string> = Object.fromEntries(
-  Object.entries(CS2_POSITION_LABELS).map(([role, label]) => [role, label.cn]),
+  Object.entries(CS2_POSITION_LABELS).map(([role, label]) => [role, label.full]),
 ) as Record<Role, string>;
 
 interface Props {
@@ -143,7 +143,7 @@ export function CompetitionEntryFlow(props: Props) {
       state: entry.qualificationFindings.some((finding) => !finding.waivable) ? "blocked" as const : "pending" as const,
       detail: "请补全缺少的资料；需要人工判断的资格事项可随材料提交赛委会审核。",
     }] : [{ label: "自动资格规则已通过", state: "complete" as const }]),
-    { label: roleHint.length === 0 ? "预定主力角色分布较完整" : `角色软提示：可考虑补充 ${roleHint.join(" / ")}`, state: roleHint.length === 0 ? "complete" as const : "pending" as const, detail: "角色仅用于推荐；重复狙击手、没有指挥或任何角色缺口都不会阻止提交。" },
+    { label: roleHint.length === 0 ? "预定主力角色分布较完整" : `角色软提示：可考虑补充 ${roleHint.join(" / ")}`, state: roleHint.length === 0 ? "complete" as const : "pending" as const, detail: "角色仅用于推荐；重复 AWPer、没有 IGL 或任何角色缺口都不会阻止提交。" },
   ];
   const availableMemberCount = entry.candidates.filter((member) => member.status === "active").length;
   const registration = presentCompetitionEntryRegistration(entry.status, entry.revisionOrigin);
@@ -160,7 +160,7 @@ export function CompetitionEntryFlow(props: Props) {
   const toggleStarter = (userId: string) => setStarters((current) => current.includes(userId) ? current.filter((id) => id !== userId) : current.length < props.starterCount ? [...current, userId] : current);
 
   return <div className="space-y-5">
-    {props.capabilities.readOnlyReason && <StatusBanner tone="info" title={props.capabilities.readOnlyReason} />}
+    {props.capabilities.readOnlyReason && <StatusBanner tone="info" title={props.capabilities.readOnlyReason ?? "报名尚未开放"} />}
     <StatusBanner tone={entry.status === "approved" ? "success" : entry.status === "changes_requested" ? "warn" : "info"} title={`${entry.name} · ${registration.label}`} sub={entry.revisionOrigin === "self_roster_change" ? registration.detail : entry.reviewReason ?? rosterExplanation} />
     {props.invitationConflict && <StatusBanner
       tone="warn"
