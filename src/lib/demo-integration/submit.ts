@@ -19,6 +19,7 @@ import { loadEffectiveMatchRoster, type EffectiveMatchRosterPlayer } from "@/lib
 import { pairingCanReadSeason } from "./pairing";
 import { type IntegrationIssue, type EvidenceSubmissionResponse, type RivalHubEvidenceSubmission } from "./contracts";
 import { buildEvidenceRevisionForTarget, sha256Json } from "./revision";
+import { dakSemanticProfileIssueMessage, isCurrentDakSemanticProfile } from "./semantic-profile";
 
 export interface SubmitEvidenceArgs {
   input: unknown;
@@ -71,7 +72,13 @@ function validateCanonicalTarget(
 ): IntegrationIssue[] {
   const { match, map, roster } = target;
   const issues: IntegrationIssue[] = [];
-  if (evidence.contract.semanticProfile !== "dak-stable/1") issues.push(issue("UNSUPPORTED_SEMANTIC_PROFILE", "当前 RivalHub 只接受 dak-stable/1。", "contract.semanticProfile"));
+  if (!isCurrentDakSemanticProfile(evidence.contract.semanticProfile)) {
+    issues.push(issue(
+      "UNSUPPORTED_SEMANTIC_PROFILE",
+      dakSemanticProfileIssueMessage(evidence.contract.semanticProfile),
+      "contract.semanticProfile",
+    ));
+  }
   if (evidence.target.stageKey !== match.stage) issues.push(issue("TARGET_STAGE_MISMATCH", "目标阶段已变化。", "target.stageKey"));
   if ((evidence.target.stageRunId ?? null) !== match.majorStageRunId) issues.push(issue("TARGET_STAGE_RUN_MISMATCH", "目标 StageRun 已变化。", "target.stageRunId"));
   if (evidence.target.mapOrder !== map.mapOrder) issues.push(issue("TARGET_MAP_ORDER_MISMATCH", "目标图序已变化。", "target.mapOrder"));
@@ -305,8 +312,15 @@ export async function submitRivalHubEvidence(args: SubmitEvidenceArgs): Promise<
     const priorRows = await tx.select().from(matchDemoImports)
       .where(eq(matchDemoImports.matchMapId, target.map.id)).orderBy(desc(matchDemoImports.createdAt)).for("update");
     const same = idempotent ?? priorRows.find((row) => sameContent(row, evidence, payloadSha256));
+    // Content conflict is owned by every confirmed import, including retired semantic profiles.
     const confirmedPrior = priorRows.find((row) => row.status === "confirmed" && row.id !== same?.id);
-    const sameDemoConfirmed = confirmedPrior?.demoSha256 === evidence.source.demoSha256 ? confirmedPrior : undefined;
+    // Same-demo lineage may replace a confirmed, needs-attention, or stale snapshot;
+    // rejected and pending rows remain explicit workflow states.
+    const sameDemoPrior = priorRows.find((row) =>
+      row.demoSha256 === evidence.source.demoSha256
+      && ["confirmed", "needs_attention", "stale"].includes(row.status)
+      && row.id !== same?.id,
+    );
     const differentDemoConfirmed = confirmedPrior && confirmedPrior.demoSha256 !== evidence.source.demoSha256 ? confirmedPrior : undefined;
     if (same) {
       if (same.status === "confirmed") {
@@ -317,7 +331,7 @@ export async function submitRivalHubEvidence(args: SubmitEvidenceArgs): Promise<
         issues.push(issue("CONTENT_CONFLICT", "该地图已有另一份已确认 Demo；不同内容必须显式进入冲突处理，不能静默覆盖。", "source.demoSha256"));
       }
       if (same.status === "needs_attention" && issues.length === 0) {
-        await confirmImport(tx, same, evidence, target, args.pairingId, true, sameDemoConfirmed?.id ?? null);
+        await confirmImport(tx, same, evidence, target, args.pairingId, true, sameDemoPrior?.id ?? null);
         return { ...responseFor({ ...same, status: "confirmed" }), status: "synced", issues: [] };
       }
       await tx.update(matchDemoImports).set({ issues }).where(eq(matchDemoImports.id, same.id));
@@ -343,14 +357,14 @@ export async function submitRivalHubEvidence(args: SubmitEvidenceArgs): Promise<
       payload: evidence,
       submittedByPairingId: args.pairingId,
       idempotencyKey: args.idempotencyKey ?? null,
-      supersedesImportId: status === "confirmed" ? sameDemoConfirmed?.id ?? null : null,
+      supersedesImportId: status === "confirmed" ? sameDemoPrior?.id ?? null : null,
       issues,
       confirmedAt: status === "confirmed" ? now : null,
     }).returning();
     if (!created) throw new AppError(ErrorCode.INTERNAL_ERROR, "保存 Demo Evidence 失败。");
 
     if (status === "confirmed") {
-      await confirmImport(tx, created, evidence, target, args.pairingId, false, sameDemoConfirmed?.id ?? null);
+      await confirmImport(tx, created, evidence, target, args.pairingId, false, sameDemoPrior?.id ?? null);
     } else {
       await writeAuditInTx(tx, {
         seasonId: target.match.seasonId,
