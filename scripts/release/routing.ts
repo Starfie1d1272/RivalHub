@@ -39,6 +39,8 @@ export interface ReleaseRoutingOptions {
   candidateDeploymentUrl: string;
   releaseTag: string;
   releaseCommit: string;
+  previousReleaseTag: string;
+  previousReleaseCommit: string;
   canonicalBaseUrl: string;
   vercelToken: string;
   vercelOrgId: string;
@@ -51,7 +53,7 @@ export interface ReleaseRoutingOptions {
   summaryFn?: (markdown: string) => void;
   summaryPath?: string;
   pollIntervalMs?: number;
-  /** @deprecated Use semanticConvergenceTimeoutMs. */
+  /** @deprecated 请使用 semanticConvergenceTimeoutMs。 */
   pollTimeoutMs?: number;
   semanticConvergenceTimeoutMs?: number;
   providerRoutingTimeoutMs?: number;
@@ -77,6 +79,7 @@ interface RoutingConfig {
   candidateDeploymentHost: string;
   releaseTag: string;
   releaseCommit: string;
+  previousIdentity: ReleaseIdentity;
   canonicalBaseUrl: string;
   canonicalHost: string;
   vercelToken: string;
@@ -149,14 +152,32 @@ export async function runReleaseRouting(
   let canonicalConvergenceStarted = false;
 
   try {
-    const previousIdentity = await readCanonicalIdentity(context, "preflight");
+    const observedPreviousIdentity = await readCanonicalIdentity(
+      context,
+      "preflight",
+      undefined,
+      context.previousIdentity,
+    );
+    if (!sameReleaseIdentity(observedPreviousIdentity, context.previousIdentity)) {
+      throw routingError({
+        stage: "preflight",
+        operation: "verify_frozen_previous_identity",
+        classification: "provider_contract",
+        reason: "权威生产版本身份标识与发布开始时冻结的上一生产版本身份标识不一致；拒绝覆盖冻结基线。",
+        expectedReleaseTag: context.previousIdentity.releaseTag,
+        expectedReleaseCommit: context.previousIdentity.releaseCommit,
+        observedReleaseTag: observedPreviousIdentity.releaseTag,
+        observedReleaseCommit: observedPreviousIdentity.releaseCommit,
+      });
+    }
+    const previousIdentity = context.previousIdentity;
     const previousDeployment = await context.vercelClient.resolveDeployment(
       context.canonicalHost,
       {
         stage: "preflight",
         operation: "resolve_previous_deployment",
-        expectedReleaseTag: context.releaseTag,
-        expectedReleaseCommit: context.releaseCommit,
+        expectedReleaseTag: context.previousIdentity.releaseTag,
+        expectedReleaseCommit: context.previousIdentity.releaseCommit,
       },
     );
     const candidateDeployment = await context.vercelClient.resolveDeployment(
@@ -174,7 +195,7 @@ export async function runReleaseRouting(
         stage: "preflight",
         operation: "freeze_routing_state",
         classification: "configuration",
-        reason: "candidate 与 previous deployment 相同，无法安全建立 compensation 目标。",
+        reason: "候选部署与上一部署相同，无法安全建立回退目标。",
         expectedDeploymentId: candidateDeployment.id,
         observedDeploymentId: previousDeployment.id,
         expectedReleaseTag: context.releaseTag,
@@ -191,13 +212,13 @@ export async function runReleaseRouting(
     summary.candidateDeploymentId = candidateDeployment.id;
 
     context.logFn(
-      "[Release Routing] 已冻结 routing state: candidate=" +
+      "[发布路由] 已冻结路由状态：候选部署=" +
         candidateDeployment.id +
-        ", previous=" +
+        "，上一部署=" +
         previousDeployment.id +
-        ", previousTag=" +
+        "，上一版本 tag=" +
         previousIdentity.releaseTag +
-        ", previousCommit=" +
+        "，上一版本提交=" +
         previousIdentity.releaseCommit,
     );
 
@@ -280,7 +301,7 @@ export async function runReleaseRouting(
           stage: "compensation",
           operation: "rollback",
           classification: "rollback_failed",
-          reason: "rollback 未能确认 provider routing 与 canonical previous identity 同时恢复；需要人工介入。",
+          reason: "回退未能确认服务商路由与权威上一生产版本身份标识同时恢复；需要人工介入。",
           httpStatus: rollbackFailure.details.httpStatus,
           providerJobStatus: rollbackFailure.details.providerJobStatus,
           expectedDeploymentId: previousState.deploymentId,
@@ -310,7 +331,7 @@ function normalizeOptions(options: ReleaseRoutingOptions): RoutingConfig {
       stage: "preflight",
       operation: "validate_configuration",
       classification: "configuration",
-      reason: "release tag 无效。",
+      reason: "发布 tag 无效。",
       expectedReleaseTag: releaseTag,
       expectedReleaseCommit: releaseCommit,
     });
@@ -320,9 +341,40 @@ function normalizeOptions(options: ReleaseRoutingOptions): RoutingConfig {
       stage: "preflight",
       operation: "validate_configuration",
       classification: "configuration",
-      reason: "release commit SHA 无效。",
+      reason: "发布提交 SHA 无效。",
       expectedReleaseTag: releaseTag,
       expectedReleaseCommit: releaseCommit,
+    });
+  }
+
+  const previousReleaseTag = options.previousReleaseTag?.trim() ?? "";
+  const previousReleaseCommit = options.previousReleaseCommit?.trim().toLowerCase() ?? "";
+  let previousIdentity: ReleaseIdentity;
+  try {
+    previousIdentity = assertReleaseIdentity({
+      releaseTag: previousReleaseTag,
+      releaseCommit: previousReleaseCommit,
+    }, "上一生产版本身份标识");
+  } catch (error) {
+    throw routingError({
+      stage: "preflight",
+      operation: "validate_previous_production_identity",
+      classification: "configuration",
+      reason: `上一生产版本身份标识无效：${error instanceof Error ? error.message : String(error)}`,
+      expectedReleaseTag: previousReleaseTag,
+      expectedReleaseCommit: previousReleaseCommit,
+    }, error);
+  }
+  if (previousIdentity.releaseCommit === releaseCommit) {
+    throw routingError({
+      stage: "preflight",
+      operation: "validate_previous_production_identity",
+      classification: "configuration",
+      reason: "上一生产版本身份标识与候选版本提交相同；拒绝建立回退目标。",
+      expectedReleaseTag: previousIdentity.releaseTag,
+      expectedReleaseCommit: previousIdentity.releaseCommit,
+      observedReleaseTag: releaseTag,
+      observedReleaseCommit: releaseCommit,
     });
   }
 
@@ -336,7 +388,7 @@ function normalizeOptions(options: ReleaseRoutingOptions): RoutingConfig {
       stage: "preflight",
       operation: "validate_configuration",
       classification: "configuration",
-      reason: "Vercel project-scoped routing configuration 缺失。",
+      reason: "Vercel 项目级路由配置缺失。",
       expectedReleaseTag: releaseTag,
       expectedReleaseCommit: releaseCommit,
     });
@@ -347,6 +399,7 @@ function normalizeOptions(options: ReleaseRoutingOptions): RoutingConfig {
     candidateDeploymentHost: candidate.host,
     releaseTag,
     releaseCommit,
+    previousIdentity,
     canonicalBaseUrl: canonical.url,
     canonicalHost: canonical.host,
     vercelToken,
@@ -355,37 +408,37 @@ function normalizeOptions(options: ReleaseRoutingOptions): RoutingConfig {
     pollIntervalMs: positiveNumber(
       options.pollIntervalMs,
       DEFAULT_ROUTING_POLL_INTERVAL_MS,
-      "poll interval",
+      "轮询间隔",
     ),
     providerRoutingTimeoutMs: positiveNumber(
       options.providerRoutingTimeoutMs,
       DEFAULT_ROUTING_PROVIDER_TIMEOUT_MS,
-      "provider routing timeout",
+      "服务商路由超时时间",
     ),
     semanticConvergenceTimeoutMs: positiveNumber(
       options.semanticConvergenceTimeoutMs ?? options.pollTimeoutMs,
       DEFAULT_ROUTING_SEMANTIC_TIMEOUT_MS,
-      "semantic convergence timeout",
+      "语义收敛超时时间",
     ),
     ambiguousReconciliationTimeoutMs: positiveNumber(
       options.ambiguousReconciliationTimeoutMs,
       DEFAULT_ROUTING_AMBIGUOUS_RECONCILIATION_TIMEOUT_MS,
-      "ambiguous reconciliation timeout",
+      "结果不明核对超时时间",
     ),
     requestTimeoutMs: positiveNumber(
       options.requestTimeoutMs,
       DEFAULT_REQUEST_TIMEOUT_MS,
-      "request timeout",
+      "请求超时时间",
     ),
     transportRetryAttempts: positiveInteger(
       options.transportRetryAttempts,
       DEFAULT_TRANSPORT_RETRY_ATTEMPTS,
-      "transport retry attempts",
+      "传输重试次数",
     ),
     transportRetryDelayMs: positiveNumber(
       options.transportRetryDelayMs,
       DEFAULT_TRANSPORT_RETRY_DELAY_MS,
-      "transport retry delay",
+      "传输重试间隔",
     ),
   };
 }
@@ -436,7 +489,7 @@ function parseCandidateUrl(raw: string): { url: string; host: string } {
       stage: "preflight",
       operation: "validate_candidate_url",
       classification: "configuration",
-      reason: "candidate deployment URL 必须是精确的 HTTPS *.vercel.app hostname。",
+      reason: "候选部署 URL 必须是精确的 HTTPS *.vercel.app 主机名。",
     });
   }
 }
@@ -461,7 +514,7 @@ function parseCanonicalUrl(raw: string): { url: string; host: string } {
       stage: "preflight",
       operation: "validate_canonical_url",
       classification: "configuration",
-      reason: "canonical production base URL 必须是无 path/query 的 HTTPS URL。",
+      reason: "权威生产环境基础 URL 必须是没有路径和查询参数的 HTTPS URL。",
     });
   }
 }
@@ -476,7 +529,7 @@ function createContext(config: RoutingConfig, options: ReleaseRoutingOptions): R
           appendFileSync(summaryPath, markdown + "\n", "utf8");
         } catch (error) {
           (options.errorFn ?? console.error)(
-            "[Release Routing] 无法写入 GitHub Step Summary；routing result 不受影响。",
+            "[发布路由] 无法写入 GitHub Step Summary；路由结果不受影响。",
           );
           void error;
         }
@@ -529,17 +582,21 @@ async function readCanonicalIdentity(
     },
   );
   try {
-    return assertReleaseIdentity(raw, "canonical production release identity");
+    return assertReleaseIdentity(raw, "权威生产版本身份标识");
   } catch (error) {
     throw routingError({
       stage,
       operation: "read_canonical_release_identity",
       classification: "provider_contract",
-      reason: "canonical /api/system/release payload 不符合 release identity contract。",
+      reason: "权威 /api/system/release 返回内容不符合版本身份标识契约。",
       expectedReleaseTag: expectedIdentity.releaseTag,
       expectedReleaseCommit: expectedIdentity.releaseCommit,
     }, error);
   }
+}
+
+function sameReleaseIdentity(left: ReleaseIdentity, right: ReleaseIdentity): boolean {
+  return left.releaseTag === right.releaseTag && left.releaseCommit === right.releaseCommit.toLowerCase();
 }
 
 async function mutateRouting(
@@ -583,9 +640,9 @@ async function mutateRouting(
         }
         const delayMs = failure.details.retryAfterMs ?? retryDelay(context, attempt);
         context.logFn(
-          "[Release Routing] " +
-            kind +
-            " 被 rate limited；按 bounded Retry-After/backoff 重试一次。",
+          "[发布路由] " +
+            displayMutationKind(kind) +
+            " 被限流；按 Retry-After/退避策略重试一次。",
         );
         await context.sleepFn(delayMs);
         continue;
@@ -602,25 +659,25 @@ async function mutateRouting(
       );
       if (reconciliation.outcome === "reconciled") {
         context.logFn(
-          "[Release Routing] " +
-            kind +
-            " outcome ambiguous，但 provider 已观察到 target=" +
+          "[发布路由] " +
+            displayMutationKind(kind) +
+            "结果不明，但服务商已观察到目标部署=" +
             targetDeploymentId +
-            "；不重复 side-effect POST。",
+            "；不重复执行有副作用的 POST。",
         );
         return { outcome: "reconciled" };
       }
       if (attempt === 1) {
         context.logFn(
-          "[Release Routing] " +
-            kind +
-            " 在稳定 observation window 内确认 previous routing 未变更；执行一次 bounded retry。",
+          "[发布路由] " +
+            displayMutationKind(kind) +
+            "在稳定观察窗口内确认上一版本路由未变更；执行一次有限重试。",
         );
         continue;
       }
       throw routingError({
         ...failure.details,
-        reason: "mutation outcome 已稳定显示 previous，但 retry budget 已耗尽；拒绝继续重复 side-effect POST。",
+        reason: "写操作结果已稳定显示为上一版本，但重试次数已耗尽；拒绝继续重复执行有副作用的 POST。",
         expectedDeploymentId: targetDeploymentId,
         observedDeploymentId: reconciliation.lastState.toDeploymentId ?? undefined,
         providerJobStatus: reconciliation.lastState.jobStatus ?? undefined,
@@ -628,7 +685,7 @@ async function mutateRouting(
       }, error);
     }
   }
-  throw new Error("unreachable");
+  throw new Error("不可达代码");
 }
 
 interface MutationReconciliationResult {
@@ -668,7 +725,7 @@ async function reconcileAmbiguousMutation(
             stage,
             operation: "reconcile_" + kind + "_outcome",
             classification: "provider_contract",
-            reason: "provider alias job 明确失败或被拒绝。",
+            reason: "服务商别名任务明确失败或被拒绝。",
             providerJobStatus: lastState.jobStatus ?? undefined,
             expectedDeploymentId: targetDeploymentId,
             observedDeploymentId: lastState.toDeploymentId,
@@ -692,13 +749,13 @@ async function reconcileAmbiguousMutation(
       }
 
       context.logFn(
-        "[Release Routing] ambiguous " +
-          kind +
-          " reconciliation poll: observed=" +
-          (lastState.toDeploymentId ?? "none") +
-          ", status=" +
-          (lastState.jobStatus ?? "none") +
-          ", stablePreviousObservations=" +
+        "[发布路由] 结果不明的 " +
+          displayMutationKind(kind) +
+          "核对轮询：观察到的部署=" +
+          (lastState.toDeploymentId ?? "无") +
+          "，状态=" +
+          displaySummaryStatus(lastState.jobStatus ?? "无") +
+          "，上一版本稳定观察次数=" +
           stablePreviousObservations,
       );
     } catch (error) {
@@ -721,10 +778,10 @@ async function reconcileAmbiguousMutation(
       stablePreviousObservations = 0;
       reconciliationWindowSafeToRetry = false;
       context.logFn(
-        "[Release Routing] ambiguous " +
-          kind +
-          " reconciliation read transient failure，继续 observation window: classification=" +
-          failure.details.classification,
+        "[发布路由] 结果不明的 " +
+          displayMutationKind(kind) +
+          "核对读取暂时失败，继续观察窗口：分类=" +
+          displaySummaryStatus(failure.details.classification),
       );
     }
 
@@ -732,9 +789,9 @@ async function reconcileAmbiguousMutation(
     if (elapsedMs >= timeoutMs) {
       if (reconciliationWindowSafeToRetry && stablePreviousObservations >= 2) {
         context.logFn(
-          "[Release Routing] ambiguous " +
-            kind +
-            " reconciliation window 完整结束，previous routing 全程稳定；允许一次 bounded retry。",
+          "[发布路由] 结果不明的 " +
+            displayMutationKind(kind) +
+            "核对窗口已完整结束，上一版本路由全程稳定；允许一次有限重试。",
         );
         return { outcome: "safe_to_retry", lastState };
       }
@@ -742,7 +799,7 @@ async function reconcileAmbiguousMutation(
         stage,
         operation: "reconcile_" + kind + "_outcome",
         classification: "ambiguous_side_effect",
-        reason: "mutation outcome 在 bounded observation window 后仍不明确；拒绝重复 side-effect POST。",
+        reason: "写操作结果在有限观察窗口结束后仍不明确；拒绝重复执行有副作用的 POST。",
         expectedDeploymentId: targetDeploymentId,
         observedDeploymentId: lastState.toDeploymentId ?? undefined,
         providerJobStatus: lastState.jobStatus ?? undefined,
@@ -790,7 +847,7 @@ async function waitForAliasOperation(
           stage,
           operation: "wait_" + stage + "_alias_operation",
           classification: "provider_contract",
-          reason: "provider alias job 明确失败或被拒绝。",
+          reason: "服务商别名任务明确失败或被拒绝。",
           providerJobStatus: lastState.jobStatus ?? undefined,
           expectedDeploymentId,
           observedDeploymentId: lastState.toDeploymentId,
@@ -800,12 +857,12 @@ async function waitForAliasOperation(
         });
       }
       context.logFn(
-        "[Release Routing] alias operation 尚未收敛: expected=" +
+        "[发布路由] 别名操作尚未收敛：期望=" +
           expectedDeploymentId +
-          ", observed=" +
-          (lastState.toDeploymentId ?? "none") +
-          ", status=" +
-          (lastState.jobStatus ?? "none"),
+          "，观察到=" +
+          (lastState.toDeploymentId ?? "无") +
+          "，状态=" +
+          displaySummaryStatus(lastState.jobStatus ?? "无"),
       );
     } catch (error) {
       const failure = asRoutingError(error, {
@@ -818,8 +875,8 @@ async function waitForAliasOperation(
       });
       if (!isPollTransient(failure)) throw failure;
       context.logFn(
-        "[Release Routing] alias state read transient failure，继续 bounded poll: classification=" +
-          failure.details.classification,
+        "[发布路由] 别名状态读取暂时失败，继续有限轮询：分类=" +
+          displaySummaryStatus(failure.details.classification),
       );
     }
 
@@ -869,11 +926,11 @@ async function waitForCanonicalIdentity(
         return { polls, durationMs: Math.max(0, context.nowFn() - startedAt) };
       }
       context.logFn(
-        "[Release Routing] canonical identity not_converged: expected=" +
+        "[发布路由] 权威身份标识尚未收敛：期望=" +
           expectedIdentity.releaseTag +
           "/" +
           expectedIdentity.releaseCommit.toLowerCase() +
-          ", observed=" +
+          "，观察到=" +
           observedIdentity.releaseTag +
           "/" +
           observedIdentity.releaseCommit,
@@ -888,8 +945,8 @@ async function waitForCanonicalIdentity(
       });
       if (!isPollTransient(failure)) throw failure;
       context.logFn(
-        "[Release Routing] canonical read transient failure，继续 semantic poll: classification=" +
-          failure.details.classification,
+        "[发布路由] 权威身份标识读取暂时失败，继续语义轮询：分类=" +
+          displaySummaryStatus(failure.details.classification),
       );
     }
 
@@ -940,7 +997,7 @@ function timeoutError(
     stage,
     operation,
     classification: "convergence_timeout",
-    reason: "bounded convergence deadline exceeded。",
+    reason: "有限收敛截止时间已到。",
     expectedReleaseTag: context.releaseTag,
     expectedReleaseCommit: context.releaseCommit,
     ...details,
@@ -978,38 +1035,74 @@ function renderSummary(
   durationMs: number,
 ): string {
   const lines = [
-    "## Release routing controller",
+    "## 发布路由控制器",
     "",
-    "- candidate deployment: " + summaryValue(context.candidateDeploymentUrl),
-    "- candidate deployment id: " + summaryValue(summary.candidateDeploymentId),
-    "- previous deployment: " + summaryValue(summary.previousDeploymentId),
-    "- previous release identity: " +
+    "- 候选部署：" + summaryValue(context.candidateDeploymentUrl),
+    "- 候选部署 ID：" + summaryValue(summary.candidateDeploymentId),
+    "- 上一部署：" + summaryValue(summary.previousDeploymentId),
+    "- 上一版本身份标识：" +
       summaryValue(
         summary.previousIdentity
           ? summary.previousIdentity.releaseTag + "/" + summary.previousIdentity.releaseCommit
           : undefined,
       ),
-    "- expected release identity: " +
+    "- 期望版本身份标识：" +
       summaryValue(context.releaseTag + "/" + context.releaseCommit),
-    "- promotion outcome: " + summaryValue(summary.promotion),
-    "- canonical convergence: " + summaryValue(summary.canonical),
-    "- rollback compensation: " + summaryValue(summary.rollback),
-    "- terminal classification: " + summaryValue(summary.terminal?.classification ?? "none"),
-    "- elapsed: " + Math.round(durationMs) + "ms",
+    "- 切换结果：" + summaryValue(displaySummaryStatus(summary.promotion)),
+    "- 权威语义收敛：" + summaryValue(displaySummaryStatus(summary.canonical)),
+    "- 回退补偿：" + summaryValue(displaySummaryStatus(summary.rollback)),
+    "- 最终分类：" + summaryValue(displaySummaryStatus(summary.terminal?.classification ?? "无")),
+    "- 耗时：" + Math.round(durationMs) + "ms",
   ];
   if (summary.terminal?.reason) {
-    lines.push("- diagnostic: " + summaryValue(summary.terminal.reason));
+    lines.push("- 诊断信息：" + summaryValue(summary.terminal.reason));
   }
   if (summary.rollback === "failed") {
-    lines.push("- manual intervention: required");
+    lines.push("- 需要人工介入：是");
   }
   return lines.join("\n");
 }
 
 function summaryValue(value: string | number | undefined): string {
   const codeMark = String.fromCharCode(96);
-  if (value === undefined) return codeMark + "unavailable" + codeMark;
+  if (value === undefined) return codeMark + "不可用" + codeMark;
   return codeMark + String(value).replaceAll(codeMark, "'").replaceAll("\n", " ") + codeMark;
+}
+
+function displayMutationKind(kind: "promote" | "rollback"): string {
+  return kind === "promote" ? "切换" : "回退";
+}
+
+function displaySummaryStatus(value: string): string {
+  const labels: Record<string, string> = {
+    not_attempted: "未执行",
+    not_required: "无需执行",
+    accepted: "已接受",
+    reconciled: "已核对",
+    retried: "已重试",
+    failed: "失败",
+    converged: "已收敛",
+    verified: "已验证",
+    transport_transient: "传输暂时失败",
+    rate_limited: "已限流",
+    hard_auth: "认证失败",
+    provider_contract: "服务商契约错误",
+    not_converged: "尚未收敛",
+    convergence_timeout: "收敛超时",
+    ambiguous_side_effect: "有副作用的结果不明",
+    rollback_failed: "回退失败",
+    configuration: "配置错误",
+    succeeded: "成功",
+    pending: "处理中",
+    queued: "排队中",
+    running: "运行中",
+    rejected: "已拒绝",
+    error: "错误",
+    canceled: "已取消",
+    cancelled: "已取消",
+    无: "无",
+  };
+  return labels[value] ?? value;
 }
 
 function parseOptionalNumber(raw: string | undefined): number | undefined {
@@ -1024,6 +1117,8 @@ async function cliMain(): Promise<void> {
       candidateDeploymentUrl: process.env.DEPLOYMENT_URL ?? "",
       releaseTag: process.env.RELEASE_TAG ?? "",
       releaseCommit: process.env.RELEASE_SHA ?? "",
+      previousReleaseTag: process.env.RIVALHUB_PREVIOUS_RELEASE_TAG ?? "",
+      previousReleaseCommit: process.env.RIVALHUB_PREVIOUS_RELEASE_COMMIT ?? "",
       canonicalBaseUrl: process.env.RIVALHUB_PRODUCTION_BASE_URL ?? "",
       vercelToken: process.env.VERCEL_TOKEN ?? "",
       vercelOrgId: process.env.VERCEL_ORG_ID ?? "",
@@ -1037,9 +1132,9 @@ async function cliMain(): Promise<void> {
       transportRetryDelayMs: parseOptionalNumber(process.env.RELEASE_ROUTING_TRANSPORT_RETRY_DELAY_MS),
     });
     console.log(
-      "[Release Routing] canonical production converged: candidate=" +
+      "[发布路由] 权威生产环境已收敛：候选部署=" +
         result.candidateDeploymentId +
-        ", previous=" +
+        "，上一部署=" +
         result.previousDeploymentId,
     );
   } catch (error) {

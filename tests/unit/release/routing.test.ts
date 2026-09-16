@@ -136,6 +136,8 @@ function createHarness(scenario: Scenario) {
     candidateDeploymentUrl: "https://" + CANDIDATE_HOST,
     releaseTag: "v2.9.5",
     releaseCommit: CANDIDATE_COMMIT,
+    previousReleaseTag: "v2.9.4",
+    previousReleaseCommit: PREVIOUS_COMMIT,
     canonicalBaseUrl: "https://" + CANONICAL_HOST,
     vercelToken: TOKEN,
     vercelOrgId: ORG_ID,
@@ -166,6 +168,24 @@ function requestCount(harness: ReturnType<typeof createHarness>, fragment: strin
 }
 
 describe("release routing controller", () => {
+  it("fails closed when canonical preflight does not match the frozen previous identity", async () => {
+    const harness = createHarness({
+      canonical: [identity("v2.9.3", "c".repeat(40))],
+    });
+
+    await expect(runReleaseRouting(harness.options)).rejects.toMatchObject({
+      details: {
+        classification: "provider_contract",
+        operation: "verify_frozen_previous_identity",
+        expectedReleaseTag: "v2.9.4",
+        expectedReleaseCommit: PREVIOUS_COMMIT,
+        observedReleaseTag: "v2.9.3",
+      },
+    });
+    expect(requestCount(harness, "/promote/")).toBe(0);
+    expect(requestCount(harness, "/rollback/")).toBe(0);
+  });
+
   it("promotes and waits for canonical semantic convergence without rollback", async () => {
     const harness = createHarness({
       canonical: [
@@ -183,7 +203,7 @@ describe("release routing controller", () => {
     });
     expect(requestCount(harness, "/promote/")).toBe(1);
     expect(requestCount(harness, "/rollback/")).toBe(0);
-    expect(harness.summaries[0]).toContain("rollback compensation:");
+    expect(harness.summaries[0]).toContain("- 回退补偿：");
   });
 
   it("separates bounded transport retry from canonical semantic polling", async () => {
@@ -218,8 +238,8 @@ describe("release routing controller", () => {
     });
     expect(requestCount(harness, "/promote/")).toBe(1);
     expect(requestCount(harness, "/rollback/")).toBe(1);
-    expect(harness.summaries[0]).toContain("rollback compensation:");
-    expect(harness.summaries[0]).toContain("verified");
+    expect(harness.summaries[0]).toContain("- 回退补偿：");
+    expect(harness.summaries[0]).toContain("已验证");
   });
 
   it("fails hard on canonical auth errors without retrying the read", async () => {
@@ -257,7 +277,7 @@ describe("release routing controller", () => {
     });
     expect(requestCount(harness, "/promote/")).toBe(1);
     expect(requestCount(harness, "/rollback/")).toBe(0);
-    expect(harness.logs.some((line) => line.includes("不重复 side-effect POST"))).toBe(true);
+    expect(harness.logs.some((line) => line.includes("不重复执行有副作用的 POST"))).toBe(true);
   });
 
   it("keeps an ambiguous promote to one POST when stale previous becomes candidate", async () => {
@@ -333,7 +353,7 @@ describe("release routing controller", () => {
     });
     expect(requestCount(harness, "/promote/")).toBe(1);
     expect(requestCount(harness, "/rollback/")).toBe(1);
-    expect(harness.summaries[0]).toContain("verified");
+    expect(harness.summaries[0]).toContain("已验证");
   });
 
   it("fails closed before promote when previous deployment identity is missing", async () => {
@@ -375,7 +395,7 @@ describe("release routing controller", () => {
     await expect(runReleaseRouting(harness.options)).rejects.toMatchObject({
       details: { classification: "convergence_timeout" },
     });
-    expect(harness.summaries[0]).toContain("verified");
+    expect(harness.summaries[0]).toContain("已验证");
     expect(rollbackReads).toBe(2);
   });
 
@@ -394,8 +414,8 @@ describe("release routing controller", () => {
     await expect(runReleaseRouting(harness.options)).rejects.toMatchObject({
       details: { classification: "rollback_failed" },
     });
-    expect(harness.summaries[0]).toContain("rollback compensation:");
-    expect(harness.summaries[0]).toContain("manual intervention: required");
+    expect(harness.summaries[0]).toContain("- 回退补偿：");
+    expect(harness.summaries[0]).toContain("- 需要人工介入：是");
   });
 
   it("keeps accepted promotion outcome when semantic convergence fails", async () => {
@@ -410,8 +430,8 @@ describe("release routing controller", () => {
     await expect(runReleaseRouting(harness.options)).rejects.toMatchObject({
       details: { classification: "convergence_timeout" },
     });
-    expect(harness.summaries[0]).toContain("promotion outcome: " + "\u0060accepted\u0060");
-    expect(harness.summaries[0]).not.toContain("promotion outcome: " + "\u0060failed\u0060");
+    expect(harness.summaries[0]).toContain("- 切换结果：" + "\u0060已接受\u0060");
+    expect(harness.summaries[0]).not.toContain("- 切换结果：" + "\u0060失败\u0060");
   });
 
   it("treats a malformed release identity payload as deterministic contract failure", async () => {
@@ -431,7 +451,7 @@ describe("release routing controller", () => {
       details: { classification: "provider_contract" },
     });
     expect(requestCount(harness, "/rollback/")).toBe(1);
-    expect(harness.summaries[0]).toContain("verified");
+    expect(harness.summaries[0]).toContain("已验证");
   });
 
   it("sends the Vercel token only to provider API requests", async () => {
@@ -496,6 +516,6 @@ describe("release routing controller", () => {
     });
     expect(abortedRequests).toBeGreaterThan(0);
     expect(requestCount(harness, "/rollback/")).toBe(1);
-    expect(harness.summaries[0]).toContain("verified");
+    expect(harness.summaries[0]).toContain("已验证");
   });
 });

@@ -9,6 +9,13 @@ import {
   type MigrationContractOwner,
   type MigrationRiskFinding,
 } from "./migration-risk";
+import {
+  PREVIOUS_RELEASE_COMMIT_ENV,
+  PREVIOUS_RELEASE_TAG_ENV,
+  REQUIRE_EXPLICIT_PREVIOUS_RELEASE_ENV,
+  resolveConfiguredPreviousProductionIdentity,
+  type ReleaseEnvironment,
+} from "../release/production-identity";
 
 const SHIPPED_SOURCE_ROOTS = [
   "src/db/schema",
@@ -75,7 +82,7 @@ interface EnumDeclaration {
 
 export function checkReleaseCompatibility(cwd = process.cwd()): ReleaseCompatibilityResult {
   const head = process.env.RIVALHUB_MIGRATION_HEAD_SHA?.trim() || "HEAD";
-  const previousRelease = resolvePreviousStableRelease(cwd, head);
+  const previousRelease = resolvePreviousProductionRelease(cwd, head);
   const files = changedMigrationFiles(cwd, previousRelease.commit);
   const findings = files.flatMap((filePath) => {
     const absolutePath = resolve(cwd, filePath);
@@ -98,23 +105,19 @@ export function checkReleaseCompatibility(cwd = process.cwd()): ReleaseCompatibi
   };
 }
 
-export function resolvePreviousStableRelease(cwd = process.cwd(), head = "HEAD"): ReleaseTagResolution {
-  const headCommit = resolveGitRevision(cwd, head, "RIVALHUB_MIGRATION_HEAD_SHA");
-  const configuredExplicit = process.env.RIVALHUB_PREVIOUS_RELEASE_TAG;
-  if (configuredExplicit !== undefined) {
-    const explicit = configuredExplicit.trim();
-    if (!STABLE_TAG_PATTERN.test(explicit)) {
-      throw new Error(`RIVALHUB_PREVIOUS_RELEASE_TAG 必须是 production stable tag vX.Y.Z，不能使用空值、revision 或 prerelease：${configuredExplicit}`);
-    }
-    const commit = resolveStableTag(cwd, explicit, "RIVALHUB_PREVIOUS_RELEASE_TAG");
-    if (commit === headCommit) {
-      throw new Error(`RIVALHUB_PREVIOUS_RELEASE_TAG ${explicit} 与 candidate HEAD 相同；previous production stable 必须早于 candidate。`);
-    }
-    return {
-      ref: explicit,
-      commit,
-    };
+export function resolvePreviousProductionRelease(cwd = process.cwd(), head = "HEAD"): ReleaseTagResolution {
+  const configuredExplicit = resolveConfiguredPreviousProductionIdentity(cwd, process.env, head);
+  if (configuredExplicit) return { ref: configuredExplicit.releaseTag, commit: configuredExplicit.releaseCommit };
+  if (requiresExplicitPreviousRelease(process.env)) {
+    throw new Error(`${PREVIOUS_RELEASE_TAG_ENV} 与 ${PREVIOUS_RELEASE_COMMIT_ENV} 缺失；生产发布禁止回退到 Git 推导的稳定 tag。`);
   }
+
+  return resolveGitDerivedPreviousStableRelease(cwd, head);
+}
+
+/** Git 推导的回退路径仅供开发环境/持续集成使用；生产发布必须先冻结身份标识。 */
+export function resolveGitDerivedPreviousStableRelease(cwd = process.cwd(), head = "HEAD"): ReleaseTagResolution {
+  const headCommit = resolveGitRevision(cwd, head, "RIVALHUB_MIGRATION_HEAD_SHA");
 
   const configuredProductionRef = process.env.RIVALHUB_PRODUCTION_STABLE_REF;
   const productionRef = configuredProductionRef === undefined
@@ -126,14 +129,18 @@ export function resolvePreviousStableRelease(cwd = process.cwd(), head = "HEAD")
 
   for (const candidate of stableTags) {
     if (candidateVersion && compareStableVersions(candidate.version, candidateVersion) >= 0) continue;
-    const commit = resolveStableTag(cwd, candidate.tag, "stable release tag");
+    const commit = resolveStableTag(cwd, candidate.tag, "稳定版本 tag");
     if (commit === headCommit) continue;
     return { ref: candidate.tag, commit };
   }
 
   throw new Error(
-    `无法从 production stable ref ${productionRef} 解析 previous production stable release；需要 lineage 中早于 candidate 的 vX.Y.Z tag，且会忽略 prerelease tag。`,
+    `无法从开发环境/持续集成的生产稳定引用 ${productionRef} 解析上一生产版本；需要提交链中早于候选版本的 vX.Y.Z tag，并会忽略预发布 tag。`,
   );
+}
+
+function requiresExplicitPreviousRelease(env: ReleaseEnvironment): boolean {
+  return env[REQUIRE_EXPLICIT_PREVIOUS_RELEASE_ENV] === "1" || env[REQUIRE_EXPLICIT_PREVIOUS_RELEASE_ENV] === "true";
 }
 
 function stableTagsMergedInto(
@@ -173,7 +180,7 @@ function evaluateFinding(finding: MigrationRiskFinding, sources: readonly Shippe
       owners: [],
       evidence: [],
       status: "fail",
-      message: `${formatFinding(finding)} fail closed：${finding.category} 无法仅凭 previous stable source 证明 N/N+1 兼容；请改写为 Expand → Switch → Contract。annotation 不能绕过此 gate。`,
+      message: `${formatFinding(finding)} 直接拒绝继续：${finding.category} 无法仅凭上一生产版本源代码证明 N/N+1 兼容；请改写为 Expand → Switch → Contract 迁移。迁移注解不能绕过此门槛。`,
     };
   }
 
@@ -188,7 +195,7 @@ function evaluateFinding(finding: MigrationRiskFinding, sources: readonly Shippe
       owners,
       evidence: [],
       status: "fail",
-      message: `${formatFinding(finding)} 无法安全解析被 contract 的 relation/column/type owner；拒绝猜测，请明确拆分为可验证的 Expand → Switch → Contract migration。`,
+      message: `${formatFinding(finding)} 无法安全解析待收缩的关系/列/类型归属方；拒绝猜测，请明确拆分为可验证的 Expand → Switch → Contract 迁移。`,
     };
   }
 
@@ -200,7 +207,7 @@ function evaluateFinding(finding: MigrationRiskFinding, sources: readonly Shippe
       owners,
       evidence,
       status: "fail",
-      message: `${formatFinding(finding)} 无法安全证明非 public schema owner ${unsupportedSchema.displayName} 已停止被 previous stable 使用；拒绝猜测，请提供 Expand → Switch → Contract migration。`,
+      message: `${formatFinding(finding)} 无法安全证明非 public schema 归属方 ${unsupportedSchema.displayName} 已停止被上一生产版本使用；拒绝猜测，请提供 Expand → Switch → Contract 迁移。`,
     };
   }
   if (evidence.length > 0) {
@@ -210,7 +217,7 @@ function evaluateFinding(finding: MigrationRiskFinding, sources: readonly Shippe
       owners,
       evidence,
       status: "fail",
-      message: `${formatFinding(finding)} previous stable 仍依赖 ${owners.map((owner) => owner.displayName).join(", ")}：${evidenceText}。annotation 只声明 cleanup 意图，不能替代兼容性证明；请延后 contract 到下一 release。`,
+      message: `${formatFinding(finding)} 上一生产版本仍依赖 ${owners.map((owner) => owner.displayName).join(", ")}：${evidenceText}。迁移注解只声明清理意图，不能替代兼容性证明；请将收缩操作延后到下一次发布。`,
     };
   }
 
@@ -219,7 +226,7 @@ function evaluateFinding(finding: MigrationRiskFinding, sources: readonly Shippe
     owners,
     evidence,
     status: "pass",
-    message: `${formatFinding(finding)} previous stable source 未发现 ${owners.map((owner) => owner.displayName).join(", ")} 的 DB contract 依赖。`,
+    message: `${formatFinding(finding)} 上一生产版本源代码未发现 ${owners.map((owner) => owner.displayName).join(", ")} 的数据库收缩依赖。`,
   };
 }
 
@@ -251,7 +258,7 @@ function findOwnerEvidence(sources: readonly ShippedSource[], owner: MigrationCo
           addEvidence(evidence, {
             path: source.path,
             line: lineNumberAt(source.content, declaration.start),
-            reason: `Drizzle pgTable(${owner.identifier}) declaration with shipped consumer`,
+            reason: `Drizzle pgTable(${owner.identifier}) 声明及已发布代码调用`,
           });
         }
       }
@@ -259,14 +266,14 @@ function findOwnerEvidence(sources: readonly ShippedSource[], owner: MigrationCo
         evidence,
         source,
         sqlRelationReferencePattern(owner.identifier, owner.schema),
-        "SQL relation reference",
+        "SQL 关系引用",
       );
       for (const declaration of tableDeclarations.filter((item) => matchesRelation(item, owner))) {
         addRegexEvidence(
           evidence,
           source,
           tableUsagePattern(tableSymbolsForSource(declaration, source)),
-          "Drizzle table consumer",
+          "Drizzle 表调用",
         );
       }
     }
@@ -278,7 +285,7 @@ function findOwnerEvidence(sources: readonly ShippedSource[], owner: MigrationCo
             addEvidence(evidence, {
               path: source.path,
               line: lineNumberAt(source.content, match),
-              reason: `Drizzle ${owner.relation}.${owner.identifier} column mapping`,
+              reason: `Drizzle ${owner.relation}.${owner.identifier} 列映射`,
             });
           }
         }
@@ -289,7 +296,7 @@ function findOwnerEvidence(sources: readonly ShippedSource[], owner: MigrationCo
             evidence,
             source,
             propertyAccessPattern(symbols, propertyName),
-            `Drizzle ${owner.relation}.${propertyName} consumer`,
+            `Drizzle ${owner.relation}.${propertyName} 调用`,
           );
         }
         if (symbols.length > 0 && tableUsagePattern(symbols).test(source.searchableContent)) {
@@ -297,7 +304,7 @@ function findOwnerEvidence(sources: readonly ShippedSource[], owner: MigrationCo
             evidence,
             source,
             objectPropertyPattern(propertyNames),
-            `DB object property in ${owner.relation} consumer`,
+            `${owner.relation} 调用中的数据库对象属性`,
           );
         }
       }
@@ -305,7 +312,7 @@ function findOwnerEvidence(sources: readonly ShippedSource[], owner: MigrationCo
         evidence,
         source,
         qualifiedColumnReferencePattern(owner),
-        "qualified SQL column reference",
+        "限定 SQL 列引用",
       );
       addUnqualifiedSqlColumnEvidence(evidence, source, owner, tableDeclarations);
     }
@@ -316,7 +323,7 @@ function findOwnerEvidence(sources: readonly ShippedSource[], owner: MigrationCo
           addEvidence(evidence, {
             path: source.path,
             line: lineNumberAt(source.content, declaration.start),
-            reason: `Drizzle pgEnum(${owner.identifier}) declaration`,
+            reason: `Drizzle pgEnum(${owner.identifier}) 声明`,
           });
         }
       }
@@ -324,14 +331,14 @@ function findOwnerEvidence(sources: readonly ShippedSource[], owner: MigrationCo
         evidence,
         source,
         sqlTypeReferencePattern(owner.identifier, owner.schema),
-        "SQL type reference",
+        "SQL 类型引用",
       );
       for (const declaration of enumDeclarations.filter((item) => sameIdentifier(item.name, owner.identifier))) {
         addRegexEvidence(
           evidence,
           source,
           new RegExp(`\\b${escapeRegExp(declaration.symbol)}\\b`, "g"),
-          "Drizzle enum consumer",
+          "Drizzle 枚举调用",
         );
       }
     }
@@ -344,9 +351,8 @@ function tableDeclarationHasShippedConsumer(
   declaration: TableDeclaration,
   sources: readonly ShippedSource[],
 ): boolean {
-  // A relation declaration retained only as an N/N+1 compatibility shell is
-  // not itself a shipped consumer. Any import, alias, or other reference from
-  // another shipped source is still a dependency and must block a DROP.
+  // 仅作为 N/N+1 兼容外壳保留的关系声明本身不是已发布代码调用。
+  // 但其他已发布源代码中的导入、别名或其他引用仍是依赖，必须阻止 DROP。
   return sources.some((source) => {
     if (source.path === declaration.path) return false;
     const symbolPattern = new RegExp(`\\b${escapeRegExp(declaration.symbol)}\\b`);
@@ -476,7 +482,7 @@ function addUnqualifiedSqlColumnEvidence(
       addEvidence(evidence, {
         path: source.path,
         line: lineNumberAt(source.content, index),
-        reason: `SQL column ${owner.relation}.${owner.identifier} in relation context`,
+        reason: `关系上下文中的 SQL 列 ${owner.relation}.${owner.identifier}`,
       });
     }
   }
@@ -664,7 +670,7 @@ function compareStableVersions(left: readonly number[], right: readonly number[]
 function resolveGitRevision(cwd: string, value: string, label: string): string {
   const ref = value.trim();
   if (!ref || ref.startsWith("-") || ref.includes("\0")) {
-    throw new Error(`${label} 不是可解析的 git tag/revision：${value}`);
+    throw new Error(`${label} 不是可解析的 Git tag/提交：${value}`);
   }
   try {
     const revision = execFileSync("git", ["rev-parse", "--verify", "--quiet", `${ref}^{commit}`], {
@@ -672,10 +678,10 @@ function resolveGitRevision(cwd: string, value: string, label: string): string {
       encoding: "utf8",
       stdio: ["ignore", "pipe", "ignore"],
     }).trim();
-    if (!/^[0-9a-f]{40}$/i.test(revision)) throw new Error("not a commit");
+    if (!/^[0-9a-f]{40}$/i.test(revision)) throw new Error("不是提交");
     return revision;
   } catch {
-    throw new Error(`${label} 无法解析为 git tag/revision：${value}`);
+    throw new Error(`${label} 无法解析为 Git tag/提交：${value}`);
   }
 }
 
@@ -687,7 +693,7 @@ function git(cwd: string, args: string[]): string {
       stdio: ["ignore", "pipe", "pipe"],
     }).trimEnd();
   } catch (error) {
-    throw new Error(`release-compat 无法读取 git history：${error instanceof Error ? error.message : String(error)}`);
+    throw new Error(`release-compat 无法读取 Git 历史：${error instanceof Error ? error.message : String(error)}`);
   }
 }
 
@@ -699,22 +705,22 @@ function main(): void {
   try {
     const result = checkReleaseCompatibility();
     console.log(
-      `release-compat: previous stable ${result.previousRelease.ref} (${result.previousRelease.commit.slice(0, 12)}); ${result.changedMigrationFiles.length} changed active migration file(s).`,
+      `release-compat：上一生产版本 ${result.previousRelease.ref}（${result.previousRelease.commit.slice(0, 12)}）；已变更 ${result.changedMigrationFiles.length} 个活动迁移文件。`,
     );
     for (const check of result.findings) {
       if (check.status === "not-applicable") continue;
       const output = check.message ?? formatFinding(check.finding);
-      if (check.status === "fail") console.error(`release-compat: FAIL ${output}`);
-      else console.log(`release-compat: PASS ${output}`);
+      if (check.status === "fail") console.error(`release-compat：失败 ${output}`);
+      else console.log(`release-compat：通过 ${output}`);
     }
     if (result.failures.length > 0) {
-      console.error(`release-compat: compatibility gate failed with ${result.failures.length} finding(s).`);
+      console.error(`release-compat：兼容性检查失败，共发现 ${result.failures.length} 项问题。`);
       process.exitCode = 1;
       return;
     }
-    console.log("release-compat: previous stable → next schema compatibility gate passed.");
+    console.log("release-compat：上一生产版本 → 下一版本架构兼容性检查通过。");
   } catch (error) {
-    console.error(`release-compat: ${error instanceof Error ? error.message : String(error)}`);
+    console.error(`release-compat：${error instanceof Error ? error.message : String(error)}`);
     process.exitCode = 1;
   }
 }
