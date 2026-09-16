@@ -1,6 +1,6 @@
-export const CURRENT_DAK_SEMANTIC_PROFILE = "dak-stable/2" as const;
+export const CURRENT_DAK_SEMANTIC_PROFILE = "dak-stable/3" as const;
 
-export const RETIRED_DAK_SEMANTIC_PROFILES = ["dak-stable/1"] as const;
+export const RETIRED_DAK_SEMANTIC_PROFILES = ["dak-stable/1", "dak-stable/2"] as const;
 
 export function isCurrentDakSemanticProfile(profile: string): boolean {
   return profile === CURRENT_DAK_SEMANTIC_PROFILE;
