@@ -41,6 +41,7 @@ export const ListSearchField = React.forwardRef<ListSearchFieldHandle, ListSearc
   const lastCommittedValueRef = useRef(value);
   const latestChangeRef = useRef(onDebouncedChange);
   const [localValue, setLocalValue] = useState(value);
+  const [interactive, setInteractive] = useState(false);
   const localValueRef = useRef(value);
   const inputId = id ?? defaultId(queryKey);
   const clearPendingTimer = useCallback(() => {
@@ -52,6 +53,10 @@ export const ListSearchField = React.forwardRef<ListSearchFieldHandle, ListSearc
     pendingValueRef.current = undefined;
     ignoredControlledValuesRef.current.clear();
   }, [clearPendingTimer]);
+
+  useEffect(() => {
+    setInteractive(true);
+  }, []);
 
   useEffect(() => {
     latestChangeRef.current = onDebouncedChange;
@@ -121,6 +126,7 @@ export const ListSearchField = React.forwardRef<ListSearchFieldHandle, ListSearc
         id={inputId}
         type="search"
         value={localValue}
+        readOnly={!interactive}
         onChange={handleChange}
         placeholder={placeholder}
         className="min-w-0 max-w-full"
