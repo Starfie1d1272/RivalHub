@@ -69,14 +69,12 @@ describe("deployment and operations contracts", () => {
     const ci = readProjectFile(".github/workflows/ci.yml");
     const staging = readProjectFile(".github/workflows/staging.yml");
     const release = readProjectFile(".github/workflows/release.yml");
-    const releaseFinalize = readProjectFile(".github/workflows/release-finalize.yml");
     const recoveryBackup = readProjectFile(".github/workflows/recovery-backup.yml");
     const recoveryR2 = readProjectFile(".github/workflows/recovery-r2.yml");
 
     expectPnpmSetup(ci, ["static", "postgres", "system"]);
     expectPnpmSetup(staging, ["staging"]);
-    expectPnpmSetup(release, ["preflight", "migration_rehearsal", "checkpoint", "candidate_build"]);
-    expectPnpmSetup(releaseFinalize, ["production_migration", "application_promotion", "production_scheduler", "publish"]);
+    expectPnpmSetup(release, ["preflight", "migration_rehearsal", "checkpoint", "candidate_build", "production_migration", "finalize"]);
     expectPnpmSetup(recoveryBackup, ["backup"]);
     expectPnpmSetup(recoveryR2, ["retention"]);
     expect(readWorkflowJob(ci, "plan")).not.toContain("pnpm/setup");
@@ -90,7 +88,6 @@ describe("deployment and operations contracts", () => {
     const backup = readProjectFile(".github/workflows/recovery-backup.yml");
     const r2 = readProjectFile(".github/workflows/recovery-r2.yml");
     const release = readProjectFile(".github/workflows/release.yml");
-    const releaseFinalize = readProjectFile(".github/workflows/release-finalize.yml");
     const nextConfig = readProjectFile("next.config.ts");
 
     expect(backup).not.toContain('cron: "17 * * * *"');
@@ -118,34 +115,41 @@ describe("deployment and operations contracts", () => {
     expect(release).toContain("创建 DB-only release checkpoint");
     expect(release).toContain("创建 full release checkpoint");
     expect(release).toContain("RIVALHUB_PRODUCTION_BASE_URL: https://match.starfie1d.top");
-    expect(release.indexOf("创建 full release checkpoint")).toBeLessThan(release.indexOf("uses: ./.github/workflows/release-finalize.yml"));
+    expect(release.indexOf("创建 full release checkpoint")).toBeLessThan(release.indexOf("运行 exact candidate smoke test"));
     expect(release).toContain("pnpm db:recovery:checkpoint");
     expect(release).toContain("pnpm db:recovery:backup pre-release");
     const candidateBuild = readWorkflowJob(release, "candidate_build");
-    expect(candidateBuild.indexOf("部署 Vercel candidate")).toBeLessThan(candidateBuild.indexOf("运行 candidate smoke test"));
-    expect(releaseFinalize.indexOf("运行 production migration 与验证")).toBeLessThan(releaseFinalize.indexOf("执行 release routing / rollback"));
+    const productionMigration = readWorkflowJob(release, "production_migration");
+    const finalize = readWorkflowJob(release, "finalize");
+    expect(candidateBuild).toContain("部署 Vercel candidate");
+    expect(candidateBuild).not.toContain("candidate smoke");
+    expect(productionMigration).toContain("运行 production migration 与验证");
+    expect(release.indexOf("运行 production migration 与验证")).toBeLessThan(release.indexOf("运行 exact candidate smoke test"));
+    expect(finalize.indexOf("运行 exact candidate smoke test")).toBeLessThan(finalize.indexOf("执行 release routing / rollback"));
     expect(release).toContain("SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}");
     expect(release).toContain("SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}");
     expect(release).not.toContain("RIVALHUB_BACKUP_HEARTBEAT_URL");
-    expect(candidateBuild).toContain("contents: read\n      id-token: write");
-    expect(candidateBuild).toContain("获取 Vercel Trusted Source OIDC token");
-    expect(candidateBuild).toContain("ACTIONS_ID_TOKEN_REQUEST_URL");
-    expect(candidateBuild).toContain("ACTIONS_ID_TOKEN_REQUEST_TOKEN");
-    expect(candidateBuild).toContain("audience=$VERCEL_TRUSTED_SOURCE_AUDIENCE");
-    expect(candidateBuild).toContain('echo "::add-mask::$oidc_token"');
-    expect(candidateBuild).toContain("VERCEL_TRUSTED_SOURCE_AUDIENCE: https://github.com/Starfie1d1272");
-    expect(candidateBuild).toContain("x-vercel-trusted-oidc-idp-token: $VERCEL_TRUSTED_OIDC_IDP_TOKEN");
+    expect(candidateBuild).toContain("contents: read");
+    expect(candidateBuild).not.toContain("id-token: write");
+    expect(finalize).toContain("获取 Vercel Trusted Source OIDC token");
+    expect(finalize).toContain("ACTIONS_ID_TOKEN_REQUEST_URL");
+    expect(finalize).toContain("ACTIONS_ID_TOKEN_REQUEST_TOKEN");
+    expect(finalize).toContain("audience=$VERCEL_TRUSTED_SOURCE_AUDIENCE");
+    expect(finalize).toContain('echo "::add-mask::$oidc_token"');
+    expect(finalize).toContain("VERCEL_TRUSTED_SOURCE_AUDIENCE: https://github.com/Starfie1d1272");
+    expect(finalize).toContain("x-vercel-trusted-oidc-idp-token: $VERCEL_TRUSTED_OIDC_IDP_TOKEN");
     expect(release).not.toContain("VERCEL_AUTOMATION_BYPASS_SECRET");
     expect(release).not.toContain("protection-bypass");
     expect(release).not.toContain("x-vercel-protection-bypass");
-    const smokeStart = candidateBuild.indexOf("      - name: 运行 candidate smoke test");
-    const smoke = candidateBuild.slice(smokeStart);
+    const smokeStart = finalize.indexOf("      - name: 运行 exact candidate smoke test");
+    const routingStart = finalize.indexOf("      - name: 执行 release routing / rollback");
+    const smoke = finalize.slice(smokeStart, routingStart);
     expect(smoke).toContain("^https://[a-z0-9][a-z0-9-]*\\.vercel\\.app/?$");
     const candidateSmoke = smoke;
     expect(candidateSmoke).not.toContain("VERCEL_TOKEN");
     expect(candidateSmoke).toContain("x-vercel-trusted-oidc-idp-token: $VERCEL_TRUSTED_OIDC_IDP_TOKEN");
-    expect(releaseFinalize).toContain("执行 release routing / rollback");
-    expect(releaseFinalize).toContain("pnpm release:routing");
+    expect(finalize).toContain("执行 release routing / rollback");
+    expect(finalize).toContain("pnpm release:routing");
     expect(release).toContain("requiresFullCheckpoint");
     expect(release).toContain("requiresSchedulerProvision");
     const checkpointJob = readWorkflowJob(release, "checkpoint");
@@ -153,8 +157,8 @@ describe("deployment and operations contracts", () => {
     expect(dbOnlyCheckpoint).not.toContain("SUPABASE_SECRET_KEY");
     const productionSerialization = /concurrency:\n\s+group: rivalhub-production-state-serialization\n\s+queue: max\n\s+cancel-in-progress: false/;
     expect(backup).toMatch(productionSerialization);
-    expect(release).not.toMatch(productionSerialization);
-    expect(releaseFinalize).toMatch(productionSerialization);
+    expect(productionMigration).toMatch(productionSerialization);
+    expect(finalize).toContain("rivalhub-production-state-serialization");
     expect(release).toContain("group: rivalhub-release-lineage");
     expect(r2).not.toContain(productionSerialization);
     expect(backup).not.toContain("cancel-in-progress: true");
@@ -165,15 +169,19 @@ describe("deployment and operations contracts", () => {
     expect(readWorkflowJob(release, "migration_rehearsal")).toContain("needs: preflight");
     expect(readWorkflowJob(release, "checkpoint")).toContain("needs: preflight");
     expect(candidateBuild).toContain("needs: preflight");
-    expect(release).toContain("needs: [preflight, candidate_build, migration_rehearsal, checkpoint]");
-    expect(readWorkflowJob(releaseFinalize, "application_promotion")).not.toContain("rivalhub-production-state-serialization");
-    expect(readWorkflowJob(releaseFinalize, "production_migration")).toMatch(productionSerialization);
-    expect(readWorkflowJob(releaseFinalize, "production_scheduler")).toMatch(productionSerialization);
-    expect(readWorkflowJob(releaseFinalize, "publish")).toContain("needs: [application_promotion, production_scheduler]");
-    expect(releaseFinalize).toContain("contents: write");
+    expect(productionMigration).toContain("needs: [preflight, candidate_build, migration_rehearsal, checkpoint]");
+    expect(finalize).toContain("needs: [preflight, candidate_build, migration_rehearsal, checkpoint, production_migration]");
+    expect(finalize).toContain("contents: write");
     expect(release).toMatch(/^concurrency:\n  group: rivalhub-release-lineage\n  queue: max\n  cancel-in-progress: false/m);
-    expect(releaseFinalize).toContain("workflow_started_at");
-    expect(releaseFinalize).toContain("--start-iso \"$RELEASE_WORKFLOW_STARTED_AT\"");
+    expect(finalize).toContain("RELEASE_WORKFLOW_STARTED_AT: ${{ github.run_started_at }}");
+    expect(finalize).toContain("--start-iso \"$RELEASE_WORKFLOW_STARTED_AT\"");
+    expect(finalize).toContain("if: env.REQUIRES_SCHEDULER_PROVISION == 'true'");
+    expect(finalize).not.toContain("env.RELEASE_MODE == 'fresh' && env.REQUIRES_SCHEDULER_PROVISION");
+    expect(finalize).toContain("needs.preflight.outputs.requires_scheduler_provision == 'true' && 'rivalhub-production-state-serialization'");
+    expect(finalize).toContain("format('rivalhub-release-post-promotion-{0}', github.run_id)");
+    expect(release).not.toContain("application_changed:");
+    expect(release).not.toContain("migration_changed:");
+    expect(release).not.toContain("release-finalize.yml");
     expect(readProjectFile(".github/workflows/ci.yml")).toContain("Mobile public event search evidence (10x, no retry)");
     expect(readProjectFile(".github/workflows/ci.yml")).toContain("mobile_search_evidence: ${{ steps.plan.outputs.mobile_search_evidence }}");
     expect(readProjectFile(".github/workflows/ci.yml")).toContain("PLAYWRIGHT_RETRIES: 0");
@@ -300,7 +308,6 @@ describe("deployment and operations contracts", () => {
   it("runs the previous-release compatibility gate in the existing PostgreSQL and release lanes", () => {
     const ci = readProjectFile(".github/workflows/ci.yml");
     const release = readProjectFile(".github/workflows/release.yml");
-    const releaseFinalize = readProjectFile(".github/workflows/release-finalize.yml");
     const productionIdentity = readProjectFile("scripts/release/production-identity.ts");
 
     expect(ci).toContain("fetch-depth: 0");
@@ -319,12 +326,12 @@ describe("deployment and operations contracts", () => {
     expect(productionIdentity).toContain("RIVALHUB_PREVIOUS_RELEASE_COMMIT");
     expect(release).not.toContain("RIVALHUB_PRODUCTION_STABLE_REF: origin/main");
     expect(release).toContain("pnpm db:release-compat");
-    expect(releaseFinalize).toContain("pnpm db:production:migrate");
+    expect(readWorkflowJob(release, "production_migration")).toContain("pnpm db:production:migrate");
     expect(release.indexOf("冻结 previous Production identity")).toBeLessThan(release.indexOf("验证 exact-SHA CI prerequisite"));
   });
 
   it("retries an immutable GitHub Release without editing its published metadata", () => {
-    const release = readProjectFile(".github/workflows/release-finalize.yml");
+    const release = readProjectFile(".github/workflows/release.yml");
 
     expect(release).toContain('gh release view "$RELEASE_TAG" --json isImmutable --jq .isImmutable');
     expect(release).toContain('GitHub Release $RELEASE_TAG 已 immutable；保留已发布 metadata。');
@@ -364,20 +371,23 @@ describe("deployment and operations contracts", () => {
   });
 
   it("provisions the primary scheduler only after production smoke with strict fail-fast", () => {
-    const release = readProjectFile(".github/workflows/release-finalize.yml");
+    const release = readProjectFile(".github/workflows/release.yml");
+    const finalize = readWorkflowJob(release, "finalize");
 
-    expect(release).toContain("配置并验证 production scheduler");
-    expect(release).toContain("RIVALHUB_SCHEDULER_BASE_URL: https://match.starfie1d.top");
-    expect(release).toContain("RIVALHUB_ALLOW_REMOTE_DB_WRITE=production pnpm db:production:scheduler:provision");
-    expect(release).toContain("pnpm db:production:scheduler:verify");
-    expect(release.indexOf("执行 release routing / rollback")).toBeLessThan(release.indexOf("配置并验证 production scheduler"));
-    expect(release).toContain("生成 Production delta release notes");
-    expect(release.indexOf("配置并验证 production scheduler")).toBeLessThan(release.indexOf("生成 Production delta release notes"));
+    expect(finalize).toContain("配置并验证 production scheduler");
+    expect(finalize).toContain("RIVALHUB_SCHEDULER_BASE_URL: https://match.starfie1d.top");
+    expect(finalize).toContain("RIVALHUB_ALLOW_REMOTE_DB_WRITE=production pnpm db:production:scheduler:provision");
+    expect(finalize).toContain("pnpm db:production:scheduler:verify");
+    expect(finalize.indexOf("执行 release routing / rollback")).toBeLessThan(finalize.indexOf("配置并验证 production scheduler"));
+    expect(finalize).toContain("生成 Production delta release notes");
+    expect(finalize.indexOf("配置并验证 production scheduler")).toBeLessThan(finalize.indexOf("生成 Production delta release notes"));
+    expect(finalize).toContain("if: env.REQUIRES_SCHEDULER_PROVISION == 'true'");
+    expect(finalize).not.toContain("env.RELEASE_MODE == 'fresh' &&");
 
     // Verify bash -c fail-fast safety
-    const schedulerStep = release.slice(
-      release.indexOf("配置并验证 production scheduler"),
-      release.indexOf("生成 Production delta release notes"),
+    const schedulerStep = finalize.slice(
+      finalize.indexOf("配置并验证 production scheduler"),
+      finalize.indexOf("生成 Production delta release notes"),
     );
     expect(schedulerStep).toMatch(/bash -c '\s*set -euo pipefail/);
   });
@@ -385,7 +395,7 @@ describe("deployment and operations contracts", () => {
   it("enforces Issue #603 release orchestration and CI convergence contract", () => {
     const ci = readProjectFile(".github/workflows/ci.yml");
     const release = readProjectFile(".github/workflows/release.yml");
-    const releaseFinalize = readProjectFile(".github/workflows/release-finalize.yml");
+    const finalize = readWorkflowJob(release, "finalize");
 
     // CI triggers & concurrency
     expect(ci).not.toMatch(/^\s+release:\s*$/m);
@@ -393,15 +403,15 @@ describe("deployment and operations contracts", () => {
     expect(ci).toContain("cancel-in-progress: ${{ github.event_name == 'pull_request' }}");
 
     // Release runner & permissions
-    expect(release).toContain("uses: ./.github/workflows/release-finalize.yml");
+    expect(release).not.toContain("uses: ./.github/workflows/release-finalize.yml");
     expect(release).toContain("group: rivalhub-release-lineage");
-    expect(releaseFinalize).toContain("runs-on: ubuntu-24.04");
+    expect(finalize).toContain("runs-on: ubuntu-24.04");
 
     // Ordering: dependency setup before preflight, preflight before backup and DB mutations
     const pnpmSetupIdx = release.indexOf("uses: pnpm/setup");
     const ciPrereqIdx = release.indexOf("验证 exact-SHA CI prerequisite");
     const checkpointIdx = release.indexOf("创建 full release checkpoint");
-    const migrateIdx = releaseFinalize.indexOf("运行 production migration 与验证");
+    const migrateIdx = release.indexOf("运行 production migration 与验证");
     expect(pnpmSetupIdx).toBeGreaterThan(0);
     expect(pnpmSetupIdx).toBeLessThan(ciPrereqIdx);
     expect(ciPrereqIdx).toBeLessThan(checkpointIdx);
@@ -418,8 +428,8 @@ describe("deployment and operations contracts", () => {
     // Routing state machine ownership and workflow wiring
     const routing = readProjectFile("scripts/release/routing.ts");
     const vercelRouting = readProjectFile("scripts/release/vercel-routing.ts");
-    expect(releaseFinalize).toContain("执行 release routing / rollback");
-    expect(releaseFinalize).toContain("pnpm release:routing");
+    expect(finalize).toContain("执行 release routing / rollback");
+    expect(finalize).toContain("pnpm release:routing");
     expect(release).not.toContain("wait_for_alias_job");
     expect(release).not.toContain("PREVIOUS_IDENTITY");
     expect(release).not.toContain("PROMOTE_STATUS");
@@ -454,11 +464,11 @@ describe("deployment and operations contracts", () => {
 
     // Staged production deployment and promotion
     expect(release).toContain("vercel deploy --prod --skip-domain");
-    expect(releaseFinalize).not.toContain('vercel promote "$DEPLOYMENT_URL" --yes');
-    expect(releaseFinalize).not.toContain("vercel rollback --yes");
+    expect(finalize).not.toContain('vercel promote "$DEPLOYMENT_URL" --yes');
+    expect(finalize).not.toContain("vercel rollback --yes");
 
     // Phase timing evidence
     expect(release).toContain('RIVALHUB_TIMING_TITLE: "Release 阶段耗时"');
-    expect(releaseFinalize).toContain('node scripts/ci/timing.mjs record --label "Total" --start-iso "$RELEASE_WORKFLOW_STARTED_AT"');
+    expect(finalize).toContain('node scripts/ci/timing.mjs record --label "Total" --start-iso "$RELEASE_WORKFLOW_STARTED_AT"');
   });
 });

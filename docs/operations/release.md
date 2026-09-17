@@ -29,16 +29,16 @@ validate tag belongs to main
 ├─ if migrationChanged: PostgreSQL 17 active-chain replay
 ├─ if irreversible migration: DB-only encrypted R2 checkpoint
 ├─ if release-time Storage mutation capability: full encrypted R2 checkpoint
-└─ if fresh: staged candidate build/deploy + OIDC smoke
+└─ if fresh: staged candidate build/deploy
    ↓ all pre-promotion evidence complete
 release lineage gate (`rivalhub-release-lineage`)
 → if requiresProductionMigration: production migration + verify
-→ if fresh: `scripts/release/routing.ts`
+→ if fresh: OIDC exact candidate smoke → `scripts/release/routing.ts`
 → if requiresSchedulerProvision: scheduler provision + verify
 → publish/update Production-delta GitHub Release notes
 ```
 
-PG17 rehearsal、checkpoint 与 candidate build 在 preflight 完成后并行；candidate build 不等待数据库证据。Release workflow 使用独立的 `rivalhub-release-lineage` workflow-level concurrency，called finalize workflow 只让真正的 production migration/scheduler mutation job 与 daily backup 共享 `rivalhub-production-state-serialization`，因此 application-only release 不因 daily backup 排队。
+PG17 rehearsal、checkpoint 与 candidate build 在 preflight 完成后并行；candidate build 只负责 build/deploy，不等待数据库证据，也不在旧 schema 上做 runtime smoke。Release workflow 使用独立的 `rivalhub-release-lineage` workflow-level concurrency；其 `production_migration` job，以及仅在确实需要 scheduler provisioning 时的 `finalize` job，共享 `rivalhub-production-state-serialization` 与 daily backup，application-only release 不因 daily backup 排队。migration release 在 production migration/verify 完成后，才由同一 `finalize` job 对 exact candidate 做 smoke，再执行 routing、conditional scheduler 与 GitHub Release。
 
 `scripts/release/plan.ts` 是 Release Plan 的唯一 owner。它只使用已冻结的 `previousReleaseCommit` 与当前 `RELEASE_SHA`，输出 `applicationChanged`、`migrationChanged`、`migrationRisk`、`storageMutationChanged`、`schedulerChanged`、`recoveryInfraChanged`、`releaseInfraChanged` 以及 `requiresMigrationRehearsal`、`requiresProductionMigration`、`requiresDbCheckpoint`、`requiresFullCheckpoint`、`requiresSchedulerProvision`。`scripts/release/release-time-capabilities.json` 是 release-time capability 的显式声明：当前 `storageMutation=false`，只有 Release/operation 确实会不可逆写入既有 Production Storage object 时才允许改为 `true`；业务上传、Storage retention 或普通 Vercel/source 变更不会通过路径推断触发 full checkpoint。无法识别的 migration SQL 按 `irreversible` 处理并要求 DB checkpoint；不根据 commit message 猜测风险。scheduler definition、provisioning/verification owner、cron/auth 或相关 secret contract 才会触发 provision；现有 endpoint implementation、health/admin UI 不触发，canonical scheduler namespace 中无法识别的文件则 fail closed 到 provision。
 
@@ -127,7 +127,7 @@ active `education-evidence` business copy 继续是 7 天 retention；encrypted 
 
 ## 5. 并发与重试
 
-Release workflow 使用 `rivalhub-release-lineage` group，配置 `queue: max` 与 `cancel-in-progress: false`，保持 release 与 release 的 previous/candidate lineage 串行。只有 called finalize workflow 中的 production migration/scheduler mutation jobs 与 `recovery-backup.yml` 共享 `rivalhub-production-state-serialization`，因此 application-only release 不会因 daily backup 排队；`recovery-r2.yml` 是独立 provider config verification workflow，不参与 DB serialization。
+Release workflow 使用 `rivalhub-release-lineage` group，配置 `queue: max` 与 `cancel-in-progress: false`，保持 release 与 release 的 previous/candidate lineage 串行。`production_migration` job，以及 `requiresSchedulerProvision=true` 时的 `finalize` job，与 `recovery-backup.yml` 共享 `rivalhub-production-state-serialization`；不需要这些 production mutation 的 application-only release 不会因 daily backup 排队。`finalize` 在 fresh path 执行 exact candidate smoke → routing → conditional scheduler → GitHub Release，在 same-tag resume 中跳过 smoke/routing，但仍按 capability 重新 provision/verify scheduler 后才 publish；`recovery-r2.yml` 是独立 provider config verification workflow，不参与 DB serialization。
 
 workflow dispatch 可以 retry 同一个已存在 tag，但分两种情况：
 
