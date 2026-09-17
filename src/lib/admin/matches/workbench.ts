@@ -1,11 +1,12 @@
 import "server-only";
 
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
   competitionEntries,
   eventRosterMembers,
   eventRosters,
+  matchDemoImports,
   matchCommentators,
   matchMaps,
   matchRosterPlayers,
@@ -22,7 +23,9 @@ import { getStartingLineupPreflightInTx } from "@/lib/match-rosters/service";
 import { getDisplayName } from "@/lib/identity/display-name";
 import { getPostMatchCompletion, POST_MATCH_COMPLETION_LABEL } from "@/lib/postmatch/service";
 import { normalizeRegistrationConfig, normalizeStagePlan } from "@/lib/seasons/compatibility";
-import type { AdminMatchWorkbenchData, RosterData, TeamMemberData } from "@/lib/admin/matches/types";
+import { parseRivalHubDemoEvidenceV1 } from "@/lib/demo-evidence/contract";
+import { isCurrentDakSemanticProfile } from "@/lib/demo-integration/semantic-profile";
+import type { AdminDemoReviewMap, AdminMatchWorkbenchData, RosterData, TeamMemberData } from "@/lib/admin/matches/types";
 import { mapCompletedMaps, mapFinishedMaps, mapPendingMaps } from "@/lib/admin/matches/shared";
 
 interface AdminMatchWorkbenchInput {
@@ -64,6 +67,8 @@ function projectRoster(roster: MatchRosterWithPlayers | undefined): RosterData |
 function projectTeamMember(row: {
   id: string;
   entryId: string;
+  userId: string;
+  steam64: string | null;
   steamName: string | null;
   displayName: string | null;
   perfectName: string | null;
@@ -72,6 +77,7 @@ function projectTeamMember(row: {
   return {
     id: row.id,
     entryId: row.entryId,
+    steam64: row.steam64,
     steamName: row.steamName ?? "未知",
     displayName: row.displayName ?? null,
     perfectName: row.perfectName ?? null,
@@ -108,6 +114,8 @@ export async function loadAdminMatchWorkbench({
       .select({
         id: eventRosterMembers.id,
         entryId: eventRosters.entryId,
+        userId: eventRosterMembers.userId,
+        steam64: users.steam64,
         steamName: users.steamName,
         displayName: users.displayName,
         perfectName: users.perfectName,
@@ -161,6 +169,12 @@ export async function loadAdminMatchWorkbench({
       : Promise.resolve([]),
   ]);
 
+  const demoImportRows = mapRecords.length > 0
+    ? await db.select().from(matchDemoImports)
+      .where(inArray(matchDemoImports.matchMapId, mapRecords.map((map) => map.id)))
+      .orderBy(desc(matchDemoImports.createdAt))
+    : [];
+
   const members = memberRows.map(projectTeamMember);
   const membersByEntry = new Map<string, TeamMemberData[]>();
   for (const member of members) {
@@ -190,6 +204,49 @@ export async function loadAdminMatchWorkbench({
 
   const stagePlan = normalizeStagePlan(season.stagePlan);
   const entryName = new Map(entries.map((entry) => [entry.id, entry.name]));
+  const starterMemberIds = new Set(rosterRows
+    .filter((roster) => roster.status === "submitted" || roster.status === "confirmed")
+    .flatMap((roster) => roster.players.filter((player) => player.isStarter).map((player) => player.eventRosterMemberId)));
+  const currentPendingImportByMap = new Map<string, typeof matchDemoImports.$inferSelect>();
+  const seenCurrentImportMaps = new Set<string>();
+  for (const row of demoImportRows) {
+    if (seenCurrentImportMaps.has(row.matchMapId) || !isCurrentDakSemanticProfile(row.semanticProfile) || row.status === "superseded") continue;
+    seenCurrentImportMaps.add(row.matchMapId);
+    if (row.status === "needs_attention") currentPendingImportByMap.set(row.matchMapId, row);
+  }
+  const demoReviews: AdminDemoReviewMap[] = mapRecords
+    .map((map) => ({ map, row: currentPendingImportByMap.get(map.id) }))
+    .filter((entry): entry is { map: typeof mapRecords[number]; row: typeof matchDemoImports.$inferSelect } => entry.row !== undefined)
+    .flatMap(({ map, row }) => {
+      try {
+        const evidence = parseRivalHubDemoEvidenceV1(row.payload);
+        return [{
+          importId: row.id,
+          matchMapId: map.id,
+          mapOrder: map.mapOrder,
+          mapName: map.mapName,
+          participants: evidence.participants.map((participant) => {
+            const entryId = participant.observedTeamKey === "teamA" ? match.entryAId : match.entryBId;
+            const candidates = (membersByEntry.get(entryId) ?? [])
+              .filter((member) => starterMemberIds.has(member.id))
+              .map((member) => ({
+                eventRosterMemberId: member.id,
+                entryId: member.entryId,
+                name: getDisplayName(member),
+                steam64: member.steam64 ?? null,
+              }));
+            return {
+              observedSteam64: participant.steamId64,
+              demoName: participant.nameSnapshot,
+              teamName: entryName.get(entryId) ?? "未知队伍",
+              candidates,
+            };
+          }),
+        } satisfies AdminDemoReviewMap];
+      } catch {
+        return [];
+      }
+    });
   const submittedAt = submission?.submittedAt ?? null;
   const postMatch = match.status === "cancelled"
     ? null
@@ -228,5 +285,6 @@ export async function loadAdminMatchWorkbench({
     pendingMaps: mapPendingMaps(mapRecords),
     finishedMaps: mapFinishedMaps(mapRecords),
     postMatch,
+    demoReviews,
   };
 }

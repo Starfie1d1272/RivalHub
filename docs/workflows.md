@@ -152,6 +152,8 @@ EventRoster
 
 本场实际首发可以不同于赛事预定主力，但必须满足本届 frozen roster/eligibility 约束。正常结果由实际地图推导；弃赛不制造未进行地图。
 
+DAK 提交的 Demo payload 保持不可变。若当前 `/3` 证据只因 Demo 中观察到的 Steam64 与报名资料不同而进入待处理，当前赛季管理员可以在本场工作台从本场首发候选中确认同一位选手；服务端保存可撤销的 gameplay Steam 映射，随后复用完整 Demo 校验和确认 projection。其它身份、阵容、比分、QA 或历史版本问题不会因该确认被跳过；拒绝只改变 workflow 状态并保留原始证据。
+
 结果更正先检查 StageRun 和下游依赖。若会改变后续 pairing/stage，必须走受控 recovery；不能直接改 standings 或把 finished match 任意退回进行中。
 
 ## Discipline and post-event

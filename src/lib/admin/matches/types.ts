@@ -7,6 +7,7 @@ import type { MajorSwissStageReadModel } from "@/lib/matches/stage-read-model";
 export interface TeamMemberData {
   id: string;
   entryId: string;
+  steam64?: string | null;
   steamName: string;
   displayName: string | null;
   perfectName: string | null;
@@ -55,6 +56,29 @@ export interface AdminMatchSummary {
   isForfeit: Match["isForfeit"];
   ownership: Match["ownership"];
   scheduledAt: Match["scheduledAt"];
+  demoNeedsAttentionCount?: number;
+}
+
+export interface AdminDemoReviewCandidate {
+  eventRosterMemberId: string;
+  entryId: string;
+  name: string;
+  steam64: string | null;
+}
+
+export interface AdminDemoReviewParticipant {
+  observedSteam64: string;
+  demoName: string;
+  teamName: string;
+  candidates: AdminDemoReviewCandidate[];
+}
+
+export interface AdminDemoReviewMap {
+  importId: string;
+  matchMapId: string;
+  mapOrder: number;
+  mapName: string;
+  participants: AdminDemoReviewParticipant[];
 }
 
 export interface AdminCompletedMap {
@@ -121,6 +145,7 @@ export interface AdminMatchWorkbenchData {
   pendingMaps: AdminPendingMap[];
   finishedMaps: AdminFinishedMap[];
   postMatch: AdminPostMatchRecordData | null;
+  demoReviews?: AdminDemoReviewMap[];
 }
 
 export type AdminMatchMapRecord = Pick<

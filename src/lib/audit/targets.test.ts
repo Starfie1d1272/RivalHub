@@ -14,12 +14,14 @@ import {
   institutions,
   majorFinalResults,
   majorTournamentEntrants,
+  matchDemoImports,
   matches,
   postEventAdjudications,
   seasons,
   teams,
   tournamentHonors,
   users,
+  userGameplaySteamIds,
 } from "@/db/schema";
 
 function fakeExecutor(responses: Map<unknown, unknown[]>) {
@@ -31,6 +33,9 @@ function fakeExecutor(responses: Map<unknown, unknown[]>) {
         from(nextTable: unknown) {
           table = nextTable;
           selectedTables.push(nextTable);
+          return builder;
+        },
+        innerJoin() {
           return builder;
         },
         where() {
@@ -107,6 +112,41 @@ describe("audit target resolver", () => {
     expect(result[auditTargetKey("major_final_result", finalResultId)]).toMatchObject({ label: "Major 最终赛果 · Major 2027 · 冠军 Alpha Entry", found: true });
     expect(result[auditTargetKey("post_event_adjudication", adjudicationId)]).toMatchObject({ label: "赛后裁定 · Major 2027 · 赛事名次", found: true });
     expect(result[auditTargetKey("tournament_honor", honorId)]).toMatchObject({ label: "赛事荣誉 · 最佳选手 · Alpha Entry · Major 2027", found: true });
+  });
+
+  it("resolves Demo review and gameplay identity targets without raw IDs", async () => {
+    const demoImportId = "demo-import-1";
+    const mapId = "map-1";
+    const matchId = "match-1";
+    const entryAId = "entry-a";
+    const entryBId = "entry-b";
+    const identityId = "gameplay-identity-1";
+    const userId = "user-1";
+    const { executor } = fakeExecutor(new Map<unknown, unknown[]>([
+      [matchDemoImports, [{ id: demoImportId, matchId, matchMapId: mapId, mapOrder: 2, mapName: "de_mirage" }]],
+      [matches, [{ id: matchId, entryAId, entryBId }]],
+      [competitionEntries, [{ id: entryAId, name: "Alpha" }, { id: entryBId, name: "Beta" }]],
+      [userGameplaySteamIds, [{ id: identityId, userId, steam64: "76561198000000001", status: "active" }]],
+      [users, [{ id: userId, email: "player@example.test", displayName: "玩家甲", perfectName: null, steamName: null }]],
+    ]));
+
+    const result = await resolveAuditTargets([
+      { targetType: "match_demo_import", targetId: demoImportId },
+      { targetType: "user_gameplay_steam_id", targetId: identityId },
+    ], executor);
+
+    expect(result[auditTargetKey("match_demo_import", demoImportId)]).toMatchObject({
+      typeLabel: "Demo 数据",
+      label: "Demo 数据 · 第 2 图 · de_mirage · Alpha vs Beta",
+      found: true,
+    });
+    expect(result[auditTargetKey("user_gameplay_steam_id", identityId)]).toMatchObject({
+      typeLabel: "比赛 Steam 身份",
+      label: "玩家甲 · Steam64 76561198000000001 · 使用中",
+      found: true,
+    });
+    expect(result[auditTargetKey("match_demo_import", demoImportId)].label).not.toContain(demoImportId);
+    expect(result[auditTargetKey("user_gameplay_steam_id", identityId)].label).not.toContain(identityId);
   });
 
   it("deduplicates IDs and performs one query per target type, not per row", async () => {
