@@ -7,7 +7,7 @@ import type { MajorSwissStageReadModel } from "@/lib/matches/stage-read-model";
 export interface TeamMemberData {
   id: string;
   entryId: string;
-  personaName: string;
+  personaName: string | null;
   displayName: string | null;
   perfectName: string | null;
   primaryPosition: string;

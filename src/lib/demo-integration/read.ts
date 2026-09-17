@@ -23,6 +23,7 @@ import { calculateStageRoundRobinStandings } from "@/lib/matches/stage-standings
 import { buildStageViews } from "@/lib/matches/stage-views";
 import { loadEffectiveMatchRoster } from "@/lib/match-rosters/effective";
 import { normalizeRegistrationConfig, normalizeStagePlan } from "@/lib/seasons/compatibility";
+import { getPublicDisplayName } from "@/lib/identity/display-name";
 import { pairingCanReadSeason } from "./pairing";
 import { buildEvidenceRevisionForTarget, sha256Json } from "./revision";
 import { projectStage } from "./stage-projection";
@@ -43,7 +44,8 @@ function iso(value: Date | null | undefined): string | null {
 }
 
 function displayName(row: { displayName: string | null; personaName: string | null; perfectName: string | null; steam64: string | null }): string {
-  return row.displayName?.trim() || row.personaName?.trim() || row.perfectName?.trim() || row.steam64?.trim() || "未知选手";
+  const canonicalName = getPublicDisplayName(row);
+  return canonicalName === "未知用户" ? row.steam64?.trim() || canonicalName : canonicalName;
 }
 
 function validSteam64(value: string | null): value is string {

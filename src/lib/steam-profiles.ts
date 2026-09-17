@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, eq, inArray, isNotNull } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import type { DB, TxDb } from "@/db/client";
 import { steamProfiles, users } from "@/db/schema";
@@ -53,21 +53,41 @@ export async function upsertSteamProfile(
   database: SteamProfileDatabase,
   profile: SteamProfileSummary,
 ): Promise<void> {
+  const fetchedAt = new Date();
   await database.insert(steamProfiles).values({
     steam64: profile.steam64,
     personaName: profile.personaName,
     profileUrl: profile.profileUrl,
     avatarUrl: profile.avatarUrl,
-    fetchedAt: new Date(),
+    fetchedAt,
   }).onConflictDoUpdate({
     target: steamProfiles.steam64,
     set: {
-      personaName: profile.personaName,
-      profileUrl: profile.profileUrl,
-      avatarUrl: profile.avatarUrl,
-      fetchedAt: new Date(),
+      personaName: sql`excluded.persona_name`,
+      profileUrl: sql`excluded.profile_url`,
+      avatarUrl: sql`excluded.avatar_url`,
+      fetchedAt: sql`excluded.fetched_at`,
     },
   });
+  await syncLegacySteamProfileShadow(database, profile);
+}
+
+/**
+ * Keep the previous stable release's legacy projection coherent during the
+ * N/N+1 rollback window. steam_profiles remains the only authority.
+ */
+async function syncLegacySteamProfileShadow(
+  database: SteamProfileDatabase,
+  profile: SteamProfileSummary,
+): Promise<void> {
+  await database.execute(sql`
+    UPDATE ${users}
+       SET "steam_name" = ${profile.personaName},
+           "steam_profile_url" = ${profile.profileUrl},
+           "avatar_url" = ${profile.avatarUrl}
+     WHERE "status" = 'active'
+       AND "steam64" = ${profile.steam64}
+  `);
 }
 
 /** Query the provider and cache one profile for an explicit user action. */
@@ -129,21 +149,26 @@ export async function refreshSteamProfiles() {
   }
 
   if (changedProfiles.length > 0) {
+    const fetchedAt = new Date();
     await db.insert(steamProfiles).values(changedProfiles.map((profile) => ({
       steam64: profile.steam64,
       personaName: profile.personaName,
       profileUrl: profile.profileUrl,
       avatarUrl: profile.avatarUrl,
-      fetchedAt: new Date(),
+      fetchedAt,
     }))).onConflictDoUpdate({
       target: steamProfiles.steam64,
       set: {
-        personaName: steamProfiles.personaName,
-        profileUrl: steamProfiles.profileUrl,
-        avatarUrl: steamProfiles.avatarUrl,
-        fetchedAt: new Date(),
+        personaName: sql`excluded.persona_name`,
+        profileUrl: sql`excluded.profile_url`,
+        avatarUrl: sql`excluded.avatar_url`,
+        fetchedAt: sql`excluded.fetched_at`,
       },
     });
+  }
+
+  for (const profile of result.profiles.values()) {
+    await syncLegacySteamProfileShadow(db, profile);
   }
 
   const changedUserIds = candidates

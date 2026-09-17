@@ -14,10 +14,9 @@ import { normalizeRegistrationConfig } from "@/lib/seasons/compatibility";
 import type { MapPreferenceDraft } from "@/types/season";
 import { isTeamRecruitmentTargetAvailable, recruitmentTargetAvailableCondition, teamRecruitmentTargetAvailableCondition } from "@/lib/recruitment/target-policy";
 import type { RecruitmentFilters, RecruitmentTeamSize } from "@/lib/recruitment/contract";
+import { getPublicDisplayName } from "@/lib/identity/display-name";
 
 export type { RecruitmentFilters, RecruitmentTeamSize } from "@/lib/recruitment/contract";
-
-const publicName = sql<string>`coalesce(${users.displayName}, ${steamProfiles.personaName}, ${users.perfectName}, '未知用户')`;
 
 export interface PublicRecruitmentIntent {
   id: string;
@@ -27,6 +26,14 @@ export interface PublicRecruitmentIntent {
   note: string | null;
   expiresAt: Date;
   updatedAt: Date;
+}
+
+function publicNameSearchCondition(pattern: string) {
+  return or(
+    ilike(users.displayName, pattern),
+    ilike(steamProfiles.personaName, pattern),
+    ilike(users.perfectName, pattern),
+  )!;
 }
 
 export interface TeamRecruitmentCardData extends PublicRecruitmentIntent {
@@ -61,8 +68,8 @@ function openConditions(kind: "team_recruiting" | "player_lft", filters: Recruit
   if (filters.q) {
     const pattern = `%${escapeLikePattern(filters.q)}%`;
     conditions.push(kind === "team_recruiting"
-      ? or(ilike(teams.name, pattern), ilike(publicName, pattern))!
-      : ilike(publicName, pattern));
+      ? or(ilike(teams.name, pattern), publicNameSearchCondition(pattern))!
+      : publicNameSearchCondition(pattern));
   }
   if (filters.targetSeasonId) conditions.push(eq(recruitmentIntents.targetSeasonId, filters.targetSeasonId));
   if (filters.position) {
@@ -125,7 +132,9 @@ export async function getRecruitmentLobbyData(filters: RecruitmentFilters, viewe
       teamSlug: teams.slug,
       teamName: teams.name,
       logoUrl: teams.logoUrl,
-      captainName: publicName,
+      captainDisplayName: users.displayName,
+      captainPersonaName: steamProfiles.personaName,
+      captainPerfectName: users.perfectName,
     }).from(recruitmentIntents)
       .innerJoin(teams, eq(teams.id, recruitmentIntents.teamId))
       .innerJoin(users, and(eq(users.id, teams.captainUserId), eq(users.status, "active")))
@@ -142,7 +151,9 @@ export async function getRecruitmentLobbyData(filters: RecruitmentFilters, viewe
       expiresAt: recruitmentIntents.expiresAt,
       updatedAt: recruitmentIntents.updatedAt,
       userId: users.id,
-      name: publicName,
+      displayName: users.displayName,
+      personaName: steamProfiles.personaName,
+      perfectName: users.perfectName,
       avatarUrl: steamProfiles.avatarUrl,
       currentTeamId: currentPlayerTeam.id,
       currentTeamName: currentPlayerTeam.name,
@@ -187,10 +198,16 @@ export async function getRecruitmentLobbyData(filters: RecruitmentFilters, viewe
     ? targetMapPools.get(targetSeasonId) ?? [...CURRENT_CS2_ACTIVE_DUTY_MAP_POOL]
     : CURRENT_CS2_ACTIVE_DUTY_MAP_POOL;
   const teamRecruitments = teamRows
-    .map((row) => ({ ...row, positions: row.positions as Cs2Position[], memberCount: countByTeam.get(row.teamId) ?? 0 }))
+    .map(({ captainDisplayName, captainPersonaName, captainPerfectName, ...row }) => ({
+      ...row,
+      captainName: getPublicDisplayName({ displayName: captainDisplayName, personaName: captainPersonaName, perfectName: captainPerfectName }),
+      positions: row.positions as Cs2Position[],
+      memberCount: countByTeam.get(row.teamId) ?? 0,
+    }))
     .filter((item) => !normalizedFilters.teamSize || recruitmentTeamSizeMatches(item.memberCount, normalizedFilters.teamSize));
-  const playerLfts = playerRows.map((row) => ({
+  const playerLfts = playerRows.map(({ displayName, personaName, perfectName, ...row }) => ({
     ...row,
+    name: getPublicDisplayName({ displayName, personaName, perfectName }),
     positions: row.positions as Cs2Position[],
     competitiveRoles: rolesByUser.get(row.userId) ?? [],
     mapPreferences: projectMapPreferences(mapPreferencesByUser.get(row.userId) ?? [], mapPoolForPlayer(row.targetSeasonId)),
@@ -241,7 +258,7 @@ export async function getTeamRecruitmentWorkspace(teamId: string, viewerUserId: 
   const intent = rawIntent ? { id: rawIntent.id, positions: rawIntent.positions as Cs2Position[], targetSeasonId: rawIntent.targetSeasonId, targetSeasonName: rawIntent.targetSeasonName, note: rawIntent.note, status: rawIntent.status, expiresAt: rawIntent.expiresAt, updatedAt: rawIntent.updatedAt, isPubliclyActive } : null;
   if (!intent || !isPubliclyActive) return { recruitment: intent, targetSeasons, interests: [] };
   const currentTeam = alias(teams, "interest_current_team");
-  const interestRows = await db.select({ userId: users.id, name: publicName, qq: users.qq, currentTeamName: currentTeam.name }).from(recruitmentInterests)
+  const interestRows = await db.select({ userId: users.id, displayName: users.displayName, personaName: steamProfiles.personaName, perfectName: users.perfectName, qq: users.qq, currentTeamName: currentTeam.name }).from(recruitmentInterests)
     .innerJoin(recruitmentIntents, eq(recruitmentIntents.id, recruitmentInterests.recruitmentIntentId))
     .innerJoin(teams, eq(teams.id, recruitmentIntents.teamId))
     .innerJoin(users, eq(users.id, recruitmentInterests.userId))
@@ -254,7 +271,15 @@ export async function getTeamRecruitmentWorkspace(teamId: string, viewerUserId: 
   const roles = interestedUserIds.length ? await db.select({ userId: userCompetitiveRoles.userId, role: userCompetitiveRoles.role }).from(userCompetitiveRoles).where(inArray(userCompetitiveRoles.userId, interestedUserIds)) : [];
   const rolesByUser = new Map<string, Cs2Position[]>();
   for (const role of roles) rolesByUser.set(role.userId, [...(rolesByUser.get(role.userId) ?? []), role.role]);
-  return { recruitment: intent, targetSeasons, interests: interestRows.map((row) => ({ ...row, positions: rolesByUser.get(row.userId) ?? [] })) };
+  return {
+    recruitment: intent,
+    targetSeasons,
+    interests: interestRows.map(({ displayName, personaName, perfectName, ...row }) => ({
+      ...row,
+      name: getPublicDisplayName({ displayName, personaName, perfectName }),
+      positions: rolesByUser.get(row.userId) ?? [],
+    })),
+  };
 }
 
 /** Actionable interests have the same meaning in the captain workspace and /my. */

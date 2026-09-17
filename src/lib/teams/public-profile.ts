@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, asc, eq, inArray, ne, or, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, ne, or } from "drizzle-orm";
 
 import { db } from "@/db/client";
 import {
@@ -21,8 +21,7 @@ import {
 } from "@/lib/competition-entries/public-visibility";
 import { getPublicTeamRecruitment, type PublicRecruitmentIntent } from "@/lib/recruitment/data";
 import type { PublicPlayerIdentity } from "@/lib/identity/public-player";
-
-const publicName = sql<string>`coalesce(${users.displayName}, ${steamProfiles.personaName}, ${users.perfectName}, '未知用户')`;
+import { getPublicDisplayName } from "@/lib/identity/display-name";
 
 export type PublicTeamMembershipStatus = "active" | "benched";
 
@@ -135,7 +134,9 @@ export async function getPublicTeamProfile(
         id: teamMemberships.id,
         userId: users.id,
         avatarUrl: steamProfiles.avatarUrl,
-        name: publicName,
+        displayName: users.displayName,
+        personaName: steamProfiles.personaName,
+        perfectName: users.perfectName,
         status: teamMemberships.status,
         endedAt: teamMemberships.endedAt,
       })
@@ -158,7 +159,9 @@ export async function getPublicTeamProfile(
       .select({
         id: teamCaptainChanges.id,
         fromUserId: teamCaptainChanges.fromUserId,
-        name: publicName,
+        displayName: users.displayName,
+        personaName: steamProfiles.personaName,
+        perfectName: users.perfectName,
         changedAt: teamCaptainChanges.changedAt,
       })
       .from(teamCaptainChanges)
@@ -187,7 +190,13 @@ export async function getPublicTeamProfile(
 
   const currentMembers = members
     .filter((member): member is typeof member & { status: PublicTeamMembershipStatus } => member.endedAt === null && member.status !== "left")
-    .map(({ id, userId, name, status, avatarUrl }) => ({ id, userId, name, status, avatarUrl }));
+    .map(({ id, userId, displayName, personaName, perfectName, status, avatarUrl }) => ({
+      id,
+      userId,
+      name: getPublicDisplayName({ displayName, personaName, perfectName }),
+      status,
+      avatarUrl,
+    }));
   const entryIds = entries.map((entry) => entry.id);
   const played = entryIds.length
     ? await db
@@ -234,7 +243,13 @@ export async function getPublicTeamProfile(
     currentMembers,
     entries: careerEntries,
     nameChanges: names.filter((n) => n.oldName !== null),
-    captainChanges: captains.filter((c) => c.fromUserId !== null),
+    captainChanges: captains
+      .filter((c) => c.fromUserId !== null)
+      .map((captain) => ({
+        id: captain.id,
+        name: getPublicDisplayName(captain),
+        changedAt: captain.changedAt,
+      })),
     playedCount: played.length,
     wins,
     currentUserMembership,

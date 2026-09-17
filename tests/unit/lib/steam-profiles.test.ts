@@ -1,13 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { selectMock, insertMock, lookupMock, revalidateMock } = vi.hoisted(() => ({
+const { selectMock, insertMock, executeMock, lookupMock, revalidateMock } = vi.hoisted(() => ({
   selectMock: vi.fn(),
   insertMock: vi.fn(),
+  executeMock: vi.fn(),
   lookupMock: vi.fn(),
   revalidateMock: vi.fn(),
 }));
 
-vi.mock("@/db/client", () => ({ db: { select: selectMock, insert: insertMock } }));
+vi.mock("@/db/client", () => ({ db: { select: selectMock, insert: insertMock, execute: executeMock } }));
 vi.mock("@/db/schema", () => ({
   users: { id: "users.id", steam64: "users.steam64", status: "users.status" },
   steamProfiles: {
@@ -17,7 +18,7 @@ vi.mock("@/db/schema", () => ({
     avatarUrl: "steam_profiles.avatar_url",
   },
 }));
-vi.mock("drizzle-orm", () => ({ and: vi.fn(), eq: vi.fn(), inArray: vi.fn(), isNotNull: vi.fn() }));
+vi.mock("drizzle-orm", () => ({ and: vi.fn(), eq: vi.fn(), inArray: vi.fn(), isNotNull: vi.fn(), sql: vi.fn(() => "sql") }));
 vi.mock("@/lib/steam", () => ({ getSteamPlayerSummaries: lookupMock }));
 vi.mock("@/lib/revalidation", () => ({ revalidatePublicPlayerTag: revalidateMock }));
 
@@ -72,6 +73,7 @@ describe("Steam profile cache reconciliation", () => {
     expect(insertMock.mock.results[0]?.value.values).toHaveBeenCalledWith([
       expect.objectContaining({ steam64: a, personaName: "Official A" }),
     ]);
+    expect(executeMock).toHaveBeenCalledTimes(2);
     expect(revalidateMock).toHaveBeenCalledExactlyOnceWith("changed");
   });
 

@@ -280,7 +280,7 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
   let isCaptainA = false;
   let isCaptainB = false;
   let isSeasonAdmin = false;
-  let captainTeamMembers: { id: string; personaName: string; avatarUrl: string | null; displayName: string | null; perfectName: string | null; primaryPosition: string }[] = [];
+  let captainTeamMembers: { id: string; personaName: string | null; avatarUrl: string | null; displayName: string | null; perfectName: string | null; primaryPosition: string }[] = [];
 
   if (userSession?.userId) {
     try {
@@ -299,7 +299,7 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
         .filter((m) => m.teamId === captainTeamId)
         .map((r) => ({
           id: r.id,
-          personaName: r.personaName ?? "未知",
+          personaName: r.personaName ?? null,
           avatarUrl: r.avatarUrl,
           displayName: r.displayName ?? null,
           perfectName: r.perfectName ?? null,

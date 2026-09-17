@@ -10,6 +10,7 @@ import {
   resolveGameplayUserBySteam64,
   retireGameplaySteamIdentityInTx,
 } from "../../../src/lib/identity/gameplay-steam";
+import { upsertSteamProfile } from "../../../src/lib/steam-profiles";
 import { createLocalPool } from "./harness/database";
 
 describe("Steam identity foundation", () => {
@@ -28,12 +29,25 @@ describe("Steam identity foundation", () => {
         { id: userId, email: `${userId}@steam-identity.local`, steam64: oldSteam64 },
         { id: otherUserId, email: `${otherUserId}@steam-identity.local`, steam64: "76561198000000004" },
       ]);
+      await client.query(
+        `UPDATE users
+            SET steam_name = $1, steam_profile_url = $2, avatar_url = $3
+          WHERE id = $4`,
+        ["Legacy Old", "https://steamcommunity.com/profiles/old", "https://avatars.steamstatic.com/old.jpg", userId],
+      );
 
       await database.transaction((tx) => changePrimarySteam64InTx(tx, {
         userId,
         nextSteam64,
         actorId: userId,
       }));
+
+      const legacyAfterChange = await client.query<{
+        steam_name: string | null;
+        steam_profile_url: string | null;
+        avatar_url: string | null;
+      }>(`SELECT steam_name, steam_profile_url, avatar_url FROM users WHERE id = $1`, [userId]);
+      expect(legacyAfterChange.rows[0]).toEqual({ steam_name: null, steam_profile_url: null, avatar_url: null });
 
       const [history] = await database.select().from(schema.userGameplaySteamIds)
         .where(and(
@@ -93,6 +107,64 @@ describe("Steam identity foundation", () => {
     } finally {
       await database.delete(schema.userGameplaySteamIds).where(eq(schema.userGameplaySteamIds.userId, userId));
       await database.delete(schema.users).where(eq(schema.users.id, otherUserId));
+      await database.delete(schema.users).where(eq(schema.users.id, userId));
+      client.release();
+      await pool.end();
+    }
+  });
+
+  it("uses excluded values on cache conflict and repairs the legacy rollback shadow", async () => {
+    const pool = createLocalPool({ max: 1 });
+    const client = await pool.connect();
+    const database = drizzle(client, { schema });
+    const userId = randomUUID();
+    const steam64 = "76561198000000011";
+
+    try {
+      await database.insert(schema.users).values({
+        id: userId,
+        email: `${userId}@steam-profile.local`,
+        steam64,
+      });
+      await client.query(
+        `UPDATE users
+            SET steam_name = $1, steam_profile_url = $2, avatar_url = $3
+          WHERE id = $4`,
+        ["Legacy name", "https://steamcommunity.com/profiles/legacy", "https://avatars.steamstatic.com/legacy.jpg", userId],
+      );
+      await database.insert(schema.steamProfiles).values({
+        steam64,
+        personaName: "Old official name",
+        profileUrl: "https://steamcommunity.com/profiles/old",
+        avatarUrl: "https://avatars.steamstatic.com/old.jpg",
+      });
+
+      await upsertSteamProfile(database, {
+        steam64,
+        personaName: "New official name",
+        profileUrl: `https://steamcommunity.com/profiles/${steam64}`,
+        avatarUrl: null,
+      });
+
+      const [profile] = await database.select().from(schema.steamProfiles).where(eq(schema.steamProfiles.steam64, steam64));
+      const userResult = await client.query<{
+        steam_name: string | null;
+        steam_profile_url: string | null;
+        avatar_url: string | null;
+      }>(`SELECT steam_name, steam_profile_url, avatar_url FROM users WHERE id = $1`, [userId]);
+      expect(profile).toMatchObject({
+        steam64,
+        personaName: "New official name",
+        profileUrl: `https://steamcommunity.com/profiles/${steam64}`,
+        avatarUrl: null,
+      });
+      expect(userResult.rows[0]).toEqual({
+        steam_name: "New official name",
+        steam_profile_url: `https://steamcommunity.com/profiles/${steam64}`,
+        avatar_url: null,
+      });
+    } finally {
+      await database.delete(schema.steamProfiles).where(eq(schema.steamProfiles.steam64, steam64));
       await database.delete(schema.users).where(eq(schema.users.id, userId));
       client.release();
       await pool.end();

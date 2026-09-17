@@ -21,14 +21,14 @@ export interface DraftTeamSlot {
   teamName: string;
   draftOrder: number;
   captain: {
-    personaName: string;
+    personaName: string | null;
     avatarUrl: string | null;
     displayName: string | null;
     perfectName: string | null;
     primaryPosition: string;
   };
   members: {
-    personaName: string;
+    personaName: string | null;
     avatarUrl: string | null;
     perfectName: string | null;
     displayName: string | null;
@@ -43,7 +43,7 @@ export interface DraftTeamSlot {
 export interface PublicDraftPlayer {
   userId: string;
   avatarUrl: string | null;
-  personaName: string;
+  personaName: string | null;
   perfectName: string | null;
   displayName: string | null;
   primaryPosition: string;
@@ -77,7 +77,7 @@ export interface DraftLiveState {
 
 export interface DraftCompletedPick {
   entryId: string;
-  personaName: string;
+  personaName: string | null;
   displayName: string | null;
   perfectName: string | null;
   primaryPosition: string;
@@ -145,7 +145,7 @@ interface CaptainDraftPlayerSource extends DraftPlayerSource {
 export function serializePublicDraftPlayer(row: DraftPlayerSource): PublicDraftPlayer {
   return {
     userId: row.userId,
-    personaName: row.personaName ?? "未知选手",
+    personaName: row.personaName ?? null,
     avatarUrl: row.avatarUrl ?? null,
     perfectName: row.perfectName ?? null,
     displayName: row.displayName ?? null,
@@ -285,7 +285,7 @@ async function loadDraftBase(seasonId: string): Promise<DraftBaseData> {
       .map((member) => {
         const pick = picksByRegistrationId.get(member.registrationId);
         return {
-          personaName: member.personaName ?? "未知选手",
+          personaName: member.personaName ?? null,
           avatarUrl: member.avatarUrl,
           perfectName: member.perfectName ?? null,
           displayName: member.displayName ?? null,
@@ -302,7 +302,7 @@ async function loadDraftBase(seasonId: string): Promise<DraftBaseData> {
       teamName: team.name,
       draftOrder: team.draftOrder,
       captain: {
-        personaName: captain?.personaName ?? "未知队长",
+        personaName: captain?.personaName ?? null,
         avatarUrl: captain?.avatarUrl ?? null,
         displayName: captain?.displayName ?? null,
         perfectName: captain?.perfectName ?? null,
@@ -332,7 +332,7 @@ async function loadDraftBase(seasonId: string): Promise<DraftBaseData> {
     snakeOrder,
     completedPicks: pickRows.map((pick) => ({
       entryId: pick.entryId,
-      personaName: pick.personaName ?? "未知选手",
+      personaName: pick.personaName ?? null,
       displayName: pick.displayName ?? null,
       perfectName: pick.perfectName ?? null,
       primaryPosition: pick.primaryPosition,

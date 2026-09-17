@@ -515,7 +515,7 @@ export const DATABASE_ACCESS_MATRIX: readonly DatabaseAccessEntry[] = [
     "Steam identity / profile",
     "Steam 官方资料缓存投影",
     "src/lib/steam-profiles.ts; public read models",
-    "官方 persona、profile URL 和头像只作为按 Steam64 键控的服务端缓存读取；provider credential 与写入永不进入浏览器数据面。",
+    "官方 persona、profile URL 和头像只作为按 Steam64 键控的服务端缓存读取；provider credential 与写入永不进入浏览器数据面。N/N+1 期间仅由同一 owner 窄幅同步旧 users shadow，steam_profiles 仍是唯一 authority。",
   ),
   serverOnly(
     "season_public_info",

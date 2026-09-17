@@ -5,7 +5,7 @@ import * as schema from "../../src/db/schema";
 import type { DB } from "../../src/db/client-runtime";
 import { assertLocalDatabaseUrl } from "./local-environment";
 import { getSteamPlayerSummaries, type SteamProfileSummary } from "../../src/lib/steam";
-import { loadSteamProfilesBySteam64, upsertSteamProfile } from "../../src/lib/steam-profiles";
+import { upsertSteamProfile } from "../../src/lib/steam-profiles";
 
 const PROTECTED_WRITE_TARGET = "production";
 const PRODUCTION_WRITE_CONFIRMATION = "I_UNDERSTAND_STEAM_PROFILE_CACHE_WRITE";
@@ -78,13 +78,9 @@ async function buildPlan(
     throw new Error(lookup.status === "unconfigured" ? "STEAM_PROFILE_UNCONFIGURED" : "STEAM_PROFILE_PROVIDER_FAILED");
   }
 
-  const cached = await loadSteamProfilesBySteam64(database, steam64s);
-  const profilesToWrite = [...lookup.profiles.values()].filter((profile) => {
-    const previous = cached.get(profile.steam64);
-    return previous?.personaName !== profile.personaName
-      || previous.profileUrl !== profile.profileUrl
-      || previous.avatarUrl !== profile.avatarUrl;
-  });
+  // Apply every resolved current primary so the N/N+1 rollback shadow is also
+  // repaired when the official cache already contains the same values.
+  const profilesToWrite = [...lookup.profiles.values()];
   return {
     requested: steam64s.length,
     resolved: lookup.profiles.size,

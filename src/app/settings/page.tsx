@@ -43,7 +43,7 @@ export default async function SettingsPage() {
       : <StatusBanner tone="warn" title={`还缺 ${readyItems.length} 项参赛资料`} sub="完成以下项目可保持个人资料完整；具体赛事是否满足资格请在对应报名页查看。" />}
 
     <Panel label="参赛资料" contentClassName="p-5">
-      <ProfileForm current={{ displayName: user?.displayName ?? null, perfectName: user?.perfectName ?? null, steam64: user?.steam64 ?? null, steamProfile: user?.steamProfile?.personaName && user.steamProfile.profileUrl && user.steamProfile.avatarUrl ? { personaName: user.steamProfile.personaName, profileUrl: user.steamProfile.profileUrl, avatarUrl: user.steamProfile.avatarUrl } : null, qq: user?.qq ?? null, liveStreamUrl: user?.liveStreamUrl ?? null, gameplayStyle: user?.gameplayStyle ?? null, competitionHistory: user?.competitionHistory ?? null }} />
+      <ProfileForm current={{ displayName: user?.displayName ?? null, perfectName: user?.perfectName ?? null, steam64: user?.steam64 ?? null, steamProfile: user?.steamProfile?.personaName && user.steamProfile.profileUrl ? { personaName: user.steamProfile.personaName, profileUrl: user.steamProfile.profileUrl, avatarUrl: user.steamProfile.avatarUrl ?? null } : null, qq: user?.qq ?? null, liveStreamUrl: user?.liveStreamUrl ?? null, gameplayStyle: user?.gameplayStyle ?? null, competitionHistory: user?.competitionHistory ?? null }} />
     </Panel>
     {readyItems.length > 0 && <Panel label="下一步" contentClassName="p-0"><Checklist items={readyItems} /></Panel>}
   </div>;

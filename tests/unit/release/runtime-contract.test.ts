@@ -124,6 +124,14 @@ describe("deployment and operations contracts", () => {
     expect(candidateBuild).toContain("部署 Vercel candidate");
     expect(candidateBuild).not.toContain("candidate smoke");
     expect(productionMigration).toContain("运行 production migration 与验证");
+    expect(release).toContain("requires_steam_profile_backfill: ${{ steps.plan.outputs.requiresSteamProfileBackfill }}");
+    expect(productionMigration).toContain("pnpm db:production:steam-profile:backfill -- --apply");
+    expect(productionMigration).toContain("pnpm db:production:steam-profile:coverage");
+    expect(productionMigration).toContain("STEAM_API_KEY: ${{ secrets.STEAM_API_KEY }}");
+    expect(productionMigration).toContain("RIVALHUB_STEAM_PROFILE_WRITE_CONFIRM: I_UNDERSTAND_STEAM_PROFILE_CACHE_WRITE");
+    expect(release.indexOf("运行 production migration 与验证")).toBeLessThan(release.indexOf("回填 production Steam profile cache"));
+    expect(release.indexOf("回填 production Steam profile cache")).toBeLessThan(release.indexOf("验证 production Steam profile coverage"));
+    expect(release.indexOf("验证 production Steam profile coverage")).toBeLessThan(release.indexOf("运行 exact candidate smoke test"));
     expect(release.indexOf("运行 production migration 与验证")).toBeLessThan(release.indexOf("运行 exact candidate smoke test"));
     expect(finalize.indexOf("运行 exact candidate smoke test")).toBeLessThan(finalize.indexOf("执行 release routing / rollback"));
     expect(release).toContain("SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}");

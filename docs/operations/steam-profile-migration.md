@@ -12,7 +12,7 @@ Issue #687 建立 Steam64 主身份、官方资料缓存和 gameplay Steam ident
 
 0052 会按 active `users.steam64` 建立 partial unique index，并为 Steam64 加 17 位 shape check。它不会吞掉重复值：任一 active duplicate 或 invalid value 都应使 migration fail closed，先由 operator 完成独立的人工 remediation。不会自动合并用户、猜测归属、回填历史身份或写入 production。
 
-本 PR 的 0052 不物理 `DROP` `users.steam_name`、`users.steam_profile_url`、`users.avatar_url`：上一稳定版本仍可能读取这些列，仓库的 N/N+1 release-compat 门禁要求先经过兼容窗口。应用 schema 与所有运行时 consumer 已切换到 `steam_profiles`；待本版本部署并成为上一稳定版本后，再由后续 contract-cleanup migration 删除这三个 legacy 列。禁止在本 PR 中手工 remote patch 或提前删除。
+本 PR 的 0052 不物理 `DROP` `users.steam_name`、`users.steam_profile_url`、`users.avatar_url`：上一稳定版本仍可能读取这些列，仓库的 N/N+1 release-compat 门禁要求先经过兼容窗口。这三个列仍是旧版本的 rollback shadow，位于当前 Drizzle application schema 之外；`steam_profiles` 仍是新应用唯一 authority。当前 primary 的官方 projection 在 cache upsert、refresh 和 backfill 时窄幅同步到 legacy shadow；primary 变更或移除时先清空旧 shadow，避免旧版本读到另一位用户的资料。待本版本部署并成为上一稳定版本后，再由后续 contract-cleanup migration 删除这三个 legacy 列。禁止在本 PR 中手工 remote patch 或提前删除。
 
 Production 只读诊断：
 
@@ -35,7 +35,18 @@ pnpm db:production:steam-profile:backfill
 pnpm db:production:steam-profile:backfill -- --apply
 ```
 
-`--apply` 只允许通过 protected production wrapper，并额外要求 `RIVALHUB_STEAM_PROFILE_WRITE_CONFIRM=I_UNDERSTAND_STEAM_PROFILE_CACHE_WRITE`。backfill 只 upsert 成功的官方 projection；provider 未找到的 Steam64 保持 unresolved，provider 整体失败时不写入 cache。重复运行只更新发生变化的 `persona_name`、`profile_url` 或 `avatar_url`，因此可安全重试。`--limit N` 可用于受控分批。
+`--apply` 只允许通过 protected production wrapper，并额外要求 `RIVALHUB_STEAM_PROFILE_WRITE_CONFIRM=I_UNDERSTAND_STEAM_PROFILE_CACHE_WRITE`。backfill 只 upsert 成功的官方 projection；provider 未找到的 Steam64 保持 unresolved，provider 整体失败时不写入 cache。为修复 N/N+1 rollback shadow，apply 会写入每个成功解析的 current primary，即使 `steam_profiles` 中已有相同资料；重复运行仍是幂等的。`--limit N` 可用于受控分批，但 production release gate 使用完整集合。
+
+Release workflow 对创建 `steam_profiles` 的 migration 强制执行以下受保护顺序：
+
+```text
+production migration → production DB verify
+→ Steam profile backfill（STEAM_API_KEY + explicit write confirmation）
+→ read-only coverage/shadow verify
+→ exact candidate smoke → routing
+```
+
+coverage verify 在 `REPEATABLE READ READ ONLY` transaction 中确认所有 active current primary 都有 cache，并且 legacy shadow 与官方 projection 一致；provider 未解析、backfill 失败或 coverage 不通过都会阻止 candidate routing，旧 Production 保持不变。对应命令为 `pnpm db:production:steam-profile:coverage`。当前 feature PR 只提供代码、脚本和 protected workflow wiring，不执行 production migration、backfill、coverage、merge 或其它 remote write。
 
 该 backfill 不改变 `users.steam64`、不建立 gameplay mapping、不合并账户，也不将官方资料反向写回用户冗余字段。生产执行仍必须由 release/operations owner 按 [`release.md`](./release.md) 和数据库 migration 流程授权。
 

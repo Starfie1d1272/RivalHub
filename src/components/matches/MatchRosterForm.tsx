@@ -10,7 +10,7 @@ import { getDisplayName } from "@/lib/identity/display-name";
 
 interface TeamMember {
   id: string;
-  personaName: string;
+  personaName: string | null;
   displayName: string | null;
   perfectName: string | null;
   primaryPosition: string;

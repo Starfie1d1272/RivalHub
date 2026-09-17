@@ -33,7 +33,7 @@ interface CaptainDraftPanelProps {
   players: CaptainDraftPlayer[];
   seasonPositions: string[];
   /** Already picked members for roster summary */
-  rosterMembers: { personaName: string; avatarUrl: string | null; perfectName: string | null; displayName: string | null; primaryPosition: string }[];
+  rosterMembers: { personaName: string | null; avatarUrl: string | null; perfectName: string | null; displayName: string | null; primaryPosition: string }[];
   captainPosition: string;
   readonly?: boolean;
 }

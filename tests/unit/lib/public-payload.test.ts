@@ -108,6 +108,27 @@ describe("public payload serializers", () => {
     }
   });
 
+  it("keeps nullable Steam persona names nullable so perfectName remains usable", () => {
+    const serialized = serializePublicDraftPlayer({
+      registrationId: "registration-3",
+      userId: "user-3",
+      avatarUrl: null,
+      personaName: null,
+      perfectName: "Perfect fallback",
+      displayName: null,
+      primaryPosition: "rifler",
+      secondaryPosition: "anchor",
+      peakRank: "—",
+      peakRating: null,
+      currentRank: "—",
+      currentRating: null,
+      mapPreferences: [],
+    });
+
+    expect(serialized.personaName).toBeNull();
+    expect(serialized.perfectName).toBe("Perfect fallback");
+  });
+
   it("does not expose proposal actor identifiers to the public match view", () => {
     const now = new Date("2026-08-29T00:00:00.000Z");
     const serialized = serializePublicMatchTimeProposal(

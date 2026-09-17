@@ -24,6 +24,7 @@ export interface ReleasePlan {
   releaseInfraChanged: boolean;
   requiresMigrationRehearsal: boolean;
   requiresProductionMigration: boolean;
+  requiresSteamProfileBackfill: boolean;
   requiresDbCheckpoint: boolean;
   requiresFullCheckpoint: boolean;
   requiresSchedulerProvision: boolean;
@@ -86,6 +87,10 @@ export function buildReleasePlan(options: BuildReleasePlanOptions = {}): Release
   const migrationRisk = migrationChanged
     ? resolveMigrationRisk(cwd, releaseSha, entries, migrationPaths, options.migrationContents)
     : "none";
+  const requiresSteamProfileBackfill = migrationPaths.some((path) => {
+    const text = migrationText(cwd, releaseSha, path, options.migrationContents);
+    return text !== undefined && /CREATE TABLE\s+"steam_profiles"/i.test(text);
+  });
   const storageMutationChanged = readReleaseTimeStorageMutationCapability(cwd, releaseSha);
   const schedulerChanged = changedPaths.some(isReleaseSchedulerPath)
     || migrationPaths.some((path) => {
@@ -115,6 +120,7 @@ export function buildReleasePlan(options: BuildReleasePlanOptions = {}): Release
     releaseInfraChanged,
     requiresMigrationRehearsal: migrationChanged,
     requiresProductionMigration: migrationChanged,
+    requiresSteamProfileBackfill,
     requiresDbCheckpoint: migrationRisk === "irreversible",
     requiresFullCheckpoint: storageMutationChanged,
     requiresSchedulerProvision: schedulerChanged,

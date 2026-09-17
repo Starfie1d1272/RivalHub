@@ -287,6 +287,16 @@ export async function changePrimarySteam64InTx(
     }
   }
 
+  if (user.steam64 !== input.nextSteam64) {
+    await tx.execute(sql`
+      UPDATE ${users}
+         SET "steam_name" = NULL,
+             "steam_profile_url" = NULL,
+             "avatar_url" = NULL
+       WHERE ${users.id} = ${input.userId}
+    `);
+  }
+
   await tx.update(users)
     .set({ steam64: input.nextSteam64, updatedAt: now })
     .where(eq(users.id, input.userId));

@@ -134,6 +134,33 @@ describe("match detail stats", () => {
     ]);
   });
 
+  it("keeps perfectName available when the Steam cache misses", () => {
+    expect(
+      buildRoster(
+        { players: [{ eventRosterMemberId: "member-1", isStarter: true }] },
+        [{
+          id: "member-1",
+          teamId: "team-a",
+          personaName: null,
+          displayName: null,
+          perfectName: "Perfect fallback",
+          primaryPosition: "rifler",
+          userId: "user-1",
+          avatarUrl: null,
+        }],
+        "team-a",
+      ),
+    ).toEqual([{
+      personaName: null,
+      displayName: null,
+      perfectName: "Perfect fallback",
+      registrationPosition: "rifler",
+      isStarter: true,
+      userId: "user-1",
+      avatarUrl: null,
+    }]);
+  });
+
   it("builds lineup player summaries from starter stats", () => {
     // mapId 为 key（修复了旧代码用 matchId 当回合数 key 的 bug）
     const players = buildLineupsPlayers(
@@ -165,6 +192,30 @@ describe("match detail stats", () => {
     ]);
     expect(players[0].avgAdr).toBeCloseTo(4260 / 54, 5);
     expect(players[0].avgHs).toBeCloseTo(1300 / 30, 5);
+  });
+
+  it("uses the canonical name order for a lineup without stats", () => {
+    const players = buildLineupsPlayers(
+      [],
+      ["user-1"],
+      new Map([[
+        "user-1",
+        { id: "member-1", teamId: "team-a", personaName: null, displayName: null, perfectName: "Perfect fallback", primaryPosition: "rifler", userId: "user-1", avatarUrl: null },
+      ]]),
+      new Map(),
+    );
+
+    expect(players).toEqual([{
+      userId: "user-1",
+      perfectName: "Perfect fallback",
+      maps: 0,
+      avgRating: null,
+      avgAdr: null,
+      kdRatio: null,
+      avgHs: null,
+      fkpr: null,
+      avgWe: null,
+    }]);
   });
 
   it("aggregates finished match stats for MVP candidates and BO summaries", () => {

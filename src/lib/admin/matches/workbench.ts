@@ -73,7 +73,7 @@ function projectTeamMember(row: {
   return {
     id: row.id,
     entryId: row.entryId,
-    personaName: row.personaName ?? "未知",
+    personaName: row.personaName ?? null,
     displayName: row.displayName ?? null,
     perfectName: row.perfectName ?? null,
     primaryPosition: row.primaryPosition ?? "—",
