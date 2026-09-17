@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { rivalHubEventsResponseSchema } from "@/lib/demo-integration/contracts";
 import { projectDemoIssues, projectDemoStatus, selectCurrentDemoImport } from "@/lib/demo-integration/read";
+import { isRetiredDakSemanticProfile } from "@/lib/demo-integration/semantic-profile";
 
 describe("rivalhub-dak-events/1 fixture", () => {
   it("is accepted by RivalHub's response schema", () => {
@@ -48,25 +49,32 @@ describe("rivalhub-dak-events/1 fixture", () => {
   });
 
   it("keeps a late retired profile out of the active read model", () => {
-    const legacy = {
-      id: "legacy",
+    const legacyV1 = {
+      id: "legacy-v1",
       semanticProfile: "dak-stable/1",
       status: "needs_attention",
     } as unknown as Parameters<typeof selectCurrentDemoImport>[0][number];
-    const current = {
-      id: "current",
+    const legacyV2 = {
+      id: "legacy-v2",
       semanticProfile: "dak-stable/2",
       status: "confirmed",
     } as unknown as Parameters<typeof selectCurrentDemoImport>[0][number];
+    const current = {
+      id: "current",
+      semanticProfile: "dak-stable/3",
+      status: "confirmed",
+    } as unknown as Parameters<typeof selectCurrentDemoImport>[0][number];
 
-    expect(selectCurrentDemoImport([legacy, current])).toBe(current);
-    expect(selectCurrentDemoImport([legacy])).toBeUndefined();
+    expect(selectCurrentDemoImport([legacyV1, legacyV2, current])).toBe(current);
+    expect(selectCurrentDemoImport([legacyV1, legacyV2])).toBeUndefined();
+    expect(isRetiredDakSemanticProfile(legacyV1.semanticProfile)).toBe(true);
+    expect(isRetiredDakSemanticProfile(legacyV2.semanticProfile)).toBe(true);
     expect(projectDemoStatus(
       { status: "in_progress" },
       { completedAt: new Date("2026-09-13T00:00:00.000Z"), scoreA: 13, scoreB: 9 },
-      legacy,
+      legacyV2,
     )).toBe("needs_attention");
-    expect(projectDemoIssues(legacy, undefined, "revision")).toEqual([
+    expect(projectDemoIssues(legacyV2, undefined, "revision")).toEqual([
       expect.objectContaining({ code: "UNSUPPORTED_SEMANTIC_PROFILE" }),
     ]);
   });

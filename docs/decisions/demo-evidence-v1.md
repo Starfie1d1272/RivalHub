@@ -47,13 +47,13 @@ semanticProfile  = Stable statistics semantics compatibility
 analysisVersion  = actual DAK analysis software version
 ```
 
-`semanticProfile` 采用 bundle-level 版本。当前 canonical profile 为 `dak-stable/2`，对应 DAK Core 的统一 performance facts 与 parity QA；如果 bugfix 会改变 Stable 历史输出，则提升 semantic profile。`dak-stable/1` 保持 immutable、read-only、可审计，但不允许新的 confirmation、retry promotion 或 canonical reprojection；未来 profile 在显式声明兼容前也不得 promotion。RivalHub 不得把不兼容 profile 的地图静默混合聚合。无需为每个指标建立独立版本号。
+`semanticProfile` 采用 bundle-level 版本。当前 canonical profile 为 `dak-stable/3`，对应 DAK Core 的 enemy-only offensive kill credit 与 parity QA；如果 bugfix 会改变 Stable 历史输出，则提升 semantic profile。`dak-stable/1` 与 `dak-stable/2` 保持 immutable、read-only、可审计，但不允许新的 confirmation、retry promotion 或 canonical reprojection；未来 profile 在显式声明兼容前也不得 promotion。RivalHub 不得把不兼容 profile 的地图静默混合聚合。无需为每个指标建立独立版本号。
 
 Quality 保持轻量：继续区分 `null != 0`、missing 与 empty，并保留 QA / availability。核心 Demo/Stats 明显不完整或 QA 失败时，整份 Evidence 不进入正常 confirm；可选高级 capability 缺失时，仅不展示对应统计，不为极端 partial case 建设通用 completeness framework。
 
 OCR 与 DAK 不进入通用 per-metric provenance framework，而按 source group 明确 ownership：DAK/Demo 拥有 rounds、KDA、damage、HS、KAST、opening、trade、clutch、utility、weapon、team conversions 等；Scoreboard/OCR 拥有 Rating Pro、RWS、WE 等外部 scoreboard 字段。两条写入路径不得清空对方拥有的数据，现有 destructive map-level replace 在接入时应退役。
 
-Evidence artifact 本身 immutable；pending / confirmed / rejected / stale / superseded 属于 RivalHub import/review decision。`dak-stable/2` 是当前唯一可 promotion 的 profile；同一 Demo 从 `/1` 迁移到 `/2` 时保持 `evidenceRevision` 不变，使用新的 payload/idempotency identity，并通过既有 `supersededImportId` lineage 保留历史 parent。read model 只选择当前 profile 的 active import，不因迟到的历史 `/1` row 回退。Schema V1 允许 additive optional field/capability/extension；删除字段、改变类型/单位/既有语义属于 breaking change。跨仓兼容以 machine-readable contract 与 golden JSON fixtures 验证，不重新通过共享裸 TypeScript runtime package 耦合两个仓库。
+Evidence artifact 本身 immutable；pending / confirmed / rejected / stale / superseded 属于 RivalHub import/review decision。`dak-stable/3` 是当前唯一可 promotion 的 profile；同一 Demo 从 `/2` 迁移到 `/3` 时保持 `evidenceRevision` 不变，使用新的 payload/idempotency identity，并通过既有 `supersededImportId` lineage 保留历史 parent。`/1` 与 `/2` 的既有 Evidence 只读保留，read model 只选择当前 profile 的 active import，不因迟到的历史 profile row 回退。Schema V1 允许 additive optional field/capability/extension；删除字段、改变类型/单位/既有语义属于 breaking change。跨仓兼容以 machine-readable contract 与 golden JSON fixtures 验证，不重新通过共享裸 TypeScript runtime package 耦合两个仓库。
 
 SQL projection 按真实 consumer 物化，不与 artifact 一比一建表。Confirmed artifact 可以比首轮 SQL projection 更宽，以便后续在不重新解析 Demo 的情况下 backfill 新的 read model。
 

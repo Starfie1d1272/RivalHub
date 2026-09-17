@@ -1,8 +1,8 @@
 {
   "contract": {
     "contractVersion": "rivalhub-demo-evidence/1",
-    "semanticProfile": "dak-stable/2",
-    "analysisVersion": "cs2-demo-analysis-kit/1.0.2"
+    "semanticProfile": "dak-stable/3",
+    "analysisVersion": "cs2-demo-analysis-kit/1.0.3"
   },
   "target": {
     "seasonId": "10000000-0000-4000-8000-000000000001",

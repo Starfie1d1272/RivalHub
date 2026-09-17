@@ -208,8 +208,8 @@ describe("DAK evidence submit persistence", () => {
         ...evidence,
         contract: {
           ...evidence.contract,
-          semanticProfile: "dak-stable/1",
-          analysisVersion: "cs2-demo-analysis-kit/1.0",
+          semanticProfile: "dak-stable/2",
+          analysisVersion: "cs2-demo-analysis-kit/1.0.2",
         },
       });
       const historicalConfirmedAt = new Date(now.getTime() - 1_000);
@@ -273,6 +273,9 @@ describe("DAK evidence submit persistence", () => {
       expect(legacyRetry.issues).toEqual([
         expect.objectContaining({ code: "UNSUPPORTED_SEMANTIC_PROFILE" }),
       ]);
+      expect(await database.select().from(schema.matchDemoImports).where(eq(schema.matchDemoImports.id, ids.legacyImport))).toMatchObject([
+        expect.objectContaining({ status: "confirmed", semanticProfile: "dak-stable/2" }),
+      ]);
       expect(await database.select().from(schema.matchDemoImports).where(eq(schema.matchDemoImports.matchMapId, ids.map))).toHaveLength(1);
       expect(await database.select().from(schema.matchRoundFacts).where(eq(schema.matchRoundFacts.importId, ids.legacyImport))).toHaveLength(0);
 
@@ -292,7 +295,7 @@ describe("DAK evidence submit persistence", () => {
       expect(conflictBeforePromotionId).not.toBeNull();
       if (!conflictBeforePromotionId) throw new Error("测试未创建历史 Demo 冲突记录");
       expect(await database.select().from(schema.matchDemoImports).where(eq(schema.matchDemoImports.id, ids.legacyImport))).toMatchObject([
-        expect.objectContaining({ status: "confirmed", semanticProfile: "dak-stable/1" }),
+        expect.objectContaining({ status: "confirmed", semanticProfile: "dak-stable/2" }),
       ]);
 
       const first = await submitRivalHubEvidence({
@@ -319,7 +322,16 @@ describe("DAK evidence submit persistence", () => {
       expect(importsAfterPromotion).toHaveLength(3);
       expect(importsAfterPromotion.find((row) => row.id === ids.legacyImport)).toMatchObject({ status: "superseded" });
       expect(importsAfterPromotion.find((row) => row.id === conflictBeforePromotionId)).toMatchObject({ status: "needs_attention", demoSha256: "c".repeat(64) });
-      expect(importsAfterPromotion.find((row) => row.id === importId)).toMatchObject({ status: "confirmed", issues: [], supersedesImportId: ids.legacyImport });
+      expect(importsAfterPromotion.find((row) => row.id === importId)).toMatchObject({
+        status: "confirmed",
+        semanticProfile: "dak-stable/3",
+        analysisVersion: "cs2-demo-analysis-kit/1.0.3",
+        evidenceRevision: legacyEvidence.target.evidenceRevision,
+        demoSha256: legacyEvidence.source.demoSha256,
+        idempotencyKey: "dak-retry-evidence-1",
+        issues: [],
+        supersedesImportId: ids.legacyImport,
+      });
       expect(importsAfterPromotion.find((row) => row.id === importId)?.confirmedAt).not.toBeNull();
       expect(importsAfterPromotion.find((row) => row.id === ids.legacyImport)?.payloadSha256).not.toBe(importsAfterPromotion.find((row) => row.id === importId)?.payloadSha256);
       const factsAfterPromotion = await database.select().from(schema.matchRoundFacts).where(eq(schema.matchRoundFacts.importId, importId));
