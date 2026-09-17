@@ -54,4 +54,13 @@ describe("LongLivedTeamWorkspace", () => {
 
     expect(screen.getByRole("button", { name: "更换队伍图标" })).toBeInTheDocument();
   });
+
+  it("shows private contacts and profile links for current members", () => {
+    render(<LongLivedTeamWorkspace team={{ id: "team-1", slug: "rival-team", name: "Rival Team", logoUrl: null, description: null, captainUserId: "user-1" }} memberships={[{ id: "membership-1", userId: "user-1", name: "队长甲", qq: "10001", status: "active" }, { id: "membership-2", userId: "user-2", name: "选手乙", qq: null, status: "benched" }]} incomingInvitations={[]} outgoingInvitations={[]} recruitment={null} targetSeasons={[]} recruitmentInterests={[]} />);
+
+    expect(screen.getByRole("link", { name: "队长甲" })).toHaveAttribute("href", "/players/user-1");
+    expect(screen.getByRole("link", { name: "选手乙" })).toHaveAttribute("href", "/players/user-2");
+    expect(screen.getByText("QQ：10001")).toBeInTheDocument();
+    expect(screen.getByText("QQ 未填写")).toBeInTheDocument();
+  });
 });
