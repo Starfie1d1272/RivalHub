@@ -126,6 +126,13 @@ describe("deployment and operations contracts", () => {
     expect(candidateBuild).not.toContain("candidate smoke");
     expect(productionMigration).toContain("运行 production migration 与验证");
     expect(productionMigration).toContain(
+      "ref: ${{ github.event_name == 'workflow_dispatch' && github.sha || needs.preflight.outputs.release_tag }}",
+    );
+    expect(productionMigration).toContain("验证 release operator 与 candidate migration chain");
+    expect(productionMigration).toContain('git diff --quiet "$RELEASE_TAG" "$RELEASE_OPERATOR_SHA"');
+    expect(productionMigration).toContain("drizzle/migrations");
+    expect(productionMigration).toContain("drizzle.production.config.ts");
+    expect(productionMigration).toContain(
       "RIVALHUB_RELEASE_MIGRATION_REHEARSAL: ${{ needs.migration_rehearsal.result == 'success' && 'pg17' || '' }}",
     );
     expect(remoteMigration).toContain('"scripts/db/local.ts", "migrate"');
