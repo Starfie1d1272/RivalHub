@@ -168,12 +168,15 @@ describe("deployment and operations contracts", () => {
     expect(release).not.toMatch(/^concurrency:\n  group: rivalhub-production-state-serialization/m);
     expect(readWorkflowJob(release, "migration_rehearsal")).toContain("needs: preflight");
     expect(readWorkflowJob(release, "checkpoint")).toContain("needs: preflight");
+    const preflight = readWorkflowJob(release, "preflight");
+    expect(preflight).toContain("workflow_started_at: ${{ steps.workflow_start.outputs.started_at }}");
+    expect(preflight).toContain("id: workflow_start");
     expect(candidateBuild).toContain("needs: preflight");
     expect(productionMigration).toContain("needs: [preflight, candidate_build, migration_rehearsal, checkpoint]");
     expect(finalize).toContain("needs: [preflight, candidate_build, migration_rehearsal, checkpoint, production_migration]");
     expect(finalize).toContain("contents: write");
     expect(release).toMatch(/^concurrency:\n  group: rivalhub-release-lineage\n  queue: max\n  cancel-in-progress: false/m);
-    expect(finalize).toContain("RELEASE_WORKFLOW_STARTED_AT: ${{ github.run_started_at }}");
+    expect(finalize).toContain("RELEASE_WORKFLOW_STARTED_AT: ${{ needs.preflight.outputs.workflow_started_at }}");
     expect(finalize).toContain("--start-iso \"$RELEASE_WORKFLOW_STARTED_AT\"");
     expect(finalize).toContain("if: env.REQUIRES_SCHEDULER_PROVISION == 'true'");
     expect(finalize).not.toContain("env.RELEASE_MODE == 'fresh' && env.REQUIRES_SCHEDULER_PROVISION");
