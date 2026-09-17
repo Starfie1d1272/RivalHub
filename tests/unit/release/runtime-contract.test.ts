@@ -121,15 +121,16 @@ describe("deployment and operations contracts", () => {
     const candidateBuild = readWorkflowJob(release, "candidate_build");
     const productionMigration = readWorkflowJob(release, "production_migration");
     const finalize = readWorkflowJob(release, "finalize");
+    const remoteMigration = readProjectFile("scripts/db/remote.ts");
     expect(candidateBuild).toContain("部署 Vercel candidate");
     expect(candidateBuild).not.toContain("candidate smoke");
-    expect(productionMigration).toContain("启动本地 PostgreSQL replay target");
-    expect(productionMigration).toContain("pnpm db:local:start-db");
-    expect(productionMigration).toContain("pnpm db:local:stop");
-    expect(productionMigration.indexOf("pnpm db:local:start-db")).toBeLessThan(
-      productionMigration.indexOf("运行 production migration 与验证"),
-    );
     expect(productionMigration).toContain("运行 production migration 与验证");
+    expect(productionMigration).toContain(
+      "RIVALHUB_RELEASE_MIGRATION_REHEARSAL: ${{ needs.migration_rehearsal.result == 'success' && 'pg17' || '' }}",
+    );
+    expect(remoteMigration).toContain('"scripts/db/local.ts", "migrate"');
+    expect(remoteMigration).toContain('"scripts/db/local.ts", "verify-migrations"');
+    expect(remoteMigration).toContain("shouldUseExternalReleaseMigrationRehearsal");
     expect(release).toContain("requires_steam_profile_backfill: ${{ steps.plan.outputs.requiresSteamProfileBackfill }}");
     expect(productionMigration).toContain("pnpm db:production:steam-profile:backfill -- --apply");
     expect(productionMigration).toContain("pnpm db:production:steam-profile:coverage");
@@ -475,10 +476,9 @@ describe("deployment and operations contracts", () => {
     expect(release).toContain("pnpm db:release-rehearsal");
     expect(readProjectFile("scripts/db/release-rehearsal.ts")).toContain("scripts/db/verify-migrations.ts");
     expect(readProjectFile("scripts/db/release-rehearsal.ts")).not.toContain("scripts/db/verify-db.ts");
-    const migrationRehearsal = readWorkflowJob(release, "migration_rehearsal");
-    expect(migrationRehearsal).not.toContain("pnpm db:local:start-db");
-    expect(migrationRehearsal).not.toContain("pnpm db:local:start\n");
-    expect(migrationRehearsal).not.toContain("pnpm db:local:stop");
+    expect(release).not.toContain("pnpm db:local:start-db");
+    expect(release).not.toContain("pnpm db:local:start\n");
+    expect(release).not.toContain("pnpm db:local:stop");
 
     // Staged production deployment and promotion
     expect(release).toContain("vercel deploy --prod --skip-domain");

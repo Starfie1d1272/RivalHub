@@ -11,6 +11,41 @@ const projectRoot = resolve(process.cwd());
 const binSuffix = process.platform === "win32" ? ".cmd" : "";
 const drizzleBin = resolve(projectRoot, `node_modules/.bin/drizzle-kit${binSuffix}`);
 const tsxBin = resolve(projectRoot, `node_modules/.bin/tsx${binSuffix}`);
+const RELEASE_MIGRATION_REHEARSAL_ENV = "RIVALHUB_RELEASE_MIGRATION_REHEARSAL";
+const RELEASE_MIGRATION_REHEARSAL_MODE = "pg17";
+
+/**
+ * Release migration rehearsal is owned by the preceding plain PostgreSQL 17
+ * job. The marker is intentionally accepted only from that protected Release
+ * context; direct/manual production migration keeps its self-contained local
+ * replay safety path.
+ */
+export function shouldUseExternalReleaseMigrationRehearsal(
+  env: Readonly<Record<string, string | undefined>> = process.env,
+): boolean {
+  const mode = env[RELEASE_MIGRATION_REHEARSAL_ENV];
+  if (!mode) return false;
+  if (mode !== RELEASE_MIGRATION_REHEARSAL_MODE) {
+    throw new Error(`${RELEASE_MIGRATION_REHEARSAL_ENV} 只支持 ${RELEASE_MIGRATION_REHEARSAL_MODE}。`);
+  }
+
+  const isProtectedRelease =
+    env.GITHUB_ACTIONS === "true" &&
+    env.GITHUB_WORKFLOW === "Release" &&
+    (env.GITHUB_EVENT_NAME === "push" || env.GITHUB_EVENT_NAME === "workflow_dispatch") &&
+    env.RIVALHUB_DB_TARGET === "production" &&
+    env.RIVALHUB_ALLOW_REMOTE_DB_WRITE === "production" &&
+    env.RELEASE_TAG?.startsWith("v") === true &&
+    Boolean(env.RELEASE_SHA) &&
+    env.RIVALHUB_RELEASE_SHA === env.RELEASE_SHA;
+
+  if (!isProtectedRelease) {
+    throw new Error(
+      `${RELEASE_MIGRATION_REHEARSAL_ENV} 只允许由 protected Release production migration 提供。`,
+    );
+  }
+  return true;
+}
 
 export function runProtectedRemoteCommand(
   command: string | undefined,
@@ -18,12 +53,19 @@ export function runProtectedRemoteCommand(
 ): void {
   switch (command) {
     case "migrate": {
+      const usesExternalRehearsal = shouldUseExternalReleaseMigrationRehearsal();
       const environment = target.buildEnvironment({ requiresWriteAuthorization: true });
-      // The active chain must parse and replay in Local PostgreSQL before any
-      // remote write. This intentionally does not seed, reset or db:push.
+      // The active chain must parse before any remote write. Direct/manual
+      // migration also replays it in Local PostgreSQL; protected Release has
+      // already completed the same active-chain replay in its PG17 job.
       run(drizzleBin, ["check"]);
-      run(tsxBin, ["scripts/db/local.ts", "migrate"]);
-      run(tsxBin, ["scripts/db/local.ts", "verify-migrations"]);
+      if (usesExternalRehearsal) {
+        console.log("已使用成功的 protected PG17 migration rehearsal；跳过 legacy Local PostgreSQL replay。\n");
+      } else {
+        // This intentionally does not seed, reset or db:push.
+        run(tsxBin, ["scripts/db/local.ts", "migrate"]);
+        run(tsxBin, ["scripts/db/local.ts", "verify-migrations"]);
+      }
       target.beforeMigrate?.(environment);
       run(drizzleBin, ["migrate", `--config=${target.drizzleConfig}`], { env: environment });
       run(tsxBin, ["scripts/db/verify-migrations.ts"], { env: environment });
