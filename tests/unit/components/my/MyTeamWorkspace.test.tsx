@@ -26,7 +26,7 @@ const context: MyCompetitionContext = {
 const model: MyTeamWorkspaceModel = {
   kind: "member",
   team: { id: "team-1", slug: "rival-five", name: "Rival Five", logoUrl: null, description: "公开简介", captainUserId: "captain-1", viewerRole: "member" },
-  members: [{ id: "membership-1", userId: "captain-1", name: "队长甲", status: "active" }, { id: "membership-2", userId: "user-1", name: "选手乙", status: "active" }],
+  members: [{ id: "membership-1", userId: "captain-1", name: "队长甲", qq: "10001", status: "active" }, { id: "membership-2", userId: "user-1", name: "选手乙", qq: null, status: "active" }],
   competitions: [context],
   history: [],
 };
@@ -37,6 +37,9 @@ describe("MyTeamWorkspace member composition", () => {
 
     expect(screen.getByRole("heading", { name: "Rival Five", level: 2 })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "查看赛事" })).toHaveAttribute("href", "/fall-2026");
+    expect(screen.getByRole("link", { name: "队长甲" })).toHaveAttribute("href", "/players/captain-1");
+    expect(screen.getByText("QQ：10001")).toBeInTheDocument();
+    expect(screen.getByText("QQ 未填写")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "退出队伍" })).toBeInTheDocument();
     for (const label of ["保存资料", "直接邀请", "发布招募", "交接队长", "解散队伍", "更换队伍图标"]) {
       expect(screen.queryByText(label)).not.toBeInTheDocument();

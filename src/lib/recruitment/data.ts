@@ -1,3 +1,5 @@
+import "server-only";
+
 import { alias } from "drizzle-orm/pg-core";
 import { and, desc, eq, gt, ilike, inArray, isNull, or, sql } from "drizzle-orm";
 import { db } from "@/db/client";
@@ -221,10 +223,10 @@ export async function getPublicPlayerLft(userId: string): Promise<PublicRecruitm
   return intent ? { ...intent, positions: intent.positions as Cs2Position[] } : null;
 }
 
-export async function getTeamRecruitmentWorkspace(teamId: string, includeInterests: boolean): Promise<{
+export async function getTeamRecruitmentWorkspace(teamId: string, viewerUserId: string): Promise<{
   recruitment: (PublicRecruitmentIntent & { status: "open" | "closed"; isPubliclyActive: boolean }) | null;
   targetSeasons: Array<{ id: string; name: string }>;
-  interests: Array<{ userId: string; name: string; positions: Cs2Position[]; currentTeamName: string | null }>;
+  interests: Array<{ userId: string; name: string; positions: Cs2Position[]; currentTeamName: string | null; qq: string | null }>;
 }> {
   const now = new Date();
   const [intents, targetSeasons] = await Promise.all([
@@ -235,16 +237,16 @@ export async function getTeamRecruitmentWorkspace(teamId: string, includeInteres
   const rawIntent = intents[0];
   const isPubliclyActive = Boolean(rawIntent && rawIntent.status === "open" && rawIntent.expiresAt > now && (!rawIntent.targetSeasonId || (rawIntent.targetSeasonStatus && isTeamRecruitmentTargetAvailable({ status: rawIntent.targetSeasonStatus, registrationClosesAt: rawIntent.targetSeasonRegistrationClosesAt, rosterChangeClosesAt: rawIntent.targetSeasonRosterChangeClosesAt }, rawIntent.hasEffectiveEntry, now))));
   const intent = rawIntent ? { id: rawIntent.id, positions: rawIntent.positions as Cs2Position[], targetSeasonId: rawIntent.targetSeasonId, targetSeasonName: rawIntent.targetSeasonName, note: rawIntent.note, status: rawIntent.status, expiresAt: rawIntent.expiresAt, updatedAt: rawIntent.updatedAt, isPubliclyActive } : null;
-  if (!intent || !includeInterests || !isPubliclyActive) return { recruitment: intent, targetSeasons, interests: [] };
+  if (!intent || !isPubliclyActive) return { recruitment: intent, targetSeasons, interests: [] };
   const currentTeam = alias(teams, "interest_current_team");
-  const interestRows = await db.select({ userId: users.id, name: publicName, currentTeamName: currentTeam.name }).from(recruitmentInterests)
+  const interestRows = await db.select({ userId: users.id, name: publicName, qq: users.qq, currentTeamName: currentTeam.name }).from(recruitmentInterests)
     .innerJoin(recruitmentIntents, eq(recruitmentIntents.id, recruitmentInterests.recruitmentIntentId))
     .innerJoin(teams, eq(teams.id, recruitmentIntents.teamId))
     .innerJoin(users, eq(users.id, recruitmentInterests.userId))
     .leftJoin(seasons, eq(seasons.id, recruitmentIntents.targetSeasonId))
     .leftJoin(teamMemberships, and(eq(teamMemberships.userId, users.id), isNull(teamMemberships.endedAt)))
     .leftJoin(currentTeam, and(eq(currentTeam.id, teamMemberships.teamId), eq(currentTeam.status, "active")))
-    .where(and(eq(recruitmentIntents.id, intent.id), actionableInterestCondition(now)));
+    .where(and(eq(recruitmentIntents.id, intent.id), eq(teams.captainUserId, viewerUserId), actionableInterestCondition(now)));
   const interestedUserIds = interestRows.map((row) => row.userId);
   const roles = interestedUserIds.length ? await db.select({ userId: userCompetitiveRoles.userId, role: userCompetitiveRoles.role }).from(userCompetitiveRoles).where(inArray(userCompetitiveRoles.userId, interestedUserIds)) : [];
   const rolesByUser = new Map<string, Cs2Position[]>();

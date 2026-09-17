@@ -19,6 +19,7 @@ export interface MyTeamMember {
   id: string;
   userId: string;
   name: string;
+  qq: string | null;
   status: "active" | "benched" | "left";
 }
 
@@ -73,7 +74,7 @@ export type MyTeamWorkspaceModel =
       outgoingInvitations: MyTeamInvitation[];
       recruitment: MyTeamRecruitment;
       targetSeasons: Array<{ id: string; name: string }>;
-      recruitmentInterests: Array<{ userId: string; name: string; positions: Cs2Position[]; currentTeamName: string | null }>;
+      recruitmentInterests: Array<{ userId: string; name: string; positions: Cs2Position[]; currentTeamName: string | null; qq: string | null }>;
     });
 
 export type MembershipPeriod = {
@@ -166,11 +167,12 @@ export const loadMyTeamWorkspace = cache(async (userId: string): Promise<MyTeamW
       displayName: users.displayName,
       perfectName: users.perfectName,
       steamName: users.steamName,
+      qq: users.qq,
       status: teamMemberships.status,
     }).from(teamMemberships).innerJoin(users, eq(users.id, teamMemberships.userId)).where(and(eq(teamMemberships.teamId, team.id), isNull(teamMemberships.endedAt))),
     loadTeamCompetitionContexts(team.id, userId),
     isCaptain
-      ? getTeamRecruitmentWorkspace(team.id, true)
+      ? getTeamRecruitmentWorkspace(team.id, userId)
       : Promise.resolve({ recruitment: null, targetSeasons: [], interests: [] }),
     isCaptain
       ? db.select({ id: teamInvitations.id, teamId: teams.id, teamName: teams.name, email: users.email, expiresAt: teamInvitations.expiresAt })
@@ -185,6 +187,7 @@ export const loadMyTeamWorkspace = cache(async (userId: string): Promise<MyTeamW
     id: row.id,
     userId: row.userId,
     name: getPublicDisplayName(row),
+    qq: row.qq,
     status: row.status,
   }));
   const shared = { team, members, competitions, history };

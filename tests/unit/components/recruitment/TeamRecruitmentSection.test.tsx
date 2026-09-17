@@ -44,4 +44,17 @@ describe("TeamRecruitmentSection", () => {
 
     await waitFor(() => expect(saveTeamRecruitmentMock).toHaveBeenCalledWith(expect.objectContaining({ teamId: "team-1", targetSeasonId: "registration-season" })));
   });
+
+  it("shows the interested player's private QQ only in the captain workspace", () => {
+    render(<TeamRecruitmentSection
+      team={{ id: "team-1", slug: "rival-team" }}
+      isCaptain
+      recruitment={{ id: "intent-1", positions: [], targetSeasonId: null, targetSeasonName: null, note: null, status: "open", expiresAt: "2026-09-30T00:00:00.000Z", isPubliclyActive: true }}
+      targetSeasons={[]}
+      interests={[{ userId: "player-1", name: "选手甲", positions: ["awper"], currentTeamName: null, qq: "123456" }]}
+    />);
+
+    expect(screen.getByText("QQ：123456")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "选手甲" })).toHaveAttribute("href", "/players/player-1");
+  });
 });
