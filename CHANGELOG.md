@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.10.2]
+
+### Fixed
+
+#### DAK Demo Evidence 语义基线
+
+将 DAK Demo Evidence 的 canonical semantic profile 切换到 `dak-stable/3`：`dak-stable/1` 与 `dak-stable/2` 保留为只读历史，并通过现有 lineage 支持同一 Demo 重新生成 `/3` 后安全 supersede，保持 Evidence V1 wire contract 不变。
+
+#### 列表搜索 hydration
+
+修复列表搜索框在首次冷加载 hydration 完成前可能接受输入但没有触发 React `onChange`，导致 URL 搜索状态不更新的问题。
+
 ## [2.10.1]
 
 ### Fixed
@@ -2247,6 +2259,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[2.10.2]: https://github.com/Starfie1d1272/RivalHub/compare/v2.10.1...v2.10.2
 [2.10.1]: https://github.com/Starfie1d1272/RivalHub/compare/v2.10.0...v2.10.1
 [2.10.0]: https://github.com/Starfie1d1272/RivalHub/compare/v2.9.7...v2.10.0
 [2.9.7]: https://github.com/Starfie1d1272/RivalHub/compare/v2.9.6...v2.9.7
