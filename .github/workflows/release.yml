@@ -58,7 +58,12 @@ jobs:
       requires_db_checkpoint: ${{ steps.plan.outputs.requiresDbCheckpoint }}
       requires_full_checkpoint: ${{ steps.plan.outputs.requiresFullCheckpoint }}
       checkpoint_kind: ${{ steps.checkpoint_kind.outputs.kind }}
+      workflow_started_at: ${{ steps.workflow_start.outputs.started_at }}
     steps:
+      - name: 记录 workflow 起点
+        id: workflow_start
+        run: echo "started_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ inputs.tag || github.ref }}
@@ -404,7 +409,7 @@ jobs:
       RELEASE_MODE: ${{ needs.preflight.outputs.release_mode }}
       RIVALHUB_RELEASE_MODE: ${{ needs.preflight.outputs.release_mode }}
       REQUIRES_SCHEDULER_PROVISION: ${{ needs.preflight.outputs.requires_scheduler_provision }}
-      RELEASE_WORKFLOW_STARTED_AT: ${{ github.run_started_at }}
+      RELEASE_WORKFLOW_STARTED_AT: ${{ needs.preflight.outputs.workflow_started_at }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
