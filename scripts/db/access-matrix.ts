@@ -588,6 +588,13 @@ export const DATABASE_ACCESS_MATRIX: readonly DatabaseAccessEntry[] = [
     "位置资料用于资格和展示 projection，不能由客户端直接访问。",
   ),
   serverOnly(
+    "user_gameplay_steam_ids",
+    "比赛 Steam 身份映射",
+    "观察到的 gameplay Steam64 与用户的可撤销映射",
+    "src/lib/identity/gameplay-steam.ts; src/lib/demo-integration/review.ts",
+    "比赛中观察到的 Steam64 不代表登录或报名资料；映射只能由授权管理员确认，并通过审计与撤销保留历史。",
+  ),
+  serverOnly(
     "user_identities",
     "身份 / credential",
     "高敏感 credential 与 provider subject",

@@ -1,12 +1,14 @@
 import "server-only";
 
-import { asc, eq, inArray } from "drizzle-orm";
+import { asc, desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
   competitionEntries,
   majorFinalResults,
   majorStageRuns,
   matchCommentators,
+  matchDemoImports,
+  matchMaps,
   matches,
   postMatchReports,
   seasonAdminGrants,
@@ -29,12 +31,34 @@ import { buildMajorRuntimeData } from "@/lib/admin/major-runtime";
 import type { Match } from "@/db/schema";
 import type { AdminCommentaryEffectiveness, AdminMatchOverviewData } from "@/lib/admin/matches/types";
 import { buildBatchDeadlineGroups, projectAdminMatchSummary, sortAdminMatches } from "@/lib/admin/matches/shared";
+import { isCurrentDakSemanticProfile } from "@/lib/demo-integration/semantic-profile";
 
 export interface AdminMatchOverviewFilter {
   seasonSlug: string;
   stage?: string;
   status?: string;
   team?: string;
+}
+
+async function loadDemoNeedsAttentionCounts(matchIds: readonly string[]): Promise<Map<string, number>> {
+  if (matchIds.length === 0) return new Map();
+  const rows = await db.select({
+    matchId: matchMaps.matchId,
+    matchMapId: matchDemoImports.matchMapId,
+    semanticProfile: matchDemoImports.semanticProfile,
+    status: matchDemoImports.status,
+  }).from(matchDemoImports)
+    .innerJoin(matchMaps, eq(matchMaps.id, matchDemoImports.matchMapId))
+    .where(inArray(matchMaps.matchId, [...matchIds]))
+    .orderBy(desc(matchDemoImports.createdAt));
+  const seenMaps = new Set<string>();
+  const counts = new Map<string, number>();
+  for (const row of rows) {
+    if (seenMaps.has(row.matchMapId) || !isCurrentDakSemanticProfile(row.semanticProfile) || row.status === "superseded") continue;
+    seenMaps.add(row.matchMapId);
+    if (row.status === "needs_attention") counts.set(row.matchId, (counts.get(row.matchId) ?? 0) + 1);
+  }
+  return counts;
 }
 
 async function loadCommentaryEffectiveness(
@@ -145,7 +169,8 @@ export async function loadAdminMatchOverview({
         matches: allMatches,
         finalResultStatus: finalResult?.status,
       })
-    : { swissRuntime: null, playoffRuntime: null };
+      : { swissRuntime: null, playoffRuntime: null };
+  const demoNeedsAttentionByMatch = await loadDemoNeedsAttentionCounts(allMatches.map((match) => match.id));
 
   const statusFilter = (match: { status: string }) =>
     !filterStatus || filterStatus === "all" || match.status === filterStatus;
@@ -157,9 +182,9 @@ export async function loadAdminMatchOverview({
     stage,
     matches: sortAdminMatches(
       stageMatches.filter(statusFilter).filter(teamFilter),
-    ).map(projectAdminMatchSummary),
+    ).map((match) => projectAdminMatchSummary(match, demoNeedsAttentionByMatch.get(match.id) ?? 0)),
   }));
-  const projectedMatches = allMatches.map(projectAdminMatchSummary);
+  const projectedMatches = allMatches.map((match) => projectAdminMatchSummary(match, demoNeedsAttentionByMatch.get(match.id) ?? 0));
   const commentaryEffectiveness = await loadCommentaryEffectiveness(season.id, allMatches);
 
   const finishedMatchIds = allMatches
@@ -199,7 +224,7 @@ export async function loadAdminMatchOverview({
     stageViews,
     stageReadModels,
     commentaryEffectiveness,
-    unconfiguredMatches: unconfiguredMatches.map(projectAdminMatchSummary),
+    unconfiguredMatches: unconfiguredMatches.map((match) => projectAdminMatchSummary(match, demoNeedsAttentionByMatch.get(match.id) ?? 0)),
     standingsByStage,
     batchDeadlineGroups: buildBatchDeadlineGroups(allMatches, stagePlan),
     canGenerate,

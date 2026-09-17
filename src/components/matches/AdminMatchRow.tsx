@@ -66,6 +66,11 @@ export function AdminMatchRow({
         </span>
         <span>{match.scheduledAt ? `排期：${formatCSTDateTime(match.scheduledAt)}` : "尚未排期"}</span>
         {match.ownership === "major_stage" ? <span>Major runtime 管理</span> : <span>手动比赛</span>}
+        {(match.demoNeedsAttentionCount ?? 0) > 0 && (
+          <span className="font-medium text-[var(--color-warn)]">
+            Demo 数据需要处理 · {match.demoNeedsAttentionCount ?? 0} 张地图
+          </span>
+        )}
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--color-border)] pt-3">

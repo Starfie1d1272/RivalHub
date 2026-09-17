@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 
 import type { TxDb } from "@/db/client";
 import { db } from "@/db/client";
@@ -10,12 +10,14 @@ import {
   matchPlayerStats,
   matches,
   matchRoundFacts,
+  userGameplaySteamIds,
   type DakPairing,
 } from "@/db/schema";
 import { writeAuditInTx } from "@/lib/audit/write";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { parseRivalHubDemoEvidenceV1 } from "@/lib/demo-evidence/contract";
 import { loadEffectiveMatchRoster, type EffectiveMatchRosterPlayer } from "@/lib/match-rosters/effective";
+import { resolveGameplayUsersBySteam64, type GameplayUserResolution } from "@/lib/identity/gameplay-steam";
 import { pairingCanReadSeason } from "./pairing";
 import { type IntegrationIssue, type EvidenceSubmissionResponse, type RivalHubEvidenceSubmission } from "./contracts";
 import { buildEvidenceRevisionForTarget, sha256Json } from "./revision";
@@ -32,6 +34,11 @@ interface CanonicalTarget {
   match: typeof matches.$inferSelect;
   map: typeof matchMaps.$inferSelect;
   roster: EffectiveMatchRosterPlayer[];
+}
+
+interface CanonicalValidation {
+  issues: IntegrationIssue[];
+  resolutions: Map<string, GameplayUserResolution>;
 }
 
 function issue(code: string, message: string, path?: string): IntegrationIssue {
@@ -66,10 +73,11 @@ async function loadCanonicalTarget(tx: TxDb, evidence: RivalHubEvidenceSubmissio
   return { match, map, roster };
 }
 
-function validateCanonicalTarget(
+async function validateCanonicalTarget(
+  tx: TxDb,
   evidence: RivalHubEvidenceSubmission,
   target: CanonicalTarget,
-): IntegrationIssue[] {
+): Promise<CanonicalValidation> {
   const { match, map, roster } = target;
   const issues: IntegrationIssue[] = [];
   if (!isCurrentDakSemanticProfile(evidence.contract.semanticProfile)) {
@@ -96,44 +104,51 @@ function validateCanonicalTarget(
   if (map.scoreA != null && teamSummaries.get("teamA")?.roundWins !== map.scoreA) issues.push(issue("SUMMARY_SCORE_MISMATCH", "Demo teamMaps 与 RivalHub 正式比分不一致。", "summaries.teamMaps"));
   if (map.scoreB != null && teamSummaries.get("teamB")?.roundWins !== map.scoreB) issues.push(issue("SUMMARY_SCORE_MISMATCH", "Demo teamMaps 与 RivalHub 正式比分不一致。", "summaries.teamMaps"));
 
+  const rosterByUser = new Map<string, CanonicalTarget["roster"][number]>();
   const rosterBySteam = new Map<string, CanonicalTarget["roster"][number]>();
-  const rosterUserIds = new Set<string>();
+  const activeAliasUsers = roster.length > 0
+    ? await tx.select({ userId: userGameplaySteamIds.userId })
+      .from(userGameplaySteamIds)
+      .where(and(
+        eq(userGameplaySteamIds.status, "active"),
+        inArray(userGameplaySteamIds.userId, [...new Set(roster.map((member) => member.userId))]),
+      ))
+    : [];
+  const activeAliasUserIds = new Set(activeAliasUsers.map((row) => row.userId));
   for (const member of roster) {
-    if (!/^\d{17}$/.test(member.steam64 ?? "")) {
+    if (!/^\d{17}$/.test(member.steam64 ?? "") && !activeAliasUserIds.has(member.userId)) {
       issues.push(issue("ROSTER_STEAM64_MISSING", "本场首发成员缺少可校验的 Steam64。", "roster"));
-      continue;
     }
-    if (rosterBySteam.has(member.steam64!)) issues.push(issue("ROSTER_STEAM64_DUPLICATE", "本场首发存在重复 Steam64。", "roster"));
-    rosterBySteam.set(member.steam64!, member);
-    if (rosterUserIds.has(member.userId)) issues.push(issue("ROSTER_USER_DUPLICATE", "本场首发存在重复用户。", "roster"));
-    rosterUserIds.add(member.userId);
+    if (member.steam64 && /^\d{17}$/.test(member.steam64)) {
+      if (rosterBySteam.has(member.steam64)) issues.push(issue("ROSTER_STEAM64_DUPLICATE", "本场首发存在重复 Steam64。", "roster"));
+      rosterBySteam.set(member.steam64, member);
+    }
+    if (rosterByUser.has(member.userId)) issues.push(issue("ROSTER_USER_DUPLICATE", "本场首发存在重复用户。", "roster"));
+    rosterByUser.set(member.userId, member);
   }
   if (roster.length !== evidence.participants.length) issues.push(issue("ROSTER_SIZE_MISMATCH", "Demo 选手数必须等于本场首发人数。", "participants"));
   if (roster.length !== 10) issues.push(issue("ROSTER_NOT_COMPLETE", "当前自动接收要求本场双方各 5 名首发。", "roster"));
 
-  const participants = new Set<string>();
+  const resolutions = await resolveGameplayUsersBySteam64(tx, evidence.participants.map((participant) => participant.steamId64));
+  const participantUsers = new Set<string>();
   for (const participant of evidence.participants) {
-    participants.add(participant.steamId64);
-    const expected = rosterBySteam.get(participant.steamId64);
+    const resolution = resolutions.get(participant.steamId64);
+    const expected = resolution ? rosterByUser.get(resolution.userId) : undefined;
     if (!expected) {
       issues.push(issue("PARTICIPANT_NOT_IN_ROSTER", "Demo Steam64 不在本场首发名单中。", `participants.${participant.steamId64}`));
       continue;
     }
     const expectedTeam = expected.entryId === match.entryAId ? "teamA" : expected.entryId === match.entryBId ? "teamB" : null;
     if (expectedTeam !== participant.observedTeamKey) issues.push(issue("PARTICIPANT_TEAM_MISMATCH", "Demo 队伍与本场首发名单不一致。", `participants.${participant.steamId64}`));
-    if (participant.resolution.status !== "matched") {
-      issues.push(issue("PARTICIPANT_IDENTITY_UNRESOLVED", "选手身份未能以 Steam64 唯一匹配，不能自动接收。", `participants.${participant.steamId64}`));
-      continue;
-    }
-    if (participant.resolution.userId !== expected.userId || participant.resolution.eventRosterMemberId !== expected.eventRosterMemberId || participant.resolution.entryId !== expected.entryId) {
-      issues.push(issue("PARTICIPANT_IDENTITY_MISMATCH", "Demo 身份映射与本场首发名单不一致。", `participants.${participant.steamId64}`));
-    }
+    if (participantUsers.has(expected.userId)) issues.push(issue("PARTICIPANT_USER_DUPLICATE", "Demo 中同一位本场首发选手出现了多个 Steam64。", `participants.${participant.steamId64}`));
+    participantUsers.add(expected.userId);
   }
-  for (const steam64 of rosterBySteam.keys()) if (!participants.has(steam64)) issues.push(issue("ROSTER_PARTICIPANT_MISSING", "本场首发成员未出现在 Demo participant 集合中。", "participants"));
-  return issues;
+  for (const member of rosterByUser.values()) if (!participantUsers.has(member.userId)) issues.push(issue("ROSTER_PARTICIPANT_MISSING", "本场首发成员未出现在 Demo participant 集合中。", "participants"));
+  return { issues, resolutions };
 }
 
 async function insertRoundFacts(tx: TxDb, importId: string, evidence: RivalHubEvidenceSubmission): Promise<void> {
+  if (evidence.sourceFacts.rounds.length === 0) return;
   await tx.insert(matchRoundFacts).values(evidence.sourceFacts.rounds.map((row) => ({
     importId,
     roundSeq: row.roundSeq,
@@ -151,7 +166,7 @@ async function insertRoundFacts(tx: TxDb, importId: string, evidence: RivalHubEv
     winnerTeamKey: row.winnerTeamKey,
     winnerSide: row.winnerSide,
     endReason: row.endReason,
-  })));
+  }))).onConflictDoNothing();
 }
 
 function round(value: number, digits: number): number {
@@ -185,7 +200,8 @@ async function projectPlayerStats(
   importId: string,
   evidence: RivalHubEvidenceSubmission,
   target: CanonicalTarget,
-  pairingId: string,
+  verifiedBy: string,
+  resolutions: ReadonlyMap<string, GameplayUserResolution>,
 ): Promise<number> {
   const existing = await tx.select().from(matchPlayerStats).where(eq(matchPlayerStats.mapId, target.map.id)).for("update");
   const byUser = new Map(existing.filter((row) => row.userId != null).map((row) => [row.userId!, row]));
@@ -194,8 +210,9 @@ async function projectPlayerStats(
   let count = 0;
   for (const summary of evidence.summaries.playerMaps) {
     const participant = participantBySteam.get(summary.steamId64);
-    if (!participant || participant.resolution.status !== "matched") continue;
-    const userId = participant.resolution.userId;
+    const resolution = resolutions.get(summary.steamId64);
+    if (!participant || !resolution) continue;
+    const userId = resolution.userId;
     const existingRow = byUser.get(userId) ?? (byName.get(participant.nameSnapshot)?.userId == null ? byName.get(participant.nameSnapshot) : undefined);
     const scoreboardValues = dakStableScoreboardValues(summary);
     const values = {
@@ -215,7 +232,7 @@ async function projectPlayerStats(
       clutches: scoreboardValues.clutches,
       adr: scoreboardValues.adr,
       dakImportId: importId,
-      verifiedByAdmin: `dak:${pairingId}`,
+      verifiedByAdmin: verifiedBy,
       verifiedAt: new Date(),
     };
     if (existingRow) {
@@ -250,7 +267,12 @@ async function confirmImport(
   row: typeof matchDemoImports.$inferSelect,
   evidence: RivalHubEvidenceSubmission,
   target: CanonicalTarget,
-  pairingId: string,
+  actor: {
+    auditActorId: string;
+    verifiedBy: string;
+    auditAction: "match.demo.auto_confirm" | "match.demo.recheck";
+  },
+  resolutions: ReadonlyMap<string, GameplayUserResolution>,
   retryPromotion: boolean,
   supersededImportId: string | null = null,
 ): Promise<void> {
@@ -266,11 +288,11 @@ async function confirmImport(
     ...(supersededImportId ? { supersedesImportId: supersededImportId } : {}),
   }).where(eq(matchDemoImports.id, row.id));
   await insertRoundFacts(tx, row.id, evidence);
-  await projectPlayerStats(tx, row.id, evidence, target, pairingId);
+  await projectPlayerStats(tx, row.id, evidence, target, actor.verifiedBy, resolutions);
   await writeAuditInTx(tx, {
     seasonId: target.match.seasonId,
-    action: "match.demo.auto_confirm",
-    actorId: `dak:${pairingId}`,
+    action: actor.auditAction,
+    actorId: actor.auditActorId,
     targetId: row.id,
     meta: {
       mapOrder: target.map.mapOrder,
@@ -280,6 +302,91 @@ async function confirmImport(
       ...(supersededImportId ? { supersedesImportId: supersededImportId } : {}),
     },
   });
+}
+
+export interface StoredDemoRevalidationArgs {
+  importId: string;
+  actorId: string;
+  verifiedBy: string;
+}
+
+export interface StoredDemoRevalidationResult {
+  status: typeof matchDemoImports.$inferSelect["status"];
+  issues: IntegrationIssue[];
+}
+
+/**
+ * Recheck an already stored current-profile artifact. The payload is parsed
+ * for validation only; it is never rewritten and the normal confirmation
+ * projection remains the single promotion owner.
+ */
+export async function revalidateStoredDemoImportInTx(
+  tx: TxDb,
+  args: StoredDemoRevalidationArgs,
+): Promise<StoredDemoRevalidationResult> {
+  const [row] = await tx.select().from(matchDemoImports)
+    .where(eq(matchDemoImports.id, args.importId))
+    .for("update");
+  if (!row) throw new AppError(ErrorCode.NOT_FOUND, "待处理的 Demo 数据不存在。");
+  if (row.status !== "needs_attention") {
+    return { status: row.status, issues: (row.issues ?? []) as IntegrationIssue[] };
+  }
+  if (!isCurrentDakSemanticProfile(row.semanticProfile)) {
+    return {
+      status: row.status,
+      issues: [issue("UNSUPPORTED_SEMANTIC_PROFILE", dakSemanticProfileIssueMessage(row.semanticProfile), "contract.semanticProfile")],
+    };
+  }
+
+  let evidence: RivalHubEvidenceSubmission;
+  try {
+    evidence = parseRivalHubDemoEvidenceV1(row.payload);
+  } catch (error) {
+    const issues = [issue("STORED_PAYLOAD_INVALID", `已保存的 Demo 数据无法重新校验：${error instanceof Error ? error.message : "格式不合法"}`, "payload")];
+    await tx.update(matchDemoImports).set({ status: "needs_attention", issues }).where(eq(matchDemoImports.id, row.id));
+    return { status: "needs_attention", issues };
+  }
+
+  if (
+    evidence.target.seasonId !== row.seasonId
+    || evidence.target.matchId !== row.matchId
+    || evidence.target.matchMapId !== row.matchMapId
+  ) {
+    const issues = [issue("STORED_TARGET_MISMATCH", "已保存的 Demo 数据目标已变化，不能自动确认。", "target")];
+    await tx.update(matchDemoImports).set({ status: "needs_attention", issues }).where(eq(matchDemoImports.id, row.id));
+    return { status: "needs_attention", issues };
+  }
+
+  const target = await loadCanonicalTarget(tx, evidence);
+  const validation = await validateCanonicalTarget(tx, evidence, target);
+  const issues = validation.issues;
+  const currentRevision = buildEvidenceRevisionForTarget(target);
+  if (evidence.target.evidenceRevision !== currentRevision) {
+    issues.push(issue("STALE_EVIDENCE", "Demo Evidence 基于旧的赛事/阵容/比分快照，请刷新后重新生成。", "target.evidenceRevision"));
+  }
+
+  if (issues.length > 0) {
+    await tx.update(matchDemoImports).set({ status: "needs_attention", issues }).where(eq(matchDemoImports.id, row.id));
+    await writeAuditInTx(tx, {
+      seasonId: target.match.seasonId,
+      action: "match.demo.recheck",
+      actorId: args.actorId,
+      targetId: row.id,
+      meta: { mapOrder: target.map.mapOrder, playerCount: evidence.participants.length, confirmed: false, issueCount: issues.length },
+    });
+    return { status: "needs_attention", issues };
+  }
+
+  await confirmImport(
+    tx,
+    row,
+    evidence,
+    target,
+    { auditActorId: args.actorId, verifiedBy: args.verifiedBy, auditAction: "match.demo.recheck" },
+    validation.resolutions,
+    true,
+  );
+  return { status: "confirmed", issues: [] };
 }
 
 export async function submitRivalHubEvidence(args: SubmitEvidenceArgs): Promise<EvidenceSubmissionResponse> {
@@ -306,7 +413,8 @@ export async function submitRivalHubEvidence(args: SubmitEvidenceArgs): Promise<
 
     const target = await loadCanonicalTarget(tx, evidence);
     const currentRevision = buildEvidenceRevisionForTarget(target);
-    const issues = validateCanonicalTarget(evidence, target);
+    const validation = await validateCanonicalTarget(tx, evidence, target);
+    const issues = validation.issues;
     if (evidence.target.evidenceRevision !== currentRevision) issues.push(issue("STALE_EVIDENCE", "Demo Evidence 基于旧的赛事/阵容/比分快照，请刷新后重新生成。", "target.evidenceRevision"));
 
     const priorRows = await tx.select().from(matchDemoImports)
@@ -331,7 +439,16 @@ export async function submitRivalHubEvidence(args: SubmitEvidenceArgs): Promise<
         issues.push(issue("CONTENT_CONFLICT", "该地图已有另一份已确认 Demo；不同内容必须显式进入冲突处理，不能静默覆盖。", "source.demoSha256"));
       }
       if (same.status === "needs_attention" && issues.length === 0) {
-        await confirmImport(tx, same, evidence, target, args.pairingId, true, sameDemoPrior?.id ?? null);
+        await confirmImport(
+          tx,
+          same,
+          evidence,
+          target,
+          { auditActorId: `dak:${args.pairingId}`, verifiedBy: `dak:${args.pairingId}`, auditAction: "match.demo.auto_confirm" },
+          validation.resolutions,
+          true,
+          sameDemoPrior?.id ?? null,
+        );
         return { ...responseFor({ ...same, status: "confirmed" }), status: "synced", issues: [] };
       }
       await tx.update(matchDemoImports).set({ issues }).where(eq(matchDemoImports.id, same.id));
@@ -364,7 +481,16 @@ export async function submitRivalHubEvidence(args: SubmitEvidenceArgs): Promise<
     if (!created) throw new AppError(ErrorCode.INTERNAL_ERROR, "保存 Demo Evidence 失败。");
 
     if (status === "confirmed") {
-      await confirmImport(tx, created, evidence, target, args.pairingId, false, sameDemoPrior?.id ?? null);
+      await confirmImport(
+        tx,
+        created,
+        evidence,
+        target,
+        { auditActorId: `dak:${args.pairingId}`, verifiedBy: `dak:${args.pairingId}`, auditAction: "match.demo.auto_confirm" },
+        validation.resolutions,
+        false,
+        sameDemoPrior?.id ?? null,
+      );
     } else {
       await writeAuditInTx(tx, {
         seasonId: target.match.seasonId,

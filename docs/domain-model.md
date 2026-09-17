@@ -10,6 +10,8 @@
 
 credential linking 只证明并绑定新的 identity，不复制或移动赛事事实。两个已有 `users.id` 的归并必须先生成 fail-closed preflight：用户选择的保留账号资料和竞技资料原样不变，待归并账号的竞技资料直接删除；登录身份、已确认的 person facts 和不冲突的业务历史归到保留账号，临时状态关闭，历史 actor/provenance 继续保留原账号。只有 Steam 身份、Team 时间线/队长状态、不同参赛身份或同一地图两份正式比赛数据等无法无歧义处理的事实才阻止自助归并。成功归并后 loser 作为可追溯 alias 保留在 `user_merge_ledger`，不会被无痕删除。
 
+`users.steam64` 仍是选手报名/资料中的长期字段，不等同于比赛中观察到的 Steam 身份。`user_gameplay_steam_ids` 只记录经授权管理员确认的、可撤销的 gameplay Steam64 → `users.id` 映射；同一用户可以有多个 active gameplay Steam64，但一个 active Steam64 只能指向一个用户。比赛 Demo 的身份解析统一消费 `src/lib/identity/gameplay-steam.ts`，冲突数据 fail closed；确认或撤销不会修改 `users.steam64`，也不产生登录凭据。
+
 ### Player-declared profile
 
 `users.gameplay_style` 与 `users.competition_history` 是 canonical user-owned long-lived profile，回答选手当前公开声明的打法/风格与比赛经历。设置页可以随时维护这两个字段，公开 Player Profile 只通过显式 `PublicPlayer` DTO 消费它们；空值保持 unknown，不从某届赛事推断当前资料。
@@ -110,6 +112,8 @@ Rivals 的个人报名仍由 `season_registrations` 表达；投票由 `captain_
 
 BP、时间协商、实际阵容、玩家统计和赛后资料拥有各自明确事实。后台列表、standings、工作台摘要都只是这些事实的 projection，不成为新的结果或 roster owner。
 
+DAK `match_demo_imports.payload` 是不可变的观察证据；RivalHub 负责把当前比赛阵容和 gameplay Steam 身份映射应用到它。管理员确认后只新增/复用身份映射，再对当前 `/3` payload 走同一套完整校验和确认 projection；不重新解析、不上传、不修改 payload，也不绕过其它比赛、阵容、比分或 QA 不变量。
+
 结果更正不能绕开 managed runtime。若更正会影响 Major 后续 pairing/stage，必须通过 recovery owner 处理。
 
 ## Major prestart and runtime
@@ -176,6 +180,7 @@ Major Swiss 的 public/admin read model 只从 `major_stage_entrants`、`matches
 | Team membership 与赛事 roster 分离 | teams / CompetitionEntry / roster owners |
 | Entry roster change 不静默改写 frozen EventRoster | CompetitionEntry + Major prestart owners |
 | 一场比赛阵容只能消费本届合法 EventRoster | match-roster owner + DB invariant |
+| Demo 观察到的 Steam64 只能经 gameplay identity owner 解析 | `src/lib/identity/gameplay-steam.ts` + `user_gameplay_steam_ids` |
 | Major runtime 按 frozen StageRun facts 推进 | `src/lib/major/` |
 | official series score 与 map score 语义分离 | match result owner |
 | public business tables 默认 server-only | generated database access matrix + migrations |
