@@ -3,6 +3,7 @@ import { dirname, join, resolve } from "node:path";
 import {
   assertRecoveryFetchEnvironment,
   assertR2BucketName,
+  recoveryArtifactKindForClass,
   type R2ObjectEnvironment,
 } from "./environment";
 import {
@@ -23,7 +24,7 @@ interface FetchArguments {
 }
 
 interface RecoveryObjectIdentity {
-  backupClass: "daily" | "pre-release" | "manual";
+  backupClass: "daily" | "pre-release" | "manual" | "release-db";
   date: string;
   runId: string;
 }
@@ -93,7 +94,7 @@ export function assertRecoveryFetchOutputDirectory(value: string | undefined): s
 }
 
 function parseCompletionKey(value: string): RecoveryObjectIdentity {
-  const match = value.match(/^production\/(daily|pre-release|manual)\/(\d{4}-\d{2}-\d{2})\/([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})\.complete\.json$/i);
+  const match = value.match(/^production\/(daily|pre-release|manual|release-db)\/(\d{4}-\d{2}-\d{2})\/([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})\.complete\.json$/i);
   if (!match) throw new Error("Recovery completion key identity is invalid; fetch aborted. ");
   return {
     backupClass: match[1] as RecoveryObjectIdentity["backupClass"],
@@ -114,7 +115,11 @@ function assertCompletionIdentity(
   identity: RecoveryObjectIdentity,
   artifactKey: string,
 ): void {
-  if (completion.runId !== identity.runId || completion.artifactKey !== artifactKey) {
+  if (
+    completion.runId !== identity.runId
+    || completion.artifactKey !== artifactKey
+    || completion.artifactKind !== recoveryArtifactKindForClass(identity.backupClass)
+  ) {
     throw new Error("Recovery completion marker does not match its object key; fetch aborted. ");
   }
 }
@@ -129,6 +134,7 @@ function assertSidecarIdentity(
     sidecar.runId !== completion.runId
     || sidecar.artifactKey !== artifactKey
     || sidecar.artifactSha256 !== completion.artifactSha256
+    || sidecar.artifactKind !== completion.artifactKind
     || sidecar.backupClass !== identity.backupClass
     || sidecar.createdAt.slice(0, 10) !== identity.date
   ) {

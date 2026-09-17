@@ -31,6 +31,14 @@ export interface MigrationRiskClassifierOptions {
   includeStatementText?: boolean;
 }
 
+export type MigrationRiskLevel = "none" | "forward-compatible" | "irreversible";
+
+export interface MigrationRiskSummary {
+  risk: MigrationRiskLevel;
+  findings: MigrationRiskFinding[];
+  unknownStatements: string[];
+}
+
 export type MigrationContractOwnerKind = "relation" | "column" | "type";
 
 export interface MigrationContractOwner {
@@ -103,6 +111,70 @@ export function classifyMigrationSql(
   }
 
   return findings;
+}
+
+/**
+ * Resolve a migration's release-gate risk. The allowlist is intentionally
+ * narrow: an unrecognised statement is treated as irreversible so a release
+ * plan cannot silently turn an unknown data or locking operation into a cheap
+ * application-only path.
+ */
+export function classifyMigrationRisk(
+  sql: string,
+  filePath = "<inline migration>",
+): MigrationRiskSummary {
+  const findings = classifyMigrationSql(sql, filePath, { includeStatementText: true });
+  if (findings.some((finding) => ["drop", "rename", "alter-type", "set-not-null"].includes(finding.category))) {
+    return { risk: "irreversible", findings, unknownStatements: [] };
+  }
+
+  const unknownStatements: string[] = [];
+  let sawForwardCompatibleStatement = false;
+  for (const statement of splitSqlStatements(sql)) {
+    const masked = maskSql(statement.text);
+    const codeLineOffset = firstCodeLineOffset(masked);
+    if (codeLineOffset < 0) continue;
+
+    const statementFindings = findings.filter((finding) => finding.statementText === statement.text);
+    if (statementFindings.length > 0) {
+      if (statementFindings.every((finding) =>
+        finding.category === "rewrite-or-exclusive-lock" && finding.annotationKind === "locking-reviewed")) {
+        sawForwardCompatibleStatement = true;
+        continue;
+      }
+      unknownStatements.push(statement.text.trim().replace(/\s+/g, " ").slice(0, 180));
+      continue;
+    }
+
+    if (isForwardCompatibleStatement(masked)) {
+      sawForwardCompatibleStatement = true;
+    } else {
+      unknownStatements.push(statement.text.trim().replace(/\s+/g, " ").slice(0, 180));
+    }
+  }
+
+  return {
+    risk: unknownStatements.length > 0
+      ? "irreversible"
+      : sawForwardCompatibleStatement
+        ? "forward-compatible"
+        : "none",
+    findings,
+    unknownStatements,
+  };
+}
+
+function isForwardCompatibleStatement(maskedSql: string): boolean {
+  const statement = maskedSql.replace(/--.*$/gm, " ").trim().replace(/;\s*$/, "").trim();
+  if (/^CREATE\s+(?:TYPE|TABLE|SEQUENCE|VIEW|MATERIALIZED\s+VIEW|FUNCTION|TRIGGER)\b/i.test(statement)) {
+    return true;
+  }
+  if (/^ALTER\s+TABLE\b[\s\S]*\bADD\s+COLUMN\b/i.test(statement)) {
+    return !/\b(?:NOT\s+NULL|DEFAULT)\b/i.test(statement);
+  }
+  return /^ALTER\s+TABLE\b[\s\S]*\b(?:ENABLE|DISABLE|FORCE|NO\s+FORCE)\s+ROW\s+LEVEL\s+SECURITY\b/i.test(statement)
+    || /^CREATE\s+(?:UNIQUE\s+)?INDEX\s+CONCURRENTLY\b/i.test(statement)
+    || /^(?:GRANT|REVOKE|SET)\b/i.test(statement);
 }
 
 export function changedMigrationFiles(cwd = process.cwd(), defaultBase?: string): string[] {

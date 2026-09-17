@@ -3,10 +3,10 @@ import { randomUUID } from "node:crypto";
 import { resolve } from "node:path";
 import { Client } from "pg";
 import { assertLocalDatabaseUrl } from "./local-environment";
+import { replayActiveMigrationChain } from "./migration-replay";
 
 const projectRoot = resolve(process.cwd());
 const binSuffix = process.platform === "win32" ? ".cmd" : "";
-const drizzleBin = resolve(projectRoot, `node_modules/.bin/drizzle-kit${binSuffix}`);
 const tsxBin = resolve(projectRoot, `node_modules/.bin/tsx${binSuffix}`);
 const vitestBin = resolve(projectRoot, `node_modules/.bin/vitest${binSuffix}`);
 
@@ -96,7 +96,7 @@ function bootstrapDatabase(databaseUrlValue: string): void {
     RIVALHUB_LOCAL_DATABASE_URL: databaseUrlValue,
     RIVALHUB_DB_TARGET: "local",
   };
-  runCommand("migrate", drizzleBin, ["migrate", "--config=drizzle.local.config.ts"], env);
+  runCommand("migrate", () => replayActiveMigrationChain(databaseUrlValue, env));
   runCommand("seed", tsxBin, ["scripts/seed.ts"], env);
   runCommand("fixtures", tsxBin, ["scripts/db/seed-local-fixtures.ts"], env);
   runCommand("verify-db", tsxBin, ["scripts/db/verify-db.ts"], env);
@@ -120,19 +120,28 @@ async function dropDatabases(configuredUrl: string, names: readonly string[]): P
   }
 }
 
-function runCommand(label: string, executable: string, args: readonly string[], env: NodeJS.ProcessEnv): void {
+function runCommand(label: string, operation: () => void): void;
+function runCommand(label: string, executable: string, args: readonly string[], env: NodeJS.ProcessEnv): void;
+function runCommand(
+  label: string,
+  executableOrOperation: string | (() => void),
+  args?: readonly string[],
+  env?: NodeJS.ProcessEnv,
+): void {
   const startedAt = Date.now();
   try {
-    const result = spawnSync(executable, [...args], {
+    if (typeof executableOrOperation === "function") {
+      executableOrOperation();
+      return;
+    }
+    const result = spawnSync(executableOrOperation, [...(args ?? [])], {
       cwd: projectRoot,
       env,
       stdio: "inherit",
     });
     if (result.error) throw result.error;
-    if (result.signal) throw new Error(`${executable} 被信号 ${result.signal} 终止。`);
-    if (result.status !== 0) {
-      throw new Error(`${executable} 执行失败（exit ${result.status ?? "unknown"}）。`);
-    }
+    if (result.signal) throw new Error(`${executableOrOperation} 被信号 ${result.signal} 终止。`);
+    if (result.status !== 0) throw new Error(`${executableOrOperation} 执行失败（exit ${result.status ?? "unknown"}）。`);
   } finally {
     reportTiming(label, startedAt);
   }

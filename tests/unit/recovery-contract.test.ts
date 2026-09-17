@@ -62,6 +62,7 @@ function validManifest() {
         terminalWhen: terminal.when,
       },
     },
+    artifactKind: "full" as const,
     backupClass: "daily" as const,
     database: {
       schemas: ["public", "auth"] as const,
@@ -88,6 +89,32 @@ describe("recovery contracts", () => {
 
     expect(parsed).toEqual(manifest);
     expect(serializeManifest({ ...manifest, storage: { ...manifest.storage } })).toBe(serializeManifest(manifest));
+  });
+
+  it("accepts a DB-only release checkpoint without a Storage snapshot", () => {
+    const { storage, ...databaseOnlyBase } = validManifest();
+    void storage;
+    const manifest = {
+      ...databaseOnlyBase,
+      artifactKind: "db-checkpoint" as const,
+      backupClass: "release-db" as const,
+    };
+    expect(assertRecoveryManifest(manifest)).toEqual(manifest);
+    expect(buildRecoveryR2Keys("release-db", RUN_ID, CREATED_AT).artifact).toBe(
+      `production/release-db/2026-09-10/${RUN_ID}.tar.gz.age`,
+    );
+    expect(() => assertRecoveryManifest({ ...manifest, storage: {} })).toThrow(/不得包含 Storage snapshot/);
+  });
+
+  it("keeps full recovery and DB-only restore capabilities separate", () => {
+    const restoreSource = readFileSync(join(process.cwd(), "scripts/db/recovery/restore.ts"), "utf8");
+
+    expect(restoreSource).toContain("--mode");
+    expect(restoreSource).toContain("buildIsolatedRecoveryDatabaseEnvironment");
+    expect(restoreSource).toContain("Isolated DB-only recovery restore verified");
+    expect(restoreSource).toContain("storage=not-captured");
+    expect(restoreSource).toContain("db-checkpoint artifact 不能由 db:recovery:restore 恢复");
+    expect(restoreSource).toContain("db-checkpoint artifact 不得包含 Storage snapshot");
   });
 
   it("rejects incomplete or tampered recovery identities", () => {
@@ -352,6 +379,7 @@ describe("recovery contracts", () => {
 
   it("checks managed Storage references around the complete snapshot window", () => {
     const backupSource = readFileSync(join(process.cwd(), "scripts/db/recovery/backup.ts"), "utf8");
+    const artifactSource = readFileSync(join(process.cwd(), "scripts/db/recovery/artifact.ts"), "utf8");
     const firstReferenceRead = backupSource.indexOf("readManagedStorageReferencesFromProduction(environment.databaseUrl)");
     const databaseSnapshot = backupSource.indexOf("createDatabaseSnapshot(environment.databaseUrl, stagingRoot)");
     const storageSnapshot = backupSource.indexOf("snapshotStorage(");
@@ -366,8 +394,9 @@ describe("recovery contracts", () => {
     expect(secondReferenceRead).toBeLessThan(stabilityCheck);
     expect(stabilityCheck).toBeLessThan(captureCheck);
 
-    const completionReadback = backupSource.indexOf("verifyR2Object(r2, keys.completion");
+    const completionReadback = artifactSource.indexOf("verifyR2Object(r2, keys.completion");
     expect(completionReadback).toBeGreaterThan(-1);
+    expect(backupSource).toContain("publishRecoveryArtifact");
     expect(backupSource).not.toContain("heartbeat");
     expect(backupSource).not.toContain("education_verifications");
     expect(backupSource).toContain("readManagedStorageReferences(pool)");

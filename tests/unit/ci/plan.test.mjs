@@ -1,5 +1,6 @@
+import { execFileSync } from "node:child_process";
 import { describe, expect, it } from "vitest";
-import { classifyChangedFiles, parseNameStatus } from "../../../scripts/ci/plan.mjs";
+import { classifyChangedFiles, isReleaseMetadataOnly, parseNameStatus } from "../../../scripts/ci/plan.mjs";
 
 describe("changed-surface planner", () => {
   it.each([
@@ -53,6 +54,69 @@ describe("changed-surface planner", () => {
     expect(classifyChangedFiles([]).requiredJobs).toEqual(["static", "postgres", "system"]);
   });
 
+  it("uses the release-metadata-only fast path only for a top-level version change", () => {
+    const before = {
+      name: "@rivalhub/web",
+      version: "2.10.0",
+      packageManager: "pnpm@12.3.4",
+      scripts: { build: "next build" },
+      dependencies: { next: "16.0.0" },
+    };
+    const after = { ...before, version: "2.10.1" };
+    const metadataEntries = [
+      { status: "D", paths: [".changeset/release.md"] },
+      { status: "M", paths: ["CHANGELOG.md"] },
+      { status: "M", paths: ["package.json"] },
+    ];
+
+    expect(isReleaseMetadataOnly(metadataEntries, { packageJsonBefore: before, packageJsonAfter: after })).toBe(true);
+    expect(classifyChangedFiles(metadataEntries, { packageJsonBefore: before, packageJsonAfter: after }).requiredJobs).toEqual([]);
+    expect(classifyChangedFiles(metadataEntries, { packageJsonBefore: before, packageJsonAfter: after }).full).toBe(false);
+  });
+
+  it("recognises the v2.10.1 release commit as metadata-only", () => {
+    const fixture = readV2101Fixture();
+
+    expect(isReleaseMetadataOnly(fixture.entries, { packageJsonBefore: fixture.before, packageJsonAfter: fixture.after })).toBe(true);
+    expect(classifyChangedFiles(fixture.entries, { packageJsonBefore: fixture.before, packageJsonAfter: fixture.after }).full).toBe(false);
+  });
+
+  it.each([
+    ["dependency", { dependencies: { next: "16.0.1" } }],
+    ["script", { scripts: { build: "next build", release: "echo release" } }],
+    ["packageManager", { packageManager: "pnpm@12.4.0" }],
+  ])("fails closed for package.json %s changes", (_label, change) => {
+    const before = { version: "2.10.0", scripts: { build: "next build" }, dependencies: { next: "16.0.0" }, packageManager: "pnpm@12.3.4" };
+    const after = { ...before, ...change, version: "2.10.1" };
+    const entries = [{ status: "M", paths: ["package.json"] }];
+    expect(isReleaseMetadataOnly(entries, { packageJsonBefore: before, packageJsonAfter: after })).toBe(false);
+    expect(classifyChangedFiles(entries, { packageJsonBefore: before, packageJsonAfter: after }).full).toBe(true);
+  });
+
+  it("does not bypass the normal planner when source or lockfile changes with release metadata", () => {
+    const before = { version: "2.10.0", scripts: { build: "next build" } };
+    const after = { ...before, version: "2.10.1" };
+    const entries = [
+      { status: "M", paths: ["package.json"] },
+      { status: "M", paths: ["src/app/page.tsx"] },
+      { status: "M", paths: ["pnpm-lock.yaml"] },
+    ];
+    expect(isReleaseMetadataOnly(entries, { packageJsonBefore: before, packageJsonAfter: after })).toBe(false);
+    expect(classifyChangedFiles(entries, { packageJsonBefore: before, packageJsonAfter: after }).full).toBe(true);
+  });
+
+  it("keeps a version plus lockfile change on the full path", () => {
+    const before = { version: "2.10.0", scripts: { build: "next build" } };
+    const after = { ...before, version: "2.10.1" };
+    const entries = [
+      { status: "M", paths: ["package.json"] },
+      { status: "M", paths: ["pnpm-lock.yaml"] },
+    ];
+
+    expect(isReleaseMetadataOnly(entries, { packageJsonBefore: before, packageJsonAfter: after })).toBe(false);
+    expect(classifyChangedFiles(entries, { packageJsonBefore: before, packageJsonAfter: after }).full).toBe(true);
+  });
+
   it("decouples Draft and Ready PR from evidence depth and only alters gateName", () => {
     const pureUiEntry = [{ status: "M", paths: ["src/components/layout/Footer.tsx"] }];
     
@@ -102,6 +166,24 @@ describe("changed-surface planner", () => {
     const educationValidation = classifyChangedFiles([{ status: "M", paths: ["src/lib/education/validation.ts"] }], { draft: false });
     expect(educationValidation.runSystem).toBe(false);
     expect(educationValidation.requiredJobs).not.toContain("system");
+  });
+
+  it("routes ListSearchField to the focused mobile public-event evidence", () => {
+    const plan = classifyChangedFiles([{ status: "M", paths: ["src/components/rivalhub/ListSearchField.tsx"] }], { draft: false });
+
+    expect(plan.requiredJobs).toContain("system");
+    expect(plan.e2eSpecs).toEqual(["tests/e2e/flows/public-event-experience.spec.ts"]);
+    expect(plan.mobileSearchEvidence).toBe(true);
+  });
+
+  it("keeps focused mobile evidence when another changed surface forces FULL", () => {
+    const plan = classifyChangedFiles([
+      { status: "M", paths: [".github/workflows/ci.yml"] },
+      { status: "M", paths: ["src/components/rivalhub/ListSearchField.tsx"] },
+    ], { draft: false });
+
+    expect(plan.full).toBe(true);
+    expect(plan.mobileSearchEvidence).toBe(true);
   });
 
   it("enforces invariant: any evidence with e2eSpecs must activate system capability", () => {
@@ -200,3 +282,24 @@ describe("changed-surface planner", () => {
     ]));
   });
 });
+
+function readV2101Fixture() {
+  const releaseCommit = "04204d2594b361f7d8d0f66dda96e56356acc3af";
+  try {
+    const parentCommit = execFileSync("git", ["rev-parse", `${releaseCommit}^`], { encoding: "utf8" }).trim();
+    return {
+      entries: parseNameStatus(execFileSync("git", ["diff", "--name-status", `${parentCommit}...${releaseCommit}`], { encoding: "utf8" })),
+      before: JSON.parse(execFileSync("git", ["show", `${parentCommit}:package.json`], { encoding: "utf8" })),
+      after: JSON.parse(execFileSync("git", ["show", `${releaseCommit}:package.json`], { encoding: "utf8" })),
+    };
+  } catch {
+    // Static CI jobs use shallow checkouts. Preserve the exact real release
+    // shape as an inline fallback so the planner test does not require history
+    // unrelated to the changed-surface contract.
+    return {
+      entries: parseNameStatus("D\t.changeset/fix-demo-evidence-suicide-weapon-breakdown.md\nM\tCHANGELOG.md\nM\tpackage.json\n"),
+      before: { name: "rivalhub", version: "2.10.0", private: true, scripts: {} },
+      after: { name: "rivalhub", version: "2.10.1", private: true, scripts: {} },
+    };
+  }
+}

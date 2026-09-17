@@ -37,6 +37,8 @@ pnpm db:check
 
 对于 DROP、rename、ALTER TYPE、SET NOT NULL、可能 rewrite / exclusive lock 等风险，必须按 checker contract 提供对应的 durable annotation 和可解释理由；annotation 只记录已经完成的审查，不是绕过安全证明的开关。
 
+Release Plan 使用同一 owner 将 active migration SQL 归类为 `none`、`forward-compatible` 或 `irreversible`；未识别的 SQL 按 `irreversible` fail closed。`forward-compatible` migration 进入 PostgreSQL 17 replay 与 production migrate/verify；`irreversible` migration 在 production mutation 前还必须完成 DB-only encrypted checkpoint。Storage object mutation 另行要求 full checkpoint。
+
 ### 4. 用真实 PostgreSQL 回放
 
 ```bash
@@ -44,6 +46,14 @@ pnpm test:integration
 ```
 
 migration、constraint、transaction、locking 与 backfill 不能只靠 unit mock 证明。
+
+Release workflow 的 plain PostgreSQL 17 rehearsal 使用：
+
+```bash
+pnpm db:release-rehearsal
+```
+
+该命令复用 `preparePg17Database()` 与 `scripts/db/migration-replay.ts`；CI PostgreSQL lane、Release 和本地 `db:local:migrate` 不维护相互漂移的 replay runner。
 
 ### 5. 验证 release compatibility
 

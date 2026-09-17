@@ -43,6 +43,8 @@ const SYSTEM_APP_PREFIXES = [
 const SYSTEM_ACTION_PREFIXES = [
   "src/actions/auth",
 ];
+const MOBILE_PUBLIC_EVENT_SEARCH_SPEC = "tests/e2e/flows/public-event-experience.spec.ts";
+const MOBILE_PUBLIC_EVENT_SEARCH_SOURCES = new Set(["src/components/rivalhub/ListSearchField.tsx"]);
 
 const SYSTEM_FLOW_MAP = [
   {
@@ -67,6 +69,10 @@ const SYSTEM_FLOW_MAP = [
     ],
     specs: ["tests/e2e/flows/education-manual-fallback.spec.ts"],
   },
+  {
+    prefixes: ["src/components/rivalhub/ListSearchField.tsx"],
+    specs: [MOBILE_PUBLIC_EVENT_SEARCH_SPEC],
+  },
 ];
 
 function systemSpecsForPath(path) {
@@ -83,16 +89,22 @@ const CODE_EXTENSIONS = /\.(?:[cm]?[jt]sx?|vue|svelte)$/;
 const LINT_EXTENSIONS = /\.[cm]?[jt]sx?$/;
 const E2E_SPEC_FILE = /^tests\/e2e\/.+\.spec\.(?:[cm]?[jt]sx?)$/;
 const INTEGRATION_SPEC_FILE = /^tests\/integration\/db\/(?!harness\/).+\.(?:test|spec)\.(?:[cm]?[jt]sx?)$/;
-
 export function classifyChangedFiles(entries, options = {}) {
   const { forceFull = false, draft = true } = options;
   const gateName = draft ? "draft-gate" : "ci-gate";
-  const result = (...args) => ({ ...resultFor(...args), gateName });
+  const mobileSearchEvidence = entries.some((entry) =>
+    (entry.paths ?? []).some((path) => MOBILE_PUBLIC_EVENT_SEARCH_SOURCES.has(path) || path === MOBILE_PUBLIC_EVENT_SEARCH_SPEC),
+  );
+  const result = (...args) => ({ ...resultFor(...args), gateName, mobileSearchEvidence });
   if (forceFull) {
     return result(CAPABILITIES, true, "受保护分支、merge queue、schedule 或手动运行，强制 full gate");
   }
   if (entries.length === 0) {
     return result(CAPABILITIES, true, "无法取得 changed-surface，fail closed 到 full gate");
+  }
+
+  if (isReleaseMetadataOnly(entries, options)) {
+    return result([], false, "release-metadata-only：只包含 version、CHANGELOG 与 Changeset metadata");
   }
 
   const capabilities = new Set();
@@ -147,6 +159,51 @@ export function classifyChangedFiles(entries, options = {}) {
       integrationSpecs: [...evidence.integrationSpecs].sort(),
       e2eSpecs: [...evidence.e2eSpecs].sort(),
     },
+  );
+}
+
+/**
+ * A package.json change is safe to keep on the metadata-only fast path only
+ * when the semantic JSON is unchanged apart from its top-level version.
+ * Callers that do not provide both snapshots fail closed to the normal FULL
+ * package/toolchain classification.
+ */
+export function isReleaseMetadataOnly(entries, options = {}) {
+  const changedPaths = entries.flatMap((entry) => entry.paths ?? []);
+  const packageEntries = entries.filter((entry) => entry.paths?.includes("package.json"));
+  if (packageEntries.length !== 1 || packageEntries[0].status !== "M") return false;
+  if (changedPaths.some((path) => !isReleaseMetadataPath(path))) return false;
+
+  const before = options.packageJsonBefore;
+  const after = options.packageJsonAfter;
+  if (!before || !after || typeof before !== "object" || typeof after !== "object") return false;
+  if (before.version === after.version || typeof before.version !== "string" || typeof after.version !== "string") {
+    return false;
+  }
+
+  return stableSemanticJson(withoutPackageVersion(before)) === stableSemanticJson(withoutPackageVersion(after));
+}
+
+function isReleaseMetadataPath(path) {
+  return path.startsWith(".changeset/") || path === "CHANGELOG.md" || path === "package.json";
+}
+
+function withoutPackageVersion(value) {
+  return Object.fromEntries(Object.entries(value).filter(([key]) => key !== "version"));
+}
+
+function stableSemanticJson(value) {
+  if (Array.isArray(value)) return JSON.stringify(value.map(stableSemanticJsonValue));
+  return JSON.stringify(stableSemanticJsonValue(value));
+}
+
+function stableSemanticJsonValue(value) {
+  if (Array.isArray(value)) return value.map(stableSemanticJsonValue);
+  if (!value || typeof value !== "object") return value;
+  return Object.fromEntries(
+    Object.entries(value)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, entry]) => [key, stableSemanticJsonValue(entry)]),
   );
 }
 
@@ -439,7 +496,12 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   const forceFull = process.env.FORCE_FULL === "1" || process.env.FORCE_FULL === "true";
   const draft = process.env.PR_DRAFT !== "false";
   const entries = gitChangedFiles();
-  const plan = classifyChangedFiles(entries, { forceFull, draft });
+  const plan = classifyChangedFiles(entries, {
+    forceFull,
+    draft,
+    packageJsonBefore: readPackageJsonAtRevision(process.env.BASE_SHA),
+    packageJsonAfter: readPackageJsonAtRevision(process.env.HEAD_SHA || "HEAD"),
+  });
   console.log(`CI plan: ${plan.full ? "FULL" : plan.requiredJobs.join(" + ")} | ${plan.reason}`);
   for (const entry of entries) console.log(`changed ${entry.status}\t${entry.paths.join("\t")}`);
   output("full", String(plan.full));
@@ -455,5 +517,22 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   output("integration_specs", JSON.stringify(plan.integrationSpecs));
   output("system_mode", plan.e2eSpecs.length > 0 ? "affected" : "full");
   output("e2e_specs", JSON.stringify(plan.e2eSpecs));
+  output("mobile_search_evidence", String(plan.mobileSearchEvidence));
   output("gate_name", plan.gateName);
+  output("release_metadata_only", String(isReleaseMetadataOnly(entries, {
+    packageJsonBefore: readPackageJsonAtRevision(process.env.BASE_SHA),
+    packageJsonAfter: readPackageJsonAtRevision(process.env.HEAD_SHA || "HEAD"),
+  })));
+}
+
+function readPackageJsonAtRevision(revision) {
+  if (!revision || /^0+$/.test(revision)) return undefined;
+  try {
+    return JSON.parse(execFileSync("git", ["show", `${revision}:package.json`], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    }));
+  } catch {
+    return undefined;
+  }
 }

@@ -12,13 +12,22 @@ const PRODUCTION_SUPABASE_URL = `https://${PRODUCTION_PROJECT_REF}.supabase.co`;
 const RECOVERY_TARGET = "isolated" as const;
 
 export type BackupClass = "daily" | "pre-release" | "manual";
+export type RecoveryArtifactClass = BackupClass | "release-db";
+export type RecoveryArtifactKind = "full" | "db-checkpoint";
 
 const BACKUP_CLASSES: readonly BackupClass[] = ["daily", "pre-release", "manual"];
+const RECOVERY_ARTIFACT_CLASSES: readonly RecoveryArtifactClass[] = [...BACKUP_CLASSES, "release-db"];
 
 export interface ProductionBackupEnvironment {
   databaseUrl: string;
   supabaseUrl: string;
   supabaseSecretKey: string;
+  ageRecipient: string;
+  r2: R2ObjectEnvironment;
+}
+
+export interface ProductionDbCheckpointEnvironment {
+  databaseUrl: string;
   ageRecipient: string;
   r2: R2ObjectEnvironment;
 }
@@ -33,6 +42,10 @@ export interface R2ObjectEnvironment {
 export interface IsolatedRecoveryEnvironment {
   databaseUrl: string;
   supabase: LocalSupabaseStatus;
+}
+
+export interface IsolatedRecoveryDatabaseEnvironment {
+  databaseUrl: string;
 }
 
 export function assertProductionBackupEnvironment(
@@ -61,6 +74,33 @@ export function assertProductionBackupEnvironment(
       env.SUPABASE_SECRET_KEY?.trim() || env.SUPABASE_SERVICE_ROLE_KEY?.trim(),
       "SUPABASE_SECRET_KEY/SUPABASE_SERVICE_ROLE_KEY",
     ),
+    ageRecipient: assertAgeRecipient(required(env.RIVALHUB_BACKUP_AGE_RECIPIENT, "RIVALHUB_BACKUP_AGE_RECIPIENT")),
+    r2: {
+      accountId: assertCloudflareAccountId(required(env.RIVALHUB_R2_ACCOUNT_ID, "RIVALHUB_R2_ACCOUNT_ID")),
+      bucket: assertR2BucketName(required(env.RIVALHUB_R2_BUCKET, "RIVALHUB_R2_BUCKET")),
+      accessKeyId: required(env.RIVALHUB_R2_ACCESS_KEY_ID, "RIVALHUB_R2_ACCESS_KEY_ID"),
+      secretAccessKey: required(env.RIVALHUB_R2_SECRET_ACCESS_KEY, "RIVALHUB_R2_SECRET_ACCESS_KEY"),
+    },
+  };
+}
+
+/** Production DB-only checkpoint target; it deliberately has no Storage credential. */
+export function assertProductionDbCheckpointEnvironment(
+  env: Readonly<Record<string, string | undefined>> = process.env,
+): ProductionDbCheckpointEnvironment {
+  const protectedEnvironment = buildProductionEnvironment(env, {
+    requiresWriteAuthorization: false,
+  });
+  const databaseUrl = env.RIVALHUB_PRODUCTION_BACKUP_DATABASE_URL?.trim()
+    || env.RIVALHUB_BACKUP_DATABASE_URL?.trim()
+    ? assertProductionBackupDatabaseUrl(
+        env.RIVALHUB_PRODUCTION_BACKUP_DATABASE_URL?.trim()
+        || env.RIVALHUB_BACKUP_DATABASE_URL?.trim(),
+      )
+    : deriveProductionBackupDatabaseUrl(protectedEnvironment.DATABASE_URL);
+
+  return {
+    databaseUrl,
     ageRecipient: assertAgeRecipient(required(env.RIVALHUB_BACKUP_AGE_RECIPIENT, "RIVALHUB_BACKUP_AGE_RECIPIENT")),
     r2: {
       accountId: assertCloudflareAccountId(required(env.RIVALHUB_R2_ACCOUNT_ID, "RIVALHUB_R2_ACCOUNT_ID")),
@@ -131,6 +171,24 @@ export function assertBackupClass(value: string | undefined): BackupClass {
   return value as BackupClass;
 }
 
+export function assertRecoveryArtifactClass(value: string | undefined): RecoveryArtifactClass {
+  if (!value || !RECOVERY_ARTIFACT_CLASSES.includes(value as RecoveryArtifactClass)) {
+    throw new Error(`recovery artifact class 必须是 ${RECOVERY_ARTIFACT_CLASSES.join(" | ")}。`);
+  }
+  return value as RecoveryArtifactClass;
+}
+
+export function recoveryArtifactKindForClass(value: RecoveryArtifactClass): RecoveryArtifactKind {
+  return value === "release-db" ? "db-checkpoint" : "full";
+}
+
+export function assertRecoveryArtifactKind(value: string | undefined): RecoveryArtifactKind {
+  if (value !== "full" && value !== "db-checkpoint") {
+    throw new Error("recovery artifact kind 必须是 full | db-checkpoint。 ");
+  }
+  return value;
+}
+
 export function buildIsolatedRecoveryEnvironment(
   env: Readonly<Record<string, string | undefined>> = process.env,
   localStatus?: LocalSupabaseStatus,
@@ -145,6 +203,12 @@ export function buildIsolatedRecoveryEnvironment(
     throw new Error("Recovery database 与 Supabase status 不一致；拒绝继续。 ");
   }
   return { databaseUrl, supabase };
+}
+
+export function buildIsolatedRecoveryDatabaseEnvironment(
+  env: Readonly<Record<string, string | undefined>> = process.env,
+): IsolatedRecoveryDatabaseEnvironment {
+  return { databaseUrl: assertIsolatedRecoveryDatabaseUrl(env) };
 }
 
 export function assertIsolatedRecoveryDatabaseUrl(
