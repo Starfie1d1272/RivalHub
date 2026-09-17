@@ -4,7 +4,7 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 import { deleteCompetitivePlatformCatalog, seedCompetitivePlatformCatalog } from "./harness/competitive-catalog-fixtures";
-import { localDatabaseUrl } from "./harness/database";
+import { localDatabaseUrl, testSteam64 } from "./harness/database";
 
 type Globals = {
   schema: typeof import("../../../src/db/schema");
@@ -107,7 +107,7 @@ async function seedFullyReadyUser(pool: Pool, id: string, seq: number): Promise<
   await pool.query(
     `INSERT INTO users (id, email, display_name, steam64, perfect_name, qq, email_verified_at)
      VALUES ($1, $2, $3, $4, $5, $6, now())`,
-    [id, email, "Governance 选手", `76561198${id.replaceAll("-", "").slice(0, 12)}`, `Perfect 选手 ${seq}`, `99000${seq}`],
+    [id, email, "Governance 选手", testSteam64(id), `Perfect 选手 ${seq}`, `99000${seq}`],
   );
   await pool.query(
     `INSERT INTO education_verifications (user_id, institution_id, academic_status, evidence_type, status)

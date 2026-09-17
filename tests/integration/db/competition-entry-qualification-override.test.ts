@@ -13,7 +13,7 @@ import {
 import { loadActiveRestrictionOverridesInTx } from "../../../src/lib/competition-entries/restriction-overrides";
 import { AppError, ErrorCode } from "../../../src/lib/errors";
 import { BUILT_IN_COMPETITIVE_PLATFORMS } from "../../../src/lib/competitive/builtins";
-import { localDatabaseUrl } from "./harness/database";
+import { localDatabaseUrl, testSteam64 } from "./harness/database";
 
 const databaseUrl = localDatabaseUrl();
 
@@ -99,9 +99,9 @@ describe("competition entry qualification restriction overrides PostgreSQL", () 
       );
       await client.query(
         `INSERT INTO users (id, email, email_verified_at, display_name, perfect_name, steam64, qq)
-         VALUES ($1, $2, now(), 'Home player', 'Home Perfect', '76561198000000001', '100000001'),
-                ($3, $4, now(), 'External player', 'External Perfect', '76561198000000002', '100000002')`,
-        [ids.home, `home-${ids.home}@local.test`, ids.external, `external-${ids.external}@local.test`],
+         VALUES ($1, $2, now(), 'Home player', 'Home Perfect', $3, '100000001'),
+                ($4, $5, now(), 'External player', 'External Perfect', $6, '100000002')`,
+        [ids.home, `home-${ids.home}@local.test`, testSteam64(ids.home), ids.external, `external-${ids.external}@local.test`, testSteam64(ids.external)],
       );
       await client.query(
         `INSERT INTO education_verifications (user_id, institution_id, academic_status, evidence_type, status, reviewed_by, reviewed_at)

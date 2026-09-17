@@ -33,7 +33,7 @@ import {
 import { applyMatchStatusTransitionInTx, confirmMatchRosterInTx, lockMatchInTx, persistMatchRosterInTx } from "../../../src/lib/match-rosters/service";
 import { openSeasonRegistrationInTx } from "../../../src/lib/seasons/lifecycle";
 import { deleteCompetitivePlatformCatalog, seedCompetitivePlatformCatalog } from "./harness/competitive-catalog-fixtures";
-import { capturePostgresError, localDatabaseUrl } from "./harness/database";
+import { capturePostgresError, localDatabaseUrl, testSteam64 } from "./harness/database";
 
 const GOLDEN_PROFILE: CompetitiveProfileConfig = {
   // 专属 fixture 平台 key：不与 seed 内置 perfect_world 目录争夺 per-platform
@@ -218,11 +218,11 @@ async function prepareReadyMajor(
               now(),
               'Golden ' || $2 || ' Player ' || ordinal,
               'Golden ' || $2 || ' Perfect Name ' || ordinal,
-              lpad((76561198000000000 + ordinal)::text, 17, '0'),
+              steam64,
               (10000000 + ordinal)::text,
               'legacy-student-' || ordinal
-       FROM unnest($1::text[]) WITH ORDINALITY AS input(value, ordinal)`,
-      [userIds, label],
+       FROM unnest($1::text[], $3::text[]) WITH ORDINALITY AS input(value, steam64, ordinal)`,
+      [userIds, label, userIds.map((userId) => testSteam64(userId))],
     );
     const educationRows = userIds.map((userId, index) => ({
       id: deterministicUuid(`${label}/education/${index + 1}`),

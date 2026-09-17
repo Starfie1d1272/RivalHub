@@ -12,7 +12,7 @@ import { AppError, ErrorCode } from "../../../src/lib/errors";
 import { checkStandardMajorCapabilities } from "../../../src/lib/competition/definition";
 import { createMajorDefaultCapabilities } from "../../../src/lib/competition/templates";
 import { createPerfectWorldRankOrder } from "../../../src/lib/config/perfect-world";
-import { localDatabaseUrl } from "./harness/database";
+import { localDatabaseUrl, testSteam64 } from "./harness/database";
 
 const databaseUrl = localDatabaseUrl();
 const ACTOR = "issue-368-3b-local-admin";
@@ -149,7 +149,7 @@ async function prepareFixture(pool: Pool): Promise<SelectionFixture> {
           `issue-368-3b-${index}-${seasonId}@local.test`,
           `3B Player ${index}`,
           `3B Perfect ${index}`,
-          String(76561198000000000 + index),
+          testSteam64(userId),
           String(10000000 + index),
         ],
       );
@@ -235,7 +235,7 @@ async function prepareFullFreezeFixture(pool: Pool): Promise<FullFreezeFixture> 
           `issue-368-3b-freeze-${index}-${seasonId}@local.test`,
           `3B Freeze Player ${index}`,
           `3B Freeze Perfect ${index}`,
-          String(76561198010000000 + index),
+          testSteam64(userId),
           String(20000000 + index),
         ],
       );

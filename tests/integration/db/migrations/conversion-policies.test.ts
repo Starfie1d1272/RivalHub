@@ -18,6 +18,8 @@ const ACCESS_MATRIX_AT_TARGET = DATABASE_ACCESS_MATRIX.filter(
     "dak_pairings",
     "match_demo_imports",
     "match_round_facts",
+    "steam_profiles",
+    "user_gameplay_steam_ids",
   ].includes(entry.table),
 );
 const IGNORED_TABLES_AT_TARGET = ["competition_bracket_states", "swiss_standings"] as const;
