@@ -4,7 +4,7 @@ import { publicCompetitionEntryCondition } from "@/lib/competition-entries/publi
 import { notFound } from "next/navigation";
 import { eq, and, asc, or } from "drizzle-orm";
 import { db } from "@/db/client";
-import { competitionEntries, eventRosterMembers, eventRosters, seasonRegistrations, users } from "@/db/schema";
+import { competitionEntries, eventRosterMembers, eventRosters, seasonRegistrations, steamProfiles, users } from "@/db/schema";
 import { PageHeader, PageLayout, Stat } from "@/components/rivalhub";
 import { MajorPlayerDirectoryRow } from "@/components/players/MajorPlayerDirectoryRow";
 import { EventPlayerDirectoryRow } from "@/components/players/EventPlayerDirectoryRow";
@@ -129,11 +129,12 @@ export default async function PlayersPage({ params, searchParams }: PlayersPageP
       currentRank: seasonRegistrations.currentSeasonPeakRank,
       currentRating: seasonRegistrations.currentRating,
       perfectName: users.perfectName,
-      steamName: users.steamName,
-      avatarUrl: users.avatarUrl,
+      personaName: steamProfiles.personaName,
+      avatarUrl: steamProfiles.avatarUrl,
     })
     .from(seasonRegistrations)
     .innerJoin(users, eq(seasonRegistrations.userId, users.id))
+    .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
     .where(whereConditions)
     .orderBy(asc(seasonRegistrations.primaryPosition), asc(users.perfectName));
 

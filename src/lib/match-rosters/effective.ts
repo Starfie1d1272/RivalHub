@@ -7,6 +7,7 @@ import {
   eventRosterMembers,
   matchRosterPlayers,
   matchRosters,
+  steamProfiles,
   users,
 } from "@/db/schema";
 
@@ -20,7 +21,7 @@ export interface EffectiveMatchRosterPlayer {
   userId: string;
   steam64: string | null;
   displayName: string | null;
-  steamName: string | null;
+  personaName: string | null;
   perfectName: string | null;
   isStarter: boolean;
 }
@@ -44,13 +45,14 @@ export async function loadEffectiveMatchRoster(
     userId: users.id,
     steam64: users.steam64,
     displayName: users.displayName,
-    steamName: users.steamName,
+    personaName: steamProfiles.personaName,
     perfectName: users.perfectName,
     isStarter: matchRosterPlayers.isStarter,
   }).from(matchRosterPlayers)
     .innerJoin(matchRosters, eq(matchRosters.id, matchRosterPlayers.rosterId))
     .innerJoin(eventRosterMembers, eq(eventRosterMembers.id, matchRosterPlayers.eventRosterMemberId))
     .innerJoin(users, eq(users.id, eventRosterMembers.userId))
+    .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
     .where(and(
       inArray(matchRosters.matchId, [...matchIds]),
       inArray(matchRosters.status, ["submitted", "confirmed"]),

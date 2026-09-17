@@ -4,7 +4,7 @@ import { writeAuditInTx } from "@/lib/audit/write";
 
 import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { db, type DB, type TxDb } from "@/db/client";
-import { conversionPolicies, seasons, users } from "@/db/schema";
+import { conversionPolicies, seasons, steamProfiles, users } from "@/db/schema";
 import { getDisplayName } from "@/lib/identity/display-name";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { normalizeTeamRegistrationConfig } from "@/lib/seasons/compatibility";
@@ -180,8 +180,9 @@ export async function loadConversionPolicyAdminRows(
   const approvedByIds = [...new Set(policies.map((policy) => policy.approvedBy).filter((id): id is string => Boolean(id)))];
   const approvers = approvedByIds.length === 0
     ? []
-    : await executor.select({ id: users.id, email: users.email, displayName: users.displayName, perfectName: users.perfectName, steamName: users.steamName })
+    : await executor.select({ id: users.id, email: users.email, displayName: users.displayName, perfectName: users.perfectName, personaName: steamProfiles.personaName })
       .from(users)
+      .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
       .where(inArray(users.id, approvedByIds));
   const approverLabels = new Map(approvers.map((user) => [user.id, getDisplayName(user)]));
 

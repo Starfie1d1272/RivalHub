@@ -32,7 +32,7 @@ const mockedAdminSelect = vi.mocked(adminSelectMatchRoster);
 const mockedConfirm = vi.mocked(confirmMatchRoster);
 
 function member(id: string) {
-  return { id, steamName: id, displayName: null, perfectName: null, primaryPosition: "rifler" };
+  return { id, personaName: id, displayName: null, perfectName: null, primaryPosition: "rifler" };
 }
 
 const MEMBERS_A = ["a1", "a2", "a3", "a4", "a5", "a6"].map(member);

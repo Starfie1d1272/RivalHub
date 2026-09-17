@@ -53,10 +53,10 @@ describe("admin match read models PostgreSQL integration", () => {
 
     try {
       await pool.query(
-        `INSERT INTO users (id, email, display_name, steam_name, live_stream_url)
-         VALUES ($1, $2, '赛事管理员', 'Admin', 'https://live.example/admin'),
-                ($3, $4, 'Alpha 首发', 'Alpha Player', NULL),
-                ($5, $6, 'Beta 首发', 'Beta Player', NULL)`,
+        `INSERT INTO users (id, email, display_name, live_stream_url)
+         VALUES ($1, $2, '赛事管理员', 'https://live.example/admin'),
+                ($3, $4, 'Alpha 首发', NULL),
+                ($5, $6, 'Beta 首发', NULL)`,
         [
           ids.admin,
           `${ids.admin}@local.test`,

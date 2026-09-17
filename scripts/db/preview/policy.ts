@@ -1,6 +1,7 @@
 /** Reviewed export projections. No SELECT *, Auth rows, opaque dump or private bucket. */
 export const PREVIEW_COLUMNS: Record<string, string> = {
-  users: "id status merged_into_user_id merged_at perfect_name display_name steam_name steam64 steam_profile_url avatar_url gameplay_style competition_history created_at updated_at",
+  users: "id status merged_into_user_id merged_at perfect_name display_name steam64 gameplay_style competition_history created_at updated_at",
+  steam_profiles: "steam64 persona_name profile_url avatar_url fetched_at",
   institutions: "id moe_institution_code name province education_level category source source_version created_at updated_at",
   education_verifications: "id user_id institution_id academic_status evidence_type status submitted_at reviewed_at created_at updated_at",
   competitive_platforms: "key display_name rating_label created_at updated_at",
@@ -76,7 +77,7 @@ export const EXCLUDED_TABLES = new Set(`identity_link_requests user_identities u
   competition_entry_legacy_identities competition_entry_restriction_overrides major_prestart_issues major_seed_recommendation_snapshots
   audit_logs admin_invites admin_invite_claims season_admin_grants match_mvp_votes match_time_proposals
   user_sessions disciplinary_case_idempotency disciplinary_cases community_award_evidence
-  scheduled_job_health feedback_reports dak_pairing_intents dak_pairings match_demo_imports match_round_facts`.split(/\s+/));
+  scheduled_job_health feedback_reports dak_pairing_intents dak_pairings match_demo_imports match_round_facts user_gameplay_steam_ids`.split(/\s+/));
 
 export function quoteIdentifier(value: string): string {
   if (!/^[a-z][a-z0-9_]*$/.test(value)) throw new Error("Invalid mirror identifier");

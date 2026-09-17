@@ -6,11 +6,11 @@ import { describe, expect, it } from "vitest";
 import { getBilibiliEmbedUrl, MatchLiveViewing, parseBilibiliLiveRoomId } from "./MatchLiveViewing";
 
 const commentators = [
-  { userId: "commentator", displayName: "解说甲", perfectName: null, steamName: null, liveStreamUrl: "https://live.example/room" },
+  { userId: "commentator", displayName: "解说甲", perfectName: null, personaName: null, liveStreamUrl: "https://live.example/room" },
 ];
 
 const bilibiliCommentators = [
-  { userId: "bilibili-commentator", displayName: "解说乙", perfectName: null, steamName: null, liveStreamUrl: "https://live.bilibili.com/123456" },
+  { userId: "bilibili-commentator", displayName: "解说乙", perfectName: null, personaName: null, liveStreamUrl: "https://live.bilibili.com/123456" },
 ];
 
 describe("match live viewing", () => {

@@ -2,7 +2,7 @@ import "server-only";
 
 import { and, eq, gt, inArray, isNotNull, isNull } from "drizzle-orm";
 import type { DB, TxDb } from "@/db/client";
-import { teamMemberships, teams, userIdentities, userMergeAuthorizations, users } from "@/db/schema";
+import { steamProfiles, teamMemberships, teams, userIdentities, userMergeAuthorizations, users } from "@/db/schema";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { getDisplayName } from "@/lib/identity/display-name";
 
@@ -48,9 +48,9 @@ export async function loadSelfServiceMergeAuthorization(
     email: users.email,
     displayName: users.displayName,
     perfectName: users.perfectName,
-    steamName: users.steamName,
+    personaName: steamProfiles.personaName,
     steam64: users.steam64,
-  }).from(users).where(and(
+  }).from(users).leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64)).where(and(
     inArray(users.id, [authorization.initiatingUserId, authorization.counterpartyUserId]),
     eq(users.status, "active"),
   ));

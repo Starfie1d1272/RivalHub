@@ -268,7 +268,7 @@ function qualificationState(
 }
 
 export function buildMyReadinessModel(input: {
-  user: { displayName: string | null; perfectName: string | null; steamName: string | null };
+  user: { displayName: string | null; perfectName: string | null; personaName: string | null };
   baseFact: ParticipantQualificationFacts | null;
   currentTeam: { id: string; name: string; role: "captain" | "member" } | null;
   pendingDirectInvitationCount: number;
@@ -448,7 +448,7 @@ export async function loadMyReadiness(userId: string): Promise<MyReadinessModel>
     }));
 
   return buildMyReadinessModel({
-    user: baseFact ?? { displayName: null, perfectName: null, steamName: null },
+    user: baseFact ?? { displayName: null, perfectName: null, personaName: null },
     baseFact,
     currentTeam: currentTeamRows[0] ? { ...currentTeamRows[0], role: currentTeamRows[0].captainUserId === userId ? "captain" : "member" } : null,
     pendingDirectInvitationCount,

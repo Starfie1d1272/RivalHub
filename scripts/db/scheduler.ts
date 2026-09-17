@@ -9,6 +9,7 @@ import {
 
 const BASE_URL_ENV = "RIVALHUB_SCHEDULER_BASE_URL";
 const VAULT_SECRET_NAMES = ["rivalhub_scheduler_base_url", "rivalhub_cron_secret"] as const;
+const LEGACY_STEAM_AVATAR_JOB_NAME = "rivalhub-refresh-steam-avatars";
 const DISPATCH_VERIFY_TIMEOUT_MS = 90_000;
 const DISPATCH_VERIFY_POLL_MS = 2_000;
 
@@ -83,6 +84,12 @@ export async function upsertCronJobs(pool: Pick<Pool, "query">): Promise<void> {
     const name = schedulerJobName(definition.key);
     await pool.query("SELECT cron.schedule($1::text, $2::text, $3::text)", [name, definition.primaryCron, dispatchCommand(definition)]);
   }
+  // The route was renamed with the Issue #687 cache owner. Retire the old
+  // named job only after the replacement registry has been scheduled.
+  await pool.query(
+    "SELECT cron.unschedule(jobid) FROM cron.job WHERE jobname = $1::text",
+    [LEGACY_STEAM_AVATAR_JOB_NAME],
+  );
 }
 
 async function verifyCronJobs(pool: Pool): Promise<void> {

@@ -2,9 +2,10 @@ import "server-only";
 
 import { and, asc, count, desc, eq, gt, ilike, isNotNull, isNull, or, sql } from "drizzle-orm";
 import { db } from "@/db/client";
-import { recruitmentIntents, seasons, teamMemberships, teams, users } from "@/db/schema";
+import { recruitmentIntents, seasons, steamProfiles, teamMemberships, teams, users } from "@/db/schema";
 import { escapeLikePattern } from "@/lib/db/search";
 import { teamRecruitmentTargetAvailableCondition } from "@/lib/recruitment/target-policy";
+import { getPublicDisplayName } from "@/lib/identity/display-name";
 import type { TeamDirectoryQuery } from "./directory-contract";
 
 export type { TeamDirectoryQuery } from "./directory-contract";
@@ -27,8 +28,6 @@ export interface TeamDirectoryData {
   hasAnyTeams: boolean;
   normalizedQuery: TeamDirectoryQuery;
 }
-
-const captainName = sql<string>`coalesce(${users.displayName}, ${users.perfectName}, ${users.steamName}, '未命名用户')`;
 
 export async function getTeamDirectory(query: TeamDirectoryQuery): Promise<TeamDirectoryData> {
   const now = new Date();
@@ -54,7 +53,12 @@ export async function getTeamDirectory(query: TeamDirectoryQuery): Promise<TeamD
   const conditions = [statusCondition];
   if (query.q) {
     const pattern = `%${escapeLikePattern(query.q)}%`;
-    conditions.push(or(ilike(teams.name, pattern), ilike(captainName, pattern))!);
+    conditions.push(or(
+      ilike(teams.name, pattern),
+      ilike(users.displayName, pattern),
+      ilike(steamProfiles.personaName, pattern),
+      ilike(users.perfectName, pattern),
+    )!);
   }
   if (query.recruiting) conditions.push(and(isNotNull(recruitmentIntents.id), recruitmentTargetAvailable)!);
   const where = and(...conditions);
@@ -77,11 +81,14 @@ export async function getTeamDirectory(query: TeamDirectoryQuery): Promise<TeamD
       description: teams.description,
       hasOpenRecruitment,
       status: teams.status,
-      captainName,
+      captainDisplayName: users.displayName,
+      captainPersonaName: steamProfiles.personaName,
+      captainPerfectName: users.perfectName,
       memberCount,
     })
       .from(teams)
       .leftJoin(users, and(eq(users.id, teams.captainUserId), eq(users.status, "active")))
+      .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
       .leftJoin(recruitmentIntents, openRecruitment)
       .leftJoin(seasons, eq(seasons.id, recruitmentIntents.targetSeasonId))
       .leftJoin(memberCounts, eq(memberCounts.teamId, teams.id))
@@ -90,6 +97,7 @@ export async function getTeamDirectory(query: TeamDirectoryQuery): Promise<TeamD
     db.select({ count: count() })
       .from(teams)
       .leftJoin(users, and(eq(users.id, teams.captainUserId), eq(users.status, "active")))
+      .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
       .leftJoin(recruitmentIntents, openRecruitment)
       .leftJoin(seasons, eq(seasons.id, recruitmentIntents.targetSeasonId))
       .where(where),
@@ -97,7 +105,10 @@ export async function getTeamDirectory(query: TeamDirectoryQuery): Promise<TeamD
   ]);
 
   return {
-    rows,
+    rows: rows.map(({ captainDisplayName, captainPersonaName, captainPerfectName, ...row }) => ({
+      ...row,
+      captainName: getPublicDisplayName({ displayName: captainDisplayName, personaName: captainPersonaName, perfectName: captainPerfectName }),
+    })),
     total: Number(totalRow?.count ?? 0),
     hasAnyTeams: Number(allTeamsRow?.count ?? 0) > 0,
     normalizedQuery: query,

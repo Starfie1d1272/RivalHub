@@ -25,7 +25,7 @@ describe("public payload serializers", () => {
       id: "registration-1",
       displayName: null,
       perfectName: "PerfectPlayer",
-      steamName: "SteamPlayer",
+      personaName: "SteamPlayer",
       primaryPosition: "igl",
       peakRank: "S",
       peakRating: 2.1,
@@ -43,7 +43,7 @@ describe("public payload serializers", () => {
 
     expect(serialized).toEqual({
       id: "registration-1",
-      displayName: "PerfectPlayer",
+      displayName: "SteamPlayer",
       primaryPosition: "igl",
       peakRank: "S",
       peakRating: 2.1,
@@ -61,7 +61,7 @@ describe("public payload serializers", () => {
       registrationId: "registration-2",
       userId: "user-2",
       avatarUrl: null,
-      steamName: "SteamPlayer",
+      personaName: "SteamPlayer",
       perfectName: null,
       displayName: "PublicPlayer",
       primaryPosition: "awper",
@@ -88,7 +88,7 @@ describe("public payload serializers", () => {
           id: source.registrationId,
           displayName: source.displayName,
           perfectName: source.perfectName,
-          steamName: source.steamName,
+          personaName: source.personaName,
           primaryPosition: source.primaryPosition,
           peakRank: source.peakRank,
           peakRating: source.peakRating,
@@ -106,6 +106,27 @@ describe("public payload serializers", () => {
     for (const key of PRIVATE_KEYS) {
       expect(serializedPayload).not.toContain(`"${key}"`);
     }
+  });
+
+  it("keeps nullable Steam persona names nullable so perfectName remains usable", () => {
+    const serialized = serializePublicDraftPlayer({
+      registrationId: "registration-3",
+      userId: "user-3",
+      avatarUrl: null,
+      personaName: null,
+      perfectName: "Perfect fallback",
+      displayName: null,
+      primaryPosition: "rifler",
+      secondaryPosition: "anchor",
+      peakRank: "—",
+      peakRating: null,
+      currentRank: "—",
+      currentRating: null,
+      mapPreferences: [],
+    });
+
+    expect(serialized.personaName).toBeNull();
+    expect(serialized.perfectName).toBe("Perfect fallback");
   });
 
   it("does not expose proposal actor identifiers to the public match view", () => {

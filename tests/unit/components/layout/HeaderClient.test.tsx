@@ -68,7 +68,7 @@ describe("HeaderClient mobile navigation", () => {
         avatarUrl={avatarUrl}
         displayName={null}
         perfectName="完美昵称"
-        steamName="Steam Nick"
+        personaName="Steam Nick"
       />
     );
     const view = render(
@@ -76,17 +76,17 @@ describe("HeaderClient mobile navigation", () => {
     );
 
     await user.click(screen.getByRole("button", { name: "展开菜单" }));
-    expect(screen.getByText("完美昵称")).toBeInTheDocument();
-    fireEvent.error(screen.getByAltText("完美昵称"));
-    expect(screen.queryByAltText("完美昵称")).not.toBeInTheDocument();
+    expect(screen.getByText("Steam Nick")).toBeInTheDocument();
+    fireEvent.error(screen.getByAltText("Steam Nick"));
+    expect(screen.queryByAltText("Steam Nick")).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "收起菜单" }));
     await user.click(screen.getByRole("button", { name: "展开菜单" }));
-    expect(screen.queryByAltText("完美昵称")).not.toBeInTheDocument();
+    expect(screen.queryByAltText("Steam Nick")).not.toBeInTheDocument();
 
     view.rerender(
       <HeaderClient desktopNavigation={null} mobileNavigation={null} desktopViewer={null} mobileViewer={viewer("https://cdn.example/avatar-new.jpg")} />,
     );
-    expect(screen.getByAltText("完美昵称")).toHaveAttribute("src", expect.stringContaining("avatar-new.jpg"));
+    expect(screen.getByAltText("Steam Nick")).toHaveAttribute("src", expect.stringContaining("avatar-new.jpg"));
   });
 });

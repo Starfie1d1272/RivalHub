@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { check, foreignKey, pgTable, uuid, text, timestamp, pgEnum } from "drizzle-orm/pg-core";
+import { check, foreignKey, pgTable, uuid, text, timestamp, pgEnum, uniqueIndex } from "drizzle-orm/pg-core";
 
 export const userRoleEnum = pgEnum("user_role", ["user", "super_admin"]);
 export const emailVerificationSourceEnum = pgEnum("email_verification_source", ["signup_confirmation", "existing_account_reverification", "admin_migration"]);
@@ -26,11 +26,8 @@ export const users = pgTable("users", {
   qq: text("qq"),
   perfectName: text("perfect_name"),       // 完美平台昵称
   displayName: text("display_name"),        // 用户自定义昵称（展示优先级最高）
-  steamName: text("steam_name"),          // Steam 昵称
   steam64: text("steam64"),               // Steam 64 位 ID
-  steamProfileUrl: text("steam_profile_url"), // Steam 个人资料链接
   liveStreamUrl: text("live_stream_url"), // 解说时向观众展示的长期个人直播间
-  avatarUrl: text("avatar_url"),               // Steam 头像 URL（由资料保存与后台定时刷新维护，公开页面只读取缓存）
   gameplayStyle: text("gameplay_style"), // 当前打法 / 风格的长期自述
   competitionHistory: text("competition_history"), // 当前比赛经历的长期自述
 
@@ -47,6 +44,13 @@ export const users = pgTable("users", {
     sql`(${t.status} = 'active' AND ${t.mergedIntoUserId} IS NULL AND ${t.mergedAt} IS NULL)
       OR (${t.status} = 'merged' AND ${t.mergedIntoUserId} IS NOT NULL AND ${t.mergedIntoUserId} <> ${t.id} AND ${t.mergedAt} IS NOT NULL)`,
   ),
+  steam64Shape: check(
+    "users_steam64_shape_check",
+    sql`${t.steam64} IS NULL OR ${t.steam64} ~ '^[0-9]{17}$'`,
+  ),
+  activeSteam64Unique: uniqueIndex("users_active_steam64_unique")
+    .on(t.steam64)
+    .where(sql`${t.status} = 'active' AND ${t.steam64} IS NOT NULL`),
 }));
 
 export type User = typeof users.$inferSelect;

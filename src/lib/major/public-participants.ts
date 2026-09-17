@@ -12,6 +12,7 @@ import {
   majorPrestartStates,
   majorTournamentEntrants,
   majorTournamentSeeds,
+  steamProfiles,
   users,
 } from "@/db/schema";
 import {
@@ -102,7 +103,7 @@ type RosterMemberRow = {
   userId: string;
   displayName: string | null;
   perfectName: string | null;
-  steamName: string | null;
+  personaName: string | null;
   isStarter: boolean;
 };
 
@@ -277,14 +278,15 @@ async function loadMajorPublicParticipantState(
           userId: competitionEntryRosterMembers.userId,
           displayName: users.displayName,
           perfectName: users.perfectName,
-          steamName: users.steamName,
-          avatarUrl: users.avatarUrl,
+          personaName: steamProfiles.personaName,
+          avatarUrl: steamProfiles.avatarUrl,
           isStarter: competitionEntryRosterMembers.isPrimaryStarter,
         })
         .from(competitionEntryRosterMembers)
         .innerJoin(competitionEntryRosterRevisions, eq(competitionEntryRosterRevisions.id, competitionEntryRosterMembers.revisionId))
         .innerJoin(competitionEntries, eq(competitionEntries.approvedRosterRevisionId, competitionEntryRosterRevisions.id))
         .innerJoin(users, eq(users.id, competitionEntryRosterMembers.userId))
+        .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
         .where(and(
           inArray(competitionEntries.id, lifecycleEntryIds),
           eq(competitionEntryRosterRevisions.status, "approved"),
@@ -308,13 +310,14 @@ async function loadMajorPublicParticipantState(
           userId: eventRosterMembers.userId,
           displayName: users.displayName,
           perfectName: users.perfectName,
-          steamName: users.steamName,
-          avatarUrl: users.avatarUrl,
+          personaName: steamProfiles.personaName,
+          avatarUrl: steamProfiles.avatarUrl,
           isStarter: eventRosterMembers.isPrimaryStarter,
         })
         .from(eventRosterMembers)
         .innerJoin(eventRosters, eq(eventRosters.id, eventRosterMembers.eventRosterId))
         .innerJoin(users, eq(users.id, eventRosterMembers.userId))
+        .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
         .where(inArray(eventRosters.entryId, eventMemberEntryIds))
         .orderBy(asc(eventRosters.entryId), asc(users.id))
       : Promise.resolve([] as RosterMemberRow[]),

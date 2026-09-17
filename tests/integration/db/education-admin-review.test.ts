@@ -119,8 +119,8 @@ describe("education review queue PostgreSQL read model", () => {
         [institutionIds[0], institutionIds[1], institutionIds[2], `A-${marker}`, `B-${marker}`, `Unused-${marker}`, `test-${marker}`],
       );
       await pool.query(
-        `INSERT INTO users (id, email, display_name, perfect_name, steam_name)
-         VALUES ($1, $4, NULL, $7, 'Steam A'), ($2, $5, NULL, $8, 'Steam B'), ($3, $6, 'Rejected user', NULL, NULL)`,
+        `INSERT INTO users (id, email, display_name, perfect_name)
+         VALUES ($1, $4, NULL, $7), ($2, $5, NULL, $8), ($3, $6, 'Rejected user', NULL)`,
         [userIds[0], userIds[1], userIds[2], `${marker}-a@local.test`, `${marker}-b@local.test`, `${marker}-c@local.test`, `Perfect-${marker}-A`, `Perfect-${marker}-B`],
       );
       await pool.query(

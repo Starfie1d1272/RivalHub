@@ -5,6 +5,7 @@ import { db } from "@/db/client";
 import {
   disciplinaryCases,
   seasons,
+  steamProfiles,
   users,
   type DisciplinaryCase,
 } from "@/db/schema";
@@ -135,15 +136,16 @@ export async function searchSanctionSubjects(
         id: users.id,
         displayName: users.displayName,
         perfectName: users.perfectName,
-        steamName: users.steamName,
+        personaName: steamProfiles.personaName,
         email: users.email,
       })
       .from(users)
+      .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
       .where(
         or(
           ilike(users.displayName, pattern),
           ilike(users.perfectName, pattern),
-          ilike(users.steamName, pattern),
+          ilike(steamProfiles.personaName, pattern),
           ilike(users.email, pattern),
         ),
       )

@@ -30,7 +30,7 @@ interface HeaderViewerClientProps {
   variant: "desktop" | "mobile";
   session: HeaderSession | null;
   avatarUrl?: string | null;
-  steamName?: string | null;
+  personaName?: string | null;
   displayName?: string | null;
   perfectName?: string | null;
 }
@@ -39,13 +39,13 @@ export function HeaderViewerClient({
   variant,
   session,
   avatarUrl,
-  steamName,
+  personaName,
   displayName,
   perfectName,
 }: HeaderViewerClientProps) {
   const router = useRouter();
   const { avatarFailed, markAvatarFailed } = useHeaderAvatarFailure(avatarUrl);
-  const userLabel = getPublicDisplayName({ displayName, perfectName, steamName });
+  const userLabel = getPublicDisplayName({ displayName, perfectName, personaName });
 
   async function handleLogout() {
     const result = await logoutUser();

@@ -62,7 +62,7 @@ export interface RegistrationRow {
   createdAt: string;
   email: string;
   studentId: string | null;
-  steamName: string | null;
+  personaName: string | null;
   displayName: string | null;
   perfectName: string | null;
   steam64: string | null;

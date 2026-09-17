@@ -2,7 +2,7 @@ import "server-only";
 
 import { and, asc, count, countDistinct, desc, eq, ilike, or, sql } from "drizzle-orm";
 import { db } from "@/db/client";
-import { educationVerifications, institutions, users } from "@/db/schema";
+import { educationVerifications, institutions, steamProfiles, users } from "@/db/schema";
 import { escapeLikePattern } from "@/lib/db/search";
 import { getDisplayName } from "@/lib/identity/display-name";
 import {
@@ -69,7 +69,7 @@ export async function getEducationReviewQueue(query: EducationReviewQuery): Prom
     conditions.push(or(
       ilike(users.displayName, pattern),
       ilike(users.perfectName, pattern),
-      ilike(users.steamName, pattern),
+      ilike(steamProfiles.personaName, pattern),
       ilike(users.email, pattern),
       ilike(institutions.name, pattern),
       ilike(educationVerifications.evidenceCode, pattern),
@@ -85,6 +85,7 @@ export async function getEducationReviewQueue(query: EducationReviewQuery): Prom
       .from(educationVerifications)
       .innerJoin(users, eq(educationVerifications.userId, users.id))
       .innerJoin(institutions, eq(educationVerifications.institutionId, institutions.id))
+      .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
       .where(where),
     db.select({ id: institutions.id, name: institutions.name, userCount: countDistinct(users.id) })
       .from(educationVerifications)
@@ -123,7 +124,7 @@ export async function getEducationReviewQueue(query: EducationReviewQuery): Prom
     email: users.email,
     displayName: users.displayName,
     perfectName: users.perfectName,
-    steamName: users.steamName,
+    personaName: steamProfiles.personaName,
     institution: institutions.name,
     code: institutions.moeInstitutionCode,
     academicStatus: educationVerifications.academicStatus,
@@ -137,15 +138,16 @@ export async function getEducationReviewQueue(query: EducationReviewQuery): Prom
     .from(educationVerifications)
     .innerJoin(users, eq(educationVerifications.userId, users.id))
     .innerJoin(institutions, eq(educationVerifications.institutionId, institutions.id))
+    .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
     .where(where)
     .orderBy(...orderBy)
     .limit(EDUCATION_REVIEW_PAGE_SIZE)
     .offset((page - 1) * EDUCATION_REVIEW_PAGE_SIZE);
 
   return {
-    rows: rows.map(({ perfectName, steamName, evidenceType, evidenceCode, evidenceObjectKey, ...row }) => ({
+    rows: rows.map(({ perfectName, personaName, evidenceType, evidenceCode, evidenceObjectKey, ...row }) => ({
       ...row,
-      displayName: getDisplayName({ ...row, perfectName, steamName }),
+      displayName: getDisplayName({ ...row, perfectName, personaName }),
       evidenceLabel: educationEvidenceLabel(evidenceType),
       chsiEvidenceCode: isChsiEvidenceType(evidenceType) ? evidenceCode : null,
       manualEvidenceAvailable: evidenceType === "manual_other" && Boolean(evidenceObjectKey),

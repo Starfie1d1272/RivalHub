@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, asc, eq, inArray, ne, or, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, ne, or } from "drizzle-orm";
 
 import { db } from "@/db/client";
 import {
@@ -12,6 +12,7 @@ import {
   teamMemberships,
   teamNameChanges,
   teamSlugAliases,
+  steamProfiles,
   teams,
   users,
 } from "@/db/schema";
@@ -20,8 +21,7 @@ import {
 } from "@/lib/competition-entries/public-visibility";
 import { getPublicTeamRecruitment, type PublicRecruitmentIntent } from "@/lib/recruitment/data";
 import type { PublicPlayerIdentity } from "@/lib/identity/public-player";
-
-const publicName = sql<string>`coalesce(${users.displayName}, ${users.perfectName}, ${users.steamName}, '未知用户')`;
+import { getPublicDisplayName } from "@/lib/identity/display-name";
 
 export type PublicTeamMembershipStatus = "active" | "benched";
 
@@ -133,13 +133,16 @@ export async function getPublicTeamProfile(
       .select({
         id: teamMemberships.id,
         userId: users.id,
-        avatarUrl: users.avatarUrl,
-        name: publicName,
+        avatarUrl: steamProfiles.avatarUrl,
+        displayName: users.displayName,
+        personaName: steamProfiles.personaName,
+        perfectName: users.perfectName,
         status: teamMemberships.status,
         endedAt: teamMemberships.endedAt,
       })
       .from(teamMemberships)
       .innerJoin(users, eq(users.id, teamMemberships.userId))
+      .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
       .where(eq(teamMemberships.teamId, team.id))
       .orderBy(asc(teamMemberships.startedAt)),
     db
@@ -156,11 +159,14 @@ export async function getPublicTeamProfile(
       .select({
         id: teamCaptainChanges.id,
         fromUserId: teamCaptainChanges.fromUserId,
-        name: publicName,
+        displayName: users.displayName,
+        personaName: steamProfiles.personaName,
+        perfectName: users.perfectName,
         changedAt: teamCaptainChanges.changedAt,
       })
       .from(teamCaptainChanges)
       .innerJoin(users, eq(users.id, teamCaptainChanges.toUserId))
+      .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
       .where(eq(teamCaptainChanges.teamId, team.id))
       .orderBy(asc(teamCaptainChanges.changedAt)),
     db
@@ -184,7 +190,13 @@ export async function getPublicTeamProfile(
 
   const currentMembers = members
     .filter((member): member is typeof member & { status: PublicTeamMembershipStatus } => member.endedAt === null && member.status !== "left")
-    .map(({ id, userId, name, status, avatarUrl }) => ({ id, userId, name, status, avatarUrl }));
+    .map(({ id, userId, displayName, personaName, perfectName, status, avatarUrl }) => ({
+      id,
+      userId,
+      name: getPublicDisplayName({ displayName, personaName, perfectName }),
+      status,
+      avatarUrl,
+    }));
   const entryIds = entries.map((entry) => entry.id);
   const played = entryIds.length
     ? await db
@@ -231,7 +243,13 @@ export async function getPublicTeamProfile(
     currentMembers,
     entries: careerEntries,
     nameChanges: names.filter((n) => n.oldName !== null),
-    captainChanges: captains.filter((c) => c.fromUserId !== null),
+    captainChanges: captains
+      .filter((c) => c.fromUserId !== null)
+      .map((captain) => ({
+        id: captain.id,
+        name: getPublicDisplayName(captain),
+        changedAt: captain.changedAt,
+      })),
     playedCount: played.length,
     wins,
     currentUserMembership,

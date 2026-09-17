@@ -6,7 +6,7 @@ import * as schema from "../../../src/db/schema";
 import { transferCompetitionEntryRepresentativeInTx } from "../../../src/lib/competition-entries/commands";
 import { BUILT_IN_COMPETITIVE_PLATFORMS } from "../../../src/lib/competitive/builtins";
 import { computeParticipantReadiness, loadParticipantQualificationFacts } from "../../../src/lib/qualification/service";
-import { capturePostgresError, localDatabaseUrl } from "./harness/database";
+import { capturePostgresError, localDatabaseUrl, testSteam64 } from "./harness/database";
 
 const databaseUrl = localDatabaseUrl();
 
@@ -301,8 +301,8 @@ async function exerciseQualificationWithRealCatalog(pool: Pool): Promise<void> {
     for (const [id, email] of values) {
       await client.query(
         `INSERT INTO users (id, email, display_name, steam64, perfect_name, qq, email_verified_at)
-         VALUES ($1, $2, '选手', '76561198000000001', $3, '100000001', now())`,
-        [id, email, `pw-${id}`],
+         VALUES ($1, $2, '选手', $3, $4, '100000001', now())`,
+        [id, email, testSteam64(id), `pw-${id}`],
       );
     }
     for (const [id, , historical, current, stars] of values) {

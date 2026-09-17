@@ -12,7 +12,7 @@ type Commentator = {
   liveStreamUrl: string | null;
   displayName: string | null;
   perfectName: string | null;
-  steamName: string | null;
+  personaName: string | null;
 };
 
 export function parseBilibiliLiveRoomId(url: string | null): string | null {

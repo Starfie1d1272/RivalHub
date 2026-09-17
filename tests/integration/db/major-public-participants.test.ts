@@ -50,6 +50,7 @@ async function insertFixture(pool: Pool): Promise<Fixture> {
     email: `major-public-${entryIndex}-${userIndex}-${seasonId}@local.test`,
     displayName: `公开选手 ${entryIndex}-${userIndex}`,
     perfectName: `完美选手 ${entryIndex}-${userIndex}`,
+    steam64: entryIndex === 0 && userIndex === 1 ? "76561198000000001" : null,
     avatarUrl: entryIndex === 0 && userIndex === 1 ? "https://cdn.test/major-player-0-1.webp" : null,
   })));
   const participantRows = entries.flatMap((entry) => entry.userIds.map((userId, userIndex) => ({
@@ -93,16 +94,26 @@ async function insertFixture(pool: Pool): Promise<Fixture> {
     );
 
     await client.query(
-      `INSERT INTO users (id, email, display_name, perfect_name, avatar_url)
-       SELECT user_id, email, display_name, perfect_name, avatar_url
+      `INSERT INTO users (id, email, display_name, perfect_name, steam64)
+       SELECT user_id, email, display_name, perfect_name, steam64
        FROM unnest($1::uuid[], $2::text[], $3::text[], $4::text[], $5::text[])
-       AS rows(user_id, email, display_name, perfect_name, avatar_url)`,
+       AS rows(user_id, email, display_name, perfect_name, steam64)`,
       [
         userRows.map((row) => row.userId),
         userRows.map((row) => row.email),
         userRows.map((row) => row.displayName),
         userRows.map((row) => row.perfectName),
-        userRows.map((row) => row.avatarUrl),
+        userRows.map((row) => row.steam64),
+      ],
+    );
+    await client.query(
+      `INSERT INTO steam_profiles (steam64, persona_name, profile_url, avatar_url)
+       VALUES ($1, $2, $3, $4)`,
+      [
+        userRows.find((row) => row.steam64)?.steam64,
+        "Official participant",
+        "https://steamcommunity.com/profiles/76561198000000001",
+        userRows.find((row) => row.steam64)?.avatarUrl,
       ],
     );
     await client.query(
@@ -353,6 +364,7 @@ async function cleanupFixture(pool: Pool, fixture: Fixture): Promise<void> {
     await client.query("DELETE FROM competition_entry_participants WHERE entry_id = ANY($1::uuid[])", [fixture.entries.map((entry) => entry.entryId)]);
     await client.query("DELETE FROM competition_entry_roster_revisions WHERE entry_id = ANY($1::uuid[])", [fixture.entries.map((entry) => entry.entryId)]);
     await client.query("DELETE FROM competition_entries WHERE competition_id = $1", [fixture.season.id]);
+    await client.query("DELETE FROM steam_profiles WHERE steam64 = $1", ["76561198000000001"]);
     await client.query("DELETE FROM users WHERE id = ANY($1::uuid[])", [fixture.userIds]);
     await client.query("DELETE FROM seasons WHERE id = $1", [fixture.season.id]);
     await client.query("COMMIT");

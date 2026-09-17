@@ -55,6 +55,7 @@ jobs:
       release_infra_changed: ${{ steps.plan.outputs.releaseInfraChanged }}
       requires_migration_rehearsal: ${{ steps.plan.outputs.requiresMigrationRehearsal }}
       requires_production_migration: ${{ steps.plan.outputs.requiresProductionMigration }}
+      requires_steam_profile_backfill: ${{ steps.plan.outputs.requiresSteamProfileBackfill }}
       requires_db_checkpoint: ${{ steps.plan.outputs.requiresDbCheckpoint }}
       requires_full_checkpoint: ${{ steps.plan.outputs.requiresFullCheckpoint }}
       checkpoint_kind: ${{ steps.checkpoint_kind.outputs.kind }}
@@ -366,6 +367,27 @@ jobs:
           fi
           node scripts/ci/timing.mjs "Production migration" -- env RIVALHUB_ALLOW_REMOTE_DB_WRITE=production pnpm db:production:migrate
           node scripts/ci/timing.mjs "Production DB verify" -- pnpm db:production:verify
+
+      - name: 回填 production Steam profile cache
+        if: needs.preflight.outputs.requires_steam_profile_backfill == 'true'
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          STEAM_API_KEY: ${{ secrets.STEAM_API_KEY }}
+          RIVALHUB_ALLOW_REMOTE_DB_WRITE: production
+          RIVALHUB_STEAM_PROFILE_WRITE_CONFIRM: I_UNDERSTAND_STEAM_PROFILE_CACHE_WRITE
+        run: |
+          set -euo pipefail
+          if [[ -z "$STEAM_API_KEY" || "$STEAM_API_KEY" == "[SENSITIVE]" ]]; then
+            echo "GitHub production Environment secret STEAM_API_KEY 未设置；拒绝在 app switch 前继续。" >&2
+            exit 1
+          fi
+          node scripts/ci/timing.mjs "Production Steam profile backfill" -- pnpm db:production:steam-profile:backfill -- --apply
+
+      - name: 验证 production Steam profile coverage
+        if: needs.preflight.outputs.requires_steam_profile_backfill == 'true'
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: node scripts/ci/timing.mjs "Production Steam profile coverage" -- pnpm db:production:steam-profile:coverage
 
       - name: Write timing summary
         if: always()

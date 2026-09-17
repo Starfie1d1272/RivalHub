@@ -13,6 +13,7 @@ import {
   matchVetoSteps,
   matches,
   seasons,
+  steamProfiles,
   users,
 } from "@/db/schema";
 import { loadStageBracketViews, projectStageBracketNodes } from "@/lib/bracket";
@@ -22,6 +23,7 @@ import { calculateStageRoundRobinStandings } from "@/lib/matches/stage-standings
 import { buildStageViews } from "@/lib/matches/stage-views";
 import { loadEffectiveMatchRoster } from "@/lib/match-rosters/effective";
 import { normalizeRegistrationConfig, normalizeStagePlan } from "@/lib/seasons/compatibility";
+import { getPublicDisplayName } from "@/lib/identity/display-name";
 import { pairingCanReadSeason } from "./pairing";
 import { buildEvidenceRevisionForTarget, sha256Json } from "./revision";
 import { projectStage } from "./stage-projection";
@@ -41,8 +43,9 @@ function iso(value: Date | null | undefined): string | null {
   return value?.toISOString() ?? null;
 }
 
-function displayName(row: { displayName: string | null; steamName: string | null; perfectName: string | null; steam64: string | null }): string {
-  return row.displayName?.trim() || row.steamName?.trim() || row.perfectName?.trim() || row.steam64?.trim() || "未知选手";
+function displayName(row: { displayName: string | null; personaName: string | null; perfectName: string | null; steam64: string | null }): string {
+  const canonicalName = getPublicDisplayName(row);
+  return canonicalName === "未知用户" ? row.steam64?.trim() || canonicalName : canonicalName;
 }
 
 function validSteam64(value: string | null): value is string {
@@ -81,7 +84,7 @@ function projectPlayer(row: {
   eventRosterMemberId: string;
   steam64: string | null;
   displayName: string | null;
-  steamName: string | null;
+  personaName: string | null;
   perfectName: string | null;
   isStarter: boolean;
 }): RivalHubRemotePlayer | null {
@@ -214,13 +217,14 @@ export async function readRivalHubEvents(pairing: PairingScope): Promise<RivalHu
       userId: users.id,
       steam64: users.steam64,
       displayName: users.displayName,
-      steamName: users.steamName,
+      personaName: steamProfiles.personaName,
       perfectName: users.perfectName,
       isStarter: eventRosterMembers.isPrimaryStarter,
     }).from(eventRosterMembers)
       .innerJoin(eventRosters, eq(eventRosters.id, eventRosterMembers.eventRosterId))
       .innerJoin(competitionEntries, eq(competitionEntries.id, eventRosters.entryId))
       .innerJoin(users, eq(users.id, eventRosterMembers.userId))
+      .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
       .where(and(inArray(competitionEntries.competitionId, seasonIds), inArray(eventRosters.status, ["confirmed", "frozen"]))),
     db.select().from(matches).where(and(inArray(matches.seasonId, seasonIds), or(inArray(matches.entryAId, entryIds), inArray(matches.entryBId, entryIds)))),
   ]);
@@ -332,7 +336,7 @@ export async function readRivalHubEvents(pairing: PairingScope): Promise<RivalHu
           eventRosterMemberId: row.eventRosterMemberId,
           steam64: row.steam64,
           displayName: row.displayName,
-          steamName: row.steamName,
+          personaName: row.personaName,
           perfectName: row.perfectName,
           isStarter: row.isStarter,
         })).filter((row): row is RivalHubRemotePlayer => row != null),

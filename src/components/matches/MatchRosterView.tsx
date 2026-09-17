@@ -5,7 +5,7 @@ import { getPublicDisplayName } from "@/lib/identity/display-name";
 
 interface RosterPlayer {
   registrationPosition?: string;
-  steamName: string;
+  personaName: string | null;
   displayName: string | null;
   perfectName: string | null;
   isStarter: boolean;

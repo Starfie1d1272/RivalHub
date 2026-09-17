@@ -80,6 +80,15 @@ describe("release plan", () => {
     expect(result.requiresDbCheckpoint).toBe(false);
   });
 
+  it("requires the protected Steam profile gate when a migration creates its cache", () => {
+    const result = plan(
+      [{ status: "A", paths: ["drizzle/migrations/0052_expand.sql"] }],
+      { "drizzle/migrations/0052_expand.sql": 'CREATE TABLE "steam_profiles" (steam64 text NOT NULL);' },
+    );
+
+    expect(result.requiresSteamProfileBackfill).toBe(true);
+  });
+
   it("requires a DB-only checkpoint for destructive or unrecognised SQL", () => {
     const result = plan(
       [{ status: "M", paths: ["drizzle/migrations/0053_contract.sql"] }],

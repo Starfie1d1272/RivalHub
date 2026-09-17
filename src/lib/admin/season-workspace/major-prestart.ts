@@ -13,6 +13,7 @@ import {
   majorStageRuns,
   majorTournamentEntrants,
   majorTournamentSeeds,
+  steamProfiles,
   users,
 } from "@/db/schema";
 import { evaluateMajorPrestartReadiness, type MajorPrestartReadiness } from "@/lib/major/prestart";
@@ -176,21 +177,22 @@ export async function loadMajorPrestartPageData(season: Season): Promise<MajorPr
       userId: competitionEntryRosterMembers.userId,
       displayName: users.displayName,
       perfectName: users.perfectName,
-      steamName: users.steamName,
+      personaName: steamProfiles.personaName,
       email: users.email,
       isPrimaryStarter: competitionEntryRosterMembers.isPrimaryStarter,
     }).from(competitionEntryRosterMembers)
       .innerJoin(competitionEntryRosterRevisions, eq(competitionEntryRosterMembers.revisionId, competitionEntryRosterRevisions.id))
       .innerJoin(users, eq(competitionEntryRosterMembers.userId, users.id))
+      .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
       .where(inArray(competitionEntryRosterMembers.revisionId, approvedRevisionIds))
       .orderBy(asc(competitionEntryRosterRevisions.entryId), asc(competitionEntryRosterMembers.userId)),
     representativeIds.length === 0 ? Promise.resolve([]) : db.select({
       id: users.id,
       displayName: users.displayName,
       perfectName: users.perfectName,
-      steamName: users.steamName,
+      personaName: steamProfiles.personaName,
       email: users.email,
-    }).from(users).where(inArray(users.id, representativeIds)),
+    }).from(users).leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64)).where(inArray(users.id, representativeIds)),
   ]);
   const approvedMembersByEntryId = new Map<string, Array<{ userId: string; label: string; isPrimaryStarter: boolean }>>();
   for (const member of approvedMemberRows) {
@@ -271,11 +273,12 @@ export async function loadMajorPrestartPageData(season: Season): Promise<MajorPr
       .innerJoin(eventRosters, eq(majorTournamentEntrants.competitionEntryId, eventRosters.entryId))
       .where(eq(majorTournamentEntrants.seasonId, season.id))
       .orderBy(asc(competitionEntries.name)),
-    db.select({ entrantId: majorTournamentEntrants.id, eventRosterId: eventRosterMembers.eventRosterId, userId: eventRosterMembers.userId, participantId: eventRosterMembers.participantId, displayName: users.displayName, perfectName: users.perfectName, steamName: users.steamName, email: users.email, educationVerificationId: eventRosterMembers.educationVerificationId, isPrimaryStarter: eventRosterMembers.isPrimaryStarter })
+    db.select({ entrantId: majorTournamentEntrants.id, eventRosterId: eventRosterMembers.eventRosterId, userId: eventRosterMembers.userId, participantId: eventRosterMembers.participantId, displayName: users.displayName, perfectName: users.perfectName, personaName: steamProfiles.personaName, email: users.email, educationVerificationId: eventRosterMembers.educationVerificationId, isPrimaryStarter: eventRosterMembers.isPrimaryStarter })
       .from(eventRosterMembers)
       .innerJoin(eventRosters, eq(eventRosterMembers.eventRosterId, eventRosters.id))
       .innerJoin(majorTournamentEntrants, eq(majorTournamentEntrants.competitionEntryId, eventRosters.entryId))
       .innerJoin(users, eq(eventRosterMembers.userId, users.id))
+      .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
       .where(eq(majorTournamentEntrants.seasonId, season.id)),
     db.select({ teamId: majorTournamentEntrants.competitionEntryId, tournamentSeed: majorTournamentSeeds.seed })
       .from(majorTournamentSeeds)
@@ -286,9 +289,9 @@ export async function loadMajorPrestartPageData(season: Season): Promise<MajorPr
     db.select({ id: majorStageRuns.id }).from(majorStageRuns).where(eq(majorStageRuns.seasonId, season.id)),
   ]);
 
-  const rosterRows: MajorRosterMemberRow[] = rawRosterRows.map(({ displayName, perfectName, steamName, email, ...member }) => ({
+  const rosterRows: MajorRosterMemberRow[] = rawRosterRows.map(({ displayName, perfectName, personaName, email, ...member }) => ({
     ...member,
-    label: getDisplayName({ displayName, perfectName, steamName, email }),
+    label: getDisplayName({ displayName, perfectName, personaName, email }),
   }));
   const frozenTeams = frozenTeamsForSnapshot(entrantRows, rosterRows);
   const frozenSetFingerprint = buildFrozenSetFingerprint(season.id, frozenTeams);

@@ -11,6 +11,7 @@ import {
   postMatchReports,
   seasonAdminGrants,
   seasons,
+  steamProfiles,
   users,
 } from "@/db/schema";
 import { requireSeasonAdmin } from "@/lib/auth/session";
@@ -59,11 +60,12 @@ async function loadCommentaryEffectiveness(
         userId: users.id,
         displayName: users.displayName,
         perfectName: users.perfectName,
-        steamName: users.steamName,
+        personaName: steamProfiles.personaName,
         liveStreamUrl: users.liveStreamUrl,
       })
       .from(seasonAdminGrants)
       .innerJoin(users, eq(seasonAdminGrants.userId, users.id))
+      .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
       .where(eq(seasonAdminGrants.seasonId, seasonId)),
   ]);
 

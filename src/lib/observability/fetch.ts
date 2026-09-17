@@ -13,5 +13,5 @@ export function providerFetch(provider: string): typeof fetch {
     ...init,
     ...PROVIDER_INIT,
     opentelemetry: { ...PROVIDER_INIT.opentelemetry, spanName },
-  });
+  } as RequestInit);
 }

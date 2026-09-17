@@ -3,7 +3,7 @@ import "server-only";
 import { asc, eq } from "drizzle-orm";
 
 import { db } from "@/db/client";
-import { competitionEntries, eventRosterMembers, eventRosters, users } from "@/db/schema";
+import { competitionEntries, eventRosterMembers, eventRosters, steamProfiles, users } from "@/db/schema";
 import { publicEventRosterPlayerCondition } from "@/lib/competition-entries/public-visibility";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
 import { getVerifiedPlayerStatsBySeason, type VerifiedPlayerSeasonStats } from "@/lib/stats/public-query";
@@ -25,10 +25,10 @@ export async function getPublicEventRosterPlayerProjection(seasonId: string): Pr
   const rows = await db
     .select({
       userId: users.id,
-      avatarUrl: users.avatarUrl,
+      avatarUrl: steamProfiles.avatarUrl,
       displayName: users.displayName,
       perfectName: users.perfectName,
-      steamName: users.steamName,
+      personaName: steamProfiles.personaName,
       entryId: competitionEntries.id,
       entryName: competitionEntries.name,
       isStarter: eventRosterMembers.isPrimaryStarter,
@@ -37,6 +37,7 @@ export async function getPublicEventRosterPlayerProjection(seasonId: string): Pr
     .innerJoin(eventRosters, eq(eventRosters.id, eventRosterMembers.eventRosterId))
     .innerJoin(competitionEntries, eq(competitionEntries.id, eventRosters.entryId))
     .innerJoin(users, eq(users.id, eventRosterMembers.userId))
+    .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
     .where(publicEventRosterPlayerCondition(seasonId))
     .orderBy(asc(competitionEntries.name), asc(users.id));
   const statsByUserId = await getVerifiedPlayerStatsBySeason(seasonId, rows.map((row) => row.userId));

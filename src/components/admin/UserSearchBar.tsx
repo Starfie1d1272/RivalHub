@@ -28,7 +28,7 @@ export function UserSearchBar({ filter, searchParams, update }: UserSearchBarPro
         ref={searchFieldRef}
         queryKey="q"
         label="搜索用户"
-        placeholder="姓名 / 邮箱…"
+        placeholder="昵称 / 邮箱 / Steam64 ID…"
         value={searchParams.get("q") ?? ""}
         onDebouncedChange={(value) => update({ q: value })}
         className="min-w-0 flex-1 basis-full md:basis-auto"

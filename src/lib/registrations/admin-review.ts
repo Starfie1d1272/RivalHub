@@ -9,6 +9,7 @@ import {
   competitionEntryRosterMembers,
   competitionEntryRosterRevisions,
   seasonRegistrations,
+  steamProfiles,
   teamMemberships,
   users,
 } from "@/db/schema";
@@ -140,7 +141,7 @@ type TeamEntryForProjection = {
   representative: {
     displayName: string | null;
     perfectName: string | null;
-    steamName: string | null;
+    personaName: string | null;
     email: string;
   };
 };
@@ -162,7 +163,7 @@ export async function getTeamRegistrationReview(
       ilike(competitionEntries.name, pattern),
       ilike(users.displayName, pattern),
       ilike(users.perfectName, pattern),
-      ilike(users.steamName, pattern),
+      ilike(steamProfiles.personaName, pattern),
       ilike(users.email, pattern),
     )!);
   }
@@ -187,23 +188,26 @@ export async function getTeamRegistrationReview(
         representative: {
           displayName: users.displayName,
           perfectName: users.perfectName,
-          steamName: users.steamName,
+          personaName: steamProfiles.personaName,
           email: users.email,
         },
       })
       .from(competitionEntries)
       .innerJoin(users, and(eq(competitionEntries.representativeUserId, users.id), eq(users.status, "active")))
+      .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
       .where(where)
       .orderBy(...orderBy),
     db
       .select({ count: count() })
       .from(competitionEntries)
       .innerJoin(users, and(eq(competitionEntries.representativeUserId, users.id), eq(users.status, "active")))
+      .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
       .where(where),
     db
       .select({ count: count() })
       .from(competitionEntries)
       .innerJoin(users, and(eq(competitionEntries.representativeUserId, users.id), eq(users.status, "active")))
+      .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
       .where(and(
         eq(competitionEntries.competitionId, season.id),
         eq(users.status, "active"),
@@ -262,7 +266,7 @@ async function projectTeamRegistrationRows(
             email: users.email,
             displayName: users.displayName,
             perfectName: users.perfectName,
-            steamName: users.steamName,
+            personaName: steamProfiles.personaName,
             status: competitionEntryParticipants.status,
             primary: competitionEntryRosterMembers.isPrimaryStarter,
           })
@@ -270,6 +274,7 @@ async function projectTeamRegistrationRows(
           .innerJoin(competitionEntryRosterMembers, eq(competitionEntryRosterMembers.revisionId, competitionEntryRosterRevisions.id))
           .innerJoin(competitionEntryParticipants, eq(competitionEntryParticipants.id, competitionEntryRosterMembers.participantId))
         .innerJoin(users, and(eq(users.id, competitionEntryRosterMembers.userId), eq(users.status, "active")))
+        .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
           .where(inArray(competitionEntryRosterRevisions.entryId, entryIds)),
       ]);
 
@@ -381,12 +386,13 @@ export async function getTeamRegistrationProgress(season: TeamReviewSeason): Pro
       representative: {
         displayName: users.displayName,
         perfectName: users.perfectName,
-        steamName: users.steamName,
+        personaName: steamProfiles.personaName,
         email: users.email,
       },
     })
       .from(competitionEntries)
       .innerJoin(users, and(eq(competitionEntries.representativeUserId, users.id), eq(users.status, "active")))
+      .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
       .where(and(eq(competitionEntries.competitionId, season.id), eq(competitionEntries.registrationStatus, "draft")))
       .orderBy(desc(competitionEntries.updatedAt), desc(competitionEntries.id)),
     db.select({ status: competitionEntries.registrationStatus, count: count() })
@@ -474,7 +480,7 @@ export async function getSoloRegistrationReview(
     conditions.push(or(
       ilike(users.displayName, pattern),
       ilike(users.perfectName, pattern),
-      ilike(users.steamName, pattern),
+      ilike(steamProfiles.personaName, pattern),
       ilike(users.email, pattern),
     )!);
   }
@@ -495,8 +501,12 @@ export async function getSoloRegistrationReview(
       .select({ count: count() })
       .from(seasonRegistrations)
       .innerJoin(users, and(eq(seasonRegistrations.userId, users.id), eq(users.status, "active")))
+      .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
       .where(where),
-    db.select({ count: count() }).from(seasonRegistrations).innerJoin(users, and(eq(seasonRegistrations.userId, users.id), eq(users.status, "active"))).where(eq(seasonRegistrations.seasonId, seasonId)),
+    db.select({ count: count() }).from(seasonRegistrations)
+      .innerJoin(users, and(eq(seasonRegistrations.userId, users.id), eq(users.status, "active")))
+      .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
+      .where(eq(seasonRegistrations.seasonId, seasonId)),
   ]);
   const total = Number(totalRow?.count ?? 0);
   const totalPages = Math.ceil(total / SOLO_REGISTRATION_REVIEW_PAGE_SIZE);
@@ -521,15 +531,16 @@ export async function getSoloRegistrationReview(
       createdAt: seasonRegistrations.createdAt,
       email: users.email,
       studentId: users.studentId,
-      steamName: users.steamName,
+      personaName: steamProfiles.personaName,
       displayName: users.displayName,
       perfectName: users.perfectName,
       steam64: users.steam64,
-      steamProfileUrl: users.steamProfileUrl,
+      steamProfileUrl: steamProfiles.profileUrl,
       qq: users.qq,
     })
     .from(seasonRegistrations)
     .innerJoin(users, and(eq(seasonRegistrations.userId, users.id), eq(users.status, "active")))
+    .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
     .where(where)
     .orderBy(...orderBy)
     .limit(SOLO_REGISTRATION_REVIEW_PAGE_SIZE)
@@ -545,7 +556,7 @@ export async function getSoloRegistrationReview(
     competitionHistory: row.competitionHistory ?? null,
     notes: row.notes ?? null,
     studentId: row.studentId ?? null,
-    steamName: row.steamName ?? null,
+    personaName: row.personaName ?? null,
     displayName: row.displayName ?? null,
     perfectName: row.perfectName ?? null,
     steam64: row.steam64 ?? null,

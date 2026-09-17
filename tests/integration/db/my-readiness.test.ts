@@ -8,7 +8,7 @@ import { Pool } from "pg";
 import { describe, expect, it } from "vitest";
 import { loadMyReadiness } from "../../../src/lib/my/readiness";
 import { loadMyTeamWorkspace } from "../../../src/lib/my/team-workspace";
-import { localDatabaseUrl } from "./harness/database";
+import { localDatabaseUrl, testSteam64 } from "./harness/database";
 
 const databaseUrl = localDatabaseUrl();
 
@@ -54,7 +54,7 @@ async function main(): Promise<void> {
     expect(institution.rows[0]).toBeTruthy();
     const config = { requireCompetitiveProfile: true, competitiveProfile: { platform: platformKey, currentSeasonKey: current.season_key, previousSeasonKey: previous.season_key, rankOrder: ranks.rows.map((row) => row.rank_key) } };
     await client.query("BEGIN");
-    await client.query(`INSERT INTO users (id, email, display_name, steam64, perfect_name, qq, email_verified_at) VALUES ($1, $2, 'Local 我的选手', '76561198000000001', $3, '100001', now()), ($4, $5, 'Local 替补队长', '76561198000000002', $6, '100002', now()), ($7, $8, 'Local 待处理邀请', NULL, NULL, NULL, now()), ($9, $10, 'Local 当前队友', NULL, NULL, '100003', now()), ($11, $12, 'Local 已离队成员', NULL, NULL, '100004', now())`, [ids.user, `my-readiness-${ids.user}@local.test`, `perfect-${ids.user}`, ids.benchedCaptain, `my-readiness-benched-${ids.benchedCaptain}@local.test`, `perfect-${ids.benchedCaptain}`, ids.noTeamUser, `my-readiness-invitee-${ids.noTeamUser}@local.test`, ids.teamMate, `my-readiness-teammate-${ids.teamMate}@local.test`, ids.formerMember, `my-readiness-former-${ids.formerMember}@local.test`]);
+    await client.query(`INSERT INTO users (id, email, display_name, steam64, perfect_name, qq, email_verified_at) VALUES ($1, $2, 'Local 我的选手', $3, $4, '100001', now()), ($5, $6, 'Local 替补队长', $7, $8, '100002', now()), ($9, $10, 'Local 待处理邀请', NULL, NULL, NULL, now()), ($11, $12, 'Local 当前队友', NULL, NULL, '100003', now()), ($13, $14, 'Local 已离队成员', NULL, NULL, '100004', now())`, [ids.user, `my-readiness-${ids.user}@local.test`, testSteam64(ids.user), `perfect-${ids.user}`, ids.benchedCaptain, `my-readiness-benched-${ids.benchedCaptain}@local.test`, testSteam64(ids.benchedCaptain), `perfect-${ids.benchedCaptain}`, ids.noTeamUser, `my-readiness-invitee-${ids.noTeamUser}@local.test`, ids.teamMate, `my-readiness-teammate-${ids.teamMate}@local.test`, ids.formerMember, `my-readiness-former-${ids.formerMember}@local.test`]);
     await client.query(`INSERT INTO education_verifications (user_id, institution_id, academic_status, evidence_type, status, reviewed_by, reviewed_at) VALUES ($1, $2, 'enrolled', 'manual_other', 'approved', 'local-admin', now())`, [ids.user, institution.rows[0]!.id]);
     for (const [kind, seasonKey] of [["historical_peak", null], ["season_peak", previous.season_key], ["season_peak", current.season_key]] as const) {
       const peakRank = ranks.rows.at(-1)!;

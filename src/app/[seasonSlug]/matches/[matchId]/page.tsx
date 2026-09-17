@@ -2,7 +2,7 @@ import { MatchLiveViewing } from "@/components/matches/MatchLiveViewing";
 import { notFound } from "next/navigation";
 import { eq, and, inArray, isNotNull } from "drizzle-orm";
 import { db } from "@/db/client";
-import { matches, competitionEntries, eventRosters, eventRosterMembers, matchCommentators, matchMaps, users, seasonRegistrations } from "@/db/schema";
+import { matches, competitionEntries, eventRosters, eventRosterMembers, matchCommentators, matchMaps, steamProfiles, users, seasonRegistrations } from "@/db/schema";
 import { matchPlayerStats } from "@/db/schema/player-stats";
 import { matchMvpVotes } from "@/db/schema/mvp-votes";
 import { MatchMvpVote } from "@/components/matches/MatchMvpVote";
@@ -89,22 +89,24 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
         .select({
           id: eventRosterMembers.id,
           teamId: eventRosters.entryId,
-          steamName: users.steamName,
+          personaName: steamProfiles.personaName,
           displayName: users.displayName,
           perfectName: users.perfectName,
           userId: users.id,
-          avatarUrl: users.avatarUrl,
+          avatarUrl: steamProfiles.avatarUrl,
         })
         .from(eventRosterMembers)
         .innerJoin(eventRosters, eq(eventRosterMembers.eventRosterId, eventRosters.id))
         .innerJoin(users, eq(eventRosterMembers.userId, users.id))
+        .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
         .where(inArray(eventRosters.entryId, [match.entryAId, match.entryBId])),
       getSeasonFinishedMatches(season.id, match.entryAId),
       getSeasonFinishedMatches(season.id, match.entryBId),
       getSeasonHexagonScores(season.id),
-      db.select({ userId: users.id, displayName: users.displayName, perfectName: users.perfectName, steamName: users.steamName, liveStreamUrl: users.liveStreamUrl })
+      db.select({ userId: users.id, displayName: users.displayName, perfectName: users.perfectName, personaName: steamProfiles.personaName, liveStreamUrl: users.liveStreamUrl })
         .from(matchCommentators)
         .innerJoin(users, eq(matchCommentators.userId, users.id))
+        .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
         .where(eq(matchCommentators.matchId, match.id)),
     ]);
   const timeProposals = await getMatchTimeProposalViews(match.id, userSession?.userId);
@@ -278,7 +280,7 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
   let isCaptainA = false;
   let isCaptainB = false;
   let isSeasonAdmin = false;
-  let captainTeamMembers: { id: string; steamName: string; avatarUrl: string | null; displayName: string | null; perfectName: string | null; primaryPosition: string }[] = [];
+  let captainTeamMembers: { id: string; personaName: string | null; avatarUrl: string | null; displayName: string | null; perfectName: string | null; primaryPosition: string }[] = [];
 
   if (userSession?.userId) {
     try {
@@ -297,7 +299,7 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
         .filter((m) => m.teamId === captainTeamId)
         .map((r) => ({
           id: r.id,
-          steamName: r.steamName ?? "未知",
+          personaName: r.personaName ?? null,
           avatarUrl: r.avatarUrl,
           displayName: r.displayName ?? null,
           perfectName: r.perfectName ?? null,

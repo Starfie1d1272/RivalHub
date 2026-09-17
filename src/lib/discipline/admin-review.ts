@@ -2,7 +2,7 @@ import "server-only";
 
 import { and, asc, eq, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
-import { disciplinaryCases, users } from "@/db/schema";
+import { disciplinaryCases, steamProfiles, users } from "@/db/schema";
 import { getDisplayName } from "@/lib/identity/display-name";
 import { resolveSanctionStatus } from "@/lib/discipline/service";
 import {
@@ -66,10 +66,11 @@ export async function getSeasonSanctionsAdminReadModel(
           id: users.id,
           displayName: users.displayName,
           perfectName: users.perfectName,
-          steamName: users.steamName,
+          personaName: steamProfiles.personaName,
           email: users.email,
         })
         .from(users)
+        .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
         .where(and(inArray(users.id, subjectIds), eq(users.status, "active")));
   const subjectById = new Map(subjectRows.map((row) => [row.id, row]));
   const now = new Date();
@@ -93,7 +94,7 @@ export async function getSeasonSanctionsAdminReadModel(
   });
   const subjectSearchText = new Map(subjectRows.map((row) => [
     row.id,
-    [row.displayName, row.perfectName, row.steamName, row.email].filter(Boolean).join(" ").toLocaleLowerCase(),
+    [row.displayName, row.perfectName, row.personaName, row.email].filter(Boolean).join(" ").toLocaleLowerCase(),
   ]));
   const q = query.q?.toLocaleLowerCase();
   const filtered = projected

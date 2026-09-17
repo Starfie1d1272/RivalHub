@@ -33,13 +33,13 @@ export function DraftRegistrationTable({ drafts }: DraftRegistrationTableProps) 
               <tbody>
                 {drafts.map((draft) => {
                   const p = draft.payload;
-                  const steamName = str(p.steamName);
+                  const personaName = str(p.personaName);
                   const primaryPosition = str(p.primaryPosition);
                   const peakRank = str(p.peakRank);
                   return (
                     <tr key={draft.id} className="border-b border-[var(--color-border)]/50">
                       <td className="py-2 text-[var(--color-fg)]">{draft.email}</td>
-                      <td className="py-2 text-[var(--color-fg)]">{steamName}</td>
+                      <td className="py-2 text-[var(--color-fg)]">{personaName}</td>
                       <td className="py-2 text-[var(--color-fg)]">{primaryPosition}</td>
                       <td className="py-2 text-[var(--color-fg)]">{peakRank}</td>
                       <td className="py-2 text-[var(--color-fg-dim)] tabular-nums">

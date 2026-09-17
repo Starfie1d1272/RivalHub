@@ -22,7 +22,10 @@ const {
   getRegistrationWindowStateMock,
   getUserSessionMock,
   buildRegistrationSchemaMock,
-  resolveSteamAvatarForProfileMock,
+  assertSteam64AvailableMock,
+  changePrimarySteam64InTxMock,
+  getSteamProfileForPrimaryMock,
+  upsertSteamProfileMock,
   revalidatePathMock,
   assertUsersNotBlockedInTxMock,
 } = vi.hoisted(() => {
@@ -41,7 +44,10 @@ const {
     getRegistrationWindowStateMock: vi.fn(),
     getUserSessionMock: vi.fn(),
     buildRegistrationSchemaMock: vi.fn(),
-    resolveSteamAvatarForProfileMock: vi.fn(),
+    assertSteam64AvailableMock: vi.fn(),
+    changePrimarySteam64InTxMock: vi.fn(),
+    getSteamProfileForPrimaryMock: vi.fn(),
+    upsertSteamProfileMock: vi.fn(),
     revalidatePathMock: vi.fn(),
     assertUsersNotBlockedInTxMock: vi.fn(),
   };
@@ -88,8 +94,14 @@ vi.mock("@/lib/utils/object", () => ({
   compactUndefined: (obj: Record<string, unknown>) => obj,
 }));
 
-vi.mock("@/lib/steam", () => ({
-  resolveSteamAvatarForProfile: resolveSteamAvatarForProfileMock,
+vi.mock("@/lib/identity/gameplay-steam", () => ({
+  assertSteam64Available: assertSteam64AvailableMock,
+  changePrimarySteam64InTx: changePrimarySteam64InTxMock,
+}));
+
+vi.mock("@/lib/steam-profiles", () => ({
+  getSteamProfileForPrimary: getSteamProfileForPrimaryMock,
+  upsertSteamProfile: upsertSteamProfileMock,
 }));
 
 vi.mock("@/lib/discipline/service", () => ({
@@ -129,9 +141,7 @@ const VALID_INPUT = {
   playerType: "undergraduate",
   qq: "12345678",
   perfectName: "TestPlayer",
-  steamName: "test_steam",
   steam64: "76561198000000001",
-  steamProfileUrl: "https://steamcommunity.com/id/test",
   primaryPosition: "opener",
   secondaryPosition: "closer",
   peakRank: "黄金",
@@ -222,7 +232,15 @@ describe("submitRegistration()", () => {
       delete: deleteMock,
     }));
     resetAuditTracking(insertValuesCalls);
-    resolveSteamAvatarForProfileMock.mockResolvedValue(null);
+    assertSteam64AvailableMock.mockResolvedValue(undefined);
+    changePrimarySteam64InTxMock.mockResolvedValue(undefined);
+    getSteamProfileForPrimaryMock.mockResolvedValue({
+      steam64: VALID_INPUT.steam64,
+      personaName: "Official test steam",
+      profileUrl: "https://steamcommunity.com/profiles/76561198000000001",
+      avatarUrl: "https://avatars.steamstatic.com/test.jpg",
+    });
+    upsertSteamProfileMock.mockResolvedValue(undefined);
     assertUsersNotBlockedInTxMock.mockResolvedValue(undefined);
   });
 
@@ -434,7 +452,7 @@ describe("submitRegistration()", () => {
     expect(revalidatePathMock).toHaveBeenCalledWith(`/${SEASON.slug}/register`);
   });
 
-  it("持久化规范化后的 Steam 个人资料链接（去除空白、query、hash）", async () => {
+  it("在写入报名链前持久化官方 Steam 资料投影", async () => {
     const { buildRegistrationSchema: realBuildRegistrationSchema } =
       await vi.importActual<typeof import("@/lib/validators/registration")>(
         "@/lib/validators/registration",
@@ -474,54 +492,15 @@ describe("submitRegistration()", () => {
       where: vi.fn().mockResolvedValue(undefined),
     });
 
-    const result = await submitRegistration({
-      ...VALID_SCHEMA_INPUT,
-      steamProfileUrl: "  https://steamcommunity.com/id/test/?foo=bar#baz  ",
-    } as never);
+    const result = await submitRegistration(VALID_SCHEMA_INPUT as never);
 
     expect(result.success).toBe(true);
-    expect(userUpdateSetSpy).toHaveBeenCalledWith(
-      expect.objectContaining({
-        steamProfileUrl: "https://steamcommunity.com/id/test",
-      }),
-    );
-  });
-
-  it("拒绝 CodeQL 绕过格式的 Steam 个人资料链接，不进入写链", async () => {
-    const { buildRegistrationSchema: realBuildRegistrationSchema } =
-      await vi.importActual<typeof import("@/lib/validators/registration")>(
-        "@/lib/validators/registration",
-      );
-
-    const bypassPayloads = [
-      "https://steamcommunity.com.attacker.example/id/test",
-      "https://attacker.example/steamcommunity.com",
-      "https://attacker.example/?next=steamcommunity.com",
-      "https://steamcommunity.com/profiles/76561198000000001/edit",
-      "https://steamcommunity.com/tradeoffer/new",
-    ];
-
-    for (const url of bypassPayloads) {
-      vi.clearAllMocks();
-      setupHappyPathBase();
-      buildRegistrationSchemaMock.mockImplementation((config, positions) =>
-        realBuildRegistrationSchema(config, positions),
-      );
-      userFindFirstMock.mockResolvedValue(USER);
-
-      const result = await submitRegistration({
-        ...VALID_SCHEMA_INPUT,
-        steamProfileUrl: url,
-      } as never);
-
-      expect(result.success).toBe(false);
-      if (!result.success) {
-        expect(result.error.code).toBe(ErrorCode.VALIDATION_FAILED);
-        expect(result.error.fieldErrors?.steamProfileUrl).toBeDefined();
-      }
-      expect(updateMock).not.toHaveBeenCalled();
-      expect(insertMock).not.toHaveBeenCalled();
-    }
+    expect(getSteamProfileForPrimaryMock).toHaveBeenCalledWith(expect.anything(), USER.steam64, VALID_SCHEMA_INPUT.steam64);
+    expect(upsertSteamProfileMock).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ steam64: VALID_SCHEMA_INPUT.steam64 }));
+    expect(userUpdateSetSpy).toHaveBeenCalledWith(expect.objectContaining({
+      qq: VALID_SCHEMA_INPUT.qq,
+      studentId: VALID_SCHEMA_INPUT.studentId,
+    }));
   });
 });
 
@@ -619,7 +598,7 @@ describe("saveRegistrationDraft()", () => {
     const result = await saveRegistrationDraft({
       seasonId: SEASON_ID,
       email: "Player@Example.COM",
-      payload: { steamName: "test" },
+      payload: { personaName: "test" },
     });
     expect(result.success).toBe(true);
     if (result.success) {

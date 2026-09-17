@@ -30,6 +30,9 @@ describe("fetchAuditLogs", () => {
           table = nextTable;
           return builder;
         },
+        leftJoin() {
+          return builder;
+        },
         where() {
           return builder;
         },

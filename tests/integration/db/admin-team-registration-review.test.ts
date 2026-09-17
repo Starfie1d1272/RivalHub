@@ -78,9 +78,9 @@ describe("PR3 team registration review PostgreSQL integration", () => {
         ],
       );
       await pool.query(
-        `INSERT INTO users (id, email, email_verified_at, display_name, perfect_name, steam_name)
-         VALUES ($1, $2, now(), 'Ready Representative', 'Ready Perfect', 'Ready Steam'),
-                ($3, $4, now(), 'Blocked Representative', 'Blocked Perfect', 'Blocked Steam')`,
+        `INSERT INTO users (id, email, email_verified_at, display_name, perfect_name)
+         VALUES ($1, $2, now(), 'Ready Representative', 'Ready Perfect'),
+                ($3, $4, now(), 'Blocked Representative', 'Blocked Perfect')`,
         [
           ids.readyUser,
           `${marker}-ready@local.test`,
@@ -96,14 +96,13 @@ describe("PR3 team registration review PostgreSQL integration", () => {
       );
       for (const entry of paginationEntries) {
         await pool.query(
-          `INSERT INTO users (id, email, email_verified_at, display_name, perfect_name, steam_name)
-           VALUES ($1, $2, now(), $3, $4, $5)`,
+          `INSERT INTO users (id, email, email_verified_at, display_name, perfect_name)
+           VALUES ($1, $2, now(), $3, $4)`,
           [
             entry.userId,
             `${marker}-pagination-${entry.index}@local.test`,
             `${marker} Pagination Representative ${entry.index}`,
             `${marker} Pagination Perfect ${entry.index}`,
-            `${marker} Pagination Steam ${entry.index}`,
           ],
         );
         if (entry.ready) {

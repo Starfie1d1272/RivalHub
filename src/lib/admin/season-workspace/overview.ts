@@ -16,6 +16,7 @@ import {
   postEventAdjudications,
   seasons,
   seasonRegistrations,
+  steamProfiles,
   users,
 } from "@/db/schema";
 import type { Season } from "@/db/schema/seasons";
@@ -63,11 +64,12 @@ async function loadMajorOverviewFacts(season: Season): Promise<MajorOverviewFact
       .innerJoin(competitionEntries, eq(majorTournamentEntrants.competitionEntryId, competitionEntries.id))
       .innerJoin(eventRosters, eq(majorTournamentEntrants.competitionEntryId, eventRosters.entryId))
       .where(eq(majorTournamentEntrants.seasonId, season.id)),
-    db.select({ entrantId: majorTournamentEntrants.id, eventRosterId: eventRosterMembers.eventRosterId, userId: eventRosterMembers.userId, participantId: eventRosterMembers.participantId, displayName: users.displayName, perfectName: users.perfectName, steamName: users.steamName, email: users.email, educationVerificationId: eventRosterMembers.educationVerificationId, isPrimaryStarter: eventRosterMembers.isPrimaryStarter })
+    db.select({ entrantId: majorTournamentEntrants.id, eventRosterId: eventRosterMembers.eventRosterId, userId: eventRosterMembers.userId, participantId: eventRosterMembers.participantId, displayName: users.displayName, perfectName: users.perfectName, personaName: steamProfiles.personaName, email: users.email, educationVerificationId: eventRosterMembers.educationVerificationId, isPrimaryStarter: eventRosterMembers.isPrimaryStarter })
       .from(eventRosterMembers)
       .innerJoin(eventRosters, eq(eventRosterMembers.eventRosterId, eventRosters.id))
       .innerJoin(majorTournamentEntrants, eq(majorTournamentEntrants.competitionEntryId, eventRosters.entryId))
       .innerJoin(users, eq(eventRosterMembers.userId, users.id))
+      .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
       .where(eq(majorTournamentEntrants.seasonId, season.id)),
     db.select({ teamId: majorTournamentEntrants.competitionEntryId, tournamentSeed: majorTournamentSeeds.seed })
       .from(majorTournamentSeeds)
@@ -77,9 +79,9 @@ async function loadMajorOverviewFacts(season: Season): Promise<MajorOverviewFact
     db.query.majorFinalResults.findFirst({ where: eq(majorFinalResults.seasonId, season.id), columns: { status: true } }),
   ]);
 
-  const rosterRows = rawRosterRows.map(({ displayName, perfectName, steamName, email, ...row }) => ({
+  const rosterRows = rawRosterRows.map(({ displayName, perfectName, personaName, email, ...row }) => ({
     ...row,
-    label: getDisplayName({ displayName, perfectName, steamName, email }),
+    label: getDisplayName({ displayName, perfectName, personaName, email }),
   }));
   const frozenTeams = frozenTeamsForSnapshot(entrants, rosterRows);
   const frozenSetFingerprint = buildFrozenSetFingerprint(season.id, frozenTeams);

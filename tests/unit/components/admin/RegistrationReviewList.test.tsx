@@ -39,7 +39,7 @@ const baseRow: RegistrationRow = {
   createdAt: "2026-09-01T00:00:00.000Z",
   email: "player1@example.com",
   studentId: "22000001",
-  steamName: "player1_steam",
+  personaName: "player1_steam",
   displayName: "Player One",
   perfectName: "Perfect 1",
   steam64: "76561198000000001",

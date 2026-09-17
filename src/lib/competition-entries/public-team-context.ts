@@ -8,6 +8,7 @@ import {
   eventRosterMembers,
   eventRosters,
   matches,
+  steamProfiles,
   users,
 } from "@/db/schema";
 import { publicCompetitionEntryCondition } from "@/lib/competition-entries/public-visibility";
@@ -287,13 +288,14 @@ export async function getPublicCompetitionEntryTeamContext(
         userId: users.id,
         displayName: users.displayName,
         perfectName: users.perfectName,
-        steamName: users.steamName,
-        avatarUrl: users.avatarUrl,
+        personaName: steamProfiles.personaName,
+        avatarUrl: steamProfiles.avatarUrl,
         isStarter: eventRosterMembers.isPrimaryStarter,
       })
       .from(eventRosterMembers)
       .innerJoin(eventRosters, eq(eventRosters.id, eventRosterMembers.eventRosterId))
       .innerJoin(users, eq(users.id, eventRosterMembers.userId))
+      .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
       .where(eq(eventRosters.entryId, entry.id)),
     getPublicEventTeamMatchFacts(season.id, [entry.id]),
   ]);
