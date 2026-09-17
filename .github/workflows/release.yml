@@ -360,6 +360,7 @@ jobs:
       - name: 运行 production migration 与验证
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          RIVALHUB_RELEASE_MIGRATION_REHEARSAL: ${{ needs.migration_rehearsal.result == 'success' && 'pg17' || '' }}
         run: |
           if [[ -z "$DATABASE_URL" || "$DATABASE_URL" == "[SENSITIVE]" ]]; then
             echo "GitHub production Environment secret DATABASE_URL 未设置。" >&2
