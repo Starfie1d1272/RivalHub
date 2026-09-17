@@ -349,8 +349,32 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          ref: ${{ needs.preflight.outputs.release_tag }}
+          ref: ${{ github.event_name == 'workflow_dispatch' && github.sha || needs.preflight.outputs.release_tag }}
           fetch-depth: 0
+
+      - name: 验证 release operator 与 candidate migration chain
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          RELEASE_TAG: ${{ needs.preflight.outputs.release_tag }}
+          RELEASE_OPERATOR_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          git rev-parse --verify "$RELEASE_TAG^{commit}" >/dev/null
+          git rev-parse --verify "$RELEASE_OPERATOR_SHA^{commit}" >/dev/null
+          if ! git diff --quiet "$RELEASE_TAG" "$RELEASE_OPERATOR_SHA" -- \
+            drizzle/migrations \
+            drizzle/meta \
+            drizzle.production.config.ts \
+            scripts/db/migration-replay.ts \
+            scripts/db/verify-migrations.ts \
+            scripts/db/production.ts \
+            scripts/db/production-environment.ts \
+            package.json \
+            pnpm-lock.yaml
+          then
+            echo "Release operator checkout changed candidate migration inputs; refusing production migration." >&2
+            exit 1
+          fi
 
       - uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
         with:
