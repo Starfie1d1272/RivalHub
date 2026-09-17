@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.10.4]
+
+### Fixed
+
+#### 私有 QQ 联系链路
+
+恢复 `/my/teams` 当前队伍成员的 QQ 与选手资料入口，并让队长在处理有效招募意向时看到对应选手的 QQ；公开选手、队伍和招募视图继续不暴露私有联系方式。
+
+#### Steam 官方资料与 Steam64 身份
+
+统一以 Steam64 保存当前 Steam 身份，Steam 昵称、头像和资料链接改由 Steam 官方资料缓存展示；Steam64 更换会保留可审计、可撤销的历史游戏身份。
+
 ## [2.10.3]
 
 ### Fixed
@@ -2267,6 +2279,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[2.10.4]: https://github.com/Starfie1d1272/RivalHub/compare/v2.10.3...v2.10.4
 [2.10.3]: https://github.com/Starfie1d1272/RivalHub/compare/v2.10.2...v2.10.3
 [2.10.2]: https://github.com/Starfie1d1272/RivalHub/compare/v2.10.1...v2.10.2
 [2.10.1]: https://github.com/Starfie1d1272/RivalHub/compare/v2.10.0...v2.10.1
