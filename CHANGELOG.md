@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.10.3]
+
+### Fixed
+
+#### DAK Demo Evidence 武器击杀完整性校验
+
+修正 `dak-stable/3` Demo Evidence 的武器击杀完整性校验：`sourceFacts.kills` 继续保留 teamkill 原始事件，`playerWeapons` 仅按 enemy-player offensive credit 校验；历史 Stable profile 保持原有口径。
+
 ## [2.10.2]
 
 ### Fixed
@@ -2259,6 +2267,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[2.10.3]: https://github.com/Starfie1d1272/RivalHub/compare/v2.10.2...v2.10.3
 [2.10.2]: https://github.com/Starfie1d1272/RivalHub/compare/v2.10.1...v2.10.2
 [2.10.1]: https://github.com/Starfie1d1272/RivalHub/compare/v2.10.0...v2.10.1
 [2.10.0]: https://github.com/Starfie1d1272/RivalHub/compare/v2.9.7...v2.10.0
