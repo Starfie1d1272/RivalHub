@@ -11,8 +11,8 @@ describe("MatchRosterView", () => {
         teamAName="Alpha 队"
         teamBName="Beta 队"
         teamARoster={[
-          { steamName: "Starter", displayName: null, perfectName: null, isStarter: true, userId: "user-1", avatarUrl: null },
-          { steamName: "Sub", displayName: null, perfectName: null, isStarter: false, userId: "user-2", avatarUrl: null },
+          { personaName: "Starter", displayName: null, perfectName: null, isStarter: true, userId: "user-1", avatarUrl: null },
+          { personaName: "Sub", displayName: null, perfectName: null, isStarter: false, userId: "user-2", avatarUrl: null },
         ]}
         teamBRoster={[]}
       />,

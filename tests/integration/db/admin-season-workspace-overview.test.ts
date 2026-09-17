@@ -53,8 +53,8 @@ describe("admin season workspace overview PostgreSQL integration", () => {
         ],
       );
       await client.query(
-        `INSERT INTO users (id, email, display_name, steam_name)
-         VALUES ($1, $2, 'Overview Player', 'Overview Player')`,
+        `INSERT INTO users (id, email, display_name)
+         VALUES ($1, $2, 'Overview Player')`,
         [ids.user, `${ids.user}@local.test`],
       );
       await client.query(

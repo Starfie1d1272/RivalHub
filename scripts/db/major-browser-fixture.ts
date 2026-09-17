@@ -320,6 +320,7 @@ async function removeFixtureDatabaseRows(client: PoolClient, scenario: ScenarioD
   await client.query("DELETE FROM team_name_changes WHERE team_id IN (SELECT id FROM teams WHERE creator_user_id = ANY($1::uuid[]) OR captain_user_id = ANY($1::uuid[]))", [accountIds]);
   await client.query("DELETE FROM team_slug_aliases WHERE team_id IN (SELECT id FROM teams WHERE creator_user_id = ANY($1::uuid[]) OR captain_user_id = ANY($1::uuid[]))", [accountIds]);
   await client.query("DELETE FROM teams WHERE creator_user_id = ANY($1::uuid[]) OR captain_user_id = ANY($1::uuid[])", [accountIds]);
+  await client.query("DELETE FROM steam_profiles WHERE steam64 IN (SELECT steam64 FROM users WHERE id = ANY($1::uuid[]) AND steam64 IS NOT NULL)", [accountIds]);
   await client.query("DELETE FROM users WHERE id = ANY($1::uuid[])", [accountIds]);
   await deleteCompetitivePlatformCatalog(client, scenario.platform);
   await client.query("DELETE FROM seasons WHERE id = $1", [scenario.seasonId]);
@@ -337,11 +338,19 @@ async function insertFixture(client: PoolClient, scenario: ScenarioDefinition, a
         [account.userId, authIds.get(account.email), account.email, "Browser admin"],
       );
     } else {
+      const steam64 = ready ? `7656119800000${String(index + 1).padStart(4, "0")}` : null;
       await client.query(
-        `INSERT INTO users (id, auth_id, email, email_verified_at, display_name, steam_name, perfect_name, steam64, steam_profile_url, qq)
-         VALUES ($1, $2, $3, now(), $4, $5, $6, $7, $8, $9)`,
-        [account.userId, authIds.get(account.email), account.email, ready ? `Browser ${account.key}` : null, ready ? `Browser Steam ${account.key}` : null, ready ? `Browser Perfect ${account.key}` : null, ready ? `7656119800000${String(index + 1).padStart(4, "0")}` : null, ready ? `https://steamcommunity.com/id/${scenario.scenarioId}-${account.key}` : null, ready ? `500000${String(index + 1).padStart(4, "0")}` : null],
+        `INSERT INTO users (id, auth_id, email, email_verified_at, display_name, perfect_name, steam64, qq)
+         VALUES ($1, $2, $3, now(), $4, $5, $6, $7)`,
+        [account.userId, authIds.get(account.email), account.email, ready ? `Browser ${account.key}` : null, ready ? `Browser Perfect ${account.key}` : null, steam64, ready ? `500000${String(index + 1).padStart(4, "0")}` : null],
       );
+      if (steam64) {
+        await client.query(
+          `INSERT INTO steam_profiles (steam64, persona_name, profile_url, avatar_url)
+           VALUES ($1, $2, $3, NULL)`,
+          [steam64, `Browser Steam ${account.key}`, `https://steamcommunity.com/profiles/${steam64}`],
+        );
+      }
     }
   }
 

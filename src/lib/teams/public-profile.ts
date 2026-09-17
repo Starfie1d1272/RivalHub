@@ -12,6 +12,7 @@ import {
   teamMemberships,
   teamNameChanges,
   teamSlugAliases,
+  steamProfiles,
   teams,
   users,
 } from "@/db/schema";
@@ -21,7 +22,7 @@ import {
 import { getPublicTeamRecruitment, type PublicRecruitmentIntent } from "@/lib/recruitment/data";
 import type { PublicPlayerIdentity } from "@/lib/identity/public-player";
 
-const publicName = sql<string>`coalesce(${users.displayName}, ${users.perfectName}, ${users.steamName}, '未知用户')`;
+const publicName = sql<string>`coalesce(${users.displayName}, ${steamProfiles.personaName}, ${users.perfectName}, '未知用户')`;
 
 export type PublicTeamMembershipStatus = "active" | "benched";
 
@@ -133,13 +134,14 @@ export async function getPublicTeamProfile(
       .select({
         id: teamMemberships.id,
         userId: users.id,
-        avatarUrl: users.avatarUrl,
+        avatarUrl: steamProfiles.avatarUrl,
         name: publicName,
         status: teamMemberships.status,
         endedAt: teamMemberships.endedAt,
       })
       .from(teamMemberships)
       .innerJoin(users, eq(users.id, teamMemberships.userId))
+      .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
       .where(eq(teamMemberships.teamId, team.id))
       .orderBy(asc(teamMemberships.startedAt)),
     db
@@ -161,6 +163,7 @@ export async function getPublicTeamProfile(
       })
       .from(teamCaptainChanges)
       .innerJoin(users, eq(users.id, teamCaptainChanges.toUserId))
+      .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
       .where(eq(teamCaptainChanges.teamId, team.id))
       .orderBy(asc(teamCaptainChanges.changedAt)),
     db

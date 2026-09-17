@@ -16,7 +16,7 @@ vi.mock("sonner", () => ({ toast: { success: toastSuccessMock, error: vi.fn() } 
 
 const members = Array.from({ length: 6 }, (_, index) => ({
   id: `member-${index + 1}`,
-  steamName: `steam-${index + 1}`,
+  personaName: `steam-${index + 1}`,
   displayName: `Player ${index + 1}`,
   perfectName: null,
   primaryPosition: "rifler",

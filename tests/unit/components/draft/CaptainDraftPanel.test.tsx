@@ -35,7 +35,7 @@ const baseProps = {
       registrationId: "33333333-3333-4333-8333-333333333333",
       userId: "55555555-5555-4555-8555-555555555555",
       avatarUrl: "https://cdn.test/neo.webp",
-      steamName: "Neo",
+      personaName: "Neo",
       perfectName: null,
       displayName: null,
       primaryPosition: "igl",

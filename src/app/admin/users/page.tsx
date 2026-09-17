@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { and, asc, eq, isNotNull, or } from "drizzle-orm";
 import { db } from "@/db/client";
-import { seasonAdminGrants, users } from "@/db/schema";
+import { seasonAdminGrants, steamProfiles, users } from "@/db/schema";
 import { requireSuperAdmin } from "@/lib/auth/session";
 import { resolveAdminPageAccess } from "@/lib/auth/admin-access";
 import { PageHeader, PageLayout, Panel, ResultSummary } from "@/components/rivalhub";
@@ -32,7 +32,7 @@ export default async function AdminUsersPage({ searchParams }: PageProps) {
         .select({
           id: users.id,
           email: users.email,
-          steamName: users.steamName,
+          personaName: steamProfiles.personaName,
           steam64: users.steam64,
           liveStreamUrl: users.liveStreamUrl,
           displayName: users.displayName,
@@ -42,6 +42,7 @@ export default async function AdminUsersPage({ searchParams }: PageProps) {
           createdAt: users.createdAt,
         })
         .from(users)
+        .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
         .leftJoin(seasonAdminGrants, eq(seasonAdminGrants.userId, users.id))
         .where(and(eq(users.status, "active"), or(eq(users.role, "super_admin"), isNotNull(seasonAdminGrants.userId))))
         .orderBy(asc(users.createdAt)),
@@ -51,7 +52,7 @@ export default async function AdminUsersPage({ searchParams }: PageProps) {
     const adminById = new Map<string, {
       id: string;
       email: string;
-      steamName: string | null;
+      personaName: string | null;
       steam64: string | null;
       liveStreamUrl: string | null;
       displayName: string | null;
@@ -68,7 +69,7 @@ export default async function AdminUsersPage({ searchParams }: PageProps) {
         adminById.set(row.id, {
           id: row.id,
           email: row.email,
-          steamName: row.steamName,
+          personaName: row.personaName,
           steam64: row.steam64,
           liveStreamUrl: row.liveStreamUrl,
           displayName: row.displayName,
@@ -89,7 +90,7 @@ export default async function AdminUsersPage({ searchParams }: PageProps) {
           users={adminUsers.map((u) => ({
             id: u.id,
             email: u.email,
-            steamName: u.steamName,
+            personaName: u.personaName,
             steam64: u.steam64,
             liveStreamUrl: u.liveStreamUrl,
             displayName: u.displayName,
@@ -163,7 +164,7 @@ export default async function AdminUsersPage({ searchParams }: PageProps) {
                   const name = getDisplayName({
                     displayName: r.display_name as string | null,
                     perfectName: r.perfect_name as string | null,
-                    steamName: r.steam_name as string | null,
+                    personaName: r.persona_name as string | null,
                   });
                   const seasonCount = Number(r.season_count);
                   const hasParticipated = seasonCount > 0;

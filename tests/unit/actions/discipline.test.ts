@@ -22,6 +22,7 @@ function chain<T>(value: T) {
   const result = {
     calls,
     from: () => result,
+    leftJoin: () => result,
     where: () => result,
     orderBy: () => result,
     limit: (n: number) => {
@@ -77,7 +78,7 @@ describe("discipline actions", () => {
     });
 
     it("caps the result list at 10 users", async () => {
-      const chainObj = chain([{ id: "user-1", displayName: "玩家甲", perfectName: "完美甲", steamName: null, email: "a@example.test" }]);
+      const chainObj = chain([{ id: "user-1", displayName: "玩家甲", perfectName: "完美甲", personaName: null, email: "a@example.test" }]);
       selectMock.mockReturnValue(chainObj);
 
       const result = await searchSanctionSubjects({
@@ -93,7 +94,7 @@ describe("discipline actions", () => {
     });
 
     it("uses a Perfect nickname through the canonical internal display-name fallback", async () => {
-      const chainObj = chain([{ id: "user-1", displayName: null, perfectName: "完美昵称", steamName: "Steam Nick", email: "a@example.test" }]);
+      const chainObj = chain([{ id: "user-1", displayName: null, perfectName: "完美昵称", personaName: null, email: "a@example.test" }]);
       selectMock.mockReturnValue(chainObj);
 
       const result = await searchSanctionSubjects({

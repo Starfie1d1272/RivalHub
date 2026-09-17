@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 interface AdminUserRow {
   id: string;
   email: string;
-  steamName: string | null;
+  personaName: string | null;
   steam64: string | null;
   liveStreamUrl: string | null;
   displayName: string | null;

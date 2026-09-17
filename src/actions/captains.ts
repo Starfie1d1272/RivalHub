@@ -16,6 +16,7 @@ import {
   eventRosters,
   seasonRegistrations,
   seasons,
+  steamProfiles,
   users,
 } from "@/db/schema";
 import { ok, fail, type ActionResult } from "@/types/action";
@@ -241,12 +242,13 @@ export async function confirmCaptains(
           userId: users.id,
           peakRating: seasonRegistrations.peakRating,
           createdAt: seasonRegistrations.createdAt,
-          steamName: users.steamName,
+          personaName: steamProfiles.personaName,
           displayName: users.displayName,
           perfectName: users.perfectName,
         })
         .from(seasonRegistrations)
         .innerJoin(users, eq(seasonRegistrations.userId, users.id))
+        .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
         .where(
           and(
             eq(seasonRegistrations.seasonId, season.id),

@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { normalizeSteamProfileUrl } from "@/lib/external-url";
 import { REGISTRATION_DEFAULTS } from "@/lib/config/registration-defaults";
 import { normalizeRegistrationConfig } from "@/lib/seasons/compatibility";
 import type { PlayerType, RegistrationConfig } from "@/types/season";
@@ -93,29 +92,10 @@ export function buildRegistrationSchema(
         .string()
         .min(1, "请填写完美平台昵称"),
 
-      steamName: z
-        .string()
-        .min(1, "请填写 Steam 昵称"),
-
       steam64: z
         .string()
         .min(1, "请填写 Steam 64 位 ID")
         .regex(/^\d{17}$/, "Steam64 ID 应为 17 位纯数字"),
-
-      steamProfileUrl: z
-        .string()
-        .min(1, "请填写 Steam 个人资料链接")
-        .transform((v, ctx) => {
-          const normalized = normalizeSteamProfileUrl(v);
-          if (!normalized) {
-            ctx.addIssue({
-              code: "custom",
-              message: "Steam 个人资料链接格式不正确",
-            });
-            return z.NEVER;
-          }
-          return normalized;
-        }),
 
       // ── 位置 ──
       primaryPosition: z.string().refine((v) => positions.includes(v), {

@@ -1,9 +1,6 @@
 "use server";
 
 import { writeAuditInTx } from "@/lib/audit/write";
-
-import { resolveSteamAvatarForProfile } from "@/lib/steam";
-
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/db/client";
@@ -11,12 +8,14 @@ import { users } from "@/db/schema";
 import { createServiceClient } from "@/lib/auth/supabase-server";
 import { requireAuth } from "@/lib/auth/session";
 import { ok, fail, type ActionResult } from "@/types/action";
-import { failValidation, actionError } from "@/lib/action-utils";
+import { failValidation, actionError, isPgUniqueViolation } from "@/lib/action-utils";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { MIN_PASSWORD_LENGTH } from "@/lib/config/auth-config";
-import { isHttpUrl, normalizeSteamProfileUrl } from "@/lib/external-url";
+import { isHttpUrl } from "@/lib/external-url";
 import { normalizePlayerDeclaredProfile, playerDeclaredProfileSchema } from "@/lib/player-declared-profile";
 import { updatePublicPlayerTag } from "@/lib/revalidation";
+import { changePrimarySteam64InTx, assertSteam64Available, findSteam64Conflict } from "@/lib/identity/gameplay-steam";
+import { getSteamProfileForPrimary, lookupAndCacheSteamProfile, upsertSteamProfile, type SteamProfileLookupResult } from "@/lib/steam-profiles";
 
 export async function changeUserPassword(
   oldPassword: string,
@@ -64,10 +63,8 @@ export async function changeUserPassword(
 
 export interface ProfileInput {
   displayName: string;
-  steamName: string;
   perfectName: string;
   steam64: string;
-  steamProfileUrl: string;
   qq: string;
   liveStreamUrl?: string;
   gameplayStyle?: string | null;
@@ -82,23 +79,11 @@ export async function updateProfile(
   if (displayName.length < 2) return failValidation("昵称至少 2 个字符");
   if (displayName.length > 20) return failValidation("昵称最多 20 个字符");
 
-  const steamName = input.steamName.trim();
-  if (steamName && steamName.length > 40) return failValidation("Steam 昵称最多 40 个字符");
-
   const perfectName = input.perfectName.trim();
   if (perfectName && perfectName.length > 40) return failValidation("完美平台昵称最多 40 个字符");
 
   const steam64 = input.steam64.trim();
   if (steam64 && !/^\d{17}$/.test(steam64)) return failValidation("Steam64 ID 格式不正确（应为 17 位数字）");
-
-  const rawSteamProfileUrl = input.steamProfileUrl.trim();
-  let steamProfileUrl: string | null = null;
-  if (rawSteamProfileUrl) {
-    steamProfileUrl = normalizeSteamProfileUrl(rawSteamProfileUrl);
-    if (!steamProfileUrl) {
-      return failValidation("Steam 个人资料链接格式不正确");
-    }
-  }
 
   const qq = input.qq.trim();
   if (qq && !/^\d{5,12}$/.test(qq)) return failValidation("QQ 号格式不正确");
@@ -123,26 +108,57 @@ export async function updateProfile(
 
     const currentUser = await db.query.users.findFirst({ where: eq(users.id, session.userId) });
     if (!currentUser) return failValidation("用户资料不存在");
-    const avatarUrl = await resolveSteamAvatarForProfile(currentUser, steam64 || null);
 
-    await db
-      .update(users)
-      .set({
-        displayName,
-        steamName: steamName || null,
-        perfectName: perfectName || null,
-        steam64: steam64 || null,
-        avatarUrl,
-        steamProfileUrl,
-        qq: qq || null,
-        liveStreamUrl: liveStreamUrl || null,
-        ...declaredProfileUpdate,
-        updatedAt: new Date(),
-      })
-      .where(eq(users.id, session.userId));
+    const nextSteam64 = steam64 || null;
+    let profile = null;
+    if (nextSteam64) {
+      await assertSteam64Available(db, nextSteam64, session.userId);
+      profile = await getSteamProfileForPrimary(db, currentUser.steam64, nextSteam64);
+    }
+
+    await db.transaction(async (tx) => {
+      await changePrimarySteam64InTx(tx, {
+        userId: session.userId,
+        nextSteam64,
+        actorId: session.userId,
+      });
+      if (profile) await upsertSteamProfile(tx, profile);
+      await tx
+        .update(users)
+        .set({
+          displayName,
+          perfectName: perfectName || null,
+          qq: qq || null,
+          liveStreamUrl: liveStreamUrl || null,
+          ...declaredProfileUpdate,
+          updatedAt: new Date(),
+        })
+        .where(eq(users.id, session.userId));
+    });
 
     updatePublicPlayerTag(session.userId);
     revalidatePath("/settings");
     return ok(undefined);
-  } catch (e) { return actionError("updateProfile", e); }
+  } catch (e) {
+    if (isPgUniqueViolation(e, ["users_active_steam64_unique", "user_gameplay_steam_ids_active_steam64_unique"])) {
+      return fail({ code: ErrorCode.STEAM_PROFILE_CONFLICT, message: "该 Steam64 ID 已关联其他账户，请联系管理员处理。" });
+    }
+    return actionError("updateProfile", e);
+  }
+}
+
+/** 查询并缓存一份官方 Steam 资料；只返回用户可安全看到的投影。 */
+export async function lookupSteamProfile(steam64Input: string): Promise<ActionResult<SteamProfileLookupResult>> {
+  const steam64 = steam64Input.trim();
+  if (!/^\d{17}$/.test(steam64)) return failValidation("Steam64 ID 格式不正确（应为 17 位数字）");
+
+  try {
+    const session = await requireAuth();
+    if (await findSteam64Conflict(db, steam64, session.userId)) {
+      return ok({ status: "conflict" });
+    }
+    return ok(await lookupAndCacheSteamProfile(db, steam64));
+  } catch (e) {
+    return actionError("lookupSteamProfile", e);
+  }
 }

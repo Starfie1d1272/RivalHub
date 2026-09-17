@@ -15,6 +15,7 @@ import {
   competitionEntryRestrictionOverrides,
   competitionEntrySubmissions,
   seasons,
+  steamProfiles,
   teamMemberships,
   teams,
   users,
@@ -156,8 +157,8 @@ async function validateEntryRoster(
   } else {
     const participantUsers = rows.length === 0
       ? []
-      : await tx.select({ id: users.id, displayName: users.displayName, perfectName: users.perfectName, steamName: users.steamName, email: users.email })
-        .from(users).where(inArray(users.id, rows.map((row) => row.userId)));
+      : await tx.select({ id: users.id, displayName: users.displayName, perfectName: users.perfectName, personaName: steamProfiles.personaName, email: users.email })
+        .from(users).leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64)).where(inArray(users.id, rows.map((row) => row.userId)));
     userLabels = new Map(participantUsers.map((user) => [user.id, getDisplayName(user)]));
   }
   const [registrationBlocks, rosterBlocks, activeMemberships, currentTeamIdentity] = await Promise.all([

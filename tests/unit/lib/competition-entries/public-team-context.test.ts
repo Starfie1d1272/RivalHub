@@ -66,8 +66,9 @@ describe("getPublicCompetitionEntryTeamContext", () => {
     const selectChain = {
       from: () => selectChain,
       innerJoin: () => selectChain,
+      leftJoin: () => selectChain,
       where: () => Promise.resolve([
-        { userId: "representative-1", displayName: "Current Name", perfectName: null, steamName: null, isStarter: true },
+        { userId: "representative-1", displayName: "Current Name", perfectName: null, personaName: null, isStarter: true },
       ]),
     };
     mocks.select.mockReturnValue(selectChain);

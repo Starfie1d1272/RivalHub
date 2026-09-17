@@ -8,7 +8,7 @@ import { Suspense } from "react";
 import { and, asc, eq, inArray } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import { db } from "@/db/client";
-import { competitionEntries, eventRosterMembers, eventRosters, users } from "@/db/schema";
+import { competitionEntries, eventRosterMembers, eventRosters, steamProfiles, users } from "@/db/schema";
 import { AdminShortcutSlot } from "@/components/layout/AdminShortcutSlot";
 import { PageHeader, PageLayout, Stat } from "@/components/rivalhub";
 import { TeamCard } from "@/components/teams/TeamCard";
@@ -72,8 +72,8 @@ export default async function CompetitionEntriesPage({ params, searchParams }: {
 
   const entries = await db.query.competitionEntries.findMany({ where: and(eq(competitionEntries.competitionId, season.id), publicCompetitionEntryCondition()), orderBy: [asc(competitionEntries.formationOrder), asc(competitionEntries.id)] });
   if (entries.length === 0) return <PageLayout variant="wide" className="py-16 text-center text-[var(--color-fg-mid)]">赛事队伍尚未形成</PageLayout>;
-  const members = await db.select({ entryId: eventRosters.entryId, userId: users.id, steamName: users.steamName, avatarUrl: users.avatarUrl, perfectName: users.perfectName, displayName: users.displayName, isStarter: eventRosterMembers.isPrimaryStarter })
-    .from(eventRosterMembers).innerJoin(eventRosters, eq(eventRosters.id, eventRosterMembers.eventRosterId)).innerJoin(users, eq(users.id, eventRosterMembers.userId)).where(and(inArray(eventRosters.entryId, entries.map((entry) => entry.id)), inArray(eventRosters.status, ["confirmed", "frozen"])));
+  const members = await db.select({ entryId: eventRosters.entryId, userId: users.id, personaName: steamProfiles.personaName, avatarUrl: steamProfiles.avatarUrl, perfectName: users.perfectName, displayName: users.displayName, isStarter: eventRosterMembers.isPrimaryStarter })
+    .from(eventRosterMembers).innerJoin(eventRosters, eq(eventRosters.id, eventRosterMembers.eventRosterId)).innerJoin(users, eq(users.id, eventRosterMembers.userId)).leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64)).where(and(inArray(eventRosters.entryId, entries.map((entry) => entry.id)), inArray(eventRosters.status, ["confirmed", "frozen"])));
   const matchSummary = await getPublicEventTeamMatchSummary(season.id, entries.map((entry) => entry.id));
   const membersByEntry = new Map<string, typeof members>();
   for (const member of members) membersByEntry.set(member.entryId, [...(membersByEntry.get(member.entryId) ?? []), member]);

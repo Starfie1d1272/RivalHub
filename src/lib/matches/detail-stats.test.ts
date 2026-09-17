@@ -101,7 +101,7 @@ describe("match detail stats", () => {
           {
             id: "member-1",
             teamId: "team-a",
-            steamName: "Steam",
+            personaName: "Steam",
             displayName: null,
             perfectName: "Perfect",
             primaryPosition: "rifler",
@@ -111,7 +111,7 @@ describe("match detail stats", () => {
           {
             id: "member-2",
             teamId: "team-b",
-            steamName: "Other",
+            personaName: "Other",
             displayName: null,
             perfectName: null,
             primaryPosition: "awper",
@@ -123,7 +123,7 @@ describe("match detail stats", () => {
       ),
     ).toEqual([
       {
-        steamName: "Steam",
+        personaName: "Steam",
         displayName: null,
         perfectName: "Perfect",
         registrationPosition: "rifler",
@@ -142,7 +142,7 @@ describe("match detail stats", () => {
         statRow({ mapId: "map-2", matchId: "match-2", perfectName: "Alpha", userId: "user-1", kills: 10, deaths: 10, firstKills: 1, hsPercent: 30, adr: 70, ratingPro: 1, we: 7 }),
       ],
       ["user-1"],
-      new Map([["user-1", { id: "member-1", teamId: "team-a", steamName: "Steam", displayName: null, perfectName: "Alpha", primaryPosition: "rifler", userId: "user-1", avatarUrl: "https://cdn.test/player.webp" }]]),
+      new Map([["user-1", { id: "member-1", teamId: "team-a", personaName: "Steam", displayName: null, perfectName: "Alpha", primaryPosition: "rifler", userId: "user-1", avatarUrl: "https://cdn.test/player.webp" }]]),
       new Map([
         ["map-1", 24],
         ["map-2", 30],

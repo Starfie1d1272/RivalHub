@@ -2,7 +2,7 @@ import "server-only";
 
 import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/db/client";
-import { feedbackReports, seasons, users } from "@/db/schema";
+import { feedbackReports, seasons, steamProfiles, users } from "@/db/schema";
 import { feedbackCategoryLabel, feedbackStatusLabel, type FeedbackCategory, type FeedbackStatus } from "./validation";
 import { getFeedbackUserLabel } from "./presentation";
 
@@ -31,10 +31,11 @@ export async function listFeedbackForAdmin(filters: { status?: FeedbackStatus; c
     userEmail: users.email,
     userDisplayName: users.displayName,
     userPerfectName: users.perfectName,
-    userSteamName: users.steamName,
+    userSteamName: steamProfiles.personaName,
   }).from(feedbackReports)
     .leftJoin(seasons, eq(feedbackReports.seasonId, seasons.id))
     .leftJoin(users, eq(feedbackReports.userId, users.id))
+    .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
     .where(and(filters.status ? eq(feedbackReports.status, filters.status) : undefined, filters.category ? eq(feedbackReports.category, filters.category) : undefined))
     .orderBy(desc(feedbackReports.createdAt), desc(feedbackReports.id));
   return rows.map(({ feedback, seasonName, userId, userEmail, userDisplayName, userPerfectName, userSteamName }) => ({
@@ -49,7 +50,7 @@ export async function listFeedbackForAdmin(filters: { status?: FeedbackStatus; c
     seasonId: feedback.seasonId,
     seasonName: seasonName ?? null,
     userId: feedback.userId,
-    userLabel: getFeedbackUserLabel({ userId, displayName: userDisplayName, perfectName: userPerfectName, steamName: userSteamName, email: userEmail }),
+    userLabel: getFeedbackUserLabel({ userId, displayName: userDisplayName, perfectName: userPerfectName, personaName: userSteamName, email: userEmail }),
     createdAt: feedback.createdAt.toISOString(),
     updatedAt: feedback.updatedAt.toISOString(),
   }));

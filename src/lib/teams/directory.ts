@@ -2,7 +2,7 @@ import "server-only";
 
 import { and, asc, count, desc, eq, gt, ilike, isNotNull, isNull, or, sql } from "drizzle-orm";
 import { db } from "@/db/client";
-import { recruitmentIntents, seasons, teamMemberships, teams, users } from "@/db/schema";
+import { recruitmentIntents, seasons, steamProfiles, teamMemberships, teams, users } from "@/db/schema";
 import { escapeLikePattern } from "@/lib/db/search";
 import { teamRecruitmentTargetAvailableCondition } from "@/lib/recruitment/target-policy";
 import type { TeamDirectoryQuery } from "./directory-contract";
@@ -28,7 +28,7 @@ export interface TeamDirectoryData {
   normalizedQuery: TeamDirectoryQuery;
 }
 
-const captainName = sql<string>`coalesce(${users.displayName}, ${users.perfectName}, ${users.steamName}, '未命名用户')`;
+const captainName = sql<string>`coalesce(${users.displayName}, ${steamProfiles.personaName}, ${users.perfectName}, '未命名用户')`;
 
 export async function getTeamDirectory(query: TeamDirectoryQuery): Promise<TeamDirectoryData> {
   const now = new Date();
@@ -82,6 +82,7 @@ export async function getTeamDirectory(query: TeamDirectoryQuery): Promise<TeamD
     })
       .from(teams)
       .leftJoin(users, and(eq(users.id, teams.captainUserId), eq(users.status, "active")))
+      .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
       .leftJoin(recruitmentIntents, openRecruitment)
       .leftJoin(seasons, eq(seasons.id, recruitmentIntents.targetSeasonId))
       .leftJoin(memberCounts, eq(memberCounts.teamId, teams.id))
@@ -90,6 +91,7 @@ export async function getTeamDirectory(query: TeamDirectoryQuery): Promise<TeamD
     db.select({ count: count() })
       .from(teams)
       .leftJoin(users, and(eq(users.id, teams.captainUserId), eq(users.status, "active")))
+      .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
       .leftJoin(recruitmentIntents, openRecruitment)
       .leftJoin(seasons, eq(seasons.id, recruitmentIntents.targetSeasonId))
       .where(where),

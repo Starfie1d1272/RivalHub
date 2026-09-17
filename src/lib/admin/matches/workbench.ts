@@ -15,6 +15,7 @@ import {
   seasonAdminGrants,
   seasonRegistrations,
   seasons,
+  steamProfiles,
   users,
 } from "@/db/schema";
 import { requireSeasonAdmin } from "@/lib/auth/session";
@@ -64,7 +65,7 @@ function projectRoster(roster: MatchRosterWithPlayers | undefined): RosterData |
 function projectTeamMember(row: {
   id: string;
   entryId: string;
-  steamName: string | null;
+  personaName: string | null;
   displayName: string | null;
   perfectName: string | null;
   primaryPosition: string | null;
@@ -72,7 +73,7 @@ function projectTeamMember(row: {
   return {
     id: row.id,
     entryId: row.entryId,
-    steamName: row.steamName ?? "未知",
+    personaName: row.personaName ?? "未知",
     displayName: row.displayName ?? null,
     perfectName: row.perfectName ?? null,
     primaryPosition: row.primaryPosition ?? "—",
@@ -108,7 +109,7 @@ export async function loadAdminMatchWorkbench({
       .select({
         id: eventRosterMembers.id,
         entryId: eventRosters.entryId,
-        steamName: users.steamName,
+        personaName: steamProfiles.personaName,
         displayName: users.displayName,
         perfectName: users.perfectName,
         primaryPosition: seasonRegistrations.primaryPosition,
@@ -116,6 +117,7 @@ export async function loadAdminMatchWorkbench({
       .from(eventRosterMembers)
       .innerJoin(eventRosters, eq(eventRosterMembers.eventRosterId, eventRosters.id))
       .innerJoin(users, eq(eventRosterMembers.userId, users.id))
+      .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
       .leftJoin(
         seasonRegistrations,
         and(
@@ -136,11 +138,12 @@ export async function loadAdminMatchWorkbench({
             userId: users.id,
             displayName: users.displayName,
             perfectName: users.perfectName,
-            steamName: users.steamName,
+            personaName: steamProfiles.personaName,
             liveStreamUrl: users.liveStreamUrl,
           })
           .from(matchCommentators)
           .innerJoin(users, eq(matchCommentators.userId, users.id))
+          .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
           .where(eq(matchCommentators.matchId, match.id))
       : Promise.resolve([]),
     match.status !== "cancelled"
@@ -152,11 +155,12 @@ export async function loadAdminMatchWorkbench({
             userId: users.id,
             displayName: users.displayName,
             perfectName: users.perfectName,
-            steamName: users.steamName,
+            personaName: steamProfiles.personaName,
             liveStreamUrl: users.liveStreamUrl,
           })
           .from(seasonAdminGrants)
           .innerJoin(users, eq(seasonAdminGrants.userId, users.id))
+          .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
           .where(eq(seasonAdminGrants.seasonId, season.id))
       : Promise.resolve([]),
   ]);

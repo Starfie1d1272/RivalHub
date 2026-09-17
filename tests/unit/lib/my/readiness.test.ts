@@ -15,7 +15,7 @@ function fullFact(overrides: Partial<ParticipantQualificationFacts> = {}): Parti
     userId: USER_ID,
     displayName: "选手甲",
     perfectName: "perfect-a",
-    steamName: "steam-a",
+    personaName: "steam-a",
     email: "a@example.test",
     emailVerifiedAt: new Date("2026-08-01T00:00:00Z"),
     steam64: "76561198000000001",
@@ -215,7 +215,7 @@ describe("我的 readiness read model", () => {
   it("fails closed when profile or event qualification facts are unavailable", () => {
     const result = model({
       baseFact: null,
-      user: { displayName: null, perfectName: null, steamName: null },
+      user: { displayName: null, perfectName: null, personaName: null },
       competitiveProfiles: [{ key: "perfect_world", displayName: "完美世界竞技", state: "unknown", blockers: ["竞技档案事实不可确认。"] }],
       qualificationFactsByPlatform: new Map([["perfect_world", null]]),
       currentTeam: null,

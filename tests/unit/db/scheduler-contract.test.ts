@@ -26,11 +26,15 @@ describe("production scheduler contract", () => {
     await upsertCronJobs(pool);
     await upsertCronJobs(pool);
 
-    expect(query).toHaveBeenCalledTimes(SCHEDULER_JOB_DEFINITIONS.length * 2);
-    for (const [sql, params] of query.mock.calls) {
+    expect(query).toHaveBeenCalledTimes((SCHEDULER_JOB_DEFINITIONS.length + 1) * 2);
+    for (const [sql, params] of query.mock.calls.filter(([sql]) => sql === "SELECT cron.schedule($1::text, $2::text, $3::text)")) {
       expect(sql).toBe("SELECT cron.schedule($1::text, $2::text, $3::text)");
       expect(params).toHaveLength(3);
     }
+    expect(query.mock.calls.at(-1)).toEqual([
+      "SELECT cron.unschedule(jobid) FROM cron.job WHERE jobname = $1::text",
+      ["rivalhub-refresh-steam-avatars"],
+    ]);
   });
 
   it("requires fresh triggers, endpoint success, and real minute-job executions", () => {

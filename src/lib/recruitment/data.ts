@@ -3,7 +3,7 @@ import "server-only";
 import { alias } from "drizzle-orm/pg-core";
 import { and, desc, eq, gt, ilike, inArray, isNull, or, sql } from "drizzle-orm";
 import { db } from "@/db/client";
-import { competitiveRankFacts, competitionEntries, recruitmentIntents, recruitmentInterests, seasons, teamMemberships, teams, teamInvitations, userCompetitiveRoles, userMapPreferences, users } from "@/db/schema";
+import { competitiveRankFacts, competitionEntries, recruitmentIntents, recruitmentInterests, seasons, steamProfiles, teamMemberships, teams, teamInvitations, userCompetitiveRoles, userMapPreferences, users } from "@/db/schema";
 import { loadCompetitivePlatformCatalog } from "@/lib/competitive/catalog";
 import { presentPublicCompetitiveSummary, type PublicCompetitiveProfilePlatform } from "@/lib/competitive/presentation";
 import type { Cs2Position } from "@/lib/config/cs2-positions";
@@ -17,7 +17,7 @@ import type { RecruitmentFilters, RecruitmentTeamSize } from "@/lib/recruitment/
 
 export type { RecruitmentFilters, RecruitmentTeamSize } from "@/lib/recruitment/contract";
 
-const publicName = sql<string>`coalesce(${users.displayName}, ${users.perfectName}, ${users.steamName}, '未知用户')`;
+const publicName = sql<string>`coalesce(${users.displayName}, ${steamProfiles.personaName}, ${users.perfectName}, '未知用户')`;
 
 export interface PublicRecruitmentIntent {
   id: string;
@@ -129,6 +129,7 @@ export async function getRecruitmentLobbyData(filters: RecruitmentFilters, viewe
     }).from(recruitmentIntents)
       .innerJoin(teams, eq(teams.id, recruitmentIntents.teamId))
       .innerJoin(users, and(eq(users.id, teams.captainUserId), eq(users.status, "active")))
+      .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
       .leftJoin(seasons, eq(seasons.id, recruitmentIntents.targetSeasonId))
       .where(and(...openConditions("team_recruiting", normalizedFilters, now), eq(teams.status, "active"), or(isNull(recruitmentIntents.targetSeasonId), teamRecruitmentTargetAvailableCondition(now, recruitmentIntents.teamId))))
       .orderBy(desc(recruitmentIntents.updatedAt), desc(recruitmentIntents.id)),
@@ -142,11 +143,12 @@ export async function getRecruitmentLobbyData(filters: RecruitmentFilters, viewe
       updatedAt: recruitmentIntents.updatedAt,
       userId: users.id,
       name: publicName,
-      avatarUrl: users.avatarUrl,
+      avatarUrl: steamProfiles.avatarUrl,
       currentTeamId: currentPlayerTeam.id,
       currentTeamName: currentPlayerTeam.name,
     }).from(recruitmentIntents)
       .innerJoin(users, and(eq(users.id, recruitmentIntents.userId), eq(users.status, "active")))
+      .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
       .leftJoin(teamMemberships, and(eq(teamMemberships.userId, users.id), isNull(teamMemberships.endedAt)))
       .leftJoin(currentPlayerTeam, and(eq(currentPlayerTeam.id, teamMemberships.teamId), eq(currentPlayerTeam.status, "active")))
       .leftJoin(seasons, eq(seasons.id, recruitmentIntents.targetSeasonId))
@@ -243,6 +245,7 @@ export async function getTeamRecruitmentWorkspace(teamId: string, viewerUserId: 
     .innerJoin(recruitmentIntents, eq(recruitmentIntents.id, recruitmentInterests.recruitmentIntentId))
     .innerJoin(teams, eq(teams.id, recruitmentIntents.teamId))
     .innerJoin(users, eq(users.id, recruitmentInterests.userId))
+    .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
     .leftJoin(seasons, eq(seasons.id, recruitmentIntents.targetSeasonId))
     .leftJoin(teamMemberships, and(eq(teamMemberships.userId, users.id), isNull(teamMemberships.endedAt)))
     .leftJoin(currentTeam, and(eq(currentTeam.id, teamMemberships.teamId), eq(currentTeam.status, "active")))

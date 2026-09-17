@@ -78,7 +78,7 @@ export function buildRadarData(
 interface TeamMemberSummary {
   id: string;
   teamId: string;
-  steamName: string | null;
+  personaName: string | null;
   displayName: string | null;
   perfectName: string | null;
   primaryPosition: string;
@@ -88,7 +88,7 @@ interface TeamMemberSummary {
 
 export interface RosterPlayer {
   registrationPosition?: string;
-  steamName: string;
+  personaName: string;
   displayName: string | null;
   perfectName: string | null;
   isStarter: boolean;
@@ -106,7 +106,7 @@ export function buildRoster(
   return members
     .filter((m) => m.teamId === teamId && playerIds.has(m.id))
     .map((m) => ({
-      steamName: m.steamName ?? "未知",
+      personaName: m.personaName ?? "未知",
       displayName: m.displayName ?? null,
       perfectName: m.perfectName ?? null,
       ...(m.primaryPosition ? { registrationPosition: m.primaryPosition } : {}),
@@ -133,7 +133,7 @@ export function buildLineupsPlayers(
     const playerRows = grouped.get(userId) ?? [];
     const member = userIdToMember.get(userId);
     const perfectName =
-      playerRows[0]?.perfectName ?? member?.perfectName ?? member?.displayName ?? member?.steamName ?? "未知";
+      playerRows[0]?.perfectName ?? member?.perfectName ?? member?.displayName ?? member?.personaName ?? "未知";
 
     if (playerRows.length === 0) {
       return {

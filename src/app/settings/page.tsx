@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { getUserSession } from "@/lib/auth/session";
 import { db } from "@/db/client";
-import { users } from "@/db/schema";
+import { steamProfiles, users } from "@/db/schema";
 import { Checklist, PageHeader, Panel, StatusBanner } from "@/components/rivalhub";
 import { ProfileForm } from "@/components/settings/ProfileForm";
 import { loadSettingsProfileReadiness } from "@/lib/my/readiness";
@@ -11,8 +11,23 @@ export default async function SettingsPage() {
   const session = await getUserSession();
   if (!session) redirect("/login");
 
-  const [user, readiness] = await Promise.all([
-    db.query.users.findFirst({ where: eq(users.id, session.userId), columns: { displayName: true, steamName: true, perfectName: true, steam64: true, steamProfileUrl: true, qq: true, liveStreamUrl: true, gameplayStyle: true, competitionHistory: true } }),
+  const [[user], readiness] = await Promise.all([
+    db.select({
+      displayName: users.displayName,
+      perfectName: users.perfectName,
+      steam64: users.steam64,
+      qq: users.qq,
+      liveStreamUrl: users.liveStreamUrl,
+      gameplayStyle: users.gameplayStyle,
+      competitionHistory: users.competitionHistory,
+      steamProfile: {
+        personaName: steamProfiles.personaName,
+        profileUrl: steamProfiles.profileUrl,
+        avatarUrl: steamProfiles.avatarUrl,
+      },
+    }).from(users)
+      .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
+      .where(eq(users.id, session.userId)),
     loadSettingsProfileReadiness(session.userId),
   ]);
   const readyItems = [
@@ -28,7 +43,7 @@ export default async function SettingsPage() {
       : <StatusBanner tone="warn" title={`还缺 ${readyItems.length} 项参赛资料`} sub="完成以下项目可保持个人资料完整；具体赛事是否满足资格请在对应报名页查看。" />}
 
     <Panel label="参赛资料" contentClassName="p-5">
-      <ProfileForm current={{ displayName: user?.displayName ?? null, steamName: user?.steamName ?? null, perfectName: user?.perfectName ?? null, steam64: user?.steam64 ?? null, steamProfileUrl: user?.steamProfileUrl ?? null, qq: user?.qq ?? null, liveStreamUrl: user?.liveStreamUrl ?? null, gameplayStyle: user?.gameplayStyle ?? null, competitionHistory: user?.competitionHistory ?? null }} />
+      <ProfileForm current={{ displayName: user?.displayName ?? null, perfectName: user?.perfectName ?? null, steam64: user?.steam64 ?? null, steamProfile: user?.steamProfile?.personaName && user.steamProfile.profileUrl && user.steamProfile.avatarUrl ? { personaName: user.steamProfile.personaName, profileUrl: user.steamProfile.profileUrl, avatarUrl: user.steamProfile.avatarUrl } : null, qq: user?.qq ?? null, liveStreamUrl: user?.liveStreamUrl ?? null, gameplayStyle: user?.gameplayStyle ?? null, competitionHistory: user?.competitionHistory ?? null }} />
     </Panel>
     {readyItems.length > 0 && <Panel label="下一步" contentClassName="p-0"><Checklist items={readyItems} /></Panel>}
   </div>;

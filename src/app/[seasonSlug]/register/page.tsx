@@ -13,6 +13,7 @@ import {
   teams,
   userCompetitiveRoles,
   userMapPreferences,
+  steamProfiles,
   users,
 } from "@/db/schema";
 import { getPositionCounts, getApprovedCount } from "@/actions/register";
@@ -150,16 +151,17 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
       ]);
       capabilities = getCompetitionEntryCapabilities({ season, entry: { status: entry.registrationStatus, hasApprovedRoster: !!entry.approvedRosterRevisionId }, revision: revision ?? null, rosterFrozen: eventRoster?.status === "frozen" });
       const candidateRows = entry.teamId
-        ? await db.select({ membershipId: teamMemberships.id, userId: teamMemberships.userId, status: teamMemberships.status, email: users.email, displayName: users.displayName, perfectName: users.perfectName, steamName: users.steamName })
-            .from(teamMemberships).innerJoin(users, eq(users.id, teamMemberships.userId))
+        ? await db.select({ membershipId: teamMemberships.id, userId: teamMemberships.userId, status: teamMemberships.status, email: users.email, displayName: users.displayName, perfectName: users.perfectName, personaName: steamProfiles.personaName })
+            .from(teamMemberships).innerJoin(users, eq(users.id, teamMemberships.userId)).leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
             .where(and(eq(teamMemberships.teamId, entry.teamId), isNull(teamMemberships.endedAt), inArray(teamMemberships.status, ["active", "benched"])))
         : [];
       const rosterRows = revision
-        ? await db.select({ participantId: competitionEntryParticipants.id, userId: competitionEntryRosterMembers.userId, confirmation: competitionEntryParticipants.status, primary: competitionEntryRosterMembers.isPrimaryStarter, membershipId: competitionEntryRosterMembers.teamMembershipId, email: users.email, displayName: users.displayName, perfectName: users.perfectName, steamName: users.steamName, membershipStatus: teamMemberships.status })
+        ? await db.select({ participantId: competitionEntryParticipants.id, userId: competitionEntryRosterMembers.userId, confirmation: competitionEntryParticipants.status, primary: competitionEntryRosterMembers.isPrimaryStarter, membershipId: competitionEntryRosterMembers.teamMembershipId, email: users.email, displayName: users.displayName, perfectName: users.perfectName, personaName: steamProfiles.personaName, membershipStatus: teamMemberships.status })
             .from(competitionEntryRosterMembers)
             .innerJoin(competitionEntryParticipants, eq(competitionEntryParticipants.id, competitionEntryRosterMembers.participantId))
             .innerJoin(users, eq(users.id, competitionEntryRosterMembers.userId))
             .leftJoin(teamMemberships, eq(teamMemberships.id, competitionEntryRosterMembers.teamMembershipId))
+            .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
             .where(eq(competitionEntryRosterMembers.revisionId, revision.id))
         : [];
       const userIds = [...new Set([...candidateRows.map((row) => row.userId), ...rosterRows.map((row) => row.userId)])];
@@ -299,9 +301,7 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
         studentId: currentUser?.studentId ?? "",
         qq: currentUser?.qq ?? "",
         perfectName: currentUser?.perfectName ?? "",
-        steamName: currentUser?.steamName ?? "",
         steam64: currentUser?.steam64 ?? "",
-        steamProfileUrl: currentUser?.steamProfileUrl ?? "",
         playerType: currentRegistration.playerType,
         primaryPosition: currentRegistration.primaryPosition,
         secondaryPosition: currentRegistration.secondaryPosition,

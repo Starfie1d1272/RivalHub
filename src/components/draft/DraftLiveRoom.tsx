@@ -38,7 +38,7 @@ export function DraftLiveRoom({
   const removeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const showPickNotification = useCallback(
-    (payload: { steamName?: string; displayName?: string | null; perfectName?: string | null; team_id?: string }) => {
+    (payload: { personaName?: string; displayName?: string | null; perfectName?: string | null; team_id?: string }) => {
       const teamName =
         teams.find((t) => t.entryId === payload.team_id)?.teamName ?? "未知队伍";
       const playerName = getPublicDisplayName(payload);
@@ -81,7 +81,7 @@ export function DraftLiveRoom({
       if (latestPick) {
         notificationTimer = setTimeout(() => {
           showPickNotification({
-            steamName: latestPick.steamName,
+            personaName: latestPick.personaName,
             displayName: latestPick.displayName,
             perfectName: latestPick.perfectName,
             team_id: latestPick.entryId,

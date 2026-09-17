@@ -22,7 +22,8 @@ export interface AdminUserListRow {
   email: string;
   display_name: string | null;
   perfect_name: string | null;
-  steam_name: string | null;
+  persona_name: string | null;
+  steam64: string | null;
   created_at: string | Date;
   season_count: number | string;
 }
@@ -73,12 +74,17 @@ export function normalizeAdminUsersQuery(input: AdminUsersSearchParams): AdminUs
 }
 
 export async function getAdminUsersList(query: AdminUsersQuery): Promise<AdminUsersResult> {
+  const searchValue = query.q ? escapeLikePattern(query.q) : null;
+  const steam64Search = query.q && /^\d{17}$/.test(query.q)
+    ? sql`OR u.steam64 = ${query.q}`
+    : sql`OR u.steam64 ILIKE ${searchValue ? `%${searchValue}%` : ""}`;
   const searchClause = query.q
     ? sql`AND (
-        u.email ILIKE ${`%${escapeLikePattern(query.q)}%`}
-        OR u.display_name ILIKE ${`%${escapeLikePattern(query.q)}%`}
-        OR u.perfect_name ILIKE ${`%${escapeLikePattern(query.q)}%`}
-        OR u.steam_name ILIKE ${`%${escapeLikePattern(query.q)}%`}
+        u.email ILIKE ${`%${searchValue}%`}
+        OR u.display_name ILIKE ${`%${searchValue}%`}
+        OR u.perfect_name ILIKE ${`%${searchValue}%`}
+        OR sp.persona_name ILIKE ${`%${searchValue}%`}
+        ${steam64Search}
       )`
     : sql``;
   const havingClause = query.filter === "participated"
@@ -92,15 +98,17 @@ export async function getAdminUsersList(query: AdminUsersQuery): Promise<AdminUs
       u.email,
       u.display_name,
       u.perfect_name,
-      u.steam_name,
+      sp.persona_name,
+      u.steam64,
       u.created_at,
       COUNT(DISTINCT sr.season_id)::int AS season_count
     FROM users u
     LEFT JOIN season_registrations sr ON sr.user_id = u.id
+    LEFT JOIN steam_profiles sp ON sp.steam64 = u.steam64
     WHERE u.status = 'active'
       AND u.role = 'user'
       ${searchClause}
-    GROUP BY u.id
+    GROUP BY u.id, sp.persona_name
     ${havingClause}
   `;
 

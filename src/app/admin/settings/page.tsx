@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
-import { users } from "@/db/schema";
+import { steamProfiles, users } from "@/db/schema";
 import { requireSuperAdmin } from "@/lib/auth/session";
 import { resolveAdminPageAccess } from "@/lib/auth/admin-access";
 import { getDisplayName } from "@/lib/identity/display-name";
@@ -13,7 +13,7 @@ const ENV_VARS = [
   {
     key: "STEAM_API_KEY",
     label: "Steam Web API Key",
-    description: "用于抓取选手 Steam 头像。申请地址：steamcommunity.com/dev/apikey",
+    description: "用于抓取选手 Steam 官方资料。申请地址：steamcommunity.com/dev/apikey",
     required: false,
   },
   {
@@ -33,10 +33,16 @@ const ENV_VARS = [
 export default async function AdminSettingsPage() {
   const admin = await resolveAdminPageAccess(requireSuperAdmin);
   if (!admin) return <AdminAccessDenied />;
-  const adminUser = await db.query.users.findFirst({
-    where: eq(users.id, admin.userId),
-    columns: { steamName: true, displayName: true, perfectName: true },
-  });
+  const [adminUser] = await db
+    .select({
+      personaName: steamProfiles.personaName,
+      displayName: users.displayName,
+      perfectName: users.perfectName,
+    })
+    .from(users)
+    .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
+    .where(eq(users.id, admin.userId))
+    .limit(1);
   const adminDisplayName = adminUser ? getDisplayName(adminUser) : admin.email;
   const schedulerHealth = await getSchedulerHealthView();
 

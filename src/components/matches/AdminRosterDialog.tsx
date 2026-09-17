@@ -24,7 +24,7 @@ import type { RosterData } from "@/lib/admin/matches/types";
 
 interface TeamMember {
   id: string;
-  steamName: string;
+  personaName: string;
   displayName: string | null;
   perfectName: string | null;
   primaryPosition: string;

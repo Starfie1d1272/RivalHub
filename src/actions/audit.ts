@@ -2,7 +2,7 @@
 
 import { and, count, desc, eq, gte, inArray, like, lt, or } from "drizzle-orm";
 import { db } from "@/db/client";
-import { auditLogs, seasons, users } from "@/db/schema";
+import { auditLogs, seasons, steamProfiles, users } from "@/db/schema";
 import { actionError } from "@/lib/action-utils";
 import { requireSeasonAdmin, requireSuperAdmin } from "@/lib/auth/session";
 import { getDisplayName } from "@/lib/identity/display-name";
@@ -104,10 +104,10 @@ export async function fetchAuditLogs(filters: AuditLogFilters = {}) {
         const actorUsers = await db.select({
           id: users.id,
           email: users.email,
-          steamName: users.steamName,
+          personaName: steamProfiles.personaName,
           displayName: users.displayName,
           perfectName: users.perfectName,
-        }).from(users).where(or(...clauses));
+        }).from(users).leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64)).where(or(...clauses));
         for (const user of actorUsers) {
           const name = getDisplayName(user);
           actorNameMap[user.id] = name;

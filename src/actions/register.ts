@@ -16,7 +16,8 @@ import { normalizeRegistrationConfig } from "@/lib/seasons/compatibility";
 import { getRegistrationWindowState } from "@/lib/registration/window";
 import { normalizeEmail } from "@/lib/utils/email";
 import { compactUndefined } from "@/lib/utils/object";
-import { resolveSteamAvatarForProfile } from "@/lib/steam";
+import { changePrimarySteam64InTx, assertSteam64Available } from "@/lib/identity/gameplay-steam";
+import { getSteamProfileForPrimary, upsertSteamProfile } from "@/lib/steam-profiles";
 import { assertUsersNotBlockedInTx } from "@/lib/discipline/service";
 import { updatePublicPlayerTag } from "@/lib/revalidation";
 import { traceOperation } from "@/lib/observability/server";
@@ -292,7 +293,8 @@ export async function submitRegistration(input: RegistrationFormData) {
       throw new AppError(ErrorCode.POSITION_FULL, ERROR_MESSAGES.POSITION_FULL);
     }
 
-    const avatarUrl = await resolveSteamAvatarForProfile(user, data.steam64 || null);
+    await assertSteam64Available(db, data.steam64, user.id);
+    const steamProfile = await getSteamProfileForPrimary(db, user.steam64, data.steam64);
 
     const registration = await traceOperation("registration.submit", {
       scope: "registration",
@@ -308,16 +310,18 @@ export async function submitRegistration(input: RegistrationFormData) {
           throw new AppError(ErrorCode.REGISTRATION_CLOSED, currentWindow.message);
         }
         const declaredProfile = normalizePlayerDeclaredProfile(data);
+        await changePrimarySteam64InTx(tx, {
+          userId: user.id,
+          nextSteam64: data.steam64,
+          actorId: session.userId,
+        });
+        await upsertSteamProfile(tx, steamProfile);
         const [updatedUser] = await tx
           .update(users)
           .set({
-            steam64: data.steam64,
             qq: data.qq,
             studentId: data.studentId,
             perfectName: data.perfectName,
-            steamName: data.steamName,
-            steamProfileUrl: data.steamProfileUrl,
-            avatarUrl,
             gameplayStyle: declaredProfile.gameplayStyle ?? data.gameplayStyle,
             competitionHistory: declaredProfile.competitionHistory,
             updatedAt: new Date(),

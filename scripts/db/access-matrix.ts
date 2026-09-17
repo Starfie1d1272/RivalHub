@@ -511,6 +511,13 @@ export const DATABASE_ACCESS_MATRIX: readonly DatabaseAccessEntry[] = [
     "只保存每个 job 的有界当前状态，供服务端调度与超级管理员系统状态页读取；不形成浏览器 Data API 或 Realtime surface。",
   ),
   serverOnly(
+    "steam_profiles",
+    "Steam identity / profile",
+    "Steam 官方资料缓存投影",
+    "src/lib/steam-profiles.ts; public read models",
+    "官方 persona、profile URL 和头像只作为按 Steam64 键控的服务端缓存读取；provider credential 与写入永不进入浏览器数据面。",
+  ),
+  serverOnly(
     "season_public_info",
     "赛事公开运营信息",
     "赛事规则入口配置",
@@ -586,6 +593,13 @@ export const DATABASE_ACCESS_MATRIX: readonly DatabaseAccessEntry[] = [
     "个人位置偏好",
     "src/actions/competitive-profile.ts; src/lib/recruitment/data.ts",
     "位置资料用于资格和展示 projection，不能由客户端直接访问。",
+  ),
+  serverOnly(
+    "user_gameplay_steam_ids",
+    "Steam identity / gameplay",
+    "可审计、可撤销的历史游戏 Steam64 身份",
+    "src/lib/identity/gameplay-steam.ts; 后续 Demo identity consumer",
+    "观察到的 gameplay identity 不等于登录或账号 ownership；此表只由统一 identity owner 维护，后续 #686 应复用该 substrate。",
   ),
   serverOnly(
     "user_identities",

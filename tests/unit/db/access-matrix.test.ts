@@ -52,7 +52,11 @@ const demoIntegrationMigration = readFileSync(
   join(root, "drizzle/migrations/0051_sour_grim_reaper.sql"),
   "utf8",
 );
-const migration = `${terminalMigration}\n${restrictionOverrideMigration}\n${conversionPolicyMigration}\n${seedRecommendationSnapshotMigration}\n${identityMigration}\n${schedulerMigration}\n${stageConvergenceMigration}\n${contractCleanupMigration}\n${operationsMigration}\n${demoIntegrationMigration}`;
+const steamIdentityMigration = readFileSync(
+  join(root, "drizzle/migrations/0052_gray_supernaut.sql"),
+  "utf8",
+);
+const migration = `${terminalMigration}\n${restrictionOverrideMigration}\n${conversionPolicyMigration}\n${seedRecommendationSnapshotMigration}\n${identityMigration}\n${schedulerMigration}\n${stageConvergenceMigration}\n${contractCleanupMigration}\n${operationsMigration}\n${demoIntegrationMigration}\n${steamIdentityMigration}`;
 const droppedTables = [...contractCleanupMigration.matchAll(/DROP TABLE "([^"]+)"/g)].map((match) => match[1]);
 
 function expectedFacts(): DatabaseAccessFacts[] {
@@ -69,13 +73,13 @@ function expectedFacts(): DatabaseAccessFacts[] {
 describe("database access matrix", () => {
   it("classifies every current public application table and keeps the generated document aligned", () => {
     const snapshot = JSON.parse(
-      readFileSync(join(root, "drizzle/migrations/meta/0051_snapshot.json"), "utf8"),
+      readFileSync(join(root, "drizzle/migrations/meta/0052_snapshot.json"), "utf8"),
     ) as { tables: Record<string, unknown> };
     const snapshotTables = Object.keys(snapshot.tables)
       .map((table) => table.replace(/^public\./, ""))
       .sort();
 
-    expect(DATABASE_ACCESS_MATRIX).toHaveLength(80);
+    expect(DATABASE_ACCESS_MATRIX).toHaveLength(82);
     expect(new Set(DATABASE_ACCESS_TABLES).size).toBe(DATABASE_ACCESS_TABLES.length);
     expect(snapshotTables).toEqual([...DATABASE_ACCESS_TABLES].sort());
     expect(renderDatabaseAccessMatrixMarkdown()).toBe(
@@ -111,6 +115,8 @@ describe("database access matrix", () => {
             "user_merge_ledger",
             "scheduled_job_health",
             "competition_stage_bracket_states",
+            "steam_profiles",
+            "user_gameplay_steam_ids",
           ].includes(table),
         )
         .sort(),

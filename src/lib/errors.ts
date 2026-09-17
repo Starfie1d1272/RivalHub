@@ -24,6 +24,11 @@ export const ErrorCode = {
   EMAIL_NOT_CONFIRMED: "EMAIL_NOT_CONFIRMED",
   EMAIL_SEND_RATE_LIMITED: "EMAIL_SEND_RATE_LIMITED",
 
+  // ── Steam identity ─────────────────────────────
+  STEAM_PROFILE_CONFLICT: "STEAM_PROFILE_CONFLICT",
+  STEAM_PROFILE_NOT_FOUND: "STEAM_PROFILE_NOT_FOUND",
+  STEAM_PROVIDER_UNAVAILABLE: "STEAM_PROVIDER_UNAVAILABLE",
+
   // ── Season ──────────────────────────────────────
   SEASON_NOT_FOUND: "SEASON_NOT_FOUND",
   SEASON_INVALID_STATUS: "SEASON_INVALID_STATUS",
@@ -96,6 +101,10 @@ export const ERROR_MESSAGES: Record<ErrorCode, string> = {
   INTERNAL_ERROR: "服务器内部错误，请稍后重试",
   EMAIL_NOT_CONFIRMED: "邮箱尚未验证，请先完成邮箱验证",
   EMAIL_SEND_RATE_LIMITED: "邮件发送过于频繁，请稍后再试",
+
+  STEAM_PROFILE_CONFLICT: "该 Steam64 ID 已关联其他账户，请联系管理员处理。",
+  STEAM_PROFILE_NOT_FOUND: "未找到该 Steam 账号，请检查 Steam64 ID 是否填写正确。",
+  STEAM_PROVIDER_UNAVAILABLE: "暂时无法连接 Steam，请稍后重试。",
 
   SEASON_NOT_FOUND: "赛季不存在",
   SEASON_INVALID_STATUS: "赛季当前状态不允许此操作",

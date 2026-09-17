@@ -107,7 +107,7 @@ describe("team registration page", () => {
       studentId: "20260001",
       qq: "12345678",
       perfectName: "Perfect Player",
-      steamName: "Steam Player",
+      personaName: "Steam Player",
       steam64: "76561198000000001",
       steamProfileUrl: "https://steamcommunity.com/id/player",
       gameplayStyle: "长期控图型",

@@ -13,7 +13,7 @@ export const SCHEDULER_JOB_KEYS = [
   "check-registration-deadline",
   "match-time-auto-award",
   "cleanup-education-evidence",
-  "refresh-steam-avatars",
+  "refresh-steam-profiles",
 ] as const;
 
 export const SCHEDULER_JOB_DEFINITIONS = [
@@ -44,7 +44,7 @@ export const SCHEDULER_JOB_DEFINITIONS = [
   },
   {
     key: SCHEDULER_JOB_KEYS[4],
-    label: "Steam 头像刷新",
+    label: "Steam 资料刷新",
     primaryCron: "0 */6 * * *",
     staleAfterMs: 18 * 60 * 60 * 1000,
   },

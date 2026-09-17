@@ -9,7 +9,7 @@ import { Suspense } from "react";
 import { connection } from "next/server";
 import { and, eq, count, or, desc } from "drizzle-orm";
 import { db } from "@/db/client";
-import { competitionEntries, seasonRegistrations, users } from "@/db/schema";
+import { competitionEntries, seasonRegistrations, steamProfiles, users } from "@/db/schema";
 import { captainVotes } from "@/db/schema/votes";
 import { matches } from "@/db/schema/matches";
 import { normalizeRegistrationConfig } from "@/lib/seasons/compatibility";
@@ -115,7 +115,7 @@ async function HomeContent() {
           .select({
             displayName: users.displayName,
             perfectName: users.perfectName,
-            steamName: users.steamName,
+            personaName: steamProfiles.personaName,
             voteCount: count(),
           })
           .from(captainVotes)
@@ -124,11 +124,12 @@ async function HomeContent() {
             eq(captainVotes.candidateRegistrationId, seasonRegistrations.id),
           )
           .innerJoin(users, and(eq(seasonRegistrations.userId, users.id), eq(users.status, "active")))
+          .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
           .where(eq(seasonRegistrations.seasonId, featured.id))
-          .groupBy(users.id, users.displayName, users.perfectName, users.steamName)
+          .groupBy(users.id, users.displayName, users.perfectName, steamProfiles.personaName)
           .orderBy(desc(count()))
           .limit(3)
-      : Promise.resolve([] as { displayName: string | null; perfectName: string | null; steamName: string | null; voteCount: number }[]),
+      : Promise.resolve([] as { displayName: string | null; perfectName: string | null; personaName: string | null; voteCount: number }[]),
     // 进行期的近期比赛入口
     featured.status === "playing"
       ? db

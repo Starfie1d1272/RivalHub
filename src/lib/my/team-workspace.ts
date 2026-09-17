@@ -3,7 +3,7 @@ import "server-only";
 import { cache } from "react";
 import { and, desc, eq, gt, isNull } from "drizzle-orm";
 import { db } from "@/db/client";
-import { teamInvitations, teamMemberships, teams, users } from "@/db/schema";
+import { steamProfiles, teamInvitations, teamMemberships, teams, users } from "@/db/schema";
 import { getPendingDirectTeamInvitations } from "@/lib/teams/invitations";
 import { getTeamRecruitmentWorkspace } from "@/lib/recruitment/data";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
@@ -166,10 +166,10 @@ export const loadMyTeamWorkspace = cache(async (userId: string): Promise<MyTeamW
       userId: teamMemberships.userId,
       displayName: users.displayName,
       perfectName: users.perfectName,
-      steamName: users.steamName,
+      personaName: steamProfiles.personaName,
       qq: users.qq,
       status: teamMemberships.status,
-    }).from(teamMemberships).innerJoin(users, eq(users.id, teamMemberships.userId)).where(and(eq(teamMemberships.teamId, team.id), isNull(teamMemberships.endedAt))),
+    }).from(teamMemberships).innerJoin(users, eq(users.id, teamMemberships.userId)).leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64)).where(and(eq(teamMemberships.teamId, team.id), isNull(teamMemberships.endedAt))),
     loadTeamCompetitionContexts(team.id, userId),
     isCaptain
       ? getTeamRecruitmentWorkspace(team.id, userId)

@@ -1,4 +1,4 @@
-import { inArray } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import type { TxDb } from "@/db/client";
 import { db } from "@/db/client";
 import {
@@ -35,6 +35,7 @@ import {
   teams,
   tournamentHonors,
   users,
+  steamProfiles,
 } from "@/db/schema";
 import { getDisplayName } from "@/lib/identity/display-name";
 import {
@@ -116,7 +117,7 @@ export function groupAuditTargets(refs: readonly AuditTargetRef[]): Map<string, 
 type AuditUserRow = {
   id: string;
   email: string;
-  steamName: string | null;
+  personaName: string | null;
   displayName: string | null;
   perfectName: string | null;
 };
@@ -126,10 +127,10 @@ async function selectUsers(executor: AuditDatabaseExecutor, ids: readonly string
   return executor.select({
     id: users.id,
     email: users.email,
-    steamName: users.steamName,
+    personaName: steamProfiles.personaName,
     displayName: users.displayName,
     perfectName: users.perfectName,
-  }).from(users).where(inArray(users.id, ids));
+  }).from(users).leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64)).where(inArray(users.id, ids));
 }
 
 async function selectEntries(executor: AuditDatabaseExecutor, ids: readonly string[]): Promise<Array<{ id: string; name: string }>> {

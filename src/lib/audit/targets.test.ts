@@ -33,6 +33,9 @@ function fakeExecutor(responses: Map<unknown, unknown[]>) {
           selectedTables.push(nextTable);
           return builder;
         },
+        leftJoin() {
+          return builder;
+        },
         where() {
           return builder;
         },
@@ -62,7 +65,7 @@ describe("audit target resolver", () => {
     const platformKey = "perfect-world";
     const platformSeasonId = "platform-season-1";
     const { executor } = fakeExecutor(new Map<unknown, unknown[]>([
-      [users, [{ id: userId, email: "player@example.test", displayName: "玩家甲", perfectName: null, steamName: null }]],
+      [users, [{ id: userId, email: "player@example.test", displayName: "玩家甲", perfectName: null, personaName: null }]],
       [seasons, [{ id: seasonId, name: "Major 2027" }]],
       [teams, [{ id: teamId, name: "Alpha" }]],
       [competitionEntries, [
@@ -112,7 +115,7 @@ describe("audit target resolver", () => {
   it("deduplicates IDs and performs one query per target type, not per row", async () => {
     const ids = Array.from({ length: 20 }, (_, index) => `user-${index}`);
     const { executor, selectedTables } = fakeExecutor(new Map<unknown, unknown[]>([
-      [users, ids.map((id) => ({ id, email: `${id}@example.test`, displayName: id, perfectName: null, steamName: null }))],
+      [users, ids.map((id) => ({ id, email: `${id}@example.test`, displayName: id, perfectName: null, personaName: null }))],
     ]));
     const refs = [...ids.flatMap((targetId) => [
       { targetType: "user", targetId },

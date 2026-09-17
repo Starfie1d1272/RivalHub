@@ -15,8 +15,8 @@ describe("TeamDraftGrid", () => {
           entryId: "entry-1",
           teamName: "Alpha 队",
           draftOrder: 1,
-          captain: { steamName: "Captain", displayName: null, perfectName: null, avatarUrl: null, primaryPosition: "igl" },
-          members: [{ steamName: "Neo", displayName: null, perfectName: null, avatarUrl: null, primaryPosition: "rifler", pickRound: 1, pickNumber: 1, autoPicked: false }],
+          captain: { personaName: "Captain", displayName: null, perfectName: null, avatarUrl: null, primaryPosition: "igl" },
+          members: [{ personaName: "Neo", displayName: null, perfectName: null, avatarUrl: null, primaryPosition: "rifler", pickRound: 1, pickNumber: 1, autoPicked: false }],
         }]}
       />,
     );

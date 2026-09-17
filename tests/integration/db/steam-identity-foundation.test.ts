@@ -1,0 +1,101 @@
+import { randomUUID } from "node:crypto";
+import { and, eq } from "drizzle-orm";
+import { drizzle } from "drizzle-orm/node-postgres";
+import { describe, expect, it } from "vitest";
+import * as schema from "../../../src/db/schema";
+import { ErrorCode } from "../../../src/lib/errors";
+import {
+  changePrimarySteam64InTx,
+  recordGameplaySteamIdentityInTx,
+  resolveGameplayUserBySteam64,
+  retireGameplaySteamIdentityInTx,
+} from "../../../src/lib/identity/gameplay-steam";
+import { createLocalPool } from "./harness/database";
+
+describe("Steam identity foundation", () => {
+  it("keeps a changed primary as a revocable historical gameplay identity", async () => {
+    const pool = createLocalPool({ max: 2 });
+    const client = await pool.connect();
+    const database = drizzle(client, { schema });
+    const userId = randomUUID();
+    const otherUserId = randomUUID();
+    const oldSteam64 = "76561198000000001";
+    const nextSteam64 = "76561198000000002";
+    const alternateSteam64 = "76561198000000003";
+
+    try {
+      await database.insert(schema.users).values([
+        { id: userId, email: `${userId}@steam-identity.local`, steam64: oldSteam64 },
+        { id: otherUserId, email: `${otherUserId}@steam-identity.local`, steam64: "76561198000000004" },
+      ]);
+
+      await database.transaction((tx) => changePrimarySteam64InTx(tx, {
+        userId,
+        nextSteam64,
+        actorId: userId,
+      }));
+
+      const [history] = await database.select().from(schema.userGameplaySteamIds)
+        .where(and(
+          eq(schema.userGameplaySteamIds.userId, userId),
+          eq(schema.userGameplaySteamIds.steam64, oldSteam64),
+        ));
+      expect(history).toMatchObject({
+        userId,
+        steam64: oldSteam64,
+        status: "active",
+        provenance: "profile_change",
+        confirmedByUserId: userId,
+      });
+      expect(history?.reason).toContain("保留历史游戏身份");
+
+      await expect(database.transaction((tx) => changePrimarySteam64InTx(tx, {
+        userId: otherUserId,
+        nextSteam64: oldSteam64,
+        actorId: otherUserId,
+      }))).rejects.toMatchObject({ code: ErrorCode.STEAM_PROFILE_CONFLICT });
+
+      expect(await resolveGameplayUserBySteam64(database, oldSteam64)).toEqual({
+        userId,
+        source: "gameplay_alias",
+      });
+      expect(await resolveGameplayUserBySteam64(database, nextSteam64)).toEqual({
+        userId,
+        source: "primary",
+      });
+
+      const firstAlternate = await database.transaction((tx) => recordGameplaySteamIdentityInTx(tx, {
+        userId,
+        steam64: alternateSteam64,
+        actorId: userId,
+        provenance: "admin_confirmed_alternate",
+        reason: "管理员确认历史游戏身份。",
+      }));
+      const repeatedAlternate = await database.transaction((tx) => recordGameplaySteamIdentityInTx(tx, {
+        userId,
+        steam64: alternateSteam64,
+        actorId: userId,
+        provenance: "admin_confirmed_alternate",
+        reason: "重复确认不应产生第二条 active 记录。",
+      }));
+      expect(firstAlternate).toMatchObject({ created: true });
+      expect(repeatedAlternate).toEqual({ id: firstAlternate.id, created: false });
+
+      await database.transaction((tx) => retireGameplaySteamIdentityInTx(tx, {
+        identityId: history!.id,
+        actorId: userId,
+        reason: "撤销不再使用的历史身份。",
+      }));
+      const [retired] = await database.select().from(schema.userGameplaySteamIds)
+        .where(eq(schema.userGameplaySteamIds.id, history!.id));
+      expect(retired).toMatchObject({ status: "retired", retiredByUserId: userId });
+      expect(await resolveGameplayUserBySteam64(database, oldSteam64)).toBeNull();
+    } finally {
+      await database.delete(schema.userGameplaySteamIds).where(eq(schema.userGameplaySteamIds.userId, userId));
+      await database.delete(schema.users).where(eq(schema.users.id, otherUserId));
+      await database.delete(schema.users).where(eq(schema.users.id, userId));
+      client.release();
+      await pool.end();
+    }
+  });
+});

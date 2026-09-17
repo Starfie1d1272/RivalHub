@@ -1,7 +1,7 @@
 import "server-only";
 import { and, eq, inArray, or, ne } from "drizzle-orm";
 import { db } from "@/db/client";
-import { matchMaps, matches, seasons, userMapPreferences, users } from "@/db/schema";
+import { matchMaps, matches, seasons, steamProfiles, userMapPreferences, users } from "@/db/schema";
 import { getPublicPlayerMapExperience } from "@/lib/stats/public-query";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
 
@@ -67,7 +67,7 @@ export async function getPublicTeamMapProfile(entryIds: readonly string[], membe
   const [played, experience, preferences] = await Promise.all([
     ids.length ? db.select({ id: matches.id, stage: matches.stage, entryAId: matches.entryAId, entryBId: matches.entryBId }).from(matches).innerJoin(seasons, eq(seasons.id, matches.seasonId)).where(and(eq(matches.status, "finished"), ne(seasons.status, "draft"), or(inArray(matches.entryAId, ids), inArray(matches.entryBId, ids)))) : [],
     getPublicPlayerMapExperience(memberIds),
-    memberIds.length ? db.select({ userId: users.id, displayName: users.displayName, perfectName: users.perfectName, steamName: users.steamName, preferences: userMapPreferences.mapPreferences }).from(userMapPreferences).innerJoin(users, eq(users.id, userMapPreferences.userId)).where(inArray(users.id, [...new Set(memberIds)])) : [],
+    memberIds.length ? db.select({ userId: users.id, displayName: users.displayName, perfectName: users.perfectName, personaName: steamProfiles.personaName, preferences: userMapPreferences.mapPreferences }).from(userMapPreferences).innerJoin(users, eq(users.id, userMapPreferences.userId)).leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64)).where(inArray(users.id, [...new Set(memberIds)])) : [],
   ]);
   const matchIds = played.map((match) => match.id);
   const maps = matchIds.length

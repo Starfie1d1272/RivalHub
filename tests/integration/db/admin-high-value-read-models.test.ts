@@ -24,6 +24,7 @@ describe("PR3 admin operational list read models", () => {
     const largeInviteIds = Array.from({ length: 52 }, () => randomUUID());
     const caseIds = Array.from({ length: 26 }, () => randomUUID());
     const now = new Date();
+    const profileSteam64 = "76561198000000100";
 
     try {
       await pool.query(
@@ -39,18 +40,22 @@ describe("PR3 admin operational list read models", () => {
 
       for (const [index, userId] of userIds.entries()) {
         await pool.query(
-          `INSERT INTO users (id, email, display_name, perfect_name, steam_name, steam_profile_url)
-           VALUES ($1, $2, $3, $4, $5, $6)`,
+          `INSERT INTO users (id, email, display_name, perfect_name, steam64)
+           VALUES ($1, $2, $3, $4, $5)`,
           [
             userId,
             `${marker}-${index}@local.test`,
             `${marker} player ${index}`,
             `${marker} perfect ${index}`,
-            `${marker} steam ${index}`,
-            index === 0 ? "https://steamcommunity.com/id/pr3-player/?ref=fixture" : null,
+            index === 0 ? profileSteam64 : null,
           ],
         );
       }
+      await pool.query(
+        `INSERT INTO steam_profiles (steam64, persona_name, profile_url, avatar_url)
+         VALUES ($1, $2, $3, NULL)`,
+        [profileSteam64, `${marker} official`, "https://steamcommunity.com/id/pr3-player"],
+      );
 
       for (const [index, registrationId] of registrationIds.entries()) {
         const createdAt = new Date(now.getTime() - (index + 1) * 60 * 60 * 1000);
@@ -281,6 +286,7 @@ describe("PR3 admin operational list read models", () => {
       await pool.query("DELETE FROM season_registrations WHERE id = ANY($1::uuid[])", [registrationIds]).catch(() => {});
       await pool.query("DELETE FROM admin_invites WHERE id = ANY($1::uuid[])", [inviteIds]).catch(() => {});
       await pool.query("DELETE FROM admin_invites WHERE id = ANY($1::uuid[])", [largeInviteIds]).catch(() => {});
+      await pool.query("DELETE FROM steam_profiles WHERE steam64 = $1", [profileSteam64]).catch(() => {});
       await pool.query("DELETE FROM users WHERE id = ANY($1::uuid[])", [userIds]).catch(() => {});
       await pool.query("DELETE FROM seasons WHERE id = ANY($1::uuid[])", [[seasonId, largeInviteSeasonId]]).catch(() => {});
       await pool.end();

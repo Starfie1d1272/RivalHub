@@ -17,7 +17,7 @@ describe("PlayerPool", () => {
             avatarUrl: null,
             displayName: null,
             perfectName: null,
-            steamName: "Neo",
+            personaName: "Neo",
             primaryPosition: "igl",
             secondaryPosition: "anchor",
             peakRank: "S",

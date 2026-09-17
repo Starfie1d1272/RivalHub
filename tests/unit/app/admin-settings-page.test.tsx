@@ -2,10 +2,11 @@ import { renderToStaticMarkup } from "react-dom/server";
 import * as React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { resolveAdminPageAccessMock, requireSuperAdminMock, userFindFirstMock, schedulerHealthMock } = vi.hoisted(() => ({
+const { resolveAdminPageAccessMock, requireSuperAdminMock, userFindFirstMock, dbSelectMock, schedulerHealthMock } = vi.hoisted(() => ({
   resolveAdminPageAccessMock: vi.fn(),
   requireSuperAdminMock: vi.fn(),
   userFindFirstMock: vi.fn(),
+  dbSelectMock: vi.fn(),
   schedulerHealthMock: vi.fn(),
 }));
 
@@ -16,7 +17,7 @@ vi.mock("@/lib/auth/session", () => ({
   requireSuperAdmin: requireSuperAdminMock,
 }));
 vi.mock("@/db/client", () => ({
-  db: { query: { users: { findFirst: userFindFirstMock } } },
+  db: { query: { users: { findFirst: userFindFirstMock } }, select: dbSelectMock },
 }));
 vi.mock("@/lib/scheduler/admin", () => ({
   getSchedulerHealthView: schedulerHealthMock,
@@ -32,6 +33,12 @@ describe("global system status access boundary", () => {
     vi.clearAllMocks();
     vi.stubGlobal("React", React);
     schedulerHealthMock.mockResolvedValue([]);
+    dbSelectMock.mockReturnValue({
+      from: vi.fn().mockReturnThis(),
+      leftJoin: vi.fn().mockReturnThis(),
+      where: vi.fn().mockReturnThis(),
+      limit: vi.fn().mockResolvedValue([]),
+    });
   });
 
   it("uses the super-admin authorization owner", async () => {

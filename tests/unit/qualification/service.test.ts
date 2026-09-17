@@ -62,7 +62,7 @@ function userRow(overrides?: Record<string, unknown>) {
     id: USER_ID,
     displayName: "选手甲",
     perfectName: "perfect-a",
-    steamName: "steam-a",
+    personaName: "steam-a",
     email: "a@rivalhub.test",
     emailVerifiedAt: new Date(),
     steam64: "76561198000000001",
@@ -81,7 +81,9 @@ function queueFactSelects(options: {
   const rankFacts = options.rankFacts ?? [];
   // loadParticipantQualificationFacts issues users → verifications → rank facts selects.
   selectMock.mockImplementationOnce(() => ({
-    from: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue(users) }),
+    from: vi.fn().mockReturnValue({
+      leftJoin: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue(users) }),
+    }),
   }));
   selectMock.mockImplementationOnce(() => ({
     from: vi.fn().mockReturnValue({
@@ -151,7 +153,7 @@ describe("participant readiness", () => {
     userId: USER_ID,
     displayName: "选手甲",
     perfectName: "perfect-a",
-    steamName: "steam-a",
+    personaName: "steam-a",
     email: "a@rivalhub.test",
     emailVerifiedAt: new Date(),
     steam64: "76561198000000001",
@@ -204,7 +206,7 @@ describe("participant readiness", () => {
   });
 
   it("uses the Steam nickname before the private email fallback", () => {
-    const readiness = computeParticipantReadiness(fullFact({ displayName: null, perfectName: null, steamName: "Steam Only", email: "private@example.test" }), CONTEXT);
+    const readiness = computeParticipantReadiness(fullFact({ displayName: null, perfectName: null, personaName: "Steam Only", email: "private@example.test" }), CONTEXT);
     expect(readiness.strength.label).toBe("Steam Only");
     expect(readiness.strength.label).not.toContain("@");
   });
@@ -473,7 +475,7 @@ describe("participant readiness", () => {
       userId: USER_ID,
       displayName: "选手甲",
       perfectName: "perfect-a",
-      steamName: "steam-a",
+      personaName: "steam-a",
       email: "a@rivalhub.test",
       emailVerifiedAt: new Date(),
       steam64: "76561198000000001",
