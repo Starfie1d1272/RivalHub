@@ -501,8 +501,12 @@ export async function getSoloRegistrationReview(
       .select({ count: count() })
       .from(seasonRegistrations)
       .innerJoin(users, and(eq(seasonRegistrations.userId, users.id), eq(users.status, "active")))
+      .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
       .where(where),
-    db.select({ count: count() }).from(seasonRegistrations).innerJoin(users, and(eq(seasonRegistrations.userId, users.id), eq(users.status, "active"))).where(eq(seasonRegistrations.seasonId, seasonId)),
+    db.select({ count: count() }).from(seasonRegistrations)
+      .innerJoin(users, and(eq(seasonRegistrations.userId, users.id), eq(users.status, "active")))
+      .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
+      .where(eq(seasonRegistrations.seasonId, seasonId)),
   ]);
   const total = Number(totalRow?.count ?? 0);
   const totalPages = Math.ceil(total / SOLO_REGISTRATION_REVIEW_PAGE_SIZE);

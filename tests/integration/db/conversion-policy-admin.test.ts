@@ -17,7 +17,7 @@ import {
 } from "@/lib/competitive/conversion-policy-admin";
 import { migrationFiles, replayMigration, withScratchDatabase } from "./harness/migration-replay";
 
-const TARGET_MIGRATION = "0041_perpetual_grey_gargoyle.sql";
+const TARGET_MIGRATION = "0052_gray_supernaut.sql";
 
 function eventPolicySnapshot(config: unknown) {
   const reference = extractConversionPolicyReference(config);
