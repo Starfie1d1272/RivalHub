@@ -345,6 +345,169 @@ describe("canonical user identity merge PostgreSQL invariants", () => {
     }
   });
 
+  it("allows an approved entry duplicate when the merged participant is withdrawn and only the canonical user is on the approved roster", async () => {
+    const pool = createLocalPool();
+    const ids = {
+      canonical: randomUUID(),
+      merged: randomUUID(),
+      admin: randomUUID(),
+      season: randomUUID(),
+      entry: randomUUID(),
+      revision: randomUUID(),
+      canonicalParticipant: randomUUID(),
+      mergedParticipant: randomUUID(),
+      canonicalRosterMember: randomUUID(),
+    };
+    const rollbackFixture = Symbol("rollback fixture");
+    const database = drizzle(pool, { schema });
+    try {
+      try {
+        await database.transaction(async (tx) => {
+          await insertTestSeason(tx, ids.season);
+          await insertTestUser(tx, ids.canonical, `canonical-${ids.canonical}@local.test`);
+          await insertTestUser(tx, ids.merged, `merged-${ids.merged}@local.test`);
+          await insertTestUser(tx, ids.admin, `admin-${ids.admin}@local.test`, "super_admin");
+          await insertTestEntry(tx, {
+            entryId: ids.entry,
+            revisionId: ids.revision,
+            seasonId: ids.season,
+            sourceRegistrationId: null,
+            representativeUserId: ids.canonical,
+          });
+          await tx.execute(sql`
+            UPDATE competition_entries
+            SET registration_status = 'approved', approved_roster_revision_id = ${ids.revision}
+            WHERE id = ${ids.entry}
+          `);
+          await tx.execute(sql`
+            UPDATE competition_entry_roster_revisions
+            SET status = 'approved', submitted_at = now(), approved_at = now()
+            WHERE id = ${ids.revision}
+          `);
+          await tx.execute(sql`
+            INSERT INTO competition_entry_participants (id, entry_id, user_id, status, confirmed_at, withdrawn_at)
+            VALUES
+              (${ids.canonicalParticipant}, ${ids.entry}, ${ids.canonical}, 'confirmed', now(), NULL),
+              (${ids.mergedParticipant}, ${ids.entry}, ${ids.merged}, 'withdrawn', now() - interval '2 days', now() - interval '1 day')
+          `);
+          await tx.execute(sql`
+            INSERT INTO competition_entry_roster_members (id, revision_id, participant_id, user_id, is_primary_starter)
+            VALUES (${ids.canonicalRosterMember}, ${ids.revision}, ${ids.canonicalParticipant}, ${ids.canonical}, true)
+          `);
+
+          const preflight = await buildUserMergePreflight(tx, {
+            canonicalUserId: ids.canonical,
+            mergedUserId: ids.merged,
+          }, { evidenceClass: "super_admin_review" });
+
+          expect(preflight.executable).toBe(true);
+          expect(preflight.items).toEqual(expect.arrayContaining([
+            expect.objectContaining({ key: "competition:participant-dedupe", category: "AUTOMATIC", count: 1 }),
+          ]));
+          expect(preflight.items).not.toEqual(expect.arrayContaining([
+            expect.objectContaining({ key: "competition:approved-or-frozen-duplicate", category: "BLOCKER" }),
+          ]));
+
+          await executeUserMergeInTx(tx, {
+            canonicalUserId: ids.canonical,
+            mergedUserId: ids.merged,
+            actorUserId: ids.admin,
+            expectedFingerprint: preflight.fingerprint,
+            evidenceClass: "super_admin_review",
+            reason: "withdrawn approved-entry participant regression test",
+          });
+
+          await expect(tx.execute(sql`SELECT count(*)::int AS count FROM competition_entry_participants WHERE id = ${ids.mergedParticipant}`)).resolves.toMatchObject({ rows: [{ count: 0 }] });
+          await expect(tx.execute(sql`SELECT user_id FROM competition_entry_roster_members WHERE id = ${ids.canonicalRosterMember}`)).resolves.toMatchObject({ rows: [{ user_id: ids.canonical }] });
+
+          throw rollbackFixture;
+        });
+      } catch (error) {
+        if (error !== rollbackFixture) throw error;
+      }
+    } finally {
+      await pool.end();
+    }
+  });
+
+  it("blocks true approved-roster duplicates with user-facing Chinese domain labels", async () => {
+    const pool = createLocalPool();
+    const ids = {
+      canonical: randomUUID(),
+      merged: randomUUID(),
+      season: randomUUID(),
+      entry: randomUUID(),
+      revision: randomUUID(),
+      canonicalParticipant: randomUUID(),
+      mergedParticipant: randomUUID(),
+      canonicalRosterMember: randomUUID(),
+      mergedRosterMember: randomUUID(),
+    };
+    const rollbackFixture = Symbol("rollback fixture");
+    const database = drizzle(pool, { schema });
+    try {
+      try {
+        await database.transaction(async (tx) => {
+          await insertTestSeason(tx, ids.season);
+          await insertTestUser(tx, ids.canonical, `canonical-${ids.canonical}@local.test`);
+          await insertTestUser(tx, ids.merged, `merged-${ids.merged}@local.test`);
+          await insertTestEntry(tx, {
+            entryId: ids.entry,
+            revisionId: ids.revision,
+            seasonId: ids.season,
+            sourceRegistrationId: null,
+            representativeUserId: ids.canonical,
+          });
+          await tx.execute(sql`
+            UPDATE competition_entries
+            SET registration_status = 'approved', approved_roster_revision_id = ${ids.revision}
+            WHERE id = ${ids.entry}
+          `);
+          await tx.execute(sql`
+            UPDATE competition_entry_roster_revisions
+            SET status = 'approved', submitted_at = now(), approved_at = now()
+            WHERE id = ${ids.revision}
+          `);
+          await tx.execute(sql`
+            INSERT INTO competition_entry_participants (id, entry_id, user_id, status, confirmed_at)
+            VALUES
+              (${ids.canonicalParticipant}, ${ids.entry}, ${ids.canonical}, 'confirmed', now()),
+              (${ids.mergedParticipant}, ${ids.entry}, ${ids.merged}, 'confirmed', now())
+          `);
+          await tx.execute(sql`
+            INSERT INTO competition_entry_roster_members (id, revision_id, participant_id, user_id, is_primary_starter)
+            VALUES
+              (${ids.canonicalRosterMember}, ${ids.revision}, ${ids.canonicalParticipant}, ${ids.canonical}, true),
+              (${ids.mergedRosterMember}, ${ids.revision}, ${ids.mergedParticipant}, ${ids.merged}, false)
+          `);
+
+          const preflight = await buildUserMergePreflight(tx, {
+            canonicalUserId: ids.canonical,
+            mergedUserId: ids.merged,
+          }, { evidenceClass: "super_admin_review" });
+
+          expect(preflight.executable).toBe(false);
+          expect(preflight.items).toEqual(expect.arrayContaining([
+            expect.objectContaining({
+              key: "competition:approved-or-frozen-duplicate",
+              category: "BLOCKER",
+              domain: "赛事名单",
+              count: 1,
+            }),
+          ]));
+          expect(preflight.items.filter((item) => item.category === "BLOCKER").map((item) => item.domain))
+            .not.toEqual(expect.arrayContaining(["team", "competition", "stats"]));
+
+          throw rollbackFixture;
+        });
+      } catch (error) {
+        if (error !== rollbackFixture) throw error;
+      }
+    } finally {
+      await pool.end();
+    }
+  });
+
   it("turns an unverified historical counterparty identity into usable OTP proof before self-service merge", async () => {
     const pool = createLocalPool();
     const ids = { current: randomUUID(), counterparty: randomUUID(), auth: randomUUID(), request: randomUUID(), emailIdentity: randomUUID(), authIdentity: randomUUID() };
