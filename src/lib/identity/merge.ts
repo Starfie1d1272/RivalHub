@@ -539,7 +539,7 @@ export async function executeUserMergeInTx(tx: TxDb, input: ExecuteUserMergeInpu
     canonicalUserId: input.canonicalUserId,
     mergedUserId: input.mergedUserId,
   }, { evidenceClass: input.evidenceClass });
-  if (preflight.fingerprint !== input.expectedFingerprint) throw new AppError(ErrorCode.VALIDATION_FAILED, "归并事实已变化，请重新查看并确认。");
+  if (preflight.fingerprint !== input.expectedFingerprint) throw new AppError(ErrorCode.VALIDATION_FAILED, "页面上的账号信息已经更新，本次没有执行合并。请查看最新结果后重新确认。");
   if (!preflight.executable) throw new AppError(ErrorCode.VALIDATION_FAILED, "存在未解决冲突，系统拒绝执行归并。");
   const authorizationId = await verifyMergeAuthorityInTx(tx, input);
 
