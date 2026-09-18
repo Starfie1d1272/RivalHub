@@ -139,7 +139,8 @@ describe("deployment and operations contracts", () => {
     expect(remoteMigration).toContain('"scripts/db/local.ts", "verify-migrations"');
     expect(remoteMigration).toContain("shouldUseExternalReleaseMigrationRehearsal");
     expect(release).toContain("requires_steam_profile_backfill: ${{ steps.plan.outputs.requiresSteamProfileBackfill }}");
-    expect(productionMigration).toContain("pnpm db:production:steam-profile:backfill -- --apply");
+    expect(productionMigration).toContain("pnpm db:production:steam-profile:backfill --apply");
+    expect(productionMigration).not.toContain("pnpm db:production:steam-profile:backfill -- --apply");
     expect(productionMigration).toContain("pnpm db:production:steam-profile:coverage");
     expect(productionMigration).toContain("STEAM_API_KEY: ${{ secrets.STEAM_API_KEY }}");
     expect(productionMigration).toContain("RIVALHUB_STEAM_PROFILE_WRITE_CONFIRM: I_UNDERSTAND_STEAM_PROFILE_CACHE_WRITE");
