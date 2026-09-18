@@ -1,14 +1,15 @@
 import { spawnSync } from "node:child_process";
 import { resolve } from "node:path";
 import { buildProductionEnvironment } from "./production-environment";
+import { buildProductionBackfillInvocation } from "./production-steam-profile-backfill-arguments";
 
 const projectRoot = resolve(process.cwd());
 const executable = resolve(projectRoot, `node_modules/.bin/tsx${process.platform === "win32" ? ".cmd" : ""}`);
-const apply = process.argv.includes("--apply");
+const invocation = buildProductionBackfillInvocation(process.argv.slice(2));
 
 try {
-  const environment = buildProductionEnvironment(process.env, { requiresWriteAuthorization: apply });
-  const result = spawnSync(executable, ["scripts/db/run-server-cli.ts", "scripts/db/steam-profile-backfill.ts", ...process.argv.slice(2)], {
+  const environment = buildProductionEnvironment(process.env, { requiresWriteAuthorization: invocation.apply });
+  const result = spawnSync(executable, invocation.args, {
     cwd: projectRoot,
     stdio: "inherit",
     env: {
