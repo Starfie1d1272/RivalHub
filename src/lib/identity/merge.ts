@@ -267,7 +267,7 @@ export async function buildUserMergePreflight(
   pushCount(items, "registration:draft-pick-conflict", "BLOCKER", "同赛季选秀事实冲突", facts.draft_pick_conflict, "blocked", "两个报名都已有 draft pick，但 entry、轮次、顺序、自动选取或请求 provenance 不一致，不能自动择一。 ");
   pushCount(items, "registration:captain-self-vote", "BLOCKER", "归并后的自投票", facts.captain_vote_self_conflict, "blocked", "报名引用重映射后会形成投票人给自己投票，必须保留原始语义并人工处理。 ");
   pushCount(items, "registration:captain-vote-limit-conflict", "BLOCKER", "归并后的队长投票上限冲突", facts.captain_vote_limit_conflict, "blocked", `报名引用重映射后同一投票人会超过最多 ${MAX_CAPTAIN_VOTES} 票，不自动删除历史投票。 `);
-  pushCount(items, "competition:participant-dedupe", "AUTOMATIC", "参赛条目重复参与人", facts.participant_duplicate, "automatic", "未形成确认承诺的重复参与人按保留账号优先去重。 ");
+  pushCount(items, "competition:participant-dedupe", "AUTOMATIC", "参赛条目重复参与人", facts.participant_duplicate, "automatic", "同一参赛条目中的重复参与人按保留账号优先确定性去重；正式名单冲突会另行阻断归并。 ");
   pushCount(items, "competition:claim-union", "AUTOMATIC", "当前参赛承诺", facts.claim_union, "automatic", "不冲突的当前参赛承诺取并集；同一条目只保留一份。 ");
   pushCount(items, "competition:roster-dedupe", "AUTOMATIC", "可编辑参赛名单", facts.roster_duplicate, "automatic", "可编辑名单中的重复成员按保留账号优先去重。 ");
   pushCount(items, "competition:event-roster", "AUTOMATIC", "赛事正式名单", facts.frozen_event_rows, "automatic", "在没有重复成员冲突时，将自然人的名单归到保留账号，同时保留原有名单和比赛阵容事实。 ");
