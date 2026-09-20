@@ -65,16 +65,36 @@ describe("PR3 admin operational list read models", () => {
          VALUES ($1, $2, 'manual', 'pr3-test')`,
         [institutionId, `${marker} institution`],
       );
-      await pool.query(
-        `INSERT INTO teams (id, slug, name, creator_user_id, captain_user_id)
-         VALUES ($1, $2, $3, $4, $4)`,
-        [teamId, `${marker}-team`, `${marker} team`, userIds[0]],
-      );
-      await pool.query(
-        `INSERT INTO team_memberships (id, team_id, user_id, status)
-         VALUES ($1, $2, $3, 'active')`,
-        [membershipId, teamId, userIds[0]],
-      );
+      const teamFixture = await pool.connect();
+      try {
+        await teamFixture.query("BEGIN");
+        await teamFixture.query(
+          `INSERT INTO teams (id, slug, name, creator_user_id, captain_user_id)
+           VALUES ($1, $2, $3, $4, $4)`,
+          [teamId, `${marker}-team`, `${marker} team`, userIds[0]],
+        );
+        await teamFixture.query(
+          `INSERT INTO team_memberships (id, team_id, user_id, status)
+           VALUES ($1, $2, $3, 'active')`,
+          [membershipId, teamId, userIds[0]],
+        );
+        await teamFixture.query(
+          `INSERT INTO team_captain_changes (team_id, from_user_id, to_user_id, changed_by_actor_id)
+           VALUES ($1, NULL, $2, 'admin-high-value-lists-test')`,
+          [teamId, userIds[0]],
+        );
+        await teamFixture.query(
+          `INSERT INTO team_name_changes (team_id, old_name, new_name, changed_by_actor_id)
+           VALUES ($1, NULL, $2, 'admin-high-value-lists-test')`,
+          [teamId, `${marker} team`],
+        );
+        await teamFixture.query("COMMIT");
+      } catch (error) {
+        await teamFixture.query("ROLLBACK").catch(() => {});
+        throw error;
+      } finally {
+        teamFixture.release();
+      }
       await pool.query(
         `INSERT INTO education_verifications (id, user_id, institution_id, academic_status, evidence_type, status)
          VALUES ($1, $2, $3, 'enrolled', 'institutional_email', 'approved')`,
