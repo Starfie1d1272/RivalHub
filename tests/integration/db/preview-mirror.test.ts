@@ -1,6 +1,12 @@
 import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { assertReviewedColumns, exportQuery, PREVIEW_COLUMNS, previewPolicyFor } from "../../../scripts/db/preview/policy";
+import {
+  assertReviewedColumns,
+  exportQuery,
+  PREVIEW_COLUMNS,
+  PREVIEW_STEAM_SHADOW_CLEANUP_MIGRATION,
+  previewPolicyFor,
+} from "../../../scripts/db/preview/policy";
 import { readExpectedMigrations } from "../../../scripts/db/production-preflight";
 import { migrationFiles, replayMigration, withScratchDatabase } from "./harness/migration-replay";
 import { createLocalPool } from "./harness/database";
@@ -93,10 +99,47 @@ describe("preview mirror membership projection", () => {
       expect(cleanedUsers).not.toEqual(expect.arrayContaining(["steam_name", "steam_profile_url", "avatar_url"]));
       expect(() => assertReviewedColumns("users", cleanedUsers, policy)).not.toThrow();
 
+      const cleanupExpected = [...expected, {
+        tag: PREVIEW_STEAM_SHADOW_CLEANUP_MIGRATION,
+        hash: "synthetic-cleanup-migration",
+        when: (expected[expected.length - 1]?.when ?? 0) + 1,
+      }];
+      const cleanupPolicy = previewPolicyFor(
+        cleanupExpected.map(({ hash, when }) => ({ hash, when })),
+        cleanupExpected,
+      );
+      expect(() => assertReviewedColumns("users", cleanedUsers, cleanupPolicy)).not.toThrow();
+      await client.query('ALTER TABLE public.users ADD COLUMN "steam_name" text');
+      const reappearedUsers = (await client.query<{ column_name: string }>(
+        "SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'users' ORDER BY ordinal_position",
+      )).rows.map(({ column_name }) => column_name);
+      expect(() => assertReviewedColumns("users", reappearedUsers, cleanupPolicy)).toThrow(/removed mirror column/);
+
       await client.query("CREATE TABLE public.preview_unreviewed_table (id uuid)");
       expect(() => assertReviewedColumns("preview_unreviewed_table", ["id"], policy)).toThrow();
       await client.query('ALTER TABLE public.users ADD COLUMN "preview_unreviewed" text');
       expect(() => assertReviewedColumns("users", [...cleanedUsers, "preview_unreviewed"], policy)).toThrow();
+    });
+
+    await withScratchDatabase("preview_pre_stats_policy", async (client) => {
+      const sourceExpected = expected.slice(0, -2);
+      const sourceMigrations = sourceExpected.map(({ hash, when }) => ({ hash, when }));
+      for (const migration of migrationFiles((name) => name < "0051_sour_grim_reaper.sql")) {
+        await replayMigration(client, migration);
+      }
+
+      const policy = previewPolicyFor(sourceMigrations);
+      const catalog = await client.query<{ table_name: string; column_name: string }>(
+        "SELECT table_name, column_name FROM information_schema.columns WHERE table_schema = 'public' ORDER BY table_name, ordinal_position",
+      );
+      const inventory = new Map<string, string[]>();
+      for (const row of catalog.rows) inventory.set(row.table_name, [...(inventory.get(row.table_name) ?? []), row.column_name]);
+      for (const [table, columns] of inventory) assertReviewedColumns(table, columns, policy);
+
+      const statsColumns = inventory.get("match_player_stats") ?? [];
+      expect(statsColumns).not.toEqual(expect.arrayContaining(["first_deaths", "trade_kills", "kast_rounds", "dak_import_id"]));
+      expect(policy.futureColumns.match_player_stats).toEqual(expect.arrayContaining(["first_deaths", "trade_kills", "kast_rounds", "dak_import_id"]));
+      for (const table of Object.keys(policy.tables)) expect(inventory.has(table)).toBe(true);
     });
   });
 });
