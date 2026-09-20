@@ -32,7 +32,7 @@ Migration 完成且 provider credential 已由受保护环境提供后，先 dry
 
 ```bash
 pnpm db:production:steam-profile:backfill
-pnpm db:production:steam-profile:backfill -- --apply
+pnpm db:production:steam-profile:backfill --apply
 ```
 
 `--apply` 只允许通过 protected production wrapper，并额外要求 `RIVALHUB_STEAM_PROFILE_WRITE_CONFIRM=I_UNDERSTAND_STEAM_PROFILE_CACHE_WRITE`。backfill 只 upsert 成功的官方 projection；provider 未找到的 Steam64 保持 unresolved，provider 整体失败时不写入 cache。为修复 N/N+1 rollback shadow，apply 会写入每个成功解析的 current primary，即使 `steam_profiles` 中已有相同资料；重复运行仍是幂等的。`--limit N` 可用于受控分批，但 production release gate 使用完整集合。

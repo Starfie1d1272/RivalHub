@@ -406,7 +406,7 @@ jobs:
             echo "GitHub production Environment secret STEAM_API_KEY 未设置；拒绝在 app switch 前继续。" >&2
             exit 1
           fi
-          node scripts/ci/timing.mjs "Production Steam profile backfill" -- pnpm db:production:steam-profile:backfill -- --apply
+          node scripts/ci/timing.mjs "Production Steam profile backfill" -- pnpm db:production:steam-profile:backfill --apply
 
       - name: 验证 production Steam profile coverage
         if: needs.preflight.outputs.requires_steam_profile_backfill == 'true'
