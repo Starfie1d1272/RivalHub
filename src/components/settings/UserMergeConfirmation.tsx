@@ -30,6 +30,7 @@ export function UserMergeConfirmation({
         confirmed,
       });
       if (!result.success) {
+        setConfirmed(false);
         toast.error(result.error.message);
         router.refresh();
         return;

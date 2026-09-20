@@ -267,7 +267,7 @@ export async function buildUserMergePreflight(
   pushCount(items, "registration:draft-pick-conflict", "BLOCKER", "同赛季选秀事实冲突", facts.draft_pick_conflict, "blocked", "两个报名都已有 draft pick，但 entry、轮次、顺序、自动选取或请求 provenance 不一致，不能自动择一。 ");
   pushCount(items, "registration:captain-self-vote", "BLOCKER", "归并后的自投票", facts.captain_vote_self_conflict, "blocked", "报名引用重映射后会形成投票人给自己投票，必须保留原始语义并人工处理。 ");
   pushCount(items, "registration:captain-vote-limit-conflict", "BLOCKER", "归并后的队长投票上限冲突", facts.captain_vote_limit_conflict, "blocked", `报名引用重映射后同一投票人会超过最多 ${MAX_CAPTAIN_VOTES} 票，不自动删除历史投票。 `);
-  pushCount(items, "competition:participant-dedupe", "AUTOMATIC", "参赛条目重复参与人", facts.participant_duplicate, "automatic", "未形成确认承诺的重复参与人按保留账号优先去重。 ");
+  pushCount(items, "competition:participant-dedupe", "AUTOMATIC", "参赛条目重复参与人", facts.participant_duplicate, "automatic", "同一参赛条目中的重复参与人按保留账号优先确定性去重；正式名单冲突会另行阻断归并。 ");
   pushCount(items, "competition:claim-union", "AUTOMATIC", "当前参赛承诺", facts.claim_union, "automatic", "不冲突的当前参赛承诺取并集；同一条目只保留一份。 ");
   pushCount(items, "competition:roster-dedupe", "AUTOMATIC", "可编辑参赛名单", facts.roster_duplicate, "automatic", "可编辑名单中的重复成员按保留账号优先去重。 ");
   pushCount(items, "competition:event-roster", "AUTOMATIC", "赛事正式名单", facts.frozen_event_rows, "automatic", "在没有重复成员冲突时，将自然人的名单归到保留账号，同时保留原有名单和比赛阵容事实。 ");
@@ -278,15 +278,15 @@ export async function buildUserMergePreflight(
   pushCount(items, "transient:close", "AUTOMATIC", "临时状态", facts.transient_rows, "automatic", "招募意向关闭，待处理邀请和身份请求取消，会话失效。 ");
   pushCount(items, "history:actor-preserved", "PRESERVE", "历史执行人", facts.preserved_actor_rows, "preserved", "历史 actor、审核人和冻结事实继续指向原始账号。 ");
 
-  const blockers: Array<[keyof CollisionFacts, string, string]> = [
-    ["team_current_conflict", "team:current-conflict", "两个账号当前属于不同队伍，不能自动选择当前队伍。"],
-    ["team_membership_overlap", "team:history-overlap", "两个账号在不同队伍的历史成员时间区间重叠，必须先人工核对。"],
-    ["active_captaincy_conflict", "team:captaincy-conflict", "两个账号分别担任不同当前队伍队长，不能自动选择。"],
-    ["competition_commitment_conflict", "competition:confirmed-different-entry", "两个账号在同一赛事形成了不同参赛条目的确认承诺。"],
-    ["competition_roster_conflict", "competition:approved-or-frozen-duplicate", "已批准或已确认/冻结名单中出现无法确定归属的重复成员。"],
-    ["stats_conflict", "stats:formal-conflict", "同一场比赛同一张地图存在两份正式比赛数据，不能自动选择其中一份。"],
+  const blockers: Array<[keyof CollisionFacts, string, string, string]> = [
+    ["team_current_conflict", "team:current-conflict", "队伍关系", "两个账号当前属于不同队伍，不能自动选择当前队伍。"],
+    ["team_membership_overlap", "team:history-overlap", "队伍关系", "两个账号在不同队伍的历史成员时间区间重叠，必须先人工核对。"],
+    ["active_captaincy_conflict", "team:captaincy-conflict", "队伍关系", "两个账号分别担任不同当前队伍队长，不能自动选择。"],
+    ["competition_commitment_conflict", "competition:confirmed-different-entry", "赛事承诺", "两个账号在同一赛事形成了不同参赛条目的确认承诺。"],
+    ["competition_roster_conflict", "competition:approved-or-frozen-duplicate", "赛事名单", "已批准或已确认/冻结名单中出现无法确定归属的重复成员。"],
+    ["stats_conflict", "stats:formal-conflict", "比赛数据", "同一场比赛同一张地图存在两份正式比赛数据，不能自动选择其中一份。"],
   ];
-  for (const [field, key, detail] of blockers) pushCount(items, key, "BLOCKER", key.split(":")[0]!, facts[field], "blocked", detail);
+  for (const [field, key, domain, detail] of blockers) pushCount(items, key, "BLOCKER", domain, facts[field], "blocked", detail);
 
   items.sort((left, right) => left.category.localeCompare(right.category) || left.key.localeCompare(right.key));
   const summary = emptySummary();
@@ -425,9 +425,22 @@ async function loadCollisionFacts(queryable: MergeQueryable, input: { canonicalU
         WHERE b.user_id = ${input.mergedUserId} AND b.status = 'confirmed' AND ea.id <> eb.id)
         + (SELECT count(*)::int FROM event_roster_members b JOIN event_rosters rb ON rb.id = b.event_roster_id JOIN competition_entries eb ON eb.id = rb.entry_id JOIN event_roster_members a ON a.user_id = ${input.canonicalUserId} JOIN event_rosters ra ON ra.id = a.event_roster_id AND ra.status IN ('confirmed', 'frozen') JOIN competition_entries ea ON ea.id = ra.entry_id AND ea.competition_id = eb.competition_id
         WHERE b.user_id = ${input.mergedUserId} AND rb.status IN ('confirmed', 'frozen') AND ea.id <> eb.id) AS competition_commitment_conflict,
-      (SELECT count(*)::int FROM competition_entry_participants b JOIN competition_entry_participants a ON a.user_id = ${input.canonicalUserId} AND a.entry_id = b.entry_id JOIN competition_entries e ON e.id = b.entry_id
-        WHERE b.user_id = ${input.mergedUserId} AND (e.registration_status = 'approved' OR EXISTS (SELECT 1 FROM competition_entry_roster_members rb JOIN competition_entry_roster_revisions rr ON rr.id = rb.revision_id JOIN competition_entry_roster_members ra ON ra.user_id = ${input.canonicalUserId} AND ra.revision_id = rb.revision_id WHERE rb.user_id = ${input.mergedUserId} AND rr.status = 'approved') OR EXISTS (SELECT 1 FROM event_roster_members eb JOIN event_rosters er ON er.id = eb.event_roster_id JOIN event_roster_members ea ON ea.user_id = ${input.canonicalUserId} AND ea.event_roster_id = eb.event_roster_id WHERE eb.user_id = ${input.mergedUserId} AND er.status IN ('confirmed', 'frozen'))))
-        + (SELECT count(*)::int FROM event_roster_members b JOIN event_roster_members a ON a.user_id = ${input.canonicalUserId} AND a.event_roster_id = b.event_roster_id JOIN event_rosters r ON r.id = b.event_roster_id WHERE b.user_id = ${input.mergedUserId} AND r.status IN ('confirmed', 'frozen')) AS competition_roster_conflict
+      (SELECT count(*)::int
+        FROM competition_entry_roster_members b
+        JOIN competition_entry_roster_members a
+          ON a.user_id = ${input.canonicalUserId}
+         AND a.revision_id = b.revision_id
+        JOIN competition_entry_roster_revisions r ON r.id = b.revision_id
+        WHERE b.user_id = ${input.mergedUserId}
+          AND r.status = 'approved')
+        + (SELECT count(*)::int
+          FROM event_roster_members b
+          JOIN event_roster_members a
+            ON a.user_id = ${input.canonicalUserId}
+           AND a.event_roster_id = b.event_roster_id
+          JOIN event_rosters r ON r.id = b.event_roster_id
+          WHERE b.user_id = ${input.mergedUserId}
+            AND r.status IN ('confirmed', 'frozen')) AS competition_roster_conflict
   `);
   const row = result.rows[0] as Record<string, unknown> | undefined;
   return new Proxy({}, { get: (_target, property: string) => integer(row?.[property]) }) as CollisionFacts;
@@ -526,7 +539,7 @@ export async function executeUserMergeInTx(tx: TxDb, input: ExecuteUserMergeInpu
     canonicalUserId: input.canonicalUserId,
     mergedUserId: input.mergedUserId,
   }, { evidenceClass: input.evidenceClass });
-  if (preflight.fingerprint !== input.expectedFingerprint) throw new AppError(ErrorCode.VALIDATION_FAILED, "归并事实已变化，请重新查看并确认。");
+  if (preflight.fingerprint !== input.expectedFingerprint) throw new AppError(ErrorCode.VALIDATION_FAILED, "页面上的账号信息已经更新，本次没有执行合并。请查看最新结果后重新确认。");
   if (!preflight.executable) throw new AppError(ErrorCode.VALIDATION_FAILED, "存在未解决冲突，系统拒绝执行归并。");
   const authorizationId = await verifyMergeAuthorityInTx(tx, input);
 
