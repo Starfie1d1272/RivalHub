@@ -28,6 +28,7 @@ describe("MajorStrengthStarterSummary", () => {
     />);
 
     expect(screen.getByText("历史 黄金S · 10 星")).toBeVisible();
+    expect(screen.getByRole("link", { name: "不争" })).toHaveAttribute("href", "/players/player-1");
     expect(screen.getByText("参考 暂无")).toBeVisible();
     expect(screen.getByText("近期 A++")).toBeVisible();
     expect(screen.getByText("当前赛季候选：钻石S · 2 星")).toBeInTheDocument();

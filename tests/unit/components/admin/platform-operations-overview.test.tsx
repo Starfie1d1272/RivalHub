@@ -64,6 +64,8 @@ describe("PlatformOperationsOverview", () => {
     expect(html).toContain("队伍成员人数分布");
     expect(html).toContain("组队大厅");
     expect(html).toContain('href="/teams/recruitment"');
+    expect(html).toContain('href="/admin/users?tab=users&amp;education=approved&amp;team=none"');
+    expect(html).toContain('href="/admin/users?tab=users&amp;team=in_team"');
     expect(html).toContain("平台增长 · 最近 7 天");
     expect(html).toContain("7 日活跃用户");
     expect(html).toContain("已教育认证用户");

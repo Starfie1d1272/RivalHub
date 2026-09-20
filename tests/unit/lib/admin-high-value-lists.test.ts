@@ -74,8 +74,22 @@ describe("PR3 admin list query contracts", () => {
     }))).toEqual({
       q: "player",
       filter: "participated",
+      education: "all",
+      team: "all",
+      activity: "all",
       page: 4,
       pageSize: 50,
+    });
+    expect(normalizeAdminUsersQuery(new URLSearchParams({
+      education: "approved",
+      team: "none",
+      activity: "7d",
+      page: "0",
+    }))).toMatchObject({
+      education: "approved",
+      team: "none",
+      activity: "7d",
+      page: 1,
     });
   });
 

@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 import React from "react";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { CompetitionEntryReviewList } from "@/components/admin/CompetitionEntryReviewList";
 import { TeamRegistrationProgress } from "@/components/admin/TeamRegistrationProgress";
@@ -138,6 +138,9 @@ describe("team registration operations presentation", () => {
           participantId: "participant-1",
           userId: "user-1",
           email: "captain@example.com",
+          qq: null,
+          steam64: null,
+          steamProfileUrl: null,
           label: "队员甲",
           status: "confirmed",
           primary: true,
@@ -164,6 +167,10 @@ describe("team registration operations presentation", () => {
     expect(screen.getByLabelText("Team One报名状态摘要")).toHaveTextContent("资格待处理");
     expect(screen.getByText(/负责人：负责人甲/)).toBeInTheDocument();
     expect(screen.getByText(/完美战队 ID（可选）：perfect-team-1/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "队员甲" })).toHaveAttribute("href", "/players/user-1");
+    expect(screen.getByText("联系")).toBeInTheDocument();
+    fireEvent.click(screen.getByText("联系"));
+    expect(screen.getByText("captain@example.com")).toBeVisible();
     expect(screen.getByRole("heading", { name: "资格问题 / 例外" })).toBeInTheDocument();
     expect(screen.getByText("队伍实力未达到本届要求。", { exact: false })).toBeInTheDocument();
     expect(screen.getByText("经赛事负责人复核并批准。", { exact: false })).toBeInTheDocument();

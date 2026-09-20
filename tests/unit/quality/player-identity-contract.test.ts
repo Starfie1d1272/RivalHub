@@ -31,6 +31,7 @@ const PLAYER_IDENTITY_CONSUMERS: Consumer[] = [
   { path: "src/components/players/EventPlayerDirectoryRow.tsx", mode: "avatar" },
   { path: "src/components/players/MajorPlayerDirectoryRow.tsx", mode: "delegate", delegatesTo: "src/components/players/EventPlayerDirectoryRow.tsx" },
   { path: "src/components/players/PlayerDirectoryRow.tsx", mode: "avatar" },
+  { path: "src/components/players/PlayerProfileLink.tsx", mode: "text-first", reason: "共享身份导航 primitive 只负责 canonical profile link，由消费 surface 决定是否补充头像。" },
   { path: "src/components/my/TeamMemberList.tsx", mode: "text-first", reason: "队伍私有工作区以成员身份、联系方式和操作为优先，不需要头像。" },
   { path: "src/components/recruitment/TeamRecruitmentSection.tsx", mode: "text-first", reason: "队长处理加入意向的运营队列以文字和操作为优先。" },
   { path: "src/components/season/SeasonResults.tsx", mode: "text-first", reason: "赛果荣誉列表以名次和荣誉事实扫描为优先。" },

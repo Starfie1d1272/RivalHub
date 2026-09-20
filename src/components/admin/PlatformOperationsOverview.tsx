@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { LinkProps } from "next/link";
 import { formatCST } from "@/lib/utils/date";
 import { PageHeader, PageLayout, Panel } from "@/components/rivalhub";
 import type { PlatformOperationsGrowthDay, PlatformOperationsOverview as PlatformOperationsOverviewData } from "@/lib/admin/platform-operations/types";
@@ -18,11 +19,12 @@ function HeadlineMetric({ label, value, sub }: { label: string; value: number; s
   );
 }
 
-function PoolMetric({ label, value }: { label: string; value: number }) {
+function PoolMetric({ label, value, href }: { label: string; value: number; href?: LinkProps<never>["href"] }) {
   return (
     <div className="border border-[var(--color-border)] p-3">
       <p className="text-2xl font-semibold tabular-nums text-[var(--color-fg)]">{value}</p>
       <p className="mt-1 text-xs leading-5 text-[var(--color-fg-mid)]">{label}</p>
+      {href && <Link href={href} className="mt-2 inline-block text-xs text-[var(--color-accent)] underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-border-focus)]">查看名单 →</Link>}
     </div>
   );
 }
@@ -64,9 +66,9 @@ export function PlatformOperationsOverview({ data }: { data: PlatformOperationsO
 
       <Panel label="玩家池结构" contentClassName="p-5">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          <PoolMetric label="当前在队伍" value={playerPool.currentTeamUsers} />
-          <PoolMetric label="认证且当前无队伍" value={playerPool.certifiedWithoutTeam} />
-          <PoolMetric label="当前在队但未认证" value={playerPool.teamWithoutCertification} />
+          <PoolMetric label="当前在队伍" value={playerPool.currentTeamUsers} href="/admin/users?tab=users&team=in_team" />
+          <PoolMetric label="认证且当前无队伍" value={playerPool.certifiedWithoutTeam} href="/admin/users?tab=users&education=approved&team=none" />
+          <PoolMetric label="当前在队但未认证" value={playerPool.teamWithoutCertification} href="/admin/users?tab=users&education=unverified&team=in_team" />
           <PoolMetric label="选手找队" value={playerPool.publicPlayerLft} />
           <PoolMetric label="队伍招募" value={playerPool.publicTeamRecruiting} />
         </div>

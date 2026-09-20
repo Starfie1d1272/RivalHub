@@ -3,6 +3,7 @@
 import { isBuiltInStarRank } from "@/lib/competitive/builtins";
 import { presentCompetitiveRankSummary } from "@/lib/competitive/presentation";
 import type { MajorStrengthFact, MajorStrengthStarter } from "@/lib/admin/season-workspace/types";
+import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
 
 export function sourceLabel(platform: string | null): string {
   if (platform === "fivee") return "5E";
@@ -60,7 +61,7 @@ export function MajorStrengthStarterSummary({
     <details className="border border-[var(--color-border)] bg-[var(--color-panel-low)] px-2 py-1.5">
       <summary className="cursor-pointer list-none text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]">
         <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
-          <span className="font-medium text-[var(--color-fg)]">{starter.label}</span>
+          <PlayerProfileLink userId={starter.userId} className="font-medium text-[var(--color-fg)]" onClick={(event) => event.stopPropagation()}>{starter.label}</PlayerProfileLink>
           <span className="font-mono text-[var(--color-fg-mid)]">历史 {formatStrengthFact(presentation.historicalPeak, platform)}</span>
           <span className="font-mono text-[var(--color-fg-mid)]">参考 {formatStrengthFact(presentation.referenceSeasonPeak, platform)}</span>
           <span className="font-mono text-[var(--color-fg-mid)]">近期 {formatStrengthFact(presentation.recentPeak, platform)}</span>

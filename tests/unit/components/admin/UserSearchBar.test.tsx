@@ -18,7 +18,7 @@ vi.mock("next/navigation", () => ({
 
 function renderUsersWorkspace(overrides: Partial<React.ComponentProps<typeof AdminUsersListWorkspace>> = {}) {
   return render(
-    <AdminUsersListWorkspace filter="all" page={1} totalPages={1} {...overrides}>
+    <AdminUsersListWorkspace filter="all" education="all" team="all" activity="all" page={1} totalPages={1} {...overrides}>
       <div />
     </AdminUsersListWorkspace>,
   );
@@ -45,6 +45,14 @@ describe("AdminUsersListWorkspace", () => {
     renderUsersWorkspace({ filter: "none" });
 
     expect(screen.getByRole("button", { name: "清除筛选" })).toBeInTheDocument();
+  });
+
+  it("owns education, team, and activity filters in the URL", () => {
+    renderUsersWorkspace();
+
+    fireEvent.change(screen.getByRole("combobox", { name: "教育认证" }), { target: { value: "approved" } });
+
+    expect(replaceMock).toHaveBeenCalledWith("/admin/users?tab=users&education=approved");
   });
 
   it("uses the same query owner for pagination and preserves the current filters", () => {

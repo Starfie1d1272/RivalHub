@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Marker, Panel } from "@/components/rivalhub";
 import { MajorStrengthStarterSummary, sourceLabel } from "@/components/admin/MajorStrengthStarterSummary";
+import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
 import type { MajorPrestartPageData, MajorPrestartStrengthPreview } from "@/lib/admin/season-workspace/types";
 import { formatCSTDate } from "@/lib/utils/date";
 import type { ActionResult } from "@/types/action";
@@ -103,24 +104,30 @@ function ApprovedCandidate({
   onToggle: () => void;
 }) {
   return (
-    <label className="flex cursor-pointer items-start gap-3 border border-[var(--color-border)] p-3 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-[var(--color-accent)]">
-      <Checkbox checked={checked} disabled={disabled} onChange={onToggle} />
-      <span className="min-w-0 flex-1">
-        <span className="flex flex-wrap items-center justify-between gap-2 font-medium text-[var(--color-fg)]">
-          <span>{candidate.name}</span>
-          <span className="text-xs text-[var(--color-ok)]">{candidate.selectedAsEntrant ? "已选择为正式参赛队" : "报名已通过 · 候选"}</span>
-        </span>
-        <span className="mt-1 block text-xs text-[var(--color-fg-mid)]">
-          代表：{candidate.representativeName} · 提交：{formatDate(candidate.submittedAt)} · 审核：{formatDate(candidate.reviewedAt)} · 批准：{formatDate(candidate.approvedAt)}
-        </span>
-        <span className="mt-1 block text-xs text-[var(--color-fg-mid)]">
-          已审核报名名单：{rosterSummary(candidate.roster)}
-        </span>
-        <span className="mt-2 block text-xs text-[var(--color-fg-mid)]">
-          {candidate.roster.members.map((member) => `${member.label}${member.isPrimaryStarter ? "（主力）" : ""}`).join("、") || "名单成员缺失"}
-        </span>
-      </span>
-    </label>
+    <article className="border border-[var(--color-border)] p-3 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-[var(--color-accent)]">
+      <div className="flex items-start gap-3">
+        <Checkbox id={`major-candidate-${candidate.id}`} checked={checked} disabled={disabled} onChange={onToggle} />
+        <label htmlFor={`major-candidate-${candidate.id}`} className="min-w-0 flex-1 cursor-pointer">
+          <span className="flex flex-wrap items-center justify-between gap-2 font-medium text-[var(--color-fg)]">
+            <span>{candidate.name}</span>
+            <span className="text-xs text-[var(--color-ok)]">{candidate.selectedAsEntrant ? "已选择为正式参赛队" : "报名已通过 · 候选"}</span>
+          </span>
+          <span className="mt-1 block text-xs text-[var(--color-fg-mid)]">
+            代表：{candidate.representativeName} · 提交：{formatDate(candidate.submittedAt)} · 审核：{formatDate(candidate.reviewedAt)} · 批准：{formatDate(candidate.approvedAt)}
+          </span>
+          <span className="mt-1 block text-xs text-[var(--color-fg-mid)]">
+            已审核报名名单：{rosterSummary(candidate.roster)}
+          </span>
+        </label>
+      </div>
+      <ul className="mt-2 space-y-1 pl-7 text-xs text-[var(--color-fg-mid)]">
+        {candidate.roster.members.length > 0 ? candidate.roster.members.map((member) => (
+          <li key={member.userId}>
+            <PlayerProfileLink userId={member.userId}>{member.label}</PlayerProfileLink>{member.isPrimaryStarter ? " · 主力" : ""}
+          </li>
+        )) : <li>名单成员缺失</li>}
+      </ul>
+    </article>
   );
 }
 
@@ -136,7 +143,7 @@ function SyncedEntrant({ entrant }: { entrant: MajorPrestartManagementData["entr
       <ul className="mt-2 grid gap-1 text-sm text-[var(--color-fg-mid)]">
         {entrant.roster.map((member) => (
           <li key={member.userId}>
-            {member.label}{member.isPrimaryStarter ? " · 主力" : ""} · {member.educationVerified ? "学籍资料已确认" : "学籍资料待补全"}
+            <PlayerProfileLink userId={member.userId}>{member.label}</PlayerProfileLink>{member.isPrimaryStarter ? " · 主力" : ""} · {member.educationVerified ? "学籍资料已确认" : "学籍资料待补全"}
           </li>
         ))}
       </ul>
