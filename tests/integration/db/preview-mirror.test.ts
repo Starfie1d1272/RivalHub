@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { exportQuery } from "../../../scripts/db/preview/policy";
+import { assertReviewedColumns, exportQuery, PREVIEW_COLUMNS, previewPolicyFor } from "../../../scripts/db/preview/policy";
+import { readExpectedMigrations } from "../../../scripts/db/production-preflight";
+import { migrationFiles, replayMigration, withScratchDatabase } from "./harness/migration-replay";
 import { createLocalPool } from "./harness/database";
 
 describe("preview mirror membership projection", () => {
@@ -42,5 +44,59 @@ describe("preview mirror membership projection", () => {
       client.release();
       await pool.end();
     }
+  });
+
+  it("validates the real latest physical inventory and the previous N schema against source-aware policy", async () => {
+    const expected = readExpectedMigrations();
+    const latestPool = createLocalPool({ max: 1 });
+    const latest = await latestPool.connect();
+    try {
+      const catalog = await latest.query<{ table_name: string; column_name: string }>(
+        "SELECT table_name, column_name FROM information_schema.columns WHERE table_schema = 'public' ORDER BY table_name, ordinal_position",
+      );
+      const inventory = new Map<string, string[]>();
+      for (const row of catalog.rows) inventory.set(row.table_name, [...(inventory.get(row.table_name) ?? []), row.column_name]);
+      for (const [table, columns] of inventory) assertReviewedColumns(table, columns);
+
+      const users = inventory.get("users") ?? [];
+      expect(users).toEqual(expect.arrayContaining(["steam_name", "steam_profile_url", "avatar_url"]));
+      expect(inventory.has("steam_profiles")).toBe(true);
+      expect(PREVIEW_COLUMNS.users).not.toContain("steam_name");
+    } finally {
+      latest.release();
+      await latestPool.end();
+    }
+
+    await withScratchDatabase("preview_source_policy", async (client) => {
+      const sourceExpected = expected.slice(0, -1);
+      const sourceMigrations = sourceExpected.map(({ hash, when }) => ({ hash, when }));
+      for (const migration of migrationFiles((name) => name < "0052_gray_supernaut.sql")) {
+        await replayMigration(client, migration);
+      }
+
+      const policy = previewPolicyFor(sourceMigrations);
+      const catalog = await client.query<{ table_name: string; column_name: string }>(
+        "SELECT table_name, column_name FROM information_schema.columns WHERE table_schema = 'public' ORDER BY table_name, ordinal_position",
+      );
+      const inventory = new Map<string, string[]>();
+      for (const row of catalog.rows) inventory.set(row.table_name, [...(inventory.get(row.table_name) ?? []), row.column_name]);
+      for (const [table, columns] of inventory) assertReviewedColumns(table, columns, policy);
+
+      expect(policy.futureTables).toContain("steam_profiles");
+      expect(inventory.has("steam_profiles")).toBe(false);
+      for (const table of Object.keys(policy.tables)) expect(inventory.has(table)).toBe(true);
+
+      await client.query('ALTER TABLE public.users DROP COLUMN "steam_name", DROP COLUMN "steam_profile_url", DROP COLUMN "avatar_url"');
+      const cleanedUsers = (await client.query<{ column_name: string }>(
+        "SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'users' ORDER BY ordinal_position",
+      )).rows.map(({ column_name }) => column_name);
+      expect(cleanedUsers).not.toEqual(expect.arrayContaining(["steam_name", "steam_profile_url", "avatar_url"]));
+      expect(() => assertReviewedColumns("users", cleanedUsers, policy)).not.toThrow();
+
+      await client.query("CREATE TABLE public.preview_unreviewed_table (id uuid)");
+      expect(() => assertReviewedColumns("preview_unreviewed_table", ["id"], policy)).toThrow();
+      await client.query('ALTER TABLE public.users ADD COLUMN "preview_unreviewed" text');
+      expect(() => assertReviewedColumns("users", [...cleanedUsers, "preview_unreviewed"], policy)).toThrow();
+    });
   });
 });

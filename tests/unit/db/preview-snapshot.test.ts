@@ -62,7 +62,7 @@ describe("preview mirror snapshot membership privacy", () => {
     withSnapshot([
       { ...BASE_MEMBERSHIP, status: "left", ended_at: "2026-02-01T00:00:00.000Z", ended_reason: endedReason },
     ], (path) => {
-      expect(() => readSnapshot(path)).toThrow("Unsanitized mirror team membership end reason.");
+      expect(() => readSnapshot(path)).toThrow(/Preview mirror membership row failed sanitization/);
     });
   });
 });

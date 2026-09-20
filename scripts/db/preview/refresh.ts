@@ -11,6 +11,15 @@ import { targetEnvironment } from "./environment";
 import { readSnapshot, type MirrorSnapshot } from "./snapshot";
 import { quoteIdentifier } from "./policy";
 import { deterministicUserId, PREVIEW_PERSONAS, PREVIEW_PERSONA_PASSWORD, syntheticUserId, type PersonaBinding } from "./personas";
+import {
+  PreviewMirrorError,
+  PreviewRefreshPhaseError,
+  previewProviderFailure,
+  reportPreviewFailure,
+  type PreviewRefreshPhase,
+} from "./diagnostics";
+
+export { PreviewRefreshPhaseError } from "./diagnostics";
 
 const MIRROR_STATE_TABLE = "preview_mirror_state";
 const PREVIEW_TEAM_LOGO_BUCKET = "team-logos";
@@ -19,24 +28,6 @@ const PREVIEW_TEAM_LOGO_BUCKET_OPTIONS = {
   fileSizeLimit: 1_048_576,
   allowedMimeTypes: ["image/jpeg", "image/png", "image/webp"],
 };
-
-export type PreviewRefreshPhase =
-  | "dev storage preflight"
-  | "db reset"
-  | "db migrate"
-  | "db import"
-  | "db state setup"
-  | "persona auth"
-  | "persona db binding"
-  | "public asset upload"
-  | "mirror state commit";
-
-export class PreviewRefreshPhaseError extends Error {
-  constructor(readonly phase: PreviewRefreshPhase) {
-    super(`Preview mirror phase failed: ${phase}`);
-    this.name = "PreviewRefreshPhaseError";
-  }
-}
 
 export async function runPreviewRefreshPhase<T>(
   phase: PreviewRefreshPhase,
@@ -48,23 +39,36 @@ export async function runPreviewRefreshPhase<T>(
     const result = await operation();
     log(`Preview mirror phase complete: ${phase}`);
     return result;
-  } catch {
-    throw new PreviewRefreshPhaseError(phase);
+  } catch (error) {
+    throw new PreviewRefreshPhaseError(phase, error);
   }
 }
 
 export async function ensurePreviewTeamLogoBucket(
   storage: Pick<SupabaseClient["storage"], "getBucket" | "createBucket" | "updateBucket">,
 ): Promise<void> {
-  const existing = await storage.getBucket(PREVIEW_TEAM_LOGO_BUCKET);
+  let existing: Awaited<ReturnType<typeof storage.getBucket>>;
+  try {
+    existing = await storage.getBucket(PREVIEW_TEAM_LOGO_BUCKET);
+  } catch (error) {
+    throw previewProviderFailure("dev storage preflight", error);
+  }
   if (existing.error && !isMissingStorageBucketError(existing.error)) {
-    throw new Error("Preview team logo bucket preflight failed.");
+    throw previewProviderFailure("dev storage preflight", existing.error);
   }
 
-  const result = existing.data
-    ? await storage.updateBucket(PREVIEW_TEAM_LOGO_BUCKET, PREVIEW_TEAM_LOGO_BUCKET_OPTIONS)
-    : await storage.createBucket(PREVIEW_TEAM_LOGO_BUCKET, PREVIEW_TEAM_LOGO_BUCKET_OPTIONS);
-  if (result.error) throw new Error("Preview team logo bucket bootstrap failed.");
+  try {
+    if (existing.data) {
+      const result = await storage.updateBucket(PREVIEW_TEAM_LOGO_BUCKET, PREVIEW_TEAM_LOGO_BUCKET_OPTIONS);
+      if (result.error) throw previewProviderFailure("dev storage preflight", result.error);
+    } else {
+      const result = await storage.createBucket(PREVIEW_TEAM_LOGO_BUCKET, PREVIEW_TEAM_LOGO_BUCKET_OPTIONS);
+      if (result.error) throw previewProviderFailure("dev storage preflight", result.error);
+    }
+  } catch (error) {
+    if (error instanceof PreviewMirrorError) throw error;
+    throw previewProviderFailure("dev storage preflight", error);
+  }
 }
 
 async function resetDevSchema(client: PoolClient): Promise<void> {
@@ -141,8 +145,14 @@ async function provisionPersonas(snapshot: MirrorSnapshot, target: ReturnType<ty
   const active = snapshot.tables.users.filter((user) => user.status === "active");
   const used = new Set<string>();
   const bindings: PersonaBinding[] = [];
-  const listing = await auth.auth.admin.listUsers({ perPage: 1000 });
-  if (listing.error || listing.data.users.length >= 1000) throw new Error("Dev Auth inventory unavailable or exceeds bounded persona provisioning.");
+  let listing: Awaited<ReturnType<typeof auth.auth.admin.listUsers>>;
+  try {
+    listing = await auth.auth.admin.listUsers({ perPage: 1000 });
+  } catch (error) {
+    throw previewProviderFailure("persona auth", error);
+  }
+  if (listing.error) throw previewProviderFailure("persona auth", listing.error);
+  if (listing.data.users.length >= 1000) throw new Error("Dev Auth inventory exceeds bounded persona provisioning.");
   for (const persona of PREVIEW_PERSONAS) {
     let id = deterministicUserId(active, snapshot.personaCandidates, persona, used);
     if (!id) {
@@ -152,10 +162,16 @@ async function provisionPersonas(snapshot: MirrorSnapshot, target: ReturnType<ty
     used.add(id);
     const email = `preview-${persona}@preview.invalid`;
     const existing = listing.data.users.find((user) => user.email === email);
-    const result = existing
-      ? await auth.auth.admin.updateUserById(existing.id, { password: PREVIEW_PERSONA_PASSWORD, email_confirm: true })
-      : await auth.auth.admin.createUser({ email, password: PREVIEW_PERSONA_PASSWORD, email_confirm: true });
-    if (result.error || !result.data.user) throw new Error(`Dev persona provisioning failed: ${persona}`);
+    let result: Awaited<ReturnType<typeof auth.auth.admin.createUser>>;
+    try {
+      result = existing
+        ? await auth.auth.admin.updateUserById(existing.id, { password: PREVIEW_PERSONA_PASSWORD, email_confirm: true })
+        : await auth.auth.admin.createUser({ email, password: PREVIEW_PERSONA_PASSWORD, email_confirm: true });
+    } catch (error) {
+      throw previewProviderFailure("persona auth", error);
+    }
+    if (result.error) throw previewProviderFailure("persona auth", result.error);
+    if (!result.data.user) throw new Error("Dev persona provisioning returned no user.");
     const row = snapshot.tables.users.find((user) => String(user.id) === id);
     if (!row) throw new Error("Persona source row disappeared during refresh.");
     row.email = email; row.auth_id = result.data.user.id; row.email_verified_at = new Date().toISOString(); row.email_verification_source = "admin_migration"; row.role = persona === "super-admin" ? "super_admin" : "user";
@@ -165,72 +181,84 @@ async function provisionPersonas(snapshot: MirrorSnapshot, target: ReturnType<ty
 }
 
 export async function refreshMirror(path: string): Promise<void> {
-  const target = targetEnvironment();
-  const snapshot = readSnapshot(path);
+  const target = await runPreviewRefreshPhase("dev storage preflight", async () => targetEnvironment());
+  const snapshot = await runPreviewRefreshPhase("snapshot read", async () => readSnapshot(path));
   const storage = createClient(target.supabaseUrl, target.secretKey, { auth: { persistSession: false, autoRefreshToken: false } }).storage;
   await runPreviewRefreshPhase("dev storage preflight", () => ensurePreviewTeamLogoBucket(storage));
   const pool = new Pool({ connectionString: target.databaseUrl, ssl: { rejectUnauthorized: false }, max: 1 });
-  const client = await pool.connect();
+  let client: PoolClient | undefined;
   try {
-    await runPreviewRefreshPhase("db reset", () => resetDevSchema(client));
-    await runPreviewRefreshPhase("db migrate", () => migrateToSource(client, snapshot));
-    await runPreviewRefreshPhase("db import", () => importAndMigrateSnapshot(client, snapshot, target.applyCurrentMigrations));
-    await runPreviewRefreshPhase("db state setup", () => ensureMirrorState(client));
+    const connected = await runPreviewRefreshPhase("db connection", () => pool.connect());
+    client = connected;
+    await runPreviewRefreshPhase("db reset", () => resetDevSchema(connected));
+    await runPreviewRefreshPhase("db migrate", () => migrateToSource(connected, snapshot));
+    await runPreviewRefreshPhase("db import", () => importAndMigrateSnapshot(connected, snapshot, target.applyCurrentMigrations));
+    await runPreviewRefreshPhase("db state setup", () => ensureMirrorState(connected));
 
     const bindings = await runPreviewRefreshPhase("persona auth", () => provisionPersonas(snapshot, target));
     await runPreviewRefreshPhase("persona db binding", async () => {
-      await client.query("BEGIN");
+      await connected.query("BEGIN");
       for (const binding of bindings) {
         const role = binding.persona === "super-admin" ? "super_admin" : "user";
         // A sparse production snapshot may not contain five distinct active
         // users. Synthetic persona rows are added after the bulk import, so
         // insert the missing row before binding its deterministic Auth identity.
-        await client.query(
+        await connected.query(
           `INSERT INTO public.users (id, status, display_name, email, role)
            VALUES ($1, 'active', $2, $3, $4)
            ON CONFLICT (id) DO NOTHING`,
           [binding.userId, `Preview ${binding.persona}`, binding.email, role],
         );
-        await client.query("UPDATE public.users SET auth_id=$1, email=$2, email_verified_at=now(), email_verification_source='admin_migration', role=$3, updated_at=now() WHERE id=$4", [binding.authId, binding.email, binding.persona === "super-admin" ? "super_admin" : "user", binding.userId]);
-        await client.query(`INSERT INTO public.user_identities (user_id, kind, provider, provider_subject, normalized_value, verified_at, provenance, is_primary)
+        await connected.query("UPDATE public.users SET auth_id=$1, email=$2, email_verified_at=now(), email_verification_source='admin_migration', role=$3, updated_at=now() WHERE id=$4", [binding.authId, binding.email, binding.persona === "super-admin" ? "super_admin" : "user", binding.userId]);
+        await connected.query(`INSERT INTO public.user_identities (user_id, kind, provider, provider_subject, normalized_value, verified_at, provenance, is_primary)
           VALUES ($1, 'auth', 'supabase_auth', $2, $3, now(), 'admin_migration', true), ($1, 'email', 'email', $3, $3, now(), 'admin_migration', true) ON CONFLICT DO NOTHING`, [binding.userId, binding.authId, binding.email]);
-        if (binding.persona === "season-admin" && snapshot.personaCandidates.currentSeasonId) await client.query("INSERT INTO public.season_admin_grants (user_id, season_id) VALUES ($1, $2) ON CONFLICT DO NOTHING", [binding.userId, snapshot.personaCandidates.currentSeasonId]);
+        if (binding.persona === "season-admin" && snapshot.personaCandidates.currentSeasonId) await connected.query("INSERT INTO public.season_admin_grants (user_id, season_id) VALUES ($1, $2) ON CONFLICT DO NOTHING", [binding.userId, snapshot.personaCandidates.currentSeasonId]);
       }
     });
     await runPreviewRefreshPhase("public asset upload", () => uploadAssets(snapshot, target));
     await runPreviewRefreshPhase("mirror state commit", async () => {
-      await client.query(`INSERT INTO public.${MIRROR_STATE_TABLE} (id, source_tag, source_commit, refreshed_at, persona_count, asset_count)
+      await connected.query(`INSERT INTO public.${MIRROR_STATE_TABLE} (id, source_tag, source_commit, refreshed_at, persona_count, asset_count)
         VALUES (true, $1, $2, now(), $3, $4)
         ON CONFLICT (id) DO UPDATE SET source_tag=EXCLUDED.source_tag, source_commit=EXCLUDED.source_commit,
         refreshed_at=EXCLUDED.refreshed_at, persona_count=EXCLUDED.persona_count, asset_count=EXCLUDED.asset_count`, [snapshot.sourceTag, snapshot.sourceCommit, bindings.length, snapshot.assets.length]);
-      await client.query("COMMIT");
+      await connected.query("COMMIT");
     });
     console.log(`Mirror refreshed: source=${snapshot.sourceTag} commit=${snapshot.sourceCommit} personas=${bindings.length} assets=${snapshot.assets.length}`);
   } catch (error) {
-    await client.query("ROLLBACK").catch(() => {});
+    await client?.query("ROLLBACK").catch(() => {});
     throw error;
-  } finally { client.release(); await pool.end(); }
+  } finally { client?.release(); await pool.end(); }
 }
 
 function isMissingStorageBucketError(error: unknown): boolean {
   if (!error || typeof error !== "object") return false;
-  const candidate = error as { status?: unknown; statusCode?: unknown; code?: unknown };
-  return candidate.status === 404
-    || candidate.statusCode === 404
-    || candidate.statusCode === "404"
-    || candidate.code === "NotFound";
+  try {
+    const candidate = error as { status?: unknown; statusCode?: unknown; code?: unknown };
+    return candidate.status === 404
+      || candidate.statusCode === 404
+      || candidate.statusCode === "404"
+      || candidate.code === "NotFound";
+  } catch {
+    return false;
+  }
 }
 
 async function uploadAssets(snapshot: MirrorSnapshot, target: ReturnType<typeof targetEnvironment>): Promise<void> {
   if (!snapshot.assets.length) return;
   const storage = createClient(target.supabaseUrl, target.secretKey, { auth: { persistSession: false, autoRefreshToken: false } }).storage;
   for (const asset of snapshot.assets) {
-    const result = await storage.from(asset.bucket).upload(asset.path, Buffer.from(asset.data, "base64"), { contentType: asset.contentType, upsert: true });
-    if (result.error) throw new Error("Dev public asset mirror upload failed.");
+    const bucket = storage.from(asset.bucket);
+    let result: Awaited<ReturnType<typeof bucket.upload>>;
+    try {
+      result = await bucket.upload(asset.path, Buffer.from(asset.data, "base64"), { contentType: asset.contentType, upsert: true });
+    } catch (error) {
+      throw previewProviderFailure("public asset upload", error);
+    }
+    if (result.error) throw previewProviderFailure("public asset upload", result.error);
   }
 }
 
 if (process.argv[1]?.endsWith("preview/refresh.ts")) refreshMirror(process.argv[2]).catch((error: unknown) => {
-  console.error(error instanceof PreviewRefreshPhaseError ? `${error.message}; provider errors and row values are not logged.` : "Mirror refresh failed; provider errors and row values are not logged.");
+  reportPreviewFailure("preview.mirror.refresh_failed", error, { operation: "refresh" });
   process.exitCode = 1;
 });

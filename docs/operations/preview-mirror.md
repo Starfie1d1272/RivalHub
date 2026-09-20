@@ -11,6 +11,14 @@ RivalHub 的所有 Vercel Preview 固定连接 `rivalhub-dev`，不连接 produc
 - `preview_mirror_state` 只记录 source tag/commit、refresh 时间和计数，供 Preview banner 诊断；它不是 availability 状态机。
 - refresh 先完成 dev Storage preflight，再 reset 并应用 snapshot source migrations，导入脱敏 production snapshot 和验证外键；manual dispatch 可随后把指定 ref 的当前 migration 应用到这份 production-derived 数据并再次验证，最后才 provision persona、公共 assets 与 mirror state。命令只输出固定的 phase 名称和完成/失败状态，不输出 row value、asset path、credential 或 provider 原始错误。旧 Preview 因共享 schema/data 失效是可接受的 trade-off；daily/post-release refresh 始终用 `main`。
 
+## Source schema compatibility and diagnostics
+
+Preview export 的 policy 以 source 的 Drizzle migration ledger 为输入，而不是无条件使用 latest `main` 的完整 table/column 清单。migration-keyed policy 只要求 source 已拥有的 table 与 exported column；source 尚未应用的 additive table/column 留在 future policy 中，不会被查询。reviewed-but-omitted column 不进入 export projection；它可以在 N/N+1 rollback shadow 期间物理存在，也可以在后续 contract cleanup DROP 后缺失。source physical inventory 中的 unknown table/column、缺失 exported column 和不匹配的 migration prefix 仍 fail closed。
+
+Export 与 refresh 的失败都经过现有 `src/lib/observability/` safe exception boundary，保留内部 `cause` chain，并输出稳定的 phase/code 与有限 structural context（例如 table、column、provider、providerCode、httpStatus、retryable）。允许的 export phase 包括 source identity、source DB connection、migration ledger、schema inventory-policy、table export、persona selection、public asset export 和 snapshot write；refresh phase 也会区分 snapshot read、DB、persona、asset 与 mirror-state 步骤。日志不会输出 production row、SQL/params、credential、provider body 或 asset path。
+
+PostgreSQL CI integration 同时在 latest fresh schema 和 previous-production-compatible N/N+1 schema 的真实 `information_schema` inventory 上运行 policy validation，覆盖 additive table/column、Steam rollback shadow、contract cleanup DROP 以及 unknown table/column 的 fail-closed contract。
+
 ## Vercel Preview 必须配置
 
 Vercel Preview environment 只配置 dev-scoped 值：
