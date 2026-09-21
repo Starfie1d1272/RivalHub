@@ -19,6 +19,8 @@ describe("PR3 admin operational list read models", () => {
     const seasonId = randomUUID();
     const largeInviteSeasonId = randomUUID();
     const userIds = Array.from({ length: 52 }, () => randomUUID());
+    const adminOnlyId = randomUUID();
+    const adminOnlyMarker = `admin-user-${randomUUID().replaceAll("-", "")}`;
     const registrationIds = Array.from({ length: 26 }, () => randomUUID());
     const inviteIds = Array.from({ length: 5 }, () => randomUUID());
     const largeInviteIds = Array.from({ length: 52 }, () => randomUUID());
@@ -55,6 +57,11 @@ describe("PR3 admin operational list read models", () => {
           ],
         );
       }
+      await pool.query(
+        `INSERT INTO users (id, email, display_name, role)
+         VALUES ($1, $2, $3, 'super_admin')`,
+        [adminOnlyId, `${adminOnlyMarker}@local.test`, adminOnlyMarker],
+      );
       await pool.query(
         `INSERT INTO steam_profiles (steam64, persona_name, profile_url, avatar_url)
          VALUES ($1, $2, $3, NULL)`,
@@ -283,6 +290,9 @@ describe("PR3 admin operational list read models", () => {
       expect(usersWithoutTeam.total).toBe(51);
       const recentlyActiveUsers = await getAdminUsersList(normalizeAdminUsersQuery(new URLSearchParams({ q: marker, activity: "24h" })));
       expect(recentlyActiveUsers.total).toBe(1);
+      const adminUser = await getAdminUsersList(normalizeAdminUsersQuery(new URLSearchParams({ q: adminOnlyMarker })));
+      expect(adminUser.total).toBe(1);
+      expect(adminUser.rows[0]?.id).toBe(adminOnlyId);
 
       const sanctions = await getSeasonSanctionsAdminReadModel(
         seasonId,
@@ -353,7 +363,7 @@ describe("PR3 admin operational list read models", () => {
       await pool.query("DELETE FROM team_memberships WHERE id = $1", [membershipId]).catch(() => {});
       await pool.query("DELETE FROM teams WHERE id = $1", [teamId]).catch(() => {});
       await pool.query("DELETE FROM institutions WHERE id = $1", [institutionId]).catch(() => {});
-      await pool.query("DELETE FROM users WHERE id = ANY($1::uuid[])", [userIds]).catch(() => {});
+      await pool.query("DELETE FROM users WHERE id = ANY($1::uuid[])", [[...userIds, adminOnlyId]]).catch(() => {});
       await pool.query("DELETE FROM seasons WHERE id = ANY($1::uuid[])", [[seasonId, largeInviteSeasonId]]).catch(() => {});
       await pool.end();
     }
