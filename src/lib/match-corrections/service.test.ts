@@ -38,7 +38,7 @@ describe("classifyDownstreamManagedMatches", () => {
     );
     expect(impacts.map((impact) => impact.matchId).sort()).toEqual(["m-a", "m-b"]);
     expect(impacts.every((impact) => impact.invalidatable)).toBe(true);
-    expect(impacts[0]!.description).toContain("作废并重建");
+    expect(impacts.every((impact) => impact.dependencyKnown)).toBe(true);
   });
 
   it("swiss: keeps finished/started downstream matches as blocking facts", () => {
@@ -49,7 +49,7 @@ describe("classifyDownstreamManagedMatches", () => {
     );
     expect(impacts).toHaveLength(2);
     expect(impacts.every((impact) => !impact.invalidatable)).toBe(true);
-    expect(impacts[0]!.description).toContain("禁止自动改写");
+    expect(impacts.every((impact) => impact.dependencyKnown)).toBe(true);
   });
 
   it("playoff: follows only the bracket path from a quarterfinal source", () => {
@@ -103,7 +103,7 @@ describe("classifyDownstreamManagedMatches", () => {
       "single_elim",
     );
     expect(impact?.invalidatable).toBe(false);
-    expect(impact?.description).toContain("禁止自动改写");
+    expect(impact?.dependencyKnown).toBe(true);
   });
 
   it("never returns the corrected match itself as downstream", () => {

@@ -41,6 +41,20 @@ export const STAGE_TYPE_LABELS: Record<StageType, string> = {
   swiss: "瑞士轮",
 };
 
+const SEASON_KIND_LABELS = {
+  Major: "Major",
+  major: "Major",
+  Rivals: "Rivals",
+  rivals: "Rivals",
+  custom: "自定义赛事",
+  联赛: "联赛",
+} as const;
+
+/** Legacy season.kind is open text; unknown values use a safe product label. */
+export function presentSeasonKind(kind: string): string {
+  return SEASON_KIND_LABELS[kind as keyof typeof SEASON_KIND_LABELS] ?? "赛事";
+}
+
 const SEASON_STATUS_PRESENTATIONS: Record<SeasonStatus, StatusPresentation> = {
   draft: { label: "草稿", tone: "neutral" },
   registration: { label: "已发布", tone: "success" },

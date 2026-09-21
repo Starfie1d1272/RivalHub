@@ -1,4 +1,4 @@
-import type { CompetitionEntry, Match, MatchMap, Season } from "@/db/schema";
+import type { CompetitionEntry, Match, MatchMap, MatchRosterStatus, Season } from "@/db/schema";
 import type { MajorPlayoffRuntimeData, MajorSwissRuntimeData } from "@/lib/admin/major-runtime";
 import type { TeamStanding } from "@/lib/standings";
 import type { StageConfig, StagePlan } from "@/types/season";
@@ -17,7 +17,7 @@ export interface RosterData {
   rosterId: string | null;
   starters: string[];
   substitutes: string[];
-  status: string | null;
+  status: MatchRosterStatus | null;
 }
 
 export interface AdminMatchPreflight {

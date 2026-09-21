@@ -22,6 +22,7 @@ import {
   isRegistrationActuallyOpen,
   presentRegistrationSchedule,
   presentSeasonParticipationState,
+  presentSeasonKind,
   presentStageMarker,
 } from "@/lib/seasons/presentation";
 import { PageLayout, SectionHeader, StatusPill, Panel, ScrollHint, Stat, PhaseStep } from "@/components/rivalhub";
@@ -248,7 +249,7 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
       <div className="relative mb-12 pt-6">
         <div className="flex items-center gap-3 mb-4 text-xs uppercase tracking-wider">
           <StatusPill {...presentSeasonParticipationState(season)} />
-          <span className="text-[var(--color-fg-dim)]">{season.kind}</span>
+          <span className="text-[var(--color-fg-dim)]">{presentSeasonKind(season.kind)}</span>
         </div>
         <div className="flex items-center gap-3 mb-4">
           <h1 className="text-4xl sm:text-5xl font-bold text-[var(--color-fg)] leading-tight">

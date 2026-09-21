@@ -12,6 +12,7 @@ import { AppError, ErrorCode } from "@/lib/errors";
 import { parseMajorRunSnapshot } from "@/lib/major/run-snapshot";
 import { validateSeriesScore } from "@/lib/matches/result-rules";
 import { assertSeasonAllowsTournamentMutationInTx } from "@/lib/postevent/guard";
+import { matchCorrectionBlockedError, type MatchCorrectionBlocker } from "@/lib/match-corrections/errors";
 
 /**
  * G2 managed result correction & recovery.
@@ -30,15 +31,26 @@ export interface ResultCorrectionProposal {
   isForfeit?: boolean;
 }
 
-export interface CorrectionPlanImpact {
-  kind: "downstream_match" | "stage_run_rollback";
-  matchId?: string;
-  managedKey?: string | null;
-  entryRound?: string | null;
-  round?: number | null;
-  status: string;
-  description: string;
-}
+export type CorrectionPlanImpact =
+  | {
+      kind: "downstream_match";
+      matchId: string;
+      managedKey: string | null;
+      status: string;
+      invalidatable: boolean;
+      dependencyKnown: boolean;
+    }
+  | {
+      kind: "stage_run_rollback";
+      previousFinalizedRound: number;
+      rollbackTo: number;
+      fromRound: number;
+    };
+
+export type CorrectionRecoveryAction =
+  | { code: "invalidateDownstreamMatches"; params: { count: number } }
+  | { code: "rebuildSwissRounds"; params: { fromRound: number } }
+  | { code: "rebuildPlayoffRounds"; params: Record<string, never> };
 
 export interface ResultCorrectionPlan {
   matchId: string;
@@ -53,9 +65,9 @@ export interface ResultCorrectionPlan {
   /** Derived facts that must be invalidated before the correction can rebuild. */
   impacts: CorrectionPlanImpact[];
   /** Non-empty means the correction is refused outright (fail closed). */
-  blockedReasons: string[];
+  blockedReasons: MatchCorrectionBlocker[];
   /** Operator steps still required after applying (e.g. regenerate rounds). */
-  requiredRecoveryActions: string[];
+  requiredRecoveryActions: CorrectionRecoveryAction[];
 }
 
 interface FrozenRunFacts {
@@ -79,7 +91,7 @@ export interface DownstreamImpactItem {
   managedKey: string | null;
   status: string;
   invalidatable: boolean;
-  description: string;
+  dependencyKnown: boolean;
 }
 
 /**
@@ -126,11 +138,7 @@ export function classifyDownstreamManagedMatches(
       managedKey: candidate.managedKey,
       status: candidate.status,
       invalidatable,
-      description: !dependencyKnown
-        ? `${candidate.managedKey ?? candidate.id} 的淘汰赛依赖无法由稳定托管槽位确认，拒绝自动改写。`
-        : invalidatable
-        ? `${candidate.managedKey ?? candidate.id} 需要在胜者变更后作废并重建（对阵可能随积分重排）。`
-        : `${candidate.managedKey ?? candidate.id} 已经开始或完成（${candidate.status}），禁止自动改写。`,
+      dependencyKnown,
     });
   }
   return impacts;
@@ -312,9 +320,7 @@ export async function planResultCorrectionInTx(
   }
 
   if (match.ownership !== "major_stage" || !match.majorStageRunId) {
-    plan.blockedReasons.push(
-      "非托管比赛的胜者更正会与既有赛程矛盾，必须通过赛事事故裁决处理。",
-    );
+    plan.blockedReasons.push({ code: "nonManagedMatch", params: {} });
     return plan;
   }
 
@@ -333,9 +339,7 @@ export async function planResultCorrectionInTx(
     if (other.id === run.id) continue;
     const otherIndex = frozen.stagePlanKeys.indexOf(other.stageKey);
     if (myIndex >= 0 && otherIndex > myIndex) {
-      plan.blockedReasons.push(
-        `后续阶段 ${other.stageKey} 已基于本阶段结果建立，不能自动重建；需要走赛后裁决。`,
-      );
+      plan.blockedReasons.push({ code: "downstreamStageMaterialized", params: { stageKey: other.stageKey } });
     }
   }
 
@@ -345,7 +349,7 @@ export async function planResultCorrectionInTx(
     .from(majorFinalResults)
     .where(eq(majorFinalResults.seasonId, match.seasonId));
   if (finalResult) {
-    plan.blockedReasons.push("官方名次已经生成，胜者更正被禁止；请使用赛后裁决操作。");
+    plan.blockedReasons.push({ code: "finalResultsPublished", params: {} });
   }
 
   // Within-run downstream: later rounds (swiss) or later elimination steps
@@ -371,17 +375,14 @@ export async function planResultCorrectionInTx(
       kind: "downstream_match",
       matchId: impact.matchId,
       managedKey: impact.managedKey,
-      entryRound: null,
-      round: null,
       status: impact.status,
-      description: impact.description,
+      invalidatable: impact.invalidatable,
+      dependencyKnown: impact.dependencyKnown,
     });
     if (!impact.invalidatable) startedDownstream += 1;
   }
   if (startedDownstream > 0) {
-    plan.blockedReasons.push(
-      `存在 ${startedDownstream} 场已经开始或完成的下游托管比赛，系统拒绝自动重写；需要走赛后裁决并人工恢复。`,
-    );
+    plan.blockedReasons.push({ code: "downstreamMatchStarted", params: { count: startedDownstream } });
   }
 
   if (isSwiss) {
@@ -389,17 +390,27 @@ export async function planResultCorrectionInTx(
     if (targetRollback !== null) {
       plan.impacts.push({
         kind: "stage_run_rollback",
-        status: `finalized_round:${run.finalizedRound}`,
-        description: `第 ${targetRollback + 1} 轮及之后的轮次确认将被撤销（finalizedRound ${run.finalizedRound} → ${targetRollback}）。`,
+        previousFinalizedRound: run.finalizedRound,
+        rollbackTo: targetRollback,
+        fromRound: targetRollback + 1,
       });
-      plan.requiredRecoveryActions.push(`从第 ${targetRollback + 1} 轮开始重新逐轮确认（finalize）以重建后续对阵。`);
+      plan.requiredRecoveryActions.push({
+        code: "rebuildSwissRounds",
+        params: { fromRound: targetRollback + 1 },
+      });
     }
   } else {
-    plan.requiredRecoveryActions.push("重新按顺序确认受影响的淘汰轮次以重建后续对阵。");
+    plan.requiredRecoveryActions.push({ code: "rebuildPlayoffRounds", params: {} });
   }
 
-  if (plan.impacts.length > 0) {
-    plan.requiredRecoveryActions.unshift("显式作废列出的未开始下游托管比赛。");
+  const invalidatableDownstreamCount = plan.impacts.filter(
+    (impact) => impact.kind === "downstream_match" && impact.invalidatable,
+  ).length;
+  if (invalidatableDownstreamCount > 0) {
+    plan.requiredRecoveryActions.unshift({
+      code: "invalidateDownstreamMatches",
+      params: { count: invalidatableDownstreamCount },
+    });
   }
 
   return plan;
@@ -407,10 +418,7 @@ export async function planResultCorrectionInTx(
 
 function assertPlanApplicable(plan: ResultCorrectionPlan): void {
   if (plan.blockedReasons.length > 0) {
-    throw new AppError(
-      ErrorCode.VALIDATION_FAILED,
-      `该更正触发了 fail-closed 保护：${plan.blockedReasons.join("；")}`,
-    );
+    throw matchCorrectionBlockedError(plan.blockedReasons);
   }
 }
 
@@ -514,7 +522,7 @@ export async function applyResultCorrectionInTx(
   // Explicit invalidate phase for unstarted downstream managed matches.
   const invalidatable = plan.impacts.filter(
     (impact): impact is CorrectionPlanImpact & { matchId: string } =>
-      impact.kind === "downstream_match" && impact.matchId !== undefined && impact.status === "scheduled",
+      impact.kind === "downstream_match" && impact.invalidatable,
   );
   for (const impact of invalidatable) {
     const deleted = await tx
@@ -540,7 +548,7 @@ export async function applyResultCorrectionInTx(
   if (plan.stageType === "swiss" && locked.majorStageRunId) {
     const target = plan.impacts.find((impact) => impact.kind === "stage_run_rollback");
     if (target) {
-      const rollbackTo = Math.max(0, (locked.round ?? 1) - 1);
+      const rollbackTo = target.rollbackTo;
       await tx
         .update(majorStageRuns)
         .set({ finalizedRound: rollbackTo })
@@ -550,7 +558,7 @@ export async function applyResultCorrectionInTx(
         seasonId: locked.seasonId,
         action: "major.stage.finalized_round.revoked",
         actorId: args.actorId,
-        targetId: locked.majorStageRunId,meta: { stageKey: plan.stageKey, revokedFrom: target.status, rolledBackTo: rollbackTo },
+        targetId: locked.majorStageRunId,meta: { stageKey: plan.stageKey, revokedFrom: target.previousFinalizedRound, rolledBackTo: rollbackTo },
       });
     }
   }

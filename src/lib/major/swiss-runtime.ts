@@ -8,6 +8,7 @@ import { validateSeriesScore } from "@/lib/matches/result-rules";
 import { assertSeasonAllowsTournamentMutationInTx } from "@/lib/postevent/guard";
 import { parseMajorRunSnapshot } from "@/lib/major/run-snapshot";
 import { loadMajorStageEntrantsInTx } from "@/lib/major/run-entrants";
+import { majorAppError } from "@/lib/major/errors";
 import {
   generateNextMajorSwissRound,
   projectMajorSwissStage,
@@ -81,7 +82,7 @@ export async function finalizeMajorSwissRoundInTransaction(
   await assertSeasonAllowsTournamentMutationInTx(tx, input.seasonId);
   const [stageRun] = await tx.select().from(majorStageRuns)
     .where(and(eq(majorStageRuns.id, input.stageRunId), eq(majorStageRuns.seasonId, input.seasonId))).for("update");
-  if (!stageRun) throw new AppError(ErrorCode.NOT_FOUND, "指定的 Major StageRun 不属于当前赛事。 ");
+  if (!stageRun) throw majorAppError(ErrorCode.NOT_FOUND, "sourceStageNotFound");
 
   const stage = frozenSwissStage(stageRun.ruleSnapshot, stageRun.stageKey);
   if (stage.key !== stageRun.stageKey) {

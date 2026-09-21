@@ -70,14 +70,37 @@ export const ErrorCode = {
 
 export type ErrorCode = (typeof ErrorCode)[keyof typeof ErrorCode];
 
+export type StructuredErrorParams = Readonly<Record<string, string | number | boolean | null>>;
+
+/**
+ * Expected errors keep their machine identity and structured parameters
+ * separate from the product copy returned to a browser. The owner field is
+ * intentionally local to a domain; it is not a global translation registry.
+ */
+export interface ErrorPresentation {
+  owner: string;
+  key: string;
+  params: StructuredErrorParams;
+  message: string;
+}
+
 export class AppError extends Error {
   constructor(
     public readonly code: ErrorCode,
     message: string,
-    public readonly meta?: Record<string, unknown>
+    public readonly meta?: Record<string, unknown>,
+    public readonly presentation?: ErrorPresentation,
   ) {
     super(message);
     this.name = "AppError";
+  }
+
+  static withPresentation(
+    code: ErrorCode,
+    presentation: ErrorPresentation,
+    options: { diagnostic?: string; meta?: Record<string, unknown> } = {},
+  ): AppError {
+    return new AppError(code, options.diagnostic ?? presentation.message, options.meta, presentation);
   }
 }
 

@@ -1,4 +1,4 @@
-import { AppError, ErrorCode } from "@/lib/errors";
+import { AppError, ErrorCode, ERROR_MESSAGES } from "@/lib/errors";
 
 const ALLOWED_METHODS = "GET, POST, DELETE, OPTIONS";
 const ALLOWED_HEADERS = "Authorization, Content-Type, Idempotency-Key";
@@ -46,7 +46,11 @@ export function integrationError(request: Request, error: unknown): Response {
   return integrationJson(request, {
     error: {
       code: appError?.code ?? ErrorCode.INTERNAL_ERROR,
-      message: appError?.message ?? "RivalHub 集成请求失败，请稍后重试。",
+      message: appError
+        ? appError.code === ErrorCode.INTERNAL_ERROR
+          ? ERROR_MESSAGES.INTERNAL_ERROR
+          : appError.presentation?.message ?? appError.message
+        : "RivalHub 集成请求失败，请稍后重试。",
     },
   }, { status });
 }

@@ -2,10 +2,27 @@ import { desc, eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { matchTimeProposals } from "@/db/schema/match-time-proposals";
 
+export const MATCH_TIME_PROPOSAL_STATUSES = ["pending", "accepted", "rejected", "expired"] as const;
+export type MatchTimeProposalStatus = (typeof MATCH_TIME_PROPOSAL_STATUSES)[number] | "unknown";
+
+export const MATCH_TIME_PROPOSAL_STATUS_LABELS = {
+  pending: "待回应",
+  accepted: "已接受",
+  rejected: "已拒绝",
+  expired: "已过期",
+  unknown: "状态待确认",
+} satisfies Record<MatchTimeProposalStatus, string>;
+
+export function normalizeMatchTimeProposalStatus(status: string): MatchTimeProposalStatus {
+  return (MATCH_TIME_PROPOSAL_STATUSES as readonly string[]).includes(status)
+    ? status as Exclude<MatchTimeProposalStatus, "unknown">
+    : "unknown";
+}
+
 /** Fields allowed on the public match-time proposal view. */
 export interface PublicMatchTimeProposal {
   id: string;
-  status: string;
+  status: MatchTimeProposalStatus;
   proposedTime: Date;
   responseAt: Date | null;
   rejectReason: string | null;
@@ -17,7 +34,8 @@ export interface MatchTimeProposalView extends PublicMatchTimeProposal {
   isMine: boolean;
 }
 
-interface MatchTimeProposalSource extends PublicMatchTimeProposal {
+interface MatchTimeProposalSource extends Omit<PublicMatchTimeProposal, "status"> {
+  status: string;
   proposedBy: string;
 }
 
@@ -53,7 +71,7 @@ export function serializePublicMatchTimeProposal(
 ): MatchTimeProposalView {
   return {
     id: row.id,
-    status: row.status,
+    status: normalizeMatchTimeProposalStatus(row.status),
     proposedTime: row.proposedTime,
     responseAt: row.responseAt,
     rejectReason: row.rejectReason,

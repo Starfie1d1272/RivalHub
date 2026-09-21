@@ -7,6 +7,7 @@ import { users } from "./users";
 export const communityAwardStatusEnum = pgEnum("community_award_status", [
   "pending_review", "rejected", "approved", "withdrawn", "awarded", "not_awarded", "cancelled",
 ]);
+export type CommunityAwardStatus = (typeof communityAwardStatusEnum.enumValues)[number];
 
 /** Community-proposed awards, intentionally separate from official tournament_honors. */
 export const communityAwards = pgTable("community_awards", {

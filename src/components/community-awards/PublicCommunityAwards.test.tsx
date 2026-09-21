@@ -18,7 +18,7 @@ const award = {
   supplementaryNote: null,
   publicNote: null,
   reviewNote: null,
-  status: "approved",
+  status: "approved" as const,
   outcomeNote: null,
   submitterName: "发起人",
   recipientName: null,
