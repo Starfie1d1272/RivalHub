@@ -19,6 +19,7 @@ import { Separator } from "@/components/ui/separator";
 import { getDisplayName } from "@/lib/identity/display-name";
 import { adminSelectMatchRoster, confirmMatchRoster } from "@/actions/matches/roster";
 import type { RosterData } from "@/lib/admin/matches/types";
+import type { MatchRosterStatus } from "@/db/schema";
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -52,11 +53,10 @@ interface RosterTeamSectionProps {
   allowSubstitutes: boolean;
 }
 
-const STATUS_LABELS: Record<string, string> = {
+const STATUS_LABELS = {
   submitted: "已提交，待确认",
-  unlocked: "已解锁，可重新提交",
   confirmed: "已确认",
-};
+} satisfies Record<MatchRosterStatus, string>;
 
 // ── RosterTeamSection ───────────────────────────────────────────────────────
 
@@ -160,7 +160,7 @@ function RosterTeamSection({
             {allowSubstitutes && existingRoster.substitutes.length > 0
               ? ` + ${existingRoster.substitutes.length} 替补`
               : ""}
-            {existingRoster.status && ` · ${STATUS_LABELS[existingRoster.status] ?? existingRoster.status}`}
+            {existingRoster.status && ` · ${STATUS_LABELS[existingRoster.status]}`}
           </p>
           {existingRoster.rosterId && existingRoster.status !== "confirmed" && (
             <Button size="sm" variant="secondary" onClick={() => handleConfirm(existingRoster.rosterId!)} disabled={isPending}>

@@ -7,6 +7,7 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/db/client";
 import { educationVerifications, institutionEmailDomains, institutions, userIdentities } from "@/db/schema";
 import { actionError } from "@/lib/action-utils";
+import { educationAppError } from "@/lib/education/errors";
 import { auditActorId, requireAuth, requireSuperAdmin } from "@/lib/auth/session";
 import {
   submitAdmissionNoticeEducationCommand,
@@ -81,9 +82,9 @@ export async function declareInstitutionalEmailEducation(input: unknown): Promis
         sql`${userIdentities.verifiedAt} IS NOT NULL`,
       ))
       .limit(1);
-    if (!identity?.email) throw new AppError(ErrorCode.FORBIDDEN, "请选择属于当前账号的 verified email identity。");
+    if (!identity?.email) throw educationAppError(ErrorCode.FORBIDDEN, "emailNotSelected");
     const domain = emailDomain(identity.email);
-    if (!domain) throw new AppError(ErrorCode.VALIDATION_FAILED, "所选 verified email identity 无效。");
+    if (!domain) throw educationAppError(ErrorCode.VALIDATION_FAILED, "emailInvalid");
     const [mapping] = await db.select({ institutionId: institutionEmailDomains.institutionId })
       .from(institutionEmailDomains)
       .where(and(
@@ -93,7 +94,7 @@ export async function declareInstitutionalEmailEducation(input: unknown): Promis
         eq(institutionEmailDomains.credentialType, "student"),
       ))
       .limit(1);
-    if (!mapping) throw new AppError(ErrorCode.FORBIDDEN, "所选 verified email identity 不支持学校邮箱自动认证。");
+    if (!mapping) throw educationAppError(ErrorCode.FORBIDDEN, "emailNotSupported");
     await db.transaction(async (tx) => {
       const existing = await tx.query.educationVerifications.findFirst({
         where: and(eq(educationVerifications.userId, session.userId), eq(educationVerifications.institutionId, mapping.institutionId), eq(educationVerifications.evidenceType, "institutional_email"), eq(educationVerifications.academicStatus, "enrolled"), eq(educationVerifications.status, "approved")),

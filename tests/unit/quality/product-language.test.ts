@@ -21,6 +21,10 @@ describe("product language contract", () => {
     const files = [...sources("src/app"), ...sources("src/components").filter((path) => !path.includes("/components/rules/")), ...messageOwners];
     expect(files.flatMap((path) => productLanguageViolations(path, readFileSync(path, "utf8")))).toEqual([]);
   });
+  it("checks every expected AppError without a manual owner registry", () => {
+    const files = sources("src").filter((path) => readFileSync(path, "utf8").includes("new AppError"));
+    expect(files.flatMap((path) => productLanguageViolations(path, readFileSync(path, "utf8"), { expectedErrorsOnly: true }))).toEqual([]);
+  });
   it("allows brands and esports vocabulary", () => {
     expect(PRODUCT_LANGUAGE_ALLOWED.map(internalProductVocabulary).filter(Boolean)).toEqual([]);
   });
@@ -29,5 +33,25 @@ describe("product language contract", () => {
     expect(productLanguageViolations("fixture.tsx", source)).toEqual([]);
     expect(productLanguageViolations("fixture.tsx", 'const a = <p>请检查 active migration</p>;')).toEqual(["fixture.tsx:1: 请检查 active migration"]);
     expect(productLanguageViolations("fixture.ts", 'throw new AppError(ErrorCode.VALIDATION_FAILED, "必须使用 approved policy");')).toHaveLength(1);
+    expect(productLanguageViolations("fixture.tsx", `
+      const a = <p>{row.status}</p>;
+      const b = <p>{entry.domain}</p>;
+      const c = <Badge>{item.kind}</Badge>;
+      const d = <StatusBanner title={row.type} />;
+      const e = <p>{STATUS[row.status] ?? row.status}</p>;
+    `)).toEqual(expect.arrayContaining([
+      expect.stringContaining("direct machine-value render: row.status"),
+      expect.stringContaining("direct machine-value render: entry.domain"),
+      expect.stringContaining("direct machine-value render: item.kind"),
+      expect.stringContaining("direct machine-value render: row.type"),
+      expect.stringContaining("raw machine-value fallback"),
+    ]));
+    expect(productLanguageViolations("fixture.tsx", `
+      const a = <p>{presentMatchStatus(row.status).label}</p>;
+      const b = <p>{STATUS[row.status] ?? "状态待确认"}</p>;
+      const c = <div key={row.status} className={row.status === "ready" ? "ok" : "warn"} />;
+    `)).toEqual([]);
+    expect(productLanguageViolations("fixture.ts", 'throw new AppError(ErrorCode.VALIDATION_FAILED, "当前 StageRun 无效");')).toHaveLength(1);
+    expect(productLanguageViolations("fixture.ts", 'throw new AppError(ErrorCode.INTERNAL_ERROR, "StageRun snapshot invariant broken");')).toEqual([]);
   });
 });

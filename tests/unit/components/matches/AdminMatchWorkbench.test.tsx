@@ -51,7 +51,7 @@ function data(status: Match["status"]) {
     createdAt: new Date("2026-09-05T00:00:00Z"),
     updatedAt: new Date("2026-09-05T00:00:00Z"),
   } satisfies Match;
-  const roster = { rosterId: "roster-a", starters: ["a1", "a2", "a3", "a4", "a5"], substitutes: [], status: "confirmed" };
+  const roster = { rosterId: "roster-a", starters: ["a1", "a2", "a3", "a4", "a5"], substitutes: [], status: "confirmed" as const };
   return {
     season: { id: "season-1", slug: "major", name: "Major" },
     stageName: "Swiss",

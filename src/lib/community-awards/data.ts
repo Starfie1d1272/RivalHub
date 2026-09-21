@@ -2,6 +2,7 @@ import { and, asc, eq, inArray, isNotNull, or } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import type { TxDb } from "@/db/client";
 import { communityAwardEvidence, communityAwards, competitionEntries, eventRosterMembers, eventRosters, matches, steamProfiles, users } from "@/db/schema";
+import type { CommunityAwardStatus } from "@/db/schema";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
 import { presentMatchLabel } from "@/lib/matches/presentation";
 import { formatCST } from "@/lib/utils/date";
@@ -31,7 +32,7 @@ export type CommunityAwardModel = {
   supplementaryNote: string | null;
   publicNote: string | null;
   reviewNote: string | null;
-  status: string;
+  status: CommunityAwardStatus;
   outcomeNote: string | null;
   submitterName: string;
   recipientName: string | null;

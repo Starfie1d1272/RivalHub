@@ -101,7 +101,7 @@ export async function extractStatsFromScreenshot(
     return ok({ drafts, playerOptions });
   } catch (e) {
     if (e instanceof AppError) {
-      return fail({ code: e.code, message: e.message });
+      return fail({ code: e.code, message: e.code === ErrorCode.INTERNAL_ERROR ? ERROR_MESSAGES.INTERNAL_ERROR : e.presentation?.message ?? e.message });
     }
     captureException("action.unexpected_error", e, {
       scope: "action",
@@ -385,7 +385,7 @@ export async function castMatchMvpVote(
     revalidatePath(`/${match.seasonId}/matches/${matchId}`);
     return ok(undefined);
   } catch (e) {
-    if (e instanceof AppError) return fail({ code: e.code, message: e.message });
+    if (e instanceof AppError) return fail({ code: e.code, message: e.code === ErrorCode.INTERNAL_ERROR ? ERROR_MESSAGES.INTERNAL_ERROR : e.presentation?.message ?? e.message });
     if (isPgUniqueViolation(e, "match_mvp_votes_match_id_voter_user_id_unique")) {
       return fail({ code: ErrorCode.VOTE_DUPLICATE, message: "您已为本场比赛投过 MVP 票" });
     }

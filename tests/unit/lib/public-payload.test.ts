@@ -157,4 +157,19 @@ describe("public payload serializers", () => {
     expect(Object.hasOwn(serialized, "proposedBy")).toBe(false);
     expect(Object.hasOwn(serialized, "forceAssignedBy")).toBe(false);
   });
+
+  it("maps unknown proposal statuses to a safe presentation value", () => {
+    const now = new Date("2026-08-29T00:00:00.000Z");
+    const serialized = serializePublicMatchTimeProposal({
+      id: "proposal-unknown",
+      status: "future-status",
+      proposedTime: now,
+      responseAt: null,
+      rejectReason: null,
+      createdAt: now,
+      proposedBy: "user-private",
+    });
+
+    expect(serialized.status).toBe("unknown");
+  });
 });

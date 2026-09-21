@@ -83,7 +83,7 @@ export function TeamConfigForm({ value, competitivePlatforms, fallbackOnly = fal
                   {competitivePlatforms.map((item) => <SelectItem key={item.key} value={item.key}>{item.displayName}</SelectItem>)}
                 </SelectContent>
               </Select>
-              {competitivePlatforms.length === 0 && <p className="mt-1 text-xs text-[var(--color-danger)]">尚未建立竞技平台目录；赛事发布会 fail closed。</p>}
+              {competitivePlatforms.length === 0 && <p className="mt-1 text-xs text-[var(--color-danger)]">暂未配置竞技平台，赛事暂时无法发布。</p>}
             </div>
             <div>
               <Label>外校实力星差上限</Label>

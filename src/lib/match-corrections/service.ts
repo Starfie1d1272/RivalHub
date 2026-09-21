@@ -12,6 +12,7 @@ import { AppError, ErrorCode } from "@/lib/errors";
 import { parseMajorRunSnapshot } from "@/lib/major/run-snapshot";
 import { validateSeriesScore } from "@/lib/matches/result-rules";
 import { assertSeasonAllowsTournamentMutationInTx } from "@/lib/postevent/guard";
+import { matchCorrectionBlockedError } from "@/lib/match-corrections/errors";
 
 /**
  * G2 managed result correction & recovery.
@@ -407,10 +408,7 @@ export async function planResultCorrectionInTx(
 
 function assertPlanApplicable(plan: ResultCorrectionPlan): void {
   if (plan.blockedReasons.length > 0) {
-    throw new AppError(
-      ErrorCode.VALIDATION_FAILED,
-      `该更正触发了 fail-closed 保护：${plan.blockedReasons.join("；")}`,
-    );
+    throw matchCorrectionBlockedError(plan.blockedReasons);
   }
 }
 

@@ -17,6 +17,27 @@ describe("AppError", () => {
     expect(e.meta).toEqual({ entityId: "abc-123" });
   });
 
+  it("将结构化产品提示与内部诊断分离", () => {
+    const e = AppError.withPresentation(
+      ErrorCode.VALIDATION_FAILED,
+      {
+        owner: "major",
+        key: "playoffNotReady",
+        params: { stageKey: "playoff" },
+        message: "当前阶段暂时还不能开始。",
+      },
+      { diagnostic: "StageRun playoff is missing required completed matches" },
+    );
+
+    expect(e.message).toContain("StageRun");
+    expect(e.presentation).toEqual({
+      owner: "major",
+      key: "playoffNotReady",
+      params: { stageKey: "playoff" },
+      message: "当前阶段暂时还不能开始。",
+    });
+  });
+
   it("每个 ErrorCode 都有对应的 ERROR_MESSAGES", () => {
     const codes = Object.values(ErrorCode);
     for (const code of codes) {

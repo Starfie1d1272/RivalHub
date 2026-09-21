@@ -11,6 +11,7 @@ import { generateMajorPlayoffQuarterfinals, projectMajorPlayoff, seedMajorPlayof
 import { getMajorSwissQualifiers, projectMajorSwissStage, type MajorSwissMatchFact } from "@/lib/major/swiss";
 import { makeMajorRunSnapshotV4, parseMajorRunSnapshot } from "@/lib/major/run-snapshot";
 import { loadMajorStageEntrantsInTx, loadMajorTournamentEntrantsInTx } from "@/lib/major/run-entrants";
+import { majorAppError } from "@/lib/major/errors";
 
 type FrozenStage = { key: string; name: string; type: string; teamCount: number; matchFormat: string; finalFormat: string | null };
 type FrozenSnapshot = ReturnType<typeof parseMajorRunSnapshot>;
@@ -34,10 +35,10 @@ export interface MajorPlayoffFinalizationResult {
 
 function swissFact(match: typeof matches.$inferSelect): MajorSwissMatchFact {
   if (match.round === null || match.round < 1 || match.round > 5 || match.status !== "finished" || match.completedAt === null || match.scoreA === null || match.scoreB === null) {
-    throw new AppError(ErrorCode.VALIDATION_FAILED, "Swiss StageRun 含未完成或无正式比分的托管比赛。");
+    throw majorAppError(ErrorCode.VALIDATION_FAILED, "incompleteSwissResults");
   }
   try { validateSeriesScore(match.format, match.scoreA, match.scoreB); } catch {
-    throw new AppError(ErrorCode.VALIDATION_FAILED, "Swiss StageRun 含非法正式比分。");
+    throw majorAppError(ErrorCode.VALIDATION_FAILED, "invalidSwissResults");
   }
   return { matchId: match.id, round: match.round as 1 | 2 | 3 | 4 | 5, entryAId: match.entryAId, entryBId: match.entryBId, winnerId: match.scoreA > match.scoreB ? match.entryAId : match.entryBId };
 }
@@ -63,7 +64,7 @@ function samePair(match: typeof matches.$inferSelect, entryAId: string, entryBId
 
 function validateStageThree(snapshotValue: FrozenSnapshot, stageRun: typeof majorStageRuns.$inferSelect): FrozenStage {
   if (snapshotValue.stage.key !== stageRun.stageKey || snapshotValue.stage.type !== "swiss" || stageRun.finalizedRound !== 5) {
-    throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "只有已确认完成的 Stage 3 Swiss StageRun 可以生成淘汰赛。");
+    throw majorAppError(ErrorCode.SEASON_INVALID_STATUS, "sourceStageIncomplete", { stageName: "Stage 3" });
   }
   const index = snapshotValue.stagePlan.findIndex((stage) => stage.key === stageRun.stageKey);
   const playoff = snapshotValue.stagePlan[index + 1];
@@ -81,7 +82,7 @@ export async function startMajorPlayoffInTransaction(
   await assertSeasonAllowsTournamentMutationInTx(tx, input.seasonId);
   const [sourceRun] = await tx.select().from(majorStageRuns)
     .where(and(eq(majorStageRuns.id, input.sourceStageRunId), eq(majorStageRuns.seasonId, input.seasonId))).for("update");
-  if (!sourceRun) throw new AppError(ErrorCode.NOT_FOUND, "指定的 Stage 3 StageRun 不属于当前赛事。");
+  if (!sourceRun) throw majorAppError(ErrorCode.NOT_FOUND, "sourceStageNotFound", { stageName: "Stage 3" });
   const sourceSnapshot = parseMajorRunSnapshot(sourceRun.ruleSnapshot, sourceRun.stageKey);
   const playoffStage = validateStageThree(sourceSnapshot, sourceRun);
   const [existingRun] = await tx.select().from(majorStageRuns)
@@ -159,10 +160,10 @@ export async function finalizeMajorPlayoffRoundInTransaction(
   await assertSeasonAllowsTournamentMutationInTx(tx, input.seasonId);
   const [run] = await tx.select().from(majorStageRuns)
     .where(and(eq(majorStageRuns.id, input.stageRunId), eq(majorStageRuns.seasonId, input.seasonId))).for("update");
-  if (!run) throw new AppError(ErrorCode.NOT_FOUND, "指定的淘汰赛 StageRun 不属于当前赛事。");
+  if (!run) throw majorAppError(ErrorCode.NOT_FOUND, "sourceStageNotFound", { stageName: "淘汰赛" });
   const frozen = parseMajorRunSnapshot(run.ruleSnapshot, run.stageKey);
   if (frozen.stage.key !== run.stageKey || frozen.stage.type !== "single_elim" || frozen.stage.teamCount !== 8 || frozen.stage.matchFormat !== "bo3" || frozen.stage.finalFormat !== "bo5" || typeof frozen.hasThirdPlaceMatch !== "boolean") {
-    throw new AppError(ErrorCode.SEASON_CAPABILITY_DISABLED, "当前 StageRun 不是可运行的 Major 淘汰赛。 ");
+    throw majorAppError(ErrorCode.SEASON_CAPABILITY_DISABLED, "playoffNotReady");
   }
   const entrants = await loadMajorStageEntrantsInTx(tx, run.id);
   const managed = await tx.select().from(matches).where(and(eq(matches.majorStageRunId, run.id), eq(matches.ownership, "major_stage"))).for("update");

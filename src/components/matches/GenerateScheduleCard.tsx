@@ -55,7 +55,7 @@ export function GenerateScheduleCard({
           共 {teamCount} 支队伍参赛
           {stagePlan.map((stage) => (
             <span key={stage.key}>
-              {" · "}{stage.name}：{STAGE_TYPE_LABELS[stage.type] ?? stage.type}
+              {" · "}{stage.name}：{STAGE_TYPE_LABELS[stage.type]}
             </span>
           ))}
         </p>

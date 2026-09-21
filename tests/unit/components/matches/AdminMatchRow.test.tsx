@@ -13,7 +13,7 @@ vi.mock("@/components/matches/MatchStatusBadge", () => ({ MatchStatusBadge: () =
 import { AdminMatchRow } from "@/components/matches/AdminMatchRow";
 import { getAdminMatchStartBlockers } from "@/lib/admin/matches/start-blockers";
 
-const roster = { rosterId: "roster", starters: ["1", "2", "3", "4", "5"], substitutes: [], status: "confirmed" };
+const roster = { rosterId: "roster", starters: ["1", "2", "3", "4", "5"], substitutes: [], status: "confirmed" as const };
 
 describe("AdminMatchRow start gate presentation", () => {
   it("blocks a Major start when the authoritative preflight is unavailable", () => {

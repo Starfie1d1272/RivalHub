@@ -9,6 +9,7 @@ import {
   isRegistrationActuallyOpen,
   presentSeasonLifecycle,
   presentSeasonLifecycleSummary,
+  presentSeasonKind,
   presentRegistrationSchedule,
   presentSeasonParticipationState,
 } from "@/lib/seasons/presentation";
@@ -185,7 +186,7 @@ export function HomeSeasonPanel({
               color: "var(--color-fg-mid)",
             }}
           >
-            {season.kind}
+            {presentSeasonKind(season.kind)}
           </span>
         </div>
         {registrationSchedule && (

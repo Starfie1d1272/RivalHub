@@ -13,6 +13,7 @@ import {
 import { AppError, ErrorCode } from "@/lib/errors";
 import { MAX_CAPTAIN_VOTES } from "@/lib/captains/rules";
 import { resolveCanonicalUserId } from "@/lib/identity/canonical";
+import { identityAppError } from "@/lib/identity/errors";
 
 export type UserMergeCategory = "AUTOMATIC" | "BLOCKER" | "PRESERVE";
 type UserMergeItemStatus = "automatic" | "blocked" | "preserved";
@@ -218,7 +219,7 @@ export async function buildUserMergePreflight(
   const canonical = pair.find((row) => row.id === input.canonicalUserId);
   const merged = pair.find((row) => row.id === input.mergedUserId);
   if (!canonical || !merged) throw new AppError(ErrorCode.NOT_FOUND, "归并候选账号不存在。");
-  if (canonical.status !== "active" || merged.status !== "active") throw new AppError(ErrorCode.VALIDATION_FAILED, "归并双方都必须是 active 账号。");
+  if (canonical.status !== "active" || merged.status !== "active") throw identityAppError(ErrorCode.VALIDATION_FAILED, "accountMustBeActive");
 
   const facts = await loadCollisionFacts(queryable, input);
   const items: UserMergePlanItem[] = [
@@ -252,7 +253,7 @@ export async function buildUserMergePreflight(
       rule.domain,
       count,
       rule.mode === "preserve" ? "preserved" : "automatic",
-      rule.mode === "preserve" ? "保留原始执行人和历史来源，不把 actor provenance 改写成保留账号。" : rule.mode === "delete" ? "归并时关闭或删除临时状态。" : "安全的个人事实归到保留账号。",
+      rule.mode === "preserve" ? "保留原始操作人和历史来源，不改写为保留账号。" : rule.mode === "delete" ? "归并时关闭或删除临时状态。" : "安全的个人事实归到保留账号。",
     ));
   }
 
@@ -500,8 +501,8 @@ async function loadSnapshotHash(queryable: MergeQueryable, input: { canonicalUse
   return String((result.rows[0] as { snapshot_hash?: unknown } | undefined)?.snapshot_hash ?? "");
 }
 
-function item(key: string, category: UserMergeCategory, domain: string, count: number, status: UserMergeItemStatus, detail: string): UserMergePlanItem {
-  return { key, category, domain, count, status, detail };
+function item(key: string, category: UserMergeCategory, label: string, count: number, status: UserMergeItemStatus, detail: string): UserMergePlanItem {
+  return { key, category, domain: label, count, status, detail };
 }
 
 function pushCount(items: UserMergePlanItem[], key: string, category: UserMergeCategory, domain: string, count: number, status: UserMergeItemStatus, detail: string): void {
@@ -684,7 +685,7 @@ async function mergeDraftPickReferencesInTx(
     const targetRegistrationId = registrationMap.get(row.registration_id);
     if (!targetRegistrationId) {
       if (registrationById.get(row.registration_id)?.status !== "approved") {
-        throw new AppError(ErrorCode.VALIDATION_FAILED, "待删除报名仍被 draft pick 引用，归并已拒绝。");
+        throw identityAppError(ErrorCode.VALIDATION_FAILED, "draftReferenceConflict");
       }
       continue;
     }
@@ -697,7 +698,7 @@ async function mergeDraftPickReferencesInTx(
     `)).rows as unknown as DraftPickMergeRow[];
     if (canonicalPick) {
       if (!draftPickEquivalent(row, canonicalPick)) {
-        throw new AppError(ErrorCode.VALIDATION_FAILED, "同赛季 draft pick 事实冲突，归并已拒绝。");
+        throw identityAppError(ErrorCode.VALIDATION_FAILED, "draftFactConflict");
       }
       await tx.execute(sql`DELETE FROM draft_picks WHERE id = ${row.id}`);
     } else {
@@ -730,7 +731,7 @@ async function mergeCaptainVoteReferencesInTx(
     const voter = registrationById.get(row.voter_registration_id);
     const candidate = registrationById.get(row.candidate_registration_id);
     if ((voter && !registrationMap.has(voter.id) && voter.status !== "approved") || (candidate && !registrationMap.has(candidate.id) && candidate.status !== "approved")) {
-      throw new AppError(ErrorCode.VALIDATION_FAILED, "待删除报名仍被 captain vote 引用，归并已拒绝。");
+      throw identityAppError(ErrorCode.VALIDATION_FAILED, "captainVoteReferenceConflict");
     }
   }
   if (!registrationMap.size) return;
@@ -743,7 +744,7 @@ async function mergeCaptainVoteReferencesInTx(
       candidate: registrationMap.get(row.candidate_registration_id) ?? row.candidate_registration_id,
     };
     if ((target.voter !== row.voter_registration_id || target.candidate !== row.candidate_registration_id) && target.voter === target.candidate) {
-      throw new AppError(ErrorCode.VALIDATION_FAILED, "归并后的 captain vote 会变成自投票，归并已拒绝。");
+      throw identityAppError(ErrorCode.VALIDATION_FAILED, "selfVoteConflict");
     }
     targetById.set(row.id, target);
     const key = `${target.voter}:${target.candidate}`;
