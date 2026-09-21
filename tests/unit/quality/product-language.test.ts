@@ -61,6 +61,18 @@ describe("product language contract", () => {
     expect(productLanguageViolations("fixture.ts", 'throw new AppError(ErrorCode.VALIDATION_FAILED, "当前 StageRun 无效");')).toHaveLength(1);
     expect(productLanguageViolations("fixture.ts", 'throw new AppError(ErrorCode.INTERNAL_ERROR, "StageRun snapshot invariant broken");')).toEqual([]);
   });
+  it("checks literals passed through local presentation helper parameters", () => {
+    const source = `
+      function item(key: string, label: string, detail: string) {
+        return { key, label, detail };
+      }
+      const safe = item("safe-key", "正常标题", "正常说明");
+      const unsafe = item("unsafe-key", "正常标题", "StageRun invalid");
+    `;
+    expect(productLanguageViolations("src/lib/example-presentation.ts", source)).toEqual([
+      expect.stringContaining("StageRun invalid"),
+    ]);
+  });
   it("protects an unregistered presentation owner and indirect MESSAGES copy", () => {
     const source = `
       const MESSAGES = { unsafe: "当前 StageRun 不能继续" } as const;
