@@ -9,7 +9,7 @@ import { AppError, ErrorCode } from "@/lib/errors";
 import { parseRivalHubDemoEvidenceV1 } from "@/lib/demo-evidence/contract";
 import type { IntegrationIssue, EvidenceSubmissionResponse, RivalHubEvidenceSubmission } from "./contracts";
 import { pairingCanReadSeason } from "./pairing";
-import { DEMO_CONTENT_CONFLICT_MESSAGE, isSameDemoImportContent, promoteDemoImportInTx, resolveDemoImportLineageInTx } from "./promotion";
+import { DEMO_CONTENT_CONFLICT_MESSAGE, isSameDemoImportContent, lockDemoImportLineageInTx, promoteDemoImportInTx, resolveDemoImportLineageInTx } from "./promotion";
 import { buildEvidenceRevisionForTarget, sha256Json } from "./revision";
 import { integrationIssue, loadCanonicalTarget, validateCanonicalTarget } from "./validation";
 
@@ -81,6 +81,7 @@ export async function submitRivalHubEvidence(args: SubmitEvidenceArgs): Promise<
   const payloadSha256 = sha256Json(evidence);
 
   return db.transaction(async (tx) => {
+    await lockDemoImportLineageInTx(tx, evidence.target.matchMapId);
     let idempotent: typeof matchDemoImports.$inferSelect | undefined;
     if (args.idempotencyKey) {
       [idempotent] = await tx.select().from(matchDemoImports)
