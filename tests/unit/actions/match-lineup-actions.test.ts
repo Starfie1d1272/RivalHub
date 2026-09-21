@@ -225,7 +225,7 @@ describe("correction workflow actions", () => {
 
   it("plans corrections read-only and forwards proposals", async () => {
     mockedGetMatch.mockResolvedValue(FINISHED_MATCH as never);
-    stubs.planResultCorrectionInTx.mockResolvedValue({ winnerChanges: true, impacts: [] });
+    stubs.planResultCorrectionInTx.mockResolvedValue({ winnerChanges: true, impacts: [], blockedReasons: [] });
 
     const result = await planMatchResultCorrection("match-1", { scoreA: 1, scoreB: 0 });
 

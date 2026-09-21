@@ -25,11 +25,11 @@ export function presentMatchCorrectionBlocker(reason: MatchCorrectionBlocker): s
 function diagnosticFor(reason: MatchCorrectionBlocker): string {
   switch (reason.code) {
     case "nonManagedMatch":
-      return "non_managed_match: winner correction requires post-event adjudication";
+      return "non_managed_match: 非托管比赛的胜者更正会与既有赛程矛盾，必须通过赛事事故裁决处理。";
     case "downstreamStageMaterialized":
-      return `downstream_stage_materialized: ${reason.params.stageKey} already depends on the corrected stage`;
+      return `downstream_stage_materialized: 后续阶段 ${reason.params.stageKey} 已基于本阶段结果建立，不能自动重建；需要走赛后裁决。`;
     case "finalResultsPublished":
-      return "final_results_published: winner correction is outside automatic recovery";
+      return "final_results_published: 官方名次已经生成，胜者更正被禁止；请使用赛后裁决操作。";
     case "downstreamMatchStarted":
       return `downstream_match_started: ${reason.params.count} 场已经开始或完成的下游托管比赛，系统拒绝自动重写。`;
   }
