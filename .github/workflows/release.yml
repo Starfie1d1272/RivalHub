@@ -44,6 +44,7 @@ jobs:
     outputs:
       release_tag: ${{ steps.release_identity.outputs.release_tag }}
       release_sha: ${{ steps.release_identity.outputs.release_sha }}
+      release_operator_sha: ${{ steps.release_identity.outputs.release_operator_sha }}
       previous_release_tag: ${{ steps.frozen_identity.outputs.previous_release_tag }}
       previous_release_commit: ${{ steps.frozen_identity.outputs.previous_release_commit }}
       release_mode: ${{ steps.frozen_identity.outputs.release_mode }}
@@ -89,10 +90,26 @@ jobs:
             echo "Release tag $RELEASE_TAG 未指向 main 包含的 commit。" >&2
             exit 1
           fi
+
+          RELEASE_OPERATOR_SHA="$RELEASE_SHA"
+          if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
+            if [[ "$GITHUB_REF" != "refs/heads/main" ]]; then
+              echo "Release retry 必须从 main 发起；当前 ref=$GITHUB_REF。" >&2
+              exit 1
+            fi
+            MAIN_SHA="$(git rev-parse origin/main)"
+            if [[ "$GITHUB_SHA" != "$MAIN_SHA" ]]; then
+              echo "Release retry operator 不是当前 main HEAD：dispatch=$GITHUB_SHA main=$MAIN_SHA。" >&2
+              exit 1
+            fi
+            RELEASE_OPERATOR_SHA="$MAIN_SHA"
+          fi
+
           echo "RELEASE_SHA=$RELEASE_SHA" >> "$GITHUB_ENV"
           echo "RIVALHUB_RELEASE_SHA=$RELEASE_SHA" >> "$GITHUB_ENV"
           echo "release_tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
           echo "release_sha=$RELEASE_SHA" >> "$GITHUB_OUTPUT"
+          echo "release_operator_sha=$RELEASE_OPERATOR_SHA" >> "$GITHUB_OUTPUT"
 
       - name: 记录 bootstrap 耗时起点
         run: echo "RELEASE_BOOTSTRAP_START_MS=$(date +%s%3N)" >> "$GITHUB_ENV"
@@ -144,6 +161,15 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}
         run: node scripts/ci/timing.mjs "Wait exact-SHA CI prerequisite" -- pnpm release:ci-prerequisite
+
+      - name: 验证 release operator exact-SHA CI prerequisite
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          RELEASE_SHA: ${{ steps.release_identity.outputs.release_operator_sha }}
+          RELEASE_TAG: ${{ steps.release_identity.outputs.release_tag }}
+        run: node scripts/ci/timing.mjs "Wait release operator exact-SHA CI prerequisite" -- pnpm release:ci-prerequisite
 
       - name: Write timing summary
         if: always()
@@ -349,14 +375,14 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          ref: ${{ github.event_name == 'workflow_dispatch' && github.sha || needs.preflight.outputs.release_tag }}
+          ref: ${{ github.event_name == 'workflow_dispatch' && needs.preflight.outputs.release_operator_sha || needs.preflight.outputs.release_tag }}
           fetch-depth: 0
 
       - name: 验证 release operator 与 candidate migration chain
         if: github.event_name == 'workflow_dispatch'
         env:
           RELEASE_TAG: ${{ needs.preflight.outputs.release_tag }}
-          RELEASE_OPERATOR_SHA: ${{ github.sha }}
+          RELEASE_OPERATOR_SHA: ${{ needs.preflight.outputs.release_operator_sha }}
         run: |
           set -euo pipefail
           git rev-parse --verify "$RELEASE_TAG^{commit}" >/dev/null

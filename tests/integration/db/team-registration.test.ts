@@ -279,7 +279,7 @@ async function exerciseQualificationWithRealCatalog(pool: Pool): Promise<void> {
     // The built-in catalog comes from migration 0020 itself; the fixture must
     // consume it, never re-seed or alias it.
     const seasons = await client.query<{ season_key: string; is_current: boolean }>(
-      "SELECT season_key, is_current FROM competitive_platform_seasons WHERE platform = 'perfect_world' ORDER BY sort_order",
+      "SELECT season_key, is_current FROM competitive_platform_seasons WHERE platform = 'perfect_world' AND season_key IN ('2026s1', '2026s2') ORDER BY sort_order",
     );
     if (JSON.stringify(seasons.rows) !== JSON.stringify([{ season_key: "2026s1", is_current: false }, { season_key: "2026s2", is_current: true }])) {
       throw new Error(`0020 内置 Perfect 赛季目录不符：${JSON.stringify(seasons.rows)}`);

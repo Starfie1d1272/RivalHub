@@ -45,8 +45,6 @@ export async function confirmStoredDemoParticipantIdentity(
   }
 }
 
-/** Compatibility name for callers from the initial product prototype. */
-export const confirmGameplaySteamIdentity = confirmStoredDemoParticipantIdentity;
 
 export async function rejectStoredDemoImport(
   input: unknown,

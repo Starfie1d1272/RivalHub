@@ -125,10 +125,20 @@ describe("deployment and operations contracts", () => {
     expect(candidateBuild).toContain("部署 Vercel candidate");
     expect(candidateBuild).not.toContain("candidate smoke");
     expect(productionMigration).toContain("运行 production migration 与验证");
+    expect(release).toContain("release_operator_sha: ${{ steps.release_identity.outputs.release_operator_sha }}");
+    expect(release).toContain('if [[ "$GITHUB_REF" != "refs/heads/main" ]]; then');
+    expect(release).toContain('MAIN_SHA="$(git rev-parse origin/main)"');
+    expect(release).toContain('if [[ "$GITHUB_SHA" != "$MAIN_SHA" ]]; then');
+    expect(release).toContain('echo "release_operator_sha=$RELEASE_OPERATOR_SHA" >> "$GITHUB_OUTPUT"');
+    expect(release).toContain("验证 release operator exact-SHA CI prerequisite");
+    expect(release).toContain("if: github.event_name == 'workflow_dispatch'");
+    expect(release).toContain("RELEASE_SHA: ${{ steps.release_identity.outputs.release_operator_sha }}");
     expect(productionMigration).toContain(
-      "ref: ${{ github.event_name == 'workflow_dispatch' && github.sha || needs.preflight.outputs.release_tag }}",
+      "ref: ${{ github.event_name == 'workflow_dispatch' && needs.preflight.outputs.release_operator_sha || needs.preflight.outputs.release_tag }}",
     );
     expect(productionMigration).toContain("验证 release operator 与 candidate migration chain");
+    expect(productionMigration).toContain("RELEASE_OPERATOR_SHA: ${{ needs.preflight.outputs.release_operator_sha }}");
+    expect(productionMigration).not.toContain("github.sha");
     expect(productionMigration).toContain('git diff --quiet "$RELEASE_TAG" "$RELEASE_OPERATOR_SHA"');
     expect(productionMigration).toContain("drizzle/migrations");
     expect(productionMigration).toContain("drizzle.production.config.ts");

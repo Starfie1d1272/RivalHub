@@ -93,14 +93,14 @@ export class PreviewRefreshPhaseError extends PreviewMirrorError {
   }
 }
 
-export interface PreviewErrorDetails {
+interface PreviewErrorDetails {
   code?: PreviewErrorCode;
   phase?: PreviewMirrorPhase;
   context: PreviewDiagnosticContext;
   retryable: boolean;
 }
 
-export function previewErrorDetails(error: unknown): PreviewErrorDetails {
+function previewErrorDetails(error: unknown): PreviewErrorDetails {
   const seen = new Set<object>();
   let current: unknown = error;
   while (isObject(current) && !seen.has(current)) {
