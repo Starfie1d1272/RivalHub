@@ -12,7 +12,7 @@ Issue #687 建立 Steam64 主身份、官方资料缓存和 gameplay Steam ident
 
 0052 会按 active `users.steam64` 建立 partial unique index，并为 Steam64 加 17 位 shape check。它不会吞掉重复值：任一 active duplicate 或 invalid value 都应使 migration fail closed，先由 operator 完成独立的人工 remediation。不会自动合并用户、猜测归属、回填历史身份或写入 production。
 
-本 PR 的 0052 不物理 `DROP` `users.steam_name`、`users.steam_profile_url`、`users.avatar_url`：上一稳定版本仍可能读取这些列，仓库的 N/N+1 release-compat 门禁要求先经过兼容窗口。这三个列仍是旧版本的 rollback shadow，位于当前 Drizzle application schema 之外；`steam_profiles` 仍是新应用唯一 authority。当前 primary 的官方 projection 在 cache upsert、refresh 和 backfill 时窄幅同步到 legacy shadow；primary 变更或移除时先清空旧 shadow，避免旧版本读到另一位用户的资料。待本版本部署并成为上一稳定版本后，再由后续 contract-cleanup migration 删除这三个 legacy 列。禁止在本 PR 中手工 remote patch 或提前删除。
+本 PR 的 0052 不物理 `DROP` `users.steam_name`、`users.steam_profile_url`、`users.avatar_url`：上一稳定版本仍可能读取这些列，仓库的 N/N+1 release-compat 门禁要求先经过兼容窗口。这三个列仍是旧版本的 rollback shadow，位于当前 Drizzle application schema 之外；`steam_profiles` 仍是新应用唯一 authority。当前 primary 的官方 projection 在 cache upsert、refresh 和 backfill 时窄幅同步到 legacy shadow；primary 变更或移除时先清空旧 shadow，避免旧版本读到另一位用户的资料。待本版本部署并成为上一稳定版本后，由 `0053_steam_profile_contract_cleanup` contract-cleanup migration 删除这三个 legacy 列；Preview mirror 的 schema policy 以同一 lifecycle marker 拒绝 cleanup 后 shadow 重新出现。禁止在本 PR 中手工 remote patch 或提前删除。
 
 Production 只读诊断：
 

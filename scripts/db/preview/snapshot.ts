@@ -5,9 +5,20 @@ import { Pool, type PoolClient } from "pg";
 import { createClient } from "@supabase/supabase-js";
 import { assertActiveChainPrefix, readExpectedMigrations, type Migration } from "../production-preflight";
 import { resolveProductionSourceIdentity } from "../recovery/source";
-import { assertReviewedColumns, exportQuery, PREVIEW_COLUMNS } from "./policy";
+import {
+  assertReviewedColumns,
+  exportQuery,
+  previewPolicyFor,
+} from "./policy";
 import { sourceDatabaseUrl } from "./environment";
 import { type PersonaCandidates } from "./personas";
+import {
+  PreviewMirrorError,
+  previewProviderFailure,
+  reportPreviewFailure,
+  type PreviewExportPhase,
+  wrapPreviewPhase,
+} from "./diagnostics";
 
 export type MirrorAsset = {
   bucket: "team-logos" | "season-public-assets";
@@ -32,28 +43,74 @@ const MAX_ASSET_BYTES = 1024 * 1024;
 const MAX_ASSET_TOTAL_BYTES = 32 * 1024 * 1024;
 const PUBLIC_BUCKETS = new Set<MirrorAsset["bucket"]>(["team-logos", "season-public-assets"]);
 
-export async function exportMirror(): Promise<MirrorSnapshot> {
-  const databaseUrl = sourceDatabaseUrl();
-  const identity = await resolveProductionSourceIdentity();
-  const pool = new Pool({ connectionString: databaseUrl, ssl: { rejectUnauthorized: false }, max: 1 });
-  const client = await pool.connect();
+export async function runPreviewExportPhase<T>(phase: PreviewExportPhase, operation: () => Promise<T>): Promise<T> {
   try {
-    await client.query("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
-    const ledger = await client.query("SELECT hash, created_at::text AS when FROM drizzle.__drizzle_migrations ORDER BY created_at");
-    const migrations = ledger.rows.map((row) => ({ hash: String(row.hash), when: Number(row.when) }));
-    assertActiveChainPrefix(migrations, readExpectedMigrations());
-    if (!migrations.length) throw new Error("Source migration ledger is empty.");
-    const catalog = await client.query<{ table_name: string; column_name: string }>(
-      "SELECT table_name, column_name FROM information_schema.columns WHERE table_schema = 'public' ORDER BY table_name, ordinal_position",
-    );
-    const inventory = new Map<string, string[]>();
-    for (const row of catalog.rows) inventory.set(row.table_name, [...(inventory.get(row.table_name) ?? []), row.column_name]);
-    for (const [table, columns] of inventory) assertReviewedColumns(table, columns);
-    const tables: MirrorSnapshot["tables"] = {};
-    for (const table of Object.keys(PREVIEW_COLUMNS)) {
-      if (!inventory.has(table)) throw new Error(`Source mirror table missing: ${table}`);
-      tables[table] = (await client.query(exportQuery(table))).rows;
-    }
+    return await operation();
+  } catch (error) {
+    throw wrapPreviewPhase(phase, error);
+  }
+}
+
+export async function exportMirror(): Promise<MirrorSnapshot> {
+  const databaseUrl = await runPreviewExportPhase("source DB connection", async () => sourceDatabaseUrl());
+  const identity = await runPreviewExportPhase("source identity", () => resolveProductionSourceIdentity());
+  const pool = new Pool({ connectionString: databaseUrl, ssl: { rejectUnauthorized: false }, max: 1 });
+  let client: PoolClient | undefined;
+  try {
+    client = await runPreviewExportPhase("source DB connection", () => pool.connect());
+    await runPreviewExportPhase("source DB connection", () => client!.query("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY"));
+
+    const migrations = await runPreviewExportPhase("migration ledger", async () => {
+      const ledger = await client!.query("SELECT hash, created_at::text AS when FROM drizzle.__drizzle_migrations ORDER BY created_at");
+      const sourceMigrations = ledger.rows.map((row) => ({ hash: String(row.hash), when: Number(row.when) }));
+      try {
+        assertActiveChainPrefix(sourceMigrations, readExpectedMigrations());
+      } catch (error) {
+        throw new PreviewMirrorError("PREVIEW_MIGRATION_LEDGER_FAILED", "Preview source migration ledger is not an active chain prefix.", {
+          cause: error,
+          context: { phase: "migration ledger" },
+        });
+      }
+      if (!sourceMigrations.length) {
+        throw new PreviewMirrorError("PREVIEW_MIGRATION_LEDGER_FAILED", "Preview source migration ledger is empty.", {
+          context: { phase: "migration ledger" },
+        });
+      }
+      return sourceMigrations;
+    });
+
+    const { policy } = await runPreviewExportPhase("schema inventory-policy", async () => {
+      const catalog = await client!.query<{ table_name: string; column_name: string }>(
+        "SELECT table_name, column_name FROM information_schema.columns WHERE table_schema = 'public' ORDER BY table_name, ordinal_position",
+      );
+      const sourcePolicy = previewPolicyFor(migrations);
+      const sourceInventory = new Map<string, string[]>();
+      for (const row of catalog.rows) sourceInventory.set(row.table_name, [...(sourceInventory.get(row.table_name) ?? []), row.column_name]);
+      for (const [table, columns] of sourceInventory) assertReviewedColumns(table, columns, sourcePolicy);
+      for (const table of Object.keys(sourcePolicy.tables)) {
+        if (!sourceInventory.has(table)) {
+          throw new PreviewMirrorError("MISSING_MIRROR_TABLE", "Preview source schema is missing a policy table.", {
+            context: { phase: "schema inventory-policy", table },
+          });
+        }
+      }
+      return { policy: sourcePolicy };
+    });
+
+    const tables = await runPreviewExportPhase("table export", async () => {
+      const exported: MirrorSnapshot["tables"] = {};
+      for (const table of Object.keys(policy.tables)) {
+        try {
+          exported[table] = (await client!.query(exportQuery(table, policy))).rows;
+        } catch (error) {
+          throw new PreviewMirrorError("PREVIEW_TABLE_EXPORT_FAILED", "Preview table export failed.", {
+            cause: error,
+            context: { phase: "table export", table },
+          });
+        }
+      }
+      return exported;
+    });
     const education = new Set(tables.education_verifications.map((row) => row.id));
     for (const row of tables.event_roster_members) if (row.education_verification_id && !education.has(row.education_verification_id)) row.education_verification_id = null;
     const allowedSeasonAssets = new Set((process.env.RIVALHUB_PREVIEW_PUBLIC_ASSET_ALLOWLIST ?? "")
@@ -64,15 +121,34 @@ export async function exportMirror(): Promise<MirrorSnapshot> {
       row.qr_image_path = null;
       if (row.status === "active" && !row.group_number && !row.join_url) row.status = "closed";
     }
-    const personaCandidates = await selectPersonaCandidates(client, tables);
-    const assets = await exportPublicAssets(tables, allowedSeasonAssets);
+    const personaCandidates = await runPreviewExportPhase("persona selection", async () => {
+      try {
+        return await selectPersonaCandidates(client!, tables);
+      } catch (error) {
+        throw new PreviewMirrorError("PREVIEW_PERSONA_SELECTION_FAILED", "Preview persona selection failed.", {
+          cause: error,
+          context: { phase: "persona selection" },
+        });
+      }
+    });
+    const assets = await runPreviewExportPhase("public asset export", async () => {
+      try {
+        return await exportPublicAssets(tables, allowedSeasonAssets);
+      } catch (error) {
+        if (error instanceof PreviewMirrorError) throw error;
+        throw new PreviewMirrorError("PREVIEW_ASSET_EXPORT_FAILED", "Preview public asset export failed.", {
+          cause: error,
+          context: { phase: "public asset export" },
+        });
+      }
+    });
     rewriteTeamLogoUrls(tables);
     await client.query("ROLLBACK");
     return { format: 2, sourceCommit: identity.deployedCommit, sourceTag: identity.deployedReleaseTag,
       refreshedAt: new Date().toISOString(), migrations, personaCandidates, assets, tables };
   } finally {
-    await client.query("ROLLBACK").catch(() => {});
-    client.release();
+    await client?.query("ROLLBACK").catch(() => {});
+    client?.release();
     await pool.end();
   }
 }
@@ -128,8 +204,14 @@ async function exportPublicAssets(tables: MirrorSnapshot["tables"], allowlistedS
     const [bucket, ...pathParts] = key.split("/");
     if (!PUBLIC_BUCKETS.has(bucket as MirrorAsset["bucket"])) continue;
     const path = pathParts.join("/");
-    const result = await client.storage.from(bucket).download(path);
-    if (result.error) throw new Error("Public mirror asset export failed.");
+    const storageBucket = client.storage.from(bucket);
+    let result: Awaited<ReturnType<typeof storageBucket.download>>;
+    try {
+      result = await storageBucket.download(path);
+    } catch (error) {
+      throw previewProviderFailure("public asset export", error, { count: assets.length });
+    }
+    if (result.error) throw previewProviderFailure("public asset export", result.error, { count: assets.length });
     const bytes = Buffer.from(await result.data.arrayBuffer());
     if (bytes.length > MAX_ASSET_BYTES || total + bytes.length > MAX_ASSET_TOTAL_BYTES) throw new Error("Preview public asset mirror exceeds bounded size.");
     const contentType = result.data.type || "application/octet-stream";
@@ -150,22 +232,40 @@ function parsePublicStorageUrl(value: string): { bucket: MirrorAsset["bucket"]; 
 }
 
 function assertSanitizedTeamMembership(row: Record<string, unknown>): void {
-  if (!Object.hasOwn(row, "status") || !Object.hasOwn(row, "ended_at") || !Object.hasOwn(row, "ended_reason")) throw new Error("Invalid mirror team membership period.");
+  if (!Object.hasOwn(row, "status") || !Object.hasOwn(row, "ended_at") || !Object.hasOwn(row, "ended_reason")) throwInvalidMembership();
   const ended = row.ended_at !== null;
   const endedReason = row.ended_reason;
-  if (endedReason !== null && endedReason !== "left") throw new Error("Unsanitized mirror team membership end reason.");
+  if (endedReason !== null && endedReason !== "left") throwInvalidMembership();
   const activeStatus = row.status === "active" || row.status === "benched";
   if ((ended && (row.status !== "left" || endedReason !== "left"))
-    || (!ended && (!activeStatus || endedReason !== null))) throw new Error("Invalid mirror team membership period.");
+    || (!ended && (!activeStatus || endedReason !== null))) throwInvalidMembership();
+}
+
+function throwInvalidMembership(): never {
+  throw new PreviewMirrorError("PREVIEW_SNAPSHOT_INVALID", "Preview mirror membership row failed sanitization.", {
+    context: { phase: "snapshot read", table: "team_memberships", column: "ended_reason" },
+  });
 }
 
 export function readSnapshot(path: string): MirrorSnapshot {
+  try {
+    return readSnapshotUnsafe(path);
+  } catch (error) {
+    if (error instanceof PreviewMirrorError) throw error;
+    throw new PreviewMirrorError("PREVIEW_SNAPSHOT_INVALID", "Preview mirror snapshot is invalid.", {
+      cause: error,
+      context: { phase: "snapshot read" },
+    });
+  }
+}
+
+function readSnapshotUnsafe(path: string): MirrorSnapshot {
   const snapshot = JSON.parse(readFileSync(path, "utf8")) as MirrorSnapshot;
   if (snapshot.format !== 2 || !/^[a-f0-9]{40}$/.test(snapshot.sourceCommit)
     || !/^v\d+\.\d+\.\d+(?:-[\w.-]+)?$/.test(snapshot.sourceTag)
     || !Number.isFinite(Date.parse(snapshot.refreshedAt))) throw new Error("Invalid mirror manifest.");
-  assertActiveChainPrefix(snapshot.migrations, readExpectedMigrations());
-  if (!snapshot.migrations.length || JSON.stringify(Object.keys(snapshot.tables).sort()) !== JSON.stringify(Object.keys(PREVIEW_COLUMNS).sort())) throw new Error("Invalid mirror table inventory.");
+  const policy = previewPolicyFor(snapshot.migrations);
+  if (!snapshot.migrations.length || JSON.stringify(Object.keys(snapshot.tables).sort()) !== JSON.stringify(Object.keys(policy.tables).sort())) throw new Error("Invalid mirror table inventory.");
   if (!Array.isArray(snapshot.assets) || !snapshot.personaCandidates) throw new Error("Invalid mirror identity metadata.");
   for (const asset of snapshot.assets) {
     if (!PUBLIC_BUCKETS.has(asset.bucket) || !asset.path || asset.path.includes("..") || !/^[a-f0-9]{64}$/.test(asset.sha256)) throw new Error("Invalid public mirror asset.");
@@ -173,7 +273,9 @@ export function readSnapshot(path: string): MirrorSnapshot {
     if (bytes.length > MAX_ASSET_BYTES || createHash("sha256").update(bytes).digest("hex") !== asset.sha256) throw new Error("Corrupt public mirror asset.");
   }
   for (const [table, rows] of Object.entries(snapshot.tables)) {
-    const allowed = new Set(PREVIEW_COLUMNS[table].split(" "));
+    const tablePolicy = policy.tables[table];
+    if (!tablePolicy) throw new Error("Snapshot contains a table outside the source policy.");
+    const allowed = new Set(tablePolicy.exportedColumns);
     if (table === "users") ["email", "role", "auth_id", "email_verified_at", "email_verification_source"].forEach((key) => allowed.add(key));
     if (table === "season_registrations") allowed.add("screenshot_urls");
     if (table === "team_memberships") allowed.add("ended_reason");
@@ -191,10 +293,25 @@ export function readSnapshot(path: string): MirrorSnapshot {
   return snapshot;
 }
 
+export function writeMirrorSnapshot(path: string, snapshot: MirrorSnapshot): void {
+  try {
+    mkdirSync(dirname(path), { recursive: true });
+    writeFileSync(path, JSON.stringify(snapshot), { mode: 0o600, flag: "wx" });
+  } catch (error) {
+    throw new PreviewMirrorError("PREVIEW_SNAPSHOT_WRITE_FAILED", "Preview mirror snapshot write failed.", {
+      cause: error,
+      context: { phase: "snapshot write" },
+    });
+  }
+}
+
 if (process.argv[1]?.endsWith("preview/snapshot.ts")) {
   exportMirror().then((snapshot) => {
-    mkdirSync(dirname(process.argv[2]), { recursive: true });
-    writeFileSync(process.argv[2], JSON.stringify(snapshot), { mode: 0o600, flag: "wx" });
-    console.log(`Mirror export verified: source=${snapshot.sourceTag} commit=${snapshot.sourceCommit} tables=${Object.keys(snapshot.tables).length} assets=${snapshot.assets.length}`);
-  }).catch(() => { console.error("Mirror export failed; no raw source data or provider error is logged."); process.exitCode = 1; });
+    return runPreviewExportPhase("snapshot write", async () => writeMirrorSnapshot(process.argv[2], snapshot)).then(() => {
+      console.log(`Mirror export verified: source=${snapshot.sourceTag} commit=${snapshot.sourceCommit} tables=${Object.keys(snapshot.tables).length} assets=${snapshot.assets.length}`);
+    });
+  }).catch((error: unknown) => {
+    reportPreviewFailure("preview.mirror.export_failed", error, { operation: "export" });
+    process.exitCode = 1;
+  });
 }
