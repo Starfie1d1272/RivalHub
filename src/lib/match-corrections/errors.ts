@@ -10,6 +10,6 @@ export function matchCorrectionBlockedError(blockedReasons: readonly string[]): 
       params: { reasonCount: blockedReasons.length },
       message: reasonText ? `该更正暂时不能自动应用：${reasonText}` : "该更正暂时不能自动应用。",
     },
-    { diagnostic: "Match correction requires operator adjudication before recovery." },
+    { diagnostic: reasonText ? `自动更正被阻断：${reasonText}` : "自动更正被阻断。" },
   );
 }

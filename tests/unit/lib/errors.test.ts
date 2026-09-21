@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { AppError, ErrorCode, ERROR_MESSAGES } from "@/lib/errors";
+import { matchCorrectionBlockedError } from "@/lib/match-corrections/errors";
 
 describe("AppError", () => {
   it("构造并访问属性", () => {
@@ -36,6 +37,13 @@ describe("AppError", () => {
       params: { stageKey: "playoff" },
       message: "当前阶段暂时还不能开始。",
     });
+  });
+
+  it("保留更正阻断原因供诊断，同时使用独立的产品提示", () => {
+    const e = matchCorrectionBlockedError(["下游比赛已经开始或完成，不能自动改写。"]);
+
+    expect(e.message).toContain("已经开始或完成");
+    expect(e.presentation?.message).toContain("暂时不能自动应用");
   });
 
   it("每个 ErrorCode 都有对应的 ERROR_MESSAGES", () => {
