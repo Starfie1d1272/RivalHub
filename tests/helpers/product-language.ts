@@ -98,11 +98,92 @@ function isWithinExpectedAppError(node: ts.Node, source: ts.SourceFile): { inter
   return null;
 }
 
+function isStringLiteralLike(node: ts.Node): boolean {
+  return ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node) || ts.isTemplateHead(node) || ts.isTemplateMiddle(node) || ts.isTemplateTail(node);
+}
+
+function isWithPresentationCall(node: ts.Node, source: ts.SourceFile): node is ts.CallExpression {
+  if (!ts.isCallExpression(node) || !ts.isPropertyAccessExpression(node.expression)) return false;
+  return node.expression.expression.getText(source) === "AppError" && node.expression.name.text === "withPresentation";
+}
+
+function expectedPresentationTextStarts(source: ts.SourceFile): Set<number> {
+  const starts = new Set<number>();
+  const declarations = new Map<string, ts.VariableDeclaration[]>();
+  let hasPresentationOwner = false;
+
+  function collectDeclarations(node: ts.Node) {
+    if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.initializer) {
+      const current = declarations.get(node.name.text) ?? [];
+      current.push(node);
+      declarations.set(node.name.text, current);
+    }
+    ts.forEachChild(node, collectDeclarations);
+  }
+  collectDeclarations(source);
+
+  const visitedDeclarations = new Set<ts.VariableDeclaration>();
+  function collectMessageExpression(node: ts.Node): void {
+    const expression = unwrapExpression(node);
+    if (isStringLiteralLike(expression)) {
+      starts.add(expression.getStart(source));
+      return;
+    }
+    if (ts.isIdentifier(expression)) {
+      for (const declaration of declarations.get(expression.text) ?? []) {
+        if (visitedDeclarations.has(declaration) || !declaration.initializer) continue;
+        visitedDeclarations.add(declaration);
+        collectMessageExpression(declaration.initializer);
+      }
+      return;
+    }
+    if (ts.isPropertyAccessExpression(expression) || ts.isElementAccessExpression(expression)) {
+      collectMessageExpression(expression.expression);
+      return;
+    }
+    if (ts.isObjectLiteralExpression(expression)) {
+      for (const property of expression.properties) {
+        if (ts.isPropertyAssignment(property)) collectMessageExpression(property.initializer);
+        else if (ts.isShorthandPropertyAssignment(property)) collectMessageExpression(property.name);
+      }
+      return;
+    }
+    ts.forEachChild(expression, collectMessageExpression);
+  }
+
+  function visit(node: ts.Node) {
+    if (isWithPresentationCall(node, source)) {
+      hasPresentationOwner = true;
+      const presentation = node.arguments[1];
+      if (presentation && ts.isObjectLiteralExpression(presentation)) {
+        const message = presentation.properties.find(
+          (property): property is ts.PropertyAssignment =>
+            ts.isPropertyAssignment(property) && property.name.getText(source) === "message",
+        );
+        if (message) collectMessageExpression(message.initializer);
+      }
+    }
+    ts.forEachChild(node, visit);
+  }
+  visit(source);
+
+  // Canonical presentation owners keep their copy in an exhaustive MESSAGES
+  // map. Collect the values even when the call reaches the map indirectly
+  // through a formatter, so a new owner cannot bypass the gate.
+  if (hasPresentationOwner) {
+    for (const declaration of declarations.get("MESSAGES") ?? []) {
+      if (declaration.initializer) collectMessageExpression(declaration.initializer);
+    }
+  }
+  return starts;
+}
+
 /** Literal and AST presentation text are checked; identifiers and comments are not. */
 export function productLanguageViolations(path: string, text: string, options: ProductLanguageOptions = {}): string[] {
   const source = ts.createSourceFile(path, text, ts.ScriptTarget.Latest, true);
   const violations: string[] = [];
   const rawFallbackRightStarts = new Set<number>();
+  const expectedPresentationStarts = options.expectedErrorsOnly ? expectedPresentationTextStarts(source) : new Set<number>();
   const reported = new Set<string>();
 
   function report(node: ts.Node, message: string) {
@@ -140,7 +221,7 @@ export function productLanguageViolations(path: string, text: string, options: P
       report(node, `direct machine-value render: ${node.getText(source)}`);
     }
     if (ts.isJsxText(node) || ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node) || ts.isTemplateHead(node) || ts.isTemplateMiddle(node) || ts.isTemplateTail(node)) {
-      if (options.expectedErrorsOnly && !isWithinExpectedAppError(node, source)) {
+      if (options.expectedErrorsOnly && !isWithinExpectedAppError(node, source) && !expectedPresentationStarts.has(node.getStart(source))) {
         ts.forEachChild(node, visit);
         return;
       }

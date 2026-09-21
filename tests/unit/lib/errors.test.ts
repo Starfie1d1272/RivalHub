@@ -40,10 +40,18 @@ describe("AppError", () => {
   });
 
   it("保留更正阻断原因供诊断，同时使用独立的产品提示", () => {
-    const e = matchCorrectionBlockedError(["下游比赛已经开始或完成，不能自动改写。"]);
+    const e = matchCorrectionBlockedError([
+      { code: "downstreamMatchStarted", params: { count: 1 } },
+      { code: "downstreamStageMaterialized", params: { stageKey: "internal-playoff-stage" } },
+    ]);
 
+    expect(e.message).toContain("downstream_match_started");
     expect(e.message).toContain("已经开始或完成");
+    expect(e.message).toContain("internal-playoff-stage");
+    expect(e.presentation?.message).toContain("已经开始或完成");
     expect(e.presentation?.message).toContain("暂时不能自动应用");
+    expect(e.presentation?.message).not.toContain("internal-playoff-stage");
+    expect(e.presentation?.message).not.toContain("downstream_stage_materialized");
   });
 
   it("每个 ErrorCode 都有对应的 ERROR_MESSAGES", () => {

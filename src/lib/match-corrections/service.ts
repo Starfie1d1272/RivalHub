@@ -12,7 +12,7 @@ import { AppError, ErrorCode } from "@/lib/errors";
 import { parseMajorRunSnapshot } from "@/lib/major/run-snapshot";
 import { validateSeriesScore } from "@/lib/matches/result-rules";
 import { assertSeasonAllowsTournamentMutationInTx } from "@/lib/postevent/guard";
-import { matchCorrectionBlockedError } from "@/lib/match-corrections/errors";
+import { matchCorrectionBlockedError, type MatchCorrectionBlocker } from "@/lib/match-corrections/errors";
 
 /**
  * G2 managed result correction & recovery.
@@ -54,7 +54,7 @@ export interface ResultCorrectionPlan {
   /** Derived facts that must be invalidated before the correction can rebuild. */
   impacts: CorrectionPlanImpact[];
   /** Non-empty means the correction is refused outright (fail closed). */
-  blockedReasons: string[];
+  blockedReasons: MatchCorrectionBlocker[];
   /** Operator steps still required after applying (e.g. regenerate rounds). */
   requiredRecoveryActions: string[];
 }
@@ -313,9 +313,7 @@ export async function planResultCorrectionInTx(
   }
 
   if (match.ownership !== "major_stage" || !match.majorStageRunId) {
-    plan.blockedReasons.push(
-      "非托管比赛的胜者更正会与既有赛程矛盾，必须通过赛事事故裁决处理。",
-    );
+    plan.blockedReasons.push({ code: "nonManagedMatch", params: {} });
     return plan;
   }
 
@@ -334,9 +332,7 @@ export async function planResultCorrectionInTx(
     if (other.id === run.id) continue;
     const otherIndex = frozen.stagePlanKeys.indexOf(other.stageKey);
     if (myIndex >= 0 && otherIndex > myIndex) {
-      plan.blockedReasons.push(
-        `后续阶段 ${other.stageKey} 已基于本阶段结果建立，不能自动重建；需要走赛后裁决。`,
-      );
+      plan.blockedReasons.push({ code: "downstreamStageMaterialized", params: { stageKey: other.stageKey } });
     }
   }
 
@@ -346,7 +342,7 @@ export async function planResultCorrectionInTx(
     .from(majorFinalResults)
     .where(eq(majorFinalResults.seasonId, match.seasonId));
   if (finalResult) {
-    plan.blockedReasons.push("官方名次已经生成，胜者更正被禁止；请使用赛后裁决操作。");
+    plan.blockedReasons.push({ code: "finalResultsPublished", params: {} });
   }
 
   // Within-run downstream: later rounds (swiss) or later elimination steps
@@ -380,9 +376,7 @@ export async function planResultCorrectionInTx(
     if (!impact.invalidatable) startedDownstream += 1;
   }
   if (startedDownstream > 0) {
-    plan.blockedReasons.push(
-      `存在 ${startedDownstream} 场已经开始或完成的下游托管比赛，系统拒绝自动重写；需要走赛后裁决并人工恢复。`,
-    );
+    plan.blockedReasons.push({ code: "downstreamMatchStarted", params: { count: startedDownstream } });
   }
 
   if (isSwiss) {

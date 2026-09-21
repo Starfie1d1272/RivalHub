@@ -13,6 +13,7 @@ import {
   planResultCorrectionInTx,
   recordRecoveryAdjudicationInTx,
 } from "@/lib/match-corrections/service";
+import { presentMatchCorrectionBlocker } from "@/lib/match-corrections/errors";
 import { traceOperation } from "@/lib/observability/server";
 
 /**
@@ -35,7 +36,10 @@ export async function planMatchResultCorrection(
     }, () => db.transaction((tx) =>
       planResultCorrectionInTx(tx, { matchId, proposal }),
     ));
-    return ok(plan);
+    return ok({
+      ...plan,
+      blockedReasons: plan.blockedReasons.map(presentMatchCorrectionBlocker),
+    });
   } catch (e) {
     return actionError("planMatchResultCorrection", e);
   }

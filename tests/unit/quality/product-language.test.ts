@@ -3,8 +3,9 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { PRODUCT_LANGUAGE_ALLOWED, internalProductVocabulary, productLanguageViolations } from "tests/helpers/product-language";
 
-// All page/component literals join the gate automatically. Non-UI business
-// messages use this explicit owner registry; schema and technical docs do not.
+// All page/component literals join the gate automatically. Legacy non-UI
+// business messages use this explicit owner registry; AppError presentation
+// owners are discovered from their canonical boundary instead.
 const messageOwners = [
   "src/lib/competitive/conversion-policy.ts", "src/lib/competitive/conversion-policy-admin.ts",
   "src/lib/seasons/lifecycle.ts", "src/lib/my/readiness.ts", "src/lib/match-rosters/service.ts",
@@ -21,8 +22,11 @@ describe("product language contract", () => {
     const files = [...sources("src/app"), ...sources("src/components").filter((path) => !path.includes("/components/rules/")), ...messageOwners];
     expect(files.flatMap((path) => productLanguageViolations(path, readFileSync(path, "utf8")))).toEqual([]);
   });
-  it("checks every expected AppError without a manual owner registry", () => {
-    const files = sources("src").filter((path) => readFileSync(path, "utf8").includes("new AppError"));
+  it("checks every expected AppError presentation owner without a manual registry", () => {
+    const files = sources("src").filter((path) => {
+      const text = readFileSync(path, "utf8");
+      return text.includes("new AppError") || text.includes("AppError.withPresentation");
+    });
     expect(files.flatMap((path) => productLanguageViolations(path, readFileSync(path, "utf8"), { expectedErrorsOnly: true }))).toEqual([]);
   });
   it("allows brands and esports vocabulary", () => {
@@ -53,5 +57,21 @@ describe("product language contract", () => {
     `)).toEqual([]);
     expect(productLanguageViolations("fixture.ts", 'throw new AppError(ErrorCode.VALIDATION_FAILED, "当前 StageRun 无效");')).toHaveLength(1);
     expect(productLanguageViolations("fixture.ts", 'throw new AppError(ErrorCode.INTERNAL_ERROR, "StageRun snapshot invariant broken");')).toEqual([]);
+  });
+  it("protects an unregistered presentation owner and indirect MESSAGES copy", () => {
+    const source = `
+      const MESSAGES = { unsafe: "当前 StageRun 不能继续" } as const;
+      function unregisteredOwner() {
+        return AppError.withPresentation(ErrorCode.VALIDATION_FAILED, {
+          owner: "unregistered-owner",
+          key: "unsafe",
+          params: {},
+          message: MESSAGES.unsafe,
+        });
+      }
+    `;
+    expect(productLanguageViolations("src/lib/unregistered-owner.ts", source, { expectedErrorsOnly: true })).toEqual([
+      expect.stringContaining("当前 StageRun 不能继续"),
+    ]);
   });
 });
