@@ -7,7 +7,7 @@ import { writeAuditInTx } from "@/lib/audit/write";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { parseRivalHubDemoEvidenceV1 } from "@/lib/demo-evidence/contract";
 import type { IntegrationIssue, RivalHubEvidenceSubmission } from "./contracts";
-import { DEMO_CONTENT_CONFLICT_MESSAGE, promoteDemoImportInTx, resolveDemoImportLineageInTx } from "./promotion";
+import { DEMO_CONTENT_CONFLICT_MESSAGE, lockDemoImportLineageInTx, promoteDemoImportInTx, resolveDemoImportLineageInTx } from "./promotion";
 import { buildEvidenceRevisionForTarget, sha256Json } from "./revision";
 import { isCurrentDakSemanticProfile } from "./semantic-profile";
 import { integrationIssue, loadCanonicalTarget, validateCanonicalTarget, type CanonicalTarget } from "./validation";
@@ -71,10 +71,15 @@ export async function revalidateStoredDemoImportInTx(
   tx: TxDb,
   input: { importId: string; actorId: string; verifiedBy?: string },
 ): Promise<StoredDemoRevalidationResult> {
+  const [scope] = await tx.select({ matchMapId: matchDemoImports.matchMapId }).from(matchDemoImports)
+    .where(eq(matchDemoImports.id, input.importId));
+  if (!scope) throw new AppError(ErrorCode.NOT_FOUND, "待处理的 Demo 数据不存在。");
+  await lockDemoImportLineageInTx(tx, scope.matchMapId);
   const [row] = await tx.select().from(matchDemoImports)
     .where(eq(matchDemoImports.id, input.importId))
     .for("update");
   if (!row) throw new AppError(ErrorCode.NOT_FOUND, "待处理的 Demo 数据不存在。");
+  if (row.matchMapId !== scope.matchMapId) throw new AppError(ErrorCode.INTERNAL_ERROR, "Demo 数据在重新检查期间发生了目标变化。");
   if (!isCurrentDakSemanticProfile(row.semanticProfile)) throw new AppError(ErrorCode.VALIDATION_FAILED, "只有当前 Demo 数据版本可以重新检查。");
   if (row.status === "confirmed") return { status: "confirmed", importId: row.id, issues: [] };
   if (row.status !== "needs_attention") throw new AppError(ErrorCode.VALIDATION_FAILED, "这份 Demo 数据当前不在待处理状态。");
