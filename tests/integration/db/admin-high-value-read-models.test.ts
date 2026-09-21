@@ -360,8 +360,24 @@ describe("PR3 admin operational list read models", () => {
       await pool.query("DELETE FROM steam_profiles WHERE steam64 = $1", [profileSteam64]).catch(() => {});
       await pool.query("DELETE FROM user_sessions WHERE user_id = ANY($1::uuid[])", [userIds]).catch(() => {});
       await pool.query("DELETE FROM education_verifications WHERE user_id = ANY($1::uuid[])", [userIds]).catch(() => {});
-      await pool.query("DELETE FROM team_memberships WHERE id = $1", [membershipId]).catch(() => {});
-      await pool.query("DELETE FROM teams WHERE id = $1", [teamId]).catch(() => {});
+      const teamCleanup = await pool.connect();
+      try {
+        await teamCleanup.query("BEGIN");
+        // Team history is append-only by product contract. Test teardown is the
+        // only place allowed to bypass those triggers so the fixture leaves no
+        // long-lived rows or expected invariant errors in PostgreSQL logs.
+        await teamCleanup.query("SET LOCAL session_replication_role = 'replica'");
+        await teamCleanup.query("DELETE FROM team_captain_changes WHERE team_id = $1", [teamId]);
+        await teamCleanup.query("DELETE FROM team_name_changes WHERE team_id = $1", [teamId]);
+        await teamCleanup.query("DELETE FROM team_memberships WHERE id = $1", [membershipId]);
+        await teamCleanup.query("DELETE FROM teams WHERE id = $1", [teamId]);
+        await teamCleanup.query("COMMIT");
+      } catch (error) {
+        await teamCleanup.query("ROLLBACK").catch(() => {});
+        throw error;
+      } finally {
+        teamCleanup.release();
+      }
       await pool.query("DELETE FROM institutions WHERE id = $1", [institutionId]).catch(() => {});
       await pool.query("DELETE FROM users WHERE id = ANY($1::uuid[])", [[...userIds, adminOnlyId]]).catch(() => {});
       await pool.query("DELETE FROM seasons WHERE id = ANY($1::uuid[])", [[seasonId, largeInviteSeasonId]]).catch(() => {});
