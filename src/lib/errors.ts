@@ -70,8 +70,6 @@ export const ErrorCode = {
 
 export type ErrorCode = (typeof ErrorCode)[keyof typeof ErrorCode];
 
-export type StructuredErrorParams = Readonly<Record<string, string | number | boolean | null>>;
-
 /**
  * Expected errors keep their machine identity and structured parameters
  * separate from the product copy returned to a browser. The owner field is
@@ -80,7 +78,7 @@ export type StructuredErrorParams = Readonly<Record<string, string | number | bo
 export interface ErrorPresentation {
   owner: string;
   key: string;
-  params: StructuredErrorParams;
+  params: Readonly<Record<string, string | number | boolean | null>>;
   message: string;
 }
 
