@@ -1,3 +1,6 @@
+import { assertActiveChainPrefix, readExpectedMigrations, type ExpectedMigration, type Migration } from "../production-preflight";
+import { PreviewMirrorError } from "./diagnostics";
+
 /** Reviewed export projections. No SELECT *, Auth rows, opaque dump or private bucket. */
 export const PREVIEW_COLUMNS: Record<string, string> = {
   users: "id status merged_into_user_id merged_at perfect_name display_name steam64 gameplay_style competition_history created_at updated_at",
@@ -72,6 +75,52 @@ export const OMITTED_COLUMNS: Record<string, string> = {
   match_player_stats: "dak_import_id",
 };
 
+type PreviewSchemaColumnLifecycle = {
+  name: string;
+  introducedAt?: string;
+  removedAt?: string;
+  compatibility?: "legacy-shadow";
+};
+
+type PreviewSchemaLifecycleTable = {
+  table: string;
+  introducedAt?: string;
+  removedAt?: string;
+  columns?: readonly PreviewSchemaColumnLifecycle[];
+};
+
+/**
+ * Preview policy changes are keyed to the migration lifecycle that makes a
+ * table/column available or removes a legacy compatibility owner. The current
+ * policy remains the latest-main projection; previewPolicyFor() removes future
+ * entries for a lagging source and rejects columns past their removal marker.
+ */
+export const PREVIEW_STEAM_SHADOW_CLEANUP_MIGRATION = "0053_steam_profile_contract_cleanup";
+
+export const PREVIEW_SCHEMA_LIFECYCLE: readonly PreviewSchemaLifecycleTable[] = [
+  {
+    table: "match_player_stats",
+    columns: [
+      { name: "first_deaths", introducedAt: "0051_sour_grim_reaper" },
+      { name: "trade_kills", introducedAt: "0051_sour_grim_reaper" },
+      { name: "kast_rounds", introducedAt: "0051_sour_grim_reaper" },
+      { name: "dak_import_id", introducedAt: "0051_sour_grim_reaper" },
+    ],
+  },
+  {
+    table: "steam_profiles",
+    introducedAt: "0052_gray_supernaut",
+  },
+  {
+    table: "users",
+    columns: [
+      { name: "steam_name", removedAt: PREVIEW_STEAM_SHADOW_CLEANUP_MIGRATION, compatibility: "legacy-shadow" },
+      { name: "steam_profile_url", removedAt: PREVIEW_STEAM_SHADOW_CLEANUP_MIGRATION, compatibility: "legacy-shadow" },
+      { name: "avatar_url", removedAt: PREVIEW_STEAM_SHADOW_CLEANUP_MIGRATION, compatibility: "legacy-shadow" },
+    ],
+  },
+] as const;
+
 export const EXCLUDED_TABLES = new Set(`identity_link_requests user_identities user_merge_authorizations user_merge_ledger
   institution_email_domains conversion_policies registration_drafts team_invitations recruitment_interests
   competition_entry_legacy_identities competition_entry_restriction_overrides major_prestart_issues major_seed_recommendation_snapshots
@@ -79,22 +128,128 @@ export const EXCLUDED_TABLES = new Set(`identity_link_requests user_identities u
   user_sessions disciplinary_case_idempotency disciplinary_cases community_award_evidence
   scheduled_job_health feedback_reports dak_pairing_intents dak_pairings match_demo_imports match_round_facts user_gameplay_steam_ids`.split(/\s+/));
 
+export interface PreviewTablePolicy {
+  exportedColumns: readonly string[];
+  omittedColumns: readonly string[];
+  removedColumns: readonly string[];
+}
+
+export interface PreviewPolicy {
+  sourceMigrations: readonly Migration[];
+  sourceMigrationTags: readonly string[];
+  tables: Readonly<Record<string, PreviewTablePolicy>>;
+  futureTables: readonly string[];
+  futureColumns: Readonly<Record<string, readonly string[]>>;
+}
+
+type PreviewPolicyInput = readonly Migration[] | PreviewPolicy;
+
+export function previewPolicyFor(
+  sourceMigrations: readonly Migration[],
+  expectedMigrations: readonly ExpectedMigration[] = readExpectedMigrations(),
+): PreviewPolicy {
+  try {
+    assertActiveChainPrefix(sourceMigrations, expectedMigrations);
+  } catch (error) {
+    throw new PreviewMirrorError("PREVIEW_MIGRATION_LEDGER_FAILED", "Preview source migration ledger is not an active chain prefix.", {
+      cause: error,
+      context: { phase: "migration ledger" },
+    });
+  }
+
+  assertPolicyDefinition(expectedMigrations);
+  const sourceMigrationTags = expectedMigrations.slice(0, sourceMigrations.length).map((migration) => migration.tag);
+  const applied = new Set(sourceMigrationTags);
+  const tables: Record<string, PreviewTablePolicy> = {};
+  const futureTables: string[] = [];
+  const futureColumns: Record<string, readonly string[]> = {};
+
+  for (const [table, exported] of Object.entries(PREVIEW_COLUMNS)) {
+    const tableLifecycle = PREVIEW_SCHEMA_LIFECYCLE.find((event) => event.table === table);
+    if (tableLifecycle && !isLifecycleActive(tableLifecycle, applied)) {
+      futureTables.push(table);
+      continue;
+    }
+
+    const exportedColumns = exported.split(" ").filter((column) => isColumnAvailable(table, column, applied));
+    const legacyOmittedColumns = lifecycleColumns(table)
+      .filter((column) => column.compatibility === "legacy-shadow" && isLifecycleActive(column, applied))
+      .map((column) => column.name);
+    const omittedColumns = uniqueColumns([
+      ...(OMITTED_COLUMNS[table]?.split(" ") ?? []).filter((column) => isColumnAvailable(table, column, applied)),
+      ...legacyOmittedColumns,
+    ]);
+    const removedColumns = lifecycleColumns(table)
+      .filter((column) => isLifecycleRemoved(column, applied))
+      .map((column) => column.name);
+    tables[table] = { exportedColumns, omittedColumns, removedColumns };
+
+    const future = uniqueColumns([
+      ...exported.split(" "),
+      ...(OMITTED_COLUMNS[table]?.split(" ") ?? []),
+      ...lifecycleColumns(table).map((column) => column.name),
+    ]).filter((column) => isColumnFuture(table, column, applied));
+    if (future.length) futureColumns[table] = future;
+  }
+
+  return {
+    sourceMigrations,
+    sourceMigrationTags,
+    tables,
+    futureTables: futureTables.sort(),
+    futureColumns,
+  };
+}
+
 export function quoteIdentifier(value: string): string {
   if (!/^[a-z][a-z0-9_]*$/.test(value)) throw new Error("Invalid mirror identifier");
   return `"${value}"`;
 }
 
-export function assertReviewedColumns(table: string, columns: readonly string[]): void {
+export function assertReviewedColumns(
+  table: string,
+  columns: readonly string[],
+  source: PreviewPolicyInput = readExpectedMigrations(),
+): void {
   if (EXCLUDED_TABLES.has(table)) return;
-  if (!Object.hasOwn(PREVIEW_COLUMNS, table)) throw new Error(`Unreviewed mirror table: ${table}`);
-  const reviewed = [...PREVIEW_COLUMNS[table].split(" "), ...(OMITTED_COLUMNS[table]?.split(" ") ?? [])].sort();
-  if (JSON.stringify(reviewed) !== JSON.stringify([...columns].sort())) throw new Error(`Unreviewed mirror columns: ${table}`);
+  const policy = resolvePolicy(source);
+  const tablePolicy = policy.tables[table];
+  if (!tablePolicy) {
+    throw new PreviewMirrorError(
+      Object.hasOwn(PREVIEW_COLUMNS, table) ? "FUTURE_MIRROR_TABLE" : "UNREVIEWED_MIRROR_TABLE",
+      "Preview source schema contains a table outside the active source policy.",
+      { context: { phase: "schema inventory-policy", table } },
+    );
+  }
+
+  const actual = new Set(columns);
+  const removed = [...actual].find((column) => tablePolicy.removedColumns.includes(column));
+  if (removed) {
+    throw new PreviewMirrorError("REMOVED_MIRROR_COLUMNS", "Preview source schema contains a removed mirror column.", {
+      context: { phase: "schema inventory-policy", table, column: removed },
+    });
+  }
+  const reviewed = new Set([...tablePolicy.exportedColumns, ...tablePolicy.omittedColumns]);
+  const unknown = [...actual].find((column) => !reviewed.has(column));
+  if (unknown) {
+    throw new PreviewMirrorError("UNREVIEWED_MIRROR_COLUMNS", "Preview source schema contains an unreviewed column.", {
+      context: { phase: "schema inventory-policy", table, column: unknown },
+    });
+  }
+
+  const missingExported = tablePolicy.exportedColumns.find((column) => !actual.has(column));
+  if (missingExported) {
+    throw new PreviewMirrorError("MISSING_MIRROR_COLUMNS", "Preview source schema is missing an exported column.", {
+      context: { phase: "schema inventory-policy", table, column: missingExported },
+    });
+  }
 }
 
-export function exportQuery(table: string): string {
-  const columns = PREVIEW_COLUMNS[table];
-  if (!columns) throw new Error("Table is not permitted in mirror export");
-  const expressions = columns.split(" ").map(quoteIdentifier);
+export function exportQuery(table: string, source: PreviewPolicyInput = readExpectedMigrations()): string {
+  const policy = resolvePolicy(source);
+  const tablePolicy = policy.tables[table];
+  if (!tablePolicy) throw new PreviewMirrorError("FUTURE_MIRROR_TABLE", "Table is not permitted in mirror export.", { context: { table } });
+  const expressions = tablePolicy.exportedColumns.map(quoteIdentifier);
   if (table === "users") expressions.push(`id::text || '@preview.invalid' AS email`, `'user' AS role`);
   if (table === "season_registrations") expressions.push(`ARRAY[]::text[] AS screenshot_urls`);
   if (table === "team_memberships") expressions.push(`CASE WHEN "ended_at" IS NOT NULL THEN 'left'::team_membership_end_reason ELSE NULL END AS ended_reason`);
@@ -105,4 +260,87 @@ export function exportQuery(table: string): string {
     : table === "announcements" ? " WHERE status = 'published'"
       : table === "community_awards" ? " WHERE status IN ('approved', 'awarded', 'not_awarded', 'cancelled')" : "";
   return `SELECT ${expressions.join(", ")} FROM public.${quoteIdentifier(table)}${filter}`;
+}
+
+function resolvePolicy(source: PreviewPolicyInput): PreviewPolicy {
+  return isPreviewPolicy(source) ? source : previewPolicyFor(source);
+}
+
+function isPreviewPolicy(value: PreviewPolicyInput): value is PreviewPolicy {
+  return !Array.isArray(value) && typeof value === "object" && Object.hasOwn(value, "tables");
+}
+
+function isColumnAvailable(table: string, column: string, applied: ReadonlySet<string>): boolean {
+  const lifecycle = lifecycleColumns(table).find((candidate) => candidate.name === column);
+  return !lifecycle || isLifecycleActive(lifecycle, applied);
+}
+
+function isColumnFuture(table: string, column: string, applied: ReadonlySet<string>): boolean {
+  const lifecycle = lifecycleColumns(table).find((candidate) => candidate.name === column);
+  return Boolean(lifecycle?.introducedAt && !applied.has(lifecycle.introducedAt));
+}
+
+function lifecycleColumns(table: string): readonly PreviewSchemaColumnLifecycle[] {
+  return PREVIEW_SCHEMA_LIFECYCLE.find((event) => event.table === table)?.columns ?? [];
+}
+
+function isLifecycleActive(
+  lifecycle: PreviewSchemaLifecycleTable | PreviewSchemaColumnLifecycle,
+  applied: ReadonlySet<string>,
+): boolean {
+  return (!lifecycle.introducedAt || applied.has(lifecycle.introducedAt))
+    && (!lifecycle.removedAt || !applied.has(lifecycle.removedAt));
+}
+
+function isLifecycleRemoved(lifecycle: PreviewSchemaColumnLifecycle, applied: ReadonlySet<string>): boolean {
+  return Boolean(lifecycle.removedAt && applied.has(lifecycle.removedAt));
+}
+
+function uniqueColumns(columns: readonly string[]): string[] {
+  return [...new Set(columns)];
+}
+
+function assertPolicyDefinition(expectedMigrations: readonly ExpectedMigration[]): void {
+  const knownMigrationIndexes = new Map(expectedMigrations.map((migration, index) => [migration.tag, index]));
+  const seenColumns = new Set<string>();
+  for (const event of PREVIEW_SCHEMA_LIFECYCLE) {
+    if (!Object.hasOwn(PREVIEW_COLUMNS, event.table) && !EXCLUDED_TABLES.has(event.table)) {
+      throw new PreviewMirrorError("PREVIEW_SCHEMA_POLICY_INVALID", "Preview schema policy references an unknown table.", {
+        context: { phase: "schema inventory-policy", table: event.table },
+      });
+    }
+    const introducedIndex = event.introducedAt ? knownMigrationIndexes.get(event.introducedAt) : undefined;
+    const removedIndex = event.removedAt ? knownMigrationIndexes.get(event.removedAt) : undefined;
+    if (introducedIndex !== undefined && removedIndex !== undefined && introducedIndex >= removedIndex) {
+      throw new PreviewMirrorError("PREVIEW_SCHEMA_POLICY_INVALID", "Preview schema lifecycle has an invalid migration interval.", {
+        context: { phase: "schema inventory-policy", table: event.table },
+      });
+    }
+    for (const column of event.columns ?? []) {
+      const key = `${event.table}.${column.name}`;
+      if (seenColumns.has(key)) {
+        throw new PreviewMirrorError("PREVIEW_SCHEMA_POLICY_INVALID", "Preview schema lifecycle declares a column more than once.", {
+          context: { phase: "schema inventory-policy", table: event.table, column: column.name },
+        });
+      }
+      seenColumns.add(key);
+      const known = PREVIEW_COLUMNS[event.table]?.split(" ").includes(column.name) || OMITTED_COLUMNS[event.table]?.split(" ").includes(column.name);
+      if (column.compatibility === "legacy-shadow") {
+        if (known || !column.removedAt) {
+          throw new PreviewMirrorError("PREVIEW_SCHEMA_POLICY_INVALID", "Preview legacy shadow lifecycle is not a removed compatibility column.", {
+            context: { phase: "schema inventory-policy", table: event.table, column: column.name },
+          });
+        }
+      } else if (!known) {
+        throw new PreviewMirrorError("PREVIEW_SCHEMA_POLICY_INVALID", "Preview schema policy references an unknown column owner.", {
+          context: { phase: "schema inventory-policy", table: event.table, column: column.name },
+        });
+      }
+      if (column.compatibility === "legacy-shadow" && OMITTED_COLUMNS[event.table]?.split(" ").includes(column.name)) {
+        throw new PreviewMirrorError("PREVIEW_SCHEMA_POLICY_INVALID", "Preview legacy shadow must not remain in permanent omitted columns.", {
+          context: { phase: "schema inventory-policy", table: event.table, column: column.name },
+        });
+      }
+    }
+  }
 }
