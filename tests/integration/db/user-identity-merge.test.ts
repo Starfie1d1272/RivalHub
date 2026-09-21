@@ -41,7 +41,7 @@ describe("canonical user identity merge PostgreSQL invariants", () => {
       }, { evidenceClass: "super_admin_review" });
       expect(preflight.executable).toBe(true);
       expect(preflight.items).toEqual(expect.arrayContaining([
-        expect.objectContaining({ key: "reference:education_verifications.user_id", category: "AUTOMATIC", domain: "教育认证记录" }),
+        expect.objectContaining({ key: "reference:education_verifications.user_id", category: "AUTOMATIC", label: "教育认证记录" }),
         expect.objectContaining({ key: "competitive:loser-profile", category: "AUTOMATIC", domain: "待归并竞技资料" }),
         expect.objectContaining({ key: "profile:canonical", category: "PRESERVE", domain: "保留账号资料" }),
       ]));
@@ -491,12 +491,14 @@ describe("canonical user identity merge PostgreSQL invariants", () => {
             expect.objectContaining({
               key: "competition:approved-or-frozen-duplicate",
               category: "BLOCKER",
-              domain: "赛事名单",
+              label: "赛事名单",
               count: 1,
             }),
           ]));
-          expect(preflight.items.filter((item) => item.category === "BLOCKER").map((item) => item.domain))
+          expect(preflight.items.filter((item) => item.category === "BLOCKER").map((item) => item.label))
             .not.toEqual(expect.arrayContaining(["team", "competition", "stats"]));
+          const userFacingMergeCopy = preflight.items.map((item) => `${item.label} ${item.detail}`).join("\n");
+          expect(userFacingMergeCopy).not.toMatch(/\b(?:credential|secondary identity|retired|draft pick|captain vote|provenance)\b/i);
 
           throw rollbackFixture;
         });
