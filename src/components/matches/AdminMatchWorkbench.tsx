@@ -18,6 +18,7 @@ import { DeleteMatchButton } from "@/components/matches/DeleteMatchButton";
 import { CompletedAtInput } from "@/components/matches/CompletedAtInput";
 import { PreMatchOperatorChecklist } from "@/components/matches/PreMatchOperatorChecklist";
 import { PostMatchRecordPanel } from "@/components/matches/PostMatchRecordPanel";
+import { DemoDataReviewPanel } from "@/components/matches/DemoDataReviewPanel";
 import type { AdminMatchWorkbenchData } from "@/lib/admin/matches/types";
 import { getDisplayName } from "@/lib/identity/display-name";
 import { getAdminMatchStartBlockers } from "@/lib/admin/matches/start-blockers";
@@ -90,6 +91,7 @@ export function AdminMatchWorkbench({
   pendingMaps,
   finishedMaps,
   postMatch,
+  demoReviews = [],
 }: AdminMatchWorkbenchProps) {
   const requiresPreflight = match.ownership === "major_stage";
   const startBlockers = getAdminMatchStartBlockers({
@@ -323,6 +325,8 @@ export function AdminMatchWorkbench({
               </p>
             )}
           </section>
+
+          <DemoDataReviewPanel reviews={demoReviews} />
 
           {postMatch && (
             <section aria-labelledby="match-workbench-finished-postmatch" className="space-y-3">

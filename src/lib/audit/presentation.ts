@@ -96,6 +96,10 @@ const TARGET_OVERRIDES: Readonly<Partial<Record<AuditAction, AuditTargetContract
   "match.save_player_stats": { type: "match_map", lifecycle: "stable" },
   "match.demo.auto_confirm": { type: "match_demo_import", lifecycle: "stable" },
   "match.demo.needs_attention": { type: "match_demo_import", lifecycle: "stable" },
+  "match.demo.identity_confirm": { type: "match_demo_import", lifecycle: "stable" },
+  "match.demo.recheck": { type: "match_demo_import", lifecycle: "stable" },
+  "match.demo.reject": { type: "match_demo_import", lifecycle: "stable" },
+  "match.demo.identity_retire": { type: "user_gameplay_steam_id", lifecycle: "stable" },
   "match.delete_player_stats": { type: "match_map", lifecycle: "tombstone" },
   "match.generate_schedule": { type: "season", lifecycle: "stable" },
   "match.initialize_stage": { type: "season", lifecycle: "stable" },
@@ -211,6 +215,10 @@ export const AUDIT_ACTION_DEFINITIONS = {
   "match.save_player_stats": { label: "录入地图选手数据", category: "match" },
   "match.demo.auto_confirm": { label: "自动接收 Demo 证据", category: "match" },
   "match.demo.needs_attention": { label: "标记 Demo 证据待处理", category: "match" },
+  "match.demo.identity_confirm": { label: "确认比赛 Steam 身份", category: "match" },
+  "match.demo.recheck": { label: "重新检查 Demo 数据", category: "match" },
+  "match.demo.reject": { label: "拒绝 Demo 数据", category: "match" },
+  "match.demo.identity_retire": { label: "撤销比赛 Steam 身份", category: "match" },
   "match.delete_player_stats": { label: "删除地图选手数据", category: "match" },
   "match.status_update": { label: "更新比赛状态", category: "match" },
   "match.start": { label: "开始比赛", category: "match" },
@@ -471,6 +479,8 @@ const TARGET_TYPE_LABELS: Readonly<Record<string, string>> = {
   match: "比赛",
   match_map: "比赛地图",
   match_roster: "比赛阵容",
+  match_demo_import: "Demo 数据",
+  user_gameplay_steam_id: "选手 Steam 身份",
   match_time_proposal: "比赛时间提议",
   education_verification: "教育认证",
   competitive_platform: "竞技平台",
@@ -578,6 +588,12 @@ function appendBoolean(parts: string[], meta: Record<string, unknown>, key: stri
   else if (value === false && no) parts.push(no);
 }
 
+function appendSteam64(parts: string[], meta: Record<string, unknown>): void {
+  if (typeof meta.observedSteam64 === "string" && /^\d{17}$/.test(meta.observedSteam64)) {
+    parts.push(`Steam64 ${meta.observedSteam64}`);
+  }
+}
+
 /**
  * Convert only explicitly approved, low-sensitivity fields to a short line.
  * In particular, this function never stringifies the object and never emits
@@ -601,6 +617,10 @@ export function summarizeAuditMeta(action: string, meta: unknown): string | null
     appendBoolean(parts, meta, "winnerChanged", "胜者已变化");
     appendBoolean(parts, meta, "isForfeit", "弃权赛果");
     appendBoolean(parts, meta, "postMatch", "赛后修改");
+    if (action === "match.demo.identity_confirm" && typeof meta.playerName === "string" && meta.playerName.trim()) {
+      parts.push(`选手 ${meta.playerName.trim().slice(0, 72)}`);
+    }
+    if (action === "match.demo.identity_confirm" || action === "match.demo.identity_retire") appendSteam64(parts, meta);
   }
 
   appendCount(parts, meta, "matchCount", "比赛");

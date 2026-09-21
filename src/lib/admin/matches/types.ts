@@ -55,6 +55,33 @@ export interface AdminMatchSummary {
   isForfeit: Match["isForfeit"];
   ownership: Match["ownership"];
   scheduledAt: Match["scheduledAt"];
+  demoNeedsAttentionCount?: number;
+}
+
+export interface AdminDemoReviewCandidate {
+  eventRosterMemberId: string;
+  entryId: string;
+  name: string;
+  steam64: string | null;
+}
+
+export interface AdminDemoReviewParticipant {
+  observedSteam64: string;
+  demoName: string;
+  teamName: string;
+  canConfirm: boolean;
+  note: string | null;
+  candidates: AdminDemoReviewCandidate[];
+}
+
+export interface AdminDemoReviewMap {
+  importId: string;
+  matchMapId: string;
+  mapOrder: number;
+  mapName: string;
+  invalidPayload: boolean;
+  message: string | null;
+  participants: AdminDemoReviewParticipant[];
 }
 
 export interface AdminCompletedMap {
@@ -121,6 +148,7 @@ export interface AdminMatchWorkbenchData {
   pendingMaps: AdminPendingMap[];
   finishedMaps: AdminFinishedMap[];
   postMatch: AdminPostMatchRecordData | null;
+  demoReviews?: AdminDemoReviewMap[];
 }
 
 export type AdminMatchMapRecord = Pick<

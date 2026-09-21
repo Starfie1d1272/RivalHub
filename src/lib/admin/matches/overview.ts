@@ -1,12 +1,14 @@
 import "server-only";
 
-import { asc, eq, inArray } from "drizzle-orm";
+import { asc, desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
   competitionEntries,
   majorFinalResults,
   majorStageRuns,
   matchCommentators,
+  matchDemoImports,
+  matchMaps,
   matches,
   postMatchReports,
   seasonAdminGrants,
@@ -30,6 +32,28 @@ import { buildMajorRuntimeData } from "@/lib/admin/major-runtime";
 import type { Match } from "@/db/schema";
 import type { AdminCommentaryEffectiveness, AdminMatchOverviewData } from "@/lib/admin/matches/types";
 import { buildBatchDeadlineGroups, projectAdminMatchSummary, sortAdminMatches } from "@/lib/admin/matches/shared";
+import { selectCurrentDemoImport } from "@/lib/demo-integration/read";
+
+async function loadDemoNeedsAttentionCounts(matchIds: readonly string[]): Promise<Map<string, number>> {
+  if (matchIds.length === 0) return new Map();
+  const mapRows = await db.select({ id: matchMaps.id, matchId: matchMaps.matchId })
+    .from(matchMaps)
+    .where(inArray(matchMaps.matchId, [...matchIds]));
+  if (mapRows.length === 0) return new Map();
+  const importRows = await db.select().from(matchDemoImports)
+    .where(inArray(matchDemoImports.matchMapId, mapRows.map((row) => row.id)))
+    .orderBy(desc(matchDemoImports.createdAt));
+  const rowsByMap = new Map<string, Array<typeof matchDemoImports.$inferSelect>>();
+  for (const row of importRows) rowsByMap.set(row.matchMapId, [...(rowsByMap.get(row.matchMapId) ?? []), row]);
+  const matchIdByMap = new Map(mapRows.map((row) => [row.id, row.matchId]));
+  const counts = new Map<string, number>();
+  for (const [mapId, rows] of rowsByMap) {
+    if (selectCurrentDemoImport(rows)?.status !== "needs_attention") continue;
+    const matchId = matchIdByMap.get(mapId);
+    if (matchId) counts.set(matchId, (counts.get(matchId) ?? 0) + 1);
+  }
+  return counts;
+}
 
 export interface AdminMatchOverviewFilter {
   seasonSlug: string;
@@ -148,6 +172,7 @@ export async function loadAdminMatchOverview({
         finalResultStatus: finalResult?.status,
       })
     : { swissRuntime: null, playoffRuntime: null };
+  const demoNeedsAttentionByMatch = await loadDemoNeedsAttentionCounts(allMatches.map((match) => match.id));
 
   const statusFilter = (match: { status: string }) =>
     !filterStatus || filterStatus === "all" || match.status === filterStatus;
@@ -159,9 +184,9 @@ export async function loadAdminMatchOverview({
     stage,
     matches: sortAdminMatches(
       stageMatches.filter(statusFilter).filter(teamFilter),
-    ).map(projectAdminMatchSummary),
+    ).map((match) => projectAdminMatchSummary(match, demoNeedsAttentionByMatch.get(match.id) ?? 0)),
   }));
-  const projectedMatches = allMatches.map(projectAdminMatchSummary);
+  const projectedMatches = allMatches.map((match) => projectAdminMatchSummary(match, demoNeedsAttentionByMatch.get(match.id) ?? 0));
   const commentaryEffectiveness = await loadCommentaryEffectiveness(season.id, allMatches);
 
   const finishedMatchIds = allMatches
@@ -201,7 +226,7 @@ export async function loadAdminMatchOverview({
     stageViews,
     stageReadModels,
     commentaryEffectiveness,
-    unconfiguredMatches: unconfiguredMatches.map(projectAdminMatchSummary),
+    unconfiguredMatches: unconfiguredMatches.map((match) => projectAdminMatchSummary(match, demoNeedsAttentionByMatch.get(match.id) ?? 0)),
     standingsByStage,
     batchDeadlineGroups: buildBatchDeadlineGroups(allMatches, stagePlan),
     canGenerate,

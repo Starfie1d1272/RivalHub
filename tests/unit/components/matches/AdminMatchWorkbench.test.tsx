@@ -22,6 +22,7 @@ vi.mock("@/components/matches/DeleteMatchButton", () => ({ DeleteMatchButton: ()
 vi.mock("@/components/matches/CompletedAtInput", () => ({ CompletedAtInput: () => <div data-testid="completed-at">completed at</div> }));
 vi.mock("@/components/matches/PreMatchOperatorChecklist", () => ({ PreMatchOperatorChecklist: () => <div data-testid="preflight">preflight</div> }));
 vi.mock("@/components/matches/PostMatchRecordPanel", () => ({ PostMatchRecordPanel: () => <div data-testid="postmatch">postmatch</div> }));
+vi.mock("@/components/matches/DemoDataReviewPanel", () => ({ DemoDataReviewPanel: () => null }));
 
 import { AdminMatchWorkbench } from "@/components/matches/AdminMatchWorkbench";
 
