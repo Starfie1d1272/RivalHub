@@ -18,10 +18,11 @@ import { identityAppError } from "@/lib/identity/errors";
 export type UserMergeCategory = "AUTOMATIC" | "BLOCKER" | "PRESERVE";
 type UserMergeItemStatus = "automatic" | "blocked" | "preserved";
 
+/** Presentation-ready identity-merge item. Product copy is owned here, not by the page. */
 interface UserMergePlanItem {
   key: string;
   category: UserMergeCategory;
-  domain: string;
+  label: string;
   count: number;
   status: UserMergeItemStatus;
   detail: string;
@@ -257,15 +258,15 @@ export async function buildUserMergePreflight(
     ));
   }
 
-  pushCount(items, "identity:credentials", "AUTOMATIC", "已验证登录身份", facts.identity_rows, "automatic", "保留所有非重复 credential，并作为保留账号的 secondary identity。重复 credential 留存为 retired 记录。 ");
+  pushCount(items, "identity:credentials", "AUTOMATIC", "已验证登录身份", facts.identity_rows, "automatic", "保留所有不重复的已验证登录方式，并关联到保留账号。重复的登录方式会保留历史记录，但不再用于登录。 ");
   pushCount(items, "competitive:loser-profile", "AUTOMATIC", "待归并竞技资料", facts.competitive_rows, "automatic", "删除待归并账号的段位、位置和地图资料；保留账号的竞技资料完全不变。 ");
   pushCount(items, "team:same-team-dedupe", "AUTOMATIC", "同队重复成员关系", facts.same_team_membership_duplicate, "automatic", "同一队伍重叠成员关系按保留账号优先确定性去重。 ");
   pushCount(items, "registration:same-season", "AUTOMATIC", "同赛季报名", facts.registration_same_season, "automatic", "同赛季报名由保留账号优先；不会因为这一项阻断归并。 ");
   pushCount(items, "registration:approved-migrate", "AUTOMATIC", "已批准报名迁移", facts.registration_approved_migrate, "automatic", "待归并账号独有且已批准的报名迁移到保留账号。 ");
-  pushCount(items, "registration:draft-reference-blocker", "BLOCKER", "待删除报名的选秀记录", facts.registration_draft_reference_blocker, "blocked", "待删除报名仍被 draft pick 引用，且没有同赛季保留报名可以安全承接。 ");
-  pushCount(items, "registration:captain-voter-reference-blocker", "BLOCKER", "待删除报名的队长投票人引用", facts.registration_voter_reference_blocker, "blocked", "待删除报名仍作为 captain vote 投票人，且没有同赛季保留报名可以安全承接。 ");
-  pushCount(items, "registration:captain-candidate-reference-blocker", "BLOCKER", "待删除报名的队长候选人引用", facts.registration_candidate_reference_blocker, "blocked", "待删除报名仍作为 captain vote 候选人，且没有同赛季保留报名可以安全承接。 ");
-  pushCount(items, "registration:draft-pick-conflict", "BLOCKER", "同赛季选秀事实冲突", facts.draft_pick_conflict, "blocked", "两个报名都已有 draft pick，但 entry、轮次、顺序、自动选取或请求 provenance 不一致，不能自动择一。 ");
+  pushCount(items, "registration:draft-reference-blocker", "BLOCKER", "待删除报名的选秀记录", facts.registration_draft_reference_blocker, "blocked", "待删除报名仍被选秀记录引用，且没有同赛季保留报名可以安全承接。 ");
+  pushCount(items, "registration:captain-voter-reference-blocker", "BLOCKER", "待删除报名的队长投票人引用", facts.registration_voter_reference_blocker, "blocked", "待删除报名仍作为队长投票的投票人，且没有同赛季保留报名可以安全承接。 ");
+  pushCount(items, "registration:captain-candidate-reference-blocker", "BLOCKER", "待删除报名的队长候选人引用", facts.registration_candidate_reference_blocker, "blocked", "待删除报名仍作为队长投票候选人，且没有同赛季保留报名可以安全承接。 ");
+  pushCount(items, "registration:draft-pick-conflict", "BLOCKER", "同赛季选秀事实冲突", facts.draft_pick_conflict, "blocked", "两个报名都已有选秀记录，但参赛队、轮次、顺序、自动选取或请求来源信息不一致，不能自动择一。 ");
   pushCount(items, "registration:captain-self-vote", "BLOCKER", "归并后的自投票", facts.captain_vote_self_conflict, "blocked", "报名引用重映射后会形成投票人给自己投票，必须保留原始语义并人工处理。 ");
   pushCount(items, "registration:captain-vote-limit-conflict", "BLOCKER", "归并后的队长投票上限冲突", facts.captain_vote_limit_conflict, "blocked", `报名引用重映射后同一投票人会超过最多 ${MAX_CAPTAIN_VOTES} 票，不自动删除历史投票。 `);
   pushCount(items, "competition:participant-dedupe", "AUTOMATIC", "参赛条目重复参与人", facts.participant_duplicate, "automatic", "同一参赛条目中的重复参与人按保留账号优先确定性去重；正式名单冲突会另行阻断归并。 ");
@@ -277,7 +278,7 @@ export async function buildUserMergePreflight(
   pushCount(items, "mvp:reparent", "AUTOMATIC", "MVP 结果与投票", facts.mvp_rows, "automatic", "MVP 选手引用归到保留账号；投票冲突由保留账号的投票优先，不阻断归并。 ");
   pushCount(items, "authorization:claims-union", "AUTOMATIC", "权限领取与赛季权限", facts.admin_claim_union + facts.grant_union, "automatic", "不冲突的管理员领取和赛季权限取并集并去重。 ");
   pushCount(items, "transient:close", "AUTOMATIC", "临时状态", facts.transient_rows, "automatic", "招募意向关闭，待处理邀请和身份请求取消，会话失效。 ");
-  pushCount(items, "history:actor-preserved", "PRESERVE", "历史执行人", facts.preserved_actor_rows, "preserved", "历史 actor、审核人和冻结事实继续指向原始账号。 ");
+  pushCount(items, "history:actor-preserved", "PRESERVE", "历史执行人", facts.preserved_actor_rows, "preserved", "历史操作人、审核人和冻结事实继续指向原始账号。 ");
 
   const blockers: Array<[keyof CollisionFacts, string, string, string]> = [
     ["team_current_conflict", "team:current-conflict", "队伍关系", "两个账号当前属于不同队伍，不能自动选择当前队伍。"],
@@ -502,11 +503,11 @@ async function loadSnapshotHash(queryable: MergeQueryable, input: { canonicalUse
 }
 
 function item(key: string, category: UserMergeCategory, label: string, count: number, status: UserMergeItemStatus, detail: string): UserMergePlanItem {
-  return { key, category, domain: label, count, status, detail };
+  return { key, category, label, count, status, detail };
 }
 
-function pushCount(items: UserMergePlanItem[], key: string, category: UserMergeCategory, domain: string, count: number, status: UserMergeItemStatus, detail: string): void {
-  if (count > 0) items.push(item(key, category, domain, count, status, detail));
+function pushCount(items: UserMergePlanItem[], key: string, category: UserMergeCategory, label: string, count: number, status: UserMergeItemStatus, detail: string): void {
+  if (count > 0) items.push(item(key, category, label, count, status, detail));
 }
 
 async function countReference(queryable: MergeQueryable, table: string, column: string, userId: string): Promise<number> {
