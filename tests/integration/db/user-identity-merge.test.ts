@@ -42,8 +42,8 @@ describe("canonical user identity merge PostgreSQL invariants", () => {
       expect(preflight.executable).toBe(true);
       expect(preflight.items).toEqual(expect.arrayContaining([
         expect.objectContaining({ key: "reference:education_verifications.user_id", category: "AUTOMATIC", label: "教育认证记录" }),
-        expect.objectContaining({ key: "competitive:loser-profile", category: "AUTOMATIC", domain: "待归并竞技资料" }),
-        expect.objectContaining({ key: "profile:canonical", category: "PRESERVE", domain: "保留账号资料" }),
+        expect.objectContaining({ key: "competitive:loser-profile", category: "AUTOMATIC", label: "待归并竞技资料" }),
+        expect.objectContaining({ key: "profile:canonical", category: "PRESERVE", label: "保留账号资料" }),
       ]));
 
       await database.transaction((tx) => executeUserMergeInTx(tx, {
