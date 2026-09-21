@@ -873,6 +873,9 @@ describe("DAK evidence submit persistence", () => {
     } finally {
       await client.query("ROLLBACK").catch(() => {});
       await client.query("BEGIN").catch(() => {});
+      // Fixture teardown intentionally bypasses immutable/append-only row
+      // triggers, matching the repository's other integration cleanups.
+      await client.query("SET LOCAL session_replication_role = replica").catch(() => {});
       await client.query("DELETE FROM match_round_facts WHERE import_id IN (SELECT id FROM match_demo_imports WHERE match_map_id = $1)", [ids.map]).catch(() => {});
       await client.query("DELETE FROM match_player_stats WHERE map_id = $1", [ids.map]).catch(() => {});
       await client.query("DELETE FROM match_demo_imports WHERE match_map_id = $1", [ids.map]).catch(() => {});
