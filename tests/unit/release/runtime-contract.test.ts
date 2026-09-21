@@ -131,6 +131,7 @@ describe("deployment and operations contracts", () => {
     expect(release).toContain('if [[ "$GITHUB_SHA" != "$MAIN_SHA" ]]; then');
     expect(release).toContain('echo "release_operator_sha=$RELEASE_OPERATOR_SHA" >> "$GITHUB_OUTPUT"');
     expect(release).toContain("验证 release operator exact-SHA CI prerequisite");
+    expect(release).toContain("if: github.event_name == 'workflow_dispatch'");
     expect(release).toContain("RELEASE_SHA: ${{ steps.release_identity.outputs.release_operator_sha }}");
     expect(productionMigration).toContain(
       "ref: ${{ github.event_name == 'workflow_dispatch' && needs.preflight.outputs.release_operator_sha || needs.preflight.outputs.release_tag }}",
