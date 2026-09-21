@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import type { TxDb } from "@/db/client";
 import { matchDemoImports, matchPlayerStats, matchRoundFacts } from "@/db/schema";
 import { writeAuditInTx } from "@/lib/audit/write";
@@ -23,6 +23,16 @@ export interface PromoteDemoImportInput {
 }
 
 export const DEMO_CONTENT_CONFLICT_MESSAGE = "该地图已有另一份已确认 Demo；不同内容必须显式进入冲突处理，不能静默覆盖。";
+
+/**
+ * Serializes every mutable Demo-import workflow for one map before row locks.
+ * This prevents lock-order inversion between DAK submit (match -> imports)
+ * and admin review/recheck (import -> match), and also closes the empty-lineage
+ * gap where SELECT ... FOR UPDATE cannot lock a row that does not exist yet.
+ */
+export async function lockDemoImportLineageInTx(tx: TxDb, matchMapId: string): Promise<void> {
+  await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${`demo-map:${matchMapId}`}, 0))`);
+}
 
 const LINEAGE_ACTIVE_STATUSES = ["confirmed", "needs_attention", "stale"] as const;
 
