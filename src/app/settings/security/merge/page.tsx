@@ -46,7 +46,6 @@ export default async function UserMergePage({
   const preflight = await buildUserMergePreflight(db, pair);
   const canonical = authorization.accounts.find((account) => account.id === pair.canonicalUserId)!;
   const merged = authorization.accounts.find((account) => account.id === pair.mergedUserId)!;
-  const presentationItems = preflight.items.map(({ domain, ...item }) => ({ ...item, label: domain }));
 
   return <div className="max-w-3xl space-y-6">
     <PageHeader title="账号归并" description="你已经证明控制两个账号。请选择要长期保留的账号，并核对归并影响。" />
@@ -75,7 +74,7 @@ export default async function UserMergePage({
 
     <div className="grid gap-4">
       {CATEGORIES.map((category) => {
-        const items = presentationItems.filter((entry) => entry.category === category);
+        const items = preflight.items.filter((entry) => entry.category === category);
         return <Panel key={category} label={`${category === "BLOCKER" ? "需要处理" : category === "AUTOMATIC" ? "自动处理" : "保留历史"} · ${preflight.summary[category]}`} contentClassName="p-0">
           <p className="border-b border-[var(--color-border)] px-4 py-3 text-xs text-[var(--color-fg-mid)]">{CATEGORY_HELP[category]}</p>
           {items.length === 0
