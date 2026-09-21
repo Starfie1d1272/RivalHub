@@ -12,6 +12,7 @@ const messageOwners = [
   "src/lib/seasons/lifecycle.ts", "src/lib/my/readiness.ts", "src/lib/match-rosters/service.ts",
   "src/lib/competition-entries/presentation.ts", "src/lib/competition-entries/commands.ts",
   "src/lib/competition-entries/roster-change.ts", "src/lib/identity/self-service.ts",
+  "src/lib/identity/merge.ts",
   "src/actions/competitive-platform.ts", "src/actions/conversion-policies.ts",
 ];
 function sources(root: string): string[] {
