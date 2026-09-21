@@ -62,6 +62,7 @@ describe("MajorTournamentSeedsManagement", () => {
     expect(screen.getByText("#1 · Team One")).toBeVisible();
     expect(screen.getAllByText("系统参考顺序").length).toBeGreaterThan(0);
     expect(screen.getByText("历史 黄金S · 10 星")).toBeVisible();
+    expect(screen.getByRole("link", { name: "Player One" })).toHaveAttribute("href", "/players/player-1");
     expect(screen.getByText("参考 A")).toBeVisible();
     expect(screen.getByText("近期 A++")).toBeVisible();
     expect(screen.getByText("历史 Rating 1000")).toBeInTheDocument();

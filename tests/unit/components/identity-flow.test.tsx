@@ -271,7 +271,7 @@ describe("identity flow UI", () => {
   });
 
   it("renders the admin review queue with a protected CHSI verification path", () => {
-    render(<EducationVerificationReviewQueue emptyState="no-pending" rows={[{ id: "11111111-1111-4111-8111-111111111111", email: "player@example.test", displayName: null, institution: "南京大学", code: "4132010284", academicStatus: "graduated", evidenceLabel: "学信网学历材料", chsiEvidenceCode: "ABCD1234EFGH5678", manualEvidenceAvailable: false, status: "pending", submittedAt: new Date().toISOString(), reviewNote: null }]} />);
+    render(<EducationVerificationReviewQueue emptyState="no-pending" rows={[{ id: "11111111-1111-4111-8111-111111111111", userId: "player-1", email: "player@example.test", displayName: null, institution: "南京大学", code: "4132010284", academicStatus: "graduated", evidenceLabel: "学信网学历材料", chsiEvidenceCode: "ABCD1234EFGH5678", manualEvidenceAvailable: false, status: "pending", submittedAt: new Date().toISOString(), reviewNote: null }]} />);
     const link = screen.getByRole("link", { name: /在学信网核验/ });
     expect(link).toHaveAttribute("target", "_blank");
     expect(link).toHaveAttribute("rel", "noopener noreferrer");
@@ -281,14 +281,14 @@ describe("identity flow UI", () => {
   });
 
   it("uses the canonical identity in the review title while retaining email as explicit account detail", () => {
-    render(<EducationVerificationReviewQueue emptyState="no-pending" rows={[{ id: "55555555-5555-4555-8555-555555555555", email: "private@example.test", displayName: "玩家甲", institution: "南京大学", code: "4132010284", academicStatus: "enrolled", evidenceLabel: "学信网学历材料", chsiEvidenceCode: null, manualEvidenceAvailable: false, status: "pending", submittedAt: new Date().toISOString(), reviewNote: null }]} />);
+    render(<EducationVerificationReviewQueue emptyState="no-pending" rows={[{ id: "55555555-5555-4555-8555-555555555555", userId: "player-2", email: "private@example.test", displayName: "玩家甲", institution: "南京大学", code: "4132010284", academicStatus: "enrolled", evidenceLabel: "学信网学历材料", chsiEvidenceCode: null, manualEvidenceAvailable: false, status: "pending", submittedAt: new Date().toISOString(), reviewNote: null }]} />);
 
-    expect(screen.getByText("玩家甲 · 待审核")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "玩家甲" })).toHaveAttribute("href", "/players/player-2");
     expect(screen.getByText("账号：private@example.test")).toBeInTheDocument();
   });
 
   it("shows cleared CHSI evidence as a retention-policy state", () => {
-    render(<EducationVerificationReviewQueue emptyState="no-results" rows={[{ id: "22222222-2222-4222-8222-222222222222", email: "player@example.test", displayName: null, institution: "南京大学", code: "4132010284", academicStatus: "graduated", evidenceLabel: "学信网学历材料", chsiEvidenceCode: null, manualEvidenceAvailable: false, status: "approved", submittedAt: new Date().toISOString(), reviewNote: null }]} />);
+    render(<EducationVerificationReviewQueue emptyState="no-results" rows={[{ id: "22222222-2222-4222-8222-222222222222", userId: "player-3", email: "player@example.test", displayName: null, institution: "南京大学", code: "4132010284", academicStatus: "graduated", evidenceLabel: "学信网学历材料", chsiEvidenceCode: null, manualEvidenceAvailable: false, status: "approved", submittedAt: new Date().toISOString(), reviewNote: null }]} />);
 
     expect(screen.getByText("在线验证码：已按保留策略清理")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "复制验证码" })).not.toBeInTheDocument();
@@ -296,7 +296,7 @@ describe("identity flow UI", () => {
   });
 
   it("presents manual evidence without exposing the internal type or object key", () => {
-    render(<EducationVerificationReviewQueue emptyState="no-pending" rows={[{ id: "33333333-3333-4333-8333-333333333333", email: "player@example.test", displayName: null, institution: "南京大学", code: "4132010284", academicStatus: "enrolled", evidenceLabel: "录取通知书材料", chsiEvidenceCode: null, manualEvidenceAvailable: true, status: "pending", submittedAt: new Date().toISOString(), reviewNote: null }]} />);
+    render(<EducationVerificationReviewQueue emptyState="no-pending" rows={[{ id: "33333333-3333-4333-8333-333333333333", userId: "player-4", email: "player@example.test", displayName: null, institution: "南京大学", code: "4132010284", academicStatus: "enrolled", evidenceLabel: "录取通知书材料", chsiEvidenceCode: null, manualEvidenceAvailable: true, status: "pending", submittedAt: new Date().toISOString(), reviewNote: null }]} />);
 
     expect(screen.getByText("材料：录取通知书材料")).toBeInTheDocument();
     const link = screen.getByRole("link", { name: "查看材料" });
@@ -308,7 +308,7 @@ describe("identity flow UI", () => {
   });
 
   it("shows cleared manual evidence as a retention-policy state", () => {
-    render(<EducationVerificationReviewQueue emptyState="no-results" rows={[{ id: "44444444-4444-4444-8444-444444444444", email: "player@example.test", displayName: null, institution: "南京大学", code: "4132010284", academicStatus: "enrolled", evidenceLabel: "录取通知书材料", chsiEvidenceCode: null, manualEvidenceAvailable: false, status: "approved", submittedAt: new Date().toISOString(), reviewNote: null }]} />);
+    render(<EducationVerificationReviewQueue emptyState="no-results" rows={[{ id: "44444444-4444-4444-8444-444444444444", userId: "player-5", email: "player@example.test", displayName: null, institution: "南京大学", code: "4132010284", academicStatus: "enrolled", evidenceLabel: "录取通知书材料", chsiEvidenceCode: null, manualEvidenceAvailable: false, status: "approved", submittedAt: new Date().toISOString(), reviewNote: null }]} />);
 
     expect(screen.getByText("录取通知书材料：已按保留策略清理")).toBeInTheDocument();
   });

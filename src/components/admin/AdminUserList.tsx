@@ -8,6 +8,7 @@ import { formatCST } from "@/lib/utils/date";
 import { Panel } from "@/components/rivalhub";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
 
 interface AdminUserRow {
   id: string;
@@ -82,7 +83,7 @@ export function AdminUserList({ users, seasonMap, currentUserId }: AdminUserList
               <tr key={u.id} className="hover:bg-[var(--color-surface-raised)] transition-colors">
                 <td className="px-4 py-3 font-medium text-[var(--color-fg)]">
                   <span className="flex items-center gap-2">
-                    {getDisplayName(u)}
+                    <PlayerProfileLink userId={u.id}>{getDisplayName(u)}</PlayerProfileLink>
                     {u.id === currentUserId && (
                       <span className="text-[10px] text-[var(--color-fg-dim)] border border-[var(--color-border)] rounded px-1 py-px">
                         你

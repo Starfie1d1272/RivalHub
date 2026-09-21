@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import React from "react";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { RegistrationReviewList, type RegistrationRow } from "@/components/admin/RegistrationReviewList";
 
@@ -22,6 +22,7 @@ vi.mock("@/actions/admin", () => ({
 
 const baseRow: RegistrationRow = {
   id: "reg-1",
+  userId: "player-1",
   primaryPosition: "opener",
   secondaryPosition: "closer",
   peakRank: "A+",
@@ -78,8 +79,9 @@ describe("RegistrationReviewList Steam link presentation", () => {
 
   it("renders clickable Steam profile link when steamProfileUrl is provided and safe", () => {
     renderRegistrationList();
+    fireEvent.click(screen.getByText("联系"));
 
-    const link = screen.getByRole("link", { name: "Steam 主页" });
+    const link = screen.getByRole("link", { name: "打开主页 ↗" });
     expect(link).toBeInTheDocument();
     expect(link).toHaveAttribute("href", "https://steamcommunity.com/id/player1");
     expect(link).toHaveAttribute("target", "_blank");
@@ -90,9 +92,10 @@ describe("RegistrationReviewList Steam link presentation", () => {
     renderRegistrationList({
       registrations: [{ ...baseRow, steamProfileUrl: null }],
     });
+    fireEvent.click(screen.getByText("联系"));
 
-    expect(screen.queryByRole("link", { name: "Steam 主页" })).toBeNull();
-    expect(screen.queryByText("Steam 主页")).toBeNull();
+    expect(screen.queryByRole("link", { name: "打开主页 ↗" })).toBeNull();
+    expect(screen.queryByText("打开主页 ↗")).toBeNull();
   });
 
   it("labels newest registration sorting by submission time", () => {

@@ -45,6 +45,7 @@ export interface SoloRegistrationReviewQuery {
 
 export interface RegistrationRow {
   id: string;
+  userId: string;
   primaryPosition: string;
   secondaryPosition: string;
   peakRank: string;
@@ -74,6 +75,9 @@ export interface TeamRegistrationReviewMember {
   participantId: string;
   userId: string;
   email: string;
+  qq: string | null;
+  steam64: string | null;
+  steamProfileUrl: string | null;
   label: string;
   status: "invited" | "confirmed" | "declined" | "withdrawn";
   primary: boolean;

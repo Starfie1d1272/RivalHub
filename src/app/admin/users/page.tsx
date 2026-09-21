@@ -8,7 +8,9 @@ import { PageHeader, PageLayout, Panel, ResultSummary } from "@/components/rival
 import { AdminAccessDenied } from "@/components/admin/AdminAccessDenied";
 import { Button } from "@/components/ui/button";
 import { AdminUserList } from "@/components/admin/AdminUserList";
+import { AdminPlayerContact } from "@/components/admin/AdminPlayerContact";
 import { AdminUsersListWorkspace } from "@/components/admin/AdminUsersListWorkspace";
+import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
 import { formatCST } from "@/lib/utils/date";
 import { getDisplayName } from "@/lib/identity/display-name";
 import { getAdminUserStats, getAdminUsersList, normalizeAdminUsersQuery } from "@/lib/admin/users";
@@ -139,7 +141,14 @@ export default async function AdminUsersPage({ searchParams }: PageProps) {
       </div>
 
       {/* 搜索 + 筛选 */}
-      <AdminUsersListWorkspace filter={query.filter} page={userList.page} totalPages={userList.totalPages}>
+      <AdminUsersListWorkspace
+        filter={query.filter}
+        education={query.education}
+        team={query.team}
+        activity={query.activity}
+        page={userList.page}
+        totalPages={userList.totalPages}
+      >
         {/* 表格 */}
         <Panel contentClassName="p-0" className="overflow-hidden">
           <div className="overflow-x-auto">
@@ -148,6 +157,7 @@ export default async function AdminUsersPage({ searchParams }: PageProps) {
                 <tr className="border-b border-[var(--color-border)] text-[10px] uppercase tracking-wider text-[var(--color-fg-dim)]">
                   <th className="px-4 py-3 text-left">选手</th>
                   <th className="px-4 py-3 text-left">邮箱</th>
+                  <th className="px-4 py-3 text-left">联系</th>
                   <th className="px-4 py-3 text-center">参赛赛季</th>
                   <th className="px-4 py-3 text-right">注册时间</th>
                 </tr>
@@ -155,7 +165,7 @@ export default async function AdminUsersPage({ searchParams }: PageProps) {
               <tbody className="divide-y divide-[var(--color-border)]">
                 {userList.rows.length === 0 && (
                   <tr>
-                    <td colSpan={4} className="px-4 py-8 text-center text-[var(--color-fg-dim)] text-sm">
+                    <td colSpan={5} className="px-4 py-8 text-center text-[var(--color-fg-dim)] text-sm">
                       {userList.hasAnyRecords ? "没有符合当前筛选条件的用户" : "暂无用户"}
                     </td>
                   </tr>
@@ -165,6 +175,7 @@ export default async function AdminUsersPage({ searchParams }: PageProps) {
                     displayName: r.display_name as string | null,
                     perfectName: r.perfect_name as string | null,
                     personaName: r.persona_name as string | null,
+                    email: r.email as string,
                   });
                   const seasonCount = Number(r.season_count);
                   const hasParticipated = seasonCount > 0;
@@ -174,19 +185,20 @@ export default async function AdminUsersPage({ searchParams }: PageProps) {
                       className="hover:bg-[var(--color-surface-raised)] transition-colors"
                     >
                       <td className="px-4 py-2.5 font-medium text-[var(--color-fg)]">
-                        {hasParticipated ? (
-                          <Link
-                            href={`/players/${r.id}`}
-                            className="hover:text-[var(--color-accent)] transition-colors"
-                          >
-                            {name}
-                          </Link>
-                        ) : (
-                          <span className="text-[var(--color-fg-mid)]">{name}</span>
-                        )}
+                        <PlayerProfileLink userId={r.id} className={hasParticipated ? undefined : "text-[var(--color-fg-mid)]"}>
+                          {name}
+                        </PlayerProfileLink>
                       </td>
                       <td className="px-4 py-2.5 text-xs text-[var(--color-fg-mid)]">
                         {r.email as string}
+                      </td>
+                      <td className="px-4 py-2.5">
+                        <AdminPlayerContact
+                          email={r.email as string}
+                          qq={r.qq as string | null}
+                          steam64={r.steam64 as string | null}
+                          steamProfileUrl={r.steam_profile_url as string | null}
+                        />
                       </td>
                       <td className="px-4 py-2.5 text-center tabular-nums text-sm">
                         {hasParticipated ? (

@@ -3,16 +3,29 @@ import "server-only";
 import { sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import { escapeLikePattern } from "@/lib/db/search";
-import { ADMIN_USERS_DEFAULTS, ADMIN_USERS_PAGE_SIZE } from "./users-contract";
+import { normalizeSteamProfileUrl } from "@/lib/external-url";
+import {
+  ADMIN_USERS_DEFAULTS,
+  ADMIN_USERS_PAGE_SIZE,
+  type AdminUserActivityFilter,
+  type AdminUserEducationFilter,
+  type AdminUserParticipationFilter,
+  type AdminUserTeamFilter,
+} from "./users-contract";
 
-const USER_FILTERS = ["all", "participated", "none"] as const;
-type AdminUserFilter = (typeof USER_FILTERS)[number];
+const USER_FILTERS = ["all", "participated", "none"] as const satisfies readonly AdminUserParticipationFilter[];
+const EDUCATION_FILTERS = ["all", "approved", "unverified"] as const satisfies readonly AdminUserEducationFilter[];
+const TEAM_FILTERS = ["all", "in_team", "none"] as const satisfies readonly AdminUserTeamFilter[];
+const ACTIVITY_FILTERS = ["all", "24h", "7d", "30d"] as const satisfies readonly AdminUserActivityFilter[];
 
 export type AdminUsersSearchParams = Record<string, string | string[] | undefined> | URLSearchParams;
 
 export interface AdminUsersQuery {
   q?: string;
-  filter: AdminUserFilter;
+  filter: AdminUserParticipationFilter;
+  education: AdminUserEducationFilter;
+  team: AdminUserTeamFilter;
+  activity: AdminUserActivityFilter;
   page: number;
   pageSize: typeof ADMIN_USERS_PAGE_SIZE;
 }
@@ -24,6 +37,8 @@ export interface AdminUserListRow {
   perfect_name: string | null;
   persona_name: string | null;
   steam64: string | null;
+  steam_profile_url: string | null;
+  qq: string | null;
   created_at: string | Date;
   season_count: number | string;
 }
@@ -63,11 +78,24 @@ function integer(value: unknown): number {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+function normalizeAdminUserRows(rows: unknown[]): AdminUserListRow[] {
+  return (rows as AdminUserListRow[]).map((row) => ({
+    ...row,
+    steam_profile_url: normalizeSteamProfileUrl(row.steam_profile_url),
+  }));
+}
+
 export function normalizeAdminUsersQuery(input: AdminUsersSearchParams): AdminUsersQuery {
   const rawFilter = readParam(input, "filter");
+  const rawEducation = readParam(input, "education");
+  const rawTeam = readParam(input, "team");
+  const rawActivity = readParam(input, "activity");
   return {
     q: readParam(input, "q")?.trim() || undefined,
-    filter: USER_FILTERS.includes(rawFilter as AdminUserFilter) ? rawFilter as AdminUserFilter : ADMIN_USERS_DEFAULTS.filter,
+    filter: USER_FILTERS.includes(rawFilter as AdminUserParticipationFilter) ? rawFilter as AdminUserParticipationFilter : ADMIN_USERS_DEFAULTS.filter,
+    education: EDUCATION_FILTERS.includes(rawEducation as AdminUserEducationFilter) ? rawEducation as AdminUserEducationFilter : ADMIN_USERS_DEFAULTS.education,
+    team: TEAM_FILTERS.includes(rawTeam as AdminUserTeamFilter) ? rawTeam as AdminUserTeamFilter : ADMIN_USERS_DEFAULTS.team,
+    activity: ACTIVITY_FILTERS.includes(rawActivity as AdminUserActivityFilter) ? rawActivity as AdminUserActivityFilter : ADMIN_USERS_DEFAULTS.activity,
     page: positivePage(readParam(input, "page")),
     pageSize: ADMIN_USERS_PAGE_SIZE,
   };
@@ -92,6 +120,42 @@ export async function getAdminUsersList(query: AdminUsersQuery): Promise<AdminUs
     : query.filter === "none"
       ? sql`HAVING COUNT(DISTINCT sr.season_id) = 0`
       : sql``;
+  const educationClause = query.education === "approved"
+    ? sql`AND EXISTS (
+        SELECT 1
+        FROM education_verifications ev
+        WHERE ev.user_id = u.id AND ev.status = 'approved'
+      )`
+    : query.education === "unverified"
+      ? sql`AND NOT EXISTS (
+          SELECT 1
+          FROM education_verifications ev
+          WHERE ev.user_id = u.id AND ev.status = 'approved'
+        )`
+      : sql``;
+  const teamClause = query.team === "in_team"
+    ? sql`AND EXISTS (
+        SELECT 1
+        FROM team_memberships tm
+        INNER JOIN teams t ON t.id = tm.team_id
+        WHERE tm.user_id = u.id AND tm.ended_at IS NULL AND t.status = 'active'
+      )`
+    : query.team === "none"
+      ? sql`AND NOT EXISTS (
+          SELECT 1
+          FROM team_memberships tm
+          INNER JOIN teams t ON t.id = tm.team_id
+          WHERE tm.user_id = u.id AND tm.ended_at IS NULL AND t.status = 'active'
+        )`
+      : sql``;
+  const activityClause = query.activity === "all"
+    ? sql``
+    : sql`AND EXISTS (
+        SELECT 1
+        FROM user_sessions us
+        WHERE us.user_id = u.id
+          AND us.last_active_at >= NOW() - ${query.activity === "24h" ? sql`INTERVAL '24 hours'` : query.activity === "7d" ? sql`INTERVAL '7 days'` : sql`INTERVAL '30 days'`}
+      )`;
   const groupedUsers = sql`
     SELECT
       u.id,
@@ -99,22 +163,26 @@ export async function getAdminUsersList(query: AdminUsersQuery): Promise<AdminUs
       u.display_name,
       u.perfect_name,
       sp.persona_name,
+      sp.profile_url AS steam_profile_url,
       u.steam64,
+      u.qq,
       u.created_at,
       COUNT(DISTINCT sr.season_id)::int AS season_count
     FROM users u
     LEFT JOIN season_registrations sr ON sr.user_id = u.id
     LEFT JOIN steam_profiles sp ON sp.steam64 = u.steam64
-    WHERE u.status = 'active'
-      AND u.role = 'user'
+      WHERE u.status = 'active'
       ${searchClause}
-    GROUP BY u.id, sp.persona_name
+      ${educationClause}
+      ${teamClause}
+      ${activityClause}
+    GROUP BY u.id, sp.persona_name, sp.profile_url
     ${havingClause}
   `;
 
   const [countResult, datasetResult, rowsResult] = await Promise.all([
     db.execute(sql`WITH user_rows AS (${groupedUsers}) SELECT COUNT(*)::int AS total FROM user_rows`),
-    db.execute(sql`SELECT COUNT(*)::int AS total FROM users WHERE status = 'active' AND role = 'user'`),
+    db.execute(sql`SELECT COUNT(*)::int AS total FROM users WHERE status = 'active'`),
     db.execute(sql`
       WITH user_rows AS (${groupedUsers})
       SELECT *
@@ -129,15 +197,15 @@ export async function getAdminUsersList(query: AdminUsersQuery): Promise<AdminUs
   const totalPages = Math.ceil(total / ADMIN_USERS_PAGE_SIZE);
   const page = totalPages > 0 ? Math.min(query.page, totalPages) : 1;
   const rows = page === query.page
-    ? rowsResult.rows as unknown as AdminUserListRow[]
-    : (await db.execute(sql`
+    ? normalizeAdminUserRows(rowsResult.rows)
+    : normalizeAdminUserRows((await db.execute(sql`
         WITH user_rows AS (${groupedUsers})
         SELECT *
         FROM user_rows
         ORDER BY created_at DESC, id DESC
         LIMIT ${ADMIN_USERS_PAGE_SIZE}
         OFFSET ${(page - 1) * ADMIN_USERS_PAGE_SIZE}
-      `)).rows as unknown as AdminUserListRow[];
+      `)).rows);
 
   return {
     rows,

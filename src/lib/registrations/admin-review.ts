@@ -264,6 +264,9 @@ async function projectTeamRegistrationRows(
             participantId: competitionEntryParticipants.id,
             userId: users.id,
             email: users.email,
+            qq: users.qq,
+            steam64: users.steam64,
+            steamProfileUrl: steamProfiles.profileUrl,
             displayName: users.displayName,
             perfectName: users.perfectName,
             personaName: steamProfiles.personaName,
@@ -306,6 +309,7 @@ async function projectTeamRegistrationRows(
       .map((member) => ({
         ...member,
         label: getDisplayName(member),
+        steamProfileUrl: normalizeSteamProfileUrl(member.steamProfileUrl),
         readiness: readinessByUser.get(member.userId),
       }));
     const qualification = competitiveContext === null
@@ -514,6 +518,7 @@ export async function getSoloRegistrationReview(
   const rows = await db
     .select({
       id: seasonRegistrations.id,
+      userId: users.id,
       primaryPosition: seasonRegistrations.primaryPosition,
       secondaryPosition: seasonRegistrations.secondaryPosition,
       peakRank: seasonRegistrations.peakRank,

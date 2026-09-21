@@ -51,6 +51,8 @@
 
 人物主标签必须消费 canonical identity formatter：公开 surface 使用 `displayName → official Steam personaName → perfectName → 未知用户`；内部/operator surface 使用 `displayName → official Steam personaName → perfectName → email local-part → 未知用户`。`users` 中不存在可进入 canonical resolver 的手填 Steam 昵称；官方 personaName 只来自按 Steam64 键控的服务端缓存投影。完整邮箱只有在账号、联系、核验、归并或 disambiguation 本身就是当前任务时，才作为明确标注的 detail 展示，不能冒充人物主标签。Major 实力参考的普通 UI 展示真实的历史、参考赛季、近期段位/星级、必要的可比 Rating 与来源；系统参考顺序、真实并列和最终种子使用语义化表达，内部排序/换算标量、rank ordinal 与并列组编号不进入普通 UI。
 
+后台 operator surface 对已有 canonical `userId` 统一使用窄 `PlayerProfileLink`；联系方式只由有权限的 server read model 显式投影给 `AdminPlayerContact`，仅在后台提供查看、复制或打开，不进入 public Player DTO。selector、checkbox 或 voting 的 primary action 旁如需 profile access，使用独立 secondary affordance，不能把链接嵌入主操作。
+
 长期 Team membership、Entry roster、EventRoster、MatchRoster 和 StageRun entrant 是不同事实；UI 必须使用对应业务名称，不能为了简化展示把一种状态冒充另一种。
 
 内部模型和领域文档可以使用 long-lived Team / 长期 Team 来区分 CompetitionEntry；用户可见界面统一称为「队伍」。普通界面不得出现「长期 Team」「长期队伍」或「active 队伍」；涉及赛事上下文时使用「队伍」「本届赛事」「本届名单」或「赛事队伍」等业务名称。

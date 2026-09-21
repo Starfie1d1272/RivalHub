@@ -6,6 +6,8 @@ import { toast } from "sonner";
 import { reviewRegistration } from "@/actions/admin";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { AdminPlayerContact } from "@/components/admin/AdminPlayerContact";
+import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
 import { Card } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { positionLabel } from "@/lib/validators/registration";
@@ -177,7 +179,7 @@ export function RegistrationReviewList({
               <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0 flex-1 space-y-1.5">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-medium">{getDisplayName(r)}</span>
+                    <PlayerProfileLink userId={r.userId} className="font-medium">{getDisplayName(r)}</PlayerProfileLink>
                     <Badge variant="outline" className={STATUS_STYLES[r.status]}>
                       {REGISTRATION_STATUS_LABELS[r.status as keyof typeof REGISTRATION_STATUS_LABELS]}
                     </Badge>
@@ -187,8 +189,8 @@ export function RegistrationReviewList({
                   <div className="space-y-0.5 text-sm text-[var(--color-fg-mid)]">
                     <p>位置：{positionLabel(r.primaryPosition)}（主）| {positionLabel(r.secondaryPosition)}（次）</p>
                     <p>最高段位：{r.peakRank}（{r.peakRankSeason}）Rating {r.peakRating}{" | "}当前赛季：{r.currentSeasonPeakRank} Rating {r.currentRating}</p>
-                    <p>{r.email}{r.qq && ` | QQ: ${r.qq}`}{r.studentId && ` | 学号: ${r.studentId}`}</p>
-                    {r.steam64 && <p>Steam64: {r.steam64}{r.steamProfileUrl && <>{" | "}<a href={r.steamProfileUrl} target="_blank" rel="noopener noreferrer" className="underline hover:text-[var(--color-fg)]">Steam 主页</a></>}</p>}
+                    <p>{r.email}{r.studentId && ` | 学号: ${r.studentId}`}</p>
+                    <AdminPlayerContact email={r.email} qq={r.qq} steam64={r.steam64} steamProfileUrl={r.steamProfileUrl} />
                     {r.gameplayStyle && <p>风格：{r.gameplayStyle}</p>}
                     {r.competitionHistory && <p>比赛经历：{r.competitionHistory}</p>}
                     {r.notes && <p>备注：{r.notes}</p>}

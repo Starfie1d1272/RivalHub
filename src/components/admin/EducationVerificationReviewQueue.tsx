@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { reviewEducationVerification } from "@/actions/education-verifications";
 import { EmptyState, Panel } from "@/components/rivalhub";
 import { Button } from "@/components/ui/button";
+import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
 import { formatCST } from "@/lib/utils/date";
 import type { EducationReviewRow } from "@/lib/education/admin-review-contract";
 
@@ -65,7 +66,7 @@ export function EducationVerificationReviewQueue({ rows, emptyState }: Education
             <Panel key={row.id} contentClassName="p-5">
               <div className="space-y-2">
                 <p className="font-semibold">
-                  {row.displayName ?? "未知用户"} · {row.status === "pending" ? "待审核" : row.status === "approved" ? "已通过" : "已驳回"}
+                  <PlayerProfileLink userId={row.userId}>{row.displayName ?? "未知用户"}</PlayerProfileLink> · {row.status === "pending" ? "待审核" : row.status === "approved" ? "已通过" : "已驳回"}
                 </p>
                 <p className="text-sm text-[var(--color-fg-mid)]">账号：{row.email}</p>
                 <p className="text-sm">声明学校：{row.institution}{row.code ? `（${row.code}）` : ""} · {row.academicStatus === "enrolled" ? "在读" : "已毕业"}</p>

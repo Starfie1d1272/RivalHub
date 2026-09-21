@@ -121,6 +121,7 @@ export async function getEducationReviewQueue(query: EducationReviewQuery): Prom
 
   const rows = await db.select({
     id: educationVerifications.id,
+    userId: users.id,
     email: users.email,
     displayName: users.displayName,
     perfectName: users.perfectName,

@@ -19,10 +19,15 @@ describe("PR3 admin operational list read models", () => {
     const seasonId = randomUUID();
     const largeInviteSeasonId = randomUUID();
     const userIds = Array.from({ length: 52 }, () => randomUUID());
+    const adminOnlyId = randomUUID();
+    const adminOnlyMarker = `admin-user-${randomUUID().replaceAll("-", "")}`;
     const registrationIds = Array.from({ length: 26 }, () => randomUUID());
     const inviteIds = Array.from({ length: 5 }, () => randomUUID());
     const largeInviteIds = Array.from({ length: 52 }, () => randomUUID());
     const caseIds = Array.from({ length: 26 }, () => randomUUID());
+    const institutionId = randomUUID();
+    const teamId = randomUUID();
+    const membershipId = randomUUID();
     const now = new Date();
     const profileSteam64 = "76561198000000100";
 
@@ -40,21 +45,72 @@ describe("PR3 admin operational list read models", () => {
 
       for (const [index, userId] of userIds.entries()) {
         await pool.query(
-          `INSERT INTO users (id, email, display_name, perfect_name, steam64)
-           VALUES ($1, $2, $3, $4, $5)`,
+          `INSERT INTO users (id, email, display_name, perfect_name, steam64, qq)
+           VALUES ($1, $2, $3, $4, $5, $6)`,
           [
             userId,
             `${marker}-${index}@local.test`,
             `${marker} player ${index}`,
             `${marker} perfect ${index}`,
             index === 0 ? profileSteam64 : null,
+            index === 0 ? "12345678" : null,
           ],
         );
       }
       await pool.query(
+        `INSERT INTO users (id, email, display_name, role)
+         VALUES ($1, $2, $3, 'super_admin')`,
+        [adminOnlyId, `${adminOnlyMarker}@local.test`, adminOnlyMarker],
+      );
+      await pool.query(
         `INSERT INTO steam_profiles (steam64, persona_name, profile_url, avatar_url)
          VALUES ($1, $2, $3, NULL)`,
         [profileSteam64, `${marker} official`, "https://steamcommunity.com/id/pr3-player"],
+      );
+      await pool.query(
+        `INSERT INTO institutions (id, name, source, source_version)
+         VALUES ($1, $2, 'manual', 'pr3-test')`,
+        [institutionId, `${marker} institution`],
+      );
+      const teamFixture = await pool.connect();
+      try {
+        await teamFixture.query("BEGIN");
+        await teamFixture.query(
+          `INSERT INTO teams (id, slug, name, creator_user_id, captain_user_id)
+           VALUES ($1, $2, $3, $4, $4)`,
+          [teamId, `${marker}-team`, `${marker} team`, userIds[0]],
+        );
+        await teamFixture.query(
+          `INSERT INTO team_memberships (id, team_id, user_id, status)
+           VALUES ($1, $2, $3, 'active')`,
+          [membershipId, teamId, userIds[0]],
+        );
+        await teamFixture.query(
+          `INSERT INTO team_captain_changes (team_id, from_user_id, to_user_id, changed_by_actor_id)
+           VALUES ($1, NULL, $2, 'admin-high-value-lists-test')`,
+          [teamId, userIds[0]],
+        );
+        await teamFixture.query(
+          `INSERT INTO team_name_changes (team_id, old_name, new_name, changed_by_actor_id)
+           VALUES ($1, NULL, $2, 'admin-high-value-lists-test')`,
+          [teamId, `${marker} team`],
+        );
+        await teamFixture.query("COMMIT");
+      } catch (error) {
+        await teamFixture.query("ROLLBACK").catch(() => {});
+        throw error;
+      } finally {
+        teamFixture.release();
+      }
+      await pool.query(
+        `INSERT INTO education_verifications (id, user_id, institution_id, academic_status, evidence_type, status)
+         VALUES ($1, $2, $3, 'enrolled', 'institutional_email', 'approved')`,
+        [randomUUID(), userIds[0], institutionId],
+      );
+      await pool.query(
+        `INSERT INTO user_sessions (user_id, last_active_at)
+         VALUES ($1, $2)`,
+        [userIds[0], now],
       );
 
       for (const [index, registrationId] of registrationIds.entries()) {
@@ -222,6 +278,21 @@ describe("PR3 admin operational list read models", () => {
       expect(participated.total).toBe(26);
       const notParticipated = await getAdminUsersList(normalizeAdminUsersQuery(new URLSearchParams({ q: marker, filter: "none" })));
       expect(notParticipated.total).toBe(26);
+      const approvedUsers = await getAdminUsersList(normalizeAdminUsersQuery(new URLSearchParams({ q: marker, education: "approved" })));
+      expect(approvedUsers.total).toBe(1);
+      expect(approvedUsers.rows[0]?.qq).toBe("12345678");
+      expect(approvedUsers.rows[0]?.steam_profile_url).toBe("https://steamcommunity.com/id/pr3-player");
+      const unverifiedUsers = await getAdminUsersList(normalizeAdminUsersQuery(new URLSearchParams({ q: marker, education: "unverified" })));
+      expect(unverifiedUsers.total).toBe(51);
+      const teamUsers = await getAdminUsersList(normalizeAdminUsersQuery(new URLSearchParams({ q: marker, team: "in_team" })));
+      expect(teamUsers.total).toBe(1);
+      const usersWithoutTeam = await getAdminUsersList(normalizeAdminUsersQuery(new URLSearchParams({ q: marker, team: "none" })));
+      expect(usersWithoutTeam.total).toBe(51);
+      const recentlyActiveUsers = await getAdminUsersList(normalizeAdminUsersQuery(new URLSearchParams({ q: marker, activity: "24h" })));
+      expect(recentlyActiveUsers.total).toBe(1);
+      const adminUser = await getAdminUsersList(normalizeAdminUsersQuery(new URLSearchParams({ q: adminOnlyMarker })));
+      expect(adminUser.total).toBe(1);
+      expect(adminUser.rows[0]?.id).toBe(adminOnlyId);
 
       const sanctions = await getSeasonSanctionsAdminReadModel(
         seasonId,
@@ -287,7 +358,28 @@ describe("PR3 admin operational list read models", () => {
       await pool.query("DELETE FROM admin_invites WHERE id = ANY($1::uuid[])", [inviteIds]).catch(() => {});
       await pool.query("DELETE FROM admin_invites WHERE id = ANY($1::uuid[])", [largeInviteIds]).catch(() => {});
       await pool.query("DELETE FROM steam_profiles WHERE steam64 = $1", [profileSteam64]).catch(() => {});
-      await pool.query("DELETE FROM users WHERE id = ANY($1::uuid[])", [userIds]).catch(() => {});
+      await pool.query("DELETE FROM user_sessions WHERE user_id = ANY($1::uuid[])", [userIds]).catch(() => {});
+      await pool.query("DELETE FROM education_verifications WHERE user_id = ANY($1::uuid[])", [userIds]).catch(() => {});
+      const teamCleanup = await pool.connect();
+      try {
+        await teamCleanup.query("BEGIN");
+        // Team history is append-only by product contract. Test teardown is the
+        // only place allowed to bypass those triggers so the fixture leaves no
+        // long-lived rows or expected invariant errors in PostgreSQL logs.
+        await teamCleanup.query("SET LOCAL session_replication_role = 'replica'");
+        await teamCleanup.query("DELETE FROM team_captain_changes WHERE team_id = $1", [teamId]);
+        await teamCleanup.query("DELETE FROM team_name_changes WHERE team_id = $1", [teamId]);
+        await teamCleanup.query("DELETE FROM team_memberships WHERE id = $1", [membershipId]);
+        await teamCleanup.query("DELETE FROM teams WHERE id = $1", [teamId]);
+        await teamCleanup.query("COMMIT");
+      } catch (error) {
+        await teamCleanup.query("ROLLBACK").catch(() => {});
+        throw error;
+      } finally {
+        teamCleanup.release();
+      }
+      await pool.query("DELETE FROM institutions WHERE id = $1", [institutionId]).catch(() => {});
+      await pool.query("DELETE FROM users WHERE id = ANY($1::uuid[])", [[...userIds, adminOnlyId]]).catch(() => {});
       await pool.query("DELETE FROM seasons WHERE id = ANY($1::uuid[])", [[seasonId, largeInviteSeasonId]]).catch(() => {});
       await pool.end();
     }

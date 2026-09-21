@@ -29,6 +29,7 @@ export type EducationReviewSearchParams = Record<string, string | string[] | und
 
 export interface EducationReviewRow {
   id: string;
+  userId: string;
   email: string;
   displayName: string | null;
   institution: string;

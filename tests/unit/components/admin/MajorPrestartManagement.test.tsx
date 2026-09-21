@@ -31,7 +31,7 @@ describe("MajorPrestartManagement", () => {
         approvedAt: null,
         qualificationStatus: "approved",
         selectedAsEntrant: false,
-        roster: { memberCount: 5, primaryStarterCount: 5, members: [] },
+        roster: { memberCount: 5, primaryStarterCount: 5, members: [{ userId: "user-1", label: "Player One", isPrimaryStarter: true }] },
       }],
       entrants: [{
         id: "entrant-1",
@@ -45,6 +45,7 @@ describe("MajorPrestartManagement", () => {
     expect(screen.getByText("报名已通过 · 候选")).toBeVisible();
     expect(screen.getByText("已审核报名名单：5 人 · 5 名主力")).toBeVisible();
     expect(screen.getByText("学籍资料已确认", { exact: false })).toBeVisible();
+    expect(screen.getAllByRole("link", { name: "Player One" })[0]).toHaveAttribute("href", "/players/user-1");
     expect(screen.queryByText(/EventRoster|approved roster|revision|materialize/)).not.toBeInTheDocument();
     expect(screen.queryByText("资格与管理事项")).not.toBeInTheDocument();
   });
