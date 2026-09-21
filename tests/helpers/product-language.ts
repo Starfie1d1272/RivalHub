@@ -182,6 +182,19 @@ function expectedPresentationTextStarts(source: ts.SourceFile): Set<number> {
 export function productLanguageViolations(path: string, text: string, options: ProductLanguageOptions = {}): string[] {
   const source = ts.createSourceFile(path, text, ts.ScriptTarget.Latest, true);
   const violations: string[] = [];
+  const localVisibleCallArguments = new Map<string, Set<number>>();
+
+  function collectVisibleCallArguments(node: ts.Node): void {
+    if (ts.isFunctionDeclaration(node) && node.name) {
+      const indexes = new Set<number>();
+      node.parameters.forEach((parameter, index) => {
+        if (ts.isIdentifier(parameter.name) && visibleProperties.has(parameter.name.text)) indexes.add(index);
+      });
+      if (indexes.size > 0) localVisibleCallArguments.set(node.name.text, indexes);
+    }
+    ts.forEachChild(node, collectVisibleCallArguments);
+  }
+  collectVisibleCallArguments(source);
   const rawFallbackRightStarts = new Set<number>();
   const expectedPresentationStarts = options.expectedErrorsOnly ? expectedPresentationTextStarts(source) : new Set<number>();
   const reported = new Set<string>();
@@ -203,7 +216,18 @@ export function productLanguageViolations(path: string, text: string, options: P
       if (ts.isNewExpression(parent) && parent.expression.getText(source) === "AppError" && parent.arguments?.[0]?.getText(source) === "ErrorCode.INTERNAL_ERROR") return false;
       if (ts.isJsxElement(parent) && parent.openingElement.tagName.getText(source) === "details" && !parent.openingElement.attributes.properties.some((attr) => ts.isJsxAttribute(attr) && attr.name.getText(source) === "open")) return false;
       if (ts.isJsxAttribute(parent)) return visibleAttributes.has(parent.name.getText(source));
-      if (ts.isCallExpression(parent)) return false;
+      if (ts.isCallExpression(parent)) {
+        if (ts.isIdentifier(parent.expression)) {
+          const visibleIndexes = localVisibleCallArguments.get(parent.expression.text);
+          if (visibleIndexes) {
+            const argumentIndex = parent.arguments.findIndex(
+              (argument) => node.getStart(source) >= argument.getStart(source) && node.getEnd() <= argument.getEnd(),
+            );
+            if (argumentIndex >= 0 && visibleIndexes.has(argumentIndex)) return true;
+          }
+        }
+        return false;
+      }
       if (ts.isBinaryExpression(parent) && [ts.SyntaxKind.EqualsEqualsEqualsToken, ts.SyntaxKind.ExclamationEqualsEqualsToken, ts.SyntaxKind.EqualsEqualsToken, ts.SyntaxKind.ExclamationEqualsToken].includes(parent.operatorToken.kind)) return false;
       if (ts.isPropertyAssignment(parent) && visibleProperties.has(parent.name.getText(source))) return true;
       if (ts.isJsxExpression(parent) || ts.isJsxText(node)) return true;
