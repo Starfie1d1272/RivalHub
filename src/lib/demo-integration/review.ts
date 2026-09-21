@@ -16,6 +16,7 @@ import {
 } from "@/lib/identity/gameplay-steam";
 import { getDisplayName } from "@/lib/identity/display-name";
 import { parseRivalHubDemoEvidenceV1 } from "@/lib/demo-evidence/contract";
+import { lockDemoImportLineageInTx } from "./promotion";
 import { revalidateStoredDemoImportInTx, type StoredDemoRevalidationResult } from "./revalidation";
 import { sha256Json } from "./revision";
 import { isCurrentDakSemanticProfile } from "./semantic-profile";
@@ -25,10 +26,15 @@ export const GAMEPLAY_STEAM_CONFLICT_MESSAGE = "这个 Steam64 ID 已关联到�
 const INVALID_STORED_PAYLOAD_MESSAGE = "这份 Demo 数据无法重新读取，请核对或拒绝。";
 
 async function loadReviewImport(tx: TxDb, importId: string) {
+  const [scope] = await tx.select({ matchMapId: matchDemoImports.matchMapId }).from(matchDemoImports)
+    .where(eq(matchDemoImports.id, importId));
+  if (!scope) throw new AppError(ErrorCode.NOT_FOUND, "待处理的 Demo 数据不存在。");
+  await lockDemoImportLineageInTx(tx, scope.matchMapId);
   const [row] = await tx.select().from(matchDemoImports)
     .where(eq(matchDemoImports.id, importId))
     .for("update");
   if (!row) throw new AppError(ErrorCode.NOT_FOUND, "待处理的 Demo 数据不存在。");
+  if (row.matchMapId !== scope.matchMapId) throw new AppError(ErrorCode.INTERNAL_ERROR, "Demo 数据在处理期间发生了目标变化。");
   const [match] = await tx.select().from(matches)
     .where(and(eq(matches.id, row.matchId), eq(matches.seasonId, row.seasonId)))
     .for("update");
