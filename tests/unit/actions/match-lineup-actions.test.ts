@@ -225,11 +225,43 @@ describe("correction workflow actions", () => {
 
   it("plans corrections read-only and forwards proposals", async () => {
     mockedGetMatch.mockResolvedValue(FINISHED_MATCH as never);
-    stubs.planResultCorrectionInTx.mockResolvedValue({ winnerChanges: true, impacts: [], blockedReasons: [] });
+    stubs.planResultCorrectionInTx.mockResolvedValue({
+      matchId: "match-1",
+      stageKey: "internal-stage",
+      stageType: "swiss",
+      current: { scoreA: 0, scoreB: 1, isForfeit: false },
+      proposed: { scoreA: 1, scoreB: 0, isForfeit: false },
+      currentWinnerTeamId: "team-b",
+      proposedWinnerTeamId: "team-a",
+      winnerChanges: true,
+      affectsManagedRun: true,
+      impacts: [{
+        kind: "downstream_match",
+        matchId: "internal-downstream-match",
+        managedKey: "r2-1",
+        status: "scheduled",
+        invalidatable: true,
+        dependencyKnown: true,
+      }],
+      blockedReasons: [{ code: "downstreamStageMaterialized", params: { stageKey: "internal-stage" } }],
+      requiredRecoveryActions: [{ code: "rebuildSwissRounds", params: { fromRound: 2 } }],
+    });
 
     const result = await planMatchResultCorrection("match-1", { scoreA: 1, scoreB: 0 });
 
     expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data).toEqual({
+        current: { scoreA: 0, scoreB: 1, isForfeit: false },
+        proposed: { scoreA: 1, scoreB: 0, isForfeit: false },
+        winnerChanges: true,
+        affectsManagedRun: true,
+        impacts: [{ label: "一场尚未开始的下游比赛将被作废并重建。" }],
+        blockedReasons: ["后续阶段已经基于本阶段结果建立，不能自动重建；需要走赛后裁决。"],
+        requiredRecoveryActions: ["从第 2 轮开始重新确认赛程，直到后续对阵恢复。"],
+      });
+      expect(JSON.stringify(result.data)).not.toMatch(/internal-stage|internal-downstream-match|r2-1|scheduled/);
+    }
     const [txArg, args] = stubs.planResultCorrectionInTx.mock.calls[0]!;
     expect(txArg).toBe(stubs.txStub);
     expect(args.proposal).toEqual({ scoreA: 1, scoreB: 0 });

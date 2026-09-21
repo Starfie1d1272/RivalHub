@@ -12,6 +12,8 @@
 
 presentation owner 对有限集合使用穷举映射（新增状态必须同时补齐用户文案）；对外部或历史数据中的未知值使用明确、安全的人类可读兜底，不得把原始 key 作为 fallback。UI 不直接渲染 `status`、`kind`、`type`、`source`、`mode`、`state` 或 `domain` 等机器语义字段，也不通过 `LABEL[value] ?? value` 或 `|| value` 绕过展示边界。预期业务错误同样由领域 owner 维护稳定的错误 key、结构化参数和用户文案；内部诊断与产品提示分离，`INTERNAL_ERROR` 对外始终只返回通用提示。
 
+后台恢复与影响清单同样遵循这条边界：domain/service 只返回结构化事实，server action 只下发 presentation-safe projection；比赛托管 key、原始状态、阶段 key、确认游标和诊断字段留在服务端，不进入普通 operator UI。
+
 中英混排按视觉层级处理：mono/uppercase tactical chrome 可以保留简短、约定俗成的英文（如 `TBD`、`BO3`、`STAGE2`）；导航、动作、状态和解释正文使用自然中文。同一视觉层的标签保持同一语言语义，不把生命周期结果、回顾或阵容等说明塞进 destination 名称。
 
 账号入口稳定区分「我的参赛」（私有任务）、「个人主页」（公开资料）与「账号设置」。CS2 canonical position key 保持 `igl`、`awper`、`opener`、`closer`、`anchor`。

@@ -3,9 +3,10 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { PRODUCT_LANGUAGE_ALLOWED, internalProductVocabulary, productLanguageViolations } from "tests/helpers/product-language";
 
-// All page/component literals join the gate automatically. Legacy non-UI
-// business messages use this explicit owner registry; AppError presentation
-// owners are discovered from their canonical boundary instead.
+// All page/component literals and presentation owners join the gate
+// automatically. Legacy non-UI business messages use this explicit owner
+// registry; AppError presentation owners are discovered from their canonical
+// boundary instead.
 const messageOwners = [
   "src/lib/competitive/conversion-policy.ts", "src/lib/competitive/conversion-policy-admin.ts",
   "src/lib/seasons/lifecycle.ts", "src/lib/my/readiness.ts", "src/lib/match-rosters/service.ts",
@@ -19,7 +20,8 @@ function sources(root: string): string[] {
 
 describe("product language contract", () => {
   it("keeps normal product text free of internal implementation vocabulary", () => {
-    const files = [...sources("src/app"), ...sources("src/components").filter((path) => !path.includes("/components/rules/")), ...messageOwners];
+    const presentationOwners = sources("src/lib").filter((path) => /(?:^|\/)[^/]*presentation\.tsx?$/.test(path));
+    const files = [...sources("src/app"), ...sources("src/components").filter((path) => !path.includes("/components/rules/")), ...presentationOwners, ...messageOwners];
     expect(files.flatMap((path) => productLanguageViolations(path, readFileSync(path, "utf8")))).toEqual([]);
   });
   it("checks every expected AppError presentation owner without a manual registry", () => {
@@ -72,6 +74,22 @@ describe("product language contract", () => {
     `;
     expect(productLanguageViolations("src/lib/unregistered-owner.ts", source, { expectedErrorsOnly: true })).toEqual([
       expect.stringContaining("当前 StageRun 不能继续"),
+    ]);
+  });
+  it("protects pure-English indirect MESSAGES copy in an unregistered owner", () => {
+    const source = `
+      const MESSAGES = { unsafe: "StageRun invalid" } as const;
+      function unregisteredOwner() {
+        return AppError.withPresentation(ErrorCode.VALIDATION_FAILED, {
+          owner: "unregistered-owner",
+          key: "unsafe",
+          params: {},
+          message: MESSAGES.unsafe,
+        });
+      }
+    `;
+    expect(productLanguageViolations("src/lib/unregistered-owner.ts", source, { expectedErrorsOnly: true })).toEqual([
+      expect.stringContaining("StageRun invalid"),
     ]);
   });
 });

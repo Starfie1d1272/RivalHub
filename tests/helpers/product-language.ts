@@ -194,6 +194,7 @@ export function productLanguageViolations(path: string, text: string, options: P
   }
 
   function visible(node: ts.Node, value: string): boolean {
+    if (expectedPresentationStarts.has(node.getStart(source))) return true;
     // Internal failures are logged; actionError exposes only the generic message.
     const appError = isWithinExpectedAppError(node, source);
     if (appError?.internal) return false;
