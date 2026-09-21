@@ -14,11 +14,14 @@ import {
   institutions,
   majorFinalResults,
   majorTournamentEntrants,
+  matchDemoImports,
+  matchMaps,
   matches,
   postEventAdjudications,
   seasons,
   teams,
   tournamentHonors,
+  userGameplaySteamIds,
   users,
 } from "@/db/schema";
 
@@ -178,5 +181,38 @@ describe("audit target resolver", () => {
 
     expect(target).toMatchObject({ typeLabel: "社区群组", found: false });
     expect(target.label).toContain("已删除 / 历史目标");
+  });
+
+  it("resolves Demo imports and gameplay identities without exposing internal ids", async () => {
+    const demoId = "demo-1";
+    const mapId = "map-1";
+    const matchId = "match-demo-1";
+    const identityId = "identity-1";
+    const userId = "user-demo-1";
+    const { executor } = fakeExecutor(new Map<unknown, unknown[]>([
+      [matchDemoImports, [{ id: demoId, matchMapId: mapId }]],
+      [matchMaps, [{ id: mapId, matchId, mapName: "de_ancient", mapOrder: 2 }]],
+      [matches, [{ id: matchId, entryAId: "entry-1", entryBId: "entry-2" }]],
+      [competitionEntries, [{ id: "entry-1", name: "Alpha" }, { id: "entry-2", name: "Beta" }]],
+      [userGameplaySteamIds, [{ id: identityId, userId, steam64: "76561198000000001", status: "active" }]],
+      [users, [{ id: userId, email: "player@example.test", displayName: "玩家甲", perfectName: null, personaName: null }]],
+    ]));
+
+    const result = await resolveAuditTargets([
+      { action: "match.demo.identity_confirm", targetType: "match_demo_import", targetId: demoId },
+      { action: "match.demo.identity_retire", targetType: "user_gameplay_steam_id", targetId: identityId },
+    ], executor);
+
+    expect(result[auditTargetKey("match_demo_import", demoId)]).toMatchObject({
+      typeLabel: "Demo 数据",
+      label: "Demo 数据 · 第 2 图 · de_ancient · Alpha vs Beta",
+      found: true,
+    });
+    expect(result[auditTargetKey("user_gameplay_steam_id", identityId)]).toMatchObject({
+      typeLabel: "选手 Steam 身份",
+      label: "玩家甲 · Steam64 76561198000000001 · 使用中",
+      found: true,
+    });
+    expect(result[auditTargetKey("match_demo_import", demoId)]?.label).not.toContain("demo-1");
   });
 });

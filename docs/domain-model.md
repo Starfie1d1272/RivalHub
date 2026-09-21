@@ -8,6 +8,8 @@
 
 `users.id` 是自然人的 canonical identity，也是长期公开资料的根实体。Supabase Auth、邮箱与未来 provider identity 都是由 `user_identities` 绑定的 credential，而不是 person id；同一 active external identity 全局只属于一个 canonical user。全局角色只有 `user` 与 `super_admin`；具体赛事管理权由 `season_admin_grants` 单独表达。授权不是客户端状态，也不从历史报名或队伍身份推导。
 
+比赛中的 Steam64 观察身份由 `user_gameplay_steam_ids` 单独拥有。`users.steam64` 是当前主身份；active gameplay alias 只记录经过审计的历史/比赛观察值，不改变登录、报名或当前资料。Demo consumer 必须经 gameplay Steam resolver 解析 primary 与 active alias；retired alias、跨用户冲突和脏数据都 fail closed。比赛确认产生的 alternate identity 必须关联来源 Demo、确认人和原因，并只能由来源赛事的 season admin 经 canonical identity owner 撤销。
+
 credential linking 只证明并绑定新的 identity，不复制或移动赛事事实。两个已有 `users.id` 的归并必须先生成 fail-closed preflight：用户选择的保留账号资料和竞技资料原样不变，待归并账号的竞技资料直接删除；登录身份、已确认的 person facts 和不冲突的业务历史归到保留账号，临时状态关闭，历史 actor/provenance 继续保留原账号。只有 Steam 身份、Team 时间线/队长状态、不同参赛身份或同一地图两份正式比赛数据等无法无歧义处理的事实才阻止自助归并。成功归并后 loser 作为可追溯 alias 保留在 `user_merge_ledger`，不会被无痕删除。
 
 ### Player-declared profile
@@ -109,6 +111,8 @@ Rivals 的个人报名仍由 `season_registrations` 表达；投票由 `captain_
 `matches` 是比赛身份、状态和官方系列赛结果；`match_maps` 是实际进行地图及其回合比分。正常 BO1/BO3/BO5 都由 map-level 事实推导系列赛比分；弃赛只记录官方系列赛结果，不制造未进行地图。
 
 BP、时间协商、实际阵容、玩家统计和赛后资料拥有各自明确事实。后台列表、standings、工作台摘要都只是这些事实的 projection，不成为新的结果或 roster owner。
+
+Demo Evidence 的不可变 payload 与 `match_demo_imports` workflow projection 由 Demo integration owner 管理。正常提交和存量 `/3` recheck 共享同一套 server-owned target、Steam identity、正式比分、QA、回合、summary、effective MatchRoster 和 evidence revision 校验；participant payload 中的客户端 identity resolution 不是事实来源。通过校验的 source round facts 与 `match_player_stats` projection 由同一晋级 owner 物化，并按 Demo lineage 保留 supersede/content conflict；管理员确认只补足 gameplay identity 后触发同一存量 recheck，不另起一套验证或直接改写 payload。
 
 结果更正不能绕开 managed runtime。若更正会影响 Major 后续 pairing/stage，必须通过 recovery owner 处理。
 

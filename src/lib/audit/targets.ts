@@ -22,6 +22,7 @@ import {
   majorStageRuns,
   majorTournamentEntrants,
   matchMaps,
+  matchDemoImports,
   matchRosters,
   matches,
   matchTimeProposals,
@@ -36,6 +37,7 @@ import {
   tournamentHonors,
   users,
   steamProfiles,
+  userGameplaySteamIds,
 } from "@/db/schema";
 import { getDisplayName } from "@/lib/identity/display-name";
 import {
@@ -316,6 +318,41 @@ export async function resolveAuditTargets(
     for (const row of rows) {
       const order = Number.isFinite(row.mapOrder) ? `第 ${row.mapOrder} 图 · ` : "";
       setTarget(result, "match_map", row.id, `${order}${compactLabel(row.mapName)} · ${labels.get(row.matchId) ?? "比赛"}`);
+    }
+  }
+
+  const demoImportIds = grouped.get("match_demo_import") ?? [];
+  if (demoImportIds.length) {
+    const rows = await executor.select({
+      id: matchDemoImports.id,
+      matchMapId: matchDemoImports.matchMapId,
+    }).from(matchDemoImports).where(inArray(matchDemoImports.id, demoImportIds));
+    const maps = await executor.select({
+      id: matchMaps.id,
+      matchId: matchMaps.matchId,
+      mapName: matchMaps.mapName,
+      mapOrder: matchMaps.mapOrder,
+    }).from(matchMaps).where(inArray(matchMaps.id, [...new Set(rows.map((row) => row.matchMapId))]));
+    const labels = await resolveMatchLabels(executor, [...new Set(maps.map((row) => row.matchId))]);
+    const mapById = new Map(maps.map((row) => [row.id, row]));
+    for (const row of rows) {
+      const map = mapById.get(row.matchMapId);
+      if (!map) continue;
+      setTarget(result, "match_demo_import", row.id, `Demo 数据 · 第 ${map.mapOrder} 图 · ${compactLabel(map.mapName)} · ${labels.get(map.matchId) ?? "比赛"}`);
+    }
+  }
+
+  const gameplayIdentityIds = grouped.get("user_gameplay_steam_id") ?? [];
+  if (gameplayIdentityIds.length) {
+    const rows = await executor.select({
+      id: userGameplaySteamIds.id,
+      userId: userGameplaySteamIds.userId,
+      steam64: userGameplaySteamIds.steam64,
+      status: userGameplaySteamIds.status,
+    }).from(userGameplaySteamIds).where(inArray(userGameplaySteamIds.id, gameplayIdentityIds));
+    const names = new Map((await selectUsers(executor, [...new Set(rows.map((row) => row.userId))])).map((row) => [row.id, getDisplayName(row)]));
+    for (const row of rows) {
+      setTarget(result, "user_gameplay_steam_id", row.id, `${names.get(row.userId) ?? "未知选手"} · Steam64 ${row.steam64} · ${row.status === "active" ? "使用中" : "已撤销"}`);
     }
   }
 

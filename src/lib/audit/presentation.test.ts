@@ -79,6 +79,8 @@ describe("audit presentation owner", () => {
     expect(AUDIT_EVENT_REGISTRY["major.swiss.finalize_round"].target).toMatchObject({ type: "major_stage_run", lifecycle: "stable" });
     expect(AUDIT_EVENT_REGISTRY["match.generate_schedule"].target).toMatchObject({ type: "season", lifecycle: "stable" });
     expect(AUDIT_EVENT_REGISTRY["match.delete"].target).toMatchObject({ type: "match", lifecycle: "tombstone" });
+    expect(AUDIT_EVENT_REGISTRY["match.demo.identity_confirm"].target).toMatchObject({ type: "match_demo_import", lifecycle: "stable" });
+    expect(AUDIT_EVENT_REGISTRY["match.demo.identity_retire"].target).toMatchObject({ type: "user_gameplay_steam_id", lifecycle: "stable" });
   });
 
   it("uses a human fallback for unknown actions", () => {
@@ -110,6 +112,14 @@ describe("audit presentation owner", () => {
     expect(reviewSummary).toBe("已记录");
     expect(reviewSummary).not.toContain("内部审核材料");
     expect(summarizeAuditMeta("education_verification.approved", { reviewNote: true })).toBe("含审核备注");
+    const identitySummary = summarizeAuditMeta("match.demo.identity_confirm", {
+      playerName: "选手甲",
+      observedSteam64: "76561198000000001",
+      actorId: "internal-id",
+    });
+    expect(identitySummary).toContain("选手 选手甲");
+    expect(identitySummary).toContain("Steam64 76561198000000001");
+    expect(identitySummary).not.toContain("internal-id");
   });
 
   it("keeps target categories readable without exposing raw type keys", () => {

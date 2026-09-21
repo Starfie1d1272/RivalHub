@@ -60,6 +60,7 @@ describe("AdminMatchRow start gate presentation", () => {
           entryAId: "team-a",
           entryBId: "team-b",
           ownership: "major_stage",
+          demoNeedsAttentionCount: 2,
         }}
         teamAName="Alpha"
         teamBName="Beta"
@@ -70,5 +71,6 @@ describe("AdminMatchRow start gate presentation", () => {
     expect(screen.getByText("Alpha")).toBeInTheDocument();
     expect(screen.getByText("Beta")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "进入比赛工作台 →" })).toHaveAttribute("href", "/admin/local-major/matches/match-1");
+    expect(screen.getByText("Demo 数据需要处理 · 2 张地图")).toBeInTheDocument();
   });
 });

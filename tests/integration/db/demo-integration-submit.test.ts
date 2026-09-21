@@ -5,11 +5,19 @@ import { and, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { describe, expect, it } from "vitest";
 import * as schema from "../../../src/db/schema";
+import { ErrorCode } from "../../../src/lib/errors";
 import { parseRivalHubDemoEvidenceV1 } from "../../../src/lib/demo-evidence/contract";
 import type { RivalHubEvidenceSubmission } from "../../../src/lib/demo-integration/contracts";
 import { readRivalHubEvents } from "../../../src/lib/demo-integration/read";
 import { buildEvidenceRevision, sha256Json } from "../../../src/lib/demo-integration/revision";
+import {
+  confirmStoredDemoParticipantIdentityInTx,
+  GAMEPLAY_STEAM_CONFLICT_MESSAGE,
+  rejectStoredDemoImportInTx,
+  retireSeasonGameplaySteamIdentityInTx,
+} from "../../../src/lib/demo-integration/review";
 import { dakStableScoreboardValues, submitRivalHubEvidence } from "../../../src/lib/demo-integration/submit";
+import { recordGameplaySteamIdentityInTx } from "../../../src/lib/identity/gameplay-steam";
 import { createLocalPool } from "./harness/database";
 
 const fixturePath = resolve(process.cwd(), "tests/fixtures/demo-evidence/normal-map-v1.json");
@@ -446,6 +454,386 @@ describe("DAK evidence submit persistence", () => {
       expect(conflict.status).toBe("needs_attention");
       expect(conflict.issues.some((row) => row.code === "CONTENT_CONFLICT")).toBe(true);
       expect(await database.select().from(schema.matchDemoImports).where(eq(schema.matchDemoImports.matchMapId, ids.map))).toHaveLength(5);
+
+      const primarySteam64 = evidence.participants[0]!.steamId64;
+      const alternateSteam64 = "76561198123456789";
+      const aliasEvidence = parseRivalHubDemoEvidenceV1(JSON.parse(
+        JSON.stringify(evidenceNPlusOne).replaceAll(primarySteam64, alternateSteam64),
+      ) as unknown);
+      aliasEvidence.participants[0] = {
+        ...aliasEvidence.participants[0]!,
+        resolution: { status: "unresolved" },
+      };
+      const needsIdentity = await submitRivalHubEvidence({
+        input: aliasEvidence,
+        pairingId: ids.pairing,
+        pairingScope: { seasonIds: [ids.season] },
+        idempotencyKey: "dak-identity-review-1",
+      });
+      expect(needsIdentity.status).toBe("needs_attention");
+      expect(needsIdentity.issues.some((row) => row.code === "PARTICIPANT_IDENTITY_UNRESOLVED")).toBe(true);
+      expect(needsIdentity.importId).not.toBeNull();
+      if (!needsIdentity.importId) throw new Error("测试未创建身份待处理 Demo");
+
+      const aliasesBeforeWrongParticipant = await database.select().from(schema.userGameplaySteamIds)
+        .where(eq(schema.userGameplaySteamIds.userId, userIds[0]!));
+      await expect(database.transaction((tx) => confirmStoredDemoParticipantIdentityInTx(tx, {
+        importId: needsIdentity.importId!,
+        observedSteam64: alternateSteam64,
+        eventRosterMemberId: eventMemberIds[5]!,
+        actorId: userIds[0]!,
+      }))).rejects.toMatchObject({ code: ErrorCode.VALIDATION_FAILED });
+      expect(await database.select().from(schema.userGameplaySteamIds)
+        .where(eq(schema.userGameplaySteamIds.userId, userIds[0]!))).toEqual(aliasesBeforeWrongParticipant);
+
+      const confirmedByIdentity = await database.transaction((tx) => confirmStoredDemoParticipantIdentityInTx(tx, {
+        importId: needsIdentity.importId!,
+        observedSteam64: alternateSteam64,
+        eventRosterMemberId: eventMemberIds[0]!,
+        actorId: userIds[0]!,
+      }));
+      expect(confirmedByIdentity).toMatchObject({ status: "confirmed", aliasCreated: true, alreadyConfirmed: false, issues: [] });
+      const identityRows = await database.select().from(schema.userGameplaySteamIds).where(eq(schema.userGameplaySteamIds.sourceImportId, needsIdentity.importId));
+      expect(identityRows).toHaveLength(1);
+      expect(identityRows[0]).toMatchObject({ userId: userIds[0], steam64: alternateSteam64, provenance: "admin_confirmed_alternate", status: "active" });
+      expect(await database.select().from(schema.matchDemoImports).where(eq(schema.matchDemoImports.id, needsIdentity.importId))).toMatchObject([
+        expect.objectContaining({ status: "confirmed", payload: aliasEvidence, supersedesImportId: revisedImportId }),
+      ]);
+      expect(await database.select().from(schema.matchRoundFacts).where(eq(schema.matchRoundFacts.importId, needsIdentity.importId))).toHaveLength(aliasEvidence.sourceFacts.rounds.length);
+      expect(await database.select().from(schema.auditLogs).where(and(
+        eq(schema.auditLogs.targetId, needsIdentity.importId),
+        eq(schema.auditLogs.action, "match.demo.identity_confirm"),
+      ))).toHaveLength(1);
+      expect(await database.select().from(schema.auditLogs).where(and(
+        eq(schema.auditLogs.targetId, needsIdentity.importId),
+        eq(schema.auditLogs.action, "match.demo.recheck"),
+      ))).toHaveLength(1);
+
+      const idempotentAliasImportId = randomUUID();
+      const idempotentAliasEvidence = parseRivalHubDemoEvidenceV1({
+        ...aliasEvidence,
+        participants: aliasEvidence.participants.map((participant, index) => index === 0
+          ? { ...participant, nameSnapshot: `${participant.nameSnapshot}（重复确认）` }
+          : participant),
+      });
+      await database.insert(schema.matchDemoImports).values({
+        id: idempotentAliasImportId,
+        seasonId: ids.season,
+        matchId: ids.match,
+        matchMapId: ids.map,
+        stageKey: "fixture-stage",
+        stageRunId: null,
+        demoSha256: idempotentAliasEvidence.source.demoSha256,
+        payloadSha256: sha256Json(idempotentAliasEvidence),
+        contractVersion: idempotentAliasEvidence.contract.contractVersion,
+        semanticProfile: idempotentAliasEvidence.contract.semanticProfile,
+        analysisVersion: idempotentAliasEvidence.contract.analysisVersion,
+        evidenceRevision: idempotentAliasEvidence.target.evidenceRevision,
+        status: "needs_attention",
+        payload: idempotentAliasEvidence,
+        submittedByPairingId: ids.pairing,
+        idempotencyKey: "dak-identity-idempotent-alias-1",
+        supersedesImportId: null,
+        issues: [{
+          code: "PARTICIPANT_IDENTITY_UNRESOLVED",
+          path: `participants.${alternateSteam64}`,
+          message: "选手身份未能以 Steam64 唯一匹配，不能自动接收。",
+        }],
+        submittedAt: new Date(now.getTime() + 2_000),
+        confirmedAt: null,
+        createdAt: new Date(now.getTime() + 2_000),
+      });
+      const activeAliasBeforeIdempotency = await database.select().from(schema.userGameplaySteamIds)
+        .where(eq(schema.userGameplaySteamIds.userId, userIds[0]!));
+      const repeatedAliasConfirmation = await database.transaction((tx) => confirmStoredDemoParticipantIdentityInTx(tx, {
+        importId: idempotentAliasImportId,
+        observedSteam64: alternateSteam64,
+        eventRosterMemberId: eventMemberIds[0]!,
+        actorId: userIds[0]!,
+      }));
+      expect(repeatedAliasConfirmation).toMatchObject({ status: "confirmed", aliasCreated: false, alreadyConfirmed: false, issues: [] });
+      expect(await database.select().from(schema.userGameplaySteamIds)
+        .where(eq(schema.userGameplaySteamIds.userId, userIds[0]!))).toEqual(activeAliasBeforeIdempotency);
+
+      const [identity] = identityRows;
+      if (!identity) throw new Error("测试未保存 gameplay alias");
+      const retired = await database.transaction((tx) => retireSeasonGameplaySteamIdentityInTx(tx, {
+        identityId: identity.id,
+        seasonId: ids.season,
+        actorId: userIds[0]!,
+        reason: "测试撤销错误身份确认",
+      }));
+      expect(retired).toEqual({ retired: true });
+      expect(await database.select().from(schema.userGameplaySteamIds).where(eq(schema.userGameplaySteamIds.id, identity.id))).toMatchObject([
+        expect.objectContaining({ status: "retired", retiredReason: "测试撤销错误身份确认" }),
+      ]);
+      await expect(database.transaction((tx) => retireSeasonGameplaySteamIdentityInTx(tx, {
+        identityId: identity.id,
+        seasonId: randomUUID(),
+        actorId: userIds[0]!,
+        reason: "跨赛季猜测撤销",
+      }))).rejects.toMatchObject({ code: ErrorCode.FORBIDDEN });
+
+      const profileChangeIdentityId = randomUUID();
+      await database.insert(schema.userGameplaySteamIds).values({
+        id: profileChangeIdentityId,
+        userId: userIds[1]!,
+        steam64: "76561198123456780",
+        status: "active",
+        provenance: "profile_change",
+        sourceImportId: null,
+        confirmedByUserId: userIds[1]!,
+        confirmedAt: now,
+        reason: "用户更换当前 Steam64，保留历史游戏身份。",
+      });
+      await expect(database.transaction((tx) => retireSeasonGameplaySteamIdentityInTx(tx, {
+        identityId: profileChangeIdentityId,
+        seasonId: ids.season,
+        actorId: userIds[0]!,
+        reason: "赛事管理员尝试撤销 profile_change",
+      }))).rejects.toMatchObject({ code: ErrorCode.FORBIDDEN });
+      expect(await database.select().from(schema.userGameplaySteamIds).where(eq(schema.userGameplaySteamIds.id, profileChangeIdentityId))).toMatchObject([
+        expect.objectContaining({ status: "active", provenance: "profile_change" }),
+      ]);
+
+      const retiredAliasEvidence = parseRivalHubDemoEvidenceV1({
+        ...aliasEvidence,
+        participants: aliasEvidence.participants.map((participant, index) => index === 0
+          ? { ...participant, nameSnapshot: `${participant.nameSnapshot}（撤销后）` }
+          : participant),
+      });
+      const retiredAliasRetry = await submitRivalHubEvidence({
+        input: retiredAliasEvidence,
+        pairingId: ids.pairing,
+        pairingScope: { seasonIds: [ids.season] },
+        idempotencyKey: "dak-retired-alias-review-1",
+      });
+      expect(retiredAliasRetry.status).toBe("needs_attention");
+      expect(retiredAliasRetry.issues.some((row) => row.code === "PARTICIPANT_IDENTITY_UNRESOLVED")).toBe(true);
+
+      const primaryIdempotentImportId = randomUUID();
+      const primaryIdempotentEvidence = parseRivalHubDemoEvidenceV1({
+        ...evidenceNPlusOne,
+        participants: evidenceNPlusOne.participants.map((participant, index) => index === 0
+          ? { ...participant, nameSnapshot: `${participant.nameSnapshot}（主身份已恢复）`, resolution: { status: "unresolved" } }
+          : participant),
+      });
+      await database.insert(schema.matchDemoImports).values({
+        id: primaryIdempotentImportId,
+        seasonId: ids.season,
+        matchId: ids.match,
+        matchMapId: ids.map,
+        stageKey: "fixture-stage",
+        stageRunId: null,
+        demoSha256: primaryIdempotentEvidence.source.demoSha256,
+        payloadSha256: sha256Json(primaryIdempotentEvidence),
+        contractVersion: primaryIdempotentEvidence.contract.contractVersion,
+        semanticProfile: primaryIdempotentEvidence.contract.semanticProfile,
+        analysisVersion: primaryIdempotentEvidence.contract.analysisVersion,
+        evidenceRevision: primaryIdempotentEvidence.target.evidenceRevision,
+        status: "needs_attention",
+        payload: primaryIdempotentEvidence,
+        submittedByPairingId: ids.pairing,
+        idempotencyKey: "dak-identity-idempotent-primary-1",
+        supersedesImportId: null,
+        issues: [{
+          code: "PARTICIPANT_IDENTITY_UNRESOLVED",
+          path: `participants.${primarySteam64}`,
+          message: "选手身份未能以 Steam64 唯一匹配，不能自动接收。",
+        }],
+        submittedAt: new Date(now.getTime() + 3_000),
+        confirmedAt: null,
+        createdAt: new Date(now.getTime() + 3_000),
+      });
+      const primaryIdentityBeforeIdempotency = await database.select().from(schema.userGameplaySteamIds)
+        .where(eq(schema.userGameplaySteamIds.userId, userIds[0]!));
+      const repeatedPrimaryConfirmation = await database.transaction((tx) => confirmStoredDemoParticipantIdentityInTx(tx, {
+        importId: primaryIdempotentImportId,
+        observedSteam64: primarySteam64,
+        eventRosterMemberId: eventMemberIds[0]!,
+        actorId: userIds[0]!,
+      }));
+      expect(repeatedPrimaryConfirmation).toMatchObject({ status: "confirmed", aliasCreated: false, alreadyConfirmed: false, issues: [] });
+      expect(await database.select().from(schema.userGameplaySteamIds)
+        .where(eq(schema.userGameplaySteamIds.userId, userIds[0]!))).toEqual(primaryIdentityBeforeIdempotency);
+
+      const scoreOnlyEvidence = parseRivalHubDemoEvidenceV1({
+        ...evidenceNPlusOne,
+        quality: {
+          ...evidenceNPlusOne.quality,
+          qa: { ...evidenceNPlusOne.quality.qa, ok: false, issueCount: 1, errorCount: 1 },
+        },
+      });
+      const scoreOnly = await submitRivalHubEvidence({
+        input: scoreOnlyEvidence,
+        pairingId: ids.pairing,
+        pairingScope: { seasonIds: [ids.season] },
+        idempotencyKey: "dak-score-only-review-1",
+      });
+      expect(scoreOnly.status).toBe("needs_attention");
+      expect(scoreOnly.issues.some((row) => row.code === "DAK_QA_FAILED")).toBe(true);
+      expect(scoreOnly.issues.some((row) => row.code === "PARTICIPANT_IDENTITY_UNRESOLVED")).toBe(false);
+      if (!scoreOnly.importId) throw new Error("测试未创建比分/QA 待处理 Demo");
+      const aliasesBeforeScoreOnlyConfirm = await database.select().from(schema.userGameplaySteamIds);
+      await expect(database.transaction((tx) => confirmStoredDemoParticipantIdentityInTx(tx, {
+        importId: scoreOnly.importId!,
+        observedSteam64: primarySteam64,
+        eventRosterMemberId: eventMemberIds[0]!,
+        actorId: userIds[0]!,
+      }))).rejects.toMatchObject({ code: ErrorCode.VALIDATION_FAILED });
+      expect(await database.select().from(schema.userGameplaySteamIds)).toEqual(aliasesBeforeScoreOnlyConfirm);
+      await database.transaction((tx) => rejectStoredDemoImportInTx(tx, { importId: scoreOnly.importId!, actorId: userIds[0]! }));
+
+      const conflictingSteam64 = "76561198123456781";
+      await database.transaction((tx) => recordGameplaySteamIdentityInTx(tx, {
+        userId: userIds[5]!,
+        steam64: conflictingSteam64,
+        actorId: userIds[5]!,
+        provenance: "admin_confirmed_alternate",
+        reason: "测试跨用户 gameplay alias 冲突。",
+      }));
+      const crossUserEvidence = parseRivalHubDemoEvidenceV1(JSON.parse(
+        JSON.stringify({ ...evidenceNPlusOne, source: { ...evidenceNPlusOne.source, demoSha256: "d".repeat(64) } })
+          .replaceAll(primarySteam64, conflictingSteam64),
+      ) as unknown);
+      crossUserEvidence.participants[0] = {
+        ...crossUserEvidence.participants[0]!,
+        resolution: { status: "unresolved" },
+      };
+      const crossUserReview = await submitRivalHubEvidence({
+        input: crossUserEvidence,
+        pairingId: ids.pairing,
+        pairingScope: { seasonIds: [ids.season] },
+        idempotencyKey: "dak-cross-user-confirm-review-1",
+      });
+      expect(crossUserReview.status).toBe("needs_attention");
+      expect(crossUserReview.importId).not.toBeNull();
+      if (!crossUserReview.importId) throw new Error("测试未创建跨用户身份冲突 Demo");
+      const aliasesBeforeCrossUserConfirm = await database.select().from(schema.userGameplaySteamIds);
+      await expect(database.transaction((tx) => confirmStoredDemoParticipantIdentityInTx(tx, {
+        importId: crossUserReview.importId!,
+        observedSteam64: conflictingSteam64,
+        eventRosterMemberId: eventMemberIds[0]!,
+        actorId: userIds[0]!,
+      }))).rejects.toMatchObject({ code: ErrorCode.VALIDATION_FAILED, message: GAMEPLAY_STEAM_CONFLICT_MESSAGE });
+      expect(await database.select().from(schema.userGameplaySteamIds)).toEqual(aliasesBeforeCrossUserConfirm);
+
+      const insertLineageImport = async (input: {
+        id: string;
+        evidence: RivalHubEvidenceSubmission;
+        status: "confirmed" | "needs_attention" | "stale";
+        createdAt: Date;
+        issues?: readonly { code: string; path?: string; message: string }[];
+      }) => {
+        await database.insert(schema.matchDemoImports).values({
+          id: input.id,
+          seasonId: ids.season,
+          matchId: ids.match,
+          matchMapId: ids.map,
+          stageKey: input.evidence.target.stageKey,
+          stageRunId: input.evidence.target.stageRunId ?? null,
+          demoSha256: input.evidence.source.demoSha256,
+          payloadSha256: sha256Json(input.evidence),
+          contractVersion: input.evidence.contract.contractVersion,
+          semanticProfile: input.evidence.contract.semanticProfile,
+          analysisVersion: input.evidence.contract.analysisVersion,
+          evidenceRevision: input.evidence.target.evidenceRevision,
+          status: input.status,
+          payload: input.evidence,
+          submittedByPairingId: ids.pairing,
+          idempotencyKey: `dak-lineage-${input.id}`,
+          supersedesImportId: null,
+          issues: input.issues ?? [],
+          submittedAt: input.createdAt,
+          confirmedAt: input.status === "confirmed" ? input.createdAt : null,
+          createdAt: input.createdAt,
+        });
+      };
+      const lineageEvidence = (suffix: string) => parseRivalHubDemoEvidenceV1({
+        ...evidenceNPlusOne,
+        participants: evidenceNPlusOne.participants.map((participant, index) => index === 0
+          ? { ...participant, nameSnapshot: `Fixture Player 01 (${suffix})` }
+          : participant),
+      });
+      const lineageNeedsAttentionId = randomUUID();
+      await insertLineageImport({
+        id: lineageNeedsAttentionId,
+        evidence: lineageEvidence("newer-needs-attention"),
+        status: "needs_attention",
+        createdAt: new Date(now.getTime() + 4_000),
+        issues: [{ code: "DAK_QA_FAILED", path: "quality.qa", message: "测试中的历史 QA 问题。" }],
+      });
+      const lineageCurrent = await submitRivalHubEvidence({
+        input: lineageEvidence("current-after-needs-attention"),
+        pairingId: ids.pairing,
+        pairingScope: { seasonIds: [ids.season] },
+        idempotencyKey: "dak-lineage-current-after-needs-attention-1",
+      });
+      expect(lineageCurrent.status).toBe("synced");
+      if (!lineageCurrent.importId) throw new Error("测试未创建 needs_attention lineage promotion Demo");
+      const afterNeedsAttentionPromotion = await database.select().from(schema.matchDemoImports)
+        .where(eq(schema.matchDemoImports.matchMapId, ids.map));
+      expect(afterNeedsAttentionPromotion.find((row) => row.id === primaryIdempotentImportId)).toMatchObject({ status: "superseded" });
+      expect(afterNeedsAttentionPromotion.find((row) => row.id === lineageNeedsAttentionId)).toMatchObject({ status: "superseded" });
+      expect(afterNeedsAttentionPromotion.find((row) => row.id === lineageCurrent.importId)).toMatchObject({
+        status: "confirmed",
+        supersedesImportId: primaryIdempotentImportId,
+      });
+      expect(afterNeedsAttentionPromotion.filter((row) => row.demoSha256 === evidenceNPlusOne.source.demoSha256 && row.status === "confirmed")).toHaveLength(1);
+
+      const staleLineageId = randomUUID();
+      await insertLineageImport({
+        id: staleLineageId,
+        evidence: lineageEvidence("newer-stale"),
+        status: "stale",
+        createdAt: new Date(now.getTime() + 5_000),
+        issues: [{ code: "STALE_EVIDENCE", path: "target.evidenceRevision", message: "测试中的历史 stale 来源。" }],
+      });
+      const lineageAfterStale = await submitRivalHubEvidence({
+        input: lineageEvidence("current-after-stale"),
+        pairingId: ids.pairing,
+        pairingScope: { seasonIds: [ids.season] },
+        idempotencyKey: "dak-lineage-current-after-stale-1",
+      });
+      expect(lineageAfterStale.status).toBe("synced");
+      if (!lineageAfterStale.importId) throw new Error("测试未创建 stale lineage promotion Demo");
+      const afterStalePromotion = await database.select().from(schema.matchDemoImports)
+        .where(eq(schema.matchDemoImports.matchMapId, ids.map));
+      expect(afterStalePromotion.find((row) => row.id === lineageCurrent.importId)).toMatchObject({ status: "superseded" });
+      expect(afterStalePromotion.find((row) => row.id === staleLineageId)).toMatchObject({ status: "superseded" });
+      expect(afterStalePromotion.find((row) => row.id === lineageAfterStale.importId)).toMatchObject({
+        status: "confirmed",
+        supersedesImportId: lineageCurrent.importId,
+      });
+      expect(afterStalePromotion.filter((row) => row.demoSha256 === evidenceNPlusOne.source.demoSha256 && row.status === "confirmed")).toHaveLength(1);
+
+      const differentDemoConfirmedId = randomUUID();
+      const differentDemoBase = lineageEvidence("different-demo-confirmed");
+      const differentDemoEvidence = parseRivalHubDemoEvidenceV1({
+        ...differentDemoBase,
+        source: { ...differentDemoBase.source, demoSha256: "e".repeat(64) },
+      });
+      await insertLineageImport({
+        id: differentDemoConfirmedId,
+        evidence: differentDemoEvidence,
+        status: "confirmed",
+        createdAt: new Date(now.getTime() + 6_000),
+      });
+      const contentConflict = await submitRivalHubEvidence({
+        input: lineageEvidence("content-conflict"),
+        pairingId: ids.pairing,
+        pairingScope: { seasonIds: [ids.season] },
+        idempotencyKey: "dak-lineage-different-demo-conflict-1",
+      });
+      expect(contentConflict.status).toBe("needs_attention");
+      expect(contentConflict.issues).toEqual([
+        expect.objectContaining({ code: "CONTENT_CONFLICT", path: "source.demoSha256" }),
+      ]);
+      const afterDifferentDemoConflict = await database.select().from(schema.matchDemoImports)
+        .where(eq(schema.matchDemoImports.matchMapId, ids.map));
+      expect(afterDifferentDemoConflict.find((row) => row.id === differentDemoConfirmedId)).toMatchObject({ status: "confirmed" });
+      expect(afterDifferentDemoConflict.find((row) => row.id === lineageAfterStale.importId)).toMatchObject({ status: "confirmed" });
+      expect(afterDifferentDemoConflict.find((row) => row.id === contentConflict.importId)).toMatchObject({ status: "needs_attention" });
     } finally {
       await client.query("ROLLBACK").catch(() => {});
       await client.query("BEGIN").catch(() => {});
@@ -453,6 +841,7 @@ describe("DAK evidence submit persistence", () => {
       await client.query("DELETE FROM match_player_stats WHERE map_id = $1", [ids.map]).catch(() => {});
       await client.query("DELETE FROM match_demo_imports WHERE match_map_id = $1", [ids.map]).catch(() => {});
       await client.query("DELETE FROM audit_logs WHERE season_id = $1", [ids.season]).catch(() => {});
+      await client.query("DELETE FROM user_gameplay_steam_ids WHERE user_id = ANY($1::uuid[])", [userIds]).catch(() => {});
       await client.query("DELETE FROM dak_pairings WHERE id = $1", [ids.pairing]).catch(() => {});
       await client.query("DELETE FROM dak_pairing_intents WHERE id = $1", [ids.pairingIntent]).catch(() => {});
       await client.query("DELETE FROM match_roster_players WHERE roster_id IN ($1, $2)", [ids.rosterA, ids.rosterB]).catch(() => {});
@@ -464,6 +853,7 @@ describe("DAK evidence submit persistence", () => {
       await client.query("DELETE FROM competition_entry_roster_members WHERE id = ANY($1::uuid[])", [rosterMemberIds]).catch(() => {});
       await client.query("DELETE FROM competition_entry_participants WHERE id = ANY($1::uuid[])", [participantIds]).catch(() => {});
       await client.query("DELETE FROM competition_entry_roster_revisions WHERE id IN ($1, $2)", [ids.revisionA, ids.revisionB]).catch(() => {});
+      await client.query("DELETE FROM competition_entry_representative_changes WHERE entry_id IN ($1, $2)", [ids.entryA, ids.entryB]).catch(() => {});
       await client.query("DELETE FROM competition_entries WHERE id IN ($1, $2)", [ids.entryA, ids.entryB]).catch(() => {});
       await client.query("DELETE FROM seasons WHERE id = $1", [ids.season]).catch(() => {});
       await client.query("DELETE FROM users WHERE id = ANY($1::uuid[])", [userIds]).catch(() => {});
