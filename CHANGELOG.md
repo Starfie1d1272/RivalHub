@@ -1,5 +1,33 @@
 # Changelog
 
+## [2.10.5]
+
+### Fixed
+
+#### Product Language Boundary
+
+收紧动态状态与预期业务错误的用户文案边界：状态通过类型化展示映射输出，未知值不再回退为内部键，业务错误的内部诊断与用户提示分离。
+
+#### Demo Steam 身份复核
+
+管理员现在可以在单场比赛工作台处理 `/3` Demo 中需要核对的 Steam 身份：确认后会复用完整 Demo 校验并自动重检，其他问题仍会保留；无效或不应接收的 Demo 可拒绝。比赛中观察到的 Steam64 会作为可审计的 gameplay alternate identity 保存，不会修改登录或报名资料中的当前 Steam64。
+
+#### 账号归并预检
+
+修正账号归并对已批准参赛条目的误判：只有双方同时出现在已批准或已冻结的正式名单中才阻断归并；已退出的历史参与记录不再错误阻断。归并预检同时改用面向用户的中文领域名称，不再显示 `competition`、`team`、`stats` 等内部键。
+
+#### Preview mirror schema 兼容性
+
+修复 Preview mirror 在 production 与 `main` schema 处于 N/N+1 时的兼容性，并为 `Refresh Preview Data` 提供可诊断且不泄漏敏感数据的失败日志。
+
+#### 后台选手身份下钻
+
+统一后台选手身份下钻、联系方式操作，以及教育认证、队伍和最近活跃状态筛选。
+
+#### Immutable release retry operator identity
+
+收紧 immutable release retry 的 operator identity：手动重试只能从当前 main HEAD 发起，operator commit 必须具备 canonical main CI evidence，production migration 只消费 preflight 冻结的 operator SHA。
+
 ## [2.10.4]
 
 ### Fixed
@@ -2279,6 +2307,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[2.10.5]: https://github.com/Starfie1d1272/RivalHub/compare/v2.10.4...v2.10.5
 [2.10.4]: https://github.com/Starfie1d1272/RivalHub/compare/v2.10.3...v2.10.4
 [2.10.3]: https://github.com/Starfie1d1272/RivalHub/compare/v2.10.2...v2.10.3
 [2.10.2]: https://github.com/Starfie1d1272/RivalHub/compare/v2.10.1...v2.10.2
