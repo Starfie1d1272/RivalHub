@@ -8,6 +8,7 @@ import * as schema from "../../../src/db/schema";
 import { ErrorCode } from "../../../src/lib/errors";
 import { parseRivalHubDemoEvidenceV1 } from "../../../src/lib/demo-evidence/contract";
 import type { RivalHubEvidenceSubmission } from "../../../src/lib/demo-integration/contracts";
+import { lockDemoImportLineageInTx } from "../../../src/lib/demo-integration/promotion";
 import { readRivalHubEvents } from "../../../src/lib/demo-integration/read";
 import { buildEvidenceRevision, sha256Json } from "../../../src/lib/demo-integration/revision";
 import {
@@ -23,6 +24,41 @@ import { createLocalPool } from "./harness/database";
 const fixturePath = resolve(process.cwd(), "tests/fixtures/demo-evidence/normal-map-v1.json");
 
 describe("DAK evidence submit persistence", () => {
+  it("serializes mutable Demo workflows on the same map before row locks", async () => {
+    const pool = createLocalPool();
+    const first = await pool.connect();
+    const second = await pool.connect();
+    const mapId = randomUUID();
+    const firstDb = drizzle(first, { schema });
+    try {
+      await first.query("BEGIN");
+      await lockDemoImportLineageInTx(
+        firstDb as unknown as Parameters<typeof lockDemoImportLineageInTx>[0],
+        mapId,
+      );
+
+      await second.query("BEGIN");
+      const whileHeld = await second.query<{ locked: boolean }>(
+        "SELECT pg_try_advisory_xact_lock(hashtextextended($1, 0)) AS locked",
+        [`demo-map:${mapId}`],
+      );
+      expect(whileHeld.rows[0]?.locked).toBe(false);
+
+      await first.query("COMMIT");
+      const afterRelease = await second.query<{ locked: boolean }>(
+        "SELECT pg_try_advisory_xact_lock(hashtextextended($1, 0)) AS locked",
+        [`demo-map:${mapId}`],
+      );
+      expect(afterRelease.rows[0]?.locked).toBe(true);
+    } finally {
+      await first.query("ROLLBACK").catch(() => {});
+      await second.query("ROLLBACK").catch(() => {});
+      first.release();
+      second.release();
+      await pool.end();
+    }
+  });
+
   it("adopts a submitted 10-player roster despite OCR scoreboard drift and preserves OCR-owned stats", async () => {
     const pool = createLocalPool();
     const client = await pool.connect();
