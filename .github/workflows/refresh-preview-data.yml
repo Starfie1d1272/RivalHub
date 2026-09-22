@@ -11,7 +11,7 @@ on:
         default: false
         type: boolean
       migration_ref:
-        description: Ref to use only when applying current migrations
+        description: Manual snapshot policy/current-migration ref used by both jobs; scheduled and post-release refreshes use main
         required: false
         default: main
         type: string
@@ -36,7 +36,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          ref: main
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.migration_ref || 'main' }}
           fetch-depth: 0
       - uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
         with:
