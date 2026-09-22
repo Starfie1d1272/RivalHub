@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.10.6]
+
+### Fixed
+
+#### Demo 审核与身份纠错
+
+比赛后台 Demo 审核聚焦异常选手并说明比分、QA 等阻塞原因，正常身份改为人数摘要。支持填写原因并确认撤销本赛事比赛确认产生的错误 Steam 关联，刷新后重新核对；保留既有身份校验和审计边界。
+
 ## [2.10.5]
 
 ### Fixed
@@ -2307,6 +2315,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[2.10.6]: https://github.com/Starfie1d1272/RivalHub/compare/v2.10.5...v2.10.6
 [2.10.5]: https://github.com/Starfie1d1272/RivalHub/compare/v2.10.4...v2.10.5
 [2.10.4]: https://github.com/Starfie1d1272/RivalHub/compare/v2.10.3...v2.10.4
 [2.10.3]: https://github.com/Starfie1d1272/RivalHub/compare/v2.10.2...v2.10.3
