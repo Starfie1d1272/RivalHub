@@ -13,6 +13,7 @@ const {
   rejectMock,
   retireMock,
   recheckMock,
+  recheckSeasonMock,
   fanoutMock,
   revalidateMatchPathsMock,
 } = vi.hoisted(() => ({
@@ -27,6 +28,7 @@ const {
   rejectMock: vi.fn(),
   retireMock: vi.fn(),
   recheckMock: vi.fn(),
+  recheckSeasonMock: vi.fn(),
   fanoutMock: vi.fn(),
   revalidateMatchPathsMock: vi.fn(),
 }));
@@ -58,11 +60,13 @@ vi.mock("@/lib/demo-integration/review", () => ({
 
 vi.mock("@/lib/demo-integration/revalidation", () => ({
   revalidateStoredDemoImportInTx: recheckMock,
+  revalidateSeasonNeedsAttentionImports: recheckSeasonMock,
   revalidateNeedsAttentionImportsForSteam64: fanoutMock,
 }));
 
 import {
   confirmStoredDemoParticipantIdentity,
+  recheckSeasonStoredDemoImports,
   recheckStoredDemoImport,
   rejectStoredDemoImport,
   retireGameplaySteamIdentity,
@@ -106,6 +110,7 @@ beforeEach(() => {
   confirmMock.mockResolvedValue({ status: "confirmed", importId: IMPORT_ID, issues: [], alreadyConfirmed: false, aliasCreated: true });
   rejectMock.mockResolvedValue({ alreadyRejected: false });
   recheckMock.mockResolvedValue({ status: "confirmed", importId: IMPORT_ID, issues: [] });
+  recheckSeasonMock.mockResolvedValue({ attempted: 2, confirmed: 1, remaining: 1, failed: 0, affectedMatchIds: [MATCH_ID] });
   fanoutMock.mockResolvedValue({ attempted: 0, confirmed: 0, remaining: 0, failed: 0, affectedMatchIds: [] });
   retireMock.mockResolvedValue({ retired: true });
 });
@@ -179,6 +184,15 @@ describe("Demo identity action authorization", () => {
     expect(requireSeasonAdminMock).toHaveBeenCalledWith(OTHER_SEASON_ID);
     expect(rejectMock).not.toHaveBeenCalled();
     expect(transactionMock).not.toHaveBeenCalled();
+  });
+
+  it("allows an own-season admin to recheck all current needs_attention imports in that season", async () => {
+    const result = await recheckSeasonStoredDemoImports({ importId: IMPORT_ID });
+
+    expect(result).toMatchObject({ success: true, data: { attempted: 2, confirmed: 1, remaining: 1, failed: 0 } });
+    expect(requireSeasonAdminMock).toHaveBeenCalledWith(OWN_SEASON_ID);
+    expect(recheckSeasonMock).toHaveBeenCalledWith({ seasonId: OWN_SEASON_ID, actorId: ACTOR_ID });
+    expect(revalidateMatchPathsMock).toHaveBeenCalledWith("own-season", MATCH_ID);
   });
 
   it("allows an own-season admin to recheck immutable stored evidence", async () => {
