@@ -24,7 +24,16 @@ function ParticipantReview({ importId, participant }: { importId: string; partic
     startTransition(async () => {
       const result = await confirmStoredDemoParticipantIdentity({ importId, observedSteam64: participant.observedSteam64, eventRosterMemberId: selected.eventRosterMemberId });
       if (result.success) {
-        toast.success(result.data.status === "confirmed" ? "比赛 Steam 身份已确认，Demo 数据已重新检查。" : "比赛 Steam 身份已保存，但这份 Demo 仍有其他问题需要处理。");
+        const baseMessage = result.data.status === "confirmed"
+          ? "比赛 Steam 身份已确认，Demo 数据已重新检查。"
+          : "比赛 Steam 身份已保存，但这份 Demo 仍有其他问题需要处理。";
+        const related = result.data.relatedRechecks ?? { attempted: 0, confirmed: 0, remaining: 0, failed: 0 };
+        const relatedMessages = [
+          related.confirmed > 0 ? `另外自动确认了 ${related.confirmed} 张受同一身份影响的 Demo。` : "",
+          related.remaining > 0 ? `另有 ${related.remaining} 张相关 Demo 重新检查后仍需处理。` : "",
+          related.failed > 0 ? `另有 ${related.failed} 张自动重新检查失败，可使用“按当前资料重新检查”重试。` : "",
+        ].filter(Boolean);
+        toast.success([baseMessage, ...relatedMessages].join(" "));
         setSelectedId("");
         router.refresh();
       } else toast.error(result.error.message);
