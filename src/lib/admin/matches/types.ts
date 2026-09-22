@@ -69,7 +69,7 @@ export interface AdminDemoReviewParticipant {
   observedSteam64: string;
   demoName: string;
   teamName: string;
-  state: "confirmable" | "conflict-retirable" | "conflict-nonretirable" | "blocked";
+  state: "confirmable" | "conflict-retirable" | "conflict-nonretirable" | "roster-mismatch" | "blocked";
   currentPlayer: { userId: string; name: string } | null;
   retirableIdentityId: string | null;
   note: string | null;
