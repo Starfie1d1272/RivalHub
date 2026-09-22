@@ -114,6 +114,9 @@ importers:
 
   .:
     dependencies:
+      '@cs2dak/tournament':
+        specifier: 1.1.1
+        version: 1.1.1
       '@hookform/resolvers':
         specifier: ^5.9.1
         version: 5.9.1(@standard-schema/spec@1.1.0)(react-hook-form@7.87.0(react@19.2.8))(zod@4.5.4)
@@ -483,6 +486,9 @@ packages:
   '@clack/prompts@1.7.0':
     resolution: {integrity: sha512-y7/yvZ2TPAnR9+jnc00klvNNLkJiXFFrQA/hlLCcxA9a2A4zQIOimyFQ9XfwYKiGD1fb5GY8vbKIIgO8d5Tb2A==}
     engines: {node: '>= 20.12.0'}
+
+  '@cs2dak/tournament@1.1.1':
+    resolution: {integrity: sha512-ZYzT7+xkqEPoeCkX93NeeT+xZLlnumAVLcXqs7wyBQaIcnKwVRqcjinpxOs04Ty8bj2+Mw+3lGG7PxfDS78Vng==}
 
   '@csstools/color-helpers@6.1.1':
     resolution: {integrity: sha512-gLNsunvwf3mCi5u5o46/Z/JcJMnhbHSaZ69rkgPzNM3J4s8hWwpPUQB6/tt0EDFyCiWzxANlx+2LJwpYj4zS1w==}
@@ -5358,6 +5364,8 @@ snapshots:
       fast-string-width: 3.0.2
       fast-wrap-ansi: 0.2.2
       sisteransi: 1.0.5
+
+  '@cs2dak/tournament@1.1.1': {}
 
   '@csstools/color-helpers@6.1.1': {}
 

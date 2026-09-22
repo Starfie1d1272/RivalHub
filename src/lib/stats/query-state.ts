@@ -1,0 +1,21 @@
+import type { Route } from "next";
+import { normalizeLeaderboardState } from "@/lib/matches/leaderboard-view";
+import { applyListQueryUpdates, type ListQueryUpdates } from "@/lib/list-query";
+
+export const STATS_TABS = { overview: "概览", players: "选手", teams: "队伍", maps: "地图" } as const;
+export type StatsTab = keyof typeof STATS_TABS;
+export type StatsSearch = Record<string, string | string[] | undefined>;
+export function parseStatsQuery(raw: StatsSearch, stages: readonly string[]) {
+  const value = (key: string) => typeof raw[key] === "string" ? raw[key] as string : "";
+  const tab = Object.hasOwn(STATS_TABS, value("tab")) ? value("tab") as StatsTab : "overview";
+  const { sort, view } = normalizeLeaderboardState({ sort: value("sort"), view: value("view") });
+  return { tab, sort, view, stage: stages.includes(value("stage")) ? value("stage") : "", map: /^de_[a-z0-9_]+$/.test(value("map")) ? value("map") : "",
+    team: /^[0-9a-f-]{36}$/.test(value("team")) ? value("team") : "", side: value("side") === "t" || value("side") === "ct" ? value("side") as "t" | "ct" : "overall" as const,
+    q: value("q").trim().slice(0, 100), page: /^\d+$/.test(value("page")) ? Math.min(Math.max(Number(value("page")), 1), 100000) : 1 };
+}
+export type StatsQuery = ReturnType<typeof parseStatsQuery>;
+export function statsHref(slug: string, query: StatsQuery, updates: ListQueryUpdates = {}) {
+  const current = applyListQueryUpdates(new URLSearchParams(), query, { defaults: { tab: "overview", view: "core", sort: "rating", side: "overall", page: 1 } });
+  const next = applyListQueryUpdates(current, updates, { defaults: { tab: "overview", view: "core", sort: "rating", side: "overall", page: 1 } });
+  return `/${slug}/stats${next.size ? `?${next}` : ""}` as Route;
+}

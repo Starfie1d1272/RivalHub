@@ -71,7 +71,7 @@ describe("StatsLeaderboard", () => {
     expect(screen.getByRole("link", { name: "Rating" })).not.toHaveClass("border-input");
   });
 
-  it("renders position filter chips", () => {
+  it("does not render registration position filters", () => {
     render(
       <StatsLeaderboard
         seasonSlug="test"
@@ -88,7 +88,7 @@ describe("StatsLeaderboard", () => {
         ]}
       />
     );
-    expect(screen.getByRole("link", { name: "AWPer" })).toHaveAttribute("href", "/test/stats?sort=rating&position=awper");
+    expect(screen.queryByRole("link", { name: "AWPer" })).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "王五" })).toHaveAttribute("href", "/players/u1");
   });
 

@@ -21,3 +21,5 @@ overrides:
   # 退出条件：drizzle-kit 发布移除 @esbuild-kit / 升级内部 tsx 的版本后移除。
   'esbuild@0.18.20': 0.28.2
   'esbuild@0.27.7': 0.28.2
+minimumReleaseAgeExclude:
+  - '@cs2dak/tournament@1.1.1'

@@ -21,6 +21,7 @@ import {
 } from "../../../src/lib/demo-integration/review";
 import { dakStableScoreboardValues, submitRivalHubEvidence } from "../../../src/lib/demo-integration/submit";
 import { recordGameplaySteamIdentityInTx } from "../../../src/lib/identity/gameplay-steam";
+import { getTournamentStats } from "../../../src/lib/stats/tournament-query";
 import { createLocalPool } from "./harness/database";
 
 const fixturePath = resolve(process.cwd(), "tests/fixtures/demo-evidence/normal-map-v1.json");
@@ -344,6 +345,7 @@ describe("DAK evidence submit persistence", () => {
         expect.objectContaining({ status: "confirmed", semanticProfile: "dak-stable/2" }),
       ]);
 
+      expect((await getTournamentStats({ seasonId: ids.season }, database)).analytics.totals.mapCount).toBe(0);
       const first = await submitRivalHubEvidence({
         input: evidence,
         pairingId: ids.pairing,
@@ -410,8 +412,16 @@ describe("DAK evidence submit persistence", () => {
         rounds: evidence.sourceFacts.rounds.length,
       });
 
+      const stats = await getTournamentStats({ seasonId: ids.season }, database);
+      expect(stats.coverage).toEqual({ confirmedMaps: 1, completedMaps: 1 });
+      expect(stats.performance.players).toHaveLength(10);
+      expect(stats.analytics.teams).toHaveLength(2);
+      expect(stats.analytics.maps[0]?.mapName).toBe("de_ancient");
+      expect(stats.leaderboard).toHaveLength(10);
+      expect(stats.leaderboard.every((row) => row.kast !== null && row.fdpr !== null && row.tradeKpr !== null)).toBe(true);
       const revisedCompletedAt = new Date(now.getTime() + 1_000);
       await database.update(schema.matchMaps).set({ completedAt: revisedCompletedAt }).where(eq(schema.matchMaps.id, ids.map));
+      expect((await getTournamentStats({ seasonId: ids.season }, database)).coverage.confirmedMaps).toBe(0);
       const evidenceRevisionNPlusOne = buildEvidenceRevision({
         seasonId: ids.season,
         stageKey: "fixture-stage",
@@ -463,6 +473,7 @@ describe("DAK evidence submit persistence", () => {
       expect(await database.select().from(schema.matchRoundFacts).where(eq(schema.matchRoundFacts.importId, importId))).toHaveLength(factsAfterPromotion.length);
       expect((await database.select().from(schema.matchPlayerStats).where(eq(schema.matchPlayerStats.id, ids.ocrStat)))[0]).toMatchObject({ dakImportId: revisedImportId });
 
+      expect((await getTournamentStats({ seasonId: ids.season }, database)).analytics.totals.mapCount).toBe(1);
       const retryRevision = await submitRivalHubEvidence({
         input: evidenceNPlusOne,
         pairingId: ids.pairing,

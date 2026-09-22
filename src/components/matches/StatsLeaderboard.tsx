@@ -3,13 +3,13 @@ import Link from "next/link";
 import { Panel } from "@/components/rivalhub";
 import { Button } from "@/components/ui/button";
 import type { LeaderboardView } from "@/lib/matches/leaderboard-view";
-import { positionLabel } from "@/lib/validators/registration";
+import { statsHref as tournamentHref, type StatsQuery } from "@/lib/stats/query-state";
 import { formatNumber, formatStat } from "@/lib/stats";
 
 interface LeaderboardRow {
   userId: string | null;
   perfectName: string;
-  position: string | null;
+  position?: string | null;
   teamName: string | null;
   teamId: string | null;
   maps: number;
@@ -23,12 +23,16 @@ interface LeaderboardRow {
   fkpr: number | null;
   mkpr: number | null;
   cpr: number | null;
+  fdpr?: number | null;
+  tradeKpr?: number | null;
+  kast?: number | null;
 }
 
 interface StatsLeaderboardProps {
   rows: LeaderboardRow[];
   sort: string;
-  position: string;
+  position?: string;
+  query?: StatsQuery;
   seasonSlug: string;
   view?: LeaderboardView;
   stages?: { key: string; name: string }[];
@@ -39,15 +43,6 @@ const VIEWS: { key: LeaderboardView; label: string; defaultSort: string }[] = [
   { key: "core", label: "Core", defaultSort: "rating" },
   { key: "impact", label: "Impact", defaultSort: "fk" },
   { key: "advanced", label: "Advanced", defaultSort: "we" },
-];
-
-const POSITIONS = [
-  { key: "",        label: "全部" },
-  { key: "igl",    label: "IGL" },
-  { key: "awper",  label: "AWPer" },
-  { key: "opener", label: "Opener" },
-  { key: "closer", label: "Closer" },
-  { key: "anchor", label: "Anchor" },
 ];
 
 interface ColDef {
@@ -136,6 +131,9 @@ const ADVANCED_COLS: ColDef[] = [
     getValue: (r) => r.avgRating,
     format: (v) => formatStat("ratingPro", v),
   },
+  { key: "kast", label: "KAST", getValue: (r) => r.kast ?? null, format: (v) => v === null ? "—" : `${(v * 100).toFixed(1)}%` },
+  { key: "fd", label: "FDPR /100r", getValue: (r) => r.fdpr ?? null, format: (v) => v === null ? "—" : (v * 100).toFixed(1) },
+  { key: "trade", label: "Trade /100r", getValue: (r) => r.tradeKpr ?? null, format: (v) => v === null ? "—" : (v * 100).toFixed(1) },
   {
     key: "we",
     label: "WE",
@@ -156,7 +154,7 @@ const VIEW_COLS: Record<LeaderboardView, ColDef[]> = {
   advanced: ADVANCED_COLS,
 };
 
-export function StatsLeaderboard({ rows, sort, position, seasonSlug, view = "core", stages, currentStage = "" }: StatsLeaderboardProps) {
+export function StatsLeaderboard({ rows, sort, position = "", query, seasonSlug, view = "core", stages, currentStage = "" }: StatsLeaderboardProps) {
   if (rows.length === 0) {
     return (
       <Panel contentClassName="p-8 text-center text-[var(--color-fg-mid)]">
@@ -179,8 +177,9 @@ export function StatsLeaderboard({ rows, sort, position, seasonSlug, view = "cor
     nextView?: LeaderboardView;
     nextStage?: string;
   }) => {
+    if (query) return tournamentHref(seasonSlug, query, { sort: nextSort, view: nextView, stage: nextStage, tab: "players" });
     const params = new URLSearchParams({ sort: nextSort });
-    if (nextPosition) params.set("position", nextPosition);
+    void nextPosition;
     if (nextView !== "core") params.set("view", nextView);
     if (nextStage) params.set("stage", nextStage);
     return `/${seasonSlug}/stats?${params.toString()}`;
@@ -233,20 +232,6 @@ export function StatsLeaderboard({ rows, sort, position, seasonSlug, view = "cor
         </div>
       )}
 
-      {/* 位置筛选 */}
-      <div className="flex gap-1 flex-wrap mb-4">
-        <p className="w-full text-[11px] font-semibold uppercase text-[var(--color-fg-dim)] mb-1.5" style={{ fontFamily: "var(--font-mono)" }}>
-          Position
-        </p>
-        {POSITIONS.map(({ key, label }) => (
-          <Button key={key} size="sm" variant={position !== key ? "ghost" : "outline"} asChild>
-            <a href={statsHref({ nextPosition: key })}>
-              {label}
-            </a>
-          </Button>
-        ))}
-      </div>
-
       {/* 核心视图压进桌面宽度；窄屏仍可横向滚动。 */}
       <Panel contentClassName="p-0" className="overflow-hidden">
         <div className="overflow-x-auto">
@@ -254,7 +239,6 @@ export function StatsLeaderboard({ rows, sort, position, seasonSlug, view = "cor
             <colgroup>
               <col className="w-9" />
               <col />
-              <col className="w-24" />
               <col className="w-[18%]" />
               {cols.map((col) => <col key={col.key} className="w-[8%]" />)}
             </colgroup>
@@ -262,7 +246,6 @@ export function StatsLeaderboard({ rows, sort, position, seasonSlug, view = "cor
               <tr className="border-b border-[var(--color-border)] text-[var(--color-fg-mid)] text-xs uppercase tracking-wide">
                 <th className="px-2.5 py-3 text-left">#</th>
                 <th className="px-2.5 py-3 text-left">Player</th>
-                <th className="px-2.5 py-3 text-left">Pos</th>
                 <th className="px-2.5 py-3 text-left">Team</th>
                 {cols.map((col) => (
                   <th
@@ -277,7 +260,7 @@ export function StatsLeaderboard({ rows, sort, position, seasonSlug, view = "cor
             </thead>
             <tbody className="divide-y divide-[var(--color-border)]">
               {rows.map((r, i) => (
-                <tr key={r.userId ?? r.perfectName} className="hover:bg-[var(--color-surface-raised)] transition-colors">
+                <tr key={`${r.userId}:${r.teamId}`} className="hover:bg-[var(--color-surface-raised)] transition-colors">
                   <td className="px-2.5 py-2.5 text-xs">
                     <span
                       className={i < 3 ? "font-bold" : "text-[var(--color-fg-dim)]"}
@@ -297,9 +280,6 @@ export function StatsLeaderboard({ rows, sort, position, seasonSlug, view = "cor
                     ) : (
                       r.perfectName
                     )}
-                  </td>
-                  <td className="px-2.5 py-2.5 text-xs text-[var(--color-fg-mid)] whitespace-nowrap">
-                    {r.position ? positionLabel(r.position) : "—"}
                   </td>
                   <td className="px-2.5 py-2.5 text-xs text-[var(--color-fg-mid)] truncate">
                     {r.teamId ? (

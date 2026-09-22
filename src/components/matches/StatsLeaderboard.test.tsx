@@ -26,7 +26,7 @@ const row = {
 };
 
 describe("StatsLeaderboard", () => {
-  it("shows compact core metrics and English position text by default", () => {
+  it("shows core metrics without registration position facts", () => {
     render(
       <StatsLeaderboard
         rows={[row]}
@@ -37,8 +37,8 @@ describe("StatsLeaderboard", () => {
       />,
     );
 
-    expect(screen.getByRole("columnheader", { name: "Pos" })).toBeInTheDocument();
-    expect(screen.getByRole("cell", { name: "AWPer" })).toBeInTheDocument();
+    expect(screen.queryByRole("columnheader", { name: "Pos" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("cell", { name: "AWPer" })).not.toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: "HS%" })).toBeInTheDocument();
     expect(screen.queryByRole("columnheader", { name: "FKPR /100r" })).not.toBeInTheDocument();
   });

@@ -3,7 +3,7 @@ export type LeaderboardView = "core" | "impact" | "advanced";
 const VIEW_SORTS = {
   core: ["maps", "rating", "adr", "kd", "kpr", "hs"],
   impact: ["maps", "rating", "fk", "mk", "clutch"],
-  advanced: ["maps", "rating", "we", "rws"],
+  advanced: ["maps", "rating", "we", "rws", "kast", "fd", "trade"],
 } as const satisfies Record<LeaderboardView, readonly string[]>;
 
 const DEFAULT_SORT: Record<LeaderboardView, string> = {
