@@ -88,7 +88,7 @@ export function TeamsExplorer({ data, query, seasonSlug }: { data: TournamentSta
         </label>
       </div>
       <MetricFamilyTabs label="Team metric family" value={family} options={families} onChange={setFamily} />
-      <p className="text-xs text-[var(--color-fg-mid)]">{family === "results" ? "Canonical result sample" : `DAK sample · ${data.coverage.detailedMaps}/${data.coverage.completedMaps} maps`}</p>
+      <p className="text-xs text-[var(--color-fg-mid)]">{family === "results" ? "Tournament results sample" : `DAK sample · ${data.coverage.detailedMaps}/${data.coverage.completedMaps} maps`}</p>
       <StatsDataTable key={family} rows={rows} columns={teamColumns(family, seasonSlug, query)} rowKey={(row) => row.entryId} initialSortKey={family === "results" ? "match" : family === "rounds" ? "rw" : family === "conversion" ? "r2" : "opening"} emptyLabel="当前地图范围没有已完成赛果" />
     </section>
   );

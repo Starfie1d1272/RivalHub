@@ -27,6 +27,7 @@ const PLAYER_IDENTITY_CONSUMERS: Consumer[] = [
   { path: "src/components/matches/MatchMvpVote.tsx", mode: "avatar" },
   { path: "src/components/matches/MatchRosterView.tsx", mode: "avatar" },
   { path: "src/components/matches/MatchSummaryStats.tsx", mode: "text-first", reason: "高密度赛后统计表以指标扫描为优先。" },
+  { path: "src/components/stats/overview/OverviewStats.tsx", mode: "text-first", reason: "赛事榜单以选手名称和赛绩指标扫描为优先。" },
   { path: "src/components/players/EventPlayerDirectoryRow.tsx", mode: "avatar" },
   { path: "src/components/players/MajorPlayerDirectoryRow.tsx", mode: "delegate", delegatesTo: "src/components/players/EventPlayerDirectoryRow.tsx" },
   { path: "src/components/players/PlayerDirectoryRow.tsx", mode: "avatar" },

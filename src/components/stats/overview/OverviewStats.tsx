@@ -114,7 +114,7 @@ export function OverviewStats({ data, query, seasonSlug }: { data: TournamentSta
           <MetricPanel title="Players · scoreboard sample">
             <StatsDataTable rows={topPlayers} columns={playerColumns} rowKey={(row, index) => `${row.userId ?? row.perfectName}:${row.teamId ?? ""}:${index}`} pageSize={5} emptyLabel="暂无已验证 scoreboard 数据" />
           </MetricPanel>
-          <MetricPanel title="Teams · canonical results">
+          <MetricPanel title="Teams · tournament results">
             <StatsDataTable rows={topTeams} columns={teamColumns} rowKey={(row) => row.entryId} pageSize={5} emptyLabel="暂无已完成赛果" />
           </MetricPanel>
         </div>
