@@ -3,17 +3,20 @@
  */
 import React from "react";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { LoginForm } from "@/components/auth/LoginForm";
 import { EducationVerificationPanel } from "@/components/settings/EducationVerificationPanel";
+import { IdentityManager } from "@/components/settings/IdentityManager";
 import { EducationVerificationReviewQueue } from "@/components/admin/EducationVerificationReviewQueue";
 
-const { loginWithPasswordMock, signUpMock, resendSignupConfirmationMock, getInstitutionSearchMock, submitEducationVerificationMock, toastSuccessMock, toastErrorMock, refreshMock, replaceMock, pushMock, searchParamsMock } = vi.hoisted(() => ({
+const { loginWithPasswordMock, signUpMock, resendSignupConfirmationMock, getInstitutionSearchMock, submitEducationVerificationMock, submitAdmissionNoticeEducationMock, toastSuccessMock, toastErrorMock, refreshMock, replaceMock, pushMock, searchParamsMock } = vi.hoisted(() => ({
   loginWithPasswordMock: vi.fn(),
   signUpMock: vi.fn(),
   resendSignupConfirmationMock: vi.fn(),
   getInstitutionSearchMock: vi.fn(),
   submitEducationVerificationMock: vi.fn(),
+  submitAdmissionNoticeEducationMock: vi.fn(),
   toastSuccessMock: vi.fn(),
   toastErrorMock: vi.fn(),
   refreshMock: vi.fn(),
@@ -29,11 +32,13 @@ vi.mock("next/navigation", () => ({
 }));
 vi.mock("sonner", () => ({ toast: { success: toastSuccessMock, error: toastErrorMock } }));
 vi.mock("@/actions/auth", () => ({ loginWithPassword: loginWithPasswordMock, signUp: signUpMock, resendSignupConfirmation: resendSignupConfirmationMock, resendCurrentEmailVerification: vi.fn() }));
-vi.mock("@/actions/education-verifications", () => ({ declareInstitutionalEmailEducation: vi.fn(), getInstitutionSearch: getInstitutionSearchMock, submitEducationVerification: submitEducationVerificationMock, reviewEducationVerification: vi.fn() }));
+vi.mock("@/actions/education-verifications", () => ({ declareInstitutionalEmailEducation: vi.fn(), getInstitutionSearch: getInstitutionSearchMock, submitAdmissionNoticeEducation: submitAdmissionNoticeEducationMock, submitEducationVerification: submitEducationVerificationMock, reviewEducationVerification: vi.fn() }));
+vi.mock("@/actions/identity", () => ({ requestSecondaryEmailIdentity: vi.fn(), revokeSecondaryEmailIdentity: vi.fn() }));
 vi.mock("@/components/auth/TurnstileWidget", () => ({
-  TurnstileWidget: ({ onVerify }: { onVerify: (token: string) => void }) => {
-    React.useEffect(() => onVerify("test-turnstile-token"), [onVerify]);
-    return <div data-testid="turnstile" />;
+  TurnstileWidget: ({ onVerify, onError }: { onVerify: (token: string) => void; onError: (failure: { kind: "challenge_error"; errorCode: string }) => void }) => {
+    const initialOnVerify = React.useRef(onVerify);
+    React.useEffect(() => initialOnVerify.current("test-turnstile-token"), []);
+    return <button type="button" data-testid="turnstile" onClick={() => onError({ kind: "challenge_error", errorCode: "110200" })}>模拟验证码错误</button>;
   },
 }));
 
@@ -55,15 +60,16 @@ describe("identity flow UI", () => {
   });
 
   it("takes a correctly authenticated unverified user to the resend path", async () => {
+    const user = userEvent.setup();
     loginWithPasswordMock.mockResolvedValue({
       success: false,
       error: { code: "EMAIL_NOT_CONFIRMED", message: "邮箱尚未验证" },
     });
     render(<LoginForm />);
 
-    fireEvent.change(screen.getByLabelText("邮箱地址"), { target: { value: "player@example.test" } });
-    fireEvent.change(screen.getByLabelText("密码"), { target: { value: "Aa1!xx" } });
-    fireEvent.click(screen.getAllByRole("button", { name: "登录" })[1]);
+    await user.type(screen.getByLabelText("邮箱地址"), "player@example.test");
+    await user.type(screen.getByLabelText("密码"), "Aa1!xx");
+    await user.click(screen.getAllByRole("button", { name: "登录" })[1]!);
 
     expect(await screen.findByRole("button", { name: "重新发送验证邮件" })).toBeInTheDocument();
     expect(screen.getByText(/检查垃圾邮件、广告邮件或其它分类/)).toBeInTheDocument();
@@ -91,6 +97,7 @@ describe("identity flow UI", () => {
   });
 
   it("after a successful resend, disables repeated sends for the configured cooldown", async () => {
+    const user = userEvent.setup();
     loginWithPasswordMock.mockResolvedValue({
       success: false,
       error: { code: "EMAIL_NOT_CONFIRMED", message: "邮箱尚未验证" },
@@ -98,23 +105,90 @@ describe("identity flow UI", () => {
     resendSignupConfirmationMock.mockResolvedValue({ success: true, data: undefined });
     render(<LoginForm />);
 
-    fireEvent.change(screen.getByLabelText("邮箱地址"), { target: { value: "player@example.test" } });
-    fireEvent.change(screen.getByLabelText("密码"), { target: { value: "Aa1!xx" } });
-    fireEvent.click(screen.getAllByRole("button", { name: "登录" })[1]);
+    await user.type(screen.getByLabelText("邮箱地址"), "player@example.test");
+    await user.type(screen.getByLabelText("密码"), "Aa1!xx");
+    await user.click(screen.getAllByRole("button", { name: "登录" })[1]!);
     const resend = await screen.findByRole("button", { name: "重新发送验证邮件" });
-    fireEvent.click(resend);
+    await waitFor(() => expect(resend).toBeEnabled());
+    await user.click(resend);
 
-    await waitFor(() => expect(resendSignupConfirmationMock).toHaveBeenCalledTimes(1), { timeout: 10_000 });
-    await waitFor(() => expect(screen.getByRole("button", { name: "请等待 60 秒后重试" })).toBeDisabled(), { timeout: 5_000 });
+    expect(await screen.findByRole("button", { name: "请等待 60 秒后重试" })).toBeDisabled();
+    await waitFor(() => expect(resendSignupConfirmationMock).toHaveBeenCalledTimes(1));
     expect(toastSuccessMock).toHaveBeenCalledWith("已提交验证邮件重发请求；如果该邮箱仍待验证，请检查收件箱及垃圾邮件等分类。");
   });
 
   it("shows current email and education verification states without evidence URLs", () => {
-    render(<EducationVerificationPanel email="player@example.test" emailVerified={false} institutionalIdentities={[]} verifications={[{ id: "1", institution: "南京大学", code: "4132010284", academicStatus: "enrolled", evidenceType: "chsi_enrollment_report", status: "rejected", reviewNote: "学校不一致", submittedAt: new Date().toISOString() }]} />);
+    render(<EducationVerificationPanel email="player@example.test" emailVerified={false} institutionalIdentities={[]} verifications={[{ id: "1", institutionId: "institution-1", institution: "南京大学", institutionCode: "4132010284", province: "江苏", evidenceType: "chsi_enrollment_report", academicStatus: "enrolled", status: "rejected", reviewNote: "学校不一致", submittedAt: new Date().toISOString() }]} />);
     expect(screen.getByText("当前登录邮箱尚未验证")).toBeInTheDocument();
     expect(screen.getByText("南京大学 · 在读 · 已驳回")).toBeInTheDocument();
-    expect(screen.getByText("审核说明：学校不一致")).toBeInTheDocument();
+    expect(screen.getByText(/审核说明：学校不一致/)).toBeInTheDocument();
     expect(screen.queryByText(/chsi\.com\.cn/)).not.toBeInTheDocument();
+  });
+
+  it("offers rejected CHSI claims a retry without restoring the historical evidence code", () => {
+    render(<EducationVerificationPanel email="player@example.test" emailVerified institutionalIdentities={[]} verifications={[{ id: "1", institutionId: "institution-1", institution: "南京大学", institutionCode: "4132010284", province: "江苏", evidenceType: "chsi_education_report", academicStatus: "graduated", status: "rejected", reviewNote: "在线验证报告已过期", submittedAt: new Date().toISOString() }]} />);
+
+    expect(screen.getByText(/修正材料后可以重新提交；如果只是在线验证报告已过期/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "重新提交" }));
+
+    expect(document.querySelector("#chsi-verification-form")).toHaveTextContent("南京大学");
+    expect(screen.getByRole("button", { name: "已毕业" })).toHaveClass("bg-primary");
+    expect(screen.getByLabelText("学信网在线验证码")).toHaveValue("");
+    expect(screen.queryByText("ABCD1234EFGH5678")).not.toBeInTheDocument();
+  });
+
+  it("does not offer CHSI retry guidance for pending, approved, or manual history", () => {
+    render(<EducationVerificationPanel email="player@example.test" emailVerified institutionalIdentities={[]} verifications={[
+      { id: "rejected-manual", institutionId: "institution-1", institution: "南京大学", institutionCode: "4132010284", province: "江苏", evidenceType: "manual_other", academicStatus: "enrolled", status: "rejected", reviewNote: "材料不清晰", submittedAt: new Date().toISOString() },
+      { id: "pending-chsi", institutionId: "institution-1", institution: "南京大学", institutionCode: "4132010284", province: "江苏", evidenceType: "chsi_enrollment_report", academicStatus: "enrolled", status: "pending", reviewNote: null, submittedAt: new Date().toISOString() },
+      { id: "approved-chsi", institutionId: "institution-1", institution: "南京大学", institutionCode: "4132010284", province: "江苏", evidenceType: "chsi_enrollment_report", academicStatus: "enrolled", status: "approved", reviewNote: null, submittedAt: new Date().toISOString() },
+    ]} />);
+
+    expect(screen.queryByRole("button", { name: "重新提交" })).not.toBeInTheDocument();
+    expect(screen.queryByText(/原在线验证码仍可重新使用/)).not.toBeInTheDocument();
+    expect(screen.getByText("审核说明：材料不清晰")).toBeInTheDocument();
+  });
+
+  it("explains the verified-secondary-email path with one clear banner", () => {
+    render(<IdentityManager identities={[{ id: "identity-1", email: "player@example.test", primary: true, verifiedAt: new Date().toISOString() }]} />);
+
+    expect(screen.getByText("先证明邮箱控制权")).toBeInTheDocument();
+    expect(screen.getByText(/系统会进入安全归并预检并显示影响/)).toBeInTheDocument();
+    expect(screen.getAllByText("先证明邮箱控制权")).toHaveLength(1);
+    expect(document.getElementById("secondary-email")).toHaveClass("scroll-mt-6");
+    expect(screen.getByLabelText("邮箱")).toHaveAttribute("id", "secondary-email-input");
+  });
+
+  it("guides verified users without a school email to the existing fast-verification entry", () => {
+    render(<EducationVerificationPanel email="player@example.test" emailVerified institutionalIdentities={[]} verifications={[]} />);
+
+    expect(screen.getByText("可用学校邮箱快速认证")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "绑定学校邮箱" })).toHaveAttribute("href", "/settings/security#secondary-email");
+    expect(screen.getByText(/未支持的邮箱不会自动完成教育认证/)).toBeInTheDocument();
+    expect(screen.queryByText(/南京大学在读生/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/@smail\.nju\.edu\.cn/)).not.toBeInTheDocument();
+    const search = screen.getByRole("button", { name: "搜索高校" });
+    expect(search).toBeDisabled();
+    expect(search).toHaveClass("border");
+    fireEvent.change(screen.getByLabelText("学校"), { target: { value: "南京大学" } });
+    expect(search).not.toBeDisabled();
+    expect(search).toHaveClass("bg-primary");
+    expect(screen.getByRole("button", { name: "提交认证材料" })).toBeDisabled();
+  });
+
+  it("clears the Turnstile token and shows recovery guidance on a client challenge failure", async () => {
+    const consoleWarn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    render(<LoginForm initialMode="register" />);
+    const submit = screen.getAllByRole("button", { name: "注册" })[1]!;
+    await waitFor(() => expect(submit).not.toBeDisabled());
+
+    fireEvent.click(screen.getByRole("button", { name: "模拟验证码错误" }));
+
+    await waitFor(() => expect(submit).toBeDisabled());
+    expect(toastErrorMock).toHaveBeenCalledWith("验证码加载失败，请刷新后重试；若仍失败，可尝试更换浏览器或网络。");
+    expect(consoleWarn).toHaveBeenCalledWith("[RivalHub] Turnstile client failure", { kind: "challenge_error", errorCode: "110200" });
+    expect(document.body).not.toHaveTextContent("110200");
+    consoleWarn.mockRestore();
   });
 
   it("keeps school search, selection, reset, and submission tied to the selected institution", async () => {
@@ -164,12 +238,40 @@ describe("identity flow UI", () => {
     fireEvent.change(screen.getByLabelText("学信网在线验证码"), { target: { value: "ABCD1234EFGH5678" } });
     fireEvent.click(screen.getByRole("button", { name: "提交认证材料" }));
 
-    await waitFor(() => expect(toastSuccessMock).toHaveBeenCalledWith("该验证码已通过审核，无需重复提交"));
-    expect(toastSuccessMock).not.toHaveBeenCalledWith("教育认证已提交，等待管理员审核");
+    await waitFor(() => expect(toastSuccessMock).toHaveBeenCalledWith("该学校的教育身份已完成认证，无需重复提交。"));
+    expect(toastSuccessMock).not.toHaveBeenCalledWith("教育认证已提交，等待管理员审核。");
+  });
+
+  it("keeps admission notice as a manual fallback with fixed enrolled and privacy guidance", async () => {
+    getInstitutionSearchMock.mockResolvedValue({ success: true, data: [{ id: "institution-1", name: "南京大学", code: "4132010284", province: "江苏" }] });
+    submitAdmissionNoticeEducationMock.mockResolvedValue({ success: true, data: "created" });
+    render(<EducationVerificationPanel email="player@example.test" emailVerified institutionalIdentities={[]} verifications={[]} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "暂时无法获取学信网材料？" }));
+    expect(screen.getByRole("heading", { name: "录取通知书人工审核" })).toBeInTheDocument();
+    expect(screen.getByText("此方式仅用于暂时无法获取学信网材料的新生，认证结果固定为在读身份。")).toBeInTheDocument();
+    expect(screen.getByText(/仅上传能够证明本人姓名、录取高校与本届入学身份的必要页面/)).toBeInTheDocument();
+    expect(screen.getByText("材料仅供超级管理员审核；审核完成 7 天后自动删除，不会公开展示。")).toBeInTheDocument();
+
+    const manualSearch = document.getElementById("manual-institution-search")!;
+    fireEvent.change(manualSearch, { target: { value: "南京" } });
+    fireEvent.click(screen.getAllByRole("button", { name: "搜索高校" })[1]!);
+    fireEvent.click(await screen.findByRole("button", { name: /南京大学/ }));
+    const file = new File([new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])], "notice-original.pdf", { type: "image/png" });
+    fireEvent.change(screen.getByLabelText("录取通知书图片"), { target: { files: [file] } });
+    fireEvent.click(screen.getByRole("button", { name: "提交录取通知书" }));
+
+    await waitFor(() => expect(submitAdmissionNoticeEducationMock).toHaveBeenCalledTimes(1));
+    const submitted = submitAdmissionNoticeEducationMock.mock.calls[0]?.[0] as FormData;
+    expect([...submitted.keys()]).toEqual(["institutionId", "file"]);
+    expect(submitted.get("institutionId")).toBe("institution-1");
+    expect(submitted.get("file")).toBe(file);
+    expect(document.body).not.toHaveTextContent("manual_other");
+    expect(document.body).not.toHaveTextContent("evidence_object_key");
   });
 
   it("renders the admin review queue with a protected CHSI verification path", () => {
-    render(<EducationVerificationReviewQueue emptyState="no-pending" rows={[{ id: "11111111-1111-4111-8111-111111111111", email: "player@example.test", displayName: null, institution: "南京大学", code: "4132010284", academicStatus: "graduated", evidenceType: "chsi_education_report", evidenceCode: "ABCD1234EFGH5678", status: "pending", submittedAt: new Date().toISOString(), reviewNote: null }]} />);
+    render(<EducationVerificationReviewQueue emptyState="no-pending" rows={[{ id: "11111111-1111-4111-8111-111111111111", userId: "player-1", email: "player@example.test", displayName: null, institution: "南京大学", code: "4132010284", academicStatus: "graduated", evidenceLabel: "学信网学历材料", chsiEvidenceCode: "ABCD1234EFGH5678", manualEvidenceAvailable: false, status: "pending", submittedAt: new Date().toISOString(), reviewNote: null }]} />);
     const link = screen.getByRole("link", { name: /在学信网核验/ });
     expect(link).toHaveAttribute("target", "_blank");
     expect(link).toHaveAttribute("rel", "noopener noreferrer");
@@ -178,12 +280,37 @@ describe("identity flow UI", () => {
     expect(screen.getByRole("button", { name: "通过" })).toBeInTheDocument();
   });
 
+  it("uses the canonical identity in the review title while retaining email as explicit account detail", () => {
+    render(<EducationVerificationReviewQueue emptyState="no-pending" rows={[{ id: "55555555-5555-4555-8555-555555555555", userId: "player-2", email: "private@example.test", displayName: "玩家甲", institution: "南京大学", code: "4132010284", academicStatus: "enrolled", evidenceLabel: "学信网学历材料", chsiEvidenceCode: null, manualEvidenceAvailable: false, status: "pending", submittedAt: new Date().toISOString(), reviewNote: null }]} />);
+
+    expect(screen.getByRole("link", { name: "玩家甲" })).toHaveAttribute("href", "/players/player-2");
+    expect(screen.getByText("账号：private@example.test")).toBeInTheDocument();
+  });
+
   it("shows cleared CHSI evidence as a retention-policy state", () => {
-    render(<EducationVerificationReviewQueue emptyState="no-results" rows={[{ id: "22222222-2222-4222-8222-222222222222", email: "player@example.test", displayName: null, institution: "南京大学", code: "4132010284", academicStatus: "graduated", evidenceType: "chsi_education_report", evidenceCode: null, status: "approved", submittedAt: new Date().toISOString(), reviewNote: null }]} />);
+    render(<EducationVerificationReviewQueue emptyState="no-results" rows={[{ id: "22222222-2222-4222-8222-222222222222", userId: "player-3", email: "player@example.test", displayName: null, institution: "南京大学", code: "4132010284", academicStatus: "graduated", evidenceLabel: "学信网学历材料", chsiEvidenceCode: null, manualEvidenceAvailable: false, status: "approved", submittedAt: new Date().toISOString(), reviewNote: null }]} />);
 
     expect(screen.getByText("在线验证码：已按保留策略清理")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "复制验证码" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /在学信网核验/ })).not.toBeInTheDocument();
+  });
+
+  it("presents manual evidence without exposing the internal type or object key", () => {
+    render(<EducationVerificationReviewQueue emptyState="no-pending" rows={[{ id: "33333333-3333-4333-8333-333333333333", userId: "player-4", email: "player@example.test", displayName: null, institution: "南京大学", code: "4132010284", academicStatus: "enrolled", evidenceLabel: "录取通知书材料", chsiEvidenceCode: null, manualEvidenceAvailable: true, status: "pending", submittedAt: new Date().toISOString(), reviewNote: null }]} />);
+
+    expect(screen.getByText("材料：录取通知书材料")).toBeInTheDocument();
+    const link = screen.getByRole("link", { name: "查看材料" });
+    expect(link).toHaveAttribute("href", "/admin/education-verifications/33333333-3333-4333-8333-333333333333/evidence");
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(link).toHaveAttribute("rel", "noopener noreferrer");
+    expect(screen.queryByText("manual_other")).not.toBeInTheDocument();
+    expect(screen.queryByText("evidence_object_key")).not.toBeInTheDocument();
+  });
+
+  it("shows cleared manual evidence as a retention-policy state", () => {
+    render(<EducationVerificationReviewQueue emptyState="no-results" rows={[{ id: "44444444-4444-4444-8444-444444444444", userId: "player-5", email: "player@example.test", displayName: null, institution: "南京大学", code: "4132010284", academicStatus: "enrolled", evidenceLabel: "录取通知书材料", chsiEvidenceCode: null, manualEvidenceAvailable: false, status: "approved", submittedAt: new Date().toISOString(), reviewNote: null }]} />);
+
+    expect(screen.getByText("录取通知书材料：已按保留策略清理")).toBeInTheDocument();
   });
 
   it("distinguishes empty history, default pending, and active-filter states", () => {

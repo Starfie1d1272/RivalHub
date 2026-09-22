@@ -1,13 +1,14 @@
 "use server";
 
+import { writeAuditInTx } from "@/lib/audit/write";
+
 import { and, asc, eq, isNotNull, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
   seasons,
   competitionEntries,
   draftState,
-  auditLogs,
-} from "@/db/schema";
+  } from "@/db/schema";
 import { ok, type ActionResult } from "@/types/action";
 import { AppError, ErrorCode, ERROR_MESSAGES } from "@/lib/errors";
 import { auditActorId, requireSeasonAdmin } from "@/lib/auth/session";
@@ -108,13 +109,11 @@ export async function startDraft(
         })
         .returning({ id: draftState.id });
 
-      await tx.insert(auditLogs).values({
+      await writeAuditInTx(tx, {
         seasonId,
         action: "draft.start",
         actorId: auditActorId(admin),
-        targetId: seasonId,
-        targetType: "season",
-        meta: { firstEntryId, roundDeadline: deadline.toISOString(), actorEmail: admin.email },
+        targetId: seasonId,meta: { firstEntryId, roundDeadline: deadline.toISOString(), actorEmail: admin.email },
       });
 
       return { draftStateId: draft.id, slug: season.slug };
@@ -155,13 +154,11 @@ export async function pauseDraft(
         .set({ isActive: false, updatedAt: new Date() })
         .where(eq(draftState.id, ds.id));
 
-      await tx.insert(auditLogs).values({
+      await writeAuditInTx(tx, {
         seasonId: parsed.data.seasonId,
         action: "draft.pause",
         actorId: auditActorId(admin),
-        targetId: ds.id,
-        targetType: "draft_state",
-        meta: { actorEmail: admin.email },
+        targetId: ds.id,meta: { actorEmail: admin.email },
       });
 
       const season = await tx.query.seasons.findFirst({
@@ -210,13 +207,11 @@ export async function resumeDraft(
         .set({ isActive: true, roundDeadline: deadline, updatedAt: new Date() })
         .where(eq(draftState.id, ds.id));
 
-      await tx.insert(auditLogs).values({
+      await writeAuditInTx(tx, {
         seasonId: parsed.data.seasonId,
         action: "draft.resume",
         actorId: auditActorId(admin),
-        targetId: ds.id,
-        targetType: "draft_state",
-        meta: { roundDeadline: deadline.toISOString(), actorEmail: admin.email },
+        targetId: ds.id,meta: { roundDeadline: deadline.toISOString(), actorEmail: admin.email },
       });
 
       const season = await tx.query.seasons.findFirst({

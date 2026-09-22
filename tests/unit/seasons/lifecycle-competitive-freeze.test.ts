@@ -135,7 +135,7 @@ describe("freezeCompetitiveContext", () => {
       .mockResolvedValueOnce(FIVE_CONTEXT);
     fallbackCatalogReferencesExistMock.mockResolvedValue(false);
     mockPolicySelect([POLICY]);
-    await expect(freezeCompetitiveContext(tx, majorSeason("perfect_world"))).rejects.toThrow("5E fallback 映射引用的赛季或段位已不在竞技目录中");
+    await expect(freezeCompetitiveContext(tx, majorSeason("perfect_world"))).rejects.toThrow("5E 换算规则引用的赛季或段位已不在竞技目录中");
   });
 
   it("passes seasons without a competitive-profile requirement through untouched", async () => {
@@ -201,7 +201,7 @@ describe("freezeCompetitiveContext", () => {
       rankOrder: [],
       conversionPolicyVersion: "2026.09",
     };
-    await expect(freezeCompetitiveContext(tx, season)).rejects.toThrow("只有 approved 策略可以开放报名");
+    await expect(freezeCompetitiveContext(tx, season)).rejects.toThrow("尚未批准或已停用");
   });
 
   it("fails closed when the locked policy is not found", async () => {

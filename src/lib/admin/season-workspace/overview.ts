@@ -7,7 +7,6 @@ import {
   eventRosterMembers,
   eventRosters,
   majorFinalResults,
-  majorPrestartIssues,
   majorPrestartStates,
   majorSeedRecommendationSnapshots,
   majorTournamentEntrants,
@@ -17,22 +16,23 @@ import {
   postEventAdjudications,
   seasons,
   seasonRegistrations,
+  steamProfiles,
+  users,
 } from "@/db/schema";
 import type { Season } from "@/db/schema/seasons";
+import { getDisplayName } from "@/lib/identity/display-name";
+import { getRegistrationWindowState } from "@/lib/registration/window";
 import { buildMajorReadiness } from "./major-prestart";
-import { analyzeFinalSeedOrder } from "@/lib/major/team-seed-recommendation";
 import { buildFrozenSetFingerprint, frozenTeamsForSnapshot, getSeedRecommendationSnapshotStatus } from "@/lib/major/seed-recommendation-snapshot";
-import { projectRegistrationSummary, selectSeasonWorkspaceNextAction } from "./selectors";
+import { projectRegistrationSummary, projectTeamRegistrationFunnel, selectSeasonWorkspaceNextAction } from "./selectors";
 import type { SeasonWorkspaceOverviewData, SeasonWorkspaceOverviewSummary } from "./types";
 
 type MajorOverviewFacts = {
   entrants: Array<{ id: string; teamId: string; teamName: string | null; eventRosterId: string; sourceRosterRevisionId: string | null; rosterStatus: "preparing" | "confirmed" | "frozen" }>;
-  rosterRows: Array<{ entrantId: string; eventRosterId: string; userId: string; participantId: string | null; educationVerificationId: string | null; isPrimaryStarter: boolean }>;
-  issueRows: Array<{ category: "qualification" | "administration"; label: string; resolvedAt: Date | null }>;
+  rosterRows: Array<{ entrantId: string; eventRosterId: string; userId: string; participantId: string | null; label: string; educationVerificationId: string | null; isPrimaryStarter: boolean }>;
   seedRows: Array<{ teamId: string; tournamentSeed: number }>;
   state: typeof majorPrestartStates.$inferSelect | undefined;
   seedRecommendation: { status: "missing" | "ready" | "mismatch" };
-  seedOverride: { required: boolean; reason: string | null };
   finalResultStatus: "pending_confirmation" | "confirmed" | null;
 };
 
@@ -51,7 +51,7 @@ async function loadRegistrationCounts(season: Season) {
 }
 
 async function loadMajorOverviewFacts(season: Season): Promise<MajorOverviewFacts> {
-  const [state, entrants, rosterRows, issueRows, seedRows, snapshot, finalResult] = await Promise.all([
+  const [state, entrants, rawRosterRows, seedRows, snapshot, finalResult] = await Promise.all([
     db.query.majorPrestartStates.findFirst({ where: eq(majorPrestartStates.seasonId, season.id) }),
     db.select({
       id: majorTournamentEntrants.id,
@@ -64,14 +64,13 @@ async function loadMajorOverviewFacts(season: Season): Promise<MajorOverviewFact
       .innerJoin(competitionEntries, eq(majorTournamentEntrants.competitionEntryId, competitionEntries.id))
       .innerJoin(eventRosters, eq(majorTournamentEntrants.competitionEntryId, eventRosters.entryId))
       .where(eq(majorTournamentEntrants.seasonId, season.id)),
-    db.select({ entrantId: majorTournamentEntrants.id, eventRosterId: eventRosterMembers.eventRosterId, userId: eventRosterMembers.userId, participantId: eventRosterMembers.participantId, educationVerificationId: eventRosterMembers.educationVerificationId, isPrimaryStarter: eventRosterMembers.isPrimaryStarter })
+    db.select({ entrantId: majorTournamentEntrants.id, eventRosterId: eventRosterMembers.eventRosterId, userId: eventRosterMembers.userId, participantId: eventRosterMembers.participantId, displayName: users.displayName, perfectName: users.perfectName, personaName: steamProfiles.personaName, email: users.email, educationVerificationId: eventRosterMembers.educationVerificationId, isPrimaryStarter: eventRosterMembers.isPrimaryStarter })
       .from(eventRosterMembers)
       .innerJoin(eventRosters, eq(eventRosterMembers.eventRosterId, eventRosters.id))
       .innerJoin(majorTournamentEntrants, eq(majorTournamentEntrants.competitionEntryId, eventRosters.entryId))
+      .innerJoin(users, eq(eventRosterMembers.userId, users.id))
+      .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
       .where(eq(majorTournamentEntrants.seasonId, season.id)),
-    db.select({ category: majorPrestartIssues.category, label: majorPrestartIssues.label, resolvedAt: majorPrestartIssues.resolvedAt })
-      .from(majorPrestartIssues)
-      .where(eq(majorPrestartIssues.seasonId, season.id)),
     db.select({ teamId: majorTournamentEntrants.competitionEntryId, tournamentSeed: majorTournamentSeeds.seed })
       .from(majorTournamentSeeds)
       .innerJoin(majorTournamentEntrants, eq(majorTournamentSeeds.tournamentEntrantId, majorTournamentEntrants.id))
@@ -80,20 +79,19 @@ async function loadMajorOverviewFacts(season: Season): Promise<MajorOverviewFact
     db.query.majorFinalResults.findFirst({ where: eq(majorFinalResults.seasonId, season.id), columns: { status: true } }),
   ]);
 
+  const rosterRows = rawRosterRows.map(({ displayName, perfectName, personaName, email, ...row }) => ({
+    ...row,
+    label: getDisplayName({ displayName, perfectName, personaName, email }),
+  }));
   const frozenTeams = frozenTeamsForSnapshot(entrants, rosterRows);
   const frozenSetFingerprint = buildFrozenSetFingerprint(season.id, frozenTeams);
   const recommendationStatus = getSeedRecommendationSnapshotStatus({ snapshot, seasonId: season.id, frozenSetFingerprint });
-  const seedDecision = recommendationStatus === "ready" && snapshot
-    ? analyzeFinalSeedOrder(seedRows.map((seed) => seed.teamId), snapshot.recommendations)
-    : null;
   return {
     state,
     entrants,
     rosterRows,
-    issueRows,
     seedRows,
     seedRecommendation: { status: recommendationStatus },
-    seedOverride: { required: seedDecision?.divergesFromRecommendation ?? false, reason: state?.seedOverrideReason ?? null },
     finalResultStatus: finalResult?.status ?? null,
   };
 }
@@ -127,6 +125,12 @@ export async function loadSeasonWorkspaceOverview(seasonSlug: string): Promise<S
     registrationRows.map((row) => ({ status: row.status, count: Number(row.count) })),
     formedTeamCount ?? 0,
   );
+  const registrationFunnel = season.registrationMode === "team"
+    ? projectTeamRegistrationFunnel(
+      registrationRows.map((row) => ({ status: row.status, count: Number(row.count) })),
+      { deadline: season.registrationClosesAt, windowPhase: getRegistrationWindowState(season).phase },
+    )
+    : null;
   const confirmedLineupsByMatch = new Map<string, number>();
   for (const row of matchRosterRows) {
     if (row.status === "confirmed") confirmedLineupsByMatch.set(row.matchId, (confirmedLineupsByMatch.get(row.matchId) ?? 0) + 1);
@@ -137,16 +141,14 @@ export async function loadSeasonWorkspaceOverview(seasonSlug: string): Promise<S
     entrantCount: majorFacts?.entrants.length ?? (season.registrationMode === "team" ? registrationSummary.formedTeamCount : 0),
     frozenEntrantCount: majorFacts?.entrants.filter((entrant) => entrant.rosterStatus === "frozen").length ?? (season.registrationMode === "team" ? registrationSummary.formedTeamCount : 0),
     matchCount: Number(matchCountRows[0]?.count ?? 0),
-    unresolvedPrestartIssues: majorFacts?.issueRows.filter((issue) => !issue.resolvedAt).length ?? 0,
     scheduledMatchesWithoutConfirmedLineups: scheduledMatchRows.filter((match) => (confirmedLineupsByMatch.get(match.id) ?? 0) < 2).length,
     finalResultPendingConfirmation: majorFacts?.finalResultStatus === "pending_confirmation",
     activeAdjudications: Number(activeAdjudicationRows[0]?.count ?? 0),
   };
 
   const readiness = majorFacts
-    ? buildMajorReadiness(season, majorFacts.state, majorFacts.entrants, majorFacts.rosterRows, majorFacts.issueRows, majorFacts.seedRows, {
+    ? buildMajorReadiness(season, majorFacts.state, majorFacts.entrants, majorFacts.rosterRows, majorFacts.seedRows, {
       seedRecommendation: majorFacts.seedRecommendation,
-      seedOverride: majorFacts.seedOverride,
     })
     : null;
 
@@ -167,6 +169,7 @@ export async function loadSeasonWorkspaceOverview(seasonSlug: string): Promise<S
   return {
     season: overviewSeason,
     summary,
+    registrationFunnel,
     readiness,
     nextAction: selectSeasonWorkspaceNextAction(overviewSeason, summary, readiness),
   };

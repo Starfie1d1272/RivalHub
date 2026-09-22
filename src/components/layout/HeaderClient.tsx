@@ -7,6 +7,7 @@ import { Menu, X } from "lucide-react";
 
 import { APP_BRAND } from "@/lib/branding";
 import { OnlineCounter } from "./OnlineCounter";
+import { HeaderAvatarFailureProvider } from "./HeaderAvatarFailureContext";
 
 export { getAccountNavigationLinks } from "./HeaderViewerClient";
 
@@ -26,7 +27,8 @@ export function HeaderClient({
   const [mobileOpen, setMobileOpen] = useState(false);
 
   return (
-    <header
+    <HeaderAvatarFailureProvider>
+      <header
       className="sticky top-0 z-50 border-b backdrop-blur"
       style={{
         padding: "12px 28px",
@@ -90,6 +92,7 @@ export function HeaderClient({
           </div>
         </div>
       )}
-    </header>
+      </header>
+    </HeaderAvatarFailureProvider>
   );
 }

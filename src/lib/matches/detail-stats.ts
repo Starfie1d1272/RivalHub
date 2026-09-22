@@ -2,6 +2,7 @@ import type { matchPlayerStats } from "@/db/schema/player-stats";
 import type { MapWinStats } from "@/lib/teams/data";
 import { aggregatePlayerRows } from "@/lib/stats/aggregate";
 import type { StatRowInput } from "@/lib/stats/aggregate";
+import { getPublicDisplayName } from "@/lib/identity/display-name";
 
 export type MatchPlayerStatsRow = typeof matchPlayerStats.$inferSelect;
 
@@ -18,6 +19,7 @@ export function computeRecord(
   let wins = 0;
   let losses = 0;
   for (const m of matchList) {
+    if (m.scoreA === null || m.scoreB === null || ![m.entryAId, m.entryBId].includes(teamId)) continue;
     const isA = m.entryAId === teamId;
     const myScore = isA ? (m.scoreA ?? 0) : (m.scoreB ?? 0);
     const oppScore = isA ? (m.scoreB ?? 0) : (m.scoreA ?? 0);
@@ -77,20 +79,22 @@ export function buildRadarData(
 interface TeamMemberSummary {
   id: string;
   teamId: string;
-  steamName: string | null;
+  personaName: string | null;
   displayName: string | null;
   perfectName: string | null;
   primaryPosition: string;
   userId?: string | null;
+  avatarUrl: string | null;
 }
 
 export interface RosterPlayer {
-  steamName: string;
+  registrationPosition?: string;
+  personaName: string | null;
   displayName: string | null;
   perfectName: string | null;
-  primaryPosition: string;
   isStarter: boolean;
   userId?: string | null;
+  avatarUrl: string | null;
 }
 
 export function buildRoster(
@@ -103,12 +107,13 @@ export function buildRoster(
   return members
     .filter((m) => m.teamId === teamId && playerIds.has(m.id))
     .map((m) => ({
-      steamName: m.steamName ?? "未知",
+      personaName: m.personaName ?? null,
       displayName: m.displayName ?? null,
       perfectName: m.perfectName ?? null,
-      primaryPosition: m.primaryPosition,
+      ...(m.primaryPosition ? { registrationPosition: m.primaryPosition } : {}),
       isStarter: playerMap.get(m.id) ?? false,
       userId: m.userId ?? null,
+      avatarUrl: m.avatarUrl,
     }));
 }
 
@@ -129,7 +134,7 @@ export function buildLineupsPlayers(
     const playerRows = grouped.get(userId) ?? [];
     const member = userIdToMember.get(userId);
     const perfectName =
-      playerRows[0]?.perfectName ?? member?.perfectName ?? member?.displayName ?? member?.steamName ?? "未知";
+      playerRows[0]?.perfectName ?? getPublicDisplayName(member ?? {});
 
     if (playerRows.length === 0) {
       return {

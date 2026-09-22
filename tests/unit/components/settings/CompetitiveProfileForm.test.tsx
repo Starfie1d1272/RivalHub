@@ -45,7 +45,7 @@ describe("CompetitiveProfileForm", () => {
   it("prioritizes Perfect World and keeps historical peak provenance in one section", () => {
     render(<CompetitiveProfileForm contexts={[{ ...perfect, platform: "fivee", platformDisplayName: "5E" }, perfect]} />);
 
-    expect(screen.getByText(/完美世界竞技平台 · 长期竞技资料/)).toBeInTheDocument();
+    expect(screen.getByText(/完美世界竞技平台 · 竞技资料/)).toBeInTheDocument();
     expect(screen.getByText(/未录入表示尚未声明；未定级是有效事实/)).toBeInTheDocument();
     expect(screen.getByText("竞技资料")).toBeInTheDocument();
     expect(screen.getByText("历史最高")).toBeInTheDocument();
@@ -148,7 +148,7 @@ describe("CompetitiveProfileForm", () => {
     await user.click(screen.getByRole("combobox", { name: "竞技平台" }));
     await user.click(screen.getByRole("option", { name: "5E" }));
 
-    expect(screen.getByText("5E · 长期竞技资料")).toBeInTheDocument();
+    expect(screen.getByText("5E · 竞技资料")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "查看全部历史赛季（1）" })).toHaveAttribute("aria-expanded", "false");
     expect(screen.queryByRole("button", { name: "收起 历史赛季 · 2025S3" })).toBeNull();
     expect(screen.queryByText("历史赛季 · 2025S3")).toBeNull();

@@ -45,6 +45,7 @@ export interface SoloRegistrationReviewQuery {
 
 export interface RegistrationRow {
   id: string;
+  userId: string;
   primaryPosition: string;
   secondaryPosition: string;
   peakRank: string;
@@ -62,7 +63,7 @@ export interface RegistrationRow {
   createdAt: string;
   email: string;
   studentId: string | null;
-  steamName: string | null;
+  personaName: string | null;
   displayName: string | null;
   perfectName: string | null;
   steam64: string | null;
@@ -74,6 +75,9 @@ export interface TeamRegistrationReviewMember {
   participantId: string;
   userId: string;
   email: string;
+  qq: string | null;
+  steam64: string | null;
+  steamProfileUrl: string | null;
   label: string;
   status: "invited" | "confirmed" | "declined" | "withdrawn";
   primary: boolean;
@@ -92,6 +96,8 @@ export interface TeamRegistrationReviewRow {
   status: Exclude<TeamRegistrationReviewStatus, "all">;
   reviewReason: string | null;
   perfectTeamId: string | null;
+  logoUrl: string | null;
+  updatedAt: string;
   representativeName: string;
   minRoster: number;
   maxRoster: number;
@@ -108,6 +114,35 @@ export interface TeamRegistrationReviewRow {
     snapshotMatches: boolean;
   }>;
   members: TeamRegistrationReviewMember[];
+}
+
+export interface TeamRegistrationProgressRow {
+  id: string;
+  name: string;
+  source: "linked_team" | "event_native";
+  representativeName: string;
+  updatedAt: string;
+  rosterCount: number;
+  minRoster: number;
+  maxRoster: number;
+  confirmedCount: number;
+  starterCount: number;
+  requiredStarterCount: number;
+  primaryBlockers: string[];
+}
+
+export interface TeamRegistrationProgressResult {
+  drafts: TeamRegistrationProgressRow[];
+  summary: {
+    total: number;
+    draft: number;
+    submitted: number;
+    approved: number;
+    changesRequested: number;
+    waitlisted: number;
+    rejected: number;
+    withdrawn: number;
+  };
 }
 
 export interface TeamRegistrationReviewResult {

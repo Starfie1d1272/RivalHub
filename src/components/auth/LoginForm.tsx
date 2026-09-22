@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { Field } from "@/components/rivalhub";
 import { Button } from "@/components/ui/button";
 import { loginWithPassword, resendSignupConfirmation, signUp } from "@/actions/auth";
-import { TurnstileWidget } from "@/components/auth/TurnstileWidget";
+import { TurnstileWidget, type TurnstileFailure } from "@/components/auth/TurnstileWidget";
 import { EMAIL_RESEND_COOLDOWN_SECONDS, isPasswordPolicySatisfied, MIN_PASSWORD_LENGTH, PASSWORD_POLICY_MESSAGE } from "@/lib/config/auth-config";
 import { safeLocalRedirect } from "@/lib/auth/redirect";
 
@@ -22,7 +22,15 @@ export function LoginForm({ initialMode = "login", redirectTo = "/" }: { initial
   const [awaitingEmail, setAwaitingEmail] = useState<string | null>(null);
   const [resendAvailableAt, setResendAvailableAt] = useState<number | null>(null);
   const [isPending, startTransition] = useTransition();
+  const [isResendPending, startResendTransition] = useTransition();
   const redirectRef = useRef(safeLocalRedirect(redirectTo));
+
+  const handleTurnstileError = (failure: TurnstileFailure) => {
+    setTurnstileToken("");
+    // eslint-disable-next-line no-console -- client-only diagnostic contains only the allowlisted failure kind and sanitized provider code.
+    console.warn("[RivalHub] Turnstile client failure", failure);
+    toast.error("验证码加载失败，请刷新后重试；若仍失败，可尝试更换浏览器或网络。");
+  };
 
   const switchMode = (nextMode: Mode) => {
     setMode(nextMode);
@@ -96,7 +104,7 @@ export function LoginForm({ initialMode = "login", redirectTo = "/" }: { initial
           <Link href="/forgot-password" className="block w-full text-center text-sm underline hover:text-[var(--color-fg)]">
             找回密码
           </Link>
-          <Button type="button" variant="outline" className="w-full" disabled={isPending || isResendCoolingDown} onClick={() => startTransition(async () => {
+          <Button type="button" variant="outline" className="w-full" disabled={isResendPending || isResendCoolingDown} onClick={() => startResendTransition(async () => {
             const result = await resendSignupConfirmation(awaitingEmail, redirectRef.current);
             if (result.success) {
               setResendAvailableAt(Date.now() + EMAIL_RESEND_COOLDOWN_SECONDS * 1_000);
@@ -187,10 +195,7 @@ export function LoginForm({ initialMode = "login", redirectTo = "/" }: { initial
           <TurnstileWidget
             resetSignal={turnstileResetKey}
             onVerify={(token) => setTurnstileToken(token)}
-            onError={() => {
-              setTurnstileToken("");
-              toast.error("验证码加载失败，请刷新后重试");
-            }}
+            onError={handleTurnstileError}
           />
         </div>
       )}

@@ -48,6 +48,7 @@ export function HomeNavigation({
                   >
                     {tier1Entry.label}
                   </div>
+                  <p className="mt-1 text-xs text-[var(--color-fg-mid)]">{tier1Entry.meta}</p>
                 </div>
                 <span
                   style={{
@@ -90,6 +91,7 @@ export function HomeNavigation({
                 >
                   {tile.label}
                 </div>
+                <p className="mt-1 text-xs text-[var(--color-fg-mid)]">{tile.meta}</p>
               </Panel>
             </Link>
           ))}
@@ -100,7 +102,7 @@ export function HomeNavigation({
         <div className="flex gap-2 flex-wrap">
           {tier3Entries.map((tile) => (
             <Button key={tile.href} variant="ghost" asChild>
-              <Link href={tile.href as never}>{tile.label}</Link>
+              <Link href={tile.href as never}>{tile.label}<span className="text-xs text-[var(--color-fg-dim)]">{tile.meta}</span></Link>
             </Button>
           ))}
         </div>

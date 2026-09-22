@@ -5,13 +5,17 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const {
   connectionMock,
   getPublicOrAuthorizedDraftSeasonMock,
-  getParticipantSummaryMock,
+  getMajorPublicParticipantOverviewMock,
+  getLatestSeasonAnnouncementMock,
+  getPublicSeasonInfoMock,
   selectDistinctMock,
   selectMock,
 } = vi.hoisted(() => ({
   connectionMock: vi.fn(),
   getPublicOrAuthorizedDraftSeasonMock: vi.fn(),
-  getParticipantSummaryMock: vi.fn(),
+  getMajorPublicParticipantOverviewMock: vi.fn(),
+  getLatestSeasonAnnouncementMock: vi.fn(),
+  getPublicSeasonInfoMock: vi.fn(),
   selectDistinctMock: vi.fn(),
   selectMock: vi.fn(),
 }));
@@ -28,7 +32,10 @@ vi.mock("@/db/client", () => ({
 vi.mock("@/lib/data/public-seasons", () => ({
   getPublicOrAuthorizedDraftSeason: getPublicOrAuthorizedDraftSeasonMock,
 }));
-vi.mock("@/lib/participants/summary", () => ({ getParticipantSummary: getParticipantSummaryMock }));
+vi.mock("@/lib/participants/summary", () => ({ getParticipantSummary: vi.fn() }));
+vi.mock("@/lib/major/public-participants", () => ({ getMajorPublicParticipantOverview: getMajorPublicParticipantOverviewMock }));
+vi.mock("@/lib/announcements/read-model", () => ({ getLatestSeasonAnnouncement: getLatestSeasonAnnouncementMock }));
+vi.mock("@/lib/season-public-info/read-model", () => ({ getPublicSeasonInfo: getPublicSeasonInfoMock }));
 
 import { SeasonPageContent } from "@/app/[seasonSlug]/page";
 
@@ -59,11 +66,24 @@ describe("season page navigation", () => {
       hasCaptainVoting: false,
       hasDraft: false,
     });
-    getParticipantSummaryMock.mockResolvedValue({ count: 0, hasPlayers: false });
+    getMajorPublicParticipantOverviewMock.mockResolvedValue({
+      phase: "approved_candidates",
+      presentation: {
+        teamCollectionLabel: "已通过报名审核的队伍",
+        teamCollectionDescription: "候选队伍",
+        playerHeading: "已通过审核队伍选手",
+        playerDescription: "正赛名单待确认",
+      },
+      entrantCapacity: 32,
+      approvedCandidateCount: 0,
+      officialEntrantCount: 0,
+      teamCount: 0,
+      playerCount: 0,
+    });
+    getLatestSeasonAnnouncementMock.mockResolvedValue(null);
+    getPublicSeasonInfoMock.mockResolvedValue({ rules: { label: "赛事规则", href: "/rules" }, groups: [], contacts: [] });
     selectDistinctMock.mockReturnValue(chain([]));
-    selectMock
-      .mockImplementationOnce(() => chain([{ value: 4 }]))
-      .mockImplementationOnce(() => chain([{ total: 0, finished: 0 }]));
+    selectMock.mockImplementation((fields) => chain(fields.stageKey ? [] : [{ total: 0, finished: 0 }]));
   });
 
   it("routes the visible team roster shortcut to the canonical teams page", async () => {
@@ -72,7 +92,7 @@ describe("season page navigation", () => {
     });
     const html = renderToStaticMarkup(page);
 
-    expect(html).toMatch(/href="\/2026-nju-major\/teams"[\s\S]*队伍阵容/);
+    expect(html).toMatch(/href="\/2026-nju-major\/teams"[\s\S]*队伍/);
     expect(html).not.toContain("/competitionEntries");
   });
 
@@ -101,10 +121,30 @@ describe("season page navigation", () => {
     const html = renderToStaticMarkup(page);
 
     if (shouldShow) {
-      expect(html).toMatch(/href="\/2026-nju-major\/register"[\s\S]*立即报名/);
+      expect(html).toMatch(/href="\/2026-nju-major\/register"[\s\S]*报名/);
     } else {
       expect(html).not.toContain("/2026-nju-major/register");
       expect(html).not.toContain("立即报名");
     }
   });
+  it("renders compact season information entry when only rules exist without announcement, groups, or contacts", async () => {
+    getLatestSeasonAnnouncementMock.mockResolvedValue(null);
+    getPublicSeasonInfoMock.mockResolvedValue({
+      rules: { label: "赛事规则", href: "/rules" },
+      groups: [],
+      contacts: [],
+    });
+
+    const page = await SeasonPageContent({
+      params: Promise.resolve({ seasonSlug: "2026-nju-major" }),
+    });
+    const html = renderToStaticMarkup(page);
+
+    expect(html).toContain("赛事信息");
+    expect(html).toContain("赛事规则");
+    expect(html).toContain('href="/2026-nju-major/info"');
+    expect(html).not.toContain("最新公告");
+  });
 });
+vi.mock("@/lib/seasons/public-next-step", () => ({ getSeasonPersonalNextStep: vi.fn().mockResolvedValue(null) }));
+vi.mock("@/lib/seasons/public-results", () => ({ getPublicSeasonResults: vi.fn().mockResolvedValue({ champion: null, final: null, placements: [], honors: [] }) }));

@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const runDraftTimeoutCronMock = vi.hoisted(() => vi.fn());
 
-vi.mock("@/actions/draft", () => ({
+vi.mock("@/lib/draft/operations", () => ({
   runDraftTimeoutCron: runDraftTimeoutCronMock,
 }));
 
@@ -33,6 +33,6 @@ describe("draft timeout cron route", () => {
 
     expect(response.status).toBe(200);
     expect(body).toEqual({ ok: true, processed: 1, picked: 1, skipped: 0 });
-    expect(runDraftTimeoutCronMock).toHaveBeenCalledWith();
+    expect(runDraftTimeoutCronMock).toHaveBeenCalledWith(expect.any(Function));
   });
 });

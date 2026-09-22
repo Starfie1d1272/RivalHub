@@ -137,19 +137,19 @@ export function coinLevel(
 }
 export interface PoolPosition {
   accountId: string;
-  side: string;
+  optionId: string;
   stake: bigint;
 }
 /** Integer, no-rake pari-mutuel settlement. Stable largest remainder per account. */
 export function distributePool(
   positions: readonly PoolPosition[],
-  winner: string | null,
+  winningOptionIds: readonly string[] | null,
 ): Map<string, bigint> {
   const aggregate = new Map<string, PoolPosition>();
   for (const p of positions) {
     if (p.stake <= BigInt(0)) throw new Error("Stake must be positive");
     const prev = aggregate.get(p.accountId);
-    if (prev && prev.side !== p.side) throw new Error("Cannot bet both sides");
+    if (prev && prev.optionId !== p.optionId) throw new Error("Cannot stake on multiple options");
     aggregate.set(p.accountId, {
       ...p,
       stake: p.stake + (prev?.stake ?? BigInt(0)),
@@ -157,9 +157,9 @@ export function distributePool(
   }
   const rows = [...aggregate.values()];
   const total = rows.reduce((n, p) => n + p.stake, BigInt(0));
-  const winners = rows.filter((p) => p.side === winner);
+  const winners = rows.filter((p) => winningOptionIds?.includes(p.optionId));
   const winningPool = winners.reduce((n, p) => n + p.stake, BigInt(0));
-  if (!winner || winningPool === BigInt(0) || winningPool === total)
+  if (!winningOptionIds?.length || winningPool === BigInt(0) || winningPool === total)
     return new Map(rows.map((p) => [p.accountId, p.stake]));
   const losingPool = total - winningPool;
   const parts = winners.map((p) => ({

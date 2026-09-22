@@ -55,7 +55,7 @@ export function MapPreferencesForm({ initialPreferences }: { initialPreferences:
       <div className="space-y-5">
         <div>
           <p className="text-sm text-[var(--color-fg-mid)]">
-            长期地图资料与赛事无关，只记录你明确填写过的地图；地图轮换不会删除历史熟练度。
+            地图资料与赛事无关，只记录你明确填写过的地图；地图轮换不会删除历史熟练度。
           </p>
         </div>
         <MapPreferenceSection

@@ -52,12 +52,17 @@ vi.mock("@/lib/auth/admin-invites", () => ({
 vi.mock("@/lib/auth/supabase-server", () => ({
   createServiceClient: () => ({
     auth: {
-      signInWithPassword: signInWithPasswordMock,
       resetPasswordForEmail: resetPasswordForEmailMock,
       signUp: signUpMock,
     },
   }),
-  createPublicAuthClient: () => ({ auth: { signUp: signUpMock, resend: resendMock } }),
+  createPublicAuthClient: () => ({
+    auth: {
+      signInWithPassword: signInWithPasswordMock,
+      signUp: signUpMock,
+      resend: resendMock,
+    },
+  }),
 }));
 
 vi.mock("next/cache", () => ({
@@ -109,6 +114,7 @@ describe("loginWithPassword", () => {
     bootstrapConfiguredOwnerInTxMock.mockImplementation((_: unknown, user: unknown) => user);
     resolveOrCreateCanonicalUserInTxMock.mockResolvedValue(MOCK_USER_ROW);
     delete process.env.RIVALHUB_OWNER_EMAIL;
+    delete process.env.VERCEL_ENV;
   });
 
   it("空邮箱返回 VALIDATION_FAILED", async () => {
@@ -197,6 +203,24 @@ describe("loginWithPassword", () => {
 
     expect(result.success).toBe(true);
     expect(bootstrapConfiguredOwnerInTxMock).toHaveBeenCalledWith(expect.anything(), MOCK_USER_ROW);
+  });
+
+  it("Preview 使用 dev public auth client 走正常的 canonical 登录路径", async () => {
+    process.env.VERCEL_ENV = "preview";
+    signInWithPasswordMock.mockResolvedValue({
+      data: { user: { id: "dev-auth-uuid" } },
+      error: null,
+    });
+
+    try {
+      const result = await loginWithPassword(VALID_EMAIL, VALID_PASSWORD);
+
+      expect(result.success).toBe(true);
+      expect(signInWithPasswordMock).toHaveBeenCalledWith({ email: VALID_EMAIL, password: VALID_PASSWORD });
+      expect(resolveOrCreateCanonicalUserInTxMock).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ authId: "dev-auth-uuid" }));
+    } finally {
+      delete process.env.VERCEL_ENV;
+    }
   });
 });
 

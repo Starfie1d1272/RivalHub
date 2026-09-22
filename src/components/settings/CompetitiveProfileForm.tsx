@@ -78,7 +78,7 @@ export function CompetitiveProfileForm({ contexts }: { contexts: CompetitiveSeas
         </div>
       </div>
       {allowUnrecorded && <div className="max-w-56 space-y-1.5"><Label>资料状态</Label><Select value={fact.status} onValueChange={(status) => { setSaved(false); setFact(status === "ranked" ? { ...fact, status } : { status: status as FactStatus, rank: "", rating: status === "unranked" ? fact.rating : "", stars: "" }); }}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="unrecorded">未录入</SelectItem><SelectItem value="unranked">未定级</SelectItem><SelectItem value="ranked">已定级</SelectItem></SelectContent></Select></div>}
-      {fact.status === "unrecorded" && <p className="text-sm text-[var(--color-fg-mid)]">尚未对这届作出声明；赛事若明确要求这届且没有可用 fallback，会提示你补充资料。</p>}
+      {fact.status === "unrecorded" && <p className="text-sm text-[var(--color-fg-mid)]">尚未填写这届资料；赛事要求时，请补充这届成绩或有效的跨平台换算资料。</p>}
       {fact.status === "unranked" && <div className="max-w-sm space-y-1.5"><Label>对应 {context!.ratingLabel}（可选）</Label><Input value={fact.rating} onChange={(event) => { setSaved(false); setFact({ ...fact, rating: event.target.value }); }} inputMode="decimal" placeholder="没有可留空" /></div>}
       {fact.status === "ranked" && <div className={`grid gap-3 ${hasStars ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}>
         <div className="space-y-1.5"><Label>段位</Label><Select value={fact.rank || undefined} onValueChange={(rank) => { setSaved(false); setFact({ ...fact, rank, stars: "" }); }}><SelectTrigger><SelectValue placeholder="选择段位" /></SelectTrigger><SelectContent>{context!.ladder.map((entry) => <SelectItem key={entry.rankKey} value={entry.rankKey}>{entry.label}</SelectItem>)}</SelectContent></Select></div>
@@ -106,7 +106,7 @@ export function CompetitiveProfileForm({ contexts }: { contexts: CompetitiveSeas
 
   return <Panel label="竞技资料" contentClassName="p-5"><div className="space-y-5">
     {platformSelect}
-    <StatusBanner tone="info" title={`${context.platformDisplayName} · 长期竞技资料`} sub="未录入表示尚未声明；未定级是有效事实；已定级必须填写段位、星段位的准确星数与 Rating。具体赛事会按当届冻结规则单独核验。" />
+    <StatusBanner tone="info" title={`${context.platformDisplayName} · 竞技资料`} sub="未录入表示尚未声明；未定级是有效事实；已定级必须填写段位、星段位的准确星数与 Rating。具体赛事会按当届冻结规则单独核验。" />
     {editor("历史最高", HISTORICAL_KEY, historical, setHistorical, false, { after: <div className="max-w-sm space-y-1.5"><Label htmlFor="competitive-achieved-season">历史最高达成赛季（可选）</Label><Select value={achievedSeasonKey} onValueChange={(value) => { setSaved(false); setAchievedSeasonKey(value); }}><SelectTrigger id="competitive-achieved-season"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="unknown">不确定 / 暂不填写</SelectItem>{context.seasons.map((season) => <SelectItem key={season.seasonKey} value={season.seasonKey}>{season.label}</SelectItem>)}</SelectContent></Select></div> })}
     <section aria-labelledby="recent-seasons-heading" className="space-y-4">
       <div><h2 id="recent-seasons-heading" className="text-base font-semibold">近期赛季</h2><p className="mt-1 text-sm text-[var(--color-fg-mid)]">当前、上一赛季可直接维护。</p></div>

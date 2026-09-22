@@ -2,7 +2,7 @@
 
 import { and, count, desc, eq, gte, inArray, like, lt, or } from "drizzle-orm";
 import { db } from "@/db/client";
-import { auditLogs, seasons, users } from "@/db/schema";
+import { auditLogs, seasons, steamProfiles, users } from "@/db/schema";
 import { actionError } from "@/lib/action-utils";
 import { requireSeasonAdmin, requireSuperAdmin } from "@/lib/auth/session";
 import { getDisplayName } from "@/lib/identity/display-name";
@@ -13,7 +13,7 @@ import {
   summarizeAuditMeta,
   type AuditLogView,
 } from "@/lib/audit/presentation";
-import { auditTargetKey, resolveAuditTargets } from "@/lib/audit/targets";
+import { auditTargetKey, normalizeAuditTarget, resolveAuditTargets } from "@/lib/audit/targets";
 import { ok } from "@/types/action";
 
 function parseCSTDateStart(value: string) {
@@ -104,10 +104,10 @@ export async function fetchAuditLogs(filters: AuditLogFilters = {}) {
         const actorUsers = await db.select({
           id: users.id,
           email: users.email,
-          steamName: users.steamName,
+          personaName: steamProfiles.personaName,
           displayName: users.displayName,
           perfectName: users.perfectName,
-        }).from(users).where(or(...clauses));
+        }).from(users).leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64)).where(or(...clauses));
         for (const user of actorUsers) {
           const name = getDisplayName(user);
           actorNameMap[user.id] = name;
@@ -116,15 +116,20 @@ export async function fetchAuditLogs(filters: AuditLogFilters = {}) {
       }
     }
 
-    const targetMap = await resolveAuditTargets(rows.map((row) => ({
+    const targetRefs = rows.map((row) => ({
+      action: row.action,
+      meta: row.meta,
       targetType: row.targetType,
       targetId: row.targetId,
-    })));
+    }));
+    const normalizedTargets = targetRefs.map(normalizeAuditTarget);
+    const targetMap = await resolveAuditTargets(targetRefs);
 
-    const logs: AuditLogView[] = rows.map((row) => {
+    const logs: AuditLogView[] = rows.map((row, index) => {
       const action = getAuditActionPresentation(row.action);
-      const target = row.targetType && row.targetId
-        ? targetMap[auditTargetKey(row.targetType, row.targetId)]
+      const normalizedTarget = normalizedTargets[index];
+      const target = normalizedTarget?.targetType && normalizedTarget.targetId
+        ? targetMap[auditTargetKey(normalizedTarget.targetType, normalizedTarget.targetId)]
         : undefined;
       return {
         id: row.id,
@@ -134,7 +139,7 @@ export async function fetchAuditLogs(filters: AuditLogFilters = {}) {
         categoryLabel: action.categoryLabel,
         categoryColor: action.categoryColor,
         actorLabel: actorLabel(row.actorId, actorNameMap),
-        targetTypeLabel: target?.typeLabel ?? getAuditTargetTypeLabel(row.targetType),
+        targetTypeLabel: target?.typeLabel ?? getAuditTargetTypeLabel(normalizedTarget?.targetType),
         targetLabel: target?.label ?? "未指定目标",
         summary: summarizeAuditMeta(row.action, row.meta),
       };

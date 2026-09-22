@@ -8,6 +8,7 @@ import {
   predictionPicks as picks,
   predictionJudgements as judgements,
   predictionMarkets as markets,
+  predictionMarketOptions as options,
   predictionStakes as stakes,
   predictionLedger as ledger,
   predictionSettlements as settlements,
@@ -145,6 +146,7 @@ export async function predictionBoard(
     .select()
     .from(markets)
     .where(eq(markets.seasonId, seasonId));
+  const allOptions = await tx.select().from(options).innerJoin(markets, eq(options.marketId, markets.id)).where(eq(markets.seasonId, seasonId));
   const investments = await tx
     .select()
     .from(stakes)
@@ -217,9 +219,9 @@ export async function predictionBoard(
     }),
     markets: pools.map((m) => {
       const rows = investments.filter((s) => s.marketId === m.id);
-      const sum = (side: string) =>
+      const sum = (optionId: string) =>
         rows
-          .filter((s) => s.side === side)
+          .filter((s) => s.optionId === optionId)
           .reduce((n, s) => n + s.amount, BigInt(0))
           .toString();
       const mine = rows.filter((s) => s.accountId === me?.id);
@@ -230,16 +232,14 @@ export async function predictionBoard(
         id: m.id,
         matchId: m.matchId,
         stageKey: m.stageKey,
-        a: m.a,
-        b: m.b,
+        title: m.title,
+        options: allOptions.filter((row) => row.prediction_market_options.marketId === m.id).map((row) => row.prediction_market_options).sort((a, b) => a.position - b.position).map((o) => ({ id: o.id, label: o.label, entryId: o.entryId, pool: sum(o.id) })),
         deadline: m.deadline.toISOString(),
         locked: !!m.lockedAt,
         state: batch?.state ?? "pending",
-        winner: batch?.winner ?? null,
-        aPool: sum(m.a),
-        bPool: sum(m.b),
+        winningOptionIds: batch?.winningOptionIds ?? [],
         participants: new Set(rows.map((s) => s.accountId)).size,
-        mySide: mine[0]?.side ?? null,
+        myOptionId: mine[0]?.optionId ?? null,
         myStake: mine.reduce((n, s) => n + s.amount, BigInt(0)).toString(),
         revisions: batches.filter(
           (b) => b.prediction_settlements.marketId === m.id,

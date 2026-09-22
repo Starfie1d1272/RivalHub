@@ -41,6 +41,7 @@ export const predictionContests = pgTable(
       .references(() => predictionPrograms.seasonId),
     stageKey: text("stage_key").notNull(),
     kind: text("kind", { enum: ["swiss", "single_elim"] }).notNull(),
+    stageRunId: uuid("stage_run_id").notNull(),
     entrants: jsonb("entrants")
       .$type<{ teamId: string; seed: number }[]>()
       .notNull(),
@@ -122,10 +123,11 @@ export const predictionMarkets = pgTable(
       .notNull()
       .references(() => predictionPrograms.seasonId),
     // Preserve identity when official recovery deletes/replaces a match. No cascading match FK.
-    matchId: uuid("match_id").notNull().unique(),
+    matchId: uuid("match_id").notNull(),
+    resolver: text("resolver").notNull(),
+    title: text("title").notNull(),
+    subject: jsonb("subject").$type<{ stageRunId: string; entryIds: string[] }>().notNull(),
     stageKey: text("stage_key").notNull(),
-    a: uuid("entry_a_id").notNull(),
-    b: uuid("entry_b_id").notNull(),
     deadline: time("deadline").notNull(),
     lockedAt: time("locked_at"),
     createdAt: time("created_at")
@@ -134,9 +136,18 @@ export const predictionMarkets = pgTable(
   },
   (t) => [
     unique().on(t.id, t.seasonId),
-    check("prediction_market_pair", sql`${t.a} <> ${t.b}`),
+    unique().on(t.matchId, t.resolver),
   ],
 );
+/** Immutable options; stakes cannot reference an option from another market. */
+export const predictionMarketOptions = pgTable("prediction_market_options", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  marketId: uuid("market_id").notNull().references(() => predictionMarkets.id),
+  key: text("key").notNull(),
+  label: text("label").notNull(),
+  entryId: uuid("entry_id"),
+  position: integer("position").notNull(),
+}, (t) => [unique().on(t.marketId, t.key), unique().on(t.id, t.marketId), unique().on(t.marketId, t.position)]);
 export const predictionStakes = pgTable(
   "prediction_stakes",
   {
@@ -144,7 +155,7 @@ export const predictionStakes = pgTable(
     seasonId: uuid("season_id").notNull(),
     marketId: uuid("market_id").notNull(),
     accountId: uuid("account_id").notNull(),
-    side: uuid("side").notNull(),
+    optionId: uuid("option_id").notNull(),
     amount: bigint("amount", { mode: "bigint" }).notNull(),
     requestId: uuid("request_id").notNull(),
     createdAt: time("created_at")
@@ -161,6 +172,7 @@ export const predictionStakes = pgTable(
       columns: [t.accountId, t.seasonId],
       foreignColumns: [predictionAccounts.id, predictionAccounts.seasonId],
     }),
+    foreignKey({ columns: [t.optionId, t.marketId], foreignColumns: [predictionMarketOptions.id, predictionMarketOptions.marketId] }),
     check("prediction_stake_positive", sql`${t.amount} > 0`),
   ],
 );
@@ -175,7 +187,8 @@ export const predictionSettlements = pgTable(
     state: text("state", {
       enum: ["pending", "settled", "refunded"],
     }).notNull(),
-    winner: uuid("winner"),
+    winningOptionIds: jsonb("winning_option_ids").$type<string[]>().notNull(),
+    factRevision: text("fact_revision").notNull(),
     createdAt: time("created_at")
       .notNull()
       .default(sql`clock_timestamp()`),

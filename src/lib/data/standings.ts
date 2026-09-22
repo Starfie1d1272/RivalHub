@@ -1,3 +1,4 @@
+import { publicCompetitionEntryCondition } from "@/lib/competition-entries/public-visibility";
 import "server-only";
 import { and, eq, asc, inArray, isNotNull } from "drizzle-orm";
 import { db } from "@/db/client";
@@ -26,12 +27,12 @@ export async function getMatchMapRoundScores(
 export async function getStandings(seasonId: string): Promise<TeamStanding[]> {
   const [allTeams, finished] = await Promise.all([
     db.query.competitionEntries.findMany({
-      where: eq(competitionEntries.competitionId, seasonId),
+      where: and(eq(competitionEntries.competitionId, seasonId), publicCompetitionEntryCondition()),
       orderBy: [asc(competitionEntries.formationOrder)],
     }),
     db.query.matches.findMany({
       where: and(eq(matches.seasonId, seasonId), eq(matches.status, "finished")),
-      orderBy: [asc(matches.createdAt)],
+      orderBy: [asc(matches.completedAt), asc(matches.id)],
     }),
   ]);
 

@@ -3,7 +3,7 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { captainVotes, seasonRegistrations } from "@/db/schema";
 import { CaptainVotingPanel } from "@/components/captains/CaptainVotingPanel";
-import { Panel } from "@/components/rivalhub";
+import { PageLayout, Panel } from "@/components/rivalhub";
 import {
   getPublicCaptainVotingData,
   type CaptainVoteRecord,
@@ -23,14 +23,14 @@ export default async function CaptainsPage({ params }: CaptainsPageProps) {
 
   if (!season.hasCaptainVoting) {
     return (
-      <main className="container mx-auto max-w-5xl px-4 py-10">
+      <PageLayout variant="wide">
         <Panel contentClassName="p-8">
           <h1 className="text-2xl font-bold">队长投票 · {season.name}</h1>
           <p className="mt-2 text-sm text-[var(--color-fg-mid)]">
             该赛季未启用队长投票。
           </p>
         </Panel>
-      </main>
+      </PageLayout>
     );
   }
 
@@ -64,7 +64,7 @@ export default async function CaptainsPage({ params }: CaptainsPageProps) {
   }
 
   return (
-    <main className="container mx-auto max-w-6xl px-4 py-10 space-y-8">
+    <PageLayout variant="wide" className="space-y-8">
       <div className="mb-8">
         <p className="font-mono text-[11px] tracking-[0.18em] text-[var(--color-accent)] uppercase mb-1">
           {season.name} · CAPTAINS
@@ -94,6 +94,6 @@ export default async function CaptainsPage({ params }: CaptainsPageProps) {
         candidates={data.candidates}
         votes={currentVotes}
       />
-    </main>
+    </PageLayout>
   );
 }

@@ -3,63 +3,208 @@ import { appendFileSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
-const CAPABILITIES = ["static", "postgres", "system"];
+export const CAPABILITIES = ["static", "postgres", "system"];
+
+const STATIC_PROJECTS = ["unit-domain-node", "unit-server-node", "unit-react-jsdom"];
+const FULL_STATIC_MATRIX = [
+  { task: "type-app", changedPaths: [] },
+  { task: "type-tests", changedPaths: [] },
+  { task: "type-scripts", changedPaths: [] },
+  { task: "lint", changedPaths: [] },
+  { task: "architecture", changedPaths: [] },
+  ...STATIC_PROJECTS.map((project) => ({ task: taskNameForProject(project), project, mode: "full", changedPaths: [] })),
+  { task: "dead-code", changedPaths: [] },
+  { task: "build", changedPaths: [] },
+];
+
+const GLOBAL_CONTRACTS = {
+  productLanguage: { project: "unit-domain-node", path: "tests/unit/quality/product-language.test.ts" },
+  e2e: { project: "unit-domain-node", path: "tests/unit/quality/e2e-contract.test.ts" },
+  architecture: { project: "unit-domain-node", path: "tests/unit/quality/architecture-boundaries.test.ts" },
+};
+
 const DB_BACKED_APP_PREFIXES = [
   "src/app/[seasonSlug]/",
   "src/app/admin/",
   "src/app/my/",
+  "src/app/team-invites/",
+  "src/app/teams/",
   "src/app/players/",
   "src/app/seasons/",
   "src/app/settings/",
-  "src/app/team-invites/",
-  "src/app/teams/",
 ];
 const SYSTEM_APP_PREFIXES = [
   "src/app/auth/",
   "src/app/login/",
   "src/app/forgot-password/",
   "src/app/reset-password/",
-  "src/app/my/",
-  "src/app/[seasonSlug]/register/",
+  "src/app/api/test/e2e/",
 ];
 const SYSTEM_ACTION_PREFIXES = [
   "src/actions/auth",
-  "src/actions/competition-entries.ts",
-  "src/actions/major-prestart.ts",
-  "src/actions/register.ts",
+];
+const MOBILE_PUBLIC_EVENT_SEARCH_SPEC = "tests/e2e/flows/public-event-experience.spec.ts";
+const MOBILE_PUBLIC_EVENT_SEARCH_SOURCES = new Set(["src/components/rivalhub/ListSearchField.tsx"]);
+
+const SYSTEM_FLOW_MAP = [
+  {
+    prefixes: [
+      "src/app/auth/",
+      "src/app/login/",
+      "src/app/forgot-password/",
+      "src/app/reset-password/",
+      "src/actions/auth",
+      "src/lib/auth/",
+      "src/lib/session/",
+    ],
+    specs: ["tests/e2e/flows/major-entry.spec.ts"],
+  },
+  {
+    prefixes: [
+      "src/lib/education/storage.ts",
+      "src/lib/education/commands.ts",
+      "src/actions/education-verifications.ts",
+      "src/components/settings/EducationVerificationPanel.tsx",
+      "src/app/settings/education",
+    ],
+    specs: ["tests/e2e/flows/education-manual-fallback.spec.ts"],
+  },
+  {
+    prefixes: ["src/components/rivalhub/ListSearchField.tsx"],
+    specs: [MOBILE_PUBLIC_EVENT_SEARCH_SPEC],
+  },
 ];
 
+function systemSpecsForPath(path) {
+  const specs = new Set();
+  for (const mapping of SYSTEM_FLOW_MAP) {
+    if (mapping.prefixes.some((prefix) => path === prefix || path.startsWith(prefix))) {
+      for (const spec of mapping.specs) specs.add(spec);
+    }
+  }
+  return [...specs];
+}
+
+const CODE_EXTENSIONS = /\.(?:[cm]?[jt]sx?|vue|svelte)$/;
+const LINT_EXTENSIONS = /\.[cm]?[jt]sx?$/;
+const E2E_SPEC_FILE = /^tests\/e2e\/.+\.spec\.(?:[cm]?[jt]sx?)$/;
+const INTEGRATION_SPEC_FILE = /^tests\/integration\/db\/(?!harness\/).+\.(?:test|spec)\.(?:[cm]?[jt]sx?)$/;
 export function classifyChangedFiles(entries, options = {}) {
-  const { forceFull = false } = options;
+  const { forceFull = false, draft = true } = options;
+  const gateName = draft ? "draft-gate" : "ci-gate";
+  const mobileSearchEvidence = entries.some((entry) =>
+    (entry.paths ?? []).some((path) => MOBILE_PUBLIC_EVENT_SEARCH_SOURCES.has(path) || path === MOBILE_PUBLIC_EVENT_SEARCH_SPEC),
+  );
+  const result = (...args) => ({ ...resultFor(...args), gateName, mobileSearchEvidence });
   if (forceFull) {
-    return resultFor(CAPABILITIES, true, "受保护分支、merge queue、release 或手动运行，强制 full gate");
+    return result(CAPABILITIES, true, "受保护分支、merge queue、schedule 或手动运行，强制 full gate");
   }
   if (entries.length === 0) {
-    return resultFor(CAPABILITIES, true, "无法取得 changed-surface，fail closed 到 full gate");
+    return result(CAPABILITIES, true, "无法取得 changed-surface，fail closed 到 full gate");
+  }
+
+  if (isReleaseMetadataOnly(entries, options)) {
+    return result([], false, "release-metadata-only：只包含 version、CHANGELOG 与 Changeset metadata");
   }
 
   const capabilities = new Set();
   const reasons = new Set();
+  const evidence = {
+    typeApp: false,
+    typeTests: false,
+    typeScripts: false,
+    architecture: false,
+    lintPaths: new Set(),
+    unitRelatedSources: new Map(STATIC_PROJECTS.map((project) => [project, new Set()])),
+    unitExplicitTests: new Map(STATIC_PROJECTS.map((project) => [project, new Set()])),
+    integrationSpecs: new Set(),
+    e2eSpecs: new Set(),
+  };
   let docsOnly = true;
   for (const entry of entries) {
     if (entry.status === "R" || entry.status === "D" || entry.status.startsWith("R") || entry.status.startsWith("D")) {
-      return resultFor(CAPABILITIES, true, `检测到 ${entry.status} rename/delete：${entry.paths.join(" -> ")}`);
+      return result(CAPABILITIES, true, `检测到 ${entry.status} rename/delete：${entry.paths.join(" -> ")}`);
     }
-    const classification = classifyPath(entry.paths[entry.paths.length - 1] ?? "");
+    const path = entry.paths[entry.paths.length - 1] ?? "";
+    const classification = classifyPath(path);
     if (classification.capabilities === "full") {
-      return resultFor(CAPABILITIES, true, classification.reason);
+      return result(CAPABILITIES, true, classification.reason);
     }
     if (classification.capabilities.length > 0) docsOnly = false;
     for (const capability of classification.capabilities) capabilities.add(capability);
     reasons.add(classification.reason);
+    collectEvidence(path, classification, evidence);
+  }
+
+  if (evidence.e2eSpecs.size > 0) {
+    capabilities.add("system");
   }
 
   if (capabilities.size === 0) {
     return docsOnly
-      ? resultFor([], false, "docs-only surface：只保留 planner + ci-gate")
-      : resultFor(CAPABILITIES, true, "changed-surface 未命中已声明 capability，fail closed 到 full gate");
+      ? result([], false, `docs-only surface：只保留 planner + ${gateName}`)
+      : result(CAPABILITIES, true, "changed-surface 未命中已声明 capability，fail closed 到 full gate");
   }
-  return resultFor([...capabilities].sort((a, b) => CAPABILITIES.indexOf(a) - CAPABILITIES.indexOf(b)), false, [...reasons].join("；"));
+
+  const staticMatrix = buildStaticMatrix(evidence);
+  return result(
+    [...capabilities].sort((a, b) => CAPABILITIES.indexOf(a) - CAPABILITIES.indexOf(b)),
+    false,
+    [...reasons].join("；"),
+    {
+      staticMatrix,
+      unitMode: staticMatrix.some((item) => item.mode === "related" || item.mode === "explicit") ? "affected" : "none",
+      relatedSources: unique([...evidence.unitRelatedSources.values()].flatMap((paths) => [...paths])),
+      explicitTests: unique([...evidence.unitExplicitTests.values()].flatMap((paths) => [...paths])),
+      integrationSpecs: [...evidence.integrationSpecs].sort(),
+      e2eSpecs: [...evidence.e2eSpecs].sort(),
+    },
+  );
+}
+
+/**
+ * A package.json change is safe to keep on the metadata-only fast path only
+ * when the semantic JSON is unchanged apart from its top-level version.
+ * Callers that do not provide both snapshots fail closed to the normal FULL
+ * package/toolchain classification.
+ */
+export function isReleaseMetadataOnly(entries, options = {}) {
+  const changedPaths = entries.flatMap((entry) => entry.paths ?? []);
+  const packageEntries = entries.filter((entry) => entry.paths?.includes("package.json"));
+  if (packageEntries.length !== 1 || packageEntries[0].status !== "M") return false;
+  if (changedPaths.some((path) => !isReleaseMetadataPath(path))) return false;
+
+  const before = options.packageJsonBefore;
+  const after = options.packageJsonAfter;
+  if (!before || !after || typeof before !== "object" || typeof after !== "object") return false;
+  if (before.version === after.version || typeof before.version !== "string" || typeof after.version !== "string") {
+    return false;
+  }
+
+  return stableSemanticJson(withoutPackageVersion(before)) === stableSemanticJson(withoutPackageVersion(after));
+}
+
+function isReleaseMetadataPath(path) {
+  return path.startsWith(".changeset/") || path === "CHANGELOG.md" || path === "package.json";
+}
+
+function withoutPackageVersion(value) {
+  return Object.fromEntries(Object.entries(value).filter(([key]) => key !== "version"));
+}
+
+function stableSemanticJson(value) {
+  if (Array.isArray(value)) return JSON.stringify(value.map(stableSemanticJsonValue));
+  return JSON.stringify(stableSemanticJsonValue(value));
+}
+
+function stableSemanticJsonValue(value) {
+  if (Array.isArray(value)) return value.map(stableSemanticJsonValue);
+  if (!value || typeof value !== "object") return value;
+  return Object.fromEntries(
+    Object.entries(value)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, entry]) => [key, stableSemanticJsonValue(entry)]),
+  );
 }
 
 export function parseNameStatus(raw) {
@@ -75,15 +220,15 @@ export function parseNameStatus(raw) {
 }
 
 function classifyPath(path) {
+  if (path.startsWith(".changeset/")) {
+    return { capabilities: [], reason: `release metadata: ${path}` };
+  }
+
   const docs = path.startsWith("docs/") || path.endsWith(".md") || path.endsWith(".mdx");
   if (docs) return { capabilities: [], reason: `docs-only: ${path}` };
 
   const fullPrefixes = [
     ".github/",
-    ".changeset/",
-    "scripts/",
-    "tests/integration/",
-    "tests/e2e/",
     "package.json",
     "pnpm-lock.yaml",
     "pnpm-workspace.yaml",
@@ -113,17 +258,32 @@ function classifyPath(path) {
     return { capabilities: ["static", "postgres"], reason: `database surface: ${path}` };
   }
 
+  if (path.startsWith("tests/integration/db/harness/") || path === "tests/integration/setup.ts") {
+    return { capabilities: "full", reason: `integration harness surface: ${path}` };
+  }
+  if (path.startsWith("tests/integration/db/")) {
+    return isIntegrationSpec(path)
+      ? { capabilities: ["static", "postgres"], reason: `real PostgreSQL integration spec: ${path}`, integrationSpecs: [path] }
+      : { capabilities: ["static", "postgres"], reason: `integration support surface；PostgreSQL 使用 full suite: ${path}` };
+  }
+  if (path.startsWith("tests/e2e/")) {
+    return isE2ESpec(path)
+      ? { capabilities: ["static", "system"], reason: `browser and Local Supabase E2E spec: ${path}`, e2eSpecs: [path] }
+      : { capabilities: ["static", "system"], reason: `E2E support surface；system 使用 full suite: ${path}` };
+  }
+
   const source = readSourceDependencies(path);
   if (source.unreadable) {
     return { capabilities: "full", reason: `source dependency surface unreadable: ${path}` };
   }
 
+  if (path.startsWith("scripts/")) return classifyScriptPath(path);
+
+  const flowSpecs = systemSpecsForPath(path);
+
   if (path.startsWith("src/actions/")) {
     const capabilities = ["static", "postgres"];
-    if (
-      SYSTEM_ACTION_PREFIXES.some((prefix) => path.startsWith(prefix)) ||
-      source.usesSupabase
-    ) {
+    if (SYSTEM_ACTION_PREFIXES.some((prefix) => path.startsWith(prefix)) || source.usesSupabase || flowSpecs.length > 0) {
       capabilities.push("system");
     }
     return {
@@ -137,7 +297,7 @@ function classifyPath(path) {
     if (DB_BACKED_APP_PREFIXES.some((prefix) => path.startsWith(prefix)) || source.usesDatabase) {
       capabilities.push("postgres");
     }
-    if (SYSTEM_APP_PREFIXES.some((prefix) => path.startsWith(prefix)) || source.usesSupabase) {
+    if (SYSTEM_APP_PREFIXES.some((prefix) => path.startsWith(prefix)) || source.usesSupabase || flowSpecs.length > 0) {
       capabilities.push("system");
     }
     return { capabilities, reason: `App Router surface: ${path}` };
@@ -146,7 +306,7 @@ function classifyPath(path) {
   if (path.startsWith("src/components/")) {
     const capabilities = ["static"];
     if (source.usesDatabase) capabilities.push("postgres");
-    if (source.usesSupabase) capabilities.push("system");
+    if (source.usesSupabase || flowSpecs.length > 0) capabilities.push("system");
     return { capabilities, reason: `UI surface: ${path}` };
   }
 
@@ -157,7 +317,7 @@ function classifyPath(path) {
   if (path.startsWith("src/lib/")) {
     const capabilities = ["static"];
     if (source.usesDatabase) capabilities.push("postgres");
-    if (source.usesSupabase || path === "src/lib/auth/session.ts" || path.startsWith("src/lib/session/")) {
+    if (source.usesSupabase || path === "src/lib/auth/session.ts" || path.startsWith("src/lib/session/") || flowSpecs.length > 0) {
       capabilities.push("system");
     }
     return { capabilities, reason: `library surface: ${path}` };
@@ -166,6 +326,102 @@ function classifyPath(path) {
     return { capabilities: ["static"], reason: `presentation asset surface: ${path}` };
   }
   return { capabilities: "full", reason: `unclassified surface: ${path}` };
+}
+
+function classifyScriptPath(path) {
+  if (path.startsWith("scripts/ci/timing") || path.startsWith("scripts/ci/vitest-timing-reporter")) {
+    return { capabilities: ["static"], reason: `CI timing utility surface: ${path}` };
+  }
+  if (path.startsWith("scripts/ci/system-artifact")) {
+    return { capabilities: ["static", "system"], reason: `system artifact security surface: ${path}` };
+  }
+  if (path.startsWith("scripts/db/major-browser-fixture") || path.startsWith("scripts/db/local")) {
+    return { capabilities: ["static", "postgres", "system"], reason: `database/browser fixture surface: ${path}` };
+  }
+  if (path.startsWith("scripts/db/integration") || path.startsWith("scripts/db/pg17") || path.startsWith("scripts/db/prepare-pg17")) {
+    return { capabilities: ["static", "postgres"], reason: `PostgreSQL harness surface: ${path}` };
+  }
+  if (path.startsWith("scripts/db/")) {
+    return { capabilities: ["static", "postgres"], reason: `database utility surface: ${path}` };
+  }
+  if (path.startsWith("scripts/release/") || path.startsWith("scripts/vercel-build")) {
+    return { capabilities: ["static"], reason: `release utility surface: ${path}` };
+  }
+  return { capabilities: "full", reason: `unclassified script surface: ${path}` };
+}
+
+function collectEvidence(path, classification, evidence) {
+  const isCode = CODE_EXTENSIONS.test(path);
+  const isTest = path.startsWith("tests/");
+  const isScript = path.startsWith("scripts/");
+  evidence.typeApp ||= path.startsWith("src/");
+  evidence.typeTests ||= isTest;
+  evidence.typeScripts ||= isScript;
+  evidence.architecture ||= path.startsWith("src/") || path.startsWith("scripts/architecture/");
+  if (isCode || LINT_EXTENSIONS.test(path)) evidence.lintPaths.add(path);
+
+  if (classification.integrationSpecs) {
+    for (const spec of classification.integrationSpecs) evidence.integrationSpecs.add(spec);
+  }
+  if (classification.e2eSpecs) {
+    for (const spec of classification.e2eSpecs) evidence.e2eSpecs.add(spec);
+  }
+  if (path.startsWith("tests/e2e/")) evidence.unitExplicitTests.get("unit-domain-node").add(GLOBAL_CONTRACTS.e2e.path);
+
+  const project = unitProjectFor(path);
+  if (project && isTest) evidence.unitExplicitTests.get(project).add(path);
+  if (project && isCode && !isTest) evidence.unitRelatedSources.get(project).add(path);
+  if (path.startsWith("src/")) {
+    evidence.unitExplicitTests.get("unit-domain-node").add(GLOBAL_CONTRACTS.architecture.path);
+    evidence.unitExplicitTests.get("unit-domain-node").add(GLOBAL_CONTRACTS.productLanguage.path);
+  }
+
+  for (const spec of systemSpecsForPath(path)) {
+    evidence.e2eSpecs.add(spec);
+  }
+}
+
+function unitProjectFor(path) {
+  if (
+    path.startsWith("src/app/")
+    || path.startsWith("src/actions/")
+    || path.startsWith("src/db/")
+    || /^(tests\/unit\/(actions|api|app|db|release)\/)/.test(path)
+  ) return "unit-server-node";
+  if (path.endsWith(".tsx") || path.startsWith("src/components/")) return "unit-react-jsdom";
+  if (path.startsWith("src/") || path.startsWith("tests/unit/")) return "unit-domain-node";
+  return undefined;
+}
+
+function taskNameForProject(project) {
+  return project === "unit-domain-node" ? "unit-domain"
+    : project === "unit-server-node" ? "unit-server"
+      : "unit-react";
+}
+
+function buildStaticMatrix(evidence) {
+  const matrix = [];
+  if (evidence.typeApp) matrix.push({ task: "type-app", changedPaths: [] });
+  if (evidence.typeTests) matrix.push({ task: "type-tests", changedPaths: [] });
+  if (evidence.typeScripts) matrix.push({ task: "type-scripts", changedPaths: [] });
+  if (evidence.architecture) matrix.push({ task: "architecture", changedPaths: [] });
+
+  const lintPaths = [...evidence.lintPaths].filter((path) => LINT_EXTENSIONS.test(path)).sort();
+  if (lintPaths.length > 0) matrix.push({ task: "lint-changed", changedPaths: lintPaths });
+
+  for (const project of STATIC_PROJECTS) {
+    const relatedSources = [...evidence.unitRelatedSources.get(project)].sort();
+    if (relatedSources.length > 0) {
+      matrix.push({ task: `unit-related-${project}`, project, mode: "related", relatedSources });
+    }
+    const explicitTests = [...evidence.unitExplicitTests.get(project)].sort();
+    if (explicitTests.length > 0) {
+      matrix.push({ task: `unit-explicit-${project}`, project, mode: "explicit", explicitTests });
+    }
+  }
+
+  if (matrix.length === 0) matrix.push({ task: "type-app", changedPaths: [] });
+  return matrix;
 }
 
 function readSourceDependencies(path) {
@@ -185,22 +441,39 @@ function readSourceDependencies(path) {
   }
 }
 
-function resultFor(requiredJobs, full, reason) {
+function resultFor(requiredJobs, full, reason, evidence = {}) {
+  const staticMatrix = full ? FULL_STATIC_MATRIX : evidence.staticMatrix ?? [];
   return {
     full,
     requiredJobs,
-    runStatic: requiredJobs.includes("static"),
+    runStatic: staticMatrix.length > 0,
     runPostgres: requiredJobs.includes("postgres"),
     runSystem: requiredJobs.includes("system"),
+    staticMatrix,
+    unitMode: full ? "full" : evidence.unitMode ?? "none",
+    relatedSources: full ? [] : evidence.relatedSources ?? [],
+    explicitTests: full ? [] : evidence.explicitTests ?? [],
+    integrationSpecs: full ? [] : evidence.integrationSpecs ?? [],
+    e2eSpecs: full ? [] : evidence.e2eSpecs ?? [],
     reason,
   };
 }
 
+function isE2ESpec(path) {
+  return E2E_SPEC_FILE.test(path);
+}
+
+function isIntegrationSpec(path) {
+  return INTEGRATION_SPEC_FILE.test(path);
+}
+
+function unique(values) {
+  return [...new Set(values)].sort();
+}
+
 function output(name, value) {
   const outputPath = process.env.GITHUB_OUTPUT;
-  if (outputPath) {
-    appendFileSync(outputPath, `${name}=${value}\n`);
-  }
+  if (outputPath) appendFileSync(outputPath, `${name}=${value}\n`);
 }
 
 function gitChangedFiles() {
@@ -221,8 +494,14 @@ function gitChangedFiles() {
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const forceFull = process.env.FORCE_FULL === "1" || process.env.FORCE_FULL === "true";
+  const draft = process.env.PR_DRAFT !== "false";
   const entries = gitChangedFiles();
-  const plan = classifyChangedFiles(entries, { forceFull });
+  const plan = classifyChangedFiles(entries, {
+    forceFull,
+    draft,
+    packageJsonBefore: readPackageJsonAtRevision(process.env.BASE_SHA),
+    packageJsonAfter: readPackageJsonAtRevision(process.env.HEAD_SHA || "HEAD"),
+  });
   console.log(`CI plan: ${plan.full ? "FULL" : plan.requiredJobs.join(" + ")} | ${plan.reason}`);
   for (const entry of entries) console.log(`changed ${entry.status}\t${entry.paths.join("\t")}`);
   output("full", String(plan.full));
@@ -230,4 +509,30 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   output("run_postgres", String(plan.runPostgres));
   output("run_system", String(plan.runSystem));
   output("required_jobs", JSON.stringify(plan.requiredJobs));
+  output("static_matrix", JSON.stringify(plan.staticMatrix));
+  output("unit_mode", plan.unitMode);
+  output("related_sources", JSON.stringify(plan.relatedSources));
+  output("explicit_tests", JSON.stringify(plan.explicitTests));
+  output("postgres_mode", plan.integrationSpecs.length > 0 ? "affected" : "full");
+  output("integration_specs", JSON.stringify(plan.integrationSpecs));
+  output("system_mode", plan.e2eSpecs.length > 0 ? "affected" : "full");
+  output("e2e_specs", JSON.stringify(plan.e2eSpecs));
+  output("mobile_search_evidence", String(plan.mobileSearchEvidence));
+  output("gate_name", plan.gateName);
+  output("release_metadata_only", String(isReleaseMetadataOnly(entries, {
+    packageJsonBefore: readPackageJsonAtRevision(process.env.BASE_SHA),
+    packageJsonAfter: readPackageJsonAtRevision(process.env.HEAD_SHA || "HEAD"),
+  })));
+}
+
+function readPackageJsonAtRevision(revision) {
+  if (!revision || /^0+$/.test(revision)) return undefined;
+  try {
+    return JSON.parse(execFileSync("git", ["show", `${revision}:package.json`], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    }));
+  } catch {
+    return undefined;
+  }
 }

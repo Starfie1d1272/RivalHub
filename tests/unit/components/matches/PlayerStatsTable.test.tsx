@@ -55,7 +55,7 @@ describe("PlayerStatsTable", () => {
     mockMembershipSelect.mockReturnValue({ from: mockMembershipFrom });
     mockMembershipFrom.mockReturnValue({ innerJoin: mockMembershipInnerJoin });
     mockMembershipInnerJoin.mockReturnValue({ where: mockMembershipWhere });
-    mockMembershipWhere.mockResolvedValue([]);
+    mockMembershipWhere.mockResolvedValue([{ userId: "u-a", entryId: "ta" }, { userId: "u-b", entryId: "tb" }]);
   });
 
   it("renders empty state when no stats", async () => {
@@ -67,8 +67,8 @@ describe("PlayerStatsTable", () => {
 
   it("renders team names and player names", async () => {
     mockFindMany.mockResolvedValue([
-      { id: "p1", userId: null, perfectName: "选手1", kills: 10, deaths: 5, assists: 3, adr: 80, ratingPro: 1.1, hsPercent: 50, firstKills: 2, multiKills: 1, clutches: 0, rws: 12, we: 1.5 },
-      { id: "p2", userId: null, perfectName: "选手2", kills: 5, deaths: 10, assists: 1, adr: 50, ratingPro: 0.8, hsPercent: 40, firstKills: 0, multiKills: 0, clutches: 0, rws: 8, we: 0.8 },
+      { id: "p1", userId: "u-a", perfectName: "选手1", kills: 10, deaths: 5, assists: 3, adr: 80, ratingPro: 1.1, hsPercent: 50, firstKills: 2, multiKills: 1, clutches: 0, rws: 12, we: 1.5 },
+      { id: "p2", userId: "u-b", perfectName: "选手2", kills: 5, deaths: 10, assists: 1, adr: 50, ratingPro: 0.8, hsPercent: 40, firstKills: 0, multiKills: 0, clutches: 0, rws: 8, we: 0.8 },
     ]);
     const jsx = await PlayerStatsTable(baseProps);
     render(jsx);
@@ -80,7 +80,7 @@ describe("PlayerStatsTable", () => {
 
   it("renders rating values", async () => {
     mockFindMany.mockResolvedValue([
-      { id: "p1", userId: null, perfectName: "高Rating选手", kills: 25, deaths: 8, assists: 5, adr: 95, ratingPro: 1.35, hsPercent: 60, firstKills: 3, multiKills: 2, clutches: 1, rws: 15, we: 2.0 },
+      { id: "p1", userId: "u-a", perfectName: "高Rating选手", kills: 25, deaths: 8, assists: 5, adr: 95, ratingPro: 1.35, hsPercent: 60, firstKills: 3, multiKills: 2, clutches: 1, rws: 15, we: 2.0 },
     ]);
     const jsx = await PlayerStatsTable(baseProps);
     render(jsx);
@@ -89,8 +89,8 @@ describe("PlayerStatsTable", () => {
 
   it("keeps missing map values unknown while showing real zero", async () => {
     mockFindMany.mockResolvedValue([
-      { id: "p1", userId: null, perfectName: "缺失数据", kills: null, deaths: null, assists: null, adr: null, ratingPro: null, hsPercent: null, firstKills: null, multiKills: null, clutches: null, rws: null, we: null },
-      { id: "p2", userId: null, perfectName: "零数据", kills: 0, deaths: 0, assists: 0, adr: 0, ratingPro: 0, hsPercent: 0, firstKills: 0, multiKills: 0, clutches: 0, rws: 0, we: 0 },
+      { id: "p1", userId: "u-a", perfectName: "缺失数据", kills: null, deaths: null, assists: null, adr: null, ratingPro: null, hsPercent: null, firstKills: null, multiKills: null, clutches: null, rws: null, we: null },
+      { id: "p2", userId: "u-b", perfectName: "零数据", kills: 0, deaths: 0, assists: 0, adr: 0, ratingPro: 0, hsPercent: 0, firstKills: 0, multiKills: 0, clutches: 0, rws: 0, we: 0 },
     ]);
     const jsx = await PlayerStatsTable(baseProps);
     render(jsx);

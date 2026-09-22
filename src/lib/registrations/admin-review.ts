@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, asc, count, desc, eq, ilike, inArray, or, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, ilike, inArray, isNull, or, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
   competitionEntries,
@@ -9,6 +9,8 @@ import {
   competitionEntryRosterMembers,
   competitionEntryRosterRevisions,
   seasonRegistrations,
+  steamProfiles,
+  teamMemberships,
   users,
 } from "@/db/schema";
 import {
@@ -21,8 +23,11 @@ import {
   type ParticipantQualificationFacts,
 } from "@/lib/qualification/service";
 import { sameQualificationFindingSnapshot } from "@/lib/competition-entries/restriction-overrides";
+import { assessEntryRosterReadiness } from "@/lib/competition-entries/readiness";
 import { escapeLikePattern } from "@/lib/db/search";
+import { loadActiveSanctionsInTx } from "@/lib/discipline/service";
 import { getDisplayName } from "@/lib/identity/display-name";
+import { normalizePerfectTeamId } from "@/lib/competition-entries/perfect-team-id";
 import { normalizeSteamProfileUrl } from "@/lib/external-url";
 import { normalizeAffiliationRules, normalizeTeamRegistrationConfig } from "@/lib/seasons/compatibility";
 import type { Season } from "@/types/season";
@@ -39,6 +44,7 @@ import {
   type SoloRegistrationReviewStatus,
   type TeamQualificationFilter,
   type TeamRegistrationReviewQuery,
+  type TeamRegistrationProgressResult,
   type TeamRegistrationReviewResult,
   type TeamRegistrationReviewSort,
   type TeamRegistrationReviewStatus,
@@ -121,6 +127,25 @@ type TeamReviewSeason = Pick<
   "id" | "teamRegistrationConfig" | "affiliationRules" | "minTeamSize" | "maxTeamSize" | "starterCount"
 >;
 
+type TeamEntryForProjection = {
+  id: string;
+  name: string;
+  source: "linked_team" | "event_native";
+  status: string;
+  reviewReason: string | null;
+  teamId: string | null;
+  perfectTeamId: string | null;
+  logoUrl: string | null;
+  updatedAt: Date;
+  currentRosterRevisionId: string | null;
+  representative: {
+    displayName: string | null;
+    perfectName: string | null;
+    personaName: string | null;
+    email: string;
+  };
+};
+
 export async function getTeamRegistrationReview(
   season: TeamReviewSeason,
   query: TeamRegistrationReviewQuery,
@@ -138,7 +163,7 @@ export async function getTeamRegistrationReview(
       ilike(competitionEntries.name, pattern),
       ilike(users.displayName, pattern),
       ilike(users.perfectName, pattern),
-      ilike(users.steamName, pattern),
+      ilike(steamProfiles.personaName, pattern),
       ilike(users.email, pattern),
     )!);
   }
@@ -155,28 +180,34 @@ export async function getTeamRegistrationReview(
         source: competitionEntries.source,
         status: competitionEntries.registrationStatus,
         reviewReason: competitionEntries.reviewReason,
+        teamId: competitionEntries.teamId,
         perfectTeamId: competitionEntries.perfectTeamId,
+        logoUrl: competitionEntries.logoUrl,
+        updatedAt: competitionEntries.updatedAt,
         currentRosterRevisionId: competitionEntries.currentRosterRevisionId,
         representative: {
           displayName: users.displayName,
           perfectName: users.perfectName,
-          steamName: users.steamName,
+          personaName: steamProfiles.personaName,
           email: users.email,
         },
       })
       .from(competitionEntries)
       .innerJoin(users, and(eq(competitionEntries.representativeUserId, users.id), eq(users.status, "active")))
+      .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
       .where(where)
       .orderBy(...orderBy),
     db
       .select({ count: count() })
       .from(competitionEntries)
       .innerJoin(users, and(eq(competitionEntries.representativeUserId, users.id), eq(users.status, "active")))
+      .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
       .where(where),
     db
       .select({ count: count() })
       .from(competitionEntries)
       .innerJoin(users, and(eq(competitionEntries.representativeUserId, users.id), eq(users.status, "active")))
+      .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
       .where(and(
         eq(competitionEntries.competitionId, season.id),
         eq(users.status, "active"),
@@ -184,18 +215,47 @@ export async function getTeamRegistrationReview(
       )),
   ]);
 
+  const projectedRows = await projectTeamRegistrationRows(season, entries, true);
+  const reviewRows = projectedRows.map((row) => ({
+    ...row,
+    status: row.status as Exclude<TeamRegistrationReviewStatus, "all">,
+  }));
+  const filteredRows = query.qualification === "all"
+    ? reviewRows
+    : reviewRows.filter((row) => (row.qualificationFindings.length === 0) === (query.qualification === "ready"));
+  const total = filteredRows.length;
+  const totalPages = Math.ceil(total / TEAM_REGISTRATION_REVIEW_PAGE_SIZE);
+  const page = totalPages > 0 ? Math.min(query.page, totalPages) : 1;
+  const start = (page - 1) * TEAM_REGISTRATION_REVIEW_PAGE_SIZE;
+
+  return {
+    rows: filteredRows.slice(start, start + TEAM_REGISTRATION_REVIEW_PAGE_SIZE),
+    total,
+    page,
+    pageSize: TEAM_REGISTRATION_REVIEW_PAGE_SIZE,
+    totalPages,
+    normalizedQuery: { ...query, page },
+    hasAnyRecords: Number(reviewQueueCount?.count ?? datasetCount?.count ?? 0) > 0,
+  };
+}
+
+async function projectTeamRegistrationRows(
+  season: TeamReviewSeason,
+  entries: TeamEntryForProjection[],
+  includeOverrides: boolean,
+) {
   const entryIds = entries.map((entry) => entry.id);
   const [overrideRows, rosterRows] = entryIds.length === 0
     ? [[], []]
     : await Promise.all([
-        db
+        includeOverrides ? db
           .select()
           .from(competitionEntryRestrictionOverrides)
           .where(and(
             eq(competitionEntryRestrictionOverrides.competitionId, season.id),
             inArray(competitionEntryRestrictionOverrides.entryId, entryIds),
             sql`${competitionEntryRestrictionOverrides.revokedAt} IS NULL`,
-          )),
+          )) : Promise.resolve([]),
         db
           .select({
             entryId: competitionEntryRosterRevisions.entryId,
@@ -204,9 +264,12 @@ export async function getTeamRegistrationReview(
             participantId: competitionEntryParticipants.id,
             userId: users.id,
             email: users.email,
+            qq: users.qq,
+            steam64: users.steam64,
+            steamProfileUrl: steamProfiles.profileUrl,
             displayName: users.displayName,
             perfectName: users.perfectName,
-            steamName: users.steamName,
+            personaName: steamProfiles.personaName,
             status: competitionEntryParticipants.status,
             primary: competitionEntryRosterMembers.isPrimaryStarter,
           })
@@ -214,6 +277,7 @@ export async function getTeamRegistrationReview(
           .innerJoin(competitionEntryRosterMembers, eq(competitionEntryRosterMembers.revisionId, competitionEntryRosterRevisions.id))
           .innerJoin(competitionEntryParticipants, eq(competitionEntryParticipants.id, competitionEntryRosterMembers.participantId))
         .innerJoin(users, and(eq(users.id, competitionEntryRosterMembers.userId), eq(users.status, "active")))
+        .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
           .where(inArray(competitionEntryRosterRevisions.entryId, entryIds)),
       ]);
 
@@ -245,6 +309,7 @@ export async function getTeamRegistrationReview(
       .map((member) => ({
         ...member,
         label: getDisplayName(member),
+        steamProfileUrl: normalizeSteamProfileUrl(member.steamProfileUrl),
         readiness: readinessByUser.get(member.userId),
       }));
     const qualification = competitiveContext === null
@@ -258,7 +323,7 @@ export async function getTeamRegistrationReview(
             const education = resolveSeasonEducationVerification(fact?.educationHistory ?? [], affiliationRules).selectedVerification;
             return {
               userId: member.userId,
-              email: fact?.email ?? member.email,
+              label: member.label,
               emailVerifiedAt: fact?.emailVerifiedAt ?? null,
               educationHistory: fact?.educationHistory ?? [],
               isHome: isHomeAffiliatedMember(education ?? { institutionCode: null, academicStatus: null }, affiliationRules),
@@ -275,7 +340,9 @@ export async function getTeamRegistrationReview(
       source: entry.source,
       status: entry.status as Exclude<TeamRegistrationReviewStatus, "all">,
       reviewReason: entry.reviewReason,
-      perfectTeamId: entry.perfectTeamId,
+      perfectTeamId: normalizePerfectTeamId(entry.perfectTeamId),
+      logoUrl: entry.logoUrl,
+      updatedAt: entry.updatedAt.toISOString(),
       representativeName: getDisplayName(entry.representative),
       members,
       minRoster: season.minTeamSize,
@@ -304,22 +371,105 @@ export async function getTeamRegistrationReview(
     };
   }));
 
-  const filteredRows = query.qualification === "all"
-    ? projectedRows
-    : projectedRows.filter((row) => (row.qualificationFindings.length === 0) === (query.qualification === "ready"));
-  const total = filteredRows.length;
-  const totalPages = Math.ceil(total / TEAM_REGISTRATION_REVIEW_PAGE_SIZE);
-  const page = totalPages > 0 ? Math.min(query.page, totalPages) : 1;
-  const start = (page - 1) * TEAM_REGISTRATION_REVIEW_PAGE_SIZE;
+  return projectedRows;
+}
+
+export async function getTeamRegistrationProgress(season: TeamReviewSeason): Promise<TeamRegistrationProgressResult> {
+  const [draftEntries, statusRows] = await Promise.all([
+    db.select({
+      id: competitionEntries.id,
+      name: competitionEntries.name,
+      source: competitionEntries.source,
+      status: competitionEntries.registrationStatus,
+      reviewReason: competitionEntries.reviewReason,
+      teamId: competitionEntries.teamId,
+      perfectTeamId: competitionEntries.perfectTeamId,
+      logoUrl: competitionEntries.logoUrl,
+      updatedAt: competitionEntries.updatedAt,
+      currentRosterRevisionId: competitionEntries.currentRosterRevisionId,
+      representative: {
+        displayName: users.displayName,
+        perfectName: users.perfectName,
+        personaName: steamProfiles.personaName,
+        email: users.email,
+      },
+    })
+      .from(competitionEntries)
+      .innerJoin(users, and(eq(competitionEntries.representativeUserId, users.id), eq(users.status, "active")))
+      .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
+      .where(and(eq(competitionEntries.competitionId, season.id), eq(competitionEntries.registrationStatus, "draft")))
+      .orderBy(desc(competitionEntries.updatedAt), desc(competitionEntries.id)),
+    db.select({ status: competitionEntries.registrationStatus, count: count() })
+      .from(competitionEntries)
+      .innerJoin(users, and(eq(competitionEntries.representativeUserId, users.id), eq(users.status, "active")))
+      .where(eq(competitionEntries.competitionId, season.id))
+      .groupBy(competitionEntries.registrationStatus),
+  ]);
+  const projectedDrafts = await projectTeamRegistrationRows(season, draftEntries, false);
+  const counts = new Map(statusRows.map((row) => [row.status, Number(row.count)]));
+  const draftUserIds = [...new Set(projectedDrafts.flatMap((entry) => entry.members.map((member) => member.userId)))];
+  const draftTeamIds = [...new Set(draftEntries.flatMap((entry) => entry.teamId ? [entry.teamId] : []))];
+  const [registrationBlocks, rosterBlocks, activeMemberships] = await Promise.all([
+    draftUserIds.length > 0
+      ? loadActiveSanctionsInTx(db, { seasonId: season.id, subjectUserIds: draftUserIds, effect: "registration_block" })
+      : Promise.resolve(new Map()),
+    draftUserIds.length > 0
+      ? loadActiveSanctionsInTx(db, { seasonId: season.id, subjectUserIds: draftUserIds, effect: "roster_block" })
+      : Promise.resolve(new Map()),
+    draftTeamIds.length > 0 && draftUserIds.length > 0
+      ? db.select({ teamId: teamMemberships.teamId, userId: teamMemberships.userId })
+        .from(teamMemberships)
+        .where(and(inArray(teamMemberships.teamId, draftTeamIds), inArray(teamMemberships.userId, draftUserIds), eq(teamMemberships.status, "active"), isNull(teamMemberships.endedAt)))
+      : Promise.resolve([]),
+  ]);
+  const draftEntryById = new Map(draftEntries.map((entry) => [entry.id, entry]));
+  const activeMembersByTeam = new Map<string, Set<string>>();
+  for (const membership of activeMemberships) {
+    const members = activeMembersByTeam.get(membership.teamId) ?? new Set<string>();
+    members.add(membership.userId);
+    activeMembersByTeam.set(membership.teamId, members);
+  }
 
   return {
-    rows: filteredRows.slice(start, start + TEAM_REGISTRATION_REVIEW_PAGE_SIZE),
-    total,
-    page,
-    pageSize: TEAM_REGISTRATION_REVIEW_PAGE_SIZE,
-    totalPages,
-    normalizedQuery: { ...query, page },
-    hasAnyRecords: Number(reviewQueueCount?.count ?? datasetCount?.count ?? 0) > 0,
+    drafts: projectedDrafts.map((entry) => {
+      const sourceEntry = draftEntryById.get(entry.id)!;
+      const draftUserIds = new Set(entry.members.map((member) => member.userId));
+      const readiness = assessEntryRosterReadiness({
+        entry: sourceEntry,
+        season,
+        members: entry.members.map((member) => ({ userId: member.userId, label: member.label, primary: member.primary, participantStatus: member.status })),
+        qualificationFindings: entry.qualificationFindings,
+        registrationBlockedUserIds: new Set([...registrationBlocks.keys()].filter((userId) => draftUserIds.has(userId))),
+        rosterBlockedUserIds: new Set([...rosterBlocks.keys()].filter((userId) => draftUserIds.has(userId))),
+        currentTeamMemberUserIds: sourceEntry.teamId ? activeMembersByTeam.get(sourceEntry.teamId) : undefined,
+        requireCurrentTeamMembership: true,
+        requireActiveRestrictionOverrides: false,
+      });
+      return {
+        id: entry.id,
+        name: entry.name,
+        source: entry.source,
+        representativeName: entry.representativeName,
+        updatedAt: entry.updatedAt,
+        rosterCount: readiness.rosterSize,
+        minRoster: season.minTeamSize,
+        maxRoster: season.maxTeamSize,
+        confirmedCount: readiness.confirmedCount,
+        starterCount: readiness.primaryStarterCount,
+        requiredStarterCount: season.starterCount,
+        primaryBlockers: readiness.blockers.slice(0, 3),
+      };
+    }),
+    summary: {
+      total: [...counts.values()].reduce((sum, value) => sum + value, 0),
+      draft: counts.get("draft") ?? 0,
+      submitted: counts.get("submitted") ?? 0,
+      approved: counts.get("approved") ?? 0,
+      changesRequested: counts.get("changes_requested") ?? 0,
+      waitlisted: counts.get("waitlisted") ?? 0,
+      rejected: counts.get("rejected") ?? 0,
+      withdrawn: counts.get("withdrawn") ?? 0,
+    },
   };
 }
 
@@ -334,7 +484,7 @@ export async function getSoloRegistrationReview(
     conditions.push(or(
       ilike(users.displayName, pattern),
       ilike(users.perfectName, pattern),
-      ilike(users.steamName, pattern),
+      ilike(steamProfiles.personaName, pattern),
       ilike(users.email, pattern),
     )!);
   }
@@ -355,8 +505,12 @@ export async function getSoloRegistrationReview(
       .select({ count: count() })
       .from(seasonRegistrations)
       .innerJoin(users, and(eq(seasonRegistrations.userId, users.id), eq(users.status, "active")))
+      .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
       .where(where),
-    db.select({ count: count() }).from(seasonRegistrations).innerJoin(users, and(eq(seasonRegistrations.userId, users.id), eq(users.status, "active"))).where(eq(seasonRegistrations.seasonId, seasonId)),
+    db.select({ count: count() }).from(seasonRegistrations)
+      .innerJoin(users, and(eq(seasonRegistrations.userId, users.id), eq(users.status, "active")))
+      .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
+      .where(eq(seasonRegistrations.seasonId, seasonId)),
   ]);
   const total = Number(totalRow?.count ?? 0);
   const totalPages = Math.ceil(total / SOLO_REGISTRATION_REVIEW_PAGE_SIZE);
@@ -364,6 +518,7 @@ export async function getSoloRegistrationReview(
   const rows = await db
     .select({
       id: seasonRegistrations.id,
+      userId: users.id,
       primaryPosition: seasonRegistrations.primaryPosition,
       secondaryPosition: seasonRegistrations.secondaryPosition,
       peakRank: seasonRegistrations.peakRank,
@@ -381,15 +536,16 @@ export async function getSoloRegistrationReview(
       createdAt: seasonRegistrations.createdAt,
       email: users.email,
       studentId: users.studentId,
-      steamName: users.steamName,
+      personaName: steamProfiles.personaName,
       displayName: users.displayName,
       perfectName: users.perfectName,
       steam64: users.steam64,
-      steamProfileUrl: users.steamProfileUrl,
+      steamProfileUrl: steamProfiles.profileUrl,
       qq: users.qq,
     })
     .from(seasonRegistrations)
     .innerJoin(users, and(eq(seasonRegistrations.userId, users.id), eq(users.status, "active")))
+    .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
     .where(where)
     .orderBy(...orderBy)
     .limit(SOLO_REGISTRATION_REVIEW_PAGE_SIZE)
@@ -405,7 +561,7 @@ export async function getSoloRegistrationReview(
     competitionHistory: row.competitionHistory ?? null,
     notes: row.notes ?? null,
     studentId: row.studentId ?? null,
-    steamName: row.steamName ?? null,
+    personaName: row.personaName ?? null,
     displayName: row.displayName ?? null,
     perfectName: row.perfectName ?? null,
     steam64: row.steam64 ?? null,

@@ -57,15 +57,10 @@ export function HomeHero({ season, eyebrow }: HomeHeroProps) {
         </div>
         <div className="flex gap-2.5 mt-5.5 flex-wrap">
           <Button asChild>
-            <Link href={`/${season.slug}`}>进入赛季 →</Link>
+            <Link href={`/${season.slug}`}>进入赛事 →</Link>
           </Button>
-          {registrationIsOpen && (
-            <Button variant="outline" asChild>
-              <Link href={`/${season.slug}/register`}>{season.registrationMode === "team" ? "组队报名 / 创建或加入队伍" : "报名参赛"}</Link>
-            </Button>
-          )}
           <Button variant="ghost" asChild>
-            <Link href="/seasons">查看所有赛季</Link>
+            <Link href="/seasons">赛事中心</Link>
           </Button>
         </div>
       </div>

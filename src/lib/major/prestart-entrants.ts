@@ -1,12 +1,12 @@
-import { and, asc, eq, inArray, isNull } from "drizzle-orm";
+import { and, asc, eq, inArray } from "drizzle-orm";
+import { writeAuditInTx } from "@/lib/audit/write";
+
 import type { TxDb } from "@/db/client";
 import {
-  auditLogs,
-  competitionEntries,
+    competitionEntries,
   competitionEntryRosterMembers,
   eventRosterMembers,
   eventRosters,
-  majorPrestartIssues,
   majorPrestartStates,
   majorSeedRecommendationSnapshots,
   majorTournamentEntrants,
@@ -214,13 +214,11 @@ export async function selectMajorEntrantsAndSyncRostersInTx(
     existingRefs.some((entrant) => !selectedSet.has(entrant.competitionEntryId));
   const changed = selectionChanged || synchronizedRosterCount > 0;
   if (changed) {
-    await tx.insert(auditLogs).values({
+    await writeAuditInTx(tx, {
       seasonId: season.id,
       action: "major_prestart.select_entrants",
       actorId: input.actorId,
-      targetId: state.id,
-      targetType: "major_prestart_state",
-      meta: {
+      targetId: state.id,meta: {
         entrantCount: selectedEntryIds.length,
         synchronizedRosterCount,
         selectionChanged,
@@ -311,11 +309,6 @@ export async function lockMajorPrestartEntrantsInTx(
       seenUsers.add(member.userId);
     }
   }
-
-  const [unresolved] = await tx.select({ id: majorPrestartIssues.id }).from(majorPrestartIssues)
-    .where(and(eq(majorPrestartIssues.seasonId, season.id), isNull(majorPrestartIssues.resolvedAt)))
-    .limit(1);
-  if (unresolved) throw new AppError(ErrorCode.VALIDATION_FAILED, "请先处理所有资格和管理事项。 ");
 
   const coherenceByEntryId = new Map(coherent.map((row) => [row.entry.id, row]));
   const frozenIdentities = frozenTeamsForSnapshot(
@@ -455,13 +448,11 @@ export async function lockMajorPrestartEntrantsInTx(
     entrantsLockedBy: input.actorId,
     updatedAt: now,
   }).where(eq(majorPrestartStates.id, state.id));
-  await tx.insert(auditLogs).values({
+  await writeAuditInTx(tx, {
     seasonId: season.id,
     action: "major_prestart.lock_entrants",
     actorId: input.actorId,
-    targetId: state.id,
-    targetType: "major_prestart_state",
-    meta: {
+    targetId: state.id,meta: {
       entrantCount: entrantRows.length,
       seedRecommendationSnapshotId: snapshotId,
       seedRecommendationSnapshotVersion: snapshotPayload.context.version,

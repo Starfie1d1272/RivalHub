@@ -1,0 +1,1290 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "contract": {
+      "type": "object",
+      "properties": {
+        "contractVersion": {
+          "type": "string",
+          "const": "rivalhub-demo-evidence/1"
+        },
+        "semanticProfile": {
+          "type": "string",
+          "pattern": "^dak-stable\\/\\d+$"
+        },
+        "analysisVersion": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "contractVersion",
+        "semanticProfile",
+        "analysisVersion"
+      ],
+      "additionalProperties": false
+    },
+    "target": {
+      "type": "object",
+      "properties": {
+        "seasonId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
+        },
+        "stageKey": {
+          "type": "string",
+          "minLength": 1
+        },
+        "stageRunId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
+        },
+        "matchId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
+        },
+        "matchMapId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
+        },
+        "mapOrder": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 5
+        },
+        "entryAId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
+        },
+        "entryBId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
+        },
+        "expectedMapName": {
+          "type": "string",
+          "minLength": 1
+        },
+        "evidenceRevision": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "seasonId",
+        "stageKey",
+        "matchId",
+        "matchMapId",
+        "mapOrder",
+        "entryAId",
+        "entryBId",
+        "expectedMapName",
+        "evidenceRevision"
+      ],
+      "additionalProperties": false
+    },
+    "source": {
+      "type": "object",
+      "properties": {
+        "demoSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "mapName": {
+          "type": "string",
+          "minLength": 1
+        },
+        "tickRateHz": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991
+        },
+        "sourceSchemaVersion": {
+          "type": "string",
+          "minLength": 1
+        },
+        "exporterVersion": {
+          "type": "string",
+          "minLength": 1
+        },
+        "parserVersion": {
+          "type": "string",
+          "minLength": 1
+        },
+        "producerVersion": {
+          "type": "string",
+          "minLength": 1
+        },
+        "generatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        }
+      },
+      "required": [
+        "demoSha256",
+        "mapName",
+        "tickRateHz",
+        "sourceSchemaVersion",
+        "exporterVersion",
+        "parserVersion",
+        "producerVersion",
+        "generatedAt"
+      ],
+      "additionalProperties": false
+    },
+    "quality": {
+      "type": "object",
+      "properties": {
+        "qa": {
+          "type": "object",
+          "properties": {
+            "ok": {
+              "type": "boolean"
+            },
+            "issueCount": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "errorCount": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "warningCount": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            }
+          },
+          "required": [
+            "ok",
+            "issueCount",
+            "errorCount",
+            "warningCount"
+          ],
+          "additionalProperties": false
+        },
+        "capabilities": {
+          "type": "object",
+          "properties": {
+            "playerStats": {
+              "type": "string",
+              "enum": [
+                "available",
+                "partial",
+                "missing"
+              ]
+            },
+            "rounds": {
+              "type": "string",
+              "enum": [
+                "available",
+                "partial",
+                "missing"
+              ]
+            },
+            "economy": {
+              "type": "string",
+              "enum": [
+                "available",
+                "partial",
+                "missing"
+              ]
+            },
+            "richKills": {
+              "type": "string",
+              "enum": [
+                "available",
+                "partial",
+                "missing"
+              ]
+            },
+            "damages": {
+              "type": "string",
+              "enum": [
+                "available",
+                "partial",
+                "missing"
+              ]
+            },
+            "bombs": {
+              "type": "string",
+              "enum": [
+                "available",
+                "partial",
+                "missing"
+              ]
+            },
+            "utility": {
+              "type": "string",
+              "enum": [
+                "available",
+                "partial",
+                "missing"
+              ]
+            },
+            "clutches": {
+              "type": "string",
+              "enum": [
+                "available",
+                "partial",
+                "missing"
+              ]
+            }
+          },
+          "required": [
+            "playerStats",
+            "rounds",
+            "economy",
+            "richKills",
+            "damages",
+            "bombs",
+            "utility",
+            "clutches"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "qa",
+        "capabilities"
+      ],
+      "additionalProperties": false
+    },
+    "participants": {
+      "minItems": 1,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "steamId64": {
+            "type": "string",
+            "pattern": "^\\d{17}$"
+          },
+          "nameSnapshot": {
+            "type": "string",
+            "minLength": 1
+          },
+          "observedTeamKey": {
+            "type": "string",
+            "enum": [
+              "teamA",
+              "teamB"
+            ]
+          },
+          "resolution": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "const": "matched"
+                  },
+                  "userId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
+                  },
+                  "eventRosterMemberId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
+                  },
+                  "entryId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
+                  }
+                },
+                "required": [
+                  "status",
+                  "userId",
+                  "entryId"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "const": "unresolved"
+                  }
+                },
+                "required": [
+                  "status"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "const": "conflict"
+                  },
+                  "userId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
+                  },
+                  "eventRosterMemberId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
+                  },
+                  "entryId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
+                  }
+                },
+                "required": [
+                  "status"
+                ],
+                "additionalProperties": false
+              }
+            ]
+          }
+        },
+        "required": [
+          "steamId64",
+          "nameSnapshot",
+          "observedTeamKey",
+          "resolution"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "sourceFacts": {
+      "type": "object",
+      "properties": {
+        "rounds": {
+          "minItems": 1,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "roundSeq": {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991
+              },
+              "sourceRoundNumber": {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991
+              },
+              "phase": {
+                "type": "string",
+                "enum": [
+                  "regulation",
+                  "overtime"
+                ]
+              },
+              "startTick": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "freezeEndTick": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "endTick": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "teamASide": {
+                "type": "string",
+                "enum": [
+                  "t",
+                  "ct"
+                ]
+              },
+              "teamBSide": {
+                "type": "string",
+                "enum": [
+                  "t",
+                  "ct"
+                ]
+              },
+              "teamAScoreBefore": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "teamBScoreBefore": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "teamAEconomy": {
+                "type": "string",
+                "enum": [
+                  "pistol",
+                  "eco",
+                  "semi",
+                  "force",
+                  "full"
+                ]
+              },
+              "teamBEconomy": {
+                "type": "string",
+                "enum": [
+                  "pistol",
+                  "eco",
+                  "semi",
+                  "force",
+                  "full"
+                ]
+              },
+              "winnerTeamKey": {
+                "type": "string",
+                "enum": [
+                  "teamA",
+                  "teamB"
+                ]
+              },
+              "winnerSide": {
+                "type": "string",
+                "enum": [
+                  "t",
+                  "ct"
+                ]
+              },
+              "endReason": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "roundSeq",
+              "sourceRoundNumber",
+              "phase",
+              "startTick",
+              "freezeEndTick",
+              "endTick",
+              "teamASide",
+              "teamBSide",
+              "teamAScoreBefore",
+              "teamBScoreBefore",
+              "teamAEconomy",
+              "teamBEconomy",
+              "winnerTeamKey",
+              "winnerSide",
+              "endReason"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "kills": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "roundSeq": {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991
+              },
+              "tick": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "killerSteamId64": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^\\d{17}$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "victimSteamId64": {
+                "type": "string",
+                "pattern": "^\\d{17}$"
+              },
+              "weapon": {
+                "type": "string",
+                "minLength": 1
+              },
+              "headshot": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "roundSeq",
+              "tick",
+              "killerSteamId64",
+              "victimSteamId64",
+              "weapon",
+              "headshot"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "objectives": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "roundSeq": {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991
+              },
+              "tick": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "plant_begin",
+                  "planted",
+                  "defuse_begin",
+                  "defused",
+                  "exploded",
+                  "dropped",
+                  "picked_up"
+                ]
+              },
+              "site": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "a",
+                      "b"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "actorSteamId64": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^\\d{17}$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "roundSeq",
+              "tick",
+              "type",
+              "site",
+              "actorSteamId64"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "rounds",
+        "kills",
+        "objectives"
+      ],
+      "additionalProperties": false
+    },
+    "semanticFacts": {
+      "type": "object",
+      "properties": {
+        "playerRounds": {
+          "minItems": 1,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "roundSeq": {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991
+              },
+              "steamId64": {
+                "type": "string",
+                "pattern": "^\\d{17}$"
+              },
+              "teamKey": {
+                "type": "string",
+                "enum": [
+                  "teamA",
+                  "teamB"
+                ]
+              },
+              "side": {
+                "type": "string",
+                "enum": [
+                  "t",
+                  "ct"
+                ]
+              },
+              "survived": {
+                "type": "boolean"
+              },
+              "kills": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "deaths": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "assists": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "damage": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "headshots": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "tradeKills": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "tradedDeaths": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "openingDuel": {
+                "type": "string",
+                "enum": [
+                  "none",
+                  "won",
+                  "lost"
+                ]
+              },
+              "kast": {
+                "type": "boolean"
+              },
+              "economyType": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "pistol",
+                      "eco",
+                      "semi",
+                      "force",
+                      "full"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "equipmentValue": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "clutch": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "opponentCount": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 5
+                      },
+                      "won": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "opponentCount",
+                      "won"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "utility": {
+                "type": "object",
+                "properties": {
+                  "flashesThrown": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "enemyBlindSeconds": {
+                    "type": "number",
+                    "minimum": 0
+                  },
+                  "teamBlindSeconds": {
+                    "type": "number",
+                    "minimum": 0
+                  },
+                  "enemyBlindVictims": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "flashAssists": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "heThrows": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "heDamage": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "fireThrows": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "fireDamage": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "smokesThrown": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "utilityKills": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": [
+                  "flashesThrown",
+                  "enemyBlindSeconds",
+                  "teamBlindSeconds",
+                  "enemyBlindVictims",
+                  "flashAssists",
+                  "heThrows",
+                  "heDamage",
+                  "fireThrows",
+                  "fireDamage",
+                  "smokesThrown",
+                  "utilityKills"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "roundSeq",
+              "steamId64",
+              "teamKey",
+              "side",
+              "survived",
+              "kills",
+              "deaths",
+              "assists",
+              "damage",
+              "headshots",
+              "tradeKills",
+              "tradedDeaths",
+              "openingDuel",
+              "kast",
+              "economyType",
+              "equipmentValue",
+              "clutch",
+              "utility"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "economyMatrix": {
+          "minItems": 1,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "lowEconomy": {
+                "type": "string",
+                "enum": [
+                  "pistol",
+                  "eco",
+                  "semi",
+                  "force",
+                  "full"
+                ]
+              },
+              "highEconomy": {
+                "type": "string",
+                "enum": [
+                  "pistol",
+                  "eco",
+                  "semi",
+                  "force",
+                  "full"
+                ]
+              },
+              "rounds": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "lowEconomyWins": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": [
+              "lowEconomy",
+              "highEconomy",
+              "rounds",
+              "lowEconomyWins"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "teamConversions": {
+          "minItems": 2,
+          "maxItems": 2,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "teamKey": {
+                "type": "string",
+                "enum": [
+                  "teamA",
+                  "teamB"
+                ]
+              },
+              "pistol": {
+                "type": "object",
+                "properties": {
+                  "opportunities": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "wins": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": [
+                  "opportunities",
+                  "wins"
+                ],
+                "additionalProperties": false
+              },
+              "round2": {
+                "type": "object",
+                "properties": {
+                  "conversion": {
+                    "type": "object",
+                    "properties": {
+                      "opportunities": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "wins": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      }
+                    },
+                    "required": [
+                      "opportunities",
+                      "wins"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "break": {
+                    "type": "object",
+                    "properties": {
+                      "opportunities": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "wins": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      }
+                    },
+                    "required": [
+                      "opportunities",
+                      "wins"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "conversion",
+                  "break"
+                ],
+                "additionalProperties": false
+              },
+              "ecoSemiUpset": {
+                "type": "object",
+                "properties": {
+                  "opportunities": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "wins": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": [
+                  "opportunities",
+                  "wins"
+                ],
+                "additionalProperties": false
+              },
+              "manAdvantage": {
+                "minItems": 4,
+                "maxItems": 4,
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "advantage": {
+                      "type": "string",
+                      "enum": [
+                        "5v4",
+                        "4v5",
+                        "5v3",
+                        "3v5"
+                      ]
+                    },
+                    "opportunities": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "wins": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "advantage",
+                    "opportunities",
+                    "wins"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "teamKey",
+              "pistol",
+              "round2",
+              "ecoSemiUpset",
+              "manAdvantage"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "playerRounds",
+        "economyMatrix",
+        "teamConversions"
+      ],
+      "additionalProperties": false
+    },
+    "summaries": {
+      "type": "object",
+      "properties": {
+        "playerMaps": {
+          "minItems": 1,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "steamId64": {
+                "type": "string",
+                "pattern": "^\\d{17}$"
+              },
+              "teamKey": {
+                "type": "string",
+                "enum": [
+                  "teamA",
+                  "teamB"
+                ]
+              },
+              "rounds": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "kills": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "deaths": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "assists": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "damage": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "kastRounds": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "headshots": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "firstKills": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "firstDeaths": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "tradeKills": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "twoKillRounds": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "threeKillRounds": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "fourKillRounds": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "fiveKillRounds": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "clutchAttempts": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "clutchWins": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": [
+              "steamId64",
+              "teamKey",
+              "rounds",
+              "kills",
+              "deaths",
+              "assists",
+              "damage",
+              "kastRounds",
+              "headshots",
+              "firstKills",
+              "firstDeaths",
+              "tradeKills",
+              "twoKillRounds",
+              "threeKillRounds",
+              "fourKillRounds",
+              "fiveKillRounds",
+              "clutchAttempts",
+              "clutchWins"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "playerWeapons": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "steamId64": {
+                "type": "string",
+                "pattern": "^\\d{17}$"
+              },
+              "weapon": {
+                "type": "string",
+                "minLength": 1
+              },
+              "kills": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "headshotKills": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": [
+              "steamId64",
+              "weapon",
+              "kills",
+              "headshotKills"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "teamMaps": {
+          "minItems": 2,
+          "maxItems": 2,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "teamKey": {
+                "type": "string",
+                "enum": [
+                  "teamA",
+                  "teamB"
+                ]
+              },
+              "rounds": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "roundWins": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "tRounds": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "tWins": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "ctRounds": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "ctWins": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": [
+              "teamKey",
+              "rounds",
+              "roundWins",
+              "tRounds",
+              "tWins",
+              "ctRounds",
+              "ctWins"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "playerMaps",
+        "playerWeapons",
+        "teamMaps"
+      ],
+      "additionalProperties": false
+    },
+    "extensions": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "pattern": "^[a-z0-9-]+\\/[a-z0-9-]+$"
+      },
+      "additionalProperties": {}
+    }
+  },
+  "required": [
+    "contract",
+    "target",
+    "source",
+    "quality",
+    "participants",
+    "sourceFacts",
+    "semanticFacts",
+    "summaries",
+    "extensions"
+  ],
+  "additionalProperties": false
+}

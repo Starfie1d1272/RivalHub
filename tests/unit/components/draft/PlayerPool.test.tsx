@@ -14,9 +14,10 @@ describe("PlayerPool", () => {
         players={[
           {
             userId: "user-1",
+            avatarUrl: null,
             displayName: null,
             perfectName: null,
-            steamName: "Neo",
+            personaName: "Neo",
             primaryPosition: "igl",
             secondaryPosition: "anchor",
             peakRank: "S",

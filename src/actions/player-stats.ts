@@ -1,5 +1,7 @@
 "use server";
 
+import { writeAuditInTx } from "@/lib/audit/write";
+
 import { and, eq, desc, sql, inArray, isNotNull } from "drizzle-orm";
 import { db } from "@/db/client";
 import { matchMaps } from "@/db/schema/match-maps";
@@ -7,7 +9,6 @@ import { matches } from "@/db/schema/matches";
 import { matchPlayerStats } from "@/db/schema/player-stats";
 import { matchMvpVotes } from "@/db/schema/mvp-votes";
 import { matchRosters, matchRosterPlayers } from "@/db/schema/match-rosters";
-import { auditLogs } from "@/db/schema/audit";
 import { users } from "@/db/schema/users";
 import { eventRosterMembers, eventRosters } from "@/db/schema/competition-entries";
 import { ok, fail, type ActionResult } from "@/types/action";
@@ -100,7 +101,7 @@ export async function extractStatsFromScreenshot(
     return ok({ drafts, playerOptions });
   } catch (e) {
     if (e instanceof AppError) {
-      return fail({ code: e.code, message: e.message });
+      return fail({ code: e.code, message: e.code === ErrorCode.INTERNAL_ERROR ? ERROR_MESSAGES.INTERNAL_ERROR : e.presentation?.message ?? e.message });
     }
     captureException("action.unexpected_error", e, {
       scope: "action",
@@ -112,7 +113,9 @@ export async function extractStatsFromScreenshot(
 }
 
 /**
- * 保存管理员确认后的玩家数据（幂等：先删同 mapId 旧数据，再批量插入）。
+ * 保存管理员确认后的 OCR 数据。OCR 只拥有 ratingPro / rws / we；已有
+ * DAK 投影的 KDA、ADR、KAST、开局与补枪等字段必须保留，避免旧的删写
+ * 路径把 Demo 事实一并抹掉。
  */
 export async function savePlayerStats(
   mapId: string,
@@ -129,6 +132,9 @@ export async function savePlayerStats(
       where: eq(matches.id, map.matchId),
     });
     if (!match) throw new AppError(ErrorCode.NOT_FOUND, "比赛记录不存在");
+    if (match.status !== "finished") {
+      throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "只有已结束比赛可以确认选手数据。");
+    }
     const session = await requireSeasonAdmin(match.seasonId);
     const actor = auditActorId(session);
 
@@ -161,39 +167,83 @@ export async function savePlayerStats(
     }));
 
     await db.transaction(async (tx) => {
-      await tx.delete(matchPlayerStats).where(eq(matchPlayerStats.mapId, mapId));
+      const existing = await tx.select().from(matchPlayerStats).where(eq(matchPlayerStats.mapId, mapId)).for("update");
+      const existingByUser = new Map(existing.filter((row) => row.userId != null).map((row) => [row.userId!, row]));
+      const existingByName = new Map(existing.map((row) => [row.perfectName, row]));
+      const matchedIds = new Set<string>();
+      const seenNames = new Set<string>();
 
-      if (normalizedStats.length > 0) {
-        await tx.insert(matchPlayerStats).values(
-          normalizedStats.map((s) => ({
-            matchId: map.matchId,
-            mapId,
+      for (const s of normalizedStats) {
+        if (seenNames.has(s.perfectName)) throw new AppError(ErrorCode.VALIDATION_FAILED, `同一张截图中出现重复选手：${s.perfectName}`);
+        seenNames.add(s.perfectName);
+        const named = existingByName.get(s.perfectName);
+        if (s.userId && named?.userId && named.userId !== s.userId) {
+          throw new AppError(ErrorCode.VALIDATION_FAILED, `选手昵称与用户身份冲突：${s.perfectName}`);
+        }
+        const prior = (s.userId ? existingByUser.get(s.userId) : undefined)
+          ?? (named && (!s.userId || named.userId == null || named.userId === s.userId) ? named : undefined);
+        const userId = s.userId ?? prior?.userId ?? null;
+        const now = new Date();
+        if (prior) {
+          matchedIds.add(prior.id);
+          const ocrValues = {
             perfectName: s.perfectName,
-            userId: s.userId ?? undefined,
-            kills: s.kills ?? undefined,
-            deaths: s.deaths ?? undefined,
-            assists: s.assists ?? undefined,
-            hsPercent: s.hsPercent ?? undefined,
-            firstKills: s.firstKills ?? undefined,
-            multiKills: s.multiKills ?? undefined,
-            clutches: s.clutches ?? undefined,
-            adr: s.adr ?? undefined,
-            rws: s.rws ?? undefined,
-            ratingPro: s.ratingPro ?? undefined,
-            we: s.we ?? undefined,
+            userId,
+            ratingPro: s.ratingPro,
+            rws: s.rws,
+            we: s.we,
             verifiedByAdmin: actor,
-            verifiedAt: new Date(),
-          }))
-        );
+            verifiedAt: now,
+          };
+          if (prior.dakImportId) {
+            await tx.update(matchPlayerStats).set(ocrValues).where(eq(matchPlayerStats.id, prior.id));
+          } else {
+            await tx.update(matchPlayerStats).set({
+              ...ocrValues,
+              kills: s.kills,
+              deaths: s.deaths,
+              assists: s.assists,
+              hsPercent: s.hsPercent,
+              firstKills: s.firstKills,
+              multiKills: s.multiKills,
+              clutches: s.clutches,
+              adr: s.adr,
+            }).where(eq(matchPlayerStats.id, prior.id));
+          }
+          continue;
+        }
+        await tx.insert(matchPlayerStats).values({
+          matchId: map.matchId,
+          mapId,
+          perfectName: s.perfectName,
+          userId,
+          kills: s.kills,
+          deaths: s.deaths,
+          assists: s.assists,
+          hsPercent: s.hsPercent,
+          firstKills: s.firstKills,
+          multiKills: s.multiKills,
+          clutches: s.clutches,
+          adr: s.adr,
+          rws: s.rws,
+          ratingPro: s.ratingPro,
+          we: s.we,
+          verifiedByAdmin: actor,
+          verifiedAt: now,
+        });
       }
 
-      await tx.insert(auditLogs).values({
+      // Preserve every DAK-owned row. Only legacy OCR-only rows absent from
+      // the replacement screenshot retain the old delete-and-replace behavior.
+      for (const row of existing) {
+        if (!row.dakImportId && !matchedIds.has(row.id)) await tx.delete(matchPlayerStats).where(eq(matchPlayerStats.id, row.id));
+      }
+
+      await writeAuditInTx(tx, {
         seasonId: match.seasonId,
         action: "match.save_player_stats",
         actorId: actor,
-        targetId: mapId,
-        targetType: "match_map",
-        meta: { playerCount: stats.length, matchId: map.matchId },
+        targetId: mapId,meta: { playerCount: stats.length, matchId: map.matchId },
       });
     });
 
@@ -335,7 +385,7 @@ export async function castMatchMvpVote(
     revalidatePath(`/${match.seasonId}/matches/${matchId}`);
     return ok(undefined);
   } catch (e) {
-    if (e instanceof AppError) return fail({ code: e.code, message: e.message });
+    if (e instanceof AppError) return fail({ code: e.code, message: e.code === ErrorCode.INTERNAL_ERROR ? ERROR_MESSAGES.INTERNAL_ERROR : e.presentation?.message ?? e.message });
     if (isPgUniqueViolation(e, "match_mvp_votes_match_id_voter_user_id_unique")) {
       return fail({ code: ErrorCode.VOTE_DUPLICATE, message: "您已为本场比赛投过 MVP 票" });
     }
@@ -392,13 +442,11 @@ export async function deletePlayerStatsByMap(mapId: string): Promise<ActionResul
 
     await db.transaction(async (tx) => {
       await tx.delete(matchPlayerStats).where(eq(matchPlayerStats.mapId, mapId));
-      await tx.insert(auditLogs).values({
+      await writeAuditInTx(tx, {
         seasonId: match.seasonId,
         action: "match.delete_player_stats",
         actorId: auditActorId(session),
-        targetId: mapId,
-        targetType: "match_map",
-        meta: { mapId },
+        targetId: mapId,meta: { mapId },
       });
     });
 

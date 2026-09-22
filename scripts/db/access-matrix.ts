@@ -75,6 +75,7 @@ export const DATABASE_ACCESS_MATRIX: readonly DatabaseAccessEntry[] = [
   serverOnly("prediction_accounts", "观赛预测", "服务端预测事实与积分流水", "src/lib/predictions/", "不开放浏览器 Data API；只返回明确的公开或本人 DTO。"),
   serverOnly("prediction_picks", "观赛预测", "服务端预测事实与积分流水", "src/lib/predictions/", "不开放浏览器 Data API；只返回明确的公开或本人 DTO。"),
   serverOnly("prediction_judgements", "观赛预测", "服务端预测事实与积分流水", "src/lib/predictions/", "不开放浏览器 Data API；只返回明确的公开或本人 DTO。"),
+  serverOnly("prediction_market_options", "观赛预测", "不可变市场选项", "src/lib/predictions/", "投注通过复合外键绑定所属市场选项。"),
   serverOnly("prediction_markets", "观赛预测", "服务端预测事实与积分流水", "src/lib/predictions/", "不开放浏览器 Data API；只返回明确的公开或本人 DTO。"),
   serverOnly("prediction_stakes", "观赛预测", "服务端预测事实与积分流水", "src/lib/predictions/", "不开放浏览器 Data API；只返回明确的公开或本人 DTO。"),
   serverOnly("prediction_settlements", "观赛预测", "服务端预测事实与积分流水", "src/lib/predictions/", "不开放浏览器 Data API；只返回明确的公开或本人 DTO。"),
@@ -95,6 +96,13 @@ export const DATABASE_ACCESS_MATRIX: readonly DatabaseAccessEntry[] = [
     "高敏感邀请码与授权范围",
     "src/lib/auth/admin-invites.ts; src/actions/admin.ts",
     "包含角色、赛季范围和使用限制，不是公开配置。",
+  ),
+  serverOnly(
+    "announcements",
+    "运营公告",
+    "公告内容、发布状态与 actor metadata",
+    "src/lib/announcements/commands.ts; src/lib/announcements/read-model.ts",
+    "公告 fact 与 actor metadata 由服务端维护，公开公告只经安全 Markdown projection。",
   ),
   serverOnly(
     "audit_logs",
@@ -125,11 +133,18 @@ export const DATABASE_ACCESS_MATRIX: readonly DatabaseAccessEntry[] = [
     "public_note 等公开字段由服务端 projection 决定，原始审核记录仍为 server-only。",
   ),
   serverOnly(
-    "competition_bracket_states",
+    "community_groups",
+    "赛事公开运营信息",
+    "赛事群组与二维码运营事实",
+    "src/lib/season-public-info/commands.ts; src/lib/season-public-info/read-model.ts",
+    "公开 projection 仍由服务端生成，群号、二维码路径和关闭状态不能由客户端旁路修改。",
+  ),
+  serverOnly(
+    "competition_stage_bracket_states",
     "赛事 bracket runtime",
-    "高敏感运行时 JSON",
+    "高敏感、阶段范围运行时 JSON",
     "src/lib/bracket/index.ts",
-    "2026-09-03 production inventory 确认该表曾是 anon/authenticated CRUD 暴露例外；0034 forward migration 收口为 server-only。",
+    "每个 logical Stage 由 (competition_id, stage_key) 独立拥有 provider state；阶段 key 是领域 identity，浏览器不直连。",
   ),
   serverOnly(
     "competition_entries",
@@ -223,6 +238,20 @@ export const DATABASE_ACCESS_MATRIX: readonly DatabaseAccessEntry[] = [
     "版本化换算策略是服务端产品配置，冻结快照由注册开放 owner 管理。",
   ),
   serverOnly(
+    "dak_pairing_intents",
+    "DAK 集成 / 设备配对",
+    "一次性轮询 hash、授权状态与 TTL",
+    "src/lib/demo-integration/pairing.ts",
+    "轮询凭据只保存单向 hash；配对授权与交付状态由服务端事务维护，不形成浏览器 Data API 或 Realtime surface。",
+  ),
+  serverOnly(
+    "dak_pairings",
+    "DAK 集成 / 设备配对",
+    "长期设备 credential hash、scope 与赛季范围",
+    "src/lib/demo-integration/pairing.ts; src/app/api/integrations/dak/pairings/[pairingId]/route.ts",
+    "设备 credential 只由服务端 hash 校验、按 scope 鉴权和撤销；原始 token 不写数据库。",
+  ),
+  serverOnly(
     "competitive_rank_facts",
     "个人竞技资料",
     "个人竞技事实",
@@ -279,6 +308,13 @@ export const DATABASE_ACCESS_MATRIX: readonly DatabaseAccessEntry[] = [
     "preparing/confirmed/frozen transition 只能经服务端领域操作。",
   ),
   serverOnly(
+    "feedback_reports",
+    "用户反馈",
+    "反馈内容、fingerprint 与匿名上下文",
+    "src/lib/feedback/commands.ts; src/lib/feedback/read-model.ts",
+    "反馈正文、fingerprint 和匿名上下文只在服务端处理，运营 triage 不形成浏览器数据面。",
+  ),
+  serverOnly(
     "institution_email_domains",
     "教育目录",
     "内部高校邮箱规则",
@@ -308,10 +344,10 @@ export const DATABASE_ACCESS_MATRIX: readonly DatabaseAccessEntry[] = [
   ),
   serverOnly(
     "major_prestart_issues",
-    "Major prestart",
-    "开赛前内部 blocker 与审计",
-    "src/actions/major-prestart.ts; src/lib/audit/targets.ts",
-    "prestart issue 只供管理员修复和审计使用。",
+    "Major prestart / compatibility shell",
+    "历史兼容 contract（无 active business owner）",
+    "src/db/schema/major-prestart.ts（deprecated N/N+1 compatibility shell；无 active consumer）",
+    "Release N+1 已移除所有业务 consumer；为 previous stable migration window 保留物理表与 schema declaration，待后续 release contract cleanup。",
   ),
   serverOnly(
     "major_prestart_states",
@@ -363,6 +399,13 @@ export const DATABASE_ACCESS_MATRIX: readonly DatabaseAccessEntry[] = [
     "解说分配和提交冻结由服务端 scope guard 维护。",
   ),
   serverOnly(
+    "match_demo_imports",
+    "比赛 / DAK 证据",
+    "不可变 Demo Evidence artifact 与接收状态",
+    "src/lib/demo-integration/submit.ts; src/lib/demo-integration/read.ts",
+    "证据 payload、identity、revision 与 decision 仅由服务端 owner 维护，公开赛事只经显式 remote DTO 投影。",
+  ),
+  serverOnly(
     "match_maps",
     "比赛 / BP",
     "地图选择与比分事实",
@@ -396,6 +439,13 @@ export const DATABASE_ACCESS_MATRIX: readonly DatabaseAccessEntry[] = [
     "比赛阵容状态",
     "src/lib/match-rosters/service.ts; src/actions/matches/roster.ts",
     "阵容提交、确认和 starter preflight 是服务端操作。",
+  ),
+  serverOnly(
+    "match_round_facts",
+    "比赛 / DAK 证据",
+    "已确认 Demo 的规范化回合事实",
+    "src/lib/demo-integration/submit.ts",
+    "回合事实是 DAK evidence 的服务端投影，不通过 Data API 或 Realtime 暴露。",
   ),
   serverOnly(
     "match_time_proposals",
@@ -461,6 +511,34 @@ export const DATABASE_ACCESS_MATRIX: readonly DatabaseAccessEntry[] = [
     "管理员范围由当前数据库授权事实读取，客户端不能缓存或修改。",
   ),
   serverOnly(
+    "season_contacts",
+    "赛事公开运营信息",
+    "赛事联系方式与运营配置",
+    "src/lib/season-public-info/commands.ts; src/lib/season-public-info/read-model.ts",
+    "显式公开字段由服务端 projection 投影，联系方式原始配置保持 server-only。",
+  ),
+  serverOnly(
+    "scheduled_job_health",
+    "Scheduler runtime",
+    "定时任务当前健康投影",
+    "src/lib/scheduler/health.ts; src/lib/scheduler/admin.ts",
+    "只保存每个 job 的有界当前状态，供服务端调度与超级管理员系统状态页读取；不形成浏览器 Data API 或 Realtime surface。",
+  ),
+  serverOnly(
+    "steam_profiles",
+    "Steam identity / profile",
+    "Steam 官方资料缓存投影",
+    "src/lib/steam-profiles.ts; public read models",
+    "官方 persona、profile URL 和头像只作为按 Steam64 键控的服务端缓存读取；provider credential 与写入永不进入浏览器数据面。N/N+1 期间仅由同一 owner 窄幅同步旧 users shadow，steam_profiles 仍是唯一 authority。",
+  ),
+  serverOnly(
+    "season_public_info",
+    "赛事公开运营信息",
+    "赛事规则入口配置",
+    "src/lib/season-public-info/commands.ts; src/lib/season-public-info/read-model.ts",
+    "规则入口通过服务端 projection 暴露，规则配置与赛季绑定不能由客户端旁路修改。",
+  ),
+  serverOnly(
     "season_registrations",
     "Rivals 报名",
     "报名、资格与个人竞技资料",
@@ -473,13 +551,6 @@ export const DATABASE_ACCESS_MATRIX: readonly DatabaseAccessEntry[] = [
     "赛事生命周期与冻结配置",
     "src/actions/seasons.ts; src/lib/seasons/; src/db/schema/seasons.ts",
     "赛事 capability、注册窗口和冻结配置是业务控制面，不允许 Data API 旁路。",
-  ),
-  serverOnly(
-    "swiss_standings",
-    "Major Swiss",
-    "排名 projection 与阶段事实",
-    "src/lib/swiss/data.ts; src/lib/major/swiss-runtime.ts",
-    "Swiss standings 不是独立真相，必须随 Major runtime 服务端更新。",
   ),
   serverOnly(
     "team_captain_changes",
@@ -536,6 +607,13 @@ export const DATABASE_ACCESS_MATRIX: readonly DatabaseAccessEntry[] = [
     "个人位置偏好",
     "src/actions/competitive-profile.ts; src/lib/recruitment/data.ts",
     "位置资料用于资格和展示 projection，不能由客户端直接访问。",
+  ),
+  serverOnly(
+    "user_gameplay_steam_ids",
+    "Steam identity / gameplay",
+    "可审计、可撤销的历史游戏 Steam64 身份",
+    "src/lib/identity/gameplay-steam.ts; 后续 Demo identity consumer",
+    "观察到的 gameplay identity 不等于登录或账号 ownership；此表只由统一 identity owner 维护，后续 #686 应复用该 substrate。",
   ),
   serverOnly(
     "user_identities",
@@ -614,8 +692,10 @@ export function validateDatabaseAccessMatrixConfig(
 export async function verifyDatabaseAccessMatrix(
   pool: Pick<Pool, "query">,
   context: string,
+  entries: readonly DatabaseAccessEntry[] = DATABASE_ACCESS_MATRIX,
+  ignoredTables: readonly string[] = [],
 ): Promise<readonly DatabaseAccessFacts[]> {
-  validateDatabaseAccessMatrixConfig();
+  validateDatabaseAccessMatrixConfig(entries);
 
   const roleResult = await pool.query<{ rolname: string }>(
     "SELECT rolname FROM pg_roles WHERE rolname = ANY($1::text[]) ORDER BY rolname",
@@ -683,10 +763,12 @@ export async function verifyDatabaseAccessMatrix(
   assertDatabaseAccessMatrixFacts(
     tableResult.rows.map((row) => row.table_name),
     facts,
+    entries,
+    ignoredTables,
   );
 
   console.log(
-    `${context} database access matrix passed: ${DATABASE_ACCESS_MATRIX.length} public base tables, deny-by-default, RLS/policy/publication contract aligned.`,
+    `${context} database access matrix passed: ${entries.length} public base tables, deny-by-default, RLS/policy/publication contract aligned.`,
   );
   return facts;
 }
@@ -694,12 +776,19 @@ export async function verifyDatabaseAccessMatrix(
 export function assertDatabaseAccessMatrixFacts(
   actualTables: readonly string[],
   actualFacts: readonly DatabaseAccessFacts[],
+  entries: readonly DatabaseAccessEntry[] = DATABASE_ACCESS_MATRIX,
+  ignoredTables: readonly string[] = [],
 ): void {
-  const tableDiff = diffNames([...DATABASE_ACCESS_TABLES].sort(), [...actualTables].sort());
+  const expectedTables = entries.map((entry) => entry.table);
+  const ignored = new Set(ignoredTables);
+  const tableDiff = diffNames(
+    [...expectedTables].sort(),
+    actualTables.filter((table) => !ignored.has(table)).sort(),
+  );
   const actualByTable = new Map(actualFacts.map((row) => [row.table_name, row]));
   const failures = [...tableDiff.map((item) => `public table ${item}`)];
 
-  for (const entry of DATABASE_ACCESS_MATRIX) {
+  for (const entry of entries) {
     const actual = actualByTable.get(entry.table);
     if (!actual) {
       failures.push(`${entry.table}: table missing from PostgreSQL`);
@@ -765,7 +854,7 @@ export function renderDatabaseAccessMatrixMarkdown(): string {
     "",
     `- 当前 active chain 的 ${DATABASE_ACCESS_MATRIX.length} 张 application-owned \`public\` base table 全部归类为 \`server_only\`。业务数据库只由 server-side Drizzle 访问，browser Data API consumer 为零。`,
     "- `users`、`user_sessions`、`admin_invites`、`admin_invite_claims`、`season_admin_grants`、`audit_logs`、education evidence、Major prestart/runtime 和 bracket runtime 均按高敏感 server-only 处理。",
-    "- 2026-09-03 production 只读 inventory 在 migration 前确认 `competition_bracket_states` 是明确的 anon/authenticated CRUD privilege 例外；Issue #395 的 forward migration 将其与其余表统一收口。",
+    "- 通用 provider bracket state 按 `(competition_id, stage_key)` 归属 canonical logical Stage；Major Swiss standings 只由 StageRun entrants、managed matches 与 finalized round 投影。",
     "- `DraftLiveRoom` 与 `CaptainVotingPanel` 的 Realtime subscription 已删除。两处继续使用既有 10 秒 polling fallback；`ResetPasswordForm` 保留 browser Supabase client，但仅调用 Supabase Auth，不调用 public table Data API。",
     "- `supabase_realtime` publication 不应包含本矩阵中的任何表；若新增 direct Data API 或 Realtime surface，必须先新增明确 classification、最小 privilege、RLS policy、publication 说明和正反例测试。",
     "",

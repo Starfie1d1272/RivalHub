@@ -1,12 +1,15 @@
 import { and, eq } from "drizzle-orm";
+import { writeAuditInTx } from "@/lib/audit/write";
+
 import type { TxDb } from "@/db/client";
-import { auditLogs, majorStageEntrants, majorStageRuns, matches } from "@/db/schema";
+import { majorStageEntrants, majorStageRuns, matches } from "@/db/schema";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { validateSeriesScore } from "@/lib/matches/result-rules";
 import { assertSeasonAllowsTournamentMutationInTx } from "@/lib/postevent/guard";
 import { directSeedRange, seedMajorLaterStageEntrants } from "@/lib/major/seeding";
 import { makeMajorRunSnapshotV4, parseMajorRunSnapshot } from "@/lib/major/run-snapshot";
 import { loadMajorStageEntrantsInTx, loadMajorTournamentEntrantsInTx } from "@/lib/major/run-entrants";
+import { majorAppError } from "@/lib/major/errors";
 import {
   generateNextMajorSwissRound,
   getMajorSwissQualifiers,
@@ -38,10 +41,10 @@ export interface MajorStageTransitionResult {
 function completedFact(match: typeof matches.$inferSelect): MajorSwissMatchFact {
   if (match.round === null || match.round < 1 || match.round > 5 || match.status !== "finished" ||
     match.completedAt === null || match.scoreA === null || match.scoreB === null) {
-    throw new AppError(ErrorCode.VALIDATION_FAILED, "已确认 StageRun 含未完成或无正式比分的托管比赛。");
+    throw majorAppError(ErrorCode.VALIDATION_FAILED, "incompleteSwissResults");
   }
   try { validateSeriesScore(match.format, match.scoreA, match.scoreB); } catch {
-    throw new AppError(ErrorCode.VALIDATION_FAILED, "已确认 StageRun 含非法正式比分。");
+    throw majorAppError(ErrorCode.VALIDATION_FAILED, "invalidSwissResults");
   }
   return {
     matchId: match.id,
@@ -65,9 +68,9 @@ export async function transitionMajorSwissStageInTransaction(
   await assertSeasonAllowsTournamentMutationInTx(tx, input.seasonId);
   const [sourceRun] = await tx.select().from(majorStageRuns)
     .where(and(eq(majorStageRuns.id, input.sourceStageRunId), eq(majorStageRuns.seasonId, input.seasonId))).for("update");
-  if (!sourceRun) throw new AppError(ErrorCode.NOT_FOUND, "指定的源 StageRun 不属于当前赛事。");
+  if (!sourceRun) throw majorAppError(ErrorCode.NOT_FOUND, "sourceStageNotFound");
   if (sourceRun.finalizedRound !== 5) {
-    throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "只有已确认全部五轮的 Swiss StageRun 才能切换阶段。");
+    throw majorAppError(ErrorCode.SEASON_INVALID_STATUS, "sourceStageIncomplete");
   }
   const sourceSnapshot = parseMajorRunSnapshot(sourceRun.ruleSnapshot, sourceRun.stageKey);
   if (sourceSnapshot.stage.key !== sourceRun.stageKey) {
@@ -77,7 +80,7 @@ export async function transitionMajorSwissStageInTransaction(
   const nextStage = sourceSnapshot.stagePlan[sourceIndex + 1];
   if (sourceIndex < 0 || !nextStage || nextStage.type !== "swiss" || nextStage.teamCount !== 16 ||
     (nextStage.matchFormat !== "bo1" && nextStage.matchFormat !== "bo3")) {
-    throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "当前 Swiss StageRun 后没有可切换的 Swiss 阶段。");
+    throw majorAppError(ErrorCode.SEASON_INVALID_STATUS, "nextStageUnavailable");
   }
   const nextSwissStage = nextStage as FrozenSwissStage;
 
@@ -107,7 +110,7 @@ export async function transitionMajorSwissStageInTransaction(
   if (directCount !== 8) {
     throw new AppError(ErrorCode.SEASON_CAPABILITY_DISABLED, "后续 Major Swiss 阶段必须明确配置八支直入队。");
   }
-  const [fromSeed, toSeed] = directSeedRange(sourceSnapshot.stagePlan, sourceIndex + 1, directCount);
+  const [fromSeed, toSeed] = directSeedRange(sourceSnapshot.stagePlan, nextSwissStage.key, directCount);
   const tournamentEntrants = await loadMajorTournamentEntrantsInTx(tx, input.seasonId);
   const directEntrants = tournamentEntrants
     .filter((entrant) => entrant.tournamentSeed >= fromSeed && entrant.tournamentSeed <= toSeed)
@@ -150,13 +153,11 @@ export async function transitionMajorSwissStageInTransaction(
     managedKey: `r1-${index + 1}`,
   }))).returning({ id: matches.id });
   if (createdMatches.length !== 8) throw new AppError(ErrorCode.INTERNAL_ERROR, "下一 StageRun 首轮比赛创建数量异常。");
-  await tx.insert(auditLogs).values({
+  await writeAuditInTx(tx, {
     seasonId: input.seasonId,
     action: "major.stage.transition",
     actorId: input.actorId,
-    targetId: stageRun.id,
-    targetType: "major_stage_run",
-    meta: { sourceStageRunId: sourceRun.id, sourceStageKey: sourceRun.stageKey, stageKey: nextSwissStage.key, directEntrants: directCount, advancingEntrants: qualifiers.length, managedMatches: createdMatches.length },
+    targetId: stageRun.id,meta: { sourceStageRunId: sourceRun.id, sourceStageKey: sourceRun.stageKey, stageKey: nextSwissStage.key, directEntrants: directCount, advancingEntrants: qualifiers.length, managedMatches: createdMatches.length },
   });
   return { sourceStageRunId: sourceRun.id, stageRunId: stageRun.id, stageKey: nextSwissStage.key, created: true, matchCount: createdMatches.length };
 }

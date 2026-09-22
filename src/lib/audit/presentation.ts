@@ -26,19 +26,168 @@ const AUDIT_CATEGORIES = {
   recruitment: { label: "招募", color: "var(--color-info)" },
 } as const;
 
-type AuditCategory = keyof typeof AUDIT_CATEGORIES;
+export type AuditCategory = keyof typeof AUDIT_CATEGORIES;
 
 interface AuditActionDefinition {
   label: string;
   category: AuditCategory;
 }
 
+export type AuditTargetLifecycle = "stable" | "ephemeral" | "tombstone";
+
+export interface AuditTargetContract {
+  type: string;
+  lifecycle: AuditTargetLifecycle;
+}
+
+export interface AuditEventDefinition extends AuditActionDefinition {
+  target: AuditTargetContract;
+}
+
+export type AuditAction = keyof typeof AUDIT_ACTION_DEFINITIONS;
+
+const DEFAULT_TARGETS: Record<AuditCategory, AuditTargetContract> = {
+  predictions: { type: "prediction_program", lifecycle: "stable" },
+  admin: { type: "admin_user", lifecycle: "stable" },
+  registration: { type: "registration", lifecycle: "stable" },
+  captain: { type: "captain_vote", lifecycle: "ephemeral" },
+  draft: { type: "draft_state", lifecycle: "stable" },
+  match: { type: "match", lifecycle: "stable" },
+  season: { type: "season", lifecycle: "stable" },
+  team: { type: "team", lifecycle: "stable" },
+  entry: { type: "competition_entry", lifecycle: "stable" },
+  user: { type: "user", lifecycle: "stable" },
+  education: { type: "education_verification", lifecycle: "stable" },
+  competitive: { type: "competitive_platform", lifecycle: "stable" },
+  major: { type: "major_prestart_state", lifecycle: "stable" },
+  postevent: { type: "post_event_adjudication", lifecycle: "stable" },
+  postmatch: { type: "match", lifecycle: "stable" },
+  community: { type: "community_award", lifecycle: "stable" },
+  discipline: { type: "disciplinary_case", lifecycle: "stable" },
+  recruitment: { type: "recruitment_intent", lifecycle: "stable" },
+};
+
+const TARGET_OVERRIDES: Readonly<Partial<Record<AuditAction, AuditTargetContract>>> = {
+  "predictions.open_market": { type: "prediction_market", lifecycle: "stable" },
+  "predictions.open_contest": { type: "prediction_contest", lifecycle: "stable" },
+  "predictions.void_contest": { type: "prediction_contest", lifecycle: "stable" },
+  "admin.dak.pair": { type: "dak_pairing", lifecycle: "stable" },
+  "admin.dak.revoke_pairing": { type: "dak_pairing", lifecycle: "tombstone" },
+  "admin.create_invite": { type: "admin_invite", lifecycle: "stable" },
+  "admin.deactivate_invite": { type: "admin_invite", lifecycle: "stable" },
+  "admin.revoke_role": { type: "user", lifecycle: "stable" },
+  "announcement.create": { type: "announcement", lifecycle: "stable" },
+  "announcement.update": { type: "announcement", lifecycle: "stable" },
+  "announcement.publish": { type: "announcement", lifecycle: "stable" },
+  "announcement.unpublish": { type: "announcement", lifecycle: "stable" },
+  "feedback.status_update": { type: "feedback_report", lifecycle: "stable" },
+  "scheduler.manual_trigger": { type: "scheduler_job", lifecycle: "stable" },
+  "season_public_info.create": { type: "season_public_info", lifecycle: "stable" },
+  "season_public_info.update": { type: "season_public_info", lifecycle: "stable" },
+  "season_public_info.group.create": { type: "community_group", lifecycle: "stable" },
+  "season_public_info.group.update": { type: "community_group", lifecycle: "stable" },
+  "season_public_info.group.move": { type: "community_group", lifecycle: "stable" },
+  "season_public_info.group.delete": { type: "community_group", lifecycle: "tombstone" },
+  "season_public_info.contact.create": { type: "season_contact", lifecycle: "stable" },
+  "season_public_info.contact.update": { type: "season_contact", lifecycle: "stable" },
+  "season_public_info.contact.move": { type: "season_contact", lifecycle: "stable" },
+  "season_public_info.contact.delete": { type: "season_contact", lifecycle: "tombstone" },
+  "recruitment.interest.withdraw": { type: "recruitment_intent", lifecycle: "stable" },
+  "recruitment.interest.dismiss": { type: "recruitment_intent", lifecycle: "stable" },
+  "recruitment.interest.create": { type: "recruitment_interest", lifecycle: "ephemeral" },
+  "captain.confirm": { type: "season", lifecycle: "stable" },
+  "draft.pick": { type: "draft_pick", lifecycle: "stable" },
+  "draft.start": { type: "season", lifecycle: "stable" },
+  "match.save_player_stats": { type: "match_map", lifecycle: "stable" },
+  "match.demo.auto_confirm": { type: "match_demo_import", lifecycle: "stable" },
+  "match.demo.needs_attention": { type: "match_demo_import", lifecycle: "stable" },
+  "match.demo.identity_confirm": { type: "match_demo_import", lifecycle: "stable" },
+  "match.demo.recheck": { type: "match_demo_import", lifecycle: "stable" },
+  "match.demo.reject": { type: "match_demo_import", lifecycle: "stable" },
+  "match.demo.identity_retire": { type: "user_gameplay_steam_id", lifecycle: "stable" },
+  "match.delete_player_stats": { type: "match_map", lifecycle: "tombstone" },
+  "match.generate_schedule": { type: "season", lifecycle: "stable" },
+  "match.initialize_stage": { type: "season", lifecycle: "stable" },
+  "match.batch_set_completion_deadline": { type: "season", lifecycle: "stable" },
+  "match.delete": { type: "match", lifecycle: "tombstone" },
+  "match.roster.submit": { type: "match_roster", lifecycle: "stable" },
+  "match.roster.admin_select": { type: "match_roster", lifecycle: "stable" },
+  "match.roster.confirm": { type: "match_roster", lifecycle: "stable" },
+  "match.roster.unlock": { type: "match_roster", lifecycle: "stable" },
+  "match.propose_time": { type: "match", lifecycle: "stable" },
+  "match.respond_time_proposal": { type: "match_time_proposal", lifecycle: "stable" },
+  "competitive_platform_season.create": { type: "competitive_platform_season", lifecycle: "stable" },
+  "competitive_platform_season.update": { type: "competitive_platform_season", lifecycle: "stable" },
+  "competitive_platform_season.set_active": { type: "competitive_platform_season", lifecycle: "stable" },
+  "competitive_platform_season.set_current": { type: "competitive_platform_season", lifecycle: "stable" },
+  "competitive_platform_season.move": { type: "competitive_platform_season", lifecycle: "stable" },
+  "competitive_platform_season.delete": { type: "competitive_platform_season", lifecycle: "tombstone" },
+  "competitive_platform_rank.create": { type: "competitive_platform_rank", lifecycle: "stable" },
+  "competitive_platform_rank.rename": { type: "competitive_platform_rank", lifecycle: "stable" },
+  "competitive_platform_rank.move": { type: "competitive_platform_rank", lifecycle: "stable" },
+  "competitive_platform_rank.delete": { type: "competitive_platform_rank", lifecycle: "tombstone" },
+  "competitive_profile.self_declare": { type: "user", lifecycle: "stable" },
+  "competitive_roles.self_declare": { type: "user", lifecycle: "stable" },
+  "map_preferences.self_declare": { type: "user", lifecycle: "stable" },
+  "major_prestart.add_entrant": { type: "major_prestart_state", lifecycle: "stable" },
+  "major_prestart.confirm_roster": { type: "major_tournament_entrant", lifecycle: "stable" },
+  "major_prestart.reconcile_roster": { type: "major_tournament_entrant", lifecycle: "stable" },
+  "major_prestart.repair_roster": { type: "major_prestart_entrant", lifecycle: "stable" },
+  "major_prestart.remove_entrant": { type: "major_prestart_entrant", lifecycle: "tombstone" },
+  "major_prestart.save_roster": { type: "major_tournament_entrant", lifecycle: "stable" },
+  "major_prestart.reopen_roster": { type: "major_tournament_entrant", lifecycle: "stable" },
+  "major.stage.transition": { type: "major_stage_run", lifecycle: "stable" },
+  "major.playoff.start": { type: "major_stage_run", lifecycle: "stable" },
+  "major.playoff.finalize_round": { type: "major_stage_run", lifecycle: "stable" },
+  "major.result.pending_confirmation": { type: "major_final_result", lifecycle: "stable" },
+  "major.result.confirm": { type: "major_final_result", lifecycle: "stable" },
+  "major.stage.finalized_round.revoked": { type: "major_stage_run", lifecycle: "stable" },
+  "major.start": { type: "major_stage_run", lifecycle: "stable" },
+  "major.archive": { type: "season", lifecycle: "stable" },
+  "major.swiss.finalize_round": { type: "major_stage_run", lifecycle: "stable" },
+  "postevent.adjudication.create": { type: "post_event_adjudication", lifecycle: "stable" },
+  "postevent.adjudication.revoke": { type: "post_event_adjudication", lifecycle: "stable" },
+  "postevent.honor.grant": { type: "tournament_honor", lifecycle: "stable" },
+  "postevent.honor.revoke": { type: "tournament_honor", lifecycle: "stable" },
+  "community_award.evidence.submit": { type: "community_award_evidence", lifecycle: "stable" },
+  "identity.link.merge_required": { type: "user_merge_authorization", lifecycle: "stable" },
+  "identity.link.complete": { type: "user", lifecycle: "stable" },
+  "identity.link.revoke": { type: "user_identity", lifecycle: "tombstone" },
+  "user_identity.merge": { type: "user", lifecycle: "stable" },
+  "conversion_policy.create_draft": { type: "conversion_policy", lifecycle: "stable" },
+  "conversion_policy.update_draft": { type: "conversion_policy", lifecycle: "stable" },
+  "conversion_policy.approve": { type: "conversion_policy", lifecycle: "stable" },
+  "conversion_policy.set_current": { type: "conversion_policy", lifecycle: "stable" },
+  "conversion_policy.retire": { type: "conversion_policy", lifecycle: "stable" },
+};
+
 /**
  * This is the only action dictionary used by the log UI. Keep compatibility
  * entries here as well: old immutable rows must remain readable after a
  * producer has been retired.
  */
-export const AUDIT_ACTION_DEFINITIONS: Readonly<Record<string, AuditActionDefinition>> = {
+export const AUDIT_ACTION_DEFINITIONS = {
+  "admin.dak.pair": { label: "连接 DAK Studio", category: "admin" },
+  "admin.dak.revoke_pairing": { label: "撤销 DAK Studio 连接", category: "admin" },
+  "announcement.create": { label: "创建公告", category: "season" },
+  "announcement.update": { label: "更新公告", category: "season" },
+  "announcement.publish": { label: "发布公告", category: "season" },
+  "announcement.unpublish": { label: "撤回公告", category: "season" },
+  "feedback.status_update": { label: "更新反馈状态", category: "admin" },
+  "scheduler.manual_trigger": { label: "手动触发调度任务", category: "admin" },
+  "season_public_info.create": { label: "创建赛事公开信息", category: "season" },
+  "season_public_info.update": { label: "更新赛事公开信息", category: "season" },
+  "season_public_info.group.create": { label: "创建社区群组", category: "season" },
+  "season_public_info.group.update": { label: "更新社区群组", category: "season" },
+  "season_public_info.group.move": { label: "调整社区群组顺序", category: "season" },
+  "season_public_info.group.delete": { label: "删除社区群组", category: "season" },
+  "season_public_info.contact.create": { label: "创建赛事联系方式", category: "season" },
+  "season_public_info.contact.update": { label: "更新赛事联系方式", category: "season" },
+  "season_public_info.contact.move": { label: "调整赛事联系方式顺序", category: "season" },
+  "season_public_info.contact.delete": { label: "删除赛事联系方式", category: "season" },
+  "predictions.open_market": { label: "开放积分池", category: "predictions" },
+  "predictions.open_contest": { label: "开放阶段预测", category: "predictions" },
+  "predictions.void_contest": { label: "作废阶段预测", category: "predictions" },
   "predictions.enable": { label: "开放观赛预测并冻结规则", category: "predictions" },
   "predictions.open_window": { label: "开放预测窗口", category: "predictions" },
   "predictions.moderate": { label: "调整预测参与状态", category: "predictions" },
@@ -75,6 +224,12 @@ export const AUDIT_ACTION_DEFINITIONS: Readonly<Record<string, AuditActionDefini
   "match.record_result": { label: "录入比赛比分", category: "match" },
   "match.record_map_result": { label: "录入地图比分", category: "match" },
   "match.save_player_stats": { label: "录入地图选手数据", category: "match" },
+  "match.demo.auto_confirm": { label: "自动接收 Demo 证据", category: "match" },
+  "match.demo.needs_attention": { label: "标记 Demo 证据待处理", category: "match" },
+  "match.demo.identity_confirm": { label: "确认比赛 Steam 身份", category: "match" },
+  "match.demo.recheck": { label: "重新检查 Demo 数据", category: "match" },
+  "match.demo.reject": { label: "拒绝 Demo 数据", category: "match" },
+  "match.demo.identity_retire": { label: "撤销比赛 Steam 身份", category: "match" },
   "match.delete_player_stats": { label: "删除地图选手数据", category: "match" },
   "match.status_update": { label: "更新比赛状态", category: "match" },
   "match.start": { label: "开始比赛", category: "match" },
@@ -131,12 +286,15 @@ export const AUDIT_ACTION_DEFINITIONS: Readonly<Record<string, AuditActionDefini
 
   "competition_entry.create": { label: "创建参赛队", category: "entry" },
   "competition_entry.participant.reinvite": { label: "重新邀请参赛成员", category: "entry" },
+  "competition_entry.participant.remove": { label: "从参赛名单移除成员", category: "entry" },
   "competition_entry.participant.confirm": { label: "确认参赛成员", category: "entry" },
   "competition_entry.participant.withdraw": { label: "参赛成员退出", category: "entry" },
   "competition_entry.participant.decline": { label: "拒绝参赛邀请", category: "entry" },
   "competition_entry.roster.save": { label: "保存参赛队阵容", category: "entry" },
   "competition_entry.roster_change.request": { label: "申请修改参赛阵容", category: "entry" },
   "competition_entry.withdraw": { label: "撤回参赛队报名", category: "entry" },
+  "competition_entry.review.withdraw": { label: "撤回报名审核", category: "entry" },
+  "competition_entry.registration.restore": { label: "恢复赛事报名", category: "entry" },
   "competition_entry.submit": { label: "提交参赛队报名", category: "entry" },
   "competition_entry.submitted": { label: "参赛队进入待审核", category: "entry" },
   "competition_entry.changes_requested": { label: "要求修改参赛队报名", category: "entry" },
@@ -151,6 +309,10 @@ export const AUDIT_ACTION_DEFINITIONS: Readonly<Record<string, AuditActionDefini
   "user.change_password": { label: "修改密码", category: "user" },
   "user.claim_invite": { label: "使用管理员邀请码", category: "user" },
   "user.owner_bootstrap": { label: "初始化平台所有者", category: "user" },
+  "identity.link.merge_required": { label: "身份绑定需合并账号", category: "user" },
+  "identity.link.complete": { label: "完成身份绑定", category: "user" },
+  "identity.link.revoke": { label: "撤销身份绑定", category: "user" },
+  "user_identity.merge": { label: "合并用户身份", category: "user" },
 
   "education_verification.submit": { label: "提交教育认证", category: "education" },
   "education_verification.institutional_email": { label: "通过校邮箱完成认证", category: "education" },
@@ -170,6 +332,7 @@ export const AUDIT_ACTION_DEFINITIONS: Readonly<Record<string, AuditActionDefini
   "competitive_platform_rank.delete": { label: "删除平台段位", category: "competitive" },
   "competitive_profile.self_declare": { label: "更新竞技段位资料", category: "competitive" },
   "competitive_roles.self_declare": { label: "更新竞技位置资料", category: "competitive" },
+  "map_preferences.self_declare": { label: "更新地图熟练度", category: "competitive" },
   "conversion_policy.create_draft": { label: "创建换算策略草稿", category: "competitive" },
   "conversion_policy.update_draft": { label: "更新换算策略草稿", category: "competitive" },
   "conversion_policy.approve": { label: "批准换算策略", category: "competitive" },
@@ -186,8 +349,6 @@ export const AUDIT_ACTION_DEFINITIONS: Readonly<Record<string, AuditActionDefini
   "major_prestart.save_roster": { label: "保存 Major 参赛阵容", category: "major" },
   "major_prestart.confirm_roster": { label: "确认 Major 参赛阵容", category: "major" },
   "major_prestart.reopen_roster": { label: "重新打开 Major 阵容", category: "major" },
-  "major_prestart.add_issue": { label: "记录 Major 赛前问题", category: "major" },
-  "major_prestart.resolve_issue": { label: "解决 Major 赛前问题", category: "major" },
   "major_prestart.lock_entrants": { label: "锁定 Major 参赛队", category: "major" },
   "major_prestart.save_tournament_seeds": { label: "保存 Major 种子", category: "major" },
   "major_prestart.confirm_tournament_seeds": { label: "确认 Major 种子", category: "major" },
@@ -249,7 +410,14 @@ export const AUDIT_ACTION_DEFINITIONS: Readonly<Record<string, AuditActionDefini
   "team_application.materialize": { label: "生成正式参赛队", category: "entry" },
 } as const;
 
-export const AUDIT_ACTION_KEYS = Object.freeze(Object.keys(AUDIT_ACTION_DEFINITIONS));
+export const AUDIT_EVENT_REGISTRY: Readonly<{ [Action in AuditAction]: AuditEventDefinition }> = Object.freeze(
+  Object.fromEntries(Object.entries(AUDIT_ACTION_DEFINITIONS).map(([action, definition]) => [
+    action,
+    { ...definition, target: TARGET_OVERRIDES[action as AuditAction] ?? DEFAULT_TARGETS[definition.category] },
+  ])) as { [Action in AuditAction]: AuditEventDefinition },
+);
+
+export const AUDIT_ACTION_KEYS = Object.freeze(Object.keys(AUDIT_EVENT_REGISTRY));
 
 export interface AuditActionPresentation {
   actionKey: string;
@@ -280,7 +448,7 @@ export interface AuditLogView {
 
 export function getAuditActionPresentation(action: string | null | undefined): AuditActionPresentation {
   const actionKey = action ?? "";
-  const definition = AUDIT_ACTION_DEFINITIONS[actionKey];
+  const definition = AUDIT_EVENT_REGISTRY[actionKey as AuditAction];
   if (!definition) {
     return {
       actionKey,
@@ -322,6 +490,8 @@ const TARGET_TYPE_LABELS: Readonly<Record<string, string>> = {
   match: "比赛",
   match_map: "比赛地图",
   match_roster: "比赛阵容",
+  match_demo_import: "Demo 数据",
+  user_gameplay_steam_id: "选手 Steam 身份",
   match_time_proposal: "比赛时间提议",
   education_verification: "教育认证",
   competitive_platform: "竞技平台",
@@ -333,7 +503,6 @@ const TARGET_TYPE_LABELS: Readonly<Record<string, string>> = {
   community_award_evidence: "社区奖证据",
   major_prestart_state: "Major 赛前状态",
   major_prestart_entrant: "Major 赛前参赛队",
-  major_prestart_issue: "Major 赛前问题",
   major_tournament_entrant: "Major 参赛队",
   prediction_program: "观赛预测项目",
   prediction_contest: "阶段预测窗口",
@@ -344,15 +513,25 @@ const TARGET_TYPE_LABELS: Readonly<Record<string, string>> = {
   tournament_honor: "赛事荣誉",
   recruitment_intent: "招募意向",
   recruitment_interest: "招募意向申请",
+  announcement: "公告",
+  season_public_info: "赛事公开信息",
+  community_group: "社区群组",
+  season_contact: "赛事联系方式",
+  feedback_report: "反馈报告",
+  scheduler_job: "调度任务",
 };
 
 export function getAuditTargetTypeLabel(targetType: string | null | undefined): string {
   return (targetType && TARGET_TYPE_LABELS[targetType]) ?? "其他对象";
 }
 
-export function getAuditTargetFallbackLabel(targetId: string | null | undefined): string {
+export function getAuditTargetFallbackLabel(
+  targetId: string | null | undefined,
+  lifecycle: AuditTargetLifecycle = "stable",
+): string {
   if (!targetId) return "未指定目标";
   const shortId = targetId.trim().slice(0, 8);
+  if (lifecycle === "tombstone") return shortId ? `已删除 / 历史目标 · ${shortId}` : "已删除 / 历史目标";
   return shortId ? `记录未找到 · ${shortId}` : "记录未找到";
 }
 
@@ -405,7 +584,7 @@ const EVIDENCE_TYPE_LABELS: Readonly<Record<string, string>> = {
   institutional_email: "校邮箱",
   chsi_enrollment_report: "学信网在读报告",
   chsi_education_report: "学信网学历报告",
-  manual_other: "其他材料",
+  manual_other: "录取通知书材料",
 };
 
 function safeState(value: unknown): string | null {
@@ -421,6 +600,12 @@ function appendBoolean(parts: string[], meta: Record<string, unknown>, key: stri
   const value = booleanValue(meta, key);
   if (value === true) parts.push(yes);
   else if (value === false && no) parts.push(no);
+}
+
+function appendSteam64(parts: string[], meta: Record<string, unknown>): void {
+  if (typeof meta.observedSteam64 === "string" && /^\d{17}$/.test(meta.observedSteam64)) {
+    parts.push(`Steam64 ${meta.observedSteam64}`);
+  }
 }
 
 /**
@@ -446,6 +631,10 @@ export function summarizeAuditMeta(action: string, meta: unknown): string | null
     appendBoolean(parts, meta, "winnerChanged", "胜者已变化");
     appendBoolean(parts, meta, "isForfeit", "弃权赛果");
     appendBoolean(parts, meta, "postMatch", "赛后修改");
+    if (action === "match.demo.identity_confirm" && typeof meta.playerName === "string" && meta.playerName.trim()) {
+      parts.push(`选手 ${meta.playerName.trim().slice(0, 72)}`);
+    }
+    if (action === "match.demo.identity_confirm" || action === "match.demo.identity_retire") appendSteam64(parts, meta);
   }
 
   appendCount(parts, meta, "matchCount", "比赛");

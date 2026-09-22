@@ -75,4 +75,14 @@ describe("submitEducationVerification email ownership boundary", () => {
     expect(result).toEqual({ success: true, data: undefined });
     expect(updateSetMock).toHaveBeenCalledWith(expect.objectContaining({ status: "approved", reviewNote: null }));
   });
+
+  it("refuses to approve a pending manual claim without its evidence object", async () => {
+    requireSuperAdminMock.mockResolvedValue({ userId: "00000000-0000-0000-0000-000000000004", email: "admin@example.test", role: "super_admin", seasonIds: [] });
+    reviewFindFirstMock.mockResolvedValue({ id: REVIEW_ID, status: "pending", evidenceType: "manual_other", evidenceObjectKey: null });
+
+    const result = await reviewEducationVerification({ id: REVIEW_ID, decision: "approved" });
+
+    expect(result).toMatchObject({ success: false, error: { code: ErrorCode.VALIDATION_FAILED } });
+    expect(updateSetMock).not.toHaveBeenCalled();
+  });
 });

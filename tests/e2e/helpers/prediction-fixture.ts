@@ -6,6 +6,8 @@ import { createMajorDefaultCapabilities } from "@/lib/competition/templates";
 import { makeMajorRunSnapshotV4 } from "@/lib/major/run-snapshot";
 import { DEFAULT_RULES } from "@/lib/predictions/rules";
 import { simulateMajor } from "@/lib/predictions/simulator";
+import { projectPredictionStages } from "@/lib/predictions/stage-projection";
+import { SIMULATION_VERSION } from "@/lib/predictions/types";
 import type { Baseline } from "@/lib/predictions/types";
 import { assertLocalDatabaseUrl } from "../../../scripts/db/local-environment";
 export async function createPredictionBrowserFixture(
@@ -110,20 +112,13 @@ export async function createPredictionBrowserFixture(
       .slice(16)
       .map((t) => ({ teamId: t.teamId, seed: t.tournamentSeed - 16 }));
     const base: Baseline = {
-      version: 1,
+      version: SIMULATION_VERSION,
       seasonId,
       name: "观赛预测验收赛",
       capturedAt: new Date().toISOString(),
       teams,
-      runs: [{ key: "stage1", entrants, finalizedRound: 0 }],
-      stages: cap.stagePlan.map((s) => ({
-        key: s.key,
-        name: s.name,
-        type: s.type as "swiss" | "single_elim",
-        entrySeeds: s.entrySeeds ?? 0,
-        matchFormat: s.matchFormat as "bo1" | "bo3",
-        finalFormat: s.finalFormat === "bo5" ? "bo5" : null,
-      })),
+      runs: [{ id: run!.id, key: "stage1", entrants, finalizedRound: 0 }],
+      stages: projectPredictionStages(cap.stagePlan),
       matches: [],
     };
     const round = simulateMajor(base, {})[0]!.matches;
@@ -156,18 +151,21 @@ export async function createPredictionBrowserFixture(
         seasonId,
         stageKey: "stage1",
         kind: "swiss",
+        stageRunId: run!.id,
         entrants,
         deadline,
       });
       const match = inserted[0]!;
-      await db.insert(schema.predictionMarkets).values({
+      const [market] = await db.insert(schema.predictionMarkets).values({
         seasonId,
         matchId: match.id,
         stageKey: "stage1",
-        a: match.entryAId,
-        b: match.entryBId,
+        title: "比赛胜者",
+        resolver: "match_winner",
+        subject: { stageRunId: run!.id, entryIds: [match.entryAId, match.entryBId] },
         deadline: new Date(deadline.getTime() - 300000),
-      });
+      }).returning();
+      await db.insert(schema.predictionMarketOptions).values([match.entryAId, match.entryBId].map((id, position) => ({marketId: market!.id, key: id, entryId: id, label: teams.find((team) => team.teamId === id)!.name, position})));
     }
     return { slug, seasonId };
   } finally {
@@ -191,6 +189,7 @@ export async function removePredictionBrowserFixture(seasonId: string) {
       "DELETE FROM prediction_settlements WHERE market_id IN (SELECT id FROM prediction_markets WHERE season_id=$1)",
       [seasonId],
     );
+    await client.query("DELETE FROM prediction_market_options WHERE market_id IN (SELECT id FROM prediction_markets WHERE season_id=$1)", [seasonId]);
     for (const table of [
       "prediction_picks",
       "prediction_stakes",

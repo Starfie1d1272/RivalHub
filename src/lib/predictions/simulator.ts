@@ -2,9 +2,9 @@ import {
   playoffDescendants,
   type PlayoffManagedKey,
 } from "@/lib/major/playoff-dependencies";
-import { buildMajorOpeningPlan } from "@/lib/major/opening";
+import { orderedPredictionStages } from "./stage-projection";
 import {
-  directSeedRange,
+  seedMajorStageOneEntrants,
   seedMajorLaterStageEntrants,
 } from "@/lib/major/seeding";
 import {
@@ -29,21 +29,18 @@ import {
 export function simulateMajor(base: Baseline, choices: Choices): SimStage[] {
   if (base.version !== SIMULATION_VERSION)
     throw new Error("该推演使用旧版规则，只能查看保存结果");
-  const first = base.stages[0];
+  const ordered = orderedPredictionStages(base.stages);
+  const first = ordered.find((stage) => stage.previousKey === null);
   if (!first || base.teams.length !== 32) return [];
-  const opening = buildMajorOpeningPlan({
-    teams: base.teams,
-    stageOneMatchFormat: first.matchFormat,
-  });
   const result: SimStage[] = [];
   let qualifiers: { teamId: string; finalStageSeed: number }[] = [];
   let hypothetical = false;
-  for (const [index, stage] of base.stages.entries()) {
+  for (const stage of ordered) {
     const run = base.runs.find((r) => r.key === stage.key);
     let entrants: { teamId: string; seed: number }[];
     if (run && !hypothetical) entrants = run.entrants;
-    else if (index === 0)
-      entrants = opening.stage1.entrants.map((e) => ({
+    else if (!stage.previousKey)
+      entrants = seedMajorStageOneEntrants(base.teams.filter((team) => team.tournamentSeed >= stage.directSeeds[0] && team.tournamentSeed <= stage.directSeeds[1])).map((e) => ({
         teamId: e.teamId,
         seed: e.initialStageSeed,
       }));
@@ -54,7 +51,7 @@ export function simulateMajor(base: Baseline, choices: Choices): SimStage[] {
         seed: e.finalStageSeed,
       }));
     else {
-      const [lo, hi] = directSeedRange(base.stages, index, stage.entrySeeds);
+      const [lo, hi] = stage.directSeeds;
       entrants = seedMajorLaterStageEntrants({
         directEntrants: base.teams.filter(
           (e) => e.tournamentSeed >= lo && e.tournamentSeed <= hi,
@@ -241,15 +238,16 @@ export function replaceSimulationChoice(
 ): Choices {
   if (![match.a, match.b].includes(winner)) throw new Error("胜者不是对阵方");
   const projected = simulateMajor(base, choices);
-  const index = base.stages.findIndex((s) => s.key === stageKey);
+  const stages = orderedPredictionStages(base.stages);
+  const index = stages.findIndex((s) => s.key === stageKey);
   const next: Choices = {};
   const descendants =
-    base.stages[index]?.type === "single_elim"
+    stages[index]?.type === "single_elim"
       ? playoffDescendants(match.key as PlayoffManagedKey)
       : null;
   for (const [key, value] of Object.entries(choices)) {
     const [s, k] = key.split("/");
-    const si = base.stages.findIndex((stage) => stage.key === s);
+    const si = stages.findIndex((stage) => stage.key === s);
     const previous = projected
       .find((stage) => stage.key === s)
       ?.matches.find((m) => m.key === k);

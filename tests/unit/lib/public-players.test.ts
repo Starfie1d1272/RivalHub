@@ -13,6 +13,7 @@ import { getPublicPlayerById } from "@/lib/data/public-players";
 function query(value: unknown) {
   const result = {
     from: vi.fn(() => result),
+    leftJoin: vi.fn(() => result),
     where: vi.fn(() => result),
     limit: vi.fn(() => result),
     then: (resolve: (value: unknown) => unknown, reject?: (reason: unknown) => unknown) =>
@@ -25,9 +26,11 @@ const baseUserRow = {
   id: "user-1",
   displayName: "Player 1",
   perfectName: "Perfect 1",
-  steamName: "Steam 1",
+  personaName: "Steam 1",
   steamProfileUrl: "https://steamcommunity.com/id/player1",
   avatarUrl: null,
+  gameplayStyle: "进攻型步枪手",
+  competitionHistory: "参加过校赛",
 };
 
 describe("getPublicPlayerById read-model safety", () => {

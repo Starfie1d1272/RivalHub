@@ -1,8 +1,10 @@
 "use server";
 
+import { writeAuditInTx } from "@/lib/audit/write";
+
 import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
-import { matchVetoSteps, matchMaps, auditLogs } from "@/db/schema";
+import { matchVetoSteps, matchMaps } from "@/db/schema";
 import { ok, type ActionResult } from "@/types/action";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { requireSeasonAdmin, auditActorId } from "@/lib/auth/session";
@@ -147,13 +149,11 @@ export async function saveVetoSteps(
         }
       }
 
-      await tx.insert(auditLogs).values({
+      await writeAuditInTx(tx, {
         seasonId: locked.seasonId,
         action: "match.save_veto",
         actorId: auditActorId(session),
-        targetId: matchId,
-        targetType: "match",
-        meta: { format: locked.format, stepCount: steps.length, postMatch: locked.status === "finished" },
+        targetId: matchId,meta: { format: locked.format, stepCount: steps.length, postMatch: locked.status === "finished" },
       });
     });
 

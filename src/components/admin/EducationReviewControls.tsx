@@ -43,7 +43,7 @@ interface EducationReviewControlsProps {
   page: number;
   pageSize: number;
   totalPages: number;
-  institutionOptions: { id: string; name: string }[];
+  institutionOptions: { id: string; name: string; userCount: number }[];
   normalizedQuery: EducationReviewQuery;
   searchParams: ListQuerySearchParams;
   update: ListQueryUpdate;
@@ -102,7 +102,7 @@ export function EducationReviewControls({
             className={selectClassName}
           >
             <option value="">全部学校</option>
-            {institutionOptions.map((institution) => <option key={institution.id} value={institution.id}>{institution.name}</option>)}
+            {institutionOptions.map((institution) => <option key={institution.id} value={institution.id}>{institution.name}（{institution.userCount} 人）</option>)}
           </select>
         </label>
         <label className="min-w-0 w-full flex-1 basis-full sm:basis-[calc(50%-0.75rem)] lg:basis-[15%]">

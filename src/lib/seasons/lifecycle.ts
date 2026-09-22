@@ -1,6 +1,9 @@
 import { and, count, desc, eq } from "drizzle-orm";
+import { writeAuditInTx } from "@/lib/audit/write";
+import type { AuditAction } from "@/lib/audit/presentation";
+
 import type { db as dbClient } from "@/db/client";
-import { auditLogs, competitionEntries, conversionPolicies, matches, seasonRegistrations, seasons } from "@/db/schema";
+import { competitionEntries, conversionPolicies, matches, seasonRegistrations, seasons } from "@/db/schema";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { fallbackCatalogReferencesExist, resolveLiveCompetitiveContext, type ResolvedCatalogContext } from "@/lib/competitive/catalog";
 import { resolveCompetitiveContext } from "@/lib/qualification/service";
@@ -59,19 +62,17 @@ export function unfreezeBuiltInCompetitiveContext(season: {
  */
 export async function transitionSeasonStatusInTx(
   tx: Transaction,
-  input: { seasonId: string; from: SeasonStatus; to: SeasonStatus; action: string; actorId: string; failureMessage: string },
+  input: { seasonId: string; from: SeasonStatus; to: SeasonStatus; action: AuditAction; actorId: string; failureMessage: string },
 ): Promise<{ slug: string }> {
   const [season] = await tx.select().from(seasons).where(eq(seasons.id, input.seasonId)).for("update");
   if (!season) throw new AppError(ErrorCode.SEASON_NOT_FOUND, "赛季不存在。");
   if (season.status !== input.from) throw new AppError(ErrorCode.SEASON_INVALID_STATUS, input.failureMessage);
   await tx.update(seasons).set({ status: input.to, updatedAt: new Date() }).where(eq(seasons.id, season.id));
-  await tx.insert(auditLogs).values({
+  await writeAuditInTx(tx, {
     seasonId: season.id,
     action: input.action,
     actorId: input.actorId,
-    targetId: season.id,
-    targetType: "season",
-    meta: { slug: season.slug, from: season.status, to: input.to },
+    targetId: season.id,meta: { slug: season.slug, from: season.status, to: input.to },
   });
   return { slug: season.slug };
 }
@@ -179,7 +180,7 @@ async function resolveFallbackConversionForFreeze(
       throw new AppError(ErrorCode.VALIDATION_FAILED, "赛事选用的 5E 换算策略不存在，不能开放报名。");
     }
     if (found.status !== "approved") {
-      throw new AppError(ErrorCode.VALIDATION_FAILED, `赛事选用的 5E 换算策略 (${found.version}) 状态为 ${found.status}，只有 approved 策略可以开放报名。`);
+      throw new AppError(ErrorCode.VALIDATION_FAILED, `赛事选用的 5E 换算策略 (${found.version}) 尚未批准或已停用；请选用已批准的换算规则后开放报名。`);
     }
     policy = found;
   } else if (selectedPolicyVersion) {
@@ -194,7 +195,7 @@ async function resolveFallbackConversionForFreeze(
       throw new AppError(ErrorCode.VALIDATION_FAILED, `赛事选用的 5E 换算策略版本 (${selectedPolicyVersion}) 不存在，不能开放报名。`);
     }
     if (found.status !== "approved") {
-      throw new AppError(ErrorCode.VALIDATION_FAILED, `赛事选用的 5E 换算策略 (${found.version}) 状态为 ${found.status}，只有 approved 策略可以开放报名。`);
+      throw new AppError(ErrorCode.VALIDATION_FAILED, `赛事选用的 5E 换算策略 (${found.version}) 尚未批准或已停用；请选用已批准的换算规则后开放报名。`);
     }
     policy = found;
   } else {
@@ -284,10 +285,10 @@ export async function freezeCompetitiveContext(
     fallbackConversion,
   };
   if (!await resolveCompetitiveContext(competitiveProfile)) {
-    throw new AppError(ErrorCode.VALIDATION_FAILED, "5E fallback 映射必须覆盖本届冻结的全部赛季证据槽，并映射到已公布的 Perfect 段位后才能开放报名。");
+    throw new AppError(ErrorCode.VALIDATION_FAILED, "5E 换算规则须覆盖本届所需的全部赛季，并对应到已公布的 Perfect World 段位后才能开放报名。");
   }
   if (competitiveProfile.fallbackConversion && !await fallbackCatalogReferencesExist(tx, competitiveProfile.fallbackConversion)) {
-    throw new AppError(ErrorCode.VALIDATION_FAILED, "5E fallback 映射引用的赛季或段位已不在竞技目录中，不能开放报名。");
+    throw new AppError(ErrorCode.VALIDATION_FAILED, "5E 换算规则引用的赛季或段位已不在竞技目录中，不能开放报名。");
   }
   return {
     ...config,
@@ -295,23 +296,53 @@ export async function freezeCompetitiveContext(
   };
 }
 
+export type RegistrationOpeningMode =
+  | "scheduled"
+  | "explicit_immediate"
+  | "explicit_early_force";
+
 /**
  * Canonical participation-open transition. It row-locks the published event,
  * freezes its competitive evidence exactly once, and records the audit fact in
- * the same transaction. Both the admin "open now" action and scheduled cron
- * processing use this owner so a catalog change cannot race an application.
+ * the same transaction. Scheduled catch-up, an unscheduled explicit open, and
+ * a future-schedule early force-open have distinct modes so a manual action
+ * cannot accidentally rewrite a planned opening while catching up.
  */
 export async function openSeasonRegistrationInTx(
   tx: Transaction,
-  input: { seasonId: string; actorId: string; now?: Date; openNow?: boolean },
+  input: { seasonId: string; actorId: string; now?: Date; mode: RegistrationOpeningMode },
 ): Promise<{ slug: string; opened: boolean }> {
   const now = input.now ?? new Date();
   const [season] = await tx.select().from(seasons).where(eq(seasons.id, input.seasonId)).for("update");
   if (!season) throw new AppError(ErrorCode.SEASON_NOT_FOUND, "赛事不存在。");
   if (season.status !== "registration") throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "只有已发布赛事可以开放报名。");
   if (season.registrationOpenedAt) return { slug: season.slug, opened: false };
-  const configuredOpenAt = input.openNow ? now : season.registrationOpensAt;
-  if (!configuredOpenAt || configuredOpenAt.getTime() > now.getTime()) return { slug: season.slug, opened: false };
+
+  let configuredOpenAt: Date | null;
+  switch (input.mode) {
+    case "scheduled":
+      if (!season.registrationOpensAt || season.registrationOpensAt.getTime() > now.getTime()) {
+        return { slug: season.slug, opened: false };
+      }
+      configuredOpenAt = season.registrationOpensAt;
+      break;
+    case "explicit_immediate":
+      if (!season.registrationOpensAt) {
+        configuredOpenAt = now;
+        break;
+      }
+      if (season.registrationOpensAt.getTime() > now.getTime()) {
+        throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "报名尚未到计划开放时间；如需提前开放，请使用提前开放报名操作。");
+      }
+      configuredOpenAt = season.registrationOpensAt;
+      break;
+    case "explicit_early_force":
+      if (!season.registrationOpensAt || season.registrationOpensAt.getTime() <= now.getTime()) {
+        throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "只有未来计划的赛事可以提前开放报名。");
+      }
+      configuredOpenAt = now;
+      break;
+  }
   const config = normalizeTeamRegistrationConfig(season.teamRegistrationConfig);
   const teamRegistrationConfig = config.requireCompetitiveProfile
     ? await freezeCompetitiveContext(tx, season)
@@ -322,13 +353,19 @@ export async function openSeasonRegistrationInTx(
     teamRegistrationConfig,
     updatedAt: now,
   }).where(eq(seasons.id, season.id));
-  await tx.insert(auditLogs).values({
+  await writeAuditInTx(tx, {
     seasonId: season.id,
     action: "season.registration_open",
     actorId: input.actorId,
     targetId: season.id,
-    targetType: "season",
-    meta: { slug: season.slug, registrationOpensAt: configuredOpenAt.toISOString(), competitiveContextFrozen: config.requireCompetitiveProfile },
+    meta: {
+      slug: season.slug,
+      registrationOpeningMode: input.mode,
+      scheduledRegistrationOpensAt: season.registrationOpensAt?.toISOString() ?? null,
+      registrationOpensAt: configuredOpenAt.toISOString(),
+      registrationOpenedAt: now.toISOString(),
+      competitiveContextFrozen: config.requireCompetitiveProfile,
+    },
   });
   return { slug: season.slug, opened: true };
 }

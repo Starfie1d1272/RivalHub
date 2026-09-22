@@ -3,13 +3,15 @@ import { evaluateRosterEducationEligibility, resolveSeasonEducationVerification 
 import { emailDomain, normalizeChsiEvidenceCode } from "./validation";
 
 const njuRule = [{ institutionCode: "4132010284", eligibleAcademicStatuses: ["enrolled", "graduated"] as const, minRosterMembers: 3, minStartingMembers: 3 }];
-const member = (userId: string, options: { verified?: boolean; code?: string; status?: "pending" | "approved" | "rejected" } = {}) => ({ userId, email: `${userId}@example.test`, emailVerifiedAt: options.verified === false ? null : new Date(), verification: options.status === "pending" || options.status === "rejected" ? { id: `${userId}-verification`, institutionCode: options.code ?? "4132010284", institutionName: "南京大学", academicStatus: "enrolled" as const, status: options.status } : { id: `${userId}-verification`, institutionCode: options.code ?? "4132010284", institutionName: "南京大学", academicStatus: "enrolled" as const, status: "approved" as const } });
+const member = (userId: string, options: { verified?: boolean; code?: string; status?: "pending" | "approved" | "rejected" } = {}) => ({ userId, label: `玩家${userId}`, emailVerifiedAt: options.verified === false ? null : new Date(), verification: options.status === "pending" || options.status === "rejected" ? { id: `${userId}-verification`, institutionCode: options.code ?? "4132010284", institutionName: "南京大学", academicStatus: "enrolled" as const, status: options.status } : { id: `${userId}-verification`, institutionCode: options.code ?? "4132010284", institutionName: "南京大学", academicStatus: "enrolled" as const, status: "approved" as const } });
 
 describe("education eligibility", () => {
   it("requires verified email, approved education and three NJU affiliations", () => {
     const result = evaluateRosterEducationEligibility([member("a"), member("b"), member("c", { verified: false })], njuRule);
     expect(result.eligible).toBe(false);
     expect(result.blockers.join(" ")).toContain("邮箱尚未验证");
+    expect(result.blockers.join(" ")).toContain("玩家c");
+    expect(result.blockers.join(" ")).not.toContain("@example.test");
     expect(result.blockers.join(" ")).toContain("当前已认证南京大学成员 2 人");
   });
 

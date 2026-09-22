@@ -1,16 +1,18 @@
 import "server-only";
 
+import { writeAuditInTx } from "@/lib/audit/write";
+
 import { createHash, timingSafeEqual } from "node:crypto";
 import { and, eq, gt, inArray, or } from "drizzle-orm";
 import type { TxDb } from "@/db/client";
 import {
-  auditLogs,
-  identityLinkRequests,
+    identityLinkRequests,
   userIdentities,
   userMergeAuthorizations,
 } from "@/db/schema";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { resolveCanonicalUserId, upsertActiveIdentityInTx } from "@/lib/identity/canonical";
+import { identityAppError } from "@/lib/identity/errors";
 import { normalizeEmail } from "@/lib/utils/email";
 
 const MERGE_AUTHORIZATION_TTL_MS = 30 * 60 * 1000;
@@ -91,12 +93,10 @@ export async function completeSecondaryIdentityLinkInTx(
     if (!authorization) throw new AppError(ErrorCode.INTERNAL_ERROR, "无法建立 self-service merge 授权。");
     await tx.update(identityLinkRequests).set({ status: "merge_required", completedAt: new Date() })
       .where(eq(identityLinkRequests.id, request.id));
-    await tx.insert(auditLogs).values({
+    await writeAuditInTx(tx, {
       action: "identity.link.merge_required",
       actorId: canonicalCurrentId,
-      targetId: authorization.id,
-      targetType: "user_merge_authorization",
-      meta: { counterpartyUserId: existingOwnerId },
+      targetId: authorization.id,meta: { counterpartyUserId: existingOwnerId },
     });
     return { kind: "merge_required", authorizationId: authorization.id };
   }
@@ -123,12 +123,10 @@ export async function completeSecondaryIdentityLinkInTx(
   });
   await tx.update(identityLinkRequests).set({ status: "completed", completedAt: new Date() })
     .where(eq(identityLinkRequests.id, request.id));
-  await tx.insert(auditLogs).values({
+  await writeAuditInTx(tx, {
     action: "identity.link.complete",
     actorId: canonicalCurrentId,
-    targetId: canonicalCurrentId,
-    targetType: "user",
-    meta: { kind: "email", primary: false },
+    targetId: canonicalCurrentId,meta: { kind: "email", primary: false },
   });
   return { kind: "linked" };
 }
@@ -145,9 +143,9 @@ export async function revokeSecondaryEmailIdentityInTx(
     eq(userIdentities.kind, "email"),
     eq(userIdentities.status, "active"),
   )).for("update");
-  if (!identity) throw new AppError(ErrorCode.NOT_FOUND, "secondary email identity 不存在。");
+  if (!identity) throw identityAppError(ErrorCode.NOT_FOUND, "secondaryEmailNotFound");
   if (identity.isPrimary || !identity.normalizedValue) {
-    throw new AppError(ErrorCode.VALIDATION_FAILED, "primary login identity 不能在这里撤销。");
+    throw identityAppError(ErrorCode.VALIDATION_FAILED, "primaryEmailCannotBeRevoked");
   }
   const related = await tx.select().from(userIdentities).where(and(
     eq(userIdentities.userId, canonicalUserId),
@@ -155,7 +153,7 @@ export async function revokeSecondaryEmailIdentityInTx(
     eq(userIdentities.normalizedValue, identity.normalizedValue),
   )).for("update");
   if (related.some((row) => row.isPrimary)) {
-    throw new AppError(ErrorCode.VALIDATION_FAILED, "该邮箱仍属于 primary login identity，不能撤销。");
+    throw identityAppError(ErrorCode.VALIDATION_FAILED, "emailStillPrimary");
   }
   const now = new Date();
   await tx.update(userIdentities).set({
@@ -164,12 +162,10 @@ export async function revokeSecondaryEmailIdentityInTx(
     retiredAt: now,
     retiredReason: "self_revoke",
   }).where(inArray(userIdentities.id, related.map((row) => row.id)));
-  await tx.insert(auditLogs).values({
+  await writeAuditInTx(tx, {
     action: "identity.link.revoke",
     actorId: canonicalUserId,
-    targetId: identity.id,
-    targetType: "user_identity",
-    meta: { kind: "email", relatedCredentialCount: related.length },
+    targetId: identity.id,meta: { kind: "email", relatedCredentialCount: related.length },
   });
 }
 

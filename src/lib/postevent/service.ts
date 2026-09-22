@@ -1,8 +1,9 @@
 import { and, eq } from "drizzle-orm";
+import { writeAuditInTx } from "@/lib/audit/write";
+
 import type { TxDb } from "@/db/client";
 import {
-  auditLogs,
-  majorFinalResults,
+    majorFinalResults,
   matches,
   postEventAdjudications,
   seasons,
@@ -78,13 +79,11 @@ export async function confirmMajorFinalResultInTx(
     confirmedAt: new Date(),
     confirmedBy: args.actorId,
   }).where(eq(majorFinalResults.id, result.id));
-  await tx.insert(auditLogs).values({
+  await writeAuditInTx(tx, {
     seasonId: args.seasonId,
     action: "major.result.confirm",
     actorId: args.actorId,
-    targetId: result.id,
-    targetType: "major_final_result",
-    meta: { championEntryId: result.championEntryId, placementGroupCount: parsePlacementGroups(result.placementGroups, result.championEntryId).length },
+    targetId: result.id,meta: { championEntryId: result.championEntryId, placementGroupCount: parsePlacementGroups(result.placementGroups, result.championEntryId).length },
   });
   return { resultId: result.id, alreadyConfirmed: false };
 }
@@ -149,13 +148,11 @@ export async function createPostEventAdjudicationInTx(
     if (retry?.seasonId === args.seasonId) return { adjudicationId: retry.id, created: false };
     throw new AppError(ErrorCode.VALIDATION_FAILED, "赛后裁决幂等键或目标发生冲突。");
   }
-  await tx.insert(auditLogs).values({
+  await writeAuditInTx(tx, {
     seasonId: args.seasonId,
     action: "postevent.adjudication.create",
     actorId: args.actorId,
-    targetId: created.id,
-    targetType: "post_event_adjudication",
-    meta: { kind: args.kind, target: args.target, targetEntryId: targetIds.entry, targetUserId: targetIds.user, targetMatchId: targetIds.match, impacts },
+    targetId: created.id,meta: { kind: args.kind, target: args.target, targetEntryId: targetIds.entry, targetUserId: targetIds.user, targetMatchId: targetIds.match, impacts },
   });
   return { adjudicationId: created.id, created: true };
 }
@@ -174,13 +171,11 @@ export async function revokePostEventAdjudicationInTx(
     revokedBy: args.actorId,
     revocationReason: args.reason,
   }).where(eq(postEventAdjudications.id, adjudication.id));
-  await tx.insert(auditLogs).values({
+  await writeAuditInTx(tx, {
     seasonId: adjudication.seasonId,
     action: "postevent.adjudication.revoke",
     actorId: args.actorId,
-    targetId: adjudication.id,
-    targetType: "post_event_adjudication",
-    meta: { reason: args.reason },
+    targetId: adjudication.id,meta: { reason: args.reason },
   });
   return { adjudicationId: adjudication.id, alreadyRevoked: false };
 }
@@ -295,13 +290,11 @@ export async function grantTournamentHonorInTx(
     if (retry?.seasonId === args.seasonId) return { honorId: retry.id, created: false };
     throw new AppError(ErrorCode.VALIDATION_FAILED, "该荣誉席位已有有效授予；系统不会自动替换获奖者。");
   }
-  await tx.insert(auditLogs).values({
+  await writeAuditInTx(tx, {
     seasonId: args.seasonId,
     action: "postevent.honor.grant",
     actorId: args.actorId,
-    targetId: created.id,
-    targetType: "tournament_honor",
-    meta: { honorKey, type: args.type, basis: args.basis, entryId: args.entryId ?? null, userId: args.userId ?? null, placementFrom: args.placementFrom ?? null, placementTo: args.placementTo ?? null, adjudicationId: args.adjudicationId ?? null },
+    targetId: created.id,meta: { honorKey, type: args.type, basis: args.basis, entryId: args.entryId ?? null, userId: args.userId ?? null, placementFrom: args.placementFrom ?? null, placementTo: args.placementTo ?? null, adjudicationId: args.adjudicationId ?? null },
   });
   return { honorId: created.id, created: true };
 }
@@ -322,13 +315,11 @@ export async function revokeTournamentHonorInTx(
     revocationReason: args.reason,
     updatedAt: new Date(),
   }).where(eq(tournamentHonors.id, honor.id));
-  await tx.insert(auditLogs).values({
+  await writeAuditInTx(tx, {
     seasonId: honor.seasonId,
     action: "postevent.honor.revoke",
     actorId: args.actorId,
-    targetId: honor.id,
-    targetType: "tournament_honor",
-    meta: { honorKey: honor.honorKey, type: honor.type, reason: args.reason, automaticPromotion: false },
+    targetId: honor.id,meta: { honorKey: honor.honorKey, type: honor.type, reason: args.reason, automaticPromotion: false },
   });
   return { honorId: honor.id, alreadyRevoked: false };
 }
@@ -343,13 +334,11 @@ export async function archiveTournamentInTx(
   const result = await lockFinalResultInTx(tx, args.seasonId);
   if (result.status !== "confirmed") throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "必须先明确确认最终赛事结果，才能归档赛事。");
   await tx.update(seasons).set({ status: "archived", updatedAt: new Date() }).where(eq(seasons.id, season.id));
-  await tx.insert(auditLogs).values({
+  await writeAuditInTx(tx, {
     seasonId: season.id,
     action: "major.archive",
     actorId: args.actorId,
-    targetId: season.id,
-    targetType: "season",
-    meta: { from: season.status, to: "archived", finalResultId: result.id },
+    targetId: season.id,meta: { from: season.status, to: "archived", finalResultId: result.id },
   });
   return { archived: true, alreadyArchived: false };
 }

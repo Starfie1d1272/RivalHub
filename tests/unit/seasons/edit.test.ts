@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getSeasonEditCapabilities, planSeasonCreate, planSeasonUpdate } from "@/lib/seasons/edit";
+import { getSeasonEditCapabilities, planSeasonCreate, planSeasonUpdate, seasonUpdatePayloadSchema } from "@/lib/seasons/edit";
 import { unfreezeBuiltInCompetitiveContext } from "@/lib/seasons/lifecycle";
 import { seasonFormSchema } from "@/lib/seasons/edit";
 import { createMajorTemplate, createRivalsTemplate } from "@/lib/competition/templates";
@@ -268,7 +268,26 @@ describe("planSeasonUpdate template identity", () => {
     expect(() => planSeasonUpdate(row, parsed)).toThrowError(/只有 draft 状态可修改核心赛季配置/);
   });
 
-  it("allows a published pre-open schedule edit but freezes the schedule after actual opening", () => {
+  it("treats persisted JSON object key order as irrelevant while preserving array order", () => {
+    const reversedRankThreshold = {
+      peakMin: MAJOR_TEMPLATE.registrationConfig.rankThreshold.peakMin,
+      currentMin: MAJOR_TEMPLATE.registrationConfig.rankThreshold.currentMin,
+    };
+    const row = seasonRow({
+      status: "registration",
+      registrationConfig: {
+        ...MAJOR_TEMPLATE.registrationConfig,
+        rankThreshold: reversedRankThreshold,
+      },
+    });
+
+    expect(() => planSeasonUpdate(row, parseInput({ name: "Renamed Major" }))).not.toThrow();
+    expect(() => planSeasonUpdate(row, parseInput({
+      positions: [...MAJOR_TEMPLATE.positions].reverse(),
+    }))).toThrowError(/只有 draft 状态可修改核心赛季配置/);
+  });
+
+  it("allows a published pre-open schedule edit and ignores a frozen schedule replay after opening", () => {
     const openedAt = new Date("2026-05-01T02:00:00.000Z");
     const row = seasonRow({
       status: "registration",
@@ -283,7 +302,30 @@ describe("planSeasonUpdate template identity", () => {
       registrationOpenedAt: openedAt,
       registrationOpensAt: openedAt,
     });
-    expect(() => planSeasonUpdate(openedRow, parseInput({ registrationOpensAt: "2026-05-02T10:00" }))).toThrowError(/不能修改报名开放时间/);
+    const opened = planSeasonUpdate(openedRow, parseInput({ registrationOpensAt: "2026-05-02T10:00" }));
+    expect(opened.set).not.toHaveProperty("registrationOpensAt");
+  });
+
+  it("ignores a malicious frozen open time even when the raw replay breaks date ordering", () => {
+    const openedAt = new Date("2026-05-01T02:00:03.838Z");
+    const currentClose = new Date("2026-05-02T02:00:00.000Z");
+    const row = seasonRow({
+      status: "registration",
+      registrationOpenedAt: openedAt,
+      registrationOpensAt: openedAt,
+      registrationClosesAt: currentClose,
+    });
+    const parsed = seasonUpdatePayloadSchema.parse(input({
+      id: "00000000-0000-0000-0000-0000000000aa",
+      registrationOpensAt: "2026-05-03T10:00",
+      registrationClosesAt: "2026-05-02T12:00",
+      rosterChangeClosesAt: "2026-05-03T10:00",
+    }));
+
+    const { set } = planSeasonUpdate(row, parsed);
+    expect(set.registrationClosesAt).toEqual(new Date("2026-05-02T04:00:00.000Z"));
+    expect(set.rosterChangeClosesAt).toEqual(new Date("2026-05-03T02:00:00.000Z"));
+    expect(set).not.toHaveProperty("registrationOpensAt");
   });
 
   it("keeps publish-owned ConversionPolicy references out of a published schedule replay", () => {
@@ -370,11 +412,13 @@ describe("planSeasonUpdate template identity", () => {
     expect(updated.set.rosterChangeClosesAt).toEqual(new Date("2026-05-05T02:00:00.000Z"));
 
     const playingRow = seasonRow({ ...row, status: "playing" });
-    expect(() => planSeasonUpdate(playingRow, parseInput({
+    const playingUpdated = planSeasonUpdate(playingRow, parseInput({
       registrationOpensAt: "2026-05-01T10:00",
       registrationClosesAt: "2026-05-04T10:00",
       rosterChangeClosesAt: "2026-05-05T10:00",
-    }))).toThrowError(/不能修改报名运营截止时间/);
+    }));
+    expect(playingUpdated.set).not.toHaveProperty("registrationClosesAt");
+    expect(playingUpdated.set).not.toHaveProperty("rosterChangeClosesAt");
   });
 
   it("keeps name, theme and endAt as editable metadata after publish", () => {

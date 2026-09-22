@@ -5,6 +5,7 @@ import { db } from "@/db/client";
 import {
   disciplinaryCases,
   seasons,
+  steamProfiles,
   users,
   type DisciplinaryCase,
 } from "@/db/schema";
@@ -29,6 +30,7 @@ import {
   type DisciplineAdminQuery,
   type DisciplineAdminResult,
 } from "@/lib/discipline/admin-review-contract";
+import { getDisplayName } from "@/lib/identity/display-name";
 
 const effectSchema = z.enum(SANCTION_EFFECTS as unknown as [SanctionEffect, ...SanctionEffect[]]);
 
@@ -116,7 +118,7 @@ export async function expireSanction(
   }
 }
 
-/** 按 displayName / steamName / email 模糊搜索普通 RivalHub 用户，供处罚 subject 按需选择。 */
+/** 按 canonical 用户身份字段模糊搜索普通 RivalHub 用户，供处罚 subject 按需选择。 */
 export async function searchSanctionSubjects(
   input: unknown,
 ): Promise<ActionResult<Array<{ id: string; label: string; detail: string | null }>>> {
@@ -133,14 +135,17 @@ export async function searchSanctionSubjects(
       .select({
         id: users.id,
         displayName: users.displayName,
-        steamName: users.steamName,
+        perfectName: users.perfectName,
+        personaName: steamProfiles.personaName,
         email: users.email,
       })
       .from(users)
+      .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
       .where(
         or(
           ilike(users.displayName, pattern),
-          ilike(users.steamName, pattern),
+          ilike(users.perfectName, pattern),
+          ilike(steamProfiles.personaName, pattern),
           ilike(users.email, pattern),
         ),
       )
@@ -149,7 +154,7 @@ export async function searchSanctionSubjects(
     return ok(
       rows.map((row) => ({
         id: row.id,
-        label: row.displayName ?? row.steamName ?? row.email,
+        label: getDisplayName(row),
         detail: row.email,
       })),
     );

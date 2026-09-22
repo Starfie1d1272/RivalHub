@@ -16,7 +16,7 @@ import {
   updateCompetitivePlatformRankLabel,
   updateCompetitivePlatformSeason,
 } from "@/actions/competitive-platform";
-import { resolveCatalogSeasonRoles, type CompetitivePlatformCatalogEntry } from "@/lib/competitive/catalog";
+import { resolveCatalogSeasonRoles, type CompetitivePlatformCatalogEntry } from "@/lib/competitive/catalog-contract";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -134,7 +134,7 @@ export function CompetitivePlatformCatalog({ platforms }: { platforms: Platform[
 
   return (
     <div className="space-y-5">
-      {platforms.length === 0 && <StatusBanner tone="warn" title="内置竞技平台目录未就绪" sub="2.0 内置 Perfect World 与 5E；若目录没有出现，请检查 active migration，而不是在后台临时创建新平台。" />}
+      {platforms.length === 0 && <StatusBanner tone="warn" title="内置竞技平台目录未就绪" sub="系统内置 Perfect World 与 5E；目录未就绪时，请联系系统维护者检查部署状态。" />}
 
       {platforms.map((platform) => {
         const ranks = [...platform.ranks].sort((a, b) => a.sortOrder - b.sortOrder);

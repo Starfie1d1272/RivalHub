@@ -13,7 +13,7 @@ vi.mock("@/components/matches/MatchStatusBadge", () => ({ MatchStatusBadge: () =
 import { AdminMatchRow } from "@/components/matches/AdminMatchRow";
 import { getAdminMatchStartBlockers } from "@/lib/admin/matches/start-blockers";
 
-const roster = { rosterId: "roster", starters: ["1", "2", "3", "4", "5"], substitutes: [], status: "confirmed" };
+const roster = { rosterId: "roster", starters: ["1", "2", "3", "4", "5"], substitutes: [], status: "confirmed" as const };
 
 describe("AdminMatchRow start gate presentation", () => {
   it("blocks a Major start when the authoritative preflight is unavailable", () => {
@@ -60,6 +60,7 @@ describe("AdminMatchRow start gate presentation", () => {
           entryAId: "team-a",
           entryBId: "team-b",
           ownership: "major_stage",
+          demoNeedsAttentionCount: 2,
         }}
         teamAName="Alpha"
         teamBName="Beta"
@@ -70,5 +71,6 @@ describe("AdminMatchRow start gate presentation", () => {
     expect(screen.getByText("Alpha")).toBeInTheDocument();
     expect(screen.getByText("Beta")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "进入比赛工作台 →" })).toHaveAttribute("href", "/admin/local-major/matches/match-1");
+    expect(screen.getByText("Demo 数据需要处理 · 2 张地图")).toBeInTheDocument();
   });
 });

@@ -5,6 +5,7 @@ import {
   getMajorSwissQualifiers,
   getMajorSwissRequiredFormat,
   projectMajorSwissStage,
+  projectMajorSwissStageByRound,
   selectMajorSixTeamPairingPattern,
 } from "./swiss";
 import type {
@@ -292,6 +293,26 @@ describe("entrant validation", () => {
 });
 
 // ── 10.2 round 0 projection ─────────────────────────────
+
+describe("round-boundary projections", () => {
+  it("keeps historical round grouping at the record before that round", () => {
+    const entrants = makeEntrants();
+    const r1 = roundOneMatches(HIGH_WINS_R1);
+    const r2 = roundTwoMatches([
+      "team-1", "team-2", "team-3", "team-4", "team-9", "team-10", "team-11", "team-12",
+    ]);
+    const projections = projectMajorSwissStageByRound({
+      entrants,
+      matches: [...r1, ...r2],
+      finalizedRound: 2,
+    });
+
+    expect(projections).toHaveLength(3);
+    expect(projections[0]!.teams.find((team) => team.teamId === "team-1")).toMatchObject({ wins: 0, losses: 0 });
+    expect(projections[1]!.teams.find((team) => team.teamId === "team-1")).toMatchObject({ wins: 1, losses: 0 });
+    expect(projections[2]!.teams.find((team) => team.teamId === "team-1")).toMatchObject({ wins: 2, losses: 0 });
+  });
+});
 
 describe("round 0 projection", () => {
   it("projects 16 teams at 0-0 with difficulty 0", () => {

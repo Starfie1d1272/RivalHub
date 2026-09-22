@@ -54,7 +54,7 @@ export const matches = pgTable("matches", {
   entriesAreDifferent: check("matches_entries_different", sql`${t.entryAId} != ${t.entryBId}`),
   entryASeasonScope: foreignKey({ columns: [t.entryAId, t.seasonId], foreignColumns: [competitionEntries.id, competitionEntries.competitionId], name: "matches_entry_a_season_scope_fk" }),
   entryBSeasonScope: foreignKey({ columns: [t.entryBId, t.seasonId], foreignColumns: [competitionEntries.id, competitionEntries.competitionId], name: "matches_entry_b_season_scope_fk" }),
-  majorRunSeasonScope: foreignKey({ columns: [t.majorStageRunId, t.seasonId], foreignColumns: [majorStageRuns.id, majorStageRuns.seasonId], name: "matches_major_stage_run_season_scope_fk" }),
+  majorRunSeasonStageScope: foreignKey({ columns: [t.majorStageRunId, t.seasonId, t.stage], foreignColumns: [majorStageRuns.id, majorStageRuns.seasonId, majorStageRuns.stageKey], name: "matches_major_stage_run_season_stage_scope_fk" }),
   // 系列赛比分非负
   scoreANonNegative: check("matches_score_a_nonneg", sql`${t.scoreA} IS NULL OR ${t.scoreA} >= 0`),
   scoreBNonNegative: check("matches_score_b_nonneg", sql`${t.scoreB} IS NULL OR ${t.scoreB} >= 0`),
@@ -77,6 +77,9 @@ export const matches = pgTable("matches", {
   uniqueManagedMajorMatch: uniqueIndex("matches_major_stage_run_managed_key_unique")
     .on(t.majorStageRunId, t.managedKey)
     .where(sql`${t.ownership} = 'major_stage'`),
+  uniqueBracketNode: uniqueIndex("matches_season_stage_bracket_node_unique")
+    .on(t.seasonId, t.stage, t.bracketNodeId)
+    .where(sql`${t.bracketNodeId} IS NOT NULL`),
   seasonStatusScheduleIndex: index("matches_season_status_scheduled_at_idx").on(t.seasonId, t.status, t.scheduledAt),
   entryAIndex: index("matches_entry_a_id_idx").on(t.entryAId),
   entryBIndex: index("matches_entry_b_id_idx").on(t.entryBId),

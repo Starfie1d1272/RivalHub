@@ -1,12 +1,16 @@
 import { and, eq, inArray, sql } from "drizzle-orm";
+import { writeAuditInTx } from "@/lib/audit/write";
+
 import type { TxDb } from "@/db/client";
 import {
-  auditLogs,
-  disciplinaryCases,
+    disciplinaryCases,
   users,
   type DisciplinaryCase,
 } from "@/db/schema";
 import { AppError, ErrorCode } from "@/lib/errors";
+import { SANCTION_EFFECTS, type SanctionEffect } from "./contract";
+export { SANCTION_EFFECTS } from "./contract";
+export type { SanctionEffect } from "./contract";
 
 /**
  * H1 — personal disciplinary facts and eligibility blockers.
@@ -17,17 +21,6 @@ import { AppError, ErrorCode } from "@/lib/errors";
  * honors. A sanction blocks exactly the capabilities it lists, for exactly
  * its subject, during exactly its effective window.
  */
-
-export type SanctionEffect =
-  | "registration_block"
-  | "roster_block"
-  | "match_participation_block";
-
-export const SANCTION_EFFECTS: readonly SanctionEffect[] = [
-  "registration_block",
-  "roster_block",
-  "match_participation_block",
-];
 
 export type ResolvedSanctionStatus = "draft" | "active" | "expired" | "revoked";
 
@@ -243,13 +236,11 @@ export async function issueSanctionInTx(
     })
     .returning({ id: disciplinaryCases.id });
 
-  await tx.insert(auditLogs).values({
+  await writeAuditInTx(tx, {
     seasonId: args.seasonId,
     action: "sanction.issue",
     actorId: args.actorId,
-    targetId: created!.id,
-    targetType: "disciplinary_case",
-    meta: { subjectUserId: args.subjectUserId, effects },
+    targetId: created!.id,meta: { subjectUserId: args.subjectUserId, effects },
   });
   return { caseId: created!.id };
 }
@@ -280,13 +271,11 @@ export async function revokeSanctionInTx(
     })
     .where(eq(disciplinaryCases.id, locked.id));
 
-  await tx.insert(auditLogs).values({
+  await writeAuditInTx(tx, {
     seasonId: locked.seasonId,
     action: "sanction.revoke",
     actorId: args.actorId,
-    targetId: locked.id,
-    targetType: "disciplinary_case",
-    meta: { subjectUserId: locked.subjectUserId, reason: args.reason.trim() || null },
+    targetId: locked.id,meta: { subjectUserId: locked.subjectUserId, reason: args.reason.trim() || null },
   });
   return { alreadyRevoked: false, caseId: locked.id };
 }
@@ -310,13 +299,11 @@ export async function markSanctionExpiredInTx(
     .set({ status: "expired", updatedAt: new Date() })
     .where(eq(disciplinaryCases.id, locked.id));
 
-  await tx.insert(auditLogs).values({
+  await writeAuditInTx(tx, {
     seasonId: locked.seasonId,
     action: "sanction.expire",
     actorId: args.actorId,
-    targetId: locked.id,
-    targetType: "disciplinary_case",
-    meta: { subjectUserId: locked.subjectUserId },
+    targetId: locked.id,meta: { subjectUserId: locked.subjectUserId },
   });
   return { alreadyExpired: false, caseId: locked.id };
 }

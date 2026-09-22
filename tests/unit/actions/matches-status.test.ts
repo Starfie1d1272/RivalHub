@@ -28,7 +28,7 @@ vi.mock("@/lib/match-rosters/service", () => ({
   applyMatchStatusTransitionInTx: applyMatchStatusTransitionMock,
 }));
 
-vi.mock("@/actions/transitions", () => ({
+vi.mock("@/lib/seasons/transitions", () => ({
   maybeFinishSeason: maybeFinishSeasonMock,
 }));
 

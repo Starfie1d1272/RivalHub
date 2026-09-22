@@ -22,6 +22,13 @@ const nextConfig: NextConfig = {
   cacheComponents: true,
   serverExternalPackages: ["pg"],
   typedRoutes: true,
+  // The release endpoint is public, but the identity must be frozen into the
+  // exact Vercel build because --build-env is not a runtime environment
+  // contract. Missing markers remain invalid and make the endpoint fail closed.
+  env: {
+    RIVALHUB_RELEASE_TAG: process.env.RIVALHUB_RELEASE_TAG ?? "",
+    RIVALHUB_RELEASE_COMMIT: process.env.RIVALHUB_RELEASE_COMMIT ?? "",
+  },
   typescript: {
     ignoreBuildErrors: true,
     tsconfigPath: "tsconfig.app.json",

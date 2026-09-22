@@ -6,7 +6,6 @@ import { toast } from "sonner";
 import { grantCompetitionEntryRestrictionOverride, reviewCompetitionEntry, revokeCompetitionEntryRestrictionOverride } from "@/actions/competition-entries";
 import { presentCompetitionEntryRegistration } from "@/lib/competition-entries/presentation";
 import {
-  Checklist,
   ClearFilters,
   ListSearchField,
   ListToolbar,
@@ -19,7 +18,11 @@ import {
 } from "@/components/rivalhub";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { AdminPlayerContact } from "@/components/admin/AdminPlayerContact";
+import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
 import type { QualificationFinding } from "@/lib/qualification/finding";
+import { presentTeamQualificationFindings, presentTeamRegistrationSummary } from "@/lib/registrations/admin-review-presentation";
+import { formatCST } from "@/lib/utils/date";
 import {
   TEAM_REGISTRATION_REVIEW_DEFAULTS,
   type TeamRegistrationReviewQuery,
@@ -68,6 +71,8 @@ export function CompetitionEntryReviewList({
   totalPages,
   normalizedQuery,
   hasAnyRecords,
+  startedCount,
+  draftCount,
 }: {
   seasonSlug: string;
   entries: ReviewEntry[];
@@ -77,6 +82,8 @@ export function CompetitionEntryReviewList({
   totalPages: number;
   normalizedQuery: TeamRegistrationReviewQuery;
   hasAnyRecords: boolean;
+  startedCount: number;
+  draftCount: number;
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -178,24 +185,35 @@ export function CompetitionEntryReviewList({
       />
     </ListToolbar>
 
+    <div className="flex flex-wrap items-center justify-between gap-2" aria-label="当前筛选结果">
+      <span className="text-xs text-[var(--color-fg-dim)]">当前筛选结果</span>
+      <ResultSummary total={total} page={page} pageSize={pageSize} totalPages={totalPages} />
+    </div>
+
     {entries.length === 0 ? (
       <StatusBanner
         tone="info"
-        title={hasAnyRecords ? "没有符合当前筛选条件的报名" : "暂无赛事报名"}
-        sub={hasAnyRecords ? "请调整搜索、状态或资格筛选。" : "报名草稿创建后会显示在这里。"}
+        title={hasAnyRecords ? "没有符合当前筛选条件的报名" : draftCount > 0 ? "暂时没有队伍提交审核" : "暂无队伍提交审核"}
+        sub={hasAnyRecords ? "请调整搜索、状态或资格筛选。" : draftCount > 0 ? `已有 ${draftCount} 支队伍正在填写报名。` : startedCount > 0 ? "已开始的报名当前处于其它状态。" : "尚无队伍开始报名。"}
       />
     ) : <div className="space-y-5">{entries.map((entry) => {
-    const confirmed = entry.members.filter((member) => member.status === "confirmed").length;
-    const starters = entry.members.filter((member) => member.primary).length;
-    const rosterReady = entry.members.length >= entry.minRoster && entry.members.length <= entry.maxRoster;
+    const qualificationFindings = presentTeamQualificationFindings(entry);
+    const summary = presentTeamRegistrationSummary(entry);
     return <Panel key={entry.id} label={`报名审核 · ${entry.name}`} contentClassName="p-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div><div className="flex flex-wrap items-center gap-2"><h3 className="text-lg font-semibold">{entry.name}</h3><Badge variant="outline">{presentCompetitionEntryRegistration(entry.status).label}</Badge><Badge variant="outline">{entry.source === "linked_team" ? "长期队伍报名" : "赛事组队"}</Badge></div><p className="mt-2 text-sm text-[var(--color-fg-mid)]">负责人：{entry.representativeName} · 完美战队 ID：{entry.perfectTeamId ?? "未填写"}</p></div>
+        <div><div className="flex flex-wrap items-center gap-2"><h3 className="text-lg font-semibold">{entry.name}</h3><Badge variant="outline">{presentCompetitionEntryRegistration(entry.status).label}</Badge><Badge variant="outline">{entry.source === "linked_team" ? "队伍报名" : "赛事组队"}</Badge></div><p className="mt-2 text-sm text-[var(--color-fg-mid)]">负责人：{entry.representativeName} · 完美战队 ID（可选）：{entry.perfectTeamId ?? "未填写"}</p></div>
         {(entry.status === "submitted" || entry.status === "waitlisted") && <div className="flex flex-wrap gap-2"><Button size="sm" disabled={pending} onClick={() => review(entry.id, "approved")}>批准</Button><Button size="sm" variant="outline" disabled={pending} onClick={() => review(entry.id, "waitlisted")}>候补</Button><Button size="sm" variant="outline" disabled={pending} onClick={() => review(entry.id, "changes_requested")}>要求补正</Button><Button size="sm" variant="destructive" disabled={pending} onClick={() => review(entry.id, "rejected")}>拒绝</Button></div>}
       </div>
+      <dl className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4" aria-label={`${entry.name}报名状态摘要`}>
+        {summary.map((item) => <div key={item.label} className="border border-[var(--color-border)] px-3 py-2">
+          <dt className="text-xs text-[var(--color-fg-mid)]">{item.label}</dt>
+          <dd className={`mt-1 text-sm font-semibold ${item.state === "ready" ? "text-[var(--color-ok)]" : "text-[var(--color-warn)]"}`}>{item.value}</dd>
+        </div>)}
+      </dl>
       {entry.reviewReason && <div className="mt-4"><StatusBanner tone="warn" title="审核说明" sub={entry.reviewReason} /></div>}
-      {entry.qualificationFindings.length > 0 && <div className="mt-4 space-y-2">
-        {entry.qualificationFindings.map((finding, index) => {
+      {qualificationFindings.length > 0 && <section className="mt-4 space-y-2" aria-labelledby={`team-findings-${entry.id}`}>
+        <h4 id={`team-findings-${entry.id}`} className="text-sm font-semibold text-[var(--color-fg)]">资格问题 / 例外</h4>
+        {qualificationFindings.map((finding, index) => {
           const override = finding.waivable ? entry.activeRestrictionOverrides.find((candidate) => candidate.restrictionCode === finding.code) : undefined;
           return <div key={`${finding.code}-${index}`} className="border border-[var(--color-border)] p-3 text-sm">
             <div className="flex flex-wrap items-center justify-between gap-2">
@@ -204,26 +222,16 @@ export function CompetitionEntryReviewList({
             </div>
             {override && <>
               <p className={`mt-2 text-xs ${override.snapshotMatches ? "text-[var(--color-ok)]" : "text-[var(--color-warn)]"}`}>
-                {override.snapshotMatches ? "已解除" : "解除记录对应的资格事实已变化，请先撤销旧记录后重新确认"}：{override.reason} · 操作者 {override.grantedBy} · {new Date(override.grantedAt).toLocaleString("zh-CN")}
+                {override.snapshotMatches ? "已解除" : "解除记录对应的资格事实已变化，请先撤销旧记录后重新确认"}：{override.reason} · 操作者 {override.grantedBy} · {formatCST(override.grantedAt)}
               </p>
               <p className="mt-1 text-xs text-[var(--color-fg-dim)]">解除记录会保留资格判断依据，供后续复核。</p>
             </>}
           </div>;
         })}
-      </div>}
-      <div className="mt-4"><Checklist items={[
-        { label: `报名名单 ${entry.members.length}/${entry.minRoster}–${entry.maxRoster}`, state: rosterReady ? "complete" : "blocked" },
-        { label: `成员确认 ${confirmed}/${entry.members.length}`, state: entry.members.length > 0 && confirmed === entry.members.length ? "complete" : "blocked" },
-        { label: `预定主力 ${starters}/${entry.starterCount}`, state: starters === entry.starterCount ? "complete" : "blocked" },
-        { label: entry.qualificationFindings.length === 0 ? "资格评估已通过" : entry.qualificationFindings.some((finding) => !finding.waivable) ? `资格资料仍不完整：${entry.qualificationBlockers.join("；")}` : entry.qualificationFindings.every((finding) => entry.activeRestrictionOverrides.some((override) => override.restrictionCode === finding.code && override.snapshotMatches)) ? "自动资格规则不通过，但限制已逐条解除" : `待解除资格限制：${entry.qualificationBlockers.join("；")}`, state: entry.qualificationFindings.some((finding) => !finding.waivable) || entry.qualificationFindings.some((finding) => finding.waivable && !entry.activeRestrictionOverrides.some((override) => override.restrictionCode === finding.code && override.snapshotMatches)) ? "blocked" : "complete" },
-        ...entry.members.map((member) => ({ label: member.readiness ? (member.readiness.ready ? `${member.label} · 学籍与竞技档案已就绪` : `${member.label} · ${member.readiness.blockers.join("；")}`) : `${member.label} · 资格将在审核动作中重新核验`, state: member.readiness?.ready ? "complete" as const : "pending" as const })),
-      ]} /></div>
-      <div className="mt-4 grid gap-2 lg:grid-cols-2">{entry.members.map((member) => <div key={member.participantId} className="border border-[var(--color-border)] p-3 text-sm"><div className="flex flex-wrap items-center gap-2"><span className="font-medium">{member.label}</span><Badge variant="outline">{PARTICIPANT_STATUS[member.status]}</Badge>{member.primary && <Badge variant="outline">预定主力</Badge>}</div><p className="mt-1 text-xs text-[var(--color-fg-mid)]">学籍：{member.readiness?.educationApproved ? "已通过" : "待核验"} · 竞技档案：{member.readiness ? (member.readiness.ready ? "完整" : "存在未满足项") : "不要求或待审核核验"}</p>{member.readiness && !member.readiness.ready && <p className="mt-1 text-xs text-[var(--color-warn)]">{member.readiness.blockers.join("；")}</p>}</div>)}</div>
+      </section>}
+      <div className="mt-4 grid gap-2 lg:grid-cols-2">{entry.members.map((member) => <div key={member.participantId} className="border border-[var(--color-border)] p-3 text-sm"><div className="flex flex-wrap items-center gap-2"><PlayerProfileLink userId={member.userId} className="font-medium">{member.label}</PlayerProfileLink><AdminPlayerContact email={member.email} qq={member.qq} steam64={member.steam64} steamProfileUrl={member.steamProfileUrl} /><Badge variant="outline">{PARTICIPANT_STATUS[member.status]}</Badge>{member.primary && <Badge variant="outline">预定主力</Badge>}</div><p className="mt-1 text-xs text-[var(--color-fg-mid)]">学籍：{member.readiness?.educationApproved ? "已通过" : "待核验"} · 竞技档案：{member.readiness ? (member.readiness.ready ? "完整" : "存在未满足项") : "不要求或待审核核验"}</p>{member.readiness && !member.readiness.ready && <ul className="mt-1 list-disc pl-4 text-xs text-[var(--color-warn)]">{member.readiness.blockers.map((blocker, index) => <li key={`${blocker}-${index}`}>{blocker}</li>)}</ul>}</div>)}</div>
     </Panel>;
     })}</div>}
-    <div className="flex justify-between gap-3">
-      <ResultSummary total={total} page={page} pageSize={pageSize} totalPages={totalPages} />
-    </div>
     <PaginationControls
       page={page}
       totalPages={totalPages}

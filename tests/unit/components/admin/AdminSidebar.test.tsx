@@ -23,6 +23,21 @@ describe("AdminSidebar role visibility", () => {
     pathnameMock.mockReturnValue("/admin");
   });
 
+  it.each([
+    ["/admin", "/admin"],
+    ["/admin/competitive-seasons", "/admin/competitive-seasons"],
+    ["/admin/competitive-seasons/conversion-policies", "/admin/competitive-seasons/conversion-policies"],
+    ["/admin/competitive-seasons/conversion-policies/123", "/admin/competitive-seasons/conversion-policies"],
+    ["/admin/competitive-seasons-other", null],
+  ])("has one most-specific active item at %s", (path, expected) => {
+    pathnameMock.mockReturnValue(path);
+    const html = renderToStaticMarkup(<AdminSidebar email="admin@example.com" role="super_admin" />);
+    const document = new DOMParser().parseFromString(html, "text/html");
+    const current = document.querySelectorAll('[aria-current="page"]');
+    expect(current).toHaveLength(expected ? 1 : 0);
+    if (expected) expect(current[0].getAttribute("href")).toBe(expected);
+  });
+
   it("shows only the season directory to a season admin", () => {
     const html = renderToStaticMarkup(<AdminSidebar email="admin@example.com" role="season_admin" />);
 

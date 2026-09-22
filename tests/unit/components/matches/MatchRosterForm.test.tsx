@@ -16,7 +16,7 @@ vi.mock("sonner", () => ({ toast: { success: toastSuccessMock, error: vi.fn() } 
 
 const members = Array.from({ length: 6 }, (_, index) => ({
   id: `member-${index + 1}`,
-  steamName: `steam-${index + 1}`,
+  personaName: `steam-${index + 1}`,
   displayName: `Player ${index + 1}`,
   perfectName: null,
   primaryPosition: "rifler",
@@ -46,6 +46,22 @@ describe("MatchRosterForm lifecycle gate", () => {
 
     expect(screen.getAllByRole("button", { name: /Player 1/ })[0]).toBeEnabled();
     expect(screen.getByText(/比赛尚未开始。提交后由管理员确认/)).toBeInTheDocument();
+  });
+
+  it("keeps five starter choices available when substitutes are disabled", async () => {
+    renderForm({ allowSubstitutes: false });
+
+    expect(screen.getByText("首发")).toBeInTheDocument();
+    expect(screen.queryByText("替补")).not.toBeInTheDocument();
+    for (let index = 1; index <= 5; index += 1) {
+      fireEvent.click(screen.getByRole("button", { name: new RegExp(`Player ${index}`) }));
+    }
+
+    fireEvent.click(screen.getByRole("button", { name: "提交名单" }));
+    await waitFor(() => expect(submitMatchRosterMock).toHaveBeenCalledWith("match-1", {
+      starterIds: ["member-1", "member-2", "member-3", "member-4", "member-5"],
+      substituteIds: [],
+    }));
   });
 
   it("locks edits from the persisted match lifecycle, independent of wall-clock time", () => {

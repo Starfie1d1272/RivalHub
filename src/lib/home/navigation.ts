@@ -1,11 +1,12 @@
 import type { RegistrationMode, SeasonStatus } from "@/types/season";
 import { getSeasonLifecycleGroup, isRegistrationActuallyOpen } from "@/lib/seasons/presentation";
+import { showStats } from "@/lib/utils/season";
 
 export interface FeaturedSeasonInput {
   id: string;
   status: SeasonStatus;
   registrationOpenedAt?: Date | string | null;
-  createdAt: Date | string;
+  lastCompletedAt?: Date | string | null;
 }
 
 export interface HomeNavSeason {
@@ -13,6 +14,7 @@ export interface HomeNavSeason {
   registrationMode: RegistrationMode;
   hasCaptainVoting: boolean;
   hasDraft: boolean;
+  hasCommunityAwards?: boolean;
   status: SeasonStatus;
   registrationOpenedAt?: Date | string | null;
 }
@@ -48,8 +50,14 @@ export function selectFeaturedSeason<T extends FeaturedSeasonInput>(
     .sort((a, b) => {
       if (a.priority !== b.priority) return a.priority - b.priority;
 
-      const createdAtDifference = getTimestamp(b.season.createdAt) - getTimestamp(a.season.createdAt);
-      if (createdAtDifference !== 0) return createdAtDifference;
+      const isHistorical = a.season.status === "finished" || a.season.status === "archived";
+      if (isHistorical) {
+        const completedAtDifference = getTimestamp(b.season.lastCompletedAt) - getTimestamp(a.season.lastCompletedAt);
+        if (completedAtDifference) return completedAtDifference;
+      } else {
+        const openedAtDifference = getTimestamp(b.season.registrationOpenedAt) - getTimestamp(a.season.registrationOpenedAt);
+        if (openedAtDifference) return openedAtDifference;
+      }
 
       const idDifference = a.season.id.localeCompare(b.season.id);
       return idDifference !== 0 ? idDifference : a.index - b.index;
@@ -62,10 +70,12 @@ function getFeaturedSeasonPriority(season: FeaturedSeasonInput): number | null {
   if (season.status === "voting" || season.status === "drafting") return 1;
   if (season.status === "registration") return isRegistrationActuallyOpen(season) ? 2 : 3;
   if (getSeasonLifecycleGroup(season) === "recent") return 4;
+  if (season.status === "archived") return 5;
   return null;
 }
 
-function getTimestamp(value: Date | string): number {
+function getTimestamp(value: Date | string | null | undefined): number {
+  if (value == null) return Number.NEGATIVE_INFINITY;
   const timestamp = typeof value === "string" ? Date.parse(value) : value.getTime();
   return Number.isFinite(timestamp) ? timestamp : Number.NEGATIVE_INFINITY;
 }
@@ -77,15 +87,15 @@ export function buildHomeEyebrow(
 ): HomeEyebrow {
   if (status === "registration") {
     if (registrationOpenedAt == null) {
-      return { text: "● REGISTRATION UPCOMING", color: "var(--color-warn)" };
+      return { text: "● 报名即将开放", color: "var(--color-warn)" };
     }
-    return { text: "● REGISTRATION OPEN", color: "var(--color-ok)" };
+    return { text: "● 报名开放", color: "var(--color-ok)" };
   }
   if (status === "voting") {
-    return { text: "● CAPTAIN VOTING", color: "var(--color-warn)" };
+    return { text: "● 队长投票中", color: "var(--color-warn)" };
   }
   if (status === "playing") {
-    return { text: "● SEASON IN PROGRESS", color: "var(--color-ok)" };
+    return { text: "● 比赛进行中", color: "var(--color-ok)" };
   }
   return {
     text: `[ RIVALHUB / ${slug.replace(/-/g, " ").toUpperCase()} ]`,
@@ -102,55 +112,57 @@ export function buildHomeNavEntries(
     {
       key: "register",
       href: `/${season.slug}/register`,
-      label: season.registrationMode === "team" ? "组队报名" : "报名参赛",
+      label: "报名",
       mono: "REGISTER",
       meta: season.registrationMode === "team" ? "创建或加入队伍" : "个人报名",
-      show: !isHistorical && (season.status !== "registration" || isRegistrationActuallyOpen(season)),
+      show: season.status === "registration" && isRegistrationActuallyOpen(season),
     },
     {
       key: "captains",
       href: `/${season.slug}/captains`,
-      label: isHistorical ? "队长投票结果" : "队长投票",
+      label: "队长投票",
       mono: "CAPTAINS",
-      meta: isHistorical ? "最终结果" : "实时票数",
+      meta: isHistorical ? "结果已归档" : "实时票数",
       show: season.hasCaptainVoting,
     },
     {
       key: "draft",
       href: `/${season.slug}/draft`,
-      label: isHistorical ? "选秀回顾" : "选秀直播间",
+      label: "选秀",
       mono: "DRAFT ROOM",
-      meta: isHistorical ? "完整选人记录" : "● LIVE",
+      meta: isHistorical ? "选人回顾" : season.status === "drafting" ? "选人进行中" : "选人记录",
       show: season.hasDraft,
     },
     {
       key: "teams",
       href: `/${season.slug}/teams`,
-      label: "战队阵容",
+      label: "队伍",
       mono: "TEAMS",
-      meta: "战队展示",
+      meta: "赛事参赛队伍",
       show: true,
     },
     {
       key: "matches",
       href: `/${season.slug}/matches`,
-      label: "赛程对决",
+      label: "赛程",
       mono: "MATCHES",
-      meta: "Bracket · 赛果",
+      meta: "赛程与赛果",
       show: true,
     },
     {
       key: "stats",
       href: `/${season.slug}/stats`,
-      label: "数据排行",
+      label: "数据统计",
       mono: "STATS",
       meta: "Rating · ADR",
-      show: true,
+      show: showStats(season),
     },
+    { key: "players", href: `/${season.slug}/players`, label: "选手", mono: "PLAYERS", meta: "本届选手", show: true },
+    { key: "awards", href: `/${season.slug}/community-awards`, label: "社区奖", mono: "AWARDS", meta: "创意与荣誉", show: Boolean(season.hasCommunityAwards) },
     {
       key: "seasons",
       href: "/seasons",
-      label: "历史赛季",
+      label: "赛事中心",
       mono: "ARCHIVE",
       meta: "浏览回顾",
       show: true,
@@ -196,6 +208,7 @@ export function selectHomeNavTiers(entries: HomeNavEntry[], status: SeasonStatus
 function getPrimaryNavKey(status: SeasonStatus): string | null {
   if (status === "registration") return "register";
   if (status === "voting") return "captains";
-  if (status === "playing") return "matches";
+  if (status === "drafting") return "draft";
+  if (["playing", "finished", "archived"].includes(status)) return "matches";
   return null;
 }

@@ -20,10 +20,11 @@ export async function seedCompetitivePlatformCatalog(
   seasons: FixtureSeasonSeed[],
   rankOrder: readonly string[],
   ratingLabel = "Rating",
+  displayName = platform,
 ): Promise<void> {
   await client.query(
     "INSERT INTO competitive_platforms (key, display_name, rating_label) VALUES ($1, $2, $3) ON CONFLICT (key) DO NOTHING",
-    [platform, platform, ratingLabel],
+    [platform, displayName, ratingLabel],
   );
   if (rankOrder.length > 0) {
     await client.query(

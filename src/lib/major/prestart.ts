@@ -13,11 +13,8 @@ export type MajorPrestartCheckKey =
   | "rosters"
   | "duplicate-players"
   | "confirmations"
-  | "qualification"
-  | "administration"
   | "seeds"
   | "seed-recommendation"
-  | "seed-override"
   | "reconfirmations"
   | "opening-plan";
 
@@ -46,12 +43,6 @@ export interface MajorPrestartTeamConfirmationFact {
   confirmed: boolean;
 }
 
-/** 资格或管理事项由拥有它的上游流程提供；未接入时传 null，而不是空数组。 */
-export interface MajorPrestartIssueFact {
-  label: string;
-  resolved: boolean;
-}
-
 export interface MajorPrestartTournamentSeedFact {
   teamId: string;
   tournamentSeed: number;
@@ -61,23 +52,15 @@ export interface MajorPrestartSeedRecommendationFact {
   status: "missing" | "ready" | "mismatch";
 }
 
-export interface MajorPrestartSeedOverrideFact {
-  required: boolean;
-  reason: string | null;
-}
-
 export interface MajorPrestartReadinessInput {
   competitionTemplate: CompetitionTemplate;
   capabilities: SeasonCapabilities;
   teams: readonly MajorPrestartTeamFact[] | null;
   entrantsLocked: boolean | null;
   confirmations: readonly MajorPrestartTeamConfirmationFact[] | null;
-  qualificationIssues: readonly MajorPrestartIssueFact[] | null;
-  administrativeIssues: readonly MajorPrestartIssueFact[] | null;
   tournamentSeeds: readonly MajorPrestartTournamentSeedFact[] | null;
   seedConfirmation: { confirmed: boolean } | null;
   seedRecommendation: MajorPrestartSeedRecommendationFact | null;
-  seedOverride: MajorPrestartSeedOverrideFact | null;
 }
 
 export interface MajorPrestartReadiness {
@@ -235,18 +218,6 @@ function checkTeamConfirmations(
   return blockers.length === 0 ? ready(key, label) : blocked(key, label, blockers);
 }
 
-function checkIssues(
-  key: "qualification" | "administration",
-  label: string,
-  facts: readonly MajorPrestartIssueFact[] | null,
-): MajorPrestartCheck {
-  if (facts === null) return unavailable(key, label);
-  const blockers = facts
-    .filter((fact) => !fact.resolved)
-    .map((fact) => `${label}未完成：${fact.label || "未命名事项"}。`);
-  return blockers.length === 0 ? ready(key, label) : blocked(key, label, blockers);
-}
-
 function checkEntrantsLocked(entrantsLocked: boolean | null): MajorPrestartCheck {
   if (entrantsLocked === null) return unavailable("entrants-locked", "正式参赛队锁定");
   return entrantsLocked
@@ -275,14 +246,6 @@ function checkSeedRecommendation(
       ? "系统种子参考尚未生成，请先完成正式参赛队和正式名单的统一冻结。"
       : "系统种子参考与当前冻结的参赛队或正式名单不一致，请重新核对冻结事实。"],
   );
-}
-
-function checkSeedOverride(
-  fact: MajorPrestartReadinessInput["seedOverride"],
-): MajorPrestartCheck {
-  if (fact === null) return unavailable("seed-override", "种子人工偏离说明");
-  if (!fact.required || Boolean(fact.reason?.trim())) return ready("seed-override", "种子人工偏离说明");
-  return blocked("seed-override", "种子人工偏离说明", ["最终种子偏离系统建议时，必须填写简短的人工调整原因。"]);
 }
 
 function checkSeeds(
@@ -363,12 +326,9 @@ export function evaluateMajorPrestartReadiness(
   checks.push(checkRosters(input.teams, input.capabilities));
   checks.push(checkDuplicatePlayers(input.teams));
   checks.push(checkTeamConfirmations("confirmations", "参赛确认", input.confirmations, input.teams));
-  checks.push(checkIssues("qualification", "资格事项", input.qualificationIssues));
-  checks.push(checkIssues("administration", "管理事项", input.administrativeIssues));
   const seedResult = checkSeeds(input.teams, input.tournamentSeeds, entrantCapacity);
   checks.push(seedResult.check);
   checks.push(checkSeedRecommendation(input.seedRecommendation));
-  checks.push(checkSeedOverride(input.seedOverride));
   checks.push(checkSeedConfirmation(input.seedConfirmation));
 
   let openingPlan: MajorOpeningPlan | null = null;

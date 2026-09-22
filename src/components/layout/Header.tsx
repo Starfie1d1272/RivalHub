@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import { connection } from "next/server";
 
 import { db } from "@/db/client";
-import { users } from "@/db/schema";
+import { steamProfiles, users } from "@/db/schema";
 import { getCurrentUserAuthorization } from "@/lib/auth/session";
 
 import { HeaderClient } from "./HeaderClient";
@@ -15,16 +15,24 @@ import type { HeaderSession } from "./Header.types";
 const getHeaderViewer = cache(async (): Promise<{
   session: HeaderSession;
   avatarUrl: string | null;
-  steamName: string | null;
+  personaName: string | null;
   displayName: string | null;
+  perfectName: string | null;
 } | null> => {
   const authorization = await getCurrentUserAuthorization();
   if (!authorization) return null;
 
-  const user = await db.query.users.findFirst({
-    where: eq(users.id, authorization.userId),
-    columns: { avatarUrl: true, steamName: true, displayName: true },
-  });
+  const [user] = await db
+    .select({
+      avatarUrl: steamProfiles.avatarUrl,
+      personaName: steamProfiles.personaName,
+      displayName: users.displayName,
+      perfectName: users.perfectName,
+    })
+    .from(users)
+    .leftJoin(steamProfiles, eq(users.steam64, steamProfiles.steam64))
+    .where(eq(users.id, authorization.userId))
+    .limit(1);
 
   return {
     session: {
@@ -33,8 +41,9 @@ const getHeaderViewer = cache(async (): Promise<{
       isSuperAdmin: authorization.role === "super_admin",
     },
     avatarUrl: user?.avatarUrl ?? null,
-    steamName: user?.steamName ?? null,
+    personaName: user?.personaName ?? null,
     displayName: user?.displayName ?? null,
+    perfectName: user?.perfectName ?? null,
   };
 });
 
@@ -48,8 +57,9 @@ async function HeaderViewer({ variant }: { variant: "desktop" | "mobile" }) {
       variant={variant}
       session={viewer?.session ?? null}
       avatarUrl={viewer?.avatarUrl}
-      steamName={viewer?.steamName}
+      personaName={viewer?.personaName}
       displayName={viewer?.displayName}
+      perfectName={viewer?.perfectName}
     />
   );
 }

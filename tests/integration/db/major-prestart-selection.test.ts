@@ -6,12 +6,13 @@ import { describe, expect, it } from "vitest";
 import * as schema from "../../../src/db/schema";
 import { selectMajorEntrantsAndSyncRostersInTx, lockMajorPrestartEntrantsInTx } from "../../../src/lib/major/prestart-entrants";
 import { requestCompetitionEntryRosterChangeInTx } from "../../../src/lib/competition-entries/roster-change";
+import { loadMajorPrestartPageData } from "../../../src/lib/admin/season-workspace/major-prestart";
 import { reviewCompetitionEntryInTx, submitCompetitionEntryInTx } from "../../../src/lib/competition-entries/commands";
 import { AppError, ErrorCode } from "../../../src/lib/errors";
 import { checkStandardMajorCapabilities } from "../../../src/lib/competition/definition";
 import { createMajorDefaultCapabilities } from "../../../src/lib/competition/templates";
 import { createPerfectWorldRankOrder } from "../../../src/lib/config/perfect-world";
-import { localDatabaseUrl } from "./harness/database";
+import { localDatabaseUrl, testSteam64 } from "./harness/database";
 
 const databaseUrl = localDatabaseUrl();
 const ACTOR = "issue-368-3b-local-admin";
@@ -148,7 +149,7 @@ async function prepareFixture(pool: Pool): Promise<SelectionFixture> {
           `issue-368-3b-${index}-${seasonId}@local.test`,
           `3B Player ${index}`,
           `3B Perfect ${index}`,
-          String(76561198000000000 + index),
+          testSteam64(userId),
           String(10000000 + index),
         ],
       );
@@ -234,7 +235,7 @@ async function prepareFullFreezeFixture(pool: Pool): Promise<FullFreezeFixture> 
           `issue-368-3b-freeze-${index}-${seasonId}@local.test`,
           `3B Freeze Player ${index}`,
           `3B Freeze Perfect ${index}`,
-          String(76561198010000000 + index),
+          testSteam64(userId),
           String(20000000 + index),
         ],
       );
@@ -562,6 +563,15 @@ async function exerciseSuccessfulFreezeWorkflow(): Promise<void> {
   try {
     fixture = await prepareFullFreezeFixture(pool);
     const entryIds = fixture.entries.map((entry) => entry.entryId);
+
+    const [season] = await database.select().from(schema.seasons).where(eq(schema.seasons.id, fixture.seasonId));
+    if (!season) throw new Error("full freeze fixture season missing");
+    const preview = await loadMajorPrestartPageData(season);
+    expect(preview.management.approvedCandidates).toHaveLength(fixture.entries.length);
+    expect(preview.management.strengthPreview.status).toBe("ready");
+    expect(preview.management.strengthPreview.teams).toHaveLength(fixture.entries.length);
+    expect(preview.management.strengthPreview.teams.every((team) => team.available && team.starters.length === 5)).toBe(true);
+    expect(await pool.query("SELECT count(*)::text AS count FROM major_seed_recommendation_snapshots WHERE season_id = $1", [fixture.seasonId])).toMatchObject({ rows: [{ count: "0" }] });
 
     const selected = await database.transaction((tx) => selectMajorEntrantsAndSyncRostersInTx(tx, {
       seasonId: fixture!.seasonId,

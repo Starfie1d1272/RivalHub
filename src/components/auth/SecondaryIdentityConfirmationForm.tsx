@@ -9,17 +9,19 @@ export function SecondaryIdentityConfirmationForm({
   tokenHash,
   requestId,
   stateToken,
+  otpType,
 }: {
   tokenHash: string;
   requestId: string;
   stateToken: string;
+  otpType: "email" | "magiclink";
 }) {
   const [pending, startTransition] = useTransition();
   const [failure, setFailure] = useState<string | null>(null);
 
   function confirm() {
     startTransition(async () => {
-      const result = await confirmSecondaryEmailIdentity({ tokenHash, requestId, stateToken });
+      const result = await confirmSecondaryEmailIdentity({ tokenHash, requestId, stateToken, otpType });
       if (!result.success) {
         setFailure(result.error.message);
         return;

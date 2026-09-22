@@ -9,6 +9,7 @@ import {
 export const PRODUCTION_PROJECT_REF = "sucokfotkypwqkckfynp";
 export const PRODUCTION_POOLER_HOST = "aws-0-ap-northeast-1.pooler.supabase.com";
 export const PRODUCTION_POOLER_PORT = "6543";
+export const PRODUCTION_SESSION_POOLER_PORT = "5432";
 
 const productionConfig: ProtectedRemoteDatabaseConfig = {
   target: "production",
@@ -19,6 +20,18 @@ const productionConfig: ProtectedRemoteDatabaseConfig = {
   projectConfirmationKey: "RIVALHUB_PRODUCTION_PROJECT_CONFIRM",
   hostConfirmationKey: "RIVALHUB_PRODUCTION_DB_HOST_CONFIRM",
   databaseUrlKey: "RIVALHUB_PRODUCTION_DATABASE_URL",
+  requireExplicitTarget: true,
+};
+
+const productionBackupConfig: ProtectedRemoteDatabaseConfig = {
+  target: "production",
+  projectRef: PRODUCTION_PROJECT_REF,
+  poolerHost: PRODUCTION_POOLER_HOST,
+  poolerPort: PRODUCTION_SESSION_POOLER_PORT,
+  requiresPgbouncer: false,
+  projectConfirmationKey: "RIVALHUB_PRODUCTION_PROJECT_CONFIRM",
+  hostConfirmationKey: "RIVALHUB_PRODUCTION_DB_HOST_CONFIRM",
+  databaseUrlKey: "RIVALHUB_PRODUCTION_BACKUP_DATABASE_URL",
   requireExplicitTarget: true,
 };
 
@@ -49,6 +62,23 @@ export function buildProductionEnvironment(
 
 export function assertProductionDatabaseUrl(value: string | undefined): string {
   return assertProtectedRemoteDatabaseUrl(value, productionConfig);
+}
+
+export function assertProductionBackupDatabaseUrl(value: string | undefined): string {
+  const normalized = assertProtectedRemoteDatabaseUrl(value, productionBackupConfig);
+  const parsed = new URL(normalized);
+  if (parsed.searchParams.has("pgbouncer")) {
+    throw new Error("RIVALHUB_PRODUCTION_BACKUP_DATABASE_URL 必须使用 Session Pooler，不允许包含 pgbouncer 参数。");
+  }
+  return normalized;
+}
+
+export function deriveProductionBackupDatabaseUrl(productionDatabaseUrl: string | undefined): string {
+  const normalized = assertProductionDatabaseUrl(productionDatabaseUrl);
+  const url = new URL(normalized);
+  url.port = PRODUCTION_SESSION_POOLER_PORT;
+  url.searchParams.delete("pgbouncer");
+  return assertProductionBackupDatabaseUrl(url.toString());
 }
 
 export function assertProductionConfirmations(env: Environment = process.env): void {

@@ -467,7 +467,12 @@ async function main(): Promise<void> {
       }));
       expect(plan.winnerChanges,  "A 计划必须识别半决赛胜者变更").toBe(true);
       expect(plan.impacts.filter((impact) => impact.kind === "downstream_match").length === 2,  "A 影响清单必须包含决赛和季军赛").toBe(true);
-      expect(plan.impacts.every((impact) => impact.status === "scheduled"),  "A 下游比赛必须仍未开始").toBe(true);
+      expect(
+        plan.impacts
+          .filter((impact) => impact.kind === "downstream_match")
+          .every((impact) => impact.status === "scheduled"),
+        "A 下游比赛必须仍未开始",
+      ).toBe(true);
 
       const applied = await database.transaction((tx) => applyResultCorrectionInTx(tx, {
         matchId: semifinalId,

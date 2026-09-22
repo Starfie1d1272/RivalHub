@@ -22,12 +22,16 @@ function statRow(input: Partial<MatchPlayerStatsRow>): MatchPlayerStatsRow {
     assists: null,
     hsPercent: null,
     firstKills: null,
+    firstDeaths: null,
     multiKills: null,
+    tradeKills: null,
+    kastRounds: null,
     clutches: null,
     adr: null,
     rws: null,
     ratingPro: null,
     we: null,
+    dakImportId: null,
     verifiedByAdmin: null,
     verifiedAt: null,
     createdAt: new Date("2026-01-01T00:00:00Z"),
@@ -47,6 +51,8 @@ describe("match detail stats", () => {
         { entryAId: "team-a", entryBId: "team-b", scoreA: 1, scoreB: 0 },
         { entryAId: "team-c", entryBId: "team-a", scoreA: 1, scoreB: 0 },
         { entryAId: "team-a", entryBId: "team-d", scoreA: null, scoreB: null },
+        { entryAId: "other-a", entryBId: "other-b", scoreA: 0, scoreB: 2 },
+        { entryAId: "team-a", entryBId: "team-d", scoreA: 1, scoreB: null },
       ]),
     ).toEqual({ wins: 1, losses: 1 });
   });
@@ -95,34 +101,64 @@ describe("match detail stats", () => {
           {
             id: "member-1",
             teamId: "team-a",
-            steamName: "Steam",
+            personaName: "Steam",
             displayName: null,
             perfectName: "Perfect",
             primaryPosition: "rifler",
             userId: "user-1",
+            avatarUrl: "https://cdn.test/player.webp",
           },
           {
             id: "member-2",
             teamId: "team-b",
-            steamName: "Other",
+            personaName: "Other",
             displayName: null,
             perfectName: null,
             primaryPosition: "awper",
             userId: "user-2",
+            avatarUrl: null,
           },
         ],
         "team-a",
       ),
     ).toEqual([
       {
-        steamName: "Steam",
+        personaName: "Steam",
         displayName: null,
         perfectName: "Perfect",
-        primaryPosition: "rifler",
+        registrationPosition: "rifler",
         isStarter: true,
         userId: "user-1",
+        avatarUrl: "https://cdn.test/player.webp",
       },
     ]);
+  });
+
+  it("keeps perfectName available when the Steam cache misses", () => {
+    expect(
+      buildRoster(
+        { players: [{ eventRosterMemberId: "member-1", isStarter: true }] },
+        [{
+          id: "member-1",
+          teamId: "team-a",
+          personaName: null,
+          displayName: null,
+          perfectName: "Perfect fallback",
+          primaryPosition: "rifler",
+          userId: "user-1",
+          avatarUrl: null,
+        }],
+        "team-a",
+      ),
+    ).toEqual([{
+      personaName: null,
+      displayName: null,
+      perfectName: "Perfect fallback",
+      registrationPosition: "rifler",
+      isStarter: true,
+      userId: "user-1",
+      avatarUrl: null,
+    }]);
   });
 
   it("builds lineup player summaries from starter stats", () => {
@@ -133,7 +169,7 @@ describe("match detail stats", () => {
         statRow({ mapId: "map-2", matchId: "match-2", perfectName: "Alpha", userId: "user-1", kills: 10, deaths: 10, firstKills: 1, hsPercent: 30, adr: 70, ratingPro: 1, we: 7 }),
       ],
       ["user-1"],
-      new Map([["user-1", { id: "member-1", teamId: "team-a", steamName: "Steam", displayName: null, perfectName: "Alpha", primaryPosition: "rifler", userId: "user-1" }]]),
+      new Map([["user-1", { id: "member-1", teamId: "team-a", personaName: "Steam", displayName: null, perfectName: "Alpha", primaryPosition: "rifler", userId: "user-1", avatarUrl: "https://cdn.test/player.webp" }]]),
       new Map([
         ["map-1", 24],
         ["map-2", 30],
@@ -156,6 +192,30 @@ describe("match detail stats", () => {
     ]);
     expect(players[0].avgAdr).toBeCloseTo(4260 / 54, 5);
     expect(players[0].avgHs).toBeCloseTo(1300 / 30, 5);
+  });
+
+  it("uses the canonical name order for a lineup without stats", () => {
+    const players = buildLineupsPlayers(
+      [],
+      ["user-1"],
+      new Map([[
+        "user-1",
+        { id: "member-1", teamId: "team-a", personaName: null, displayName: null, perfectName: "Perfect fallback", primaryPosition: "rifler", userId: "user-1", avatarUrl: null },
+      ]]),
+      new Map(),
+    );
+
+    expect(players).toEqual([{
+      userId: "user-1",
+      perfectName: "Perfect fallback",
+      maps: 0,
+      avgRating: null,
+      avgAdr: null,
+      kdRatio: null,
+      avgHs: null,
+      fkpr: null,
+      avgWe: null,
+    }]);
   });
 
   it("aggregates finished match stats for MVP candidates and BO summaries", () => {

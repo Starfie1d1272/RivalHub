@@ -1,11 +1,11 @@
 import { and, asc, count, eq, inArray } from "drizzle-orm";
+import { writeAuditInTx } from "@/lib/audit/write";
+
 import type { TxDb } from "@/db/client";
 import {
-  auditLogs,
   eventRosterMembers,
   eventRosters,
   majorTournamentEntrants,
-  majorPrestartIssues,
   majorPrestartStates,
   majorStageEntrants,
   majorStageRuns,
@@ -24,9 +24,7 @@ import { makeMajorRunSnapshotV4 } from "@/lib/major/run-snapshot";
 import { loadActiveRestrictionOverridesInTx, unresolvedQualificationFindings } from "@/lib/competition-entries/restriction-overrides";
 import { assertSeasonAllowsTournamentMutationInTx } from "@/lib/postevent/guard";
 import { getStandardMajorDefinition } from "@/lib/major/standard";
-import {
-  analyzeFinalSeedOrder,
-} from "@/lib/major/team-seed-recommendation";
+import { getDisplayName } from "@/lib/identity/display-name";
 import {
   buildFrozenSetFingerprint,
   frozenTeamsForSnapshot,
@@ -131,12 +129,6 @@ export async function startMajorInTransaction(
   }).from(eventRosterMembers)
     .innerJoin(eventRosters, eq(eventRosters.id, eventRosterMembers.eventRosterId))
     .where(and(inArray(eventRosterMembers.eventRosterId, eventRosterIds), eq(eventRosters.status, "frozen"))).for("update");
-  const issueRows = await tx.select({
-    category: majorPrestartIssues.category,
-    label: majorPrestartIssues.label,
-    resolvedAt: majorPrestartIssues.resolvedAt,
-  }).from(majorPrestartIssues)
-    .where(eq(majorPrestartIssues.seasonId, season.id)).for("update");
   const seedRows = await tx.select({
     entrantId: majorTournamentSeeds.tournamentEntrantId,
     tournamentSeed: majorTournamentSeeds.seed,
@@ -194,9 +186,6 @@ export async function startMajorInTransaction(
     seasonId: season.id,
     frozenSetFingerprint,
   });
-  const seedDecision = recommendationStatus === "ready" && snapshot
-    ? analyzeFinalSeedOrder(seeds.map((seed) => seed.teamId), snapshot.recommendations)
-    : null;
   const readiness = evaluateMajorPrestartReadiness({
     competitionTemplate: season.competitionTemplate,
     capabilities,
@@ -210,14 +199,9 @@ export async function startMajorInTransaction(
     }),
     entrantsLocked: Boolean(state.entrantsLockedAt),
     confirmations: entrantRows.map((entrant) => ({ teamId: entrant.competitionEntryId, confirmed: coherenceRows.find((row) => row.entry.id === entrant.competitionEntryId)?.eventRoster.status === "frozen" })),
-    qualificationIssues: issueRows.filter((issue) => issue.category === "qualification")
-      .map((issue) => ({ label: issue.label, resolved: Boolean(issue.resolvedAt) })),
-    administrativeIssues: issueRows.filter((issue) => issue.category === "administration")
-      .map((issue) => ({ label: issue.label, resolved: Boolean(issue.resolvedAt) })),
     tournamentSeeds: seeds,
     seedConfirmation: { confirmed: state.seedsConfirmedAt !== null && state.seedsConfirmedBy !== null },
     seedRecommendation: { status: recommendationStatus },
-    seedOverride: { required: seedDecision?.divergesFromRecommendation ?? false, reason: state.seedOverrideReason ?? null },
   });
   if (!readiness.canStart || !readiness.openingPlan) {
     throw new AppError(ErrorCode.VALIDATION_FAILED, readiness.blockers[0] ?? "Major 赛前检查未通过。");
@@ -281,7 +265,7 @@ export async function startMajorInTransaction(
         const fact = qualificationFacts.get(member.userId);
         return {
           userId: member.userId,
-          email: fact?.email ?? "",
+          label: fact ? getDisplayName(fact) : member.userId,
           emailVerifiedAt: fact?.emailVerifiedAt ?? null,
           educationHistory: fact?.educationHistory ?? [],
         };
@@ -323,7 +307,7 @@ export async function startMajorInTransaction(
     );
     return {
       userId,
-      label: effective?.label ?? fact?.displayName ?? fact?.perfectName ?? fact?.email ?? userId,
+      label: effective?.label ?? (fact ? getDisplayName(fact) : userId),
       historicalPeak: competitiveProfile ? serialize(effective?.historicalPeak) : null,
       previousSeasonPeak: competitiveProfile
         ? serialize(effective?.previousSeasonPeak)
@@ -419,13 +403,11 @@ export async function startMajorInTransaction(
     updatedAt: now,
   }).where(eq(majorPrestartStates.id, state.id));
   await tx.update(seasons).set({ status: "playing", updatedAt: now }).where(eq(seasons.id, season.id));
-  await tx.insert(auditLogs).values({
+  await writeAuditInTx(tx, {
     seasonId: season.id,
     action: "major.start",
     actorId: input.actorId,
-    targetId: stageRun.id,
-    targetType: "major_stage_run",
-    meta: {
+    targetId: stageRun.id,meta: {
       stageKey: stage.key,
       lockedEntrants: entrantCapacity,
       lockedRosters: entrantCapacity,

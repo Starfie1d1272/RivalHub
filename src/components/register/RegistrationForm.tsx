@@ -353,43 +353,19 @@ export function RegistrationForm({
             <FieldError name="perfectName" />
           </div>
 
-          {/* Steam 昵称 + Steam64 */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="steamName" className="text-[var(--color-fg-mid)] mb-1.5 block">
-                Steam 昵称 <Required />
-              </Label>
-              <Input id="steamName" placeholder="Steam 显示名称" className={inputCls} {...register("steamName")} />
-              <FieldError name="steamName" />
-            </div>
-            <div>
-              <Label htmlFor="steam64" className="text-[var(--color-fg-mid)] mb-1.5 block">
-                Steam 64 位 ID <Required />
-              </Label>
-              <Input
-                id="steam64"
-                placeholder="76561198XXXXXXXXX"
-                className={`${inputCls} font-mono text-sm`}
-                {...register("steam64")}
-              />
-              <FieldError name="steam64" />
-            </div>
-          </div>
-
-          {/* Steam 个人资料链接 */}
+          {/* Steam 官方资料只接受 Steam64 */}
           <div>
-            <Label htmlFor="steamProfileUrl" className="text-[var(--color-fg-mid)] mb-1.5 block">
-              Steam 个人资料链接 <Required />
+            <Label htmlFor="steam64" className="text-[var(--color-fg-mid)] mb-1.5 block">
+              Steam 64 位 ID <Required />
             </Label>
             <Input
-              id="steamProfileUrl"
-              type="url"
-              placeholder="https://steamcommunity.com/profiles/..."
-              className={inputCls}
-              {...register("steamProfileUrl")}
+              id="steam64"
+              placeholder="76561198XXXXXXXXX"
+              className={`${inputCls} font-mono text-sm`}
+              {...register("steam64")}
             />
-            <FieldError name="steamProfileUrl" />
-            <p className="text-xs text-[var(--color-fg-dim)] mt-1">请确保个人资料设置为公开</p>
+            <FieldError name="steam64" />
+            <p className="text-xs text-[var(--color-fg-dim)] mt-1">昵称、头像和个人资料链接将在 Steam 官方资料可用时自动展示。</p>
           </div>
         </div>
       </section>

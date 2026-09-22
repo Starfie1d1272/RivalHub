@@ -5,7 +5,7 @@ import type { SQL } from "drizzle-orm";
  * 回合数表达式：所有 format 均只从实际已记录地图的回合比分计算。
  * 依赖 SQL 别名：mm = match_maps
  */
-export const roundsExpr: SQL = sql`mm.score_a + mm.score_b`;
+export const roundsExpr: SQL = sql`(mm.score_a + mm.score_b)`;
 
 function rawColumn(col: string): SQL {
   return sql.raw(col);

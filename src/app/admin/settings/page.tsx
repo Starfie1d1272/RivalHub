@@ -1,23 +1,25 @@
 import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
-import { users } from "@/db/schema";
+import { steamProfiles, users } from "@/db/schema";
 import { requireSuperAdmin } from "@/lib/auth/session";
 import { resolveAdminPageAccess } from "@/lib/auth/admin-access";
 import { getDisplayName } from "@/lib/identity/display-name";
-import { PageHeader, Panel, StatusPill } from "@/components/rivalhub";
+import { PageHeader, PageLayout, Panel, StatusPill } from "@/components/rivalhub";
 import { AdminAccessDenied } from "@/components/admin/AdminAccessDenied";
+import { SchedulerHealthPanel } from "@/components/admin/SchedulerHealthPanel";
+import { getSchedulerHealthView } from "@/lib/scheduler/admin";
 
 const ENV_VARS = [
   {
     key: "STEAM_API_KEY",
     label: "Steam Web API Key",
-    description: "用于抓取选手 Steam 头像。申请地址：steamcommunity.com/dev/apikey",
+    description: "用于抓取选手 Steam 官方资料。申请地址：steamcommunity.com/dev/apikey",
     required: false,
   },
   {
     key: "CRON_SECRET",
-    label: "Vercel Cron Secret",
-    description: "生产环境选秀超时自动 pick 所需，本地开发可不填。",
+    label: "定时任务服务凭据",
+    description: "用于生产环境业务定时任务；只展示是否配置，不展示凭据值。",
     required: false,
   },
   {
@@ -31,14 +33,21 @@ const ENV_VARS = [
 export default async function AdminSettingsPage() {
   const admin = await resolveAdminPageAccess(requireSuperAdmin);
   if (!admin) return <AdminAccessDenied />;
-  const adminUser = await db.query.users.findFirst({
-    where: eq(users.id, admin.userId),
-    columns: { steamName: true, displayName: true, perfectName: true },
-  });
+  const [adminUser] = await db
+    .select({
+      personaName: steamProfiles.personaName,
+      displayName: users.displayName,
+      perfectName: users.perfectName,
+    })
+    .from(users)
+    .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
+    .where(eq(users.id, admin.userId))
+    .limit(1);
   const adminDisplayName = adminUser ? getDisplayName(adminUser) : admin.email;
+  const schedulerHealth = await getSchedulerHealthView();
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-2xl space-y-10">
+    <PageLayout variant="narrow" className="space-y-10">
         <PageHeader title="系统状态" description={`当前登录：${adminDisplayName}`} />
 
         {/* 密码管理 */}
@@ -78,6 +87,14 @@ export default async function AdminSettingsPage() {
             })}
           </Panel>
         </section>
-    </div>
+
+        <section className="space-y-4">
+          <div className="space-y-1">
+            <h2 className="text-base font-semibold text-[var(--color-fg)]">定时任务健康</h2>
+            <p className="text-xs text-[var(--color-fg-mid)]">展示当前健康投影；“立即运行一次”仅用于故障恢复，会检查并可能推进对应业务状态。</p>
+          </div>
+          <SchedulerHealthPanel jobs={schedulerHealth} />
+        </section>
+    </PageLayout>
   );
 }

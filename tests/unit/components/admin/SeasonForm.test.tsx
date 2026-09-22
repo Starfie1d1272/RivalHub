@@ -5,7 +5,7 @@ import React from "react";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { createSeason, deleteSeason, updateSeason } from "@/actions/seasons";
+import { createSeason, deleteSeason, openSeasonRegistration, updateSeason } from "@/actions/seasons";
 import { SeasonForm } from "@/components/admin/SeasonForm";
 import { createMajorDefaultCapabilities, createRivalsTemplate } from "@/lib/competition/templates";
 import type { SeasonCapabilities } from "@/types/season";
@@ -24,6 +24,7 @@ vi.mock("sonner", () => ({
 vi.mock("@/actions/seasons", () => ({
   createSeason: vi.fn(),
   deleteSeason: vi.fn(),
+  openSeasonRegistration: vi.fn(),
   publishSeason: vi.fn(),
   updateSeason: vi.fn(),
   revertSeasonToDraft: vi.fn(),
@@ -51,6 +52,7 @@ vi.mock("@/components/ui/select", async () => {
 
 const createSeasonMock = vi.mocked(createSeason);
 const deleteSeasonMock = vi.mocked(deleteSeason);
+const openSeasonRegistrationMock = vi.mocked(openSeasonRegistration);
 const updateSeasonMock = vi.mocked(updateSeason);
 
 function createInitial(
@@ -87,6 +89,7 @@ describe("SeasonForm presets", () => {
       data: { seasonId: "11111111-1111-4111-8111-111111111111", slug: "test-season" },
     });
     deleteSeasonMock.mockResolvedValue({ success: true, data: undefined });
+    openSeasonRegistrationMock.mockResolvedValue({ success: true, data: { slug: "test-season" } });
     updateSeasonMock.mockResolvedValue({ success: true, data: { slug: "updated-season" } });
   });
 
@@ -227,7 +230,7 @@ describe("SeasonForm presets", () => {
     for (const section of ["基本信息", "时间与生命周期", "报名与名单", "资格规则", "赛制与地图", "竞技参考", "功能", "危险操作"]) {
       expect(screen.getByRole("heading", { name: section })).toBeInTheDocument();
     }
-    expect(screen.getByText(/完美世界竞技平台 · ConversionPolicy 尚未绑定/)).toBeInTheDocument();
+    expect(screen.getByText(/完美世界竞技平台 · 发布时自动锁定换算规则/)).toBeInTheDocument();
   });
 
   it("shows the frozen ConversionPolicy identity after registration opens", () => {
@@ -272,9 +275,9 @@ describe("SeasonForm presets", () => {
       initial={initial}
     />);
 
-    expect(screen.getByText(/5E → 完美世界竞技平台 · ConversionPolicy 2026\.09/)).toBeInTheDocument();
-    expect(screen.getByText("本届已在报名开放时冻结；全局 policy 后续变化不会影响本届。")).toBeInTheDocument();
-    expect(screen.getByText("策略 ID：policy-2026-09")).toBeInTheDocument();
+    expect(screen.getByText(/5E → 完美世界竞技平台 · 换算规则 2026\.09/)).toBeInTheDocument();
+    expect(screen.getByText("本届已在报名开放时锁定；全局规则后续变化不会影响本届。")).toBeInTheDocument();
+    expect(screen.getByText("2 个段位")).toBeInTheDocument();
   });
 
   it("keeps status-specific lifecycle actions in the settings sections", () => {
@@ -325,15 +328,58 @@ describe("SeasonForm presets", () => {
     expect(screen.getByLabelText("名单调整截止时间")).toBeDisabled();
   });
 
+  it("does not replay the frozen opening timestamp in an allowed deadline save", async () => {
+    const user = userEvent.setup();
+    render(<SeasonForm
+      mode="edit"
+      competitivePlatforms={[]}
+      initial={createInitial(structuredClone(CAPABILITY_PRESETS["draft-league"]), "公开赛", "registration", {
+        registrationOpensAt: "2026-09-08T16:00",
+        registrationOpenedAt: new Date("2026-09-08T08:00:03.838Z"),
+        registrationClosesAt: "2026-09-19T16:00",
+        rosterChangeClosesAt: "2026-10-08T08:00",
+      })}
+    />);
+
+    await user.type(screen.getByLabelText("名称"), " updated");
+    await user.click(screen.getAllByRole("button", { name: "保存" })[0]!);
+
+    await waitFor(() => expect(updateSeasonMock).toHaveBeenCalledWith(expect.objectContaining({
+      registrationOpensAt: null,
+      registrationClosesAt: "2026-09-19T16:00",
+    })));
+  });
+
+  it("confirms before turning a future scheduled opening into an early force-open", async () => {
+    const user = userEvent.setup();
+    render(<SeasonForm
+      mode="edit"
+      competitivePlatforms={[]}
+      initial={createInitial(structuredClone(CAPABILITY_PRESETS["draft-league"]), "公开赛", "registration", {
+        registrationOpensAt: "2999-09-08T16:00",
+      })}
+    />);
+
+    await user.click(screen.getByRole("button", { name: "立即开放报名" }));
+    expect(screen.getByRole("alertdialog")).toHaveTextContent("确认后会明确提前改变报名计划");
+    expect(screen.getByRole("button", { name: "确认提前开放" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "确认提前开放" }));
+    await waitFor(() => expect(openSeasonRegistrationMock).toHaveBeenCalledWith(
+      "11111111-1111-4111-8111-111111111111",
+      "early_force",
+    ));
+  });
+
   it("explains each lifecycle edit boundary", () => {
     const { rerender } = render(<SeasonForm mode="edit" competitivePlatforms={[]} initial={createInitial(structuredClone(CAPABILITY_PRESETS["draft-league"]), "公开赛")} />);
     expect(screen.getByTestId("season-lifecycle-explanation")).toHaveTextContent("所有赛事定义仍可调整");
 
     rerender(<SeasonForm mode="edit" competitivePlatforms={[]} initial={createInitial(structuredClone(CAPABILITY_PRESETS["draft-league"]), "公开赛", "registration")} />);
-    expect(screen.getByTestId("season-lifecycle-explanation")).toHaveTextContent("公开赛事规则已锁定");
+    expect(screen.getByTestId("season-lifecycle-explanation")).toHaveTextContent("跨平台换算规则版本已在发布时锁定");
 
     rerender(<SeasonForm mode="edit" competitivePlatforms={[]} initial={createInitial(structuredClone(CAPABILITY_PRESETS["draft-league"]), "公开赛", "registration", { registrationOpenedAt: new Date("2026-05-01T00:00:00.000Z") })} />);
-    expect(screen.getByTestId("season-lifecycle-explanation")).toHaveTextContent("竞技上下文、ConversionPolicy 策略身份与冻结快照、实际开放时间已冻结");
+    expect(screen.getByTestId("season-lifecycle-explanation")).toHaveTextContent("本届平台参考赛季、段位顺序、换算数据与实际开放时间已锁定");
 
     rerender(<SeasonForm mode="edit" competitivePlatforms={[]} initial={createInitial(structuredClone(CAPABILITY_PRESETS["draft-league"]), "公开赛", "playing", { registrationOpenedAt: new Date("2026-05-01T00:00:00.000Z") })} />);
     expect(screen.getByTestId("season-lifecycle-explanation")).toHaveTextContent("比赛已开始");

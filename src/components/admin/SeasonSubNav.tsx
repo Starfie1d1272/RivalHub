@@ -28,7 +28,7 @@ export function SeasonSubNav({
 
   const root = `/admin/${seasonSlug}`;
   const workflowTabs: { label: string; href: string; active?: boolean; title?: string }[] = [
-    { label: "总览", href: root },
+    { label: "赛事总览", href: root },
     { label: "报名", href: `${root}/registrations`, title: registrationMode === "team" ? "队伍报名审核" : "个人报名审核" },
     {
       label: "赛前",

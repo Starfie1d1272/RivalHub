@@ -237,7 +237,8 @@ async function market(f: Fixture, index: number) {
     .select()
     .from(schema.predictionMarkets)
     .where(eq(schema.predictionMarkets.id, id));
-  return m!;
+  const options = await f.db.select().from(schema.predictionMarketOptions).where(eq(schema.predictionMarketOptions.marketId, id)).orderBy(schema.predictionMarketOptions.position);
+  return { ...m!, options };
 }
 function fill(base: Awaited<ReturnType<typeof loadBaseline>>) {
   const choices: Choices = {};
@@ -394,7 +395,7 @@ describe("spectator prediction PostgreSQL contracts", () => {
         seasonId,
         userId,
         marketId: first.id,
-        side: first.a,
+        optionId: first.options[0]!.id,
         amount: "all",
       };
       const concurrent = await Promise.allSettled(
@@ -418,7 +419,7 @@ describe("spectator prediction PostgreSQL contracts", () => {
         stakeInTx(tx, {
           ...input,
           userId: otherId,
-          side: first.b,
+          optionId: first.options[1]!.id,
           requestId: rid,
         }),
       );
@@ -426,7 +427,7 @@ describe("spectator prediction PostgreSQL contracts", () => {
         stakeInTx(tx, {
           ...input,
           userId: otherId,
-          side: first.b,
+          optionId: first.options[1]!.id,
           requestId: rid,
         }),
       );
@@ -491,7 +492,7 @@ describe("spectator prediction PostgreSQL contracts", () => {
           seasonId,
           userId,
           marketId: second.id,
-          side: second.a,
+          optionId: second.options[0]!.id,
           amount: "all",
           requestId: randomUUID(),
         }),
@@ -655,4 +656,33 @@ describe("spectator prediction PostgreSQL contracts", () => {
       expect(voided.achievement?.challenges).toBe(0);
       expect(voided.contests[0]!.submitted).not.toBeNull();
     }));
+});
+
+it("binds stakes to their market options, freezes options and reads started stages from runtime", async () => {
+  await fixture(async (f) => {
+    const first = await market(f, 0);
+    const second = await market(f, 1);
+    await expect(f.db.transaction((tx) => stakeInTx(tx, {
+      seasonId: f.seasonId, userId: f.userId, marketId: first.id,
+      optionId: second.options[0]!.id, amount: "10", requestId: randomUUID(),
+    }))).rejects.toThrow("不属于");
+    const [account] = await f.db.select().from(schema.predictionAccounts).where(eq(schema.predictionAccounts.userId, f.userId));
+    await expect(f.db.insert(schema.predictionStakes).values({
+      seasonId: f.seasonId, accountId: account!.id, marketId: first.id,
+      optionId: second.options[0]!.id, amount: BigInt(10), requestId: randomUUID(),
+    })).rejects.toThrow();
+    await expect(f.db.update(schema.predictionMarketOptions).set({ label: "changed" }).where(eq(schema.predictionMarketOptions.id, first.options[0]!.id))).rejects.toThrow();
+    const [multi] = await f.db.insert(schema.predictionMarkets).values({
+      seasonId: f.seasonId, matchId: first.matchId, stageKey: first.stageKey,
+      resolver: "future_confirmed_fact", title: "Three outcomes contract fixture", subject: first.subject,
+      deadline: first.deadline,
+    }).returning();
+    await f.db.insert(schema.predictionMarketOptions).values(["one", "two", "three"].map((key, position) => ({ marketId: multi!.id, key, label: key, position })));
+    expect(await f.db.select().from(schema.predictionMarketOptions).where(eq(schema.predictionMarketOptions.marketId, multi!.id))).toHaveLength(3);
+    const before = await loadBaseline(f.db, f.seasonId);
+    await f.db.update(schema.seasons).set({ stagePlan: [] }).where(eq(schema.seasons.id, f.seasonId));
+    const after = await loadBaseline(f.db, f.seasonId);
+    expect(after.stages).toEqual(before.stages);
+    expect(after.runs[0]!.id).toBe(f.runId);
+  });
 });

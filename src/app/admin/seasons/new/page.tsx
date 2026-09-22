@@ -5,6 +5,7 @@ import { SeasonForm } from "@/components/admin/SeasonForm";
 import { AdminAccessDenied } from "@/components/admin/AdminAccessDenied";
 import { db } from "@/db/client";
 import { loadCompetitivePlatformCatalog } from "@/lib/competitive/catalog";
+import { PageLayout } from "@/components/rivalhub";
 
 export default async function NewSeasonPage() {
   if (!(await resolveAdminPageAccess(requireSuperAdmin))) return <AdminAccessDenied />;
@@ -13,7 +14,7 @@ export default async function NewSeasonPage() {
   const catalog = await loadCompetitivePlatformCatalog(db);
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-3xl">
+    <PageLayout variant="narrow">
       <SeasonForm
         mode="create"
         competitivePlatforms={catalog.map((platform) => ({ key: platform.key, displayName: platform.displayName, seasons: platform.seasons.map((season) => ({ seasonKey: season.seasonKey, label: season.label, active: season.active })), ranks: platform.ranks.map((rank) => ({ rankKey: rank.rankKey, label: rank.label })) }))}
@@ -31,6 +32,6 @@ export default async function NewSeasonPage() {
           ...major,
         }}
       />
-    </div>
+    </PageLayout>
   );
 }

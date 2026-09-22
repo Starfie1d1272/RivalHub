@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   AUDIT_ACTION_DEFINITIONS,
   AUDIT_ACTION_KEYS,
+  AUDIT_EVENT_REGISTRY,
   getAuditActionFilterOptions,
   getAuditActionPresentation,
   getAuditTargetTypeLabel,
@@ -26,19 +27,21 @@ const CURRENT_PRODUCER_ACTIONS = [
   "team.invite.revoke", "team.membership.status_change", "team.membership.leave", "team.membership.kick", "team.captain.transfer", "team.disband",
   "competition_entry.create", "competition_entry.participant.reinvite", "competition_entry.participant.confirm",
   "competition_entry.participant.withdraw", "competition_entry.participant.decline", "competition_entry.roster.save",
-  "competition_entry.roster_change.request", "competition_entry.withdraw", "competition_entry.submit", "competition_entry.submitted",
+  "competition_entry.roster_change.request", "competition_entry.withdraw", "competition_entry.review.withdraw", "competition_entry.registration.restore", "competition_entry.submit", "competition_entry.submitted",
   "competition_entry.changes_requested", "competition_entry.waitlisted", "competition_entry.approved", "competition_entry.rejected",
   "competition_entry.withdrawn", "competition_entry.representative.transfer", "competition_entry.restriction_override.grant",
   "competition_entry.restriction_override.revoke",
-  "user.change_password", "user.claim_invite", "user.owner_bootstrap",
+  "user.change_password", "user.claim_invite", "user.owner_bootstrap", "identity.link.merge_required",
+  "identity.link.complete", "identity.link.revoke", "user_identity.merge",
   "education_verification.submit", "education_verification.institutional_email", "education_verification.approved", "education_verification.rejected",
   "competitive_platform.update", "competitive_platform_season.create", "competitive_platform_season.update",
   "competitive_platform_season.set_active", "competitive_platform_season.set_current", "competitive_platform_season.move",
   "competitive_platform_season.delete", "competitive_platform_rank.create", "competitive_platform_rank.rename",
   "competitive_platform_rank.move", "competitive_platform_rank.delete", "competitive_profile.self_declare", "competitive_roles.self_declare",
+  "map_preferences.self_declare",
   "major.start", "major.archive", "major_prestart.add_entrant", "major_prestart.remove_entrant", "major_prestart.save_roster",
   "major_prestart.select_entrants", "major_prestart.reconcile_roster", "major_prestart.repair_roster",
-  "major_prestart.confirm_roster", "major_prestart.reopen_roster", "major_prestart.add_issue", "major_prestart.resolve_issue",
+  "major_prestart.confirm_roster", "major_prestart.reopen_roster",
   "major_prestart.lock_entrants", "major_prestart.save_tournament_seeds", "major_prestart.confirm_tournament_seeds",
   "major.swiss.finalize_round", "major.stage.transition", "major.playoff.start", "major.playoff.finalize_round",
   "major.result.pending_confirmation", "major.result.confirm", "major.stage.finalized_round.revoked",
@@ -68,6 +71,16 @@ describe("audit presentation owner", () => {
     expect(options.map((option) => option.value)).toEqual(AUDIT_ACTION_KEYS);
     expect(options.some((option) => option.value === "education_verification.approved")).toBe(true);
     expect(options.some((option) => option.value === "competitive_profile.self_declare")).toBe(true);
+    expect(options.some((option) => option.value === "map_preferences.self_declare")).toBe(true);
+  });
+
+  it("retains canonical non-default targets in the registry", () => {
+    expect(AUDIT_EVENT_REGISTRY["conversion_policy.approve"].target).toMatchObject({ type: "conversion_policy", lifecycle: "stable" });
+    expect(AUDIT_EVENT_REGISTRY["major.swiss.finalize_round"].target).toMatchObject({ type: "major_stage_run", lifecycle: "stable" });
+    expect(AUDIT_EVENT_REGISTRY["match.generate_schedule"].target).toMatchObject({ type: "season", lifecycle: "stable" });
+    expect(AUDIT_EVENT_REGISTRY["match.delete"].target).toMatchObject({ type: "match", lifecycle: "tombstone" });
+    expect(AUDIT_EVENT_REGISTRY["match.demo.identity_confirm"].target).toMatchObject({ type: "match_demo_import", lifecycle: "stable" });
+    expect(AUDIT_EVENT_REGISTRY["match.demo.identity_retire"].target).toMatchObject({ type: "user_gameplay_steam_id", lifecycle: "stable" });
   });
 
   it("uses a human fallback for unknown actions", () => {
@@ -99,6 +112,14 @@ describe("audit presentation owner", () => {
     expect(reviewSummary).toBe("已记录");
     expect(reviewSummary).not.toContain("内部审核材料");
     expect(summarizeAuditMeta("education_verification.approved", { reviewNote: true })).toBe("含审核备注");
+    const identitySummary = summarizeAuditMeta("match.demo.identity_confirm", {
+      playerName: "选手甲",
+      observedSteam64: "76561198000000001",
+      actorId: "internal-id",
+    });
+    expect(identitySummary).toContain("选手 选手甲");
+    expect(identitySummary).toContain("Steam64 76561198000000001");
+    expect(identitySummary).not.toContain("internal-id");
   });
 
   it("keeps target categories readable without exposing raw type keys", () => {

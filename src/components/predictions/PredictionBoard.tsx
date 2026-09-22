@@ -623,10 +623,10 @@ export function PredictionBoard({
         <PointsBoard
           data={data}
           busy={pending}
-          onStake={async (marketId, side, amount) => {
+          onStake={async (marketId, optionId, amount) => {
             if (
               !(await confirm(
-                `向 ${name(side)} 投入${amount === "all" ? "全部可用" : ` ${amount} `}积分？提交后不能撤回或换边。`,
+                `向 ${data.markets.find((m) => m.id === marketId)?.options.find((o) => o.id === optionId)?.label} 投入${amount === "all" ? "全部可用" : ` ${amount} `}积分？提交后不能撤回或换边。`,
               ))
             )
               return;
@@ -635,12 +635,12 @@ export function PredictionBoard({
                 operation: "stake",
                 seasonId: base.seasonId,
                 marketId,
-                side,
+                optionId,
                 amount,
-                requestId: requestId({ marketId, side, amount }),
+                requestId: requestId({ marketId, optionId, amount }),
               });
               if (r.success) {
-                clearRequest({ marketId, side, amount });
+                clearRequest({ marketId, optionId, amount });
                 toast.success("投入成功");
                 await reload();
               } else toast.error(r.error.message);

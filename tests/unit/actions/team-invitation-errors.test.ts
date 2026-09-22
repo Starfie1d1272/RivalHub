@@ -7,7 +7,6 @@ const {
   userFindFirstMock,
   transactionMock,
   inviteTeamMemberInTxMock,
-  removeInterestAfterInvitationInTxMock,
   revalidatePathMock,
 } = vi.hoisted(() => ({
   requireAuthMock: vi.fn(),
@@ -15,7 +14,6 @@ const {
   userFindFirstMock: vi.fn(),
   transactionMock: vi.fn(),
   inviteTeamMemberInTxMock: vi.fn(),
-  removeInterestAfterInvitationInTxMock: vi.fn(),
   revalidatePathMock: vi.fn(),
 }));
 
@@ -40,7 +38,6 @@ vi.mock("@/db/client", () => ({
 vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
 vi.mock("@/lib/auth/supabase-server", () => ({ createServiceClient: vi.fn() }));
 vi.mock("@/lib/teams/invitations", () => ({ acceptTeamInvitationInTx: vi.fn() }));
-vi.mock("@/lib/recruitment/commands", () => ({ removeInterestAfterInvitationInTx: removeInterestAfterInvitationInTxMock }));
 vi.mock("@/lib/teams/commands", () => ({
   createTeamInTx: vi.fn(),
   createTeamShareInvitationInTx: vi.fn(),
@@ -86,7 +83,6 @@ describe("Team invitation unique-constraint mapping", () => {
     auditActorIdMock.mockReturnValue(CAPTAIN_ID);
     userFindFirstMock.mockResolvedValue({ id: INVITEE_ID, email: INVITEE_EMAIL });
     transactionMock.mockImplementation((callback: (tx: unknown) => unknown) => callback(TX));
-    removeInterestAfterInvitationInTxMock.mockResolvedValue(undefined);
     stderrWriteMock = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
   });
 
@@ -118,7 +114,6 @@ describe("Team invitation unique-constraint mapping", () => {
     const result = await inviteTeamMemberByUserId({ teamId: TEAM_ID, userId: INVITEE_ID });
 
     expect(result).toEqual({ success: false, error: { code: ErrorCode.VALIDATION_FAILED, message: "该邀请已存在。" } });
-    expect(removeInterestAfterInvitationInTxMock).not.toHaveBeenCalled();
   });
 
   it("does not map an unrelated wrapped unique constraint for the handoff", async () => {

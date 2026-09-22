@@ -1,23 +1,17 @@
 import { formatCST } from "@/lib/utils/date";
-import type { PublicMatchTimeProposal } from "@/lib/matches/time-proposals";
+import { MATCH_TIME_PROPOSAL_STATUS_LABELS, type MatchTimeProposalStatus, type PublicMatchTimeProposal } from "@/lib/matches/time-proposals";
 
 interface TimeProposalHistoryProps {
   proposals: PublicMatchTimeProposal[];
 }
 
-const STATUS_LABELS: Record<string, string> = {
-  pending: "待回应",
-  accepted: "已接受",
-  rejected: "已拒绝",
-  expired: "已过期",
-};
-
-const STATUS_COLORS: Record<string, string> = {
+const STATUS_COLORS = {
   pending: "var(--color-warn)",
   accepted: "var(--color-ok)",
   rejected: "var(--color-danger)",
   expired: "var(--color-fg-dim)",
-};
+  unknown: "var(--color-fg-dim)",
+} satisfies Record<MatchTimeProposalStatus, string>;
 
 export function TimeProposalHistory({ proposals }: TimeProposalHistoryProps) {
   if (proposals.length === 0) {
@@ -40,10 +34,10 @@ export function TimeProposalHistory({ proposals }: TimeProposalHistoryProps) {
               className="text-xs font-semibold"
               style={{
                 fontFamily: "var(--font-mono)",
-                color: STATUS_COLORS[p.status] ?? "var(--color-fg-dim)",
+                color: STATUS_COLORS[p.status],
               }}
             >
-              {STATUS_LABELS[p.status] ?? p.status}
+              {MATCH_TIME_PROPOSAL_STATUS_LABELS[p.status]}
             </span>
           </div>
           {p.rejectReason && (

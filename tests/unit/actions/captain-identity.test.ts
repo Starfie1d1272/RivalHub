@@ -61,7 +61,8 @@ vi.mock("@/db/schema", () => {
     seasonRegistrations: mk("seasonRegistrations", {}),
     captainVotes: mk("captainVotes", {}),
     auditLogs: mk("auditLogs", {}),
-    users: mk("users", {}),
+    users: mk("users", { steam64: col("steam64") }),
+    steamProfiles: mk("steamProfiles", { steam64: col("steam64"), personaName: col("persona_name") }),
   };
 });
 
@@ -112,7 +113,7 @@ const CANDIDATES = Array.from({ length: 8 }, (_, i) => ({
   userId: `20000000-0000-4000-8000-00000000000${i}`,
   peakRating: 2.5 - i * 0.1,
   createdAt: new Date(`2026-01-0${i + 1}`),
-  steamName: `c${i + 1}`,
+  personaName: `c${i + 1}`,
   displayName: null,
   perfectName: `队长${i + 1}`,
   email: `c${i + 1}@test.com`,
@@ -139,7 +140,11 @@ function setupTxSelect() {
       }
       if (name === "seasonRegistrations") {
         // candidates
-        return { innerJoin: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue(CANDIDATES) }) };
+        return {
+          innerJoin: vi.fn().mockReturnValue({
+            leftJoin: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue(CANDIDATES) }),
+          }),
+        };
       }
       return { where: vi.fn().mockResolvedValue([]) };
     }),

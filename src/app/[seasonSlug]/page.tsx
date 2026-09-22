@@ -1,31 +1,43 @@
+import { MatchStatusBadge } from "@/components/matches/MatchStatusBadge";
+import type { MatchStatus } from "@/types/match";
+import { getPublicSeasonResults } from "@/lib/seasons/public-results";
+import { getPublicSeasonStagePresentation } from "@/lib/seasons/public-stage";
+import { SeasonResults } from "@/components/season/SeasonResults";
+import { getSeasonPersonalNextStep } from "@/lib/seasons/public-next-step";
+import { SeasonNextStep } from "@/components/season/SeasonNextStep";
+import { publicCompetitionEntryCondition } from "@/lib/competition-entries/public-visibility";
 import Link from "next/link";
-import { Suspense } from "react";
+import { Fragment, Suspense, type ReactNode } from "react";
 import { connection } from "next/server";
 import { notFound } from "next/navigation";
 import { eq, count, or, and, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
-import { UserPlus, Vote, Users, Swords, Shuffle, BarChart3, UserRoundSearch } from "lucide-react";
+import { UserPlus, Vote, Users, Swords, Shuffle, BarChart3, UserRoundSearch, Trophy } from "lucide-react";
 import { db } from "@/db/client";
 import { matches, competitionEntries } from "@/db/schema";
 import { formatCSTDateTime } from "@/lib/utils/date";
-import { normalizeStagePlan } from "@/lib/seasons/compatibility";
 import type { SeasonStatus } from "@/types/season";
 import { showStats } from "@/lib/utils/season";
 import {
   isRegistrationActuallyOpen,
   presentRegistrationSchedule,
   presentSeasonParticipationState,
-  presentSeasonStatus,
+  presentSeasonKind,
   presentStageMarker,
 } from "@/lib/seasons/presentation";
-import { SectionHeader, StatusPill, Panel, ScrollHint, Stat, PhaseStep } from "@/components/rivalhub";
+import { PageLayout, SectionHeader, StatusPill, Panel, ScrollHint, Stat, PhaseStep } from "@/components/rivalhub";
 import { Button } from "@/components/ui/button";
 import { AdminShortcutSlot } from "@/components/layout/AdminShortcutSlot";
 import { StandingsTable } from "@/components/matches/StandingsTable";
 import { getStandings } from "@/lib/data/standings";
 import { getParticipantSummary } from "@/lib/participants/summary";
 import { getPublicOrAuthorizedDraftSeason } from "@/lib/data/public-seasons";
+import { getMajorPublicParticipantOverview } from "@/lib/major/public-participants";
 import { RegistrationScheduleCountdown } from "@/components/seasons/RegistrationScheduleCountdown";
+import { getLatestSeasonAnnouncement } from "@/lib/announcements/read-model";
+import { toAnnouncementExcerpt } from "@/lib/announcements/presentation";
+import { getPublicSeasonInfo } from "@/lib/season-public-info/read-model";
+import { hasPublicSeasonInfo, activeGroupCount } from "@/lib/season-public-info/presentation";
 
 const STATUS_IDX: Record<SeasonStatus, number> = {
   draft: 0, registration: 1, voting: 2, drafting: 3,
@@ -50,18 +62,18 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
 
   const season = await getPublicOrAuthorizedDraftSeason(seasonSlug);
   if (!season) notFound();
-  const stagePlan = normalizeStagePlan(season.stagePlan);
-  const stageLabelByKey = new Map(
-    stagePlan.map((stage) => [stage.key, presentStageMarker(stage, season.competitionTemplate)]),
-  );
+  const [latestSeasonAnnouncement, seasonInfo] = await Promise.all([
+    getLatestSeasonAnnouncement(season.id),
+    getPublicSeasonInfo(season.id),
+  ]);
+  const results = ["finished", "archived"].includes(season.status) ? await getPublicSeasonResults(season) : null;
+  const personalTask = await getSeasonPersonalNextStep(season);
+  const stagePresentation = await getPublicSeasonStagePresentation(season);
+  const stagePlan = stagePresentation.stagePlan;
+  const stageLabelByKey = new Map(Object.entries(stagePresentation.labels));
   const hasMatches = stagePlan.length > 0;
 
-  // 查询已初始化的赛程阶段（有 match 记录的 stage）
-  const matchStageRows = await db
-    .selectDistinct({ stage: matches.stage })
-    .from(matches)
-    .where(eq(matches.seasonId, season.id));
-  const initializedStages = new Set(matchStageRows.map((r) => r.stage));
+  const initializedStages = new Set(stagePresentation.initializedStageKeys);
 
   // ── 统计数据 + 即将到来的比赛 ────────────────────────────────────────
   const teamA = alias(competitionEntries, "team_a");
@@ -90,10 +102,14 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
         .limit(4)
     : null;
 
-  const [[teamCountRow], participantSummary, [matchCountRow], upcomingMatches, standings] =
+  const isMajor = season.competitionTemplate === "major";
+  const [majorParticipantOverview, [teamCountRow], participantSummary, [matchCountRow], upcomingMatches, standings] =
     await Promise.all([
-      db.select({ value: count() }).from(competitionEntries).where(eq(competitionEntries.competitionId, season.id)),
-      getParticipantSummary(season),
+      isMajor ? getMajorPublicParticipantOverview(season) : Promise.resolve(null),
+      isMajor
+        ? Promise.resolve([] as { value: number }[])
+        : db.select({ value: count() }).from(competitionEntries).where(and(eq(competitionEntries.competitionId, season.id), publicCompetitionEntryCondition())),
+      isMajor ? Promise.resolve(null) : getParticipantSummary(season),
       db.select({
         total: count(),
         finished: sql<number>`count(*) filter (where ${matches.status} = 'finished')`,
@@ -101,6 +117,8 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
       upcomingMatchesQuery ?? Promise.resolve([] as { id: string; status: string; scheduledAt: Date | null; stage: string; teamAName: string | null; teamBName: string | null }[]),
       season.status === "playing" ? getStandings(season.id) : Promise.resolve([]),
     ]);
+  const publicTeamCount = majorParticipantOverview?.teamCount ?? Number(teamCountRow?.value ?? 0);
+  const publicPlayerCount = majorParticipantOverview?.playerCount ?? participantSummary?.count ?? 0;
 
   // ── 动态阶段列表 ──────────────────────────────────────────
   interface Phase {
@@ -176,42 +194,42 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
   const quickLinks = [
     {
       href: `/${seasonSlug}/register`,
-      label: "立即报名",
+      label: "报名",
       description: "提交报名信息",
       icon: UserPlus,
-      show: !isHistorical && registrationIsOpen,
+      show: !isHistorical && registrationIsOpen && !personalTask,
     },
     {
       href: `/${seasonSlug}/players`,
-      label: "选手名单",
-      description: "已通过审核的参赛选手",
+      label: "选手",
+      description: majorParticipantOverview?.presentation.playerDescription ?? "已通过审核的参赛选手",
       icon: UserRoundSearch,
       show: true,
     },
     {
       href: `/${seasonSlug}/captains`,
-      label: isHistorical ? "队长投票结果" : "队长投票",
+      label: "队长投票",
       description: isHistorical ? "查看最终投票结果" : "为心仪队长投票",
       icon: Vote,
       show: season.hasCaptainVoting,
     },
     {
       href: `/${seasonSlug}/draft`,
-      label: isHistorical ? "选秀回顾" : "选秀直播间",
+      label: "选秀",
       description: isHistorical ? "查看完整选人记录" : "实时观看选秀进度",
       icon: Shuffle,
       show: season.hasDraft,
     },
     {
       href: `/${seasonSlug}/teams`,
-      label: "队伍阵容",
+      label: "队伍",
       description: "查看各队选手分布",
       icon: Users,
       show: true,
     },
     {
       href: `/${seasonSlug}/matches`,
-      label: "赛程对决",
+      label: "赛程",
       description: "Bracket + 战报",
       icon: Swords,
       show: hasMatches,
@@ -219,18 +237,19 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
     {
       href: `/${seasonSlug}/stats`,
       label: "数据统计",
-      description: "赛季排行榜与个人数据",
+      description: "赛事排行榜与个人数据",
       icon: BarChart3,
       show: showStats(season),
     },
+    { href: `/${seasonSlug}/community-awards`, label: "社区奖", description: "浏览奖项与获奖者", icon: Trophy, show: season.hasCommunityAwards },
   ].filter((l) => l.show);
 
   return (
-    <div className="container mx-auto px-4 py-10 space-y-8">
+    <PageLayout variant="wide" className="space-y-8">
       <div className="relative mb-12 pt-6">
         <div className="flex items-center gap-3 mb-4 text-xs uppercase tracking-wider">
           <StatusPill {...presentSeasonParticipationState(season)} />
-          <span className="text-[var(--color-fg-dim)]">{season.kind}</span>
+          <span className="text-[var(--color-fg-dim)]">{presentSeasonKind(season.kind)}</span>
         </div>
         <div className="flex items-center gap-3 mb-4">
           <h1 className="text-4xl sm:text-5xl font-bold text-[var(--color-fg)] leading-tight">
@@ -248,6 +267,9 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
           </div>
         )}
       </div>
+
+      <SeasonNextStep task={personalTask} />
+      {results && <SeasonResults results={results} slug={seasonSlug} />}
 
       {/* Phase tracker */}
       <Panel contentClassName="p-6">
@@ -267,7 +289,7 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
         </ScrollHint>
       </Panel>
 
-      {/* NEXT MATCHES + STANDINGS — dual column layout */}
+      {/* Upcoming matches and standings share a dual-column layout. */}
       {(upcomingMatches.length > 0 || standings.length > 0) && (
         <div className="grid grid-cols-1 lg:grid-cols-[1.5fr_1fr] gap-4">
           {/* Left: 近期比赛 */}
@@ -305,15 +327,8 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
                         <span className="font-mono text-[10px] text-[var(--color-fg-dim)] uppercase tracking-wider">
                           {stageLabelByKey.get(match.stage) ?? "比赛阶段"}
                         </span>
-                        {match.status === "in_progress" ? (
-                          <span className="font-mono text-[10px] text-[var(--color-ok)]">● LIVE</span>
-                        ) : match.scheduledAt ? (
-                          <span className="font-mono text-[10px] text-[var(--color-fg-dim)]">
-                            {formatCSTDateTime(match.scheduledAt)}
-                          </span>
-                        ) : (
-                          <span className="font-mono text-[10px] text-[var(--color-fg-dim)]">待定</span>
-                        )}
+                        <MatchStatusBadge status={match.status as MatchStatus} scheduledAt={match.scheduledAt} />
+                        {match.scheduledAt && <span className="font-mono text-[10px] text-[var(--color-fg-dim)]">{formatCSTDateTime(match.scheduledAt)}</span>}
                       </div>
                     </div>
                   </Link>
@@ -342,7 +357,20 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
         </div>
       )}
 
-      <SectionHeader title="赛季导航" description="快速访问各功能模块" />
+      {/* Stat 四格：只呈现可计数的赛事事实；阶段名称由真实 Stage 事实驱动。 */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <Stat label="TEAMS" value={publicTeamCount} />
+        <Stat label="PLAYERS" value={publicPlayerCount} />
+        <Stat
+          label="MATCHES"
+          value={(matchCountRow?.total ?? 0) > 0
+            ? `${matchCountRow?.finished ?? 0}/${matchCountRow?.total ?? 0}`
+            : "—"}
+        />
+        <Stat label="STAGE" value={stagePresentation.currentStageLabel ?? "—"} accent />
+      </div>
+
+      <SectionHeader title="赛事导航" description="快速访问各功能模块" />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         {quickLinks.map(({ href, label, description, icon: Icon }) => (
@@ -366,22 +394,70 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
         ))}
       </div>
 
-      {/* Stat 四格 */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <Stat label="TEAMS" value={teamCountRow?.value ?? 0} />
-        <Stat label="PLAYERS" value={participantSummary.count} />
-        <Stat
-          label="MATCHES"
-          value={(matchCountRow?.total ?? 0) > 0
-            ? `${matchCountRow?.finished ?? 0}/${matchCountRow?.total ?? 0}`
-            : "—"}
-        />
-        <Stat label="STAGE" value={presentSeasonStatus(season.status).label} accent />
-      </div>
-    </div>
+      {(() => {
+        const hasSeasonInfo = hasPublicSeasonInfo(seasonInfo);
+        if (!latestSeasonAnnouncement && !hasSeasonInfo) return null;
+        return (
+          <div className={latestSeasonAnnouncement && hasSeasonInfo ? "grid gap-4 lg:grid-cols-2" : "grid gap-4"}>
+            {latestSeasonAnnouncement && (
+              <Panel label={<div className="flex w-full items-center justify-between gap-3"><span>最新公告</span><Button size="sm" variant="ghost" asChild><Link href={`/${seasonSlug}/announcements`}>历史公告 →</Link></Button></div>}>
+                <p className="font-semibold text-[var(--color-fg)]">{latestSeasonAnnouncement.title}</p>
+                <p className="mt-1 text-xs text-[var(--color-fg-dim)]">发布于 {new Date(latestSeasonAnnouncement.publishedAt).toLocaleString("zh-CN")}{latestSeasonAnnouncement.updatedAt !== latestSeasonAnnouncement.publishedAt && ` · 更新于 ${new Date(latestSeasonAnnouncement.updatedAt).toLocaleString("zh-CN")}`}</p>
+                <p className="mt-1 line-clamp-3 text-sm text-[var(--color-fg-mid)]">{toAnnouncementExcerpt(latestSeasonAnnouncement.body)}</p>
+              </Panel>
+            )}
+            {hasSeasonInfo && (
+              <Panel label="赛事信息">
+                {(() => {
+                  const groupCount = activeGroupCount(seasonInfo);
+                  const hasContacts = seasonInfo.contacts.length > 0;
+                  const parts: ReactNode[] = [
+                    <Link key="rules" href={`/${seasonSlug}/info`} className="text-[var(--color-accent)] hover:underline">
+                      {seasonInfo.rules.label}
+                    </Link>,
+                  ];
+                  if (groupCount > 0) {
+                    parts.push(
+                      <Link key="groups" href={`/${seasonSlug}/info`} className="text-[var(--color-accent)] hover:underline">
+                        交流群（{groupCount} 个）
+                      </Link>
+                    );
+                  }
+                  if (hasContacts) {
+                    parts.push(
+                      <Link key="contacts" href={`/${seasonSlug}/info`} className="text-[var(--color-accent)] hover:underline">
+                        联系方式
+                      </Link>
+                    );
+                  }
+                  return (
+                    <div className="flex flex-wrap items-center gap-2 text-sm">
+                      {parts.map((part, idx) => (
+                        <Fragment key={idx}>
+                          {idx > 0 && <span className="text-[var(--color-fg-dim)]">·</span>}
+                          {part}
+                        </Fragment>
+                      ))}
+                    </div>
+                  );
+                })()}
+                <Link href={`/${seasonSlug}/info`} className="mt-3 inline-flex text-sm text-[var(--color-accent)] hover:underline">
+                  查看完整赛事信息 →
+                </Link>
+              </Panel>
+            )}
+          </div>
+        );
+      })()}
+
+    </PageLayout>
   );
 }
 
 function SeasonPageFallback() {
-  return <div className="container mx-auto min-h-[60vh] px-4 py-10" aria-busy="true" />;
+  return (
+    <PageLayout variant="wide" className="min-h-[60vh]" aria-busy="true">
+      <span className="sr-only">正在加载赛事首页…</span>
+    </PageLayout>
+  );
 }

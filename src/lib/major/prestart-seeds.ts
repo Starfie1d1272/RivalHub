@@ -1,8 +1,9 @@
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
+import { writeAuditInTx } from "@/lib/audit/write";
+
 import type { TxDb } from "@/db/client";
 import {
-  auditLogs,
-  eventRosterMembers,
+    eventRosterMembers,
   eventRosters,
   majorPrestartStates,
   majorSeedRecommendationSnapshots,
@@ -24,7 +25,6 @@ import {
 export interface SaveMajorTournamentSeedsInTxInput {
   seasonId: string;
   entryIds: readonly string[];
-  overrideReason: string | null;
   actorId: string;
 }
 
@@ -144,17 +144,7 @@ export async function saveMajorTournamentSeedsInTx(
 
   const snapshot = await loadReadySnapshotInTx(tx, season.id, frozenSet.frozenSetFingerprint);
 
-  const overrideReason = input.overrideReason?.trim() || null;
-  if (overrideReason && overrideReason.length > 500) {
-    throw new AppError(ErrorCode.VALIDATION_FAILED, "人工调整原因不能超过 500 个字符。 ");
-  }
   const decision = analyzeFinalSeedOrder(input.entryIds, snapshot.recommendations);
-  if (decision.divergesFromRecommendation && !overrideReason) {
-    throw new AppError(ErrorCode.VALIDATION_FAILED, "最终种子偏离系统建议时，必须填写人工调整原因。 ");
-  }
-  const persistedOverrideReason = decision.divergesFromRecommendation || decision.resolvesSystemTie
-    ? overrideReason
-    : null;
 
   await tx.delete(majorTournamentSeeds).where(eq(majorTournamentSeeds.seasonId, season.id));
   await tx.insert(majorTournamentSeeds).values(input.entryIds.map((entryId, index) => ({
@@ -165,20 +155,17 @@ export async function saveMajorTournamentSeedsInTx(
   await tx.update(majorPrestartStates).set({
     seedsConfirmedAt: null,
     seedsConfirmedBy: null,
-    seedOverrideReason: persistedOverrideReason,
     updatedAt: new Date(),
   }).where(eq(majorPrestartStates.id, state.id));
-  await tx.insert(auditLogs).values({
+  await writeAuditInTx(tx, {
     seasonId: season.id,
     action: "major_prestart.save_tournament_seeds",
     actorId: input.actorId,
-    targetId: state.id,
-    targetType: "major_prestart_state",
-    meta: {
+    targetId: state.id,meta: {
       seedCount: entrantCapacity,
       seedRecommendationDiverged: decision.divergesFromRecommendation,
       systemTieResolution: decision.resolvesSystemTie,
-      overrideReason: persistedOverrideReason,
+      entryIds: [...input.entryIds],
     },
   });
 }
@@ -218,27 +205,20 @@ export async function confirmMajorTournamentSeedsInTx(
     throw new AppError(ErrorCode.VALIDATION_FAILED, `赛事种子必须完整且唯一覆盖 1–${entrantCapacity}。 `);
   }
   const decision = analyzeFinalSeedOrder(seedRows.map((row) => row.entrantId), snapshot.recommendations);
-  if (decision.divergesFromRecommendation && !state.seedOverrideReason?.trim()) {
-    throw new AppError(ErrorCode.VALIDATION_FAILED, "最终种子偏离系统建议时，必须先保存人工调整原因。 ");
-  }
-
   const now = new Date();
   await tx.update(majorPrestartStates).set({
     seedsConfirmedAt: now,
     seedsConfirmedBy: input.actorId,
     updatedAt: now,
   }).where(eq(majorPrestartStates.id, state.id));
-  await tx.insert(auditLogs).values({
+  await writeAuditInTx(tx, {
     seasonId: season.id,
     action: "major_prestart.confirm_tournament_seeds",
     actorId: input.actorId,
-    targetId: state.id,
-    targetType: "major_prestart_state",
-    meta: {
+    targetId: state.id,meta: {
       seedCount: entrantCapacity,
       seedRecommendationDiverged: decision.divergesFromRecommendation,
       systemTieResolution: decision.resolvesSystemTie,
-      overrideReason: state.seedOverrideReason ?? null,
     },
   });
 }

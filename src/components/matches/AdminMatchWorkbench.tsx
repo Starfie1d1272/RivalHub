@@ -18,6 +18,7 @@ import { DeleteMatchButton } from "@/components/matches/DeleteMatchButton";
 import { CompletedAtInput } from "@/components/matches/CompletedAtInput";
 import { PreMatchOperatorChecklist } from "@/components/matches/PreMatchOperatorChecklist";
 import { PostMatchRecordPanel } from "@/components/matches/PostMatchRecordPanel";
+import { DemoDataReviewPanel } from "@/components/matches/DemoDataReviewPanel";
 import type { AdminMatchWorkbenchData } from "@/lib/admin/matches/types";
 import { getDisplayName } from "@/lib/identity/display-name";
 import { getAdminMatchStartBlockers } from "@/lib/admin/matches/start-blockers";
@@ -90,6 +91,7 @@ export function AdminMatchWorkbench({
   pendingMaps,
   finishedMaps,
   postMatch,
+  demoReviews = [],
 }: AdminMatchWorkbenchProps) {
   const requiresPreflight = match.ownership === "major_stage";
   const startBlockers = getAdminMatchStartBlockers({
@@ -199,7 +201,7 @@ export function AdminMatchWorkbench({
               首发名单
             </h2>
             <p className="mt-1 text-xs leading-5 text-[var(--color-fg-mid)]">
-              这里记录本场实际出场阵容；它可以与赛事主力名单不同，但只能选择对应 frozen event roster 成员。
+              这里记录本场实际出场阵容；可与赛事主力名单不同，但只能从已锁定的本届名单中选择。
             </p>
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
@@ -231,7 +233,7 @@ export function AdminMatchWorkbench({
                 BP、地图与比赛时间
               </h2>
               <p className="mt-1 text-xs leading-5 text-[var(--color-fg-mid)]">
-                先记录实际 BP，再按地图录入回合比分；系列赛比分由既有 match result owner 推导。
+                先记录实际 BP，再按地图录入回合比分；系统将自动计算系列赛比分。
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
@@ -323,6 +325,8 @@ export function AdminMatchWorkbench({
               </p>
             )}
           </section>
+
+          <DemoDataReviewPanel reviews={demoReviews} />
 
           {postMatch && (
             <section aria-labelledby="match-workbench-finished-postmatch" className="space-y-3">

@@ -1,9 +1,9 @@
 "use client";
 
-import Image from "next/image";
+import { PlayerAvatar } from "@/components/players/PlayerAvatar";
 import Link from "next/link";
+import React from "react";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
 import { toast } from "sonner";
 
 import { logoutUser } from "@/actions/auth";
@@ -15,6 +15,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import type { HeaderSession } from "./Header.types";
+import { useHeaderAvatarFailure } from "./HeaderAvatarFailureContext";
+import { getPublicDisplayName } from "@/lib/identity/display-name";
 
 export function getAccountNavigationLinks(userId: string, needsProfile: boolean) {
   return [
@@ -24,61 +26,26 @@ export function getAccountNavigationLinks(userId: string, needsProfile: boolean)
   ];
 }
 
-function AvatarButton({
-  label,
-  avatarUrl,
-  imgError,
-  onImgError,
-}: {
-  label: string;
-  avatarUrl?: string | null;
-  imgError: boolean;
-  onImgError: () => void;
-}) {
-  const initial = label.charAt(0).toUpperCase();
-
-  if (avatarUrl && !imgError) {
-    return (
-      <Image
-        src={avatarUrl}
-        alt={label}
-        width={32}
-        height={32}
-        className="inline-flex w-8 h-8 rounded-full border border-[var(--color-border)] object-cover"
-        referrerPolicy="no-referrer"
-        onError={onImgError}
-      />
-    );
-  }
-
-  return (
-    <span
-      className="inline-flex items-center justify-center w-8 h-8 rounded-full text-sm font-semibold text-white"
-      style={{ backgroundColor: "var(--color-accent)" }}
-    >
-      {initial}
-    </span>
-  );
-}
-
 interface HeaderViewerClientProps {
   variant: "desktop" | "mobile";
   session: HeaderSession | null;
   avatarUrl?: string | null;
-  steamName?: string | null;
+  personaName?: string | null;
   displayName?: string | null;
+  perfectName?: string | null;
 }
 
 export function HeaderViewerClient({
   variant,
   session,
   avatarUrl,
-  steamName,
+  personaName,
   displayName,
+  perfectName,
 }: HeaderViewerClientProps) {
   const router = useRouter();
-  const [imgError, setImgError] = useState(false);
-  const userLabel = displayName ?? steamName ?? "RivalHub";
+  const { avatarFailed, markAvatarFailed } = useHeaderAvatarFailure(avatarUrl);
+  const userLabel = getPublicDisplayName({ displayName, perfectName, personaName });
 
   async function handleLogout() {
     const result = await logoutUser();
@@ -97,11 +64,11 @@ export function HeaderViewerClient({
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button className="focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] rounded-full">
-                <AvatarButton
-                  label={userLabel}
+                <PlayerAvatar
+                  name={userLabel} size="sm"
                   avatarUrl={avatarUrl}
-                  imgError={imgError}
-                  onImgError={() => setImgError(true)}
+                  failed={avatarFailed}
+                  onError={markAvatarFailed}
                 />
               </button>
             </DropdownMenuTrigger>
@@ -153,11 +120,11 @@ export function HeaderViewerClient({
   return session ? (
     <>
       <div className="flex items-center gap-2 px-3 py-1.5">
-        <AvatarButton
-          label={userLabel}
+        <PlayerAvatar
+          name={userLabel} size="sm"
           avatarUrl={avatarUrl}
-          imgError={imgError}
-          onImgError={() => setImgError(true)}
+          failed={avatarFailed}
+          onError={markAvatarFailed}
         />
         <span className="text-sm text-[var(--color-fg-dim)] truncate">{userLabel}</span>
       </div>

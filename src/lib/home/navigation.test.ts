@@ -58,7 +58,7 @@ describe("featured season selector", () => {
     expect(selectFeaturedSeason([newestArchived, newerRegistration, oldPlaying])?.id).toBe("playing");
   });
 
-  it("uses newer creation time as the deterministic tie breaker", () => {
+  it("uses a stable identity tie breaker when no operational date exists", () => {
     const older = featuredSeason({
       id: "older",
       status: "voting",
@@ -94,7 +94,7 @@ describe("home navigation helpers", () => {
       "matches",
     ]);
     expect(tiers.tier3Entries.map((entry) => entry.key)).toEqual([
-      "stats",
+      "players",
       "seasons",
       "login",
     ]);
@@ -114,7 +114,7 @@ describe("home navigation helpers", () => {
       "register",
       "teams",
       "matches",
-      "stats",
+      "players",
       "seasons",
       "login",
     ]);
@@ -122,7 +122,7 @@ describe("home navigation helpers", () => {
 
   it("describes the active phase eyebrow", () => {
     expect(buildHomeEyebrow("voting", "nju-rivals-2026")).toEqual({
-      text: "● CAPTAIN VOTING",
+      text: "● 队长投票中",
       color: "var(--color-warn)",
     });
 
@@ -131,7 +131,7 @@ describe("home navigation helpers", () => {
       color: "var(--color-accent)",
     });
     expect(buildHomeEyebrow("registration", "nju-rivals-2026", null)).toEqual({
-      text: "● REGISTRATION UPCOMING",
+      text: "● 报名即将开放",
       color: "var(--color-warn)",
     });
   });
@@ -165,8 +165,8 @@ describe("home navigation helpers", () => {
     }, { isAuthenticated: false });
 
     expect(entries.some((entry) => entry.key === "register")).toBe(false);
-    expect(entries.find((entry) => entry.key === "captains")).toMatchObject({ label: "队长投票结果" });
-    expect(entries.find((entry) => entry.key === "draft")).toMatchObject({ label: "选秀回顾" });
+    expect(entries.find((entry) => entry.key === "captains")).toMatchObject({ label: "队长投票", meta: "结果已归档" });
+    expect(entries.find((entry) => entry.key === "draft")).toMatchObject({ label: "选秀", meta: "选人回顾" });
     expect(entries.map((entry) => entry.key)).toContain("teams");
     expect(entries.map((entry) => entry.key)).toContain("matches");
     expect(entries.map((entry) => entry.key)).toContain("stats");

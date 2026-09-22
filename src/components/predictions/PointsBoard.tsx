@@ -15,8 +15,6 @@ export function PointsBoard({
 }) {
   const [amounts, setAmounts] = useState<Record<string, string>>({});
   const [sides, setSides] = useState<Record<string, string>>({});
-  const name = (id: string) =>
-    data.base.teams.find((t) => t.teamId === id)?.name ?? "队伍";
   const available = BigInt(data.balance) > BigInt(0) ? data.balance : "0";
   return (
     <div className="space-y-5">
@@ -45,14 +43,14 @@ export function PointsBoard({
       )}
       <div className="grid gap-4 xl:grid-cols-2">
         {data.markets.map((m) => {
-          const total = BigInt(m.aPool) + BigInt(m.bPool);
+          const total = m.options.reduce((sum, option) => sum + BigInt(option.pool), BigInt(0));
           const mine = BigInt(m.myStake);
-          const myPool = BigInt(m.mySide === m.a ? m.aPool : m.bPool);
+          const myPool = BigInt(m.options.find((option) => option.id === m.myOptionId)?.pool ?? "0");
           const estimate =
             mine > BigInt(0) && myPool > BigInt(0)
               ? (mine + (mine * (total - myPool)) / myPool).toString()
               : null;
-          const side = m.mySide ?? sides[m.id] ?? m.a;
+          const side = m.myOptionId ?? sides[m.id] ?? m.options[0]?.id ?? "";
           return (
             <Panel
               key={m.id}
@@ -63,30 +61,30 @@ export function PointsBoard({
             >
               <div className="space-y-3">
                 <h3 className="text-base font-semibold">
-                  {name(m.a)} vs {name(m.b)}
+                  {m.title} · {m.options.map((option) => option.label).join(" / ")}
                 </h3>
                 <p className="text-xs text-[var(--color-fg-mid)]">
                   截止 {new Date(m.deadline).toLocaleString("zh-CN")} ·{" "}
                   {m.participants} 人参与
                 </p>
                 <div className="grid grid-cols-2 gap-2">
-                  {[m.a, m.b].map((id) => (
+                  {m.options.map(({ id, label, pool }) => (
                     <Button
                       key={id}
                       variant={side === id ? "default" : "outline"}
-                      disabled={busy || m.locked || !!m.mySide}
+                      disabled={busy || m.locked || !!m.myOptionId}
                       className="h-auto min-h-16 whitespace-normal"
                       aria-pressed={side === id}
                       onClick={() => setSides({ ...sides, [m.id]: id })}
                     >
                       <span>
-                        {name(id)}
+                        {label}
                         <span className="block text-xs">
-                          投入 {id === m.a ? m.aPool : m.bPool} ·{" "}
+                          投入 {pool} ·{" "}
                           {total > BigInt(0)
                             ? (
                                 Number(
-                                  (BigInt(id === m.a ? m.aPool : m.bPool) *
+                                  (BigInt(pool) *
                                     BigInt(1000)) /
                                     total,
                                 ) / 10
@@ -101,7 +99,7 @@ export function PointsBoard({
                 <p className="text-xs">投入占比是社区选择，不代表获胜概率。</p>
                 {mine > BigInt(0) && (
                   <p className="text-sm">
-                    我已投入 {m.myStake} → {name(m.mySide!)}
+                    我已投入 {m.myStake} → {m.options.find((option) => option.id === m.myOptionId)?.label}
                     {estimate && m.state === "pending"
                       ? `；当前预计返还 ${estimate}（随池变化）`
                       : ""}
@@ -111,7 +109,7 @@ export function PointsBoard({
                   <p role="status">
                     {m.state === "refunded"
                       ? "已退款"
-                      : `已按官方结果结算${m.winner ? ` · ${name(m.winner)} 获胜` : ""}`}{" "}
+                      : `已按官方结果结算${m.winningOptionIds.length ? ` · ${m.options.filter((option) => m.winningOptionIds.includes(option.id)).map((option) => option.label).join("、")}` : ""}`}{" "}
                     · 结算记录 {m.revisions} 版
                   </p>
                 ) : m.locked ? (

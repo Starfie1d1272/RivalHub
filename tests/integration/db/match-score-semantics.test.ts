@@ -15,7 +15,7 @@ vi.mock("@/lib/revalidation", () => ({
   revalidateMatchPaths: vi.fn(),
 }));
 
-vi.mock("@/actions/transitions", () => ({
+vi.mock("@/lib/seasons/transitions", () => ({
   maybeFinishSeason: vi.fn(),
 }));
 

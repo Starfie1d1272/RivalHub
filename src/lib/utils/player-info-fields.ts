@@ -4,7 +4,7 @@ export const PLAYER_INFO_FIELDS = [
   { key: "competitionHistory", label: "经历" },
 ] as const;
 
-/** Registration fields explicitly approved for anonymous player profiles. */
+/** User-owned player-declared fields explicitly approved for public Player Profiles. */
 export const PUBLIC_PLAYER_INFO_FIELDS = [
   { key: "gameplayStyle", label: "风格" },
   { key: "competitionHistory", label: "经历" },

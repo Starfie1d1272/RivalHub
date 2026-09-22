@@ -1,11 +1,14 @@
 import { and, eq } from "drizzle-orm";
+import { writeAuditInTx } from "@/lib/audit/write";
+
 import type { TxDb } from "@/db/client";
-import { auditLogs, majorStageRuns, matches } from "@/db/schema";
+import { majorStageRuns, matches } from "@/db/schema";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { validateSeriesScore } from "@/lib/matches/result-rules";
 import { assertSeasonAllowsTournamentMutationInTx } from "@/lib/postevent/guard";
 import { parseMajorRunSnapshot } from "@/lib/major/run-snapshot";
 import { loadMajorStageEntrantsInTx } from "@/lib/major/run-entrants";
+import { majorAppError } from "@/lib/major/errors";
 import {
   generateNextMajorSwissRound,
   projectMajorSwissStage,
@@ -70,7 +73,7 @@ function completedFact(match: typeof matches.$inferSelect): MajorSwissMatchFact 
 /**
  * Atomically accepts one already-complete Major Swiss round and creates the
  * next round's managed matches. The locked StageRun row serializes retries and
- * concurrent operator clicks; no legacy swiss_standings data is consulted.
+ * concurrent operator clicks.
  */
 export async function finalizeMajorSwissRoundInTransaction(
   tx: TxDb,
@@ -79,7 +82,7 @@ export async function finalizeMajorSwissRoundInTransaction(
   await assertSeasonAllowsTournamentMutationInTx(tx, input.seasonId);
   const [stageRun] = await tx.select().from(majorStageRuns)
     .where(and(eq(majorStageRuns.id, input.stageRunId), eq(majorStageRuns.seasonId, input.seasonId))).for("update");
-  if (!stageRun) throw new AppError(ErrorCode.NOT_FOUND, "指定的 Major StageRun 不属于当前赛事。 ");
+  if (!stageRun) throw majorAppError(ErrorCode.NOT_FOUND, "sourceStageNotFound");
 
   const stage = frozenSwissStage(stageRun.ruleSnapshot, stageRun.stageKey);
   if (stage.key !== stageRun.stageKey) {
@@ -172,13 +175,11 @@ export async function finalizeMajorSwissRoundInTransaction(
     }
     createdNextRound = created.length;
   }
-  await tx.insert(auditLogs).values({
+  await writeAuditInTx(tx, {
     seasonId: input.seasonId,
     action: "major.swiss.finalize_round",
     actorId: input.actorId,
-    targetId: stageRun.id,
-    targetType: "major_stage_run",
-    meta: {
+    targetId: stageRun.id,meta: {
       stageKey: stage.key,
       finalizedRound: input.expectedRound,
       completedMatches: currentFacts.length,

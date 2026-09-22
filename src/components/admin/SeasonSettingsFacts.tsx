@@ -104,7 +104,7 @@ export function TeamQualificationSummary({ config }: { config: TeamRegistrationC
         <div><dt className="text-[var(--color-fg-mid)]">在读成员下限</dt><dd className="mt-1 font-medium">{config.minEnrolledMembers} 人</dd></div>
         <div><dt className="text-[var(--color-fg-mid)]">外校成员上限</dt><dd className="mt-1 font-medium">{config.maxExternalMembers} 人</dd></div>
       </dl>
-      <p className="text-xs leading-5 text-[var(--color-fg-dim)]">以上是当前赛事配置的 canonical 资格事实；实际报名、名单与首发资格由对应 qualification owner 在服务端复核。</p>
+      <p className="text-xs leading-5 text-[var(--color-fg-dim)]">报名名单和每场首发均需符合本届资格要求。</p>
     </div>
   );
 }
@@ -121,7 +121,7 @@ export function TeamRegistrationSummary({ config }: { config: TeamRegistrationCo
         <div><dt className="text-[var(--color-fg-mid)]">报名后锁定名单</dt><dd className="mt-1 font-medium">{config.lockAfterRegistration ? "是" : "否"}</dd></div>
         <div><dt className="text-[var(--color-fg-mid)]">位置要求</dt><dd className="mt-1 font-medium">{config.requirePositions ? `每位置最多 ${config.maxPerPositionPerTeam} 人` : "无额外位置要求"}</dd></div>
       </dl>
-      <p className="text-xs leading-5 text-[var(--color-fg-dim)]">这些是当前赛事保存的 roster/registration canonical facts；内置赛事由 template owner 固定。</p>
+      <p className="text-xs leading-5 text-[var(--color-fg-dim)]">内置赛事的报名和名单规则由赛事体系统一确定。</p>
     </div>
   );
 }
@@ -154,7 +154,7 @@ export function SoloQualificationSummary({
         <div><dt className="text-[var(--color-fg-mid)]">每位置上限</dt><dd className="mt-1 font-medium">{maxPerPosition} 人</dd></div>
         <div><dt className="text-[var(--color-fg-mid)]">截图链接数量</dt><dd className="mt-1 font-medium">{screenshotCount}</dd></div>
       </dl>
-      <p className="text-xs leading-5 text-[var(--color-fg-dim)]">这里展示当前赛事保存的 canonical registrationConfig；报名时由服务端 qualification owner 复核。</p>
+      <p className="text-xs leading-5 text-[var(--color-fg-dim)]">提交报名时将按以上要求核验参赛资格。</p>
     </div>
   );
 }
@@ -180,7 +180,7 @@ export function AffiliationRulesSummary({ rules }: { rules: readonly Institution
           ))}
         </ul>
       )}
-      <p className="text-xs leading-5 text-[var(--color-fg-dim)]">这里仅展示赛事保存的 canonical affiliation rule，不在页面复制 qualification evaluator。</p>
+      <p className="text-xs leading-5 text-[var(--color-fg-dim)]">报名名单和首发阵容均按以上学校归属要求核验。</p>
     </div>
   );
 }
@@ -188,12 +188,12 @@ export function AffiliationRulesSummary({ rules }: { rules: readonly Institution
 export function CompetitiveReferenceSummary({
   config,
   platforms,
-  frozen,
+  phase,
   policyProvenance,
 }: {
   config: TeamRegistrationConfig;
   platforms: readonly CompetitivePlatformOption[];
-  frozen: boolean;
+  phase: SeasonEditPhase;
   policyProvenance?: ConversionPolicyProvenance | null;
 }) {
   const profile = config.competitiveProfile;
@@ -201,6 +201,9 @@ export function CompetitiveReferenceSummary({
     return <p className="text-sm text-[var(--color-fg-mid)]">当前赛事未启用队伍竞技档案要求；报名资格不会从这里推断竞技事实。</p>;
   }
 
+  const frozen = phase !== "draft" && phase !== "published_preopen";
+  const pendingContext = "报名开放时自动确定";
+  const contextValue = (value: string) => !frozen ? pendingContext : value === "未配置" ? "本届未记录该项参考资料" : value;
   const evidencePolicy = profile.evidencePolicy;
   const sourceSelection = evidencePolicy?.sourceSelection ?? "primary_then_fallback";
   const policyVersion = profile.conversionPolicyVersion;
@@ -219,22 +222,21 @@ export function CompetitiveReferenceSummary({
     <div className="space-y-4">
       <dl className="grid gap-3 text-sm sm:grid-cols-2">
         <div><dt className="text-[var(--color-fg-mid)]">主平台</dt><dd className="mt-1 font-medium">{primaryPlatform}</dd></div>
-        <div><dt className="text-[var(--color-fg-mid)]">当前平台赛季</dt><dd className="mt-1 font-medium">{currentSeason}</dd></div>
-        <div><dt className="text-[var(--color-fg-mid)]">上一平台赛季</dt><dd className="mt-1 font-medium">{previousSeason}</dd></div>
-        <div><dt className="text-[var(--color-fg-mid)]">历史参考赛季（20%）</dt><dd className="mt-1 font-medium">{referenceSeason}</dd></div>
-        <div className="sm:col-span-2"><dt className="text-[var(--color-fg-mid)]">近期竞技事实（30%）</dt><dd className="mt-1 font-medium">{recentSeasons.length > 0 ? recentSeasons.join("、") : "未配置"}</dd></div>
-        <div className="sm:col-span-2"><dt className="text-[var(--color-fg-mid)]">竞技证据来源</dt><dd className="mt-1 font-medium">{sourceSelection === "strongest_equivalent" ? "主比较尺度：Perfect World；Perfect 与 5E 等效事实按对应槽位自动取更强者，完全相同时优先 Perfect。" : "历史兼容：主平台优先，5E 仅在主平台资料不可用时作为等效补充。"}</dd></div>
-        <div><dt className="text-[var(--color-fg-mid)]">冻结段位顺序</dt><dd className="mt-1 font-medium">{profile.rankOrder.length > 0 ? `${profile.rankOrder.length} 个段位` : "未配置"}</dd></div>
+        <div><dt className="text-[var(--color-fg-mid)]">当前平台赛季</dt><dd className="mt-1 font-medium">{contextValue(currentSeason)}</dd></div>
+        <div><dt className="text-[var(--color-fg-mid)]">上一平台赛季</dt><dd className="mt-1 font-medium">{contextValue(previousSeason)}</dd></div>
+        <div><dt className="text-[var(--color-fg-mid)]">历史参考赛季（20%）</dt><dd className="mt-1 font-medium">{contextValue(referenceSeason)}</dd></div>
+        <div className="sm:col-span-2"><dt className="text-[var(--color-fg-mid)]">近期竞技事实（30%）</dt><dd className="mt-1 font-medium">{contextValue(recentSeasons.length > 0 ? recentSeasons.join("、") : "未配置")}</dd></div>
+        <div className="sm:col-span-2"><dt className="text-[var(--color-fg-mid)]">竞技证据来源</dt><dd className="mt-1 font-medium">{!frozen ? pendingContext : sourceSelection === "strongest_equivalent" ? "Perfect World 与 5E 数据按赛事换算规则比较，使用较高的有效竞技水平；相同时优先 Perfect World。" : "历史兼容：主平台优先，5E 仅在主平台资料不可用时作为等效补充。"}</dd></div>
+        <div><dt className="text-[var(--color-fg-mid)]">冻结段位顺序</dt><dd className="mt-1 font-medium">{contextValue(profile.rankOrder.length > 0 ? `${profile.rankOrder.length} 个段位` : "未配置")}</dd></div>
         <div><dt className="text-[var(--color-fg-mid)]">外校实力星差上限</dt><dd className="mt-1 font-medium">{profile.externalStrengthMaxStarGap ?? 3} 星</dd></div>
       </dl>
 
       {policyVersion || policyId || profile.fallbackConversion ? (
-        <FrozenFact title={`${conversionLabel} · ConversionPolicy ${policyVersion ?? "未标记版本"}`}>
+        <FrozenFact title={`${conversionLabel} · 换算规则 ${policyVersion ?? profile.fallbackConversion?.version ?? "历史版本未记录"}`}>
           {frozen
-            ? "本届已在报名开放时冻结；全局 policy 后续变化不会影响本届。"
-            : "当前赛事绑定已批准的 policy identity；报名开放时会把对应赛季与换算快照一并冻结。"}
-          {policyId && <span className="mt-1 block font-mono text-xs">策略 ID：{policyId}</span>}
-          {profile.fallbackConversion?.version && <span className="mt-1 block text-xs">事件换算快照版本：{profile.fallbackConversion.version} · 来源：{sourcePlatform ?? "ConversionPolicy"}</span>}
+            ? "本届已在报名开放时锁定；全局规则后续变化不会影响本届。"
+            : policyId && policyVersion ? "跨平台换算规则版本已锁定；平台参考赛季、段位顺序与换算数据将在报名开放时确定。" : "本届保留历史换算数据，未记录绑定的换算规则版本。"}
+          {profile.fallbackConversion?.version && <span className="mt-1 block text-xs">本届换算数据版本：{profile.fallbackConversion.version} · 来源：{sourcePlatform ?? "赛事换算规则"}</span>}
           {policyProvenance && (policyProvenance.sourceNote || policyProvenance.rationale || policyProvenance.changeSummary) && (
             <dl className="mt-3 grid gap-2 border-t border-[var(--color-info-edge)] pt-3 text-xs sm:grid-cols-2">
               {policyProvenance.sourceNote && <div><dt className="text-[var(--color-fg-mid)]">策略来源说明</dt><dd className="mt-1 leading-5">{policyProvenance.sourceNote}</dd></div>}
@@ -244,8 +246,8 @@ export function CompetitiveReferenceSummary({
           )}
         </FrozenFact>
       ) : (
-        <FrozenFact title={`${conversionLabel} · ConversionPolicy 尚未绑定`}>
-          发布时由服务端选择已批准的 policy；这里不手工编辑 mapping 或 version。实际开放报名时，平台赛季、段位顺序与换算快照由 canonical lifecycle owner 冻结。
+        <FrozenFact title={`${conversionLabel} · ${phase === "draft" ? "发布时自动锁定换算规则" : "历史换算规则记录"}`}>
+          {phase === "draft" ? "发布时将自动选择当前启用的跨平台换算规则；平台参考赛季与段位顺序在报名开放时自动确定。" : "本届未记录绑定的换算规则版本，请按本届已保存的竞技资料与换算数据核对。"}
         </FrozenFact>
       )}
     </div>
@@ -256,7 +258,7 @@ export function StagePlanSummary({ stagePlan }: { stagePlan: StagePlan }) {
   if (stagePlan.length === 0) return <p className="text-sm text-[var(--color-fg-mid)]">当前没有配置比赛阶段。</p>;
   return (
     <div className="space-y-3">
-      <p className="text-xs text-[var(--color-fg-dim)]">内置赛事的 StagePlan 由 template canonical owner 固定；此处只读展示阶段与赛制事实。</p>
+      <p className="text-xs text-[var(--color-fg-dim)]">以下为本届赛事的比赛阶段与赛制安排。</p>
       <ol className="space-y-2">
         {stagePlan.map((stage, index) => (
           <li key={`${stage.key}-${index}`} className="rounded-sm border border-[var(--color-border)] px-3 py-2.5 text-sm">

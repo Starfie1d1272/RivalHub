@@ -1,8 +1,10 @@
 import "server-only";
 
+import { writeAuditInTx } from "@/lib/audit/write";
+
 import { and, eq, sql } from "drizzle-orm";
 import type { TxDb } from "@/db/client";
-import { auditLogs, users } from "@/db/schema";
+import { users } from "@/db/schema";
 import { normalizeEmail } from "@/lib/utils/email";
 
 const OWNER_BOOTSTRAP_LOCK_KEY = "rivalhub.owner.bootstrap";
@@ -49,13 +51,11 @@ export async function bootstrapConfiguredOwnerInTx(
     .returning();
   if (!promoted) return user;
 
-  await tx.insert(auditLogs).values({
+  await writeAuditInTx(tx, {
     seasonId: null,
     action: "user.owner_bootstrap",
     actorId: user.id,
-    targetId: user.id,
-    targetType: "user",
-    meta: { email: ownerEmail, role: "super_admin", reason: "configured_owner_email" },
+    targetId: user.id,meta: { email: ownerEmail, role: "super_admin", reason: "configured_owner_email" },
   });
 
   return promoted;

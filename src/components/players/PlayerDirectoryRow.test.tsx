@@ -9,6 +9,7 @@ import { PlayerDirectoryRow } from "./PlayerDirectoryRow";
 const player = {
   userId: "player-1",
   registrationId: "registration-1",
+  avatarUrl: null,
   displayName: "Star Entry",
   primaryPosition: "opener",
   secondaryPosition: "closer",
@@ -31,8 +32,8 @@ describe("PlayerDirectoryRow", () => {
       />,
     );
 
-    expect(screen.getByText("Maps")).toBeInTheDocument();
-    expect(screen.getByText("Secondary Closer")).toBeInTheDocument();
+    expect(screen.getByText("地图")).toBeInTheDocument();
+    expect(screen.getByText("副位置 Closer")).toBeInTheDocument();
     expect(screen.getByText("8")).toBeInTheDocument();
     expect(screen.getByText("1.21")).toBeInTheDocument();
     expect(screen.getByText("82.4")).toBeInTheDocument();
@@ -42,12 +43,8 @@ describe("PlayerDirectoryRow", () => {
   it("keeps registration context when verified stats are missing", () => {
     render(<PlayerDirectoryRow player={player} />);
 
-    expect(screen.getByText("No verified stats")).toBeInTheDocument();
-    expect(screen.getByText("Peak Rank")).toBeInTheDocument();
-    expect(screen.getByText("S")).toBeInTheDocument();
-    expect(screen.getByText("Peak RT")).toBeInTheDocument();
-    expect(screen.getByText("1.42")).toBeInTheDocument();
-    expect(screen.getByText("Current Rank")).toBeInTheDocument();
-    expect(screen.getByText("A+")).toBeInTheDocument();
+    expect(screen.getByText("暂无正式比赛数据")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Star Entry" })).toHaveAttribute("href", "/players/player-1");
+    expect(screen.queryByText("峰值 Rating")).not.toBeInTheDocument();
   });
 });

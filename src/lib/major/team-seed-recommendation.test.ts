@@ -85,6 +85,70 @@ describe("buildTeamSeedRecommendations", () => {
 });
 
 describe("seed recommendation snapshot contract", () => {
+  it("keeps the live candidate preview and frozen snapshot on the same evaluator", () => {
+    const inputs = [
+      { teamId: "weak", teamName: "Weak", starters: five("weak", "A") },
+      { teamId: "strong", teamName: "Strong", starters: five("strong", "C") },
+    ];
+    const live = buildTeamSeedRecommendations(inputs, config);
+    const snapshot = buildSeedRecommendationSnapshotPayload({
+      seasonId: "season-1",
+      frozenTeams: inputs.map((team, index) => ({
+        identity: {
+          entrantId: `entrant-${index + 1}`,
+          competitionEntryId: team.teamId,
+          eventRosterId: `roster-${index + 1}`,
+          sourceRosterRevisionId: `revision-${index + 1}`,
+          teamName: team.teamName,
+          members: team.starters.map((starter) => ({ userId: starter.userId, participantId: null, educationVerificationId: `edu-${starter.userId}`, isPrimaryStarter: true })),
+        },
+        starters: team.starters,
+      })),
+      competitiveContext: config,
+    });
+
+    const summarize = (row: typeof live[number]) => ({
+      teamId: row.teamId,
+      available: row.available,
+      teamSeedStrength: row.teamSeedStrength,
+      teamSeedStrengthScaled: row.teamSeedStrengthScaled,
+      recommendationRank: row.recommendationRank,
+      tieGroup: row.tieGroup,
+      displayOrder: row.displayOrder,
+      starters: row.starters.map((starter) => ({
+        userId: starter.userId,
+        available: starter.breakdown.available,
+        blockers: starter.breakdown.blockers,
+        weightedRank: starter.breakdown.weightedRank,
+        historicalValue: starter.breakdown.historicalValue,
+        previousValue: starter.breakdown.previousValue,
+        currentValue: starter.breakdown.currentValue,
+        historicalRating: starter.breakdown.historicalRating,
+        effectiveRecentPeakRank: starter.breakdown.effectiveRecentPeak?.rank ?? null,
+      })),
+    });
+    expect([...live].sort((left, right) => left.teamId.localeCompare(right.teamId)).map(summarize)).toEqual([...snapshot.recommendations].sort((left, right) => left.competitionEntryId.localeCompare(right.competitionEntryId)).map((row) => ({
+      teamId: row.competitionEntryId,
+      available: row.teamSeedStrength !== null,
+      teamSeedStrength: row.teamSeedStrength,
+      teamSeedStrengthScaled: row.teamSeedStrengthScaled,
+      recommendationRank: row.recommendationRank,
+      tieGroup: row.tieGroup,
+      displayOrder: row.displayOrder,
+      starters: row.starters.map((starter) => ({
+        userId: starter.userId,
+        available: starter.breakdown.available,
+        blockers: starter.breakdown.blockers,
+        weightedRank: starter.breakdown.weightedRank,
+        historicalValue: starter.breakdown.historicalValue,
+        previousValue: starter.breakdown.previousValue,
+        currentValue: starter.breakdown.currentValue,
+        historicalRating: starter.breakdown.historicalRating,
+        effectiveRecentPeakRank: starter.breakdown.effectiveRecentPeak?.rank ?? null,
+      })),
+    })));
+  });
+
   it("persists a versioned payload with the frozen set, provenance, and five starters", () => {
     const frozenTeams = [{
       identity: {

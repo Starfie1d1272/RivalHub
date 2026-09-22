@@ -19,6 +19,11 @@ import type {
 import { seasons } from "./seasons";
 import { competitionEntries } from "./competition-entries";
 
+/**
+ * @deprecated N/N+1 compatibility shell.
+ * No application consumer may depend on this enum.
+ * Remove only after the relation contract has been cleaned up safely.
+ */
 export const majorPrestartIssueCategoryEnum = pgEnum("major_prestart_issue_category", [
   "qualification",
   "administration",
@@ -36,7 +41,7 @@ export const majorPrestartStates = pgTable("major_prestart_states", {
   /** Explicit confirmation is cleared by every seed edit. */
   seedsConfirmedAt: timestamp("seeds_confirmed_at", { withTimezone: true }),
   seedsConfirmedBy: text("seeds_confirmed_by"),
-  /** Required when final human seeds cross a system recommendation group. */
+  /** Historical committee notes; preserved, no longer written or required by seed operations. */
   seedOverrideReason: text("seed_override_reason"),
   /** The confirmed 1–32 tournament order becomes immutable when the Major starts. */
   seedsLockedAt: timestamp("seeds_locked_at", { withTimezone: true }),
@@ -104,7 +109,12 @@ export const majorSeedRecommendationSnapshots = pgTable("major_seed_recommendati
   recommendations: jsonb("recommendations").$type<SeedRecommendationTeamV1[]>().notNull(),
 });
 
-/** Explicit work items. Empty means none are recorded, never an inferred fact. */
+/**
+ * @deprecated N/N+1 compatibility shell.
+ * No application consumer may depend on this relation.
+ * Drop only after the release containing the consumer removal becomes the
+ * previous production stable.
+ */
 export const majorPrestartIssues = pgTable("major_prestart_issues", {
   id: uuid("id").primaryKey().defaultRandom(),
   seasonId: uuid("season_id").notNull().references(() => seasons.id),
@@ -122,4 +132,5 @@ export type MajorPrestartState = typeof majorPrestartStates.$inferSelect;
 export type MajorTournamentEntrant = typeof majorTournamentEntrants.$inferSelect;
 export type MajorTournamentSeed = typeof majorTournamentSeeds.$inferSelect;
 export type MajorSeedRecommendationSnapshot = typeof majorSeedRecommendationSnapshots.$inferSelect;
+/** @deprecated N/N+1 compatibility shell; no active application consumer. */
 export type MajorPrestartIssue = typeof majorPrestartIssues.$inferSelect;

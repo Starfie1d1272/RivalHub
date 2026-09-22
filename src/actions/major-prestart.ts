@@ -1,15 +1,15 @@
 "use server";
 
+import { writeAuditInTx } from "@/lib/audit/write";
+
 import { and, eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/db/client";
 import {
-  auditLogs,
   eventRosterMembers,
   eventRosters,
   majorTournamentEntrants,
-  majorPrestartIssues,
   seasons,
 } from "@/db/schema";
 import { actionError, failValidation } from "@/lib/action-utils";
@@ -30,11 +30,10 @@ import { assertMajorPrestartEntrantsMutable, ensureMajorPrestartStateInTx } from
 import { confirmMajorTournamentSeedsInTx, saveMajorTournamentSeedsInTx } from "@/lib/major/prestart-seeds";
 
 const uuid = z.guid();
-const issueCategory = z.enum(["qualification", "administration"]);
 const rosterRepairInput = z.object({ seasonId: uuid, entrantId: uuid, userIds: z.array(uuid).min(1).max(16), reason: z.string().trim().min(1).max(1000) });
 const rosterExceptionInput = z.object({ seasonId: uuid, entrantId: uuid, reason: z.string().trim().min(1).max(1000) });
 const entrantSelectionInput = z.object({ seasonId: uuid, competitionEntryIds: z.array(uuid) });
-const tournamentSeedsInput = z.object({ seasonId: uuid, entryIds: z.array(uuid), overrideReason: z.string().trim().max(500).optional() });
+const tournamentSeedsInput = z.object({ seasonId: uuid, entryIds: z.array(uuid) });
 
 
 function standardMajorOrThrow(season: typeof seasons.$inferSelect): void {
@@ -129,9 +128,9 @@ export async function confirmMajorPrestartRoster(input: z.input<typeof rosterExc
       if (duplicate.rows.length > 0) throw new AppError(ErrorCode.VALIDATION_FAILED, "同一选手不能同时出现在多支正式参赛队的最终名单中。");
       const now = new Date();
       await tx.update(eventRosters).set({ status: "confirmed", confirmedAt: now, confirmedBy: auditActorId(admin), updatedAt: now }).where(eq(eventRosters.id, coherent.eventRoster.id));
-      await tx.insert(auditLogs).values({
+      await writeAuditInTx(tx, {
         seasonId: season.id, action: "major_prestart.confirm_roster", actorId: auditActorId(admin),
-        targetId: entrant.id, targetType: "major_tournament_entrant", meta: { rosterSize: roster.length, reason: parsed.data.reason },
+        targetId: entrant.id,meta: { rosterSize: roster.length, reason: parsed.data.reason },
       });
     });
     revalidateMajorPrestart(season.slug);
@@ -155,52 +154,12 @@ export async function reopenMajorPrestartRoster(input: z.input<typeof rosterExce
       if (roster.status === "frozen") throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "最终赛事名单已冻结，不能重新开放。");
       if (roster.status === "confirmed") {
         await tx.update(eventRosters).set({ status: "preparing", confirmedAt: null, confirmedBy: null, frozenAt: null, frozenBy: null, updatedAt: new Date() }).where(eq(eventRosters.id, roster.id));
-        await tx.insert(auditLogs).values({ seasonId: season.id, action: "major_prestart.reopen_roster", actorId: auditActorId(admin), targetId: entrant.id, targetType: "major_tournament_entrant", meta: { eventRosterId: roster.id, reason: parsed.data.reason } });
+        await writeAuditInTx(tx, { seasonId: season.id, action: "major_prestart.reopen_roster", actorId: auditActorId(admin), targetId: entrant.id,meta: { eventRosterId: roster.id, reason: parsed.data.reason } });
       }
     });
     revalidateMajorPrestart(season.slug);
     return ok(undefined);
   } catch (error) { return actionError("reopenMajorPrestartRoster", error); }
-}
-
-export async function addMajorPrestartIssue(input: { seasonId: string; category: "qualification" | "administration"; label: string }): Promise<ActionResult<void>> {
-  const parsed = z.object({ seasonId: uuid, category: issueCategory, label: z.string().trim().min(1).max(240) }).safeParse(input);
-  if (!parsed.success) return failValidation("待处理事项输入无效。");
-  try {
-    const { season, admin } = await seasonAndAdminOrThrow(parsed.data.seasonId);
-    await db.transaction(async (tx) => {
-      const state = await ensureMajorPrestartStateInTx(tx, season.id);
-      assertMajorPrestartEntrantsMutable(state);
-      const [issue] = await tx.insert(majorPrestartIssues).values({ ...parsed.data }).returning({ id: majorPrestartIssues.id });
-      await tx.insert(auditLogs).values({
-        seasonId: season.id, action: "major_prestart.add_issue", actorId: auditActorId(admin),
-        targetId: issue?.id, targetType: "major_prestart_issue", meta: { category: parsed.data.category },
-      });
-    });
-    revalidateMajorPrestart(season.slug);
-    return ok(undefined);
-  } catch (error) { return actionError("addMajorPrestartIssue", error); }
-}
-
-export async function resolveMajorPrestartIssue(input: { seasonId: string; issueId: string }): Promise<ActionResult<void>> {
-  const parsed = z.object({ seasonId: uuid, issueId: uuid }).safeParse(input);
-  if (!parsed.success) return failValidation("赛季或事项标识无效。");
-  try {
-    const { season, admin } = await seasonAndAdminOrThrow(parsed.data.seasonId);
-    await db.transaction(async (tx) => {
-      const [issue] = await tx.select().from(majorPrestartIssues)
-        .where(and(eq(majorPrestartIssues.id, parsed.data.issueId), eq(majorPrestartIssues.seasonId, season.id)));
-      if (!issue) throw new AppError(ErrorCode.NOT_FOUND, "待处理事项不存在。");
-      await tx.update(majorPrestartIssues).set({ resolvedAt: new Date(), resolvedBy: auditActorId(admin), updatedAt: new Date() })
-        .where(eq(majorPrestartIssues.id, issue.id));
-      await tx.insert(auditLogs).values({
-        seasonId: season.id, action: "major_prestart.resolve_issue", actorId: auditActorId(admin),
-        targetId: issue.id, targetType: "major_prestart_issue", meta: { category: issue.category },
-      });
-    });
-    revalidateMajorPrestart(season.slug);
-    return ok(undefined);
-  } catch (error) { return actionError("resolveMajorPrestartIssue", error); }
 }
 
 export async function lockMajorPrestartEntrants(input: { seasonId: string }): Promise<ActionResult<void>> {
@@ -221,18 +180,16 @@ export async function lockMajorPrestartEntrants(input: { seasonId: string }): Pr
   } catch (error) { return actionError("lockMajorPrestartEntrants", error); }
 }
 
-export async function saveMajorTournamentSeeds(input: { seasonId: string; entryIds: string[]; overrideReason?: string }): Promise<ActionResult<void>> {
+export async function saveMajorTournamentSeeds(input: { seasonId: string; entryIds: string[] }): Promise<ActionResult<void>> {
   const parsed = tournamentSeedsInput.safeParse(input);
-  if (!parsed.success) return failValidation("赛事种子或人工调整说明无效。 ");
+  if (!parsed.success) return failValidation("赛事种子无效。 ");
   if (new Set(parsed.data.entryIds).size !== parsed.data.entryIds.length) return failValidation("赛事种子不能包含重复队伍。 ");
   try {
     const { season, admin } = await seasonAndAdminOrThrow(parsed.data.seasonId);
     await db.transaction(async (tx) => {
-      const overrideReason = parsed.data.overrideReason?.trim() || null;
       await saveMajorTournamentSeedsInTx(tx, {
         seasonId: season.id,
         entryIds: parsed.data.entryIds,
-        overrideReason,
         actorId: auditActorId(admin),
       });
     });

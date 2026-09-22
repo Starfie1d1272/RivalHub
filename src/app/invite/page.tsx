@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getUserSession } from "@/lib/auth/session";
 import { ClaimInviteForm } from "@/components/auth/ClaimInviteForm";
+import { PageLayout } from "@/components/rivalhub";
 
 export const instant = false;
 
@@ -18,7 +19,7 @@ export default async function InvitePage({ searchParams }: Props) {
   }
 
   return (
-    <main className="min-h-screen flex items-center justify-center p-4">
+    <PageLayout variant="narrow" className="min-h-screen flex items-center justify-center">
       <div className="w-full max-w-sm space-y-6">
         <div className="space-y-1">
           <h1 className="text-2xl font-bold text-[var(--color-fg)]">使用邀请码</h1>
@@ -28,6 +29,6 @@ export default async function InvitePage({ searchParams }: Props) {
         </div>
         <ClaimInviteForm initialCode={code} />
       </div>
-    </main>
+    </PageLayout>
   );
 }

@@ -36,12 +36,12 @@ function rejectDuplicateMaps(
 export function longTermMapPreferencesSchema() {
   const knownMaps = new Set<string>(SUPPORTED_CS2_MAP_KEYS);
   return z.array(persistedMapPreferenceEntrySchema)
-    .max(SUPPORTED_CS2_MAP_KEYS.length, "长期地图资料超过稳定地图目录范围")
+    .max(SUPPORTED_CS2_MAP_KEYS.length, "地图资料超过稳定地图目录范围")
     .superRefine((preferences, ctx) => {
       rejectDuplicateMaps(preferences, ctx);
       for (const preference of preferences) {
         if (!knownMaps.has(preference.map)) {
-          ctx.addIssue({ code: "custom", message: "长期地图资料只能使用稳定地图目录中的地图" });
+          ctx.addIssue({ code: "custom", message: "地图资料只能使用稳定地图目录中的地图" });
         }
       }
     });

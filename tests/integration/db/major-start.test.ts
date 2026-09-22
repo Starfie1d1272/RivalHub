@@ -33,7 +33,7 @@ import {
 import { applyMatchStatusTransitionInTx, confirmMatchRosterInTx, lockMatchInTx, persistMatchRosterInTx } from "../../../src/lib/match-rosters/service";
 import { openSeasonRegistrationInTx } from "../../../src/lib/seasons/lifecycle";
 import { deleteCompetitivePlatformCatalog, seedCompetitivePlatformCatalog } from "./harness/competitive-catalog-fixtures";
-import { capturePostgresError, localDatabaseUrl } from "./harness/database";
+import { capturePostgresError, localDatabaseUrl, testSteam64 } from "./harness/database";
 
 const GOLDEN_PROFILE: CompetitiveProfileConfig = {
   // 专属 fixture 平台 key：不与 seed 内置 perfect_world 目录争夺 per-platform
@@ -212,19 +212,17 @@ async function prepareReadyMajor(
       ],
     );
     await client.query(
-      `INSERT INTO users (id, email, email_verified_at, display_name, steam_name, perfect_name, steam64, steam_profile_url, qq, student_id)
+      `INSERT INTO users (id, email, email_verified_at, display_name, perfect_name, steam64, qq, student_id)
        SELECT value::uuid,
               'golden-major-' || $2 || '-' || ordinal || '@local.test',
               now(),
               'Golden ' || $2 || ' Player ' || ordinal,
-              'Golden ' || $2 || ' Steam ' || ordinal,
               'Golden ' || $2 || ' Perfect Name ' || ordinal,
-              lpad((76561198000000000 + ordinal)::text, 17, '0'),
-              'https://steamcommunity.com/profiles/' || lpad((76561198000000000 + ordinal)::text, 17, '0'),
+              steam64,
               (10000000 + ordinal)::text,
               'legacy-student-' || ordinal
-       FROM unnest($1::text[]) WITH ORDINALITY AS input(value, ordinal)`,
-      [userIds, label],
+       FROM unnest($1::text[], $3::text[]) WITH ORDINALITY AS input(value, steam64, ordinal)`,
+      [userIds, label, userIds.map((userId) => testSteam64(userId))],
     );
     const educationRows = userIds.map((userId, index) => ({
       id: deterministicUuid(`${label}/education/${index + 1}`),
@@ -365,7 +363,7 @@ async function prepareReadyMajor(
   if (registrationFreeze) {
     const database = drizzle(pool, { schema });
     try {
-      await database.transaction((tx) => openSeasonRegistrationInTx(tx, { seasonId, actorId: "local-admin", openNow: false }));
+      await database.transaction((tx) => openSeasonRegistrationInTx(tx, { seasonId, actorId: "local-admin", mode: "scheduled" }));
     } catch (error) {
       await cleanupMajorFixture(pool, { seasonId, userIds, cleanupCatalogSeasons });
       throw error;
@@ -980,7 +978,6 @@ async function assertSeedMutationsBlockedBySnapshot(
   const rejectedSave = await database.transaction((tx) => saveMajorTournamentSeedsInTx(tx, {
     seasonId,
     entryIds: beforeSeeds.rows.map((row) => row.entryId),
-    overrideReason: null,
     actorId: "integration-admin",
   })).catch((caught: unknown) => caught);
   expect(rejectedSave).toMatchObject({ code: ErrorCode.VALIDATION_FAILED });
@@ -1057,32 +1054,10 @@ async function exerciseSeedRecommendationReadinessBoundaries(
   await expectMajorStartFailure(database, unconfirmedSeeds.seasonId, "重新确认");
   await assertNoStartFacts(pool, unconfirmedSeeds.seasonId);
 
-  const missingOverride = await prepareReadyMajor(pool, "seed-final-missing-override", { distinctRecommendationGroups: true });
-  fixtures.push(missingOverride);
-  const seedPair = await pool.query<{ entrantId: string; tournamentSeed: number }>(
-    `SELECT e.id AS "entrantId", s.seed AS "tournamentSeed"
-     FROM major_tournament_seeds s
-     INNER JOIN major_tournament_entrants e ON e.id = s.tournament_entrant_id
-     WHERE s.season_id = $1 AND s.seed IN (1, 4)
-     ORDER BY s.seed`,
-    [missingOverride.seasonId],
-  );
-  if (seedPair.rows.length !== 2) throw new Error("seed override fixture 缺少可交换的最终种子。 ");
-  await pool.query("DELETE FROM major_tournament_seeds WHERE season_id = $1 AND seed IN (1, 4)", [missingOverride.seasonId]);
-  await pool.query(
-    `INSERT INTO major_tournament_seeds (season_id, tournament_entrant_id, seed)
-     VALUES ($1, $2, 4), ($1, $3, 1)`,
-    [missingOverride.seasonId, seedPair.rows[0]!.entrantId, seedPair.rows[1]!.entrantId],
-  );
-  await pool.query(
-    "UPDATE major_prestart_states SET seed_override_reason = NULL WHERE season_id = $1",
-    [missingOverride.seasonId],
-  );
-  await expectMajorStartFailure(database, missingOverride.seasonId, "人工调整原因");
-  await assertNoStartFacts(pool, missingOverride.seasonId);
+
 }
 
-async function exerciseFinalSeedOverridePersistence(
+async function exerciseCommitteeFinalSeeds(
   database: ReturnType<typeof drizzle<typeof schema>>,
   pool: Pool,
   fixtures: MajorFixture[],
@@ -1105,25 +1080,9 @@ async function exerciseFinalSeedOverridePersistence(
   const divergentOrder = seedRows.rows.map((row) => row.entryId);
   [divergentOrder[0], divergentOrder[3]] = [divergentOrder[3]!, divergentOrder[0]!];
 
-  const rejected = await database.transaction((tx) => saveMajorTournamentSeedsInTx(tx, {
-    seasonId: fixture.seasonId,
-    entryIds: divergentOrder,
-    overrideReason: null,
-    actorId: "integration-admin",
-  })).catch((caught: unknown) => caught);
-  expect(rejected).toMatchObject({ code: ErrorCode.VALIDATION_FAILED });
-  const unchanged = await pool.query<{ reason: string | null; auditCount: string }>(
-    `SELECT
-       (SELECT seed_override_reason FROM major_prestart_states WHERE season_id = $1) AS reason,
-       (SELECT count(*)::text FROM audit_logs WHERE season_id = $1 AND action = 'major_prestart.save_tournament_seeds') AS "auditCount"`,
-    [fixture.seasonId],
-  );
-  expect(unchanged.rows[0]).toMatchObject({ reason: "Golden fixture final seed order reviewed by committee", auditCount: "0" });
-
   await database.transaction((tx) => saveMajorTournamentSeedsInTx(tx, {
     seasonId: fixture.seasonId,
     entryIds: divergentOrder,
-    overrideReason: "赛委会复核后调整最终顺序",
     actorId: "integration-admin",
   }));
   const persisted = await pool.query<{ reason: string | null; confirmedAt: Date | null; auditReason: string | null; diverged: string; recommendations: unknown }>(
@@ -1136,12 +1095,17 @@ async function exerciseFinalSeedOverridePersistence(
     [fixture.seasonId],
   );
   expect(persisted.rows[0]).toMatchObject({
-    reason: "赛委会复核后调整最终顺序",
+    reason: "Golden fixture final seed order reviewed by committee",
     confirmedAt: null,
-    auditReason: "赛委会复核后调整最终顺序",
+    auditReason: null,
     diverged: "true",
   });
   expect(persisted.rows[0]?.recommendations).toEqual(beforeSnapshot.rows[0]?.recommendations);
+  // Historical notes survive save. Confirmation and start also work with no note.
+  await pool.query("UPDATE major_prestart_states SET seed_override_reason = NULL WHERE season_id = $1", [fixture.seasonId]);
+  await database.transaction((tx) => confirmMajorTournamentSeedsInTx(tx, { seasonId: fixture.seasonId, actorId: "integration-admin" }));
+  await database.transaction((tx) => startMajorInTransaction(tx, { seasonId: fixture.seasonId, actorId: "integration-admin" }));
+  expect((await pool.query("SELECT status FROM seasons WHERE id = $1", [fixture.seasonId])).rows[0].status).toBe("playing");
 }
 
 /**
@@ -1287,7 +1251,7 @@ async function exerciseSelfRosterChangeDeadline(
   const representativeUserId = fixture.userIds[0]!;
   await pool.query("UPDATE seasons SET registration_opened_at = NULL WHERE id = $1", [fixture.seasonId]);
   await expect(database.transaction((tx) => requestCompetitionEntryRosterChangeInTx(tx, { entryId, representativeUserId, actorId: representativeUserId })))
-    .rejects.toMatchObject({ code: ErrorCode.REGISTRATION_CLOSED });
+    .rejects.toMatchObject({ code: ErrorCode.VALIDATION_FAILED });
   await pool.query("UPDATE seasons SET registration_opened_at = now() WHERE id = $1", [fixture.seasonId]);
   await database.transaction((tx) => requestCompetitionEntryRosterChangeInTx(tx, { entryId, representativeUserId, actorId: representativeUserId }));
   const origin = await pool.query<{ origin: string }>("SELECT r.origin::text AS origin FROM competition_entries e INNER JOIN competition_entry_roster_revisions r ON r.id = e.current_roster_revision_id WHERE e.id = $1", [entryId]);
@@ -1746,7 +1710,7 @@ async function exerciseStartFailureBoundaries(context: MajorLifecycleContext): P
     const rollback = await prepareReadyMajor(context.pool, "rollback");
     context.fixtures.push(rollback);
     await exerciseSeedRecommendationReadinessBoundaries(context.database, context.pool, context.fixtures);
-    await exerciseFinalSeedOverridePersistence(context.database, context.pool, context.fixtures);
+    await exerciseCommitteeFinalSeeds(context.database, context.pool, context.fixtures);
     await exerciseMissingCompetitiveProfile(context.database, context.pool, context.fixtures);
     await exerciseStaleRosterCoherence(context.database, context.pool, context.fixtures);
     await exerciseStartQualification(context.database, context.pool, context.fixtures);

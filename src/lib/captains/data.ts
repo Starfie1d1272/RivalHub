@@ -1,6 +1,6 @@
 import { and, asc, count, eq, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
-import { captainVotes, seasonRegistrations, users, competitionEntries } from "@/db/schema";
+import { captainVotes, seasonRegistrations, steamProfiles, users, competitionEntries } from "@/db/schema";
 import { compareCaptainSeedCandidates, selectCaptainSeeds } from "@/lib/captains/rules";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
 
@@ -39,7 +39,7 @@ interface CaptainCandidateSource {
   id: string;
   displayName: string | null;
   perfectName: string | null;
-  steamName: string | null;
+  personaName: string | null;
   primaryPosition: string;
   peakRank: string;
   peakRating: number;
@@ -77,12 +77,13 @@ export async function getPublicCaptainVotingData(
       currentRating: seasonRegistrations.currentRating,
       willingToBeCaptain: seasonRegistrations.willingToBeCaptain,
       createdAt: seasonRegistrations.createdAt,
-      steamName: users.steamName,
+      personaName: steamProfiles.personaName,
       displayName: users.displayName,
       perfectName: users.perfectName,
     })
     .from(seasonRegistrations)
     .innerJoin(users, and(eq(seasonRegistrations.userId, users.id), eq(users.status, "active")))
+    .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
     .where(
       and(
         eq(seasonRegistrations.seasonId, seasonId),
@@ -125,7 +126,7 @@ export async function getPublicCaptainVotingData(
         id: r.id,
         displayName: r.displayName,
         perfectName: r.perfectName,
-        steamName: r.steamName,
+        personaName: r.personaName,
         primaryPosition: r.primaryPosition,
         peakRank: r.peakRank,
         peakRating: r.peakRating,

@@ -14,6 +14,7 @@
 | 鉴权、权限、Data API | [`auth-and-permissions.md`](./auth-and-permissions.md) |
 | 测试证据与 CI | [`testing.md`](./testing.md)、[`operations/ci.md`](./operations/ci.md) |
 | 本地开发、migration、staging、release | [`operations/`](./operations/) |
+| Production 灾难恢复、备份与 Restore 演练 | [`operations/disaster-recovery.md`](./operations/disaster-recovery.md) |
 | UI 与交互 contract | [`ui-system.md`](./ui-system.md) |
 | 长期产品方向 | [`roadmap.md`](./roadmap.md) |
 | NJU Major 正式政策 | [`rules/nju-major.md`](./rules/nju-major.md) |
@@ -49,13 +50,15 @@
 
 ## Operations
 
-`operations/` 是按任务执行的 runbook，不要求线性阅读：
+`operations/` 按任务选择对应 runbook，不需要线性通读整个目录。执行 release / tag / deploy / production mutation 时，必须先完整阅读 [`release.md`](./operations/release.md)。
 
 - [`local-development.md`](./operations/local-development.md)
 - [`ci.md`](./operations/ci.md)
 - [`observability.md`](./operations/observability.md)
 - [`database-migrations.md`](./operations/database-migrations.md)
+- [`steam-profile-migration.md`](./operations/steam-profile-migration.md)
 - [`staging.md`](./operations/staging.md)
 - [`release.md`](./operations/release.md)
+- [`disaster-recovery.md`](./operations/disaster-recovery.md)
 - [`major-referee-guide.md`](./operations/major-referee-guide.md)
 - [`spectator-predictions.md`](./operations/spectator-predictions.md)

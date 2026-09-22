@@ -13,9 +13,7 @@ function validInput() {
     playerType: "enrolled",
     qq: "1234567890",
     perfectName: "测试选手",
-    steamName: "testPlayer",
     steam64: "76561198000000001",
-    steamProfileUrl: "https://steamcommunity.com/id/testPlayer",
     primaryPosition: "opener",
     secondaryPosition: "awper",
     peakRank: "A+",
@@ -67,44 +65,6 @@ describe("buildRegistrationSchema", () => {
     const r = schema.safeParse({ ...validInput(), steam64: "123" });
     expect(r.success).toBe(false);
   });
-
-  it("拒绝非 steamcommunity.com 链接及 CodeQL 绕过攻击", () => {
-    const invalidUrls = [
-      "https://example.com/profile",
-      "http://steamcommunity.com/id/testPlayer",
-      "https://steamcommunity.com.attacker.example/id/testPlayer",
-      "https://attacker.example/steamcommunity.com",
-      "https://attacker.example/?next=steamcommunity.com",
-      "https://steamcommunity.com@attacker.example/id/testPlayer",
-      "https://steamcommunity.com/profiles/76561198000000001/edit",
-      "https://steamcommunity.com/id/testPlayer/friends",
-      "https://steamcommunity.com/tradeoffer/new",
-      "https://steamcommunity.com/id/foo%2fbar",
-    ];
-
-    for (const url of invalidUrls) {
-      const r = schema.safeParse({
-        ...validInput(),
-        steamProfileUrl: url,
-      });
-      expect(r.success).toBe(false);
-      if (!r.success) {
-        expect(r.error.issues.some((i) => i.path.includes("steamProfileUrl"))).toBe(true);
-      }
-    }
-  });
-
-  it("自动规范化合法 Steam 资料链接并剔除 query/hash/trailing slash", () => {
-    const r = schema.safeParse({
-      ...validInput(),
-      steamProfileUrl: "  https://steamcommunity.com/id/testPlayer/?foo=bar#section  ",
-    });
-    expect(r.success).toBe(true);
-    if (r.success) {
-      expect(r.data.steamProfileUrl).toBe("https://steamcommunity.com/id/testPlayer");
-    }
-  });
-
 
   it("拒绝主次位置相同", () => {
     const r = schema.safeParse({
@@ -242,6 +202,19 @@ describe("buildRegistrationSchema", () => {
       gameplayStyle: "测".repeat(101),
     });
     expect(r.success).toBe(false);
+  });
+
+  it("规范化长期自述字段的首尾空白", () => {
+    const r = schema.safeParse({
+      ...validInput(),
+      gameplayStyle: "  进攻型步枪手  ",
+      competitionHistory: "  参加过校级比赛  ",
+    });
+    expect(r.success).toBe(true);
+    if (r.success) {
+      expect(r.data.gameplayStyle).toBe("进攻型步枪手");
+      expect(r.data.competitionHistory).toBe("参加过校级比赛");
+    }
   });
 });
 

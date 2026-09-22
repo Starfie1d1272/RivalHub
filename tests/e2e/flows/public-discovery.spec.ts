@@ -8,10 +8,10 @@ test("移动端公开发现列表可操作共享筛选工具栏", async ({ page 
   await expect(page.getByLabel("队伍状态")).toHaveValue("active");
   await page.goto("/teams?status=history");
   await expect(page.getByLabel("队伍状态")).toHaveValue("history");
-  await page.goBack();
+  await page.goBack({ waitUntil: "commit" });
   await expect(page).toHaveURL(/\/teams$/);
   await expect(page.getByLabel("队伍状态")).toHaveValue("active");
-  await page.goForward();
+  await page.goForward({ waitUntil: "commit" });
   await expect(page).toHaveURL(/\/teams\?status=history$/);
   await expect(page.getByLabel("队伍状态")).toHaveValue("history");
   await page.goto("/teams");

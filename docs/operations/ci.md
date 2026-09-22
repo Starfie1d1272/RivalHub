@@ -7,11 +7,12 @@ RivalHub 的 PR CI 按 changed surface 选择所需 evidence，而不是所有�
 ```text
 plan ─→ static ─────┐
    ├─→ postgres ────┤
-   ├─→ system ──────┼→ ci-gate
+   ├─→ system ──────┼→ draft-gate（Draft）
+   │                └→ ci-gate（Ready / protected FULL）
    └─→ dependency-review（PR）
 ```
 
-`ci-gate` 是最终 required check：planner 明确允许跳过的 job 可以 skipped；本应运行却 failure / cancelled / unexpected skipped 的 capability 会阻断合并。
+`draft-gate` 汇总 Draft PR 的 affected evidence，用于开发中快速反馈，不能满足 ruleset 的 merge requirement。`ci-gate` 由 Ready PR、`main` push、merge queue、nightly schedule 和手动运行产生；它是代码正确性 evidence 的 required check：planner 明确允许跳过的 job 可以 skipped；本应运行却 failure / cancelled / unexpected skipped 的 capability 会阻断合并。PR metadata policy 由独立的 `pr-title` check 负责；要使其阻断合并，Main ruleset 需与 `ci-gate` 一起要求该 check。
 
 ## Capabilities
 
@@ -21,9 +22,12 @@ plan ─→ static ─────┐
 
 - app / tests / scripts TypeScript；
 - ESLint；
+- architecture dependency contract；
 - Vitest unit suite；
 - dead-code / dependency hygiene；
 - production build。
+
+Vitest 的 React/jsdom project 只在 GitHub Actions 使用一次 diagnostic retry，本地默认不 retry。每个 static matrix task 完成后，React project 由 `scripts/ci/assert-no-flaky.mjs` 读取 `vitest-timing-reporter.ts` 产出的 machine-readable evidence；首次失败、retry 通过会被标记为 flaky 并让 static job 非零退出。其它 Vitest project 不继承该 retry，普通 PR 也不传入 `repeats`。
 
 ### postgres
 
@@ -37,6 +41,8 @@ plan ─→ static ─────┐
 
 CI 不使用 mock 来替代 constraint、transaction、locking 或并发证据。
 
+Release 的 migration rehearsal 使用同一套 plain `postgres:17` service、`preparePg17Database()` 和 active migration replay owner；它不启动 Local Supabase。CI PostgreSQL lane、Release workflow 与本地 `db:local:migrate` 共享 `scripts/db/migration-replay.ts`，避免出现第二套只在发布时运行的 migration runner。
+
 ### system
 
 启动最小 Local Supabase services，并运行：
@@ -45,6 +51,9 @@ CI 不使用 mock 来替代 constraint、transaction、locking 或并发证据�
 - browser E2E。
 
 浏览器 lane 使用 runner 已有 Chrome，不需要在每个 run 重新安装 Playwright browser。
+同一个 system job 只启动一次 Supabase：`start-services → bootstrap-services → verify-supabase → test:e2e`。E2E 每个 test attempt 创建独立的 DB/Auth scenario；除 `major-entry` 的 canonical UI 登录外，其它已登录流程通过受保护的 test-only route 调用同一个 `loginWithPassword`，不会伪造应用 cookie。
+
+CI 会把 bootstrap、各 capability lane、Vitest project、真实 PG integration、E2E body 与 FULL wall time 写入 GitHub Step Summary；其中 Vitest flaky evidence 会列出 project、file、full test name、首次失败、retry 通过和 retry count。system 失败或 retry/flaky 时保留 trace、screenshot、HTML report、脱敏 Next 日志和 scenario/attempt manifest；成功 run 不上传这些大体积 artifact。Playwright 在 CI 使用一次 retry，并以 `failOnFlakyTests` 阻断“首次失败、重试成功”的假绿；Vitest 使用同一原则，但由显式 flaky guard 保留 static job 的失败语义。
 
 ### dependency review
 
@@ -52,25 +61,47 @@ Pull Request 额外运行 dependency review；达到 workflow 设定的严重度
 
 ## Selective vs full
 
-Pull Request 使用 changed-surface planner：
+CI 遵循 L0–L4 风险分层与最低且足够可信证据原则：
 
-- docs-only 可以只保留 planner + gate；
-- pure app/domain/presentation 通常需要 static；
-- DB-backed code / schema / migration 需要 postgres；
-- Auth、Supabase service 或 browser critical path 需要 system；
-- rename/delete、workflow/toolchain、无法分类的变化 fail closed 到 full。
+- **L0 Metadata**：docs、Changeset，以及只改变 `package.json` 顶层 `version` 的 release metadata（可伴随 `CHANGELOG.md` 与 Changeset），仅保留 planner + gate，不启动测试容器。package dependency、script、packageManager、lockfile 或任意 source 变化都不能走该 bypass。
+- **L1 Static**：pure rule、formatter、presenter、component、UI/layout 等不跨 persistence/provider 边界的变化，运行 affected type/lint/architecture/unit。
+- **L2 PostgreSQL**：Server Action persistence、DB query、transaction、migration 等，运行 L1 + real PostgreSQL。
+- **L3 System**：Auth、Session、Storage provider 或 browser/provider glue，运行 L1/L2 + Local Supabase + targeted E2E。
+- **L4 Full convergence**：CI/toolchain/harness/unknown/destructive 改动、手动 FULL 或 nightly 定时收敛，运行完整 static + postgres + system。Release 直接消费 exact release SHA 在 `main` 上的 canonical CI evidence，不重复触发或等待第二套 FULL CI。
 
-`push` 到 `main`、merge queue、release 和手动 workflow 运行完整 convergence gate。
+Pull Request 的 Draft / Ready 仅代表协作与合并准入状态，不直接决定测试深度：
+
+1. Draft PR 由 changed-surface planner 输出本次改动所需最低充分 evidence，以 `draft-gate` 汇总，供开发阶段快速迭代。
+2. Ready PR 使用同一个 changed-surface planner 输出匹配风险的 evidence，并以 required `ci-gate` 汇总；不因 Ready 状态机械升级为 FULL。普通 UI / Server Action PR 仅支付对应静态或 PG 验证时间，不进入昂贵的 system 冷启动。
+3. `push` 到 `main` 同样使用 changed-surface 规划 affected smoke，不默认重复跑 FULL。
+4. 无法分类的变化、rename/delete、CI/toolchain/harness 改动 fail closed 到 FULL。
+
+`scripts/ci/timing.mjs` 的 command wrapper 是 project wall-time owner。`vitest-timing-reporter.ts` 只输出 per-project facts 与 top 15 per-file diagnostic duration，Step Summary 会明确区分两者。
+
+`push` 到 `main` 同样采用 changed-surface 规划 affected evidence 并产生 exact-SHA CI evidence，遇到未知/破坏性/工具链变更时 fail closed 到 FULL；merge queue、nightly 与手动 workflow 运行完整 convergence gate。Release 消费 exact tag commit SHA 的 push CI 成功证据，不重复执行代码正确性 CI。
+
+## Concurrency 与 exact-SHA 证据隔离
+
+CI 的 concurrency 分组策略兼顾 PR 快速取消与 release exact-SHA 证据保护：
+
+- **Pull Request**：按 PR 编号独立分组（`ci-CI-pull_request-<number>`），启用 `cancel-in-progress: true`；同 PR 的新 push 立即取消旧 SHA 的在途 run，避免积压 CI 资源。
+- **main push**：按 exact commit SHA 独立分组（`ci-CI-push-<sha>`），配置 `cancel-in-progress: false`；每个进入 main 的 commit run 独立执行，不被后续 main push 误取消，确保 release 所需的 exact-SHA CI 证据永久可靠。
+- **schedule / merge queue / workflow_dispatch**：按各自 event 语义稳定分组。
+
+`ci.yml` 只响应会改变代码 evidence 的 PR event（opened、synchronize、reopened、ready_for_review）。`.github/workflows/pr-metadata.yml` 在上述事件和 `edited` 上独立运行 `pr-title`；因此 title/body 编辑不会取消、覆盖或重跑当前 head 的 `ci-gate`，而新 commit 的 `synchronize` 仍会为其 SHA 重新产生 title check。Ready PR 的新 push 必须等待该 SHA 的 FULL CI 完成，不能沿用旧 SHA 的成功结果。
 
 不要在本文复制每个路径匹配规则；需要修改 planner 时同时更新 `scripts/ci/plan.mjs` 和对应 regression tests。
 
 ## 本地复现
+
+本地开发阶段默认只做 host-only 的 changed-surface 检查；不要为了每次迭代启动重型环境。以下命令只在需要复现对应失败或改动确实涉及该层时使用。
 
 ### Static
 
 ```bash
 pnpm type-check
 pnpm lint
+pnpm architecture:check
 pnpm test
 pnpm build
 ```
@@ -95,8 +126,10 @@ pnpm test:e2e
 或者运行：
 
 ```bash
-pnpm verify:local
+RIVALHUB_ALLOW_LOCAL_CONTAINERS=1 pnpm verify:services
 ```
+
+普通 `pnpm check` / `pnpm verify` 不会启动容器，但它们是 broad host-only gate，不是每次迭代的默认要求。所有会启动或使用本地重型 service evidence 的 canonical wrapper 都要求 `CI=true` 或显式 `RIVALHUB_ALLOW_LOCAL_CONTAINERS=1`，不会静默 fallback 到远程目标。
 
 ## 排查顺序
 

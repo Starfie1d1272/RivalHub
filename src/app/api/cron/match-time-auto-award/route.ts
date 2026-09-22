@@ -1,15 +1,17 @@
 import { NextResponse } from "next/server";
-import { runMatchTimeAutoAwardCron } from "@/actions/matches";
 import { validateCronAuth } from "@/lib/cron-auth";
 import { withRouteObservability } from "@/lib/observability/route";
+import { executeScheduledJob } from "@/lib/scheduler/execution";
+import { runMatchTimeAutoAwardJob } from "@/lib/scheduler/runners";
 
 export async function GET(request: Request) {
   return withRouteObservability(request, "/api/cron/match-time-auto-award", async () => {
     const authError = validateCronAuth(request);
     if (authError) return authError;
 
-    const result = await runMatchTimeAutoAwardCron();
-
-    return NextResponse.json({ ok: true, ...result });
+    const result = await executeScheduledJob(request, "match-time-auto-award", runMatchTimeAutoAwardJob);
+    if (result instanceof Response) return result;
+    if (result.skipped) return NextResponse.json({ ok: true, skipped: result.skipReason });
+    return NextResponse.json({ ok: true, ...result.result });
   });
 }

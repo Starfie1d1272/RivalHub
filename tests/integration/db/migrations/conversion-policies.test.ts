@@ -1,10 +1,28 @@
 import { Client } from "pg";
 import { describe, expect, it } from "vitest";
-import { verifyDatabaseAccessMatrix } from "../../../../scripts/db/access-matrix";
+import { DATABASE_ACCESS_MATRIX, verifyDatabaseAccessMatrix } from "../../../../scripts/db/access-matrix";
 import { capturePostgresError } from "../harness/database";
 import { migrationFiles, replayMigration, withScratchDatabase } from "../harness/migration-replay";
 
 const TARGET_MIGRATION = "0042_identity_foundation.sql";
+const ACCESS_MATRIX_AT_TARGET = DATABASE_ACCESS_MATRIX.filter(
+  (entry) => ![
+    "announcements",
+    "community_groups",
+    "feedback_reports",
+    "scheduled_job_health",
+    "competition_stage_bracket_states",
+    "season_contacts",
+    "season_public_info",
+    "dak_pairing_intents",
+    "dak_pairings",
+    "match_demo_imports",
+    "match_round_facts",
+    "steam_profiles",
+    "user_gameplay_steam_ids",
+  ].includes(entry.table),
+);
+const IGNORED_TABLES_AT_TARGET = ["competition_bracket_states", "swiss_standings"] as const;
 
 describe("conversion policies migration", () => {
   it("creates server-only conversion_policies table with RLS, denies anon/authenticated access, and seeds lead-approved 2026.09 policy", async () => {
@@ -14,7 +32,12 @@ describe("conversion policies migration", () => {
         await replayMigration(client, migration);
       }
 
-      await verifyDatabaseAccessMatrix(client, "0038 conversion policies replay");
+      await verifyDatabaseAccessMatrix(
+        client,
+        "0038 conversion policies replay",
+        ACCESS_MATRIX_AT_TARGET,
+        IGNORED_TABLES_AT_TARGET,
+      );
 
       const table = await client.query<{ relrowsecurity: boolean }>(
         `SELECT relrowsecurity FROM pg_class

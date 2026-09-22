@@ -1,14 +1,16 @@
 import Link from "next/link";
 import { and, asc, eq, isNotNull, or } from "drizzle-orm";
 import { db } from "@/db/client";
-import { seasonAdminGrants, users } from "@/db/schema";
+import { seasonAdminGrants, steamProfiles, users } from "@/db/schema";
 import { requireSuperAdmin } from "@/lib/auth/session";
 import { resolveAdminPageAccess } from "@/lib/auth/admin-access";
-import { PageHeader, Panel, ResultSummary } from "@/components/rivalhub";
+import { PageHeader, PageLayout, Panel, ResultSummary } from "@/components/rivalhub";
 import { AdminAccessDenied } from "@/components/admin/AdminAccessDenied";
 import { Button } from "@/components/ui/button";
 import { AdminUserList } from "@/components/admin/AdminUserList";
+import { AdminPlayerContact } from "@/components/admin/AdminPlayerContact";
 import { AdminUsersListWorkspace } from "@/components/admin/AdminUsersListWorkspace";
+import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
 import { formatCST } from "@/lib/utils/date";
 import { getDisplayName } from "@/lib/identity/display-name";
 import { getAdminUserStats, getAdminUsersList, normalizeAdminUsersQuery } from "@/lib/admin/users";
@@ -32,7 +34,9 @@ export default async function AdminUsersPage({ searchParams }: PageProps) {
         .select({
           id: users.id,
           email: users.email,
-          steamName: users.steamName,
+          personaName: steamProfiles.personaName,
+          steam64: users.steam64,
+          liveStreamUrl: users.liveStreamUrl,
           displayName: users.displayName,
           perfectName: users.perfectName,
           role: users.role,
@@ -40,6 +44,7 @@ export default async function AdminUsersPage({ searchParams }: PageProps) {
           createdAt: users.createdAt,
         })
         .from(users)
+        .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
         .leftJoin(seasonAdminGrants, eq(seasonAdminGrants.userId, users.id))
         .where(and(eq(users.status, "active"), or(eq(users.role, "super_admin"), isNotNull(seasonAdminGrants.userId))))
         .orderBy(asc(users.createdAt)),
@@ -49,7 +54,9 @@ export default async function AdminUsersPage({ searchParams }: PageProps) {
     const adminById = new Map<string, {
       id: string;
       email: string;
-      steamName: string | null;
+      personaName: string | null;
+      steam64: string | null;
+      liveStreamUrl: string | null;
       displayName: string | null;
       perfectName: string | null;
       role: "user" | "super_admin";
@@ -64,7 +71,9 @@ export default async function AdminUsersPage({ searchParams }: PageProps) {
         adminById.set(row.id, {
           id: row.id,
           email: row.email,
-          steamName: row.steamName,
+          personaName: row.personaName,
+          steam64: row.steam64,
+          liveStreamUrl: row.liveStreamUrl,
           displayName: row.displayName,
           perfectName: row.perfectName,
           role: row.role,
@@ -76,14 +85,16 @@ export default async function AdminUsersPage({ searchParams }: PageProps) {
     const adminUsers = [...adminById.values()];
 
     return (
-      <div className="container mx-auto px-4 py-8 max-w-3xl space-y-6">
+      <PageLayout variant="wide" className="space-y-6">
         <PageHeader title="用户管理" />
         <TabBar tab="admins" />
         <AdminUserList
           users={adminUsers.map((u) => ({
             id: u.id,
             email: u.email,
-            steamName: u.steamName,
+            personaName: u.personaName,
+            steam64: u.steam64,
+            liveStreamUrl: u.liveStreamUrl,
             displayName: u.displayName,
             perfectName: u.perfectName,
             role: u.role === "super_admin" ? "super_admin" : "season_admin",
@@ -93,7 +104,7 @@ export default async function AdminUsersPage({ searchParams }: PageProps) {
           seasonMap={seasonMap}
           currentUserId={admin.userId}
         />
-      </div>
+      </PageLayout>
     );
   }
 
@@ -105,7 +116,7 @@ export default async function AdminUsersPage({ searchParams }: PageProps) {
   ]);
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-4xl space-y-6">
+    <PageLayout variant="wide" className="space-y-6">
       <PageHeader title="用户管理" />
       <TabBar tab="users" />
 
@@ -130,7 +141,14 @@ export default async function AdminUsersPage({ searchParams }: PageProps) {
       </div>
 
       {/* 搜索 + 筛选 */}
-      <AdminUsersListWorkspace filter={query.filter} page={userList.page} totalPages={userList.totalPages}>
+      <AdminUsersListWorkspace
+        filter={query.filter}
+        education={query.education}
+        team={query.team}
+        activity={query.activity}
+        page={userList.page}
+        totalPages={userList.totalPages}
+      >
         {/* 表格 */}
         <Panel contentClassName="p-0" className="overflow-hidden">
           <div className="overflow-x-auto">
@@ -139,6 +157,7 @@ export default async function AdminUsersPage({ searchParams }: PageProps) {
                 <tr className="border-b border-[var(--color-border)] text-[10px] uppercase tracking-wider text-[var(--color-fg-dim)]">
                   <th className="px-4 py-3 text-left">选手</th>
                   <th className="px-4 py-3 text-left">邮箱</th>
+                  <th className="px-4 py-3 text-left">联系</th>
                   <th className="px-4 py-3 text-center">参赛赛季</th>
                   <th className="px-4 py-3 text-right">注册时间</th>
                 </tr>
@@ -146,7 +165,7 @@ export default async function AdminUsersPage({ searchParams }: PageProps) {
               <tbody className="divide-y divide-[var(--color-border)]">
                 {userList.rows.length === 0 && (
                   <tr>
-                    <td colSpan={4} className="px-4 py-8 text-center text-[var(--color-fg-dim)] text-sm">
+                    <td colSpan={5} className="px-4 py-8 text-center text-[var(--color-fg-dim)] text-sm">
                       {userList.hasAnyRecords ? "没有符合当前筛选条件的用户" : "暂无用户"}
                     </td>
                   </tr>
@@ -155,7 +174,8 @@ export default async function AdminUsersPage({ searchParams }: PageProps) {
                   const name = getDisplayName({
                     displayName: r.display_name as string | null,
                     perfectName: r.perfect_name as string | null,
-                    steamName: r.steam_name as string | null,
+                    personaName: r.persona_name as string | null,
+                    email: r.email as string,
                   });
                   const seasonCount = Number(r.season_count);
                   const hasParticipated = seasonCount > 0;
@@ -165,19 +185,20 @@ export default async function AdminUsersPage({ searchParams }: PageProps) {
                       className="hover:bg-[var(--color-surface-raised)] transition-colors"
                     >
                       <td className="px-4 py-2.5 font-medium text-[var(--color-fg)]">
-                        {hasParticipated ? (
-                          <Link
-                            href={`/players/${r.id}`}
-                            className="hover:text-[var(--color-accent)] transition-colors"
-                          >
-                            {name}
-                          </Link>
-                        ) : (
-                          <span className="text-[var(--color-fg-mid)]">{name}</span>
-                        )}
+                        <PlayerProfileLink userId={r.id} className={hasParticipated ? undefined : "text-[var(--color-fg-mid)]"}>
+                          {name}
+                        </PlayerProfileLink>
                       </td>
                       <td className="px-4 py-2.5 text-xs text-[var(--color-fg-mid)]">
                         {r.email as string}
+                      </td>
+                      <td className="px-4 py-2.5">
+                        <AdminPlayerContact
+                          email={r.email as string}
+                          qq={r.qq as string | null}
+                          steam64={r.steam64 as string | null}
+                          steamProfileUrl={r.steam_profile_url as string | null}
+                        />
                       </td>
                       <td className="px-4 py-2.5 text-center tabular-nums text-sm">
                         {hasParticipated ? (
@@ -205,7 +226,7 @@ export default async function AdminUsersPage({ searchParams }: PageProps) {
           />
         </div>
       </AdminUsersListWorkspace>
-    </div>
+    </PageLayout>
   );
 }
 

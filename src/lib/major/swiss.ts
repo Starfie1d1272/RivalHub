@@ -428,6 +428,27 @@ export function projectMajorSwissStage(input: {
   };
 }
 
+/**
+ * Project the same official facts at every accepted round boundary.
+ * Index 0 is the pre-R1 state; index N is the state after finalized round N.
+ * The final projection API above remains the canonical single-snapshot API.
+ */
+export function projectMajorSwissStageByRound(input: {
+  entrants: readonly MajorSwissEntrant[];
+  matches: readonly MajorSwissMatchFact[];
+  finalizedRound: MajorSwissFinalizedRound;
+}): readonly MajorSwissProjection[] {
+  const projections: MajorSwissProjection[] = [];
+  for (let round = 0; round <= input.finalizedRound; round += 1) {
+    projections.push(projectMajorSwissStage({
+      entrants: input.entrants,
+      matches: input.matches,
+      finalizedRound: round as MajorSwissFinalizedRound,
+    }));
+  }
+  return projections;
+}
+
 // ── Pairing 低层函数 ────────────────────────────────────
 
 export function selectMajorSixTeamPairingPattern(

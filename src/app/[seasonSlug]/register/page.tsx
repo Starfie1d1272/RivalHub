@@ -1,9 +1,10 @@
 import { notFound, redirect } from "next/navigation";
 import type { Metadata } from "next";
-import { and, desc, eq, inArray, isNull, or } from "drizzle-orm";
+import { and, count, eq, inArray, isNull } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
   competitionEntries,
+  eventRosters,
   competitionEntryParticipants,
   competitionEntryRosterMembers,
   competitionEntryRosterRevisions,
@@ -12,13 +13,14 @@ import {
   teams,
   userCompetitiveRoles,
   userMapPreferences,
+  steamProfiles,
   users,
 } from "@/db/schema";
 import { getPositionCounts, getApprovedCount } from "@/actions/register";
 import { RegistrationForm } from "@/components/register/RegistrationForm";
 import { normalizeAffiliationRules, normalizeRegistrationConfig, normalizeTeamRegistrationConfig } from "@/lib/seasons/compatibility";
 import { REGISTRATION_STATUS_LABELS } from "@/types/registration";
-import { Panel, StatusBanner, PosChip } from "@/components/rivalhub";
+import { PageLayout, Panel, StatusBanner, PosChip } from "@/components/rivalhub";
 import { positionLabel } from "@/lib/validators/registration";
 import { getRegistrationWindowState, getWindowTone } from "@/lib/registration/window";
 import { formatCST } from "@/lib/utils/date";
@@ -32,6 +34,11 @@ import { evaluateRosterQualificationFromFacts, getParticipantReadinessBatch, isH
 import { getPublicOrAuthorizedDraftSeason, getPublicSeasonBySlug } from "@/lib/data/public-seasons";
 import { presentRegistrationSchedule } from "@/lib/seasons/presentation";
 import { RegistrationScheduleCountdown } from "@/components/seasons/RegistrationScheduleCountdown";
+import { RegistrationOpeningRecovery } from "@/components/register/RegistrationOpeningRecovery";
+
+import { publicCompetitionEntryCondition } from "@/lib/competition-entries/public-visibility";
+import { getCompetitionEntryCapabilities } from "@/lib/competition-entries/capabilities";
+import { loadCompetitionEntryParticipantContext } from "@/lib/competition-entries/participant-context";
 
 interface RegisterPageProps {
   params: Promise<{ seasonSlug: string }>;
@@ -51,20 +58,22 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
 
   if (!isSoloRegistration(season) && !isTeamRegistration(season)) {
     return (
-      <div className="container mx-auto px-4 py-16 max-w-2xl">
-        <Panel contentClassName="p-10">
-          <StatusBanner
-            tone="info"
-            title={season.name}
-            sub="队伍报名尚未开放，请联系赛事管理员。"
-          />
-        </Panel>
-      </div>
+      <PageLayout variant="standard">
+        <div className="mx-auto w-full max-w-2xl">
+          <Panel contentClassName="p-10">
+            <StatusBanner
+              tone="info"
+              title={season.name}
+              sub="队伍报名尚未开放，请联系赛事管理员。"
+            />
+          </Panel>
+        </div>
+      </PageLayout>
     );
   }
 
   // 报名未开放时显示状态提示
-  if (season.status !== "registration") {
+  if (season.status !== "registration" && (!isTeamRegistration(season) || season.status === "draft")) {
     const statusMessages: Record<string, string> = {
       draft:    "报名尚未开放，请关注后续公告。",
       voting:   "报名已截止，现在是队长投票阶段。",
@@ -74,36 +83,42 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
       archived: "该赛季已归档。",
     };
     return (
-      <div className="container mx-auto px-4 py-16 max-w-2xl">
-        <Panel contentClassName="p-10">
-        <div className="text-center">
-          <StatusBanner
-            tone="info"
-            title={season.name}
-            sub={statusMessages[season.status] ?? "报名通道当前不可用。"}
-          />
+      <PageLayout variant="standard">
+        <div className="mx-auto w-full max-w-2xl">
+          <Panel contentClassName="p-10">
+            <div className="text-center">
+              <StatusBanner
+                tone="info"
+                title={season.name}
+                sub={statusMessages[season.status] ?? "报名通道当前不可用。"}
+              />
+            </div>
+          </Panel>
         </div>
-      </Panel>
-      </div>
+      </PageLayout>
     );
   }
 
   const registrationWindow = getRegistrationWindowState(season);
   const registrationSchedule = presentRegistrationSchedule(season);
   if (registrationWindow.phase === "unscheduled" || registrationWindow.phase === "upcoming") {
+    const recoverySession = registrationWindow.needsOpeningRecovery ? await getUserSession() : null;
     return (
-      <div className="container mx-auto max-w-2xl px-4 py-16">
-        <Panel contentClassName="p-10">
-          <StatusBanner
-            tone="info"
-            title={season.name}
-            sub={[registrationWindow.message, registrationSchedule?.primary, registrationSchedule?.secondary].filter(Boolean).join(" · ")}
-          />
-          <div className="mt-3 text-center">
-            <RegistrationScheduleCountdown target={registrationSchedule?.countdownTarget ?? null} />
-          </div>
-        </Panel>
-      </div>
+      <PageLayout variant="standard">
+        <div className="mx-auto w-full max-w-2xl">
+          <Panel contentClassName="p-10">
+            <StatusBanner
+              tone="info"
+              title={season.name}
+              sub={[registrationWindow.message, registrationSchedule?.primary, registrationSchedule?.secondary].filter(Boolean).join(" · ")}
+            />
+            <div className="mt-3 text-center">
+              <RegistrationScheduleCountdown target={registrationSchedule?.countdownTarget ?? null} />
+              {recoverySession && <RegistrationOpeningRecovery seasonId={season.id} />}
+            </div>
+          </Panel>
+        </div>
+      </PageLayout>
     );
   }
   const userSession = await getUserSession();
@@ -112,38 +127,41 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
   }
 
   if (isTeamRegistration(season)) {
-    const [captainedTeams, entryRows] = await Promise.all([
+    const [captainedTeams, participantContext, [approvedCount], currentTeamRows] = await Promise.all([
       db.select({ id: teams.id, name: teams.name }).from(teams)
         .where(and(eq(teams.status, "active"), eq(teams.captainUserId, userSession.userId)))
         .orderBy(teams.name),
-      db.select({ entry: competitionEntries })
-        .from(competitionEntries)
-        .leftJoin(competitionEntryParticipants, eq(competitionEntryParticipants.entryId, competitionEntries.id))
-        .where(and(
-          eq(competitionEntries.competitionId, season.id),
-          or(eq(competitionEntries.representativeUserId, userSession.userId), eq(competitionEntryParticipants.userId, userSession.userId)),
-        ))
-        .orderBy(desc(competitionEntries.updatedAt))
-        .limit(1),
+      loadCompetitionEntryParticipantContext({ competitionId: season.id, userId: userSession.userId }),
+      db.select({ value: count() }).from(competitionEntries).where(and(eq(competitionEntries.competitionId, season.id), publicCompetitionEntryCondition())),
+      db.select({ id: teams.id, name: teams.name }).from(teamMemberships).innerJoin(teams, eq(teams.id, teamMemberships.teamId)).where(and(eq(teamMemberships.userId, userSession.userId), isNull(teamMemberships.endedAt), eq(teams.status, "active"))).limit(1),
     ]);
-    const entry = entryRows[0]?.entry ?? null;
+    const entry = participantContext.primaryEntry;
     let entryView: Parameters<typeof CompetitionEntryFlow>[0]["entry"] = null;
+    let capabilities = getCompetitionEntryCapabilities({ season, entry: null, revision: null, rosterFrozen: false });
     if (entry) {
-      const [revision] = await db.select({ id: competitionEntryRosterRevisions.id })
-        .from(competitionEntryRosterRevisions)
-        .where(and(eq(competitionEntryRosterRevisions.id, entry.currentRosterRevisionId), eq(competitionEntryRosterRevisions.entryId, entry.id)))
-        .limit(1);
+      const [[revision], [eventRoster], [entryTeam]] = await Promise.all([
+        db.select({ id: competitionEntryRosterRevisions.id, status: competitionEntryRosterRevisions.status, origin: competitionEntryRosterRevisions.origin })
+          .from(competitionEntryRosterRevisions)
+          .where(and(eq(competitionEntryRosterRevisions.id, entry.currentRosterRevisionId), eq(competitionEntryRosterRevisions.entryId, entry.id)))
+          .limit(1),
+        db.select({ status: eventRosters.status }).from(eventRosters).where(eq(eventRosters.entryId, entry.id)),
+        entry.teamId
+          ? db.select({ logoUrl: teams.logoUrl }).from(teams).where(eq(teams.id, entry.teamId)).limit(1)
+          : Promise.resolve([]),
+      ]);
+      capabilities = getCompetitionEntryCapabilities({ season, entry: { status: entry.registrationStatus, hasApprovedRoster: !!entry.approvedRosterRevisionId }, revision: revision ?? null, rosterFrozen: eventRoster?.status === "frozen" });
       const candidateRows = entry.teamId
-        ? await db.select({ membershipId: teamMemberships.id, userId: teamMemberships.userId, status: teamMemberships.status, email: users.email, displayName: users.displayName, perfectName: users.perfectName, steamName: users.steamName })
-            .from(teamMemberships).innerJoin(users, eq(users.id, teamMemberships.userId))
+        ? await db.select({ membershipId: teamMemberships.id, userId: teamMemberships.userId, status: teamMemberships.status, email: users.email, displayName: users.displayName, perfectName: users.perfectName, personaName: steamProfiles.personaName })
+            .from(teamMemberships).innerJoin(users, eq(users.id, teamMemberships.userId)).leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
             .where(and(eq(teamMemberships.teamId, entry.teamId), isNull(teamMemberships.endedAt), inArray(teamMemberships.status, ["active", "benched"])))
         : [];
       const rosterRows = revision
-        ? await db.select({ participantId: competitionEntryParticipants.id, userId: competitionEntryRosterMembers.userId, confirmation: competitionEntryParticipants.status, primary: competitionEntryRosterMembers.isPrimaryStarter, membershipId: competitionEntryRosterMembers.teamMembershipId, email: users.email, displayName: users.displayName, perfectName: users.perfectName, steamName: users.steamName, membershipStatus: teamMemberships.status })
+        ? await db.select({ participantId: competitionEntryParticipants.id, userId: competitionEntryRosterMembers.userId, confirmation: competitionEntryParticipants.status, primary: competitionEntryRosterMembers.isPrimaryStarter, membershipId: competitionEntryRosterMembers.teamMembershipId, email: users.email, displayName: users.displayName, perfectName: users.perfectName, personaName: steamProfiles.personaName, membershipStatus: teamMemberships.status })
             .from(competitionEntryRosterMembers)
             .innerJoin(competitionEntryParticipants, eq(competitionEntryParticipants.id, competitionEntryRosterMembers.participantId))
             .innerJoin(users, eq(users.id, competitionEntryRosterMembers.userId))
             .leftJoin(teamMemberships, eq(teamMemberships.id, competitionEntryRosterMembers.teamMembershipId))
+            .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
             .where(eq(competitionEntryRosterMembers.revisionId, revision.id))
         : [];
       const userIds = [...new Set([...candidateRows.map((row) => row.userId), ...rosterRows.map((row) => row.userId)])];
@@ -172,7 +190,7 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
               const education = resolveSeasonEducationVerification(fact?.educationHistory ?? [], affiliationRules).selectedVerification;
               return {
                 userId: member.userId,
-                email: fact?.email ?? member.email,
+                label: getPublicDisplayName(fact ?? member),
                 emailVerifiedAt: fact?.emailVerifiedAt ?? null,
                 educationHistory: fact?.educationHistory ?? [],
                 isHome: isHomeAffiliatedMember(education ?? { institutionCode: null, academicStatus: null }, affiliationRules),
@@ -194,10 +212,12 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
       entryView = {
         id: entry.id,
         name: entry.name,
+        logoUrl: entry.logoUrl,
+        teamLogoUrl: entryTeam?.logoUrl ?? null,
         status: entry.registrationStatus,
+        revisionOrigin: revision?.origin ?? null,
         representativeUserId: entry.representativeUserId,
-        perfectTeamId: entry.perfectTeamId,
-        reviewReason: entry.reviewReason,
+        reviewReason: revision?.origin === "self_roster_change" ? null : entry.reviewReason,
         qualificationFindings: qualification.findings,
         candidates,
         roster: rosterRows.map((row) => ({
@@ -216,29 +236,38 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
     }
 
     return (
-      <div className="container mx-auto max-w-2xl space-y-6 px-4 py-10">
-        <div>
-          <p className="mb-1 font-mono text-[11px] uppercase tracking-[0.18em] text-[var(--color-accent)]">{season.name} · TEAM REGISTER</p>
-          <h1 className="text-3xl font-semibold tracking-tight text-[var(--color-fg)]">队伍报名</h1>
+      <PageLayout variant="standard">
+        <div className="mx-auto w-full max-w-2xl space-y-6">
+          <div>
+            <p className="mb-1 font-mono text-[11px] uppercase tracking-[0.18em] text-[var(--color-accent)]">{season.name} · TEAM REGISTER</p>
+            <h1 className="text-3xl font-semibold tracking-tight text-[var(--color-fg)]">队伍报名</h1>
+          </div>
+          <StatusBanner
+            tone={getWindowTone(registrationWindow.phase, registrationWindow.canSubmit)}
+            title={registrationWindow.message}
+            sub={[registrationSchedule?.primary, registrationSchedule?.secondary, season.rosterChangeClosesAt ? `名单可自行调整至 ${formatCST(season.rosterChangeClosesAt)}` : "名单调整截止时间与报名截止时间一致"].filter(Boolean).join(" · ")}
+          />
+          <RegistrationScheduleCountdown target={registrationSchedule?.countdownTarget ?? null} />
+          <CompetitionEntryFlow
+            key={entry ? `${entry.id}:${entry.updatedAt.toISOString()}` : "new"}
+            capabilities={capabilities}
+            requiresTeamLogo={normalizeTeamRegistrationConfig(season.teamRegistrationConfig).requireTeamLogo}
+            canManageEntryTeamProfile={Boolean(entry?.teamId && captainedTeams.some((team) => team.id === entry.teamId))}
+            approvedTeamCount={approvedCount?.value ?? 0}
+            competitionId={season.id}
+            competitionName={season.name}
+            currentUserId={userSession.userId}
+            minRoster={season.minTeamSize}
+            maxRoster={season.maxTeamSize}
+            starterCount={season.starterCount}
+            requiresCompetitiveProfile={season.teamRegistrationConfig?.requireCompetitiveProfile ?? false}
+            currentTeam={currentTeamRows[0] ?? null}
+            captainedTeams={captainedTeams}
+            invitationConflict={participantContext.invitationConflict}
+            entry={entryView}
+          />
         </div>
-        <StatusBanner
-          tone={getWindowTone(registrationWindow.phase, registrationWindow.canSubmit)}
-          title={registrationWindow.message}
-          sub={[registrationSchedule?.primary, registrationSchedule?.secondary, season.rosterChangeClosesAt ? `名单可自行调整至 ${formatCST(season.rosterChangeClosesAt)}` : "名单调整截止时间与报名截止时间一致"].filter(Boolean).join(" · ")}
-        />
-        <RegistrationScheduleCountdown target={registrationSchedule?.countdownTarget ?? null} />
-        <CompetitionEntryFlow
-          competitionId={season.id}
-          competitionName={season.name}
-          currentUserId={userSession.userId}
-          minRoster={season.minTeamSize}
-          maxRoster={season.maxTeamSize}
-      starterCount={season.starterCount}
-      requiresPerfectTeamId={season.teamRegistrationConfig?.requireCompetitiveProfile ?? false}
-          captainedTeams={captainedTeams}
-          entry={entryView}
-        />
-      </div>
+      </PageLayout>
     );
   }
 
@@ -262,15 +291,17 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
   const existingStatusLabel = existingStatus ? REGISTRATION_STATUS_LABELS[existingStatus] : null;
   const canEditExisting = !!currentRegistration && currentRegistration.status !== "approved";
   const longTermMapPreferences = mapPreferences[0]?.mapPreferences;
-  const initialValues = currentRegistration
-    ? {
+  const initialValues = {
+    email: userSession.email,
+    gameplayStyle: currentRegistration?.gameplayStyle ?? currentUser?.gameplayStyle ?? "",
+    competitionHistory: currentRegistration?.competitionHistory ?? currentUser?.competitionHistory ?? "",
+    ...(currentRegistration
+      ? {
         email: userSession.email,
         studentId: currentUser?.studentId ?? "",
         qq: currentUser?.qq ?? "",
         perfectName: currentUser?.perfectName ?? "",
-        steamName: currentUser?.steamName ?? "",
         steam64: currentUser?.steam64 ?? "",
-        steamProfileUrl: currentUser?.steamProfileUrl ?? "",
         playerType: currentRegistration.playerType,
         primaryPosition: currentRegistration.primaryPosition,
         secondaryPosition: currentRegistration.secondaryPosition,
@@ -290,9 +321,11 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
         notes: currentRegistration.notes ?? "",
         antiCheatPledge: true as const,
       }
-    : longTermMapPreferences
+      : {}),
+    ...(longTermMapPreferences
       ? { mapPreferences: projectMapPreferences(longTermMapPreferences, regConfig.mapPool) }
-      : undefined;
+      : {}),
+  };
 
   // 位置容量数据
   const capacityEntries = season.positions.map((pos) => {
@@ -302,7 +335,8 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
   });
 
   return (
-    <div className="container mx-auto px-4 py-10 max-w-2xl space-y-6">
+    <PageLayout variant="standard">
+      <div className="mx-auto w-full max-w-2xl space-y-6">
       <div className="mb-8">
         <p className="font-mono text-[11px] tracking-[0.18em] text-[var(--color-accent)] uppercase mb-1">
           {season.name} · REGISTER
@@ -319,7 +353,7 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
             registrationSchedule?.primary ?? "报名开放时间待定",
             registrationSchedule?.secondary,
             season.rosterChangeClosesAt ? `名单调整截止：${formatCST(season.rosterChangeClosesAt)}` : "名单调整截止：与报名截止一致",
-          ].join(" · ")}
+          ].filter(Boolean).join(" · ")}
         />
         <RegistrationScheduleCountdown target={registrationSchedule?.countdownTarget ?? null} />
       </div>
@@ -352,14 +386,14 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
                     }}
                   >
                     {cur} / {max}
-                    {full && <span className="ml-1">FULL</span>}
+                    {full && <span className="ml-1">已满</span>}
                   </div>
                 </div>
               );
             })}
             <div className="flex justify-between items-center pt-2" style={{ borderTop: "1px solid var(--color-border)" }}>
               <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--color-fg-dim)", fontFamily: "var(--font-display)" }}>
-                Approved
+                已通过
               </span>
               <span className="font-bold" style={{ fontFamily: "var(--font-mono)", fontSize: 13, color: "var(--color-fg)" }}>
                 {approvedCount} / {regConfig.maxTotal}
@@ -409,6 +443,7 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
       <p className="text-xs text-[var(--color-fg-dim)] text-center mt-6">
         提交即视为同意参赛规则。审核通过前可自行修改；审核通过后如需更改请联系管理员。
       </p>
-    </div>
+      </div>
+    </PageLayout>
   );
 }

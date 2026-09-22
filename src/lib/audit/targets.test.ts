@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   auditTargetKey,
   groupAuditTargets,
+  normalizeAuditTarget,
   resolveAuditTargets,
   type AuditDatabaseExecutor,
 } from "@/lib/audit/targets";
@@ -13,11 +14,14 @@ import {
   institutions,
   majorFinalResults,
   majorTournamentEntrants,
+  matchDemoImports,
+  matchMaps,
   matches,
   postEventAdjudications,
   seasons,
   teams,
   tournamentHonors,
+  userGameplaySteamIds,
   users,
 } from "@/db/schema";
 
@@ -30,6 +34,9 @@ function fakeExecutor(responses: Map<unknown, unknown[]>) {
         from(nextTable: unknown) {
           table = nextTable;
           selectedTables.push(nextTable);
+          return builder;
+        },
+        leftJoin() {
           return builder;
         },
         where() {
@@ -61,7 +68,7 @@ describe("audit target resolver", () => {
     const platformKey = "perfect-world";
     const platformSeasonId = "platform-season-1";
     const { executor } = fakeExecutor(new Map<unknown, unknown[]>([
-      [users, [{ id: userId, email: "player@example.test", displayName: "玩家甲", perfectName: null, steamName: null }]],
+      [users, [{ id: userId, email: "player@example.test", displayName: "玩家甲", perfectName: null, personaName: null }]],
       [seasons, [{ id: seasonId, name: "Major 2027" }]],
       [teams, [{ id: teamId, name: "Alpha" }]],
       [competitionEntries, [
@@ -111,7 +118,7 @@ describe("audit target resolver", () => {
   it("deduplicates IDs and performs one query per target type, not per row", async () => {
     const ids = Array.from({ length: 20 }, (_, index) => `user-${index}`);
     const { executor, selectedTables } = fakeExecutor(new Map<unknown, unknown[]>([
-      [users, ids.map((id) => ({ id, email: `${id}@example.test`, displayName: id, perfectName: null, steamName: null }))],
+      [users, ids.map((id) => ({ id, email: `${id}@example.test`, displayName: id, perfectName: null, personaName: null }))],
     ]));
     const refs = [...ids.flatMap((targetId) => [
       { targetType: "user", targetId },
@@ -131,5 +138,81 @@ describe("audit target resolver", () => {
     expect(target).toMatchObject({ typeLabel: "教育认证", found: false });
     expect(target.label).toContain("记录未找到");
     expect(target.label).not.toContain("education_verification:");
+  });
+
+  it("projects legacy recruitment interest removals onto their stable intent", async () => {
+    const legacyRef = {
+      action: "recruitment.interest.withdraw",
+      targetType: "recruitment_interest",
+      targetId: "deleted-interest",
+      meta: { recruitmentIntentId: "intent-1" },
+    };
+    expect(normalizeAuditTarget(legacyRef)).toEqual({ targetType: "recruitment_intent", targetId: "intent-1", lifecycle: "stable" });
+
+    const { executor } = fakeExecutor(new Map());
+    const targets = await resolveAuditTargets([legacyRef], executor);
+    expect(targets[auditTargetKey("recruitment_intent", "intent-1")]).toMatchObject({
+      typeLabel: "招募意向",
+      found: false,
+    });
+  });
+
+  it("projects legacy public-info child rows from their action contract", () => {
+    expect(normalizeAuditTarget({
+      action: "season_public_info.group.delete",
+      targetType: "season_public_info",
+      targetId: "group-1",
+    })).toEqual({ targetType: "community_group", targetId: "group-1", lifecycle: "tombstone" });
+    expect(normalizeAuditTarget({
+      action: "season_public_info.contact.update",
+      targetType: "season_public_info",
+      targetId: "contact-1",
+    })).toEqual({ targetType: "season_contact", targetId: "contact-1", lifecycle: "stable" });
+  });
+
+  it("uses an explicit historical fallback for intentional tombstones", async () => {
+    const { executor } = fakeExecutor(new Map());
+    const result = await resolveAuditTargets([{
+      action: "season_public_info.group.delete",
+      targetType: "season_public_info",
+      targetId: "deleted-group",
+    }], executor);
+    const target = result[auditTargetKey("community_group", "deleted-group")];
+
+    expect(target).toMatchObject({ typeLabel: "社区群组", found: false });
+    expect(target.label).toContain("已删除 / 历史目标");
+  });
+
+  it("resolves Demo imports and gameplay identities without exposing internal ids", async () => {
+    const demoId = "demo-1";
+    const mapId = "map-1";
+    const matchId = "match-demo-1";
+    const identityId = "identity-1";
+    const userId = "user-demo-1";
+    const { executor } = fakeExecutor(new Map<unknown, unknown[]>([
+      [matchDemoImports, [{ id: demoId, matchMapId: mapId }]],
+      [matchMaps, [{ id: mapId, matchId, mapName: "de_ancient", mapOrder: 2 }]],
+      [matches, [{ id: matchId, entryAId: "entry-1", entryBId: "entry-2" }]],
+      [competitionEntries, [{ id: "entry-1", name: "Alpha" }, { id: "entry-2", name: "Beta" }]],
+      [userGameplaySteamIds, [{ id: identityId, userId, steam64: "76561198000000001", status: "active" }]],
+      [users, [{ id: userId, email: "player@example.test", displayName: "玩家甲", perfectName: null, personaName: null }]],
+    ]));
+
+    const result = await resolveAuditTargets([
+      { action: "match.demo.identity_confirm", targetType: "match_demo_import", targetId: demoId },
+      { action: "match.demo.identity_retire", targetType: "user_gameplay_steam_id", targetId: identityId },
+    ], executor);
+
+    expect(result[auditTargetKey("match_demo_import", demoId)]).toMatchObject({
+      typeLabel: "Demo 数据",
+      label: "Demo 数据 · 第 2 图 · de_ancient · Alpha vs Beta",
+      found: true,
+    });
+    expect(result[auditTargetKey("user_gameplay_steam_id", identityId)]).toMatchObject({
+      typeLabel: "选手 Steam 身份",
+      label: "玩家甲 · Steam64 76561198000000001 · 使用中",
+      found: true,
+    });
+    expect(result[auditTargetKey("match_demo_import", demoId)]?.label).not.toContain("demo-1");
   });
 });

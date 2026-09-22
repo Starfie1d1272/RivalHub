@@ -30,7 +30,7 @@ try {
     executable: plan.executable,
     summary: plan.summary,
     impact: plan.impact,
-    items: plan.items.map(({ category, domain, count, status, detail }) => ({ category, domain, count, status, detail })),
+    items: plan.items.map(({ category, label, count, status, detail }) => ({ category, label, count, status, detail })),
   }, null, 2));
 } catch (error) {
   console.error(error instanceof Error ? error.message : String(error));

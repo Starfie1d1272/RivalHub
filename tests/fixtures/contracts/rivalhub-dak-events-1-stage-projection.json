@@ -1,0 +1,73 @@
+{
+  "contractVersion": "rivalhub-dak-events/1",
+  "generatedAt": "2026-09-14T00:00:00.000Z",
+  "events": [
+    {
+      "id": "40000000-0000-4000-8000-000000000001",
+      "seasonId": "40000000-0000-4000-8000-000000000001",
+      "slug": "stage-projection-fixture",
+      "name": "Stage Projection Fixture",
+      "kind": "major",
+      "revision": "stage-projection-fixture-1",
+      "stages": [
+        {
+          "key": "group-stage",
+          "name": "小组循环赛",
+          "type": "round_robin",
+          "teamCount": 3,
+          "advanceCount": 2,
+          "matchFormat": "bo1",
+          "finalFormat": null,
+          "standings": [
+            {
+              "entryId": "40000000-0000-4000-8000-000000000011",
+              "teamName": "Alpha",
+              "rank": 1,
+              "wins": 2,
+              "losses": 0,
+              "roundWins": 26,
+              "roundLosses": 18,
+              "roundDiff": 8
+            },
+            {
+              "entryId": "40000000-0000-4000-8000-000000000012",
+              "teamName": "Bravo",
+              "rank": 2,
+              "wins": 1,
+              "losses": 1,
+              "roundWins": 22,
+              "roundLosses": 22,
+              "roundDiff": 0
+            },
+            {
+              "entryId": "40000000-0000-4000-8000-000000000013",
+              "teamName": "Charlie",
+              "rank": 3,
+              "wins": 0,
+              "losses": 2,
+              "roundWins": 18,
+              "roundLosses": 26,
+              "roundDiff": -8
+            }
+          ]
+        },
+        {
+          "key": "playoff",
+          "name": "淘汰赛",
+          "type": "single_elim",
+          "teamCount": 4,
+          "advanceCount": 1,
+          "matchFormat": "bo3",
+          "finalFormat": "bo5",
+          "bracketNodes": [
+            { "id": "0", "label": "半决赛 1", "round": 1, "lane": "single", "nextWinNodeId": "2", "nextLossNodeId": null },
+            { "id": "1", "label": "半决赛 2", "round": 1, "lane": "single", "nextWinNodeId": "2", "nextLossNodeId": null },
+            { "id": "2", "label": "决赛", "round": 2, "lane": "single", "nextWinNodeId": null, "nextLossNodeId": null }
+          ]
+        }
+      ],
+      "teams": [],
+      "series": []
+    }
+  ]
+}

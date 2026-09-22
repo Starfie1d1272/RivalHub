@@ -1,4 +1,5 @@
 import type { MajorPrestartReadiness } from "@/lib/major/prestart";
+import type { RegistrationWindowPhase } from "@/lib/registration/window";
 import type { SeedOrderRowStatus } from "@/lib/major/team-seed-recommendation";
 import type { Season } from "@/db/schema/seasons";
 
@@ -14,7 +15,6 @@ export interface SeasonWorkspaceOverviewSummary {
   entrantCount: number;
   frozenEntrantCount: number;
   matchCount: number;
-  unresolvedPrestartIssues: number;
   scheduledMatchesWithoutConfirmedLineups: number;
   finalResultPendingConfirmation: boolean;
   activeAdjudications: number;
@@ -26,11 +26,71 @@ export interface SeasonWorkspaceNextAction {
   href: string;
 }
 
+export interface SeasonWorkspaceTeamRegistrationFunnel {
+  mode: "team";
+  total: number;
+  draft: number;
+  submitted: number;
+  approved: number;
+  deadline: Date | null;
+  windowPhase: RegistrationWindowPhase;
+}
+
 export interface SeasonWorkspaceOverviewData {
   season: SeasonWorkspaceOverviewSeason;
   summary: SeasonWorkspaceOverviewSummary;
+  registrationFunnel: SeasonWorkspaceTeamRegistrationFunnel | null;
   readiness: MajorPrestartReadiness | null;
   nextAction: SeasonWorkspaceNextAction;
+}
+
+export interface MajorStrengthFact {
+  rank: string;
+  stars: number | null;
+  sourcePlatform: string | null;
+  sourceSeasonKey: string | null;
+  sourceRank: string | null;
+  sourceStars: number | null;
+  conversionVersion: string | null;
+}
+
+export interface MajorStrengthStarter {
+  userId: string;
+  label: string;
+  presentation: {
+    historicalPeak: MajorStrengthFact | null;
+    referenceSeasonPeak: MajorStrengthFact | null;
+    currentSeasonPeak: MajorStrengthFact | null;
+    recentPeak: MajorStrengthFact | null;
+    historicalRating: number | null;
+    available: boolean;
+    blockers: string[];
+  };
+}
+
+export type MajorStrengthTieState = "not_ranked" | "not_tied" | "tied";
+
+export interface MajorStrengthTeam {
+  teamId: string;
+  teamName: string;
+  available: boolean;
+  blockers: string[];
+  recommendationRank: number | null;
+  tieState: MajorStrengthTieState;
+  starters: MajorStrengthStarter[];
+}
+
+export type MajorStrengthRecommendationTeam = Omit<MajorStrengthTeam, "recommendationRank"> & {
+  recommendationRank: number;
+};
+
+export interface MajorPrestartStrengthPreview {
+  status: "ready" | "unavailable";
+  platform: string | null;
+  conversionPolicyId: string | null;
+  conversionPolicyVersion: string | null;
+  blockers: string[];
+  teams: MajorStrengthTeam[];
 }
 
 export interface MajorPrestartPageData {
@@ -40,6 +100,7 @@ export interface MajorPrestartPageData {
     seasonId: string;
     entrantCapacity: number;
     entrantsLocked: boolean;
+    strengthPreview: MajorPrestartStrengthPreview;
     approvedCandidates: Array<{
       id: string;
       name: string;
@@ -52,7 +113,7 @@ export interface MajorPrestartPageData {
       roster: {
         memberCount: number;
         primaryStarterCount: number;
-        members: Array<{ userId: string; email: string; isPrimaryStarter: boolean }>;
+        members: Array<{ userId: string; label: string; isPrimaryStarter: boolean }>;
       };
     }>;
     entrants: Array<{
@@ -60,9 +121,8 @@ export interface MajorPrestartPageData {
       teamId: string;
       teamName: string;
       rosterStatus: "preparing" | "confirmed" | "frozen";
-      roster: Array<{ userId: string; email: string; isPrimaryStarter: boolean; educationVerified: boolean }>;
+      roster: Array<{ userId: string; label: string; isPrimaryStarter: boolean; educationVerified: boolean }>;
     }>;
-    issues: Array<{ id: string; category: "qualification" | "administration"; label: string; resolved: boolean }>;
   };
   seedManagement: {
     seasonId: string;
@@ -70,7 +130,6 @@ export interface MajorPrestartPageData {
     entrants: Array<{ teamId: string; teamName: string }>;
     seeds: Array<{ teamId: string; tournamentSeed: number }>;
     seedsConfirmed: boolean;
-    overrideReason: string | null;
     recommendationStatus: "missing" | "ready" | "mismatch";
     recommendation: {
       version: 1;
@@ -78,82 +137,10 @@ export interface MajorPrestartPageData {
       platform: string;
       conversionPolicyId: string | null;
       conversionPolicyVersion: string | null;
-      teams: Array<{
+      teams: Array<MajorStrengthRecommendationTeam & {
         entrantId: string;
-        teamId: string;
-        teamName: string;
-        teamSeedStrength: number;
-        teamSeedStrengthScaled: number;
-        recommendationRank: number;
-        tieGroup: number;
-        displayOrder: number;
         finalSeed: number | null;
         finalOrderStatus: SeedOrderRowStatus;
-        starters: Array<{
-          userId: string;
-          label: string;
-          historicalPeak: {
-            rank: string;
-            stars: number | null;
-            sourcePlatform: string | null;
-            sourceSeasonKey: string | null;
-            sourceRank: string | null;
-            sourceStars: number | null;
-            conversionVersion: string | null;
-          } | null;
-          previousSeasonPeak: {
-            rank: string;
-            stars: number | null;
-            sourcePlatform: string | null;
-            sourceSeasonKey: string | null;
-            sourceRank: string | null;
-            sourceStars: number | null;
-            conversionVersion: string | null;
-          } | null;
-          currentSeasonPeak: {
-            rank: string;
-            stars: number | null;
-            sourcePlatform: string | null;
-            sourceSeasonKey: string | null;
-            sourceRank: string | null;
-            sourceStars: number | null;
-            conversionVersion: string | null;
-          } | null;
-          recentSeasonPeaks: Array<{
-            rank: string;
-            stars: number | null;
-            sourcePlatform: string | null;
-            sourceSeasonKey: string | null;
-            sourceRank: string | null;
-            sourceStars: number | null;
-            conversionVersion: string | null;
-          } | null>;
-          effectiveRecentPeak: {
-            rank: string;
-            stars: number | null;
-            sourcePlatform: string | null;
-            sourceSeasonKey: string | null;
-            sourceRank: string | null;
-            sourceStars: number | null;
-            conversionVersion: string | null;
-          } | null;
-          breakdown: {
-            weightedRank: number;
-            historicalValue: number;
-            previousValue: number;
-            currentValue: number;
-            effectiveRecentPeak: {
-              rank: string;
-              stars: number | null;
-              sourcePlatform: string | null;
-              sourceSeasonKey: string | null;
-              sourceRank: string | null;
-              sourceStars: number | null;
-              conversionVersion: string | null;
-            } | null;
-            historicalRating: number | null;
-          };
-        }>;
       }>;
     } | null;
     firstRound: Array<{ higherSeed: number; lowerSeed: number; format: "bo1" | "bo3" }> | null;

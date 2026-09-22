@@ -40,13 +40,15 @@ describe("observability redaction", () => {
     const safe = sanitizeSafeContext({
       provider: "turnstile",
       count: 2,
+      jobKey: "draft-timeout",
+      source: "github-watchdog",
       password: "do-not-log",
       query: "select * from users where id = $1",
       raw: { educationCode: "private" },
       errorCodes: ["invalid-input-response"],
     });
 
-    expect(safe).toEqual({ provider: "turnstile", count: 2, errorCodes: ["invalid-input-response"] });
+    expect(safe).toEqual({ provider: "turnstile", count: 2, jobKey: "draft-timeout", source: "github-watchdog", errorCodes: ["invalid-input-response"] });
     expect(JSON.stringify(safe)).not.toContain("do-not-log");
     expect(JSON.stringify(safe)).not.toContain("educationCode");
   });

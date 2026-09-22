@@ -16,6 +16,9 @@ interface PlayerStats {
   avgWe: number | null;
 }
 
+// Text-first exception: this dense comparison keeps names and metrics aligned;
+// the explicit identity inventory records why it does not render avatars.
+
 interface MatchLineupsH2HProps {
   teamAName: string;
   teamBName: string;

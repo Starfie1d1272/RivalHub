@@ -1,11 +1,12 @@
 import "server-only";
 
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
   competitionEntries,
   eventRosterMembers,
   eventRosters,
+  matchDemoImports,
   matchCommentators,
   matchMaps,
   matchRosterPlayers,
@@ -15,6 +16,7 @@ import {
   seasonAdminGrants,
   seasonRegistrations,
   seasons,
+  steamProfiles,
   users,
 } from "@/db/schema";
 import { requireSeasonAdmin } from "@/lib/auth/session";
@@ -22,7 +24,12 @@ import { getStartingLineupPreflightInTx } from "@/lib/match-rosters/service";
 import { getDisplayName } from "@/lib/identity/display-name";
 import { getPostMatchCompletion, POST_MATCH_COMPLETION_LABEL } from "@/lib/postmatch/service";
 import { normalizeRegistrationConfig, normalizeStagePlan } from "@/lib/seasons/compatibility";
-import type { AdminMatchWorkbenchData, RosterData, TeamMemberData } from "@/lib/admin/matches/types";
+import { parseRivalHubDemoEvidenceV1 } from "@/lib/demo-evidence/contract";
+import { resolveGameplayUsersBySteam64 } from "@/lib/identity/gameplay-steam";
+import { loadEffectiveMatchRoster } from "@/lib/match-rosters/effective";
+import { selectCurrentDemoImport } from "@/lib/demo-integration/read";
+import { hasConfirmableParticipantIdentityIssue } from "@/lib/demo-integration/validation";
+import type { AdminDemoReviewMap, AdminMatchWorkbenchData, RosterData, TeamMemberData } from "@/lib/admin/matches/types";
 import { mapCompletedMaps, mapFinishedMaps, mapPendingMaps } from "@/lib/admin/matches/shared";
 
 interface AdminMatchWorkbenchInput {
@@ -64,7 +71,7 @@ function projectRoster(roster: MatchRosterWithPlayers | undefined): RosterData |
 function projectTeamMember(row: {
   id: string;
   entryId: string;
-  steamName: string | null;
+  personaName: string | null;
   displayName: string | null;
   perfectName: string | null;
   primaryPosition: string | null;
@@ -72,7 +79,7 @@ function projectTeamMember(row: {
   return {
     id: row.id,
     entryId: row.entryId,
-    steamName: row.steamName ?? "未知",
+    personaName: row.personaName ?? null,
     displayName: row.displayName ?? null,
     perfectName: row.perfectName ?? null,
     primaryPosition: row.primaryPosition ?? "—",
@@ -103,12 +110,12 @@ export async function loadAdminMatchWorkbench({
   });
   if (entries.length !== 2) return null;
 
-  const [memberRows, rosterRows, mapRecords, commentatorRows, submission, seasonAdminRows] = await Promise.all([
+  const [memberRows, rosterRows, mapRecords, commentatorRows, submission, seasonAdminRows, effectiveRosterRows] = await Promise.all([
     db
       .select({
         id: eventRosterMembers.id,
         entryId: eventRosters.entryId,
-        steamName: users.steamName,
+        personaName: steamProfiles.personaName,
         displayName: users.displayName,
         perfectName: users.perfectName,
         primaryPosition: seasonRegistrations.primaryPosition,
@@ -116,6 +123,7 @@ export async function loadAdminMatchWorkbench({
       .from(eventRosterMembers)
       .innerJoin(eventRosters, eq(eventRosterMembers.eventRosterId, eventRosters.id))
       .innerJoin(users, eq(eventRosterMembers.userId, users.id))
+      .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
       .leftJoin(
         seasonRegistrations,
         and(
@@ -136,11 +144,12 @@ export async function loadAdminMatchWorkbench({
             userId: users.id,
             displayName: users.displayName,
             perfectName: users.perfectName,
-            steamName: users.steamName,
+            personaName: steamProfiles.personaName,
             liveStreamUrl: users.liveStreamUrl,
           })
           .from(matchCommentators)
           .innerJoin(users, eq(matchCommentators.userId, users.id))
+          .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
           .where(eq(matchCommentators.matchId, match.id))
       : Promise.resolve([]),
     match.status !== "cancelled"
@@ -152,14 +161,22 @@ export async function loadAdminMatchWorkbench({
             userId: users.id,
             displayName: users.displayName,
             perfectName: users.perfectName,
-            steamName: users.steamName,
+            personaName: steamProfiles.personaName,
             liveStreamUrl: users.liveStreamUrl,
           })
           .from(seasonAdminGrants)
           .innerJoin(users, eq(seasonAdminGrants.userId, users.id))
+          .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
           .where(eq(seasonAdminGrants.seasonId, season.id))
       : Promise.resolve([]),
+    loadEffectiveMatchRoster(db, [match.id]),
   ]);
+
+  const demoImportRows = mapRecords.length > 0
+    ? await db.select().from(matchDemoImports)
+      .where(inArray(matchDemoImports.matchMapId, mapRecords.map((map) => map.id)))
+      .orderBy(desc(matchDemoImports.createdAt))
+    : [];
 
   const members = memberRows.map(projectTeamMember);
   const membersByEntry = new Map<string, TeamMemberData[]>();
@@ -190,6 +207,95 @@ export async function loadAdminMatchWorkbench({
 
   const stagePlan = normalizeStagePlan(season.stagePlan);
   const entryName = new Map(entries.map((entry) => [entry.id, entry.name]));
+  const currentImportByMap = new Map<string, typeof matchDemoImports.$inferSelect>();
+  for (const map of mapRecords) {
+    const rows = demoImportRows.filter((row) => row.matchMapId === map.id);
+    const current = selectCurrentDemoImport(rows);
+    if (current?.status === "needs_attention") currentImportByMap.set(map.id, current);
+  }
+  const pendingEvidenceRows = [...currentImportByMap.values()];
+  let gameplayResolutions = new Map<string, { userId: string; source: "primary" | "gameplay_alias" }>();
+  let gameplayResolutionFailed = false;
+  const observedSteam64 = pendingEvidenceRows.flatMap((row) => {
+    try {
+      return parseRivalHubDemoEvidenceV1(row.payload).participants.map((participant) => participant.steamId64);
+    } catch {
+      return [];
+    }
+  });
+  if (observedSteam64.length > 0) {
+    try {
+      gameplayResolutions = await resolveGameplayUsersBySteam64(db, observedSteam64);
+    } catch {
+      gameplayResolutionFailed = true;
+    }
+  }
+  const demoReviews: AdminDemoReviewMap[] = mapRecords.flatMap((map): AdminDemoReviewMap[] => {
+    const row = currentImportByMap.get(map.id);
+    if (!row) return [];
+    try {
+      const evidence = parseRivalHubDemoEvidenceV1(row.payload);
+      const storedIssues = Array.isArray(row.issues) ? row.issues : [];
+      return [{
+        importId: row.id,
+        matchMapId: map.id,
+        mapOrder: map.mapOrder,
+        mapName: map.mapName,
+        invalidPayload: false,
+        message: null,
+        participants: evidence.participants.map((participant) => {
+          const entryId = participant.observedTeamKey === "teamA" ? match.entryAId : match.entryBId;
+          const candidates = effectiveRosterRows
+            .filter((member) => member.entryId === entryId)
+            .map((member) => ({
+              eventRosterMemberId: member.eventRosterMemberId,
+              entryId: member.entryId,
+              name: getDisplayName(member),
+              steam64: member.steam64,
+              userId: member.userId,
+            }));
+          const resolution = gameplayResolutions.get(participant.steamId64);
+          const resolvedStarter = resolution ? candidates.some((candidate) => candidate.userId === resolution.userId) : false;
+          const identityIssue = hasConfirmableParticipantIdentityIssue(storedIssues, participant.steamId64);
+          const canConfirm = identityIssue && !gameplayResolutionFailed && !resolvedStarter && resolution == null;
+          const note = gameplayResolutionFailed
+            ? "当前无法核对这项身份，请先检查赛事身份资料。"
+            : resolution && !resolvedStarter
+              ? "这个 Steam64 已关联另一位选手，请先核对。"
+              : !identityIssue
+                ? "这份 Demo 还有其他数据需要处理。"
+                : resolvedStarter
+                  ? "这个 Steam64 已能匹配本场首发。"
+                  : candidates.length === 0
+                    ? "本场当前首发名单没有可确认的选手。"
+                    : null;
+          return {
+            observedSteam64: participant.steamId64,
+            demoName: participant.nameSnapshot,
+            teamName: entryName.get(entryId) ?? "未知队伍",
+            canConfirm,
+            note,
+            candidates: candidates.map((candidate) => ({
+              eventRosterMemberId: candidate.eventRosterMemberId,
+              entryId: candidate.entryId,
+              name: candidate.name,
+              steam64: candidate.steam64,
+            })),
+          };
+        }),
+      } satisfies AdminDemoReviewMap];
+    } catch {
+      return [{
+        importId: row.id,
+        matchMapId: map.id,
+        mapOrder: map.mapOrder,
+        mapName: map.mapName,
+        invalidPayload: true,
+        message: "这份 Demo 数据无法重新读取，请核对或拒绝。",
+        participants: [],
+      } satisfies AdminDemoReviewMap];
+    }
+  });
   const submittedAt = submission?.submittedAt ?? null;
   const postMatch = match.status === "cancelled"
     ? null
@@ -228,5 +334,6 @@ export async function loadAdminMatchWorkbench({
     pendingMaps: mapPendingMaps(mapRecords),
     finishedMaps: mapFinishedMaps(mapRecords),
     postMatch,
+    demoReviews,
   };
 }

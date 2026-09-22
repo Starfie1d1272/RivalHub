@@ -1,7 +1,7 @@
 import { eq, or } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import type { TxDb } from "@/db/client";
-import { competitionEntries, competitionEntryParticipants, eventRosterMembers, eventRosters, seasonAdminGrants, seasonRegistrations, users } from "@/db/schema";
+import { competitionEntries, competitionEntryParticipants, eventRosterMembers, eventRosters, seasonAdminGrants, seasonRegistrations, steamProfiles, users } from "@/db/schema";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
 
 export type SeasonAwardCandidate = { id: string; name: string };
@@ -16,7 +16,8 @@ export function isPublicCommunityAward(status: string, reviewedAt: Date | null):
 
 export async function getSeasonAwardCandidates(executor: CommunityAwardQueryable, seasonId: string): Promise<SeasonAwardCandidate[]> {
   const rosterEntries = alias(competitionEntries, "award_roster_entries");
-  const rows = await executor.selectDistinct({ id: users.id, displayName: users.displayName, perfectName: users.perfectName, steamName: users.steamName }).from(users)
+  const rows = await executor.selectDistinct({ id: users.id, displayName: users.displayName, perfectName: users.perfectName, personaName: steamProfiles.personaName }).from(users)
+    .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
     .leftJoin(seasonAdminGrants, eq(seasonAdminGrants.userId, users.id))
     .leftJoin(seasonRegistrations, eq(seasonRegistrations.userId, users.id))
     .leftJoin(competitionEntryParticipants, eq(competitionEntryParticipants.userId, users.id))

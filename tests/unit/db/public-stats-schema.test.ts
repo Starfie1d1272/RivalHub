@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 
 const publicStatsPages = [
   "src/app/[seasonSlug]/stats/page.tsx",
-  "src/app/[seasonSlug]/teams/[teamId]/page.tsx",
+  "src/app/[seasonSlug]/teams/[entryId]/page.tsx",
   "src/app/players/[userId]/page.tsx",
 ];
 

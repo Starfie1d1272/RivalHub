@@ -1,11 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const revalidatePathMock = vi.hoisted(() => vi.fn());
-const updateTagMock = vi.hoisted(() => vi.fn());
-
-vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock, updateTag: updateTagMock }));
-
-import { maybeAdvanceFromRegistration, maybeFinishSeason } from "@/actions/transitions";
+import { maybeAdvanceFromRegistration, maybeFinishSeason } from "@/lib/seasons/transitions";
 
 function createTx(season: Record<string, unknown>, count = 0) {
   const selectMock = vi.fn(() => ({

@@ -87,6 +87,8 @@ describe("getRegistrationWindowState", () => {
 
     expect(state.phase).toBe("upcoming");
     expect(state.canSubmit).toBe(false);
+    expect(state.needsOpeningRecovery).toBe(true);
+    expect(state.message).toBe("报名正在开放，请稍候…");
   });
 });
 

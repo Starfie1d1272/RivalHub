@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { AppError, ErrorCode } from "@/lib/errors";
+import type { AdvanceTier, StageConfig, StagePlan, StageType } from "@/types/season";
 
 const stageSchema = z.object({
   key: z.string().min(1),
@@ -110,6 +111,44 @@ export type MajorRunSnapshot = z.infer<typeof frozenInputSchema> & {
   tournamentEntrants?: readonly z.infer<typeof frozenEntrantSchema>[];
   hasThirdPlaceMatch?: boolean;
 };
+
+function materializeStageConfig(stage: MajorRunStage): StageConfig {
+  return {
+    key: stage.key,
+    name: stage.name,
+    type: stage.type as StageType,
+    teamCount: stage.teamCount,
+    matchFormat: stage.matchFormat as StageConfig["matchFormat"],
+    finalFormat: stage.finalFormat as StageConfig["finalFormat"],
+    advanceTiers: stage.advanceTiers as AdvanceTier[],
+    ...(stage.entrySeeds === null || stage.entrySeeds === undefined ? {} : { entrySeeds: stage.entrySeeds }),
+    ...(stage.seeds === null || stage.seeds === undefined ? {} : { seeds: [...stage.seeds] }),
+  };
+}
+
+/** Convert the persisted frozen definition into the shared presentation shape. */
+export function materializeMajorStagePlan(snapshot: MajorRunSnapshot): StagePlan {
+  return snapshot.stagePlan.map(materializeStageConfig);
+}
+
+/** Started Major stages own the presentation plan; live Season config is only a pre-start fallback. */
+export function resolveMajorStagePlan(
+  liveStagePlan: StagePlan,
+  stageRuns: readonly { stageKey: string; ruleSnapshot: unknown }[],
+): StagePlan {
+  if (stageRuns.length === 0) return liveStagePlan;
+
+  const frozenPlans = stageRuns.map((run) => {
+    const snapshot = parseMajorRunSnapshot(run.ruleSnapshot, run.stageKey);
+    return {
+      snapshot,
+      order: snapshot.stagePlan.findIndex((stage) => stage.key === run.stageKey),
+    };
+  }).sort((a, b) => a.order - b.order);
+  const latest = frozenPlans.at(-1);
+  if (!latest || latest.order < 0) throw new Error("StageRun snapshot 不包含当前阶段");
+  return materializeMajorStagePlan(latest.snapshot);
+}
 
 function fail(message: string): never {
   throw new AppError(ErrorCode.INTERNAL_ERROR, `StageRun snapshot 无效：${message}`);

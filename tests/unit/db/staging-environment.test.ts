@@ -7,6 +7,7 @@ import {
 
 const baseEnvironment = {
   RIVALHUB_STAGING_PROJECT_CONFIRM: STAGING_PROJECT_REF,
+  RIVALHUB_STAGING_DB_HOST_CONFIRM: "aws-0-ap-northeast-1.pooler.supabase.com:6543",
   RIVALHUB_STAGING_DB_PASSWORD: "safe password/with?reserved#characters",
 };
 
@@ -33,7 +34,7 @@ describe("staging database target guard", () => {
     ).toThrow(/PROJECT_CONFIRM/);
     expect(() =>
       buildStagingEnvironment(
-        { RIVALHUB_STAGING_PROJECT_CONFIRM: STAGING_PROJECT_REF },
+        { RIVALHUB_STAGING_PROJECT_CONFIRM: STAGING_PROJECT_REF, RIVALHUB_STAGING_DB_HOST_CONFIRM: "aws-0-ap-northeast-1.pooler.supabase.com:6543" },
         { requiresWriteAuthorization: false },
       ),
     ).toThrow(/DB_PASSWORD/);

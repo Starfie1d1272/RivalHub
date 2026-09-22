@@ -1,6 +1,6 @@
 import type { MajorPrestartReadiness } from "@/lib/major/prestart";
 import type { SeasonStatus } from "@/types/season";
-import type { SeasonWorkspaceNextAction, SeasonWorkspaceOverviewSummary } from "./types";
+import type { SeasonWorkspaceNextAction, SeasonWorkspaceOverviewSummary, SeasonWorkspaceTeamRegistrationFunnel } from "./types";
 
 export interface SeasonWorkspaceLifecycleInput {
   slug: string;
@@ -11,6 +11,23 @@ export interface SeasonWorkspaceLifecycleInput {
 export interface RegistrationSummaryRow {
   status: string;
   count: number;
+}
+
+export function projectTeamRegistrationFunnel(
+  rows: readonly RegistrationSummaryRow[],
+  input: Pick<SeasonWorkspaceTeamRegistrationFunnel, "deadline" | "windowPhase">,
+): SeasonWorkspaceTeamRegistrationFunnel {
+  const statusCounts = new Map<string, number>();
+  for (const row of rows) statusCounts.set(row.status, (statusCounts.get(row.status) ?? 0) + row.count);
+  return {
+    mode: "team",
+    total: [...statusCounts.values()].reduce((sum, value) => sum + value, 0),
+    draft: statusCounts.get("draft") ?? 0,
+    submitted: statusCounts.get("submitted") ?? 0,
+    approved: statusCounts.get("approved") ?? 0,
+    deadline: input.deadline,
+    windowPhase: input.windowPhase,
+  };
 }
 
 export function projectRegistrationSummary(
@@ -66,11 +83,10 @@ export function selectSeasonWorkspaceNextAction(
       return { label: "准备报名入口", detail: "赛事已发布，但报名尚未实际开放。", href: `/admin/${season.slug}/registrations` };
     }
 
-    const readinessBlocker = readiness?.blockers[0];
-    if (readinessBlocker) {
+    if (readiness && !readiness.canStart) {
       return {
         label: "处理赛前检查",
-        detail: readinessBlocker,
+        detail: "赛前检查仍有事项需要处理。",
         href: `/admin/${season.slug}/prestart`,
       };
     }
@@ -82,8 +98,7 @@ export function selectSeasonWorkspaceNextAction(
     return { label: "准备赛事", detail: "赛事尚未发布，可从赛前工作区检查当前能力。", href: `/admin/${season.slug}/prestart` };
   }
 
-  const readinessBlocker = readiness?.blockers[0];
-  return readinessBlocker
-    ? { label: "处理赛前检查", detail: readinessBlocker, href: `/admin/${season.slug}/prestart` }
+  return readiness && !readiness.canStart
+    ? { label: "处理赛前检查", detail: "赛前检查仍有事项需要处理。", href: `/admin/${season.slug}/prestart` }
     : { label: "查看赛前工作区", detail: "从赛事工作区继续当前运营流程。", href: `/admin/${season.slug}/prestart` };
 }

@@ -1,6 +1,6 @@
-export type ReleaseEnvironment = Readonly<Record<string, string | undefined>>;
+import { RELEASE_TAG_PATTERN } from "../../src/lib/release/identity";
 
-const RELEASE_TAG_PATTERN = /^v\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
+export type ReleaseEnvironment = Readonly<Record<string, string | undefined>>;
 
 /**
  * Production Vercel builds are release-only. The repository disables main's

@@ -69,7 +69,7 @@ describe("recruitment lobby cards", () => {
     const html = renderToStaticMarkup(page);
 
     expect(html).not.toContain("<img");
-    expect(html).toContain(">PL</div>");
+    expect(html).toContain(">P</span>");
   });
 
   it("renders compact competitive summaries in canonical platform order", async () => {

@@ -35,29 +35,13 @@ export function MajorPrestartConsole({
         <Checklist items={tasks} />
       </Panel>}
 
-      {systemBlockers.length > 0 && <Panel label="系统发现的待处理问题">
+      {systemBlockers.length > 0 && <Panel label="需要核对的事项">
         <Checklist items={systemBlockers} />
       </Panel>}
 
       <MajorPrestartManagement data={management} />
       <MajorTournamentSeedsManagement data={seedManagement} />
       <MajorStartManagement seasonId={management.seasonId} openingPlan={readiness.openingPlan} canStart={readiness.canStart} started={started} />
-
-      <Panel label="STAGE1 首轮预览">
-        {readiness.openingPlan ? (
-          <ol className="grid grid-cols-1 gap-2 text-sm md:grid-cols-2">
-            {readiness.openingPlan.firstRound.pairings.map((pairing) => (
-              <li key={`${pairing.higherSeed.teamId}-${pairing.lowerSeed.teamId}`} className="border border-[var(--color-border)] px-3 py-2">
-                #{pairing.higherSeed.tournamentSeed} vs #{pairing.lowerSeed.tournamentSeed} · {pairing.format.toUpperCase()}
-              </li>
-            ))}
-          </ol>
-        ) : (
-          <p className="text-sm text-[var(--color-fg-mid)]">
-            完成所有赛前条件后，这里会显示首轮对阵。
-          </p>
-        )}
-      </Panel>
     </div>
   );
 }

@@ -1,9 +1,10 @@
 import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
-import { competitiveRankFacts, educationVerifications, institutions, users } from "@/db/schema";
+import { competitiveRankFacts, educationVerifications, institutions, steamProfiles, users } from "@/db/schema";
 import { BUILT_IN_COMPETITIVE_PLATFORMS, isBuiltInCompetitivePlatformKey, isBuiltInStarRank } from "@/lib/competitive/builtins";
 import { convertFiveeToPerfect } from "@/lib/competitive/conversion-policy";
 import { comparePlayerStrengthFacts, evaluateExternalStrengthRule, getPlayerStrengthFindings, type PlayerStrengthFact, type PlayerStrengthInput } from "@/lib/major/player-strength";
+import { getDisplayName } from "@/lib/identity/display-name";
 import {
   blockersFromQualificationFindings,
   uniqueQualificationFindings,
@@ -32,7 +33,7 @@ export interface ParticipantQualificationFacts {
   userId?: string;
   displayName: string | null;
   perfectName: string | null;
-  steamName: string | null;
+  personaName: string | null;
   email: string | null;
   emailVerifiedAt: Date | null;
   steam64: string | null;
@@ -168,7 +169,7 @@ function createCompetitiveCandidateResolver(context: CompetitiveProfileConfig | 
 
 /** Adapts long-term facts to the event's frozen evidence policy in one place. */
 export function toPlayerStrengthInput(
-  fact: Pick<ParticipantQualificationFacts, "userId" | "displayName" | "perfectName" | "email" | "historicalPeak" | "seasonPeaks" | "fallbackFacts">,
+  fact: Pick<ParticipantQualificationFacts, "userId" | "displayName" | "perfectName" | "personaName" | "email" | "historicalPeak" | "seasonPeaks" | "fallbackFacts">,
   context: CompetitiveProfileConfig | null,
 ): PlayerStrengthInput {
   const policy = context?.evidencePolicy;
@@ -185,7 +186,7 @@ export function toPlayerStrengthInput(
   const recentSeasonKeys = policy?.recentSeasonKeys ?? (context?.currentSeasonKey ? [context.currentSeasonKey] : []);
   return {
     userId: fact.userId ?? "",
-    label: fact.displayName ?? fact.perfectName ?? fact.email ?? "未知选手",
+    label: getDisplayName(fact),
     historicalPeak: resolve(fact.historicalPeak, fact.fallbackFacts?.historicalPeak),
     previousSeasonPeak: resolve(fact.seasonPeaks?.get(referenceSeasonKey), fallbackFor(referenceSeasonKey)),
     currentSeasonPeak: resolve(fact.seasonPeaks?.get(context?.currentSeasonKey ?? ""), fallbackFor(context?.currentSeasonKey ?? "")),
@@ -402,8 +403,8 @@ export async function loadParticipantQualificationFacts(
   const rankFactsFilter = platforms.length > 0
     ? and(inArray(competitiveRankFacts.userId, ids), inArray(competitiveRankFacts.platform, platforms))
     : inArray(competitiveRankFacts.userId, ids);
-  const userRows = await executor.select({ id: users.id, displayName: users.displayName, perfectName: users.perfectName, steamName: users.steamName, email: users.email, emailVerifiedAt: users.emailVerifiedAt, steam64: users.steam64, qq: users.qq })
-    .from(users).where(and(inArray(users.id, ids), eq(users.status, "active")));
+  const userRows = await executor.select({ id: users.id, displayName: users.displayName, perfectName: users.perfectName, personaName: steamProfiles.personaName, email: users.email, emailVerifiedAt: users.emailVerifiedAt, steam64: users.steam64, qq: users.qq })
+    .from(users).leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64)).where(and(inArray(users.id, ids), eq(users.status, "active")));
   const verificationRows = await executor.select({ userId: educationVerifications.userId, id: educationVerifications.id, status: educationVerifications.status, academicStatus: educationVerifications.academicStatus, institutionCode: institutions.moeInstitutionCode, institutionName: institutions.name, submittedAt: educationVerifications.submittedAt })
     .from(educationVerifications).innerJoin(users, and(eq(educationVerifications.userId, users.id), eq(users.status, "active"))).innerJoin(institutions, eq(educationVerifications.institutionId, institutions.id))
     .where(inArray(educationVerifications.userId, ids));
@@ -446,7 +447,7 @@ export async function loadParticipantQualificationFacts(
       userId: user.id,
       displayName: user.displayName,
       perfectName: user.perfectName,
-      steamName: user.steamName,
+      personaName: user.personaName,
       email: user.email,
       emailVerifiedAt: user.emailVerifiedAt,
       steam64: user.steam64,
@@ -510,7 +511,7 @@ export async function getParticipantReadiness(userId: string, config: Competitiv
 
 export interface RosterQualificationMember {
   userId: string;
-  email: string;
+  label: string;
   emailVerifiedAt: Date | null;
   educationHistory: SeasonEducationVerification[];
   /** Whether this member counts as an institutional ("home") member. */
@@ -556,7 +557,7 @@ export async function evaluateRosterQualificationFromFacts(input: {
   const education = evaluateRosterEducationEligibility(
     members.map((member) => ({
       userId: member.userId,
-      email: member.email,
+      label: member.label,
       emailVerifiedAt: member.emailVerifiedAt,
       verificationHistory: member.educationHistory,
     })),

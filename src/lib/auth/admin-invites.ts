@@ -1,13 +1,14 @@
 import "server-only";
 
+import { writeAuditInTx } from "@/lib/audit/write";
+
 import { and, count, eq } from "drizzle-orm";
 
 import type { TxDb } from "@/db/client";
 import {
   adminInviteClaims,
   adminInvites,
-  auditLogs,
-  seasonAdminGrants,
+    seasonAdminGrants,
   users,
 } from "@/db/schema";
 import { AppError, ErrorCode } from "@/lib/errors";
@@ -133,13 +134,11 @@ export async function claimAdminInviteInTx(
       .where(eq(adminInvites.id, invite.id));
   }
 
-  await tx.insert(auditLogs).values({
+  await writeAuditInTx(tx, {
     seasonId: invite.seasonId,
     action: "user.claim_invite",
     actorId: currentUser.id,
-    targetId: currentUser.id,
-    targetType: "user",
-    meta: {
+    targetId: currentUser.id,meta: {
       inviteId: invite.id,
       inviteRole: invite.role,
       email: currentUser.email,

@@ -26,6 +26,28 @@ Entrypoint 负责不可信输入、鉴权、transport result 和 revalidation；
 
 预期业务结果统一使用 `ActionResult<T>`；unexpected runtime failure 进入 canonical observability，而不是把 exception 当业务状态。
 
+### Stable dependency direction
+
+跨领域依赖沿着稳定的业务方向收敛：
+
+```text
+Identity / Catalog
+        ↓
+Competition Definition
+        ↓
+Participation
+        ↓
+Tournament Runtime
+        ↓
+Match / Official Result
+        ↓
+History / Analytics / Spectator
+```
+
+Page、Server Action、Route Handler 和 Client Component 是 entrypoint/presentation 层，只调用 canonical `src/lib/` owner；`src/lib/` domain/library 代码不得反向依赖 `src/actions/`、`src/app/` 或 `src/components/`。Client graph 只能通过 `use server` action boundary 进入 server workflow，不能到达数据库、secret/provider owner 或 server-only observability facade。
+
+这条方向由 `pnpm architecture:check` 执行检查。检查器读取项目 tsconfig 并使用 TypeScript module resolver 解析 alias、relative 和 runtime dynamic import；Client→Server 泄漏只沿 runtime graph 检查，而 canonical third-party provider ownership 连 type-only edge 也 fail closed。DTO/serializer 的字段泄漏仍由对应 serializer tests 负责。
+
 ### Public data
 
 ```text
@@ -77,19 +99,22 @@ FinalResult / adjudication / honor
 
 Major runtime 的阶段参与者和已完成比赛是推进依据；standings、后台摘要和其它 UI projection 只是 read model。比赛更正如果影响下游配对，必须经过受控 recovery，而不是直接改 projection。
 
-`brackets-manager` 只能经 `src/lib/bracket/` adapter 使用，避免第三方结构扩散成领域 contract。
+通用 Stage 的 logical identity 是 `(seasonId, StageConfig.key)`；`StageConfig.name` 只用于展示。`brackets-manager` 只能经 `src/lib/bracket/` adapter 使用，每个 provider-backed Stage 独立拥有 `(competition_id, stage_key)` 状态，provider stage name 和 numeric participant id 不得扩散成领域 contract。参与者必须携带稳定的 `rivalhubEntryId`，比赛解析只消费该 metadata。
+
+Major Swiss 不经过通用 provider adapter：它由 `majorStageEntrants`、official managed matches 和 StageRun 的 `finalizedRound` 投影，配对与晋级继续由 `src/lib/major/swiss.ts` / runtime owner 决定。
 
 ## Spectator predictions
 
-`src/lib/predictions/` owns spectator simulations, stage picks, judging and points. Its simulator composes the canonical Major Swiss, seeding and playoff rules and never writes official matches. Public baselines contain only stage rules, entrant identities, display fields and official match results; frozen qualification/roster snapshots remain private.
+`src/lib/predictions/` owns spectator simulations, stage picks, judging and points. Its simulator composes the canonical Major Swiss, seeding and playoff rules and never writes official matches. Public baselines use the canonical frozen Major stage-plan resolver and stage-transition topology, with explicit previous/next keys and StageRun identities. They contain only stage rules, entrant identities, display fields and official match results; frozen qualification/roster snapshots remain private.
 
-Prediction mutations serialize by canonical user → season lifecycle guard → relevant official match rows → prediction outbox → event program. Settlement workers read official facts without taking tournament row locks. Lightweight triggers enqueue durable work in the same transaction as official edits and permanently close affected windows; settlement failures leave retryable work and do not execute inside official result transactions. The protected reconciliation Cron and fresh spectator reads consume the same owner. Browser clocks are presentation only.
+Prediction mutations serialize by canonical user → season lifecycle guard → relevant official match rows → prediction outbox → event program. Settlement workers read official facts without taking tournament row locks. Lightweight triggers enqueue durable work in the same transaction as official edits and permanently close affected windows; settlement failures leave retryable work and do not execute inside official result transactions. The protected reconciliation endpoint runs through the shared scheduler registry/execution/health owner; its worker and fresh spectator reads consume the same reconciliation owner. Partial worker failure is reported to scheduler health, and no parser or Demo submission can directly settle a market. Browser clocks are presentation only.
 
 ## Security and operations
 
 - Supabase Auth 管理邮箱凭据；应用 session 只保存身份，当前角色和 season grants 每次从数据库读取。
 - 业务表默认 server-only；Data API/RLS terminal contract 见生成式 [`security/database-access-matrix.md`](./security/database-access-matrix.md)。新增 direct browser Data API 或 Realtime surface 必须同时定义最小 GRANT/RLS、consumer、一致性语义和正反例测试。
 - 管理 mutation 产生 `audit_logs` 业务审计；runtime logs/traces 由 `src/lib/observability/` 独立拥有。
+- 业务关键 scheduler 由 shared registry、Supabase primary dispatch、现有 Cron endpoint runner 和有界 health projection 组成；数据库 dispatch 只负责唤醒，不复制 domain transition。GitHub watchdog、participant opening recovery 和 super-admin break-glass 都复用同一 execution/domain owner。
 - local / preview / staging / production 的写权限严格分离，见 [`deployment.md`](./deployment.md)。
 - 时间持久化使用 UTC；产品展示按约定时区转换。
 
@@ -104,11 +129,13 @@ Prediction mutations serialize by canonical user → season lifecycle guard → 
 | CS2 map / position catalogs | `src/lib/config/cs2-maps.ts`, `src/lib/config/cs2-positions.ts`, `src/lib/maps.ts` |
 | Identity / education / competitive | `src/lib/identity/`, `src/lib/competitive/`, `src/lib/qualification/` |
 | Teams / CompetitionEntry / recruitment | `src/lib/teams/`, `src/lib/competition-entries/`, `src/lib/recruitment/` |
+| Admin platform operations read model | `src/lib/admin/platform-operations/` |
 | Rivals voting / draft | `src/lib/captains/`, `src/lib/draft/`, corresponding actions |
 | Major prestart / runtime | `src/lib/major/` |
 | Spectator predictions / points | `src/lib/predictions/` |
 | Match / roster / result | `src/lib/matches/`, `src/lib/match-rosters/`, match actions |
 | Discipline / post-event / awards | corresponding `src/lib/` domain owners |
+| Scheduler / background recovery | `src/lib/scheduler/`, `src/lib/seasons/registration-recovery.ts`, protected `scripts/db/scheduler.ts` |
 | Persistence / migration | `src/db/schema/`, `drizzle/migrations/` |
 
 需要具体 owner 时先 repository search，再沿 tests 和 callers 确认；不要把本表扩成实时文件清单。

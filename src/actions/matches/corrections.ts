@@ -13,6 +13,7 @@ import {
   planResultCorrectionInTx,
   recordRecoveryAdjudicationInTx,
 } from "@/lib/match-corrections/service";
+import { presentResultCorrectionPlan, type ResultCorrectionPlanPresentation } from "@/lib/match-corrections/presentation";
 import { traceOperation } from "@/lib/observability/server";
 
 /**
@@ -24,7 +25,7 @@ import { traceOperation } from "@/lib/observability/server";
 export async function planMatchResultCorrection(
   matchId: string,
   proposal: { scoreA: number; scoreB: number; isForfeit?: boolean },
-): Promise<ActionResult<unknown>> {
+): Promise<ActionResult<ResultCorrectionPlanPresentation>> {
   try {
     const match = await getMatchOrThrow(matchId);
     await requireSeasonAdmin(match.seasonId);
@@ -35,7 +36,7 @@ export async function planMatchResultCorrection(
     }, () => db.transaction((tx) =>
       planResultCorrectionInTx(tx, { matchId, proposal }),
     ));
-    return ok(plan);
+    return ok(presentResultCorrectionPlan(plan));
   } catch (e) {
     return actionError("planMatchResultCorrection", e);
   }

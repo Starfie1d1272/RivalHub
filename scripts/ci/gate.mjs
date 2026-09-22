@@ -6,29 +6,22 @@ const statuses = {
   system: process.env.SYSTEM_RESULT,
 };
 const dependencyReviewStatus = process.env.DEPENDENCY_REVIEW_RESULT;
-const titleStatus = process.env.TITLE_RESULT;
 const eventName = process.env.EVENT_NAME || process.env.GITHUB_EVENT_NAME;
+const gateName = process.env.GATE_NAME || "ci-gate";
 
 if (statuses.plan !== "success") {
   fail(`plan 未成功：${statuses.plan ?? "missing"}`);
 }
 
 if (eventName === "pull_request") {
-  if (titleStatus !== "success") {
-    fail(`pull_request 的 pr-title 未成功：${titleStatus ?? "missing"}`);
-  }
-  console.log("required pr-title: success");
   if (dependencyReviewStatus !== "success") {
     fail(`pull_request 的 dependency-review 未成功：${dependencyReviewStatus ?? "missing"}`);
   }
   console.log("required dependency-review: success");
 } else if (dependencyReviewStatus !== "skipped" && dependencyReviewStatus !== "success") {
   fail(`非 pull_request 的 dependency-review 出现异常状态：${dependencyReviewStatus ?? "missing"}`);
-} else if (titleStatus !== undefined && titleStatus !== "skipped" && titleStatus !== "success") {
-  fail(`非 pull_request 的 pr-title 出现异常状态：${titleStatus}`);
 } else {
   console.log(`optional dependency-review: ${dependencyReviewStatus}`);
-  console.log(`optional pr-title: ${titleStatus ?? "not applicable"}`);
 }
 
 for (const job of ["static", "postgres", "system"]) {
@@ -43,7 +36,7 @@ for (const job of ["static", "postgres", "system"]) {
   }
 }
 
-console.log(`ci-gate passed: required jobs = ${requiredJobs.join(",") || "none"}`);
+console.log(`${gateName} passed: required jobs = ${requiredJobs.join(",") || "none"}`);
 
 function parseRequiredJobs(raw) {
   if (!raw) fail("plan 没有输出 required_jobs");
@@ -59,6 +52,6 @@ function parseRequiredJobs(raw) {
 }
 
 function fail(message) {
-  console.error(`ci-gate failed: ${message}`);
+  console.error(`${gateName} failed: ${message}`);
   process.exit(1);
 }

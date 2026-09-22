@@ -6,18 +6,19 @@ import { toast } from "sonner";
 import { reviewEducationVerification } from "@/actions/education-verifications";
 import { EmptyState, Panel } from "@/components/rivalhub";
 import { Button } from "@/components/ui/button";
+import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
 import { formatCST } from "@/lib/utils/date";
 import type { EducationReviewRow } from "@/lib/education/admin-review-contract";
 
 export type EducationReviewEmptyState = "no-records" | "no-pending" | "no-results";
 
+function isChsiEvidenceLabel(label: EducationReviewRow["evidenceLabel"]): boolean {
+  return label === "学信网学籍在线验证报告" || label === "学信网学历材料";
+}
+
 interface EducationVerificationReviewQueueProps {
   rows: EducationReviewRow[];
   emptyState: EducationReviewEmptyState;
-}
-
-function isChsiEvidenceType(evidenceType: string): boolean {
-  return evidenceType === "chsi_enrollment_report" || evidenceType === "chsi_education_report";
 }
 
 export function EducationVerificationReviewQueue({ rows, emptyState }: EducationVerificationReviewQueueProps) {
@@ -65,19 +66,31 @@ export function EducationVerificationReviewQueue({ rows, emptyState }: Education
             <Panel key={row.id} contentClassName="p-5">
               <div className="space-y-2">
                 <p className="font-semibold">
-                  {row.displayName || row.email} · {row.status === "pending" ? "待审核" : row.status === "approved" ? "已通过" : "已驳回"}
+                  <PlayerProfileLink userId={row.userId}>{row.displayName ?? "未知用户"}</PlayerProfileLink> · {row.status === "pending" ? "待审核" : row.status === "approved" ? "已通过" : "已驳回"}
                 </p>
                 <p className="text-sm text-[var(--color-fg-mid)]">账号：{row.email}</p>
                 <p className="text-sm">声明学校：{row.institution}{row.code ? `（${row.code}）` : ""} · {row.academicStatus === "enrolled" ? "在读" : "已毕业"}</p>
                 <p className="text-sm">提交时间：{formatCST(row.submittedAt)}</p>
-                <p className="text-sm">证据类型：{row.evidenceType}</p>
-                {row.evidenceCode ? (
+                <p className="text-sm">材料：{row.evidenceLabel}</p>
+                {row.chsiEvidenceCode ? (
                   <div className="flex flex-wrap items-center gap-2">
-                    <p className="text-sm">在线验证码：<span className="font-mono">{row.evidenceCode}</span></p>
-                    <Button size="sm" variant="outline" disabled={pending} onClick={() => copyEvidenceCode(row.evidenceCode!)}>复制验证码</Button>
+                    <p className="text-sm">在线验证码：<span className="font-mono">{row.chsiEvidenceCode}</span></p>
+                    <Button size="sm" variant="outline" disabled={pending} onClick={() => copyEvidenceCode(row.chsiEvidenceCode!)}>复制验证码</Button>
                     <a className="text-sm underline" href="https://www.chsi.com.cn/xlcx/bgcx.jsp" target="_blank" rel="noopener noreferrer">在学信网核验 ↗</a>
                   </div>
-                ) : row.status !== "pending" && isChsiEvidenceType(row.evidenceType) ? (
+                ) : row.evidenceLabel === "录取通知书材料" && row.manualEvidenceAvailable ? (
+                  <Button size="sm" variant="outline" asChild data-pending={pending || undefined}>
+                    <a
+                      href={`/admin/education-verifications/${row.id}/evidence`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-disabled={pending}
+                      onClick={pending ? (event) => event.preventDefault() : undefined}
+                    >查看材料</a>
+                  </Button>
+                ) : row.status !== "pending" && row.evidenceLabel === "录取通知书材料" ? (
+                  <p className="text-sm text-[var(--color-fg-mid)]">录取通知书材料：已按保留策略清理</p>
+                ) : row.status !== "pending" && isChsiEvidenceLabel(row.evidenceLabel) ? (
                   <p className="text-sm text-[var(--color-fg-mid)]">在线验证码：已按保留策略清理</p>
                 ) : null}
                 {row.reviewNote && <p className="text-sm text-[var(--color-fg-mid)]">审核备注：{row.reviewNote}</p>}

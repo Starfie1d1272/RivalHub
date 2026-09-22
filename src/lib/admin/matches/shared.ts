@@ -15,7 +15,7 @@ const STATUS_SORT_ORDER: Record<string, number> = {
   cancelled: 3,
 };
 
-export function projectAdminMatchSummary(match: Match): AdminMatchSummary {
+export function projectAdminMatchSummary(match: Match, demoNeedsAttentionCount = 0): AdminMatchSummary {
   return {
     id: match.id,
     entryAId: match.entryAId,
@@ -30,6 +30,7 @@ export function projectAdminMatchSummary(match: Match): AdminMatchSummary {
     isForfeit: match.isForfeit,
     ownership: match.ownership,
     scheduledAt: match.scheduledAt,
+    demoNeedsAttentionCount,
   };
 }
 

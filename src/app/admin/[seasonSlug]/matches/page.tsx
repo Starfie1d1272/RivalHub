@@ -2,12 +2,11 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { BatchDeadlineCard } from "@/components/matches/BatchDeadlineCard";
 import { CreateMatchForm } from "@/components/matches/CreateMatchForm";
-import { GeneratePlayoffCard } from "@/components/matches/GeneratePlayoffCard";
 import { GenerateScheduleCard } from "@/components/matches/GenerateScheduleCard";
 import { AdminMatchFilter } from "@/components/matches/AdminMatchFilter";
 import { AdminMatchRow } from "@/components/matches/AdminMatchRow";
 import { StandingsTable } from "@/components/matches/StandingsTable";
-import { SyncBracketButton } from "@/components/matches/SyncBracketButton";
+import { SwissBracket } from "@/components/matches/SwissBracket";
 import { MajorPlayoffRuntimeManagement } from "@/components/admin/MajorPlayoffRuntimeManagement";
 import { MajorSwissRuntimeManagement } from "@/components/admin/MajorSwissRuntimeManagement";
 import { PageHeader, Panel, Section } from "@/components/rivalhub";
@@ -85,17 +84,6 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
         </Panel>
       )}
 
-      {data.canGeneratePlayoff && data.qualifierStandings.length > 0 && data.playoffStage && (
-        <GeneratePlayoffCard
-          seasonId={data.season.id}
-          stageKey={data.playoffStage.key}
-          stageName={data.playoffStage.name}
-          standings={data.qualifierStandings}
-        />
-      )}
-
-      {data.playoffStage && data.hasLegacyAdjacentPlayoff && <SyncBracketButton seasonId={data.season.id} />}
-
       {data.batchDeadlineGroups.length > 0 && (
         <BatchDeadlineCard seasonId={data.season.id} groups={data.batchDeadlineGroups} />
       )}
@@ -118,8 +106,8 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
                         stageName: data.stagePlan.find((stage) => stage.key === match.stage)?.name,
                         round: match.round,
                         entryRound: match.entryRound,
-                        teamAName: teamNameById.get(match.entryAId) ?? "TBD",
-                        teamBName: teamNameById.get(match.entryBId) ?? "TBD",
+                        teamAName: teamNameById.get(match.entryAId) ?? "待定",
+                        teamBName: teamNameById.get(match.entryBId) ?? "待定",
                       })}
                     </li>
                   ))}
@@ -143,6 +131,9 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
             const isPlayoff = stage.type === "double_elim" || stage.type === "single_elim";
             return (
               <TabsContent key={stage.key} value={stage.key} className="mt-4 space-y-6">
+                {data.stageReadModels.get(stage.key) && (
+                  <SwissBracket data={data.stageReadModels.get(stage.key)!} seasonSlug={seasonSlug} />
+                )}
                 {standings.length > 0 && (
                   <Section className="space-y-2">
                     <h2 className="text-base font-semibold text-[var(--color-fg)]">积分榜</h2>
@@ -167,8 +158,8 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
                         <AdminMatchRow
                           key={match.id}
                           match={match}
-                          teamAName={teamNameById.get(match.entryAId) ?? (isPlayoff ? "TBD" : "未知队伍")}
-                          teamBName={teamNameById.get(match.entryBId) ?? (isPlayoff ? "TBD" : "未知队伍")}
+                          teamAName={teamNameById.get(match.entryAId) ?? (isPlayoff ? "待定" : "未知队伍")}
+                          teamBName={teamNameById.get(match.entryBId) ?? (isPlayoff ? "待定" : "未知队伍")}
                           seasonSlug={seasonSlug}
                           stageName={stage.name}
                         />

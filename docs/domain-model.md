@@ -8,11 +8,23 @@
 
 `users.id` 是自然人的 canonical identity，也是长期公开资料的根实体。Supabase Auth、邮箱与未来 provider identity 都是由 `user_identities` 绑定的 credential，而不是 person id；同一 active external identity 全局只属于一个 canonical user。全局角色只有 `user` 与 `super_admin`；具体赛事管理权由 `season_admin_grants` 单独表达。授权不是客户端状态，也不从历史报名或队伍身份推导。
 
+比赛中的 Steam64 观察身份由 `user_gameplay_steam_ids` 单独拥有。`users.steam64` 是当前主身份；active gameplay alias 只记录经过审计的历史/比赛观察值，不改变登录、报名或当前资料。Demo consumer 必须经 gameplay Steam resolver 解析 primary 与 active alias；retired alias、跨用户冲突和脏数据都 fail closed。比赛确认产生的 alternate identity 必须关联来源 Demo、确认人和原因，并只能由来源赛事的 season admin 经 canonical identity owner 撤销。
+
 credential linking 只证明并绑定新的 identity，不复制或移动赛事事实。两个已有 `users.id` 的归并必须先生成 fail-closed preflight：用户选择的保留账号资料和竞技资料原样不变，待归并账号的竞技资料直接删除；登录身份、已确认的 person facts 和不冲突的业务历史归到保留账号，临时状态关闭，历史 actor/provenance 继续保留原账号。只有 Steam 身份、Team 时间线/队长状态、不同参赛身份或同一地图两份正式比赛数据等无法无歧义处理的事实才阻止自助归并。成功归并后 loser 作为可追溯 alias 保留在 `user_merge_ledger`，不会被无痕删除。
+
+### Player-declared profile
+
+`users.gameplay_style` 与 `users.competition_history` 是 canonical user-owned long-lived profile，回答选手当前公开声明的打法/风格与比赛经历。设置页可以随时维护这两个字段，公开 Player Profile 只通过显式 `PublicPlayer` DTO 消费它们；空值保持 unknown，不从某届赛事推断当前资料。
+
+`season_registrations.gameplay_style` 与 `season_registrations.competition_history` 是单届 Rivals 报名时的 immutable historical snapshot。新 solo 报名从长期资料取得初始值，提交时由同一个 registration transaction 同步更新长期资料并写入当届 snapshot；后续编辑长期资料不会回写任何历史报名。
+
+首次迁移只对没有长期值的用户，从 approved registration 按 `seasons.created_at DESC`、registration `created_at DESC`、registration `id DESC` 选择同一条 deterministic snapshot 初始化，已有长期字段不覆盖，也不跨两届拼接字段。
 
 ### Education
 
-`institutions` 是机构目录，`education_verifications` 是长期教育资格事实。学校邮箱快速认证消费 canonical user 的任一 verified email credential 的精确 active domain mapping，而非仅 primary login email；认证事实仍写入 canonical `users.id`。赛事资格只消费已验证教育事实和当届冻结规则；legacy `studentId` 不构成 Major eligibility。
+`institutions` 是唯一高校目录，`institution_email_domains` 是唯一学校邮箱 registry，`education_verifications` 是长期教育资格事实。学校邮箱快速认证消费 canonical user 的任一 verified email credential 的精确 active domain mapping，且只有 active、auto-verify、`credentialType=student` 的 mapping 能即时产生固定的 `enrolled` 事实；不从 `.edu.cn`、DNS/MX 或官网主域推断学校身份。CHSI 报告和录取通知书图片都走现有人工审核 owner，后者只产生 `enrolled` 的 `manual_other` pending claim。
+
+录取通知书属于临时敏感证据：文件只保存在 server-only 管理的 private Storage 中，数据库只保存无 PII 的 object key；审核完成满七天后由既有教育 evidence cleanup owner 删除对象，再清空 key，认证结果和审核历史保留。`evidenceCode` 与 `evidenceObjectKey` 的形状由数据库约束共同保护。赛事资格只消费已验证教育事实和当届冻结规则；legacy `studentId` 不构成 Major eligibility。
 
 ### Competitive profile
 
@@ -43,7 +55,7 @@ CS2 地图同样区分稳定地图目录、当前轮换、长期用户熟练度�
 
 - `competitionTemplate` 表达模板身份；`kind` 只用于展示/历史。
 - `stagePlan` 是定义态，不是已启动赛事的运行时真相。
-- 发布与实际报名开放是不同事实；需要冻结的报名/竞技上下文在实际开放时形成。
+- 发布与实际报名开放是不同事实；`registrationOpensAt` 是运营计划时间，`registrationOpenedAt` 是实际 transition fact，需要冻结的报名/竞技上下文在实际开放时形成。按计划补开时保留原计划时间；无计划的明确立即开放同时初始化两者；未来计划的提前开放必须是明确的 force-open 语义并将有效计划时间改为当前时间。
 - 系统不存在持久化的“全局当前赛事”；首页 featured season 和后台生命周期分组都是 presentation projection。
 - 社区奖是否存在由独立 capability 表达，不从 `season.status` 推导。
 
@@ -100,6 +112,8 @@ Rivals 的个人报名仍由 `season_registrations` 表达；投票由 `captain_
 
 BP、时间协商、实际阵容、玩家统计和赛后资料拥有各自明确事实。后台列表、standings、工作台摘要都只是这些事实的 projection，不成为新的结果或 roster owner。
 
+Demo Evidence 的不可变 payload 与 `match_demo_imports` workflow projection 由 Demo integration owner 管理。正常提交和存量 `/3` recheck 共享同一套 server-owned target、Steam identity、正式比分、QA、回合、summary、effective MatchRoster 和 evidence revision 校验；participant payload 中的客户端 identity resolution 不是事实来源。通过校验的 source round facts 与 `match_player_stats` projection 由同一晋级 owner 物化，并按 Demo lineage 保留 supersede/content conflict；管理员确认只补足 gameplay identity 后触发同一存量 recheck，不另起一套验证或直接改写 payload。
+
 结果更正不能绕开 managed runtime。若更正会影响 Major 后续 pairing/stage，必须通过 recovery owner 处理。
 
 ## Major prestart and runtime
@@ -120,6 +134,10 @@ approved CompetitionEntry candidates
 
 `major_stage_runs` 是已启动阶段的运行时身份并冻结该阶段需要的规则、entrant 和 eligibility context；`major_stage_entrants` 是阶段参与者真相。后续推进依赖 StageRun + 已完成比赛，而不是 UI standings。
 
+通用阶段的 identity 是 `(seasonId, StageConfig.key)`，name 只负责展示。provider bracket state 按 `(competition_id, stage_key)` 隔离；participant 的 RivalHub identity 必须来自 `rivalhubEntryId`，不能从名称或 participant 数组位置反推。`matches` 的 provider node 唯一性也按 `(season_id, stage, bracket_node_id)` 约束，允许不同阶段复用 provider numeric node。
+
+Major Swiss 的 public/admin read model 只从 `major_stage_entrants`、`matches(ownership = major_stage)` 与 `major_stage_runs.finalized_round` 投影。
+
 历史 snapshot 保留当时事实，即使 live profile、目录或政策后来变化也不重解释。
 
 ## Discipline, results and awards
@@ -138,9 +156,9 @@ approved CompetitionEntry candidates
 
 ## Spectator prediction facts
 
-A prediction program freezes per-event slot, challenge and point rules when enabled. A contest freezes one official StageRun entrant set and a deadline; neither simulated entrants nor a mutable team roster can redefine that identity. Pick rows are append-only versions with separate draft/submitted intent. The latest accepted complete submission is effective; later drafts do not replace it. Judgement history follows accepted official stage facts and can be invalidated by correction or stage cancellation.
+A prediction program freezes per-event slot, challenge and point rules when enabled. A contest freezes a concrete StageRun identity, its entrant set and a deadline; neither simulated entrants nor a mutable team roster can redefine that identity. Pick rows are append-only versions with separate draft/submitted intent. The latest accepted complete submission is effective; later drafts do not replace it. Judgement history follows accepted official stage facts and can be invalidated by correction or stage cancellation.
 
-A spectator account belongs to one event and one canonical user. Its balance and settled profit are ledger projections, not mutable counters. Stakes, settlement batches and reversals preserve their original provenance. The first official stage launch is a separate immutable milestone, so recreating a StageRun cannot grant late joiners historical supplies. Markets preserve the original match identity and opponents even if tournament recovery deletes the match. Removed/replaced matches refund; official corrections reverse the previous batch before applying the next. Debt is retained when previously credited winnings have been spent. Account merges with a losing spectator account are blocked for manual resolution; historical scenario authors remain provenance.
+A spectator account belongs to one event and one canonical user. Its balance and settled profit are ledger projections, not mutable counters. Stakes, settlement batches and reversals preserve their original provenance. The first official stage launch is a separate immutable milestone, so recreating a StageRun cannot grant late joiners historical supplies. Markets freeze a resolver, a subject (match, StageRun and involved entries), and independently identified options. Stakes reference an option through a composite market/option foreign key; settlement batches record winning option IDs and the confirmed fact revision. A match may have different resolver markets; only the match-winner resolver is currently exposed. A new resolver must adapt RivalHub-confirmed facts, never raw DAK submissions. Markets preserve their subject even if tournament recovery deletes the match. Removed/replaced matches refund; official corrections reverse the previous batch before applying the next. Debt is retained when previously credited winnings have been spent. Account merges with a losing spectator account are blocked for manual resolution; historical scenario authors remain provenance.
 
 Challenge coins are derived spectator achievements, separate from player `tournament_honors` and point balances. Only an enabled valid-lock participation reward can connect Pick’Em with points; correctness and coin upgrades never mint points.
 

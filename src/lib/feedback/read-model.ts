@@ -1,0 +1,62 @@
+import "server-only";
+
+import { and, desc, eq } from "drizzle-orm";
+import { db } from "@/db/client";
+import { feedbackReports, seasons, steamProfiles, users } from "@/db/schema";
+import { feedbackCategoryLabel, feedbackStatusLabel, type FeedbackCategory, type FeedbackStatus } from "./validation";
+import { getFeedbackUserLabel } from "./presentation";
+
+export type FeedbackAdminRow = {
+  id: string;
+  category: FeedbackCategory;
+  categoryLabel: string;
+  body: string;
+  pathname: string;
+  releaseVersion: string;
+  status: FeedbackStatus;
+  statusLabel: string;
+  seasonId: string | null;
+  seasonName: string | null;
+  userId: string | null;
+  userLabel: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export async function listFeedbackForAdmin(filters: { status?: FeedbackStatus; category?: FeedbackCategory } = {}): Promise<FeedbackAdminRow[]> {
+  const rows = await db.select({
+    feedback: feedbackReports,
+    seasonName: seasons.name,
+    userId: feedbackReports.userId,
+    userEmail: users.email,
+    userDisplayName: users.displayName,
+    userPerfectName: users.perfectName,
+    userSteamName: steamProfiles.personaName,
+  }).from(feedbackReports)
+    .leftJoin(seasons, eq(feedbackReports.seasonId, seasons.id))
+    .leftJoin(users, eq(feedbackReports.userId, users.id))
+    .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
+    .where(and(filters.status ? eq(feedbackReports.status, filters.status) : undefined, filters.category ? eq(feedbackReports.category, filters.category) : undefined))
+    .orderBy(desc(feedbackReports.createdAt), desc(feedbackReports.id));
+  return rows.map(({ feedback, seasonName, userId, userEmail, userDisplayName, userPerfectName, userSteamName }) => ({
+    id: feedback.id,
+    category: feedback.category,
+    categoryLabel: feedbackCategoryLabel(feedback.category),
+    body: feedback.body,
+    pathname: feedback.pathname,
+    releaseVersion: feedback.releaseVersion,
+    status: feedback.status,
+    statusLabel: feedbackStatusLabel(feedback.status),
+    seasonId: feedback.seasonId,
+    seasonName: seasonName ?? null,
+    userId: feedback.userId,
+    userLabel: getFeedbackUserLabel({ userId, displayName: userDisplayName, perfectName: userPerfectName, personaName: userSteamName, email: userEmail }),
+    createdAt: feedback.createdAt.toISOString(),
+    updatedAt: feedback.updatedAt.toISOString(),
+  }));
+}
+
+export async function getFeedbackForAdmin(id: string): Promise<FeedbackAdminRow | null> {
+  const rows = await listFeedbackForAdmin();
+  return rows.find((row) => row.id === id) ?? null;
+}

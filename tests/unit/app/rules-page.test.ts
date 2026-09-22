@@ -17,7 +17,7 @@ describe("rules pages", () => {
     const html = renderToStaticMarkup(await RulesPage());
 
     expect(countH1(html)).toBe(1);
-    expect(html).toContain("NJU Major 赛事规则");
+    expect(html).toContain("NJU Major 2026 赛事规则 v1.0");
     expect(html).toContain("<h2");
     expect(html).toContain("<strong");
     expect(html).toContain("<blockquote");

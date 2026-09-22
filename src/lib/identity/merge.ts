@@ -1,9 +1,10 @@
 import { createHash } from "node:crypto";
+import { writeAuditInTx } from "@/lib/audit/write";
+
 import { and, eq, inArray, sql } from "drizzle-orm";
 import type { DB, TxDb } from "@/db/client";
 import {
-  auditLogs,
-  identityLinkRequests,
+    identityLinkRequests,
   userIdentities,
   userMergeAuthorizations,
   userMergeLedger,
@@ -12,14 +13,16 @@ import {
 import { AppError, ErrorCode } from "@/lib/errors";
 import { MAX_CAPTAIN_VOTES } from "@/lib/captains/rules";
 import { resolveCanonicalUserId } from "@/lib/identity/canonical";
+import { identityAppError } from "@/lib/identity/errors";
 
 export type UserMergeCategory = "AUTOMATIC" | "BLOCKER" | "PRESERVE";
 type UserMergeItemStatus = "automatic" | "blocked" | "preserved";
 
+/** Presentation-ready identity-merge item. Product copy is owned here, not by the page. */
 interface UserMergePlanItem {
   key: string;
   category: UserMergeCategory;
-  domain: string;
+  label: string;
   count: number;
   status: UserMergeItemStatus;
   detail: string;
@@ -47,82 +50,90 @@ type RuleMode = "reparent" | "preserve" | "special" | "delete";
 interface UserReferenceRule {
   table: string;
   column: string;
-  domain: string;
+  label: string;
   mode: RuleMode;
 }
 
 /** Every direct FK to users.id has an explicit owner and merge policy. */
 export const USER_REFERENCE_RULES: readonly UserReferenceRule[] = [
-  { table: "prediction_accounts", column: "user_id", domain: "观赛预测账户", mode: "special" },
-  { table: "prediction_scenarios", column: "creator_id", domain: "推演快照作者", mode: "preserve" },
-  { table: "admin_invite_claims", column: "user_id", domain: "管理员邀请领取", mode: "special" },
-  { table: "community_awards", column: "submitted_by_user_id", domain: "社区奖项提交人", mode: "preserve" },
-  { table: "community_awards", column: "reviewed_by_user_id", domain: "社区奖项审核人", mode: "preserve" },
-  { table: "community_awards", column: "recipient_user_id", domain: "社区奖项获奖人", mode: "reparent" },
-  { table: "community_awards", column: "outcome_by_user_id", domain: "社区奖项处理人", mode: "preserve" },
-  { table: "community_award_evidence", column: "submitted_by_user_id", domain: "社区奖项证据提交人", mode: "preserve" },
-  { table: "community_award_evidence", column: "candidate_user_id", domain: "社区奖项候选人", mode: "reparent" },
-  { table: "competition_entries", column: "representative_user_id", domain: "参赛条目代表人", mode: "reparent" },
-  { table: "competition_entry_participants", column: "user_id", domain: "参赛条目参与人", mode: "special" },
-  { table: "competition_entry_participants", column: "invited_by_user_id", domain: "参赛邀请发起人", mode: "preserve" },
-  { table: "competition_entry_active_claims", column: "user_id", domain: "当前参赛承诺", mode: "special" },
-  { table: "competition_entry_roster_members", column: "user_id", domain: "参赛名单成员", mode: "special" },
-  { table: "competition_entry_representative_changes", column: "from_user_id", domain: "代表人变更历史", mode: "preserve" },
-  { table: "competition_entry_representative_changes", column: "to_user_id", domain: "代表人变更历史", mode: "preserve" },
-  { table: "event_roster_members", column: "user_id", domain: "赛事冻结名单成员", mode: "special" },
-  { table: "competitive_rank_facts", column: "user_id", domain: "竞技段位资料", mode: "special" },
-  { table: "user_competitive_roles", column: "user_id", domain: "竞技位置资料", mode: "special" },
-  { table: "user_map_preferences", column: "user_id", domain: "地图熟练度资料", mode: "special" },
-  { table: "disciplinary_cases", column: "subject_user_id", domain: "纪律处分对象", mode: "reparent" },
-  { table: "education_verifications", column: "user_id", domain: "教育认证记录", mode: "reparent" },
-  { table: "identity_link_requests", column: "user_id", domain: "身份绑定请求", mode: "delete" },
-  { table: "user_identities", column: "user_id", domain: "已验证登录身份", mode: "special" },
-  { table: "user_merge_authorizations", column: "initiating_user_id", domain: "归并授权发起人", mode: "preserve" },
-  { table: "user_merge_authorizations", column: "counterparty_user_id", domain: "归并授权对方", mode: "preserve" },
-  { table: "user_merge_ledger", column: "canonical_user_id", domain: "归并历史保留账号", mode: "preserve" },
-  { table: "user_merge_ledger", column: "merged_user_id", domain: "归并历史旧账号", mode: "preserve" },
-  { table: "user_merge_ledger", column: "executed_by_user_id", domain: "归并执行人", mode: "preserve" },
-  { table: "match_rosters", column: "submitted_by", domain: "比赛名单提交人", mode: "preserve" },
-  { table: "match_time_proposals", column: "proposed_by", domain: "比赛时间提议人", mode: "preserve" },
-  { table: "match_time_proposals", column: "force_assigned_by", domain: "比赛时间强制安排人", mode: "preserve" },
-  { table: "match_mvp_votes", column: "player_user_id", domain: "MVP 候选人", mode: "reparent" },
-  { table: "match_mvp_votes", column: "voter_user_id", domain: "MVP 投票人", mode: "special" },
-  { table: "match_player_stats", column: "user_id", domain: "比赛数据选手", mode: "special" },
-  { table: "post_event_adjudications", column: "target_user_id", domain: "赛后裁定对象", mode: "reparent" },
-  { table: "tournament_honors", column: "user_id", domain: "赛事荣誉获得人", mode: "reparent" },
-  { table: "match_commentators", column: "user_id", domain: "比赛解说", mode: "special" },
-  { table: "match_commentators", column: "added_by_user_id", domain: "解说安排人", mode: "preserve" },
-  { table: "post_match_reports", column: "submitted_by_user_id", domain: "赛后报告提交人", mode: "preserve" },
-  { table: "recruitment_intents", column: "user_id", domain: "当前招募意向", mode: "special" },
-  { table: "recruitment_interests", column: "user_id", domain: "招募兴趣", mode: "special" },
-  { table: "season_registrations", column: "user_id", domain: "赛季报名", mode: "special" },
-  { table: "season_admin_grants", column: "user_id", domain: "赛季管理员权限", mode: "special" },
-  { table: "season_admin_grants", column: "granted_by_user_id", domain: "权限授予人", mode: "preserve" },
-  { table: "teams", column: "creator_user_id", domain: "队伍创建人", mode: "preserve" },
-  { table: "teams", column: "captain_user_id", domain: "当前队长", mode: "special" },
-  { table: "team_memberships", column: "user_id", domain: "队伍成员关系", mode: "special" },
-  { table: "team_memberships", column: "invited_by_user_id", domain: "队伍邀请发起人", mode: "preserve" },
-  { table: "team_captain_changes", column: "from_user_id", domain: "队长变更历史", mode: "preserve" },
-  { table: "team_captain_changes", column: "to_user_id", domain: "队长变更历史", mode: "preserve" },
-  { table: "team_invitations", column: "invited_user_id", domain: "队伍邀请对象", mode: "special" },
-  { table: "team_invitations", column: "invited_by_user_id", domain: "队伍邀请发起人", mode: "preserve" },
-  { table: "team_invitations", column: "responded_by_user_id", domain: "队伍邀请处理人", mode: "preserve" },
-  { table: "user_sessions", column: "user_id", domain: "登录会话", mode: "delete" },
-  { table: "users", column: "merged_into_user_id", domain: "旧账号别名", mode: "preserve" },
+  { table: "admin_invite_claims", column: "user_id", label: "管理员邀请领取", mode: "special" },
+  { table: "announcements", column: "created_by", label: "公告创建人", mode: "preserve" },
+  { table: "announcements", column: "updated_by", label: "公告最后更新人", mode: "preserve" },
+  { table: "community_awards", column: "submitted_by_user_id", label: "社区奖项提交人", mode: "preserve" },
+  { table: "community_awards", column: "reviewed_by_user_id", label: "社区奖项审核人", mode: "preserve" },
+  { table: "community_awards", column: "recipient_user_id", label: "社区奖项获奖人", mode: "reparent" },
+  { table: "community_awards", column: "outcome_by_user_id", label: "社区奖项处理人", mode: "preserve" },
+  { table: "community_award_evidence", column: "submitted_by_user_id", label: "社区奖项证据提交人", mode: "preserve" },
+  { table: "community_award_evidence", column: "candidate_user_id", label: "社区奖项候选人", mode: "reparent" },
+  { table: "competition_entries", column: "representative_user_id", label: "参赛条目代表人", mode: "reparent" },
+  { table: "competition_entry_participants", column: "user_id", label: "参赛条目参与人", mode: "special" },
+  { table: "competition_entry_participants", column: "invited_by_user_id", label: "参赛邀请发起人", mode: "preserve" },
+  { table: "competition_entry_active_claims", column: "user_id", label: "当前参赛承诺", mode: "special" },
+  { table: "competition_entry_roster_members", column: "user_id", label: "参赛名单成员", mode: "special" },
+  { table: "competition_entry_representative_changes", column: "from_user_id", label: "代表人变更历史", mode: "preserve" },
+  { table: "competition_entry_representative_changes", column: "to_user_id", label: "代表人变更历史", mode: "preserve" },
+  { table: "event_roster_members", column: "user_id", label: "赛事冻结名单成员", mode: "special" },
+  { table: "feedback_reports", column: "user_id", label: "用户反馈提交人", mode: "preserve" },
+  { table: "competitive_rank_facts", column: "user_id", label: "竞技段位资料", mode: "special" },
+  { table: "user_competitive_roles", column: "user_id", label: "竞技位置资料", mode: "special" },
+  { table: "user_map_preferences", column: "user_id", label: "地图熟练度资料", mode: "special" },
+  { table: "disciplinary_cases", column: "subject_user_id", label: "纪律处分对象", mode: "reparent" },
+  { table: "dak_pairing_intents", column: "authorized_by_user_id", label: "DAK 配对授权人", mode: "preserve" },
+  { table: "dak_pairings", column: "user_id", label: "DAK 连接所有人", mode: "reparent" },
+  { table: "education_verifications", column: "user_id", label: "教育认证记录", mode: "reparent" },
+  { table: "identity_link_requests", column: "user_id", label: "身份绑定请求", mode: "delete" },
+  { table: "user_identities", column: "user_id", label: "已验证登录身份", mode: "special" },
+  { table: "user_gameplay_steam_ids", column: "user_id", label: "历史游戏 Steam 身份", mode: "reparent" },
+  { table: "user_gameplay_steam_ids", column: "confirmed_by_user_id", label: "历史游戏 Steam 身份确认人", mode: "preserve" },
+  { table: "user_gameplay_steam_ids", column: "retired_by_user_id", label: "历史游戏 Steam 身份撤销人", mode: "preserve" },
+  { table: "user_merge_authorizations", column: "initiating_user_id", label: "归并授权发起人", mode: "preserve" },
+  { table: "user_merge_authorizations", column: "counterparty_user_id", label: "归并授权对方", mode: "preserve" },
+  { table: "user_merge_ledger", column: "canonical_user_id", label: "归并历史保留账号", mode: "preserve" },
+  { table: "user_merge_ledger", column: "merged_user_id", label: "归并历史旧账号", mode: "preserve" },
+  { table: "user_merge_ledger", column: "executed_by_user_id", label: "归并执行人", mode: "preserve" },
+  { table: "match_rosters", column: "submitted_by", label: "比赛名单提交人", mode: "preserve" },
+  { table: "match_time_proposals", column: "proposed_by", label: "比赛时间提议人", mode: "preserve" },
+  { table: "match_time_proposals", column: "force_assigned_by", label: "比赛时间强制安排人", mode: "preserve" },
+  { table: "match_mvp_votes", column: "player_user_id", label: "MVP 候选人", mode: "reparent" },
+  { table: "match_mvp_votes", column: "voter_user_id", label: "MVP 投票人", mode: "special" },
+  { table: "match_player_stats", column: "user_id", label: "比赛数据选手", mode: "special" },
+  { table: "post_event_adjudications", column: "target_user_id", label: "赛后裁定对象", mode: "reparent" },
+  { table: "tournament_honors", column: "user_id", label: "赛事荣誉获得人", mode: "reparent" },
+  { table: "match_commentators", column: "user_id", label: "比赛解说", mode: "special" },
+  { table: "match_commentators", column: "added_by_user_id", label: "解说安排人", mode: "preserve" },
+  { table: "post_match_reports", column: "submitted_by_user_id", label: "赛后报告提交人", mode: "preserve" },
+  { table: "recruitment_intents", column: "user_id", label: "当前招募意向", mode: "special" },
+  { table: "recruitment_interests", column: "user_id", label: "招募兴趣", mode: "special" },
+  { table: "season_registrations", column: "user_id", label: "赛季报名", mode: "special" },
+  { table: "season_admin_grants", column: "user_id", label: "赛季管理员权限", mode: "special" },
+  { table: "season_admin_grants", column: "granted_by_user_id", label: "权限授予人", mode: "preserve" },
+  { table: "teams", column: "creator_user_id", label: "队伍创建人", mode: "preserve" },
+  { table: "teams", column: "captain_user_id", label: "当前队长", mode: "special" },
+  { table: "team_memberships", column: "user_id", label: "队伍成员关系", mode: "special" },
+  { table: "team_memberships", column: "invited_by_user_id", label: "队伍邀请发起人", mode: "preserve" },
+  { table: "team_captain_changes", column: "from_user_id", label: "队长变更历史", mode: "preserve" },
+  { table: "team_captain_changes", column: "to_user_id", label: "队长变更历史", mode: "preserve" },
+  { table: "team_invitations", column: "invited_user_id", label: "队伍邀请对象", mode: "special" },
+  { table: "team_invitations", column: "invited_by_user_id", label: "队伍邀请发起人", mode: "preserve" },
+  { table: "team_invitations", column: "responded_by_user_id", label: "队伍邀请处理人", mode: "preserve" },
+  { table: "user_sessions", column: "user_id", label: "登录会话", mode: "delete" },
+  { table: "users", column: "merged_into_user_id", label: "旧账号别名", mode: "preserve" },
+  { table: "prediction_accounts", column: "user_id", label: "观赛预测账户", mode: "special" },
+  { table: "prediction_scenarios", column: "creator_id", label: "推演快照作者", mode: "preserve" },
 ] as const;
 
 interface SeasonRegistrationReferenceRule {
   table: string;
   column: string;
-  domain: string;
+  label: string;
 }
 
 /** Every direct FK to season_registrations.id has an explicit merge owner. */
 export const SEASON_REGISTRATION_REFERENCE_RULES: readonly SeasonRegistrationReferenceRule[] = [
-  { table: "competition_entries", column: "source_registration_id", domain: "参赛条目报名来源" },
-  { table: "draft_picks", column: "registration_id", domain: "选秀选手报名" },
-  { table: "captain_votes", column: "voter_registration_id", domain: "队长投票人报名" },
-  { table: "captain_votes", column: "candidate_registration_id", domain: "队长候选人报名" },
+  { table: "competition_entries", column: "source_registration_id", label: "参赛条目报名来源" },
+  { table: "draft_picks", column: "registration_id", label: "选秀选手报名" },
+  { table: "captain_votes", column: "voter_registration_id", label: "队长投票人报名" },
+  { table: "captain_votes", column: "candidate_registration_id", label: "队长候选人报名" },
 ] as const;
 
 type MergeQueryable = Pick<DB, "execute">;
@@ -211,7 +222,7 @@ export async function buildUserMergePreflight(
   const canonical = pair.find((row) => row.id === input.canonicalUserId);
   const merged = pair.find((row) => row.id === input.mergedUserId);
   if (!canonical || !merged) throw new AppError(ErrorCode.NOT_FOUND, "归并候选账号不存在。");
-  if (canonical.status !== "active" || merged.status !== "active") throw new AppError(ErrorCode.VALIDATION_FAILED, "归并双方都必须是 active 账号。");
+  if (canonical.status !== "active" || merged.status !== "active") throw identityAppError(ErrorCode.VALIDATION_FAILED, "accountMustBeActive");
 
   const facts = await loadCollisionFacts(queryable, input);
   const items: UserMergePlanItem[] = [
@@ -245,25 +256,25 @@ export async function buildUserMergePreflight(
     items.push(item(
       `reference:${rule.table}.${rule.column}`,
       rule.mode === "preserve" ? "PRESERVE" : rule.mode === "delete" ? "AUTOMATIC" : "AUTOMATIC",
-      rule.domain,
+      rule.label,
       count,
       rule.mode === "preserve" ? "preserved" : "automatic",
-      rule.mode === "preserve" ? "保留原始执行人和历史来源，不把 actor provenance 改写成保留账号。" : rule.mode === "delete" ? "归并时关闭或删除临时状态。" : "安全的个人事实归到保留账号。",
+      rule.mode === "preserve" ? "保留原始操作人和历史来源，不改写为保留账号。" : rule.mode === "delete" ? "归并时关闭或删除临时状态。" : "安全的个人事实归到保留账号。",
     ));
   }
 
-  pushCount(items, "identity:credentials", "AUTOMATIC", "已验证登录身份", facts.identity_rows, "automatic", "保留所有非重复 credential，并作为保留账号的 secondary identity。重复 credential 留存为 retired 记录。 ");
+  pushCount(items, "identity:credentials", "AUTOMATIC", "已验证登录身份", facts.identity_rows, "automatic", "保留所有不重复的已验证登录方式，并关联到保留账号。重复的登录方式会保留历史记录，但不再用于登录。 ");
   pushCount(items, "competitive:loser-profile", "AUTOMATIC", "待归并竞技资料", facts.competitive_rows, "automatic", "删除待归并账号的段位、位置和地图资料；保留账号的竞技资料完全不变。 ");
   pushCount(items, "team:same-team-dedupe", "AUTOMATIC", "同队重复成员关系", facts.same_team_membership_duplicate, "automatic", "同一队伍重叠成员关系按保留账号优先确定性去重。 ");
   pushCount(items, "registration:same-season", "AUTOMATIC", "同赛季报名", facts.registration_same_season, "automatic", "同赛季报名由保留账号优先；不会因为这一项阻断归并。 ");
   pushCount(items, "registration:approved-migrate", "AUTOMATIC", "已批准报名迁移", facts.registration_approved_migrate, "automatic", "待归并账号独有且已批准的报名迁移到保留账号。 ");
-  pushCount(items, "registration:draft-reference-blocker", "BLOCKER", "待删除报名的选秀记录", facts.registration_draft_reference_blocker, "blocked", "待删除报名仍被 draft pick 引用，且没有同赛季保留报名可以安全承接。 ");
-  pushCount(items, "registration:captain-voter-reference-blocker", "BLOCKER", "待删除报名的队长投票人引用", facts.registration_voter_reference_blocker, "blocked", "待删除报名仍作为 captain vote 投票人，且没有同赛季保留报名可以安全承接。 ");
-  pushCount(items, "registration:captain-candidate-reference-blocker", "BLOCKER", "待删除报名的队长候选人引用", facts.registration_candidate_reference_blocker, "blocked", "待删除报名仍作为 captain vote 候选人，且没有同赛季保留报名可以安全承接。 ");
-  pushCount(items, "registration:draft-pick-conflict", "BLOCKER", "同赛季选秀事实冲突", facts.draft_pick_conflict, "blocked", "两个报名都已有 draft pick，但 entry、轮次、顺序、自动选取或请求 provenance 不一致，不能自动择一。 ");
+  pushCount(items, "registration:draft-reference-blocker", "BLOCKER", "待删除报名的选秀记录", facts.registration_draft_reference_blocker, "blocked", "待删除报名仍被选秀记录引用，且没有同赛季保留报名可以安全承接。 ");
+  pushCount(items, "registration:captain-voter-reference-blocker", "BLOCKER", "待删除报名的队长投票人引用", facts.registration_voter_reference_blocker, "blocked", "待删除报名仍作为队长投票的投票人，且没有同赛季保留报名可以安全承接。 ");
+  pushCount(items, "registration:captain-candidate-reference-blocker", "BLOCKER", "待删除报名的队长候选人引用", facts.registration_candidate_reference_blocker, "blocked", "待删除报名仍作为队长投票候选人，且没有同赛季保留报名可以安全承接。 ");
+  pushCount(items, "registration:draft-pick-conflict", "BLOCKER", "同赛季选秀事实冲突", facts.draft_pick_conflict, "blocked", "两个报名都已有选秀记录，但参赛队、轮次、顺序、自动选取或请求来源信息不一致，不能自动择一。 ");
   pushCount(items, "registration:captain-self-vote", "BLOCKER", "归并后的自投票", facts.captain_vote_self_conflict, "blocked", "报名引用重映射后会形成投票人给自己投票，必须保留原始语义并人工处理。 ");
   pushCount(items, "registration:captain-vote-limit-conflict", "BLOCKER", "归并后的队长投票上限冲突", facts.captain_vote_limit_conflict, "blocked", `报名引用重映射后同一投票人会超过最多 ${MAX_CAPTAIN_VOTES} 票，不自动删除历史投票。 `);
-  pushCount(items, "competition:participant-dedupe", "AUTOMATIC", "参赛条目重复参与人", facts.participant_duplicate, "automatic", "未形成确认承诺的重复参与人按保留账号优先去重。 ");
+  pushCount(items, "competition:participant-dedupe", "AUTOMATIC", "参赛条目重复参与人", facts.participant_duplicate, "automatic", "同一参赛条目中的重复参与人按保留账号优先确定性去重；正式名单冲突会另行阻断归并。 ");
   pushCount(items, "competition:claim-union", "AUTOMATIC", "当前参赛承诺", facts.claim_union, "automatic", "不冲突的当前参赛承诺取并集；同一条目只保留一份。 ");
   pushCount(items, "competition:roster-dedupe", "AUTOMATIC", "可编辑参赛名单", facts.roster_duplicate, "automatic", "可编辑名单中的重复成员按保留账号优先去重。 ");
   pushCount(items, "competition:event-roster", "AUTOMATIC", "赛事正式名单", facts.frozen_event_rows, "automatic", "在没有重复成员冲突时，将自然人的名单归到保留账号，同时保留原有名单和比赛阵容事实。 ");
@@ -272,17 +283,17 @@ export async function buildUserMergePreflight(
   pushCount(items, "mvp:reparent", "AUTOMATIC", "MVP 结果与投票", facts.mvp_rows, "automatic", "MVP 选手引用归到保留账号；投票冲突由保留账号的投票优先，不阻断归并。 ");
   pushCount(items, "authorization:claims-union", "AUTOMATIC", "权限领取与赛季权限", facts.admin_claim_union + facts.grant_union, "automatic", "不冲突的管理员领取和赛季权限取并集并去重。 ");
   pushCount(items, "transient:close", "AUTOMATIC", "临时状态", facts.transient_rows, "automatic", "招募意向关闭，待处理邀请和身份请求取消，会话失效。 ");
-  pushCount(items, "history:actor-preserved", "PRESERVE", "历史执行人", facts.preserved_actor_rows, "preserved", "历史 actor、审核人和冻结事实继续指向原始账号。 ");
+  pushCount(items, "history:actor-preserved", "PRESERVE", "历史执行人", facts.preserved_actor_rows, "preserved", "历史操作人、审核人和冻结事实继续指向原始账号。 ");
 
-  const blockers: Array<[keyof CollisionFacts, string, string]> = [
-    ["team_current_conflict", "team:current-conflict", "两个账号当前属于不同队伍，不能自动选择当前队伍。"],
-    ["team_membership_overlap", "team:history-overlap", "两个账号在不同队伍的历史成员时间区间重叠，必须先人工核对。"],
-    ["active_captaincy_conflict", "team:captaincy-conflict", "两个账号分别担任不同 active 队伍队长，不能自动选择。"],
-    ["competition_commitment_conflict", "competition:confirmed-different-entry", "两个账号在同一赛事形成了不同参赛条目的确认承诺。"],
-    ["competition_roster_conflict", "competition:approved-or-frozen-duplicate", "已批准或已确认/冻结名单中出现无法确定归属的重复成员。"],
-    ["stats_conflict", "stats:formal-conflict", "同一场比赛同一张地图存在两份正式比赛数据，不能自动选择其中一份。"],
+  const blockers: Array<[keyof CollisionFacts, string, string, string]> = [
+    ["team_current_conflict", "team:current-conflict", "队伍关系", "两个账号当前属于不同队伍，不能自动选择当前队伍。"],
+    ["team_membership_overlap", "team:history-overlap", "队伍关系", "两个账号在不同队伍的历史成员时间区间重叠，必须先人工核对。"],
+    ["active_captaincy_conflict", "team:captaincy-conflict", "队伍关系", "两个账号分别担任不同当前队伍队长，不能自动选择。"],
+    ["competition_commitment_conflict", "competition:confirmed-different-entry", "赛事承诺", "两个账号在同一赛事形成了不同参赛条目的确认承诺。"],
+    ["competition_roster_conflict", "competition:approved-or-frozen-duplicate", "赛事名单", "已批准或已确认/冻结名单中出现无法确定归属的重复成员。"],
+    ["stats_conflict", "stats:formal-conflict", "比赛数据", "同一场比赛同一张地图存在两份正式比赛数据，不能自动选择其中一份。"],
   ];
-  for (const [field, key, detail] of blockers) pushCount(items, key, "BLOCKER", key.split(":")[0]!, facts[field], "blocked", detail);
+  for (const [field, key, label, detail] of blockers) pushCount(items, key, "BLOCKER", label, facts[field], "blocked", detail);
 
   items.sort((left, right) => left.category.localeCompare(right.category) || left.key.localeCompare(right.key));
   const summary = emptySummary();
@@ -405,8 +416,11 @@ async function loadCollisionFacts(queryable: MergeQueryable, input: { canonicalU
         + (SELECT count(*)::int FROM user_sessions WHERE user_id = ${input.mergedUserId}) AS transient_rows,
       (SELECT count(*)::int FROM community_awards WHERE submitted_by_user_id = ${input.mergedUserId} OR reviewed_by_user_id = ${input.mergedUserId} OR outcome_by_user_id = ${input.mergedUserId})
         + (SELECT count(*)::int FROM community_award_evidence WHERE submitted_by_user_id = ${input.mergedUserId})
+        + (SELECT count(*)::int FROM dak_pairing_intents WHERE authorized_by_user_id = ${input.mergedUserId})
+        + (SELECT count(*)::int FROM announcements WHERE created_by = ${input.mergedUserId} OR updated_by = ${input.mergedUserId})
         + (SELECT count(*)::int FROM competition_entry_participants WHERE invited_by_user_id = ${input.mergedUserId})
         + (SELECT count(*)::int FROM competition_entry_representative_changes WHERE from_user_id = ${input.mergedUserId} OR to_user_id = ${input.mergedUserId})
+        + (SELECT count(*)::int FROM feedback_reports WHERE user_id = ${input.mergedUserId})
         + (SELECT count(*)::int FROM match_commentators WHERE added_by_user_id = ${input.mergedUserId})
         + (SELECT count(*)::int FROM post_match_reports WHERE submitted_by_user_id = ${input.mergedUserId})
         + (SELECT count(*)::int FROM season_admin_grants WHERE granted_by_user_id = ${input.mergedUserId})
@@ -418,9 +432,22 @@ async function loadCollisionFacts(queryable: MergeQueryable, input: { canonicalU
         WHERE b.user_id = ${input.mergedUserId} AND b.status = 'confirmed' AND ea.id <> eb.id)
         + (SELECT count(*)::int FROM event_roster_members b JOIN event_rosters rb ON rb.id = b.event_roster_id JOIN competition_entries eb ON eb.id = rb.entry_id JOIN event_roster_members a ON a.user_id = ${input.canonicalUserId} JOIN event_rosters ra ON ra.id = a.event_roster_id AND ra.status IN ('confirmed', 'frozen') JOIN competition_entries ea ON ea.id = ra.entry_id AND ea.competition_id = eb.competition_id
         WHERE b.user_id = ${input.mergedUserId} AND rb.status IN ('confirmed', 'frozen') AND ea.id <> eb.id) AS competition_commitment_conflict,
-      (SELECT count(*)::int FROM competition_entry_participants b JOIN competition_entry_participants a ON a.user_id = ${input.canonicalUserId} AND a.entry_id = b.entry_id JOIN competition_entries e ON e.id = b.entry_id
-        WHERE b.user_id = ${input.mergedUserId} AND (e.registration_status = 'approved' OR EXISTS (SELECT 1 FROM competition_entry_roster_members rb JOIN competition_entry_roster_revisions rr ON rr.id = rb.revision_id JOIN competition_entry_roster_members ra ON ra.user_id = ${input.canonicalUserId} AND ra.revision_id = rb.revision_id WHERE rb.user_id = ${input.mergedUserId} AND rr.status = 'approved') OR EXISTS (SELECT 1 FROM event_roster_members eb JOIN event_rosters er ON er.id = eb.event_roster_id JOIN event_roster_members ea ON ea.user_id = ${input.canonicalUserId} AND ea.event_roster_id = eb.event_roster_id WHERE eb.user_id = ${input.mergedUserId} AND er.status IN ('confirmed', 'frozen'))))
-        + (SELECT count(*)::int FROM event_roster_members b JOIN event_roster_members a ON a.user_id = ${input.canonicalUserId} AND a.event_roster_id = b.event_roster_id JOIN event_rosters r ON r.id = b.event_roster_id WHERE b.user_id = ${input.mergedUserId} AND r.status IN ('confirmed', 'frozen')) AS competition_roster_conflict
+      (SELECT count(*)::int
+        FROM competition_entry_roster_members b
+        JOIN competition_entry_roster_members a
+          ON a.user_id = ${input.canonicalUserId}
+         AND a.revision_id = b.revision_id
+        JOIN competition_entry_roster_revisions r ON r.id = b.revision_id
+        WHERE b.user_id = ${input.mergedUserId}
+          AND r.status = 'approved')
+        + (SELECT count(*)::int
+          FROM event_roster_members b
+          JOIN event_roster_members a
+            ON a.user_id = ${input.canonicalUserId}
+           AND a.event_roster_id = b.event_roster_id
+          JOIN event_rosters r ON r.id = b.event_roster_id
+          WHERE b.user_id = ${input.mergedUserId}
+            AND r.status IN ('confirmed', 'frozen')) AS competition_roster_conflict
   `);
   const row = result.rows[0] as Record<string, unknown> | undefined;
   return new Proxy({}, { get: (_target, property: string) => integer(row?.[property]) }) as CollisionFacts;
@@ -431,8 +458,11 @@ async function loadSnapshotHash(queryable: MergeQueryable, input: { canonicalUse
     WITH snapshot AS (
       SELECT 'users' AS source, id::text AS item_key, row_to_json(u)::text AS item_value FROM users u WHERE id IN (${input.canonicalUserId}, ${input.mergedUserId})
       UNION ALL SELECT 'admin_invite_claims', invite_id::text || ':' || user_id::text, row_to_json(c)::text FROM admin_invite_claims c WHERE user_id IN (${input.canonicalUserId}, ${input.mergedUserId})
+      UNION ALL SELECT 'announcements', id::text, row_to_json(a)::text FROM announcements a WHERE created_by IN (${input.canonicalUserId}, ${input.mergedUserId}) OR updated_by IN (${input.canonicalUserId}, ${input.mergedUserId})
       UNION ALL SELECT 'community_awards', id::text, row_to_json(a)::text FROM community_awards a WHERE submitted_by_user_id IN (${input.canonicalUserId}, ${input.mergedUserId}) OR reviewed_by_user_id IN (${input.canonicalUserId}, ${input.mergedUserId}) OR recipient_user_id IN (${input.canonicalUserId}, ${input.mergedUserId}) OR outcome_by_user_id IN (${input.canonicalUserId}, ${input.mergedUserId})
       UNION ALL SELECT 'community_award_evidence', id::text, row_to_json(e)::text FROM community_award_evidence e WHERE submitted_by_user_id IN (${input.canonicalUserId}, ${input.mergedUserId}) OR candidate_user_id IN (${input.canonicalUserId}, ${input.mergedUserId})
+      UNION ALL SELECT 'dak_pairing_intents', id::text, row_to_json(i)::text FROM dak_pairing_intents i WHERE authorized_by_user_id IN (${input.canonicalUserId}, ${input.mergedUserId})
+      UNION ALL SELECT 'dak_pairings', id::text, row_to_json(p)::text FROM dak_pairings p WHERE user_id IN (${input.canonicalUserId}, ${input.mergedUserId})
       UNION ALL SELECT 'entries', id::text, row_to_json(e)::text FROM competition_entries e WHERE representative_user_id IN (${input.canonicalUserId}, ${input.mergedUserId})
       UNION ALL SELECT 'entry_sources', id::text, row_to_json(e)::text FROM competition_entries e WHERE source_registration_id IN (SELECT id FROM season_registrations WHERE user_id IN (${input.canonicalUserId}, ${input.mergedUserId}))
       UNION ALL SELECT 'identities', id::text, row_to_json(i)::text FROM user_identities i WHERE user_id IN (${input.canonicalUserId}, ${input.mergedUserId})
@@ -445,6 +475,7 @@ async function loadSnapshotHash(queryable: MergeQueryable, input: { canonicalUse
       UNION ALL SELECT 'captain_votes_by_registration', id::text, row_to_json(v)::text FROM captain_votes v WHERE voter_registration_id IN (SELECT id FROM season_registrations WHERE user_id IN (${input.canonicalUserId}, ${input.mergedUserId})) OR candidate_registration_id IN (SELECT id FROM season_registrations WHERE user_id IN (${input.canonicalUserId}, ${input.mergedUserId}))
       UNION ALL SELECT 'memberships', id::text, row_to_json(m)::text FROM team_memberships m WHERE user_id IN (${input.canonicalUserId}, ${input.mergedUserId})
       UNION ALL SELECT 'event_members', id::text, row_to_json(em)::text FROM event_roster_members em WHERE user_id IN (${input.canonicalUserId}, ${input.mergedUserId})
+      UNION ALL SELECT 'feedback_reports', id::text, row_to_json(f)::text FROM feedback_reports f WHERE user_id IN (${input.canonicalUserId}, ${input.mergedUserId})
       UNION ALL SELECT 'education', id::text, row_to_json(e)::text FROM education_verifications e WHERE user_id IN (${input.canonicalUserId}, ${input.mergedUserId})
       UNION ALL SELECT 'discipline', id::text, row_to_json(d)::text FROM disciplinary_cases d WHERE subject_user_id IN (${input.canonicalUserId}, ${input.mergedUserId})
       UNION ALL SELECT 'adjudications', id::text, row_to_json(a)::text FROM post_event_adjudications a WHERE target_user_id IN (${input.canonicalUserId}, ${input.mergedUserId})
@@ -476,12 +507,12 @@ async function loadSnapshotHash(queryable: MergeQueryable, input: { canonicalUse
   return String((result.rows[0] as { snapshot_hash?: unknown } | undefined)?.snapshot_hash ?? "");
 }
 
-function item(key: string, category: UserMergeCategory, domain: string, count: number, status: UserMergeItemStatus, detail: string): UserMergePlanItem {
-  return { key, category, domain, count, status, detail };
+function item(key: string, category: UserMergeCategory, label: string, count: number, status: UserMergeItemStatus, detail: string): UserMergePlanItem {
+  return { key, category, label, count, status, detail };
 }
 
-function pushCount(items: UserMergePlanItem[], key: string, category: UserMergeCategory, domain: string, count: number, status: UserMergeItemStatus, detail: string): void {
-  if (count > 0) items.push(item(key, category, domain, count, status, detail));
+function pushCount(items: UserMergePlanItem[], key: string, category: UserMergeCategory, label: string, count: number, status: UserMergeItemStatus, detail: string): void {
+  if (count > 0) items.push(item(key, category, label, count, status, detail));
 }
 
 async function countReference(queryable: MergeQueryable, table: string, column: string, userId: string): Promise<number> {
@@ -515,7 +546,7 @@ export async function executeUserMergeInTx(tx: TxDb, input: ExecuteUserMergeInpu
     canonicalUserId: input.canonicalUserId,
     mergedUserId: input.mergedUserId,
   }, { evidenceClass: input.evidenceClass });
-  if (preflight.fingerprint !== input.expectedFingerprint) throw new AppError(ErrorCode.VALIDATION_FAILED, "归并事实已变化，请重新查看并确认。");
+  if (preflight.fingerprint !== input.expectedFingerprint) throw new AppError(ErrorCode.VALIDATION_FAILED, "页面上的账号信息已经更新，本次没有执行合并。请查看最新结果后重新确认。");
   if (!preflight.executable) throw new AppError(ErrorCode.VALIDATION_FAILED, "存在未解决冲突，系统拒绝执行归并。");
   const authorizationId = await verifyMergeAuthorityInTx(tx, input);
 
@@ -553,7 +584,7 @@ export async function executeUserMergeInTx(tx: TxDb, input: ExecuteUserMergeInpu
     domainSummary: { ...preflight.summary, ...preflight.impact },
     mergedAt: now,
   });
-  await tx.insert(auditLogs).values({ action: "user_identity.merge", actorId: input.actorUserId, targetId: input.canonicalUserId, targetType: "user", meta: { mergedUserId: input.mergedUserId, evidenceClass: input.evidenceClass, planFingerprint: preflight.fingerprint, summary: preflight.summary } });
+  await writeAuditInTx(tx, { action: "user_identity.merge", actorId: input.actorUserId, targetId: input.canonicalUserId,meta: { mergedUserId: input.mergedUserId, evidenceClass: input.evidenceClass, planFingerprint: preflight.fingerprint, summary: preflight.summary } });
   await assertMergePostflightInTx(tx, input.canonicalUserId, input.mergedUserId);
   return preflight;
 }
@@ -660,7 +691,7 @@ async function mergeDraftPickReferencesInTx(
     const targetRegistrationId = registrationMap.get(row.registration_id);
     if (!targetRegistrationId) {
       if (registrationById.get(row.registration_id)?.status !== "approved") {
-        throw new AppError(ErrorCode.VALIDATION_FAILED, "待删除报名仍被 draft pick 引用，归并已拒绝。");
+        throw identityAppError(ErrorCode.VALIDATION_FAILED, "draftReferenceConflict");
       }
       continue;
     }
@@ -673,7 +704,7 @@ async function mergeDraftPickReferencesInTx(
     `)).rows as unknown as DraftPickMergeRow[];
     if (canonicalPick) {
       if (!draftPickEquivalent(row, canonicalPick)) {
-        throw new AppError(ErrorCode.VALIDATION_FAILED, "同赛季 draft pick 事实冲突，归并已拒绝。");
+        throw identityAppError(ErrorCode.VALIDATION_FAILED, "draftFactConflict");
       }
       await tx.execute(sql`DELETE FROM draft_picks WHERE id = ${row.id}`);
     } else {
@@ -706,7 +737,7 @@ async function mergeCaptainVoteReferencesInTx(
     const voter = registrationById.get(row.voter_registration_id);
     const candidate = registrationById.get(row.candidate_registration_id);
     if ((voter && !registrationMap.has(voter.id) && voter.status !== "approved") || (candidate && !registrationMap.has(candidate.id) && candidate.status !== "approved")) {
-      throw new AppError(ErrorCode.VALIDATION_FAILED, "待删除报名仍被 captain vote 引用，归并已拒绝。");
+      throw identityAppError(ErrorCode.VALIDATION_FAILED, "captainVoteReferenceConflict");
     }
   }
   if (!registrationMap.size) return;
@@ -719,7 +750,7 @@ async function mergeCaptainVoteReferencesInTx(
       candidate: registrationMap.get(row.candidate_registration_id) ?? row.candidate_registration_id,
     };
     if ((target.voter !== row.voter_registration_id || target.candidate !== row.candidate_registration_id) && target.voter === target.candidate) {
-      throw new AppError(ErrorCode.VALIDATION_FAILED, "归并后的 captain vote 会变成自投票，归并已拒绝。");
+      throw identityAppError(ErrorCode.VALIDATION_FAILED, "selfVoteConflict");
     }
     targetById.set(row.id, target);
     const key = `${target.voter}:${target.candidate}`;

@@ -1,7 +1,7 @@
 import { requireSuperAdmin } from "@/lib/auth/session";
 import { resolveAdminPageAccess } from "@/lib/auth/admin-access";
 import { fetchAuditLogs, getAuditSeasons } from "@/actions/audit";
-import { ErrorState, PageHeader } from "@/components/rivalhub";
+import { ErrorState, PageHeader, PageLayout } from "@/components/rivalhub";
 import { AdminAccessDenied } from "@/components/admin/AdminAccessDenied";
 import { AuditLogTable } from "@/components/admin/AuditLogTable";
 
@@ -33,28 +33,27 @@ export default async function AdminLogsPage({ searchParams }: AdminLogsPageProps
     getAuditSeasons(),
   ]);
 
-  const pageClass = "container mx-auto max-w-6xl px-4 py-8";
   if (!logsResult.success) {
     return (
-      <div className={pageClass}>
+      <PageLayout variant="wide" className="space-y-6">
         <PageHeader title="操作日志" />
         <ErrorState code={logsResult.error.code} title="无法加载操作日志" sub={logsResult.error.message} />
-      </div>
+      </PageLayout>
     );
   }
   if (!seasonsResult.success) {
     return (
-      <div className={pageClass}>
+      <PageLayout variant="wide" className="space-y-6">
         <PageHeader title="操作日志" />
         <ErrorState code={seasonsResult.error.code} title="无法加载赛季筛选项" sub={seasonsResult.error.message} />
-      </div>
+      </PageLayout>
     );
   }
 
   return (
-    <div className={pageClass}>
+    <PageLayout variant="wide" className="space-y-6">
       <PageHeader title="操作日志" />
       <AuditLogTable initialLogs={logsResult.data.logs} initialTotal={logsResult.data.total} seasons={seasonsResult.data} />
-    </div>
+    </PageLayout>
   );
 }

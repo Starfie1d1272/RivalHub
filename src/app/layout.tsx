@@ -7,6 +7,12 @@ import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { Toaster } from "@/components/ui/sonner";
 import { APP_BRAND } from "@/lib/branding";
+import { GlobalInformationFeedbackLauncher } from "@/components/operations/GlobalInformationFeedbackLauncher";
+import { OperationsProvider } from "@/components/operations/OperationsContext";
+import { Suspense } from "react";
+import { connection } from "next/server";
+import { isPreview } from "@/lib/runtime/preview";
+import { readPreviewMirrorIdentity } from "@/lib/preview/mirror-state";
 
 const geist = Geist({
   variable: "--font-geist",
@@ -52,13 +58,28 @@ export default function RootLayout({
         <link rel="stylesheet" href="/brackets-viewer.min.css" />
       </head>
       <body className={`${geist.variable} ${jetbrainsMono.variable} ${notoSansSC.variable} antialiased min-h-screen flex flex-col`}>
-        <Header />
-        <main className="flex-1">{children}</main>
-        <Footer />
+        <OperationsProvider>
+          <Suspense fallback={null}><PreviewMirrorBanner /></Suspense>
+          <Header />
+          <main className="flex-1">{children}</main>
+          <Footer />
+          <Suspense fallback={null}>
+            <GlobalInformationFeedbackLauncher />
+          </Suspense>
+        </OperationsProvider>
         <Toaster richColors position="top-right" />
         <Analytics />
         <SpeedInsights />
       </body>
     </html>
   );
+}
+
+async function PreviewMirrorBanner() {
+  if (!isPreview()) return null;
+  await connection();
+  const mirror = await readPreviewMirrorIdentity();
+  return <aside className="border-b border-border bg-muted px-4 py-2 text-center text-xs text-muted-foreground">
+    <span className="font-mono">PR PREVIEW / DEV MIRROR</span> · source {mirror?.sourceTag ?? "unknown"} · refreshed {mirror?.refreshedAt.toLocaleString("zh-CN") ?? "unknown"}
+  </aside>;
 }

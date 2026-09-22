@@ -39,7 +39,9 @@ function selectBuilder<T>(result: T) {
     from: vi.fn(() => builder),
     innerJoin: vi.fn(() => builder),
     leftJoin: vi.fn(() => builder),
-    where: vi.fn(() => Promise.resolve(result)),
+    where: vi.fn(() => builder),
+    orderBy: vi.fn(() => builder),
+    then: (resolve: (value: T) => unknown, reject?: (reason: unknown) => unknown) => Promise.resolve(result).then(resolve, reject),
   };
   return builder;
 }

@@ -1,10 +1,12 @@
 "use server";
 
+import { writeAuditInTx } from "@/lib/audit/write";
+
 import { and, asc, desc, eq, gt, lt, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { db } from "@/db/client";
-import { auditLogs, competitivePlatformRanks, competitivePlatformSeasons, competitivePlatforms, competitiveRankFacts } from "@/db/schema";
+import { competitivePlatformRanks, competitivePlatformSeasons, competitivePlatforms, competitiveRankFacts } from "@/db/schema";
 import { actionError } from "@/lib/action-utils";
 import { auditActorId, requireSuperAdmin } from "@/lib/auth/session";
 import { AppError, ErrorCode } from "@/lib/errors";
@@ -47,7 +49,7 @@ export async function updateCompetitivePlatform(input: unknown): Promise<ActionR
       const existing = await tx.query.competitivePlatforms.findFirst({ where: eq(competitivePlatforms.key, key) });
       if (!existing) throw new AppError(ErrorCode.NOT_FOUND, "竞技平台不存在。");
       await tx.update(competitivePlatforms).set({ displayName, updatedAt: new Date() }).where(eq(competitivePlatforms.key, key));
-      await tx.insert(auditLogs).values({ action: "competitive_platform.update", actorId: auditActorId(session), targetId: key, targetType: "competitive_platform", meta: { key, displayName } });
+      await writeAuditInTx(tx, { action: "competitive_platform.update", actorId: auditActorId(session), targetId: key,meta: { key, displayName } });
     });
     revalidateCatalog();
     return ok(undefined);
@@ -104,7 +106,7 @@ export async function createCompetitivePlatformSeason(input: unknown): Promise<A
       for (const [index, season] of chronological.entries()) {
         await tx.update(competitivePlatformSeasons).set({ sortOrder: (index + 1) * 10, updatedAt: new Date() }).where(eq(competitivePlatformSeasons.id, season.id));
       }
-      await tx.insert(auditLogs).values({ action: "competitive_platform_season.create", actorId: auditActorId(session), targetId: row.id, targetType: "competitive_platform_season", meta: { platform, seasonKey, label, insertAt: insertAt ?? null } });
+      await writeAuditInTx(tx, { action: "competitive_platform_season.create", actorId: auditActorId(session), targetId: row.id,meta: { platform, seasonKey, label, insertAt: insertAt ?? null } });
       return row;
     });
     revalidateCatalog();
@@ -122,7 +124,7 @@ export async function updateCompetitivePlatformSeason(input: unknown): Promise<A
       const existing = await tx.query.competitivePlatformSeasons.findFirst({ where: eq(competitivePlatformSeasons.id, id) });
       if (!existing) throw new AppError(ErrorCode.NOT_FOUND, "赛季目录项不存在。");
       await tx.update(competitivePlatformSeasons).set({ label, updatedAt: new Date() }).where(eq(competitivePlatformSeasons.id, id));
-      await tx.insert(auditLogs).values({ action: "competitive_platform_season.update", actorId: auditActorId(session), targetId: id, targetType: "competitive_platform_season", meta: { platform: existing.platform, seasonKey: existing.seasonKey, label } });
+      await writeAuditInTx(tx, { action: "competitive_platform_season.update", actorId: auditActorId(session), targetId: id,meta: { platform: existing.platform, seasonKey: existing.seasonKey, label } });
     });
     revalidateCatalog();
     return ok(undefined);
@@ -140,7 +142,7 @@ export async function setCompetitivePlatformSeasonActive(input: unknown): Promis
       if (!existing) throw new AppError(ErrorCode.NOT_FOUND, "赛季目录项不存在。");
       if (existing.isCurrent && !active) throw new AppError(ErrorCode.VALIDATION_FAILED, "当前赛季必须保持启用；请先将当前赛季切换到其他赛季。");
       await tx.update(competitivePlatformSeasons).set({ active, updatedAt: new Date() }).where(eq(competitivePlatformSeasons.id, id));
-      await tx.insert(auditLogs).values({ action: "competitive_platform_season.set_active", actorId: auditActorId(session), targetId: id, targetType: "competitive_platform_season", meta: { platform: existing.platform, seasonKey: existing.seasonKey, active } });
+      await writeAuditInTx(tx, { action: "competitive_platform_season.set_active", actorId: auditActorId(session), targetId: id,meta: { platform: existing.platform, seasonKey: existing.seasonKey, active } });
     });
     revalidateCatalog();
     return ok(undefined);
@@ -163,7 +165,7 @@ export async function setCurrentCompetitivePlatformSeason(input: unknown): Promi
       // first, then set the new one — both inside this transaction.
       await tx.update(competitivePlatformSeasons).set({ isCurrent: false, updatedAt: new Date() }).where(and(eq(competitivePlatformSeasons.platform, target.platform), eq(competitivePlatformSeasons.isCurrent, true)));
       await tx.update(competitivePlatformSeasons).set({ isCurrent: true, updatedAt: new Date() }).where(eq(competitivePlatformSeasons.id, id));
-      await tx.insert(auditLogs).values({ action: "competitive_platform_season.set_current", actorId: auditActorId(session), targetId: id, targetType: "competitive_platform_season", meta: { platform: target.platform, fromSeasonKey: previous?.seasonKey ?? null, toSeasonKey: target.seasonKey } });
+      await writeAuditInTx(tx, { action: "competitive_platform_season.set_current", actorId: auditActorId(session), targetId: id,meta: { platform: target.platform, fromSeasonKey: previous?.seasonKey ?? null, toSeasonKey: target.seasonKey } });
     });
     revalidateCatalog();
     return ok(undefined);
@@ -195,7 +197,7 @@ export async function moveCompetitivePlatformSeason(input: unknown): Promise<Act
       await tx.update(competitivePlatformSeasons).set({ sortOrder: neighborTemporary }).where(eq(competitivePlatformSeasons.id, neighbor.id));
       await tx.update(competitivePlatformSeasons).set({ sortOrder: neighbor.sortOrder, updatedAt: new Date() }).where(eq(competitivePlatformSeasons.id, row.id));
       await tx.update(competitivePlatformSeasons).set({ sortOrder: row.sortOrder, updatedAt: new Date() }).where(eq(competitivePlatformSeasons.id, neighbor.id));
-      await tx.insert(auditLogs).values({ action: "competitive_platform_season.move", actorId: auditActorId(session), targetId: id, targetType: "competitive_platform_season", meta: { platform: row.platform, seasonKey: row.seasonKey, direction } });
+      await writeAuditInTx(tx, { action: "competitive_platform_season.move", actorId: auditActorId(session), targetId: id,meta: { platform: row.platform, seasonKey: row.seasonKey, direction } });
     });
     revalidateCatalog();
     return ok(undefined);
@@ -241,7 +243,7 @@ export async function deleteCompetitivePlatformSeason(input: unknown): Promise<A
       `);
       if (frozen.rows.length > 0) throw new AppError(ErrorCode.VALIDATION_FAILED, "已有已开放报名赛事冻结的竞技上下文引用该平台赛季，不能删除。");
       await tx.delete(competitivePlatformSeasons).where(eq(competitivePlatformSeasons.id, id));
-      await tx.insert(auditLogs).values({ action: "competitive_platform_season.delete", actorId: auditActorId(session), targetId: id, targetType: "competitive_platform_season", meta: { platform: row.platform, seasonKey: row.seasonKey } });
+      await writeAuditInTx(tx, { action: "competitive_platform_season.delete", actorId: auditActorId(session), targetId: id,meta: { platform: row.platform, seasonKey: row.seasonKey } });
     });
     revalidateCatalog();
     return ok(undefined);
@@ -266,7 +268,7 @@ export async function createCompetitivePlatformRank(input: unknown): Promise<Act
       const [{ maxOrder }] = await tx.select({ maxOrder: sql<number>`coalesce(max(${competitivePlatformRanks.sortOrder}), -1)` }).from(competitivePlatformRanks).where(eq(competitivePlatformRanks.platformKey, platform));
       const [row] = await tx.insert(competitivePlatformRanks).values({ platformKey: platform, rankKey: key, label, sortOrder: Number(maxOrder) + 1 }).returning({ id: competitivePlatformRanks.id });
       if (!row) throw new AppError(ErrorCode.INTERNAL_ERROR, "段位创建失败。");
-      await tx.insert(auditLogs).values({ action: "competitive_platform_rank.create", actorId: auditActorId(session), targetId: row.id, targetType: "competitive_platform_rank", meta: { platform, rankKey: key, label } });
+      await writeAuditInTx(tx, { action: "competitive_platform_rank.create", actorId: auditActorId(session), targetId: row.id,meta: { platform, rankKey: key, label } });
       return row;
     });
     revalidateCatalog();
@@ -286,7 +288,7 @@ export async function updateCompetitivePlatformRankLabel(input: unknown): Promis
       // Renaming only touches the display label; rankKey identity is immutable,
       // so existing facts and frozen event contexts stay valid.
       await tx.update(competitivePlatformRanks).set({ label, updatedAt: new Date() }).where(eq(competitivePlatformRanks.id, id));
-      await tx.insert(auditLogs).values({ action: "competitive_platform_rank.rename", actorId: auditActorId(session), targetId: id, targetType: "competitive_platform_rank", meta: { platform: existing.platformKey, rankKey: existing.rankKey, label } });
+      await writeAuditInTx(tx, { action: "competitive_platform_rank.rename", actorId: auditActorId(session), targetId: id,meta: { platform: existing.platformKey, rankKey: existing.rankKey, label } });
     });
     revalidateCatalog();
     return ok(undefined);
@@ -317,7 +319,7 @@ export async function moveCompetitivePlatformRank(input: unknown): Promise<Actio
       await tx.update(competitivePlatformRanks).set({ sortOrder: neighborTemporary }).where(eq(competitivePlatformRanks.id, neighbor.id));
       await tx.update(competitivePlatformRanks).set({ sortOrder: neighbor.sortOrder, updatedAt: new Date() }).where(eq(competitivePlatformRanks.id, row.id));
       await tx.update(competitivePlatformRanks).set({ sortOrder: row.sortOrder, updatedAt: new Date() }).where(eq(competitivePlatformRanks.id, neighbor.id));
-      await tx.insert(auditLogs).values({ action: "competitive_platform_rank.move", actorId: auditActorId(session), targetId: id, targetType: "competitive_platform_rank", meta: { platform: row.platformKey, rankKey: row.rankKey, direction } });
+      await writeAuditInTx(tx, { action: "competitive_platform_rank.move", actorId: auditActorId(session), targetId: id,meta: { platform: row.platformKey, rankKey: row.rankKey, direction } });
     });
     revalidateCatalog();
     return ok(undefined);
@@ -335,7 +337,7 @@ export async function deleteCompetitivePlatformRank(input: unknown): Promise<Act
       if (!row) throw new AppError(ErrorCode.NOT_FOUND, "段位不存在。");
       await assertPlatformRanksMutable(tx, row.platformKey, [row.rankKey]);
       await tx.delete(competitivePlatformRanks).where(eq(competitivePlatformRanks.id, id));
-      await tx.insert(auditLogs).values({ action: "competitive_platform_rank.delete", actorId: auditActorId(session), targetId: id, targetType: "competitive_platform_rank", meta: { platform: row.platformKey, rankKey: row.rankKey } });
+      await writeAuditInTx(tx, { action: "competitive_platform_rank.delete", actorId: auditActorId(session), targetId: id,meta: { platform: row.platformKey, rankKey: row.rankKey } });
     });
     revalidateCatalog();
     return ok(undefined);

@@ -34,17 +34,12 @@ const mockedAdjudicate = vi.mocked(recordMatchRecoveryAdjudication);
 function planFixture(overrides: Partial<{
   winnerChanges: boolean;
   blockedReasons: string[];
-  impacts: { kind: string; status: string; description: string; managedKey?: string | null }[];
+  impacts: { label: string }[];
   requiredRecoveryActions: string[];
 }> = {}) {
   return {
-    matchId: "match-1",
-    stageKey: "stage1",
-    stageType: "swiss",
     current: { scoreA: 0, scoreB: 1, isForfeit: false },
     proposed: { scoreA: 1, scoreB: 0, isForfeit: false },
-    currentWinnerTeamId: "team-b",
-    proposedWinnerTeamId: "team-a",
     winnerChanges: true,
     affectsManagedRun: true,
     impacts: [],
@@ -73,10 +68,10 @@ describe("ResultCorrectionPanel", () => {
       ok(
         planFixture({
           impacts: [
-            { kind: "stage_run_rollback", status: "finalized_round:1", description: "finalizedRound 回滚" },
-            { kind: "downstream_match", managedKey: "r2-1", status: "scheduled", description: "r2-1 需要作废" },
+            { label: "第 2 轮及之后的赛程确认将被撤销。" },
+            { label: "一场尚未开始的下游比赛将被作废并重建。" },
           ],
-          requiredRecoveryActions: ["作废未开始下游托管比赛。"],
+          requiredRecoveryActions: ["应用更正前，系统会作废 1 场尚未开始的下游比赛。"],
         }),
       ),
     );
@@ -86,8 +81,9 @@ describe("ResultCorrectionPanel", () => {
     await user.click(screen.getByRole("button", { name: "计算影响清单" }));
 
     await waitFor(() => expect(screen.getByText(/胜者将变更/)).toBeInTheDocument());
-    expect(screen.getByText(/finalizedRound 回滚/)).toBeInTheDocument();
-    expect(screen.getByText(/r2-1 需要作废/)).toBeInTheDocument();
+    expect(screen.getByText(/第 2 轮及之后的赛程确认将被撤销/)).toBeInTheDocument();
+    expect(screen.getByText(/一场尚未开始的下游比赛将被作废并重建/)).toBeInTheDocument();
+    expect(screen.queryByText(/finalizedRound|r2-1|scheduled|finalize/)).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "确认恢复并应用更正" })).toBeInTheDocument();
     expect(mockedApply).not.toHaveBeenCalled();
   });

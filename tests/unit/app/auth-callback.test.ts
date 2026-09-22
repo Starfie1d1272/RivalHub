@@ -57,6 +57,26 @@ describe("legacy email confirmation callback", () => {
     expect(createUserSessionMock).not.toHaveBeenCalled();
   });
 
+  it("为第二邮箱绑定保留 provider 签发的受限 OTP 类型", async () => {
+    const response = await GET(new NextRequest(
+      "http://127.0.0.1:3000/auth/callback/link_identity?token_hash=ok&type=email&request=11111111-1111-4111-8111-111111111111&state=opaque-state-token",
+    ));
+
+    expect(response.headers.get("location")).toBe(
+      "http://127.0.0.1:3000/auth/confirmation?flow=link_identity&token_hash=ok&request=11111111-1111-4111-8111-111111111111&state=opaque-state-token&type=email",
+    );
+    expect(verifyOtpMock).not.toHaveBeenCalled();
+  });
+
+  it("拒绝把未允许的 OTP 类型带入第二邮箱确认页", async () => {
+    const response = await GET(new NextRequest(
+      "http://127.0.0.1:3000/auth/callback/link_identity?token_hash=ok&type=recovery&request=11111111-1111-4111-8111-111111111111&state=opaque-state-token",
+    ));
+
+    expect(response.headers.get("location")).toBe("http://127.0.0.1:3000/auth/confirmation");
+    expect(verifyOtpMock).not.toHaveBeenCalled();
+  });
+
   it("缺少 token 或 flow 时进入可操作的失败页，仍无副作用", async () => {
     const missingToken = await GET(new NextRequest("http://127.0.0.1:3000/auth/callback/signup"));
     const invalidFlow = await GET(new NextRequest("http://127.0.0.1:3000/auth/callback/unknown?token_hash=bad"));

@@ -1,11 +1,11 @@
 "use client";
 
 import React, { useRef, useState, useTransition } from "react";
-import Image from "next/image";
 import { toast } from "sonner";
 import { Spinner } from "@/components/rivalhub";
 import { uploadTeamLogo } from "@/actions/teams";
 import { LOGO_MAX_BYTES, LOGO_ALLOWED_TYPES } from "@/lib/config/upload-limits";
+import { TeamLogoImage } from "./TeamLogoImage";
 
 interface TeamLogoUploadProps {
   teamId?: string;
@@ -27,8 +27,6 @@ export function TeamLogoUpload({
   const [isPending, startTransition] = useTransition();
   const inputRef = useRef<HTMLInputElement>(null);
   const lastConfirmedUrlRef = useRef<string | null>(currentLogoUrl);
-
-  const initial = teamName.trim()[0]?.toUpperCase() ?? "?";
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -78,17 +76,14 @@ export function TeamLogoUpload({
   ].join(" ");
   const surfaceContent = (
     <>
-      {previewUrl ? (
-        <Image
-          src={previewUrl}
-          alt={`${teamName} logo`}
-          fill
-          className="object-cover"
-          unoptimized={previewUrl.startsWith("blob:")}
-        />
-      ) : (
-        <span className="text-2xl font-bold text-[var(--color-fg-dim)]">{initial}</span>
-      )}
+      <TeamLogoImage
+        logoUrl={previewUrl}
+        teamName={teamName}
+        fill
+        sizes="80px"
+        imageClassName="object-cover"
+        fallbackClassName="text-2xl"
+      />
 
       {/* 上传中蒙层 */}
       {isPending && (

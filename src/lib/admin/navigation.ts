@@ -1,8 +1,9 @@
 export type AdminRole = "season_admin" | "super_admin";
 
-interface AdminNavItem {
+export interface AdminNavItem {
   href: string;
   label: string;
+  superAdminOnly?: boolean;
 }
 
 export interface AdminNavGroup {
@@ -20,6 +21,16 @@ const ADMIN_NAV_GROUPS: readonly AdminNavGroupDefinition[] = [
     key: "seasons",
     label: "赛事",
     items: [{ href: "/admin", label: "赛事目录" }],
+  },
+  {
+    key: "operations",
+    label: "运营",
+    items: [
+      { href: "/admin/operations", label: "运营概览" },
+      { href: "/admin/operations/announcements", label: "公告" },
+      { href: "/admin/operations/season-info", label: "赛事信息" },
+      { href: "/admin/operations/feedback", label: "用户反馈", superAdminOnly: true },
+    ],
   },
   {
     key: "user-permissions",
@@ -65,6 +76,14 @@ export function getAdminNavigation(role: AdminRole): AdminNavGroup[] {
     .map((group) => ({
       key: group.key,
       label: group.label,
-      items: group.items,
-    }));
+      items: group.items.filter((item) => !item.superAdminOnly || role === "super_admin"),
+    }))
+    .filter((group) => group.items.length > 0);
+}
+
+/** Select the single most specific visible navigation destination. */
+export function getActiveAdminNavigationHref(pathname: string, groups: readonly AdminNavGroup[]): string | null {
+  return groups.flatMap((group) => group.items)
+    .filter(({ href }) => pathname === href || (href !== "/admin" && pathname.startsWith(`${href}/`)))
+    .sort((a, b) => b.href.length - a.href.length)[0]?.href ?? null;
 }

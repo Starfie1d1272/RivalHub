@@ -13,7 +13,6 @@ export function ResetPasswordForm() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!isPasswordPolicySatisfied(password)) {

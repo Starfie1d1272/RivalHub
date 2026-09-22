@@ -16,6 +16,8 @@ import {
   type Baseline,
   type Choices,
 } from "@/lib/predictions/types";
+import { projectPredictionStages } from "@/lib/predictions/stage-projection";
+import { resolveMarketOptions } from "@/lib/predictions/market-resolution";
 import { MAJOR_STAGE_PLAN } from "@/lib/competition/templates";
 const B = BigInt;
 function baseline(): Baseline {
@@ -24,14 +26,7 @@ function baseline(): Baseline {
     seasonId: "season",
     name: "Major",
     capturedAt: "2026-09-08T00:00:00Z",
-    stages: MAJOR_STAGE_PLAN.map((s) => ({
-      key: s.key,
-      name: s.name,
-      type: s.type as "swiss" | "single_elim",
-      matchFormat: s.matchFormat as "bo1" | "bo3",
-      entrySeeds: s.entrySeeds ?? 0,
-      finalFormat: s.finalFormat === "bo5" ? "bo5" : null,
-    })),
+    stages: projectPredictionStages(MAJOR_STAGE_PLAN),
     teams: Array.from({ length: 32 }, (_, i) => ({
       teamId: `team${i + 1}`,
       tournamentSeed: i + 1,
@@ -102,7 +97,7 @@ describe("Major spectator simulation and independent Pick'Em", () => {
       winner: m.a,
       format: "bo1",
       status: "finished",
-      scheduledAt: null,
+      scheduledAt: null, scoreA: 1, scoreB: 0, stageRunId: "run",
     }));
     const m = rows[0]!;
     const changed = replaceSimulationChoice(base, {}, "stage1", m, m.b);
@@ -127,6 +122,7 @@ describe("Major spectator simulation and independent Pick'Em", () => {
     expect(changed["playoff/sf-1"]).toBeUndefined();
     expect(changed["playoff/final-1"]).toBeUndefined();
     base.runs = stages.map((s) => ({
+      id: "run",
       key: s.key,
       entrants: s.entrants,
       finalizedRound: s.key === "playoff" ? 0 : 5,
@@ -138,7 +134,7 @@ describe("Major spectator simulation and independent Pick'Em", () => {
         id: s.key + m.key,
         stageKey: s.key,
         status: "finished",
-        scheduledAt: null,
+        scheduledAt: null, scoreA: 1, scoreB: 0, stageRunId: "run",
       })),
     );
     const overridden = replaceSimulationChoice(base, {}, playoff.key, qf, qf.b);
@@ -185,11 +181,11 @@ describe("Major spectator simulation and independent Pick'Em", () => {
 describe("integer pool conservation", () => {
   it("conserves every point, resolves remainder by account id, and aggregates split stakes", () => {
     const positions = [
-      { accountId: "a", side: "A", stake: B(2) },
-      { accountId: "b", side: "A", stake: B(1) },
-      { accountId: "c", side: "B", stake: B(5) },
+      { accountId: "a", optionId: "A", stake: B(2) },
+      { accountId: "b", optionId: "A", stake: B(1) },
+      { accountId: "c", optionId: "B", stake: B(5) },
     ];
-    expect(distributePool(positions, "A")).toEqual(
+    expect(distributePool(positions, ["A"])).toEqual(
       new Map([
         ["a", B(5)],
         ["b", B(3)],
@@ -199,28 +195,28 @@ describe("integer pool conservation", () => {
     expect(
       distributePool(
         [
-          { accountId: "a", side: "A", stake: B(1) },
+          { accountId: "a", optionId: "A", stake: B(1) },
           ...positions.map((p) =>
             p.accountId === "a" ? { ...p, stake: B(1) } : p,
           ),
         ],
-        "A",
+        ["A"],
       ),
-    ).toEqual(distributePool(positions, "A"));
+    ).toEqual(distributePool(positions, ["A"]));
   });
   it("refunds cancellation, an empty winning side and single-sided pools", () => {
-    const p = [{ accountId: "a", side: "A", stake: B(99) }];
+    const p = [{ accountId: "a", optionId: "A", stake: B(99) }];
     for (const winner of [null, "A", "B"])
-      expect(distributePool(p, winner).get("a")).toBe(B(99));
+      expect(distributePool(p, winner ? [winner] : null).get("a")).toBe(B(99));
   });
   it("has no precision loss beyond Number.MAX_SAFE_INTEGER", () => {
     for (let i = 1; i < 120; i++) {
       const p = [
-        { accountId: "a", side: "A", stake: B(i) * B("9007199254740993") },
-        { accountId: "b", side: "A", stake: B(i + 7) },
-        { accountId: "c", side: "B", stake: B(3 * i + 1) },
+        { accountId: "a", optionId: "A", stake: B(i) * B("9007199254740993") },
+        { accountId: "b", optionId: "A", stake: B(i + 7) },
+        { accountId: "c", optionId: "B", stake: B(3 * i + 1) },
       ];
-      const result = distributePool(p, "A");
+      const result = distributePool(p, ["A"]);
       expect([...result.values()].reduce((a, b) => a + b, B(0))).toBe(
         p.reduce((a, b) => a + b.stake, B(0)),
       );
@@ -231,14 +227,34 @@ describe("integer pool conservation", () => {
     expect(() =>
       distributePool(
         [
-          { accountId: "a", side: "A", stake: B(1) },
-          { accountId: "a", side: "B", stake: B(1) },
+          { accountId: "a", optionId: "A", stake: B(1) },
+          { accountId: "a", optionId: "B", stake: B(1) },
         ],
-        "A",
+        ["A"],
       ),
     ).toThrow();
     expect(() =>
-      distributePool([{ accountId: "a", side: "A", stake: B(0) }], "A"),
+      distributePool([{ accountId: "a", optionId: "A", stake: B(0) }], ["A"]),
     ).toThrow();
   });
+});
+
+it("resolves N options and multiple winners without creating a provider settlement path", () => {
+  const options = ["A", "B", "C"].map((key) => ({ id: `id-${key}`, key }));
+  const resolved = resolveMarketOptions(options, { state: "confirmed", revision: "confirmed/2", winningKeys: ["A", "C"] });
+  expect(resolved.winningOptionIds).toEqual(["id-A", "id-C"]);
+  const payout = distributePool([
+    { accountId: "one", optionId: "id-A", stake: B(2) },
+    { accountId: "two", optionId: "id-B", stake: B(5) },
+    { accountId: "three", optionId: "id-C", stake: B(3) },
+  ], resolved.winningOptionIds);
+  expect([...payout.values()]).toEqual([B(4), B(0), B(6)]);
+  expect(resolveMarketOptions(options, { state: "pending", revision: "unconfirmed" }).state).toBe("pending");
+  expect(() => resolveMarketOptions(options, { state: "confirmed", revision: "bad", winningKeys: ["outside"] })).toThrow();
+});
+it("uses key topology even if the public stage array is shuffled", () => {
+  const base = baseline();
+  const expected = complete(base).stages;
+  base.stages.reverse();
+  expect(complete(base).stages).toEqual(expected);
 });

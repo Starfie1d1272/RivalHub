@@ -1,9 +1,11 @@
 import { and, count, desc, eq, gte, inArray, isNull, ne, sql } from "drizzle-orm";
+import { writeAuditInTx } from "@/lib/audit/write";
+import type { AuditAction } from "@/lib/audit/presentation";
+
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import type { TxDb } from "@/db/client";
 import {
-  auditLogs,
-  competitionEntries,
+    competitionEntries,
   seasons,
   teamCaptainChanges,
   teamInvitations,
@@ -14,7 +16,7 @@ import {
 } from "@/db/schema";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { expirePendingInvitationsInTx } from "@/lib/teams/invitations";
-import { closePlayerLftInTx, closeTeamRecruitmentForDisbandInTx } from "@/lib/recruitment/commands";
+import { clearTeamInterestAfterDirectInvitationInTx, closePlayerLftInTx, closeTeamRecruitmentForDisbandInTx } from "@/lib/recruitment/commands";
 
 const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const INVITE_RATE_LIMIT_PER_HOUR = 20;
@@ -44,8 +46,8 @@ async function requireLockedCaptain(tx: TxDb, teamId: string, userId: string) {
   return team;
 }
 
-async function auditTeam(tx: TxDb, action: string, actorId: string, teamId: string, meta?: Record<string, unknown>) {
-  await tx.insert(auditLogs).values({ seasonId: null, action, actorId, targetId: teamId, targetType: "team", meta: meta ?? null });
+async function auditTeam(tx: TxDb, action: AuditAction, actorId: string, teamId: string, meta?: Record<string, unknown>) {
+  await writeAuditInTx(tx, { seasonId: null, action, actorId, targetId: teamId,meta: meta ?? null });
 }
 
 async function nextCaptainChangeAt(tx: TxDb, teamId: string): Promise<Date> {
@@ -137,6 +139,7 @@ export async function inviteTeamMemberInTx(
     .limit(1);
   if (pendingInvitation) throw new AppError(ErrorCode.VALIDATION_FAILED, "该邀请已存在。");
   await tx.insert(teamInvitations).values({ teamId: team.id, kind: "direct", invitedUserId: input.invitedUserId, invitedByUserId: input.userId, expiresAt: new Date(Date.now() + INVITE_TTL_MS) });
+  await clearTeamInterestAfterDirectInvitationInTx(tx, team.id, input.invitedUserId);
   await auditTeam(tx, "team.invite", input.actorId, team.id, { invitedUserId: input.invitedUserId, kind: "direct", expiredSuperseded: expiredCount });
 }
 

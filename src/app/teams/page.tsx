@@ -34,12 +34,13 @@ async function TeamDirectoryContent({ searchParams }: { searchParams: Promise<Te
   const [directory, currentTeamRows, pendingDirectInvitationCount] = await Promise.all([
     getTeamDirectory(query),
     session
-      ? db.select({ slug: teams.slug }).from(teamMemberships).innerJoin(teams, eq(teams.id, teamMemberships.teamId)).where(and(eq(teamMemberships.userId, session.userId), isNull(teamMemberships.endedAt), eq(teams.status, "active"))).limit(1)
+      ? db.select({ slug: teams.slug, captainUserId: teams.captainUserId }).from(teamMemberships).innerJoin(teams, eq(teams.id, teamMemberships.teamId)).where(and(eq(teamMemberships.userId, session.userId), isNull(teamMemberships.endedAt), eq(teams.status, "active"))).limit(1)
       : Promise.resolve([]),
     session ? countPendingDirectTeamInvitations(session.userId) : Promise.resolve(0),
   ]);
   const currentTeam = currentTeamRows[0] ?? null;
-  const cta = getTeamDirectoryCta(Boolean(currentTeam), pendingDirectInvitationCount);
+  const role = currentTeam ? (currentTeam.captainUserId === session?.userId ? "captain" : "member") : null;
+  const cta = getTeamDirectoryCta(role, pendingDirectInvitationCount);
 
   return (
     <PageLayout as="div" variant="wide" className="space-y-8">

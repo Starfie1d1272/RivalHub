@@ -1,5 +1,5 @@
 /** Explicit public contracts. Never expose a MajorRunSnapshot to the browser. */
-export const SIMULATION_VERSION = 1;
+export const SIMULATION_VERSION = 2;
 export type Pick =
   | { perfect: string[]; advance: string[]; eliminated: string[] }
   | { bracket: string[] };
@@ -17,6 +17,9 @@ export interface PredictionRules {
   cutoffMinutes: number;
 }
 export interface PublicStage {
+  previousKey: string | null;
+  nextKey: string | null;
+  directSeeds: readonly [number, number];
   key: string;
   name: string;
   type: "swiss" | "single_elim";
@@ -32,6 +35,9 @@ interface PublicMatch {
   a: string;
   b: string;
   winner: string | null;
+  scoreA: number | null;
+  scoreB: number | null;
+  stageRunId: string;
   format: "bo1" | "bo3" | "bo5";
   status: "scheduled" | "in_progress" | "finished" | "cancelled";
   scheduledAt: string | null;
@@ -50,6 +56,7 @@ export interface Baseline {
     tournamentSeed: number;
   }[];
   runs: {
+    id: string;
     key: string;
     entrants: { teamId: string; seed: number }[];
     finalizedRound: number;

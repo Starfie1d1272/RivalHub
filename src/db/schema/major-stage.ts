@@ -25,6 +25,7 @@ export const majorStageRuns = pgTable("major_stage_runs", {
 }, (t) => ({
   uniqueSeasonStage: unique("major_stage_runs_season_stage_unique").on(t.seasonId, t.stageKey),
   identityScope: unique("major_stage_runs_id_season_unique").on(t.id, t.seasonId),
+  identityStageScope: unique("major_stage_runs_id_season_stage_unique").on(t.id, t.seasonId, t.stageKey),
   validFinalizedRound: check("major_stage_runs_finalized_round_range_check", sql`${t.finalizedRound} BETWEEN 0 AND 5`),
   seasonIndex: index("major_stage_runs_season_idx").on(t.seasonId),
 }));

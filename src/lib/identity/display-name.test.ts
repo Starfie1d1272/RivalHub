@@ -7,11 +7,12 @@ describe("display names", () => {
   });
 
   it("fails closed for public identities when no public name exists", () => {
-    expect(getPublicDisplayName({ displayName: null, perfectName: null, steamName: null })).toBe("未知用户");
+    expect(getPublicDisplayName({ displayName: null, perfectName: null, personaName: null })).toBe("未知用户");
   });
 
   it("prefers public identity fields without needing private contact data", () => {
-    expect(getPublicDisplayName({ displayName: "Display", perfectName: "Perfect", steamName: "Steam" })).toBe("Display");
-    expect(getPublicDisplayName({ displayName: null, perfectName: "Perfect", steamName: "Steam" })).toBe("Perfect");
+    expect(getPublicDisplayName({ displayName: "Display", perfectName: "Perfect", personaName: "Steam" })).toBe("Display");
+    expect(getPublicDisplayName({ displayName: null, perfectName: "Perfect", personaName: "Steam" })).toBe("Steam");
+    expect(getPublicDisplayName({ displayName: null, perfectName: null, personaName: "Steam" })).toBe("Steam");
   });
 });

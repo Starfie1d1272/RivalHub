@@ -6,15 +6,16 @@ import { PageHeader } from "@/components/rivalhub";
 import { RegistrationReviewList } from "@/components/admin/RegistrationReviewList";
 import { DraftRegistrationTable } from "@/components/admin/DraftRegistrationTable";
 import { CompetitionEntryReviewList } from "@/components/admin/CompetitionEntryReviewList";
+import { TeamRegistrationProgress } from "@/components/admin/TeamRegistrationProgress";
 import { isTeamRegistration } from "@/lib/utils/season";
 import {
   getSoloRegistrationReview,
+  getTeamRegistrationProgress,
   getTeamRegistrationReview,
   normalizeSoloRegistrationReviewQuery,
   normalizeTeamRegistrationReviewQuery,
 } from "@/lib/registrations/admin-review";
 import type { RegistrationReviewSearchParams } from "@/lib/registrations/admin-review-contract";
-import { presentSeasonStatus } from "@/lib/seasons/presentation";
 
 interface PageProps {
   params: Promise<{ seasonSlug: string }>;
@@ -32,13 +33,16 @@ export default async function AdminRegistrationsPage({ params, searchParams }: P
 
   if (isTeamRegistration(season)) {
     const query = normalizeTeamRegistrationReviewQuery(rawSearchParams);
-    const review = await getTeamRegistrationReview(season, query);
+    const [review, progress] = await Promise.all([
+      getTeamRegistrationReview(season, query),
+      getTeamRegistrationProgress(season),
+    ]);
     return (
-      <div className="max-w-3xl space-y-6">
+      <div className="min-w-0 space-y-6">
         <PageHeader
           title={`赛事报名审核 · ${season.name}`}
-          description={`${review.total} 支报名队伍 · 赛季状态：${presentSeasonStatus(season.status).label}`}
         />
+        <TeamRegistrationProgress progress={progress} />
         <CompetitionEntryReviewList
           seasonSlug={seasonSlug}
           entries={review.rows}
@@ -48,6 +52,8 @@ export default async function AdminRegistrationsPage({ params, searchParams }: P
           totalPages={review.totalPages}
           normalizedQuery={review.normalizedQuery}
           hasAnyRecords={review.hasAnyRecords}
+          startedCount={progress.summary.total}
+          draftCount={progress.summary.draft}
         />
       </div>
     );
@@ -64,10 +70,9 @@ export default async function AdminRegistrationsPage({ params, searchParams }: P
   ]);
 
   return (
-    <div className="max-w-3xl space-y-6">
+    <div className="min-w-0 space-y-6">
       <PageHeader
         title={`报名审核 · ${season.name}`}
-        description={`${review.total} 份报名 · ${drafts.length} 份草稿 · 赛季状态：${presentSeasonStatus(season.status).label}`}
       />
       <RegistrationReviewList
         seasonSlug={seasonSlug}

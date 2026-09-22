@@ -1,31 +1,22 @@
 "use server";
 
-import { eq, and, or, isNotNull, isNull, lte } from "drizzle-orm";
+import { writeAuditInTx } from "@/lib/audit/write";
+
+import { and, eq, or } from "drizzle-orm";
 import { db } from "@/db/client";
-import { matchTimeProposals, matches, auditLogs, seasons, competitionEntries } from "@/db/schema";
+import { competitionEntries, matchTimeProposals, matches, seasons } from "@/db/schema";
 import { ok, type ActionResult } from "@/types/action";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { requireAuth, requireSeasonAdmin } from "@/lib/auth/session";
 import { getMatchOrThrow, getSeasonOrThrow, actionError } from "@/lib/action-utils";
 import { revalidateMatchPaths } from "@/lib/revalidation";
 import {
-  TIME_CONFIRMATION_BUFFER_HOURS,
   assertBeforeTimeConfirmationCutoff,
   assertProposedTimeFitsDeadline,
-  getTimeConfirmationCutoff,
   getTimeBufferHoursForStage,
 } from "@/lib/matches/time-rules";
 import { getEntryIdForRepresentative } from "./_shared";
 import { lockMatchInTx } from "@/lib/match-rosters/service";
-
-const PROPOSAL_AUTO_ACCEPT_HOURS = 24;
-
-export interface MatchTimeAutoAwardCronSummary {
-  processed: number;
-  awarded: number;
-  skipped: number;
-  failed: number;
-}
 
 /**
  * 队长提议比赛时间。
@@ -60,13 +51,11 @@ export async function proposeMatchTime(
       })
       .returning({ id: matchTimeProposals.id });
 
-    await db.insert(auditLogs).values({
+    await writeAuditInTx(db, {
       seasonId: match.seasonId,
       action: "match.propose_time",
       actorId: session.userId,
-      targetId: matchId,
-      targetType: "match",
-      meta: { proposalId: proposal.id, proposedTime: proposedTime.toISOString() },
+      targetId: matchId,meta: { proposalId: proposal.id, proposedTime: proposedTime.toISOString() },
     });
 
     revalidateMatchPaths(season.slug, matchId);
@@ -128,8 +117,6 @@ export async function respondToTimeProposal(
           .update(matches)
           .set({ scheduledAt: proposal.proposedTime, updatedAt: new Date() })
           .where(eq(matches.id, match.id));
-
-        // 过期同场比赛所有其他 pending 提议
         await tx
           .update(matchTimeProposals)
           .set({ status: "expired", updatedAt: new Date() })
@@ -143,17 +130,14 @@ export async function respondToTimeProposal(
       return { seasonSlug: season.slug, matchId: match.id, seasonId: match.seasonId };
     });
 
-    await db.insert(auditLogs).values({
+    await writeAuditInTx(db, {
       seasonId: outcome.seasonId,
       action: "match.respond_time_proposal",
       actorId: session.userId,
-      targetId: proposalId,
-      targetType: "match_time_proposal",
-      meta: { matchId: outcome.matchId, action, rejectReason: rejectReason ?? null },
+      targetId: proposalId,meta: { matchId: outcome.matchId, action, rejectReason: rejectReason ?? null },
     });
 
     revalidateMatchPaths(outcome.seasonSlug, outcome.matchId);
-
     return ok(undefined);
   } catch (e) {
     return actionError("respondToTimeProposal", e);
@@ -174,7 +158,6 @@ export async function forceSetMatchTime(
     assertProposedTimeFitsDeadline(time, match.completionDeadline);
 
     await db.transaction(async (tx) => {
-      // 过期所有 pending 提议
       await tx
         .update(matchTimeProposals)
         .set({ status: "expired", updatedAt: new Date() })
@@ -184,8 +167,6 @@ export async function forceSetMatchTime(
             eq(matchTimeProposals.status, "pending"),
           ),
         );
-
-      // 创建强制指定记录
       await tx.insert(matchTimeProposals).values({
         matchId,
         proposedBy: admin.userId,
@@ -194,260 +175,22 @@ export async function forceSetMatchTime(
         proposedTime: time,
         responseAt: new Date(),
       });
-
-      // 更新比赛时间
       await tx
         .update(matches)
         .set({ scheduledAt: time, updatedAt: new Date() })
         .where(eq(matches.id, matchId));
-
-      // 审计
-      await tx.insert(auditLogs).values({
+      await writeAuditInTx(tx, {
         seasonId: match.seasonId,
         action: "match.force_set_time",
         actorId: admin.email,
-        targetId: matchId,
-        targetType: "match",
-        meta: { scheduledAt: time.toISOString() },
+        targetId: matchId,meta: { scheduledAt: time.toISOString() },
       });
     });
 
     const season = await getSeasonOrThrow(match.seasonId);
     revalidateMatchPaths(season.slug, matchId);
-
     return ok(undefined);
   } catch (e) {
     return actionError("forceSetMatchTime", e);
   }
-}
-
-/**
- * 协商截止后自动采用最早创建的 pending 时间提议；
- * 同时处理单条提议超过 24h 未回应自动采纳。
- */
-export async function runMatchTimeAutoAwardCron(
-  now = new Date(),
-): Promise<MatchTimeAutoAwardCronSummary> {
-  // 1. 单条提议超时自动采纳（24h 未回应）
-  const proposalTimeoutResult = await autoAcceptExpiredProposals(now);
-
-  // 2. 协商整体截止裁定（completionDeadline - 24h）
-  const cutoffThreshold = new Date(
-    now.getTime() + TIME_CONFIRMATION_BUFFER_HOURS * 60 * 60 * 1000,
-  );
-
-  const candidateMatches = await db.query.matches.findMany({
-    where: and(
-      eq(matches.status, "scheduled"),
-      isNull(matches.scheduledAt),
-      isNotNull(matches.completionDeadline),
-      lte(matches.completionDeadline, cutoffThreshold),
-    ),
-  });
-
-  const settled = await Promise.allSettled(
-    candidateMatches.map(async (match) => {
-      const result = await autoAwardMatchTime(match.id, now);
-      return { matchId: match.id, result };
-    }),
-  );
-
-  let awarded = proposalTimeoutResult.awarded;
-  let skipped = proposalTimeoutResult.skipped;
-  let failed = proposalTimeoutResult.failed;
-  for (const item of settled) {
-    if (item.status === "rejected") {
-      failed += 1;
-      continue;
-    }
-    const { matchId, result } = item.value;
-    if (result.awarded) {
-      awarded += 1;
-      revalidateMatchPaths(result.seasonSlug, matchId, { mode: "route" });
-    } else {
-      skipped += 1;
-    }
-  }
-
-  return {
-    processed: candidateMatches.length + proposalTimeoutResult.processed,
-    awarded,
-    skipped,
-    failed,
-  };
-}
-
-async function autoAcceptExpiredProposals(
-  now: Date,
-): Promise<{ processed: number; awarded: number; skipped: number; failed: number }> {
-  const expiredBefore = new Date(
-    now.getTime() - PROPOSAL_AUTO_ACCEPT_HOURS * 60 * 60 * 1000,
-  );
-
-  const expiredProposals = await db.query.matchTimeProposals.findMany({
-    where: and(
-      eq(matchTimeProposals.status, "pending"),
-      lte(matchTimeProposals.createdAt, expiredBefore),
-    ),
-  });
-
-  const settled = await Promise.allSettled(
-    expiredProposals.map((p) => autoAcceptSingleProposal(p.id, p.matchId, now)),
-  );
-
-  let awarded = 0;
-  let skipped = 0;
-  let failed = 0;
-  for (const item of settled) {
-    if (item.status === "rejected") { failed += 1; continue; }
-    if (item.value) { awarded += 1; } else { skipped += 1; }
-  }
-
-  return { processed: expiredProposals.length, awarded, skipped, failed };
-}
-
-async function autoAcceptSingleProposal(
-  proposalId: string,
-  matchId: string,
-  now: Date,
-): Promise<boolean> {
-  return db.transaction(async (tx) => {
-    const [match] = await tx.select().from(matches).where(eq(matches.id, matchId)).for("update");
-    if (!match) {
-      return false;
-    }
-    // 比赛已经不是 scheduled（in_progress / finished / cancelled），或时间已被抢先确定：
-    // 残留 pending 提议直接过期清理，避免幽灵提议永远卡在 pending。
-    if (match.status !== "scheduled" || match.scheduledAt) {
-      await tx
-        .update(matchTimeProposals)
-        .set({ status: "expired", updatedAt: now })
-        .where(eq(matchTimeProposals.id, proposalId));
-      return false;
-    }
-
-    const proposal = await tx.query.matchTimeProposals.findFirst({
-      where: and(
-        eq(matchTimeProposals.id, proposalId),
-        eq(matchTimeProposals.status, "pending"),
-      ),
-    });
-    if (!proposal) return false;
-
-    // 接受该提议
-    await tx
-      .update(matchTimeProposals)
-      .set({ status: "accepted", responseAt: now, updatedAt: now })
-      .where(eq(matchTimeProposals.id, proposalId));
-
-    // 过期同场其他 pending 提议
-    await tx
-      .update(matchTimeProposals)
-      .set({ status: "expired", updatedAt: now })
-      .where(
-        and(
-          eq(matchTimeProposals.matchId, matchId),
-          eq(matchTimeProposals.status, "pending"),
-        ),
-      );
-
-    // 设定比赛时间
-    await tx
-      .update(matches)
-      .set({ scheduledAt: proposal.proposedTime, updatedAt: now })
-      .where(eq(matches.id, matchId));
-
-    await tx.insert(auditLogs).values({
-      seasonId: match.seasonId,
-      action: "match.auto_accept_proposal_timeout",
-      actorId: "system",
-      targetId: matchId,
-      targetType: "match",
-      meta: {
-        proposalId: proposal.id,
-        proposedBy: proposal.proposedBy,
-        scheduledAt: proposal.proposedTime.toISOString(),
-        reason: "对方 24h 未回应自动采纳",
-      },
-    });
-
-    const season = await tx.query.seasons.findFirst({
-      where: eq(seasons.id, match.seasonId),
-    });
-    if (season) {
-      revalidateMatchPaths(season.slug, matchId, { mode: "route" });
-    }
-
-    return true;
-  });
-}
-
-async function autoAwardMatchTime(
-  matchId: string,
-  now: Date,
-): Promise<{ awarded: true; seasonSlug: string } | { awarded: false }> {
-  return db.transaction(async (tx) => {
-    const [match] = await tx.select().from(matches).where(eq(matches.id, matchId)).for("update");
-    if (!match || match.status !== "scheduled" || match.scheduledAt || !match.completionDeadline) {
-      return { awarded: false };
-    }
-
-    const season = await tx.query.seasons.findFirst({
-      where: eq(seasons.id, match.seasonId),
-    });
-    const bufferHours = getTimeBufferHoursForStage(season?.stagePlan, match.stage);
-    const cutoff = getTimeConfirmationCutoff(match.completionDeadline, bufferHours);
-    if (!cutoff || now.getTime() < cutoff.getTime()) {
-      return { awarded: false };
-    }
-
-    const proposal = await tx.query.matchTimeProposals.findFirst({
-      where: and(
-        eq(matchTimeProposals.matchId, match.id),
-        eq(matchTimeProposals.status, "pending"),
-      ),
-      orderBy: (tps, { asc }) => [asc(tps.createdAt)],
-    });
-    if (!proposal) {
-      return { awarded: false };
-    }
-    if (!season) {
-      return { awarded: false };
-    }
-
-    await tx
-      .update(matches)
-      .set({ scheduledAt: proposal.proposedTime, updatedAt: now })
-      .where(eq(matches.id, match.id));
-
-    await tx
-      .update(matchTimeProposals)
-      .set({ status: "expired", updatedAt: now })
-      .where(
-        and(
-          eq(matchTimeProposals.matchId, match.id),
-          eq(matchTimeProposals.status, "pending"),
-        ),
-      );
-
-    await tx
-      .update(matchTimeProposals)
-      .set({ status: "accepted", responseAt: now, updatedAt: now })
-      .where(eq(matchTimeProposals.id, proposal.id));
-
-    await tx.insert(auditLogs).values({
-      seasonId: match.seasonId,
-      action: "match.auto_award_time",
-      actorId: "system",
-      targetId: match.id,
-      targetType: "match",
-      meta: {
-        proposalId: proposal.id,
-        proposedBy: proposal.proposedBy,
-        scheduledAt: proposal.proposedTime.toISOString(),
-      },
-    });
-
-    return { awarded: true, seasonSlug: season.slug };
-  });
 }

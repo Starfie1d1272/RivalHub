@@ -1,0 +1,17 @@
+{
+  "success": true,
+  "errors": [],
+  "messages": [],
+  "result": {
+    "rules": [
+      {
+        "id": "Default Multipart Abort Rule",
+        "enabled": true,
+        "conditions": { "prefix": "" },
+        "abortMultipartUploadsTransition": {
+          "condition": { "type": "Age", "maxAge": 604800 }
+        }
+      }
+    ]
+  }
+}

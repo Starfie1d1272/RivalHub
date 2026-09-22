@@ -1,8 +1,7 @@
-import { and, desc, eq, isNull, or } from "drizzle-orm";
+import { countActionableRecruitmentInterests } from "@/lib/recruitment/data";
+import { and, eq, isNull } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
-  competitionEntries,
-  competitionEntryParticipants,
   competitiveRankFacts,
   disciplinaryCases,
   seasons,
@@ -14,14 +13,13 @@ import {
   type CompetitivePlatformCatalogEntry,
 } from "@/lib/competitive/catalog";
 import { serializeSanctionPublic, type SanctionEffect } from "@/lib/discipline/service";
+import { getPublicDisplayName } from "@/lib/identity/display-name";
+import { countPendingDirectTeamInvitations } from "@/lib/teams/invitations";
+import { loadMyCompetitionSources, type MyCompetitionSource } from "@/lib/my/competitions";
 import {
   presentCompetitionEntryParticipation,
   presentCompetitionEntryRegistration,
-  type CompetitionEntryParticipantStatus,
-  type CompetitionEntryRegistrationStatus,
 } from "@/lib/competition-entries/presentation";
-import { getPublicDisplayName } from "@/lib/identity/display-name";
-import { countPendingDirectTeamInvitations } from "@/lib/teams/invitations";
 import {
   computeParticipantReadiness,
   getParticipantIdentityBlockers,
@@ -30,6 +28,8 @@ import {
 } from "@/lib/qualification/service";
 import { normalizeTeamRegistrationConfig } from "@/lib/seasons/compatibility";
 
+export type { MyCompetitionSource };
+
 export type MyReadinessState = "ready" | "incomplete" | "waiting" | "blocked" | "unknown" | "not_applicable";
 
 export interface MyReadinessCta {
@@ -37,26 +37,21 @@ export interface MyReadinessCta {
   label: string;
 }
 
+export type MyReadinessResponsibility =
+  | "self"
+  | "self_and_admin"
+  | "representative"
+  | "representative_and_admin"
+  | "admin";
+
 export interface MyReadinessItem {
   id: string;
   title: string;
   state: MyReadinessState;
   detail: string;
-  owner?: string;
+  responsibility?: MyReadinessResponsibility;
   cta: MyReadinessCta;
   secondaryCta?: MyReadinessCta;
-}
-
-export interface MyCompetitionSource {
-  id: string;
-  name: string;
-  seasonId: string;
-  seasonName: string;
-  seasonSlug: string;
-  registrationStatus: CompetitionEntryRegistrationStatus;
-  participantStatus: CompetitionEntryParticipantStatus | null;
-  representativeUserId: string;
-  teamRegistrationConfig: Parameters<typeof normalizeTeamRegistrationConfig>[0];
 }
 
 export interface MySanctionSource {
@@ -85,6 +80,7 @@ export interface MyReadinessModel {
   education: MyReadinessItem;
   competitiveProfiles: MyCompetitiveProfileSource[];
   team: MyReadinessItem;
+  recruitment?: MyReadinessItem;
   competitions: Array<{
     id: string;
     name: string;
@@ -112,46 +108,65 @@ export function isSettingsProfileReadinessReady(
   return profile.state === "ready" && education.state === "ready" && competitiveProfiles.filter((item) => item.required).every((item) => item.state === "ready");
 }
 
+export function presentMyReadinessResponsibility(responsibility: MyReadinessResponsibility): string {
+  switch (responsibility) {
+    case "self": return "需要你处理";
+    case "self_and_admin": return "需要你与赛事管理员共同处理";
+    case "representative": return "等待赛事负责人处理";
+    case "representative_and_admin": return "等待赛事负责人和赛事管理员处理";
+    case "admin": return "等待赛事管理员处理";
+  }
+}
+
+export function isMyReadinessActionable(item: MyReadinessItem): boolean {
+  return (item.responsibility === "self" || item.responsibility === "self_and_admin")
+    && (item.state === "incomplete" || item.state === "waiting" || item.state === "blocked");
+}
+
+export function selectMyPrimaryAction(items: readonly MyReadinessItem[]): MyReadinessItem | null {
+  return items.find(isMyReadinessActionable) ?? null;
+}
+
 function item(
   id: string,
   title: string,
   state: MyReadinessState,
   detail: string,
-  owner: string | undefined,
+  responsibility: MyReadinessResponsibility | undefined,
   cta: MyReadinessCta,
   secondaryCta?: MyReadinessCta,
 ): MyReadinessItem {
-  return { id, title, state, detail, owner, cta, ...(secondaryCta ? { secondaryCta } : {}) };
+  return { id, title, state, detail, ...(responsibility ? { responsibility } : {}), cta, ...(secondaryCta ? { secondaryCta } : {}) };
 }
 
 function latestEducationState(fact: ParticipantQualificationFacts | null): MyReadinessItem {
   if (!fact) {
-    return item("education", "教育认证", "unknown", "教育认证资料暂时无法确认。", undefined, { href: "/settings/education", label: "查看教育认证" });
+    return item("education", "教育认证", "unknown", "教育认证资料暂时无法确认。", "admin", { href: "/settings/education", label: "查看教育认证" });
   }
   if (fact.approvedEducation) {
     return item("education", "教育认证", "ready", "已存在通过的教育认证。赛事仍会按当届规则核验。", undefined, { href: "/settings/education", label: "查看教育认证" });
   }
   if (fact.educationHistory.some((entry) => entry.status === "pending")) {
-    return item("education", "教育认证", "waiting", "教育材料正在等待审核。", "赛事管理员", { href: "/settings/education", label: "查看认证进度" });
+    return item("education", "教育认证", "waiting", "教育材料正在等待审核。", "admin", { href: "/settings/education", label: "查看认证进度" });
   }
   if (fact.educationHistory.some((entry) => entry.status === "rejected")) {
-    return item("education", "教育认证", "blocked", "最近的教育认证未通过，需要重新提交材料。", undefined, { href: "/settings/education", label: "重新提交材料" });
+    return item("education", "教育认证", "blocked", "最近的教育认证未通过，需要重新提交材料。", "self", { href: "/settings/education", label: "重新提交材料" });
   }
-  return item("education", "教育认证", "incomplete", "尚未提交教育认证。", undefined, { href: "/settings/education", label: "开始教育认证" });
+  return item("education", "教育认证", "incomplete", "尚未提交教育认证。", "self", { href: "/settings/education", label: "开始教育认证" });
 }
 
 function profileState(fact: ParticipantQualificationFacts | null): MyReadinessItem {
   if (!fact) {
-    return item("profile", "长期个人资料", "unknown", "个人资料暂时无法确认。", undefined, { href: "/settings", label: "查看参赛资料" });
+    return item("profile", "个人资料", "unknown", "个人资料暂时无法确认。", "admin", { href: "/settings", label: "查看参赛资料" });
   }
   const blockers = getParticipantIdentityBlockers(fact);
   if (blockers.length === 0) {
-    return item("profile", "长期个人资料", "ready", "展示昵称、Steam64、完美平台 ID、QQ 与邮箱验证已齐全。", undefined, { href: "/settings", label: "查看参赛资料" });
+    return item("profile", "个人资料", "ready", "展示昵称、Steam64、完美平台 ID、QQ 与邮箱验证已齐全。", undefined, { href: "/settings", label: "查看参赛资料" });
   }
-  return item("profile", "长期个人资料", "incomplete", blockers.join(" "), undefined, { href: "/settings", label: "完善参赛资料" });
+  return item("profile", "个人资料", "incomplete", blockers.join(" "), "self", { href: "/settings", label: "完善参赛资料" });
 }
 
-function teamState(currentTeam: { id: string; name: string; role: string } | null, pendingDirectInvitationCount: number): MyReadinessItem {
+function teamState(currentTeam: { id: string; name: string; role: "captain" | "member" } | null, pendingDirectInvitationCount: number): MyReadinessItem {
   if (!currentTeam) {
     if (pendingDirectInvitationCount > 0) {
       return item(
@@ -159,7 +174,7 @@ function teamState(currentTeam: { id: string; name: string; role: string } | nul
         "当前队伍",
         "waiting",
         `你有 ${pendingDirectInvitationCount} 个待处理的队伍邀请。接受邀请即加入队伍，不需要再次申请或等待审核。`,
-        undefined,
+        "self",
         { href: "/my/teams", label: "处理队伍邀请" },
         { href: "/teams/recruitment?view=teams", label: "寻找队伍" },
       );
@@ -174,30 +189,34 @@ function teamState(currentTeam: { id: string; name: string; role: string } | nul
       { href: "/teams/recruitment?view=teams", label: "寻找队伍" },
     );
   }
-  return item("team", "当前队伍", "ready", `${currentTeam.name} · ${currentTeam.role === "captain" ? "队长" : "成员"}。之后的队伍成员变更不会改写已报名赛事名单。`, undefined, { href: "/my/teams", label: "管理我的队伍" });
+  return item("team", "当前队伍", "ready", `${currentTeam.name} · ${currentTeam.role === "captain" ? "队长" : "成员"}。之后的队伍成员变更不会改写已报名赛事名单。`, undefined, { href: "/my/teams", label: currentTeam.role === "captain" ? "管理我的队伍" : "查看我的队伍" });
 }
 
 function entryState(source: MyCompetitionSource, userId: string): MyReadinessItem {
   const href = `/${source.seasonSlug}/register`;
   const representative = source.representativeUserId === userId;
   const presentation = representative
-    ? presentCompetitionEntryRegistration(source.registrationStatus)
+    ? presentCompetitionEntryRegistration(source.registrationStatus, source.revisionOrigin)
     : presentCompetitionEntryParticipation(source.participantStatus, source.registrationStatus);
   if (!representative) {
     const awaitingConfirmation = source.participantStatus === "invited";
     if (source.participantStatus === "confirmed") {
-      const registration = presentCompetitionEntryRegistration(source.registrationStatus);
-      const owner = source.registrationStatus === "changes_requested"
-        ? "赛事负责人和赛事管理员"
+      const registration = presentCompetitionEntryRegistration(source.registrationStatus, source.revisionOrigin);
+      const responsibility: MyReadinessResponsibility | undefined = source.registrationStatus === "changes_requested"
+        ? "representative_and_admin"
         : source.registrationStatus === "withdrawn"
-          ? "赛事负责人"
-          : "赛事管理员";
+          ? "representative"
+          : source.registrationStatus === "submitted" || source.registrationStatus === "waitlisted"
+            ? "admin"
+            : source.registrationStatus === "draft"
+              ? "representative"
+              : undefined;
       return item(
         `entry-${source.id}`,
         "当前报名状态",
         registration.state,
         `${presentation.label} · ${registration.label}，${registration.detail}`,
-        owner,
+        responsibility,
         { href, label: "查看本届报名" },
       );
     }
@@ -206,25 +225,27 @@ function entryState(source: MyCompetitionSource, userId: string): MyReadinessIte
       "当前报名状态",
       presentation.state,
       `${presentation.label}：${presentation.detail}`,
-      awaitingConfirmation ? "我" : "赛事负责人",
+      awaitingConfirmation ? "self" : undefined,
       { href, label: awaitingConfirmation ? "确认是否参赛" : "查看本届报名" },
     );
   }
   const cta = source.registrationStatus === "changes_requested"
-    ? { href, label: "处理补正" }
+    ? { href, label: source.revisionOrigin === "self_roster_change" ? "继续调整名单" : "处理补正" }
     : source.registrationStatus === "draft"
       ? { href, label: "继续报名" }
       : source.registrationStatus === "rejected"
         ? { href, label: "查看审核说明" }
         : { href, label: "查看报名" };
-  const owner = source.registrationStatus === "changes_requested"
-      ? "我与赛事管理员"
+  const responsibility: MyReadinessResponsibility | undefined = source.registrationStatus === "changes_requested"
+      ? "self_and_admin"
       : source.registrationStatus === "withdrawn"
-        ? "我或赛事负责人"
+        ? undefined
         : source.registrationStatus === "submitted" || source.registrationStatus === "waitlisted"
-          ? "赛事管理员"
-          : undefined;
-  return item(`entry-${source.id}`, "当前报名状态", presentation.state, `${presentation.label}：${presentation.detail}`, owner, cta);
+          ? "admin"
+          : source.registrationStatus === "draft"
+            ? "self"
+            : undefined;
+  return item(`entry-${source.id}`, "当前报名状态", presentation.state, `${presentation.label}：${presentation.detail}`, responsibility, cta);
 }
 
 function qualificationState(
@@ -237,20 +258,21 @@ function qualificationState(
     return item(`qualification-${source.id}`, "个人竞技资料", "not_applicable", "本届赛事不要求个人竞技资料；报名是否通过仍以赛事审核为准。", undefined, { href, label: "查看本届报名" });
   }
   if (!config.competitiveProfile || !fact) {
-    return item(`qualification-${source.id}`, "个人竞技资料", "unknown", "本届赛事的竞技资料暂时无法确认。", "赛事管理员", { href, label: "查看本届报名" });
+    return item(`qualification-${source.id}`, "个人竞技资料", "unknown", "本届赛事的竞技资料暂时无法确认。", "admin", { href, label: "查看本届报名" });
   }
   const readiness = computeParticipantReadiness(fact, config.competitiveProfile);
   if (readiness.ready) {
     return item(`qualification-${source.id}`, "个人竞技资料", "ready", "个人资料符合本届赛事要求。报名审核、正式参赛名单与纪律限制仍会分别核验。", undefined, { href, label: "查看本届报名" });
   }
-  return item(`qualification-${source.id}`, "个人竞技资料", "blocked", readiness.blockers.join(" "), undefined, { href, label: "查看并补齐资料" });
+  return item(`qualification-${source.id}`, "个人竞技资料", "blocked", readiness.blockers.join(" "), "self", { href, label: "查看并补齐资料" });
 }
 
 export function buildMyReadinessModel(input: {
-  user: { displayName: string | null; perfectName: string | null; steamName: string | null };
+  user: { displayName: string | null; perfectName: string | null; personaName: string | null };
   baseFact: ParticipantQualificationFacts | null;
-  currentTeam: { id: string; name: string; role: string } | null;
+  currentTeam: { id: string; name: string; role: "captain" | "member" } | null;
   pendingDirectInvitationCount: number;
+  actionableInterestCount?: number;
   competitiveProfiles: MyCompetitiveProfileSource[];
   competitions: MyCompetitionSource[];
   qualificationFactsByPlatform: Map<string, ParticipantQualificationFacts | null>;
@@ -269,6 +291,7 @@ export function buildMyReadinessModel(input: {
     education: latestEducationState(input.baseFact),
     competitiveProfiles: input.competitiveProfiles,
     team: teamState(input.currentTeam, input.pendingDirectInvitationCount),
+    ...(input.actionableInterestCount ? { recruitment: item("recruitment", "队伍加入意向", "waiting", `${input.actionableInterestCount} 名选手向你的队伍表达加入意向`, "self", { href: "/my/teams#recruitment-interests", label: "查看并处理" }) } : {}),
     competitions: input.competitions.map((competition) => {
       const config = normalizeTeamRegistrationConfig(competition.teamRegistrationConfig);
       const fact = config.competitiveProfile
@@ -374,7 +397,7 @@ export async function loadSettingsProfileReadiness(userId: string): Promise<Sett
 }
 
 export async function loadMyReadiness(userId: string): Promise<MyReadinessModel> {
-  const [baseFacts, catalog, currentTeamRows, pendingDirectInvitationCount, competitionRows, sanctionRows, platformFactRows] = await Promise.all([
+  const [baseFacts, catalog, currentTeamRows, pendingDirectInvitationCount, actionableInterestCount, competitionRows, sanctionRows, platformFactRows] = await Promise.all([
     loadParticipantQualificationFacts([userId]),
     loadCompetitivePlatformCatalog(db),
     db.select({ id: teams.id, name: teams.name, captainUserId: teams.captainUserId })
@@ -383,22 +406,8 @@ export async function loadMyReadiness(userId: string): Promise<MyReadinessModel>
       .where(and(eq(teamMemberships.userId, userId), isNull(teamMemberships.endedAt), eq(teams.status, "active")))
       .limit(1),
     countPendingDirectTeamInvitations(userId),
-    db.select({
-      id: competitionEntries.id,
-      name: competitionEntries.name,
-      seasonId: seasons.id,
-      seasonName: seasons.name,
-      seasonSlug: seasons.slug,
-      registrationStatus: competitionEntries.registrationStatus,
-      participantStatus: competitionEntryParticipants.status,
-      representativeUserId: competitionEntries.representativeUserId,
-      teamRegistrationConfig: seasons.teamRegistrationConfig,
-    })
-      .from(competitionEntries)
-      .innerJoin(seasons, eq(seasons.id, competitionEntries.competitionId))
-      .leftJoin(competitionEntryParticipants, and(eq(competitionEntryParticipants.entryId, competitionEntries.id), eq(competitionEntryParticipants.userId, userId)))
-      .where(or(eq(competitionEntries.representativeUserId, userId), eq(competitionEntryParticipants.userId, userId)))
-      .orderBy(desc(competitionEntries.createdAt)),
+    countActionableRecruitmentInterests(userId),
+    loadMyCompetitionSources(userId),
     db.select({ row: disciplinaryCases, seasonName: seasons.name, seasonSlug: seasons.slug })
       .from(disciplinaryCases)
       .innerJoin(seasons, eq(seasons.id, disciplinaryCases.seasonId))
@@ -439,10 +448,11 @@ export async function loadMyReadiness(userId: string): Promise<MyReadinessModel>
     }));
 
   return buildMyReadinessModel({
-    user: baseFact ?? { displayName: null, perfectName: null, steamName: null },
+    user: baseFact ?? { displayName: null, perfectName: null, personaName: null },
     baseFact,
     currentTeam: currentTeamRows[0] ? { ...currentTeamRows[0], role: currentTeamRows[0].captainUserId === userId ? "captain" : "member" } : null,
     pendingDirectInvitationCount,
+    actionableInterestCount,
     competitiveProfiles,
     competitions: competitionRows,
     qualificationFactsByPlatform: factsByPlatform,
@@ -453,6 +463,6 @@ export async function loadMyReadiness(userId: string): Promise<MyReadinessModel>
 
 export const SANCTION_EFFECT_LABELS: Record<SanctionEffect, string> = {
   registration_block: "阻止报名",
-  roster_block: "阻止进入赛事 roster",
+  roster_block: "阻止进入赛事名单",
   match_participation_block: "阻止单场出场",
 };

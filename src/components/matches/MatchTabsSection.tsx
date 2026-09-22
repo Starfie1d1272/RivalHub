@@ -23,6 +23,8 @@ interface MatchTabsSectionProps {
   teamMap: Map<string, string>;
   /** 队伍名未找到时的 fallback 文案，默认"未知队伍" */
   unknownTeamName?: string;
+  highlightTeamId?: string;
+  isHistorical?: boolean;
 }
 
 export function MatchTabsSection({
@@ -32,11 +34,13 @@ export function MatchTabsSection({
   seasonSlug,
   teamMap,
   unknownTeamName = "未知队伍",
+  highlightTeamId,
+  isHistorical = false,
 }: MatchTabsSectionProps) {
   return (
-    <Tabs defaultValue="active" className="w-full">
+    <Tabs defaultValue={isHistorical || activeMatches.length === 0 ? "done" : "active"} className="w-full">
       <TabsList className="bg-[var(--color-panel)] border border-[var(--color-border)] p-1">
-        <TabsTrigger value="active" className="text-xs data-[state=active]:bg-[var(--color-accent)] data-[state=active]:text-[var(--color-accent-fg)]">待进行</TabsTrigger>
+        <TabsTrigger value="active" className="text-xs data-[state=active]:bg-[var(--color-accent)] data-[state=active]:text-[var(--color-accent-fg)]">当前赛程</TabsTrigger>
         <TabsTrigger value="done" className="text-xs data-[state=active]:bg-[var(--color-accent)] data-[state=active]:text-[var(--color-accent-fg)]">已结束</TabsTrigger>
       </TabsList>
       <TabsContent value="active" className="mt-4">
@@ -46,6 +50,7 @@ export function MatchTabsSection({
               <MatchCard
                 key={m.id}
                 matchId={m.id}
+                highlighted={Boolean(highlightTeamId && [m.entryAId, m.entryBId].includes(highlightTeamId))}
                 seasonSlug={seasonSlug}
                 teamAName={teamMap.get(m.entryAId) ?? unknownTeamName}
                 teamBName={teamMap.get(m.entryBId) ?? unknownTeamName}
@@ -60,7 +65,7 @@ export function MatchTabsSection({
             ))}
           </div>
         ) : (
-          <div className="text-center py-8 text-[var(--color-fg-mid)] text-sm">暂无待进行比赛</div>
+          <div className="text-center py-8 text-[var(--color-fg-mid)] text-sm">暂无未结束比赛</div>
         )}
       </TabsContent>
       <TabsContent value="done" className="mt-4">
@@ -70,6 +75,7 @@ export function MatchTabsSection({
               <MatchCard
                 key={m.id}
                 matchId={m.id}
+                highlighted={Boolean(highlightTeamId && [m.entryAId, m.entryBId].includes(highlightTeamId))}
                 seasonSlug={seasonSlug}
                 teamAName={teamMap.get(m.entryAId) ?? unknownTeamName}
                 teamBName={teamMap.get(m.entryBId) ?? unknownTeamName}

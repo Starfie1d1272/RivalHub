@@ -37,6 +37,7 @@ const baseProps = {
     canViewForm: true,
     canSaveDraft: true,
     canSubmit: true,
+    needsOpeningRecovery: false,
     message: "报名提交已开放。",
   },
 };

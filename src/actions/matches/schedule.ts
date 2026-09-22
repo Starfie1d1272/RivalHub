@@ -1,8 +1,10 @@
 "use server";
 
+import { writeAuditInTx } from "@/lib/audit/write";
+
 import { eq, and, count, asc, sql } from "drizzle-orm";
 import { db } from "@/db/client";
-import { matches, competitionEntries, auditLogs, seasons } from "@/db/schema";
+import { matches, competitionEntries, seasons } from "@/db/schema";
 import { ok } from "@/types/action";
 import type { ActionResult } from "@/types/action";
 import { AppError, ErrorCode } from "@/lib/errors";
@@ -10,9 +12,9 @@ import { requireSeasonAdmin } from "@/lib/auth/session";
 import { getExecutor } from "@/lib/formats";
 import {
   getFirstStage,
-  getPreviousStage,
   normalizeStagePlan,
 } from "@/lib/seasons/compatibility";
+import { resolveStageTransitionBoundary, resolveStageTransitionTopology } from "@/lib/matches/stage-transition";
 import { actionError, getSeasonOrThrow } from "@/lib/action-utils";
 import { revalidateSeasonPaths } from "@/lib/revalidation";
 
@@ -41,9 +43,17 @@ export async function generateSchedule(
       if (seasonTeams.length < 2) throw new AppError(ErrorCode.VALIDATION_FAILED, "队伍数量不足，无法生成赛程");
       const firstStage = getFirstStage(normalizeStagePlan(season.stagePlan));
       if (!firstStage) throw new AppError(ErrorCode.SEASON_CAPABILITY_DISABLED, "该赛季没有可生成的赛程阶段");
-      const stageTeams = firstStage.seeds?.length ? seasonTeams.filter((_, i) => firstStage.seeds!.includes(i + 1)) : seasonTeams.slice(0, firstStage.teamCount);
-      const { matchCount } = await getExecutor(firstStage.type).initialize(seasonId, firstStage, stageTeams);
-      await tx.insert(auditLogs).values({ seasonId, action: "match.generate_schedule", actorId: session.email, targetId: seasonId, targetType: "season", meta: { matchCount, stageKey: firstStage.key } });
+      const transition = resolveStageTransitionBoundary({
+        stagePlan: normalizeStagePlan(season.stagePlan),
+        stageKey: firstStage.key,
+        entries: seasonTeams,
+      });
+      const { matchCount } = await getExecutor(firstStage.type).initialize(
+        seasonId,
+        firstStage,
+        transition.orderedEntrants.map(({ entry }) => entry),
+      );
+      await writeAuditInTx(tx, { seasonId, action: "match.generate_schedule", actorId: session.email, targetId: seasonId,meta: { matchCount, stageKey: firstStage.key } });
       return { matchCount, slug: season.slug };
     });
     revalidateSeasonPaths(outcome.slug, ["matches", "adminMatches"]);
@@ -97,13 +107,11 @@ export async function createMatch(
         .values({ seasonId, entryAId, entryBId, stage, format, status: "scheduled" })
         .returning({ id: matches.id });
 
-      await tx.insert(auditLogs).values({
+      await writeAuditInTx(tx, {
         seasonId,
         action: "match.create",
         actorId: session.email,
-        targetId: row.id,
-        targetType: "match",
-        meta: { entryAId, entryBId, stage, format },
+        targetId: row.id,meta: { entryAId, entryBId, stage, format },
       });
 
       return [row];
@@ -131,11 +139,11 @@ export async function initializeStage(
       throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "只有在赛季进行中才能初始化阶段");
     }
     const stagePlan = normalizeStagePlan(season.stagePlan);
-    const stage = stagePlan.find((s) => s.key === stageKey);
-    if (!stage) {
-      throw new AppError(ErrorCode.SEASON_CAPABILITY_DISABLED, "该赛季没有这个赛程阶段");
-    }
-    const previousStage = getPreviousStage(stagePlan, stage.key);
+    const topology = resolveStageTransitionTopology({
+      stagePlan,
+      stageKey,
+    });
+    const { stage, previousStage } = topology;
     if (!previousStage) {
       throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "首个阶段请使用一键生成赛程");
     }
@@ -163,32 +171,37 @@ export async function initializeStage(
     });
 
     const qualifiers = await getExecutor(previousStage.type).getQualifiers(seasonId, previousStage);
+    const transition = resolveStageTransitionBoundary({
+      stagePlan,
+      stageKey,
+      entries: seasonTeams,
+      qualifiers,
+      previousComplete: true,
+      existingMatchCount: existingStageMatches,
+    });
 
-    // 构建本阶段参赛队伍：entry seeds（直入） + 上一阶段晋级
-    const qualifierIds = new Set(qualifiers.map((q) => q.teamId));
-    const entryCount = stage.entrySeeds ?? 0;
-    const entryTeams = entryCount > 0
-      ? seasonTeams.filter((t) => !qualifierIds.has(t.id)).slice(0, entryCount)
-      : [];
-    const qualTeams = seasonTeams.filter((t) => qualifierIds.has(t.id));
-    const stageTeams = [...entryTeams, ...qualTeams];
-
-    if (stageTeams.length !== stage.teamCount) {
+    if (transition.readiness === "already_initialized") {
+      throw new AppError(ErrorCode.SEASON_INVALID_STATUS, `${stage.name} 已生成，不可重复生成`);
+    }
+    if (transition.stageEntries.length !== stage.teamCount) {
       throw new AppError(
         ErrorCode.VALIDATION_FAILED,
-        `${stage.name} 预期 ${stage.teamCount} 队，实际 ${stageTeams.length} 队（直入 ${entryTeams.length} + 晋级 ${qualTeams.length}），请检查 entrySeeds 与上一阶段晋级配置`,
+        `${stage.name} 预期 ${stage.teamCount} 队，实际 ${transition.stageEntries.length} 队，请检查 entrySeeds 与上一阶段晋级配置`,
       );
     }
 
-    const { matchCount } = await getExecutor(stage.type).initialize(seasonId, stage, stageTeams, qualifiers);
+    const { matchCount } = await getExecutor(stage.type).initialize(
+      seasonId,
+      stage,
+      transition.orderedEntrants.map(({ entry }) => entry),
+      qualifiers,
+    );
 
-    await db.insert(auditLogs).values({
+    await writeAuditInTx(db, {
       seasonId,
       action: "match.initialize_stage",
       actorId: session.email,
-      targetId: seasonId,
-      targetType: "season",
-      meta: { matchCount, stageKey: stage.key },
+      targetId: seasonId,meta: { matchCount, stageKey: stage.key },
     });
 
     revalidateSeasonPaths(season.slug, ["matches", "adminMatches"]);

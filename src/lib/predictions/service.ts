@@ -1,4 +1,5 @@
 import "server-only";
+import { writeAuditInTx } from "@/lib/audit/write";
 import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import type { TxDb } from "@/db/client";
 import {
@@ -9,6 +10,7 @@ import {
   predictionPicks as picks,
   predictionJudgements as judgements,
   predictionMarkets as markets,
+  predictionMarketOptions as options,
   predictionStakes as stakes,
   predictionSettlements as settlements,
   predictionLedger as ledger,
@@ -18,7 +20,6 @@ import {
   matches,
   majorStageRuns,
   majorFinalResults,
-  auditLogs,
   seasonAdminGrants,
   eventRosterMembers,
   eventRosters,
@@ -26,6 +27,7 @@ import {
 import { assertSeasonAllowsTournamentMutationInTx } from "@/lib/postevent/guard";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { loadBaseline, officialWinner } from "./baseline";
+import { resolveMarketOptions, type MarketResolutionFact } from "./market-resolution";
 import { simulateMajor } from "./simulator";
 import { distributePool, validatePick, rulesSchema } from "./rules";
 import {
@@ -141,8 +143,8 @@ export async function reconcilePredictionProgram(
     .from(milestones)
     .where(eq(milestones.seasonId, seasonId));
   for (const run of launches) {
-    const index = base.stages.findIndex((s) => s.key === run.stageKey);
-    if (index <= 0 || !program.rules.stagePoints) continue;
+    const stage = base.stages.find((s) => s.key === run.stageKey);
+    if (!stage?.previousKey || !program.rules.stagePoints) continue;
     for (const account of allAccounts.filter(
       (a) => a.joinedAt < run.openedAt,
     )) {
@@ -162,7 +164,7 @@ export async function reconcilePredictionProgram(
     .where(eq(contests.seasonId, seasonId));
   for (const contest of allContests) {
     const run = base.runs.find((r) => r.key === contest.stageKey);
-    const mismatch = !run || !sameEntrants(contest.entrants, run.entrants);
+    const mismatch = !run || contest.stageRunId !== run.id || !sameEntrants(contest.entrants, run.entrants);
     if (mismatch && !contest.voidedAt) {
       await tx
         .update(contests)
@@ -249,8 +251,9 @@ export async function reconcilePredictionProgram(
     const match = official.find((m) => m.id === market.matchId);
     const voided =
       !match ||
-      match.entryAId !== market.a ||
-      match.entryBId !== market.b ||
+      match.majorStageRunId !== market.subject.stageRunId ||
+      match.entryAId !== market.subject.entryIds[0] ||
+      match.entryBId !== market.subject.entryIds[1] ||
       match.status === "cancelled";
     const winner = match && !voided ? officialWinner(match) : null;
     // A finished score is settled only when the tournament owner accepts its round.
@@ -274,13 +277,20 @@ export async function reconcilePredictionProgram(
       .select()
       .from(stakes)
       .where(eq(stakes.marketId, market.id));
-    const singleSided = new Set(rows.map((s) => s.side)).size < 2;
-    const state =
-      voided || (winner && accepted && singleSided)
-        ? "refunded"
-        : winner && accepted
-          ? "settled"
-          : "pending";
+    const marketOptions = await tx.select().from(options).where(eq(options.marketId, market.id));
+    // Resolver registry is deliberately closed: a new market requires a confirmed-fact adapter.
+    if (market.resolver !== "match_winner") throw new Error(`Unsupported prediction resolver: ${market.resolver}`);
+    const fact: MarketResolutionFact = voided
+      ? { state: "void", revision: JSON.stringify({ matchId: market.matchId, voided: true }) }
+      : winner && accepted
+        ? { state: "confirmed", winningKeys: [winner], revision: JSON.stringify({ run: run?.id, winner, scoreA: match?.scoreA, scoreB: match?.scoreB, accepted }) }
+        : { state: "pending", revision: "pending" };
+    const resolution = resolveMarketOptions(marketOptions, fact);
+    const total = rows.reduce((n, row) => n + row.amount, zero);
+    const winningPool = rows.filter((row) => resolution.winningOptionIds.includes(row.optionId)).reduce((n, row) => n + row.amount, zero);
+    const state = resolution.state === "settled" && (winningPool === zero || winningPool === total)
+      ? "refunded" : resolution.state;
+    const winningOptionIds = state === "settled" ? resolution.winningOptionIds : [];
     if (
       !market.lockedAt &&
       (now >= market.deadline || voided || match?.status !== "scheduled")
@@ -291,7 +301,8 @@ export async function reconcilePredictionProgram(
         .where(eq(markets.id, market.id));
     const fingerprint = JSON.stringify({
       state,
-      winner: state === "settled" ? winner : null,
+      winningOptionIds,
+      factRevision: resolution.factRevision,
     });
     const [previous] = await tx
       .select()
@@ -306,7 +317,8 @@ export async function reconcilePredictionProgram(
         marketId: market.id,
         fingerprint,
         state,
-        winner: state === "settled" ? winner : null,
+        winningOptionIds,
+      factRevision: resolution.factRevision,
       })
       .returning();
     if (!batch) throw new Error("Settlement insert failed");
@@ -333,12 +345,12 @@ export async function reconcilePredictionProgram(
     if (state !== "pending") {
       const positions = rows.map((s) => ({
         accountId: s.accountId,
-        side: s.side,
+        optionId: s.optionId,
         stake: s.amount,
       }));
       const payouts = distributePool(
         positions,
-        state === "settled" ? winner : null,
+        state === "settled" ? winningOptionIds : null,
       );
       for (const [accountId, amount] of payouts) {
         const invested = rows
@@ -391,12 +403,11 @@ export async function enablePredictionsInTx(
         openedAt: run.startedAt,
       })
       .onConflictDoNothing();
-  await tx.insert(auditLogs).values({
+  await writeAuditInTx(tx, {
     seasonId: input.seasonId,
     actorId: input.actorId,
     action: "predictions.enable",
     targetId: input.seasonId,
-    targetType: "prediction_program",
     meta: { rules: input.rules },
   });
 }
@@ -495,6 +506,7 @@ export async function savePickInTx(
     contest.lockedAt ||
     (await databaseTime(tx)) >= contest.deadline ||
     !run ||
+    run.id !== contest.stageRunId ||
     !sameEntrants(contest.entrants, run.entrants)
   )
     invalid("阶段已截止、暂停或官方名单发生变化，原有效提交保持不变");
@@ -539,7 +551,7 @@ export async function stakeInTx(
     seasonId: string;
     userId: string;
     marketId: string;
-    side: string;
+    optionId: string;
     amount: string;
     requestId: string;
   },
@@ -575,7 +587,7 @@ export async function stakeInTx(
   if (replay) {
     if (
       replay.marketId !== input.marketId ||
-      replay.side !== input.side ||
+      replay.optionId !== input.optionId ||
       (input.amount !== "all" && replay.amount.toString() !== input.amount)
     )
       invalid("重复请求标识与内容不一致");
@@ -599,11 +611,13 @@ export async function stakeInTx(
     (scheduledCutoff && now >= scheduledCutoff) ||
     !match ||
     match.status !== "scheduled" ||
-    match.entryAId !== market.a ||
-    match.entryBId !== market.b
+    match.majorStageRunId !== market.subject.stageRunId ||
+    match.entryAId !== market.subject.entryIds[0] ||
+    match.entryBId !== market.subject.entryIds[1]
   )
     invalid("积分池已关闭");
-  if (![market.a, market.b].includes(input.side)) invalid("所选队伍不属于本场");
+  const [option] = await tx.select().from(options).where(and(eq(options.id, input.optionId), eq(options.marketId, market.id)));
+  if (!option) invalid("所选选项不属于本积分池");
   const admins = await tx
     .select()
     .from(seasonAdminGrants)
@@ -623,7 +637,7 @@ export async function stakeInTx(
     .where(
       and(
         eq(eventRosterMembers.userId, input.userId),
-        inArray(eventRosters.entryId, [market.a, market.b]),
+        inArray(eventRosters.entryId, market.subject.entryIds),
       ),
     );
   if (user.role === "super_admin" || admins.length || roster.length)
@@ -637,7 +651,7 @@ export async function stakeInTx(
     .where(
       and(eq(stakes.marketId, market.id), eq(stakes.accountId, account.id)),
     );
-  if (previous.some((s) => s.side !== input.side))
+  if (previous.some((s) => s.optionId !== input.optionId))
     invalid("已经投入另一方，不能换边");
   const balance = await balanceOf(tx, account.id);
   const amount = input.amount === "all" ? balance : BigInt(input.amount);
@@ -649,7 +663,7 @@ export async function stakeInTx(
       seasonId: input.seasonId,
       marketId: market.id,
       accountId: account.id,
-      side: input.side,
+      optionId: input.optionId,
       amount,
       requestId: input.requestId,
     })
@@ -718,12 +732,14 @@ export async function openPredictionWindowInTx(
         seasonId: input.seasonId,
         matchId: m.id,
         stageKey: m.stage,
-        a: m.entryAId,
-        b: m.entryBId,
+        resolver: "match_winner",
+        title: "比赛胜者",
+        subject: { stageRunId: m.majorStageRunId!, entryIds: [m.entryAId, m.entryBId] },
         deadline,
       })
       .returning();
     id = created!.id;
+    await tx.insert(options).values([m.entryAId, m.entryBId].map((entryId, position) => ({ marketId: id, key: entryId, entryId, position, label: base.teams.find((team) => team.teamId === entryId)?.name ?? "队伍" })));
   } else {
     const stage = base.stages.find((s) => s.key === input.stageKey);
     const run = base.runs.find((r) => r.key === input.stageKey);
@@ -739,18 +755,18 @@ export async function openPredictionWindowInTx(
         seasonId: input.seasonId,
         stageKey: stage.key,
         kind: stage.type,
+        stageRunId: run.id,
         entrants: run.entrants,
         deadline,
       })
       .returning();
     id = created!.id;
   }
-  await tx.insert(auditLogs).values({
+  await writeAuditInTx(tx, {
     seasonId: input.seasonId,
     actorId: input.actorId,
-    action: "predictions.open_window",
+    action: input.matchId ? "predictions.open_market" : "predictions.open_contest",
     targetId: id,
-    targetType: input.matchId ? "prediction_market" : "prediction_contest",
     meta: { deadline: deadline.toISOString() },
   });
   return { id };
@@ -790,12 +806,11 @@ export async function moderatePredictionsInTx(
         .where(eq(contests.id, contest.id));
   }
   await reconcilePredictionProgram(tx, program, true);
-  await tx.insert(auditLogs).values({
+  await writeAuditInTx(tx, {
     seasonId: input.seasonId,
     actorId: input.actorId,
-    action: "predictions.moderate",
+    action: input.contestId ? "predictions.void_contest" : "predictions.moderate",
     targetId: input.contestId ?? input.seasonId,
-    targetType: "prediction_program",
     meta: { paused: input.paused, reason: input.reason },
   });
 }

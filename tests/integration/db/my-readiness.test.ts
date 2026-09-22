@@ -7,7 +7,8 @@ import { randomUUID } from "node:crypto";
 import { Pool } from "pg";
 import { describe, expect, it } from "vitest";
 import { loadMyReadiness } from "../../../src/lib/my/readiness";
-import { localDatabaseUrl } from "./harness/database";
+import { loadMyTeamWorkspace } from "../../../src/lib/my/team-workspace";
+import { localDatabaseUrl, testSteam64 } from "./harness/database";
 
 const databaseUrl = localDatabaseUrl();
 
@@ -20,6 +21,8 @@ async function main(): Promise<void> {
     activeTeam: randomUUID(),
     benchedTeam: randomUUID(),
     benchedCaptain: randomUUID(),
+    teamMate: randomUUID(),
+    formerMember: randomUUID(),
     season: randomUUID(),
     entry: randomUUID(),
     revision: randomUUID(),
@@ -51,14 +54,14 @@ async function main(): Promise<void> {
     expect(institution.rows[0]).toBeTruthy();
     const config = { requireCompetitiveProfile: true, competitiveProfile: { platform: platformKey, currentSeasonKey: current.season_key, previousSeasonKey: previous.season_key, rankOrder: ranks.rows.map((row) => row.rank_key) } };
     await client.query("BEGIN");
-    await client.query(`INSERT INTO users (id, email, display_name, steam64, perfect_name, qq, email_verified_at) VALUES ($1, $2, 'Local 我的选手', '76561198000000001', $3, '100001', now()), ($4, $5, 'Local 替补队长', '76561198000000002', $6, '100002', now()), ($7, $8, 'Local 待处理邀请', NULL, NULL, NULL, now())`, [ids.user, `my-readiness-${ids.user}@local.test`, `perfect-${ids.user}`, ids.benchedCaptain, `my-readiness-benched-${ids.benchedCaptain}@local.test`, `perfect-${ids.benchedCaptain}`, ids.noTeamUser, `my-readiness-invitee-${ids.noTeamUser}@local.test`]);
+    await client.query(`INSERT INTO users (id, email, display_name, steam64, perfect_name, qq, email_verified_at) VALUES ($1, $2, 'Local 我的选手', $3, $4, '100001', now()), ($5, $6, 'Local 替补队长', $7, $8, '100002', now()), ($9, $10, 'Local 待处理邀请', NULL, NULL, NULL, now()), ($11, $12, 'Local 当前队友', NULL, NULL, '100003', now()), ($13, $14, 'Local 已离队成员', NULL, NULL, '100004', now())`, [ids.user, `my-readiness-${ids.user}@local.test`, testSteam64(ids.user), `perfect-${ids.user}`, ids.benchedCaptain, `my-readiness-benched-${ids.benchedCaptain}@local.test`, testSteam64(ids.benchedCaptain), `perfect-${ids.benchedCaptain}`, ids.noTeamUser, `my-readiness-invitee-${ids.noTeamUser}@local.test`, ids.teamMate, `my-readiness-teammate-${ids.teamMate}@local.test`, ids.formerMember, `my-readiness-former-${ids.formerMember}@local.test`]);
     await client.query(`INSERT INTO education_verifications (user_id, institution_id, academic_status, evidence_type, status, reviewed_by, reviewed_at) VALUES ($1, $2, 'enrolled', 'manual_other', 'approved', 'local-admin', now())`, [ids.user, institution.rows[0]!.id]);
     for (const [kind, seasonKey] of [["historical_peak", null], ["season_peak", previous.season_key], ["season_peak", current.season_key]] as const) {
       const peakRank = ranks.rows.at(-1)!;
       await client.query(`INSERT INTO competitive_rank_facts (user_id, platform, kind, platform_season_key, rank, rating, stars) VALUES ($1, $2, $3, $4, $5, 2000, $6)`, [ids.user, platformKey, kind, seasonKey, peakRank.rank_key, peakRank.star_min]);
     }
     await client.query(`INSERT INTO teams (id, slug, name, creator_user_id, captain_user_id) VALUES ($1, $2, 'Local 我的 Team', $3, $3), ($4, $5, 'Local 替补 Team', $6, $6)`, [ids.activeTeam, `local-my-${ids.activeTeam.slice(0, 8)}`, ids.user, ids.benchedTeam, `local-my-benched-${ids.benchedTeam.slice(0, 8)}`, ids.benchedCaptain]);
-    await client.query(`INSERT INTO team_memberships (team_id, user_id, status, invited_by_user_id) VALUES ($1, $2, 'active', $2), ($3, $4, 'active', $4)`, [ids.activeTeam, ids.user, ids.benchedTeam, ids.benchedCaptain]);
+    await client.query(`INSERT INTO team_memberships (team_id, user_id, status, ended_at, ended_reason, invited_by_user_id) VALUES ($1, $2, 'active', NULL, NULL, $2), ($1, $3, 'active', NULL, NULL, $2), ($1, $4, 'left', now() - interval '1 day', 'left', $2), ($5, $6, 'active', NULL, NULL, $6)`, [ids.activeTeam, ids.user, ids.teamMate, ids.formerMember, ids.benchedTeam, ids.benchedCaptain]);
     await client.query(`INSERT INTO team_captain_changes (team_id, from_user_id, to_user_id, changed_by_actor_id) VALUES ($1, NULL, $2, 'local-admin'), ($3, NULL, $4, 'local-admin')`, [ids.activeTeam, ids.user, ids.benchedTeam, ids.benchedCaptain]);
     await client.query(`INSERT INTO team_name_changes (team_id, old_name, new_name, changed_by_actor_id) VALUES ($1, NULL, 'Local 我的 Team', 'local-admin'), ($2, NULL, 'Local 替补 Team', 'local-admin')`, [ids.activeTeam, ids.benchedTeam]);
     await client.query(`INSERT INTO team_invitations (id, team_id, kind, invited_user_id, invited_by_user_id, status, expires_at) VALUES ($1, $2, 'direct', $3, $4, 'pending', now() + interval '7 days')`, [ids.invitation, ids.benchedTeam, ids.noTeamUser, ids.benchedCaptain]);
@@ -82,6 +85,15 @@ async function main(): Promise<void> {
     expect(model.competitions[0]?.qualification.state).toBe("ready");
     expect(model.competitions[0]?.sanctions[0]?.effects).toEqual(["registration_block", "roster_block", "match_participation_block"]);
     expect(JSON.stringify(model)).not.toContain("internalEvidence");
+
+    const teamWorkspace = await loadMyTeamWorkspace(ids.user);
+    expect(teamWorkspace.kind).toBe("captain");
+    if (teamWorkspace.kind !== "captain") throw new Error("当前队伍 fixture 应由队长读取。");
+    expect(teamWorkspace.members).toEqual(expect.arrayContaining([
+      expect.objectContaining({ userId: ids.user, qq: "100001" }),
+      expect.objectContaining({ userId: ids.teamMate, qq: "100003" }),
+    ]));
+    expect(teamWorkspace.members.some((member) => member.userId === ids.formerMember)).toBe(false);
 
     const pendingInvitationModel = await loadMyReadiness(ids.noTeamUser);
     expect(pendingInvitationModel.team).toMatchObject({
@@ -109,7 +121,7 @@ async function main(): Promise<void> {
       await client.query("DELETE FROM education_verifications WHERE user_id = $1", [ids.user]);
       await client.query("DELETE FROM competitive_rank_facts WHERE user_id = $1", [ids.user]);
       await client.query("DELETE FROM seasons WHERE id = $1", [ids.season]);
-      await client.query("DELETE FROM users WHERE id IN ($1, $2, $3)", [ids.user, ids.benchedCaptain, ids.noTeamUser]);
+      await client.query("DELETE FROM users WHERE id IN ($1, $2, $3, $4, $5)", [ids.user, ids.benchedCaptain, ids.noTeamUser, ids.teamMate, ids.formerMember]);
       await client.query("COMMIT");
     }
     client.release();

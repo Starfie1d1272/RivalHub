@@ -36,7 +36,11 @@ Fresh deployment 的 owner bootstrap 只通过 `RIVALHUB_OWNER_EMAIL`：当尚�
 
 客户端隐藏按钮不构成授权。所有 privileged mutation 必须在服务端重新鉴权，并在适用时写 audit。
 
+教育证据是敏感的 server-only 数据。CHSI 与录取通知书提交必须重新验证当前 canonical user、verified email ownership 和 canonical institution；学校邮箱即时认证还必须命中 exact、active、auto-verify 且 `credentialType=student` 的 registry mapping。录取通知书图片只能由提交者经 Server Action 写入 private Storage，普通用户、season admin 和浏览器 Data API 没有 direct Storage 读策略；只有 `super_admin` 能通过受保护的 GET Route Handler 获取 60 秒 signed URL 并重定向至材料。object key、signed URL、原始文件名、图片内容和 CHSI code 不进入 public/client DTO 或 runtime log。
+
 管理员邀请只给正常 Supabase 用户授予 `season_admin` scope 或 `super_admin`。invite usage、claim ledger、并发上限和重复领取由 transaction + DB constraint 保护；撤销授权读取当前数据库事实，不依赖客户端缓存。
+
+系统状态页中的 scheduler health 和“立即运行一次”属于 `requireSuperAdmin()` 保护的 break-glass 能力。人工运行通过 shared scheduler execution owner 调用 canonical runner，并写入 `scheduler.manual_trigger` audit；按钮不是授权边界，也不允许客户端直接调用数据库或 endpoint。
 
 ## Session
 
@@ -59,7 +63,16 @@ Fresh deployment 的 owner bootstrap 只通过 `RIVALHUB_OWNER_EMAIL`：当尚�
 
 ## Secrets
 
-- `SUPABASE_SERVICE_ROLE_KEY`、`ADMIN_SESSION_SECRET`、`CRON_SECRET`、Turnstile secret 等只在服务端使用。
+- `SUPABASE_SECRET_KEY`、`ADMIN_SESSION_SECRET`、`CRON_SECRET`、Turnstile secret 等只在服务端使用；`SUPABASE_SERVICE_ROLE_KEY` 只兼容尚未迁移的环境。`CRON_SECRET` 是 provider-neutral 的 endpoint credential；Supabase primary 另从 Vault 的 `rivalhub_scheduler_base_url` 与 `rivalhub_cron_secret` 读取同一受保护凭据，GitHub watchdog 只从 protected secret 注入。
+- `X-RivalHub-Cron-Source` 只用于 primary/watchdog/manual/legacy execution 分支与健康投影，不替代 `Authorization: Bearer CRON_SECRET`；缺失 header 兼容 legacy，未知值拒绝。
+- `scheduled_job_health` 是 server-only 的有界当前投影，默认 RLS deny 且撤销 `anon`/`authenticated` grants；不提供浏览器 Data API 或 Realtime surface。
 - secret 不进入 `NEXT_PUBLIC_*`、Client props、Issue/PR、fixture 或日志。
+- Preview persona password 是公开的 disposable fixture credential，不属于 secret contract；具体账号和统一密码由 [`operations/preview-mirror.md`](./operations/preview-mirror.md) 维护。
 - recovery/signup/token、Cookie、Authorization 和教育证据遵守相同的默认敏感边界。
 - runtime 日志的脱敏与安全序列化见 [`operations/observability.md`](./operations/observability.md)。
+
+## Preview personas
+
+Preview 固定使用 `rivalhub-dev` 的 Auth。refresh 会提供 deterministic `player`、`invited`、`captain`、`season-admin`、`super-admin` 便捷测试账号：队长优先绑定当前赛事 linked Team 的 captain，season-admin 获得当前赛季 grant，super-admin 独立选择。它们使用公开、统一、可重置的 disposable fixture credential，不是安全边界；Vercel Deployment Protection 仍负责 Preview 访问控制。它们不是唯一允许登录的账号；正常 dev 注册、登录、重置和业务写入都可用。
+
+Vercel Preview 仅可配置 dev-scoped Supabase URL、anon/secret credential、独立 `ADMIN_SESSION_SECRET` 与必要的 dev/sandbox provider credential；`SUPABASE_SERVICE_ROLE_KEY` 仅作为尚未迁移环境的 fallback。privileged credential 可以存在，但其权限必须只限 `rivalhub-dev`；production credential 永远不得进入 Preview。

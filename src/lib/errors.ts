@@ -24,6 +24,11 @@ export const ErrorCode = {
   EMAIL_NOT_CONFIRMED: "EMAIL_NOT_CONFIRMED",
   EMAIL_SEND_RATE_LIMITED: "EMAIL_SEND_RATE_LIMITED",
 
+  // ── Steam identity ─────────────────────────────
+  STEAM_PROFILE_CONFLICT: "STEAM_PROFILE_CONFLICT",
+  STEAM_PROFILE_NOT_FOUND: "STEAM_PROFILE_NOT_FOUND",
+  STEAM_PROVIDER_UNAVAILABLE: "STEAM_PROVIDER_UNAVAILABLE",
+
   // ── Season ──────────────────────────────────────
   SEASON_NOT_FOUND: "SEASON_NOT_FOUND",
   SEASON_INVALID_STATUS: "SEASON_INVALID_STATUS",
@@ -65,14 +70,35 @@ export const ErrorCode = {
 
 export type ErrorCode = (typeof ErrorCode)[keyof typeof ErrorCode];
 
+/**
+ * Expected errors keep their machine identity and structured parameters
+ * separate from the product copy returned to a browser. The owner field is
+ * intentionally local to a domain; it is not a global translation registry.
+ */
+export interface ErrorPresentation {
+  owner: string;
+  key: string;
+  params: Readonly<Record<string, string | number | boolean | null>>;
+  message: string;
+}
+
 export class AppError extends Error {
   constructor(
     public readonly code: ErrorCode,
     message: string,
-    public readonly meta?: Record<string, unknown>
+    public readonly meta?: Record<string, unknown>,
+    public readonly presentation?: ErrorPresentation,
   ) {
     super(message);
     this.name = "AppError";
+  }
+
+  static withPresentation(
+    code: ErrorCode,
+    presentation: ErrorPresentation,
+    options: { diagnostic?: string; meta?: Record<string, unknown> } = {},
+  ): AppError {
+    return new AppError(code, options.diagnostic ?? presentation.message, options.meta, presentation);
   }
 }
 
@@ -96,6 +122,10 @@ export const ERROR_MESSAGES: Record<ErrorCode, string> = {
   INTERNAL_ERROR: "服务器内部错误，请稍后重试",
   EMAIL_NOT_CONFIRMED: "邮箱尚未验证，请先完成邮箱验证",
   EMAIL_SEND_RATE_LIMITED: "邮件发送过于频繁，请稍后再试",
+
+  STEAM_PROFILE_CONFLICT: "该 Steam64 ID 已关联其他账户，请联系管理员处理。",
+  STEAM_PROFILE_NOT_FOUND: "未找到该 Steam 账号，请检查 Steam64 ID 是否填写正确。",
+  STEAM_PROVIDER_UNAVAILABLE: "暂时无法连接 Steam，请稍后重试。",
 
   SEASON_NOT_FOUND: "赛季不存在",
   SEASON_INVALID_STATUS: "赛季当前状态不允许此操作",

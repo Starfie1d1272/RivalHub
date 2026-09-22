@@ -6,11 +6,13 @@ import { usePathname, useRouter } from "next/navigation";
 import { useTransition } from "react";
 import { toast } from "sonner";
 import { logoutUser } from "@/actions/auth";
-import { getAdminNavigation, type AdminRole } from "@/lib/admin/navigation";
+import { getAdminNavigation, getActiveAdminNavigationHref, type AdminRole } from "@/lib/admin/navigation";
 
 export function AdminSidebar({ email, role }: { email: string; role: AdminRole }) {
   const pathname = usePathname();
   const router = useRouter();
+  const navigation = getAdminNavigation(role);
+  const activeHref = getActiveAdminNavigationHref(pathname, navigation);
   const [isPending, startTransition] = useTransition();
 
   function handleLogout() {
@@ -43,7 +45,7 @@ export function AdminSidebar({ email, role }: { email: string; role: AdminRole }
 
       {/* nav */}
       <nav aria-label="管理后台导航" className="flex min-w-0 flex-1 overflow-x-auto md:block">
-        {getAdminNavigation(role).map((group) => (
+        {navigation.map((group) => (
           <div key={group.key} className="shrink-0 md:mb-3">
             <div
               className="px-3 pb-1 pt-2.5 md:px-5 md:pt-1"
@@ -57,9 +59,7 @@ export function AdminSidebar({ email, role }: { email: string; role: AdminRole }
               {group.label}
             </div>
             {group.items.map((item) => {
-              const active = item.href === "/admin"
-                ? pathname === "/admin"
-                : pathname.startsWith(item.href);
+              const active = item.href === activeHref;
               return (
                 <Link
                   key={item.href}

@@ -25,7 +25,7 @@ describe("public payload serializers", () => {
       id: "registration-1",
       displayName: null,
       perfectName: "PerfectPlayer",
-      steamName: "SteamPlayer",
+      personaName: "SteamPlayer",
       primaryPosition: "igl",
       peakRank: "S",
       peakRating: 2.1,
@@ -43,7 +43,7 @@ describe("public payload serializers", () => {
 
     expect(serialized).toEqual({
       id: "registration-1",
-      displayName: "PerfectPlayer",
+      displayName: "SteamPlayer",
       primaryPosition: "igl",
       peakRank: "S",
       peakRating: 2.1,
@@ -60,7 +60,8 @@ describe("public payload serializers", () => {
     const source = {
       registrationId: "registration-2",
       userId: "user-2",
-      steamName: "SteamPlayer",
+      avatarUrl: null,
+      personaName: "SteamPlayer",
       perfectName: null,
       displayName: "PublicPlayer",
       primaryPosition: "awper",
@@ -87,7 +88,7 @@ describe("public payload serializers", () => {
           id: source.registrationId,
           displayName: source.displayName,
           perfectName: source.perfectName,
-          steamName: source.steamName,
+          personaName: source.personaName,
           primaryPosition: source.primaryPosition,
           peakRank: source.peakRank,
           peakRating: source.peakRating,
@@ -105,6 +106,27 @@ describe("public payload serializers", () => {
     for (const key of PRIVATE_KEYS) {
       expect(serializedPayload).not.toContain(`"${key}"`);
     }
+  });
+
+  it("keeps nullable Steam persona names nullable so perfectName remains usable", () => {
+    const serialized = serializePublicDraftPlayer({
+      registrationId: "registration-3",
+      userId: "user-3",
+      avatarUrl: null,
+      personaName: null,
+      perfectName: "Perfect fallback",
+      displayName: null,
+      primaryPosition: "rifler",
+      secondaryPosition: "anchor",
+      peakRank: "—",
+      peakRating: null,
+      currentRank: "—",
+      currentRating: null,
+      mapPreferences: [],
+    });
+
+    expect(serialized.personaName).toBeNull();
+    expect(serialized.perfectName).toBe("Perfect fallback");
   });
 
   it("does not expose proposal actor identifiers to the public match view", () => {
@@ -134,5 +156,20 @@ describe("public payload serializers", () => {
     expect(JSON.stringify(serialized)).not.toContain("user-private");
     expect(Object.hasOwn(serialized, "proposedBy")).toBe(false);
     expect(Object.hasOwn(serialized, "forceAssignedBy")).toBe(false);
+  });
+
+  it("maps unknown proposal statuses to a safe presentation value", () => {
+    const now = new Date("2026-08-29T00:00:00.000Z");
+    const serialized = serializePublicMatchTimeProposal({
+      id: "proposal-unknown",
+      status: "future-status",
+      proposedTime: now,
+      responseAt: null,
+      rejectReason: null,
+      createdAt: now,
+      proposedBy: "user-private",
+    });
+
+    expect(serialized.status).toBe("unknown");
   });
 });

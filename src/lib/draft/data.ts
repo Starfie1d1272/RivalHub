@@ -7,6 +7,7 @@ import {
   eventRosterMembers,
   eventRosters,
   seasonRegistrations,
+  steamProfiles,
   users,
 } from "@/db/schema";
 import { DRAFT_TEAMS, DRAFT_TOTAL_ROUNDS } from "@/types/draft";
@@ -20,13 +21,15 @@ export interface DraftTeamSlot {
   teamName: string;
   draftOrder: number;
   captain: {
-    steamName: string;
+    personaName: string | null;
+    avatarUrl: string | null;
     displayName: string | null;
     perfectName: string | null;
     primaryPosition: string;
   };
   members: {
-    steamName: string;
+    personaName: string | null;
+    avatarUrl: string | null;
     perfectName: string | null;
     displayName: string | null;
     primaryPosition: string;
@@ -39,7 +42,8 @@ export interface DraftTeamSlot {
 /** Fields allowed on the anonymous spectator draft page. */
 export interface PublicDraftPlayer {
   userId: string;
-  steamName: string;
+  avatarUrl: string | null;
+  personaName: string | null;
   perfectName: string | null;
   displayName: string | null;
   primaryPosition: string;
@@ -73,7 +77,7 @@ export interface DraftLiveState {
 
 export interface DraftCompletedPick {
   entryId: string;
-  steamName: string;
+  personaName: string | null;
   displayName: string | null;
   perfectName: string | null;
   primaryPosition: string;
@@ -113,8 +117,9 @@ export interface DraftAdminData {
 
 interface DraftPlayerSource {
   registrationId: string;
+  avatarUrl: string | null;
   userId: string;
-  steamName: string | null;
+  personaName: string | null;
   perfectName: string | null;
   displayName: string | null;
   primaryPosition: string;
@@ -140,7 +145,8 @@ interface CaptainDraftPlayerSource extends DraftPlayerSource {
 export function serializePublicDraftPlayer(row: DraftPlayerSource): PublicDraftPlayer {
   return {
     userId: row.userId,
-    steamName: row.steamName ?? "未知选手",
+    personaName: row.personaName ?? null,
+    avatarUrl: row.avatarUrl ?? null,
     perfectName: row.perfectName ?? null,
     displayName: row.displayName ?? null,
     primaryPosition: row.primaryPosition,
@@ -212,7 +218,8 @@ async function loadDraftBase(seasonId: string): Promise<DraftBaseData> {
           .select({
             entryId: eventRosters.entryId,
             registrationId: seasonRegistrations.id,
-            steamName: users.steamName,
+            personaName: steamProfiles.personaName,
+            avatarUrl: steamProfiles.avatarUrl,
             perfectName: users.perfectName,
             displayName: users.displayName,
             primaryPosition: seasonRegistrations.primaryPosition,
@@ -224,6 +231,7 @@ async function loadDraftBase(seasonId: string): Promise<DraftBaseData> {
             eq(seasonRegistrations.seasonId, seasonId),
           ))
           .innerJoin(users, and(eq(seasonRegistrations.userId, users.id), eq(users.status, "active")))
+          .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
           .where(inArray(eventRosters.entryId, entryIds))
       : [];
 
@@ -234,7 +242,8 @@ async function loadDraftBase(seasonId: string): Promise<DraftBaseData> {
       round: draftPicks.round,
       pickNumber: draftPicks.pickNumber,
       autoPicked: draftPicks.autoPicked,
-      steamName: users.steamName,
+      personaName: steamProfiles.personaName,
+      avatarUrl: steamProfiles.avatarUrl,
       displayName: users.displayName,
       perfectName: users.perfectName,
       primaryPosition: seasonRegistrations.primaryPosition,
@@ -245,6 +254,7 @@ async function loadDraftBase(seasonId: string): Promise<DraftBaseData> {
       eq(draftPicks.registrationId, seasonRegistrations.id),
     )
     .innerJoin(users, and(eq(seasonRegistrations.userId, users.id), eq(users.status, "active")))
+    .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
     .where(eq(draftPicks.seasonId, seasonId))
     .orderBy(asc(draftPicks.pickNumber));
 
@@ -275,7 +285,8 @@ async function loadDraftBase(seasonId: string): Promise<DraftBaseData> {
       .map((member) => {
         const pick = picksByRegistrationId.get(member.registrationId);
         return {
-          steamName: member.steamName ?? "未知选手",
+          personaName: member.personaName ?? null,
+          avatarUrl: member.avatarUrl,
           perfectName: member.perfectName ?? null,
           displayName: member.displayName ?? null,
           primaryPosition: member.primaryPosition,
@@ -291,7 +302,8 @@ async function loadDraftBase(seasonId: string): Promise<DraftBaseData> {
       teamName: team.name,
       draftOrder: team.draftOrder,
       captain: {
-        steamName: captain?.steamName ?? "未知队长",
+        personaName: captain?.personaName ?? null,
+        avatarUrl: captain?.avatarUrl ?? null,
         displayName: captain?.displayName ?? null,
         perfectName: captain?.perfectName ?? null,
         primaryPosition: captain?.primaryPosition ?? "未知",
@@ -320,7 +332,7 @@ async function loadDraftBase(seasonId: string): Promise<DraftBaseData> {
     snakeOrder,
     completedPicks: pickRows.map((pick) => ({
       entryId: pick.entryId,
-      steamName: pick.steamName ?? "未知选手",
+      personaName: pick.personaName ?? null,
       displayName: pick.displayName ?? null,
       perfectName: pick.perfectName ?? null,
       primaryPosition: pick.primaryPosition,
@@ -347,7 +359,8 @@ async function loadPublicRemainingPlayers(
     .select({
       registrationId: seasonRegistrations.id,
       userId: seasonRegistrations.userId,
-      steamName: users.steamName,
+      personaName: steamProfiles.personaName,
+      avatarUrl: steamProfiles.avatarUrl,
       perfectName: users.perfectName,
       displayName: users.displayName,
       primaryPosition: seasonRegistrations.primaryPosition,
@@ -360,6 +373,7 @@ async function loadPublicRemainingPlayers(
     })
     .from(seasonRegistrations)
     .innerJoin(users, and(eq(seasonRegistrations.userId, users.id), eq(users.status, "active")))
+    .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
     .where(
       and(
         eq(seasonRegistrations.seasonId, seasonId),
@@ -385,7 +399,8 @@ async function loadCaptainRemainingPlayers(
     .select({
       registrationId: seasonRegistrations.id,
       userId: seasonRegistrations.userId,
-      steamName: users.steamName,
+      personaName: steamProfiles.personaName,
+      avatarUrl: steamProfiles.avatarUrl,
       perfectName: users.perfectName,
       displayName: users.displayName,
       primaryPosition: seasonRegistrations.primaryPosition,
@@ -402,6 +417,7 @@ async function loadCaptainRemainingPlayers(
     })
     .from(seasonRegistrations)
     .innerJoin(users, and(eq(seasonRegistrations.userId, users.id), eq(users.status, "active")))
+    .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
     .where(
       and(
         eq(seasonRegistrations.seasonId, seasonId),
@@ -458,6 +474,7 @@ export async function getDraftAdminData(seasonId: string): Promise<DraftAdminDat
     .select({ count: count() })
     .from(seasonRegistrations)
     .innerJoin(users, and(eq(seasonRegistrations.userId, users.id), eq(users.status, "active")))
+    .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
     .where(and(...where));
 
   return {

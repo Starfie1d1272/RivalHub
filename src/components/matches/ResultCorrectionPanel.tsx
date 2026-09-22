@@ -8,27 +8,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Checklist, Panel, StatusBanner } from "@/components/rivalhub";
+import type { ResultCorrectionPlanPresentation } from "@/lib/match-corrections/presentation";
 import {
   applyMatchResultCorrection,
   planMatchResultCorrection,
   recordMatchRecoveryAdjudication,
 } from "@/actions/matches/corrections";
-
-interface CorrectionPlan {
-  current: { scoreA: number | null; scoreB: number | null; isForfeit: boolean };
-  proposed: { scoreA: number; scoreB: number; isForfeit: boolean };
-  winnerChanges: boolean;
-  affectsManagedRun: boolean;
-  impacts: {
-    kind: string;
-    matchId?: string;
-    managedKey?: string | null;
-    status: string;
-    description: string;
-  }[];
-  blockedReasons: string[];
-  requiredRecoveryActions: string[];
-}
 
 interface ResultCorrectionPanelProps {
   matchId: string;
@@ -52,7 +37,7 @@ export function ResultCorrectionPanel({
   const [scoreA, setScoreA] = useState<string>("");
   const [scoreB, setScoreB] = useState<string>("");
   const [isForfeit, setIsForfeit] = useState(false);
-  const [plan, setPlan] = useState<CorrectionPlan | null>(null);
+  const [plan, setPlan] = useState<ResultCorrectionPlanPresentation | null>(null);
   const [adjudicationNote, setAdjudicationNote] = useState("");
 
   function parseScores(): { scoreA: number; scoreB: number } | null {
@@ -74,7 +59,7 @@ export function ResultCorrectionPanel({
         isForfeit,
       });
       if (result.success) {
-        setPlan(result.data as CorrectionPlan);
+        setPlan(result.data);
         router.refresh();
       } else {
         setPlan(null);
@@ -186,9 +171,9 @@ export function ResultCorrectionPanel({
           </p>
           {plan.impacts.length > 0 && (
             <ul className="list-disc space-y-0.5 pl-4 text-[var(--color-fg-mid)]">
-              {plan.impacts.map((impact) => (
-                <li key={`${impact.kind}-${impact.matchId ?? impact.managedKey ?? impact.description}`}>
-                  {impact.description}
+              {plan.impacts.map((impact, index) => (
+                <li key={`impact-${index}`}>
+                  {impact.label}
                 </li>
               ))}
             </ul>

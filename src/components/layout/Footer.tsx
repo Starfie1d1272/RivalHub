@@ -5,9 +5,8 @@ import pkg from "@/../package.json";
 export function Footer() {
   return (
     <footer
-      className="flex flex-col items-center gap-2 sm:flex-row sm:justify-between sm:items-center text-center sm:text-left"
+      className="flex flex-col items-center gap-2 px-7 py-5 text-center sm:flex-row sm:items-center sm:justify-between sm:pr-20 sm:text-left"
       style={{
-        padding: "20px 28px",
         borderTop: "1px solid var(--color-border)",
         fontFamily: "var(--font-mono)",
         fontSize: 11,

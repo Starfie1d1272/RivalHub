@@ -1,8 +1,15 @@
+import { alias } from "drizzle-orm/pg-core";
+import { getPublicSeasonResults } from "@/lib/seasons/public-results";
+import { SeasonResults } from "@/components/season/SeasonResults";
+import { getMajorPublicParticipantOverview } from "@/lib/major/public-participants";
+import { getSeasonPersonalNextStep } from "@/lib/seasons/public-next-step";
+import { SeasonNextStep } from "@/components/season/SeasonNextStep";
+import { publicCompetitionEntryCondition } from "@/lib/competition-entries/public-visibility";
 import { Suspense } from "react";
 import { connection } from "next/server";
 import { and, eq, count, or, desc } from "drizzle-orm";
 import { db } from "@/db/client";
-import { competitionEntries, seasonRegistrations, users } from "@/db/schema";
+import { competitionEntries, seasonRegistrations, steamProfiles, users } from "@/db/schema";
 import { captainVotes } from "@/db/schema/votes";
 import { matches } from "@/db/schema/matches";
 import { normalizeRegistrationConfig } from "@/lib/seasons/compatibility";
@@ -13,13 +20,14 @@ import {
   selectFeaturedSeason,
   selectHomeNavTiers,
 } from "@/lib/home/navigation";
+import { groupSeasonsByLifecycle } from "@/lib/seasons/presentation";
 import { HomeHero } from "@/components/home/HomeHero";
 import { HomeNavigation } from "@/components/home/HomeNavigation";
-import { HomeSeasonPanel } from "@/components/home/HomeSeasonPanel";
+import { HomeSeasonPanel, shouldLoadRegistrationPositionCounts } from "@/components/home/HomeSeasonPanel";
 import { SeasonCardGrid } from "@/components/home/SeasonCardGrid";
-import { Panel, EmptyState } from "@/components/rivalhub";
+import { EmptyState, PageLayout, Panel } from "@/components/rivalhub";
 import { getParticipantSummary } from "@/lib/participants/summary";
-import { isRegistrationActuallyOpen } from "@/lib/seasons/presentation";
+import { getPublicDisplayName } from "@/lib/identity/display-name";
 
 export default function HomePage() {
   return (
@@ -34,27 +42,39 @@ async function HomeContent() {
   const allSeasons = await getPublicSeasonCatalog();
   const featured = selectFeaturedSeason(allSeasons);
   const others = allSeasons.filter(
-    (season) => season.status !== "archived" && season.id !== featured?.id,
+    (season) => !["finished", "archived"].includes(season.status) && season.id !== featured?.id,
   );
 
   if (!featured) {
     return (
-      <div className="mx-auto px-4 lg:px-9 py-8 max-w-[1240px]">
+      <PageLayout variant="wide">
         <Panel>
           <EmptyState
-            title="暂无进行中的赛季"
-            sub="请通过管理后台创建赛季。"
+            title="赛事即将到来"
+            sub="新赛事公布后会在这里展示。"
           />
         </Panel>
-      </div>
+      </PageLayout>
     );
   }
 
-  const archivedSeasons = allSeasons
-    .filter((season) => season.status === "archived")
+  const [majorOverview, personalTask] = await Promise.all([
+    featured.competitionTemplate === "major" ? getMajorPublicParticipantOverview(featured) : Promise.resolve(null),
+    getSeasonPersonalNextStep(featured),
+  ]);
+  const results = ["finished", "archived"].includes(featured.status) ? await getPublicSeasonResults(featured) : null;
+  const historicalSeasons = groupSeasonsByLifecycle(allSeasons);
+  const archivedSeasons = [...historicalSeasons.recent, ...historicalSeasons.archived]
+    .filter((season) => season.id !== featured.id)
+    .sort((a, b) => {
+      const completedDifference = (b.lastCompletedAt?.getTime() ?? Number.NEGATIVE_INFINITY)
+        - (a.lastCompletedAt?.getTime() ?? Number.NEGATIVE_INFINITY);
+      return completedDifference || a.id.localeCompare(b.id);
+    })
     .slice(0, 6);
 
   // 并行查询：基础统计 + 按状态的动态数据
+  const opponentEntry = alias(competitionEntries, "home_opponent");
   const [
     [featuredTeamCount],
     participantSummary,
@@ -62,10 +82,14 @@ async function HomeContent() {
     topCandidatesWithNames,
     liveAndUpcomingMatches,
   ] = await Promise.all([
-    db.select({ value: count() }).from(competitionEntries).where(eq(competitionEntries.competitionId, featured.id)),
-    getParticipantSummary(featured),
+    featured.competitionTemplate === "major"
+      ? Promise.resolve([] as { value: number }[])
+      : db.select({ value: count() }).from(competitionEntries).where(and(eq(competitionEntries.competitionId, featured.id), publicCompetitionEntryCondition())),
+    featured.competitionTemplate === "major"
+      ? Promise.resolve({ count: 0, hasPlayers: false })
+      : getParticipantSummary(featured),
     // 仅 registration 状态时查询
-    isRegistrationActuallyOpen(featured)
+    shouldLoadRegistrationPositionCounts(featured)
       ? db
           .select({
             position: seasonRegistrations.primaryPosition,
@@ -91,6 +115,7 @@ async function HomeContent() {
           .select({
             displayName: users.displayName,
             perfectName: users.perfectName,
+            personaName: steamProfiles.personaName,
             voteCount: count(),
           })
           .from(captainVotes)
@@ -99,12 +124,13 @@ async function HomeContent() {
             eq(captainVotes.candidateRegistrationId, seasonRegistrations.id),
           )
           .innerJoin(users, and(eq(seasonRegistrations.userId, users.id), eq(users.status, "active")))
+          .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
           .where(eq(seasonRegistrations.seasonId, featured.id))
-          .groupBy(users.id, users.displayName, users.perfectName)
+          .groupBy(users.id, users.displayName, users.perfectName, steamProfiles.personaName)
           .orderBy(desc(count()))
           .limit(3)
-      : Promise.resolve([] as { displayName: string | null; perfectName: string | null; voteCount: number }[]),
-    // 仅 playing 状态时查询 LIVE + 下一场
+      : Promise.resolve([] as { displayName: string | null; perfectName: string | null; personaName: string | null; voteCount: number }[]),
+    // 进行期的近期比赛入口
     featured.status === "playing"
       ? db
           .select({
@@ -112,8 +138,12 @@ async function HomeContent() {
             status: matches.status,
             scheduledAt: matches.scheduledAt,
             format: matches.format,
+            teamAName: competitionEntries.name,
+            teamBName: opponentEntry.name,
           })
           .from(matches)
+          .leftJoin(competitionEntries, eq(competitionEntries.id, matches.entryAId))
+          .leftJoin(opponentEntry, eq(opponentEntry.id, matches.entryBId))
           .where(
             and(
               eq(matches.seasonId, featured.id),
@@ -129,7 +159,7 @@ async function HomeContent() {
   ]);
 
   const namedCandidates = topCandidatesWithNames.map((candidate) => ({
-    name: candidate.displayName ?? candidate.perfectName ?? "未知选手",
+    name: getPublicDisplayName(candidate),
     voteCount: Number(candidate.voteCount),
   }));
 
@@ -142,24 +172,25 @@ async function HomeContent() {
 
   const eyebrow = buildHomeEyebrow(featured.status, featured.slug, featured.registrationOpenedAt);
   const { tier1Entry, tier2Entries, tier3Entries } = selectHomeNavTiers(
-    buildHomeNavEntries(featured),
+    buildHomeNavEntries(featured).filter((entry) => !(entry.key === "register" && personalTask)),
     featured.status
   );
 
   return (
-    <div className="mx-auto px-4 lg:px-9 py-8 max-w-[1240px] grid gap-7">
+    <PageLayout variant="wide" className="grid gap-7">
+      <SeasonNextStep task={personalTask} />
       {/* Hero */}
       <div className="grid gap-6 grid-cols-1 lg:grid-cols-[1.6fr_1fr]">
         <HomeHero season={featured} eyebrow={eyebrow} />
-        <HomeSeasonPanel
+        {results ? <SeasonResults results={results} slug={featured.slug} compact /> : <HomeSeasonPanel
           season={featured}
           maxPerPosition={maxPerPosition}
           positionCountMap={positionCountMap}
           topCandidatesWithNames={namedCandidates}
           liveAndUpcomingMatches={liveAndUpcomingMatches}
-          teamCount={featuredTeamCount?.value ?? 0}
-          playerCount={participantSummary.count}
-        />
+          teamCount={majorOverview?.teamCount ?? featuredTeamCount?.value ?? 0}
+          playerCount={majorOverview?.playerCount ?? participantSummary.count}
+        />}
       </div>
 
       <HomeNavigation
@@ -167,23 +198,23 @@ async function HomeContent() {
         tier2Entries={tier2Entries}
         tier3Entries={tier3Entries}
       />
-      <SeasonCardGrid markerNum={2} markerSub="MORE" title="其他赛季" seasons={others} />
+      <SeasonCardGrid markerNum={2} markerSub="MORE" title="其他赛事" seasons={others} />
       <SeasonCardGrid
         markerNum={3}
         markerSub="ARCHIVE"
-        title="历届赛季"
+        title="历届赛事"
         seasons={archivedSeasons}
       />
-    </div>
+    </PageLayout>
   );
 }
 
 function HomeFallback() {
   return (
-    <div className="mx-auto px-4 lg:px-9 py-8 max-w-[1240px]">
+    <PageLayout variant="wide">
       <Panel>
-        <EmptyState title="正在加载赛季" sub="请稍候。" />
+        <EmptyState title="正在加载赛事" sub="请稍候。" />
       </Panel>
-    </div>
+    </PageLayout>
   );
 }

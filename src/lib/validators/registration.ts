@@ -1,10 +1,10 @@
 import { z } from "zod";
-import { normalizeSteamProfileUrl } from "@/lib/external-url";
 import { REGISTRATION_DEFAULTS } from "@/lib/config/registration-defaults";
 import { normalizeRegistrationConfig } from "@/lib/seasons/compatibility";
 import type { PlayerType, RegistrationConfig } from "@/types/season";
 import { eventMapPreferencesSchema } from "@/lib/validators/map-preferences";
 import type { PositionValue, RankValue } from "@/lib/config/registration-defaults";
+import { requiredPlayerDeclaredProfileSchema } from "@/lib/player-declared-profile";
 
 // ── 从配置派生位置常量 ──────────────────────────────
 export const positionValues = REGISTRATION_DEFAULTS.positions.values;
@@ -92,29 +92,10 @@ export function buildRegistrationSchema(
         .string()
         .min(1, "请填写完美平台昵称"),
 
-      steamName: z
-        .string()
-        .min(1, "请填写 Steam 昵称"),
-
       steam64: z
         .string()
         .min(1, "请填写 Steam 64 位 ID")
         .regex(/^\d{17}$/, "Steam64 ID 应为 17 位纯数字"),
-
-      steamProfileUrl: z
-        .string()
-        .min(1, "请填写 Steam 个人资料链接")
-        .transform((v, ctx) => {
-          const normalized = normalizeSteamProfileUrl(v);
-          if (!normalized) {
-            ctx.addIssue({
-              code: "custom",
-              message: "Steam 个人资料链接格式不正确",
-            });
-            return z.NEVER;
-          }
-          return normalized;
-        }),
 
       // ── 位置 ──
       primaryPosition: z.string().refine((v) => positions.includes(v), {
@@ -195,15 +176,7 @@ export function buildRegistrationSchema(
       mapPreferences: eventMapPreferencesSchema(mapPool),
 
       // ── 风格与经历 ──
-      gameplayStyle: z
-        .string()
-        .min(1, "请填写游戏风格自述")
-        .max(100, "游戏风格自述不超过 100 字"),
-
-      competitionHistory: z
-        .string()
-        .max(500, "历史比赛经历不超过 500 字")
-        .optional(),
+      ...requiredPlayerDeclaredProfileSchema.shape,
 
       highlightVideoUrl: z
         .string()

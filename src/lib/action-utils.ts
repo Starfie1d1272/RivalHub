@@ -24,8 +24,9 @@ export function actionError(scope: string, e: unknown): ActionResult<never> {
         errorClass: "application",
         errorCode: e.code,
       });
+      return fail({ code: e.code, message: ERROR_MESSAGES.INTERNAL_ERROR });
     }
-    return fail({ code: e.code, message: e.message });
+    return fail({ code: e.code, message: e.presentation?.message ?? e.message });
   }
   captureException("action.unexpected_error", e, { scope: "action", operation: scope });
   return fail({ code: ErrorCode.INTERNAL_ERROR, message: ERROR_MESSAGES.INTERNAL_ERROR });

@@ -1,3 +1,6 @@
+import type { CompetitionEntryRosterRevisionOrigin } from "@/lib/competition-entries/remediation";
+import type { SemanticTone, StatusPresentation } from "@/lib/presentation";
+
 export type CompetitionEntryRegistrationStatus =
   | "draft"
   | "submitted"
@@ -17,8 +20,26 @@ export interface CompetitionEntryPresentation {
   tone: SemanticTone;
 }
 
+export type CompetitionEntryRosterStatus = "preparing" | "confirmed" | "frozen";
+
+export function presentCompetitionEntryRosterStatus(
+  status: CompetitionEntryRosterStatus | null,
+): StatusPresentation {
+  switch (status) {
+    case "frozen":
+      return { label: "名单已冻结", tone: "success" };
+    case "confirmed":
+      return { label: "名单已确认", tone: "info" };
+    case "preparing":
+      return { label: "名单准备中", tone: "warn" };
+    default:
+      return { label: "名单尚未确认", tone: "neutral" };
+  }
+}
+
 export function presentCompetitionEntryRegistration(
   status: CompetitionEntryRegistrationStatus,
+  origin?: CompetitionEntryRosterRevisionOrigin | null,
 ): CompetitionEntryPresentation {
   switch (status) {
     case "approved":
@@ -28,6 +49,7 @@ export function presentCompetitionEntryRegistration(
     case "waitlisted":
       return { label: "候补", state: "waiting", detail: "报名当前处于候补状态。", tone: "warn" };
     case "changes_requested":
+      if (origin === "self_roster_change") return { label: "名单变更中", state: "incomplete", detail: "你已发起名单调整，完成成员确认和资格检查后请重新提交审核。", tone: "warn" };
       return { label: "需补正", state: "blocked", detail: "审核要求补正报名材料或名单。", tone: "warn" };
     case "rejected":
       return { label: "未通过", state: "blocked", detail: "报名未通过；请查看审核说明。", tone: "danger" };
@@ -47,7 +69,7 @@ export function presentCompetitionEntryParticipation(
   }
   if (participantStatus === "invited") {
     return registrationStatus === "changes_requested"
-      ? { label: "需要重新确认", state: "waiting", detail: "报名补正后你需要重新确认是否参加本届赛事。", tone: "warn" }
+      ? { label: "需要重新确认", state: "waiting", detail: "名单调整后，请确认是否参加本届赛事。", tone: "warn" }
       : { label: "被邀请待确认", state: "waiting", detail: "你已被邀请但尚未确认参加本届赛事。", tone: "info" };
   }
   if (participantStatus === "declined") {
@@ -58,4 +80,3 @@ export function presentCompetitionEntryParticipation(
   }
   return { label: "未在当前名单", state: "blocked", detail: "你当前未确认参加本届赛事。", tone: "neutral" };
 }
-import type { SemanticTone } from "@/lib/presentation";

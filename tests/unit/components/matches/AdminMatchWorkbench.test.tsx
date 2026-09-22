@@ -22,6 +22,7 @@ vi.mock("@/components/matches/DeleteMatchButton", () => ({ DeleteMatchButton: ()
 vi.mock("@/components/matches/CompletedAtInput", () => ({ CompletedAtInput: () => <div data-testid="completed-at">completed at</div> }));
 vi.mock("@/components/matches/PreMatchOperatorChecklist", () => ({ PreMatchOperatorChecklist: () => <div data-testid="preflight">preflight</div> }));
 vi.mock("@/components/matches/PostMatchRecordPanel", () => ({ PostMatchRecordPanel: () => <div data-testid="postmatch">postmatch</div> }));
+vi.mock("@/components/matches/DemoDataReviewPanel", () => ({ DemoDataReviewPanel: () => null }));
 
 import { AdminMatchWorkbench } from "@/components/matches/AdminMatchWorkbench";
 
@@ -51,7 +52,7 @@ function data(status: Match["status"]) {
     createdAt: new Date("2026-09-05T00:00:00Z"),
     updatedAt: new Date("2026-09-05T00:00:00Z"),
   } satisfies Match;
-  const roster = { rosterId: "roster-a", starters: ["a1", "a2", "a3", "a4", "a5"], substitutes: [], status: "confirmed" };
+  const roster = { rosterId: "roster-a", starters: ["a1", "a2", "a3", "a4", "a5"], substitutes: [], status: "confirmed" as const };
   return {
     season: { id: "season-1", slug: "major", name: "Major" },
     stageName: "Swiss",
@@ -59,8 +60,8 @@ function data(status: Match["status"]) {
     teamAName: "Alpha",
     teamBName: "Beta",
     mapPool: ["de_inferno"],
-    teamAMembers: ["a1", "a2", "a3", "a4", "a5"].map((id) => ({ id, entryId: "entry-a", steamName: id, displayName: null, perfectName: null, primaryPosition: "rifler" })),
-    teamBMembers: ["b1", "b2", "b3", "b4", "b5"].map((id) => ({ id, entryId: "entry-b", steamName: id, displayName: null, perfectName: null, primaryPosition: "rifler" })),
+    teamAMembers: ["a1", "a2", "a3", "a4", "a5"].map((id) => ({ id, entryId: "entry-a", personaName: id, displayName: null, perfectName: null, primaryPosition: "rifler" })),
+    teamBMembers: ["b1", "b2", "b3", "b4", "b5"].map((id) => ({ id, entryId: "entry-b", personaName: id, displayName: null, perfectName: null, primaryPosition: "rifler" })),
     teamARoster: roster,
     teamBRoster: { ...roster, rosterId: "roster-b", starters: ["b1", "b2", "b3", "b4", "b5"] },
     teamAPreflight: { valid: true, blockers: [] },

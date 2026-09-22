@@ -1,11 +1,6 @@
-import { expect, test, type Page } from "@playwright/test";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { expect, signInProgrammatically, test } from "../fixtures";
 
-type FixtureCredentials = {
-  password: string;
-  accounts: Array<{ key: string; email: string; userId: string }>;
-};
+test.use({ scenarioProfile: "auth" });
 
 const SCREENSHOT_OPTIONS = {
   animations: "disabled" as const,
@@ -13,19 +8,6 @@ const SCREENSHOT_OPTIONS = {
   scale: "css" as const,
   maxDiffPixelRatio: 0.02,
 };
-
-function loadCredentials(): FixtureCredentials {
-  const path = resolve(process.cwd(), ".agent-tmp", "major-browser-credentials.json");
-  return JSON.parse(readFileSync(path, "utf8")) as FixtureCredentials;
-}
-
-async function signIn(page: Page, email: string, password: string, next: string): Promise<void> {
-  await page.goto(`/login?next=${encodeURIComponent(next)}`);
-  await page.getByLabel("邮箱地址").fill(email);
-  await page.getByLabel("密码", { exact: true }).fill(password);
-  await page.locator('button[type="submit"]').click();
-  await page.waitForURL((url) => url.pathname === next, { timeout: 20_000 });
-}
 
 test.describe("UI system visual regression", () => {
   test("privacy narrow reference · 390 × 844", async ({ page }, testInfo) => {
@@ -44,15 +26,14 @@ test.describe("UI system visual regression", () => {
     await expect(page.locator("main")).toHaveScreenshot("privacy-1440x900.png", SCREENSHOT_OPTIONS);
   });
 
-  test("authenticated foundation reference · 768 × 844", async ({ page }, testInfo) => {
+  test("authenticated foundation reference · 768 × 844", async ({ page, scenario }, testInfo) => {
     test.skip(testInfo.project.name !== "chromium", "768px authenticated baseline 使用 Desktop Chrome project。");
-    const credentials = loadCredentials();
-    const referenceAccount = credentials.accounts.find((account) => account.key === "player3");
-    if (!referenceAccount) throw new Error("browser fixture 缺少稳定只读账号。");
+    const referenceAccount = scenario.accounts.find((account) => account.key === "player3");
+    if (!referenceAccount) throw new Error(`E2E scenario ${scenario.scenarioId} 缺少稳定只读账号。`);
 
     await page.setViewportSize({ width: 768, height: 844 });
-    await signIn(page, referenceAccount.email, credentials.password, "/my");
-    await expect(page.getByRole("heading", { name: "我的参赛" })).toBeVisible({ timeout: 20_000 });
+    await signInProgrammatically(page, referenceAccount, scenario, "/my");
+    await expect(page.getByRole("heading", { name: "我的参赛" })).toBeVisible();
     await expect(page.locator("main")).toHaveScreenshot("my-readiness-768x844.png", SCREENSHOT_OPTIONS);
   });
 });

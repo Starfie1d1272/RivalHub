@@ -1,4 +1,5 @@
 export * from "./users";
+export * from "./steam-profiles";
 export * from "./identity";
 export * from "./education";
 export * from "./competitive-profile";
@@ -22,7 +23,8 @@ export * from "./admin-invites";
 export * from "./admin-invite-claims";
 export * from "./season-admin-grants";
 export * from "./player-stats";
-export * from "./swiss-standings";
+export * from "./demo-integration";
+export * from "./gameplay-identity";
 export * from "./mvp-votes";
 export * from "./match-time-proposals";
 export * from "./match-rosters";
@@ -32,5 +34,9 @@ export * from "./discipline";
 export * from "./postevent";
 export * from "./postmatch";
 export * from "./community-awards";
+export * from "./scheduler";
+export * from "./announcements";
+export * from "./season-public-info";
+export * from "./feedback";
 
 export * from "./predictions";

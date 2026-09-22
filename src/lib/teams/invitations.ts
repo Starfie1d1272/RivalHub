@@ -1,6 +1,8 @@
 import { and, count, eq, gt, isNull, lte, sql } from "drizzle-orm";
+import { writeAuditInTx } from "@/lib/audit/write";
+
 import { db, type TxDb } from "@/db/client";
-import { auditLogs, teamInvitations, teamMemberships, teams } from "@/db/schema";
+import { teamInvitations, teamMemberships, teams } from "@/db/schema";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { closePlayerLftInTx } from "@/lib/recruitment/commands";
 
@@ -92,6 +94,6 @@ export async function acceptTeamInvitationInTx(
   await tx.insert(teamMemberships).values({ teamId: team.id, userId: input.userId, status: "active", invitedByUserId: invitation.invitedByUserId });
   await closePlayerLftInTx(tx, { userId: input.userId });
   await tx.update(teamInvitations).set({ status: "accepted", respondedByUserId: input.userId, respondedAt: new Date(), updatedAt: new Date() }).where(eq(teamInvitations.id, invitation.id));
-  await tx.insert(auditLogs).values({ seasonId: null, action: "team.invite.accept", actorId: input.actorId, targetId: team.id, targetType: "team", meta: { invitationId: invitation.id, userId: input.userId } });
+  await writeAuditInTx(tx, { seasonId: null, action: "team.invite.accept", actorId: input.actorId, targetId: team.id,meta: { invitationId: invitation.id, userId: input.userId } });
   return { kind: "accepted", teamId: team.id, slug: team.slug };
 }

@@ -1,24 +1,19 @@
-import Link from "next/link";
-import { and, desc, eq, or } from "drizzle-orm";
 import { redirect } from "next/navigation";
-import { db } from "@/db/client";
-import { competitionEntries, competitionEntryParticipants, seasons } from "@/db/schema";
-import { PageHeader, PageLayout, Panel } from "@/components/rivalhub";
+import { MyCompetitionCard } from "@/components/my/MyCompetitionCard";
+import { EmptyState, PageHeader, Section, SectionHeader } from "@/components/rivalhub";
+import { groupMyCompetitionContexts, loadMyCompetitionContexts } from "@/lib/my/competitions";
 import { getUserSession } from "@/lib/auth/session";
-import { presentCompetitionEntryParticipation, presentCompetitionEntryRegistration } from "@/lib/competition-entries/presentation";
-import { presentSeasonStatus } from "@/lib/seasons/presentation";
 
-// This dashboard is entirely viewer-specific and intentionally request-bound.
+// This page is entirely viewer-specific and intentionally request-bound.
 export const instant = false;
+
+function CompetitionGroup({ title, description, contexts }: { title: string; description: string; contexts: Awaited<ReturnType<typeof loadMyCompetitionContexts>> }) {
+  return <Section><SectionHeader title={title} description={description} />{contexts.length > 0 ? <div className="grid gap-4 xl:grid-cols-2">{contexts.map((context) => <MyCompetitionCard key={context.entryId} context={context} />)}</div> : <EmptyState title="暂无赛事记录" sub="报名、参赛确认和赛事名单是不同的事实；有记录后会在这里分别展示。" />}</Section>;
+}
 
 export default async function MyCompetitionsPage() {
   const session = await getUserSession();
   if (!session) redirect("/login?next=/my/competitions");
-  const rows = await db.selectDistinct({ id: competitionEntries.id, name: competitionEntries.name, status: competitionEntries.registrationStatus, source: competitionEntries.source, representativeUserId: competitionEntries.representativeUserId, seasonName: seasons.name, seasonSlug: seasons.slug, seasonStatus: seasons.status, participantStatus: competitionEntryParticipants.status, createdAt: competitionEntries.createdAt }).from(competitionEntries).innerJoin(seasons, eq(seasons.id, competitionEntries.competitionId)).leftJoin(competitionEntryParticipants, and(eq(competitionEntryParticipants.entryId, competitionEntries.id), eq(competitionEntryParticipants.userId, session.userId))).where(or(eq(competitionEntries.representativeUserId, session.userId), eq(competitionEntryParticipants.userId, session.userId))).orderBy(desc(competitionEntries.createdAt));
-  return (
-    <PageLayout as="div" variant="standard" className="space-y-8">
-      <PageHeader title="我的赛事" description="查看你负责或参与的赛事" actions={<Link className="text-sm text-[var(--color-accent)]" href="/my/teams">管理队伍 →</Link>} />
-      {rows.length === 0 ? <Panel contentClassName="p-6"><p className="text-sm text-[var(--color-fg-mid)]">你目前没有负责或参与的赛事。</p></Panel> : <div className="grid gap-4 sm:grid-cols-2">{rows.map((entry) => { const registration = presentCompetitionEntryRegistration(entry.status); const participant = presentCompetitionEntryParticipation(entry.participantStatus, entry.status); return <Link key={entry.id} href={`/${entry.seasonSlug}/register`}><Panel className="h-full transition-colors hover:border-[var(--color-border-hi)]" contentClassName="p-5"><div className="flex items-start justify-between gap-3"><div><p className="font-mono text-[10px] text-[var(--color-accent)]">赛事报名</p><h2 className="mt-1 text-lg font-semibold">{entry.name}</h2><p className="mt-1 text-sm text-[var(--color-fg-mid)]">{entry.seasonName}</p></div><span className="font-mono text-[10px]">{registration.label}</span></div><p className="mt-4 text-xs text-[var(--color-fg-mid)]">{entry.representativeUserId === session.userId ? "赛事负责人" : `成员状态 · ${participant.label}`} · 赛事 {presentSeasonStatus(entry.seasonStatus).label}</p></Panel></Link>; })}</div>}
-    </PageLayout>
-  );
+  const grouped = groupMyCompetitionContexts(await loadMyCompetitionContexts(session.userId));
+  return <div className="space-y-8"><PageHeader title="我的赛事" description="按赛季查看你负责或参与的赛事，以及当前报名、参赛确认和比赛状态。" /><CompetitionGroup title="当前参与" description="未结束赛季按赛季创建时间倒序展示。" contexts={grouped.current} /><CompetitionGroup title="历史赛事" description="已结束和已归档赛季按赛季创建时间倒序展示。" contexts={grouped.history} /></div>;
 }

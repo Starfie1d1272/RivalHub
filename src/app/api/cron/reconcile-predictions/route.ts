@@ -1,49 +1,16 @@
-import { asc, desc } from "drizzle-orm";
 import { NextResponse } from "next/server";
-import { db } from "@/db/client";
-import { predictionJobs } from "@/db/schema";
 import { validateCronAuth } from "@/lib/cron-auth";
 import { withRouteObservability } from "@/lib/observability/route";
-import { captureException } from "@/lib/observability/server";
-import {
-  lockPredictionProgram,
-  reconcilePredictionProgram,
-} from "@/lib/predictions/service";
+import { executeScheduledJob } from "@/lib/scheduler/execution";
+import { runPredictionReconciliationJob } from "@/lib/predictions/reconciliation";
+
 export async function GET(request: Request) {
-  return withRouteObservability(
-    request,
-    "/api/cron/reconcile-predictions",
-    async () => {
-      const denied = validateCronAuth(request);
-      if (denied) return denied;
-      // Oldest first includes clean jobs for clock-driven locks and stage grants.
-      const jobs = await db
-        .select()
-        .from(predictionJobs)
-        .orderBy(desc(predictionJobs.dirty), asc(predictionJobs.updatedAt))
-        .limit(10);
-      let completed = 0,
-        failed = 0;
-      for (const job of jobs) {
-        try {
-          await db.transaction(async (tx) => {
-            const program = await lockPredictionProgram(tx, job.seasonId);
-            await reconcilePredictionProgram(tx, program);
-          });
-          completed++;
-        } catch (e) {
-          failed++;
-          captureException("predictions.reconcile_failure", e, {
-            scope: "predictions",
-            operation: "reconcile",
-            retryable: true,
-          });
-        }
-      }
-      return NextResponse.json(
-        { ok: failed === 0, completed, failed },
-        { status: failed ? 503 : 200 },
-      );
-    },
-  );
+  return withRouteObservability(request, "/api/cron/reconcile-predictions", async () => {
+    const authError = validateCronAuth(request);
+    if (authError) return authError;
+    const result = await executeScheduledJob(request, "reconcile-predictions", runPredictionReconciliationJob);
+    if (result instanceof Response) return result;
+    if (result.skipped) return NextResponse.json({ ok: true, skipped: result.skipReason });
+    return NextResponse.json({ ok: true, ...result.result });
+  });
 }

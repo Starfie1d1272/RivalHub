@@ -56,8 +56,11 @@ export function presentTeamShareInvitation(
   return { state: "unavailable", title: "邀请已失效", sub: "这个邀请链接当前不可用。", canAccept: false };
 }
 
-export function getTeamDirectoryCta(currentTeam: boolean, pendingDirectInvitationCount: number): { href: string; label: string } {
-  if (currentTeam) return { href: "/my/teams", label: "管理我的队伍" };
+export type TeamViewerRole = "captain" | "member" | null;
+
+export function getTeamDirectoryCta(role: TeamViewerRole, pendingDirectInvitationCount: number): { href: string; label: string } {
+  if (role === "captain") return { href: "/my/teams", label: "管理我的队伍" };
+  if (role === "member") return { href: "/my/teams", label: "查看我的队伍" };
   if (pendingDirectInvitationCount > 0) return { href: "/my/teams", label: "处理队伍邀请" };
   return { href: "/my/teams#create-team", label: "创建队伍" };
 }

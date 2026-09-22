@@ -20,6 +20,8 @@ export interface RegistrationWindowState {
   canViewForm: boolean;
   canSaveDraft: boolean;
   canSubmit: boolean;
+  /** The scheduled opening is due, but the canonical fact is not materialized yet. */
+  needsOpeningRecovery: boolean;
   message: string;
 }
 
@@ -66,6 +68,7 @@ export function getRegistrationWindowState(
       canViewForm: false,
       canSaveDraft: false,
       canSubmit: false,
+      needsOpeningRecovery: false,
       message: "报名通道当前不可用。",
     };
   }
@@ -81,6 +84,7 @@ export function getRegistrationWindowState(
       canViewForm: true,
       canSaveDraft: false,
       canSubmit: false,
+      needsOpeningRecovery: false,
       message: "报名开放时间待定。",
     };
   }
@@ -91,6 +95,7 @@ export function getRegistrationWindowState(
       canViewForm: true,
       canSaveDraft: false,
       canSubmit: false,
+      needsOpeningRecovery: false,
       message: "报名提交已截止。",
     };
   }
@@ -101,6 +106,7 @@ export function getRegistrationWindowState(
       canViewForm: true,
       canSaveDraft: false,
       canSubmit: false,
+      needsOpeningRecovery: false,
       message: "报名尚未开放。",
     };
   }
@@ -111,7 +117,8 @@ export function getRegistrationWindowState(
       canViewForm: true,
       canSaveDraft: false,
       canSubmit: false,
-      message: "报名开放正在确认中，请稍后刷新。",
+      needsOpeningRecovery: true,
+      message: "报名正在开放，请稍候…",
     };
   }
 
@@ -120,6 +127,7 @@ export function getRegistrationWindowState(
     canViewForm: true,
     canSaveDraft: true,
     canSubmit: true,
+    needsOpeningRecovery: false,
     message: "报名提交已开放。",
   };
 }

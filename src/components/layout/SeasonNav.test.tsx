@@ -25,7 +25,7 @@ describe("SeasonNav", () => {
     );
 
     expect(screen.getAllByRole("link").map((link) => link.textContent)).toEqual([
-      "首页",
+      "赛事首页",
       "报名",
       "队长投票",
       "选秀",
@@ -51,9 +51,9 @@ describe("SeasonNav", () => {
     );
 
     expect(screen.getAllByRole("link").map((link) => link.textContent)).toEqual([
-      "首页",
-      "队长投票结果",
-      "选秀回顾",
+      "赛事首页",
+      "队长投票",
+      "选秀",
       "队伍",
       "选手",
       "赛程",

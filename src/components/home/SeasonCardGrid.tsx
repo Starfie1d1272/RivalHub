@@ -1,7 +1,7 @@
 import React from "react";
 import Link from "next/link";
 import type { SeasonStatus } from "@/types/season";
-import { presentRegistrationSchedule, presentSeasonParticipationState } from "@/lib/seasons/presentation";
+import { presentRegistrationSchedule, presentSeasonKind, presentSeasonParticipationState } from "@/lib/seasons/presentation";
 import { Marker, Panel, StatusPill } from "@/components/rivalhub";
 
 interface SeasonCard {
@@ -57,7 +57,7 @@ export function SeasonCardGrid({
                     color: "var(--color-fg-dim)",
                   }}
                 >
-                  {season.kind}
+                  {presentSeasonKind(season.kind)}
                 </span>
               </div>
               <div

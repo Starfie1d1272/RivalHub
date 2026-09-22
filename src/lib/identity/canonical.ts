@@ -4,6 +4,7 @@ import { and, eq, or, sql } from "drizzle-orm";
 import type { DB, TxDb } from "@/db/client";
 import { userIdentities, users } from "@/db/schema";
 import { AppError, ErrorCode } from "@/lib/errors";
+import { identityAppError } from "@/lib/identity/errors";
 import { normalizeEmail } from "@/lib/utils/email";
 
 type IdentityQueryable = Pick<DB, "select">;
@@ -84,7 +85,7 @@ export async function resolveOrCreateCanonicalUserInTx(
       emailVerificationSource: input.source,
     }).returning();
   }
-  if (!user) throw new AppError(ErrorCode.UNAUTHORIZED, "该 credential 尚未绑定 RivalHub 用户。");
+  if (!user) throw identityAppError(ErrorCode.UNAUTHORIZED, "loginMethodNotBound");
 
   const primaryEmail = normalizeEmail(user.email);
   const isPrimaryEmail = primaryEmail === email;
@@ -148,7 +149,7 @@ export async function upsertActiveIdentityInTx(
   )).for("update");
   const owners = new Set(matches.map((row) => row.userId));
   if (owners.size > 0 && (!owners.has(input.userId) || owners.size > 1)) {
-    throw new AppError(ErrorCode.VALIDATION_FAILED, "该 credential 已属于另一个 RivalHub 用户，需要先完成重复账号归并。");
+    throw identityAppError(ErrorCode.VALIDATION_FAILED, "loginMethodAlreadyBound");
   }
   if (matches.length === 0) {
     await tx.insert(userIdentities).values(input);

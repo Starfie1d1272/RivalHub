@@ -2,12 +2,21 @@
 
 import React, { type ReactNode } from "react";
 import { PaginationControls, useListQueryParams } from "@/components/rivalhub";
-import { ADMIN_USERS_DEFAULTS } from "@/lib/admin/users-contract";
-import { UserSearchBar, type UserFilter } from "./UserSearchBar";
+import {
+  ADMIN_USERS_DEFAULTS,
+  type AdminUserActivityFilter,
+  type AdminUserEducationFilter,
+  type AdminUserTeamFilter,
+  type AdminUserParticipationFilter,
+} from "@/lib/admin/users-contract";
+import { UserSearchBar } from "./UserSearchBar";
 
 interface AdminUsersListWorkspaceProps {
   children: ReactNode;
-  filter: UserFilter;
+  filter: AdminUserParticipationFilter;
+  education: AdminUserEducationFilter;
+  team: AdminUserTeamFilter;
+  activity: AdminUserActivityFilter;
   page: number;
   totalPages: number;
 }
@@ -15,6 +24,9 @@ interface AdminUsersListWorkspaceProps {
 export function AdminUsersListWorkspace({
   children,
   filter,
+  education,
+  team,
+  activity,
   page,
   totalPages,
 }: AdminUsersListWorkspaceProps) {
@@ -25,7 +37,7 @@ export function AdminUsersListWorkspace({
 
   return (
     <>
-      <UserSearchBar filter={filter} searchParams={searchParams} update={update} />
+      <UserSearchBar filter={filter} education={education} team={team} activity={activity} searchParams={searchParams} update={update} />
       {children}
       <PaginationControls
         page={page}

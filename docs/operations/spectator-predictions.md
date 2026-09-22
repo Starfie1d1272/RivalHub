@@ -6,8 +6,8 @@
 
 暂停只停止新提交和投入。阶段作废是不可逆的管理操作，需要具体理由；既有提交留档、成绩挑战失效，启用的参与奖励冲正。比赛取消、弃权与更正通过官方比赛管理 owner 操作，不能直接编辑预测账本。弃权按正式胜者；取消、对手替换和单边池退款。
 
-`/api/cron/reconcile-predictions` 使用现有 Cron 鉴权。调度器按事件分批处理持久任务，失败返回非成功状态并记录可重试错误；官方操作无需等待结算完成。完成前 `prediction_jobs.dirty` 保持为真。排查时比对官方比赛、轮次确认、阶段最终确认与 prediction settlement/ledger 历史；禁止手动改余额或删除流水。修复原因后重新运行同一 owner，幂等重试不会重复发放。
+`/api/cron/reconcile-predictions` 使用现有 Cron 鉴权与统一 scheduler registry/execution/health，Supabase primary、GitHub watchdog 和管理员恢复共享同一个 runner。调度器按事件分批处理持久任务，失败返回非成功状态并记录可重试错误；官方操作无需等待结算完成。完成前 `prediction_jobs.dirty` 保持为真。排查时比对官方比赛、轮次确认、阶段最终确认与 prediction settlement/ledger 历史；禁止手动改余额或删除流水。修复原因后重新运行同一 owner，幂等重试不会重复发放。
 
 改判后已使用的返还形成待抵扣差额，可用余额为零；合法补给、退款及新结算优先抵扣。未结算投入不进入净收益榜。纪念币重算不触发积分奖励。
 
-本地验证使用 `pnpm test:integration -- tests/integration/db/predictions.test.ts` 和 `pnpm test:e2e -- tests/e2e/flows/predictions.spec.ts`；只能通过 active Drizzle migration chain 初始化测试库。发布按通用 release runbook 执行，功能部署后仍需管理员明确开放各届项目和窗口。
+本地验证使用 `pnpm test:integration -- tests/integration/db/predictions.test.ts` 和 `pnpm test:e2e -- tests/e2e/flows/predictions.spec.ts`；需要真实服务时显式设置 `RIVALHUB_ALLOW_LOCAL_CONTAINERS=1`，只能通过 active Drizzle migration chain 初始化隔离测试库。发布按通用 release runbook 执行，功能部署后仍需管理员明确开放各届项目和窗口。

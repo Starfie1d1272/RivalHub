@@ -6,7 +6,7 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { competitionEntries } from "@/db/schema";
 import { CaptainDraftPanel } from "@/components/draft/CaptainDraftPanel";
-import { Panel } from "@/components/rivalhub";
+import { PageLayout, Panel } from "@/components/rivalhub";
 import { Button } from "@/components/ui/button";
 import { getUserSession } from "@/lib/auth/session";
 import { getCaptainDraftData, type DraftTeamSlot } from "@/lib/draft/data";
@@ -94,7 +94,7 @@ export default async function DraftCaptainPage({ params }: DraftCaptainPageProps
   const positionCounts = computePositionCounts(captainTeamSlot);
 
   return (
-    <main className="container mx-auto max-w-5xl px-4 py-10">
+    <PageLayout variant="standard">
       <div className="mb-8">
         <h1 className="text-3xl font-bold">队长选人 · {season.name}</h1>
         <p className="mt-2 text-sm text-[var(--color-fg-mid)]">
@@ -119,7 +119,7 @@ export default async function DraftCaptainPage({ params }: DraftCaptainPageProps
         rosterMembers={captainTeamSlot?.members ?? []}
         captainPosition={captainTeamSlot?.captain.primaryPosition ?? "未知"}
       />
-    </main>
+    </PageLayout>
   );
 }
 
@@ -135,7 +135,7 @@ function UnavailablePanel({
   action?: string;
 }) {
   return (
-    <main className="container mx-auto max-w-4xl px-4 py-10">
+    <PageLayout variant="standard">
       <Panel contentClassName="p-8">
         <h1 className="text-2xl font-bold">{title}</h1>
         <p className="mt-2 text-sm text-[var(--color-fg-mid)]">{message}</p>
@@ -145,7 +145,7 @@ function UnavailablePanel({
           </Button>
         )}
       </Panel>
-    </main>
+    </PageLayout>
   );
 }
 

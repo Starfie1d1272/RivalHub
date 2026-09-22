@@ -1,0 +1,270 @@
+# Disaster recovery
+
+本页是 RivalHub production 数据恢复的 canonical runbook。代码 owner 位于 [`scripts/db/recovery/`](../../scripts/db/recovery/)，本页只规定边界、证据和操作顺序，不保存 PII、signed URL、object key 明文、secret 或 private key。
+
+## 目标与当前边界
+
+RivalHub 使用 Recovery format 2 的 typed recovery artifact：full artifact 将 production Supabase 数据库与真实 Storage objects 绑定到同一个 run identity；DB-only checkpoint 只捕获 logical database。runner 在临时目录生成明文、计算 checksum、压缩后用 age 公钥加密，最后只上传 private Cloudflare R2 中的 encrypted artifact、sidecar manifest 和 completion marker。`producer` 是生成工具的 code/package identity；`source` 是备份时 production 实际部署的 release/commit 与 database migration terminal；两者可以不同。
+
+数据恢复目标与窗口定义如下：
+
+- **RPO**：正常情况下日常定时备份保障 RPO ≤ 24h；关键比赛日或高价值操作前后，可按需手动触发 manual backup。Release 不再机械触发 full backup：只有 Release Plan 识别到 release-time Storage mutation capability（发布过程将不可逆修改既有 Production Storage object）时才创建 full checkpoint，识别到不可逆数据库变更时创建 DB-only checkpoint。
+- **RTO**：在第一次真实 production snapshot → isolated restore drill 完成前，achievable RTO 保持为 `unverified`，待首次演练测定后记录真实基线。
+
+数据库 dump 与 Storage inventory/download 是顺序操作，不是跨系统原子快照；`createdAt` 是 run identity，不代表严格 point-in-time。backup 在 database dump 前由 [`storage-policy.ts`](../../scripts/db/recovery/storage-policy.ts) 读取 managed references，Storage snapshot 完成后再次读取；两次 reference set 必须 exact equal，且第一组 references 必须全部出现在同一份 Storage inventory 中，否则整个 run fail closed。
+
+## Owner 与 artifact
+
+| Owner | 作用 |
+| --- | --- |
+| `.github/workflows/recovery-backup.yml` | 每日低峰（00:15 UTC）定时执行，并支持受保护的 manual dispatch |
+| `.github/workflows/release.yml` | 消费 Release Plan，并按 mutation/risk 条件编排 checkpoint、migration、deploy 与 scheduler |
+| `scripts/db/recovery/backup.ts` | 唯一 logical backup、Storage snapshot、age、R2 PUT/HEAD/GET read-back owner |
+| `scripts/db/recovery/checkpoint.ts` | 不读取 Storage 的 DB-only release checkpoint owner |
+| `scripts/db/recovery/artifact.ts` | backup 与 checkpoint 共用的 manifest、age、R2 PUT/HEAD/GET read-back owner |
+| `scripts/db/recovery/storage-policy.ts` | Storage recovery policy 与 managed DB reference owner |
+| `scripts/db/recovery/r2-config.ts` | R2 lifecycle、bucket lock、private-access provider contract owner |
+| `scripts/db/recovery/fetch.ts` | offline R2 completion → sidecar → artifact fetch owner，代码路径严格只读，不解密、不连接数据库 |
+| `scripts/db/recovery/restore.ts` | 仅允许 isolated target 的解密与恢复入口 |
+| `scripts/db/recovery/verify.ts` | terminal migration、critical tables、constraints、FK 与 5 项核心业务 invariant verifier |
+| `scripts/db/recovery/lifecycle.ts` | isolated restore 后复用应用 scheduler 的 education retention algorithm |
+
+artifact 逻辑内容为：
+
+```text
+# full artifact
+backup/
+├── roles.sql
+├── schema.sql
+├── data.sql
+├── storage/
+│   ├── buckets.json
+│   ├── index.ndjson
+│   └── objects/*.bin
+└── manifest.json
+
+# db-checkpoint artifact
+backup/
+├── roles.sql
+├── schema.sql
+├── data.sql
+└── manifest.json
+```
+
+`manifest.json` 包含 format version、UTC 时间、固定 production project identity、PostgreSQL/Supabase CLI identity、`artifactKind`、SQL digest、以及 full artifact 的 Storage count/bytes/inventory digest 和 backup class。Release Plan 的 `scripts/release/release-time-capabilities.json` 单独声明发布过程是否具备 release-time Storage mutation capability；业务源码路径不会改变 artifact kind。Storage private object key 只存在于 encrypted full artifact 的 `index.ndjson`，不进入 CI summary、Issue 或 PR。
+
+DB-only release checkpoint 使用 `artifactKind=db-checkpoint` 与 `backupClass=release-db`，只包含 logical database dump、manifest/checksum、encrypted artifact、sidecar 与 completion marker；artifact 中没有 Storage snapshot，也不连接 Supabase Storage。`db:recovery:restore` 只接受 `artifactKind=full`，DB-only 产物必须使用显式的 `db:recovery:restore-db-checkpoint` 数据库恢复/验证 contract，不能把“未采集 Storage”伪装成空 Storage snapshot。`daily`、`manual` 和按需 `pre-release` artifact 才包含真实 Storage inventory/object copy，并使用 `artifactKind=full`。
+
+## Storage policy 与 retention 语义
+
+Storage inventory 只接受 `STANDARD` bucket，并且每个 bucket 必须命中以下 registry；缺失 type、unsupported type 或未知 bucket 一律 fail closed：
+
+| Bucket | Recovery class | Restore mode | 语义 |
+| --- | --- | --- | --- |
+| `team-logos` | `durable` | `always` | 作为长期业务资产恢复 |
+| `season-public-assets` | `durable` | `always` | 公开赛事运营图片（当前为群二维码）作为长期业务资产恢复 |
+| `education-evidence` | `temporary-sensitive` | `active-reference-only` | 只恢复恢复后数据库仍 active reference 的 object |
+
+`education-evidence` 的 active business copy 仍由应用 canonical retention policy 管理：审核完成后 7 天清理，顺序是先删 Storage object、再清空数据库 reference。private encrypted DR copy 统一按 `production/` 的 30 天 retention 保留；这只是灾备证据窗口，不延长 active business copy 的生命周期。恢复时，snapshot 中已过期或已不再是 active reference 的 evidence 永远不会重新上传或重新激活，只在安全 summary 中计数。
+
+backup 不直接写 education-specific SQL。所有 managed references 必须经过 policy owner；未来新增 bucket 先新增 registry、reference owner 和正反例测试，再允许进入 snapshot/restore。
+
+## Provider 配置与凭据
+
+GitHub `production` job 读取以下名称；值不得写入仓库、Issue、PR、CI summary 或日志：
+
+| 名称 | 类型 | 用途 |
+| --- | --- | --- |
+| `DATABASE_URL` | secret | production runtime/migration 使用的 Transaction Pooler URL（`:6543 / pgbouncer=true`） |
+| `RIVALHUB_PRODUCTION_BACKUP_DATABASE_URL` | secret，可选 | 经过固定 project/host 校验的 Session Pooler（`:5432`）backup connection；缺省从 `DATABASE_URL` 派生 |
+| `SUPABASE_SECRET_KEY` | secret | backup 的 canonical Supabase API credential；脚本只执行受控 dump/Storage read |
+| `SUPABASE_SERVICE_ROLE_KEY` | secret，legacy fallback，可选 | 只兼容已有配置；新 recovery 配置不要求创建，不能借此扩大全仓库 migration |
+| `RIVALHUB_BACKUP_AGE_RECIPIENT` | environment variable | backup runner 只能使用的 age 公钥 |
+| `RIVALHUB_PRODUCTION_BASE_URL` | environment variable | canonical production HTTPS origin 与 release identity read-back |
+| `RIVALHUB_R2_ACCOUNT_ID` / `RIVALHUB_R2_BUCKET` | environment variables | private recovery bucket identity |
+| `RIVALHUB_R2_ACCESS_KEY_ID` / `RIVALHUB_R2_SECRET_ACCESS_KEY` | secrets | 标准 R2 S3 API credentials，用于 backup 写入核验及 fetch 离线拉取 |
+| `CLOUDFLARE_API_TOKEN` | secret | 仅 R2 retention workflow 的 provider read/apply |
+| `VERCEL_TOKEN` | secret | project-scoped deploy credential，仅 release deploy |
+
+这次 hardening 不进行 PostgreSQL TLS 设置迁移，也不进行 `service_role` 全仓库改名或权限扩大；现有 backup connection 的 TLS 行为保持其既有 owner。`db:recovery:fetch` 复用标准 R2 credential（`RIVALHUB_R2_ACCESS_KEY_ID`、`RIVALHUB_R2_SECRET_ACCESS_KEY`、`RIVALHUB_R2_ACCOUNT_ID`、`RIVALHUB_R2_BUCKET`），在完全隔离的环境中抓取加密备份产物；脚本仅暴露 `head` 与 `download` 只读接口。
+
+age private key 只保存在离线 recovery kit/password manager。它不能进入 GitHub Environment、仓库或 R2；只在本地 isolated restore 时短暂提供给 `restore.ts`。
+
+### Vercel Trusted Source（owner-only）
+
+首次受保护 release 前，Vercel owner 必须在 `Settings → Deployment Protection → Trusted Sources → External Services → Add → GitHub Actions` 建立 Trusted Source。引导字段为：
+
+| Dashboard field | Value |
+| --- | --- |
+| GitHub account | `Starfie1d1272` |
+| Repository | `RivalHub` |
+| Branch | 留空（release 使用版本 tag） |
+| GitHub Actions environment | `production` |
+| Audience | `https://github.com/Starfie1d1272` |
+| Applies to environments | `Production` |
+
+issuer 固定为 `https://token.actions.githubusercontent.com`。切换 `Edit raw claims`，加入以下 exact values：
+
+| Raw claim | Exact value |
+| --- | --- |
+| `aud` | `https://github.com/Starfie1d1272` |
+| `repository` | `Starfie1d1272/RivalHub` |
+| `repository_id` | `1231811932` |
+| `workflow` | `Release` |
+| `environment` | `production` |
+| `sub` | `repo:Starfie1d1272/RivalHub:environment:production` |
+| `event_name` | `push`, `workflow_dispatch` |
+
+不填写 `ref` 或 `workflow_ref`，因为版本 tag 与手动 dispatch ref 都是变量；代码只能申请短期 OIDC token，不能代替 owner Dashboard 配置。
+
+## R2 retention contract
+
+首次配置或变更时，在 production Environment approval 下运行 `.github/workflows/recovery-r2.yml` 的 `apply`；日常/变更后运行 `verify` 做 provider read-back。脚本先验证 Cloudflare GET shape 与私有访问属性，再核验 30 天生命周期与锁定规则。
+
+Cloudflare 默认的 `Default Multipart Abort Rule` 只清理 incomplete multipart upload，不等同于 completed-object deletion，不会被误判为冲突。所有生产恢复产物统一使用单一规则：
+
+| Rule ID | Prefix | Retention | Bucket lock |
+| --- | --- | ---: | ---: |
+| `rivalhub-production-30d` / `rivalhub-production-lock` | `production/` | 30d | 30d |
+
+所有 `daily`、`pre-release`、`manual`、`release-db` 产物均归属于 `production/` 前缀，30 天内由 Cloudflare R2 bucket lock 保护不可被覆盖或删除，30 天后由 lifecycle 规则自动清理。字段与 API payload 以 [Cloudflare R2 Lifecycle API](https://developers.cloudflare.com/api/resources/r2/subresources/buckets/subresources/lifecycle/)、[Object lifecycles](https://developers.cloudflare.com/r2/buckets/object-lifecycles/) 和 [Bucket Lock API](https://developers.cloudflare.com/api/resources/r2/subresources/buckets/subresources/locks/) 为准。
+
+`recovery-backup.yml` 与 release workflow 中真正执行 production migration/scheduler mutation 的 job 共享 `rivalhub-production-state-serialization` concurrency group（`queue: max`、`cancel-in-progress: false`），确保 backup dump 与 production state mutation 不发生竞态。Release workflow 使用独立的 `rivalhub-release-lineage` workflow-level group，让 release 与 release 保持 lineage 串行；只有 `production_migration`，以及 `requiresSchedulerProvision=true` 时的 `finalize` job，进入 production-state serialization，因此 application-only release 不因 daily backup 的 lock 排队。candidate build、PG17 rehearsal 和 checkpoint 也不持有该 backup lock。`.github/workflows/recovery-r2.yml` 属于独立的 provider 对象策略管理工作流，不参与生产数据库状态排队。
+
+## Backup 命令与失败语义
+
+普通本地 shell 不应运行 production backup。受保护 workflow 调用：
+
+```bash
+pnpm db:recovery:backup daily
+pnpm db:recovery:backup manual
+pnpm db:recovery:backup pre-release
+pnpm db:recovery:checkpoint
+```
+
+`db:recovery:backup` 必须通过 production target/project/host/URL、Session Pooler、Supabase key、age recipient 与 R2 writer 校验；`db:recovery:checkpoint` 只通过 production database、age recipient 与 R2 writer 校验。两者都不要求 remote DB write authorization，也不执行 application mutation。任何 database dump、policy-owned reference read、full artifact 的 Storage snapshot、加密、R2 PUT/HEAD/real GET/hash read-back 失败，整个 run 失败且不得产生可信 completion 状态；DB-only checkpoint 不读取 Storage，workflow 不上传明文 Actions artifact。
+
+`pnpm db:recovery:checkpoint` 是不可逆 migration 的 DB-only gate：它只要求 database、age recipient 与 R2 credentials，不要求 Supabase Storage secret；完成 marker 出现前，Release 不得执行 production mutation。普通 application-only、forward-compatible migration 或仅 Vercel/release infra 的发布不自动执行上述 backup/checkpoint。
+
+## Offline read-only fetch
+
+在离线取证或准备演练的机器上，设置标准 R2 凭据并指定输出目录：
+
+```bash
+export RIVALHUB_R2_ACCOUNT_ID='...'
+export RIVALHUB_R2_BUCKET='rivalhub-recovery'
+export RIVALHUB_R2_ACCESS_KEY_ID='...'
+export RIVALHUB_R2_SECRET_ACCESS_KEY='...'
+
+pnpm db:recovery:fetch \
+  --completion-key production/manual/YYYY-MM-DD/<run-uuid>.complete.json \
+  --output /private/path/new-recovery-run
+```
+
+fetch 固定按 completion → sidecar → encrypted artifact 顺序执行 HEAD/真实 GET 与 checksum 验证，核对 run identity、artifact size/hash 和 sidecar/completion relationship；只把三个已验证文件放进一个全新的 `0700` 目录，拒绝覆盖已存在目录。它严格只执行 HEAD/GET 下载，不连接 PostgreSQL/Supabase，不调用 Cloudflare configuration API，不执行 PUT，不读取 age private key，也不在 fetch 阶段解密 artifact。
+
+## Recovery format baseline
+
+当前 Recovery format 固定为版本 2（`RECOVERY_FORMAT_VERSION = 2`）。解析器直接校验 format version 相符性，不支持未知版本。
+
+## Isolated restore
+
+普通 restore 只接受显式 isolated loopback target；代码没有 production destructive restore command。最小环境如下：
+
+```bash
+export RIVALHUB_RECOVERY_TARGET=isolated
+export RIVALHUB_RECOVERY_DATABASE_URL='postgresql://...@127.0.0.1:.../postgres'
+export RIVALHUB_RECOVERY_SUPABASE_URL='http://127.0.0.1:54321'
+export RIVALHUB_RECOVERY_PUBLISHABLE_KEY='...'
+export RIVALHUB_RECOVERY_SERVICE_ROLE_KEY='...'
+export RIVALHUB_BACKUP_AGE_IDENTITY_FILE='/private/path/recovery-identity.txt'
+unset RIVALHUB_ALLOW_REMOTE_DB_WRITE
+```
+
+full restore 必须运行在 exact shipped tag 的兼容 application release；它按 snapshot 的 migration terminal 截取 active prefix，不自动推进 fresh target，也不 downgrade 既有 ledger。目标已有 application/Auth/Storage rows 或 Drizzle migrations 时拒绝继续，必须换 disposable target。DB-only restore 同样要求 exact shipped tag 与 fresh isolated PostgreSQL target，但不要求 Supabase API/Storage credentials。
+
+```bash
+pnpm db:recovery:restore \
+  --artifact /private/path/new-recovery-run/artifact.tar.gz.age \
+  --manifest /private/path/new-recovery-run/sidecar.json \
+  --completion /private/path/new-recovery-run/completion.json
+```
+
+上面的 `db:recovery:restore` 是 full recovery restore，只接受 `artifactKind=full`，要求 isolated Supabase API/Storage target。DB-only checkpoint 使用下面的显式入口；它只接受 `artifactKind=db-checkpoint`，只要求 isolated PostgreSQL target，不读取或写入 Supabase Storage：
+
+```bash
+pnpm db:recovery:restore-db-checkpoint \
+  --artifact /private/path/new-recovery-run/artifact.tar.gz.age \
+  --manifest /private/path/new-recovery-run/sidecar.json \
+  --completion /private/path/new-recovery-run/completion.json
+```
+
+顺序固定为：
+
+```text
+sidecar/completion/artifact checksum
+→ age decrypt + safe archive inspection
+→ format/source identity + compatible shipped release
+→ fresh target empty check + exact migration prefix
+→ DB data restore + migration/constraint/FK/domain/identity verification
+→ canonical education retention reconciliation
+→ policy-driven Storage bucket/object restore + per-object read-back
+→ final DB/domain/privacy verification + application smoke
+```
+
+DB-only restore 使用独立的简化顺序：
+
+```text
+sidecar/completion/artifact checksum
+→ age decrypt + safe archive inspection（拒绝任何 Storage snapshot）
+→ artifactKind=db-checkpoint + compatible shipped release
+→ fresh PostgreSQL target empty check + exact migration prefix
+→ DB data restore + database integrity/domain verification
+→ explicit DB-only verification summary（Storage=not-captured）
+```
+
+`roles.sql` 只作审查证据，不由普通 isolated command 自动回放；`schema.sql` 也不是 replay input，目标 schema 由 active migration prefix 重建。恢复后的 active business copy 继续遵守 7 天 policy；旧 snapshot 中过期或失去 active reference 的 temporary-sensitive evidence 不重新激活。
+
+隔离恢复期间 scheduler 保持 disabled/not provisioned，不复制 Vault/root encryption/provider secret，也不 dispatch production endpoint。应用 smoke 只使用与 snapshot terminal 兼容的 shipped code 和 isolated URL，至少覆盖 public read-model 与受控 admin/session 代表路径；scheduler 只有在 DB/domain/privacy、Storage 和 config presence 证据齐全后，才由现有 protected owner 最后 provision/verify。
+
+Verifier 分为两层：
+1. **通用数据库完整性**：检查 terminal migration、critical tables 存在性、PG constraint 校验状态，并通过通用外键校验器扫描所有孤立外键行。
+2. **核心业务 Invariants**：检查 5 项数据库约束无法完全覆盖的跨域一致性事实：
+   - `auth.active_users_auth_id_mapping`：active 用户必须映射至有效的 auth.users；
+   - `identity.merged_target_invalid`：merged 用户必须指向合法的 active canonical 用户；
+   - `entry.roster_member_scope`：报名成员必须在同一队伍参赛申请范围内；
+   - `match.major_ownership_shape`：阶段比赛归属与 managed key 形状一致性；
+   - `education.expired_sensitive_evidence`：已过期的敏感凭证不作为有效事实复活。
+
+`SELECT 1`、首页 HTTP 200 或 `auth.users` 与 `public.users` 数量相等都不能单独作为 restore success。
+
+## Cold-start provider configuration inventory
+
+真实恢复 acceptance 还必须人工 read back 下列 provider/config presence；只记录存在性、owner、版本/plan、capability 和 retention，不记录 secret value、用户数据或下载内容：
+
+| System | Cold-start inventory |
+| --- | --- |
+| Supabase | project/plan；physical backup/PITR capability 与 retention；Auth settings/API keys；Realtime settings；required DB extensions/settings；Storage bucket/config；Edge Functions/triggers/policies |
+| Cloudflare R2 | account/bucket identity；30d lifecycle/lock；managed/custom domain disabled；标准 S3 credentials presence |
+| Vercel | project/Production target；Trusted Source issuer/audience/claims；deployment protection remains enabled |
+| GitHub | `production` Environment；required secrets/vars presence；OIDC `id-token: write`；release/recovery workflow permissions；`rivalhub-release-lineage` 与 `rivalhub-production-state-serialization` concurrency groups |
+| Scheduler | pg_cron/pg_net capability；named schedules；Vault secret names；provision/verify owner |
+
+Supabase database backup 不包含 Storage objects；clone/restore 还需人工重建上述 Storage/Auth/Realtime/extension/provider 配置。没有 provider read-back 时，不能把 automatic backup、PITR、scheduler 或 cutover 写成已可用；R2 logical snapshot 也不能代替 provider physical backup。
+
+## Rehearsal 与关闭条件
+
+Issue 只有在以下真实 evidence 全部完成后才允许关闭：
+
+```text
+production encrypted backup
+→ private R2 artifact/sidecar/completion PUT + HEAD + real GET/hash read-back
+→ offline fetch (使用标准 R2 凭证，只读路径)
+→ 离线 private key 解密
+→ disposable isolated target restore/verify
+→ policy-driven Storage restore、retention/privacy verification
+→ compatible shipped code public/admin smoke
+→ measured RPO/RTO 与 target gap
+```
+
+记录安全摘要即可：run identity、snapshot/restore 时间、migration terminal、producer/source identity、DB/object count/bytes、verification、RPO/RTO、isolated target cleanup。不得把 raw dump、PII、教育 evidence、object key 明文、secret 或 private key 作为 Issue/PR evidence。Production destructive restore、provider cutover 和 incident freeze 仍须另建 emergency approval path；普通 `db:recovery:*` 命令永远不承担这些写操作。

@@ -1,10 +1,11 @@
 "use server";
 
+import { writeAuditInTx } from "@/lib/audit/write";
+
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
-  auditLogs,
-  matchRosterPlayers,
+    matchRosterPlayers,
   matchRosters,
   seasons,
 } from "@/db/schema";
@@ -72,13 +73,11 @@ export async function submitMatchRoster(
         substituteIds,
       });
 
-      await tx.insert(auditLogs).values({
+      await writeAuditInTx(tx, {
         seasonId: locked.seasonId,
         action: "match.roster.submit",
         actorId,
-        targetId: summary.rosterId,
-        targetType: "match_roster",
-        meta: { matchId, entryId, source: "participant", starterIds, substituteIds },
+        targetId: summary.rosterId,meta: { matchId, entryId, source: "participant", starterIds, substituteIds },
       });
 
       return summary.rosterId;
@@ -133,13 +132,11 @@ export async function adminSelectMatchRoster(
         substituteIds,
       });
 
-      await tx.insert(auditLogs).values({
+      await writeAuditInTx(tx, {
         seasonId: locked.seasonId,
         action: "match.roster.admin_select",
         actorId,
-        targetId: summary.rosterId,
-        targetType: "match_roster",
-        meta: {
+        targetId: summary.rosterId,meta: {
           matchId,
           entryId,
           source: "admin_select",
@@ -224,13 +221,11 @@ export async function unlockMatchRoster(
         .set({ status: "submitted", confirmedAt: null, confirmedBy: null, updatedAt: new Date() })
         .where(eq(matchRosters.id, rosterId));
 
-      await tx.insert(auditLogs).values({
+      await writeAuditInTx(tx, {
         seasonId: locked.seasonId,
         action: "match.roster.unlock",
         actorId,
-        targetId: rosterId,
-        targetType: "match_roster",
-        meta: { matchId: roster.matchId, entryId: roster.entryId },
+        targetId: rosterId,meta: { matchId: roster.matchId, entryId: roster.entryId },
       });
     });
 

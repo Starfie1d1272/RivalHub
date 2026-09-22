@@ -6,6 +6,7 @@ import { competitionEntries, eventRosterMembers } from "./competition-entries";
 
 export const matchRosterSourceEnum = pgEnum("match_roster_source", ["participant", "admin_select"]);
 export const matchRosterStatusEnum = pgEnum("match_roster_status", ["submitted", "confirmed"]);
+export type MatchRosterStatus = (typeof matchRosterStatusEnum.enumValues)[number];
 
 export const matchRosters = pgTable("match_rosters", {
   id: uuid("id").defaultRandom().primaryKey(),

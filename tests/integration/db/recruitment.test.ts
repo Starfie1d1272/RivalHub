@@ -5,8 +5,9 @@ import { describe, expect, it } from "vitest";
 import * as schema from "../../../src/db/schema";
 import { loadCompetitivePlatformCatalog } from "../../../src/lib/competitive/catalog";
 import { acceptTeamInvitationInTx } from "../../../src/lib/teams/invitations";
+import { inviteTeamMemberInTx } from "../../../src/lib/teams/commands";
 import { closeTeamRecruitmentInTx, expressRecruitmentInterestInTx, upsertPlayerLftInTx, upsertTeamRecruitmentInTx } from "../../../src/lib/recruitment/commands";
-import { getPublicTeamRecruitment, getRecruitmentLobbyData, getTeamRecruitmentWorkspace } from "../../../src/lib/recruitment/data";
+import { getPublicPlayerLft, getPublicTeamRecruitment, getRecruitmentLobbyData, getTeamRecruitmentWorkspace } from "../../../src/lib/recruitment/data";
 import { ErrorCode } from "../../../src/lib/errors";
 import { localDatabaseUrl } from "./harness/database";
 
@@ -28,7 +29,7 @@ describe("recruitment PostgreSQL invariants", () => {
     const ids = { captain: randomUUID(), interested: randomUUID(), member: randomUUID(), contender: randomUUID(), invitee: randomUUID(), targetUnknown: randomUUID(), team: randomUUID(), invitation: randomUUID(), draftSeason: randomUUID(), registrationSeason: randomUUID(), replacementSeason: randomUUID(), votingSeason: randomUUID() };
     try {
       await pool.query("BEGIN");
-      await pool.query("INSERT INTO users (id, email, display_name) VALUES ($1, $2, 'Captain'), ($3, $4, 'Interested'), ($5, $6, 'Member'), ($7, $8, 'Contender'), ($9, $10, 'Invitee'), ($11, $12, 'Target Unknown')", [
+      await pool.query("INSERT INTO users (id, email, display_name, qq) VALUES ($1, $2, 'Captain', NULL), ($3, $4, 'Interested', '200001'), ($5, $6, 'Member', '200002'), ($7, $8, 'Contender', NULL), ($9, $10, 'Invitee', NULL), ($11, $12, 'Target Unknown', NULL)", [
         ids.captain, `recruitment-captain-${ids.captain}@local.test`, ids.interested, `recruitment-interested-${ids.interested}@local.test`, ids.member, `recruitment-member-${ids.member}@local.test`, ids.contender, `recruitment-contender-${ids.contender}@local.test`, ids.invitee, `recruitment-invitee-${ids.invitee}@local.test`, ids.targetUnknown, `recruitment-target-unknown-${ids.targetUnknown}@local.test`,
       ]);
       await pool.query("INSERT INTO teams (id, slug, name, creator_user_id, captain_user_id) VALUES ($1, $2, 'Recruitment Team', $3, $3)", [ids.team, `recruitment-${ids.team.slice(0, 8)}`, ids.captain]);
@@ -68,6 +69,19 @@ describe("recruitment PostgreSQL invariants", () => {
         .rejects.toMatchObject({ code: ErrorCode.REGISTRATION_DUPLICATE, message: "你已表达过加入意向。" });
       const membershipCount = await pool.query<{ count: string }>("SELECT count(*)::text AS count FROM team_memberships WHERE team_id = $1 AND user_id = $2 AND ended_at IS NULL", [ids.team, ids.interested]);
       expect(membershipCount.rows[0]?.count === "0", "interest 不是成员关系。").toBe(true);
+      const captainWorkspace = await getTeamRecruitmentWorkspace(ids.team, ids.captain);
+      expect(captainWorkspace.interests).toEqual(expect.arrayContaining([expect.objectContaining({ userId: ids.interested, qq: "200001" })]));
+      expect((await getTeamRecruitmentWorkspace(ids.team, ids.member)).interests).toEqual([]);
+      expect((await getTeamRecruitmentWorkspace(ids.team, ids.targetUnknown)).interests).toEqual([]);
+
+      // Direct invitations from every surface use the Team command. That
+      // command clears every pending interest for the same Team/user pair,
+      // while keeping the invitation as the sole membership handoff.
+      await database.transaction((tx) => inviteTeamMemberInTx(tx, { teamId: ids.team, userId: ids.captain, invitedUserId: ids.interested, actorId: ids.captain }));
+      const afterInvite = await getTeamRecruitmentWorkspace(ids.team, ids.captain);
+      expect(afterInvite.interests.map((interest) => interest.userId)).not.toContain(ids.interested);
+      const pendingInvite = await pool.query<{ count: string }>("SELECT count(*)::text AS count FROM team_invitations WHERE team_id = $1 AND invited_user_id = $2 AND kind = 'direct' AND status = 'pending'", [ids.team, ids.interested]);
+      expect(pendingInvite.rows[0]?.count).toBe("1");
 
       await database.transaction((tx) => closeTeamRecruitmentInTx(tx, { teamId: ids.team, userId: ids.captain, actorId: ids.captain }));
       const afterClose = await pool.query<{ status: string; interests: string }>(
@@ -84,14 +98,14 @@ describe("recruitment PostgreSQL invariants", () => {
         .rejects.toMatchObject({ code: ErrorCode.VALIDATION_FAILED });
       await database.transaction((tx) => upsertTeamRecruitmentInTx(tx, { teamId: ids.team, userId: ids.captain, actorId: ids.captain, positions: ["awper"], targetSeasonId: ids.registrationSeason, note: null }));
       expect(await getPublicTeamRecruitment(ids.team)).not.toBeNull();
-      const activeWorkspace = await getTeamRecruitmentWorkspace(ids.team, true);
+      const activeWorkspace = await getTeamRecruitmentWorkspace(ids.team, ids.captain);
       expect(activeWorkspace.recruitment).toMatchObject({ isPubliclyActive: true, targetSeasonId: ids.registrationSeason });
       expect(activeWorkspace.targetSeasons.map((season) => season.id)).toContain(ids.registrationSeason);
       expect(activeWorkspace.targetSeasons.map((season) => season.id)).not.toContain(ids.draftSeason);
 
       await pool.query("UPDATE seasons SET status = 'voting' WHERE id = $1", [ids.registrationSeason]);
       expect(await getPublicTeamRecruitment(ids.team)).toBeNull();
-      const stoppedWorkspace = await getTeamRecruitmentWorkspace(ids.team, true);
+      const stoppedWorkspace = await getTeamRecruitmentWorkspace(ids.team, ids.captain);
       expect(stoppedWorkspace.recruitment).toMatchObject({ isPubliclyActive: false, targetSeasonId: ids.registrationSeason });
       expect(stoppedWorkspace.targetSeasons.map((season) => season.id)).not.toContain(ids.registrationSeason);
       expect(stoppedWorkspace.targetSeasons.map((season) => season.id)).toContain(ids.replacementSeason);
@@ -112,9 +126,11 @@ describe("recruitment PostgreSQL invariants", () => {
       await pool.query("INSERT INTO competition_entry_roster_revisions (id, entry_id, revision_number, status, created_by) VALUES ($1, $2, 1, 'draft', $3)", [revisionId, entryId, ids.captain]);
       await pool.query("COMMIT");
       await database.transaction((tx) => upsertTeamRecruitmentInTx(tx, { teamId: ids.team, userId: ids.captain, actorId: ids.captain, positions: [], targetSeasonId: ids.replacementSeason, note: null }));
-      expect((await getTeamRecruitmentWorkspace(ids.team, true)).recruitment).toMatchObject({ isPubliclyActive: true, targetSeasonId: ids.replacementSeason });
+      expect((await getTeamRecruitmentWorkspace(ids.team, ids.captain)).recruitment).toMatchObject({ isPubliclyActive: true, targetSeasonId: ids.replacementSeason });
       const playerIntent = (await pool.query<{ id: string }>("INSERT INTO recruitment_intents (kind, user_id, target_season_id, positions, status, expires_at) VALUES ('player_lft', $1, $2, ARRAY[]::cs2_role[], 'open', now() + interval '1 day') RETURNING id", [ids.interested, ids.replacementSeason])).rows[0];
       if (!playerIntent) throw new Error("could not create recruitment player intent");
+      await pool.query("INSERT INTO recruitment_intents (kind, user_id, target_season_id, positions, status, expires_at) VALUES ('player_lft', $1, NULL, ARRAY[]::cs2_role[], 'open', now() - interval '1 second')", [ids.member]);
+      expect(await getPublicPlayerLft(ids.member)).toBeNull();
       await pool.query(
         "INSERT INTO recruitment_intents (kind, user_id, target_season_id, positions, status, expires_at) VALUES ('player_lft', $1, $2, ARRAY[]::cs2_role[], 'open', now() + interval '1 day'), ('player_lft', $3, NULL, ARRAY[]::cs2_role[], 'open', now() + interval '1 day'), ('player_lft', $4, NULL, ARRAY[]::cs2_role[], 'open', now() + interval '1 day')",
         [ids.targetUnknown, ids.replacementSeason, ids.contender, ids.invitee],

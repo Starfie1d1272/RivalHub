@@ -15,6 +15,7 @@ import {
 import { checkStandardMajorCapabilities } from "@/lib/competition/definition";
 import { createCompetitionTemplate, type CompetitionTemplate } from "@/lib/competition/templates";
 import { getSeasonEditCapabilities, type SeasonEditPhase } from "@/lib/seasons/edit";
+import { parseCSTInput } from "@/lib/utils/date";
 import { PLAYER_TYPE_LABELS } from "@/lib/seasons/presentation";
 import { rankValues, RANK_LABELS } from "@/lib/validators/registration";
 import { Button } from "@/components/ui/button";
@@ -55,7 +56,10 @@ const PLAYER_TYPES: PlayerType[] = ["enrolled", "graduated", "external"];
 
 interface SeasonFormProps {
   mode: "create" | "edit";
-  initial?: SeasonFormInput & { registrationOpenedAt?: Date | null; conversionPolicyProvenance?: ConversionPolicyProvenance | null };
+  initial?: SeasonFormInput & {
+    registrationOpenedAt?: Date | null;
+    conversionPolicyProvenance?: ConversionPolicyProvenance | null;
+  };
   competitivePlatforms: CompetitivePlatformOption[];
 }
 
@@ -79,13 +83,13 @@ function lifecycleExplanation(phase: SeasonEditPhase): string {
     case "draft":
       return "所有赛事定义仍可调整。发布后 URL 标识、赛事体系和公开竞赛规则将锁定。";
     case "published_preopen":
-      return "公开赛事规则已锁定。仍可调整报名时间；实际开放报名后竞技上下文、ConversionPolicy 策略身份与冻结快照、实际开放时间冻结。";
+      return "公开赛事规则与跨平台换算规则版本已在发布时锁定。仍可调整报名时间；平台参考赛季、段位顺序与换算数据在实际开放报名时确定并锁定。";
     case "registration_opened":
-      return "竞技上下文、ConversionPolicy 策略身份与冻结快照、实际开放时间已冻结；报名截止与名单调整截止在比赛开始前仍可运营调整。";
+      return "本届平台参考赛季、段位顺序、换算数据与实际开放时间已锁定；报名截止与名单调整截止在比赛开始前仍可调整。";
     case "playing":
-      return "比赛已开始，公开规则和报名期配置已经冻结，只保留允许的 metadata。";
+      return "比赛已开始，公开规则和报名期配置已经冻结，仍可更新赛事名称、展示信息与结束时间。";
     case "terminal":
-      return "赛事已结束，公开规则和报名期配置已经冻结，只保留允许的 metadata。";
+      return "赛事已结束，公开规则和报名期配置已经冻结，仍可更新赛事名称、展示信息与结束时间。";
   }
 }
 
@@ -117,6 +121,7 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
   const [themeColor, setThemeColor] = useState(initial?.themeColor ?? "");
   const [pendingTemplate, setPendingTemplate] = useState<CompetitionTemplate | null>(null);
   const [publishConfirmationOpen, setPublishConfirmationOpen] = useState(false);
+  const [earlyOpenConfirmationOpen, setEarlyOpenConfirmationOpen] = useState(false);
   const [dangerAction, setDangerAction] = useState<"delete" | "revert-draft" | "revert-registration" | "finish" | "archive" | null>(null);
   const [registrationOpensAt, setRegistrationOpensAt] = useState(initial?.registrationOpensAt ?? "");
   const [registrationClosesAt, setRegistrationClosesAt] = useState(initial?.registrationClosesAt ?? "");
@@ -237,9 +242,9 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
       kind,
       template,
       themeColor: emptyToNull(themeColor),
-      registrationOpensAt: emptyToNull(registrationOpensAt),
-      registrationClosesAt: emptyToNull(registrationClosesAt),
-      rosterChangeClosesAt: emptyToNull(rosterChangeClosesAt),
+      registrationOpensAt: editCapabilities.canEditRegistrationOpenSchedule ? emptyToNull(registrationOpensAt) : null,
+      registrationClosesAt: editCapabilities.canEditRegistrationDeadlines ? emptyToNull(registrationClosesAt) : null,
+      rosterChangeClosesAt: editCapabilities.canEditRegistrationDeadlines ? emptyToNull(rosterChangeClosesAt) : null,
       endAt: emptyToNull(endAt),
       registrationMode,
       hasCaptainVoting: registrationMode === "team" ? false : hasCaptainVoting,
@@ -302,11 +307,11 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
     });
   }
 
-  function handleOpenRegistration() {
+  function handleOpenRegistration(mode: "immediate" | "early_force" = "immediate") {
     if (!initial?.id) return;
     const seasonId = initial.id;
     startTransition(async () => {
-      const result = await openSeasonRegistration(seasonId);
+      const result = await openSeasonRegistration(seasonId, mode);
       if (result.success) {
         toast.success("报名已开放，竞技参考策略已冻结");
         router.refresh();
@@ -314,6 +319,15 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
         toast.error(result.error.message);
       }
     });
+  }
+
+  function requestOpenRegistration() {
+    const scheduledOpenAt = parseCSTInput(registrationOpensAt || null);
+    if (scheduledOpenAt && scheduledOpenAt.getTime() > Date.now()) {
+      setEarlyOpenConfirmationOpen(true);
+      return;
+    }
+    handleOpenRegistration();
   }
 
   function handleDelete() {
@@ -611,7 +625,7 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
             )}
             {!editCapabilities.canEditTemplate && (
               <div className="mt-3">
-                <FrozenFact title={`赛事体系：${templateLabel(template)}`}>已发布后不可修改赛事体系与其 canonical 公开规则。</FrozenFact>
+                <FrozenFact title={`赛事体系：${templateLabel(template)}`}>发布后不能修改赛事体系与已公布的规则。</FrozenFact>
               </div>
             )}
           </div>
@@ -644,12 +658,12 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
           <div>
             <Label htmlFor="end-at">赛季结束时间</Label>
             <Input id="end-at" type="datetime-local" value={endAt ?? ""} onChange={(e) => setEndAt(e.target.value)} />
-            <p className="mt-1 text-xs text-[var(--color-fg-dim)]">仅作为赛事 metadata 与赛后收尾参考，不替代生命周期 transition owner。</p>
+            <p className="mt-1 text-xs text-[var(--color-fg-dim)]">用于赛事信息展示与赛后收尾；修改此时间不会自动结束赛事。</p>
           </div>
         </div>
         <div className="mt-5 flex flex-wrap items-center justify-end gap-3 border-t border-[var(--color-border)] pt-4">
           {initial?.status === "draft" && <Button type="button" variant="outline" disabled={isPending} onClick={() => setPublishConfirmationOpen(true)}>发布赛季</Button>}
-          {initial?.status === "registration" && !initial.registrationOpenedAt && <Button type="button" disabled={isPending} onClick={handleOpenRegistration}>立即开放报名</Button>}
+          {initial?.status === "registration" && !initial.registrationOpenedAt && <Button type="button" disabled={isPending} onClick={requestOpenRegistration}>立即开放报名</Button>}
         </div>
         {saveButton}
       </SettingsPanel>
@@ -674,7 +688,7 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
         {isBuiltIn && registrationMode === "team" && (
           <>
             <FrozenFact title={`${templateLabel(template)} · 队伍报名规则`}>
-              报名模式、队伍规模和首发人数由当前赛事 template canonical owner 固定；页面不会让客户端绕过标准规则提交另一套值。
+              报名模式、队伍规模和首发人数由当前赛事体系统一确定。
             </FrozenFact>
             <TeamRegistrationSummary config={teamConfig} />
           </>
@@ -690,7 +704,7 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
             <TeamConfigForm view="team" value={teamConfig} maxTeamSize={maxTeamSize} competitivePlatforms={competitivePlatforms} disabled={!editCapabilities.canEditPublicRules} onChange={setTeamConfig} />
           </div>
         )}
-        {saveButton}
+        {editCapabilities.canEditPublicRules && saveButton}
       </SettingsPanel>
 
       <SettingsPanel id="qualification" label="资格规则">
@@ -742,7 +756,7 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
             <AffiliationRulesSummary rules={affiliationRules} />
           </div>
         )}
-        {saveButton}
+        {editCapabilities.canEditPublicRules && registrationMode === "solo" && !isBuiltIn && saveButton}
       </SettingsPanel>
 
       <SettingsPanel id="format" label="赛制与地图">
@@ -759,23 +773,18 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
             </div>
           )}
         </div>
-        {saveButton}
+        {editCapabilities.canEditPublicRules && saveButton}
       </SettingsPanel>
 
       <SettingsPanel id="competitive" label="竞技参考">
-        {template === "custom" && registrationMode === "team" && !initial?.registrationOpenedAt ? (
+        {template === "custom" && registrationMode === "team" && editCapabilities.canEditPublicRules ? (
           <>
-            {!editCapabilities.canEditPublicRules && (
-              <div className="mb-4">
-                <FrozenFact title="竞技参考：已发布后不可修改">实际开放报名时由 canonical lifecycle owner 冻结平台赛季、段位顺序与策略快照。</FrozenFact>
-              </div>
-            )}
-            <TeamConfigForm view="competitive" value={teamConfig} competitivePlatforms={competitivePlatforms} disabled={!editCapabilities.canEditPublicRules} onChange={setTeamConfig} />
+            <TeamConfigForm view="competitive" value={teamConfig} competitivePlatforms={competitivePlatforms} onChange={setTeamConfig} />
+            {saveButton}
           </>
         ) : (
-          <CompetitiveReferenceSummary config={teamConfig} platforms={competitivePlatforms} frozen={Boolean(initial?.registrationOpenedAt)} policyProvenance={initial?.conversionPolicyProvenance} />
+          <CompetitiveReferenceSummary config={teamConfig} platforms={competitivePlatforms} phase={editCapabilities.phase} policyProvenance={initial?.conversionPolicyProvenance} />
         )}
-        {saveButton}
       </SettingsPanel>
 
       <SettingsPanel id="features" label="功能">
@@ -787,16 +796,16 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
           </span>
         </label>
         {!editCapabilities.canEditPublicRules && <div className="mt-4"><FrozenFact title={`社区奖：${hasCommunityAwards ? "已启用" : "已关闭"}`}>社区奖是赛事公开 capability；发布后不能再改变，入口和服务端操作会继续消费这个事实。</FrozenFact></div>}
-        {saveButton}
+        {editCapabilities.canEditPublicRules && saveButton}
       </SettingsPanel>
 
       <SettingsPanel id="danger" label="危险操作">
         <div className="space-y-3">
           {initial?.status === "draft" && <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="font-medium">删除草稿赛季</p><p className="text-sm text-[var(--color-fg-mid)]">只有尚未产生报名、队伍或赛程事实的草稿可以删除。</p></div><Button type="button" variant="destructive" disabled={isPending} onClick={() => setDangerAction("delete")}>删除赛季</Button></div>}
           {initial?.status === "registration" && <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="font-medium">撤回至草稿</p><p className="text-sm text-[var(--color-fg-mid)]">撤回前由服务端检查赛事是否仍没有历史事实。</p></div><Button type="button" variant="outline" disabled={isPending} onClick={() => setDangerAction("revert-draft")}>撤回至草稿</Button></div>}
-          {initial?.status === "voting" && <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="font-medium">撤回至报名阶段</p><p className="text-sm text-[var(--color-fg-mid)]">该操作会清空投票事实，并继续由现有 transition owner 校验。</p></div><Button type="button" variant="outline" disabled={isPending} onClick={() => setDangerAction("revert-registration")}>撤回至报名阶段</Button></div>}
-          {initial?.status === "playing" && <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="font-medium">手动结束赛事</p><p className="text-sm text-[var(--color-fg-mid)]">仅用于无法自动结束的极端情况；结果与审计仍由服务端 owner 处理。</p></div><Button type="button" variant="outline" disabled={isPending} onClick={() => setDangerAction("finish")}>手动结束赛季</Button></div>}
-          {initial?.status === "finished" && <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="font-medium">归档赛事</p><p className="text-sm text-[var(--color-fg-mid)]">归档后赛事进入历史记录，后续收尾由赛后 owner 按允许范围处理。</p></div><Button type="button" variant="outline" disabled={isPending} onClick={() => setDangerAction("archive")}>归档赛季</Button></div>}
+          {initial?.status === "voting" && <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="font-medium">撤回至报名阶段</p><p className="text-sm text-[var(--color-fg-mid)]">该操作会清空本届投票，请确认需要重新投票。</p></div><Button type="button" variant="outline" disabled={isPending} onClick={() => setDangerAction("revert-registration")}>撤回至报名阶段</Button></div>}
+          {initial?.status === "playing" && <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="font-medium">手动结束赛事</p><p className="text-sm text-[var(--color-fg-mid)]">仅用于无法自动结束的情况；操作会记录赛事结果和处理记录。</p></div><Button type="button" variant="outline" disabled={isPending} onClick={() => setDangerAction("finish")}>手动结束赛季</Button></div>}
+          {initial?.status === "finished" && <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="font-medium">归档赛事</p><p className="text-sm text-[var(--color-fg-mid)]">归档后赛事进入历史记录，后续仅允许规定的赛后处理。</p></div><Button type="button" variant="outline" disabled={isPending} onClick={() => setDangerAction("archive")}>归档赛季</Button></div>}
           {!(["draft", "registration", "voting", "playing", "finished"] as const).includes(initial?.status as never) && <p className="text-sm text-[var(--color-fg-mid)]">当前状态没有可用的危险操作。</p>}
         </div>
         <SeasonDangerConfirmation action={dangerAction} onOpenChange={(open) => { if (!open) setDangerAction(null); }} onConfirm={() => { const action = dangerAction; setDangerAction(null); if (action === "delete") handleDelete(); if (action === "revert-draft") handleRevertToDraft(); if (action === "revert-registration") handleRevertToRegistration(); if (action === "finish") handleForceFinish(); if (action === "archive") handleArchive(); }} />
@@ -813,6 +822,21 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
           <AlertDialogFooter>
             <AlertDialogCancel>取消</AlertDialogCancel>
             <AlertDialogAction onClick={() => { setPublishConfirmationOpen(false); handlePublish(); }}>确认发布</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={earlyOpenConfirmationOpen} onOpenChange={setEarlyOpenConfirmationOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>提前开放报名？</AlertDialogTitle>
+            <AlertDialogDescription>
+              当前报名计划时间为 {registrationOpensAt || "待定"}。确认后会明确提前改变报名计划，并将实际开放时间记录为新的报名开放时间。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction onClick={() => { setEarlyOpenConfirmationOpen(false); handleOpenRegistration("early_force"); }}>确认提前开放</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

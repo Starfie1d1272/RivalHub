@@ -13,10 +13,11 @@ import {
   matches,
 } from "@/db/schema";
 import { getStandardMajorDefinition } from "@/lib/major/standard";
-import { parseMajorRunSnapshot } from "@/lib/major/run-snapshot";
+import { resolveMajorStagePlan } from "@/lib/major/run-snapshot";
 import { validateSeriesScore } from "@/lib/matches/result-rules";
+import { projectPredictionStages } from "./stage-projection";
 import { AppError, ErrorCode } from "@/lib/errors";
-import { SIMULATION_VERSION, type Baseline, type PublicStage } from "./types";
+import { SIMULATION_VERSION, type Baseline } from "./types";
 
 export function officialWinner(
   match: Pick<
@@ -53,35 +54,13 @@ export async function loadBaseline(
     .from(seasons)
     .where(eq(seasons.id, seasonId));
   if (!season) throw new AppError(ErrorCode.NOT_FOUND, "赛事不存在");
-  const definition = getStandardMajorDefinition(season);
   const runs = await db
     .select()
     .from(majorStageRuns)
     .where(eq(majorStageRuns.seasonId, seasonId));
-  const firstRun = [...runs].sort(
-    (a, b) => a.startedAt.getTime() - b.startedAt.getTime(),
-  )[0];
-  const plan = firstRun
-    ? parseMajorRunSnapshot(firstRun.ruleSnapshot, firstRun.stageKey).stagePlan
-    : definition.capabilities.stagePlan;
-  const stages: PublicStage[] = plan.map((s) => {
-    if (
-      (s.type !== "swiss" && s.type !== "single_elim") ||
-      (s.matchFormat !== "bo1" && s.matchFormat !== "bo3")
-    )
-      throw new AppError(
-        ErrorCode.SEASON_CAPABILITY_DISABLED,
-        "暂不支持该阶段规则",
-      );
-    return {
-      key: s.key,
-      name: s.name,
-      type: s.type,
-      matchFormat: s.matchFormat,
-      entrySeeds: s.entrySeeds ?? 0,
-      finalFormat: s.finalFormat === "bo5" ? "bo5" : null,
-    };
-  });
+  // Frozen StageRun rules remain readable after live configuration changes.
+  const plan = resolveMajorStagePlan(runs.length ? [] : getStandardMajorDefinition(season).capabilities.stagePlan, runs);
+  const stages = projectPredictionStages(plan);
   const [prestart] = await db
     .select()
     .from(majorPrestartStates)
@@ -134,6 +113,7 @@ export async function loadBaseline(
     stages,
     teams,
     runs: runs.map((r) => ({
+      id: r.id,
       key: r.stageKey,
       finalizedRound: r.finalizedRound,
       entrants: entrants
@@ -142,7 +122,7 @@ export async function loadBaseline(
         .sort((a, b) => a.seed - b.seed),
     })),
     matches: official
-      .filter((m) => m.managedKey && m.entryRound !== "third_place")
+      .filter((m) => m.managedKey && m.entryRound !== "third_place" && runs.some((r) => r.id === m.majorStageRunId && r.stageKey === m.stage))
       .map((m) => ({
         id: m.id,
         stageKey: m.stage,
@@ -157,6 +137,9 @@ export async function loadBaseline(
         a: m.entryAId,
         b: m.entryBId,
         winner: officialWinner(m),
+        scoreA: m.scoreA,
+        scoreB: m.scoreB,
+        stageRunId: m.majorStageRunId!,
         format: m.format,
         status: m.status,
         scheduledAt: m.scheduledAt?.toISOString() ?? null,

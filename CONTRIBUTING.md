@@ -11,17 +11,26 @@
 - PR 关联 Issue 使用 `Refs #N`；是否关闭 Issue 由验收条件决定，不用 `Closes` 代替验收。
 - `main` PR 必须满足 required `ci-gate`、strict up-to-date 和已解决 review thread；真实规则以 GitHub ruleset 为准。
 
+## Draft → Ready 开发与 CI
+
+- 新功能、修复和文档工作默认以 **Draft PR** 开始。Draft 期间每次 push 由 Evidence Planner 根据 changed surface 选择 affected static、PostgreSQL integration spec 和 semantic browser flow，并以 `draft-gate` 汇总；该结果用于快速反馈，不是最终 merge evidence。
+- 本地迭代只执行与当前改动匹配的 host-only 快速检查。不要为了每次修改重复启动 PostgreSQL、Local Supabase 或 browser 重型环境；对应真实环境证据由 CI 按需运行，失败复现时再按 [`docs/operations/local-development.md`](docs/operations/local-development.md) 启动最小层级。
+- 实现和本地快速检查完成、准备交付时，将 PR 标记为 **Ready for review**。Ready PR 使用同一个 Evidence Planner 规划与变更风险相匹配的最低充分 evidence（遵循 L0–L4 风险分层，不机械升级为 FULL），并产生 ruleset required 的 `ci-gate`。
+- 只有最新 commit 的 required `ci-gate` / `pr-title` 及 ruleset 要求的其它 checks 全部成功，且 strict up-to-date 与 review thread 条件满足后，才可以 merge。新 push 会使旧 commit 的 evidence 失效，不能沿用旧结果。
+
 ## Changeset and release
 
 影响 shipped 用户/管理员体验、production runtime/data contract 或版本发布的 feat/fix/refactor/migration/security 变更，在同一 feature PR 提交中文 Changeset。纯文档、纯测试、CI/开发工具和不改变 shipped behavior 的维护可不写，并在 PR 中说明原因。
 
 Changeset/CHANGELOG 只描述 release-relevant 可观察影响，不复制 commit message 或内部实现清单；不要手改 `package.json` version。
 
-Release 从最新 `main` 准备 release PR，消费 Changesets 并完成 CHANGELOG editorial review；合入后才在实际 release commit 上创建 immutable `vX.Y.Z` tag。migration、exact-source deploy、smoke 与 GitHub Release 见 [`docs/operations/release.md`](docs/operations/release.md)。已公开 stable tag 不移动、不删除。
+完整 release PR、CHANGELOG compare 链接、immutable tag、migration、exact-source deploy、smoke、retry 与 GitHub Release procedure 只由 [`docs/operations/release.md`](docs/operations/release.md) 维护。已公开 stable tag 不移动、不删除。
 
 ## Runtime
 
 Node/pnpm contract 只由 `package.json` 的 `packageManager`、`devEngines.runtime`、`engines.node` 与 lockfile 共同声明。workflow、文档或个人脚本不要复制另一份版本常量；安装和 CI 使用仓库 manifest/lockfile 的 canonical runtime。
+
+未声明为项目依赖的一次性 CLI 使用 `pnpm dlx <package>@<version>`；`pnpm exec` 只用于已安装的项目 dependency binary。检查/查询命令不得隐式安装依赖或改写 lockfile。
 
 ## Documentation
 

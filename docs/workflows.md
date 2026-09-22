@@ -10,7 +10,13 @@ login  → password authentication → application session
 forgot password → recovery email → reset password
 ```
 
-Supabase Auth 负责登录身份；成功确认/登录后同步身份到对应的 `users.id` 并建立 `rivalhub-session`。用户可验证并绑定其他邮箱；其中任一已验证的学校邮箱都可完成学校邮箱教育认证，不要求替换当前登录邮箱。若该身份已属于另一个 user，系统建立短期双方控制授权，用户选择要保留的账号后查看归并影响；真实冲突会直接阻止执行。安全归并在单个事务内写入 alias ledger 与 audit，保留所选账号资料，归属不冲突的 person facts、登录身份和业务历史，关闭旧账号的临时状态，随后 session 解析到保留账号。长期资料、教育资格、竞技档案和 Team 独立于任何一届赛事维护；赛事只在需要时引用或冻结这些事实。
+Supabase Auth 负责登录身份；成功确认/登录后同步身份到对应的 `users.id` 并建立 `rivalhub-session`。用户可验证并绑定其他邮箱；其中任一已验证的学校邮箱都可完成学校邮箱教育认证，不要求替换当前登录邮箱。若该身份已属于另一个 user，系统建立短期双方控制授权，用户选择要保留的账号后查看归并影响；真实冲突会直接阻止执行。安全归并在单个事务内写入 alias ledger 与 audit，保留所选账号资料，归属不冲突的 person facts、登录身份和业务历史，关闭旧账号的临时状态，随后 session 解析到保留账号。长期资料、教育资格、竞技档案和 Team 独立于任何一届赛事维护；其中 `users` 拥有当前 player-declared profile，`season_registrations` 只保存报名当时的自述 snapshot；赛事只在需要时引用或冻结这些事实。
+
+## Education verification
+
+教育认证保持三条有明确优先级的路径：已验证且命中唯一学生邮箱 registry 的 identity 即时认证在读身份；CHSI 在线验证报告由 super admin 人工核验；暂时无法取得 CHSI 材料的新生可从 canonical 高校目录选择学校并提交一张录取通知书图片，由 super admin 人工核验。录取通知书路径固定写入 `enrolled + manual_other + pending`，不证明毕业身份，也不接受自由文本学校。
+
+提交者必须是当前 canonical user、拥有 verified email ownership fact，并选择存在的 canonical institution。人工审核 claim 使用事务 advisory lock：pending/approved claim 返回既有结果，rejected 后再次提交会创建新的 immutable claim，旧审核历史不改写；CHSI 同一规范化验证码的并发重提也只会产生一条新的 pending claim。图片只供审核使用，审核完成七天后由既有 cleanup scheduler 删除；cleanup 失败时保留 object key 供下一次重试，不改变认证或审核历史。
 
 ## Season lifecycle
 
@@ -24,6 +30,7 @@ Major:  draft → registration → playing → finished → archived
 关键边界：
 
 - **publish ≠ registration open**：发布让赛事公开；实际开放报名才记录 `registrationOpenedAt` 并冻结需要的竞技/资格上下文。
+- `registrationOpensAt` 是计划开放时间，`registrationOpenedAt` 是实际 transition fact。scheduler 或参与者 recovery 的到期补开保留原计划时间；无计划赛事的明确立即开放同时写入当前时间；未来计划的提前开放必须由管理员明确确认，使用独立的 force-open 语义并将有效计划时间改为当前时间。
 - 报名开放后，已经冻结的 policy/context 不随全局目录变化；运营 deadline 只在其允许的生命周期内调整。
 - draft 撤回/删除必须通过无既有业务事实的 guard；不能靠 UI 隐藏按钮代替 server validation。
 - 后台生命周期分组和首页 featured season 是 presentation projection，不创建全局 `currentSeason` 事实。
@@ -72,13 +79,18 @@ Team captain creates Entry
 → members confirm participation
 → canonical qualification
 → submit
+→ optional withdraw from review into a new draft revision
 → admin review
 → approved roster revision
 ```
 
 一个用户在同一赛事不能同时占有多个 active Entry commitment。成员确认、教育/竞技资料和 qualification 都由各自 canonical owner 提供；长期 Team 的成员变化不会自动改写已经提交或冻结的赛事名单。
 
+草稿只表示尚未提交审核，不提供终止报名动作。报名提交窗口仍开放时，负责人可以把 `submitted` 撤回为同一个 Entry 的新 draft revision 后继续编辑和再次提交；既有 submission、roster revision 与 audit 历史保留，成员 active claim 不释放。报名截止后保持 `submitted` 等待审核，不再撤成无法重新提交的草稿。`changes_requested` 继续只表示管理员要求补正，`withdrawn` 不用于普通主动撤回审核。
+
 管理员审核可以批准、候补、拒绝或要求补正。**approved Entry 只表示报名审核通过，不等于正式获得 Major 正赛席位。**
+
+在 EventRoster 尚未冻结且名单调整窗口仍开放时，已确认的普通成员可以本人退出本届赛事；服务端会复用现有名单变更 transition，保留原 approved revision，创建或复用可编辑的 self roster change draft，从新 draft 移除该成员并释放本届 active commitment。Entry 随后需要重新完成成员确认、资格检查和管理员审核。退出长期 Team 不会被这个动作隐式改变；名单冻结或调整窗口关闭后继续由服务端 fail closed，并提示联系赛事管理员。
 
 ## Major prestart
 
@@ -99,6 +111,8 @@ approved Entry candidate pool
 
 系统种子建议与最终人工 seed 分离：freeze 时从同一批 frozen primary starters 和竞技上下文生成不可变 snapshot；管理员随后确认最终顺序。查看不同排序、人工调序或之后全局资料变化都不重写 snapshot。启动只消费并校验已存在的赛前事实，不在 `startMajor` 临时生成第一份建议。
 
+在最终 entrant set 尚未冻结的候选阶段，管理员可以看到基于每支 approved roster revision 的 5 名预定主力和当前可用竞技事实生成的 live strength preview。它是只读、非权威的辅助 read model：不自动选择正式参赛队、不改变 qualification，也不创建或改写 `SeedRecommendationSnapshot`。正式参赛队与 EventRoster 统一冻结后，系统才生成并保留 immutable seed snapshot。
+
 ## Stage runtime
 
 Major 每个阶段由 managed StageRun 拥有：
@@ -113,6 +127,8 @@ create StageRun with frozen rules/entrants
 ```
 
 推进依据是 StageRun entrants 与已完成比赛。standings/bracket/page summary 是 projection，不可直接覆盖 runtime truth。具体阶段人数、BO 规则和配对政策属于赛事规则与 runtime owner，不在本文件复制。
+
+通用阶段初始化由 canonical transition boundary 解析 previous/current/next stage、上一阶段完成状态和本阶段 entrant input；管理员页面不自行推断邻接阶段或执行“生成正赛”旁路。generic provider 每次只初始化当前 `StageConfig.key` 的 state；Major Swiss/Playoff 由各自 managed runtime owner 管理。
 
 ## Match
 
@@ -135,6 +151,8 @@ EventRoster
 ```
 
 本场实际首发可以不同于赛事预定主力，但必须满足本届 frozen roster/eligibility 约束。正常结果由实际地图推导；弃赛不制造未进行地图。
+
+赛后 Demo 闭环：DAK 提交的 `/3` Evidence 先以不可变 payload 保存，再由服务端基于当前目标、正式地图结果和 effective MatchRoster 重新校验。Steam64 既可以命中当前主身份，也可以命中 active gameplay alias；无法解析、已撤销或跨用户冲突都进入待处理。赛季管理员只能在单场工作台中从该份不可变 payload 选择本场当前首发，服务端再次核对观察 Steam64、队伍和候选身份后，只有同一 participant path 当前确实存在可确认的身份问题时，才经 gameplay identity owner 保存 alternate identity，并自动重跑同一 canonical validator；其它比分、QA、回合或 summary 问题仍保持待处理。无效 payload 保留在工作台并可拒绝，不能通过身份确认绕过完整校验。确认、重检、拒绝和撤销都写入业务审计；不修改登录/报名资料中的当前 Steam64。
 
 结果更正先检查 StageRun 和下游依赖。若会改变后续 pairing/stage，必须走受控 recovery；不能直接改 standings 或把 finished match 任意退回进行中。
 
@@ -167,7 +185,7 @@ The season administrator enables and freezes event prediction rules, then opens 
 
 Spectators may simulate independently without submitting. Importing a completed eligible simulation edits a draft; explicit submission registers a version. At lock, the latest accepted submission supplies participation challenges. Accepted Swiss stages and confirmed playoffs supply accuracy challenges. Stage cancellation invalidates challenges and reverses any optional participation reward while retaining submissions and judgement history.
 
-Joining grants the event's initial free points once. Later official stage launches grant uniform configured supplies only to accounts that already joined; late joiners do not receive historical grants. A user may add positive integer stakes to the same side, including all available points, but cannot switch or withdraw. Settlement uses accepted official results, an integer no-rake pool, and stable largest-remainder allocation. Cancellations, replaced opponents and single-sided pools refund. Corrections can produce debt; new legitimate receipts offset it. The leaderboard counts settled profit, excluding grants and pending stakes.
+Joining grants the event's initial free points once. Later official stage launches grant uniform configured supplies only to accounts that already joined; late joiners do not receive historical grants. A user may add positive integer stakes to the same market option, including all available points, but cannot switch or withdraw. Settlement uses accepted official results, an integer no-rake pool, and stable largest-remainder allocation. Cancellations, replaced opponents and single-sided pools refund. Corrections can produce debt; new legitimate receipts offset it. The leaderboard counts settled profit, excluding grants and pending stakes.
 
 Saved scenarios are independent public snapshots with an engine version. Opening a normal page or resetting uses current official state. Old incompatible snapshots are read-only. Operational recovery is described in [`operations/spectator-predictions.md`](operations/spectator-predictions.md).
 

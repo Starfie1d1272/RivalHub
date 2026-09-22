@@ -74,7 +74,7 @@ describe("ConversionPolicyManager", () => {
     expect(screen.getByRole("dialog")).toHaveTextContent("设为当前版本");
     expect(screen.getByRole("dialog")).toHaveTextContent("退役版本");
     expect(screen.queryByRole("button", { name: "保存草稿" })).not.toBeInTheDocument();
-    expect(screen.getAllByLabelText("minStar").every((field) => field.hasAttribute("disabled"))).toBe(true);
+    expect(screen.getAllByLabelText("最低星数").every((field) => field.hasAttribute("disabled"))).toBe(true);
     expect(screen.getAllByLabelText("目标段位").every((field) => field.hasAttribute("disabled"))).toBe(true);
   });
 });

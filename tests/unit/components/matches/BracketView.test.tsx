@@ -51,8 +51,8 @@ const bracketData: BracketData = {
     },
   ],
   participant: [
-    { id: 0, name: "Team 1" },
-    { id: 1, name: "Team 2" },
+    { id: 0, name: "Team 1", rivalhubEntryId: "entry-1" },
+    { id: 1, name: "Team 2", rivalhubEntryId: "entry-2" },
   ],
   match_game: [],
   group: [{ id: 0, stage_id: 1, number: 1 }],

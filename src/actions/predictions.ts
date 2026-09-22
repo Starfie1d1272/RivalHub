@@ -75,7 +75,7 @@ const spectatorInput = z.discriminatedUnion("operation", [
   scope.extend({
     operation: z.literal("stake"),
     marketId: id,
-    side: id,
+    optionId: id,
     amount: z.union([z.literal("all"), z.string().regex(/^[1-9]\d{0,14}$/)]),
     requestId: id,
   }),
