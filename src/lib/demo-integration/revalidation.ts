@@ -1,7 +1,7 @@
 import "server-only";
 
-import { eq } from "drizzle-orm";
-import type { TxDb } from "@/db/client";
+import { and, asc, eq } from "drizzle-orm";
+import { db, type TxDb } from "@/db/client";
 import { matchDemoImports } from "@/db/schema";
 import { writeAuditInTx } from "@/lib/audit/write";
 import { AppError, ErrorCode } from "@/lib/errors";
@@ -124,4 +124,81 @@ export async function revalidateStoredDemoImportInTx(
     retryPromotion: true,
   });
   return { status: "confirmed", importId: row.id, issues: [] };
+}
+
+
+export interface RelatedDemoRevalidationSummary {
+  attempted: number;
+  confirmed: number;
+  remaining: number;
+  failed: number;
+  affectedMatchIds: string[];
+}
+
+/**
+ * Recheck other current-profile needs_attention imports in the same season that
+ * contain the same observed Steam64. Each import runs in its own transaction so
+ * confirming one gameplay identity never creates a multi-map lock convoy.
+ */
+export async function revalidateNeedsAttentionImportsForSteam64(input: {
+  seasonId: string;
+  steam64: string;
+  actorId: string;
+  excludeImportId?: string;
+}): Promise<RelatedDemoRevalidationSummary> {
+  if (!/^\d{17}$/.test(input.steam64)) {
+    throw new AppError(ErrorCode.VALIDATION_FAILED, "Steam64 ID 格式无效。");
+  }
+
+  const rows = await db
+    .select({
+      id: matchDemoImports.id,
+      matchId: matchDemoImports.matchId,
+      payload: matchDemoImports.payload,
+      semanticProfile: matchDemoImports.semanticProfile,
+      createdAt: matchDemoImports.createdAt,
+    })
+    .from(matchDemoImports)
+    .where(and(
+      eq(matchDemoImports.seasonId, input.seasonId),
+      eq(matchDemoImports.status, "needs_attention"),
+    ))
+    .orderBy(asc(matchDemoImports.createdAt));
+
+  const matching = rows.filter((row) => {
+    if (row.id === input.excludeImportId || !isCurrentDakSemanticProfile(row.semanticProfile)) return false;
+    try {
+      return parseRivalHubDemoEvidenceV1(row.payload).participants.some((participant) => participant.steamId64 === input.steam64);
+    } catch {
+      return false;
+    }
+  });
+
+  let confirmed = 0;
+  let remaining = 0;
+  let failed = 0;
+  const affectedMatchIds = new Set<string>();
+
+  for (const row of matching) {
+    try {
+      const result = await db.transaction((tx) => revalidateStoredDemoImportInTx(tx, {
+        importId: row.id,
+        actorId: input.actorId,
+        verifiedBy: `admin:${input.actorId}`,
+      }));
+      affectedMatchIds.add(row.matchId);
+      if (result.status === "confirmed") confirmed++;
+      else remaining++;
+    } catch {
+      failed++;
+    }
+  }
+
+  return {
+    attempted: matching.length,
+    confirmed,
+    remaining,
+    failed,
+    affectedMatchIds: [...affectedMatchIds],
+  };
 }
