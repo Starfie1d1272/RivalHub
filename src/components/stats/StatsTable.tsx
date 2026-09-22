@@ -1,9 +1,9 @@
 import React from "react";
-import Link from "next/link";
 import type { Route } from "next";
 import type { ReactNode } from "react";
 import type { StatsSortDirection } from "@/lib/stats/sorting";
 import { Panel } from "@/components/rivalhub";
+import { StatsLink } from "./StatsLink";
 
 export interface StatsTableColumn<T> {
   key: string;
@@ -53,7 +53,7 @@ export function StatsTable<T>({
                 const nextDirection: StatsSortDirection = active && direction === "desc" ? "asc" : "desc";
                 const label = active ? `${column.label} ${direction === "desc" ? "↓" : "↑"}` : column.label;
                 const header = column.sortable && sortHref
-                  ? <Link href={sortHref(column.key, nextDirection)} aria-label={column.label} className="inline-flex items-center gap-1 hover:text-[var(--color-accent)]">{label}</Link>
+                  ? <StatsLink href={sortHref(column.key, nextDirection)} aria-label={column.label} className="inline-flex items-center gap-1 hover:text-[var(--color-accent)]">{label}</StatsLink>
                   : label;
                 return (
                   <th

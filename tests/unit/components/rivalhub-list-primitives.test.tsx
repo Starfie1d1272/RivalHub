@@ -33,7 +33,7 @@ function setQuery(query = "") {
 const TEST_QUERY_DEFAULTS = { status: "pending" } as const;
 
 function TestListController() {
-  const { searchParams, update } = useListQueryParams({ routeBase: "/admin/users", defaults: TEST_QUERY_DEFAULTS });
+  const { searchParams, update } = useListQueryParams({ routeBase: "/admin/users", defaults: TEST_QUERY_DEFAULTS, preserveScroll: true });
   return (
     <>
       <ListSearchField
@@ -51,7 +51,7 @@ const CLEAR_QUERY_DEFAULTS = { q: "", filter: "all" } as const;
 const TEST_SURFACE_DEFAULTS = { q: "", status: "pending" } as const;
 
 function TestClearFilters() {
-  const { searchParams, update } = useListQueryParams({ routeBase: "/admin/users", defaults: CLEAR_QUERY_DEFAULTS });
+  const { searchParams, update } = useListQueryParams({ routeBase: "/admin/users", defaults: CLEAR_QUERY_DEFAULTS, preserveScroll: true });
   return (
     <ClearFilters
       defaults={CLEAR_QUERY_DEFAULTS}
@@ -62,7 +62,7 @@ function TestClearFilters() {
 }
 
 function TestListSurface() {
-  const { searchParams, update } = useListQueryParams({ routeBase: "/admin/users", defaults: TEST_SURFACE_DEFAULTS });
+  const { searchParams, update } = useListQueryParams({ routeBase: "/admin/users", defaults: TEST_SURFACE_DEFAULTS, preserveScroll: true });
   const searchFieldRef = React.useRef<ListSearchFieldHandle>(null);
   const pageValue = Number(searchParams.get("page") ?? "1");
   const page = Number.isSafeInteger(pageValue) && pageValue > 0 ? pageValue : 1;
@@ -90,6 +90,11 @@ function TestListSurface() {
       />
     </>
   );
+}
+
+function TestDefaultListController() {
+  const { update } = useListQueryParams({ routeBase: "/admin/users" });
+  return <button type="button" onClick={() => update({ status: "approved" })}>使用默认滚动</button>;
 }
 
 describe("shared list query mechanics", () => {
@@ -142,7 +147,27 @@ describe("shared list query mechanics", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "清除筛选" }));
 
-    expect(replaceMock).toHaveBeenCalledWith("/admin/users?tab=users");
+    expect(replaceMock).toHaveBeenCalledWith("/admin/users?tab=users", { scroll: false });
+  });
+
+  it("preserves scroll while keeping replace and push history behavior", () => {
+    setQuery("q=alice&status=pending&page=2");
+    render(<TestListSurface />);
+
+    fireEvent.click(screen.getByRole("button", { name: "下一页" }));
+    expect(pushMock).toHaveBeenCalledWith("/admin/users?q=alice&status=pending&page=3", { scroll: false });
+
+    setQuery("q=alice&status=pending");
+    render(<TestListController />);
+    fireEvent.click(screen.getByRole("button", { name: "切换状态" }));
+    expect(replaceMock).toHaveBeenCalledWith("/admin/users?q=alice&status=approved", { scroll: false });
+  });
+
+  it("keeps existing scroll defaults unless a list opts in", () => {
+    render(<TestDefaultListController />);
+    fireEvent.click(screen.getByRole("button", { name: "使用默认滚动" }));
+
+    expect(replaceMock).toHaveBeenCalledWith("/admin/users?status=approved");
   });
 
   it("does not mark omitted default filters as active", () => {
@@ -187,10 +212,10 @@ describe("shared list query mechanics", () => {
 
       fireEvent.change(screen.getByLabelText("搜索用户"), { target: { value: "alice" } });
       fireEvent.click(screen.getByRole("button", { name: "切换状态" }));
-      expect(replaceMock).toHaveBeenLastCalledWith("/admin/users?status=approved");
+      expect(replaceMock).toHaveBeenLastCalledWith("/admin/users?status=approved", { scroll: false });
       act(() => vi.advanceTimersByTime(300));
 
-      expect(replaceMock).toHaveBeenLastCalledWith("/admin/users?status=approved&q=alice");
+      expect(replaceMock).toHaveBeenLastCalledWith("/admin/users?status=approved&q=alice", { scroll: false });
     } finally {
       vi.useRealTimers();
     }
@@ -266,12 +291,12 @@ describe("shared list query mechanics", () => {
 
       fireEvent.change(screen.getByLabelText("搜索用户"), { target: { value: "alice" } });
       fireEvent.click(screen.getByRole("button", { name: "清除筛选" }));
-      expect(replaceMock).toHaveBeenLastCalledWith("/admin/users");
+      expect(replaceMock).toHaveBeenLastCalledWith("/admin/users", { scroll: false });
       expect(screen.getByLabelText("搜索用户")).toHaveValue("");
 
       act(() => vi.advanceTimersByTime(300));
       expect(replaceMock).toHaveBeenCalledTimes(1);
-      expect(replaceMock).toHaveBeenLastCalledWith("/admin/users");
+      expect(replaceMock).toHaveBeenLastCalledWith("/admin/users", { scroll: false });
     } finally {
       vi.useRealTimers();
     }
@@ -285,10 +310,10 @@ describe("shared list query mechanics", () => {
 
       fireEvent.change(screen.getByLabelText("搜索用户"), { target: { value: "alice" } });
       fireEvent.click(screen.getByRole("button", { name: "下一页" }));
-      expect(pushMock).toHaveBeenLastCalledWith("/admin/users?q=old&page=2");
+      expect(pushMock).toHaveBeenLastCalledWith("/admin/users?q=old&page=2", { scroll: false });
 
       act(() => vi.advanceTimersByTime(300));
-      expect(replaceMock).toHaveBeenLastCalledWith("/admin/users?q=alice");
+      expect(replaceMock).toHaveBeenLastCalledWith("/admin/users?q=alice", { scroll: false });
     } finally {
       vi.useRealTimers();
     }
@@ -315,6 +340,6 @@ describe("shared list query mechanics", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "上一页" }));
 
-    expect(pushMock).toHaveBeenCalledWith("/admin/users?q=alice");
+    expect(pushMock).toHaveBeenCalledWith("/admin/users?q=alice", { scroll: false });
   });
 });

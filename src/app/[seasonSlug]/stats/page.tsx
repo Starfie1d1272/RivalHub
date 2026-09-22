@@ -4,7 +4,7 @@ import { PageHeader, PageLayout } from "@/components/rivalhub";
 import { TournamentStatsView } from "@/components/stats/TournamentStats";
 import { getPublicOrAuthorizedDraftSeason, getPublicSeasonBySlug } from "@/lib/data/public-seasons";
 import { normalizeStagePlan } from "@/lib/seasons/compatibility";
-import { getTournamentStats } from "@/lib/stats/tournament-query";
+import { getTournamentMapDetail, getTournamentStats } from "@/lib/stats/tournament-query";
 import { parseStatsQuery, type StatsSearch } from "@/lib/stats/query-state";
 
 interface StatsPageProps { params: Promise<{ seasonSlug: string }>; searchParams: Promise<StatsSearch> }
@@ -26,7 +26,7 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
       team: query.tab === "teams" ? undefined : query.team,
     }),
     query.tab === "maps" && query.map
-      ? getTournamentStats({ seasonId: season.id, stage: query.stage, map: query.map, team: query.team })
+      ? getTournamentMapDetail({ seasonId: season.id, stage: query.stage, map: query.map, team: query.team })
       : Promise.resolve(undefined),
   ]);
   return <PageLayout as="div" variant="wide" className="space-y-6"><PageHeader title="数据统计" eyebrow={season.name} /><TournamentStatsView data={data} selectedMapData={selectedMapData} query={query} seasonSlug={seasonSlug} stages={stages} /></PageLayout>;

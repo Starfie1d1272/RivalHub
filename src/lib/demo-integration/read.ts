@@ -66,9 +66,15 @@ function projectIssues(value: unknown): IntegrationIssue[] {
   });
 }
 
+type CurrentDemoImportCandidate = Pick<typeof matchDemoImports.$inferSelect, "semanticProfile" | "status">;
+
+export function selectCurrentDemoImport<T extends CurrentDemoImportCandidate>(rows: readonly T[]): T | undefined;
 export function selectCurrentDemoImport(
   rows: readonly (typeof matchDemoImports.$inferSelect)[],
-): typeof matchDemoImports.$inferSelect | undefined {
+): typeof matchDemoImports.$inferSelect | undefined;
+export function selectCurrentDemoImport(
+  rows: readonly CurrentDemoImportCandidate[],
+): CurrentDemoImportCandidate | undefined {
   return rows.find((row) => isCurrentDakSemanticProfile(row.semanticProfile) && row.status !== "superseded");
 }
 

@@ -1,9 +1,9 @@
 import React from "react";
-import Link from "next/link";
 import type { Route } from "next";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/rivalhub";
 import { StatsTable, type StatsTableColumn } from "@/components/stats/StatsTable";
+import { StatsLink } from "@/components/stats/StatsLink";
 import type { LeaderboardView } from "@/lib/matches/leaderboard-view";
 import { statsHref as tournamentHref, type StatsQuery } from "@/lib/stats/query-state";
 import type { StatsSortDirection } from "@/lib/stats/sorting";
@@ -120,12 +120,12 @@ export function StatsLeaderboard({ rows, sort, direction = "desc", query, season
     {
       key: "player",
       label: "Player",
-      render: (row) => row.userId ? <Link href={`/players/${row.userId}`} className="font-medium hover:text-[var(--color-accent)]">{row.perfectName}</Link> : <span className="font-medium">{row.perfectName}</span>,
+      render: (row) => row.userId ? <StatsLink href={`/players/${row.userId}` as Route} className="font-medium hover:text-[var(--color-accent)]">{row.perfectName}</StatsLink> : <span className="font-medium">{row.perfectName}</span>,
     },
     {
       key: "team",
       label: "Team",
-      render: (row) => row.teamId ? <Link href={`/${seasonSlug}/teams/${row.teamId}`} className="text-xs text-[var(--color-fg-mid)] hover:text-[var(--color-accent)]">{row.teamName ?? "—"}</Link> : <span className="text-xs text-[var(--color-fg-mid)]">{row.teamName ?? "—"}</span>,
+      render: (row) => row.teamId ? <StatsLink href={`/${seasonSlug}/teams/${row.teamId}` as Route} className="text-xs text-[var(--color-fg-mid)] hover:text-[var(--color-accent)]">{row.teamName ?? "—"}</StatsLink> : <span className="text-xs text-[var(--color-fg-mid)]">{row.teamName ?? "—"}</span>,
     },
     ...metricColumns(cols, accentText, sort),
   ];
@@ -137,7 +137,7 @@ export function StatsLeaderboard({ rows, sort, direction = "desc", query, season
         <div className="flex flex-wrap gap-1">
           {VIEWS.map(({ key, label, defaultSort }) => (
             <Button key={key} size="sm" variant={view !== key ? "ghost" : "outline"} asChild>
-              <a href={viewHref(defaultSort, "desc", key)}>{label}</a>
+              <StatsLink href={viewHref(defaultSort, "desc", key)}>{label}</StatsLink>
             </Button>
           ))}
         </div>

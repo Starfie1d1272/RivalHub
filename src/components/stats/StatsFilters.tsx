@@ -10,7 +10,7 @@ import { CS2_MAP_CATALOG } from "@/lib/config/cs2-maps";
 import type { StatsQuery } from "@/lib/stats/query-state";
 
 export function StatsFilters({ query, stages, maps, teams }: { query: StatsQuery; stages: { key: string; name: string }[]; maps: string[]; teams: { id: string; name: string }[] }) {
-  const { searchParams, update: updateQuery } = useListQueryParams();
+  const { searchParams, update: updateQuery } = useListQueryParams({ preserveScroll: true });
   const search = useRef<ListSearchFieldHandle>(null);
   return <ListToolbar>
     {([
@@ -23,6 +23,6 @@ export function StatsFilters({ query, stages, maps, teams }: { query: StatsQuery
   </ListToolbar>;
 }
 export function StatsPagination({ page, totalPages }: { page: number; totalPages: number }) {
-  const { update: updateQuery } = useListQueryParams();
+  const { update: updateQuery } = useListQueryParams({ preserveScroll: true });
   return <PaginationControls page={page} totalPages={totalPages} onPageChange={(page) => updateQuery({ page }, { defaults: { page: 1 } })} />;
 }

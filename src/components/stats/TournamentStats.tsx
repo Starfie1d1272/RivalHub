@@ -1,13 +1,13 @@
 import React from "react";
-import Link from "next/link";
 import type { Route } from "next";
 import type { ReactNode } from "react";
 import type { RateCount, TournamentRateSample } from "@cs2dak/tournament";
 import { EmptyState, Panel } from "@/components/rivalhub";
 import { StatsLeaderboard } from "@/components/matches/StatsLeaderboard";
 import { StatsFilters, StatsPagination } from "./StatsFilters";
+import { StatsLink } from "./StatsLink";
 import { StatsTable, type StatsTableColumn } from "./StatsTable";
-import type { TournamentStats } from "@/lib/stats/tournament-query";
+import type { TournamentMapDetail, TournamentStats } from "@/lib/stats/tournament-query";
 import { defaultStatsSort, STATS_TABS, statsHref, type StatsQuery, type StatsTab } from "@/lib/stats/query-state";
 import { sortStatsRows, type StatsSortDirection } from "@/lib/stats/sorting";
 import { CS2_MAP_CATALOG } from "@/lib/config/cs2-maps";
@@ -55,10 +55,12 @@ type MapRow = {
 };
 
 function mapRowsFor(data: TournamentStats): MapRow[] {
+  const selectionByMapName = new Map(data.selection.map((row) => [row.mapName, row]));
+  const analyticsByMapName = new Map(data.analytics.maps.map((row) => [row.mapName, row]));
   const names = new Set([...data.selection.map((row) => row.mapName), ...data.analytics.maps.map((row) => row.mapName)]);
   return [...names].map((mapName) => {
-    const selection = data.selection.find((row) => row.mapName === mapName);
-    const analytics = data.analytics.maps.find((row) => row.mapName === mapName);
+    const selection = selectionByMapName.get(mapName);
+    const analytics = analyticsByMapName.get(mapName);
     return {
       mapName,
       played: analytics?.mapCount ?? null,
@@ -126,12 +128,12 @@ function teamSortValue(
 
 function sortedTeamRows(
   rows: TournamentStats["analytics"]["teams"],
-  performanceRows: TournamentStats["performance"]["teams"],
+  performanceByEntityKey: ReadonlyMap<string, TournamentStats["performance"]["teams"][number]>,
   sort: string,
   direction: StatsSortDirection,
 ) {
   return sortStatsRows(rows, {
-    getValue: (row) => teamSortValue(row, performanceRows.find((item) => item.team.entityKey === row.team.entityKey), sort),
+    getValue: (row) => teamSortValue(row, performanceByEntityKey.get(row.team.entityKey), sort),
     direction,
   }, [
     { getValue: (row) => row.roundWinRate, direction: "desc" },
@@ -142,7 +144,7 @@ function sortedTeamRows(
 
 function mapColumns(href: (updates: Parameters<typeof statsHref>[2]) => Route): StatsTableColumn<MapRow>[] {
   return [
-    { key: "map", label: "Map", sortable: true, render: (row) => <Link href={href({ tab: "maps", map: row.mapName })} className="font-medium hover:text-[var(--color-accent)]">{getMapDisplayName(row.mapName)}</Link> },
+    { key: "map", label: "Map", sortable: true, render: (row) => <StatsLink href={href({ tab: "maps", map: row.mapName })} className="font-medium hover:text-[var(--color-accent)]">{getMapDisplayName(row.mapName)}</StatsLink> },
     { key: "played", label: "Played", sortable: true, numeric: true, render: (row) => nullableNumber(row.played) },
     { key: "pick", label: "Pick", sortable: true, numeric: true, render: (row) => nullableNumber(row.picks) },
     { key: "ban", label: "Ban", sortable: true, numeric: true, render: (row) => nullableNumber(row.bans) },
@@ -154,7 +156,7 @@ function mapColumns(href: (updates: Parameters<typeof statsHref>[2]) => Route): 
   ];
 }
 
-export function TournamentStatsView({ data, selectedMapData, query, seasonSlug, stages }: { data: TournamentStats; selectedMapData?: TournamentStats; query: StatsQuery; seasonSlug: string; stages: { key: string; name: string }[] }) {
+export function TournamentStatsView({ data, selectedMapData, query, seasonSlug, stages }: { data: TournamentStats; selectedMapData?: TournamentMapDetail; query: StatsQuery; seasonSlug: string; stages: { key: string; name: string }[] }) {
   const { analytics: a, performance: p } = data;
   const href = (updates: Parameters<typeof statsHref>[2]) => statsHref(seasonSlug, query, updates);
   const maps = mapRowsFor(data);
@@ -162,7 +164,8 @@ export function TournamentStatsView({ data, selectedMapData, query, seasonSlug, 
   const visibleMaps = sortedMapRows(maps, mapSort, query.direction);
   const selectedMap = query.map ? maps.find((row) => row.mapName === query.map) : undefined;
   const selectedMapTeams = selectedMap ? sortMapTeamRows(selectedMap.teams, query.sort.startsWith("mapTeam") ? query.sort : "mapTeamPick", query.sort.startsWith("mapTeam") ? query.direction : "desc") : [];
-  const teamRows = sortedTeamRows(a.teams, p.teams, query.sort, query.direction);
+  const performanceByEntityKey = new Map(p.teams.map((row) => [row.team.entityKey, row]));
+  const teamRows = sortedTeamRows(a.teams, performanceByEntityKey, query.sort, query.direction);
   const playerRows = p.players.filter((row) => (!query.team || row.teamEntityKeys.includes(query.team)) && row.player.displayName.toLocaleLowerCase().includes(query.q.toLocaleLowerCase()));
   const leaderboardValue = (row: TournamentStats["leaderboard"][number]): number | null => {
     switch (query.sort) {
@@ -197,7 +200,7 @@ export function TournamentStatsView({ data, selectedMapData, query, seasonSlug, 
   const sortHref = (sort: string, direction: StatsSortDirection) => href({ sort, dir: direction, page: 1 });
 
   return <div className="min-w-0 space-y-6">
-    <nav aria-label="统计维度" className="flex flex-wrap gap-2">{Object.entries(STATS_TABS).map(([tab, label]) => <Link key={tab} href={tabHref(tab as StatsTab)} aria-current={query.tab === tab ? "page" : undefined} className={`rounded-md border px-4 py-2 ${query.tab === tab ? "border-[var(--color-accent)] text-[var(--color-accent)]" : "border-[var(--color-border)]"}`}>{label}</Link>)}</nav>
+    <nav aria-label="统计维度" className="flex flex-wrap gap-2">{Object.entries(STATS_TABS).map(([tab, label]) => <StatsLink key={tab} href={tabHref(tab as StatsTab)} aria-current={query.tab === tab ? "page" : undefined} className={`rounded-md border px-4 py-2 ${query.tab === tab ? "border-[var(--color-accent)] text-[var(--color-accent)]" : "border-[var(--color-border)]"}`}>{label}</StatsLink>)}</nav>
     <StatsFilters query={query} stages={stages} maps={data.options.maps} teams={data.options.teams} />
     <p className="text-sm text-[var(--color-fg-mid)]">详细统计已覆盖 {data.coverage.confirmedMaps} / {data.coverage.completedMaps} 张已完成地图。{data.coverage.confirmedMaps === 0 ? "当前范围暂无已确认的详细数据。" : "比率的机会数可在指标提示中查看。"}</p>
 
@@ -212,13 +215,42 @@ export function TournamentStatsView({ data, selectedMapData, query, seasonSlug, 
     {query.tab === "players" && <div className="space-y-6">
       <StatsLeaderboard rows={pageRows} sort={query.sort} direction={query.direction} rankOffset={(page - 1) * 25} seasonSlug={seasonSlug} view={query.view} query={query} />
       <p className="text-sm">共 {leaderboard.length} 条</p><StatsPagination page={page} totalPages={totalPages} />
-      <div className="flex gap-3 text-sm" aria-label="详细数据阵营">{(["overall", "t", "ct"] as const).map((side) => <Link key={side} href={href({ side })} aria-current={query.side === side ? "true" : undefined}>{side === "overall" ? "双方" : side.toUpperCase()}</Link>)}</div>
+      <div className="flex gap-3 text-sm" aria-label="详细数据阵营">{(["overall", "t", "ct"] as const).map((side) => <StatsLink key={side} href={href({ side })} aria-current={query.side === side ? "true" : undefined}>{side === "overall" ? "双方" : side.toUpperCase()}</StatsLink>)}</div>
       {data.coverage.confirmedMaps === 0 ? <EmptyState title="暂无 DAK 详细数据" sub="已有的赛事 scoreboard 仍可查看；Opening、KAST、残局和道具面板会在确认 Demo 后出现。" /> : <div className="grid gap-4 md:grid-cols-2">{playerRows.filter((row) => detailPlayerIds.has(row.player.entityKey)).map((row) => { const s = row.slices[query.side]; return <details key={row.player.entityKey} className="rounded border border-[var(--color-border)] p-4"><summary className="cursor-pointer font-semibold">{row.player.displayName} · {s.combat.kills} / {s.combat.deaths} / {s.combat.assists}</summary><p className="my-2 text-sm">{row.mapCount} 张地图 · {s.sample.rounds} 个选手回合</p><MetricPanel title="详细表现" rows={[["Opening", <Rate key="o" value={s.opening.successRate} />], ["开局参与率", <Rate key="a" value={s.opening.attemptRate} />], ["KAST", <Rate key="k" value={s.kast} />], ["存活率", <Rate key="s" value={s.survival} />], ["补枪", s.trade.tradeKills], ["残局成功率", <Rate key="c" value={s.clutch.winRate} />], ["道具伤害／回合", <Rate key="u" value={s.utility.utilityDamagePerRound} percent={false} />], ["闪光致盲／颗", <Rate key="f" value={s.utility.enemyBlindSecondsPerFlash} percent={false} />]]} /><StatsTable rows={row.weapons} rowKey={(weapon) => weapon.weapon} columns={[{ key: "weapon", label: "武器（双方）", render: (weapon) => weapon.weapon }, { key: "kills", label: "击杀", numeric: true, render: (weapon) => weapon.kills }, { key: "hs", label: "爆头率", numeric: true, render: (weapon) => <Rate value={weapon.headshotRate} /> }]} /></details>; })}</div>}
     </div>}
 
     {query.tab === "teams" && (data.coverage.confirmedMaps === 0 ? <EmptyState title="暂无 DAK 队伍详细统计" sub="当前范围的 BP 和 legacy scoreboard 不依赖 DAK；队伍表现会在确认 Demo 后出现。" /> : <div className="space-y-6">
-      <StatsTable rows={teamRows} rowKey={(row) => row.team.entityKey} activeRowKey={query.team} sort={query.sort} direction={query.direction} sortHref={sortHref} columns={[{ key: "team", label: "Team", sortable: true, render: (row) => <Link href={href({ team: row.team.entityKey })} className="font-medium hover:text-[var(--color-accent)]">{row.team.displayName}</Link> }, { key: "maps", label: "Maps", sortable: true, numeric: true, render: (row) => row.mapCount }, { key: "rounds", label: "Rounds", sortable: true, numeric: true, render: (row) => row.rounds }, { key: "rw", label: "RW%", sortable: true, numeric: true, render: (row) => <Rate value={{ wins: row.roundWins, opportunities: row.rounds, rate: row.roundWinRate }} /> }, { key: "t", label: "T%", sortable: true, numeric: true, render: (row) => <Rate value={row.t} /> }, { key: "ct", label: "CT%", sortable: true, numeric: true, render: (row) => <Rate value={row.ct} /> }, { key: "pistol", label: "Pistol%", sortable: true, numeric: true, render: (row) => <Rate value={row.pistol} /> }, { key: "opening", label: "Opening%", sortable: true, numeric: true, render: (row) => <MaybeRate value={p.teams.find((item) => item.team.entityKey === row.team.entityKey)?.slices.overall.opening.successRate} /> }]} />
-      {query.team ? (() => { const row = teamRows.find((item) => item.team.entityKey === query.team); const performance = p.teams.find((item) => item.team.entityKey === query.team); if (!row) return <EmptyState title="没有找到该队伍的统计" />; return <div className="grid gap-4 md:grid-cols-2"><MetricPanel title="基础表现" rows={[["地图／回合", `${row.mapCount} / ${row.rounds}`], ["回合胜率", <Rate key="r" value={{ wins: row.roundWins, opportunities: row.rounds, rate: row.roundWinRate }} />], ["T", <Rate key="t" value={row.t} />], ["CT", <Rate key="ct" value={row.ct} />]]} /><MetricPanel title="人数优势" rows={Object.entries(row.manAdvantage).map(([key, value]) => [key, <Rate key={key} value={value} />])} /><MetricPanel title="经济" rows={[["手枪", <Rate key="p" value={row.pistol} />], ["R2 转化", <Rate key="r" value={row.round2.conversion} />], ["R2 逆转", <Rate key="b" value={row.round2.break} />], ["经济／半起爆冷", <Rate key="e" value={row.ecoSemiUpset} />]]} />{performance && <MetricPanel title="团队协作" rows={[["Opening", <Rate key="o" value={performance.slices.overall.opening.successRate} />], ["补枪", performance.slices.overall.trade.tradeKills], ["道具伤害／回合", <Rate key="u" value={performance.slices.overall.utility.utilityDamagePerRound} percent={false} />], ["闪光助攻", performance.slices.overall.utility.flashAssists]]} />}</div>; })() : <EmptyState title="选择一支队伍查看详情" sub="队伍总表保留全局比较；选择一行后才展开该队的四类详细指标。" />}
+      <StatsTable
+        rows={teamRows}
+        rowKey={(row) => row.team.entityKey}
+        activeRowKey={query.team}
+        sort={query.sort}
+        direction={query.direction}
+        sortHref={sortHref}
+        columns={[
+          { key: "team", label: "Team", sortable: true, render: (row) => <StatsLink href={href({ team: row.team.entityKey })} className="font-medium hover:text-[var(--color-accent)]">{row.team.displayName}</StatsLink> },
+          { key: "maps", label: "Maps", sortable: true, numeric: true, render: (row) => row.mapCount },
+          { key: "rounds", label: "Rounds", sortable: true, numeric: true, render: (row) => row.rounds },
+          { key: "rw", label: "RW%", sortable: true, numeric: true, render: (row) => <Rate value={{ wins: row.roundWins, opportunities: row.rounds, rate: row.roundWinRate }} /> },
+          { key: "t", label: "T%", sortable: true, numeric: true, render: (row) => <Rate value={row.t} /> },
+          { key: "ct", label: "CT%", sortable: true, numeric: true, render: (row) => <Rate value={row.ct} /> },
+          { key: "pistol", label: "Pistol%", sortable: true, numeric: true, render: (row) => <Rate value={row.pistol} /> },
+          { key: "opening", label: "Opening%", sortable: true, numeric: true, render: (row) => <MaybeRate value={performanceByEntityKey.get(row.team.entityKey)?.slices.overall.opening.successRate} /> },
+        ]}
+      />
+      {query.team ? (() => {
+        const row = teamRows.find((item) => item.team.entityKey === query.team);
+        const performance = performanceByEntityKey.get(query.team);
+        if (!row) return <EmptyState title="没有找到该队伍的统计" />;
+        return (
+          <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 18rem), 1fr))" }}>
+            <MetricPanel title="基础表现" rows={[["地图／回合", `${row.mapCount} / ${row.rounds}`], ["回合胜率", <Rate key="r" value={{ wins: row.roundWins, opportunities: row.rounds, rate: row.roundWinRate }} />], ["T", <Rate key="t" value={row.t} />], ["CT", <Rate key="ct" value={row.ct} />]]} />
+            <MetricPanel title="人数优势" rows={Object.entries(row.manAdvantage).map(([key, value]) => [key, <Rate key={key} value={value} />])} />
+            <MetricPanel title="经济" rows={[["手枪", <Rate key="p" value={row.pistol} />], ["R2 转化", <Rate key="r" value={row.round2.conversion} />], ["R2 逆转", <Rate key="b" value={row.round2.break} />], ["经济／半起爆冷", <Rate key="e" value={row.ecoSemiUpset} />]]} />
+            {performance && <MetricPanel title="团队协作" rows={[["Opening", <Rate key="o" value={performance.slices.overall.opening.successRate} />], ["补枪", performance.slices.overall.trade.tradeKills], ["道具伤害／回合", <Rate key="u" value={performance.slices.overall.utility.utilityDamagePerRound} percent={false} />], ["闪光助攻", performance.slices.overall.utility.flashAssists]]} />}
+          </div>
+        );
+      })() : <EmptyState title="选择一支队伍查看详情" sub="队伍总表保留全局比较；选择一行后才展开该队的四类详细指标。" />}
     </div>)}
 
     {query.tab === "maps" && <div className="space-y-6">
@@ -226,7 +258,7 @@ export function TournamentStatsView({ data, selectedMapData, query, seasonSlug, 
       {query.map ? <>
         <section><h2 className="mb-3 font-semibold">{getMapDisplayName(query.map)} · 队伍选择倾向</h2>{selectedMapTeams.length ? <StatsTable rows={selectedMapTeams} rowKey={(row) => row.entryId} sort={query.sort.startsWith("mapTeam") ? query.sort : "mapTeamPick"} direction={query.sort.startsWith("mapTeam") ? query.direction : "desc"} sortHref={sortHref} columns={[{ key: "mapTeam", label: "Team", sortable: true, render: (row) => row.name }, { key: "mapTeamPick", label: "Pick", sortable: true, numeric: true, render: (row) => row.picks }, { key: "mapTeamBan", label: "Ban", sortable: true, numeric: true, render: (row) => row.bans }]} /> : <EmptyState title="该地图暂无队伍 BP 记录" />}</section>
         {selectedMap && selectedMap.played !== null && (selectedMapData?.coverage.confirmedMaps ?? 0) > 0 && <section><h2 className="mb-3 font-semibold">{getMapDisplayName(query.map)} · 武器表现</h2><StatsTable rows={selectedMapData?.performance.weapons ?? []} rowKey={(row) => row.weapon} columns={[{ key: "weapon", label: "武器", render: (row) => row.weapon }, { key: "kills", label: "击杀", numeric: true, render: (row) => row.kills }, { key: "hs", label: "爆头率", numeric: true, render: (row) => <Rate value={row.headshotRate} /> }, { key: "top", label: "最多击杀选手", render: (row) => row.topPlayer?.displayName ?? "—" }]} /></section>}
-        <div className="flex flex-wrap gap-4 text-sm"><Link href={href({ tab: "teams" })}>查看本图队伍表现</Link><Link href={href({ tab: "players" })}>查看本图选手表现</Link></div>
+        <div className="flex flex-wrap gap-4 text-sm"><StatsLink href={href({ tab: "teams" })}>查看本图队伍表现</StatsLink><StatsLink href={href({ tab: "players" })}>查看本图选手表现</StatsLink></div>
       </> : <p className="text-sm text-[var(--color-fg-mid)]">选择一张地图查看队伍 Pick/Ban 倾向和该地图的 DAK 详细表现。</p>}
     </div>}
   </div>;
