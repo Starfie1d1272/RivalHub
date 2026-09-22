@@ -3,7 +3,7 @@
 import React, { useId, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { confirmStoredDemoParticipantIdentity, recheckStoredDemoImport, rejectStoredDemoImport, retireGameplaySteamIdentity } from "@/actions/demo-integration";
+import { confirmStoredDemoParticipantIdentity, recheckSeasonStoredDemoImports, recheckStoredDemoImport, rejectStoredDemoImport, retireGameplaySteamIdentity } from "@/actions/demo-integration";
 import { InlineConfirm, Panel } from "@/components/rivalhub";
 import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
 import { Button } from "@/components/ui/button";
@@ -95,6 +95,34 @@ function ParticipantReview({ importId, participant }: { importId: string; partic
   );
 }
 
+function SeasonRecheckControl({ importId }: { importId: string }) {
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+
+  function recheckSeason() {
+    if (isPending) return;
+    startTransition(async () => {
+      const result = await recheckSeasonStoredDemoImports({ importId });
+      if (result.success) {
+        const { attempted, confirmed, remaining, failed } = result.data;
+        toast.success(
+          `本赛事待处理 Demo 已重新检查：共 ${attempted} 张，确认 ${confirmed} 张，仍需处理 ${remaining} 张${failed > 0 ? `，失败 ${failed} 张` : ""}。`,
+        );
+        router.refresh();
+      } else toast.error(result.error.message);
+    });
+  }
+
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3 rounded border border-[var(--color-border)] bg-[var(--color-bg-soft)] p-3">
+      <p className="text-xs leading-5 text-[var(--color-fg-mid)]">身份或赛事资料已经修正时，可安全重新计算本赛事全部 current Demo；不会修改原始 Demo、Steam 身份或比赛名单。</p>
+      <Button type="button" variant="secondary" size="sm" disabled={isPending} onClick={recheckSeason}>
+        {isPending ? "重新检查中..." : "重新检查本赛事全部待处理 Demo"}
+      </Button>
+    </div>
+  );
+}
+
 function MapReview({ review }: { review: AdminDemoReviewMap }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -146,5 +174,10 @@ function MapReview({ review }: { review: AdminDemoReviewMap }) {
 
 export function DemoDataReviewPanel({ reviews = [] }: { reviews?: AdminDemoReviewMap[] }) {
   if (reviews.length === 0) return null;
-  return <Panel label="Demo 数据需要处理" contentClassName="space-y-5 p-4">{reviews.map((review) => <MapReview key={review.importId} review={review} />)}</Panel>;
+  return (
+    <Panel label="Demo 数据需要处理" contentClassName="space-y-5 p-4">
+      <SeasonRecheckControl importId={reviews[0]!.importId} />
+      {reviews.map((review) => <MapReview key={review.importId} review={review} />)}
+    </Panel>
+  );
 }
