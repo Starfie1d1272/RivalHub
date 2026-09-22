@@ -3,7 +3,7 @@
 import React, { useId, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { confirmStoredDemoParticipantIdentity, rejectStoredDemoImport, retireGameplaySteamIdentity } from "@/actions/demo-integration";
+import { confirmStoredDemoParticipantIdentity, recheckStoredDemoImport, rejectStoredDemoImport, retireGameplaySteamIdentity } from "@/actions/demo-integration";
 import { InlineConfirm, Panel } from "@/components/rivalhub";
 import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
 import { Button } from "@/components/ui/button";
@@ -90,6 +90,20 @@ function MapReview({ review }: { review: AdminDemoReviewMap }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [rejecting, setRejecting] = useState(false);
+
+  function recheck() {
+    if (isPending) return;
+    startTransition(async () => {
+      const result = await recheckStoredDemoImport({ importId: review.importId });
+      if (result.success) {
+        toast.success(result.data.status === "confirmed"
+          ? "已按当前资料重新检查，这份 Demo 已确认并更新统计。"
+          : "已按当前资料重新检查，仍有问题需要处理。");
+        router.refresh();
+      } else toast.error(result.error.message);
+    });
+  }
+
   function reject() {
     if (isPending) return;
     startTransition(async () => {
@@ -111,7 +125,10 @@ function MapReview({ review }: { review: AdminDemoReviewMap }) {
       {review.resolvedCount > 0 && <p className="text-sm text-[var(--color-fg-mid)]">{review.resolvedCount} 名选手身份已正常匹配</p>}
       {review.blockingIssues.length > 0 && <ul className="list-disc space-y-1 pl-5 text-sm leading-6">{review.blockingIssues.map((issue) => <li key={issue}>{issue}</li>)}</ul>}
       <fieldset disabled={isPending} className="space-y-3 border-t border-[var(--color-border)] pt-3">
-        <Button type="button" variant="ghost" size="sm" disabled={isPending} onClick={() => setRejecting(true)}>拒绝这份 Demo 数据</Button>
+        <div className="flex flex-wrap gap-2">
+          <Button type="button" variant="secondary" size="sm" disabled={isPending} onClick={recheck}>按当前资料重新检查</Button>
+          <Button type="button" variant="ghost" size="sm" disabled={isPending} onClick={() => setRejecting(true)}>拒绝这份 Demo 数据</Button>
+        </div>
         {rejecting && <InlineConfirm danger title="确认拒绝这份 Demo 数据？" sub="拒绝后不会写入比赛统计；原始 Demo 数据仍会保留。" confirmLabel="确认拒绝" onCancel={() => setRejecting(false)} onConfirm={reject} />}
       </fieldset>
     </section>
