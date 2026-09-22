@@ -154,7 +154,7 @@ function mapColumns(href: (updates: Parameters<typeof statsHref>[2]) => Route): 
   ];
 }
 
-export function TournamentStatsView({ data, query, seasonSlug, stages }: { data: TournamentStats; query: StatsQuery; seasonSlug: string; stages: { key: string; name: string }[] }) {
+export function TournamentStatsView({ data, selectedMapData, query, seasonSlug, stages }: { data: TournamentStats; selectedMapData?: TournamentStats; query: StatsQuery; seasonSlug: string; stages: { key: string; name: string }[] }) {
   const { analytics: a, performance: p } = data;
   const href = (updates: Parameters<typeof statsHref>[2]) => statsHref(seasonSlug, query, updates);
   const maps = mapRowsFor(data);
@@ -162,7 +162,7 @@ export function TournamentStatsView({ data, query, seasonSlug, stages }: { data:
   const visibleMaps = sortedMapRows(maps, mapSort, query.direction);
   const selectedMap = query.map ? maps.find((row) => row.mapName === query.map) : undefined;
   const selectedMapTeams = selectedMap ? sortMapTeamRows(selectedMap.teams, query.sort.startsWith("mapTeam") ? query.sort : "mapTeamPick", query.sort.startsWith("mapTeam") ? query.direction : "desc") : [];
-  const teamRows = sortedTeamRows(a.teams.filter((row) => !query.team || row.team.entityKey === query.team), p.teams, query.sort, query.direction);
+  const teamRows = sortedTeamRows(a.teams, p.teams, query.sort, query.direction);
   const playerRows = p.players.filter((row) => (!query.team || row.teamEntityKeys.includes(query.team)) && row.player.displayName.toLocaleLowerCase().includes(query.q.toLocaleLowerCase()));
   const leaderboardValue = (row: TournamentStats["leaderboard"][number]): number | null => {
     switch (query.sort) {
@@ -205,7 +205,7 @@ export function TournamentStatsView({ data, query, seasonSlug, stages }: { data:
       <KpiStrip rows={[["Matches", a.totals.matchCount], ["Maps", a.totals.mapCount], ["Rounds", a.totals.roundCount], ["T%", <Rate key="t" value={a.totals.t} />], ["CT%", <Rate key="ct" value={a.totals.ct} />]]} />
       <div className="grid gap-4 md:grid-cols-2"><MetricPanel title="手枪与 R2" rows={[["手枪局 T 胜率", <Rate key="p" value={a.totals.pistolT} />], ["手枪局 CT 胜率", <Rate key="pc" value={a.totals.pistolCt} />], ["R2 转化", <Rate key="r" value={a.totals.round2Conversion} />], ["R2 逆转", <Rate key="b" value={a.totals.round2Break} />]]} /><MetricPanel title="人数优势转化" rows={Object.entries(a.totals.manAdvantage).map(([key, value]) => [key, <Rate key={key} value={value} />])} /></div>
       <section><h2 className="mb-3 font-semibold">地图使用</h2><StatsTable rows={overviewMaps} columns={mapTableColumns} rowKey={(row) => row.mapName} sort={query.sort} direction={query.direction} sortHref={sortHref} /></section>
-      <section><h2 className="mb-3 font-semibold">经济对局</h2><StatsTable rows={a.economyMatrix} rowKey={(row) => `${row.lowEconomy}:${row.highEconomy}`} columns={[{ key: "economy", label: "经济组合", render: (row) => `${economyLabels[row.lowEconomy]} / ${economyLabels[row.highEconomy]}` }, { key: "rounds", label: "Rounds", numeric: true, sortable: true, render: (row) => row.rounds }, { key: "rate", label: "较低经济方胜率", numeric: true, render: (row) => <Rate value={{ wins: row.lowEconomyWins, opportunities: row.rounds, rate: row.lowWinRate }} /> }]} sort={query.sort} direction={query.direction} sortHref={sortHref} /></section>
+      <section><h2 className="mb-3 font-semibold">经济对局</h2><StatsTable rows={a.economyMatrix} rowKey={(row) => `${row.lowEconomy}:${row.highEconomy}`} columns={[{ key: "economy", label: "经济组合", render: (row) => `${economyLabels[row.lowEconomy]} / ${economyLabels[row.highEconomy]}` }, { key: "rounds", label: "Rounds", numeric: true, render: (row) => row.rounds }, { key: "rate", label: "较低经济方胜率", numeric: true, render: (row) => <Rate value={{ wins: row.lowEconomyWins, opportunities: row.rounds, rate: row.lowWinRate }} /> }]} /></section>
       <div className="grid gap-4 md:grid-cols-2"><MetricPanel title="队伍表现" rows={a.teams.slice().sort((left, right) => right.roundWins - left.roundWins).slice(0, 3).map((row) => [row.team.displayName, `${row.roundWins} 个获胜回合`])} /><MetricPanel title="选手表现" rows={playerRows.slice().sort((left, right) => right.slices.overall.combat.kills - left.slices.overall.combat.kills).slice(0, 3).map((row) => [row.player.displayName, `${row.slices.overall.combat.kills} 次击杀`])} /></div>
     </div>)}
 
@@ -225,7 +225,7 @@ export function TournamentStatsView({ data, query, seasonSlug, stages }: { data:
       <section><h2 className="mb-3 font-semibold">地图总表</h2>{maps.length ? <StatsTable rows={visibleMaps} columns={mapTableColumns} rowKey={(row) => row.mapName} activeRowKey={query.map} sort={query.sort} direction={query.direction} sortHref={sortHref} /> : <EmptyState title="暂无地图选择或已确认 Demo 数据" />}</section>
       {query.map ? <>
         <section><h2 className="mb-3 font-semibold">{getMapDisplayName(query.map)} · 队伍选择倾向</h2>{selectedMapTeams.length ? <StatsTable rows={selectedMapTeams} rowKey={(row) => row.entryId} sort={query.sort.startsWith("mapTeam") ? query.sort : "mapTeamPick"} direction={query.sort.startsWith("mapTeam") ? query.direction : "desc"} sortHref={sortHref} columns={[{ key: "mapTeam", label: "Team", sortable: true, render: (row) => row.name }, { key: "mapTeamPick", label: "Pick", sortable: true, numeric: true, render: (row) => row.picks }, { key: "mapTeamBan", label: "Ban", sortable: true, numeric: true, render: (row) => row.bans }]} /> : <EmptyState title="该地图暂无队伍 BP 记录" />}</section>
-        {selectedMap && selectedMap.played !== null && data.coverage.confirmedMaps > 0 && <section><h2 className="mb-3 font-semibold">{getMapDisplayName(query.map)} · 武器表现</h2><StatsTable rows={p.weapons} rowKey={(row) => row.weapon} columns={[{ key: "weapon", label: "武器", render: (row) => row.weapon }, { key: "kills", label: "击杀", numeric: true, render: (row) => row.kills }, { key: "hs", label: "爆头率", numeric: true, render: (row) => <Rate value={row.headshotRate} /> }, { key: "top", label: "最多击杀选手", render: (row) => row.topPlayer?.displayName ?? "—" }]} /></section>}
+        {selectedMap && selectedMap.played !== null && (selectedMapData?.coverage.confirmedMaps ?? 0) > 0 && <section><h2 className="mb-3 font-semibold">{getMapDisplayName(query.map)} · 武器表现</h2><StatsTable rows={selectedMapData?.performance.weapons ?? []} rowKey={(row) => row.weapon} columns={[{ key: "weapon", label: "武器", render: (row) => row.weapon }, { key: "kills", label: "击杀", numeric: true, render: (row) => row.kills }, { key: "hs", label: "爆头率", numeric: true, render: (row) => <Rate value={row.headshotRate} /> }, { key: "top", label: "最多击杀选手", render: (row) => row.topPlayer?.displayName ?? "—" }]} /></section>}
         <div className="flex flex-wrap gap-4 text-sm"><Link href={href({ tab: "teams" })}>查看本图队伍表现</Link><Link href={href({ tab: "players" })}>查看本图选手表现</Link></div>
       </> : <p className="text-sm text-[var(--color-fg-mid)]">选择一张地图查看队伍 Pick/Ban 倾向和该地图的 DAK 详细表现。</p>}
     </div>}

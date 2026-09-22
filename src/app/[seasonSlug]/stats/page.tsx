@@ -18,6 +18,16 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
   if (!season) notFound();
   const stages = normalizeStagePlan(season.stagePlan).map(({ key, name }) => ({ key, name }));
   const query = parseStatsQuery(await searchParams, stages.map((stage) => stage.key));
-  const data = await getTournamentStats({ seasonId: season.id, stage: query.stage, map: query.map, team: query.team });
-  return <PageLayout as="div" variant="wide" className="space-y-6"><PageHeader title="数据统计" eyebrow={season.name} /><TournamentStatsView data={data} query={query} seasonSlug={seasonSlug} stages={stages} /></PageLayout>;
+  const [data, selectedMapData] = await Promise.all([
+    getTournamentStats({
+      seasonId: season.id,
+      stage: query.stage,
+      map: query.tab === "maps" ? undefined : query.map,
+      team: query.tab === "teams" ? undefined : query.team,
+    }),
+    query.tab === "maps" && query.map
+      ? getTournamentStats({ seasonId: season.id, stage: query.stage, map: query.map, team: query.team })
+      : Promise.resolve(undefined),
+  ]);
+  return <PageLayout as="div" variant="wide" className="space-y-6"><PageHeader title="数据统计" eyebrow={season.name} /><TournamentStatsView data={data} selectedMapData={selectedMapData} query={query} seasonSlug={seasonSlug} stages={stages} /></PageLayout>;
 }
