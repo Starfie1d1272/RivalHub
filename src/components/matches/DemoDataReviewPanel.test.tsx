@@ -5,10 +5,10 @@ import userEvent from "@testing-library/user-event";
 import { DemoDataReviewPanel } from "./DemoDataReviewPanel";
 import type { AdminDemoReviewMap, AdminDemoReviewParticipant } from "@/lib/admin/matches/types";
 
-const mocks = vi.hoisted(() => ({ confirm: vi.fn(), recheck: vi.fn(), retire: vi.fn(), reject: vi.fn(), refresh: vi.fn(), success: vi.fn(), error: vi.fn() }));
+const mocks = vi.hoisted(() => ({ confirm: vi.fn(), recheckSeason: vi.fn(), recheck: vi.fn(), retire: vi.fn(), reject: vi.fn(), refresh: vi.fn(), success: vi.fn(), error: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: mocks.refresh }) }));
 vi.mock("sonner", () => ({ toast: { success: mocks.success, error: mocks.error } }));
-vi.mock("@/actions/demo-integration", () => ({ confirmStoredDemoParticipantIdentity: mocks.confirm, recheckStoredDemoImport: mocks.recheck, retireGameplaySteamIdentity: mocks.retire, rejectStoredDemoImport: mocks.reject }));
+vi.mock("@/actions/demo-integration", () => ({ confirmStoredDemoParticipantIdentity: mocks.confirm, recheckSeasonStoredDemoImports: mocks.recheckSeason, recheckStoredDemoImport: mocks.recheck, retireGameplaySteamIdentity: mocks.retire, rejectStoredDemoImport: mocks.reject }));
 
 const participant: AdminDemoReviewParticipant = {
   observedSteam64: "76561198123456789", demoName: "Demo player", teamName: "Alpha", state: "confirmable",
@@ -23,12 +23,22 @@ function review(overrides: Partial<AdminDemoReviewMap> = {}): AdminDemoReviewMap
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.confirm.mockResolvedValue({ success: true, data: { status: "confirmed" } });
+  mocks.recheckSeason.mockResolvedValue({ success: true, data: { attempted: 17, confirmed: 12, remaining: 5, failed: 0, affectedMatchIds: ["match-a"] } });
   mocks.recheck.mockResolvedValue({ success: true, data: { status: "confirmed", importId: "import-a", issues: [] } });
   mocks.retire.mockResolvedValue({ success: true, data: { retired: true } });
   mocks.reject.mockResolvedValue({ success: true, data: {} });
 });
 
 describe("DemoDataReviewPanel", () => {
+  it("rechecks all current pending Demo imports in the season from one operator action", async () => {
+    const user = userEvent.setup();
+    render(<DemoDataReviewPanel reviews={[review()]} />);
+    await user.click(screen.getByRole("button", { name: "重新检查本赛事全部待处理 Demo" }));
+    await waitFor(() => expect(mocks.recheckSeason).toHaveBeenCalledWith({ importId: "import-a" }));
+    expect(mocks.success).toHaveBeenCalledWith("本赛事待处理 Demo 已重新检查：共 17 张，确认 12 张，仍需处理 5 张。");
+    expect(mocks.refresh).toHaveBeenCalledOnce();
+  });
+
   it.each(["confirmed", "needs_attention"])("rechecks stored evidence against current facts and refreshes for %s", async (status) => {
     mocks.recheck.mockResolvedValue({ success: true, data: { status, importId: "import-a", issues: status === "confirmed" ? [] : [{ code: "ROSTER_PARTICIPANT_MISSING" }] } });
     const user = userEvent.setup();
