@@ -135,6 +135,75 @@ export interface RelatedDemoRevalidationSummary {
   affectedMatchIds: string[];
 }
 
+type RecheckCandidate = Pick<
+  typeof matchDemoImports.$inferSelect,
+  "id" | "matchId" | "payload" | "semanticProfile" | "createdAt"
+>;
+
+async function loadSeasonNeedsAttentionCandidates(seasonId: string): Promise<RecheckCandidate[]> {
+  return db
+    .select({
+      id: matchDemoImports.id,
+      matchId: matchDemoImports.matchId,
+      payload: matchDemoImports.payload,
+      semanticProfile: matchDemoImports.semanticProfile,
+      createdAt: matchDemoImports.createdAt,
+    })
+    .from(matchDemoImports)
+    .where(and(
+      eq(matchDemoImports.seasonId, seasonId),
+      eq(matchDemoImports.status, "needs_attention"),
+    ))
+    .orderBy(asc(matchDemoImports.createdAt));
+}
+
+async function revalidateCandidateRows(
+  rows: readonly RecheckCandidate[],
+  actorId: string,
+): Promise<RelatedDemoRevalidationSummary> {
+  let confirmed = 0;
+  let remaining = 0;
+  let failed = 0;
+  const affectedMatchIds = new Set<string>();
+
+  for (const row of rows) {
+    try {
+      const result = await db.transaction((tx) => revalidateStoredDemoImportInTx(tx, {
+        importId: row.id,
+        actorId,
+        verifiedBy: `admin:${actorId}`,
+      }));
+      affectedMatchIds.add(row.matchId);
+      if (result.status === "confirmed") confirmed++;
+      else remaining++;
+    } catch {
+      failed++;
+    }
+  }
+
+  return {
+    attempted: rows.length,
+    confirmed,
+    remaining,
+    failed,
+    affectedMatchIds: [...affectedMatchIds],
+  };
+}
+
+/**
+ * Recheck every current-profile needs_attention import in one season. This is
+ * intentionally a deterministic recomputation only: it does not alter identity,
+ * roster, source payload or evidence metadata.
+ */
+export async function revalidateSeasonNeedsAttentionImports(input: {
+  seasonId: string;
+  actorId: string;
+}): Promise<RelatedDemoRevalidationSummary> {
+  const rows = (await loadSeasonNeedsAttentionCandidates(input.seasonId))
+    .filter((row) => isCurrentDakSemanticProfile(row.semanticProfile));
+  return revalidateCandidateRows(rows, input.actorId);
+}
+
 /**
  * Recheck other current-profile needs_attention imports in the same season that
  * contain the same observed Steam64. Each import runs in its own transaction so
@@ -150,22 +219,7 @@ export async function revalidateNeedsAttentionImportsForSteam64(input: {
     throw new AppError(ErrorCode.VALIDATION_FAILED, "Steam64 ID 格式无效。");
   }
 
-  const rows = await db
-    .select({
-      id: matchDemoImports.id,
-      matchId: matchDemoImports.matchId,
-      payload: matchDemoImports.payload,
-      semanticProfile: matchDemoImports.semanticProfile,
-      createdAt: matchDemoImports.createdAt,
-    })
-    .from(matchDemoImports)
-    .where(and(
-      eq(matchDemoImports.seasonId, input.seasonId),
-      eq(matchDemoImports.status, "needs_attention"),
-    ))
-    .orderBy(asc(matchDemoImports.createdAt));
-
-  const matching = rows.filter((row) => {
+  const matching = (await loadSeasonNeedsAttentionCandidates(input.seasonId)).filter((row) => {
     if (row.id === input.excludeImportId || !isCurrentDakSemanticProfile(row.semanticProfile)) return false;
     try {
       return parseRivalHubDemoEvidenceV1(row.payload).participants.some((participant) => participant.steamId64 === input.steam64);
@@ -174,31 +228,5 @@ export async function revalidateNeedsAttentionImportsForSteam64(input: {
     }
   });
 
-  let confirmed = 0;
-  let remaining = 0;
-  let failed = 0;
-  const affectedMatchIds = new Set<string>();
-
-  for (const row of matching) {
-    try {
-      const result = await db.transaction((tx) => revalidateStoredDemoImportInTx(tx, {
-        importId: row.id,
-        actorId: input.actorId,
-        verifiedBy: `admin:${input.actorId}`,
-      }));
-      affectedMatchIds.add(row.matchId);
-      if (result.status === "confirmed") confirmed++;
-      else remaining++;
-    } catch {
-      failed++;
-    }
-  }
-
-  return {
-    attempted: matching.length,
-    confirmed,
-    remaining,
-    failed,
-    affectedMatchIds: [...affectedMatchIds],
-  };
+  return revalidateCandidateRows(matching, input.actorId);
 }
