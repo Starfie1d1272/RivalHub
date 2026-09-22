@@ -3,7 +3,7 @@
 import React, { useId, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { confirmStoredDemoParticipantIdentity, rejectStoredDemoImport, retireGameplaySteamIdentity } from "@/actions/demo-integration";
+import { confirmStoredDemoParticipantIdentity, recheckSeasonStoredDemoImports, recheckStoredDemoImport, rejectStoredDemoImport, retireGameplaySteamIdentity } from "@/actions/demo-integration";
 import { InlineConfirm, Panel } from "@/components/rivalhub";
 import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
 import { Button } from "@/components/ui/button";
@@ -24,7 +24,16 @@ function ParticipantReview({ importId, participant }: { importId: string; partic
     startTransition(async () => {
       const result = await confirmStoredDemoParticipantIdentity({ importId, observedSteam64: participant.observedSteam64, eventRosterMemberId: selected.eventRosterMemberId });
       if (result.success) {
-        toast.success(result.data.status === "confirmed" ? "比赛 Steam 身份已确认，Demo 数据已重新检查。" : "比赛 Steam 身份已保存，但这份 Demo 仍有其他问题需要处理。");
+        const baseMessage = result.data.status === "confirmed"
+          ? "比赛 Steam 身份已确认，Demo 数据已重新检查。"
+          : "比赛 Steam 身份已保存，但这份 Demo 仍有其他问题需要处理。";
+        const related = result.data.relatedRechecks ?? { attempted: 0, confirmed: 0, remaining: 0, failed: 0 };
+        const relatedMessages = [
+          related.confirmed > 0 ? `另外自动确认了 ${related.confirmed} 张受同一身份影响的 Demo。` : "",
+          related.remaining > 0 ? `另有 ${related.remaining} 张相关 Demo 重新检查后仍需处理。` : "",
+          related.failed > 0 ? `另有 ${related.failed} 张自动重新检查失败，可使用“按当前资料重新检查”重试。` : "",
+        ].filter(Boolean);
+        toast.success([baseMessage, ...relatedMessages].join(" "));
         setSelectedId("");
         router.refresh();
       } else toast.error(result.error.message);
@@ -86,10 +95,52 @@ function ParticipantReview({ importId, participant }: { importId: string; partic
   );
 }
 
+function SeasonRecheckControl({ importId }: { importId: string }) {
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+
+  function recheckSeason() {
+    if (isPending) return;
+    startTransition(async () => {
+      const result = await recheckSeasonStoredDemoImports({ importId });
+      if (result.success) {
+        const { attempted, confirmed, remaining, failed } = result.data;
+        toast.success(
+          `本赛事待处理 Demo 已重新检查：共 ${attempted} 张，确认 ${confirmed} 张，仍需处理 ${remaining} 张${failed > 0 ? `，失败 ${failed} 张` : ""}。`,
+        );
+        router.refresh();
+      } else toast.error(result.error.message);
+    });
+  }
+
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3 rounded border border-[var(--color-border)] bg-[var(--color-bg-soft)] p-3">
+      <p className="text-xs leading-5 text-[var(--color-fg-mid)]">身份或赛事资料已经修正时，可安全重新计算本赛事全部 current Demo；不会修改原始 Demo、Steam 身份或比赛名单。</p>
+      <Button type="button" variant="secondary" size="sm" disabled={isPending} onClick={recheckSeason}>
+        {isPending ? "重新检查中..." : "重新检查本赛事全部待处理 Demo"}
+      </Button>
+    </div>
+  );
+}
+
 function MapReview({ review }: { review: AdminDemoReviewMap }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [rejecting, setRejecting] = useState(false);
+
+  function recheck() {
+    if (isPending) return;
+    startTransition(async () => {
+      const result = await recheckStoredDemoImport({ importId: review.importId });
+      if (result.success) {
+        toast.success(result.data.status === "confirmed"
+          ? "已按当前资料重新检查，这份 Demo 已确认并更新统计。"
+          : "已按当前资料重新检查，仍有问题需要处理。");
+        router.refresh();
+      } else toast.error(result.error.message);
+    });
+  }
+
   function reject() {
     if (isPending) return;
     startTransition(async () => {
@@ -111,7 +162,10 @@ function MapReview({ review }: { review: AdminDemoReviewMap }) {
       {review.resolvedCount > 0 && <p className="text-sm text-[var(--color-fg-mid)]">{review.resolvedCount} 名选手身份已正常匹配</p>}
       {review.blockingIssues.length > 0 && <ul className="list-disc space-y-1 pl-5 text-sm leading-6">{review.blockingIssues.map((issue) => <li key={issue}>{issue}</li>)}</ul>}
       <fieldset disabled={isPending} className="space-y-3 border-t border-[var(--color-border)] pt-3">
-        <Button type="button" variant="ghost" size="sm" disabled={isPending} onClick={() => setRejecting(true)}>拒绝这份 Demo 数据</Button>
+        <div className="flex flex-wrap gap-2">
+          <Button type="button" variant="secondary" size="sm" disabled={isPending} onClick={recheck}>按当前资料重新检查</Button>
+          <Button type="button" variant="ghost" size="sm" disabled={isPending} onClick={() => setRejecting(true)}>拒绝这份 Demo 数据</Button>
+        </div>
         {rejecting && <InlineConfirm danger title="确认拒绝这份 Demo 数据？" sub="拒绝后不会写入比赛统计；原始 Demo 数据仍会保留。" confirmLabel="确认拒绝" onCancel={() => setRejecting(false)} onConfirm={reject} />}
       </fieldset>
     </section>
@@ -120,5 +174,10 @@ function MapReview({ review }: { review: AdminDemoReviewMap }) {
 
 export function DemoDataReviewPanel({ reviews = [] }: { reviews?: AdminDemoReviewMap[] }) {
   if (reviews.length === 0) return null;
-  return <Panel label="Demo 数据需要处理" contentClassName="space-y-5 p-4">{reviews.map((review) => <MapReview key={review.importId} review={review} />)}</Panel>;
+  return (
+    <Panel label="Demo 数据需要处理" contentClassName="space-y-5 p-4">
+      <SeasonRecheckControl importId={reviews[0]!.importId} />
+      {reviews.map((review) => <MapReview key={review.importId} review={review} />)}
+    </Panel>
+  );
 }

@@ -112,7 +112,9 @@ export async function loadAdminMatchWorkbench({
     db
       .select({
         id: eventRosterMembers.id,
+        userId: users.id,
         entryId: eventRosters.entryId,
+        eventRosterStatus: eventRosters.status,
         personaName: steamProfiles.personaName,
         displayName: users.displayName,
         perfectName: users.perfectName,
@@ -176,6 +178,14 @@ export async function loadAdminMatchWorkbench({
       .orderBy(desc(matchDemoImports.createdAt))
     : [];
 
+  const eventRosterUserIdsByEntry = new Map<string, Set<string>>();
+  for (const member of memberRows) {
+    if (member.eventRosterStatus !== "confirmed" && member.eventRosterStatus !== "frozen") continue;
+    const ids = eventRosterUserIdsByEntry.get(member.entryId) ?? new Set<string>();
+    ids.add(member.userId);
+    eventRosterUserIdsByEntry.set(member.entryId, ids);
+  }
+
   const members = memberRows.map(projectTeamMember);
   const membersByEntry = new Map<string, TeamMemberData[]>();
   for (const member of members) {
@@ -214,7 +224,13 @@ export async function loadAdminMatchWorkbench({
   const demoReviews: AdminDemoReviewMap[] = [];
   for (const map of mapRecords) {
     const row = currentImportByMap.get(map.id);
-    if (row) demoReviews.push(await db.transaction((tx) => loadAdminDemoReview(tx, row, { match, map, roster: effectiveRosterRows }, entryName)));
+    if (row) demoReviews.push(await db.transaction((tx) => loadAdminDemoReview(
+      tx,
+      row,
+      { match, map, roster: effectiveRosterRows },
+      entryName,
+      eventRosterUserIdsByEntry,
+    )));
   }
   const submittedAt = submission?.submittedAt ?? null;
   const postMatch = match.status === "cancelled"

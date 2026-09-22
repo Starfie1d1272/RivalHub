@@ -15,7 +15,8 @@ const target = { match: { entryAId: "a", entryBId: "b" }, map: { id: "map", mapO
   roster: [{ userId: "starter", entryId: "a", eventRosterMemberId: "member", displayName: "本场首发", steam64: "76561198000000001" },
     { userId: "opponent", entryId: "b", eventRosterMemberId: "other", displayName: "另一队首发" }] } as CanonicalTarget;
 const unresolved = { code: "PARTICIPANT_IDENTITY_UNRESOLVED", path: `participants.${steam64}`, message: "internal" };
-const load = () => loadAdminDemoReview({} as TxDb, row, target, new Map([["a", "Alpha"]]));
+const load = (eventRosterUserIdsByEntry: ReadonlyMap<string, ReadonlySet<string>> = new Map()) =>
+  loadAdminDemoReview({} as TxDb, row, target, new Map([["a", "Alpha"]]), eventRosterUserIdsByEntry);
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.read.mockReturnValue({ participants: [{ steamId64: steam64, nameSnapshot: "Demo player", observedTeamKey: "teamA" }] });
@@ -39,6 +40,28 @@ describe("admin Demo review projection", () => {
     expect(result).toMatchObject({ resolvedCount: 1, participants: [], message: "这份 Demo 当前不是 Steam 身份确认问题。" });
     expect(result.blockingIssues).toEqual(["Demo 回合比分与正式比分不一致，请核对本图赛果。", "DAK QA 未通过，本问题不能通过身份确认解决。"]);
   });
+  it("classifies a resolved same-team EventRoster member outside the recorded starters as a lineup mismatch", async () => {
+    const detail: GameplayIdentityReviewDetail = { userId: "substitute", name: "替补选手", source: "primary", identity: null };
+    mocks.validate.mockResolvedValue({
+      issues: [
+        { code: "PARTICIPANT_NOT_IN_ROSTER", path: `participants.${steam64}`, message: "internal" },
+        { code: "ROSTER_PARTICIPANT_MISSING", message: "internal" },
+      ],
+      resolutions: new Map([[steam64, detail]]),
+    });
+    mocks.details.mockResolvedValue(new Map([[steam64, detail]]));
+
+    const result = await load(new Map([["a", new Set(["starter", "substitute"])]]));
+    expect(result.participants[0]).toMatchObject({
+      state: "roster-mismatch",
+      currentPlayer: { userId: "substitute", name: "替补选手" },
+      candidates: [],
+      retirableIdentityId: null,
+    });
+    expect(result.message).toBe("需要处理：1 名选手实际出场与本场记录首发不一致");
+    expect(result.participants[0]?.note).toContain("不是 Steam 身份冲突");
+  });
+
   it.each([
     ["primary", null, "conflict-nonretirable"],
     ["gameplay_alias", { identityId: "identity", provenance: "profile_change", status: "active", sourceSeasonId: "season" }, "conflict-nonretirable"],
