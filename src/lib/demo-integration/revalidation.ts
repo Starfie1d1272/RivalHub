@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, asc, eq } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { db, type TxDb } from "@/db/client";
 import { matchDemoImports } from "@/db/schema";
 import { writeAuditInTx } from "@/lib/audit/write";
@@ -9,6 +9,7 @@ import { parseRivalHubDemoEvidenceV1 } from "@/lib/demo-evidence/contract";
 import type { IntegrationIssue, RivalHubEvidenceSubmission } from "./contracts";
 import { DEMO_CONTENT_CONFLICT_MESSAGE, lockDemoImportLineageInTx, promoteDemoImportInTx, resolveDemoImportLineageInTx } from "./promotion";
 import { buildEvidenceRevisionForTarget, sha256Json } from "./revision";
+import { selectCurrentDemoImport } from "./read";
 import { isCurrentDakSemanticProfile } from "./semantic-profile";
 import { integrationIssue, loadCanonicalTarget, validateCanonicalTarget, type CanonicalTarget } from "./validation";
 
@@ -135,26 +136,28 @@ export interface RelatedDemoRevalidationSummary {
   affectedMatchIds: string[];
 }
 
-type RecheckCandidate = Pick<
-  typeof matchDemoImports.$inferSelect,
-  "id" | "matchId" | "payload" | "semanticProfile" | "createdAt"
->;
+type RecheckCandidate = typeof matchDemoImports.$inferSelect;
 
 async function loadSeasonNeedsAttentionCandidates(seasonId: string): Promise<RecheckCandidate[]> {
-  return db
-    .select({
-      id: matchDemoImports.id,
-      matchId: matchDemoImports.matchId,
-      payload: matchDemoImports.payload,
-      semanticProfile: matchDemoImports.semanticProfile,
-      createdAt: matchDemoImports.createdAt,
-    })
+  const rows = await db
+    .select()
     .from(matchDemoImports)
-    .where(and(
-      eq(matchDemoImports.seasonId, seasonId),
-      eq(matchDemoImports.status, "needs_attention"),
-    ))
-    .orderBy(asc(matchDemoImports.createdAt));
+    .where(eq(matchDemoImports.seasonId, seasonId))
+    .orderBy(desc(matchDemoImports.createdAt));
+
+  const rowsByMap = new Map<string, RecheckCandidate[]>();
+  for (const row of rows) {
+    const mapRows = rowsByMap.get(row.matchMapId) ?? [];
+    mapRows.push(row);
+    rowsByMap.set(row.matchMapId, mapRows);
+  }
+
+  const currentNeedsAttention: RecheckCandidate[] = [];
+  for (const mapRows of rowsByMap.values()) {
+    const current = selectCurrentDemoImport(mapRows);
+    if (current?.status === "needs_attention") currentNeedsAttention.push(current);
+  }
+  return currentNeedsAttention;
 }
 
 async function revalidateCandidateRows(
