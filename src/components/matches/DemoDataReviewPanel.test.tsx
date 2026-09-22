@@ -5,10 +5,10 @@ import userEvent from "@testing-library/user-event";
 import { DemoDataReviewPanel } from "./DemoDataReviewPanel";
 import type { AdminDemoReviewMap, AdminDemoReviewParticipant } from "@/lib/admin/matches/types";
 
-const mocks = vi.hoisted(() => ({ confirm: vi.fn(), retire: vi.fn(), reject: vi.fn(), refresh: vi.fn(), success: vi.fn(), error: vi.fn() }));
+const mocks = vi.hoisted(() => ({ confirm: vi.fn(), recheck: vi.fn(), retire: vi.fn(), reject: vi.fn(), refresh: vi.fn(), success: vi.fn(), error: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: mocks.refresh }) }));
 vi.mock("sonner", () => ({ toast: { success: mocks.success, error: mocks.error } }));
-vi.mock("@/actions/demo-integration", () => ({ confirmStoredDemoParticipantIdentity: mocks.confirm, retireGameplaySteamIdentity: mocks.retire, rejectStoredDemoImport: mocks.reject }));
+vi.mock("@/actions/demo-integration", () => ({ confirmStoredDemoParticipantIdentity: mocks.confirm, recheckStoredDemoImport: mocks.recheck, retireGameplaySteamIdentity: mocks.retire, rejectStoredDemoImport: mocks.reject }));
 
 const participant: AdminDemoReviewParticipant = {
   observedSteam64: "76561198123456789", demoName: "Demo player", teamName: "Alpha", state: "confirmable",
@@ -23,11 +23,42 @@ function review(overrides: Partial<AdminDemoReviewMap> = {}): AdminDemoReviewMap
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.confirm.mockResolvedValue({ success: true, data: { status: "confirmed" } });
+  mocks.recheck.mockResolvedValue({ success: true, data: { status: "confirmed", importId: "import-a", issues: [] } });
   mocks.retire.mockResolvedValue({ success: true, data: { retired: true } });
   mocks.reject.mockResolvedValue({ success: true, data: {} });
 });
 
 describe("DemoDataReviewPanel", () => {
+  it.each(["confirmed", "needs_attention"])("rechecks stored evidence against current facts and refreshes for %s", async (status) => {
+    mocks.recheck.mockResolvedValue({ success: true, data: { status, importId: "import-a", issues: status === "confirmed" ? [] : [{ code: "ROSTER_PARTICIPANT_MISSING" }] } });
+    const user = userEvent.setup();
+    render(<DemoDataReviewPanel reviews={[review()]} />);
+    await user.click(screen.getByRole("button", { name: "按当前资料重新检查" }));
+    await waitFor(() => expect(mocks.recheck).toHaveBeenCalledWith({ importId: "import-a" }));
+    expect(mocks.refresh).toHaveBeenCalledOnce();
+    expect(mocks.success).toHaveBeenCalledWith(status === "confirmed"
+      ? "已按当前资料重新检查，这份 Demo 已确认并更新统计。"
+      : "已按当前资料重新检查，仍有问题需要处理。");
+  });
+
+  it("shows an actual-lineup mismatch without Steam identity controls", () => {
+    render(<DemoDataReviewPanel reviews={[review({
+      message: "需要处理：1 名选手实际出场与本场记录首发不一致",
+      participants: [{
+        ...participant,
+        state: "roster-mismatch",
+        currentPlayer: { userId: "sub-user", name: "替补选手" },
+        retirableIdentityId: null,
+        note: "这个 Steam64 已明确属于本队赛事名单成员，但不在本场记录的首发五人中。这是实际出场名单问题，不是 Steam 身份冲突；请不要改绑或撤销 Steam 身份。",
+        candidates: [],
+      }],
+    })]} />);
+    expect(screen.getByText(/实际出场与本场记录首发不一致/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "替补选手" })).toBeInTheDocument();
+    expect(screen.queryByRole("radio")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /撤销比赛确认的 Steam 身份/ })).not.toBeInTheDocument();
+  });
+
   it.each(["confirmed", "needs_attention"])("shows only the unresolved participant and refreshes after %s confirmation", async (status) => {
     mocks.confirm.mockResolvedValue({ success: true, data: { status } });
     const user = userEvent.setup();
