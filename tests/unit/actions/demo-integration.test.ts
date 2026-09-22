@@ -134,6 +134,24 @@ describe("Demo identity action authorization", () => {
     });
   });
 
+  it("keeps a successful identity confirmation successful when related fan-out recheck fails", async () => {
+    fanoutMock.mockRejectedValue(new Error("temporary recheck failure"));
+
+    const result = await confirmStoredDemoParticipantIdentity({
+      importId: IMPORT_ID,
+      eventRosterMemberId: MEMBER_ID,
+      observedSteam64: STEAM64,
+    });
+
+    expect(result).toMatchObject({
+      success: true,
+      data: {
+        status: "confirmed",
+        relatedRechecks: { attempted: 0, confirmed: 0, remaining: 0, failed: 1 },
+      },
+    });
+  });
+
   it.each([
     ["ordinary user", new AppError(ErrorCode.FORBIDDEN, "权限不足")],
     ["an admin of another season", new AppError(ErrorCode.FORBIDDEN, "权限不足")],
@@ -214,10 +232,6 @@ describe("Demo identity action authorization", () => {
       seasonId: OWN_SEASON_ID,
       actorId: ACTOR_ID,
     });
-    expect(fanoutMock).toHaveBeenCalledWith({
-      seasonId: OWN_SEASON_ID,
-      steam64: STEAM64,
-      actorId: ACTOR_ID,
-    });
+    expect(fanoutMock).not.toHaveBeenCalled();
   });
 });
