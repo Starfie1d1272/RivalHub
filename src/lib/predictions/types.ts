@@ -75,7 +75,10 @@ export interface SimMatch {
   a: string;
   b: string;
   winner: string | null;
-  source: "official" | "assumption" | "pending";
+  source: "official" | "assumption" | "pending" | "preview";
+  scoreA: number | null;
+  scoreB: number | null;
+  record: { wins: number; losses: number } | null;
   format: string;
 }
 export interface SimStage {

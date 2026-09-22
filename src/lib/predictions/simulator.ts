@@ -26,7 +26,11 @@ import {
   type SimStage,
 } from "./types";
 
-export function simulateMajor(base: Baseline, choices: Choices): SimStage[] {
+export function simulateMajor(
+  base: Baseline,
+  choices: Choices,
+  preview = false,
+): SimStage[] {
   if (base.version !== SIMULATION_VERSION)
     throw new Error("该推演使用旧版规则，只能查看保存结果");
   const ordered = orderedPredictionStages(base.stages);
@@ -40,7 +44,13 @@ export function simulateMajor(base: Baseline, choices: Choices): SimStage[] {
     let entrants: { teamId: string; seed: number }[];
     if (run && !hypothetical) entrants = run.entrants;
     else if (!stage.previousKey)
-      entrants = seedMajorStageOneEntrants(base.teams.filter((team) => team.tournamentSeed >= stage.directSeeds[0] && team.tournamentSeed <= stage.directSeeds[1])).map((e) => ({
+      entrants = seedMajorStageOneEntrants(
+        base.teams.filter(
+          (team) =>
+            team.tournamentSeed >= stage.directSeeds[0] &&
+            team.tournamentSeed <= stage.directSeeds[1],
+        ),
+      ).map((e) => ({
         teamId: e.teamId,
         seed: e.initialStageSeed,
       }));
@@ -66,6 +76,7 @@ export function simulateMajor(base: Baseline, choices: Choices): SimStage[] {
     const rows: SimMatch[] = [];
     const invalidated = new Set<string>();
     const stageOfficial = !hypothetical;
+    const upstreamPreview = result.some((s) => !s.complete);
     let roundOfficial = !hypothetical;
     const select = (
       key: string,
@@ -93,8 +104,11 @@ export function simulateMajor(base: Baseline, choices: Choices): SimStage[] {
               [m.a, m.b].includes(b),
           )
         : undefined;
-      const winner = compatible ? choice.winner : (official?.winner ?? null);
-      if (compatible && winner !== official?.winner) {
+      const predicted = !compatible && !official?.winner && preview;
+      const winner = compatible
+        ? choice.winner
+        : (official?.winner ?? (predicted ? a : null));
+      if (predicted || (compatible && winner !== official?.winner)) {
         hypothetical = true;
         if (stage.type === "single_elim")
           for (const child of playoffDescendants(key as PlayoffManagedKey))
@@ -107,7 +121,26 @@ export function simulateMajor(base: Baseline, choices: Choices): SimStage[] {
         b,
         winner,
         format,
-        source: compatible ? "assumption" : winner ? "official" : "pending",
+        source: compatible
+          ? "assumption"
+          : predicted
+            ? "preview"
+            : winner
+              ? "official"
+              : "pending",
+        scoreA:
+          !compatible && official?.winner
+            ? official.a === a
+              ? official.scoreA
+              : official.scoreB
+            : null,
+        scoreB:
+          !compatible && official?.winner
+            ? official.a === a
+              ? official.scoreB
+              : official.scoreA
+            : null,
+        record: null,
       };
     };
     if (stage.type === "swiss") {
@@ -134,6 +167,15 @@ export function simulateMajor(base: Baseline, choices: Choices): SimStage[] {
             p.format,
           ),
         );
+        const prior = projectMajorSwissStage({
+          entrants: seeded,
+          matches: facts,
+          finalizedRound: finalized,
+        });
+        for (const row of roundRows) {
+          const team = prior.teams.find((t) => t.teamId === row.a)!;
+          row.record = { wins: team.wins, losses: team.losses };
+        }
         rows.push(...roundRows);
         if (roundRows.some((m) => !m.winner)) break;
         facts.push(
@@ -159,14 +201,19 @@ export function simulateMajor(base: Baseline, choices: Choices): SimStage[] {
         entrants,
         officialEntrants,
         matches: rows,
-        complete: finalized === 5,
+        complete:
+          finalized === 5 &&
+          !upstreamPreview &&
+          !rows.some((m) => m.source === "preview"),
         standings: projection.teams.map((t) => ({
           teamId: t.teamId,
           wins: t.wins,
           losses: t.losses,
         })),
         pick:
-          finalized === 5
+          finalized === 5 &&
+          !upstreamPreview &&
+          !rows.some((m) => m.source === "preview")
             ? {
                 perfect: projection.teams
                   .filter((t) => t.wins === 3 && t.losses === 0)
@@ -219,16 +266,23 @@ export function simulateMajor(base: Baseline, choices: Choices): SimStage[] {
         entrants,
         officialEntrants,
         matches: rows,
-        complete: facts.length === 7,
+        complete:
+          facts.length === 7 &&
+          !upstreamPreview &&
+          !rows.some((m) => m.source === "preview"),
         standings: [],
         pick:
-          facts.length === 7 ? { bracket: facts.map((m) => m.winnerId) } : null,
+          facts.length === 7 &&
+          !upstreamPreview &&
+          !rows.some((m) => m.source === "preview")
+            ? { bracket: facts.map((m) => m.winnerId) }
+            : null,
       });
     }
   }
   return result;
 }
-/** An upstream edit invalidates the whole later Swiss round/stages; caller previews this list before committing. */
+/** An upstream edit invalidates the whole later Swiss round/stages; presentation regenerates its preview without submitting picks. */
 export function replaceSimulationChoice(
   base: Baseline,
   choices: Choices,
@@ -237,7 +291,7 @@ export function replaceSimulationChoice(
   winner: string,
 ): Choices {
   if (![match.a, match.b].includes(winner)) throw new Error("胜者不是对阵方");
-  const projected = simulateMajor(base, choices);
+  const projected = simulateMajor(base, choices, true);
   const stages = orderedPredictionStages(base.stages);
   const index = stages.findIndex((s) => s.key === stageKey);
   const next: Choices = {};

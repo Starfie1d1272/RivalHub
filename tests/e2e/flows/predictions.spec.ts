@@ -1,6 +1,7 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, signInProgrammatically } from "../fixtures";
+test.use({ scenarioProfile: "auth" });
 test.setTimeout(120_000);
-import { readFileSync, mkdirSync } from "node:fs";
+import { mkdirSync } from "node:fs";
 import { resolve } from "node:path";
 import {
   createPredictionBrowserFixture,
@@ -8,27 +9,21 @@ import {
 } from "../helpers/prediction-fixture";
 test("观众完成选队提交、草稿隔离、图片导出与真实积分投入", async ({
   page,
+  scenario,
 }, info) => {
-  const credentials = JSON.parse(
-    readFileSync(resolve(".agent-tmp/major-browser-credentials.json"), "utf8"),
-  ) as {
-    password: string;
-    accounts: { key: string; email: string; userId: string }[];
-  };
-  const user = credentials.accounts.find((a) => a.key === "captain")!;
+  const user = scenario.accounts[0]!;
   const fixture = await createPredictionBrowserFixture(user.userId);
   try {
-    await page.goto(
-      `/login?next=${encodeURIComponent(`/${fixture.slug}/predictions`)}`,
+    await signInProgrammatically(
+      page,
+      user,
+      scenario,
+      `/${fixture.slug}/predictions`,
     );
-    await page.getByLabel("邮箱地址").fill(user.email);
-    await page.getByLabel("密码", { exact: true }).fill(credentials.password);
-    await page.locator('button[type="submit"]').click();
-    await page.waitForURL((url) => url.pathname.endsWith("/predictions"));
     await page.goto(`/${fixture.slug}/predictions`);
     await expect(
       page.getByRole("heading", { name: /观赛预测验收赛/ }),
-    ).toBeVisible({ timeout: 20000 });
+    ).toBeVisible();
     await page.getByRole("button", { name: /免费加入/ }).click();
     await expect(page.getByRole("button", { name: /免费加入/ })).toHaveCount(0);
     const mobile = info.project.name === "mobile-chrome";
@@ -43,21 +38,32 @@ test("观众完成选队提交、草稿隔离、图片导出与真实积分投�
       "恰好 0胜3负 1",
       "恰好 0胜3负 2",
     ];
-    for (let i = 0; i < slotNames.length; i++) {
+    // Desktop exercises actual HTML drag/drop; keyboard is the touch-independent path.
+    if (!mobile) {
+      await page.setViewportSize({ width: 1280, height: 1719 });
+      await page
+        .getByRole("button", { name: "选择 队伍 17", exact: true })
+        .dragTo(page.getByRole("button", { name: /^恰好 3胜0负 1：/ }));
+      await expect(
+        page.getByRole("button", {
+          name: "恰好 3胜0负 1：队伍 17",
+          exact: true,
+        }),
+      ).toBeVisible();
+    }
+    for (let i = mobile ? 0 : 1; i < slotNames.length; i++) {
       await page
         .getByRole("button", { name: new RegExp(`^${slotNames[i]}：`) })
-        .click();
+        .press("Enter");
       await page
-        .getByRole("dialog")
-        .getByRole("button", { name: `队伍 ${17 + i}`, exact: true })
-        .click();
+        .getByRole("button", { name: `选择 队伍 ${17 + i}`, exact: true })
+        .press("Enter");
     }
     await page.getByRole("button", { name: "提交预测", exact: true }).click();
     await expect(page.getByText(/已提交 · 版本/)).toBeVisible();
     await page.getByRole("button", { name: /^恰好 3胜0负 1：/ }).click();
     await page
-      .getByRole("dialog")
-      .getByRole("button", { name: "队伍 32", exact: true })
+      .getByRole("button", { name: "选择 队伍 32", exact: true })
       .click();
     await expect(page.getByText(/有未提交修改/)).toBeVisible();
     await page.getByRole("button", { name: "保存草稿", exact: true }).click();
@@ -66,16 +72,34 @@ test("观众完成选队提交、草稿隔离、图片导出与真实积分投�
     await page.getByRole("button", { name: "导出图片", exact: true }).click();
     const file = await download;
     expect(file.suggestedFilename()).toContain("草稿");
+    await file.saveAs(
+      resolve(`.agent-tmp/predictions-evidence/${info.project.name}-share.png`),
+    );
     mkdirSync(resolve(".agent-tmp/predictions-evidence"), { recursive: true });
     await expect(page.locator("[data-sonner-toast]")).toHaveCount(0, {
       timeout: 10000,
     });
+    await page.setViewportSize(
+      mobile ? { width: 390, height: 844 } : { width: 1280, height: 1719 },
+    );
     await page.evaluate(() => window.scrollTo(0, 0));
+    if (mobile)
+      await page
+        .getByText("我的阶段预测单", { exact: true })
+        .scrollIntoViewIfNeeded();
     await page.screenshot({
       path: resolve(
         `.agent-tmp/predictions-evidence/${info.project.name}-pick.png`,
       ),
+      fullPage: false,
+      scale: "css",
+    });
+    await page.screenshot({
+      path: resolve(
+        `.agent-tmp/predictions-evidence/${info.project.name}-full.png`,
+      ),
       fullPage: true,
+      scale: "css",
     });
     await page.getByRole("button", { name: "单场积分", exact: true }).click();
     await page.getByLabel("投入积分", { exact: true }).fill("100");
@@ -101,30 +125,28 @@ test("观众完成选队提交、草稿隔离、图片导出与真实积分投�
 
 test("完整推演导入提交，上游修改不会改写提交，分享快照可恢复", async ({
   page,
+  scenario,
 }, info) => {
-  const credentials = JSON.parse(
-    readFileSync(resolve(".agent-tmp/major-browser-credentials.json"), "utf8"),
-  ) as {
-    password: string;
-    accounts: { key: string; email: string; userId: string }[];
-  };
-  const user = credentials.accounts.find((a) => a.key === "player1")!;
+  const user = scenario.accounts[0]!;
   const fixture = await createPredictionBrowserFixture(user.userId);
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
   try {
-    await page.goto(
-      `/login?next=${encodeURIComponent(`/${fixture.slug}/predictions`)}`,
+    await signInProgrammatically(
+      page,
+      user,
+      scenario,
+      `/${fixture.slug}/predictions`,
     );
-    await page.getByLabel("邮箱地址").fill(user.email);
-    await page.getByLabel("密码", { exact: true }).fill(credentials.password);
-    await page.locator('button[type="submit"]').click();
-    await page.waitForURL((url) => url.pathname.endsWith("/predictions"));
     await page.getByRole("button", { name: /免费加入/ }).click();
     await expect(page.getByRole("button", { name: /免费加入/ })).toHaveCount(0);
     const mobile = info.project.name === "mobile-chrome";
+    await expect(page.getByTestId("sim-match-stage1-r5-3")).toHaveCount(1);
+    await expect(page.getByTestId("sim-match-stage1-r5-3")).toHaveAttribute(
+      "data-source",
+      "preview",
+    );
     for (let round = 1; round <= 5; round++) {
-      if (mobile) await page.getByLabel("当前轮次").selectOption(String(round));
       for (let slot = 1; slot <= [8, 8, 8, 6, 3][round - 1]!; slot++) {
         const card = page.getByTestId(`sim-match-stage1-r${round}-${slot}`);
         const button = card.getByRole("button").first();
@@ -143,18 +165,30 @@ test("完整推演导入提交，上游修改不会改写提交，分享快照�
     await expect(page.getByText(/已提交 · 版本 1/)).toBeVisible();
     if (mobile) {
       await page.getByRole("button", { name: "推演", exact: true }).click();
-      await page.getByLabel("当前轮次").selectOption("1");
     }
     await page
       .getByTestId("sim-match-stage1-r1-1")
       .getByRole("button")
       .last()
       .click();
+    await expect(page.getByRole("alertdialog")).toHaveCount(0);
+    await expect(page.getByTestId("sim-match-stage1-r3-1")).toHaveAttribute(
+      "data-source",
+      "preview",
+    );
+    await page.getByRole("button", { name: "撤销", exact: true }).click();
+    await expect(page.getByTestId("sim-match-stage1-r5-3")).toHaveAttribute(
+      "data-source",
+      "assumption",
+    );
+    await expect(
+      page.getByText("我的选择 33 场", { exact: false }),
+    ).toBeVisible();
     await page
-      .getByRole("alertdialog")
-      .getByRole("button", { name: "确认继续" })
+      .getByTestId("sim-match-stage1-r1-1")
+      .getByRole("button")
+      .last()
       .click();
-    await expect(page.getByTestId("sim-match-stage1-r3-1")).toHaveCount(0);
     await page.getByLabel("推演名称").fill("我的晋级路径");
     await page.getByRole("button", { name: "保存推演并分享" }).click();
     await expect(
@@ -176,31 +210,56 @@ test("完整推演导入提交，上游修改不会改写提交，分享快照�
     await expect(
       page.getByTestId("sim-match-stage1-r1-1").getByRole("button").last(),
     ).toHaveAttribute("aria-pressed", "true");
+    await page.getByRole("button", { name: "淘汰赛", exact: true }).click();
+    await expect(page.getByTestId("sim-match-playoff-final-1")).toHaveAttribute(
+      "data-source",
+      "preview",
+    );
+    await page
+      .getByTestId("sim-match-playoff-qf-1")
+      .getByRole("button")
+      .last()
+      .click();
+    await expect(page.getByTestId("sim-match-playoff-qf-1")).toHaveAttribute(
+      "data-source",
+      "assumption",
+    );
+    await expect(page.getByTestId("sim-match-playoff-final-1")).toHaveAttribute(
+      "data-source",
+      "preview",
+    );
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await expect(page.locator("[data-sonner-toast]")).toHaveCount(0);
+    await page.screenshot({
+      path: resolve(
+        `.agent-tmp/predictions-evidence/${info.project.name}-playoff.png`,
+      ),
+      fullPage: true,
+      scale: "css",
+    });
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= window.innerWidth + 1,
+      ),
+    ).toBe(true);
     expect(errors).toEqual([]);
   } finally {
     await removePredictionBrowserFixture(fixture.seasonId);
   }
 });
 
-test("赛事管理员冻结配置、开窗、暂停和作废阶段", async ({ page }) => {
-  const credentials = JSON.parse(
-    readFileSync(resolve(".agent-tmp/major-browser-credentials.json"), "utf8"),
-  ) as {
-    password: string;
-    accounts: { key: string; email: string; userId: string }[];
-  };
-  const user = credentials.accounts.find((a) => a.key === "player2")!;
+test("赛事管理员冻结配置、开窗、暂停和作废阶段", async ({ page, scenario }) => {
+  const user = scenario.accounts[0]!;
   const fixture = await createPredictionBrowserFixture(user.userId, true);
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
   try {
-    await page.goto(
-      `/login?next=${encodeURIComponent(`/admin/${fixture.slug}/predictions`)}`,
+    await signInProgrammatically(
+      page,
+      user,
+      scenario,
+      `/admin/${fixture.slug}/predictions`,
     );
-    await page.getByLabel("邮箱地址").fill(user.email);
-    await page.getByLabel("密码", { exact: true }).fill(credentials.password);
-    await page.locator('button[type="submit"]').click();
-    await page.waitForURL((url) => url.pathname.endsWith("/predictions"));
     await page.getByRole("button", { name: "冻结规则并开放" }).click();
     await page
       .getByRole("alertdialog")

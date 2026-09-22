@@ -6,8 +6,11 @@ import { captureException } from "@/lib/observability/server";
 import { lockPredictionProgram, reconcilePredictionProgram } from "./service";
 
 export async function runPredictionReconciliationJob() {
-  const jobs = await db.select().from(predictionJobs)
-    .orderBy(desc(predictionJobs.dirty), asc(predictionJobs.updatedAt)).limit(10);
+  const jobs = await db
+    .select()
+    .from(predictionJobs)
+    .orderBy(desc(predictionJobs.dirty), asc(predictionJobs.updatedAt))
+    .limit(10);
   let completed = 0;
   let failed = 0;
   for (const job of jobs) {
@@ -19,10 +22,15 @@ export async function runPredictionReconciliationJob() {
       completed++;
     } catch (error) {
       failed++;
-      captureException("predictions.reconcile_failure", error, { scope: "predictions", operation: "reconcile", retryable: true });
+      captureException("predictions.reconcile_failure", error, {
+        scope: "predictions",
+        operation: "reconcile",
+        retryable: true,
+      });
     }
   }
   // Partial failure must reach scheduler health; individual committed programs stay idempotent.
-  if (failed) throw new Error(`Prediction reconciliation failed for ${failed} programs`);
+  if (failed)
+    throw new Error(`Prediction reconciliation failed for ${failed} programs`);
   return { result: { completed }, businessTransitions: 0 };
 }

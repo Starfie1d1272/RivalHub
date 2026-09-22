@@ -43,9 +43,14 @@ export function PointsBoard({
       )}
       <div className="grid gap-4 xl:grid-cols-2">
         {data.markets.map((m) => {
-          const total = m.options.reduce((sum, option) => sum + BigInt(option.pool), BigInt(0));
+          const total = m.options.reduce(
+            (sum, option) => sum + BigInt(option.pool),
+            BigInt(0),
+          );
           const mine = BigInt(m.myStake);
-          const myPool = BigInt(m.options.find((option) => option.id === m.myOptionId)?.pool ?? "0");
+          const myPool = BigInt(
+            m.options.find((option) => option.id === m.myOptionId)?.pool ?? "0",
+          );
           const estimate =
             mine > BigInt(0) && myPool > BigInt(0)
               ? (mine + (mine * (total - myPool)) / myPool).toString()
@@ -61,7 +66,8 @@ export function PointsBoard({
             >
               <div className="space-y-3">
                 <h3 className="text-base font-semibold">
-                  {m.title} · {m.options.map((option) => option.label).join(" / ")}
+                  {m.title} ·{" "}
+                  {m.options.map((option) => option.label).join(" / ")}
                 </h3>
                 <p className="text-xs text-[var(--color-fg-mid)]">
                   截止 {new Date(m.deadline).toLocaleString("zh-CN")} ·{" "}
@@ -83,11 +89,8 @@ export function PointsBoard({
                           投入 {pool} ·{" "}
                           {total > BigInt(0)
                             ? (
-                                Number(
-                                  (BigInt(pool) *
-                                    BigInt(1000)) /
-                                    total,
-                                ) / 10
+                                Number((BigInt(pool) * BigInt(1000)) / total) /
+                                10
                               ).toFixed(1)
                             : "0"}
                           %
@@ -99,7 +102,11 @@ export function PointsBoard({
                 <p className="text-xs">投入占比是社区选择，不代表获胜概率。</p>
                 {mine > BigInt(0) && (
                   <p className="text-sm">
-                    我已投入 {m.myStake} → {m.options.find((option) => option.id === m.myOptionId)?.label}
+                    我已投入 {m.myStake} →{" "}
+                    {
+                      m.options.find((option) => option.id === m.myOptionId)
+                        ?.label
+                    }
                     {estimate && m.state === "pending"
                       ? `；当前预计返还 ${estimate}（随池变化）`
                       : ""}
@@ -109,7 +116,16 @@ export function PointsBoard({
                   <p role="status">
                     {m.state === "refunded"
                       ? "已退款"
-                      : `已按官方结果结算${m.winningOptionIds.length ? ` · ${m.options.filter((option) => m.winningOptionIds.includes(option.id)).map((option) => option.label).join("、")}` : ""}`}{" "}
+                      : `已按官方结果结算${
+                          m.winningOptionIds.length
+                            ? ` · ${m.options
+                                .filter((option) =>
+                                  m.winningOptionIds.includes(option.id),
+                                )
+                                .map((option) => option.label)
+                                .join("、")}`
+                            : ""
+                        }`}{" "}
                     · 结算记录 {m.revisions} 版
                   </p>
                 ) : m.locked ? (
@@ -265,7 +281,7 @@ export function PredictionRecord({ data }: { data: PredictionBoardData }) {
                     {new Date(l.createdAt).toLocaleString("zh-CN")}
                   </td>
                   <td className="whitespace-nowrap">
-                    {labels[l.kind] ?? l.kind}
+                    {labels[l.kind] ?? "积分调整"}
                   </td>
                   <td>{l.amount}</td>
                   <td>{l.profit}</td>

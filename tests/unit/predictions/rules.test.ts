@@ -97,7 +97,10 @@ describe("Major spectator simulation and independent Pick'Em", () => {
       winner: m.a,
       format: "bo1",
       status: "finished",
-      scheduledAt: null, scoreA: 1, scoreB: 0, stageRunId: "run",
+      scheduledAt: null,
+      scoreA: 1,
+      scoreB: 0,
+      stageRunId: "run",
     }));
     const m = rows[0]!;
     const changed = replaceSimulationChoice(base, {}, "stage1", m, m.b);
@@ -134,7 +137,10 @@ describe("Major spectator simulation and independent Pick'Em", () => {
         id: s.key + m.key,
         stageKey: s.key,
         status: "finished",
-        scheduledAt: null, scoreA: 1, scoreB: 0, stageRunId: "run",
+        scheduledAt: null,
+        scoreA: 1,
+        scoreB: 0,
+        stageRunId: "run",
       })),
     );
     const overridden = replaceSimulationChoice(base, {}, playoff.key, qf, qf.b);
@@ -241,20 +247,70 @@ describe("integer pool conservation", () => {
 
 it("resolves N options and multiple winners without creating a provider settlement path", () => {
   const options = ["A", "B", "C"].map((key) => ({ id: `id-${key}`, key }));
-  const resolved = resolveMarketOptions(options, { state: "confirmed", revision: "confirmed/2", winningKeys: ["A", "C"] });
+  const resolved = resolveMarketOptions(options, {
+    state: "confirmed",
+    revision: "confirmed/2",
+    winningKeys: ["A", "C"],
+  });
   expect(resolved.winningOptionIds).toEqual(["id-A", "id-C"]);
-  const payout = distributePool([
-    { accountId: "one", optionId: "id-A", stake: B(2) },
-    { accountId: "two", optionId: "id-B", stake: B(5) },
-    { accountId: "three", optionId: "id-C", stake: B(3) },
-  ], resolved.winningOptionIds);
+  const payout = distributePool(
+    [
+      { accountId: "one", optionId: "id-A", stake: B(2) },
+      { accountId: "two", optionId: "id-B", stake: B(5) },
+      { accountId: "three", optionId: "id-C", stake: B(3) },
+    ],
+    resolved.winningOptionIds,
+  );
   expect([...payout.values()]).toEqual([B(4), B(0), B(6)]);
-  expect(resolveMarketOptions(options, { state: "pending", revision: "unconfirmed" }).state).toBe("pending");
-  expect(() => resolveMarketOptions(options, { state: "confirmed", revision: "bad", winningKeys: ["outside"] })).toThrow();
+  expect(
+    resolveMarketOptions(options, { state: "pending", revision: "unconfirmed" })
+      .state,
+  ).toBe("pending");
+  expect(() =>
+    resolveMarketOptions(options, {
+      state: "confirmed",
+      revision: "bad",
+      winningKeys: ["outside"],
+    }),
+  ).toThrow();
 });
 it("uses key topology even if the public stage array is shuffled", () => {
   const base = baseline();
   const expected = complete(base).stages;
   base.stages.reverse();
   expect(complete(base).stages).toEqual(expected);
+});
+
+it("preview fills the entire flow without creating choices or judgeable stage results", () => {
+  const base = baseline();
+  const choices: Choices = {};
+  const preview = simulateMajor(base, choices, true);
+  expect(preview.map((s) => s.matches.length)).toEqual([33, 33, 33, 7]);
+  expect(preview.every((s) => !s.complete && s.pick === null)).toBe(true);
+  expect(
+    preview.flatMap((s) => s.matches).every((m) => m.source === "preview"),
+  ).toBe(true);
+  expect(choices).toEqual({});
+  expect(simulateMajor(base, choices)).toHaveLength(1);
+  expect(simulateMajor(base, choices)[0]!.pick).toBeNull();
+  const match = preview[0]!.matches[0]!;
+  const edited = replaceSimulationChoice(
+    base,
+    choices,
+    "stage1",
+    match,
+    match.b,
+  );
+  const next = simulateMajor(base, edited, true);
+  expect(Object.keys(edited)).toHaveLength(1);
+  expect(next[0]!.matches[0]!.source).toBe("assumption");
+  expect(
+    next[0]!.matches.filter((m) => m.round === 3).map((m) => m.record),
+  ).toEqual(
+    expect.arrayContaining([
+      { wins: 2, losses: 0 },
+      { wins: 1, losses: 1 },
+      { wins: 0, losses: 2 },
+    ]),
+  );
 });

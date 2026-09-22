@@ -1,3 +1,4 @@
+import { PageLayout } from "@/components/rivalhub";
 import { Suspense } from "react";
 import { z } from "zod";
 import { notFound } from "next/navigation";
@@ -13,15 +14,17 @@ export default function PredictionsPage(props: {
   searchParams: Promise<{ scenario?: string }>;
 }) {
   return (
-    <Suspense
-      fallback={
-        <div className="p-8" role="status">
-          正在加载观赛预测…
-        </div>
-      }
-    >
-      <PredictionContent {...props} />
-    </Suspense>
+    <PageLayout as="div" variant="workbench">
+      <Suspense
+        fallback={
+          <div className="p-8" role="status">
+            正在加载观赛预测…
+          </div>
+        }
+      >
+        <PredictionContent {...props} />
+      </Suspense>
+    </PageLayout>
   );
 }
 async function PredictionContent({

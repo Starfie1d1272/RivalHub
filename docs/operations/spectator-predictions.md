@@ -10,4 +10,6 @@
 
 改判后已使用的返还形成待抵扣差额，可用余额为零；合法补给、退款及新结算优先抵扣。未结算投入不进入净收益榜。纪念币重算不触发积分奖励。
 
-本地验证使用 `pnpm test:integration -- tests/integration/db/predictions.test.ts` 和 `pnpm test:e2e -- tests/e2e/flows/predictions.spec.ts`；需要真实服务时显式设置 `RIVALHUB_ALLOW_LOCAL_CONTAINERS=1`，只能通过 active Drizzle migration chain 初始化隔离测试库。发布按通用 release runbook 执行，功能部署后仍需管理员明确开放各届项目和窗口。
+本地验证使用 `pnpm test:integration tests/integration/db/predictions.test.ts` 和 `pnpm test:e2e tests/e2e/flows/predictions.spec.ts`；需要真实服务时显式设置 `RIVALHUB_ALLOW_LOCAL_CONTAINERS=1`，只能通过 active Drizzle migration chain 初始化隔离测试库。发布按通用 release runbook 执行，功能部署后仍需管理员明确开放各届项目和窗口。
+
+Sanitized preview mirror 不复制观众的草稿、提交、分享快照和积分账本，也不复制依赖它们的预测项目与窗口。预览库按 active migration chain 建表后，需用独立测试数据明确开放预测；不能把生产观众数据作为界面演示素材。

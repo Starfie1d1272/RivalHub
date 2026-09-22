@@ -16,10 +16,6 @@ import { AppError, ErrorCode } from "@/lib/errors";
 import { ok } from "@/types/action";
 import { predictionBoard } from "@/lib/predictions/data";
 import { loadBaseline } from "@/lib/predictions/baseline";
-import {
-  replaceSimulationChoice,
-  simulateMajor,
-} from "@/lib/predictions/simulator";
 import { pickSchema, rulesSchema } from "@/lib/predictions/rules";
 import {
   enablePredictionsInTx,
@@ -147,13 +143,6 @@ export async function administerPredictions(input: unknown) {
 const simulateInput = scope.extend({
   choices,
   scenarioId: id.optional(),
-  edit: z
-    .object({
-      stageKey: z.string().max(60),
-      matchKey: z.string().max(30),
-      winner: id,
-    })
-    .optional(),
 });
 async function simulationBase(seasonId: string, scenarioId?: string) {
   if (!scenarioId) return loadBaseline(db, seasonId);
@@ -164,36 +153,6 @@ async function simulationBase(seasonId: string, scenarioId?: string) {
   if (!saved || saved.seasonId !== seasonId)
     throw new AppError(ErrorCode.NOT_FOUND, "推演快照不存在");
   return saved.baseline;
-}
-export async function projectPrediction(input: unknown) {
-  const p = simulateInput.safeParse(input);
-  if (!p.success) return failValidation("推演参数无效");
-  try {
-    await publicSeason(p.data.seasonId);
-    const base = await simulationBase(p.data.seasonId, p.data.scenarioId);
-    let next = p.data.choices;
-    if (p.data.edit) {
-      const edit = p.data.edit;
-      const match = simulateMajor(base, next)
-        .find((s) => s.key === edit.stageKey)
-        ?.matches.find((m) => m.key === edit.matchKey);
-      if (!match)
-        throw new AppError(
-          ErrorCode.VALIDATION_FAILED,
-          "对阵已变化，请重置最新赛况",
-        );
-      next = replaceSimulationChoice(
-        base,
-        next,
-        edit.stageKey,
-        match,
-        edit.winner,
-      );
-    }
-    return ok({ base, choices: next, stages: simulateMajor(base, next) });
-  } catch (e) {
-    return actionError("predictions.simulate", e);
-  }
 }
 export async function savePredictionScenario(input: unknown) {
   const p = simulateInput

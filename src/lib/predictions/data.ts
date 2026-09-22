@@ -146,7 +146,11 @@ export async function predictionBoard(
     .select()
     .from(markets)
     .where(eq(markets.seasonId, seasonId));
-  const allOptions = await tx.select().from(options).innerJoin(markets, eq(options.marketId, markets.id)).where(eq(markets.seasonId, seasonId));
+  const allOptions = await tx
+    .select()
+    .from(options)
+    .innerJoin(markets, eq(options.marketId, markets.id))
+    .where(eq(markets.seasonId, seasonId));
   const investments = await tx
     .select()
     .from(stakes)
@@ -173,7 +177,7 @@ export async function predictionBoard(
     : [];
   return {
     base,
-    simulation: simulateMajor(base, {}),
+    simulation: simulateMajor(base, {}, true),
     enabled: !!program,
     paused: program?.paused ?? false,
     rules,
@@ -233,7 +237,16 @@ export async function predictionBoard(
         matchId: m.matchId,
         stageKey: m.stageKey,
         title: m.title,
-        options: allOptions.filter((row) => row.prediction_market_options.marketId === m.id).map((row) => row.prediction_market_options).sort((a, b) => a.position - b.position).map((o) => ({ id: o.id, label: o.label, entryId: o.entryId, pool: sum(o.id) })),
+        options: allOptions
+          .filter((row) => row.prediction_market_options.marketId === m.id)
+          .map((row) => row.prediction_market_options)
+          .sort((a, b) => a.position - b.position)
+          .map((o) => ({
+            id: o.id,
+            label: o.label,
+            entryId: o.entryId,
+            pool: sum(o.id),
+          })),
         deadline: m.deadline.toISOString(),
         locked: !!m.lockedAt,
         state: batch?.state ?? "pending",

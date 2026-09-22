@@ -12,17 +12,6 @@
 
 ![手机预测单](mobile.png)
 
-## 本地复现交互
+## 历史环境说明
 
-Docker Desktop 运行后，在本 PR 的 checkout 中执行：
-
-```bash
-pnpm install --frozen-lockfile
-pnpm db:local:bootstrap
-pnpm exec playwright install chromium
-pnpm test:e2e -- tests/e2e/flows/predictions.spec.ts --project=chromium --headed --workers=1
-```
-
-浏览器测试会自动创建本地账号与 32 支测试队伍，执行观众提交、推演分享、积分投入和管理员开窗/暂停/作废；结束后自动清理。测试使用独立本地 Supabase，账号与临时凭据不提交到 Git。
-
-该 checkout 尚未接入最新 main / #575 的迁移链，不能对已按最新主线迁移的数据库直接运行本分支 migration；应使用与本分支兼容的隔离本地环境。
+这组截图对应最初的旧分支，未包含后续 StageRun、统一 scheduler 和市场选项契约。当前本地环境与迁移操作以 [`观赛预测运营`](../../operations/spectator-predictions.md) 为准；新版交互评审见 [`2026-09-22 快照`](../prediction-preview-2026-09-22/README.md)。

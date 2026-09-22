@@ -59,7 +59,12 @@ export async function loadBaseline(
     .from(majorStageRuns)
     .where(eq(majorStageRuns.seasonId, seasonId));
   // Frozen StageRun rules remain readable after live configuration changes.
-  const plan = resolveMajorStagePlan(runs.length ? [] : getStandardMajorDefinition(season).capabilities.stagePlan, runs);
+  const plan = resolveMajorStagePlan(
+    runs.length
+      ? []
+      : getStandardMajorDefinition(season).capabilities.stagePlan,
+    runs,
+  );
   const stages = projectPredictionStages(plan);
   const [prestart] = await db
     .select()
@@ -122,7 +127,14 @@ export async function loadBaseline(
         .sort((a, b) => a.seed - b.seed),
     })),
     matches: official
-      .filter((m) => m.managedKey && m.entryRound !== "third_place" && runs.some((r) => r.id === m.majorStageRunId && r.stageKey === m.stage))
+      .filter(
+        (m) =>
+          m.managedKey &&
+          m.entryRound !== "third_place" &&
+          runs.some(
+            (r) => r.id === m.majorStageRunId && r.stageKey === m.stage,
+          ),
+      )
       .map((m) => ({
         id: m.id,
         stageKey: m.stage,

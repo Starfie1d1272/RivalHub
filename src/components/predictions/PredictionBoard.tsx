@@ -9,7 +9,6 @@ import { Panel } from "@/components/rivalhub";
 import {
   getPredictionBoard,
   mutatePrediction,
-  projectPrediction,
   savePredictionScenario,
 } from "@/actions/predictions";
 import type { PredictionBoardData } from "@/lib/predictions/data";
@@ -23,7 +22,12 @@ import {
   type SimStage,
 } from "@/lib/predictions/types";
 import { PickEditor, emptyPick } from "./PickEditor";
-import { SimulationMatchCard } from "./SimulationMatchCard";
+import { TournamentBoard } from "./TournamentBoard";
+import {
+  simulateMajor,
+  replaceSimulationChoice,
+} from "@/lib/predictions/simulator";
+import { exportPredictionImage } from "./share-image";
 import { PointsBoard, PredictionRecord } from "./PointsBoard";
 interface Saved {
   id: string;
@@ -66,9 +70,14 @@ export function PredictionBoard({
   const [scenarioId, setScenarioId] = useState<string | undefined>(saved?.id);
   const [undo, setUndo] = useState<Choices[]>([]);
   const [tab, setTab] = useState("sim");
-  const [stageKey, setStageKey] = useState(initial.base.stages[0]?.key ?? "");
+  const [stageKey, setStageKey] = useState(
+    (saved?.baseline ?? initial.base).stages.find(
+      (stage) => stage.previousKey === null,
+    )?.key ??
+      (saved?.baseline ?? initial.base).stages[0]?.key ??
+      "",
+  );
   const [mobile, setMobile] = useState("sim");
-  const [round, setRound] = useState(1);
   const [sidebar, setSidebar] = useState(true);
   const [drafts, setDrafts] = useState<Record<string, Pick>>({});
   const [scenarioName, setScenarioName] = useState(saved?.name ?? "我的推演");
@@ -121,49 +130,32 @@ export function PredictionBoard({
       }
     });
   }
-  function project(
-    next: Choices,
-    edit?: { stageKey: string; matchKey: string; winner: string },
-    reset = false,
-  ) {
+  function applyChoices(next: Choices) {
+    setUndo((old) => [...old.slice(-19), choices]);
+    setChoices(next);
+    setSimulation(simulateMajor(base, next, true));
+  }
+  function choose(match: SimMatch, winner: string) {
+    if (!compatible || choices[`${stageKey}/${match.key}`]?.winner === winner)
+      return;
+    applyChoices(
+      replaceSimulationChoice(base, choices, stageKey, match, winner),
+    );
+  }
+  function resetToLatest() {
     run(async () => {
-      const r = await projectPrediction({
-        seasonId: base.seasonId,
-        choices: next,
-        scenarioId: reset ? undefined : scenarioId,
-        edit,
-      });
-      if (!r.success) {
-        toast.error(r.error.message);
+      const result = await getPredictionBoard({ seasonId: base.seasonId });
+      if (!result.success) {
+        toast.error(result.error.message);
         return;
       }
-      setUndo((old) => [...old.slice(-19), choices]);
-      setChoices(r.data.choices);
-      setBase(r.data.base);
-      setSimulation(r.data.stages);
-      if (reset) setScenarioId(undefined);
+      setData(result.data);
+      setBase(result.data.base);
+      setSimulation(result.data.simulation);
+      setChoices({});
+      setUndo([]);
+      setScenarioId(undefined);
     });
-  }
-  async function choose(match: SimMatch, winner: string) {
-    const impact =
-      base.stages.find((s) => s.key === stageKey)?.type === "single_elim"
-        ? "受影响分支的后续选择"
-        : "后续轮次及阶段的选择";
-    if (
-      match.source === "official" &&
-      !(await confirm(
-        `这场已有官方结果。改为假设后，将清除${impact}并重算对阵。正式预测单不变。`,
-      ))
-    )
-      return;
-    if (
-      match.source !== "official" &&
-      match.winner &&
-      match.winner !== winner &&
-      !(await confirm(`修改后会清除${impact}。继续重算？`))
-    )
-      return;
-    project(choices, { stageKey, matchKey: match.key, winner });
   }
   function savePick(submitted: boolean) {
     if (!contest) return;
@@ -225,50 +217,19 @@ export function PredictionBoard({
             ? "已锁定"
             : "已提交"
           : "草稿 · 未提交";
-      const lines = [
-        base.name,
-        definition?.name ?? stageKey,
-        `状态：${status}`,
-        `创建：${new Date().toLocaleString("zh-CN")}`,
-        ...("perfect" in pick
-          ? [
-              `3胜0负：${pick.perfect.map(name).join(" / ")}`,
-              `3胜1负/2负：${pick.advance.map(name).join(" / ")}`,
-              `0胜3负：${pick.eliminated.map(name).join(" / ")}`,
-            ]
-          : pick.bracket.map(
-              (id, i) =>
-                `${i < 4 ? `八强${i + 1}` : i < 6 ? `半决赛${i - 3}` : "冠军"}：${id ? name(id) : "未选择"}`,
-            )),
-        "RivalHub · 图片分享不等于正式提交",
-      ];
-      const canvas = document.createElement("canvas");
-      canvas.width = 1080;
-      canvas.height = 240 + lines.length * 90;
-      const ctx = canvas.getContext("2d");
-      if (!ctx) return;
-      ctx.fillStyle = "#0d1724";
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.fillStyle = "#4dd8c4";
-      ctx.fillRect(0, 0, canvas.width, 8);
-      ctx.font = "32px sans-serif";
-      lines.forEach((line, i) => {
-        ctx.fillStyle = i === 0 ? "#4dd8c4" : "#f1f5f9";
-        ctx.fillText(line, 50, 100 + i * 90, 980);
-      });
-      canvas.toBlob((blob) => {
-        if (!blob) return;
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `RivalHub-${stageKey}-${same ? "已提交" : "草稿"}.png`;
-        a.click();
-        setTimeout(() => URL.revokeObjectURL(url), 1000);
+      await exportPredictionImage({
+        eventName: base.name,
+        stageName: definition?.name ?? "赛事阶段",
+        status,
+        pick,
+        teams: base.teams,
+        rules: data.rules,
+        filename: `RivalHub-${stageKey}-${same ? "已提交" : "草稿"}.png`,
       });
     });
   }
   return (
-    <div className="mx-auto max-w-[1600px] space-y-6 px-4 py-8">
+    <div className="min-w-0 space-y-6">
       <div className="flex flex-wrap justify-between gap-4">
         <div>
           <p className="text-xs font-semibold tracking-widest text-[var(--color-accent)]">
@@ -355,7 +316,6 @@ export function PredictionBoard({
                 variant={stageKey === s.key ? "default" : "outline"}
                 onClick={() => {
                   setStageKey(s.key);
-                  setRound(1);
                 }}
               >
                 {s.name}
@@ -393,6 +353,13 @@ export function PredictionBoard({
                       ? "官方阶段名单"
                       : "推演名单，仅供预览"}
                   </p>
+                  <p
+                    aria-live="polite"
+                    className="text-xs text-[var(--color-fg-mid)]"
+                  >
+                    我的选择 {Object.keys(choices).length} 场 ·
+                    系统补全不会写入正式预测单
+                  </p>
                   {!compatible && (
                     <p role="status">
                       旧版规则快照只能查看。重置后可按最新规则推演。
@@ -404,18 +371,9 @@ export function PredictionBoard({
                       disabled={pending || !undo.length || !compatible}
                       onClick={() => {
                         const previous = undo.at(-1)!;
-                        run(async () => {
-                          const r = await projectPrediction({
-                            seasonId: base.seasonId,
-                            choices: previous,
-                            scenarioId,
-                          });
-                          if (r.success) {
-                            setChoices(previous);
-                            setSimulation(r.data.stages);
-                            setUndo(undo.slice(0, -1));
-                          } else toast.error(r.error.message);
-                        });
+                        setChoices(previous);
+                        setSimulation(simulateMajor(base, previous, true));
+                        setUndo(undo.slice(0, -1));
                       }}
                     >
                       撤销
@@ -429,7 +387,7 @@ export function PredictionBoard({
                             "恢复最新官方赛况？当前未保存推演将被清空，右侧预测单不变。",
                           )
                         )
-                          project({}, undefined, true);
+                          resetToLatest();
                       }}
                     >
                       重置为最新赛况
@@ -450,54 +408,12 @@ export function PredictionBoard({
                     </p>
                   ) : (
                     <>
-                      <label className="block text-sm lg:hidden">
-                        当前轮次
-                        <select
-                          className="ml-3 rounded border bg-[var(--color-panel)] p-2"
-                          value={round}
-                          onChange={(e) => setRound(Number(e.target.value))}
-                        >
-                          {[...new Set(stage.matches.map((m) => m.round))].map(
-                            (r) => (
-                              <option value={r} key={r}>
-                                第 {r} 轮
-                              </option>
-                            ),
-                          )}
-                        </select>
-                      </label>
-                      <div
-                        className="flex gap-4 overflow-x-auto pb-4"
-                        aria-label="赛事推演轮次"
-                      >
-                        {[...new Set(stage.matches.map((m) => m.round))].map(
-                          (r) => (
-                            <section
-                              key={r}
-                              className={`w-full shrink-0 space-y-3 lg:w-56 ${round !== r ? "hidden lg:block" : ""}`}
-                            >
-                              <h2 className="text-sm font-semibold">
-                                {definition?.type === "single_elim"
-                                  ? ["八强", "半决赛", "决赛"][r - 1]
-                                  : `第 ${r} 轮`}
-                              </h2>
-                              {stage.matches
-                                .filter((m) => m.round === r)
-                                .map((m) => (
-                                  <SimulationMatchCard
-                                    key={m.key}
-                                    match={m}
-                                    stageKey={stageKey}
-                                    teams={base.teams}
-                                    busy={pending}
-                                    editable={compatible}
-                                    onChoose={choose}
-                                  />
-                                ))}
-                            </section>
-                          ),
-                        )}
-                      </div>
+                      <TournamentBoard
+                        stage={stage}
+                        teams={base.teams}
+                        editable={compatible}
+                        onChoose={choose}
+                      />
                       {stage.complete && (
                         <div className="space-y-3 border-t border-[var(--color-border)] pt-4">
                           <h3 className="text-sm font-semibold">阶段结果</h3>
@@ -599,6 +515,7 @@ export function PredictionBoard({
             >
               {contest ? (
                 <PickEditor
+                  key={contest.id}
                   data={data}
                   contest={contest}
                   pick={pick}

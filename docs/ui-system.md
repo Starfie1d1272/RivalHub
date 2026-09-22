@@ -155,9 +155,11 @@ Super-admin 系统状态页的 scheduler health 只展示 job label、primary fr
 
 ## Spectator prediction interaction
 
-Desktop prediction pages place a locally scrollable round view beside a collapsible Pick’Em panel. Mobile uses simulation/pick tabs and one round at a time. Team selection supports a labelled dialog and keyboard focus; drag is not required. Upstream edits explain downstream invalidation before applying and preserve independent submitted picks.
+Desktop prediction pages use the workbench layout with a locally scrollable full tournament board beside a collapsible Pick’Em panel. Mobile switches between simulation and pick tasks. Swiss rounds are grouped by current win/loss record with qualification/elimination exits; playoffs expose quarterfinal, semifinal and final connections. The board is available before all choices are made. A deterministic seed-based preview fills unknown winners, labels them explicitly and does not count as a user choice or an importable complete pick.
 
-Official results, assumptions and pending choices use explicit text. Simulation displays winners and series format without inventing scores. Draft save, PNG export, snapshot share and formal submission are distinct actions. Export status must derive from a fresh server submission; unmatched local edits export as a draft. Pool shares are labelled community investment shares, never win probabilities.
+Choosing a winner recomputes the local projection immediately. Upstream edits invalidate affected descendants, support undo, and preserve independent submitted picks. Swiss Pick’Em uses logo slots and an always-visible team pool: click a slot and team in either order, use keyboard activation, or drag between visible teams/slots. Relocating a team clears its old slot. Playoff picks clear only affected descendants. Ordinary edits require no dialog; destructive reset, draft replacement and point investment keep explicit confirmation.
+
+Official results, assumptions and system previews use text and non-color indicators. Only available official results display scores; hypothetical results never invent scores. Draft save, PNG export, snapshot share and formal submission remain distinct actions. Export keeps the same slot/bracket semantics and derives its status from a fresh server submission; unmatched local edits export as a draft. Pool shares are labelled community investment shares, never win probabilities.
 
 ## Visual regression
 
