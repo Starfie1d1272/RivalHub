@@ -73,6 +73,23 @@ describe("DemoDataReviewPanel", () => {
     expect(mocks.success).toHaveBeenCalledWith(status === "confirmed" ? "比赛 Steam 身份已确认，Demo 数据已重新检查。" : "比赛 Steam 身份已保存，但这份 Demo 仍有其他问题需要处理。");
   });
 
+  it("surfaces related Demo fan-out outcomes after identity confirmation", async () => {
+    mocks.confirm.mockResolvedValue({
+      success: true,
+      data: {
+        status: "confirmed",
+        relatedRechecks: { attempted: 4, confirmed: 2, remaining: 1, failed: 1 },
+      },
+    });
+    const user = userEvent.setup();
+    render(<DemoDataReviewPanel reviews={[review()]} />);
+    await user.click(screen.getByRole("radio"));
+    await user.click(screen.getByRole("button", { name: `确认 ${participant.observedSteam64} 是 选手 A` }));
+    await waitFor(() => expect(mocks.success).toHaveBeenCalledWith(expect.stringContaining("另外自动确认了 2 张受同一身份影响的 Demo")));
+    expect(mocks.success).toHaveBeenCalledWith(expect.stringContaining("另有 1 张相关 Demo 重新检查后仍需处理"));
+    expect(mocks.success).toHaveBeenCalledWith(expect.stringContaining("另有 1 张自动重新检查失败"));
+  });
+
   it("requires a reason and explicit confirmation to retire, then refreshes", async () => {
     const user = userEvent.setup();
     render(<DemoDataReviewPanel reviews={[review({ participants: [{ ...participant, state: "conflict-retirable", currentPlayer: { userId: "wrong-user", name: "选手 X" }, retirableIdentityId: "identity-a" }] })]} />);
