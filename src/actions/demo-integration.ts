@@ -30,9 +30,18 @@ async function loadImportContext(importId: string) {
   return { row, season };
 }
 
+type ConfirmStoredDemoParticipantIdentityActionData = Awaited<ReturnType<typeof confirmStoredDemoParticipantIdentityInTx>> & {
+  relatedRechecks: {
+    attempted: number;
+    confirmed: number;
+    remaining: number;
+    failed: number;
+  };
+};
+
 export async function confirmStoredDemoParticipantIdentity(
   input: unknown,
-): Promise<ActionResult<Awaited<ReturnType<typeof confirmStoredDemoParticipantIdentityInTx>>>> {
+): Promise<ActionResult<ConfirmStoredDemoParticipantIdentityActionData>> {
   const parsed = z.object({ importId: uuid, eventRosterMemberId: uuid, observedSteam64: steam64 }).safeParse(input);
   if (!parsed.success) return failValidation("比赛 Steam 身份确认参数无效。");
   try {
@@ -120,22 +129,13 @@ export async function retireGameplaySteamIdentity(
     const season = await db.query.seasons.findFirst({ where: eq(seasons.id, source.seasonId), columns: { id: true, slug: true } });
     if (!season) return failValidation("该 Steam 身份的来源赛季不存在。");
     const admin = await requireSeasonAdmin(season.id);
-    const actorId = auditActorId(admin);
     const result = await db.transaction((tx) => retireSeasonGameplaySteamIdentityInTx(tx, {
       ...parsed.data,
       seasonId: season.id,
-      actorId,
+      actorId: auditActorId(admin),
     }));
-    const relatedRechecks = typeof identity.steam64 === "string"
-      ? await revalidateNeedsAttentionImportsForSteam64({
-          seasonId: season.id,
-          steam64: identity.steam64,
-          actorId,
-        })
-      : null;
     const sourceMatch = await db.query.matches.findFirst({ where: eq(matches.id, source.matchId), columns: { id: true } });
     if (sourceMatch) revalidateMatchPaths(season.slug, sourceMatch.id);
-    for (const matchId of relatedRechecks?.affectedMatchIds ?? []) revalidateMatchPaths(season.slug, matchId);
     return ok(result);
   } catch (error) {
     return actionError("retireGameplaySteamIdentity", error);
