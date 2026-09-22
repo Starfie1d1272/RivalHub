@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.10.7]
+
+### Fixed
+
+#### Demo 审核与身份重检
+
+比赛 Steam 身份确认后会自动重新检查同赛事中受同一 Steam64 影响的待处理 Demo，并为管理员提供按当前资料手动重检入口；同时将真实出场名单差异与 Steam 身份冲突分开呈现，避免错误改绑。
+
 ## [2.10.6]
 
 ### Fixed
@@ -2315,6 +2323,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[2.10.7]: https://github.com/Starfie1d1272/RivalHub/compare/v2.10.6...v2.10.7
 [2.10.6]: https://github.com/Starfie1d1272/RivalHub/compare/v2.10.5...v2.10.6
 [2.10.5]: https://github.com/Starfie1d1272/RivalHub/compare/v2.10.4...v2.10.5
 [2.10.4]: https://github.com/Starfie1d1272/RivalHub/compare/v2.10.3...v2.10.4
