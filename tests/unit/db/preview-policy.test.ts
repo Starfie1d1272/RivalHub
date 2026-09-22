@@ -48,6 +48,16 @@ describe("sanitized mirror policy", () => {
     expect(older.tables.match_player_stats.exportedColumns).not.toContain("first_deaths");
   });
 
+  it("mirrors the real DAK lineage substrate for stats preview acceptance", () => {
+    const policy = previewPolicyFor(readExpectedMigrations());
+    expect(policy.tables.dak_pairing_intents.exportedColumns).toContain("poll_token_hash");
+    expect(policy.tables.dak_pairings.exportedColumns).toContain("token_hash");
+    expect(policy.tables.match_demo_imports.exportedColumns).toContain("payload");
+    expect(policy.tables.match_round_facts.exportedColumns).toContain("team_a_economy");
+    expect(policy.tables.user_gameplay_steam_ids.exportedColumns).toContain("steam64");
+    expect(policy.tables.match_player_stats.exportedColumns).toContain("dak_import_id");
+  });
+
   it("reviews retained Steam rollback shadows while allowing their later contract cleanup drop", () => {
     expect(OMITTED_COLUMNS.users).not.toMatch(/steam_name|steam_profile_url|avatar_url/);
     const physicalUsersAfterCleanup = [

@@ -1,9 +1,12 @@
 import React from "react";
 import Link from "next/link";
-import { Panel } from "@/components/rivalhub";
+import type { Route } from "next";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/rivalhub";
+import { StatsTable, type StatsTableColumn } from "@/components/stats/StatsTable";
 import type { LeaderboardView } from "@/lib/matches/leaderboard-view";
 import { statsHref as tournamentHref, type StatsQuery } from "@/lib/stats/query-state";
+import type { StatsSortDirection } from "@/lib/stats/sorting";
 import { formatNumber, formatStat } from "@/lib/stats";
 
 interface LeaderboardRow {
@@ -31,12 +34,12 @@ interface LeaderboardRow {
 interface StatsLeaderboardProps {
   rows: LeaderboardRow[];
   sort: string;
+  direction?: StatsSortDirection;
   position?: string;
   query?: StatsQuery;
   seasonSlug: string;
   view?: LeaderboardView;
-  stages?: { key: string; name: string }[];
-  currentStage?: string;
+  rankOffset?: number;
 }
 
 const VIEWS: { key: LeaderboardView; label: string; defaultSort: string }[] = [
@@ -45,282 +48,110 @@ const VIEWS: { key: LeaderboardView; label: string; defaultSort: string }[] = [
   { key: "advanced", label: "Advanced", defaultSort: "we" },
 ];
 
-interface ColDef {
+interface MetricColumn {
   key: string;
   label: string;
-  getValue: (r: LeaderboardRow) => number | null;
-  format: (v: number | null) => string;
+  getValue: (row: LeaderboardRow) => number | null;
+  format: (value: number | null) => string;
 }
 
-const BASE_COLS: ColDef[] = [
-  {
-    key: "maps",
-    label: "Maps",
-    getValue: (r) => r.maps,
-    format: (v) => formatNumber(v, 0),
-  },
+const BASE_COLS: MetricColumn[] = [
+  { key: "maps", label: "Maps", getValue: (row) => row.maps, format: (value) => formatNumber(value, 0) },
 ];
 
-const CORE_COLS: ColDef[] = [
+const CORE_COLS: MetricColumn[] = [
   ...BASE_COLS,
-  {
-    key: "rating",
-    label: "Rating",
-    getValue: (r) => r.avgRating,
-    format: (v) => formatStat("ratingPro", v),
-  },
-  {
-    key: "adr",
-    label: "ADR",
-    getValue: (r) => r.avgAdr,
-    format: (v) => formatStat("adr", v),
-  },
-  {
-    key: "kd",
-    label: "K/D",
-    getValue: (r) => r.kdRatio,
-    format: (v) => formatStat("kd", v),
-  },
-  {
-    key: "kpr",
-    label: "KPR",
-    getValue: (r) => r.kpr,
-    format: (v) => formatStat("kpr", v),
-  },
-  {
-    key: "hs",
-    label: "HS%",
-    getValue: (r) => r.avgHs,
-    format: (v) => formatStat("hsPercent", v),
-  },
+  { key: "rating", label: "Rating", getValue: (row) => row.avgRating, format: (value) => formatStat("ratingPro", value) },
+  { key: "adr", label: "ADR", getValue: (row) => row.avgAdr, format: (value) => formatStat("adr", value) },
+  { key: "kd", label: "K/D", getValue: (row) => row.kdRatio, format: (value) => formatStat("kd", value) },
+  { key: "kpr", label: "KPR", getValue: (row) => row.kpr, format: (value) => formatStat("kpr", value) },
+  { key: "hs", label: "HS%", getValue: (row) => row.avgHs, format: (value) => formatStat("hsPercent", value) },
 ];
 
-const IMPACT_COLS: ColDef[] = [
+const IMPACT_COLS: MetricColumn[] = [
   ...BASE_COLS,
-  {
-    key: "rating",
-    label: "Rating",
-    getValue: (r) => r.avgRating,
-    format: (v) => formatStat("ratingPro", v),
-  },
-  {
-    key: "fk",
-    label: "FKPR /100r",
-    getValue: (r) => r.fkpr,
-    format: (v) => formatStat("fkpr", v),
-  },
-  {
-    key: "mk",
-    label: "MKPR /100r",
-    getValue: (r) => r.mkpr,
-    format: (v) => formatStat("mkpr", v),
-  },
-  {
-    key: "clutch",
-    label: "CPR /100r",
-    getValue: (r) => r.cpr,
-    format: (v) => formatStat("cpr", v),
-  },
+  { key: "rating", label: "Rating", getValue: (row) => row.avgRating, format: (value) => formatStat("ratingPro", value) },
+  { key: "fk", label: "FKPR /100r", getValue: (row) => row.fkpr, format: (value) => formatStat("fkpr", value) },
+  { key: "mk", label: "MKPR /100r", getValue: (row) => row.mkpr, format: (value) => formatStat("mkpr", value) },
+  { key: "clutch", label: "CPR /100r", getValue: (row) => row.cpr, format: (value) => formatStat("cpr", value) },
 ];
 
-const ADVANCED_COLS: ColDef[] = [
+const ADVANCED_COLS: MetricColumn[] = [
   ...BASE_COLS,
-  {
-    key: "rating",
-    label: "Rating",
-    getValue: (r) => r.avgRating,
-    format: (v) => formatStat("ratingPro", v),
-  },
-  { key: "kast", label: "KAST", getValue: (r) => r.kast ?? null, format: (v) => v === null ? "—" : `${(v * 100).toFixed(1)}%` },
-  { key: "fd", label: "FDPR /100r", getValue: (r) => r.fdpr ?? null, format: (v) => v === null ? "—" : (v * 100).toFixed(1) },
-  { key: "trade", label: "Trade /100r", getValue: (r) => r.tradeKpr ?? null, format: (v) => v === null ? "—" : (v * 100).toFixed(1) },
-  {
-    key: "we",
-    label: "WE",
-    getValue: (r) => r.avgWe,
-    format: (v) => formatStat("we", v),
-  },
-  {
-    key: "rws",
-    label: "RWS",
-    getValue: (r) => r.avgRws,
-    format: (v) => formatStat("rws", v),
-  },
+  { key: "rating", label: "Rating", getValue: (row) => row.avgRating, format: (value) => formatStat("ratingPro", value) },
+  { key: "kast", label: "KAST", getValue: (row) => row.kast ?? null, format: (value) => value === null ? "—" : `${(value * 100).toFixed(1)}%` },
+  { key: "fd", label: "FDPR /100r", getValue: (row) => row.fdpr ?? null, format: (value) => value === null ? "—" : (value * 100).toFixed(1) },
+  { key: "trade", label: "Trade /100r", getValue: (row) => row.tradeKpr ?? null, format: (value) => value === null ? "—" : (value * 100).toFixed(1) },
+  { key: "we", label: "WE", getValue: (row) => row.avgWe, format: (value) => formatStat("we", value) },
+  { key: "rws", label: "RWS", getValue: (row) => row.avgRws, format: (value) => formatStat("rws", value) },
 ];
 
-const VIEW_COLS: Record<LeaderboardView, ColDef[]> = {
-  core: CORE_COLS,
-  impact: IMPACT_COLS,
-  advanced: ADVANCED_COLS,
-};
+const VIEW_COLS: Record<LeaderboardView, MetricColumn[]> = { core: CORE_COLS, impact: IMPACT_COLS, advanced: ADVANCED_COLS };
 
-export function StatsLeaderboard({ rows, sort, position = "", query, seasonSlug, view = "core", stages, currentStage = "" }: StatsLeaderboardProps) {
-  if (rows.length === 0) {
-    return (
-      <Panel contentClassName="p-8 text-center text-[var(--color-fg-mid)]">
-        该赛季暂无已确认的玩家数据
-      </Panel>
-    );
-  }
+function metricColumns(columns: MetricColumn[], accentText: string, sort: string): StatsTableColumn<LeaderboardRow>[] {
+  return columns.map((column) => ({
+    key: column.key,
+    label: column.label,
+    numeric: true,
+    sortable: true,
+    render: (row) => {
+      const value = column.getValue(row);
+      const isHighRating = column.key === "rating" && value != null && value >= 1.2;
+      return <span className={sort === column.key || isHighRating ? "font-semibold" : undefined} style={isHighRating ? { color: accentText } : undefined}>{column.format(value)}</span>;
+    },
+  }));
+}
 
-  const sortColBg = "color-mix(in srgb, var(--color-accent) 4%, transparent)";
+export function StatsLeaderboard({ rows, sort, direction = "desc", query, seasonSlug, view = "core", rankOffset = 0 }: StatsLeaderboardProps) {
+  if (rows.length === 0) return <EmptyState title="该赛季暂无已确认的玩家数据" />;
+
   const accentText = "var(--color-accent)";
   const cols = VIEW_COLS[view];
-  const statsHref = ({
-    nextSort = sort,
-    nextPosition = position,
-    nextView = view,
-    nextStage = currentStage,
-  }: {
-    nextSort?: string;
-    nextPosition?: string;
-    nextView?: LeaderboardView;
-    nextStage?: string;
-  }) => {
-    if (query) return tournamentHref(seasonSlug, query, { sort: nextSort, view: nextView, stage: nextStage, tab: "players" });
-    const params = new URLSearchParams({ sort: nextSort });
-    void nextPosition;
+  const viewHref = (nextSort: string, nextDirection: StatsSortDirection, nextView: LeaderboardView = view): Route => {
+    if (query) return tournamentHref(seasonSlug, query, { sort: nextSort, dir: nextDirection, view: nextView, tab: "players", page: 1 });
+    const params = new URLSearchParams();
+    if (nextSort !== "rating") params.set("sort", nextSort);
+    if (nextDirection !== "desc") params.set("dir", nextDirection);
     if (nextView !== "core") params.set("view", nextView);
-    if (nextStage) params.set("stage", nextStage);
-    return `/${seasonSlug}/stats?${params.toString()}`;
+    return `/${seasonSlug}/stats${params.size ? `?${params}` : ""}` as Route;
   };
+  const sortHref = (nextSort: string, nextDirection: StatsSortDirection) => viewHref(nextSort, nextDirection);
+  const tableColumns: StatsTableColumn<LeaderboardRow>[] = [
+    {
+      key: "player",
+      label: "Player",
+      render: (row) => row.userId ? <Link href={`/players/${row.userId}`} className="font-medium hover:text-[var(--color-accent)]">{row.perfectName}</Link> : <span className="font-medium">{row.perfectName}</span>,
+    },
+    {
+      key: "team",
+      label: "Team",
+      render: (row) => row.teamId ? <Link href={`/${seasonSlug}/teams/${row.teamId}`} className="text-xs text-[var(--color-fg-mid)] hover:text-[var(--color-accent)]">{row.teamName ?? "—"}</Link> : <span className="text-xs text-[var(--color-fg-mid)]">{row.teamName ?? "—"}</span>,
+    },
+    ...metricColumns(cols, accentText, sort),
+  ];
 
   return (
-    <div>
-      <div className="flex flex-col gap-3 mb-4 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <p className="text-[11px] font-semibold uppercase text-[var(--color-fg-dim)] mb-1.5" style={{ fontFamily: "var(--font-mono)" }}>
-            Metric view
-          </p>
-          <div className="flex gap-1 flex-wrap">
-            {VIEWS.map(({ key, label, defaultSort }) => (
-              <Button key={key} size="sm" variant={view !== key ? "ghost" : "outline"} asChild>
-                <a href={statsHref({ nextSort: defaultSort, nextView: key })}>{label}</a>
-              </Button>
-            ))}
-          </div>
-        </div>
-
-        <div>
-          <p className="text-[11px] font-semibold uppercase text-[var(--color-fg-dim)] mb-1.5" style={{ fontFamily: "var(--font-mono)" }}>
-            Sort
-          </p>
-          <div className="flex gap-1 flex-wrap">
-            {cols.map(({ key, label }) => (
-              <Button key={key} size="sm" variant={sort !== key ? "ghost" : "outline"} asChild>
-                <a href={statsHref({ nextSort: key })}>{label}</a>
-              </Button>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* 阶段筛选（多阶段赛季才显示） */}
-      {stages && stages.length > 1 && (
-        <div className="flex gap-1 flex-wrap mb-3">
-          <p className="w-full text-[11px] font-semibold uppercase text-[var(--color-fg-dim)] mb-1.5" style={{ fontFamily: "var(--font-mono)" }}>
-            Stage
-          </p>
-          <Button size="sm" variant={currentStage !== "" ? "ghost" : "outline"} asChild>
-            <a href={statsHref({ nextStage: "" })}>全部</a>
-          </Button>
-          {stages.map(({ key, name }) => (
-            <Button key={key} size="sm" variant={currentStage !== key ? "ghost" : "outline"} asChild>
-              <a href={statsHref({ nextStage: key })}>{name}</a>
+    <div className="space-y-4">
+      <div>
+        <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-[var(--color-fg-dim)]" style={{ fontFamily: "var(--font-mono)" }}>Metric view</p>
+        <div className="flex flex-wrap gap-1">
+          {VIEWS.map(({ key, label, defaultSort }) => (
+            <Button key={key} size="sm" variant={view !== key ? "ghost" : "outline"} asChild>
+              <a href={viewHref(defaultSort, "desc", key)}>{label}</a>
             </Button>
           ))}
         </div>
-      )}
-
-      {/* 核心视图压进桌面宽度；窄屏仍可横向滚动。 */}
-      <Panel contentClassName="p-0" className="overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm min-w-[680px] table-fixed">
-            <colgroup>
-              <col className="w-9" />
-              <col />
-              <col className="w-[18%]" />
-              {cols.map((col) => <col key={col.key} className="w-[8%]" />)}
-            </colgroup>
-            <thead>
-              <tr className="border-b border-[var(--color-border)] text-[var(--color-fg-mid)] text-xs uppercase tracking-wide">
-                <th className="px-2.5 py-3 text-left">#</th>
-                <th className="px-2.5 py-3 text-left">Player</th>
-                <th className="px-2.5 py-3 text-left">Team</th>
-                {cols.map((col) => (
-                  <th
-                    key={col.key}
-                    className="px-1.5 py-3 text-center whitespace-nowrap"
-                    style={sort === col.key ? { background: sortColBg, color: accentText } : undefined}
-                  >
-                    {col.label}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[var(--color-border)]">
-              {rows.map((r, i) => (
-                <tr key={`${r.userId}:${r.teamId}`} className="hover:bg-[var(--color-surface-raised)] transition-colors">
-                  <td className="px-2.5 py-2.5 text-xs">
-                    <span
-                      className={i < 3 ? "font-bold" : "text-[var(--color-fg-dim)]"}
-                      style={i < 3 ? { color: accentText } : undefined}
-                    >
-                      {i + 1}
-                    </span>
-                  </td>
-                  <td className="px-2.5 py-2.5 font-medium text-[var(--color-fg)] truncate">
-                    {r.userId ? (
-                      <Link
-                        href={`/players/${r.userId}`}
-                        className="hover:text-[var(--color-accent)] transition-colors"
-                      >
-                        {r.perfectName}
-                      </Link>
-                    ) : (
-                      r.perfectName
-                    )}
-                  </td>
-                  <td className="px-2.5 py-2.5 text-xs text-[var(--color-fg-mid)] truncate">
-                    {r.teamId ? (
-                      <Link
-                        href={`/${seasonSlug}/teams/${r.teamId}`}
-                        className="hover:text-[var(--color-accent)] transition-colors"
-                      >
-                        {r.teamName ?? "—"}
-                      </Link>
-                    ) : (
-                      r.teamName ?? "—"
-                    )}
-                  </td>
-                  {cols.map((col) => {
-                    const val = col.getValue(r);
-                    const isSort = sort === col.key;
-                    const isHighRating = col.key === "rating" && val != null && val >= 1.2;
-                    return (
-                      <td
-                        key={col.key}
-                        className={`px-1.5 py-2.5 text-center tabular-nums whitespace-nowrap ${
-                          isSort || isHighRating ? "font-semibold" : "text-[var(--color-fg)]"
-                        }`}
-                        style={
-                          isSort
-                            ? { background: sortColBg, color: accentText }
-                            : isHighRating
-                            ? { color: accentText }
-                            : undefined
-                        }
-                      >
-                        {col.format(val)}
-                      </td>
-                    );
-                  })}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </Panel>
+      </div>
+      <StatsTable
+        rows={rows}
+        columns={tableColumns}
+        rowKey={(row) => `${row.userId ?? row.perfectName}:${row.teamId ?? ""}`}
+        sort={sort}
+        direction={direction}
+        sortHref={sortHref}
+        rankOffset={rankOffset}
+        tableClassName="min-w-[680px] table-fixed"
+      />
     </div>
   );
 }

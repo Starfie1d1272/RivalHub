@@ -66,9 +66,9 @@ describe("StatsLeaderboard", () => {
       />
     );
     const adr = screen.getByRole("link", { name: "ADR" });
-    expect(adr).toHaveAttribute("href", "/test/stats?sort=adr");
-    expect(adr).toHaveClass("border-input");
+    expect(adr).toHaveAttribute("href", "/test/stats?sort=adr&dir=asc");
     expect(screen.getByRole("link", { name: "Rating" })).not.toHaveClass("border-input");
+    expect(screen.getByRole("columnheader", { name: "ADR" })).toHaveAttribute("aria-sort", "descending");
   });
 
   it("does not render registration position filters", () => {

@@ -39,9 +39,13 @@ export const PREVIEW_COLUMNS: Record<string, string> = {
   captain_votes: "id voter_registration_id candidate_registration_id created_at",
   draft_picks: "id season_id entry_id registration_id round pick_number auto_picked created_at",
   draft_state: "id season_id current_round current_entry_id round_deadline is_active updated_at",
+  dak_pairing_intents: "id poll_token_hash status authorized_by_user_id expires_at authorized_at delivered_at created_at",
+  dak_pairings: "id pairing_intent_id user_id token_hash scopes season_ids status revoked_at last_used_at created_at",
   matches: "id season_id entry_a_id entry_b_id stage round format entry_round score_a score_b status is_forfeit bracket_node_id ownership major_stage_run_id managed_key scheduled_at completion_deadline completed_at mvp_winner_user_id created_at updated_at",
   match_maps: "id match_id map_order map_name picked_by_entry_id team_a_start_side score_a score_b completed_at created_at",
-  match_player_stats: "id match_id map_id perfect_name user_id kills deaths assists hs_percent first_kills first_deaths multi_kills trade_kills kast_rounds clutches adr rws rating_pro we verified_by_admin verified_at created_at",
+  match_demo_imports: "id season_id match_id match_map_id stage_key stage_run_id demo_sha256 payload_sha256 contract_version semantic_profile analysis_version evidence_revision status payload submitted_by_pairing_id idempotency_key supersedes_import_id issues submitted_at confirmed_at created_at",
+  match_player_stats: "id match_id map_id perfect_name user_id kills deaths assists hs_percent first_kills first_deaths multi_kills trade_kills kast_rounds clutches adr rws rating_pro we dak_import_id verified_by_admin verified_at created_at",
+  match_round_facts: "id import_id round_seq source_round_number phase start_tick freeze_end_tick end_tick team_a_side team_b_side team_a_score_before team_b_score_before team_a_economy team_b_economy winner_team_key winner_side end_reason created_at",
   match_rosters: "id match_id entry_id submitted_by source status locked_at confirmed_at confirmed_by created_at updated_at",
   match_roster_players: "roster_id event_roster_member_id is_starter",
   match_veto_steps: "id match_id step_order action_type map_name entry_id side created_at",
@@ -55,6 +59,7 @@ export const PREVIEW_COLUMNS: Record<string, string> = {
   competition_stage_bracket_states: "competition_id stage_key data updated_at",
   post_event_adjudications: "id season_id status kind target impacts target_entry_id target_user_id target_match_id public_explanation created_by created_at revoked_by revoked_at",
   tournament_honors: "id season_id honor_key type label state basis placement_from placement_to entry_id user_id source_final_result_id adjudication_id awarded_by awarded_at revoked_by revoked_at created_at updated_at",
+  user_gameplay_steam_ids: "id user_id steam64 status provenance source_import_id confirmed_by_user_id confirmed_at reason retired_by_user_id retired_at retired_reason created_at",
 };
 
 /** Known columns deliberately not exported. New columns require an explicit review. */
@@ -72,7 +77,6 @@ export const OMITTED_COLUMNS: Record<string, string> = {
   post_event_adjudications: "client_request_id reason internal_evidence revocation_reason",
   tournament_honors: "client_request_id revocation_reason",
   recruitment_intents: "note",
-  match_player_stats: "dak_import_id",
 };
 
 type PreviewSchemaColumnLifecycle = {
@@ -98,6 +102,10 @@ type PreviewSchemaLifecycleTable = {
 export const PREVIEW_STEAM_SHADOW_CLEANUP_MIGRATION = "0053_steam_profile_contract_cleanup";
 
 export const PREVIEW_SCHEMA_LIFECYCLE: readonly PreviewSchemaLifecycleTable[] = [
+  { table: "dak_pairing_intents", introducedAt: "0051_sour_grim_reaper" },
+  { table: "dak_pairings", introducedAt: "0051_sour_grim_reaper" },
+  { table: "match_demo_imports", introducedAt: "0051_sour_grim_reaper" },
+  { table: "match_round_facts", introducedAt: "0051_sour_grim_reaper" },
   {
     table: "match_player_stats",
     columns: [
@@ -111,6 +119,7 @@ export const PREVIEW_SCHEMA_LIFECYCLE: readonly PreviewSchemaLifecycleTable[] = 
     table: "steam_profiles",
     introducedAt: "0052_gray_supernaut",
   },
+  { table: "user_gameplay_steam_ids", introducedAt: "0052_gray_supernaut" },
   {
     table: "users",
     columns: [
@@ -126,7 +135,7 @@ export const EXCLUDED_TABLES = new Set(`identity_link_requests user_identities u
   competition_entry_legacy_identities competition_entry_restriction_overrides major_prestart_issues major_seed_recommendation_snapshots
   audit_logs admin_invites admin_invite_claims season_admin_grants match_mvp_votes match_time_proposals
   user_sessions disciplinary_case_idempotency disciplinary_cases community_award_evidence
-  scheduled_job_health feedback_reports dak_pairing_intents dak_pairings match_demo_imports match_round_facts user_gameplay_steam_ids`.split(/\s+/));
+  scheduled_job_health feedback_reports`.split(/\s+/));
 
 export interface PreviewTablePolicy {
   exportedColumns: readonly string[];

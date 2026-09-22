@@ -58,4 +58,20 @@ describe("StatsLeaderboard", () => {
     expect(screen.getByRole("columnheader", { name: "MKPR /100r" })).toBeInTheDocument();
     expect(screen.queryByRole("columnheader", { name: "HS%" })).not.toBeInTheDocument();
   });
+
+  it("keeps ranking global across pages", () => {
+    render(
+      <StatsLeaderboard
+        rows={[row, { ...row, userId: "player-2", perfectName: "Second Entry" }]}
+        sort="rating"
+        position=""
+        seasonSlug="spring"
+        view="core"
+        rankOffset={25}
+      />,
+    );
+
+    expect(screen.getByText("26")).toBeInTheDocument();
+    expect(screen.getByText("27")).toBeInTheDocument();
+  });
 });
