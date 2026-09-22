@@ -14,6 +14,7 @@ import {
 } from "@/lib/demo-integration/review";
 import {
   revalidateNeedsAttentionImportsForSteam64,
+  revalidateSeasonNeedsAttentionImports,
   revalidateStoredDemoImportInTx,
 } from "@/lib/demo-integration/revalidation";
 import { revalidateMatchPaths } from "@/lib/revalidation";
@@ -76,6 +77,26 @@ export async function confirmStoredDemoParticipantIdentity(
     });
   } catch (error) {
     return actionError("confirmStoredDemoParticipantIdentity", error);
+  }
+}
+
+
+export async function recheckSeasonStoredDemoImports(
+  input: unknown,
+): Promise<ActionResult<Awaited<ReturnType<typeof revalidateSeasonNeedsAttentionImports>>>> {
+  const parsed = z.object({ importId: uuid }).safeParse(input);
+  if (!parsed.success) return failValidation("批量重新检查 Demo 数据的参数无效。");
+  try {
+    const { row, season } = await loadImportContext(parsed.data.importId);
+    const admin = await requireSeasonAdmin(row.seasonId);
+    const result = await revalidateSeasonNeedsAttentionImports({
+      seasonId: row.seasonId,
+      actorId: auditActorId(admin),
+    });
+    for (const matchId of result.affectedMatchIds) revalidateMatchPaths(season.slug, matchId);
+    return ok(result);
+  } catch (error) {
+    return actionError("recheckSeasonStoredDemoImports", error);
   }
 }
 
