@@ -74,7 +74,7 @@ describe("preview mirror membership projection", () => {
     }
 
     await withScratchDatabase("preview_source_policy", async (client) => {
-      const sourceExpected = expected.slice(0, -1);
+      const sourceExpected = expected.slice(0, expected.findIndex((migration) => migration.tag === "0052_gray_supernaut"));
       const sourceMigrations = sourceExpected.map(({ hash, when }) => ({ hash, when }));
       for (const migration of migrationFiles((name) => name < "0052_gray_supernaut.sql")) {
         await replayMigration(client, migration);
@@ -122,7 +122,7 @@ describe("preview mirror membership projection", () => {
     });
 
     await withScratchDatabase("preview_pre_stats_policy", async (client) => {
-      const sourceExpected = expected.slice(0, -2);
+      const sourceExpected = expected.slice(0, expected.findIndex((migration) => migration.tag === "0051_sour_grim_reaper"));
       const sourceMigrations = sourceExpected.map(({ hash, when }) => ({ hash, when }));
       for (const migration of migrationFiles((name) => name < "0051_sour_grim_reaper.sql")) {
         await replayMigration(client, migration);
