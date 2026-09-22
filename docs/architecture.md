@@ -103,6 +103,12 @@ Major runtime 的阶段参与者和已完成比赛是推进依据；standings、
 
 Major Swiss 不经过通用 provider adapter：它由 `majorStageEntrants`、official managed matches 和 StageRun 的 `finalizedRound` 投影，配对与晋级继续由 `src/lib/major/swiss.ts` / runtime owner 决定。
 
+## Spectator predictions
+
+`src/lib/predictions/` owns spectator simulations, stage picks, judging and points. Its simulator composes the canonical Major Swiss, seeding and playoff rules and never writes official matches. Public baselines use the canonical frozen Major stage-plan resolver and stage-transition topology, with explicit previous/next keys and StageRun identities. They contain only stage rules, entrant identities, display fields and official match results; frozen qualification/roster snapshots remain private.
+
+Prediction mutations serialize by canonical user → season lifecycle guard → relevant official match rows → prediction outbox → event program. Settlement workers read official facts without taking tournament row locks. Lightweight triggers enqueue durable work in the same transaction as official edits and permanently close affected windows; settlement failures leave retryable work and do not execute inside official result transactions. The protected reconciliation endpoint runs through the shared scheduler registry/execution/health owner; its worker and fresh spectator reads consume the same reconciliation owner. Partial worker failure is reported to scheduler health, and no parser or Demo submission can directly settle a market. Browser clocks are presentation only.
+
 ## Security and operations
 
 - Supabase Auth 管理邮箱凭据；应用 session 只保存身份，当前角色和 season grants 每次从数据库读取。
@@ -126,6 +132,7 @@ Major Swiss 不经过通用 provider adapter：它由 `majorStageEntrants`、off
 | Admin platform operations read model | `src/lib/admin/platform-operations/` |
 | Rivals voting / draft | `src/lib/captains/`, `src/lib/draft/`, corresponding actions |
 | Major prestart / runtime | `src/lib/major/` |
+| Spectator predictions / points | `src/lib/predictions/` |
 | Match / roster / result | `src/lib/matches/`, `src/lib/match-rosters/`, match actions |
 | Discipline / post-event / awards | corresponding `src/lib/` domain owners |
 | Scheduler / background recovery | `src/lib/scheduler/`, `src/lib/seasons/registration-recovery.ts`, protected `scripts/db/scheduler.ts` |

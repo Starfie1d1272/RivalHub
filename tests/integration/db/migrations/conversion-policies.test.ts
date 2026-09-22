@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { Client } from "pg";
 import { describe, expect, it } from "vitest";
 import { DATABASE_ACCESS_MATRIX, verifyDatabaseAccessMatrix } from "../../../../scripts/db/access-matrix";
@@ -5,23 +7,10 @@ import { capturePostgresError } from "../harness/database";
 import { migrationFiles, replayMigration, withScratchDatabase } from "../harness/migration-replay";
 
 const TARGET_MIGRATION = "0042_identity_foundation.sql";
-const ACCESS_MATRIX_AT_TARGET = DATABASE_ACCESS_MATRIX.filter(
-  (entry) => ![
-    "announcements",
-    "community_groups",
-    "feedback_reports",
-    "scheduled_job_health",
-    "competition_stage_bracket_states",
-    "season_contacts",
-    "season_public_info",
-    "dak_pairing_intents",
-    "dak_pairings",
-    "match_demo_imports",
-    "match_round_facts",
-    "steam_profiles",
-    "user_gameplay_steam_ids",
-  ].includes(entry.table),
-);
+// Verify the historical replay against its frozen inventory, not tables added later.
+const targetSnapshot = JSON.parse(readFileSync(join(process.cwd(), "drizzle/migrations/meta/0042_snapshot.json"), "utf8")) as { tables: Record<string, { name: string }> };
+const targetTables = new Set(Object.values(targetSnapshot.tables).map((table) => table.name));
+const ACCESS_MATRIX_AT_TARGET = DATABASE_ACCESS_MATRIX.filter((entry) => targetTables.has(entry.table));
 const IGNORED_TABLES_AT_TARGET = ["competition_bracket_states", "swiss_standings"] as const;
 
 describe("conversion policies migration", () => {

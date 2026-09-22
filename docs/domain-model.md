@@ -154,6 +154,14 @@ Major Swiss 的 public/admin read model 只从 `major_stage_entrants`、`matches
 
 `audit_logs` 记录“谁改变了什么业务事实”，不是领域状态本身，也不是 runtime observability。
 
+## Spectator prediction facts
+
+A prediction program freezes per-event slot, challenge and point rules when enabled. A contest freezes a concrete StageRun identity, its entrant set and a deadline; neither simulated entrants nor a mutable team roster can redefine that identity. Pick rows are append-only versions with separate draft/submitted intent. The latest accepted complete submission is effective; later drafts do not replace it. Judgement history follows accepted official stage facts and can be invalidated by correction or stage cancellation.
+
+A spectator account belongs to one event and one canonical user. Its balance and settled profit are ledger projections, not mutable counters. Stakes, settlement batches and reversals preserve their original provenance. The first official stage launch is a separate immutable milestone, so recreating a StageRun cannot grant late joiners historical supplies. Markets freeze a resolver, a subject (match, StageRun and involved entries), and independently identified options. Stakes reference an option through a composite market/option foreign key; settlement batches record winning option IDs and the confirmed fact revision. A match may have different resolver markets; only the match-winner resolver is currently exposed. A new resolver must adapt RivalHub-confirmed facts, never raw DAK submissions. Markets preserve their subject even if tournament recovery deletes the match. Removed/replaced matches refund; official corrections reverse the previous batch before applying the next. Debt is retained when previously credited winnings have been spent. Account merges with a losing spectator account are blocked for manual resolution; historical scenario authors remain provenance.
+
+Challenge coins are derived spectator achievements, separate from player `tournament_honors` and point balances. Only an enabled valid-lock participation reward can connect Pick’Em with points; correctness and coin upgrades never mint points.
+
 ## Intentional snapshots
 
 以下重复是有意的历史冻结，不应为了“去重”删除：

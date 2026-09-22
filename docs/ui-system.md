@@ -153,6 +153,14 @@ Super-admin 系统状态页的 scheduler health 只展示 job label、primary fr
 - Dialog/Toast 保持合理 focus management；动效支持 `prefers-reduced-motion`。
 - 桌面布局可以更密，但不能为了密度牺牲正文、状态和 primary metric 可读性。
 
+## Spectator prediction interaction
+
+Desktop prediction pages use the workbench layout with a locally scrollable full tournament board beside a collapsible Pick’Em panel. Mobile switches between simulation and pick tasks. Swiss rounds are grouped by current win/loss record with qualification/elimination exits; playoffs expose quarterfinal, semifinal and final connections. The board is available before all choices are made. A deterministic seed-based preview fills unknown winners, labels them explicitly and does not count as a user choice or an importable complete pick.
+
+Choosing a winner recomputes the local projection immediately. Upstream edits invalidate affected descendants, support undo, and preserve independent submitted picks. Swiss Pick’Em uses logo slots and an always-visible team pool: click a slot and team in either order, use keyboard activation, or drag between visible teams/slots. Relocating a team clears its old slot. Playoff picks clear only affected descendants. Ordinary edits require no dialog; destructive reset, draft replacement and point investment keep explicit confirmation.
+
+Official results, assumptions and system previews use text and non-color indicators. Only available official results display scores; hypothetical results never invent scores. Draft save, PNG export, snapshot share and formal submission remain distinct actions. Export keeps the same slot/bracket semantics and derives its status from a fresh server submission; unmatched local edits export as a draft. Pool shares are labelled community investment shares, never win probabilities.
+
 ## Visual regression
 
 Visual regression 只锁定少量 deterministic reference；功能 E2E 继续验证真实任务。baseline 使用固定 viewport、关闭动画/caret，并尽量排除实时人数、动态时间和其它非确定内容。只有 presentation contract 有预期变化时更新 baseline。

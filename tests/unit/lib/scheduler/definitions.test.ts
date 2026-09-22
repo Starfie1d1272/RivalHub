@@ -9,7 +9,7 @@ import {
 
 describe("scheduler definitions", () => {
   it("keeps one provider-neutral registry with the Beijing cleanup schedule", () => {
-    expect(SCHEDULER_JOB_DEFINITIONS).toHaveLength(5);
+    expect(SCHEDULER_JOB_DEFINITIONS).toHaveLength(6);
     expect(getSchedulerJobDefinition("cleanup-education-evidence")).toMatchObject({
       primaryCron: "0 22 * * *",
       staleAfterMs: 36 * 60 * 60 * 1000,

@@ -381,6 +381,7 @@ describe("deployment and operations contracts", () => {
   it("runs each production Cron endpoint independently with bounded retries", () => {
     const workflow = readProjectFile(".github/workflows/cron.yml");
     const jobKeys = [
+      "reconcile-predictions",
       "draft-timeout",
       "check-registration-deadline",
       "match-time-auto-award",

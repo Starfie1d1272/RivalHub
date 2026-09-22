@@ -17,6 +17,7 @@ const AUDIT_CATEGORIES = {
   user: { label: "用户", color: "var(--color-fg-mid)" },
   education: { label: "教育认证", color: "var(--color-ok)" },
   competitive: { label: "竞技资料", color: "var(--color-info)" },
+  predictions: { label: "观赛预测", color: "var(--color-accent)" },
   major: { label: "Major", color: "var(--color-accent-b)" },
   postevent: { label: "赛后裁定", color: "var(--color-warn)" },
   postmatch: { label: "赛后资料", color: "var(--color-accent-b)" },
@@ -46,6 +47,7 @@ export interface AuditEventDefinition extends AuditActionDefinition {
 export type AuditAction = keyof typeof AUDIT_ACTION_DEFINITIONS;
 
 const DEFAULT_TARGETS: Record<AuditCategory, AuditTargetContract> = {
+  predictions: { type: "prediction_program", lifecycle: "stable" },
   admin: { type: "admin_user", lifecycle: "stable" },
   registration: { type: "registration", lifecycle: "stable" },
   captain: { type: "captain_vote", lifecycle: "ephemeral" },
@@ -66,6 +68,9 @@ const DEFAULT_TARGETS: Record<AuditCategory, AuditTargetContract> = {
 };
 
 const TARGET_OVERRIDES: Readonly<Partial<Record<AuditAction, AuditTargetContract>>> = {
+  "predictions.open_market": { type: "prediction_market", lifecycle: "stable" },
+  "predictions.open_contest": { type: "prediction_contest", lifecycle: "stable" },
+  "predictions.void_contest": { type: "prediction_contest", lifecycle: "stable" },
   "admin.dak.pair": { type: "dak_pairing", lifecycle: "stable" },
   "admin.dak.revoke_pairing": { type: "dak_pairing", lifecycle: "tombstone" },
   "admin.create_invite": { type: "admin_invite", lifecycle: "stable" },
@@ -180,6 +185,12 @@ export const AUDIT_ACTION_DEFINITIONS = {
   "season_public_info.contact.update": { label: "更新赛事联系方式", category: "season" },
   "season_public_info.contact.move": { label: "调整赛事联系方式顺序", category: "season" },
   "season_public_info.contact.delete": { label: "删除赛事联系方式", category: "season" },
+  "predictions.open_market": { label: "开放积分池", category: "predictions" },
+  "predictions.open_contest": { label: "开放阶段预测", category: "predictions" },
+  "predictions.void_contest": { label: "作废阶段预测", category: "predictions" },
+  "predictions.enable": { label: "开放观赛预测并冻结规则", category: "predictions" },
+  "predictions.open_window": { label: "开放预测窗口", category: "predictions" },
+  "predictions.moderate": { label: "调整预测参与状态", category: "predictions" },
   "admin.create_invite": { label: "创建管理员邀请码", category: "admin" },
   "admin.deactivate_invite": { label: "停用管理员邀请码", category: "admin" },
   "admin.register": { label: "管理员注册", category: "admin" },
@@ -493,6 +504,9 @@ const TARGET_TYPE_LABELS: Readonly<Record<string, string>> = {
   major_prestart_state: "Major 赛前状态",
   major_prestart_entrant: "Major 赛前参赛队",
   major_tournament_entrant: "Major 参赛队",
+  prediction_program: "观赛预测项目",
+  prediction_contest: "阶段预测窗口",
+  prediction_market: "单场积分池",
   major_stage_run: "Major 阶段",
   major_final_result: "Major 最终赛果",
   post_event_adjudication: "赛后裁定",

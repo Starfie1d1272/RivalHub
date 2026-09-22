@@ -1,4 +1,5 @@
 import "server-only";
+import { runPredictionReconciliationJob } from "@/lib/predictions/reconciliation";
 
 import { refreshSteamProfiles } from "@/lib/steam-profiles";
 import { eq } from "drizzle-orm";
@@ -98,6 +99,7 @@ export async function runSteamProfileRefreshJob() {
 
 export async function runSchedulerJobByKey(key: SchedulerJobKey): Promise<SchedulerRunnerResult<unknown>> {
   switch (key) {
+    case "reconcile-predictions": return runPredictionReconciliationJob();
     case "refresh-steam-profiles": return runSteamProfileRefreshJob();
     case "draft-timeout": return runDraftTimeoutJob();
     case "check-registration-deadline": return runRegistrationDeadlineJob();

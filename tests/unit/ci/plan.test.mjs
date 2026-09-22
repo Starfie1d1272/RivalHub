@@ -119,7 +119,7 @@ describe("changed-surface planner", () => {
 
   it("decouples Draft and Ready PR from evidence depth and only alters gateName", () => {
     const pureUiEntry = [{ status: "M", paths: ["src/components/layout/Footer.tsx"] }];
-    
+
     // Draft pure UI -> affected static + draft-gate
     const draft = classifyChangedFiles(pureUiEntry, { draft: true });
     expect(draft.full).toBe(false);

@@ -4,7 +4,7 @@
 
 ## 结论
 
-- 当前 active chain 的 82 张 application-owned `public` base table 全部归类为 `server_only`。业务数据库只由 server-side Drizzle 访问，browser Data API consumer 为零。
+- 当前 active chain 的 95 张 application-owned `public` base table 全部归类为 `server_only`。业务数据库只由 server-side Drizzle 访问，browser Data API consumer 为零。
 - `users`、`user_sessions`、`admin_invites`、`admin_invite_claims`、`season_admin_grants`、`audit_logs`、education evidence、Major prestart/runtime 和 bracket runtime 均按高敏感 server-only 处理。
 - 通用 provider bracket state 按 `(competition_id, stage_key)` 归属 canonical logical Stage；Major Swiss standings 只由 StageRun entrants、managed matches 与 finalized round 投影。
 - `DraftLiveRoom` 与 `CaptainVotingPanel` 的 Realtime subscription 已删除。两处继续使用既有 10 秒 polling fallback；`ResetPasswordForm` 保留 browser Supabase client，但仅调用 Supabase Auth，不调用 public table Data API。
@@ -14,6 +14,19 @@
 
 | Table | Sensitivity | Domain | Server Drizzle consumer | Browser Data API consumer | Realtime consumer | anon privileges | authenticated privileges | RLS enabled | policy summary | publication membership | Target class | Reason |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| prediction_stage_milestones | 阶段首次开放事实 | 观赛预测 | src/lib/predictions/service.ts | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 恢复比赛不能重发历史阶段补给。 |
+| prediction_programs | 服务端预测事实与积分流水 | 观赛预测 | src/lib/predictions/ | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 不开放浏览器 Data API；只返回明确的公开或本人 DTO。 |
+| prediction_contests | 服务端预测事实与积分流水 | 观赛预测 | src/lib/predictions/ | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 不开放浏览器 Data API；只返回明确的公开或本人 DTO。 |
+| prediction_accounts | 服务端预测事实与积分流水 | 观赛预测 | src/lib/predictions/ | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 不开放浏览器 Data API；只返回明确的公开或本人 DTO。 |
+| prediction_picks | 服务端预测事实与积分流水 | 观赛预测 | src/lib/predictions/ | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 不开放浏览器 Data API；只返回明确的公开或本人 DTO。 |
+| prediction_judgements | 服务端预测事实与积分流水 | 观赛预测 | src/lib/predictions/ | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 不开放浏览器 Data API；只返回明确的公开或本人 DTO。 |
+| prediction_market_options | 不可变市场选项 | 观赛预测 | src/lib/predictions/ | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 投注通过复合外键绑定所属市场选项。 |
+| prediction_markets | 服务端预测事实与积分流水 | 观赛预测 | src/lib/predictions/ | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 不开放浏览器 Data API；只返回明确的公开或本人 DTO。 |
+| prediction_stakes | 服务端预测事实与积分流水 | 观赛预测 | src/lib/predictions/ | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 不开放浏览器 Data API；只返回明确的公开或本人 DTO。 |
+| prediction_settlements | 服务端预测事实与积分流水 | 观赛预测 | src/lib/predictions/ | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 不开放浏览器 Data API；只返回明确的公开或本人 DTO。 |
+| prediction_ledger | 服务端预测事实与积分流水 | 观赛预测 | src/lib/predictions/ | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 不开放浏览器 Data API；只返回明确的公开或本人 DTO。 |
+| prediction_scenarios | 服务端预测事实与积分流水 | 观赛预测 | src/lib/predictions/ | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 不开放浏览器 Data API；只返回明确的公开或本人 DTO。 |
+| prediction_jobs | 服务端预测事实与积分流水 | 观赛预测 | src/lib/predictions/ | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 不开放浏览器 Data API；只返回明确的公开或本人 DTO。 |
 | admin_invite_claims | 高敏感授权 ledger | 鉴权 / 管理员提权 | src/lib/auth/admin-invites.ts | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 邀请码领取、计数和幂等事实只能在服务端事务内写入。 |
 | admin_invites | 高敏感邀请码与授权范围 | 鉴权 / 管理员提权 | src/lib/auth/admin-invites.ts; src/actions/admin.ts | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 包含角色、赛季范围和使用限制，不是公开配置。 |
 | announcements | 公告内容、发布状态与 actor metadata | 运营公告 | src/lib/announcements/commands.ts; src/lib/announcements/read-model.ts | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 公告 fact 与 actor metadata 由服务端维护，公开公告只经安全 Markdown projection。 |

@@ -372,6 +372,13 @@
       "when": 1789643840540,
       "tag": "0052_gray_supernaut",
       "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "7",
+      "when": 1790053285330,
+      "tag": "0053_prediction_markets",
+      "breakpoints": true
     }
   ]
 }

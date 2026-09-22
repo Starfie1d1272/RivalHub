@@ -38,3 +38,5 @@ export * from "./scheduler";
 export * from "./announcements";
 export * from "./season-public-info";
 export * from "./feedback";
+
+export * from "./predictions";

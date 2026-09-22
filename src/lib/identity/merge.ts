@@ -118,6 +118,8 @@ export const USER_REFERENCE_RULES: readonly UserReferenceRule[] = [
   { table: "team_invitations", column: "responded_by_user_id", label: "队伍邀请处理人", mode: "preserve" },
   { table: "user_sessions", column: "user_id", label: "登录会话", mode: "delete" },
   { table: "users", column: "merged_into_user_id", label: "旧账号别名", mode: "preserve" },
+  { table: "prediction_accounts", column: "user_id", label: "观赛预测账户", mode: "special" },
+  { table: "prediction_scenarios", column: "creator_id", label: "推演快照作者", mode: "preserve" },
 ] as const;
 
 interface SeasonRegistrationReferenceRule {
@@ -243,6 +245,9 @@ export async function buildUserMergePreflight(
       evidenceClass === "dual_identity_control" ? "两个账号绑定了不同的 Steam64，无法由自助流程替你判断。" : "人工审核保留所选账号的 Steam64，不自动覆盖。",
     ));
   }
+
+  const predictionAccounts = await countReference(queryable, "prediction_accounts", "user_id", input.mergedUserId);
+  pushCount(items, "predictions:account", "BLOCKER", "观赛预测账户", predictionAccounts, "blocked", "待归并账号已有观赛预测账户，积分与正式提交不能自动合并，请先由赛事方处理。 ");
 
   for (const rule of USER_REFERENCE_RULES) {
     if (rule.mode === "special") continue;
