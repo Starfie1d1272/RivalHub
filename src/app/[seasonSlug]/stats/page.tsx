@@ -4,8 +4,8 @@ import { PageHeader, PageLayout } from "@/components/rivalhub";
 import { TournamentStatsView } from "@/components/stats/TournamentStats";
 import { getPublicOrAuthorizedDraftSeason, getPublicSeasonBySlug } from "@/lib/data/public-seasons";
 import { normalizeStagePlan } from "@/lib/seasons/compatibility";
-import { getTournamentMapDetail, getTournamentStats } from "@/lib/stats/tournament-query";
-import { parseStatsQuery, type StatsSearch } from "@/lib/stats/query-state";
+import { getTournamentMapDetail, getTournamentPlayerDetail, getTournamentStats, getTournamentTeamDetail } from "@/lib/stats/tournament-query";
+import { parseStatsQuery, type StatsSearch } from "@/lib/stats/view-state";
 
 interface StatsPageProps { params: Promise<{ seasonSlug: string }>; searchParams: Promise<StatsSearch> }
 export async function generateMetadata({ params }: StatsPageProps): Promise<Metadata> {
@@ -18,16 +18,23 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
   if (!season) notFound();
   const stages = normalizeStagePlan(season.stagePlan).map(({ key, name }) => ({ key, name }));
   const query = parseStatsQuery(await searchParams, stages.map((stage) => stage.key));
-  const [data, selectedMapData] = await Promise.all([
-    getTournamentStats({
-      seasonId: season.id,
-      stage: query.stage,
-      map: query.tab === "maps" ? undefined : query.map,
-      team: query.tab === "teams" ? undefined : query.team,
-    }),
-    query.tab === "maps" && query.map
-      ? getTournamentMapDetail({ seasonId: season.id, stage: query.stage, map: query.map, team: query.team })
-      : Promise.resolve(undefined),
-  ]);
-  return <PageLayout as="div" variant="wide" className="space-y-6"><PageHeader title="数据统计" eyebrow={season.name} /><TournamentStatsView data={data} selectedMapData={selectedMapData} query={query} seasonSlug={seasonSlug} stages={stages} /></PageLayout>;
+  const scope = { seasonId: season.id, stage: query.stage || undefined };
+  let data;
+  let playerDetail;
+  let teamDetail;
+  let mapDetail;
+  if (query.tab === "players" && query.player) {
+    playerDetail = await getTournamentPlayerDetail({ ...scope, mapFilter: query.mapFilter || undefined, teamFilter: query.teamFilter || undefined, playerId: query.player });
+  } else if (query.tab === "teams" && query.team) {
+    teamDetail = await getTournamentTeamDetail({ ...scope, mapFilter: query.mapFilter || undefined, teamId: query.team });
+  } else if (query.tab === "maps" && query.map) {
+    mapDetail = await getTournamentMapDetail({ ...scope, map: query.map });
+  } else {
+    data = await getTournamentStats({
+      ...scope,
+      mapFilter: query.tab === "players" || query.tab === "teams" ? query.mapFilter || undefined : undefined,
+      teamFilter: query.tab === "players" ? query.teamFilter || undefined : undefined,
+    });
+  }
+  return <PageLayout as="div" variant="wide" className="space-y-6"><PageHeader title="数据统计" eyebrow={season.name} /><TournamentStatsView data={data} playerDetail={playerDetail} teamDetail={teamDetail} mapDetail={mapDetail} query={query} seasonSlug={seasonSlug} stages={stages} /></PageLayout>;
 }

@@ -69,7 +69,8 @@ describe("DAK evidence submit persistence", () => {
     const client = await pool.connect();
     const database = drizzle(client, { schema });
     const queryLog: string[] = [];
-    const observedDatabase = drizzle(client, { schema, logger: { logQuery: (query) => queryLog.push(query) } });
+    const queryBindings: unknown[][] = [];
+    const observedDatabase = drizzle(client, { schema, logger: { logQuery: (query, params) => { queryLog.push(query); queryBindings.push(params); } } });
     const ids = {
       season: randomUUID(),
       entryA: randomUUID(),
@@ -424,7 +425,14 @@ describe("DAK evidence submit persistence", () => {
       expect(importQueries).toHaveLength(2);
       expect(metadataQuery).toContain('"created_at"');
       expect(payloadQuery).toMatch(/where .*"id" in \(\$1\)/i);
-      expect(stats.coverage).toEqual({ confirmedMaps: 1, completedMaps: 1 });
+      expect(queryBindings[queryLog.indexOf(payloadQuery!)]).toEqual([importId]);
+      expect(queryBindings[queryLog.indexOf(payloadQuery!)]).not.toContain(ids.legacyImport);
+      expect(queryBindings[queryLog.indexOf(payloadQuery!)]).not.toContain(conflictBeforePromotionId);
+      expect(stats.coverage).toEqual({
+        detailedMaps: 1,
+        completedMaps: 1,
+        maps: [{ mapName: "de_ancient", completedMaps: 1, detailedMaps: 1 }],
+      });
       expect(stats.performance.players).toHaveLength(10);
       expect(stats.analytics.teams).toHaveLength(2);
       expect(stats.analytics.maps[0]?.mapName).toBe("de_ancient");
@@ -444,14 +452,21 @@ describe("DAK evidence submit persistence", () => {
 
       queryLog.length = 0;
       const mapDetail = await getTournamentMapDetail({ seasonId: ids.season, map: "de_ancient" }, observedDatabase);
-      expect(mapDetail).toEqual({ coverage: { confirmedMaps: 1 }, performance: { weapons: stats.performance.weapons } });
+      expect(mapDetail).toMatchObject({
+        map: "de_ancient",
+        coverage: stats.coverage,
+        results: stats.results,
+        analytics: stats.analytics,
+        performance: stats.performance,
+        entries: stats.options.teams,
+      });
       expect(queryLog.some((query) => query.includes("match_player_stats"))).toBe(false);
       expect(queryLog.some((query) => /from "match_maps" inner join "matches"/i.test(query) && query.includes('"map_name" ='))).toBe(true);
       expect(queryLog.some((query) => /from "matches"/i.test(query) && !/inner join "match_maps"/i.test(query))).toBe(false);
       expect(queryLog.filter((query) => /from "match_demo_imports"/i.test(query) && query.includes('"payload"'))).toHaveLength(1);
       const revisedCompletedAt = new Date(now.getTime() + 1_000);
       await database.update(schema.matchMaps).set({ completedAt: revisedCompletedAt }).where(eq(schema.matchMaps.id, ids.map));
-      expect((await getTournamentStats({ seasonId: ids.season }, database)).coverage.confirmedMaps).toBe(0);
+      expect((await getTournamentStats({ seasonId: ids.season }, database)).coverage.detailedMaps).toBe(0);
       const evidenceRevisionNPlusOne = buildEvidenceRevision({
         seasonId: ids.season,
         stageKey: "fixture-stage",

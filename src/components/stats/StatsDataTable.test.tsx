@@ -1,0 +1,36 @@
+import React from "react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
+import { describe, expect, it } from "vitest";
+import { StatsDataTable, type StatsDataColumn } from "./StatsDataTable";
+
+interface Row { name: string; rating: number | null }
+
+const rows: Row[] = [
+  { name: "Missing", rating: null },
+  { name: "Low", rating: 1 },
+  { name: "High", rating: 3 },
+];
+const columns: StatsDataColumn<Row>[] = [
+  { key: "name", label: "Player", render: (row) => row.name },
+  { key: "rating", label: "Rating", numeric: true, sortable: true, sortValue: (row) => row.rating, render: (row) => row.rating ?? "—" },
+];
+
+describe("StatsDataTable client state", () => {
+  it("sorts locally while keeping missing observations last in either direction", () => {
+    render(<StatsDataTable rows={rows} columns={columns} rowKey={(row) => row.name} initialSortKey="rating" />);
+    const table = screen.getByRole("table");
+    expect(within(table).getAllByRole("row").slice(1).map((row) => row.textContent)).toEqual(["High3", "Low1", "Missing—"]);
+
+    fireEvent.click(screen.getByRole("button", { name: "Rating ↓" }));
+    expect(within(table).getAllByRole("row").slice(1).map((row) => row.textContent)).toEqual(["Low1", "High3", "Missing—"]);
+    expect(screen.getByRole("columnheader", { name: "Rating ↑" })).toHaveAttribute("aria-sort", "ascending");
+  });
+
+  it("paginates locally", () => {
+    render(<StatsDataTable rows={rows} columns={columns} rowKey={(row) => row.name} initialSortKey="rating" pageSize={1} />);
+    expect(screen.getByRole("row", { name: "High 3" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "下一页" }));
+    expect(screen.getByRole("row", { name: "Low 1" })).toBeInTheDocument();
+    expect(screen.getByText("第 2 / 3 页")).toBeInTheDocument();
+  });
+});

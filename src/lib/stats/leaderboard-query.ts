@@ -4,9 +4,28 @@ import { db, type DB, type TxDb } from "@/db/client";
 import { sql } from "drizzle-orm";
 import type { EffectiveMatchRosterPlayer } from "@/lib/match-rosters/effective";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
-import { killWeightedAvg, perRound, ratioOfSums, roundWeightedAvg, simpleAvg } from "./sql";
+import { completeSum, killWeightedAvg, perRound, ratioOfSums, roundWeightedAvg, roundsExpr, simpleAvg } from "./sql";
 
-export async function getStatsLeaderboard(seasonId: string, stage: string, map: string, team: string, currentImportIds: string[], roster: EffectiveMatchRosterPlayer[], database: DB | TxDb = db) {
+export interface StatsLeaderboardFilters {
+  seasonId: string;
+  stage?: string;
+  mapFilter?: string;
+  teamFilter?: string;
+}
+
+export interface StatsLeaderboardOptions {
+  userId?: string;
+  groupByMap?: boolean;
+  groupByTeam?: boolean;
+}
+
+export async function getStatsLeaderboard(
+  scope: StatsLeaderboardFilters,
+  currentImportIds: string[],
+  roster: EffectiveMatchRosterPlayer[],
+  database: DB | TxDb = db,
+  options: StatsLeaderboardOptions = {},
+) {
   // ADR：回合加权（正确方式）；HS%：击杀数加权（正确方式）
   const adrExpr    = roundWeightedAvg("mps.adr");
   const hsExpr     = killWeightedAvg("mps.hs_percent");
@@ -19,18 +38,27 @@ export async function getStatsLeaderboard(seasonId: string, stage: string, map: 
   const weExpr     = simpleAvg("mps.we");
   const kdExpr     = ratioOfSums("mps.kills", "mps.deaths");
 
-  const mapFilter = map ? sql`AND mm.map_name = ${map}` : sql``;
-  const teamFilter = team ? sql`AND entrant.id = ${team}` : sql``;
+  const mapFilter = scope.mapFilter ? sql`AND mm.map_name = ${scope.mapFilter}` : sql``;
+  const teamFilter = scope.teamFilter ? sql`AND entrant.id = ${scope.teamFilter}` : sql``;
+  const userFilter = options.userId ? sql`AND mps.user_id = ${options.userId}` : sql``;
   const importFilter = currentImportIds.length ? sql`mps.dak_import_id IN (${sql.join(currentImportIds.map((id) => sql`${id}`), sql`, `)})` : sql`false`;
-  const stageFilter = stage ? sql`AND m.stage = ${stage}` : sql``;
+  const stageFilter = scope.stage ? sql`AND m.stage = ${scope.stage}` : sql``;
+  const mapName = options.groupByMap ? sql`mm.map_name AS map_name,` : sql`NULL::text AS map_name,`;
+  const mapGroup = options.groupByMap ? sql`, mm.map_name` : sql``;
+  const teamColumns = options.groupByTeam === false
+    ? sql`string_agg(DISTINCT entrant.name, ' · ') AS team_name, NULL::uuid AS team_id,`
+    : sql`entrant.name AS team_name, entrant.id AS team_id,`;
+  const teamGroup = options.groupByTeam === false ? sql`` : sql`, entrant.name, entrant.id`;
+  const teamOrder = options.groupByTeam === false ? sql`` : sql`, entrant.id`;
 
   const { rows } = await database.execute(sql`
     SELECT
       mps.user_id,
       u.display_name, sp.persona_name, u.perfect_name,
-      entrant.name  AS team_name,
-      entrant.id    AS team_id,
+      ${teamColumns}
+      ${mapName}
       count(*)::int                                                          AS maps,
+      ${completeSum(roundsExpr)}                                              AS rounds,
       ${ratingExpr}                                                          AS avg_rating,
       ${adrExpr}                                                             AS avg_adr,
       ${rwsExpr}                                                             AS avg_rws,
@@ -53,7 +81,7 @@ export async function getStatsLeaderboard(seasonId: string, stage: string, map: 
       AS lineup(match_id uuid, user_id uuid, entry_id uuid)
       ON lineup.match_id = m.id AND lineup.user_id = mps.user_id
     LEFT JOIN competition_entries entrant ON entrant.id = lineup.entry_id
-    WHERE m.season_id = ${seasonId}
+    WHERE m.season_id = ${scope.seasonId}
       AND mps.verified_by_admin IS NOT NULL
       AND m.status = 'finished'
       AND mps.user_id IS NOT NULL
@@ -61,18 +89,21 @@ export async function getStatsLeaderboard(seasonId: string, stage: string, map: 
       ${stageFilter}
       ${mapFilter}
       ${teamFilter}
-    GROUP BY mps.user_id, u.display_name, sp.persona_name, u.perfect_name, entrant.name, entrant.id
-    ORDER BY mps.user_id, entrant.id
+      ${userFilter}
+    GROUP BY mps.user_id, u.display_name, sp.persona_name, u.perfect_name ${teamGroup} ${mapGroup}
+    ORDER BY mps.user_id ${teamOrder} ${options.groupByMap ? sql`, mm.map_name` : sql``}
   `);
 
   const toNumOrNull = (v: unknown) => (v == null ? null : Number(v));
 
   return rows.map((r) => ({
+    mapName: r.map_name as string | null,
     userId:     r.user_id as string | null,
     perfectName: getPublicDisplayName({ displayName: r.display_name as string | null, personaName: r.persona_name as string | null, perfectName: r.perfect_name as string | null }),
     teamName:   r.team_name as string | null,
     teamId:     r.team_id as string | null,
     maps:       Number(r.maps),
+    rounds:     toNumOrNull(r.rounds),
     avgRating:  toNumOrNull(r.avg_rating),
     avgAdr:     toNumOrNull(r.avg_adr),
     avgRws:     toNumOrNull(r.avg_rws),
