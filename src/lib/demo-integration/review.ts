@@ -54,7 +54,7 @@ function assertReviewable(row: typeof matchDemoImports.$inferSelect): void {
   }
 }
 
-function readStoredEvidence(row: typeof matchDemoImports.$inferSelect) {
+export function readStoredEvidence(row: typeof matchDemoImports.$inferSelect) {
   let evidence: ReturnType<typeof parseRivalHubDemoEvidenceV1>;
   try {
     evidence = parseRivalHubDemoEvidenceV1(row.payload);
