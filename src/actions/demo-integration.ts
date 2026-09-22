@@ -52,12 +52,17 @@ export async function confirmStoredDemoParticipantIdentity(
       ...parsed.data,
       actorId,
     }));
-    const relatedRechecks = await revalidateNeedsAttentionImportsForSteam64({
-      seasonId: row.seasonId,
-      steam64: parsed.data.observedSteam64,
-      actorId,
-      excludeImportId: row.id,
-    });
+    let relatedRechecks;
+    try {
+      relatedRechecks = await revalidateNeedsAttentionImportsForSteam64({
+        seasonId: row.seasonId,
+        steam64: parsed.data.observedSteam64,
+        actorId,
+        excludeImportId: row.id,
+      });
+    } catch {
+      relatedRechecks = { attempted: 0, confirmed: 0, remaining: 0, failed: 1, affectedMatchIds: [] };
+    }
     revalidateMatchPaths(season.slug, row.matchId);
     for (const matchId of relatedRechecks.affectedMatchIds) revalidateMatchPaths(season.slug, matchId);
     return ok({
