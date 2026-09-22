@@ -2,7 +2,8 @@ import "server-only";
 
 import { and, eq, inArray, sql } from "drizzle-orm";
 import type { DB, TxDb } from "@/db/client";
-import { userGameplaySteamIds, users } from "@/db/schema";
+import { matchDemoImports, steamProfiles, userGameplaySteamIds, users } from "@/db/schema";
+import { getDisplayName } from "@/lib/identity/display-name";
 import { AppError, ErrorCode } from "@/lib/errors";
 
 export type GameplayIdentityExecutor = DB | TxDb;
@@ -301,4 +302,38 @@ export async function changePrimarySteam64InTx(
     .set({ steam64: input.nextSteam64, updatedAt: now })
     .where(eq(users.id, input.userId));
   return { previousSteam64: user.steam64, steam64: input.nextSteam64 };
+}
+
+/** Enrich canonical resolutions for an authorized operator; never resolve independently. */
+export async function loadGameplayIdentityReviewDetails(
+  database: GameplayIdentityExecutor,
+  resolutions: ReadonlyMap<string, GameplayUserResolution>,
+) {
+  const userIds = [...new Set([...resolutions.values()].map((value) => value.userId))];
+  if (userIds.length === 0) return new Map<string, GameplayIdentityReviewDetail>();
+  const [players, aliases] = await Promise.all([
+    database.select({ userId: users.id, displayName: users.displayName, perfectName: users.perfectName, personaName: steamProfiles.personaName })
+      .from(users).leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64)).where(inArray(users.id, userIds)),
+    database.select({ identityId: userGameplaySteamIds.id, userId: userGameplaySteamIds.userId,
+      steam64: userGameplaySteamIds.steam64, provenance: userGameplaySteamIds.provenance,
+      status: userGameplaySteamIds.status, sourceSeasonId: matchDemoImports.seasonId })
+      .from(userGameplaySteamIds).leftJoin(matchDemoImports, eq(matchDemoImports.id, userGameplaySteamIds.sourceImportId))
+      .where(and(inArray(userGameplaySteamIds.steam64, [...resolutions.keys()]), eq(userGameplaySteamIds.status, "active"))),
+  ]);
+  return new Map([...resolutions].map(([steam64, resolution]) => {
+    const player = players.find((row) => row.userId === resolution.userId);
+    const alias = resolution.source === "gameplay_alias"
+      ? aliases.find((row) => row.steam64 === steam64 && row.userId === resolution.userId) : undefined;
+    return [steam64, { ...resolution, name: getDisplayName(player ?? {}), identity: alias ?? null }];
+  }));
+}
+
+export interface GameplayIdentityReviewDetail extends GameplayUserResolution {
+  name: string;
+  identity: {
+    identityId: string;
+    provenance: "profile_change" | "admin_confirmed_alternate";
+    status: "active" | "retired";
+    sourceSeasonId: string | null;
+  } | null;
 }

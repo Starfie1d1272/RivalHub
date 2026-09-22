@@ -69,7 +69,9 @@ export interface AdminDemoReviewParticipant {
   observedSteam64: string;
   demoName: string;
   teamName: string;
-  canConfirm: boolean;
+  state: "confirmable" | "conflict-retirable" | "conflict-nonretirable" | "blocked";
+  currentPlayer: { userId: string; name: string } | null;
+  retirableIdentityId: string | null;
   note: string | null;
   candidates: AdminDemoReviewCandidate[];
 }
@@ -80,7 +82,9 @@ export interface AdminDemoReviewMap {
   mapOrder: number;
   mapName: string;
   invalidPayload: boolean;
-  message: string | null;
+  message: string;
+  resolvedCount: number;
+  blockingIssues: string[];
   participants: AdminDemoReviewParticipant[];
 }
 

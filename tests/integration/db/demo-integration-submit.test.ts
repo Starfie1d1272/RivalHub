@@ -5,6 +5,8 @@ import { and, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { describe, expect, it } from "vitest";
 import * as schema from "../../../src/db/schema";
+import { loadAdminDemoReview } from "../../../src/lib/admin/matches/demo-review";
+import { loadCanonicalTarget } from "../../../src/lib/demo-integration/validation";
 import { ErrorCode } from "../../../src/lib/errors";
 import { parseRivalHubDemoEvidenceV1 } from "../../../src/lib/demo-evidence/contract";
 import type { RivalHubEvidenceSubmission } from "../../../src/lib/demo-integration/contracts";
@@ -511,6 +513,28 @@ describe("DAK evidence submit persistence", () => {
       expect(needsIdentity.importId).not.toBeNull();
       if (!needsIdentity.importId) throw new Error("测试未创建身份待处理 Demo");
 
+      const readReview = () => database.transaction(async (tx) => {
+        const [row] = await tx.select().from(schema.matchDemoImports).where(eq(schema.matchDemoImports.id, needsIdentity.importId!));
+        if (!row) throw new Error("Missing review import");
+        return loadAdminDemoReview(tx, row, await loadCanonicalTarget(tx, aliasEvidence.target), new Map([[ids.entryA, "Alpha"], [ids.entryB, "Beta"]]));
+      });
+      const initialReview = await readReview();
+      expect(initialReview.resolvedCount).toBe(9);
+      expect(initialReview.participants).toHaveLength(1);
+      expect(initialReview.participants[0]).toMatchObject({ state: "confirmable", observedSteam64: alternateSteam64 });
+      expect(initialReview.participants[0]!.candidates.every((candidate) => candidate.entryId === ids.entryA)).toBe(true);
+      const wrongIdentity = await database.transaction((tx) => recordGameplaySteamIdentityInTx(tx, {
+        userId: userIds[5]!, steam64: alternateSteam64, actorId: userIds[0]!,
+        provenance: "admin_confirmed_alternate", sourceImportId: needsIdentity.importId!, reason: "测试错误关联的审核入口",
+      }));
+      const conflictReview = await readReview();
+      expect(conflictReview.participants[0]).toMatchObject({ state: "conflict-retirable", retirableIdentityId: wrongIdentity.id,
+        currentPlayer: { userId: userIds[5]! } });
+      await database.transaction((tx) => retireSeasonGameplaySteamIdentityInTx(tx, {
+        identityId: wrongIdentity.id, seasonId: ids.season, actorId: userIds[0]!, reason: "核对后撤销错误关联",
+      }));
+      expect((await readReview()).participants[0]?.state).toBe("confirmable");
+
       const aliasesBeforeWrongParticipant = await database.select().from(schema.userGameplaySteamIds)
         .where(eq(schema.userGameplaySteamIds.userId, userIds[0]!));
       await expect(database.transaction((tx) => confirmStoredDemoParticipantIdentityInTx(tx, {
@@ -529,7 +553,7 @@ describe("DAK evidence submit persistence", () => {
         actorId: userIds[0]!,
       }));
       expect(confirmedByIdentity).toMatchObject({ status: "confirmed", aliasCreated: true, alreadyConfirmed: false, issues: [] });
-      const identityRows = await database.select().from(schema.userGameplaySteamIds).where(eq(schema.userGameplaySteamIds.sourceImportId, needsIdentity.importId));
+      const identityRows = await database.select().from(schema.userGameplaySteamIds).where(and(eq(schema.userGameplaySteamIds.sourceImportId, needsIdentity.importId), eq(schema.userGameplaySteamIds.status, "active")));
       expect(identityRows).toHaveLength(1);
       expect(identityRows[0]).toMatchObject({ userId: userIds[0], steam64: alternateSteam64, provenance: "admin_confirmed_alternate", status: "active" });
       expect(await database.select().from(schema.matchDemoImports).where(eq(schema.matchDemoImports.id, needsIdentity.importId))).toMatchObject([
