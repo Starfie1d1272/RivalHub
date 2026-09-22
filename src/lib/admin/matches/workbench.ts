@@ -114,6 +114,7 @@ export async function loadAdminMatchWorkbench({
         id: eventRosterMembers.id,
         userId: users.id,
         entryId: eventRosters.entryId,
+        eventRosterStatus: eventRosters.status,
         personaName: steamProfiles.personaName,
         displayName: users.displayName,
         perfectName: users.perfectName,
@@ -179,6 +180,7 @@ export async function loadAdminMatchWorkbench({
 
   const eventRosterUserIdsByEntry = new Map<string, Set<string>>();
   for (const member of memberRows) {
+    if (member.eventRosterStatus !== "confirmed" && member.eventRosterStatus !== "frozen") continue;
     const ids = eventRosterUserIdsByEntry.get(member.entryId) ?? new Set<string>();
     ids.add(member.userId);
     eventRosterUserIdsByEntry.set(member.entryId, ids);
