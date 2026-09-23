@@ -25,7 +25,7 @@ describe("MetricValue sample labels", () => {
 
   it("shows Blind/Flash with a flash denominator instead of leaking the floating total blind seconds", () => {
     render(<MetricValue metric="blindPerFlash" value={{ rate: 2.4464, successes: 386.534, attempts: 158 }} />);
-    expect(screen.getByText("2.4s")).toBeInTheDocument();
+    expect(screen.getByText("2.45s")).toBeInTheDocument();
     expect(screen.getByText("158 flashes")).toBeInTheDocument();
     expect(screen.queryByText(/386/)).not.toBeInTheDocument();
   });
@@ -42,6 +42,14 @@ describe("MetricValue sample labels", () => {
   it("uses the raw numerator and denominator when formatting a rate", () => {
     render(<MetricValue metric="firstKill" value={{ rate: 0.17, successes: 5, attempts: 30 }} sampleDisplay="hidden" />);
     expect(screen.getByText("16.67")).toBeInTheDocument();
+  });
+
+  it("uses production-scale precision for multi-kills and trades", () => {
+    const { rerender } = render(<MetricValue metric="mk" value={0.1651} />);
+    expect(screen.getByText("16.5")).toBeInTheDocument();
+
+    rerender(<MetricValue metric="trade" value={{ rate: 0.146, successes: 29, attempts: 199 }} sampleDisplay="hidden" />);
+    expect(screen.getByText("14.6")).toBeInTheDocument();
   });
 
 });
