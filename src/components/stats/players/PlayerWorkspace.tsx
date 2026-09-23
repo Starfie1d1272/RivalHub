@@ -89,7 +89,7 @@ export function PlayerWorkspace({ detail }: { detail: TournamentPlayerDetail }) 
             <div><p className="text-xs text-[var(--color-fg-mid)]">Player Rounds</p><p className="font-semibold tabular-nums">{slice.sample.rounds}</p></div>
             <div><p className="text-xs text-[var(--color-fg-mid)]">KAST</p><MetricValue metric="kast" value={slice.kast} /></div>
             <div><p className="text-xs text-[var(--color-fg-mid)]">Opening</p><MetricValue metric="openingWin" value={slice.opening.successRate} /></div>
-            <div><p className="text-xs text-[var(--color-fg-mid)]">Trade/r</p><MetricValue metric="trade" value={slice.trade.tradeKillsPerRound} /></div>
+            <div><p className="text-xs text-[var(--color-fg-mid)]">Trade/100r</p><MetricValue metric="trade" value={slice.trade.tradeKillsPerRound} /></div>
             <div><p className="text-xs text-[var(--color-fg-mid)]">Util/r</p><MetricValue metric="utility" value={slice.utility.utilityDamagePerRound} /></div>
           </div> : <p className="text-sm text-[var(--color-fg-mid)]">当前范围没有详细回合数据。</p>}
         </MetricPanel>
@@ -109,7 +109,7 @@ export function PlayerWorkspace({ detail }: { detail: TournamentPlayerDetail }) 
         <SampleValue title="Teamplay" rows={[
           ["KAST", <MetricValue key="kast" metric="kast" value={slice.kast} />],
           ["Survival%", <MetricValue key="survival" metric="survival" value={slice.survival} />],
-          ["Trade/r", <MetricValue key="trade" metric="trade" value={slice.trade.tradeKillsPerRound} />],
+          ["Trade/100r", <MetricValue key="trade" metric="trade" value={slice.trade.tradeKillsPerRound} />],
           ["Traded%", <MetricValue key="traded" metric="traded" value={slice.trade.tradedDeathsPerDeath} />],
         ]} />
       </div>}
