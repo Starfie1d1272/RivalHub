@@ -81,7 +81,7 @@ export function StatsDataTable<T>({
       rankedCount: ranked.length,
       limitedCount: limited.length,
       floor: dynamicFloor.floor,
-      sampleLabel: activeColumn.metric ? STATS_METRICS[activeColumn.metric].sampleLabel : "samples",
+      sampleLabel: activeColumn.metric ? (STATS_METRICS[activeColumn.metric].rankingSampleLabel ?? STATS_METRICS[activeColumn.metric].sampleLabel) : "samples",
       metricLabel: activeColumn.label,
     };
   }, [activeColumn, direction, rankingBaselineRows, rows]);

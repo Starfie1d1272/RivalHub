@@ -34,6 +34,7 @@ function metric<K extends SampleKind>(
     description,
     sampleMode: options.sampleMode ?? "fraction",
     rankingSampleKind: options.rankingSampleKind ?? null,
+    rankingSampleLabel: options.rankingSampleKind ? sampleLabels[options.rankingSampleKind] : null,
   } as const;
 }
 
