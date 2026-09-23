@@ -31,12 +31,17 @@ describe("MetricValue sample labels", () => {
   });
   it("scales low-frequency per-round events to a per-100-round display", () => {
     render(<MetricValue metric="flashAssist" value={{ rate: 0.05, successes: 15, attempts: 301 }} sampleDisplay="hidden" />);
-    expect(screen.getByText("5.0")).toBeInTheDocument();
+    expect(screen.getByText("4.98")).toBeInTheDocument();
   });
 
   it("keeps standard per-round metrics on their native scale", () => {
     render(<MetricValue metric="kpr" value={0.98} />);
     expect(screen.getByText("0.98")).toBeInTheDocument();
+  });
+
+  it("uses the raw numerator and denominator when formatting a rate", () => {
+    render(<MetricValue metric="firstKill" value={{ rate: 0.17, successes: 5, attempts: 30 }} sampleDisplay="hidden" />);
+    expect(screen.getByText("16.67")).toBeInTheDocument();
   });
 
 });
