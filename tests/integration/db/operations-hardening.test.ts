@@ -4,7 +4,8 @@
  */
 import { randomUUID } from "node:crypto";
 import { drizzle } from "drizzle-orm/node-postgres";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+vi.mock("next/cache", () => ({ cacheLife: vi.fn(), cacheTag: vi.fn() }));
 import * as schema from "../../../src/db/schema";
 import { announcements, auditLogs, communityGroups, feedbackReports, seasons, users } from "../../../src/db/schema";
 import { eq } from "drizzle-orm";
