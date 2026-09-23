@@ -31,10 +31,13 @@ async function loadStatsEvidence(tx: TxDb, scope: TournamentStatsScope, options:
     ? [...new Map(selectedMapRows.map(({ match }) => [match.id, match])).values()]
     : await tx.select().from(matches).where(and(eq(matches.seasonId, scope.seasonId), scope.stage ? eq(matches.stage, scope.stage) : undefined));
   const selectedTeamId = options.teamId ?? scope.teamFilter;
-  const scopedMatches = matchRows.filter((match) => match.status !== "cancelled" && (!selectedTeamId || [match.entryAId, match.entryBId].includes(selectedTeamId)));
+  const baseMatches = matchRows.filter((match) => match.status !== "cancelled");
+  const scopedMatches = baseMatches.filter((match) => !selectedTeamId || [match.entryAId, match.entryBId].includes(selectedTeamId));
   const matchesById = new Map(scopedMatches.map((match) => [match.id, match]));
   const matchIds = scopedMatches.map((match) => match.id);
   const entries = await tx.select({ id: competitionEntries.id, name: competitionEntries.name }).from(competitionEntries).where(eq(competitionEntries.competitionId, scope.seasonId));
+  const participantIds = new Set(baseMatches.filter((match) => match.status === "finished").flatMap((match) => [match.entryAId, match.entryBId].filter((id): id is string => Boolean(id))));
+  const participantEntries = entries.filter((entry) => participantIds.has(entry.id));
   const maps = selectedMapRows
     ? selectedMapRows.filter(({ match }) => matchesById.has(match.id)).map(({ map }) => map)
     : matchIds.length ? await tx.select().from(matchMaps).where(inArray(matchMaps.matchId, matchIds)) : [];
@@ -113,6 +116,7 @@ async function loadStatsEvidence(tx: TxDb, scope: TournamentStatsScope, options:
     matches: scopedMatches,
     matchIds,
     entries,
+    participantEntries,
     maps,
     scopedMaps,
     roster,
@@ -124,6 +128,7 @@ async function loadStatsEvidence(tx: TxDb, scope: TournamentStatsScope, options:
 function buildVetoSelection(
   entries: Array<{ id: string; name: string }>,
   veto: Array<{ mapName: string; action: string; entryId: string | null }>,
+  mapNames: readonly string[],
   selectedMap?: string,
 ) {
   const vetoByMapName = new Map<string, typeof veto>();
@@ -132,32 +137,93 @@ function buildVetoSelection(
     rows.push(row);
     vetoByMapName.set(row.mapName, rows);
   }
-  return [...vetoByMapName.keys()].filter((mapName) => !selectedMap || mapName === selectedMap).sort().map((mapName) => {
-    const rows = vetoByMapName.get(mapName)!;
-    let picks = 0;
-    let bans = 0;
-    let deciders = 0;
-    const teamsByEntry = new Map<string, { picks: number; bans: number }>();
-    for (const row of rows) {
-      if (row.action === "pick") picks += 1;
-      if (row.action === "ban") bans += 1;
-      if (row.action === "decider") deciders += 1;
-      if ((row.action === "pick" || row.action === "ban") && row.entryId) {
-        const team = teamsByEntry.get(row.entryId) ?? { picks: 0, bans: 0 };
-        if (row.action === "pick") team.picks += 1;
-        else team.bans += 1;
-        teamsByEntry.set(row.entryId, team);
+  return [...new Set([...mapNames, ...vetoByMapName.keys()])]
+    .filter((mapName) => !selectedMap || mapName === selectedMap)
+    .sort()
+    .map((mapName) => {
+      const rows = vetoByMapName.get(mapName) ?? [];
+      let picks = 0;
+      let bans = 0;
+      let deciders = 0;
+      const teamsByEntry = new Map<string, { picks: number; bans: number }>();
+      for (const row of rows) {
+        if (row.action === "pick") picks += 1;
+        if (row.action === "ban") bans += 1;
+        if (row.action === "decider") deciders += 1;
+        if ((row.action === "pick" || row.action === "ban") && row.entryId) {
+          const team = teamsByEntry.get(row.entryId) ?? { picks: 0, bans: 0 };
+          if (row.action === "pick") team.picks += 1;
+          else team.bans += 1;
+          teamsByEntry.set(row.entryId, team);
+        }
       }
-    }
+      return {
+        mapName,
+        picks,
+        bans,
+        deciders,
+        teams: entries.map((entry) => ({ entryId: entry.id, name: entry.name, ...(teamsByEntry.get(entry.id) ?? { picks: 0, bans: 0 }) })),
+      };
+    });
+}
+
+async function loadVetoData(tx: TxDb, scope: Pick<TournamentStatsScope, "seasonId" | "stage">, entries: Array<{ id: string; name: string }>) {
+  const matchRows = await tx.select({
+    id: matches.id,
+    status: matches.status,
+    isForfeit: matches.isForfeit,
+    entryAId: matches.entryAId,
+    entryBId: matches.entryBId,
+  }).from(matches).where(and(
+    eq(matches.seasonId, scope.seasonId),
+    scope.stage ? eq(matches.stage, scope.stage) : undefined,
+  ));
+  const finished = matchRows.filter((match) => match.status === "finished");
+  const finishedIds = finished.map((match) => match.id);
+  const allVeto = finishedIds.length
+    ? await tx.select({
+      matchId: matchVetoSteps.matchId,
+      mapName: matchVetoSteps.mapName,
+      action: matchVetoSteps.actionType,
+      entryId: matchVetoSteps.entryId,
+    }).from(matchVetoSteps).where(inArray(matchVetoSteps.matchId, finishedIds))
+    : [];
+  const recordedMatchIds = new Set(allVeto.map((row) => row.matchId));
+  const applicableMatches = finished.filter((match) => !match.isForfeit || recordedMatchIds.has(match.id));
+  const applicableIds = new Set(applicableMatches.map((match) => match.id));
+  const rows = allVeto.filter((row) => applicableIds.has(row.matchId));
+  const participantIds = new Set(applicableMatches.flatMap((match) => [match.entryAId, match.entryBId].filter((id): id is string => Boolean(id))));
+  const participants = entries.filter((entry) => participantIds.has(entry.id));
+  const recordedApplicableIds = new Set(rows.map((row) => row.matchId));
+  const teams = participants.map((entry) => ({
+    entryId: entry.id,
+    name: entry.name,
+    vetoes: applicableMatches.filter((match) => recordedApplicableIds.has(match.id) && (match.entryAId === entry.id || match.entryBId === entry.id)).length,
+  }));
+  return {
+    rows: rows.map(({ mapName, action, entryId }) => ({ mapName, action, entryId })),
+    participants,
+    teams,
+    sample: {
+      applicableMatches: applicableMatches.length,
+      recordedMatches: recordedApplicableIds.size,
+      missingMatches: Math.max(0, applicableMatches.length - recordedApplicableIds.size),
+    },
+  };
+}
+
+function performanceFactsForScope(
+  loaded: Awaited<ReturnType<typeof loadStatsEvidence>>,
+  teamId?: string,
+) {
+  return loaded.selected.map((row) => {
+    const facts = row.facts.performance;
+    if (!teamId) return facts;
     return {
-      mapName,
-      picks,
-      bans,
-      deciders,
-      teams: entries.flatMap((entry) => {
-        const counts = teamsByEntry.get(entry.id);
-        return counts ? [{ entryId: entry.id, name: entry.name, ...counts }] : [];
-      }),
+      ...facts,
+      playerRounds: facts.playerRounds.filter((fact) => fact.teamEntityKey === teamId),
+      objectives: facts.objectives.filter((fact) => fact.teamEntityKey === teamId),
+      playerWeapons: facts.playerWeapons.filter((fact) => fact.teamEntityKey === teamId),
     };
   });
 }
@@ -220,17 +286,19 @@ function buildCoverage(
 export async function getTournamentStats(scope: TournamentStatsScope, database: DB = db) {
   return database.transaction(async (tx) => {
     const loaded = await loadStatsEvidence(tx, scope);
-    const veto = loaded.matchIds.length ? await tx.select({ mapName: matchVetoSteps.mapName, action: matchVetoSteps.actionType, entryId: matchVetoSteps.entryId }).from(matchVetoSteps).where(inArray(matchVetoSteps.matchId, loaded.matchIds)) : [];
+    const veto = await loadVetoData(tx, scope, loaded.entries);
     const results = buildTournamentResults(resultMatchesForMapScope(loaded.matches, loaded.scopedMaps, scope.mapFilter), loaded.scopedMaps, loaded.entries);
     const coverage = buildCoverage(loaded, results);
+    const mapNames = [...new Set([...loaded.maps.map((map) => map.mapName), ...veto.rows.map((row) => row.mapName)])].sort();
     return {
       leaderboard: await getStatsLeaderboard(scope, loaded.selected.map((row) => row.importId), loaded.roster, tx),
       analytics: buildTournamentAnalytics(loaded.selected.map((row) => row.facts.tournament), { labels: loaded.labels }),
-      performance: buildTournamentPerformanceAnalytics(loaded.selected.map((row) => row.facts.performance), { labels: loaded.labels }),
+      performance: buildTournamentPerformanceAnalytics(performanceFactsForScope(loaded, scope.teamFilter), { labels: loaded.labels }),
       results,
-      selection: buildVetoSelection(loaded.entries, veto, scope.mapFilter),
+      selection: buildVetoSelection(veto.participants, veto.rows, mapNames, scope.mapFilter),
+      veto: { teams: veto.teams, sample: veto.sample },
       coverage,
-      options: { teams: loaded.entries, maps: [...new Set([...loaded.maps.map((map) => map.mapName), ...veto.map((row) => row.mapName)])].sort() },
+      options: { teams: loaded.participantEntries, maps: mapNames },
     };
   }, { isolationLevel: "repeatable read", accessMode: "read only" });
 }
@@ -255,7 +323,7 @@ export async function getTournamentPlayerDetail(scope: TournamentStatsScope & { 
 export async function getTournamentTeamDetail(scope: TournamentStatsScope & { teamId: string }, database: DB = db) {
   return database.transaction(async (tx) => {
     const loaded = await loadStatsEvidence(tx, scope, { teamId: scope.teamId });
-    const veto = loaded.matchIds.length ? await tx.select({ mapName: matchVetoSteps.mapName, action: matchVetoSteps.actionType, entryId: matchVetoSteps.entryId }).from(matchVetoSteps).where(inArray(matchVetoSteps.matchId, loaded.matchIds)) : [];
+    const veto = await loadVetoData(tx, scope, loaded.entries);
     const results = buildTournamentResults(resultMatchesForMapScope(loaded.matches, loaded.scopedMaps, scope.mapFilter), loaded.scopedMaps, loaded.entries);
     const analytics = buildTournamentAnalytics(loaded.selected.map((row) => row.facts.tournament), { labels: loaded.labels });
     const performance = buildTournamentPerformanceAnalytics(loaded.selected.map((row) => row.facts.performance), { labels: loaded.labels });
@@ -268,7 +336,7 @@ export async function getTournamentTeamDetail(scope: TournamentStatsScope & { te
         if (team.entryId === scope.teamId) resultByMapName.set(map.mapName, { entryId: team.entryId, played: team.played, wins: team.wins, losses: team.losses });
       }
     }
-    const selection = buildVetoSelection(loaded.entries, veto, scope.mapFilter);
+    const selection = buildVetoSelection(veto.participants, veto.rows, [...new Set([...loaded.maps.map((map) => map.mapName), ...veto.rows.map((row) => row.mapName)])], scope.mapFilter);
     const coverage = buildCoverage(loaded, results);
     const coverageByMapName = new Map(coverage.maps.map((row) => [row.mapName, row]));
     const selectionByMapName = new Map<string, { picks: number; bans: number }>();
@@ -311,11 +379,20 @@ export async function getTournamentTeamDetail(scope: TournamentStatsScope & { te
 export async function getTournamentMapDetail(scope: Omit<TournamentStatsScope, "mapFilter" | "teamFilter"> & { map: string }, database: DB = db) {
   return database.transaction(async (tx) => {
     const loaded = await loadStatsEvidence(tx, scope, { mapName: scope.map });
-    const veto = loaded.matchIds.length ? await tx.select({ mapName: matchVetoSteps.mapName, action: matchVetoSteps.actionType, entryId: matchVetoSteps.entryId }).from(matchVetoSteps).where(inArray(matchVetoSteps.matchId, loaded.matchIds)) : [];
+    const veto = await loadVetoData(tx, scope, loaded.entries);
     const results = buildTournamentResults(loaded.matches, loaded.scopedMaps, loaded.entries);
     const analytics = buildTournamentAnalytics(loaded.selected.map((row) => row.facts.tournament), { labels: loaded.labels });
     const performance = buildTournamentPerformanceAnalytics(loaded.selected.map((row) => row.facts.performance), { labels: loaded.labels });
-    return { map: scope.map, results, selection: buildVetoSelection(loaded.entries, veto, scope.map), coverage: buildCoverage(loaded, results), analytics, performance, entries: loaded.entries };
+    return {
+      map: scope.map,
+      results,
+      selection: buildVetoSelection(veto.participants, veto.rows, [scope.map], scope.map),
+      veto: { teams: veto.teams, sample: veto.sample },
+      coverage: buildCoverage(loaded, results),
+      analytics,
+      performance,
+      entries: loaded.entries,
+    };
   }, { isolationLevel: "repeatable read", accessMode: "read only" });
 }
 
