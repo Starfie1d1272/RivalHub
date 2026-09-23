@@ -57,7 +57,7 @@ export function PlayerWorkspace({ detail }: { detail: TournamentPlayerDetail }) 
     { key: "weapon", label: "Weapon", render: (row) => displayWeaponName(row.weapon) },
     { key: "kills", label: "Kills", numeric: true, sortable: true, sortValue: (row) => row.kills, render: (row) => row.kills },
     { key: "share", label: "Kill share", numeric: true, sortable: true, sortValue: (row) => row.killShare.rate, render: (row) => <MetricValue metric="killShare" value={row.killShare} /> },
-    { key: "perRound", label: "Kills/R", numeric: true, sortable: true, sortValue: (row) => row.killsPerRound.rate, render: (row) => <MetricValue metric="killsPerRound" value={row.killsPerRound} /> },
+    { key: "perRound", label: "Kills/r", numeric: true, sortable: true, sortValue: (row) => row.killsPerRound.rate, render: (row) => <MetricValue metric="killsPerRound" value={row.killsPerRound} /> },
     { key: "hs", label: "HS%", numeric: true, sortable: true, sortValue: (row) => row.headshotRate.rate, render: (row) => <MetricValue metric="headshot" value={row.headshotRate} /> },
   ];
 
@@ -80,7 +80,7 @@ export function PlayerWorkspace({ detail }: { detail: TournamentPlayerDetail }) 
             <div><p className="text-xs text-[var(--color-fg-mid)]">HS%</p><MetricValue metric="hs" value={detail.scoreboard[0]?.avgHs} /></div>
             <div><p className="text-xs text-[var(--color-fg-mid)]">WE</p><MetricValue metric="we" value={detail.scoreboard[0]?.avgWe} /></div>
             <div><p className="text-xs text-[var(--color-fg-mid)]">RWS</p><MetricValue metric="rws" value={detail.scoreboard[0]?.avgRws} /></div>
-            <div><p className="text-xs text-[var(--color-fg-mid)]">MK/R</p><MetricValue metric="mk" value={detail.scoreboard[0]?.mkpr} /></div>
+            <div><p className="text-xs text-[var(--color-fg-mid)]">MK/100r</p><MetricValue metric="mk" value={detail.scoreboard[0]?.mkpr} /></div>
           </div>
         </MetricPanel>
         <MetricPanel title="Advanced Stats">
@@ -120,13 +120,13 @@ export function PlayerWorkspace({ detail }: { detail: TournamentPlayerDetail }) 
           ["FA/100r", <MetricValue key="flashAssists" metric="flashAssist" value={slice.utility.flashAssistsPerRound} />],
           ["Blind/Flash", <MetricValue key="blindPerFlash" metric="blindPerFlash" value={slice.utility.enemyBlindSecondsPerFlash} />],
           ["Net Blind/Flash", <MetricValue key="netBlindPerFlash" metric="netBlindPerFlash" value={slice.utility.netBlindSecondsPerFlash} />],
-          ["Enemy Blind/R", <MetricValue key="enemyBlindPerRound" metric="utility" value={slice.utility.enemyBlindSecondsPerRound} />],
-          ["Team Blind/R", <MetricValue key="teamBlindPerRound" metric="utility" value={slice.utility.teamBlindSecondsPerRound} />],
-          ["HE Damage/R", <MetricValue key="heDamagePerRound" metric="hePerRound" value={slice.utility.heDamagePerRound} />],
+          ["Enemy Blind/r", <MetricValue key="enemyBlindPerRound" metric="utility" value={slice.utility.enemyBlindSecondsPerRound} />],
+          ["Team Blind/r", <MetricValue key="teamBlindPerRound" metric="utility" value={slice.utility.teamBlindSecondsPerRound} />],
+          ["HE Damage/r", <MetricValue key="heDamagePerRound" metric="hePerRound" value={slice.utility.heDamagePerRound} />],
           ["HE Damage/Throw", <MetricValue key="heDamagePerThrow" metric="damagePerRound" value={slice.utility.heDamagePerThrow} sampleLabel="HE throws" />],
-          ["Fire Damage/R", <MetricValue key="fireDamagePerRound" metric="firePerRound" value={slice.utility.fireDamagePerRound} />],
+          ["Fire Damage/r", <MetricValue key="fireDamagePerRound" metric="firePerRound" value={slice.utility.fireDamagePerRound} />],
           ["Smoke/r", <MetricValue key="smokePerRound" metric="smokePerRound" value={slice.utility.smokesPerRound} />],
-          ["Utility kills/R", <MetricValue key="utilityKills" metric="utilityKills" value={slice.utility.utilityKillsPerRound} />],
+          ["Utility K/100r", <MetricValue key="utilityKills" metric="utilityKills" value={slice.utility.utilityKillsPerRound} />],
         ]} />
       </div>}
 
@@ -135,7 +135,7 @@ export function PlayerWorkspace({ detail }: { detail: TournamentPlayerDetail }) 
           ["Attempts", slice.clutch.attempts],
           ["Wins", slice.clutch.wins],
           ["Clutch%", <MetricValue key="clutchWinRate" metric="clutch" value={slice.clutch.winRate} />],
-          ["Frequency/R", <MetricValue key="clutchFrequency" metric="clutchFrequency" value={slice.clutch.frequency} />],
+          ["C/100r", <MetricValue key="clutchFrequency" metric="clutchFrequency" value={slice.clutch.frequency} />],
           ...(["1", "2", "3", "4", "5"] as const).map((count) => [`1v${count}`, <MetricValue key={count} metric="clutch" value={slice.clutch.byOpponentCount[count]} sampleLabel={`1v${count} attempts`} />] as [string, ReactNode]),
         ]} />
       </div>}
