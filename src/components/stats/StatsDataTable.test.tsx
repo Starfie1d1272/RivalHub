@@ -103,4 +103,18 @@ describe("StatsDataTable client state", () => {
     expect(screen.getByRole("tooltip").closest("table")).toBeNull();
   });
 
+  it("keeps numeric labels and values on the same right edge while reserving help/sort chrome", () => {
+    const metricColumns: StatsDataColumn<Row>[] = [
+      columns[0]!,
+      { key: "rating", metric: "rating", numeric: true, sortable: true, sortValue: (row) => row.rating, render: (row) => row.rating ?? "—" },
+    ];
+    render(<StatsDataTable rows={rows} columns={metricColumns} rowKey={(row) => row.name} initialSortKey="rating" />);
+
+    const header = screen.getAllByRole("columnheader")[1]!;
+    const highRow = screen.getByRole("row", { name: /High/ });
+    const valueCell = within(highRow).getAllByRole("cell")[1]!;
+    expect(header).toHaveClass("pr-9");
+    expect(valueCell).toHaveClass("pr-9", "align-top");
+  });
+
 });
