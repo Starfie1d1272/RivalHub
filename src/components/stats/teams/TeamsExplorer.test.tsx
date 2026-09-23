@@ -24,5 +24,7 @@ describe("TeamsExplorer situations", () => {
     fireEvent.click(screen.getByRole("tab", { name: "Situations" }));
     expect(screen.getByRole("button", { name: /^Sort by 5v3/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^Sort by 3v5/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Sort by Eco\/Semi/ })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Eco\/Semi Win%/ })).not.toBeInTheDocument();
   });
 });

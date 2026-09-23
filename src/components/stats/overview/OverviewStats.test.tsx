@@ -67,13 +67,22 @@ describe("OverviewStats", () => {
         "5v3": { wins: 5, opportunities: 6, rate: 5 / 6 }, "3v5": { wins: 1, opportunities: 5, rate: 0.2 },
       },
     }];
+    data.performance.teams = [{
+      team: { entityKey: "team-a", displayName: "Alpha Team" },
+      slices: { overall: { opening: { successRate: { successes: 12, attempts: 20, rate: 0.6 } } } },
+    }] as unknown as TournamentStats["performance"]["teams"];
     render(<OverviewStats data={data} query={parseStatsQuery({}, [])} seasonSlug="major" />);
     const economySection = screen.getByText("Economy vs Full Buy").closest("section")!;
     expect(within(economySection).getByText("Eco")).toBeInTheDocument();
     expect(within(economySection).getByText("Semi")).toBeInTheDocument();
     expect(within(economySection).getByText("Force")).toBeInTheDocument();
     expect(within(economySection).queryByText("Pistol")).not.toBeInTheDocument();
+    expect(within(economySection).getByText("Overall vs Full Buy")).toBeInTheDocument();
+    expect(within(economySection).getByText("23.3%")).toBeInTheDocument();
+    expect(within(economySection).getByText("14 / 60 rounds")).toBeInTheDocument();
     expect(screen.getAllByText("Alpha Team")).toHaveLength(9);
+    expect(screen.getByText("Opening Success")).toBeInTheDocument();
+    expect(screen.queryByText("Eco/Semi Upset")).not.toBeInTheDocument();
     expect(screen.getByText("5v3 Conversion")).toBeInTheDocument();
     expect(screen.getByText("3v5 Comeback")).toBeInTheDocument();
   });

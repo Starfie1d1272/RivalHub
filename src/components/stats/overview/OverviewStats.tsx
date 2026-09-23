@@ -35,7 +35,7 @@ type SituationHighlight = {
   key: string;
   label: string;
   metric: StatsMetricKey;
-  team: TeamAnalyticsRow | null;
+  team: TeamAnalyticsRow["team"] | null;
   value: StatsRateValue | null;
 };
 
@@ -55,43 +55,55 @@ function economyVsFullRows(data: TournamentStats): EconomyMatrixRow[] {
   });
 }
 
-function bestTeamRate(
-  teams: readonly TeamAnalyticsRow[],
-  valueFor: (team: TeamAnalyticsRow) => StatsRateValue,
-): { team: TeamAnalyticsRow; value: StatsRateValue } | null {
+function bestTeamRate<T extends { team: TeamAnalyticsRow["team"] }>(
+  teams: readonly T[],
+  valueFor: (team: T) => StatsRateValue,
+): { team: TeamAnalyticsRow["team"]; value: StatsRateValue } | null {
   return teams
-    .map((team) => ({ team, value: valueFor(team) }))
+    .map((row) => ({ team: row.team, value: valueFor(row) }))
     .filter(({ value }) => value.rate !== null && (statsRateDenominator(value) ?? 0) > 0)
     .sort((left, right) =>
       (right.value.rate ?? -1) - (left.value.rate ?? -1) ||
       (statsRateDenominator(right.value) ?? 0) - (statsRateDenominator(left.value) ?? 0) ||
-      left.team.team.displayName.localeCompare(right.team.team.displayName),
+      left.team.displayName.localeCompare(right.team.displayName),
     )[0] ?? null;
+}
+
+function situationHighlight<T extends { team: TeamAnalyticsRow["team"] }>(
+  teams: readonly T[],
+  key: string,
+  label: string,
+  metric: StatsMetricKey,
+  valueFor: (team: T) => StatsRateValue,
+): SituationHighlight {
+  const best = bestTeamRate(teams, valueFor);
+  return { key, label, metric, team: best?.team ?? null, value: best?.value ?? null };
 }
 
 function situationHighlights(data: TournamentStats): SituationHighlight[] {
   const teams = data.analytics.teams;
-  const highlight = (
-    key: string,
-    label: string,
-    metric: StatsMetricKey,
-    valueFor: (team: TeamAnalyticsRow) => StatsRateValue,
-  ): SituationHighlight => {
-    const best = bestTeamRate(teams, valueFor);
-    return { key, label, metric, team: best?.team ?? null, value: best?.value ?? null };
-  };
-
+  const performanceTeams = data.performance.teams;
   return [
-    highlight("round-win", "Round Win", "roundWin", (team) => ({ rate: team.roundWinRate, wins: team.roundWins, opportunities: team.rounds })),
-    highlight("r2-conv", "R2 Conversion", "conversion", (team) => team.round2.conversion),
-    highlight("r2-break", "R2 Break", "break", (team) => team.round2.break),
-    highlight("pistol", "Pistol Win", "pistol", (team) => team.pistol),
-    highlight("5v4", "5v4 Conversion", "fiveVFour", (team) => team.manAdvantage["5v4"]),
-    highlight("4v5", "4v5 Comeback", "fourVFive", (team) => team.manAdvantage["4v5"]),
-    highlight("eco-semi", "Eco/Semi Upset", "ecoSemi", (team) => team.ecoSemiUpset),
-    highlight("5v3", "5v3 Conversion", "fiveVThree", (team) => team.manAdvantage["5v3"]),
-    highlight("3v5", "3v5 Comeback", "threeVFive", (team) => team.manAdvantage["3v5"]),
+    situationHighlight(teams, "round-win", "Round Win", "roundWin", (team) => ({ rate: team.roundWinRate, wins: team.roundWins, opportunities: team.rounds })),
+    situationHighlight(teams, "r2-conv", "R2 Conversion", "conversion", (team) => team.round2.conversion),
+    situationHighlight(teams, "r2-break", "R2 Break", "break", (team) => team.round2.break),
+    situationHighlight(teams, "pistol", "Pistol Win", "pistol", (team) => team.pistol),
+    situationHighlight(teams, "5v4", "5v4 Conversion", "fiveVFour", (team) => team.manAdvantage["5v4"]),
+    situationHighlight(teams, "4v5", "4v5 Comeback", "fourVFive", (team) => team.manAdvantage["4v5"]),
+    situationHighlight(performanceTeams, "opening", "Opening Success", "openingWin", (team) => team.slices.overall.opening.successRate),
+    situationHighlight(teams, "5v3", "5v3 Conversion", "fiveVThree", (team) => team.manAdvantage["5v3"]),
+    situationHighlight(teams, "3v5", "3v5 Comeback", "threeVFive", (team) => team.manAdvantage["3v5"]),
   ];
+}
+
+function economyOverall(rows: readonly EconomyMatrixRow[]): { rounds: number; wins: number; rate: number | null } {
+  const rounds = rows.reduce((sum, row) => sum + row.rounds, 0);
+  const wins = rows.reduce((sum, row) => sum + row.lowEconomyWins, 0);
+  return { rounds, wins, rate: rounds > 0 ? wins / rounds : null };
+}
+
+function formatPercent(rate: number | null): string {
+  return rate === null ? "—" : `${(rate * 100).toFixed(1)}%`;
 }
 
 function landscapeRows(data: TournamentStats): MapLandscapeRow[] {
@@ -168,6 +180,7 @@ export function OverviewStats({ data, query, seasonSlug }: { data: TournamentSta
   if (partialCoverage) mapColumns.push({ key: "coverage", label: "Coverage", numeric: true, className: "hidden w-[16%] sm:table-cell", render: (row) => `${row.detailed}/${row.completed}` });
 
   const economyRows = economyVsFullRows(data);
+  const overallEconomy = economyOverall(economyRows);
   const highlights = situationHighlights(data);
   const economyColumns: StatsDataColumn<EconomyMatrixRow>[] = [
     { key: "buy", label: "Buy", className: "w-[34%]", render: (row) => <span className="font-medium">{economyBuyLabel(row.lowEconomy)}</span> },
@@ -253,6 +266,16 @@ export function OverviewStats({ data, query, seasonSlug }: { data: TournamentSta
             </div>
             <div className="border-y border-[var(--color-border)] bg-[var(--color-panel)]">
               <StatsDataTable embedded rows={economyRows} columns={economyColumns} rowKey={(row) => row.lowEconomy} tableClassName="table-fixed" emptyLabel="暂无对 Full Buy 的经济样本" />
+              <div className="flex items-end justify-between gap-4 border-t border-[var(--color-border)] bg-[var(--color-panel-low)] px-4 py-4">
+                <div className="min-w-0">
+                  <p className="text-[11px] uppercase tracking-[var(--tracking-label)] text-[var(--color-fg-mid)]">Overall vs Full Buy</p>
+                  <p className="mt-1 text-xs text-[var(--color-fg-dim)]">Eco + Semi + Force · pistol and equal-buy rounds excluded.</p>
+                </div>
+                <div className="shrink-0 text-right tabular-nums">
+                  <p className="text-xl font-semibold">{formatPercent(overallEconomy.rate)}</p>
+                  <p className="mt-0.5 text-xs text-[var(--color-fg-dim)]">{overallEconomy.wins} / {overallEconomy.rounds} rounds</p>
+                </div>
+              </div>
             </div>
           </section>
 
@@ -267,7 +290,7 @@ export function OverviewStats({ data, query, seasonSlug }: { data: TournamentSta
                   <p className="text-[11px] uppercase tracking-[var(--tracking-label)] text-[var(--color-fg-mid)]">{highlight.label}</p>
                   {highlight.team && highlight.value ? (
                     <>
-                      <Link href={`/${seasonSlug}/teams/${highlight.team.team.entityKey}`} className="mt-1.5 block truncate text-sm font-medium hover:text-[var(--color-accent)]">{highlight.team.team.displayName}</Link>
+                      <Link href={`/${seasonSlug}/teams/${highlight.team.entityKey}`} className="mt-1.5 block truncate text-sm font-medium hover:text-[var(--color-accent)]">{highlight.team.displayName}</Link>
                       <div className="mt-1 text-lg font-semibold"><MetricValue metric={highlight.metric} value={highlight.value} sampleDisplay="compact" /></div>
                     </>
                   ) : <p className="mt-2 text-sm text-[var(--color-fg-dim)]">—</p>}
