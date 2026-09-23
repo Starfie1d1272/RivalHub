@@ -24,6 +24,8 @@ const families = [
 interface TeamDirectoryRow {
   entryId: string;
   name: string;
+  rating: number | null;
+  ratingSamples: number;
   matches: number;
   matchWins: number;
   matchLosses: number;
@@ -37,11 +39,17 @@ interface TeamDirectoryRow {
 function rowsFor(data: TournamentStats): TeamDirectoryRow[] {
   const analytics = new Map(data.analytics.teams.map((row) => [row.team.entityKey, row]));
   const performance = new Map(data.performance.teams.map((row) => [row.team.entityKey, row]));
-  return data.results.teams.map((row) => ({
-    ...row,
-    analytics: analytics.get(row.entryId) ?? null,
-    performance: performance.get(row.entryId) ?? null,
-  }));
+  const ratings = new Map(data.teamRatings.map((row) => [row.entryId, row]));
+  return data.results.teams.map((row) => {
+    const rating = ratings.get(row.entryId);
+    return {
+      ...row,
+      rating: rating?.rating ?? null,
+      ratingSamples: rating?.ratingSamples ?? 0,
+      analytics: analytics.get(row.entryId) ?? null,
+      performance: performance.get(row.entryId) ?? null,
+    };
+  });
 }
 
 function teamColumns(family: Family, seasonSlug: string): StatsDataColumn<TeamDirectoryRow>[] {
@@ -60,6 +68,7 @@ function teamColumns(family: Family, seasonSlug: string): StatsDataColumn<TeamDi
 
   if (family === "results") return [
     teamColumn,
+    { key: "rating", metric: "rating", numeric: true, sortable: true, sortValue: (row) => row.rating, render: (row) => <MetricValue metric="rating" value={row.rating} /> },
     { key: "match", label: "Match W-L", numeric: true, sortable: true, sortValue: (row) => row.matchWins, render: (row) => `${row.matchWins}-${row.matchLosses}` },
     { key: "map", label: "Map W-L", numeric: true, className: "hidden sm:table-cell", sortable: true, sortValue: (row) => row.mapWins - row.mapLosses, render: (row) => `${row.mapWins}-${row.mapLosses}` },
     { key: "maps", label: "Maps", numeric: true, sortable: true, sortValue: (row) => row.maps, render: (row) => row.maps },
@@ -98,7 +107,7 @@ export function TeamsExplorer({ data, query, seasonSlug }: { data: TournamentSta
   const router = useRouter();
   const [family, setFamily] = useState<Family>("results");
   const rows = useMemo(() => rowsFor(data), [data]);
-  const partialCoverage = family !== "results" && data.coverage.completedMaps > 0 && data.coverage.detailedMaps < data.coverage.completedMaps;
+  const partialCoverage = data.coverage.completedMaps > 0 && data.coverage.detailedMaps < data.coverage.completedMaps;
 
   return (
     <section className="space-y-4">
@@ -125,7 +134,7 @@ export function TeamsExplorer({ data, query, seasonSlug }: { data: TournamentSta
         rankingBaselineRows={rows}
         columns={teamColumns(family, seasonSlug)}
         rowKey={(row) => row.entryId}
-        initialSortKey={family === "results" ? "match" : family === "rounds" ? "rw" : family === "conversion" ? "r2" : "opening"}
+        initialSortKey={family === "results" ? "rating" : family === "rounds" ? "rw" : family === "conversion" ? "r2" : "opening"}
         tableClassName={family === "results" ? "min-w-[700px] table-fixed" : "min-w-[940px] table-fixed"}
         emptyLabel="当前地图范围没有已完成赛果"
       />
