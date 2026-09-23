@@ -4,12 +4,12 @@ RivalHub 的所有 Vercel Preview 固定连接 `rivalhub-dev`，不连接 produc
 
 ## 刷新边界
 
-- 每日定时、手动 dispatch，以及 Release 成功后的 `workflow_run` 都进入同一个不可并行的 refresh concurrency。
+- 每日定时和 Release 成功后的 `workflow_run` 固定使用 `main`；手动 dispatch 使用 `migration_ref` 选择 production snapshot export policy 与 dev refresh code，并要求它与 dispatch branch 一致，默认 `main`。这些运行都进入同一个不可并行的 refresh concurrency。
 - production job 只使用 production environment 的 `DATABASE_URL`/Supabase secret key；它不能写 production。公共 asset allowlist 在这一 job 生效。
 - dev job 只使用 staging environment 的 dev DB password 和 dev Supabase secret；persona password 是仓库定义的公开 fixture，不需要 secret provisioning。它不能读取 production credential。
-- snapshot 只包含审查过的 public/domain projections。Auth identity、邮件、教育证据、邀请 token、审计、`recruitment_interests` 和 private bucket 不导出；公共 Team 招募 projection、team logo 与显式 allowlist 的赛事公共 asset 可以镜像。Preview 固定使用 dev `team-logos` public bucket，其 contract 为 1 MiB、`image/jpeg`/`image/png`/`image/webp`；refresh 只对这个固定 bucket 做幂等的 get/create/update bootstrap，不复制 production bucket 配置或对象。
+- snapshot 只包含审查过的 public/domain projections。Auth identity、邮件、教育证据、邀请 token、审计、`recruitment_interests` 和 private bucket 不导出；公共 Team 招募 projection、team logo 与显式 allowlist 的赛事公共 asset 可以镜像。为支持赛事统计的真实 Preview 验收，DAK stats substrate（`dak_pairing_intents`、`dak_pairings`、`match_demo_imports`、`match_round_facts`、`user_gameplay_steam_ids` 以及 `match_player_stats.dak_import_id`）也通过固定列清单镜像；其中只复制数据库内已有的 hash/provenance，Preview 仍不连接 production，也不获得原始 credential。Preview 固定使用 dev `team-logos` public bucket，其 contract 为 1 MiB、`image/jpeg`/`image/png`/`image/webp`；refresh 只对这个固定 bucket 做幂等的 get/create/update bootstrap，不复制 production bucket 配置或对象。
 - `preview_mirror_state` 只记录 source tag/commit、refresh 时间和计数，供 Preview banner 诊断；它不是 availability 状态机。
-- refresh 先完成 dev Storage preflight，再 reset 并应用 snapshot source migrations，导入脱敏 production snapshot 和验证外键；manual dispatch 可随后把指定 ref 的当前 migration 应用到这份 production-derived 数据并再次验证，最后才 provision persona、公共 assets 与 mirror state。命令只输出固定的 phase 名称和完成/失败状态，不输出 row value、asset path、credential 或 provider 原始错误。旧 Preview 因共享 schema/data 失效是可接受的 trade-off；daily/post-release refresh 始终用 `main`。
+- refresh 先完成 dev Storage preflight，再 reset 并应用 snapshot source migrations，导入脱敏 production snapshot 和验证外键；manual dispatch 可通过 `apply_current_migrations` 选择是否把 `migration_ref` 的当前 migration 应用到这份 production-derived 数据并再次验证，最后才 provision persona、公共 assets 与 mirror state。命令只输出固定的 phase 名称和完成/失败状态，不输出 row value、asset path、credential 或 provider 原始错误。旧 Preview 因共享 schema/data 失效是可接受的 trade-off；daily/post-release refresh 始终用 `main`。
 
 ## Source schema compatibility and diagnostics
 

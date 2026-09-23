@@ -186,3 +186,7 @@ Major Swiss 的 public/admin read model 只从 `major_stage_entrants`、`matches
 | privileged mutation 保留 audit | domain transaction + `audit_logs` |
 
 当新增需求似乎需要第二份状态字段、第二套 evaluator 或从 presentation 反推业务事实时，应先检查是否已经违反上述 ownership。
+
+## Tournament statistics
+
+`src/lib/stats/` owns the server-only public tournament read model. It selects the current confirmed Demo lineage, checks the effective MatchRoster/result revision, and binds observed Steam identities through the gameplay identity owner. The published `@cs2dak/tournament` package aggregates frozen sufficient facts; RivalHub supplies canonical user/CompetitionEntry keys and public labels. Retired, superseded and stale evidence never contributes to detailed analytics. Existing verified scoreboard metrics retain their SQL semantics; Team Rating is the sample-weighted aggregation of the same valid player-map Rating observations, not a second rating formula. Stage and match format are tournament-wide stats scopes. Canonical veto steps supply selection counts independently of Demo coverage; veto samples distinguish recorded, missing and not-applicable finished matches, while the participant universe remains all finished-match participants in scope. Rates retain additive numerators and denominators, with zero opportunities represented as null. Registration position is not a tournament role fact.

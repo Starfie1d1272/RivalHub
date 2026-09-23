@@ -10,7 +10,9 @@ describe("formatStat", () => {
     expect(formatStat("hsPercent", 0)).toBe("0%");
     expect(formatStat("kd", 0)).toBe("0.00");
     expect(formatStat("kpr", 0)).toBe("0.00");
-    expect(formatStat("fkpr", 0.012)).toBe("1.2");
+    expect(formatStat("fkpr", 0.012)).toBe("1.20");
+    expect(formatStat("mkpr", 0.0467)).toBe("4.67");
+    expect(formatStat("cpr", 0.0094)).toBe("0.94");
   });
 
   it("renders unknown values as an em dash and keeps zero visible", () => {

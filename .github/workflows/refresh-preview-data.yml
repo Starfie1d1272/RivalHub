@@ -11,7 +11,7 @@ on:
         default: false
         type: boolean
       migration_ref:
-        description: Ref to use only when applying current migrations
+        description: Manual snapshot policy/current-migration branch used by both jobs; scheduled and post-release refreshes use main
         required: false
         default: main
         type: string
@@ -36,7 +36,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          ref: main
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.migration_ref || 'main' }}
           fetch-depth: 0
       - uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
         with:
@@ -52,12 +52,8 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
           RIVALHUB_PRODUCTION_SUPABASE_URL: https://sucokfotkypwqkckfynp.supabase.co
-          GITHUB_ACTIONS: true
-          GITHUB_REPOSITORY: ${{ github.repository }}
-          GITHUB_REF: refs/heads/main
-          GITHUB_WORKFLOW: Refresh Preview Data
-          GITHUB_EVENT_NAME: ${{ github.event_name }}
           RIVALHUB_PREVIEW_PUBLIC_ASSET_ALLOWLIST: ${{ vars.RIVALHUB_PREVIEW_PUBLIC_ASSET_ALLOWLIST }}
+          RIVALHUB_PREVIEW_MIGRATION_REF: ${{ github.event_name == 'workflow_dispatch' && inputs.migration_ref || 'main' }}
         run: pnpm db:preview:export .agent-tmp/preview-mirror.json
       - name: Upload private short-lived mirror artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -100,9 +96,5 @@ jobs:
           RIVALHUB_STAGING_DB_PASSWORD: ${{ secrets.RIVALHUB_STAGING_DB_PASSWORD }}
           RIVALHUB_PREVIEW_DEV_SECRET_KEY: ${{ secrets.RIVALHUB_PREVIEW_DEV_SECRET_KEY }}
           RIVALHUB_PREVIEW_APPLY_CURRENT_MIGRATIONS: ${{ github.event_name == 'workflow_dispatch' && inputs.apply_current_migrations || 'false' }}
-          GITHUB_ACTIONS: true
-          GITHUB_REPOSITORY: ${{ github.repository }}
-          GITHUB_REF: refs/heads/main
-          GITHUB_WORKFLOW: Refresh Preview Data
-          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          RIVALHUB_PREVIEW_MIGRATION_REF: ${{ github.event_name == 'workflow_dispatch' && inputs.migration_ref || 'main' }}
         run: pnpm db:preview:refresh .agent-tmp/preview-mirror.json

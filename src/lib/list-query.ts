@@ -16,6 +16,7 @@ export type ListQueryUpdate = (updates: ListQueryUpdates, options?: ListQueryUpd
 export interface ListQueryParamsOptions {
   routeBase?: string;
   defaults?: ListQueryDefaults;
+  preserveScroll?: boolean;
 }
 
 function toQueryValue(value: ListQueryValue): string | undefined {

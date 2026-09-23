@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { resolve } from "node:path";
 import { and, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
+import { buildTournamentAnalytics, buildTournamentPerformanceAnalytics } from "@cs2dak/tournament";
 import { describe, expect, it } from "vitest";
 import * as schema from "../../../src/db/schema";
 import { loadAdminDemoReview } from "../../../src/lib/admin/matches/demo-review";
@@ -21,6 +22,8 @@ import {
 } from "../../../src/lib/demo-integration/review";
 import { dakStableScoreboardValues, submitRivalHubEvidence } from "../../../src/lib/demo-integration/submit";
 import { recordGameplaySteamIdentityInTx } from "../../../src/lib/identity/gameplay-steam";
+import { getTournamentMapDetail, getTournamentStats } from "../../../src/lib/stats/tournament-query";
+import { adaptStatsEvidence } from "../../../src/lib/stats/evidence-adapter";
 import { createLocalPool } from "./harness/database";
 
 const fixturePath = resolve(process.cwd(), "tests/fixtures/demo-evidence/normal-map-v1.json");
@@ -65,6 +68,9 @@ describe("DAK evidence submit persistence", () => {
     const pool = createLocalPool();
     const client = await pool.connect();
     const database = drizzle(client, { schema });
+    const queryLog: string[] = [];
+    const queryBindings: unknown[][] = [];
+    const observedDatabase = drizzle(client, { schema, logger: { logQuery: (query, params) => { queryLog.push(query); queryBindings.push(params); } } });
     const ids = {
       season: randomUUID(),
       entryA: randomUUID(),
@@ -344,6 +350,7 @@ describe("DAK evidence submit persistence", () => {
         expect.objectContaining({ status: "confirmed", semanticProfile: "dak-stable/2" }),
       ]);
 
+      expect((await getTournamentStats({ seasonId: ids.season }, database)).analytics.totals.mapCount).toBe(0);
       const first = await submitRivalHubEvidence({
         input: evidence,
         pairingId: ids.pairing,
@@ -410,8 +417,56 @@ describe("DAK evidence submit persistence", () => {
         rounds: evidence.sourceFacts.rounds.length,
       });
 
+      queryLog.length = 0;
+      const stats = await getTournamentStats({ seasonId: ids.season }, observedDatabase);
+      const importQueries = queryLog.filter((query) => /from "match_demo_imports"/i.test(query));
+      const metadataQuery = importQueries.find((query) => !query.includes('"payload"'));
+      const payloadQuery = importQueries.find((query) => query.includes('"payload"'));
+      expect(importQueries).toHaveLength(2);
+      expect(metadataQuery).toContain('"created_at"');
+      expect(payloadQuery).toMatch(/where .*"id" in \(\$1\)/i);
+      expect(queryBindings[queryLog.indexOf(payloadQuery!)]).toEqual([importId]);
+      expect(queryBindings[queryLog.indexOf(payloadQuery!)]).not.toContain(ids.legacyImport);
+      expect(queryBindings[queryLog.indexOf(payloadQuery!)]).not.toContain(conflictBeforePromotionId);
+      expect(stats.coverage).toEqual({
+        detailedMaps: 1,
+        completedMaps: 1,
+        maps: [{ mapName: "de_ancient", completedMaps: 1, detailedMaps: 1 }],
+      });
+      expect(stats.performance.players).toHaveLength(10);
+      expect(stats.analytics.teams).toHaveLength(2);
+      expect(stats.analytics.maps[0]?.mapName).toBe("de_ancient");
+      expect(stats.leaderboard).toHaveLength(10);
+      expect(stats.leaderboard.every((row) => row.kast !== null && row.fdpr !== null && row.tradeKpr !== null)).toBe(true);
+      const bindings = new Map(evidence.participants.map((participant, index) => [participant.steamId64, {
+        userId: userIds[index]!,
+        entryId: index < 5 ? ids.entryA : ids.entryB,
+      }]));
+      const expectedFacts = adaptStatsEvidence(evidence, bindings);
+      const labels = {
+        teams: Object.fromEntries(stats.analytics.teams.map((row) => [row.team.entityKey, row.team.displayName])),
+        players: Object.fromEntries(stats.performance.players.map((row) => [row.player.entityKey, row.player.displayName])),
+      };
+      expect(stats.analytics).toEqual(buildTournamentAnalytics([expectedFacts.tournament], { labels }));
+      expect(stats.performance).toEqual(buildTournamentPerformanceAnalytics([expectedFacts.performance], { labels }));
+
+      queryLog.length = 0;
+      const mapDetail = await getTournamentMapDetail({ seasonId: ids.season, map: "de_ancient" }, observedDatabase);
+      expect(mapDetail).toMatchObject({
+        map: "de_ancient",
+        coverage: stats.coverage,
+        results: stats.results,
+        analytics: stats.analytics,
+        performance: stats.performance,
+        entries: stats.options.teams,
+      });
+      expect(queryLog.some((query) => query.includes("match_player_stats"))).toBe(false);
+      expect(queryLog.some((query) => /from "match_maps" inner join "matches"/i.test(query) && query.includes('"map_name" ='))).toBe(true);
+      expect(queryLog.some((query) => /from "matches"/i.test(query) && !/inner join "match_maps"/i.test(query))).toBe(false);
+      expect(queryLog.filter((query) => /from "match_demo_imports"/i.test(query) && query.includes('"payload"'))).toHaveLength(1);
       const revisedCompletedAt = new Date(now.getTime() + 1_000);
       await database.update(schema.matchMaps).set({ completedAt: revisedCompletedAt }).where(eq(schema.matchMaps.id, ids.map));
+      expect((await getTournamentStats({ seasonId: ids.season }, database)).coverage.detailedMaps).toBe(0);
       const evidenceRevisionNPlusOne = buildEvidenceRevision({
         seasonId: ids.season,
         stageKey: "fixture-stage",
@@ -463,6 +518,7 @@ describe("DAK evidence submit persistence", () => {
       expect(await database.select().from(schema.matchRoundFacts).where(eq(schema.matchRoundFacts.importId, importId))).toHaveLength(factsAfterPromotion.length);
       expect((await database.select().from(schema.matchPlayerStats).where(eq(schema.matchPlayerStats.id, ids.ocrStat)))[0]).toMatchObject({ dakImportId: revisedImportId });
 
+      expect((await getTournamentStats({ seasonId: ids.season }, database)).analytics.totals.mapCount).toBe(1);
       const retryRevision = await submitRivalHubEvidence({
         input: evidenceNPlusOne,
         pairingId: ids.pairing,

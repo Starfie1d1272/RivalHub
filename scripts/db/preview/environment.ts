@@ -2,10 +2,18 @@ import { buildProductionEnvironment } from "../production-environment";
 import { buildStagingEnvironment, STAGING_PROJECT_REF } from "../staging-environment";
 
 export function assertRefreshRunner(env: NodeJS.ProcessEnv = process.env): void {
+  const isManual = env.GITHUB_EVENT_NAME === "workflow_dispatch";
+  const migrationRef = env.RIVALHUB_PREVIEW_MIGRATION_REF;
+  let expectedRef = "refs/heads/main";
+  if (isManual && migrationRef) {
+    expectedRef = migrationRef.startsWith("refs/heads/") ? migrationRef : `refs/heads/${migrationRef}`;
+  } else if (isManual) {
+    expectedRef = "";
+  }
   if (env.GITHUB_ACTIONS !== "true" || env.GITHUB_REPOSITORY !== "Starfie1d1272/RivalHub"
-    || env.GITHUB_REF !== "refs/heads/main" || env.GITHUB_WORKFLOW !== "Refresh Preview Data"
+    || env.GITHUB_REF !== expectedRef || env.GITHUB_WORKFLOW !== "Refresh Preview Data"
     || !["schedule", "workflow_dispatch", "workflow_run"].includes(env.GITHUB_EVENT_NAME ?? "")) {
-    throw new Error("Mirror refresh only runs from the protected main workflow.");
+    throw new Error("Mirror refresh only runs from an approved main or manual policy ref.");
   }
 }
 
