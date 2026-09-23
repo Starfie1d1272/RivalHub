@@ -70,15 +70,15 @@ function leaders(data: TournamentStats, query: StatsQuery, seasonSlug: string) {
     { getValue: (row) => row.weapon, direction: "asc" },
   ]).slice(0, 5);
   const playerColumns: StatsDataColumn<TournamentStats["leaderboard"][number]>[] = [
-    { key: "player", label: "Player", className: "w-[44%]", render: (row) => row.userId ? <PlayerProfileLink userId={row.userId} className="font-medium">{row.perfectName}</PlayerProfileLink> : row.perfectName },
-    { key: "rating", label: "Rating", metric: "rating", numeric: true, className: "w-[17%]", render: (row) => <MetricValue metric="rating" value={row.avgRating} /> },
-    { key: "sample", label: "Maps / Rds", numeric: true, className: "hidden w-[27%] sm:table-cell", render: (row) => <span>{row.maps} / {row.rounds ?? "—"}</span> },
+    { key: "player", label: "Player", className: "w-[40%]", render: (row) => row.userId ? <PlayerProfileLink userId={row.userId} className="font-medium">{row.perfectName}</PlayerProfileLink> : row.perfectName },
+    { key: "rating", label: "Rating", metric: "rating", numeric: true, className: "w-[22%]", render: (row) => <MetricValue metric="rating" value={row.avgRating} /> },
+    { key: "sample", label: "Maps / Rds", numeric: true, className: "hidden w-[26%] sm:table-cell", render: (row) => <span>{row.maps} / {row.rounds ?? "—"}</span> },
   ];
   const teamColumns: StatsDataColumn<typeof teamRows[number]>[] = [
-    { key: "team", label: "Team", className: "w-[36%]", render: (row) => <Link href={`/${seasonSlug}/teams/${row.entryId}`} className="font-medium hover:text-[var(--color-accent)]">{row.name}</Link> },
-    { key: "rating", metric: "rating", numeric: true, className: "w-[16%]", render: (row) => <MetricValue metric="rating" value={row.rating} /> },
-    { key: "match", label: "W-L", numeric: true, className: "w-[20%]", render: (row) => `${row.matchWins}-${row.matchLosses}` },
-    { key: "maps", label: "Maps", numeric: true, className: "hidden w-[16%] sm:table-cell", render: (row) => row.maps },
+    { key: "team", label: "Team", className: "w-[34%]", render: (row) => <Link href={`/${seasonSlug}/teams/${row.entryId}`} className="font-medium hover:text-[var(--color-accent)]">{row.name}</Link> },
+    { key: "rating", metric: "rating", numeric: true, className: "w-[21%]", render: (row) => <MetricValue metric="rating" value={row.rating} /> },
+    { key: "match", label: "W-L", numeric: true, className: "w-[18%]", render: (row) => `${row.matchWins}-${row.matchLosses}` },
+    { key: "maps", label: "Maps", numeric: true, className: "hidden w-[15%] sm:table-cell", render: (row) => row.maps },
   ];
   const weaponColumns: StatsDataColumn<TournamentStats["performance"]["weapons"][number]>[] = [
     { key: "weapon", label: "Weapon", className: "w-[46%]", render: (row) => <span className="font-medium">{displayWeaponName(row.weapon)}</span> },
