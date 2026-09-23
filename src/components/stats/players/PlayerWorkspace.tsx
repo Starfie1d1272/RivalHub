@@ -125,7 +125,7 @@ export function PlayerWorkspace({ detail }: { detail: TournamentPlayerDetail }) 
           ["HE Damage/R", <MetricValue key="heDamagePerRound" metric="hePerRound" value={slice.utility.heDamagePerRound} />],
           ["HE Damage/Throw", <MetricValue key="heDamagePerThrow" metric="damagePerRound" value={slice.utility.heDamagePerThrow} sampleLabel="HE throws" />],
           ["Fire Damage/R", <MetricValue key="fireDamagePerRound" metric="firePerRound" value={slice.utility.fireDamagePerRound} />],
-          ["Smoke/R", <MetricValue key="smokePerRound" metric="smokePerRound" value={slice.utility.smokesPerRound} />],
+          ["Smoke/r", <MetricValue key="smokePerRound" metric="smokePerRound" value={slice.utility.smokesPerRound} />],
           ["Utility kills/R", <MetricValue key="utilityKills" metric="utilityKills" value={slice.utility.utilityKillsPerRound} />],
         ]} />
       </div>}
