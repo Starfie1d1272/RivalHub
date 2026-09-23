@@ -9,6 +9,7 @@ import { StatsDataTable, type StatsDataColumn } from "@/components/stats/StatsDa
 import type { TournamentStats } from "@/lib/stats/tournament-query";
 import { statsHref, type StatsQuery } from "@/lib/stats/view-state";
 import { getDynamicRankingFloor, isRankingEligible } from "@/lib/stats/ranking";
+import { displayWeaponName } from "@/lib/stats/presentation";
 import { sortStatsRows } from "@/lib/stats/sorting";
 import { CS2_MAP_CATALOG } from "@/lib/config/cs2-maps";
 
@@ -63,22 +64,30 @@ function leaders(data: TournamentStats, query: StatsQuery, seasonSlug: string) {
     { getValue: (row) => row.mapWins - row.mapLosses, direction: "desc" },
     { getValue: (row) => row.name, direction: "asc" },
   ]).slice(0, 5);
+  const topWeapons = sortStatsRows(data.performance.weapons, { getValue: (row) => row.kills, direction: "desc" }, [
+    { getValue: (row) => row.weapon, direction: "asc" },
+  ]).slice(0, 5);
   const playerColumns: StatsDataColumn<TournamentStats["leaderboard"][number]>[] = [
     { key: "player", label: "Player", className: "w-[52%]", render: (row) => row.userId ? <PlayerProfileLink userId={row.userId} className="font-medium">{row.perfectName}</PlayerProfileLink> : row.perfectName },
     { key: "rating", label: "Rating", metric: "rating", numeric: true, className: "w-[18%]", render: (row) => <MetricValue metric="rating" value={row.avgRating} /> },
     { key: "sample", label: "Maps / Rounds", numeric: true, className: "hidden w-[30%] sm:table-cell", render: (row) => <span>{row.maps} / {row.rounds ?? "—"}</span> },
   ];
   const teamColumns: StatsDataColumn<TournamentStats["results"]["teams"][number]>[] = [
-    { key: "team", label: "Team", className: "w-[52%]", render: (row) => <Link href={statsHref(seasonSlug, query, { tab: "teams", team: row.entryId })} scroll={false} className="font-medium hover:text-[var(--color-accent)]">{row.name}</Link> },
+    { key: "team", label: "Team", className: "w-[52%]", render: (row) => <Link href={`/${seasonSlug}/teams/${row.entryId}`} className="font-medium hover:text-[var(--color-accent)]">{row.name}</Link> },
     { key: "match", label: "Match W-L", numeric: true, className: "w-[24%]", render: (row) => `${row.matchWins}-${row.matchLosses}` },
     { key: "map", label: "Map W-L", numeric: true, className: "hidden w-[24%] sm:table-cell", render: (row) => `${row.mapWins}-${row.mapLosses}` },
   ];
-  return { topPlayers, topTeams, playerColumns, teamColumns };
+  const weaponColumns: StatsDataColumn<TournamentStats["performance"]["weapons"][number]>[] = [
+    { key: "weapon", label: "Weapon", className: "w-[52%]", render: (row) => <span className="font-medium">{displayWeaponName(row.weapon)}</span> },
+    { key: "kills", label: "Kills", numeric: true, className: "w-[20%]", render: (row) => row.kills },
+    { key: "share", label: "Kill Share", metric: "killShare", numeric: true, className: "w-[28%]", render: (row) => <MetricValue metric="killShare" value={row.killShare} sampleDisplay="hidden" /> },
+  ];
+  return { topPlayers, topTeams, topWeapons, playerColumns, teamColumns, weaponColumns };
 }
 
 export function OverviewStats({ data, query, seasonSlug }: { data: TournamentStats; query: StatsQuery; seasonSlug: string }) {
   const maps = landscapeRows(data);
-  const { topPlayers, topTeams, playerColumns, teamColumns } = leaders(data, query, seasonSlug);
+  const { topPlayers, topTeams, topWeapons, playerColumns, teamColumns, weaponColumns } = leaders(data, query, seasonSlug);
   const partialCoverage = data.coverage.completedMaps > 0 && data.coverage.detailedMaps < data.coverage.completedMaps;
   const mapColumns: StatsDataColumn<MapLandscapeRow>[] = [
     { key: "map", label: "Map", className: "w-[28%]", render: (row) => <Link href={statsHref(seasonSlug, query, { tab: "maps", map: row.mapName })} scroll={false} className="font-medium hover:text-[var(--color-accent)]">{mapLabel(row.mapName)}</Link> },
@@ -132,7 +141,7 @@ export function OverviewStats({ data, query, seasonSlug }: { data: TournamentSta
         <StatsDataTable rows={maps} columns={mapColumns} rowKey={(row) => row.mapName} initialSortKey="played" tableClassName="min-w-[820px] table-fixed" />
       </section>
 
-      <section aria-label="Tournament leaders" className="grid gap-6 lg:grid-cols-2">
+      <section aria-label="Tournament leaders" className="grid gap-6 lg:grid-cols-2 xl:grid-cols-3">
         <section className="min-w-0">
           <div className="mb-2.5 flex items-center justify-between gap-3">
             <h2 className="text-base font-semibold">Top Players</h2>
@@ -149,6 +158,15 @@ export function OverviewStats({ data, query, seasonSlug }: { data: TournamentSta
           </div>
           <div className="border-y border-[var(--color-border)] bg-[var(--color-panel)]">
             <StatsDataTable embedded showRank rows={topTeams} columns={teamColumns} rowKey={(row) => row.entryId} pageSize={5} tableClassName="min-w-[460px] table-fixed" emptyLabel="暂无队伍赛果" />
+          </div>
+        </section>
+        <section className="min-w-0">
+          <div className="mb-2.5 flex items-center justify-between gap-3">
+            <h2 className="text-base font-semibold">Top Weapons</h2>
+            <Link href={statsHref(seasonSlug, query, { tab: "weapons" })} scroll={false} className="text-xs text-[var(--color-fg-mid)] transition-colors hover:text-[var(--color-accent)]">View all →</Link>
+          </div>
+          <div className="border-y border-[var(--color-border)] bg-[var(--color-panel)]">
+            <StatsDataTable embedded showRank rows={topWeapons} columns={weaponColumns} rowKey={(row) => row.weapon} pageSize={5} tableClassName="min-w-[420px] table-fixed" emptyLabel="暂无武器统计" />
           </div>
         </section>
       </section>
