@@ -46,11 +46,11 @@ describe("MapsExplorer veto matrix", () => {
 
     const table = screen.getByRole("table");
     const bodyRows = within(table).getAllByRole("row").slice(2);
-    expect(bodyRows.map((row) => row.textContent)).toEqual(["Alpha22 1", "Zulu51 5"]);
+    expect(bodyRows.map((row) => row.textContent)).toEqual(["Alpha221", "Zulu515"]);
 
     const banButton = screen.getByRole("button", { name: "Sort by Ban" });
     fireEvent.click(banButton);
-    expect(within(table).getAllByRole("row").slice(2).map((row) => row.textContent)).toEqual(["Zulu51 5", "Alpha22 1"]);
+    expect(within(table).getAllByRole("row").slice(2).map((row) => row.textContent)).toEqual(["Zulu515", "Alpha221"]);
     expect(screen.getByRole("button", { name: "Ban ↓" })).toBeInTheDocument();
 
     const banValue = within(screen.getByRole("row", { name: /Zulu/ })).getByText("5", { selector: "span" });
