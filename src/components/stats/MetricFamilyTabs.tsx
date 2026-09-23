@@ -18,16 +18,28 @@ export function MetricFamilyTabs<Key extends string>({
   onChange: (value: Key) => void;
 }) {
   return (
-    <div className="min-w-0">
-      <p className="mb-2 text-xs font-medium text-[var(--color-fg-mid)]">{label}</p>
-      <div role="tablist" aria-label={label} className="flex min-w-0 gap-1 overflow-x-auto pb-1">
-        {options.map((option) => (
-          <button key={option.key} role="tab" aria-selected={value === option.key} type="button"
-            onClick={() => onChange(option.key)} className={`whitespace-nowrap rounded-sm border px-3 py-2 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)] ${value === option.key ? "border-[var(--color-accent)] text-[var(--color-accent)]" : "border-[var(--color-border)] hover:bg-[var(--color-surface-raised)]"}`}>
+    <div role="tablist" aria-label={label} className="flex min-w-0 gap-1 overflow-x-auto border-b border-[var(--color-border)]">
+      {options.map((option) => {
+        const active = value === option.key;
+        return (
+          <button
+            key={option.key}
+            role="tab"
+            aria-selected={active}
+            type="button"
+            onClick={() => onChange(option.key)}
+            className={[
+              "-mb-px whitespace-nowrap border-b-2 px-3 py-2.5 text-sm font-medium transition-colors",
+              "focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]",
+              active
+                ? "border-[var(--color-accent)] text-[var(--color-fg)]"
+                : "border-transparent text-[var(--color-fg-mid)] hover:border-[var(--color-border-hi)] hover:text-[var(--color-fg)]",
+            ].join(" ")}
+          >
             {option.label}
           </button>
-        ))}
-      </div>
+        );
+      })}
     </div>
   );
 }

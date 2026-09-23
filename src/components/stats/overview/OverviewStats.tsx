@@ -3,6 +3,7 @@ import React from "react";
 
 import Link from "next/link";
 import { MetricValue } from "@/components/stats/MetricValue";
+import { StatsSideSplit } from "@/components/stats/StatsSideSplit";
 import { StatsDataTable, type StatsDataColumn } from "@/components/stats/StatsDataTable";
 import type { TournamentStats } from "@/lib/stats/tournament-query";
 import { statsHref, type StatsQuery } from "@/lib/stats/view-state";
@@ -19,35 +20,6 @@ interface MapLandscapeRow {
   t: TournamentStats["analytics"]["maps"][number]["t"] | null;
   detailed: number;
   completed: number;
-}
-
-type SideRate = MapLandscapeRow["ct"];
-
-function mapLabel(mapName: string) {
-  return CS2_MAP_CATALOG.find((row) => row.key === mapName)?.label ?? mapName;
-}
-
-function pct(value: SideRate) {
-  return value?.rate === null || value?.rate === undefined ? null : Math.max(0, Math.min(100, value.rate * 100));
-}
-
-function SideSplit({ ct, t, compact = false }: { ct: SideRate; t: SideRate; compact?: boolean }) {
-  const ctPct = pct(ct);
-  const tPct = pct(t);
-  if (ctPct === null || tPct === null) return <span className="text-[var(--color-fg-dim)]">—</span>;
-
-  return (
-    <div className={compact ? "min-w-[156px]" : "min-w-[190px] max-w-[240px]"} aria-label={`CT ${ctPct.toFixed(1)}%, T ${tPct.toFixed(1)}%`}>
-      <div className="flex items-center justify-between gap-3 text-xs font-medium tabular-nums">
-        <span className="text-[var(--color-accent-b)]">CT {ctPct.toFixed(1)}%</span>
-        <span className="text-[var(--color-accent)]">{tPct.toFixed(1)}% T</span>
-      </div>
-      <div className="mt-1.5 flex h-1 overflow-hidden bg-[var(--color-border)]">
-        <span className="h-full bg-[var(--color-accent-b)]" style={{ width: `${ctPct}%` }} />
-        <span className="h-full bg-[var(--color-accent)]" style={{ width: `${tPct}%` }} />
-      </div>
-    </div>
-  );
 }
 
 function landscapeRows(data: TournamentStats): MapLandscapeRow[] {
@@ -106,7 +78,7 @@ export function OverviewStats({ data, query, seasonSlug }: { data: TournamentSta
     { key: "rounds", label: "Rounds", numeric: true, className: "w-[11%]", sortable: true, sortValue: (row) => row.rounds, render: (row) => row.rounds },
     { key: "pick", label: "Pick", numeric: true, className: "w-[8%]", sortable: true, sortValue: (row) => row.picks, render: (row) => row.picks ?? "—" },
     { key: "ban", label: "Ban", numeric: true, className: "w-[8%]", sortable: true, sortValue: (row) => row.bans, render: (row) => row.bans ?? "—" },
-    { key: "side", label: "CT / T", className: "hidden w-[35%] sm:table-cell", sortable: true, sortValue: (row) => row.ct?.rate, render: (row) => <SideSplit ct={row.ct} t={row.t} compact /> },
+    { key: "side", label: "CT / T", className: "hidden w-[35%] sm:table-cell", sortable: true, sortValue: (row) => row.ct?.rate, render: (row) => <StatsSideSplit ct={row.ct} t={row.t} compact /> },
   ];
   if (partialCoverage) mapColumns.push({ key: "coverage", label: "Coverage", numeric: true, className: "hidden sm:table-cell", render: (row) => `${row.detailed}/${row.completed}` });
 
@@ -135,7 +107,7 @@ export function OverviewStats({ data, query, seasonSlug }: { data: TournamentSta
           </div>
           <div className="px-4 py-4 lg:border-r lg:border-[var(--color-border)]">
             <p className="text-[11px] uppercase tracking-[var(--tracking-label)] text-[var(--color-fg-mid)]">Side Split</p>
-            <div className="mt-2"><SideSplit ct={data.analytics.totals.ct} t={data.analytics.totals.t} /></div>
+            <div className="mt-2"><StatsSideSplit ct={data.analytics.totals.ct} t={data.analytics.totals.t} /></div>
           </div>
           <div className="px-4 py-4">
             <p className="text-[11px] uppercase tracking-[var(--tracking-label)] text-[var(--color-fg-mid)]">Pistol → R2</p>

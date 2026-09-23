@@ -27,7 +27,7 @@ export function parseStatsQuery(raw: StatsSearch, stages: readonly string[]): St
     stage: stages.includes(value("stage")) ? value("stage") : "",
     mapFilter: mapKeyPattern.test(value("mapFilter")) ? value("mapFilter") : "",
     teamFilter: tab === "players" && idPattern.test(value("teamFilter")) ? value("teamFilter") : "",
-    player: tab === "players" && idPattern.test(value("player")) ? value("player") : "",
+    player: "",
     team: tab === "teams" && idPattern.test(value("team")) ? value("team") : "",
     map: tab === "maps" && mapKeyPattern.test(value("map")) ? value("map") : "",
   };
@@ -39,7 +39,6 @@ function serializeStatsQuery(query: StatsQuery): URLSearchParams {
   if (query.stage) params.set("stage", query.stage);
   if ((query.tab === "players" || query.tab === "teams") && query.mapFilter) params.set("mapFilter", query.mapFilter);
   if (query.tab === "players" && query.teamFilter) params.set("teamFilter", query.teamFilter);
-  if (query.tab === "players" && query.player) params.set("player", query.player);
   if (query.tab === "teams" && query.team) params.set("team", query.team);
   if (query.tab === "maps" && query.map) params.set("map", query.map);
   return params;
@@ -63,7 +62,6 @@ export function statsHref(slug: string, current: StatsQuery, updates: StatsQuery
     next.teamFilter = updates.teamFilter ?? "";
     next.player = "";
   }
-  if (Object.hasOwn(updates, "player") && nextTab === "players") next.player = updates.player ?? "";
   if (Object.hasOwn(updates, "team") && nextTab === "teams") next.team = updates.team ?? "";
   if (Object.hasOwn(updates, "map") && nextTab === "maps") next.map = updates.map ?? "";
 

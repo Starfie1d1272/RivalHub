@@ -10,7 +10,7 @@ describe("stats URL scope", () => {
       tab: "players", stage: "swiss", mapFilter: "de_ancient", teamFilter: teamId,
       player: playerId, sort: "adr", dir: "asc", view: "impact", page: "5", side: "ct", q: "x",
     }, ["swiss"]);
-    expect(parsed).toEqual({ tab: "players", stage: "swiss", mapFilter: "de_ancient", teamFilter: teamId, player: playerId, team: "", map: "" });
+    expect(parsed).toEqual({ tab: "players", stage: "swiss", mapFilter: "de_ancient", teamFilter: teamId, player: "", team: "", map: "" });
   });
 
   it("clears entity scope on tab and stage changes", () => {
@@ -22,12 +22,12 @@ describe("stats URL scope", () => {
     expect([...stageChanged.searchParams]).toEqual([["tab", "players"], ["stage", "playoff"]]);
   });
 
-  it("keeps directory scope while clearing its current entity selection", () => {
+  it("ignores the retired stats player selection while preserving directory scope", () => {
     const players = parseStatsQuery({ tab: "players", stage: "swiss", mapFilter: "de_ancient", teamFilter: teamId, player: playerId }, ["swiss"]);
     const changedFilter = new URL(statsHref("major", players, { mapFilter: "de_mirage" }), "https://example.test");
     expect([...changedFilter.searchParams]).toEqual([["tab", "players"], ["stage", "swiss"], ["mapFilter", "de_mirage"], ["teamFilter", teamId]]);
-    const backToDirectory = new URL(statsHref("major", players, { player: "" }), "https://example.test");
-    expect([...backToDirectory.searchParams]).toEqual([["tab", "players"], ["stage", "swiss"], ["mapFilter", "de_ancient"], ["teamFilter", teamId]]);
+    const stalePlayerUpdate = new URL(statsHref("major", players, { player: playerId }), "https://example.test");
+    expect([...stalePlayerUpdate.searchParams]).toEqual([["tab", "players"], ["stage", "swiss"], ["mapFilter", "de_ancient"], ["teamFilter", teamId]]);
   });
 
   it("treats map and team as entity selections in their own directories", () => {
