@@ -22,6 +22,10 @@ interface MapLandscapeRow {
   completed: number;
 }
 
+function mapLabel(mapName: string) {
+  return CS2_MAP_CATALOG.find((row) => row.key === mapName)?.label ?? mapName;
+}
+
 function landscapeRows(data: TournamentStats): MapLandscapeRow[] {
   const resultByName = new Map(data.results.maps.map((row) => [row.mapName, row]));
   const selectionByName = new Map(data.selection.map((row) => [row.mapName, row]));

@@ -2,8 +2,8 @@
 import React from "react";
 
 import { useMemo, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
 import { MetricFamilyTabs } from "@/components/stats/MetricFamilyTabs";
 import { MetricValue } from "@/components/stats/MetricValue";
 import { StatsDataTable, type StatsDataColumn } from "@/components/stats/StatsDataTable";
@@ -32,7 +32,7 @@ function playerTeam(row: ScoreboardRow | DAKPlayer, teamNames: ReadonlyMap<strin
 
 function playerLink(id: string | null, name: string) {
   return id
-    ? <Link href={`/players/${id}`} className="font-medium hover:text-[var(--color-accent)]">{name}</Link>
+    ? <PlayerProfileLink userId={id} className="font-medium">{name}</PlayerProfileLink>
     : name;
 }
 

@@ -84,7 +84,8 @@
     "scripts/seed.ts!",
     "scripts/vercel-build.ts!",
     "scripts/with-node-options.ts!",
-    "tests/mocks/server-only.ts"
+    "tests/mocks/server-only.ts",
+    "src/components/stats/players/PlayerWorkspace.tsx!"
   ],
   "project": [
     "src/**/*.{js,mjs,cjs,jsx,ts,tsx,mts,cts}!",
