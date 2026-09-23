@@ -1,5 +1,6 @@
 import { cache, Suspense } from "react";
 import { eq } from "drizzle-orm";
+import { connection } from "next/server";
 
 import { db } from "@/db/client";
 import { steamProfiles, users } from "@/db/schema";
@@ -47,7 +48,10 @@ const getHeaderViewer = cache(async (): Promise<{
 });
 
 async function HeaderViewer({ variant }: { variant: "desktop" | "mobile" }) {
-  // The session owner reads cookies, so viewer data stays request-bound to this island.
+  // iron-session evaluates cookie expiry against the current time while unsealing.
+  // Keep that work behind this smallest real-request Suspense island so the
+  // public header shell and navigation remain eligible for prerender/prefetch.
+  await connection();
   const viewer = await getHeaderViewer();
   return (
     <HeaderViewerClient
