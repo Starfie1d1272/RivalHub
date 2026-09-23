@@ -9,6 +9,7 @@ import { completeSum, killWeightedAvg, perRound, ratioOfSums, roundWeightedAvg, 
 export interface StatsLeaderboardFilters {
   seasonId: string;
   stage?: string;
+  format?: "bo1" | "bo3" | "bo5";
   mapFilter?: string;
   teamFilter?: string;
 }
@@ -43,6 +44,7 @@ export async function getStatsLeaderboard(
   const userFilter = options.userId ? sql`AND mps.user_id = ${options.userId}` : sql``;
   const importFilter = currentImportIds.length ? sql`mps.dak_import_id IN (${sql.join(currentImportIds.map((id) => sql`${id}`), sql`, `)})` : sql`false`;
   const stageFilter = scope.stage ? sql`AND m.stage = ${scope.stage}` : sql``;
+  const formatFilter = scope.format ? sql`AND m.format = ${scope.format}` : sql``;
   const mapName = options.groupByMap ? sql`mm.map_name AS map_name,` : sql`NULL::text AS map_name,`;
   const mapGroup = options.groupByMap ? sql`, mm.map_name` : sql``;
   const teamColumns = options.groupByTeam === false
@@ -58,6 +60,7 @@ export async function getStatsLeaderboard(
       ${teamColumns}
       ${mapName}
       count(*)::int                                                          AS maps,
+      count(mps.rating_pro)::int                                              AS rating_samples,
       ${completeSum(roundsExpr)}                                              AS rounds,
       ${ratingExpr}                                                          AS avg_rating,
       ${adrExpr}                                                             AS avg_adr,
@@ -87,6 +90,7 @@ export async function getStatsLeaderboard(
       AND mps.user_id IS NOT NULL
       AND (mps.dak_import_id IS NULL OR ${importFilter})
       ${stageFilter}
+      ${formatFilter}
       ${mapFilter}
       ${teamFilter}
       ${userFilter}
@@ -103,6 +107,7 @@ export async function getStatsLeaderboard(
     teamName:   r.team_name as string | null,
     teamId:     r.team_id as string | null,
     maps:       Number(r.maps),
+    ratingSamples: Number(r.rating_samples),
     rounds:     toNumOrNull(r.rounds),
     avgRating:  toNumOrNull(r.avg_rating),
     avgAdr:     toNumOrNull(r.avg_adr),
