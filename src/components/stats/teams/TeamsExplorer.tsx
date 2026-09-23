@@ -107,7 +107,7 @@ export function TeamsExplorer({ data, query, seasonSlug }: { data: TournamentSta
   const router = useRouter();
   const [family, setFamily] = useState<Family>("results");
   const rows = useMemo(() => rowsFor(data), [data]);
-  const partialCoverage = data.coverage.completedMaps > 0 && data.coverage.detailedMaps < data.coverage.completedMaps;
+  const partialCoverage = family !== "results" && data.coverage.completedMaps > 0 && data.coverage.detailedMaps < data.coverage.completedMaps;
 
   return (
     <section className="space-y-4">
@@ -134,7 +134,7 @@ export function TeamsExplorer({ data, query, seasonSlug }: { data: TournamentSta
         rankingBaselineRows={rows}
         columns={teamColumns(family, seasonSlug)}
         rowKey={(row) => row.entryId}
-        initialSortKey={family === "results" ? "rating" : family === "rounds" ? "rw" : family === "conversion" ? "r2" : "opening"}
+        initialSortKey={family === "results" ? "match" : family === "rounds" ? "rw" : family === "conversion" ? "r2" : "opening"}
         tableClassName={family === "results" ? "min-w-[700px] table-fixed" : "min-w-[940px] table-fixed"}
         emptyLabel="当前地图范围没有已完成赛果"
       />

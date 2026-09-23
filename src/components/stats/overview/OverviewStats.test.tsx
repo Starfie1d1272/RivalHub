@@ -40,7 +40,12 @@ describe("OverviewStats", () => {
     expect(screen.getByText("Top Teams")).toBeInTheDocument();
     expect(screen.getByText("Top Weapons")).toBeInTheDocument();
     expect(screen.getAllByRole("columnheader", { name: /^Rating/ })).toHaveLength(2);
+    expect(screen.getByRole("columnheader", { name: "Maps / Rds" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "W-L" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: /^Share/ })).toBeInTheDocument();
     expect(screen.getAllByRole("columnheader", { name: "#" })).toHaveLength(3);
+    const leaderTables = screen.getAllByRole("table").slice(1, 4);
+    expect(leaderTables.every((table) => !table.className.includes("min-w-["))).toBe(true);
   });
 
   it("renders visual side splits and full-list navigation", () => {

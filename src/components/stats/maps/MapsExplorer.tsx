@@ -9,6 +9,7 @@ import { StatsSideSplit } from "@/components/stats/StatsSideSplit";
 import { StatsDataTable, type StatsDataColumn } from "@/components/stats/StatsDataTable";
 import type { TournamentStats } from "@/lib/stats/tournament-query";
 import { navigateStatsScope, statsHref, type StatsQuery } from "@/lib/stats/view-state";
+import { compareStatsValues, type StatsSortDirection, type StatsSortValue } from "@/lib/stats/sorting";
 import { CS2_MAP_CATALOG } from "@/lib/config/cs2-maps";
 
 interface MapDirectoryRow {
@@ -79,18 +80,22 @@ function vetoRowsFor(data: TournamentStats, maps: readonly string[]): VetoMatrix
       const teamCell = selectionByMap.get(mapName)?.teams.find((row) => row.entryId === team.entryId);
       return [mapName, teamCell ? { picks: teamCell.picks, bans: teamCell.bans } : { picks: 0, bans: 0 }];
     })),
-  })).sort((left, right) => left.name.localeCompare(right.name));
+  }));
 }
 
-function VetoValue({ value, kind }: { value: number; kind: "pick" | "ban" }) {
+type VetoSortKey = "team" | "vetoes" | `pick:${string}` | `ban:${string}`;
+
+function vetoSortValue(row: VetoMatrixRow, key: VetoSortKey): StatsSortValue {
+  if (key === "team") return row.name;
+  if (key === "vetoes") return row.vetoes;
+  const [kind, mapName] = key.split(":", 2);
+  const cell = row.cells[mapName!] ?? { picks: 0, bans: 0 };
+  return kind === "pick" ? cell.picks : cell.bans;
+}
+
+function VetoValue({ value }: { value: number }) {
   if (value === 0) return <span className="text-[var(--color-fg-dim)]">—</span>;
-  return (
-    <span
-      className={`font-medium tabular-nums ${kind === "pick" ? "text-[var(--color-accent)]" : "text-[var(--color-danger)]"}`}
-    >
-      {value}
-    </span>
-  );
+  return <span className="font-medium tabular-nums text-[var(--color-fg)]">{value}</span>;
 }
 
 function VetoMatrix({
@@ -105,14 +110,50 @@ function VetoMatrix({
   query: StatsQuery;
 }) {
   const columnCount = 2 + maps.length * 2;
+  const [sortKey, setSortKey] = useState<VetoSortKey>("team");
+  const [direction, setDirection] = useState<StatsSortDirection>("asc");
+  const sortedRows = useMemo(
+    () => [...rows].sort((left, right) => compareStatsValues(vetoSortValue(left, sortKey), vetoSortValue(right, sortKey), direction)),
+    [direction, rows, sortKey],
+  );
+
+  function sortBy(key: VetoSortKey) {
+    if (sortKey === key) setDirection((current) => current === "desc" ? "asc" : "desc");
+    else {
+      setSortKey(key);
+      setDirection(key === "team" ? "asc" : "desc");
+    }
+  }
+
+  function sortButton(key: VetoSortKey, label: string, align: "left" | "right" | "center" = "center") {
+    const active = sortKey === key;
+    const arrow = direction === "desc" ? "↓" : "↑";
+    const justify = align === "left" ? "justify-start" : align === "right" ? "justify-end" : "justify-center";
+    return (
+      <button
+        type="button"
+        aria-label={active ? `${label} ${arrow}` : `Sort by ${label}`}
+        onClick={() => sortBy(key)}
+        className={`inline-flex w-full items-center gap-1.5 ${justify} transition-colors hover:text-[var(--color-fg)] ${active ? "text-[var(--color-fg)]" : ""}`}
+      >
+        <span>{label}</span>
+        {active && <span aria-hidden="true" className="text-[var(--color-accent)]">{arrow}</span>}
+      </button>
+    );
+  }
+
   return (
     <div className="min-w-0 overflow-hidden border border-[var(--color-border)] bg-[var(--color-panel)]">
       <div className="overflow-x-auto">
         <table className="w-full min-w-max border-collapse text-sm">
           <thead className="text-[11px] uppercase tracking-[var(--tracking-label)] text-[var(--color-fg-mid)]">
             <tr className="border-b border-[var(--color-border)]">
-              <th rowSpan={2} className="sticky left-0 z-30 min-w-56 bg-[var(--color-panel)] px-4 py-3 text-left align-middle">Team</th>
-              <th rowSpan={2} className="w-20 min-w-20 px-3 py-3 text-right align-middle">Vetoes</th>
+              <th rowSpan={2} aria-sort={sortKey === "team" ? direction === "desc" ? "descending" : "ascending" : "none"} className="sticky left-0 z-30 min-w-56 bg-[var(--color-panel)] px-4 py-3 text-left align-middle">
+                {sortButton("team", "Team", "left")}
+              </th>
+              <th rowSpan={2} aria-sort={sortKey === "vetoes" ? direction === "desc" ? "descending" : "ascending" : "none"} className="w-20 min-w-20 px-3 py-3 text-right align-middle">
+                {sortButton("vetoes", "Vetoes", "right")}
+              </th>
               {maps.map((mapName) => (
                 <th key={mapName} colSpan={2} className="border-l border-[var(--color-border)] px-2 py-2.5 text-center">
                   <Link
@@ -126,14 +167,22 @@ function VetoMatrix({
               ))}
             </tr>
             <tr className="border-b border-[var(--color-border)] bg-[var(--color-panel-low)]">
-              {maps.flatMap((mapName) => [
-                <th key={`${mapName}:pick`} className="w-14 min-w-14 border-l border-[var(--color-border)] px-2 py-2 text-center text-[var(--color-accent)]">Pick</th>,
-                <th key={`${mapName}:ban`} className="w-14 min-w-14 px-2 py-2 text-center text-[var(--color-danger)]">Ban</th>,
-              ])}
+              {maps.flatMap((mapName) => {
+                const pickKey = `pick:${mapName}` as VetoSortKey;
+                const banKey = `ban:${mapName}` as VetoSortKey;
+                return [
+                  <th key={`${mapName}:pick`} aria-sort={sortKey === pickKey ? direction === "desc" ? "descending" : "ascending" : "none"} className="w-14 min-w-14 border-l border-[var(--color-border)] px-2 py-2 text-center">
+                    {sortButton(pickKey, "Pick")}
+                  </th>,
+                  <th key={`${mapName}:ban`} aria-sort={sortKey === banKey ? direction === "desc" ? "descending" : "ascending" : "none"} className="w-14 min-w-14 px-2 py-2 text-center">
+                    {sortButton(banKey, "Ban")}
+                  </th>,
+                ];
+              })}
             </tr>
           </thead>
           <tbody className="divide-y divide-[var(--color-border)]">
-            {rows.map((row) => (
+            {sortedRows.map((row) => (
               <tr key={row.entryId} className="group transition-colors hover:bg-[var(--color-panel-hi)]">
                 <td className="sticky left-0 z-20 min-w-56 bg-[var(--color-panel)] px-4 py-3 font-medium transition-colors group-hover:bg-[var(--color-panel-hi)]">
                   <Link href={`/${seasonSlug}/teams/${row.entryId}`} className="hover:text-[var(--color-accent)]">{row.name}</Link>
@@ -143,16 +192,16 @@ function VetoMatrix({
                   const cell = row.cells[mapName] ?? { picks: 0, bans: 0 };
                   return [
                     <td key={`${mapName}:pick`} aria-label={`${mapLabel(mapName)} Pick ${cell.picks}`} className="w-14 min-w-14 border-l border-[var(--color-border)] px-2 py-3 text-center font-mono">
-                      <VetoValue value={cell.picks} kind="pick" />
+                      <VetoValue value={cell.picks} />
                     </td>,
                     <td key={`${mapName}:ban`} aria-label={`${mapLabel(mapName)} Ban ${cell.bans}`} className="w-14 min-w-14 px-2 py-3 text-center font-mono">
-                      <VetoValue value={cell.bans} kind="ban" />
+                      <VetoValue value={cell.bans} />
                     </td>,
                   ];
                 })}
               </tr>
             ))}
-            {rows.length === 0 && (
+            {sortedRows.length === 0 && (
               <tr>
                 <td colSpan={columnCount} className="px-4 py-8 text-center text-[var(--color-fg-mid)]">当前范围暂无匹配队伍或 BP 数据</td>
               </tr>
