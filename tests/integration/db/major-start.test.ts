@@ -788,17 +788,17 @@ async function exerciseMajor24Lifecycle(
   const start = await database.transaction((tx) => startMajorInTransaction(tx, { seasonId: fixture.seasonId, actorId: "local-admin" }));
   if (!start.created || start.matchCount !== 8) throw new Error("Major-24 开赛没有创建 8 场 BO3 首轮比赛。");
 
-  const opening = await pool.query<{ entrants: string; seeds: number[]; formats: string[] }>(`
+  const opening = await pool.query<{ entrants: string; seeds: number[]; allBo3: boolean }>(`
     SELECT
       (SELECT count(*)::text FROM major_stage_entrants WHERE stage_run_id = $1) AS entrants,
       (SELECT array_agg(t.seed ORDER BY t.seed) FROM major_stage_entrants e
         JOIN major_tournament_entrants te ON te.id = e.tournament_entrant_id
         JOIN major_tournament_seeds t ON t.tournament_entrant_id = te.id
         WHERE e.stage_run_id = $1) AS seeds,
-      (SELECT array_agg(DISTINCT format ORDER BY format) FROM matches WHERE major_stage_run_id = $1) AS formats
+      (SELECT bool_and(format = 'bo3') FROM matches WHERE major_stage_run_id = $1) AS "allBo3"
   `, [start.stageRunId]);
   const openingFact = opening.rows[0];
-  if (!openingFact || openingFact.entrants !== "16" || openingFact.seeds?.[0] !== 9 || openingFact.seeds.at(-1) !== 24 || openingFact.formats?.join(",") !== "bo3") {
+  if (!openingFact || openingFact.entrants !== "16" || openingFact.seeds?.[0] !== 9 || openingFact.seeds.at(-1) !== 24 || !openingFact.allBo3) {
     throw new Error("Major-24 Stage 1 没有冻结 9–24 队并按 BO3 开赛。");
   }
 
