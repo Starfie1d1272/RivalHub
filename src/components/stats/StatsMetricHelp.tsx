@@ -14,7 +14,7 @@ export function StatsMetricHelp({ metric }: { metric: StatsMetricKey }) {
         type="button"
         aria-label={`${definition.label} 指标说明`}
         aria-describedby={id}
-        className="inline-flex h-4 w-4 items-center justify-center rounded-full text-[10px] font-medium text-[var(--color-fg-dim)] transition-colors hover:text-[var(--color-fg)] focus-visible:outline focus-visible:outline-1 focus-visible:outline-[var(--color-accent)]"
+        className="inline-flex h-3.5 min-w-2 items-center justify-center text-[10px] font-medium leading-none text-[var(--color-fg-dim)] transition-colors hover:text-[var(--color-fg)] focus-visible:outline focus-visible:outline-1 focus-visible:outline-[var(--color-accent)]"
       >
         ?
       </button>

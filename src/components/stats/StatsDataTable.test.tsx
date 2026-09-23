@@ -69,7 +69,7 @@ describe("StatsDataTable client state", () => {
     render(<StatsDataTable rows={visible} rankingBaselineRows={baseline} columns={rankedColumns} rowKey={(row) => row.name} initialSortKey="rating" />);
 
     expect(screen.getByText("2 ranked · 1 limited sample")).toBeInTheDocument();
-    expect(screen.getByText("floor 20 rounds ?")).toBeInTheDocument();
+    expect(screen.getByText("min 20 rounds ?")).toBeInTheDocument();
     const table = screen.getByRole("table");
     expect(within(table).getAllByRole("row").slice(1).map((row) => row.textContent)).toEqual([
       "High4",
@@ -95,7 +95,7 @@ describe("StatsDataTable client state", () => {
     render(<StatsDataTable rows={rows} columns={metricColumns} rowKey={(row) => row.name} />);
     expect(screen.getByText("Rating")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Rating 指标说明" })).toBeInTheDocument();
-    expect(screen.getByRole("tooltip")).toHaveTextContent("综合表现评分");
+    expect(screen.getByRole("tooltip")).toHaveTextContent("综合衡量选手整体表现的评分");
   });
 
 });

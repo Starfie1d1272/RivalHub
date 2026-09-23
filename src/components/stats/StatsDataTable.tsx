@@ -112,9 +112,9 @@ export function StatsDataTable<T>({
           <span>{rankingState.rankedCount} ranked · {rankingState.limitedCount} limited sample</span>
           <span
             className="cursor-help"
-            title={`当前按 ${rankingState.metricLabel} 排序。最低样本 = 当前 Stage/Map/Team 范围内正样本 P75 的 25%，向上取整；Search 不参与阈值计算。`}
+            title={`当前按 ${rankingState.metricLabel} 排序。最低样本取当前 Stage/Map/Team 范围内正样本 P75 的 25%，向上取整；Search 仅过滤显示结果。`}
           >
-            floor {rankingState.floor} {rankingState.sampleLabel} ?
+            min {rankingState.floor} {rankingState.sampleLabel} ?
           </span>
         </div>
       )}
@@ -133,19 +133,21 @@ export function StatsDataTable<T>({
                     aria-sort={active ? direction === "desc" ? "descending" : "ascending" : "none"}
                     className={`whitespace-nowrap px-3 py-3 ${column.numeric ? "text-right" : "text-left"} ${column.className ?? ""} ${index === 0 ? `sticky ${showRank ? "left-12" : "left-0"} z-10 bg-[var(--color-panel)]` : ""}`}
                   >
-                    <div className={`flex items-center gap-1.5 ${column.numeric ? "justify-end" : "justify-start"}`}>
-                      {column.sortable && column.sortValue ? (
-                        <button
-                          type="button"
-                          aria-label={sortLabel}
-                          onClick={() => sortBy(column.key)}
-                          className={`group inline-flex min-h-6 items-center gap-1.5 transition-colors hover:text-[var(--color-fg)] ${active ? "text-[var(--color-fg)]" : ""}`}
-                        >
-                          <span>{column.label}</span>
-                          <span aria-hidden="true" className={active ? "text-[var(--color-accent)]" : "text-[var(--color-fg-dim)] opacity-0 transition-opacity group-hover:opacity-100"}>{active ? arrow : "↕"}</span>
-                        </button>
-                      ) : <span>{column.label}</span>}
-                      {column.metric && <StatsMetricHelp metric={column.metric} />}
+                    <div className={`flex items-center ${column.numeric ? "justify-end" : "justify-start"}`}>
+                      <span className="inline-flex items-center gap-1">
+                        {column.sortable && column.sortValue ? (
+                          <button
+                            type="button"
+                            aria-label={sortLabel}
+                            onClick={() => sortBy(column.key)}
+                            className={`inline-flex min-h-6 items-center transition-colors hover:text-[var(--color-fg)] ${active ? "text-[var(--color-fg)]" : ""}`}
+                          >
+                            {column.label}
+                          </button>
+                        ) : <span>{column.label}</span>}
+                        {column.metric && <StatsMetricHelp metric={column.metric} />}
+                      </span>
+                      {active && <span aria-hidden="true" className="ml-1.5 text-[var(--color-accent)]">{arrow}</span>}
                     </div>
                   </th>
                 );
