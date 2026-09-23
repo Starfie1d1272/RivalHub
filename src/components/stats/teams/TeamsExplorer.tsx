@@ -44,7 +44,7 @@ function rowsFor(data: TournamentStats): TeamDirectoryRow[] {
   }));
 }
 
-function teamColumns(family: Family, seasonSlug: string, query: StatsQuery): StatsDataColumn<TeamDirectoryRow>[] {
+function teamColumns(family: Family, seasonSlug: string): StatsDataColumn<TeamDirectoryRow>[] {
   const teamColumn: StatsDataColumn<TeamDirectoryRow> = {
     key: "team",
     label: "Team",
@@ -123,7 +123,7 @@ export function TeamsExplorer({ data, query, seasonSlug }: { data: TournamentSta
         key={family}
         rows={rows}
         rankingBaselineRows={rows}
-        columns={teamColumns(family, seasonSlug, query)}
+        columns={teamColumns(family, seasonSlug)}
         rowKey={(row) => row.entryId}
         initialSortKey={family === "results" ? "match" : family === "rounds" ? "rw" : family === "conversion" ? "r2" : "opening"}
         tableClassName={family === "results" ? "min-w-[700px] table-fixed" : "min-w-[940px] table-fixed"}
