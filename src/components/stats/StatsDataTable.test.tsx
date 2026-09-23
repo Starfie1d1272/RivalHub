@@ -99,7 +99,7 @@ describe("StatsDataTable client state", () => {
     expect(screen.getByText("Rating")).toBeInTheDocument();
     const help = screen.getByRole("button", { name: "Rating 指标说明" });
     fireEvent.mouseEnter(help);
-    expect(screen.getByRole("tooltip")).toHaveTextContent("综合衡量选手整体表现的评分");
+    expect(screen.getByRole("tooltip")).toHaveTextContent("综合衡量选手或队伍整体表现的评分");
     expect(screen.getByRole("tooltip").closest("table")).toBeNull();
   });
 
