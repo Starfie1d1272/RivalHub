@@ -17,8 +17,6 @@ interface MapLandscapeRow {
   mapName: string;
   played: number;
   rounds: number;
-  picks: number | null;
-  bans: number | null;
   ct: TournamentStats["analytics"]["maps"][number]["ct"] | null;
   t: TournamentStats["analytics"]["maps"][number]["t"] | null;
   detailed: number;
@@ -31,10 +29,9 @@ function mapLabel(mapName: string) {
 
 function landscapeRows(data: TournamentStats): MapLandscapeRow[] {
   const resultByName = new Map(data.results.maps.map((row) => [row.mapName, row]));
-  const selectionByName = new Map(data.selection.map((row) => [row.mapName, row]));
   const analyticsByName = new Map(data.analytics.maps.map((row) => [row.mapName, row]));
   const coverageByName = new Map(data.coverage.maps.map((row) => [row.mapName, row]));
-  const names = new Set([...resultByName.keys(), ...selectionByName.keys(), ...analyticsByName.keys(), ...coverageByName.keys()]);
+  const names = new Set(data.options.maps);
   return [...names].map((mapName) => {
     const result = resultByName.get(mapName);
     const coverage = coverageByName.get(mapName);
@@ -42,8 +39,6 @@ function landscapeRows(data: TournamentStats): MapLandscapeRow[] {
       mapName,
       played: result?.played ?? 0,
       rounds: result?.rounds ?? 0,
-      picks: selectionByName.get(mapName)?.picks ?? null,
-      bans: selectionByName.get(mapName)?.bans ?? null,
       ct: analyticsByName.get(mapName)?.ct ?? null,
       t: analyticsByName.get(mapName)?.t ?? null,
       detailed: coverage?.detailedMaps ?? 0,
@@ -59,9 +54,11 @@ function leaders(data: TournamentStats, query: StatsQuery, seasonSlug: string) {
     { getValue: (row) => row.perfectName, direction: "asc" },
     { getValue: (row) => row.userId, direction: "asc" },
   ]).slice(0, 5);
-  const topTeams = sortStatsRows(data.results.teams, { getValue: (row) => row.matchWins, direction: "desc" }, [
+  const teamRatingByEntry = new Map(data.teamRatings.map((row) => [row.entryId, row.rating]));
+  const teamRows = data.results.teams.map((row) => ({ ...row, rating: teamRatingByEntry.get(row.entryId) ?? null }));
+  const topTeams = sortStatsRows(teamRows, { getValue: (row) => row.rating, direction: "desc" }, [
+    { getValue: (row) => row.matchWins, direction: "desc" },
     { getValue: (row) => row.matchLosses, direction: "asc" },
-    { getValue: (row) => row.mapWins - row.mapLosses, direction: "desc" },
     { getValue: (row) => row.name, direction: "asc" },
   ]).slice(0, 5);
   const topWeapons = sortStatsRows(data.performance.weapons, { getValue: (row) => row.kills, direction: "desc" }, [
@@ -72,10 +69,11 @@ function leaders(data: TournamentStats, query: StatsQuery, seasonSlug: string) {
     { key: "rating", label: "Rating", metric: "rating", numeric: true, className: "w-[18%]", render: (row) => <MetricValue metric="rating" value={row.avgRating} /> },
     { key: "sample", label: "Maps / Rounds", numeric: true, className: "hidden w-[30%] sm:table-cell", render: (row) => <span>{row.maps} / {row.rounds ?? "—"}</span> },
   ];
-  const teamColumns: StatsDataColumn<TournamentStats["results"]["teams"][number]>[] = [
-    { key: "team", label: "Team", className: "w-[52%]", render: (row) => <Link href={`/${seasonSlug}/teams/${row.entryId}`} className="font-medium hover:text-[var(--color-accent)]">{row.name}</Link> },
-    { key: "match", label: "Match W-L", numeric: true, className: "w-[24%]", render: (row) => `${row.matchWins}-${row.matchLosses}` },
-    { key: "map", label: "Map W-L", numeric: true, className: "hidden w-[24%] sm:table-cell", render: (row) => `${row.mapWins}-${row.mapLosses}` },
+  const teamColumns: StatsDataColumn<typeof teamRows[number]>[] = [
+    { key: "team", label: "Team", className: "w-[42%]", render: (row) => <Link href={`/${seasonSlug}/teams/${row.entryId}`} className="font-medium hover:text-[var(--color-accent)]">{row.name}</Link> },
+    { key: "rating", metric: "rating", numeric: true, className: "w-[18%]", render: (row) => <MetricValue metric="rating" value={row.rating} /> },
+    { key: "match", label: "Match W-L", numeric: true, className: "w-[22%]", render: (row) => `${row.matchWins}-${row.matchLosses}` },
+    { key: "maps", label: "Maps", numeric: true, className: "hidden w-[18%] sm:table-cell", render: (row) => row.maps },
   ];
   const weaponColumns: StatsDataColumn<TournamentStats["performance"]["weapons"][number]>[] = [
     { key: "weapon", label: "Weapon", className: "w-[52%]", render: (row) => <span className="font-medium">{displayWeaponName(row.weapon)}</span> },
@@ -92,10 +90,8 @@ export function OverviewStats({ data, query, seasonSlug }: { data: TournamentSta
   const mapColumns: StatsDataColumn<MapLandscapeRow>[] = [
     { key: "map", label: "Map", className: "w-[28%]", render: (row) => <Link href={statsHref(seasonSlug, query, { tab: "maps", map: row.mapName })} scroll={false} className="font-medium hover:text-[var(--color-accent)]">{mapLabel(row.mapName)}</Link> },
     { key: "played", label: "Played", numeric: true, className: "w-[10%]", sortable: true, sortValue: (row) => row.played, render: (row) => row.played },
-    { key: "rounds", label: "Rounds", numeric: true, className: "w-[11%]", sortable: true, sortValue: (row) => row.rounds, render: (row) => row.rounds },
-    { key: "pick", label: "Picks", numeric: true, className: "w-[8%]", sortable: true, sortValue: (row) => row.picks, render: (row) => row.picks ?? "—" },
-    { key: "ban", label: "Bans", numeric: true, className: "w-[8%]", sortable: true, sortValue: (row) => row.bans, render: (row) => row.bans ?? "—" },
-    { key: "side", label: "CT / T", className: "hidden w-[35%] sm:table-cell", sortable: true, sortValue: (row) => row.ct?.rate, render: (row) => <StatsSideSplit ct={row.ct} t={row.t} compact /> },
+    { key: "rounds", label: "Rounds", numeric: true, className: "w-[16%]", sortable: true, sortValue: (row) => row.rounds, render: (row) => row.rounds },
+    { key: "side", label: "CT / T", className: "hidden w-[46%] sm:table-cell", sortable: true, sortValue: (row) => row.ct?.rate, render: (row) => <StatsSideSplit ct={row.ct} t={row.t} compact /> },
   ];
   if (partialCoverage) mapColumns.push({ key: "coverage", label: "Coverage", numeric: true, className: "hidden sm:table-cell", render: (row) => `${row.detailed}/${row.completed}` });
 
@@ -138,7 +134,7 @@ export function OverviewStats({ data, query, seasonSlug }: { data: TournamentSta
           <h2 id="maps-heading" className="text-base font-semibold">Maps</h2>
           <span className="text-xs text-[var(--color-fg-dim)]">{maps.length} maps</span>
         </div>
-        <StatsDataTable rows={maps} columns={mapColumns} rowKey={(row) => row.mapName} initialSortKey="played" tableClassName="min-w-[820px] table-fixed" />
+        <StatsDataTable rows={maps} columns={mapColumns} rowKey={(row) => row.mapName} initialSortKey="played" tableClassName="min-w-[680px] table-fixed" />
       </section>
 
       <section aria-label="Tournament leaders" className="grid gap-6 lg:grid-cols-2 xl:grid-cols-3">
