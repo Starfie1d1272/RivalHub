@@ -194,6 +194,16 @@ function aggregateEvidenceByMap(
   });
 }
 
+function resultMatchesForMapScope<T extends { id: string }>(
+  matches: readonly T[],
+  scopedMaps: readonly { matchId: string }[],
+  mapFilter?: string,
+): T[] {
+  if (!mapFilter) return [...matches];
+  const scopedMatchIds = new Set(scopedMaps.map((map) => map.matchId));
+  return matches.filter((match) => scopedMatchIds.has(match.id));
+}
+
 function buildCoverage(
   loaded: Awaited<ReturnType<typeof loadStatsEvidence>>,
   results = buildTournamentResults(loaded.matches, loaded.scopedMaps, loaded.entries),
@@ -211,7 +221,7 @@ export async function getTournamentStats(scope: TournamentStatsScope, database: 
   return database.transaction(async (tx) => {
     const loaded = await loadStatsEvidence(tx, scope);
     const veto = loaded.matchIds.length ? await tx.select({ mapName: matchVetoSteps.mapName, action: matchVetoSteps.actionType, entryId: matchVetoSteps.entryId }).from(matchVetoSteps).where(inArray(matchVetoSteps.matchId, loaded.matchIds)) : [];
-    const results = buildTournamentResults(loaded.matches, loaded.scopedMaps, loaded.entries);
+    const results = buildTournamentResults(resultMatchesForMapScope(loaded.matches, loaded.scopedMaps, scope.mapFilter), loaded.scopedMaps, loaded.entries);
     const coverage = buildCoverage(loaded, results);
     return {
       leaderboard: await getStatsLeaderboard(scope, loaded.selected.map((row) => row.importId), loaded.roster, tx),
@@ -246,7 +256,7 @@ export async function getTournamentTeamDetail(scope: TournamentStatsScope & { te
   return database.transaction(async (tx) => {
     const loaded = await loadStatsEvidence(tx, scope, { teamId: scope.teamId });
     const veto = loaded.matchIds.length ? await tx.select({ mapName: matchVetoSteps.mapName, action: matchVetoSteps.actionType, entryId: matchVetoSteps.entryId }).from(matchVetoSteps).where(inArray(matchVetoSteps.matchId, loaded.matchIds)) : [];
-    const results = buildTournamentResults(loaded.matches, loaded.scopedMaps, loaded.entries);
+    const results = buildTournamentResults(resultMatchesForMapScope(loaded.matches, loaded.scopedMaps, scope.mapFilter), loaded.scopedMaps, loaded.entries);
     const analytics = buildTournamentAnalytics(loaded.selected.map((row) => row.facts.tournament), { labels: loaded.labels });
     const performance = buildTournamentPerformanceAnalytics(loaded.selected.map((row) => row.facts.performance), { labels: loaded.labels });
     const scoreboard = await getStatsLeaderboard({ ...scope, teamFilter: scope.teamId }, loaded.selected.map((row) => row.importId), loaded.roster, tx);

@@ -68,9 +68,10 @@ export function PlayerWorkspace({ detail }: { detail: TournamentPlayerDetail }) 
         <PlayerProfileLink userId={detail.playerId} className="rounded-sm border border-[var(--color-border)] px-3 py-2 text-sm">打开选手主页</PlayerProfileLink>
       </header>
       <MetricFamilyTabs label="Player workspace" value={tab} options={tabs} onChange={setTab} />
-      <div className="flex flex-wrap gap-2" aria-label="DAK side sample">
+      {tab !== "maps" && <div className="flex flex-wrap items-center gap-2" aria-label="DAK side sample">
+        <span className="mr-1 text-xs text-[var(--color-fg-mid)]">Detailed Demo side</span>
         {(["overall", "t", "ct"] as const).map((value) => <Button key={value} type="button" size="sm" variant={side === value ? "outline" : "ghost"} aria-pressed={side === value} onClick={() => setSide(value)}>{value === "overall" ? "Overall" : value.toUpperCase()}</Button>)}
-      </div>
+      </div>}
 
       {tab === "overview" && <div className="space-y-4">
         <MetricPanel title="Scoreboard">

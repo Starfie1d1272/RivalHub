@@ -90,7 +90,7 @@ export function TeamWorkspace({ detail, seasonSlug }: { detail: TournamentTeamDe
           <MetricPanel title="4v5"><MetricValue metric="fourVFive" value={analytics.manAdvantage["4v5"]} /></MetricPanel>
           <MetricPanel title="Eco/Semi upset"><MetricValue metric="ecoSemi" value={analytics.ecoSemiUpset} /></MetricPanel>
         </div> : <p className="text-sm text-[var(--color-fg-mid)]">当前队伍没有已确认的 DAK 回合数据。</p>}
-        <MetricPanel title="Economy matrix"><StatsDataTable rows={detail.economyMatrix} columns={economyColumns} rowKey={(row) => `${row.lowEconomy}:${row.highEconomy}`} emptyLabel="暂无经济分类样本" /></MetricPanel>
+        <MetricPanel title="Economy matrix · team-participating rounds"><p className="mb-3 text-xs text-[var(--color-fg-mid)]">按该队参与地图汇总双方经济对位；不是仅统计该队作为低经济方的回合。</p><StatsDataTable rows={detail.economyMatrix} columns={economyColumns} rowKey={(row) => `${row.lowEconomy}:${row.highEconomy}`} emptyLabel="暂无经济分类样本" /></MetricPanel>
       </div>}
 
       {tab === "teamplay" && (performance ? <div className="grid grid-cols-2 gap-4">

@@ -33,4 +33,11 @@ describe("StatsDataTable client state", () => {
     expect(screen.getByRole("row", { name: "Low 1" })).toBeInTheDocument();
     expect(screen.getByText("第 2 / 3 页")).toBeInTheDocument();
   });
+  it("offsets the sticky identity column when rank is visible", () => {
+    render(<StatsDataTable rows={rows} columns={columns} rowKey={(row) => row.name} showRank />);
+    const headers = screen.getAllByRole("columnheader");
+    expect(headers[0]).toHaveClass("left-0", "w-12");
+    expect(headers[1]).toHaveClass("left-12");
+  });
+
 });

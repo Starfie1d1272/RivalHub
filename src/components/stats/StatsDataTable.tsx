@@ -67,13 +67,13 @@ export function StatsDataTable<T>({
         <table className="w-full min-w-max text-sm">
           <thead className="text-xs uppercase tracking-wide text-[var(--color-fg-mid)]">
             <tr className="border-b border-[var(--color-border)]">
-              {showRank && <th className="sticky left-0 z-20 whitespace-nowrap bg-[var(--color-panel)] px-3 py-3 text-left">#</th>}
+              {showRank && <th className="sticky left-0 z-20 w-12 min-w-12 max-w-12 whitespace-nowrap bg-[var(--color-panel)] px-3 py-3 text-left">#</th>}
               {columns.map((column, index) => {
                 const active = sortKey === column.key;
                 const sortLabel = active ? `${column.label} ${direction === "desc" ? "↓" : "↑"}` : column.label;
                 return (
                   <th key={column.key} aria-sort={active ? direction === "desc" ? "descending" : "ascending" : "none"}
-                    className={`whitespace-nowrap px-3 py-3 ${column.numeric ? "text-right" : "text-left"} ${column.className ?? ""} ${index === 0 ? "sticky left-0 z-10 bg-[var(--color-panel)]" : ""}`}>
+                    className={`whitespace-nowrap px-3 py-3 ${column.numeric ? "text-right" : "text-left"} ${column.className ?? ""} ${index === 0 ? `sticky ${showRank ? "left-12" : "left-0"} z-10 bg-[var(--color-panel)]` : ""}`}>
                     {column.sortable && column.sortValue
                       ? <button type="button" onClick={() => sortBy(column.key)} className="inline-flex min-h-6 items-center gap-1 hover:text-[var(--color-accent)]">{sortLabel}</button>
                       : column.label}
@@ -85,9 +85,9 @@ export function StatsDataTable<T>({
           <tbody className="divide-y divide-[var(--color-border)]">
             {pageRows.map((row, index) => (
               <tr key={rowKey(row, (safePage - 1) * pageSize + index)} className="hover:bg-[var(--color-surface-raised)]">
-                {showRank && <td className="sticky left-0 z-10 bg-[var(--color-panel)] px-3 py-2.5 tabular-nums">{(safePage - 1) * pageSize + index + 1}</td>}
+                {showRank && <td className="sticky left-0 z-10 w-12 min-w-12 max-w-12 bg-[var(--color-panel)] px-3 py-2.5 tabular-nums">{(safePage - 1) * pageSize + index + 1}</td>}
                 {columns.map((column, columnIndex) => (
-                  <td key={column.key} className={`whitespace-nowrap px-3 py-2.5 ${column.numeric ? "text-right tabular-nums" : "text-left"} ${column.className ?? ""} ${columnIndex === 0 ? "sticky left-0 z-10 bg-[var(--color-panel)]" : ""}`}>
+                  <td key={column.key} className={`whitespace-nowrap px-3 py-2.5 ${column.numeric ? "text-right tabular-nums" : "text-left"} ${column.className ?? ""} ${columnIndex === 0 ? `sticky ${showRank ? "left-12" : "left-0"} z-10 bg-[var(--color-panel)]` : ""}`}>
                     {column.render(row, (safePage - 1) * pageSize + index)}
                   </td>
                 ))}
