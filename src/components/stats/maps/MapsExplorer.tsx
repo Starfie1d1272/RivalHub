@@ -124,7 +124,8 @@ export function MapsExplorer({ data, query, seasonSlug }: { data: TournamentStat
       render: (row: VetoMatrixRow) => {
         const cell = row.cells[mapName]!;
         if (cell.picks === 0 && cell.bans === 0) return <span className="text-[var(--color-fg-dim)]">—</span>;
-        return <span className="tabular-nums">{cell.picks > 0 ? `P${cell.picks}` : "—"} · {cell.bans > 0 ? `B${cell.bans}` : "—"}</span>;
+        const parts = [cell.picks > 0 ? `P${cell.picks}` : null, cell.bans > 0 ? `B${cell.bans}` : null].filter(Boolean);
+        return <span className="tabular-nums">{parts.join(" · ")}</span>;
       },
     } satisfies StatsDataColumn<VetoMatrixRow>)),
   ];
