@@ -3,9 +3,9 @@ import { formatDisplayValue } from "./display";
 
 export type { StatMetric } from "./contract";
 
-/** 统一处理 number|null，所有 toFixed 都应收口在这里。 */
+/** 通用 number|null 格式化；尺度、精度和后缀最终都由 display.ts 处理。 */
 export function formatNumber(value: number | null | undefined, precision: number): string {
-  return value != null && Number.isFinite(value) ? value.toFixed(precision) : "—";
+  return formatDisplayValue(value, { unit: "number", precision });
 }
 
 /**
