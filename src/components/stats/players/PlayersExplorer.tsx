@@ -7,7 +7,7 @@ import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
 import { MetricFamilyTabs } from "@/components/stats/MetricFamilyTabs";
 import { MetricValue } from "@/components/stats/MetricValue";
 import { StatsDataTable, type StatsDataColumn } from "@/components/stats/StatsDataTable";
-import { statsRateDenominator } from "@/lib/stats/presentation";
+import { statsRateDenominator, statsRateNumerator } from "@/lib/stats/presentation";
 import type { TournamentStats } from "@/lib/stats/tournament-query";
 import type { StatsQuery } from "@/lib/stats/view-state";
 import { navigateStatsScope } from "@/lib/stats/view-state";
@@ -39,6 +39,15 @@ function playerLink(id: string | null, name: string) {
 
 function DAKColumns(family: Exclude<Family, "overall">, teamNames: ReadonlyMap<string, string>): StatsDataColumn<DAKPlayer>[] {
   const rounds = (row: DAKPlayer) => row.slices.overall.sample.rounds;
+  const clutchWinsPerRound = (row: DAKPlayer) => {
+    const wins = statsRateNumerator(row.slices.overall.clutch.winRate);
+    const sample = rounds(row);
+    return {
+      rate: wins === undefined || sample <= 0 ? null : wins / sample,
+      successes: wins ?? 0,
+      attempts: sample,
+    };
+  };
   const identity: StatsDataColumn<DAKPlayer>[] = [
     { key: "player", label: "Player", className: "w-[24%]", render: (row) => playerLink(row.player.entityKey, row.player.displayName) },
     { key: "team", label: "Team", className: "hidden w-[20%] sm:table-cell", render: (row) => playerTeam(row, teamNames) },
@@ -48,26 +57,26 @@ function DAKColumns(family: Exclude<Family, "overall">, teamNames: ReadonlyMap<s
 
   const columns: Record<Exclude<Family, "overall">, StatsDataColumn<DAKPlayer>[]> = {
     opening: [
-      { key: "attempt", label: "Open Att%", metric: "openingAttempt", numeric: true, sortable: true, sortValue: (row) => row.slices.overall.opening.attemptRate.rate, rankingSample: rounds, render: (row) => <MetricValue metric="openingAttempt" value={row.slices.overall.opening.attemptRate} sampleDisplay="hidden" /> },
-      { key: "win", label: "Open Win%", metric: "openingWin", numeric: true, sortable: true, sortValue: (row) => row.slices.overall.opening.successRate.rate, rankingSample: (row) => statsRateDenominator(row.slices.overall.opening.successRate), render: (row) => <MetricValue metric="openingWin" value={row.slices.overall.opening.successRate} sampleDisplay="compact" /> },
-      { key: "fk", label: "FK/100r", metric: "firstKill", numeric: true, className: "hidden lg:table-cell", sortable: true, sortValue: (row) => row.slices.overall.opening.firstKillsPerRound.rate, rankingSample: rounds, render: (row) => <MetricValue metric="firstKill" value={row.slices.overall.opening.firstKillsPerRound} sampleDisplay="hidden" /> },
-      { key: "fd", label: "FD/100r", metric: "firstDeath", numeric: true, className: "hidden lg:table-cell", sortable: true, sortValue: (row) => row.slices.overall.opening.firstDeathsPerRound.rate, rankingSample: rounds, render: (row) => <MetricValue metric="firstDeath" value={row.slices.overall.opening.firstDeathsPerRound} sampleDisplay="hidden" /> },
+      { key: "attempt", metric: "openingAttempt", numeric: true, sortable: true, sortValue: (row) => row.slices.overall.opening.attemptRate.rate, rankingSample: rounds, render: (row) => <MetricValue metric="openingAttempt" value={row.slices.overall.opening.attemptRate} sampleDisplay="hidden" /> },
+      { key: "win", metric: "openingWin", numeric: true, sortable: true, sortValue: (row) => row.slices.overall.opening.successRate.rate, rankingSample: (row) => statsRateDenominator(row.slices.overall.opening.successRate), render: (row) => <MetricValue metric="openingWin" value={row.slices.overall.opening.successRate} sampleDisplay="compact" /> },
+      { key: "fk", metric: "firstKill", numeric: true, className: "hidden lg:table-cell", sortable: true, sortValue: (row) => row.slices.overall.opening.firstKillsPerRound.rate, rankingSample: rounds, render: (row) => <MetricValue metric="firstKill" value={row.slices.overall.opening.firstKillsPerRound} sampleDisplay="hidden" /> },
+      { key: "fd", metric: "firstDeath", numeric: true, className: "hidden lg:table-cell", sortable: true, sortValue: (row) => row.slices.overall.opening.firstDeathsPerRound.rate, rankingSample: rounds, render: (row) => <MetricValue metric="firstDeath" value={row.slices.overall.opening.firstDeathsPerRound} sampleDisplay="hidden" /> },
     ],
     teamplay: [
-      { key: "kast", label: "KAST", metric: "kast", numeric: true, sortable: true, sortValue: (row) => row.slices.overall.kast.rate, rankingSample: rounds, render: (row) => <MetricValue metric="kast" value={row.slices.overall.kast} sampleDisplay="hidden" /> },
-      { key: "survival", label: "Survival%", metric: "survival", numeric: true, sortable: true, sortValue: (row) => row.slices.overall.survival.rate, rankingSample: rounds, render: (row) => <MetricValue metric="survival" value={row.slices.overall.survival} sampleDisplay="hidden" /> },
-      { key: "trade", label: "Trade/R", metric: "trade", numeric: true, className: "hidden lg:table-cell", sortable: true, sortValue: (row) => row.slices.overall.trade.tradeKillsPerRound.rate, rankingSample: rounds, render: (row) => <MetricValue metric="trade" value={row.slices.overall.trade.tradeKillsPerRound} sampleDisplay="hidden" /> },
-      { key: "traded", label: "Traded%", metric: "traded", numeric: true, className: "hidden lg:table-cell", sortable: true, sortValue: (row) => row.slices.overall.trade.tradedDeathsPerDeath.rate, rankingSample: (row) => statsRateDenominator(row.slices.overall.trade.tradedDeathsPerDeath), render: (row) => <MetricValue metric="traded" value={row.slices.overall.trade.tradedDeathsPerDeath} sampleDisplay="compact" /> },
+      { key: "kast", metric: "kast", numeric: true, sortable: true, sortValue: (row) => row.slices.overall.kast.rate, rankingSample: rounds, render: (row) => <MetricValue metric="kast" value={row.slices.overall.kast} sampleDisplay="hidden" /> },
+      { key: "survival", metric: "survival", numeric: true, sortable: true, sortValue: (row) => row.slices.overall.survival.rate, rankingSample: rounds, render: (row) => <MetricValue metric="survival" value={row.slices.overall.survival} sampleDisplay="hidden" /> },
+      { key: "trade", metric: "trade", numeric: true, className: "hidden lg:table-cell", sortable: true, sortValue: (row) => row.slices.overall.trade.tradeKillsPerRound.rate, rankingSample: rounds, render: (row) => <MetricValue metric="trade" value={row.slices.overall.trade.tradeKillsPerRound} sampleDisplay="hidden" /> },
+      { key: "traded", metric: "traded", numeric: true, className: "hidden lg:table-cell", sortable: true, sortValue: (row) => row.slices.overall.trade.tradedDeathsPerDeath.rate, rankingSample: (row) => statsRateDenominator(row.slices.overall.trade.tradedDeathsPerDeath), render: (row) => <MetricValue metric="traded" value={row.slices.overall.trade.tradedDeathsPerDeath} sampleDisplay="compact" /> },
     ],
     utility: [
-      { key: "util", label: "Util/R", metric: "utility", numeric: true, sortable: true, sortValue: (row) => row.slices.overall.utility.utilityDamagePerRound.rate, rankingSample: rounds, render: (row) => <MetricValue metric="utility" value={row.slices.overall.utility.utilityDamagePerRound} sampleDisplay="hidden" /> },
-      { key: "fa", label: "FA/100r", metric: "flashAssist", numeric: true, sortable: true, sortValue: (row) => row.slices.overall.utility.flashAssistsPerRound.rate, rankingSample: rounds, render: (row) => <MetricValue metric="flashAssist" value={row.slices.overall.utility.flashAssistsPerRound} sampleDisplay="hidden" /> },
-      { key: "blind", label: "Blind/Flash", metric: "blindPerFlash", numeric: true, className: "hidden lg:table-cell", sortable: true, sortValue: (row) => row.slices.overall.utility.enemyBlindSecondsPerFlash.rate, rankingSample: (row) => statsRateDenominator(row.slices.overall.utility.enemyBlindSecondsPerFlash), render: (row) => <MetricValue metric="blindPerFlash" value={row.slices.overall.utility.enemyBlindSecondsPerFlash} /> },
-      { key: "he", label: "HE/R", metric: "hePerRound", numeric: true, className: "hidden lg:table-cell", sortable: true, sortValue: (row) => row.slices.overall.utility.heDamagePerRound.rate, rankingSample: rounds, render: (row) => <MetricValue metric="hePerRound" value={row.slices.overall.utility.heDamagePerRound} sampleDisplay="hidden" /> },
+      { key: "util", metric: "utility", numeric: true, sortable: true, sortValue: (row) => row.slices.overall.utility.utilityDamagePerRound.rate, rankingSample: rounds, render: (row) => <MetricValue metric="utility" value={row.slices.overall.utility.utilityDamagePerRound} sampleDisplay="hidden" /> },
+      { key: "fa", metric: "flashAssist", numeric: true, sortable: true, sortValue: (row) => row.slices.overall.utility.flashAssistsPerRound.rate, rankingSample: rounds, render: (row) => <MetricValue metric="flashAssist" value={row.slices.overall.utility.flashAssistsPerRound} sampleDisplay="hidden" /> },
+      { key: "blind", metric: "blindPerFlash", numeric: true, className: "hidden lg:table-cell", sortable: true, sortValue: (row) => row.slices.overall.utility.enemyBlindSecondsPerFlash.rate, rankingSample: (row) => statsRateDenominator(row.slices.overall.utility.enemyBlindSecondsPerFlash), render: (row) => <MetricValue metric="blindPerFlash" value={row.slices.overall.utility.enemyBlindSecondsPerFlash} /> },
+      { key: "he", metric: "hePerRound", numeric: true, className: "hidden lg:table-cell", sortable: true, sortValue: (row) => row.slices.overall.utility.heDamagePerRound.rate, rankingSample: rounds, render: (row) => <MetricValue metric="hePerRound" value={row.slices.overall.utility.heDamagePerRound} sampleDisplay="hidden" /> },
     ],
     clutch: [
-      { key: "attempts", label: "Attempts", numeric: true, sortable: true, sortValue: (row) => row.slices.overall.clutch.attempts, render: (row) => row.slices.overall.clutch.attempts },
-      { key: "clutch", label: "Clutch%", metric: "clutch", numeric: true, sortable: true, sortValue: (row) => row.slices.overall.clutch.winRate.rate, rankingSample: (row) => statsRateDenominator(row.slices.overall.clutch.winRate), render: (row) => <MetricValue metric="clutch" value={row.slices.overall.clutch.winRate} sampleDisplay="compact" /> },
+      { key: "clutchFrequency", metric: "clutchFrequency", numeric: true, sortable: true, sortValue: (row) => clutchWinsPerRound(row).rate, rankingSample: rounds, render: (row) => <MetricValue metric="clutchFrequency" value={clutchWinsPerRound(row)} sampleDisplay="hidden" /> },
+      { key: "clutch", metric: "clutch", numeric: true, sortable: true, sortValue: (row) => row.slices.overall.clutch.winRate.rate, rankingSample: (row) => statsRateDenominator(row.slices.overall.clutch.winRate), render: (row) => <MetricValue metric="clutch" value={row.slices.overall.clutch.winRate} sampleDisplay="compact" /> },
       { key: "1v1", label: "1v1%", metric: "clutch", numeric: true, className: "hidden lg:table-cell", sortable: true, sortValue: (row) => row.slices.overall.clutch.byOpponentCount["1"].rate, rankingSample: (row) => statsRateDenominator(row.slices.overall.clutch.byOpponentCount["1"]), render: (row) => <MetricValue metric="clutch" value={row.slices.overall.clutch.byOpponentCount["1"]} sampleDisplay="compact" /> },
       { key: "1v2", label: "1v2%", metric: "clutch", numeric: true, className: "hidden lg:table-cell", sortable: true, sortValue: (row) => row.slices.overall.clutch.byOpponentCount["2"].rate, rankingSample: (row) => statsRateDenominator(row.slices.overall.clutch.byOpponentCount["2"]), render: (row) => <MetricValue metric="clutch" value={row.slices.overall.clutch.byOpponentCount["2"]} sampleDisplay="compact" /> },
     ],
@@ -96,10 +105,11 @@ export function PlayersExplorer({ data, query, seasonSlug }: { data: TournamentS
     { key: "team", label: "Team", className: "hidden w-[20%] sm:table-cell", render: (row) => row.teamName ?? "—" },
     { key: "maps", label: "Maps", numeric: true, className: "w-[8%]", sortable: true, sortValue: (row) => row.maps, render: (row) => row.maps },
     { key: "rounds", label: "Rounds", numeric: true, className: "hidden w-[9%] sm:table-cell", sortable: true, sortValue: (row) => row.rounds, render: (row) => row.rounds ?? "—" },
-    { key: "rating", label: "Rating", metric: "rating", numeric: true, sortable: true, sortValue: (row) => row.avgRating, rankingSample: (row) => row.rounds, render: (row) => <MetricValue metric="rating" value={row.avgRating} /> },
-    { key: "adr", label: "ADR", metric: "adr", numeric: true, sortable: true, sortValue: (row) => row.avgAdr, rankingSample: (row) => row.rounds, render: (row) => <MetricValue metric="adr" value={row.avgAdr} /> },
-    { key: "kd", label: "K/D", metric: "kd", numeric: true, className: "hidden lg:table-cell", sortable: true, sortValue: (row) => row.kdRatio, rankingSample: (row) => row.rounds, render: (row) => <MetricValue metric="kd" value={row.kdRatio} /> },
-    { key: "kpr", label: "KPR", metric: "kpr", numeric: true, className: "hidden lg:table-cell", sortable: true, sortValue: (row) => row.kpr, rankingSample: (row) => row.rounds, render: (row) => <MetricValue metric="kpr" value={row.kpr} /> },
+    { key: "rating", metric: "rating", numeric: true, sortable: true, sortValue: (row) => row.avgRating, rankingSample: (row) => row.rounds, render: (row) => <MetricValue metric="rating" value={row.avgRating} /> },
+    { key: "adr", metric: "adr", numeric: true, sortable: true, sortValue: (row) => row.avgAdr, rankingSample: (row) => row.rounds, render: (row) => <MetricValue metric="adr" value={row.avgAdr} /> },
+    { key: "kd", metric: "kd", numeric: true, className: "hidden lg:table-cell", sortable: true, sortValue: (row) => row.kdRatio, rankingSample: (row) => row.rounds, render: (row) => <MetricValue metric="kd" value={row.kdRatio} /> },
+    { key: "kpr", metric: "kpr", numeric: true, className: "hidden lg:table-cell", sortable: true, sortValue: (row) => row.kpr, rankingSample: (row) => row.rounds, render: (row) => <MetricValue metric="kpr" value={row.kpr} /> },
+    { key: "mk", metric: "mk", numeric: true, className: "hidden xl:table-cell", sortable: true, sortValue: (row) => row.mkpr, rankingSample: (row) => row.rounds, render: (row) => <MetricValue metric="mk" value={row.mkpr} /> },
   ];
 
   const visibleRows = family === "overall" ? scoreboardRows : dakRows;
@@ -121,7 +131,7 @@ export function PlayersExplorer({ data, query, seasonSlug }: { data: TournamentS
         columns={overallColumns}
         rowKey={(row, index) => `${row.userId ?? row.perfectName}:${row.teamId ?? ""}:${index}`}
         initialSortKey="rating"
-        tableClassName="min-w-[900px] table-fixed"
+        tableClassName="min-w-[980px] table-fixed"
         emptyLabel="暂无选手统计"
       />
     );
