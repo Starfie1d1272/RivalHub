@@ -1,4 +1,4 @@
-export type MetricUnit = "number" | "percent" | "perRound" | "seconds" | "count";
+export type MetricUnit = "number" | "percent" | "perRound" | "per100Round" | "seconds" | "count";
 export type SampleKind = "scoreboard" | "kills" | "rounds" | "openings" | "deaths" | "flashes" | "attempts" | "pistolRounds" | "opportunities" | "plants" | "weaponKills" | "maps";
 export type MetricSampleMode = "fraction" | "denominator" | "hidden";
 
@@ -46,25 +46,25 @@ export const STATS_METRICS = {
   hs: metric("HS%", "percent", 1, "kills", "爆头击杀占全部击杀的比例。", { rankingSampleKind: "kills" }),
   we: metric("WE", "number", 1, "scoreboard", "武器效率，用于描述选手的击杀产出。", { rankingSampleKind: "rounds" }),
   rws: metric("RWS", "number", 2, "scoreboard", "回合胜利贡献指标（Round Win Shares）。", { rankingSampleKind: "rounds" }),
-  mk: metric("MK/R", "perRound", 2, "scoreboard", "每回合多杀产出。", { rankingSampleKind: "rounds" }),
+  mk: metric("MK/100r", "per100Round", 1, "scoreboard", "每 100 回合多杀回合数。", { rankingSampleKind: "rounds" }),
   openingAttempt: metric("Open Att%", "percent", 1, "rounds", "参与首杀对枪的回合占比，反映开局交火参与频率。", { rankingSampleKind: "rounds" }),
   openingWin: metric("Open Win%", "percent", 1, "openings", "首杀对枪胜率：首杀次数 ÷ 首杀对枪次数。", { rankingSampleKind: "openings" }),
-  firstKill: metric("FK/R", "perRound", 2, "rounds", "平均每回合取得首杀的次数。", { rankingSampleKind: "rounds" }),
-  firstDeath: metric("FD/R", "perRound", 2, "rounds", "平均每回合成为首个阵亡者的次数。", { rankingSampleKind: "rounds" }),
+  firstKill: metric("FK/100r", "per100Round", 1, "rounds", "每 100 回合取得首杀的次数。", { rankingSampleKind: "rounds" }),
+  firstDeath: metric("FD/100r", "per100Round", 1, "rounds", "每 100 回合成为首个阵亡者的次数。", { rankingSampleKind: "rounds" }),
   kast: metric("KAST", "percent", 1, "rounds", "完成击杀、助攻、存活或被队友及时补枪的回合占比。", { rankingSampleKind: "rounds" }),
   survival: metric("Survival%", "percent", 1, "rounds", "回合结束时存活的回合占比。", { rankingSampleKind: "rounds" }),
   trade: metric("Trade/R", "perRound", 2, "rounds", "平均每回合完成的补枪击杀。", { rankingSampleKind: "rounds" }),
   traded: metric("Traded%", "percent", 1, "deaths", "本人阵亡后被队友及时补枪的死亡占比。", { rankingSampleKind: "deaths" }),
   utility: metric("Util/R", "perRound", 2, "rounds", "平均每回合道具伤害。", { rankingSampleKind: "rounds" }),
-  flashAssist: metric("FA/R", "perRound", 2, "rounds", "平均每回合闪光助攻。", { rankingSampleKind: "rounds" }),
+  flashAssist: metric("FA/100r", "per100Round", 1, "rounds", "每 100 回合闪光助攻次数。", { rankingSampleKind: "rounds" }),
   blindPerFlash: metric("Blind/Flash", "seconds", 1, "flashes", "每颗闪光对敌方造成的平均致盲时间。", { sampleMode: "denominator", rankingSampleKind: "flashes" }),
   netBlindPerFlash: metric("Net Blind/Flash", "seconds", 1, "flashes", "每颗闪光对敌方产生的平均净致盲时间。", { sampleMode: "denominator", rankingSampleKind: "flashes" }),
   hePerRound: metric("HE/R", "perRound", 2, "rounds", "平均每回合 HE 手雷伤害。", { rankingSampleKind: "rounds" }),
   firePerRound: metric("Fire/R", "perRound", 2, "rounds", "平均每回合燃烧弹或燃烧瓶伤害。", { rankingSampleKind: "rounds" }),
   smokePerRound: metric("Smoke/R", "perRound", 2, "rounds", "平均每回合烟雾弹相关产出。", { rankingSampleKind: "rounds" }),
-  utilityKills: metric("Utility kills/R", "perRound", 2, "rounds", "平均每回合由伤害型道具造成的击杀。", { rankingSampleKind: "rounds" }),
+  utilityKills: metric("Utility K/100r", "per100Round", 1, "rounds", "每 100 回合由伤害型道具造成的击杀。", { rankingSampleKind: "rounds" }),
   clutch: metric("Clutch%", "percent", 1, "attempts", "残局胜率：残局胜利次数 ÷ 残局尝试次数。", { rankingSampleKind: "attempts" }),
-  clutchFrequency: metric("Frequency/R", "perRound", 2, "rounds", "平均每回合进入残局的次数。", { rankingSampleKind: "rounds" }),
+  clutchFrequency: metric("C/100r", "per100Round", 1, "rounds", "每 100 回合残局胜利次数。", { rankingSampleKind: "rounds" }),
   pistol: metric("Pistol%", "percent", 1, "pistolRounds", "手枪局胜率。", { rankingSampleKind: "pistolRounds" }),
   roundWin: metric("RW%", "percent", 1, "rounds", "回合胜率。", { rankingSampleKind: "rounds" }),
   conversion: metric("R2 Conv", "percent", 1, "opportunities", "手枪局取胜后继续赢下第二回合的比例。", { rankingSampleKind: "opportunities" }),

@@ -29,4 +29,14 @@ describe("MetricValue sample labels", () => {
     expect(screen.getByText("158 flashes")).toBeInTheDocument();
     expect(screen.queryByText(/386/)).not.toBeInTheDocument();
   });
+  it("scales low-frequency per-round events to a per-100-round display", () => {
+    render(<MetricValue metric="flashAssist" value={{ rate: 0.05, successes: 15, attempts: 301 }} sampleDisplay="hidden" />);
+    expect(screen.getByText("5.0")).toBeInTheDocument();
+  });
+
+  it("keeps standard per-round metrics on their native scale", () => {
+    render(<MetricValue metric="kpr" value={0.98} />);
+    expect(screen.getByText("0.98")).toBeInTheDocument();
+  });
+
 });

@@ -35,6 +35,7 @@ export function formatStatsMetric(metric: StatsMetricKey, value: number | null |
   const definition = STATS_METRICS[metric];
   if (definition.unit === "count") return new Intl.NumberFormat("zh-CN", { maximumFractionDigits: 0 }).format(value);
   if (definition.unit === "percent") return `${value.toFixed(definition.precision)}%`;
+  if (definition.unit === "per100Round") return (value * 100).toFixed(definition.precision);
   if (definition.unit === "seconds") return `${value.toFixed(definition.precision)}s`;
   return value.toFixed(definition.precision);
 }
@@ -43,6 +44,7 @@ export function formatStatsRate(metric: StatsMetricKey, value: StatsRateValue): 
   if (value.rate == null || !Number.isFinite(value.rate)) return "—";
   const definition = STATS_METRICS[metric];
   if (definition.unit === "percent") return `${(value.rate * 100).toFixed(definition.precision)}%`;
+  if (definition.unit === "per100Round") return (value.rate * 100).toFixed(definition.precision);
   if (definition.unit === "seconds") return `${value.rate.toFixed(definition.precision)}s`;
   return value.rate.toFixed(definition.precision);
 }

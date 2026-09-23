@@ -8,6 +8,7 @@ import React, { Fragment, useMemo, useState, type ReactNode } from "react";
 
 import { PaginationControls } from "@/components/rivalhub";
 import { StatsMetricHelp } from "@/components/stats/StatsMetricHelp";
+import { StatsTooltip } from "@/components/stats/StatsTooltip";
 import { STATS_METRICS, type StatsMetricKey } from "@/lib/stats/metrics";
 import { getDynamicRankingFloor, isRankingEligible } from "@/lib/stats/ranking";
 import { compareStatsValues, type StatsSortDirection, type StatsSortValue } from "@/lib/stats/sorting";
@@ -110,11 +111,12 @@ export function StatsDataTable<T>({
       {rankingState && rankingState.limitedCount > 0 && (
         <div className="flex flex-wrap items-center justify-end gap-2 border-b border-[var(--color-border)] px-3 py-2 text-xs text-[var(--color-fg-dim)]">
           <span>{rankingState.rankedCount} ranked · {rankingState.limitedCount} limited sample</span>
-          <span
-            className="cursor-help"
-            title={`当前按 ${rankingState.metricLabel} 排序。最低样本取当前 Stage/Map/Team 范围内正样本 P75 的 25%，向上取整；Search 仅过滤显示结果。`}
-          >
-            min {rankingState.floor} {rankingState.sampleLabel} ?
+          <span className="inline-flex items-center gap-1">
+            <span>min {rankingState.floor} {rankingState.sampleLabel}</span>
+            <StatsTooltip
+              label="排名样本说明"
+              content={`当前按 ${rankingState.metricLabel} 排序。排名样本线取当前 Stage/Map/Team 范围内有效样本 P75 的 25%，向上取整。Search 只过滤当前显示。`}
+            />
           </span>
         </div>
       )}
