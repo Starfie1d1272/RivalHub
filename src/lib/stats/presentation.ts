@@ -17,6 +17,19 @@ const weaponLabels: Record<string, string> = {
   hegrenade: "HE Grenade", flashbang: "Flashbang", inferno: "Incendiary", smokegrenade: "Smoke Grenade",
 };
 
+function formatSampleNumber(value: number): string {
+  if (Number.isInteger(value)) return new Intl.NumberFormat("zh-CN", { maximumFractionDigits: 0 }).format(value);
+  return new Intl.NumberFormat("zh-CN", { maximumFractionDigits: 1 }).format(value);
+}
+
+export function statsRateNumerator(value: StatsRateValue): number | undefined {
+  return value.wins ?? value.successes;
+}
+
+export function statsRateDenominator(value: StatsRateValue): number | undefined {
+  return value.opportunities ?? value.attempts;
+}
+
 export function formatStatsMetric(metric: StatsMetricKey, value: number | null | undefined): string {
   if (value == null || !Number.isFinite(value)) return "—";
   const definition = STATS_METRICS[metric];
@@ -35,9 +48,14 @@ export function formatStatsRate(metric: StatsMetricKey, value: StatsRateValue): 
 }
 
 export function formatStatsSample(value: StatsRateValue): string {
-  const numerator = value.wins ?? value.successes;
-  const denominator = value.opportunities ?? value.attempts;
-  return numerator === undefined || denominator === undefined ? "" : `${numerator}/${denominator}`;
+  const numerator = statsRateNumerator(value);
+  const denominator = statsRateDenominator(value);
+  return numerator === undefined || denominator === undefined ? "" : `${formatSampleNumber(numerator)}/${formatSampleNumber(denominator)}`;
+}
+
+export function formatStatsDenominator(value: StatsRateValue): string {
+  const denominator = statsRateDenominator(value);
+  return denominator === undefined ? "" : formatSampleNumber(denominator);
 }
 
 export function formatEconomyLabel(economy: keyof typeof economyLabels): string {

@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { MetricFamilyTabs } from "@/components/stats/MetricFamilyTabs";
 import { MetricValue } from "@/components/stats/MetricValue";
 import { StatsDataTable, type StatsDataColumn } from "@/components/stats/StatsDataTable";
+import { statsRateDenominator } from "@/lib/stats/presentation";
 import type { TournamentStats } from "@/lib/stats/tournament-query";
 import { statsHref, type StatsQuery } from "@/lib/stats/view-state";
 import { navigateStatsScope } from "@/lib/stats/view-state";
@@ -67,29 +68,29 @@ function teamColumns(family: Family, seasonSlug: string, query: StatsQuery): Sta
   if (family === "rounds") return [
     teamColumn,
     ...detailSample,
-    { key: "rw", label: "RW%", numeric: true, sortable: true, sortValue: (row) => row.analytics?.roundWinRate, render: (row) => row.analytics ? <MetricValue metric="roundWin" value={{ wins: row.analytics.roundWins, opportunities: row.analytics.rounds, rate: row.analytics.roundWinRate }} sampleDisplay="hidden" /> : "—" },
-    { key: "t", label: "T%", numeric: true, className: "hidden lg:table-cell", sortable: true, sortValue: (row) => row.analytics?.t.rate, render: (row) => row.analytics ? <MetricValue metric="roundWin" value={row.analytics.t} sampleDisplay="hidden" /> : "—" },
-    { key: "ct", label: "CT%", numeric: true, className: "hidden lg:table-cell", sortable: true, sortValue: (row) => row.analytics?.ct.rate, render: (row) => row.analytics ? <MetricValue metric="roundWin" value={row.analytics.ct} sampleDisplay="hidden" /> : "—" },
-    { key: "pistol", label: "Pistol%", numeric: true, className: "hidden lg:table-cell", sortable: true, sortValue: (row) => row.analytics?.pistol.rate, render: (row) => row.analytics ? <MetricValue metric="pistol" value={row.analytics.pistol} sampleDisplay="compact" /> : "—" },
+    { key: "rw", label: "RW%", metric: "roundWin", numeric: true, sortable: true, sortValue: (row) => row.analytics?.roundWinRate, rankingSample: (row) => row.analytics?.rounds, render: (row) => row.analytics ? <MetricValue metric="roundWin" value={{ wins: row.analytics.roundWins, opportunities: row.analytics.rounds, rate: row.analytics.roundWinRate }} sampleDisplay="hidden" /> : "—" },
+    { key: "t", label: "T%", metric: "roundWin", numeric: true, className: "hidden lg:table-cell", sortable: true, sortValue: (row) => row.analytics?.t.rate, rankingSample: (row) => row.analytics ? statsRateDenominator(row.analytics.t) : null, render: (row) => row.analytics ? <MetricValue metric="roundWin" value={row.analytics.t} sampleDisplay="hidden" /> : "—" },
+    { key: "ct", label: "CT%", metric: "roundWin", numeric: true, className: "hidden lg:table-cell", sortable: true, sortValue: (row) => row.analytics?.ct.rate, rankingSample: (row) => row.analytics ? statsRateDenominator(row.analytics.ct) : null, render: (row) => row.analytics ? <MetricValue metric="roundWin" value={row.analytics.ct} sampleDisplay="hidden" /> : "—" },
+    { key: "pistol", label: "Pistol%", metric: "pistol", numeric: true, className: "hidden lg:table-cell", sortable: true, sortValue: (row) => row.analytics?.pistol.rate, rankingSample: (row) => row.analytics ? statsRateDenominator(row.analytics.pistol) : null, render: (row) => row.analytics ? <MetricValue metric="pistol" value={row.analytics.pistol} sampleDisplay="compact" /> : "—" },
   ];
 
   if (family === "conversion") return [
     teamColumn,
     ...detailSample,
-    { key: "r2", label: "R2 Conv", numeric: true, sortable: true, sortValue: (row) => row.analytics?.round2.conversion.rate, render: (row) => row.analytics ? <MetricValue metric="conversion" value={row.analytics.round2.conversion} sampleDisplay="compact" /> : "—" },
-    { key: "break", label: "R2 Break", numeric: true, className: "hidden sm:table-cell", sortable: true, sortValue: (row) => row.analytics?.round2.break.rate, render: (row) => row.analytics ? <MetricValue metric="break" value={row.analytics.round2.break} sampleDisplay="compact" /> : "—" },
-    { key: "fiveVFour", label: "5v4", numeric: true, className: "hidden lg:table-cell", sortable: true, sortValue: (row) => row.analytics?.manAdvantage["5v4"].rate, render: (row) => row.analytics ? <MetricValue metric="fiveVFour" value={row.analytics.manAdvantage["5v4"]} sampleDisplay="compact" /> : "—" },
-    { key: "fourVFive", label: "4v5", numeric: true, className: "hidden lg:table-cell", sortable: true, sortValue: (row) => row.analytics?.manAdvantage["4v5"].rate, render: (row) => row.analytics ? <MetricValue metric="fourVFive" value={row.analytics.manAdvantage["4v5"]} sampleDisplay="compact" /> : "—" },
-    { key: "eco", label: "Eco/Semi", numeric: true, className: "hidden lg:table-cell", sortable: true, sortValue: (row) => row.analytics?.ecoSemiUpset.rate, render: (row) => row.analytics ? <MetricValue metric="ecoSemi" value={row.analytics.ecoSemiUpset} sampleDisplay="compact" /> : "—" },
+    { key: "r2", label: "R2 Conv", metric: "conversion", numeric: true, sortable: true, sortValue: (row) => row.analytics?.round2.conversion.rate, rankingSample: (row) => row.analytics ? statsRateDenominator(row.analytics.round2.conversion) : null, render: (row) => row.analytics ? <MetricValue metric="conversion" value={row.analytics.round2.conversion} sampleDisplay="compact" /> : "—" },
+    { key: "break", label: "R2 Break", metric: "break", numeric: true, className: "hidden sm:table-cell", sortable: true, sortValue: (row) => row.analytics?.round2.break.rate, rankingSample: (row) => row.analytics ? statsRateDenominator(row.analytics.round2.break) : null, render: (row) => row.analytics ? <MetricValue metric="break" value={row.analytics.round2.break} sampleDisplay="compact" /> : "—" },
+    { key: "fiveVFour", label: "5v4", metric: "fiveVFour", numeric: true, className: "hidden lg:table-cell", sortable: true, sortValue: (row) => row.analytics?.manAdvantage["5v4"].rate, rankingSample: (row) => row.analytics ? statsRateDenominator(row.analytics.manAdvantage["5v4"]) : null, render: (row) => row.analytics ? <MetricValue metric="fiveVFour" value={row.analytics.manAdvantage["5v4"]} sampleDisplay="compact" /> : "—" },
+    { key: "fourVFive", label: "4v5", metric: "fourVFive", numeric: true, className: "hidden lg:table-cell", sortable: true, sortValue: (row) => row.analytics?.manAdvantage["4v5"].rate, rankingSample: (row) => row.analytics ? statsRateDenominator(row.analytics.manAdvantage["4v5"]) : null, render: (row) => row.analytics ? <MetricValue metric="fourVFive" value={row.analytics.manAdvantage["4v5"]} sampleDisplay="compact" /> : "—" },
+    { key: "eco", label: "Eco/Semi", metric: "ecoSemi", numeric: true, className: "hidden lg:table-cell", sortable: true, sortValue: (row) => row.analytics?.ecoSemiUpset.rate, rankingSample: (row) => row.analytics ? statsRateDenominator(row.analytics.ecoSemiUpset) : null, render: (row) => row.analytics ? <MetricValue metric="ecoSemi" value={row.analytics.ecoSemiUpset} sampleDisplay="compact" /> : "—" },
   ];
 
   return [
     teamColumn,
     ...detailSample,
-    { key: "opening", label: "Opening%", numeric: true, sortable: true, sortValue: (row) => row.performance?.slices.overall.opening.successRate.rate, render: (row) => row.performance ? <MetricValue metric="openingWin" value={row.performance.slices.overall.opening.successRate} sampleDisplay="compact" /> : "—" },
-    { key: "trade", label: "Trade/R", numeric: true, className: "hidden sm:table-cell", sortable: true, sortValue: (row) => row.performance?.slices.overall.trade.tradeKillsPerRound.rate, render: (row) => row.performance ? <MetricValue metric="trade" value={row.performance.slices.overall.trade.tradeKillsPerRound} sampleDisplay="hidden" /> : "—" },
-    { key: "fa", label: "FA/R", numeric: true, className: "hidden lg:table-cell", sortable: true, sortValue: (row) => row.performance?.slices.overall.utility.flashAssistsPerRound.rate, render: (row) => row.performance ? <MetricValue metric="flashAssist" value={row.performance.slices.overall.utility.flashAssistsPerRound} sampleDisplay="hidden" /> : "—" },
-    { key: "util", label: "Util/R", numeric: true, className: "hidden lg:table-cell", sortable: true, sortValue: (row) => row.performance?.slices.overall.utility.utilityDamagePerRound.rate, render: (row) => row.performance ? <MetricValue metric="utility" value={row.performance.slices.overall.utility.utilityDamagePerRound} sampleDisplay="hidden" /> : "—" },
+    { key: "opening", label: "Opening%", metric: "openingWin", numeric: true, sortable: true, sortValue: (row) => row.performance?.slices.overall.opening.successRate.rate, rankingSample: (row) => row.performance ? statsRateDenominator(row.performance.slices.overall.opening.successRate) : null, render: (row) => row.performance ? <MetricValue metric="openingWin" value={row.performance.slices.overall.opening.successRate} sampleDisplay="compact" /> : "—" },
+    { key: "trade", label: "Trade/R", metric: "trade", numeric: true, className: "hidden sm:table-cell", sortable: true, sortValue: (row) => row.performance?.slices.overall.trade.tradeKillsPerRound.rate, rankingSample: (row) => row.performance?.slices.overall.sample.rounds, render: (row) => row.performance ? <MetricValue metric="trade" value={row.performance.slices.overall.trade.tradeKillsPerRound} sampleDisplay="hidden" /> : "—" },
+    { key: "fa", label: "FA/R", metric: "flashAssist", numeric: true, className: "hidden lg:table-cell", sortable: true, sortValue: (row) => row.performance?.slices.overall.utility.flashAssistsPerRound.rate, rankingSample: (row) => row.performance?.slices.overall.sample.rounds, render: (row) => row.performance ? <MetricValue metric="flashAssist" value={row.performance.slices.overall.utility.flashAssistsPerRound} sampleDisplay="hidden" /> : "—" },
+    { key: "util", label: "Util/R", metric: "utility", numeric: true, className: "hidden lg:table-cell", sortable: true, sortValue: (row) => row.performance?.slices.overall.utility.utilityDamagePerRound.rate, rankingSample: (row) => row.performance?.slices.overall.sample.rounds, render: (row) => row.performance ? <MetricValue metric="utility" value={row.performance.slices.overall.utility.utilityDamagePerRound} sampleDisplay="hidden" /> : "—" },
   ];
 }
 
@@ -114,12 +115,14 @@ export function TeamsExplorer({ data, query, seasonSlug }: { data: TournamentSta
         <div className="ml-auto flex items-center gap-3 pb-1 text-xs text-[var(--color-fg-dim)]">
           {partialCoverage && <span>Coverage {data.coverage.detailedMaps}/{data.coverage.completedMaps}</span>}
           <span>{rows.length} teams</span>
+          {query.mapFilter && <button type="button" onClick={() => navigateStatsScope(router, seasonSlug, query, { mapFilter: "" })} className="text-[var(--color-fg-mid)] transition-colors hover:text-[var(--color-accent)]">Clear filters</button>}
         </div>
       </div>
 
       <StatsDataTable
         key={family}
         rows={rows}
+        rankingBaselineRows={rows}
         columns={teamColumns(family, seasonSlug, query)}
         rowKey={(row) => row.entryId}
         initialSortKey={family === "results" ? "match" : family === "rounds" ? "rw" : family === "conversion" ? "r2" : "opening"}

@@ -2,11 +2,13 @@
 import React from "react";
 
 import Link from "next/link";
+import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
 import { MetricValue } from "@/components/stats/MetricValue";
 import { StatsSideSplit } from "@/components/stats/StatsSideSplit";
 import { StatsDataTable, type StatsDataColumn } from "@/components/stats/StatsDataTable";
 import type { TournamentStats } from "@/lib/stats/tournament-query";
 import { statsHref, type StatsQuery } from "@/lib/stats/view-state";
+import { getDynamicRankingFloor, isRankingEligible } from "@/lib/stats/ranking";
 import { sortStatsRows } from "@/lib/stats/sorting";
 import { CS2_MAP_CATALOG } from "@/lib/config/cs2-maps";
 
@@ -50,7 +52,9 @@ function landscapeRows(data: TournamentStats): MapLandscapeRow[] {
 }
 
 function leaders(data: TournamentStats, query: StatsQuery, seasonSlug: string) {
-  const topPlayers = sortStatsRows(data.leaderboard.filter((row) => row.avgRating !== null), { getValue: (row) => row.avgRating, direction: "desc" }, [
+  const ratingFloor = getDynamicRankingFloor(data.leaderboard.map((row) => row.avgRating !== null ? row.rounds : null));
+  const rankedPlayers = data.leaderboard.filter((row) => row.avgRating !== null && (!ratingFloor || isRankingEligible(row.rounds, ratingFloor.floor)));
+  const topPlayers = sortStatsRows(rankedPlayers, { getValue: (row) => row.avgRating, direction: "desc" }, [
     { getValue: (row) => row.perfectName, direction: "asc" },
     { getValue: (row) => row.userId, direction: "asc" },
   ]).slice(0, 5);
@@ -60,8 +64,8 @@ function leaders(data: TournamentStats, query: StatsQuery, seasonSlug: string) {
     { getValue: (row) => row.name, direction: "asc" },
   ]).slice(0, 5);
   const playerColumns: StatsDataColumn<TournamentStats["leaderboard"][number]>[] = [
-    { key: "player", label: "Player", className: "w-[52%]", render: (row) => row.userId ? <Link href={`/players/${row.userId}`} className="font-medium hover:text-[var(--color-accent)]">{row.perfectName}</Link> : row.perfectName },
-    { key: "rating", label: "Rating", numeric: true, className: "w-[18%]", render: (row) => <MetricValue metric="rating" value={row.avgRating} /> },
+    { key: "player", label: "Player", className: "w-[52%]", render: (row) => row.userId ? <PlayerProfileLink userId={row.userId} className="font-medium">{row.perfectName}</PlayerProfileLink> : row.perfectName },
+    { key: "rating", label: "Rating", metric: "rating", numeric: true, className: "w-[18%]", render: (row) => <MetricValue metric="rating" value={row.avgRating} /> },
     { key: "sample", label: "Maps / Rounds", numeric: true, className: "hidden w-[30%] sm:table-cell", render: (row) => <span>{row.maps} / {row.rounds ?? "—"}</span> },
   ];
   const teamColumns: StatsDataColumn<TournamentStats["results"]["teams"][number]>[] = [

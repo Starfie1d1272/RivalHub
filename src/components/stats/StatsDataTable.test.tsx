@@ -52,4 +52,50 @@ describe("StatsDataTable client state", () => {
     expect(screen.getByRole("table")).toHaveClass("min-w-[720px]", "table-fixed");
   });
 
+  it("keeps limited samples below ranked rows in both sort directions and uses a separate baseline", () => {
+    interface RankedRow { name: string; rating: number; rounds: number }
+    const baseline: RankedRow[] = [
+      { name: "Tiny", rating: 9, rounds: 5 },
+      { name: "Floor", rating: 2, rounds: 20 },
+      { name: "Mid", rating: 3, rounds: 80 },
+      { name: "High", rating: 4, rounds: 100 },
+    ];
+    const visible = baseline.filter((row) => row.name !== "Floor");
+    const rankedColumns: StatsDataColumn<RankedRow>[] = [
+      { key: "name", label: "Player", render: (row) => row.name },
+      { key: "rating", label: "Rating", metric: "rating", numeric: true, sortable: true, sortValue: (row) => row.rating, rankingSample: (row) => row.rounds, render: (row) => row.rating },
+    ];
+
+    render(<StatsDataTable rows={visible} rankingBaselineRows={baseline} columns={rankedColumns} rowKey={(row) => row.name} initialSortKey="rating" />);
+
+    expect(screen.getByText("2 ranked · 1 limited sample")).toBeInTheDocument();
+    expect(screen.getByText("floor 20 rounds ?")).toBeInTheDocument();
+    const table = screen.getByRole("table");
+    expect(within(table).getAllByRole("row").slice(1).map((row) => row.textContent)).toEqual([
+      "High4",
+      "Mid3",
+      "Limited sample · below 20 rounds",
+      "Tiny9",
+    ]);
+
+    fireEvent.click(screen.getByRole("button", { name: "Rating ↓" }));
+    expect(within(table).getAllByRole("row").slice(1).map((row) => row.textContent)).toEqual([
+      "Mid3",
+      "High4",
+      "Limited sample · below 20 rounds",
+      "Tiny9",
+    ]);
+  });
+
+  it("shows the Chinese metric explanation without replacing the English header", () => {
+    const metricColumns: StatsDataColumn<Row>[] = [
+      columns[0]!,
+      { ...columns[1]!, metric: "rating" },
+    ];
+    render(<StatsDataTable rows={rows} columns={metricColumns} rowKey={(row) => row.name} />);
+    expect(screen.getByText("Rating")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Rating 指标说明" })).toBeInTheDocument();
+    expect(screen.getByRole("tooltip")).toHaveTextContent("综合表现评分");
+  });
+
 });
