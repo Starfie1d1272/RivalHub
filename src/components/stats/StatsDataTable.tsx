@@ -25,6 +25,10 @@ export interface StatsDataColumn<T> {
   className?: string;
 }
 
+function statsColumnLabel<T>(column: StatsDataColumn<T>) {
+  return column.label ?? (column.metric ? STATS_METRICS[column.metric].label : column.key);
+}
+
 interface RankingState<T> {
   rows: T[];
   rankedCount: number;
@@ -54,7 +58,6 @@ export function StatsDataTable<T>({
   const [direction, setDirection] = useState<StatsSortDirection>(initialDirection);
   const [page, setPage] = useState(1);
   const activeColumn = columns.find((item) => item.key === sortKey);
-  const columnLabel = (column: StatsDataColumn<T>) => column.label ?? (column.metric ? STATS_METRICS[column.metric].label : column.key);
 
   const rankingState = useMemo<RankingState<T> | null>(() => {
     if (!activeColumn?.sortValue || !activeColumn.rankingSample) return null;
@@ -84,7 +87,7 @@ export function StatsDataTable<T>({
       limitedCount: limited.length,
       floor: dynamicFloor.floor,
       sampleLabel: activeColumn.metric ? (STATS_METRICS[activeColumn.metric].rankingSampleLabel ?? STATS_METRICS[activeColumn.metric].sampleLabel) : "samples",
-      metricLabel: columnLabel(activeColumn),
+      metricLabel: statsColumnLabel(activeColumn),
     };
   }, [activeColumn, direction, rankingBaselineRows, rows]);
 
@@ -129,7 +132,7 @@ export function StatsDataTable<T>({
               {columns.map((column, index) => {
                 const active = sortKey === column.key;
                 const arrow = direction === "desc" ? "↓" : "↑";
-                const label = columnLabel(column);
+                const label = statsColumnLabel(column);
                 const sortLabel = active ? `${label} ${arrow}` : `Sort by ${label}`;
                 return (
                   <th
