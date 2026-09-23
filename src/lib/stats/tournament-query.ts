@@ -167,6 +167,24 @@ function buildVetoSelection(
     });
 }
 
+async function loadScopedVetoRows(
+  tx: TxDb,
+  scope: Pick<TournamentStatsScope, "seasonId" | "stage">,
+  mapName?: string,
+) {
+  return tx.select({
+    matchId: matchVetoSteps.matchId,
+    mapName: matchVetoSteps.mapName,
+    action: matchVetoSteps.actionType,
+    entryId: matchVetoSteps.entryId,
+  }).from(matchVetoSteps).innerJoin(matches, eq(matches.id, matchVetoSteps.matchId)).where(and(
+    eq(matches.seasonId, scope.seasonId),
+    eq(matches.status, "finished"),
+    scope.stage ? eq(matches.stage, scope.stage) : undefined,
+    mapName ? eq(matchVetoSteps.mapName, mapName) : undefined,
+  ));
+}
+
 async function loadVetoData(tx: TxDb, scope: Pick<TournamentStatsScope, "seasonId" | "stage">, entries: Array<{ id: string; name: string }>) {
   const matchRows = await tx.select({
     id: matches.id,
@@ -379,15 +397,14 @@ export async function getTournamentTeamDetail(scope: TournamentStatsScope & { te
 export async function getTournamentMapDetail(scope: Omit<TournamentStatsScope, "mapFilter" | "teamFilter"> & { map: string }, database: DB = db) {
   return database.transaction(async (tx) => {
     const loaded = await loadStatsEvidence(tx, scope, { mapName: scope.map });
-    const veto = await loadVetoData(tx, scope, loaded.entries);
+    const vetoRows = await loadScopedVetoRows(tx, scope, scope.map);
     const results = buildTournamentResults(loaded.matches, loaded.scopedMaps, loaded.entries);
     const analytics = buildTournamentAnalytics(loaded.selected.map((row) => row.facts.tournament), { labels: loaded.labels });
     const performance = buildTournamentPerformanceAnalytics(loaded.selected.map((row) => row.facts.performance), { labels: loaded.labels });
     return {
       map: scope.map,
       results,
-      selection: buildVetoSelection(veto.participants, veto.rows, [scope.map], scope.map),
-      veto: { teams: veto.teams, sample: veto.sample },
+      selection: buildVetoSelection([], vetoRows.map(({ mapName, action, entryId }) => ({ mapName, action, entryId })), [scope.map], scope.map),
       coverage: buildCoverage(loaded, results),
       analytics,
       performance,
