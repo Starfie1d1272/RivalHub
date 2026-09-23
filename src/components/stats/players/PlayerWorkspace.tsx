@@ -89,8 +89,8 @@ export function PlayerWorkspace({ detail }: { detail: TournamentPlayerDetail }) 
             <div><p className="text-xs text-[var(--color-fg-mid)]">Player Rounds</p><p className="font-semibold tabular-nums">{slice.sample.rounds}</p></div>
             <div><p className="text-xs text-[var(--color-fg-mid)]">KAST</p><MetricValue metric="kast" value={slice.kast} /></div>
             <div><p className="text-xs text-[var(--color-fg-mid)]">Opening</p><MetricValue metric="openingWin" value={slice.opening.successRate} /></div>
-            <div><p className="text-xs text-[var(--color-fg-mid)]">Trade/R</p><MetricValue metric="trade" value={slice.trade.tradeKillsPerRound} /></div>
-            <div><p className="text-xs text-[var(--color-fg-mid)]">Util/R</p><MetricValue metric="utility" value={slice.utility.utilityDamagePerRound} /></div>
+            <div><p className="text-xs text-[var(--color-fg-mid)]">Trade/r</p><MetricValue metric="trade" value={slice.trade.tradeKillsPerRound} /></div>
+            <div><p className="text-xs text-[var(--color-fg-mid)]">Util/r</p><MetricValue metric="utility" value={slice.utility.utilityDamagePerRound} /></div>
           </div> : <p className="text-sm text-[var(--color-fg-mid)]">当前范围没有详细回合数据。</p>}
         </MetricPanel>
       </div>}
@@ -100,7 +100,7 @@ export function PlayerWorkspace({ detail }: { detail: TournamentPlayerDetail }) 
           ["Attempts", slice.opening.attempts],
           ["Attempt%", <MetricValue key="attemptRate" metric="openingAttempt" value={slice.opening.attemptRate} />],
           ["Opening wins", slice.opening.firstKills],
-          ["Open Win%", <MetricValue key="openWinRate" metric="openingWin" value={slice.opening.successRate} />],
+          ["Success%", <MetricValue key="openWinRate" metric="openingWin" value={slice.opening.successRate} />],
           ["FK/100r", <MetricValue key="firstKillsPerRound" metric="firstKill" value={slice.opening.firstKillsPerRound} />],
           ["FD/100r", <MetricValue key="firstDeathsPerRound" metric="firstDeath" value={slice.opening.firstDeathsPerRound} />],
           ["Win after opening win", <MetricValue key="winAfterOpeningWin" metric="roundWin" value={slice.opening.winRateAfterWinningOpeningDuel} />],
@@ -109,14 +109,14 @@ export function PlayerWorkspace({ detail }: { detail: TournamentPlayerDetail }) 
         <SampleValue title="Teamplay" rows={[
           ["KAST", <MetricValue key="kast" metric="kast" value={slice.kast} />],
           ["Survival%", <MetricValue key="survival" metric="survival" value={slice.survival} />],
-          ["Trade/R", <MetricValue key="trade" metric="trade" value={slice.trade.tradeKillsPerRound} />],
+          ["Trade/r", <MetricValue key="trade" metric="trade" value={slice.trade.tradeKillsPerRound} />],
           ["Traded%", <MetricValue key="traded" metric="traded" value={slice.trade.tradedDeathsPerDeath} />],
         ]} />
       </div>}
 
       {tab === "utility" && slice && <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         <SampleValue title="Utility" rows={[
-          ["Util/R", <MetricValue key="utilityDamage" metric="utility" value={slice.utility.utilityDamagePerRound} />],
+          ["Util/r", <MetricValue key="utilityDamage" metric="utility" value={slice.utility.utilityDamagePerRound} />],
           ["FA/100r", <MetricValue key="flashAssists" metric="flashAssist" value={slice.utility.flashAssistsPerRound} />],
           ["Blind/Flash", <MetricValue key="blindPerFlash" metric="blindPerFlash" value={slice.utility.enemyBlindSecondsPerFlash} />],
           ["Net Blind/Flash", <MetricValue key="netBlindPerFlash" metric="netBlindPerFlash" value={slice.utility.netBlindSecondsPerFlash} />],
