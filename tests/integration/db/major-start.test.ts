@@ -790,13 +790,13 @@ async function exerciseMajor24Lifecycle(
 
   const opening = await pool.query<{ entrants: string; seeds: number[]; formats: string[] }>(`
     SELECT
-      (SELECT count(*)::text FROM major_stage_entrants WHERE stage_run_id = $2) AS entrants,
+      (SELECT count(*)::text FROM major_stage_entrants WHERE stage_run_id = $1) AS entrants,
       (SELECT array_agg(t.seed ORDER BY t.seed) FROM major_stage_entrants e
         JOIN major_tournament_entrants te ON te.id = e.tournament_entrant_id
         JOIN major_tournament_seeds t ON t.tournament_entrant_id = te.id
-        WHERE e.stage_run_id = $2) AS seeds,
-      (SELECT array_agg(DISTINCT format ORDER BY format) FROM matches WHERE major_stage_run_id = $2) AS formats
-  `, [fixture.seasonId, start.stageRunId]);
+        WHERE e.stage_run_id = $1) AS seeds,
+      (SELECT array_agg(DISTINCT format ORDER BY format) FROM matches WHERE major_stage_run_id = $1) AS formats
+  `, [start.stageRunId]);
   const openingFact = opening.rows[0];
   if (!openingFact || openingFact.entrants !== "16" || openingFact.seeds?.[0] !== 9 || openingFact.seeds.at(-1) !== 24 || openingFact.formats?.join(",") !== "bo3") {
     throw new Error("Major-24 Stage 1 没有冻结 9–24 队并按 BO3 开赛。");

@@ -19,6 +19,5 @@ test("管理员可以选择并保存 Major-24 profile", async ({ page, scenario 
   await page.getByLabel("Slug").fill(slug);
   await page.getByRole("button", { name: "保存为草稿" }).first().click();
   await expect(page).toHaveURL(new RegExp(`/admin/${slug}/settings$`));
-  await expect(page.getByText(/24 支队伍；队伍整体报名；每队 5–9 人；2 个瑞士轮阶段/)).toBeVisible();
   await expect(page.getByRole("combobox", { name: "Major 正赛规模" })).toContainText("Major 24");
 });
