@@ -93,7 +93,7 @@ describe("StatsDataTable client state", () => {
   it("shows the Chinese metric explanation without replacing the English header", () => {
     const metricColumns: StatsDataColumn<Row>[] = [
       columns[0]!,
-      { ...columns[1]!, metric: "rating" },
+      { key: "rating", metric: "rating", numeric: true, render: (row) => row.rating ?? "—" },
     ];
     render(<StatsDataTable rows={rows} columns={metricColumns} rowKey={(row) => row.name} />);
     expect(screen.getByText("Rating")).toBeInTheDocument();
