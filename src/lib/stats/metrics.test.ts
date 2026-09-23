@@ -6,9 +6,12 @@ describe("stats metric naming contract", () => {
     expect(STATS_METRICS.kpr.label).toBe("KPR");
     expect(STATS_METRICS.firstKill.label).toBe("FK/100r");
     expect(STATS_METRICS.flashAssist.label).toBe("FA/100r");
-    expect(STATS_METRICS.trade.label).toBe("Trade/r");
+    expect(STATS_METRICS.trade.label).toBe("Trade/100r");
     expect(STATS_METRICS.utility.label).toBe("Util/r");
     expect(STATS_METRICS.hePerRound.label).toBe("HE/r");
+    expect(STATS_METRICS.trade.precision).toBe(1);
+    expect(STATS_METRICS.mk.precision).toBe(1);
+    expect(STATS_METRICS.blindPerFlash.precision).toBe(2);
   });
 
   it("uses concise contextual rate names for opening and round outcomes", () => {
