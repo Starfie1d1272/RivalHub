@@ -9,7 +9,7 @@ import { MetricValue } from "@/components/stats/MetricValue";
 import { StatsDataTable, type StatsDataColumn } from "@/components/stats/StatsDataTable";
 import { statsRateDenominator } from "@/lib/stats/presentation";
 import type { TournamentStats } from "@/lib/stats/tournament-query";
-import { statsHref, type StatsQuery } from "@/lib/stats/view-state";
+import { type StatsQuery } from "@/lib/stats/view-state";
 import { navigateStatsScope } from "@/lib/stats/view-state";
 import { CS2_MAP_CATALOG } from "@/lib/config/cs2-maps";
 
@@ -51,7 +51,7 @@ function teamColumns(family: Family, seasonSlug: string, query: StatsQuery): Sta
     className: "w-[28%]",
     sortable: true,
     sortValue: (row) => row.name,
-    render: (row) => <Link href={statsHref(seasonSlug, query, { team: row.entryId })} scroll={false} className="font-medium hover:text-[var(--color-accent)]">{row.name}</Link>,
+    render: (row) => <Link href={`/${seasonSlug}/teams/${row.entryId}`} className="font-medium hover:text-[var(--color-accent)]">{row.name}</Link>,
   };
   const detailSample: StatsDataColumn<TeamDirectoryRow>[] = [
     { key: "detailMaps", label: "Maps", numeric: true, className: "w-[9%]", sortable: true, sortValue: (row) => row.analytics?.mapCount ?? null, render: (row) => row.analytics?.mapCount ?? 0 },
