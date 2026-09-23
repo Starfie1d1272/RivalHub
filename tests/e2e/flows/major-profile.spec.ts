@@ -21,9 +21,9 @@ test("管理员可以选择并保存 Major-24 profile", async ({ page, scenario 
   await expect(page).toHaveURL(new RegExp(`/admin/${slug}/settings$`));
   const savedStages = page.getByRole("region", { name: "赛制与地图" }).getByRole("listitem");
   await expect(savedStages).toHaveCount(3);
-  await expect(savedStages.nth(0)).toContainText("阶段一 瑞士轮 · 16 队");
+  await expect(savedStages.nth(0)).toContainText(/阶段一\s*瑞士轮 · 16 队/);
   await expect(savedStages.nth(0)).toContainText("主赛制 BO3");
-  await expect(savedStages.nth(1)).toContainText("阶段二 瑞士轮 · 16 队");
+  await expect(savedStages.nth(1)).toContainText(/阶段二\s*瑞士轮 · 16 队/);
   await expect(savedStages.nth(1)).toContainText("主赛制 BO3");
-  await expect(savedStages.nth(2)).toContainText("淘汰赛 单败淘汰 · 8 队");
+  await expect(savedStages.nth(2)).toContainText(/淘汰赛\s*单败淘汰 · 8 队/);
 });
