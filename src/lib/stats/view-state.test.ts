@@ -10,7 +10,7 @@ describe("stats URL scope", () => {
       tab: "players", stage: "swiss", mapFilter: "de_ancient", teamFilter: teamId,
       player: playerId, sort: "adr", dir: "asc", view: "impact", page: "5", side: "ct", q: "x",
     }, ["swiss"]);
-    expect(parsed).toEqual({ tab: "players", stage: "swiss", mapFilter: "de_ancient", teamFilter: teamId, player: "", team: "", map: "" });
+    expect(parsed).toEqual({ tab: "players", stage: "swiss", mapFilter: "de_ancient", teamFilter: teamId, player: "", team: "", map: "", mapsView: "pool" });
   });
 
   it("clears entity scope on tab and stage changes", () => {
@@ -30,13 +30,23 @@ describe("stats URL scope", () => {
     expect([...stalePlayerUpdate.searchParams]).toEqual([["tab", "players"], ["stage", "swiss"], ["mapFilter", "de_ancient"], ["teamFilter", teamId]]);
   });
 
-  it("treats map and team as entity selections in their own directories", () => {
+  it("keeps map detail selection but retires stats-only team selection", () => {
     const overview = parseStatsQuery({ tab: "overview", stage: "swiss" }, ["swiss"]);
     const map = new URL(statsHref("major", overview, { tab: "maps", map: "de_ancient" }), "https://example.test");
     expect([...map.searchParams]).toEqual([["tab", "maps"], ["stage", "swiss"], ["map", "de_ancient"]]);
     const selectedMap = parseStatsQuery({ tab: "maps", stage: "swiss", map: "de_ancient" }, ["swiss"]);
     const teams = new URL(statsHref("major", selectedMap, { tab: "teams", mapFilter: "de_ancient", team: teamId }), "https://example.test");
-    expect([...teams.searchParams]).toEqual([["tab", "teams"], ["stage", "swiss"], ["mapFilter", "de_ancient"], ["team", teamId]]);
+    expect([...teams.searchParams]).toEqual([["tab", "teams"], ["stage", "swiss"], ["mapFilter", "de_ancient"]]);
+  });
+
+  it("supports weapons filters and a shareable veto view", () => {
+    const overview = parseStatsQuery({ tab: "overview", stage: "swiss" }, ["swiss"]);
+    const weapons = new URL(statsHref("major", overview, { tab: "weapons", mapFilter: "de_ancient", teamFilter: teamId }), "https://example.test");
+    expect([...weapons.searchParams]).toEqual([["tab", "weapons"], ["stage", "swiss"], ["mapFilter", "de_ancient"], ["teamFilter", teamId]]);
+
+    const maps = parseStatsQuery({ tab: "maps", stage: "swiss", mapsView: "veto" }, ["swiss"]);
+    expect(maps.mapsView).toBe("veto");
+    expect([...new URL(statsHref("major", maps), "https://example.test").searchParams]).toEqual([["tab", "maps"], ["stage", "swiss"], ["mapsView", "veto"]]);
   });
 
   it("keeps browser navigation URL-backed while suppressing scope-change scroll resets", () => {
