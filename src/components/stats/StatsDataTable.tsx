@@ -29,6 +29,10 @@ function statsColumnLabel<T>(column: StatsDataColumn<T>) {
   return column.label ?? (column.metric ? STATS_METRICS[column.metric].label : column.key);
 }
 
+function hasNumericAdornment<T>(column: StatsDataColumn<T>) {
+  return Boolean(column.numeric && (column.metric || (column.sortable && column.sortValue)));
+}
+
 interface RankingState<T> {
   rows: T[];
   rankedCount: number;
@@ -138,23 +142,32 @@ export function StatsDataTable<T>({
                   <th
                     key={column.key}
                     aria-sort={active ? direction === "desc" ? "descending" : "ascending" : "none"}
-                    className={`whitespace-nowrap px-3 py-3 ${column.numeric ? "text-right" : "text-left"} ${column.className ?? ""} ${index === 0 ? `sticky ${showRank ? "left-12" : "left-0"} z-10 bg-[var(--color-panel)]` : ""}`}
+                    className={`whitespace-nowrap py-3 ${column.numeric ? `${hasNumericAdornment(column) ? "pl-3 pr-9" : "px-3"} text-right` : "px-3 text-left"} ${column.className ?? ""} ${index === 0 ? `sticky ${showRank ? "left-12" : "left-0"} z-10 bg-[var(--color-panel)]` : ""}`}
                   >
-                    <div className={`flex items-center ${column.numeric ? "justify-end" : "justify-start"}`}>
-                      <span className="inline-flex items-center gap-1">
-                        {column.sortable && column.sortValue ? (
-                          <button
-                            type="button"
-                            aria-label={sortLabel}
-                            onClick={() => sortBy(column.key)}
-                            className={`inline-flex min-h-6 items-center transition-colors hover:text-[var(--color-fg)] ${active ? "text-[var(--color-fg)]" : ""}`}
-                          >
-                            {label}
-                          </button>
-                        ) : <span>{label}</span>}
-                        {column.metric && <StatsMetricHelp metric={column.metric} />}
-                      </span>
-                      {active && <span aria-hidden="true" className="ml-1.5 text-[var(--color-accent)]">{arrow}</span>}
+                    <div className={`relative flex min-h-6 items-center ${column.numeric ? "justify-end" : "justify-start"}`}>
+                      {column.sortable && column.sortValue ? (
+                        <button
+                          type="button"
+                          aria-label={sortLabel}
+                          onClick={() => sortBy(column.key)}
+                          className={`inline-flex min-h-6 items-center transition-colors hover:text-[var(--color-fg)] ${active ? "text-[var(--color-fg)]" : ""}`}
+                        >
+                          {label}
+                        </button>
+                      ) : <span>{label}</span>}
+                      {column.numeric ? (
+                        hasNumericAdornment(column) && (
+                          <span className="absolute left-full ml-1 inline-flex items-center gap-1">
+                            {column.metric && <StatsMetricHelp metric={column.metric} />}
+                            {active && <span aria-hidden="true" className="text-[var(--color-accent)]">{arrow}</span>}
+                          </span>
+                        )
+                      ) : (
+                        <>
+                          {column.metric && <span className="ml-1"><StatsMetricHelp metric={column.metric} /></span>}
+                          {active && <span aria-hidden="true" className="ml-1.5 text-[var(--color-accent)]">{arrow}</span>}
+                        </>
+                      )}
                     </div>
                   </th>
                 );
@@ -182,7 +195,7 @@ export function StatsDataTable<T>({
                       </td>
                     )}
                     {columns.map((column, columnIndex) => (
-                      <td key={column.key} className={`whitespace-nowrap px-3 py-2.5 ${column.numeric ? "text-right tabular-nums" : "text-left"} ${column.className ?? ""} ${columnIndex === 0 ? `sticky ${showRank ? "left-12" : "left-0"} z-10 bg-[var(--color-panel)]` : ""}`}>
+                      <td key={column.key} className={`whitespace-nowrap py-2.5 align-top ${column.numeric ? `${hasNumericAdornment(column) ? "pl-3 pr-9" : "px-3"} text-right tabular-nums [&_.stats-metric-value]:items-end [&_.stats-metric-value]:text-right` : "px-3 text-left"} ${column.className ?? ""} ${columnIndex === 0 ? `sticky ${showRank ? "left-12" : "left-0"} z-10 bg-[var(--color-panel)]` : ""}`}>
                         {column.render(row, globalIndex)}
                       </td>
                     ))}
