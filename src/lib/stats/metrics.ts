@@ -41,7 +41,7 @@ function metric<K extends SampleKind>(
 }
 
 export const STATS_METRICS = {
-  rating: metric("Rating", "number", 2, "scoreboard", "综合衡量选手整体表现的评分，适合横向比较赛事发挥。", { rankingSampleKind: "rounds" }),
+  rating: metric("Rating", "number", 2, "scoreboard", "综合衡量选手或队伍整体表现的评分，适合横向比较当前统计范围内的发挥。", { rankingSampleKind: "rounds" }),
   adr: metric("ADR", "number", 1, "scoreboard", "平均每回合造成的伤害。", { rankingSampleKind: "rounds" }),
   kd: metric("K/D", "number", 2, "scoreboard", "击杀数与死亡数的比值。", { rankingSampleKind: "rounds" }),
   kpr: metric("KPR", "perRound", 2, "scoreboard", "平均每回合击杀数。", { rankingSampleKind: "rounds" }),
