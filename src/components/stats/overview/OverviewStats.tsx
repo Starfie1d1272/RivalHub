@@ -84,8 +84,8 @@ export function OverviewStats({ data, query, seasonSlug }: { data: TournamentSta
     { key: "map", label: "Map", className: "w-[28%]", render: (row) => <Link href={statsHref(seasonSlug, query, { tab: "maps", map: row.mapName })} scroll={false} className="font-medium hover:text-[var(--color-accent)]">{mapLabel(row.mapName)}</Link> },
     { key: "played", label: "Played", numeric: true, className: "w-[10%]", sortable: true, sortValue: (row) => row.played, render: (row) => row.played },
     { key: "rounds", label: "Rounds", numeric: true, className: "w-[11%]", sortable: true, sortValue: (row) => row.rounds, render: (row) => row.rounds },
-    { key: "pick", label: "Pick", numeric: true, className: "w-[8%]", sortable: true, sortValue: (row) => row.picks, render: (row) => row.picks ?? "—" },
-    { key: "ban", label: "Ban", numeric: true, className: "w-[8%]", sortable: true, sortValue: (row) => row.bans, render: (row) => row.bans ?? "—" },
+    { key: "pick", label: "Picks", numeric: true, className: "w-[8%]", sortable: true, sortValue: (row) => row.picks, render: (row) => row.picks ?? "—" },
+    { key: "ban", label: "Bans", numeric: true, className: "w-[8%]", sortable: true, sortValue: (row) => row.bans, render: (row) => row.bans ?? "—" },
     { key: "side", label: "CT / T", className: "hidden w-[35%] sm:table-cell", sortable: true, sortValue: (row) => row.ct?.rate, render: (row) => <StatsSideSplit ct={row.ct} t={row.t} compact /> },
   ];
   if (partialCoverage) mapColumns.push({ key: "coverage", label: "Coverage", numeric: true, className: "hidden sm:table-cell", render: (row) => `${row.detailed}/${row.completed}` });
@@ -94,7 +94,7 @@ export function OverviewStats({ data, query, seasonSlug }: { data: TournamentSta
     ["Pistol → R2", "conversion", data.analytics.totals.round2Conversion],
     ["5v4 Conversion", "fiveVFour", data.analytics.totals.manAdvantage["5v4"]],
     ["4v5 Comeback", "fourVFive", data.analytics.totals.manAdvantage["4v5"]],
-    ["Eco/Semi Upset", "ecoSemi", data.analytics.totals.ecoSemiUpset],
+    ["Eco/Semi Win%", "ecoSemi", data.analytics.totals.ecoSemiUpset],
   ] as const;
 
   return (
