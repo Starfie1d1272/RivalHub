@@ -23,7 +23,8 @@ describe("StatsDataTable client state", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Rating ↓" }));
     expect(within(table).getAllByRole("row").slice(1).map((row) => row.textContent)).toEqual(["Low1", "High3", "Missing—"]);
-    expect(screen.getByRole("columnheader", { name: "Rating ↑" })).toHaveAttribute("aria-sort", "ascending");
+    expect(screen.getByRole("button", { name: "Rating ↑" })).toBeInTheDocument();
+    expect(screen.getAllByRole("columnheader")[1]).toHaveAttribute("aria-sort", "ascending");
   });
 
   it("paginates locally", () => {
@@ -44,6 +45,11 @@ describe("StatsDataTable client state", () => {
     render(<StatsDataTable rows={rows} columns={columns} rowKey={(row) => row.name} />);
     expect(screen.queryByText(/第 1 \/ 1 页/)).not.toBeInTheDocument();
     expect(screen.queryByText(/共 3 条/)).not.toBeInTheDocument();
+  });
+
+  it("accepts a layout class for dense fixed tables", () => {
+    render(<StatsDataTable rows={rows} columns={columns} rowKey={(row) => row.name} tableClassName="min-w-[720px] table-fixed" />);
+    expect(screen.getByRole("table")).toHaveClass("min-w-[720px]", "table-fixed");
   });
 
 });

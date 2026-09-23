@@ -38,4 +38,13 @@ describe("OverviewStats", () => {
     expect(screen.getAllByRole("columnheader", { name: "#" })).toHaveLength(2);
   });
 
+  it("renders visual side splits and full-list navigation", () => {
+    const data = dataWithCoverage(7, 7);
+    data.analytics.totals.ct = { rate: 0.55, wins: 55, opportunities: 100 };
+    data.analytics.totals.t = { rate: 0.45, wins: 45, opportunities: 100 };
+    render(<OverviewStats data={data} query={parseStatsQuery({}, [])} seasonSlug="major" />);
+    expect(screen.getByLabelText("CT 55.0%, T 45.0%")).toBeInTheDocument();
+    expect(screen.getAllByRole("link", { name: "View all →" })).toHaveLength(2);
+  });
+
 });

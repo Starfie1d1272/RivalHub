@@ -16,16 +16,29 @@ export function StatsShell({
   const partialCoverage = coverage.completedMaps > 0 && coverage.detailedMaps < coverage.completedMaps;
   return (
     <div className="min-w-0 space-y-5">
-      <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <nav aria-label="赛事统计" className="flex min-w-0 gap-2 overflow-x-auto pb-1 sm:pb-0">
-          {(Object.entries(STATS_TABS) as [StatsTab, string][]).map(([tab, label]) => (
-            <Link key={tab} href={statsHref(seasonSlug, query, { tab })} scroll={false} aria-current={query.tab === tab ? "page" : undefined}
-              className={`whitespace-nowrap rounded-sm border px-4 py-2 text-sm ${query.tab === tab ? "border-[var(--color-accent)] text-[var(--color-accent)]" : "border-[var(--color-border)] hover:bg-[var(--color-surface-raised)]"}`}>
-              {label}
-            </Link>
-          ))}
+      <div className="flex min-w-0 flex-col gap-2 border-b border-[var(--color-border)] sm:flex-row sm:items-end sm:justify-between">
+        <nav aria-label="赛事统计" className="flex min-w-0 gap-1 overflow-x-auto">
+          {(Object.entries(STATS_TABS) as [StatsTab, string][]).map(([tab, label]) => {
+            const active = query.tab === tab;
+            return (
+              <Link
+                key={tab}
+                href={statsHref(seasonSlug, query, { tab })}
+                scroll={false}
+                aria-current={active ? "page" : undefined}
+                className={[
+                  "-mb-px whitespace-nowrap border-b-2 px-3 py-2.5 text-sm font-medium transition-colors",
+                  active
+                    ? "border-[var(--color-accent)] text-[var(--color-fg)]"
+                    : "border-transparent text-[var(--color-fg-mid)] hover:border-[var(--color-border-hi)] hover:text-[var(--color-fg)]",
+                ].join(" ")}
+              >
+                {label}
+              </Link>
+            );
+          })}
         </nav>
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3 pb-2 sm:pb-1.5">
           {partialCoverage && <span className="text-xs text-[var(--color-fg-mid)]">Coverage {coverage.detailedMaps}/{coverage.completedMaps} maps</span>}
           <StatsScopeBar query={query} seasonSlug={seasonSlug} stages={stages} />
         </div>
