@@ -1,3 +1,4 @@
+import { formatDisplayValue } from "./display";
 import { STATS_METRICS, type StatsMetricKey } from "./metrics";
 
 export interface StatsRateValue {
@@ -31,22 +32,26 @@ export function statsRateDenominator(value: StatsRateValue): number | undefined 
 }
 
 export function formatStatsMetric(metric: StatsMetricKey, value: number | null | undefined): string {
-  if (value == null || !Number.isFinite(value)) return "—";
-  const definition = STATS_METRICS[metric];
-  if (definition.unit === "count") return new Intl.NumberFormat("zh-CN", { maximumFractionDigits: 0 }).format(value);
-  if (definition.unit === "percent") return `${value.toFixed(definition.precision)}%`;
-  if (definition.unit === "per100Round") return (value * 100).toFixed(definition.precision);
-  if (definition.unit === "seconds") return `${value.toFixed(definition.precision)}s`;
-  return value.toFixed(definition.precision);
+  return formatDisplayValue(value, STATS_METRICS[metric]);
+}
+
+function canonicalRate(value: StatsRateValue): number | null {
+  const numerator = statsRateNumerator(value);
+  const denominator = statsRateDenominator(value);
+  if (
+    numerator !== undefined &&
+    Number.isFinite(numerator) &&
+    denominator !== undefined &&
+    Number.isFinite(denominator) &&
+    denominator > 0
+  ) {
+    return numerator / denominator;
+  }
+  return value.rate != null && Number.isFinite(value.rate) ? value.rate : null;
 }
 
 export function formatStatsRate(metric: StatsMetricKey, value: StatsRateValue): string {
-  if (value.rate == null || !Number.isFinite(value.rate)) return "—";
-  const definition = STATS_METRICS[metric];
-  if (definition.unit === "percent") return `${(value.rate * 100).toFixed(definition.precision)}%`;
-  if (definition.unit === "per100Round") return (value.rate * 100).toFixed(definition.precision);
-  if (definition.unit === "seconds") return `${value.rate.toFixed(definition.precision)}s`;
-  return value.rate.toFixed(definition.precision);
+  return formatDisplayValue(canonicalRate(value), STATS_METRICS[metric]);
 }
 
 export function formatStatsSample(value: StatsRateValue): string {
