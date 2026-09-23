@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createMajorDefaultCapabilities } from "@/lib/competition/templates";
+import { createMajor24Capabilities, createMajorDefaultCapabilities } from "@/lib/competition/templates";
 import {
   evaluateMajorPrestartReadiness,
   type MajorPrestartReadinessInput,
@@ -32,6 +32,27 @@ describe("evaluateMajorPrestartReadiness", () => {
     expect(result.blockers).toEqual([]);
     expect(result.openingPlan?.firstRound.pairings).toHaveLength(8);
     expect(result.checks.every((check) => check.state === "ready")).toBe(true);
+  });
+
+  it("starts a complete 24-team profile with 24 seeds and a BO3 Stage 1 preview", () => {
+    const input = makeInput();
+    const ids = Array.from({ length: 24 }, (_, index) => `team-${index + 1}`);
+    input.capabilities = createMajor24Capabilities();
+    input.teams = ids.map((teamId, teamIndex) => ({
+      teamId,
+      playerIds: Array.from({ length: 5 }, (_, playerIndex) => `player-${teamIndex * 5 + playerIndex + 1}`),
+      educationVerificationIds: Array.from({ length: 5 }, (_, playerIndex) => `verification-${teamIndex * 5 + playerIndex + 1}`),
+    }));
+    input.confirmations = ids.map((teamId) => ({ teamId, confirmed: true }));
+    input.tournamentSeeds = ids.map((teamId, index) => ({ teamId, tournamentSeed: index + 1 }));
+
+    const result = evaluateMajorPrestartReadiness(input);
+
+    expect(result.canStart).toBe(true);
+    expect(result.openingPlan?.profile).toEqual({ id: "major-24", entrantCapacity: 24 });
+    expect(result.openingPlan?.stage1.entrants.map((entrant) => entrant.tournamentSeed)).toEqual(Array.from({ length: 16 }, (_, index) => index + 9));
+    expect(result.openingPlan?.firstRound.pairings).toHaveLength(8);
+    expect(result.openingPlan?.firstRound.pairings.every((pairing) => pairing.format === "bo3")).toBe(true);
   });
 
   it("blocks a Major-shaped custom template before managed runtime checks", () => {

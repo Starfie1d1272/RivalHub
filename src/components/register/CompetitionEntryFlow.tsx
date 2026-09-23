@@ -51,6 +51,7 @@ interface Props {
   requiresTeamLogo: boolean;
   canManageEntryTeamProfile: boolean;
   approvedTeamCount: number;
+  majorEntrantCapacity?: 24 | 32 | null;
   capabilities: CompetitionEntryCapabilities;
   invitationConflict: null | {
     pendingInvitationCount: number;
@@ -89,7 +90,11 @@ export function CompetitionEntryFlow(props: Props) {
   });
 
   const recruitmentHint = props.minRoster === 5 && props.maxRoster === 9 && props.starterCount === 5
-    ? <p className="text-sm leading-6 text-[var(--color-fg-mid)]">{props.approvedTeamCount >= 32 ? `当前已有 ${props.approvedTeamCount} 支队伍通过报名审核，仍可继续报名；若最终超过 32 支，将按赛事规则进行资格赛。也可以加入已有队伍或担任替补。` : "还没有完整阵容？可以加入已有队伍或担任替补。"}每队可报名 5–9 人，合理准备替补有助于应对比赛时间冲突。<Link className="ml-2 underline underline-offset-4 focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]" href={recruitmentHref("teams", { targetSeasonId: props.competitionId })}>查看招募中的队伍</Link></p>
+    ? <p className="text-sm leading-6 text-[var(--color-fg-mid)]">{props.majorEntrantCapacity === 24 && props.approvedTeamCount >= 24
+      ? `当前已有 ${props.approvedTeamCount} 支队伍通过报名审核；本届正赛容量为 24 队，仍可继续报名，最终名单由赛事管理员确认。也可以加入已有队伍或担任替补。`
+      : props.majorEntrantCapacity === 32 && props.approvedTeamCount >= 32
+        ? `当前已有 ${props.approvedTeamCount} 支队伍通过报名审核，仍可继续报名；若最终超过 32 支，将按本届公告安排处理。也可以加入已有队伍或担任替补。`
+        : "还没有完整阵容？可以加入已有队伍或担任替补。"}每队可报名 5–9 人，合理准备替补有助于应对比赛时间冲突。<Link className="ml-2 underline underline-offset-4 focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]" href={recruitmentHref("teams", { targetSeasonId: props.competitionId })}>查看招募中的队伍</Link></p>
     : null;
 
   if (!props.entry) {

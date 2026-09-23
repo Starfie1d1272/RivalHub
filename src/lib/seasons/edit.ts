@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { createCompetitionTemplate, type CompetitionTemplate } from "@/lib/competition/templates";
+import { checkStandardMajorCapabilities } from "@/lib/competition/definition";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { parseCSTInput } from "@/lib/utils/date";
 import {
@@ -231,6 +232,10 @@ export function resolveCompetitionDefinition(data: ParsedSeasonForm, applyTempla
   const fallbackConversion = template === "major"
     ? input.teamRegistrationConfig?.competitiveProfile?.fallbackConversion
     : undefined;
+  const majorProfile = template === "major"
+    ? checkStandardMajorCapabilities({ ...builtIn, stagePlan: input.stagePlan })
+    : null;
+  const stagePlan = majorProfile?.isStandardMajor ? structuredClone(input.stagePlan) : builtIn.stagePlan;
   return {
     ...input,
     kind: template === "major" ? "Major" : "Rivals",
@@ -240,7 +245,7 @@ export function resolveCompetitionDefinition(data: ParsedSeasonForm, applyTempla
     // Community awards are an operator-owned capability, not built-in
     // competition semantics. Preserve an explicit draft choice.
     hasCommunityAwards: input.hasCommunityAwards,
-    stagePlan: builtIn.stagePlan,
+    stagePlan,
     teamRegistrationConfig: {
       ...builtIn.teamRegistrationConfig,
       competitiveProfile: builtIn.teamRegistrationConfig.competitiveProfile

@@ -1,116 +1,68 @@
 import { describe, expect, it } from "vitest";
+import { createMajor24Capabilities, createMajorDefaultCapabilities } from "@/lib/competition/templates";
 import { buildMajorOpeningPlan } from "./opening";
 import type { MajorTournamentSeededTeam } from "./seeding";
 
-const TOURNAMENT_TEAMS: readonly MajorTournamentSeededTeam[] = Array.from(
-  { length: 32 },
-  (_, index) => ({ teamId: `team-${index + 1}`, tournamentSeed: index + 1 }),
-);
-
-function makeRng(seed: number): () => number {
-  let state = seed >>> 0;
-  return () => {
-    state = (state * 1664525 + 1013904223) >>> 0;
-    return state / 0x100000000;
-  };
+function teams(capacity: number): readonly MajorTournamentSeededTeam[] {
+  return Array.from({ length: capacity }, (_, index) => ({ teamId: `team-${index + 1}`, tournamentSeed: index + 1 }));
 }
 
-function shuffle<T>(items: readonly T[], rng: () => number): T[] {
-  const result = [...items];
-  for (let index = result.length - 1; index > 0; index -= 1) {
-    const swapIndex = Math.floor(rng() * (index + 1));
-    [result[index], result[swapIndex]] = [result[swapIndex], result[index]];
-  }
-  return result;
-}
-
-function tournamentSeeds(teams: readonly MajorTournamentSeededTeam[]): number[] {
-  return teams.map((team) => team.tournamentSeed);
+function shuffle<T>(items: readonly T[]): T[] {
+  return [...items].reverse();
 }
 
 describe("buildMajorOpeningPlan", () => {
-  it("builds the standard 32-team entry cohorts and Stage 1 first round", () => {
-    const plan = buildMajorOpeningPlan({ teams: TOURNAMENT_TEAMS, stageOneMatchFormat: "bo1" });
+  it("keeps the standard 32-team cohorts and BO1 first round", () => {
+    const stagePlan = createMajorDefaultCapabilities().stagePlan;
+    const plan = buildMajorOpeningPlan({ teams: teams(32), stagePlan });
 
-    expect(tournamentSeeds(plan.tournamentTeams)).toEqual(Array.from({ length: 32 }, (_, index) => index + 1));
-    expect(tournamentSeeds(plan.stage3.directEntrants)).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
-    expect(tournamentSeeds(plan.stage2.directEntrants)).toEqual([9, 10, 11, 12, 13, 14, 15, 16]);
-    expect(plan.stage1.entrants.map((entrant) => entrant.tournamentSeed)).toEqual(
-      Array.from({ length: 16 }, (_, index) => index + 17),
-    );
-    expect(plan.stage1.entrants.map((entrant) => entrant.initialStageSeed)).toEqual(
-      Array.from({ length: 16 }, (_, index) => index + 1),
-    );
-    expect(plan.firstRound.pairings).toEqual(
-      Array.from({ length: 8 }, (_, index) => ({
-        round: 1,
-        higherSeed: {
-          teamId: `team-${index + 17}`,
-          tournamentSeed: index + 17,
-          stageOneSeed: index + 1,
-        },
-        lowerSeed: {
-          teamId: `team-${index + 25}`,
-          tournamentSeed: index + 25,
-          stageOneSeed: index + 9,
-        },
-        format: "bo1",
-        pairingRule: "initial",
-      })),
-    );
+    expect(plan.profile).toEqual({ id: "major-32", entrantCapacity: 32 });
+    expect(plan.entryCohorts.map(({ stageName, fromSeed, toSeed }) => [stageName, fromSeed, toSeed])).toEqual([
+      ["阶段三", 1, 8], ["阶段二", 9, 16], ["阶段一", 17, 32],
+    ]);
+    expect(plan.stage1.entrants.map((entrant) => entrant.tournamentSeed)).toEqual(Array.from({ length: 16 }, (_, index) => index + 17));
+    expect(plan.stage1.entrants.map((entrant) => entrant.initialStageSeed)).toEqual(Array.from({ length: 16 }, (_, index) => index + 1));
+    expect(plan.firstRound.pairings).toHaveLength(8);
+    expect(plan.firstRound.pairings.every((pairing) => pairing.format === "bo1")).toBe(true);
   });
 
-  it("is deterministic when the tournament-team input order is shuffled", () => {
-    const baseline = buildMajorOpeningPlan({ teams: TOURNAMENT_TEAMS, stageOneMatchFormat: "bo1" });
-    const shuffled = shuffle(TOURNAMENT_TEAMS, makeRng(73));
+  it("builds Major-24 seeds 9–24 into Stage 1 and previews eight BO3 matches", () => {
+    const plan = buildMajorOpeningPlan({ teams: teams(24), stagePlan: createMajor24Capabilities().stagePlan });
 
-    expect(shuffled).not.toEqual(TOURNAMENT_TEAMS);
-    expect(buildMajorOpeningPlan({ teams: shuffled, stageOneMatchFormat: "bo1" })).toEqual(baseline);
+    expect(plan.profile).toEqual({ id: "major-24", entrantCapacity: 24 });
+    expect(plan.entryCohorts.map(({ stageName, fromSeed, toSeed }) => [stageName, fromSeed, toSeed])).toEqual([
+      ["阶段二", 1, 8], ["阶段一", 9, 24],
+    ]);
+    expect(plan.stage1.entrants.map((entrant) => entrant.tournamentSeed)).toEqual(Array.from({ length: 16 }, (_, index) => index + 9));
+    expect(plan.firstRound.pairings).toHaveLength(8);
+    expect(plan.firstRound.pairings.every((pairing) => pairing.format === "bo3")).toBe(true);
   });
 
-  it("uses the caller-provided BO1 or BO3 format without changing pairings", () => {
-    const bo1 = buildMajorOpeningPlan({ teams: TOURNAMENT_TEAMS, stageOneMatchFormat: "bo1" });
-    const bo3 = buildMajorOpeningPlan({ teams: TOURNAMENT_TEAMS, stageOneMatchFormat: "bo3" });
-    const withoutFormat = (pairing: (typeof bo1.firstRound.pairings)[number]) => ({
-      round: pairing.round,
-      higherSeed: pairing.higherSeed,
-      lowerSeed: pairing.lowerSeed,
-      pairingRule: pairing.pairingRule,
-    });
-
-    expect(bo1.firstRound.pairings.every((pairing) => pairing.format === "bo1")).toBe(true);
-    expect(bo3.firstRound.pairings.every((pairing) => pairing.format === "bo3")).toBe(true);
-    expect(bo3.firstRound.pairings.map(withoutFormat)).toEqual(
-      bo1.firstRound.pairings.map(withoutFormat),
-    );
+  it("is deterministic when tournament entrants are shuffled", () => {
+    const source = teams(24);
+    const stagePlan = createMajor24Capabilities().stagePlan;
+    expect(buildMajorOpeningPlan({ teams: shuffle(source), stagePlan }))
+      .toEqual(buildMajorOpeningPlan({ teams: source, stagePlan }));
   });
 
-  it("rejects malformed complete-Major seed input and unsupported BO5 fail-closed", () => {
-    const withTeam = (index: number, team: MajorTournamentSeededTeam) =>
-      TOURNAMENT_TEAMS.map((current, currentIndex) => (currentIndex === index ? team : current));
-    const build = (teams: readonly MajorTournamentSeededTeam[]) =>
-      () => buildMajorOpeningPlan({ teams, stageOneMatchFormat: "bo1" });
-
-    expect(build(TOURNAMENT_TEAMS.slice(0, 31))).toThrow();
-    expect(build([...TOURNAMENT_TEAMS, { teamId: "team-33", tournamentSeed: 33 }])).toThrow();
-    expect(build(withTeam(31, { teamId: "team-1", tournamentSeed: 32 }))).toThrow();
-    expect(build(withTeam(31, { teamId: "team-32", tournamentSeed: 31 }))).toThrow();
-    expect(build(withTeam(31, { teamId: "team-32", tournamentSeed: 33 }))).toThrow();
-    expect(build(withTeam(0, { teamId: "team-1", tournamentSeed: 0 }))).toThrow();
-    expect(build(withTeam(0, { teamId: "team-1", tournamentSeed: -1 }))).toThrow();
-    expect(build(withTeam(0, { teamId: "team-1", tournamentSeed: 1.5 }))).toThrow();
-    expect(build(withTeam(0, { teamId: "", tournamentSeed: 1 }))).toThrow();
-    expect(() => buildMajorOpeningPlan({ teams: TOURNAMENT_TEAMS, stageOneMatchFormat: "bo5" })).toThrow(
-      "Major Swiss stages do not support bo5 matchFormat",
-    );
+  it("rejects malformed seeds, wrong capacities, unsupported profiles, and Swiss BO5", () => {
+    const source = teams(24);
+    const stagePlan = createMajor24Capabilities().stagePlan;
+    expect(() => buildMajorOpeningPlan({ teams: source.slice(0, 23), stagePlan })).toThrow("exactly 24 teams");
+    expect(() => buildMajorOpeningPlan({ teams: teams(32), stagePlan })).toThrow("exactly 24 teams");
+    expect(() => buildMajorOpeningPlan({ teams: source.map((team, index) => index === 23 ? { ...team, tournamentSeed: 25 } : team), stagePlan })).toThrow();
+    const unsupported = structuredClone(stagePlan);
+    unsupported[0]!.matchFormat = "bo1";
+    expect(() => buildMajorOpeningPlan({ teams: source, stagePlan: unsupported })).toThrow("supported managed Major stage plan");
+    const bo5 = structuredClone(stagePlan);
+    bo5[0]!.matchFormat = "bo5";
+    expect(() => buildMajorOpeningPlan({ teams: source, stagePlan: bo5 })).toThrow("supported managed Major stage plan");
   });
 
-  it("does not mutate the caller-owned array or team objects", () => {
-    const teams = TOURNAMENT_TEAMS.map((team) => ({ ...team }));
-    const snapshot = structuredClone(teams);
-
-    buildMajorOpeningPlan({ teams, stageOneMatchFormat: "bo1" });
-
-    expect(teams).toEqual(snapshot);
+  it("does not mutate the caller-owned teams", () => {
+    const source = teams(24).map((team) => ({ ...team }));
+    const snapshot = structuredClone(source);
+    buildMajorOpeningPlan({ teams: source, stagePlan: createMajor24Capabilities().stagePlan });
+    expect(source).toEqual(snapshot);
   });
 });

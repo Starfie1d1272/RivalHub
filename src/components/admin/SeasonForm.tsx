@@ -13,7 +13,7 @@ import {
   type StagePlan,
 } from "@/types/season";
 import { checkStandardMajorCapabilities } from "@/lib/competition/definition";
-import { createCompetitionTemplate, type CompetitionTemplate } from "@/lib/competition/templates";
+import { createCompetitionTemplate, createMajor24Capabilities, createMajorDefaultCapabilities, type CompetitionTemplate } from "@/lib/competition/templates";
 import { getSeasonEditCapabilities, type SeasonEditPhase } from "@/lib/seasons/edit";
 import { parseCSTInput } from "@/lib/utils/date";
 import { PLAYER_TYPE_LABELS } from "@/lib/seasons/presentation";
@@ -432,14 +432,32 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
             ? "rounded-sm border border-[var(--color-ok-edge)] bg-[var(--color-ok-soft)] p-4 text-sm"
             : "rounded-sm border border-[var(--color-warn-edge)] bg-[var(--color-warn-soft)] p-4 text-sm"}
         >
+          <div className="mb-4 max-w-sm space-y-2">
+            <Label htmlFor="major-profile">Major 正赛规模</Label>
+            <Select
+              value={standardMajorCheck.managedProfile?.id ?? "unsupported"}
+              onValueChange={(value) => setStagePlan(value === "major-24" ? createMajor24Capabilities().stagePlan : createMajorDefaultCapabilities().stagePlan)}
+              disabled={!editCapabilities.canEditPublicRules}
+            >
+              <SelectTrigger id="major-profile"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="major-32">Major 32 · 默认</SelectItem>
+                <SelectItem value="major-24">Major 24</SelectItem>
+                {!standardMajorCheck.managedProfile && <SelectItem value="unsupported" disabled>当前赛制不受支持</SelectItem>}
+              </SelectContent>
+            </Select>
+          </div>
           {standardMajorCheck.isStandardMajor ? (
             <>
               <h2 className="font-semibold">标准 Major 摘要</h2>
               <p className="mt-1 text-[var(--color-fg-mid)]">
-                32 支队伍；队伍整体报名；每队 {minTeamSize}–{maxTeamSize} 人；三阶段瑞士轮；8 队单败淘汰。
+                {standardMajorCheck.managedProfile?.entrantCapacity} 支队伍；队伍整体报名；每队 {minTeamSize}–{maxTeamSize} 人；{standardMajorCheck.managedProfile?.swissStages.length} 个瑞士轮阶段；8 队单败淘汰。
               </p>
               <p className="mt-1 text-[var(--color-fg-mid)]">
-                阶段一、二：普通比赛 BO1，晋级/淘汰局 BO3；阶段三：全部 BO3；淘汰赛：四分之一决赛、半决赛 BO3，决赛 BO5。
+                {standardMajorCheck.managedProfile?.id === "major-24"
+                  ? `${standardMajorCheck.managedProfile.swissStages.map((stage) => stage.name).join("、")}全部 BO3`
+                  : `${standardMajorCheck.managedProfile?.swissStages[0]?.name}、${standardMajorCheck.managedProfile?.swissStages[1]?.name} 普通比赛 BO1，晋级/淘汰局 BO3；${standardMajorCheck.managedProfile?.swissStages[2]?.name} 全部 BO3`}
+                ；淘汰赛：四分之一决赛、半决赛 BO3，决赛 BO5。
               </p>
             </>
           ) : (

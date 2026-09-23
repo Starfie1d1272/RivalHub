@@ -153,7 +153,7 @@ export function buildMajorReadiness(
 }
 
 export async function loadMajorPrestartPageData(season: Season): Promise<MajorPrestartPageData> {
-  const { capabilities, entrantCapacity } = getStandardMajorDefinition(season);
+  const { capabilities, entrantCapacity, managedProfile } = getStandardMajorDefinition(season);
   const approvedEntries = await db.select({
     id: competitionEntries.id,
     name: competitionEntries.name,
@@ -350,6 +350,9 @@ export async function loadMajorPrestartPageData(season: Season): Promise<MajorPr
     },
     seedManagement: {
       seasonId: season.id,
+      entrantCapacity,
+      firstSwissStageName: managedProfile.swissStages[0]!.name,
+      entryCohorts: managedProfile.directEntryCohorts.map(({ stageKey, stageName, fromSeed, toSeed }) => ({ stageKey, stageName, fromSeed, toSeed })),
       entrantsLocked: Boolean(state?.entrantsLockedAt),
       entrants: entrantRows.map((entrant) => ({ teamId: entrant.teamId, teamName: entrant.teamName ?? entrant.teamId })),
       seeds: seedRows,

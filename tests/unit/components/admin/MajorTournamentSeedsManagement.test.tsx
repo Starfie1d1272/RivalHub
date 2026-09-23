@@ -16,6 +16,13 @@ vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 const data: MajorTournamentSeedsManagementData = {
   seasonId: "season-1",
+  entrantCapacity: 32,
+  firstSwissStageName: "阶段一",
+  entryCohorts: [
+    { stageKey: "stage3", stageName: "阶段三", fromSeed: 1, toSeed: 8 },
+    { stageKey: "stage2", stageName: "阶段二", fromSeed: 9, toSeed: 16 },
+    { stageKey: "stage1", stageName: "阶段一", fromSeed: 17, toSeed: 32 },
+  ],
   entrantsLocked: true,
   entrants: [{ teamId: "team-1", teamName: "Team One" }],
   seeds: [],
@@ -93,5 +100,32 @@ describe("MajorTournamentSeedsManagement", () => {
     expect(cohorts).toHaveTextContent("#17–32");
     expect(cohorts).not.toHaveTextContent("Team 1");
     expect(screen.getByText("Team 1")).toBeInTheDocument();
+  });
+
+  it("renders the 24-team capacity and its two configured seed cohorts", () => {
+    const entrants = Array.from({ length: 24 }, (_, index) => ({ teamId: `team-${index + 1}`, teamName: `Team ${index + 1}` }));
+    const seeds = entrants.map((entrant, index) => ({ ...entrant, tournamentSeed: index + 1 }));
+    render(<MajorTournamentSeedsManagement data={{
+      ...data,
+      entrantCapacity: 24,
+      firstSwissStageName: "阶段一",
+      entryCohorts: [
+        { stageKey: "stage2", stageName: "阶段二", fromSeed: 1, toSeed: 8 },
+        { stageKey: "stage1", stageName: "阶段一", fromSeed: 9, toSeed: 24 },
+      ],
+      entrants,
+      seeds,
+      recommendationStatus: "missing",
+      recommendation: null,
+      firstRound: Array.from({ length: 8 }, (_, index) => ({ higherSeed: index + 9, lowerSeed: index + 17, format: "bo3" as const })),
+    }} />);
+
+    expect(screen.getByText("赛事 1–24 种子")).toBeInTheDocument();
+    const cohorts = screen.getByRole("heading", { name: "入场批次" }).closest("section");
+    expect(cohorts).toHaveTextContent("#1–8");
+    expect(cohorts).toHaveTextContent("#9–24");
+    expect(cohorts).not.toHaveTextContent("Stage 3");
+    expect(screen.getByRole("heading", { name: "阶段一 首轮预览" })).toBeVisible();
+    expect(screen.getAllByText(/BO3/)).toHaveLength(8);
   });
 });

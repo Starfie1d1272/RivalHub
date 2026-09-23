@@ -18,7 +18,8 @@ import {
 } from "@/db/schema";
 import { getPositionCounts, getApprovedCount } from "@/actions/register";
 import { RegistrationForm } from "@/components/register/RegistrationForm";
-import { normalizeAffiliationRules, normalizeRegistrationConfig, normalizeTeamRegistrationConfig } from "@/lib/seasons/compatibility";
+import { normalizeAffiliationRules, normalizeRegistrationConfig, normalizeStagePlan, normalizeTeamRegistrationConfig } from "@/lib/seasons/compatibility";
+import { resolveManagedMajorProfile } from "@/lib/competition/definition";
 import { REGISTRATION_STATUS_LABELS } from "@/types/registration";
 import { PageLayout, Panel, StatusBanner, PosChip } from "@/components/rivalhub";
 import { positionLabel } from "@/lib/validators/registration";
@@ -254,6 +255,9 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
             requiresTeamLogo={normalizeTeamRegistrationConfig(season.teamRegistrationConfig).requireTeamLogo}
             canManageEntryTeamProfile={Boolean(entry?.teamId && captainedTeams.some((team) => team.id === entry.teamId))}
             approvedTeamCount={approvedCount?.value ?? 0}
+            majorEntrantCapacity={season.competitionTemplate === "major"
+              ? resolveManagedMajorProfile({ stagePlan: normalizeStagePlan(season.stagePlan) })?.entrantCapacity ?? null
+              : null}
             competitionId={season.id}
             competitionName={season.name}
             currentUserId={userSession.userId}

@@ -126,6 +126,9 @@ export interface MajorPrestartPageData {
   };
   seedManagement: {
     seasonId: string;
+    entrantCapacity: number;
+    firstSwissStageName: string;
+    entryCohorts: Array<{ stageKey: string; stageName: string; fromSeed: number; toSeed: number }>;
     entrantsLocked: boolean;
     entrants: Array<{ teamId: string; teamName: string }>;
     seeds: Array<{ teamId: string; tournamentSeed: number }>;

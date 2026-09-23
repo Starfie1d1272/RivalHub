@@ -3,7 +3,8 @@ import { writeAuditInTx } from "@/lib/audit/write";
 
 import type { TxDb } from "@/db/client";
 import {
-    majorFinalResults,
+  majorFinalResults,
+  majorStageRuns,
   matches,
   postEventAdjudications,
   seasons,
@@ -15,6 +16,7 @@ import {
 } from "@/db/schema";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { parseMajorFinalPlacementGroups } from "@/lib/major/placement";
+import { getManagedMajorProfileFromRunSnapshot } from "@/lib/major/standard";
 
 export const ADJUDICATION_IMPACTS = [
   "canonical_matches",
@@ -41,12 +43,23 @@ function validateImpacts(impacts: readonly AdjudicationImpact[]): AdjudicationIm
   return distinct;
 }
 
-function parsePlacementGroups(value: unknown, championEntryId: string): PlacementGroup[] {
+function parsePlacementGroups(value: unknown, championEntryId: string, entrantCapacity: 24 | 32): PlacementGroup[] {
   try {
-    return parseMajorFinalPlacementGroups(value, championEntryId).map((group) => ({ ...group, entryIds: [...group.entryIds] }));
+    return parseMajorFinalPlacementGroups(value, championEntryId, entrantCapacity).map((group) => ({ ...group, entryIds: [...group.entryIds] }));
   } catch {
     throw new AppError(ErrorCode.INTERNAL_ERROR, "官方名次分组格式损坏。");
   }
+}
+
+async function parsePlacementGroupsInTx(
+  tx: TxDb,
+  result: { playoffStageRunId: string; placementGroups: unknown; championEntryId: string },
+): Promise<PlacementGroup[]> {
+  const [playoffRun] = await tx.select({ stageKey: majorStageRuns.stageKey, ruleSnapshot: majorStageRuns.ruleSnapshot }).from(majorStageRuns)
+    .where(eq(majorStageRuns.id, result.playoffStageRunId));
+  if (!playoffRun) throw new AppError(ErrorCode.INTERNAL_ERROR, "正式结果关联的淘汰赛 StageRun 不存在。");
+  const profile = getManagedMajorProfileFromRunSnapshot(playoffRun.ruleSnapshot, playoffRun.stageKey);
+  return parsePlacementGroups(result.placementGroups, result.championEntryId, profile.entrantCapacity);
 }
 
 async function lockFinalResultInTx(tx: TxDb, seasonId: string) {
@@ -83,7 +96,7 @@ export async function confirmMajorFinalResultInTx(
     seasonId: args.seasonId,
     action: "major.result.confirm",
     actorId: args.actorId,
-    targetId: result.id,meta: { championEntryId: result.championEntryId, placementGroupCount: parsePlacementGroups(result.placementGroups, result.championEntryId).length },
+    targetId: result.id,meta: { championEntryId: result.championEntryId, placementGroupCount: (await parsePlacementGroupsInTx(tx, result)).length },
   });
   return { resultId: result.id, alreadyConfirmed: false };
 }
@@ -187,15 +200,16 @@ function slotForHonor(args: { type: HonorType; placementFrom?: number; placement
   return `manual:${args.honorKey.trim()}`;
 }
 
-function assertFinalResultRecipient(
-  result: { championEntryId: string; placementGroups: unknown },
+async function assertFinalResultRecipient(
+  tx: TxDb,
+  result: { championEntryId: string; placementGroups: unknown; playoffStageRunId: string },
   args: { type: HonorType; entryId?: string | null; placementFrom?: number; placementTo?: number },
-): void {
+): Promise<void> {
   if (!args.entryId) throw new AppError(ErrorCode.VALIDATION_FAILED, "基于正式结果的荣誉必须授予队伍。");
   if (args.type === "champion" && args.entryId !== result.championEntryId) {
     throw new AppError(ErrorCode.VALIDATION_FAILED, "冠军荣誉只能授予官方结果中的冠军队伍。");
   }
-  const groups = parsePlacementGroups(result.placementGroups, result.championEntryId);
+  const groups = await parsePlacementGroupsInTx(tx, result);
   if (args.type === "runner_up") {
     const runnerUp = groups.find((group) => group.from === 2 && group.to === 2);
     if (!runnerUp?.entryIds.includes(args.entryId)) throw new AppError(ErrorCode.VALIDATION_FAILED, "亚军荣誉只能授予官方结果中的亚军队伍。");
@@ -256,7 +270,7 @@ export async function grantTournamentHonorInTx(
   if (args.basis === "final_result") {
     const result = await lockFinalResultInTx(tx, args.seasonId);
     if (result.status !== "confirmed") throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "必须先明确确认最终赛事结果，才能授予基于结果的荣誉。");
-    assertFinalResultRecipient(result, args);
+    await assertFinalResultRecipient(tx, result, args);
     sourceFinalResultId = result.id;
   }
   if (args.basis === "adjudication") {

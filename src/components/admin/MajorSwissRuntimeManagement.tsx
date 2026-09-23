@@ -22,7 +22,7 @@ export function MajorSwissRuntimeManagement({ data }: { data: MajorSwissRuntimeD
     <div className="space-y-4">
       <div>
         <Marker sub={data.stageComplete ? data.nextStageName ? "本阶段已完成，等待进入下一阶段" : "所有 Swiss 阶段已完成" : `当前第 ${data.currentRound} 轮`}>
-          {data.stageComplete ? `${data.stageKey} 已完成` : `第 ${data.currentRound} 轮待办赛确认`}
+          {data.stageComplete ? `${data.stageName} 已完成` : `${data.stageName} · 第 ${data.currentRound} 轮待办赛确认`}
         </Marker>
         <p className="mt-1 text-sm text-[var(--color-fg-mid)]">
           已确认至第 {data.finalizedRound} 轮；本轮 {data.completedMatchCount}/{data.currentMatchCount} 场比赛已完成。确认后会核对本轮比分与对阵，并创建下一轮。
@@ -43,7 +43,7 @@ export function MajorSwissRuntimeManagement({ data }: { data: MajorSwissRuntimeD
           toast.success(result.data.alreadyFinalized
             ? `第 ${data.currentRound} 轮已确认，未重复创建比赛`
             : result.data.stageComplete
-              ? `${data.stageKey} Swiss 已完成；请显式确认阶段切换`
+              ? `${data.stageName} 已完成；请显式确认阶段切换`
               : `第 ${data.currentRound} 轮已确认，已创建 ${result.data.createdNextRound} 场下一轮比赛`);
           setConfirmed(false);
           router.refresh();

@@ -138,7 +138,7 @@ export async function transitionMajorSwissStageInTransaction(
   if (!stageRun) throw new AppError(ErrorCode.INTERNAL_ERROR, "下一 StageRun 创建失败。");
   await tx.insert(majorStageEntrants).values(seededEntrants.map((entrant) => {
     const frozenEntrant = entrantByTeamId.get(entrant.teamId);
-    if (!frozenEntrant) throw new AppError(ErrorCode.INTERNAL_ERROR, "下一 StageRun 的队伍不在冻结的 32 队入口中。");
+    if (!frozenEntrant) throw new AppError(ErrorCode.INTERNAL_ERROR, "下一 StageRun 的队伍不在冻结的 Major 入口中。");
     return {
       stageRunId: stageRun.id,
       seasonId: input.seasonId,

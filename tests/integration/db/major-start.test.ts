@@ -16,7 +16,7 @@ import { transitionMajorSwissStageInTransaction } from "../../../src/lib/major/s
 import { finalizeMajorPlayoffRoundInTransaction, startMajorPlayoffInTransaction } from "../../../src/lib/major/playoff-runtime";
 import { projectMajorSwissStage, type MajorSwissMatchFact } from "../../../src/lib/major/swiss";
 import { AppError, ErrorCode } from "../../../src/lib/errors";
-import { createMajorDefaultCapabilities } from "../../../src/lib/competition/templates";
+import { createMajor24Capabilities, createMajorDefaultCapabilities } from "../../../src/lib/competition/templates";
 import type { CompetitiveProfileConfig } from "../../../src/types/season";
 import { createPerfectWorldRankOrder } from "../../../src/lib/config/perfect-world";
 import {
@@ -133,18 +133,19 @@ interface GoldenFinalEvidence {
 async function prepareReadyMajor(
   pool: Pool,
   label: string,
-  options: { editablePrestart?: boolean; distinctRecommendationGroups?: boolean; registrationFreeze?: boolean } = {},
+  options: { editablePrestart?: boolean; distinctRecommendationGroups?: boolean; registrationFreeze?: boolean; profile?: "major24" | "major32" } = {},
 ): Promise<MajorFixture> {
   const client = await pool.connect();
   const seasonId = deterministicUuid(`${label}/season`);
-  const entryIds = Array.from({ length: 32 }, (_, index) => deterministicUuid(`${label}/entry/${index + 1}`));
-  const eventRosterIds = Array.from({ length: 32 }, (_, index) => deterministicUuid(`${label}/event-roster/${index + 1}`));
-  const revisionIds = Array.from({ length: 32 }, (_, index) => deterministicUuid(`${label}/revision/${index + 1}`));
-  const userIds = Array.from({ length: 160 }, (_, index) => deterministicUuid(`${label}/user/${index + 1}`));
+  const entrantCapacity = options.profile === "major24" ? 24 : 32;
+  const entryIds = Array.from({ length: entrantCapacity }, (_, index) => deterministicUuid(`${label}/entry/${index + 1}`));
+  const eventRosterIds = Array.from({ length: entrantCapacity }, (_, index) => deterministicUuid(`${label}/event-roster/${index + 1}`));
+  const revisionIds = Array.from({ length: entrantCapacity }, (_, index) => deterministicUuid(`${label}/revision/${index + 1}`));
+  const userIds = Array.from({ length: entrantCapacity * 5 }, (_, index) => deterministicUuid(`${label}/user/${index + 1}`));
   const registrationFreeze = options.registrationFreeze === true;
   const profilePlatform = registrationFreeze ? "perfect_world" : GOLDEN_PROFILE.platform;
   const profileRankOrder = registrationFreeze ? createPerfectWorldRankOrder() : GOLDEN_PROFILE.rankOrder;
-  const capabilities = createMajorDefaultCapabilities();
+  const capabilities = options.profile === "major24" ? createMajor24Capabilities() : createMajorDefaultCapabilities();
   capabilities.teamRegistrationConfig.competitiveProfile = registrationFreeze
     ? { platform: profilePlatform, currentSeasonKey: "", previousSeasonKey: "", rankOrder: [] }
     : GOLDEN_PROFILE;
@@ -288,7 +289,7 @@ async function prepareReadyMajor(
        VALUES ${rankRows.map((_, index) => `($${index * 8 + 1}, $${index * 8 + 2}, $${index * 8 + 3}, $${index * 8 + 4}, $${index * 8 + 5}, $${index * 8 + 6}, $${index * 8 + 7}, $${index * 8 + 8})`).join(", ")}`,
       rankRows.flatMap((row) => [row.id, row.userId, row.platform, row.kind, row.seasonKey, row.rank, row.rating, row.stars]),
     );
-    for (let index = 0; index < 32; index += 1) {
+    for (let index = 0; index < entrantCapacity; index += 1) {
       const entryId = entryIds[index]!;
       const memberUsers = userIds.slice(index * 5, index * 5 + 5);
       await client.query(
@@ -340,7 +341,7 @@ async function prepareReadyMajor(
       "INSERT INTO major_prestart_states (season_id, seed_override_reason, seeds_confirmed_at, seeds_confirmed_by) VALUES ($1, $2, now(), 'local-admin')",
       [seasonId, options.editablePrestart ? null : "Golden fixture final seed order reviewed by committee"],
     );
-    for (let index = 0; index < 32; index += 1) {
+    for (let index = 0; index < entrantCapacity; index += 1) {
       const entrant = await client.query<{ id: string }>(
         `INSERT INTO major_tournament_entrants (id, season_id, competition_entry_id)
          VALUES ($1, $2, $3) RETURNING id`,
@@ -775,6 +776,83 @@ async function finishPlayoffRound(pool: Pool, stageRunId: string, round: "quarte
   } finally {
     client.release();
   }
+}
+
+async function exerciseMajor24Lifecycle(
+  database: ReturnType<typeof drizzle<typeof schema>>,
+  pool: Pool,
+  fixtures: MajorFixture[],
+): Promise<void> {
+  const fixture = await prepareReadyMajor(pool, "major24-full-lifecycle", { profile: "major24" });
+  fixtures.push(fixture);
+  const start = await database.transaction((tx) => startMajorInTransaction(tx, { seasonId: fixture.seasonId, actorId: "local-admin" }));
+  if (!start.created || start.matchCount !== 8) throw new Error("Major-24 开赛没有创建 8 场 BO3 首轮比赛。");
+
+  const opening = await pool.query<{ entrants: string; seeds: number[]; formats: string[] }>(`
+    SELECT
+      (SELECT count(*)::text FROM major_stage_entrants WHERE stage_run_id = $2) AS entrants,
+      (SELECT array_agg(t.seed ORDER BY t.seed) FROM major_stage_entrants e
+        JOIN major_tournament_entrants te ON te.id = e.tournament_entrant_id
+        JOIN major_tournament_seeds t ON t.tournament_entrant_id = te.id
+        WHERE e.stage_run_id = $2) AS seeds,
+      (SELECT array_agg(DISTINCT format ORDER BY format) FROM matches WHERE major_stage_run_id = $2) AS formats
+  `, [fixture.seasonId, start.stageRunId]);
+  const openingFact = opening.rows[0];
+  if (!openingFact || openingFact.entrants !== "16" || openingFact.seeds?.[0] !== 9 || openingFact.seeds.at(-1) !== 24 || openingFact.formats?.join(",") !== "bo3") {
+    throw new Error("Major-24 Stage 1 没有冻结 9–24 队并按 BO3 开赛。");
+  }
+
+  await completeSwissStage(database, pool, fixture.seasonId, start.stageRunId);
+  const stage2 = await database.transaction((tx) => transitionMajorSwissStageInTransaction(tx, {
+    seasonId: fixture.seasonId, sourceStageRunId: start.stageRunId, actorId: "local-admin",
+  }));
+  if (!stage2.created || stage2.stageKey !== "stage2" || stage2.matchCount !== 8) throw new Error("Major-24 Stage 1 完成后没有进入 Stage 2。");
+  const cohorts = await pool.query<{ entrant_count: string; direct_count: string; qualifier_count: string }>(`
+    SELECT
+      count(*)::text AS entrant_count,
+      count(*) FILTER (WHERE s.seed BETWEEN 1 AND 8)::text AS direct_count,
+      count(*) FILTER (WHERE s.seed BETWEEN 9 AND 24)::text AS qualifier_count
+    FROM major_stage_entrants e
+    JOIN major_tournament_entrants te ON te.id = e.tournament_entrant_id
+    JOIN major_tournament_seeds s ON s.tournament_entrant_id = te.id
+    WHERE e.stage_run_id = $1
+  `, [stage2.stageRunId]);
+  const cohortFact = cohorts.rows[0];
+  if (!cohortFact || cohortFact.entrant_count !== "16" || cohortFact.direct_count !== "8" || cohortFact.qualifier_count !== "8") {
+    throw new Error("Major-24 Stage 2 没有包含 #1–8 直入队和 Stage 1 的 8 支晋级队。");
+  }
+
+  await completeSwissStage(database, pool, fixture.seasonId, stage2.stageRunId);
+  const playoffStarts = await Promise.all([
+    database.transaction((tx) => startMajorPlayoffInTransaction(tx, { seasonId: fixture.seasonId, sourceStageRunId: stage2.stageRunId, actorId: "local-admin-a" })),
+    database.transaction((tx) => startMajorPlayoffInTransaction(tx, { seasonId: fixture.seasonId, sourceStageRunId: stage2.stageRunId, actorId: "local-admin-b" })),
+  ]);
+  if (playoffStarts.filter((result) => result.created).length !== 1 || new Set(playoffStarts.map((result) => result.stageRunId)).size !== 1) {
+    throw new Error("Major-24 Stage 2→Playoffs 重试没有收敛到唯一 StageRun。");
+  }
+  const playoffRunId = playoffStarts[0]!.stageRunId;
+  for (const round of ["quarterfinal", "semifinal", "final"] as const) {
+    await finishPlayoffRound(pool, playoffRunId, round);
+    const finalized = await database.transaction((tx) => finalizeMajorPlayoffRoundInTransaction(tx, {
+      seasonId: fixture.seasonId, stageRunId: playoffRunId, expectedRound: round, actorId: "local-admin",
+    }));
+    if (finalized.createdNextRound !== ({ quarterfinal: 2, semifinal: 1, final: 0 } as const)[round] || finalized.resultPendingConfirmation !== (round === "final")) {
+      throw new Error(`Major-24 ${round} 没有生成预期的 Playoffs 后续事实或最终结果。`);
+    }
+  }
+  const result = await pool.query<{ status: string; groups: Array<{ from: number; to: number; entryIds: string[] }> }>(
+    "SELECT status, placement_groups AS groups FROM major_final_results WHERE season_id = $1 AND playoff_stage_run_id = $2",
+    [fixture.seasonId, playoffRunId],
+  );
+  const finalResult = result.rows[0];
+  const ranges = finalResult?.groups.map(({ from, to }) => [from, to]);
+  const finalEntryIds = finalResult?.groups.flatMap((group) => group.entryIds) ?? [];
+  if (finalResult?.status !== "pending_confirmation" || JSON.stringify(ranges) !== JSON.stringify([[1, 1], [2, 2], [3, 4], [5, 8], [9, 11], [12, 14], [15, 16], [17, 19], [20, 22], [23, 24]]) || finalEntryIds.length !== 24 || new Set(finalEntryIds).size !== 24) {
+    throw new Error("Major-24 最终名次没有按两个 Swiss Stage 和 Playoffs 精确覆盖 24 队。");
+  }
+  const confirmation = await database.transaction((tx) => confirmMajorFinalResultInTx(tx, { seasonId: fixture.seasonId, actorId: "local-admin" }));
+  const retryConfirmation = await database.transaction((tx) => confirmMajorFinalResultInTx(tx, { seasonId: fixture.seasonId, actorId: "local-admin-retry" }));
+  if (confirmation.alreadyConfirmed || !retryConfirmation.alreadyConfirmed) throw new Error("Major-24 最终结果确认重试没有保持幂等。");
 }
 
 async function exercisePlayoffRuntime(
@@ -1786,6 +1864,10 @@ describe("Major lifecycle PostgreSQL invariants", { concurrent: false }, () => {
 
   it("advances three Swiss StageRuns and finalizes the playoff", async () => {
     await advanceMajorStagesAndPlayoff(context);
+  });
+
+  it("runs the full Major-24 lifecycle through final placement confirmation", async () => {
+    await exerciseMajor24Lifecycle(context.database, context.pool, context.fixtures);
   });
 
   it("fails closed for stale roster, qualification, and rollback boundaries", async () => {
