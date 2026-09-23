@@ -40,4 +40,10 @@ describe("StatsDataTable client state", () => {
     expect(headers[1]).toHaveClass("left-12");
   });
 
+  it("omits pagination chrome for a single page", () => {
+    render(<StatsDataTable rows={rows} columns={columns} rowKey={(row) => row.name} />);
+    expect(screen.queryByText(/第 1 \/ 1 页/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/共 3 条/)).not.toBeInTheDocument();
+  });
+
 });

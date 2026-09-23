@@ -64,18 +64,18 @@ export function PlayerWorkspace({ detail }: { detail: TournamentPlayerDetail }) 
   return (
     <section className="space-y-5">
       <header className="flex flex-wrap items-start justify-between gap-3">
-        <div><h2 className="text-xl font-semibold">{playerName}</h2><p className="mt-1 text-sm text-[var(--color-fg-mid)]">Scoreboard 与 DAK 使用各自的数据样本。</p></div>
+        <div><h2 className="text-xl font-semibold">{playerName}</h2></div>
         <PlayerProfileLink userId={detail.playerId} className="rounded-sm border border-[var(--color-border)] px-3 py-2 text-sm">打开选手主页</PlayerProfileLink>
       </header>
       <MetricFamilyTabs label="Player workspace" value={tab} options={tabs} onChange={setTab} />
       {tab !== "maps" && <div className="flex flex-wrap items-center gap-2" aria-label="DAK side sample">
-        <span className="mr-1 text-xs text-[var(--color-fg-mid)]">Detailed Demo side</span>
+        <span className="mr-1 text-xs text-[var(--color-fg-mid)]">Side</span>
         {(["overall", "t", "ct"] as const).map((value) => <Button key={value} type="button" size="sm" variant={side === value ? "outline" : "ghost"} aria-pressed={side === value} onClick={() => setSide(value)}>{value === "overall" ? "Overall" : value.toUpperCase()}</Button>)}
       </div>}
 
       {tab === "overview" && <div className="space-y-4">
-        <MetricPanel title="Scoreboard">
-          <StatsDataTable rows={detail.scoreboard} columns={teamColumns} rowKey={(row) => row.teamId ?? row.perfectName} pageSize={10} emptyLabel="暂无已验证 scoreboard 数据" />
+        <MetricPanel title="Performance">
+          <StatsDataTable embedded rows={detail.scoreboard} columns={teamColumns} rowKey={(row) => row.teamId ?? row.perfectName} pageSize={10} emptyLabel="暂无已验证 scoreboard 数据" />
           <div className="mt-3 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
             <div><p className="text-xs text-[var(--color-fg-mid)]">HS%</p><MetricValue metric="hs" value={detail.scoreboard[0]?.avgHs} /></div>
             <div><p className="text-xs text-[var(--color-fg-mid)]">WE</p><MetricValue metric="we" value={detail.scoreboard[0]?.avgWe} /></div>
@@ -83,15 +83,15 @@ export function PlayerWorkspace({ detail }: { detail: TournamentPlayerDetail }) 
             <div><p className="text-xs text-[var(--color-fg-mid)]">MK/R</p><MetricValue metric="mk" value={detail.scoreboard[0]?.mkpr} /></div>
           </div>
         </MetricPanel>
-        <MetricPanel title={`Detailed Demo · ${detail.coverage.detailedMaps} DAK maps`}>
+        <MetricPanel title="Advanced Stats">
           {slice ? <div className="grid grid-cols-2 gap-3">
-            <div><p className="text-xs text-[var(--color-fg-mid)]">DAK Maps</p><p className="font-semibold tabular-nums">{player?.mapCount ?? 0}</p></div>
+            <div><p className="text-xs text-[var(--color-fg-mid)]">Maps</p><p className="font-semibold tabular-nums">{player?.mapCount ?? 0}</p></div>
             <div><p className="text-xs text-[var(--color-fg-mid)]">Player Rounds</p><p className="font-semibold tabular-nums">{slice.sample.rounds}</p></div>
             <div><p className="text-xs text-[var(--color-fg-mid)]">KAST</p><MetricValue metric="kast" value={slice.kast} /></div>
             <div><p className="text-xs text-[var(--color-fg-mid)]">Opening</p><MetricValue metric="openingWin" value={slice.opening.successRate} /></div>
             <div><p className="text-xs text-[var(--color-fg-mid)]">Trade/R</p><MetricValue metric="trade" value={slice.trade.tradeKillsPerRound} /></div>
             <div><p className="text-xs text-[var(--color-fg-mid)]">Util/R</p><MetricValue metric="utility" value={slice.utility.utilityDamagePerRound} /></div>
-          </div> : <p className="text-sm text-[var(--color-fg-mid)]">该选手当前范围没有已确认的 DAK 回合样本。</p>}
+          </div> : <p className="text-sm text-[var(--color-fg-mid)]">当前范围没有详细回合数据。</p>}
         </MetricPanel>
       </div>}
 
@@ -141,15 +141,15 @@ export function PlayerWorkspace({ detail }: { detail: TournamentPlayerDetail }) 
       </div>}
 
       {tab === "maps" && <div className="space-y-4">
-        <MetricPanel title="Map performance · scoreboard sample">
-          <StatsDataTable rows={detail.scoreboardMaps} columns={mapColumns} rowKey={(row, index) => `${row.mapName ?? "map"}:${row.teamId ?? ""}:${index}`} emptyLabel="暂无按地图拆分的 scoreboard 数据" />
+        <MetricPanel title="Map Performance">
+          <StatsDataTable embedded rows={detail.scoreboardMaps} columns={mapColumns} rowKey={(row, index) => `${row.mapName ?? "map"}:${row.teamId ?? ""}:${index}`} emptyLabel="暂无按地图拆分的 scoreboard 数据" />
         </MetricPanel>
-        <MetricPanel title={`Weapons · DAK ${player?.mapCount ?? 0} maps / ${player?.slices.overall.sample.rounds ?? 0} rounds`}>
-          <StatsDataTable rows={player?.weapons ?? []} columns={weaponColumns} rowKey={(row) => row.weapon} initialSortKey="kills" emptyLabel="暂无武器数据" />
+        <MetricPanel title="Weapons">
+          <StatsDataTable embedded rows={player?.weapons ?? []} columns={weaponColumns} rowKey={(row) => row.weapon} initialSortKey="kills" emptyLabel="暂无武器数据" />
         </MetricPanel>
       </div>}
 
-      {!slice && tab !== "overview" && <p className="rounded-sm border border-[var(--color-border)] p-5 text-sm text-[var(--color-fg-mid)]">当前选手没有已确认的 DAK 详细样本。</p>}
+      {!slice && tab !== "overview" && <p className="rounded-sm border border-[var(--color-border)] p-5 text-sm text-[var(--color-fg-mid)]">当前选手没有详细统计。</p>}
     </section>
   );
 }

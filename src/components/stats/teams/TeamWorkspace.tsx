@@ -65,7 +65,7 @@ export function TeamWorkspace({ detail, seasonSlug }: { detail: TournamentTeamDe
   return (
     <section className="space-y-5">
       <header className="flex flex-wrap items-start justify-between gap-3">
-        <div><h2 className="text-xl font-semibold">{title}</h2><p className="mt-1 text-sm text-[var(--color-fg-mid)]">赛果与 DAK 回合表现分别展示。</p></div>
+        <div><h2 className="text-xl font-semibold">{title}</h2></div>
         <Link href={`/${seasonSlug}/teams/${detail.teamId}`} className="rounded-sm border border-[var(--color-border)] px-3 py-2 text-sm hover:text-[var(--color-accent)]">打开赛事队伍主页</Link>
       </header>
       <MetricFamilyTabs label="Team workspace" value={tab} options={tabs} onChange={setTab} />
@@ -74,12 +74,12 @@ export function TeamWorkspace({ detail, seasonSlug }: { detail: TournamentTeamDe
         <MetricPanel title="Results">
           <dl className="grid grid-cols-2 gap-3"><div><dt className="text-xs text-[var(--color-fg-mid)]">Match W-L</dt><dd className="font-semibold tabular-nums">{result ? `${result.matchWins}-${result.matchLosses}` : "—"}</dd></div><div><dt className="text-xs text-[var(--color-fg-mid)]">Map W-L</dt><dd className="font-semibold tabular-nums">{result ? `${result.mapWins}-${result.mapLosses}` : "—"}</dd></div><div><dt className="text-xs text-[var(--color-fg-mid)]">Maps played</dt><dd className="font-semibold tabular-nums">{result?.maps ?? 0}</dd></div></dl>
         </MetricPanel>
-        <MetricPanel title={`Detailed performance · DAK ${analytics?.mapCount ?? 0} maps`}>
-          {analytics ? <dl className="grid grid-cols-2 gap-3"><div><dt className="text-xs text-[var(--color-fg-mid)]">Rounds</dt><dd className="font-semibold tabular-nums">{analytics.rounds}</dd></div><div><dt className="text-xs text-[var(--color-fg-mid)]">RW%</dt><dd><MetricValue metric="roundWin" value={{ wins: analytics.roundWins, opportunities: analytics.rounds, rate: analytics.roundWinRate }} /></dd></div><div><dt className="text-xs text-[var(--color-fg-mid)]">T%</dt><dd><MetricValue metric="roundWin" value={analytics.t} /></dd></div><div><dt className="text-xs text-[var(--color-fg-mid)]">CT%</dt><dd><MetricValue metric="roundWin" value={analytics.ct} /></dd></div><div><dt className="text-xs text-[var(--color-fg-mid)]">Pistol%</dt><dd><MetricValue metric="pistol" value={analytics.pistol} /></dd></div></dl> : <p className="text-sm text-[var(--color-fg-mid)]">该队伍当前没有已确认的 DAK 样本。</p>}
+        <MetricPanel title="Round Performance">
+          {analytics ? <dl className="grid grid-cols-2 gap-3"><div><dt className="text-xs text-[var(--color-fg-mid)]">Rounds</dt><dd className="font-semibold tabular-nums">{analytics.rounds}</dd></div><div><dt className="text-xs text-[var(--color-fg-mid)]">RW%</dt><dd><MetricValue metric="roundWin" value={{ wins: analytics.roundWins, opportunities: analytics.rounds, rate: analytics.roundWinRate }} /></dd></div><div><dt className="text-xs text-[var(--color-fg-mid)]">T%</dt><dd><MetricValue metric="roundWin" value={analytics.t} /></dd></div><div><dt className="text-xs text-[var(--color-fg-mid)]">CT%</dt><dd><MetricValue metric="roundWin" value={analytics.ct} /></dd></div><div><dt className="text-xs text-[var(--color-fg-mid)]">Pistol%</dt><dd><MetricValue metric="pistol" value={analytics.pistol} /></dd></div></dl> : <p className="text-sm text-[var(--color-fg-mid)]">当前队伍没有详细回合数据。</p>}
         </MetricPanel>
       </div>}
 
-      {tab === "maps" && <div className="space-y-3"><p className="text-xs text-[var(--color-fg-mid)]">Results · BP · DAK coverage</p><StatsDataTable rows={detail.maps} columns={mapColumns} rowKey={(row) => row.mapName} initialSortKey="played" emptyLabel="当前队伍没有地图样本" /></div>}
+      {tab === "maps" && <div className="space-y-3"><StatsDataTable rows={detail.maps} columns={mapColumns} rowKey={(row) => row.mapName} initialSortKey="played" emptyLabel="当前队伍没有地图样本" /></div>}
 
       {tab === "rounds" && <div className="space-y-4">
         {analytics ? <div className="grid grid-cols-2 gap-3">
@@ -89,8 +89,8 @@ export function TeamWorkspace({ detail, seasonSlug }: { detail: TournamentTeamDe
           <MetricPanel title="5v4"><MetricValue metric="fiveVFour" value={analytics.manAdvantage["5v4"]} /></MetricPanel>
           <MetricPanel title="4v5"><MetricValue metric="fourVFive" value={analytics.manAdvantage["4v5"]} /></MetricPanel>
           <MetricPanel title="Eco/Semi upset"><MetricValue metric="ecoSemi" value={analytics.ecoSemiUpset} /></MetricPanel>
-        </div> : <p className="text-sm text-[var(--color-fg-mid)]">当前队伍没有已确认的 DAK 回合数据。</p>}
-        <MetricPanel title="Economy matrix · team-participating rounds"><p className="mb-3 text-xs text-[var(--color-fg-mid)]">按该队参与地图汇总双方经济对位；不是仅统计该队作为低经济方的回合。</p><StatsDataTable rows={detail.economyMatrix} columns={economyColumns} rowKey={(row) => `${row.lowEconomy}:${row.highEconomy}`} emptyLabel="暂无经济分类样本" /></MetricPanel>
+        </div> : <p className="text-sm text-[var(--color-fg-mid)]">当前队伍没有详细回合数据。</p>}
+        <MetricPanel title="Economy Matchups"><p className="mb-3 text-xs text-[var(--color-fg-mid)]">All rounds from maps played by this team.</p><StatsDataTable embedded rows={detail.economyMatrix} columns={economyColumns} rowKey={(row) => `${row.lowEconomy}:${row.highEconomy}`} emptyLabel="暂无经济分类样本" /></MetricPanel>
       </div>}
 
       {tab === "teamplay" && (performance ? <div className="grid grid-cols-2 gap-4">
@@ -98,11 +98,11 @@ export function TeamWorkspace({ detail, seasonSlug }: { detail: TournamentTeamDe
         <MetricPanel title="Trades"><dl className="grid grid-cols-2 gap-3"><div><dt>Trade/R</dt><dd><MetricValue metric="trade" value={performance.slices.overall.trade.tradeKillsPerRound} /></dd></div><div><dt>Traded%</dt><dd><MetricValue metric="traded" value={performance.slices.overall.trade.tradedDeathsPerDeath} /></dd></div></dl></MetricPanel>
         <MetricPanel title="Utility"><dl className="grid grid-cols-2 gap-3"><div><dt>FA/R</dt><dd><MetricValue metric="flashAssist" value={performance.slices.overall.utility.flashAssistsPerRound} /></dd></div><div><dt>Util/R</dt><dd><MetricValue metric="utility" value={performance.slices.overall.utility.utilityDamagePerRound} /></dd></div><div><dt>Blind/Flash</dt><dd><MetricValue metric="blindPerFlash" value={performance.slices.overall.utility.enemyBlindSecondsPerFlash} /></dd></div></dl></MetricPanel>
         <MetricPanel title="Plant conversion"><MetricValue metric="plantConversion" value={performance.slices.overall.objective.plantConversions} /></MetricPanel>
-      </div> : <p className="text-sm text-[var(--color-fg-mid)]">当前队伍没有已确认的 DAK 团队表现样本。</p>)}
+      </div> : <p className="text-sm text-[var(--color-fg-mid)]">当前队伍没有详细团队数据。</p>)}
 
       {tab === "players" && <div className="space-y-4">
-        <MetricPanel title="Scoreboard"><StatsDataTable rows={detail.scoreboard} columns={scoreboardColumns} rowKey={(row, index) => `${row.userId ?? row.perfectName}:${index}`} emptyLabel="暂无已验证 scoreboard 数据" /></MetricPanel>
-        <MetricPanel title="Detailed · DAK player sample"><StatsDataTable rows={detail.detailedPlayers} columns={detailedColumns} rowKey={(row) => row.player.entityKey} emptyLabel="暂无已确认 DAK 选手样本" /></MetricPanel>
+        <MetricPanel title="Performance"><StatsDataTable embedded rows={detail.scoreboard} columns={scoreboardColumns} rowKey={(row, index) => `${row.userId ?? row.perfectName}:${index}`} emptyLabel="暂无选手统计" /></MetricPanel>
+        <MetricPanel title="Advanced"><StatsDataTable embedded rows={detail.detailedPlayers} columns={detailedColumns} rowKey={(row) => row.player.entityKey} emptyLabel="暂无详细选手统计" /></MetricPanel>
       </div>}
     </section>
   );

@@ -48,7 +48,7 @@ describe("StatsShell navigation", () => {
         <div />
       </StatsShell>,
     );
-    fireEvent.change(screen.getByLabelText("阶段"), { target: { value: "playoff" } });
+    fireEvent.change(screen.getByLabelText("Stage"), { target: { value: "playoff" } });
     expect(router.push).toHaveBeenCalledWith("/major/stats?tab=players&stage=playoff", { scroll: false });
   });
 });

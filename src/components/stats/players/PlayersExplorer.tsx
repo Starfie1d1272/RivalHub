@@ -38,7 +38,7 @@ function DAKColumns(family: Exclude<Family, "overall">, teamNames: ReadonlyMap<s
   const identity: StatsDataColumn<DAKPlayer>[] = [
     { key: "player", label: "Player", render: (row) => <Link href={playerHref(seasonSlug, query, row.player.entityKey)!} scroll={false} className="font-medium hover:text-[var(--color-accent)]">{row.player.displayName}</Link> },
     { key: "team", label: "Team", className: "hidden sm:table-cell", render: (row) => playerTeam(row, teamNames) },
-    { key: "maps", label: "DAK Maps", numeric: true, className: "hidden sm:table-cell", sortable: true, sortValue: (row) => row.mapCount, render: (row) => row.mapCount },
+    { key: "maps", label: "Maps", numeric: true, className: "hidden sm:table-cell", sortable: true, sortValue: (row) => row.mapCount, render: (row) => row.mapCount },
     { key: "rounds", label: "Rounds", numeric: true, sortable: true, sortValue: (row) => row.slices.overall.sample.rounds, render: (row) => row.slices.overall.sample.rounds },
   ];
   const columns: Record<Exclude<Family, "overall">, StatsDataColumn<DAKPlayer>[]> = {
@@ -89,8 +89,8 @@ export function PlayersExplorer({ data, query, seasonSlug }: { data: TournamentS
     { key: "kpr", label: "KPR", numeric: true, className: "hidden lg:table-cell", sortable: true, sortValue: (row) => row.kpr, render: (row) => <MetricValue metric="kpr" value={row.kpr} /> },
   ];
   const table = family === "overall"
-    ? <StatsDataTable key={`${family}:${search}`} rows={scoreboardRows} columns={overallColumns} rowKey={(row, index) => `${row.userId ?? row.perfectName}:${row.teamId ?? ""}:${index}`} initialSortKey="rating" emptyLabel="暂无已验证 scoreboard 数据" />
-    : <StatsDataTable key={`${family}:${search}`} rows={dakRows} columns={DAKColumns(family, teamNames, seasonSlug, query)} rowKey={(row, index) => `${row.player.entityKey}:dak:${index}`} initialSortKey={family === "opening" ? "win" : family === "teamplay" ? "kast" : family === "utility" ? "util" : "clutch"} emptyLabel="该范围暂无已确认 DAK 数据" />;
+    ? <StatsDataTable key={`${family}:${search}`} rows={scoreboardRows} columns={overallColumns} rowKey={(row, index) => `${row.userId ?? row.perfectName}:${row.teamId ?? ""}:${index}`} initialSortKey="rating" emptyLabel="暂无选手统计" />
+    : <StatsDataTable key={`${family}:${search}`} rows={dakRows} columns={DAKColumns(family, teamNames, seasonSlug, query)} rowKey={(row, index) => `${row.player.entityKey}:dak:${index}`} initialSortKey={family === "opening" ? "win" : family === "teamplay" ? "kast" : family === "utility" ? "util" : "clutch"} emptyLabel="该范围暂无详细统计" />;
   return (
     <section className="space-y-4">
       <div className="flex min-w-0 flex-wrap items-end gap-3 rounded-sm border border-[var(--color-border)] bg-[var(--color-panel)] p-3">
@@ -109,7 +109,7 @@ export function PlayersExplorer({ data, query, seasonSlug }: { data: TournamentS
         </label>
       </div>
       <MetricFamilyTabs label="Player metric family" value={family} options={families} onChange={setFamily} />
-      <p className="text-xs text-[var(--color-fg-mid)]">{family === "overall" ? "Scoreboard sample" : `DAK sample · ${data.coverage.detailedMaps}/${data.coverage.completedMaps} maps`}</p>
+      {family !== "overall" && data.coverage.completedMaps > 0 && data.coverage.detailedMaps < data.coverage.completedMaps && <p className="text-xs text-[var(--color-fg-mid)]">Coverage {data.coverage.detailedMaps}/{data.coverage.completedMaps} maps</p>}
       {table}
     </section>
   );

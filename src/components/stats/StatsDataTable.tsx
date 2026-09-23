@@ -7,37 +7,20 @@ import React from "react";
 // MIT
 
 import { useMemo, useState, type ReactNode } from "react";
-import { Panel, PaginationControls } from "@/components/rivalhub";
+import { PaginationControls } from "@/components/rivalhub";
 import { compareStatsValues, type StatsSortDirection, type StatsSortValue } from "@/lib/stats/sorting";
 
 export interface StatsDataColumn<T> {
-  key: string;
-  label: string;
-  numeric?: boolean;
-  sortable?: boolean;
-  sortValue?: (row: T) => StatsSortValue;
-  render: (row: T, index: number) => ReactNode;
-  className?: string;
+  key: string; label: string; numeric?: boolean; sortable?: boolean;
+  sortValue?: (row: T) => StatsSortValue; render: (row: T, index: number) => ReactNode; className?: string;
 }
 
 export function StatsDataTable<T>({
-  rows,
-  columns,
-  rowKey,
-  initialSortKey,
-  initialDirection = "desc",
-  pageSize = 25,
-  showRank = false,
+  rows, columns, rowKey, initialSortKey, initialDirection = "desc", pageSize = 25, showRank = false, embedded = false,
   emptyLabel = "当前范围暂无数据",
 }: {
-  rows: readonly T[];
-  columns: readonly StatsDataColumn<T>[];
-  rowKey: (row: T, index: number) => string;
-  initialSortKey?: string;
-  initialDirection?: StatsSortDirection;
-  pageSize?: number;
-  showRank?: boolean;
-  emptyLabel?: string;
+  rows: readonly T[]; columns: readonly StatsDataColumn<T>[]; rowKey: (row: T, index: number) => string;
+  initialSortKey?: string; initialDirection?: StatsSortDirection; pageSize?: number; showRank?: boolean; embedded?: boolean; emptyLabel?: string;
 }) {
   const [sortKey, setSortKey] = useState(initialSortKey ?? "");
   const [direction, setDirection] = useState<StatsSortDirection>(initialDirection);
@@ -54,15 +37,12 @@ export function StatsDataTable<T>({
 
   function sortBy(key: string) {
     if (sortKey === key) setDirection((current) => current === "desc" ? "asc" : "desc");
-    else {
-      setSortKey(key);
-      setDirection("desc");
-    }
+    else { setSortKey(key); setDirection("desc"); }
     setPage(1);
   }
 
   return (
-    <Panel contentClassName="p-0">
+    <div className={embedded ? "min-w-0" : "min-w-0 overflow-hidden rounded-sm border border-[var(--color-border)] bg-[var(--color-panel)]"}>
       <div className="overflow-x-auto">
         <table className="w-full min-w-max text-sm">
           <thead className="text-xs uppercase tracking-wide text-[var(--color-fg-mid)]">
@@ -74,9 +54,7 @@ export function StatsDataTable<T>({
                 return (
                   <th key={column.key} aria-sort={active ? direction === "desc" ? "descending" : "ascending" : "none"}
                     className={`whitespace-nowrap px-3 py-3 ${column.numeric ? "text-right" : "text-left"} ${column.className ?? ""} ${index === 0 ? `sticky ${showRank ? "left-12" : "left-0"} z-10 bg-[var(--color-panel)]` : ""}`}>
-                    {column.sortable && column.sortValue
-                      ? <button type="button" onClick={() => sortBy(column.key)} className="inline-flex min-h-6 items-center gap-1 hover:text-[var(--color-accent)]">{sortLabel}</button>
-                      : column.label}
+                    {column.sortable && column.sortValue ? <button type="button" onClick={() => sortBy(column.key)} className="inline-flex min-h-6 items-center gap-1 hover:text-[var(--color-accent)]">{sortLabel}</button> : column.label}
                   </th>
                 );
               })}
@@ -97,10 +75,7 @@ export function StatsDataTable<T>({
           </tbody>
         </table>
       </div>
-      <div className="border-t border-[var(--color-border)] p-3">
-        <PaginationControls page={safePage} totalPages={totalPages} onPageChange={setPage} />
-        <p className="mt-2 text-center text-xs text-[var(--color-fg-dim)]">共 {sortedRows.length} 条</p>
-      </div>
-    </Panel>
+      {totalPages > 1 && <div className="border-t border-[var(--color-border)] p-3"><PaginationControls page={safePage} totalPages={totalPages} onPageChange={setPage} /></div>}
+    </div>
   );
 }

@@ -44,7 +44,7 @@ function teamColumns(family: Family, seasonSlug: string, query: StatsQuery): Sta
     render: (row) => <Link href={statsHref(seasonSlug, query, { team: row.entryId })} scroll={false} className="font-medium hover:text-[var(--color-accent)]">{row.name}</Link>,
   };
   const dAKSample: StatsDataColumn<TeamDirectoryRow>[] = [
-    { key: "dakMaps", label: "DAK Maps", numeric: true, sortable: true, sortValue: (row) => row.analytics?.mapCount ?? null, render: (row) => row.analytics?.mapCount ?? 0 },
+    { key: "dakMaps", label: "Maps", numeric: true, sortable: true, sortValue: (row) => row.analytics?.mapCount ?? null, render: (row) => row.analytics?.mapCount ?? 0 },
     { key: "rounds", label: "Rounds", numeric: true, className: "hidden sm:table-cell", sortable: true, sortValue: (row) => row.analytics?.rounds ?? null, render: (row) => row.analytics?.rounds ?? "—" },
   ];
   if (family === "results") return [
@@ -88,7 +88,7 @@ export function TeamsExplorer({ data, query, seasonSlug }: { data: TournamentSta
         </label>
       </div>
       <MetricFamilyTabs label="Team metric family" value={family} options={families} onChange={setFamily} />
-      <p className="text-xs text-[var(--color-fg-mid)]">{family === "results" ? "Tournament results sample" : `DAK sample · ${data.coverage.detailedMaps}/${data.coverage.completedMaps} maps`}</p>
+      {family !== "results" && data.coverage.completedMaps > 0 && data.coverage.detailedMaps < data.coverage.completedMaps && <p className="text-xs text-[var(--color-fg-mid)]">Coverage {data.coverage.detailedMaps}/{data.coverage.completedMaps} maps</p>}
       <StatsDataTable key={family} rows={rows} columns={teamColumns(family, seasonSlug, query)} rowKey={(row) => row.entryId} initialSortKey={family === "results" ? "match" : family === "rounds" ? "rw" : family === "conversion" ? "r2" : "opening"} emptyLabel="当前地图范围没有已完成赛果" />
     </section>
   );

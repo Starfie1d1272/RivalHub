@@ -30,6 +30,7 @@ export function MapWorkspace({ detail }: { detail: TournamentMapDetail }) {
   const mapAnalytics = detail.analytics.maps.find((row) => row.mapName === detail.map);
   const performanceMap = detail.performance.maps.find((row) => row.mapName === detail.map);
   const bp = detail.selection[0];
+  const partialCoverage = detail.coverage.completedMaps > 0 && detail.coverage.detailedMaps < detail.coverage.completedMaps;
   const performanceByTeam = new Map(detail.performance.teams.map((row) => [row.team.entityKey, row]));
   const teamNames = new Map(detail.entries.map((row) => [row.id, row.name]));
   const playersWithTeam = detail.performance.players.map((row) => ({
@@ -77,30 +78,30 @@ export function MapWorkspace({ detail }: { detail: TournamentMapDetail }) {
 
   return (
     <section className="space-y-5">
-      <header><h2 className="text-xl font-semibold">{mapName}</h2><p className="mt-1 text-sm text-[var(--color-fg-mid)]">Selected map · Results {detail.results.maps.find((row) => row.mapName === detail.map)?.played ?? 0} played · DAK {detail.coverage.detailedMaps}/{detail.coverage.completedMaps} detailed.</p></header>
+      <header><h2 className="text-xl font-semibold">{mapName}</h2><p className="mt-1 text-sm text-[var(--color-fg-mid)]">{detail.results.maps.find((row) => row.mapName === detail.map)?.played ?? 0} maps · {mapAnalytics?.roundCount ?? 0} rounds{partialCoverage ? ` · Coverage ${detail.coverage.detailedMaps}/${detail.coverage.completedMaps}` : ""}</p></header>
       <MetricFamilyTabs label="Map workspace" value={tab} options={tabs} onChange={setTab} />
 
       {tab === "overview" && <div className="space-y-4">
         <div className="grid grid-cols-2 gap-3">
           <MetricPanel title="Played"><p className="text-xl font-semibold tabular-nums">{detail.results.maps.find((row) => row.mapName === detail.map)?.played ?? 0}</p></MetricPanel>
-          <MetricPanel title="Detailed maps"><p className="text-xl font-semibold tabular-nums">{detail.coverage.detailedMaps}/{detail.coverage.completedMaps}</p></MetricPanel>
-          <MetricPanel title="Detailed rounds"><p className="text-xl font-semibold tabular-nums">{mapAnalytics?.roundCount ?? 0}</p></MetricPanel>
+          {partialCoverage && <MetricPanel title="Coverage"><p className="text-xl font-semibold tabular-nums">{detail.coverage.detailedMaps}/{detail.coverage.completedMaps}</p></MetricPanel>}
+          <MetricPanel title="Rounds"><p className="text-xl font-semibold tabular-nums">{mapAnalytics?.roundCount ?? 0}</p></MetricPanel>
         </div>
         <div className="grid gap-4 lg:grid-cols-2">
-          <MetricPanel title="BP"><dl className="grid grid-cols-3 gap-3"><div><dt className="text-xs text-[var(--color-fg-mid)]">Pick</dt><dd>{bp?.picks ?? 0}</dd></div><div><dt className="text-xs text-[var(--color-fg-mid)]">Ban</dt><dd>{bp?.bans ?? 0}</dd></div><div><dt className="text-xs text-[var(--color-fg-mid)]">Decider</dt><dd>{bp?.deciders ?? 0}</dd></div></dl><h3 className="mb-2 mt-4 text-sm font-medium">Team | Pick | Ban</h3><StatsDataTable rows={bp?.teams ?? []} columns={bpColumns} rowKey={(row) => row.entryId} emptyLabel="暂无队伍 BP 记录" /></MetricPanel>
+          <MetricPanel title="BP"><dl className="grid grid-cols-3 gap-3"><div><dt className="text-xs text-[var(--color-fg-mid)]">Pick</dt><dd>{bp?.picks ?? 0}</dd></div><div><dt className="text-xs text-[var(--color-fg-mid)]">Ban</dt><dd>{bp?.bans ?? 0}</dd></div><div><dt className="text-xs text-[var(--color-fg-mid)]">Decider</dt><dd>{bp?.deciders ?? 0}</dd></div></dl><h3 className="mb-2 mt-4 text-sm font-medium">Team | Pick | Ban</h3><StatsDataTable embedded rows={bp?.teams ?? []} columns={bpColumns} rowKey={(row) => row.entryId} emptyLabel="暂无队伍 BP 记录" /></MetricPanel>
           <MetricPanel title="Round Profile">
-            {mapAnalytics ? <dl className="grid grid-cols-2 gap-3"><div><dt>CT / T</dt><dd className="flex flex-wrap gap-2"><MetricValue metric="roundWin" value={mapAnalytics.ct} sampleLabel="CT rounds" /><MetricValue metric="roundWin" value={mapAnalytics.t} sampleLabel="T rounds" /></dd></div><div><dt>Pistol CT / T</dt><dd className="flex flex-wrap gap-2"><MetricValue metric="pistol" value={mapAnalytics.pistolCt} sampleLabel="CT pistol rounds" /><MetricValue metric="pistol" value={mapAnalytics.pistolT} sampleLabel="T pistol rounds" /></dd></div><div><dt>Opening conversion</dt><dd>{performanceMap ? <MetricValue metric="conversion" value={performanceMap.opening.conversionRate} /> : "—"}</dd></div><div><dt>Opening comeback</dt><dd>{performanceMap ? <MetricValue metric="break" value={performanceMap.opening.comebackRate} /> : "—"}</dd></div></dl> : <p className="text-sm text-[var(--color-fg-mid)]">该地图暂无已确认的 DAK 回合样本。</p>}
+            {mapAnalytics ? <dl className="grid grid-cols-2 gap-3"><div><dt>CT / T</dt><dd className="flex flex-wrap gap-2"><MetricValue metric="roundWin" value={mapAnalytics.ct} sampleLabel="CT rounds" /><MetricValue metric="roundWin" value={mapAnalytics.t} sampleLabel="T rounds" /></dd></div><div><dt>Pistol CT / T</dt><dd className="flex flex-wrap gap-2"><MetricValue metric="pistol" value={mapAnalytics.pistolCt} sampleLabel="CT pistol rounds" /><MetricValue metric="pistol" value={mapAnalytics.pistolT} sampleLabel="T pistol rounds" /></dd></div><div><dt>Opening conversion</dt><dd>{performanceMap ? <MetricValue metric="conversion" value={performanceMap.opening.conversionRate} /> : "—"}</dd></div><div><dt>Opening comeback</dt><dd>{performanceMap ? <MetricValue metric="break" value={performanceMap.opening.comebackRate} /> : "—"}</dd></div></dl> : <p className="text-sm text-[var(--color-fg-mid)]">该地图暂无详细回合数据。</p>}
           </MetricPanel>
         </div>
       </div>}
 
-      {tab === "teams" && <StatsDataTable rows={detail.analytics.teams} columns={teamColumns} rowKey={(row) => row.team.entityKey} initialSortKey="rw" emptyLabel="该地图暂无 DAK 队伍样本" />}
-      {tab === "players" && <StatsDataTable rows={playersWithTeam} columns={playerColumns} rowKey={(row) => row.player.entityKey} initialSortKey="opening" emptyLabel="该地图暂无 DAK 选手样本" />}
+      {tab === "teams" && <StatsDataTable rows={detail.analytics.teams} columns={teamColumns} rowKey={(row) => row.team.entityKey} initialSortKey="rw" emptyLabel="该地图暂无队伍统计" />}
+      {tab === "players" && <StatsDataTable rows={playersWithTeam} columns={playerColumns} rowKey={(row) => row.player.entityKey} initialSortKey="opening" emptyLabel="该地图暂无选手统计" />}
       {tab === "economy" && <div className="space-y-4">
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3"><MetricPanel title="Pistol CT / T"><div className="flex flex-wrap gap-3 text-sm"><span>CT <MetricValue metric="pistol" value={detail.analytics.totals.pistolCt} sampleLabel="CT pistol rounds" /></span><span>T <MetricValue metric="pistol" value={detail.analytics.totals.pistolT} sampleLabel="T pistol rounds" /></span></div></MetricPanel><MetricPanel title="R2 Conversion"><MetricValue metric="conversion" value={detail.analytics.totals.round2Conversion} /></MetricPanel><MetricPanel title="R2 Break"><MetricValue metric="break" value={detail.analytics.totals.round2Break} /></MetricPanel><MetricPanel title="5v4"><MetricValue metric="fiveVFour" value={detail.analytics.totals.manAdvantage["5v4"]} /></MetricPanel><MetricPanel title="4v5"><MetricValue metric="fourVFive" value={detail.analytics.totals.manAdvantage["4v5"]} /></MetricPanel><MetricPanel title="Eco/Semi"><MetricValue metric="ecoSemi" value={detail.analytics.totals.ecoSemiUpset} /></MetricPanel></div>
-        <MetricPanel title="Economy matrix"><StatsDataTable rows={detail.analytics.economyMatrix} columns={economyColumns} rowKey={(row) => `${row.lowEconomy}:${row.highEconomy}`} emptyLabel="暂无经济分类样本" /></MetricPanel>
+        <MetricPanel title="Economy Matchups"><StatsDataTable embedded rows={detail.analytics.economyMatrix} columns={economyColumns} rowKey={(row) => `${row.lowEconomy}:${row.highEconomy}`} emptyLabel="暂无经济分类样本" /></MetricPanel>
       </div>}
-      {tab === "weapons" && <MetricPanel title={`Weapons · DAK ${detail.coverage.detailedMaps} maps / ${detail.analytics.totals.roundCount} rounds`}><StatsDataTable rows={detail.performance.weapons} columns={weaponColumns} rowKey={(row) => row.weapon} initialSortKey="kills" emptyLabel="暂无武器数据" /></MetricPanel>}
+      {tab === "weapons" && <MetricPanel title="Weapons"><StatsDataTable embedded rows={detail.performance.weapons} columns={weaponColumns} rowKey={(row) => row.weapon} initialSortKey="kills" emptyLabel="暂无武器数据" /></MetricPanel>}
     </section>
   );
 }

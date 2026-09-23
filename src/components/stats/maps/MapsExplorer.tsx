@@ -47,18 +47,19 @@ function rowsFor(data: TournamentStats): MapDirectoryRow[] {
 }
 
 export function MapsExplorer({ data, query, seasonSlug }: { data: TournamentStats; query: StatsQuery; seasonSlug: string }) {
+  const partialCoverage = data.coverage.completedMaps > 0 && data.coverage.detailedMaps < data.coverage.completedMaps;
   const columns: StatsDataColumn<MapDirectoryRow>[] = [
     { key: "map", label: "Map", render: (row) => <Link href={statsHref(seasonSlug, query, { map: row.mapName })} scroll={false} className="font-medium hover:text-[var(--color-accent)]">{mapLabel(row.mapName)}</Link> },
     { key: "played", label: "Played", numeric: true, sortable: true, sortValue: (row) => row.played, render: (row) => row.played },
     { key: "pickBan", label: "Pick / Ban", numeric: true, className: "hidden sm:table-cell", render: (row) => `${row.picks} / ${row.bans}` },
     { key: "pickBanCompact", label: "P / B", numeric: true, className: "sm:hidden", render: (row) => `${row.picks}/${row.bans}` },
     { key: "decider", label: "Decider", numeric: true, className: "hidden sm:table-cell", render: (row) => row.deciders },
-    { key: "detail", label: "Detail", numeric: true, className: "hidden sm:table-cell", sortable: true, sortValue: (row) => row.detailedMaps, render: (row) => `${row.detailedMaps}/${row.completedMaps}` },
-    { key: "ctT", label: "CT% / T%", numeric: true, sortable: true, sortValue: (row) => row.ct?.rate, render: (row) => <span className="inline-flex gap-2"><MetricValue metric="roundWin" value={row.ct} sampleLabel="CT rounds" /><MetricValue metric="roundWin" value={row.t} sampleLabel="T rounds" /></span> },
+    ...(partialCoverage ? [{ key: "coverage", label: "Coverage", numeric: true, className: "hidden sm:table-cell", sortable: true, sortValue: (row: MapDirectoryRow) => row.detailedMaps, render: (row: MapDirectoryRow) => `${row.detailedMaps}/${row.completedMaps}` } satisfies StatsDataColumn<MapDirectoryRow>] : []),
+    { key: "ctT", label: "CT / T", numeric: true, sortable: true, sortValue: (row) => row.ct?.rate, render: (row) => <span className="inline-flex gap-3"><span>CT <MetricValue metric="roundWin" value={row.ct} sampleDisplay="hidden" /></span><span>T <MetricValue metric="roundWin" value={row.t} sampleDisplay="hidden" /></span></span> },
   ];
   return (
     <section className="space-y-4">
-      <p className="text-sm text-[var(--color-fg-mid)]">Played 来自已完成地图；Detail 与 CT/T 只基于已确认 DAK。</p>
+      {partialCoverage && <p className="text-xs text-[var(--color-fg-mid)]">Coverage {data.coverage.detailedMaps}/{data.coverage.completedMaps} maps</p>}
       <StatsDataTable rows={rowsFor(data)} columns={columns} rowKey={(row) => row.mapName} initialSortKey="played" emptyLabel="暂无地图赛果或 BP 数据" />
     </section>
   );
