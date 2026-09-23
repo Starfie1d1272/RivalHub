@@ -18,6 +18,7 @@ vi.mock("next/link", async () => {
 const query: StatsQuery = {
   tab: "players",
   stage: "swiss",
+  format: "",
   mapFilter: "de_ancient",
   teamFilter: "",
   player: "4ab08f95-e8e1-4d9e-8641-947dbcc37779",
@@ -51,5 +52,15 @@ describe("StatsShell navigation", () => {
     );
     fireEvent.change(screen.getByLabelText("Stage"), { target: { value: "playoff" } });
     expect(router.push).toHaveBeenCalledWith("/major/stats?tab=players&stage=playoff", { scroll: false });
+  });
+
+  it("exposes Best-of as a global shareable scope", () => {
+    render(
+      <StatsShell query={query} seasonSlug="major" stages={[{ key: "swiss", name: "瑞士轮" }]} coverage={{ detailedMaps: 0, completedMaps: 0 }}>
+        <div />
+      </StatsShell>,
+    );
+    fireEvent.change(screen.getByLabelText("Best of"), { target: { value: "bo3" } });
+    expect(router.push).toHaveBeenCalledWith("/major/stats?tab=players&stage=swiss&format=bo3", { scroll: false });
   });
 });
