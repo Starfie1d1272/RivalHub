@@ -41,7 +41,7 @@ function mapLabel(mapName: string) {
 }
 
 function orderedMaps(maps: readonly string[]) {
-  const order = new Map(CS2_MAP_CATALOG.map((map, index) => [map.key, index]));
+  const order = new Map<string, number>(CS2_MAP_CATALOG.map((map, index) => [map.key, index]));
   return [...maps].sort((left, right) => (order.get(left) ?? 999) - (order.get(right) ?? 999) || mapLabel(left).localeCompare(mapLabel(right)));
 }
 
