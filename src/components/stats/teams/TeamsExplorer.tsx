@@ -55,22 +55,22 @@ function teamColumns(family: Family, seasonSlug: string, query: StatsQuery): Sta
   ];
   if (family === "rounds") return [teamColumn, ...dAKSample,
     { key: "rw", label: "RW%", numeric: true, sortable: true, sortValue: (row) => row.analytics?.roundWinRate, render: (row) => row.analytics ? <MetricValue metric="roundWin" value={{ wins: row.analytics.roundWins, opportunities: row.analytics.rounds, rate: row.analytics.roundWinRate }} /> : "—" },
-    { key: "t", label: "T%", numeric: true, className: "hidden lg:table-cell", render: (row) => row.analytics ? <MetricValue metric="roundWin" value={row.analytics.t} /> : "—" },
-    { key: "ct", label: "CT%", numeric: true, className: "hidden lg:table-cell", render: (row) => row.analytics ? <MetricValue metric="roundWin" value={row.analytics.ct} /> : "—" },
-    { key: "pistol", label: "Pistol%", numeric: true, className: "hidden lg:table-cell", render: (row) => row.analytics ? <MetricValue metric="pistol" value={row.analytics.pistol} /> : "—" },
+    { key: "t", label: "T%", numeric: true, className: "hidden lg:table-cell", sortable: true, sortValue: (row) => row.analytics?.t.rate, render: (row) => row.analytics ? <MetricValue metric="roundWin" value={row.analytics.t} /> : "—" },
+    { key: "ct", label: "CT%", numeric: true, className: "hidden lg:table-cell", sortable: true, sortValue: (row) => row.analytics?.ct.rate, render: (row) => row.analytics ? <MetricValue metric="roundWin" value={row.analytics.ct} /> : "—" },
+    { key: "pistol", label: "Pistol%", numeric: true, className: "hidden lg:table-cell", sortable: true, sortValue: (row) => row.analytics?.pistol.rate, render: (row) => row.analytics ? <MetricValue metric="pistol" value={row.analytics.pistol} /> : "—" },
   ];
   if (family === "conversion") return [teamColumn, ...dAKSample,
     { key: "r2", label: "R2 Conv", numeric: true, sortable: true, sortValue: (row) => row.analytics?.round2.conversion.rate, render: (row) => row.analytics ? <MetricValue metric="conversion" value={row.analytics.round2.conversion} /> : "—" },
-    { key: "break", label: "R2 Break", numeric: true, className: "hidden sm:table-cell", render: (row) => row.analytics ? <MetricValue metric="break" value={row.analytics.round2.break} /> : "—" },
-    { key: "fiveVFour", label: "5v4", numeric: true, className: "hidden lg:table-cell", render: (row) => row.analytics ? <MetricValue metric="fiveVFour" value={row.analytics.manAdvantage["5v4"]} /> : "—" },
-    { key: "fourVFive", label: "4v5", numeric: true, className: "hidden lg:table-cell", render: (row) => row.analytics ? <MetricValue metric="fourVFive" value={row.analytics.manAdvantage["4v5"]} /> : "—" },
-    { key: "eco", label: "Eco/Semi", numeric: true, className: "hidden lg:table-cell", render: (row) => row.analytics ? <MetricValue metric="ecoSemi" value={row.analytics.ecoSemiUpset} /> : "—" },
+    { key: "break", label: "R2 Break", numeric: true, className: "hidden sm:table-cell", sortable: true, sortValue: (row) => row.analytics?.round2.break.rate, render: (row) => row.analytics ? <MetricValue metric="break" value={row.analytics.round2.break} /> : "—" },
+    { key: "fiveVFour", label: "5v4", numeric: true, className: "hidden lg:table-cell", sortable: true, sortValue: (row) => row.analytics?.manAdvantage["5v4"].rate, render: (row) => row.analytics ? <MetricValue metric="fiveVFour" value={row.analytics.manAdvantage["5v4"]} /> : "—" },
+    { key: "fourVFive", label: "4v5", numeric: true, className: "hidden lg:table-cell", sortable: true, sortValue: (row) => row.analytics?.manAdvantage["4v5"].rate, render: (row) => row.analytics ? <MetricValue metric="fourVFive" value={row.analytics.manAdvantage["4v5"]} /> : "—" },
+    { key: "eco", label: "Eco/Semi", numeric: true, className: "hidden lg:table-cell", sortable: true, sortValue: (row) => row.analytics?.ecoSemiUpset.rate, render: (row) => row.analytics ? <MetricValue metric="ecoSemi" value={row.analytics.ecoSemiUpset} /> : "—" },
   ];
   return [teamColumn, ...dAKSample,
     { key: "opening", label: "Opening%", numeric: true, sortable: true, sortValue: (row) => row.performance?.slices.overall.opening.successRate.rate, render: (row) => row.performance ? <MetricValue metric="openingWin" value={row.performance.slices.overall.opening.successRate} /> : "—" },
-    { key: "trade", label: "Trade/R", numeric: true, className: "hidden sm:table-cell", render: (row) => row.performance ? <MetricValue metric="trade" value={row.performance.slices.overall.trade.tradeKillsPerRound} /> : "—" },
-    { key: "fa", label: "FA/R", numeric: true, className: "hidden lg:table-cell", render: (row) => row.performance ? <MetricValue metric="flashAssist" value={row.performance.slices.overall.utility.flashAssistsPerRound} /> : "—" },
-    { key: "util", label: "Util/R", numeric: true, className: "hidden lg:table-cell", render: (row) => row.performance ? <MetricValue metric="utility" value={row.performance.slices.overall.utility.utilityDamagePerRound} /> : "—" },
+    { key: "trade", label: "Trade/R", numeric: true, className: "hidden sm:table-cell", sortable: true, sortValue: (row) => row.performance?.slices.overall.trade.tradeKillsPerRound.rate, render: (row) => row.performance ? <MetricValue metric="trade" value={row.performance.slices.overall.trade.tradeKillsPerRound} /> : "—" },
+    { key: "fa", label: "FA/R", numeric: true, className: "hidden lg:table-cell", sortable: true, sortValue: (row) => row.performance?.slices.overall.utility.flashAssistsPerRound.rate, render: (row) => row.performance ? <MetricValue metric="flashAssist" value={row.performance.slices.overall.utility.flashAssistsPerRound} /> : "—" },
+    { key: "util", label: "Util/R", numeric: true, className: "hidden lg:table-cell", sortable: true, sortValue: (row) => row.performance?.slices.overall.utility.utilityDamagePerRound.rate, render: (row) => row.performance ? <MetricValue metric="utility" value={row.performance.slices.overall.utility.utilityDamagePerRound} /> : "—" },
   ];
 }
 

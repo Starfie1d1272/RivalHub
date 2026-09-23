@@ -11,6 +11,7 @@ import { CS2_MAP_CATALOG } from "@/lib/config/cs2-maps";
 interface MapDirectoryRow {
   mapName: string;
   played: number;
+  rounds: number;
   picks: number;
   bans: number;
   deciders: number;
@@ -35,6 +36,7 @@ function rowsFor(data: TournamentStats): MapDirectoryRow[] {
     return {
       mapName,
       played: result?.played ?? 0,
+      rounds: result?.rounds ?? 0,
       picks: selection?.picks ?? 0,
       bans: selection?.bans ?? 0,
       deciders: selection?.deciders ?? 0,
@@ -51,11 +53,12 @@ export function MapsExplorer({ data, query, seasonSlug }: { data: TournamentStat
   const columns: StatsDataColumn<MapDirectoryRow>[] = [
     { key: "map", label: "Map", render: (row) => <Link href={statsHref(seasonSlug, query, { map: row.mapName })} scroll={false} className="font-medium hover:text-[var(--color-accent)]">{mapLabel(row.mapName)}</Link> },
     { key: "played", label: "Played", numeric: true, sortable: true, sortValue: (row) => row.played, render: (row) => row.played },
+    { key: "rounds", label: "Rounds", numeric: true, sortable: true, sortValue: (row) => row.rounds, render: (row) => row.rounds },
     { key: "pickBan", label: "Pick / Ban", numeric: true, className: "hidden sm:table-cell", render: (row) => `${row.picks} / ${row.bans}` },
     { key: "pickBanCompact", label: "P / B", numeric: true, className: "sm:hidden", render: (row) => `${row.picks}/${row.bans}` },
-    { key: "decider", label: "Decider", numeric: true, className: "hidden sm:table-cell", render: (row) => row.deciders },
+    { key: "decider", label: "Decider", numeric: true, className: "hidden sm:table-cell", sortable: true, sortValue: (row) => row.deciders, render: (row) => row.deciders },
     ...(partialCoverage ? [{ key: "coverage", label: "Coverage", numeric: true, className: "hidden sm:table-cell", sortable: true, sortValue: (row: MapDirectoryRow) => row.detailedMaps, render: (row: MapDirectoryRow) => `${row.detailedMaps}/${row.completedMaps}` } satisfies StatsDataColumn<MapDirectoryRow>] : []),
-    { key: "ctT", label: "CT / T", numeric: true, sortable: true, sortValue: (row) => row.ct?.rate, render: (row) => <span className="inline-flex gap-3"><span>CT <MetricValue metric="roundWin" value={row.ct} sampleDisplay="hidden" /></span><span>T <MetricValue metric="roundWin" value={row.t} sampleDisplay="hidden" /></span></span> },
+    { key: "ctT", label: "CT / T", numeric: true, render: (row) => <span className="inline-flex gap-3"><span>CT <MetricValue metric="roundWin" value={row.ct} sampleDisplay="hidden" /></span><span>T <MetricValue metric="roundWin" value={row.t} sampleDisplay="hidden" /></span></span> },
   ];
   return (
     <section className="space-y-4">

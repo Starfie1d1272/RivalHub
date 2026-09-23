@@ -39,7 +39,7 @@ export function buildTournamentResults(
     mapWins: 0,
     mapLosses: 0,
   }]));
-  const byMapName = new Map<string, number>();
+  const byMapName = new Map<string, { played: number; rounds: number }>();
   const teamMapsByName = new Map<string, Map<string, { played: number; wins: number; losses: number }>>();
 
   for (const match of completedMatches) {
@@ -59,7 +59,10 @@ export function buildTournamentResults(
   }
 
   for (const map of completedMaps) {
-    byMapName.set(map.mapName, (byMapName.get(map.mapName) ?? 0) + 1);
+    const mapSummary = byMapName.get(map.mapName) ?? { played: 0, rounds: 0 };
+    mapSummary.played += 1;
+    mapSummary.rounds += map.scoreA! + map.scoreB!;
+    byMapName.set(map.mapName, mapSummary);
     const match = matchById.get(map.matchId);
     if (!match) continue;
     const teamA = byEntry.get(match.entryAId);
@@ -96,7 +99,7 @@ export function buildTournamentResults(
       completedRounds: rounds,
     },
     teams: [...byEntry.values()].filter((team) => team.matches > 0 || team.maps > 0),
-    maps: [...byMapName].map(([mapName, played]) => ({ mapName, played })),
+    maps: [...byMapName].map(([mapName, summary]) => ({ mapName, ...summary })),
     teamMaps: [...teamMapsByName].map(([mapName, teams]) => ({ mapName, teams: [...teams].map(([entryId, result]) => ({ entryId, ...result })) })),
   };
 }

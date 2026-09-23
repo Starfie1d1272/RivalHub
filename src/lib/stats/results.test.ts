@@ -20,7 +20,7 @@ describe("buildTournamentResults", () => {
     ]);
 
     expect(result.totals).toEqual({ completedMatches: 2, completedMaps: 7, completedRounds: 143 });
-    expect(result.maps).toEqual([{ mapName: "de_ancient", played: 7 }]);
+    expect(result.maps).toEqual([{ mapName: "de_ancient", played: 7, rounds: 143 }]);
     expect(result.teams.find((team) => team.entryId === "a")).toMatchObject({ matches: 2, matchWins: 1, matchLosses: 1, maps: 7 });
   });
 

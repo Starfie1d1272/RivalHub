@@ -33,33 +33,33 @@ export function TeamWorkspace({ detail, seasonSlug }: { detail: TournamentTeamDe
   const mapColumns: StatsDataColumn<(typeof detail.maps)[number]>[] = [
     { key: "map", label: "Map", render: (row) => mapLabel(row.mapName) },
     { key: "played", label: "Played", numeric: true, sortable: true, sortValue: (row) => row.results?.played ?? 0, render: (row) => row.results?.played ?? 0 },
-    { key: "mapRecord", label: "Map W-L", numeric: true, className: "hidden sm:table-cell", render: (row) => row.results ? `${row.results.wins}-${row.results.losses}` : "—" },
-    { key: "pick", label: "Pick", numeric: true, className: "hidden sm:table-cell", render: (row) => row.selection?.picks ?? 0 },
-    { key: "ban", label: "Ban", numeric: true, className: "hidden sm:table-cell", render: (row) => row.selection?.bans ?? 0 },
-    { key: "detail", label: "Detail", numeric: true, render: (row) => `${row.coverage.detailedMaps}/${row.coverage.completedMaps}` },
-    { key: "rw", label: "RW%", numeric: true, className: "hidden lg:table-cell", render: (row) => row.analytics ? <MetricValue metric="roundWin" value={{ wins: row.analytics.roundWins, opportunities: row.analytics.rounds, rate: row.analytics.roundWinRate }} /> : "—" },
+    { key: "mapRecord", label: "Map W-L", numeric: true, className: "hidden sm:table-cell", sortable: true, sortValue: (row) => row.results ? row.results.wins - row.results.losses : null, render: (row) => row.results ? `${row.results.wins}-${row.results.losses}` : "—" },
+    { key: "pick", label: "Pick", numeric: true, className: "hidden sm:table-cell", sortable: true, sortValue: (row) => row.selection?.picks ?? 0, render: (row) => row.selection?.picks ?? 0 },
+    { key: "ban", label: "Ban", numeric: true, className: "hidden sm:table-cell", sortable: true, sortValue: (row) => row.selection?.bans ?? 0, render: (row) => row.selection?.bans ?? 0 },
+    { key: "detail", label: "Detail", numeric: true, sortable: true, sortValue: (row) => row.coverage.detailedMaps, render: (row) => `${row.coverage.detailedMaps}/${row.coverage.completedMaps}` },
+    { key: "rw", label: "RW%", numeric: true, className: "hidden lg:table-cell", sortable: true, sortValue: (row) => row.analytics?.roundWinRate, render: (row) => row.analytics ? <MetricValue metric="roundWin" value={{ wins: row.analytics.roundWins, opportunities: row.analytics.rounds, rate: row.analytics.roundWinRate }} /> : "—" },
     { key: "tct", label: "T% / CT%", numeric: true, className: "hidden lg:table-cell", render: (row) => row.analytics ? <span className="inline-flex gap-2"><MetricValue metric="roundWin" value={row.analytics.t} sampleLabel="T rounds" /><MetricValue metric="roundWin" value={row.analytics.ct} sampleLabel="CT rounds" /></span> : "—" },
   ];
   const scoreboardColumns: StatsDataColumn<(typeof detail.scoreboard)[number]>[] = [
     { key: "player", label: "Player", render: (row) => row.userId ? <PlayerProfileLink userId={row.userId} className="font-medium">{row.perfectName}</PlayerProfileLink> : row.perfectName },
-    { key: "maps", label: "Maps", numeric: true, render: (row) => row.maps },
-    { key: "rounds", label: "Rounds", numeric: true, className: "hidden sm:table-cell", render: (row) => row.rounds ?? "—" },
-    { key: "rating", label: "Rating", numeric: true, render: (row) => <MetricValue metric="rating" value={row.avgRating} /> },
-    { key: "adr", label: "ADR", numeric: true, className: "hidden sm:table-cell", render: (row) => <MetricValue metric="adr" value={row.avgAdr} /> },
-    { key: "kd", label: "K/D", numeric: true, className: "hidden lg:table-cell", render: (row) => <MetricValue metric="kd" value={row.kdRatio} /> },
+    { key: "maps", label: "Maps", numeric: true, sortable: true, sortValue: (row) => row.maps, render: (row) => row.maps },
+    { key: "rounds", label: "Rounds", numeric: true, className: "hidden sm:table-cell", sortable: true, sortValue: (row) => row.rounds, render: (row) => row.rounds ?? "—" },
+    { key: "rating", label: "Rating", numeric: true, sortable: true, sortValue: (row) => row.avgRating, render: (row) => <MetricValue metric="rating" value={row.avgRating} /> },
+    { key: "adr", label: "ADR", numeric: true, className: "hidden sm:table-cell", sortable: true, sortValue: (row) => row.avgAdr, render: (row) => <MetricValue metric="adr" value={row.avgAdr} /> },
+    { key: "kd", label: "K/D", numeric: true, className: "hidden lg:table-cell", sortable: true, sortValue: (row) => row.kdRatio, render: (row) => <MetricValue metric="kd" value={row.kdRatio} /> },
   ];
   const detailedColumns: StatsDataColumn<(typeof detail.detailedPlayers)[number]>[] = [
     { key: "player", label: "Player", render: (row) => <PlayerProfileLink userId={row.player.entityKey} className="font-medium">{row.player.displayName}</PlayerProfileLink> },
-    { key: "dakMaps", label: "DAK Maps", numeric: true, render: (row) => row.mapCount },
-    { key: "rounds", label: "Rounds", numeric: true, render: (row) => row.slices.overall.sample.rounds },
-    { key: "kast", label: "KAST", numeric: true, className: "hidden sm:table-cell", render: (row) => <MetricValue metric="kast" value={row.slices.overall.kast} /> },
-    { key: "opening", label: "Opening%", numeric: true, className: "hidden sm:table-cell", render: (row) => <MetricValue metric="openingWin" value={row.slices.overall.opening.successRate} /> },
-    { key: "trade", label: "Trade/R", numeric: true, className: "hidden lg:table-cell", render: (row) => <MetricValue metric="trade" value={row.slices.overall.trade.tradeKillsPerRound} /> },
+    { key: "maps", label: "Maps", numeric: true, sortable: true, sortValue: (row) => row.mapCount, render: (row) => row.mapCount },
+    { key: "rounds", label: "Rounds", numeric: true, sortable: true, sortValue: (row) => row.slices.overall.sample.rounds, render: (row) => row.slices.overall.sample.rounds },
+    { key: "kast", label: "KAST", numeric: true, className: "hidden sm:table-cell", sortable: true, sortValue: (row) => row.slices.overall.kast.rate, render: (row) => <MetricValue metric="kast" value={row.slices.overall.kast} /> },
+    { key: "opening", label: "Opening%", numeric: true, className: "hidden sm:table-cell", sortable: true, sortValue: (row) => row.slices.overall.opening.successRate.rate, render: (row) => <MetricValue metric="openingWin" value={row.slices.overall.opening.successRate} /> },
+    { key: "trade", label: "Trade/R", numeric: true, className: "hidden lg:table-cell", sortable: true, sortValue: (row) => row.slices.overall.trade.tradeKillsPerRound.rate, render: (row) => <MetricValue metric="trade" value={row.slices.overall.trade.tradeKillsPerRound} /> },
   ];
   const economyColumns: StatsDataColumn<TournamentStats["analytics"]["economyMatrix"][number]>[] = [
     { key: "combo", label: "Economy", render: (row) => `${formatEconomyLabel(row.lowEconomy)} / ${formatEconomyLabel(row.highEconomy)}` },
     { key: "rounds", label: "Rounds", numeric: true, sortable: true, sortValue: (row) => row.rounds, render: (row) => row.rounds },
-    { key: "win", label: "Lower economy win%", numeric: true, render: (row) => <MetricValue metric="ecoSemi" value={{ wins: row.lowEconomyWins, opportunities: row.rounds, rate: row.lowWinRate }} /> },
+    { key: "win", label: "Lower economy win%", numeric: true, sortable: true, sortValue: (row) => row.lowWinRate, render: (row) => <MetricValue metric="ecoSemi" value={{ wins: row.lowEconomyWins, opportunities: row.rounds, rate: row.lowWinRate }} /> },
   ];
 
   return (

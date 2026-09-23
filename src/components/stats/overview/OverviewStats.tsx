@@ -10,7 +10,7 @@ import { statsHref, type StatsQuery } from "@/lib/stats/view-state";
 import { sortStatsRows } from "@/lib/stats/sorting";
 import { CS2_MAP_CATALOG } from "@/lib/config/cs2-maps";
 
-interface MapLandscapeRow { mapName: string; played: number; picks: number | null; bans: number | null; ct: TournamentStats["analytics"]["maps"][number]["ct"] | null; t: TournamentStats["analytics"]["maps"][number]["t"] | null; detailed: number; completed: number; }
+interface MapLandscapeRow { mapName: string; played: number; rounds: number; picks: number | null; bans: number | null; ct: TournamentStats["analytics"]["maps"][number]["ct"] | null; t: TournamentStats["analytics"]["maps"][number]["t"] | null; detailed: number; completed: number; }
 function mapLabel(mapName: string) { return CS2_MAP_CATALOG.find((row) => row.key === mapName)?.label ?? mapName; }
 function landscapeRows(data: TournamentStats): MapLandscapeRow[] {
   const resultByName = new Map(data.results.maps.map((row) => [row.mapName, row]));
@@ -20,7 +20,7 @@ function landscapeRows(data: TournamentStats): MapLandscapeRow[] {
   const names = new Set([...resultByName.keys(), ...selectionByName.keys(), ...analyticsByName.keys(), ...coverageByName.keys()]);
   return [...names].map((mapName) => {
     const result = resultByName.get(mapName); const coverage = coverageByName.get(mapName);
-    return { mapName, played: result?.played ?? 0, picks: selectionByName.get(mapName)?.picks ?? null, bans: selectionByName.get(mapName)?.bans ?? null, ct: analyticsByName.get(mapName)?.ct ?? null, t: analyticsByName.get(mapName)?.t ?? null, detailed: coverage?.detailedMaps ?? 0, completed: coverage?.completedMaps ?? result?.played ?? 0 };
+    return { mapName, played: result?.played ?? 0, rounds: result?.rounds ?? 0, picks: selectionByName.get(mapName)?.picks ?? null, bans: selectionByName.get(mapName)?.bans ?? null, ct: analyticsByName.get(mapName)?.ct ?? null, t: analyticsByName.get(mapName)?.t ?? null, detailed: coverage?.detailedMaps ?? 0, completed: coverage?.completedMaps ?? result?.played ?? 0 };
   });
 }
 function leaders(data: TournamentStats, query: StatsQuery, seasonSlug: string) {
@@ -44,6 +44,7 @@ export function OverviewStats({ data, query, seasonSlug }: { data: TournamentSta
   const mapColumns: StatsDataColumn<MapLandscapeRow>[] = [
     { key: "map", label: "Map", render: (row) => <Link href={statsHref(seasonSlug, query, { tab: "maps", map: row.mapName })} scroll={false} className="font-medium hover:text-[var(--color-accent)]">{mapLabel(row.mapName)}</Link> },
     { key: "played", label: "Played", numeric: true, sortable: true, sortValue: (row) => row.played, render: (row) => row.played },
+    { key: "rounds", label: "Rounds", numeric: true, sortable: true, sortValue: (row) => row.rounds, render: (row) => row.rounds },
     { key: "pick", label: "Pick", numeric: true, sortable: true, sortValue: (row) => row.picks, render: (row) => row.picks ?? "—" },
     { key: "ban", label: "Ban", numeric: true, sortable: true, sortValue: (row) => row.bans, render: (row) => row.bans ?? "—" },
     { key: "side", label: "CT / T", className: "hidden sm:table-cell", render: (row) => <span className="inline-flex gap-3"><span>CT <MetricValue metric="roundWin" value={row.ct} sampleDisplay="hidden" /></span><span>T <MetricValue metric="roundWin" value={row.t} sampleDisplay="hidden" /></span></span> },
@@ -62,9 +63,9 @@ export function OverviewStats({ data, query, seasonSlug }: { data: TournamentSta
       <div><p className="text-xs text-[var(--color-fg-mid)]">Pistol → R2</p><div className="mt-1 text-sm font-semibold"><MetricValue metric="conversion" value={data.analytics.totals.round2Conversion} sampleDisplay="compact" /></div></div>
     </Panel></section>
     <section aria-labelledby="maps-heading"><h2 id="maps-heading" className="mb-3 font-semibold">Maps</h2><StatsDataTable rows={maps} columns={mapColumns} rowKey={(row) => row.mapName} initialSortKey="played" /></section>
-    <section aria-labelledby="tournament-leaders"><h2 id="tournament-leaders" className="mb-3 font-semibold">Leaders</h2><div className="grid gap-4 lg:grid-cols-2">
-      <MetricPanel title="Players"><StatsDataTable embedded rows={topPlayers} columns={playerColumns} rowKey={(row, index) => `${row.userId ?? row.perfectName}:${row.teamId ?? ""}:${index}`} pageSize={5} emptyLabel="暂无选手统计" /></MetricPanel>
-      <MetricPanel title="Teams"><StatsDataTable embedded rows={topTeams} columns={teamColumns} rowKey={(row) => row.entryId} pageSize={5} emptyLabel="暂无队伍赛果" /></MetricPanel>
+    <section aria-label="Tournament leaders"><div className="grid gap-4 lg:grid-cols-2">
+      <MetricPanel title="Top Players"><StatsDataTable embedded showRank rows={topPlayers} columns={playerColumns} rowKey={(row, index) => `${row.userId ?? row.perfectName}:${row.teamId ?? ""}:${index}`} pageSize={5} emptyLabel="暂无选手统计" /></MetricPanel>
+      <MetricPanel title="Top Teams"><StatsDataTable embedded showRank rows={topTeams} columns={teamColumns} rowKey={(row) => row.entryId} pageSize={5} emptyLabel="暂无队伍赛果" /></MetricPanel>
     </div></section>
     <section aria-labelledby="round-context"><h2 id="round-context" className="mb-3 font-semibold">Round Context</h2><div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
       {roundProfile.map(([label, metric, value]) => <MetricPanel key={label} title={label}><MetricValue metric={metric} value={value} sampleDisplay="compact" /></MetricPanel>)}

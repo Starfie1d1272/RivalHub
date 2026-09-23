@@ -38,20 +38,20 @@ export function PlayerWorkspace({ detail }: { detail: TournamentPlayerDetail }) 
   const playerName = player?.player.displayName ?? detail.scoreboard[0]?.perfectName ?? "未知选手";
   const teamColumns: StatsDataColumn<(typeof detail.scoreboard)[number]>[] = [
     { key: "team", label: "Team", render: (row) => row.teamName ?? "—" },
-    { key: "maps", label: "Maps", numeric: true, render: (row) => row.maps },
-    { key: "rounds", label: "Rounds", numeric: true, render: (row) => row.rounds ?? "—" },
-    { key: "rating", label: "Rating", numeric: true, render: (row) => <MetricValue metric="rating" value={row.avgRating} /> },
-    { key: "adr", label: "ADR", numeric: true, render: (row) => <MetricValue metric="adr" value={row.avgAdr} /> },
-    { key: "kd", label: "K/D", numeric: true, render: (row) => <MetricValue metric="kd" value={row.kdRatio} /> },
-    { key: "kpr", label: "KPR", numeric: true, render: (row) => <MetricValue metric="kpr" value={row.kpr} /> },
+    { key: "maps", label: "Maps", numeric: true, sortable: true, sortValue: (row) => row.maps, render: (row) => row.maps },
+    { key: "rounds", label: "Rounds", numeric: true, sortable: true, sortValue: (row) => row.rounds, render: (row) => row.rounds ?? "—" },
+    { key: "rating", label: "Rating", numeric: true, sortable: true, sortValue: (row) => row.avgRating, render: (row) => <MetricValue metric="rating" value={row.avgRating} /> },
+    { key: "adr", label: "ADR", numeric: true, sortable: true, sortValue: (row) => row.avgAdr, render: (row) => <MetricValue metric="adr" value={row.avgAdr} /> },
+    { key: "kd", label: "K/D", numeric: true, sortable: true, sortValue: (row) => row.kdRatio, render: (row) => <MetricValue metric="kd" value={row.kdRatio} /> },
+    { key: "kpr", label: "KPR", numeric: true, sortable: true, sortValue: (row) => row.kpr, render: (row) => <MetricValue metric="kpr" value={row.kpr} /> },
   ];
   const mapColumns: StatsDataColumn<(typeof detail.scoreboardMaps)[number]>[] = [
     { key: "map", label: "Map", render: (row) => mapLabel(row.mapName ?? "") },
-    { key: "maps", label: "Maps", numeric: true, render: (row) => row.maps },
-    { key: "rounds", label: "Rounds", numeric: true, render: (row) => row.rounds ?? "—" },
-    { key: "rating", label: "Rating", numeric: true, render: (row) => <MetricValue metric="rating" value={row.avgRating} /> },
-    { key: "adr", label: "ADR", numeric: true, render: (row) => <MetricValue metric="adr" value={row.avgAdr} /> },
-    { key: "kd", label: "K/D", numeric: true, render: (row) => <MetricValue metric="kd" value={row.kdRatio} /> },
+    { key: "maps", label: "Maps", numeric: true, sortable: true, sortValue: (row) => row.maps, render: (row) => row.maps },
+    { key: "rounds", label: "Rounds", numeric: true, sortable: true, sortValue: (row) => row.rounds, render: (row) => row.rounds ?? "—" },
+    { key: "rating", label: "Rating", numeric: true, sortable: true, sortValue: (row) => row.avgRating, render: (row) => <MetricValue metric="rating" value={row.avgRating} /> },
+    { key: "adr", label: "ADR", numeric: true, sortable: true, sortValue: (row) => row.avgAdr, render: (row) => <MetricValue metric="adr" value={row.avgAdr} /> },
+    { key: "kd", label: "K/D", numeric: true, sortable: true, sortValue: (row) => row.kdRatio, render: (row) => <MetricValue metric="kd" value={row.kdRatio} /> },
   ];
   const weaponColumns: StatsDataColumn<NonNullable<typeof player>["weapons"][number]>[] = [
     { key: "weapon", label: "Weapon", render: (row) => displayWeaponName(row.weapon) },
