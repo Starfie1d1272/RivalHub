@@ -13,8 +13,10 @@ import { loadEffectiveMatchRoster, type EffectiveMatchRosterPlayer } from "@/lib
 import { getStatsLeaderboard } from "./leaderboard-query";
 import { adaptStatsEvidence, type StatsPlayerBinding } from "./evidence-adapter";
 import { buildTournamentResults } from "./results";
+import { buildTeamRatings } from "./team-rating";
+import { classifyVetoSample } from "./veto-sample";
 
-export interface TournamentStatsScope { seasonId: string; stage?: string; mapFilter?: string; teamFilter?: string }
+export interface TournamentStatsScope { seasonId: string; stage?: string; format?: "bo1" | "bo3" | "bo5"; mapFilter?: string; teamFilter?: string }
 
 type StatsLabels = { teams: Record<string, string>; players: Record<string, string> };
 
@@ -24,12 +26,17 @@ async function loadStatsEvidence(tx: TxDb, scope: TournamentStatsScope, options:
       eq(matches.seasonId, scope.seasonId),
       eq(matchMaps.mapName, options.mapName),
       scope.stage ? eq(matches.stage, scope.stage) : undefined,
+      scope.format ? eq(matches.format, scope.format) : undefined,
       (options.teamId ?? scope.teamFilter) ? or(eq(matches.entryAId, options.teamId ?? scope.teamFilter!), eq(matches.entryBId, options.teamId ?? scope.teamFilter!)) : undefined,
     ))
     : undefined;
   const matchRows = selectedMapRows
     ? [...new Map(selectedMapRows.map(({ match }) => [match.id, match])).values()]
-    : await tx.select().from(matches).where(and(eq(matches.seasonId, scope.seasonId), scope.stage ? eq(matches.stage, scope.stage) : undefined));
+    : await tx.select().from(matches).where(and(
+      eq(matches.seasonId, scope.seasonId),
+      scope.stage ? eq(matches.stage, scope.stage) : undefined,
+      scope.format ? eq(matches.format, scope.format) : undefined,
+    ));
   const selectedTeamId = options.teamId ?? scope.teamFilter;
   const baseMatches = matchRows.filter((match) => match.status !== "cancelled");
   const scopedMatches = baseMatches.filter((match) => !selectedTeamId || [match.entryAId, match.entryBId].includes(selectedTeamId));
@@ -169,7 +176,7 @@ function buildVetoSelection(
 
 async function loadScopedVetoRows(
   tx: TxDb,
-  scope: Pick<TournamentStatsScope, "seasonId" | "stage">,
+  scope: Pick<TournamentStatsScope, "seasonId" | "stage" | "format">,
   mapName?: string,
 ) {
   return tx.select({
@@ -181,11 +188,12 @@ async function loadScopedVetoRows(
     eq(matches.seasonId, scope.seasonId),
     eq(matches.status, "finished"),
     scope.stage ? eq(matches.stage, scope.stage) : undefined,
+    scope.format ? eq(matches.format, scope.format) : undefined,
     mapName ? eq(matchVetoSteps.mapName, mapName) : undefined,
   ));
 }
 
-async function loadVetoData(tx: TxDb, scope: Pick<TournamentStatsScope, "seasonId" | "stage">, entries: Array<{ id: string; name: string }>) {
+async function loadVetoData(tx: TxDb, scope: Pick<TournamentStatsScope, "seasonId" | "stage" | "format">, entries: Array<{ id: string; name: string }>) {
   const matchRows = await tx.select({
     id: matches.id,
     status: matches.status,
@@ -195,6 +203,7 @@ async function loadVetoData(tx: TxDb, scope: Pick<TournamentStatsScope, "seasonI
   }).from(matches).where(and(
     eq(matches.seasonId, scope.seasonId),
     scope.stage ? eq(matches.stage, scope.stage) : undefined,
+    scope.format ? eq(matches.format, scope.format) : undefined,
   ));
   const finished = matchRows.filter((match) => match.status === "finished");
   const finishedIds = finished.map((match) => match.id);
@@ -207,10 +216,14 @@ async function loadVetoData(tx: TxDb, scope: Pick<TournamentStatsScope, "seasonI
     }).from(matchVetoSteps).where(inArray(matchVetoSteps.matchId, finishedIds))
     : [];
   const recordedMatchIds = new Set(allVeto.map((row) => row.matchId));
-  const applicableMatches = finished.filter((match) => !match.isForfeit || recordedMatchIds.has(match.id));
+  const sampleStateByMatchId = new Map(finished.map((match) => [
+    match.id,
+    classifyVetoSample(match, recordedMatchIds.has(match.id)),
+  ]));
+  const applicableMatches = finished.filter((match) => sampleStateByMatchId.get(match.id) !== "not_applicable");
   const applicableIds = new Set(applicableMatches.map((match) => match.id));
   const rows = allVeto.filter((row) => applicableIds.has(row.matchId));
-  const participantIds = new Set(applicableMatches.flatMap((match) => [match.entryAId, match.entryBId].filter((id): id is string => Boolean(id))));
+  const participantIds = new Set(finished.flatMap((match) => [match.entryAId, match.entryBId].filter((id): id is string => Boolean(id))));
   const participants = entries.filter((entry) => participantIds.has(entry.id));
   const recordedApplicableIds = new Set(rows.map((row) => row.matchId));
   const teams = participants.map((entry) => ({
@@ -223,9 +236,11 @@ async function loadVetoData(tx: TxDb, scope: Pick<TournamentStatsScope, "seasonI
     participants,
     teams,
     sample: {
+      finishedMatches: finished.length,
       applicableMatches: applicableMatches.length,
       recordedMatches: recordedApplicableIds.size,
-      missingMatches: Math.max(0, applicableMatches.length - recordedApplicableIds.size),
+      missingMatches: [...sampleStateByMatchId.values()].filter((state) => state === "missing").length,
+      notApplicableMatches: [...sampleStateByMatchId.values()].filter((state) => state === "not_applicable").length,
     },
   };
 }
@@ -308,8 +323,10 @@ export async function getTournamentStats(scope: TournamentStatsScope, database: 
     const results = buildTournamentResults(resultMatchesForMapScope(loaded.matches, loaded.scopedMaps, scope.mapFilter), loaded.scopedMaps, loaded.entries);
     const coverage = buildCoverage(loaded, results);
     const mapNames = [...new Set([...loaded.maps.map((map) => map.mapName), ...veto.rows.map((row) => row.mapName)])].sort();
+    const leaderboard = await getStatsLeaderboard(scope, loaded.selected.map((row) => row.importId), loaded.roster, tx);
     return {
-      leaderboard: await getStatsLeaderboard(scope, loaded.selected.map((row) => row.importId), loaded.roster, tx),
+      leaderboard,
+      teamRatings: buildTeamRatings(leaderboard),
       analytics: buildTournamentAnalytics(loaded.selected.map((row) => row.facts.tournament), { labels: loaded.labels }),
       performance: buildTournamentPerformanceAnalytics(performanceFactsForScope(loaded, scope.teamFilter), { labels: loaded.labels }),
       results,
