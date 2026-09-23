@@ -1,5 +1,19 @@
 # Changelog
 
+## [2.11.0]
+
+### Added
+
+#### 赛事统计中心
+
+赛事统计整理为 Overview、Players、Teams、Maps 和 Weapons 五个入口，并支持 Stage、Best-of、Map 与 Team 等可分享筛选。新增地图池与 BP 视图、队伍 Rating 汇总、赛事经济摘要和 Situation Highlights；正式赛果、BP 暴露及已确认 DAK 详细覆盖继续分开呈现。
+
+### Fixed
+
+#### 公开页面缓存与加载
+
+首页、公告和赛季信息改用可定向失效的共享缓存，公开路由复用 App Shell，同时保持 viewer 专属任务独立加载。更新 Next.js 与 eslint-config-next 安全补丁，并记录 Vercel build footprint。
+
 ## [2.10.7]
 
 ### Fixed
@@ -2324,6 +2338,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Vercel + Supabase 生产部署
 
 [2.10.7]: https://github.com/Starfie1d1272/RivalHub/compare/v2.10.6...v2.10.7
+[2.11.0]: https://github.com/Starfie1d1272/RivalHub/compare/v2.10.7...v2.11.0
 [2.10.6]: https://github.com/Starfie1d1272/RivalHub/compare/v2.10.5...v2.10.6
 [2.10.5]: https://github.com/Starfie1d1272/RivalHub/compare/v2.10.4...v2.10.5
 [2.10.4]: https://github.com/Starfie1d1272/RivalHub/compare/v2.10.3...v2.10.4
