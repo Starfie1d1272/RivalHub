@@ -35,7 +35,8 @@ describe("OverviewStats", () => {
     expect(within(mapTable).getByText("154")).toBeInTheDocument();
     expect(screen.getByText("Top Players")).toBeInTheDocument();
     expect(screen.getByText("Top Teams")).toBeInTheDocument();
-    expect(screen.getAllByRole("columnheader", { name: "#" })).toHaveLength(2);
+    expect(screen.getByText("Top Weapons")).toBeInTheDocument();
+    expect(screen.getAllByRole("columnheader", { name: "#" })).toHaveLength(3);
   });
 
   it("renders visual side splits and full-list navigation", () => {
@@ -44,7 +45,7 @@ describe("OverviewStats", () => {
     data.analytics.totals.t = { rate: 0.45, wins: 45, opportunities: 100 };
     render(<OverviewStats data={data} query={parseStatsQuery({}, [])} seasonSlug="major" />);
     expect(screen.getByLabelText("CT 55.0%, T 45.0%")).toBeInTheDocument();
-    expect(screen.getAllByRole("link", { name: "View all →" })).toHaveLength(2);
+    expect(screen.getAllByRole("link", { name: "View all →" })).toHaveLength(3);
   });
 
   it("makes CT / T sortable by CT win rate", () => {
