@@ -106,7 +106,7 @@ export function OverviewStats({ data, query, seasonSlug }: { data: TournamentSta
     { key: "rounds", label: "Rounds", numeric: true, className: "w-[11%]", sortable: true, sortValue: (row) => row.rounds, render: (row) => row.rounds },
     { key: "pick", label: "Pick", numeric: true, className: "w-[8%]", sortable: true, sortValue: (row) => row.picks, render: (row) => row.picks ?? "—" },
     { key: "ban", label: "Ban", numeric: true, className: "w-[8%]", sortable: true, sortValue: (row) => row.bans, render: (row) => row.bans ?? "—" },
-    { key: "side", label: "CT / T", className: "hidden w-[35%] sm:table-cell", render: (row) => <SideSplit ct={row.ct} t={row.t} compact /> },
+    { key: "side", label: "CT / T", className: "hidden w-[35%] sm:table-cell", sortable: true, sortValue: (row) => row.ct?.rate, render: (row) => <SideSplit ct={row.ct} t={row.t} compact /> },
   ];
   if (partialCoverage) mapColumns.push({ key: "coverage", label: "Coverage", numeric: true, className: "hidden sm:table-cell", render: (row) => `${row.detailed}/${row.completed}` });
 

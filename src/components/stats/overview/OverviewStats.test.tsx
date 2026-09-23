@@ -47,4 +47,9 @@ describe("OverviewStats", () => {
     expect(screen.getAllByRole("link", { name: "View all →" })).toHaveLength(2);
   });
 
+  it("makes CT / T sortable by CT win rate", () => {
+    render(<OverviewStats data={dataWithCoverage(7, 7)} query={parseStatsQuery({}, [])} seasonSlug="major" />);
+    expect(screen.getByRole("button", { name: "Sort by CT / T" })).toBeInTheDocument();
+  });
+
 });
