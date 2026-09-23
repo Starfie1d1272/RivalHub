@@ -23,6 +23,7 @@ const query: StatsQuery = {
   player: "4ab08f95-e8e1-4d9e-8641-947dbcc37779",
   team: "",
   map: "",
+  mapsView: "pool",
 };
 
 describe("StatsShell navigation", () => {
