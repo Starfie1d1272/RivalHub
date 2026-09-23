@@ -47,7 +47,7 @@ export function TournamentStatsView({
     ? <TeamsExplorer data={data} query={query} seasonSlug={seasonSlug} />
     : <EmptyState title="暂无队伍统计数据" />;
   if (query.tab === "maps") content = mapDetail
-    ? <MapWorkspace detail={mapDetail} />
+    ? <MapWorkspace detail={mapDetail} seasonSlug={seasonSlug} />
     : data ? <MapsExplorer data={data} query={query} seasonSlug={seasonSlug} /> : <EmptyState title="暂无地图统计数据" />;
   if (query.tab === "weapons") content = data
     ? <WeaponsExplorer data={data} query={query} seasonSlug={seasonSlug} />
