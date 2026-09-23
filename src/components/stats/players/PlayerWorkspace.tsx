@@ -101,8 +101,8 @@ export function PlayerWorkspace({ detail }: { detail: TournamentPlayerDetail }) 
           ["Attempt%", <MetricValue key="attemptRate" metric="openingAttempt" value={slice.opening.attemptRate} />],
           ["Opening wins", slice.opening.firstKills],
           ["Open Win%", <MetricValue key="openWinRate" metric="openingWin" value={slice.opening.successRate} />],
-          ["FK/R", <MetricValue key="firstKillsPerRound" metric="firstKill" value={slice.opening.firstKillsPerRound} />],
-          ["FD/R", <MetricValue key="firstDeathsPerRound" metric="firstDeath" value={slice.opening.firstDeathsPerRound} />],
+          ["FK/100r", <MetricValue key="firstKillsPerRound" metric="firstKill" value={slice.opening.firstKillsPerRound} />],
+          ["FD/100r", <MetricValue key="firstDeathsPerRound" metric="firstDeath" value={slice.opening.firstDeathsPerRound} />],
           ["Win after opening win", <MetricValue key="winAfterOpeningWin" metric="roundWin" value={slice.opening.winRateAfterWinningOpeningDuel} />],
           ["Comeback after opening loss", <MetricValue key="comebackAfterOpeningLoss" metric="roundWin" value={slice.opening.comebackRateAfterLosingOpeningDuel} />],
         ]} />
@@ -117,7 +117,7 @@ export function PlayerWorkspace({ detail }: { detail: TournamentPlayerDetail }) 
       {tab === "utility" && slice && <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         <SampleValue title="Utility" rows={[
           ["Util/R", <MetricValue key="utilityDamage" metric="utility" value={slice.utility.utilityDamagePerRound} />],
-          ["FA/R", <MetricValue key="flashAssists" metric="flashAssist" value={slice.utility.flashAssistsPerRound} />],
+          ["FA/100r", <MetricValue key="flashAssists" metric="flashAssist" value={slice.utility.flashAssistsPerRound} />],
           ["Blind/Flash", <MetricValue key="blindPerFlash" metric="blindPerFlash" value={slice.utility.enemyBlindSecondsPerFlash} />],
           ["Net Blind/Flash", <MetricValue key="netBlindPerFlash" metric="netBlindPerFlash" value={slice.utility.netBlindSecondsPerFlash} />],
           ["Enemy Blind/R", <MetricValue key="enemyBlindPerRound" metric="utility" value={slice.utility.enemyBlindSecondsPerRound} />],
