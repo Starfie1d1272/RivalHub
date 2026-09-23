@@ -107,12 +107,12 @@ export function MapsExplorer({ data, query, seasonSlug }: { data: TournamentStat
       className: "hidden w-[10%] lg:table-cell",
       sortable: true,
       sortValue: (row: MapDirectoryRow) => row.detailedMaps,
-      render: (row: MapDirectoryRow) => \`${row.detailedMaps}/${row.completedMaps}\`,
+      render: (row: MapDirectoryRow) => `${row.detailedMaps}/${row.completedMaps}`,
     } satisfies StatsDataColumn<MapDirectoryRow>] : []),
     { key: "ctT", label: "CT / T", className: "hidden w-[26%] sm:table-cell", sortable: true, sortValue: (row) => row.ct?.rate, render: (row) => <StatsSideSplit ct={row.ct} t={row.t} compact /> },
   ];
   const vetoColumns: StatsDataColumn<VetoMatrixRow>[] = [
-    { key: "team", label: "Team", className: "min-w-52", sortable: true, sortValue: (row) => row.name, render: (row) => <Link href={\`/${seasonSlug}/teams/${row.entryId}\`} className="font-medium hover:text-[var(--color-accent)]">{row.name}</Link> },
+    { key: "team", label: "Team", className: "min-w-52", sortable: true, sortValue: (row) => row.name, render: (row) => <Link href={`/${seasonSlug}/teams/${row.entryId}`} className="font-medium hover:text-[var(--color-accent)]">{row.name}</Link> },
     { key: "vetoes", label: "Vetoes", numeric: true, className: "w-20", sortable: true, sortValue: (row) => row.vetoes, render: (row) => row.vetoes },
     ...mapNames.map((mapName) => ({
       key: mapName,
@@ -124,7 +124,7 @@ export function MapsExplorer({ data, query, seasonSlug }: { data: TournamentStat
       render: (row: VetoMatrixRow) => {
         const cell = row.cells[mapName]!;
         if (cell.picks === 0 && cell.bans === 0) return <span className="text-[var(--color-fg-dim)]">—</span>;
-        return <span className="tabular-nums">{cell.picks > 0 ? \`P${cell.picks}\` : "—"} · {cell.bans > 0 ? \`B${cell.bans}\` : "—"}</span>;
+        return <span className="tabular-nums">{cell.picks > 0 ? `P${cell.picks}` : "—"} · {cell.bans > 0 ? `B${cell.bans}` : "—"}</span>;
       },
     } satisfies StatsDataColumn<VetoMatrixRow>)),
   ];
