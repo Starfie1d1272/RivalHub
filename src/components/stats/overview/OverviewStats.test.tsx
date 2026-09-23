@@ -39,7 +39,7 @@ describe("OverviewStats", () => {
     expect(screen.getByText("Top Players")).toBeInTheDocument();
     expect(screen.getByText("Top Teams")).toBeInTheDocument();
     expect(screen.getByText("Top Weapons")).toBeInTheDocument();
-    expect(screen.getAllByRole("columnheader", { name: "Rating" })).toHaveLength(2);
+    expect(screen.getAllByRole("columnheader", { name: /^Rating/ })).toHaveLength(2);
     expect(screen.getAllByRole("columnheader", { name: "#" })).toHaveLength(3);
   });
 
