@@ -39,9 +39,9 @@ export function MetricValue({ metric, value, sampleLabel, sampleDisplay = "auto"
   }
 
   return (
-    <span className="inline-flex flex-col items-start gap-0.5 tabular-nums">
+    <span className="stats-metric-value inline-flex flex-col items-start gap-0.5 tabular-nums leading-5">
       <span>{main}</span>
-      {sample && <span className="text-xs font-normal text-[var(--color-fg-dim)]">{sample}</span>}
+      {sample && <span className="text-xs font-normal leading-4 text-[var(--color-fg-dim)]">{sample}</span>}
     </span>
   );
 }
