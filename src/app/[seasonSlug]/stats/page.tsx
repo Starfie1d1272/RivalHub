@@ -21,7 +21,7 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
 
   const stages = normalizeStagePlan(season.stagePlan).map(({ key, name }) => ({ key, name }));
   const query = parseStatsQuery(await searchParams, stages.map((stage) => stage.key));
-  const scope = { seasonId: season.id, stage: query.stage || undefined };
+  const scope = { seasonId: season.id, stage: query.stage || undefined, format: query.format || undefined };
 
   let data;
   let mapDetail;
