@@ -82,8 +82,7 @@ export function selectAttentionAnnouncement<T extends {
   publishedAt: Date | null;
   updatedAt: Date;
   id: string;
-}>(rows: readonly T[], seasonId?: string): T | null {
-  const now = new Date();
+}>(rows: readonly T[], seasonId?: string, now = new Date()): T | null {
   return [...rows]
     .filter((row) => isAnnouncementAttentionEligible(row, now))
     .sort((a, b) => {

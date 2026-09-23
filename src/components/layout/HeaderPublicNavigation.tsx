@@ -1,10 +1,9 @@
-import { connection } from "next/server";
-
+import { io } from "next/cache";
 import { getPublicSeasonCatalog } from "@/lib/data/public-seasons";
 import { HeaderNavigation } from "./HeaderNavigation";
 
 export async function HeaderPublicNavigation({ mobile = false }: { mobile?: boolean }) {
-  await connection();
+  await io();
   const seasons = (await getPublicSeasonCatalog()).filter(
     (season) => season.status !== "archived",
   );

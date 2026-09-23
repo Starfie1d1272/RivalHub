@@ -1,6 +1,5 @@
 import { cache, Suspense } from "react";
 import { eq } from "drizzle-orm";
-import { connection } from "next/server";
 
 import { db } from "@/db/client";
 import { steamProfiles, users } from "@/db/schema";
@@ -48,9 +47,7 @@ const getHeaderViewer = cache(async (): Promise<{
 });
 
 async function HeaderViewer({ variant }: { variant: "desktop" | "mobile" }) {
-  // Viewer identity is request-bound. `connection()` makes that boundary
-  // explicit inside this Suspense island so public navigation can stay instant.
-  await connection();
+  // The session owner reads cookies, so viewer data stays request-bound to this island.
   const viewer = await getHeaderViewer();
   return (
     <HeaderViewerClient

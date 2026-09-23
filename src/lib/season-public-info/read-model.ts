@@ -1,7 +1,9 @@
 import "server-only";
 
 import { asc, eq, inArray } from "drizzle-orm";
+import { cacheLife, cacheTag } from "next/cache";
 import { db } from "@/db/client";
+import { publicSeasonInfoTag } from "@/lib/cache/tags";
 import { communityGroups, seasonContacts, seasonPublicInfo, seasons, type CommunityGroup, type SeasonContact, type SeasonPublicInfo } from "@/db/schema";
 import { toPublicSeasonInfo, type PublicSeasonInfo } from "./presentation";
 
@@ -13,6 +15,10 @@ export type SeasonPublicInfoAdmin = {
 };
 
 export async function getPublicSeasonInfo(seasonId: string): Promise<PublicSeasonInfo> {
+  "use cache";
+  cacheLife("minutes");
+  cacheTag(publicSeasonInfoTag(seasonId));
+
   const [info] = await db.select().from(seasonPublicInfo).where(eq(seasonPublicInfo.seasonId, seasonId)).limit(1);
   const groups = await db.select().from(communityGroups).where(eq(communityGroups.seasonId, seasonId)).orderBy(asc(communityGroups.sortOrder), asc(communityGroups.createdAt), asc(communityGroups.id));
   const contacts = await db.select().from(seasonContacts).where(eq(seasonContacts.seasonId, seasonId)).orderBy(asc(seasonContacts.sortOrder), asc(seasonContacts.createdAt), asc(seasonContacts.id));

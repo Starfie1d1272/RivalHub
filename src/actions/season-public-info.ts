@@ -12,6 +12,7 @@ import { assertSeasonAccess, createCommunityGroupInTx, createSeasonContactInTx, 
 import { isSafePublicHref } from "@/lib/season-public-info/presentation";
 import { seasonPublicAssetsStorage } from "@/lib/season-public-info/storage";
 import { fail, ok, type ActionResult } from "@/types/action";
+import { updatePublicSeasonInfoTag } from "@/lib/revalidation";
 
 const uuid = z.guid();
 const hrefSchema = z.string().trim().max(1000).refine(isSafePublicHref, "链接必须是站内路径或 HTTP(S) 地址。 ");
@@ -39,6 +40,7 @@ function context(admin: Awaited<ReturnType<typeof requireAdmin>>) {
 }
 
 function revalidateSeasonInfo(seasonId?: string | null, slug?: string | null): void {
+  if (seasonId) updatePublicSeasonInfoTag(seasonId);
   revalidatePath("/admin/operations/season-info");
   if (slug) {
     revalidatePath(`/${slug}`);

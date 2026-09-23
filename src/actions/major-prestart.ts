@@ -17,6 +17,7 @@ import { auditActorId, requireSeasonAdmin } from "@/lib/auth/session";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { getStandardMajorDefinition } from "@/lib/major/standard";
 import { ok, type ActionResult } from "@/types/action";
+import { updatePublicHomeTag } from "@/lib/revalidation";
 import { startMajorInTransaction, type MajorStartResult } from "@/lib/major/start";
 import { finalizeMajorSwissRoundInTransaction, type MajorSwissRoundFinalizationResult } from "@/lib/major/swiss-runtime";
 import { transitionMajorSwissStageInTransaction, type MajorStageTransitionResult } from "@/lib/major/stage-transition";
@@ -54,6 +55,7 @@ async function seasonAndAdminOrThrow(seasonId: string) {
 }
 
 function revalidateMajorPrestart(seasonSlug: string): void {
+  updatePublicHomeTag();
   revalidatePath(`/admin/${seasonSlug}`);
   revalidatePath(`/admin/${seasonSlug}/prestart`);
 }

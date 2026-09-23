@@ -1,7 +1,6 @@
 import { getPublicTeamMapProfile } from "@/lib/teams/map-profile";
 import { Suspense } from "react";
 import { notFound, redirect } from "next/navigation";
-import { connection } from "next/server";
 
 import { TeamPublicProfile } from "@/components/teams/TeamPublicProfile";
 import { PageLayout } from "@/components/rivalhub";
@@ -17,7 +16,6 @@ export default function TeamProfilePage({ params }: { params: Promise<{ slug: st
 }
 
 async function TeamProfileContent({ params }: { params: Promise<{ slug: string }> }) {
-  await connection();
   const { slug } = await params;
   const [target, session] = await Promise.all([
     resolvePublicTeamProfileTarget(slug),

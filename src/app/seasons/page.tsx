@@ -5,9 +5,9 @@ import { getParticipantSummary } from "@/lib/participants/summary";
 import { formatCSTShortDate } from "@/lib/utils/date";
 import { groupSeasonsByLifecycle, SEASON_LIFECYCLE_GROUPS } from "@/lib/seasons/presentation";
 import { Suspense } from "react";
+import { io } from "next/cache";
 import Link from "next/link";
 import type { Metadata } from "next";
-import { connection } from "next/server";
 import { getPublicSeasonCatalog } from "@/lib/data/public-seasons";
 import { presentRegistrationSchedule, presentSeasonDirectoryActivity, presentSeasonParticipationState } from "@/lib/seasons/presentation";
 import { getPublicSeasonStagePresentation } from "@/lib/seasons/public-stage";
@@ -27,7 +27,7 @@ export default function SeasonsPage() {
 }
 
 async function SeasonsContent() {
-  await connection();
+  await io();
   const allSeasons = await getPublicSeasonCatalog();
 
   const grouped = groupSeasonsByLifecycle(allSeasons);

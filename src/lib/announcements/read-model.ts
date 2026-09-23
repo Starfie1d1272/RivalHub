@@ -1,8 +1,10 @@
 import "server-only";
 
 import { and, desc, eq, inArray, isNull, or } from "drizzle-orm";
+import { cacheLife, cacheTag } from "next/cache";
 import { db } from "@/db/client";
 import { announcements, seasons, type Announcement } from "@/db/schema";
+import { PUBLIC_ANNOUNCEMENTS_TAG, publicAnnouncementsSeasonTag } from "@/lib/cache/tags";
 import {
   selectAttentionAnnouncement,
   toPublicAnnouncement,
@@ -42,6 +44,10 @@ function toPublic(row: PublicRow): PublicAnnouncement {
 }
 
 export async function listPublicAnnouncements(seasonId?: string): Promise<PublicAnnouncement[]> {
+  "use cache";
+  cacheLife("minutes");
+  cacheTag(PUBLIC_ANNOUNCEMENTS_TAG, ...(seasonId ? [publicAnnouncementsSeasonTag(seasonId)] : []));
+
   const rows = await db
     .select({
       announcement: {
@@ -69,6 +75,10 @@ export async function listPublicAnnouncements(seasonId?: string): Promise<Public
 }
 
 export async function listAllPublicAnnouncements(): Promise<PublicAnnouncement[]> {
+  "use cache";
+  cacheLife("minutes");
+  cacheTag(PUBLIC_ANNOUNCEMENTS_TAG);
+
   const rows = await db
     .select({
       announcement: {
@@ -98,6 +108,10 @@ export async function getLatestSeasonAnnouncement(seasonId: string): Promise<Pub
 }
 
 export async function getLatestSiteAnnouncement(): Promise<PublicAnnouncement | null> {
+  "use cache";
+  cacheLife("minutes");
+  cacheTag(PUBLIC_ANNOUNCEMENTS_TAG);
+
   const rows = await db
     .select({
       announcement: {
@@ -131,6 +145,18 @@ export async function getRelevantAnnouncement(seasonId?: string): Promise<Public
 }
 
 export async function getRelevantAttentionAnnouncement(seasonId?: string): Promise<PublicAnnouncement | null> {
+  const now = new Date(Math.floor(Date.now() / 60_000) * 60_000);
+  return getCachedRelevantAttentionAnnouncement(seasonId ?? null, now);
+}
+
+async function getCachedRelevantAttentionAnnouncement(seasonId: string | null, now: Date): Promise<PublicAnnouncement | null> {
+  "use cache";
+  cacheLife("minutes");
+  cacheTag(
+    PUBLIC_ANNOUNCEMENTS_TAG,
+    ...(seasonId ? [publicAnnouncementsSeasonTag(seasonId)] : []),
+  );
+
   const where = seasonId
     ? and(
         eq(announcements.status, "published"),
@@ -158,7 +184,7 @@ export async function getRelevantAttentionAnnouncement(seasonId?: string): Promi
     .leftJoin(seasons, eq(announcements.seasonId, seasons.id))
     .where(where)
     .orderBy(...publicAnnouncementOrder());
-  const selected = selectAttentionAnnouncement(rows.map((row) => ({ ...row.announcement, scope: row.announcement.scope })), seasonId);
+  const selected = selectAttentionAnnouncement(rows.map((row) => ({ ...row.announcement, scope: row.announcement.scope })), seasonId ?? undefined, now);
   return selected ? toPublic(rows.find((row) => row.announcement.id === selected.id)!) : null;
 }
 

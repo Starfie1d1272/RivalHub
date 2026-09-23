@@ -4,7 +4,6 @@ import { mapLabel } from "@/lib/maps";
 import { publicCompetitionEntryCondition } from "@/lib/competition-entries/public-visibility";
 import { Suspense } from "react";
 import { notFound, redirect } from "next/navigation";
-import { connection } from "next/server";
 import { eq, and, asc, desc, max, sql, ne, isNull, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
 import { teamMemberships, teams, competitionEntries, educationVerifications, eventRosterMembers, eventRosters, institutions, seasonRegistrations, seasons, matches, matchMaps, competitiveRankFacts, userCompetitiveRoles, userMapPreferences } from "@/db/schema";
@@ -132,7 +131,6 @@ export default function PlayerPage({ params }: PlayerPageProps) {
 }
 
 export async function PlayerPageContent({ params }: PlayerPageProps) {
-  await connection();
   const { userId } = await params;
   const canonicalUserId = await resolveCanonicalUserId(db, userId);
   if (!canonicalUserId) notFound();

@@ -8,7 +8,6 @@ import { SeasonNextStep } from "@/components/season/SeasonNextStep";
 import { publicCompetitionEntryCondition } from "@/lib/competition-entries/public-visibility";
 import Link from "next/link";
 import { Fragment, Suspense, type ReactNode } from "react";
-import { connection } from "next/server";
 import { notFound } from "next/navigation";
 import { eq, count, or, and, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
@@ -38,6 +37,7 @@ import { getLatestSeasonAnnouncement } from "@/lib/announcements/read-model";
 import { toAnnouncementExcerpt } from "@/lib/announcements/presentation";
 import { getPublicSeasonInfo } from "@/lib/season-public-info/read-model";
 import { hasPublicSeasonInfo, activeGroupCount } from "@/lib/season-public-info/presentation";
+import type { PublicSeason } from "@/lib/data/public-seasons";
 
 const STATUS_IDX: Record<SeasonStatus, number> = {
   draft: 0, registration: 1, voting: 2, drafting: 3,
@@ -57,7 +57,6 @@ export default function SeasonPage({ params }: SeasonPageProps) {
 }
 
 export async function SeasonPageContent({ params }: SeasonPageProps) {
-  await connection();
   const { seasonSlug } = await params;
 
   const season = await getPublicOrAuthorizedDraftSeason(seasonSlug);
@@ -67,7 +66,6 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
     getPublicSeasonInfo(season.id),
   ]);
   const results = ["finished", "archived"].includes(season.status) ? await getPublicSeasonResults(season) : null;
-  const personalTask = await getSeasonPersonalNextStep(season);
   const stagePresentation = await getPublicSeasonStagePresentation(season);
   const stagePlan = stagePresentation.stagePlan;
   const stageLabelByKey = new Map(Object.entries(stagePresentation.labels));
@@ -197,7 +195,7 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
       label: "报名",
       description: "提交报名信息",
       icon: UserPlus,
-      show: !isHistorical && registrationIsOpen && !personalTask,
+      show: !isHistorical && registrationIsOpen,
     },
     {
       href: `/${seasonSlug}/players`,
@@ -268,7 +266,9 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
         )}
       </div>
 
-      <SeasonNextStep task={personalTask} />
+      <Suspense fallback={null}>
+        <SeasonPersonalNextStep season={season} />
+      </Suspense>
       {results && <SeasonResults results={results} slug={seasonSlug} />}
 
       {/* Phase tracker */}
@@ -452,6 +452,11 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
 
     </PageLayout>
   );
+}
+
+async function SeasonPersonalNextStep({ season }: { season: PublicSeason }) {
+  const task = await getSeasonPersonalNextStep(season);
+  return <SeasonNextStep task={task} />;
 }
 
 function SeasonPageFallback() {
