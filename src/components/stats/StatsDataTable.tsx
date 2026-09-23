@@ -15,7 +15,7 @@ import { compareStatsValues, type StatsSortDirection, type StatsSortValue } from
 
 export interface StatsDataColumn<T> {
   key: string;
-  label: string;
+  label?: string;
   metric?: StatsMetricKey;
   numeric?: boolean;
   sortable?: boolean;
@@ -54,6 +54,7 @@ export function StatsDataTable<T>({
   const [direction, setDirection] = useState<StatsSortDirection>(initialDirection);
   const [page, setPage] = useState(1);
   const activeColumn = columns.find((item) => item.key === sortKey);
+  const columnLabel = (column: StatsDataColumn<T>) => column.label ?? (column.metric ? STATS_METRICS[column.metric].label : column.key);
 
   const rankingState = useMemo<RankingState<T> | null>(() => {
     if (!activeColumn?.sortValue || !activeColumn.rankingSample) return null;
@@ -83,7 +84,7 @@ export function StatsDataTable<T>({
       limitedCount: limited.length,
       floor: dynamicFloor.floor,
       sampleLabel: activeColumn.metric ? (STATS_METRICS[activeColumn.metric].rankingSampleLabel ?? STATS_METRICS[activeColumn.metric].sampleLabel) : "samples",
-      metricLabel: activeColumn.label,
+      metricLabel: columnLabel(activeColumn),
     };
   }, [activeColumn, direction, rankingBaselineRows, rows]);
 
@@ -128,7 +129,8 @@ export function StatsDataTable<T>({
               {columns.map((column, index) => {
                 const active = sortKey === column.key;
                 const arrow = direction === "desc" ? "↓" : "↑";
-                const sortLabel = active ? `${column.label} ${arrow}` : `Sort by ${column.label}`;
+                const label = columnLabel(column);
+                const sortLabel = active ? `${label} ${arrow}` : `Sort by ${label}`;
                 return (
                   <th
                     key={column.key}
@@ -144,9 +146,9 @@ export function StatsDataTable<T>({
                             onClick={() => sortBy(column.key)}
                             className={`inline-flex min-h-6 items-center transition-colors hover:text-[var(--color-fg)] ${active ? "text-[var(--color-fg)]" : ""}`}
                           >
-                            {column.label}
+                            {label}
                           </button>
-                        ) : <span>{column.label}</span>}
+                        ) : <span>{label}</span>}
                         {column.metric && <StatsMetricHelp metric={column.metric} />}
                       </span>
                       {active && <span aria-hidden="true" className="ml-1.5 text-[var(--color-accent)]">{arrow}</span>}
