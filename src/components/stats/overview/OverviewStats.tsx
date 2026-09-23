@@ -9,7 +9,8 @@ import { StatsDataTable, type StatsDataColumn } from "@/components/stats/StatsDa
 import type { TournamentStats } from "@/lib/stats/tournament-query";
 import { statsHref, type StatsQuery } from "@/lib/stats/view-state";
 import { getDynamicRankingFloor, isRankingEligible } from "@/lib/stats/ranking";
-import { displayWeaponName } from "@/lib/stats/presentation";
+import { displayWeaponName, statsRateDenominator, type StatsRateValue } from "@/lib/stats/presentation";
+import type { StatsMetricKey } from "@/lib/stats/metrics";
 import { sortStatsRows } from "@/lib/stats/sorting";
 import { CS2_MAP_CATALOG } from "@/lib/config/cs2-maps";
 
@@ -25,6 +26,72 @@ interface MapLandscapeRow {
 
 function mapLabel(mapName: string) {
   return CS2_MAP_CATALOG.find((row) => row.key === mapName)?.label ?? mapName;
+}
+
+type TeamAnalyticsRow = TournamentStats["analytics"]["teams"][number];
+type EconomyMatrixRow = TournamentStats["analytics"]["economyMatrix"][number];
+
+type SituationHighlight = {
+  key: string;
+  label: string;
+  metric: StatsMetricKey;
+  team: TeamAnalyticsRow | null;
+  value: StatsRateValue | null;
+};
+
+const FULL_BUY_ORDER = ["eco", "semi", "force"] as const;
+
+function economyBuyLabel(value: EconomyMatrixRow["lowEconomy"]): string {
+  if (value === "eco") return "Eco";
+  if (value === "semi") return "Semi";
+  if (value === "force") return "Force";
+  return value;
+}
+
+function economyVsFullRows(data: TournamentStats): EconomyMatrixRow[] {
+  return FULL_BUY_ORDER.flatMap((lowEconomy) => {
+    const row = data.analytics.economyMatrix.find((candidate) => candidate.lowEconomy === lowEconomy && candidate.highEconomy === "full");
+    return row ? [row] : [];
+  });
+}
+
+function bestTeamRate(
+  teams: readonly TeamAnalyticsRow[],
+  valueFor: (team: TeamAnalyticsRow) => StatsRateValue,
+): { team: TeamAnalyticsRow; value: StatsRateValue } | null {
+  return teams
+    .map((team) => ({ team, value: valueFor(team) }))
+    .filter(({ value }) => value.rate !== null && (statsRateDenominator(value) ?? 0) > 0)
+    .sort((left, right) =>
+      (right.value.rate ?? -1) - (left.value.rate ?? -1) ||
+      (statsRateDenominator(right.value) ?? 0) - (statsRateDenominator(left.value) ?? 0) ||
+      left.team.team.displayName.localeCompare(right.team.team.displayName),
+    )[0] ?? null;
+}
+
+function situationHighlights(data: TournamentStats): SituationHighlight[] {
+  const teams = data.analytics.teams;
+  const highlight = (
+    key: string,
+    label: string,
+    metric: StatsMetricKey,
+    valueFor: (team: TeamAnalyticsRow) => StatsRateValue,
+  ): SituationHighlight => {
+    const best = bestTeamRate(teams, valueFor);
+    return { key, label, metric, team: best?.team ?? null, value: best?.value ?? null };
+  };
+
+  return [
+    highlight("round-win", "Round Win", "roundWin", (team) => ({ rate: team.roundWinRate, wins: team.roundWins, opportunities: team.rounds })),
+    highlight("r2-conv", "R2 Conversion", "conversion", (team) => team.round2.conversion),
+    highlight("r2-break", "R2 Break", "break", (team) => team.round2.break),
+    highlight("pistol", "Pistol Win", "pistol", (team) => team.pistol),
+    highlight("5v4", "5v4 Conversion", "fiveVFour", (team) => team.manAdvantage["5v4"]),
+    highlight("4v5", "4v5 Comeback", "fourVFive", (team) => team.manAdvantage["4v5"]),
+    highlight("eco-semi", "Eco/Semi Upset", "ecoSemi", (team) => team.ecoSemiUpset),
+    highlight("5v3", "5v3 Conversion", "fiveVThree", (team) => team.manAdvantage["5v3"]),
+    highlight("3v5", "3v5 Comeback", "threeVFive", (team) => team.manAdvantage["3v5"]),
+  ];
 }
 
 function landscapeRows(data: TournamentStats): MapLandscapeRow[] {
@@ -100,12 +167,13 @@ export function OverviewStats({ data, query, seasonSlug }: { data: TournamentSta
   ];
   if (partialCoverage) mapColumns.push({ key: "coverage", label: "Coverage", numeric: true, className: "hidden w-[16%] sm:table-cell", render: (row) => `${row.detailed}/${row.completed}` });
 
-  const roundProfile = [
-    ["Pistol → R2", "conversion", data.analytics.totals.round2Conversion],
-    ["5v4 Conversion", "fiveVFour", data.analytics.totals.manAdvantage["5v4"]],
-    ["4v5 Comeback", "fourVFive", data.analytics.totals.manAdvantage["4v5"]],
-    ["Eco/Semi Win%", "ecoSemi", data.analytics.totals.ecoSemiUpset],
-  ] as const;
+  const economyRows = economyVsFullRows(data);
+  const highlights = situationHighlights(data);
+  const economyColumns: StatsDataColumn<EconomyMatrixRow>[] = [
+    { key: "buy", label: "Buy", className: "w-[34%]", render: (row) => <span className="font-medium">{economyBuyLabel(row.lowEconomy)}</span> },
+    { key: "rounds", label: "Rounds", numeric: true, className: "w-[24%]", sortable: true, sortValue: (row) => row.rounds, render: (row) => row.rounds },
+    { key: "win", label: "Win%", metric: "ecoSemi", numeric: true, className: "w-[42%]", sortable: true, sortValue: (row) => row.lowWinRate, rankingSample: (row) => row.rounds, render: (row) => <MetricValue metric="ecoSemi" value={{ rate: row.lowWinRate, wins: row.lowEconomyWins, opportunities: row.rounds }} sampleDisplay="compact" /> },
+  ];
 
   return (
     <div className="space-y-7">
@@ -172,15 +240,41 @@ export function OverviewStats({ data, query, seasonSlug }: { data: TournamentSta
         </section>
       </section>
 
-      <section aria-labelledby="round-context">
-        <h2 id="round-context" className="mb-3 text-base font-semibold">Round Context</h2>
-        <div className="grid border-y border-[var(--color-border)] bg-[var(--color-panel-low)] sm:grid-cols-2 xl:grid-cols-4">
-          {roundProfile.map(([label, metric, value], index) => (
-            <div key={label} className={`px-4 py-4 ${index < roundProfile.length - 1 ? "xl:border-r xl:border-[var(--color-border)]" : ""}`}>
-              <p className="text-[11px] uppercase tracking-[var(--tracking-label)] text-[var(--color-fg-mid)]">{label}</p>
-              <div className="mt-1.5 text-lg font-semibold"><MetricValue metric={metric} value={value} sampleDisplay="compact" /></div>
+      <section aria-labelledby="economy-conversion">
+        <div className="mb-3 flex items-end justify-between gap-3">
+          <h2 id="economy-conversion" className="text-base font-semibold">Economy & Conversion</h2>
+          {partialCoverage && <span className="text-xs text-[var(--color-fg-dim)]">Coverage {data.coverage.detailedMaps}/{data.coverage.completedMaps}</span>}
+        </div>
+        <div className="grid gap-6 xl:grid-cols-[minmax(0,0.8fr)_minmax(0,1.6fr)]">
+          <section className="min-w-0">
+            <div className="mb-2.5">
+              <h3 className="font-semibold">Economy vs Full Buy</h3>
+              <p className="mt-0.5 text-xs text-[var(--color-fg-dim)]">Eco, semi and force rounds against full buys.</p>
             </div>
-          ))}
+            <div className="border-y border-[var(--color-border)] bg-[var(--color-panel)]">
+              <StatsDataTable embedded rows={economyRows} columns={economyColumns} rowKey={(row) => row.lowEconomy} tableClassName="table-fixed" emptyLabel="暂无对 Full Buy 的经济样本" />
+            </div>
+          </section>
+
+          <section className="min-w-0">
+            <div className="mb-2.5">
+              <h3 className="font-semibold">Situation Highlights</h3>
+              <p className="mt-0.5 text-xs text-[var(--color-fg-dim)]">Best team rate in the current scope; sample is shown with every rate.</p>
+            </div>
+            <div className="grid gap-px border border-[var(--color-border)] bg-[var(--color-border)] sm:grid-cols-3">
+              {highlights.map((highlight) => (
+                <div key={highlight.key} className="min-w-0 bg-[var(--color-panel-low)] px-3 py-3.5">
+                  <p className="text-[11px] uppercase tracking-[var(--tracking-label)] text-[var(--color-fg-mid)]">{highlight.label}</p>
+                  {highlight.team && highlight.value ? (
+                    <>
+                      <Link href={`/${seasonSlug}/teams/${highlight.team.team.entityKey}`} className="mt-1.5 block truncate text-sm font-medium hover:text-[var(--color-accent)]">{highlight.team.team.displayName}</Link>
+                      <div className="mt-1 text-lg font-semibold"><MetricValue metric={highlight.metric} value={highlight.value} sampleDisplay="compact" /></div>
+                    </>
+                  ) : <p className="mt-2 text-sm text-[var(--color-fg-dim)]">—</p>}
+                </div>
+              ))}
+            </div>
+          </section>
         </div>
       </section>
     </div>

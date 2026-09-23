@@ -19,7 +19,7 @@ describe("OverviewStats", () => {
     const mapTable = screen.getAllByRole("table")[0]!;
     expect(within(mapTable).getByRole("link", { name: "Ancient" })).toHaveAttribute("data-scroll", "false");
     expect(within(mapTable).getByText("7")).toBeInTheDocument(); expect(within(mapTable).getByText("4/7")).toBeInTheDocument();
-    expect(screen.getByText("Round Context")).toBeInTheDocument();
+    expect(screen.getByText("Economy & Conversion")).toBeInTheDocument();
   });
   it("hides coverage chrome when every completed map has detail", () => {
     render(<OverviewStats data={dataWithCoverage(7, 7)} query={parseStatsQuery({}, [])} seasonSlug="major" />);
@@ -46,6 +46,36 @@ describe("OverviewStats", () => {
     expect(screen.getAllByRole("columnheader", { name: "#" })).toHaveLength(3);
     const leaderTables = screen.getAllByRole("table").slice(1, 4);
     expect(leaderTables.every((table) => !table.className.includes("min-w-["))).toBe(true);
+  });
+
+  it("shows only Eco, Semi and Force versus Full Buy and renders nine best-rate highlights", () => {
+    const data = dataWithCoverage(7, 7);
+    data.analytics.economyMatrix = [
+      { lowEconomy: "eco", highEconomy: "full", rounds: 10, lowEconomyWins: 1, lowWinRate: 0.1 },
+      { lowEconomy: "semi", highEconomy: "full", rounds: 20, lowEconomyWins: 4, lowWinRate: 0.2 },
+      { lowEconomy: "force", highEconomy: "full", rounds: 30, lowEconomyWins: 9, lowWinRate: 0.3 },
+      { lowEconomy: "eco", highEconomy: "force", rounds: 8, lowEconomyWins: 2, lowWinRate: 0.25 },
+      { lowEconomy: "pistol", highEconomy: "full", rounds: 2, lowEconomyWins: 1, lowWinRate: 0.5 },
+    ];
+    data.analytics.teams = [{
+      team: { entityKey: "team-a", displayName: "Alpha Team" }, mapCount: 7, rounds: 100, roundWins: 60, roundWinRate: 0.6,
+      t: { wins: 30, opportunities: 50, rate: 0.6 }, ct: { wins: 30, opportunities: 50, rate: 0.6 }, pistol: { wins: 8, opportunities: 14, rate: 8 / 14 },
+      round2: { conversion: { wins: 7, opportunities: 8, rate: 7 / 8 }, break: { wins: 3, opportunities: 6, rate: 0.5 } },
+      ecoSemiUpset: { wins: 5, opportunities: 20, rate: 0.25 },
+      manAdvantage: {
+        "5v4": { wins: 12, opportunities: 15, rate: 0.8 }, "4v5": { wins: 3, opportunities: 10, rate: 0.3 },
+        "5v3": { wins: 5, opportunities: 6, rate: 5 / 6 }, "3v5": { wins: 1, opportunities: 5, rate: 0.2 },
+      },
+    }];
+    render(<OverviewStats data={data} query={parseStatsQuery({}, [])} seasonSlug="major" />);
+    const economySection = screen.getByText("Economy vs Full Buy").closest("section")!;
+    expect(within(economySection).getByText("Eco")).toBeInTheDocument();
+    expect(within(economySection).getByText("Semi")).toBeInTheDocument();
+    expect(within(economySection).getByText("Force")).toBeInTheDocument();
+    expect(within(economySection).queryByText("Pistol")).not.toBeInTheDocument();
+    expect(screen.getAllByText("Alpha Team")).toHaveLength(9);
+    expect(screen.getByText("5v3 Conversion")).toBeInTheDocument();
+    expect(screen.getByText("3v5 Comeback")).toBeInTheDocument();
   });
 
   it("renders visual side splits and full-list navigation", () => {

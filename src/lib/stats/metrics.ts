@@ -73,6 +73,8 @@ export const STATS_METRICS = {
   break: metric("R2 Break", "ratioPercent", 1, "opportunities", "手枪局失利后赢下第二回合的比例。", { rankingSampleKind: "opportunities" }),
   fiveVFour: metric("5v4", "ratioPercent", 1, "opportunities", "进入 5v4 人数优势后赢下该回合的比例。", { rankingSampleKind: "opportunities" }),
   fourVFive: metric("4v5", "ratioPercent", 1, "opportunities", "进入 4v5 人数劣势后赢下该回合的比例。", { rankingSampleKind: "opportunities" }),
+  fiveVThree: metric("5v3", "ratioPercent", 1, "opportunities", "进入 5v3 人数优势后赢下该回合的比例。", { rankingSampleKind: "opportunities" }),
+  threeVFive: metric("3v5", "ratioPercent", 1, "opportunities", "进入 3v5 人数劣势后赢下该回合的比例。", { rankingSampleKind: "opportunities" }),
   ecoSemi: metric("Eco/Semi Win%", "ratioPercent", 1, "opportunities", "低经济方对高经济方的回合胜率。", { rankingSampleKind: "opportunities" }),
   plantConversion: metric("Plant conv", "ratioPercent", 1, "plants", "完成下包后的回合胜率。", { rankingSampleKind: "plants" }),
   headshot: metric("HS%", "ratioPercent", 1, "kills", "爆头击杀占全部击杀的比例。", { rankingSampleKind: "kills" }),

@@ -90,6 +90,8 @@ function teamColumns(family: Family, seasonSlug: string): StatsDataColumn<TeamDi
     { key: "break", metric: "break", numeric: true, className: "hidden sm:table-cell", sortable: true, sortValue: (row) => row.analytics?.round2.break.rate, rankingSample: (row) => row.analytics ? statsRateDenominator(row.analytics.round2.break) : null, render: (row) => row.analytics ? <MetricValue metric="break" value={row.analytics.round2.break} sampleDisplay="compact" /> : "—" },
     { key: "fiveVFour", metric: "fiveVFour", numeric: true, className: "hidden lg:table-cell", sortable: true, sortValue: (row) => row.analytics?.manAdvantage["5v4"].rate, rankingSample: (row) => row.analytics ? statsRateDenominator(row.analytics.manAdvantage["5v4"]) : null, render: (row) => row.analytics ? <MetricValue metric="fiveVFour" value={row.analytics.manAdvantage["5v4"]} sampleDisplay="compact" /> : "—" },
     { key: "fourVFive", metric: "fourVFive", numeric: true, className: "hidden lg:table-cell", sortable: true, sortValue: (row) => row.analytics?.manAdvantage["4v5"].rate, rankingSample: (row) => row.analytics ? statsRateDenominator(row.analytics.manAdvantage["4v5"]) : null, render: (row) => row.analytics ? <MetricValue metric="fourVFive" value={row.analytics.manAdvantage["4v5"]} sampleDisplay="compact" /> : "—" },
+    { key: "fiveVThree", metric: "fiveVThree", numeric: true, className: "hidden lg:table-cell", sortable: true, sortValue: (row) => row.analytics?.manAdvantage["5v3"].rate, rankingSample: (row) => row.analytics ? statsRateDenominator(row.analytics.manAdvantage["5v3"]) : null, render: (row) => row.analytics ? <MetricValue metric="fiveVThree" value={row.analytics.manAdvantage["5v3"]} sampleDisplay="compact" /> : "—" },
+    { key: "threeVFive", metric: "threeVFive", numeric: true, className: "hidden lg:table-cell", sortable: true, sortValue: (row) => row.analytics?.manAdvantage["3v5"].rate, rankingSample: (row) => row.analytics ? statsRateDenominator(row.analytics.manAdvantage["3v5"]) : null, render: (row) => row.analytics ? <MetricValue metric="threeVFive" value={row.analytics.manAdvantage["3v5"]} sampleDisplay="compact" /> : "—" },
     { key: "eco", metric: "ecoSemi", numeric: true, className: "hidden lg:table-cell", sortable: true, sortValue: (row) => row.analytics?.ecoSemiUpset.rate, rankingSample: (row) => row.analytics ? statsRateDenominator(row.analytics.ecoSemiUpset) : null, render: (row) => row.analytics ? <MetricValue metric="ecoSemi" value={row.analytics.ecoSemiUpset} sampleDisplay="compact" /> : "—" },
   ];
 
@@ -135,7 +137,7 @@ export function TeamsExplorer({ data, query, seasonSlug }: { data: TournamentSta
         columns={teamColumns(family, seasonSlug)}
         rowKey={(row) => row.entryId}
         initialSortKey={family === "results" ? "match" : family === "rounds" ? "rw" : family === "conversion" ? "r2" : "opening"}
-        tableClassName={family === "results" ? "min-w-[700px] table-fixed" : "min-w-[940px] table-fixed"}
+        tableClassName={family === "results" ? "min-w-[700px] table-fixed" : family === "conversion" ? "min-w-[1120px] table-fixed" : "min-w-[940px] table-fixed"}
         emptyLabel="当前地图范围没有已完成赛果"
       />
     </section>
