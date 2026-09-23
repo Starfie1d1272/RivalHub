@@ -7,19 +7,26 @@ const teamId = "7c4112a4-6c8c-4c27-a5b2-0824d4b5d294";
 describe("stats URL scope", () => {
   it("accepts only shareable scope and entity selection", () => {
     const parsed = parseStatsQuery({
-      tab: "players", stage: "swiss", mapFilter: "de_ancient", teamFilter: teamId,
+      tab: "players", stage: "swiss", format: "bo3", mapFilter: "de_ancient", teamFilter: teamId,
       player: playerId, sort: "adr", dir: "asc", view: "impact", page: "5", side: "ct", q: "x",
     }, ["swiss"]);
-    expect(parsed).toEqual({ tab: "players", stage: "swiss", mapFilter: "de_ancient", teamFilter: teamId, player: "", team: "", map: "", mapsView: "pool" });
+    expect(parsed).toEqual({ tab: "players", stage: "swiss", format: "bo3", mapFilter: "de_ancient", teamFilter: teamId, player: "", team: "", map: "", mapsView: "pool" });
   });
 
-  it("clears entity scope on tab and stage changes", () => {
-    const players = parseStatsQuery({ tab: "players", stage: "swiss", mapFilter: "de_ancient", teamFilter: teamId, player: playerId }, ["swiss"]);
+  it("clears entity scope on tab and stage changes while preserving global format", () => {
+    const players = parseStatsQuery({ tab: "players", stage: "swiss", format: "bo3", mapFilter: "de_ancient", teamFilter: teamId, player: playerId }, ["swiss"]);
     const teamTab = new URL(statsHref("major", players, { tab: "teams" }), "https://example.test");
-    expect([...teamTab.searchParams]).toEqual([["tab", "teams"], ["stage", "swiss"]]);
+    expect([...teamTab.searchParams]).toEqual([["tab", "teams"], ["stage", "swiss"], ["format", "bo3"]]);
 
     const stageChanged = new URL(statsHref("major", players, { stage: "playoff" }), "https://example.test");
-    expect([...stageChanged.searchParams]).toEqual([["tab", "players"], ["stage", "playoff"]]);
+    expect([...stageChanged.searchParams]).toEqual([["tab", "players"], ["stage", "playoff"], ["format", "bo3"]]);
+  });
+
+  it("treats Best-of as global scope and clears dependent entity filters when it changes", () => {
+    const players = parseStatsQuery({ tab: "players", stage: "swiss", format: "bo1", mapFilter: "de_ancient", teamFilter: teamId }, ["swiss"]);
+    const changed = new URL(statsHref("major", players, { format: "bo3" }), "https://example.test");
+    expect([...changed.searchParams]).toEqual([["tab", "players"], ["stage", "swiss"], ["format", "bo3"]]);
+    expect(parseStatsQuery({ format: "bo7" }, []).format).toBe("");
   });
 
   it("ignores the retired stats player selection while preserving directory scope", () => {
