@@ -20,6 +20,7 @@ const localStorageImagePatterns =
 
 const nextConfig: NextConfig = {
   cacheComponents: true,
+  partialPrefetching: true,
   serverExternalPackages: ["pg"],
   typedRoutes: true,
   // The release endpoint is public, but the identity must be frozen into the

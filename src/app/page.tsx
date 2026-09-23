@@ -1,33 +1,21 @@
-import { alias } from "drizzle-orm/pg-core";
-import { getPublicSeasonResults } from "@/lib/seasons/public-results";
 import { SeasonResults } from "@/components/season/SeasonResults";
-import { getMajorPublicParticipantOverview } from "@/lib/major/public-participants";
 import { getSeasonPersonalNextStep } from "@/lib/seasons/public-next-step";
 import { SeasonNextStep } from "@/components/season/SeasonNextStep";
-import { publicCompetitionEntryCondition } from "@/lib/competition-entries/public-visibility";
 import { Suspense } from "react";
-import { connection } from "next/server";
-import { and, eq, count, or, desc } from "drizzle-orm";
-import { db } from "@/db/client";
-import { competitionEntries, seasonRegistrations, steamProfiles, users } from "@/db/schema";
-import { captainVotes } from "@/db/schema/votes";
-import { matches } from "@/db/schema/matches";
-import { normalizeRegistrationConfig } from "@/lib/seasons/compatibility";
+import { io } from "next/cache";
 import { getPublicSeasonCatalog } from "@/lib/data/public-seasons";
 import {
   buildHomeEyebrow,
   buildHomeNavEntries,
-  selectFeaturedSeason,
   selectHomeNavTiers,
 } from "@/lib/home/navigation";
-import { groupSeasonsByLifecycle } from "@/lib/seasons/presentation";
+import { getPublicHomeProjection } from "@/lib/home/read-model";
 import { HomeHero } from "@/components/home/HomeHero";
 import { HomeNavigation } from "@/components/home/HomeNavigation";
-import { HomeSeasonPanel, shouldLoadRegistrationPositionCounts } from "@/components/home/HomeSeasonPanel";
+import { HomeSeasonPanel } from "@/components/home/HomeSeasonPanel";
 import { SeasonCardGrid } from "@/components/home/SeasonCardGrid";
 import { EmptyState, PageLayout, Panel } from "@/components/rivalhub";
-import { getParticipantSummary } from "@/lib/participants/summary";
-import { getPublicDisplayName } from "@/lib/identity/display-name";
+import type { PublicSeason } from "@/lib/data/public-seasons";
 
 export default function HomePage() {
   return (
@@ -38,12 +26,10 @@ export default function HomePage() {
 }
 
 async function HomeContent() {
-  await connection();
+  await io();
   const allSeasons = await getPublicSeasonCatalog();
-  const featured = selectFeaturedSeason(allSeasons);
-  const others = allSeasons.filter(
-    (season) => !["finished", "archived"].includes(season.status) && season.id !== featured?.id,
-  );
+  const projection = await getPublicHomeProjection(allSeasons);
+  const featured = projection.featured;
 
   if (!featured) {
     return (
@@ -58,138 +44,28 @@ async function HomeContent() {
     );
   }
 
-  const [majorOverview, personalTask] = await Promise.all([
-    featured.competitionTemplate === "major" ? getMajorPublicParticipantOverview(featured) : Promise.resolve(null),
-    getSeasonPersonalNextStep(featured),
-  ]);
-  const results = ["finished", "archived"].includes(featured.status) ? await getPublicSeasonResults(featured) : null;
-  const historicalSeasons = groupSeasonsByLifecycle(allSeasons);
-  const archivedSeasons = [...historicalSeasons.recent, ...historicalSeasons.archived]
-    .filter((season) => season.id !== featured.id)
-    .sort((a, b) => {
-      const completedDifference = (b.lastCompletedAt?.getTime() ?? Number.NEGATIVE_INFINITY)
-        - (a.lastCompletedAt?.getTime() ?? Number.NEGATIVE_INFINITY);
-      return completedDifference || a.id.localeCompare(b.id);
-    })
-    .slice(0, 6);
-
-  // 并行查询：基础统计 + 按状态的动态数据
-  const opponentEntry = alias(competitionEntries, "home_opponent");
-  const [
-    [featuredTeamCount],
-    participantSummary,
-    registrationCounts,
-    topCandidatesWithNames,
-    liveAndUpcomingMatches,
-  ] = await Promise.all([
-    featured.competitionTemplate === "major"
-      ? Promise.resolve([] as { value: number }[])
-      : db.select({ value: count() }).from(competitionEntries).where(and(eq(competitionEntries.competitionId, featured.id), publicCompetitionEntryCondition())),
-    featured.competitionTemplate === "major"
-      ? Promise.resolve({ count: 0, hasPlayers: false })
-      : getParticipantSummary(featured),
-    // 仅 registration 状态时查询
-    shouldLoadRegistrationPositionCounts(featured)
-      ? db
-          .select({
-            position: seasonRegistrations.primaryPosition,
-            cnt: count(),
-          })
-          .from(seasonRegistrations)
-          .innerJoin(users, and(eq(seasonRegistrations.userId, users.id), eq(users.status, "active")))
-          .where(
-            and(
-              eq(seasonRegistrations.seasonId, featured.id),
-              eq(users.status, "active"),
-              or(
-                eq(seasonRegistrations.status, "approved"),
-                eq(seasonRegistrations.status, "pending")
-              )
-            )
-          )
-          .groupBy(seasonRegistrations.primaryPosition)
-      : Promise.resolve([] as { position: string; cnt: number }[]),
-    // 仅 voting 状态时查询 TOP 3 候选人及姓名，避免二次串行查询。
-    featured.status === "voting"
-      ? db
-          .select({
-            displayName: users.displayName,
-            perfectName: users.perfectName,
-            personaName: steamProfiles.personaName,
-            voteCount: count(),
-          })
-          .from(captainVotes)
-          .innerJoin(
-            seasonRegistrations,
-            eq(captainVotes.candidateRegistrationId, seasonRegistrations.id),
-          )
-          .innerJoin(users, and(eq(seasonRegistrations.userId, users.id), eq(users.status, "active")))
-          .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
-          .where(eq(seasonRegistrations.seasonId, featured.id))
-          .groupBy(users.id, users.displayName, users.perfectName, steamProfiles.personaName)
-          .orderBy(desc(count()))
-          .limit(3)
-      : Promise.resolve([] as { displayName: string | null; perfectName: string | null; personaName: string | null; voteCount: number }[]),
-    // 进行期的近期比赛入口
-    featured.status === "playing"
-      ? db
-          .select({
-            id: matches.id,
-            status: matches.status,
-            scheduledAt: matches.scheduledAt,
-            format: matches.format,
-            teamAName: competitionEntries.name,
-            teamBName: opponentEntry.name,
-          })
-          .from(matches)
-          .leftJoin(competitionEntries, eq(competitionEntries.id, matches.entryAId))
-          .leftJoin(opponentEntry, eq(opponentEntry.id, matches.entryBId))
-          .where(
-            and(
-              eq(matches.seasonId, featured.id),
-              or(
-                eq(matches.status, "in_progress"),
-                eq(matches.status, "scheduled")
-              )
-            )
-          )
-          .orderBy(matches.scheduledAt)
-          .limit(2)
-      : Promise.resolve([] as { id: string; status: string; scheduledAt: Date | null; format: string }[]),
-  ]);
-
-  const namedCandidates = topCandidatesWithNames.map((candidate) => ({
-    name: getPublicDisplayName(candidate),
-    voteCount: Number(candidate.voteCount),
-  }));
-
-  // registration 状态：整理位置报名数据
-  const regConfig = normalizeRegistrationConfig(featured.registrationConfig);
-  const maxPerPosition = regConfig.maxPerPosition;
-  const positionCountMap = new Map<string, number>(
-    registrationCounts.map((r) => [r.position, Number(r.cnt)])
-  );
-
   const eyebrow = buildHomeEyebrow(featured.status, featured.slug, featured.registrationOpenedAt);
   const { tier1Entry, tier2Entries, tier3Entries } = selectHomeNavTiers(
-    buildHomeNavEntries(featured).filter((entry) => !(entry.key === "register" && personalTask)),
+    buildHomeNavEntries(featured),
     featured.status
   );
 
   return (
     <PageLayout variant="wide" className="grid gap-7">
-      <SeasonNextStep task={personalTask} />
+      <Suspense fallback={null}>
+        <HomePersonalNextStep season={featured} />
+      </Suspense>
       {/* Hero */}
       <div className="grid gap-6 grid-cols-1 lg:grid-cols-[1.6fr_1fr]">
         <HomeHero season={featured} eyebrow={eyebrow} />
-        {results ? <SeasonResults results={results} slug={featured.slug} compact /> : <HomeSeasonPanel
+        {projection.results ? <SeasonResults results={projection.results} slug={featured.slug} compact /> : <HomeSeasonPanel
           season={featured}
-          maxPerPosition={maxPerPosition}
-          positionCountMap={positionCountMap}
-          topCandidatesWithNames={namedCandidates}
-          liveAndUpcomingMatches={liveAndUpcomingMatches}
-          teamCount={majorOverview?.teamCount ?? featuredTeamCount?.value ?? 0}
-          playerCount={majorOverview?.playerCount ?? participantSummary.count}
+          maxPerPosition={projection.maxPerPosition}
+          positionCountMap={new Map(Object.entries(projection.positionCounts))}
+          topCandidatesWithNames={projection.topCandidatesWithNames}
+          liveAndUpcomingMatches={projection.liveAndUpcomingMatches}
+          teamCount={projection.teamCount}
+          playerCount={projection.playerCount}
         />}
       </div>
 
@@ -198,15 +74,20 @@ async function HomeContent() {
         tier2Entries={tier2Entries}
         tier3Entries={tier3Entries}
       />
-      <SeasonCardGrid markerNum={2} markerSub="MORE" title="其他赛事" seasons={others} />
+      <SeasonCardGrid markerNum={2} markerSub="MORE" title="其他赛事" seasons={projection.otherSeasons} />
       <SeasonCardGrid
         markerNum={3}
         markerSub="ARCHIVE"
         title="历届赛事"
-        seasons={archivedSeasons}
+        seasons={projection.archivedSeasons}
       />
     </PageLayout>
   );
+}
+
+async function HomePersonalNextStep({ season }: { season: PublicSeason }) {
+  const task = await getSeasonPersonalNextStep(season);
+  return <SeasonNextStep task={task} />;
 }
 
 function HomeFallback() {

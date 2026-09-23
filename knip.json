@@ -83,6 +83,7 @@
     "scripts/db/recovery/r2-config.ts!",
     "scripts/seed.ts!",
     "scripts/vercel-build.ts!",
+    "scripts/report-build-footprint.mjs!",
     "scripts/with-node-options.ts!",
     "tests/mocks/server-only.ts",
     "src/components/stats/players/PlayerWorkspace.tsx!",

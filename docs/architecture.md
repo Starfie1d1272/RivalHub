@@ -59,6 +59,8 @@ DB/internal facts
 
 公开页面默认不暴露 email、QQ、`studentId`、`authId`、管理员授权范围、教育证据或内部备注。不能把内部查询对象直接序列化给浏览器。
 
+公开导航使用 app-level Partial Prefetching；`params` / `searchParams` 驱动的内容留在最小 Suspense 区域，使同一路由可以复用 URL 无关的 shell。Server Action 写入的 mutation-driven public read model 使用语义 cache tag 并以 `updateTag()` 即时失效；Route Handler 或 webhook 使用 `revalidateTag(tag, "max")`。session、authorization、admin 与 draft facts 不进入共享 public cache，request boundary 由 `cookies()` / `headers()` 提供。需要保持 production build 与 runtime 数据源隔离、由首次 runtime request 填充的 public cache，可在最小 Suspense leaf 使用 `io()`；它不会把真实 request / prefetch 推迟到完整 navigation。`connection()` 只用于确实要求真实用户 navigation 的语义。
+
 ### Persistence
 
 - `src/db/schema/` 表达当前应用 schema；`drizzle/migrations/` 是唯一 active migration chain。
