@@ -58,9 +58,9 @@ export function MapsExplorer({ data, query, seasonSlug }: { data: TournamentStat
     { key: "map", label: "Map", className: "w-[28%]", render: (row) => <Link href={statsHref(seasonSlug, query, { map: row.mapName })} scroll={false} className="font-medium hover:text-[var(--color-accent)]">{mapLabel(row.mapName)}</Link> },
     { key: "played", label: "Played", numeric: true, className: "w-[10%]", sortable: true, sortValue: (row) => row.played, render: (row) => row.played },
     { key: "rounds", label: "Rounds", numeric: true, className: "w-[11%]", sortable: true, sortValue: (row) => row.rounds, render: (row) => row.rounds },
-    { key: "pick", label: "Pick", numeric: true, className: "hidden w-[8%] sm:table-cell", sortable: true, sortValue: (row) => row.picks, render: (row) => row.picks },
-    { key: "ban", label: "Ban", numeric: true, className: "hidden w-[8%] sm:table-cell", sortable: true, sortValue: (row) => row.bans, render: (row) => row.bans },
-    { key: "decider", label: "Decider", numeric: true, className: "hidden w-[9%] lg:table-cell", sortable: true, sortValue: (row) => row.deciders, render: (row) => row.deciders },
+    { key: "pick", label: "Picks", numeric: true, className: "hidden w-[8%] sm:table-cell", sortable: true, sortValue: (row) => row.picks, render: (row) => row.picks },
+    { key: "ban", label: "Bans", numeric: true, className: "hidden w-[8%] sm:table-cell", sortable: true, sortValue: (row) => row.bans, render: (row) => row.bans },
+    { key: "decider", label: "Deciders", numeric: true, className: "hidden w-[9%] lg:table-cell", sortable: true, sortValue: (row) => row.deciders, render: (row) => row.deciders },
     ...(partialCoverage ? [{
       key: "coverage",
       label: "Coverage",
