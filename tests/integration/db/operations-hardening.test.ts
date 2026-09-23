@@ -112,20 +112,27 @@ describe("operations real PostgreSQL lifecycle & abuse hardening", () => {
       );
       await database.transaction((tx) => setAnnouncementStatusInTx(tx, adminContext, siteAttention.id, "published"));
 
-      const seasonAttention = await getRelevantAttentionAnnouncement(seasonId);
-      expect(seasonAttention?.id).toBe(draft.id);
+      vi.useFakeTimers({ toFake: ["Date"] });
+      try {
+        const attentionReadAt = Date.now();
+        const seasonAttention = await getRelevantAttentionAnnouncement(seasonId);
+        expect(seasonAttention?.id).toBe(draft.id);
 
-      await database.transaction((tx) => updateAnnouncementInTx(tx, adminContext, draft.id, {
-        scope: "season",
-        seasonId,
-        type: "important_alert",
-        title: "赛程调整通知（正式）",
-        body: "首轮正式延期至 19:30 开始。",
-        requiresAttention: true,
-        attentionUntil: new Date(Date.now() - 1_000),
-      }));
-      const fallbackAttention = await getRelevantAttentionAnnouncement(seasonId);
-      expect(fallbackAttention?.id).toBe(siteAttention.id);
+        await database.transaction((tx) => updateAnnouncementInTx(tx, adminContext, draft.id, {
+          scope: "season",
+          seasonId,
+          type: "important_alert",
+          title: "赛程调整通知（正式）",
+          body: "首轮正式延期至 19:30 开始。",
+          requiresAttention: true,
+          attentionUntil: new Date(attentionReadAt - 1_000),
+        }));
+        vi.setSystemTime(attentionReadAt + 60_000);
+        const fallbackAttention = await getRelevantAttentionAnnouncement(seasonId);
+        expect(fallbackAttention?.id).toBe(siteAttention.id);
+      } finally {
+        vi.useRealTimers();
+      }
 
       // 4. Withdraw announcement
       await database.transaction((tx) =>
