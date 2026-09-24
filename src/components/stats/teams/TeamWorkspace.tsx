@@ -1,17 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState } from "react";
 import { MapPreferenceChips } from "@/components/rivalhub/MapPreferenceChips";
 import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
 import { MetricFamilyTabs } from "@/components/stats/MetricFamilyTabs";
 import { MetricValue } from "@/components/stats/MetricValue";
-import { StatsMetricLabel } from "@/components/stats/StatsMetricHelp";
+import { MetricSection } from "@/components/stats/MetricSection";
 import { StatsDataTable, type StatsDataColumn } from "@/components/stats/StatsDataTable";
 import { mapLabel } from "@/lib/maps";
 import type { LongTeamCareerDetail, TournamentStats, TournamentTeamDetail } from "@/lib/stats/tournament-query";
 import type { PublicTeamMapProfile } from "@/lib/teams/map-profile";
-import type { StatsMetricKey } from "@/lib/stats/metrics";
 import { displayWeaponName, formatEconomyLabel, statsRateDenominator } from "@/lib/stats/presentation";
 
 type TeamPerformanceDetail = LongTeamCareerDetail | TournamentTeamDetail;
@@ -25,12 +24,6 @@ const tabs = [
   { key: "players", label: "Players" },
   { key: "weapons", label: "Weapons" },
 ] as const;
-
-type MetricItem = {
-  label: string;
-  value: ReactNode;
-  metric?: StatsMetricKey;
-};
 
 function MetricSection({ title, items, columns = 4 }: {
   title: string;
