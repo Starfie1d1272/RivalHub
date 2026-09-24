@@ -1,7 +1,8 @@
 import "server-only";
 
 import type { PublicEventTeamContext } from "@/lib/competition-entries/public-team-context";
-import type { PublicSeason } from "@/lib/data/public-seasons";
+import { getPublicSeasonBySlug, type PublicSeason } from "@/lib/data/public-seasons";
+import { getPublicSeasonResults } from "@/lib/seasons/public-results";
 import { getLongTeamCareerDetail, getTournamentTeamDetail } from "@/lib/stats/tournament-query";
 import { getPublicTeamMapProfile } from "@/lib/teams/map-profile";
 import { getPublicTeamProfile, type PublicTeamIdentity } from "@/lib/teams/public-profile";
@@ -23,16 +24,44 @@ export async function getPublicLongTeamProfileReadModel(
     getLongTeamCareerDetail(teamId),
   ]);
   if (!profile) return null;
-  const mapProfile = await getPublicTeamMapProfile(
-    profile.entries.map((entry) => entry.id),
-    profile.currentMembers.map((member) => member.userId),
-  );
+  const [mapProfile, careerResults] = await Promise.all([
+    getPublicTeamMapProfile(
+      profile.entries.map((entry) => entry.id),
+      profile.currentMembers.map((member) => member.userId),
+    ),
+    Promise.all([...new Set(profile.entries.filter((entry) => ["finished", "archived"].includes(entry.seasonStatus)).map((entry) => entry.seasonSlug))].map(async (slug) => {
+      const season = await getPublicSeasonBySlug(slug);
+      return season ? [season.id, await getPublicSeasonResults(season)] as const : null;
+    })),
+  ]);
+  const resultBySeason = new Map(careerResults.filter((row): row is NonNullable<typeof row> => row !== null));
+  const performanceByEntry = new Map(performance.linkedEntries.map((entry) => [entry.entryId, entry]));
+  const career = profile.entries
+    .filter((entry) => ["finished", "archived"].includes(entry.seasonStatus))
+    .map((entry) => {
+      const results = [...resultBySeason.values()].find((result) =>
+        result.placements.some((placement) => placement.entryId === entry.id)
+        || result.honors.some((honor) => honor.entryId === entry.id)
+      ) ?? null;
+      const stats = performanceByEntry.get(entry.id);
+      return {
+        ...entry,
+        placement: results?.placements.find((placement) => placement.entryId === entry.id)?.label ?? null,
+        honors: results?.honors.filter((honor) => honor.entryId === entry.id).map((honor) => honor.label) ?? [],
+        matchWins: stats?.matchWins ?? 0,
+        matchLosses: stats?.matchLosses ?? 0,
+        mapWins: stats?.mapWins ?? 0,
+        mapLosses: stats?.mapLosses ?? 0,
+        maps: stats?.maps ?? 0,
+      };
+    });
   return {
     mode: "long" as const,
     profile,
     performance,
     mapProfile,
     mapExperienceCoverage: mapProfile.experienceCoverage,
+    career,
   };
 }
 
