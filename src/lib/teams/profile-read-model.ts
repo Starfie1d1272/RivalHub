@@ -27,17 +27,12 @@ export async function getPublicLongTeamProfileReadModel(
     profile.entries.map((entry) => entry.id),
     profile.currentMembers.map((member) => member.userId),
   );
-  const experiencedMemberIds = new Set(mapProfile.experience.map((row) => row.userId));
   return {
     mode: "long" as const,
     profile,
     performance,
     mapProfile,
-    mapExperienceCoverage: {
-      rosterMembers: profile.currentMembers.length,
-      experiencedMembers: profile.currentMembers.filter((member) => experiencedMemberIds.has(member.userId)).length,
-      experiencedMemberIds: profile.currentMembers.filter((member) => experiencedMemberIds.has(member.userId)).map((member) => member.userId),
-    },
+    mapExperienceCoverage: mapProfile.experienceCoverage,
   };
 }
 
@@ -54,16 +49,11 @@ export async function getPublicCompetitionEntryPerformanceReadModel(
     [event.entry.id],
     event.roster.map((member) => member.userId),
   );
-  const experiencedMemberIds = new Set(mapProfile.experience.map((row) => row.userId));
   return {
     mode: "event" as const,
     performance,
     mapProfile,
-    mapExperienceCoverage: {
-      rosterMembers: event.roster.length,
-      experiencedMembers: event.roster.filter((member) => experiencedMemberIds.has(member.userId)).length,
-      experiencedMemberIds: event.roster.filter((member) => experiencedMemberIds.has(member.userId)).map((member) => member.userId),
-    },
+    mapExperienceCoverage: mapProfile.experienceCoverage,
   };
 }
 
