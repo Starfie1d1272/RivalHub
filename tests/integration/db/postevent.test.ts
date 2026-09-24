@@ -69,8 +69,14 @@ async function prepareFixture(pool: Pool): Promise<Fixture> {
   const resultId = randomUUID();
   const matchId = randomUUID();
   const majorCapabilities = createMajorTemplate();
+  const frozenStagePlan = majorCapabilities.stagePlan.map((stage) => ({
+    ...stage,
+    finalFormat: stage.finalFormat ?? null,
+    advanceTiers: [...stage.advanceTiers],
+    ...(stage.seeds ? { seeds: [...stage.seeds] } : {}),
+  }));
   const ruleSnapshot = makeMajorRunSnapshotV4({
-    stagePlan: majorCapabilities.stagePlan,
+    stagePlan: frozenStagePlan,
     rosterRules: {
       minTeamSize: majorCapabilities.minTeamSize,
       maxTeamSize: majorCapabilities.maxTeamSize,
