@@ -328,20 +328,22 @@ async function loadVetoData(tx: TxDb, scope: Pick<TournamentStatsScope, "seasonI
   };
 }
 
+type PerformanceEvidenceFacts = Awaited<ReturnType<typeof loadStatsEvidence>>["selected"][number]["facts"]["performance"];
+
+export function scopePerformanceFactsToTeam(facts: PerformanceEvidenceFacts, teamId: string): PerformanceEvidenceFacts {
+  return {
+    ...facts,
+    playerRounds: facts.playerRounds.filter((fact) => fact.teamEntityKey === teamId),
+    objectives: facts.objectives.filter((fact) => fact.teamEntityKey === teamId),
+    playerWeapons: facts.playerWeapons.filter((fact) => fact.teamEntityKey === teamId),
+  };
+}
+
 function performanceFactsForScope(
   loaded: Awaited<ReturnType<typeof loadStatsEvidence>>,
   teamId?: string,
 ) {
-  return loaded.selected.map((row) => {
-    const facts = row.facts.performance;
-    if (!teamId) return facts;
-    return {
-      ...facts,
-      playerRounds: facts.playerRounds.filter((fact) => fact.teamEntityKey === teamId),
-      objectives: facts.objectives.filter((fact) => fact.teamEntityKey === teamId),
-      playerWeapons: facts.playerWeapons.filter((fact) => fact.teamEntityKey === teamId),
-    };
-  });
+  return loaded.selected.map((row) => teamId ? scopePerformanceFactsToTeam(row.facts.performance, teamId) : row.facts.performance);
 }
 
 function indexStatsRows<T>(rows: readonly T[], key: (row: T) => string) {
