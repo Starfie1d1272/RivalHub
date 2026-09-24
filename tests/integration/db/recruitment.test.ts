@@ -134,10 +134,10 @@ describe("recruitment PostgreSQL invariants", () => {
       }
       await pool.query(`
         INSERT INTO recruitment_intents (kind, team_id, target_season_id, positions, status, expires_at)
-        SELECT 'team_recruiting', team_id, NULL, ARRAY[]::cs2_role[], 'open', now() + interval '1 day'
+        SELECT 'team_recruiting'::recruitment_intent_kind, team_id, NULL, ARRAY[]::cs2_role[], 'open'::recruitment_intent_status, now() + interval '1 day'
         FROM unnest($1::uuid[]) AS team(team_id)
         UNION ALL
-        SELECT 'team_recruiting', $2::uuid, $3::uuid, ARRAY[]::cs2_role[], 'open', now() + interval '1 day'
+        SELECT 'team_recruiting'::recruitment_intent_kind, $2::uuid, $3::uuid, ARRAY[]::cs2_role[], 'open'::recruitment_intent_status, now() + interval '1 day'
       `, [unrestrictedTeamIds, otherEventTeamId, ids.registrationSeason]);
       await expect(database.transaction((tx) => upsertTeamRecruitmentInTx(tx, { teamId: ids.team, userId: ids.captain, actorId: ids.captain, positions: ["awper"], targetSeasonId: ids.draftSeason, note: null })))
         .rejects.toMatchObject({ code: ErrorCode.VALIDATION_FAILED });
