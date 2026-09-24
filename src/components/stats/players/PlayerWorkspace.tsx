@@ -167,7 +167,7 @@ export function PlayerWorkspace({ detail, compact = false }: { detail: Tournamen
             { label: "ADR", metric: "adr", value: <MetricValue metric="adr" value={detail.scoreboard[0]?.avgAdr} /> },
             { label: "K/D", metric: "kd", value: <MetricValue metric="kd" value={detail.scoreboard[0]?.kdRatio} /> },
             { label: "KPR", metric: "kpr", value: <MetricValue metric="kpr" value={detail.scoreboard[0]?.kpr} /> },
-            { label: "HS%", metric: "hs", value: <MetricValue metric="hs" value={detail.scoreboard[0]?.avgHs} /> },
+            { label: "HS%", metric: "hs", value: <MetricValue metric="hs" value={detail.scoreboard[0]?.avgHs == null ? null : detail.scoreboard[0].avgHs / 100} /> },
             { label: "WE", metric: "we", value: <MetricValue metric="we" value={detail.scoreboard[0]?.avgWe} /> },
             { label: "RWS", metric: "rws", value: <MetricValue metric="rws" value={detail.scoreboard[0]?.avgRws} /> },
             { label: "MK/100r", metric: "mk", value: <MetricValue metric="mk" value={detail.scoreboard[0]?.mkpr} /> },

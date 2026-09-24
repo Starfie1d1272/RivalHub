@@ -5,10 +5,10 @@ import { PageLayout, PosChip } from "@/components/rivalhub";
 import { MapPreferenceChips } from "@/components/rivalhub/MapPreferenceChips";
 import { PlayerAvatar } from "@/components/players/PlayerAvatar";
 import { PlayerPerformanceFilters } from "@/components/players/PlayerPerformanceFilters";
+import { PlayerAttributes } from "@/components/players/PlayerAttributes";
 import { PlayerWorkspace } from "@/components/stats/players/PlayerWorkspace";
 import { MetricValue } from "@/components/stats/MetricValue";
 import { StatsMetricLabel } from "@/components/stats/StatsMetricHelp";
-import { PlayerRadarChart } from "@/components/matches/PlayerRadarChart";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
 import { resolveCanonicalUserId } from "@/lib/identity/canonical";
 import { PUBLIC_PLAYER_INFO_FIELDS } from "@/lib/utils/player-info-fields";
@@ -356,43 +356,27 @@ export async function PlayerPageContent({ params, searchParams }: PlayerPageProp
           </p>
         )}
 
-        <div className={profile.radar && career.selectedEvent ? "grid gap-6 lg:grid-cols-[minmax(0,1fr)_300px]" : ""}>
-          <dl className="grid grid-cols-2 border-y border-[var(--color-border)] sm:grid-cols-4">
-            <div className="px-3 py-3 sm:first:pl-0">
-              <dt className="text-[11px] text-[var(--color-fg-mid)]">Matches</dt>
-              <dd className="mt-1 font-semibold tabular-nums">{career.summary.matches}</dd>
-              <p className="text-xs text-[var(--color-fg-dim)]">{career.summary.wins}–{career.summary.losses} · {pct(career.summary.wins, career.summary.matches)}</p>
-            </div>
-            <div className="border-l border-[var(--color-border)] px-3 py-3">
-              <dt className="text-[11px] text-[var(--color-fg-mid)]">Maps</dt>
-              <dd className="mt-1 font-semibold tabular-nums">{career.summary.maps}</dd>
-            </div>
-            <div className="border-l border-[var(--color-border)] px-3 py-3">
-              <dt className="text-[11px] text-[var(--color-fg-mid)]">Rounds</dt>
-              <dd className="mt-1 font-semibold tabular-nums">{career.summary.rounds}</dd>
-            </div>
-            <div className="border-l border-[var(--color-border)] px-3 py-3">
-              <dt className="text-[11px] text-[var(--color-fg-mid)]">MVP</dt>
-              <dd className="mt-1 font-semibold tabular-nums">{career.summary.mvp > 0 ? career.summary.mvp : "—"}</dd>
-            </div>
-          </dl>
+        <dl className="grid grid-cols-2 border-y border-[var(--color-border)] sm:grid-cols-4">
+          <div className="px-3 py-3 sm:first:pl-0">
+            <dt className="text-[11px] text-[var(--color-fg-mid)]">Matches</dt>
+            <dd className="mt-1 font-semibold tabular-nums">{career.summary.matches}</dd>
+            <p className="text-xs text-[var(--color-fg-dim)]">{career.summary.wins}–{career.summary.losses} · {pct(career.summary.wins, career.summary.matches)}</p>
+          </div>
+          <div className="border-l border-[var(--color-border)] px-3 py-3">
+            <dt className="text-[11px] text-[var(--color-fg-mid)]">Maps</dt>
+            <dd className="mt-1 font-semibold tabular-nums">{career.summary.maps}</dd>
+          </div>
+          <div className="border-l border-[var(--color-border)] px-3 py-3">
+            <dt className="text-[11px] text-[var(--color-fg-mid)]">Rounds</dt>
+            <dd className="mt-1 font-semibold tabular-nums">{career.summary.rounds}</dd>
+          </div>
+          <div className="border-l border-[var(--color-border)] px-3 py-3">
+            <dt className="text-[11px] text-[var(--color-fg-mid)]">MVP</dt>
+            <dd className="mt-1 font-semibold tabular-nums">{career.summary.mvp > 0 ? career.summary.mvp : "—"}</dd>
+          </div>
+        </dl>
 
-          {profile.radar && career.selectedEvent && (
-            <div className="flex flex-col items-center justify-center border-t border-[var(--color-border)] pt-4 lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0">
-              <PlayerRadarChart
-                players={[{
-                  name: getPublicDisplayName(user),
-                  scores: profile.radar,
-                  color: "var(--color-accent)",
-                }]}
-                size={250}
-              />
-              <p className="mt-2 text-center text-[11px] leading-relaxed text-[var(--color-fg-dim)]">
-                单届赛事内标准化，仅用于该赛事内比较。
-              </p>
-            </div>
-          )}
-        </div>
+        {profile.attributes && <PlayerAttributes profile={profile.attributes} />}
 
         <PlayerWorkspace detail={career} compact />
       </section>

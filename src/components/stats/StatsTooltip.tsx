@@ -59,7 +59,10 @@ export function StatsTooltip({
         onMouseLeave={() => setOpen(false)}
         onFocus={show}
         onBlur={() => setOpen(false)}
-        onClick={show}
+        onClick={(event) => {
+          event.stopPropagation();
+          show();
+        }}
         className={`inline-flex h-3.5 min-w-2 items-center justify-center text-[10px] font-medium leading-none text-[var(--color-fg-dim)] transition-colors hover:text-[var(--color-fg)] focus-visible:outline focus-visible:outline-1 focus-visible:outline-[var(--color-accent)] ${className}`}
       >
         ?
