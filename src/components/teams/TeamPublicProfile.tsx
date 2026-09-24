@@ -43,7 +43,6 @@ export function TeamPublicProfile({ team, event = null, mapProfile, results, per
   const nextMatch = event?.matches.filter((match) => match.status === "scheduled" || match.status === "in_progress").sort((a, b) => (a.scheduledAt?.getTime() ?? Infinity) - (b.scheduledAt?.getTime() ?? Infinity))[0];
   const rosterStatus = event ? presentCompetitionEntryRosterStatus(event.rosterStatus) : null;
   const currentEntries = team?.entries.filter((entry) => !["finished", "archived"].includes(entry.seasonStatus)) ?? [];
-  const historicalEntries = team?.entries.filter((entry) => ["finished", "archived"].includes(entry.seasonStatus)) ?? [];
   const eventPlacement = event ? results?.placements.find((entry) => entry.entryId === event.entry.id) ?? null : null;
   const eventHonors = event ? results?.honors.filter((honor) => honor.entryId === event.entry.id) ?? [] : [];
   const eventDetail = event && performance && !("linkedEntries" in performance) ? performance : null;
@@ -111,39 +110,52 @@ export function TeamPublicProfile({ team, event = null, mapProfile, results, per
         </div>
       </div>
 
-      {event && <>
-
-        {event && <Panel label="赛事概览" contentClassName="p-5"><div className="grid gap-4 sm:grid-cols-3"><div><p className="text-xs text-[var(--color-fg-dim)]">Record</p><p className="mt-1 font-semibold tabular-nums">{event.record.wins}-{event.record.losses}</p></div><div><p className="text-xs text-[var(--color-fg-dim)]">参赛名单</p><p className="mt-1 font-semibold">{event.roster.length} 名</p></div><div><p className="text-xs text-[var(--color-fg-dim)]">Seed</p><p className="mt-1 font-semibold">{event.seedPresentation?.label ?? "待确认"}</p></div></div>{nextMatch && <Link className="mt-4 block border-t border-[var(--color-border)] pt-4 text-sm font-semibold hover:text-[var(--color-accent)]" href={`/${event.season.slug}/matches/${nextMatch.id}`}>下一场 · {nextMatch.opponentName ?? "待定"} →</Link>}</Panel>}
-        <Panel label={event.rosterLabel} contentClassName="p-5">
-          <div className="mb-3 flex flex-wrap items-center gap-2 text-sm text-[var(--color-fg-mid)]">
-            {rosterStatus && <StatusPill {...rosterStatus} />}
+      {event && <div className="grid gap-8">
+        <section className="space-y-4">
+          <div><p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--color-fg-dim)]">EVENT</p><h2 className="mt-1 text-lg font-semibold">赛事概览</h2></div>
+          <div className="border-y border-[var(--color-border)] py-4">
+            <div className="grid gap-4 sm:grid-cols-3">
+              <div><p className="text-xs text-[var(--color-fg-dim)]">Record</p><p className="mt-1 font-semibold tabular-nums">{event.record.wins}-{event.record.losses}</p></div>
+              <div><p className="text-xs text-[var(--color-fg-dim)]">参赛名单</p><p className="mt-1 font-semibold">{event.roster.length} 名</p></div>
+              <div><p className="text-xs text-[var(--color-fg-dim)]">Seed</p><p className="mt-1 font-semibold">{event.seedPresentation?.label ?? "待确认"}</p></div>
+            </div>
+            {nextMatch && <Link className="mt-4 block border-t border-[var(--color-border)] pt-4 text-sm font-semibold hover:text-[var(--color-accent)]" href={`/${event.season.slug}/matches/${nextMatch.id}`}>下一场 · {nextMatch.opponentName ?? "待定"} →</Link>}
           </div>
-          <div className="divide-y divide-[var(--color-border)]">
-            {event.roster.length > 0 ? event.roster.map((member) => (
-              <div key={member.userId} className="flex flex-wrap items-center justify-between gap-3 py-3">
-                <div className="flex min-w-0 items-center gap-2">
-                  <PlayerAvatar name={member.name} avatarUrl={member.avatarUrl} size="sm" />
-                  {member.isStarter && <PosChip pos="S" small />}
-                  <Link href={`/players/${member.userId}`} className="min-w-0 break-words font-medium hover:text-[var(--color-accent)]">{member.name}</Link>
+        </section>
+
+        <section className="space-y-4">
+          <div><p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--color-fg-dim)]">ROSTER</p><h2 className="mt-1 text-lg font-semibold">{event.rosterLabel}</h2></div>
+          <div className="border-y border-[var(--color-border)] px-1">
+            {rosterStatus && <div className="border-b border-[var(--color-border)] py-3"><StatusPill {...rosterStatus} /></div>}
+            <div className="divide-y divide-[var(--color-border)]">
+              {event.roster.length > 0 ? event.roster.map((member) => (
+                <div key={member.userId} className="flex flex-wrap items-center justify-between gap-3 py-3">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <PlayerAvatar name={member.name} avatarUrl={member.avatarUrl} size="sm" />
+                    {member.isStarter && <PosChip pos="S" small />}
+                    <Link href={`/players/${member.userId}`} className="min-w-0 break-words font-medium hover:text-[var(--color-accent)]">{member.name}</Link>
+                  </div>
+                  <span className="text-xs text-[var(--color-fg-mid)]">{member.isStarter ? "首发" : "替补"}</span>
                 </div>
-                <span className="text-xs text-[var(--color-fg-mid)]">{member.isStarter ? "首发" : "替补"}</span>
-              </div>
-            )) : <p className="text-sm text-[var(--color-fg-mid)]">{event.rosterLabel}暂无可展示成员。</p>}
+              )) : <p className="py-4 text-sm text-[var(--color-fg-mid)]">{event.rosterLabel}暂无可展示成员。</p>}
+            </div>
           </div>
-        </Panel>
+        </section>
 
-        {eventDetail && <TeamWorkspace detail={eventDetail} mapProfile={mapProfile} seasonSlug={event.season.slug} />}
-        <Panel label="本届比赛" contentClassName="p-5">
-          <div className="space-y-2">
+        {eventDetail && <section className="space-y-4"><div><p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--color-fg-dim)]">PERFORMANCE</p><h2 className="mt-1 text-lg font-semibold">竞技表现</h2></div><TeamWorkspace detail={eventDetail} mapProfile={mapProfile} seasonSlug={event.season.slug} /></section>}
+
+        <section className="space-y-4">
+          <div><p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--color-fg-dim)]">MATCHES</p><h2 className="mt-1 text-lg font-semibold">本届比赛</h2></div>
+          <div className="border-y border-[var(--color-border)] divide-y divide-[var(--color-border)]">
             {event.matches.length > 0 ? event.matches.map((match) => (
-              <Link key={match.id} href={`/${event.season.slug}/matches/${match.id}`} className="flex flex-wrap justify-between gap-2 border border-[var(--color-border)] p-3 text-sm hover:bg-[var(--color-panel-hi)]">
+              <Link key={match.id} href={`/${event.season.slug}/matches/${match.id}`} className="flex flex-wrap justify-between gap-2 px-1 py-3 text-sm hover:bg-[var(--color-panel-hi)]">
                 <span>对阵 {match.opponentName ?? "待定"}</span>
                 <span>{presentMatchStatus(match.status, { isForfeit: match.isForfeit, scheduledAt: match.scheduledAt }).label}{match.ownScore !== null && match.opponentScore !== null ? ` · ${match.ownScore}:${match.opponentScore}` : ""}</span>
               </Link>
-            )) : <p className="text-sm text-[var(--color-fg-mid)]">暂无比赛。</p>}
+            )) : <p className="py-4 text-sm text-[var(--color-fg-mid)]">暂无比赛。</p>}
           </div>
-        </Panel>
-      </>}
+        </section>
+      </div>}
 
       {!event && team && <>
         <div className="grid gap-8">
