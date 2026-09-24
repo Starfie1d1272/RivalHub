@@ -2,39 +2,71 @@ name: Cron
 
 on:
   schedule:
-    - cron: "*/5 * * * *"  # 每5分钟检查一次（GitHub 对更短间隔会隐性限流）
+    - cron: "*/5 * * * *"
   workflow_dispatch:
 
-permissions: {}
+permissions:
+  contents: read
 
 jobs:
   trigger:
-    name: Cron / ${{ matrix.job_key }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - job_key: draft-timeout
-          - job_key: check-registration-deadline
-          - job_key: match-time-auto-award
-          - job_key: cleanup-education-evidence
-          - job_key: refresh-steam-profiles
+    name: Cron / watchdog
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    environment: production
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      CRON_SECRET: ${{ secrets.CRON_SECRET }}
     steps:
-      - name: Invoke ${{ matrix.job_key }}
-        env:
-          CRON_SECRET: ${{ secrets.CRON_SECRET }}
-          CRON_JOB_KEY: ${{ matrix.job_key }}
-          CRON_SOURCE: ${{ github.event_name == 'workflow_dispatch' && 'github-manual' || 'github-watchdog' }}
+      - name: Resolve manual targets
+        if: github.event_name == 'workflow_dispatch'
+        id: manual
+        run: echo 'job_keys=["draft-timeout","check-registration-deadline","match-time-auto-award","cleanup-education-evidence","refresh-steam-profiles"]' >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        if: github.event_name == 'schedule'
+
+      - uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
+        if: github.event_name == 'schedule'
+        with:
+          cache: true
+          require-lockfile: true
+
+      - name: Plan degraded scheduler fallbacks
+        if: github.event_name == 'schedule'
+        id: plan
+        shell: bash
         run: |
-          curl --fail --silent --show-error \
-            --connect-timeout 10 \
-            --max-time 60 \
-            --retry 2 \
-            --retry-all-errors \
-            --retry-delay 5 \
-            --retry-max-time 180 \
-            --header "Authorization: Bearer ${CRON_SECRET}" \
-            --header "X-RivalHub-Cron-Source: ${CRON_SOURCE}" \
-            "https://match.starfie1d.top/api/cron/${CRON_JOB_KEY}"
+          set -uo pipefail
+          ALL='["draft-timeout","check-registration-deadline","match-time-auto-award","cleanup-education-evidence","refresh-steam-profiles"]'
+          if PLAN="$(pnpm --silent db:production:scheduler:watchdog-plan)"; then
+            echo "job_keys=$PLAN" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::Scheduler health read failed; failing closed to all watchdog targets."
+            echo "job_keys=$ALL" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Invoke required scheduler fallbacks
+        env:
+          CRON_JOB_KEYS: ${{ github.event_name == 'workflow_dispatch' && steps.manual.outputs.job_keys || steps.plan.outputs.job_keys }}
+          CRON_SOURCE: ${{ github.event_name == 'workflow_dispatch' && 'github-manual' || 'github-watchdog' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t JOB_KEYS < <(jq -r '.[]' <<< "$CRON_JOB_KEYS")
+          if [ "${#JOB_KEYS[@]}" -eq 0 ]; then
+            echo "Primary scheduler is healthy; no Vercel fallback required."
+            exit 0
+          fi
+          for CRON_JOB_KEY in "${JOB_KEYS[@]}"; do
+            curl --fail --silent --show-error \
+              --connect-timeout 10 \
+              --max-time 60 \
+              --retry 2 \
+              --retry-all-errors \
+              --retry-delay 5 \
+              --retry-max-time 180 \
+              --header "Authorization: Bearer ${CRON_SECRET}" \
+              --header "X-RivalHub-Cron-Source: ${CRON_SOURCE}" \
+              "https://match.starfie1d.top/api/cron/${CRON_JOB_KEY}"
+          done

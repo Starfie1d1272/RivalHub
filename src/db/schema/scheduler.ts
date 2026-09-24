@@ -7,6 +7,7 @@ import { pgTable, text, timestamp } from "drizzle-orm/pg-core";
 export const scheduledJobHealth = pgTable("scheduled_job_health", {
   jobKey: text("job_key").primaryKey(),
   lastPrimaryTriggeredAt: timestamp("last_primary_triggered_at", { withTimezone: true }),
+  lastPrimaryDispatchRequestedAt: timestamp("last_primary_dispatch_requested_at", { withTimezone: true }),
   lastPrimaryEndpointStartedAt: timestamp("last_primary_endpoint_started_at", { withTimezone: true }),
   lastPrimaryEndpointSucceededAt: timestamp("last_primary_endpoint_succeeded_at", { withTimezone: true }),
   lastWatchdogSucceededAt: timestamp("last_watchdog_succeeded_at", { withTimezone: true }),
