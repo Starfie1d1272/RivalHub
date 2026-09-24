@@ -86,7 +86,7 @@ export const STATS_METRICS = {
   clutchWins: metric("Wins", "count", 0, "attempts", "当前统计范围内赢下 1vX 残局的总次数。", { sampleMode: "hidden" }),
   clutch: metric("Clutch%", "ratioPercent", 1, "attempts", "残局胜率：赢下的 1vX 残局次数 ÷ 残局尝试次数。", { rankingSampleKind: "attempts" }),
   clutchSplit: metric("1vX%", "ratioPercent", 1, "attempts", "对应人数残局的胜率，例如 1v2 表示独自面对两名对手时的残局胜率；分母为该 1vX 场景的尝试次数。", { rankingSampleKind: "attempts" }),
-  clutchFrequency: metric("Clutch/100r", "per100Round", 2, "rounds", "每 100 回合进入 1vX 残局的次数，衡量残局出现频率，不代表残局胜利次数。", { rankingSampleKind: "rounds" }),
+  clutchFrequency: metric("C/100r", "per100Round", 2, "rounds", "每 100 回合赢下的 1vX 残局次数：残局胜利次数 ÷ 出场回合数 × 100。", { rankingSampleKind: "rounds" }),
   pistol: metric("Pistol Win%", "ratioPercent", 1, "pistolRounds", "手枪局胜率。", { rankingSampleKind: "pistolRounds" }),
   roundWin: metric("RW%", "ratioPercent", 1, "rounds", "回合胜率。", { rankingSampleKind: "rounds" }),
   conversion: metric("R2 Conv", "ratioPercent", 1, "opportunities", "手枪局取胜后继续赢下第二回合的比例。", { rankingSampleKind: "opportunities" }),
