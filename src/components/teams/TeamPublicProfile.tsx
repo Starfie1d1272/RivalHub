@@ -1,4 +1,3 @@
-import { TeamMapProfile } from "@/components/teams/TeamMapProfile";
 import { TeamWorkspace } from "@/components/stats/teams/TeamWorkspace";
 import { MetricValue } from "@/components/stats/MetricValue";
 import type { PublicTeamMapProfile } from "@/lib/teams/map-profile";
@@ -132,9 +131,7 @@ export function TeamPublicProfile({ team, event = null, mapProfile, results, per
           </div>
         </Panel>
 
-        {eventDetail && <TeamWorkspace detail={eventDetail} seasonSlug={event.season.slug} />}
-
-        {mapProfile && <TeamMapProfile profile={mapProfile} event />}
+        {eventDetail && <TeamWorkspace detail={eventDetail} mapProfile={mapProfile} seasonSlug={event.season.slug} />}
         <Panel label="本届比赛" contentClassName="p-5">
           <div className="space-y-2">
             {event.matches.length > 0 ? event.matches.map((match) => (
@@ -166,9 +163,7 @@ export function TeamPublicProfile({ team, event = null, mapProfile, results, per
 
           {currentEntries.length > 0 && <Panel label="Current Event" contentClassName="p-5"><div className="space-y-2">{currentEntries.map((entry) => <Link key={entry.id} className="flex items-center justify-between gap-3 text-sm hover:text-[var(--color-accent)]" href={`/${entry.seasonSlug}/teams/${entry.id}`}><span><span className="font-medium">{entry.seasonName}</span><span className="ml-2 text-[var(--color-fg-mid)]">{entry.name}</span></span><span>→</span></Link>)}</div></Panel>}
 
-          {longDetail && <TeamWorkspace detail={longDetail} />}
-
-          {mapProfile && <TeamMapProfile profile={mapProfile} />}
+          {longDetail && <TeamWorkspace detail={longDetail} mapProfile={mapProfile} />}
           <Panel label="赛事履历" contentClassName="p-5">
             <div className="divide-y divide-[var(--color-border)]">
               {historicalEntries.length > 0 ? historicalEntries.map((entry) => (
