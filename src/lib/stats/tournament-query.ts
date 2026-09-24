@@ -570,6 +570,14 @@ export function buildLongTeamPerformanceProjection(
   };
 }
 
+export function buildCompetitionEntryPerformanceProjection(
+  selected: Awaited<ReturnType<typeof loadStatsEvidence>>["selected"],
+  teamId: string,
+  labels: StatsLabels = { teams: {}, players: {} },
+) {
+  return buildLongTeamPerformanceProjection(selected, new Set([teamId]), teamId, labels);
+}
+
 /**
  * Canonical all-time Team projection.
  *
@@ -702,7 +710,8 @@ export async function getTournamentTeamDetail(scope: TournamentStatsScope & { te
     const veto = await loadVetoData(tx, scope, loaded.entries);
     const results = buildTournamentResults(resultMatchesForMapScope(loaded.matches, loaded.scopedMaps, scope.mapFilter), loaded.scopedMaps, loaded.entries);
     const analytics = buildTournamentAnalytics(loaded.selected.map((row) => row.facts.tournament), { labels: loaded.labels });
-    const performance = buildTournamentPerformanceAnalytics(performanceFactsForScope(loaded, scope.teamId), { labels: loaded.labels });
+    const performanceProjection = buildCompetitionEntryPerformanceProjection(loaded.selected, scope.teamId, loaded.labels);
+    const performance = performanceProjection.performance;
     const scoreboard = await getStatsLeaderboard({ ...scope, teamFilter: scope.teamId }, loaded.selected.map((row) => row.importId), loaded.roster, tx);
     const teamRating = buildTeamRatings(scoreboard).find((row) => row.entryId === scope.teamId) ?? null;
     const analyticsByMapName = new Map<string, ReturnType<typeof aggregateEvidenceByMap>[number]>();
@@ -723,7 +732,6 @@ export async function getTournamentTeamDetail(scope: TournamentStatsScope & { te
       }
     }
     const teamAnalytics = indexStatsRows(analytics.teams, (row) => row.team.entityKey);
-    const teamPerformance = indexStatsRows(performance.teams, (row) => row.team.entityKey);
     const mapNames = new Set([...resultByMapName.keys(), ...analyticsByMapName.keys(), ...selectionByMapName.keys()]);
     const maps = [...mapNames].map((mapName) => {
       const analyticsForMap = analyticsByMapName.get(mapName);
@@ -743,10 +751,10 @@ export async function getTournamentTeamDetail(scope: TournamentStatsScope & { te
       selection,
       analytics: teamAnalytics.get(scope.teamId) ?? null,
       economyMatrix: analytics.economyMatrix,
-      performance: teamPerformance.get(scope.teamId) ?? null,
+      performance: performanceProjection.teamPerformance,
       scoreboard,
       teamRating,
-      detailedPlayers: performance.players.filter((row) => row.teamEntityKeys.includes(scope.teamId)),
+      detailedPlayers: performanceProjection.detailedPlayers,
       maps,
       coverage,
       entries: loaded.entries,
