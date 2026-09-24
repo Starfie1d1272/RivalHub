@@ -71,6 +71,7 @@ async function prepareFixture(pool: Pool): Promise<Fixture> {
   const majorCapabilities = createMajorTemplate();
   const frozenStagePlan = majorCapabilities.stagePlan.map((stage) => ({
     ...stage,
+    matchFormat: stage.matchFormat ?? "bo1",
     finalFormat: stage.finalFormat ?? null,
     advanceTiers: [...stage.advanceTiers],
     ...(stage.seeds ? { seeds: [...stage.seeds] } : {}),
