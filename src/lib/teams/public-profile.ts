@@ -173,7 +173,7 @@ export async function getPublicTeamProfile(
       .select({
         id: competitionEntries.id,
         name: competitionEntries.name,
-        seasonName: seasons.name,
+        seasonId: seasons.id,\n      seasonName: seasons.name,
         seasonSlug: seasons.slug,
         seasonStatus: seasons.status,
       })
