@@ -563,7 +563,9 @@ export async function getLongTeamCareerDetail(teamId: string, database: DB = db)
       analytics: null,
       economyMatrix: [],
       performance: null,
+      scoreboard: [],
       detailedPlayers: [],
+      selection: [],
       maps: [],
       coverage: { detailedMaps: 0, completedMaps: 0, maps: [] },
     };
@@ -598,6 +600,28 @@ export async function getLongTeamCareerDetail(teamId: string, database: DB = db)
       mapResults.set(row.mapName, current);
     }
 
+    const representativeUserIds = new Set(loaded.roster.filter((row) => linkedEntryIds.has(row.entryId)).map((row) => row.userId));
+    const scoreboard = (await getStatsLeaderboard(
+      {},
+      loaded.selected.map((row) => row.importId),
+      loaded.roster,
+      tx,
+      { groupByTeam: false, requireCurrentImports: true },
+    )).filter((row) => row.userId && representativeUserIds.has(row.userId));
+    const vetoRows = matchIds.length ? await tx.select({
+      mapName: matchVetoSteps.mapName,
+      action: matchVetoSteps.actionType,
+      entryId: matchVetoSteps.entryId,
+    }).from(matchVetoSteps).where(inArray(matchVetoSteps.matchId, matchIds)) : [];
+    const remappedVeto = vetoRows.map((row) => ({
+      ...row,
+      entryId: row.entryId && linkedEntryIds.has(row.entryId) ? teamId : row.entryId,
+    }));
+    const selection = buildVetoSelection(
+      [{ id: teamId, name: labels.teams[teamId] ?? teamId }],
+      remappedVeto,
+      [...new Set([...loaded.maps.map((map) => map.mapName), ...remappedVeto.map((row) => row.mapName)])],
+    );
     const analyticsByMap = aggregateEvidenceByMap(remapped, labels, { indexPlayers: true });
     const coverage = buildCoverage({ ...loaded, selected: remapped }, resultFacts);
     const coverageByMap = new Map(coverage.maps.map((row) => [row.mapName, row]));
@@ -624,7 +648,9 @@ export async function getLongTeamCareerDetail(teamId: string, database: DB = db)
       analytics: teamAnalytics,
       economyMatrix: analytics.economyMatrix,
       performance: teamPerformance,
+      scoreboard,
       detailedPlayers: performance.players.filter((row) => row.teamEntityKeys.includes(teamId)),
+      selection,
       maps,
       coverage,
     };
