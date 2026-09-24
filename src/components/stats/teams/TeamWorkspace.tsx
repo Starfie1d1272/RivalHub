@@ -57,7 +57,10 @@ export function TeamWorkspace({
   ];
 
   const mapRows = useMemo(() => {
-    const selection = new Map(detail.selection.map((row) => [row.mapName, row.teams.find((team) => team.entryId === detail.teamId) ?? null]));
+    const selection = new Map(detail.selection.map((row) => {
+      const teamSelection = row.teams.find((team) => team.entryId === detail.teamId);
+      return [row.mapName, teamSelection ? { ...teamSelection, deciders: row.deciders } : { picks: 0, bans: 0, deciders: row.deciders }];
+    }));
     return detail.maps.map((row) => ({
       ...row,
       selection: "selection" in row && row.selection ? row.selection : selection.get(row.mapName) ?? null,
@@ -69,8 +72,10 @@ export function TeamWorkspace({
     { key: "played", label: "Played", numeric: true, sortable: true, sortValue: (row) => row.results?.played ?? 0, render: (row) => row.results?.played ?? 0 },
     { key: "record", label: "Map W-L", numeric: true, sortable: true, sortValue: (row) => row.results ? row.results.wins - row.results.losses : null, render: (row) => row.results ? `${row.results.wins}-${row.results.losses}` : "—" },
     { key: "rw", label: "RW%", metric: "roundWin", numeric: true, className: "hidden sm:table-cell", sortable: true, sortValue: (row) => row.analytics?.roundWinRate, rankingSample: (row) => row.analytics?.rounds, render: (row) => row.analytics ? <MetricValue metric="roundWin" value={{ wins: row.analytics.roundWins, opportunities: row.analytics.rounds, rate: row.analytics.roundWinRate }} sampleDisplay="hidden" /> : "—" },
+    { key: "sides", label: "CT% / T%", numeric: true, className: "hidden lg:table-cell", render: (row) => row.analytics ? <span className="inline-flex gap-2"><MetricValue metric="roundWin" value={row.analytics.ct} sampleDisplay="hidden" /><span aria-hidden>/</span><MetricValue metric="roundWin" value={row.analytics.t} sampleDisplay="hidden" /></span> : "—" },
     { key: "pick", label: "Picks", numeric: true, className: "hidden md:table-cell", sortable: true, sortValue: (row) => row.selection?.picks ?? 0, render: (row) => row.selection?.picks ?? 0 },
     { key: "ban", label: "Bans", numeric: true, className: "hidden md:table-cell", sortable: true, sortValue: (row) => row.selection?.bans ?? 0, render: (row) => row.selection?.bans ?? 0 },
+    { key: "decider", label: "Deciders", numeric: true, className: "hidden xl:table-cell", sortable: true, sortValue: (row) => row.selection?.deciders ?? 0, render: (row) => row.selection?.deciders ?? 0 },
     { key: "detail", label: "Detail", numeric: true, className: "hidden lg:table-cell", sortable: true, sortValue: (row) => row.coverage.detailedMaps, render: (row) => `${row.coverage.detailedMaps}/${row.coverage.completedMaps}` },
   ];
 
