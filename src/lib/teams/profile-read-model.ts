@@ -5,7 +5,7 @@ import { db } from "@/db/client";
 import { matchMaps, matches } from "@/db/schema";
 
 import type { PublicEventTeamContext } from "@/lib/competition-entries/public-team-context";
-import { getPublicSeasonBySlug, type PublicSeason } from "@/lib/data/public-seasons";
+import { getPublicSeasonCatalog, type PublicSeason } from "@/lib/data/public-seasons";
 import { getPublicSeasonResults } from "@/lib/seasons/public-results";
 import { getLongTeamCareerDetail, getTournamentTeamDetail } from "@/lib/stats/tournament-query";
 import { getPublicTeamMapProfile } from "@/lib/teams/map-profile";
@@ -29,15 +29,13 @@ export async function getPublicLongTeamProfileReadModel(
   ]);
   if (!profile) return null;
   const entryIds = profile.entries.map((entry) => entry.id);
-  const [mapProfile, careerResults, matchRows] = await Promise.all([
+  const historicalSeasonIds = new Set(profile.entries.filter((entry) => ["finished", "archived"].includes(entry.seasonStatus)).map((entry) => entry.seasonId));
+  const [mapProfile, seasonCatalog, matchRows] = await Promise.all([
     getPublicTeamMapProfile(
       profile.entries.map((entry) => entry.id),
       profile.currentMembers.map((member) => member.userId),
     ),
-    Promise.all([...new Set(profile.entries.filter((entry) => ["finished", "archived"].includes(entry.seasonStatus)).map((entry) => entry.seasonSlug))].map(async (slug) => {
-      const season = await getPublicSeasonBySlug(slug);
-      return season ? [season.id, await getPublicSeasonResults(season)] as const : null;
-    })),
+    getPublicSeasonCatalog(),
     entryIds.length ? db.select({
       id: matches.id,
       entryAId: matches.entryAId,
@@ -76,15 +74,13 @@ export async function getPublicLongTeamProfileReadModel(
       else record.mapLosses += 1;
     }
   }
-  const resultBySeason = new Map(careerResults.filter((row): row is NonNullable<typeof row> => row !== null));
+  const careerResults = await Promise.all(seasonCatalog.filter((season) => historicalSeasonIds.has(season.id)).map(async (season) => [season.id, await getPublicSeasonResults(season)] as const));
+  const resultBySeason = new Map(careerResults);
 
   const career = profile.entries
     .filter((entry) => ["finished", "archived"].includes(entry.seasonStatus))
     .map((entry) => {
-      const results = [...resultBySeason.values()].find((result) =>
-        result.placements.some((placement) => placement.entryId === entry.id)
-        || result.honors.some((honor) => honor.entryId === entry.id)
-      ) ?? null;
+      const results = resultBySeason.get(entry.seasonId) ?? null;
 
       return {
         ...entry,
