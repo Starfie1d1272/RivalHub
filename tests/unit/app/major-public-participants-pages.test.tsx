@@ -25,6 +25,9 @@ vi.mock("@/lib/major/public-participants", () => ({
 }));
 vi.mock("@/lib/auth/session", () => ({ getUserSession: mocks.session }));
 vi.mock("@/lib/teams/public-profile", () => ({ getPublicTeamProfile: vi.fn().mockResolvedValue(null) }));
+vi.mock("@/lib/teams/profile-read-model", () => ({
+  getPublicCompetitionEntryPerformanceReadModel: vi.fn().mockResolvedValue({ performance: null, mapProfile: { own: [], experience: [], experienceCoverage: { rosterMembers: 0, experiencedMembers: 0, experiencedMemberIds: [] }, preferences: [] } }),
+}));
 
 vi.mock("@/components/season/ParticipantDirectoryToolbar", () => ({ ParticipantDirectoryToolbar: () => <div /> }));
 vi.mock("@/lib/teams/map-profile", () => ({
