@@ -510,6 +510,10 @@ export function remapLinkedTeamFacts(
   teamId: string,
 ) {
   const remap = (entryId: string) => linkedEntryIds.has(entryId) ? teamId : entryId;
+  const projectPlayer = (playerEntityKey: string, entryId: string) => {
+    const projectedTeamId = remap(entryId);
+    return projectedTeamId === teamId ? playerEntityKey : `opponent:${projectedTeamId}:${playerEntityKey}`;
+  };
   return selected.map((row) => ({
     ...row,
     facts: {
@@ -521,16 +525,28 @@ export function remapLinkedTeamFacts(
         },
         playerWeapons: row.facts.tournament.playerWeapons.map((fact) => ({ ...fact, teamEntityKey: remap(fact.teamEntityKey) })),
       },
-      performance: scopePerformanceFactsToTeam({
+      performance: {
         ...row.facts.performance,
         teamEntityKeys: {
           teamA: remap(row.facts.performance.teamEntityKeys.teamA),
           teamB: remap(row.facts.performance.teamEntityKeys.teamB),
         },
-        playerRounds: row.facts.performance.playerRounds.map((fact) => ({ ...fact, teamEntityKey: remap(fact.teamEntityKey) })),
-        objectives: row.facts.performance.objectives.map((fact) => ({ ...fact, teamEntityKey: fact.teamEntityKey ? remap(fact.teamEntityKey) : null })),
-        playerWeapons: row.facts.performance.playerWeapons.map((fact) => ({ ...fact, teamEntityKey: remap(fact.teamEntityKey) })),
-      }, teamId),
+        playerRounds: row.facts.performance.playerRounds.map((fact) => ({
+          ...fact,
+          playerEntityKey: projectPlayer(fact.playerEntityKey, fact.teamEntityKey),
+          teamEntityKey: remap(fact.teamEntityKey),
+        })),
+        objectives: row.facts.performance.objectives.map((fact) => ({
+          ...fact,
+          playerEntityKey: fact.playerEntityKey && fact.teamEntityKey ? projectPlayer(fact.playerEntityKey, fact.teamEntityKey) : fact.playerEntityKey,
+          teamEntityKey: fact.teamEntityKey ? remap(fact.teamEntityKey) : null,
+        })),
+        playerWeapons: row.facts.performance.playerWeapons.map((fact) => ({
+          ...fact,
+          playerEntityKey: projectPlayer(fact.playerEntityKey, fact.teamEntityKey),
+          teamEntityKey: remap(fact.teamEntityKey),
+        })),
+      },
     },
   }));
 }
