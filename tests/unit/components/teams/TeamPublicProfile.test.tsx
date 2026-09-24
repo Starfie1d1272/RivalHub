@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 import { TeamPublicProfile } from "@/components/teams/TeamPublicProfile";
 import type { PublicEventTeamContext } from "@/lib/competition-entries/public-team-context";
 import type { PublicTeamProfile } from "@/lib/teams/public-profile";
+import type { PublicLongTeamProfileReadModel } from "@/lib/teams/profile-read-model";
 
 vi.mock("next/image", () => ({ default: () => null }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
@@ -23,6 +24,17 @@ const longLivedTeam: PublicTeamProfile = {
   viewerInterested: false,
   loggedIn: true,
 };
+
+const career: PublicLongTeamProfileReadModel["career"] = [{
+  ...longLivedTeam.entries[0],
+  placement: "第 3–4 名",
+  honors: ["最佳黑马"],
+  matchWins: 3,
+  matchLosses: 1,
+  mapWins: 6,
+  mapLosses: 3,
+  maps: 9,
+}];
 
 const linkedEvent: PublicEventTeamContext = {
   season: { id: "season-1", slug: "autumn-2026", name: "2026 秋季赛", status: "playing" },
@@ -46,7 +58,7 @@ const eventNative: PublicEventTeamContext = {
 
 describe("TeamPublicProfile", () => {
   it("keeps the complete long-lived Team profile when no event context exists", () => {
-    render(<TeamPublicProfile team={longLivedTeam} />);
+    render(<TeamPublicProfile team={longLivedTeam} career={career} />);
 
     expect(screen.getByText("活跃")).toBeInTheDocument();
     expect(screen.getByText("招募中")).toBeInTheDocument();
@@ -56,7 +68,8 @@ describe("TeamPublicProfile", () => {
     expect(screen.getAllByText("当前成员").length).toBeGreaterThan(0);
     expect(screen.getByText("Match W-L")).toBeInTheDocument();
     expect(screen.getByText("Map W-L")).toBeInTheDocument();
-    expect(screen.getByText("完赛")).toBeInTheDocument();
+    expect(screen.getByText("第 3–4 名")).toBeInTheDocument();
+    expect(screen.getByText("最佳黑马")).toBeInTheDocument();
     expect(screen.getByText("Rival Entry")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /2026 秋季赛/ })).toHaveAttribute("href", "/autumn-2026/teams/entry-1");
     expect(screen.getByText("队伍历史")).toBeInTheDocument();
@@ -71,7 +84,7 @@ describe("TeamPublicProfile", () => {
         { id: "entry-current", name: "Current Entry", seasonName: "2026 冬季赛", seasonSlug: "winter-2026", seasonStatus: "playing", completedAt: null },
         ...longLivedTeam.entries,
       ],
-    }} />);
+    }} career={career} />);
 
     expect(screen.getAllByRole("link", { name: /2026 冬季赛/ })).toHaveLength(1);
     expect(screen.getByRole("link", { name: /Current Entry/ })).toHaveAttribute("href", "/winter-2026/teams/entry-current");
