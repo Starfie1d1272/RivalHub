@@ -147,7 +147,7 @@ export function PlayerWorkspace({ detail, compact = false }: { detail: Tournamen
       )}
 
       <MetricFamilyTabs label="Player workspace" value={tab} options={tabs} onChange={setTab} />
-      {tab !== "maps" && tab !== "weapons" && <ScopeSideTabs value={side} onChange={setSide} />}
+      {tab !== "overview" && tab !== "maps" && tab !== "weapons" && <ScopeSideTabs value={side} onChange={setSide} />}
 
       {tab === "overview" && (
         <div className="space-y-6">
