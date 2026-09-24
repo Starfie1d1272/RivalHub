@@ -43,7 +43,7 @@ export async function PlayerPageContent({ params, searchParams }: PlayerPageProp
   const [{ userId }, rawSearch] = await Promise.all([params, searchParams]);
   const canonicalUserId = await resolveCanonicalUserId(db, userId);
   if (!canonicalUserId) notFound();
-  if (canonicalUserId !== userId) redirect("/players/" + canonicalUserId);
+  if (canonicalUserId !== userId) redirect(`/players/${canonicalUserId}`);
 
   const query = parsePlayerPerformanceQuery(rawSearch);
   const profile = await getPublicPlayerProfileReadModel(userId, {
@@ -51,11 +51,11 @@ export async function PlayerPageContent({ params, searchParams }: PlayerPageProp
     mapFilter: query.map || undefined,
   });
   if (!profile) notFound();
-  if (query.event && !profile.career.selectedEvent) redirect("/players/" + userId);
+  if (query.event && !profile.career.selectedEvent) redirect(`/players/${userId}`);
   if (query.map && !profile.career.mapFilter) {
     redirect(query.event
-      ? "/players/" + userId + "?event=" + encodeURIComponent(query.event)
-      : "/players/" + userId);
+      ? `/players/${userId}?event=${encodeURIComponent(query.event)}`
+      : `/players/${userId}`);
   }
 
   const { user, career } = profile;
@@ -90,7 +90,7 @@ export async function PlayerPageContent({ params, searchParams }: PlayerPageProp
           <span>{peak.join(" · ")}</span>
           {teamInfo && (
             <Link
-              href={"/" + teamInfo.seasonSlug + "/teams/" + teamInfo.teamId}
+              href={`/${teamInfo.seasonSlug}/teams/${teamInfo.teamId}`}
               className="transition-colors hover:text-[var(--color-accent)]"
             >
               {teamInfo.teamName} ↗
@@ -159,7 +159,7 @@ export async function PlayerPageContent({ params, searchParams }: PlayerPageProp
                     <Link
                       key={team.slug}
                       className="block font-semibold transition-colors hover:text-[var(--color-accent)]"
-                      href={"/teams/" + team.slug}
+                      href={`/teams/${team.slug}`}
                     >
                       {team.name} →
                     </Link>
@@ -168,7 +168,7 @@ export async function PlayerPageContent({ params, searchParams }: PlayerPageProp
                     <Link
                       key={entry.teamId}
                       className="block text-[var(--color-fg-mid)] transition-colors hover:text-[var(--color-accent)]"
-                      href={"/" + entry.seasonSlug + "/teams/" + entry.teamId}
+                      href={`/${entry.seasonSlug}/teams/${entry.teamId}`}
                     >
                       {entry.seasonName} · {entry.teamName} →
                     </Link>
@@ -252,7 +252,7 @@ export async function PlayerPageContent({ params, searchParams }: PlayerPageProp
                       </div>
                     </div>
                     <Link
-                      href={"/" + entry.seasonSlug + "/stats?tab=players&teamFilter=" + entry.teamId}
+                      href={`/${entry.seasonSlug}/stats?tab=players&teamFilter=${entry.teamId}`}
                       className="shrink-0 text-xs text-[var(--color-accent)]"
                     >
                       赛事选手统计 →
@@ -281,6 +281,63 @@ export async function PlayerPageContent({ params, searchParams }: PlayerPageProp
           </div>
         )}
       </section>
+
+      {hasDeclaredProfile && (
+        <section className="space-y-5" aria-labelledby="player-profile-heading">
+          <div className="space-y-1">
+            <SectionHeading>Profile</SectionHeading>
+            <h2 id="player-profile-heading" className="text-xl font-semibold">长期资料</h2>
+          </div>
+
+          <div className="grid gap-8 lg:grid-cols-2">
+            {profile.publicCompetitiveProfile.length > 0 && (
+              <div className="space-y-3 border-t border-[var(--color-border)] pt-4">
+                <h3 className="text-sm font-semibold">竞技档案</h3>
+                <div className="space-y-4 text-sm">
+                  {profile.publicCompetitiveProfile.map((platform) => (
+                    <div key={platform.displayName} className="space-y-2">
+                      <p className="font-semibold text-[var(--color-fg)]">{platform.displayName}</p>
+                      {platform.facts.map((fact) => (
+                        <p key={platform.displayName + "-" + fact.label}>
+                          <span className="text-[var(--color-fg-mid)]">{fact.label}</span>
+                          {" · "}{fact.rankLabel}
+                          {fact.stars !== null ? " " + fact.stars + " 星" : ""}
+                          {fact.ratingLabel && fact.rating !== null ? " · " + fact.ratingLabel + " " + fact.rating : ""}
+                        </p>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="space-y-3 border-t border-[var(--color-border)] pt-4">
+              <h3 className="text-sm font-semibold">地图熟练度</h3>
+              <MapPreferenceChips preferences={profile.mapPreferences} minLevel="none" showUnfilled />
+              {profile.mapPreferences.length === 0 && (
+                <p className="text-sm text-[var(--color-fg-mid)]">暂无长期地图熟练度资料</p>
+              )}
+            </div>
+          </div>
+
+          {(user.gameplayStyle?.trim() || user.competitionHistory?.trim()) && (
+            <div className="space-y-3 border-t border-[var(--color-border)] pt-4">
+              <h3 className="text-sm font-semibold">选手自述</h3>
+              <div className="grid gap-4 sm:grid-cols-2">
+                {PUBLIC_PLAYER_INFO_FIELDS
+                  .map(({ key, label }) => ({ value: user[key]?.trim(), label }))
+                  .filter((entry) => entry.value)
+                  .map(({ value, label }) => (
+                    <div key={label}>
+                      <span className="font-mono text-xs font-semibold text-[var(--color-fg-mid)]">{label}</span>
+                      <p className="mt-1 text-sm leading-6 text-[var(--color-fg)]">{value}</p>
+                    </div>
+                  ))}
+              </div>
+            </div>
+          )}
+        </section>
+      )}
 
       <section className="space-y-5" aria-labelledby="player-performance-heading">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
@@ -340,62 +397,6 @@ export async function PlayerPageContent({ params, searchParams }: PlayerPageProp
         <PlayerWorkspace detail={career} compact />
       </section>
 
-      {hasDeclaredProfile && (
-        <section className="space-y-5" aria-labelledby="player-profile-heading">
-          <div className="space-y-1">
-            <SectionHeading>Profile</SectionHeading>
-            <h2 id="player-profile-heading" className="text-xl font-semibold">长期资料</h2>
-          </div>
-
-          <div className="grid gap-8 lg:grid-cols-2">
-            {profile.publicCompetitiveProfile.length > 0 && (
-              <div className="space-y-3 border-t border-[var(--color-border)] pt-4">
-                <h3 className="text-sm font-semibold">竞技档案</h3>
-                <div className="space-y-4 text-sm">
-                  {profile.publicCompetitiveProfile.map((platform) => (
-                    <div key={platform.displayName} className="space-y-2">
-                      <p className="font-semibold text-[var(--color-fg)]">{platform.displayName}</p>
-                      {platform.facts.map((fact) => (
-                        <p key={platform.displayName + "-" + fact.label}>
-                          <span className="text-[var(--color-fg-mid)]">{fact.label}</span>
-                          {" · "}{fact.rankLabel}
-                          {fact.stars !== null ? " " + fact.stars + " 星" : ""}
-                          {fact.ratingLabel && fact.rating !== null ? " · " + fact.ratingLabel + " " + fact.rating : ""}
-                        </p>
-                      ))}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            <div className="space-y-3 border-t border-[var(--color-border)] pt-4">
-              <h3 className="text-sm font-semibold">地图熟练度</h3>
-              <MapPreferenceChips preferences={profile.mapPreferences} minLevel="none" showUnfilled />
-              {profile.mapPreferences.length === 0 && (
-                <p className="text-sm text-[var(--color-fg-mid)]">暂无长期地图熟练度资料</p>
-              )}
-            </div>
-          </div>
-
-          {(user.gameplayStyle?.trim() || user.competitionHistory?.trim()) && (
-            <div className="space-y-3 border-t border-[var(--color-border)] pt-4">
-              <h3 className="text-sm font-semibold">选手自述</h3>
-              <div className="grid gap-4 sm:grid-cols-2">
-                {PUBLIC_PLAYER_INFO_FIELDS
-                  .map(({ key, label }) => ({ value: user[key]?.trim(), label }))
-                  .filter((entry) => entry.value)
-                  .map(({ value, label }) => (
-                    <div key={label}>
-                      <span className="font-mono text-xs font-semibold text-[var(--color-fg-mid)]">{label}</span>
-                      <p className="mt-1 text-sm leading-6 text-[var(--color-fg)]">{value}</p>
-                    </div>
-                  ))}
-              </div>
-            </div>
-          )}
-        </section>
-      )}
     </PageLayout>
   );
 }
