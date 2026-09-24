@@ -225,11 +225,11 @@ describe("player attributes", () => {
     expect(firepower.formula).toContain("KPR 45%");
   });
 
-  it("uses the localized breakthrough and opening labels", () => {
+  it("keeps canonical attribute labels in English", () => {
     const profile = buildPlayerAttributeProfile(makePlayer({ id: "labels" }), population());
 
-    expect(profile.attributes.find((row) => row.key === "entrying")?.label).toBe("突破");
-    expect(profile.attributes.find((row) => row.key === "opening")?.label).toBe("首杀");
+    expect(profile.attributes.find((row) => row.key === "entrying")?.label).toBe("Entrying");
+    expect(profile.attributes.find((row) => row.key === "opening")?.label).toBe("Opening");
   });
 
 });
