@@ -17,6 +17,7 @@ import {
 } from "@/lib/competition-entries/presentation";
 import { presentMatchStatus } from "@/lib/matches/presentation";
 import type { PublicTeamProfile } from "@/lib/teams/public-profile";
+import type { PublicLongTeamProfileReadModel } from "@/lib/teams/profile-read-model";
 import { presentTeamMembershipStatus, presentTeamStatus } from "@/lib/teams/presentation";
 import { formatCSTShortDate } from "@/lib/utils/date";
 
@@ -27,9 +28,10 @@ export interface TeamPublicProfileProps {
   stageLabels?: Readonly<Record<string, string>>;
   event?: PublicEventTeamContext | null;
   performance?: LongTeamCareerDetail | TournamentTeamDetail | null;
+  career?: PublicLongTeamProfileReadModel["career"];
 }
 
-export function TeamPublicProfile({ team, event = null, mapProfile, results, performance }: TeamPublicProfileProps) {
+export function TeamPublicProfile({ team, event = null, mapProfile, results, performance, career = [] }: TeamPublicProfileProps) {
   const identity = event?.entry ?? team?.team;
   if (!identity) return null;
 
@@ -164,17 +166,29 @@ export function TeamPublicProfile({ team, event = null, mapProfile, results, per
           {currentEntries.length > 0 && <Panel label="Current Event" contentClassName="p-5"><div className="space-y-2">{currentEntries.map((entry) => <Link key={entry.id} className="flex items-center justify-between gap-3 text-sm hover:text-[var(--color-accent)]" href={`/${entry.seasonSlug}/teams/${entry.id}`}><span><span className="font-medium">{entry.seasonName}</span><span className="ml-2 text-[var(--color-fg-mid)]">{entry.name}</span></span><span>→</span></Link>)}</div></Panel>}
 
           {longDetail && <TeamWorkspace detail={longDetail} mapProfile={mapProfile} />}
-          <Panel label="赛事履历" contentClassName="p-5">
-            <div className="divide-y divide-[var(--color-border)]">
-              {historicalEntries.length > 0 ? historicalEntries.map((entry) => (
-                <Link key={entry.id} href={`/${entry.seasonSlug}/teams/${entry.id}`} className="flex flex-wrap items-center justify-between gap-3 py-3 hover:bg-[var(--color-panel-hi)]">
-                  <span className="flex min-w-0 flex-col gap-1 text-sm"><span className="break-words font-medium">{entry.seasonName}</span><span className="break-words text-xs text-[var(--color-fg-mid)]">{entry.name}</span></span>
-                  <span className="flex shrink-0 flex-col items-end gap-1">
-                    <StatusPill label="完赛" tone="neutral" />
-                  </span>
-                </Link>
-              )) : <EmptyState title="尚无已结束赛事记录。" />}
-            </div>
+          <Panel label="Career" contentClassName="p-0">
+            {career.length > 0 ? (
+              <div className="divide-y divide-[var(--color-border)]">
+                {career.map((entry) => (
+                  <Link key={entry.id} href={`/${entry.seasonSlug}/teams/${entry.id}`} className="grid gap-3 px-5 py-4 hover:bg-[var(--color-panel-hi)] sm:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_auto] sm:items-center">
+                    <span className="min-w-0">
+                      <span className="block break-words text-sm font-semibold">{entry.seasonName}</span>
+                      <span className="mt-1 block break-words text-xs text-[var(--color-fg-mid)]">{entry.name}</span>
+                      {entry.honors.length > 0 && <span className="mt-1.5 flex flex-wrap gap-x-2 gap-y-1 text-xs font-medium text-[var(--color-accent)]">{entry.honors.map((honor) => <span key={honor}>{honor}</span>)}</span>}
+                    </span>
+                    <span className="grid grid-cols-3 gap-3 text-xs tabular-nums text-[var(--color-fg-mid)]">
+                      <span><span className="block text-[10px] uppercase tracking-wide text-[var(--color-fg-dim)]">Match</span><span className="mt-0.5 block font-medium text-[var(--color-fg)]">{entry.matchWins}-{entry.matchLosses}</span></span>
+                      <span><span className="block text-[10px] uppercase tracking-wide text-[var(--color-fg-dim)]">Map</span><span className="mt-0.5 block font-medium text-[var(--color-fg)]">{entry.mapWins}-{entry.mapLosses}</span></span>
+                      <span><span className="block text-[10px] uppercase tracking-wide text-[var(--color-fg-dim)]">Maps</span><span className="mt-0.5 block font-medium text-[var(--color-fg)]">{entry.maps}</span></span>
+                    </span>
+                    <span className="flex items-center justify-between gap-3 sm:justify-end">
+                      <span className="text-xs font-medium text-[var(--color-fg-mid)]">{entry.placement ?? "完赛"}</span>
+                      <span aria-hidden>→</span>
+                    </span>
+                  </Link>
+                ))}
+              </div>
+            ) : <div className="p-5"><EmptyState title="尚无已结束赛事记录。" /></div>}
           </Panel>
         </div>
 
