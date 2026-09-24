@@ -9,7 +9,7 @@ import {
   userGameplaySteamIds,
 } from "@/db/schema";
 import { AppError, ErrorCode } from "@/lib/errors";
-import { resolveGameplayUsersBySteam64, type GameplayUserResolution } from "@/lib/identity/gameplay-steam";
+import { resolveGameplayUsersBySteam64InTx, type GameplayUserResolution } from "@/lib/identity/gameplay-steam";
 import { loadEffectiveMatchRoster, type EffectiveMatchRosterPlayer } from "@/lib/match-rosters/effective";
 import type { IntegrationIssue, RivalHubEvidenceSubmission } from "./contracts";
 import { dakSemanticProfileIssueMessage, isCurrentDakSemanticProfile } from "./semantic-profile";
@@ -121,7 +121,7 @@ export async function validateCanonicalTarget(
     if ((identitiesByUser.get(userId)?.size ?? 0) === 0) issues.push(integrationIssue("ROSTER_STEAM64_MISSING", "本场首发成员缺少可校验的 Steam64。", "roster"));
   }
 
-  const resolutions = await resolveGameplayUsersBySteam64(tx, evidence.participants.map((participant) => participant.steamId64));
+  const resolutions = await resolveGameplayUsersBySteam64InTx(tx, evidence.participants.map((participant) => participant.steamId64));
   const participantUsers = new Set<string>();
   const rosterBySteam64 = new Map<string, EffectiveMatchRosterPlayer>();
   for (const participant of evidence.participants) {

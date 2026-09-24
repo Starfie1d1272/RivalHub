@@ -19,6 +19,30 @@ export function createLocalPool(options: PoolConfig = {}): Pool {
   return new Pool({ connectionString: localDatabaseUrl(), ssl: false, ...options });
 }
 
+export async function measureMaxConcurrentClientQueries(
+  client: PoolClient,
+  operation: () => Promise<unknown>,
+): Promise<number> {
+  let inFlight = 0;
+  let maxInFlight = 0;
+  const originalQuery = client.query;
+  const wrappedQuery = (...args: unknown[]) => {
+    inFlight += 1;
+    maxInFlight = Math.max(maxInFlight, inFlight);
+    const result = Reflect.apply(originalQuery, client, args);
+    return Promise.resolve(result).finally(() => {
+      inFlight -= 1;
+    });
+  };
+  client.query = wrappedQuery as typeof client.query;
+  try {
+    await operation();
+    return maxInFlight;
+  } finally {
+    client.query = originalQuery;
+  }
+}
+
 type QueryClient = Pick<PoolClient, "query">;
 
 export async function capturePostgresError(

@@ -153,7 +153,11 @@ async function completeSwissFactsForFinalPlacement(tx: TxDb, seasonId: string, s
       matches: matchRows.filter((match) => match.majorStageRunId === run.id).map(swissFact),
     };
   };
-  return Promise.all(swissKeys.map(async (stageKey) => ({ stageKey, facts: await factsFor(stageKey) })));
+  const stageFacts: { stageKey: string; facts: Awaited<ReturnType<typeof factsFor>> }[] = [];
+  for (const stageKey of swissKeys) {
+    stageFacts.push({ stageKey, facts: await factsFor(stageKey) });
+  }
+  return stageFacts;
 }
 
 export async function finalizeMajorPlayoffRoundInTransaction(
