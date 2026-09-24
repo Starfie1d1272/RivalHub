@@ -1,5 +1,7 @@
 "use client";
 
+import React from "react";
+
 import { StatsMetricLabel } from "@/components/stats/StatsMetricHelp";
 import { StatsTooltip } from "@/components/stats/StatsTooltip";
 import { formatDisplayValue } from "@/lib/stats/display";
