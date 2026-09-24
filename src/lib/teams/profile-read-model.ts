@@ -24,6 +24,7 @@ export async function getPublicLongTeamProfileReadModel(
     getLongTeamCareerDetail(teamId),
   ]);
   if (!profile) return null;
+  const profileEntryRecords = new Map(profile.entries.map((entry) => [entry.id, { wins: 0, losses: 0, mapWins: 0, mapLosses: 0, maps: 0 }]));
   const [mapProfile, careerResults] = await Promise.all([
     getPublicTeamMapProfile(
       profile.entries.map((entry) => entry.id),
@@ -35,7 +36,7 @@ export async function getPublicLongTeamProfileReadModel(
     })),
   ]);
   const resultBySeason = new Map(careerResults.filter((row): row is NonNullable<typeof row> => row !== null));
-  const performanceByEntry = new Map(performance.linkedEntries.map((entry) => [entry.entryId, entry]));
+
   const career = profile.entries
     .filter((entry) => ["finished", "archived"].includes(entry.seasonStatus))
     .map((entry) => {
@@ -48,11 +49,11 @@ export async function getPublicLongTeamProfileReadModel(
         ...entry,
         placement: results?.placements.find((placement) => placement.entryId === entry.id)?.label ?? null,
         honors: results?.honors.filter((honor) => honor.entryId === entry.id).map((honor) => honor.label) ?? [],
-        matchWins: stats?.matchWins ?? 0,
-        matchLosses: stats?.matchLosses ?? 0,
-        mapWins: stats?.mapWins ?? 0,
-        mapLosses: stats?.mapLosses ?? 0,
-        maps: stats?.maps ?? 0,
+        matchWins: profileEntryRecords.get(entry.id)?.wins ?? 0,
+        matchLosses: profileEntryRecords.get(entry.id)?.losses ?? 0,
+        mapWins: profileEntryRecords.get(entry.id)?.mapWins ?? 0,
+        mapLosses: profileEntryRecords.get(entry.id)?.mapLosses ?? 0,
+        maps: profileEntryRecords.get(entry.id)?.maps ?? 0,
       };
     });
   return {
