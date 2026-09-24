@@ -19,6 +19,7 @@ export interface StatsLeaderboardOptions {
   groupByMap?: boolean;
   groupByTeam?: boolean;
   requireCurrentImports?: boolean;
+  requireRosterMatch?: boolean;
 }
 
 export async function getStatsLeaderboard(
@@ -43,6 +44,7 @@ export async function getStatsLeaderboard(
   const mapFilter = scope.mapFilter ? sql`AND mm.map_name = ${scope.mapFilter}` : sql``;
   const teamFilter = scope.teamFilter ? sql`AND entrant.id = ${scope.teamFilter}` : sql``;
   const userFilter = options.userId ? sql`AND mps.user_id = ${options.userId}` : sql``;
+  const rosterMatchFilter = options.requireRosterMatch ? sql`AND lineup.entry_id IS NOT NULL` : sql``;
   const currentImportFilter = currentImportIds.length ? sql`mps.dak_import_id IN (${sql.join(currentImportIds.map((id) => sql`${id}`), sql`, `)})` : sql`false`;
   const importFilter = options.requireCurrentImports
     ? currentImportFilter
@@ -100,6 +102,7 @@ export async function getStatsLeaderboard(
       ${mapFilter}
       ${teamFilter}
       ${userFilter}
+      ${rosterMatchFilter}
     GROUP BY mps.user_id, u.display_name, sp.persona_name, u.perfect_name ${teamGroup} ${mapGroup}
     ORDER BY mps.user_id ${teamOrder} ${options.groupByMap ? sql`, mm.map_name` : sql``}
   `);
