@@ -36,6 +36,13 @@ function publicNameSearchCondition(pattern: string) {
   )!;
 }
 
+function intentCompatibleWithSelectedEventCondition(selectedEventId: string) {
+  return or(
+    eq(recruitmentIntents.targetSeasonId, selectedEventId),
+    isNull(recruitmentIntents.targetSeasonId),
+  )!;
+}
+
 export interface TeamRecruitmentCardData extends PublicRecruitmentIntent {
   teamId: string;
   teamSlug: string;
@@ -71,7 +78,7 @@ function openConditions(kind: "team_recruiting" | "player_lft", filters: Recruit
       ? or(ilike(teams.name, pattern), publicNameSearchCondition(pattern))!
       : publicNameSearchCondition(pattern));
   }
-  if (filters.targetSeasonId) conditions.push(eq(recruitmentIntents.targetSeasonId, filters.targetSeasonId));
+  if (filters.targetSeasonId) conditions.push(intentCompatibleWithSelectedEventCondition(filters.targetSeasonId));
   if (filters.position) {
     conditions.push(kind === "team_recruiting"
       ? sql`${recruitmentIntents.positions} = ARRAY[]::cs2_role[] OR ${recruitmentIntents.positions} @> ARRAY[${filters.position}]::cs2_role[]`
@@ -194,9 +201,12 @@ export async function getRecruitmentLobbyData(filters: RecruitmentFilters, viewe
   for (const row of mapPreferences) mapPreferencesByUser.set(row.userId, row.mapPreferences);
   const factsByUser = new Map<string, typeof rankFacts>();
   for (const row of rankFacts) factsByUser.set(row.userId, [...(factsByUser.get(row.userId) ?? []), row]);
-  const mapPoolForPlayer = (targetSeasonId: string | null) => targetSeasonId
-    ? targetMapPools.get(targetSeasonId) ?? [...CURRENT_CS2_ACTIVE_DUTY_MAP_POOL]
-    : CURRENT_CS2_ACTIVE_DUTY_MAP_POOL;
+  const mapPoolForPlayer = (intentTargetSeasonId: string | null) => {
+    const projectionSeasonId = normalizedFilters.targetSeasonId ?? intentTargetSeasonId;
+    return projectionSeasonId
+      ? targetMapPools.get(projectionSeasonId) ?? [...CURRENT_CS2_ACTIVE_DUTY_MAP_POOL]
+      : [...CURRENT_CS2_ACTIVE_DUTY_MAP_POOL];
+  };
   const teamRecruitments = teamRows
     .map(({ captainDisplayName, captainPersonaName, captainPerfectName, ...row }) => ({
       ...row,
@@ -211,7 +221,7 @@ export async function getRecruitmentLobbyData(filters: RecruitmentFilters, viewe
     positions: row.positions as Cs2Position[],
     competitiveRoles: rolesByUser.get(row.userId) ?? [],
     mapPreferences: projectMapPreferences(mapPreferencesByUser.get(row.userId) ?? [], mapPoolForPlayer(row.targetSeasonId)),
-    mapPreferenceContextLabel: row.targetSeasonId ? "目标赛事图池熟练度" : "当前 Active Duty 熟练度",
+    mapPreferenceContextLabel: normalizedFilters.targetSeasonId || row.targetSeasonId ? "目标赛事图池熟练度" : "当前地图池熟练度",
     competitiveSummary: presentPublicCompetitiveSummary(competitiveCatalog, factsByUser.get(row.userId) ?? []),
   })).filter((item) => !normalizedFilters.map || hasPlayableMapPreference(item.mapPreferences, normalizedFilters.map));
   return {

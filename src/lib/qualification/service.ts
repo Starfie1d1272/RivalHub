@@ -113,7 +113,21 @@ function createCompetitiveCandidateResolver(context: CompetitiveProfileConfig | 
     };
   };
   const fallbackCandidate = (fallbackFact: SelectableCompetitivePeak | null | undefined): PlayerStrengthFact | null => {
-    if (!fallback || !fallbackFact?.rank || fallbackFact.rating === null || fallbackFact.rating === undefined) return null;
+    if (!fallback || !fallbackFact) return null;
+    if (fallbackFact.status === "unranked") {
+      return lowestRank
+        ? {
+            rank: lowestRank,
+            rating: 0,
+            ratingComparable: false,
+            stars: null,
+            sourcePlatform: fallback.sourcePlatform,
+            sourceSeasonKey: fallbackFact.sourceSeasonKey,
+            conversionVersion: fallback.version,
+          }
+        : null;
+    }
+    if (!fallbackFact.rank || fallbackFact.rating === null || fallbackFact.rating === undefined) return null;
     if (fallback.mapping) {
       const converted = convertFiveeToPerfect(fallbackFact.rank, fallbackFact.stars ?? null, fallback.mapping);
       // A 5E Rating+ has no reviewed conversion to Perfect Rating Pro. It can

@@ -6,7 +6,7 @@
 import { randomUUID } from "node:crypto";
 import { Pool } from "pg";
 import { describe, expect, it } from "vitest";
-import { loadMyReadiness } from "../../../src/lib/my/readiness";
+import { loadMyReadiness, loadSettingsProfileReadiness } from "../../../src/lib/my/readiness";
 import { loadMyTeamWorkspace } from "../../../src/lib/my/team-workspace";
 import { localDatabaseUrl, testSteam64 } from "./harness/database";
 
@@ -32,7 +32,7 @@ async function main(): Promise<void> {
   };
   let committed = false;
   try {
-    const platform = await client.query<{ key: string }>("SELECT key FROM competitive_platforms ORDER BY key LIMIT 1");
+    const platform = await client.query<{ key: string }>("SELECT key FROM competitive_platforms WHERE key = 'fivee'");
     const platformKey = platform.rows[0]?.key;
     expect(platformKey).toBeTruthy();
     const catalog = await client.query<{ season_key: string; is_current: boolean; rank_key: string; star_min: number | null }>(
@@ -85,6 +85,11 @@ async function main(): Promise<void> {
     expect(model.competitions[0]?.qualification.state).toBe("ready");
     expect(model.competitions[0]?.sanctions[0]?.effects).toEqual(["registration_block", "roster_block", "match_participation_block"]);
     expect(JSON.stringify(model)).not.toContain("internalEvidence");
+
+    const settingsReadiness = await loadSettingsProfileReadiness(ids.user);
+    expect(settingsReadiness.ready).toBe(true);
+    expect(settingsReadiness.competitiveProfiles.find((item) => item.key === "fivee")).toMatchObject({ state: "ready", required: false });
+    expect(settingsReadiness.competitiveProfiles.find((item) => item.key === "perfect_world")).toMatchObject({ state: "incomplete", required: false });
 
     const teamWorkspace = await loadMyTeamWorkspace(ids.user);
     expect(teamWorkspace.kind).toBe("captain");

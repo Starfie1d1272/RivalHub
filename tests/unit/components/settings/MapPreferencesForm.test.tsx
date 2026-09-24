@@ -21,14 +21,14 @@ describe("MapPreferencesForm", () => {
     saveMapPreferencesMock.mockReset().mockResolvedValue({ success: true, data: undefined });
   });
 
-  it("shows the current Active Duty separately and saves only sparse declared facts", async () => {
+  it("shows the current map pool separately and saves only sparse declared facts", async () => {
     const user = userEvent.setup();
     render(<MapPreferencesForm initialPreferences={[
       { map: "de_mirage", level: "none" },
       { map: "de_overpass", level: "strong" },
     ]} />);
 
-    expect(screen.getByRole("heading", { name: "当前 Active Duty" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "当前地图池" })).toBeInTheDocument();
     expect(screen.getByText("Cache")).toBeInTheDocument();
     const expand = screen.getByRole("button", { name: "展开其它地图（2）" });
     await user.click(expand);
