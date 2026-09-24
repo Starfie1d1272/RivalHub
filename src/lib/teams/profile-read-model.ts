@@ -1,5 +1,9 @@
 import "server-only";
 
+import { and, eq, inArray, or } from "drizzle-orm";
+import { db } from "@/db/client";
+import { matchMaps, matches } from "@/db/schema";
+
 import type { PublicEventTeamContext } from "@/lib/competition-entries/public-team-context";
 import { getPublicSeasonBySlug, type PublicSeason } from "@/lib/data/public-seasons";
 import { getPublicSeasonResults } from "@/lib/seasons/public-results";
@@ -24,8 +28,8 @@ export async function getPublicLongTeamProfileReadModel(
     getLongTeamCareerDetail(teamId),
   ]);
   if (!profile) return null;
-  const profileEntryRecords = new Map(profile.entries.map((entry) => [entry.id, { wins: 0, losses: 0, mapWins: 0, mapLosses: 0, maps: 0 }]));
-  const [mapProfile, careerResults] = await Promise.all([
+  const entryIds = profile.entries.map((entry) => entry.id);
+  const [mapProfile, careerResults, matchRows] = await Promise.all([
     getPublicTeamMapProfile(
       profile.entries.map((entry) => entry.id),
       profile.currentMembers.map((member) => member.userId),
@@ -34,7 +38,41 @@ export async function getPublicLongTeamProfileReadModel(
       const season = await getPublicSeasonBySlug(slug);
       return season ? [season.id, await getPublicSeasonResults(season)] as const : null;
     })),
+    entryIds.length ? db.select({
+      id: matches.id,
+      entryAId: matches.entryAId,
+      entryBId: matches.entryBId,
+      scoreA: matches.scoreA,
+      scoreB: matches.scoreB,
+    }).from(matches).where(and(
+      eq(matches.status, "finished"),
+      or(inArray(matches.entryAId, entryIds), inArray(matches.entryBId, entryIds)),
+    )) : Promise.resolve([]),
   ]);
+  const mapRows = matchRows.length ? await db.select({
+    matchId: matchMaps.matchId,
+    mapNumber: matchMaps.mapNumber,
+    winnerEntryId: matchMaps.winnerEntryId,
+  }).from(matchMaps).where(inArray(matchMaps.matchId, matchRows.map((match) => match.id))) : [];
+  const mapsByMatch = new Map<string, typeof mapRows>();
+  for (const map of mapRows) mapsByMatch.set(map.matchId, [...(mapsByMatch.get(map.matchId) ?? []), map]);
+  const profileEntryRecords = new Map(profile.entries.map((entry) => [entry.id, { wins: 0, losses: 0, mapWins: 0, mapLosses: 0, maps: 0 }]));
+  for (const match of matchRows) {
+    const entryId = entryIds.includes(match.entryAId) ? match.entryAId : entryIds.includes(match.entryBId) ? match.entryBId : null;
+    if (!entryId) continue;
+    const record = profileEntryRecords.get(entryId)!;
+    const ownScore = entryId === match.entryAId ? match.scoreA : match.scoreB;
+    const opponentScore = entryId === match.entryAId ? match.scoreB : match.scoreA;
+    if (ownScore !== null && opponentScore !== null) {
+      if (ownScore > opponentScore) record.wins += 1;
+      else if (ownScore < opponentScore) record.losses += 1;
+    }
+    for (const map of mapsByMatch.get(match.id) ?? []) {
+      record.maps += 1;
+      if (map.winnerEntryId === entryId) record.mapWins += 1;
+      else if (map.winnerEntryId) record.mapLosses += 1;
+    }
+  }
   const resultBySeason = new Map(careerResults.filter((row): row is NonNullable<typeof row> => row !== null));
 
   const career = profile.entries
