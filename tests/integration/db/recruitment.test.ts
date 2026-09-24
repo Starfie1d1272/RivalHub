@@ -100,7 +100,7 @@ describe("recruitment PostgreSQL invariants", () => {
         SELECT team_id, 'recruitment-lobby-' || left(team_id::text, 8), 'Unrestricted Team ' || ordinal::text, $1, $1
         FROM unnest($2::uuid[]) WITH ORDINALITY AS team(team_id, ordinal)
         UNION ALL
-        SELECT $3, 'recruitment-other-event-' || left($3::text, 8), 'Other event team', $1, $1
+        SELECT $3::uuid, 'recruitment-other-event-' || left(($3::uuid)::text, 8), 'Other event team', $1, $1
       `, [ids.invitee, unrestrictedTeamIds, otherEventTeamId]);
       await pool.query(`
         INSERT INTO recruitment_intents (kind, team_id, target_season_id, positions, status, expires_at)
