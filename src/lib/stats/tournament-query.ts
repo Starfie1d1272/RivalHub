@@ -9,6 +9,7 @@ import { selectCurrentDemoImport } from "@/lib/demo-integration/read";
 import { buildEvidenceRevisionForTarget } from "@/lib/demo-integration/revision";
 import { resolveGameplayUsersBySteam64 } from "@/lib/identity/gameplay-steam";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
+import { publicCompetitionEntryCondition } from "@/lib/competition-entries/public-visibility";
 import { loadEffectiveMatchRoster, type EffectiveMatchRosterPlayer } from "@/lib/match-rosters/effective";
 import { getPublicPlayerRecord } from "@/lib/players/public-record";
 import { getStatsLeaderboard } from "./leaderboard-query";
@@ -500,6 +501,136 @@ export async function getPlayerCareerDetail(
   }, { isolationLevel: "repeatable read", accessMode: "read only" });
 }
 
+
+function remapLinkedTeamFacts(
+  selected: Awaited<ReturnType<typeof loadStatsEvidence>>["selected"],
+  linkedEntryIds: ReadonlySet<string>,
+  teamId: string,
+) {
+  const remap = (entryId: string) => linkedEntryIds.has(entryId) ? teamId : entryId;
+  return selected.map((row) => ({
+    ...row,
+    facts: {
+      tournament: {
+        ...row.facts.tournament,
+        teamEntityKeys: {
+          teamA: remap(row.facts.tournament.teamEntityKeys.teamA),
+          teamB: remap(row.facts.tournament.teamEntityKeys.teamB),
+        },
+        playerWeapons: row.facts.tournament.playerWeapons.map((fact) => ({ ...fact, teamEntityKey: remap(fact.teamEntityKey) })),
+      },
+      performance: {
+        ...row.facts.performance,
+        teamEntityKeys: {
+          teamA: remap(row.facts.performance.teamEntityKeys.teamA),
+          teamB: remap(row.facts.performance.teamEntityKeys.teamB),
+        },
+        playerRounds: row.facts.performance.playerRounds.map((fact) => ({ ...fact, teamEntityKey: remap(fact.teamEntityKey) })),
+        objectives: row.facts.performance.objectives.map((fact) => ({ ...fact, teamEntityKey: fact.teamEntityKey ? remap(fact.teamEntityKey) : null })),
+        playerWeapons: row.facts.performance.playerWeapons.map((fact) => ({ ...fact, teamEntityKey: remap(fact.teamEntityKey) })),
+      },
+    },
+  }));
+}
+
+/**
+ * Canonical all-time Team projection.
+ *
+ * Long Team identity is projected only at analytics time: immutable Evidence and
+ * CompetitionEntry identities stay untouched. The match corpus is narrowed from
+ * public linked entries first, then current-confirmed Evidence is selected once.
+ */
+export async function getLongTeamCareerDetail(teamId: string, database: DB = db) {
+  return database.transaction(async (tx) => {
+    const linkedEntries = await tx.select({
+      id: competitionEntries.id,
+      name: competitionEntries.name,
+      seasonId: competitionEntries.competitionId,
+      seasonSlug: seasons.slug,
+      seasonName: seasons.name,
+    }).from(competitionEntries)
+      .innerJoin(seasons, eq(seasons.id, competitionEntries.competitionId))
+      .where(and(
+        eq(competitionEntries.teamId, teamId),
+        ne(seasons.status, "draft"),
+        publicCompetitionEntryCondition(),
+      ));
+    const linkedEntryIds = new Set(linkedEntries.map((entry) => entry.id));
+    if (!linkedEntryIds.size) return {
+      teamId,
+      linkedEntries,
+      results: { played: 0, wins: 0, losses: 0, maps: 0, mapWins: 0, mapLosses: 0 },
+      analytics: null,
+      economyMatrix: [],
+      performance: null,
+      detailedPlayers: [],
+      maps: [],
+      coverage: { detailedMaps: 0, completedMaps: 0, maps: [] },
+    };
+
+    const appearanceMatches = await tx.select({ id: matches.id }).from(matches).where(and(
+      eq(matches.status, "finished"),
+      or(inArray(matches.entryAId, [...linkedEntryIds]), inArray(matches.entryBId, [...linkedEntryIds])),
+    ));
+    const matchIds = appearanceMatches.map((match) => match.id);
+    const loaded = await loadStatsEvidence(tx, {}, { matchIds });
+    const remapped = remapLinkedTeamFacts(loaded.selected, linkedEntryIds, teamId);
+    const labels: StatsLabels = {
+      ...loaded.labels,
+      teams: { ...loaded.labels.teams, [teamId]: linkedEntries[0]?.name ?? teamId },
+    };
+    const analytics = buildTournamentAnalytics(remapped.map((row) => row.facts.tournament), { labels });
+    const performance = buildTournamentPerformanceAnalytics(remapped.map((row) => row.facts.performance), { labels });
+    const teamAnalytics = analytics.teams.find((row) => row.team.entityKey === teamId) ?? null;
+    const teamPerformance = performance.teams.find((row) => row.team.entityKey === teamId) ?? null;
+
+    const resultFacts = buildTournamentResults(loaded.matches, loaded.scopedMaps, loaded.entries);
+    const ownResults = resultFacts.teams.filter((row) => linkedEntryIds.has(row.entryId));
+    const mapRows = resultFacts.teamMaps.flatMap((map) => map.teams
+      .filter((row) => linkedEntryIds.has(row.entryId))
+      .map((row) => ({ mapName: map.mapName, ...row })));
+    const mapResults = new Map<string, { played: number; wins: number; losses: number }>();
+    for (const row of mapRows) {
+      const current = mapResults.get(row.mapName) ?? { played: 0, wins: 0, losses: 0 };
+      current.played += row.played;
+      current.wins += row.wins;
+      current.losses += row.losses;
+      mapResults.set(row.mapName, current);
+    }
+
+    const analyticsByMap = aggregateEvidenceByMap(remapped, labels, { indexPlayers: true });
+    const coverage = buildCoverage({ ...loaded, selected: remapped }, resultFacts);
+    const coverageByMap = new Map(coverage.maps.map((row) => [row.mapName, row]));
+    const maps = [...new Set([...mapResults.keys(), ...analyticsByMap.map((row) => row.mapName)])].sort().map((mapName) => {
+      const detail = analyticsByMap.find((row) => row.mapName === mapName);
+      return {
+        mapName,
+        results: mapResults.get(mapName) ?? null,
+        coverage: coverageByMap.get(mapName) ?? { mapName, completedMaps: 0, detailedMaps: 0 },
+        analytics: detail?.analyticsTeams.get(teamId) ?? null,
+        performance: detail?.performanceTeams.get(teamId) ?? null,
+      };
+    });
+    const played = ownResults.reduce((sum, row) => sum + row.played, 0);
+    const wins = ownResults.reduce((sum, row) => sum + row.wins, 0);
+    const losses = ownResults.reduce((sum, row) => sum + row.losses, 0);
+    const mapWins = [...mapResults.values()].reduce((sum, row) => sum + row.wins, 0);
+    const mapLosses = [...mapResults.values()].reduce((sum, row) => sum + row.losses, 0);
+
+    return {
+      teamId,
+      linkedEntries,
+      results: { played, wins, losses, maps: mapWins + mapLosses, mapWins, mapLosses },
+      analytics: teamAnalytics,
+      economyMatrix: analytics.economyMatrix,
+      performance: teamPerformance,
+      detailedPlayers: performance.players.filter((row) => row.teamEntityKeys.includes(teamId)),
+      maps,
+      coverage,
+    };
+  }, { isolationLevel: "repeatable read", accessMode: "read only" });
+}
+
 export async function getTournamentTeamDetail(scope: TournamentStatsScope & { teamId: string }, database: DB = db) {
   return database.transaction(async (tx) => {
     const loaded = await loadStatsEvidence(tx, scope, { teamId: scope.teamId });
@@ -578,4 +709,5 @@ export async function getTournamentMapDetail(scope: Omit<TournamentStatsScope, "
 export type TournamentStats = Awaited<ReturnType<typeof getTournamentStats>>;
 export type TournamentPlayerDetail = Awaited<ReturnType<typeof getTournamentPlayerDetail>>;
 export type TournamentTeamDetail = Awaited<ReturnType<typeof getTournamentTeamDetail>>;
+export type LongTeamCareerDetail = Awaited<ReturnType<typeof getLongTeamCareerDetail>>;
 export type TournamentMapDetail = Awaited<ReturnType<typeof getTournamentMapDetail>>;
