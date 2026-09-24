@@ -1,7 +1,7 @@
 import "server-only";
 
 import { and, eq } from "drizzle-orm";
-import { db, type DB, type TxDb } from "@/db/client";
+import { db, type DB } from "@/db/client";
 import {
   competitionEntries,
   competitionEntryActiveClaims,
@@ -9,7 +9,7 @@ import {
 } from "@/db/schema";
 import type { CompetitionEntryParticipantStatus } from "@/lib/competition-entries/presentation";
 
-export type CompetitionEntryParticipantContextExecutor = DB | TxDb;
+export type CompetitionEntryParticipantContextExecutor = DB;
 
 export interface CompetitionEntryParticipantContext {
   primaryEntry: typeof competitionEntries.$inferSelect | null;

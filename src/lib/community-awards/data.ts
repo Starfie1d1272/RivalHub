@@ -1,6 +1,6 @@
 import { and, asc, eq, inArray, isNotNull, or } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
-import type { TxDb } from "@/db/client";
+import type { DB } from "@/db/client";
 import { communityAwardEvidence, communityAwards, competitionEntries, eventRosterMembers, eventRosters, matches, steamProfiles, users } from "@/db/schema";
 import type { CommunityAwardStatus } from "@/db/schema";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
@@ -10,7 +10,7 @@ import { getSeasonAwardCandidates, isPublicCommunityAward, PUBLIC_COMMUNITY_AWAR
 import { normalizeStagePlan } from "@/lib/seasons/compatibility";
 import { publicEventRosterPlayerCondition } from "@/lib/competition-entries/public-visibility";
 
-type CommunityAwardQueryable = Pick<TxDb, "select" | "selectDistinct">;
+type CommunityAwardQueryable = Pick<DB, "select" | "selectDistinct">;
 type StagePlan = ReturnType<typeof normalizeStagePlan>;
 
 type CommunityAwardEvidenceModel = {

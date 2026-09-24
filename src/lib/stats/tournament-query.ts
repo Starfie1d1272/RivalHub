@@ -7,7 +7,7 @@ import { competitionEntries, eventRosterMembers, matchDemoImports, matchMaps, ma
 import { parseRivalHubDemoEvidenceV1 } from "@/lib/demo-evidence/contract";
 import { selectCurrentDemoImport } from "@/lib/demo-integration/read";
 import { buildEvidenceRevisionForTarget } from "@/lib/demo-integration/revision";
-import { resolveGameplayUsersBySteam64 } from "@/lib/identity/gameplay-steam";
+import { resolveGameplayUsersBySteam64InTx } from "@/lib/identity/gameplay-steam";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
 import { publicCompetitionEntryCondition } from "@/lib/competition-entries/public-visibility";
 import { loadEffectiveMatchRoster, type EffectiveMatchRosterPlayer } from "@/lib/match-rosters/effective";
@@ -121,7 +121,7 @@ async function loadStatsEvidence(tx: TxDb, scope: StatsEvidenceScope, options: {
     if (evidence.target.matchMapId !== map.id || evidence.target.matchId !== match.id || evidence.target.seasonId !== match.seasonId || evidence.contract.semanticProfile !== current.semanticProfile) throw new Error("Stats evidence target mismatch");
     return { evidence, match, map, importId: current.id };
   });
-  const resolutions = await resolveGameplayUsersBySteam64(tx, selected.flatMap(({ evidence }) => evidence.participants.map((participant) => participant.steamId64)));
+  const resolutions = await resolveGameplayUsersBySteam64InTx(tx, selected.flatMap(({ evidence }) => evidence.participants.map((participant) => participant.steamId64)));
   const facts = selected.map(({ evidence, match, importId }) => {
     const bindings = new Map<string, StatsPlayerBinding>();
     for (const participant of evidence.participants) {
@@ -430,10 +430,8 @@ async function loadTournamentPlayerDetail(
   options: { requireCurrentImports?: boolean } = {},
 ) {
   const loaded = await loadStatsEvidence(tx, scope, { matchIds });
-  const [scoreboard, scoreboardMaps] = await Promise.all([
-    getStatsLeaderboard(scope, loaded.selected.map((row) => row.importId), loaded.roster, tx, { userId: scope.playerId, groupByTeam: false, requireCurrentImports: options.requireCurrentImports }),
-    getStatsLeaderboard(scope, loaded.selected.map((row) => row.importId), loaded.roster, tx, { userId: scope.playerId, groupByMap: true, groupByTeam: false, requireCurrentImports: options.requireCurrentImports }),
-  ]);
+  const scoreboard = await getStatsLeaderboard(scope, loaded.selected.map((row) => row.importId), loaded.roster, tx, { userId: scope.playerId, groupByTeam: false, requireCurrentImports: options.requireCurrentImports });
+  const scoreboardMaps = await getStatsLeaderboard(scope, loaded.selected.map((row) => row.importId), loaded.roster, tx, { userId: scope.playerId, groupByMap: true, groupByTeam: false, requireCurrentImports: options.requireCurrentImports });
   const performance = buildTournamentPerformanceAnalytics(loaded.selected.map((row) => row.facts.performance), { labels: loaded.labels });
   const detail = indexStatsRows(performance.players, (row) => row.player.entityKey).get(scope.playerId) ?? null;
   const maps = aggregateEvidenceByMap(loaded.selected, loaded.labels, { indexPlayers: true }).map((row) => ({
