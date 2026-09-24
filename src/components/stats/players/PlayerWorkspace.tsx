@@ -1,13 +1,12 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useState } from "react";
 import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
 import { MetricFamilyTabs } from "@/components/stats/MetricFamilyTabs";
 import { MetricValue } from "@/components/stats/MetricValue";
-import { StatsMetricLabel } from "@/components/stats/StatsMetricHelp";
+import { MetricSection } from "@/components/stats/MetricSection";
 import { StatsDataTable, type StatsDataColumn } from "@/components/stats/StatsDataTable";
 import type { TournamentPlayerDetail } from "@/lib/stats/tournament-query";
-import type { StatsMetricKey } from "@/lib/stats/metrics";
 import { displayWeaponName } from "@/lib/stats/presentation";
 import { CS2_MAP_CATALOG } from "@/lib/config/cs2-maps";
 
@@ -23,12 +22,6 @@ const tabs = [
   { key: "maps", label: "Maps" },
   { key: "weapons", label: "Weapons" },
 ] as const;
-
-type MetricItem = {
-  label: string;
-  value: ReactNode;
-  metric?: StatsMetricKey;
-};
 
 function mapLabel(mapName: string) {
   return CS2_MAP_CATALOG.find((map) => map.key === mapName)?.label ?? mapName;
