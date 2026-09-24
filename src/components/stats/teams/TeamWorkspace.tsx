@@ -179,20 +179,13 @@ export function TeamWorkspace({
 
       {tab === "overview" && (
         <div className="space-y-6">
-          <MetricSection title="Results" items={[
-            { label: "Match W-L", value: result ? `${result.matchWins}-${result.matchLosses}` : "—" },
-            { label: "Matches", value: result?.matches ?? "—" },
-            { label: "Map W-L", value: result ? `${result.mapWins}-${result.mapLosses}` : "—" },
-            { label: "Maps", value: result?.maps ?? "—" },
-          ]} />
           {analytics ? (
-            <MetricSection title="Round Performance" items={[
+            <MetricSection title="Round Profile" items={[
               { label: "Rounds", value: analytics.rounds },
-              { label: "RW%", metric: "roundWin", value: <MetricValue metric="roundWin" value={{ wins: analytics.roundWins, opportunities: analytics.rounds, rate: analytics.roundWinRate }} sampleDisplay="hidden" /> },
               { label: "CT%", metric: "roundWin", value: <MetricValue metric="roundWin" value={analytics.ct} sampleDisplay="hidden" /> },
               { label: "T%", metric: "roundWin", value: <MetricValue metric="roundWin" value={analytics.t} sampleDisplay="hidden" /> },
               { label: "Pistol", metric: "pistol", value: <MetricValue metric="pistol" value={analytics.pistol} sampleDisplay="hidden" /> },
-            ]} columns={5} />
+            ]} />
           ) : <p className="border-y border-[var(--color-border)] py-5 text-sm text-[var(--color-fg-mid)]">当前队伍没有详细回合数据。</p>}
         </div>
       )}
@@ -208,6 +201,10 @@ export function TeamWorkspace({
             <MetricSection title="Man Advantage" items={[
               { label: "5v4", metric: "fiveVFour", value: <MetricValue metric="fiveVFour" value={analytics.manAdvantage["5v4"]} /> },
               { label: "4v5", metric: "fourVFive", value: <MetricValue metric="fourVFive" value={analytics.manAdvantage["4v5"]} /> },
+              { label: "5v3", metric: "fiveVThree", value: <MetricValue metric="fiveVThree" value={analytics.manAdvantage["5v3"]} /> },
+              { label: "3v5", metric: "threeVFive", value: <MetricValue metric="threeVFive" value={analytics.manAdvantage["3v5"]} /> },
+            ]} />
+            <MetricSection title="Low Economy" items={[
               { label: "Eco/Semi Win%", metric: "ecoSemi", value: <MetricValue metric="ecoSemi" value={analytics.ecoSemiUpset} /> },
             ]} columns={3} />
           </> : <p className="border-y border-[var(--color-border)] py-5 text-sm text-[var(--color-fg-mid)]">当前队伍没有详细回合数据。</p>}
@@ -222,17 +219,25 @@ export function TeamWorkspace({
       {tab === "teamplay" && (
         performance ? <div className="space-y-6">
           <MetricSection title="Opening" items={[
-            { label: "Opening win%", metric: "openingWin", value: <MetricValue metric="openingWin" value={performance.slices.overall.opening.successRate} /> },
-            { label: "Opening attempt%", metric: "openingAttempt", value: <MetricValue metric="openingAttempt" value={performance.slices.overall.opening.attemptRate} /> },
+            { label: "Success%", metric: "openingWin", value: <MetricValue metric="openingWin" value={performance.slices.overall.opening.successRate} /> },
+            { label: "Attempts%", metric: "openingAttempt", value: <MetricValue metric="openingAttempt" value={performance.slices.overall.opening.attemptRate} /> },
+            { label: "FK/100r", metric: "firstKill", value: <MetricValue metric="firstKill" value={performance.slices.overall.opening.firstKillsPerRound} /> },
+            { label: "FD/100r", metric: "firstDeath", value: <MetricValue metric="firstDeath" value={performance.slices.overall.opening.firstDeathsPerRound} /> },
+            { label: "Win after FK", metric: "winAfterOpeningWin", value: <MetricValue metric="winAfterOpeningWin" value={performance.slices.overall.opening.winRateAfterWinningOpeningDuel} /> },
+            { label: "Win after FD", metric: "winAfterOpeningLoss", value: <MetricValue metric="winAfterOpeningLoss" value={performance.slices.overall.opening.comebackRateAfterLosingOpeningDuel} /> },
           ]} columns={3} />
           <MetricSection title="Trading" items={[
             { label: "Trade/100r", metric: "trade", value: <MetricValue metric="trade" value={performance.slices.overall.trade.tradeKillsPerRound} /> },
             { label: "Traded%", metric: "traded", value: <MetricValue metric="traded" value={performance.slices.overall.trade.tradedDeathsPerDeath} /> },
+            { label: "Opening deaths traded", metric: "tradedOpening", value: <MetricValue metric="tradedOpening" value={performance.slices.overall.trade.tradedOpeningDeaths} /> },
           ]} columns={3} />
           <MetricSection title="Utility" items={[
             { label: "FA/100r", metric: "flashAssist", value: <MetricValue metric="flashAssist" value={performance.slices.overall.utility.flashAssistsPerRound} /> },
-            { label: "Util/r", metric: "utility", value: <MetricValue metric="utility" value={performance.slices.overall.utility.utilityDamagePerRound} /> },
             { label: "Blind/Flash", metric: "blindPerFlash", value: <MetricValue metric="blindPerFlash" value={performance.slices.overall.utility.enemyBlindSecondsPerFlash} /> },
+            { label: "Enemy Blind/r", metric: "enemyBlindPerRound", value: <MetricValue metric="enemyBlindPerRound" value={performance.slices.overall.utility.enemyBlindSecondsPerRound} /> },
+            { label: "Team Blind/r", metric: "teamBlindPerRound", value: <MetricValue metric="teamBlindPerRound" value={performance.slices.overall.utility.teamBlindSecondsPerRound} /> },
+            { label: "Util/r", metric: "utility", value: <MetricValue metric="utility" value={performance.slices.overall.utility.utilityDamagePerRound} /> },
+            { label: "Utility K/100r", metric: "utilityKills", value: <MetricValue metric="utilityKills" value={performance.slices.overall.utility.utilityKillsPerRound} /> },
           ]} columns={3} />
           <MetricSection title="Objective" items={[
             { label: "Plant conversion", metric: "plantConversion", value: <MetricValue metric="plantConversion" value={performance.slices.overall.objective.plantConversions} /> },
@@ -244,7 +249,7 @@ export function TeamWorkspace({
         <div className="space-y-5">
           <section className="space-y-3 border-t border-[var(--color-border)] pt-4">
             <div>
-              <h3 className="text-sm font-semibold">Official Map Performance</h3>
+              <h3 className="text-sm font-semibold">正式地图表现</h3>
               <p className="mt-1 text-xs text-[var(--color-fg-mid)]">队伍自身正式比赛结果与当前可验证的回合数据；Pick/Ban 仅来自正式 BP 记录。</p>
             </div>
             <StatsDataTable embedded rows={mapRows} columns={mapColumns} rowKey={(row) => row.mapName} initialSortKey="played" emptyLabel="暂无队伍正式地图样本" />
