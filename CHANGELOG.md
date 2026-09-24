@@ -1,5 +1,29 @@
 # Changelog
 
+## [2.12.0]
+
+### Added
+
+#### Major 赛制与选手生涯数据
+
+管理员现可配置并运行 24 队 Major，默认 32 队赛制和历史赛事保持兼容。选手主页新增跨赛事生涯表现、赛事与地图筛选，以及基于全站历史样本的 Player Attributes 评分和可视化。
+
+### Changed
+
+#### 选手主页与统计说明
+
+重组选手主页信息层级和竞技数据工作区，拆分 Opening、Teamplay、Maps 与 Weapons；赛事统计指标说明统一通过提示入口查看，移除重复的区块解释。
+
+### Fixed
+
+#### 参赛资料、招募与报名名单
+
+修复通用参赛资料就绪判断、5E 未定级赛事 fallback、招募筛选和地图池上下文，并统一相关中文文案。报名名单校验在同一 PostgreSQL 事务中按序读取，避免事务连接上的查询重叠。
+
+#### 调度器派发
+
+调度器仅在存在到期工作时唤醒 Vercel，并将主调度检查、实际派发和端点成功记录为独立健康事实。
+
 ## [2.11.0]
 
 ### Added
@@ -2394,6 +2418,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [1.28.2]: https://github.com/Starfie1d1272/RivalHub/compare/v1.28.1...v1.28.2
 [1.28.1]: https://github.com/Starfie1d1272/RivalHub/compare/v1.28.0...v1.28.1
 [1.28.0]: https://github.com/Starfie1d1272/RivalHub/compare/v1.27.8...v1.28.0
+[2.12.0]: https://github.com/Starfie1d1272/RivalHub/compare/v2.11.0...v2.12.0
 [1.27.8]: https://github.com/Starfie1d1272/RivalHub/compare/v1.27.7...v1.27.8
 [1.27.7]: https://github.com/Starfie1d1272/RivalHub/compare/v1.27.6...v1.27.7
 [1.27.6]: https://github.com/Starfie1d1272/RivalHub/compare/v1.27.5...v1.27.6
