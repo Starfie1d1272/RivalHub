@@ -25,27 +25,6 @@ const tabs = [
   { key: "weapons", label: "Weapons" },
 ] as const;
 
-function normalizedResults(detail: TeamPerformanceDetail) {
-  if ("linkedEntries" in detail) {
-    return {
-      matches: detail.results.played,
-      matchWins: detail.results.wins,
-      matchLosses: detail.results.losses,
-      maps: detail.results.maps,
-      mapWins: detail.results.mapWins,
-      mapLosses: detail.results.mapLosses,
-    };
-  }
-  return detail.results ? {
-    matches: detail.results.matches,
-    matchWins: detail.results.matchWins,
-    matchLosses: detail.results.matchLosses,
-    maps: detail.results.maps,
-    mapWins: detail.results.mapWins,
-    mapLosses: detail.results.mapLosses,
-  } : null;
-}
-
 type PlayerRow = {
   userId: string;
   name: string;
