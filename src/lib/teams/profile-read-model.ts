@@ -85,7 +85,7 @@ export async function getPublicLongTeamProfileReadModel(
         result.placements.some((placement) => placement.entryId === entry.id)
         || result.honors.some((honor) => honor.entryId === entry.id)
       ) ?? null;
-      const stats = performanceByEntry.get(entry.id);
+
       return {
         ...entry,
         placement: results?.placements.find((placement) => placement.entryId === entry.id)?.label ?? null,
