@@ -44,6 +44,12 @@ BEGIN
       ) THEN
         RAISE EXCEPTION 'major_final_results entry outside season';
       END IF;
+      IF NOT EXISTS (
+        SELECT 1 FROM "public"."major_tournament_entrants"
+        WHERE season_id = NEW.season_id AND competition_entry_id = entry_id
+      ) THEN
+        RAISE EXCEPTION 'major_final_results entry outside materialized entrants';
+      END IF;
       IF EXISTS (
         SELECT 1
         FROM jsonb_array_elements(NEW.placement_groups) g,
