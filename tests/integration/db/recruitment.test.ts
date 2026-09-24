@@ -31,6 +31,7 @@ describe("recruitment PostgreSQL invariants", () => {
     const otherEventTeamId = randomUUID();
     const lobbyFixtureTeamIds = [...unrestrictedTeamIds, otherEventTeamId];
     const lobbyCaptainIds = Array.from({ length: lobbyFixtureTeamIds.length }, () => randomUUID());
+    const fixtureTeamIds = [ids.team, ...lobbyFixtureTeamIds];
     try {
       await pool.query("BEGIN");
       await pool.query("INSERT INTO users (id, email, display_name, qq) VALUES ($1, $2, 'Captain', NULL), ($3, $4, 'Interested', '200001'), ($5, $6, 'Member', '200002'), ($7, $8, 'Contender', NULL), ($9, $10, 'Invitee', NULL), ($11, $12, 'Target Unknown', NULL)", [
@@ -101,11 +102,36 @@ describe("recruitment PostgreSQL invariants", () => {
         SELECT captain_id, 'recruitment-lobby-captain-' || captain_id::text || '@local.test', 'Lobby Captain ' || ordinal::text, NULL
         FROM unnest($1::uuid[]) WITH ORDINALITY AS captain(captain_id, ordinal)
       `, [lobbyCaptainIds]);
-      await pool.query(`
-        INSERT INTO teams (id, slug, name, creator_user_id, captain_user_id)
-        SELECT team_id, 'recruitment-lobby-' || left(team_id::text, 8), 'Lobby Team ' || ordinal::text, $1::uuid, captain_id
-        FROM unnest($2::uuid[], $3::uuid[]) WITH ORDINALITY AS team(team_id, captain_id, ordinal)
-      `, [ids.invitee, lobbyFixtureTeamIds, lobbyCaptainIds]);
+      const lobbyTeamFixture = await pool.connect();
+      try {
+        await lobbyTeamFixture.query("BEGIN");
+        await lobbyTeamFixture.query(`
+          INSERT INTO teams (id, slug, name, creator_user_id, captain_user_id)
+          SELECT team_id, 'recruitment-lobby-' || left(team_id::text, 8), 'Lobby Team ' || ordinal::text, $1::uuid, captain_id
+          FROM unnest($2::uuid[], $3::uuid[]) WITH ORDINALITY AS team(team_id, captain_id, ordinal)
+        `, [ids.invitee, lobbyFixtureTeamIds, lobbyCaptainIds]);
+        await lobbyTeamFixture.query(`
+          INSERT INTO team_memberships (team_id, user_id, status, invited_by_user_id)
+          SELECT team_id, captain_id, 'active', captain_id
+          FROM unnest($1::uuid[], $2::uuid[]) AS lobby(team_id, captain_id)
+        `, [lobbyFixtureTeamIds, lobbyCaptainIds]);
+        await lobbyTeamFixture.query(`
+          INSERT INTO team_captain_changes (team_id, from_user_id, to_user_id, changed_by_actor_id)
+          SELECT team_id, NULL, captain_id, 'local-test'
+          FROM unnest($1::uuid[], $2::uuid[]) AS lobby(team_id, captain_id)
+        `, [lobbyFixtureTeamIds, lobbyCaptainIds]);
+        await lobbyTeamFixture.query(`
+          INSERT INTO team_name_changes (team_id, old_name, new_name, changed_by_actor_id)
+          SELECT team_id, NULL, 'Lobby Team ' || ordinal::text, 'local-test'
+          FROM unnest($1::uuid[]) WITH ORDINALITY AS lobby(team_id, ordinal)
+        `, [lobbyFixtureTeamIds]);
+        await lobbyTeamFixture.query("COMMIT");
+      } catch (error) {
+        await lobbyTeamFixture.query("ROLLBACK").catch(() => {});
+        throw error;
+      } finally {
+        lobbyTeamFixture.release();
+      }
       await pool.query(`
         INSERT INTO recruitment_intents (kind, team_id, target_season_id, positions, status, expires_at)
         SELECT 'team_recruiting', team_id, NULL, ARRAY[]::cs2_role[], 'open', now() + interval '1 day'
@@ -294,10 +320,10 @@ describe("recruitment PostgreSQL invariants", () => {
         await client.query("DELETE FROM user_map_preferences WHERE user_id IN ($1, $2, $3, $4, $5, $6)", [ids.captain, ids.interested, ids.member, ids.contender, ids.invitee, ids.targetUnknown]);
         await client.query("DELETE FROM competitive_rank_facts WHERE user_id IN ($1, $2, $3, $4, $5, $6)", [ids.captain, ids.interested, ids.member, ids.contender, ids.invitee, ids.targetUnknown]);
         await client.query("DELETE FROM team_invitations WHERE team_id = $1", [ids.team]);
-        await client.query("DELETE FROM team_captain_changes WHERE team_id = $1", [ids.team]);
-        await client.query("DELETE FROM team_name_changes WHERE team_id = $1", [ids.team]);
-        await client.query("DELETE FROM team_memberships WHERE team_id = $1", [ids.team]);
-        await client.query("DELETE FROM teams WHERE id = $1 OR id = ANY($2::uuid[])", [ids.team, lobbyFixtureTeamIds]);
+        await client.query("DELETE FROM team_captain_changes WHERE team_id = ANY($1::uuid[])", [fixtureTeamIds]);
+        await client.query("DELETE FROM team_name_changes WHERE team_id = ANY($1::uuid[])", [fixtureTeamIds]);
+        await client.query("DELETE FROM team_memberships WHERE team_id = ANY($1::uuid[])", [fixtureTeamIds]);
+        await client.query("DELETE FROM teams WHERE id = ANY($1::uuid[])", [fixtureTeamIds]);
         await client.query("DELETE FROM seasons WHERE id IN ($1, $2, $3, $4)", [ids.draftSeason, ids.registrationSeason, ids.replacementSeason, ids.votingSeason]);
         await client.query("DELETE FROM users WHERE id IN ($1, $2, $3, $4, $5, $6) OR id = ANY($7::uuid[])", [ids.captain, ids.interested, ids.member, ids.contender, ids.invitee, ids.targetUnknown, lobbyCaptainIds]);
         await client.query("COMMIT");
