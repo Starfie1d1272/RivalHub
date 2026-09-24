@@ -134,6 +134,8 @@ approved CompetitionEntry candidates
 
 `major_stage_runs` 是已启动阶段的运行时身份并冻结该阶段需要的规则、entrant 和 eligibility context；`major_stage_entrants` 是阶段参与者真相。后续推进依赖 StageRun + 已完成比赛，而不是 UI standings。
 
+Managed Major 的唯一 profile owner 从保存的 StagePlan 识别 Major-24 或 Major-32；默认模板继续使用 Major-32。开赛时 StagePlan 随 StageRun 冻结，阶段转换、种子批次、开赛预览和最终名次都从该 frozen plan 派生，不从 mutable Season 配置或展示文字推断。
+
 通用阶段的 identity 是 `(seasonId, StageConfig.key)`，name 只负责展示。provider bracket state 按 `(competition_id, stage_key)` 隔离；participant 的 RivalHub identity 必须来自 `rivalhubEntryId`，不能从名称或 participant 数组位置反推。`matches` 的 provider node 唯一性也按 `(season_id, stage, bracket_node_id)` 约束，允许不同阶段复用 provider numeric node。
 
 Major Swiss 的 public/admin read model 只从 `major_stage_entrants`、`matches(ownership = major_stage)` 与 `major_stage_runs.finalized_round` 投影。

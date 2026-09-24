@@ -57,7 +57,7 @@ export function MajorTournamentSeedsManagement({ data }: { data: MajorTournament
   });
 
   return (
-    <Panel label="赛事 1–32 种子">
+    <Panel label={`赛事 1–${data.entrantCapacity} 种子`}>
       {!data.entrantsLocked ? <p className="text-sm text-[var(--color-fg-mid)]">请先锁定正式参赛队和最终赛事名单，种子才能保存。</p> : <div className="space-y-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -99,13 +99,11 @@ export function MajorTournamentSeedsManagement({ data }: { data: MajorTournament
         {data.seeds.length === capacity ? <section aria-labelledby="major-seed-cohorts-title">
           <h3 id="major-seed-cohorts-title" className="font-medium text-[var(--color-fg)]">入场批次</h3>
           <div className="mt-2 grid gap-3 lg:grid-cols-3">
-            <SeedCohort label="Stage 3" range="#1–8" />
-            <SeedCohort label="Stage 2" range="#9–16" />
-            <SeedCohort label="Stage 1" range="#17–32" />
+            {data.entryCohorts.map((cohort) => <SeedCohort key={cohort.stageKey} label={cohort.stageName} range={`#${cohort.fromSeed}–${cohort.toSeed}`} />)}
           </div>
-        </section> : <p className="text-sm text-[var(--color-fg-mid)]">保存后将按 #1–8 → Stage 3、#9–16 → Stage 2、#17–32 → Stage 1 展示入场批次。</p>}
+        </section> : <p className="text-sm text-[var(--color-fg-mid)]">保存后将按本届阶段配置展示种子入场批次。</p>}
 
-        <section aria-labelledby="major-first-round-preview-title"><h3 id="major-first-round-preview-title" className="font-medium text-[var(--color-fg)]">Stage 1 首轮预览</h3>{data.firstRound ? <ol className="mt-2 grid gap-2 text-sm md:grid-cols-2">{data.firstRound.map((pairing) => <li key={`${pairing.higherSeed}-${pairing.lowerSeed}`} className="border border-[var(--color-border)] px-3 py-2">#{pairing.higherSeed} {teamById.get(data.seeds.find((seed) => seed.tournamentSeed === pairing.higherSeed)?.teamId ?? "")?.teamName} vs #{pairing.lowerSeed} {teamById.get(data.seeds.find((seed) => seed.tournamentSeed === pairing.lowerSeed)?.teamId ?? "")?.teamName} · {pairing.format.toUpperCase()}</li>)}</ol> : <p className="mt-1 text-sm text-[var(--color-fg-mid)]">需先保存完整种子才能构造预览。</p>}<p className="mt-2 text-sm text-[var(--color-fg-mid)]">首轮完整对阵预览只在这里展示；保存种子前不会创建比赛。</p></section>
+        <section aria-labelledby="major-first-round-preview-title"><h3 id="major-first-round-preview-title" className="font-medium text-[var(--color-fg)]">{data.firstSwissStageName} 首轮预览</h3>{data.firstRound ? <ol className="mt-2 grid gap-2 text-sm md:grid-cols-2">{data.firstRound.map((pairing) => <li key={`${pairing.higherSeed}-${pairing.lowerSeed}`} className="border border-[var(--color-border)] px-3 py-2">#{pairing.higherSeed} {teamById.get(data.seeds.find((seed) => seed.tournamentSeed === pairing.higherSeed)?.teamId ?? "")?.teamName} vs #{pairing.lowerSeed} {teamById.get(data.seeds.find((seed) => seed.tournamentSeed === pairing.lowerSeed)?.teamId ?? "")?.teamName} · {pairing.format.toUpperCase()}</li>)}</ol> : <p className="mt-1 text-sm text-[var(--color-fg-mid)]">需先保存完整种子才能构造预览。</p>}<p className="mt-2 text-sm text-[var(--color-fg-mid)]">首轮完整对阵预览只在这里展示；保存种子前不会创建比赛。</p></section>
       </div>}
     </Panel>
   );

@@ -68,7 +68,7 @@ export interface MajorPrestartReadiness {
   canStart: boolean;
   checks: readonly MajorPrestartCheck[];
   blockers: readonly string[];
-  /** 只要标准结构、32 队身份、1–32 种子和首轮格式可用就构造；它是赛前预览，不授予开赛权限。 */
+  /** 支持 profile 的完整身份种子和首轮配置可用时构造；它是赛前预览，不授予开赛权限。 */
   openingPlan: MajorOpeningPlan | null;
 }
 
@@ -286,7 +286,7 @@ function checkSeeds(
 }
 
 /**
- * 评估标准 32 队 Major 的赛前就绪状态。
+ * 评估 managed Major profile 的赛前就绪状态。
  *
  * 这是纯领域函数：它不读写数据库、不改变赛季状态，也不创建比赛。未接入
  * 的持久化事实必须以 null 表示；函数将其保留为不可确认状态而不是当作无问题。
@@ -332,21 +332,19 @@ export function evaluateMajorPrestartReadiness(
   checks.push(checkSeedConfirmation(input.seedConfirmation));
 
   let openingPlan: MajorOpeningPlan | null = null;
-  const stageOneMatchFormat = input.capabilities.stagePlan[0]?.matchFormat;
   if (
     rules?.isStandardMajor !== true ||
     teamBlockers === null ||
     teamBlockers.length > 0 ||
     seedResult.seeds === null ||
-    entrantCapacity <= 0 ||
-    (stageOneMatchFormat !== "bo1" && stageOneMatchFormat !== "bo3")
+    entrantCapacity <= 0
   ) {
     checks.push(blocked("opening-plan", "开赛计划", [`开赛计划不可用：标准 Major 结构、${entrantCapacity || "标准容量"} 队身份、完整 1–${entrantCapacity || "标准容量"} 种子和阶段一赛制必须先可用于构造预览。`]));
   } else {
     try {
       openingPlan = buildMajorOpeningPlan({
         teams: seedResult.seeds,
-        stageOneMatchFormat,
+        stagePlan: input.capabilities.stagePlan,
       });
       checks.push(ready("opening-plan", "开赛计划"));
     } catch {

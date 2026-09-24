@@ -211,7 +211,7 @@ export async function startMajorInTransaction(
   }
 
   const now = new Date();
-  const openingPlan = buildMajorOpeningPlan({ teams: seeds, stageOneMatchFormat: stage.matchFormat });
+  const openingPlan = buildMajorOpeningPlan({ teams: seeds, stagePlan: capabilities.stagePlan });
   const entrantByEntryId = new Map(entrantRows.map((entrant) => [entrant.competitionEntryId, entrant]));
   const requiresCompetitiveProfile = capabilities.teamRegistrationConfig.requireCompetitiveProfile;
   const configuredCompetitiveProfile = capabilities.teamRegistrationConfig.competitiveProfile ?? null;

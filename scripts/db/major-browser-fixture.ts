@@ -26,6 +26,7 @@ export const MAJOR_BROWSER_PROFILE_ACCOUNT_KEYS = {
   "major-entry": ["captain"],
   education: ["player1", "admin"],
   layout: ["player2", "admin"],
+  "major-prestart": ["admin"],
 } as const satisfies Record<string, readonly MajorBrowserAccountKey[]>;
 export type MajorBrowserScenarioProfile = keyof typeof MAJOR_BROWSER_PROFILE_ACCOUNT_KEYS;
 
@@ -289,6 +290,9 @@ async function removeFixtureDatabaseRows(client: PoolClient, scenario: ScenarioD
   // Local fixture cleanup is the one operational path allowed to remove
   // append-only provenance rows. Production writes never use this setting.
   await client.query("SET LOCAL session_replication_role = replica");
+  const configuredProfileSlug = `e2e-major24-${scenario.shortKey}`;
+  await client.query("DELETE FROM audit_logs WHERE season_id = (SELECT id FROM seasons WHERE slug = $1)", [configuredProfileSlug]);
+  await client.query("DELETE FROM seasons WHERE slug = $1", [configuredProfileSlug]);
   await client.query("DELETE FROM match_roster_players WHERE roster_id IN (SELECT id FROM match_rosters WHERE match_id IN (SELECT id FROM matches WHERE season_id = $1))", [scenario.seasonId]);
   await client.query("DELETE FROM match_rosters WHERE match_id IN (SELECT id FROM matches WHERE season_id = $1)", [scenario.seasonId]);
   await client.query("DELETE FROM matches WHERE season_id = $1", [scenario.seasonId]);
@@ -327,7 +331,7 @@ async function removeFixtureDatabaseRows(client: PoolClient, scenario: ScenarioD
 }
 
 async function insertFixture(client: PoolClient, scenario: ScenarioDefinition, authIds: Map<string, string>): Promise<void> {
-  if (scenario.profile === "major-entry" || scenario.profile === "layout") await insertMajorSeason(client, scenario);
+  if (scenario.profile === "major-entry" || scenario.profile === "layout" || scenario.profile === "major-prestart") await insertMajorSeason(client, scenario);
 
   for (const [index, account] of scenario.accounts.entries()) {
     const ready = account.key !== "player1";
@@ -359,7 +363,7 @@ async function insertFixture(client: PoolClient, scenario: ScenarioDefinition, a
     return;
   }
   if (scenario.profile === "team-invite") await insertInvitationTeam(client, scenario);
-  if (scenario.profile === "major-entry" || scenario.profile === "layout") {
+  if (scenario.profile === "major-entry" || scenario.profile === "layout" || scenario.profile === "major-prestart") {
     await seedCompetitivePlatformCatalog(client, scenario.platform, [
       { seasonKey: scenario.previousSeasonKey, label: "Browser 上一赛季", sortOrder: 0, isCurrent: false },
       { seasonKey: scenario.currentSeasonKey, label: "Browser 当前赛季", sortOrder: 1, isCurrent: true },

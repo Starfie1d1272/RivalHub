@@ -132,6 +132,28 @@ export const MAJOR_STAGE_PLAN: StagePlan = [
   },
 ];
 
+/** Managed Major-24 preset; the built-in Major template remains Major-32 by default. */
+export const MAJOR_24_STAGE_PLAN: StagePlan = [
+  {
+    key: "stage1", name: "阶段一", type: "swiss", teamCount: 16,
+    advanceTiers: [{ placement: "*", count: 8 }],
+    matchFormat: "bo3",
+    seeds: [9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24],
+  },
+  {
+    key: "stage2", name: "阶段二", type: "swiss", teamCount: 16,
+    entrySeeds: 8,
+    advanceTiers: [{ placement: "*", count: 8 }],
+    matchFormat: "bo3",
+  },
+  {
+    key: "playoff", name: "淘汰赛", type: "single_elim", teamCount: 8,
+    advanceTiers: [{ placement: "1st", count: 1 }],
+    matchFormat: "bo3",
+    finalFormat: "bo5",
+  },
+];
+
 export const MAJOR_REGISTRATION_CONFIG: RegistrationConfig = {
   allowedPlayerTypes: ["enrolled", "graduated"],
   rankThreshold: { currentMin: null, peakMin: null },
@@ -206,6 +228,18 @@ export function createRivalsTemplate(): SeasonCapabilities {
 
 export function createMajorTemplate(): SeasonCapabilities {
   return structuredClone(MAJOR_DEFAULT_CAPABILITIES) as SeasonCapabilities;
+}
+
+/** Return a fresh Major-24 stage plan for an explicitly selected season profile. */
+export function createMajor24StagePlan(): StagePlan {
+  return structuredClone(MAJOR_24_STAGE_PLAN) as StagePlan;
+}
+
+/** Return a Major-24 configuration without changing the default Major template. */
+export function createMajor24Capabilities(): SeasonCapabilities {
+  const capabilities = createMajorTemplate();
+  capabilities.stagePlan = createMajor24StagePlan();
+  return capabilities;
 }
 
 /** 返回可安全编辑的 Major 能力配置副本。 */

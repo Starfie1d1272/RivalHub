@@ -5,6 +5,7 @@ import {
   MAJOR_REGISTRATION_CONFIG,
   OPEN_TOURNAMENT_PRESET,
   createMajorDefaultCapabilities,
+  createMajor24Capabilities,
   createRivalsTemplate,
 } from "@/lib/competition/templates";
 import { normalizeTeamRegistrationConfig } from "@/lib/seasons/compatibility";
@@ -29,6 +30,7 @@ describe("checkStandardMajorCapabilities()", () => {
 
     expect(result.isStandardMajor).toBe(true);
     expect(result.entrantCapacity).toBe(32);
+    expect(result.managedProfile?.id).toBe("major-32");
     expect(result.failures).toEqual([]);
     expect(result.checks.every((check) => check.passed)).toBe(true);
     expect(capabilities.stagePlan[2]?.matchFormat).toBe("bo3");
@@ -43,6 +45,27 @@ describe("checkStandardMajorCapabilities()", () => {
     expect(createRivalsTemplate().registrationConfig.mapPool).toEqual([...CURRENT_CS2_ACTIVE_DUTY_MAP_POOL]);
     expect(MAJOR_REGISTRATION_CONFIG.mapPool).not.toContain("de_overpass");
     expect(createRivalsTemplate().registrationConfig.mapPool).toContain("de_cache");
+  });
+
+  it("accepts the explicit 24-team profile while leaving the default at 32", () => {
+    const major24 = createMajor24Capabilities();
+    const result = checkStandardMajorCapabilities(major24);
+
+    expect(result.isStandardMajor).toBe(true);
+    expect(result.entrantCapacity).toBe(24);
+    expect(result.managedProfile?.id).toBe("major-24");
+    expect(result.managedProfile?.directEntryCohorts.map(({ fromSeed, toSeed }) => [fromSeed, toSeed])).toEqual([[1, 8], [9, 24]]);
+    expect(major24.stagePlan.map((stage) => stage.matchFormat)).toEqual(["bo3", "bo3", "bo3"]);
+    expect(createMajorDefaultCapabilities().stagePlan).toHaveLength(4);
+    expect(createMajorDefaultCapabilities().stagePlan[0]?.seeds?.[0]).toBe(17);
+  });
+
+  it("rejects a stage plan outside the two supported managed profiles", () => {
+    const capabilities = createMajor24Capabilities();
+    capabilities.stagePlan[1].seeds = [1];
+
+    const result = expectStandardMajorFailure(capabilities, "managed-profile");
+    expect(result.managedProfile).toBeNull();
   });
 
   it("keeps the current Rivals defaults and canonical position catalog", () => {
@@ -195,7 +218,7 @@ describe("checkStandardMajorCapabilities()", () => {
       expect.arrayContaining([
         expect.objectContaining({
           key: "swiss-match-format",
-          reason: "NJU Major 阶段一、阶段二的普通比赛为 BO1，决定晋级或淘汰的比赛由 Swiss 引擎升级为 BO3；阶段三全部为 BO3。",
+          reason: "24 队 Major 的两个瑞士轮均为 BO3；32 队 Major 的前两个瑞士轮为 BO1、第三个为 BO3。",
         }),
       ]),
     );

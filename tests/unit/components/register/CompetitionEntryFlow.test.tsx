@@ -139,11 +139,17 @@ describe("CompetitionEntryFlow", () => {
     expect(screen.getByRole("link", { name: "查看招募中的队伍" })).toHaveAttribute("href", "/teams/recruitment?view=teams&event=event");
     expect(screen.getByRole("button", { name: "开始报名" })).toBeEnabled();
   });
-  it("uses the approved count for the non-blocking qualifier reminder", () => {
-    const p = props(); p.entry = null; p.approvedTeamCount = 33; p.captainedTeams = [{ id: "team", name: "队伍" }]; p.capabilities.canStartRegistration = true;
+  it("uses the configured capacity for the non-blocking registration reminder", () => {
+    const p = props(); p.entry = null; p.approvedTeamCount = 33; p.majorEntrantCapacity = 32; p.captainedTeams = [{ id: "team", name: "队伍" }]; p.capabilities.canStartRegistration = true;
     render(<CompetitionEntryFlow {...p} />);
-    expect(screen.getByText(/已有 33 支队伍通过报名审核/)).toBeInTheDocument();
+    expect(screen.getByText(/已有 33 支队伍通过报名审核，仍可继续报名；若最终超过 32 支，将按本届公告安排处理/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "开始报名" })).toBeEnabled();
+  });
+  it("shows the 24-team entrant capacity without promising an in-app qualifier", () => {
+    const p = props(); p.entry = null; p.approvedTeamCount = 24; p.majorEntrantCapacity = 24; p.captainedTeams = [{ id: "team", name: "队伍" }]; p.capabilities.canStartRegistration = true;
+    render(<CompetitionEntryFlow {...p} />);
+    expect(screen.getByText(/本届正赛容量为 24 队，仍可继续报名，最终名单由赛事管理员确认/)).toBeInTheDocument();
+    expect(screen.queryByText(/资格赛|自动筛选/)).not.toBeInTheDocument();
   });
   it("does not invent Major roster requirements for other templates", () => {
     const p = props(); p.minRoster = 3; p.maxRoster = 6; p.entry = null; p.capabilities.canStartRegistration = true;

@@ -4,6 +4,7 @@ import { db } from "@/db/client";
 import { competitionEntries, majorFinalResults, majorStageRuns, matches, steamProfiles, tournamentHonors, users } from "@/db/schema";
 import { loadStageBracketViews, resolveFinalBracketNodeId } from "@/lib/bracket";
 import { parseMajorFinalPlacementGroups } from "@/lib/major/placement";
+import { getManagedMajorProfileFromRunSnapshot } from "@/lib/major/standard";
 import { publicCompetitionEntryCondition } from "@/lib/competition-entries/public-visibility";
 import { resolvePublicStagePlan } from "@/lib/seasons/public-stage";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
@@ -18,7 +19,7 @@ export async function getPublicSeasonResults(season: PublicSeason) {
     db.select({ id: competitionEntries.id, name: competitionEntries.name }).from(competitionEntries).where(and(eq(competitionEntries.competitionId, season.id), publicCompetitionEntryCondition())),
     db.select({ id: matches.id, entryAId: matches.entryAId, entryBId: matches.entryBId, scoreA: matches.scoreA, scoreB: matches.scoreB, stage: matches.stage, entryRound: matches.entryRound, ownership: matches.ownership, majorStageRunId: matches.majorStageRunId, bracketNodeId: matches.bracketNodeId, completedAt: matches.completedAt })
       .from(matches).where(and(eq(matches.seasonId, season.id), eq(matches.status, "finished"))).orderBy(asc(matches.completedAt)),
-    season.competitionTemplate === "major" ? db.select({ stageKey: majorStageRuns.stageKey, ruleSnapshot: majorStageRuns.ruleSnapshot }).from(majorStageRuns).where(eq(majorStageRuns.seasonId, season.id)) : [],
+    season.competitionTemplate === "major" ? db.select({ id: majorStageRuns.id, stageKey: majorStageRuns.stageKey, ruleSnapshot: majorStageRuns.ruleSnapshot }).from(majorStageRuns).where(eq(majorStageRuns.seasonId, season.id)) : [],
   ]);
   const names = new Map(entries.map((entry) => [entry.id, entry.name]));
   const stages = resolvePublicStagePlan(season, runs);
@@ -35,7 +36,11 @@ export async function getPublicSeasonResults(season: PublicSeason) {
     : confirmed ? result.championEntryId
     : season.competitionTemplate !== "major" && final && final.scoreA !== null && final.scoreB !== null && final.scoreA !== final.scoreB
       ? final.scoreA > final.scoreB ? final.entryAId : final.entryBId : null;
-  const placements = confirmed ? parseMajorFinalPlacementGroups(result.placementGroups, result.championEntryId).flatMap((group) => group.entryIds.map((entryId) => ({ entryId, name: names.get(entryId) ?? "队伍", label: group.from === group.to ? `第 ${group.from} 名` : `第 ${group.from}–${group.to} 名` }))) : season.competitionTemplate !== "major" && final && final.scoreA !== null && final.scoreB !== null && final.scoreA !== final.scoreB
+  const finalResultRun = result ? runs.find((run) => run.id === result.playoffStageRunId) : null;
+  const finalResultProfile = confirmed && finalResultRun
+    ? getManagedMajorProfileFromRunSnapshot(finalResultRun.ruleSnapshot, finalResultRun.stageKey)
+    : null;
+  const placements = confirmed ? parseMajorFinalPlacementGroups(result.placementGroups, result.championEntryId, finalResultProfile!.entrantCapacity).flatMap((group) => group.entryIds.map((entryId) => ({ entryId, name: names.get(entryId) ?? "队伍", label: group.from === group.to ? `第 ${group.from} 名` : `第 ${group.from}–${group.to} 名` }))) : season.competitionTemplate !== "major" && final && final.scoreA !== null && final.scoreB !== null && final.scoreA !== final.scoreB
     ? (final.scoreA > final.scoreB ? [final.entryAId, final.entryBId] : [final.entryBId, final.entryAId]).map((entryId, index) => ({ entryId, name: names.get(entryId) ?? "队伍", label: `第 ${index + 1} 名` }))
     : [];
   return {

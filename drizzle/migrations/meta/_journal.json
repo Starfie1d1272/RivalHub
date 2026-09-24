@@ -372,6 +372,13 @@
       "when": 1789643840540,
       "tag": "0052_gray_supernaut",
       "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "7",
+      "when": 1790191204799,
+      "tag": "0053_major_final_result_profile_capacity",
+      "breakpoints": true
     }
   ]
 }
