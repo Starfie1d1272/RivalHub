@@ -183,10 +183,8 @@ describe("recruitment PostgreSQL invariants", () => {
         [ids.targetUnknown, ids.registrationSeason, ids.contender, ids.invitee],
       );
       await pool.query("UPDATE recruitment_intents SET status = 'closed' WHERE user_id = $1 AND kind = 'player_lft'", [ids.member]);
-      await pool.query(
-        "INSERT INTO recruitment_intents (kind, user_id, target_season_id, positions, status, expires_at) VALUES ('player_lft', $1, $3, ARRAY[]::cs2_role[], 'open', now() + interval '1 day'), ('player_lft', $2, $3, ARRAY[]::cs2_role[], 'open', now() + interval '1 day')",
-        [ids.captain, ids.member, ids.replacementSeason],
-      );
+      await pool.query("UPDATE recruitment_intents SET target_season_id = $2, status = 'open', expires_at = now() + interval '1 day' WHERE user_id = $1 AND kind = 'player_lft'", [ids.member, ids.replacementSeason]);
+      await pool.query("INSERT INTO recruitment_intents (kind, user_id, target_season_id, positions, status, expires_at) VALUES ('player_lft', $1, $2, ARRAY[]::cs2_role[], 'open', now() + interval '1 day')", [ids.captain, ids.replacementSeason]);
       await pool.query("INSERT INTO user_map_preferences (user_id, map_preferences) VALUES ($1, $2::jsonb), ($3, $4::jsonb), ($5, $6::jsonb)", [
         ids.interested, JSON.stringify([
           { map: "de_custom_nju", level: "strong" },
