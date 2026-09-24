@@ -18,6 +18,8 @@ presentation owner 对有限集合使用穷举映射（新增状态必须同时�
 
 账号入口稳定区分「我的参赛」（私有任务）、「个人主页」（公开资料）与「账号设置」。CS2 canonical position key 保持 `igl`、`awper`、`opener`、`closer`、`anchor`。
 
+地图偏好与地图池编辑器用「当前地图池」「当前地图池熟练度」「当前地图池（默认候选）」描述当前轮换；选定赛事时使用「目标赛事图池熟练度」。普通参赛者和管理员文案不显示内部术语 `Active Duty`。
+
 ## Tokens and primitives
 
 视觉 token 的唯一数值来源是 `src/app/globals.css`；Tailwind/shadcn 名称只做 bridge，不为单页建立第二套色板、圆角或 spacing scale。

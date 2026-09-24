@@ -82,7 +82,7 @@ MatchRoster
 
 `teams` 与 membership/captain/name history 表达跨赛事持续存在的队伍关系。Team 不属于任何 Season，换人或改名不能修改历史赛事事实。
 
-Recruitment 是 Team/Player 的当前意向，不是 membership、invitation 或 CompetitionEntry；正式入队仍由 Team invitation/membership owner 完成。
+Recruitment 是 Team/Player 的当前意向，不是 membership、invitation 或 CompetitionEntry；正式入队仍由 Team invitation/membership owner 完成。组队大厅选择赛事 E 时，兼容的招募包括明确目标 E 和“不限赛事”（`targetSeasonId = null`）；该选择只限定当前浏览与匹配上下文，不改写招募事实。选手地图偏好在所选赛事下按该赛事图池投影；未选赛事时按招募目标赛事或当前地图池投影。
 
 ### CompetitionEntry
 
