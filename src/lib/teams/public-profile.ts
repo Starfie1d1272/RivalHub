@@ -44,6 +44,7 @@ export interface PublicTeamProfile {
   entries: Array<{
     id: string;
     name: string;
+    seasonId: string;
     seasonName: string;
     seasonSlug: string;
     seasonStatus: string;
