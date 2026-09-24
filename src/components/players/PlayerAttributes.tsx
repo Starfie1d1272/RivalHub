@@ -32,7 +32,7 @@ export function PlayerAttributes({ profile }: { profile: PlayerAttributeProfile 
                 </div>
               </div>
 
-              <div className="h-1.5 overflow-hidden bg-[var(--color-bg-muted)]">
+              <div className="h-1.5 overflow-hidden bg-[var(--color-border)]">
                 <div
                   className="h-full bg-[var(--color-accent)] transition-[width]"
                   style={{ width: scoreWidth(attribute.score) }}
