@@ -1,5 +1,4 @@
 import { TeamWorkspace } from "@/components/stats/teams/TeamWorkspace";
-import { MetricValue } from "@/components/stats/MetricValue";
 import type { PublicTeamMapProfile } from "@/lib/teams/map-profile";
 import type { PublicSeasonResults } from "@/lib/seasons/public-results";
 import type { LongTeamCareerDetail, TournamentTeamDetail } from "@/lib/stats/tournament-query";
@@ -102,7 +101,7 @@ export function TeamPublicProfile({ team, event = null, mapProfile, results, per
             { label: "Match W-L", value: headline.matches },
             { label: "Map W-L", value: headline.maps },
             { label: "Maps", value: headline.mapCount },
-            { label: "RW%", value: performance?.analytics ? <MetricValue metric="roundWin" value={{ wins: performance.analytics.roundWins, opportunities: performance.analytics.rounds, rate: performance.analytics.roundWinRate }} sampleDisplay="hidden" /> : "—" },
+            { label: "Rating", value: performance?.teamRating ? performance.teamRating.rating.toFixed(2) : "—" },
           ].map(({ label, value }, index) => (
             <div key={label} className={`px-5 py-3 ${index % 2 ? "border-l" : ""} border-[var(--color-border)] sm:border-l sm:first:border-l-0`}>
               <div className="text-[11px] uppercase tracking-[0.08em] text-[var(--color-fg-dim)]">{label}</div>
@@ -114,7 +113,7 @@ export function TeamPublicProfile({ team, event = null, mapProfile, results, per
 
       {event && <>
 
-        {event && <Panel label="Event Summary" contentClassName="p-5"><div className="grid gap-4 sm:grid-cols-3"><div><p className="text-xs text-[var(--color-fg-dim)]">Record</p><p className="mt-1 font-semibold tabular-nums">{event.record.wins}-{event.record.losses}</p></div><div><p className="text-xs text-[var(--color-fg-dim)]">参赛名单</p><p className="mt-1 font-semibold">{event.roster.length} 名</p></div><div><p className="text-xs text-[var(--color-fg-dim)]">Seed</p><p className="mt-1 font-semibold">{event.seedPresentation?.label ?? "待确认"}</p></div></div>{nextMatch && <Link className="mt-4 block border-t border-[var(--color-border)] pt-4 text-sm font-semibold hover:text-[var(--color-accent)]" href={`/${event.season.slug}/matches/${nextMatch.id}`}>下一场 · {nextMatch.opponentName ?? "待定"} →</Link>}</Panel>}
+        {event && <Panel label="赛事概览" contentClassName="p-5"><div className="grid gap-4 sm:grid-cols-3"><div><p className="text-xs text-[var(--color-fg-dim)]">Record</p><p className="mt-1 font-semibold tabular-nums">{event.record.wins}-{event.record.losses}</p></div><div><p className="text-xs text-[var(--color-fg-dim)]">参赛名单</p><p className="mt-1 font-semibold">{event.roster.length} 名</p></div><div><p className="text-xs text-[var(--color-fg-dim)]">Seed</p><p className="mt-1 font-semibold">{event.seedPresentation?.label ?? "待确认"}</p></div></div>{nextMatch && <Link className="mt-4 block border-t border-[var(--color-border)] pt-4 text-sm font-semibold hover:text-[var(--color-accent)]" href={`/${event.season.slug}/matches/${nextMatch.id}`}>下一场 · {nextMatch.opponentName ?? "待定"} →</Link>}</Panel>}
         <Panel label={event.rosterLabel} contentClassName="p-5">
           <div className="mb-3 flex flex-wrap items-center gap-2 text-sm text-[var(--color-fg-mid)]">
             {rosterStatus && <StatusPill {...rosterStatus} />}
@@ -147,8 +146,10 @@ export function TeamPublicProfile({ team, event = null, mapProfile, results, per
       </>}
 
       {!event && team && <>
-        <div className="grid gap-5">
-          <Panel label="当前成员" contentClassName="p-5">
+        <div className="grid gap-8">
+          <section className="space-y-4">
+            <div><p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--color-fg-dim)]">ROSTER</p><h2 className="mt-1 text-lg font-semibold">当前成员</h2></div>
+            <div className="border-y border-[var(--color-border)] px-1">
             <div className="divide-y divide-[var(--color-border)]">
               {currentMembers.length > 0 ? currentMembers.map((member) => (
                 <div key={member.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
@@ -161,12 +162,13 @@ export function TeamPublicProfile({ team, event = null, mapProfile, results, per
                 </div>
               )) : <EmptyState title="暂无当前成员" />}
             </div>
-          </Panel>
+            {currentEntries.length > 0 && <div className="border-t border-[var(--color-border)] pt-3"><p className="mb-2 text-xs font-medium text-[var(--color-fg-dim)]">当前赛事</p><div className="space-y-2">{currentEntries.map((entry) => <Link key={entry.id} className="flex items-center justify-between gap-3 text-sm hover:text-[var(--color-accent)]" href={`/${entry.seasonSlug}/teams/${entry.id}`}><span><span className="font-medium">{entry.seasonName}</span><span className="ml-2 text-[var(--color-fg-mid)]">{entry.name}</span></span><span>→</span></Link>)}</div></div>}
+          </section>
 
-          {currentEntries.length > 0 && <Panel label="Current Event" contentClassName="p-5"><div className="space-y-2">{currentEntries.map((entry) => <Link key={entry.id} className="flex items-center justify-between gap-3 text-sm hover:text-[var(--color-accent)]" href={`/${entry.seasonSlug}/teams/${entry.id}`}><span><span className="font-medium">{entry.seasonName}</span><span className="ml-2 text-[var(--color-fg-mid)]">{entry.name}</span></span><span>→</span></Link>)}</div></Panel>}
-
-          {longDetail && <TeamWorkspace detail={longDetail} mapProfile={mapProfile} />}
-          <Panel label="Career" contentClassName="p-0">
+          {longDetail && <section className="space-y-4"><div><p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--color-fg-dim)]">PERFORMANCE</p><h2 className="mt-1 text-lg font-semibold">竞技表现</h2></div><TeamWorkspace detail={longDetail} mapProfile={mapProfile} /></section>}
+          <section className="space-y-4">
+            <div><p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--color-fg-dim)]">CAREER</p><h2 className="mt-1 text-lg font-semibold">赛事履历</h2></div>
+            <div className="border-y border-[var(--color-border)]">
             {career.length > 0 ? (
               <div className="divide-y divide-[var(--color-border)]">
                 {career.map((entry) => (
@@ -189,7 +191,8 @@ export function TeamPublicProfile({ team, event = null, mapProfile, results, per
                 ))}
               </div>
             ) : <div className="p-5"><EmptyState title="尚无已结束赛事记录。" /></div>}
-          </Panel>
+            </div>
+          </section>
         </div>
 
       {!event && team?.recruitment && <Panel label="正在招募" contentClassName="p-5">
