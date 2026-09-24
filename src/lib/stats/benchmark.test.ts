@@ -22,6 +22,7 @@ describe("metric benchmark projection", () => {
 
   it("scores limited samples against the qualified benchmark without promoting them", () => {
     const benchmark = buildMetricBenchmark([
+      { value: 10, sample: 5 },
       { value: 20, sample: 20 },
       { value: 30, sample: 80 },
       { value: 40, sample: 100 },
