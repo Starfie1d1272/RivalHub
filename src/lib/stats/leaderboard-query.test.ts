@@ -30,5 +30,7 @@ describe("getStatsLeaderboard roster scoping", () => {
 
     const built = new PgDialect().sqlToQuery(captured as Parameters<PgDialect["sqlToQuery"]>[0]);
     expect(built.sql).toContain("lineup.entry_id IS NOT NULL");
+    expect(built.sql).toContain("ON lineup.match_id = m.id AND lineup.user_id = mps.user_id");
+    expect(built.sql).not.toContain("mps.user_id IN");
   });
 });
