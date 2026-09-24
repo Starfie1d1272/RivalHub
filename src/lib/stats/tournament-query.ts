@@ -504,7 +504,7 @@ export async function getPlayerCareerDetail(
 }
 
 
-function remapLinkedTeamFacts(
+export function remapLinkedTeamFacts(
   selected: Awaited<ReturnType<typeof loadStatsEvidence>>["selected"],
   linkedEntryIds: ReadonlySet<string>,
   teamId: string,
