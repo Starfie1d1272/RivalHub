@@ -28,7 +28,7 @@ export interface TeamPublicProfileProps {
   performance?: LongTeamCareerDetail | TournamentTeamDetail | null;
 }
 
-export function TeamPublicProfile({ team, event = null, mapProfile, results, stageLabels = {} }: TeamPublicProfileProps) {
+export function TeamPublicProfile({ team, event = null, mapProfile, results, stageLabels = {}, performance }: TeamPublicProfileProps) {
   const identity = event?.entry ?? team?.team;
   if (!identity) return null;
 
@@ -42,55 +42,76 @@ export function TeamPublicProfile({ team, event = null, mapProfile, results, sta
   const rosterStatus = event ? presentCompetitionEntryRosterStatus(event.rosterStatus) : null;
   const currentEntries = team?.entries.filter((entry) => !["finished", "archived"].includes(entry.seasonStatus)) ?? [];
   const historicalEntries = team?.entries.filter((entry) => ["finished", "archived"].includes(entry.seasonStatus)) ?? [];
+  const eventPlacement = event ? results?.placements.find((entry) => entry.entryId === event.entry.id) ?? null : null;
+  const eventHonors = event ? results?.honors.filter((honor) => honor.entryId === event.entry.id) ?? [] : [];
+  const eventDetail = event && performance && "teamId" in performance ? performance : null;
+  const longDetail = !event && performance && "linkedEntries" in performance ? performance : null;
+  const headline = event ? {
+    matches: eventDetail?.results ? `${eventDetail.results.matchWins}-${eventDetail.results.matchLosses}` : `${event.record.wins}-${event.record.losses}`,
+    maps: eventDetail?.results ? `${eventDetail.results.mapWins}-${eventDetail.results.mapLosses}` : "—",
+    mapCount: eventDetail?.results?.maps ?? "—",
+    rating: eventDetail?.performance?.slices.overall.rating ?? null,
+  } : {
+    matches: longDetail ? `${longDetail.results.wins}-${longDetail.results.losses}` : `${team?.wins ?? 0}-${Math.max((team?.playedCount ?? 0) - (team?.wins ?? 0), 0)}`,
+    maps: longDetail ? `${longDetail.results.mapWins}-${longDetail.results.mapLosses}` : "—",
+    mapCount: longDetail?.results.maps ?? "—",
+    rating: longDetail?.performance?.slices.overall.rating ?? null,
+  };
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title={(
-          <span className="flex items-center gap-4">
-            <TeamLogo logoUrl={identity.logoUrl} teamName={identity.name} size="lg" />
-            <span>{identity.name}</span>
-          </span>
-        )}
-        eyebrow={event ? `${event.season.name} · ${event.roster.length} 名参赛成员` : `${currentMembers.length} 名当前成员`}
-        description={event ? (participation?.detail ?? null) : (team?.team.description ?? "暂无队伍简介。")}
-        status={(
-          <div className="flex flex-wrap items-center gap-1.5">
-            {event ? (
-              <>
-                {participation && <StatusPill {...participation} />}
-                {rosterStatus && <StatusPill {...rosterStatus} />}
-                {event.seedPresentation && <StatusPill {...event.seedPresentation} />}
-              </>
-            ) : (
-              <>
-                {team && <StatusPill {...presentTeamStatus(team.team.status)} />}
-                {team?.team.status === "active" && team.recruitment && <StatusPill label="招募中" tone="accent" />}
-                {currentUserMembership && <StatusPill label={membershipLabel ?? "我的队伍 · 成员"} tone="accent" />}
-              </>
+      <div className="overflow-hidden border border-[var(--color-border)] bg-[var(--color-panel)]">
+        <div className="p-5 sm:p-6">
+          <PageHeader
+            title={(
+              <span className="flex items-center gap-4">
+                <TeamLogo logoUrl={identity.logoUrl} teamName={identity.name} size="lg" />
+                <span>{identity.name}</span>
+              </span>
             )}
-          </div>
-        )}
-        actions={event ? (
-          <div className="flex flex-wrap items-center gap-2">
-            <Link href={`/${event.season.slug}/teams`} className="text-sm text-[var(--color-fg-secondary)] hover:text-[var(--color-fg-primary)]">返回赛事队伍</Link>
-          </div>
-        ) : (team && currentUserMembership && team.team.status === "active") ? (
-          <div className="flex flex-wrap items-center gap-2">
-            <Button size="sm" asChild><Link href="/my/teams">管理我的队伍</Link></Button>
-          </div>
-        ) : null}
-      />
+            eyebrow={event ? event.season.name : "Team"}
+            description={event ? (participation?.detail ?? null) : (team?.team.description ?? "暂无队伍简介。")}
+            status={(
+              <div className="flex flex-wrap items-center gap-1.5">
+                {event ? <>
+                  {participation && <StatusPill {...participation} />}
+                  {rosterStatus && <StatusPill {...rosterStatus} />}
+                  {event.seedPresentation && <StatusPill {...event.seedPresentation} />}
+                  {eventPlacement && <StatusPill label={eventPlacement.label} tone="accent" />}
+                </> : <>
+                  {team && <StatusPill {...presentTeamStatus(team.team.status)} />}
+                  {team?.team.status === "active" && team.recruitment && <StatusPill label="招募中" tone="accent" />}
+                  {currentUserMembership && <StatusPill label={membershipLabel ?? "我的队伍 · 成员"} tone="accent" />}
+                </>}
+              </div>
+            )}
+            actions={event ? (
+              <div className="flex flex-wrap items-center gap-3">
+                {team && <Link href={`/teams/${team.team.slug}`} className="text-sm text-[var(--color-accent)] hover:underline">长期队伍 · {team.team.name}</Link>}
+                <Link href={`/${event.season.slug}/teams`} className="text-sm text-[var(--color-fg-secondary)] hover:text-[var(--color-fg-primary)]">返回赛事队伍</Link>
+              </div>
+            ) : (team && currentUserMembership && team.team.status === "active") ? (
+              <Button size="sm" asChild><Link href="/my/teams">管理我的队伍</Link></Button>
+            ) : null}
+          />
+          {eventHonors.length > 0 && <div className="mt-4 flex flex-wrap gap-2">{eventHonors.map((honor) => <span key={honor.id} className="text-sm font-semibold text-[var(--color-accent)]">{honor.label}</span>)}</div>}
+        </div>
+        <div className="grid grid-cols-2 border-t border-[var(--color-border)] sm:grid-cols-4">
+          {[
+            ["Match W-L", headline.matches],
+            ["Map W-L", headline.maps],
+            ["Maps", headline.mapCount],
+            ["Team Rating", headline.rating == null ? "—" : headline.rating.toFixed(2)],
+          ].map(([label, value], index) => (
+            <div key={label} className={`px-5 py-3 ${index % 2 ? "border-l" : ""} border-[var(--color-border)] sm:border-l sm:first:border-l-0`}>
+              <div className="text-[11px] uppercase tracking-[0.08em] text-[var(--color-fg-dim)]">{label}</div>
+              <div className="mt-1 text-lg font-semibold tabular-nums">{value}</div>
+            </div>
+          ))}
+        </div>
+      </div>
 
       {event && <>
-
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <Stat label="本届比赛" value={event.record.played} />
-          <Stat label="本届胜场" value={event.record.wins} accent />
-          <Stat label="本届负场" value={event.record.losses} />
-          <Stat label="本届名单" value={event.roster.length} />
-        </div>
-
 
         <Panel label={event.rosterLabel} contentClassName="p-5">
           <div className="mb-3 flex flex-wrap items-center gap-2 text-sm text-[var(--color-fg-mid)]">
@@ -110,10 +131,8 @@ export function TeamPublicProfile({ team, event = null, mapProfile, results, sta
           </div>
         </Panel>
 
-        {mapProfile && <TeamMapProfile profile={mapProfile} event />}
-        {nextMatch && <Panel label="下一场"><Link className="font-semibold" href={`/${event.season.slug}/matches/${nextMatch.id}`}>{nextMatch.stage && stageLabels[nextMatch.stage] ? `${stageLabels[nextMatch.stage]} · ` : ""}对阵 {nextMatch.opponentName ?? "待定"} →</Link><p className="mt-1 text-sm text-[var(--color-fg-mid)]">{presentMatchStatus(nextMatch.status, { scheduledAt: nextMatch.scheduledAt }).label}{nextMatch.scheduledAt ? ` · ${formatCSTShortDate(nextMatch.scheduledAt)}` : " · 时间待定"}</p></Panel>}
-        {results?.placements.filter((entry) => entry.entryId === event.entry.id).map((entry) => <Panel key={entry.entryId} label="本届最终名次"><p className="text-2xl font-bold">{entry.label}</p></Panel>)}
-        {results?.honors.filter((honor) => honor.entryId === event.entry.id).map((honor) => <p key={honor.id} className="font-semibold text-[var(--color-accent)]">{honor.label}</p>)}
+        {event && <Panel label="Event Summary" contentClassName="p-5"><div className="grid gap-4 sm:grid-cols-3"><div><p className="text-xs text-[var(--color-fg-dim)]">Record</p><p className="mt-1 font-semibold tabular-nums">{event.record.wins}-{event.record.losses}</p></div><div><p className="text-xs text-[var(--color-fg-dim)]">Roster</p><p className="mt-1 font-semibold">{event.roster.length} 名</p></div><div><p className="text-xs text-[var(--color-fg-dim)]">Seed</p><p className="mt-1 font-semibold">{event.seedPresentation?.label ?? "待确认"}</p></div></div>{nextMatch && <Link className="mt-4 block border-t border-[var(--color-border)] pt-4 text-sm font-semibold hover:text-[var(--color-accent)]" href={`/${event.season.slug}/matches/${nextMatch.id}`}>下一场 · {nextMatch.opponentName ?? "待定"} →</Link>}</Panel>}
+        {mapProfile && <TeamMapProfile profile={mapProfile} event />} className="font-semibold text-[var(--color-accent)]">{honor.label}</p>)}
         <Panel label="本届比赛" contentClassName="p-5">
           <div className="space-y-2">
             {event.matches.length > 0 ? event.matches.map((match) => (
@@ -126,37 +145,8 @@ export function TeamPublicProfile({ team, event = null, mapProfile, results, sta
         </Panel>
       </>}
 
-      {event && team && <Panel label="队伍资料" contentClassName="p-5">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div className="flex min-w-0 items-start gap-3">
-            <TeamLogo logoUrl={team.team.logoUrl} teamName={team.team.name} />
-            <div className="min-w-0 space-y-2">
-              <div className="flex flex-wrap items-center gap-2">
-                <Link href={`/teams/${team.team.slug}`} className="font-semibold hover:text-[var(--color-accent)]">{team.team.name}</Link>
-                <StatusPill {...presentTeamStatus(team.team.status)} />
-                {team.team.status === "active" && team.recruitment && <StatusPill label="招募中" tone="accent" />}
-                {currentUserMembership && <StatusPill label={membershipLabel ?? "我的队伍 · 成员"} tone="accent" />}
-              </div>
-              <p className="text-sm leading-6 text-[var(--color-fg-mid)]">{team.team.description ?? "暂无队伍简介。"}</p>
-            </div>
-          </div>
-          <div className="flex shrink-0 flex-wrap items-center gap-2">
-            {currentUserMembership && team.team.status === "active" && (
-              <Button size="sm" asChild><Link href="/my/teams">管理我的队伍</Link></Button>
-            )}
-            <Link href={`/teams/${team.team.slug}`} className="text-sm text-[var(--color-accent)] hover:underline">查看队伍资料</Link>
-          </div>
-        </div>
-      </Panel>}
-
       {!event && team && <>
-        <Panel label="当前赛事"><div className="space-y-2">{currentEntries.map((entry) => <Link key={entry.id} className="block text-sm" href={`/${entry.seasonSlug}/teams/${entry.id}`}>{entry.seasonName} · {entry.name} →</Link>)}{currentEntries.length === 0 && <p className="text-sm text-[var(--color-fg-mid)]">暂无进行中的赛事</p>}</div></Panel>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <Stat label="当前成员" value={currentMembers.length} />
-          <Stat label="赛事记录" value={team.entries.length} />
-          <Stat label="比赛场次" value={team.playedCount} />
-          <Stat label="获胜场次" value={team.wins} />
-        </div>
+        {currentEntries.length > 0 && <Panel label="Current Event" contentClassName="p-5"><div className="space-y-2">{currentEntries.map((entry) => <Link key={entry.id} className="flex items-center justify-between gap-3 text-sm hover:text-[var(--color-accent)]" href={`/${entry.seasonSlug}/teams/${entry.id}`}><span><span className="font-medium">{entry.seasonName}</span><span className="ml-2 text-[var(--color-fg-mid)]">{entry.name}</span></span><span>→</span></Link>)}</div></Panel>}
 
         <div className="grid gap-5">
           <Panel label="当前成员" contentClassName="p-5">
