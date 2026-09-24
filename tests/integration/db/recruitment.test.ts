@@ -30,6 +30,7 @@ describe("recruitment PostgreSQL invariants", () => {
     const unrestrictedTeamIds = Array.from({ length: 8 }, () => randomUUID());
     const otherEventTeamId = randomUUID();
     const lobbyFixtureTeamIds = [...unrestrictedTeamIds, otherEventTeamId];
+    const lobbyCaptainIds = Array.from({ length: lobbyFixtureTeamIds.length }, () => randomUUID());
     try {
       await pool.query("BEGIN");
       await pool.query("INSERT INTO users (id, email, display_name, qq) VALUES ($1, $2, 'Captain', NULL), ($3, $4, 'Interested', '200001'), ($5, $6, 'Member', '200002'), ($7, $8, 'Contender', NULL), ($9, $10, 'Invitee', NULL), ($11, $12, 'Target Unknown', NULL)", [
@@ -96,12 +97,15 @@ describe("recruitment PostgreSQL invariants", () => {
       await pool.query("INSERT INTO seasons (id, slug, name, kind, status, registration_closes_at) VALUES ($1, $2, 'Draft target', 'custom', 'draft', now() + interval '7 days'), ($3, $4, 'Registration target', 'custom', 'registration', now() + interval '7 days'), ($5, $6, 'Replacement target', 'custom', 'registration', now() + interval '7 days'), ($7, $8, 'Voting target', 'custom', 'voting', now() + interval '7 days')", [ids.draftSeason, `recruitment-draft-${ids.draftSeason.slice(0, 8)}`, ids.registrationSeason, `recruitment-registration-${ids.registrationSeason.slice(0, 8)}`, ids.replacementSeason, `recruitment-replacement-${ids.replacementSeason.slice(0, 8)}`, ids.votingSeason, `recruitment-voting-${ids.votingSeason.slice(0, 8)}`]);
       await pool.query("UPDATE seasons SET registration_config = $1::json WHERE id = $2", [JSON.stringify({ mapPool: ["de_custom_nju", "de_cache"] }), ids.replacementSeason]);
       await pool.query(`
+        INSERT INTO users (id, email, display_name, qq)
+        SELECT captain_id, 'recruitment-lobby-captain-' || captain_id::text || '@local.test', 'Lobby Captain ' || ordinal::text, NULL
+        FROM unnest($1::uuid[]) WITH ORDINALITY AS captain(captain_id, ordinal)
+      `, [lobbyCaptainIds]);
+      await pool.query(`
         INSERT INTO teams (id, slug, name, creator_user_id, captain_user_id)
-        SELECT team_id, 'recruitment-lobby-' || left(team_id::text, 8), 'Unrestricted Team ' || ordinal::text, $1::uuid, $1::uuid
-        FROM unnest($2::uuid[]) WITH ORDINALITY AS team(team_id, ordinal)
-        UNION ALL
-        SELECT $3::uuid, 'recruitment-other-event-' || left(($3::uuid)::text, 8), 'Other event team', $1::uuid, $1::uuid
-      `, [ids.invitee, unrestrictedTeamIds, otherEventTeamId]);
+        SELECT team_id, 'recruitment-lobby-' || left(team_id::text, 8), 'Lobby Team ' || ordinal::text, $1::uuid, captain_id
+        FROM unnest($2::uuid[], $3::uuid[]) WITH ORDINALITY AS team(team_id, captain_id, ordinal)
+      `, [ids.invitee, lobbyFixtureTeamIds, lobbyCaptainIds]);
       await pool.query(`
         INSERT INTO recruitment_intents (kind, team_id, target_season_id, positions, status, expires_at)
         SELECT 'team_recruiting', team_id, NULL, ARRAY[]::cs2_role[], 'open', now() + interval '1 day'
@@ -295,7 +299,7 @@ describe("recruitment PostgreSQL invariants", () => {
         await client.query("DELETE FROM team_memberships WHERE team_id = $1", [ids.team]);
         await client.query("DELETE FROM teams WHERE id = $1 OR id = ANY($2::uuid[])", [ids.team, lobbyFixtureTeamIds]);
         await client.query("DELETE FROM seasons WHERE id IN ($1, $2, $3, $4)", [ids.draftSeason, ids.registrationSeason, ids.replacementSeason, ids.votingSeason]);
-        await client.query("DELETE FROM users WHERE id IN ($1, $2, $3, $4, $5, $6)", [ids.captain, ids.interested, ids.member, ids.contender, ids.invitee, ids.targetUnknown]);
+        await client.query("DELETE FROM users WHERE id IN ($1, $2, $3, $4, $5, $6) OR id = ANY($7::uuid[])", [ids.captain, ids.interested, ids.member, ids.contender, ids.invitee, ids.targetUnknown, lobbyCaptainIds]);
         await client.query("COMMIT");
       } catch (error) {
         await client.query("ROLLBACK").catch(() => {});
