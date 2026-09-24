@@ -285,7 +285,7 @@ describe("deployment and operations contracts", () => {
     expect(ci).not.toMatch(/branches:\s*\[[^\]]*\bdev\b/);
   });
 
-  it("declares the single Vercel Function region and disables only main Git deployment", () => {
+  it("declares the single Vercel Function region and disables automatic Git deployments", () => {
     const config = JSON.parse(readProjectFile("vercel.json")) as {
       buildCommand?: string;
       regions?: string[];
