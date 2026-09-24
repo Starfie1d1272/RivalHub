@@ -1,6 +1,5 @@
 import type { ReactNode } from "react";
 
-import { StatsMetricLabel } from "@/components/stats/StatsMetricHelp";
 import type { StatsMetricKey } from "@/lib/stats/metrics";
 
 export type MetricSectionItem = {
@@ -29,7 +28,7 @@ export function MetricSection({ title, items, columns = 4 }: {
         {items.map((item) => (
           <div key={item.label} className="min-w-0">
             <dt className="text-xs leading-5 text-[var(--color-fg-mid)]">
-              {item.metric ? <StatsMetricLabel metric={item.metric}>{item.label}</StatsMetricLabel> : item.label}
+              {item.label}
             </dt>
             <dd className="mt-0.5 text-lg font-semibold tabular-nums text-[var(--color-fg)]">{item.value}</dd>
           </div>
