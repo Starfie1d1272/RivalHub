@@ -97,17 +97,17 @@ describe("recruitment PostgreSQL invariants", () => {
       await pool.query("UPDATE seasons SET registration_config = $1::json WHERE id = $2", [JSON.stringify({ mapPool: ["de_custom_nju", "de_cache"] }), ids.replacementSeason]);
       await pool.query(`
         INSERT INTO teams (id, slug, name, creator_user_id, captain_user_id)
-        SELECT team_id, 'recruitment-lobby-' || left(team_id::text, 8), 'Unrestricted Team ' || ordinal::text, $1, $1
+        SELECT team_id, 'recruitment-lobby-' || left(team_id::text, 8), 'Unrestricted Team ' || ordinal::text, $1::uuid, $1::uuid
         FROM unnest($2::uuid[]) WITH ORDINALITY AS team(team_id, ordinal)
         UNION ALL
-        SELECT $3::uuid, 'recruitment-other-event-' || left(($3::uuid)::text, 8), 'Other event team', $1, $1
+        SELECT $3::uuid, 'recruitment-other-event-' || left(($3::uuid)::text, 8), 'Other event team', $1::uuid, $1::uuid
       `, [ids.invitee, unrestrictedTeamIds, otherEventTeamId]);
       await pool.query(`
         INSERT INTO recruitment_intents (kind, team_id, target_season_id, positions, status, expires_at)
         SELECT 'team_recruiting', team_id, NULL, ARRAY[]::cs2_role[], 'open', now() + interval '1 day'
         FROM unnest($1::uuid[]) AS team(team_id)
         UNION ALL
-        SELECT 'team_recruiting', $2, $3, ARRAY[]::cs2_role[], 'open', now() + interval '1 day'
+        SELECT 'team_recruiting', $2::uuid, $3::uuid, ARRAY[]::cs2_role[], 'open', now() + interval '1 day'
       `, [unrestrictedTeamIds, otherEventTeamId, ids.registrationSeason]);
       await expect(database.transaction((tx) => upsertTeamRecruitmentInTx(tx, { teamId: ids.team, userId: ids.captain, actorId: ids.captain, positions: ["awper"], targetSeasonId: ids.draftSeason, note: null })))
         .rejects.toMatchObject({ code: ErrorCode.VALIDATION_FAILED });
