@@ -1,11 +1,11 @@
-import { getPublicTeamMapProfile } from "@/lib/teams/map-profile";
 import { Suspense } from "react";
 import { notFound, redirect } from "next/navigation";
 
 import { TeamPublicProfile } from "@/components/teams/TeamPublicProfile";
 import { PageLayout } from "@/components/rivalhub";
 import { getUserSession } from "@/lib/auth/session";
-import { getPublicTeamProfile, resolvePublicTeamProfileTarget } from "@/lib/teams/public-profile";
+import { resolvePublicTeamProfileTarget } from "@/lib/teams/public-profile";
+import { getPublicLongTeamProfileReadModel } from "@/lib/teams/profile-read-model";
 
 export default function TeamProfilePage({ params }: { params: Promise<{ slug: string }> }) {
   return (
@@ -24,13 +24,12 @@ async function TeamProfileContent({ params }: { params: Promise<{ slug: string }
   if (!target) notFound();
   if (target.slug !== slug) redirect(`/teams/${target.slug}`);
 
-  const team = await getPublicTeamProfile(target.id, session?.userId, target);
-  if (!team) notFound();
-  const mapProfile = await getPublicTeamMapProfile(team.entries.map((entry) => entry.id), team.currentMembers.map((member) => member.userId));
+  const model = await getPublicLongTeamProfileReadModel(target.id, session?.userId, target);
+  if (!model) notFound();
 
   return (
     <PageLayout as="div" variant="standard" className="space-y-8">
-      <TeamPublicProfile team={team} mapProfile={mapProfile} />
+      <TeamPublicProfile team={model.profile} mapProfile={model.mapProfile} performance={model.performance} />
     </PageLayout>
   );
 }
