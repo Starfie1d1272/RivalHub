@@ -15,6 +15,8 @@ import * as schema from "../../../src/db/schema";
 import { issueSanctionInTx } from "../../../src/lib/discipline/service";
 import { AppError, ErrorCode } from "../../../src/lib/errors";
 import { lockMatchInTx } from "../../../src/lib/match-rosters/service";
+import { createMajorTemplate } from "../../../src/lib/competition/templates";
+import { makeMajorRunSnapshotV4 } from "../../../src/lib/major/run-snapshot";
 import {
   archiveTournamentInTx,
   confirmMajorFinalResultInTx,
@@ -66,6 +68,18 @@ async function prepareFixture(pool: Pool): Promise<Fixture> {
   const userId = randomUUID();
   const resultId = randomUUID();
   const matchId = randomUUID();
+  const majorCapabilities = createMajorTemplate();
+  const ruleSnapshot = makeMajorRunSnapshotV4({
+    stagePlan: majorCapabilities.stagePlan,
+    rosterRules: {
+      minTeamSize: majorCapabilities.minTeamSize,
+      maxTeamSize: majorCapabilities.maxTeamSize,
+      starterCount: majorCapabilities.starterCount,
+    },
+    affiliationRules: majorCapabilities.affiliationRules,
+    competitiveProfile: null,
+    frozenCompetitiveFacts: [],
+  });
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
@@ -87,8 +101,8 @@ async function prepareFixture(pool: Pool): Promise<Fixture> {
     }
     await client.query(
       `INSERT INTO major_stage_runs (id, season_id, stage_key, rule_snapshot, started_by)
-       VALUES ($1, $2, 'playoff', '{}'::jsonb, $3)`,
-      [runId, seasonId, ACTOR],
+       VALUES ($1, $2, 'playoff', $3::jsonb, $4)`,
+      [runId, seasonId, JSON.stringify(ruleSnapshot), ACTOR],
     );
     await client.query(
       `INSERT INTO matches (id, season_id, entry_a_id, entry_b_id, stage, entry_round, format, status, score_a, score_b, completed_at, ownership, major_stage_run_id, managed_key)
