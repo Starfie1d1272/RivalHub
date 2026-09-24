@@ -91,8 +91,8 @@ async function prepareFixture(pool: Pool): Promise<Fixture> {
   try {
     await client.query("BEGIN");
     await client.query(
-      `INSERT INTO seasons (id, slug, name, kind, status, registration_mode, has_captain_voting, has_draft, stage_plan, registration_config, team_registration_config, affiliation_rules, min_team_size, max_team_size, starter_count, positions)
-       VALUES ($1, $2, 'Local Post-event', 'Major', 'playing', 'team', false, false, '[]'::json, '{}'::json, '{}'::json, '[]'::json, 5, 7, 5, ARRAY['igl','awper','opener','closer','anchor'])`,
+      `INSERT INTO seasons (id, slug, name, kind, competition_template, status, registration_mode, has_captain_voting, has_draft, stage_plan, registration_config, team_registration_config, affiliation_rules, min_team_size, max_team_size, starter_count, positions)
+       VALUES ($1, $2, 'Local Post-event', 'Major', 'major', 'playing', 'team', false, false, '[]'::json, '{}'::json, '{}'::json, '[]'::json, 5, 7, 5, ARRAY['igl','awper','opener','closer','anchor'])`,
       [seasonId, `local-postevent-${seasonId}`],
     );
     await client.query(`INSERT INTO users (id, email, email_verified_at) VALUES ($1, $2, now())`, [userId, `h2-${userId}@local.test`]);
