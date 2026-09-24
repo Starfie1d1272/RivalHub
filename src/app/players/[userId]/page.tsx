@@ -239,7 +239,7 @@ export async function PlayerPageContent({ params, searchParams }: PlayerPageProp
                       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
                         <Link
                           className="font-semibold transition-colors hover:text-[var(--color-accent)]"
-                          href={"/" + entry.seasonSlug + "/teams/" + entry.teamId}
+                          href={`/${entry.seasonSlug}/teams/${entry.teamId}`}
                         >
                           {entry.seasonName}
                         </Link>
