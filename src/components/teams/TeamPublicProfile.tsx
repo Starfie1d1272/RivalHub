@@ -1,6 +1,7 @@
 import { TeamMapProfile } from "@/components/teams/TeamMapProfile";
 import type { PublicTeamMapProfile } from "@/lib/teams/map-profile";
 import type { PublicSeasonResults } from "@/lib/seasons/public-results";
+import type { LongTeamCareerDetail, TournamentTeamDetail } from "@/lib/stats/tournament-query";
 import React from "react";
 import { PlayerAvatar } from "@/components/players/PlayerAvatar";
 import Link from "next/link";
@@ -24,6 +25,7 @@ export interface TeamPublicProfileProps {
   results?: PublicSeasonResults;
   stageLabels?: Readonly<Record<string, string>>;
   event?: PublicEventTeamContext | null;
+  performance?: LongTeamCareerDetail | TournamentTeamDetail | null;
 }
 
 export function TeamPublicProfile({ team, event = null, mapProfile, results, stageLabels = {} }: TeamPublicProfileProps) {
