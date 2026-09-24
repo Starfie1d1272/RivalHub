@@ -294,8 +294,7 @@ describe("deployment and operations contracts", () => {
 
     expect(config.buildCommand).toBe("tsx scripts/vercel-build.ts");
     expect(config.regions).toEqual(["hnd1"]);
-    expect(config.git?.deploymentEnabled).toEqual({ main: false });
-    expect(config.git?.deploymentEnabled).not.toBe(false);
+    expect(config.git?.deploymentEnabled).toBe(false);
   });
 
   it("keeps the production build hermetic", () => {
