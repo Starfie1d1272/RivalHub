@@ -1,5 +1,6 @@
 import React from "react";
 import { render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { buildTournamentAnalytics, buildTournamentPerformanceAnalytics } from "@cs2dak/tournament";
 import { describe, expect, it, vi } from "vitest";
 import type { TournamentStats } from "@/lib/stats/tournament-query";
@@ -85,6 +86,30 @@ describe("OverviewStats", () => {
     expect(screen.queryByText("Eco/Semi Upset")).not.toBeInTheDocument();
     expect(screen.getByText("5v3 Conversion")).toBeInTheDocument();
     expect(screen.getByText("3v5 Comeback")).toBeInTheDocument();
+  });
+
+  it("removes redundant economy descriptions and exposes canonical metric help", async () => {
+    const user = userEvent.setup();
+    render(<OverviewStats data={dataWithCoverage(7, 7)} query={parseStatsQuery({}, [])} seasonSlug="major" />);
+
+    expect(screen.queryByText("Eco, semi and force rounds against full buys.")).not.toBeInTheDocument();
+    expect(screen.queryByText("Best team rate in the current scope; sample is shown with every rate.")).not.toBeInTheDocument();
+    for (const name of [
+      "RW% 指标说明",
+      "R2 Conv 指标说明",
+      "R2 Break 指标说明",
+      "Pistol Win% 指标说明",
+      "5v4 指标说明",
+      "4v5 指标说明",
+      "Success% 指标说明",
+      "5v3 指标说明",
+      "3v5 指标说明",
+    ]) {
+      expect(screen.getAllByRole("button", { name }).length).toBeGreaterThan(0);
+    }
+
+    await user.click(screen.getByRole("button", { name: "Overall vs Full Buy 统计口径说明" }));
+    expect(screen.getByRole("tooltip")).toHaveTextContent("汇总 ECO、半起和强起对阵 Full Buy 的回合；不包含手枪局及双方经济等级相同的回合。");
   });
 
   it("renders visual side splits and full-list navigation", () => {
