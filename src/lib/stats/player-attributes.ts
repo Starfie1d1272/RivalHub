@@ -127,7 +127,7 @@ export const PLAYER_ATTRIBUTE_DEFINITIONS: readonly AttributeDefinition[] = [
   },
   {
     key: "entrying",
-    label: "突破",
+    label: "Entrying",
     description: "衡量选手承担第一身位风险、并让自己的死亡处于可补枪结构中的程度。它更接近打法特征，不应简单理解成高分就一定更强。",
     formula: "Traded Deaths/100r 60% + Opening Deaths Traded% 40%。两项分别描述整体可交易死亡频率，以及首死后被队友及时补枪的比例。",
     scoreInputs: [
@@ -160,7 +160,7 @@ export const PLAYER_ATTRIBUTE_DEFINITIONS: readonly AttributeDefinition[] = [
   },
   {
     key: "opening",
-    label: "首杀",
+    label: "Opening",
     description: "衡量选手主动参与回合首次交火的程度。高分表示更频繁参与首杀对枪，并不等同于首杀胜率更高。",
     formula: "Attempts% 65% + FK/100r 35%。参与度是主信号，首杀产出用于补充实际结果；Success% 等效率指标只作为详情展示。",
     scoreInputs: [
