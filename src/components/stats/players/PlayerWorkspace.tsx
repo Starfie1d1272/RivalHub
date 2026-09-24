@@ -7,8 +7,10 @@ import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
 import { Button } from "@/components/ui/button";
 import { MetricFamilyTabs } from "@/components/stats/MetricFamilyTabs";
 import { MetricPanel, MetricValue } from "@/components/stats/MetricValue";
+import { StatsMetricLabel } from "@/components/stats/StatsMetricHelp";
 import { StatsDataTable, type StatsDataColumn } from "@/components/stats/StatsDataTable";
 import type { TournamentPlayerDetail } from "@/lib/stats/tournament-query";
+import type { StatsMetricKey } from "@/lib/stats/metrics";
 import { displayWeaponName } from "@/lib/stats/presentation";
 import { CS2_MAP_CATALOG } from "@/lib/config/cs2-maps";
 
@@ -26,8 +28,8 @@ function mapLabel(mapName: string) {
   return CS2_MAP_CATALOG.find((map) => map.key === mapName)?.label ?? mapName;
 }
 
-function SampleValue({ title, rows }: { title: string; rows: [string, ReactNode][] }) {
-  return <MetricPanel title={title}><dl className="grid grid-cols-2 gap-x-4 gap-y-3">{rows.map(([label, value]) => <div key={label}><dt className="text-xs text-[var(--color-fg-mid)]">{label}</dt><dd className="mt-0.5 font-semibold tabular-nums">{value}</dd></div>)}</dl></MetricPanel>;
+function SampleValue({ title, rows }: { title: string; rows: [string, ReactNode, StatsMetricKey?][] }) {
+  return <MetricPanel title={title}><dl className="grid grid-cols-2 gap-x-4 gap-y-3">{rows.map(([label, value, metric]) => <div key={label}><dt className="text-xs text-[var(--color-fg-mid)]">{metric ? <StatsMetricLabel metric={metric}>{label}</StatsMetricLabel> : label}</dt><dd className="mt-0.5 font-semibold tabular-nums">{value}</dd></div>)}</dl></MetricPanel>;
 }
 
 export function PlayerWorkspace({ detail }: { detail: TournamentPlayerDetail }) {
@@ -77,20 +79,20 @@ export function PlayerWorkspace({ detail }: { detail: TournamentPlayerDetail }) 
         <MetricPanel title="Performance">
           <StatsDataTable embedded rows={detail.scoreboard} columns={teamColumns} rowKey={(row) => row.teamId ?? row.perfectName} pageSize={10} emptyLabel="暂无已验证 scoreboard 数据" />
           <div className="mt-3 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
-            <div><p className="text-xs text-[var(--color-fg-mid)]">HS%</p><MetricValue metric="hs" value={detail.scoreboard[0]?.avgHs} /></div>
-            <div><p className="text-xs text-[var(--color-fg-mid)]">WE</p><MetricValue metric="we" value={detail.scoreboard[0]?.avgWe} /></div>
-            <div><p className="text-xs text-[var(--color-fg-mid)]">RWS</p><MetricValue metric="rws" value={detail.scoreboard[0]?.avgRws} /></div>
-            <div><p className="text-xs text-[var(--color-fg-mid)]">MK/100r</p><MetricValue metric="mk" value={detail.scoreboard[0]?.mkpr} /></div>
+            <div><p className="text-xs text-[var(--color-fg-mid)]"><StatsMetricLabel metric="hs">HS%</StatsMetricLabel></p><MetricValue metric="hs" value={detail.scoreboard[0]?.avgHs} /></div>
+            <div><p className="text-xs text-[var(--color-fg-mid)]"><StatsMetricLabel metric="we">WE</StatsMetricLabel></p><MetricValue metric="we" value={detail.scoreboard[0]?.avgWe} /></div>
+            <div><p className="text-xs text-[var(--color-fg-mid)]"><StatsMetricLabel metric="rws">RWS</StatsMetricLabel></p><MetricValue metric="rws" value={detail.scoreboard[0]?.avgRws} /></div>
+            <div><p className="text-xs text-[var(--color-fg-mid)]"><StatsMetricLabel metric="mk">MK/100r</StatsMetricLabel></p><MetricValue metric="mk" value={detail.scoreboard[0]?.mkpr} /></div>
           </div>
         </MetricPanel>
         <MetricPanel title="Advanced Stats">
           {slice ? <div className="grid grid-cols-2 gap-3">
             <div><p className="text-xs text-[var(--color-fg-mid)]">Maps</p><p className="font-semibold tabular-nums">{player?.mapCount ?? 0}</p></div>
             <div><p className="text-xs text-[var(--color-fg-mid)]">Player Rounds</p><p className="font-semibold tabular-nums">{slice.sample.rounds}</p></div>
-            <div><p className="text-xs text-[var(--color-fg-mid)]">KAST</p><MetricValue metric="kast" value={slice.kast} /></div>
-            <div><p className="text-xs text-[var(--color-fg-mid)]">Opening</p><MetricValue metric="openingWin" value={slice.opening.successRate} /></div>
-            <div><p className="text-xs text-[var(--color-fg-mid)]">Trade/100r</p><MetricValue metric="trade" value={slice.trade.tradeKillsPerRound} /></div>
-            <div><p className="text-xs text-[var(--color-fg-mid)]">Util/r</p><MetricValue metric="utility" value={slice.utility.utilityDamagePerRound} /></div>
+            <div><p className="text-xs text-[var(--color-fg-mid)]"><StatsMetricLabel metric="kast">KAST</StatsMetricLabel></p><MetricValue metric="kast" value={slice.kast} /></div>
+            <div><p className="text-xs text-[var(--color-fg-mid)]"><StatsMetricLabel metric="openingWin">Opening</StatsMetricLabel></p><MetricValue metric="openingWin" value={slice.opening.successRate} /></div>
+            <div><p className="text-xs text-[var(--color-fg-mid)]"><StatsMetricLabel metric="trade">Trade/100r</StatsMetricLabel></p><MetricValue metric="trade" value={slice.trade.tradeKillsPerRound} /></div>
+            <div><p className="text-xs text-[var(--color-fg-mid)]"><StatsMetricLabel metric="utility">Util/r</StatsMetricLabel></p><MetricValue metric="utility" value={slice.utility.utilityDamagePerRound} /></div>
           </div> : <p className="text-sm text-[var(--color-fg-mid)]">当前范围没有详细回合数据。</p>}
         </MetricPanel>
       </div>}
@@ -98,35 +100,35 @@ export function PlayerWorkspace({ detail }: { detail: TournamentPlayerDetail }) 
       {tab === "opening" && slice && <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         <SampleValue title="Opening" rows={[
           ["Attempts", slice.opening.attempts],
-          ["Attempt%", <MetricValue key="attemptRate" metric="openingAttempt" value={slice.opening.attemptRate} />],
+          ["Attempt%", <MetricValue key="attemptRate" metric="openingAttempt" value={slice.opening.attemptRate} />, "openingAttempt"],
           ["Opening wins", slice.opening.firstKills],
-          ["Success%", <MetricValue key="openWinRate" metric="openingWin" value={slice.opening.successRate} />],
-          ["FK/100r", <MetricValue key="firstKillsPerRound" metric="firstKill" value={slice.opening.firstKillsPerRound} />],
-          ["FD/100r", <MetricValue key="firstDeathsPerRound" metric="firstDeath" value={slice.opening.firstDeathsPerRound} />],
-          ["Win after opening win", <MetricValue key="winAfterOpeningWin" metric="roundWin" value={slice.opening.winRateAfterWinningOpeningDuel} />],
-          ["Comeback after opening loss", <MetricValue key="comebackAfterOpeningLoss" metric="roundWin" value={slice.opening.comebackRateAfterLosingOpeningDuel} />],
+          ["Success%", <MetricValue key="openWinRate" metric="openingWin" value={slice.opening.successRate} />, "openingWin"],
+          ["FK/100r", <MetricValue key="firstKillsPerRound" metric="firstKill" value={slice.opening.firstKillsPerRound} />, "firstKill"],
+          ["FD/100r", <MetricValue key="firstDeathsPerRound" metric="firstDeath" value={slice.opening.firstDeathsPerRound} />, "firstDeath"],
+          ["Win after opening win", <MetricValue key="winAfterOpeningWin" metric="roundWin" value={slice.opening.winRateAfterWinningOpeningDuel} />, "roundWin"],
+          ["Comeback after opening loss", <MetricValue key="comebackAfterOpeningLoss" metric="roundWin" value={slice.opening.comebackRateAfterLosingOpeningDuel} />, "roundWin"],
         ]} />
         <SampleValue title="Teamplay" rows={[
-          ["KAST", <MetricValue key="kast" metric="kast" value={slice.kast} />],
-          ["Survival%", <MetricValue key="survival" metric="survival" value={slice.survival} />],
-          ["Trade/100r", <MetricValue key="trade" metric="trade" value={slice.trade.tradeKillsPerRound} />],
-          ["Traded%", <MetricValue key="traded" metric="traded" value={slice.trade.tradedDeathsPerDeath} />],
+          ["KAST", <MetricValue key="kast" metric="kast" value={slice.kast} />, "kast"],
+          ["Survival%", <MetricValue key="survival" metric="survival" value={slice.survival} />, "survival"],
+          ["Trade/100r", <MetricValue key="trade" metric="trade" value={slice.trade.tradeKillsPerRound} />, "trade"],
+          ["Traded%", <MetricValue key="traded" metric="traded" value={slice.trade.tradedDeathsPerDeath} />, "traded"],
         ]} />
       </div>}
 
       {tab === "utility" && slice && <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         <SampleValue title="Utility" rows={[
-          ["Util/r", <MetricValue key="utilityDamage" metric="utility" value={slice.utility.utilityDamagePerRound} />],
-          ["FA/100r", <MetricValue key="flashAssists" metric="flashAssist" value={slice.utility.flashAssistsPerRound} />],
-          ["Blind/Flash", <MetricValue key="blindPerFlash" metric="blindPerFlash" value={slice.utility.enemyBlindSecondsPerFlash} />],
-          ["Net Blind/Flash", <MetricValue key="netBlindPerFlash" metric="netBlindPerFlash" value={slice.utility.netBlindSecondsPerFlash} />],
+          ["Util/r", <MetricValue key="utilityDamage" metric="utility" value={slice.utility.utilityDamagePerRound} />, "utility"],
+          ["FA/100r", <MetricValue key="flashAssists" metric="flashAssist" value={slice.utility.flashAssistsPerRound} />, "flashAssist"],
+          ["Blind/Flash", <MetricValue key="blindPerFlash" metric="blindPerFlash" value={slice.utility.enemyBlindSecondsPerFlash} />, "blindPerFlash"],
+          ["Net Blind/Flash", <MetricValue key="netBlindPerFlash" metric="netBlindPerFlash" value={slice.utility.netBlindSecondsPerFlash} />, "netBlindPerFlash"],
           ["Enemy Blind/r", <MetricValue key="enemyBlindPerRound" metric="utility" value={slice.utility.enemyBlindSecondsPerRound} />],
           ["Team Blind/r", <MetricValue key="teamBlindPerRound" metric="utility" value={slice.utility.teamBlindSecondsPerRound} />],
-          ["HE Damage/r", <MetricValue key="heDamagePerRound" metric="hePerRound" value={slice.utility.heDamagePerRound} />],
+          ["HE Damage/r", <MetricValue key="heDamagePerRound" metric="hePerRound" value={slice.utility.heDamagePerRound} />, "hePerRound"],
           ["HE Damage/Throw", <MetricValue key="heDamagePerThrow" metric="damagePerRound" value={slice.utility.heDamagePerThrow} sampleLabel="HE throws" />],
-          ["Fire Damage/r", <MetricValue key="fireDamagePerRound" metric="firePerRound" value={slice.utility.fireDamagePerRound} />],
-          ["Smoke/r", <MetricValue key="smokePerRound" metric="smokePerRound" value={slice.utility.smokesPerRound} />],
-          ["Utility K/100r", <MetricValue key="utilityKills" metric="utilityKills" value={slice.utility.utilityKillsPerRound} />],
+          ["Fire Damage/r", <MetricValue key="fireDamagePerRound" metric="firePerRound" value={slice.utility.fireDamagePerRound} />, "firePerRound"],
+          ["Smoke/r", <MetricValue key="smokePerRound" metric="smokePerRound" value={slice.utility.smokesPerRound} />, "smokePerRound"],
+          ["Utility K/100r", <MetricValue key="utilityKills" metric="utilityKills" value={slice.utility.utilityKillsPerRound} />, "utilityKills"],
         ]} />
       </div>}
 
@@ -134,9 +136,9 @@ export function PlayerWorkspace({ detail }: { detail: TournamentPlayerDetail }) 
         <SampleValue title="Clutch" rows={[
           ["Attempts", slice.clutch.attempts],
           ["Wins", slice.clutch.wins],
-          ["Clutch%", <MetricValue key="clutchWinRate" metric="clutch" value={slice.clutch.winRate} />],
-          ["C/100r", <MetricValue key="clutchFrequency" metric="clutchFrequency" value={slice.clutch.frequency} />],
-          ...(["1", "2", "3", "4", "5"] as const).map((count) => [`1v${count}`, <MetricValue key={count} metric="clutch" value={slice.clutch.byOpponentCount[count]} sampleLabel={`1v${count} attempts`} />] as [string, ReactNode]),
+          ["Clutch%", <MetricValue key="clutchWinRate" metric="clutch" value={slice.clutch.winRate} />, "clutch"],
+          ["C/100r", <MetricValue key="clutchFrequency" metric="clutchFrequency" value={slice.clutch.frequency} />, "clutchFrequency"],
+          ...(["1", "2", "3", "4", "5"] as const).map((count) => [`1v${count}`, <MetricValue key={count} metric="clutch" value={slice.clutch.byOpponentCount[count]} sampleLabel={`1v${count} attempts`} />, "clutch"] as [string, ReactNode, StatsMetricKey]),
         ]} />
       </div>}
 

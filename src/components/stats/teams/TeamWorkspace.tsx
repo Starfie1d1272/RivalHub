@@ -6,6 +6,7 @@ import Link from "next/link";
 import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
 import { MetricFamilyTabs } from "@/components/stats/MetricFamilyTabs";
 import { MetricPanel, MetricValue } from "@/components/stats/MetricValue";
+import { StatsMetricLabel } from "@/components/stats/StatsMetricHelp";
 import { StatsDataTable, type StatsDataColumn } from "@/components/stats/StatsDataTable";
 import type { TournamentStats, TournamentTeamDetail } from "@/lib/stats/tournament-query";
 import { formatEconomyLabel, statsRateDenominator } from "@/lib/stats/presentation";
@@ -75,7 +76,7 @@ export function TeamWorkspace({ detail, seasonSlug }: { detail: TournamentTeamDe
           <dl className="grid grid-cols-2 gap-3"><div><dt className="text-xs text-[var(--color-fg-mid)]">Match W-L</dt><dd className="font-semibold tabular-nums">{result ? `${result.matchWins}-${result.matchLosses}` : "—"}</dd></div><div><dt className="text-xs text-[var(--color-fg-mid)]">Map W-L</dt><dd className="font-semibold tabular-nums">{result ? `${result.mapWins}-${result.mapLosses}` : "—"}</dd></div><div><dt className="text-xs text-[var(--color-fg-mid)]">Maps played</dt><dd className="font-semibold tabular-nums">{result?.maps ?? 0}</dd></div></dl>
         </MetricPanel>
         <MetricPanel title="Round Performance">
-          {analytics ? <dl className="grid grid-cols-2 gap-3"><div><dt className="text-xs text-[var(--color-fg-mid)]">Rounds</dt><dd className="font-semibold tabular-nums">{analytics.rounds}</dd></div><div><dt className="text-xs text-[var(--color-fg-mid)]">RW%</dt><dd><MetricValue metric="roundWin" value={{ wins: analytics.roundWins, opportunities: analytics.rounds, rate: analytics.roundWinRate }} /></dd></div><div><dt className="text-xs text-[var(--color-fg-mid)]">CT%</dt><dd><MetricValue metric="roundWin" value={analytics.ct} /></dd></div><div><dt className="text-xs text-[var(--color-fg-mid)]">T%</dt><dd><MetricValue metric="roundWin" value={analytics.t} /></dd></div><div><dt className="text-xs text-[var(--color-fg-mid)]">Pistol Win%</dt><dd><MetricValue metric="pistol" value={analytics.pistol} /></dd></div></dl> : <p className="text-sm text-[var(--color-fg-mid)]">当前队伍没有详细回合数据。</p>}
+          {analytics ? <dl className="grid grid-cols-2 gap-3"><div><dt className="text-xs text-[var(--color-fg-mid)]">Rounds</dt><dd className="font-semibold tabular-nums">{analytics.rounds}</dd></div><div><dt className="text-xs text-[var(--color-fg-mid)]"><StatsMetricLabel metric="roundWin">RW%</StatsMetricLabel></dt><dd><MetricValue metric="roundWin" value={{ wins: analytics.roundWins, opportunities: analytics.rounds, rate: analytics.roundWinRate }} /></dd></div><div><dt className="text-xs text-[var(--color-fg-mid)]"><StatsMetricLabel metric="roundWin">CT%</StatsMetricLabel></dt><dd><MetricValue metric="roundWin" value={analytics.ct} /></dd></div><div><dt className="text-xs text-[var(--color-fg-mid)]"><StatsMetricLabel metric="roundWin">T%</StatsMetricLabel></dt><dd><MetricValue metric="roundWin" value={analytics.t} /></dd></div><div><dt className="text-xs text-[var(--color-fg-mid)]"><StatsMetricLabel metric="pistol">Pistol Win%</StatsMetricLabel></dt><dd><MetricValue metric="pistol" value={analytics.pistol} /></dd></div></dl> : <p className="text-sm text-[var(--color-fg-mid)]">当前队伍没有详细回合数据。</p>}
         </MetricPanel>
       </div>}
 
@@ -83,21 +84,21 @@ export function TeamWorkspace({ detail, seasonSlug }: { detail: TournamentTeamDe
 
       {tab === "rounds" && <div className="space-y-4">
         {analytics ? <div className="grid grid-cols-2 gap-3">
-          <MetricPanel title="Pistol Win%"><MetricValue metric="pistol" value={analytics.pistol} /></MetricPanel>
-          <MetricPanel title="R2 Conversion"><MetricValue metric="conversion" value={analytics.round2.conversion} /></MetricPanel>
-          <MetricPanel title="R2 Break"><MetricValue metric="break" value={analytics.round2.break} /></MetricPanel>
-          <MetricPanel title="5v4"><MetricValue metric="fiveVFour" value={analytics.manAdvantage["5v4"]} /></MetricPanel>
-          <MetricPanel title="4v5"><MetricValue metric="fourVFive" value={analytics.manAdvantage["4v5"]} /></MetricPanel>
-          <MetricPanel title="Eco/Semi Win%"><MetricValue metric="ecoSemi" value={analytics.ecoSemiUpset} /></MetricPanel>
+          <MetricPanel title={<StatsMetricLabel metric="pistol">Pistol Win%</StatsMetricLabel>}><MetricValue metric="pistol" value={analytics.pistol} /></MetricPanel>
+          <MetricPanel title={<StatsMetricLabel metric="conversion">R2 Conversion</StatsMetricLabel>}><MetricValue metric="conversion" value={analytics.round2.conversion} /></MetricPanel>
+          <MetricPanel title={<StatsMetricLabel metric="break">R2 Break</StatsMetricLabel>}><MetricValue metric="break" value={analytics.round2.break} /></MetricPanel>
+          <MetricPanel title={<StatsMetricLabel metric="fiveVFour">5v4</StatsMetricLabel>}><MetricValue metric="fiveVFour" value={analytics.manAdvantage["5v4"]} /></MetricPanel>
+          <MetricPanel title={<StatsMetricLabel metric="fourVFive">4v5</StatsMetricLabel>}><MetricValue metric="fourVFive" value={analytics.manAdvantage["4v5"]} /></MetricPanel>
+          <MetricPanel title={<StatsMetricLabel metric="ecoSemi">Eco/Semi Win%</StatsMetricLabel>}><MetricValue metric="ecoSemi" value={analytics.ecoSemiUpset} /></MetricPanel>
         </div> : <p className="text-sm text-[var(--color-fg-mid)]">当前队伍没有详细回合数据。</p>}
         <MetricPanel title="Economy Matchups"><p className="mb-3 text-xs text-[var(--color-fg-mid)]">All rounds from maps played by this team.</p><StatsDataTable embedded rows={detail.economyMatrix} columns={economyColumns} rowKey={(row) => `${row.lowEconomy}:${row.highEconomy}`} emptyLabel="暂无经济分类样本" /></MetricPanel>
       </div>}
 
       {tab === "teamplay" && (performance ? <div className="grid grid-cols-2 gap-4">
-        <MetricPanel title="Opening"><dl className="grid grid-cols-2 gap-3"><div><dt>Opening win%</dt><dd><MetricValue metric="openingWin" value={performance.slices.overall.opening.successRate} /></dd></div><div><dt>Opening attempt%</dt><dd><MetricValue metric="openingAttempt" value={performance.slices.overall.opening.attemptRate} /></dd></div></dl></MetricPanel>
-        <MetricPanel title="Trades"><dl className="grid grid-cols-2 gap-3"><div><dt>Trade/100r</dt><dd><MetricValue metric="trade" value={performance.slices.overall.trade.tradeKillsPerRound} /></dd></div><div><dt>Traded%</dt><dd><MetricValue metric="traded" value={performance.slices.overall.trade.tradedDeathsPerDeath} /></dd></div></dl></MetricPanel>
-        <MetricPanel title="Utility"><dl className="grid grid-cols-2 gap-3"><div><dt>FA/100r</dt><dd><MetricValue metric="flashAssist" value={performance.slices.overall.utility.flashAssistsPerRound} /></dd></div><div><dt>Util/r</dt><dd><MetricValue metric="utility" value={performance.slices.overall.utility.utilityDamagePerRound} /></dd></div><div><dt>Blind/Flash</dt><dd><MetricValue metric="blindPerFlash" value={performance.slices.overall.utility.enemyBlindSecondsPerFlash} /></dd></div></dl></MetricPanel>
-        <MetricPanel title="Plant conversion"><MetricValue metric="plantConversion" value={performance.slices.overall.objective.plantConversions} /></MetricPanel>
+        <MetricPanel title="Opening"><dl className="grid grid-cols-2 gap-3"><div><dt><StatsMetricLabel metric="openingWin">Opening win%</StatsMetricLabel></dt><dd><MetricValue metric="openingWin" value={performance.slices.overall.opening.successRate} /></dd></div><div><dt><StatsMetricLabel metric="openingAttempt">Opening attempt%</StatsMetricLabel></dt><dd><MetricValue metric="openingAttempt" value={performance.slices.overall.opening.attemptRate} /></dd></div></dl></MetricPanel>
+        <MetricPanel title="Trades"><dl className="grid grid-cols-2 gap-3"><div><dt><StatsMetricLabel metric="trade">Trade/100r</StatsMetricLabel></dt><dd><MetricValue metric="trade" value={performance.slices.overall.trade.tradeKillsPerRound} /></dd></div><div><dt><StatsMetricLabel metric="traded">Traded%</StatsMetricLabel></dt><dd><MetricValue metric="traded" value={performance.slices.overall.trade.tradedDeathsPerDeath} /></dd></div></dl></MetricPanel>
+        <MetricPanel title="Utility"><dl className="grid grid-cols-2 gap-3"><div><dt><StatsMetricLabel metric="flashAssist">FA/100r</StatsMetricLabel></dt><dd><MetricValue metric="flashAssist" value={performance.slices.overall.utility.flashAssistsPerRound} /></dd></div><div><dt><StatsMetricLabel metric="utility">Util/r</StatsMetricLabel></dt><dd><MetricValue metric="utility" value={performance.slices.overall.utility.utilityDamagePerRound} /></dd></div><div><dt><StatsMetricLabel metric="blindPerFlash">Blind/Flash</StatsMetricLabel></dt><dd><MetricValue metric="blindPerFlash" value={performance.slices.overall.utility.enemyBlindSecondsPerFlash} /></dd></div></dl></MetricPanel>
+        <MetricPanel title={<StatsMetricLabel metric="plantConversion">Plant conversion</StatsMetricLabel>}><MetricValue metric="plantConversion" value={performance.slices.overall.objective.plantConversions} /></MetricPanel>
       </div> : <p className="text-sm text-[var(--color-fg-mid)]">当前队伍没有详细团队数据。</p>)}
 
       {tab === "players" && <div className="space-y-4">

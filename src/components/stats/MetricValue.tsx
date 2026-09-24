@@ -46,6 +46,6 @@ export function MetricValue({ metric, value, sampleLabel, sampleDisplay = "auto"
   );
 }
 
-export function MetricPanel({ title, children }: { title: string; children: ReactNode }) {
+export function MetricPanel({ title, children }: { title: ReactNode; children: ReactNode }) {
   return <section className="min-w-0 rounded-sm border border-[var(--color-border)] bg-[var(--color-panel)] p-4"><h3 className="mb-3 font-semibold">{title}</h3>{children}</section>;
 }

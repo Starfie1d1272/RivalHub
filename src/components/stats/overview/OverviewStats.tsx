@@ -4,8 +4,10 @@ import React from "react";
 import Link from "next/link";
 import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
 import { MetricValue } from "@/components/stats/MetricValue";
+import { StatsMetricLabel } from "@/components/stats/StatsMetricHelp";
 import { StatsSideSplit } from "@/components/stats/StatsSideSplit";
 import { StatsDataTable, type StatsDataColumn } from "@/components/stats/StatsDataTable";
+import { StatsTooltip } from "@/components/stats/StatsTooltip";
 import type { TournamentStats } from "@/lib/stats/tournament-query";
 import { statsHref, type StatsQuery } from "@/lib/stats/view-state";
 import { getDynamicRankingFloor, isRankingEligible } from "@/lib/stats/ranking";
@@ -209,7 +211,7 @@ export function OverviewStats({ data, query, seasonSlug }: { data: TournamentSta
             <div className="mt-2"><StatsSideSplit ct={data.analytics.totals.ct} t={data.analytics.totals.t} /></div>
           </div>
           <div className="px-4 py-4">
-            <p className="text-[11px] uppercase tracking-[var(--tracking-label)] text-[var(--color-fg-mid)]">Pistol → R2</p>
+            <p className="text-[11px] uppercase tracking-[var(--tracking-label)] text-[var(--color-fg-mid)]"><StatsMetricLabel metric="conversion">Pistol → R2</StatsMetricLabel></p>
             <div className="mt-1.5 text-lg font-semibold"><MetricValue metric="conversion" value={data.analytics.totals.round2Conversion} sampleDisplay="compact" /></div>
           </div>
         </div>
@@ -262,14 +264,12 @@ export function OverviewStats({ data, query, seasonSlug }: { data: TournamentSta
           <section className="min-w-0">
             <div className="mb-2.5">
               <h3 className="font-semibold">Economy vs Full Buy</h3>
-              <p className="mt-0.5 text-xs text-[var(--color-fg-dim)]">Eco, semi and force rounds against full buys.</p>
             </div>
             <div className="border-y border-[var(--color-border)] bg-[var(--color-panel)]">
               <StatsDataTable embedded rows={economyRows} columns={economyColumns} rowKey={(row) => row.lowEconomy} tableClassName="table-fixed" emptyLabel="暂无对 Full Buy 的经济样本" />
               <div className="flex items-end justify-between gap-4 border-t border-[var(--color-border)] bg-[var(--color-panel-low)] px-4 py-4">
                 <div className="min-w-0">
-                  <p className="text-[11px] uppercase tracking-[var(--tracking-label)] text-[var(--color-fg-mid)]">Overall vs Full Buy</p>
-                  <p className="mt-1 text-xs text-[var(--color-fg-dim)]">Eco + Semi + Force · pistol and equal-buy rounds excluded.</p>
+                  <p className="text-[11px] uppercase tracking-[var(--tracking-label)] text-[var(--color-fg-mid)]"><span className="inline-flex items-center gap-1">Overall vs Full Buy<StatsTooltip label="Overall vs Full Buy 统计口径说明" content="汇总 ECO、半起和强起对阵 Full Buy 的回合；不包含手枪局及双方经济等级相同的回合。" /></span></p>
                 </div>
                 <div className="shrink-0 text-right tabular-nums">
                   <p className="text-xl font-semibold">{formatPercent(overallEconomy.rate)}</p>
@@ -282,12 +282,11 @@ export function OverviewStats({ data, query, seasonSlug }: { data: TournamentSta
           <section className="min-w-0">
             <div className="mb-2.5">
               <h3 className="font-semibold">Situation Highlights</h3>
-              <p className="mt-0.5 text-xs text-[var(--color-fg-dim)]">Best team rate in the current scope; sample is shown with every rate.</p>
             </div>
             <div className="grid gap-px border border-[var(--color-border)] bg-[var(--color-border)] sm:grid-cols-3">
               {highlights.map((highlight) => (
                 <div key={highlight.key} className="min-w-0 bg-[var(--color-panel-low)] px-3 py-3.5">
-                  <p className="text-[11px] uppercase tracking-[var(--tracking-label)] text-[var(--color-fg-mid)]">{highlight.label}</p>
+                  <p className="text-[11px] uppercase tracking-[var(--tracking-label)] text-[var(--color-fg-mid)]"><StatsMetricLabel metric={highlight.metric}>{highlight.label}</StatsMetricLabel></p>
                   {highlight.team && highlight.value ? (
                     <>
                       <Link href={`/${seasonSlug}/teams/${highlight.team.entityKey}`} className="mt-1.5 block truncate text-sm font-medium hover:text-[var(--color-accent)]">{highlight.team.displayName}</Link>
