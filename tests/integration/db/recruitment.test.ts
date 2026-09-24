@@ -99,7 +99,7 @@ describe("recruitment PostgreSQL invariants", () => {
       await pool.query("UPDATE seasons SET registration_config = $1::json WHERE id = $2", [JSON.stringify({ mapPool: ["de_custom_nju", "de_cache"] }), ids.replacementSeason]);
       await pool.query(`
         INSERT INTO users (id, email, display_name, qq)
-        SELECT captain_id, 'recruitment-lobby-captain-' || captain_id::text || '@local.test', 'Lobby Captain ' || ordinal::text, NULL
+        SELECT captain_id, 'recruitment-lobby-captain-' || captain_id::text || '@local.test', 'Lobby User ' || ordinal::text, NULL
         FROM unnest($1::uuid[]) WITH ORDINALITY AS captain(captain_id, ordinal)
       `, [lobbyCaptainIds]);
       const lobbyTeamFixture = await pool.connect();
