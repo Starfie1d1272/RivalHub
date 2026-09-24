@@ -5,7 +5,7 @@ import { TeamMapProfile } from "./TeamMapProfile";
 import { aggregatePublicTeamMapPreviews } from "@/lib/teams/map-profile";
 
 const profile = {
-  playedStages: [],
+  playedStages: [], experienceCoverage: { rosterMembers: 0, experiencedMembers: 0, experiencedMemberIds: [] },
   own: [{ mapName: "de_mirage", wins: 1, played: 3 }],
   experience: [{ mapName: "de_nuke", samples: 20, players: 3, rating: 1.1, adr: 80, kd: 1.2 }],
   preferences: [],
