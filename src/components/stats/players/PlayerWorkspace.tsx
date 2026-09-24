@@ -32,7 +32,7 @@ function SampleValue({ title, rows }: { title: string; rows: [string, ReactNode,
   return <MetricPanel title={title}><dl className="grid grid-cols-2 gap-x-4 gap-y-3">{rows.map(([label, value, metric]) => <div key={label}><dt className="text-xs text-[var(--color-fg-mid)]">{metric ? <StatsMetricLabel metric={metric}>{label}</StatsMetricLabel> : label}</dt><dd className="mt-0.5 font-semibold tabular-nums">{value}</dd></div>)}</dl></MetricPanel>;
 }
 
-export function PlayerWorkspace({ detail }: { detail: TournamentPlayerDetail }) {
+export function PlayerWorkspace({ detail, compact = false }: { detail: TournamentPlayerDetail; compact?: boolean }) {
   const [tab, setTab] = useState<PlayerTab>("overview");
   const [side, setSide] = useState<Side>("overall");
   const player = detail.performance;
@@ -65,10 +65,10 @@ export function PlayerWorkspace({ detail }: { detail: TournamentPlayerDetail }) 
 
   return (
     <section className="space-y-5">
-      <header className="flex flex-wrap items-start justify-between gap-3">
+      {!compact && <header className="flex flex-wrap items-start justify-between gap-3">
         <div><h2 className="text-xl font-semibold">{playerName}</h2></div>
         <PlayerProfileLink userId={detail.playerId} className="rounded-sm border border-[var(--color-border)] px-3 py-2 text-sm">打开选手主页</PlayerProfileLink>
-      </header>
+      </header>}
       <MetricFamilyTabs label="Player workspace" value={tab} options={tabs} onChange={setTab} />
       {tab !== "maps" && <div className="flex flex-wrap items-center gap-2" aria-label="DAK side sample">
         <span className="mr-1 text-xs text-[var(--color-fg-mid)]">Side</span>
@@ -77,13 +77,24 @@ export function PlayerWorkspace({ detail }: { detail: TournamentPlayerDetail }) 
 
       {tab === "overview" && <div className="space-y-4">
         <MetricPanel title="Performance">
-          <StatsDataTable embedded rows={detail.scoreboard} columns={teamColumns} rowKey={(row) => row.teamId ?? row.perfectName} pageSize={10} emptyLabel="暂无已验证 scoreboard 数据" />
-          <div className="mt-3 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
+          {compact ? <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
+            <div><p className="text-xs text-[var(--color-fg-mid)]"><StatsMetricLabel metric="rating">Rating</StatsMetricLabel></p><MetricValue metric="rating" value={detail.scoreboard[0]?.avgRating} /></div>
+            <div><p className="text-xs text-[var(--color-fg-mid)]"><StatsMetricLabel metric="adr">ADR</StatsMetricLabel></p><MetricValue metric="adr" value={detail.scoreboard[0]?.avgAdr} /></div>
+            <div><p className="text-xs text-[var(--color-fg-mid)]"><StatsMetricLabel metric="kd">K/D</StatsMetricLabel></p><MetricValue metric="kd" value={detail.scoreboard[0]?.kdRatio} /></div>
+            <div><p className="text-xs text-[var(--color-fg-mid)]"><StatsMetricLabel metric="kpr">KPR</StatsMetricLabel></p><MetricValue metric="kpr" value={detail.scoreboard[0]?.kpr} /></div>
             <div><p className="text-xs text-[var(--color-fg-mid)]"><StatsMetricLabel metric="hs">HS%</StatsMetricLabel></p><MetricValue metric="hs" value={detail.scoreboard[0]?.avgHs} /></div>
             <div><p className="text-xs text-[var(--color-fg-mid)]"><StatsMetricLabel metric="we">WE</StatsMetricLabel></p><MetricValue metric="we" value={detail.scoreboard[0]?.avgWe} /></div>
             <div><p className="text-xs text-[var(--color-fg-mid)]"><StatsMetricLabel metric="rws">RWS</StatsMetricLabel></p><MetricValue metric="rws" value={detail.scoreboard[0]?.avgRws} /></div>
             <div><p className="text-xs text-[var(--color-fg-mid)]"><StatsMetricLabel metric="mk">MK/100r</StatsMetricLabel></p><MetricValue metric="mk" value={detail.scoreboard[0]?.mkpr} /></div>
-          </div>
+          </div> : <>
+            <StatsDataTable embedded rows={detail.scoreboard} columns={teamColumns} rowKey={(row) => row.teamId ?? row.perfectName} pageSize={10} emptyLabel="暂无已验证 scoreboard 数据" />
+            <div className="mt-3 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
+              <div><p className="text-xs text-[var(--color-fg-mid)]"><StatsMetricLabel metric="hs">HS%</StatsMetricLabel></p><MetricValue metric="hs" value={detail.scoreboard[0]?.avgHs} /></div>
+              <div><p className="text-xs text-[var(--color-fg-mid)]"><StatsMetricLabel metric="we">WE</StatsMetricLabel></p><MetricValue metric="we" value={detail.scoreboard[0]?.avgWe} /></div>
+              <div><p className="text-xs text-[var(--color-fg-mid)]"><StatsMetricLabel metric="rws">RWS</StatsMetricLabel></p><MetricValue metric="rws" value={detail.scoreboard[0]?.avgRws} /></div>
+              <div><p className="text-xs text-[var(--color-fg-mid)]"><StatsMetricLabel metric="mk">MK/100r</StatsMetricLabel></p><MetricValue metric="mk" value={detail.scoreboard[0]?.mkpr} /></div>
+            </div>
+          </>}
         </MetricPanel>
         <MetricPanel title="Advanced Stats">
           {slice ? <div className="grid grid-cols-2 gap-3">
@@ -144,10 +155,33 @@ export function PlayerWorkspace({ detail }: { detail: TournamentPlayerDetail }) 
 
       {tab === "maps" && <div className="space-y-4">
         <MetricPanel title="Map Performance">
-          <StatsDataTable embedded rows={detail.scoreboardMaps} columns={mapColumns} rowKey={(row, index) => `${row.mapName ?? "map"}:${row.teamId ?? ""}:${index}`} emptyLabel="暂无按地图拆分的 scoreboard 数据" />
+          {compact ? detail.scoreboardMaps.length > 0 ? <dl className="grid gap-3 sm:grid-cols-2">
+            {detail.scoreboardMaps.map((row, index) => <div key={`${row.mapName ?? "map"}:${row.teamId ?? ""}:${index}`} className="rounded-sm border border-[var(--color-border)] p-3">
+              <dt className="font-semibold">{mapLabel(row.mapName ?? "")}</dt>
+              <dd className="mt-2 grid grid-cols-2 gap-x-3 gap-y-2 text-sm">
+                <span><span className="text-[var(--color-fg-mid)]">Maps </span>{row.maps}</span>
+                <span><span className="text-[var(--color-fg-mid)]">Rounds </span>{row.rounds ?? "—"}</span>
+                <span><StatsMetricLabel metric="rating">Rating</StatsMetricLabel>{" "}<MetricValue metric="rating" value={row.avgRating} /></span>
+                <span><StatsMetricLabel metric="adr">ADR</StatsMetricLabel>{" "}<MetricValue metric="adr" value={row.avgAdr} /></span>
+                <span><StatsMetricLabel metric="kd">K/D</StatsMetricLabel>{" "}<MetricValue metric="kd" value={row.kdRatio} /></span>
+              </dd>
+            </div>)}
+          </dl> : <p className="text-sm text-[var(--color-fg-mid)]">当前范围没有已验证的地图表现。</p>
+            : <StatsDataTable embedded rows={detail.scoreboardMaps} columns={mapColumns} rowKey={(row, index) => `${row.mapName ?? "map"}:${row.teamId ?? ""}:${index}`} emptyLabel="暂无按地图拆分的 scoreboard 数据" />}
         </MetricPanel>
         <MetricPanel title="Weapons">
-          <StatsDataTable embedded rows={player?.weapons ?? []} columns={weaponColumns} rowKey={(row) => row.weapon} initialSortKey="kills" emptyLabel="暂无武器数据" />
+          {compact ? player?.weapons.length ? <dl className="grid gap-3 sm:grid-cols-2">
+            {player.weapons.map((row) => <div key={row.weapon} className="rounded-sm border border-[var(--color-border)] p-3">
+              <dt className="font-semibold">{displayWeaponName(row.weapon)}</dt>
+              <dd className="mt-2 grid grid-cols-2 gap-x-3 gap-y-2 text-sm">
+                <span><span className="text-[var(--color-fg-mid)]">Kills </span>{row.kills}</span>
+                <span><StatsMetricLabel metric="killShare">Kill share</StatsMetricLabel>{" "}<MetricValue metric="killShare" value={row.killShare} /></span>
+                <span><StatsMetricLabel metric="killsPerRound">Kills/r</StatsMetricLabel>{" "}<MetricValue metric="killsPerRound" value={row.killsPerRound} /></span>
+                <span><StatsMetricLabel metric="headshot">HS%</StatsMetricLabel>{" "}<MetricValue metric="headshot" value={row.headshotRate} /></span>
+              </dd>
+            </div>)}
+          </dl> : <p className="text-sm text-[var(--color-fg-mid)]">当前范围没有武器数据。</p>
+            : <StatsDataTable embedded rows={player?.weapons ?? []} columns={weaponColumns} rowKey={(row) => row.weapon} initialSortKey="kills" emptyLabel="暂无武器数据" />}
         </MetricPanel>
       </div>}
 
