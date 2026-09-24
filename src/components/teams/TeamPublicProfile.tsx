@@ -50,12 +50,10 @@ export function TeamPublicProfile({ team, event = null, mapProfile, results, per
     matches: eventDetail?.results ? `${eventDetail.results.matchWins}-${eventDetail.results.matchLosses}` : `${event.record.wins}-${event.record.losses}`,
     maps: eventDetail?.results ? `${eventDetail.results.mapWins}-${eventDetail.results.mapLosses}` : "—",
     mapCount: eventDetail?.results?.maps ?? "—",
-    rating: null,
   } : {
     matches: longDetail ? `${longDetail.results.wins}-${longDetail.results.losses}` : `${team?.wins ?? 0}-${Math.max((team?.playedCount ?? 0) - (team?.wins ?? 0), 0)}`,
     maps: longDetail ? `${longDetail.results.mapWins}-${longDetail.results.mapLosses}` : "—",
     mapCount: longDetail?.results.maps ?? "—",
-    rating: null,
   };
 
   return (
@@ -101,7 +99,7 @@ export function TeamPublicProfile({ team, event = null, mapProfile, results, per
             ["Match W-L", headline.matches],
             ["Map W-L", headline.maps],
             ["Maps", headline.mapCount],
-            ["Team Rating", headline.rating == null ? "—" : headline.rating.toFixed(2)],
+            ["Scope", event ? "Event" : "All-time"],
           ].map(([label, value], index) => (
             <div key={label} className={`px-5 py-3 ${index % 2 ? "border-l" : ""} border-[var(--color-border)] sm:border-l sm:first:border-l-0`}>
               <div className="text-[11px] uppercase tracking-[0.08em] text-[var(--color-fg-dim)]">{label}</div>
