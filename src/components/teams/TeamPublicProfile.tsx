@@ -195,6 +195,7 @@ export function TeamPublicProfile({ team, event = null, mapProfile, results, per
             </div>
           </section>
         </div>
+      </>}
 
       {!event && team?.recruitment && <Panel label="正在招募" contentClassName="p-5">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
@@ -214,7 +215,6 @@ export function TeamPublicProfile({ team, event = null, mapProfile, results, per
             </div>
           </div>
         </Panel>
-      </>}
     </div>
   );
 }
