@@ -5,6 +5,7 @@ import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
 import { MetricFamilyTabs } from "@/components/stats/MetricFamilyTabs";
 import { MetricValue } from "@/components/stats/MetricValue";
 import { MetricSection } from "@/components/stats/MetricSection";
+import { StatsMetricLabel } from "@/components/stats/StatsMetricHelp";
 import { StatsDataTable, type StatsDataColumn } from "@/components/stats/StatsDataTable";
 import type { TournamentPlayerDetail } from "@/lib/stats/tournament-query";
 import { displayWeaponName } from "@/lib/stats/presentation";
