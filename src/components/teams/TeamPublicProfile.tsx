@@ -215,6 +215,7 @@ export function TeamPublicProfile({ team, event = null, mapProfile, results, per
             </div>
           </div>
         </Panel>
+      </section>}
     </div>
   );
 }
