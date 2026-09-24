@@ -1,3 +1,4 @@
+import { describe, expect, it } from "vitest";
 import { buildTournamentPerformanceAnalytics } from "@cs2dak/tournament";
 import normal from "../../../tests/fixtures/demo-evidence/normal-map-v1.json";
 import overtime from "../../../tests/fixtures/demo-evidence/overtime-map-v1.json";
@@ -52,10 +53,11 @@ describe("long-team transferred-player projection", () => {
       },
     ]));
     const secondTeamB = secondEvidence.target.entryBId;
+    const transferredSteamId = secondEvidence.participants.find((row) => row.observedTeamKey === "teamB")!.steamId64;
     const secondBindings = new Map(secondEvidence.participants.map((row, index) => [
       row.steamId64,
       {
-        userId: row.observedTeamKey === "teamB" && index >= 5 ? transferredUserId : `second-${index}`,
+        userId: row.steamId64 === transferredSteamId ? transferredUserId : `second-${index}`,
         entryId: row.observedTeamKey === "teamA" ? linkedEntryId : secondTeamB,
       },
     ]));
