@@ -24,7 +24,6 @@ export interface TeamPublicProfileProps {
   team: PublicTeamProfile | null;
   mapProfile?: PublicTeamMapProfile;
   results?: PublicSeasonResults;
-  stageLabels?: Readonly<Record<string, string>>;
   event?: PublicEventTeamContext | null;
   performance?: LongTeamCareerDetail | TournamentTeamDetail | null;
   career?: PublicLongTeamProfileReadModel["career"];
