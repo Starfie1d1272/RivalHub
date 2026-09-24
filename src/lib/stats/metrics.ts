@@ -1,7 +1,7 @@
 import type { StatsDisplayUnit } from "./display";
 
 export type MetricUnit = StatsDisplayUnit;
-export type SampleKind = "scoreboard" | "kills" | "rounds" | "openings" | "deaths" | "flashes" | "attempts" | "pistolRounds" | "opportunities" | "plants" | "weaponKills" | "maps";
+export type SampleKind = "scoreboard" | "kills" | "rounds" | "openings" | "deaths" | "flashes" | "throws" | "attempts" | "pistolRounds" | "opportunities" | "plants" | "weaponKills" | "maps";
 export type MetricSampleMode = "fraction" | "denominator" | "hidden";
 
 const sampleLabels: Record<SampleKind, string> = {
@@ -11,6 +11,7 @@ const sampleLabels: Record<SampleKind, string> = {
   openings: "openings",
   deaths: "deaths",
   flashes: "flashes",
+  throws: "throws",
   attempts: "attempts",
   pistolRounds: "pistol rounds",
   opportunities: "opportunities",
@@ -57,12 +58,16 @@ export const STATS_METRICS = {
   survival: metric("Survival%", "ratioPercent", 1, "rounds", "回合结束时存活的回合占比。", { rankingSampleKind: "rounds" }),
   trade: metric("Trade/100r", "per100Round", 1, "rounds", "每 100 回合完成的补枪击杀次数。", { rankingSampleKind: "rounds" }),
   traded: metric("Traded%", "ratioPercent", 1, "deaths", "本人阵亡后被队友及时补枪的死亡占比。", { rankingSampleKind: "deaths" }),
+  assist: metric("A/100r", "per100Round", 1, "rounds", "每 100 回合取得的助攻次数。", { rankingSampleKind: "rounds" }),
+  tradedOpening: metric("Opening deaths traded", "count", 0, "openings", "本人输掉首杀对枪后，该次死亡被队友及时补枪的次数。", { sampleMode: "hidden" }),
   utility: metric("Util/r", "perRound", 2, "rounds", "平均每回合道具伤害。", { rankingSampleKind: "rounds" }),
   flashAssist: metric("FA/100r", "per100Round", 2, "rounds", "每 100 回合闪光助攻次数。", { rankingSampleKind: "rounds" }),
   blindPerFlash: metric("Blind/Flash", "seconds", 2, "flashes", "每颗闪光对敌方造成的平均致盲时间。", { sampleMode: "denominator", rankingSampleKind: "flashes" }),
   netBlindPerFlash: metric("Net Blind/Flash", "seconds", 2, "flashes", "每颗闪光对敌方产生的平均净致盲时间。", { sampleMode: "denominator", rankingSampleKind: "flashes" }),
   hePerRound: metric("HE/r", "perRound", 2, "rounds", "平均每回合 HE 手雷伤害。", { rankingSampleKind: "rounds" }),
+  hePerThrow: metric("HE dmg/throw", "number", 1, "throws", "每次投掷 HE 手雷平均造成的伤害。", { sampleMode: "denominator", rankingSampleKind: "throws" }),
   firePerRound: metric("Fire/r", "perRound", 2, "rounds", "平均每回合燃烧弹或燃烧瓶伤害。", { rankingSampleKind: "rounds" }),
+  firePerThrow: metric("Fire dmg/throw", "number", 1, "throws", "每次投掷燃烧弹或燃烧瓶平均造成的伤害。", { sampleMode: "denominator", rankingSampleKind: "throws" }),
   smokePerRound: metric("Smoke/r", "perRound", 2, "rounds", "平均每回合烟雾弹相关产出。", { rankingSampleKind: "rounds" }),
   utilityKills: metric("Utility K/100r", "per100Round", 2, "rounds", "每 100 回合由伤害型道具造成的击杀。", { rankingSampleKind: "rounds" }),
   clutch: metric("Clutch%", "ratioPercent", 1, "attempts", "残局胜率：残局胜利次数 ÷ 残局尝试次数。", { rankingSampleKind: "attempts" }),
