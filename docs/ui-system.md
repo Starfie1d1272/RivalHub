@@ -95,7 +95,7 @@ presentation owner 对有限集合使用穷举映射（新增状态必须同时�
 
 ### Public player profile
 
-`/players/[userId]` 是选手的长期资料页，维持 PageLayout standard，保留当前身份、活动、找队状态、报名时资料、公开竞技档案、自报地图熟练度和选手自述。Performance 默认使用 All-time；Event 和 Map 是可分享、刷新可恢复的 URL scope，默认值从 URL 省略，切换 Event 时只在所选赛事不包含当前 Map 时清除 Map。Side（Overall / T / CT）留在指标 workspace 内。系列赛 W/L 与 MVP 随 Event scope 变化，不随 Map scope 变化；Map 只筛选地图、回合和选手表现。指标沿用赛事 Player detail 的 Overview、Opening、Teamplay、Utility、Clutch、Maps & Weapons 家族、MetricValue、样本与 tooltip 语义。Player detail 以 full-width metric section 和紧凑数据行组织，不用等高卡片墙填充指标；Opening 与 Teamplay 分离，地图与武器按列表/表格 grain 展示，不把赛事 Players 宽表直接嵌入 standard 页面。Radar 仅显示所选单届赛事的赛事内标准化结果，不合并不同赛事的分数。赛事履历展示当届队伍、正式战绩、已确认名次和有效官方荣誉，并链接到赛事队伍页与选手统计；用户文案使用「队伍 / Team」，不泄漏 `CompetitionEntry` 等内部术语。
+`/players/[userId]` 是选手的长期资料页，维持 PageLayout standard，保留当前身份、活动、找队状态、报名时资料、公开竞技档案、自报地图熟练度和选手自述。Performance 默认使用 All-time；Event 和 Map 是可分享、刷新可恢复的 URL scope，默认值从 URL 省略，切换 Event 时只在所选赛事不包含当前 Map 时清除 Map。Side（Overall / T / CT）留在指标 workspace 内。系列赛 W/L 与 MVP 随 Event scope 变化，不随 Map scope 变化；Map 只筛选地图、回合和选手表现。指标沿用赛事 Player detail 的 Overview、Opening、Teamplay、Utility、Clutch、Maps、Weapons 家族、MetricValue、样本与 tooltip 语义。Player detail 以 full-width metric section 和紧凑数据行组织，不用等高卡片墙填充指标；Opening 与 Teamplay 分离，地图与武器按列表/表格 grain 展示，不把赛事 Players 宽表直接嵌入 standard 页面。Radar 仅显示所选单届赛事的赛事内标准化结果，不合并不同赛事的分数。赛事履历展示当届队伍、正式战绩、已确认名次和有效官方荣誉，并链接到赛事队伍页与选手统计；用户文案使用「队伍 / Team」，不泄漏 `CompetitionEntry` 等内部术语。
 
 ### Public information and feedback entry
 
