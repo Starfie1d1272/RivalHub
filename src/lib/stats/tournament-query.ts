@@ -29,7 +29,7 @@ export interface PlayerStatsEventOption {
   maps: string[];
 }
 
-type StatsLabels = { teams: Record<string, string>; players: Record<string, string> };
+export type StatsLabels = { teams: Record<string, string>; players: Record<string, string> };
 
 async function loadStatsEvidence(tx: TxDb, scope: StatsEvidenceScope, options: { mapName?: string; teamId?: string; matchIds?: readonly string[] } = {}) {
   const selectedMapRows = options.mapName && options.matchIds?.length !== 0
@@ -551,6 +551,25 @@ export function remapLinkedTeamFacts(
   }));
 }
 
+export function buildLongTeamPerformanceProjection(
+  selected: Awaited<ReturnType<typeof loadStatsEvidence>>["selected"],
+  linkedEntryIds: ReadonlySet<string>,
+  teamId: string,
+  labels: StatsLabels = { teams: {}, players: {} },
+) {
+  const remapped = remapLinkedTeamFacts(selected, linkedEntryIds, teamId);
+  const performance = buildTournamentPerformanceAnalytics(
+    remapped.map((row) => row.facts.performance),
+    { labels },
+  );
+  return {
+    remapped,
+    performance,
+    teamPerformance: performance.teams.find((row) => row.team.entityKey === teamId) ?? null,
+    detailedPlayers: performance.players.filter((row) => row.teamEntityKeys.includes(teamId)),
+  };
+}
+
 /**
  * Canonical all-time Team projection.
  *
@@ -595,15 +614,14 @@ export async function getLongTeamCareerDetail(teamId: string, database: DB = db)
     ));
     const matchIds = appearanceMatches.map((match) => match.id);
     const loaded = await loadStatsEvidence(tx, {}, { matchIds });
-    const remapped = remapLinkedTeamFacts(loaded.selected, linkedEntryIds, teamId);
     const labels: StatsLabels = {
       ...loaded.labels,
       teams: { ...loaded.labels.teams, [teamId]: linkedEntries[0]?.name ?? teamId },
     };
+    const longPerformance = buildLongTeamPerformanceProjection(loaded.selected, linkedEntryIds, teamId, labels);
+    const { remapped, performance, teamPerformance, detailedPlayers } = longPerformance;
     const analytics = buildTournamentAnalytics(remapped.map((row) => row.facts.tournament), { labels });
-    const performance = buildTournamentPerformanceAnalytics(performanceFactsForScope({ ...loaded, selected: remapped }, teamId), { labels });
     const teamAnalytics = analytics.teams.find((row) => row.team.entityKey === teamId) ?? null;
-    const teamPerformance = performance.teams.find((row) => row.team.entityKey === teamId) ?? null;
 
     const resultFacts = buildTournamentResults(loaded.matches, loaded.scopedMaps, loaded.entries);
     const ownResults = resultFacts.teams.filter((row) => linkedEntryIds.has(row.entryId));
@@ -670,7 +688,7 @@ export async function getLongTeamCareerDetail(teamId: string, database: DB = db)
       performance: teamPerformance,
       scoreboard,
       teamRating,
-      detailedPlayers: performance.players.filter((row) => row.teamEntityKeys.includes(teamId)),
+      detailedPlayers,
       selection,
       maps,
       coverage,
