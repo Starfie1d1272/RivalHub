@@ -57,6 +57,11 @@ const STRONGEST_CONTEXT: CompetitiveProfileConfig = {
   },
 };
 
+const LEGACY_FALLBACK_CONTEXT: CompetitiveProfileConfig = {
+  ...STRONGEST_CONTEXT,
+  evidencePolicy: undefined,
+};
+
 function userRow(overrides?: Record<string, unknown>) {
   return {
     id: USER_ID,
@@ -294,6 +299,53 @@ describe("participant readiness", () => {
     }), STRONGEST_CONTEXT);
     expect(readiness.ready).toBe(true);
     expect(readiness.strength.historicalPeak).toMatchObject({ rank: "黄金S", sourcePlatform: "fivee" });
+  });
+
+  it.each([
+    ["primary_then_fallback", LEGACY_FALLBACK_CONTEXT],
+    ["strongest_equivalent", STRONGEST_CONTEXT],
+  ] as const)("accepts explicit 5E unranked facts as the lowest target state under %s", (_selection, context) => {
+    const unranked = { status: "unranked" as const, rank: null, rating: null, stars: null };
+    const fact = fullFact({
+      historicalPeak: null,
+      seasonPeaks: new Map(),
+      fallbackFacts: {
+        historicalPeak: unranked,
+        seasonPeaks: new Map([
+          ["5E-S20", unranked],
+          ["5E-S21", unranked],
+        ]),
+      },
+    });
+    const readiness = computeParticipantReadiness(fact, context);
+    expect(readiness.ready).toBe(true);
+
+    for (const candidate of [
+      readiness.strength.historicalPeak,
+      readiness.strength.previousSeasonPeak,
+      readiness.strength.currentSeasonPeak,
+    ]) {
+      expect(candidate).toMatchObject({
+        rank: context.rankOrder[0],
+        rating: 0,
+        ratingComparable: false,
+        stars: null,
+        sourcePlatform: "fivee",
+        conversionVersion: "test-2026.09",
+      });
+      expect(candidate).not.toHaveProperty("sourceRank");
+      expect(candidate).not.toHaveProperty("sourceStars");
+      expect(candidate).not.toHaveProperty("sourceRating");
+    }
+    expect(readiness.strength.previousSeasonPeak?.sourceSeasonKey).toBe("5E-S20");
+    expect(readiness.strength.currentSeasonPeak?.sourceSeasonKey).toBe("5E-S21");
+
+    const missingFallback = computeParticipantReadiness(fullFact({
+      historicalPeak: null,
+      seasonPeaks: new Map(),
+      fallbackFacts: { historicalPeak: null, seasonPeaks: new Map() },
+    }), context);
+    expect(missingFallback.ready).toBe(false);
   });
 
   it("allows a native Perfect fact when 5E is absent, but fails closed for declared 5E S facts without stars", () => {
