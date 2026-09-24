@@ -36,7 +36,7 @@ const PLAYER_IDENTITY_CONSUMERS: Consumer[] = [
   { path: "src/components/recruitment/TeamRecruitmentSection.tsx", mode: "text-first", reason: "队长处理加入意向的运营队列以文字和操作为优先。" },
   { path: "src/components/season/SeasonResults.tsx", mode: "text-first", reason: "赛果荣誉列表以名次和荣誉事实扫描为优先。" },
   { path: "src/components/teams/TeamCard.tsx", mode: "avatar" },
-  { path: "src/components/teams/TeamMapProfile.tsx", mode: "text-first", reason: "地图熟练度展开区以成员与地图事实扫描为优先。" },
+  { path: "src/components/stats/teams/TeamWorkspace.tsx", mode: "text-first", reason: "Team Performance 的 Maps 展开区以成员与地图事实扫描为优先。" },
   { path: "src/components/teams/TeamMembershipSection.tsx", mode: "text-first", reason: "队长成员管理以成员身份、联系方式和操作为优先，不需要头像。" },
   { path: "src/components/teams/TeamPublicProfile.tsx", mode: "avatar" },
 ];

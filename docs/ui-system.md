@@ -81,6 +81,12 @@ presentation owner 对有限集合使用穷举映射（新增状态必须同时�
 
 `TeamPublicProfile` 的本届参赛名单只展示 Player identity、首发/替补标记、公开参赛状态和 roster 状态，不从长期资料或 `seasonRegistrations` 补写本届位置；Major 选手目录同样只展示本届队伍、首发/替补、Player link 和已有的本届已验证统计。`CompetitionEntry`、`EventRoster`、revision、snapshot 等实现术语不进入正常公开文案。
 
+公开队伍 Profile 的稳定信息层级固定为 section composition，而不是业务块 card wall。长期队伍按 **Hero → 当前成员/当前赛事 → Performance（All-time）→ Career → 队伍资料** 组织；赛事队伍按 **Hero → 赛事概览 → 本届参赛名单 → Performance（本届）→ 本届比赛** 组织。一级 section 使用 eyebrow + 中文 heading + whitespace/divider 建立层级；Hero 可以保留连续 surface 与紧凑 headline strip，但 Current Event、Career、Matches 等不得各自退化为独立大卡墙。
+
+Team Performance 固定使用 **Overview / Rounds & Economy / Teamplay / Maps / Players / Weapons**。Long Team scope 固定 All-time，不增加赛事 selector；赛事队伍 scope 固定本届。Overview 与 Hero 必须互补而非机械复读；指标 family 使用 shared `MetricSection`、`MetricValue`、metric help contract，collection grain 使用 `StatsDataTable`。Players 的长期队伍语义是“实际代表 linked 赛事队伍出战时的表现”，不是当前 roster，也不得把同一选手代表其它队伍时的统计混入。
+
+Maps 在 Performance 内统一承载三层事实，默认 disclosure 按 coverage 决定：有队伍正式样本时以自身表现为主并折叠两类补充事实；无自身样本且 roster 历史经验全覆盖时展开历史经验、折叠自报；历史经验只覆盖部分 roster 时历史经验与自报同时展开；完全没有历史经验时以自报为主要 fallback。Pick/Ban/Decider 只来自 canonical veto 记录，不从 Demo 推断。
+
 玩家身份浏览/卡片界面统一使用 `PlayerAvatar`：公开页面只消费已持久化的头像 URL，缺失或加载失败时显示姓名首字母；页面不在渲染路径请求 Steam，也不各自实现平行回退逻辑。公开 Player identity DTO 必须提供 `avatarUrl: string | null`，以区分“没有持久化头像”和“投影遗漏字段”；高密度比赛表格或运营者表格可以文字优先，但必须作为明确例外登记，不能因漏接头像而默默退化。
 
 ### Public event browsing

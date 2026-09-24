@@ -9,6 +9,7 @@ import { selectCurrentDemoImport } from "@/lib/demo-integration/read";
 import { buildEvidenceRevisionForTarget } from "@/lib/demo-integration/revision";
 import { resolveGameplayUsersBySteam64 } from "@/lib/identity/gameplay-steam";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
+import { publicCompetitionEntryCondition } from "@/lib/competition-entries/public-visibility";
 import { loadEffectiveMatchRoster, type EffectiveMatchRosterPlayer } from "@/lib/match-rosters/effective";
 import { getPublicPlayerRecord } from "@/lib/players/public-record";
 import { getStatsLeaderboard } from "./leaderboard-query";
@@ -28,7 +29,7 @@ export interface PlayerStatsEventOption {
   maps: string[];
 }
 
-type StatsLabels = { teams: Record<string, string>; players: Record<string, string> };
+export type StatsLabels = { teams: Record<string, string>; players: Record<string, string> };
 
 async function loadStatsEvidence(tx: TxDb, scope: StatsEvidenceScope, options: { mapName?: string; teamId?: string; matchIds?: readonly string[] } = {}) {
   const selectedMapRows = options.mapName && options.matchIds?.length !== 0
@@ -327,20 +328,22 @@ async function loadVetoData(tx: TxDb, scope: Pick<TournamentStatsScope, "seasonI
   };
 }
 
+type PerformanceEvidenceFacts = Awaited<ReturnType<typeof loadStatsEvidence>>["selected"][number]["facts"]["performance"];
+
+export function scopePerformanceFactsToTeam(facts: PerformanceEvidenceFacts, teamId: string): PerformanceEvidenceFacts {
+  return {
+    ...facts,
+    playerRounds: facts.playerRounds.filter((fact) => fact.teamEntityKey === teamId),
+    objectives: facts.objectives.filter((fact) => fact.teamEntityKey === teamId),
+    playerWeapons: facts.playerWeapons.filter((fact) => fact.teamEntityKey === teamId),
+  };
+}
+
 function performanceFactsForScope(
   loaded: Awaited<ReturnType<typeof loadStatsEvidence>>,
   teamId?: string,
 ) {
-  return loaded.selected.map((row) => {
-    const facts = row.facts.performance;
-    if (!teamId) return facts;
-    return {
-      ...facts,
-      playerRounds: facts.playerRounds.filter((fact) => fact.teamEntityKey === teamId),
-      objectives: facts.objectives.filter((fact) => fact.teamEntityKey === teamId),
-      playerWeapons: facts.playerWeapons.filter((fact) => fact.teamEntityKey === teamId),
-    };
-  });
+  return loaded.selected.map((row) => teamId ? scopePerformanceFactsToTeam(row.facts.performance, teamId) : row.facts.performance);
 }
 
 function indexStatsRows<T>(rows: readonly T[], key: (row: T) => string) {
@@ -500,14 +503,217 @@ export async function getPlayerCareerDetail(
   }, { isolationLevel: "repeatable read", accessMode: "read only" });
 }
 
+
+export function remapLinkedTeamFacts(
+  selected: Awaited<ReturnType<typeof loadStatsEvidence>>["selected"],
+  linkedEntryIds: ReadonlySet<string>,
+  teamId: string,
+) {
+  const remap = (entryId: string) => linkedEntryIds.has(entryId) ? teamId : entryId;
+  const projectPlayer = (playerEntityKey: string, entryId: string) => {
+    const projectedTeamId = remap(entryId);
+    return projectedTeamId === teamId ? playerEntityKey : `opponent:${projectedTeamId}:${playerEntityKey}`;
+  };
+  return selected.map((row) => ({
+    ...row,
+    facts: {
+      tournament: {
+        ...row.facts.tournament,
+        teamEntityKeys: {
+          teamA: remap(row.facts.tournament.teamEntityKeys.teamA),
+          teamB: remap(row.facts.tournament.teamEntityKeys.teamB),
+        },
+        playerWeapons: row.facts.tournament.playerWeapons.map((fact) => ({ ...fact, teamEntityKey: remap(fact.teamEntityKey) })),
+      },
+      performance: {
+        ...row.facts.performance,
+        teamEntityKeys: {
+          teamA: remap(row.facts.performance.teamEntityKeys.teamA),
+          teamB: remap(row.facts.performance.teamEntityKeys.teamB),
+        },
+        playerRounds: row.facts.performance.playerRounds.map((fact) => ({
+          ...fact,
+          playerEntityKey: projectPlayer(fact.playerEntityKey, fact.teamEntityKey),
+          teamEntityKey: remap(fact.teamEntityKey),
+        })),
+        objectives: row.facts.performance.objectives.map((fact) => ({
+          ...fact,
+          playerEntityKey: fact.playerEntityKey && fact.teamEntityKey ? projectPlayer(fact.playerEntityKey, fact.teamEntityKey) : fact.playerEntityKey,
+          teamEntityKey: fact.teamEntityKey ? remap(fact.teamEntityKey) : null,
+        })),
+        playerWeapons: row.facts.performance.playerWeapons.map((fact) => ({
+          ...fact,
+          playerEntityKey: projectPlayer(fact.playerEntityKey, fact.teamEntityKey),
+          teamEntityKey: remap(fact.teamEntityKey),
+        })),
+      },
+    },
+  }));
+}
+
+export function buildLongTeamPerformanceProjection(
+  selected: Awaited<ReturnType<typeof loadStatsEvidence>>["selected"],
+  linkedEntryIds: ReadonlySet<string>,
+  teamId: string,
+  labels: StatsLabels = { teams: {}, players: {} },
+) {
+  const remapped = remapLinkedTeamFacts(selected, linkedEntryIds, teamId);
+  const performance = buildTournamentPerformanceAnalytics(
+    remapped.map((row) => row.facts.performance),
+    { labels },
+  );
+  return {
+    remapped,
+    performance,
+    teamPerformance: performance.teams.find((row) => row.team.entityKey === teamId) ?? null,
+    detailedPlayers: performance.players.filter((row) => row.teamEntityKeys.includes(teamId)),
+  };
+}
+
+export function buildCompetitionEntryPerformanceProjection(
+  selected: Awaited<ReturnType<typeof loadStatsEvidence>>["selected"],
+  teamId: string,
+  labels: StatsLabels = { teams: {}, players: {} },
+) {
+  return buildLongTeamPerformanceProjection(selected, new Set([teamId]), teamId, labels);
+}
+
+/**
+ * Canonical all-time Team projection.
+ *
+ * Long Team identity is projected only at analytics time: immutable Evidence and
+ * CompetitionEntry identities stay untouched. The match corpus is narrowed from
+ * public linked entries first, then current-confirmed Evidence is selected once.
+ */
+export async function getLongTeamCareerDetail(teamId: string, database: DB = db) {
+  return database.transaction(async (tx) => {
+    const linkedEntries = await tx.select({
+      id: competitionEntries.id,
+      name: competitionEntries.name,
+      seasonId: competitionEntries.competitionId,
+      seasonSlug: seasons.slug,
+      seasonName: seasons.name,
+    }).from(competitionEntries)
+      .innerJoin(seasons, eq(seasons.id, competitionEntries.competitionId))
+      .where(and(
+        eq(competitionEntries.teamId, teamId),
+        ne(seasons.status, "draft"),
+        publicCompetitionEntryCondition(),
+      ));
+    const linkedEntryIds = new Set(linkedEntries.map((entry) => entry.id));
+    if (!linkedEntryIds.size) return {
+      teamId,
+      linkedEntries,
+      results: { played: 0, wins: 0, losses: 0, maps: 0, mapWins: 0, mapLosses: 0 },
+      analytics: null,
+      economyMatrix: [],
+      performance: null,
+      scoreboard: [],
+      teamRating: null,
+      detailedPlayers: [],
+      selection: [],
+      maps: [],
+      coverage: { detailedMaps: 0, completedMaps: 0, maps: [] },
+    };
+
+    const appearanceMatches = await tx.select({ id: matches.id }).from(matches).where(and(
+      eq(matches.status, "finished"),
+      or(inArray(matches.entryAId, [...linkedEntryIds]), inArray(matches.entryBId, [...linkedEntryIds])),
+    ));
+    const matchIds = appearanceMatches.map((match) => match.id);
+    const loaded = await loadStatsEvidence(tx, {}, { matchIds });
+    const labels: StatsLabels = {
+      ...loaded.labels,
+      teams: { ...loaded.labels.teams, [teamId]: linkedEntries[0]?.name ?? teamId },
+    };
+    const longPerformance = buildLongTeamPerformanceProjection(loaded.selected, linkedEntryIds, teamId, labels);
+    const { remapped, performance, teamPerformance, detailedPlayers } = longPerformance;
+    const analytics = buildTournamentAnalytics(remapped.map((row) => row.facts.tournament), { labels });
+    const teamAnalytics = analytics.teams.find((row) => row.team.entityKey === teamId) ?? null;
+
+    const resultFacts = buildTournamentResults(loaded.matches, loaded.scopedMaps, loaded.entries);
+    const ownResults = resultFacts.teams.filter((row) => linkedEntryIds.has(row.entryId));
+    const mapRows = resultFacts.teamMaps.flatMap((map) => map.teams
+      .filter((row) => linkedEntryIds.has(row.entryId))
+      .map((row) => ({ mapName: map.mapName, ...row })));
+    const mapResults = new Map<string, { played: number; wins: number; losses: number }>();
+    for (const row of mapRows) {
+      const current = mapResults.get(row.mapName) ?? { played: 0, wins: 0, losses: 0 };
+      current.played += row.played;
+      current.wins += row.wins;
+      current.losses += row.losses;
+      mapResults.set(row.mapName, current);
+    }
+
+    const linkedRoster = loaded.roster.filter((row) => linkedEntryIds.has(row.entryId));
+    const scoreboard = await getStatsLeaderboard(
+      {},
+      loaded.selected.map((row) => row.importId),
+      linkedRoster,
+      tx,
+      { groupByTeam: false, requireCurrentImports: true, requireRosterMatch: true },
+    );
+    const teamRating = buildTeamRatings(scoreboard.map((row) => ({ ...row, teamId })))[0] ?? null;
+    const vetoRows = matchIds.length ? await tx.select({
+      mapName: matchVetoSteps.mapName,
+      action: matchVetoSteps.actionType,
+      entryId: matchVetoSteps.entryId,
+    }).from(matchVetoSteps).where(inArray(matchVetoSteps.matchId, matchIds)) : [];
+    const remappedVeto = vetoRows.map((row) => ({
+      ...row,
+      entryId: row.entryId && linkedEntryIds.has(row.entryId) ? teamId : row.entryId,
+    }));
+    const selection = buildVetoSelection(
+      [{ id: teamId, name: labels.teams[teamId] ?? teamId }],
+      remappedVeto,
+      [...new Set([...loaded.maps.map((map) => map.mapName), ...remappedVeto.map((row) => row.mapName)])],
+    );
+    const analyticsByMap = aggregateEvidenceByMap(remapped, labels, { indexPlayers: true });
+    const coverage = buildCoverage({ ...loaded, selected: remapped }, resultFacts);
+    const coverageByMap = new Map(coverage.maps.map((row) => [row.mapName, row]));
+    const maps = [...new Set([...mapResults.keys(), ...analyticsByMap.map((row) => row.mapName)])].sort().map((mapName) => {
+      const detail = analyticsByMap.find((row) => row.mapName === mapName);
+      return {
+        mapName,
+        results: mapResults.get(mapName) ?? null,
+        coverage: coverageByMap.get(mapName) ?? { mapName, completedMaps: 0, detailedMaps: 0 },
+        analytics: detail?.analyticsTeams.get(teamId) ?? null,
+        performance: detail?.performanceTeams.get(teamId) ?? null,
+      };
+    });
+    const played = ownResults.reduce((sum, row) => sum + row.matches, 0);
+    const wins = ownResults.reduce((sum, row) => sum + row.matchWins, 0);
+    const losses = ownResults.reduce((sum, row) => sum + row.matchLosses, 0);
+    const mapWins = [...mapResults.values()].reduce((sum, row) => sum + row.wins, 0);
+    const mapLosses = [...mapResults.values()].reduce((sum, row) => sum + row.losses, 0);
+
+    return {
+      teamId,
+      linkedEntries,
+      results: { played, wins, losses, maps: mapWins + mapLosses, mapWins, mapLosses },
+      analytics: teamAnalytics,
+      economyMatrix: analytics.economyMatrix,
+      performance: teamPerformance,
+      scoreboard,
+      teamRating,
+      detailedPlayers,
+      selection,
+      maps,
+      coverage,
+    };
+  }, { isolationLevel: "repeatable read", accessMode: "read only" });
+}
+
 export async function getTournamentTeamDetail(scope: TournamentStatsScope & { teamId: string }, database: DB = db) {
   return database.transaction(async (tx) => {
     const loaded = await loadStatsEvidence(tx, scope, { teamId: scope.teamId });
     const veto = await loadVetoData(tx, scope, loaded.entries);
     const results = buildTournamentResults(resultMatchesForMapScope(loaded.matches, loaded.scopedMaps, scope.mapFilter), loaded.scopedMaps, loaded.entries);
     const analytics = buildTournamentAnalytics(loaded.selected.map((row) => row.facts.tournament), { labels: loaded.labels });
-    const performance = buildTournamentPerformanceAnalytics(loaded.selected.map((row) => row.facts.performance), { labels: loaded.labels });
+    const performanceProjection = buildCompetitionEntryPerformanceProjection(loaded.selected, scope.teamId, loaded.labels);
+    const performance = performanceProjection.performance;
     const scoreboard = await getStatsLeaderboard({ ...scope, teamFilter: scope.teamId }, loaded.selected.map((row) => row.importId), loaded.roster, tx);
+    const teamRating = buildTeamRatings(scoreboard).find((row) => row.entryId === scope.teamId) ?? null;
     const analyticsByMapName = new Map<string, ReturnType<typeof aggregateEvidenceByMap>[number]>();
     for (const row of aggregateEvidenceByMap(loaded.selected, loaded.labels)) analyticsByMapName.set(row.mapName, row);
     const resultByMapName = new Map<string, { entryId: string; played: number; wins: number; losses: number }>();
@@ -526,7 +732,6 @@ export async function getTournamentTeamDetail(scope: TournamentStatsScope & { te
       }
     }
     const teamAnalytics = indexStatsRows(analytics.teams, (row) => row.team.entityKey);
-    const teamPerformance = indexStatsRows(performance.teams, (row) => row.team.entityKey);
     const mapNames = new Set([...resultByMapName.keys(), ...analyticsByMapName.keys(), ...selectionByMapName.keys()]);
     const maps = [...mapNames].map((mapName) => {
       const analyticsForMap = analyticsByMapName.get(mapName);
@@ -546,9 +751,10 @@ export async function getTournamentTeamDetail(scope: TournamentStatsScope & { te
       selection,
       analytics: teamAnalytics.get(scope.teamId) ?? null,
       economyMatrix: analytics.economyMatrix,
-      performance: teamPerformance.get(scope.teamId) ?? null,
+      performance: performanceProjection.teamPerformance,
       scoreboard,
-      detailedPlayers: performance.players.filter((row) => row.teamEntityKeys.includes(scope.teamId)),
+      teamRating,
+      detailedPlayers: performanceProjection.detailedPlayers,
       maps,
       coverage,
       entries: loaded.entries,
@@ -578,4 +784,5 @@ export async function getTournamentMapDetail(scope: Omit<TournamentStatsScope, "
 export type TournamentStats = Awaited<ReturnType<typeof getTournamentStats>>;
 export type TournamentPlayerDetail = Awaited<ReturnType<typeof getTournamentPlayerDetail>>;
 export type TournamentTeamDetail = Awaited<ReturnType<typeof getTournamentTeamDetail>>;
+export type LongTeamCareerDetail = Awaited<ReturnType<typeof getLongTeamCareerDetail>>;
 export type TournamentMapDetail = Awaited<ReturnType<typeof getTournamentMapDetail>>;

@@ -44,6 +44,7 @@ export interface PublicTeamProfile {
   entries: Array<{
     id: string;
     name: string;
+    seasonId: string;
     seasonName: string;
     seasonSlug: string;
     seasonStatus: string;
@@ -173,6 +174,7 @@ export async function getPublicTeamProfile(
       .select({
         id: competitionEntries.id,
         name: competitionEntries.name,
+        seasonId: seasons.id,
         seasonName: seasons.name,
         seasonSlug: seasons.slug,
         seasonStatus: seasons.status,
