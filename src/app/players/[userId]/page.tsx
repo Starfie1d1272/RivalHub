@@ -224,8 +224,8 @@ export async function PlayerPageContent({ params, searchParams }: PlayerPageProp
 
       <section className="space-y-5" aria-labelledby="player-career-heading">
         <div className="space-y-1">
-          <SectionHeading>赛事履历</SectionHeading>
-          <h2 id="player-career-heading" className="text-xl font-semibold text-[var(--color-fg)]">Career</h2>
+          <SectionHeading>Career</SectionHeading>
+          <h2 id="player-career-heading" className="text-xl font-semibold text-[var(--color-fg)]">赛事履历</h2>
         </div>
 
         {profile.careerHistory.length > 0 ? (
@@ -285,9 +285,9 @@ export async function PlayerPageContent({ params, searchParams }: PlayerPageProp
       <section className="space-y-5" aria-labelledby="player-performance-heading">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div className="space-y-1">
-            <SectionHeading>竞技表现</SectionHeading>
+            <SectionHeading>Performance</SectionHeading>
             <h2 id="player-performance-heading" className="text-xl font-semibold">
-              Performance <span className="text-sm font-normal text-[var(--color-fg-mid)]">· {career.selectedEvent?.name ?? "All-time"}</span>
+              竞技表现 <span className="text-sm font-normal text-[var(--color-fg-mid)]">· {career.selectedEvent?.name ?? "All-time"}</span>
             </h2>
           </div>
           <PlayerPerformanceFilters userId={userId} events={career.events} query={query} />
@@ -343,8 +343,8 @@ export async function PlayerPageContent({ params, searchParams }: PlayerPageProp
       {hasDeclaredProfile && (
         <section className="space-y-5" aria-labelledby="player-profile-heading">
           <div className="space-y-1">
-            <SectionHeading>长期资料</SectionHeading>
-            <h2 id="player-profile-heading" className="text-xl font-semibold">Player Profile</h2>
+            <SectionHeading>Profile</SectionHeading>
+            <h2 id="player-profile-heading" className="text-xl font-semibold">长期资料</h2>
           </div>
 
           <div className="grid gap-8 lg:grid-cols-2">
