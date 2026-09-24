@@ -14,6 +14,14 @@ function scoreWidth(score: number | null) {
   return score == null ? "0%" : `${Math.max(0, Math.min(100, score))}%`;
 }
 
+const profileHelp = (
+  <div className="space-y-2">
+    <p>打法画像把当前统计范围内的选手数据放到 RivalHub 全站历史基准中比较。每个基础指标的 0–100 分本质上是它在合格历史样本中的百分位位置：分数越高，表示该特征在历史样本中越突出；对于 Entrying、Sniping 等打法维度，高分不等同于更强。</p>
+    <p>正式比较前，每个指标会先计算动态样本线：取该指标有效样本量的 P75，再乘 25% 并向上取整。低于这条线的结果标记为 Limited，仍可显示相对分，但不进入正式排名。</p>
+    <p>各 Attribute 再按问号中列出的公式，对参与计算的基础指标相对分加权合成 0–100 总分；展开后的其他指标用于解释画像，不会改变总分。</p>
+  </div>
+);
+
 function detailLabel(metric: PlayerAttributeMetricProjection) {
   if (metric.key === "clutch1v1") return "1v1%";
   if (metric.key === "clutch1v2") return "1v2%";
@@ -96,7 +104,7 @@ function MetricRow({ metric }: { metric: PlayerAttributeMetricProjection }) {
   const label = detailLabel(metric);
 
   return (
-    <div className="border-t border-[var(--color-border)] py-2.5 first:border-t-0">
+    <div className="border-t border-[var(--color-border)] py-2 first:border-t-0">
       <div className="flex min-w-0 items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-1.5 text-sm text-[var(--color-fg-mid)]">
           <StatsMetricLabel metric={metric.metric}>{label}</StatsMetricLabel>
@@ -119,7 +127,7 @@ function MetricRow({ metric }: { metric: PlayerAttributeMetricProjection }) {
       </div>
 
       <div
-        className="mt-2 h-1.5 overflow-hidden bg-[var(--color-border)]"
+        className="mt-1.5 h-1 overflow-hidden bg-[var(--color-border)]"
         aria-label={metric.score == null ? `${label} 暂无相对分` : `${label} 相对分 ${metric.score}/100`}
       >
         <div
@@ -144,16 +152,16 @@ function AttributeCard({
 
   return (
     <details className="group rounded-sm border border-[var(--color-border)] bg-[var(--color-panel)]">
-      <summary className="cursor-pointer list-none px-4 py-3.5">
+      <summary className="cursor-pointer list-none px-3.5 py-2.5">
         <div className="flex items-center justify-between gap-4">
           <div className="flex min-w-0 items-center gap-2">
-            <span className="text-lg font-semibold text-[var(--color-fg)]">{attribute.label}</span>
+            <span className="text-base font-semibold text-[var(--color-fg)]">{attribute.label}</span>
             <AttributeHelp attribute={attribute} />
             <LimitedTag attribute={attribute} />
           </div>
 
           <div className="flex shrink-0 items-baseline gap-1">
-            <span className="text-xl font-semibold tabular-nums text-[var(--color-fg)]">
+            <span className="text-lg font-semibold tabular-nums text-[var(--color-fg)]">
               {attribute.score ?? "—"}
             </span>
             {attribute.score != null && <span className="text-xs text-[var(--color-fg-dim)]">/100</span>}
@@ -163,7 +171,7 @@ function AttributeCard({
 
         {ranking && <p className="mt-1 text-[10px] text-[var(--color-fg-dim)]">{ranking}</p>}
 
-        <div className="mt-3 h-2 overflow-hidden bg-[var(--color-border)]">
+        <div className="mt-2 h-1.5 overflow-hidden bg-[var(--color-border)]">
           <div
             className="h-full bg-[var(--color-accent)] transition-[width]"
             style={{ width: scoreWidth(attribute.score) }}
@@ -171,7 +179,7 @@ function AttributeCard({
         </div>
       </summary>
 
-      <div className={wide ? "grid border-t border-[var(--color-border)] px-4 pb-1 sm:grid-cols-2 sm:gap-x-8" : "border-t border-[var(--color-border)] px-4 pb-1"}>
+      <div className={wide ? "grid border-t border-[var(--color-border)] px-3.5 pb-0.5 sm:grid-cols-2 sm:gap-x-6" : "border-t border-[var(--color-border)] px-3.5 pb-0.5"}>
         {attribute.metrics.map((metric) => <MetricRow key={metric.key} metric={metric} />)}
       </div>
     </details>
@@ -183,19 +191,27 @@ export function PlayerAttributes({ profile }: { profile: PlayerAttributeProfile 
   const others = profile.attributes.filter((attribute) => attribute.key !== "firepower");
 
   return (
-    <section className="space-y-4" aria-labelledby="player-attributes-heading">
+    <section className="space-y-3" aria-labelledby="player-attributes-heading">
       <div className="flex flex-wrap items-end justify-between gap-2">
         <div>
           <p className="text-[11px] uppercase tracking-[var(--tracking-label)] text-[var(--color-fg-dim)]">Player Attributes</p>
-          <h3 id="player-attributes-heading" className="mt-1 text-base font-semibold">打法画像</h3>
+          <div className="mt-0.5 flex items-center gap-1.5">
+            <h3 id="player-attributes-heading" className="text-base font-semibold">打法画像</h3>
+            <StatsTooltip label="打法画像评分说明" content={profileHelp} />
+          </div>
         </div>
         <p className="text-[11px] text-[var(--color-fg-dim)]">{profile.benchmarkLabel}</p>
       </div>
 
       {firepower && <AttributeCard attribute={firepower} wide />}
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid gap-3 lg:grid-cols-2">
         {others.map((attribute) => <AttributeCard key={attribute.key} attribute={attribute} />)}
+      </div>
+
+      <div className="pt-1">
+        <p className="text-[11px] uppercase tracking-[var(--tracking-label)] text-[var(--color-fg-dim)]">Detail</p>
+        <h3 className="mt-0.5 text-base font-semibold">详细数据</h3>
       </div>
     </section>
   );
