@@ -32,8 +32,7 @@ export async function getPublicPlayerProfileReadModel(
   userId: string,
   scope: { eventSlug?: string; mapFilter?: string } = {},
 ) {
-  const attributePopulationPromise = getPlayerAttributeBenchmarkPopulation();
-  const [user, career, currentTeams, registrations, competitiveFacts, competitiveRoles, mapPreferences, competitiveCatalog, educationRows, playerLft, teamMemberRows, careerRecords] = await Promise.all([
+  const [user, career, currentTeams, registrations, competitiveFacts, competitiveRoles, mapPreferences, competitiveCatalog, educationRows, playerLft, teamMemberRows, careerRecords, attributePopulation] = await Promise.all([
     getPublicPlayerById(userId),
     getPlayerCareerDetail({ playerId: userId, eventSlug: scope.eventSlug, mapFilter: scope.mapFilter }),
     db.select({ slug: teams.slug, name: teams.name }).from(teamMemberships)
@@ -85,6 +84,7 @@ export async function getPublicPlayerProfileReadModel(
       .where(and(eq(eventRosterMembers.userId, userId), inArray(eventRosters.status, ["confirmed", "frozen"]), ne(seasons.status, "draft"), publicCompetitionEntryCondition()))
       .orderBy(desc(seasons.createdAt), asc(competitionEntries.name), asc(competitionEntries.id)),
     getPublicPlayerRecords(userId),
+    getPlayerAttributeBenchmarkPopulation(),
   ]);
   if (!user) return null;
 
@@ -131,7 +131,6 @@ export async function getPublicPlayerProfileReadModel(
     .filter((role): role is string => role !== null);
   const publicEducationIdentities = presentPublicEducationIdentities(educationRows);
   const currentEventTeams = uniqueHistoryEntries.filter((entry) => !["finished", "archived"].includes(entry.seasonStatus));
-  const attributePopulation = await attributePopulationPromise;
   const attributes = career.performance
     ? buildPlayerAttributeProfile(career.performance, attributePopulation)
     : null;
