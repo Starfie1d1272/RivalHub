@@ -611,9 +611,9 @@ export async function getLongTeamCareerDetail(teamId: string, database: DB = db)
         performance: detail?.performanceTeams.get(teamId) ?? null,
       };
     });
-    const played = ownResults.reduce((sum, row) => sum + row.played, 0);
-    const wins = ownResults.reduce((sum, row) => sum + row.wins, 0);
-    const losses = ownResults.reduce((sum, row) => sum + row.losses, 0);
+    const played = ownResults.reduce((sum, row) => sum + row.matches, 0);
+    const wins = ownResults.reduce((sum, row) => sum + row.matchWins, 0);
+    const losses = ownResults.reduce((sum, row) => sum + row.matchLosses, 0);
     const mapWins = [...mapResults.values()].reduce((sum, row) => sum + row.wins, 0);
     const mapLosses = [...mapResults.values()].reduce((sum, row) => sum + row.losses, 0);
 
