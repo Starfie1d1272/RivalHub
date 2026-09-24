@@ -1,5 +1,4 @@
 import { getPublicSeasonResults } from "@/lib/seasons/public-results";
-import { getPublicSeasonStagePresentation } from "@/lib/seasons/public-stage";
 import { notFound } from "next/navigation";
 
 import { TeamPublicProfile } from "@/components/teams/TeamPublicProfile";
@@ -28,14 +27,13 @@ export default async function CompetitionEntryDetailPage({ params }: { params: P
     ? await getPublicTeamProfile(event.entry.teamId, session?.userId)
     : null;
 
-  const [performanceModel, results, stagePresentation] = await Promise.all([
+  const [performanceModel, results] = await Promise.all([
     getPublicCompetitionEntryPerformanceReadModel(season, event),
     getPublicSeasonResults(season),
-    getPublicSeasonStagePresentation(season),
   ]);
   return (
     <PageLayout as="div" variant="standard" className="space-y-8">
-      <TeamPublicProfile team={team} event={event} mapProfile={performanceModel.mapProfile} performance={performanceModel.performance} results={results} stageLabels={stagePresentation.labels} />
+      <TeamPublicProfile team={team} event={event} mapProfile={performanceModel.mapProfile} performance={performanceModel.performance} results={results} />
     </PageLayout>
   );
 }
