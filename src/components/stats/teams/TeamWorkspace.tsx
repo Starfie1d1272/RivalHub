@@ -61,10 +61,15 @@ export function TeamWorkspace({
       const teamSelection = row.teams.find((team) => team.entryId === detail.teamId);
       return [row.mapName, teamSelection ? { ...teamSelection, deciders: row.deciders } : { picks: 0, bans: 0, deciders: row.deciders }];
     }));
-    return detail.maps.map((row) => ({
-      ...row,
-      selection: "selection" in row && row.selection ? row.selection : selection.get(row.mapName) ?? null,
-    }));
+    return detail.maps.map((row) => {
+      const canonicalSelection = selection.get(row.mapName) ?? null;
+      return {
+        ...row,
+        selection: "selection" in row && row.selection
+          ? { ...canonicalSelection, ...row.selection }
+          : canonicalSelection,
+      };
+    });
   }, [detail]);
 
   const mapColumns: StatsDataColumn<(typeof mapRows)[number]>[] = [
