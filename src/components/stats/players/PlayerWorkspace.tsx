@@ -2,6 +2,7 @@
 
 import { useState, type ReactNode } from "react";
 import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
+import { PlayerRadarChart, type RadarPlayer } from "@/components/matches/PlayerRadarChart";
 import { MetricFamilyTabs } from "@/components/stats/MetricFamilyTabs";
 import { MetricValue } from "@/components/stats/MetricValue";
 import { StatsMetricLabel } from "@/components/stats/StatsMetricHelp";
@@ -96,7 +97,7 @@ function ScopeSideTabs({ value, onChange }: { value: Side; onChange: (side: Side
   );
 }
 
-export function PlayerWorkspace({ detail, compact = false }: { detail: TournamentPlayerDetail; compact?: boolean }) {
+export function PlayerWorkspace({ detail, compact = false, overviewRadar = null }: { detail: TournamentPlayerDetail; compact?: boolean; overviewRadar?: RadarPlayer | null }) {
   const [tab, setTab] = useState<PlayerTab>("overview");
   const [side, setSide] = useState<Side>("overall");
   const player = detail.performance;
@@ -150,38 +151,49 @@ export function PlayerWorkspace({ detail, compact = false }: { detail: Tournamen
       {tab !== "overview" && tab !== "maps" && tab !== "weapons" && <ScopeSideTabs value={side} onChange={setSide} />}
 
       {tab === "overview" && (
-        <div className="space-y-6">
-          {!compact && (
-            <StatsDataTable
-              embedded
-              rows={detail.scoreboard}
-              columns={teamColumns}
-              rowKey={(row) => row.teamId ?? row.perfectName}
-              pageSize={10}
-              emptyLabel="暂无已验证 scoreboard 数据"
-            />
-          )}
+        <div className={overviewRadar ? "grid gap-8 lg:grid-cols-[minmax(0,1fr)_300px] lg:items-start" : ""}>
+          <div className="space-y-6">
+            {!compact && (
+              <StatsDataTable
+                embedded
+                rows={detail.scoreboard}
+                columns={teamColumns}
+                rowKey={(row) => row.teamId ?? row.perfectName}
+                pageSize={10}
+                emptyLabel="暂无已验证 scoreboard 数据"
+              />
+            )}
 
-          <MetricSection title="Performance" items={[
-            { label: "Rating", metric: "rating", value: <MetricValue metric="rating" value={detail.scoreboard[0]?.avgRating} /> },
-            { label: "ADR", metric: "adr", value: <MetricValue metric="adr" value={detail.scoreboard[0]?.avgAdr} /> },
-            { label: "K/D", metric: "kd", value: <MetricValue metric="kd" value={detail.scoreboard[0]?.kdRatio} /> },
-            { label: "KPR", metric: "kpr", value: <MetricValue metric="kpr" value={detail.scoreboard[0]?.kpr} /> },
-            { label: "HS%", metric: "hs", value: <MetricValue metric="hs" value={detail.scoreboard[0]?.avgHs} /> },
-            { label: "WE", metric: "we", value: <MetricValue metric="we" value={detail.scoreboard[0]?.avgWe} /> },
-            { label: "RWS", metric: "rws", value: <MetricValue metric="rws" value={detail.scoreboard[0]?.avgRws} /> },
-            { label: "MK/100r", metric: "mk", value: <MetricValue metric="mk" value={detail.scoreboard[0]?.mkpr} /> },
-          ]} />
+            <MetricSection title="Performance" items={[
+              { label: "Rating", metric: "rating", value: <MetricValue metric="rating" value={detail.scoreboard[0]?.avgRating} /> },
+              { label: "ADR", metric: "adr", value: <MetricValue metric="adr" value={detail.scoreboard[0]?.avgAdr} /> },
+              { label: "K/D", metric: "kd", value: <MetricValue metric="kd" value={detail.scoreboard[0]?.kdRatio} /> },
+              { label: "KPR", metric: "kpr", value: <MetricValue metric="kpr" value={detail.scoreboard[0]?.kpr} /> },
+              { label: "HS%", metric: "hs", value: <MetricValue metric="hs" value={detail.scoreboard[0]?.avgHs} /> },
+              { label: "WE", metric: "we", value: <MetricValue metric="we" value={detail.scoreboard[0]?.avgWe} /> },
+              { label: "RWS", metric: "rws", value: <MetricValue metric="rws" value={detail.scoreboard[0]?.avgRws} /> },
+              { label: "MK/100r", metric: "mk", value: <MetricValue metric="mk" value={detail.scoreboard[0]?.mkpr} /> },
+            ]} />
 
-          {slice && (
-            <MetricSection title="Advanced" items={[
-              { label: "KAST", metric: "kast", value: <MetricValue metric="kast" value={slice.kast} /> },
-              { label: "Opening", metric: "openingWin", value: <MetricValue metric="openingWin" value={slice.opening.successRate} /> },
-              { label: "Trade/100r", metric: "trade", value: <MetricValue metric="trade" value={slice.trade.tradeKillsPerRound} /> },
-              { label: "A/100r", metric: "assist", value: <MetricValue metric="assist" value={slice.combat.assistsPerRound} /> },
-              { label: "Util/r", metric: "utility", value: <MetricValue metric="utility" value={slice.utility.utilityDamagePerRound} /> },
-              { label: "Clutch%", metric: "clutch", value: <MetricValue metric="clutch" value={slice.clutch.winRate} /> },
-            ]} columns={3} />
+            {slice && (
+              <MetricSection title="Advanced" items={[
+                { label: "KAST", metric: "kast", value: <MetricValue metric="kast" value={slice.kast} /> },
+                { label: "Opening", metric: "openingWin", value: <MetricValue metric="openingWin" value={slice.opening.successRate} /> },
+                { label: "Trade/100r", metric: "trade", value: <MetricValue metric="trade" value={slice.trade.tradeKillsPerRound} /> },
+                { label: "A/100r", metric: "assist", value: <MetricValue metric="assist" value={slice.combat.assistsPerRound} /> },
+                { label: "Util/r", metric: "utility", value: <MetricValue metric="utility" value={slice.utility.utilityDamagePerRound} /> },
+                { label: "Clutch%", metric: "clutch", value: <MetricValue metric="clutch" value={slice.clutch.winRate} /> },
+              ]} columns={3} />
+            )}
+          </div>
+
+          {overviewRadar && (
+            <aside className="border-t border-[var(--color-border)] pt-5 lg:border-l lg:border-t-0 lg:pl-6 lg:pt-1">
+              <PlayerRadarChart players={[overviewRadar]} size={250} />
+              <p className="mt-2 text-center text-[11px] leading-relaxed text-[var(--color-fg-dim)]">
+                单届赛事内标准化，仅用于该赛事内比较。
+              </p>
+            </aside>
           )}
         </div>
       )}
