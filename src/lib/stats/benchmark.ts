@@ -51,7 +51,9 @@ function upperBound(values: readonly number[], target: number): number {
 export function buildMetricBenchmark(
   observations: readonly MetricBenchmarkObservation[],
 ): MetricBenchmark | null {
-  const valid = observations.filter((row) => isFiniteNumber(row.value));
+  const valid = observations.flatMap((row) => (
+    isFiniteNumber(row.value) ? [{ value: row.value, sample: row.sample }] : []
+  ));
   const floor = getDynamicRankingFloor(valid.map((row) => row.sample));
   if (!floor) return null;
 
