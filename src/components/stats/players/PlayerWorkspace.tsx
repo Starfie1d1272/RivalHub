@@ -11,7 +11,7 @@ import type { StatsMetricKey } from "@/lib/stats/metrics";
 import { displayWeaponName } from "@/lib/stats/presentation";
 import { CS2_MAP_CATALOG } from "@/lib/config/cs2-maps";
 
-type PlayerTab = "overview" | "opening" | "teamplay" | "utility" | "clutch" | "maps";
+type PlayerTab = "overview" | "opening" | "teamplay" | "utility" | "clutch" | "maps" | "weapons";
 type Side = "overall" | "t" | "ct";
 
 const tabs = [
@@ -20,7 +20,8 @@ const tabs = [
   { key: "teamplay", label: "Teamplay" },
   { key: "utility", label: "Utility" },
   { key: "clutch", label: "Clutch" },
-  { key: "maps", label: "Maps & Weapons" },
+  { key: "maps", label: "Maps" },
+  { key: "weapons", label: "Weapons" },
 ] as const;
 
 type MetricItem = {
@@ -95,60 +96,18 @@ function ScopeSideTabs({ value, onChange }: { value: Side; onChange: (side: Side
   );
 }
 
-function CompactMapRows({ rows }: { rows: TournamentPlayerDetail["scoreboardMaps"] }) {
-  if (!rows.length) return <p className="text-sm text-[var(--color-fg-mid)]">当前范围没有已验证的地图表现。</p>;
-  return (
-    <div className="overflow-x-auto border-y border-[var(--color-border)]">
-      <div className="min-w-[620px]">
-        <div className="grid grid-cols-[minmax(120px,1.5fr)_repeat(5,minmax(72px,1fr))] gap-3 px-1 py-2 text-[11px] uppercase tracking-[var(--tracking-label)] text-[var(--color-fg-dim)]">
-          <span>Map</span><span>Maps</span><span>Rounds</span><StatsMetricLabel metric="rating">Rating</StatsMetricLabel><StatsMetricLabel metric="adr">ADR</StatsMetricLabel><StatsMetricLabel metric="kd">K/D</StatsMetricLabel>
-        </div>
-        <div className="divide-y divide-[var(--color-border)]">
-          {rows.map((row, index) => (
-            <div key={`${row.mapName ?? "map"}:${row.teamId ?? ""}:${index}`} className="grid grid-cols-[minmax(120px,1.5fr)_repeat(5,minmax(72px,1fr))] gap-3 px-1 py-3 text-sm">
-              <span className="font-semibold">{mapLabel(row.mapName ?? "")}</span>
-              <span className="tabular-nums">{row.maps}</span>
-              <span className="tabular-nums">{row.rounds ?? "—"}</span>
-              <MetricValue metric="rating" value={row.avgRating} />
-              <MetricValue metric="adr" value={row.avgAdr} />
-              <MetricValue metric="kd" value={row.kdRatio} />
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function CompactWeaponRows({ rows }: { rows: NonNullable<TournamentPlayerDetail["performance"]>["weapons"] }) {
-  if (!rows.length) return <p className="text-sm text-[var(--color-fg-mid)]">当前范围没有武器数据。</p>;
-  return (
-    <div className="overflow-x-auto border-y border-[var(--color-border)]">
-      <div className="min-w-[520px]">
-        <div className="grid grid-cols-[minmax(140px,1.6fr)_repeat(4,minmax(72px,1fr))] gap-3 px-1 py-2 text-[11px] uppercase tracking-[var(--tracking-label)] text-[var(--color-fg-dim)]">
-          <span>Weapon</span><span>Kills</span><StatsMetricLabel metric="killShare">Kill share</StatsMetricLabel><StatsMetricLabel metric="killsPerRound">Kills/r</StatsMetricLabel><StatsMetricLabel metric="headshot">HS%</StatsMetricLabel>
-        </div>
-        <div className="divide-y divide-[var(--color-border)]">
-          {rows.map((row) => (
-            <div key={row.weapon} className="grid grid-cols-[minmax(140px,1.6fr)_repeat(4,minmax(72px,1fr))] gap-3 px-1 py-3 text-sm">
-              <span className="font-semibold">{displayWeaponName(row.weapon)}</span>
-              <span className="tabular-nums">{row.kills}</span>
-              <MetricValue metric="killShare" value={row.killShare} sampleDisplay="hidden" />
-              <MetricValue metric="killsPerRound" value={row.killsPerRound} sampleDisplay="hidden" />
-              <MetricValue metric="headshot" value={row.headshotRate} sampleDisplay="hidden" />
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export function PlayerWorkspace({ detail, compact = false }: { detail: TournamentPlayerDetail; compact?: boolean }) {
   const [tab, setTab] = useState<PlayerTab>("overview");
   const [side, setSide] = useState<Side>("overall");
   const player = detail.performance;
   const slice = player?.slices[side];
+  const clutchWinsPerRound = slice
+    ? {
+        rate: slice.sample.rounds > 0 ? slice.clutch.wins / slice.sample.rounds : null,
+        successes: slice.clutch.wins,
+        attempts: slice.sample.rounds,
+      }
+    : null;
   const playerName = player?.player.displayName ?? detail.scoreboard[0]?.perfectName ?? "未知选手";
 
   const teamColumns: StatsDataColumn<(typeof detail.scoreboard)[number]>[] = [
@@ -164,9 +123,9 @@ export function PlayerWorkspace({ detail, compact = false }: { detail: Tournamen
     { key: "map", label: "Map", render: (row) => mapLabel(row.mapName ?? "") },
     { key: "maps", label: "Maps", numeric: true, sortable: true, sortValue: (row) => row.maps, render: (row) => row.maps },
     { key: "rounds", label: "Rounds", numeric: true, sortable: true, sortValue: (row) => row.rounds, render: (row) => row.rounds ?? "—" },
-    { key: "rating", label: "Rating", numeric: true, sortable: true, sortValue: (row) => row.avgRating, render: (row) => <MetricValue metric="rating" value={row.avgRating} /> },
-    { key: "adr", label: "ADR", numeric: true, sortable: true, sortValue: (row) => row.avgAdr, render: (row) => <MetricValue metric="adr" value={row.avgAdr} /> },
-    { key: "kd", label: "K/D", numeric: true, sortable: true, sortValue: (row) => row.kdRatio, render: (row) => <MetricValue metric="kd" value={row.kdRatio} /> },
+    { key: "rating", label: "Rating", metric: "rating", numeric: true, sortable: true, sortValue: (row) => row.avgRating, render: (row) => <MetricValue metric="rating" value={row.avgRating} /> },
+    { key: "adr", label: "ADR", metric: "adr", numeric: true, sortable: true, sortValue: (row) => row.avgAdr, render: (row) => <MetricValue metric="adr" value={row.avgAdr} /> },
+    { key: "kd", label: "K/D", metric: "kd", numeric: true, sortable: true, sortValue: (row) => row.kdRatio, render: (row) => <MetricValue metric="kd" value={row.kdRatio} /> },
   ];
   const weaponColumns: StatsDataColumn<NonNullable<typeof player>["weapons"][number]>[] = [
     { key: "weapon", label: "Weapon", render: (row) => displayWeaponName(row.weapon) },
@@ -188,7 +147,7 @@ export function PlayerWorkspace({ detail, compact = false }: { detail: Tournamen
       )}
 
       <MetricFamilyTabs label="Player workspace" value={tab} options={tabs} onChange={setTab} />
-      {tab !== "maps" && <ScopeSideTabs value={side} onChange={setSide} />}
+      {tab !== "maps" && tab !== "weapons" && <ScopeSideTabs value={side} onChange={setSide} />}
 
       {tab === "overview" && (
         <div className="space-y-6">
@@ -294,7 +253,7 @@ export function PlayerWorkspace({ detail, compact = false }: { detail: Tournamen
             { label: "Attempts", metric: "clutchAttempts", value: <MetricValue metric="clutchAttempts" value={slice.clutch.attempts} /> },
             { label: "Wins", metric: "clutchWins", value: <MetricValue metric="clutchWins" value={slice.clutch.wins} /> },
             { label: "Clutch%", metric: "clutch", value: <MetricValue metric="clutch" value={slice.clutch.winRate} /> },
-            { label: "Clutch/100r", metric: "clutchFrequency", value: <MetricValue metric="clutchFrequency" value={slice.clutch.frequency} /> },
+            { label: "C/100r", metric: "clutchFrequency", value: <MetricValue metric="clutchFrequency" value={clutchWinsPerRound} /> },
           ]} />
           <MetricSection title="By opponents" items={(["1", "2", "3", "4", "5"] as const).map((count) => ({
             label: `1v${count}`,
@@ -305,24 +264,36 @@ export function PlayerWorkspace({ detail, compact = false }: { detail: Tournamen
       )}
 
       {tab === "maps" && (
-        <div className="space-y-8">
-          <section className="space-y-3">
-            <h3 className="text-sm font-semibold">Map Performance</h3>
-            {compact
-              ? <CompactMapRows rows={detail.scoreboardMaps} />
-              : <StatsDataTable embedded rows={detail.scoreboardMaps} columns={mapColumns} rowKey={(row, index) => `${row.mapName ?? "map"}:${row.teamId ?? ""}:${index}`} emptyLabel="暂无按地图拆分的 scoreboard 数据" />}
-          </section>
-
-          <section className="space-y-3">
-            <h3 className="text-sm font-semibold">Weapons</h3>
-            {compact
-              ? <CompactWeaponRows rows={player?.weapons ?? []} />
-              : <StatsDataTable embedded rows={player?.weapons ?? []} columns={weaponColumns} rowKey={(row) => row.weapon} initialSortKey="kills" emptyLabel="暂无武器数据" />}
-          </section>
-        </div>
+        <section className="space-y-3">
+          <h3 className="text-sm font-semibold">Map Performance</h3>
+          <StatsDataTable
+            embedded
+            rows={detail.scoreboardMaps}
+            columns={mapColumns}
+            rowKey={(row, index) => `${row.mapName ?? "map"}:${row.teamId ?? ""}:${index}`}
+            initialSortKey="rating"
+            tableClassName="min-w-[620px] table-fixed"
+            emptyLabel="暂无按地图拆分的 scoreboard 数据"
+          />
+        </section>
       )}
 
-      {!slice && tab !== "overview" && tab !== "maps" && (
+      {tab === "weapons" && (
+        <section className="space-y-3">
+          <h3 className="text-sm font-semibold">Weapons</h3>
+          <StatsDataTable
+            embedded
+            rows={player?.weapons ?? []}
+            columns={weaponColumns}
+            rowKey={(row) => row.weapon}
+            initialSortKey="kills"
+            tableClassName="min-w-[560px] table-fixed"
+            emptyLabel="暂无武器数据"
+          />
+        </section>
+      )}
+
+      {!slice && tab !== "overview" && tab !== "maps" && tab !== "weapons" && (
         <p className="border-y border-[var(--color-border)] py-5 text-sm text-[var(--color-fg-mid)]">当前选手没有详细统计。</p>
       )}
     </section>
