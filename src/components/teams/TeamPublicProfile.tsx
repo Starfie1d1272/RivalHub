@@ -44,18 +44,18 @@ export function TeamPublicProfile({ team, event = null, mapProfile, results, per
   const historicalEntries = team?.entries.filter((entry) => ["finished", "archived"].includes(entry.seasonStatus)) ?? [];
   const eventPlacement = event ? results?.placements.find((entry) => entry.entryId === event.entry.id) ?? null : null;
   const eventHonors = event ? results?.honors.filter((honor) => honor.entryId === event.entry.id) ?? [] : [];
-  const eventDetail = event && performance && "teamId" in performance ? performance : null;
+  const eventDetail = event && performance && "scoreboard" in performance ? performance : null;
   const longDetail = !event && performance && "linkedEntries" in performance ? performance : null;
   const headline = event ? {
     matches: eventDetail?.results ? `${eventDetail.results.matchWins}-${eventDetail.results.matchLosses}` : `${event.record.wins}-${event.record.losses}`,
     maps: eventDetail?.results ? `${eventDetail.results.mapWins}-${eventDetail.results.mapLosses}` : "—",
     mapCount: eventDetail?.results?.maps ?? "—",
-    rating: eventDetail?.performance?.slices.overall.rating ?? null,
+    rating: null,
   } : {
     matches: longDetail ? `${longDetail.results.wins}-${longDetail.results.losses}` : `${team?.wins ?? 0}-${Math.max((team?.playedCount ?? 0) - (team?.wins ?? 0), 0)}`,
     maps: longDetail ? `${longDetail.results.mapWins}-${longDetail.results.mapLosses}` : "—",
     mapCount: longDetail?.results.maps ?? "—",
-    rating: longDetail?.performance?.slices.overall.rating ?? null,
+    rating: null,
   };
 
   return (
