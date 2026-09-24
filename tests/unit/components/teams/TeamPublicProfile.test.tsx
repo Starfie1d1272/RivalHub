@@ -14,7 +14,7 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 const longLivedTeam: PublicTeamProfile = {
   team: { id: "team-1", slug: "rival-team", name: "Rival Team", logoUrl: null, description: "队伍简介", status: "active", captainUserId: "captain-1" },
   currentMembers: [{ id: "member-1", userId: "captain-1", name: "队长甲", avatarUrl: null, status: "active" }, { id: "member-2", userId: "member-1", name: "选手乙", avatarUrl: null, status: "benched" }],
-  entries: [{ id: "entry-1", name: "Rival Entry", seasonName: "2026 秋季赛", seasonSlug: "autumn-2026", seasonStatus: "finished", completedAt: new Date("2026-08-01T00:00:00Z") }],
+  entries: [{ id: "entry-1", name: "Rival Entry", seasonId: "season-1", seasonName: "2026 秋季赛", seasonSlug: "autumn-2026", seasonStatus: "finished", completedAt: new Date("2026-08-01T00:00:00Z") }],
   nameChanges: [{ id: "name-1", oldName: "Old Team", newName: "Rival Team", changedAt: new Date("2026-08-01T00:00:00Z") }],
   captainChanges: [{ id: "captain-1", name: "队长甲", changedAt: new Date("2026-08-01T00:00:00Z") }],
   playedCount: 4,
@@ -81,7 +81,7 @@ describe("TeamPublicProfile", () => {
     render(<TeamPublicProfile team={{
       ...longLivedTeam,
       entries: [
-        { id: "entry-current", name: "Current Entry", seasonName: "2026 冬季赛", seasonSlug: "winter-2026", seasonStatus: "playing", completedAt: null },
+        { id: "entry-current", name: "Current Entry", seasonId: "season-current", seasonName: "2026 冬季赛", seasonSlug: "winter-2026", seasonStatus: "playing", completedAt: null },
         ...longLivedTeam.entries,
       ],
     }} career={career} />);
