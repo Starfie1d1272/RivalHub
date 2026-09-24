@@ -1,10 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { buildTournamentPerformanceAnalytics } from "@cs2dak/tournament";
 import normal from "../../../tests/fixtures/demo-evidence/normal-map-v1.json";
 import overtime from "../../../tests/fixtures/demo-evidence/overtime-map-v1.json";
 import { parseRivalHubDemoEvidenceV1 } from "@/lib/demo-evidence/contract";
 import { adaptStatsEvidence } from "./evidence-adapter";
-import { remapLinkedTeamFacts, scopePerformanceFactsToTeam } from "./tournament-query";
+import { buildLongTeamPerformanceProjection, scopePerformanceFactsToTeam } from "./tournament-query";
 
 describe("team performance fact scoping", () => {
   it("keeps a transferred player's advanced facts only for the represented team", () => {
@@ -67,22 +66,23 @@ describe("long-team transferred-player projection", () => {
     second.tournament.mapKey = "transfer-map";
     second.performance.mapKey = "transfer-map";
 
-    const projected = remapLinkedTeamFacts([
+    const projection = buildLongTeamPerformanceProjection([
       { importId: "first", facts: first },
       { importId: "second", facts: second },
-    ] as Parameters<typeof remapLinkedTeamFacts>[0], new Set([linkedEntryId]), longTeamId);
+    ] as Parameters<typeof buildLongTeamPerformanceProjection>[0], new Set([linkedEntryId]), longTeamId);
 
-    const performance = buildTournamentPerformanceAnalytics(projected.map((row) => row.facts.performance));
-    const player = performance.players.find((row) => row.player.entityKey === transferredUserId)!;
+    const player = projection.detailedPlayers.find((row) => row.player.entityKey === transferredUserId)!;
     const expectedRounds = first.performance.playerRounds.filter((row) =>
       row.playerEntityKey === transferredUserId && row.teamEntityKey === linkedEntryId
     );
 
+    expect(projection.teamPerformance?.team.entityKey).toBe(longTeamId);
     expect(player).toBeDefined();
     expect(player.teamEntityKeys).toEqual([longTeamId]);
     expect(player.slices.overall.kast.attempts).toBe(expectedRounds.length);
-    expect(projected[1]!.facts.performance.playerRounds.some((row) => row.playerEntityKey === transferredUserId)).toBe(false);
-    expect(projected[1]!.facts.performance.playerRounds.some((row) => row.playerEntityKey === `opponent:${secondTeamB}:${transferredUserId}`)).toBe(true);
-    expect(projected[1]!.facts.performance.playerWeapons.some((row) => row.playerEntityKey === transferredUserId)).toBe(false);
+    expect(projection.remapped[1]!.facts.performance.playerRounds.some((row) => row.playerEntityKey === transferredUserId)).toBe(false);
+    expect(projection.remapped[1]!.facts.performance.playerRounds.some((row) => row.playerEntityKey === `opponent:${secondTeamB}:${transferredUserId}`)).toBe(true);
+    expect(projection.remapped[1]!.facts.performance.playerWeapons.some((row) => row.playerEntityKey === transferredUserId)).toBe(false);
+    expect(projection.detailedPlayers.some((row) => row.player.entityKey === `opponent:${secondTeamB}:${transferredUserId}`)).toBe(false);
   });
 });
