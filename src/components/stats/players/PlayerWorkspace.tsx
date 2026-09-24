@@ -101,7 +101,7 @@ function CompactMapRows({ rows }: { rows: TournamentPlayerDetail["scoreboardMaps
     <div className="overflow-x-auto border-y border-[var(--color-border)]">
       <div className="min-w-[620px]">
         <div className="grid grid-cols-[minmax(120px,1.5fr)_repeat(5,minmax(72px,1fr))] gap-3 px-1 py-2 text-[11px] uppercase tracking-[var(--tracking-label)] text-[var(--color-fg-dim)]">
-          <span>Map</span><span>Maps</span><span>Rounds</span><span>Rating</span><span>ADR</span><span>K/D</span>
+          <span>Map</span><span>Maps</span><span>Rounds</span><StatsMetricLabel metric="rating">Rating</StatsMetricLabel><StatsMetricLabel metric="adr">ADR</StatsMetricLabel><StatsMetricLabel metric="kd">K/D</StatsMetricLabel>
         </div>
         <div className="divide-y divide-[var(--color-border)]">
           {rows.map((row, index) => (
@@ -126,7 +126,7 @@ function CompactWeaponRows({ rows }: { rows: NonNullable<TournamentPlayerDetail[
     <div className="overflow-x-auto border-y border-[var(--color-border)]">
       <div className="min-w-[520px]">
         <div className="grid grid-cols-[minmax(140px,1.6fr)_repeat(4,minmax(72px,1fr))] gap-3 px-1 py-2 text-[11px] uppercase tracking-[var(--tracking-label)] text-[var(--color-fg-dim)]">
-          <span>Weapon</span><span>Kills</span><span>Kill share</span><span>Kills/r</span><span>HS%</span>
+          <span>Weapon</span><span>Kills</span><StatsMetricLabel metric="killShare">Kill share</StatsMetricLabel><StatsMetricLabel metric="killsPerRound">Kills/r</StatsMetricLabel><StatsMetricLabel metric="headshot">HS%</StatsMetricLabel>
         </div>
         <div className="divide-y divide-[var(--color-border)]">
           {rows.map((row) => (
@@ -155,10 +155,10 @@ export function PlayerWorkspace({ detail, compact = false }: { detail: Tournamen
     { key: "team", label: "Team", render: (row) => row.teamName ?? "—" },
     { key: "maps", label: "Maps", numeric: true, sortable: true, sortValue: (row) => row.maps, render: (row) => row.maps },
     { key: "rounds", label: "Rounds", numeric: true, sortable: true, sortValue: (row) => row.rounds, render: (row) => row.rounds ?? "—" },
-    { key: "rating", label: "Rating", numeric: true, sortable: true, sortValue: (row) => row.avgRating, render: (row) => <MetricValue metric="rating" value={row.avgRating} /> },
-    { key: "adr", label: "ADR", numeric: true, sortable: true, sortValue: (row) => row.avgAdr, render: (row) => <MetricValue metric="adr" value={row.avgAdr} /> },
-    { key: "kd", label: "K/D", numeric: true, sortable: true, sortValue: (row) => row.kdRatio, render: (row) => <MetricValue metric="kd" value={row.kdRatio} /> },
-    { key: "kpr", label: "KPR", numeric: true, sortable: true, sortValue: (row) => row.kpr, render: (row) => <MetricValue metric="kpr" value={row.kpr} /> },
+    { key: "rating", label: "Rating", metric: "rating", numeric: true, sortable: true, sortValue: (row) => row.avgRating, render: (row) => <MetricValue metric="rating" value={row.avgRating} /> },
+    { key: "adr", label: "ADR", metric: "adr", numeric: true, sortable: true, sortValue: (row) => row.avgAdr, render: (row) => <MetricValue metric="adr" value={row.avgAdr} /> },
+    { key: "kd", label: "K/D", metric: "kd", numeric: true, sortable: true, sortValue: (row) => row.kdRatio, render: (row) => <MetricValue metric="kd" value={row.kdRatio} /> },
+    { key: "kpr", label: "KPR", metric: "kpr", numeric: true, sortable: true, sortValue: (row) => row.kpr, render: (row) => <MetricValue metric="kpr" value={row.kpr} /> },
   ];
   const mapColumns: StatsDataColumn<(typeof detail.scoreboardMaps)[number]>[] = [
     { key: "map", label: "Map", render: (row) => mapLabel(row.mapName ?? "") },
@@ -171,9 +171,9 @@ export function PlayerWorkspace({ detail, compact = false }: { detail: Tournamen
   const weaponColumns: StatsDataColumn<NonNullable<typeof player>["weapons"][number]>[] = [
     { key: "weapon", label: "Weapon", render: (row) => displayWeaponName(row.weapon) },
     { key: "kills", label: "Kills", numeric: true, sortable: true, sortValue: (row) => row.kills, render: (row) => row.kills },
-    { key: "share", label: "Kill share", numeric: true, sortable: true, sortValue: (row) => row.killShare.rate, render: (row) => <MetricValue metric="killShare" value={row.killShare} /> },
-    { key: "perRound", label: "Kills/r", numeric: true, sortable: true, sortValue: (row) => row.killsPerRound.rate, render: (row) => <MetricValue metric="killsPerRound" value={row.killsPerRound} /> },
-    { key: "hs", label: "HS%", numeric: true, sortable: true, sortValue: (row) => row.headshotRate.rate, render: (row) => <MetricValue metric="headshot" value={row.headshotRate} /> },
+    { key: "share", label: "Kill share", metric: "killShare", numeric: true, sortable: true, sortValue: (row) => row.killShare.rate, render: (row) => <MetricValue metric="killShare" value={row.killShare} /> },
+    { key: "perRound", label: "Kills/r", metric: "killsPerRound", numeric: true, sortable: true, sortValue: (row) => row.killsPerRound.rate, render: (row) => <MetricValue metric="killsPerRound" value={row.killsPerRound} /> },
+    { key: "hs", label: "HS%", metric: "headshot", numeric: true, sortable: true, sortValue: (row) => row.headshotRate.rate, render: (row) => <MetricValue metric="headshot" value={row.headshotRate} /> },
   ];
 
   return (
@@ -231,15 +231,15 @@ export function PlayerWorkspace({ detail, compact = false }: { detail: Tournamen
         <div className="space-y-6">
           <MetricSection title="Duel frequency" items={[
             { label: "Attempts%", metric: "openingAttempt", value: <MetricValue metric="openingAttempt" value={slice.opening.attemptRate} /> },
-            { label: "Attempts", value: slice.opening.attempts },
+            { label: "Attempts", metric: "openingAttempts", value: <MetricValue metric="openingAttempts" value={slice.opening.attempts} /> },
             { label: "FK/100r", metric: "firstKill", value: <MetricValue metric="firstKill" value={slice.opening.firstKillsPerRound} /> },
             { label: "FD/100r", metric: "firstDeath", value: <MetricValue metric="firstDeath" value={slice.opening.firstDeathsPerRound} /> },
           ]} />
           <MetricSection title="Duel outcome" items={[
             { label: "Success%", metric: "openingWin", value: <MetricValue metric="openingWin" value={slice.opening.successRate} /> },
-            { label: "Opening wins", value: slice.opening.firstKills },
-            { label: "Win after opening win", metric: "roundWin", value: <MetricValue metric="roundWin" value={slice.opening.winRateAfterWinningOpeningDuel} /> },
-            { label: "Comeback after opening loss", metric: "roundWin", value: <MetricValue metric="roundWin" value={slice.opening.comebackRateAfterLosingOpeningDuel} /> },
+            { label: "Opening wins", metric: "openingWins", value: <MetricValue metric="openingWins" value={slice.opening.firstKills} /> },
+            { label: "Win after FK", metric: "winAfterOpeningWin", value: <MetricValue metric="winAfterOpeningWin" value={slice.opening.winRateAfterWinningOpeningDuel} /> },
+            { label: "Win after FD", metric: "winAfterOpeningLoss", value: <MetricValue metric="winAfterOpeningLoss" value={slice.opening.comebackRateAfterLosingOpeningDuel} /> },
           ]} />
         </div>
       )}
@@ -278,10 +278,10 @@ export function PlayerWorkspace({ detail, compact = false }: { detail: Tournamen
           ]} columns={5} />
 
           <MetricSection title="Usage" items={[
-            { label: "Flashes", value: slice.utility.flashesThrown },
-            { label: "HE", value: slice.utility.heThrows },
-            { label: "Fire", value: slice.utility.fireThrows },
-            { label: "Smokes", value: slice.utility.smokesThrown },
+            { label: "Flashes thrown", metric: "flashesThrown", value: <MetricValue metric="flashesThrown" value={slice.utility.flashesThrown} /> },
+            { label: "HE thrown", metric: "heThrows", value: <MetricValue metric="heThrows" value={slice.utility.heThrows} /> },
+            { label: "Fire thrown", metric: "fireThrows", value: <MetricValue metric="fireThrows" value={slice.utility.fireThrows} /> },
+            { label: "Smokes thrown", metric: "smokesThrown", value: <MetricValue metric="smokesThrown" value={slice.utility.smokesThrown} /> },
             { label: "Smoke/r", metric: "smokePerRound", value: <MetricValue metric="smokePerRound" value={slice.utility.smokesPerRound} /> },
             { label: "Utility K/100r", metric: "utilityKills", value: <MetricValue metric="utilityKills" value={slice.utility.utilityKillsPerRound} /> },
           ]} columns={3} />
@@ -291,15 +291,15 @@ export function PlayerWorkspace({ detail, compact = false }: { detail: Tournamen
       {tab === "clutch" && slice && (
         <div className="space-y-6">
           <MetricSection title="Clutch" items={[
-            { label: "Attempts", value: slice.clutch.attempts },
-            { label: "Wins", value: slice.clutch.wins },
+            { label: "Attempts", metric: "clutchAttempts", value: <MetricValue metric="clutchAttempts" value={slice.clutch.attempts} /> },
+            { label: "Wins", metric: "clutchWins", value: <MetricValue metric="clutchWins" value={slice.clutch.wins} /> },
             { label: "Clutch%", metric: "clutch", value: <MetricValue metric="clutch" value={slice.clutch.winRate} /> },
-            { label: "C/100r", metric: "clutchFrequency", value: <MetricValue metric="clutchFrequency" value={slice.clutch.frequency} /> },
+            { label: "Clutch/100r", metric: "clutchFrequency", value: <MetricValue metric="clutchFrequency" value={slice.clutch.frequency} /> },
           ]} />
           <MetricSection title="By opponents" items={(["1", "2", "3", "4", "5"] as const).map((count) => ({
             label: `1v${count}`,
-            metric: "clutch" as const,
-            value: <MetricValue metric="clutch" value={slice.clutch.byOpponentCount[count]} sampleLabel={`1v${count} attempts`} />,
+            metric: "clutchSplit" as const,
+            value: <MetricValue metric="clutchSplit" value={slice.clutch.byOpponentCount[count]} sampleLabel={`1v${count} attempts`} />,
           }))} columns={5} />
         </div>
       )}
