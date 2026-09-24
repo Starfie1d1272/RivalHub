@@ -69,8 +69,11 @@ export async function getPublicLongTeamProfileReadModel(
     }
     for (const map of mapsByMatch.get(match.id) ?? []) {
       record.maps += 1;
-      if (map.winnerEntryId === entryId) record.mapWins += 1;
-      else if (map.winnerEntryId) record.mapLosses += 1;
+      if (map.scoreA === null || map.scoreB === null || map.scoreA === map.scoreB) continue;
+      const ownMapScore = entryId === match.entryAId ? map.scoreA : map.scoreB;
+      const opponentMapScore = entryId === match.entryAId ? map.scoreB : map.scoreA;
+      if (ownMapScore > opponentMapScore) record.mapWins += 1;
+      else record.mapLosses += 1;
     }
   }
   const resultBySeason = new Map(careerResults.filter((row): row is NonNullable<typeof row> => row !== null));
