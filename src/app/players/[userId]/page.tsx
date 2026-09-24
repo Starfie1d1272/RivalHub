@@ -300,7 +300,7 @@ export async function PlayerPageContent({ params, searchParams }: PlayerPageProp
         )}
 
         <div className={profile.radar && career.selectedEvent ? "grid gap-6 lg:grid-cols-[minmax(0,1fr)_300px]" : ""}>
-          <dl className="grid grid-cols-2 border-y border-[var(--color-border)] sm:grid-cols-5">
+          <dl className="grid grid-cols-2 border-y border-[var(--color-border)] sm:grid-cols-4">
             <div className="px-3 py-3 sm:first:pl-0">
               <dt className="text-[11px] text-[var(--color-fg-mid)]">Matches</dt>
               <dd className="mt-1 font-semibold tabular-nums">{career.summary.matches}</dd>
@@ -317,10 +317,6 @@ export async function PlayerPageContent({ params, searchParams }: PlayerPageProp
             <div className="border-l border-[var(--color-border)] px-3 py-3">
               <dt className="text-[11px] text-[var(--color-fg-mid)]">MVP</dt>
               <dd className="mt-1 font-semibold tabular-nums">{career.summary.mvp > 0 ? career.summary.mvp : "—"}</dd>
-            </div>
-            <div className="border-l border-[var(--color-border)] px-3 py-3">
-              <dt className="text-[11px] text-[var(--color-fg-mid)]">Scope</dt>
-              <dd className="mt-1 text-sm font-semibold">{query.map || "All maps"}</dd>
             </div>
           </dl>
 
