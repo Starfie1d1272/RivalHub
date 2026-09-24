@@ -607,7 +607,7 @@ export async function getLongTeamCareerDetail(teamId: string, database: DB = db)
       loaded.selected.map((row) => row.importId),
       linkedRoster,
       tx,
-      { groupByTeam: false, requireCurrentImports: true },
+      { groupByTeam: false, requireCurrentImports: true, requireRosterMatch: true },
     );
     const teamRating = buildTeamRatings(scoreboard.map((row) => ({ ...row, teamId })))[0] ?? null;
     const vetoRows = matchIds.length ? await tx.select({
