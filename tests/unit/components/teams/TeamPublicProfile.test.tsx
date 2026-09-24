@@ -82,13 +82,13 @@ describe("TeamPublicProfile", () => {
     render(<TeamPublicProfile team={longLivedTeam} event={linkedEvent} />);
 
     expect(screen.getByRole("heading", { name: /Frozen Entry/ })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /长期队伍 · Rival Team/ })).toHaveAttribute("href", "/teams/rival-team");
+    expect(screen.getByRole("link", { name: /队伍主页 · Rival Team/ })).toHaveAttribute("href", "/teams/rival-team");
     expect(screen.getByText("本届参赛名单")).toBeInTheDocument();
     expect(screen.getAllByText("名单已冻结")).not.toHaveLength(0);
     expect(screen.getByText("赛事队长")).toBeInTheDocument();
     expect(screen.getByText("赛事选手")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "返回赛事队伍" })).toHaveAttribute("href", "/autumn-2026/teams");
-    expect(screen.getByRole("link", { name: /长期队伍 · Rival Team/ })).toHaveAttribute("href", "/teams/rival-team");
+    expect(screen.getByRole("link", { name: /队伍主页 · Rival Team/ })).toHaveAttribute("href", "/teams/rival-team");
     expect(screen.getAllByText("本届比赛")).not.toHaveLength(0);
     expect(screen.getByText("对阵 Opponent")).toBeInTheDocument();
   });
