@@ -124,7 +124,7 @@ export function TeamPublicProfile({ team, event = null, mapProfile, results, per
         </section>
 
         <section className="space-y-4">
-          <div><p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--color-fg-dim)]">ROSTER</p><h2 className="mt-1 text-lg font-semibold">{event.rosterLabel}</h2></div>
+          <div><p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--color-fg-dim)]">LINEUP</p><h2 className="mt-1 text-lg font-semibold">{event.rosterLabel}</h2></div>
           <div className="border-y border-[var(--color-border)] px-1">
             {rosterStatus && <div className="border-b border-[var(--color-border)] py-3"><StatusPill {...rosterStatus} /></div>}
             <div className="divide-y divide-[var(--color-border)]">
