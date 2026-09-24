@@ -521,7 +521,7 @@ function remapLinkedTeamFacts(
         },
         playerWeapons: row.facts.tournament.playerWeapons.map((fact) => ({ ...fact, teamEntityKey: remap(fact.teamEntityKey) })),
       },
-      performance: {
+      performance: scopePerformanceFactsToTeam({
         ...row.facts.performance,
         teamEntityKeys: {
           teamA: remap(row.facts.performance.teamEntityKeys.teamA),
@@ -530,7 +530,7 @@ function remapLinkedTeamFacts(
         playerRounds: row.facts.performance.playerRounds.map((fact) => ({ ...fact, teamEntityKey: remap(fact.teamEntityKey) })),
         objectives: row.facts.performance.objectives.map((fact) => ({ ...fact, teamEntityKey: fact.teamEntityKey ? remap(fact.teamEntityKey) : null })),
         playerWeapons: row.facts.performance.playerWeapons.map((fact) => ({ ...fact, teamEntityKey: remap(fact.teamEntityKey) })),
-      },
+      }, teamId),
     },
   }));
 }
