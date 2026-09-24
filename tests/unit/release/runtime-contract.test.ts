@@ -377,30 +377,24 @@ describe("deployment and operations contracts", () => {
     expect(release).toContain('gh release create "$RELEASE_TAG"');
   });
 
-  it("runs each production Cron endpoint independently with bounded retries", () => {
+  it("plans scheduled watchdog fallbacks before invoking Vercel and keeps manual dispatch forced", () => {
     const workflow = readProjectFile(".github/workflows/cron.yml");
-    const jobKeys = [
-      "draft-timeout",
-      "check-registration-deadline",
-      "match-time-auto-award",
-      "cleanup-education-evidence",
-    ];
 
-    expect(workflow).toContain("fail-fast: false");
-    expect(workflow).toContain("timeout-minutes: 5");
-    for (const jobKey of jobKeys) expect(workflow).toContain(`- job_key: ${jobKey}`);
+    expect(workflow).toContain("environment: production");
+    expect(workflow).toContain("DATABASE_URL: ${{ secrets.DATABASE_URL }}");
+    expect(workflow).toContain("db:production:scheduler:watchdog-plan");
+    expect(workflow).toContain("Primary scheduler is healthy; no Vercel fallback required.");
+    expect(workflow).toContain("github.event_name == 'workflow_dispatch'");
+    expect(workflow).toContain("github-manual");
+    expect(workflow).toContain("github-watchdog");
     expect(workflow).toContain("/api/cron/${CRON_JOB_KEY}");
     expect(workflow).toContain("CRON_SECRET: ${{ secrets.CRON_SECRET }}");
     expect(workflow).toContain('Authorization: Bearer ${CRON_SECRET}');
-    expect(workflow).toContain("--fail");
-    expect(workflow).toContain("--silent");
-    expect(workflow).toContain("--show-error");
     expect(workflow).toContain("--connect-timeout 10");
     expect(workflow).toContain("--max-time 60");
     expect(workflow).toContain("--retry 2");
     expect(workflow).toContain("--retry-all-errors");
-    expect(workflow).toContain("--retry-delay 5");
-    expect(workflow).toContain("--retry-max-time 180");
+    expect(workflow).toContain("failing closed to all watchdog targets");
     expect(workflow).not.toContain("continue-on-error");
     expect(workflow).not.toContain("|| true");
   });

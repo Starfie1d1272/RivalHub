@@ -379,6 +379,13 @@
       "when": 1790191204799,
       "tag": "0053_major_final_result_profile_capacity",
       "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1790266000000,
+      "tag": "0054_scheduler_due_gated_dispatch",
+      "breakpoints": true
     }
   ]
 }

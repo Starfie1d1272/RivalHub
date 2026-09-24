@@ -62,6 +62,7 @@
     "scripts/db/staging.ts!",
     "scripts/db/production.ts!",
     "scripts/db/scheduler.ts!",
+    "scripts/db/scheduler-watchdog-plan.ts!",
     "scripts/db/production-preflight.ts!",
     "scripts/db/preview/snapshot.ts!",
     "scripts/db/preview/refresh.ts!",
