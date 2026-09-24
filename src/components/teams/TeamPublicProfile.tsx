@@ -162,6 +162,7 @@ export function TeamPublicProfile({ team, event = null, mapProfile, results, per
                 </div>
               )) : <EmptyState title="暂无当前成员" />}
             </div>
+            </div>
             {currentEntries.length > 0 && <div className="border-t border-[var(--color-border)] pt-3"><p className="mb-2 text-xs font-medium text-[var(--color-fg-dim)]">当前赛事</p><div className="space-y-2">{currentEntries.map((entry) => <Link key={entry.id} className="flex items-center justify-between gap-3 text-sm hover:text-[var(--color-accent)]" href={`/${entry.seasonSlug}/teams/${entry.id}`}><span><span className="font-medium">{entry.seasonName}</span><span className="ml-2 text-[var(--color-fg-mid)]">{entry.name}</span></span><span>→</span></Link>)}</div></div>}
           </section>
 
