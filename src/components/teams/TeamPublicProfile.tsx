@@ -146,8 +146,6 @@ export function TeamPublicProfile({ team, event = null, mapProfile, results, sta
       </>}
 
       {!event && team && <>
-        {currentEntries.length > 0 && <Panel label="Current Event" contentClassName="p-5"><div className="space-y-2">{currentEntries.map((entry) => <Link key={entry.id} className="flex items-center justify-between gap-3 text-sm hover:text-[var(--color-accent)]" href={`/${entry.seasonSlug}/teams/${entry.id}`}><span><span className="font-medium">{entry.seasonName}</span><span className="ml-2 text-[var(--color-fg-mid)]">{entry.name}</span></span><span>→</span></Link>)}</div></Panel>}
-
         <div className="grid gap-5">
           <Panel label="当前成员" contentClassName="p-5">
             <div className="divide-y divide-[var(--color-border)]">
@@ -163,6 +161,8 @@ export function TeamPublicProfile({ team, event = null, mapProfile, results, sta
               )) : <EmptyState title="暂无当前成员" />}
             </div>
           </Panel>
+
+          {currentEntries.length > 0 && <Panel label="Current Event" contentClassName="p-5"><div className="space-y-2">{currentEntries.map((entry) => <Link key={entry.id} className="flex items-center justify-between gap-3 text-sm hover:text-[var(--color-accent)]" href={`/${entry.seasonSlug}/teams/${entry.id}`}><span><span className="font-medium">{entry.seasonName}</span><span className="ml-2 text-[var(--color-fg-mid)]">{entry.name}</span></span><span>→</span></Link>)}</div></Panel>}
 
           {mapProfile && <TeamMapProfile profile={mapProfile} />}
           <Panel label="赛事履历" contentClassName="p-5">
