@@ -465,6 +465,16 @@ async function loadTournamentPlayerDetail(
   };
 }
 
+export async function getTournamentPerformancePlayers(scope: TournamentStatsScope, database: DB = db) {
+  return database.transaction(async (tx) => {
+    const loaded = await loadStatsEvidence(tx, scope);
+    return buildTournamentPerformanceAnalytics(
+      loaded.selected.map((row) => row.facts.performance),
+      { labels: loaded.labels },
+    ).players;
+  }, { isolationLevel: "repeatable read", accessMode: "read only" });
+}
+
 export async function getTournamentPlayerDetail(scope: TournamentStatsScope & { playerId: string }, database: DB = db) {
   return database.transaction(async (tx) => {
     const playerScope = await loadPlayerAppearanceScope(tx, scope.playerId, scope);
