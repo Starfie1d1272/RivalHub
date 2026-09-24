@@ -82,6 +82,7 @@ describe("long-team transferred-player projection", () => {
     expect(player.teamEntityKeys).toEqual([longTeamId]);
     expect(player.slices.overall.kast.attempts).toBe(expectedRounds.length);
     expect(projected[1]!.facts.performance.playerRounds.some((row) => row.playerEntityKey === transferredUserId)).toBe(false);
+    expect(projected[1]!.facts.performance.playerRounds.some((row) => row.playerEntityKey === `opponent:${secondTeamB}:${transferredUserId}`)).toBe(true);
     expect(projected[1]!.facts.performance.playerWeapons.some((row) => row.playerEntityKey === transferredUserId)).toBe(false);
   });
 });
