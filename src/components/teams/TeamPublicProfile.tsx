@@ -7,7 +7,7 @@ import { PlayerAvatar } from "@/components/players/PlayerAvatar";
 import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
-import { EmptyState, PageHeader, Panel, PosChip, Stat, StatusPill } from "@/components/rivalhub";
+import { EmptyState, PageHeader, Panel, PosChip, StatusPill } from "@/components/rivalhub";
 import { TeamLogo } from "@/components/teams/TeamLogo";
 import { RecruitmentInterestButton } from "@/components/recruitment/RecruitmentInterestButton";
 import type { PublicEventTeamContext } from "@/lib/competition-entries/public-team-context";
@@ -132,7 +132,7 @@ export function TeamPublicProfile({ team, event = null, mapProfile, results, sta
         </Panel>
 
         {event && <Panel label="Event Summary" contentClassName="p-5"><div className="grid gap-4 sm:grid-cols-3"><div><p className="text-xs text-[var(--color-fg-dim)]">Record</p><p className="mt-1 font-semibold tabular-nums">{event.record.wins}-{event.record.losses}</p></div><div><p className="text-xs text-[var(--color-fg-dim)]">Roster</p><p className="mt-1 font-semibold">{event.roster.length} 名</p></div><div><p className="text-xs text-[var(--color-fg-dim)]">Seed</p><p className="mt-1 font-semibold">{event.seedPresentation?.label ?? "待确认"}</p></div></div>{nextMatch && <Link className="mt-4 block border-t border-[var(--color-border)] pt-4 text-sm font-semibold hover:text-[var(--color-accent)]" href={`/${event.season.slug}/matches/${nextMatch.id}`}>下一场 · {nextMatch.opponentName ?? "待定"} →</Link>}</Panel>}
-        {mapProfile && <TeamMapProfile profile={mapProfile} event />} className="font-semibold text-[var(--color-accent)]">{honor.label}</p>)}
+        {mapProfile && <TeamMapProfile profile={mapProfile} event />}
         <Panel label="本届比赛" contentClassName="p-5">
           <div className="space-y-2">
             {event.matches.length > 0 ? event.matches.map((match) => (
