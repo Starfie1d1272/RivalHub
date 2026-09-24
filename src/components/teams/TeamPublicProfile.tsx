@@ -87,7 +87,7 @@ export function TeamPublicProfile({ team, event = null, mapProfile, results, per
             )}
             actions={event ? (
               <div className="flex flex-wrap items-center gap-3">
-                {team && <Link href={`/teams/${team.team.slug}`} className="text-sm text-[var(--color-accent)] hover:underline">长期队伍 · {team.team.name}</Link>}
+                {team && <Link href={`/teams/${team.team.slug}`} className="text-sm text-[var(--color-accent)] hover:underline">队伍主页 · {team.team.name}</Link>}
                 <Link href={`/${event.season.slug}/teams`} className="text-sm text-[var(--color-fg-secondary)] hover:text-[var(--color-fg-primary)]">返回赛事队伍</Link>
               </div>
             ) : (team && currentUserMembership && team.team.status === "active") ? (
