@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
 
+import { StatsMetricLabel } from "@/components/stats/StatsMetricHelp";
+
 import type { StatsMetricKey } from "@/lib/stats/metrics";
 
 export type MetricSectionItem = {
