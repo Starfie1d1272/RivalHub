@@ -285,7 +285,7 @@ describe("deployment and operations contracts", () => {
     expect(ci).not.toMatch(/branches:\s*\[[^\]]*\bdev\b/);
   });
 
-  it("declares the single Vercel Function region and disables only main Git deployment", () => {
+  it("declares the single Vercel Function region and disables automatic Git deployments", () => {
     const config = JSON.parse(readProjectFile("vercel.json")) as {
       buildCommand?: string;
       regions?: string[];
@@ -294,8 +294,7 @@ describe("deployment and operations contracts", () => {
 
     expect(config.buildCommand).toBe("tsx scripts/vercel-build.ts");
     expect(config.regions).toEqual(["hnd1"]);
-    expect(config.git?.deploymentEnabled).toEqual({ main: false });
-    expect(config.git?.deploymentEnabled).not.toBe(false);
+    expect(config.git?.deploymentEnabled).toBe(false);
   });
 
   it("keeps the production build hermetic", () => {

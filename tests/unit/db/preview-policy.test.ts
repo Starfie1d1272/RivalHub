@@ -35,8 +35,12 @@ describe("sanitized mirror policy", () => {
 
   it("derives the source-compatible table and column policy from the migration ledger", () => {
     const expected = readExpectedMigrations();
-    const beforeSteamProfile = expected.slice(0, -1).map(({ hash, when }) => ({ hash, when }));
-    const beforeStatsExpansion = expected.slice(0, -2).map(({ hash, when }) => ({ hash, when }));
+    const steamProfileMigrationIndex = expected.findIndex(({ tag }) => tag === "0052_gray_supernaut");
+    const statsExpansionMigrationIndex = expected.findIndex(({ tag }) => tag === "0051_sour_grim_reaper");
+    expect(steamProfileMigrationIndex).toBeGreaterThan(0);
+    expect(statsExpansionMigrationIndex).toBeGreaterThan(0);
+    const beforeSteamProfile = expected.slice(0, steamProfileMigrationIndex).map(({ hash, when }) => ({ hash, when }));
+    const beforeStatsExpansion = expected.slice(0, statsExpansionMigrationIndex).map(({ hash, when }) => ({ hash, when }));
 
     const lagging = previewPolicyFor(beforeSteamProfile);
     const older = previewPolicyFor(beforeStatsExpansion);
