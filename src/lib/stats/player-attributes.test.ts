@@ -210,4 +210,26 @@ describe("player attributes", () => {
     expect(firepower.rank).not.toBeNull();
     expect(firepower.rankedCount).toBeGreaterThan(0);
   });
+  it("scores explanatory detail metrics without changing the attribute formula", () => {
+    const target = makePlayer({ id: "detail", rounds: 140, kills: 95, damagePerRound: 88, awpKills: 20 });
+    const profile = buildPlayerAttributeProfile(target, population());
+
+    const firepower = profile.attributes.find((row) => row.key === "firepower")!;
+    const killRoundRate = firepower.metrics.find((row) => row.key === "killRoundRate")!;
+    const threePlus = firepower.metrics.find((row) => row.key === "threePlusKillRoundRate")!;
+
+    expect(killRoundRate.weight).toBeNull();
+    expect(killRoundRate.score).not.toBeNull();
+    expect(threePlus.weight).toBeNull();
+    expect(threePlus.score).not.toBeNull();
+    expect(firepower.formula).toContain("KPR 45%");
+  });
+
+  it("uses the localized breakthrough and opening labels", () => {
+    const profile = buildPlayerAttributeProfile(makePlayer({ id: "labels" }), population());
+
+    expect(profile.attributes.find((row) => row.key === "entrying")?.label).toBe("突破");
+    expect(profile.attributes.find((row) => row.key === "opening")?.label).toBe("首杀");
+  });
+
 });
