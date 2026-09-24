@@ -111,11 +111,13 @@ export async function getPublicCompetitionEntryPerformanceReadModel(
   season: Pick<PublicSeason, "id">,
   event: PublicEventTeamContext,
 ) {
-  const performance = await getTournamentTeamDetail({ seasonId: season.id, teamId: event.entry.id });
-  const mapProfile = await getPublicTeamMapProfile(
-    [event.entry.id],
-    event.roster.map((member) => member.userId),
-  );
+  const [performance, mapProfile] = await Promise.all([
+    getTournamentTeamDetail({ seasonId: season.id, teamId: event.entry.id }),
+    getPublicTeamMapProfile(
+      [event.entry.id],
+      event.roster.map((member) => member.userId),
+    ),
+  ]);
   return {
     mode: "event" as const,
     performance,
