@@ -93,6 +93,10 @@ presentation owner 对有限集合使用穷举映射（新增状态必须同时�
 
 社区奖公开页面以进行中、已结奖、未颁/取消及个人提交组织浏览。申报与证据表单由 CTA 打开，复用既有 action workflow；候选人与获奖者保持赛事相关人员语义，仅在获奖者确认具有本届选手公开身份时链接选手主页，非选手相关人员展示公开姓名，公开 DTO 与管理审核字段保持分离。
 
+### Public player profile
+
+`/players/[userId]` 是选手的长期资料页，维持 PageLayout standard，保留当前身份、活动、找队状态、报名时资料、公开竞技档案、自报地图熟练度和选手自述。Performance 默认使用 All-time；Event 和 Map 是可分享、刷新可恢复的 URL scope，默认值从 URL 省略，切换 Event 时只在所选赛事不包含当前 Map 时清除 Map。Side（Overall / T / CT）留在指标 workspace 内。系列赛 W/L 与 MVP 随 Event scope 变化，不随 Map scope 变化；Map 只筛选地图、回合和选手表现。指标沿用赛事 Player detail 的 Overview、Opening & Teamplay、Utility、Clutch、Maps & Weapons 家族、MetricValue、样本与 tooltip 语义，不把宽表嵌入 standard 页面。Radar 仅显示所选单届赛事的赛事内标准化结果，不合并不同赛事的分数。赛事履历展示当届队伍、正式战绩、已确认名次和有效官方荣誉，并链接到赛事队伍页与选手统计；用户文案使用「队伍 / Team」，不泄漏 `CompetitionEntry` 等内部术语。
+
 ### Public information and feedback entry
 
 公开页面使用一个固定的「信息与反馈」入口。入口里的最新公告、重要提醒和赛事公开信息由 server-side public read model 提供；客户端只负责本地确认状态、Dialog 展开和反馈表单交互，不自行推导公告范围、赛事内容或权限。重要提醒的确认记录只保存在当前浏览器的 `localStorage`，公告更新后以新的 `updatedAt` 重新提示；管理员页面不显示该入口。

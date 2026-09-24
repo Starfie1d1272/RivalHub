@@ -27,7 +27,7 @@ import { getMatchMvpResults, ensureMvpWinner } from "@/actions/player-stats";
 import { getMatchTimeProposalViews } from "@/lib/matches/time-proposals";
 import { getTimeBufferHoursForStage } from "@/lib/matches/time-rules";
 import { getMatchRoster } from "@/actions/matches/roster";
-import { getSeasonHexagonScores } from "@/actions/hexagon";
+import { getSeasonHexagonScores } from "@/lib/stats/hexagon-query";
 import { computeTeamDimensions } from "@/lib/utils/hexagon";
 import type { HexagonScores } from "@/lib/utils/hexagon";
 import { getUserSession, requireSeasonAdmin } from "@/lib/auth/session";

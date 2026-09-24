@@ -22,7 +22,7 @@ import {
 } from "../../../src/lib/demo-integration/review";
 import { dakStableScoreboardValues, submitRivalHubEvidence } from "../../../src/lib/demo-integration/submit";
 import { recordGameplaySteamIdentityInTx } from "../../../src/lib/identity/gameplay-steam";
-import { getTournamentMapDetail, getTournamentStats } from "../../../src/lib/stats/tournament-query";
+import { getPlayerCareerDetail, getTournamentMapDetail, getTournamentPlayerDetail, getTournamentStats } from "../../../src/lib/stats/tournament-query";
 import { adaptStatsEvidence } from "../../../src/lib/stats/evidence-adapter";
 import { createLocalPool } from "./harness/database";
 
@@ -87,11 +87,25 @@ describe("DAK evidence submit persistence", () => {
       pairing: randomUUID(),
       ocrStat: randomUUID(),
       legacyImport: randomUUID(),
+      careerSeason: randomUUID(),
+      careerEntryA: randomUUID(),
+      careerEntryB: randomUUID(),
+      careerRevisionA: randomUUID(),
+      careerRevisionB: randomUUID(),
+      careerEventRosterA: randomUUID(),
+      careerEventRosterB: randomUUID(),
+      careerMatch: randomUUID(),
+      careerMap: randomUUID(),
+      careerRosterA: randomUUID(),
+      careerRosterB: randomUUID(),
     };
     const userIds = Array.from({ length: 10 }, () => randomUUID());
     const participantIds = userIds.map(() => randomUUID());
     const eventMemberIds = userIds.map(() => randomUUID());
     const rosterMemberIds = userIds.map(() => randomUUID());
+    const careerParticipantIds = userIds.map(() => randomUUID());
+    const careerEventMemberIds = userIds.map(() => randomUUID());
+    const careerRosterMemberIds = userIds.map(() => randomUUID());
     const now = new Date("2026-09-13T05:00:00.000Z");
     const expiresAt = new Date(now.getTime() + 10 * 60 * 1000);
     try {
@@ -464,6 +478,192 @@ describe("DAK evidence submit persistence", () => {
       expect(queryLog.some((query) => /from "match_maps" inner join "matches"/i.test(query) && query.includes('"map_name" ='))).toBe(true);
       expect(queryLog.some((query) => /from "matches"/i.test(query) && !/inner join "match_maps"/i.test(query))).toBe(false);
       expect(queryLog.filter((query) => /from "match_demo_imports"/i.test(query) && query.includes('"payload"'))).toHaveLength(1);
+
+      // A second event proves the all-time profile merges independently
+      // confirmed imports while map filtering leaves series facts intact.
+      await database.update(schema.matchRosters).set({ status: "confirmed", confirmedAt: now, confirmedBy: "integration-test" })
+        .where(eq(schema.matchRosters.matchId, ids.match));
+      await client.query("BEGIN");
+      await client.query("SET CONSTRAINTS ALL DEFERRED");
+      await database.insert(schema.seasons).values({
+        id: ids.careerSeason,
+        slug: ids.careerSeason,
+        name: "DAK career second event",
+        kind: "custom",
+        status: "finished",
+      });
+      await database.insert(schema.competitionEntries).values([
+        {
+          id: ids.careerEntryA,
+          competitionId: ids.careerSeason,
+          source: "event_native",
+          name: "Career A",
+          representativeUserId: userIds[0]!,
+          registrationStatus: "approved",
+          currentRosterRevisionId: ids.careerRevisionA,
+          approvedRosterRevisionId: ids.careerRevisionA,
+        },
+        {
+          id: ids.careerEntryB,
+          competitionId: ids.careerSeason,
+          source: "event_native",
+          name: "Career B",
+          representativeUserId: userIds[5]!,
+          registrationStatus: "approved",
+          currentRosterRevisionId: ids.careerRevisionB,
+          approvedRosterRevisionId: ids.careerRevisionB,
+        },
+      ]);
+      await database.insert(schema.competitionEntryRepresentativeChanges).values([
+        { entryId: ids.careerEntryA, fromUserId: null, toUserId: userIds[0]!, changedByActorId: "integration-test" },
+        { entryId: ids.careerEntryB, fromUserId: null, toUserId: userIds[5]!, changedByActorId: "integration-test" },
+      ]);
+      await database.insert(schema.competitionEntryRosterRevisions).values([
+        { id: ids.careerRevisionA, entryId: ids.careerEntryA, revisionNumber: 1, status: "approved", createdBy: userIds[0]!, approvedAt: now },
+        { id: ids.careerRevisionB, entryId: ids.careerEntryB, revisionNumber: 1, status: "approved", createdBy: userIds[5]!, approvedAt: now },
+      ]);
+      await database.insert(schema.competitionEntryParticipants).values(userIds.map((userId, index) => ({
+        id: careerParticipantIds[index]!,
+        entryId: index < 5 ? ids.careerEntryA : ids.careerEntryB,
+        userId,
+        status: "confirmed" as const,
+        invitedByUserId: index < 5 ? userIds[0]! : userIds[5]!,
+        confirmedAt: now,
+      })));
+      await database.insert(schema.competitionEntryRosterMembers).values(userIds.map((userId, index) => ({
+        id: careerRosterMemberIds[index]!,
+        revisionId: index < 5 ? ids.careerRevisionA : ids.careerRevisionB,
+        participantId: careerParticipantIds[index]!,
+        userId,
+        isPrimaryStarter: true,
+      })));
+      await database.insert(schema.eventRosters).values([
+        { id: ids.careerEventRosterA, entryId: ids.careerEntryA, sourceRosterRevisionId: ids.careerRevisionA, status: "confirmed", confirmedAt: now, confirmedBy: userIds[0]! },
+        { id: ids.careerEventRosterB, entryId: ids.careerEntryB, sourceRosterRevisionId: ids.careerRevisionB, status: "confirmed", confirmedAt: now, confirmedBy: userIds[5]! },
+      ]);
+      await database.insert(schema.eventRosterMembers).values(userIds.map((userId, index) => ({
+        id: careerEventMemberIds[index]!,
+        eventRosterId: index < 5 ? ids.careerEventRosterA : ids.careerEventRosterB,
+        userId,
+        participantId: careerParticipantIds[index]!,
+        isPrimaryStarter: true,
+      })));
+      await database.insert(schema.matches).values({
+        id: ids.careerMatch,
+        seasonId: ids.careerSeason,
+        entryAId: ids.careerEntryA,
+        entryBId: ids.careerEntryB,
+        stage: "career-stage",
+        format: "bo1",
+        scoreA: 1,
+        scoreB: 0,
+        status: "finished",
+        completedAt: now,
+        mvpWinnerUserId: userIds[0]!,
+      });
+      await database.insert(schema.matchMaps).values({
+        id: ids.careerMap,
+        matchId: ids.careerMatch,
+        mapOrder: 1,
+        mapName: "de_nuke",
+        scoreA: 13,
+        scoreB: 9,
+        completedAt: now,
+      });
+      await database.insert(schema.matchRosters).values([
+        { id: ids.careerRosterA, matchId: ids.careerMatch, entryId: ids.careerEntryA, source: "admin_select", status: "submitted" },
+        { id: ids.careerRosterB, matchId: ids.careerMatch, entryId: ids.careerEntryB, source: "admin_select", status: "submitted" },
+      ]);
+      await database.insert(schema.matchRosterPlayers).values(userIds.map((userId, index) => ({
+        rosterId: index < 5 ? ids.careerRosterA : ids.careerRosterB,
+        eventRosterMemberId: careerEventMemberIds[index]!,
+        isStarter: true,
+      })));
+      const careerSeasonScope = [ids.season, ids.careerSeason];
+      await database.update(schema.dakPairings).set({ seasonIds: careerSeasonScope }).where(eq(schema.dakPairings.id, ids.pairing));
+      await client.query("COMMIT");
+      const secondEventEvidence: RivalHubEvidenceSubmission = {
+        ...evidence,
+        source: { ...evidence.source, mapName: "de_nuke", demoSha256: "f".repeat(64) },
+        target: {
+          ...evidence.target,
+          seasonId: ids.careerSeason,
+          stageKey: "career-stage",
+          matchId: ids.careerMatch,
+          matchMapId: ids.careerMap,
+          entryAId: ids.careerEntryA,
+          entryBId: ids.careerEntryB,
+          expectedMapName: "de_nuke",
+        },
+        participants: evidence.participants.map((participant, index) => ({
+          ...participant,
+          resolution: {
+            status: "matched" as const,
+            userId: userIds[index]!,
+            eventRosterMemberId: careerEventMemberIds[index]!,
+            entryId: index < 5 ? ids.careerEntryA : ids.careerEntryB,
+          },
+        })),
+      };
+      secondEventEvidence.target.evidenceRevision = buildEvidenceRevision({
+        seasonId: ids.careerSeason,
+        stageKey: "career-stage",
+        stageRunId: null,
+        matchId: ids.careerMatch,
+        matchMapId: ids.careerMap,
+        mapOrder: 1,
+        mapName: "de_nuke",
+        mapScoreA: 13,
+        mapScoreB: 9,
+        mapCompletedAt: now.toISOString(),
+        matchStatus: "finished",
+        entryAId: ids.careerEntryA,
+        entryBId: ids.careerEntryB,
+        roster: userIds.map((userId, index) => ({
+          entryId: index < 5 ? ids.careerEntryA : ids.careerEntryB,
+          eventRosterMemberId: careerEventMemberIds[index]!,
+          userId,
+          steam64: `765611980000000${String(index + 1).padStart(2, "0")}`,
+          isStarter: true,
+        })),
+      });
+      const secondEventImport = await submitRivalHubEvidence({
+        input: secondEventEvidence,
+        pairingId: ids.pairing,
+        pairingScope: { seasonIds: careerSeasonScope },
+        idempotencyKey: "dak-career-second-event-1",
+      });
+      expect(secondEventImport).toMatchObject({ status: "synced", issues: [] });
+
+      queryLog.length = 0;
+      queryBindings.length = 0;
+      const allTimeCareer = await getPlayerCareerDetail({ playerId: userIds[0]! }, observedDatabase);
+      expect(allTimeCareer.summary).toMatchObject({ matches: 2, wins: 2, losses: 0, mvp: 1, maps: 2 });
+      expect(allTimeCareer.scoreboard[0]).toMatchObject({ maps: 2 });
+      expect(allTimeCareer.scoreboardMaps.map((row) => row.mapName)).toEqual(["de_ancient", "de_nuke"]);
+      expect(allTimeCareer.events).toHaveLength(2);
+      const evidencePayloadQuery = queryLog.find((query) => /from "match_demo_imports"/i.test(query) && query.includes('"payload"'));
+      expect(evidencePayloadQuery).toBeDefined();
+      const selectedImportIds = queryBindings[queryLog.indexOf(evidencePayloadQuery!)];
+      expect(selectedImportIds).toHaveLength(2);
+      expect(selectedImportIds).not.toContain(ids.legacyImport);
+      expect(selectedImportIds).not.toContain(conflictBeforePromotionId);
+      const appearanceScopeQuery = queryLog.find((query) => /from "match_roster_players"/i.test(query) && query.includes('"event_roster_members"."user_id" ='));
+      expect(appearanceScopeQuery).toBeDefined();
+      expect(queryBindings[queryLog.indexOf(appearanceScopeQuery!)]).toContain(userIds[0]);
+
+      const eventCareer = await getPlayerCareerDetail({ playerId: userIds[0]!, eventSlug: ids.season }, observedDatabase);
+      const tournamentCareer = await getTournamentPlayerDetail({ playerId: userIds[0]!, seasonId: ids.season }, observedDatabase);
+      expect(eventCareer.scoreboard).toEqual(tournamentCareer.scoreboard);
+      expect(eventCareer.performance).toEqual(tournamentCareer.performance);
+      expect(eventCareer.summary).toEqual(tournamentCareer.summary);
+      expect(eventCareer.summary).toMatchObject({ matches: 1, wins: 1, losses: 0, mvp: 0, maps: 1 });
+
+      const mapCareer = await getPlayerCareerDetail({ playerId: userIds[0]!, mapFilter: "de_ancient" }, observedDatabase);
+      expect(mapCareer.summary).toMatchObject({ matches: 2, wins: 2, losses: 0, mvp: 1, maps: 1 });
+      expect(mapCareer.scoreboard[0]).toMatchObject({ maps: 1 });
+      expect(mapCareer.scoreboardMaps.map((row) => row.mapName)).toEqual(["de_ancient"]);
+
       const revisedCompletedAt = new Date(now.getTime() + 1_000);
       await database.update(schema.matchMaps).set({ completedAt: revisedCompletedAt }).where(eq(schema.matchMaps.id, ids.map));
       expect((await getTournamentStats({ seasonId: ids.season }, database)).coverage.detailedMaps).toBe(0);
@@ -959,22 +1159,38 @@ describe("DAK evidence submit persistence", () => {
       await client.query("DELETE FROM match_round_facts WHERE import_id IN (SELECT id FROM match_demo_imports WHERE match_map_id = $1)", [ids.map]).catch(() => {});
       await client.query("DELETE FROM match_player_stats WHERE map_id = $1", [ids.map]).catch(() => {});
       await client.query("DELETE FROM match_demo_imports WHERE match_map_id = $1", [ids.map]).catch(() => {});
+      await client.query("DELETE FROM match_round_facts WHERE import_id IN (SELECT id FROM match_demo_imports WHERE match_map_id = $1)", [ids.careerMap]).catch(() => {});
+      await client.query("DELETE FROM match_player_stats WHERE map_id = $1", [ids.careerMap]).catch(() => {});
+      await client.query("DELETE FROM match_demo_imports WHERE match_map_id = $1", [ids.careerMap]).catch(() => {});
       await client.query("DELETE FROM audit_logs WHERE season_id = $1", [ids.season]).catch(() => {});
+      await client.query("DELETE FROM audit_logs WHERE season_id = $1", [ids.careerSeason]).catch(() => {});
       await client.query("DELETE FROM user_gameplay_steam_ids WHERE user_id = ANY($1::uuid[])", [userIds]).catch(() => {});
       await client.query("DELETE FROM dak_pairings WHERE id = $1", [ids.pairing]).catch(() => {});
       await client.query("DELETE FROM dak_pairing_intents WHERE id = $1", [ids.pairingIntent]).catch(() => {});
       await client.query("DELETE FROM match_roster_players WHERE roster_id IN ($1, $2)", [ids.rosterA, ids.rosterB]).catch(() => {});
       await client.query("DELETE FROM match_rosters WHERE id IN ($1, $2)", [ids.rosterA, ids.rosterB]).catch(() => {});
+      await client.query("DELETE FROM match_roster_players WHERE roster_id IN ($1, $2)", [ids.careerRosterA, ids.careerRosterB]).catch(() => {});
+      await client.query("DELETE FROM match_rosters WHERE id IN ($1, $2)", [ids.careerRosterA, ids.careerRosterB]).catch(() => {});
       await client.query("DELETE FROM match_maps WHERE id = $1", [ids.map]).catch(() => {});
+      await client.query("DELETE FROM match_maps WHERE id = $1", [ids.careerMap]).catch(() => {});
       await client.query("DELETE FROM matches WHERE id = $1", [ids.match]).catch(() => {});
+      await client.query("DELETE FROM matches WHERE id = $1", [ids.careerMatch]).catch(() => {});
       await client.query("DELETE FROM event_roster_members WHERE id = ANY($1::uuid[])", [eventMemberIds]).catch(() => {});
+      await client.query("DELETE FROM event_roster_members WHERE id = ANY($1::uuid[])", [careerEventMemberIds]).catch(() => {});
       await client.query("DELETE FROM event_rosters WHERE id IN ($1, $2)", [ids.eventRosterA, ids.eventRosterB]).catch(() => {});
+      await client.query("DELETE FROM event_rosters WHERE id IN ($1, $2)", [ids.careerEventRosterA, ids.careerEventRosterB]).catch(() => {});
       await client.query("DELETE FROM competition_entry_roster_members WHERE id = ANY($1::uuid[])", [rosterMemberIds]).catch(() => {});
+      await client.query("DELETE FROM competition_entry_roster_members WHERE id = ANY($1::uuid[])", [careerRosterMemberIds]).catch(() => {});
       await client.query("DELETE FROM competition_entry_participants WHERE id = ANY($1::uuid[])", [participantIds]).catch(() => {});
+      await client.query("DELETE FROM competition_entry_participants WHERE id = ANY($1::uuid[])", [careerParticipantIds]).catch(() => {});
       await client.query("DELETE FROM competition_entry_roster_revisions WHERE id IN ($1, $2)", [ids.revisionA, ids.revisionB]).catch(() => {});
+      await client.query("DELETE FROM competition_entry_roster_revisions WHERE id IN ($1, $2)", [ids.careerRevisionA, ids.careerRevisionB]).catch(() => {});
       await client.query("DELETE FROM competition_entry_representative_changes WHERE entry_id IN ($1, $2)", [ids.entryA, ids.entryB]).catch(() => {});
+      await client.query("DELETE FROM competition_entry_representative_changes WHERE entry_id IN ($1, $2)", [ids.careerEntryA, ids.careerEntryB]).catch(() => {});
       await client.query("DELETE FROM competition_entries WHERE id IN ($1, $2)", [ids.entryA, ids.entryB]).catch(() => {});
+      await client.query("DELETE FROM competition_entries WHERE id IN ($1, $2)", [ids.careerEntryA, ids.careerEntryB]).catch(() => {});
       await client.query("DELETE FROM seasons WHERE id = $1", [ids.season]).catch(() => {});
+      await client.query("DELETE FROM seasons WHERE id = $1", [ids.careerSeason]).catch(() => {});
       await client.query("DELETE FROM users WHERE id = ANY($1::uuid[])", [userIds]).catch(() => {});
       await client.query("COMMIT").catch(() => {});
       client.release();

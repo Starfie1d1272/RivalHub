@@ -7,7 +7,7 @@ import { getPublicDisplayName } from "@/lib/identity/display-name";
 import { completeSum, killWeightedAvg, perRound, ratioOfSums, roundWeightedAvg, roundsExpr, simpleAvg } from "./sql";
 
 export interface StatsLeaderboardFilters {
-  seasonId: string;
+  seasonId?: string;
   stage?: string;
   format?: "bo1" | "bo3" | "bo5";
   mapFilter?: string;
@@ -18,6 +18,7 @@ export interface StatsLeaderboardOptions {
   userId?: string;
   groupByMap?: boolean;
   groupByTeam?: boolean;
+  requireCurrentImports?: boolean;
 }
 
 export async function getStatsLeaderboard(
@@ -42,7 +43,11 @@ export async function getStatsLeaderboard(
   const mapFilter = scope.mapFilter ? sql`AND mm.map_name = ${scope.mapFilter}` : sql``;
   const teamFilter = scope.teamFilter ? sql`AND entrant.id = ${scope.teamFilter}` : sql``;
   const userFilter = options.userId ? sql`AND mps.user_id = ${options.userId}` : sql``;
-  const importFilter = currentImportIds.length ? sql`mps.dak_import_id IN (${sql.join(currentImportIds.map((id) => sql`${id}`), sql`, `)})` : sql`false`;
+  const currentImportFilter = currentImportIds.length ? sql`mps.dak_import_id IN (${sql.join(currentImportIds.map((id) => sql`${id}`), sql`, `)})` : sql`false`;
+  const importFilter = options.requireCurrentImports
+    ? currentImportFilter
+    : sql`(mps.dak_import_id IS NULL OR ${currentImportFilter})`;
+  const seasonFilter = scope.seasonId ? sql`AND m.season_id = ${scope.seasonId}` : sql``;
   const stageFilter = scope.stage ? sql`AND m.stage = ${scope.stage}` : sql``;
   const formatFilter = scope.format ? sql`AND m.format = ${scope.format}` : sql``;
   const mapName = options.groupByMap ? sql`mm.map_name AS map_name,` : sql`NULL::text AS map_name,`;
@@ -84,11 +89,12 @@ export async function getStatsLeaderboard(
       AS lineup(match_id uuid, user_id uuid, entry_id uuid)
       ON lineup.match_id = m.id AND lineup.user_id = mps.user_id
     LEFT JOIN competition_entries entrant ON entrant.id = lineup.entry_id
-    WHERE m.season_id = ${scope.seasonId}
+    WHERE true
+      ${seasonFilter}
       AND mps.verified_by_admin IS NOT NULL
       AND m.status = 'finished'
       AND mps.user_id IS NOT NULL
-      AND (mps.dak_import_id IS NULL OR ${importFilter})
+      AND ${importFilter}
       ${stageFilter}
       ${formatFilter}
       ${mapFilter}

@@ -1,15 +1,16 @@
 import "server-only";
 
-import { and, desc, eq, inArray, or } from "drizzle-orm";
+import { and, count, desc, eq, inArray, ne, or } from "drizzle-orm";
 import { buildTournamentAnalytics, buildTournamentPerformanceAnalytics } from "@cs2dak/tournament";
 import { db, type DB, type TxDb } from "@/db/client";
-import { competitionEntries, matchDemoImports, matchMaps, matches, matchVetoSteps, steamProfiles, users } from "@/db/schema";
+import { competitionEntries, eventRosterMembers, matchDemoImports, matchMaps, matchRosterPlayers, matchRosters, matches, matchVetoSteps, seasons, steamProfiles, users } from "@/db/schema";
 import { parseRivalHubDemoEvidenceV1 } from "@/lib/demo-evidence/contract";
 import { selectCurrentDemoImport } from "@/lib/demo-integration/read";
 import { buildEvidenceRevisionForTarget } from "@/lib/demo-integration/revision";
 import { resolveGameplayUsersBySteam64 } from "@/lib/identity/gameplay-steam";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
 import { loadEffectiveMatchRoster, type EffectiveMatchRosterPlayer } from "@/lib/match-rosters/effective";
+import { getPublicPlayerRecord } from "@/lib/players/public-record";
 import { getStatsLeaderboard } from "./leaderboard-query";
 import { adaptStatsEvidence, type StatsPlayerBinding } from "./evidence-adapter";
 import { buildTournamentResults } from "./results";
@@ -18,13 +19,23 @@ import { classifyVetoSample } from "./veto-sample";
 
 export interface TournamentStatsScope { seasonId: string; stage?: string; format?: "bo1" | "bo3" | "bo5"; mapFilter?: string; teamFilter?: string }
 
+type StatsEvidenceScope = Omit<TournamentStatsScope, "seasonId"> & { seasonId?: string };
+
+export interface PlayerStatsEventOption {
+  id: string;
+  slug: string;
+  name: string;
+  maps: string[];
+}
+
 type StatsLabels = { teams: Record<string, string>; players: Record<string, string> };
 
-async function loadStatsEvidence(tx: TxDb, scope: TournamentStatsScope, options: { mapName?: string; teamId?: string } = {}) {
-  const selectedMapRows = options.mapName
+async function loadStatsEvidence(tx: TxDb, scope: StatsEvidenceScope, options: { mapName?: string; teamId?: string; matchIds?: readonly string[] } = {}) {
+  const selectedMapRows = options.mapName && options.matchIds?.length !== 0
     ? await tx.select({ match: matches, map: matchMaps }).from(matchMaps).innerJoin(matches, eq(matches.id, matchMaps.matchId)).where(and(
-      eq(matches.seasonId, scope.seasonId),
+      scope.seasonId ? eq(matches.seasonId, scope.seasonId) : undefined,
       eq(matchMaps.mapName, options.mapName),
+      options.matchIds ? inArray(matches.id, [...options.matchIds]) : undefined,
       scope.stage ? eq(matches.stage, scope.stage) : undefined,
       scope.format ? eq(matches.format, scope.format) : undefined,
       (options.teamId ?? scope.teamFilter) ? or(eq(matches.entryAId, options.teamId ?? scope.teamFilter!), eq(matches.entryBId, options.teamId ?? scope.teamFilter!)) : undefined,
@@ -32,17 +43,26 @@ async function loadStatsEvidence(tx: TxDb, scope: TournamentStatsScope, options:
     : undefined;
   const matchRows = selectedMapRows
     ? [...new Map(selectedMapRows.map(({ match }) => [match.id, match])).values()]
-    : await tx.select().from(matches).where(and(
-      eq(matches.seasonId, scope.seasonId),
-      scope.stage ? eq(matches.stage, scope.stage) : undefined,
-      scope.format ? eq(matches.format, scope.format) : undefined,
-    ));
+    : options.matchIds
+      ? options.matchIds.length ? await tx.select().from(matches).where(and(
+        inArray(matches.id, [...options.matchIds]),
+        scope.seasonId ? eq(matches.seasonId, scope.seasonId) : undefined,
+        scope.stage ? eq(matches.stage, scope.stage) : undefined,
+        scope.format ? eq(matches.format, scope.format) : undefined,
+      )) : []
+      : scope.seasonId ? await tx.select().from(matches).where(and(
+        eq(matches.seasonId, scope.seasonId),
+        scope.stage ? eq(matches.stage, scope.stage) : undefined,
+        scope.format ? eq(matches.format, scope.format) : undefined,
+      )) : [];
   const selectedTeamId = options.teamId ?? scope.teamFilter;
   const baseMatches = matchRows.filter((match) => match.status !== "cancelled");
   const scopedMatches = baseMatches.filter((match) => !selectedTeamId || [match.entryAId, match.entryBId].includes(selectedTeamId));
   const matchesById = new Map(scopedMatches.map((match) => [match.id, match]));
   const matchIds = scopedMatches.map((match) => match.id);
-  const entries = await tx.select({ id: competitionEntries.id, name: competitionEntries.name }).from(competitionEntries).where(eq(competitionEntries.competitionId, scope.seasonId));
+  const seasonIds = scope.seasonId ? [scope.seasonId] : [...new Set(scopedMatches.map((match) => match.seasonId))];
+  const entries = seasonIds.length ? await tx.select({ id: competitionEntries.id, name: competitionEntries.name }).from(competitionEntries)
+    .where(inArray(competitionEntries.competitionId, seasonIds)) : [];
   const participantIds = new Set(baseMatches.filter((match) => match.status === "finished").flatMap((match) => [match.entryAId, match.entryBId].filter((id): id is string => Boolean(id))));
   const participantEntries = entries.filter((entry) => participantIds.has(entry.id));
   const maps = selectedMapRows
@@ -97,7 +117,7 @@ async function loadStatsEvidence(tx: TxDb, scope: TournamentStatsScope, options:
     const payload = payloadByImportId.get(current.id);
     if (payload === undefined) throw new Error("Selected stats evidence payload unavailable");
     const evidence = parseRivalHubDemoEvidenceV1(payload);
-    if (evidence.target.matchMapId !== map.id || evidence.target.matchId !== match.id || evidence.target.seasonId !== scope.seasonId || evidence.contract.semanticProfile !== current.semanticProfile) throw new Error("Stats evidence target mismatch");
+    if (evidence.target.matchMapId !== map.id || evidence.target.matchId !== match.id || evidence.target.seasonId !== match.seasonId || evidence.contract.semanticProfile !== current.semanticProfile) throw new Error("Stats evidence target mismatch");
     return { evidence, match, map, importId: current.id };
   });
   const resolutions = await resolveGameplayUsersBySteam64(tx, selected.flatMap(({ evidence }) => evidence.participants.map((participant) => participant.steamId64)));
@@ -129,6 +149,68 @@ async function loadStatsEvidence(tx: TxDb, scope: TournamentStatsScope, options:
     roster,
     selected: facts,
     labels,
+  };
+}
+
+async function loadPlayerAppearanceScope(
+  tx: TxDb,
+  playerId: string,
+  filters: Partial<Pick<TournamentStatsScope, "seasonId" | "stage" | "format">> = {},
+) {
+  const candidates = await tx.select({
+    matchId: matches.id,
+    seasonId: seasons.id,
+    eventSlug: seasons.slug,
+    eventName: seasons.name,
+  }).from(matchRosterPlayers)
+    .innerJoin(matchRosters, eq(matchRosters.id, matchRosterPlayers.rosterId))
+    .innerJoin(eventRosterMembers, eq(eventRosterMembers.id, matchRosterPlayers.eventRosterMemberId))
+    .innerJoin(matches, eq(matches.id, matchRosters.matchId))
+    .innerJoin(seasons, eq(seasons.id, matches.seasonId))
+    .where(and(
+      eq(eventRosterMembers.userId, playerId),
+      eq(matchRosterPlayers.isStarter, true),
+      inArray(matchRosters.status, ["submitted", "confirmed"]),
+      eq(matches.status, "finished"),
+      ne(seasons.status, "draft"),
+      filters.seasonId ? eq(matches.seasonId, filters.seasonId) : undefined,
+      filters.stage ? eq(matches.stage, filters.stage) : undefined,
+      filters.format ? eq(matches.format, filters.format) : undefined,
+    ));
+  const candidateIds = [...new Set(candidates.map((row) => row.matchId))];
+  const effectiveRoster = await loadEffectiveMatchRoster(tx, candidateIds);
+  const effectiveMatchIds = new Set(effectiveRoster.filter((row) => row.userId === playerId).map((row) => row.matchId));
+  const appearances = [...new Map(candidates.filter((row) => effectiveMatchIds.has(row.matchId)).map((row) => [row.matchId, row])).values()];
+  const matchIds = appearances.map((row) => row.matchId);
+  const mapRows = matchIds.length
+    ? await tx.select({ matchId: matchMaps.matchId, mapName: matchMaps.mapName }).from(matchMaps).where(inArray(matchMaps.matchId, matchIds))
+    : [];
+  const mapsBySeason = new Map<string, Set<string>>();
+  const matchIdsBySeason = new Map<string, Set<string>>();
+  for (const appearance of appearances) {
+    mapsBySeason.set(appearance.seasonId, mapsBySeason.get(appearance.seasonId) ?? new Set());
+    const ids = matchIdsBySeason.get(appearance.seasonId) ?? new Set<string>();
+    ids.add(appearance.matchId);
+    matchIdsBySeason.set(appearance.seasonId, ids);
+  }
+  const eventByMatchId = new Map(appearances.map((row) => [row.matchId, row.seasonId]));
+  for (const row of mapRows) {
+    const seasonId = eventByMatchId.get(row.matchId);
+    if (seasonId) mapsBySeason.get(seasonId)?.add(row.mapName);
+  }
+  const eventsById = new Map<string, PlayerStatsEventOption>();
+  for (const appearance of appearances) {
+    if (!eventsById.has(appearance.seasonId)) eventsById.set(appearance.seasonId, {
+      id: appearance.seasonId,
+      slug: appearance.eventSlug,
+      name: appearance.eventName,
+      maps: [...(mapsBySeason.get(appearance.seasonId) ?? [])].sort(),
+    });
+  }
+  return {
+    matchIds,
+    events: [...eventsById.values()].sort((left, right) => left.name.localeCompare(right.name) || left.id.localeCompare(right.id)),
+    matchIdsBySeason,
   };
 }
 
@@ -338,20 +420,73 @@ export async function getTournamentStats(scope: TournamentStatsScope, database: 
   }, { isolationLevel: "repeatable read", accessMode: "read only" });
 }
 
+async function loadTournamentPlayerDetail(
+  tx: TxDb,
+  scope: StatsEvidenceScope & { playerId: string },
+  matchIds: readonly string[],
+  options: { requireCurrentImports?: boolean } = {},
+) {
+  const loaded = await loadStatsEvidence(tx, scope, { matchIds });
+  const [scoreboard, scoreboardMaps] = await Promise.all([
+    getStatsLeaderboard(scope, loaded.selected.map((row) => row.importId), loaded.roster, tx, { userId: scope.playerId, groupByTeam: false, requireCurrentImports: options.requireCurrentImports }),
+    getStatsLeaderboard(scope, loaded.selected.map((row) => row.importId), loaded.roster, tx, { userId: scope.playerId, groupByMap: true, groupByTeam: false, requireCurrentImports: options.requireCurrentImports }),
+  ]);
+  const performance = buildTournamentPerformanceAnalytics(loaded.selected.map((row) => row.facts.performance), { labels: loaded.labels });
+  const detail = indexStatsRows(performance.players, (row) => row.player.entityKey).get(scope.playerId) ?? null;
+  const maps = aggregateEvidenceByMap(loaded.selected, loaded.labels, { indexPlayers: true }).map((row) => ({
+    mapName: row.mapName,
+    performance: row.performancePlayers?.get(scope.playerId) ?? null,
+  }));
+  const results = buildTournamentResults(loaded.matches, loaded.scopedMaps, loaded.entries);
+  const record = await getPublicPlayerRecord(scope.playerId, { seasonId: scope.seasonId, matchIds, database: tx });
+  const [mvpRow] = matchIds.length ? await tx.select({ count: count() }).from(matches).where(and(
+    eq(matches.mvpWinnerUserId, scope.playerId),
+    eq(matches.status, "finished"),
+    scope.seasonId ? eq(matches.seasonId, scope.seasonId) : undefined,
+    inArray(matches.id, [...matchIds]),
+  )) : [];
+  const completedMaps = loaded.scopedMaps.filter((map) => map.completedAt !== null && map.scoreA !== null && map.scoreB !== null);
+  const rounds = completedMaps.reduce((sum, map) => sum + map.scoreA! + map.scoreB!, 0);
+  return {
+    playerId: scope.playerId,
+    scoreboard,
+    scoreboardMaps,
+    performance: detail,
+    maps,
+    coverage: buildCoverage(loaded, results),
+    summary: {
+      matches: record.played,
+      wins: record.wins,
+      losses: record.losses,
+      mvp: mvpRow?.count ?? 0,
+      maps: completedMaps.length,
+      rounds,
+    },
+  };
+}
+
 export async function getTournamentPlayerDetail(scope: TournamentStatsScope & { playerId: string }, database: DB = db) {
   return database.transaction(async (tx) => {
-    const loaded = await loadStatsEvidence(tx, scope);
-    const [scoreboard, scoreboardMaps] = await Promise.all([
-      getStatsLeaderboard(scope, loaded.selected.map((row) => row.importId), loaded.roster, tx, { userId: scope.playerId, groupByTeam: false }),
-      getStatsLeaderboard(scope, loaded.selected.map((row) => row.importId), loaded.roster, tx, { userId: scope.playerId, groupByMap: true, groupByTeam: false }),
-    ]);
-    const performance = buildTournamentPerformanceAnalytics(loaded.selected.map((row) => row.facts.performance), { labels: loaded.labels });
-    const detail = indexStatsRows(performance.players, (row) => row.player.entityKey).get(scope.playerId) ?? null;
-    const maps = aggregateEvidenceByMap(loaded.selected, loaded.labels, { indexPlayers: true }).map((row) => ({
-      mapName: row.mapName,
-      performance: row.performancePlayers?.get(scope.playerId) ?? null,
-    }));
-    return { playerId: scope.playerId, scoreboard, scoreboardMaps, performance: detail, maps, coverage: buildCoverage(loaded) };
+    const playerScope = await loadPlayerAppearanceScope(tx, scope.playerId, scope);
+    return loadTournamentPlayerDetail(tx, scope, playerScope.matchIds);
+  }, { isolationLevel: "repeatable read", accessMode: "read only" });
+}
+
+export async function getPlayerCareerDetail(
+  scope: { playerId: string; eventSlug?: string; mapFilter?: string },
+  database: DB = db,
+) {
+  return database.transaction(async (tx) => {
+    const playerScope = await loadPlayerAppearanceScope(tx, scope.playerId);
+    const event = scope.eventSlug ? playerScope.events.find((candidate) => candidate.slug === scope.eventSlug) : undefined;
+    const allMaps = new Set(playerScope.events.flatMap((candidate) => candidate.maps));
+    const allowedMaps = event ? new Set(event.maps) : allMaps;
+    const mapFilter = scope.mapFilter && allowedMaps.has(scope.mapFilter) ? scope.mapFilter : undefined;
+    const matchIds = event
+      ? [...(playerScope.matchIdsBySeason.get(event.id) ?? [])]
+      : playerScope.matchIds;
+    const detail = await loadTournamentPlayerDetail(tx, { playerId: scope.playerId, seasonId: event?.id, mapFilter }, matchIds, { requireCurrentImports: true });
+    return { ...detail, events: playerScope.events, selectedEvent: event ?? null, mapFilter };
   }, { isolationLevel: "repeatable read", accessMode: "read only" });
 }
 
