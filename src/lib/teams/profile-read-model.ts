@@ -51,8 +51,8 @@ export async function getPublicLongTeamProfileReadModel(
   ]);
   const mapRows = matchRows.length ? await db.select({
     matchId: matchMaps.matchId,
-    mapNumber: matchMaps.mapNumber,
-    winnerEntryId: matchMaps.winnerEntryId,
+    scoreA: matchMaps.scoreA,
+    scoreB: matchMaps.scoreB,
   }).from(matchMaps).where(inArray(matchMaps.matchId, matchRows.map((match) => match.id))) : [];
   const mapsByMatch = new Map<string, typeof mapRows>();
   for (const map of mapRows) mapsByMatch.set(map.matchId, [...(mapsByMatch.get(map.matchId) ?? []), map]);
