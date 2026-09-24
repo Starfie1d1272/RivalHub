@@ -69,7 +69,7 @@ export function roundWeightedAvg(col: string): SQL {
 export function killWeightedAvg(col: string): SQL {
   const known = sql`${rawColumn(col)} IS NOT NULL AND mps.kills IS NOT NULL`;
   return sql`CASE WHEN sum(mps.kills) FILTER (WHERE ${known}) > 0
-    THEN (sum(${rawColumn(col)} * mps.kills) FILTER (WHERE ${known}))::numeric
+    THEN (sum((${rawColumn(col)} / 100.0) * mps.kills) FILTER (WHERE ${known}))::numeric
       / sum(mps.kills) FILTER (WHERE ${known})
     ELSE NULL END`;
 }
