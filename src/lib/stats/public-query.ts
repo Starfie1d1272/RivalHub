@@ -60,6 +60,21 @@ export async function getVerifiedPlayerStatsBySeason(
   );
 }
 
+export async function getPublicPlayerMapExperienceCoverage(userIds: readonly string[]) {
+  const ids = [...new Set(userIds)];
+  if (!ids.length) return [];
+  const result = await db.execute(sql`
+    SELECT DISTINCT mps.user_id
+    FROM match_player_stats mps
+    JOIN matches m ON m.id = mps.match_id
+    JOIN seasons s ON s.id = m.season_id
+    WHERE m.status = 'finished' AND s.status <> 'draft'
+      AND mps.verified_by_admin IS NOT NULL
+      AND mps.user_id IN (${sql.join(ids.map((id) => sql`${id}`), sql`, `)})
+  `);
+  return (result.rows as unknown as { user_id: string }[]).map((row) => row.user_id);
+}
+
 /** Historical player-map experience: samples are player-map observations, not team W/L. */
 export async function getPublicPlayerMapExperience(userIds: readonly string[]) {
   if (!userIds.length) return [];
