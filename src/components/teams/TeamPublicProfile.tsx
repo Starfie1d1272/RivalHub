@@ -98,12 +98,12 @@ export function TeamPublicProfile({ team, event = null, mapProfile, results, per
         </div>
         <div className="grid grid-cols-2 border-t border-[var(--color-border)] sm:grid-cols-4">
           {[
-            ["Match W-L", headline.matches],
-            ["Map W-L", headline.maps],
-            ["Maps", headline.mapCount],
-            ["RW%", performance?.analytics ? <MetricValue key="rw" metric="roundWin" value={{ wins: performance.analytics.roundWins, opportunities: performance.analytics.rounds, rate: performance.analytics.roundWinRate }} sampleDisplay="hidden" /> : "—"],
-          ].map(([label, value], index) => (
-            <div key={index} className={`px-5 py-3 ${index % 2 ? "border-l" : ""} border-[var(--color-border)] sm:border-l sm:first:border-l-0`}>
+            { label: "Match W-L", value: headline.matches },
+            { label: "Map W-L", value: headline.maps },
+            { label: "Maps", value: headline.mapCount },
+            { label: "RW%", value: performance?.analytics ? <MetricValue metric="roundWin" value={{ wins: performance.analytics.roundWins, opportunities: performance.analytics.rounds, rate: performance.analytics.roundWinRate }} sampleDisplay="hidden" /> : "—" },
+          ].map(({ label, value }, index) => (
+            <div key={label} className={`px-5 py-3 ${index % 2 ? "border-l" : ""} border-[var(--color-border)] sm:border-l sm:first:border-l-0`}>
               <div className="text-[11px] uppercase tracking-[0.08em] text-[var(--color-fg-dim)]">{label}</div>
               <div className="mt-1 text-lg font-semibold tabular-nums">{value}</div>
             </div>
