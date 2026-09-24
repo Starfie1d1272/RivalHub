@@ -19,7 +19,7 @@ describe("team performance fact scoping", () => {
         { playerEntityKey: playerId, teamEntityKey: "team-a", weapon: "ak47" },
         { playerEntityKey: playerId, teamEntityKey: "team-b", weapon: "m4a1" },
       ],
-    } as Parameters<typeof scopePerformanceFactsToTeam>[0];
+    } as unknown as Parameters<typeof scopePerformanceFactsToTeam>[0];
 
     const scoped = scopePerformanceFactsToTeam(facts, "team-a");
 
