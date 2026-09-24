@@ -23,11 +23,8 @@ export default async function CompetitionEntryDetailPage({ params }: { params: P
   ]);
   if (!event) notFound();
 
-  const team = event.entry.teamId
-    ? await getPublicTeamProfile(event.entry.teamId, session?.userId)
-    : null;
-
-  const [performanceModel, results] = await Promise.all([
+  const [team, performanceModel, results] = await Promise.all([
+    event.entry.teamId ? getPublicTeamProfile(event.entry.teamId, session?.userId) : Promise.resolve(null),
     getPublicCompetitionEntryPerformanceReadModel(season, event),
     getPublicSeasonResults(season),
   ]);
