@@ -31,7 +31,7 @@ export const PREVIEW_COLUMNS: Record<string, string> = {
   competition_qualification_runs: "id season_id format target_entrant_count candidate_count direct_entry_count play_in_entry_count qualifier_count configured_at started_at completed_at created_at updated_at",
   competition_qualification_entrants: "id run_id season_id competition_entry_id preliminary_seed created_at",
   event_rosters: "id entry_id source_roster_revision_id status confirmed_at confirmed_by frozen_at frozen_by created_at updated_at",
-  event_roster_members: "id event_roster_id user_id participant_id education_verification_id is_primary_starter created_at",
+  event_roster_members: "id event_roster_id user_id participant_id education_verification_id is_primary_starter is_current created_at",
   major_prestart_states: "id season_id entrants_locked_at entrants_locked_by seeds_confirmed_at seeds_confirmed_by seeds_locked_at seeds_locked_by created_at updated_at",
   major_tournament_entrants: "id season_id competition_entry_id created_at",
   major_tournament_seeds: "id season_id tournament_entrant_id seed created_at",
@@ -105,6 +105,10 @@ type PreviewSchemaLifecycleTable = {
 export const PREVIEW_SCHEMA_LIFECYCLE: readonly PreviewSchemaLifecycleTable[] = [
   { table: "competition_qualification_runs", introducedAt: "0056_competition-qualification-playin" },
   { table: "competition_qualification_entrants", introducedAt: "0056_competition-qualification-playin" },
+  {
+    table: "event_roster_members",
+    columns: [{ name: "is_current", introducedAt: "0057_event_roster_member_history" }],
+  },
   { table: "dak_pairing_intents", introducedAt: "0051_sour_grim_reaper" },
   { table: "dak_pairings", introducedAt: "0051_sour_grim_reaper" },
   { table: "match_demo_imports", introducedAt: "0051_sour_grim_reaper" },

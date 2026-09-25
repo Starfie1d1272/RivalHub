@@ -181,7 +181,7 @@ async function prepareAcceptanceFixture(pool: Pool): Promise<AcceptanceFixture> 
     const rosterSql = insertValues(rosterRows);
     await client.query(
       `INSERT INTO competition_entry_roster_members (revision_id, participant_id, user_id, is_primary_starter)
-       SELECT v.revision_id::uuid, p.id, v.user_id::uuid, v.is_primary
+       SELECT v.revision_id::uuid, p.id, v.user_id::uuid, v.is_primary::boolean
        FROM (VALUES ${rosterSql.placeholders}) AS v(entry_id, revision_id, user_id, is_primary)
        JOIN competition_entry_participants p ON p.entry_id = v.entry_id::uuid AND p.user_id = v.user_id::uuid`,
       rosterSql.values,
