@@ -1,5 +1,19 @@
 # Changelog
 
+## [2.12.2]
+
+### Added
+
+#### Demo 身份复核中的 Steam 官方资料
+
+管理员现在可以在 Demo 复核中查看陌生或历史观测 Steam64 对应的官方头像、昵称和个人主页；资料获取失败时仍可继续核对。
+
+### Changed
+
+#### Steam 资料缓存与玩家头像
+
+Steam 官方资料缓存统一使用 `steam_profiles` 保存；玩家头像改为直连 Steam CDN 展示。
+
 ## [2.12.1]
 
 ### Changed
@@ -2375,6 +2389,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[2.12.2]: https://github.com/Starfie1d1272/RivalHub/compare/v2.12.1...v2.12.2
 [2.12.1]: https://github.com/Starfie1d1272/RivalHub/compare/v2.12.0...v2.12.1
 [2.10.7]: https://github.com/Starfie1d1272/RivalHub/compare/v2.10.6...v2.10.7
 [2.11.0]: https://github.com/Starfie1d1272/RivalHub/compare/v2.10.7...v2.11.0
