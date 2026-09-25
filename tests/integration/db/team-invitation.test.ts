@@ -19,6 +19,7 @@ async function main(): Promise<void> {
   const pool = new Pool({ connectionString: databaseUrl, ssl: false, max: 4 });
   const database = drizzle(pool, { schema });
   const ids = { captain: randomUUID(), invitee: randomUUID(), shareInvitee: randomUUID(), team: randomUUID(), stale: randomUUID(), fresh: randomUUID() };
+  const recruitmentIntentId = randomUUID();
   try {
     await pool.query("BEGIN");
     await pool.query("INSERT INTO users (id, email) VALUES ($1, $2), ($3, $4), ($5, $6)", [
@@ -102,7 +103,6 @@ async function main(): Promise<void> {
 
     // accept 成功路径同样走 production owner：pending → accepted + membership。
     // 直接写入一个历史/竞态 stale interest，证明 membership 终态会统一清理。
-    const recruitmentIntentId = randomUUID();
     await pool.query(
       "INSERT INTO recruitment_intents (id, kind, team_id, status, expires_at) VALUES ($1, 'team_recruiting', $2, 'open', now() + interval '7 days')",
       [recruitmentIntentId, ids.team],
