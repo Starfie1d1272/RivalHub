@@ -30,6 +30,7 @@ const baseLobbyData = {
   playerLfts: [basePlayer],
   targetSeasons: [],
   viewerInterestedIntentIds: new Set<string>(),
+  viewerInvitedTeamIds: new Set<string>(),
 };
 
 describe("recruitment lobby cards", () => {
