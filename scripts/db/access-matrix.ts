@@ -196,6 +196,20 @@ export const DATABASE_ACCESS_MATRIX: readonly DatabaseAccessEntry[] = [
     "只记录管理员针对当前 roster revision 的显式、可解除政策限制；资料缺失仍由资格 owner 阻断。",
   ),
   serverOnly(
+    "competition_qualification_entrants",
+    "Major Qualification",
+    "冻结候选预排名与参赛身份",
+    "src/lib/competition-qualification/runtime.ts; src/lib/admin/season-workspace/major-prestart.ts",
+    "资格赛候选顺序与晋级路线只经服务端读写，公开页面只消费显式赛程投影。",
+  ),
+  serverOnly(
+    "competition_qualification_runs",
+    "Major Qualification",
+    "资格赛配置、运行状态与 actor",
+    "src/lib/competition-qualification/runtime.ts; src/actions/competition-qualification.ts",
+    "资格赛生命周期由服务端事务维护，浏览器不直连运行记录。",
+  ),
+  serverOnly(
     "competitive_platform_ranks",
     "竞技资料目录",
     "内部等级目录配置",

@@ -73,7 +73,7 @@ export function MajorCompetitionFlow({ data }: { data: ManagementData }) {
         <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_240px] md:items-end">
           <div>
             <Marker sub={`${data.approvedCandidateCount} 支已批准队伍 · 容量 ${data.entrantCapacity}`}>Major {data.managedProfileId === "major-24" ? "24" : "32"}</Marker>
-            <p className="mt-2 text-sm text-[var(--color-fg-mid)]">Play-in 是独立的资格阶段。其队伍、轮次和比赛不会加入 Major StagePlan 或 StageRun。</p>
+            <p className="mt-2 text-sm text-[var(--color-fg-mid)]">资格赛单独管理，晋级结果会在赛前准备中确认正赛参赛名单。</p>
           </div>
           <div className="space-y-2">
             <Label htmlFor="major-managed-profile">正赛规模</Label>
@@ -172,7 +172,7 @@ export function MajorCompetitionFlow({ data }: { data: ManagementData }) {
           <div className="space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <Marker sub={run.completedAt ? "Qualification 已完成" : run.startedAt ? "进行中" : "已配置，等待首轮"}>
+                <Marker sub={run.completedAt ? "资格赛已完成" : run.startedAt ? "进行中" : "已配置，等待首轮"}>
                   {run.format === "direct_bo3" ? "Direct BO3" : "Short Swiss BO1 · 2W/2L"}
                 </Marker>
                 <p className="mt-2 text-sm text-[var(--color-fg-mid)]">直通 {run.directEntryCount} · Play-in {run.playInEntryCount} · 晋级名额 {run.qualifierCount} · 正赛容量 {run.targetEntrantCount}</p>
@@ -214,7 +214,7 @@ export function MajorCompetitionFlow({ data }: { data: ManagementData }) {
                   <td className="px-3 py-2">{entrant.teamName}</td>
                   <td className="px-3 py-2">{entrant.route === "direct" ? "直通正赛" : "Play-in"}</td>
                   <td className="px-3 py-2 tabular-nums">{entrant.wins}-{entrant.losses}</td>
-                  <td className="px-3 py-2">{entrant.status === "advanced" ? entrant.route === "direct" ? "Direct Entry" : "Play-in Qualified" : entrant.status === "eliminated" ? "淘汰" : entrant.status === "not_started" ? "待开始" : "进行中"}</td>
+                  <td className="px-3 py-2">{entrant.status === "advanced" ? entrant.route === "direct" ? "直通正赛" : "Play-in 晋级" : entrant.status === "eliminated" ? "淘汰" : entrant.status === "not_started" ? "待开始" : "进行中"}</td>
                 </tr>)}</tbody>
               </table>
             </div>

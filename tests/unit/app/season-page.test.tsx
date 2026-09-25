@@ -10,6 +10,7 @@ const {
   getPublicSeasonInfoMock,
   selectDistinctMock,
   selectMock,
+  qualificationFindFirstMock,
 } = vi.hoisted(() => ({
   connectionMock: vi.fn(),
   getPublicOrAuthorizedDraftSeasonMock: vi.fn(),
@@ -18,6 +19,7 @@ const {
   getPublicSeasonInfoMock: vi.fn(),
   selectDistinctMock: vi.fn(),
   selectMock: vi.fn(),
+  qualificationFindFirstMock: vi.fn(),
 }));
 
 vi.mock("next/server", () => ({ connection: connectionMock }));
@@ -27,6 +29,7 @@ vi.mock("@/db/client", () => ({
   db: {
     select: selectMock,
     selectDistinct: selectDistinctMock,
+    query: { competitionQualificationRuns: { findFirst: qualificationFindFirstMock } },
   },
 }));
 vi.mock("@/lib/data/public-seasons", () => ({
@@ -84,6 +87,7 @@ describe("season page navigation", () => {
     getPublicSeasonInfoMock.mockResolvedValue({ rules: { label: "赛事规则", href: "/rules" }, groups: [], contacts: [] });
     selectDistinctMock.mockReturnValue(chain([]));
     selectMock.mockImplementation((fields) => chain(fields.stageKey ? [] : [{ total: 0, finished: 0 }]));
+    qualificationFindFirstMock.mockResolvedValue(undefined);
   });
 
   it("routes the visible team roster shortcut to the canonical teams page", async () => {

@@ -42,7 +42,7 @@ type ApprovedRosterMember = {
   primary: boolean;
 };
 
-export async function loadApprovedRosterMembers(
+async function loadApprovedRosterMembers(
   tx: TxDb,
   revisionId: string,
 ): Promise<ApprovedRosterMember[]> {

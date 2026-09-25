@@ -30,7 +30,7 @@ export function pairSwissTopHalfBottomHalf(teams: readonly SwissTeamState[]): re
 }
 
 /** True when the remaining teams have a complete matching without rematches. */
-export function hasCompleteZeroRematchMatching(teams: readonly SwissTeamState[]): boolean {
+function hasCompleteZeroRematchMatching(teams: readonly SwissTeamState[]): boolean {
   if (teams.length === 0) return true;
   if (teams.length % 2 !== 0) return false;
   const ranked = [...teams].sort((a, b) => a.currentSeed - b.currentSeed);

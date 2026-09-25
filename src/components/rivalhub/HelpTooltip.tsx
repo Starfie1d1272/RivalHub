@@ -85,5 +85,3 @@ export function HelpTooltip({
     </>
   );
 }
-
-export const StatsTooltip = HelpTooltip;

@@ -1,6 +1,6 @@
 import { projectSwissStage } from "@/lib/swiss/core";
 import { groupSwissByRecord, pairSwissHighLowZeroRematch, pairSwissTopHalfBottomHalf } from "@/lib/swiss/pairing";
-import type { SwissCompletedMatch, SwissEntrant, SwissPair, SwissTeamState } from "@/lib/swiss/types";
+import type { SwissCompletedMatch, SwissEntrant, SwissPair } from "@/lib/swiss/types";
 
 export interface QualificationPairing {
   round: number;
@@ -9,19 +9,6 @@ export interface QualificationPairing {
   lowerSeedTeamId: string;
   higherSeed: number;
   lowerSeed: number;
-}
-
-function toSwissTeamStates(entrants: readonly SwissEntrant[]): SwissTeamState[] {
-  return entrants.map((entrant) => ({
-    teamId: entrant.teamId,
-    initialSeed: entrant.initialSeed,
-    currentSeed: entrant.initialSeed,
-    wins: 0,
-    losses: 0,
-    buchholz: 0,
-    status: "active",
-    opponents: [],
-  }));
 }
 
 /** Qualification-only rules layered over the generic Swiss projection and pairing core. */
@@ -54,8 +41,4 @@ export function generateShortSwissRoundPairings(input: {
     throw new Error("当前 Swiss 战绩组无法形成完整且不重赛的配对。");
   }
   return pairings;
-}
-
-export function toQualificationSwissTeamStates(entrants: readonly SwissEntrant[]): SwissTeamState[] {
-  return toSwissTeamStates(entrants);
 }

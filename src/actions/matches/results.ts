@@ -450,7 +450,7 @@ export async function deleteMatch(matchId: string): Promise<ActionResult<void>> 
       throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "无法删除 Bracket 自动生成的比赛");
     }
     if (match.qualificationRunId) {
-      throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "Play-in 比赛属于 Qualification 运行记录，不能单独删除。");
+      throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "资格赛生成的比赛不能单独删除。");
     }
 
     const season = await getSeasonOrThrow(match.seasonId);

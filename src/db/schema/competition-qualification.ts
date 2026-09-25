@@ -14,7 +14,7 @@ import {
 import { competitionEntries } from "./competition-entries";
 import { seasons } from "./seasons";
 
-export const competitionQualificationFormatEnum = pgEnum("competition_qualification_format", [
+const competitionQualificationFormatEnum = pgEnum("competition_qualification_format", [
   "direct_bo3",
   "short_swiss_2w2l",
 ]);
@@ -87,4 +87,3 @@ export const competitionQualificationEntrants = pgTable("competition_qualificati
 }));
 
 export type CompetitionQualificationRun = typeof competitionQualificationRuns.$inferSelect;
-export type CompetitionQualificationEntrant = typeof competitionQualificationEntrants.$inferSelect;
