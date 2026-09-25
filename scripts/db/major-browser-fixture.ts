@@ -425,6 +425,7 @@ async function insertRankFacts(client: PoolClient, scenario: ScenarioDefinition)
     [deterministicUuid(`${scenario.scenarioId}:fact:${key}:previous`), userId, "season_peak", scenario.previousSeasonKey, scenario.fixtureRank, "1.90", scenario.fixtureStars],
     [deterministicUuid(`${scenario.scenarioId}:fact:${key}:current`), userId, "season_peak", scenario.currentSeasonKey, scenario.fixtureRank, "1.80", scenario.fixtureStars],
   ]);
+  if (facts.length === 0) return;
   const { sql: valuesSql, values } = parameterizedValues(facts.map(([id, userId, kind, seasonKey, rank, rating, stars]) => [
     id, userId, scenario.platform, kind, seasonKey, rank, rating, stars,
   ]));
