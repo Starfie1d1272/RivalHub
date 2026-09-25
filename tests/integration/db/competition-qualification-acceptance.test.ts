@@ -217,7 +217,7 @@ async function persistAndConfirmLineup(database: Database, matchId: string, entr
     await persistMatchRosterInTx(tx, {
       match,
       entryId,
-      submittedBy: ACTOR,
+      submittedBy: null,
       source: "admin_select",
       starterIds,
     });
