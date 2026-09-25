@@ -51,7 +51,7 @@ describe("preview mirror membership projection", () => {
     }
   });
 
-  it("validates the real latest physical inventory and the previous N schema against source-aware policy", async () => {
+  it("validates the real latest inventory and the Steam cleanup migration lifecycle", async () => {
     const expected = readExpectedMigrations();
     const latestPool = createLocalPool({ max: 1 });
     const latest = await latestPool.connect();
@@ -64,46 +64,67 @@ describe("preview mirror membership projection", () => {
       for (const [table, columns] of inventory) assertReviewedColumns(table, columns);
 
       const users = inventory.get("users") ?? [];
-      expect(users).toEqual(expect.arrayContaining(["steam_name", "steam_profile_url", "avatar_url"]));
+      expect(users).not.toEqual(expect.arrayContaining(["steam_name", "steam_profile_url", "avatar_url"]));
       expect(inventory.has("steam_profiles")).toBe(true);
       expect(PREVIEW_COLUMNS.users).not.toContain("steam_name");
+      expect(previewPolicyFor(expected).tables.users.removedColumns).toEqual(
+        expect.arrayContaining(["steam_name", "steam_profile_url", "avatar_url"]),
+      );
     } finally {
       latest.release();
       await latestPool.end();
     }
 
-    await withScratchDatabase("preview_source_policy", async (client) => {
-      const steamProfileMigrationIndex = expected.findIndex(({ tag }) => tag === "0052_gray_supernaut");
-      expect(steamProfileMigrationIndex).toBeGreaterThan(0);
-      const sourceExpected = expected.slice(0, steamProfileMigrationIndex);
-      const sourceMigrations = sourceExpected.map(({ hash, when }) => ({ hash, when }));
-      for (const migration of migrationFiles((name) => name < "0052_gray_supernaut.sql")) {
+    await withScratchDatabase("preview_steam_cleanup", async (client) => {
+      const cleanupTag = "0055_steam_profile_shadow_cleanup";
+      const cleanupIndex = expected.findIndex(({ tag }) => tag === cleanupTag);
+      expect(cleanupIndex).toBeGreaterThan(0);
+      const beforeCleanup = expected.slice(0, cleanupIndex);
+      const beforeCleanupPolicy = previewPolicyFor(beforeCleanup);
+      for (const migration of migrationFiles((name) => name.endsWith(".sql") && name < `${cleanupTag}.sql`)) {
         await replayMigration(client, migration);
       }
 
-      const policy = previewPolicyFor(sourceMigrations);
-      const catalog = await client.query<{ table_name: string; column_name: string }>(
+      const previousCatalog = await client.query<{ table_name: string; column_name: string }>(
         "SELECT table_name, column_name FROM information_schema.columns WHERE table_schema = 'public' ORDER BY table_name, ordinal_position",
       );
-      const inventory = new Map<string, string[]>();
-      for (const row of catalog.rows) inventory.set(row.table_name, [...(inventory.get(row.table_name) ?? []), row.column_name]);
-      for (const [table, columns] of inventory) assertReviewedColumns(table, columns, policy);
+      const previousInventory = new Map<string, string[]>();
+      for (const row of previousCatalog.rows) previousInventory.set(row.table_name, [...(previousInventory.get(row.table_name) ?? []), row.column_name]);
+      for (const [table, columns] of previousInventory) assertReviewedColumns(table, columns, beforeCleanupPolicy);
 
-      expect(policy.futureTables).toContain("steam_profiles");
-      expect(inventory.has("steam_profiles")).toBe(false);
-      for (const table of Object.keys(policy.tables)) expect(inventory.has(table)).toBe(true);
+      const previousUsers = previousInventory.get("users") ?? [];
+      expect(previousUsers).toEqual(expect.arrayContaining(["steam_name", "steam_profile_url", "avatar_url"]));
+      expect(beforeCleanupPolicy.tables.users.omittedColumns).toEqual(
+        expect.arrayContaining(["steam_name", "steam_profile_url", "avatar_url"]),
+      );
+      expect(beforeCleanupPolicy.tables.users.removedColumns).toEqual([]);
+      expect(previousInventory.has("steam_profiles")).toBe(true);
 
-      await client.query('ALTER TABLE public.users DROP COLUMN "steam_name", DROP COLUMN "steam_profile_url", DROP COLUMN "avatar_url"');
-      const cleanedUsers = (await client.query<{ column_name: string }>(
-        "SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'users' ORDER BY ordinal_position",
-      )).rows.map(({ column_name }) => column_name);
-      expect(cleanedUsers).not.toEqual(expect.arrayContaining(["steam_name", "steam_profile_url", "avatar_url"]));
-      expect(() => assertReviewedColumns("users", cleanedUsers, policy)).not.toThrow();
+      await replayMigration(client, `${cleanupTag}.sql`);
+      const currentCatalog = await client.query<{ table_name: string; column_name: string }>(
+        "SELECT table_name, column_name FROM information_schema.columns WHERE table_schema = 'public' ORDER BY table_name, ordinal_position",
+      );
+      const currentInventory = new Map<string, string[]>();
+      for (const row of currentCatalog.rows) currentInventory.set(row.table_name, [...(currentInventory.get(row.table_name) ?? []), row.column_name]);
+      const currentPolicy = previewPolicyFor(expected);
+      for (const [table, columns] of currentInventory) assertReviewedColumns(table, columns, currentPolicy);
+
+      const currentUsers = currentInventory.get("users") ?? [];
+      expect(currentUsers).not.toEqual(expect.arrayContaining(["steam_name", "steam_profile_url", "avatar_url"]));
+      expect(currentPolicy.tables.users.removedColumns).toEqual(
+        expect.arrayContaining(["steam_name", "steam_profile_url", "avatar_url"]),
+      );
+
+      for (const column of ["steam_name", "steam_profile_url", "avatar_url"]) {
+        await client.query(`ALTER TABLE public.users ADD COLUMN "${column}" text`);
+        expect(() => assertReviewedColumns("users", [...currentUsers, column], currentPolicy)).toThrow(/removed mirror column/);
+        await client.query(`ALTER TABLE public.users DROP COLUMN "${column}"`);
+      }
 
       await client.query("CREATE TABLE public.preview_unreviewed_table (id uuid)");
-      expect(() => assertReviewedColumns("preview_unreviewed_table", ["id"], policy)).toThrow();
+      expect(() => assertReviewedColumns("preview_unreviewed_table", ["id"], currentPolicy)).toThrow();
       await client.query('ALTER TABLE public.users ADD COLUMN "preview_unreviewed" text');
-      expect(() => assertReviewedColumns("users", [...cleanedUsers, "preview_unreviewed"], policy)).toThrow();
+      expect(() => assertReviewedColumns("users", [...currentUsers, "preview_unreviewed"], currentPolicy)).toThrow();
     });
 
     await withScratchDatabase("preview_pre_stats_policy", async (client) => {

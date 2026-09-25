@@ -299,7 +299,10 @@ function findOwnerEvidence(sources: readonly ShippedSource[], owner: MigrationCo
             `Drizzle ${owner.relation}.${propertyName} 调用`,
           );
         }
-        if (symbols.length > 0 && tableUsagePattern(symbols).test(source.searchableContent)) {
+        const hasColumnMapping = columnMappingMatches(declaration, owner.identifier).length > 0;
+        const tableUsage = tableUsagePattern(symbols);
+        tableUsage.lastIndex = 0;
+        if (hasColumnMapping && symbols.length > 0 && tableUsage.test(source.searchableContent)) {
           addRegexEvidence(
             evidence,
             source,
@@ -470,15 +473,38 @@ function addUnqualifiedSqlColumnEvidence(
   declarations: readonly TableDeclaration[],
 ): void {
   const matchingDeclarations = declarations.filter((declaration) => matchesRelation(declaration, owner));
-  const relationContext = sqlRelationReferencePattern(owner.relation ?? "", owner.schema).test(source.searchableContent)
-    || matchingDeclarations.some((declaration) => tableUsagePattern(tableSymbolsForSource(declaration, source)).test(source.searchableContent));
-  if (!relationContext) return;
-
   const pattern = new RegExp(sqlIdentifierPattern(owner.identifier), "gi");
   for (const match of source.searchableContent.matchAll(pattern)) {
     const index = match.index ?? 0;
-    const window = source.content.slice(Math.max(0, index - 400), Math.min(source.content.length, index + 400));
-    if (/(?:select|where|set|values|returning|order\s+by|group\s+by|insert|update|delete|from)/i.test(window)) {
+    const segmentStart = source.searchableContent.lastIndexOf(";", index) + 1;
+    const nextSemicolon = source.searchableContent.indexOf(";", index);
+    const segmentEnd = nextSemicolon < 0 ? source.searchableContent.length : nextSemicolon;
+    const segment = source.searchableContent.slice(segmentStart, segmentEnd);
+    const prefix = source.searchableContent.slice(segmentStart, index);
+    if (/\bAS\s+["'`]?$/i.test(prefix)) continue;
+
+    const qualifiedColumn = prefix.match(/([A-Za-z_][A-Za-z0-9_$]*)\s*\.\s*["'`]?$/);
+    const qualifier = qualifiedColumn?.[1];
+    const relationAliases = sqlRelationAliases(segment, owner);
+    const insertTarget = owner.relation
+      ? new RegExp(`\\binsert\\s+into\\s+(?:only\\s+)?${sqlNamePattern(owner.relation, owner.schema)}(?![A-Za-z0-9_$])`, "i").test(segment)
+      : false;
+    if (qualifier && !sameIdentifier(qualifier, owner.relation ?? "") && !relationAliases.has(qualifier.toLowerCase()) && !(qualifier.toLowerCase() === "excluded" && insertTarget)) {
+      continue;
+    }
+
+    const relationPattern = sqlRelationReferencePattern(owner.relation ?? "", owner.schema);
+    const hasSqlRelation = Boolean(qualifier && (sameIdentifier(qualifier, owner.relation ?? "") || relationAliases.has(qualifier.toLowerCase()) || (qualifier.toLowerCase() === "excluded" && insertTarget)))
+      || relationPattern.test(segment);
+    const hasDrizzleRelation = matchingDeclarations.some((declaration) => {
+      const tableUsage = tableUsagePattern(tableSymbolsForSource(declaration, source));
+      tableUsage.lastIndex = 0;
+      return tableUsage.test(segment);
+    });
+    if (
+      (hasSqlRelation || hasDrizzleRelation)
+      && /(?:select|where|set|values|returning|order\s+by|group\s+by|insert|update|delete|from)/i.test(segment)
+    ) {
       addEvidence(evidence, {
         path: source.path,
         line: lineNumberAt(source.content, index),
@@ -486,6 +512,24 @@ function addUnqualifiedSqlColumnEvidence(
       });
     }
   }
+}
+
+function sqlRelationAliases(statement: string, owner: MigrationContractOwner): Set<string> {
+  if (!owner.relation) return new Set();
+  const pattern = new RegExp(
+    `\\b(?:from|join|update|into|delete\\s+from)\\s+(?:only\\s+)?${sqlNamePattern(owner.relation, owner.schema)}(?:\\s+(?:as\\s+)?([A-Za-z_$][\\w$]*))?`,
+    "gi",
+  );
+  const keywords = new Set([
+    "as", "cross", "full", "inner", "join", "left", "on", "order", "outer", "right", "set", "using", "where",
+    "group", "having", "limit", "offset", "returning", "values", "for", "union", "except", "intersect",
+  ]);
+  const aliases = new Set<string>();
+  for (const match of statement.matchAll(pattern)) {
+    const alias = match[1]?.toLowerCase();
+    if (alias && !keywords.has(alias)) aliases.add(alias);
+  }
+  return aliases;
 }
 
 function addRegexEvidence(
