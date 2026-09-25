@@ -151,6 +151,26 @@ describe("loadOrFetchSteamProfiles cache owner", () => {
     expect(partialResult.get(c)).toBeUndefined();
   });
 
+  it("keeps database cache failures fail-closed instead of disguising them as provider degradation", async () => {
+    const readDb = {
+      select: vi.fn(() => { throw new Error("database read failed"); }),
+      insert: vi.fn(),
+    };
+    await expect(loadOrFetchSteamProfiles(readDb as never, [a])).rejects.toThrow("database read failed");
+
+    const writeFailure = new Error("database write failed");
+    const writeDb = {
+      select: vi.fn().mockReturnValue(selectResult([])),
+      insert: vi.fn().mockReturnValue({
+        values: vi.fn().mockReturnValue({
+          onConflictDoUpdate: vi.fn().mockRejectedValue(writeFailure),
+        }),
+      }),
+    };
+    lookupMock.mockResolvedValue({ status: "ok", profiles: new Map([[a, official(a, "A")]]) });
+    await expect(loadOrFetchSteamProfiles(writeDb as never, [a])).rejects.toThrow("database write failed");
+  });
+
   it("does not query observed or historical steam64 during 6h periodic refresh", async () => {
     selectMock.mockReset();
     selectMock
