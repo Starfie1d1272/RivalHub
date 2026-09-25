@@ -75,7 +75,7 @@ test("管理员预览并确认 30 队到 Major 24 的 Play-in 配置与首轮对
   await expect(page.getByText("Short Swiss · 2 胜晋级 / 2 负淘汰")).toBeVisible();
   const phases = page.getByRole("list", { name: "赛事阶段" });
   await expect(phases.getByRole("listitem", { name: "REGISTER 已完成" })).toBeVisible();
-  await expect(phases.getByRole("listitem", { name: "STAGE 1 待开始" })).toBeVisible();
+  await expect(phases.getByRole("listitem", { name: "STAGE1 待开始" })).toBeVisible();
   await expect(page.locator('[aria-current="step"]')).toHaveCount(0);
 
   await page.goto(`/${scenario.slug}/matches?stage=play-in`);
@@ -131,6 +131,6 @@ test("Direct BO3 使用镜像种子且公开展示晋级摘要", async ({ page, 
   await expect(page.getByRole("tab", { name: "PLAY-IN" })).toHaveAttribute("data-state", "active");
   await expect(page.getByText("PLAY-IN · 12 → 6 · BO3 决胜赛")).toBeVisible();
   await page.goto(`/${scenario.slug}/matches?stage=stage1`);
-  await expect(page.getByRole("tab", { name: "STAGE 1" })).toHaveAttribute("data-state", "active");
+  await expect(page.getByRole("tab", { name: "STAGE1" })).toHaveAttribute("data-state", "active");
   await expect(page.getByRole("tab", { name: "PLAY-IN" })).toHaveAttribute("data-state", "inactive");
 });
