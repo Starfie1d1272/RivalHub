@@ -373,6 +373,14 @@ async function exerciseThirtyToTwentyFourAcceptance(): Promise<void> {
         revisionOneUsers = await persistAndConfirmLineup(database, historicalMatch.id, historicalEntryId);
       }
 
+      if (round === 2) {
+        const roundTwoMatch = roundMatches.find((match) => match.entryAId === historicalEntryId || match.entryBId === historicalEntryId);
+        if (!roundTwoMatch) throw new Error("R2 match for revised entry missing");
+        secondRoundId = roundTwoMatch.id;
+        revisionTwoUsers = await persistAndConfirmLineup(database, roundTwoMatch.id, historicalEntryId);
+        expect(revisionTwoUsers).not.toEqual(revisionOneUsers);
+      }
+
       await finishRound(pool, database, runId, round);
 
       if (round === 1) {
@@ -397,13 +405,6 @@ async function exerciseThirtyToTwentyFourAcceptance(): Promise<void> {
         expect(roundTwoPreview.matchups.some((matchup) => matchup.higherSeedTeamId === historicalEntryId || matchup.lowerSeedTeamId === historicalEntryId)).toBe(true);
       }
 
-      if (round === 2) {
-        const roundTwoMatch = roundMatches.find((match) => match.entryAId === historicalEntryId || match.entryBId === historicalEntryId);
-        if (!roundTwoMatch) throw new Error("R2 match for revised entry missing");
-        secondRoundId = roundTwoMatch.id;
-        revisionTwoUsers = await persistAndConfirmLineup(database, roundTwoMatch.id, historicalEntryId);
-        expect(revisionTwoUsers).not.toEqual(revisionOneUsers);
-      }
     }
 
     const [completedRun] = await database.select().from(schema.competitionQualificationRuns)
