@@ -88,14 +88,7 @@ export async function loadOrFetchSteamProfiles(
   const values = [...new Set(steam64Values.filter((value) => /^\d{17}$/.test(value)))];
   if (values.length === 0) return new Map();
 
-  let cached = new Map<string, SteamProfileSummary>();
-  try {
-    if (typeof database?.select === "function") {
-      cached = await loadSteamProfilesBySteam64(database, values);
-    }
-  } catch {
-    // Graceful degrade: ignore read errors
-  }
+  const cached = await loadSteamProfilesBySteam64(database, values);
 
   const missing = values.filter((steam64) => !cached.has(steam64));
   if (missing.length === 0) return cached;
@@ -107,28 +100,22 @@ export async function loadOrFetchSteamProfiles(
       for (const profile of fetchedProfiles) {
         cached.set(profile.steam64, profile);
       }
-      if (typeof database?.insert === "function") {
-        const fetchedAt = new Date();
-        try {
-          await database.insert(steamProfiles).values(fetchedProfiles.map((p) => ({
-            steam64: p.steam64,
-            personaName: p.personaName,
-            profileUrl: p.profileUrl,
-            avatarUrl: p.avatarUrl,
-            fetchedAt,
-          }))).onConflictDoUpdate({
-            target: steamProfiles.steam64,
-            set: {
-              personaName: sql`excluded.persona_name`,
-              profileUrl: sql`excluded.profile_url`,
-              avatarUrl: sql`excluded.avatar_url`,
-              fetchedAt: sql`excluded.fetched_at`,
-            },
-          });
-        } catch {
-          // Graceful degrade: cache write failure does not fail review
-        }
-      }
+      const fetchedAt = new Date();
+      await database.insert(steamProfiles).values(fetchedProfiles.map((p) => ({
+        steam64: p.steam64,
+        personaName: p.personaName,
+        profileUrl: p.profileUrl,
+        avatarUrl: p.avatarUrl,
+        fetchedAt,
+      }))).onConflictDoUpdate({
+        target: steamProfiles.steam64,
+        set: {
+          personaName: sql`excluded.persona_name`,
+          profileUrl: sql`excluded.profile_url`,
+          avatarUrl: sql`excluded.avatar_url`,
+          fetchedAt: sql`excluded.fetched_at`,
+        },
+      });
     }
   } catch {
     // Provider failure graceful degrade: do not block operator review
