@@ -7,6 +7,10 @@ const migration = readFileSync(
   resolve(process.cwd(), "drizzle/migrations/0052_gray_supernaut.sql"),
   "utf8",
 );
+const cleanupMigration = readFileSync(
+  resolve(process.cwd(), "drizzle/migrations/0055_steam_profile_shadow_cleanup.sql"),
+  "utf8",
+);
 
 describe("0052 Steam profile foundation migration", () => {
   it("creates the reusable identity and official-profile boundaries", () => {
@@ -37,5 +41,14 @@ describe("users application schema contract", () => {
     expect(userColumns).not.toContain("steamName");
     expect(userColumns).not.toContain("steamProfileUrl");
     expect(userColumns).not.toContain("avatarUrl");
+  });
+});
+
+describe("0055 Steam profile shadow cleanup migration", () => {
+  it("physically drops all three retired users columns after the compatibility window", () => {
+    expect(cleanupMigration).toContain('ALTER TABLE "public"."users" DROP COLUMN "steam_name"');
+    expect(cleanupMigration).toContain('DROP COLUMN "steam_profile_url"');
+    expect(cleanupMigration).toContain('DROP COLUMN "avatar_url"');
+    expect(cleanupMigration).toContain("v2.12.2 is Production without readers or writers");
   });
 });

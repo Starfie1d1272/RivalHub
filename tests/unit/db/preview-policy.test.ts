@@ -61,28 +61,34 @@ describe("sanitized mirror policy", () => {
     expect(policy.tables.match_player_stats.exportedColumns).toContain("dak_import_id");
   });
 
-  it("treats retained Steam rollback shadows as reviewed active compatibility shadows without export", () => {
+  it("allows Steam compatibility shadows before cleanup and rejects them after the real migration", () => {
+    const expected = readExpectedMigrations();
+    const cleanupIndex = expected.findIndex(({ tag }) => tag === "0055_steam_profile_shadow_cleanup");
+    expect(cleanupIndex).toBeGreaterThan(0);
+    const beforeCleanup = previewPolicyFor(expected.slice(0, cleanupIndex));
+    const afterCleanup = previewPolicyFor(expected);
+    const shadowColumns = ["steam_name", "steam_profile_url", "avatar_url"];
     expect(OMITTED_COLUMNS.users).not.toMatch(/steam_name|steam_profile_url|avatar_url/);
     const physicalUsersWithShadow = [
       ...PREVIEW_COLUMNS.users.split(" "),
       ...OMITTED_COLUMNS.users.split(" "),
-      "steam_name",
-      "steam_profile_url",
-      "avatar_url",
+      ...shadowColumns,
     ];
 
     expect(exportQuery("users")).not.toContain("steam_name");
     expect(exportQuery("users")).not.toContain("steam_profile_url");
     expect(exportQuery("users")).not.toContain("avatar_url");
 
-    const policy = previewPolicyFor(readExpectedMigrations());
-    expect(policy.tables.users.omittedColumns).toEqual(expect.arrayContaining(["steam_name", "steam_profile_url", "avatar_url"]));
-    expect(policy.tables.users.exportedColumns).not.toEqual(expect.arrayContaining(["steam_name", "steam_profile_url", "avatar_url"]));
-    expect(policy.tables.users.removedColumns).toEqual([]);
+    expect(beforeCleanup.tables.users.omittedColumns).toEqual(expect.arrayContaining(shadowColumns));
+    expect(beforeCleanup.tables.users.removedColumns).toEqual([]);
+    expect(() => assertReviewedColumns("users", physicalUsersWithShadow, beforeCleanup)).not.toThrow();
 
-    expect(() => assertReviewedColumns("users", physicalUsersWithShadow, policy)).not.toThrow();
-    expect(() => assertReviewedColumns("users", physicalUsersWithShadow)).not.toThrow();
+    expect(afterCleanup.tables.users.omittedColumns).not.toEqual(expect.arrayContaining(shadowColumns));
+    expect(afterCleanup.tables.users.removedColumns).toEqual(expect.arrayContaining(shadowColumns));
+    expect(() => assertReviewedColumns("users", physicalUsersWithShadow, afterCleanup)).toThrow(/removed mirror column/);
 
-    expect(() => assertReviewedColumns("users", [...physicalUsersWithShadow, "unreviewed_column"], policy)).toThrow(/unreviewed column/);
+    const cleanedUsers = [...PREVIEW_COLUMNS.users.split(" "), ...OMITTED_COLUMNS.users.split(" ")];
+    expect(() => assertReviewedColumns("users", cleanedUsers, afterCleanup)).not.toThrow();
+    expect(() => assertReviewedColumns("users", [...cleanedUsers, "unreviewed_column"], afterCleanup)).toThrow(/unreviewed column/);
   });
 });

@@ -121,9 +121,9 @@ export const PREVIEW_SCHEMA_LIFECYCLE: readonly PreviewSchemaLifecycleTable[] = 
   {
     table: "users",
     columns: [
-      { name: "steam_name", compatibility: "legacy-shadow" },
-      { name: "steam_profile_url", compatibility: "legacy-shadow" },
-      { name: "avatar_url", compatibility: "legacy-shadow" },
+      { name: "steam_name", compatibility: "legacy-shadow", removedAt: "0055_steam_profile_shadow_cleanup" },
+      { name: "steam_profile_url", compatibility: "legacy-shadow", removedAt: "0055_steam_profile_shadow_cleanup" },
+      { name: "avatar_url", compatibility: "legacy-shadow", removedAt: "0055_steam_profile_shadow_cleanup" },
     ],
   },
 ] as const;
