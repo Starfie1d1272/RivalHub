@@ -104,6 +104,7 @@ export async function getRecruitmentLobbyData(filters: RecruitmentFilters, viewe
   mapOptions: string[];
   normalizedFilters: RecruitmentFilters;
   viewerInterestedIntentIds: Set<string>;
+  viewerInvitedTeamIds: Set<string>;
 }> {
   const currentPlayerTeam = alias(teams, "recruitment_current_player_team");
   const now = new Date();
@@ -176,7 +177,7 @@ export async function getRecruitmentLobbyData(filters: RecruitmentFilters, viewe
   const teamIds = teamRows.map((row) => row.teamId);
   const playerIds = [...new Set(playerRows.map((row) => row.userId))];
   const interestIntentIds = teamRows.map((row) => row.id);
-  const [memberCounts, roles, mapPreferences, interests, rankFacts, competitiveCatalog] = await Promise.all([
+  const [memberCounts, roles, mapPreferences, interests, pendingInvitations, rankFacts, competitiveCatalog] = await Promise.all([
     teamIds.length
       ? db.select({ teamId: teamMemberships.teamId, count: sql<number>`count(*)::int` }).from(teamMemberships).innerJoin(users, and(eq(teamMemberships.userId, users.id), eq(users.status, "active"))).where(and(inArray(teamMemberships.teamId, teamIds), isNull(teamMemberships.endedAt))).groupBy(teamMemberships.teamId)
       : Promise.resolve([]),
@@ -188,6 +189,15 @@ export async function getRecruitmentLobbyData(filters: RecruitmentFilters, viewe
       : Promise.resolve([]),
     viewerUserId && interestIntentIds.length
       ? db.select({ recruitmentIntentId: recruitmentInterests.recruitmentIntentId }).from(recruitmentInterests).where(and(eq(recruitmentInterests.userId, viewerUserId), inArray(recruitmentInterests.recruitmentIntentId, interestIntentIds)))
+      : Promise.resolve([]),
+    viewerUserId && teamIds.length
+      ? db.select({ teamId: teamInvitations.teamId }).from(teamInvitations).where(and(
+        eq(teamInvitations.invitedUserId, viewerUserId),
+        eq(teamInvitations.kind, "direct"),
+        eq(teamInvitations.status, "pending"),
+        gt(teamInvitations.expiresAt, now),
+        inArray(teamInvitations.teamId, teamIds),
+      ))
       : Promise.resolve([]),
     playerIds.length
       ? db.select({ id: competitiveRankFacts.id, userId: competitiveRankFacts.userId, platform: competitiveRankFacts.platform, kind: competitiveRankFacts.kind, platformSeasonKey: competitiveRankFacts.platformSeasonKey, status: competitiveRankFacts.status, rank: competitiveRankFacts.rank, rating: competitiveRankFacts.rating, stars: competitiveRankFacts.stars, achievedSeasonKey: competitiveRankFacts.achievedSeasonKey }).from(competitiveRankFacts).where(inArray(competitiveRankFacts.userId, playerIds))
@@ -231,6 +241,7 @@ export async function getRecruitmentLobbyData(filters: RecruitmentFilters, viewe
     mapOptions,
     normalizedFilters,
     viewerInterestedIntentIds: new Set(interests.map((row) => row.recruitmentIntentId)),
+    viewerInvitedTeamIds: new Set(pendingInvitations.map((row) => row.teamId)),
   };
 }
 
