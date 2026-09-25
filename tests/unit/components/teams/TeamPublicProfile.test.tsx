@@ -22,6 +22,7 @@ const longLivedTeam: PublicTeamProfile = {
   currentUserMembership: { userId: "captain-1", status: "active" },
   recruitment: { id: "intent-1", positions: ["awper"], targetSeasonId: null, targetSeasonName: null, note: "缺一名主狙", expiresAt: new Date("2026-09-30T00:00:00Z"), updatedAt: new Date("2026-09-01T00:00:00Z") },
   viewerInterested: false,
+  viewerInvited: false,
   loggedIn: true,
 };
 
@@ -75,6 +76,17 @@ describe("TeamPublicProfile", () => {
     expect(screen.getByText("队伍历史")).toBeInTheDocument();
     expect(screen.getByText("名称变更")).toBeInTheDocument();
     expect(screen.getByText("队长变更")).toBeInTheDocument();
+  });
+
+  it("routes an invited viewer to the existing invitation workspace", () => {
+    render(<TeamPublicProfile team={{
+      ...longLivedTeam,
+      currentUserMembership: null,
+      viewerInvited: true,
+    }} />);
+
+    expect(screen.getByRole("link", { name: "已收到队伍邀请" })).toHaveAttribute("href", "/my/teams");
+    expect(screen.queryByRole("button", { name: "表达加入意向" })).not.toBeInTheDocument();
   });
 
   it("keeps an active event out of the completed career list", () => {

@@ -87,6 +87,10 @@ describe("recruitment PostgreSQL invariants", () => {
       expect(afterInvite.interests.map((interest) => interest.userId)).not.toContain(ids.interested);
       const pendingInvite = await pool.query<{ count: string }>("SELECT count(*)::text AS count FROM team_invitations WHERE team_id = $1 AND invited_user_id = $2 AND kind = 'direct' AND status = 'pending'", [ids.team, ids.interested]);
       expect(pendingInvite.rows[0]?.count).toBe("1");
+      await expect(database.transaction((tx) => expressRecruitmentInterestInTx(tx, { recruitmentIntentId: teamIntent.id, userId: ids.interested, actorId: ids.interested })))
+        .rejects.toMatchObject({ code: ErrorCode.VALIDATION_FAILED, message: "该队伍已向你发出邀请，请先处理队伍邀请。" });
+      const invitedLobby = await getRecruitmentLobbyData({}, ids.interested);
+      expect(invitedLobby.viewerInvitedTeamIds.has(ids.team), "已有有效 direct invitation 时 lobby 应进入邀请处理状态。").toBe(true);
 
       await database.transaction((tx) => closeTeamRecruitmentInTx(tx, { teamId: ids.team, userId: ids.captain, actorId: ids.captain }));
       const afterClose = await pool.query<{ status: string; interests: string }>(

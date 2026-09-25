@@ -1,9 +1,9 @@
-import { and, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, eq, gt, inArray, isNull, sql } from "drizzle-orm";
 import { writeAuditInTx } from "@/lib/audit/write";
 import type { AuditAction } from "@/lib/audit/presentation";
 
 import type { TxDb } from "@/db/client";
-import { competitionEntries, recruitmentIntents, recruitmentInterests, seasons, teamMemberships, teams } from "@/db/schema";
+import { competitionEntries, recruitmentIntents, recruitmentInterests, seasons, teamInvitations, teamMemberships, teams } from "@/db/schema";
 import { AppError, ErrorCode } from "@/lib/errors";
 import type { Cs2Position } from "@/lib/config/cs2-positions";
 import { isRecruitmentTargetAvailable, isTeamRecruitmentTargetAvailable, recruitmentTargetExpiresAt } from "@/lib/recruitment/target-policy";
@@ -124,10 +124,22 @@ export async function expressRecruitmentInterestInTx(tx: TxDb, input: { recruitm
   const teamId = await findTeamIdForRecruitmentIntent(tx, input.recruitmentIntentId);
   const team = await lockTeam(tx, teamId);
   const intent = await lockTeamRecruitmentIntent(tx, input.recruitmentIntentId, team.id);
-  if (intent.status !== "open" || intent.expiresAt <= new Date()) throw new AppError(ErrorCode.NOT_FOUND, "该招募信息已不再公开。");
+  const now = new Date();
+  if (intent.status !== "open" || intent.expiresAt <= now) throw new AppError(ErrorCode.NOT_FOUND, "该招募信息已不再公开。");
   if (team.status !== "active") throw new AppError(ErrorCode.NOT_FOUND, "该招募信息已不再公开。");
   const currentMembership = await tx.query.teamMemberships.findFirst({ where: and(eq(teamMemberships.teamId, team.id), eq(teamMemberships.userId, input.userId), isNull(teamMemberships.endedAt)) });
   if (currentMembership) throw new AppError(ErrorCode.VALIDATION_FAILED, "你当前已是该队成员，无需表达加入意向。");
+  const pendingInvitation = await tx.query.teamInvitations.findFirst({
+    where: and(
+      eq(teamInvitations.teamId, team.id),
+      eq(teamInvitations.kind, "direct"),
+      eq(teamInvitations.invitedUserId, input.userId),
+      eq(teamInvitations.status, "pending"),
+      gt(teamInvitations.expiresAt, now),
+    ),
+    columns: { id: true },
+  });
+  if (pendingInvitation) throw new AppError(ErrorCode.VALIDATION_FAILED, "该队伍已向你发出邀请，请先处理队伍邀请。");
   const [interest] = await tx.insert(recruitmentInterests).values({ recruitmentIntentId: intent.id, userId: input.userId }).onConflictDoNothing().returning({ id: recruitmentInterests.id });
   if (!interest) throw new AppError(ErrorCode.REGISTRATION_DUPLICATE, "你已表达过加入意向。");
   await auditRecruitment(tx, "recruitment.interest.create", input.actorId, interest.id, { recruitmentIntentId: intent.id, teamId: intent.teamId });
@@ -154,7 +166,7 @@ export async function dismissRecruitmentInterestInTx(tx: TxDb, input: { recruitm
   await auditRecruitment(tx, "recruitment.interest.dismiss", input.actorId, input.recruitmentIntentId, { recruitmentIntentId: input.recruitmentIntentId, recruitmentInterestId: interest.id, teamId, userId: input.interestUserId });
 }
 
-export async function clearTeamInterestAfterDirectInvitationInTx(tx: TxDb, teamId: string, userId: string): Promise<void> {
+export async function clearRecruitmentInterestForTeamUserInTx(tx: TxDb, teamId: string, userId: string): Promise<void> {
   const intents = await tx.select({ id: recruitmentIntents.id }).from(recruitmentIntents).where(and(eq(recruitmentIntents.teamId, teamId), eq(recruitmentIntents.kind, "team_recruiting"))).for("update");
   for (const intent of intents) await tx.delete(recruitmentInterests).where(and(eq(recruitmentInterests.recruitmentIntentId, intent.id), eq(recruitmentInterests.userId, userId)));
 }

@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, asc, eq, inArray, ne, or } from "drizzle-orm";
+import { and, asc, eq, gt, inArray, ne, or } from "drizzle-orm";
 
 import { db } from "@/db/client";
 import {
@@ -8,6 +8,7 @@ import {
   matches,
   recruitmentInterests,
   seasons,
+  teamInvitations,
   teamCaptainChanges,
   teamMemberships,
   teamNameChanges,
@@ -69,6 +70,7 @@ export interface PublicTeamProfile {
   } | null;
   recruitment: PublicRecruitmentIntent | null;
   viewerInterested: boolean;
+  viewerInvited: boolean;
   loggedIn: boolean;
 }
 
@@ -239,6 +241,18 @@ export async function getPublicTeamProfile(
       columns: { id: true },
     })
     : null;
+  const viewerInvitation = viewerUserId && recruitment && !currentUserMembership
+    ? await db.query.teamInvitations.findFirst({
+      where: and(
+        eq(teamInvitations.teamId, team.id),
+        eq(teamInvitations.kind, "direct"),
+        eq(teamInvitations.invitedUserId, viewerUserId),
+        eq(teamInvitations.status, "pending"),
+        gt(teamInvitations.expiresAt, new Date()),
+      ),
+      columns: { id: true },
+    })
+    : null;
 
   return {
     team,
@@ -257,6 +271,7 @@ export async function getPublicTeamProfile(
     currentUserMembership,
     recruitment,
     viewerInterested: Boolean(viewerInterest),
+    viewerInvited: Boolean(viewerInvitation),
     loggedIn: Boolean(viewerUserId),
   };
 }
