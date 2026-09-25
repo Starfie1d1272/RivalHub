@@ -108,7 +108,7 @@ export function TeamPublicProfile({ team, event = null, mapProfile, results, per
 
       {event && <div className="grid gap-8">
         <section className="space-y-4">
-          <div><p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--color-fg-dim)]">ROSTER</p><h2 className="mt-1 text-lg font-semibold">{eventRosterHeading}</h2></div>
+          <div><p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--color-fg-dim)]">MEMBERS</p><h2 className="mt-1 text-lg font-semibold">{eventRosterHeading}</h2></div>
           <div className="border-y border-[var(--color-border)] px-1">
             <div className="divide-y divide-[var(--color-border)]">
               {event.roster.length > 0 ? event.roster.map((member) => (
