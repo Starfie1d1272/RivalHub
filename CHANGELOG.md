@@ -1,5 +1,19 @@
 # Changelog
 
+## [2.12.1]
+
+### Changed
+
+#### 队伍公开页与选手统计表
+
+调整赛事队伍公开页的信息层级，并改善移动端选手统计表中长名称的展示。
+
+### Fixed
+
+#### 队伍邀请与调度器
+
+修复队伍邀请和加入意向的状态冲突，并修正 Scheduler watchdog planner 在 GitHub Actions 中的执行问题。
+
 ## [2.12.0]
 
 ### Added
@@ -2361,6 +2375,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[2.12.1]: https://github.com/Starfie1d1272/RivalHub/compare/v2.12.0...v2.12.1
 [2.10.7]: https://github.com/Starfie1d1272/RivalHub/compare/v2.10.6...v2.10.7
 [2.11.0]: https://github.com/Starfie1d1272/RivalHub/compare/v2.10.7...v2.11.0
 [2.10.6]: https://github.com/Starfie1d1272/RivalHub/compare/v2.10.5...v2.10.6
