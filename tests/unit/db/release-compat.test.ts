@@ -111,35 +111,6 @@ export type NewOldTeam = typeof oldTeams.$inferInsert;
     expect(result.failures[0]).toContain("src/actions/legacy-reader.ts:");
   });
 
-  it("allows legacy-shadow contract cleanup when previous stable schema has no Drizzle column mapping", () => {
-    const fixture = createFixture({
-      migration: `${MIGRATION_CONTRACT_ANNOTATION}\nALTER TABLE "users" DROP COLUMN "steam_name";`,
-      migrationFile: "drizzle/migrations/0055_steam_profile_contract_cleanup.sql",
-      source: `export const users = pgTable("users", { id: uuid("id") });\n`,
-      sourcePath: "src/db/schema/users.ts",
-      extraFiles: {
-        "src/lib/shadow-sync.ts": `import { users } from "@/db/schema";\nexport const sync = (tx: any) => tx.execute('UPDATE users SET steam_name = null');\n`,
-      },
-    });
-    const result = checkReleaseCompatibility(fixture.directory);
-
-    expect(result.failures).toEqual([]);
-    expect(result.findings[0]).toMatchObject({ status: "pass", finding: { category: "drop" } });
-  });
-
-  it("fails legacy-shadow contract cleanup if previous stable schema still declared the Drizzle column mapping", () => {
-    const fixture = createFixture({
-      migration: `${MIGRATION_CONTRACT_ANNOTATION}\nALTER TABLE "users" DROP COLUMN "steam_name";`,
-      migrationFile: "drizzle/migrations/0055_steam_profile_contract_cleanup.sql",
-      source: `export const users = pgTable("users", { id: uuid("id"), steamName: text("steam_name") });\n`,
-      sourcePath: "src/db/schema/users.ts",
-    });
-    const result = checkReleaseCompatibility(fixture.directory);
-
-    expect(result.failures).toHaveLength(1);
-    expect(result.failures[0]).toContain("Drizzle users.steam_name 列映射");
-  });
-
   it.each([
     ["alter-type", `ALTER TABLE "teams" ALTER COLUMN "old_column" TYPE text;`],
     ["set-not-null", `ALTER TABLE "teams" ALTER COLUMN "old_column" SET NOT NULL;`],
@@ -306,9 +277,7 @@ export type NewOldTeam = typeof oldTeams.$inferInsert;
 
 interface FixtureOptions {
   migration?: string;
-  migrationFile?: string;
   source?: string;
-  sourcePath?: string;
   extraFiles?: Record<string, string>;
   stableTags?: string[];
   prereleaseTag?: string;
@@ -326,8 +295,7 @@ function createFixture(options: FixtureOptions): Fixture {
   runGit(directory, ["config", "user.email", "release-compat@example.test"]);
   runGit(directory, ["config", "user.name", "Release Compat Test"]);
 
-  const sourcePath = options.sourcePath ?? "src/db/schema/teams.ts";
-  writeFixtureFile(directory, sourcePath, options.source ?? NEW_TEAMS_SOURCE);
+  writeFixtureFile(directory, "src/db/schema/teams.ts", options.source ?? NEW_TEAMS_SOURCE);
   for (const [path, content] of Object.entries(options.extraFiles ?? {})) writeFixtureFile(directory, path, content);
   writeFixtureFile(directory, "drizzle/migrations/0001_base.sql", "CREATE TABLE teams (id uuid);\n");
   runGit(directory, ["add", "."]);
@@ -338,14 +306,13 @@ function createFixture(options: FixtureOptions): Fixture {
   runGit(directory, ["update-ref", "refs/remotes/origin/main", baselineCommit]);
   if (options.prereleaseTag) runGit(directory, ["tag", options.prereleaseTag]);
 
-  const migrationFile = options.migrationFile ?? "drizzle/migrations/0002_next.sql";
-  if (options.migration) writeFixtureFile(directory, migrationFile, options.migration);
+  if (options.migration) writeFixtureFile(directory, "drizzle/migrations/0002_next.sql", options.migration);
   else writeFixtureFile(directory, "README.md", "candidate\n");
   runGit(directory, ["add", "."]);
   runGit(directory, ["commit", "-q", "-m", "candidate"]);
   if (options.candidateTag) runGit(directory, ["tag", options.candidateTag]);
 
-  expect(readFileSync(join(directory, sourcePath), "utf8")).toBe(options.source ?? NEW_TEAMS_SOURCE);
+  expect(readFileSync(join(directory, "src/db/schema/teams.ts"), "utf8")).toBe(options.source ?? NEW_TEAMS_SOURCE);
   return { directory };
 }
 

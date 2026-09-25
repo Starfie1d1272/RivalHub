@@ -99,8 +99,6 @@ type PreviewSchemaLifecycleTable = {
  * policy remains the latest-main projection; previewPolicyFor() removes future
  * entries for a lagging source and rejects columns past their removal marker.
  */
-export const PREVIEW_STEAM_SHADOW_CLEANUP_MIGRATION = "0055_steam_profile_contract_cleanup";
-
 export const PREVIEW_SCHEMA_LIFECYCLE: readonly PreviewSchemaLifecycleTable[] = [
   { table: "dak_pairing_intents", introducedAt: "0051_sour_grim_reaper" },
   { table: "dak_pairings", introducedAt: "0051_sour_grim_reaper" },
@@ -123,9 +121,9 @@ export const PREVIEW_SCHEMA_LIFECYCLE: readonly PreviewSchemaLifecycleTable[] = 
   {
     table: "users",
     columns: [
-      { name: "steam_name", removedAt: PREVIEW_STEAM_SHADOW_CLEANUP_MIGRATION, compatibility: "legacy-shadow" },
-      { name: "steam_profile_url", removedAt: PREVIEW_STEAM_SHADOW_CLEANUP_MIGRATION, compatibility: "legacy-shadow" },
-      { name: "avatar_url", removedAt: PREVIEW_STEAM_SHADOW_CLEANUP_MIGRATION, compatibility: "legacy-shadow" },
+      { name: "steam_name", compatibility: "legacy-shadow" },
+      { name: "steam_profile_url", compatibility: "legacy-shadow" },
+      { name: "avatar_url", compatibility: "legacy-shadow" },
     ],
   },
 ] as const;
@@ -335,18 +333,18 @@ function assertPolicyDefinition(expectedMigrations: readonly ExpectedMigration[]
       seenColumns.add(key);
       const known = PREVIEW_COLUMNS[event.table]?.split(" ").includes(column.name) || OMITTED_COLUMNS[event.table]?.split(" ").includes(column.name);
       if (column.compatibility === "legacy-shadow") {
-        if (known || !column.removedAt) {
-          throw new PreviewMirrorError("PREVIEW_SCHEMA_POLICY_INVALID", "Preview legacy shadow lifecycle is not a removed compatibility column.", {
+        if (known) {
+          throw new PreviewMirrorError("PREVIEW_SCHEMA_POLICY_INVALID", "Preview legacy shadow must not remain in permanent preview columns.", {
+            context: { phase: "schema inventory-policy", table: event.table, column: column.name },
+          });
+        }
+        if (column.removedAt && !knownMigrationIndexes.has(column.removedAt)) {
+          throw new PreviewMirrorError("PREVIEW_SCHEMA_POLICY_INVALID", "Preview schema lifecycle references an unknown migration tag.", {
             context: { phase: "schema inventory-policy", table: event.table, column: column.name },
           });
         }
       } else if (!known) {
         throw new PreviewMirrorError("PREVIEW_SCHEMA_POLICY_INVALID", "Preview schema policy references an unknown column owner.", {
-          context: { phase: "schema inventory-policy", table: event.table, column: column.name },
-        });
-      }
-      if (column.compatibility === "legacy-shadow" && OMITTED_COLUMNS[event.table]?.split(" ").includes(column.name)) {
-        throw new PreviewMirrorError("PREVIEW_SCHEMA_POLICY_INVALID", "Preview legacy shadow must not remain in permanent omitted columns.", {
           context: { phase: "schema inventory-policy", table: event.table, column: column.name },
         });
       }

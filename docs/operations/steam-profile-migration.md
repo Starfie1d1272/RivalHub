@@ -7,7 +7,7 @@
 - `users.steam64` 是用户当前 primary Steam64；`steam_profiles` 是以 17 位 Steam64 为主键的官方资料持久缓存（personaName、profileUrl、avatarUrl），Steam provider credential 仅在服务端使用。
 - `src/lib/identity/gameplay-steam.ts` 是 primary/observed gameplay identity 的唯一冲突、解析、记录和撤销 owner。
 - `user_gameplay_steam_ids` 保存历史与比赛关联的 gameplay identity；`profile_change` 与 `admin_confirmed_alternate` provenance 保持可区分。primary 从 X 改为 Z 时，X 在同一事务中保留为 active historical identity。
-- `users` 物理表不保留 `steam_name`、`steam_profile_url` 或 `avatar_url` 等冗余 shadow 列，应用 schema 与底层物理表完全一致，`steam_profiles` 是官方资料唯一持久化事实来源。
+- `users` 物理表中仍暂时保留 `steam_name`、`steam_profile_url`、`avatar_url` 三个兼容列，但应用层 Drizzle schema 已不包含它们，应用运行时也不再对其进行任何读写维护。`steam_profiles` 是官方资料唯一持久化事实来源。这三个物理列将在下一版本作为单独的 cleanup migration 进行 DROP。
 
 ## Database constraints
 
