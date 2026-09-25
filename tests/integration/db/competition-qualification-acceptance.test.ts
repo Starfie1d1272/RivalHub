@@ -95,14 +95,15 @@ async function prepareAcceptanceFixture(pool: Pool): Promise<AcceptanceFixture> 
       userId,
       `issue-743-${index}-${seasonId}@local.test`,
       `Issue 743 Player ${index}`,
+      `Issue 743 Perfect ${index}`,
       testSteam64(userId),
       String(74300000 + index),
     ]);
     const usersSql = insertValues(users);
     await client.query(
-      `INSERT INTO users (id, email, email_verified_at, display_name, steam64, qq)
-       SELECT v.id::uuid, v.email, now(), v.display_name, v.steam64, v.qq
-       FROM (VALUES ${usersSql.placeholders}) AS v(id, email, display_name, steam64, qq)`,
+      `INSERT INTO users (id, email, email_verified_at, display_name, perfect_name, steam64, qq)
+       SELECT v.id::uuid, v.email, now(), v.display_name, v.perfect_name, v.steam64, v.qq
+       FROM (VALUES ${usersSql.placeholders}) AS v(id, email, display_name, perfect_name, steam64, qq)`,
       usersSql.values,
     );
 
