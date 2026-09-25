@@ -29,6 +29,7 @@ interface TeamMember {
   displayName: string | null;
   perfectName: string | null;
   primaryPosition: string;
+  isCurrent: boolean;
 }
 
 interface AdminRosterDialogProps {
@@ -204,6 +205,7 @@ function RosterTeamSection({
           <div className="grid grid-cols-2 gap-1.5 max-h-48 overflow-y-auto">
             {members.map((m) => {
               const isSelected = selectedIds.includes(m.id);
+              const isUnavailable = !m.isCurrent && !isSelected;
               const selectedIndex = selectedIds.indexOf(m.id);
               const label =
                 isSelected && selectedIndex < 5
@@ -218,15 +220,15 @@ function RosterTeamSection({
                     isSelected
                       ? "bg-[var(--color-accent)]/10"
                       : "hover:bg-[var(--color-panel-low)]"
-                  } ${!isSelected && selectedIds.length >= (allowSubstitutes ? 7 : 5) ? "opacity-40 cursor-not-allowed" : ""}`}
+                  } ${isUnavailable || (!isSelected && selectedIds.length >= (allowSubstitutes ? 7 : 5)) ? "opacity-40 cursor-not-allowed" : ""}`}
                 >
                   <Checkbox
                     checked={isSelected}
-                    disabled={!isSelected && selectedIds.length >= (allowSubstitutes ? 7 : 5)}
+                    disabled={isUnavailable || (!isSelected && selectedIds.length >= (allowSubstitutes ? 7 : 5))}
                     onChange={() => toggleMember(m.id)}
                   />
                   <span className="text-sm flex-1 truncate">
-                    {getDisplayName(m)}
+                    {getDisplayName(m)}{!m.isCurrent && " · 历史名单"}
                   </span>
                   <span className="text-xs text-[var(--color-fg-mid)]">
                     {m.primaryPosition}

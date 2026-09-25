@@ -167,7 +167,7 @@ export async function confirmMajorPrestartRoster(input: z.input<typeof rosterExc
       if (!entrant) throw new AppError(ErrorCode.NOT_FOUND, "正式参赛队不存在。");
       const coherent = await assertSinglePrestartEntryCoherenceInTx(tx, season.id, { competitionEntryId: entrant.competitionEntryId });
       const roster = await tx.select({ userId: eventRosterMembers.userId, educationVerificationId: eventRosterMembers.educationVerificationId }).from(eventRosterMembers)
-        .where(eq(eventRosterMembers.eventRosterId, coherent.eventRoster.id));
+        .where(and(eq(eventRosterMembers.eventRosterId, coherent.eventRoster.id), eq(eventRosterMembers.isCurrent, true)));
       if (roster.length < season.minTeamSize || roster.length > season.maxTeamSize) {
         throw new AppError(ErrorCode.VALIDATION_FAILED, "最终名单人数不符合赛事规则，不能确认。");
       }
@@ -175,7 +175,7 @@ export async function confirmMajorPrestartRoster(input: z.input<typeof rosterExc
       const duplicate = await tx.execute(sql`
         SELECT r.user_id FROM event_roster_members r
         INNER JOIN major_tournament_entrants e ON e.competition_entry_id = (SELECT entry_id FROM event_rosters WHERE id = r.event_roster_id)
-        WHERE e.season_id = ${season.id}
+        WHERE e.season_id = ${season.id} AND r.is_current = true
         GROUP BY r.user_id HAVING count(*) > 1 LIMIT 1
       `);
       if (duplicate.rows.length > 0) throw new AppError(ErrorCode.VALIDATION_FAILED, "同一选手不能同时出现在多支正式参赛队的最终名单中。");

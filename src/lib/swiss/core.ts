@@ -86,12 +86,7 @@ export function projectSwissStage(input: {
   for (let round = 1; round <= completedRound; round += 1) {
     const roundMatches = official.filter((match) => match.round === round)
       .sort((a, b) => a.matchId.localeCompare(b.matchId));
-    const activeAtStart = [...states.values()].filter((team) => team.status === "active");
-    if (roundMatches.length * 2 !== activeAtStart.length) {
-      throw new Error(`completed round ${round} is incomplete: expected ${activeAtStart.length / 2} matches, got ${roundMatches.length}`);
-    }
     const participants = new Set<string>();
-    const recordsBeforeRound = new Map([...states.values()].map((team) => [team.teamId, { wins: team.wins, losses: team.losses }]));
     for (const match of roundMatches) {
       const teamA = states.get(match.entryAId)!;
       const teamB = states.get(match.entryBId)!;
@@ -103,14 +98,6 @@ export function projectSwissStage(input: {
       }
       participants.add(teamA.teamId);
       participants.add(teamB.teamId);
-      const recordA = recordsBeforeRound.get(teamA.teamId)!;
-      const recordB = recordsBeforeRound.get(teamB.teamId)!;
-      if (recordA.wins !== recordB.wins || recordA.losses !== recordB.losses) {
-        throw new Error(`round ${round} match ${match.matchId} is cross-record (${recordA.wins}-${recordA.losses} vs ${recordB.wins}-${recordB.losses})`);
-      }
-    }
-    if (participants.size !== activeAtStart.length) {
-      throw new Error(`completed round ${round} is incomplete: ${participants.size} participants but ${activeAtStart.length} active teams`);
     }
     for (const match of roundMatches) {
       const winner = states.get(match.winnerId)!;

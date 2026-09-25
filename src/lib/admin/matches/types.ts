@@ -12,6 +12,7 @@ export interface TeamMemberData {
   displayName: string | null;
   perfectName: string | null;
   primaryPosition: string;
+  isCurrent: boolean;
 }
 
 export interface RosterData {

@@ -14,7 +14,7 @@ import {
 import { competitionEntries } from "./competition-entries";
 import { seasons } from "./seasons";
 
-const competitionQualificationFormatEnum = pgEnum("competition_qualification_format", [
+export const competitionQualificationFormatEnum = pgEnum("competition_qualification_format", [
   "direct_bo3",
   "short_swiss_2w2l",
 ]);

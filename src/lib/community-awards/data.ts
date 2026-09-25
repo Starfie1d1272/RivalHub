@@ -70,7 +70,7 @@ export async function getPublicCommunityAwardBoardData(executor: CommunityAwardQ
     .from(eventRosterMembers)
     .innerJoin(eventRosters, eq(eventRosterMembers.eventRosterId, eventRosters.id))
     .innerJoin(competitionEntries, eq(eventRosters.entryId, competitionEntries.id))
-    .where(and(publicEventRosterPlayerCondition(args.seasonId), inArray(eventRosterMembers.userId, recipientUserIds)))
+    .where(and(publicEventRosterPlayerCondition(args.seasonId), inArray(eventRosterMembers.userId, recipientUserIds), eq(eventRosterMembers.isCurrent, true)))
     : [];
   const playerUserIdSet = new Set(playerRosterRows.map((r) => r.userId));
 

@@ -295,7 +295,7 @@ export async function getPublicCompetitionEntryTeamContext(
       .innerJoin(eventRosters, eq(eventRosters.id, eventRosterMembers.eventRosterId))
       .innerJoin(users, eq(users.id, eventRosterMembers.userId))
       .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
-      .where(eq(eventRosters.entryId, entry.id)),
+      .where(and(eq(eventRosters.entryId, entry.id), eq(eventRosterMembers.isCurrent, true))),
     getPublicEventTeamMatchFacts(season.id, [entry.id]),
   ]);
   const matchFacts = matchFactsByEntryId.get(entry.id) ?? {

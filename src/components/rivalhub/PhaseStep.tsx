@@ -21,6 +21,9 @@ export function PhaseStep({ label, stepNumber, isDone, isCurrent, isLast }: Phas
 
   return (
     <div
+      role="listitem"
+      aria-label={`${label} ${isDone ? "已完成" : isCurrent ? "进行中" : "待开始"}`}
+      aria-current={isCurrent ? "step" : undefined}
       className="flex items-center gap-0"
       style={{ flex: isLast ? "0 0 auto" : 1 }}
     >

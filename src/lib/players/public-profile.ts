@@ -81,7 +81,7 @@ export async function getPublicPlayerProfileReadModel(
       .innerJoin(eventRosters, eq(eventRosterMembers.eventRosterId, eventRosters.id))
       .innerJoin(competitionEntries, eq(eventRosters.entryId, competitionEntries.id))
       .innerJoin(seasons, eq(competitionEntries.competitionId, seasons.id))
-      .where(and(eq(eventRosterMembers.userId, userId), inArray(eventRosters.status, ["confirmed", "frozen"]), ne(seasons.status, "draft"), publicCompetitionEntryCondition()))
+      .where(and(eq(eventRosterMembers.userId, userId), eq(eventRosterMembers.isCurrent, true), inArray(eventRosters.status, ["confirmed", "frozen"]), ne(seasons.status, "draft"), publicCompetitionEntryCondition()))
       .orderBy(desc(seasons.createdAt), asc(competitionEntries.name), asc(competitionEntries.id)),
     getPublicPlayerRecords(userId),
     getPlayerAttributeBenchmarkPopulation(),

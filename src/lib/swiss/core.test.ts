@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { projectSwissStage } from "./core";
-import { generateShortSwissRoundPairings } from "@/lib/competition-qualification/swiss";
+import {
+  generateDirectBo3QualificationPairings,
+  generateShortSwissRoundPairings,
+  projectShortSwissStage,
+} from "@/lib/competition-qualification/swiss";
 import type { SwissCompletedMatch, SwissEntrant } from "./types";
 
 function entrants(count: number): SwissEntrant[] {
@@ -57,18 +61,50 @@ describe("generic Swiss core", () => {
     expect(projection.eliminated).toHaveLength(6);
   });
 
-  it("rejects a cross-record completed round", () => {
+  it("accepts partial and cross-record results in the generic projection", () => {
+    const partial = projectSwissStage({
+      entrants: entrants(4),
+      matches: [{ matchId: "partial", round: 1, entryAId: "team-1", entryBId: "team-4", winnerId: "team-1" }],
+      completedRound: 1,
+      config: { winThreshold: 3, lossThreshold: 3 },
+    });
+    expect(partial.teams.find((team) => team.teamId === "team-1")?.wins).toBe(1);
+    expect(partial.active).toHaveLength(4);
+
     const matches = [
       { matchId: "a", round: 1, entryAId: "team-1", entryBId: "team-3", winnerId: "team-1" },
       { matchId: "b", round: 1, entryAId: "team-2", entryBId: "team-4", winnerId: "team-4" },
       { matchId: "c", round: 2, entryAId: "team-1", entryBId: "team-2", winnerId: "team-1" },
       { matchId: "d", round: 2, entryAId: "team-3", entryBId: "team-4", winnerId: "team-3" },
     ];
-    expect(() => projectSwissStage({
+    const projection = projectSwissStage({
       entrants: entrants(4),
       matches,
       completedRound: 2,
       config: { winThreshold: 3, lossThreshold: 3 },
-    })).toThrow(/cross-record/);
+    });
+    expect(projection.teams.find((team) => team.teamId === "team-1")?.wins).toBe(2);
+  });
+
+  it("keeps complete-round and same-record checks in the Short Swiss consumer", () => {
+    expect(() => projectShortSwissStage({
+      entrants: entrants(4),
+      matches: [{ matchId: "partial", round: 1, entryAId: "team-1", entryBId: "team-4", winnerId: "team-1" }],
+      completedRound: 1,
+    })).toThrow(/every active team/);
+
+    const crossRecord = [
+      { matchId: "a", round: 1, entryAId: "team-1", entryBId: "team-3", winnerId: "team-1" },
+      { matchId: "b", round: 1, entryAId: "team-2", entryBId: "team-4", winnerId: "team-4" },
+      { matchId: "c", round: 2, entryAId: "team-1", entryBId: "team-2", winnerId: "team-1" },
+      { matchId: "d", round: 2, entryAId: "team-3", entryBId: "team-4", winnerId: "team-3" },
+    ];
+    expect(() => projectShortSwissStage({ entrants: entrants(4), matches: crossRecord, completedRound: 2 }))
+      .toThrow(/cross-record/);
+  });
+
+  it("pairs Direct BO3 qualification as a high-low mirror draw", () => {
+    expect(generateDirectBo3QualificationPairings(entrants(4)).map(({ higherSeed, lowerSeed }) => [higherSeed, lowerSeed]))
+      .toEqual([[1, 4], [2, 3]]);
   });
 });

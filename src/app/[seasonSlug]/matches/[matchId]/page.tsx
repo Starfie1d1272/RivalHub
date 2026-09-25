@@ -1,8 +1,8 @@
 import { MatchLiveViewing } from "@/components/matches/MatchLiveViewing";
 import { notFound } from "next/navigation";
-import { eq, and, inArray, isNotNull } from "drizzle-orm";
+import { eq, and, inArray, isNotNull, or } from "drizzle-orm";
 import { db } from "@/db/client";
-import { matches, competitionEntries, eventRosters, eventRosterMembers, matchCommentators, matchMaps, steamProfiles, users, seasonRegistrations } from "@/db/schema";
+import { matches, competitionEntries, eventRosters, eventRosterMembers, matchCommentators, matchMaps, matchRosterPlayers, matchRosters, steamProfiles, users, seasonRegistrations } from "@/db/schema";
 import { matchPlayerStats } from "@/db/schema/player-stats";
 import { matchMvpVotes } from "@/db/schema/mvp-votes";
 import { MatchMvpVote } from "@/components/matches/MatchMvpVote";
@@ -94,12 +94,22 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
           perfectName: users.perfectName,
           userId: users.id,
           avatarUrl: steamProfiles.avatarUrl,
+          isCurrent: eventRosterMembers.isCurrent,
         })
         .from(eventRosterMembers)
         .innerJoin(eventRosters, eq(eventRosterMembers.eventRosterId, eventRosters.id))
         .innerJoin(users, eq(eventRosterMembers.userId, users.id))
         .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
-        .where(inArray(eventRosters.entryId, [match.entryAId, match.entryBId])),
+        .where(and(
+          inArray(eventRosters.entryId, [match.entryAId, match.entryBId]),
+          or(
+            eq(eventRosterMembers.isCurrent, true),
+            inArray(eventRosterMembers.id, db.select({ memberId: matchRosterPlayers.eventRosterMemberId })
+              .from(matchRosterPlayers)
+              .innerJoin(matchRosters, eq(matchRosters.id, matchRosterPlayers.rosterId))
+              .where(eq(matchRosters.matchId, match.id))),
+          ),
+        )),
       getSeasonFinishedMatches(season.id, match.entryAId),
       getSeasonFinishedMatches(season.id, match.entryBId),
       getSeasonHexagonScores(season.id),
@@ -159,18 +169,27 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
   const h2hWinsB = h2hMatches.filter((m) => !m.teamAWon).length;
 
   // 建立 userId 集合
-  const teamAUserIds = allTeamMembers
-    .filter((m) => m.teamId === match.entryAId && m.userId)
-    .map((m) => m.userId as string);
-  const teamBUserIds = allTeamMembers
-    .filter((m) => m.teamId === match.entryBId && m.userId)
-    .map((m) => m.userId as string);
+  const matchRosterMemberIds = new Set([
+    ...(rosterA?.players.map((player) => player.eventRosterMemberId) ?? []),
+    ...(rosterB?.players.map((player) => player.eventRosterMemberId) ?? []),
+  ]);
+  const teamAUserIds = [...new Set(allTeamMembers
+    .filter((m) => m.teamId === match.entryAId && m.userId && (m.isCurrent || matchRosterMemberIds.has(m.id)))
+    .map((m) => m.userId as string))];
+  const teamBUserIds = [...new Set(allTeamMembers
+    .filter((m) => m.teamId === match.entryBId && m.userId && (m.isCurrent || matchRosterMemberIds.has(m.id)))
+    .map((m) => m.userId as string))];
   const userIdToTeamId = new Map<string, string>(
-    allTeamMembers.filter((m) => m.userId).map((m) => [m.userId as string, m.teamId]),
+    allTeamMembers.filter((m) => m.userId && m.isCurrent).map((m) => [m.userId as string, m.teamId]),
   );
   const userIdToMember = new Map(
-    allTeamMembers.filter((m) => m.userId).map((m) => [m.userId as string, m]),
+    allTeamMembers.filter((m) => m.userId && m.isCurrent).map((m) => [m.userId as string, m]),
   );
+  for (const member of allTeamMembers) {
+    if (!member.userId || !matchRosterMemberIds.has(member.id)) continue;
+    userIdToTeamId.set(member.userId, member.teamId);
+    userIdToMember.set(member.userId, member);
+  }
 
   // 首发阵容 userId（来自已提交名单）
   const starterAMemberIds = new Set(
@@ -296,7 +315,7 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
     if (isCaptainA || isCaptainB) {
       const captainTeamId = isCaptainA ? match.entryAId : match.entryBId;
       captainTeamMembers = allTeamMembers
-        .filter((m) => m.teamId === captainTeamId)
+        .filter((m) => m.teamId === captainTeamId && m.isCurrent)
         .map((r) => ({
           id: r.id,
           personaName: r.personaName ?? null,

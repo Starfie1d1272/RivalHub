@@ -306,7 +306,7 @@ export async function lockMajorPrestartEntrantsInTx(
   }).from(eventRosterMembers)
     .innerJoin(eventRosters, eq(eventRosters.id, eventRosterMembers.eventRosterId))
     .innerJoin(majorTournamentEntrants, eq(majorTournamentEntrants.competitionEntryId, eventRosters.entryId))
-    .where(eq(majorTournamentEntrants.seasonId, season.id));
+    .where(and(eq(majorTournamentEntrants.seasonId, season.id), eq(eventRosterMembers.isCurrent, true)));
   const rosterByEntrant = new Map<string, typeof rosterRows>();
   for (const row of rosterRows) rosterByEntrant.set(row.entrantId, [...(rosterByEntrant.get(row.entrantId) ?? []), row]);
   const seenUsers = new Set<string>();

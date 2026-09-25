@@ -1,12 +1,13 @@
 import "server-only";
 
-import { asc, eq } from "drizzle-orm";
+import { and, asc, eq, inArray } from "drizzle-orm";
 import type { TxDb } from "@/db/client";
 import {
   competitionEntryParticipants,
   competitionEntryRosterMembers,
   eventRosterMembers,
   eventRosters,
+  matchRosterPlayers,
   seasons,
 } from "@/db/schema";
 import { AppError, ErrorCode } from "@/lib/errors";
@@ -104,6 +105,31 @@ export async function applyEventRosterMaterializationInTx(
   },
 ): Promise<void> {
   const now = new Date();
+  const [lockedRoster] = await tx.select({ status: eventRosters.status }).from(eventRosters)
+    .where(eq(eventRosters.id, input.eventRosterId)).for("update");
+  if (!lockedRoster || lockedRoster.status === "frozen") {
+    throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "正式赛事名单已冻结或不存在，不能重新物化名单。 ");
+  }
+
+  const currentMembers = await tx.select({ id: eventRosterMembers.id }).from(eventRosterMembers)
+    .where(and(eq(eventRosterMembers.eventRosterId, input.eventRosterId), eq(eventRosterMembers.isCurrent, true)))
+    .for("update");
+  const currentMemberIds = currentMembers.map((member) => member.id);
+  const referencedMembers = currentMemberIds.length > 0
+    ? await tx.select({ id: matchRosterPlayers.eventRosterMemberId }).from(matchRosterPlayers)
+      .where(inArray(matchRosterPlayers.eventRosterMemberId, currentMemberIds))
+    : [];
+  const historicalMemberIds = new Set(referencedMembers.map((member) => member.id));
+  const historicalIds = currentMemberIds.filter((id) => historicalMemberIds.has(id));
+  const disposableIds = currentMemberIds.filter((id) => !historicalMemberIds.has(id));
+  if (historicalIds.length > 0) {
+    await tx.update(eventRosterMembers).set({ isCurrent: false })
+      .where(inArray(eventRosterMembers.id, historicalIds));
+  }
+  if (disposableIds.length > 0) {
+    await tx.delete(eventRosterMembers).where(inArray(eventRosterMembers.id, disposableIds));
+  }
+
   if (input.status === "confirmed") {
     await tx.update(eventRosters).set({
       sourceRosterRevisionId: input.sourceRosterRevisionId,
@@ -124,7 +150,6 @@ export async function applyEventRosterMaterializationInTx(
       updatedAt: now,
     }).where(eq(eventRosters.id, input.eventRosterId));
   }
-  await tx.delete(eventRosterMembers).where(eq(eventRosterMembers.eventRosterId, input.eventRosterId));
   if (input.members.length > 0) {
     await tx.insert(eventRosterMembers).values(input.members.map((member) => ({
       eventRosterId: input.eventRosterId,
@@ -191,13 +216,28 @@ export async function syncApprovedRosterToEventRosterInTx(
     educationVerificationId: eventRosterMembers.educationVerificationId,
     primary: eventRosterMembers.isPrimaryStarter,
   }).from(eventRosterMembers)
-    .where(eq(eventRosterMembers.eventRosterId, eventRoster.id))
+    .where(and(eq(eventRosterMembers.eventRosterId, eventRoster.id), eq(eventRosterMembers.isCurrent, true)))
     .orderBy(asc(eventRosterMembers.userId));
   const sourceUnchanged = eventRoster.sourceRosterRevisionId === approvedRevision.id;
   const membersUnchanged = sameEventRosterMembers(currentMembers, approvedMembers, verificationIds);
   if (sourceUnchanged && membersUnchanged && eventRoster.status === "confirmed") {
     await assertSinglePrestartEntryCoherenceInTx(tx, season.id, { competitionEntryId: entry.id });
     return { eventRosterId: eventRoster.id, rosterSize: approvedMembers.length, changed: false };
+  }
+
+  if (membersUnchanged) {
+    const now = new Date();
+    await tx.update(eventRosters).set({
+      sourceRosterRevisionId: approvedRevision.id,
+      status: "confirmed",
+      confirmedAt: now,
+      confirmedBy: actorId,
+      frozenAt: null,
+      frozenBy: null,
+      updatedAt: now,
+    }).where(eq(eventRosters.id, eventRoster.id));
+    await assertSinglePrestartEntryCoherenceInTx(tx, season.id, { competitionEntryId: entry.id });
+    return { eventRosterId: eventRoster.id, rosterSize: approvedMembers.length, changed: true };
   }
 
   await applyEventRosterMaterializationInTx(tx, {

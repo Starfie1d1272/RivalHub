@@ -117,13 +117,13 @@ approved Entry candidate pool
 
 Qualification 是 `registration` 到 Major 正赛 entrant set 之间的独立 run，不加入 StagePlan，也不创建 Major StageRun。Major 正赛规模只可在报名阶段、未配置 Qualification、未创建正赛 entrants/seeds/StageRun 且赛前事实未锁定时，通过 profile owner 更新；已发布设置展示调整边界并链接到赛前准备。
 
-报名截止、所有报名审核/补正/候补处理完毕后，所有已批准且名单有效的 Entry 组成冻结候选集合。初始预排名消费当前 strength `displayOrder`；无法排名的候选按队名与 Entry ID 稳定排序。系统由候选数和正赛容量推导直通、Play-in 与晋级数量；超出单层资格赛可收敛的数量时停止配置，不提供人工覆盖人数或替换正赛队伍的入口。
+报名截止、所有报名审核/补正/候补处理完毕后，所有已批准且名单有效的 Entry 组成冻结候选集合。初始预排名消费当前 strength `displayOrder`；无法排名的候选按队名与 Entry ID 稳定排序。配置确认前，管理员先预览正赛容量、候选数、赛制、切线及完整排名路径。系统由候选数和正赛容量推导直通、Play-in 与晋级数量；超出单层资格赛可收敛的数量时停止配置，不提供人工覆盖人数或替换正赛队伍的入口。
 
-Qualification run 保存格式、冻结候选与预排名。Direct BO3 按预排名生成首轮；Short Swiss 仅在当前 Play-in 人数满足规则门槛时可选。R1 按预排名上半区对下半区；之后只在相同战绩组内生成无重赛配对。比赛结果只写入官方 Match，完成一个结果不会自动创建下一轮；管理员显式生成下一轮。重试仅接受已完整且规则一致的对阵集合，缺场、重复、跳轮、跨战绩或不匹配的历史事实 fail closed。
+Qualification run 保存格式、冻结候选与预排名。管理员生成每轮前先预览完整对阵；确认时服务端重新计算并比对所预览的队伍，变化后要求重新预览。Direct BO3 使用镜像种子：P1 对 Pn、P2 对 P(n−1)，依此类推。Short Swiss 仅在当前 Play-in 人数满足规则门槛时可选，最多三轮；R1 按同战绩组高低种子配对，之后只在相同战绩组内生成无重赛配对。比赛结果只写入官方 Match，完成一个结果不会自动创建下一轮；管理员显式生成下一轮。重试仅接受已完整且规则一致的对阵集合，缺场、重复、跳轮、跨战绩或不匹配的历史事实 fail closed。
 
-首轮生成时，Play-in 队伍的已批准 Entry roster 由共享 EventRoster owner 同步并确认；资格赛阵容消费 confirmed/frozen EventRoster。Entry 重新批准只在比赛间隙同步当前 EventRoster，不改写已有 MatchRoster。Major 正赛仍要求 frozen EventRoster。Qualification 完成后，正赛集合只由直通 Entry 与系统推导的晋级 Entry 构成，并且必须达到冻结 profile 的准确容量。
+首轮生成时，Play-in 队伍的已批准 Entry roster 由共享 EventRoster owner 同步并确认；资格赛阵容消费 confirmed/frozen EventRoster。Entry 重新批准只在比赛间隙同步当前 EventRoster。已被 MatchRoster 引用的旧 EventRosterMember 保留为非当前历史行，新比赛使用新当前行；已有 MatchRoster 不改写。Major 正赛仍要求 frozen EventRoster。Qualification 完成后，正赛集合只由直通 Entry 与系统推导的晋级 Entry 构成，并且必须达到冻结 profile 的准确容量。
 
-公开首页在 Main Event 首阶段开始前，将 PLAY-IN 作为独立信息面板放在阶段 tracker 下方；tracker 本身只呈现 StagePlan。公开和后台赛程以 PLAY-IN 独立 tab 展示 Qualification-owned matches；它不会因为不属于 StagePlan 而触发未配置阶段告警。公开链接使用 `stage=play-in` 显式选择该 tab。Short Swiss public/admin standings 从通用 Swiss core 和 Qualification run facts 投影。
+公开首页在 Main Event 首阶段开始前，将 PLAY-IN 作为独立信息面板放在阶段 tracker 下方；此时 REGISTER 显示完成，Main Event 阶段待开始，且没有 Main Event 阶段显示为当前阶段。公开和后台赛程以 PLAY-IN 独立 tab 展示 Qualification-owned matches，并以分隔线与 Main Event tabs 区分；它不会因为不属于 StagePlan 而触发未配置阶段告警。合法的 `stage=<StageConfig.key>` 请求优先显示对应 Main Event 阶段，然后回退到当前 Main Event 阶段、Play-in、Stage 1；`stage=play-in` 显式选择 Play-in。Short Swiss public/admin standings 从通用 Swiss projection 与 Qualification run facts 投影，使用 P 前缀种子并只展示 R1–R3。Direct BO3 赛程在比赛卡片前显示 Play-in 晋级数量与剩余名额摘要。
 
 ## Stage runtime
 

@@ -8,6 +8,7 @@ import { auditActorId, requireSeasonAdmin } from "@/lib/auth/session";
 import {
   configureCompetitionQualificationRunInTx,
   generateCompetitionQualificationRoundInTx,
+  previewCompetitionQualificationRoundInTx,
   resetCompetitionQualificationRunInTx,
   saveCompetitionQualificationRankInTx,
 } from "@/lib/competition-qualification/runtime";
@@ -64,8 +65,26 @@ export async function saveCompetitionQualificationRank(input: {
   } catch (error) { return actionError("saveCompetitionQualificationRank", error); }
 }
 
-export async function generateCompetitionQualificationRound(input: { seasonId: string; runId: string }): Promise<ActionResult<{ round: number; matchCount: number; created: boolean }>> {
+export async function previewCompetitionQualificationRound(input: { seasonId: string; runId: string }) {
   const parsed = z.object({ seasonId: uuid, runId: uuid }).safeParse(input);
+  if (!parsed.success) return failValidation("Play-in 轮次参数无效。");
+  try {
+    await adminOrThrow(parsed.data.seasonId);
+    const result = await db.transaction((tx) => previewCompetitionQualificationRoundInTx(tx, parsed.data));
+    return ok(result);
+  } catch (error) { return actionError("previewCompetitionQualificationRound", error); }
+}
+
+export async function generateCompetitionQualificationRound(input: {
+  seasonId: string;
+  runId: string;
+  expectedPairings: Array<{ higherSeedTeamId: string; lowerSeedTeamId: string }>;
+}): Promise<ActionResult<{ round: number; matchCount: number; created: boolean }>> {
+  const parsed = z.object({
+    seasonId: uuid,
+    runId: uuid,
+    expectedPairings: z.array(z.object({ higherSeedTeamId: uuid, lowerSeedTeamId: uuid })).min(1).max(128),
+  }).safeParse(input);
   if (!parsed.success) return failValidation("Play-in 轮次参数无效。");
   try {
     const { actorId } = await adminOrThrow(parsed.data.seasonId);

@@ -32,6 +32,7 @@ export interface StageSwissRoundColumn {
 export interface SwissStageReadModel {
   stageName: string;
   stageKey: string;
+  seedPrefix?: "P";
   finalizedRound: number;
   teamCount: number;
   advanceCount: number;

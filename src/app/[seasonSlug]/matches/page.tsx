@@ -97,10 +97,13 @@ export default async function MatchesPage({ params, searchParams }: MatchesPageP
   });
 
   const bracketDataByStage = await loadStageBracketViews(db, season.id);
+  const requestedMajorStageKey = requestedStage && stagePlan.some((stage) => stage.key === requestedStage)
+    ? requestedStage
+    : null;
   const defaultStageKey = requestedStage === "play-in" && qualificationRun
     ? "play-in"
     : season.competitionTemplate === "major"
-      ? stagePresentation.currentStageKey ?? (qualificationRun ? "play-in" : stagePlan[0]?.key ?? null)
+      ? requestedMajorStageKey ?? stagePresentation.currentStageKey ?? (qualificationRun ? "play-in" : stagePlan[0]?.key ?? null)
       : resolveDefaultStageKey(stagePlan, majorStageMatches, requestedStage);
 
   if (allMatches.length === 0 && allTeams.length === 0) {
@@ -149,6 +152,7 @@ export default async function MatchesPage({ params, searchParams }: MatchesPageP
                 value="play-in"
                 className="data-[state=active]:bg-[var(--color-accent)] data-[state=active]:text-[var(--color-accent-fg)]"
               >PLAY-IN</TabsTrigger>}
+              {qualificationRun && stageViews.length > 0 && <span aria-hidden="true" className="mx-1 h-6 w-px shrink-0 bg-[var(--color-border)]" />}
               {stageViews.map(({ stage }) => (
                 <TabsTrigger
                   key={stage.key}
@@ -163,6 +167,16 @@ export default async function MatchesPage({ params, searchParams }: MatchesPageP
             {qualificationRun && (
               <TabsContent value="play-in" className="space-y-8">
                 {qualificationSwissReadModel && <SwissBracket data={qualificationSwissReadModel} seasonSlug={seasonSlug} />}
+                {qualificationRun.format === "direct_bo3" && (() => {
+                  const resolved = qualificationMatches.filter((match) => match.status === "finished" && match.scoreA !== null && match.scoreB !== null && match.scoreA !== match.scoreB).length;
+                  const remaining = Math.max(0, qualificationRun.qualifierCount - resolved);
+                  return <Panel contentClassName="p-4">
+                    <div className="flex flex-wrap items-baseline justify-between gap-2">
+                      <p className="font-semibold text-[var(--color-fg)]">PLAY-IN · {qualificationRun.playInEntryCount} → {qualificationRun.qualifierCount} · BO3 决胜赛</p>
+                      <p className="text-sm text-[var(--color-fg-mid)]">已决出 {resolved} 个晋级名额 · 剩余 {remaining}</p>
+                    </div>
+                  </Panel>;
+                })()}
                 {qualificationMatches.length > 0 ? (() => {
                   const { active, done } = splitMatches(qualificationMatches);
                   return <MatchTabsSection

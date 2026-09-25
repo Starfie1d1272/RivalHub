@@ -43,8 +43,8 @@ import type { CompetitiveProfileConfig } from "@/types/season";
 import type { Season } from "@/db/schema/seasons";
 import type { MajorPrestartPageData, MajorPrestartStrengthPreview } from "./types";
 import { projectStrengthTeams } from "./strength";
-import { projectSwissStage } from "@/lib/swiss/core";
-import { orderQualificationCandidates } from "@/lib/competition-qualification/policy";
+import { orderQualificationCandidates, SHORT_SWISS_MAX_ROUNDS } from "@/lib/competition-qualification/policy";
+import { projectShortSwissStage } from "@/lib/competition-qualification/swiss";
 
 type MajorEntrantRow = {
   id: string;
@@ -285,7 +285,7 @@ export async function loadMajorPrestartPageData(season: Season): Promise<MajorPr
       .innerJoin(majorTournamentEntrants, eq(majorTournamentEntrants.competitionEntryId, eventRosters.entryId))
       .innerJoin(users, eq(eventRosterMembers.userId, users.id))
       .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
-      .where(eq(majorTournamentEntrants.seasonId, season.id)),
+      .where(and(eq(majorTournamentEntrants.seasonId, season.id), eq(eventRosterMembers.isCurrent, true))),
     db.select({ teamId: majorTournamentEntrants.competitionEntryId, tournamentSeed: majorTournamentSeeds.seed })
       .from(majorTournamentSeeds)
       .innerJoin(majorTournamentEntrants, eq(majorTournamentSeeds.tournamentEntrantId, majorTournamentEntrants.id))
@@ -332,12 +332,12 @@ export async function loadMajorPrestartPageData(season: Season): Promise<MajorPr
   let qualificationCompletedRound = 0;
   const qualificationCurrentRound = Math.max(0, ...qualificationMatches.flatMap((match) => match.round === null ? [] : [match.round]));
   if (qualificationRun?.startedAt && qualificationRun.format === "short_swiss_2w2l") {
-    for (let round = 1; round <= 5; round += 1) {
+    for (let round = 1; round <= SHORT_SWISS_MAX_ROUNDS; round += 1) {
       const roundMatches = qualificationMatches.filter((match) => match.round === round);
       if (roundMatches.length === 0 || roundMatches.some((match) => match.status !== "finished")) break;
       qualificationCompletedRound = round;
     }
-    const projection = projectSwissStage({
+    const projection = projectShortSwissStage({
       entrants: qualificationEntrants.filter((entrant) => entrant.preliminarySeed > qualificationRun.directEntryCount)
         .map((entrant) => ({ teamId: entrant.entryId, initialSeed: entrant.preliminarySeed - qualificationRun.directEntryCount })),
       matches: qualificationMatches.filter((match) => match.round !== null && match.round <= qualificationCompletedRound && match.status === "finished")
@@ -349,7 +349,6 @@ export async function loadMajorPrestartPageData(season: Season): Promise<MajorPr
           winnerId: match.scoreA! > match.scoreB! ? match.entryAId : match.entryBId,
         })),
       completedRound: qualificationCompletedRound,
-      config: { winThreshold: 2, lossThreshold: 2 },
     });
     for (const team of projection.teams) {
       qualificationStatusByEntryId.set(team.teamId, { wins: team.wins, losses: team.losses, status: team.status });

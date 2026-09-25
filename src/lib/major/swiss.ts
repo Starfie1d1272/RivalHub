@@ -295,6 +295,33 @@ export function projectMajorSwissStage(input: {
     if (actual !== expected) {
       throw new Error(`finalized round ${round} is incomplete: expected ${expected} matches, got ${actual}`);
     }
+    const beforeRound = projectSwissStage({
+      entrants: entrants.map((entrant) => ({ teamId: entrant.teamId, initialSeed: entrant.initialStageSeed })),
+      matches: official.filter((match) => match.round < round),
+      completedRound: round - 1,
+      config: { winThreshold: MAJOR_SWISS_WIN_THRESHOLD, lossThreshold: MAJOR_SWISS_LOSS_THRESHOLD },
+    });
+    const activeIds = new Set(beforeRound.active.map((team) => team.teamId));
+    const teamById = new Map(beforeRound.teams.map((team) => [team.teamId, team]));
+    const participants = new Set<string>();
+    for (const match of official.filter((candidate) => candidate.round === round)) {
+      if (participants.has(match.entryAId) || participants.has(match.entryBId)) {
+        throw new Error(`finalized round ${round} pairs a team more than once`);
+      }
+      participants.add(match.entryAId);
+      participants.add(match.entryBId);
+      const teamA = teamById.get(match.entryAId);
+      const teamB = teamById.get(match.entryBId);
+      if (!teamA || !teamB || teamA.status !== "active" || teamB.status !== "active") {
+        throw new Error(`finalized round ${round} includes a non-active team`);
+      }
+      if (teamA.wins !== teamB.wins || teamA.losses !== teamB.losses) {
+        throw new Error(`finalized round ${round} match ${match.matchId} is cross-record`);
+      }
+    }
+    if (participants.size !== activeIds.size || [...activeIds].some((teamId) => !participants.has(teamId))) {
+      throw new Error(`finalized round ${round} must pair every active team exactly once`);
+    }
   }
 
   const shared = projectSwissStage({

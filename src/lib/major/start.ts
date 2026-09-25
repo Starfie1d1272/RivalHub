@@ -128,7 +128,7 @@ export async function startMajorInTransaction(
     isPrimaryStarter: eventRosterMembers.isPrimaryStarter,
   }).from(eventRosterMembers)
     .innerJoin(eventRosters, eq(eventRosters.id, eventRosterMembers.eventRosterId))
-    .where(and(inArray(eventRosterMembers.eventRosterId, eventRosterIds), eq(eventRosters.status, "frozen"))).for("update");
+    .where(and(inArray(eventRosterMembers.eventRosterId, eventRosterIds), eq(eventRosters.status, "frozen"), eq(eventRosterMembers.isCurrent, true))).for("update");
   const seedRows = await tx.select({
     entrantId: majorTournamentSeeds.tournamentEntrantId,
     tournamentSeed: majorTournamentSeeds.seed,

@@ -35,7 +35,7 @@ export function StageSwissReadModel({ data, seasonSlug }: StageSwissReadModelPro
           <tbody>
             {data.competitionEntries.map((entry) => (
               <tr key={entry.entryId} className="border-t border-[var(--color-border)]">
-                <td className="px-3 py-2 tabular-nums">{entry.seed}</td>
+                <td className="px-3 py-2 tabular-nums">{data.seedPrefix ?? ""}{entry.seed}</td>
                 <td className="px-3 py-2">{entry.teamName}</td>
                 <td className="px-3 py-2 tabular-nums">{entry.wins}:{entry.losses}</td>
                 <td className="px-3 py-2 tabular-nums">{entry.difficultyScore}</td>

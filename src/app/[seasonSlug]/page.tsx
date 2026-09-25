@@ -121,6 +121,8 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
   const qualificationMatches = qualificationRun
     ? await db.select({ status: matches.status }).from(matches).where(eq(matches.qualificationRunId, qualificationRun.id))
     : [];
+  const mainEventStarted = Boolean(stagePresentation.currentStageKey) || initializedStages.has(stagePlan[0]?.key ?? "");
+  const qualificationBeforeMainStart = Boolean(qualificationRun) && !mainEventStarted;
   const publicTeamCount = majorParticipantOverview?.teamCount ?? Number(teamCountRow?.value ?? 0);
   const publicPlayerCount = majorParticipantOverview?.playerCount ?? participantSummary?.count ?? 0;
 
@@ -148,7 +150,7 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
     phases.push({
       key: rule.key,
       label: rule.label,
-      done: currentStatusIdx > STATUS_IDX[rule.doneAfter],
+      done: (qualificationBeforeMainStart && rule.key === "register") || currentStatusIdx > STATUS_IDX[rule.doneAfter],
     });
   }
 
@@ -189,8 +191,8 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
   });
 
   // 找当前阶段（第一个未完成的）
-  let currentPhaseIdx = phases.findIndex((p) => !p.done);
-  if (currentPhaseIdx === -1) currentPhaseIdx = phases.length - 1;
+  let currentPhaseIdx = qualificationBeforeMainStart ? -1 : phases.findIndex((p) => !p.done);
+  if (currentPhaseIdx === -1 && !qualificationBeforeMainStart) currentPhaseIdx = phases.length - 1;
 
   const isHistorical = season.status === "finished" || season.status === "archived";
   const registrationIsOpen = isRegistrationActuallyOpen(season);
@@ -280,7 +282,7 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
       {/* Phase tracker */}
       <Panel contentClassName="p-6">
         <ScrollHint fromColor="var(--color-panel)">
-          <div className="flex items-start">
+          <div role="list" aria-label="赛事阶段" className="flex items-start">
             {phases.map((phase, i) => (
               <PhaseStep
                 key={phase.key}
@@ -295,7 +297,7 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
         </ScrollHint>
       </Panel>
 
-      {qualificationRun && !initializedStages.has(stagePlan[0]?.key ?? "") && (
+      {qualificationRun && !mainEventStarted && (
         <Panel label="PLAY-IN" contentClassName="p-5">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="space-y-1">

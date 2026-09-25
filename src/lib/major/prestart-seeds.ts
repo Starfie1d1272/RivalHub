@@ -75,6 +75,7 @@ async function loadCurrentFrozenSeedSetInTx(tx: TxDb, seasonId: string): Promise
     .where(and(
       inArray(eventRosterMembers.eventRosterId, eventRosterIds),
       eq(eventRosters.status, "frozen"),
+      eq(eventRosterMembers.isCurrent, true),
     ))
     .orderBy(asc(eventRosterMembers.userId))
     .for("update");

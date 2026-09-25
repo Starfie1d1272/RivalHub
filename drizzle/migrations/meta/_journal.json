@@ -400,6 +400,13 @@
       "when": 1790340248588,
       "tag": "0056_competition-qualification-playin",
       "breakpoints": true
+    },
+    {
+      "idx": 57,
+      "version": "7",
+      "when": 1790357060356,
+      "tag": "0057_event_roster_member_history",
+      "breakpoints": true
     }
   ]
 }

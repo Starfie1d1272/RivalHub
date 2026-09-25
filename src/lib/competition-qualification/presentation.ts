@@ -1,7 +1,7 @@
 import type { SwissStageReadModel, StageSwissMatchRow, StageSwissRoundColumn } from "@/lib/matches/stage-read-model";
-import { projectSwissStage } from "@/lib/swiss/core";
+import { SHORT_SWISS_MAX_ROUNDS } from "./policy";
 import type { SwissCompletedMatch, SwissEntrant, SwissProjection } from "@/lib/swiss/types";
-import { generateShortSwissRoundPairings } from "./swiss";
+import { generateShortSwissRoundPairings, projectShortSwissStage } from "./swiss";
 
 export interface QualificationSwissEntrant {
   entryId: string;
@@ -43,7 +43,7 @@ export function buildQualificationSwissReadModel(input: {
   if (entrants.length < 2 || entrants.some((entrant, index) => entrant.initialSeed !== index + 1)) return null;
 
   const matchRows = [...input.matches].sort((a, b) => (a.round ?? Infinity) - (b.round ?? Infinity) || a.id.localeCompare(b.id));
-  if (matchRows.some((match) => !Number.isInteger(match.round) || match.round! < 1 || match.round! > 5 ||
+  if (matchRows.some((match) => !Number.isInteger(match.round) || match.round! < 1 || match.round! > SHORT_SWISS_MAX_ROUNDS ||
     match.format !== "bo1" || match.stage !== "play-in" || match.ownership !== "manual" ||
     match.majorStageRunId !== null || match.managedKey !== null || match.bracketNodeId !== null ||
     match.entryAId === match.entryBId || !entrants.some((entrant) => entrant.teamId === match.entryAId) ||
@@ -55,8 +55,8 @@ export function buildQualificationSwissReadModel(input: {
   const projections: SwissProjection[] = [];
   let projection: SwissProjection;
   try {
-    projection = projectSwissStage({ entrants, matches: facts, completedRound: 0, config: { winThreshold: 2, lossThreshold: 2 } });
-    for (let round = 1; round <= 5; round += 1) {
+    projection = projectShortSwissStage({ entrants, matches: facts, completedRound: 0 });
+    for (let round = 1; round <= SHORT_SWISS_MAX_ROUNDS; round += 1) {
       const rows = matchRows.filter((match) => match.round === round);
       if (rows.length === 0) break;
       const expected = generateShortSwissRoundPairings({ entrants, matches: facts, completedRound: round - 1 });
@@ -75,7 +75,7 @@ export function buildQualificationSwissReadModel(input: {
           winnerId: match.scoreA > match.scoreB ? match.entryAId : match.entryBId,
         });
       }
-      projection = projectSwissStage({ entrants, matches: facts, completedRound: round, config: { winThreshold: 2, lossThreshold: 2 } });
+      projection = projectShortSwissStage({ entrants, matches: facts, completedRound: round });
       projections[round] = projection;
     }
     if (matchRows.some((match) => match.round! > projection.completedRound + 1)) return null;
@@ -97,7 +97,7 @@ export function buildQualificationSwissReadModel(input: {
     round: match.round!,
   }));
   const rounds: StageSwissRoundColumn[] = [];
-  for (let round = 1; round <= 5; round += 1) {
+  for (let round = 1; round <= SHORT_SWISS_MAX_ROUNDS; round += 1) {
     const roundRows = rows.filter((match) => match.round === round);
     const beforeRound = round <= projection.completedRound ? projections[round - 1] : projection;
     const stateByEntryId = new Map(beforeRound?.teams.map((team) => [team.teamId, team]) ?? []);
@@ -122,6 +122,7 @@ export function buildQualificationSwissReadModel(input: {
   return {
     stageName: "Play-in · Short Swiss",
     stageKey: "play-in",
+    seedPrefix: "P",
     finalizedRound: projection.completedRound,
     teamCount: projection.teams.length,
     advanceCount: projection.advanced.length,

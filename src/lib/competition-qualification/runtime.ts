@@ -16,35 +16,26 @@ import {
 } from "@/db/schema";
 import { writeAuditInTx } from "@/lib/audit/write";
 import { AppError, ErrorCode } from "@/lib/errors";
-import { projectSwissStage } from "@/lib/swiss/core";
-import { pairSwissTopHalfBottomHalf } from "@/lib/swiss/pairing";
-import type { SwissCompletedMatch, SwissEntrant, SwissTeamState } from "@/lib/swiss/types";
+import type { SwissCompletedMatch, SwissEntrant } from "@/lib/swiss/types";
 import { assertPrestartEntryCoherenceInTx, assertSinglePrestartEntryCoherenceInTx } from "@/lib/event-rosters/coherence";
 import { syncApprovedRosterToEventRosterInTx } from "@/lib/event-rosters/owner";
 import { getStandardMajorDefinition } from "@/lib/major/standard";
 import {
   deriveCompetitionQualificationPlan,
   isShortSwissQualificationAllowed,
+  SHORT_SWISS_MAX_ROUNDS,
   swapQualificationPreliminaryRank,
   type CompetitionQualificationFormat,
 } from "./policy";
-import { generateShortSwissRoundPairings, type QualificationPairing } from "./swiss";
+import {
+  generateDirectBo3QualificationPairings,
+  generateShortSwissRoundPairings,
+  projectShortSwissStage,
+  type QualificationPairing,
+} from "./swiss";
 
 type QualificationRun = typeof competitionQualificationRuns.$inferSelect;
 type QualificationEntrant = typeof competitionQualificationEntrants.$inferSelect;
-
-function toSwissTeamStates(entrants: readonly SwissEntrant[]): SwissTeamState[] {
-  return entrants.map((entrant) => ({
-    teamId: entrant.teamId,
-    initialSeed: entrant.initialSeed,
-    currentSeed: entrant.initialSeed,
-    wins: 0,
-    losses: 0,
-    buchholz: 0,
-    status: "active",
-    opponents: [],
-  }));
-}
 
 function playInSwissEntrants(entrants: readonly QualificationEntrant[], directEntryCount: number): SwissEntrant[] {
   return entrants.filter((entrant) => entrant.preliminarySeed > directEntryCount)
@@ -164,26 +155,15 @@ function assertRunSnapshot(run: QualificationRun, entrants: readonly Qualificati
   }
 }
 
-function directBo3Pairings(entrants: readonly QualificationEntrant[], directEntryCount: number): QualificationPairing[] {
-  return pairSwissTopHalfBottomHalf(toSwissTeamStates(playInSwissEntrants(entrants, directEntryCount))).map((pair) => ({
-    round: 1,
-    record: { wins: 0, losses: 0 },
-    higherSeedTeamId: pair.higherSeedTeamId,
-    lowerSeedTeamId: pair.lowerSeedTeamId,
-    higherSeed: pair.higherSeed,
-    lowerSeed: pair.lowerSeed,
-  }));
-}
-
 function validateShortSwissHistory(
   run: QualificationRun,
   entrants: readonly QualificationEntrant[],
   linkedMatches: readonly typeof matches.$inferSelect[],
-): { completedRound: number; projection: ReturnType<typeof projectSwissStage> } {
+): { completedRound: number; projection: ReturnType<typeof projectShortSwissStage> } {
   const swissEntrants = playInSwissEntrants(entrants, run.directEntryCount);
   const rounds = new Map<number, typeof linkedMatches[number][]>();
   for (const match of linkedMatches) {
-    if (match.round === null || match.round < 1 || match.round > 5) {
+    if (match.round === null || match.round < 1 || match.round > SHORT_SWISS_MAX_ROUNDS) {
       throw new AppError(ErrorCode.INTERNAL_ERROR, "Short Swiss Play-in 比赛轮次无效。");
     }
     const rows = rounds.get(match.round) ?? [];
@@ -192,8 +172,8 @@ function validateShortSwissHistory(
   }
   const facts: SwissCompletedMatch[] = [];
   let completedRound = 0;
-  let projection = projectSwissStage({ entrants: swissEntrants, matches: facts, completedRound, config: { winThreshold: 2, lossThreshold: 2 } });
-  for (let round = 1; round <= 5; round += 1) {
+  let projection = projectShortSwissStage({ entrants: swissEntrants, matches: facts, completedRound });
+  for (let round = 1; round <= SHORT_SWISS_MAX_ROUNDS; round += 1) {
     const rows = rounds.get(round) ?? [];
     if (rows.length === 0) break;
     const pairings = generateShortSwissRoundPairings({ entrants: swissEntrants, matches: facts, completedRound });
@@ -206,7 +186,7 @@ function validateShortSwissHistory(
     }
     facts.push(...swissFactsFromMatches(rows, round));
     completedRound = round;
-    projection = projectSwissStage({ entrants: swissEntrants, matches: facts, completedRound, config: { winThreshold: 2, lossThreshold: 2 } });
+    projection = projectShortSwissStage({ entrants: swissEntrants, matches: facts, completedRound });
   }
   if ([...rounds.keys()].some((round) => round > completedRound + 1)) {
     throw new AppError(ErrorCode.INTERNAL_ERROR, "Short Swiss Play-in 存在跳轮比赛。");
@@ -355,9 +335,117 @@ export async function resetCompetitionQualificationRunInTx(
   return { seasonSlug: season.slug };
 }
 
+export interface CompetitionQualificationRoundPreview {
+  seasonSlug: string;
+  runId: string;
+  round: number;
+  format: "bo1" | "bo3";
+  matchups: Array<{
+    higherSeedTeamId: string;
+    higherSeedTeamName: string;
+    higherSeed: number;
+    lowerSeedTeamId: string;
+    lowerSeedTeamName: string;
+    lowerSeed: number;
+  }>;
+}
+
+function assertPreviewedPairingsCurrent(
+  expected: readonly { higherSeedTeamId: string; lowerSeedTeamId: string }[],
+  current: readonly QualificationPairing[],
+): void {
+  if (expected.length !== current.length || current.some((pairing, index) =>
+    expected[index]?.higherSeedTeamId !== pairing.higherSeedTeamId ||
+    expected[index]?.lowerSeedTeamId !== pairing.lowerSeedTeamId,
+  )) {
+    throw new AppError(ErrorCode.VALIDATION_FAILED, "轮次对阵已变化，请重新预览后确认。");
+  }
+}
+
+export async function previewCompetitionQualificationRoundInTx(
+  tx: TxDb,
+  input: { seasonId: string; runId: string },
+): Promise<CompetitionQualificationRoundPreview> {
+  const [season] = await tx.select().from(seasons).where(eq(seasons.id, input.seasonId));
+  if (!season) throw new AppError(ErrorCode.SEASON_NOT_FOUND, "赛季不存在");
+  const [run] = await tx.select().from(competitionQualificationRuns)
+    .where(and(eq(competitionQualificationRuns.id, input.runId), eq(competitionQualificationRuns.seasonId, season.id)));
+  if (!run) throw new AppError(ErrorCode.NOT_FOUND, "Play-in 运行记录不存在。");
+  if (run.completedAt) throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "Play-in 已完成，没有待生成的轮次。");
+  const entrants = await loadRunEntrantsInTx(tx, run.id);
+  assertRunSnapshot(run, entrants);
+  const swissEntrants = playInSwissEntrants(entrants, run.directEntryCount);
+  if (swissEntrants.length !== run.playInEntryCount) throw new AppError(ErrorCode.INTERNAL_ERROR, "Play-in 队伍数量与预排名切线不一致。");
+  const existing = await loadRunMatchesInTx(tx, run.id);
+  const grouped = new Map<number, typeof existing>();
+  for (const match of existing) {
+    if (match.round === null) throw new AppError(ErrorCode.INTERNAL_ERROR, "Play-in 比赛缺少轮次。");
+    const rows = grouped.get(match.round) ?? [];
+    rows.push(match);
+    grouped.set(match.round, rows);
+  }
+
+  let pairings: readonly QualificationPairing[];
+  let round: number;
+  let format: "bo1" | "bo3";
+  if (run.format === "direct_bo3") {
+    if (existing.length > 0 || run.startedAt) throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "Direct BO3 已开始，不能再生成新一轮。");
+    pairings = generateDirectBo3QualificationPairings(swissEntrants);
+    round = 1;
+    format = "bo3";
+  } else {
+    if (!isShortSwissQualificationAllowed(run.playInEntryCount)) throw new AppError(ErrorCode.INTERNAL_ERROR, "Short Swiss 队伍数不符合规则。");
+    let completedRound = 0;
+    let facts: SwissCompletedMatch[] = [];
+    for (let currentRound = 1; currentRound <= SHORT_SWISS_MAX_ROUNDS; currentRound += 1) {
+      const rows = grouped.get(currentRound) ?? [];
+      if (rows.length === 0) break;
+      const canonical = generateShortSwissRoundPairings({ entrants: swissEntrants, matches: facts, completedRound });
+      if (currentRound !== completedRound + 1) throw new AppError(ErrorCode.INTERNAL_ERROR, "Short Swiss Play-in 轮次不连续。");
+      validatePersistedRound(rows, canonical, "bo1", run.id);
+      if (rows.some((match) => match.status !== "finished")) {
+        throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "当前轮次尚未全部完成，不能预览下一轮。");
+      }
+      completedRound = currentRound;
+      facts = swissFactsFromMatches(existing, completedRound);
+    }
+    if (existing.some((match) => match.round! > completedRound + 1)) throw new AppError(ErrorCode.INTERNAL_ERROR, "Short Swiss Play-in 出现跳轮比赛。");
+    if (run.startedAt && completedRound === 0) throw new AppError(ErrorCode.INTERNAL_ERROR, "Play-in 已标记开始但缺少第一轮比赛。");
+    const projection = projectShortSwissStage({ entrants: swissEntrants, matches: facts, completedRound });
+    if (projection.isComplete) throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "Play-in 已完成，没有待生成的轮次。");
+    round = completedRound + 1;
+    pairings = generateShortSwissRoundPairings({ entrants: swissEntrants, matches: facts, completedRound });
+    format = "bo1";
+  }
+
+  const teamRows = await tx.select({ id: competitionEntries.id, name: competitionEntries.name })
+    .from(competitionEntries)
+    .where(inArray(competitionEntries.id, swissEntrants.map((entrant) => entrant.teamId)));
+  const teamNameById = new Map(teamRows.map((entry) => [entry.id, entry.name]));
+  const matchups = pairings.map((pairing) => {
+    const higherSeedTeamName = teamNameById.get(pairing.higherSeedTeamId);
+    const lowerSeedTeamName = teamNameById.get(pairing.lowerSeedTeamId);
+    if (!higherSeedTeamName || !lowerSeedTeamName) throw new AppError(ErrorCode.INTERNAL_ERROR, "Play-in 队伍名称不完整。");
+    return {
+      higherSeedTeamId: pairing.higherSeedTeamId,
+      higherSeedTeamName,
+      higherSeed: pairing.higherSeed,
+      lowerSeedTeamId: pairing.lowerSeedTeamId,
+      lowerSeedTeamName,
+      lowerSeed: pairing.lowerSeed,
+    };
+  });
+  return { seasonSlug: season.slug, runId: run.id, round, format, matchups };
+}
+
 export async function generateCompetitionQualificationRoundInTx(
   tx: TxDb,
-  input: { seasonId: string; runId: string; actorId: string },
+  input: {
+    seasonId: string;
+    runId: string;
+    actorId: string;
+    expectedPairings: readonly { higherSeedTeamId: string; lowerSeedTeamId: string }[];
+  },
 ): Promise<{ seasonSlug: string; round: number; matchCount: number; created: boolean }> {
   const [season] = await tx.select().from(seasons).where(eq(seasons.id, input.seasonId)).for("update");
   if (!season) throw new AppError(ErrorCode.SEASON_NOT_FOUND, "赛季不存在");
@@ -379,7 +467,8 @@ export async function generateCompetitionQualificationRoundInTx(
   }
 
   if (run.format === "direct_bo3") {
-    const pairings = directBo3Pairings(entrants, run.directEntryCount);
+    const pairings = generateDirectBo3QualificationPairings(playInSwissEntrants(entrants, run.directEntryCount));
+    assertPreviewedPairingsCurrent(input.expectedPairings, pairings);
     const current = grouped.get(1) ?? [];
     if (current.length > 0) {
       validatePersistedRound(current, pairings, "bo3", run.id);
@@ -396,7 +485,7 @@ export async function generateCompetitionQualificationRoundInTx(
   if (!isShortSwissQualificationAllowed(run.playInEntryCount)) throw new AppError(ErrorCode.INTERNAL_ERROR, "Short Swiss 队伍数不符合规则。");
   let completedRound = 0;
   let projectionMatches: SwissCompletedMatch[] = [];
-  for (let round = 1; round <= 5; round += 1) {
+  for (let round = 1; round <= SHORT_SWISS_MAX_ROUNDS; round += 1) {
     const roundMatches = grouped.get(round) ?? [];
     if (roundMatches.length === 0) break;
     const pairings = generateShortSwissRoundPairings({ entrants: swissEntrants, matches: projectionMatches, completedRound });
@@ -408,6 +497,7 @@ export async function generateCompetitionQualificationRoundInTx(
     validatePersistedRound(roundMatches, pairings, "bo1", run.id);
     if (roundMatches.some((match) => match.status !== "finished")) {
       if ([...grouped.keys()].some((key) => key > round)) throw new AppError(ErrorCode.INTERNAL_ERROR, "前一轮未完成时已存在后续轮次。");
+      assertPreviewedPairingsCurrent(input.expectedPairings, pairings);
       return { seasonSlug: season.slug, round, matchCount: countForRound, created: false };
     }
     completedRound = round;
@@ -415,7 +505,7 @@ export async function generateCompetitionQualificationRoundInTx(
   }
   if (existing.some((match) => match.round! > completedRound + 1)) throw new AppError(ErrorCode.INTERNAL_ERROR, "Short Swiss Play-in 出现跳轮比赛。");
   const completeProjection = completedRound > 0
-    ? projectSwissStage({ entrants: swissEntrants, matches: projectionMatches, completedRound, config: { winThreshold: 2, lossThreshold: 2 } })
+    ? projectShortSwissStage({ entrants: swissEntrants, matches: projectionMatches, completedRound })
     : null;
   if (completeProjection?.isComplete) {
     await tx.update(competitionQualificationRuns).set({ completedAt: new Date(), updatedAt: new Date() }).where(eq(competitionQualificationRuns.id, run.id));
@@ -423,6 +513,7 @@ export async function generateCompetitionQualificationRoundInTx(
   }
   const nextRound = completedRound + 1;
   const pairings = generateShortSwissRoundPairings({ entrants: swissEntrants, matches: projectionMatches, completedRound });
+  assertPreviewedPairingsCurrent(input.expectedPairings, pairings);
   const alreadyPresent = grouped.get(nextRound) ?? [];
   if (alreadyPresent.length > 0) {
     validatePersistedRound(alreadyPresent, pairings, "bo1", run.id);
@@ -448,7 +539,7 @@ export async function completeCompetitionQualificationIfReadyInTx(
   if (linked.length === 0) throw new AppError(ErrorCode.INTERNAL_ERROR, "Play-in 已标记开始但缺少比赛。");
   let isComplete = false;
   if (run.format === "direct_bo3") {
-    validatePersistedRound(linked, directBo3Pairings(entrants, run.directEntryCount), "bo3", run.id);
+    validatePersistedRound(linked, generateDirectBo3QualificationPairings(playInSwissEntrants(entrants, run.directEntryCount)), "bo3", run.id);
     isComplete = linked.length === run.qualifierCount && linked.every((match) => match.round === 1 && match.status === "finished");
   } else {
     const { projection } = validateShortSwissHistory(run, entrants, linked);
@@ -471,7 +562,7 @@ export async function getCompetitionQualificationFinalEntryIdsInTx(
   const linked = await loadRunMatchesInTx(tx, run.id);
   let qualifierIds: string[];
   if (run.format === "direct_bo3") {
-    validatePersistedRound(linked, directBo3Pairings(entrants, run.directEntryCount), "bo3", run.id);
+    validatePersistedRound(linked, generateDirectBo3QualificationPairings(playInSwissEntrants(entrants, run.directEntryCount)), "bo3", run.id);
     if (linked.length !== run.qualifierCount || linked.some((match) => match.status !== "finished" || match.round !== 1)) {
       throw new AppError(ErrorCode.INTERNAL_ERROR, "Direct BO3 结果与运行状态不一致。");
     }

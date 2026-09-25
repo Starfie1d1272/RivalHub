@@ -2,6 +2,10 @@ import { AppError, ErrorCode } from "@/lib/errors";
 
 export type CompetitionQualificationFormat = "direct_bo3" | "short_swiss_2w2l";
 
+export const SHORT_SWISS_WIN_THRESHOLD = 2;
+export const SHORT_SWISS_LOSS_THRESHOLD = 2;
+export const SHORT_SWISS_MAX_ROUNDS = SHORT_SWISS_WIN_THRESHOLD + SHORT_SWISS_LOSS_THRESHOLD - 1;
+
 export interface CompetitionQualificationPlan {
   targetEntrantCount: number;
   candidateCount: number;

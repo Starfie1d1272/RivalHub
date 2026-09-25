@@ -232,7 +232,7 @@ async function loadDraftBase(seasonId: string): Promise<DraftBaseData> {
           ))
           .innerJoin(users, and(eq(seasonRegistrations.userId, users.id), eq(users.status, "active")))
           .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
-          .where(inArray(eventRosters.entryId, entryIds))
+          .where(and(inArray(eventRosters.entryId, entryIds), eq(eventRosterMembers.isCurrent, true)))
       : [];
 
   const pickRows = await db

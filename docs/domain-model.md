@@ -100,6 +100,8 @@ Recruitment 是 Team/Player 的当前意向，不是 membership、invitation 或
 
 这些 owner 不能互相替代。尤其 MatchRoster 必须来自本届 EventRoster，而不是回读可变 Team membership 或报名草稿。
 
+EventRoster 的当前成员供后续比赛选择；一旦某个成员行被 MatchRoster 引用，它就成为历史比赛事实。名单获批更新时保留该行并标记为非当前，再写入新版本；没有历史引用的旧成员行可以删除。已有 MatchRoster 始终指向原成员行，不随当前 EventRoster 改写。
+
 Entry qualification 由 canonical qualification owner 计算。只有明确标记为可解除的政策 finding 才能形成 restriction override；资料缺失、身份、确认状态等硬 blocker 不能被管理员“强行通过”。override 绑定当前 roster revision，新 revision 不继承旧解除。
 
 ## Rivals-specific facts
@@ -136,7 +138,7 @@ approved CompetitionEntry candidates
 
 Managed Major 的唯一 profile owner 从保存的 StagePlan 识别 Major-24 或 Major-32；默认模板继续使用 Major-32。报名阶段只有在未创建 Qualification run、正赛 entrants/seeds/StageRun 且未锁定赛前事实时，才能通过受控 owner 更新 profile。开赛时 StagePlan 随 StageRun 冻结，阶段转换、种子批次、开赛预览和最终名次都从该 frozen plan 派生，不从 mutable Season 配置或展示文字推断。
 
-Qualification 是独立于 Major StagePlan 的预赛运行事实：`competition_qualification_runs` 冻结赛制配置、容量关系与生命周期，`competition_qualification_entrants` 冻结候选集合和预排名；带 `qualification_run_id` 的 `play-in` Match 保持 manual ownership，不关联 Major StageRun、managed key 或 bracket node。正赛候选由冻结的直通队和已完成 Qualification 的晋级队共同派生，不能由管理员替换或补足。Short Swiss 的通用战绩、BU、状态和配对计算由共享 Swiss core 投影，Qualification policy 只提供本赛事阈值与轮次规则。
+Qualification 是独立于 Major StagePlan 的预赛运行事实：`competition_qualification_runs` 冻结赛制配置、容量关系与生命周期，`competition_qualification_entrants` 冻结候选集合和预排名；带 `qualification_run_id` 的 `play-in` Match 保持 manual ownership，不关联 Major StageRun、managed key 或 bracket node。正赛候选由冻结的直通队和已完成 Qualification 的晋级队共同派生，不能由管理员替换或补足。Swiss core 只从 canonical 比赛事实投影 W/L、对手、BU、状态与排名；轮次是否完整、是否必须同战绩配对以及是否允许 bye 由 Major 或 Qualification policy 验证，不由通用 projection 固定。Short Swiss 的 Qualification policy 是 2 胜晋级、2 负淘汰，最多三轮。
 
 通用阶段的 identity 是 `(seasonId, StageConfig.key)`，name 只负责展示。provider bracket state 按 `(competition_id, stage_key)` 隔离；participant 的 RivalHub identity 必须来自 `rivalhubEntryId`，不能从名称或 participant 数组位置反推。`matches` 的 provider node 唯一性也按 `(season_id, stage, bracket_node_id)` 约束，允许不同阶段复用 provider numeric node。
 
