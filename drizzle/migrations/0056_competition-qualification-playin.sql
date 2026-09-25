@@ -40,6 +40,10 @@ CREATE TABLE "competition_qualification_runs" (
 	CONSTRAINT "competition_qualification_runs_completed_after_start_check" CHECK ("competition_qualification_runs"."completed_at" IS NULL OR "competition_qualification_runs"."started_at" IS NOT NULL)
 );
 --> statement-breakpoint
+ALTER TABLE "competition_qualification_entrants" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+ALTER TABLE "competition_qualification_runs" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+REVOKE ALL PRIVILEGES ON TABLE "competition_qualification_entrants" FROM anon, authenticated;--> statement-breakpoint
+REVOKE ALL PRIVILEGES ON TABLE "competition_qualification_runs" FROM anon, authenticated;--> statement-breakpoint
 ALTER TABLE "matches" ADD COLUMN "qualification_run_id" uuid;--> statement-breakpoint
 -- rivalhub:migration-risk: locking-reviewed Qualification entrant rows are created in this migration and have no pre-existing references to validate
 ALTER TABLE "competition_qualification_entrants" ADD CONSTRAINT "competition_qualification_entrants_run_season_scope_fk" FOREIGN KEY ("run_id","season_id") REFERENCES "public"."competition_qualification_runs"("id","season_id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
