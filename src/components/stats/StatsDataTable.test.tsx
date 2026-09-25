@@ -11,7 +11,7 @@ const rows: Row[] = [
   { name: "High", rating: 3 },
 ];
 const columns: StatsDataColumn<Row>[] = [
-  { key: "name", label: "Player", render: (row) => row.name },
+  { key: "name", label: "Player", identity: true, render: (row) => row.name },
   { key: "rating", label: "Rating", numeric: true, sortable: true, sortValue: (row) => row.rating, render: (row) => row.rating ?? "—" },
 ];
 
@@ -50,6 +50,20 @@ describe("StatsDataTable client state", () => {
   it("accepts a layout class for dense fixed tables", () => {
     render(<StatsDataTable rows={rows} columns={columns} rowKey={(row) => row.name} tableClassName="min-w-[720px] table-fixed" />);
     expect(screen.getByRole("table")).toHaveClass("min-w-[720px]", "table-fixed");
+  });
+
+  it("bounds and truncates an explicitly marked identity while preserving numeric columns", () => {
+    const name = "A player name that is long enough to overflow a compact identity column";
+    const longRows = [{ name, rating: 1.25 }];
+    render(<StatsDataTable rows={longRows} columns={columns} rowKey={(row) => row.name} />);
+
+    const identityHeader = screen.getAllByRole("columnheader")[0]!;
+    const identityCell = screen.getByRole("cell", { name });
+    const ratingCell = screen.getByRole("cell", { name: "1.25" });
+    expect(identityHeader).toHaveClass("w-[11rem]", "min-w-[11rem]", "max-w-[11rem]");
+    expect(identityCell).toHaveClass("w-[11rem]", "overflow-hidden", "sticky", "left-0");
+    expect(identityCell.firstElementChild).toHaveClass("min-w-0", "max-w-full", "truncate");
+    expect(ratingCell).toHaveClass("whitespace-nowrap", "tabular-nums");
   });
 
   it("keeps limited samples below ranked rows in both sort directions and uses a separate baseline", () => {

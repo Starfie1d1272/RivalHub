@@ -401,9 +401,6 @@ async function loadMajorPublicParticipantState(
         representativeUserId: entry.representativeUserId,
         teamId: entry.teamId,
       },
-      cardLabel: isOfficial
-        ? seed === null ? "正式参赛队" : `#${seed} 种子`
-        : "已通过报名审核",
       participation,
       roster: roster.map(publicRosterMember),
       rosterLabel: isOfficial

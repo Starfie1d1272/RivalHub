@@ -77,17 +77,17 @@ presentation owner 对有限集合使用穷举映射（新增状态必须同时�
 
 公开队伍详情只有一个 canonical `TeamPublicProfile` composition owner。长期队伍路由 `/teams/[slug]` 只注入长期 Team read model；赛事队伍路由 `/[seasonSlug]/teams/[entryId]` 注入本届赛事的 public event context，并在 `entry.teamId` 存在时一并注入长期 Team read model。两条路由保持各自的事实 owner，不把一届赛事中的参赛队伍当作长期 Team。
 
-存在赛事 context 时，队名、图标、参赛名单、赛事战绩、地图表现、比赛链接、参赛状态和种子展示本届赛事事实；长期 Team 以简短入口承接当前成员、招募、赛事履历、名称/队长历史。没有长期 Team 的 event-native entry 复用同一 shell，省略长期 Team 入口。
+存在赛事 context 时，队名、图标、名次/荣誉、赛事战绩、本届名单、正式地图表现与比赛链接展示本届事实；公开 Hero 不呈现报名审核、名单冻结等流程状态、解释文案或 seed。长期 Team 以简短入口承接当前成员、招募、赛事履历、名称/队长历史。没有长期 Team 的 event-native entry 复用同一 shell，省略长期 Team 入口。
 
-标准 Major 的公开队伍列表、赛事队伍详情、`/[seasonSlug]/players` 和赛事首页摘要共享一个 server-only public participant read model。审核期只显示「已通过报名审核的队伍」及「已审核报名名单」；正式参赛队集合完整后切换为「正式参赛队」，冻结前显示「当前参赛名单」，冻结后显示「最终参赛名单」。官方种子只有在赛委会确认且完整覆盖全部正式参赛队时显示，否则保持「种子待确认」。这些页面只接收显式 public DTO，不在页面内重算生命周期或把报名名单冒充赛事名单。
+标准 Major 的公开队伍列表、赛事队伍详情、`/[seasonSlug]/players` 和赛事首页摘要共享一个 server-only public participant read model。审核期由页面级文案说明候选队伍；正式参赛队集合完整后切换集合说明，名单仍在调整时使用「当前参赛名单」，冻结后使用「最终参赛名单」。详情页在赛事结束后将名单标题收敛为「本届名单」。官方 seed fact 仍由 Major read model 提供给依赖 seeding 的赛事上下文；公开队伍目录和 Team profile 不以 seed 标识队伍。这些页面只接收显式 public DTO，不在页面内重算生命周期或把报名名单冒充赛事名单。
 
-`TeamPublicProfile` 的本届参赛名单只展示 Player identity、首发/替补标记、公开参赛状态和 roster 状态，不从长期资料或 `seasonRegistrations` 补写本届位置；Major 选手目录同样只展示本届队伍、首发/替补、Player link 和已有的本届已验证统计。`CompetitionEntry`、`EventRoster`、revision、snapshot 等实现术语不进入正常公开文案。
+`TeamPublicProfile` 的本届名单只展示 Player identity 与首发/替补标记；区分当前、已审核或最终名单时使用 public read model 提供的自然标题，不渲染流程状态 pill，也不从长期资料或 `seasonRegistrations` 补写本届位置。Major 选手目录同样只展示本届队伍、首发/替补、Player link 和已有的本届已验证统计。`CompetitionEntry`、`EventRoster`、revision、snapshot 等实现术语不进入正常公开文案。
 
-公开队伍 Profile 的稳定信息层级固定为 section composition，而不是业务块 card wall。长期队伍按 **Hero → 当前成员/当前赛事 → Performance（All-time）→ Career → 队伍资料** 组织；赛事队伍按 **Hero → 赛事概览 → 本届参赛名单 → Performance（本届）→ 本届比赛** 组织。一级 section 使用 eyebrow + 中文 heading + whitespace/divider 建立层级；Hero 可以保留连续 surface 与紧凑 headline strip，但 Current Event、Career、Matches 等不得各自退化为独立大卡墙。
+公开队伍 Profile 的稳定信息层级固定为 section composition，而不是业务块 card wall。长期队伍按 **Hero → 当前成员/当前赛事 → Performance（All-time）→ 阵容地图参考（有内容时）→ Career → 队伍资料** 组织；赛事队伍按 **Hero → 本届名单 → Performance（本届）→ 阵容地图参考（有内容时）→ 本届比赛** 组织。Hero 展示队伍身份、已确认名次/荣誉和 Match W-L、Map W-L、Maps、Rating；赛事页不重复摆放 Record、名单人数、seed 或 Next match 摘要。一级 section 使用 eyebrow + 中文 heading + whitespace/divider 建立层级；Hero 可以保留连续 surface 与紧凑 headline strip，但 Career、Matches 等不得各自退化为独立大卡墙。
 
-Team Performance 固定使用 **Overview / Rounds & Economy / Teamplay / Maps / Players / Weapons**。Long Team scope 固定 All-time，不增加赛事 selector；赛事队伍 scope 固定本届。Overview 与 Hero 必须互补而非机械复读；指标 family 使用 shared `MetricSection`、`MetricValue`、metric help contract，collection grain 使用 `StatsDataTable`。Players 的长期队伍语义是“实际代表 linked 赛事队伍出战时的表现”，不是当前 roster，也不得把同一选手代表其它队伍时的统计混入。
+Team Performance 固定使用 **Overview / Rounds & Economy / Teamplay / Maps / Players / Weapons**。Long Team scope 固定 All-time，不增加赛事 selector；赛事队伍 scope 固定本届。Overview 与 Hero 必须互补而非机械复读；指标 family 使用 shared `MetricSection`、`MetricValue`、metric help contract，collection grain 使用 `StatsDataTable`。Players 的长期队伍语义是“实际代表 linked 赛事队伍出战时的表现”，不混入其它队伍样本。专业指标解释使用 shared tooltip；常驻正文表达页面事实，不解释聚合实现、来源步骤或开发 contract。
 
-Maps 在 Performance 内统一承载三层事实，默认 disclosure 按 coverage 决定：有队伍正式样本时以自身表现为主并折叠两类补充事实；无自身样本且 roster 历史经验全覆盖时展开历史经验、折叠自报；历史经验只覆盖部分 roster 时历史经验与自报同时展开；完全没有历史经验时以自报为主要 fallback。Pick/Ban/Decider 只来自 canonical veto 记录，不从 Demo 推断。
+Maps tab 只展示队伍自身正式地图表现。阵容成员历史正式地图经验和自报地图熟练度位于其后的独立「阵容地图参考」区，按 coverage progressive disclosure：有队伍正式地图样本时折叠两类参考；没有队伍样本且历史经验覆盖全 roster 时展开历史经验、折叠自报；历史经验只覆盖部分 roster 时两类都展开；没有历史经验时有内容的自报偏好作为主要参考。没有任何参考数据时省略该 section。Pick/Ban/Decider 只来自 canonical veto 记录，不从 Demo 推断。
 
 玩家身份浏览/卡片界面统一使用 `PlayerAvatar`：公开页面只消费已持久化的头像 URL，缺失或加载失败时显示姓名首字母；页面不在渲染路径请求 Steam，也不各自实现平行回退逻辑。公开 Player identity DTO 必须提供 `avatarUrl: string | null`，以区分“没有持久化头像”和“投影遗漏字段”；高密度比赛表格或运营者表格可以文字优先，但必须作为明确例外登记，不能因漏接头像而默默退化。
 
@@ -95,7 +95,7 @@ Maps 在 Performance 内统一承载三层事实，默认 disclosure 按 coverag
 
 首页保留赛事 Hero、状态侧栏与快捷入口，登录者的报名阻塞事项使用 readiness owner 的个人投影。赛事目录按生命周期分组；已结束赛事以正式冠军、决赛、排名与荣誉组织历史入口。冠军和名次来自明确赛果/荣誉事实，撤销荣誉不自动递补。选手目录标题固定为「选手」，队伍与选手搜索使用共享列表工具及 URL 查询参数。
 
-队伍地图画像依次展示三类事实：赛事队伍自身本届正式地图表现（长期队伍为自身正式历史）、当前阵容成员历史正式赛事地图经验、成员自报地图熟练度。队伍 W/L 只归属于实际参赛队伍；成员经验按选手出场地图计数，供 cold-start/scouting 使用，不能转换为当前队伍 W/L 或合成地图强度分。自身无样本时展开成员经验，有样本时仍保留可访问的补充层。
+队伍地图画像区分三类事实：赛事队伍自身本届正式地图表现（长期队伍为自身正式历史）、当前阵容成员历史正式赛事地图经验、成员自报地图熟练度。正式地图表现属于 Performance → Maps；后两类在 Performance 后进入「阵容地图参考」。队伍 W/L 只归属于实际参赛队伍；成员经验供 scouting 参考，不能转换为当前队伍 W/L 或合成地图强度分。公开文案陈述统计事实，不常驻解释数据聚合和来源实现。
 
 赛程的阶段与对阵上下文在队伍筛选时保持完整，通过高亮定位相关比赛；历史赛事默认展示结果。未知比分显示破折号，比赛状态统一复用中央 presentation：显式管理员开赛后的 `in_progress` 展示「进行中」，结束展示「已结束」，取消展示「已取消」；排期和直播地址不能自行推导实时 LIVE 状态。Match Detail 赛前以本场名单、对比分析、BP 为主；赛后以比分、地图、已验证统计、MVP、BP 和名单为主。MatchRoster 仅在赛事具备 registration-position capability 时辅助展示「报名位置」，不把报名位置解释为本场位置；其它赛事不查询或显示该字段。赛前及比赛期存在有效直播资源时，在 Hero 附近提供「进入直播间」入口及解说信息；结束后隐藏直播入口，录像/VOD 作为历史资料置于页面后部。
 
@@ -118,6 +118,7 @@ Maps 在 Performance 内统一承载三层事实，默认 disclosure 按 coverag
 - 稳定列序和可扫描 identity/status/date；密度来自分组与行距，不靠不可读字号。
 - 数字使用稳定对齐和 `tabular-nums`；`null/unknown` 与数值 `0` 明确区分。
 - 二维 overflow 由最近的局部容器拥有，普通页面不产生 document-level 横向滚动。
+- `StatsDataTable` 可显式标记 bounded identity column；sticky identity 内容在该列内截断，numeric columns 保持 `whitespace-nowrap` 与 `tabular-nums`。
 - 移动端首屏必须读到 primary identity + primary metric/action；必要时提供摘要/卡片，而不是只把桌面表格横向塞入。
 - `ScrollHint` 只表达局部横向内容是否仍可滚动，不拥有 domain navigation。
 

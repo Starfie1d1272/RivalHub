@@ -47,7 +47,7 @@ describe("public entry routes", () => {
     expect(html).toContain("正赛候选池"); expect(html).toContain("Approved 32");
   });
 
-  it("presents Rivals formation order at the page caller", async () => {
+  it("does not repeat Rivals formation order on public team cards", async () => {
     mocks.season.mockResolvedValue({ id: "season", name: "Rivals", competitionTemplate: "rivals", registrationMode: "solo", status: "draft" });
     mocks.entries.mockResolvedValue([{
       id: "team-2",
@@ -60,7 +60,7 @@ describe("public entry routes", () => {
 
     const html = renderToStaticMarkup(await ListPage({ params: Promise.resolve({ seasonSlug: "rivals" }) }));
 
-    expect(html).toContain("选秀第 2 顺位");
+    expect(html).not.toContain("选秀第 2 顺位");
     expect(html).not.toContain("Draft #2");
   });
 });
