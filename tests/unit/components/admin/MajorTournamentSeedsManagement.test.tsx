@@ -41,6 +41,7 @@ const data: MajorTournamentSeedsManagementData = {
       available: true,
       blockers: [],
       recommendationRank: 1,
+      displayOrder: 1,
       tieState: "not_tied",
       starters: [{
         userId: "player-1",

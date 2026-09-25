@@ -55,7 +55,10 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
 
       {matchCount > 0 && (
         <AdminMatchFilter
-          stages={data.stagePlan.map((stage) => ({ key: stage.key, name: stage.name }))}
+          stages={[
+            ...(data.qualificationRun ? [{ key: "play-in", name: "PLAY-IN" }] : []),
+            ...data.stagePlan.map((stage) => ({ key: stage.key, name: stage.name })),
+          ]}
           teams={data.teams}
         />
       )}
@@ -118,7 +121,7 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
         </details>
       )}
 
-      {matchCount > 0 && data.defaultStageKey && (
+      {(matchCount > 0 || data.qualificationRun) && data.defaultStageKey && (
         <Tabs defaultValue={data.defaultStageKey}>
           <TabsList className="max-w-full justify-start overflow-x-auto">
             {data.stageViews.map(({ stage }) => (

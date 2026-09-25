@@ -3,6 +3,7 @@ import { sql } from "drizzle-orm";
 import { majorStageRuns } from "./major-stage";
 import { seasons } from "./seasons";
 import { competitionEntries } from "./competition-entries";
+import { competitionQualificationRuns } from "./competition-qualification";
 
 export const matchStatusEnum = pgEnum("match_status", [
   "scheduled",
@@ -39,6 +40,7 @@ export const matches = pgTable("matches", {
   /** Manual matches never carry a run/key; generated Major matches always do. */
   ownership: matchOwnershipEnum("ownership").notNull().default("manual"),
   majorStageRunId: uuid("major_stage_run_id").references(() => majorStageRuns.id),
+  qualificationRunId: uuid("qualification_run_id"),
   managedKey: text("managed_key"),
 
   scheduledAt: timestamp("scheduled_at", { withTimezone: true }),
@@ -55,6 +57,7 @@ export const matches = pgTable("matches", {
   entryASeasonScope: foreignKey({ columns: [t.entryAId, t.seasonId], foreignColumns: [competitionEntries.id, competitionEntries.competitionId], name: "matches_entry_a_season_scope_fk" }),
   entryBSeasonScope: foreignKey({ columns: [t.entryBId, t.seasonId], foreignColumns: [competitionEntries.id, competitionEntries.competitionId], name: "matches_entry_b_season_scope_fk" }),
   majorRunSeasonStageScope: foreignKey({ columns: [t.majorStageRunId, t.seasonId, t.stage], foreignColumns: [majorStageRuns.id, majorStageRuns.seasonId, majorStageRuns.stageKey], name: "matches_major_stage_run_season_stage_scope_fk" }),
+  qualificationRunSeasonScope: foreignKey({ columns: [t.qualificationRunId, t.seasonId], foreignColumns: [competitionQualificationRuns.id, competitionQualificationRuns.seasonId], name: "matches_qualification_run_season_scope_fk" }),
   // 系列赛比分非负
   scoreANonNegative: check("matches_score_a_nonneg", sql`${t.scoreA} IS NULL OR ${t.scoreA} >= 0`),
   scoreBNonNegative: check("matches_score_b_nonneg", sql`${t.scoreB} IS NULL OR ${t.scoreB} >= 0`),
@@ -73,6 +76,10 @@ export const matches = pgTable("matches", {
     "matches_managed_major_match_shape",
     sql`(${t.ownership} = 'manual' AND ${t.majorStageRunId} IS NULL AND ${t.managedKey} IS NULL)
       OR (${t.ownership} = 'major_stage' AND ${t.majorStageRunId} IS NOT NULL AND ${t.managedKey} IS NOT NULL)`,
+  ),
+  qualificationMatchShape: check(
+    "matches_qualification_match_shape",
+    sql`${t.qualificationRunId} IS NULL OR (${t.ownership} = 'manual' AND ${t.stage} = 'play-in' AND ${t.majorStageRunId} IS NULL AND ${t.managedKey} IS NULL AND ${t.bracketNodeId} IS NULL)`,
   ),
   uniqueManagedMajorMatch: uniqueIndex("matches_major_stage_run_managed_key_unique")
     .on(t.majorStageRunId, t.managedKey)

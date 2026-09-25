@@ -13,7 +13,7 @@ import { eq, count, or, and, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { UserPlus, Vote, Users, Swords, Shuffle, BarChart3, UserRoundSearch, Trophy } from "lucide-react";
 import { db } from "@/db/client";
-import { matches, competitionEntries } from "@/db/schema";
+import { matches, competitionEntries, competitionQualificationRuns } from "@/db/schema";
 import { formatCSTDateTime } from "@/lib/utils/date";
 import type { SeasonStatus } from "@/types/season";
 import { showStats } from "@/lib/utils/season";
@@ -101,7 +101,7 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
     : null;
 
   const isMajor = season.competitionTemplate === "major";
-  const [majorParticipantOverview, [teamCountRow], participantSummary, [matchCountRow], upcomingMatches, standings] =
+  const [majorParticipantOverview, [teamCountRow], participantSummary, [matchCountRow], upcomingMatches, standings, qualificationRun] =
     await Promise.all([
       isMajor ? getMajorPublicParticipantOverview(season) : Promise.resolve(null),
       isMajor
@@ -114,7 +114,13 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
       }).from(matches).where(eq(matches.seasonId, season.id)),
       upcomingMatchesQuery ?? Promise.resolve([] as { id: string; status: string; scheduledAt: Date | null; stage: string; teamAName: string | null; teamBName: string | null }[]),
       season.status === "playing" ? getStandings(season.id) : Promise.resolve([]),
+      isMajor
+        ? db.query.competitionQualificationRuns.findFirst({ where: eq(competitionQualificationRuns.seasonId, season.id) })
+        : Promise.resolve(undefined),
     ]);
+  const qualificationMatches = qualificationRun
+    ? await db.select({ status: matches.status }).from(matches).where(eq(matches.qualificationRunId, qualificationRun.id))
+    : [];
   const publicTeamCount = majorParticipantOverview?.teamCount ?? Number(teamCountRow?.value ?? 0);
   const publicPlayerCount = majorParticipantOverview?.playerCount ?? participantSummary?.count ?? 0;
 
@@ -289,6 +295,25 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
         </ScrollHint>
       </Panel>
 
+      {qualificationRun && !initializedStages.has(stagePlan[0]?.key ?? "") && (
+        <Panel label="PLAY-IN" contentClassName="p-5">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="space-y-1">
+              <p className="font-medium text-[var(--color-fg)]">
+                {qualificationRun.format === "direct_bo3" ? "Direct BO3" : "Short Swiss · 2 胜晋级 / 2 负淘汰"}
+              </p>
+              <p className="text-sm text-[var(--color-fg-mid)]">
+                直通 {qualificationRun.directEntryCount} 队 · Play-in {qualificationRun.playInEntryCount} 队 · 晋级 {qualificationRun.qualifierCount} 队
+                {qualificationRun.startedAt ? ` · 已完成 ${qualificationMatches.filter((match) => match.status === "finished").length}/${qualificationMatches.length} 场` : " · 比赛尚未生成"}
+              </p>
+            </div>
+            <Button size="sm" variant="outline" asChild>
+              <Link href={`/${seasonSlug}/matches?stage=play-in`}>查看 PLAY-IN 赛程 →</Link>
+            </Button>
+          </div>
+        </Panel>
+      )}
+
       {/* Upcoming matches and standings share a dual-column layout. */}
       {(upcomingMatches.length > 0 || standings.length > 0) && (
         <div className="grid grid-cols-1 lg:grid-cols-[1.5fr_1fr] gap-4">
@@ -325,7 +350,7 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
                       </div>
                       <div className="shrink-0 flex flex-col items-end gap-0.5">
                         <span className="font-mono text-[10px] text-[var(--color-fg-dim)] uppercase tracking-wider">
-                          {stageLabelByKey.get(match.stage) ?? "比赛阶段"}
+                          {match.stage === "play-in" ? "PLAY-IN" : stageLabelByKey.get(match.stage) ?? "比赛阶段"}
                         </span>
                         <MatchStatusBadge status={match.status as MatchStatus} scheduledAt={match.scheduledAt} />
                         {match.scheduledAt && <span className="font-mono text-[10px] text-[var(--color-fg-dim)]">{formatCSTDateTime(match.scheduledAt)}</span>}

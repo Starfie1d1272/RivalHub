@@ -15,13 +15,30 @@ vi.mock("@/actions/major-prestart", () => ({
 }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
+function managementData(overrides: Partial<MajorPrestartManagementData> = {}): MajorPrestartManagementData {
+  return {
+    seasonId: "season-1",
+    seasonSlug: "major",
+    seasonStatus: "registration",
+    managedProfileId: "major-32",
+    registrationClosesAt: null,
+    registrationClosed: false,
+    entrantCapacity: 32,
+    entrantsLocked: false,
+    approvedCandidateCount: 0,
+    pendingReviewCount: 0,
+    initialPreliminaryOrderEntryIds: [],
+    strengthPreview: { status: "ready", platform: "perfect_world", conversionPolicyId: null, conversionPolicyVersion: null, blockers: [], teams: [] },
+    approvedCandidates: [],
+    entrants: [],
+    qualification: { run: null },
+    ...overrides,
+  };
+}
+
 describe("MajorPrestartManagement", () => {
   it("uses operator language without exposing roster implementation details", () => {
-    render(<MajorPrestartManagement data={{
-      seasonId: "season-1",
-      entrantCapacity: 32,
-      entrantsLocked: false,
-      strengthPreview: { status: "ready", platform: "perfect_world", conversionPolicyId: null, conversionPolicyVersion: null, blockers: [], teams: [] },
+    render(<MajorPrestartManagement data={managementData({
       approvedCandidates: [{
         id: "team-1",
         name: "Team One",
@@ -40,7 +57,7 @@ describe("MajorPrestartManagement", () => {
         rosterStatus: "confirmed",
         roster: [{ userId: "user-1", label: "Player One", isPrimaryStarter: true, educationVerified: true }],
       }],
-    }} />);
+    })} />);
 
     expect(screen.getByText("报名已通过 · 候选")).toBeVisible();
     expect(screen.getByText("已审核报名名单：5 人 · 5 名主力")).toBeVisible();
@@ -53,8 +70,16 @@ describe("MajorPrestartManagement", () => {
   it("shows the live read-only strength reference and keeps incomplete teams out of ranking", () => {
     const data: MajorPrestartManagementData = {
       seasonId: "season-1",
+      seasonSlug: "major",
+      seasonStatus: "registration",
+      managedProfileId: "major-32",
+      registrationClosesAt: null,
+      registrationClosed: false,
       entrantCapacity: 32,
       entrantsLocked: false,
+      approvedCandidateCount: 0,
+      pendingReviewCount: 0,
+      initialPreliminaryOrderEntryIds: [],
       strengthPreview: {
         status: "ready",
         platform: "perfect_world",
@@ -68,6 +93,7 @@ describe("MajorPrestartManagement", () => {
             available: true,
             blockers: [],
             recommendationRank: 1,
+            displayOrder: 1,
             tieState: "not_tied",
             starters: [{
               userId: "user-strong",
@@ -89,6 +115,7 @@ describe("MajorPrestartManagement", () => {
             available: false,
             blockers: ["缺少当前赛季最高段位及 Rating。"],
             recommendationRank: null,
+            displayOrder: null,
             tieState: "not_ranked",
             starters: [],
           },
@@ -96,6 +123,7 @@ describe("MajorPrestartManagement", () => {
       },
       approvedCandidates: [],
       entrants: [],
+      qualification: { run: null },
     };
 
     render(<MajorPrestartManagement data={data} />);
@@ -112,11 +140,8 @@ describe("MajorPrestartManagement", () => {
   });
 
   it("folds the candidate pool after the official entrants are frozen", () => {
-    render(<MajorPrestartManagement data={{
-      seasonId: "season-1",
-      entrantCapacity: 32,
+    render(<MajorPrestartManagement data={managementData({
       entrantsLocked: true,
-      strengthPreview: { status: "ready", platform: "perfect_world", conversionPolicyId: null, conversionPolicyVersion: null, blockers: [], teams: [] },
       approvedCandidates: [{
         id: "team-1",
         name: "Team One",
@@ -135,7 +160,7 @@ describe("MajorPrestartManagement", () => {
         rosterStatus: "frozen",
         roster: [{ userId: "user-1", label: "Player One", isPrimaryStarter: true, educationVerified: true }],
       }],
-    }} />);
+    })} />);
 
     expect(screen.getByText("正式参赛名单 (1/32)")).toBeVisible();
     const details = screen.getByText("查看已通过审核的候选队伍").closest("details");

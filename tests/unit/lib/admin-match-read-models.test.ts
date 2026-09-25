@@ -28,6 +28,7 @@ function match(overrides: Partial<Match> = {}): Match {
     bracketNodeId: null,
     ownership: "major_stage",
     majorStageRunId: "run-1",
+    qualificationRunId: null,
     managedKey: "swiss:1:1",
     scheduledAt: null,
     completionDeadline: null,

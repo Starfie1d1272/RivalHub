@@ -2,7 +2,8 @@ import type { CompetitionEntry, Match, MatchMap, MatchRosterStatus, Season } fro
 import type { MajorPlayoffRuntimeData, MajorSwissRuntimeData } from "@/lib/admin/major-runtime";
 import type { TeamStanding } from "@/lib/standings";
 import type { StageConfig, StagePlan } from "@/types/season";
-import type { MajorSwissStageReadModel } from "@/lib/matches/stage-read-model";
+import type { SwissStageReadModel } from "@/lib/matches/stage-read-model";
+import type { CompetitionQualificationRun } from "@/db/schema";
 
 export interface TeamMemberData {
   id: string;
@@ -122,7 +123,8 @@ export interface AdminMatchOverviewData {
   stagePlan: StagePlan;
   matches: AdminMatchSummary[];
   stageViews: { stage: StageConfig; matches: AdminMatchSummary[] }[];
-  stageReadModels: Map<string, MajorSwissStageReadModel>;
+  stageReadModels: Map<string, SwissStageReadModel>;
+  qualificationRun: Pick<CompetitionQualificationRun, "id" | "format" | "playInEntryCount"> | null;
   commentaryEffectiveness: AdminCommentaryEffectiveness[];
   unconfiguredMatches: AdminMatchSummary[];
   standingsByStage: Map<string, TeamStanding[]>;

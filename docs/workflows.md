@@ -113,6 +113,18 @@ approved Entry candidate pool
 
 在最终 entrant set 尚未冻结的候选阶段，管理员可以看到基于每支 approved roster revision 的 5 名预定主力和当前可用竞技事实生成的 live strength preview。它是只读、非权威的辅助 read model：不自动选择正式参赛队、不改变 qualification，也不创建或改写 `SeedRecommendationSnapshot`。正式参赛队与 EventRoster 统一冻结后，系统才生成并保留 immutable seed snapshot。
 
+### Major Qualification
+
+Qualification 是 `registration` 到 Major 正赛 entrant set 之间的独立 run，不加入 StagePlan，也不创建 Major StageRun。Major 正赛规模只可在报名阶段、未配置 Qualification、未创建正赛 entrants/seeds/StageRun 且赛前事实未锁定时，通过 profile owner 更新；已发布设置展示调整边界并链接到赛前准备。
+
+报名截止、所有报名审核/补正/候补处理完毕后，所有已批准且名单有效的 Entry 组成冻结候选集合。初始预排名消费当前 strength `displayOrder`；无法排名的候选按队名与 Entry ID 稳定排序。系统由候选数和正赛容量推导直通、Play-in 与晋级数量；超出单层资格赛可收敛的数量时停止配置，不提供人工覆盖人数或替换正赛队伍的入口。
+
+Qualification run 保存格式、冻结候选与预排名。Direct BO3 按预排名生成首轮；Short Swiss 仅在当前 Play-in 人数满足规则门槛时可选。R1 按预排名上半区对下半区；之后只在相同战绩组内生成无重赛配对。比赛结果只写入官方 Match，完成一个结果不会自动创建下一轮；管理员显式生成下一轮。重试仅接受已完整且规则一致的对阵集合，缺场、重复、跳轮、跨战绩或不匹配的历史事实 fail closed。
+
+首轮生成时，Play-in 队伍的已批准 Entry roster 由共享 EventRoster owner 同步并确认；资格赛阵容消费 confirmed/frozen EventRoster。Entry 重新批准只在比赛间隙同步当前 EventRoster，不改写已有 MatchRoster。Major 正赛仍要求 frozen EventRoster。Qualification 完成后，正赛集合只由直通 Entry 与系统推导的晋级 Entry 构成，并且必须达到冻结 profile 的准确容量。
+
+公开首页在 Main Event 首阶段开始前，将 PLAY-IN 作为独立信息面板放在阶段 tracker 下方；tracker 本身只呈现 StagePlan。公开和后台赛程以 PLAY-IN 独立 tab 展示 Qualification-owned matches；它不会因为不属于 StagePlan 而触发未配置阶段告警。公开链接使用 `stage=play-in` 显式选择该 tab。Short Swiss public/admin standings 从通用 Swiss core 和 Qualification run facts 投影。
+
 ## Stage runtime
 
 Major 每个阶段由 managed StageRun 拥有：

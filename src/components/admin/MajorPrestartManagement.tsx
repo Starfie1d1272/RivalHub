@@ -1,13 +1,11 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useTransition } from "react";
 import { toast } from "sonner";
 import {
   lockMajorPrestartEntrants,
-  selectMajorEntrants,
 } from "@/actions/major-prestart";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Marker, Panel } from "@/components/rivalhub";
 import { MajorStrengthStarterSummary, sourceLabel } from "@/components/admin/MajorStrengthStarterSummary";
 import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
@@ -94,20 +92,13 @@ function StrengthPreview({ preview }: { preview: MajorPrestartStrengthPreview })
 
 function ApprovedCandidate({
   candidate,
-  checked,
-  disabled,
-  onToggle,
 }: {
   candidate: MajorPrestartManagementData["approvedCandidates"][number];
-  checked: boolean;
-  disabled: boolean;
-  onToggle: () => void;
 }) {
   return (
-    <article className="border border-[var(--color-border)] p-3 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-[var(--color-accent)]">
+    <article className="border border-[var(--color-border)] p-3">
       <div className="flex items-start gap-3">
-        <Checkbox id={`major-candidate-${candidate.id}`} checked={checked} disabled={disabled} onChange={onToggle} />
-        <label htmlFor={`major-candidate-${candidate.id}`} className="min-w-0 flex-1 cursor-pointer">
+        <div className="min-w-0 flex-1">
           <span className="flex flex-wrap items-center justify-between gap-2 font-medium text-[var(--color-fg)]">
             <span>{candidate.name}</span>
             <span className="text-xs text-[var(--color-ok)]">{candidate.selectedAsEntrant ? "已选择为正式参赛队" : "报名已通过 · 候选"}</span>
@@ -118,7 +109,7 @@ function ApprovedCandidate({
           <span className="mt-1 block text-xs text-[var(--color-fg-mid)]">
             已审核报名名单：{rosterSummary(candidate.roster)}
           </span>
-        </label>
+        </div>
       </div>
       <ul className="mt-2 space-y-1 pl-7 text-xs text-[var(--color-fg-mid)]">
         {candidate.roster.members.length > 0 ? candidate.roster.members.map((member) => (
@@ -153,52 +144,16 @@ function SyncedEntrant({ entrant }: { entrant: MajorPrestartManagementData["entr
 
 export function MajorPrestartManagement({ data }: { data: MajorPrestartManagementData }) {
   const [isPending, startTransition] = useTransition();
-  const selectedEntrantIdsKey = data.entrants.map((entrant) => entrant.teamId).join(",");
-  const [selectionKey, setSelectionKey] = useState(selectedEntrantIdsKey);
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set(data.entrants.map((entrant) => entrant.teamId)));
   const locked = data.entrantsLocked;
   const entrantCapacity = data.entrantCapacity;
-  const selectedCount = selectedIds.size;
-  const approvedCount = data.approvedCandidates.length;
-  const requiresExactCapacity = approvedCount > entrantCapacity;
-  const candidatePanelLabel = locked
-    ? "已通过审核的候选队伍"
-    : data.entrants.length > 0
-      ? "调整正式参赛队"
-      : "选择正式参赛队";
-
-  if (selectionKey !== selectedEntrantIdsKey) {
-    setSelectionKey(selectedEntrantIdsKey);
-    setSelectedIds(new Set(data.entrants.map((entrant) => entrant.teamId)));
-  }
-
-  const toggleSelection = (entryId: string) => {
-    setSelectedIds((current) => {
-      const next = new Set(current);
-      if (next.has(entryId)) next.delete(entryId);
-      else next.add(entryId);
-      return next;
-    });
-  };
 
   const candidatePanel = (
-    <Panel label={locked ? candidatePanelLabel : `${candidatePanelLabel} (${selectedCount}/${entrantCapacity})`}>
+    <Panel label="已批准报名候选队伍">
       <div className="mb-4 space-y-2 text-sm text-[var(--color-fg-mid)]">
-        <p>{locked ? "候选池仅供核对，正式参赛名单以上方为准。" : data.entrants.length > 0 ? "当前正式参赛队已在上方展示；需要调整时，在下方修改选择并保存。资格审核、成员确认、主力和学籍资料仍在报名流程中维护。" : "下方只展示当前赛事中已通过审核的报名队伍；资格审核、成员确认、主力和学籍资料均在报名流程中维护，本页不需要逐队重新编辑名单。"}</p>
-        {!locked && <p>{approvedCount <= entrantCapacity ? `当前 ${approvedCount} 支已批准队伍不超过容量，可一键选中全部。` : `当前 ${approvedCount} 支已批准队伍超过容量，请明确选择恰好 ${entrantCapacity} 支；选择依据由赛事运营者决定。`}</p>}
+        <p>候选池用于核对报名资料与系统实力参考。正赛参赛队由全部已批准队伍或 Play-in 晋级结果确定，本页不提供手动替换。</p>
       </div>
-      {!locked && <div className="mb-4 flex flex-wrap gap-2">
-        {approvedCount <= entrantCapacity && <Button size="sm" variant="outline" disabled={isPending || approvedCount === 0} onClick={() => setSelectedIds(new Set(data.approvedCandidates.map((candidate) => candidate.id)))}>
-          一键选择全部已批准
-        </Button>}
-        <Button size="sm" disabled={isPending || (requiresExactCapacity && selectedCount !== entrantCapacity)} onClick={() => startTransition(() => void showResult(
-          () => selectMajorEntrants({ seasonId: data.seasonId, competitionEntryIds: [...selectedIds] }), "正式参赛队已保存，名单已同步",
-        ))}>
-          保存选择并同步名单
-        </Button>
-      </div>}
       {data.approvedCandidates.length === 0 ? <p className="text-sm text-[var(--color-fg-mid)]">尚无已通过审核的报名队伍；完成报名审核后，队伍会自动出现在候选池。</p> : <div className="grid gap-3 md:grid-cols-2">
-        {data.approvedCandidates.map((candidate) => <ApprovedCandidate key={candidate.id} candidate={candidate} checked={selectedIds.has(candidate.id)} disabled={locked || isPending} onToggle={() => toggleSelection(candidate.id)} />)}
+        {data.approvedCandidates.map((candidate) => <ApprovedCandidate key={candidate.id} candidate={candidate} />)}
       </div>}
       {!locked && <StrengthPreview preview={data.strengthPreview} />}
     </Panel>
@@ -216,7 +171,7 @@ export function MajorPrestartManagement({ data }: { data: MajorPrestartManagemen
               {locked ? "锁定后，本页不能再修改正式参赛队、名单或事项；下一步是独立保存并确认种子。" : "报名通过后才会进入候选池；保存选择会同步已审核的报名名单，确认无误后再统一冻结达到赛事容量的队伍。"}
             </p>
           </div>
-          {!locked && <Button disabled={isPending} onClick={() => startTransition(() => void showResult(
+          {!locked && <Button disabled={isPending || data.entrants.length !== entrantCapacity} onClick={() => startTransition(() => void showResult(
             () => lockMajorPrestartEntrants({ seasonId: data.seasonId }), "正式参赛队和名单已统一冻结",
           ))}>统一冻结正式名单</Button>}
         </div>
@@ -229,10 +184,7 @@ export function MajorPrestartManagement({ data }: { data: MajorPrestartManagemen
         </div>}
       </Panel>}
 
-      {locked ? <details className="rounded-lg border border-[var(--color-border)]">
-        <summary className="cursor-pointer px-4 py-3 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]">查看已通过审核的候选队伍</summary>
-        <div className="p-4 pt-0">{candidatePanel}</div>
-      </details> : candidatePanel}
+      {candidatePanel}
 
     </div>
   );

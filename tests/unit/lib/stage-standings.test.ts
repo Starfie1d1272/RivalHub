@@ -43,6 +43,7 @@ function match(id: string, entryAId: string, entryBId: string, scoreA: number, s
     bracketNodeId: null,
     ownership: "manual",
     majorStageRunId: null,
+    qualificationRunId: null,
     managedKey: null,
     scheduledAt: null,
     completionDeadline: null,

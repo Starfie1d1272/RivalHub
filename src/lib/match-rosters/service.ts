@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { writeAuditInTx } from "@/lib/audit/write";
 
 import type { TxDb } from "@/db/client";
@@ -25,6 +25,7 @@ import type { FrozenRestrictionOverrideSnapshot } from "@/lib/major/run-snapshot
 import { assertMatchTransition } from "@/lib/match-transitions";
 import { loadActiveSanctionsInTx } from "@/lib/discipline/service";
 import { assertSeasonAllowsTournamentMutationInTx } from "@/lib/postevent/guard";
+import { assertSinglePrestartEntryCoherenceInTx } from "@/lib/event-rosters/coherence";
 import type { CompetitiveProfileConfig, InstitutionAffiliationRule } from "@/types/season";
 import { evaluateStartingLineup, type LineupMemberFact } from "./lineup";
 import { resolveMatchLineupPolicy, type MatchLineupPolicy } from "./policy";
@@ -148,18 +149,19 @@ function assertScheduledOrThrow(match: Pick<Match, "status">): void {
   }
 }
 
-/** Entrant membership resolves the frozen tournament roster per canonical team. */
-async function loadFrozenRosterUserIdsInTx(
+/** Entrant membership resolves its confirmed event roster or the later frozen snapshot. */
+async function loadEventRosterUserIdsInTx(
   tx: TxDb,
   seasonId: string,
   entryId: string,
+  allowedStatuses: readonly ("confirmed" | "frozen")[],
 ): Promise<{ ids: ReadonlySet<string>; verificationsByUser: Map<string, LineupMemberFact["verification"]>; rosterRevisionId: string | null }> {
   const [roster] = await tx
     .select({ id: eventRosters.id, status: eventRosters.status, sourceRosterRevisionId: eventRosters.sourceRosterRevisionId })
     .from(eventRosters)
     .innerJoin(competitionEntries, eq(competitionEntries.id, eventRosters.entryId))
     .where(and(eq(competitionEntries.competitionId, seasonId), eq(eventRosters.entryId, entryId)));
-  if (!roster || roster.status !== "frozen") {
+  if (!roster || !allowedStatuses.includes(roster.status as "confirmed" | "frozen")) {
     throw new AppError(
       ErrorCode.INTERNAL_ERROR,
       "本队缺少已锁定的赛事名单，无法校验本场阵容。",
@@ -265,7 +267,7 @@ async function loadTeamLineupContextInTx(
         }
       : configuredCompetitiveProfile;
     frozenCompetitiveFactsByUser = competitiveProfile ? frozenCompetitiveFacts(stageRun.ruleSnapshot) : null;
-    const frozen = await loadFrozenRosterUserIdsInTx(tx, match.seasonId, entryId);
+    const frozen = await loadEventRosterUserIdsInTx(tx, match.seasonId, entryId, ["frozen"]);
     frozenRosterUserIds = frozen.ids;
     verificationsByUser = frozen.verificationsByUser;
     frozenRosterRevisionId = frozen.rosterRevisionId;
@@ -274,11 +276,23 @@ async function loadTeamLineupContextInTx(
     }
   }
 
+  if (match.qualificationRunId) {
+    const coherent = await assertSinglePrestartEntryCoherenceInTx(tx, match.seasonId, { competitionEntryId: entryId });
+    if (coherent.eventRoster.status !== "confirmed" && coherent.eventRoster.status !== "frozen") {
+      throw new AppError(ErrorCode.INTERNAL_ERROR, "Play-in 队伍缺少已确认的赛事名单，无法校验本场阵容。");
+    }
+    const roster = await loadEventRosterUserIdsInTx(tx, match.seasonId, entryId, ["confirmed", "frozen"]);
+    frozenRosterUserIds = roster.ids;
+    verificationsByUser = roster.verificationsByUser;
+    frozenRosterRevisionId = roster.rosterRevisionId;
+  }
+
+  const acceptedRosterStatuses = match.qualificationRunId ? ["confirmed", "frozen"] as const : ["frozen"] as const;
   const memberRows = await tx
     .select({ id: eventRosterMembers.id, userId: eventRosterMembers.userId })
     .from(eventRosterMembers)
     .innerJoin(eventRosters, eq(eventRosters.id, eventRosterMembers.eventRosterId))
-    .where(and(eq(eventRosters.entryId, entryId), eq(eventRosters.status, "frozen")));
+    .where(and(eq(eventRosters.entryId, entryId), inArray(eventRosters.status, acceptedRosterStatuses)));
 
   // H1: active match-participation sanctions apply to every ownership mode.
   const participationBans = await loadActiveSanctionsInTx(tx, {

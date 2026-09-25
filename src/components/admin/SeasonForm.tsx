@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { toast } from "sonner";
 import { createSeason, deleteSeason, openSeasonRegistration, publishSeason, updateSeason, revertSeasonToDraft, revertSeasonToRegistration, forceFinishSeason, archiveSeason, type SeasonFormInput } from "@/actions/seasons";
 import {
@@ -780,6 +781,12 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
       <SettingsPanel id="format" label="赛制与地图">
         <div className="space-y-5">
           <MapPoolEditor value={mapPool} disabled={!editCapabilities.canEditPublicRules} onChange={setMapPool} />
+          {template === "major" && initial?.status === "registration" && (
+            <p className="border-t border-[var(--color-border)] pt-4 text-sm text-[var(--color-fg-mid)]">
+              正赛规模可在“赛前准备”中、且尚未产生依赖事实前调整。{" "}
+              <Link href={`/admin/${initial.slug}/prestart`} className="text-[var(--color-accent)] hover:underline">前往赛前准备</Link>
+            </p>
+          )}
           {template === "custom" ? (
             <div className="border-t border-[var(--color-border)] pt-5">
               <h3 className="mb-3 text-sm font-medium">赛程阶段</h3>

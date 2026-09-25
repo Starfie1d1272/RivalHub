@@ -8,6 +8,9 @@
 //
 // 本模块不依赖 DB / network / runtime / React；同一输入必须始终得到
 // 语义等价的输出；函数不修改调用方传入的任何数组 / 对象 / Map。
+import { projectSwissStage } from "@/lib/swiss/core";
+import { groupSwissByRecord, pairSwissHighLowZeroRematch, pairSwissTopHalfBottomHalf } from "@/lib/swiss/pairing";
+import type { SwissTeamState } from "@/lib/swiss/types";
 
 export type MajorSwissRound = 1 | 2 | 3 | 4 | 5;
 
@@ -171,16 +174,6 @@ export const MAJOR_SWISS_SIX_TEAM_PRIORITY_PATTERNS = [
 
 // ── 内部类型与常量 ──────────────────────────────────────
 
-interface InternalTeamState {
-  teamId: string;
-  initialStageSeed: number;
-  wins: number;
-  losses: number;
-  difficultyScore: number;
-  opponents: string[];
-  status: MajorSwissStatus;
-}
-
 const EXPECTED_MATCH_COUNT: Readonly<Record<MajorSwissRound, number>> = {
   1: 8,
   2: 8,
@@ -206,12 +199,6 @@ function isMajorSwissRound(round: number): round is MajorSwissRound {
 function parseRecordKey(key: string): MajorSwissRecord {
   const [wins, losses] = key.split("-");
   return { wins: Number(wins), losses: Number(losses) };
-}
-
-function computeStatus(wins: number, losses: number): MajorSwissStatus {
-  if (wins >= MAJOR_SWISS_WIN_THRESHOLD) return "advanced";
-  if (losses >= MAJOR_SWISS_LOSS_THRESHOLD) return "eliminated";
-  return "active";
 }
 
 // ── 验证 ────────────────────────────────────────────────
@@ -302,120 +289,29 @@ export function projectMajorSwissStage(input: {
   validateEntrants(entrants);
   const entrantTeamIds = new Set(entrants.map((entrant) => entrant.teamId));
   const official = validateOfficialMatches(matches, entrantTeamIds, finalizedRound);
-
-  // 初始状态：16 × 0-0（按 initialStageSeed ASC）
-  const states = new Map<string, InternalTeamState>();
-  const byInitialSeed = [...entrants].sort((a, b) => a.initialStageSeed - b.initialStageSeed);
-  for (const entrant of byInitialSeed) {
-    states.set(entrant.teamId, {
-      teamId: entrant.teamId,
-      initialStageSeed: entrant.initialStageSeed,
-      wins: 0,
-      losses: 0,
-      difficultyScore: 0,
-      opponents: [],
-      status: "active",
-    });
-  }
-
-  // 按 round 1 → finalizedRound 顺序处理
   for (let round = 1; round <= finalizedRound; round += 1) {
-    const roundMatches = official
-      .filter((match) => match.round === round)
-      .sort((a, b) => (a.matchId < b.matchId ? -1 : a.matchId > b.matchId ? 1 : 0));
-
-    // 每个已 finalized round 必须完整
-    const expectedCount = EXPECTED_MATCH_COUNT[round as MajorSwissRound];
-    if (roundMatches.length !== expectedCount) {
-      throw new Error(
-        `finalized round ${round} is incomplete: expected ${expectedCount} matches, got ${roundMatches.length}`,
-      );
-    }
-
-    // 轮开始时 snapshot record（用于 same-W-L 校验）
-    const recordBeforeRound = new Map<string, MajorSwissRecord>();
-    for (const state of states.values()) {
-      recordBeforeRound.set(state.teamId, { wins: state.wins, losses: state.losses });
-    }
-
-    // 参与者验证：active、每队恰好一次、same W-L record
-    const participants = new Set<string>();
-    for (const match of roundMatches) {
-      const teamA = states.get(match.entryAId)!;
-      const teamB = states.get(match.entryBId)!;
-      if (teamA.status !== "active" || teamB.status !== "active") {
-        throw new Error(`round ${round} match ${match.matchId} includes a non-active team`);
-      }
-      if (participants.has(match.entryAId) || participants.has(match.entryBId)) {
-        throw new Error(`round ${round} includes a team more than once`);
-      }
-      participants.add(match.entryAId);
-      participants.add(match.entryBId);
-
-      const recordA = recordBeforeRound.get(match.entryAId)!;
-      const recordB = recordBeforeRound.get(match.entryBId)!;
-      if (recordA.wins !== recordB.wins || recordA.losses !== recordB.losses) {
-        throw new Error(
-          `round ${round} match ${match.matchId} is cross-record ` +
-            `(${recordA.wins}-${recordA.losses} vs ${recordB.wins}-${recordB.losses})`,
-        );
-      }
-    }
-
-    // 每个当时 active team 恰好参加一次
-    let activeCount = 0;
-    for (const state of states.values()) {
-      if (state.status === "active") activeCount += 1;
-    }
-    if (participants.size !== activeCount) {
-      throw new Error(
-        `finalized round ${round} is incomplete: ${participants.size} participants but ${activeCount} active teams`,
-      );
-    }
-
-    // 应用结果
-    for (const match of roundMatches) {
-      const winner = states.get(match.winnerId)!;
-      const loserId = match.winnerId === match.entryAId ? match.entryBId : match.entryAId;
-      const loser = states.get(loserId)!;
-      winner.wins += 1;
-      loser.losses += 1;
-      winner.opponents.push(loserId);
-      loser.opponents.push(winner.teamId);
-    }
-
-    for (const state of states.values()) {
-      state.status = computeStatus(state.wins, state.losses);
+    const actual = official.filter((match) => match.round === round).length;
+    const expected = EXPECTED_MATCH_COUNT[round as MajorSwissRound];
+    if (actual !== expected) {
+      throw new Error(`finalized round ${round} is incomplete: expected ${expected} matches, got ${actual}`);
     }
   }
 
-  // Difficulty Score：所有 16 队重新计算（含 advanced / eliminated，不冻结）
-  for (const state of states.values()) {
-    let difficulty = 0;
-    for (const opponentId of state.opponents) {
-      const opponent = states.get(opponentId)!;
-      difficulty += opponent.wins - opponent.losses;
-    }
-    state.difficultyScore = difficulty;
-  }
-
-  // currentStageSeed：wins DESC, losses ASC, difficultyScore DESC, initialStageSeed ASC
-  const ranked = [...states.values()].sort(
-    (a, b) =>
-      b.wins - a.wins ||
-      a.losses - b.losses ||
-      b.difficultyScore - a.difficultyScore ||
-      a.initialStageSeed - b.initialStageSeed,
-  );
-  const teams = ranked.map((state, index) => ({
-    teamId: state.teamId,
-    initialStageSeed: state.initialStageSeed,
-    currentStageSeed: index + 1,
-    wins: state.wins,
-    losses: state.losses,
-    difficultyScore: state.difficultyScore,
-    status: state.status,
-    opponents: [...state.opponents],
+  const shared = projectSwissStage({
+    entrants: entrants.map((entrant) => ({ teamId: entrant.teamId, initialSeed: entrant.initialStageSeed })),
+    matches: official,
+    completedRound: finalizedRound,
+    config: { winThreshold: MAJOR_SWISS_WIN_THRESHOLD, lossThreshold: MAJOR_SWISS_LOSS_THRESHOLD },
+  });
+  const teams: MajorSwissTeamState[] = shared.teams.map((team) => ({
+    teamId: team.teamId,
+    initialStageSeed: team.initialSeed,
+    currentStageSeed: team.currentSeed,
+    wins: team.wins,
+    losses: team.losses,
+    difficultyScore: team.buchholz,
+    status: team.status,
+    opponents: [...team.opponents],
   }));
 
   return {
@@ -424,7 +320,7 @@ export function projectMajorSwissStage(input: {
     active: teams.filter((team) => team.status === "active"),
     advanced: teams.filter((team) => team.status === "advanced"),
     eliminated: teams.filter((team) => team.status === "eliminated"),
-    isComplete: finalizedRound === MAJOR_SWISS_MAX_ROUND,
+    isComplete: shared.isComplete && finalizedRound === MAJOR_SWISS_MAX_ROUND,
   };
 }
 
@@ -517,19 +413,6 @@ export function getMajorSwissRequiredFormat(
  * 每层取 highest seed，从 lowest 向 higher 尝试 non-rematch candidate。
  * 用于 feasibility-aware high-low：候选对手必须保证剩余队伍仍可完整配对。
  */
-function hasCompleteNonRematchMatching(teams: readonly MajorSwissTeamState[]): boolean {
-  if (teams.length === 0) return true;
-  if (teams.length % 2 !== 0) return false;
-
-  const higher = teams[0];
-  for (let i = teams.length - 1; i >= 1; i -= 1) {
-    if (teams[i].opponents.includes(higher.teamId)) continue;
-    const rest = teams.filter((_, index) => index !== 0 && index !== i);
-    if (hasCompleteNonRematchMatching(rest)) return true;
-  }
-  return false;
-}
-
 // ── 下一轮配对 ──────────────────────────────────────────
 
 export function generateNextMajorSwissRound(input: {
@@ -552,15 +435,20 @@ export function generateNextMajorSwissRound(input: {
   const nextRound = (projection.finalizedRound + 1) as MajorSwissRound;
 
   // 按 exact record 分组：`${wins}-${losses}`
+  const majorTeamById = new Map(projection.active.map((team) => [team.teamId, team]));
+  const sharedTeams: SwissTeamState[] = projection.active.map((team) => ({
+    teamId: team.teamId,
+    initialSeed: team.initialStageSeed,
+    currentSeed: team.currentStageSeed,
+    wins: team.wins,
+    losses: team.losses,
+    buchholz: team.difficultyScore,
+    status: team.status,
+    opponents: team.opponents,
+  }));
   const groups = new Map<string, MajorSwissTeamState[]>();
-  for (const team of projection.active) {
-    const key = `${team.wins}-${team.losses}`;
-    const group = groups.get(key);
-    if (group === undefined) {
-      groups.set(key, [team]);
-    } else {
-      group.push(team);
-    }
+  for (const group of groupSwissByRecord(sharedTeams)) {
+    groups.set(`${group.record.wins}-${group.record.losses}`, group.teams.map((team) => majorTeamById.get(team.teamId)!));
   }
 
   // 校验 active distribution（不符合即 throw，不 repair）
@@ -595,16 +483,23 @@ export function generateNextMajorSwissRound(input: {
 
     if (nextRound === 1) {
       // R1：initial stage seed 1v9 .. 8v16
-      for (let i = 0; i < MAJOR_SWISS_TEAM_COUNT / 2; i += 1) {
-        const higher = sortedBySeed[i];
-        const lower = sortedBySeed[i + MAJOR_SWISS_TEAM_COUNT / 2];
+      for (const pair of pairSwissTopHalfBottomHalf(sortedBySeed.map((team) => ({
+        teamId: team.teamId,
+        initialSeed: team.initialStageSeed,
+        currentSeed: team.currentStageSeed,
+        wins: team.wins,
+        losses: team.losses,
+        buchholz: team.difficultyScore,
+        status: team.status,
+        opponents: team.opponents,
+      })))) {
         pairings.push({
           round: nextRound,
           record: { ...record },
-          higherSeedTeamId: higher.teamId,
-          lowerSeedTeamId: lower.teamId,
-          higherSeed: higher.currentStageSeed,
-          lowerSeed: lower.currentStageSeed,
+          higherSeedTeamId: pair.higherSeedTeamId,
+          lowerSeedTeamId: pair.lowerSeedTeamId,
+          higherSeed: pair.higherSeed,
+          lowerSeed: pair.lowerSeed,
           format: getMajorSwissRequiredFormat(stageMatchFormat, record),
           pairingRule: "initial",
         });
@@ -614,31 +509,23 @@ export function generateNextMajorSwissRound(input: {
       // highest 优先 lowest feasible non-rematch opponent：
       // candidate 必须满足「选中后剩余队伍仍存在完整 zero-rematch matching」，
       // 否则继续向 higher seed 尝试。整个 group 确实不存在完整 matching 才 fail-closed。
-      const available = [...sortedBySeed];
-      while (available.length > 0) {
-        const higher = available.shift()!;
-        let lowerIndex = -1;
-        for (let i = available.length - 1; i >= 0; i -= 1) {
-          if (available[i].opponents.includes(higher.teamId)) continue;
-          const rest = available.filter((_, index) => index !== i);
-          if (hasCompleteNonRematchMatching(rest)) {
-            lowerIndex = i;
-            break;
-          }
-        }
-        if (lowerIndex === -1) {
-          throw new Error(
-            `no complete zero-rematch pairing exists for the ${record.wins}-${record.losses} group`,
-          );
-        }
-        const [lower] = available.splice(lowerIndex, 1);
+      for (const pair of pairSwissHighLowZeroRematch(sortedBySeed.map((team) => ({
+        teamId: team.teamId,
+        initialSeed: team.initialStageSeed,
+        currentSeed: team.currentStageSeed,
+        wins: team.wins,
+        losses: team.losses,
+        buchholz: team.difficultyScore,
+        status: team.status,
+        opponents: team.opponents,
+      })))) {
         pairings.push({
           round: nextRound,
           record: { ...record },
-          higherSeedTeamId: higher.teamId,
-          lowerSeedTeamId: lower.teamId,
-          higherSeed: higher.currentStageSeed,
-          lowerSeed: lower.currentStageSeed,
+          higherSeedTeamId: pair.higherSeedTeamId,
+          lowerSeedTeamId: pair.lowerSeedTeamId,
+          higherSeed: pair.higherSeed,
+          lowerSeed: pair.lowerSeed,
           format: getMajorSwissRequiredFormat(stageMatchFormat, record),
           pairingRule: "high-low",
         });

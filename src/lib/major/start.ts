@@ -17,7 +17,7 @@ import {
 import { AppError, ErrorCode } from "@/lib/errors";
 import { buildMajorOpeningPlan } from "@/lib/major/opening";
 import { evaluateMajorPrestartReadiness } from "@/lib/major/prestart";
-import { assertPrestartEntryCoherenceInTx } from "@/lib/major/prestart-entry";
+import { assertPrestartEntryCoherenceInTx } from "@/lib/event-rosters/coherence";
 import { ensureMajorPrestartStateInTx } from "@/lib/major/prestart-state";
 import { freezeAffiliationRules } from "@/lib/major/frozen-affiliation-rules";
 import { makeMajorRunSnapshotV4 } from "@/lib/major/run-snapshot";

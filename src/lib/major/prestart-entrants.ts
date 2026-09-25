@@ -5,6 +5,7 @@ import type { TxDb } from "@/db/client";
 import {
     competitionEntries,
   competitionEntryRosterMembers,
+  competitionQualificationRuns,
   eventRosterMembers,
   eventRosters,
   majorPrestartStates,
@@ -15,9 +16,10 @@ import {
 } from "@/db/schema";
 import { validateApprovedCompetitionEntryRosterInTx } from "@/lib/competition-entries/commands";
 import { getStandardMajorDefinition, type StandardMajorDefinition } from "@/lib/major/standard";
+import { getCompetitionQualificationFinalEntryIdsInTx } from "@/lib/competition-qualification/runtime";
 import { AppError, ErrorCode } from "@/lib/errors";
-import { assertPrestartEntryCoherenceInTx, type PrestartEntryCoherence } from "@/lib/major/prestart-entry";
-import { syncApprovedRosterToEventRosterInTx } from "@/lib/major/prestart-roster";
+import { assertPrestartEntryCoherenceInTx, type PrestartEntryCoherence } from "@/lib/event-rosters/coherence";
+import { syncApprovedRosterToEventRosterInTx } from "@/lib/event-rosters/owner";
 import { assertMajorPrestartEntrantsMutable, ensureMajorPrestartStateInTx } from "@/lib/major/prestart-state";
 import {
   buildFrozenSetFingerprint,
@@ -74,8 +76,22 @@ export async function selectMajorEntrantsAndSyncRostersInTx(
     .where(and(eq(competitionEntries.competitionId, season.id), eq(competitionEntries.registrationStatus, "approved")))
     .orderBy(asc(competitionEntries.id))
     .for("update");
-  if (approvedEntries.length > entrantCapacity && selectedEntryIds.length !== entrantCapacity) {
-    throw new AppError(ErrorCode.VALIDATION_FAILED, `当前有 ${approvedEntries.length} 支已批准队伍，最终正式参赛队必须恰好选择 ${entrantCapacity} 支。 `);
+  const [qualificationRun] = await tx.select().from(competitionQualificationRuns)
+    .where(eq(competitionQualificationRuns.seasonId, season.id)).for("update");
+  let requiredEntryIds: string[];
+  if (qualificationRun) {
+    requiredEntryIds = await getCompetitionQualificationFinalEntryIdsInTx(tx, qualificationRun);
+  } else if (approvedEntries.length === entrantCapacity) {
+    requiredEntryIds = approvedEntries.map((entry) => entry.id);
+  } else if (approvedEntries.length < entrantCapacity) {
+    throw new AppError(ErrorCode.VALIDATION_FAILED, `当前只有 ${approvedEntries.length} 支已批准队伍，必须达到正赛容量 ${entrantCapacity} 支后才能确认正式参赛队。 `);
+  } else {
+    throw new AppError(ErrorCode.VALIDATION_FAILED, "已批准队伍超过正赛容量，请先完成 Play-in 再确认正赛参赛队。 ");
+  }
+  const requiredSet = new Set(requiredEntryIds);
+  if (selectedEntryIds.length !== requiredEntryIds.length ||
+      selectedEntryIds.some((entryId) => !requiredSet.has(entryId))) {
+    throw new AppError(ErrorCode.VALIDATION_FAILED, "正赛参赛队必须与全部已批准队伍或 Play-in 晋级结果完全一致，不能手动替换。 ");
   }
   const approvedById = new Map(approvedEntries.map((entry) => [entry.id, entry]));
   for (const entryId of selectedEntryIds) {

@@ -80,7 +80,7 @@ Public profile routes compose server-only read models; scope selection and deriv
 | 体系 | 参与模型 | 专属运行时 |
 | --- | --- | --- |
 | Rivals | 个人报名后形成赛事原生 CompetitionEntry | 投票、选秀、循环赛/双败流程 |
-| Major | 长期 Team 创建 CompetitionEntry | 赛前冻结、managed StageRun、Swiss/Playoffs、恢复与赛后事实 |
+| Major | 长期 Team 创建 CompetitionEntry | Qualification、赛前冻结、managed StageRun、Swiss/Playoffs、恢复与赛后事实 |
 
 具体赛制属于赛事政策和 stage/runtime owner，不在架构文档复制当前轮次、人数或 BO 数字。
 
@@ -106,7 +106,7 @@ Major runtime 的阶段参与者和已完成比赛是推进依据；standings、
 
 通用 Stage 的 logical identity 是 `(seasonId, StageConfig.key)`；`StageConfig.name` 只用于展示。`brackets-manager` 只能经 `src/lib/bracket/` adapter 使用，每个 provider-backed Stage 独立拥有 `(competition_id, stage_key)` 状态，provider stage name 和 numeric participant id 不得扩散成领域 contract。参与者必须携带稳定的 `rivalhubEntryId`，比赛解析只消费该 metadata。
 
-Major Swiss 不经过通用 provider adapter：它由 `majorStageEntrants`、official managed matches 和 StageRun 的 `finalizedRound` 投影，配对与晋级继续由 `src/lib/major/swiss.ts` / runtime owner 决定。
+Major Swiss 不经过通用 provider adapter：它由 `majorStageEntrants`、official managed matches 和 StageRun 的 `finalizedRound` 投影，配对与晋级继续由 `src/lib/major/swiss.ts` / runtime owner 决定。Qualification 使用独立 run 与 Qualification-owned manual matches；它不属于 Season StagePlan 或 Major StageRun。`src/lib/swiss/` 拥有通用 Swiss 投影、排序和可行配对，Qualification 与 Major 分别保留自己的阈值、轮次和赛事政策。
 
 ## Security and operations
 

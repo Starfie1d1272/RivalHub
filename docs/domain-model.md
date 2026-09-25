@@ -134,11 +134,13 @@ approved CompetitionEntry candidates
 
 `major_stage_runs` 是已启动阶段的运行时身份并冻结该阶段需要的规则、entrant 和 eligibility context；`major_stage_entrants` 是阶段参与者真相。后续推进依赖 StageRun + 已完成比赛，而不是 UI standings。
 
-Managed Major 的唯一 profile owner 从保存的 StagePlan 识别 Major-24 或 Major-32；默认模板继续使用 Major-32。开赛时 StagePlan 随 StageRun 冻结，阶段转换、种子批次、开赛预览和最终名次都从该 frozen plan 派生，不从 mutable Season 配置或展示文字推断。
+Managed Major 的唯一 profile owner 从保存的 StagePlan 识别 Major-24 或 Major-32；默认模板继续使用 Major-32。报名阶段只有在未创建 Qualification run、正赛 entrants/seeds/StageRun 且未锁定赛前事实时，才能通过受控 owner 更新 profile。开赛时 StagePlan 随 StageRun 冻结，阶段转换、种子批次、开赛预览和最终名次都从该 frozen plan 派生，不从 mutable Season 配置或展示文字推断。
+
+Qualification 是独立于 Major StagePlan 的预赛运行事实：`competition_qualification_runs` 冻结赛制配置、容量关系与生命周期，`competition_qualification_entrants` 冻结候选集合和预排名；带 `qualification_run_id` 的 `play-in` Match 保持 manual ownership，不关联 Major StageRun、managed key 或 bracket node。正赛候选由冻结的直通队和已完成 Qualification 的晋级队共同派生，不能由管理员替换或补足。Short Swiss 的通用战绩、BU、状态和配对计算由共享 Swiss core 投影，Qualification policy 只提供本赛事阈值与轮次规则。
 
 通用阶段的 identity 是 `(seasonId, StageConfig.key)`，name 只负责展示。provider bracket state 按 `(competition_id, stage_key)` 隔离；participant 的 RivalHub identity 必须来自 `rivalhubEntryId`，不能从名称或 participant 数组位置反推。`matches` 的 provider node 唯一性也按 `(season_id, stage, bracket_node_id)` 约束，允许不同阶段复用 provider numeric node。
 
-Major Swiss 的 public/admin read model 只从 `major_stage_entrants`、`matches(ownership = major_stage)` 与 `major_stage_runs.finalized_round` 投影。
+Major Swiss 的 public/admin read model 只从 `major_stage_entrants`、`matches(ownership = major_stage)` 与 `major_stage_runs.finalized_round` 投影。Qualification Swiss read model 只从该 run 的冻结 entrants 与关联的 Qualification-owned matches 投影；无效或不完整的 round facts 不生成 standings。
 
 历史 snapshot 保留当时事实，即使 live profile、目录或政策后来变化也不重解释。
 

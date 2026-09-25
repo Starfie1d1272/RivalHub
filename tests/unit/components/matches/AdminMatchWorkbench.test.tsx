@@ -43,6 +43,7 @@ function data(status: Match["status"]) {
     bracketNodeId: null,
     ownership: "major_stage" as const,
     majorStageRunId: "run-1",
+    qualificationRunId: null,
     managedKey: "swiss:1:1",
     scheduledAt: new Date("2026-09-05T02:00:00Z"),
     completionDeadline: null,

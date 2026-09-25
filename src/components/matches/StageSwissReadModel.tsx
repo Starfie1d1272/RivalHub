@@ -1,8 +1,9 @@
 import Link from "next/link";
-import type { MajorSwissStageReadModel, StageSwissRoundColumn } from "@/lib/matches/stage-read-model";
+import { HelpTooltip } from "@/components/rivalhub/HelpTooltip";
+import type { SwissStageReadModel, StageSwissRoundColumn } from "@/lib/matches/stage-read-model";
 
 interface StageSwissReadModelProps {
-  data: MajorSwissStageReadModel;
+  data: SwissStageReadModel;
   seasonSlug: string;
 }
 
@@ -23,7 +24,13 @@ export function StageSwissReadModel({ data, seasonSlug }: StageSwissReadModelPro
       <div className="overflow-x-auto rounded border border-[var(--color-border)]">
         <table className="w-full min-w-[640px] text-sm">
           <thead className="bg-[var(--color-panel-hi)] text-left text-xs text-[var(--color-fg-mid)]">
-            <tr><th className="px-3 py-2">种子</th><th className="px-3 py-2">队伍</th><th className="px-3 py-2">战绩</th><th className="px-3 py-2">状态</th></tr>
+            <tr>
+              <th className="px-3 py-2">种子</th>
+              <th className="px-3 py-2">队伍</th>
+              <th className="px-3 py-2">战绩</th>
+              <th className="px-3 py-2"><span className="inline-flex items-center gap-1">BU<HelpTooltip label="Buchholz 说明" content="BU（Buchholz）为所有对手当前胜场减负场之和；胜负相同时按 BU 从高到低排序。" /></span></th>
+              <th className="px-3 py-2">状态</th>
+            </tr>
           </thead>
           <tbody>
             {data.competitionEntries.map((entry) => (
@@ -31,6 +38,7 @@ export function StageSwissReadModel({ data, seasonSlug }: StageSwissReadModelPro
                 <td className="px-3 py-2 tabular-nums">{entry.seed}</td>
                 <td className="px-3 py-2">{entry.teamName}</td>
                 <td className="px-3 py-2 tabular-nums">{entry.wins}:{entry.losses}</td>
+                <td className="px-3 py-2 tabular-nums">{entry.difficultyScore}</td>
                 <td className="px-3 py-2">{entry.status === "advanced" ? "晋级" : entry.status === "eliminated" ? "淘汰" : "进行中"}</td>
               </tr>
             ))}

@@ -3,6 +3,7 @@ export { PageHeader, SectionHeader, type PageHeaderProps, type SectionHeaderProp
 export { PageLayout, Section, type PageLayoutVariant } from "./Layout";
 export { Stat, MiniStat } from "./Stat";
 export { Marker } from "./Marker";
+export { HelpTooltip } from "./HelpTooltip";
 export { Field } from "./Field";
 export { StatusBanner } from "./StatusBanner";
 export { InlineConfirm } from "./InlineConfirm";

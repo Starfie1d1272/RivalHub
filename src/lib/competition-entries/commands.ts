@@ -42,6 +42,7 @@ import { getDisplayName } from "@/lib/identity/display-name";
 import { canMutateCompetitionEntryRoster } from "@/lib/competition-entries/remediation";
 import { requestCompetitionEntryRosterChangeInTx } from "@/lib/competition-entries/roster-change";
 import { reconcileMajorPrestartRosterAfterApprovalInTx } from "@/lib/major/prestart-roster";
+import { reconcileQualificationEntryAfterApprovalInTx } from "@/lib/competition-qualification/runtime";
 import { normalizeAffiliationRules, normalizeTeamRegistrationConfig } from "@/lib/seasons/compatibility";
 import { assessEntryRosterReadiness } from "@/lib/competition-entries/readiness";
 import { normalizePerfectTeamId } from "@/lib/competition-entries/perfect-team-id";
@@ -579,6 +580,7 @@ export async function reviewCompetitionEntryInTx(tx: TxDb, input: { entryId: str
     if (input.decision === "approved") {
       await tx.update(competitionEntryRosterRevisions).set({ status: "approved", approvedAt: now }).where(eq(competitionEntryRosterRevisions.id, revision.id));
       await reconcileMajorPrestartRosterAfterApprovalInTx(tx, { seasonId: season.id, entryId: entry.id, actorId: input.actorId });
+      await reconcileQualificationEntryAfterApprovalInTx(tx, { seasonId: season.id, entryId: entry.id, actorId: input.actorId });
     }
     if (input.decision === "rejected") await tx.delete(competitionEntryActiveClaims).where(eq(competitionEntryActiveClaims.entryId, entry.id));
   }

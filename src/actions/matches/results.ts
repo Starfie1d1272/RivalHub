@@ -30,6 +30,7 @@ import {
   validateMapScore,
 } from "@/lib/matches/result-rules";
 import { traceOperation } from "@/lib/observability/server";
+import { completeCompetitionQualificationIfReadyInTx } from "@/lib/competition-qualification/runtime";
 
 /** Persist provider-resolved nodes through the fail-closed bracket boundary. */
 async function insertResolvedBracketMatches(
@@ -211,6 +212,10 @@ export async function recordMapResult(
           completedAt: new Date(),
           updatedAt: new Date(),
         }).where(eq(matches.id, matchId));
+
+        if (locked.qualificationRunId) {
+          await completeCompetitionQualificationIfReadyInTx(tx, locked.qualificationRunId);
+        }
 
         if (bracketState && locked.bracketNodeId) {
           const { updatedData, newResolvedMatches } = await advanceStageBracket(
@@ -444,6 +449,9 @@ export async function deleteMatch(matchId: string): Promise<ActionResult<void>> 
     if (match.bracketNodeId) {
       throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "无法删除 Bracket 自动生成的比赛");
     }
+    if (match.qualificationRunId) {
+      throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "Play-in 比赛属于 Qualification 运行记录，不能单独删除。");
+    }
 
     const season = await getSeasonOrThrow(match.seasonId);
 
@@ -656,16 +664,19 @@ export async function forfeitMatch(
       throw new AppError(ErrorCode.VALIDATION_FAILED, "弃赛队伍不属于本场比赛");
     }
 
-    const winnerScore = FORFEIT_WINNER_SCORE[match.format];
-    const isLoserA = loserTeamId === match.entryAId;
-    const scoreA = isLoserA ? 0 : winnerScore;
-    const scoreB = isLoserA ? winnerScore : 0;
-
     const season = await getSeasonOrThrow(match.seasonId);
     let finishedSlug: string | null = null;
 
     await db.transaction(async (tx) => {
-      await assertSeasonAllowsTournamentMutationInTx(tx, match.seasonId);
+      const locked = await lockMatchInTx(tx, matchId);
+      assertMatchTransition(locked.status, "finished");
+      if (loserTeamId !== locked.entryAId && loserTeamId !== locked.entryBId) {
+        throw new AppError(ErrorCode.VALIDATION_FAILED, "弃赛队伍不属于本场比赛");
+      }
+      const lockedWinnerScore = FORFEIT_WINNER_SCORE[locked.format];
+      const lockedLoserIsA = loserTeamId === locked.entryAId;
+      const lockedScoreA = lockedLoserIsA ? 0 : lockedWinnerScore;
+      const lockedScoreB = lockedLoserIsA ? lockedWinnerScore : 0;
       await tx.delete(matchMaps).where(
         and(eq(matchMaps.matchId, matchId), isNull(matchMaps.scoreA), isNull(matchMaps.scoreB))
       );
@@ -673,8 +684,8 @@ export async function forfeitMatch(
       await tx
         .update(matches)
         .set({
-          scoreA,
-          scoreB,
+          scoreA: lockedScoreA,
+          scoreB: lockedScoreB,
           status: "finished",
           isForfeit: true,
           completedAt: new Date(),
@@ -682,19 +693,23 @@ export async function forfeitMatch(
         })
         .where(eq(matches.id, matchId));
 
-      const bracketState = match.bracketNodeId
-        ? await loadStageBracketState(tx, match.seasonId, match.stage)
+      if (locked.qualificationRunId) {
+        await completeCompetitionQualificationIfReadyInTx(tx, locked.qualificationRunId);
+      }
+
+      const bracketState = locked.bracketNodeId
+        ? await loadStageBracketState(tx, locked.seasonId, locked.stage)
         : null;
-      if (bracketState && match.bracketNodeId) {
+      if (bracketState && locked.bracketNodeId) {
         const { updatedData, newResolvedMatches } = await advanceStageBracket(
-          match.stage,
-          match.bracketNodeId,
-          { scoreA, scoreB },
+          locked.stage,
+          locked.bracketNodeId,
+          { scoreA: lockedScoreA, scoreB: lockedScoreB },
           bracketState,
         );
-        await saveStageBracketState(tx, match.seasonId, match.stage, updatedData);
+        await saveStageBracketState(tx, locked.seasonId, locked.stage, updatedData);
         await insertResolvedBracketMatches(
-          tx, match.seasonId, match.stage, newResolvedMatches,
+          tx, locked.seasonId, locked.stage, newResolvedMatches,
           normalizeStagePlan(season.stagePlan),
         );
       }
@@ -705,7 +720,7 @@ export async function forfeitMatch(
         seasonId: match.seasonId,
         action: "match.forfeit",
         actorId: auditActorId(session),
-        targetId: matchId,meta: { loserTeamId, scoreA, scoreB, format: match.format, reason: normalizedReason },
+        targetId: matchId,meta: { loserTeamId, scoreA: lockedScoreA, scoreB: lockedScoreB, format: locked.format, reason: normalizedReason },
       });
     });
 

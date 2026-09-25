@@ -67,6 +67,7 @@ function overviewData(): AdminMatchOverviewData {
     stageReadModels: new Map(),
     commentaryEffectiveness: [],
     unconfiguredMatches: [],
+    qualificationRun: null,
     standingsByStage: new Map(),
     batchDeadlineGroups: [],
     canGenerate: false,

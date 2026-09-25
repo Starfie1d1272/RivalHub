@@ -76,6 +76,7 @@ export interface MajorStrengthTeam {
   available: boolean;
   blockers: string[];
   recommendationRank: number | null;
+  displayOrder: number | null;
   tieState: MajorStrengthTieState;
   starters: MajorStrengthStarter[];
 }
@@ -98,8 +99,16 @@ export interface MajorPrestartPageData {
   readiness: MajorPrestartReadiness;
   management: {
     seasonId: string;
+    seasonSlug: string;
+    seasonStatus: Season["status"];
+    managedProfileId: "major-24" | "major-32";
+    registrationClosesAt: string | null;
+    registrationClosed: boolean;
     entrantCapacity: number;
     entrantsLocked: boolean;
+    approvedCandidateCount: number;
+    pendingReviewCount: number;
+    initialPreliminaryOrderEntryIds: string[];
     strengthPreview: MajorPrestartStrengthPreview;
     approvedCandidates: Array<{
       id: string;
@@ -123,6 +132,31 @@ export interface MajorPrestartPageData {
       rosterStatus: "preparing" | "confirmed" | "frozen";
       roster: Array<{ userId: string; label: string; isPrimaryStarter: boolean; educationVerified: boolean }>;
     }>;
+    qualification: {
+      run: {
+        id: string;
+        format: "direct_bo3" | "short_swiss_2w2l";
+        targetEntrantCount: number;
+        candidateCount: number;
+        directEntryCount: number;
+        playInEntryCount: number;
+        qualifierCount: number;
+        startedAt: string | null;
+        completedAt: string | null;
+        entrants: Array<{
+          entryId: string;
+          teamName: string;
+          preliminarySeed: number;
+          route: "direct" | "play-in";
+          wins: number;
+          losses: number;
+          status: "active" | "advanced" | "eliminated" | "not_started";
+        }>;
+        currentRound: number;
+        matchCount: number;
+        finishedMatchCount: number;
+      } | null;
+    };
   };
   seedManagement: {
     seasonId: string;

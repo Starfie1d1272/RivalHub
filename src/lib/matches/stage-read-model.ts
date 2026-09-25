@@ -2,7 +2,8 @@ import { and, asc, eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { competitionEntries, majorStageEntrants, majorStageRuns, majorTournamentEntrants, matches } from "@/db/schema";
 import { parseMajorRunSnapshot } from "@/lib/major/run-snapshot";
-import { projectMajorSwissStage, projectMajorSwissStageByRound, type MajorSwissFinalizedRound, type MajorSwissMatchFact, type MajorSwissStatus } from "@/lib/major/swiss";
+import { projectMajorSwissStage, projectMajorSwissStageByRound, type MajorSwissFinalizedRound, type MajorSwissMatchFact } from "@/lib/major/swiss";
+import type { SwissStatus } from "@/lib/swiss/types";
 
 export interface StageSwissMatchRow {
   matchId: string;
@@ -28,10 +29,10 @@ export interface StageSwissRoundColumn {
   groups: StageSwissRecordGroup[];
 }
 
-export interface MajorSwissStageReadModel {
+export interface SwissStageReadModel {
   stageName: string;
   stageKey: string;
-  finalizedRound: MajorSwissFinalizedRound;
+  finalizedRound: number;
   teamCount: number;
   advanceCount: number;
   rounds: StageSwissRoundColumn[];
@@ -43,9 +44,11 @@ export interface MajorSwissStageReadModel {
     losses: number;
     /** Canonical Swiss Buchholz/difficulty fact from the domain projection. */
     difficultyScore: number;
-    status: MajorSwissStatus;
+    status: SwissStatus;
   }>;
 }
+
+export type MajorSwissStageReadModel = SwissStageReadModel;
 
 /**
  * Public/admin Swiss projection. StageRun membership, managed match facts, and
@@ -54,7 +57,7 @@ export interface MajorSwissStageReadModel {
 export async function loadMajorSwissStageReadModel(
   seasonId: string,
   stageKey: string,
-): Promise<MajorSwissStageReadModel | null> {
+): Promise<SwissStageReadModel | null> {
   const [stageRun] = await db.select().from(majorStageRuns)
     .where(and(eq(majorStageRuns.seasonId, seasonId), eq(majorStageRuns.stageKey, stageKey)))
     .limit(1);
