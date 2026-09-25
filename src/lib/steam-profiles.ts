@@ -93,34 +93,33 @@ export async function loadOrFetchSteamProfiles(
   const missing = values.filter((steam64) => !cached.has(steam64));
   if (missing.length === 0) return cached;
 
+  let result;
   try {
-    const result = await getSteamPlayerSummaries(missing);
-    if (result.status === "ok" && result.profiles.size > 0) {
-      const fetchedProfiles = [...result.profiles.values()];
-      for (const profile of fetchedProfiles) {
-        cached.set(profile.steam64, profile);
-      }
-      const fetchedAt = new Date();
-      await database.insert(steamProfiles).values(fetchedProfiles.map((p) => ({
-        steam64: p.steam64,
-        personaName: p.personaName,
-        profileUrl: p.profileUrl,
-        avatarUrl: p.avatarUrl,
-        fetchedAt,
-      }))).onConflictDoUpdate({
-        target: steamProfiles.steam64,
-        set: {
-          personaName: sql`excluded.persona_name`,
-          profileUrl: sql`excluded.profile_url`,
-          avatarUrl: sql`excluded.avatar_url`,
-          fetchedAt: sql`excluded.fetched_at`,
-        },
-      });
-    }
+    result = await getSteamPlayerSummaries(missing);
   } catch {
-    // Provider failure graceful degrade: do not block operator review
+    // Provider failure graceful degrade: do not block operator review.
+    return cached;
   }
+  if (result.status !== "ok" || result.profiles.size === 0) return cached;
 
+  const fetchedProfiles = [...result.profiles.values()];
+  const fetchedAt = new Date();
+  await database.insert(steamProfiles).values(fetchedProfiles.map((p) => ({
+    steam64: p.steam64,
+    personaName: p.personaName,
+    profileUrl: p.profileUrl,
+    avatarUrl: p.avatarUrl,
+    fetchedAt,
+  }))).onConflictDoUpdate({
+    target: steamProfiles.steam64,
+    set: {
+      personaName: sql`excluded.persona_name`,
+      profileUrl: sql`excluded.profile_url`,
+      avatarUrl: sql`excluded.avatar_url`,
+      fetchedAt: sql`excluded.fetched_at`,
+    },
+  });
+  for (const profile of fetchedProfiles) cached.set(profile.steam64, profile);
   return cached;
 }
 
