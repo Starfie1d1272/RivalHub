@@ -425,23 +425,20 @@ async function insertRankFacts(client: PoolClient, scenario: ScenarioDefinition)
     [deterministicUuid(`${scenario.scenarioId}:fact:${key}:previous`), userId, "season_peak", scenario.previousSeasonKey, scenario.fixtureRank, "1.90", scenario.fixtureStars],
     [deterministicUuid(`${scenario.scenarioId}:fact:${key}:current`), userId, "season_peak", scenario.currentSeasonKey, scenario.fixtureRank, "1.80", scenario.fixtureStars],
   ]);
-  for (const [id, userId, kind, seasonKey, rank, rating, stars] of facts) {
-    await client.query(
-      "INSERT INTO competitive_rank_facts (id, user_id, platform, kind, platform_season_key, rank, rating, stars) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
-      [id, userId, scenario.platform, kind, seasonKey, rank, rating, stars],
-    );
-  }
+  const { sql: valuesSql, values } = parameterizedValues(facts.map(([id, userId, kind, seasonKey, rank, rating, stars]) => [
+    id, userId, scenario.platform, kind, seasonKey, rank, rating, stars,
+  ]));
+  await client.query(
+    `INSERT INTO competitive_rank_facts (id, user_id, platform, kind, platform_season_key, rank, rating, stars) VALUES ${valuesSql}`,
+    values,
+  );
 }
 
 async function insertEducationVerifications(client: PoolClient, scenario: ScenarioDefinition): Promise<void> {
-  for (const account of scenario.accounts.filter(({ key }) => key !== "player1" && key !== "admin")) {
-    await client.query(
-      `INSERT INTO education_verifications (id, user_id, institution_id, academic_status, evidence_type, status, reviewed_by, reviewed_at)
-       SELECT $1, $2, id, 'enrolled', 'institutional_email', 'approved', 'local-browser-admin', now()
-       FROM institutions WHERE moe_institution_code = '4132010284'`,
-      [deterministicUuid(`${scenario.scenarioId}:education:${account.key}`), account.userId],
-    );
-  }
+  const verifications = scenario.accounts
+    .filter(({ key }) => key !== "player1" && key !== "admin")
+    .map((account) => [deterministicUuid(`${scenario.scenarioId}:education:${account.key}`), account.userId]);
+  await insertApprovedInstitutionalEmailVerifications(client, verifications);
 }
 
 function qualificationCandidateUsers(scenario: ScenarioDefinition): Array<{ key: string; userId: string; email: string }> {
@@ -456,62 +453,115 @@ function qualificationCandidateUsers(scenario: ScenarioDefinition): Array<{ key:
 }
 
 async function insertQualificationCandidateUsers(client: PoolClient, scenario: ScenarioDefinition): Promise<void> {
-  for (const [index, candidate] of qualificationCandidateUsers(scenario).entries()) {
+  const rows = qualificationCandidateUsers(scenario).map((candidate, index) => {
     const steam64 = `765611980${String(index + 1).padStart(8, "0")}`;
-    await client.query(
-      `INSERT INTO users (id, email, email_verified_at, display_name, perfect_name, steam64, qq)
-       VALUES ($1, $2, now(), $3, $4, $5, $6)`,
-      [candidate.userId, candidate.email, `Candidate ${candidate.key}`, `Candidate Perfect ${candidate.key}`, steam64, `743${String(index + 1).padStart(7, "0")}`],
-    );
-  }
+    return [candidate.userId, candidate.email, `Candidate ${candidate.key}`, `Candidate Perfect ${candidate.key}`, steam64, `743${String(index + 1).padStart(7, "0")}`];
+  });
+  const { sql: valuesSql, values } = parameterizedValues(rows, ["uuid", "text", "text", "text", "text", "text"]);
+  await client.query(
+    `INSERT INTO users (id, email, email_verified_at, display_name, perfect_name, steam64, qq)
+     SELECT v.id::uuid, v.email, now(), v.display_name, v.perfect_name, v.steam64, v.qq
+     FROM (VALUES ${valuesSql}) AS v(id, email, display_name, perfect_name, steam64, qq)`,
+    values,
+  );
 }
 
 async function insertQualificationCandidateFacts(client: PoolClient, scenario: ScenarioDefinition): Promise<void> {
-  for (const candidate of qualificationCandidateUsers(scenario)) {
-    await client.query(
-      `INSERT INTO education_verifications (id, user_id, institution_id, academic_status, evidence_type, status, reviewed_by, reviewed_at)
-       SELECT $1, $2, id, 'enrolled', 'institutional_email', 'approved', 'local-browser-admin', now()
-       FROM institutions WHERE moe_institution_code = '4132010284'`,
-      [deterministicUuid(`${scenario.scenarioId}:education:${candidate.key}`), candidate.userId],
-    );
-  }
+  const verifications = qualificationCandidateUsers(scenario)
+    .map((candidate) => [deterministicUuid(`${scenario.scenarioId}:education:${candidate.key}`), candidate.userId]);
+  await insertApprovedInstitutionalEmailVerifications(client, verifications);
+}
+
+async function insertApprovedInstitutionalEmailVerifications(client: PoolClient, rows: readonly (readonly unknown[])[]): Promise<void> {
+  if (rows.length === 0) return;
+  const { sql: valuesSql, values } = parameterizedValues(rows, ["uuid", "uuid"]);
+  await client.query(
+    `INSERT INTO education_verifications (id, user_id, institution_id, academic_status, evidence_type, status, reviewed_by, reviewed_at)
+     SELECT v.id::uuid, v.user_id::uuid, i.id, 'enrolled', 'institutional_email', 'approved', 'local-browser-admin', now()
+     FROM (VALUES ${valuesSql}) AS v(id, user_id)
+     JOIN institutions i ON i.moe_institution_code = '4132010284'`,
+    values,
+  );
 }
 
 async function insertQualificationCandidates(client: PoolClient, scenario: ScenarioDefinition): Promise<void> {
   const candidates = qualificationCandidateUsers(scenario);
+  const entries: unknown[][] = [];
+  const representativeChanges: unknown[][] = [];
+  const participants: unknown[][] = [];
+  const revisions: unknown[][] = [];
+  const rosterMembers: unknown[][] = [];
   for (let teamIndex = 0; teamIndex < 30; teamIndex += 1) {
     const entryId = deterministicUuid(`${scenario.scenarioId}:entry:${teamIndex + 1}`);
     const revisionId = deterministicUuid(`${scenario.scenarioId}:entry:${teamIndex + 1}:revision:1`);
     const members = candidates.slice(teamIndex * 5, teamIndex * 5 + 5);
     const representative = members[0]!;
-    await client.query(
-      `INSERT INTO competition_entries (
-         id, competition_id, source, name, logo_url, representative_user_id, perfect_team_id,
-         current_roster_revision_id, approved_roster_revision_id, registration_status, submitted_at, reviewed_at
-       ) VALUES ($1, $2, 'event_native', $3, $4, $5, $6, $7, $7, 'approved', now(), now())`,
-      [entryId, scenario.seasonId, `Qualification Entry ${String(teamIndex + 1).padStart(2, "0")}`, `https://local.test/${entryId}.png`, representative.userId, `fixture-${entryId}`, revisionId],
-    );
-    await client.query(
-      "INSERT INTO competition_entry_representative_changes (entry_id, from_user_id, to_user_id, changed_by_actor_id) VALUES ($1, NULL, $2, 'local-browser-fixture')",
-      [entryId, representative.userId],
-    );
-    const participantRows = members.map((member) => `('${entryId}', '${member.userId}', 'confirmed', now(), '${representative.userId}')`).join(",");
-    await client.query(
-      `INSERT INTO competition_entry_participants (entry_id, user_id, status, confirmed_at, invited_by_user_id) VALUES ${participantRows}`,
-    );
-    await client.query(
-      `INSERT INTO competition_entry_roster_revisions (id, entry_id, revision_number, status, created_by, approved_at)
-       VALUES ($1, $2, 1, 'approved', 'local-browser-fixture', now())`,
-      [revisionId, entryId],
-    );
-    const rosterRows = members.map((member) => `('${member.userId}', true)`).join(",");
-    await client.query(
-      `INSERT INTO competition_entry_roster_members (revision_id, participant_id, user_id, is_primary_starter)
-       SELECT '${revisionId}'::uuid, p.id, v.user_id::uuid, v.is_primary
-       FROM (VALUES ${rosterRows}) AS v(user_id, is_primary)
-       JOIN competition_entry_participants p ON p.entry_id = '${entryId}'::uuid AND p.user_id = v.user_id::uuid`,
-    );
+    entries.push([entryId, scenario.seasonId, `Qualification Entry ${String(teamIndex + 1).padStart(2, "0")}`, `https://local.test/${entryId}.png`, representative.userId, `fixture-${entryId}`, revisionId]);
+    representativeChanges.push([entryId, representative.userId]);
+    revisions.push([revisionId, entryId]);
+    for (const member of members) {
+      participants.push([entryId, member.userId, representative.userId]);
+      rosterMembers.push([entryId, revisionId, member.userId, true]);
+    }
   }
+
+  const entryValues = parameterizedValues(entries, ["uuid", "uuid", "text", "text", "uuid", "text", "uuid"]);
+  await client.query(
+    `INSERT INTO competition_entries (
+       id, competition_id, source, name, logo_url, representative_user_id, perfect_team_id,
+       current_roster_revision_id, approved_roster_revision_id, registration_status, submitted_at, reviewed_at
+     )
+     SELECT v.id::uuid, v.competition_id::uuid, 'event_native', v.name, v.logo_url, v.representative_user_id::uuid,
+       v.perfect_team_id, v.revision_id::uuid, v.revision_id::uuid, 'approved', now(), now()
+     FROM (VALUES ${entryValues.sql}) AS v(id, competition_id, name, logo_url, representative_user_id, perfect_team_id, revision_id)`,
+    entryValues.values,
+  );
+
+  const representativeValues = parameterizedValues(representativeChanges, ["uuid", "uuid"]);
+  await client.query(
+    `INSERT INTO competition_entry_representative_changes (entry_id, from_user_id, to_user_id, changed_by_actor_id)
+     SELECT v.entry_id::uuid, NULL, v.user_id::uuid, 'local-browser-fixture'
+     FROM (VALUES ${representativeValues.sql}) AS v(entry_id, user_id)`,
+    representativeValues.values,
+  );
+
+  const participantValues = parameterizedValues(participants, ["uuid", "uuid", "uuid"]);
+  await client.query(
+    `INSERT INTO competition_entry_participants (entry_id, user_id, status, confirmed_at, invited_by_user_id)
+     SELECT v.entry_id::uuid, v.user_id::uuid, 'confirmed', now(), v.invited_by_user_id::uuid
+     FROM (VALUES ${participantValues.sql}) AS v(entry_id, user_id, invited_by_user_id)`,
+    participantValues.values,
+  );
+
+  const revisionValues = parameterizedValues(revisions, ["uuid", "uuid"]);
+  await client.query(
+    `INSERT INTO competition_entry_roster_revisions (id, entry_id, revision_number, status, created_by, approved_at)
+     SELECT v.id::uuid, v.entry_id::uuid, 1, 'approved', 'local-browser-fixture', now()
+     FROM (VALUES ${revisionValues.sql}) AS v(id, entry_id)`,
+    revisionValues.values,
+  );
+
+  const rosterValues = parameterizedValues(rosterMembers, ["uuid", "uuid", "uuid", "boolean"]);
+  await client.query(
+    `INSERT INTO competition_entry_roster_members (revision_id, participant_id, user_id, is_primary_starter)
+     SELECT v.revision_id::uuid, p.id, v.user_id::uuid, v.is_primary
+     FROM (VALUES ${rosterValues.sql}) AS v(entry_id, revision_id, user_id, is_primary)
+     JOIN competition_entry_participants p ON p.entry_id = v.entry_id::uuid AND p.user_id = v.user_id::uuid`,
+    rosterValues.values,
+  );
+}
+
+function parameterizedValues(rows: readonly (readonly unknown[])[], casts?: readonly string[]): { sql: string; values: unknown[] } {
+  const columnCount = rows[0]?.length;
+  if (!columnCount || rows.some((row) => row.length !== columnCount) || (casts && casts.length !== columnCount)) {
+    throw new Error("fixture bulk insert rows must have the same non-zero column count");
+  }
+  const values: unknown[] = [];
+  const sql = rows.map((row) => `(${row.map((value, columnIndex) => {
+    values.push(value);
+    return `$${values.length}${casts ? `::${casts[columnIndex]}` : ""}`;
+  }).join(", ")})`).join(", ");
+  return { sql, values };
 }
 
 async function insertRejectedChsiVerification(client: PoolClient, scenario: ScenarioDefinition): Promise<void> {

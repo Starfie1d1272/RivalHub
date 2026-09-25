@@ -28,7 +28,7 @@ export function StageSwissReadModel({ data, seasonSlug }: StageSwissReadModelPro
               <th className="px-3 py-2">种子</th>
               <th className="px-3 py-2">队伍</th>
               <th className="px-3 py-2">战绩</th>
-              <th className="px-3 py-2"><span className="inline-flex items-center gap-1">BU<HelpTooltip label="Buchholz 说明" content="BU（Buchholz）为所有对手当前胜场减负场之和；胜负相同时按 BU 从高到低排序。" /></span></th>
+              <th className="px-3 py-2"><span className="inline-flex items-center gap-1">BU<HelpTooltip label="Buchholz 说明" content="BU（Buchholz）为所有对手当前胜场减负场之和；同战绩队伍按 BU 从高到低排名，并据此确定下一轮组内配对顺序，配对仍需满足不重赛约束。" /></span></th>
               <th className="px-3 py-2">状态</th>
             </tr>
           </thead>

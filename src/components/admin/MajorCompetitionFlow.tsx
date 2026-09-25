@@ -255,7 +255,7 @@ export function MajorCompetitionFlow({ data }: { data: ManagementData }) {
                   <td className="px-3 py-2">{entrant.teamName}</td>
                   <td className="px-3 py-2">{entrant.route === "direct" ? "直通正赛" : "Play-in"}</td>
                   <td className="px-3 py-2 tabular-nums">{entrant.wins}-{entrant.losses}</td>
-                  <td className="px-3 py-2">{entrant.status === "advanced" ? entrant.route === "direct" ? "直通正赛" : "Play-in 晋级" : entrant.status === "eliminated" ? "淘汰" : entrant.status === "not_started" ? "待开始" : "进行中"}</td>
+                  <td className="px-3 py-2">{entrant.route === "direct" ? "直通正赛" : entrant.status === "advanced" ? "Play-in 晋级" : entrant.status === "eliminated" ? "淘汰" : entrant.status === "not_started" ? "待开始" : "进行中"}</td>
                 </tr>)}</tbody>
               </table>
             </div>
