@@ -184,7 +184,10 @@ export function MajorPrestartManagement({ data }: { data: MajorPrestartManagemen
         </div>}
       </Panel>}
 
-      {candidatePanel}
+      {locked ? <details className="rounded-lg border border-[var(--color-border)]">
+        <summary className="cursor-pointer px-4 py-3 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]">查看已通过审核的候选队伍</summary>
+        <div className="p-4 pt-0">{candidatePanel}</div>
+      </details> : candidatePanel}
 
     </div>
   );
