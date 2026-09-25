@@ -23,6 +23,8 @@ export interface StatsDataColumn<T> {
   rankingSample?: (row: T) => number | null | undefined;
   render: (row: T, index: number) => ReactNode;
   className?: string;
+  /** Clamp identity content inside a bounded first column. */
+  identity?: boolean;
 }
 
 function statsColumnLabel<T>(column: StatsDataColumn<T>) {
@@ -142,9 +144,9 @@ export function StatsDataTable<T>({
                   <th
                     key={column.key}
                     aria-sort={active ? direction === "desc" ? "descending" : "ascending" : "none"}
-                    className={`whitespace-nowrap py-3 ${column.numeric ? `${hasNumericAdornment(column) ? "pl-3 pr-9" : "px-3"} text-right` : "px-3 text-left"} ${column.className ?? ""} ${index === 0 ? `sticky ${showRank ? "left-12" : "left-0"} z-10 bg-[var(--color-panel)]` : ""}`}
+                    className={`${column.identity ? "w-[11rem] min-w-[11rem] max-w-[11rem]" : "whitespace-nowrap"} py-3 ${column.numeric ? `${hasNumericAdornment(column) ? "pl-3 pr-9" : "px-3"} text-right` : "px-3 text-left"} ${column.className ?? ""} ${index === 0 ? `sticky ${showRank ? "left-12" : "left-0"} z-10 bg-[var(--color-panel)]` : ""}`}
                   >
-                    <div className={`relative flex min-h-6 items-center ${column.numeric ? "justify-end" : "justify-start"}`}>
+                    <div className={`relative flex min-h-6 min-w-0 items-center ${column.numeric ? "justify-end" : "justify-start"}`}>
                       {column.sortable && column.sortValue ? (
                         <button
                           type="button"
@@ -152,9 +154,9 @@ export function StatsDataTable<T>({
                           onClick={() => sortBy(column.key)}
                           className={`inline-flex min-h-6 items-center transition-colors hover:text-[var(--color-fg)] ${active ? "text-[var(--color-fg)]" : ""}`}
                         >
-                          {label}
+                          <span className={column.identity ? "min-w-0 truncate" : undefined}>{label}</span>
                         </button>
-                      ) : <span>{label}</span>}
+                      ) : <span className={column.identity ? "min-w-0 truncate" : undefined}>{label}</span>}
                       {column.numeric ? (
                         hasNumericAdornment(column) && (
                           <span className="absolute left-full ml-1 inline-flex items-center gap-1">
@@ -195,8 +197,8 @@ export function StatsDataTable<T>({
                       </td>
                     )}
                     {columns.map((column, columnIndex) => (
-                      <td key={column.key} className={`whitespace-nowrap py-2.5 align-top ${column.numeric ? `${hasNumericAdornment(column) ? "pl-3 pr-9" : "px-3"} text-right tabular-nums [&_.stats-metric-value]:items-end [&_.stats-metric-value]:text-right` : "px-3 text-left"} ${column.className ?? ""} ${columnIndex === 0 ? `sticky ${showRank ? "left-12" : "left-0"} z-10 bg-[var(--color-panel)]` : ""}`}>
-                        {column.render(row, globalIndex)}
+                      <td key={column.key} className={`${column.identity ? "w-[11rem] min-w-[11rem] max-w-[11rem] overflow-hidden" : "whitespace-nowrap"} py-2.5 align-top ${column.numeric ? `${hasNumericAdornment(column) ? "pl-3 pr-9" : "px-3"} text-right tabular-nums [&_.stats-metric-value]:items-end [&_.stats-metric-value]:text-right` : "px-3 text-left"} ${column.className ?? ""} ${columnIndex === 0 ? `sticky ${showRank ? "left-12" : "left-0"} z-10 bg-[var(--color-panel)]` : ""}`}>
+                        {column.identity ? <div className="min-w-0 max-w-full truncate">{column.render(row, globalIndex)}</div> : column.render(row, globalIndex)}
                       </td>
                     ))}
                   </tr>

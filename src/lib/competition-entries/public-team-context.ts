@@ -58,7 +58,6 @@ export interface PublicEventTeamContext {
     representativeUserId: string;
     teamId: string | null;
   };
-  cardLabel: string;
   participation: {
     label: string;
     tone: StatusPresentation["tone"];
@@ -308,7 +307,6 @@ export async function getPublicCompetitionEntryTeamContext(
   return {
     season,
     entry,
-    cardLabel: entry.registrationStatus === "approved" ? "已通过报名审核" : registrationPresentation.label,
     participation: {
       label: registrationPresentation.label,
       tone: registrationPresentation.tone,

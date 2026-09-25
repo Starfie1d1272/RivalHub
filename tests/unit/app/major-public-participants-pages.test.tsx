@@ -58,7 +58,6 @@ const team = {
     representativeUserId: "player-1",
     teamId: null,
   },
-  cardLabel: "正式参赛队",
   participation: { label: "正式参赛队", tone: "success", detail: "已进入本届正式参赛队，当前参赛名单仍可能调整。" },
   roster: [{ userId: "player-1", name: "选手甲", avatarUrl: "https://cdn.test/player-1.webp", isStarter: true }],
   rosterLabel: "当前参赛名单",
@@ -122,12 +121,13 @@ describe("Major public participant pages", () => {
     expect(html).not.toContain("Draft #");
   });
 
-  it("keeps the detail route on TeamPublicProfile while exposing roster and seed state", async () => {
+  it("keeps the detail route on TeamPublicProfile while hiding seed and lifecycle presentation", async () => {
     const html = renderToStaticMarkup(await DetailPage({ params: Promise.resolve({ seasonSlug: "nju-major", entryId: "entry-1" }) }));
 
     expect(mocks.team).toHaveBeenCalledWith(season, "entry-1");
     expect(html).toContain("当前参赛名单");
-    expect(html).toContain("种子待确认");
+    expect(html).not.toContain("种子待确认");
+    expect(html).not.toContain("名单已确认");
     expect(html).not.toContain("EventRoster");
   });
 

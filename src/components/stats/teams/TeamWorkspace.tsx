@@ -1,7 +1,7 @@
 "use client";
 
+import React, { useMemo, useState } from "react";
 import Link from "next/link";
-import { useMemo, useState } from "react";
 import { MapPreferenceChips } from "@/components/rivalhub/MapPreferenceChips";
 import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
 import { MetricFamilyTabs } from "@/components/stats/MetricFamilyTabs";
@@ -13,8 +13,64 @@ import type { LongTeamCareerDetail, TournamentStats, TournamentTeamDetail } from
 import type { PublicTeamMapProfile } from "@/lib/teams/map-profile";
 import { displayWeaponName, formatEconomyLabel, statsRateDenominator } from "@/lib/stats/presentation";
 
-type TeamPerformanceDetail = LongTeamCareerDetail | TournamentTeamDetail;
+export type TeamPerformanceDetail = LongTeamCareerDetail | TournamentTeamDetail;
 type TeamTab = "overview" | "rounds" | "teamplay" | "maps" | "players" | "weapons";
+
+export function TeamRosterMapContext({
+  mapProfile,
+  hasOwnMaps,
+}: {
+  mapProfile: PublicTeamMapProfile;
+  hasOwnMaps: boolean;
+}) {
+  const hasExperience = mapProfile.experience.length > 0;
+  const hasPreferences = mapProfile.preferences.length > 0;
+  if (!hasExperience && !hasPreferences) return null;
+
+  const coverage = mapProfile.experienceCoverage;
+  const fullExperience = coverage.rosterMembers > 0 && coverage.experiencedMembers === coverage.rosterMembers;
+  const partialExperience = coverage.experiencedMembers > 0 && coverage.experiencedMembers < coverage.rosterMembers;
+  const openExperience = !hasOwnMaps && hasExperience && (fullExperience || partialExperience);
+  const openPreferences = !hasOwnMaps && hasPreferences && (!hasExperience || partialExperience);
+
+  return (
+    <section className="space-y-4">
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--color-fg-dim)]">MAP CONTEXT</p>
+        <h2 className="mt-1 text-lg font-semibold">阵容地图参考</h2>
+      </div>
+
+      {hasExperience && (
+        <details open={openExperience} className="border-y border-[var(--color-border)] py-4">
+          <summary className="cursor-pointer text-sm font-semibold">阵容成员历史正式地图经验</summary>
+          <p className="mt-2 text-xs text-[var(--color-fg-mid)]">已覆盖 {coverage.experiencedMembers}/{coverage.rosterMembers} 名成员。</p>
+          <div className="mt-4 space-y-3">
+            {mapProfile.experience.map((map) => (
+              <div key={map.mapName} className="flex flex-wrap items-baseline justify-between gap-2 text-sm">
+                <span className="font-medium">{mapLabel(map.mapName)}</span>
+                <span className="text-xs text-[var(--color-fg-mid)]">{map.players} 人 · {map.samples} 次出场 · Rating {map.rating == null ? "—" : map.rating.toFixed(2)} · ADR {map.adr == null ? "—" : map.adr.toFixed(1)}</span>
+              </div>
+            ))}
+          </div>
+        </details>
+      )}
+
+      {hasPreferences && (
+        <details open={openPreferences} className="border-y border-[var(--color-border)] py-4">
+          <summary className="cursor-pointer text-sm font-semibold">成员自报地图熟练度</summary>
+          <div className="mt-4 space-y-4">
+            {mapProfile.preferences.map((member) => (
+              <div key={member.userId} className="space-y-2">
+                <Link className="text-sm font-medium hover:text-[var(--color-accent)]" href={`/players/${member.userId}`}>{member.name}</Link>
+                <MapPreferenceChips preferences={member.preferences} minLevel="none" />
+              </div>
+            ))}
+          </div>
+        </details>
+      )}
+    </section>
+  );
+}
 
 const tabs = [
   { key: "overview", label: "Overview" },
@@ -38,13 +94,8 @@ type PlayerRow = {
   sampleRounds: number | null;
 };
 
-export function TeamWorkspace({
-  detail,
-  mapProfile,
-}: {
+export function TeamWorkspace({ detail }: {
   detail: TeamPerformanceDetail;
-  mapProfile?: PublicTeamMapProfile;
-  seasonSlug?: string;
 }) {
   const [tab, setTab] = useState<TeamTab>("overview");
   const analytics = detail.analytics;
@@ -105,7 +156,7 @@ export function TeamWorkspace({
   }, [detail]);
 
   const playerColumns: StatsDataColumn<PlayerRow>[] = [
-    { key: "player", label: "Player", render: (row) => <PlayerProfileLink userId={row.userId} className="font-medium">{row.name}</PlayerProfileLink> },
+    { key: "player", label: "Player", identity: true, render: (row) => <PlayerProfileLink userId={row.userId} title={row.name} className="block max-w-full truncate font-medium">{row.name}</PlayerProfileLink> },
     { key: "maps", label: "Maps", numeric: true, sortable: true, sortValue: (row) => row.maps, render: (row) => row.maps },
     { key: "rating", label: "Rating", metric: "rating", numeric: true, sortable: true, sortValue: (row) => row.rating, rankingSample: (row) => row.sampleRounds, render: (row) => <MetricValue metric="rating" value={row.rating} /> },
     { key: "adr", label: "ADR", metric: "adr", numeric: true, className: "hidden sm:table-cell", sortable: true, sortValue: (row) => row.adr, rankingSample: (row) => row.sampleRounds, render: (row) => <MetricValue metric="adr" value={row.adr} /> },
@@ -123,13 +174,6 @@ export function TeamWorkspace({
     { key: "perRound", label: "Kills/r", metric: "killsPerRound", numeric: true, sortable: true, sortValue: (row) => row.killsPerRound.rate, render: (row) => <MetricValue metric="killsPerRound" value={row.killsPerRound} /> },
     { key: "hs", label: "HS%", metric: "headshot", numeric: true, sortable: true, sortValue: (row) => row.headshotRate.rate, render: (row) => <MetricValue metric="headshot" value={row.headshotRate} /> },
   ];
-
-  const hasOwnMaps = mapRows.some((row) => (row.results?.played ?? 0) > 0);
-  const coverage = mapProfile?.experienceCoverage;
-  const fullExperience = Boolean(coverage && coverage.rosterMembers > 0 && coverage.experiencedMembers === coverage.rosterMembers);
-  const partialExperience = Boolean(coverage && coverage.experiencedMembers > 0 && coverage.experiencedMembers < coverage.rosterMembers);
-  const openExperience = !hasOwnMaps && Boolean(mapProfile?.experience.length) && (fullExperience || partialExperience);
-  const openPreferences = !hasOwnMaps && (!mapProfile?.experience.length || partialExperience);
 
   return (
     <section className="space-y-5">
@@ -168,7 +212,6 @@ export function TeamWorkspace({
           </> : <p className="border-y border-[var(--color-border)] py-5 text-sm text-[var(--color-fg-mid)]">当前队伍没有详细回合数据。</p>}
           <section className="border-t border-[var(--color-border)] pt-4">
             <h3 className="mb-1 text-sm font-semibold">Economy Matchups</h3>
-            <p className="mb-4 text-xs text-[var(--color-fg-mid)]">按实际回合经济组合聚合；空样本不按 0 处理。</p>
             <StatsDataTable embedded rows={detail.economyMatrix} columns={economyColumns} rowKey={(row) => `${row.lowEconomy}:${row.highEconomy}`} emptyLabel="暂无经济分类样本" />
           </section>
         </div>
@@ -206,52 +249,15 @@ export function TeamWorkspace({
       {tab === "maps" && (
         <div className="space-y-5">
           <section className="space-y-3 border-t border-[var(--color-border)] pt-4">
-            <div>
-              <h3 className="text-sm font-semibold">正式地图表现</h3>
-              <p className="mt-1 text-xs text-[var(--color-fg-mid)]">队伍自身正式比赛结果与当前可验证的回合数据；Pick/Ban 仅来自正式 BP 记录。</p>
-            </div>
+            <h3 className="text-sm font-semibold">正式地图表现</h3>
             <StatsDataTable embedded rows={mapRows} columns={mapColumns} rowKey={(row) => row.mapName} initialSortKey="played" emptyLabel="暂无队伍正式地图样本" />
           </section>
-
-          {mapProfile && (
-            <>
-              <details open={openExperience} className="border-t border-[var(--color-border)] pt-4">
-                <summary className="cursor-pointer text-sm font-semibold">阵容成员 · 历史正式地图经验</summary>
-                <p className="mt-2 text-xs text-[var(--color-fg-mid)]">
-                  已覆盖 {mapProfile.experienceCoverage.experiencedMembers}/{mapProfile.experienceCoverage.rosterMembers} 名成员；按选手正式地图出场聚合。
-                </p>
-                <div className="mt-4 space-y-3">
-                  {mapProfile.experience.length ? mapProfile.experience.map((map) => (
-                    <div key={map.mapName} className="flex flex-wrap items-baseline justify-between gap-2 text-sm">
-                      <span className="font-medium">{mapLabel(map.mapName)}</span>
-                      <span className="text-xs text-[var(--color-fg-mid)]">{map.players} 人 · {map.samples} 次出场 · Rating {map.rating == null ? "—" : map.rating.toFixed(2)} · ADR {map.adr == null ? "—" : map.adr.toFixed(1)}</span>
-                    </div>
-                  )) : <p className="text-sm text-[var(--color-fg-mid)]">暂无成员历史正式地图数据。</p>}
-                </div>
-              </details>
-
-              <details open={openPreferences} className="border-t border-[var(--color-border)] pt-4">
-                <summary className="cursor-pointer text-sm font-semibold">成员自报地图熟练度</summary>
-                <div className="mt-4 space-y-4">
-                  {mapProfile.preferences.length ? mapProfile.preferences.map((member) => (
-                    <div key={member.userId} className="space-y-2">
-                      <Link className="text-sm font-medium hover:text-[var(--color-accent)]" href={`/players/${member.userId}`}>{member.name}</Link>
-                      <MapPreferenceChips preferences={member.preferences} minLevel="none" />
-                    </div>
-                  )) : <p className="text-sm text-[var(--color-fg-mid)]">成员尚未填写。</p>}
-                </div>
-              </details>
-            </>
-          )}
         </div>
       )}
 
       {tab === "players" && (
         <section className="space-y-3 border-t border-[var(--color-border)] pt-4">
-          <div>
-            <h3 className="text-sm font-semibold">Players</h3>
-            <p className="mt-1 text-xs text-[var(--color-fg-mid)]">仅统计实际代表该队伍出场并进入当前可信数据集的选手。</p>
-          </div>
+          <h3 className="text-sm font-semibold">Players</h3>
           <StatsDataTable
             embedded
             rows={playerRows}
@@ -267,10 +273,7 @@ export function TeamWorkspace({
 
       {tab === "weapons" && (
         <section className="space-y-3 border-t border-[var(--color-border)] pt-4">
-          <div>
-            <h3 className="text-sm font-semibold">Weapons</h3>
-            <p className="mt-1 text-xs text-[var(--color-fg-mid)]">按队伍当前可信回合样本聚合武器击杀。</p>
-          </div>
+          <h3 className="text-sm font-semibold">Weapons</h3>
           <StatsDataTable
             embedded
             rows={weaponRows}
