@@ -133,7 +133,11 @@ describe("loadOrFetchSteamProfiles cache owner", () => {
   it("gracefully degrades when provider fails or profile is not found", async () => {
     const mockDb = {
       select: vi.fn().mockReturnValue(selectResult([])),
-      insert: vi.fn(),
+      insert: vi.fn().mockReturnValue({
+        values: vi.fn().mockReturnValue({
+          onConflictDoUpdate: vi.fn().mockResolvedValue(undefined),
+        }),
+      }),
     };
 
     lookupMock.mockResolvedValue({ status: "failed" });
