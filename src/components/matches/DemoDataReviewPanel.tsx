@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { confirmStoredDemoParticipantIdentity, recheckSeasonStoredDemoImports, recheckStoredDemoImport, rejectStoredDemoImport, retireGameplaySteamIdentity } from "@/actions/demo-integration";
 import { InlineConfirm, Panel } from "@/components/rivalhub";
+import { PlayerAvatar } from "@/components/players/PlayerAvatar";
 import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -58,6 +59,25 @@ function ParticipantReview({ importId, participant }: { importId: string; partic
       <legend className="px-1 font-medium">Demo 选手 · {participant.demoName}</legend>
       <p className="break-all font-mono text-xs">Steam64：{participant.observedSteam64}</p>
       <p>队伍：{participant.teamName}</p>
+      {participant.observedSteamProfile && (
+        <div className="flex flex-wrap items-center gap-2 rounded bg-[var(--color-bg-soft)] px-3 py-2 text-xs">
+          <span className="text-[var(--color-fg-mid)]">Steam 官方当前资料：</span>
+          <PlayerAvatar
+            name={participant.observedSteamProfile.personaName}
+            avatarUrl={participant.observedSteamProfile.avatarUrl}
+            size="sm"
+          />
+          <span className="font-medium">{participant.observedSteamProfile.personaName}</span>
+          <a
+            href={participant.observedSteamProfile.profileUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="text-[var(--color-accent)] underline"
+          >
+            个人主页
+          </a>
+        </div>
+      )}
       {participant.currentPlayer && <p>当前关联：<PlayerProfileLink userId={participant.currentPlayer.userId}>{participant.currentPlayer.name}</PlayerProfileLink></p>}
       {participant.state === "confirmable" && (
         <>

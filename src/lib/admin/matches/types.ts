@@ -74,6 +74,11 @@ export interface AdminDemoReviewParticipant {
   retirableIdentityId: string | null;
   note: string | null;
   candidates: AdminDemoReviewCandidate[];
+  observedSteamProfile?: {
+    personaName: string;
+    avatarUrl: string | null;
+    profileUrl: string;
+  } | null;
 }
 
 export interface AdminDemoReviewMap {

@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
+import { users } from "@/db/schema/users";
 
 const migration = readFileSync(
   resolve(process.cwd(), "drizzle/migrations/0052_gray_supernaut.sql"),
@@ -27,5 +28,14 @@ describe("0052 Steam profile foundation migration", () => {
     expect(migration).not.toContain('DROP COLUMN "steam_name"');
     expect(migration).not.toContain('DROP COLUMN "steam_profile_url"');
     expect(migration).not.toContain('DROP COLUMN "avatar_url"');
+  });
+});
+
+describe("users application schema contract", () => {
+  it("ensures users application schema does not include legacy shadow columns", () => {
+    const userColumns = Object.keys(users);
+    expect(userColumns).not.toContain("steamName");
+    expect(userColumns).not.toContain("steamProfileUrl");
+    expect(userColumns).not.toContain("avatarUrl");
   });
 });

@@ -4,7 +4,6 @@ import {
   assertReviewedColumns,
   exportQuery,
   PREVIEW_COLUMNS,
-  PREVIEW_STEAM_SHADOW_CLEANUP_MIGRATION,
   previewPolicyFor,
 } from "../../../scripts/db/preview/policy";
 import { readExpectedMigrations } from "../../../scripts/db/production-preflight";
@@ -100,22 +99,6 @@ describe("preview mirror membership projection", () => {
       )).rows.map(({ column_name }) => column_name);
       expect(cleanedUsers).not.toEqual(expect.arrayContaining(["steam_name", "steam_profile_url", "avatar_url"]));
       expect(() => assertReviewedColumns("users", cleanedUsers, policy)).not.toThrow();
-
-      const cleanupExpected = [...expected, {
-        tag: PREVIEW_STEAM_SHADOW_CLEANUP_MIGRATION,
-        hash: "synthetic-cleanup-migration",
-        when: (expected[expected.length - 1]?.when ?? 0) + 1,
-      }];
-      const cleanupPolicy = previewPolicyFor(
-        cleanupExpected.map(({ hash, when }) => ({ hash, when })),
-        cleanupExpected,
-      );
-      expect(() => assertReviewedColumns("users", cleanedUsers, cleanupPolicy)).not.toThrow();
-      await client.query('ALTER TABLE public.users ADD COLUMN "steam_name" text');
-      const reappearedUsers = (await client.query<{ column_name: string }>(
-        "SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'users' ORDER BY ordinal_position",
-      )).rows.map(({ column_name }) => column_name);
-      expect(() => assertReviewedColumns("users", reappearedUsers, cleanupPolicy)).toThrow(/removed mirror column/);
 
       await client.query("CREATE TABLE public.preview_unreviewed_table (id uuid)");
       expect(() => assertReviewedColumns("preview_unreviewed_table", ["id"], policy)).toThrow();

@@ -6,6 +6,7 @@ import { readStoredEvidence } from "@/lib/demo-integration/review";
 import { hasConfirmableParticipantIdentityIssue, validateCanonicalTarget, type CanonicalTarget } from "@/lib/demo-integration/validation";
 import { loadGameplayIdentityReviewDetails } from "@/lib/identity/gameplay-steam";
 import { getDisplayName } from "@/lib/identity/display-name";
+import { loadOrFetchSteamProfiles } from "@/lib/steam-profiles";
 import type { AdminDemoReviewMap, AdminDemoReviewParticipant } from "./types";
 
 const ISSUE_TEXT: Record<string, string> = {
@@ -49,6 +50,8 @@ export async function loadAdminDemoReview(
   try {
     const validation = await validateCanonicalTarget(tx, evidence, target);
     const details = await loadGameplayIdentityReviewDetails(tx, validation.resolutions);
+    const observedSteam64s = evidence.participants.map((participant) => participant.steamId64);
+    const officialProfiles = await loadOrFetchSteamProfiles(tx, observedSteam64s);
     const participants: AdminDemoReviewParticipant[] = [];
     let resolvedCount = 0;
     for (const participant of evidence.participants) {
@@ -78,6 +81,14 @@ export async function loadAdminDemoReview(
         teamName: entryNames.get(entryId) ?? "未知队伍", state,
         currentPlayer: detail ? { userId: detail.userId, name: detail.name } : null,
         retirableIdentityId: retirable ? identity.identityId : null,
+        observedSteamProfile: (() => {
+          const profile = officialProfiles.get(participant.steamId64);
+          return profile ? {
+            personaName: profile.personaName,
+            profileUrl: profile.profileUrl,
+            avatarUrl: profile.avatarUrl,
+          } : null;
+        })(),
         note: state === "confirmable" ? null : state === "roster-mismatch"
           ? "这个 Steam64 已明确属于本队赛事名单成员，但不在本场记录的首发五人中。这是实际出场名单问题，不是 Steam 身份冲突；请不要改绑或撤销 Steam 身份。"
           : state === "conflict-retirable"

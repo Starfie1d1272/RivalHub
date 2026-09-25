@@ -10,7 +10,6 @@ export interface SteamProfileCoverageReport {
   activePrimaryUsers: number;
   cachedProfiles: number;
   missingProfiles: number;
-  legacyShadowMismatches: number;
   coveragePercent: number;
   ready: boolean;
 }
@@ -22,20 +21,11 @@ export async function inspectSteamProfileCoverage(
     active_primary_users: string;
     cached_profiles: string;
     missing_profiles: string;
-    legacy_shadow_mismatches: string;
   }>(`
     SELECT
       count(users.id)::text AS active_primary_users,
       count(steam_profiles.steam64)::text AS cached_profiles,
-      count(*) FILTER (WHERE steam_profiles.steam64 IS NULL)::text AS missing_profiles,
-      count(*) FILTER (
-        WHERE steam_profiles.steam64 IS NOT NULL
-          AND (
-            users.steam_name IS DISTINCT FROM steam_profiles.persona_name
-            OR users.steam_profile_url IS DISTINCT FROM steam_profiles.profile_url
-            OR users.avatar_url IS DISTINCT FROM steam_profiles.avatar_url
-          )
-      )::text AS legacy_shadow_mismatches
+      count(*) FILTER (WHERE steam_profiles.steam64 IS NULL)::text AS missing_profiles
     FROM users
     LEFT JOIN steam_profiles ON steam_profiles.steam64 = users.steam64
     WHERE users.status = 'active' AND users.steam64 IS NOT NULL
@@ -44,23 +34,21 @@ export async function inspectSteamProfileCoverage(
   const activePrimaryUsers = Number(row?.active_primary_users ?? 0);
   const cachedProfiles = Number(row?.cached_profiles ?? 0);
   const missingProfiles = Number(row?.missing_profiles ?? 0);
-  const legacyShadowMismatches = Number(row?.legacy_shadow_mismatches ?? 0);
 
   return {
     mode: "read-only",
     activePrimaryUsers,
     cachedProfiles,
     missingProfiles,
-    legacyShadowMismatches,
     coveragePercent: activePrimaryUsers === 0 ? 100 : (cachedProfiles / activePrimaryUsers) * 100,
-    ready: missingProfiles === 0 && legacyShadowMismatches === 0,
+    ready: missingProfiles === 0,
   };
 }
 
 export function assertSteamProfileCoverage(report: SteamProfileCoverageReport): void {
   if (report.ready) return;
   throw new Error(
-    `Steam profile coverage 未通过：missing=${report.missingProfiles}, legacy shadow mismatches=${report.legacyShadowMismatches}。旧 Production 保持不变。`,
+    `Steam profile coverage 未通过：missing=${report.missingProfiles}。旧 Production 保持不变。`,
   );
 }
 
