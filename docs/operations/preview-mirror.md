@@ -13,7 +13,7 @@ RivalHub 的所有 Vercel Preview 固定连接 `rivalhub-dev`，不连接 produc
 
 ## Source schema compatibility and diagnostics
 
-Preview export 的 policy 以 source 的 Drizzle migration ledger 为输入，而不是无条件使用 latest `main` 的完整 table/column 清单。migration-keyed policy 只要求 source 已拥有的 table 与 exported column；source 尚未应用的 additive table/column 留在 future policy 中，不会被查询。reviewed-but-omitted column 不进入 export projection。Steam legacy shadow 由显式 lifecycle 管理：当前 N/N+1 compatibility window 内允许物理存在，预留的 `0053_steam_profile_contract_cleanup` marker 生效后缺失合法，但同一 shadow 重新出现会以 `REMOVED_MIRROR_COLUMNS` fail closed。source physical inventory 中的 unknown table/column、缺失 exported column 和不匹配的 migration prefix 仍 fail closed。
+Preview export 的 policy 以 source 的 Drizzle migration ledger 为输入，而不是无条件使用 latest `main` 的完整 table/column 清单。migration-keyed policy 只要求 source 已拥有的 table 与 exported column；source 尚未应用的 additive table/column 留在 future policy 中，不会被查询。reviewed-but-omitted column 不进入 export projection。Steam legacy shadow 由显式 lifecycle 管理：当前 N/N+1 compatibility window 内允许物理存在，预留的 `0055_steam_profile_contract_cleanup` marker 生效后缺失合法，但同一 shadow 重新出现会以 `REMOVED_MIRROR_COLUMNS` fail closed。source physical inventory 中的 unknown table/column、缺失 exported column 和不匹配的 migration prefix 仍 fail closed。
 
 Export 与 refresh 的失败都经过现有 `src/lib/observability/` safe exception boundary，保留内部 `cause` chain，并输出稳定的 phase/code 与有限 structural context（例如 table、column、provider、providerCode、httpStatus、retryable）。允许的 export phase 包括 source identity、source DB connection、migration ledger、schema inventory-policy、table export、persona selection、public asset export 和 snapshot write；refresh phase 也会区分 snapshot read、DB、persona、asset 与 mirror-state 步骤。日志不会输出 production row、SQL/params、credential、provider body 或 asset path。
 

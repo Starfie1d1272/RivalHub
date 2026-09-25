@@ -69,30 +69,35 @@ describe("sanitized mirror policy", () => {
       ...OMITTED_COLUMNS.users.split(" ").filter((column) => !["steam_name", "steam_profile_url", "avatar_url"].includes(column)),
     ];
 
-    expect(() => assertReviewedColumns("users", [
-      ...physicalUsersAfterCleanup,
-      "steam_name",
-      "steam_profile_url",
-      "avatar_url",
-    ])).not.toThrow();
-    expect(() => assertReviewedColumns("users", physicalUsersAfterCleanup)).not.toThrow();
     expect(exportQuery("users")).not.toContain("steam_name");
     expect(exportQuery("users")).not.toContain("steam_profile_url");
     expect(exportQuery("users")).not.toContain("avatar_url");
 
     const expected = readExpectedMigrations();
-    const latest = expected[expected.length - 1];
-    const cleanupExpected = [...expected, {
-      tag: PREVIEW_STEAM_SHADOW_CLEANUP_MIGRATION,
-      hash: "synthetic-cleanup-migration",
-      when: (latest?.when ?? 0) + 1,
-    }];
+    const cleanupIndex = expected.findIndex(({ tag }) => tag === PREVIEW_STEAM_SHADOW_CLEANUP_MIGRATION);
+    expect(cleanupIndex).toBeGreaterThan(0);
+
+    const preCleanupExpected = expected.slice(0, cleanupIndex);
+    const preCleanupPolicy = previewPolicyFor(
+      preCleanupExpected.map(({ hash, when }) => ({ hash, when })),
+      expected,
+    );
+    expect(() => assertReviewedColumns("users", [
+      ...physicalUsersAfterCleanup,
+      "steam_name",
+      "steam_profile_url",
+      "avatar_url",
+    ], preCleanupPolicy)).not.toThrow();
+    expect(() => assertReviewedColumns("users", physicalUsersAfterCleanup, preCleanupPolicy)).not.toThrow();
+
     const cleanupPolicy = previewPolicyFor(
-      cleanupExpected.map(({ hash, when }) => ({ hash, when })),
-      cleanupExpected,
+      expected.map(({ hash, when }) => ({ hash, when })),
+      expected,
     );
     expect(cleanupPolicy.tables.users.removedColumns).toEqual(["steam_name", "steam_profile_url", "avatar_url"]);
     expect(() => assertReviewedColumns("users", physicalUsersAfterCleanup, cleanupPolicy)).not.toThrow();
+    expect(() => assertReviewedColumns("users", physicalUsersAfterCleanup)).not.toThrow();
     expect(() => assertReviewedColumns("users", [...physicalUsersAfterCleanup, "steam_name"], cleanupPolicy)).toThrow(/removed mirror column/);
+    expect(() => assertReviewedColumns("users", [...physicalUsersAfterCleanup, "steam_name"])).toThrow(/removed mirror column/);
   });
 });

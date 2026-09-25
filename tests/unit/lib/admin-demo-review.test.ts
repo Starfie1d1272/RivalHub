@@ -3,10 +3,11 @@ import type { TxDb } from "@/db/client";
 import type { matchDemoImports } from "@/db/schema";
 import type { CanonicalTarget } from "@/lib/demo-integration/validation";
 import type { GameplayIdentityReviewDetail } from "@/lib/identity/gameplay-steam";
-const mocks = vi.hoisted(() => ({ read: vi.fn(), validate: vi.fn(), details: vi.fn() }));
+const mocks = vi.hoisted(() => ({ read: vi.fn(), validate: vi.fn(), details: vi.fn(), profiles: vi.fn() }));
 vi.mock("@/lib/demo-integration/review", () => ({ readStoredEvidence: mocks.read }));
 vi.mock("@/lib/demo-integration/validation", async (original) => ({ ...await original<object>(), validateCanonicalTarget: mocks.validate }));
 vi.mock("@/lib/identity/gameplay-steam", () => ({ loadGameplayIdentityReviewDetails: mocks.details }));
+vi.mock("@/lib/steam-profiles", () => ({ loadOrFetchSteamProfiles: mocks.profiles }));
 import { loadAdminDemoReview } from "@/lib/admin/matches/demo-review";
 
 const steam64 = "76561198123456789";
@@ -22,6 +23,7 @@ beforeEach(() => {
   mocks.read.mockReturnValue({ participants: [{ steamId64: steam64, nameSnapshot: "Demo player", observedTeamKey: "teamA" }] });
   mocks.validate.mockResolvedValue({ issues: [unresolved], resolutions: new Map() });
   mocks.details.mockResolvedValue(new Map());
+  mocks.profiles.mockResolvedValue(new Map());
 });
 
 describe("admin Demo review projection", () => {
@@ -83,5 +85,41 @@ describe("admin Demo review projection", () => {
     mocks.validate.mockRejectedValue(new Error("dirty cross-user identity"));
     expect(await load()).toMatchObject({ participants: [], resolvedCount: 0 });
     expect(mocks.details).not.toHaveBeenCalled();
+  });
+
+  it("projects observed official Steam profile when available without altering validation", async () => {
+    mocks.profiles.mockResolvedValue(new Map([
+      [steam64, {
+        steam64,
+        personaName: "Official Steam Name",
+        profileUrl: `https://steamcommunity.com/profiles/${steam64}`,
+        avatarUrl: "https://avatars.steamstatic.com/avatar.jpg",
+      }],
+    ]));
+
+    const result = await load();
+    expect(result.participants[0]).toMatchObject({
+      observedSteam64: steam64,
+      demoName: "Demo player",
+      state: "confirmable",
+      observedSteamProfile: {
+        personaName: "Official Steam Name",
+        profileUrl: `https://steamcommunity.com/profiles/${steam64}`,
+        avatarUrl: "https://avatars.steamstatic.com/avatar.jpg",
+      },
+    });
+    expect(mocks.profiles).toHaveBeenCalledWith(expect.anything(), [steam64]);
+  });
+
+  it("degrades gracefully to null observedSteamProfile when profile is not found or provider fails", async () => {
+    mocks.profiles.mockResolvedValue(new Map());
+
+    const result = await load();
+    expect(result.participants[0]).toMatchObject({
+      observedSteam64: steam64,
+      demoName: "Demo player",
+      state: "confirmable",
+      observedSteamProfile: null,
+    });
   });
 });

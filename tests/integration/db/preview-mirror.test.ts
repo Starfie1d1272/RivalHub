@@ -65,7 +65,7 @@ describe("preview mirror membership projection", () => {
       for (const [table, columns] of inventory) assertReviewedColumns(table, columns);
 
       const users = inventory.get("users") ?? [];
-      expect(users).toEqual(expect.arrayContaining(["steam_name", "steam_profile_url", "avatar_url"]));
+      expect(users).not.toEqual(expect.arrayContaining(["steam_name", "steam_profile_url", "avatar_url"]));
       expect(inventory.has("steam_profiles")).toBe(true);
       expect(PREVIEW_COLUMNS.users).not.toContain("steam_name");
     } finally {
@@ -101,14 +101,12 @@ describe("preview mirror membership projection", () => {
       expect(cleanedUsers).not.toEqual(expect.arrayContaining(["steam_name", "steam_profile_url", "avatar_url"]));
       expect(() => assertReviewedColumns("users", cleanedUsers, policy)).not.toThrow();
 
-      const cleanupExpected = [...expected, {
-        tag: PREVIEW_STEAM_SHADOW_CLEANUP_MIGRATION,
-        hash: "synthetic-cleanup-migration",
-        when: (expected[expected.length - 1]?.when ?? 0) + 1,
-      }];
+      const cleanupMigrationIndex = expected.findIndex(({ tag }) => tag === PREVIEW_STEAM_SHADOW_CLEANUP_MIGRATION);
+      expect(cleanupMigrationIndex).toBeGreaterThan(0);
+      const cleanupExpected = expected.slice(0, cleanupMigrationIndex + 1);
       const cleanupPolicy = previewPolicyFor(
         cleanupExpected.map(({ hash, when }) => ({ hash, when })),
-        cleanupExpected,
+        expected,
       );
       expect(() => assertReviewedColumns("users", cleanedUsers, cleanupPolicy)).not.toThrow();
       await client.query('ALTER TABLE public.users ADD COLUMN "steam_name" text');

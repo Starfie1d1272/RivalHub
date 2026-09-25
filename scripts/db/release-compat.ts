@@ -2,6 +2,7 @@ import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { basename } from "node:path";
 import {
   changedMigrationFiles,
   classifyMigrationSql,
@@ -9,6 +10,7 @@ import {
   type MigrationContractOwner,
   type MigrationRiskFinding,
 } from "./migration-risk";
+import { PREVIEW_SCHEMA_LIFECYCLE } from "./preview/policy";
 import {
   PREVIOUS_RELEASE_COMMIT_ENV,
   PREVIOUS_RELEASE_TAG_ENV,
@@ -199,7 +201,7 @@ function evaluateFinding(finding: MigrationRiskFinding, sources: readonly Shippe
     };
   }
 
-  const evidence = owners.flatMap((owner) => findOwnerEvidence(sources, owner));
+  const evidence = owners.flatMap((owner) => findOwnerEvidence(sources, owner, finding));
   const unsupportedSchema = owners.find((owner) => owner.schema && owner.schema !== "public");
   if (unsupportedSchema && evidence.length === 0) {
     return {
@@ -242,10 +244,27 @@ function readShippedSources(cwd: string, revision: string): ShippedSource[] {
   });
 }
 
-function findOwnerEvidence(sources: readonly ShippedSource[], owner: MigrationContractOwner): SourceEvidence[] {
+function isLegacyShadowColumn(owner: MigrationContractOwner, finding?: MigrationRiskFinding): boolean {
+  if (!finding || owner.kind !== "column" || !owner.relation) return false;
+  const migrationTag = basename(finding.filePath, ".sql");
+  const lifecycleEntry = PREVIEW_SCHEMA_LIFECYCLE.find(
+    (entry) => "columns" in entry && entry.table === owner.relation,
+  );
+  if (!lifecycleEntry || !("columns" in lifecycleEntry) || !lifecycleEntry.columns) return false;
+  return lifecycleEntry.columns.some(
+    (col) => col.name === owner.identifier && col.removedAt === migrationTag && col.compatibility === "legacy-shadow",
+  );
+}
+
+function findOwnerEvidence(
+  sources: readonly ShippedSource[],
+  owner: MigrationContractOwner,
+  finding?: MigrationRiskFinding,
+): SourceEvidence[] {
   const tableDeclarations = sources.flatMap((source) => collectTableDeclarations(source));
   const enumDeclarations = sources.flatMap((source) => collectEnumDeclarations(source));
   const evidence: SourceEvidence[] = [];
+  const isLegacyShadow = isLegacyShadowColumn(owner, finding);
 
   for (const source of sources) {
     if (owner.kind === "relation") {
@@ -280,8 +299,9 @@ function findOwnerEvidence(sources: readonly ShippedSource[], owner: MigrationCo
 
     if (owner.kind === "column") {
       for (const declaration of tableDeclarations.filter((item) => matchesRelation(item, owner))) {
+        const columnMatches = columnMappingMatches(declaration, owner.identifier);
         if (declaration.path === source.path) {
-          for (const match of columnMappingMatches(declaration, owner.identifier)) {
+          for (const match of columnMatches) {
             addEvidence(evidence, {
               path: source.path,
               line: lineNumberAt(source.content, match),
@@ -291,15 +311,18 @@ function findOwnerEvidence(sources: readonly ShippedSource[], owner: MigrationCo
         }
         const symbols = tableSymbolsForSource(declaration, source);
         const propertyNames = ownerPropertyNames(owner.identifier);
-        for (const propertyName of propertyNames) {
-          addRegexEvidence(
-            evidence,
-            source,
-            propertyAccessPattern(symbols, propertyName),
-            `Drizzle ${owner.relation}.${propertyName} 调用`,
-          );
+        const hasColumnMapping = columnMatches.length > 0;
+        if (!isLegacyShadow || hasColumnMapping) {
+          for (const propertyName of propertyNames) {
+            addRegexEvidence(
+              evidence,
+              source,
+              propertyAccessPattern(symbols, propertyName),
+              `Drizzle ${owner.relation}.${propertyName} 调用`,
+            );
+          }
         }
-        if (symbols.length > 0 && tableUsagePattern(symbols).test(source.searchableContent)) {
+        if (hasColumnMapping && symbols.length > 0 && tableUsagePattern(symbols).test(source.searchableContent)) {
           addRegexEvidence(
             evidence,
             source,
@@ -308,13 +331,15 @@ function findOwnerEvidence(sources: readonly ShippedSource[], owner: MigrationCo
           );
         }
       }
-      addRegexEvidence(
-        evidence,
-        source,
-        qualifiedColumnReferencePattern(owner),
-        "限定 SQL 列引用",
-      );
-      addUnqualifiedSqlColumnEvidence(evidence, source, owner, tableDeclarations);
+      if (!isLegacyShadow) {
+        addRegexEvidence(
+          evidence,
+          source,
+          qualifiedColumnReferencePattern(owner),
+          "限定 SQL 列引用",
+        );
+        addUnqualifiedSqlColumnEvidence(evidence, source, owner, tableDeclarations);
+      }
     }
 
     if (owner.kind === "type") {

@@ -99,7 +99,7 @@ type PreviewSchemaLifecycleTable = {
  * policy remains the latest-main projection; previewPolicyFor() removes future
  * entries for a lagging source and rejects columns past their removal marker.
  */
-export const PREVIEW_STEAM_SHADOW_CLEANUP_MIGRATION = "0053_steam_profile_contract_cleanup";
+export const PREVIEW_STEAM_SHADOW_CLEANUP_MIGRATION = "0055_steam_profile_contract_cleanup";
 
 export const PREVIEW_SCHEMA_LIFECYCLE: readonly PreviewSchemaLifecycleTable[] = [
   { table: "dak_pairing_intents", introducedAt: "0051_sour_grim_reaper" },

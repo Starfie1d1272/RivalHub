@@ -146,4 +146,24 @@ describe("DemoDataReviewPanel", () => {
     expect(mocks.refresh).not.toHaveBeenCalled();
     expect(mocks.success).not.toHaveBeenCalled();
   });
+
+  it("renders observed Steam official profile when available and distinguishes it from demo identity", () => {
+    render(<DemoDataReviewPanel reviews={[review({
+      participants: [{
+        ...participant,
+        observedSteamProfile: {
+          personaName: "Official Persona",
+          avatarUrl: "https://avatars.steamstatic.com/test.jpg",
+          profileUrl: "https://steamcommunity.com/profiles/76561198123456789",
+        },
+      }],
+    })]} />);
+
+    expect(screen.getByText("Demo 选手 · Demo player")).toBeInTheDocument();
+    expect(screen.getByText("Steam64：76561198123456789")).toBeInTheDocument();
+    expect(screen.getByText("Steam 官方当前资料：")).toBeInTheDocument();
+    expect(screen.getByText("Official Persona")).toBeInTheDocument();
+    const link = screen.getByRole("link", { name: "个人主页" });
+    expect(link).toHaveAttribute("href", "https://steamcommunity.com/profiles/76561198123456789");
+  });
 });
