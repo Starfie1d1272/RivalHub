@@ -101,6 +101,16 @@ async function main(): Promise<void> {
     expect(membershipsAfterExpired.rows[0]?.count === "0",  "接受过期邀请不能形成 membership。").toBe(true);
 
     // accept 成功路径同样走 production owner：pending → accepted + membership。
+    // 直接写入一个历史/竞态 stale interest，证明 membership 终态会统一清理。
+    const recruitmentIntentId = randomUUID();
+    await pool.query(
+      "INSERT INTO recruitment_intents (id, kind, team_id, status, expires_at) VALUES ($1, 'team_recruiting', $2, 'open', now() + interval '7 days')",
+      [recruitmentIntentId, ids.team],
+    );
+    await pool.query(
+      "INSERT INTO recruitment_interests (recruitment_intent_id, user_id) VALUES ($1, $2)",
+      [recruitmentIntentId, ids.invitee],
+    );
     const freshAcceptable = randomUUID();
     await pool.query(
       `INSERT INTO team_invitations (id, team_id, kind, invited_user_id, invited_by_user_id, status, expires_at)
@@ -112,14 +122,15 @@ async function main(): Promise<void> {
     );
     expect(accepted.kind === "accepted",  "accept 有效邀请应返回 accepted outcome。").toBe(true);
     if (accepted.kind !== "accepted") throw new Error("unreachable");
-    const acceptedRow = await pool.query<{ status: string; memberships: string; audit: string }>(
+    const acceptedRow = await pool.query<{ status: string; memberships: string; audit: string; interests: string }>(
       `SELECT (SELECT status::text FROM team_invitations WHERE id = $1) AS status,
               (SELECT count(*)::text FROM team_memberships WHERE team_id = $2 AND user_id = $3 AND status = 'active' AND ended_at IS NULL) AS memberships,
-              (SELECT count(*)::text FROM audit_logs WHERE action = 'team.invite.accept' AND target_id = $2::text) AS audit`,
-      [freshAcceptable, accepted.teamId, ids.invitee],
+              (SELECT count(*)::text FROM audit_logs WHERE action = 'team.invite.accept' AND target_id = $2::text) AS audit,
+              (SELECT count(*)::text FROM recruitment_interests WHERE recruitment_intent_id = $4 AND user_id = $3) AS interests`,
+      [freshAcceptable, accepted.teamId, ids.invitee, recruitmentIntentId],
     );
-    expect(acceptedRow.rows[0]?.status === "accepted" && acceptedRow.rows[0]?.memberships === "1" && acceptedRow.rows[0]?.audit === "1",
-      "accept 有效邀请应原子形成 membership、accepted 邀请与审计。").toBe(true);
+    expect(acceptedRow.rows[0]?.status === "accepted" && acceptedRow.rows[0]?.memberships === "1" && acceptedRow.rows[0]?.audit === "1" && acceptedRow.rows[0]?.interests === "0",
+      "accept 有效邀请应原子形成 membership、accepted 邀请与审计，并清理同队 recruitment interest。").toBe(true);
 
     const remainingPending = await pool.query<{ count: string }>(
       "SELECT count(*)::text AS count FROM team_invitations WHERE team_id = $1 AND status = 'pending'",
@@ -129,6 +140,10 @@ async function main(): Promise<void> {
 
     // share_link：第一次接受形成 membership，第二次使用同一 token 只能命中
     // 已终态的 invitation，不能重复入队或重新消费链接。
+    await pool.query(
+      "INSERT INTO recruitment_interests (recruitment_intent_id, user_id) VALUES ($1, $2)",
+      [recruitmentIntentId, ids.shareInvitee],
+    );
     const share = await database.transaction((tx) => createTeamShareInvitationInTx(tx, { teamId: ids.team, userId: ids.captain, actorId: ids.captain }));
     const acceptedShare = await database.transaction((tx) => acceptTeamInvitationInTx(tx, {
       userId: ids.shareInvitee,
@@ -137,11 +152,11 @@ async function main(): Promise<void> {
     }));
     expect(acceptedShare.kind === "accepted", "share link 第一次接受应直接形成 Team membership。").toBe(true);
     if (acceptedShare.kind !== "accepted") throw new Error("share link accept did not succeed");
-    const shareAcceptedState = await pool.query<{ status: string; memberships: string }>(
-      "SELECT (SELECT status::text FROM team_invitations WHERE token_hash = $1) AS status, (SELECT count(*)::text FROM team_memberships WHERE team_id = $2 AND user_id = $3 AND ended_at IS NULL) AS memberships",
-      [hashTeamInvitationToken(share.token), ids.team, ids.shareInvitee],
+    const shareAcceptedState = await pool.query<{ status: string; memberships: string; interests: string }>(
+      "SELECT (SELECT status::text FROM team_invitations WHERE token_hash = $1) AS status, (SELECT count(*)::text FROM team_memberships WHERE team_id = $2 AND user_id = $3 AND ended_at IS NULL) AS memberships, (SELECT count(*)::text FROM recruitment_interests WHERE recruitment_intent_id = $4 AND user_id = $3) AS interests",
+      [hashTeamInvitationToken(share.token), ids.team, ids.shareInvitee, recruitmentIntentId],
     );
-    expect(shareAcceptedState.rows[0]?.status === "accepted" && shareAcceptedState.rows[0]?.memberships === "1", "share link 接受应原子收敛为 accepted + membership。").toBe(true);
+    expect(shareAcceptedState.rows[0]?.status === "accepted" && shareAcceptedState.rows[0]?.memberships === "1" && shareAcceptedState.rows[0]?.interests === "0", "share link 接受应原子收敛为 accepted + membership，并清理同队 recruitment interest。").toBe(true);
     await expect(database.transaction((tx) => acceptTeamInvitationInTx(tx, {
       userId: ids.shareInvitee,
       actorId: ids.shareInvitee,
@@ -184,6 +199,8 @@ async function main(): Promise<void> {
     try {
       await cleanup.query("BEGIN");
       await cleanup.query("SET LOCAL session_replication_role = replica");
+      await cleanup.query("DELETE FROM recruitment_interests WHERE recruitment_intent_id = $1", [recruitmentIntentId]);
+      await cleanup.query("DELETE FROM recruitment_intents WHERE id = $1", [recruitmentIntentId]);
       await cleanup.query("DELETE FROM team_invitations WHERE team_id = $1", [ids.team]);
       await cleanup.query("DELETE FROM team_captain_changes WHERE team_id = $1", [ids.team]);
       await cleanup.query("DELETE FROM team_name_changes WHERE team_id = $1", [ids.team]);
