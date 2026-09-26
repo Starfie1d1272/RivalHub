@@ -24,17 +24,17 @@ export function ManualInstitutionCreateForm() {
         toast.success(`院校目录已存在：${result.data.institution.name}`);
         return;
       }
-      toast.success(`已新增院校条目：${result.data.institution.name}`);
+      toast.success(`已添加到院校目录：${result.data.institution.name}`);
       setName("");
       setProvince("");
     });
   }
 
   return (
-    <Panel label="新增院校条目" contentClassName="p-5">
+    <Panel label="补充院校目录" contentClassName="p-5">
       <div className="space-y-4">
         <p className="text-sm leading-6 text-[var(--color-fg-mid)]">
-          用于处理用户按学信网正式学校名称仍无法检索到院校的情况。新增条目进入统一院校目录；教育认证继续按现有审核流程完成。
+          用于处理用户按学信网正式学校名称仍无法检索到学校的情况。添加后，用户即可按该校名搜索并选择；教育认证仍按正常审核流程进行。
         </p>
         <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_180px_auto] sm:items-end">
           <div className="space-y-1.5">
@@ -45,7 +45,7 @@ export function ManualInstitutionCreateForm() {
             <Label htmlFor="manual-institution-province">省份（可选）</Label>
             <Input id="manual-institution-province" value={province} onChange={(event) => setProvince(event.target.value)} placeholder="例如：江苏" />
           </div>
-          <Button type="button" disabled={pending || !name.trim()} onClick={submit}>{pending ? "保存中…" : "新增院校"}</Button>
+          <Button type="button" disabled={pending || !name.trim()} onClick={submit}>{pending ? "保存中…" : "添加到目录"}</Button>
         </div>
       </div>
     </Panel>
