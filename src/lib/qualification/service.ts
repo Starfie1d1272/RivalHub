@@ -85,13 +85,13 @@ function qualificationPlatformLabel(platform: string): string {
   return "竞技平台";
 }
 
-function qualificationSeasonLabel(seasonKey: string): string {
+function qualificationSeasonLabel(seasonKey: string, fallback = "指定赛季"): string {
   const yearSeason = /^(\d{4})s(\d+)$/i.exec(seasonKey);
   if (yearSeason) return `${yearSeason[1]} S${yearSeason[2]}`;
   if (/^s\d+$/i.test(seasonKey)) return seasonKey.toUpperCase();
   const prefixedSeason = /^(?:5e[-_])(s\d+)$/i.exec(seasonKey);
   if (prefixedSeason) return prefixedSeason[1]!.toUpperCase();
-  return "指定赛季";
+  return fallback;
 }
 
 export type ParticipantEducationReadiness = "ready" | "pending_review" | "rejected" | "missing";
@@ -346,8 +346,8 @@ function getCompetitiveProfileFindings(
       return {
         ...finding,
         message: context.evidencePolicy
-          ? `缺少${qualificationPlatformLabel(context.platform)} ${qualificationSeasonLabel(context.evidencePolicy.referenceSeasonKey)} 的最高段位和 Rating。`
-          : `缺少${qualificationPlatformLabel(context.platform)} ${qualificationSeasonLabel(context.previousSeasonKey)} 的最高段位和 Rating。`,
+          ? `缺少${qualificationPlatformLabel(context.platform)} ${qualificationSeasonLabel(context.evidencePolicy.referenceSeasonKey, "前一完整赛季")}的最高段位和 Rating。`
+          : `缺少${qualificationPlatformLabel(context.platform)} ${qualificationSeasonLabel(context.previousSeasonKey, "上一赛季")}的最高段位和 Rating。`,
         metadata: { ...finding.metadata, platform: context.platform, seasonKey },
       };
     }
@@ -357,8 +357,8 @@ function getCompetitiveProfileFindings(
       return {
         ...finding,
         message: context.evidencePolicy
-          ? `请补充${qualificationPlatformLabel(context.platform)} ${context.evidencePolicy.recentSeasonKeys.map(qualificationSeasonLabel).join(" / ")} 中至少一个赛季的最高段位和 Rating。`
-          : `缺少${qualificationPlatformLabel(context.platform)} ${qualificationSeasonLabel(context.currentSeasonKey)} 的最高段位和 Rating。`,
+          ? `请补充${qualificationPlatformLabel(context.platform)} ${[...new Set(context.evidencePolicy.recentSeasonKeys.map((key) => qualificationSeasonLabel(key, "近期赛季")))].join(" / ")}中至少一个赛季的最高段位和 Rating。`
+          : `缺少${qualificationPlatformLabel(context.platform)} ${qualificationSeasonLabel(context.currentSeasonKey, "当前赛季")}的最高段位和 Rating。`,
         metadata: { ...finding.metadata, platform: context.platform, seasonKey },
       };
     }
