@@ -100,8 +100,8 @@ export function EducationInstitutionSelector({ idPrefix, value, onChange, disabl
           <Button type="button" size="sm" variant="ghost" aria-expanded={recoveryExpanded} onClick={() => setRecoveryExpanded((current) => !current)}>仍找不到学校</Button>
         </div>
         {recoveryExpanded && <div className="space-y-1 border-l-2 border-[var(--color-accent)] pl-3 text-sm leading-6 text-[var(--color-fg-mid)]">
-          <p>请把上方名称改为学信网报告或正式学籍材料上的学校全称，再搜索一次。</p>
-          <p>仍无结果时，请将该正式学校名称发给赛事管理员补充院校目录。目录补充完成后即可重新搜索并选择；上方自由文本不会直接成为教育认证学校。</p>
+          <p>请按学信网报告或正式学籍材料上的学校全称重新搜索。</p>
+          <p>仍无结果时，请将该正式学校名称发给赛事管理员补充院校目录。目录补充完成后，重新搜索并选择对应学校即可继续认证。</p>
         </div>}
       </div>}
     </div>
