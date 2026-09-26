@@ -16,6 +16,7 @@ import {
   withdrawCompetitionEntryParticipation,
 } from "@/actions/competition-entries";
 import { Checklist, InlineConfirm, Panel, StatusBanner } from "@/components/rivalhub";
+import type { ChecklistItem } from "@/components/rivalhub/Checklist";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -163,8 +164,8 @@ export function CompetitionEntryFlow(props: Props) {
   });
   const platformLabel = (platform: string) => platform === "perfect_world" ? "PW" : platform === "fivee" ? "5E" : platform;
   const seasonLabel = (seasonKey: string) => seasonKey.replace(/^(\d{4})s(\d+)$/i, "$1 S$2").toUpperCase();
-  const participantChecks = props.requiresCompetitiveProfile
-    ? entry.roster.flatMap((member) => {
+  const participantChecks: ChecklistItem[] = props.requiresCompetitiveProfile
+    ? entry.roster.flatMap<ChecklistItem>((member) => {
       if (!member.readiness) return [{ label: `${member.label} · 等待成员确认后核验资格`, state: "blocked" as const }];
       if (member.readiness.ready) return [{ label: `${member.label} · 身份、学籍与竞技档案已就绪`, state: "complete" as const }];
       return member.readiness.findings.map((finding) => {
@@ -183,13 +184,13 @@ export function CompetitionEntryFlow(props: Props) {
           detail: competitiveTarget ? finding.message : undefined,
           state: "blocked" as const,
           action: member.userId === props.currentUserId && href
-            ? <Button asChild size="sm" variant="outline"><Link href={href}>前往</Link></Button>
+            ? <Button asChild size="sm" variant="outline"><Link href={href as never}>前往</Link></Button>
             : undefined,
         };
       });
     })
     : [];
-  const blockingChecks = [
+  const blockingChecks: ChecklistItem[] = [
     ...(unsaved ? [{ label: "名单有未保存的修改，请先保存本届名单", state: "blocked" as const }] : []),
     ...(props.requiresTeamLogo ? [{ label: entry.logoUrl ? "队伍图标已上传" : teamLogoBlockerLabel, state: entry.logoUrl ? "complete" as const : "blocked" as const }] : []),
     ...entry.roster.filter((member) => !entry.candidates.some((candidate) => candidate.userId === member.userId && candidate.status === "active")).map((member) => ({ label: `${member.label} · 请先恢复为队伍当前成员或调整本届名单`, state: "blocked" as const })),
@@ -203,7 +204,7 @@ export function CompetitionEntryFlow(props: Props) {
       detail: finding.waivable ? "该事项随报名材料提交，由赛委会人工确认。" : undefined,
     })),
   ];
-  const notes = roleHint.length === 0 ? [] : [{
+  const notes: ChecklistItem[] = roleHint.length === 0 ? [] : [{
     label: `角色软提示：可考虑补充 ${roleHint.join(" / ")}`,
     state: "pending" as const,
     detail: "角色仅用于推荐；重复 AWPer、没有 IGL 或角色缺口不会阻止提交。",
