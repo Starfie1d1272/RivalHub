@@ -74,6 +74,7 @@ type SelectableCompetitivePeak = QualificationPeak | QualificationSeasonPeak;
 
 type CompetitiveEvidenceSlot = {
   label: string;
+  targetKey: string;
   primary: SelectableCompetitivePeak | null | undefined;
   fallback: SelectableCompetitivePeak | null | undefined;
 };
@@ -242,11 +243,12 @@ function getMissingStarFindings(
     return sourceSeasonKey ? fact.fallbackFacts?.seasonPeaks.get(sourceSeasonKey) : undefined;
   };
   const slots: CompetitiveEvidenceSlot[] = [
-    { label: "历史最高", primary: fact.historicalPeak, fallback: fact.fallbackFacts?.historicalPeak },
+    { label: "历史最高", targetKey: "historical", primary: fact.historicalPeak, fallback: fact.fallbackFacts?.historicalPeak },
   ];
   const referenceSeasonKey = policy?.referenceSeasonKey ?? context.previousSeasonKey;
   slots.push({
     label: policy ? `前一完整赛季 · ${referenceSeasonKey}` : `上一赛季 · ${referenceSeasonKey}`,
+    targetKey: referenceSeasonKey,
     primary: fact.seasonPeaks?.get(referenceSeasonKey),
     fallback: fallbackFor(referenceSeasonKey),
   });
@@ -254,6 +256,7 @@ function getMissingStarFindings(
   for (const seasonKey of recentSeasonKeys) {
     slots.push({
       label: policy ? `近期赛季 · ${seasonKey}` : `当前赛季 · ${seasonKey}`,
+      targetKey: seasonKey,
       primary: fact.seasonPeaks?.get(seasonKey),
       fallback: fallbackFor(seasonKey),
     });
@@ -293,6 +296,8 @@ function getMissingStarFindings(
       ? fallbackMissing ?? (primaryMissing && !selectedFallback ? primaryMissing : null)
       : primaryHasPriorityInLegacy ? primaryMissing : fallbackMissing;
     if (report) {
+      const reportUsesFallback = report === fallbackMissing;
+      const sourcePeak = reportUsesFallback ? slot.fallback : slot.primary;
       findings.push({
         code: "competitive_profile_incomplete",
         message: `${slot.label}的 ${report.label} 段位需要填写准确星数，竞技资料未填写完整。`,
@@ -300,8 +305,8 @@ function getMissingStarFindings(
         metadata: {
           field: "stars",
           slot: slot.label,
-          platform: fallbackMissing && sourceSelection === "strongest_equivalent" ? fallbackPlatform : context.platform,
-          seasonKey: (fallbackMissing && sourceSelection === "strongest_equivalent" ? slot.fallback : slot.primary)?.sourceSeasonKey ?? null,
+          platform: reportUsesFallback ? fallbackPlatform ?? context.platform : context.platform,
+          seasonKey: slot.targetKey === "historical" ? "historical" : sourcePeak?.sourceSeasonKey ?? slot.targetKey,
           rankKey: report.rankKey,
           rankLabel: report.label,
         },
@@ -343,7 +348,7 @@ function getCompetitiveProfileFindings(
       };
     }
     if (field === "historical_peak") {
-      return { ...finding, metadata: { ...finding.metadata, platform: context.platform } };
+      return { ...finding, metadata: { ...finding.metadata, platform: context.platform, seasonKey: "historical" } };
     }
     return finding;
   });
