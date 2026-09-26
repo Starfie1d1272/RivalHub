@@ -201,8 +201,9 @@ describe("participant readiness", () => {
     expect(readiness.ready).toBe(false);
     expect(readiness.blockers).toContain("请填写 Steam64 ID。");
     expect(readiness.blockers).toContain("需要本人补充 · 高校身份认证");
-    expect(readiness.blockers).toContain("缺少perfect_world · S20 的最高段位及 Rating。");
+    expect(readiness.blockers).toContain("缺少完美平台 S20 的最高段位和 Rating。");
     expect(readiness.findings.every((finding) => finding.waivable === false)).toBe(true);
+    expect(readiness.blockers.join(" ")).not.toContain("perfect_world");
   });
 
   it("accepts a participant whose canonical Perfect nickname is present", () => {
@@ -519,7 +520,7 @@ describe("participant readiness", () => {
 
     expect(batch.get(USER_ID)).toEqual(single);
     expect(single.ready).toBe(false);
-    expect(single.blockers.join(" ")).toContain("缺少perfect_world · S20 的最高段位及 Rating");
+    expect(single.blockers.join(" ")).toContain("缺少完美平台 S20 的最高段位和 Rating");
   });
 
   it("uses a preloaded fact bundle without issuing a second read", async () => {
@@ -585,12 +586,12 @@ describe("participant readiness recovery states", () => {
     {
       status: "pending_review" as const,
       history: [{ id: "education-pending", institutionCode: "4132010284", institutionName: "南京大学", academicStatus: "enrolled" as const, status: "pending" as const, submittedAt: new Date("2026-09-26T01:00:00Z") }],
-      message: "高校认证审核中 · 等待赛委会",
+      message: "高校身份认证审核中 · 等待赛委会",
     },
     {
       status: "rejected" as const,
       history: [{ id: "education-rejected", institutionCode: "4132010284", institutionName: "南京大学", academicStatus: "enrolled" as const, status: "rejected" as const, submittedAt: new Date("2026-09-26T01:00:00Z") }],
-      message: "需要本人处理 · 高校认证已驳回",
+      message: "需要本人处理 · 高校身份认证已驳回",
     },
     {
       status: "missing" as const,
