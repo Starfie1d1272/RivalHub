@@ -201,7 +201,7 @@ describe("participant readiness", () => {
     expect(readiness.ready).toBe(false);
     expect(readiness.blockers).toContain("请填写 Steam64 ID。");
     expect(readiness.blockers).toContain("需要本人补充 · 高校身份认证");
-    expect(readiness.blockers).toContain("缺少完美平台 S20 的最高段位和 Rating。");
+    expect(readiness.blockers).toContain("缺少完美平台 S20的最高段位和 Rating。");
     expect(readiness.findings.every((finding) => finding.waivable === false)).toBe(true);
     expect(readiness.blockers.join(" ")).not.toContain("perfect_world");
   });
@@ -520,7 +520,7 @@ describe("participant readiness", () => {
 
     expect(batch.get(USER_ID)).toEqual(single);
     expect(single.ready).toBe(false);
-    expect(single.blockers.join(" ")).toContain("缺少完美平台 S20 的最高段位和 Rating");
+    expect(single.blockers.join(" ")).toContain("缺少完美平台 S20的最高段位和 Rating");
   });
 
   it("uses a preloaded fact bundle without issuing a second read", async () => {
