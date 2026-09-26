@@ -82,7 +82,7 @@ export function CompetitionEntryFlow(props: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [refreshing, startRefreshTransition] = useTransition();
-  const lastServerRefreshAt = useRef(Date.now());
+  const lastServerRefreshAt = useRef(0);
   const [confirmRosterChange, setConfirmRosterChange] = useState(false);
   const [confirmParticipantWithdrawal, setConfirmParticipantWithdrawal] = useState(false);
   const [removeMember, setRemoveMember] = useState<Candidate | null>(null);
@@ -96,6 +96,7 @@ export function CompetitionEntryFlow(props: Props) {
   };
 
   useEffect(() => {
+    if (lastServerRefreshAt.current === 0) lastServerRefreshAt.current = Date.now();
     const handleVisibility = () => {
       if (document.visibilityState !== "visible") return;
       if (Date.now() - lastServerRefreshAt.current < 30_000) return;
