@@ -4,7 +4,7 @@
 
 ## 结论
 
-- 当前 active chain 的 84 张 application-owned `public` base table 全部归类为 `server_only`。业务数据库只由 server-side Drizzle 访问，browser Data API consumer 为零。
+- 当前 active chain 的 87 张 application-owned `public` base table 全部归类为 `server_only`。业务数据库只由 server-side Drizzle 访问，browser Data API consumer 为零。
 - `users`、`user_sessions`、`admin_invites`、`admin_invite_claims`、`season_admin_grants`、`audit_logs`、education evidence、Major prestart/runtime 和 bracket runtime 均按高敏感 server-only 处理。
 - 通用 provider bracket state 按 `(competition_id, stage_key)` 归属 canonical logical Stage；Major Swiss standings 只由 StageRun entrants、managed matches 与 finalized round 投影。
 - `DraftLiveRoom` 与 `CaptainVotingPanel` 的 Realtime subscription 已删除。两处继续使用既有 10 秒 polling fallback；`ResetPasswordForm` 保留 browser Supabase client，但仅调用 Supabase Auth，不调用 public table Data API。
@@ -69,6 +69,9 @@
 | match_rosters | 比赛阵容状态 | 比赛 / roster | src/lib/match-rosters/service.ts; src/actions/matches/roster.ts | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 阵容提交、确认和 starter preflight 是服务端操作。 |
 | match_round_facts | 已确认 Demo 的规范化回合事实 | 比赛 / DAK 证据 | src/lib/demo-integration/submit.ts | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 回合事实是 DAK evidence 的服务端投影，不通过 Data API 或 Realtime 暴露。 |
 | match_time_proposals | 时间协商与自动判定事实 | 比赛 / 排期 | src/lib/matches/time-proposals.ts; src/actions/matches/scheduling.ts | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | proposal lifecycle 和 auto-award 由服务端事务维护。 |
+| match_veto_appeals | 超时申诉原因、提交人与裁定事实 | 比赛 / BP 申诉 | src/lib/matches/veto-room/service.ts; src/actions/matches/veto-room.ts | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 申诉与裁定只通过服务端 Veto Room action 读写，不直接开放 browser Data API。 |
+| match_veto_sessions | 开赛请求、冻结先手、地图池与倒计时事实 | 比赛 / BP | src/lib/matches/veto-room/service.ts; src/lib/matches/veto-room/read-model.ts | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | Session 与 Match 生命周期在同一服务端事务内推进；浏览器只消费显式 Veto Room DTO。 |
+| match_veto_timeout_incidents | 超时责任、可选项、随机结果与申诉关联事实 | 比赛 / BP 申诉 | src/lib/matches/veto-room/service.ts; src/actions/matches/veto-room.ts | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 超时选择和申诉关联仅由服务端事务维护，不通过 Data API 或 Realtime 暴露。 |
 | match_veto_steps | BP 操作历史 | 比赛 / BP | src/actions/matches/veto.ts; src/lib/teams/data.ts | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | veto step 是比赛过程事实，不能被浏览器直接改写。 |
 | matches | 比赛、赛果与恢复事实 | 比赛 runtime | src/actions/matches/; src/lib/major/; src/lib/match-corrections/ | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | manual/Major match、结果更正和 stage progression 均由服务端 owner 管理。 |
 | post_event_adjudications | 高敏感裁决事实 | 赛后裁决 | src/lib/postevent/service.ts; src/actions/postevent.ts | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 裁决影响范围和撤销历史必须通过管理员服务端操作。 |

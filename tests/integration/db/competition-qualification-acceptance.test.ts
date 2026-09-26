@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import { describe, expect, it } from "vitest";
@@ -21,6 +21,7 @@ import { applyMatchStatusTransitionInTx, confirmMatchRosterInTx, persistMatchRos
 import { assertGenericMatchCanBeDeleted } from "../../../src/lib/matches/deletion";
 import { applyResultCorrectionInTx, planResultCorrectionInTx } from "../../../src/lib/match-corrections/service";
 import { selectMajorEntrantsAndSyncRostersInTx } from "../../../src/lib/major/prestart-entrants";
+import { readVetoRoomCore, requestVetoStart, submitVetoCommand } from "../../../src/lib/matches/veto-room/service";
 import { localDatabaseUrl, testSteam64 } from "./harness/database";
 
 const databaseUrl = localDatabaseUrl();
@@ -326,6 +327,27 @@ async function exerciseThirtyToTwentyFourAcceptance(): Promise<void> {
     expect(configured).toMatchObject({ directEntryCount: 18, playInEntryCount: 12, qualifierCount: 6 });
 
     const runId = configured.runId;
+    const frozenSeedRows = await database.select({
+      entryId: schema.competitionQualificationEntrants.competitionEntryId,
+      seed: schema.competitionQualificationEntrants.preliminarySeed,
+    }).from(schema.competitionQualificationEntrants)
+      .where(eq(schema.competitionQualificationEntrants.runId, runId));
+    const higherSeed = [...frozenSeedRows].sort((left, right) => left.seed - right.seed)[0]!;
+    const lowerSeed = [...frozenSeedRows].sort((left, right) => right.seed - left.seed)[0]!;
+    const probeMatchId = randomUUID();
+    await pool.query(
+      `INSERT INTO matches (id, season_id, entry_a_id, entry_b_id, stage, format, qualification_run_id)
+       VALUES ($1, $2, $3, $4, 'play-in', 'bo1', $5)`,
+      [probeMatchId, fixture.seasonId, lowerSeed.entryId, higherSeed.entryId, runId],
+    );
+    try {
+      const vetoSnapshot = await readVetoRoomCore(probeMatchId);
+      expect(vetoSnapshot.session.privilegedEntryId).toBe(higherSeed.entryId);
+      expect(vetoSnapshot.session.privilegedEntryId).not.toBe(vetoSnapshot.match.entryAId);
+    } finally {
+      await pool.query("DELETE FROM matches WHERE id = $1", [probeMatchId]);
+    }
+
     let historicalEntryId = "";
     let firstRoundId = "";
     let secondRoundId = "";
@@ -390,7 +412,100 @@ async function exerciseThirtyToTwentyFourAcceptance(): Promise<void> {
           seasonId: fixture!.seasonId,
           actorId: ACTOR,
         }))).rejects.toThrow("Play-in 已开始或已生成比赛，不能重置");
+        const otherEntryId = historicalMatch.entryAId === historicalEntryId ? historicalMatch.entryBId : historicalMatch.entryAId;
         revisionOneUsers = await persistAndConfirmLineup(database, historicalMatch.id, historicalEntryId);
+        const otherEntryUsers = await persistAndConfirmLineup(database, historicalMatch.id, otherEntryId);
+        for (const [entryId, userId] of [
+          [historicalEntryId, revisionOneUsers[0]!],
+          [otherEntryId, otherEntryUsers[0]!],
+        ] as const) {
+          const representative = await pool.query(
+            `UPDATE match_roster_players AS mrp SET is_veto_representative = true
+             FROM match_rosters AS mr
+             WHERE mrp.roster_id = mr.id AND mr.match_id = $1 AND mr.entry_id = $2
+               AND mrp.is_starter AND EXISTS (
+                 SELECT 1 FROM event_roster_members AS erm
+                 WHERE erm.id = mrp.event_roster_member_id AND erm.user_id = $3
+               )`,
+            [historicalMatch.id, entryId, userId],
+          );
+          expect(representative.rowCount).toBe(1);
+        }
+        const beforeStart = await readVetoRoomCore(historicalMatch.id);
+        const qualificationSeeds = await database.select({
+          entryId: schema.competitionQualificationEntrants.competitionEntryId,
+          seed: schema.competitionQualificationEntrants.preliminarySeed,
+        }).from(schema.competitionQualificationEntrants)
+          .where(and(
+            eq(schema.competitionQualificationEntrants.runId, runId),
+            inArray(schema.competitionQualificationEntrants.competitionEntryId, [historicalMatch.entryAId, historicalMatch.entryBId]),
+          ));
+        const expectedPrivileged = [...qualificationSeeds].sort((left, right) => left.seed - right.seed)[0]?.entryId;
+        expect(beforeStart.session.privilegedEntryId).toBe(expectedPrivileged);
+        const firstEntryA = historicalMatch.entryAId === historicalEntryId;
+        await requestVetoStart({
+          matchId: historicalMatch.id,
+          entryId: historicalMatch.entryAId,
+          actorId: firstEntryA ? revisionOneUsers[0]! : otherEntryUsers[0]!,
+          expectedRevision: beforeStart.session.revision,
+          expectedTurnKey: beforeStart.session.currentTurnKey,
+        });
+        const beforeSecondRequest = await readVetoRoomCore(historicalMatch.id);
+        await requestVetoStart({
+          matchId: historicalMatch.id,
+          entryId: historicalMatch.entryBId,
+          actorId: firstEntryA ? otherEntryUsers[0]! : revisionOneUsers[0]!,
+          expectedRevision: beforeSecondRequest.session.revision,
+          expectedTurnKey: beforeSecondRequest.session.currentTurnKey,
+        });
+        const startedRoom = await readVetoRoomCore(historicalMatch.id);
+        expect(startedRoom.match.status).toBe("in_progress");
+        expect(startedRoom.session.startedAt).not.toBeNull();
+        expect(startedRoom.currentTurn?.actionType).toBe("role_select");
+
+        const userByEntry = new Map([
+          [historicalEntryId, revisionOneUsers[0]!],
+          [otherEntryId, otherEntryUsers[0]!],
+        ]);
+        let activeRoom = startedRoom;
+        for (let commandNumber = 0; commandNumber < 16 && !activeRoom.session.completedAt; commandNumber += 1) {
+          const turn = activeRoom.currentTurn;
+          if (!turn || !turn.actorEntryId) throw new Error("Veto Room lost its participant turn before map plan completion");
+          const actorId = userByEntry.get(turn.actorEntryId);
+          if (!actorId) throw new Error("Veto Room turn owner has no confirmed representative");
+          const command = turn.actionType === "role_select"
+            ? { kind: "role_select" as const, entryId: activeRoom.session.privilegedEntryId! }
+            : turn.actionType === "side_pick"
+              ? { kind: "step" as const, actionType: "side_pick" as const, side: "ct" as const }
+              : turn.actionType === "ban" || turn.actionType === "pick"
+                ? {
+                    kind: "step" as const,
+                    actionType: turn.actionType,
+                    mapName: activeRoom.session.mapPoolSnapshot!.find((mapName) =>
+                      !activeRoom.steps.some((step) => step.actionType !== "side_pick" && step.mapName === mapName),
+                    )!,
+                  }
+                : null;
+          if (!command) throw new Error(`Unexpected participant Veto Room turn: ${turn.actionType}`);
+          expect(await submitVetoCommand({
+            matchId: historicalMatch.id,
+            actorId,
+            expectedRevision: activeRoom.session.revision,
+            expectedTurnKey: turn.key,
+            clientRequestId: randomUUID(),
+            command,
+          })).toBe("applied");
+          activeRoom = await readVetoRoomCore(historicalMatch.id);
+        }
+        expect(activeRoom.session.completedAt).not.toBeNull();
+        expect(activeRoom.match.status).toBe("in_progress");
+        const mapPlan = await pool.query<{ map_order: number; score_a: number | null; score_b: number | null }>(
+          "SELECT map_order, score_a, score_b FROM match_maps WHERE match_id = $1 ORDER BY map_order",
+          [historicalMatch.id],
+        );
+        const expectedMapCount = historicalMatch.format === "bo1" ? 1 : historicalMatch.format === "bo3" ? 3 : 5;
+        expect(mapPlan.rows).toHaveLength(expectedMapCount);
+        expect(mapPlan.rows.every((map) => map.score_a === null && map.score_b === null)).toBe(true);
       }
 
       if (round === 2) {

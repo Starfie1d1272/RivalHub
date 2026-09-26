@@ -110,6 +110,7 @@ describe("AdminRosterDialog — explicit two-step lineup selection", () => {
       rosterId: "roster-a",
       starters: ["a1", "a2", "a3", "a4", "a5"],
       substitutes: [],
+      vetoRepresentativeEventRosterMemberId: null,
       status: "submitted",
     };
     render(
@@ -139,6 +140,7 @@ describe("AdminRosterDialog — explicit two-step lineup selection", () => {
       rosterId: "roster-b",
       starters: ["b1", "b2", "b3", "b4", "b5"],
       substitutes: [],
+      vetoRepresentativeEventRosterMemberId: null,
       status: "confirmed",
     };
     render(
@@ -193,6 +195,7 @@ describe("AdminRosterDialog — explicit two-step lineup selection", () => {
       rosterId: "roster-a",
       starters: ["a1", "a2", "a3", "a4", "a6"],
       substitutes: [],
+      vetoRepresentativeEventRosterMemberId: null,
       status: "submitted",
     };
     render(

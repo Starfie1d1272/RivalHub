@@ -36,9 +36,9 @@ async function revalidateAfterRosterChange(match: Pick<Match, "seasonId" | "id">
  */
 export async function submitMatchRoster(
   matchId: string,
-  input: { starterIds: string[]; substituteIds?: string[] },
+  input: { starterIds: string[]; substituteIds?: string[]; vetoRepresentativeEventRosterMemberId: string },
 ): Promise<ActionResult<{ rosterId: string }>> {
-  const { starterIds, substituteIds = [] } = input;
+  const { starterIds, substituteIds = [], vetoRepresentativeEventRosterMemberId } = input;
   try {
     const session = await requireAuth();
     const match = await getMatchOrThrow(matchId);
@@ -71,13 +71,14 @@ export async function submitMatchRoster(
         source: "participant",
         starterIds,
         substituteIds,
+        vetoRepresentativeEventRosterMemberId,
       });
 
       await writeAuditInTx(tx, {
         seasonId: locked.seasonId,
         action: "match.roster.submit",
         actorId,
-        targetId: summary.rosterId,meta: { matchId, entryId, source: "participant", starterIds, substituteIds },
+        targetId: summary.rosterId,meta: { matchId, entryId, source: "participant", starterIds, substituteIds, vetoRepresentativeEventRosterMemberId },
       });
 
       return summary.rosterId;
@@ -98,9 +99,9 @@ export async function submitMatchRoster(
 export async function adminSelectMatchRoster(
   matchId: string,
   entryId: string,
-  input: { starterIds: string[]; substituteIds?: string[]; note?: string },
+  input: { starterIds: string[]; substituteIds?: string[]; note?: string; vetoRepresentativeEventRosterMemberId?: string | null },
 ): Promise<ActionResult<{ rosterId: string }>> {
-  const { starterIds, substituteIds = [], note } = input;
+  const { starterIds, substituteIds = [], note, vetoRepresentativeEventRosterMemberId = null } = input;
   try {
     const match = await getMatchOrThrow(matchId);
     const admin = await requireSeasonAdmin(match.seasonId);
@@ -130,6 +131,7 @@ export async function adminSelectMatchRoster(
         source: "admin_select",
         starterIds,
         substituteIds,
+        vetoRepresentativeEventRosterMemberId,
       });
 
       await writeAuditInTx(tx, {
@@ -142,6 +144,7 @@ export async function adminSelectMatchRoster(
           source: "admin_select",
           starterIds,
           substituteIds,
+          vetoRepresentativeEventRosterMemberId,
           note: note ?? null,
         },
       });

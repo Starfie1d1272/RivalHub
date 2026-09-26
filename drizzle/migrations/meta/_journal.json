@@ -407,6 +407,13 @@
       "when": 1790357060356,
       "tag": "0057_event_roster_member_history",
       "breakpoints": true
+    },
+    {
+      "idx": 58,
+      "version": "7",
+      "when": 1790450953563,
+      "tag": "0058_bright_mikhail_rasputin",
+      "breakpoints": true
     }
   ]
 }

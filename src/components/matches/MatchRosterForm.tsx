@@ -24,6 +24,7 @@ interface MatchRosterFormProps {
   rosterStatus: string | null;
   initialStarterIds?: string[];
   initialSubstituteIds?: string[];
+  initialVetoRepresentativeEventRosterMemberId?: string | null;
   allowSubstitutes?: boolean;
 }
 
@@ -35,6 +36,7 @@ export function MatchRosterForm({
   rosterStatus,
   initialStarterIds = [],
   initialSubstituteIds = [],
+  initialVetoRepresentativeEventRosterMemberId = null,
   allowSubstitutes = true,
 }: MatchRosterFormProps) {
   const isMatchStarted = matchStatus !== "scheduled";
@@ -50,16 +52,19 @@ export function MatchRosterForm({
   }
   const [selectedStarterIds, setSelectedStarterIds] = useState<string[]>(initialStarterIds);
   const [selectedSubstituteIds, setSelectedSubstituteIds] = useState<string[]>(initialSubstituteIds);
+  const [vetoRepresentativeId, setVetoRepresentativeId] = useState<string | null>(initialVetoRepresentativeEventRosterMemberId);
 
   const toggleStarter = (id: string) => {
+    const removing = selectedStarterIds.includes(id);
     setSelectedStarterIds((prev) =>
-      prev.includes(id)
+      removing
         ? prev.filter((x) => x !== id)
         : prev.length < 5
           ? [...prev, id]
           : prev,
     );
     setSelectedSubstituteIds((prev) => prev.filter((x) => x !== id));
+    if (removing && vetoRepresentativeId === id) setVetoRepresentativeId(null);
   };
 
   const toggleSubstitute = (id: string) => {
@@ -78,8 +83,16 @@ export function MatchRosterForm({
       toast.error("请选择 5 名首发");
       return;
     }
+    if (!vetoRepresentativeId || !selectedStarterIds.includes(vetoRepresentativeId)) {
+      toast.error("请选择一名首发担任本场 BP 负责人");
+      return;
+    }
     startTransition(async () => {
-      const result = await submitMatchRoster(matchId, { starterIds: selectedStarterIds, substituteIds: allowSubstitutes ? selectedSubstituteIds : [] });
+      const result = await submitMatchRoster(matchId, {
+        starterIds: selectedStarterIds,
+        substituteIds: allowSubstitutes ? selectedSubstituteIds : [],
+        vetoRepresentativeEventRosterMemberId: vetoRepresentativeId,
+      });
       if (result.success) {
         toast.success("名单提交成功");
       } else {
@@ -137,6 +150,25 @@ export function MatchRosterForm({
           已选 {selectedStarterIds.length}/5 名首发
         </p>
       </div>
+
+      <fieldset className="space-y-2" disabled={rosterLocked || isMatchStarted}>
+        <legend className="text-sm font-medium text-[var(--color-fg)]">本场 BP 负责人</legend>
+        <p className="text-xs text-[var(--color-fg-dim)]">从已选首发中指定一人负责 BAN、PICK 和选边。</p>
+        <div className="grid grid-cols-1 gap-1 sm:grid-cols-2">
+          {teamMembers.filter((member) => selectedStarterIds.includes(member.id)).map((member) => (
+            <label key={member.id} className="flex min-h-10 items-center gap-2 rounded border border-[var(--color-border)] px-3 py-2 text-sm">
+              <input
+                type="radio"
+                name={`veto-representative-${matchId}`}
+                value={member.id}
+                checked={vetoRepresentativeId === member.id}
+                onChange={() => setVetoRepresentativeId(member.id)}
+              />
+              <span>{getDisplayName(member)}</span>
+            </label>
+          ))}
+        </div>
+      </fieldset>
 
       {allowSubstitutes && <div className="space-y-2">
         <p className="text-sm font-medium text-[var(--color-fg)]">替补</p>

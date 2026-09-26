@@ -1,4 +1,4 @@
-import { check, pgEnum, pgTable, uuid, text, timestamp, boolean, unique } from "drizzle-orm/pg-core";
+import { check, pgEnum, pgTable, uuid, text, timestamp, boolean, unique, uniqueIndex } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { matches } from "./matches";
 import { users } from "./users";
@@ -32,6 +32,14 @@ export const matchRosterPlayers = pgTable("match_roster_players", {
   rosterId: uuid("roster_id").notNull().references(() => matchRosters.id, { onDelete: "cascade" }),
   eventRosterMemberId: uuid("event_roster_member_id").notNull().references(() => eventRosterMembers.id),
   isStarter: boolean("is_starter").notNull().default(true),
+  isVetoRepresentative: boolean("is_veto_representative").notNull().default(false),
 }, (t) => ({
   pk: unique().on(t.rosterId, t.eventRosterMemberId),
+  vetoRepresentativeIsStarter: check(
+    "match_roster_players_veto_representative_is_starter_check",
+    sql`NOT ${t.isVetoRepresentative} OR ${t.isStarter}`,
+  ),
+  oneVetoRepresentativePerRoster: uniqueIndex("match_roster_players_one_veto_representative_per_roster")
+    .on(t.rosterId)
+    .where(sql`${t.isVetoRepresentative}`),
 }));

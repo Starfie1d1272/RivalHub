@@ -62,6 +62,7 @@ function projectRoster(roster: MatchRosterWithPlayers | undefined): RosterData |
     rosterId: roster.id,
     starters: roster.players.filter((player) => player.isStarter).map((player) => player.eventRosterMemberId),
     substitutes: roster.players.filter((player) => !player.isStarter).map((player) => player.eventRosterMemberId),
+    vetoRepresentativeEventRosterMemberId: roster.players.find((player) => player.isVetoRepresentative)?.eventRosterMemberId ?? null,
     status: roster.status,
   };
 }

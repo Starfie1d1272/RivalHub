@@ -14,6 +14,7 @@ export const SCHEDULER_JOB_KEYS = [
   "match-time-auto-award",
   "cleanup-education-evidence",
   "refresh-steam-profiles",
+  "resolve-match-veto-timeouts",
 ] as const;
 
 export const SCHEDULER_JOB_DEFINITIONS = [
@@ -47,6 +48,12 @@ export const SCHEDULER_JOB_DEFINITIONS = [
     label: "Steam 资料刷新",
     primaryCron: "0 */6 * * *",
     staleAfterMs: 18 * 60 * 60 * 1000,
+  },
+  {
+    key: SCHEDULER_JOB_KEYS[5],
+    label: "BP 超时与开始协调",
+    primaryCron: "* * * * *",
+    staleAfterMs: 3 * 60 * 1000,
   },
 ] as const;
 

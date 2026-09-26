@@ -72,13 +72,14 @@ function RosterTeamSection({
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   // Two-step explicit flow: first pick, then review the exact five and confirm.
-  const [pendingLineup, setPendingLineup] = useState<{ starterIds: string[]; substituteIds: string[] } | null>(null);
+  const [pendingLineup, setPendingLineup] = useState<{ starterIds: string[]; substituteIds: string[]; vetoRepresentativeEventRosterMemberId: string | null } | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>(() => {
     if (existingRoster) {
       return [...existingRoster.starters, ...existingRoster.substitutes];
     }
     return [];
   });
+  const [vetoRepresentativeId, setVetoRepresentativeId] = useState<string | null>(existingRoster?.vetoRepresentativeEventRosterMemberId ?? null);
 
   const starterIds = selectedIds.slice(0, 5);
   const substituteIds = allowSubstitutes ? selectedIds.slice(5, 7) : [];
@@ -86,6 +87,7 @@ function RosterTeamSection({
   const memberMap = new Map(members.map((m) => [m.id, m]));
 
   function toggleMember(id: string) {
+    if (selectedIds.includes(id) && vetoRepresentativeId === id) setVetoRepresentativeId(null);
     setSelectedIds((prev) => {
       if (prev.includes(id)) {
         return prev.filter((x) => x !== id);
@@ -118,7 +120,11 @@ function RosterTeamSection({
       toast.error("必须选择 5 名首发");
       return;
     }
-    setPendingLineup({ starterIds, substituteIds });
+    setPendingLineup({
+      starterIds,
+      substituteIds,
+      vetoRepresentativeEventRosterMemberId: starterIds.includes(vetoRepresentativeId ?? "") ? vetoRepresentativeId : null,
+    });
   }
 
   function executeSave() {
@@ -127,7 +133,11 @@ function RosterTeamSection({
       const result = await adminSelectMatchRoster(
         matchId,
         teamId,
-        { starterIds: pendingLineup.starterIds, substituteIds: allowSubstitutes ? pendingLineup.substituteIds : [] },
+        {
+          starterIds: pendingLineup.starterIds,
+          substituteIds: allowSubstitutes ? pendingLineup.substituteIds : [],
+          vetoRepresentativeEventRosterMemberId: pendingLineup.vetoRepresentativeEventRosterMemberId,
+        },
       );
       setPendingLineup(null);
       if (result.success) {
@@ -187,6 +197,11 @@ function RosterTeamSection({
               替补：{pendingLineup.substituteIds.map((id) => (memberMap.get(id) ? getDisplayName(memberMap.get(id)!) : "")).join("、")}
             </p>
           )}
+          <p className="text-xs text-[var(--color-fg-mid)]">
+            BP 负责人：{pendingLineup.vetoRepresentativeEventRosterMemberId && memberMap.get(pendingLineup.vetoRepresentativeEventRosterMemberId)
+              ? getDisplayName(memberMap.get(pendingLineup.vetoRepresentativeEventRosterMemberId)!)
+              : "暂未指定，首发可在 Veto Room 中认领"}
+          </p>
           <p className="text-xs text-[var(--color-fg-mid)]">
             保存后仍需点击「确认名单」，否则该场比赛无法开始。
           </p>
@@ -291,6 +306,32 @@ function RosterTeamSection({
               </div>
             </div>
           )}
+
+          <fieldset className="space-y-2">
+            <legend className="text-xs font-medium text-[var(--color-fg-mid)]">BP 负责人（可选）</legend>
+            <div className="grid grid-cols-1 gap-1 sm:grid-cols-2">
+              {starterIds.map((id) => {
+                const member = memberMap.get(id);
+                if (!member) return null;
+                return (
+                  <label key={id} className="flex min-h-9 items-center gap-2 rounded border border-[var(--color-border)] px-2 py-1.5 text-sm">
+                    <input
+                      type="radio"
+                      name={`admin-veto-representative-${teamId}`}
+                      checked={vetoRepresentativeId === id}
+                      onChange={() => setVetoRepresentativeId(id)}
+                    />
+                    <span>{getDisplayName(member)}</span>
+                  </label>
+                );
+              })}
+              {vetoRepresentativeId !== null && (
+                <button type="button" className="text-left text-xs text-[var(--color-fg-mid)] underline" onClick={() => setVetoRepresentativeId(null)}>
+                  暂不指定
+                </button>
+              )}
+            </div>
+          </fieldset>
 
           {/* Selected count */}
           <p className="text-xs text-[var(--color-fg-mid)]">

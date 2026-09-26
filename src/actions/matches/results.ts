@@ -54,10 +54,8 @@ async function insertResolvedBracketMatches(
 // ── 更新比赛状态 ──────────────────────────────────────────────────────────
 
 /**
- * 将比赛状态推进一步（scheduled→in_progress，scheduled/in_progress→cancelled）。
- * 开始比赛（in_progress）要求两队均已提交并由管理员确认首发阵容；
- * 不存在任何隐式补名单路径。核心事务体见
- * lib/match-rosters/service.ts#applyMatchStatusTransitionInTx。
+ * 通用操作只处理管理员取消。在线比赛必须在 Veto Room 完成双方确认后，
+ * 由共享 roster status transition 与 session start 同事务开始。
  */
 export async function updateMatchStatus(
   matchId: string,
@@ -66,6 +64,9 @@ export async function updateMatchStatus(
   try {
     const match = await getMatchOrThrow(matchId);
     const session = await requireSeasonAdmin(match.seasonId);
+    if (nextStatus === "in_progress") {
+      throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "比赛须由双方在 Veto Room 确认后开始。");
+    }
     if (!isMatchStatus(match.status)) {
       throw new AppError(ErrorCode.INTERNAL_ERROR, `无效的比赛状态: ${match.status}`);
     }

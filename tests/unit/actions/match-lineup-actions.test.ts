@@ -144,7 +144,7 @@ describe("match lineup actions", () => {
       substituteIds: [],
     });
 
-    const result = await submitMatchRoster("match-1", { starterIds: ["m1", "m2", "m3", "m4", "m5"] });
+    const result = await submitMatchRoster("match-1", { starterIds: ["m1", "m2", "m3", "m4", "m5"], vetoRepresentativeEventRosterMemberId: "m1" });
 
     expect(result.success).toBe(true);
     const [, payload] = stubs.persistMatchRosterInTx.mock.calls[0]!;
@@ -157,14 +157,14 @@ describe("match lineup actions", () => {
     stubs.assertStartingLineupAllowedInTx.mockRejectedValue(
       new AppError(ErrorCode.VALIDATION_FAILED, "首发不足"),
     );
-    const result = await submitMatchRoster("match-1", { starterIds: ["m1"] });
+    const result = await submitMatchRoster("match-1", { starterIds: ["m1"], vetoRepresentativeEventRosterMemberId: "m1" });
     expect(result.success).toBe(false);
     if (!result.success) expect(result.error.code).toBe(ErrorCode.VALIDATION_FAILED);
   });
 
   it("rejects submissions once the match is not scheduled anymore", async () => {
     mockedGetMatch.mockResolvedValue({ ...SCHEDULED_MATCH, status: "in_progress" } as never);
-    const result = await submitMatchRoster("match-1", { starterIds: ["m1"] });
+    const result = await submitMatchRoster("match-1", { starterIds: ["m1"], vetoRepresentativeEventRosterMemberId: "m1" });
     expect(result.success).toBe(false);
     if (!result.success) expect(result.error.code).toBe(ErrorCode.VALIDATION_FAILED);
     expect(stubs.persistMatchRosterInTx).not.toHaveBeenCalled();

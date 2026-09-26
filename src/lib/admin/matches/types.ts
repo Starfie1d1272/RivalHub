@@ -19,6 +19,7 @@ export interface RosterData {
   rosterId: string | null;
   starters: string[];
   substitutes: string[];
+  vetoRepresentativeEventRosterMemberId: string | null;
   status: MatchRosterStatus | null;
 }
 

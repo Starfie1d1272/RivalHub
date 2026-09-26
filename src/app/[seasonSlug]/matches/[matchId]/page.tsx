@@ -1,5 +1,6 @@
 import { MatchLiveViewing } from "@/components/matches/MatchLiveViewing";
 import { notFound } from "next/navigation";
+import Link from "next/link";
 import { eq, and, inArray, isNotNull, or } from "drizzle-orm";
 import { db } from "@/db/client";
 import { matches, competitionEntries, eventRosters, eventRosterMembers, matchCommentators, matchMaps, matchRosterPlayers, matchRosters, steamProfiles, users, seasonRegistrations } from "@/db/schema";
@@ -439,6 +440,7 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
                 rosterStatus={captainRoster?.status ?? null}
                 initialStarterIds={captainRoster?.players.filter((player) => player.isStarter).map((player) => player.eventRosterMemberId) ?? []}
                 initialSubstituteIds={captainRoster?.players.filter((player) => !player.isStarter).map((player) => player.eventRosterMemberId) ?? []}
+                initialVetoRepresentativeEventRosterMemberId={captainRoster?.players.find((player) => player.isVetoRepresentative)?.eventRosterMemberId ?? null}
                 allowSubstitutes={match.ownership !== "major_stage"}
               />
             </Panel>
@@ -513,6 +515,21 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
       )}
 
       {!isFinished && <>
+      {(match.status === "scheduled" || match.status === "in_progress") && (
+        <section className="space-y-3">
+          <Panel label="BP 与开赛">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 className="font-semibold text-[var(--color-fg)]">Veto Room</h2>
+                <p className="mt-1 text-sm text-[var(--color-fg-mid)]">{match.status === "scheduled" ? "双方负责人确认后开始 BP；Veto Session 开始时比赛进入进行中。" : "查看当前禁选进度、倒计时与超时记录。"}</p>
+              </div>
+              <Link className="inline-flex min-h-10 items-center rounded border border-[var(--color-border)] px-4 text-sm font-medium hover:border-[var(--color-border-hover)]" href={`/${seasonSlug}/matches/${match.id}/veto`}>
+                {match.status === "scheduled" ? "打开 Veto Room" : "查看 Veto Room"}
+              </Link>
+            </div>
+          </Panel>
+        </section>
+      )}
       {/* BP 流程（进行中 / 已结束时显示） */}
       {match.status !== "scheduled" && (
         <VetoView
@@ -633,6 +650,9 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
         />
       )}
       {isFinished && <>
+      <div className="flex justify-end">
+        <Link className="text-sm text-[var(--color-accent)] hover:underline" href={`/${seasonSlug}/matches/${match.id}/veto`}>打开 Veto Room 记录</Link>
+      </div>
       {/* BP 流程（进行中 / 已结束时显示） */}
       {match.status !== "scheduled" && (
         <VetoView

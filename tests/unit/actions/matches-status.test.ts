@@ -65,10 +65,12 @@ describe("updateMatchStatus season finalization", () => {
     expect(maybeFinishSeasonMock).toHaveBeenCalledWith(expect.anything(), "season-1");
   });
 
-  it("does not invoke generic season completion while starting a match", async () => {
+  it("requires a Veto Room transition to start a match", async () => {
     const result = await updateMatchStatus("match-1", "in_progress");
 
-    expect(result.success).toBe(true);
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error.message).toContain("Veto Room");
+    expect(applyMatchStatusTransitionMock).not.toHaveBeenCalled();
     expect(maybeFinishSeasonMock).not.toHaveBeenCalled();
   });
 });

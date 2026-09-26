@@ -153,6 +153,8 @@ scheduled / in_progress → cancelled
 
 forfeit 是 `finished` 的结果形态，不是额外比赛状态。
 
+在线 Veto Session 在 Match 通过共享 status transition 从 `scheduled` 进入 `in_progress` 时开始；计划开赛时间只用于开放协调窗口，不单独启动比赛。BP 步骤完成仅表示地图计划完成，不推进或结束 Match。Qualification run 的 BP privileged entry 从该 run 的冻结 `competition_qualification_entrants.preliminary_seed` 推导，数字较小者为 higher seed；Major StageRun 使用冻结阶段种子。只有 `majorStageRunId` 与 `qualificationRunId` 都为空的 manual Match 才由赛季管理员显式指定 privileged entry。
+
 Qualification-owned Play-in 比赛不允许进入 `cancelled`，以免冻结资格赛轮次；需要裁决时使用正式弃赛判负，写入可投影的胜者结果。资格赛比赛也不能通过通用 delete 路径单独删除。
 
 正常比赛：

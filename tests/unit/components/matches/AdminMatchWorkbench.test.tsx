@@ -53,7 +53,7 @@ function data(status: Match["status"]) {
     createdAt: new Date("2026-09-05T00:00:00Z"),
     updatedAt: new Date("2026-09-05T00:00:00Z"),
   } satisfies Match;
-  const roster = { rosterId: "roster-a", starters: ["a1", "a2", "a3", "a4", "a5"], substitutes: [], status: "confirmed" as const };
+  const roster = { rosterId: "roster-a", starters: ["a1", "a2", "a3", "a4", "a5"], substitutes: [], vetoRepresentativeEventRosterMemberId: null, status: "confirmed" as const };
   return {
     season: { id: "season-1", slug: "major", name: "Major" },
     stageName: "Swiss",
@@ -82,7 +82,7 @@ describe("AdminMatchWorkbench", () => {
 
     expect(screen.getByRole("heading", { name: "首发名单" })).toBeInTheDocument();
     expect(screen.getByTestId("roster-dialog")).toBeInTheDocument();
-    expect(screen.getByTestId("veto-dialog")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "打开 Veto Room" })).toBeInTheDocument();
     expect(screen.getByTestId("forfeit-button")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "危险操作与恢复" })).toBeInTheDocument();
   });
