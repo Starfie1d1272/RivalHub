@@ -562,3 +562,44 @@ describe("isHomeAffiliatedMember", () => {
     expect(isHomeAffiliatedMember({ institutionCode: "9999999999", academicStatus: "enrolled" }, rules)).toBe(false);
   });
 });
+
+
+describe("participant readiness recovery states", () => {
+  it.each([
+    {
+      status: "pending_review" as const,
+      history: [{ id: "education-pending", institutionCode: "4132010284", institutionName: "南京大学", academicStatus: "enrolled" as const, status: "pending" as const, submittedAt: new Date("2026-09-26T01:00:00Z") }],
+      message: "高校认证审核中 · 等待赛委会",
+    },
+    {
+      status: "rejected" as const,
+      history: [{ id: "education-rejected", institutionCode: "4132010284", institutionName: "南京大学", academicStatus: "enrolled" as const, status: "rejected" as const, submittedAt: new Date("2026-09-26T01:00:00Z") }],
+      message: "需要本人处理 · 高校认证已驳回",
+    },
+    {
+      status: "missing" as const,
+      history: [],
+      message: "需要本人补充 · 高校身份认证",
+    },
+  ])("distinguishes $status education readiness without relaxing the gate", ({ status, history, message }) => {
+    const readiness = computeParticipantReadiness(fullFact({ approvedEducation: false, educationHistory: history }), CONTEXT);
+    expect(readiness.educationState).toBe(status);
+    expect(readiness.ready).toBe(false);
+    expect(readiness.findings).toContainEqual(expect.objectContaining({
+      code: "education_incomplete",
+      message,
+      waivable: false,
+      metadata: expect.objectContaining({ state: status }),
+    }));
+  });
+
+  it("adds platform and exact season metadata to seasonal competitive gaps", () => {
+    const readiness = computeParticipantReadiness(fullFact({
+      seasonPeaks: new Map([["S21", { rank: "A", rating: 1000 }]]),
+    }), CONTEXT);
+    expect(readiness.findings).toContainEqual(expect.objectContaining({
+      code: "competitive_profile_incomplete",
+      metadata: expect.objectContaining({ platform: CONTEXT.platform, seasonKey: CONTEXT.previousSeasonKey }),
+    }));
+  });
+});
