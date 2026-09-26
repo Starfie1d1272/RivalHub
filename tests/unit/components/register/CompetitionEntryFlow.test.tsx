@@ -123,7 +123,7 @@ describe("CompetitionEntryFlow", () => {
     closed.capabilities.canSubmitForReview = false;
     closed.capabilities.readOnlyReason = "报名已截止";
     const { unmount } = render(<CompetitionEntryFlow {...closed} />);
-    expect(screen.getByText("队伍 · 首次报名已截止 · 此报名未在截止前提交")).toBeInTheDocument();
+    expect(screen.getByText("队伍 · 首次报名已截止 · 本次报名未在截止前提交")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "提交审核" })).not.toBeInTheDocument();
     unmount();
 
