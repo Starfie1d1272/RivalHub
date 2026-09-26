@@ -212,7 +212,7 @@ describe("identity flow UI", () => {
     render(<EducationVerificationPanel email="player@example.test" emailVerified institutionalIdentities={[]} verifications={[]} />);
 
     expect(screen.getByLabelText("学校")).toBeInTheDocument();
-    expect(screen.getByText("输入学校名称，并从教育部高校目录搜索结果中选择")).toBeInTheDocument();
+    expect(screen.getByText("输入学校名称，并从院校目录搜索结果中选择")).toBeInTheDocument();
     const submit = screen.getByRole("button", { name: "提交认证材料" });
     expect(submit).toBeDisabled();
 
