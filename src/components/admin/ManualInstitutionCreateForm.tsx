@@ -34,7 +34,7 @@ export function ManualInstitutionCreateForm() {
     <Panel label="新增院校条目" contentClassName="p-5">
       <div className="space-y-4">
         <p className="text-sm leading-6 text-[var(--color-fg-mid)]">
-          用于处理用户按学信网正式学校名称仍无法检索到院校的情况。新增条目进入 canonical institutions 目录，不会自动批准任何教育认证。
+          用于处理用户按学信网正式学校名称仍无法检索到院校的情况。新增条目进入统一院校目录；教育认证继续按现有审核流程完成。
         </p>
         <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_180px_auto] sm:items-end">
           <div className="space-y-1.5">
