@@ -164,7 +164,7 @@ describe("CompetitionEntryFlow", () => {
     p.capabilities = getCompetitionEntryCapabilities({ season, entry: { status: "changes_requested", hasApprovedRoster: true }, revision: { status: "draft", origin: "self_roster_change" }, rosterFrozen: false });
     render(<CompetitionEntryFlow {...p} />);
 
-    expect(screen.getByText(/名单变更中/)).toBeInTheDocument();
+    expect(screen.getByText(/名单调整中/)).toBeInTheDocument();
     fireEvent.click(screen.getAllByRole("checkbox", { name: "从本届名单移除" })[0]!);
     expect(screen.getByText(/从本届名单移除 选手1/)).toBeInTheDocument();
   });
