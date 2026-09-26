@@ -259,6 +259,7 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
               ? resolveManagedMajorProfile({ stagePlan: normalizeStagePlan(season.stagePlan) })?.entrantCapacity ?? null
               : null}
             registrationWindowCanSubmit={registrationWindow.canSubmit}
+            registrationWindowPhase={registrationWindow.phase}
             rosterChangeClosesAtLabel={season.rosterChangeClosesAt ? formatCST(season.rosterChangeClosesAt) : null}
             competitionId={season.id}
             competitionName={season.name}
