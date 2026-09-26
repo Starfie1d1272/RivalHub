@@ -32,7 +32,7 @@ const mockedAdminSelect = vi.mocked(adminSelectMatchRoster);
 const mockedConfirm = vi.mocked(confirmMatchRoster);
 
 function member(id: string) {
-  return { id, personaName: id, displayName: null, perfectName: null, primaryPosition: "rifler" };
+  return { id, personaName: id, displayName: null, perfectName: null, primaryPosition: "rifler", isCurrent: true };
 }
 
 const MEMBERS_A = ["a1", "a2", "a3", "a4", "a5", "a6"].map(member);
@@ -184,5 +184,38 @@ describe("AdminRosterDialog — explicit two-step lineup selection", () => {
       expect(button).toBeDisabled();
     }
     expect(mockedAdminSelect).not.toHaveBeenCalled();
+  });
+
+  it("shows a referenced historical player but does not offer them for a new lineup", async () => {
+    const user = userEvent.setup();
+    const archivedMember = { ...member("a6"), isCurrent: false };
+    const existingRoster: RosterData = {
+      rosterId: "roster-a",
+      starters: ["a1", "a2", "a3", "a4", "a6"],
+      substitutes: [],
+      status: "submitted",
+    };
+    render(
+      <AdminRosterDialog
+        matchId="match-1"
+        teamAName="Alpha"
+        teamBName="Beta"
+        entryAId="team-a"
+        entryBId="team-b"
+        teamAMembers={[...MEMBERS_A.slice(0, 5), archivedMember]}
+        teamBMembers={MEMBERS_B}
+        teamARoster={existingRoster}
+        teamBRoster={null}
+      />,
+    );
+
+    await openDialog(user);
+    const archivedCheckbox = screen.getByRole("checkbox", { name: /a6 · 历史名单/ });
+    expect(archivedCheckbox).toBeChecked();
+    expect(archivedCheckbox).not.toBeDisabled();
+
+    await user.click(archivedCheckbox);
+    expect(archivedCheckbox).not.toBeChecked();
+    expect(archivedCheckbox).toBeDisabled();
   });
 });

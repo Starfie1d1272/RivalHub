@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, asc, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, or } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
   competitionEntries,
@@ -73,6 +73,7 @@ function projectTeamMember(row: {
   displayName: string | null;
   perfectName: string | null;
   primaryPosition: string | null;
+  isCurrent: boolean;
 }): TeamMemberData {
   return {
     id: row.id,
@@ -81,6 +82,7 @@ function projectTeamMember(row: {
     displayName: row.displayName ?? null,
     perfectName: row.perfectName ?? null,
     primaryPosition: row.primaryPosition ?? "—",
+    isCurrent: row.isCurrent,
   };
 }
 
@@ -115,6 +117,7 @@ export async function loadAdminMatchWorkbench({
         userId: users.id,
         entryId: eventRosters.entryId,
         eventRosterStatus: eventRosters.status,
+        isCurrent: eventRosterMembers.isCurrent,
         personaName: steamProfiles.personaName,
         displayName: users.displayName,
         perfectName: users.perfectName,
@@ -131,7 +134,16 @@ export async function loadAdminMatchWorkbench({
           eq(seasonRegistrations.seasonId, season.id),
         ),
       )
-      .where(inArray(eventRosters.entryId, entryIds)),
+      .where(and(
+        inArray(eventRosters.entryId, entryIds),
+        or(
+          eq(eventRosterMembers.isCurrent, true),
+          inArray(eventRosterMembers.id, db.select({ memberId: matchRosterPlayers.eventRosterMemberId })
+            .from(matchRosterPlayers)
+            .innerJoin(matchRosters, eq(matchRosters.id, matchRosterPlayers.rosterId))
+            .where(eq(matchRosters.matchId, match.id))),
+        ),
+      )),
     loadMatchRosters(match.id),
     db.query.matchMaps.findMany({
       where: eq(matchMaps.matchId, match.id),

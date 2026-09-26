@@ -17,7 +17,7 @@ import {
 import { AppError, ErrorCode } from "@/lib/errors";
 import { buildMajorOpeningPlan } from "@/lib/major/opening";
 import { evaluateMajorPrestartReadiness } from "@/lib/major/prestart";
-import { assertPrestartEntryCoherenceInTx } from "@/lib/major/prestart-entry";
+import { assertPrestartEntryCoherenceInTx } from "@/lib/event-rosters/coherence";
 import { ensureMajorPrestartStateInTx } from "@/lib/major/prestart-state";
 import { freezeAffiliationRules } from "@/lib/major/frozen-affiliation-rules";
 import { makeMajorRunSnapshotV4 } from "@/lib/major/run-snapshot";
@@ -128,7 +128,7 @@ export async function startMajorInTransaction(
     isPrimaryStarter: eventRosterMembers.isPrimaryStarter,
   }).from(eventRosterMembers)
     .innerJoin(eventRosters, eq(eventRosters.id, eventRosterMembers.eventRosterId))
-    .where(and(inArray(eventRosterMembers.eventRosterId, eventRosterIds), eq(eventRosters.status, "frozen"))).for("update");
+    .where(and(inArray(eventRosterMembers.eventRosterId, eventRosterIds), eq(eventRosters.status, "frozen"), eq(eventRosterMembers.isCurrent, true))).for("update");
   const seedRows = await tx.select({
     entrantId: majorTournamentSeeds.tournamentEntrantId,
     tournamentSeed: majorTournamentSeeds.seed,

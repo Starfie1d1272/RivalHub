@@ -28,8 +28,10 @@ export const PREVIEW_COLUMNS: Record<string, string> = {
   competition_entry_roster_revisions: "id entry_id revision_number status origin created_by created_at submitted_at approved_at",
   competition_entry_submissions: "id entry_id roster_revision_id sequence decision submitted_by submitted_at decided_by decided_at",
   competition_entry_representative_changes: "id entry_id from_user_id to_user_id changed_at changed_by_actor_id",
+  competition_qualification_runs: "id season_id format target_entrant_count candidate_count direct_entry_count play_in_entry_count qualifier_count configured_at started_at completed_at created_at updated_at",
+  competition_qualification_entrants: "id run_id season_id competition_entry_id preliminary_seed created_at",
   event_rosters: "id entry_id source_roster_revision_id status confirmed_at confirmed_by frozen_at frozen_by created_at updated_at",
-  event_roster_members: "id event_roster_id user_id participant_id education_verification_id is_primary_starter created_at",
+  event_roster_members: "id event_roster_id user_id participant_id education_verification_id is_primary_starter is_current created_at",
   major_prestart_states: "id season_id entrants_locked_at entrants_locked_by seeds_confirmed_at seeds_confirmed_by seeds_locked_at seeds_locked_by created_at updated_at",
   major_tournament_entrants: "id season_id competition_entry_id created_at",
   major_tournament_seeds: "id season_id tournament_entrant_id seed created_at",
@@ -41,7 +43,7 @@ export const PREVIEW_COLUMNS: Record<string, string> = {
   draft_state: "id season_id current_round current_entry_id round_deadline is_active updated_at",
   dak_pairing_intents: "id poll_token_hash status authorized_by_user_id expires_at authorized_at delivered_at created_at",
   dak_pairings: "id pairing_intent_id user_id token_hash scopes season_ids status revoked_at last_used_at created_at",
-  matches: "id season_id entry_a_id entry_b_id stage round format entry_round score_a score_b status is_forfeit bracket_node_id ownership major_stage_run_id managed_key scheduled_at completion_deadline completed_at mvp_winner_user_id created_at updated_at",
+  matches: "id season_id entry_a_id entry_b_id stage round format entry_round score_a score_b status is_forfeit bracket_node_id ownership major_stage_run_id qualification_run_id managed_key scheduled_at completion_deadline completed_at mvp_winner_user_id created_at updated_at",
   match_maps: "id match_id map_order map_name picked_by_entry_id team_a_start_side score_a score_b completed_at created_at",
   match_demo_imports: "id season_id match_id match_map_id stage_key stage_run_id demo_sha256 payload_sha256 contract_version semantic_profile analysis_version evidence_revision status payload submitted_by_pairing_id idempotency_key supersedes_import_id issues submitted_at confirmed_at created_at",
   match_player_stats: "id match_id map_id perfect_name user_id kills deaths assists hs_percent first_kills first_deaths multi_kills trade_kills kast_rounds clutches adr rws rating_pro we dak_import_id verified_by_admin verified_at created_at",
@@ -70,6 +72,7 @@ export const OMITTED_COLUMNS: Record<string, string> = {
   team_memberships: "ended_reason",
   competition_entries: "review_reason",
   competition_entry_submissions: "reason",
+  competition_qualification_runs: "configured_by started_by",
   major_prestart_states: "seed_override_reason",
   draft_picks: "client_request_id",
   matches: "video_url",
@@ -100,6 +103,12 @@ type PreviewSchemaLifecycleTable = {
  * entries for a lagging source and rejects columns past their removal marker.
  */
 export const PREVIEW_SCHEMA_LIFECYCLE: readonly PreviewSchemaLifecycleTable[] = [
+  { table: "competition_qualification_runs", introducedAt: "0056_competition-qualification-playin" },
+  { table: "competition_qualification_entrants", introducedAt: "0056_competition-qualification-playin" },
+  {
+    table: "event_roster_members",
+    columns: [{ name: "is_current", introducedAt: "0057_event_roster_member_history" }],
+  },
   { table: "dak_pairing_intents", introducedAt: "0051_sour_grim_reaper" },
   { table: "dak_pairings", introducedAt: "0051_sour_grim_reaper" },
   { table: "match_demo_imports", introducedAt: "0051_sour_grim_reaper" },
@@ -116,6 +125,10 @@ export const PREVIEW_SCHEMA_LIFECYCLE: readonly PreviewSchemaLifecycleTable[] = 
   {
     table: "steam_profiles",
     introducedAt: "0052_gray_supernaut",
+  },
+  {
+    table: "matches",
+    columns: [{ name: "qualification_run_id", introducedAt: "0056_competition-qualification-playin" }],
   },
   { table: "user_gameplay_steam_ids", introducedAt: "0052_gray_supernaut" },
   {

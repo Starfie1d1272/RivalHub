@@ -10,6 +10,7 @@ export interface ResultCorrectionPlanPresentation {
   proposed: ResultCorrectionPlan["proposed"];
   winnerChanges: boolean;
   affectsManagedRun: boolean;
+  affectsQualificationRun: boolean;
   impacts: Array<{ label: string }>;
   blockedReasons: string[];
   requiredRecoveryActions: string[];
@@ -37,6 +38,10 @@ function presentRecoveryAction(action: CorrectionRecoveryAction): string {
       return `从第 ${action.params.fromRound} 轮开始重新确认赛程，直到后续对阵恢复。`;
     case "rebuildPlayoffRounds":
       return "按顺序重新确认受影响的淘汰赛轮次，重建后续对阵。";
+    case "rebuildQualificationRounds":
+      return `从第 ${action.params.fromRound} 轮开始重新预览并生成资格赛对阵。`;
+    case "reprojectQualification":
+      return "资格赛晋级名单会根据更正后的正式赛果重新投影。";
   }
 }
 
@@ -50,6 +55,7 @@ export function presentResultCorrectionPlan(plan: ResultCorrectionPlan): ResultC
     proposed: plan.proposed,
     winnerChanges: plan.winnerChanges,
     affectsManagedRun: plan.affectsManagedRun,
+    affectsQualificationRun: plan.affectsQualificationRun,
     impacts: plan.impacts.map((impact) => ({ label: presentImpact(impact) })),
     blockedReasons: plan.blockedReasons.map(presentMatchCorrectionBlocker),
     requiredRecoveryActions: plan.requiredRecoveryActions.map(presentRecoveryAction),

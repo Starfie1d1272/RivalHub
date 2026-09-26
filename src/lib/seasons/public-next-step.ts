@@ -24,6 +24,7 @@ async function getPlayingSeasonNextStep(season: PublicSeason, userId: string) {
     .innerJoin(competitionEntries, eq(competitionEntries.id, eventRosters.entryId))
     .where(and(
       eq(eventRosterMembers.userId, userId),
+      eq(eventRosterMembers.isCurrent, true),
       eq(competitionEntries.competitionId, season.id),
       publicCompetitionEntryCondition(),
       inArray(eventRosters.status, ["confirmed", "frozen"]),

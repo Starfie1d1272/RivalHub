@@ -1,6 +1,8 @@
 import React from "react";
 import { and, eq, inArray, isNotNull } from "drizzle-orm";
 import { db } from "@/db/client";
+import { matchMaps } from "@/db/schema/match-maps";
+import { matchRosterPlayers, matchRosters } from "@/db/schema/match-rosters";
 import { matchPlayerStats } from "@/db/schema/player-stats";
 import { eventRosterMembers, eventRosters } from "@/db/schema";
 import { MatchSummaryStats, type SummaryPlayer } from "./MatchSummaryStats";
@@ -34,10 +36,28 @@ async function getStatsGroupedByTeam(
         .where(and(
           inArray(eventRosterMembers.userId, userIds),
           inArray(eventRosters.entryId, [entryAId, entryBId]),
+          eq(eventRosterMembers.isCurrent, true),
         ))
     : [];
 
   const userIdToTeam = new Map(memberships.map((m) => [m.userId, m.entryId]));
+  if (userIds.length > 0) {
+    const matchMemberships = await db
+      .select({ userId: eventRosterMembers.userId, entryId: matchRosters.entryId })
+      .from(matchMaps)
+      .innerJoin(matchRosters, eq(matchRosters.matchId, matchMaps.matchId))
+      .innerJoin(matchRosterPlayers, eq(matchRosterPlayers.rosterId, matchRosters.id))
+      .innerJoin(eventRosterMembers, eq(eventRosterMembers.id, matchRosterPlayers.eventRosterMemberId))
+      .where(and(
+        eq(matchMaps.id, mapId),
+        inArray(matchRosters.status, ["submitted", "confirmed"]),
+        inArray(matchRosters.entryId, [entryAId, entryBId]),
+        inArray(eventRosterMembers.userId, userIds),
+      ));
+    for (const membership of matchMemberships) {
+      userIdToTeam.set(membership.userId, membership.entryId);
+    }
+  }
 
   const teamARows = stats.filter((s) => s.userId && userIdToTeam.get(s.userId) === entryAId);
   const teamBRows = stats.filter((s) => s.userId && userIdToTeam.get(s.userId) === entryBId);

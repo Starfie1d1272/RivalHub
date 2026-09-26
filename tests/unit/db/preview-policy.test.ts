@@ -61,6 +61,38 @@ describe("sanitized mirror policy", () => {
     expect(policy.tables.match_player_stats.exportedColumns).toContain("dak_import_id");
   });
 
+  it("mirrors only public qualification facts and withholds actor identifiers", () => {
+    const expected = readExpectedMigrations();
+    const qualificationIndex = expected.findIndex(({ tag }) => tag === "0056_competition-qualification-playin");
+    expect(qualificationIndex).toBeGreaterThan(0);
+
+    const current = previewPolicyFor(expected);
+    const beforeQualification = previewPolicyFor(expected.slice(0, qualificationIndex));
+
+    expect(current.tables.competition_qualification_runs.exportedColumns).toContain("qualifier_count");
+    expect(current.tables.competition_qualification_runs.omittedColumns).toEqual(["configured_by", "started_by"]);
+    expect(current.tables.competition_qualification_entrants.exportedColumns).toContain("preliminary_seed");
+    expect(current.tables.matches.exportedColumns).toContain("qualification_run_id");
+    expect(beforeQualification.tables).not.toHaveProperty("competition_qualification_runs");
+    expect(beforeQualification.futureTables).toContain("competition_qualification_runs");
+    expect(beforeQualification.tables.matches.exportedColumns).not.toContain("qualification_run_id");
+    expect(beforeQualification.futureColumns.matches).toContain("qualification_run_id");
+    expect(exportQuery("competition_qualification_runs")).not.toContain('"configured_by"');
+  });
+
+  it("exports roster currentness only for sources with the history migration", () => {
+    const expected = readExpectedMigrations();
+    const historyIndex = expected.findIndex(({ tag }) => tag === "0057_event_roster_member_history");
+    expect(historyIndex).toBeGreaterThan(0);
+
+    const current = previewPolicyFor(expected);
+    const beforeHistory = previewPolicyFor(expected.slice(0, historyIndex));
+
+    expect(current.tables.event_roster_members.exportedColumns).toContain("is_current");
+    expect(beforeHistory.tables.event_roster_members.exportedColumns).not.toContain("is_current");
+    expect(beforeHistory.futureColumns.event_roster_members).toContain("is_current");
+  });
+
   it("allows Steam compatibility shadows before cleanup and rejects them after the real migration", () => {
     const expected = readExpectedMigrations();
     const cleanupIndex = expected.findIndex(({ tag }) => tag === "0055_steam_profile_shadow_cleanup");

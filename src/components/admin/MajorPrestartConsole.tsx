@@ -2,6 +2,7 @@ import { Checklist, Marker, Panel } from "@/components/rivalhub";
 import type { MajorPrestartReadiness } from "@/lib/major/prestart";
 import { presentMajorPrestartReadiness } from "@/lib/major/prestart-presentation";
 import { MajorPrestartManagement, type MajorPrestartManagementData } from "./MajorPrestartManagement";
+import { MajorCompetitionFlow } from "./MajorCompetitionFlow";
 import { MajorTournamentSeedsManagement, type MajorTournamentSeedsManagementData } from "./MajorTournamentSeedsManagement";
 import { MajorStartManagement } from "./MajorStartManagement";
 
@@ -39,6 +40,10 @@ export function MajorPrestartConsole({
         <Checklist items={systemBlockers} />
       </Panel>}
 
+      <MajorCompetitionFlow
+        key={`${management.initialPreliminaryOrderEntryIds.join(",")}:${management.qualification.run?.id ?? "new"}`}
+        data={management}
+      />
       <MajorPrestartManagement data={management} />
       <MajorTournamentSeedsManagement data={seedManagement} />
       <MajorStartManagement seasonId={management.seasonId} openingPlan={readiness.openingPlan} canStart={readiness.canStart} started={started} />

@@ -7,15 +7,20 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/db/client";
 import {
+  competitionQualificationRuns,
   eventRosterMembers,
   eventRosters,
+  majorPrestartStates,
+  majorStageRuns,
   majorTournamentEntrants,
+  majorTournamentSeeds,
   seasons,
 } from "@/db/schema";
 import { actionError, failValidation } from "@/lib/action-utils";
 import { auditActorId, requireSeasonAdmin } from "@/lib/auth/session";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { getStandardMajorDefinition } from "@/lib/major/standard";
+import { createMajor24StagePlan, createMajorDefaultCapabilities } from "@/lib/competition/templates";
 import { ok, type ActionResult } from "@/types/action";
 import { updatePublicHomeTag } from "@/lib/revalidation";
 import { startMajorInTransaction, type MajorStartResult } from "@/lib/major/start";
@@ -24,7 +29,7 @@ import { transitionMajorSwissStageInTransaction, type MajorStageTransitionResult
 import { finalizeMajorPlayoffRoundInTransaction, startMajorPlayoffInTransaction, type MajorPlayoffFinalizationResult, type MajorPlayoffStartResult } from "@/lib/major/playoff-runtime";
 import { revalidateSeasonPaths } from "@/lib/revalidation";
 import { traceOperation } from "@/lib/observability/server";
-import { assertSinglePrestartEntryCoherenceInTx } from "@/lib/major/prestart-entry";
+import { assertSinglePrestartEntryCoherenceInTx } from "@/lib/event-rosters/coherence";
 import { lockMajorPrestartEntrantsInTx, selectMajorEntrantsAndSyncRostersInTx } from "@/lib/major/prestart-entrants";
 import { saveMajorPrestartRosterInTx } from "@/lib/major/prestart-roster";
 import { assertMajorPrestartEntrantsMutable, ensureMajorPrestartStateInTx } from "@/lib/major/prestart-state";
@@ -81,6 +86,52 @@ export async function selectMajorEntrants(input: { seasonId: string; competition
   } catch (error) { return actionError("selectMajorEntrants", error); }
 }
 
+export async function setMajorManagedProfile(input: { seasonId: string; profileId: "major-24" | "major-32" }): Promise<ActionResult<void>> {
+  const parsed = z.object({ seasonId: uuid, profileId: z.enum(["major-24", "major-32"]) }).safeParse(input);
+  if (!parsed.success) return failValidation("Major 正赛规模无效。");
+  try {
+    const { season, admin } = await seasonAndAdminOrThrow(parsed.data.seasonId);
+    await db.transaction(async (tx) => {
+      const [lockedSeason] = await tx.select().from(seasons).where(eq(seasons.id, season.id)).for("update");
+      if (!lockedSeason) throw new AppError(ErrorCode.SEASON_NOT_FOUND, "赛季不存在");
+      if (lockedSeason.status !== "registration") {
+        throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "Major 正赛规模只能在报名阶段、产生依赖事实前调整。");
+      }
+      const current = getStandardMajorDefinition(lockedSeason).managedProfile;
+      if (current?.id === parsed.data.profileId) return;
+      const [state] = await tx.select().from(majorPrestartStates).where(eq(majorPrestartStates.seasonId, season.id));
+      if (state && (state.entrantsLockedAt || state.seedsConfirmedAt || state.seedsLockedAt)) {
+        throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "正赛赛前事实已经锁定，不能调整正赛规模。");
+      }
+      const [qualificationRun] = await tx.select({ id: competitionQualificationRuns.id }).from(competitionQualificationRuns)
+        .where(eq(competitionQualificationRuns.seasonId, season.id)).limit(1);
+      const [entrant] = await tx.select({ id: majorTournamentEntrants.id }).from(majorTournamentEntrants)
+        .where(eq(majorTournamentEntrants.seasonId, season.id)).limit(1);
+      const [seed] = await tx.select({ id: majorTournamentSeeds.id }).from(majorTournamentSeeds)
+        .where(eq(majorTournamentSeeds.seasonId, season.id)).limit(1);
+      const [stageRun] = await tx.select({ id: majorStageRuns.id }).from(majorStageRuns)
+        .where(eq(majorStageRuns.seasonId, season.id)).limit(1);
+      if (qualificationRun || entrant || seed || stageRun) {
+        throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "赛事已经产生 Play-in 或正赛依赖事实，不能调整正赛规模。");
+      }
+      const stagePlan = parsed.data.profileId === "major-24"
+        ? createMajor24StagePlan()
+        : createMajorDefaultCapabilities().stagePlan;
+      await tx.update(seasons).set({ stagePlan }).where(eq(seasons.id, season.id));
+      await writeAuditInTx(tx, {
+        seasonId: season.id,
+        action: "major_prestart.set_managed_profile",
+        actorId: auditActorId(admin),
+        targetId: season.id,
+        meta: { from: current?.id ?? null, to: parsed.data.profileId },
+      });
+    });
+    revalidateMajorPrestart(season.slug);
+    revalidatePath(`/admin/${season.slug}/settings`);
+    return ok(undefined);
+  } catch (error) { return actionError("setMajorManagedProfile", error); }
+}
+
 /** Explicit exception path only; normal flow uses selectMajorEntrants. */
 export async function repairMajorPrestartRoster(input: z.infer<typeof rosterRepairInput>): Promise<ActionResult<void>> {
   const parsed = rosterRepairInput.safeParse(input);
@@ -116,7 +167,7 @@ export async function confirmMajorPrestartRoster(input: z.input<typeof rosterExc
       if (!entrant) throw new AppError(ErrorCode.NOT_FOUND, "正式参赛队不存在。");
       const coherent = await assertSinglePrestartEntryCoherenceInTx(tx, season.id, { competitionEntryId: entrant.competitionEntryId });
       const roster = await tx.select({ userId: eventRosterMembers.userId, educationVerificationId: eventRosterMembers.educationVerificationId }).from(eventRosterMembers)
-        .where(eq(eventRosterMembers.eventRosterId, coherent.eventRoster.id));
+        .where(and(eq(eventRosterMembers.eventRosterId, coherent.eventRoster.id), eq(eventRosterMembers.isCurrent, true)));
       if (roster.length < season.minTeamSize || roster.length > season.maxTeamSize) {
         throw new AppError(ErrorCode.VALIDATION_FAILED, "最终名单人数不符合赛事规则，不能确认。");
       }
@@ -124,7 +175,7 @@ export async function confirmMajorPrestartRoster(input: z.input<typeof rosterExc
       const duplicate = await tx.execute(sql`
         SELECT r.user_id FROM event_roster_members r
         INNER JOIN major_tournament_entrants e ON e.competition_entry_id = (SELECT entry_id FROM event_rosters WHERE id = r.event_roster_id)
-        WHERE e.season_id = ${season.id}
+        WHERE e.season_id = ${season.id} AND r.is_current = true
         GROUP BY r.user_id HAVING count(*) > 1 LIMIT 1
       `);
       if (duplicate.rows.length > 0) throw new AppError(ErrorCode.VALIDATION_FAILED, "同一选手不能同时出现在多支正式参赛队的最终名单中。");

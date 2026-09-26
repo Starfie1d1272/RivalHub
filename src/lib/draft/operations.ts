@@ -223,6 +223,7 @@ export async function executeDraftPick(
     .where(
       and(
         eq(eventRosters.entryId, input.entryId),
+        eq(eventRosterMembers.isCurrent, true),
         eq(seasonRegistrations.primaryPosition, targetRegistration.primaryPosition),
       ),
     );
@@ -453,7 +454,7 @@ async function getTeamPositionCounts(
       eq(eventRosterMembers.userId, seasonRegistrations.userId),
       eq(seasonRegistrations.seasonId, sql`(SELECT competition_id FROM competition_entries WHERE id = ${entryId})`),
     ))
-    .where(eq(eventRosters.entryId, entryId))
+    .where(and(eq(eventRosters.entryId, entryId), eq(eventRosterMembers.isCurrent, true)))
     .groupBy(seasonRegistrations.primaryPosition);
 
   const counts: Record<string, number> = {};

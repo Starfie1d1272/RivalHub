@@ -81,9 +81,13 @@ export function ResultCorrectionPanel({
         toast.success(
           result.data.alreadyApplied
             ? "当前结果已是目标状态，无需重复修改。"
-            : result.data.winnerChanged
-              ? `更正已应用；作废 ${result.data.invalidatedCount} 场未开始下游比赛，请按提示重新确认轮次`
-              : "比分已更正",
+            : result.data.winnerChanged && plan.affectsQualificationRun
+              ? result.data.invalidatedCount > 0
+                ? `资格赛赛果已更正并作废 ${result.data.invalidatedCount} 场未开始的后续比赛，请重新预览并生成轮次`
+                : "资格赛赛果已更正，晋级名单已重算"
+              : result.data.winnerChanged
+                ? `更正已应用；作废 ${result.data.invalidatedCount} 场未开始下游比赛，请按提示重新确认轮次`
+                : "比分已更正",
         );
         setPlan(null);
         setScoreA("");
@@ -118,7 +122,7 @@ export function ResultCorrectionPanel({
         比分更正与恢复 · {teamAName} vs {teamBName}（{format.toUpperCase()}）
       </p>
       <p className="text-xs text-[var(--color-fg-mid)]">
-        先计算影响清单并审阅；改变胜者会要求显式确认恢复。已开始/完成的下游比赛不会被自动改写。
+        先计算影响清单并审阅；改变胜者会要求显式确认恢复。资格赛只会撤销尚未开始的后续轮；正赛名单已产生或后续比赛已开始/结束时须走赛事裁决。
       </p>
       <p className="text-xs text-[var(--color-fg-mid)]">
         这里填写官方系列赛比分（BO1 为 1:0 / 0:1；BO3、BO5 为地图胜场比分），实际单图回合比分请在逐图修正中处理。

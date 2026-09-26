@@ -1,4 +1,4 @@
-import { eq, or } from "drizzle-orm";
+import { and, eq, or } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import type { TxDb } from "@/db/client";
 import { competitionEntries, competitionEntryParticipants, eventRosterMembers, eventRosters, seasonAdminGrants, seasonRegistrations, steamProfiles, users } from "@/db/schema";
@@ -22,7 +22,7 @@ export async function getSeasonAwardCandidates(executor: CommunityAwardQueryable
     .leftJoin(seasonRegistrations, eq(seasonRegistrations.userId, users.id))
     .leftJoin(competitionEntryParticipants, eq(competitionEntryParticipants.userId, users.id))
     .leftJoin(competitionEntries, eq(competitionEntryParticipants.entryId, competitionEntries.id))
-    .leftJoin(eventRosterMembers, eq(eventRosterMembers.userId, users.id))
+    .leftJoin(eventRosterMembers, and(eq(eventRosterMembers.userId, users.id), eq(eventRosterMembers.isCurrent, true)))
     .leftJoin(eventRosters, eq(eventRosterMembers.eventRosterId, eventRosters.id))
     .leftJoin(rosterEntries, eq(eventRosters.entryId, rosterEntries.id))
     .where(or(eq(seasonAdminGrants.seasonId, seasonId), eq(seasonRegistrations.seasonId, seasonId), eq(competitionEntries.competitionId, seasonId), eq(rosterEntries.competitionId, seasonId)));

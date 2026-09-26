@@ -4,6 +4,7 @@ import { asc, desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
   competitionEntries,
+  competitionQualificationRuns,
   majorFinalResults,
   majorStageRuns,
   matchCommentators,
@@ -26,6 +27,7 @@ import {
 import { calculateStageRoundRobinStandings } from "@/lib/matches/stage-standings";
 import { loadStageBracketEntrantIds } from "@/lib/bracket";
 import { loadMajorSwissStageReadModel } from "@/lib/matches/stage-read-model";
+import { loadQualificationSwissStageReadModel } from "@/lib/matches/qualification-stage-read-model";
 import { normalizeStagePlan } from "@/lib/seasons/compatibility";
 import { resolveMajorStagePlan } from "@/lib/major/run-snapshot";
 import { buildMajorRuntimeData } from "@/lib/admin/major-runtime";
@@ -134,7 +136,7 @@ export async function loadAdminMatchOverview({
   await requireSeasonAdmin(season.id);
 
   const isMajor = season.competitionTemplate === "major";
-  const [allTeams, allMatches, stageRunRows, finalResult] = await Promise.all([
+  const [allTeams, allMatches, stageRunRows, finalResult, qualificationRun] = await Promise.all([
     db.query.competitionEntries.findMany({
       where: eq(competitionEntries.competitionId, season.id),
       orderBy: [asc(competitionEntries.formationOrder)],
@@ -145,12 +147,15 @@ export async function loadAdminMatchOverview({
     }),
     isMajor
       ? db
-          .select({ id: majorStageRuns.id, stageKey: majorStageRuns.stageKey, finalizedRound: majorStageRuns.finalizedRound, ruleSnapshot: majorStageRuns.ruleSnapshot })
+          .select({ id: majorStageRuns.id, stageKey: majorStageRuns.stageKey, finalizedRound: majorStageRuns.finalizedRound, ruleSnapshot: majorStageRuns.ruleSnapshot, startedAt: majorStageRuns.startedAt })
           .from(majorStageRuns)
           .where(eq(majorStageRuns.seasonId, season.id))
-      : Promise.resolve([] as { id: string; stageKey: string; finalizedRound: number; ruleSnapshot: unknown }[]),
+      : Promise.resolve([] as { id: string; stageKey: string; finalizedRound: number; ruleSnapshot: unknown; startedAt: Date | null }[]),
     isMajor
       ? db.query.majorFinalResults.findFirst({ where: eq(majorFinalResults.seasonId, season.id) })
+      : Promise.resolve(undefined),
+    isMajor
+      ? db.query.competitionQualificationRuns.findFirst({ where: eq(competitionQualificationRuns.seasonId, season.id) })
       : Promise.resolve(undefined),
   ]);
 
@@ -164,6 +169,10 @@ export async function loadAdminMatchOverview({
         .map(async (stage) => [stage.key, await loadMajorSwissStageReadModel(season.id, stage.key)] as const),
     )).filter((entry): entry is readonly [string, NonNullable<typeof entry[1]>] => entry[1] !== null),
   );
+  const qualificationSwissReadModel = qualificationRun?.format === "short_swiss_2w2l"
+    ? await loadQualificationSwissStageReadModel(season.id)
+    : null;
+  if (qualificationSwissReadModel) stageReadModels.set("play-in", qualificationSwissReadModel);
   const { swissRuntime, playoffRuntime } = isMajor
     ? buildMajorRuntimeData({
         seasonId: season.id,
@@ -179,13 +188,35 @@ export async function loadAdminMatchOverview({
   const teamFilter = (match: { entryAId: string; entryBId: string }) =>
     !filterTeam || filterTeam === "all" || match.entryAId === filterTeam || match.entryBId === filterTeam;
 
-  const { views: allStageViews, unconfiguredMatches } = buildStageViews(stagePlan, allMatches);
-  const stageViews = allStageViews.map(({ stage, matches: stageMatches }) => ({
+  const qualificationMatches = qualificationRun
+    ? allMatches.filter((match) => match.qualificationRunId === qualificationRun.id &&
+      match.stage === "play-in" && match.ownership === "manual" && match.majorStageRunId === null &&
+      match.managedKey === null && match.bracketNodeId === null)
+    : [];
+  const qualificationMatchIds = new Set(qualificationMatches.map((match) => match.id));
+  const { views: allStageViews, unconfiguredMatches } = buildStageViews(
+    stagePlan,
+    allMatches.filter((match) => !qualificationMatchIds.has(match.id)),
+  );
+  const configuredStageViews = allStageViews.map(({ stage, matches: stageMatches }) => ({
     stage,
     matches: sortAdminMatches(
       stageMatches.filter(statusFilter).filter(teamFilter),
     ).map((match) => projectAdminMatchSummary(match, demoNeedsAttentionByMatch.get(match.id) ?? 0)),
   }));
+  const qualificationStageView = qualificationRun ? {
+    stage: {
+      key: "play-in",
+      name: "PLAY-IN",
+      type: qualificationRun.format === "short_swiss_2w2l" ? "swiss" as const : "round_robin" as const,
+      teamCount: qualificationRun.playInEntryCount,
+      advanceTiers: [],
+      matchFormat: qualificationRun.format === "direct_bo3" ? "bo3" as const : "bo1" as const,
+    },
+    matches: sortAdminMatches(qualificationMatches.filter(statusFilter).filter(teamFilter))
+      .map((match) => projectAdminMatchSummary(match, demoNeedsAttentionByMatch.get(match.id) ?? 0)),
+  } : null;
+  const stageViews = [...(qualificationStageView ? [qualificationStageView] : []), ...configuredStageViews];
   const projectedMatches = allMatches.map((match) => projectAdminMatchSummary(match, demoNeedsAttentionByMatch.get(match.id) ?? 0));
   const commentaryEffectiveness = await loadCommentaryEffectiveness(season.id, allMatches);
 
@@ -231,7 +262,17 @@ export async function loadAdminMatchOverview({
     batchDeadlineGroups: buildBatchDeadlineGroups(allMatches, stagePlan),
     canGenerate,
     hasSwissStage,
-    defaultStageKey: resolveDefaultStageKey(stagePlan, allMatches, filterStage),
+    qualificationRun: qualificationRun ? {
+      id: qualificationRun.id,
+      format: qualificationRun.format,
+      playInEntryCount: qualificationRun.playInEntryCount,
+    } : null,
+    defaultStageKey: filterStage === "play-in" && qualificationRun
+      ? "play-in"
+      : isMajor
+        ? stageRunRows.filter((run) => run.startedAt).sort((a, b) => b.startedAt!.getTime() - a.startedAt!.getTime())[0]?.stageKey
+          ?? (qualificationRun ? "play-in" : stagePlan[0]?.key ?? null)
+        : resolveDefaultStageKey(stagePlan, allMatches, filterStage),
     swissRuntime,
     playoffRuntime,
   };

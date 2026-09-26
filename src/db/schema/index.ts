@@ -14,6 +14,7 @@ export * from "./competition-entries";
 export * from "./competition-entry-restriction-overrides";
 export * from "./major-prestart";
 export * from "./major-stage";
+export * from "./competition-qualification";
 export * from "./votes";
 export * from "./draft";
 export * from "./matches";

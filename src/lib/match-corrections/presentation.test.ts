@@ -13,6 +13,7 @@ describe("match correction presentation", () => {
       proposedWinnerTeamId: "internal-team-a",
       winnerChanges: true,
       affectsManagedRun: true,
+      affectsQualificationRun: false,
       impacts: [
         {
           kind: "downstream_match",
@@ -49,5 +50,42 @@ describe("match correction presentation", () => {
     ]);
     expect(view).not.toHaveProperty("stageKey");
     expect(JSON.stringify(view)).not.toMatch(/internal-playoff-stage|internal-downstream-match|r2-1|scheduled|finalizedRound|finalize/);
+  });
+
+  it("presents the Qualification rollback and reprojection path without runtime identifiers", () => {
+    const view = presentResultCorrectionPlan({
+      matchId: "qualification-match-id",
+      stageKey: null,
+      stageType: null,
+      current: { scoreA: 1, scoreB: 0, isForfeit: false },
+      proposed: { scoreA: 0, scoreB: 1, isForfeit: false },
+      currentWinnerTeamId: "team-a",
+      proposedWinnerTeamId: "team-b",
+      winnerChanges: true,
+      affectsManagedRun: false,
+      affectsQualificationRun: true,
+      impacts: [{
+        kind: "downstream_match",
+        matchId: "later-round-match-id",
+        managedKey: null,
+        status: "scheduled",
+        invalidatable: true,
+        dependencyKnown: true,
+      }],
+      blockedReasons: [],
+      requiredRecoveryActions: [
+        { code: "invalidateDownstreamMatches", params: { count: 1 } },
+        { code: "rebuildQualificationRounds", params: { fromRound: 2 } },
+        { code: "reprojectQualification", params: {} },
+      ],
+    });
+
+    expect(view.affectsQualificationRun).toBe(true);
+    expect(view.requiredRecoveryActions).toEqual([
+      "应用更正前，系统会作废 1 场尚未开始的下游比赛。",
+      "从第 2 轮开始重新预览并生成资格赛对阵。",
+      "资格赛晋级名单会根据更正后的正式赛果重新投影。",
+    ]);
+    expect(JSON.stringify(view)).not.toMatch(/qualification-match-id|later-round-match-id|scheduled/);
   });
 });

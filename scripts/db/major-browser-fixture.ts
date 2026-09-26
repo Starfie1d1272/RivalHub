@@ -4,7 +4,7 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { Pool, type PoolClient } from "pg";
-import { createMajorDefaultCapabilities } from "../../src/lib/competition/templates";
+import { createMajor24Capabilities, createMajorDefaultCapabilities } from "../../src/lib/competition/templates";
 import { redactText } from "../../src/lib/observability/redact";
 import { createPerfectWorldRankOrder } from "../../src/lib/config/perfect-world";
 import { teamNameSchema } from "../../src/lib/config/team-config";
@@ -27,6 +27,7 @@ export const MAJOR_BROWSER_PROFILE_ACCOUNT_KEYS = {
   education: ["player1", "admin"],
   layout: ["player2", "admin"],
   "major-prestart": ["admin"],
+  "major-qualification": ["admin"],
 } as const satisfies Record<string, readonly MajorBrowserAccountKey[]>;
 export type MajorBrowserScenarioProfile = keyof typeof MAJOR_BROWSER_PROFILE_ACCOUNT_KEYS;
 
@@ -290,12 +291,19 @@ async function removeFixtureDatabaseRows(client: PoolClient, scenario: ScenarioD
   // Local fixture cleanup is the one operational path allowed to remove
   // append-only provenance rows. Production writes never use this setting.
   await client.query("SET LOCAL session_replication_role = replica");
+  const candidateUsers = await client.query<{ user_id: string }>(
+    "SELECT DISTINCT user_id FROM competition_entry_participants WHERE entry_id IN (SELECT id FROM competition_entries WHERE competition_id = $1)",
+    [scenario.seasonId],
+  );
+  const fixtureUserIds = [...new Set([...accountIds, ...candidateUsers.rows.map((row) => row.user_id)])];
   const configuredProfileSlug = `e2e-major24-${scenario.shortKey}`;
   await client.query("DELETE FROM audit_logs WHERE season_id = (SELECT id FROM seasons WHERE slug = $1)", [configuredProfileSlug]);
   await client.query("DELETE FROM seasons WHERE slug = $1", [configuredProfileSlug]);
   await client.query("DELETE FROM match_roster_players WHERE roster_id IN (SELECT id FROM match_rosters WHERE match_id IN (SELECT id FROM matches WHERE season_id = $1))", [scenario.seasonId]);
   await client.query("DELETE FROM match_rosters WHERE match_id IN (SELECT id FROM matches WHERE season_id = $1)", [scenario.seasonId]);
   await client.query("DELETE FROM matches WHERE season_id = $1", [scenario.seasonId]);
+  await client.query("DELETE FROM competition_qualification_entrants WHERE season_id = $1", [scenario.seasonId]);
+  await client.query("DELETE FROM competition_qualification_runs WHERE season_id = $1", [scenario.seasonId]);
   await client.query("DELETE FROM major_final_results WHERE season_id = $1", [scenario.seasonId]);
   await client.query("DELETE FROM tournament_honors WHERE season_id = $1", [scenario.seasonId]);
   await client.query("DELETE FROM post_event_adjudications WHERE season_id = $1", [scenario.seasonId]);
@@ -315,23 +323,23 @@ async function removeFixtureDatabaseRows(client: PoolClient, scenario: ScenarioD
   await client.query("DELETE FROM major_prestart_states WHERE season_id = $1", [scenario.seasonId]);
   await client.query("DELETE FROM season_registrations WHERE season_id = $1", [scenario.seasonId]);
   await client.query("DELETE FROM audit_logs WHERE season_id = $1", [scenario.seasonId]);
-  await client.query("DELETE FROM competitive_rank_facts WHERE user_id = ANY($1::uuid[])", [accountIds]);
-  await client.query("DELETE FROM education_verifications WHERE user_id = ANY($1::uuid[])", [accountIds]);
-  await client.query("DELETE FROM user_sessions WHERE user_id = ANY($1::uuid[])", [accountIds]);
+  await client.query("DELETE FROM competitive_rank_facts WHERE user_id = ANY($1::uuid[])", [fixtureUserIds]);
+  await client.query("DELETE FROM education_verifications WHERE user_id = ANY($1::uuid[])", [fixtureUserIds]);
+  await client.query("DELETE FROM user_sessions WHERE user_id = ANY($1::uuid[])", [fixtureUserIds]);
   await client.query("DELETE FROM team_invitations WHERE team_id IN (SELECT id FROM teams WHERE creator_user_id = ANY($1::uuid[]) OR captain_user_id = ANY($1::uuid[]))", [accountIds]);
   await client.query("DELETE FROM team_memberships WHERE team_id IN (SELECT id FROM teams WHERE creator_user_id = ANY($1::uuid[]) OR captain_user_id = ANY($1::uuid[]))", [accountIds]);
   await client.query("DELETE FROM team_captain_changes WHERE team_id IN (SELECT id FROM teams WHERE creator_user_id = ANY($1::uuid[]) OR captain_user_id = ANY($1::uuid[]))", [accountIds]);
   await client.query("DELETE FROM team_name_changes WHERE team_id IN (SELECT id FROM teams WHERE creator_user_id = ANY($1::uuid[]) OR captain_user_id = ANY($1::uuid[]))", [accountIds]);
   await client.query("DELETE FROM team_slug_aliases WHERE team_id IN (SELECT id FROM teams WHERE creator_user_id = ANY($1::uuid[]) OR captain_user_id = ANY($1::uuid[]))", [accountIds]);
   await client.query("DELETE FROM teams WHERE creator_user_id = ANY($1::uuid[]) OR captain_user_id = ANY($1::uuid[])", [accountIds]);
-  await client.query("DELETE FROM steam_profiles WHERE steam64 IN (SELECT steam64 FROM users WHERE id = ANY($1::uuid[]) AND steam64 IS NOT NULL)", [accountIds]);
-  await client.query("DELETE FROM users WHERE id = ANY($1::uuid[])", [accountIds]);
+  await client.query("DELETE FROM steam_profiles WHERE steam64 IN (SELECT steam64 FROM users WHERE id = ANY($1::uuid[]) AND steam64 IS NOT NULL)", [fixtureUserIds]);
+  await client.query("DELETE FROM users WHERE id = ANY($1::uuid[])", [fixtureUserIds]);
   await deleteCompetitivePlatformCatalog(client, scenario.platform);
   await client.query("DELETE FROM seasons WHERE id = $1", [scenario.seasonId]);
 }
 
 async function insertFixture(client: PoolClient, scenario: ScenarioDefinition, authIds: Map<string, string>): Promise<void> {
-  if (scenario.profile === "major-entry" || scenario.profile === "layout" || scenario.profile === "major-prestart") await insertMajorSeason(client, scenario);
+  if (scenario.profile === "major-entry" || scenario.profile === "layout" || scenario.profile === "major-prestart" || scenario.profile === "major-qualification") await insertMajorSeason(client, scenario);
 
   for (const [index, account] of scenario.accounts.entries()) {
     const ready = account.key !== "player1";
@@ -363,13 +371,18 @@ async function insertFixture(client: PoolClient, scenario: ScenarioDefinition, a
     return;
   }
   if (scenario.profile === "team-invite") await insertInvitationTeam(client, scenario);
-  if (scenario.profile === "major-entry" || scenario.profile === "layout" || scenario.profile === "major-prestart") {
+  if (scenario.profile === "major-entry" || scenario.profile === "layout" || scenario.profile === "major-prestart" || scenario.profile === "major-qualification") {
     await seedCompetitivePlatformCatalog(client, scenario.platform, [
       { seasonKey: scenario.previousSeasonKey, label: "Browser 上一赛季", sortOrder: 0, isCurrent: false },
       { seasonKey: scenario.currentSeasonKey, label: "Browser 当前赛季", sortOrder: 1, isCurrent: true },
     ], scenario.rankOrder, "Rating", "browser-perfect-world");
+    if (scenario.profile === "major-qualification") await insertQualificationCandidateUsers(client, scenario);
     await insertRankFacts(client, scenario);
     await insertEducationVerifications(client, scenario);
+    if (scenario.profile === "major-qualification") {
+      await insertQualificationCandidateFacts(client, scenario);
+      await insertQualificationCandidates(client, scenario);
+    }
   }
 }
 
@@ -377,8 +390,8 @@ async function insertMajorSeason(client: PoolClient, scenario: ScenarioDefinitio
   const capabilities = createCapabilities(scenario);
   await client.query(
     `INSERT INTO seasons (id, slug, name, kind, competition_template, status, registration_opens_at, registration_opened_at, registration_closes_at, registration_mode, has_captain_voting, has_draft, stage_plan, registration_config, team_registration_config, affiliation_rules, min_team_size, max_team_size, starter_count, positions)
-     VALUES ($1, $2, $3, 'Major', 'major', 'registration', now() - interval '1 hour', now() - interval '1 hour', now() + interval '7 days', $4, $5, $6, $7::json, $8::json, $9::json, $10::json, $11, $12, $13, $14::text[])`,
-    [scenario.seasonId, scenario.slug, scenario.seasonName, capabilities.registrationMode, capabilities.hasCaptainVoting, capabilities.hasDraft, JSON.stringify(capabilities.stagePlan), JSON.stringify(capabilities.registrationConfig), JSON.stringify(capabilities.teamRegistrationConfig), JSON.stringify(capabilities.affiliationRules), capabilities.minTeamSize, capabilities.maxTeamSize, capabilities.starterCount, capabilities.positions],
+     VALUES ($1, $2, $3, 'Major', 'major', 'registration', now() - interval '1 hour', now() - interval '1 hour', CASE WHEN $15 THEN now() - interval '1 minute' ELSE now() + interval '7 days' END, $4, $5, $6, $7::json, $8::json, $9::json, $10::json, $11, $12, $13, $14::text[])`,
+    [scenario.seasonId, scenario.slug, scenario.seasonName, capabilities.registrationMode, capabilities.hasCaptainVoting, capabilities.hasDraft, JSON.stringify(capabilities.stagePlan), JSON.stringify(capabilities.registrationConfig), JSON.stringify(capabilities.teamRegistrationConfig), JSON.stringify(capabilities.affiliationRules), capabilities.minTeamSize, capabilities.maxTeamSize, capabilities.starterCount, capabilities.positions, scenario.profile === "major-qualification"],
   );
 }
 
@@ -405,28 +418,151 @@ async function insertInvitationTeam(client: PoolClient, scenario: ScenarioDefini
 }
 
 async function insertRankFacts(client: PoolClient, scenario: ScenarioDefinition): Promise<void> {
-  const facts = scenario.accounts.filter(({ key }) => key !== "player1" && key !== "admin").flatMap((account) => [
-    [deterministicUuid(`${scenario.scenarioId}:fact:${account.key}:historical`), account.userId, "historical_peak", null, scenario.fixtureRank, "2.00", scenario.fixtureStars],
-    [deterministicUuid(`${scenario.scenarioId}:fact:${account.key}:previous`), account.userId, "season_peak", scenario.previousSeasonKey, scenario.fixtureRank, "1.90", scenario.fixtureStars],
-    [deterministicUuid(`${scenario.scenarioId}:fact:${account.key}:current`), account.userId, "season_peak", scenario.currentSeasonKey, scenario.fixtureRank, "1.80", scenario.fixtureStars],
+  const accounts = scenario.accounts.filter(({ key }) => key !== "player1" && key !== "admin");
+  const candidateUsers = scenario.profile === "major-qualification" ? qualificationCandidateUsers(scenario) : [];
+  const facts = [...accounts.map((account) => ({ key: account.key, userId: account.userId })), ...candidateUsers].flatMap(({ key, userId }) => [
+    [deterministicUuid(`${scenario.scenarioId}:fact:${key}:historical`), userId, "historical_peak", null, scenario.fixtureRank, "2.00", scenario.fixtureStars],
+    [deterministicUuid(`${scenario.scenarioId}:fact:${key}:previous`), userId, "season_peak", scenario.previousSeasonKey, scenario.fixtureRank, "1.90", scenario.fixtureStars],
+    [deterministicUuid(`${scenario.scenarioId}:fact:${key}:current`), userId, "season_peak", scenario.currentSeasonKey, scenario.fixtureRank, "1.80", scenario.fixtureStars],
   ]);
-  for (const [id, userId, kind, seasonKey, rank, rating, stars] of facts) {
-    await client.query(
-      "INSERT INTO competitive_rank_facts (id, user_id, platform, kind, platform_season_key, rank, rating, stars) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
-      [id, userId, scenario.platform, kind, seasonKey, rank, rating, stars],
-    );
-  }
+  if (facts.length === 0) return;
+  const { sql: valuesSql, values } = parameterizedValues(facts.map(([id, userId, kind, seasonKey, rank, rating, stars]) => [
+    id, userId, scenario.platform, kind, seasonKey, rank, rating, stars,
+  ]));
+  await client.query(
+    `INSERT INTO competitive_rank_facts (id, user_id, platform, kind, platform_season_key, rank, rating, stars) VALUES ${valuesSql}`,
+    values,
+  );
 }
 
 async function insertEducationVerifications(client: PoolClient, scenario: ScenarioDefinition): Promise<void> {
-  for (const account of scenario.accounts.filter(({ key }) => key !== "player1" && key !== "admin")) {
-    await client.query(
-      `INSERT INTO education_verifications (id, user_id, institution_id, academic_status, evidence_type, status, reviewed_by, reviewed_at)
-       SELECT $1, $2, id, 'enrolled', 'institutional_email', 'approved', 'local-browser-admin', now()
-       FROM institutions WHERE moe_institution_code = '4132010284'`,
-      [deterministicUuid(`${scenario.scenarioId}:education:${account.key}`), account.userId],
-    );
+  const verifications = scenario.accounts
+    .filter(({ key }) => key !== "player1" && key !== "admin")
+    .map((account) => [deterministicUuid(`${scenario.scenarioId}:education:${account.key}`), account.userId]);
+  await insertApprovedInstitutionalEmailVerifications(client, verifications);
+}
+
+function qualificationCandidateUsers(scenario: ScenarioDefinition): Array<{ key: string; userId: string; email: string }> {
+  return Array.from({ length: 30 }, (_, teamIndex) => Array.from({ length: 5 }, (_, playerIndex) => {
+    const key = `candidate-${teamIndex + 1}-${playerIndex + 1}`;
+    return {
+      key,
+      userId: deterministicUuid(`${scenario.scenarioId}:user:${key}`),
+      email: `${scenario.shortKey}-${key}@smail.nju.edu.cn`,
+    };
+  })).flat();
+}
+
+async function insertQualificationCandidateUsers(client: PoolClient, scenario: ScenarioDefinition): Promise<void> {
+  const rows = qualificationCandidateUsers(scenario).map((candidate, index) => {
+    const steam64 = `765611980${String(index + 1).padStart(8, "0")}`;
+    return [candidate.userId, candidate.email, `Candidate ${candidate.key}`, `Candidate Perfect ${candidate.key}`, steam64, `743${String(index + 1).padStart(7, "0")}`];
+  });
+  const { sql: valuesSql, values } = parameterizedValues(rows, ["uuid", "text", "text", "text", "text", "text"]);
+  await client.query(
+    `INSERT INTO users (id, email, email_verified_at, display_name, perfect_name, steam64, qq)
+     SELECT v.id::uuid, v.email, now(), v.display_name, v.perfect_name, v.steam64, v.qq
+     FROM (VALUES ${valuesSql}) AS v(id, email, display_name, perfect_name, steam64, qq)`,
+    values,
+  );
+}
+
+async function insertQualificationCandidateFacts(client: PoolClient, scenario: ScenarioDefinition): Promise<void> {
+  const verifications = qualificationCandidateUsers(scenario)
+    .map((candidate) => [deterministicUuid(`${scenario.scenarioId}:education:${candidate.key}`), candidate.userId]);
+  await insertApprovedInstitutionalEmailVerifications(client, verifications);
+}
+
+async function insertApprovedInstitutionalEmailVerifications(client: PoolClient, rows: readonly (readonly unknown[])[]): Promise<void> {
+  if (rows.length === 0) return;
+  const { sql: valuesSql, values } = parameterizedValues(rows, ["uuid", "uuid"]);
+  await client.query(
+    `INSERT INTO education_verifications (id, user_id, institution_id, academic_status, evidence_type, status, reviewed_by, reviewed_at)
+     SELECT v.id::uuid, v.user_id::uuid, i.id, 'enrolled', 'institutional_email', 'approved', 'local-browser-admin', now()
+     FROM (VALUES ${valuesSql}) AS v(id, user_id)
+     JOIN institutions i ON i.moe_institution_code = '4132010284'`,
+    values,
+  );
+}
+
+async function insertQualificationCandidates(client: PoolClient, scenario: ScenarioDefinition): Promise<void> {
+  const candidates = qualificationCandidateUsers(scenario);
+  const entries: unknown[][] = [];
+  const representativeChanges: unknown[][] = [];
+  const participants: unknown[][] = [];
+  const revisions: unknown[][] = [];
+  const rosterMembers: unknown[][] = [];
+  for (let teamIndex = 0; teamIndex < 30; teamIndex += 1) {
+    const entryId = deterministicUuid(`${scenario.scenarioId}:entry:${teamIndex + 1}`);
+    const revisionId = deterministicUuid(`${scenario.scenarioId}:entry:${teamIndex + 1}:revision:1`);
+    const members = candidates.slice(teamIndex * 5, teamIndex * 5 + 5);
+    const representative = members[0]!;
+    entries.push([entryId, scenario.seasonId, `Qualification Entry ${String(teamIndex + 1).padStart(2, "0")}`, `https://local.test/${entryId}.png`, representative.userId, `fixture-${entryId}`, revisionId]);
+    representativeChanges.push([entryId, representative.userId]);
+    revisions.push([revisionId, entryId]);
+    for (const member of members) {
+      participants.push([entryId, member.userId, representative.userId]);
+      rosterMembers.push([entryId, revisionId, member.userId, true]);
+    }
   }
+
+  const entryValues = parameterizedValues(entries, ["uuid", "uuid", "text", "text", "uuid", "text", "uuid"]);
+  await client.query(
+    `INSERT INTO competition_entries (
+       id, competition_id, source, name, logo_url, representative_user_id, perfect_team_id,
+       current_roster_revision_id, approved_roster_revision_id, registration_status, submitted_at, reviewed_at
+     )
+     SELECT v.id::uuid, v.competition_id::uuid, 'event_native', v.name, v.logo_url, v.representative_user_id::uuid,
+       v.perfect_team_id, v.revision_id::uuid, v.revision_id::uuid, 'approved', now(), now()
+     FROM (VALUES ${entryValues.sql}) AS v(id, competition_id, name, logo_url, representative_user_id, perfect_team_id, revision_id)`,
+    entryValues.values,
+  );
+
+  const representativeValues = parameterizedValues(representativeChanges, ["uuid", "uuid"]);
+  await client.query(
+    `INSERT INTO competition_entry_representative_changes (entry_id, from_user_id, to_user_id, changed_by_actor_id)
+     SELECT v.entry_id::uuid, NULL, v.user_id::uuid, 'local-browser-fixture'
+     FROM (VALUES ${representativeValues.sql}) AS v(entry_id, user_id)`,
+    representativeValues.values,
+  );
+
+  const participantValues = parameterizedValues(participants, ["uuid", "uuid", "uuid"]);
+  await client.query(
+    `INSERT INTO competition_entry_participants (entry_id, user_id, status, confirmed_at, invited_by_user_id)
+     SELECT v.entry_id::uuid, v.user_id::uuid, 'confirmed', now(), v.invited_by_user_id::uuid
+     FROM (VALUES ${participantValues.sql}) AS v(entry_id, user_id, invited_by_user_id)`,
+    participantValues.values,
+  );
+
+  const revisionValues = parameterizedValues(revisions, ["uuid", "uuid"]);
+  await client.query(
+    `INSERT INTO competition_entry_roster_revisions (id, entry_id, revision_number, status, created_by, approved_at)
+     SELECT v.id::uuid, v.entry_id::uuid, 1, 'approved', 'local-browser-fixture', now()
+     FROM (VALUES ${revisionValues.sql}) AS v(id, entry_id)`,
+    revisionValues.values,
+  );
+
+  const rosterValues = parameterizedValues(rosterMembers, ["uuid", "uuid", "uuid", "boolean"]);
+  await client.query(
+    `INSERT INTO competition_entry_roster_members (revision_id, participant_id, user_id, is_primary_starter)
+     SELECT v.revision_id::uuid, p.id, v.user_id::uuid, v.is_primary
+     FROM (VALUES ${rosterValues.sql}) AS v(entry_id, revision_id, user_id, is_primary)
+     JOIN competition_entry_participants p ON p.entry_id = v.entry_id::uuid AND p.user_id = v.user_id::uuid`,
+    rosterValues.values,
+  );
+}
+
+function parameterizedValues(rows: readonly (readonly unknown[])[], casts?: readonly string[]): { sql: string; values: unknown[] } {
+  const columnCount = rows[0]?.length;
+  if (!columnCount || rows.some((row) => row.length !== columnCount) || (casts && casts.length !== columnCount)) {
+    throw new Error("fixture bulk insert rows must have the same non-zero column count");
+  }
+  const values: unknown[] = [];
+  const sql = rows.map((row) => `(${row.map((value, columnIndex) => {
+    values.push(value);
+    return `$${values.length}${casts ? `::${casts[columnIndex]}` : ""}`;
+  }).join(", ")})`).join(", ");
+  return { sql, values };
 }
 
 async function insertRejectedChsiVerification(client: PoolClient, scenario: ScenarioDefinition): Promise<void> {
@@ -441,7 +577,7 @@ async function insertRejectedChsiVerification(client: PoolClient, scenario: Scen
 }
 
 function createCapabilities(scenario: ScenarioDefinition) {
-  const capabilities = createMajorDefaultCapabilities();
+  const capabilities = scenario.profile === "major-qualification" ? createMajor24Capabilities() : createMajorDefaultCapabilities();
   capabilities.teamRegistrationConfig.competitiveProfile = {
     platform: scenario.platform,
     currentSeasonKey: scenario.currentSeasonKey,

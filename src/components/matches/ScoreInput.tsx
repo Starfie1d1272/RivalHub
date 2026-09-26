@@ -10,6 +10,7 @@ interface ScoreInputProps {
   matchId: string;
   currentStatus: "scheduled" | "in_progress" | "finished" | "cancelled";
   startBlockers?: string[];
+  allowCancel?: boolean;
 }
 
 /**
@@ -19,7 +20,7 @@ interface ScoreInputProps {
  * actual round score to match_maps before matches receives the derived series
  * score.
  */
-export function ScoreInput({ matchId, currentStatus, startBlockers = [] }: ScoreInputProps) {
+export function ScoreInput({ matchId, currentStatus, startBlockers = [], allowCancel = true }: ScoreInputProps) {
   const [showStartConfirm, setShowStartConfirm] = useState(false);
   const [isPending, startTransition] = useTransition();
 
@@ -65,9 +66,11 @@ export function ScoreInput({ matchId, currentStatus, startBlockers = [] }: Score
           >
             开始比赛
           </Button>
-          <Button size="sm" variant="outline" onClick={handleCancel} disabled={isPending}>
-            取消比赛
-          </Button>
+          {allowCancel && (
+            <Button size="sm" variant="outline" onClick={handleCancel} disabled={isPending}>
+              取消比赛
+            </Button>
+          )}
         </div>
       )}
       {startBlockers.length > 0 && (

@@ -100,6 +100,8 @@ Recruitment 是 Team/Player 的当前意向，不是 membership、invitation 或
 
 这些 owner 不能互相替代。尤其 MatchRoster 必须来自本届 EventRoster，而不是回读可变 Team membership 或报名草稿。
 
+EventRoster 的当前成员供后续比赛选择；一旦某个成员行被 MatchRoster 引用，它就成为历史比赛事实。名单获批更新时保留该行并标记为非当前，再写入新版本；没有历史引用的旧成员行可以删除。已有 MatchRoster 始终指向原成员行，不随当前 EventRoster 改写。
+
 Entry qualification 由 canonical qualification owner 计算。只有明确标记为可解除的政策 finding 才能形成 restriction override；资料缺失、身份、确认状态等硬 blocker 不能被管理员“强行通过”。override 绑定当前 roster revision，新 revision 不继承旧解除。
 
 ## Rivals-specific facts
@@ -114,7 +116,7 @@ BP、时间协商、实际阵容、玩家统计和赛后资料拥有各自明确
 
 Demo Evidence 的不可变 payload 与 `match_demo_imports` workflow projection 由 Demo integration owner 管理。正常提交和存量 `/3` recheck 共享同一套 server-owned target、Steam identity、正式比分、QA、回合、summary、effective MatchRoster 和 evidence revision 校验；participant payload 中的客户端 identity resolution 不是事实来源。通过校验的 source round facts 与 `match_player_stats` projection 由同一晋级 owner 物化，并按 Demo lineage 保留 supersede/content conflict；管理员确认只补足 gameplay identity 后触发同一存量 recheck，不另起一套验证或直接改写 payload。
 
-结果更正不能绕开 managed runtime。若更正会影响 Major 后续 pairing/stage，必须通过 recovery owner 处理。
+结果更正不能绕开赛事运行时。Major StageRun 更正通过 managed recovery owner 处理；Qualification 胜者更正仅在尚未产生正赛 entrants 且所有后续 Qualification 比赛仍为 scheduled 时允许，后续轮在同一事务中作废并审计后由 Qualification projection 重算。后续比赛已开始/结束或正赛 entrants 已产生时，必须转入赛事事故裁决。
 
 ## Major prestart and runtime
 
@@ -134,11 +136,13 @@ approved CompetitionEntry candidates
 
 `major_stage_runs` 是已启动阶段的运行时身份并冻结该阶段需要的规则、entrant 和 eligibility context；`major_stage_entrants` 是阶段参与者真相。后续推进依赖 StageRun + 已完成比赛，而不是 UI standings。
 
-Managed Major 的唯一 profile owner 从保存的 StagePlan 识别 Major-24 或 Major-32；默认模板继续使用 Major-32。开赛时 StagePlan 随 StageRun 冻结，阶段转换、种子批次、开赛预览和最终名次都从该 frozen plan 派生，不从 mutable Season 配置或展示文字推断。
+Managed Major 的唯一 profile owner 从保存的 StagePlan 识别 Major-24 或 Major-32；默认模板继续使用 Major-32。报名阶段只有在未创建 Qualification run、正赛 entrants/seeds/StageRun 且未锁定赛前事实时，才能通过受控 owner 更新 profile。开赛时 StagePlan 随 StageRun 冻结，阶段转换、种子批次、开赛预览和最终名次都从该 frozen plan 派生，不从 mutable Season 配置或展示文字推断。
+
+Qualification 是独立于 Major StagePlan 的预赛运行事实：`competition_qualification_runs` 冻结赛制配置、容量关系与生命周期，`competition_qualification_entrants` 冻结候选集合和预排名；带 `qualification_run_id` 的 `play-in` Match 保持 manual ownership，不关联 Major StageRun、managed key 或 bracket node。正赛候选由冻结的直通队和已完成 Qualification 的晋级队共同派生，不能由管理员替换或补足。Swiss core 只从 canonical 比赛事实投影 W/L、对手、BU、状态与排名；轮次是否完整、是否必须同战绩配对以及是否允许 bye 由 Major 或 Qualification policy 验证，不由通用 projection 固定。Short Swiss 的 Qualification policy 是 2 胜晋级、2 负淘汰，最多三轮。
 
 通用阶段的 identity 是 `(seasonId, StageConfig.key)`，name 只负责展示。provider bracket state 按 `(competition_id, stage_key)` 隔离；participant 的 RivalHub identity 必须来自 `rivalhubEntryId`，不能从名称或 participant 数组位置反推。`matches` 的 provider node 唯一性也按 `(season_id, stage, bracket_node_id)` 约束，允许不同阶段复用 provider numeric node。
 
-Major Swiss 的 public/admin read model 只从 `major_stage_entrants`、`matches(ownership = major_stage)` 与 `major_stage_runs.finalized_round` 投影。
+Major Swiss 的 public/admin read model 只从 `major_stage_entrants`、`matches(ownership = major_stage)` 与 `major_stage_runs.finalized_round` 投影。Qualification Swiss read model 只从该 run 的冻结 entrants 与关联的 Qualification-owned matches 投影；无效或不完整的 round facts 不生成 standings。
 
 历史 snapshot 保留当时事实，即使 live profile、目录或政策后来变化也不重解释。
 

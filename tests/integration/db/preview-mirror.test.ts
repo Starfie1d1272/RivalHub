@@ -106,7 +106,7 @@ describe("preview mirror membership projection", () => {
       );
       const currentInventory = new Map<string, string[]>();
       for (const row of currentCatalog.rows) currentInventory.set(row.table_name, [...(currentInventory.get(row.table_name) ?? []), row.column_name]);
-      const currentPolicy = previewPolicyFor(expected);
+      const currentPolicy = previewPolicyFor(expected.slice(0, cleanupIndex + 1));
       for (const [table, columns] of currentInventory) assertReviewedColumns(table, columns, currentPolicy);
 
       const currentUsers = currentInventory.get("users") ?? [];

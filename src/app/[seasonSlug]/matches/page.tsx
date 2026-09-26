@@ -3,7 +3,7 @@ import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import { and, eq, asc } from "drizzle-orm";
 import { db } from "@/db/client";
-import { majorFinalResults, matches, competitionEntries } from "@/db/schema";
+import { majorFinalResults, matches, competitionEntries, competitionQualificationRuns } from "@/db/schema";
 import { loadStageBracketViews } from "@/lib/bracket";
 import { PageHeader, PageLayout, Panel } from "@/components/rivalhub";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -22,20 +22,21 @@ import { AdminShortcutSlot } from "@/components/layout/AdminShortcutSlot";
 import { getPublicOrAuthorizedDraftSeason } from "@/lib/data/public-seasons";
 import { getMatchMapRoundScores } from "@/lib/data/standings";
 import { loadMajorSwissStageReadModel } from "@/lib/matches/stage-read-model";
+import { loadQualificationSwissStageReadModel } from "@/lib/matches/qualification-stage-read-model";
 
 interface MatchesPageProps {
   params: Promise<{ seasonSlug: string }>;
-  searchParams: Promise<{ team?: string }>;
+  searchParams: Promise<{ team?: string; stage?: string }>;
 }
 
 export default async function MatchesPage({ params, searchParams }: MatchesPageProps) {
   const { seasonSlug } = await params;
-  const { team: filterTeamId } = await searchParams;
+  const { team: filterTeamId, stage: requestedStage } = await searchParams;
 
   const season = await getPublicOrAuthorizedDraftSeason(seasonSlug);
   if (!season) notFound();
 
-  const [allTeams, allMatches, finalResult, stagePresentation] = await Promise.all([
+  const [allTeams, allMatches, finalResult, stagePresentation, qualificationRun] = await Promise.all([
     db.query.competitionEntries.findMany({
       where: and(eq(competitionEntries.competitionId, season.id), publicCompetitionEntryCondition()),
       orderBy: [asc(competitionEntries.formationOrder)],
@@ -46,6 +47,7 @@ export default async function MatchesPage({ params, searchParams }: MatchesPageP
     }),
     db.query.majorFinalResults.findFirst({ where: eq(majorFinalResults.seasonId, season.id) }),
     getPublicSeasonStagePresentation(season),
+    db.query.competitionQualificationRuns.findFirst({ where: eq(competitionQualificationRuns.seasonId, season.id) }),
   ]);
 
   const teamMap = new Map(allTeams.map((team) => [team.id, team.name]));
@@ -53,7 +55,14 @@ export default async function MatchesPage({ params, searchParams }: MatchesPageP
     allMatches.filter((match) => match.status === "finished").map((match) => match.id),
   );
   const stagePlan = stagePresentation.stagePlan;
-  const { views: stageViews, unconfiguredMatches } = buildStageViews<typeof allMatches[number]>(stagePlan, allMatches);
+  const qualificationMatches = qualificationRun
+    ? allMatches.filter((match) => match.qualificationRunId === qualificationRun.id &&
+      match.stage === "play-in" && match.ownership === "manual" && match.majorStageRunId === null &&
+      match.managedKey === null && match.bracketNodeId === null)
+    : [];
+  const qualificationMatchIds = new Set(qualificationMatches.map((match) => match.id));
+  const majorStageMatches = allMatches.filter((match) => !qualificationMatchIds.has(match.id));
+  const { views: stageViews, unconfiguredMatches } = buildStageViews<typeof allMatches[number]>(stagePlan, majorStageMatches);
   const swissReadModels = new Map(
     (await Promise.all(
       stagePlan
@@ -64,6 +73,9 @@ export default async function MatchesPage({ params, searchParams }: MatchesPageP
         ] as const),
     )).filter((entry): entry is readonly [string, NonNullable<typeof entry[1]>] => entry[1] !== null),
   );
+  const qualificationSwissReadModel = qualificationRun?.format === "short_swiss_2w2l"
+    ? await loadQualificationSwissStageReadModel(season.id)
+    : null;
   const sortActiveMatches = (stageMatches: typeof allMatches) =>
     [...stageMatches].sort((a, b) => {
       const timeDifference = (a.scheduledAt?.getTime() ?? Infinity) - (b.scheduledAt?.getTime() ?? Infinity);
@@ -85,7 +97,14 @@ export default async function MatchesPage({ params, searchParams }: MatchesPageP
   });
 
   const bracketDataByStage = await loadStageBracketViews(db, season.id);
-  const defaultStageKey = resolveDefaultStageKey(stagePlan, allMatches);
+  const requestedMajorStageKey = requestedStage && stagePlan.some((stage) => stage.key === requestedStage)
+    ? requestedStage
+    : null;
+  const defaultStageKey = requestedStage === "play-in" && qualificationRun
+    ? "play-in"
+    : season.competitionTemplate === "major"
+      ? requestedMajorStageKey ?? stagePresentation.currentStageKey ?? (qualificationRun ? "play-in" : stagePlan[0]?.key ?? null)
+      : resolveDefaultStageKey(stagePlan, majorStageMatches, requestedStage);
 
   if (allMatches.length === 0 && allTeams.length === 0) {
     return (
@@ -129,6 +148,11 @@ export default async function MatchesPage({ params, searchParams }: MatchesPageP
         <Panel contentClassName="p-6">
           <Tabs defaultValue={defaultStageKey} className="w-full">
             <TabsList className="mb-6 max-w-full justify-start overflow-x-auto bg-[var(--color-panel)] border border-[var(--color-border)] p-1">
+              {qualificationRun && <TabsTrigger
+                value="play-in"
+                className="data-[state=active]:bg-[var(--color-accent)] data-[state=active]:text-[var(--color-accent-fg)]"
+              >PLAY-IN</TabsTrigger>}
+              {qualificationRun && stageViews.length > 0 && <span aria-hidden="true" className="mx-1 h-6 w-px shrink-0 bg-[var(--color-border)]" />}
               {stageViews.map(({ stage }) => (
                 <TabsTrigger
                   key={stage.key}
@@ -139,6 +163,35 @@ export default async function MatchesPage({ params, searchParams }: MatchesPageP
                 </TabsTrigger>
               ))}
             </TabsList>
+
+            {qualificationRun && (
+              <TabsContent value="play-in" className="space-y-8">
+                {qualificationSwissReadModel && <SwissBracket data={qualificationSwissReadModel} seasonSlug={seasonSlug} />}
+                {qualificationRun.format === "direct_bo3" && (() => {
+                  const resolved = qualificationMatches.filter((match) => match.status === "finished" && match.scoreA !== null && match.scoreB !== null && match.scoreA !== match.scoreB).length;
+                  const remaining = Math.max(0, qualificationRun.qualifierCount - resolved);
+                  return <Panel contentClassName="p-4">
+                    <div className="flex flex-wrap items-baseline justify-between gap-2">
+                      <p className="font-semibold text-[var(--color-fg)]">PLAY-IN · {qualificationRun.playInEntryCount} → {qualificationRun.qualifierCount} · BO3 决胜赛</p>
+                      <p className="text-sm text-[var(--color-fg-mid)]">已决出 {resolved} 个晋级名额 · 剩余 {remaining}</p>
+                    </div>
+                  </Panel>;
+                })()}
+                {qualificationMatches.length > 0 ? (() => {
+                  const { active, done } = splitMatches(qualificationMatches);
+                  return <MatchTabsSection
+                    activeMatches={active}
+                    doneMatches={done}
+                    stageLabel="PLAY-IN"
+                    seasonSlug={seasonSlug}
+                    teamMap={teamMap}
+                    highlightTeamId={filterTeamId}
+                    isHistorical={season.status === "finished" || season.status === "archived"}
+                    unknownTeamName="未知队伍"
+                  />;
+                })() : <div className="py-10 text-center text-sm text-[var(--color-fg-mid)]">Play-in 比赛尚未生成</div>}
+              </TabsContent>
+            )}
 
             {stageViews.map(({ stage, matches: allStageMatches }) => {
               const stageLabel = stagePresentation.labels[stage.key] ?? stage.name;

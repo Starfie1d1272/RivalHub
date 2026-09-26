@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { writeAuditInTx } from "@/lib/audit/write";
 
 import type { TxDb } from "@/db/client";
@@ -25,6 +25,7 @@ import type { FrozenRestrictionOverrideSnapshot } from "@/lib/major/run-snapshot
 import { assertMatchTransition } from "@/lib/match-transitions";
 import { loadActiveSanctionsInTx } from "@/lib/discipline/service";
 import { assertSeasonAllowsTournamentMutationInTx } from "@/lib/postevent/guard";
+import { assertSinglePrestartEntryCoherenceInTx } from "@/lib/event-rosters/coherence";
 import type { CompetitiveProfileConfig, InstitutionAffiliationRule } from "@/types/season";
 import { evaluateStartingLineup, type LineupMemberFact } from "./lineup";
 import { resolveMatchLineupPolicy, type MatchLineupPolicy } from "./policy";
@@ -148,18 +149,54 @@ function assertScheduledOrThrow(match: Pick<Match, "status">): void {
   }
 }
 
-/** Entrant membership resolves the frozen tournament roster per canonical team. */
-async function loadFrozenRosterUserIdsInTx(
+/** Lock the mutable roster owner before validating or persisting a lineup. */
+async function lockCurrentEventRosterForLineupInTx(
+  tx: TxDb,
+  match: Match,
+  entryId: string,
+): Promise<void> {
+  const [entry] = await tx
+    .select({ id: competitionEntries.id })
+    .from(competitionEntries)
+    .where(and(
+      eq(competitionEntries.id, entryId),
+      eq(competitionEntries.competitionId, match.seasonId),
+    ))
+    .for("update");
+  if (!entry || (match.entryAId !== entryId && match.entryBId !== entryId)) {
+    throw new AppError(ErrorCode.VALIDATION_FAILED, "参赛队伍不属于本场比赛的赛季。");
+  }
+
+  const [roster] = await tx
+    .select({ status: eventRosters.status })
+    .from(eventRosters)
+    .where(eq(eventRosters.entryId, entryId))
+    .for("update");
+  const allowedStatuses = match.qualificationRunId
+    ? ["confirmed", "frozen"]
+    : ["frozen"];
+  if (!roster || !allowedStatuses.includes(roster.status)) {
+    throw new AppError(ErrorCode.VALIDATION_FAILED, "本队正式名单状态已变化，请刷新后重新提交阵容。");
+  }
+
+  if (match.qualificationRunId) {
+    await assertSinglePrestartEntryCoherenceInTx(tx, match.seasonId, { competitionEntryId: entryId });
+  }
+}
+
+/** Entrant membership resolves its confirmed event roster or the later frozen snapshot. */
+async function loadEventRosterUserIdsInTx(
   tx: TxDb,
   seasonId: string,
   entryId: string,
+  allowedStatuses: readonly ("confirmed" | "frozen")[],
 ): Promise<{ ids: ReadonlySet<string>; verificationsByUser: Map<string, LineupMemberFact["verification"]>; rosterRevisionId: string | null }> {
   const [roster] = await tx
     .select({ id: eventRosters.id, status: eventRosters.status, sourceRosterRevisionId: eventRosters.sourceRosterRevisionId })
     .from(eventRosters)
     .innerJoin(competitionEntries, eq(competitionEntries.id, eventRosters.entryId))
     .where(and(eq(competitionEntries.competitionId, seasonId), eq(eventRosters.entryId, entryId)));
-  if (!roster || roster.status !== "frozen") {
+  if (!roster || !allowedStatuses.includes(roster.status as "confirmed" | "frozen")) {
     throw new AppError(
       ErrorCode.INTERNAL_ERROR,
       "本队缺少已锁定的赛事名单，无法校验本场阵容。",
@@ -181,7 +218,10 @@ async function loadFrozenRosterUserIdsInTx(
       eq(educationVerifications.id, eventRosterMembers.educationVerificationId),
     )
     .innerJoin(institutions, eq(institutions.id, educationVerifications.institutionId))
-    .where(eq(eventRosterMembers.eventRosterId, roster.id));
+    .where(and(
+      eq(eventRosterMembers.eventRosterId, roster.id),
+      eq(eventRosterMembers.isCurrent, true),
+    ));
 
   const ids = new Set<string>();
   const verificationsByUser = new Map<string, LineupMemberFact["verification"]>();
@@ -265,7 +305,7 @@ async function loadTeamLineupContextInTx(
         }
       : configuredCompetitiveProfile;
     frozenCompetitiveFactsByUser = competitiveProfile ? frozenCompetitiveFacts(stageRun.ruleSnapshot) : null;
-    const frozen = await loadFrozenRosterUserIdsInTx(tx, match.seasonId, entryId);
+    const frozen = await loadEventRosterUserIdsInTx(tx, match.seasonId, entryId, ["frozen"]);
     frozenRosterUserIds = frozen.ids;
     verificationsByUser = frozen.verificationsByUser;
     frozenRosterRevisionId = frozen.rosterRevisionId;
@@ -274,11 +314,27 @@ async function loadTeamLineupContextInTx(
     }
   }
 
+  if (match.qualificationRunId) {
+    const coherent = await assertSinglePrestartEntryCoherenceInTx(tx, match.seasonId, { competitionEntryId: entryId });
+    if (coherent.eventRoster.status !== "confirmed" && coherent.eventRoster.status !== "frozen") {
+      throw new AppError(ErrorCode.INTERNAL_ERROR, "Play-in 队伍缺少已确认的赛事名单，无法校验本场阵容。");
+    }
+    const roster = await loadEventRosterUserIdsInTx(tx, match.seasonId, entryId, ["confirmed", "frozen"]);
+    frozenRosterUserIds = roster.ids;
+    verificationsByUser = roster.verificationsByUser;
+    frozenRosterRevisionId = roster.rosterRevisionId;
+  }
+
+  const acceptedRosterStatuses = match.qualificationRunId ? ["confirmed", "frozen"] as const : ["frozen"] as const;
   const memberRows = await tx
     .select({ id: eventRosterMembers.id, userId: eventRosterMembers.userId })
     .from(eventRosterMembers)
     .innerJoin(eventRosters, eq(eventRosters.id, eventRosterMembers.eventRosterId))
-    .where(and(eq(eventRosters.entryId, entryId), eq(eventRosters.status, "frozen")));
+    .where(and(
+      eq(eventRosters.entryId, entryId),
+      inArray(eventRosters.status, acceptedRosterStatuses),
+      eq(eventRosterMembers.isCurrent, true),
+    ));
 
   // H1: active match-participation sanctions apply to every ownership mode.
   const participationBans = await loadActiveSanctionsInTx(tx, {
@@ -393,6 +449,13 @@ export async function persistMatchRosterInTx(
   },
 ): Promise<PersistedRosterSummary> {
   const substituteIds = args.substituteIds ?? [];
+  await lockCurrentEventRosterForLineupInTx(tx, args.match, args.entryId);
+  await assertStartingLineupAllowedInTx(tx, {
+    match: args.match,
+    entryId: args.entryId,
+    starterIds: args.starterIds,
+    substituteIds,
+  });
   const now = new Date();
   const [existing] = await tx
     .select({ id: matchRosters.id })
@@ -466,6 +529,7 @@ export async function confirmMatchRosterInTx(
 
   const match = await lockMatchInTx(tx, roster.matchId);
   assertScheduledOrThrow(match);
+  await lockCurrentEventRosterForLineupInTx(tx, match, roster.entryId);
 
   const players = await tx
     .select({ eventRosterMemberId: matchRosterPlayers.eventRosterMemberId, isStarter: matchRosterPlayers.isStarter })
@@ -526,6 +590,9 @@ export async function applyMatchStatusTransitionInTx(
   args: { matchId: string; nextStatus: "in_progress" | "cancelled"; actorId: string },
 ): Promise<MatchTransitionOutcome> {
   const locked = await lockMatchInTx(tx, args.matchId);
+  if (locked.qualificationRunId && args.nextStatus === "cancelled") {
+    throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "Play-in 比赛不能取消，请使用弃赛判负录入正式赛果。");
+  }
   assertMatchTransition(locked.status, args.nextStatus);
   const lineups =
     args.nextStatus === "in_progress"
@@ -604,6 +671,7 @@ async function assertConfirmedLineupsForStartInTx(
       .where(eq(matchRosterPlayers.rosterId, roster.id));
     const { starterIds, substituteIds } = loadPersistedPlayers(players);
 
+    await lockCurrentEventRosterForLineupInTx(tx, match, entryId);
     await assertStartingLineupAllowedInTx(tx, { match, entryId, starterIds, substituteIds });
     summaries.push({ rosterId: roster.id, matchId: match.id, entryId, starterIds, substituteIds, status: "confirmed" });
   }

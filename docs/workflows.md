@@ -113,6 +113,20 @@ approved Entry candidate pool
 
 在最终 entrant set 尚未冻结的候选阶段，管理员可以看到基于每支 approved roster revision 的 5 名预定主力和当前可用竞技事实生成的 live strength preview。它是只读、非权威的辅助 read model：不自动选择正式参赛队、不改变 qualification，也不创建或改写 `SeedRecommendationSnapshot`。正式参赛队与 EventRoster 统一冻结后，系统才生成并保留 immutable seed snapshot。
 
+### Major Qualification
+
+Qualification 是 `registration` 到 Major 正赛 entrant set 之间的独立 run，不加入 StagePlan，也不创建 Major StageRun。Major 正赛规模只可在报名阶段、未配置 Qualification、未创建正赛 entrants/seeds/StageRun 且赛前事实未锁定时，通过 profile owner 更新；已发布设置展示调整边界并链接到赛前准备。
+
+报名截止、所有报名审核/补正/候补处理完毕后，所有已批准且名单有效的 Entry 组成冻结候选集合。初始预排名消费当前 strength `displayOrder`；无法排名的候选按队名与 Entry ID 稳定排序。配置确认前，管理员先预览正赛容量、候选数、赛制、切线及完整排名路径。系统由候选数和正赛容量推导直通、Play-in 与晋级数量；超出单层资格赛可收敛的数量时停止配置，不提供人工覆盖人数或替换正赛队伍的入口。
+
+Qualification run 保存格式、冻结候选与预排名。管理员生成每轮前先预览完整对阵；确认时服务端重新计算并比对所预览的队伍，变化后要求重新预览。Direct BO3 使用镜像种子：P1 对 Pn、P2 对 P(n−1)，依此类推。Short Swiss 仅在当前 Play-in 人数满足规则门槛时可选，最多三轮；R1 按同战绩组高低种子配对，之后只在相同战绩组内生成无重赛配对。比赛结果只写入官方 Match，完成一个结果不会自动创建下一轮；管理员显式生成下一轮。重试仅接受已完整且规则一致的对阵集合，缺场、重复、跳轮、跨战绩或不匹配的历史事实 fail closed。
+
+Qualification 的胜者更正走通用结果更正与审计入口，但只允许在正赛 entrants 尚未产生、且后续 Qualification 比赛仍全部 scheduled 时执行。确认后在同一事务中作废并审计后续轮，再由冻结候选与更正后的 canonical Match 结果重新投影晋级事实；若后续比赛已开始/结束或正赛 entrants 已产生，则拒绝自动恢复并转赛事事故裁决。
+
+首轮生成时，Play-in 队伍的已批准 Entry roster 由共享 EventRoster owner 同步并确认；资格赛阵容消费 confirmed/frozen EventRoster。Entry 重新批准只在比赛间隙同步当前 EventRoster。已被 MatchRoster 引用的旧 EventRosterMember 保留为非当前历史行，新比赛使用新当前行；已有 MatchRoster 不改写。Major 正赛仍要求 frozen EventRoster。Qualification 完成后，正赛集合只由直通 Entry 与系统推导的晋级 Entry 构成，并且必须达到冻结 profile 的准确容量。
+
+公开首页在 Main Event 首阶段开始前，将 PLAY-IN 作为独立信息面板放在阶段 tracker 下方；此时 REGISTER 显示完成，Main Event 阶段待开始，且没有 Main Event 阶段显示为当前阶段。公开和后台赛程以 PLAY-IN 独立 tab 展示 Qualification-owned matches，并以分隔线与 Main Event tabs 区分；它不会因为不属于 StagePlan 而触发未配置阶段告警。合法的 `stage=<StageConfig.key>` 请求优先显示对应 Main Event 阶段，然后回退到当前 Main Event 阶段、Play-in、Stage 1；`stage=play-in` 显式选择 Play-in。Short Swiss public/admin standings 从通用 Swiss projection 与 Qualification run facts 投影，使用 P 前缀种子并只展示 R1–R3。Direct BO3 赛程在比赛卡片前显示 Play-in 晋级数量与剩余名额摘要。
+
 ## Stage runtime
 
 Major 每个阶段由 managed StageRun 拥有：
@@ -139,6 +153,8 @@ scheduled / in_progress → cancelled
 
 forfeit 是 `finished` 的结果形态，不是额外比赛状态。
 
+Qualification-owned Play-in 比赛不允许进入 `cancelled`，以免冻结资格赛轮次；需要裁决时使用正式弃赛判负，写入可投影的胜者结果。资格赛比赛也不能通过通用 delete 路径单独删除。
+
 正常比赛：
 
 ```text
@@ -154,7 +170,7 @@ EventRoster
 
 赛后 Demo 闭环：DAK 提交的 `/3` Evidence 先以不可变 payload 保存，再由服务端基于当前目标、正式地图结果和 effective MatchRoster 重新校验。Steam64 既可以命中当前主身份，也可以命中 active gameplay alias；无法解析、已撤销或跨用户冲突都进入待处理。赛季管理员只能在单场工作台中从该份不可变 payload 选择本场当前首发，服务端再次核对观察 Steam64、队伍和候选身份后，只有同一 participant path 当前确实存在可确认的身份问题时，才经 gameplay identity owner 保存 alternate identity，并自动重跑同一 canonical validator；其它比分、QA、回合或 summary 问题仍保持待处理。工作台按当前 canonical validator 投影待确认身份、已关联其它选手的冲突与非身份阻塞，正常匹配者只显示人数摘要；候选只来自观察队伍的本场首发。冲突展示当前关联，只有来源属于当前赛事的 active `admin_confirmed_alternate` 提供填写原因、二次确认后的 scoped retire；主身份、`profile_change` 与跨赛事来源指向相应身份核对流程。撤销后刷新当前解析结果，再由同一确认 owner 决定下一步，不自动改绑或重写历史统计。无效 payload 保留在工作台并可拒绝，不能通过身份确认绕过完整校验。拒绝作为次级危险操作，比分、QA 等问题保留独立说明。确认、重检、拒绝和撤销都写入业务审计；不修改登录/报名资料中的当前 Steam64。
 
-结果更正先检查 StageRun 和下游依赖。若会改变后续 pairing/stage，必须走受控 recovery；不能直接改 standings 或把 finished match 任意退回进行中。
+结果更正先检查所属运行时和下游依赖。Major StageRun 由 managed recovery owner 处理；Qualification 仅在正赛 entrants 尚未产生且后续资格赛比赛仍全部 scheduled 时允许胜者恢复，并原子作废后续资格赛轮。后续 Major stage、已开始/完成的下游比赛或既有正赛 entrants 都不能由结果更正静默重写，必须转入赛事事故裁决；不能直接改 standings 或把 finished match 任意退回进行中。
 
 ## Discipline and post-event
 

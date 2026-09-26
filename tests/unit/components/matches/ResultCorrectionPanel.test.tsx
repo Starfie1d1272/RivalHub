@@ -42,6 +42,7 @@ function planFixture(overrides: Partial<{
     proposed: { scoreA: 1, scoreB: 0, isForfeit: false },
     winnerChanges: true,
     affectsManagedRun: true,
+    affectsQualificationRun: false,
     impacts: [],
     blockedReasons: [],
     requiredRecoveryActions: [],

@@ -12,7 +12,7 @@ import {
   seasons,
 } from "@/db/schema";
 import { AppError, ErrorCode } from "@/lib/errors";
-import { assertPrestartEntryCoherenceInTx } from "@/lib/major/prestart-entry";
+import { assertPrestartEntryCoherenceInTx } from "@/lib/event-rosters/coherence";
 import { getStandardMajorDefinition } from "@/lib/major/standard";
 import { ensureMajorPrestartStateInTx } from "@/lib/major/prestart-state";
 import { analyzeFinalSeedOrder } from "@/lib/major/team-seed-recommendation";
@@ -75,6 +75,7 @@ async function loadCurrentFrozenSeedSetInTx(tx: TxDb, seasonId: string): Promise
     .where(and(
       inArray(eventRosterMembers.eventRosterId, eventRosterIds),
       eq(eventRosters.status, "frozen"),
+      eq(eventRosterMembers.isCurrent, true),
     ))
     .orderBy(asc(eventRosterMembers.userId))
     .for("update");

@@ -1,11 +1,13 @@
 import "server-only";
 
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { and, asc, eq, inArray, isNotNull } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
   competitionEntries,
   competitionEntryRosterMembers,
   competitionEntryRosterRevisions,
+  competitionQualificationEntrants,
+  competitionQualificationRuns,
   eventRosterMembers,
   eventRosters,
   majorPrestartStates,
@@ -13,6 +15,7 @@ import {
   majorStageRuns,
   majorTournamentEntrants,
   majorTournamentSeeds,
+  matches,
   steamProfiles,
   users,
 } from "@/db/schema";
@@ -40,6 +43,8 @@ import type { CompetitiveProfileConfig } from "@/types/season";
 import type { Season } from "@/db/schema/seasons";
 import type { MajorPrestartPageData, MajorPrestartStrengthPreview } from "./types";
 import { projectStrengthTeams } from "./strength";
+import { orderQualificationCandidates, SHORT_SWISS_MAX_ROUNDS } from "@/lib/competition-qualification/policy";
+import { projectShortSwissStage } from "@/lib/competition-qualification/swiss";
 
 type MajorEntrantRow = {
   id: string;
@@ -254,12 +259,13 @@ export async function loadMajorPrestartPageData(season: Season): Promise<MajorPr
           ? "本届冻结的竞技平台目录不完整，暂时无法计算实时队伍实力参考。"
           : "本届赛事缺少实力参考所需的竞技上下文。"],
         recommendationRank: null,
+        displayOrder: null,
         tieState: "not_ranked" as const,
         starters: [],
       })),
     };
 
-  const [state, entrantRows, rawRosterRows, seedRows, snapshot, stageRunRows] = await Promise.all([
+  const [state, entrantRows, rawRosterRows, seedRows, snapshot, stageRunRows, qualificationRun, qualificationEntrants, qualificationMatches, pendingReviews] = await Promise.all([
     db.query.majorPrestartStates.findFirst({ where: eq(majorPrestartStates.seasonId, season.id) }),
     db.select({
       id: majorTournamentEntrants.id,
@@ -279,7 +285,7 @@ export async function loadMajorPrestartPageData(season: Season): Promise<MajorPr
       .innerJoin(majorTournamentEntrants, eq(majorTournamentEntrants.competitionEntryId, eventRosters.entryId))
       .innerJoin(users, eq(eventRosterMembers.userId, users.id))
       .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
-      .where(eq(majorTournamentEntrants.seasonId, season.id)),
+      .where(and(eq(majorTournamentEntrants.seasonId, season.id), eq(eventRosterMembers.isCurrent, true))),
     db.select({ teamId: majorTournamentEntrants.competitionEntryId, tournamentSeed: majorTournamentSeeds.seed })
       .from(majorTournamentSeeds)
       .innerJoin(majorTournamentEntrants, eq(majorTournamentSeeds.tournamentEntrantId, majorTournamentEntrants.id))
@@ -287,6 +293,18 @@ export async function loadMajorPrestartPageData(season: Season): Promise<MajorPr
       .orderBy(asc(majorTournamentSeeds.seed)),
     db.query.majorSeedRecommendationSnapshots.findFirst({ where: eq(majorSeedRecommendationSnapshots.seasonId, season.id) }),
     db.select({ id: majorStageRuns.id }).from(majorStageRuns).where(eq(majorStageRuns.seasonId, season.id)),
+    db.query.competitionQualificationRuns.findFirst({ where: eq(competitionQualificationRuns.seasonId, season.id) }),
+    db.select({ entryId: competitionQualificationEntrants.competitionEntryId, preliminarySeed: competitionQualificationEntrants.preliminarySeed, teamName: competitionEntries.name })
+      .from(competitionQualificationEntrants)
+      .innerJoin(competitionEntries, eq(competitionEntries.id, competitionQualificationEntrants.competitionEntryId))
+      .where(eq(competitionQualificationEntrants.seasonId, season.id))
+      .orderBy(asc(competitionQualificationEntrants.preliminarySeed)),
+    db.select().from(matches).where(and(eq(matches.seasonId, season.id), eq(matches.stage, "play-in"), isNotNull(matches.qualificationRunId)))
+      .orderBy(asc(matches.round), asc(matches.id)),
+    db.select({ id: competitionEntries.id }).from(competitionEntries).where(and(
+      eq(competitionEntries.competitionId, season.id),
+      inArray(competitionEntries.registrationStatus, ["submitted", "changes_requested", "waitlisted"]),
+    )),
   ]);
 
   const rosterRows: MajorRosterMemberRow[] = rawRosterRows.map(({ displayName, perfectName, personaName, email, ...member }) => ({
@@ -304,6 +322,58 @@ export async function loadMajorPrestartPageData(season: Season): Promise<MajorPr
   });
   const entrantIds = new Set(entrantRows.map((entrant) => entrant.id));
   const selectedEntryIds = new Set(entrantRows.map((entrant) => entrant.teamId));
+  const displayOrderByEntryId = new Map(strengthPreview.teams.map((team) => [team.teamId, team.displayOrder]));
+  const initialPreliminaryOrderEntryIds = orderQualificationCandidates(candidateEntries.map((entry) => ({
+    entryId: entry.id,
+    teamName: entry.name,
+    displayOrder: displayOrderByEntryId.get(entry.id) ?? null,
+  }))).map((candidate) => candidate.entryId);
+  const qualificationStatusByEntryId = new Map<string, { wins: number; losses: number; status: "active" | "advanced" | "eliminated" | "not_started" }>();
+  let qualificationCompletedRound = 0;
+  const qualificationCurrentRound = Math.max(0, ...qualificationMatches.flatMap((match) => match.round === null ? [] : [match.round]));
+  if (qualificationRun?.startedAt && qualificationRun.format === "short_swiss_2w2l") {
+    for (let round = 1; round <= SHORT_SWISS_MAX_ROUNDS; round += 1) {
+      const roundMatches = qualificationMatches.filter((match) => match.round === round);
+      if (roundMatches.length === 0 || roundMatches.some((match) => match.status !== "finished")) break;
+      qualificationCompletedRound = round;
+    }
+    const projection = projectShortSwissStage({
+      entrants: qualificationEntrants.filter((entrant) => entrant.preliminarySeed > qualificationRun.directEntryCount)
+        .map((entrant) => ({ teamId: entrant.entryId, initialSeed: entrant.preliminarySeed - qualificationRun.directEntryCount })),
+      matches: qualificationMatches.filter((match) => match.round !== null && match.round <= qualificationCompletedRound && match.status === "finished")
+        .map((match) => ({
+          matchId: match.id,
+          round: match.round!,
+          entryAId: match.entryAId,
+          entryBId: match.entryBId,
+          winnerId: match.scoreA! > match.scoreB! ? match.entryAId : match.entryBId,
+        })),
+      completedRound: qualificationCompletedRound,
+    });
+    for (const team of projection.teams) {
+      qualificationStatusByEntryId.set(team.teamId, { wins: team.wins, losses: team.losses, status: team.status });
+    }
+  } else if (qualificationRun?.startedAt) {
+    for (const entrant of qualificationEntrants) qualificationStatusByEntryId.set(entrant.entryId, { wins: 0, losses: 0, status: "active" });
+    for (const match of qualificationMatches) {
+      const a = qualificationStatusByEntryId.get(match.entryAId);
+      const b = qualificationStatusByEntryId.get(match.entryBId);
+      if (!a || !b) continue;
+      if (match.status !== "finished" || match.scoreA === null || match.scoreB === null) continue;
+      const winnerId = match.scoreA > match.scoreB ? match.entryAId : match.entryBId;
+      if (winnerId === match.entryAId) {
+        a.wins += 1;
+        b.losses += 1;
+        a.status = "advanced";
+        b.status = "eliminated";
+      } else {
+        b.wins += 1;
+        a.losses += 1;
+        b.status = "advanced";
+        a.status = "eliminated";
+      }
+    }
+  }
   const rosterByEntrant = new Map<string, Array<{ userId: string; label: string; educationVerificationId: string | null; isPrimaryStarter: boolean }>>();
   for (const member of rosterRows) {
     if (!entrantIds.has(member.entrantId)) continue;
@@ -317,8 +387,16 @@ export async function loadMajorPrestartPageData(season: Season): Promise<MajorPr
     readiness,
     management: {
       seasonId: season.id,
+      seasonSlug: season.slug,
+      seasonStatus: season.status,
+      managedProfileId: managedProfile.id,
+      registrationClosesAt: season.registrationClosesAt?.toISOString() ?? null,
+      registrationClosed: Boolean(season.registrationClosesAt && season.registrationClosesAt.getTime() <= Date.now()),
       entrantCapacity,
       entrantsLocked: Boolean(state?.entrantsLockedAt),
+      approvedCandidateCount: approvedEntries.length,
+      pendingReviewCount: pendingReviews.length,
+      initialPreliminaryOrderEntryIds,
       strengthPreview,
       approvedCandidates: candidateEntries.map((entry) => ({
         id: entry.id,
@@ -347,6 +425,34 @@ export async function loadMajorPrestartPageData(season: Season): Promise<MajorPr
           educationVerified: Boolean(member.educationVerificationId),
         })),
       })),
+      qualification: {
+        run: qualificationRun ? {
+          id: qualificationRun.id,
+          format: qualificationRun.format,
+          targetEntrantCount: qualificationRun.targetEntrantCount,
+          candidateCount: qualificationRun.candidateCount,
+          directEntryCount: qualificationRun.directEntryCount,
+          playInEntryCount: qualificationRun.playInEntryCount,
+          qualifierCount: qualificationRun.qualifierCount,
+          startedAt: qualificationRun.startedAt?.toISOString() ?? null,
+          completedAt: qualificationRun.completedAt?.toISOString() ?? null,
+          entrants: qualificationEntrants.map((entrant) => {
+            const status = qualificationStatusByEntryId.get(entrant.entryId);
+            return {
+              entryId: entrant.entryId,
+              teamName: entrant.teamName,
+              preliminarySeed: entrant.preliminarySeed,
+              route: entrant.preliminarySeed <= qualificationRun.directEntryCount ? "direct" as const : "play-in" as const,
+              wins: status?.wins ?? 0,
+              losses: status?.losses ?? 0,
+              status: status?.status ?? "not_started" as const,
+            };
+          }),
+          currentRound: qualificationCurrentRound,
+          matchCount: qualificationMatches.length,
+          finishedMatchCount: qualificationMatches.filter((match) => match.status === "finished").length,
+        } : null,
+      },
     },
     seedManagement: {
       seasonId: season.id,

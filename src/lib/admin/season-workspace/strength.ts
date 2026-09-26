@@ -94,6 +94,7 @@ export function projectStrengthTeams(teams: readonly StrengthTeamProjection[]): 
     available: team.available,
     blockers: [...team.blockers],
     recommendationRank: team.recommendationRank,
+    displayOrder: team.displayOrder,
     tieState: projectTieState(team, team.tieGroup === null ? 0 : tieGroupSizes.get(team.tieGroup) ?? 0),
     starters: team.starters.map(projectStrengthStarter),
   }));
