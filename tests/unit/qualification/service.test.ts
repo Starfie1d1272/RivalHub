@@ -200,7 +200,7 @@ describe("participant readiness", () => {
     }), CONTEXT);
     expect(readiness.ready).toBe(false);
     expect(readiness.blockers).toContain("请填写 Steam64 ID。");
-    expect(readiness.blockers).toContain("请完成并通过高校身份认证。");
+    expect(readiness.blockers).toContain("需要本人补充 · 高校身份认证");
     expect(readiness.blockers).toContain("缺少perfect_world · S20 的最高段位及 Rating。");
     expect(readiness.findings.every((finding) => finding.waivable === false)).toBe(true);
   });
@@ -565,6 +565,22 @@ describe("isHomeAffiliatedMember", () => {
 
 
 describe("participant readiness recovery states", () => {
+  const recoveryFact = (overrides?: Partial<ParticipantQualificationFacts>): ParticipantQualificationFacts => ({
+    userId: USER_ID,
+    displayName: "选手甲",
+    perfectName: "perfect-a",
+    personaName: "steam-a",
+    email: "a@rivalhub.test",
+    emailVerifiedAt: new Date(),
+    steam64: "76561198000000001",
+    qq: "10001",
+    approvedEducation: true,
+    educationHistory: [],
+    historicalPeak: { rank: "S", rating: 1900 },
+    seasonPeaks: new Map([["S20", { rank: "A", rating: 1700 }], ["S21", { rank: "S", rating: 1850 }]]),
+    ...overrides,
+  });
+
   it.each([
     {
       status: "pending_review" as const,
@@ -582,7 +598,7 @@ describe("participant readiness recovery states", () => {
       message: "需要本人补充 · 高校身份认证",
     },
   ])("distinguishes $status education readiness without relaxing the gate", ({ status, history, message }) => {
-    const readiness = computeParticipantReadiness(fullFact({ approvedEducation: false, educationHistory: history }), CONTEXT);
+    const readiness = computeParticipantReadiness(recoveryFact({ approvedEducation: false, educationHistory: history }), CONTEXT);
     expect(readiness.educationState).toBe(status);
     expect(readiness.ready).toBe(false);
     expect(readiness.findings).toContainEqual(expect.objectContaining({
@@ -594,7 +610,7 @@ describe("participant readiness recovery states", () => {
   });
 
   it("adds platform and exact season metadata to seasonal competitive gaps", () => {
-    const readiness = computeParticipantReadiness(fullFact({
+    const readiness = computeParticipantReadiness(recoveryFact({
       seasonPeaks: new Map([["S21", { rank: "A", rating: 1000 }]]),
     }), CONTEXT);
     expect(readiness.findings).toContainEqual(expect.objectContaining({
