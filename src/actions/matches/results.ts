@@ -5,7 +5,7 @@ import { writeAuditInTx } from "@/lib/audit/write";
 import { revalidatePath } from "next/cache";
 import { eq, and, inArray, isNull } from "drizzle-orm";
 import { db } from "@/db/client";
-import { seasons, matches, matchMaps, matchVetoSteps, matchRosters, matchRosterPlayers, matchTimeProposals } from "@/db/schema";
+import { seasons, matches, matchMaps, matchVetoSteps, matchTimeProposals } from "@/db/schema";
 import { ok } from "@/types/action";
 import type { ActionResult } from "@/types/action";
 import { AppError, ErrorCode } from "@/lib/errors";
@@ -31,6 +31,7 @@ import {
 } from "@/lib/matches/result-rules";
 import { traceOperation } from "@/lib/observability/server";
 import { completeCompetitionQualificationIfReadyInTx } from "@/lib/competition-qualification/runtime";
+import { assertGenericMatchCanBeDeleted, deleteScheduledMatchAndDependentsInTx } from "@/lib/matches/deletion";
 
 /** Persist provider-resolved nodes through the fail-closed bracket boundary. */
 async function insertResolvedBracketMatches(
@@ -449,35 +450,13 @@ export async function deleteMatch(matchId: string): Promise<ActionResult<void>> 
     if (match.bracketNodeId) {
       throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "无法删除 Bracket 自动生成的比赛");
     }
-    if (match.qualificationRunId) {
-      throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "资格赛生成的比赛不能单独删除。");
-    }
+    assertGenericMatchCanBeDeleted(match);
 
     const season = await getSeasonOrThrow(match.seasonId);
 
     await db.transaction(async (tx) => {
       await assertSeasonAllowsTournamentMutationInTx(tx, match.seasonId);
-      // 级联删除相关数据
-      await tx.delete(matchVetoSteps).where(eq(matchVetoSteps.matchId, matchId));
-      await tx.delete(matchMaps).where(eq(matchMaps.matchId, matchId));
-
-      // matchRosterPlayers 需先查询 rosterIds
-      const rosterIds = await tx
-        .select({ id: matchRosters.id })
-        .from(matchRosters)
-        .where(eq(matchRosters.matchId, matchId));
-      if (rosterIds.length > 0) {
-        await tx.delete(matchRosterPlayers).where(
-          inArray(
-            matchRosterPlayers.rosterId,
-            rosterIds.map((r) => r.id),
-          ),
-        );
-      }
-      await tx.delete(matchRosters).where(eq(matchRosters.matchId, matchId));
-
-      // 最后删除比赛本身
-      await tx.delete(matches).where(eq(matches.id, matchId));
+      await deleteScheduledMatchAndDependentsInTx(tx, matchId);
 
       await writeAuditInTx(tx, {
         seasonId: match.seasonId,

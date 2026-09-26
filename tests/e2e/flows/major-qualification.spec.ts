@@ -25,6 +25,11 @@ test("管理员预览并确认 30 队到 Major 24 的 Play-in 配置与首轮对
   const directEntrantRow = page.getByRole("row").filter({ hasText: "直通正赛" }).first();
   await expect(directEntrantRow.getByRole("cell").nth(4)).toHaveText("直通正赛");
 
+  await page.goto(`/${scenario.slug}`);
+  await expect(page.getByText("30 支候选 · 24 支正赛")).toBeVisible();
+  await expect(page.getByText("赛程待生成", { exact: true })).toBeVisible();
+  await page.goto(`/admin/${scenario.slug}/prestart`);
+
   await expect(page.getByRole("button", { name: "预览首轮对阵" })).toBeVisible();
   await page.getByRole("button", { name: "预览首轮对阵" }).click();
   const roundPreview = page.getByRole("dialog", { name: "第 1 轮对阵预览" });
@@ -46,7 +51,9 @@ test("管理员预览并确认 30 队到 Major 24 的 Play-in 配置与首轮对
 
   await page.goto(`/${scenario.slug}`);
   await expect(page.getByText("PLAY-IN", { exact: true }).first()).toBeVisible();
-  await expect(page.getByText("Short Swiss · 2 胜晋级 / 2 负淘汰")).toBeVisible();
+  await expect(page.getByText("Play-in 进行中")).toBeVisible();
+  await expect(page.getByText("Round 1", { exact: true })).toBeVisible();
+  await expect(page.getByText("12 支争夺 6 个正赛席位")).toBeVisible();
   const phases = page.getByRole("list", { name: "赛事阶段" });
   await expect(phases.getByRole("listitem", { name: "REGISTER 已完成" })).toBeVisible();
   await expect(phases.getByRole("listitem", { name: "STAGE1 待开始" })).toBeVisible();
@@ -55,7 +62,8 @@ test("管理员预览并确认 30 队到 Major 24 的 Play-in 配置与首轮对
   await page.goto(`/${scenario.slug}/matches?stage=play-in`);
   await expect(page).toHaveURL(new RegExp(`/matches\\?stage=play-in$`));
   await expect(page.getByRole("tab", { name: "PLAY-IN" })).toHaveAttribute("data-state", "active");
-  await expect(page.getByRole("heading", { name: "Play-in · Short Swiss" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "PLAY-IN" })).toBeVisible();
+  await expect(page.getByText("12 → 6 · BO1 · 2胜晋级 / 2负淘汰 · Round 1")).toBeVisible();
   await expect(page.getByRole("heading", { name: "第 1 轮" })).toBeVisible();
   await expect(page.getByRole("cell", { name: "P1", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Buchholz 说明" }).focus();

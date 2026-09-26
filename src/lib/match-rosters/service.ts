@@ -590,6 +590,9 @@ export async function applyMatchStatusTransitionInTx(
   args: { matchId: string; nextStatus: "in_progress" | "cancelled"; actorId: string },
 ): Promise<MatchTransitionOutcome> {
   const locked = await lockMatchInTx(tx, args.matchId);
+  if (locked.qualificationRunId && args.nextStatus === "cancelled") {
+    throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "Play-in 比赛不能取消，请使用弃赛判负录入正式赛果。");
+  }
   assertMatchTransition(locked.status, args.nextStatus);
   const lineups =
     args.nextStatus === "in_progress"

@@ -265,7 +265,7 @@ export function AdminMatchWorkbench({
                 mapPool={mapPool}
               />
             ) : (
-              <ScoreInput matchId={match.id} currentStatus={match.status} startBlockers={startBlockers} />
+              <ScoreInput matchId={match.id} currentStatus={match.status} startBlockers={startBlockers} allowCancel={match.qualificationRunId === null} />
             )}
           </section>
 
@@ -400,7 +400,7 @@ export function AdminMatchWorkbench({
         >
           查看公开页 ↗
         </Link>
-        {match.bracketNodeId == null && <DeleteMatchButton matchId={match.id} />}
+        {match.bracketNodeId == null && match.qualificationRunId === null && <DeleteMatchButton matchId={match.id} />}
       </footer>
     </Panel>
   );

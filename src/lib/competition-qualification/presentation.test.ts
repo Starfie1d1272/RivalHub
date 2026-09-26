@@ -20,10 +20,12 @@ describe("Qualification Swiss public read model", () => {
 
     expect(data?.stageKey).toBe("play-in");
     expect(data?.teamCount).toBe(4);
+    expect(data?.advanceCount).toBe(2);
     expect(data?.seedPrefix).toBe("P");
     expect(data?.finalizedRound).toBe(1);
     expect(data?.rounds.map((round) => round.round)).toEqual([1, 2, 3]);
     expect(data?.competitionEntries.map((entry) => entry.entryId)).toEqual(["entry-5", "entry-8", "entry-6", "entry-7"]);
+    expect(data?.competitionEntries.find((entry) => entry.entryId === "entry-8")?.seed).toBe(4);
     expect(data?.rounds[0]?.groups[0]?.matchups.map((match) => match.matchId)).toEqual(["r1-a", "r1-b"]);
   });
 

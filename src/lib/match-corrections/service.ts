@@ -13,9 +13,11 @@ import { parseMajorRunSnapshot } from "@/lib/major/run-snapshot";
 import { validateSeriesScore } from "@/lib/matches/result-rules";
 import { assertSeasonAllowsTournamentMutationInTx } from "@/lib/postevent/guard";
 import { matchCorrectionBlockedError, type MatchCorrectionBlocker } from "@/lib/match-corrections/errors";
+import { planCompetitionQualificationResultCorrectionInTx } from "@/lib/competition-qualification/runtime";
+import { deleteScheduledMatchAndDependentsInTx } from "@/lib/matches/deletion";
 
 /**
- * G2 managed result correction & recovery.
+ * Managed and Qualification result correction & recovery.
  *
  * matches stays the canonical result truth. A correction never silently
  * rewrites derived facts: the caller plans the correction, sees the downstream
@@ -50,7 +52,9 @@ export type CorrectionPlanImpact =
 export type CorrectionRecoveryAction =
   | { code: "invalidateDownstreamMatches"; params: { count: number } }
   | { code: "rebuildSwissRounds"; params: { fromRound: number } }
-  | { code: "rebuildPlayoffRounds"; params: Record<string, never> };
+  | { code: "rebuildPlayoffRounds"; params: Record<string, never> }
+  | { code: "rebuildQualificationRounds"; params: { fromRound: number } }
+  | { code: "reprojectQualification"; params: Record<string, never> };
 
 export interface ResultCorrectionPlan {
   matchId: string;
@@ -62,6 +66,7 @@ export interface ResultCorrectionPlan {
   proposedWinnerTeamId: string;
   winnerChanges: boolean;
   affectsManagedRun: boolean;
+  affectsQualificationRun: boolean;
   /** Derived facts that must be invalidated before the correction can rebuild. */
   impacts: CorrectionPlanImpact[];
   /** Non-empty means the correction is refused outright (fail closed). */
@@ -277,9 +282,9 @@ export function validateResultCorrectionProposal(
 }
 
 /**
- * Computes the downstream impact inventory of correcting one finished managed
- * match. Read-only; call inside the transaction that will later apply so the
- * plan cannot drift between display and confirmation.
+ * Computes the downstream impact inventory of correcting one finished
+ * tournament match. Read-only; call inside the transaction that will later
+ * apply so the plan cannot drift between display and confirmation.
  */
 export async function planResultCorrectionInTx(
   tx: TxDb,
@@ -310,12 +315,46 @@ export async function planResultCorrectionInTx(
     proposedWinnerTeamId: proposed.winnerTeamId,
     winnerChanges,
     affectsManagedRun: false,
+    affectsQualificationRun: false,
     impacts: [],
     blockedReasons: [],
     requiredRecoveryActions: [],
   };
 
   if (!winnerChanges) {
+    return plan;
+  }
+
+  if (match.qualificationRunId) {
+    const qualificationPlan = await planCompetitionQualificationResultCorrectionInTx(tx, {
+      seasonId: match.seasonId,
+      runId: match.qualificationRunId,
+      matchId: match.id,
+      round: match.round,
+    });
+    plan.affectsQualificationRun = true;
+    plan.impacts.push(...qualificationPlan.downstreamMatches.map((impact) => ({
+      kind: "downstream_match" as const,
+      matchId: impact.matchId,
+      managedKey: null,
+      status: impact.status,
+      invalidatable: impact.invalidatable,
+      dependencyKnown: true,
+    })));
+    if (qualificationPlan.finalMainEntrantsExist) {
+      plan.blockedReasons.push({ code: "qualificationFinalEntrants", params: {} });
+    }
+    if (qualificationPlan.startedDownstreamCount > 0) {
+      plan.blockedReasons.push({ code: "qualificationMatchStarted", params: { count: qualificationPlan.startedDownstreamCount } });
+    }
+    const invalidatableCount = qualificationPlan.downstreamMatches.filter((impact) => impact.invalidatable).length;
+    if (invalidatableCount > 0) {
+      plan.requiredRecoveryActions.push({ code: "invalidateDownstreamMatches", params: { count: invalidatableCount } });
+    }
+    if (qualificationPlan.rebuildFromRound !== null) {
+      plan.requiredRecoveryActions.push({ code: "rebuildQualificationRounds", params: { fromRound: qualificationPlan.rebuildFromRound } });
+    }
+    plan.requiredRecoveryActions.push({ code: "reprojectQualification", params: {} });
     return plan;
   }
 
@@ -431,9 +470,9 @@ export interface AppliedResultCorrection {
 
 /**
  * Applies a planned correction atomically. Winner changes require
- * `confirmRecovery` and an empty hard-block set; unstarted downstream managed
- * matches are explicitly invalidated and the StageRun acceptance cursor is
- * rolled back so the operator can rebuild through the ordinary finalize path.
+ * `confirmRecovery` and an empty hard-block set. Replaceable downstream matches
+ * are explicitly invalidated; Major StageRun recovery rolls back its acceptance
+ * cursor, while Qualification reprojects from corrected canonical match facts.
  */
 export async function applyResultCorrectionInTx(
   tx: TxDb,
@@ -465,7 +504,7 @@ export async function applyResultCorrectionInTx(
 
   assertPlanApplicable(plan);
   if (plan.winnerChanges) {
-    if (!plan.affectsManagedRun) {
+    if (!plan.affectsManagedRun && !plan.affectsQualificationRun) {
       throw new AppError(ErrorCode.VALIDATION_FAILED, "非托管比赛不允许通过更正改变胜者。");
     }
     if (!args.confirmRecovery) {
@@ -512,6 +551,7 @@ export async function applyResultCorrectionInTx(
       nextWinnerTeamId: plan.proposedWinnerTeamId,
       stageKey: plan.stageKey,
       stageType: plan.stageType,
+      qualificationRunId: locked.qualificationRunId,
     },
   });
 
@@ -521,25 +561,29 @@ export async function applyResultCorrectionInTx(
 
   // Explicit invalidate phase for unstarted downstream managed matches.
   const invalidatable = plan.impacts.filter(
-    (impact): impact is CorrectionPlanImpact & { matchId: string } =>
+    (impact): impact is Extract<CorrectionPlanImpact, { kind: "downstream_match" }> =>
       impact.kind === "downstream_match" && impact.invalidatable,
   );
   for (const impact of invalidatable) {
-    const deleted = await tx
-      .delete(matches)
-      .where(and(eq(matches.id, impact.matchId!), eq(matches.status, "scheduled")))
-      .returning({ id: matches.id, managedKey: matches.managedKey });
+    const deleted = plan.affectsQualificationRun
+      ? [await deleteScheduledMatchAndDependentsInTx(tx, impact.matchId!)]
+      : await tx
+        .delete(matches)
+        .where(and(eq(matches.id, impact.matchId!), eq(matches.status, "scheduled")))
+        .returning({ id: matches.id, managedKey: matches.managedKey });
     if (deleted.length === 0) continue;
-    applied.invalidatedDownstreamMatches.push(deleted[0]!.id);
+    const deletedMatch = deleted[0]!;
+    applied.invalidatedDownstreamMatches.push(deletedMatch.id);
     await writeAuditInTx(tx, {
       seasonId: locked.seasonId,
-      action: "match.managed.invalidated",
+      action: plan.affectsQualificationRun ? "competition_qualification.invalidate_match" : "match.managed.invalidated",
       actorId: args.actorId,
-      targetId: deleted[0]!.id,meta: {
+      targetId: deletedMatch.id,meta: {
         reason: "upstream_result_correction",
         sourceMatchId: locked.id,
-        managedKey: deleted[0]!.managedKey,
+        managedKey: "managedKey" in deletedMatch ? deletedMatch.managedKey : impact.managedKey,
         stageKey: plan.stageKey,
+        qualificationRunId: locked.qualificationRunId,
       },
     });
   }

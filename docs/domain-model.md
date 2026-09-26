@@ -116,7 +116,7 @@ BP、时间协商、实际阵容、玩家统计和赛后资料拥有各自明确
 
 Demo Evidence 的不可变 payload 与 `match_demo_imports` workflow projection 由 Demo integration owner 管理。正常提交和存量 `/3` recheck 共享同一套 server-owned target、Steam identity、正式比分、QA、回合、summary、effective MatchRoster 和 evidence revision 校验；participant payload 中的客户端 identity resolution 不是事实来源。通过校验的 source round facts 与 `match_player_stats` projection 由同一晋级 owner 物化，并按 Demo lineage 保留 supersede/content conflict；管理员确认只补足 gameplay identity 后触发同一存量 recheck，不另起一套验证或直接改写 payload。
 
-结果更正不能绕开 managed runtime。若更正会影响 Major 后续 pairing/stage，必须通过 recovery owner 处理。
+结果更正不能绕开赛事运行时。Major StageRun 更正通过 managed recovery owner 处理；Qualification 胜者更正仅在尚未产生正赛 entrants 且所有后续 Qualification 比赛仍为 scheduled 时允许，后续轮在同一事务中作废并审计后由 Qualification projection 重算。后续比赛已开始/结束或正赛 entrants 已产生时，必须转入赛事事故裁决。
 
 ## Major prestart and runtime
 

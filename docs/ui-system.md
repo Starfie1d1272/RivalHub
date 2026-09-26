@@ -99,7 +99,7 @@ Maps tab 只展示队伍自身正式地图表现。阵容成员历史正式地�
 
 赛程的阶段与对阵上下文在队伍筛选时保持完整，通过高亮定位相关比赛；历史赛事默认展示结果。未知比分显示破折号，比赛状态统一复用中央 presentation：显式管理员开赛后的 `in_progress` 展示「进行中」，结束展示「已结束」，取消展示「已取消」；排期和直播地址不能自行推导实时 LIVE 状态。Match Detail 赛前以本场名单、对比分析、BP 为主；赛后以比分、地图、已验证统计、MVP、BP 和名单为主。MatchRoster 仅在赛事具备 registration-position capability 时辅助展示「报名位置」，不把报名位置解释为本场位置；其它赛事不查询或显示该字段。赛前及比赛期存在有效直播资源时，在 Hero 附近提供「进入直播间」入口及解说信息；结束后隐藏直播入口，录像/VOD 作为历史资料置于页面后部。
 
-Major Play-in 管理使用正赛规模、候选与直通/晋级数等紧凑统计；配置确认前展示完整预排名与「路径」，每轮生成前展示队名和种子对阵，赛制定义通过 tooltip 提供。首页阶段 tracker 只标记 Main Event；Play-in 期间 REGISTER 完成、Main Event 阶段待开始且不设置当前 Main Event 阶段，Play-in 信息使用独立面板表达。赛程页把 PLAY-IN tab 与 Main Event 阶段分隔；合法 `stage` URL 选择对应阶段，Play-in Swiss 读模型用 P1…Pn 标识种子并仅显示 R1–R3。
+Major Play-in 管理使用正赛规模、候选与直通/晋级数等紧凑统计；配置确认前展示完整预排名与「路径」，每轮生成前展示队名和冻结预排名种子对阵，赛制定义通过 tooltip 提供。首页阶段 tracker 只标记 Main Event；Play-in 独立面板按 configured、in progress、completed 展示赛程待生成、当前 Round、晋级队数与正赛名单确认状态。Play-in 期间 REGISTER 完成、Main Event 阶段待开始且不设置当前 Main Event 阶段。赛程页把 PLAY-IN tab 与 Main Event 阶段分隔；Short Swiss summary 展示 Play-in 人数到晋级席位、赛制和当前轮次/结束状态；standings 按当前排名排序，Seed、P1…Pn 标签保持冻结预排名，列头使用 Seed / Team / W-L / BU ? / Status，并仅显示 R1–R3。
 
 社区奖公开页面以进行中、已结奖、未颁/取消及个人提交组织浏览。申报与证据表单由 CTA 打开，复用既有 action workflow；候选人与获奖者保持赛事相关人员语义，仅在获奖者确认具有本届选手公开身份时链接选手主页，非选手相关人员展示公开姓名，公开 DTO 与管理审核字段保持分离。
 

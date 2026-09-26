@@ -235,6 +235,7 @@ describe("correction workflow actions", () => {
       proposedWinnerTeamId: "team-a",
       winnerChanges: true,
       affectsManagedRun: true,
+      affectsQualificationRun: false,
       impacts: [{
         kind: "downstream_match",
         matchId: "internal-downstream-match",
@@ -256,6 +257,7 @@ describe("correction workflow actions", () => {
         proposed: { scoreA: 1, scoreB: 0, isForfeit: false },
         winnerChanges: true,
         affectsManagedRun: true,
+        affectsQualificationRun: false,
         impacts: [{ label: "一场尚未开始的下游比赛将被作废并重建。" }],
         blockedReasons: ["后续阶段已经基于本阶段结果建立，不能自动重建；需要走赛后裁决。"],
         requiredRecoveryActions: ["从第 2 轮开始重新确认赛程，直到后续对阵恢复。"],

@@ -422,6 +422,7 @@ export async function previewCompetitionQualificationRoundInTx(
     .from(competitionEntries)
     .where(inArray(competitionEntries.id, swissEntrants.map((entrant) => entrant.teamId)));
   const teamNameById = new Map(teamRows.map((entry) => [entry.id, entry.name]));
+  const preliminarySeedByTeamId = new Map(swissEntrants.map((entrant) => [entrant.teamId, entrant.initialSeed]));
   const matchups = pairings.map((pairing) => {
     const higherSeedTeamName = teamNameById.get(pairing.higherSeedTeamId);
     const lowerSeedTeamName = teamNameById.get(pairing.lowerSeedTeamId);
@@ -429,10 +430,10 @@ export async function previewCompetitionQualificationRoundInTx(
     return {
       higherSeedTeamId: pairing.higherSeedTeamId,
       higherSeedTeamName,
-      higherSeed: pairing.higherSeed,
+      higherSeed: preliminarySeedByTeamId.get(pairing.higherSeedTeamId)!,
       lowerSeedTeamId: pairing.lowerSeedTeamId,
       lowerSeedTeamName,
-      lowerSeed: pairing.lowerSeed,
+      lowerSeed: preliminarySeedByTeamId.get(pairing.lowerSeedTeamId)!,
     };
   });
   return { seasonSlug: season.slug, runId: run.id, round, format, matchups };
@@ -548,6 +549,64 @@ export async function completeCompetitionQualificationIfReadyInTx(
   if (!isComplete) return false;
   await tx.update(competitionQualificationRuns).set({ completedAt: new Date(), updatedAt: new Date() }).where(eq(competitionQualificationRuns.id, run.id));
   return true;
+}
+
+export interface QualificationResultCorrectionPlan {
+  downstreamMatches: Array<{ matchId: string; round: number; status: string; invalidatable: boolean }>;
+  finalMainEntrantsExist: boolean;
+  startedDownstreamCount: number;
+  rebuildFromRound: number | null;
+}
+
+/**
+ * Plans the narrow Play-in recovery allowed for a corrected winner. Canonical
+ * Qualification rows are locked and revalidated so a caller can safely apply
+ * the plan in the same transaction. Main entrants or progressed later matches
+ * keep the correction on the adjudication path.
+ */
+export async function planCompetitionQualificationResultCorrectionInTx(
+  tx: TxDb,
+  input: { seasonId: string; runId: string; matchId: string; round: number | null },
+): Promise<QualificationResultCorrectionPlan> {
+  const [run] = await tx.select().from(competitionQualificationRuns)
+    .where(and(eq(competitionQualificationRuns.id, input.runId), eq(competitionQualificationRuns.seasonId, input.seasonId)))
+    .for("update");
+  if (!run) throw new AppError(ErrorCode.INTERNAL_ERROR, "Play-in 比赛缺少对应的 Qualification run。");
+  if (input.round === null) throw new AppError(ErrorCode.INTERNAL_ERROR, "Play-in 比赛缺少轮次，不能规划结果恢复。");
+
+  const entrants = await loadRunEntrantsInTx(tx, run.id);
+  assertRunSnapshot(run, entrants);
+  const linked = await tx.select().from(matches).where(eq(matches.qualificationRunId, run.id))
+    .orderBy(asc(matches.round), asc(matches.id)).for("update");
+  const source = linked.find((match) => match.id === input.matchId);
+  if (!source || source.status !== "finished" || source.round !== input.round) {
+    throw new AppError(ErrorCode.INTERNAL_ERROR, "更正比赛与 Qualification run 的 canonical 事实不一致。");
+  }
+
+  const swissEntrants = playInSwissEntrants(entrants, run.directEntryCount);
+  if (run.format === "direct_bo3") {
+    if (input.round !== 1) throw new AppError(ErrorCode.INTERNAL_ERROR, "Direct BO3 比赛轮次无效。");
+    validatePersistedRound(linked, generateDirectBo3QualificationPairings(swissEntrants), "bo3", run.id);
+  } else {
+    validateShortSwissHistory(run, entrants, linked);
+  }
+
+  const downstreamMatches = linked.filter((match) => match.round! > input.round!).map((match) => ({
+    matchId: match.id,
+    round: match.round!,
+    status: match.status,
+    invalidatable: match.status === "scheduled",
+  }));
+  const [mainEntrant] = await tx.select({ id: majorTournamentEntrants.id })
+    .from(majorTournamentEntrants).where(eq(majorTournamentEntrants.seasonId, input.seasonId)).limit(1);
+  const startedDownstreamCount = downstreamMatches.filter((match) => !match.invalidatable).length;
+
+  return {
+    downstreamMatches,
+    finalMainEntrantsExist: Boolean(mainEntrant),
+    startedDownstreamCount,
+    rebuildFromRound: downstreamMatches.length > 0 ? input.round + 1 : null,
+  };
 }
 
 export async function getCompetitionQualificationFinalEntryIdsInTx(

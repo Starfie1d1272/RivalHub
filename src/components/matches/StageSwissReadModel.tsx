@@ -8,12 +8,18 @@ interface StageSwissReadModelProps {
 }
 
 export function StageSwissReadModel({ data, seasonSlug }: StageSwissReadModelProps) {
+  const isQualification = data.stageKey === "play-in";
+  const qualificationComplete = isQualification && data.competitionEntries.length > 0 &&
+    data.competitionEntries.every((entry) => entry.status !== "active");
+  const qualificationRound = data.rounds.find((round) => round.status === "active")?.round ?? data.finalizedRound + 1;
   return (
     <section className="space-y-4">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="text-lg font-semibold text-[var(--color-fg)]">{data.stageName}</h2>
+        <h2 className="text-lg font-semibold text-[var(--color-fg)]">{isQualification ? "PLAY-IN" : data.stageName}</h2>
         <p className="text-xs text-[var(--color-fg-mid)]">
-          已确认第 {data.finalizedRound} 轮 · {data.advanceCount} 队晋级
+          {isQualification
+            ? `${data.teamCount} → ${data.advanceCount} · BO1 · 2胜晋级 / 2负淘汰 · ${qualificationComplete ? "已结束" : `Round ${qualificationRound}`}`
+            : `已确认第 ${data.finalizedRound} 轮 · ${data.advanceCount} 队晋级`}
         </p>
       </div>
       <div className="overflow-x-auto">
@@ -25,11 +31,11 @@ export function StageSwissReadModel({ data, seasonSlug }: StageSwissReadModelPro
         <table className="w-full min-w-[640px] text-sm">
           <thead className="bg-[var(--color-panel-hi)] text-left text-xs text-[var(--color-fg-mid)]">
             <tr>
-              <th className="px-3 py-2">种子</th>
-              <th className="px-3 py-2">队伍</th>
-              <th className="px-3 py-2">战绩</th>
+              <th className="px-3 py-2">{isQualification ? "Seed" : "种子"}</th>
+              <th className="px-3 py-2">{isQualification ? "Team" : "队伍"}</th>
+              <th className="px-3 py-2">{isQualification ? "W-L" : "战绩"}</th>
               <th className="px-3 py-2"><span className="inline-flex items-center gap-1">BU<HelpTooltip label="Buchholz 说明" content="BU（Buchholz）为所有对手当前胜场减负场之和；同战绩队伍按 BU 从高到低排名，并据此确定下一轮组内配对顺序，配对仍需满足不重赛约束。" /></span></th>
-              <th className="px-3 py-2">状态</th>
+              <th className="px-3 py-2">{isQualification ? "Status" : "状态"}</th>
             </tr>
           </thead>
           <tbody>

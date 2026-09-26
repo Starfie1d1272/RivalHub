@@ -244,6 +244,7 @@ export const AUDIT_ACTION_DEFINITIONS = {
   "update_match_completed_at": { label: "更新比赛完成时间", category: "match" },
   "match.result.corrected": { label: "修正正式赛果", category: "match" },
   "match.managed.invalidated": { label: "使后续比赛失效", category: "match" },
+  "competition_qualification.invalidate_match": { label: "作废后续 Play-in 比赛", category: "major" },
   "match.recovery.adjudicated": { label: "裁定比赛恢复结果", category: "match" },
 
   "season.create": { label: "创建赛季", category: "season" },

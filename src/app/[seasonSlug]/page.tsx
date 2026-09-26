@@ -13,7 +13,7 @@ import { eq, count, or, and, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { UserPlus, Vote, Users, Swords, Shuffle, BarChart3, UserRoundSearch, Trophy } from "lucide-react";
 import { db } from "@/db/client";
-import { matches, competitionEntries, competitionQualificationRuns } from "@/db/schema";
+import { matches, competitionEntries, competitionQualificationRuns, majorTournamentEntrants } from "@/db/schema";
 import { formatCSTDateTime } from "@/lib/utils/date";
 import type { SeasonStatus } from "@/types/season";
 import { showStats } from "@/lib/utils/season";
@@ -101,7 +101,7 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
     : null;
 
   const isMajor = season.competitionTemplate === "major";
-  const [majorParticipantOverview, [teamCountRow], participantSummary, [matchCountRow], upcomingMatches, standings, qualificationRun] =
+  const [majorParticipantOverview, [teamCountRow], participantSummary, [matchCountRow], upcomingMatches, standings, qualificationRun, [finalMainEntrantCountRow]] =
     await Promise.all([
       isMajor ? getMajorPublicParticipantOverview(season) : Promise.resolve(null),
       isMajor
@@ -117,14 +117,25 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
       isMajor
         ? db.query.competitionQualificationRuns.findFirst({ where: eq(competitionQualificationRuns.seasonId, season.id) })
         : Promise.resolve(undefined),
+      isMajor
+        ? db.select({ value: count() }).from(majorTournamentEntrants).where(eq(majorTournamentEntrants.seasonId, season.id))
+        : Promise.resolve([] as { value: number }[]),
     ]);
   const qualificationMatches = qualificationRun
-    ? await db.select({ status: matches.status }).from(matches).where(eq(matches.qualificationRunId, qualificationRun.id))
+    ? await db.select({ status: matches.status, round: matches.round }).from(matches).where(eq(matches.qualificationRunId, qualificationRun.id))
     : [];
   const mainEventStarted = Boolean(stagePresentation.currentStageKey) || initializedStages.has(stagePlan[0]?.key ?? "");
   const qualificationBeforeMainStart = Boolean(qualificationRun) && !mainEventStarted;
   const publicTeamCount = majorParticipantOverview?.teamCount ?? Number(teamCountRow?.value ?? 0);
   const publicPlayerCount = majorParticipantOverview?.playerCount ?? participantSummary?.count ?? 0;
+  const incompleteQualificationRounds = qualificationMatches
+    .filter((match) => match.status !== "finished" && match.round !== null)
+    .map((match) => match.round!);
+  const qualificationCurrentRound = incompleteQualificationRounds.length > 0
+    ? Math.min(...incompleteQualificationRounds)
+    : Math.max(0, ...qualificationMatches.map((match) => match.round ?? 0)) + 1;
+  const finalMainEntrantsConfirmed = qualificationRun !== undefined &&
+    Number(finalMainEntrantCountRow?.value ?? 0) === qualificationRun.targetEntrantCount;
 
   // ── 动态阶段列表 ──────────────────────────────────────────
   interface Phase {
@@ -301,13 +312,26 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
         <Panel label="PLAY-IN" contentClassName="p-5">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="space-y-1">
-              <p className="font-medium text-[var(--color-fg)]">
-                {qualificationRun.format === "direct_bo3" ? "Direct BO3" : "Short Swiss · 2 胜晋级 / 2 负淘汰"}
-              </p>
-              <p className="text-sm text-[var(--color-fg-mid)]">
-                直通 {qualificationRun.directEntryCount} 队 · Play-in {qualificationRun.playInEntryCount} 队 · 晋级 {qualificationRun.qualifierCount} 队
-                {qualificationRun.startedAt ? ` · 已完成 ${qualificationMatches.filter((match) => match.status === "finished").length}/${qualificationMatches.length} 场` : " · 比赛尚未生成"}
-              </p>
+              {!qualificationRun.startedAt ? (
+                <>
+                  <p className="font-medium text-[var(--color-fg)]">{qualificationRun.candidateCount} 支候选 · {qualificationRun.targetEntrantCount} 支正赛</p>
+                  <p className="text-sm text-[var(--color-fg-mid)]">{qualificationRun.playInEntryCount} 支进入 Play-in · {qualificationRun.qualifierCount} 支晋级</p>
+                  <p className="text-sm text-[var(--color-fg-mid)]">赛制：{qualificationRun.format === "direct_bo3" ? "BO3 决胜赛" : "Short Swiss · BO1 · 2胜晋级 / 2负淘汰"}</p>
+                  <p className="text-sm font-medium text-[var(--color-fg)]">赛程待生成</p>
+                </>
+              ) : qualificationRun.completedAt ? (
+                <>
+                  <p className="font-medium text-[var(--color-fg)]">Play-in 已结束</p>
+                  <p className="text-sm text-[var(--color-fg-mid)]">{qualificationRun.qualifierCount} 支队伍晋级</p>
+                  <p className="text-sm text-[var(--color-fg-mid)]">正式正赛名单{finalMainEntrantsConfirmed ? "已确认" : "待确认"}</p>
+                </>
+              ) : (
+                <>
+                  <p className="font-medium text-[var(--color-fg)]">Play-in 进行中</p>
+                  <p className="text-sm text-[var(--color-fg-mid)]">Round {qualificationCurrentRound}</p>
+                  <p className="text-sm text-[var(--color-fg-mid)]">{qualificationRun.playInEntryCount} 支争夺 {qualificationRun.qualifierCount} 个正赛席位</p>
+                </>
+              )}
             </div>
             <Button size="sm" variant="outline" asChild>
               <Link href={`/${seasonSlug}/matches?stage=play-in`}>查看 PLAY-IN 赛程 →</Link>
