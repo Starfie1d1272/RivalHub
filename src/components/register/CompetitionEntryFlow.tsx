@@ -192,12 +192,15 @@ export function CompetitionEntryFlow(props: Props) {
             ? `${member.label} · 需要本人补充 · ${platformLabel(platform!)} 历史最高`
             : `${member.label} · 需要本人补充 · ${platformLabel(platform!)} ${seasonLabel(seasonKey!)}`
           : `${member.label} · ${finding.message}`;
+        const actionLabel = educationTarget
+          ? educationState === "rejected" ? "重新提交" : "开始认证"
+          : "去补充";
         return {
           label,
           detail: competitiveTarget ? finding.message : undefined,
           state: "blocked" as const,
           action: member.userId === props.currentUserId && href
-            ? <Button asChild size="sm" variant="outline"><Link href={href as never}>{educationTarget ? "去处理" : "去补充"}</Link></Button>
+            ? <Button asChild size="sm" variant="outline"><Link href={href as never}>{actionLabel}</Link></Button>
             : undefined,
         };
       });
