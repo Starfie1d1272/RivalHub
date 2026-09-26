@@ -49,7 +49,7 @@ describe("CompetitionEntryFlow", () => {
   it("deep-links an exact competitive season and does not repeat its aggregate finding", () => {
     const p = props();
     p.requiresCompetitiveProfile = true;
-    const finding = { code: "competitive_profile_incomplete", message: "缺少perfect_world · 2026s1 的最高段位及 Rating。", waivable: false, metadata: { field: "reference_season_peak", platform: "perfect_world", seasonKey: "2026s1" } };
+    const finding = { code: "competitive_profile_incomplete", message: "缺少完美平台 2026 S1 的最高段位和 Rating。", waivable: false, metadata: { field: "reference_season_peak", platform: "perfect_world", seasonKey: "2026s1" } };
     for (const member of p.entry!.roster) {
       member.readiness = { ready: true, blockers: [], findings: [], educationApproved: true, educationState: "ready" };
     }
@@ -58,10 +58,29 @@ describe("CompetitionEntryFlow", () => {
 
     render(<CompetitionEntryFlow {...p} />);
 
-    expect(screen.getByText("选手0 · 需要本人补充 · PW 2026 S1")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "前往" })).toHaveAttribute("href", "/settings/competitive?platform=perfect_world&season=2026s1");
+    expect(screen.getByText("选手0 · 需要本人补充 · 完美平台 2026 S1")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "去补充" })).toHaveAttribute("href", "/settings/competitive?platform=perfect_world&season=2026s1");
     expect(screen.getAllByText(finding.message)).toHaveLength(1);
     expect(screen.getByRole("button", { name: "提交审核" })).toBeDisabled();
+  });
+
+  it("keeps registration language human-readable and gives the current player a direct profile action", () => {
+    const p = props();
+    p.requiresCompetitiveProfile = true;
+    for (const member of p.entry!.roster) {
+      member.readiness = { ready: true, blockers: [], findings: [], educationApproved: true, educationState: "ready" };
+    }
+    const finding = { code: "identity_incomplete", message: "请填写 Steam64 ID。", waivable: false, metadata: { field: "steam64" } };
+    p.entry!.roster[0]!.readiness = { ready: false, blockers: [finding.message], findings: [finding], educationApproved: true, educationState: "ready" };
+
+    render(<CompetitionEntryFlow {...p} />);
+
+    expect(screen.getByText("报名条件")).toBeInTheDocument();
+    expect(screen.getByText("选手0 · 请填写 Steam64 ID。")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "去补充" })).toHaveAttribute("href", "/settings");
+    expect(screen.queryByText("BLOCKERS")).not.toBeInTheDocument();
+    expect(screen.queryByText("NOTES")).not.toBeInTheDocument();
+    expect(document.body).not.toHaveTextContent(/perfect_world|\bPW\b|本届快照/);
   });
 
   it("presents pending education as waiting for the organizer while keeping the hard gate closed", () => {
@@ -70,13 +89,13 @@ describe("CompetitionEntryFlow", () => {
     for (const member of p.entry!.roster) {
       member.readiness = { ready: true, blockers: [], findings: [], educationApproved: true, educationState: "ready" };
     }
-    const finding = { code: "education_incomplete", message: "高校认证审核中 · 等待赛委会", waivable: false, metadata: { field: "approved_education", state: "pending_review" } };
+    const finding = { code: "education_incomplete", message: "高校身份认证审核中 · 等待赛委会", waivable: false, metadata: { field: "approved_education", state: "pending_review" } };
     p.entry!.roster[0]!.readiness = { ready: false, blockers: [finding.message], findings: [finding], educationApproved: false, educationState: "pending_review" };
 
     render(<CompetitionEntryFlow {...p} />);
 
     expect(screen.getByText("选手0 · 高校认证审核中 · 等待赛委会")).toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: "前往" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "去处理" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "提交审核" })).toBeDisabled();
   });
 
@@ -91,8 +110,8 @@ describe("CompetitionEntryFlow", () => {
 
     render(<CompetitionEntryFlow {...p} />);
 
-    expect(screen.getByText("NOTES")).toBeInTheDocument();
-    expect(screen.getByText("赛委会审核事项 · 外校成员实力差值需要赛委会确认。")).toBeInTheDocument();
+    expect(screen.getByText("提示")).toBeInTheDocument();
+    expect(screen.getByText("等待赛委会确认 · 外校成员实力差值需要赛委会确认。")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "提交审核" })).toBeEnabled();
   });
 
@@ -104,7 +123,7 @@ describe("CompetitionEntryFlow", () => {
     closed.capabilities.canSubmitForReview = false;
     closed.capabilities.readOnlyReason = "报名已截止";
     const { unmount } = render(<CompetitionEntryFlow {...closed} />);
-    expect(screen.getByText("队伍 · 首次报名已截止 · 当前报名未在截止前提交")).toBeInTheDocument();
+    expect(screen.getByText("队伍 · 首次报名已截止 · 此报名未在截止前提交")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "提交审核" })).not.toBeInTheDocument();
     unmount();
 
@@ -113,7 +132,7 @@ describe("CompetitionEntryFlow", () => {
     changing.entry!.revisionOrigin = "self_roster_change";
     changing.capabilities = getCompetitionEntryCapabilities({ season, entry: { status: "changes_requested", hasApprovedRoster: true }, revision: { status: "draft", origin: "self_roster_change" }, rosterFrozen: false });
     const second = render(<CompetitionEntryFlow {...changing} />);
-    expect(screen.getByText("队伍 · 名单调整中 · 可修改并重新提交至 2026-09-27 20:00")).toBeInTheDocument();
+    expect(screen.getByText("队伍 · 名单调整中 · 可在 2026-09-27 20:00 前修改并重新提交")).toBeInTheDocument();
     second.unmount();
 
     const submitted = props();
@@ -140,7 +159,7 @@ describe("CompetitionEntryFlow", () => {
     render(<CompetitionEntryFlow {...p} />);
 
     expect(screen.getByText("队伍图标已更新，请保存本届名单以用于本届赛事")).toBeInTheDocument();
-    expect(screen.getByText(/点击下方“保存本届名单”完成本届快照/)).toBeInTheDocument();
+    expect(screen.getByText(/点击下方“保存本届名单”，将最新图标用于本届赛事/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "提交审核" })).toBeDisabled();
   });
   it("asks a non-captain to contact the current captain when only the Team logo is current", () => {
