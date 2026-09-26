@@ -1,11 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ErrorCode } from "@/lib/errors";
 
-const { requireAuthMock, requireSuperAdminMock, userFindFirstMock, institutionFindFirstMock, transactionMock, reviewFindFirstMock, updateSetMock, updateWhereMock, insertValuesMock, selectMock } = vi.hoisted(() => ({
+const { requireAuthMock, requireSuperAdminMock, userFindFirstMock, institutionFindFirstMock, institutionFindManyMock, transactionMock, reviewFindFirstMock, updateSetMock, updateWhereMock, insertValuesMock, selectMock } = vi.hoisted(() => ({
   requireAuthMock: vi.fn(),
   requireSuperAdminMock: vi.fn(),
   userFindFirstMock: vi.fn(),
   institutionFindFirstMock: vi.fn(),
+  institutionFindManyMock: vi.fn(),
   transactionMock: vi.fn(),
   reviewFindFirstMock: vi.fn(),
   updateSetMock: vi.fn(),
@@ -26,14 +27,14 @@ vi.mock("@/db/client", () => ({
   db: {
     query: {
       users: { findFirst: userFindFirstMock },
-      institutions: { findFirst: institutionFindFirstMock },
+      institutions: { findFirst: institutionFindFirstMock, findMany: institutionFindManyMock },
     },
     transaction: transactionMock,
     select: selectMock,
   },
 }));
 
-import { createManualInstitution, reviewEducationVerification, submitEducationVerification } from "@/actions/education-verifications";
+import { createManualInstitution, getInstitutionSearch, reviewEducationVerification, submitEducationVerification } from "@/actions/education-verifications";
 
 const REVIEW_ID = "00000000-0000-0000-0000-000000000003";
 
@@ -51,6 +52,7 @@ describe("submitEducationVerification email ownership boundary", () => {
       insert: vi.fn(() => ({ values: insertValuesMock })),
     }));
     selectMock.mockReturnValue({ from: () => ({ where: () => ({ limit: () => Promise.resolve([]) }) }) });
+    institutionFindManyMock.mockResolvedValue([]);
   });
 
   it("rejects an unverified authenticated account before any institution lookup or write", async () => {
@@ -108,6 +110,23 @@ describe("submitEducationVerification email ownership boundary", () => {
     });
     expect(requireSuperAdminMock).toHaveBeenCalledTimes(1);
     expect(insert).not.toHaveBeenCalled();
+  });
+
+  it("returns manual canonical rows through the normal institution search path", async () => {
+    institutionFindManyMock.mockResolvedValue([{
+      id: "institution-2",
+      name: "测试大学",
+      moeInstitutionCode: null,
+      province: "江苏",
+    }]);
+
+    const result = await getInstitutionSearch("测试大学");
+
+    expect(result).toEqual({
+      success: true,
+      data: [{ id: "institution-2", name: "测试大学", code: null, province: "江苏" }],
+    });
+    expect(institutionFindManyMock).toHaveBeenCalledTimes(1);
   });
 
   it("creates a manual canonical institution and writes its audit fact in the same transaction", async () => {
