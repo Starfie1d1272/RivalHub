@@ -79,6 +79,19 @@ type CompetitiveEvidenceSlot = {
   fallback: SelectableCompetitivePeak | null | undefined;
 };
 
+function qualificationPlatformLabel(platform: string): string {
+  if (platform === "perfect_world") return "完美平台";
+  if (platform === "fivee") return "5E";
+  return "竞技平台";
+}
+
+function qualificationSeasonLabel(seasonKey: string): string {
+  const yearSeason = /^(\d{4})s(\d+)$/i.exec(seasonKey);
+  if (yearSeason) return `${yearSeason[1]} S${yearSeason[2]}`;
+  if (/^s\d+$/i.test(seasonKey)) return seasonKey.toUpperCase();
+  return "指定赛季";
+}
+
 export type ParticipantEducationReadiness = "ready" | "pending_review" | "rejected" | "missing";
 
 export interface ParticipantReadiness {
@@ -255,7 +268,7 @@ function getMissingStarFindings(
   const recentSeasonKeys = policy?.recentSeasonKeys ?? [context.currentSeasonKey];
   for (const seasonKey of recentSeasonKeys) {
     slots.push({
-      label: policy ? `近期赛季 · ${seasonKey}` : `当前赛季 · ${seasonKey}`,
+      label: policy ? `近期赛季 · ${qualificationSeasonLabel(seasonKey)}` : `当前赛季 · ${qualificationSeasonLabel(seasonKey)}`,
       targetKey: seasonKey,
       primary: fact.seasonPeaks?.get(seasonKey),
       fallback: fallbackFor(seasonKey),
@@ -321,7 +334,7 @@ function getCompetitiveProfileFindings(
   fact: ParticipantQualificationFacts,
   context: CompetitiveProfileConfig | null,
 ): QualificationFinding[] {
-  if (!context) return [{ code: "competitive_context_unavailable", message: "竞技平台赛季目录尚未完成当前与上一赛季配置。", waivable: false, metadata: { field: "competitive_context" } }];
+  if (!context) return [{ code: "competitive_context_unavailable", message: "本届赛事的竞技资料要求暂时无法确认，请联系赛事管理员。", waivable: false, metadata: { field: "competitive_context" } }];
   const strength = toPlayerStrengthInput(fact, context);
   const strengthFindings = getPlayerStrengthFindings(strength, context).map((finding) => {
     if (finding.code !== "competitive_profile_incomplete") return finding;
@@ -331,8 +344,8 @@ function getCompetitiveProfileFindings(
       return {
         ...finding,
         message: context.evidencePolicy
-          ? `缺少${context.platform} · ${context.evidencePolicy.referenceSeasonKey} 的最高段位及 Rating。`
-          : `缺少${context.platform} · ${context.previousSeasonKey} 的最高段位及 Rating。`,
+          ? `缺少${qualificationPlatformLabel(context.platform)} ${qualificationSeasonLabel(context.evidencePolicy.referenceSeasonKey)} 的最高段位和 Rating。`
+          : `缺少${qualificationPlatformLabel(context.platform)} ${qualificationSeasonLabel(context.previousSeasonKey)} 的最高段位和 Rating。`,
         metadata: { ...finding.metadata, platform: context.platform, seasonKey },
       };
     }
@@ -342,8 +355,8 @@ function getCompetitiveProfileFindings(
       return {
         ...finding,
         message: context.evidencePolicy
-          ? `缺少${context.platform} · ${context.evidencePolicy.recentSeasonKeys.join(" / ")} 的可用竞技资料。`
-          : `缺少${context.platform} · ${context.currentSeasonKey} 的最高段位及 Rating。`,
+          ? `请补充${qualificationPlatformLabel(context.platform)} ${context.evidencePolicy.recentSeasonKeys.map(qualificationSeasonLabel).join(" / ")} 中至少一个赛季的最高段位和 Rating。`
+          : `缺少${qualificationPlatformLabel(context.platform)} ${qualificationSeasonLabel(context.currentSeasonKey)} 的最高段位和 Rating。`,
         metadata: { ...finding.metadata, platform: context.platform, seasonKey },
       };
     }
@@ -504,9 +517,9 @@ function resolveParticipantEducationReadiness(fact: ParticipantQualificationFact
 
 function educationReadinessFinding(state: Exclude<ParticipantEducationReadiness, "ready">): QualificationFinding {
   const message = state === "pending_review"
-    ? "高校认证审核中 · 等待赛委会"
+    ? "高校身份认证审核中 · 等待赛委会"
     : state === "rejected"
-      ? "需要本人处理 · 高校认证已驳回"
+      ? "需要本人处理 · 高校身份认证已驳回"
       : "需要本人补充 · 高校身份认证";
   return { code: "education_incomplete", message, waivable: false, metadata: { field: "approved_education", state } };
 }
