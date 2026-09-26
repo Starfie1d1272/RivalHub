@@ -54,6 +54,7 @@ interface Props {
   approvedTeamCount: number;
   majorEntrantCapacity?: 24 | 32 | null;
   registrationWindowCanSubmit: boolean;
+  registrationWindowPhase: "hidden" | "unscheduled" | "upcoming" | "open" | "closed";
   rosterChangeClosesAtLabel?: string | null;
   capabilities: CompetitionEntryCapabilities;
   invitationConflict: null | {
@@ -213,7 +214,7 @@ export function CompetitionEntryFlow(props: Props) {
     ? "已提交 · 等待赛委会审核"
     : entry.status === "changes_requested" && entry.revisionOrigin === "self_roster_change" && props.capabilities.canEditCurrentRoster
       ? `名单调整中 · 可修改并重新提交${props.rosterChangeClosesAtLabel ? `至 ${props.rosterChangeClosesAtLabel}` : ""}`
-      : entry.status === "draft" && entry.revisionOrigin !== "self_roster_change" && !props.registrationWindowCanSubmit
+      : entry.status === "draft" && entry.revisionOrigin !== "self_roster_change" && props.registrationWindowPhase === "closed" && !props.registrationWindowCanSubmit
         ? "首次报名已截止 · 当前报名未在截止前提交"
         : null;
   const rosterExplanation = "本届赛事名单独立于日常队伍名单；在“我的队伍”中增减成员不会自动修改本届报名。";
