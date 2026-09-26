@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useTransition } from "react";
+import React, { useEffect, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { saveCompetitiveProfile } from "@/actions/competitive-profile";
 import { Button } from "@/components/ui/button";
@@ -36,17 +36,38 @@ function summary(fact: Fact, context: CompetitiveSeasonContext): string {
 }
 
 /** Keep recent editors fixed while exposing older catalog facts on demand. */
-export function CompetitiveProfileForm({ contexts }: { contexts: CompetitiveSeasonContext[] }) {
+export function CompetitiveProfileForm({
+  contexts,
+  initialTarget,
+}: {
+  contexts: CompetitiveSeasonContext[];
+  initialTarget?: { platform?: string | null; season?: string | null };
+}) {
   const [pending, startTransition] = useTransition();
-  const first = contexts.find((item) => item.platform === "perfect_world") ?? contexts[0];
+  const requestedContext = initialTarget?.platform ? contexts.find((item) => item.platform === initialTarget.platform) : undefined;
+  const first = requestedContext ?? contexts.find((item) => item.platform === "perfect_world") ?? contexts[0];
+  const targetedSeason = initialTarget?.season && first?.seasons.some((season) => season.seasonKey === initialTarget.season)
+    ? initialTarget.season
+    : null;
+  const targetedOlderSeason = targetedSeason
+    ? first?.seasons.find((season) => season.seasonKey === targetedSeason && !season.isCurrent && !season.isPrevious)
+    : null;
   const [platform, setPlatform] = useState(first?.platform ?? "");
   const context = contexts.find((item) => item.platform === platform) ?? null;
   const [historical, setHistorical] = useState<Fact>(() => ({ ...factFor(first, HISTORICAL_KEY), status: "ranked" }));
   const [achievedSeasonKey, setAchievedSeasonKey] = useState(() => first?.facts.find((fact) => fact.kind === "historical_peak")?.achievedSeasonKey ?? "unknown");
   const [seasonFacts, setSeasonFacts] = useState<Record<string, Fact>>(() => Object.fromEntries((first?.seasons ?? []).map((season) => [season.seasonKey, factFor(first, season.seasonKey)])));
-  const [expanded, setExpanded] = useState(false);
-  const [editingHistory, setEditingHistory] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState(Boolean(targetedOlderSeason));
+  const [editingHistory, setEditingHistory] = useState<string | null>(targetedOlderSeason?.seasonKey ?? null);
   const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    if (!targetedSeason || platform !== first?.platform) return;
+    const target = document.getElementById(`competitive-season-${targetedSeason}`);
+    if (!(target instanceof HTMLElement)) return;
+    target.scrollIntoView({ block: "center" });
+    target.focus({ preventScroll: true });
+  }, [editingHistory, expanded, first?.platform, platform, targetedSeason]);
 
   function choosePlatform(nextPlatform: string) {
     const next = contexts.find((item) => item.platform === nextPlatform);
@@ -69,7 +90,7 @@ export function CompetitiveProfileForm({ contexts }: { contexts: CompetitiveSeas
   function editor(title: string, key: string, fact: Fact, setFact: (value: Fact) => void, allowUnrecorded: boolean, options: { after?: React.ReactNode; onCollapse?: () => void } = {}) {
     const selected = context!.ladder.find((entry) => entry.rankKey === fact.rank);
     const hasStars = selected?.starMin !== null && selected?.starMin !== undefined;
-    return <section key={key} className="space-y-3 border-l-2 border-[var(--color-border-hi)] pl-4">
+    return <section key={key} id={`competitive-season-${key}`} tabIndex={-1} className="scroll-mt-6 space-y-3 border-l-2 border-[var(--color-border-hi)] pl-4 outline-none">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="text-sm font-semibold">{title}</h3>
         <div className="flex flex-wrap items-center justify-end gap-2">
