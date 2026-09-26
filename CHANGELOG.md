@@ -1,5 +1,23 @@
 # Changelog
 
+## [2.12.3]
+
+### Added
+
+#### Major 资格赛
+
+新增独立 Qualification / Play-in 流程，支持 Direct BO3 与 Short Swiss，并将晋级结果纳入正赛名单确认。
+
+### Changed
+
+#### 队伍报名资料补全
+
+改善报名资格缺口的恢复与行动路径，支持精确赛季资料链接、院校搜索无结果恢复，以及管理员补充院校目录。
+
+#### Steam 官方资料缓存
+
+移除已停用的用户资料兼容列，统一使用 `steam_profiles` 保存 Steam 官方资料缓存。
+
 ## [2.12.2]
 
 ### Added
@@ -2389,6 +2407,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[2.12.3]: https://github.com/Starfie1d1272/RivalHub/compare/v2.12.2...v2.12.3
 [2.12.2]: https://github.com/Starfie1d1272/RivalHub/compare/v2.12.1...v2.12.2
 [2.12.1]: https://github.com/Starfie1d1272/RivalHub/compare/v2.12.0...v2.12.1
 [2.10.7]: https://github.com/Starfie1d1272/RivalHub/compare/v2.10.6...v2.10.7
