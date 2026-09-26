@@ -167,6 +167,8 @@ export function CompetitionEntryFlow(props: Props) {
     const yearSeason = /^(\d{4})s(\d+)$/i.exec(seasonKey);
     if (yearSeason) return `${yearSeason[1]} S${yearSeason[2]}`;
     if (/^s\d+$/i.test(seasonKey)) return seasonKey.toUpperCase();
+    const prefixedSeason = /^(?:5e[-_])(s\d+)$/i.exec(seasonKey);
+    if (prefixedSeason) return prefixedSeason[1]!.toUpperCase();
     return "指定赛季";
   };
   const participantChecks: ChecklistItem[] = props.requiresCompetitiveProfile
