@@ -636,7 +636,7 @@ export async function evaluateRosterQualificationFromFacts(input: {
       const fact = facts.get(member.userId);
       const readiness = fact
         ? computeParticipantReadiness({ ...fact, userId: member.userId }, context)
-        : { ready: false, blockers: ["选手账号不存在。"], findings: [{ code: "participant_missing", message: "选手账号不存在。", waivable: false, metadata: { field: "participant" } }], strength: { userId: member.userId, label: "选手", historicalPeak: null, previousSeasonPeak: null, currentSeasonPeak: null }, educationApproved: false };
+        : { ready: false, blockers: ["选手账号不存在。"], findings: [{ code: "participant_missing", message: "选手账号不存在。", waivable: false, metadata: { field: "participant" } }], strength: { userId: member.userId, label: "选手", historicalPeak: null, previousSeasonPeak: null, currentSeasonPeak: null }, educationApproved: false, educationState: "missing" as const };
       readinessByUser.set(member.userId, readiness);
       findings.push(...readiness.findings);
     }
