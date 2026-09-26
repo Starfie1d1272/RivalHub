@@ -8,9 +8,16 @@ import { MapPreferencesForm } from "@/components/settings/MapPreferencesForm";
 import { getUserSession } from "@/lib/auth/session";
 import { loadCompetitivePlatformCatalog, resolveCatalogSeasonRoles } from "@/lib/competitive/catalog";
 
-export default async function CompetitiveProfileSettingsPage() {
+interface PageProps {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}
+
+export default async function CompetitiveProfileSettingsPage({ searchParams }: PageProps) {
   const session = await getUserSession();
   if (!session) redirect("/login?next=/settings/competitive");
+  const rawSearchParams = await searchParams;
+  const requestedPlatform = typeof rawSearchParams.platform === "string" ? rawSearchParams.platform : null;
+  const requestedSeason = typeof rawSearchParams.season === "string" ? rawSearchParams.season : null;
   const [catalog, facts, roles, mapPreferences] = await Promise.all([
     loadCompetitivePlatformCatalog(db),
     db.select().from(competitiveRankFacts).where(eq(competitiveRankFacts.userId, session.userId)),
@@ -37,5 +44,5 @@ export default async function CompetitiveProfileSettingsPage() {
       facts: facts.filter((item) => item.platform === platform.key).map((item) => ({ kind: item.kind, platformSeasonKey: item.platformSeasonKey, status: item.status, rank: item.rank, rating: item.rating === null ? null : String(item.rating), stars: item.stars, achievedSeasonKey: item.achievedSeasonKey })),
     };
   });
-  return <div className="space-y-5"><div><p className="font-mono text-[11px] tracking-[0.18em] text-[var(--color-accent)]">PARTICIPANT PROFILE</p><h1 className="mt-1 text-3xl font-semibold">竞技档案</h1></div><CompetitiveRolesForm initialRoles={roles.map((role) => role.role)} initialPrimaryRole={roles.find((role) => role.isPrimary)?.role ?? null} /><MapPreferencesForm initialPreferences={mapPreferences[0]?.mapPreferences ?? []} /><CompetitiveProfileForm contexts={contexts} /></div>;
+  return <div className="space-y-5"><div><p className="font-mono text-[11px] tracking-[0.18em] text-[var(--color-accent)]">PARTICIPANT PROFILE</p><h1 className="mt-1 text-3xl font-semibold">竞技档案</h1></div><CompetitiveRolesForm initialRoles={roles.map((role) => role.role)} initialPrimaryRole={roles.find((role) => role.isPrimary)?.role ?? null} /><MapPreferencesForm initialPreferences={mapPreferences[0]?.mapPreferences ?? []} /><CompetitiveProfileForm contexts={contexts} initialTarget={{ platform: requestedPlatform, season: requestedSeason }} /></div>;
 }
