@@ -12,7 +12,7 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: refreshMock }) 
 const season = { status: "registration" as const, registrationOpensAt: new Date("2026-01-01"), registrationOpenedAt: new Date("2026-01-01"), registrationClosesAt: new Date("2027-01-01") };
 function props(size = 5): Parameters<typeof CompetitionEntryFlow>[0] {
   const roster = Array.from({ length: size }, (_, i) => ({ membershipId: `m${i}`, userId: `u${i}`, participantId: `p${i}`, label: `选手${i}`, status: "active" as const, roles: [], primaryRole: null, confirmation: "confirmed" as const, primary: i < 5 }));
-  return { competitionId: "event", competitionName: "Major", currentUserId: "u0", minRoster: 5, maxRoster: 9, starterCount: 5, requiresCompetitiveProfile: false, requiresTeamLogo: true, canManageEntryTeamProfile: true, approvedTeamCount: 0, registrationWindowCanSubmit: true, rosterChangeClosesAtLabel: "2026-09-27 20:00", captainedTeams: [], invitationConflict: null, capabilities: getCompetitionEntryCapabilities({ season, entry: { status: "draft", hasApprovedRoster: false }, revision: { status: "draft", origin: "initial" }, rosterFrozen: false }), entry: { id: "entry", name: "队伍", status: "draft", logoUrl: "/logo.png", teamLogoUrl: null, representativeUserId: "u0", reviewReason: null, qualificationFindings: [], roster, candidates: roster } };
+  return { competitionId: "event", competitionName: "Major", currentUserId: "u0", minRoster: 5, maxRoster: 9, starterCount: 5, requiresCompetitiveProfile: false, requiresTeamLogo: true, canManageEntryTeamProfile: true, approvedTeamCount: 0, registrationWindowCanSubmit: true, registrationWindowPhase: "open", rosterChangeClosesAtLabel: "2026-09-27 20:00", captainedTeams: [], invitationConflict: null, capabilities: getCompetitionEntryCapabilities({ season, entry: { status: "draft", hasApprovedRoster: false }, revision: { status: "draft", origin: "initial" }, rosterFrozen: false }), entry: { id: "entry", name: "队伍", status: "draft", logoUrl: "/logo.png", teamLogoUrl: null, representativeUserId: "u0", reviewReason: null, qualificationFindings: [], roster, candidates: roster } };
 }
 describe("CompetitionEntryFlow", () => {
   beforeEach(() => {
@@ -83,6 +83,7 @@ describe("CompetitionEntryFlow", () => {
   it("uses capability truth for closed initial drafts, roster changes, and submitted entries", () => {
     const closed = props();
     closed.registrationWindowCanSubmit = false;
+    closed.registrationWindowPhase = "closed";
     closed.capabilities.canEditCurrentRoster = false;
     closed.capabilities.canSubmitForReview = false;
     closed.capabilities.readOnlyReason = "报名已截止";
