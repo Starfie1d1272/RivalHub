@@ -10,6 +10,7 @@ import { PRODUCT_LANGUAGE_ALLOWED, internalProductVocabulary, productLanguageVio
 const messageOwners = [
   "src/lib/competitive/conversion-policy.ts", "src/lib/competitive/conversion-policy-admin.ts",
   "src/lib/seasons/lifecycle.ts", "src/lib/my/readiness.ts", "src/lib/match-rosters/service.ts",
+  "src/lib/qualification/service.ts", "src/lib/major/player-strength.ts",
   "src/lib/competition-entries/presentation.ts", "src/lib/competition-entries/commands.ts",
   "src/lib/competition-entries/roster-change.ts", "src/lib/identity/self-service.ts",
   "src/lib/identity/merge.ts",
