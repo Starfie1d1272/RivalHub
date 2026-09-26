@@ -46,7 +46,8 @@ export function CompetitiveProfileForm({
   const [pending, startTransition] = useTransition();
   const requestedContext = initialTarget?.platform ? contexts.find((item) => item.platform === initialTarget.platform) : undefined;
   const first = requestedContext ?? contexts.find((item) => item.platform === "perfect_world") ?? contexts[0];
-  const targetedSeason = initialTarget?.season && first?.seasons.some((season) => season.seasonKey === initialTarget.season)
+  const targetedHistorical = initialTarget?.season === HISTORICAL_KEY;
+  const targetedSeason = !targetedHistorical && initialTarget?.season && first?.seasons.some((season) => season.seasonKey === initialTarget.season)
     ? initialTarget.season
     : null;
   const targetedOlderSeason = targetedSeason
@@ -62,12 +63,13 @@ export function CompetitiveProfileForm({
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
-    if (!targetedSeason || platform !== first?.platform) return;
-    const target = document.getElementById(`competitive-season-${targetedSeason}`);
+    const targetKey = targetedHistorical ? HISTORICAL_KEY : targetedSeason;
+    if (!targetKey || platform !== first?.platform) return;
+    const target = document.getElementById(`competitive-season-${targetKey}`);
     if (!(target instanceof HTMLElement)) return;
     target.scrollIntoView({ block: "center" });
     target.focus({ preventScroll: true });
-  }, [editingHistory, expanded, first?.platform, platform, targetedSeason]);
+  }, [editingHistory, expanded, first?.platform, platform, targetedHistorical, targetedSeason]);
 
   function choosePlatform(nextPlatform: string) {
     const next = contexts.find((item) => item.platform === nextPlatform);
