@@ -174,10 +174,13 @@ export function CompetitionEntryFlow(props: Props) {
         const competitiveTarget = finding.code === "competitive_profile_incomplete" && platform && seasonKey
           ? `/settings/competitive?platform=${encodeURIComponent(platform)}&season=${encodeURIComponent(seasonKey)}`
           : null;
-        const educationTarget = finding.code === "education_incomplete" ? "/settings/education" : null;
+        const educationState = typeof finding.metadata?.state === "string" ? finding.metadata.state : null;
+        const educationTarget = finding.code === "education_incomplete" && educationState !== "pending_review" ? "/settings/education" : null;
         const href = competitiveTarget ?? educationTarget;
         const label = competitiveTarget
-          ? `${member.label} · 需要本人补充 · ${platformLabel(platform!)} ${seasonLabel(seasonKey!)}`
+          ? seasonKey === "historical"
+            ? `${member.label} · 需要本人补充 · ${platformLabel(platform!)} 历史最高`
+            : `${member.label} · 需要本人补充 · ${platformLabel(platform!)} ${seasonLabel(seasonKey!)}`
           : `${member.label} · ${finding.message}`;
         return {
           label,
@@ -190,6 +193,8 @@ export function CompetitionEntryFlow(props: Props) {
       });
     })
     : [];
+  const rosterBlockingFindings = rosterFindings.filter((finding) => !finding.waivable);
+  const rosterReviewFindings = rosterFindings.filter((finding) => finding.waivable);
   const blockingChecks: ChecklistItem[] = [
     ...(unsaved ? [{ label: "名单有未保存的修改，请先保存本届名单", state: "blocked" as const }] : []),
     ...(props.requiresTeamLogo ? [{ label: entry.logoUrl ? "队伍图标已上传" : teamLogoBlockerLabel, state: entry.logoUrl ? "complete" as const : "blocked" as const }] : []),
@@ -198,17 +203,23 @@ export function CompetitionEntryFlow(props: Props) {
     { label: `成员确认 ${confirmed}/${entry.roster.length}`, state: entry.roster.length > 0 && confirmed === entry.roster.length ? "complete" as const : "blocked" as const },
     { label: `预定主力 ${starters.length}/${props.starterCount}`, state: starters.length === props.starterCount ? "complete" as const : "blocked" as const },
     ...participantChecks,
-    ...rosterFindings.map((finding) => ({
+    ...rosterBlockingFindings.map((finding) => ({
       label: finding.message,
-      state: finding.waivable ? "manual" as const : "blocked" as const,
-      detail: finding.waivable ? "该事项随报名材料提交，由赛委会人工确认。" : undefined,
+      state: "blocked" as const,
     })),
   ];
-  const notes: ChecklistItem[] = roleHint.length === 0 ? [] : [{
-    label: `角色软提示：可考虑补充 ${roleHint.join(" / ")}`,
-    state: "pending" as const,
-    detail: "角色仅用于推荐；重复 AWPer、没有 IGL 或角色缺口不会阻止提交。",
-  }];
+  const notes: ChecklistItem[] = [
+    ...rosterReviewFindings.map((finding) => ({
+      label: `赛委会审核事项 · ${finding.message}`,
+      state: "manual" as const,
+      detail: "报名可先提交，赛委会审核时确认该事项。",
+    })),
+    ...(roleHint.length === 0 ? [] : [{
+      label: `角色软提示：可考虑补充 ${roleHint.join(" / ")}`,
+      state: "pending" as const,
+      detail: "角色仅用于推荐；重复 AWPer、没有 IGL 或角色缺口不会阻止提交。",
+    }]),
+  ];
   const ready = blockingChecks.every((item) => item.state !== "blocked");
   const availableMemberCount = entry.candidates.filter((member) => member.status === "active").length;
   const registration = presentCompetitionEntryRegistration(entry.status, entry.revisionOrigin);
