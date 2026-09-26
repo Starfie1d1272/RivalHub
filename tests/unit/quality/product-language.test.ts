@@ -39,6 +39,8 @@ describe("product language contract", () => {
     const source = `// canonical schema\nconst policy = "approved";\nconst a = <div className="policy"><span>{policy === "approved" ? "已批准" : "草稿"}</span><details><summary>技术详情</summary>schema snapshot</details></div>;`;
     expect(productLanguageViolations("fixture.tsx", source)).toEqual([]);
     expect(productLanguageViolations("fixture.tsx", 'const a = <p>请检查 active migration</p>;')).toEqual(["fixture.tsx:1: 请检查 active migration"]);
+    expect(productLanguageViolations("fixture.tsx", 'const a = <p>缺少 perfect_world · 2026s1 资料</p>;')).toHaveLength(1);
+    expect(productLanguageViolations("fixture.tsx", 'const a = <p>PW 2026 S1</p>;')).toHaveLength(1);
     expect(productLanguageViolations("fixture.ts", 'throw new AppError(ErrorCode.VALIDATION_FAILED, "必须使用 approved policy");')).toHaveLength(1);
     expect(productLanguageViolations("fixture.tsx", `
       const a = <p>{row.status}</p>;
