@@ -187,7 +187,7 @@ describe("identity flow UI", () => {
     expect(screen.getByRole("button", { name: "重新搜索" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "仍找不到学校" }));
     expect(screen.getByText(/学信网报告或正式学籍材料上的学校全称/)).toBeInTheDocument();
-    expect(screen.getByText(/自由文本不会直接成为教育认证学校/)).toBeInTheDocument();
+    expect(screen.getByText(/目录补充完成后，重新搜索并选择对应学校即可继续认证/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "提交认证材料" })).toBeDisabled();
   });
 
