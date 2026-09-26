@@ -57,7 +57,7 @@ export function EducationInstitutionSelector({ idPrefix, value, onChange, disabl
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="space-y-1">
           <Label htmlFor={`${idPrefix}-search`}>学校</Label>
-          <p className="text-xs text-[var(--color-fg-mid)]">已从教育部高校目录选择</p>
+          <p className="text-xs text-[var(--color-fg-mid)]">已从院校目录选择</p>
         </div>
         <Button type="button" variant="outline" size="sm" disabled={disabled} onClick={reset}>重新选择</Button>
       </div>
@@ -73,7 +73,7 @@ export function EducationInstitutionSelector({ idPrefix, value, onChange, disabl
     <div className="space-y-2">
       <div className="space-y-1">
         <Label htmlFor={`${idPrefix}-search`}>学校</Label>
-        <p id={`${idPrefix}-search-hint`} className="text-xs leading-5 text-[var(--color-fg-mid)]">输入学校名称，并从教育部高校目录搜索结果中选择</p>
+        <p id={`${idPrefix}-search-hint`} className="text-xs leading-5 text-[var(--color-fg-mid)]">输入学校名称，并从院校目录搜索结果中选择</p>
       </div>
       <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
         <Input id={`${idPrefix}-search`} aria-describedby={`${idPrefix}-search-hint`} value={query} onChange={(event) => { setQuery(event.target.value); setSearched(false); setRecoveryExpanded(false); }} placeholder="例如：你的学校名称" disabled={disabled} />
