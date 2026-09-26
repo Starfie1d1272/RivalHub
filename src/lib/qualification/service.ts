@@ -78,12 +78,15 @@ type CompetitiveEvidenceSlot = {
   fallback: SelectableCompetitivePeak | null | undefined;
 };
 
+export type ParticipantEducationReadiness = "ready" | "pending_review" | "rejected" | "missing";
+
 export interface ParticipantReadiness {
   ready: boolean;
   blockers: string[];
   findings: QualificationFinding[];
   strength: PlayerStrengthInput;
   educationApproved: boolean;
+  educationState: ParticipantEducationReadiness;
 }
 
 function createCompetitiveCandidateResolver(context: CompetitiveProfileConfig | null): (
@@ -298,6 +301,7 @@ function getMissingStarFindings(
           field: "stars",
           slot: slot.label,
           platform: fallbackMissing && sourceSelection === "strongest_equivalent" ? fallbackPlatform : context.platform,
+          seasonKey: (fallbackMissing && sourceSelection === "strongest_equivalent" ? slot.fallback : slot.primary)?.sourceSeasonKey ?? null,
           rankKey: report.rankKey,
           rankLabel: report.label,
         },
@@ -318,20 +322,28 @@ function getCompetitiveProfileFindings(
     if (finding.code !== "competitive_profile_incomplete") return finding;
     const field = finding.metadata?.field;
     if (field === "reference_season_peak") {
+      const seasonKey = context.evidencePolicy?.referenceSeasonKey ?? context.previousSeasonKey;
       return {
         ...finding,
         message: context.evidencePolicy
           ? `缺少${context.platform} · ${context.evidencePolicy.referenceSeasonKey} 的最高段位及 Rating。`
           : `缺少${context.platform} · ${context.previousSeasonKey} 的最高段位及 Rating。`,
+        metadata: { ...finding.metadata, platform: context.platform, seasonKey },
       };
     }
     if (field === "recent_season_peak") {
+      const seasonKeys = context.evidencePolicy?.recentSeasonKeys ?? [context.currentSeasonKey];
+      const seasonKey = seasonKeys.find((key) => !fact.seasonPeaks?.has(key)) ?? seasonKeys[0] ?? context.currentSeasonKey;
       return {
         ...finding,
         message: context.evidencePolicy
           ? `缺少${context.platform} · ${context.evidencePolicy.recentSeasonKeys.join(" / ")} 的可用竞技资料。`
           : `缺少${context.platform} · ${context.currentSeasonKey} 的最高段位及 Rating。`,
+        metadata: { ...finding.metadata, platform: context.platform, seasonKey },
       };
+    }
+    if (field === "historical_peak") {
+      return { ...finding, metadata: { ...finding.metadata, platform: context.platform } };
     }
     return finding;
   });
@@ -476,21 +488,47 @@ export async function loadParticipantQualificationFacts(
   return facts;
 }
 
+function resolveParticipantEducationReadiness(fact: ParticipantQualificationFacts): ParticipantEducationReadiness {
+  if (fact.approvedEducation) return "ready";
+  if (fact.educationHistory.some((entry) => entry.status === "pending")) return "pending_review";
+  const latest = [...fact.educationHistory].sort(
+    (left, right) => (right.submittedAt?.getTime() ?? 0) - (left.submittedAt?.getTime() ?? 0),
+  )[0];
+  return latest?.status === "rejected" ? "rejected" : "missing";
+}
+
+function educationReadinessFinding(state: Exclude<ParticipantEducationReadiness, "ready">): QualificationFinding {
+  const message = state === "pending_review"
+    ? "高校认证审核中 · 等待赛委会"
+    : state === "rejected"
+      ? "需要本人处理 · 高校认证已驳回"
+      : "需要本人补充 · 高校身份认证";
+  return { code: "education_incomplete", message, waivable: false, metadata: { field: "approved_education", state } };
+}
+
 /** Pure evaluation of one participant's readiness from loaded facts. */
 export function computeParticipantReadiness(
   fact: ParticipantQualificationFacts,
   context: CompetitiveProfileConfig | null,
 ): ParticipantReadiness {
   const strength = toPlayerStrengthInput(fact, context);
+  const educationState = resolveParticipantEducationReadiness(fact);
   const findings = context
     ? [
       ...getParticipantIdentityFindings(fact),
-      ...(fact.approvedEducation ? [] : [{ code: "education_incomplete", message: "请完成并通过高校身份认证。", waivable: false, metadata: { field: "approved_education" } }]),
+      ...(educationState === "ready" ? [] : [educationReadinessFinding(educationState)]),
       ...getCompetitiveProfileFindings(fact, context),
     ]
     : getCompetitiveProfileFindings(fact, null);
   const uniqueFindings = uniqueQualificationFindings(findings);
-  return { ready: uniqueFindings.length === 0, blockers: blockersFromQualificationFindings(uniqueFindings), findings: uniqueFindings, strength, educationApproved: fact.approvedEducation };
+  return {
+    ready: uniqueFindings.length === 0,
+    blockers: blockersFromQualificationFindings(uniqueFindings),
+    findings: uniqueFindings,
+    strength,
+    educationApproved: fact.approvedEducation,
+    educationState,
+  };
 }
 
 /** Batched readiness for a roster. Single-user helper delegates here with [userId]. */
@@ -508,7 +546,7 @@ export async function getParticipantReadinessBatch(
     const fact = facts.get(userId);
     if (!fact) {
       const findings: QualificationFinding[] = [{ code: "participant_missing", message: "选手账号不存在。", waivable: false, metadata: { field: "participant" } }];
-      result.set(userId, { ready: false, blockers: blockersFromQualificationFindings(findings), findings, strength: { userId, label: "选手", historicalPeak: null, previousSeasonPeak: null, currentSeasonPeak: null }, educationApproved: false });
+      result.set(userId, { ready: false, blockers: blockersFromQualificationFindings(findings), findings, strength: { userId, label: "选手", historicalPeak: null, previousSeasonPeak: null, currentSeasonPeak: null }, educationApproved: false, educationState: "missing" });
       continue;
     }
     result.set(userId, computeParticipantReadiness({ ...fact, userId }, context));
@@ -520,7 +558,7 @@ export async function getParticipantReadiness(userId: string, config: Competitiv
   const [readiness] = (await getParticipantReadinessBatch([userId], config)).values();
   if (readiness) return readiness;
   const findings: QualificationFinding[] = [{ code: "participant_missing", message: "选手账号不存在。", waivable: false, metadata: { field: "participant" } }];
-  return { ready: false, blockers: blockersFromQualificationFindings(findings), findings, strength: { userId, label: "选手", historicalPeak: null, previousSeasonPeak: null, currentSeasonPeak: null }, educationApproved: false };
+  return { ready: false, blockers: blockersFromQualificationFindings(findings), findings, strength: { userId, label: "选手", historicalPeak: null, previousSeasonPeak: null, currentSeasonPeak: null }, educationApproved: false, educationState: "missing" };
 }
 
 export interface RosterQualificationMember {
@@ -598,7 +636,7 @@ export async function evaluateRosterQualificationFromFacts(input: {
       const fact = facts.get(member.userId);
       const readiness = fact
         ? computeParticipantReadiness({ ...fact, userId: member.userId }, context)
-        : { ready: false, blockers: ["选手账号不存在。"], findings: [{ code: "participant_missing", message: "选手账号不存在。", waivable: false, metadata: { field: "participant" } }], strength: { userId: member.userId, label: "选手", historicalPeak: null, previousSeasonPeak: null, currentSeasonPeak: null }, educationApproved: false };
+        : { ready: false, blockers: ["选手账号不存在。"], findings: [{ code: "participant_missing", message: "选手账号不存在。", waivable: false, metadata: { field: "participant" } }], strength: { userId: member.userId, label: "选手", historicalPeak: null, previousSeasonPeak: null, currentSeasonPeak: null }, educationApproved: false, educationState: "missing" as const };
       readinessByUser.set(member.userId, readiness);
       findings.push(...readiness.findings);
     }

@@ -1,19 +1,112 @@
 import * as React from "react";
 import { render, screen, fireEvent } from "@testing-library/react";
-import { beforeEach, describe, it, expect, vi } from "vitest";
+import { afterEach, beforeEach, describe, it, expect, vi } from "vitest";
 import { CompetitionEntryFlow } from "@/components/register/CompetitionEntryFlow";
 import { getCompetitionEntryCapabilities } from "@/lib/competition-entries/capabilities";
 
 vi.mock("@/actions/competition-entries", () => ({
   confirmCompetitionEntryParticipation: vi.fn(), createCompetitionEntry: vi.fn(), declineCompetitionEntryParticipation: vi.fn(), requestCompetitionEntryRosterChange: vi.fn(), saveCompetitionEntryRoster: vi.fn(), submitCompetitionEntry: vi.fn(), transferCompetitionEntryRepresentative: vi.fn(), withdrawCompetitionEntryFromReview: vi.fn(), withdrawCompetitionEntryParticipation: vi.fn(),
 }));
+const { refreshMock } = vi.hoisted(() => ({ refreshMock: vi.fn() }));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: refreshMock }) }));
 const season = { status: "registration" as const, registrationOpensAt: new Date("2026-01-01"), registrationOpenedAt: new Date("2026-01-01"), registrationClosesAt: new Date("2027-01-01") };
 function props(size = 5): Parameters<typeof CompetitionEntryFlow>[0] {
   const roster = Array.from({ length: size }, (_, i) => ({ membershipId: `m${i}`, userId: `u${i}`, participantId: `p${i}`, label: `选手${i}`, status: "active" as const, roles: [], primaryRole: null, confirmation: "confirmed" as const, primary: i < 5 }));
-  return { competitionId: "event", competitionName: "Major", currentUserId: "u0", minRoster: 5, maxRoster: 9, starterCount: 5, requiresCompetitiveProfile: false, requiresTeamLogo: true, canManageEntryTeamProfile: true, approvedTeamCount: 0, captainedTeams: [], invitationConflict: null, capabilities: getCompetitionEntryCapabilities({ season, entry: { status: "draft", hasApprovedRoster: false }, revision: { status: "draft", origin: "initial" }, rosterFrozen: false }), entry: { id: "entry", name: "队伍", status: "draft", logoUrl: "/logo.png", teamLogoUrl: null, representativeUserId: "u0", reviewReason: null, qualificationFindings: [], roster, candidates: roster } };
+  return { competitionId: "event", competitionName: "Major", currentUserId: "u0", minRoster: 5, maxRoster: 9, starterCount: 5, requiresCompetitiveProfile: false, requiresTeamLogo: true, canManageEntryTeamProfile: true, approvedTeamCount: 0, registrationWindowCanSubmit: true, registrationWindowPhase: "open", rosterChangeClosesAtLabel: "2026-09-27 20:00", captainedTeams: [], invitationConflict: null, capabilities: getCompetitionEntryCapabilities({ season, entry: { status: "draft", hasApprovedRoster: false }, revision: { status: "draft", origin: "initial" }, rosterFrozen: false }), entry: { id: "entry", name: "队伍", status: "draft", logoUrl: "/logo.png", teamLogoUrl: null, representativeUserId: "u0", reviewReason: null, qualificationFindings: [], roster, candidates: roster } };
 }
 describe("CompetitionEntryFlow", () => {
-  beforeEach(() => vi.stubGlobal("React", React));
+  beforeEach(() => {
+    vi.stubGlobal("React", React);
+    refreshMock.mockReset();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    Object.defineProperty(document, "visibilityState", { configurable: true, value: "visible" });
+  });
+  it("refreshes readiness manually and only auto-refreshes after 30 seconds away", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-26T10:00:00-07:00"));
+    render(<CompetitionEntryFlow {...props()} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "刷新状态" }));
+    expect(refreshMock).toHaveBeenCalledTimes(1);
+
+    Object.defineProperty(document, "visibilityState", { configurable: true, value: "hidden" });
+    fireEvent(document, new Event("visibilitychange"));
+    vi.advanceTimersByTime(29_000);
+    Object.defineProperty(document, "visibilityState", { configurable: true, value: "visible" });
+    fireEvent(document, new Event("visibilitychange"));
+    expect(refreshMock).toHaveBeenCalledTimes(1);
+
+    Object.defineProperty(document, "visibilityState", { configurable: true, value: "hidden" });
+    fireEvent(document, new Event("visibilitychange"));
+    vi.advanceTimersByTime(2_000);
+    Object.defineProperty(document, "visibilityState", { configurable: true, value: "visible" });
+    fireEvent(document, new Event("visibilitychange"));
+    expect(refreshMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("deep-links an exact competitive season and does not repeat its aggregate finding", () => {
+    const p = props();
+    p.requiresCompetitiveProfile = true;
+    const finding = { code: "competitive_profile_incomplete", message: "缺少perfect_world · 2026s1 的最高段位及 Rating。", waivable: false, metadata: { field: "reference_season_peak", platform: "perfect_world", seasonKey: "2026s1" } };
+    for (const member of p.entry!.roster) {
+      member.readiness = { ready: true, blockers: [], findings: [], educationApproved: true, educationState: "ready" };
+    }
+    p.entry!.roster[0]!.readiness = { ready: false, blockers: [finding.message], findings: [finding], educationApproved: true, educationState: "ready" };
+    p.entry!.qualificationFindings = [finding];
+
+    render(<CompetitionEntryFlow {...p} />);
+
+    expect(screen.getByText("选手0 · 需要本人补充 · PW 2026 S1")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "前往" })).toHaveAttribute("href", "/settings/competitive?platform=perfect_world&season=2026s1");
+    expect(screen.getAllByText(finding.message)).toHaveLength(1);
+    expect(screen.getByRole("button", { name: "提交审核" })).toBeDisabled();
+  });
+
+  it("presents pending education as waiting for the organizer while keeping the hard gate closed", () => {
+    const p = props();
+    p.requiresCompetitiveProfile = true;
+    for (const member of p.entry!.roster) {
+      member.readiness = { ready: true, blockers: [], findings: [], educationApproved: true, educationState: "ready" };
+    }
+    const finding = { code: "education_incomplete", message: "高校认证审核中 · 等待赛委会", waivable: false, metadata: { field: "approved_education", state: "pending_review" } };
+    p.entry!.roster[0]!.readiness = { ready: false, blockers: [finding.message], findings: [finding], educationApproved: false, educationState: "pending_review" };
+
+    render(<CompetitionEntryFlow {...p} />);
+
+    expect(screen.getByText("选手0 · 高校认证审核中 · 等待赛委会")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "前往" })).toHaveAttribute("href", "/settings/education");
+    expect(screen.getByRole("button", { name: "提交审核" })).toBeDisabled();
+  });
+
+  it("uses capability truth for closed initial drafts, roster changes, and submitted entries", () => {
+    const closed = props();
+    closed.registrationWindowCanSubmit = false;
+    closed.registrationWindowPhase = "closed";
+    closed.capabilities.canEditCurrentRoster = false;
+    closed.capabilities.canSubmitForReview = false;
+    closed.capabilities.readOnlyReason = "报名已截止";
+    const { unmount } = render(<CompetitionEntryFlow {...closed} />);
+    expect(screen.getByText("队伍 · 首次报名已截止 · 当前报名未在截止前提交")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "提交审核" })).not.toBeInTheDocument();
+    unmount();
+
+    const changing = props();
+    changing.entry!.status = "changes_requested";
+    changing.entry!.revisionOrigin = "self_roster_change";
+    changing.capabilities = getCompetitionEntryCapabilities({ season, entry: { status: "changes_requested", hasApprovedRoster: true }, revision: { status: "draft", origin: "self_roster_change" }, rosterFrozen: false });
+    const second = render(<CompetitionEntryFlow {...changing} />);
+    expect(screen.getByText("队伍 · 名单调整中 · 可修改并重新提交至 2026-09-27 20:00")).toBeInTheDocument();
+    second.unmount();
+
+    const submitted = props();
+    submitted.entry!.status = "submitted";
+    submitted.capabilities = getCompetitionEntryCapabilities({ season, entry: { status: "submitted", hasApprovedRoster: false }, revision: { status: "submitted", origin: "initial" }, rosterFrozen: false });
+    render(<CompetitionEntryFlow {...submitted} />);
+    expect(screen.getByText("队伍 · 已提交 · 等待赛委会审核")).toBeInTheDocument();
+  });
+
   it("makes missing logo actionable and blocks review submission", () => {
     const p = props(); p.entry!.logoUrl = null; render(<CompetitionEntryFlow {...p} />);
     expect(screen.getByRole("button", { name: "提交审核" })).toBeDisabled();
@@ -71,7 +164,7 @@ describe("CompetitionEntryFlow", () => {
     p.capabilities = getCompetitionEntryCapabilities({ season, entry: { status: "changes_requested", hasApprovedRoster: true }, revision: { status: "draft", origin: "self_roster_change" }, rosterFrozen: false });
     render(<CompetitionEntryFlow {...p} />);
 
-    expect(screen.getByText(/名单变更中/)).toBeInTheDocument();
+    expect(screen.getByText(/名单调整中/)).toBeInTheDocument();
     fireEvent.click(screen.getAllByRole("checkbox", { name: "从本届名单移除" })[0]!);
     expect(screen.getByText(/从本届名单移除 选手1/)).toBeInTheDocument();
   });
