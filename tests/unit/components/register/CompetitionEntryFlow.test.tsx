@@ -76,8 +76,24 @@ describe("CompetitionEntryFlow", () => {
     render(<CompetitionEntryFlow {...p} />);
 
     expect(screen.getByText("选手0 · 高校认证审核中 · 等待赛委会")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "前往" })).toHaveAttribute("href", "/settings/education");
+    expect(screen.queryByRole("link", { name: "前往" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "提交审核" })).toBeDisabled();
+  });
+
+  it("keeps waivable roster review items out of submit blockers", () => {
+    const p = props();
+    p.entry!.qualificationFindings = [{
+      code: "external_strength_gap",
+      message: "外校成员实力差值需要赛委会确认。",
+      waivable: true,
+      metadata: { strongestExternalStars: 12, strongestHomeStars: 8, externalStrengthMaxStarGap: 3 },
+    }];
+
+    render(<CompetitionEntryFlow {...p} />);
+
+    expect(screen.getByText("NOTES")).toBeInTheDocument();
+    expect(screen.getByText("赛委会审核事项 · 外校成员实力差值需要赛委会确认。")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "提交审核" })).toBeEnabled();
   });
 
   it("uses capability truth for closed initial drafts, roster changes, and submitted entries", () => {
