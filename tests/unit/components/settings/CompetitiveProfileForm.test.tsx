@@ -66,6 +66,15 @@ describe("CompetitiveProfileForm", () => {
     expect(screen.getByText(/完美世界竞技平台 · 竞技资料/)).toBeInTheDocument();
   });
 
+  it("focuses the historical editor from a registration deep-link", () => {
+    render(<CompetitiveProfileForm contexts={[{ ...perfect, platform: "fivee", platformDisplayName: "5E" }, perfect]} initialTarget={{ platform: "perfect_world", season: "historical" }} />);
+
+    const target = document.getElementById("competitive-season-historical");
+    expect(target).not.toBeNull();
+    expect(target).toHaveFocus();
+    expect(screen.getByText(/完美世界竞技平台 · 竞技资料/)).toBeInTheDocument();
+  });
+
   it("keeps unmaintained older catalog seasons hidden until all history is viewed, then collapses again", async () => {
     const user = userEvent.setup();
     render(<CompetitiveProfileForm contexts={[perfect]} />);
