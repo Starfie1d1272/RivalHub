@@ -176,6 +176,21 @@ describe("identity flow UI", () => {
     expect(screen.getByRole("button", { name: "提交认证材料" })).toBeDisabled();
   });
 
+  it("offers explicit recovery when the canonical institution search has no result", async () => {
+    getInstitutionSearchMock.mockResolvedValue({ success: true, data: [] });
+    render(<EducationVerificationPanel email="player@example.test" emailVerified institutionalIdentities={[]} verifications={[]} />);
+
+    fireEvent.change(screen.getByLabelText("学校"), { target: { value: "某某学院教学点" } });
+    fireEvent.click(screen.getByRole("button", { name: "搜索高校" }));
+
+    expect(await screen.findByText("未找到学校")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "重新搜索" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "仍找不到学校" }));
+    expect(screen.getByText(/学信网报告或正式学籍材料上的学校全称/)).toBeInTheDocument();
+    expect(screen.getByText(/目录补充完成后，重新搜索并选择对应学校即可继续认证/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "提交认证材料" })).toBeDisabled();
+  });
+
   it("clears the Turnstile token and shows recovery guidance on a client challenge failure", async () => {
     const consoleWarn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     render(<LoginForm initialMode="register" />);
@@ -197,7 +212,7 @@ describe("identity flow UI", () => {
     render(<EducationVerificationPanel email="player@example.test" emailVerified institutionalIdentities={[]} verifications={[]} />);
 
     expect(screen.getByLabelText("学校")).toBeInTheDocument();
-    expect(screen.getByText("输入学校名称，并从教育部高校目录搜索结果中选择")).toBeInTheDocument();
+    expect(screen.getByText("输入学校名称，并从院校目录搜索结果中选择")).toBeInTheDocument();
     const submit = screen.getByRole("button", { name: "提交认证材料" });
     expect(submit).toBeDisabled();
 

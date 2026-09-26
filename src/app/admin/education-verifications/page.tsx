@@ -1,4 +1,5 @@
 import { EducationReviewWorkspace } from "@/components/admin/EducationReviewWorkspace";
+import { ManualInstitutionCreateForm } from "@/components/admin/ManualInstitutionCreateForm";
 import { type EducationReviewEmptyState } from "@/components/admin/EducationVerificationReviewQueue";
 import { AdminAccessDenied } from "@/components/admin/AdminAccessDenied";
 import { ErrorState, PageHeader, PageLayout } from "@/components/rivalhub";
@@ -58,6 +59,7 @@ export default async function EducationVerificationsAdminPage({ searchParams }: 
         title="教育身份认证审核"
         description="仅在学信网官方页面人工核对；申请人声明学校不一致时请驳回，不要修改其学校。"
       />
+      <ManualInstitutionCreateForm />
       <EducationReviewWorkspace queue={queue} emptyState={emptyState} />
     </PageLayout>
   );

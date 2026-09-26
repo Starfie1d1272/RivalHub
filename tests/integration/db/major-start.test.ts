@@ -1510,7 +1510,7 @@ async function exerciseStartQualification(
     "DELETE FROM competitive_rank_facts WHERE user_id = $1 AND platform = $2 AND kind = 'season_peak' AND platform_season_key = $3",
     [victim, platform, currentKey],
   );
-  await expectMajorStartFailure(database, fixture.seasonId, `${platform} · ${currentKey}`);
+  await expectMajorStartFailure(database, fixture.seasonId, "当前赛季");
   await assertNoStartFacts(pool, fixture.seasonId);
 
   // Case B：恢复合法事实 → 开赛成功，且 frozenCompetitiveFacts 与通过校验的同一批 facts 一致。

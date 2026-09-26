@@ -200,9 +200,10 @@ describe("participant readiness", () => {
     }), CONTEXT);
     expect(readiness.ready).toBe(false);
     expect(readiness.blockers).toContain("请填写 Steam64 ID。");
-    expect(readiness.blockers).toContain("请完成并通过高校身份认证。");
-    expect(readiness.blockers).toContain("缺少perfect_world · S20 的最高段位及 Rating。");
+    expect(readiness.blockers).toContain("需要本人补充 · 高校身份认证");
+    expect(readiness.blockers).toContain("缺少完美平台 S20的最高段位和 Rating。");
     expect(readiness.findings.every((finding) => finding.waivable === false)).toBe(true);
+    expect(readiness.blockers.join(" ")).not.toContain("perfect_world");
   });
 
   it("accepts a participant whose canonical Perfect nickname is present", () => {
@@ -519,7 +520,7 @@ describe("participant readiness", () => {
 
     expect(batch.get(USER_ID)).toEqual(single);
     expect(single.ready).toBe(false);
-    expect(single.blockers.join(" ")).toContain("缺少perfect_world · S20 的最高段位及 Rating");
+    expect(single.blockers.join(" ")).toContain("缺少完美平台 S20的最高段位和 Rating");
   });
 
   it("uses a preloaded fact bundle without issuing a second read", async () => {
@@ -560,5 +561,72 @@ describe("isHomeAffiliatedMember", () => {
     expect(isHomeAffiliatedMember({ institutionCode: "4132010284", academicStatus: "enrolled" }, rules)).toBe(true);
     expect(isHomeAffiliatedMember({ institutionCode: "4132010284", academicStatus: null }, rules)).toBe(false);
     expect(isHomeAffiliatedMember({ institutionCode: "9999999999", academicStatus: "enrolled" }, rules)).toBe(false);
+  });
+});
+
+
+describe("participant readiness recovery states", () => {
+  const recoveryFact = (overrides?: Partial<ParticipantQualificationFacts>): ParticipantQualificationFacts => ({
+    userId: USER_ID,
+    displayName: "选手甲",
+    perfectName: "perfect-a",
+    personaName: "steam-a",
+    email: "a@rivalhub.test",
+    emailVerifiedAt: new Date(),
+    steam64: "76561198000000001",
+    qq: "10001",
+    approvedEducation: true,
+    educationHistory: [],
+    historicalPeak: { rank: "S", rating: 1900 },
+    seasonPeaks: new Map([["S20", { rank: "A", rating: 1700 }], ["S21", { rank: "S", rating: 1850 }]]),
+    ...overrides,
+  });
+
+  it.each([
+    {
+      status: "pending_review" as const,
+      history: [{ id: "education-pending", institutionCode: "4132010284", institutionName: "南京大学", academicStatus: "enrolled" as const, status: "pending" as const, submittedAt: new Date("2026-09-26T01:00:00Z") }],
+      message: "高校身份认证审核中 · 等待赛委会",
+    },
+    {
+      status: "rejected" as const,
+      history: [{ id: "education-rejected", institutionCode: "4132010284", institutionName: "南京大学", academicStatus: "enrolled" as const, status: "rejected" as const, submittedAt: new Date("2026-09-26T01:00:00Z") }],
+      message: "需要本人处理 · 高校身份认证已驳回",
+    },
+    {
+      status: "missing" as const,
+      history: [],
+      message: "需要本人补充 · 高校身份认证",
+    },
+  ])("distinguishes $status education readiness without relaxing the gate", ({ status, history, message }) => {
+    const readiness = computeParticipantReadiness(recoveryFact({ approvedEducation: false, educationHistory: history }), CONTEXT);
+    expect(readiness.educationState).toBe(status);
+    expect(readiness.ready).toBe(false);
+    expect(readiness.findings).toContainEqual(expect.objectContaining({
+      code: "education_incomplete",
+      message,
+      waivable: false,
+      metadata: expect.objectContaining({ state: status }),
+    }));
+  });
+
+  it("targets the historical editor for a missing historical peak", () => {
+    const readiness = computeParticipantReadiness(recoveryFact({
+      historicalPeak: null,
+    }), CONTEXT);
+    expect(readiness.findings).toContainEqual(expect.objectContaining({
+      code: "competitive_profile_incomplete",
+      metadata: expect.objectContaining({ field: "historical_peak", platform: CONTEXT.platform, seasonKey: "historical" }),
+    }));
+  });
+
+  it("adds platform and exact season metadata to seasonal competitive gaps", () => {
+    const readiness = computeParticipantReadiness(recoveryFact({
+      seasonPeaks: new Map([["S21", { rank: "A", rating: 1000 }]]),
+    }), CONTEXT);
+    expect(readiness.findings).toContainEqual(expect.objectContaining({
+      code: "competitive_profile_incomplete",
+      metadata: expect.objectContaining({ platform: CONTEXT.platform, seasonKey: CONTEXT.previousSeasonKey }),
+    }));
   });
 });

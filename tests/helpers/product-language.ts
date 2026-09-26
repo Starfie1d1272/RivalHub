@@ -1,7 +1,7 @@
 import ts from "typescript";
 
 export const PRODUCT_LANGUAGE_ALLOWED = ["RivalHub", "Major", "Rivals", "Stage 1", "Stage 2", "Stage 3", "Playoff", "BO1", "BO3", "BO5", "Steam64", "Steam", "5E", "Perfect World", "Rating Pro", "Rating+", "MVP", "EVP", "Pick'Em"] as const;
-const internalVocabulary = /\b(?:CompetitionEntry|EventRoster|Entry|revision|snapshot|canonical|owner|evaluator|registrationConfig|ConversionPolicy|mapping|policy|fallback|migration|schema|sourceSelection|stable ID|approved|roster|eligibility|qualification|minStar|maxStar|targetStarFloor|slopeNum|slopeDen|fail[ -]?closed|preflight|blocker|StageRun|credential|provenance|primary login identity|secondary (?:email )?identity|verified email identity|draft pick|captain vote)\b/i;
+const internalVocabulary = /\b(?:CompetitionEntry|EventRoster|Entry|revision|snapshot|canonical|owner|evaluator|registrationConfig|ConversionPolicy|mapping|policy|fallback|migration|schema|sourceSelection|stable ID|approved|roster|eligibility|qualification|minStar|maxStar|targetStarFloor|slopeNum|slopeDen|fail[ -]?closed|preflight|blocker|StageRun|credential|provenance|primary login identity|secondary (?:email )?identity|verified email identity|draft pick|captain vote|perfect_world|fivee|PW)\b/i;
 
 const machineSemanticProperties = new Set(["status", "kind", "type", "source", "mode", "state", "domain"]);
 

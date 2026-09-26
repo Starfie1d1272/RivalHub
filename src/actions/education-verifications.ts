@@ -142,6 +142,52 @@ export async function reviewEducationVerification(input: { id: string; decision:
   } catch (error) { return actionError("reviewEducationVerification", error); }
 }
 
+export type ManualInstitutionCreateResult = {
+  institution: { id: string; name: string; province: string | null };
+  reused: boolean;
+};
+
+export async function createManualInstitution(input: unknown): Promise<ActionResult<ManualInstitutionCreateResult>> {
+  const parsed = z.object({
+    name: z.string().trim().min(1).max(200),
+    province: z.string().trim().max(100).optional(),
+  }).strict().safeParse(input);
+  if (!parsed.success) return fail({ code: ErrorCode.VALIDATION_FAILED, message: "请填写正式学校名称；省份可选。" });
+
+  try {
+    const admin = await requireSuperAdmin();
+    const name = parsed.data.name.trim();
+    const province = parsed.data.province?.trim() || null;
+    const result = await db.transaction(async (tx) => {
+      const [existing] = await tx.select({ id: institutions.id, name: institutions.name, province: institutions.province })
+        .from(institutions)
+        .where(sql`lower(trim(${institutions.name})) = lower(${name})`)
+        .limit(1);
+      if (existing) return { institution: existing, reused: true };
+
+      const [created] = await tx.insert(institutions).values({
+        name,
+        province,
+        moeInstitutionCode: null,
+        source: "manual",
+        sourceVersion: "manual",
+      }).returning({ id: institutions.id, name: institutions.name, province: institutions.province });
+      if (!created) throw new AppError(ErrorCode.INTERNAL_ERROR, "新增院校条目失败。");
+      await writeAuditInTx(tx, {
+        action: "institution.manual_created",
+        actorId: auditActorId(admin),
+        targetId: created.id,
+        meta: { name: created.name, province: created.province },
+      });
+      return { institution: created, reused: false };
+    });
+    refresh();
+    return ok(result);
+  } catch (error) {
+    return actionError("createManualInstitution", error);
+  }
+}
+
 export async function getInstitutionSearch(query: string): Promise<ActionResult<Array<{ id: string; name: string; code: string | null; province: string | null }>>> {
   try {
     await requireAuth();
