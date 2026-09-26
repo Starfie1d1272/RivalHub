@@ -94,7 +94,7 @@ describe("CompetitionEntryFlow", () => {
 
     render(<CompetitionEntryFlow {...p} />);
 
-    expect(screen.getByText("选手0 · 高校认证审核中 · 等待赛委会")).toBeInTheDocument();
+    expect(screen.getByText("选手0 · 高校身份认证审核中 · 等待赛委会")).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "去处理" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "提交审核" })).toBeDisabled();
   });
