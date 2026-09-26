@@ -56,6 +56,16 @@ describe("CompetitiveProfileForm", () => {
     expect(sectionByHeading("更早历史资料").getByText("历史赛季 · 2025S4")).toBeInTheDocument();
   });
 
+  it("opens and focuses an exact older season from a registration deep-link", async () => {
+    render(<CompetitiveProfileForm contexts={[{ ...perfect, platform: "fivee", platformDisplayName: "5E" }, perfect]} initialTarget={{ platform: "perfect_world", season: "2025s3" }} />);
+
+    const target = document.getElementById("competitive-season-2025s3");
+    expect(target).not.toBeNull();
+    expect(target).toHaveFocus();
+    expect(sectionByHeading("更早历史资料").getByRole("button", { name: "收起 历史赛季 · 2025S3" })).toBeInTheDocument();
+    expect(screen.getByText(/完美世界竞技平台 · 竞技资料/)).toBeInTheDocument();
+  });
+
   it("keeps unmaintained older catalog seasons hidden until all history is viewed, then collapses again", async () => {
     const user = userEvent.setup();
     render(<CompetitiveProfileForm contexts={[perfect]} />);
