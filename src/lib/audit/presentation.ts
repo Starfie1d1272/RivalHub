@@ -111,6 +111,7 @@ const TARGET_OVERRIDES: Readonly<Partial<Record<AuditAction, AuditTargetContract
   "match.roster.unlock": { type: "match_roster", lifecycle: "stable" },
   "match.propose_time": { type: "match", lifecycle: "stable" },
   "match.respond_time_proposal": { type: "match_time_proposal", lifecycle: "stable" },
+  "institution.manual_created": { type: "institution", lifecycle: "stable" },
   "competitive_platform_season.create": { type: "competitive_platform_season", lifecycle: "stable" },
   "competitive_platform_season.update": { type: "competitive_platform_season", lifecycle: "stable" },
   "competitive_platform_season.set_active": { type: "competitive_platform_season", lifecycle: "stable" },
@@ -304,6 +305,7 @@ export const AUDIT_ACTION_DEFINITIONS = {
   "identity.link.revoke": { label: "撤销身份绑定", category: "user" },
   "user_identity.merge": { label: "合并用户身份", category: "user" },
 
+  "institution.manual_created": { label: "新增院校目录条目", category: "education" },
   "education_verification.submit": { label: "提交教育认证", category: "education" },
   "education_verification.institutional_email": { label: "通过校邮箱完成认证", category: "education" },
   "education_verification.approved": { label: "通过教育认证审核", category: "education" },
@@ -490,6 +492,7 @@ const TARGET_TYPE_LABELS: Readonly<Record<string, string>> = {
   match_demo_import: "Demo 数据",
   user_gameplay_steam_id: "选手 Steam 身份",
   match_time_proposal: "比赛时间提议",
+  institution: "院校目录",
   education_verification: "教育认证",
   competitive_platform: "竞技平台",
   competitive_platform_rank: "平台段位",
