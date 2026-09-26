@@ -609,6 +609,16 @@ describe("participant readiness recovery states", () => {
     }));
   });
 
+  it("targets the historical editor for a missing historical peak", () => {
+    const readiness = computeParticipantReadiness(recoveryFact({
+      historicalPeak: null,
+    }), CONTEXT);
+    expect(readiness.findings).toContainEqual(expect.objectContaining({
+      code: "competitive_profile_incomplete",
+      metadata: expect.objectContaining({ field: "historical_peak", platform: CONTEXT.platform, seasonKey: "historical" }),
+    }));
+  });
+
   it("adds platform and exact season metadata to seasonal competitive gaps", () => {
     const readiness = computeParticipantReadiness(recoveryFact({
       seasonPeaks: new Map([["S21", { rank: "A", rating: 1000 }]]),
