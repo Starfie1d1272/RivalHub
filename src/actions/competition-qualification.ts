@@ -11,6 +11,7 @@ import {
   previewCompetitionQualificationRoundInTx,
   resetCompetitionQualificationRunInTx,
   saveCompetitionQualificationRankInTx,
+  saveCompetitionQualificationOrderInTx,
 } from "@/lib/competition-qualification/runtime";
 import { revalidateSeasonPaths, updatePublicHomeTag } from "@/lib/revalidation";
 import { ok, type ActionResult } from "@/types/action";
@@ -63,6 +64,23 @@ export async function saveCompetitionQualificationRank(input: {
     revalidatePrestart(result.seasonSlug);
     return ok(undefined);
   } catch (error) { return actionError("saveCompetitionQualificationRank", error); }
+}
+
+export async function saveCompetitionQualificationOrder(input: {
+  seasonId: string;
+  runId: string;
+  orderedCompetitionEntryIds: string[];
+}): Promise<ActionResult<void>> {
+  const parsed = z.object({ seasonId: uuid, runId: uuid, orderedCompetitionEntryIds: z.array(uuid).min(2).max(128) }).safeParse(input);
+  if (!parsed.success || new Set(parsed.data.orderedCompetitionEntryIds).size !== parsed.data.orderedCompetitionEntryIds.length) {
+    return failValidation("Play-in 预排名必须包含全部候选队伍且不能重复。");
+  }
+  try {
+    const { actorId } = await adminOrThrow(parsed.data.seasonId);
+    const result = await db.transaction((tx) => saveCompetitionQualificationOrderInTx(tx, { ...parsed.data, actorId }));
+    revalidatePrestart(result.seasonSlug);
+    return ok(undefined);
+  } catch (error) { return actionError("saveCompetitionQualificationOrder", error); }
 }
 
 export async function previewCompetitionQualificationRound(input: { seasonId: string; runId: string }) {

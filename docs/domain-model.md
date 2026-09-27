@@ -124,7 +124,8 @@ Major 从“报名通过”到“正式开赛”还需要单独的赛前事实�
 
 ```text
 approved CompetitionEntry candidates
-→ final entrant set
+→ Qualification candidate set / saved preliminary order
+→ Qualification-derived final entrant set
 → EventRoster reconciliation
 → freeze entrants + rosters
 → immutable SeedRecommendationSnapshot
@@ -132,7 +133,7 @@ approved CompetitionEntry candidates
 → start StageRun
 ```
 
-已批准 Entry 只是候选；正式 entrant set、EventRoster、系统种子建议和管理员最终 seed 都是不同事实。系统建议 snapshot 冻结其输入与 provenance，不能因之后查看排序或人工调整而重算；最终 seed 由独立 seed owner 保存。
+已批准 Entry 只是候选；Qualification 的预排名保存在独立 run entrant 中，正式 entrant set、EventRoster、系统种子建议和管理员最终 seed 都是不同事实。报名截止与最终名单锁定不同：报名截止/Qualification 期间临时关闭自助名单调整，Qualification 完成后仅最终 entrant 可在最终截止前重新调整。`major_prestart_states.main_event_planned_start_at` 是可审计的运营计划，不是实际 StageRun 开始。系统建议 snapshot 冻结其输入与 provenance，不能因之后查看排序或人工调整而重算；最终 seed 由独立 seed owner 保存。
 
 `major_stage_runs` 是已启动阶段的运行时身份并冻结该阶段需要的规则、entrant 和 eligibility context；`major_stage_entrants` 是阶段参与者真相。后续推进依赖 StageRun + 已完成比赛，而不是 UI standings。
 

@@ -373,6 +373,10 @@ export async function lockMajorPrestartEntrantsInTx(
     return { seasonSlug: season.slug, entrantCount: entrantCapacity, alreadyLocked: true };
   }
 
+  if (season.rosterChangeClosesAt && season.rosterChangeClosesAt.getTime() > Date.now()) {
+    throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "最终名单调整截止时间尚未到达，不能提前冻结正式名单。");
+  }
+
   if (existingSnapshot && getSeedRecommendationSnapshotStatus({
     snapshot: existingSnapshot,
     seasonId: season.id,

@@ -309,6 +309,39 @@ export async function saveCompetitionQualificationRankInTx(
   return { seasonSlug: season.slug };
 }
 
+/** Save one complete preliminary decision under the run lock. */
+export async function saveCompetitionQualificationOrderInTx(
+  tx: TxDb,
+  input: { seasonId: string; runId: string; orderedCompetitionEntryIds: readonly string[]; actorId: string },
+): Promise<{ seasonSlug: string }> {
+  const [season] = await tx.select().from(seasons).where(eq(seasons.id, input.seasonId)).for("update");
+  if (!season) throw new AppError(ErrorCode.SEASON_NOT_FOUND, "赛季不存在");
+  const [run] = await tx.select().from(competitionQualificationRuns)
+    .where(and(eq(competitionQualificationRuns.id, input.runId), eq(competitionQualificationRuns.seasonId, season.id))).for("update");
+  if (!run) throw new AppError(ErrorCode.NOT_FOUND, "Play-in 尚未配置。");
+  if (run.startedAt) throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "Play-in 开始后不能调整预排名。");
+  const entrants = await loadRunEntrantsInTx(tx, run.id);
+  assertCandidateSet(entrants, input.orderedCompetitionEntryIds);
+  const oldOrder = entrants.map((entrant) => entrant.competitionEntryId);
+  const newOrder = [...input.orderedCompetitionEntryIds];
+  if (oldOrder.every((id, index) => id === newOrder[index])) return { seasonSlug: season.slug };
+  await tx.delete(competitionQualificationEntrants).where(eq(competitionQualificationEntrants.runId, run.id));
+  await tx.insert(competitionQualificationEntrants).values(newOrder.map((competitionEntryId, index) => ({
+    runId: run.id,
+    seasonId: season.id,
+    competitionEntryId,
+    preliminarySeed: index + 1,
+  })));
+  await writeAuditInTx(tx, {
+    seasonId: season.id,
+    action: "competition_qualification.rank",
+    actorId: input.actorId,
+    targetId: run.id,
+    meta: { oldOrder, newOrder },
+  });
+  return { seasonSlug: season.slug };
+}
+
 export async function resetCompetitionQualificationRunInTx(
   tx: TxDb,
   input: { seasonId: string; actorId: string },

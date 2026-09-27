@@ -420,10 +420,10 @@ export function planSeasonUpdate(existing: SeasonRow, parsed: ParsedSeasonForm):
     registrationOpensAt: capabilities.canEditRegistrationOpenSchedule
       ? submittedDates.registrationOpensAt
       : existing.registrationOpensAt,
-    registrationClosesAt: capabilities.canEditRegistrationDeadlines
+    registrationClosesAt: capabilities.canEditRegistrationDeadlines && template !== "major"
       ? submittedDates.registrationClosesAt
       : existing.registrationClosesAt,
-    rosterChangeClosesAt: capabilities.canEditRegistrationDeadlines
+    rosterChangeClosesAt: capabilities.canEditRegistrationDeadlines && template !== "major"
       ? submittedDates.rosterChangeClosesAt
       : existing.rosterChangeClosesAt,
   };
@@ -463,13 +463,13 @@ export function planSeasonUpdate(existing: SeasonRow, parsed: ParsedSeasonForm):
     kind: data.kind,
     competitionTemplate: template,
     themeColor: data.themeColor,
-    endAt: submittedDates.endAt,
+    endAt: template === "major" ? existing.endAt : submittedDates.endAt,
     updatedAt: new Date(),
   };
   if (capabilities.canEditRegistrationOpenSchedule) {
     metadata.registrationOpensAt = submittedDates.registrationOpensAt;
   }
-  if (capabilities.canEditRegistrationDeadlines) {
+  if (capabilities.canEditRegistrationDeadlines && template !== "major") {
     metadata.registrationClosesAt = submittedDates.registrationClosesAt;
     metadata.rosterChangeClosesAt = submittedDates.rosterChangeClosesAt;
   }

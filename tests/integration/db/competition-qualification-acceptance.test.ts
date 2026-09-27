@@ -14,6 +14,7 @@ import {
   previewCompetitionQualificationRoundInTx,
   resetCompetitionQualificationRunInTx,
   saveCompetitionQualificationRankInTx,
+  saveCompetitionQualificationOrderInTx,
 } from "../../../src/lib/competition-qualification/runtime";
 import { reviewCompetitionEntryInTx, submitCompetitionEntryInTx } from "../../../src/lib/competition-entries/commands";
 import { requestCompetitionEntryRosterChangeInTx } from "../../../src/lib/competition-entries/roster-change";
@@ -327,6 +328,31 @@ async function exerciseThirtyToTwentyFourAcceptance(): Promise<void> {
     expect(configured).toMatchObject({ directEntryCount: 18, playInEntryCount: 12, qualifierCount: 6 });
 
     const runId = configured.runId;
+    const swapped = [...preliminaryOrderEntryIds];
+    [swapped[1], swapped[2]] = [swapped[2]!, swapped[1]!];
+    await database.transaction((tx) => saveCompetitionQualificationOrderInTx(tx, {
+      seasonId: fixture!.seasonId, runId, orderedCompetitionEntryIds: swapped, actorId: ACTOR,
+    }));
+    const saved = await database.select({ entryId: schema.competitionQualificationEntrants.competitionEntryId })
+      .from(schema.competitionQualificationEntrants).where(eq(schema.competitionQualificationEntrants.runId, runId))
+      .orderBy(schema.competitionQualificationEntrants.preliminarySeed);
+    expect(saved.map((row) => row.entryId)).toEqual(swapped);
+    for (const invalid of [
+      [...swapped.slice(0, -1), swapped[0]!],
+      swapped.slice(0, -1),
+      [...swapped.slice(0, -1), randomUUID()],
+    ]) {
+      await expect(database.transaction((tx) => saveCompetitionQualificationOrderInTx(tx, {
+        seasonId: fixture!.seasonId, runId, orderedCompetitionEntryIds: invalid, actorId: ACTOR,
+      }))).rejects.toThrow("候选队伍集合已变化");
+    }
+    const afterRejectedSave = await database.select({ entryId: schema.competitionQualificationEntrants.competitionEntryId })
+      .from(schema.competitionQualificationEntrants).where(eq(schema.competitionQualificationEntrants.runId, runId))
+      .orderBy(schema.competitionQualificationEntrants.preliminarySeed);
+    expect(afterRejectedSave.map((row) => row.entryId)).toEqual(swapped);
+    await database.transaction((tx) => saveCompetitionQualificationOrderInTx(tx, {
+      seasonId: fixture!.seasonId, runId, orderedCompetitionEntryIds: preliminaryOrderEntryIds, actorId: ACTOR,
+    }));
     const frozenSeedRows = await database.select({
       entryId: schema.competitionQualificationEntrants.competitionEntryId,
       seed: schema.competitionQualificationEntrants.preliminarySeed,
@@ -404,6 +430,11 @@ async function exerciseThirtyToTwentyFourAcceptance(): Promise<void> {
         .where(and(eq(schema.matches.qualificationRunId, runId), eq(schema.matches.round, round)));
       expect(roundMatches).toHaveLength(expectedMatchCount);
       expect(roundMatches.every((match) => match.stage === "play-in" && match.ownership === "manual" && match.majorStageRunId === null)).toBe(true);
+      if (round === 1) {
+        await expect(database.transaction((tx) => saveCompetitionQualificationOrderInTx(tx, {
+          seasonId: fixture!.seasonId, runId, orderedCompetitionEntryIds: preliminaryOrderEntryIds, actorId: ACTOR,
+        }))).rejects.toThrow("开始后不能调整预排名");
+      }
 
       if (round === 1) {
         const historicalMatch = roundMatches[0]!;
@@ -543,7 +574,7 @@ async function exerciseThirtyToTwentyFourAcceptance(): Promise<void> {
         if (!roundTwoMatch) throw new Error("R2 match for revised entry missing");
         secondRoundId = roundTwoMatch.id;
         revisionTwoUsers = await persistAndConfirmLineup(database, roundTwoMatch.id, historicalEntryId);
-        expect(revisionTwoUsers).not.toEqual(revisionOneUsers);
+        expect(revisionTwoUsers).toEqual(revisionOneUsers);
       }
 
       await finishRound(pool, database, runId, round);
@@ -552,17 +583,11 @@ async function exerciseThirtyToTwentyFourAcceptance(): Promise<void> {
         await pool.query("UPDATE matches SET score_a = 0, score_b = 1 WHERE id = $1", [firstRoundId]);
         const historicalEntry = fixture.entries.find((entry) => entry.entryId === historicalEntryId);
         if (!historicalEntry) throw new Error("R1 entry not found in fixture");
-        const approvedRevisionTwo = await prepareAndApproveRosterV2(database, historicalEntry);
-        const rosterHistory = await pool.query<{ current: boolean; revisionId: string; userId: string }>(
-          `SELECT erm.is_current AS current, er.source_roster_revision_id AS "revisionId", erm.user_id AS "userId"
-           FROM event_roster_members erm
-           JOIN event_rosters er ON er.id = erm.event_roster_id
-           WHERE er.entry_id = $1
-           ORDER BY erm.is_current DESC, erm.user_id`,
-          [historicalEntryId],
-        );
-        expect(new Set(rosterHistory.rows.filter((row) => row.current).map((row) => row.revisionId))).toEqual(new Set([approvedRevisionTwo]));
-        expect(rosterHistory.rows.some((row) => !row.current && revisionOneUsers.includes(row.userId))).toBe(true);
+        await expect(database.transaction((tx) => requestCompetitionEntryRosterChangeInTx(tx, {
+          entryId: historicalEntry.entryId,
+          representativeUserId: historicalEntry.userIds[0]!,
+          actorId: ACTOR,
+        }))).rejects.toThrow("名单调整窗口当前不可用");
 
         const roundTwoPreview = await database.transaction((tx) => previewCompetitionQualificationRoundInTx(tx, {
           seasonId: fixture!.seasonId,
@@ -602,6 +627,21 @@ async function exerciseThirtyToTwentyFourAcceptance(): Promise<void> {
     );
     expect(selectedRows.rows[0]).toEqual({ count: "24", confirmedRosters: "24" });
 
+    const finalEntrant = fixture.entries.find((entry) => entry.entryId === finalEntryIds[0]);
+    if (!finalEntrant) throw new Error("final entrant missing from fixture");
+    const approvedRevisionTwo = await prepareAndApproveRosterV2(database, finalEntrant);
+    const rosterHistory = await pool.query<{ current: boolean; revisionId: string; userId: string }>(
+      `SELECT erm.is_current AS current, er.source_roster_revision_id AS "revisionId", erm.user_id AS "userId"
+       FROM event_roster_members erm
+       JOIN event_rosters er ON er.id = erm.event_roster_id
+       WHERE er.entry_id = $1
+       ORDER BY erm.is_current DESC, erm.user_id`,
+      [finalEntrant.entryId],
+    );
+    expect(new Set(rosterHistory.rows.filter((row) => row.current).map((row) => row.revisionId))).toEqual(new Set([approvedRevisionTwo]));
+    expect(rosterHistory.rows.some((row) => row.current && row.userId === finalEntrant.userIds[5])).toBe(true);
+    expect(rosterHistory.rows.some((row) => row.current && row.userId === finalEntrant.userIds[4])).toBe(false);
+
     const r1History = await pool.query<{ userId: string; current: boolean }>(
       `SELECT erm.user_id AS "userId", erm.is_current AS current
        FROM match_roster_players mrp
@@ -611,7 +651,6 @@ async function exerciseThirtyToTwentyFourAcceptance(): Promise<void> {
       [firstRoundId, historicalEntryId],
     );
     expect(r1History.rows.map((row) => row.userId).sort()).toEqual(revisionOneUsers.slice().sort());
-    expect(r1History.rows.every((row) => !row.current)).toBe(true);
 
     const r2History = await pool.query<{ userId: string; current: boolean }>(
       `SELECT erm.user_id AS "userId", erm.is_current AS current
@@ -622,7 +661,6 @@ async function exerciseThirtyToTwentyFourAcceptance(): Promise<void> {
       [secondRoundId, historicalEntryId],
     );
     expect(r2History.rows.map((row) => row.userId).sort()).toEqual(revisionTwoUsers.slice().sort());
-    expect(r2History.rows.every((row) => row.current)).toBe(true);
   } finally {
     if (fixture) await cleanupAcceptanceFixture(pool, fixture);
     await pool.end();

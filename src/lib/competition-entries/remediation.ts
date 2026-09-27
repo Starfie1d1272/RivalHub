@@ -13,8 +13,9 @@ export function canMutateCompetitionEntryRoster(
   origin: CompetitionEntryRosterRevisionOrigin,
   season: RegistrationWindowSeason,
   now = new Date(),
+  majorAdjustmentPhaseOpen = true,
 ): boolean {
-  if (status === "draft") return canSubmitEntry(season, now);
+  if (status === "draft") return majorAdjustmentPhaseOpen && canSubmitEntry(season, now);
   if (origin === "admin_remediation") return true;
-  return origin === "self_roster_change" && canSelfChangeApprovedRoster(season, now);
+  return origin === "self_roster_change" && majorAdjustmentPhaseOpen && canSelfChangeApprovedRoster(season, now);
 }

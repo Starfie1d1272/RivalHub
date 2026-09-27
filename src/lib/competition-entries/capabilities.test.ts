@@ -39,6 +39,12 @@ describe("registration action capabilities", () => {
     expect(getCompetitionEntryCapabilities(input, new Date("2026-09-20"))).toMatchObject({ canWithdrawParticipation: false, readOnlyReason: "名单调整已截止；如需处理名单或参赛状态，请联系赛事管理员。" });
     expect(getCompetitionEntryCapabilities({ ...input, rosterFrozen: true }, now)).toMatchObject({ canWithdrawParticipation: false, readOnlyReason: "最终名单已锁定；如需处理名单或参赛状态，请联系赛事管理员。" });
   });
+  it("hides self-service roster controls during Major qualification", () => {
+    const draft = getCompetitionEntryCapabilities({ season, entry: { status: "draft", hasApprovedRoster: false }, revision: { status: "draft", origin: "initial" }, rosterFrozen: false, majorAdjustmentPhaseOpen: false }, new Date("2026-09-05"));
+    expect(draft).toMatchObject({ canEditCurrentRoster: false, canSubmitForReview: false, canWithdrawParticipation: false });
+    const approved = getCompetitionEntryCapabilities({ season, entry: { status: "approved", hasApprovedRoster: true }, revision: { status: "approved", origin: "initial" }, rosterFrozen: false, majorAdjustmentPhaseOpen: false }, new Date("2026-09-15"));
+    expect(approved).toMatchObject({ canRequestRosterChange: false, canWithdrawParticipation: false });
+  });
   it.each(["submitted", "waitlisted", "rejected", "withdrawn"] as const)("does not expose edit or submit for %s", (status) => {
     expect(getCompetitionEntryCapabilities({ season, entry: { status, hasApprovedRoster: false }, revision: { status: "submitted", origin: "initial" }, rosterFrozen: false }, new Date("2026-09-05"))).toMatchObject({ canEditCurrentRoster: false, canSubmitForReview: false, canRequestRosterChange: false, canWithdrawFromReview: status === "submitted" });
   });

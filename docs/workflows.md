@@ -90,28 +90,23 @@ Team captain creates Entry
 
 管理员审核可以批准、候补、拒绝或要求补正。**approved Entry 只表示报名审核通过，不等于正式获得 Major 正赛席位。**
 
-在 EventRoster 尚未冻结且名单调整窗口仍开放时，已确认的普通成员可以本人退出本届赛事；服务端会复用现有名单变更 transition，保留原 approved revision，创建或复用可编辑的 self roster change draft，从新 draft 移除该成员并释放本届 active commitment。Entry 随后需要重新完成成员确认、资格检查和管理员审核。退出长期 Team 不会被这个动作隐式改变；名单冻结或调整窗口关闭后继续由服务端 fail closed，并提示联系赛事管理员。
+在 EventRoster 尚未冻结、名单调整截止时间未到且 Major 当前阶段允许自助修改时，已确认的普通成员可以本人退出本届赛事；服务端会复用现有名单变更 transition，保留原 approved revision，创建或复用可编辑的 self roster change draft，从新 draft 移除该成员并释放本届 active commitment。Entry 随后需要重新完成成员确认、资格检查和管理员审核。退出长期 Team 不会被这个动作隐式改变；名单冻结或调整窗口关闭后继续由服务端 fail closed，并提示联系赛事管理员。
 
 ## Major prestart
 
-赛前链路固定为：
+赛前工作区按运营阶段推进：
 
 ```text
-approved Entry candidate pool
-→ admin selects final entrant set
-→ approved roster revision materializes/reconciles EventRoster
-→ readiness / exception handling
-→ freeze final entrants + EventRosters
-→ create immutable seed recommendation snapshot
-→ admin confirms final seeds
-→ start Major
+报名收口 → 资格方案 → 资格赛 → 正赛名单 → 正赛种子 → 开赛确认
 ```
 
-正常名单 owner 始终是队长/成员的 Entry roster flow；管理员只处理审核、明确例外和最终冻结。名单变更必须形成新 revision 并重新进入审核/同步，不提供另一套管理员手工 roster pipeline。
+报名截止停止新的正常提交，并冻结 Qualification candidate basis；Qualification 配置及比赛期间参赛队自助名单调整关闭。资格赛完成并确定正赛参赛队后，仅最终 entrant 可在最终调整截止前重新申请名单变更；名单变更形成新 revision 并重新进入资格、审核与同步。Final Roster Lock 与报名截止是两个不同事实，锁定前须完成最终名单确认；锁定时 EventRoster 冻结并生成不可变系统种子建议。正常名单 owner 始终是队长/成员的 Entry roster flow；管理员只处理审核、明确例外和最终冻结。
 
 系统种子建议与最终人工 seed 分离：freeze 时从同一批 frozen primary starters 和竞技上下文生成不可变 snapshot；管理员随后确认最终顺序。查看不同排序、人工调序或之后全局资料变化都不重写 snapshot。启动只消费并校验已存在的赛前事实，不在 `startMajor` 临时生成第一份建议。
 
-在最终 entrant set 尚未冻结的候选阶段，管理员可以看到基于每支 approved roster revision 的 5 名预定主力和当前可用竞技事实生成的 live strength preview。它是只读、非权威的辅助 read model：不自动选择正式参赛队、不改变 qualification，也不创建或改写 `SeedRecommendationSnapshot`。正式参赛队与 EventRoster 统一冻结后，系统才生成并保留 immutable seed snapshot。
+候选期管理员通过只读排序矩阵查看完整已批准名单及各成员的竞技证据；系统参考仍仅由 5 名预定主力计算，不自动选择正式参赛队、不改变 qualification，也不创建或改写 `SeedRecommendationSnapshot`。资格方案和最终种子复用同一矩阵交互；预排名保存一次完整人工顺序，Qualification 开始后停止编辑，最终种子另行保存和确认。正式参赛队与 EventRoster 统一冻结后，系统才生成并保留 immutable seed snapshot。Qualification 的单场操作继续由统一比赛管理拥有，赛前工作区只展示比赛进度和入口。
+
+报名截止和最终名单截止仍由 `seasons` 保存，但 Major 的正常运营编辑入口位于赛前工作区；`mainEventPlannedStartAt` 仅是计划时间，到时未 ready 时显示待处理事项，不触发 `startMajor()`。实际开始只由管理员确认后创建 StageRun。
 
 ### Major Qualification
 

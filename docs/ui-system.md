@@ -57,6 +57,10 @@ presentation owner 对有限集合使用穷举映射（新增状态必须同时�
 
 页面顺序从当前任务与关键事实开始，再到历史和辅助操作。管理视图把可编辑事实、blocker/readiness、确认动作和危险操作分组，不把整个 domain 塞进一张万能 Card。
 
+Major 赛前工作区按报名收口、资格方案、资格赛、正赛名单、正赛种子、开赛确认六阶段组织；顶部始终显示进度，默认只完整展开当前阶段，已完成阶段提供可展开摘要，未来阶段只提示前置条件。报名截止、最终名单截止和 Main Event 计划开始在对应阶段编辑；计划时间不代表实际开赛。Qualification 比赛在工作区只显示汇总和统一比赛管理入口。
+
+报名期的系统参考、Qualification 预排名和最终种子共用一队一行的横向排名矩阵。固定排名、系统参考和队伍列，完整名单按主力、替补顺序横向展示，每人默认固定显示今、近、前、史四维，来源与 Rating 留在详情。矩阵只有横向滚动，提供 75%–125% 组件级缩放及概览密度。可编辑阶段的拖拽、上下微调和移至名次只改同一个本地顺序；保存排序与配置 Qualification、确认最终种子分别执行。直通/Play-in 切线和 profile 入场批次在矩阵内标示。
+
 公开页面只消费 public DTO/read model。email、QQ、`studentId`、`authId`、教育证据、管理员范围和内部备注默认不进入 public HTML/Client props。
 
 人物主标签必须消费 canonical identity formatter：公开 surface 使用 `displayName → official Steam personaName → perfectName → 未知用户`；内部/operator surface 使用 `displayName → official Steam personaName → perfectName → email local-part → 未知用户`。`users` 中不存在可进入 canonical resolver 的手填 Steam 昵称；官方 personaName 只来自按 Steam64 键控的服务端缓存投影。完整邮箱只有在账号、联系、核验、归并或 disambiguation 本身就是当前任务时，才作为明确标注的 detail 展示，不能冒充人物主标签。Major 实力参考的普通 UI 展示真实的历史、参考赛季、近期段位/星级、必要的可比 Rating 与来源；系统参考顺序、真实并列和最终种子使用语义化表达，内部排序/换算标量、rank ordinal 与并列组编号不进入普通 UI。

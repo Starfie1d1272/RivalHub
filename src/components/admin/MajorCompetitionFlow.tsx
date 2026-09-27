@@ -8,7 +8,7 @@ import {
   generateCompetitionQualificationRound,
   previewCompetitionQualificationRound,
   resetCompetitionQualification,
-  saveCompetitionQualificationRank,
+  saveCompetitionQualificationOrder,
 } from "@/actions/competition-qualification";
 import { selectMajorEntrants, setMajorManagedProfile } from "@/actions/major-prestart";
 import { Button } from "@/components/ui/button";
@@ -20,6 +20,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { deriveCompetitionQualificationPlan, isShortSwissQualificationAllowed, type CompetitionQualificationFormat } from "@/lib/competition-qualification/policy";
 import type { MajorPrestartPageData } from "@/lib/admin/season-workspace/types";
 import type { ActionResult } from "@/types/action";
+import { MajorRankingWorkspace } from "./MajorRankingWorkspace";
+import { initialPreliminaryOrder } from "@/lib/admin/season-workspace/ranking-order";
 
 type ManagementData = MajorPrestartPageData["management"];
 type QualificationRoundPreview = {
@@ -41,10 +43,12 @@ async function reportResult(work: () => Promise<ActionResult<void>>, success: st
   else toast.error(result.error.message);
 }
 
-export function MajorCompetitionFlow({ data }: { data: ManagementData }) {
+export function MajorCompetitionFlow({ data, phase }: { data: ManagementData; phase: "plan" | "runtime" | "entrants" }) {
   const [pending, startTransition] = useTransition();
   const [format, setFormat] = useState<CompetitionQualificationFormat>("direct_bo3");
-  const [order, setOrder] = useState(data.initialPreliminaryOrderEntryIds);
+  const run = data.qualification.run;
+  const persistedOrder = run ? initialPreliminaryOrder([], run.entrants) : [];
+  const [order, setOrder] = useState(initialPreliminaryOrder(data.initialPreliminaryOrderEntryIds, run?.entrants ?? null));
   const [confirmReset, setConfirmReset] = useState(false);
   const [configPreviewOpen, setConfigPreviewOpen] = useState(false);
   const [roundPreview, setRoundPreview] = useState<QualificationRoundPreview | null>(null);
@@ -61,28 +65,28 @@ export function MajorCompetitionFlow({ data }: { data: ManagementData }) {
   const canConfigure = data.seasonStatus === "registration" && data.registrationClosed && !data.qualification.run &&
     data.pendingReviewCount === 0 && plan !== null && data.approvedCandidates.length === data.approvedCandidateCount &&
     order.length === data.approvedCandidateCount;
-  const run = data.qualification.run;
   const finalEntryIds = run?.completedAt
     ? run.entrants.filter((entrant) => entrant.route === "direct" || entrant.status === "advanced").map((entrant) => entrant.entryId)
     : !run && data.approvedCandidateCount === data.entrantCapacity
       ? data.approvedCandidates.map((candidate) => candidate.id)
       : [];
   const currentRoundFinished = run !== null && run.matchCount > 0 && run.finishedMatchCount === run.matchCount;
-  const canGenerate = Boolean(run && !run.completedAt && (run.matchCount === 0 || currentRoundFinished));
-
-  function moveToRank(entryId: string, nextRank: number) {
-    const currentRank = order.indexOf(entryId) + 1;
-    if (!currentRank || !nextRank || currentRank === nextRank) return;
-    const next = [...order];
-    [next[currentRank - 1], next[nextRank - 1]] = [next[nextRank - 1]!, next[currentRank - 1]!];
-    setOrder(next);
-    if (run) {
-      startTransition(() => void reportResult(
-        () => saveCompetitionQualificationRank({ seasonId: data.seasonId, entryId, nextRank }),
-        "Play-in 预排名已保存",
-      ));
-    }
-  }
+  const orderMatchesSaved = order.length === persistedOrder.length && order.every((id, index) => id === persistedOrder[index]);
+  const canGenerate = Boolean(run && !run.completedAt && orderMatchesSaved && (run.matchCount === 0 || currentRoundFinished));
+  const rosterByEntryId = new Map(data.rankingRoster.map((row) => [row.entryId, row.members]));
+  const strengthByEntryId = new Map(data.strengthPreview.teams.map((team) => [team.teamId, team]));
+  const rankingTeams = (run?.entrants.map((entrant) => ({ id: entrant.entryId, name: entrant.teamName, route: entrant.route, status: entrant.status, wins: entrant.wins, losses: entrant.losses }))
+    ?? data.approvedCandidates.map((candidate) => ({ id: candidate.id, name: candidate.name, route: "play-in" as const, status: "not_started" as const, wins: 0, losses: 0 })))
+    .map((entry) => ({
+      entryId: entry.id,
+      teamName: entry.name,
+      systemRank: strengthByEntryId.get(entry.id)?.recommendationRank ?? null,
+      tieState: strengthByEntryId.get(entry.id)?.tieState,
+      members: rosterByEntryId.get(entry.id) ?? [],
+      route: entry.route === "direct" ? "直通正赛" : entry.status === "advanced" ? `Play-in 晋级 · ${entry.wins}-${entry.losses}` : entry.status === "eliminated" ? `Play-in 淘汰 · ${entry.wins}-${entry.losses}` : run?.startedAt ? `Play-in · ${entry.wins}-${entry.losses}` : "Play-in",
+      result: entry.route === "play-in" && run?.startedAt ? `${entry.wins}-${entry.losses}` : undefined,
+    }));
+  const cut = run?.directEntryCount ?? plan?.directEntryCount;
 
   function previewNextRound() {
     if (!run) return;
@@ -127,7 +131,7 @@ export function MajorCompetitionFlow({ data }: { data: ManagementData }) {
 
   return (
     <div className="space-y-5">
-      <Panel label="MAIN EVENT · 正赛规模">
+      {(phase === "plan" || phase === "entrants") && <Panel label="MAIN EVENT · 正赛规模">
         <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_240px] md:items-end">
           <div>
             <Marker sub={`${data.approvedCandidateCount} 支已批准 · ${data.entrantCapacity} 个正赛名额`}>Major {data.managedProfileId === "major-24" ? "24" : "32"}</Marker>
@@ -151,18 +155,18 @@ export function MajorCompetitionFlow({ data }: { data: ManagementData }) {
           </div>
         </div>
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-[var(--color-border)] pt-4">
-          <p className="text-sm text-[var(--color-fg-mid)]">正赛候选 {finalEntryIds.length}/{data.entrantCapacity}</p>
-          <Button
+          <p className="text-sm text-[var(--color-fg-mid)]">{data.entrants.length === data.entrantCapacity ? "正赛参赛队已确认" : `正赛候选 ${finalEntryIds.length}/${data.entrantCapacity}`}</p>
+          {data.entrants.length !== data.entrantCapacity && <Button
             disabled={pending || data.entrantsLocked || finalEntryIds.length !== data.entrantCapacity || data.approvedCandidates.length !== data.approvedCandidateCount}
             onClick={() => startTransition(() => void reportResult(
               () => selectMajorEntrants({ seasonId: data.seasonId, competitionEntryIds: finalEntryIds }),
               "正赛参赛队已确认，已批准名单同步完成",
             ))}
-          >确认并同步 {data.entrantCapacity} 支正赛队</Button>
+          >确认并同步 {data.entrantCapacity} 支正赛队</Button>}
         </div>
-      </Panel>
+      </Panel>}
 
-      <Panel label="PLAY-IN · 资格赛">
+      {phase !== "entrants" && <Panel label="PLAY-IN · 资格赛">
         {!run ? (
           <div className="space-y-4">
             {data.approvedCandidateCount <= data.entrantCapacity ? (
@@ -186,25 +190,7 @@ export function MajorCompetitionFlow({ data }: { data: ManagementData }) {
                     </Select>
                   </div>
                 </div>
-                <div className="overflow-x-auto border border-[var(--color-border)]">
-                  <table className="w-full min-w-[620px] text-left text-sm">
-                    <thead className="bg-[var(--color-panel-low)] text-xs text-[var(--color-fg-mid)]"><tr><th className="px-3 py-2">预排名</th><th className="px-3 py-2">队伍</th><th className="px-3 py-2">路径</th><th className="px-3 py-2">参考位次</th></tr></thead>
-                    <tbody>{order.map((entryId, index) => {
-                      const candidate = candidatesById.get(entryId);
-                      if (!candidate) return null;
-                      const strength = data.strengthPreview.teams.find((team) => team.teamId === entryId);
-                      return <tr key={entryId} className="border-t border-[var(--color-border)]">
-                        <td className="px-3 py-2 tabular-nums"><Select value={String(index + 1)} onValueChange={(value) => moveToRank(entryId, Number(value))}>
-                          <SelectTrigger className="h-8 w-20"><SelectValue /></SelectTrigger>
-                          <SelectContent>{order.map((_, rank) => <SelectItem key={rank + 1} value={String(rank + 1)}>{rank + 1}</SelectItem>)}</SelectContent>
-                        </Select></td>
-                        <td className="px-3 py-2">{candidate.name}</td>
-                        <td className="px-3 py-2">{index < plan.directEntryCount ? "直通" : "Play-in"}</td>
-                        <td className="px-3 py-2">{strength?.recommendationRank === null || !strength ? "—" : `#${strength.recommendationRank}`}</td>
-                      </tr>;
-                    })}</tbody>
-                  </table>
-                </div>
+                <MajorRankingWorkspace mode="preliminary" teams={rankingTeams} order={order} onOrderChange={setOrder} platform={data.strengthPreview.platform} boundaryAfter={plan.directEntryCount} boundaryLabel="直通正赛 / Play-in" />
                 {data.pendingReviewCount > 0 && <p className="text-sm text-[var(--color-warn)]">仍有 {data.pendingReviewCount} 支报名处于待审、补正或候补状态。</p>}
                 {data.approvedCandidates.length !== data.approvedCandidateCount && <p className="text-sm text-[var(--color-warn)]">部分已批准报名缺少有效审核名单，需先修复报名资料。</p>}
                 <div className="flex justify-end">
@@ -242,27 +228,18 @@ export function MajorCompetitionFlow({ data }: { data: ManagementData }) {
               }}
             />}
             <p className="text-sm text-[var(--color-fg-mid)]">已生成 {run.matchCount} 场 · 已完成 {run.finishedMatchCount} 场{run.currentRound > 0 ? ` · 当前第 ${run.currentRound} 轮` : ""}</p>
-            <div className="overflow-x-auto border border-[var(--color-border)]">
-              <table className="w-full min-w-[700px] text-left text-sm">
-                <thead className="bg-[var(--color-panel-low)] text-xs text-[var(--color-fg-mid)]"><tr><th className="px-3 py-2">预排名</th><th className="px-3 py-2">队伍</th><th className="px-3 py-2">路径</th><th className="px-3 py-2">战绩</th><th className="px-3 py-2">状态</th></tr></thead>
-                <tbody>{run.entrants.map((entrant) => <tr key={entrant.entryId} className="border-t border-[var(--color-border)]">
-                  <td className="px-3 py-2 tabular-nums">
-                    {run.startedAt ? entrant.preliminarySeed : <Select value={String(entrant.preliminarySeed)} onValueChange={(value) => moveToRank(entrant.entryId, Number(value))}>
-                      <SelectTrigger className="h-8 w-20"><SelectValue /></SelectTrigger>
-                      <SelectContent>{run.entrants.map((row) => <SelectItem key={row.entryId} value={String(row.preliminarySeed)}>{row.preliminarySeed}</SelectItem>)}</SelectContent>
-                    </Select>}
-                  </td>
-                  <td className="px-3 py-2">{entrant.teamName}</td>
-                  <td className="px-3 py-2">{entrant.route === "direct" ? "直通正赛" : "Play-in"}</td>
-                  <td className="px-3 py-2 tabular-nums">{entrant.wins}-{entrant.losses}</td>
-                  <td className="px-3 py-2">{entrant.route === "direct" ? "直通正赛" : entrant.status === "advanced" ? "Play-in 晋级" : entrant.status === "eliminated" ? "淘汰" : entrant.status === "not_started" ? "待开始" : "进行中"}</td>
-                </tr>)}</tbody>
-              </table>
-            </div>
-            <Link className="text-sm text-[var(--color-accent)] underline" href={`/${data.seasonSlug}/matches?stage=play-in`}>查看公开 Play-in 赛程</Link>
+            {run.startedAt ? <details className="border border-[var(--color-border)] p-3">
+              <summary className="cursor-pointer text-sm">查看已冻结的预排名与队伍证据</summary>
+              <div className="mt-3"><MajorRankingWorkspace mode="preliminary" teams={rankingTeams} order={order} platform={data.strengthPreview.platform} boundaryAfter={cut} boundaryLabel="直通正赛 / Play-in" /></div>
+            </details> : <MajorRankingWorkspace mode="preliminary" teams={rankingTeams} order={order} onOrderChange={setOrder} platform={data.strengthPreview.platform} boundaryAfter={cut} boundaryLabel="直通正赛 / Play-in" />}
+            {!run.startedAt && <div className="flex justify-end"><Button disabled={pending || orderMatchesSaved} onClick={() => startTransition(() => void reportResult(
+              () => saveCompetitionQualificationOrder({ seasonId: data.seasonId, runId: run.id, orderedCompetitionEntryIds: order }),
+              "预排名排序已保存",
+            ))}>保存排序</Button></div>}
+            <Link className="text-sm text-[var(--color-accent)] underline" href={`/admin/${data.seasonSlug}/matches?stage=play-in`}>进入比赛管理</Link>
           </div>
         )}
-      </Panel>
+      </Panel>}
       <Dialog open={configPreviewOpen} onOpenChange={setConfigPreviewOpen}>
         <DialogContent size="xl">
           <DialogHeader>

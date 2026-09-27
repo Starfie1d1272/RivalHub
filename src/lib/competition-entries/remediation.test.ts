@@ -14,6 +14,11 @@ describe("CompetitionEntry deadline remediation", () => {
     expect(canMutateCompetitionEntryRoster("draft", "initial", openSeason, new Date("2026-09-11T00:00:00Z"))).toBe(false);
   });
 
+  it("closes self-service draft editing during the Major qualification freeze", () => {
+    expect(canMutateCompetitionEntryRoster("draft", "initial", openSeason, new Date("2026-09-05T00:00:00Z"), false)).toBe(false);
+    expect(canMutateCompetitionEntryRoster("changes_requested", "admin_remediation", openSeason, new Date("2026-09-15T00:00:00Z"), false)).toBe(true);
+  });
+
   it("allows admin remediation after the deadline but closes self roster changes at their own deadline", () => {
     const afterRosterDeadline = new Date("2026-09-21T00:00:00Z");
     expect(canMutateCompetitionEntryRoster("changes_requested", "admin_remediation", openSeason, afterRosterDeadline)).toBe(true);
