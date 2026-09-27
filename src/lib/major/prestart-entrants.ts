@@ -373,6 +373,16 @@ export async function lockMajorPrestartEntrantsInTx(
     return { seasonSlug: season.slug, entrantCount: entrantCapacity, alreadyLocked: true };
   }
 
+  const [qualificationRun] = await tx.select({ completedAt: competitionQualificationRuns.completedAt })
+    .from(competitionQualificationRuns)
+    .where(eq(competitionQualificationRuns.seasonId, season.id))
+    .limit(1);
+  if (qualificationRun && !qualificationRun.completedAt) {
+    throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "Play-in 尚未完成，不能冻结正式名单。");
+  }
+  if (qualificationRun && !season.rosterChangeClosesAt) {
+    throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "请先设置 Play-in 后的最终名单调整截止时间，再冻结正式名单。");
+  }
   if (season.rosterChangeClosesAt && season.rosterChangeClosesAt.getTime() > Date.now()) {
     throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "最终名单调整截止时间尚未到达，不能提前冻结正式名单。");
   }
