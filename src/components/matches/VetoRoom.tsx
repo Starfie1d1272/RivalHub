@@ -12,7 +12,7 @@ import {
   pauseVetoRoomAction,
   performVetoRoomCommand,
   readVetoRoom,
-  reconcileVetoRoomTimeoutAction,
+  reconcileVetoRoomAction,
   requestVetoRoomStart,
   resolveVetoRoomAppeal,
   resumeVetoRoomAction,
@@ -60,6 +60,8 @@ export function VetoRoom({ initialRoom }: { initialRoom: VetoRoomView }) {
   const [resolutionNote, setResolutionNote] = useState("");
   const [appealReasons, setAppealReasons] = useState<Record<string, string>>({});
   const reconciledDeadlineRef = useRef<string | null>(null);
+  const reconciledStartBoundaryRef = useRef<string | null>(null);
+  const previousMatchBlockerRef = useRef(initialRoom.session.previousMatchBlocker);
 
   const refresh = useCallback(async () => {
     const result = await readVetoRoom(room.match.id);
@@ -72,15 +74,15 @@ export function VetoRoom({ initialRoom }: { initialRoom: VetoRoomView }) {
     setClockAnchor({ serverNowMs: new Date(next.session.serverNow).getTime(), performanceNowMs: performance.now() });
   }, [room.match.id]);
 
-  const reconcileTimedOutTurn = useCallback(async () => {
-    const result = await reconcileVetoRoomTimeoutAction({ matchId: room.match.id });
+  const reconcileRoomBoundary = useCallback(async () => {
+    const result = await reconcileVetoRoomAction({ matchId: room.match.id });
     if (!result.success) {
       setError(result.error.message);
       return;
     }
     setRoom(result.data.room);
     setClockAnchor({ serverNowMs: new Date(result.data.room.session.serverNow).getTime(), performanceNowMs: performance.now() });
-    if (result.data.outcome === "applied") setNotice("服务器已处理超时回合。");
+    if (result.data.outcome === "applied") setNotice("房间状态已按服务器时间推进。");
   }, [room.match.id]);
 
   useEffect(() => {
@@ -117,13 +119,60 @@ export function VetoRoom({ initialRoom }: { initialRoom: VetoRoomView }) {
     const timer = window.setTimeout(() => {
       if (reconciledDeadlineRef.current === attemptKey) return;
       reconciledDeadlineRef.current = attemptKey;
-      void reconcileTimedOutTurn();
+      void reconcileRoomBoundary();
     }, delay);
     return () => window.clearTimeout(timer);
   }, [
     clockAnchor,
-    reconcileTimedOutTurn,
+    reconcileRoomBoundary,
     room.session,
+  ]);
+
+
+  useEffect(() => {
+    const { effectiveForceAt, startedAt, completedAt } = room.session;
+    if (room.match.statusKey !== "scheduled" || startedAt || completedAt || !effectiveForceAt) return;
+    if (!room.entries.some((entry) => entry.startRequested)) return;
+    const boundaryMs = new Date(effectiveForceAt).getTime();
+    const attemptKey = `start:${boundaryMs}`;
+    if (reconciledStartBoundaryRef.current === attemptKey) return;
+    const estimatedServerNow = clockAnchor.serverNowMs + (performance.now() - clockAnchor.performanceNowMs);
+    const delay = Math.max(0, boundaryMs - estimatedServerNow);
+    const timer = window.setTimeout(() => {
+      if (reconciledStartBoundaryRef.current === attemptKey) return;
+      reconciledStartBoundaryRef.current = attemptKey;
+      void reconcileRoomBoundary();
+    }, delay);
+    return () => window.clearTimeout(timer);
+  }, [
+    clockAnchor,
+    reconcileRoomBoundary,
+    room.entries,
+    room.match.statusKey,
+    room.session.completedAt,
+    room.session.effectiveForceAt,
+    room.session.startedAt,
+  ]);
+
+  useEffect(() => {
+    const previous = previousMatchBlockerRef.current;
+    const current = room.session.previousMatchBlocker;
+    previousMatchBlockerRef.current = current;
+    if (
+      previous &&
+      !current &&
+      room.match.statusKey === "scheduled" &&
+      !room.session.startedAt &&
+      room.entries.some((entry) => entry.startRequested)
+    ) {
+      void reconcileRoomBoundary();
+    }
+  }, [
+    reconcileRoomBoundary,
+    room.entries,
+    room.match.statusKey,
+    room.session.previousMatchBlocker,
+    room.session.startedAt,
   ]);
 
   const mutate = useCallback(async (action: MutationAction, input: unknown, successMessage = "已保存。") => {
@@ -160,13 +209,22 @@ export function VetoRoom({ initialRoom }: { initialRoom: VetoRoomView }) {
   const matchCountdown = match.scheduledAt && !turn.startedAt
     ? formatRemaining(new Date(match.scheduledAt).getTime() - 15 * 60_000 - serverNowMs)
     : null;
-  const turnKeys = Array.from(new Set(room.steps.map((step) => step.turnKey).filter((key): key is string => Boolean(key))));
+  const turnKeys = Array.from(new Set([
+    ...room.steps.map((step) => step.turnKey).filter((key): key is string => Boolean(key)),
+    ...(turn.currentTurnKey && turn.currentTurnKey !== "choose-veto-team-a" ? [turn.currentTurnKey] : []),
+  ]));
   const rewindOptions = [
     { key: "choose-veto-team-a", label: "重新选择 VETO A" },
-    ...turnKeys.map((key) => ({
-      key,
-      label: `从「${room.steps.find((step) => step.turnKey === key)?.actionLabel ?? "BP 操作"}」开始重做`,
-    })),
+    ...turnKeys.map((key) => {
+      const recorded = room.steps.find((step) => step.turnKey === key);
+      const label = recorded?.actionLabel ?? (key === turn.currentTurnKey ? turn.currentTurnLabel : null) ?? "BP 操作";
+      return {
+        key,
+        label: key === turn.currentTurnKey && !recorded
+          ? `从当前「${label}」开始重做`
+          : `从「${label}」开始重做`,
+      };
+    }),
   ];
 
   const sendCommand = (command: unknown, key = turn.currentTurnKey) => {
@@ -297,22 +355,27 @@ export function VetoRoom({ initialRoom }: { initialRoom: VetoRoomView }) {
               </div>
             )}
 
-            {!turn.completedAt && !turn.paused && room.permissions.canOperateCurrentTurn && turn.currentTurnAction === "role_select" && (
-              <div className="flex flex-wrap gap-2" aria-label="选择 VETO A 队伍">
-                {room.entries.map((entry) => <Button key={entry.id} disabled={pending || remainingMs <= 0} onClick={() => sendCommand({ kind: "role_select", entryId: entry.id })}>设 {entry.name} 为 VETO A</Button>)}
-              </div>
-            )}
-
-            {!turn.completedAt && !turn.paused && room.permissions.canOperateCurrentTurn && (turn.currentTurnAction === "ban" || turn.currentTurnAction === "pick") && (
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3" aria-label={turn.currentTurnLabel ?? "地图操作"}>
-                {availableMaps.map((map) => <Button key={map.name} variant="outline" disabled={pending || remainingMs <= 0} onClick={() => sendCommand({ kind: "step", actionType: turn.currentTurnAction, mapName: map.name })}>{map.label}</Button>)}
-              </div>
-            )}
-
-            {!turn.completedAt && !turn.paused && room.permissions.canOperateCurrentTurn && turn.currentTurnAction === "side_pick" && (
-              <div className="flex flex-wrap gap-2" aria-label="选择地图起始方">
-                <Button variant="outline" disabled={pending || remainingMs <= 0} onClick={() => sendCommand({ kind: "step", actionType: "side_pick", side: "ct" })}>CT 方先</Button>
-                <Button variant="outline" disabled={pending || remainingMs <= 0} onClick={() => sendCommand({ kind: "step", actionType: "side_pick", side: "t" })}>T 方先</Button>
+            {!turn.completedAt && !turn.paused && room.permissions.canOperateCurrentTurn && (
+              <div
+                data-testid="veto-primary-actions"
+                className="sticky bottom-2 z-10 max-h-[42vh] overflow-y-auto rounded border border-[var(--color-border)] bg-[var(--color-panel)] p-2 shadow-sm md:static md:max-h-none md:overflow-visible md:border-0 md:bg-transparent md:p-0 md:shadow-none"
+              >
+                {turn.currentTurnAction === "role_select" && (
+                  <div className="flex flex-wrap gap-2" aria-label="选择 VETO A 队伍">
+                    {room.entries.map((entry) => <Button key={entry.id} disabled={pending || remainingMs <= 0} onClick={() => sendCommand({ kind: "role_select", entryId: entry.id })}>设 {entry.name} 为 VETO A</Button>)}
+                  </div>
+                )}
+                {(turn.currentTurnAction === "ban" || turn.currentTurnAction === "pick") && (
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-3" aria-label={turn.currentTurnLabel ?? "地图操作"}>
+                    {availableMaps.map((map) => <Button key={map.name} variant="outline" disabled={pending || remainingMs <= 0} onClick={() => sendCommand({ kind: "step", actionType: turn.currentTurnAction, mapName: map.name })}>{map.label}</Button>)}
+                  </div>
+                )}
+                {turn.currentTurnAction === "side_pick" && (
+                  <div className="flex flex-wrap gap-2" aria-label="选择地图起始方">
+                    <Button variant="outline" disabled={pending || remainingMs <= 0} onClick={() => sendCommand({ kind: "step", actionType: "side_pick", side: "ct" })}>CT 方先</Button>
+                    <Button variant="outline" disabled={pending || remainingMs <= 0} onClick={() => sendCommand({ kind: "step", actionType: "side_pick", side: "t" })}>T 方先</Button>
+                  </div>
+                )}
               </div>
             )}
 

@@ -17,7 +17,7 @@ import {
   resolveVetoAppeal,
   resumeVetoRoom,
   rewindVetoRoom,
-  reconcileVetoRoomTimeout,
+  reconcileVetoRoom,
   setManualPrivilegedEntry,
   setVetoRepresentative,
   submitVetoAppeal,
@@ -67,13 +67,13 @@ export async function readVetoRoom(matchIdInput: unknown) {
   }
 }
 
-export async function reconcileVetoRoomTimeoutAction(input: unknown) {
+export async function reconcileVetoRoomAction(input: unknown) {
   try {
     const { matchId } = parse(base, input);
     await assertVetoRoomReadable(matchId);
-    return await finishMutation(matchId, await reconcileVetoRoomTimeout(matchId));
+    return await finishMutation(matchId, await reconcileVetoRoom(matchId));
   } catch (error) {
-    return actionError("reconcileVetoRoomTimeout", error);
+    return actionError("reconcileVetoRoom", error);
   }
 }
 

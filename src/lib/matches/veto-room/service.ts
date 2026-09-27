@@ -692,20 +692,12 @@ export async function readVetoRoomSnapshot(matchId: string): Promise<VetoRoomCor
   });
 }
 
-/** Reconcile one overdue room from the client's deadline+settlement one-shot. */
-export async function reconcileVetoRoomTimeout(matchId: string): Promise<VetoMutationOutcome> {
+/** Reconcile a deterministic lifecycle boundary without making ordinary polling take row locks. */
+export async function reconcileVetoRoom(matchId: string): Promise<VetoMutationOutcome> {
   return db.transaction(async (tx) => {
     const match = await lockMatchInTx(tx, matchId);
     const session = await getSessionForUpdateInTx(tx, match);
     const now = await databaseNow(tx);
-    const deadline = session.turnDeadlineAt;
-    if (
-      !session.startedAt ||
-      session.completedAt ||
-      session.pausedAt ||
-      !deadline ||
-      now.getTime() < deadline.getTime() + TIMEOUT_SETTLEMENT_MS
-    ) return "idempotent";
     const reconciled = await reconcileVetoSessionInTx(tx, match, session, now);
     return reconciled.revision === session.revision ? "idempotent" : "applied";
   });
@@ -872,10 +864,10 @@ export async function requestVetoStart(input: {
   expectedTurnKey: string | null;
 }): Promise<VetoMutationOutcome> {
   return db.transaction(async (tx) => {
+    const receivedAt = await databaseNow(tx);
     const match = await lockMatchInTx(tx, input.matchId);
     let session = await getSessionForUpdateInTx(tx, match);
-    const now = await databaseNow(tx);
-    session = await reconcileVetoSessionInTx(tx, match, session, now, input.actorId);
+    session = await reconcileVetoSessionInTx(tx, match, session, receivedAt, input.actorId);
     if (session.startedAt) return "idempotent";
     if (session.revision !== input.expectedRevision || session.currentTurnKey !== input.expectedTurnKey) {
       logStaleVetoCommand(session.currentTurnKey !== input.expectedTurnKey ? "turn" : "revision");
@@ -890,11 +882,11 @@ export async function requestVetoStart(input: {
     const entryRepresentativeId = await getEntryRepresentativeUserIdInTx(tx, input.entryId);
     const timing = await loadStartTimingInTx(tx, match);
     const isBpRepresentative = bpRepresentativeId === input.actorId;
-    const mayCaptainRequest = timing.effectiveForceAt !== null && now >= timing.effectiveForceAt && entryRepresentativeId === input.actorId;
+    const mayCaptainRequest = timing.effectiveForceAt !== null && receivedAt >= timing.effectiveForceAt && entryRepresentativeId === input.actorId;
     if (!isBpRepresentative && !mayCaptainRequest) {
       throw new AppError(ErrorCode.FORBIDDEN, "当前只有本场 BP 负责人可以确认开始；宽限时间后赛事负责人可代为请求。");
     }
-    if (match.scheduledAt && now < new Date(match.scheduledAt.getTime() - 15 * 60_000)) {
+    if (match.scheduledAt && receivedAt < new Date(match.scheduledAt.getTime() - 15 * 60_000)) {
       throw new AppError(ErrorCode.VALIDATION_FAILED, "BP 尚未开放，请在计划时间前十五分钟后确认。");
     }
     if (!match.scheduledAt && !isBpRepresentative) {
@@ -906,8 +898,8 @@ export async function requestVetoStart(input: {
     const existingAt = isEntryA ? session.entryAStartRequestedAt : session.entryBStartRequestedAt;
     if (existingRequester === input.actorId && existingAt) return "idempotent";
     const updated = await updateSessionInTx(tx, match.id, session, isEntryA
-      ? { entryAStartRequestedAt: now, entryAStartRequestedBy: input.actorId }
-      : { entryBStartRequestedAt: now, entryBStartRequestedBy: input.actorId });
+      ? { entryAStartRequestedAt: receivedAt, entryAStartRequestedBy: input.actorId }
+      : { entryBStartRequestedAt: receivedAt, entryBStartRequestedBy: input.actorId });
     await writeAuditInTx(tx, {
       seasonId: match.seasonId,
       action: "match.veto.start_request",
@@ -915,7 +907,7 @@ export async function requestVetoStart(input: {
       targetId: match.id,
       meta: { entryId: input.entryId, asRepresentative: !isBpRepresentative },
     });
-    const reconciled = await reconcileVetoSessionInTx(tx, match, updated, now, input.actorId);
+    const reconciled = await reconcileVetoSessionInTx(tx, match, updated, receivedAt, input.actorId);
     if (!reconciled.startedAt) {
       const postRequestTiming = await loadStartTimingInTx(tx, match);
       logEvent({
@@ -942,9 +934,9 @@ export async function submitVetoCommand(input: {
   command: { kind: "role_select"; entryId: string } | { kind: "step"; actionType: VetoActionType; mapName?: string; side?: Side };
 }): Promise<VetoMutationOutcome> {
   return db.transaction(async (tx) => {
+    const receivedAt = await databaseNow(tx);
     const match = await lockMatchInTx(tx, input.matchId);
     let session = await getSessionForUpdateInTx(tx, match);
-    const receivedAt = await databaseNow(tx);
 
     if (input.command.kind === "step") {
       const [existingRequest] = await tx.select({ id: matchVetoSteps.id })

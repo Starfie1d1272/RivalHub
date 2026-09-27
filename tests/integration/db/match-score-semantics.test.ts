@@ -306,6 +306,7 @@ describe("match score persistence semantics PostgreSQL integration", () => {
       const partialVetoMatchId = await createMatch(client, fixture, "bo3", { withLineups: true });
       const timeoutVetoMatchId = await createMatch(client, fixture, "bo5", { withLineups: true });
       const lockDelayedVetoMatchId = await createMatch(client, fixture, "bo3", { withLineups: true });
+      const lateVetoMatchId = await createMatch(client, fixture, "bo3", { withLineups: true });
 
       await startWithVetoPlan(fixture, bo1MatchId, "bo1");
       await startWithVetoPlan(fixture, bo3MatchId, "bo3");
@@ -343,12 +344,30 @@ describe("match score persistence semantics PostgreSQL integration", () => {
         await new Promise((resolve) => setTimeout(resolve, waitMs));
         await lockHolder.query("COMMIT");
         lockHeld = false;
-        expect(await delayedCommand).toBe("stale");
+        expect(await delayedCommand).toBe("applied");
+        const afterDelayedCommand = await readVetoRoomCore(lockDelayedVetoMatchId);
+        expect(afterDelayedCommand.session.vetoTeamAEntryId).toBe(fixture.entryAId);
+        expect(afterDelayedCommand.currentTurn).toMatchObject({ actionType: "ban", durationSeconds: 45 });
       } finally {
         if (lockHeld) await lockHolder.query("ROLLBACK").catch(() => undefined);
         if (delayedCommand) await delayedCommand.catch(() => undefined);
         lockHolder.release();
       }
+
+      const lateRoom = await startVetoRoom(fixture, lateVetoMatchId);
+      const lateTurn = lateRoom.currentTurn!;
+      await client.query(
+        "UPDATE match_veto_sessions SET turn_deadline_at = clock_timestamp() - interval '500 milliseconds' WHERE match_id = $1",
+        [lateVetoMatchId],
+      );
+      expect(await submitVetoCommand({
+        matchId: lateVetoMatchId,
+        actorId: fixture.representativeUserAId,
+        expectedRevision: lateRoom.session.revision,
+        expectedTurnKey: lateTurn.key,
+        clientRequestId: randomUUID(),
+        command: { kind: "role_select", entryId: fixture.entryAId },
+      })).toBe("stale");
 
       const timeoutRoom = await startVetoRoom(fixture, timeoutVetoMatchId);
       await client.query(

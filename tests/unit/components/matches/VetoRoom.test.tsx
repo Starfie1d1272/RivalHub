@@ -8,7 +8,7 @@ import type { VetoRoomView } from "@/lib/matches/veto-room/read-model";
 
 const actionMocks = vi.hoisted(() => ({
   readVetoRoom: vi.fn(),
-  reconcileVetoRoomTimeoutAction: vi.fn(),
+  reconcileVetoRoomAction: vi.fn(),
   performVetoRoomCommand: vi.fn(),
   claimVetoRepresentativeAction: vi.fn(),
   pauseVetoRoomAction: vi.fn(),
@@ -146,6 +146,7 @@ describe("VetoRoom", () => {
     })));
     expect(await screen.findByRole("status")).toHaveTextContent("操作已记录。");
     expect(screen.getByRole("heading", { name: /Alpha vs Beta/ })).toBeInTheDocument();
+    expect(screen.getByTestId("veto-primary-actions")).toHaveClass("sticky", "md:static");
   });
 
   it("announces the last ten seconds and reconciles once after the deadline settlement", async () => {
@@ -154,7 +155,7 @@ describe("VetoRoom", () => {
     Object.defineProperty(document, "visibilityState", { configurable: true, value: "hidden" });
     const room = roomFixture();
     room.session.turnDeadlineAt = new Date(Date.now() + 5_000).toISOString();
-    actionMocks.reconcileVetoRoomTimeoutAction.mockResolvedValue(ok({ outcome: "applied", room }));
+    actionMocks.reconcileVetoRoomAction.mockResolvedValue(ok({ outcome: "applied", room }));
 
     try {
       render(<VetoRoom initialRoom={room} />);
@@ -164,8 +165,44 @@ describe("VetoRoom", () => {
         await vi.advanceTimersByTimeAsync(7_000);
       });
 
-      expect(actionMocks.reconcileVetoRoomTimeoutAction).toHaveBeenCalledTimes(1);
-      expect(actionMocks.reconcileVetoRoomTimeoutAction).toHaveBeenCalledWith({ matchId: room.match.id });
+      expect(actionMocks.reconcileVetoRoomAction).toHaveBeenCalledTimes(1);
+      expect(actionMocks.reconcileVetoRoomAction).toHaveBeenCalledWith({ matchId: room.match.id });
+    } finally {
+      if (originalDescriptor) Object.defineProperty(document, "visibilityState", originalDescriptor);
+      else Reflect.deleteProperty(document, "visibilityState");
+      vi.useRealTimers();
+    }
+  });
+
+  it("reconciles a pre-start force boundary without turning ordinary polling into a mutation", async () => {
+    vi.useFakeTimers();
+    const originalDescriptor = Object.getOwnPropertyDescriptor(document, "visibilityState");
+    Object.defineProperty(document, "visibilityState", { configurable: true, value: "hidden" });
+    const room = roomFixture();
+    room.match.statusKey = "scheduled";
+    room.match.statusLabel = "待进行";
+    room.session.currentTurnKey = null;
+    room.session.currentTurnAction = null;
+    room.session.currentTurnLabel = null;
+    room.session.currentTurnEntryName = null;
+    room.session.currentTurnEntryId = null;
+    room.session.turnStartedAt = null;
+    room.session.turnDeadlineAt = null;
+    room.session.startedAt = null;
+    room.session.effectiveForceAt = new Date(Date.now() + 5_000).toISOString();
+    room.permissions.canOperateCurrentTurn = false;
+    room.entries[1]!.startRequested = false;
+    actionMocks.reconcileVetoRoomAction.mockResolvedValue(ok({ outcome: "applied", room }));
+    actionMocks.readVetoRoom.mockResolvedValue(ok(room));
+
+    try {
+      render(<VetoRoom initialRoom={room} />);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5_000);
+      });
+      expect(actionMocks.reconcileVetoRoomAction).toHaveBeenCalledTimes(1);
+      expect(actionMocks.reconcileVetoRoomAction).toHaveBeenCalledWith({ matchId: room.match.id });
+      expect(actionMocks.readVetoRoom).not.toHaveBeenCalled();
     } finally {
       if (originalDescriptor) Object.defineProperty(document, "visibilityState", originalDescriptor);
       else Reflect.deleteProperty(document, "visibilityState");
@@ -181,7 +218,9 @@ describe("VetoRoom", () => {
     const user = userEvent.setup();
     render(<VetoRoom initialRoom={room} />);
 
+    await user.selectOptions(screen.getByLabelText("重做位置"), room.session.currentTurnKey!);
     await user.type(screen.getByLabelText("恢复原因"), "修正错误的回合记录");
+    expect(screen.getByRole("option", { name: "从当前「BAN」开始重做" })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "恢复 BP 步骤" }));
     expect(screen.getByText(/这会移除该回合及之后的 BP 步骤和地图计划/)).toBeInTheDocument();
     expect(actionMocks.rewindVetoRoomAction).not.toHaveBeenCalled();
@@ -189,7 +228,7 @@ describe("VetoRoom", () => {
     await user.click(screen.getByRole("button", { name: "确认恢复" }));
     await waitFor(() => expect(actionMocks.rewindVetoRoomAction).toHaveBeenCalledWith({
       matchId: room.match.id,
-      targetTurnKey: "choose-veto-team-a",
+      targetTurnKey: room.session.currentTurnKey,
       reason: "修正错误的回合记录",
     }));
   });
