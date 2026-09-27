@@ -380,6 +380,99 @@ describe("participant readiness", () => {
     expect(input.recentSeasonPeaks?.[1]).toMatchObject({ rank: "B", estimatedFromSeasonKey: "S19" });
   });
 
+  it("looks beyond the scoring window for the nearest earlier ranked season", () => {
+    const context: CompetitiveProfileConfig = {
+      ...CONTEXT,
+      rankOrder: ["D", "C", "C+", "C++", "B", "B+", "B++", "A", "A+", "A++"],
+      evidencePolicy: {
+        historicalWeight: 50,
+        referenceSeasonKey: "S19",
+        referenceSeasonWeight: 20,
+        recentSeasonKeys: ["S20", "S21"],
+        recentSeasonWeight: 30,
+        sourceSelection: "strongest_equivalent",
+      },
+    };
+    const input = toPlayerStrengthInput(fullFact({
+      historicalPeak: { rank: "A+", rating: 1900 },
+      platformSeasonOrder: ["S18", "S19", "S20", "S21"],
+      seasonPeaks: new Map([
+        ["S18", { rank: "A", rating: 1700 }],
+        ["S19", { status: "unranked", rank: null, rating: null }],
+        ["S20", { rank: "B+", rating: 1600 }],
+        ["S21", { rank: "B", rating: 1500 }],
+      ]),
+    }), context);
+
+    expect(input.previousSeasonPeak).toMatchObject({
+      rank: "B++",
+      estimatedFromUnranked: true,
+      estimatedFromSeasonKey: "S18",
+    });
+  });
+
+  it("uses the nearest later ranked season when older season facts were never collected", () => {
+    const context: CompetitiveProfileConfig = {
+      ...CONTEXT,
+      rankOrder: ["D", "C", "C+", "C++", "B", "B+", "B++", "A", "A+", "A++"],
+      evidencePolicy: {
+        historicalWeight: 50,
+        referenceSeasonKey: "S19",
+        referenceSeasonWeight: 20,
+        recentSeasonKeys: ["S20", "S21"],
+        recentSeasonWeight: 30,
+        sourceSelection: "strongest_equivalent",
+      },
+    };
+    const input = toPlayerStrengthInput(fullFact({
+      historicalPeak: { rank: "A+", rating: 1900 },
+      platformSeasonOrder: ["S19", "S20", "S21"],
+      seasonPeaks: new Map([
+        ["S19", { status: "unranked", rank: null, rating: null }],
+        ["S20", { rank: "A", rating: 1700 }],
+        ["S21", { rank: "B+", rating: 1600 }],
+      ]),
+    }), context);
+
+    expect(input.previousSeasonPeak).toMatchObject({
+      rank: "B++",
+      estimatedFromUnranked: true,
+      estimatedFromSeasonKey: "S20",
+    });
+  });
+
+  it("falls back to historical peak one rung lower when no ranked season fact exists", () => {
+    const context: CompetitiveProfileConfig = {
+      ...CONTEXT,
+      rankOrder: ["D", "C", "C+", "C++", "B", "B+", "B++", "A", "A+", "A++"],
+      evidencePolicy: {
+        historicalWeight: 50,
+        referenceSeasonKey: "S19",
+        referenceSeasonWeight: 20,
+        recentSeasonKeys: ["S20", "S21"],
+        recentSeasonWeight: 30,
+        sourceSelection: "strongest_equivalent",
+      },
+    };
+    const unranked = { status: "unranked" as const, rank: null, rating: null };
+    const input = toPlayerStrengthInput(fullFact({
+      historicalPeak: { rank: "A", rating: 1800 },
+      platformSeasonOrder: ["S19", "S20", "S21"],
+      seasonPeaks: new Map([
+        ["S19", unranked],
+        ["S20", unranked],
+        ["S21", unranked],
+      ]),
+    }), context);
+
+    expect(input.previousSeasonPeak).toMatchObject({
+      rank: "B++",
+      estimatedFromUnranked: true,
+      estimatedFromHistorical: true,
+    });
+    expect(input.previousSeasonPeak).not.toHaveProperty("estimatedFromSeasonKey");
+  });
+
   it("allows a native Perfect fact when 5E is absent, but fails closed for declared 5E S facts without stars", () => {
     const nativeOnly = computeParticipantReadiness(fullFact({ historicalPeak: { rank: "A", rating: 1000 } }), STRONGEST_CONTEXT);
     expect(nativeOnly.ready).toBe(true);
