@@ -414,6 +414,13 @@
       "when": 1790450953563,
       "tag": "0058_bright_mikhail_rasputin",
       "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "7",
+      "when": 1790495169710,
+      "tag": "0059_veto_scheduler_dispatch",
+      "breakpoints": true
     }
   ]
 }

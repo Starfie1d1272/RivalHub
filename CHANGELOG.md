@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.13.1]
+
+### Fixed
+
+#### BP 超时调度
+
+修复 Production 数据库拒绝派发 Veto Room 超时任务的问题，并补齐 BP 操作人账号归并与 Preview schema 策略。
+
 ## [2.13.0]
 
 ### Added
@@ -2421,6 +2429,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[2.13.1]: https://github.com/Starfie1d1272/RivalHub/compare/v2.13.0...v2.13.1
 [2.13.0]: https://github.com/Starfie1d1272/RivalHub/compare/v2.12.3...v2.13.0
 [2.12.3]: https://github.com/Starfie1d1272/RivalHub/compare/v2.12.2...v2.12.3
 [2.12.2]: https://github.com/Starfie1d1272/RivalHub/compare/v2.12.1...v2.12.2

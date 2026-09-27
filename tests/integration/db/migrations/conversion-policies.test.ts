@@ -22,6 +22,9 @@ const ACCESS_MATRIX_AT_TARGET = DATABASE_ACCESS_MATRIX.filter(
     "competition_qualification_runs",
     "steam_profiles",
     "user_gameplay_steam_ids",
+    "match_veto_appeals",
+    "match_veto_sessions",
+    "match_veto_timeout_incidents",
   ].includes(entry.table),
 );
 const IGNORED_TABLES_AT_TARGET = ["competition_bracket_states", "swiss_standings"] as const;
