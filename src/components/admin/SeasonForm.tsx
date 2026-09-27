@@ -680,6 +680,10 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
             <p className="mt-1 text-xs text-[var(--color-fg-dim)]">用于赛事信息展示与赛后收尾；修改此时间不会自动结束赛事。</p>
           </div>}
         </div>
+        {template === "major" && initial?.slug && <p className="mt-4 border-t border-[var(--color-border)] pt-4 text-sm text-[var(--color-fg-mid)]">
+          Major 的报名截止、最终名单调整截止和 Main Event 计划开始时间统一在赛前准备中管理。{" "}
+          <Link href={`/admin/${initial.slug}/prestart`} className="text-[var(--color-accent)] hover:underline">前往赛前准备</Link>
+        </p>}
         <div className="mt-5 flex flex-wrap items-center justify-end gap-3 border-t border-[var(--color-border)] pt-4">
           {initial?.status === "draft" && <Button type="button" variant="outline" disabled={isPending} onClick={() => setPublishConfirmationOpen(true)}>发布赛季</Button>}
           {initial?.status === "registration" && !initial.registrationOpenedAt && <Button type="button" disabled={isPending} onClick={requestOpenRegistration}>立即开放报名</Button>}
