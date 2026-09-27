@@ -232,8 +232,8 @@ export function toPlayerStrengthInput(
       sourcePlatform: context.platform,
       sourceSeasonKey: targetSeasonKey,
       estimatedFromUnranked: true,
-      estimatedFromSeasonKey: basis.seasonKey ?? null,
-      estimatedFromHistorical: basis.historical ?? false,
+      ...(basis.seasonKey ? { estimatedFromSeasonKey: basis.seasonKey } : {}),
+      ...(basis.historical ? { estimatedFromHistorical: true } : {}),
     };
   };
   const estimateUnrankedSeason = (seasonKey: string): PlayerStrengthFact | null => {
