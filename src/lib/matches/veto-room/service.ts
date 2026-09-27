@@ -1207,6 +1207,13 @@ async function rewindVetoInTx(input: {
     targetId: match.id,
     meta: { reason, targetTurnKey, snapshot },
   });
+  logEvent({
+    level: "info",
+    event: "match.veto.rewind_applied",
+    scope: "match",
+    operation: "veto.rewind",
+    safeContext: { targetTurnKey, workflow: "veto_room" },
+  });
   return rewound;
 }
 
