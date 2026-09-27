@@ -306,12 +306,70 @@ describe("match score persistence semantics PostgreSQL integration", () => {
       const partialVetoMatchId = await createMatch(client, fixture, "bo3", { withLineups: true });
       const timeoutVetoMatchId = await createMatch(client, fixture, "bo5", { withLineups: true });
       const lockDelayedVetoMatchId = await createMatch(client, fixture, "bo3", { withLineups: true });
+      const lockDelayedStartMatchId = await createMatch(client, fixture, "bo3", { withLineups: true });
       const lateVetoMatchId = await createMatch(client, fixture, "bo3", { withLineups: true });
 
       await startWithVetoPlan(fixture, bo1MatchId, "bo1");
       await startWithVetoPlan(fixture, bo3MatchId, "bo3");
       await startWithVetoPlan(fixture, bo5MatchId, "bo5");
       await startWithVetoPlan(fixture, scoredForfeitMatchId, "bo3");
+
+      await setManualPrivilegedEntry({
+        matchId: lockDelayedStartMatchId,
+        entryId: fixture.entryAId,
+        actorId: fixture.adminId,
+      });
+      let delayedStartRoom = await readVetoRoomCore(lockDelayedStartMatchId);
+      expect(await requestVetoStart({
+        matchId: lockDelayedStartMatchId,
+        entryId: fixture.entryAId,
+        actorId: fixture.representativeUserAId,
+        expectedRevision: delayedStartRoom.session.revision,
+        expectedTurnKey: delayedStartRoom.session.currentTurnKey,
+      })).toBe("applied");
+      delayedStartRoom = await readVetoRoomCore(lockDelayedStartMatchId);
+
+      const startLockHolder = await pool.connect();
+      let startLockHeld = false;
+      let delayedStartRequest: Promise<"applied" | "idempotent" | "stale"> | null = null;
+      try {
+        await startLockHolder.query("BEGIN");
+        await startLockHolder.query("SELECT id FROM matches WHERE id = $1 FOR UPDATE", [lockDelayedStartMatchId]);
+        startLockHeld = true;
+        delayedStartRequest = requestVetoStart({
+          matchId: lockDelayedStartMatchId,
+          entryId: fixture.entryBId,
+          actorId: fixture.representativeUserBId,
+          expectedRevision: delayedStartRoom.session.revision,
+          expectedTurnKey: delayedStartRoom.session.currentTurnKey,
+        });
+        await waitForMatchRowLock(pool);
+        await new Promise((resolve) => setTimeout(resolve, 250));
+        await startLockHolder.query("COMMIT");
+        startLockHeld = false;
+        expect(await delayedStartRequest).toBe("applied");
+      } finally {
+        if (startLockHeld) await startLockHolder.query("ROLLBACK").catch(() => undefined);
+        if (delayedStartRequest) await delayedStartRequest.catch(() => undefined);
+        startLockHolder.release();
+      }
+
+      const delayedStartFacts = await client.query<{
+        requested_at: Date;
+        started_at: Date;
+        turn_started_at: Date;
+        turn_deadline_at: Date;
+      }>(
+        `SELECT entry_b_start_requested_at AS requested_at, started_at, turn_started_at, turn_deadline_at
+         FROM match_veto_sessions WHERE match_id = $1`,
+        [lockDelayedStartMatchId],
+      );
+      expect(delayedStartFacts.rows[0]!.started_at.getTime())
+        .toBeGreaterThan(delayedStartFacts.rows[0]!.requested_at.getTime());
+      expect(delayedStartFacts.rows[0]!.turn_started_at.getTime())
+        .toBe(delayedStartFacts.rows[0]!.started_at.getTime());
+      expect(delayedStartFacts.rows[0]!.turn_deadline_at.getTime() - delayedStartFacts.rows[0]!.started_at.getTime())
+        .toBe(45_000);
 
       const lockDelayedRoom = await startVetoRoom(fixture, lockDelayedVetoMatchId);
       const lockDelayedTurn = lockDelayedRoom.currentTurn!;
