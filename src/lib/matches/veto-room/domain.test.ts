@@ -4,7 +4,7 @@ import {
   deriveHigherSeedEntry,
   getVetoTurnDefinitions,
   projectVetoMapPlan,
-} from "./domain";
+} from "../veto-sequence";
 
 describe("veto room domain", () => {
   it("derives qualification privileged entry from frozen preliminary seeds, independent of entry order", () => {
@@ -71,5 +71,22 @@ describe("veto room domain", () => {
     });
     expect(plan[0]?.teamAStartSide).toBe("ct");
     expect(plan[4]).toMatchObject({ mapName: "m5", teamAStartSide: null });
+  });
+
+  it.each([
+    ["bo1", 60],
+    ["bo3", 45],
+    ["bo5", 45],
+  ] as const)("uses the canonical opening BAN duration for %s", (format, expectedDuration) => {
+    const turn = deriveCurrentVetoTurn({
+      format,
+      entryAId: "entry-a",
+      entryBId: "entry-b",
+      privilegedEntryId: "entry-a",
+      vetoTeamAEntryId: "entry-b",
+      mapPool: ["m1", "m2", "m3", "m4", "m5", "m6", "m7"],
+      steps: [],
+    });
+    expect(turn).toMatchObject({ actionType: "ban", key: "ban-veto-a-opening", durationSeconds: expectedDuration });
   });
 });

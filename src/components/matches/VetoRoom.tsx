@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Panel } from "@/components/rivalhub";
+import { InlineConfirm } from "@/components/rivalhub/InlineConfirm";
 import type { VetoRoomView } from "@/lib/matches/veto-room/read-model";
 import type { ActionResult } from "@/types/action";
 import {
@@ -11,6 +12,7 @@ import {
   pauseVetoRoomAction,
   performVetoRoomCommand,
   readVetoRoom,
+  reconcileVetoRoomTimeoutAction,
   requestVetoRoomStart,
   resolveVetoRoomAppeal,
   resumeVetoRoomAction,
@@ -54,8 +56,10 @@ export function VetoRoom({ initialRoom }: { initialRoom: VetoRoomView }) {
   const [pauseReason, setPauseReason] = useState("");
   const [rewindReason, setRewindReason] = useState("");
   const [rewindTurn, setRewindTurn] = useState("choose-veto-team-a");
+  const [confirmRewind, setConfirmRewind] = useState(false);
   const [resolutionNote, setResolutionNote] = useState("");
   const [appealReasons, setAppealReasons] = useState<Record<string, string>>({});
+  const reconciledDeadlineRef = useRef<string | null>(null);
 
   const refresh = useCallback(async () => {
     const result = await readVetoRoom(room.match.id);
@@ -66,6 +70,17 @@ export function VetoRoom({ initialRoom }: { initialRoom: VetoRoomView }) {
     const next = result.data;
     setRoom(next);
     setClockAnchor({ serverNowMs: new Date(next.session.serverNow).getTime(), performanceNowMs: performance.now() });
+  }, [room.match.id]);
+
+  const reconcileTimedOutTurn = useCallback(async () => {
+    const result = await reconcileVetoRoomTimeoutAction({ matchId: room.match.id });
+    if (!result.success) {
+      setError(result.error.message);
+      return;
+    }
+    setRoom(result.data.room);
+    setClockAnchor({ serverNowMs: new Date(result.data.room.session.serverNow).getTime(), performanceNowMs: performance.now() });
+    if (result.data.outcome === "applied") setNotice("服务器已处理超时回合。");
   }, [room.match.id]);
 
   useEffect(() => {
@@ -90,6 +105,26 @@ export function VetoRoom({ initialRoom }: { initialRoom: VetoRoomView }) {
     }, 250);
     return () => window.clearInterval(timer);
   }, [clockAnchor, room.session.turnDeadlineAt]);
+
+  useEffect(() => {
+    const { currentTurnKey, turnDeadlineAt, startedAt, completedAt, paused } = room.session;
+    if (!currentTurnKey || !turnDeadlineAt || !startedAt || completedAt || paused) return;
+    const deadlineMs = new Date(turnDeadlineAt).getTime();
+    const attemptKey = `${currentTurnKey}:${deadlineMs}`;
+    if (reconciledDeadlineRef.current === attemptKey) return;
+    const estimatedServerNow = clockAnchor.serverNowMs + (performance.now() - clockAnchor.performanceNowMs);
+    const delay = Math.max(0, deadlineMs + 2_000 - estimatedServerNow);
+    const timer = window.setTimeout(() => {
+      if (reconciledDeadlineRef.current === attemptKey) return;
+      reconciledDeadlineRef.current = attemptKey;
+      void reconcileTimedOutTurn();
+    }, delay);
+    return () => window.clearTimeout(timer);
+  }, [
+    clockAnchor,
+    reconcileTimedOutTurn,
+    room.session,
+  ]);
 
   const mutate = useCallback(async (action: MutationAction, input: unknown, successMessage = "已保存。") => {
     setPending(true);
@@ -208,7 +243,7 @@ export function VetoRoom({ initialRoom }: { initialRoom: VetoRoomView }) {
 
             {turn.manualPrivilegedSelectionRequired && room.permissions.canSetManualPrivilegedEntry && (
               <div className="flex flex-wrap items-center gap-2 rounded border border-[var(--color-warn-edge)] p-3">
-                <label htmlFor="manual-veto-privilege" className="text-sm">Manual 比赛指定 BP 先手</label>
+                <label htmlFor="manual-veto-privilege" className="text-sm">手动创建的比赛指定 BP 先手</label>
                 <select id="manual-veto-privilege" className="min-h-10 rounded border border-[var(--color-border)] bg-[var(--color-panel)] px-2 text-sm" value={manualPrivilege} onChange={(event) => setManualPrivilege(event.target.value)}>
                   <option value="">选择队伍</option>
                   {room.entries.map((entry) => <option key={entry.id} value={entry.id}>{entry.name}</option>)}
@@ -245,7 +280,20 @@ export function VetoRoom({ initialRoom }: { initialRoom: VetoRoomView }) {
                     {turn.currentTurnCount > 1 ? ` · 已完成 ${turn.currentTurnCompleted}/${turn.currentTurnCount}` : ""}
                   </p>
                 </div>
-                {countdown && <div className="text-right"><p className="font-mono text-3xl tabular-nums" aria-live="off">{countdown}</p><p className="text-xs text-[var(--color-fg-dim)]">服务器回合倒计时</p></div>}
+                {countdown && <div className="text-right">
+                  <p className="font-mono text-3xl tabular-nums" aria-live="off">{countdown}</p>
+                  <p className="text-xs text-[var(--color-fg-dim)]">服务器回合倒计时</p>
+                  {remainingMs <= 10_000 && remainingMs > 0 && (
+                    <p role="status" aria-live="polite" className="mt-1 rounded border border-[var(--color-danger-edge)] px-2 py-1 text-xs font-medium text-[var(--color-danger)]">
+                      最后 10 秒，请尽快完成当前操作。
+                    </p>
+                  )}
+                  {remainingMs <= 0 && (
+                    <p role="status" aria-live="polite" className="mt-1 rounded border border-[var(--color-warn-edge)] px-2 py-1 text-xs">
+                      当前回合已超时，等待服务器处理。
+                    </p>
+                  )}
+                </div>}
               </div>
             )}
 
@@ -353,7 +401,22 @@ export function VetoRoom({ initialRoom }: { initialRoom: VetoRoomView }) {
                 </select>
                 <label htmlFor="veto-rewind-reason" className="text-xs text-[var(--color-fg-mid)]">恢复原因</label>
                 <textarea id="veto-rewind-reason" className="min-h-20 w-full rounded border border-[var(--color-border)] bg-[var(--color-panel)] p-2 text-sm" value={rewindReason} onChange={(event) => setRewindReason(event.target.value)} />
-                <Button variant="outline" disabled={pending || rewindReason.trim().length < 3} onClick={() => void mutate(rewindVetoRoomAction, { matchId: match.id, targetTurnKey: rewindTurn, reason: rewindReason }, "房间已恢复并暂停，请检查后继续。")}>恢复 BP 步骤</Button>
+                {!confirmRewind ? (
+                  <Button variant="outline" disabled={pending || rewindReason.trim().length < 3} onClick={() => setConfirmRewind(true)}>恢复 BP 步骤</Button>
+                ) : (
+                  <InlineConfirm
+                    danger
+                    title={`确认恢复到「${rewindOptions.find((option) => option.key === rewindTurn)?.label ?? "指定回合"}」？`}
+                    sub="这会移除该回合及之后的 BP 步骤和地图计划，并暂停房间；已有比分或 gameplay 结果时服务器会拒绝操作。"
+                    confirmLabel="确认恢复"
+                    onCancel={() => setConfirmRewind(false)}
+                    onConfirm={() => {
+                      if (pending) return;
+                      setConfirmRewind(false);
+                      void mutate(rewindVetoRoomAction, { matchId: match.id, targetTurnKey: rewindTurn, reason: rewindReason }, "房间已恢复并暂停，请检查后继续。");
+                    }}
+                  />
+                )}
               </div>
             )}
           </div>

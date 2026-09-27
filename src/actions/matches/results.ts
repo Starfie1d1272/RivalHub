@@ -5,7 +5,7 @@ import { writeAuditInTx } from "@/lib/audit/write";
 import { revalidatePath } from "next/cache";
 import { eq, and, inArray, isNull } from "drizzle-orm";
 import { db } from "@/db/client";
-import { seasons, matches, matchMaps, matchVetoSteps, matchTimeProposals } from "@/db/schema";
+import { seasons, matches, matchMaps, matchVetoSessions, matchTimeProposals } from "@/db/schema";
 import { ok } from "@/types/action";
 import type { ActionResult } from "@/types/action";
 import { AppError, ErrorCode } from "@/lib/errors";
@@ -151,8 +151,11 @@ export async function recordMapResult(
     }, () => db.transaction(async (tx) => {
       const locked = await lockMatchInTx(tx, matchId);
       if (locked.status !== "in_progress") throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "比赛状态不允许录入地图结果");
-      const hasVeto = await tx.query.matchVetoSteps.findFirst({ where: eq(matchVetoSteps.matchId, matchId), columns: { id: true } });
-      if (!hasVeto) throw new AppError(ErrorCode.VALIDATION_FAILED, "请先录入 BP 再录入地图结果");
+      const vetoSession = await tx.query.matchVetoSessions.findFirst({
+        where: eq(matchVetoSessions.matchId, matchId),
+        columns: { completedAt: true },
+      });
+      if (!vetoSession?.completedAt) throw new AppError(ErrorCode.VALIDATION_FAILED, "请先完成 BP 地图计划，再录入地图结果");
       const [lockedSeason] = await tx.select().from(seasons).where(eq(seasons.id, locked.seasonId)).for("update");
       if (!lockedSeason) throw new AppError(ErrorCode.SEASON_NOT_FOUND, "赛季不存在");
       const bracketState = locked.bracketNodeId

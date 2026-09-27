@@ -70,6 +70,7 @@ function data(status: Match["status"]) {
     completedMaps: status === "finished" ? [{ mapOrder: 1, mapName: "de_inferno", scoreA: 13, scoreB: 9, pickedByEntryId: null, teamAStartSide: "t" as const }] : [],
     pendingMaps: [],
     finishedMaps: status === "finished" ? [{ id: "map-1", mapName: "de_inferno", scoreA: 13, scoreB: 9 }] : [],
+    vetoCompletedAt: status === "finished" ? new Date("2026-09-05T03:00:00Z") : null,
     postMatch: { commentators: [], seasonAdmins: [], submittedAt: null, submittedByUserId: null, videoUrl: null, completionLabel: "待整理", canSubmit: status === "finished" },
   };
 }
@@ -85,6 +86,17 @@ describe("AdminMatchWorkbench", () => {
     expect(screen.getByRole("link", { name: "打开 Veto Room" })).toBeInTheDocument();
     expect(screen.getByTestId("forfeit-button")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "危险操作与恢复" })).toBeInTheDocument();
+  });
+
+  it("hides map scoring until the Veto map plan is complete", () => {
+    const workbench = data("in_progress");
+    const view = render(<AdminMatchWorkbench {...workbench} />);
+
+    expect(screen.getByRole("status")).toHaveTextContent("完成 BP 地图计划后才能录入地图比分");
+    expect(screen.queryByTestId("map-input")).not.toBeInTheDocument();
+
+    view.rerender(<AdminMatchWorkbench {...workbench} vetoCompletedAt={new Date("2026-09-05T03:00:00Z")} />);
+    expect(screen.getByTestId("map-input")).toBeInTheDocument();
   });
 
   it("keeps finished roster visibility, post-match/OCR and recovery actions together", () => {

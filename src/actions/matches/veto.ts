@@ -13,13 +13,7 @@ import { revalidateMatchPaths } from "@/lib/revalidation";
 import { normalizeRegistrationConfig } from "@/lib/seasons/compatibility";
 import type { VetoActionType } from "@/types/match";
 import { lockMatchInTx } from "@/lib/match-rosters/service";
-import { assertVetoSequence } from "@/lib/matches/veto-sequence";
-
-function resolveEntryASide(selectedSide: string, selectingEntryId: string | null, entryAId: string): "t" | "ct" | null {
-  if (!selectedSide || !selectingEntryId) return null;
-  if (selectingEntryId === entryAId) return selectedSide as "t" | "ct";
-  return selectedSide === "t" ? "ct" : "t";
-}
+import { legacyVetoStepsToFacts, projectVetoMapPlan } from "@/lib/matches/veto-sequence";
 
 export interface VetoStepInput {
   actionType: VetoActionType;
@@ -68,10 +62,6 @@ export async function saveVetoSteps(
       throw new AppError(ErrorCode.VALIDATION_FAILED, "地图不属于当前赛季图池");
     }
 
-    const playMaps = steps.filter(
-      (s) => s.actionType === "pick" || s.actionType === "decider",
-    );
-
     await db.transaction(async (tx) => {
       const locked = await lockMatchInTx(tx, matchId);
       if (locked.status !== "finished") throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "只有已结束比赛可以补录历史 BP 步骤。");
@@ -80,7 +70,11 @@ export async function saveVetoSteps(
         .where(eq(matchVetoSessions.matchId, matchId))
         .for("update");
       if (onlineSession?.startedAt) throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "本场已在 Veto Room 留下操作记录，不能再用赛后补录修改。");
-      assertVetoSequence(locked.format, steps, locked.entryAId, locked.entryBId);
+      const mapPlan = projectVetoMapPlan({
+        steps: legacyVetoStepsToFacts(locked.format, steps, locked.entryAId, locked.entryBId),
+        entryAId: locked.entryAId,
+        format: locked.format,
+      });
       // 清除旧 BP 记录（支持重复录入）
       await tx.delete(matchVetoSteps).where(eq(matchVetoSteps.matchId, matchId));
 
@@ -101,20 +95,11 @@ export async function saveVetoSteps(
       const existingMaps = await tx.query.matchMaps.findMany({
         where: eq(matchMaps.matchId, matchId),
       });
-      if (existingMaps.length === 0 && playMaps.length > 0) {
+      if (existingMaps.length === 0 && mapPlan.length > 0) {
         await tx.insert(matchMaps).values(
-          playMaps.map((s, i) => ({
+          mapPlan.map((map) => ({
             matchId,
-            mapOrder: i + 1,
-            mapName: s.mapName,
-            pickedByEntryId: s.actionType === "pick" ? s.entryId : null,
-            teamAStartSide: resolveEntryASide(
-              s.side ?? "",
-              s.actionType === "pick"
-                ? (s.entryId === locked.entryAId ? locked.entryBId : locked.entryAId)
-                : s.entryId,
-              locked.entryAId,
-            ),
+            ...map,
           })),
         );
       }

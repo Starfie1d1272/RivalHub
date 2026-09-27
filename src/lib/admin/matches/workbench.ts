@@ -11,6 +11,7 @@ import {
   matchMaps,
   matchRosterPlayers,
   matchRosters,
+  matchVetoSessions,
   matches,
   postMatchReports,
   seasonAdminGrants,
@@ -111,7 +112,7 @@ export async function loadAdminMatchWorkbench({
   });
   if (entries.length !== 2) return null;
 
-  const [memberRows, rosterRows, mapRecords, commentatorRows, submission, seasonAdminRows, effectiveRosterRows] = await Promise.all([
+  const [memberRows, rosterRows, mapRecords, commentatorRows, submission, seasonAdminRows, effectiveRosterRows, vetoSession] = await Promise.all([
     db
       .select({
         id: eventRosterMembers.id,
@@ -183,6 +184,10 @@ export async function loadAdminMatchWorkbench({
           .where(eq(seasonAdminGrants.seasonId, season.id))
       : Promise.resolve([]),
     loadEffectiveMatchRoster(db, [match.id]),
+    db.query.matchVetoSessions.findFirst({
+      where: eq(matchVetoSessions.matchId, match.id),
+      columns: { completedAt: true },
+    }),
   ]);
 
   const demoImportRows = mapRecords.length > 0
@@ -282,6 +287,7 @@ export async function loadAdminMatchWorkbench({
     completedMaps: mapCompletedMaps(mapRecords),
     pendingMaps: mapPendingMaps(mapRecords),
     finishedMaps: mapFinishedMaps(mapRecords),
+    vetoCompletedAt: vetoSession?.completedAt ?? null,
     postMatch,
     demoReviews,
   };

@@ -14,7 +14,8 @@ export const matchVetoStepSourceEnum = pgEnum("match_veto_step_source", ["partic
  * BO3：ban×2 + pick×2 + ban×2 → decider（7 步）
  * BO5：ban×2 + pick×4 → decider（7 步；刀赛）
  *
- * 由管理员在 VetoInputDialog 中录入，VetoView 以 HLTV 纵向列表展示。
+ * Normal online steps are written by Veto Room. Null turnKey/source rows may
+ * be added by an administrator only through the post-match historical backfill.
  */
 export const matchVetoSteps = pgTable(
   "match_veto_steps",

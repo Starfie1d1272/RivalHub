@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 import React from "react";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ok } from "@/types/action";
@@ -8,6 +8,7 @@ import type { VetoRoomView } from "@/lib/matches/veto-room/read-model";
 
 const actionMocks = vi.hoisted(() => ({
   readVetoRoom: vi.fn(),
+  reconcileVetoRoomTimeoutAction: vi.fn(),
   performVetoRoomCommand: vi.fn(),
   claimVetoRepresentativeAction: vi.fn(),
   pauseVetoRoomAction: vi.fn(),
@@ -145,5 +146,51 @@ describe("VetoRoom", () => {
     })));
     expect(await screen.findByRole("status")).toHaveTextContent("操作已记录。");
     expect(screen.getByRole("heading", { name: /Alpha vs Beta/ })).toBeInTheDocument();
+  });
+
+  it("announces the last ten seconds and reconciles once after the deadline settlement", async () => {
+    vi.useFakeTimers();
+    const originalDescriptor = Object.getOwnPropertyDescriptor(document, "visibilityState");
+    Object.defineProperty(document, "visibilityState", { configurable: true, value: "hidden" });
+    const room = roomFixture();
+    room.session.turnDeadlineAt = new Date(Date.now() + 5_000).toISOString();
+    actionMocks.reconcileVetoRoomTimeoutAction.mockResolvedValue(ok({ outcome: "applied", room }));
+
+    try {
+      render(<VetoRoom initialRoom={room} />);
+      expect(screen.getByText("最后 10 秒，请尽快完成当前操作。")).toHaveAttribute("role", "status");
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(7_000);
+      });
+
+      expect(actionMocks.reconcileVetoRoomTimeoutAction).toHaveBeenCalledTimes(1);
+      expect(actionMocks.reconcileVetoRoomTimeoutAction).toHaveBeenCalledWith({ matchId: room.match.id });
+    } finally {
+      if (originalDescriptor) Object.defineProperty(document, "visibilityState", originalDescriptor);
+      else Reflect.deleteProperty(document, "visibilityState");
+      vi.useRealTimers();
+    }
+  });
+
+  it("requires impact confirmation before an administrator rewinds Veto facts", async () => {
+    const room = roomFixture();
+    room.permissions.isAdmin = true;
+    room.permissions.canRewind = true;
+    actionMocks.rewindVetoRoomAction.mockResolvedValue(ok({ outcome: "applied", room }));
+    const user = userEvent.setup();
+    render(<VetoRoom initialRoom={room} />);
+
+    await user.type(screen.getByLabelText("恢复原因"), "修正错误的回合记录");
+    await user.click(screen.getByRole("button", { name: "恢复 BP 步骤" }));
+    expect(screen.getByText(/这会移除该回合及之后的 BP 步骤和地图计划/)).toBeInTheDocument();
+    expect(actionMocks.rewindVetoRoomAction).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: "确认恢复" }));
+    await waitFor(() => expect(actionMocks.rewindVetoRoomAction).toHaveBeenCalledWith({
+      matchId: room.match.id,
+      targetTurnKey: "choose-veto-team-a",
+      reason: "修正错误的回合记录",
+    }));
   });
 });

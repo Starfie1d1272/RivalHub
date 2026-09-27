@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, eq, or } from "drizzle-orm";
+import { and, eq, or, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
   competitionEntries,
@@ -16,7 +16,7 @@ import { getCurrentUserAuthorization, getUserSession } from "@/lib/auth/session"
 import { normalizeRegistrationConfig, normalizeStagePlan } from "@/lib/seasons/compatibility";
 import { mapLabel } from "@/lib/maps";
 import { MATCH_FORMAT_LABELS, SIDE_LABELS } from "@/types/match";
-import { readVetoRoomCore, type VetoRoomCoreSnapshot } from "./service";
+import { readVetoRoomSnapshot, type VetoRoomCoreSnapshot } from "./service";
 
 const MATCH_STATUS_LABELS = {
   scheduled: "待进行",
@@ -52,7 +52,7 @@ function getEntryIdForViewer(
 
 export async function getVetoRoomView(matchId: string) {
   const [core, viewer, authorization] = await Promise.all([
-    readVetoRoomCore(matchId),
+    readVetoRoomSnapshot(matchId),
     getUserSession(),
     getCurrentUserAuthorization(),
   ]);
@@ -105,6 +105,11 @@ export async function projectVetoRoomView(
     .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
     .where(eq(matchRosters.matchId, core.match.id));
 
+  const clockResult = await db.execute(sql`SELECT clock_timestamp() AS now`);
+  const clockRow = clockResult.rows[0] as { now?: Date | string } | undefined;
+  if (!clockRow?.now) throw new Error("读取 BP 房间服务器时间失败。");
+  const serverNow = clockRow.now instanceof Date ? clockRow.now : new Date(clockRow.now);
+
   const rosterByEntry = new Map<string, typeof rosterRows>();
   for (const row of rosterRows) {
     const rows = rosterByEntry.get(row.entryId) ?? [];
@@ -130,9 +135,9 @@ export async function projectVetoRoomView(
     );
     const mayRequestStart = Boolean(
       core.match.status === "scheduled" && !core.session.startedAt && core.session.privilegedEntryId &&
-      (!core.match.scheduledAt || core.serverNow >= new Date(core.match.scheduledAt.getTime() - 15 * 60_000)) && viewerId && (
+      (!core.match.scheduledAt || serverNow >= new Date(core.match.scheduledAt.getTime() - 15 * 60_000)) && viewerId && (
         bpRepresentative?.userId === viewerId ||
-        (isViewerEntryRepresentative && core.effectiveForceAt && core.serverNow >= core.effectiveForceAt)
+        (isViewerEntryRepresentative && core.effectiveForceAt && serverNow >= core.effectiveForceAt)
       ),
     ) && lineupConfirmed;
     return {
@@ -190,8 +195,8 @@ export async function projectVetoRoomView(
   const appealsByIncident = new Map(core.appeals.map((appeal) => [appeal.timeoutIncidentId, appeal]));
   const incidents = core.incidents.map((incident) => {
     const appeal = appealsByIncident.get(incident.id);
-    const viewerEntryIsOwner = incident.entryId === viewerEntryId;
     const canSeeReason = Boolean(isAdmin || appeal?.submittedBy === viewerId);
+    const entryRepresentativeId = incident.entryId ? entryById.get(incident.entryId)?.representativeUserId : null;
     const selected = incident.selectedOptions.map((option) => entryById.get(option)?.name ?? (option === "ct" ? "CT 方" : option === "t" ? "T 方" : mapLabel(option)));
     return {
       id: incident.id,
@@ -205,7 +210,9 @@ export async function projectVetoRoomView(
         resolutionNote: canSeeReason ? appeal.resolutionNote : null,
         mayResolve: isAdmin && appeal.status === "pending",
       } : null,
-      mayAppeal: Boolean(viewerId && viewerEntryIsOwner && !appeal),
+      mayAppeal: Boolean(viewerId && !appeal && (
+        incident.representativeUserId === viewerId || entryRepresentativeId === viewerId
+      )),
     };
   });
 
@@ -241,7 +248,7 @@ export async function projectVetoRoomView(
       currentTurnDurationSeconds: core.currentTurn?.durationSeconds ?? null,
       turnStartedAt: core.session.turnStartedAt?.toISOString() ?? null,
       turnDeadlineAt: core.session.turnDeadlineAt?.toISOString() ?? null,
-      serverNow: core.serverNow.toISOString(),
+      serverNow: serverNow.toISOString(),
       startedAt: core.session.startedAt?.toISOString() ?? null,
       completedAt: core.session.completedAt?.toISOString() ?? null,
       paused: core.session.pausedAt !== null,
@@ -253,7 +260,7 @@ export async function projectVetoRoomView(
       manualPrivilegedSelectionRequired: !core.match.majorStageRunId && !core.match.qualificationRunId && core.session.privilegedEntryId === null,
       effectiveForceAt: core.effectiveForceAt?.toISOString() ?? null,
       previousMatchBlocker: core.previousMatchBlocker,
-      startWindowOpen: core.match.scheduledAt === null || core.serverNow >= new Date(core.match.scheduledAt.getTime() - 15 * 60_000),
+      startWindowOpen: core.match.scheduledAt === null || serverNow >= new Date(core.match.scheduledAt.getTime() - 15 * 60_000),
     },
     steps: stepEntries,
     incidents,

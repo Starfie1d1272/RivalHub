@@ -9,6 +9,21 @@ import {
 } from "../../../src/lib/matches/veto-room/service";
 import { localDatabaseUrl } from "./harness/database";
 
+async function waitForMatchRowLock(pool: Pool): Promise<void> {
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    const result = await pool.query<{ pid: number }>(
+      `SELECT pid FROM pg_stat_activity
+       WHERE pid <> pg_backend_pid()
+         AND wait_event_type = 'Lock'
+         AND query ILIKE '%FROM "matches"%'
+         AND query ILIKE '%FOR UPDATE%'`,
+    );
+    if (result.rowCount) return;
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  throw new Error("expected Veto Room command to wait for the Match row lock");
+}
+
 const requireSeasonAdminMock = vi.hoisted(() => vi.fn());
 const auditActorIdMock = vi.hoisted(() => vi.fn((session: { userId: string }) => session.userId));
 
@@ -194,10 +209,10 @@ async function expectSuccess<T>(resultPromise: Promise<{ success: boolean; data?
   return result.data as T;
 }
 
-async function startWithVetoPlan(
+async function startVetoRoom(
   fixture: Fixture,
   matchId: string,
-): Promise<void> {
+): Promise<Awaited<ReturnType<typeof readVetoRoomCore>>> {
   await setManualPrivilegedEntry({
     matchId,
     entryId: fixture.entryAId,
@@ -222,7 +237,15 @@ async function startWithVetoPlan(
     expectedTurnKey: room.session.currentTurnKey,
   });
   expect(secondRequest).toBe("applied");
-  room = await readVetoRoomCore(matchId);
+  return readVetoRoomCore(matchId);
+}
+
+async function startWithVetoPlan(
+  fixture: Fixture,
+  matchId: string,
+  format: MatchFormat,
+): Promise<void> {
+  let room = await startVetoRoom(fixture, matchId);
 
   const userByEntry = new Map([
     [fixture.entryAId, fixture.representativeUserAId],
@@ -257,6 +280,9 @@ async function startWithVetoPlan(
     });
     expect(outcome).toBe("applied");
     room = await readVetoRoomCore(matchId);
+    if (turn.actionType === "role_select") {
+      expect(room.currentTurn?.durationSeconds).toBe(format === "bo1" ? 60 : 45);
+    }
   }
   expect(room.session.completedAt).not.toBeNull();
   expect(room.match.status).toBe("in_progress");
@@ -264,7 +290,7 @@ async function startWithVetoPlan(
 
 describe("match score persistence semantics PostgreSQL integration", () => {
   it("uses map facts for BO1/BO3/BO5 results and never creates forfeit maps", async () => {
-    const pool = new Pool({ connectionString: localDatabaseUrl(), ssl: false, max: 2 });
+    const pool = new Pool({ connectionString: localDatabaseUrl(), ssl: false, max: 3 });
     const client = await pool.connect();
     let fixture: Fixture | undefined;
     try {
@@ -277,11 +303,93 @@ describe("match score persistence semantics PostgreSQL integration", () => {
       const forfeitBo1MatchId = await createMatch(client, fixture, "bo1");
       const forfeitBo3MatchId = await createMatch(client, fixture, "bo3");
       const scoredForfeitMatchId = await createMatch(client, fixture, "bo3", { withLineups: true });
+      const partialVetoMatchId = await createMatch(client, fixture, "bo3", { withLineups: true });
+      const timeoutVetoMatchId = await createMatch(client, fixture, "bo5", { withLineups: true });
+      const lockDelayedVetoMatchId = await createMatch(client, fixture, "bo3", { withLineups: true });
 
-      await startWithVetoPlan(fixture, bo1MatchId);
-      await startWithVetoPlan(fixture, bo3MatchId);
-      await startWithVetoPlan(fixture, bo5MatchId);
-      await startWithVetoPlan(fixture, scoredForfeitMatchId);
+      await startWithVetoPlan(fixture, bo1MatchId, "bo1");
+      await startWithVetoPlan(fixture, bo3MatchId, "bo3");
+      await startWithVetoPlan(fixture, bo5MatchId, "bo5");
+      await startWithVetoPlan(fixture, scoredForfeitMatchId, "bo3");
+
+      const lockDelayedRoom = await startVetoRoom(fixture, lockDelayedVetoMatchId);
+      const lockDelayedTurn = lockDelayedRoom.currentTurn!;
+      expect(lockDelayedTurn.actionType).toBe("role_select");
+      const lockHolder = await pool.connect();
+      let lockHeld = false;
+      let delayedCommand: Promise<"applied" | "idempotent" | "stale"> | null = null;
+      try {
+        await lockHolder.query("BEGIN");
+        await lockHolder.query("SELECT id FROM matches WHERE id = $1 FOR UPDATE", [lockDelayedVetoMatchId]);
+        const deadlineResult = await lockHolder.query<{ turn_deadline_at: Date }>(
+          `UPDATE match_veto_sessions
+           SET turn_deadline_at = clock_timestamp() + interval '1000 milliseconds'
+           WHERE match_id = $1
+           RETURNING turn_deadline_at`,
+          [lockDelayedVetoMatchId],
+        );
+        const deadlineAt = deadlineResult.rows[0]!.turn_deadline_at;
+        lockHeld = true;
+        delayedCommand = submitVetoCommand({
+          matchId: lockDelayedVetoMatchId,
+          actorId: fixture.representativeUserAId,
+          expectedRevision: lockDelayedRoom.session.revision,
+          expectedTurnKey: lockDelayedTurn.key,
+          clientRequestId: randomUUID(),
+          command: { kind: "role_select", entryId: fixture.entryAId },
+        });
+        await waitForMatchRowLock(pool);
+        const waitMs = Math.max(0, deadlineAt.getTime() + 3_100 - Date.now());
+        await new Promise((resolve) => setTimeout(resolve, waitMs));
+        await lockHolder.query("COMMIT");
+        lockHeld = false;
+        expect(await delayedCommand).toBe("stale");
+      } finally {
+        if (lockHeld) await lockHolder.query("ROLLBACK").catch(() => undefined);
+        if (delayedCommand) await delayedCommand.catch(() => undefined);
+        lockHolder.release();
+      }
+
+      const timeoutRoom = await startVetoRoom(fixture, timeoutVetoMatchId);
+      await client.query(
+        "UPDATE match_veto_sessions SET turn_deadline_at = clock_timestamp() - interval '2100 milliseconds' WHERE match_id = $1",
+        [timeoutVetoMatchId],
+      );
+      const afterRoleTimeout = await readVetoRoomCore(timeoutVetoMatchId);
+      expect(afterRoleTimeout.session.vetoTeamAEntryId).toBeTruthy();
+      expect(afterRoleTimeout.currentTurn).toMatchObject({ actionType: "ban", durationSeconds: 45 });
+      expect(afterRoleTimeout.session.turnDeadlineAt!.getTime() - afterRoleTimeout.session.turnStartedAt!.getTime()).toBe(45_000);
+      expect(afterRoleTimeout.session.revision).toBeGreaterThan(timeoutRoom.session.revision);
+
+      let partialRoom = await startVetoRoom(fixture, partialVetoMatchId);
+      const roleTurn = partialRoom.currentTurn!;
+      expect(roleTurn.actionType).toBe("role_select");
+      const roleSelectOutcome = await submitVetoCommand({
+        matchId: partialVetoMatchId,
+        actorId: fixture.representativeUserAId,
+        expectedRevision: partialRoom.session.revision,
+        expectedTurnKey: roleTurn.key,
+        clientRequestId: randomUUID(),
+        command: { kind: "role_select", entryId: fixture.entryAId },
+      });
+      expect(roleSelectOutcome).toBe("applied");
+      partialRoom = await readVetoRoomCore(partialVetoMatchId);
+      const firstBanTurn = partialRoom.currentTurn!;
+      expect(firstBanTurn).toMatchObject({ actionType: "ban", durationSeconds: 45 });
+      const firstBan = await submitVetoCommand({
+        matchId: partialVetoMatchId,
+        actorId: fixture.representativeUserAId,
+        expectedRevision: partialRoom.session.revision,
+        expectedTurnKey: firstBanTurn.key,
+        clientRequestId: randomUUID(),
+        command: { kind: "step", actionType: "ban", mapName: MAP_POOL[0] },
+      });
+      expect(firstBan).toBe("applied");
+      const prematureResult = await recordMapResult(partialVetoMatchId, 1, MAP_POOL[0], 13, 8, null, null);
+      expect(prematureResult).toMatchObject({
+        success: false,
+        error: { message: expect.stringContaining("请先完成 BP") },
+      });
 
       const plannedMapNames = async (matchId: string) => (await client.query<{ map_name: string }>(
         "SELECT map_name FROM match_maps WHERE match_id = $1 ORDER BY map_order",

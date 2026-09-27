@@ -160,6 +160,7 @@ export interface AdminMatchWorkbenchData {
   completedMaps: AdminCompletedMap[];
   pendingMaps: AdminPendingMap[];
   finishedMaps: AdminFinishedMap[];
+  vetoCompletedAt: Date | null;
   postMatch: AdminPostMatchRecordData | null;
   demoReviews?: AdminDemoReviewMap[];
 }

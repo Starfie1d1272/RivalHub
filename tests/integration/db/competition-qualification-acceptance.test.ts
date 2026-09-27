@@ -21,7 +21,7 @@ import { applyMatchStatusTransitionInTx, confirmMatchRosterInTx, persistMatchRos
 import { assertGenericMatchCanBeDeleted } from "../../../src/lib/matches/deletion";
 import { applyResultCorrectionInTx, planResultCorrectionInTx } from "../../../src/lib/match-corrections/service";
 import { selectMajorEntrantsAndSyncRostersInTx } from "../../../src/lib/major/prestart-entrants";
-import { readVetoRoomCore, requestVetoStart, submitVetoCommand } from "../../../src/lib/matches/veto-room/service";
+import { readVetoRoomCore, readVetoRoomSnapshot, requestVetoStart, submitVetoCommand } from "../../../src/lib/matches/veto-room/service";
 import { localDatabaseUrl, testSteam64 } from "./harness/database";
 
 const databaseUrl = localDatabaseUrl();
@@ -341,6 +341,13 @@ async function exerciseThirtyToTwentyFourAcceptance(): Promise<void> {
       [probeMatchId, fixture.seasonId, lowerSeed.entryId, higherSeed.entryId, runId],
     );
     try {
+      const displaySnapshot = await readVetoRoomSnapshot(probeMatchId);
+      expect(displaySnapshot.session.privilegedEntryId).toBe(higherSeed.entryId);
+      const readSideEffect = await pool.query<{ count: string }>(
+        "SELECT count(*) FROM match_veto_sessions WHERE match_id = $1",
+        [probeMatchId],
+      );
+      expect(readSideEffect.rows[0]?.count).toBe("0");
       const vetoSnapshot = await readVetoRoomCore(probeMatchId);
       expect(vetoSnapshot.session.privilegedEntryId).toBe(higherSeed.entryId);
       expect(vetoSnapshot.session.privilegedEntryId).not.toBe(vetoSnapshot.match.entryAId);
@@ -467,6 +474,29 @@ async function exerciseThirtyToTwentyFourAcceptance(): Promise<void> {
           [historicalEntryId, revisionOneUsers[0]!],
           [otherEntryId, otherEntryUsers[0]!],
         ]);
+        const roleSelectTurn = startedRoom.currentTurn!;
+        const lateRoleSelectActor = userByEntry.get(roleSelectTurn.actorEntryId!)!;
+        await pool.query(
+          "UPDATE match_veto_sessions SET turn_deadline_at = clock_timestamp() - interval '50 milliseconds' WHERE match_id = $1",
+          [historicalMatch.id],
+        );
+        expect(await submitVetoCommand({
+          matchId: historicalMatch.id,
+          actorId: lateRoleSelectActor,
+          expectedRevision: startedRoom.session.revision,
+          expectedTurnKey: roleSelectTurn.key,
+          clientRequestId: randomUUID(),
+          command: { kind: "role_select", entryId: startedRoom.session.privilegedEntryId! },
+        })).toBe("stale");
+        const afterLateRoleSelect = await pool.query<{ veto_team_a_entry_id: string | null; timeout_count: string }>(
+          "SELECT s.veto_team_a_entry_id, (SELECT count(*) FROM match_veto_timeout_incidents i WHERE i.match_id = s.match_id) AS timeout_count FROM match_veto_sessions s WHERE s.match_id = $1",
+          [historicalMatch.id],
+        );
+        expect(afterLateRoleSelect.rows[0]).toMatchObject({ veto_team_a_entry_id: null, timeout_count: "0" });
+        await pool.query(
+          "UPDATE match_veto_sessions SET turn_deadline_at = clock_timestamp() + interval '45 seconds' WHERE match_id = $1",
+          [historicalMatch.id],
+        );
         let activeRoom = startedRoom;
         for (let commandNumber = 0; commandNumber < 16 && !activeRoom.session.completedAt; commandNumber += 1) {
           const turn = activeRoom.currentTurn;

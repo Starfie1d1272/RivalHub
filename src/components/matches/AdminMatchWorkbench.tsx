@@ -90,6 +90,7 @@ export function AdminMatchWorkbench({
   completedMaps,
   pendingMaps,
   finishedMaps,
+  vetoCompletedAt,
   postMatch,
   demoReviews = [],
 }: AdminMatchWorkbenchProps) {
@@ -247,17 +248,23 @@ export function AdminMatchWorkbench({
               currentCompletionDeadline={match.completionDeadline}
             />
             {match.status === "in_progress" ? (
-              <MapByMapInput
-                matchId={match.id}
-                format={match.format}
-                teamAName={teamAName}
-                teamBName={teamBName}
-                entryAId={match.entryAId}
-                entryBId={match.entryBId}
-                completedMaps={completedMaps}
-                pendingMaps={pendingMaps}
-                mapPool={mapPool}
-              />
+              vetoCompletedAt ? (
+                <MapByMapInput
+                  matchId={match.id}
+                  format={match.format}
+                  teamAName={teamAName}
+                  teamBName={teamBName}
+                  entryAId={match.entryAId}
+                  entryBId={match.entryBId}
+                  completedMaps={completedMaps}
+                  pendingMaps={pendingMaps}
+                  mapPool={mapPool}
+                />
+              ) : (
+                <p role="status" className="rounded border border-[var(--color-warn-edge)] px-3 py-2 text-sm text-[var(--color-fg-mid)]">
+                  Veto Session 已开始；完成 BP 地图计划后才能录入地图比分。
+                </p>
+              )
             ) : (
               <ScoreInput matchId={match.id} currentStatus={match.status} allowCancel={match.qualificationRunId === null} />
             )}

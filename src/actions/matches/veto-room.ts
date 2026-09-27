@@ -9,6 +9,7 @@ import { revalidateMatchPaths } from "@/lib/revalidation";
 import { db } from "@/db/client";
 import { seasons } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import { getPublicOrAuthorizedDraftSeason } from "@/lib/data/public-seasons";
 import {
   claimVetoRepresentative,
   pauseVetoRoom,
@@ -16,6 +17,7 @@ import {
   resolveVetoAppeal,
   resumeVetoRoom,
   rewindVetoRoom,
+  reconcileVetoRoomTimeout,
   setManualPrivilegedEntry,
   setVetoRepresentative,
   submitVetoAppeal,
@@ -43,12 +45,35 @@ async function finishMutation<T>(matchId: string, outcome: T) {
   return ok({ outcome, room: await getVetoRoomView(matchId) });
 }
 
+async function assertVetoRoomReadable(matchId: string): Promise<void> {
+  const match = await getMatchOrThrow(matchId);
+  const [season] = await db.select({ id: seasons.id, slug: seasons.slug })
+    .from(seasons)
+    .where(eq(seasons.id, match.seasonId))
+    .limit(1);
+  const readableSeason = season ? await getPublicOrAuthorizedDraftSeason(season.slug) : null;
+  if (!season || readableSeason?.id !== season.id) {
+    throw new AppError(ErrorCode.MATCH_NOT_FOUND, "比赛不存在。");
+  }
+}
+
 export async function readVetoRoom(matchIdInput: unknown) {
   try {
     const { matchId } = parse(base, { matchId: matchIdInput });
+    await assertVetoRoomReadable(matchId);
     return ok(await getVetoRoomView(matchId));
   } catch (error) {
     return actionError("readVetoRoom", error);
+  }
+}
+
+export async function reconcileVetoRoomTimeoutAction(input: unknown) {
+  try {
+    const { matchId } = parse(base, input);
+    await assertVetoRoomReadable(matchId);
+    return await finishMutation(matchId, await reconcileVetoRoomTimeout(matchId));
+  } catch (error) {
+    return actionError("reconcileVetoRoomTimeout", error);
   }
 }
 

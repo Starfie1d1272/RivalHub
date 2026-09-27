@@ -127,6 +127,20 @@ describe("VetoInputDialog load state and responsive contract", () => {
     await waitFor(() => expect(saveVetoStepsMock).toHaveBeenCalledWith("match-1", { steps: EXISTING_STEPS }));
   });
 
+  it("shows the BO5 decider as a knife round without a team side selector", async () => {
+    getMatchVetoStepsMock.mockResolvedValue([]);
+    const user = userEvent.setup();
+    renderDialog({ format: "bo5" });
+    await openDialog(user);
+
+    await waitFor(() => expect(screen.getAllByTestId("veto-step")).toHaveLength(7));
+    const decider = screen.getAllByTestId("veto-step")[6]!;
+    expect(within(decider).getByText("刀赛")).toBeInTheDocument();
+    expect(within(decider).getByText("第五图起始方由刀赛决定。")).toBeInTheDocument();
+    expect(within(decider).queryByRole("button", { name: "A" })).not.toBeInTheDocument();
+    expect(within(decider).queryByRole("button", { name: "B" })).not.toBeInTheDocument();
+  });
+
   it.each(["bo1", "bo3", "bo5"] as const)(
     "keeps every %s step accessible in the 320px/390px narrow layout contract",
     async (format) => {

@@ -25,6 +25,7 @@ import {
 import { applyMatchStatusTransitionInTx, lockMatchInTx } from "@/lib/match-rosters/service";
 import { normalizeRegistrationConfig } from "@/lib/seasons/compatibility";
 import { writeAuditInTx } from "@/lib/audit/write";
+import { logEvent } from "@/lib/observability/server";
 import { AppError, ErrorCode } from "@/lib/errors";
 import type { Side, VetoActionType } from "@/types/match";
 import {
@@ -36,7 +37,7 @@ import {
   projectVetoMapPlan,
   type CurrentVetoTurn,
   type VetoStepFact,
-} from "./domain";
+} from "../veto-sequence";
 
 const MAP_POOL_SIZE = 7;
 const TIMEOUT_SETTLEMENT_MS = 2_000;
@@ -57,6 +58,8 @@ type VetoMatch = Pick<DbMatch,
   | "majorStageRunId"
   | "qualificationRunId"
   | "ownership"
+  | "createdAt"
+  | "updatedAt"
 >;
 
 type VetoSession = typeof matchVetoSessions.$inferSelect;
@@ -75,6 +78,16 @@ export interface VetoRoomCoreSnapshot {
 }
 
 export type VetoMutationOutcome = "applied" | "idempotent" | "stale";
+
+function logStaleVetoCommand(reason: "deadline" | "revision" | "turn"): void {
+  logEvent({
+    level: "info",
+    event: "match.veto.command_stale",
+    scope: "match",
+    operation: "veto.command",
+    safeContext: { outcome: "stale", reason, workflow: "veto_room" },
+  });
+}
 
 async function databaseNow(tx: TxDb): Promise<Date> {
   const result = await tx.execute(sql`SELECT clock_timestamp() AS now`);
@@ -154,6 +167,36 @@ async function getSessionForUpdateInTx(tx: TxDb, match: VetoMatch): Promise<Veto
   return raced;
 }
 
+async function getSessionForReadInTx(tx: TxDb, match: VetoMatch): Promise<VetoSession> {
+  const [existing] = await tx.select().from(matchVetoSessions)
+    .where(eq(matchVetoSessions.matchId, match.id))
+    .limit(1);
+  if (existing) return existing;
+
+  const privilegedEntryId = await resolveFrozenPrivilegedEntryInTx(tx, match);
+  return {
+    matchId: match.id,
+    privilegedEntryId,
+    vetoTeamAEntryId: null,
+    entryAStartRequestedAt: null,
+    entryAStartRequestedBy: null,
+    entryBStartRequestedAt: null,
+    entryBStartRequestedBy: null,
+    mapPoolSnapshot: null,
+    startedAt: null,
+    completedAt: null,
+    currentTurnKey: null,
+    turnStartedAt: null,
+    turnDeadlineAt: null,
+    pausedAt: null,
+    pausedBy: null,
+    pauseReason: null,
+    revision: 0,
+    createdAt: match.createdAt,
+    updatedAt: match.updatedAt,
+  };
+}
+
 async function readStepsInTx(tx: TxDb, matchId: string): Promise<VetoStepRow[]> {
   return tx.select().from(matchVetoSteps).where(eq(matchVetoSteps.matchId, matchId)).orderBy(asc(matchVetoSteps.stepOrder));
 }
@@ -179,6 +222,27 @@ function currentTurn(match: VetoMatch, session: VetoSession, steps: readonly Vet
     mapPool: session.mapPoolSnapshot,
     steps: asStepFacts(steps),
   });
+}
+
+function roleSelectSuccessorDuration(
+  match: VetoMatch,
+  session: VetoSession,
+  vetoTeamAEntryId: string,
+  steps: readonly VetoStepRow[],
+): number {
+  const next = deriveCurrentVetoTurn({
+    format: match.format,
+    entryAId: match.entryAId,
+    entryBId: match.entryBId,
+    privilegedEntryId: session.privilegedEntryId,
+    vetoTeamAEntryId,
+    mapPool: session.mapPoolSnapshot ?? [],
+    steps: asStepFacts(steps),
+  });
+  if (!next || next.actionType === "role_select" || next.durationSeconds === null) {
+    throw new AppError(ErrorCode.INTERNAL_ERROR, "无法确定 VETO A 选择后的回合时限。");
+  }
+  return next.durationSeconds;
 }
 
 async function getRepresentativeUserIdInTx(tx: TxDb, matchId: string, entryId: string): Promise<string | null> {
@@ -441,6 +505,7 @@ async function reconcileVetoSessionInTx(
   actorId = SYSTEM_ACTOR_ID,
 ): Promise<VetoSession> {
   let session = await tryStartSessionInTx(tx, match, initialSession, now, actorId);
+  let timedOutTurns = 0;
   if (
     !session.startedAt ||
     session.completedAt ||
@@ -454,6 +519,7 @@ async function reconcileVetoSessionInTx(
     const turn = currentTurn(match, session, steps);
     if (!turn) {
       session = await completeMapPlanInTx(tx, match, session, steps, now);
+      logTimeoutCatchUp(timedOutTurns);
       return session;
     }
     if (turn.actor === "system" && turn.actionType === "decider") {
@@ -467,6 +533,7 @@ async function reconcileVetoSessionInTx(
       if (session.currentTurnKey !== turn.key) {
         session = await updateSessionInTx(tx, match.id, session, { currentTurnKey: turn.key });
       }
+      logTimeoutCatchUp(timedOutTurns);
       return session;
     }
 
@@ -504,14 +571,24 @@ async function reconcileVetoSessionInTx(
       selectedOptions,
       createdAt: now,
     });
+    timedOutTurns += 1;
+    logEvent({
+      level: "info",
+      event: "match.veto.timeout_resolved",
+      scope: "match",
+      operation: "veto.timeout",
+      durationMs: now.getTime() - deadlineAt.getTime(),
+      safeContext: { reason: "deadline", workflow: "veto_room" },
+    });
 
     if (turn.actionType === "role_select") {
       const roleEntry = selectedOptions[0]!;
+      const nextDurationSeconds = roleSelectSuccessorDuration(match, session, roleEntry, steps);
       session = await updateSessionInTx(tx, match.id, session, {
         vetoTeamAEntryId: roleEntry,
         currentTurnKey: "ban-veto-a-opening",
         turnStartedAt: deadlineAt,
-        turnDeadlineAt: new Date(deadlineAt.getTime() + 60_000),
+        turnDeadlineAt: new Date(deadlineAt.getTime() + nextDurationSeconds * 1_000),
       });
     } else {
       let order = steps.reduce((max, step) => Math.max(max, step.stepOrder), 0);
@@ -545,17 +622,31 @@ async function reconcileVetoSessionInTx(
       targetId: match.id,
       meta: { turnKey: turn.key, entryId: timeoutEntryId, selectedCount: selectedOptions.length },
     });
-    if (session.completedAt || session.pausedAt) return session;
+    if (session.completedAt || session.pausedAt) {
+      logTimeoutCatchUp(timedOutTurns);
+      return session;
+    }
   }
 
+  logTimeoutCatchUp(timedOutTurns);
   return session;
+}
+
+function logTimeoutCatchUp(count: number): void {
+  if (count <= 1) return;
+  logEvent({
+    level: "info",
+    event: "match.veto.timeout_catch_up",
+    scope: "match",
+    operation: "veto.timeout",
+    safeContext: { count, phase: "timeout_catch_up", workflow: "veto_room" },
+  });
 }
 
 async function loadCoreSnapshotInTx(
   tx: TxDb,
   match: VetoMatch,
   session: VetoSession,
-  now: Date,
 ): Promise<VetoRoomCoreSnapshot> {
   const steps = await readStepsInTx(tx, match.id);
   const incidents = await tx.select().from(matchVetoTimeoutIncidents)
@@ -567,6 +658,7 @@ async function loadCoreSnapshotInTx(
     .where(eq(matchVetoTimeoutIncidents.matchId, match.id));
   const appeals = appealRows.map((row) => row.appeal);
   const timing = await loadStartTimingInTx(tx, match);
+  const serverNow = await databaseNow(tx);
   return {
     match,
     session,
@@ -574,7 +666,7 @@ async function loadCoreSnapshotInTx(
     incidents,
     appeals,
     currentTurn: currentTurn(match, session, steps),
-    serverNow: now,
+    serverNow,
     effectiveForceAt: timing.effectiveForceAt,
     previousMatchBlocker: timing.previousMatchBlocker,
   };
@@ -582,11 +674,40 @@ async function loadCoreSnapshotInTx(
 
 export async function readVetoRoomCore(matchId: string): Promise<VetoRoomCoreSnapshot> {
   return db.transaction(async (tx) => {
-    const now = await databaseNow(tx);
     const match = await lockMatchInTx(tx, matchId);
     const session = await getSessionForUpdateInTx(tx, match);
+    const reconcileNow = await databaseNow(tx);
+    const reconciled = await reconcileVetoSessionInTx(tx, match, session, reconcileNow);
+    return loadCoreSnapshotInTx(tx, match, reconciled);
+  });
+}
+
+/** Public display reads do not reconcile, initialize, or lock match/session rows. */
+export async function readVetoRoomSnapshot(matchId: string): Promise<VetoRoomCoreSnapshot> {
+  return db.transaction(async (tx) => {
+    const match = await tx.query.matches.findFirst({ where: eq(matches.id, matchId) });
+    if (!match) throw new AppError(ErrorCode.MATCH_NOT_FOUND, "比赛不存在。");
+    const session = await getSessionForReadInTx(tx, match);
+    return loadCoreSnapshotInTx(tx, match, session);
+  });
+}
+
+/** Reconcile one overdue room from the client's deadline+settlement one-shot. */
+export async function reconcileVetoRoomTimeout(matchId: string): Promise<VetoMutationOutcome> {
+  return db.transaction(async (tx) => {
+    const match = await lockMatchInTx(tx, matchId);
+    const session = await getSessionForUpdateInTx(tx, match);
+    const now = await databaseNow(tx);
+    const deadline = session.turnDeadlineAt;
+    if (
+      !session.startedAt ||
+      session.completedAt ||
+      session.pausedAt ||
+      !deadline ||
+      now.getTime() < deadline.getTime() + TIMEOUT_SETTLEMENT_MS
+    ) return "idempotent";
     const reconciled = await reconcileVetoSessionInTx(tx, match, session, now);
-    return loadCoreSnapshotInTx(tx, match, reconciled, now);
+    return reconciled.revision === session.revision ? "idempotent" : "applied";
   });
 }
 
@@ -596,7 +717,6 @@ export async function setManualPrivilegedEntry(input: {
   actorId: string;
 }): Promise<VetoMutationOutcome> {
   return db.transaction(async (tx) => {
-    await databaseNow(tx);
     const match = await lockMatchInTx(tx, input.matchId);
     if (match.majorStageRunId || match.qualificationRunId) {
       throw new AppError(ErrorCode.VALIDATION_FAILED, "有冻结预排名的比赛不能手动指定 BP 先手。");
@@ -695,7 +815,6 @@ export async function setVetoRepresentative(input: {
   claim?: boolean;
 }): Promise<VetoMutationOutcome> {
   return db.transaction(async (tx) => {
-    await databaseNow(tx);
     const match = await lockMatchInTx(tx, input.matchId);
     const session = await getSessionForUpdateInTx(tx, match);
     return changeRepresentativeInTx(tx, {
@@ -716,7 +835,6 @@ export async function claimVetoRepresentative(input: {
   actorId: string;
 }): Promise<VetoMutationOutcome> {
   return db.transaction(async (tx) => {
-    await databaseNow(tx);
     const match = await lockMatchInTx(tx, input.matchId);
     const session = await getSessionForUpdateInTx(tx, match);
     const [roster] = await tx.select({ id: matchRosters.id })
@@ -754,12 +872,15 @@ export async function requestVetoStart(input: {
   expectedTurnKey: string | null;
 }): Promise<VetoMutationOutcome> {
   return db.transaction(async (tx) => {
-    const now = await databaseNow(tx);
     const match = await lockMatchInTx(tx, input.matchId);
     let session = await getSessionForUpdateInTx(tx, match);
+    const now = await databaseNow(tx);
     session = await reconcileVetoSessionInTx(tx, match, session, now, input.actorId);
     if (session.startedAt) return "idempotent";
-    if (session.revision !== input.expectedRevision || session.currentTurnKey !== input.expectedTurnKey) return "stale";
+    if (session.revision !== input.expectedRevision || session.currentTurnKey !== input.expectedTurnKey) {
+      logStaleVetoCommand(session.currentTurnKey !== input.expectedTurnKey ? "turn" : "revision");
+      return "stale";
+    }
     if (match.status !== "scheduled") throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "当前比赛状态不能开始 BP。");
     if (session.privilegedEntryId === null) throw new AppError(ErrorCode.VALIDATION_FAILED, "请先由赛事管理员指定本场 BP 先手队伍。");
     if (input.entryId !== match.entryAId && input.entryId !== match.entryBId) throw new AppError(ErrorCode.VALIDATION_FAILED, "请求队伍不属于本场比赛。");
@@ -794,7 +915,20 @@ export async function requestVetoStart(input: {
       targetId: match.id,
       meta: { entryId: input.entryId, asRepresentative: !isBpRepresentative },
     });
-    await reconcileVetoSessionInTx(tx, match, updated, now, input.actorId);
+    const reconciled = await reconcileVetoSessionInTx(tx, match, updated, now, input.actorId);
+    if (!reconciled.startedAt) {
+      const postRequestTiming = await loadStartTimingInTx(tx, match);
+      logEvent({
+        level: "info",
+        event: "match.veto.start_blocked",
+        scope: "match",
+        operation: "veto.start",
+        safeContext: {
+          phase: postRequestTiming.previousMatchBlocker ? "previous_match" : "awaiting_other_entry",
+          workflow: "veto_room",
+        },
+      });
+    }
     return "applied";
   });
 }
@@ -808,9 +942,9 @@ export async function submitVetoCommand(input: {
   command: { kind: "role_select"; entryId: string } | { kind: "step"; actionType: VetoActionType; mapName?: string; side?: Side };
 }): Promise<VetoMutationOutcome> {
   return db.transaction(async (tx) => {
-    const receivedAt = await databaseNow(tx);
     const match = await lockMatchInTx(tx, input.matchId);
     let session = await getSessionForUpdateInTx(tx, match);
+    const receivedAt = await databaseNow(tx);
 
     if (input.command.kind === "step") {
       const [existingRequest] = await tx.select({ id: matchVetoSteps.id })
@@ -823,11 +957,14 @@ export async function submitVetoCommand(input: {
     session = await reconcileVetoSessionInTx(tx, match, session, receivedAt, input.actorId);
     const steps = await readStepsInTx(tx, match.id);
     const turn = currentTurn(match, session, steps);
-    if (
-      session.revision !== input.expectedRevision ||
-      session.currentTurnKey !== input.expectedTurnKey ||
-      turn?.key !== input.expectedTurnKey
-    ) return "stale";
+    if (session.revision !== input.expectedRevision) {
+      logStaleVetoCommand("revision");
+      return "stale";
+    }
+    if (session.currentTurnKey !== input.expectedTurnKey || turn?.key !== input.expectedTurnKey) {
+      logStaleVetoCommand("turn");
+      return "stale";
+    }
     if (!session.startedAt || session.completedAt || session.pausedAt || match.status !== "in_progress") {
       throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "当前 BP 房间不可操作。");
     }
@@ -839,14 +976,19 @@ export async function submitVetoCommand(input: {
       if (turn.actionType !== "role_select" || session.vetoTeamAEntryId !== null) {
         throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "当前 BP 回合不允许选择 Veto A 队伍。");
       }
+      if (!session.turnDeadlineAt || receivedAt > session.turnDeadlineAt) {
+        logStaleVetoCommand("deadline");
+        return "stale";
+      }
       if (input.command.entryId !== match.entryAId && input.command.entryId !== match.entryBId) {
         throw new AppError(ErrorCode.VALIDATION_FAILED, "所选队伍不属于本场比赛。");
       }
+      const nextDurationSeconds = roleSelectSuccessorDuration(match, session, input.command.entryId, steps);
       session = await updateSessionInTx(tx, match.id, session, {
         vetoTeamAEntryId: input.command.entryId,
         currentTurnKey: "ban-veto-a-opening",
         turnStartedAt: receivedAt,
-        turnDeadlineAt: new Date(receivedAt.getTime() + 60_000),
+        turnDeadlineAt: new Date(receivedAt.getTime() + nextDurationSeconds * 1_000),
       });
       await writeAuditInTx(tx, {
         seasonId: match.seasonId,
@@ -866,7 +1008,10 @@ export async function submitVetoCommand(input: {
       throw new AppError(ErrorCode.VALIDATION_FAILED, "提交的 BP 操作与当前回合不匹配。");
     }
     const deadline = session.turnDeadlineAt;
-    if (!deadline || receivedAt > deadline) return "stale";
+    if (!deadline || receivedAt > deadline) {
+      logStaleVetoCommand("deadline");
+      return "stale";
+    }
     const pool = session.mapPoolSnapshot ?? [];
     const stepFacts = asStepFacts(steps);
     let mapName: string;
@@ -931,9 +1076,9 @@ export async function submitVetoCommand(input: {
 
 export async function pauseVetoRoom(input: { matchId: string; actorId: string; reason: string }): Promise<void> {
   await db.transaction(async (tx) => {
-    const now = await databaseNow(tx);
     const match = await lockMatchInTx(tx, input.matchId);
     const session = await getSessionForUpdateInTx(tx, match);
+    const now = await databaseNow(tx);
     if (!session.startedAt || session.completedAt || session.pausedAt || match.status !== "in_progress") {
       throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "当前 BP 房间不能暂停。");
     }
@@ -950,9 +1095,9 @@ export async function pauseVetoRoom(input: { matchId: string; actorId: string; r
 
 export async function resumeVetoRoom(input: { matchId: string; actorId: string }): Promise<void> {
   await db.transaction(async (tx) => {
-    const now = await databaseNow(tx);
     const match = await lockMatchInTx(tx, input.matchId);
     let session = await getSessionForUpdateInTx(tx, match);
+    const now = await databaseNow(tx);
     if (!session.pausedAt || !session.startedAt || session.completedAt || match.status !== "in_progress") {
       throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "当前 BP 房间没有暂停。");
     }
@@ -983,11 +1128,11 @@ export async function submitVetoAppeal(input: {
   reason: string;
 }): Promise<void> {
   await db.transaction(async (tx) => {
-    const now = await databaseNow(tx);
     const match = await lockMatchInTx(tx, input.matchId);
     const [incident] = await tx.select().from(matchVetoTimeoutIncidents)
       .where(and(eq(matchVetoTimeoutIncidents.id, input.incidentId), eq(matchVetoTimeoutIncidents.matchId, match.id)))
       .for("update");
+    const now = await databaseNow(tx);
     if (!incident?.entryId) throw new AppError(ErrorCode.NOT_FOUND, "超时记录不存在。");
     const entryRepresentativeId = await getEntryRepresentativeUserIdInTx(tx, incident.entryId);
     if (incident.representativeUserId !== input.actorId && entryRepresentativeId !== input.actorId) {
@@ -1077,9 +1222,9 @@ export async function rewindVetoRoom(input: {
   reason: string;
 }): Promise<void> {
   await db.transaction(async (tx) => {
-    const now = await databaseNow(tx);
     const match = await lockMatchInTx(tx, input.matchId);
     const session = await getSessionForUpdateInTx(tx, match);
+    const now = await databaseNow(tx);
     await rewindVetoInTx({ tx, match, session, actorId: input.actorId, targetTurnKey: input.targetTurnKey, reason: input.reason, now });
   });
 }
@@ -1092,7 +1237,6 @@ export async function resolveVetoAppeal(input: {
   resolutionNote: string;
 }): Promise<void> {
   await db.transaction(async (tx) => {
-    const now = await databaseNow(tx);
     const match = await lockMatchInTx(tx, input.matchId);
     const session = await getSessionForUpdateInTx(tx, match);
     const [joined] = await tx.select({ appeal: matchVetoAppeals, incident: matchVetoTimeoutIncidents })
@@ -1100,6 +1244,7 @@ export async function resolveVetoAppeal(input: {
       .innerJoin(matchVetoTimeoutIncidents, eq(matchVetoTimeoutIncidents.id, matchVetoAppeals.timeoutIncidentId))
       .where(and(eq(matchVetoAppeals.id, input.appealId), eq(matchVetoTimeoutIncidents.matchId, match.id)))
       .for("update");
+    const now = await databaseNow(tx);
     if (!joined || joined.appeal.status !== "pending") throw new AppError(ErrorCode.NOT_FOUND, "待处理申诉不存在。");
     const note = input.resolutionNote.trim();
     if (note.length < 3 || note.length > 500) throw new AppError(ErrorCode.VALIDATION_FAILED, "请填写 3 至 500 字的裁定说明。");
