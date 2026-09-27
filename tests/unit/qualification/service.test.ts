@@ -75,11 +75,15 @@ function queueFactSelects(options: {
   user?: Record<string, unknown> | null;
   verifications?: unknown[];
   rankFacts?: unknown[];
+  platformSeasons?: Array<{ seasonKey: string }>;
 }) {
   const users = options.user === null ? [] : [userRow(options.user)];
   const verifications = options.verifications ?? [];
   const rankFacts = options.rankFacts ?? [];
-  // loadParticipantQualificationFacts issues users → verifications → rank facts selects.
+  const platformSeasons = options.platformSeasons ?? [{ seasonKey: "S20" }, { seasonKey: "S21" }];
+  // loadParticipantQualificationFacts issues users → verifications → rank facts
+  // → optional platform chronology selects. Tests that do not request a
+  // platform simply leave the final queued select unused.
   selectMock.mockImplementationOnce(() => ({
     from: vi.fn().mockReturnValue({
       leftJoin: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue(users) }),
@@ -94,6 +98,13 @@ function queueFactSelects(options: {
   }));
   selectMock.mockImplementationOnce(() => ({
     from: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue(rankFacts) }),
+  }));
+  selectMock.mockImplementationOnce(() => ({
+    from: vi.fn().mockReturnValue({
+      where: vi.fn().mockReturnValue({
+        orderBy: vi.fn().mockResolvedValue(platformSeasons),
+      }),
+    }),
   }));
 }
 
