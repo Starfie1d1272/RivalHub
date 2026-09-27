@@ -696,7 +696,10 @@ export async function readVetoRoomSnapshot(matchId: string): Promise<VetoRoomCor
 export async function reconcileVetoRoom(matchId: string): Promise<VetoMutationOutcome> {
   return db.transaction(async (tx) => {
     const match = await lockMatchInTx(tx, matchId);
-    const session = await getSessionForUpdateInTx(tx, match);
+    const [session] = await tx.select().from(matchVetoSessions)
+      .where(eq(matchVetoSessions.matchId, match.id))
+      .for("update");
+    if (!session) return "idempotent";
     const now = await databaseNow(tx);
     const reconciled = await reconcileVetoSessionInTx(tx, match, session, now);
     return reconciled.revision === session.revision ? "idempotent" : "applied";
