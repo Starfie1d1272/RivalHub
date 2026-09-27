@@ -13213,8 +13213,8 @@
         }
       },
       "indexes": {
-        "prediction_picks_season_account_version_idx": {
-          "name": "prediction_picks_season_account_version_idx",
+        "prediction_picks_latest_by_account_idx": {
+          "name": "prediction_picks_latest_by_account_idx",
           "columns": [
             {
               "expression": "season_id",
@@ -13229,10 +13229,22 @@
               "nulls": "last"
             },
             {
-              "expression": "version",
+              "expression": "contest_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
+            },
+            {
+              "expression": "submitted",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "version",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "first"
             }
           ],
           "isUnique": false,
