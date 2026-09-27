@@ -21,7 +21,7 @@ import { requestCompetitionEntryRosterChangeInTx } from "../../../src/lib/compet
 import { applyMatchStatusTransitionInTx, confirmMatchRosterInTx, persistMatchRosterInTx } from "../../../src/lib/match-rosters/service";
 import { assertGenericMatchCanBeDeleted } from "../../../src/lib/matches/deletion";
 import { applyResultCorrectionInTx, planResultCorrectionInTx } from "../../../src/lib/match-corrections/service";
-import { selectMajorEntrantsAndSyncRostersInTx } from "../../../src/lib/major/prestart-entrants";
+import { lockMajorPrestartEntrantsInTx, selectMajorEntrantsAndSyncRostersInTx } from "../../../src/lib/major/prestart-entrants";
 import { readVetoRoomCore, readVetoRoomSnapshot, requestVetoStart, submitVetoCommand } from "../../../src/lib/matches/veto-room/service";
 import { localDatabaseUrl, testSteam64 } from "./harness/database";
 
@@ -626,6 +626,13 @@ async function exerciseThirtyToTwentyFourAcceptance(): Promise<void> {
       [fixture.seasonId],
     );
     expect(selectedRows.rows[0]).toEqual({ count: "24", confirmedRosters: "24" });
+
+    await pool.query("UPDATE seasons SET roster_change_closes_at = $2 WHERE id = $1", [fixture.seasonId, completedRun!.completedAt]);
+    await expect(database.transaction((tx) => lockMajorPrestartEntrantsInTx(tx, {
+      seasonId: fixture!.seasonId,
+      actorId: ACTOR,
+    }))).rejects.toThrow("最终名单调整截止必须晚于 Play-in 实际完成时间");
+    await pool.query("UPDATE seasons SET roster_change_closes_at = now() + interval '1 day' WHERE id = $1", [fixture.seasonId]);
 
     const finalEntrant = fixture.entries.find((entry) => entry.entryId === finalEntryIds[0]);
     if (!finalEntrant) throw new Error("final entrant missing from fixture");
