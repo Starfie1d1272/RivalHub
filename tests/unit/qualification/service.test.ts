@@ -366,9 +366,10 @@ describe("participant readiness", () => {
         sourceSelection: "strongest_equivalent",
       },
     };
-    const unranked = { status: "unranked" as const, rank: null, rating: null };
+    type SeasonFact = { status?: "ranked" | "unranked"; rank: string | null; rating: number | null; stars?: number | null };
+    const unranked: SeasonFact = { status: "unranked", rank: null, rating: null };
     const input = toPlayerStrengthInput(fullFact({
-      seasonPeaks: new Map([
+      seasonPeaks: new Map<string, SeasonFact>([
         ["S19", { rank: "A", rating: 1600 }],
         ["S20", unranked],
         ["S21", unranked],
