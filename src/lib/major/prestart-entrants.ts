@@ -383,6 +383,10 @@ export async function lockMajorPrestartEntrantsInTx(
   if (qualificationRun && !season.rosterChangeClosesAt) {
     throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "请先设置 Play-in 后的最终名单调整截止时间，再冻结正式名单。");
   }
+  if (qualificationRun?.completedAt && season.rosterChangeClosesAt &&
+      season.rosterChangeClosesAt.getTime() <= qualificationRun.completedAt.getTime()) {
+    throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "最终名单调整截止必须晚于 Play-in 实际完成时间，请重新设置名单调整窗口。");
+  }
   if (season.rosterChangeClosesAt && season.rosterChangeClosesAt.getTime() > Date.now()) {
     throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "最终名单调整截止时间尚未到达，不能提前冻结正式名单。");
   }
