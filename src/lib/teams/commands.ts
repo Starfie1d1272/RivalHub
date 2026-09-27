@@ -96,7 +96,22 @@ export async function updateTeamProfileInTx(
     await tx.insert(teamNameChanges).values({ teamId: team.id, oldName: team.name, newName: input.name, changedAt: await nextNameChangeAt(tx, team.id), changedByActorId: input.actorId });
     await tx.insert(teamSlugAliases).values({ slug: team.slug, teamId: team.id }).onConflictDoNothing();
   }
-  await tx.update(teams).set({ name: input.name, slug: nextSlug, description: input.description || null, updatedAt: new Date() }).where(eq(teams.id, team.id));
+  const updatedAt = new Date();
+  await tx.update(teams).set({ name: input.name, slug: nextSlug, description: input.description || null, updatedAt }).where(eq(teams.id, team.id));
+  if (nameChanged) {
+    const activeEntries = await tx.select({ id: competitionEntries.id })
+      .from(competitionEntries)
+      .innerJoin(seasons, eq(seasons.id, competitionEntries.competitionId))
+      .where(and(
+        eq(competitionEntries.teamId, team.id),
+        sql`${seasons.status} NOT IN ('finished', 'archived')`,
+      ));
+    if (activeEntries.length > 0) {
+      await tx.update(competitionEntries)
+        .set({ name: input.name, updatedAt })
+        .where(inArray(competitionEntries.id, activeEntries.map((entry) => entry.id)));
+    }
+  }
   await auditTeam(tx, "team.update_profile", input.actorId, team.id, { fromName: team.name, toName: input.name });
   return { oldSlug: team.slug, slug: nextSlug };
 }
