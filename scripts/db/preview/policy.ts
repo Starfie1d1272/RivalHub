@@ -32,7 +32,7 @@ export const PREVIEW_COLUMNS: Record<string, string> = {
   competition_qualification_entrants: "id run_id season_id competition_entry_id preliminary_seed created_at",
   event_rosters: "id entry_id source_roster_revision_id status confirmed_at confirmed_by frozen_at frozen_by created_at updated_at",
   event_roster_members: "id event_roster_id user_id participant_id education_verification_id is_primary_starter is_current created_at",
-  major_prestart_states: "id season_id entrants_locked_at entrants_locked_by seeds_confirmed_at seeds_confirmed_by seeds_locked_at seeds_locked_by created_at updated_at",
+  major_prestart_states: "id season_id entrants_locked_at entrants_locked_by seeds_confirmed_at seeds_confirmed_by seeds_locked_at seeds_locked_by main_event_planned_start_at created_at updated_at",
   major_tournament_entrants: "id season_id competition_entry_id created_at",
   major_tournament_seeds: "id season_id tournament_entrant_id seed created_at",
   major_stage_runs: "id season_id stage_key rule_snapshot finalized_round started_at started_by",
@@ -147,6 +147,10 @@ export const PREVIEW_SCHEMA_LIFECYCLE: readonly PreviewSchemaLifecycleTable[] = 
   {
     table: "steam_profiles",
     introducedAt: "0052_gray_supernaut",
+  },
+  {
+    table: "major_prestart_states",
+    columns: [{ name: "main_event_planned_start_at", introducedAt: "0060_calm_matthew_murdock" }],
   },
   {
     table: "matches",
