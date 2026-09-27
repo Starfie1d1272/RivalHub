@@ -77,14 +77,7 @@ export function MajorPrestartConsole({ seasonName, readiness, management, seedMa
       <p className="text-sm text-[var(--color-fg-mid)]">{summaries[phase - 1]}</p>
       {phase >= 4 && !readiness.canStart && (tasks[0] || systemBlockers[0]) && <p className="mt-2 text-sm text-[var(--color-warn)]">当前阻塞：{(tasks[0] ?? systemBlockers[0])?.detail}</p>}
     </Panel>
-    <Panel label="赛前时间计划">
-      <div className="grid gap-4 xl:grid-cols-3">
-        <MajorPrestartScheduleEditor key={`registration-${management.registrationClosesAt}`} seasonId={management.seasonId} kind="registration-close" label="报名截止时间" value={management.registrationClosesAt} disabled={Boolean(run) || management.entrants.length > 0 || management.entrantsLocked || started} hint="截止后停止新的正常报名，并以已批准名单形成资格候选。" />
-        <MajorPrestartScheduleEditor key={management.rosterChangeClosesAt ?? ""} seasonId={management.seasonId} kind="final-roster-close" label="最终名单调整截止" value={management.rosterChangeClosesAt} disabled={management.entrantsLocked || started} hint="资格赛完成后正式参赛队重新开放名单调整；该时间是最终自助调整截止。" />
-        <MajorPrestartScheduleEditor key={`main-${management.mainEventPlannedStartAt}`} seasonId={management.seasonId} kind="main-event-start" label="Main Event 计划开始" value={management.mainEventPlannedStartAt} disabled={started} hint="仅用于运营计划；到时不会自动开赛。" />
-      </div>
-      {plannedStartOverdue && <p className="mt-3 text-sm text-[var(--color-warn)]">Main Event 计划时间已过；{readiness.canStart ? "等待管理员确认开赛。" : "仍需处理赛前阻塞事项。"}</p>}
-    </Panel>
+    {plannedStartOverdue && <p className="border-l-2 border-[var(--color-warn)] pl-3 text-sm text-[var(--color-warn)]">Main Event 计划时间已过；{readiness.canStart ? "等待管理员确认开赛。" : "仍需处理赛前阻塞事项。"}</p>}
     {phase === 1 && <>
       <Panel label="报名收口">
         <div className="grid gap-3 text-sm sm:grid-cols-3">
@@ -93,6 +86,9 @@ export function MajorPrestartConsole({ seasonName, readiness, management, seedMa
           <p>待审核 / 补正 / 候补 <strong>{management.pendingReviewCount}</strong> 支</p>
           <p>预计正赛容量 <strong>{management.entrantCapacity}</strong> 支</p>
         </div>
+        <div className="mt-4 border-t border-[var(--color-border)] pt-4">
+          <MajorPrestartScheduleEditor key={`registration-${management.registrationClosesAt}`} seasonId={management.seasonId} kind="registration-close" label="报名截止时间" value={management.registrationClosesAt} disabled={Boolean(run) || management.entrants.length > 0 || management.entrantsLocked || started} hint="截止后停止新的正常报名，并以已批准名单形成资格候选。" />
+        </div>
       </Panel>
       <MajorLiveRanking data={management} />
     </>}
@@ -100,12 +96,18 @@ export function MajorPrestartConsole({ seasonName, readiness, management, seedMa
     {phase === 3 && <MajorCompetitionFlow key={rankKey} data={management} phase="runtime" />}
     {phase === 4 && <>
       <MajorCompetitionFlow key={rankKey} data={management} phase="entrants" />
+      <Panel label="最终名单调整窗口">
+        <MajorPrestartScheduleEditor key={management.rosterChangeClosesAt ?? ""} seasonId={management.seasonId} kind="final-roster-close" label="最终名单调整截止" value={management.rosterChangeClosesAt} disabled={management.entrantsLocked || started} hint="资格赛完成后仅正式参赛队重新开放名单调整；到达该时间后才能冻结正式名单。" />
+      </Panel>
       <MajorPrestartManagement data={management} />
     </>}
     {phase === 5 && <MajorTournamentSeedsManagement data={seedManagement} management={management} />}
     {phase === 6 && <>
       <Panel label="开赛总览">
         <p className="text-sm text-[var(--color-fg-mid)]">正式参赛队 {management.entrants.length} 支 · 最终名单 {management.entrantsLocked ? "已冻结" : "待冻结"} · 种子 {seedManagement.seedsConfirmed ? "已确认" : "待确认"} · 首轮 {readiness.openingPlan?.firstRound.pairings.length ?? "待生成"} 场</p>
+        <div className="mt-4 border-t border-[var(--color-border)] pt-4">
+          <MajorPrestartScheduleEditor key={`main-${management.mainEventPlannedStartAt}`} seasonId={management.seasonId} kind="main-event-start" label="Main Event 计划开始" value={management.mainEventPlannedStartAt} disabled={started} hint="仅用于运营计划；到时不会自动开赛，仍需由管理员执行正式开始。" />
+        </div>
       </Panel>
       <MajorStartManagement seasonId={management.seasonId} openingPlan={readiness.openingPlan} canStart={readiness.canStart} started={started} />
     </>}
