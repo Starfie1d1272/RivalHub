@@ -303,7 +303,12 @@ describe("spectator prediction PostgreSQL contracts", () => {
       for (const [index, actor] of [userId, otherId].entries()) await db.transaction((tx) => stakeInTx(tx, {
         seasonId, userId: actor, marketId: pool.id, optionId: pool.options[index]!.id, amount: "100", requestId: randomUUID(),
       }));
-      await db.update(schema.predictionMarkets).set({ deadline: new Date(Date.now() - 1000) }).where(eq(schema.predictionMarkets.id, pool.id));
+      // A later schedule move can make the cutoff earlier than the frozen market deadline.
+      // Reads must project the same effective deadline that stake mutations enforce.
+      await db
+        .update(schema.matches)
+        .set({ scheduledAt: new Date(Date.now() + 60_000) })
+        .where(eq(schema.matches.id, f.matchIds[0]!));
       const locker = await f.pool.connect();
       try {
         await locker.query("BEGIN");
@@ -318,7 +323,13 @@ describe("spectator prediction PostgreSQL contracts", () => {
         expect(sim.ledger).toEqual([]);
         expect(sim.pickLeaderboard).toEqual([]);
         const points = await read("points");
-        expect(points.markets[0]).toMatchObject({ participants: 2, myStake: "100", myOptionId: pool.options[0]!.id, locked: true });
+        expect(points.markets[0]).toMatchObject({
+          participants: 2,
+          myStake: "100",
+          myOptionId: pool.options[0]!.id,
+          locked: true,
+        });
+        expect(new Date(points.markets[0]!.deadline).getTime()).toBeLessThan(Date.now());
         expect(points.markets[0]!.options.map((option) => option.pool)).toEqual(["100", "100"]);
         expect(points.ledger).toEqual([]);
         expect((await read("record")).markets).toEqual([]);
