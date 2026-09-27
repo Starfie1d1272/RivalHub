@@ -94,7 +94,13 @@ export const predictionPicks = pgTable(
   (t) => [
     unique().on(t.accountId, t.requestId),
     unique().on(t.contestId, t.accountId, t.version),
-    index("prediction_picks_season_account_version_idx").on(t.seasonId, t.accountId, t.version),
+    index("prediction_picks_latest_by_account_idx").on(
+      t.seasonId,
+      t.accountId,
+      t.contestId,
+      t.submitted,
+      t.version.desc(),
+    ),
     foreignKey({
       columns: [t.contestId, t.seasonId],
       foreignColumns: [predictionContests.id, predictionContests.seasonId],
