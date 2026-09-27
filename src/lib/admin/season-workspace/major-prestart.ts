@@ -454,7 +454,9 @@ export async function loadMajorPrestartPageData(season: Season): Promise<MajorPr
       registrationOpenState: season.registrationClosesAt && season.registrationClosesAt.getTime() <= Date.now()
         ? "closed" : season.registrationOpenedAt ? "open" : "pending",
       rosterChangeClosesAt: season.rosterChangeClosesAt?.toISOString() ?? null,
-      rosterAdjustmentDeadlinePassed: Boolean(season.rosterChangeClosesAt && season.rosterChangeClosesAt.getTime() <= Date.now()),
+      rosterAdjustmentDeadlinePassed: qualificationRun
+        ? Boolean(season.rosterChangeClosesAt && season.rosterChangeClosesAt.getTime() <= Date.now())
+        : !season.rosterChangeClosesAt || season.rosterChangeClosesAt.getTime() <= Date.now(),
       mainEventPlannedStartAt: state?.mainEventPlannedStartAt?.toISOString() ?? null,
       mainEventStartOverdue: Boolean(state?.mainEventPlannedStartAt && state.mainEventPlannedStartAt.getTime() < Date.now() && stageRunRows.length === 0),
       registrationClosed: Boolean(season.registrationClosesAt && season.registrationClosesAt.getTime() <= Date.now()),
