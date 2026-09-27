@@ -44,6 +44,11 @@ export function MajorPrestartManagement({ data }: { data: MajorPrestartManagemen
   const missingEducation = data.entrants.reduce((count, entrant) => count + entrant.roster.filter((member) => !member.educationVerified).length, 0);
   const changedRosters = data.entrants.filter((entrant) => entrant.recentRosterChange);
   const deadlinePending = !data.rosterAdjustmentDeadlinePassed;
+  const qualificationCompletedAt = data.qualification.run?.completedAt ?? null;
+  const invalidPostQualificationWindow = Boolean(
+    qualificationCompletedAt &&
+    (!data.rosterChangeClosesAt || new Date(data.rosterChangeClosesAt).getTime() <= new Date(qualificationCompletedAt).getTime()),
+  );
   return <Panel label={`正赛名单 · ${data.entrants.length}/${data.entrantCapacity}`}>
     <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
       <div>
@@ -52,6 +57,7 @@ export function MajorPrestartManagement({ data }: { data: MajorPrestartManagemen
         </Marker>
         <p className="mt-1 text-sm text-[var(--color-fg-mid)]">待确认名单 {needsReview} 支 · 学籍资料待补全 {missingEducation} 人。名单变更由队长和成员在报名入口发起，并重新审核。</p>
         <p className="mt-1 text-xs text-[var(--color-fg-mid)]">最终调整截止：{data.rosterChangeClosesAt ? new Date(data.rosterChangeClosesAt).toLocaleString("zh-CN", { timeZone: "Asia/Shanghai" }) : "尚未设置"}</p>
+        {invalidPostQualificationWindow && <p className="mt-1 text-xs text-[var(--color-warn)]">Play-in 已完成；请把最终名单调整截止设置为晚于资格赛实际完成时间，再冻结正式名单。</p>}
       </div>
       {!data.entrantsLocked && <Button disabled={pending || deadlinePending || data.entrants.length !== data.entrantCapacity || needsReview > 0 || missingEducation > 0} onClick={() => startTransition(async () => {
         const result = await lockMajorPrestartEntrants({ seasonId: data.seasonId });
