@@ -94,15 +94,19 @@ export async function saveMajorPrestartSchedule(input: {
         if (run || state.entrantsLockedAt) throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "资格方案或正式名单已经冻结，不能调整报名截止。");
         if (next && current.registrationOpensAt && next <= current.registrationOpensAt) throw new AppError(ErrorCode.VALIDATION_FAILED, "报名截止必须晚于报名开放时间。");
         if (next && current.rosterChangeClosesAt && next > current.rosterChangeClosesAt) throw new AppError(ErrorCode.VALIDATION_FAILED, "报名截止不能晚于最终名单调整截止。");
+        if (next && state.mainEventPlannedStartAt && next > state.mainEventPlannedStartAt) throw new AppError(ErrorCode.VALIDATION_FAILED, "报名截止不能晚于 Main Event 计划开始时间。");
         previous = current.registrationClosesAt;
         await tx.update(seasons).set({ registrationClosesAt: next }).where(eq(seasons.id, current.id));
       } else if (parsed.data.kind === "final-roster-close") {
         if (state.entrantsLockedAt || stage) throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "最终名单已经冻结，不能调整名单截止。");
         if (next && current.registrationClosesAt && next < current.registrationClosesAt) throw new AppError(ErrorCode.VALIDATION_FAILED, "最终名单调整截止不能早于报名截止。");
+        if (next && state.mainEventPlannedStartAt && next > state.mainEventPlannedStartAt) throw new AppError(ErrorCode.VALIDATION_FAILED, "最终名单调整截止不能晚于 Main Event 计划开始时间。");
         previous = current.rosterChangeClosesAt;
         await tx.update(seasons).set({ rosterChangeClosesAt: next }).where(eq(seasons.id, current.id));
       } else {
         if (stage) throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "Main Event 已开始，不能调整计划开赛时间。");
+        if (next && current.registrationClosesAt && next < current.registrationClosesAt) throw new AppError(ErrorCode.VALIDATION_FAILED, "Main Event 计划开始时间不能早于报名截止。");
+        if (next && current.rosterChangeClosesAt && next < current.rosterChangeClosesAt) throw new AppError(ErrorCode.VALIDATION_FAILED, "Main Event 计划开始时间不能早于最终名单调整截止。");
         previous = state.mainEventPlannedStartAt;
         await tx.update(majorPrestartStates).set({ mainEventPlannedStartAt: next, updatedAt: new Date() }).where(eq(majorPrestartStates.id, state.id));
       }
