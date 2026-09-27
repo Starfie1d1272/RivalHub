@@ -1,5 +1,19 @@
 # Changelog
 
+## [2.13.0]
+
+### Added
+
+#### 在线 Veto Room
+
+比赛双方负责人可在线确认并完成地图 BP，系统独立记录地图计划、超时与申诉；资格赛先手依据冻结预排名确定。
+
+### Changed
+
+#### NJU Major 统一赛事规则
+
+发布规则 v1.1，明确 Play-In、BP、名单调整和赛前身份核验要求；各届具体赛制参数由正式赛事公告承载。
+
 ## [2.12.3]
 
 ### Added
@@ -2407,6 +2421,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[2.13.0]: https://github.com/Starfie1d1272/RivalHub/compare/v2.12.3...v2.13.0
 [2.12.3]: https://github.com/Starfie1d1272/RivalHub/compare/v2.12.2...v2.12.3
 [2.12.2]: https://github.com/Starfie1d1272/RivalHub/compare/v2.12.1...v2.12.2
 [2.12.1]: https://github.com/Starfie1d1272/RivalHub/compare/v2.12.0...v2.12.1
