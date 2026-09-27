@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.13.4]
+
+### Fixed
+
+#### Major 系统参考
+
+修复未定级选手较多时部分队伍系统参考整体缺失的问题。明确未定级赛季不等同 D，也不等同资料缺失：优先使用同赛季等价证据，否则按最近一个更早的真实已定级赛季下一档估算；没有此前逐赛季已定级记录时，以历史最高下一档作为保守参考。估算值始终保留来源说明，不会使用后来的赛季反推更早赛季。
+
 ## [2.13.3]
 
 ### Fixed
@@ -2449,6 +2457,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[2.13.4]: https://github.com/Starfie1d1272/RivalHub/compare/v2.13.3...v2.13.4
 [2.13.3]: https://github.com/Starfie1d1272/RivalHub/compare/v2.13.2...v2.13.3
 [2.13.2]: https://github.com/Starfie1d1272/RivalHub/compare/v2.13.1...v2.13.2
 [2.13.1]: https://github.com/Starfie1d1272/RivalHub/compare/v2.13.0...v2.13.1
