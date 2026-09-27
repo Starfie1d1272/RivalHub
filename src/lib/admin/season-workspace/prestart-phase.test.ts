@@ -25,6 +25,10 @@ describe("Major prestart phase", () => {
   it("skips Play-in when the approved set exactly fills the Main Event", () => {
     expect(deriveMajorPrestartPhase({ ...base, registrationClosed: true, approvedCandidateCount: 24 })).toBe(4);
   });
+  it("keeps the managed-profile decision reachable when the current capacity is too large", () => {
+    expect(deriveMajorPrestartPhase({ ...base, registrationClosed: true, approvedCandidateCount: 30, entrantCapacity: 32 })).toBe(2);
+    expect(deriveMajorPrestartPhase({ ...base, registrationClosed: true, approvedCandidateCount: 20, entrantCapacity: 24 })).toBe(2);
+  });
   it("keeps unresolved registration reviews in the first phase", () => {
     expect(deriveMajorPrestartPhase({ ...base, registrationClosed: true, pendingReviewCount: 1 })).toBe(1);
   });
