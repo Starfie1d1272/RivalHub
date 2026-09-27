@@ -59,7 +59,7 @@ function PlayerCell({ member, platform }: { member: RankingMember; platform: str
       </span>
     </summary>
     <div className="mt-2 min-w-48 border-t border-[var(--color-border)] pt-2 text-[.95em] text-[var(--color-fg-mid)]">
-      {facts.map(([label, fact]) => <p key={label}>{label}：{rankText(fact, platform)}{fact?.estimatedFromSeasonKey ? ` · 按 ${fact.estimatedFromSeasonKey} 段位下一档估算` : ""}{fact?.sourcePlatform && !fact.estimatedFromUnranked ? ` · ${sourceLabel(fact.sourcePlatform)}` : ""}{fact?.sourceSeasonKey && !fact.estimatedFromUnranked ? ` · ${fact.sourceSeasonKey}` : ""}{fact?.sourceRank ? ` · 原始 ${fact.sourceRank}${fact.sourceStars === null ? "" : ` ${fact.sourceStars} 星`}` : ""}{fact?.conversionVersion ? ` · 换算 ${fact.conversionVersion}` : ""}</p>)}
+      {facts.map(([label, fact]) => <p key={label}>{label}：{rankText(fact, platform)}{fact?.estimatedFromSeasonKey ? ` · 按 ${fact.estimatedFromSeasonKey} 已定级记录下一档估算` : fact?.estimatedFromHistorical ? " · 无逐赛季已定级记录，按历史最高下一档估算" : ""}{fact?.sourcePlatform && !fact.estimatedFromUnranked ? ` · ${sourceLabel(fact.sourcePlatform)}` : ""}{fact?.sourceSeasonKey && !fact.estimatedFromUnranked ? ` · ${fact.sourceSeasonKey}` : ""}{fact?.sourceRank ? ` · 原始 ${fact.sourceRank}${fact.sourceStars === null ? "" : ` ${fact.sourceStars} 星`}` : ""}{fact?.conversionVersion ? ` · 换算 ${fact.conversionVersion}` : ""}</p>)}
       {member.presentation.historicalRating !== null && <p>历史 Rating {member.presentation.historicalRating}</p>}
       {member.presentation.blockers.map((blocker) => <p key={blocker} className="text-[var(--color-warn)]">{blocker}</p>)}
     </div>
