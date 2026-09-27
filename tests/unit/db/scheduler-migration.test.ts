@@ -10,6 +10,10 @@ const reliabilityMigration = readFileSync(
   join(process.cwd(), "drizzle/migrations/0047_scheduler_dispatch_reliability.sql"),
   "utf8",
 );
+const vetoSchedulerMigration = readFileSync(
+  join(process.cwd(), "drizzle/migrations/0059_veto_scheduler_dispatch.sql"),
+  "utf8",
+);
 
 describe("scheduler migration contract", () => {
   it("keeps health and dispatch server-only", () => {
@@ -37,5 +41,20 @@ describe("scheduler migration contract", () => {
     expect(reliabilityMigration).toContain("VALUES (p_job_key, clock_timestamp(), clock_timestamp())");
     expect(reliabilityMigration).toContain("ON CONFLICT ON CONSTRAINT scheduled_job_health_pkey");
     expect(reliabilityMigration).not.toContain("ON CONFLICT (job_key)");
+  });
+
+  it("allows and due-gates the Veto Room scheduler job in production dispatch", () => {
+    expect(vetoSchedulerMigration).toContain("WHEN 'resolve-match-veto-timeouts' THEN");
+    expect(vetoSchedulerMigration.match(/'resolve-match-veto-timeouts'/g)).toHaveLength(3);
+    expect(vetoSchedulerMigration).toContain("public.match_veto_sessions AS veto_session");
+    expect(vetoSchedulerMigration).toContain(
+      'CREATE OR REPLACE FUNCTION "public"."enqueue_rivalhub_scheduler_job"(job_key text)',
+    );
+    expect(vetoSchedulerMigration).toContain(
+      'CREATE OR REPLACE FUNCTION "public"."dispatch_rivalhub_scheduler_job"(job_key text)',
+    );
+    expect(vetoSchedulerMigration).toContain(
+      'REVOKE ALL PRIVILEGES ON FUNCTION "public"."dispatch_rivalhub_scheduler_job"(text) FROM PUBLIC, anon, authenticated;',
+    );
   });
 });
