@@ -163,11 +163,7 @@ export function VetoRoom({ initialRoom }: { initialRoom: VetoRoomView }) {
     room.entries,
     room.match.scheduledAt,
     room.match.statusKey,
-    room.session.completedAt,
-    room.session.effectiveForceAt,
-    room.session.previousMatchBlocker,
-    room.session.revision,
-    room.session.startedAt,
+    room.session,
   ]);
 
   const mutate = useCallback(async (action: MutationAction, input: unknown, successMessage = "已保存。") => {
