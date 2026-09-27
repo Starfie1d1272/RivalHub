@@ -278,6 +278,15 @@ describe("spectator prediction PostgreSQL contracts", () => {
       }
       await db.update(schema.matches).set({ status: "finished", scoreA: 2, scoreB: 0, completedAt: new Date() }).where(eq(schema.matches.id, f.matchIds[0]!));
       await reconcile(f);
+      // A recorded BO3 score must not pay out before the official round is accepted.
+      expect(await balance(f)).toBe(BigInt(0));
+      expect(await balance(f, otherId)).toBe(BigInt(0));
+      await db.update(schema.matches).set({ status: "finished", scoreA: 2, scoreB: 0, completedAt: new Date() })
+        .where(and(eq(schema.matches.majorStageRunId, f.runId), eq(schema.matches.round, 1)));
+      await db.transaction((tx) => finalizeMajorSwissRoundInTransaction(tx, {
+        seasonId, stageRunId: f.runId, expectedRound: 1, actorId: "test",
+      }));
+      await reconcile(f);
       expect(await balance(f)).toBe(BigInt(2000));
       expect(await balance(f, otherId)).toBe(BigInt(0));
       const board = await db.transaction((tx) => predictionBoard(tx, seasonId, userId));
