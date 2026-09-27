@@ -61,3 +61,4 @@
 - [`release.md`](./operations/release.md)
 - [`disaster-recovery.md`](./operations/disaster-recovery.md)
 - [`major-referee-guide.md`](./operations/major-referee-guide.md)
+- [`spectator-predictions.md`](./operations/spectator-predictions.md)

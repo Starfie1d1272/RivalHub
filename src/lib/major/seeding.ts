@@ -140,3 +140,13 @@ export function seedMajorLaterStageEntrants(input: {
     })),
   ];
 }
+
+/** Shared frozen stage direct-entry range, used by runtime and simulation. */
+export function directSeedRange(stages: readonly { key: string; type: string; entrySeeds?: number | null }[], stageKey: string, count: number): readonly [number, number] {
+  const targetIndex = stages.findIndex((stage) => stage.key === stageKey);
+  if (targetIndex < 0) throw new Error(`Unknown stage: ${stageKey}`);
+  const laterDirectCount = stages.slice(targetIndex + 1)
+    .filter((stage) => stage.type === "swiss")
+    .reduce((sum, stage) => sum + (stage.entrySeeds ?? 0), 0);
+  return [laterDirectCount + 1, laterDirectCount + count];
+}

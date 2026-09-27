@@ -435,6 +435,13 @@
       "when": 1790508500000,
       "tag": "0061_sync_active_team_entry_names",
       "breakpoints": true
+    },
+    {
+      "idx": 62,
+      "version": "7",
+      "when": 1790517926943,
+      "tag": "0062_prediction_markets",
+      "breakpoints": true
     }
   ]
 }

@@ -15,6 +15,7 @@ export const SCHEDULER_JOB_KEYS = [
   "cleanup-education-evidence",
   "refresh-steam-profiles",
   "resolve-match-veto-timeouts",
+  "reconcile-predictions",
 ] as const;
 
 export const SCHEDULER_JOB_DEFINITIONS = [
@@ -55,6 +56,7 @@ export const SCHEDULER_JOB_DEFINITIONS = [
     primaryCron: "* * * * *",
     staleAfterMs: 3 * 60 * 1000,
   },
+  { key: SCHEDULER_JOB_KEYS[6], label: "观赛预测结算", primaryCron: "* * * * *", staleAfterMs: 3 * 60 * 1000 },
 ] as const;
 
 export type SchedulerJobKey = (typeof SCHEDULER_JOB_DEFINITIONS)[number]["key"];

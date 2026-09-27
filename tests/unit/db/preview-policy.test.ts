@@ -4,6 +4,7 @@ import {
   assertReviewedColumns,
   exportQuery,
   OMITTED_COLUMNS,
+  EXCLUDED_TABLES,
   PREVIEW_COLUMNS,
   previewPolicyFor,
 } from "../../../scripts/db/preview/policy";
@@ -16,6 +17,13 @@ describe("sanitized mirror policy", () => {
     expect(() => assertReviewedColumns("community_groups", PREVIEW_COLUMNS.community_groups.split(" "))).not.toThrow();
     expect(exportQuery("users")).not.toContain("auth_id");
     expect(exportQuery("users")).toContain("@preview.invalid");
+  });
+
+  it("excludes prediction submissions, balances and dependent program rows from sanitized mirrors", () => {
+    for (const table of ["prediction_programs", "prediction_accounts", "prediction_contests", "prediction_picks", "prediction_judgements", "prediction_scenarios", "prediction_markets", "prediction_market_options", "prediction_stakes", "prediction_settlements", "prediction_ledger", "prediction_jobs", "prediction_stage_milestones"]) {
+      expect(EXCLUDED_TABLES.has(table)).toBe(true);
+      expect(PREVIEW_COLUMNS).not.toHaveProperty(table);
+    }
   });
 
   it("projects a fixed end reason without selecting the private source field", () => {

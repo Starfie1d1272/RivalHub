@@ -21,7 +21,7 @@ jobs:
       - name: Resolve manual targets
         if: github.event_name == 'workflow_dispatch'
         id: manual
-        run: echo 'job_keys=["draft-timeout","check-registration-deadline","match-time-auto-award","cleanup-education-evidence","refresh-steam-profiles"]' >> "$GITHUB_OUTPUT"
+        run: echo 'job_keys=["draft-timeout","check-registration-deadline","match-time-auto-award","cleanup-education-evidence","refresh-steam-profiles","reconcile-predictions"]' >> "$GITHUB_OUTPUT"
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         if: github.event_name == 'schedule'
@@ -38,7 +38,7 @@ jobs:
         shell: bash
         run: |
           set -uo pipefail
-          ALL='["draft-timeout","check-registration-deadline","match-time-auto-award","cleanup-education-evidence","refresh-steam-profiles"]'
+          ALL='["draft-timeout","check-registration-deadline","match-time-auto-award","cleanup-education-evidence","refresh-steam-profiles","reconcile-predictions"]'
           if PLAN="$(pnpm --silent db:production:scheduler:watchdog-plan)"; then
             echo "job_keys=$PLAN" >> "$GITHUB_OUTPUT"
           else

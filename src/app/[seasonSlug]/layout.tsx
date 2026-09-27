@@ -63,6 +63,7 @@ async function SeasonLayoutContent({ children, params }: SeasonLayoutProps) {
         hasCommunityAwards={season.hasCommunityAwards}
         hasMatches={normalizeStagePlan(season.stagePlan).length > 0}
         hasStats={showStats(season)}
+        hasPredictions={season.competitionTemplate === "major"}
       />
       {children}
       <Suspense fallback={null}>

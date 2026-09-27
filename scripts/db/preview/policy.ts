@@ -172,6 +172,8 @@ export const EXCLUDED_TABLES = new Set(`identity_link_requests user_identities u
   competition_entry_legacy_identities competition_entry_restriction_overrides major_prestart_issues major_seed_recommendation_snapshots
   audit_logs admin_invites admin_invite_claims season_admin_grants match_mvp_votes match_time_proposals
   user_sessions disciplinary_case_idempotency disciplinary_cases community_award_evidence
+  prediction_programs prediction_accounts prediction_contests prediction_picks prediction_judgements prediction_scenarios
+  prediction_markets prediction_market_options prediction_stakes prediction_settlements prediction_ledger prediction_jobs prediction_stage_milestones
   scheduled_job_health feedback_reports`.split(/\s+/));
 
 export interface PreviewTablePolicy {

@@ -1,4 +1,5 @@
 import "server-only";
+import { runPredictionReconciliationJob } from "@/lib/predictions/reconciliation";
 
 import { refreshSteamProfiles } from "@/lib/steam-profiles";
 import { and, eq, isNotNull, isNull, or, sql } from "drizzle-orm";
@@ -143,6 +144,7 @@ export async function runMatchVetoTimeoutJob() {
 
 export async function runSchedulerJobByKey(key: SchedulerJobKey): Promise<SchedulerRunnerResult<unknown>> {
   switch (key) {
+    case "reconcile-predictions": return runPredictionReconciliationJob();
     case "refresh-steam-profiles": return runSteamProfileRefreshJob();
     case "resolve-match-veto-timeouts": return runMatchVetoTimeoutJob();
     case "draft-timeout": return runDraftTimeoutJob();
