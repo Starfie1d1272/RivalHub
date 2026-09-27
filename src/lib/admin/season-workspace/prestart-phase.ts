@@ -14,6 +14,11 @@ export function deriveMajorPrestartPhase(input: {
   if (input.entrantsLocked) return input.seedsConfirmed ? 6 : 5;
   if (input.qualificationConfigured) return input.qualificationCompleted ? 4 : 3;
   if (input.entrantCount > 0) return 4;
-  if (!input.registrationClosed || input.pendingReviewCount > 0 || input.approvedCandidateCount < input.entrantCapacity) return 1;
-  return input.approvedCandidateCount > input.entrantCapacity ? 2 : 4;
+  if (!input.registrationClosed || input.pendingReviewCount > 0) return 1;
+  if (input.approvedCandidateCount === input.entrantCapacity) return 4;
+  // Once registration is closed and review is settled, capacity itself is a
+  // qualification-plan decision. Keep the operator in phase 2 even when the
+  // current managed profile is too large, so Major 32 can still be changed to
+  // Major 24 instead of trapping a 24–31 team field in “报名收口”.
+  return 2;
 }
