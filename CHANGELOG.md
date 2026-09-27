@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.13.2]
+
+### Changed
+
+#### Major 赛前工作区
+
+Major 赛前管理按报名收口、资格方案、资格赛、正赛名单、正赛种子和开赛确认六阶段推进；报名期、预排名与最终种子共用完整队伍排名矩阵，并按资格赛生命周期冻结、重开和最终锁定名单调整。报名截止、最终名单调整截止与 Main Event 计划开始分别由对应阶段管理。
+
 ## [2.13.1]
 
 ### Fixed
@@ -2429,6 +2437,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[2.13.2]: https://github.com/Starfie1d1272/RivalHub/compare/v2.13.1...v2.13.2
 [2.13.1]: https://github.com/Starfie1d1272/RivalHub/compare/v2.13.0...v2.13.1
 [2.13.0]: https://github.com/Starfie1d1272/RivalHub/compare/v2.12.3...v2.13.0
 [2.12.3]: https://github.com/Starfie1d1272/RivalHub/compare/v2.12.2...v2.12.3
