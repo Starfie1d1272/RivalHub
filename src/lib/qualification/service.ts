@@ -248,15 +248,6 @@ export function toPlayerStrengthInput(
         if (!source) continue;
         return lowerOneRung(source, seasonKey, { seasonKey: sourceSeasonKey });
       }
-      // Some long-lived profiles started collecting season facts after the
-      // requested reference slot. Reconstruct from the nearest later ranked
-      // season rather than turning explicit "unranked" into a missing fact.
-      for (let index = targetIndex + 1; index < seasonOrder.length; index += 1) {
-        const sourceSeasonKey = seasonOrder[index]!;
-        const source = directForSeason(sourceSeasonKey);
-        if (!source) continue;
-        return lowerOneRung(source, seasonKey, { seasonKey: sourceSeasonKey });
-      }
     }
 
     // Last-resort estimate for profiles with no season-level ranked history.
