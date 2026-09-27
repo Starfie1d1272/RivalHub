@@ -870,7 +870,8 @@ export async function requestVetoStart(input: {
     const receivedAt = await databaseNow(tx);
     const match = await lockMatchInTx(tx, input.matchId);
     let session = await getSessionForUpdateInTx(tx, match);
-    session = await reconcileVetoSessionInTx(tx, match, session, receivedAt, input.actorId);
+    const processingNow = await databaseNow(tx);
+    session = await reconcileVetoSessionInTx(tx, match, session, processingNow, input.actorId);
     if (session.startedAt) return "idempotent";
     if (session.revision !== input.expectedRevision || session.currentTurnKey !== input.expectedTurnKey) {
       logStaleVetoCommand(session.currentTurnKey !== input.expectedTurnKey ? "turn" : "revision");
@@ -910,7 +911,7 @@ export async function requestVetoStart(input: {
       targetId: match.id,
       meta: { entryId: input.entryId, asRepresentative: !isBpRepresentative },
     });
-    const reconciled = await reconcileVetoSessionInTx(tx, match, updated, receivedAt, input.actorId);
+    const reconciled = await reconcileVetoSessionInTx(tx, match, updated, processingNow, input.actorId);
     if (!reconciled.startedAt) {
       const postRequestTiming = await loadStartTimingInTx(tx, match);
       logEvent({
