@@ -32,7 +32,13 @@ import {
   type MarketResolutionFact,
 } from "./market-resolution";
 import { simulateMajor } from "./simulator";
-import { distributePool, validatePick, rulesSchema, predictionChallengeCapacity } from "./rules";
+import {
+  distributePool,
+  effectivePredictionMarketDeadline,
+  validatePick,
+  rulesSchema,
+  predictionChallengeCapacity,
+} from "./rules";
 import {
   samePick,
   type Baseline,
@@ -628,17 +634,19 @@ export async function stakeInTx(
     .from(markets)
     .where(eq(markets.id, target.id));
   const now = await databaseTime(tx);
-  const scheduledCutoff = match?.scheduledAt
-    ? new Date(
-        match.scheduledAt.getTime() - program.rules.cutoffMinutes * 60000,
-      )
+  const effectiveDeadline = market
+    ? effectivePredictionMarketDeadline({
+        marketDeadline: market.deadline,
+        scheduledAt: match?.scheduledAt ?? null,
+        cutoffMinutes: program.rules.cutoffMinutes,
+      })
     : null;
   if (
     program.paused ||
     !market ||
     market.lockedAt ||
-    now >= market.deadline ||
-    (scheduledCutoff && now >= scheduledCutoff) ||
+    !effectiveDeadline ||
+    now >= effectiveDeadline ||
     !match ||
     match.status !== "scheduled" ||
     match.majorStageRunId !== market.subject.stageRunId ||
