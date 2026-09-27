@@ -79,7 +79,7 @@ export function MajorPrestartConsole({ seasonName, readiness, management, seedMa
     </Panel>
     <Panel label="赛前时间计划">
       <div className="grid gap-4 xl:grid-cols-3">
-        <MajorPrestartScheduleEditor key={`registration-${management.registrationClosesAt}`} seasonId={management.seasonId} kind="registration-close" label="报名截止时间" value={management.registrationClosesAt} disabled={Boolean(run) || management.entrantsLocked || started} hint="截止后停止新的正常报名，并以已批准名单形成资格候选。" />
+        <MajorPrestartScheduleEditor key={`registration-${management.registrationClosesAt}`} seasonId={management.seasonId} kind="registration-close" label="报名截止时间" value={management.registrationClosesAt} disabled={Boolean(run) || management.entrants.length > 0 || management.entrantsLocked || started} hint="截止后停止新的正常报名，并以已批准名单形成资格候选。" />
         <MajorPrestartScheduleEditor key={`roster-${management.rosterChangeClosesAt}`} seasonId={management.seasonId} kind="final-roster-close" label="最终名单调整截止" value={management.rosterChangeClosesAt} disabled={management.entrantsLocked || started} hint="资格赛完成后正式参赛队重新开放名单调整；该时间是最终自助调整截止。" />
         <MajorPrestartScheduleEditor key={`main-${management.mainEventPlannedStartAt}`} seasonId={management.seasonId} kind="main-event-start" label="Main Event 计划开始" value={management.mainEventPlannedStartAt} disabled={started} hint="仅用于运营计划；到时不会自动开赛。" />
       </div>
