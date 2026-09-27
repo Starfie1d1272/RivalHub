@@ -1,6 +1,6 @@
 # 赛事规则
 
-当前统一规则为 [NJU Major 赛事规则 v1.1](published/nju-major-v1.1.md)，由公开页面 `/rules` 明确绑定。v1.1 正式发布前的 PR 审阅阶段保留“发布日期待发布”标记；赛委会审定后补入正式发布日期再合并。
+当前统一规则为 [NJU Major 赛事规则 v1.1](published/nju-major-v1.1.md)，发布日期为 **2026 年 9 月 27 日**，由公开页面 `/rules` 明确绑定。
 
 [NJU Major 2026 赛事规则 v1.0](published/nju-major-2026-v1.md) 作为已发布历史版本永久保留。
 
