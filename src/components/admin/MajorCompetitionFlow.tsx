@@ -131,7 +131,7 @@ export function MajorCompetitionFlow({ data, phase }: { data: ManagementData; ph
 
   return (
     <div className="space-y-5">
-      {(phase === "plan" || phase === "entrants") && <Panel label="MAIN EVENT · 正赛规模">
+      {(phase === "plan" || phase === "entrants") && <Panel label="正赛规模 · MAIN EVENT">
         <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_240px] md:items-end">
           <div>
             <Marker sub={`${data.approvedCandidateCount} 支已批准 · ${data.entrantCapacity} 个正赛名额`}>Major {data.managedProfileId === "major-24" ? "24" : "32"}</Marker>
@@ -166,7 +166,7 @@ export function MajorCompetitionFlow({ data, phase }: { data: ManagementData; ph
         </div>
       </Panel>}
 
-      {phase !== "entrants" && <Panel label="PLAY-IN · 资格赛">
+      {phase !== "entrants" && <Panel label="资格赛 · PLAY-IN">
         {!run ? (
           <div className="space-y-4">
             {data.approvedCandidateCount <= data.entrantCapacity ? (
