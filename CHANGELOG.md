@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.13.3]
+
+### Fixed
+
+#### Major 赛前排名与队伍身份
+
+Major 排名矩阵支持缩小至 50%。未定级赛季不再等同最低 D 段位：在没有同赛季可用等价证据时，按最近一个此前已定级赛季向低一档生成明确标识的实力参考；连续未定级不会重复降档。长期队伍改名会同步仍在进行中的赛事参赛名称，并回填现有未结束赛事中的旧名称。
+
+#### 赛前数据镜像与设置边界
+
+补齐 Main Event 计划开始时间的 Preview Mirror 生命周期声明，并验证 Major 的报名截止与最终名单调整截止继续由赛前工作区管理，不被通用赛季设置覆盖。
+
 ## [2.13.2]
 
 ### Changed
@@ -2437,6 +2449,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[2.13.3]: https://github.com/Starfie1d1272/RivalHub/compare/v2.13.2...v2.13.3
 [2.13.2]: https://github.com/Starfie1d1272/RivalHub/compare/v2.13.1...v2.13.2
 [2.13.1]: https://github.com/Starfie1d1272/RivalHub/compare/v2.13.0...v2.13.1
 [2.13.0]: https://github.com/Starfie1d1272/RivalHub/compare/v2.12.3...v2.13.0
