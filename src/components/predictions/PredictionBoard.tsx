@@ -1,6 +1,6 @@
 "use client";
 import { usePredictionConfirmation } from "./usePredictionConfirmation";
-import { useEffect, useRef, useState, useTransition } from "react";
+import React, { useEffect, useEffectEvent, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -27,6 +27,7 @@ import {
   simulateMajor,
   replaceSimulationChoice,
 } from "@/lib/predictions/simulator";
+import { orderedPredictionStages } from "@/lib/predictions/stage-projection";
 import { exportPredictionImage } from "./share-image";
 import { PointsBoard, PredictionRecord } from "./PointsBoard";
 interface Saved {
@@ -49,6 +50,7 @@ export function PredictionBoard({
 }) {
   const { confirm, confirmation } = usePredictionConfirmation();
   const [data, setData] = useState(initial);
+  const readSequence = useRef(0);
   const requests = useRef(new Map<string, string>());
   function requestId(payload: unknown) {
     const key = JSON.stringify(payload);
@@ -69,37 +71,44 @@ export function PredictionBoard({
   const [choices, setChoices] = useState<Choices>(saved?.choices ?? {});
   const [scenarioId, setScenarioId] = useState<string | undefined>(saved?.id);
   const [undo, setUndo] = useState<Choices[]>([]);
-  const [tab, setTab] = useState("sim");
+  const [tab, setTab] = useState<"sim" | "points" | "record">("sim");
   const [stageKey, setStageKey] = useState(
-    (saved?.baseline ?? initial.base).stages.find(
-      (stage) => stage.previousKey === null,
-    )?.key ??
-      (saved?.baseline ?? initial.base).stages[0]?.key ??
-      "",
+    orderedPredictionStages((saved?.baseline ?? initial.base).stages)[0]?.key ?? "",
   );
   const [mobile, setMobile] = useState("sim");
-  const [sidebar, setSidebar] = useState(true);
+  const [sidebar, setSidebar] = useState(false);
   const [drafts, setDrafts] = useState<Record<string, Pick>>({});
   const [scenarioName, setScenarioName] = useState(saved?.name ?? "我的推演");
   const [pending, start] = useTransition();
+  const acceptRefresh = useEffectEvent((next: PredictionBoardData) => {
+    setData(next);
+    if (!Object.keys(choices).length && !scenarioId) {
+      setBase(next.base);
+      setSimulation(next.simulation);
+    }
+  });
   useEffect(() => {
     let active = true;
-    const timer = setInterval(() => {
-      void getPredictionBoard({ seasonId: initial.base.seasonId }).then((r) => {
-        if (active && r.success) {
-          setData(r.data);
-          if (!Object.keys(choices).length && !scenarioId) {
-            setBase(r.data.base);
-            setSimulation(r.data.simulation);
-          }
-        }
-      });
-    }, 30000);
+    let inFlight = false;
+    const refresh = async () => {
+      if (document.hidden || inFlight) return;
+      inFlight = true;
+      const sequence = ++readSequence.current;
+      try {
+        const r = await getPredictionBoard({ seasonId: initial.base.seasonId, view: tab });
+        if (active && sequence === readSequence.current && r.success) acceptRefresh(r.data);
+      } finally { inFlight = false; }
+    };
+    const update = () => { void refresh().catch(() => { /* Keep the last successful snapshot on transient failures. */ }); };
+    update();
+    const timer = setInterval(update, 30000);
+    document.addEventListener("visibilitychange", update);
     return () => {
       active = false;
       clearInterval(timer);
+      document.removeEventListener("visibilitychange", update);
     };
-  }, [initial.base.seasonId, choices, scenarioId]);
+  }, [initial.base.seasonId, tab]);
   const stage = simulation.find((s) => s.key === stageKey);
   const definition = base.stages.find((s) => s.key === stageKey);
   const contest = data.contests.find((c) => c.stageKey === stageKey);
@@ -112,7 +121,9 @@ export function PredictionBoard({
     base.teams.find((t) => t.teamId === id)?.name ?? "队伍";
   const compatible = base.version === SIMULATION_VERSION;
   async function reload() {
-    const r = await getPredictionBoard({ seasonId: base.seasonId });
+    const sequence = ++readSequence.current;
+    const r = await getPredictionBoard({ seasonId: base.seasonId, view: tab });
+    if (sequence !== readSequence.current) return;
     if (r.success) {
       setData(r.data);
       if (!Object.keys(choices).length && !scenarioId) {
@@ -144,11 +155,12 @@ export function PredictionBoard({
   }
   function resetToLatest() {
     run(async () => {
-      const result = await getPredictionBoard({ seasonId: base.seasonId });
+      const result = await getPredictionBoard({ seasonId: base.seasonId, view: tab });
       if (!result.success) {
         toast.error(result.error.message);
         return;
       }
+      ++readSequence.current;
       setData(result.data);
       setBase(result.data.base);
       setSimulation(result.data.simulation);
@@ -202,7 +214,7 @@ export function PredictionBoard({
   function exportImage() {
     if (!contest) return;
     run(async () => {
-      const latest = await getPredictionBoard({ seasonId: base.seasonId });
+      const latest = await getPredictionBoard({ seasonId: base.seasonId, view: tab });
       if (!latest.success) {
         toast.error(latest.error.message);
         return;
@@ -229,7 +241,7 @@ export function PredictionBoard({
     });
   }
   return (
-    <div className="min-w-0 space-y-6">
+    <div className="min-w-0 space-y-4">
       <div className="flex flex-wrap justify-between gap-4">
         <div>
           <p className="text-xs font-semibold tracking-widest text-[var(--color-accent)]">
@@ -238,9 +250,7 @@ export function PredictionBoard({
           <h1 className="mt-2 text-2xl font-bold">
             {data.base.name} · 观赛预测
           </h1>
-          <p className="mt-2 text-sm text-[var(--color-fg-mid)]">
-            推演一条晋级路径，提交你的判断。
-          </p>
+
         </div>
         <div className="flex items-center gap-2">
           <Button
@@ -301,7 +311,7 @@ export function PredictionBoard({
             key={key}
             variant={tab === key ? "default" : "outline"}
             aria-pressed={tab === key}
-            onClick={() => setTab(key!)}
+            onClick={() => setTab(key as typeof tab)}
           >
             {label}
           </Button>
@@ -310,7 +320,7 @@ export function PredictionBoard({
       {tab === "sim" ? (
         <>
           <div className="flex flex-wrap gap-2" aria-label="赛事阶段">
-            {base.stages.map((s) => (
+            {orderedPredictionStages(base.stages).map((s) => (
               <Button
                 key={s.key}
                 variant={stageKey === s.key ? "default" : "outline"}
@@ -342,24 +352,13 @@ export function PredictionBoard({
             <div
               className={`min-w-0 space-y-4 ${mobile !== "sim" ? "hidden lg:block" : ""}`}
             >
-              <Panel
-                label={scenarioId ? `保存的推演 · ${scenarioName}` : "赛事推演"}
-              >
+              <section aria-label={scenarioId ? `保存的推演 · ${scenarioName}` : "赛事推演"}>
                 <div className="space-y-4">
-                  <p className="text-xs text-[var(--color-fg-mid)]">
-                    {scenarioId ? "独立快照" : "基于官方赛况"} ·{" "}
-                    {new Date(base.capturedAt).toLocaleString("zh-CN")} ·{" "}
-                    {stage?.officialEntrants
-                      ? "官方阶段名单"
-                      : "推演名单，仅供预览"}
-                  </p>
-                  <p
-                    aria-live="polite"
-                    className="text-xs text-[var(--color-fg-mid)]"
-                  >
-                    我的选择 {Object.keys(choices).length} 场 ·
-                    系统补全不会写入正式预测单
-                  </p>
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[var(--color-fg-mid)]">
+                    <span>{scenarioId ? `保存的推演 · ${scenarioName}` : "基于官方赛况"} · {stage?.officialEntrants ? "官方名单" : "推演名单"}</span>
+                    <span aria-live="polite">我的选择 {Object.keys(choices).length} 场</span>
+                    <time dateTime={base.capturedAt}>{new Date(base.capturedAt).toLocaleTimeString("zh-CN")}</time>
+                  </div>
                   {!compatible && (
                     <p role="status">
                       旧版规则快照只能查看。重置后可按最新规则推演。
@@ -416,23 +415,8 @@ export function PredictionBoard({
                       />
                       {stage.complete && (
                         <div className="space-y-3 border-t border-[var(--color-border)] pt-4">
-                          <h3 className="text-sm font-semibold">阶段结果</h3>
-                          {stage.standings.length ? (
-                            <div className="grid gap-2 text-xs sm:grid-cols-2">
-                              {stage.standings.map((t) => (
-                                <div key={t.teamId}>
-                                  {name(t.teamId)} · {t.wins}胜{t.losses}负 ·{" "}
-                                  {t.wins === 3 ? "晋级" : "淘汰"}
-                                </div>
-                              ))}
-                            </div>
-                          ) : (
-                            <p>
-                              预测冠军：
-                              {stage.pick && "bracket" in stage.pick
-                                ? name(stage.pick.bracket[6]!)
-                                : "—"}
-                            </p>
+                          {!stage.standings.length && stage.pick && "bracket" in stage.pick && (
+                            <p className="text-sm">预测冠军：{name(stage.pick.bracket.at(-1) ?? "")}</p>
                           )}
                           <Button
                             variant="outline"
@@ -508,7 +492,7 @@ export function PredictionBoard({
                     )}
                   </div>
                 </div>
-              </Panel>
+              </section>
             </div>
             <aside
               className={`min-w-0 ${mobile !== "pick" ? "hidden lg:block" : ""} ${!sidebar ? "lg:hidden" : ""}`}
@@ -536,6 +520,8 @@ export function PredictionBoard({
             </aside>
           </div>
         </>
+      ) : data.view !== tab ? (
+        <p role="status" className="py-8">正在加载{tab === "points" ? "单场积分" : "我的战绩"}…</p>
       ) : tab === "points" ? (
         <PointsBoard
           data={data}

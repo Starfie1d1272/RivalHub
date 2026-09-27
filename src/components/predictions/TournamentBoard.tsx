@@ -1,4 +1,5 @@
 "use client";
+import React, { useMemo, useState } from "react";
 import { TeamLogo } from "@/components/teams/TeamLogo";
 import type { Baseline, SimMatch, SimStage } from "@/lib/predictions/types";
 import { SimulationMatchCard } from "./SimulationMatchCard";
@@ -13,13 +14,18 @@ export function TournamentBoard({
   editable: boolean;
   onChoose: (match: SimMatch, winner: string) => void;
 }) {
+  const [view, setView] = useState<"flow" | "compact" | "list">("flow");
+  const teamMap = useMemo(() => new Map(teams.map((team) => [team.teamId, team])), [teams]);
+  const rounds = [...new Set(stage.matches.map((match) => match.round))].sort((a, b) => a - b);
+  const lastRound = rounds.at(-1) ?? 1;
   const swiss = stage.standings.length > 0;
   const card = (match: SimMatch) => (
     <SimulationMatchCard
       key={match.key}
       match={match}
       stageKey={stage.key}
-      teams={teams}
+      teams={teamMap}
+      compact={view === "compact"}
       busy={false}
       editable={editable}
       onChoose={onChoose}
@@ -27,18 +33,39 @@ export function TournamentBoard({
   );
   return (
     <div className="space-y-3">
-      <p className="text-xs text-[var(--color-fg-mid)]">
-        点选队伍推演胜者。虚线卡片为按种子补全的预览，不计入你的选择。横向滑动查看完整路径。
-      </p>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div role="group" aria-label="赛程展示方式" className="flex gap-1">
+          {([ ["flow", "晋级路径"], ["compact", "紧凑对阵"], ["list", "轮次列表"] ] as const).map(([key, label]) => (
+            <button key={key} type="button" aria-pressed={view === key} onClick={() => setView(key)}
+              className={`min-h-11 border-b-2 px-3 text-xs focus-visible:outline-2 ${view === key ? "border-[var(--color-accent)] text-[var(--color-accent)]" : "border-transparent text-[var(--color-fg-mid)]"}`}>{label}</button>
+          ))}
+        </div>
+        <details className="text-xs text-[var(--color-fg-mid)]">
+          <summary className="cursor-pointer">如何推演</summary>
+          <p className="max-w-sm py-2">点选队伍推演胜者；虚线为种子预览，实线为官方赛况，强调边框为你的选择。预览不会写入预测单。悬停比赛查看赛制和来源。</p>
+        </details>
+      </div>
       <div
         className="overflow-x-auto pb-3 focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
         tabIndex={0}
         role="region"
         aria-label={swiss ? "Swiss 完整赛事推演" : "淘汰赛完整晋级路径"}
       >
-        {swiss ? (
-          <div className="grid min-w-[1050px] grid-cols-[repeat(5,minmax(0,1fr))_150px] items-start gap-3">
-            {[1, 2, 3, 4, 5].map((round) => {
+        {view === "list" ? (
+          <div className="space-y-6">
+            {rounds.map((round) => <section key={round}>
+              <h3 className="mb-3 border-b border-[var(--color-border)] pb-2 text-sm">第 {round} 轮</h3>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                {stage.matches.filter((match) => match.round === round).map((match) => <div key={match.key}>
+                  <p className="mb-1 text-xs text-[var(--color-fg-mid)]">{match.record ? `${match.record.wins}–${match.record.losses} · ` : ""}{match.format.toUpperCase()}</p>
+                  {card(match)}
+                </div>)}
+              </div>
+            </section>)}
+          </div>
+        ) : swiss ? (
+          <div className="grid items-start gap-4" style={{ gridTemplateColumns: `repeat(${rounds.length}, minmax(${view === "compact" ? 240 : 180}px, 1fr)) 150px` }}>
+            {rounds.map((round) => {
               const matches = stage.matches.filter((m) => m.round === round);
               const records = [
                 ...new Set(
@@ -112,7 +139,7 @@ export function TournamentBoard({
                     {stage.standings
                       .filter((t) => t.wins === wins && t.losses === losses)
                       .map((row) => {
-                        const team = teams.find((t) => t.teamId === row.teamId);
+                        const team = teamMap.get(row.teamId);
                         return (
                           <div
                             key={row.teamId}
@@ -135,16 +162,16 @@ export function TournamentBoard({
             </section>
           </div>
         ) : (
-          <div className="grid min-w-[640px] grid-cols-3 gap-8">
-            {[1, 2, 3].map((round) => (
+          <div className="grid gap-8" style={{ gridTemplateColumns: `repeat(${rounds.length}, minmax(220px, 1fr))` }}>
+            {rounds.map((round) => (
               <section key={round}>
                 <h3 className="mb-4 text-sm font-semibold">
                   {["八强", "半决赛", "决赛"][round - 1]}
                 </h3>
                 <div
-                  className="grid h-[620px]"
+                  className="grid min-h-[400px]"
                   style={{
-                    gridTemplateRows: `repeat(${2 ** (3 - round)}, minmax(0,1fr))`,
+                    gridTemplateRows: `repeat(${stage.matches.filter((match) => match.round === round).length}, minmax(0,1fr))`,
                   }}
                 >
                   {stage.matches
@@ -161,7 +188,7 @@ export function TournamentBoard({
                           />
                         )}
                         <div className="w-full">{card(match)}</div>
-                        {round < 3 && (
+                        {round < lastRound && (
                           <span
                             aria-hidden
                             className={`absolute -right-4 w-4 border-r border-[var(--color-border)] ${i % 2 === 0 ? "top-1/2 h-1/2 border-t" : "bottom-1/2 h-1/2 border-b"}`}

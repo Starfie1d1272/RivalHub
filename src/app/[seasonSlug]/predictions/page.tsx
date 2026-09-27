@@ -39,7 +39,8 @@ async function PredictionContent({
   if (!season || season.competitionTemplate !== "major") notFound();
   const user = await getUserSession();
   const data = await db.transaction((tx) =>
-    predictionBoard(tx, season.id, user?.userId ?? null),
+    predictionBoard(tx, season.id, user?.userId ?? null, "sim"),
+    { accessMode: "read only", isolationLevel: "repeatable read" },
   );
   const { scenario } = await searchParams;
   const saved =

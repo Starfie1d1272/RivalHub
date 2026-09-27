@@ -1,5 +1,5 @@
 import "server-only";
-import { desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import type { TxDb } from "@/db/client";
 import {
   predictionPrograms as programs,
@@ -17,7 +17,7 @@ import {
 import { generateMajorPlayoffQuarterfinals } from "@/lib/major/playoff";
 import { defaultPredictionRules, stageChallengeCount, coinLevel, judgePick } from "./rules";
 import { loadBaseline } from "./baseline";
-import { lockPredictionProgram, reconcilePredictionProgram } from "./service";
+
 import { simulateMajor } from "./simulator";
 
 /** Only this projection reaches public RSC/actions; no private roster or account credentials. */
@@ -25,15 +25,16 @@ export async function predictionBoard(
   tx: TxDb,
   seasonId: string,
   userId: string | null,
+  view: "sim" | "points" | "record" | "all" = "all",
 ) {
-  const [enabled] = await tx
+  const [program] = await tx
     .select()
     .from(programs)
     .where(eq(programs.seasonId, seasonId));
-  const program = enabled ? await lockPredictionProgram(tx, seasonId) : null;
-  const base = program
-    ? await reconcilePredictionProgram(tx, program)
-    : await loadBaseline(tx, seasonId);
+  const base = await loadBaseline(tx, seasonId);
+  const records = view === "record" || view === "all";
+  const poolsVisible = view === "points" || view === "all";
+  const now = Date.now();
   const rules = program?.rules ?? defaultPredictionRules(base.stages);
   const allAccounts = await tx
     .select({
@@ -43,18 +44,18 @@ export async function predictionBoard(
     })
     .from(accounts)
     .innerJoin(users, eq(users.id, accounts.userId))
-    .where(eq(accounts.seasonId, seasonId));
+    .where(and(eq(accounts.seasonId, seasonId), records ? undefined : userId ? eq(accounts.userId, userId) : sql`false`));
   const me = allAccounts.find((a) => a.userId === userId);
   const windows = await tx
     .select()
     .from(contests)
     .where(eq(contests.seasonId, seasonId));
   const allPicks = await tx
-    .select()
+    .selectDistinctOn([picks.accountId, picks.contestId, picks.submitted])
     .from(picks)
-    .where(eq(picks.seasonId, seasonId))
-    .orderBy(desc(picks.version));
-  const history = windows.length
+    .where(and(eq(picks.seasonId, seasonId), records ? undefined : me ? eq(picks.accountId, me.id) : sql`false`))
+    .orderBy(picks.accountId, picks.contestId, picks.submitted, desc(picks.version));
+  const history = records && windows.length
     ? await tx
         .select()
         .from(judgements)
@@ -62,26 +63,27 @@ export async function predictionBoard(
         .where(eq(contests.seasonId, seasonId))
         .orderBy(desc(judgements.createdAt))
     : [];
-  const totals = await tx
+  const totals = records || (poolsVisible && !!me) ? await tx
     .select({
       accountId: ledger.accountId,
       balance: sql<string>`sum(${ledger.amount})::text`,
       profit: sql<string>`sum(${ledger.profit})::text`,
     })
     .from(ledger)
-    .where(eq(ledger.seasonId, seasonId))
-    .groupBy(ledger.accountId);
-  const achievements = allAccounts.map((account) => {
+    .where(and(eq(ledger.seasonId, seasonId), records ? undefined : me ? eq(ledger.accountId, me.id) : sql`false`))
+    .groupBy(ledger.accountId) : [];
+  const latestPicks = new Map<string, (typeof allPicks)[number]>();
+  const submissions = new Map<string, (typeof allPicks)[number]>();
+  for (const pick of allPicks) {
+    const key = `${pick.accountId}/${pick.contestId}`;
+    if ((latestPicks.get(key)?.version ?? 0) < pick.version) latestPicks.set(key, pick);
+    if (pick.submitted && !submissions.has(key)) submissions.set(key, pick);
+  }
+  const totalsByAccount = new Map(totals.map((total) => [total.accountId, total]));
+  const achievements = (records ? allAccounts : []).map((account) => {
     const progress = base.stages.map((stage) => {
       const contest = windows.find((c) => c.stageKey === stage.key);
-      const pick = contest
-        ? allPicks.find(
-            (p) =>
-              p.contestId === contest.id &&
-              p.accountId === account.id &&
-              p.submitted,
-          )
-        : null;
+      const pick = contest ? submissions.get(`${account.id}/${contest.id}`) : null;
       const actual = contest
         ? history.find((h) => h.prediction_judgements.contestId === contest.id)
             ?.prediction_judgements.actual
@@ -102,7 +104,7 @@ export async function predictionBoard(
         hits: result?.hits ?? null,
         challenges: results.filter(Boolean).length,
         possible:
-          !contest?.voidedAt && (!contest?.lockedAt || !!pick)
+          !contest?.voidedAt && (!contest || contest.deadline.getTime() > now || !!pick) && (!contest?.lockedAt || !!pick)
             ? stageChallengeCount(stage.type) + (locked ? 0 : 1)
             : 0,
       };
@@ -142,26 +144,33 @@ export async function predictionBoard(
       })
       .slice(0, 100);
   };
-  const pools = await tx
+  const pools = poolsVisible ? await tx
     .select()
     .from(markets)
-    .where(eq(markets.seasonId, seasonId));
-  const allOptions = await tx
+    .where(eq(markets.seasonId, seasonId)) : [];
+  const allOptions = poolsVisible ? await tx
     .select()
     .from(options)
     .innerJoin(markets, eq(options.marketId, markets.id))
-    .where(eq(markets.seasonId, seasonId));
-  const investments = await tx
-    .select()
-    .from(stakes)
-    .where(eq(stakes.seasonId, seasonId));
-  const batches = await tx
+    .where(eq(markets.seasonId, seasonId)) : [];
+  // Only aggregate pool totals leave PostgreSQL; never materialize other viewers' stakes.
+  const investments = poolsVisible ? await tx
+    .select({ marketId: stakes.marketId, optionId: stakes.optionId,
+      total: sql<string>`sum(${stakes.amount})::text`,
+      mine: sql<string>`coalesce(sum(${stakes.amount}) filter (where ${stakes.accountId} = ${me?.id ?? null}), 0)::text`,
+    })
+    .from(stakes).where(eq(stakes.seasonId, seasonId))
+    .groupBy(stakes.marketId, stakes.optionId) : [];
+  const participants = poolsVisible ? await tx
+    .select({ marketId: stakes.marketId, count: sql<number>`count(distinct ${stakes.accountId})::int` })
+    .from(stakes).where(eq(stakes.seasonId, seasonId)).groupBy(stakes.marketId) : [];
+  const batches = poolsVisible ? await tx
     .select()
     .from(settlements)
     .innerJoin(markets, eq(markets.id, settlements.marketId))
     .where(eq(markets.seasonId, seasonId))
-    .orderBy(desc(settlements.createdAt));
-  const myLedger = me
+    .orderBy(desc(settlements.createdAt)) : [];
+  const myLedger = records && me
     ? await tx
         .select({
           id: ledger.id,
@@ -176,6 +185,7 @@ export async function predictionBoard(
         .limit(100)
     : [];
   return {
+    view,
     base,
     simulation: simulateMajor(base, {}, true),
     enabled: !!program,
@@ -183,14 +193,8 @@ export async function predictionBoard(
     rules,
     joined: !!me,
     contests: windows.map((c) => {
-      const submitted = me
-        ? allPicks.find(
-            (p) => p.contestId === c.id && p.accountId === me.id && p.submitted,
-          )
-        : null;
-      const draft = me
-        ? allPicks.find((p) => p.contestId === c.id && p.accountId === me.id)
-        : null;
+      const submitted = me ? submissions.get(`${me.id}/${c.id}`) : null;
+      const draft = me ? latestPicks.get(`${me.id}/${c.id}`) : null;
       return {
         id: c.id,
         stageKey: c.stageKey,
@@ -206,7 +210,8 @@ export async function predictionBoard(
               ).map((p) => [p.higherSeedTeamId, p.lowerSeedTeamId])
             : [],
         deadline: c.deadline.toISOString(),
-        locked: !!c.lockedAt,
+        locked: !!c.lockedAt || c.deadline.getTime() <= now,
+        deadlineReached: c.deadline.getTime() <= now,
         voidReason: c.voidReason,
         submitted: submitted
           ? {
@@ -223,12 +228,8 @@ export async function predictionBoard(
     }),
     markets: pools.map((m) => {
       const rows = investments.filter((s) => s.marketId === m.id);
-      const sum = (optionId: string) =>
-        rows
-          .filter((s) => s.optionId === optionId)
-          .reduce((n, s) => n + s.amount, BigInt(0))
-          .toString();
-      const mine = rows.filter((s) => s.accountId === me?.id);
+      const sum = (optionId: string) => rows.find((s) => s.optionId === optionId)?.total ?? "0";
+      const mine = rows.filter((s) => BigInt(s.mine) > BigInt(0));
       const batch = batches.find(
         (b) => b.prediction_settlements.marketId === m.id,
       )?.prediction_settlements;
@@ -248,19 +249,19 @@ export async function predictionBoard(
             pool: sum(o.id),
           })),
         deadline: m.deadline.toISOString(),
-        locked: !!m.lockedAt,
+        locked: !!m.lockedAt || m.deadline.getTime() <= now,
         state: batch?.state ?? "pending",
         winningOptionIds: batch?.winningOptionIds ?? [],
-        participants: new Set(rows.map((s) => s.accountId)).size,
+        participants: participants.find((p) => p.marketId === m.id)?.count ?? 0,
         myOptionId: mine[0]?.optionId ?? null,
-        myStake: mine.reduce((n, s) => n + s.amount, BigInt(0)).toString(),
+        myStake: mine.reduce((n, s) => n + BigInt(s.mine), BigInt(0)).toString(),
         revisions: batches.filter(
           (b) => b.prediction_settlements.marketId === m.id,
         ).length,
       };
     }),
-    balance: totals.find((t) => t.accountId === me?.id)?.balance ?? "0",
-    profit: totals.find((t) => t.accountId === me?.id)?.profit ?? "0",
+    balance: totalsByAccount.get(me?.id ?? "")?.balance ?? "0",
+    profit: totalsByAccount.get(me?.id ?? "")?.profit ?? "0",
     ledger: myLedger.map((l) => ({
       ...l,
       amount: l.amount.toString(),
@@ -269,9 +270,9 @@ export async function predictionBoard(
     })),
     achievement: achievements.find((a) => a.accountId === me?.id) ?? null,
     pointsLeaderboard: rank(
-      allAccounts.map((a) => ({
+      (records ? allAccounts : []).map((a) => ({
         name: a.name ?? "观众",
-        value: totals.find((t) => t.accountId === a.id)?.profit ?? "0",
+        value: totalsByAccount.get(a.id)?.profit ?? "0",
         isMe: a.id === me?.id,
       })),
     ),

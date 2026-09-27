@@ -6,7 +6,7 @@
 
 暂停只停止新提交和投入。阶段作废是不可逆的管理操作，需要具体理由；既有提交留档、成绩挑战失效，启用的参与奖励冲正。比赛取消、弃权与更正通过官方比赛管理 owner 操作，不能直接编辑预测账本。弃权按正式胜者；取消、对手替换和单边池退款。
 
-`/api/cron/reconcile-predictions` 使用现有 Cron 鉴权与统一 scheduler registry/execution/health，Supabase primary、GitHub watchdog 和管理员恢复共享同一个 runner。数据库 `prediction_reconciliation_is_due` 是待处理判断的唯一 owner，调度器、批处理与即时读取共用它，只有官方事实变更或未锁定窗口到期时才需要结算。批处理只选择这些事件，避免空闲事件占据批次。失败返回非成功状态并记录可重试错误；官方操作无需等待结算完成，待处理条件保留供重试。排查时比对官方比赛、轮次确认、阶段最终确认与 prediction settlement/ledger 历史；禁止手动改余额或删除流水。修复原因后重新运行同一 owner，幂等重试不会重复发放。
+`/api/cron/reconcile-predictions` 使用现有 Cron 鉴权与统一 scheduler registry/execution/health，Supabase primary、GitHub watchdog 和管理员恢复共享同一个 runner。数据库 `prediction_reconciliation_is_due` 是待处理判断的唯一 owner，调度器、批处理与 mutation reconciliation 共用它，只有官方事实变更或未锁定窗口到期时才需要结算。公开读取不推进结算、不获取项目锁；到期窗口即时显示为关闭，积分和成就显示最近一次已提交的结算结果。批处理只选择这些事件，避免空闲事件占据批次。失败返回非成功状态并记录可重试错误；官方操作无需等待结算完成，待处理条件保留供重试。排查时比对官方比赛、轮次确认、阶段最终确认与 prediction settlement/ledger 历史；禁止手动改余额或删除流水。修复原因后重新运行同一 owner，幂等重试不会重复发放。
 
 改判后已使用的返还形成待抵扣差额，可用余额为零；合法补给、退款及新结算优先抵扣。未结算投入不进入净收益榜。纪念币重算不触发积分奖励。
 

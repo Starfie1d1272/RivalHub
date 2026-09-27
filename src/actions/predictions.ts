@@ -45,14 +45,15 @@ function refresh(slug: string) {
   revalidatePath(`/admin/${slug}/predictions`);
 }
 export async function getPredictionBoard(input: unknown) {
-  const p = scope.safeParse(input);
+  const p = scope.extend({ view: z.enum(["sim", "points", "record"]).default("sim") }).safeParse(input);
   if (!p.success) return failValidation("赛事参数无效");
   try {
     await publicSeason(p.data.seasonId);
     const user = await getUserSession();
     return ok(
       await db.transaction((tx) =>
-        predictionBoard(tx, p.data.seasonId, user?.userId ?? null),
+        predictionBoard(tx, p.data.seasonId, user?.userId ?? null, p.data.view),
+        { accessMode: "read only", isolationLevel: "repeatable read" },
       ),
     );
   } catch (e) {

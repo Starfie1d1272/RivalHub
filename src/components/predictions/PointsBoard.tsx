@@ -1,6 +1,7 @@
 "use client";
-import { useState } from "react";
+import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { TeamLogo } from "@/components/teams/TeamLogo";
 import { Input } from "@/components/ui/input";
 import { Panel } from "@/components/rivalhub";
 import type { PredictionBoardData } from "@/lib/predictions/data";
@@ -14,11 +15,12 @@ export function PointsBoard({
   onStake: (marketId: string, side: string, amount: string) => void;
 }) {
   const [amounts, setAmounts] = useState<Record<string, string>>({});
+  const [filter, setFilter] = useState("open");
   const [sides, setSides] = useState<Record<string, string>>({});
   const available = BigInt(data.balance) > BigInt(0) ? data.balance : "0";
   return (
     <div className="space-y-5">
-      <Panel label="本届免费积分">
+      <section aria-label="本届免费积分" className="border-y border-[var(--color-border)] py-4">
         <div className="flex flex-wrap gap-8">
           <div>
             <p className="text-sm">可用积分</p>
@@ -37,12 +39,18 @@ export function PointsBoard({
         <p className="mt-4 text-sm text-[var(--color-fg-mid)]">
           积分免费，不可充值、提现、转账或兑换。可追加同一方，投入后不能撤回或换边；零余额等待下一阶段正常补给。
         </p>
-      </Panel>
+      </section>
       {!data.markets.length && (
         <p className="py-8 text-center">暂无开放的官方比赛积分池。</p>
       )}
+      <div role="group" aria-label="积分池筛选" className="flex gap-2">
+        {[["open", "开放中"], ["mine", "我的投入"], ["all", "全部比赛"]].map(([key, label]) => (
+          <Button key={key} variant={filter === key ? "default" : "ghost"} aria-pressed={filter === key} onClick={() => setFilter(key!)}>{label}</Button>
+        ))}
+      </div>
+      {!!data.markets.length && !data.markets.some((m) => filter === "all" || (filter === "mine" ? BigInt(m.myStake) > BigInt(0) : !m.locked && m.state === "pending")) && <p className="py-8 text-center text-sm">{filter === "mine" ? "还没有投入记录。" : "暂无可参与的比赛，可切换到全部比赛查看结果。"}</p>}
       <div className="grid gap-4 xl:grid-cols-2">
-        {data.markets.map((m) => {
+        {data.markets.filter((m) => filter === "all" || (filter === "mine" ? BigInt(m.myStake) > BigInt(0) : !m.locked && m.state === "pending")).map((m) => {
           const total = m.options.reduce(
             (sum, option) => sum + BigInt(option.pool),
             BigInt(0),
@@ -57,34 +65,28 @@ export function PointsBoard({
               : null;
           const side = m.myOptionId ?? sides[m.id] ?? m.options[0]?.id ?? "";
           return (
-            <Panel
-              key={m.id}
-              label={
-                data.base.stages.find((s) => s.key === m.stageKey)?.name ??
-                m.stageKey
-              }
-            >
+            <section key={m.id} className="border border-[var(--color-border)] bg-[var(--color-panel)] p-4">
               <div className="space-y-3">
                 <h3 className="text-base font-semibold">
-                  {m.title} ·{" "}
-                  {m.options.map((option) => option.label).join(" / ")}
+                  {m.title}
                 </h3>
                 <p className="text-xs text-[var(--color-fg-mid)]">
-                  截止 {new Date(m.deadline).toLocaleString("zh-CN")} ·{" "}
+                  {data.base.stages.find((stage) => stage.key === m.stageKey)?.name ?? "赛事比赛"} · 截止 {new Date(m.deadline).toLocaleString("zh-CN")} ·{" "}
                   {m.participants} 人参与
                 </p>
                 <div className="grid grid-cols-2 gap-2">
-                  {m.options.map(({ id, label, pool }) => (
+                  {m.options.map(({ id, label, pool, entryId }) => (
                     <Button
                       key={id}
                       variant={side === id ? "default" : "outline"}
-                      disabled={busy || m.locked || !!m.myOptionId}
+                      disabled={busy || m.locked || (!!m.myOptionId && m.myOptionId !== id)}
                       className="h-auto min-h-16 whitespace-normal"
                       aria-pressed={side === id}
                       onClick={() => setSides({ ...sides, [m.id]: id })}
                     >
-                      <span>
-                        {label}
+                      <span className="flex w-full items-center gap-2">
+                        <TeamLogo logoUrl={data.base.teams.find((team) => team.teamId === entryId)?.logoUrl ?? null} teamName={label} className="h-7 w-7 shrink-0" />
+                        <span className="min-w-0 flex-1">{label}</span>
                         <span className="block text-xs">
                           投入 {pool} ·{" "}
                           {total > BigInt(0)
@@ -99,7 +101,7 @@ export function PointsBoard({
                     </Button>
                   ))}
                 </div>
-                <p className="text-xs">投入占比是社区选择，不代表获胜概率。</p>
+
                 {mine > BigInt(0) && (
                   <p className="text-sm">
                     我已投入 {m.myStake} →{" "}
@@ -132,7 +134,10 @@ export function PointsBoard({
                   <p>已关盘，等待官方确认本轮结果。</p>
                 ) : (
                   <>
-                    <label className="block text-sm" htmlFor={`amount-${m.id}`}>
+                    <div className="flex flex-wrap gap-1" aria-label="快捷积分">
+                      {[25, 50, 100, 250].map((amount) => <Button key={amount} variant="ghost" size="sm" disabled={busy || BigInt(available) < BigInt(amount)} aria-pressed={amounts[m.id] === String(amount)} onClick={() => setAmounts({ ...amounts, [m.id]: String(amount) })}>{amount}</Button>)}
+                    </div>
+                    <label className="sr-only" htmlFor={`amount-${m.id}`}>
                       投入积分
                     </label>
                     <Input
@@ -169,15 +174,16 @@ export function PointsBoard({
                   </>
                 )}
               </div>
-            </Panel>
+            </section>
           );
         })}
       </div>
-      <Panel label="结算规则">
+      <details className="border-t border-[var(--color-border)] pt-3 text-sm">
+        <summary className="cursor-pointer">积分与结算规则 · 投入占比不代表胜率</summary>
         <p className="text-sm leading-7">
           胜方分配规则：返还本金，再按个人在胜方池中的投入占比分配败方积分，无抽水；整数尾差按稳定顺序分配。取消、对手被替换或单边池退款。弃权按正式胜者结算。官方改判先撤销旧结算再重算；已使用的待追回积分形成待抵扣差额。比赛名单成员与赛事管理员不能参与对应积分池。
         </p>
-      </Panel>
+      </details>
     </div>
   );
 }
