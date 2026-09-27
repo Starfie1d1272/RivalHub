@@ -111,16 +111,11 @@ function createCompetitiveCandidateResolver(context: CompetitiveProfileConfig | 
 ) => PlayerStrengthFact | null {
   const policy = context?.evidencePolicy;
   const fallback = context?.fallbackConversion;
-  const lowestRank = context?.rankOrder[0] ?? null;
   const sourceSelection = policy?.sourceSelection ?? "primary_then_fallback";
   const nativeCandidate = (primary: SelectableCompetitivePeak | null | undefined): PlayerStrengthFact | null => {
-    if (primary?.status === "unranked") {
-      // Explicitly unranked is a declared lowest available platform state. The
-      // lowest frozen rank is derived from the event map, not a magic rank key.
-      return lowestRank
-        ? { rank: lowestRank, rating: 0, ratingComparable: false, stars: null, sourcePlatform: primary.sourcePlatform, sourceSeasonKey: primary.sourceSeasonKey }
-        : null;
-    }
+    // "Unranked" is evidence about the season state, not a rank. It must never
+    // be silently rewritten to the bottom rung of the event ladder.
+    if (primary?.status === "unranked") return null;
     if (!primary?.rank || primary.rating === null || primary.rating === undefined) return null;
     return {
       rank: primary.rank,
@@ -132,20 +127,7 @@ function createCompetitiveCandidateResolver(context: CompetitiveProfileConfig | 
     };
   };
   const fallbackCandidate = (fallbackFact: SelectableCompetitivePeak | null | undefined): PlayerStrengthFact | null => {
-    if (!fallback || !fallbackFact) return null;
-    if (fallbackFact.status === "unranked") {
-      return lowestRank
-        ? {
-            rank: lowestRank,
-            rating: 0,
-            ratingComparable: false,
-            stars: null,
-            sourcePlatform: fallback.sourcePlatform,
-            sourceSeasonKey: fallbackFact.sourceSeasonKey,
-            conversionVersion: fallback.version,
-          }
-        : null;
-    }
+    if (!fallback || !fallbackFact || fallbackFact.status === "unranked") return null;
     if (!fallbackFact.rank || fallbackFact.rating === null || fallbackFact.rating === undefined) return null;
     if (fallback.mapping) {
       const converted = convertFiveeToPerfect(fallbackFact.rank, fallbackFact.stars ?? null, fallback.mapping);
@@ -187,8 +169,8 @@ function createCompetitiveCandidateResolver(context: CompetitiveProfileConfig | 
     const native = nativeCandidate(primary);
     const converted = fallbackCandidate(fallbackFact);
     if (sourceSelection !== "strongest_equivalent") {
-      // Preserve the legacy primary-first rule, including its treatment of an
-      // explicitly unranked primary as a fallback opportunity.
+      // An explicitly unranked primary still gives a ranked fallback source the
+      // opportunity to supply the season's usable evidence.
       if (primary?.status !== "unranked" && native) return native;
       return converted ?? native;
     }
@@ -217,13 +199,47 @@ export function toPlayerStrengthInput(
   };
   const referenceSeasonKey = policy?.referenceSeasonKey ?? context?.previousSeasonKey ?? "";
   const recentSeasonKeys = policy?.recentSeasonKeys ?? (context?.currentSeasonKey ? [context.currentSeasonKey] : []);
+  const evidenceSeasonKeys = [...new Set([
+    referenceSeasonKey,
+    ...recentSeasonKeys,
+    context?.currentSeasonKey ?? "",
+  ].filter(Boolean))];
+  const directForSeason = (seasonKey: string): PlayerStrengthFact | null =>
+    resolve(fact.seasonPeaks?.get(seasonKey), fallbackFor(seasonKey));
+  const seasonFact = (seasonKey: string): PlayerStrengthFact | null => {
+    const primary = fact.seasonPeaks?.get(seasonKey);
+    const fallbackFact = fallbackFor(seasonKey);
+    const direct = resolve(primary, fallbackFact);
+    if (direct || !context || (primary?.status !== "unranked" && fallbackFact?.status !== "unranked")) return direct;
+
+    const targetIndex = evidenceSeasonKeys.indexOf(seasonKey);
+    if (targetIndex <= 0) return null;
+    for (let index = targetIndex - 1; index >= 0; index -= 1) {
+      const previousSeasonKey = evidenceSeasonKeys[index]!;
+      const previous = directForSeason(previousSeasonKey);
+      if (!previous) continue;
+      const previousRankIndex = context.rankOrder.indexOf(previous.rank);
+      if (previousRankIndex < 0) return null;
+      return {
+        rank: context.rankOrder[Math.max(0, previousRankIndex - 1)]!,
+        rating: 0,
+        ratingComparable: false,
+        stars: null,
+        sourcePlatform: context.platform,
+        sourceSeasonKey: seasonKey,
+        estimatedFromUnranked: true,
+        estimatedFromSeasonKey: previousSeasonKey,
+      };
+    }
+    return null;
+  };
   return {
     userId: fact.userId ?? "",
     label: getDisplayName(fact),
     historicalPeak: resolve(fact.historicalPeak, fact.fallbackFacts?.historicalPeak),
-    previousSeasonPeak: resolve(fact.seasonPeaks?.get(referenceSeasonKey), fallbackFor(referenceSeasonKey)),
-    currentSeasonPeak: resolve(fact.seasonPeaks?.get(context?.currentSeasonKey ?? ""), fallbackFor(context?.currentSeasonKey ?? "")),
-    recentSeasonPeaks: recentSeasonKeys.map((key) => resolve(fact.seasonPeaks?.get(key), fallbackFor(key))),
+    previousSeasonPeak: seasonFact(referenceSeasonKey),
+    currentSeasonPeak: seasonFact(context?.currentSeasonKey ?? ""),
+    recentSeasonPeaks: recentSeasonKeys.map(seasonFact),
   };
 }
 
