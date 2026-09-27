@@ -28,7 +28,7 @@ export function MajorStartManagement({
       <div><Marker sub={started ? `${openingPlan?.stage1.name ?? "首阶段"}已创建` : canStart ? "所有赛前检查已通过，等待管理员确认" : "仍有赛前事项未完成，不能开赛"}>
         {started ? "Major 已正式开赛" : `启动${openingPlan?.stage1.name ?? "首阶段"}`}
       </Marker>
-        <p className="mt-1 text-sm text-[var(--color-fg-mid)]">开始后会再次检查并锁定{openingPlan ? `正式 ${openingPlan.profile.entrantCapacity} 队、` : "本届 profile 容量、"}最终名单和对应种子，然后创建 {openingPlan?.stage1.name ?? "首阶段"} 首轮。开赛后这些内容不能在此处普通修改。</p>
+        <p className="mt-1 text-sm text-[var(--color-fg-mid)]">开始后会再次检查并锁定{openingPlan ? `正式 ${openingPlan.profile.entrantCapacity} 队、` : "本届正赛容量、"}最终名单和对应种子，然后创建 {openingPlan?.stage1.name ?? "首阶段"} 首轮。开赛后这些内容不能在此处普通修改。</p>
       </div>
 
       {openingPlan && <section className="border border-[var(--color-border)] p-3">
@@ -40,7 +40,7 @@ export function MajorStartManagement({
 
       {!started && <label className="flex items-start gap-2 border border-[var(--color-border)] p-3 text-sm text-[var(--color-fg-mid)]">
         <Checkbox checked={confirmed} disabled={!canStart || isPending} onChange={(event) => setConfirmed(event.target.checked)} />
-        <span>我确认{openingPlan ? `上述 ${openingPlan.profile.entrantCapacity} 队、` : "本届 profile 容量、"}最终名单、种子和首轮对阵；开赛后不能在本控制台普通修改它们。</span>
+        <span>我确认{openingPlan ? `上述 ${openingPlan.profile.entrantCapacity} 队、` : "本届正赛容量、"}最终名单、种子和首轮对阵；开赛后不能在本控制台普通修改它们。</span>
       </label>}
       {!started && <Button disabled={!canStart || !confirmed || isPending} onClick={() => startTransition(async () => {
         const result = await startMajor({ seasonId });
