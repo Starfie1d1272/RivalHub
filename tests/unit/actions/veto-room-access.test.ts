@@ -4,7 +4,7 @@ const matchMock = vi.hoisted(() => vi.fn());
 const selectMock = vi.hoisted(() => vi.fn());
 const publicSeasonMock = vi.hoisted(() => vi.fn());
 const readViewMock = vi.hoisted(() => vi.fn());
-const reconcileTimeoutMock = vi.hoisted(() => vi.fn());
+const reconcileRoomMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/db/client", () => ({
   db: {
@@ -32,7 +32,7 @@ vi.mock("@/lib/matches/veto-room/read-model", () => ({
 vi.mock("@/lib/matches/veto-room/service", () => ({
   claimVetoRepresentative: vi.fn(),
   pauseVetoRoom: vi.fn(),
-  reconcileVetoRoomTimeout: reconcileTimeoutMock,
+  reconcileVetoRoom: reconcileRoomMock,
   requestVetoStart: vi.fn(),
   resolveVetoAppeal: vi.fn(),
   resumeVetoRoom: vi.fn(),
@@ -60,7 +60,7 @@ describe("Veto Room action read authorization", () => {
     selectMock.mockReturnValue(chain);
     publicSeasonMock.mockResolvedValue(null);
     readViewMock.mockResolvedValue({ match: { id: "match-1" } });
-    reconcileTimeoutMock.mockResolvedValue("applied");
+    reconcileRoomMock.mockResolvedValue("applied");
   });
 
   it("does not return a draft match projection without season authorization", async () => {
@@ -75,7 +75,7 @@ describe("Veto Room action read authorization", () => {
     const result = await reconcileVetoRoomAction({ matchId: "00000000-0000-4000-8000-000000000001" });
 
     expect(result.success).toBe(false);
-    expect(reconcileTimeoutMock).not.toHaveBeenCalled();
+    expect(reconcileRoomMock).not.toHaveBeenCalled();
   });
 
   it("allows a published season read when the resource belongs to that season", async () => {
