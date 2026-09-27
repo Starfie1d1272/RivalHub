@@ -70,9 +70,9 @@ describe("Veto Room action read authorization", () => {
     expect(readViewMock).not.toHaveBeenCalled();
   });
 
-  it("does not allow an anonymous draft reader to trigger timeout reconciliation", async () => {
-    const { reconcileVetoRoomTimeoutAction } = await import("@/actions/matches/veto-room");
-    const result = await reconcileVetoRoomTimeoutAction({ matchId: "00000000-0000-4000-8000-000000000001" });
+  it("does not allow an anonymous draft reader to trigger lifecycle reconciliation", async () => {
+    const { reconcileVetoRoomAction } = await import("@/actions/matches/veto-room");
+    const result = await reconcileVetoRoomAction({ matchId: "00000000-0000-4000-8000-000000000001" });
 
     expect(result.success).toBe(false);
     expect(reconcileTimeoutMock).not.toHaveBeenCalled();
