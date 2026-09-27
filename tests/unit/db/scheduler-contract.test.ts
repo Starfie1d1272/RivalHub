@@ -37,12 +37,13 @@ describe("production scheduler contract", () => {
     ]);
   });
 
-  it("requires fresh triggers, endpoint success, and real minute-job executions", () => {
+  it("requires fresh forced dispatch completion and real minute-job executions", () => {
     const verifiedAt = new Date("2026-09-10T00:00:00.000Z");
     const fresh = new Date("2026-09-10T00:00:01.000Z");
     const health = SCHEDULER_JOB_DEFINITIONS.map((definition) => ({
       job_key: definition.key,
       last_primary_triggered_at: fresh,
+      last_primary_dispatch_requested_at: fresh,
       last_primary_endpoint_succeeded_at: fresh,
     }));
     const runs = SCHEDULER_JOB_DEFINITIONS

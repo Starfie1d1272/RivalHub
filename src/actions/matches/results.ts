@@ -5,7 +5,7 @@ import { writeAuditInTx } from "@/lib/audit/write";
 import { revalidatePath } from "next/cache";
 import { eq, and, inArray, isNull } from "drizzle-orm";
 import { db } from "@/db/client";
-import { seasons, matches, matchMaps, matchVetoSteps, matchRosters, matchRosterPlayers, matchTimeProposals } from "@/db/schema";
+import { seasons, matches, matchMaps, matchVetoSessions, matchTimeProposals } from "@/db/schema";
 import { ok } from "@/types/action";
 import type { ActionResult } from "@/types/action";
 import { AppError, ErrorCode } from "@/lib/errors";
@@ -30,6 +30,8 @@ import {
   validateMapScore,
 } from "@/lib/matches/result-rules";
 import { traceOperation } from "@/lib/observability/server";
+import { completeCompetitionQualificationIfReadyInTx } from "@/lib/competition-qualification/runtime";
+import { assertGenericMatchCanBeDeleted, deleteScheduledMatchAndDependentsInTx } from "@/lib/matches/deletion";
 
 /** Persist provider-resolved nodes through the fail-closed bracket boundary. */
 async function insertResolvedBracketMatches(
@@ -52,10 +54,8 @@ async function insertResolvedBracketMatches(
 // ── 更新比赛状态 ──────────────────────────────────────────────────────────
 
 /**
- * 将比赛状态推进一步（scheduled→in_progress，scheduled/in_progress→cancelled）。
- * 开始比赛（in_progress）要求两队均已提交并由管理员确认首发阵容；
- * 不存在任何隐式补名单路径。核心事务体见
- * lib/match-rosters/service.ts#applyMatchStatusTransitionInTx。
+ * 通用操作只处理管理员取消。在线比赛必须在 Veto Room 完成双方确认后，
+ * 由共享 roster status transition 与 session start 同事务开始。
  */
 export async function updateMatchStatus(
   matchId: string,
@@ -64,6 +64,9 @@ export async function updateMatchStatus(
   try {
     const match = await getMatchOrThrow(matchId);
     const session = await requireSeasonAdmin(match.seasonId);
+    if (nextStatus === "in_progress") {
+      throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "比赛须由双方在 Veto Room 确认后开始。");
+    }
     if (!isMatchStatus(match.status)) {
       throw new AppError(ErrorCode.INTERNAL_ERROR, `无效的比赛状态: ${match.status}`);
     }
@@ -148,8 +151,11 @@ export async function recordMapResult(
     }, () => db.transaction(async (tx) => {
       const locked = await lockMatchInTx(tx, matchId);
       if (locked.status !== "in_progress") throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "比赛状态不允许录入地图结果");
-      const hasVeto = await tx.query.matchVetoSteps.findFirst({ where: eq(matchVetoSteps.matchId, matchId), columns: { id: true } });
-      if (!hasVeto) throw new AppError(ErrorCode.VALIDATION_FAILED, "请先录入 BP 再录入地图结果");
+      const vetoSession = await tx.query.matchVetoSessions.findFirst({
+        where: eq(matchVetoSessions.matchId, matchId),
+        columns: { completedAt: true },
+      });
+      if (!vetoSession?.completedAt) throw new AppError(ErrorCode.VALIDATION_FAILED, "请先完成 BP 地图计划，再录入地图结果");
       const [lockedSeason] = await tx.select().from(seasons).where(eq(seasons.id, locked.seasonId)).for("update");
       if (!lockedSeason) throw new AppError(ErrorCode.SEASON_NOT_FOUND, "赛季不存在");
       const bracketState = locked.bracketNodeId
@@ -211,6 +217,10 @@ export async function recordMapResult(
           completedAt: new Date(),
           updatedAt: new Date(),
         }).where(eq(matches.id, matchId));
+
+        if (locked.qualificationRunId) {
+          await completeCompetitionQualificationIfReadyInTx(tx, locked.qualificationRunId);
+        }
 
         if (bracketState && locked.bracketNodeId) {
           const { updatedData, newResolvedMatches } = await advanceStageBracket(
@@ -444,32 +454,13 @@ export async function deleteMatch(matchId: string): Promise<ActionResult<void>> 
     if (match.bracketNodeId) {
       throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "无法删除 Bracket 自动生成的比赛");
     }
+    assertGenericMatchCanBeDeleted(match);
 
     const season = await getSeasonOrThrow(match.seasonId);
 
     await db.transaction(async (tx) => {
       await assertSeasonAllowsTournamentMutationInTx(tx, match.seasonId);
-      // 级联删除相关数据
-      await tx.delete(matchVetoSteps).where(eq(matchVetoSteps.matchId, matchId));
-      await tx.delete(matchMaps).where(eq(matchMaps.matchId, matchId));
-
-      // matchRosterPlayers 需先查询 rosterIds
-      const rosterIds = await tx
-        .select({ id: matchRosters.id })
-        .from(matchRosters)
-        .where(eq(matchRosters.matchId, matchId));
-      if (rosterIds.length > 0) {
-        await tx.delete(matchRosterPlayers).where(
-          inArray(
-            matchRosterPlayers.rosterId,
-            rosterIds.map((r) => r.id),
-          ),
-        );
-      }
-      await tx.delete(matchRosters).where(eq(matchRosters.matchId, matchId));
-
-      // 最后删除比赛本身
-      await tx.delete(matches).where(eq(matches.id, matchId));
+      await deleteScheduledMatchAndDependentsInTx(tx, matchId);
 
       await writeAuditInTx(tx, {
         seasonId: match.seasonId,
@@ -656,16 +647,19 @@ export async function forfeitMatch(
       throw new AppError(ErrorCode.VALIDATION_FAILED, "弃赛队伍不属于本场比赛");
     }
 
-    const winnerScore = FORFEIT_WINNER_SCORE[match.format];
-    const isLoserA = loserTeamId === match.entryAId;
-    const scoreA = isLoserA ? 0 : winnerScore;
-    const scoreB = isLoserA ? winnerScore : 0;
-
     const season = await getSeasonOrThrow(match.seasonId);
     let finishedSlug: string | null = null;
 
     await db.transaction(async (tx) => {
-      await assertSeasonAllowsTournamentMutationInTx(tx, match.seasonId);
+      const locked = await lockMatchInTx(tx, matchId);
+      assertMatchTransition(locked.status, "finished");
+      if (loserTeamId !== locked.entryAId && loserTeamId !== locked.entryBId) {
+        throw new AppError(ErrorCode.VALIDATION_FAILED, "弃赛队伍不属于本场比赛");
+      }
+      const lockedWinnerScore = FORFEIT_WINNER_SCORE[locked.format];
+      const lockedLoserIsA = loserTeamId === locked.entryAId;
+      const lockedScoreA = lockedLoserIsA ? 0 : lockedWinnerScore;
+      const lockedScoreB = lockedLoserIsA ? lockedWinnerScore : 0;
       await tx.delete(matchMaps).where(
         and(eq(matchMaps.matchId, matchId), isNull(matchMaps.scoreA), isNull(matchMaps.scoreB))
       );
@@ -673,8 +667,8 @@ export async function forfeitMatch(
       await tx
         .update(matches)
         .set({
-          scoreA,
-          scoreB,
+          scoreA: lockedScoreA,
+          scoreB: lockedScoreB,
           status: "finished",
           isForfeit: true,
           completedAt: new Date(),
@@ -682,19 +676,23 @@ export async function forfeitMatch(
         })
         .where(eq(matches.id, matchId));
 
-      const bracketState = match.bracketNodeId
-        ? await loadStageBracketState(tx, match.seasonId, match.stage)
+      if (locked.qualificationRunId) {
+        await completeCompetitionQualificationIfReadyInTx(tx, locked.qualificationRunId);
+      }
+
+      const bracketState = locked.bracketNodeId
+        ? await loadStageBracketState(tx, locked.seasonId, locked.stage)
         : null;
-      if (bracketState && match.bracketNodeId) {
+      if (bracketState && locked.bracketNodeId) {
         const { updatedData, newResolvedMatches } = await advanceStageBracket(
-          match.stage,
-          match.bracketNodeId,
-          { scoreA, scoreB },
+          locked.stage,
+          locked.bracketNodeId,
+          { scoreA: lockedScoreA, scoreB: lockedScoreB },
           bracketState,
         );
-        await saveStageBracketState(tx, match.seasonId, match.stage, updatedData);
+        await saveStageBracketState(tx, locked.seasonId, locked.stage, updatedData);
         await insertResolvedBracketMatches(
-          tx, match.seasonId, match.stage, newResolvedMatches,
+          tx, locked.seasonId, locked.stage, newResolvedMatches,
           normalizeStagePlan(season.stagePlan),
         );
       }
@@ -705,7 +703,7 @@ export async function forfeitMatch(
         seasonId: match.seasonId,
         action: "match.forfeit",
         actorId: auditActorId(session),
-        targetId: matchId,meta: { loserTeamId, scoreA, scoreB, format: match.format, reason: normalizedReason },
+        targetId: matchId,meta: { loserTeamId, scoreA: lockedScoreA, scoreB: lockedScoreB, format: locked.format, reason: normalizedReason },
       });
     });
 

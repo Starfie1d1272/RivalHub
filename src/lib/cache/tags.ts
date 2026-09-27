@@ -1,5 +1,15 @@
 /** Semantic cache tags shared by public read models and their mutation owners. */
 export const PUBLIC_SEASON_CATALOG_TAG = "public-season-catalog";
+export const PUBLIC_ANNOUNCEMENTS_TAG = "public-announcements";
+export const PUBLIC_HOME_TAG = "public-home";
+
+export function publicAnnouncementsSeasonTag(seasonId: string): string {
+  return `${PUBLIC_ANNOUNCEMENTS_TAG}:season:${seasonId}`;
+}
+
+export function publicSeasonInfoTag(seasonId: string): string {
+  return `public-season-info:${seasonId}`;
+}
 
 export function publicSeasonTag(slug: string): string {
   return `public-season:${slug}`;

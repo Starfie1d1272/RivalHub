@@ -1,7 +1,7 @@
 import "server-only";
 
-import { eq } from "drizzle-orm";
-import type { TxDb } from "@/db/client";
+import { desc, eq } from "drizzle-orm";
+import { db, type TxDb } from "@/db/client";
 import { matchDemoImports } from "@/db/schema";
 import { writeAuditInTx } from "@/lib/audit/write";
 import { AppError, ErrorCode } from "@/lib/errors";
@@ -9,6 +9,7 @@ import { parseRivalHubDemoEvidenceV1 } from "@/lib/demo-evidence/contract";
 import type { IntegrationIssue, RivalHubEvidenceSubmission } from "./contracts";
 import { DEMO_CONTENT_CONFLICT_MESSAGE, lockDemoImportLineageInTx, promoteDemoImportInTx, resolveDemoImportLineageInTx } from "./promotion";
 import { buildEvidenceRevisionForTarget, sha256Json } from "./revision";
+import { selectCurrentDemoImport } from "./read";
 import { isCurrentDakSemanticProfile } from "./semantic-profile";
 import { integrationIssue, loadCanonicalTarget, validateCanonicalTarget, type CanonicalTarget } from "./validation";
 
@@ -124,4 +125,111 @@ export async function revalidateStoredDemoImportInTx(
     retryPromotion: true,
   });
   return { status: "confirmed", importId: row.id, issues: [] };
+}
+
+
+export interface RelatedDemoRevalidationSummary {
+  attempted: number;
+  confirmed: number;
+  remaining: number;
+  failed: number;
+  affectedMatchIds: string[];
+}
+
+type RecheckCandidate = typeof matchDemoImports.$inferSelect;
+
+async function loadSeasonNeedsAttentionCandidates(seasonId: string): Promise<RecheckCandidate[]> {
+  const rows = await db
+    .select()
+    .from(matchDemoImports)
+    .where(eq(matchDemoImports.seasonId, seasonId))
+    .orderBy(desc(matchDemoImports.createdAt));
+
+  const rowsByMap = new Map<string, RecheckCandidate[]>();
+  for (const row of rows) {
+    const mapRows = rowsByMap.get(row.matchMapId) ?? [];
+    mapRows.push(row);
+    rowsByMap.set(row.matchMapId, mapRows);
+  }
+
+  const currentNeedsAttention: RecheckCandidate[] = [];
+  for (const mapRows of rowsByMap.values()) {
+    const current = selectCurrentDemoImport(mapRows);
+    if (current?.status === "needs_attention") currentNeedsAttention.push(current);
+  }
+  return currentNeedsAttention;
+}
+
+async function revalidateCandidateRows(
+  rows: readonly RecheckCandidate[],
+  actorId: string,
+): Promise<RelatedDemoRevalidationSummary> {
+  let confirmed = 0;
+  let remaining = 0;
+  let failed = 0;
+  const affectedMatchIds = new Set<string>();
+
+  for (const row of rows) {
+    try {
+      const result = await db.transaction((tx) => revalidateStoredDemoImportInTx(tx, {
+        importId: row.id,
+        actorId,
+        verifiedBy: `admin:${actorId}`,
+      }));
+      affectedMatchIds.add(row.matchId);
+      if (result.status === "confirmed") confirmed++;
+      else remaining++;
+    } catch {
+      failed++;
+    }
+  }
+
+  return {
+    attempted: rows.length,
+    confirmed,
+    remaining,
+    failed,
+    affectedMatchIds: [...affectedMatchIds],
+  };
+}
+
+/**
+ * Recheck every current-profile needs_attention import in one season. This is
+ * intentionally a deterministic recomputation only: it does not alter identity,
+ * roster, source payload or evidence metadata.
+ */
+export async function revalidateSeasonNeedsAttentionImports(input: {
+  seasonId: string;
+  actorId: string;
+}): Promise<RelatedDemoRevalidationSummary> {
+  const rows = (await loadSeasonNeedsAttentionCandidates(input.seasonId))
+    .filter((row) => isCurrentDakSemanticProfile(row.semanticProfile));
+  return revalidateCandidateRows(rows, input.actorId);
+}
+
+/**
+ * Recheck other current-profile needs_attention imports in the same season that
+ * contain the same observed Steam64. Each import runs in its own transaction so
+ * confirming one gameplay identity never creates a multi-map lock convoy.
+ */
+export async function revalidateNeedsAttentionImportsForSteam64(input: {
+  seasonId: string;
+  steam64: string;
+  actorId: string;
+  excludeImportId?: string;
+}): Promise<RelatedDemoRevalidationSummary> {
+  if (!/^\d{17}$/.test(input.steam64)) {
+    throw new AppError(ErrorCode.VALIDATION_FAILED, "Steam64 ID 格式无效。");
+  }
+
+  const matching = (await loadSeasonNeedsAttentionCandidates(input.seasonId)).filter((row) => {
+    if (row.id === input.excludeImportId || !isCurrentDakSemanticProfile(row.semanticProfile)) return false;
+    try {
+      return parseRivalHubDemoEvidenceV1(row.payload).participants.some((participant) => participant.steamId64 === input.steam64);
+    } catch {
+      return false;
+    }
+  });
+
+  return revalidateCandidateRows(matching, input.actorId);
 }

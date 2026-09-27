@@ -27,6 +27,8 @@ production smoke / real operation
 | runtime observability | focused unit contract；涉及 provider/DB 时叠加对应真实层 |
 | release / production boundary | protected release evidence + smoke；真实运营事实只能由真实运营证明 |
 
+App Router 的 Partial Prefetching、URL data Suspense boundary 和 instant navigation 要用 production build/start 检查；`next dev` 不执行 production automatic prefetch。浏览器 evidence 覆盖共享 App Shell、动态链接复用及公开搜索从可见到可编辑的过程，不用固定等待、retry 或延长 timeout 隐藏阻塞。
+
 DB unique/FK、transaction、row lock、migration/backfill 不用 mock 代替。浏览器测试验证用户任务，不重复穷举 pure domain rule。
 
 ## CI

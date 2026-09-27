@@ -149,7 +149,7 @@ export default async function PlayersPage({ params, searchParams }: PlayersPageP
     .innerJoin(eventRosters, eq(eventRosterMembers.eventRosterId, eventRosters.id))
     .innerJoin(competitionEntries, eq(eventRosters.entryId, competitionEntries.id))
     .leftJoin(seasonRegistrations, and(eq(seasonRegistrations.userId, eventRosterMembers.userId), eq(seasonRegistrations.seasonId, season.id)))
-    .where(and(eq(competitionEntries.competitionId, season.id), publicCompetitionEntryCondition()));
+    .where(and(eq(competitionEntries.competitionId, season.id), publicCompetitionEntryCondition(), eq(eventRosterMembers.isCurrent, true)));
 
   const teamByRegId = new Map(teamMemberRows.flatMap((row) => row.registrationId ? [[row.registrationId, row.teamName] as const] : []));
 

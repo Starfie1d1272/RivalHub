@@ -90,6 +90,7 @@ export function AdminMatchWorkbench({
   completedMaps,
   pendingMaps,
   finishedMaps,
+  vetoCompletedAt,
   postMatch,
   demoReviews = [],
 }: AdminMatchWorkbenchProps) {
@@ -233,19 +234,13 @@ export function AdminMatchWorkbench({
                 BP、地图与比赛时间
               </h2>
               <p className="mt-1 text-xs leading-5 text-[var(--color-fg-mid)]">
-                先记录实际 BP，再按地图录入回合比分；系统将自动计算系列赛比分。
+                双方在 Veto Room 完成禁选后，再按地图录入回合比分；系统将自动计算系列赛比分。
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <VetoInputDialog
-                matchId={match.id}
-                format={match.format}
-                teamAName={teamAName}
-                teamBName={teamBName}
-                entryAId={match.entryAId}
-                entryBId={match.entryBId}
-                mapPool={mapPool}
-              />
+              <Link className="inline-flex min-h-10 items-center rounded border border-[var(--color-border)] px-4 text-sm font-medium hover:border-[var(--color-border-hover)]" href={`/${season.slug}/matches/${match.id}/veto`}>
+                {match.status === "scheduled" ? "打开 Veto Room" : "查看 Veto Room"}
+              </Link>
             </div>
             <ScheduledAtInput
               matchId={match.id}
@@ -253,19 +248,25 @@ export function AdminMatchWorkbench({
               currentCompletionDeadline={match.completionDeadline}
             />
             {match.status === "in_progress" ? (
-              <MapByMapInput
-                matchId={match.id}
-                format={match.format}
-                teamAName={teamAName}
-                teamBName={teamBName}
-                entryAId={match.entryAId}
-                entryBId={match.entryBId}
-                completedMaps={completedMaps}
-                pendingMaps={pendingMaps}
-                mapPool={mapPool}
-              />
+              vetoCompletedAt ? (
+                <MapByMapInput
+                  matchId={match.id}
+                  format={match.format}
+                  teamAName={teamAName}
+                  teamBName={teamBName}
+                  entryAId={match.entryAId}
+                  entryBId={match.entryBId}
+                  completedMaps={completedMaps}
+                  pendingMaps={pendingMaps}
+                  mapPool={mapPool}
+                />
+              ) : (
+                <p role="status" className="rounded border border-[var(--color-warn-edge)] px-3 py-2 text-sm text-[var(--color-fg-mid)]">
+                  Veto Session 已开始；完成 BP 地图计划后才能录入地图比分。
+                </p>
+              )
             ) : (
-              <ScoreInput matchId={match.id} currentStatus={match.status} startBlockers={startBlockers} />
+              <ScoreInput matchId={match.id} currentStatus={match.status} allowCancel={match.qualificationRunId === null} />
             )}
           </section>
 
@@ -400,7 +401,7 @@ export function AdminMatchWorkbench({
         >
           查看公开页 ↗
         </Link>
-        {match.bracketNodeId == null && <DeleteMatchButton matchId={match.id} />}
+        {match.bracketNodeId == null && match.qualificationRunId === null && <DeleteMatchButton matchId={match.id} />}
       </footer>
     </Panel>
   );

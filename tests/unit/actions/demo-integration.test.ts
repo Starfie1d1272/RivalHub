@@ -12,6 +12,9 @@ const {
   confirmMock,
   rejectMock,
   retireMock,
+  recheckMock,
+  recheckSeasonMock,
+  fanoutMock,
   revalidateMatchPathsMock,
 } = vi.hoisted(() => ({
   matchDemoImportsFindFirstMock: vi.fn(),
@@ -24,6 +27,9 @@ const {
   confirmMock: vi.fn(),
   rejectMock: vi.fn(),
   retireMock: vi.fn(),
+  recheckMock: vi.fn(),
+  recheckSeasonMock: vi.fn(),
+  fanoutMock: vi.fn(),
   revalidateMatchPathsMock: vi.fn(),
 }));
 
@@ -52,8 +58,16 @@ vi.mock("@/lib/demo-integration/review", () => ({
   retireSeasonGameplaySteamIdentityInTx: retireMock,
 }));
 
+vi.mock("@/lib/demo-integration/revalidation", () => ({
+  revalidateStoredDemoImportInTx: recheckMock,
+  revalidateSeasonNeedsAttentionImports: recheckSeasonMock,
+  revalidateNeedsAttentionImportsForSteam64: fanoutMock,
+}));
+
 import {
   confirmStoredDemoParticipantIdentity,
+  recheckSeasonStoredDemoImports,
+  recheckStoredDemoImport,
   rejectStoredDemoImport,
   retireGameplaySteamIdentity,
 } from "@/actions/demo-integration";
@@ -88,12 +102,16 @@ beforeEach(() => {
     id: IDENTITY_ID,
     sourceImportId: IMPORT_ID,
     provenance: "admin_confirmed_alternate",
+    steam64: STEAM64,
   });
   requireSeasonAdminMock.mockResolvedValue({ userId: ACTOR_ID });
   auditActorIdMock.mockReturnValue(ACTOR_ID);
   transactionMock.mockImplementation((callback: (tx: unknown) => unknown) => callback({}));
   confirmMock.mockResolvedValue({ status: "confirmed", importId: IMPORT_ID, issues: [], alreadyConfirmed: false, aliasCreated: true });
   rejectMock.mockResolvedValue({ alreadyRejected: false });
+  recheckMock.mockResolvedValue({ status: "confirmed", importId: IMPORT_ID, issues: [] });
+  recheckSeasonMock.mockResolvedValue({ attempted: 2, confirmed: 1, remaining: 1, failed: 0, affectedMatchIds: [MATCH_ID] });
+  fanoutMock.mockResolvedValue({ attempted: 0, confirmed: 0, remaining: 0, failed: 0, affectedMatchIds: [] });
   retireMock.mockResolvedValue({ retired: true });
 });
 
@@ -112,6 +130,30 @@ describe("Demo identity action authorization", () => {
       eventRosterMemberId: MEMBER_ID,
       observedSteam64: STEAM64,
       actorId: ACTOR_ID,
+    });
+    expect(fanoutMock).toHaveBeenCalledWith({
+      seasonId: OWN_SEASON_ID,
+      steam64: STEAM64,
+      actorId: ACTOR_ID,
+      excludeImportId: IMPORT_ID,
+    });
+  });
+
+  it("keeps a successful identity confirmation successful when related fan-out recheck fails", async () => {
+    fanoutMock.mockRejectedValue(new Error("temporary recheck failure"));
+
+    const result = await confirmStoredDemoParticipantIdentity({
+      importId: IMPORT_ID,
+      eventRosterMemberId: MEMBER_ID,
+      observedSteam64: STEAM64,
+    });
+
+    expect(result).toMatchObject({
+      success: true,
+      data: {
+        status: "confirmed",
+        relatedRechecks: { attempted: 0, confirmed: 0, remaining: 0, failed: 1 },
+      },
     });
   });
 
@@ -144,6 +186,28 @@ describe("Demo identity action authorization", () => {
     expect(transactionMock).not.toHaveBeenCalled();
   });
 
+  it("allows an own-season admin to recheck all current needs_attention imports in that season", async () => {
+    const result = await recheckSeasonStoredDemoImports({ importId: IMPORT_ID });
+
+    expect(result).toMatchObject({ success: true, data: { attempted: 2, confirmed: 1, remaining: 1, failed: 0 } });
+    expect(requireSeasonAdminMock).toHaveBeenCalledWith(OWN_SEASON_ID);
+    expect(recheckSeasonMock).toHaveBeenCalledWith({ seasonId: OWN_SEASON_ID, actorId: ACTOR_ID });
+    expect(revalidateMatchPathsMock).toHaveBeenCalledWith("own-season", MATCH_ID);
+  });
+
+  it("allows an own-season admin to recheck immutable stored evidence", async () => {
+    const result = await recheckStoredDemoImport({ importId: IMPORT_ID });
+
+    expect(result).toMatchObject({ success: true, data: { status: "confirmed" } });
+    expect(requireSeasonAdminMock).toHaveBeenCalledWith(OWN_SEASON_ID);
+    expect(recheckMock).toHaveBeenCalledWith(expect.anything(), {
+      importId: IMPORT_ID,
+      actorId: ACTOR_ID,
+      verifiedBy: `admin:${ACTOR_ID}`,
+    });
+    expect(revalidateMatchPathsMock).toHaveBeenCalledWith("own-season", MATCH_ID);
+  });
+
   it("allows reject only after the own-season admin check", async () => {
     const result = await rejectStoredDemoImport({ importId: IMPORT_ID });
 
@@ -157,6 +221,7 @@ describe("Demo identity action authorization", () => {
       id: IDENTITY_ID,
       sourceImportId: IMPORT_ID,
       provenance: "admin_confirmed_alternate",
+      steam64: STEAM64,
     });
     matchDemoImportsFindFirstMock.mockResolvedValue(sourceImport(OTHER_SEASON_ID));
     seasonsFindFirstMock.mockResolvedValue({ id: OTHER_SEASON_ID, slug: "other-season" });
@@ -181,5 +246,6 @@ describe("Demo identity action authorization", () => {
       seasonId: OWN_SEASON_ID,
       actorId: ACTOR_ID,
     });
+    expect(fanoutMock).not.toHaveBeenCalled();
   });
 });

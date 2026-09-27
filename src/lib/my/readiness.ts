@@ -383,7 +383,7 @@ export async function loadSettingsProfileReadiness(userId: string): Promise<Sett
   const competitiveProfiles = await loadCompetitiveProfileSources(
     userId,
     catalog,
-    new Set(["perfect_world"]),
+    new Set<string>(),
     new Set(platformFactRows.map((row) => row.platform)),
   );
   const profile = profileState(baseFact);

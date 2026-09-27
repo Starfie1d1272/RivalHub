@@ -12,6 +12,11 @@ import {
   rejectStoredDemoImportInTx,
   retireSeasonGameplaySteamIdentityInTx,
 } from "@/lib/demo-integration/review";
+import {
+  revalidateNeedsAttentionImportsForSteam64,
+  revalidateSeasonNeedsAttentionImports,
+  revalidateStoredDemoImportInTx,
+} from "@/lib/demo-integration/revalidation";
 import { revalidateMatchPaths } from "@/lib/revalidation";
 import { ok, type ActionResult } from "@/types/action";
 
@@ -26,22 +31,94 @@ async function loadImportContext(importId: string) {
   return { row, season };
 }
 
+type ConfirmStoredDemoParticipantIdentityActionData = Awaited<ReturnType<typeof confirmStoredDemoParticipantIdentityInTx>> & {
+  relatedRechecks: {
+    attempted: number;
+    confirmed: number;
+    remaining: number;
+    failed: number;
+  };
+};
+
 export async function confirmStoredDemoParticipantIdentity(
   input: unknown,
-): Promise<ActionResult<Awaited<ReturnType<typeof confirmStoredDemoParticipantIdentityInTx>>>> {
+): Promise<ActionResult<ConfirmStoredDemoParticipantIdentityActionData>> {
   const parsed = z.object({ importId: uuid, eventRosterMemberId: uuid, observedSteam64: steam64 }).safeParse(input);
   if (!parsed.success) return failValidation("比赛 Steam 身份确认参数无效。");
   try {
     const { row, season } = await loadImportContext(parsed.data.importId);
     const admin = await requireSeasonAdmin(row.seasonId);
+    const actorId = auditActorId(admin);
     const result = await db.transaction((tx) => confirmStoredDemoParticipantIdentityInTx(tx, {
       ...parsed.data,
+      actorId,
+    }));
+    let relatedRechecks;
+    try {
+      relatedRechecks = await revalidateNeedsAttentionImportsForSteam64({
+        seasonId: row.seasonId,
+        steam64: parsed.data.observedSteam64,
+        actorId,
+        excludeImportId: row.id,
+      });
+    } catch {
+      relatedRechecks = { attempted: 0, confirmed: 0, remaining: 0, failed: 1, affectedMatchIds: [] };
+    }
+    revalidateMatchPaths(season.slug, row.matchId);
+    for (const matchId of relatedRechecks.affectedMatchIds) revalidateMatchPaths(season.slug, matchId);
+    return ok({
+      ...result,
+      relatedRechecks: {
+        attempted: relatedRechecks.attempted,
+        confirmed: relatedRechecks.confirmed,
+        remaining: relatedRechecks.remaining,
+        failed: relatedRechecks.failed,
+      },
+    });
+  } catch (error) {
+    return actionError("confirmStoredDemoParticipantIdentity", error);
+  }
+}
+
+
+export async function recheckSeasonStoredDemoImports(
+  input: unknown,
+): Promise<ActionResult<Awaited<ReturnType<typeof revalidateSeasonNeedsAttentionImports>>>> {
+  const parsed = z.object({ importId: uuid }).safeParse(input);
+  if (!parsed.success) return failValidation("批量重新检查 Demo 数据的参数无效。");
+  try {
+    const { row, season } = await loadImportContext(parsed.data.importId);
+    const admin = await requireSeasonAdmin(row.seasonId);
+    const result = await revalidateSeasonNeedsAttentionImports({
+      seasonId: row.seasonId,
       actorId: auditActorId(admin),
+    });
+    for (const matchId of result.affectedMatchIds) revalidateMatchPaths(season.slug, matchId);
+    return ok(result);
+  } catch (error) {
+    return actionError("recheckSeasonStoredDemoImports", error);
+  }
+}
+
+
+export async function recheckStoredDemoImport(
+  input: unknown,
+): Promise<ActionResult<Awaited<ReturnType<typeof revalidateStoredDemoImportInTx>>>> {
+  const parsed = z.object({ importId: uuid }).safeParse(input);
+  if (!parsed.success) return failValidation("重新检查 Demo 数据的参数无效。");
+  try {
+    const { row, season } = await loadImportContext(parsed.data.importId);
+    const admin = await requireSeasonAdmin(row.seasonId);
+    const actorId = auditActorId(admin);
+    const result = await db.transaction((tx) => revalidateStoredDemoImportInTx(tx, {
+      importId: row.id,
+      actorId,
+      verifiedBy: `admin:${actorId}`,
     }));
     revalidateMatchPaths(season.slug, row.matchId);
     return ok(result);
   } catch (error) {
-    return actionError("confirmStoredDemoParticipantIdentity", error);
+    return actionError("recheckStoredDemoImport", error);
   }
 }
 

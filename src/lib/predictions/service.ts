@@ -32,7 +32,7 @@ import {
   type MarketResolutionFact,
 } from "./market-resolution";
 import { simulateMajor } from "./simulator";
-import { distributePool, validatePick, rulesSchema } from "./rules";
+import { distributePool, validatePick, rulesSchema, predictionChallengeCapacity } from "./rules";
 import {
   samePick,
   type Baseline,
@@ -114,11 +114,10 @@ export async function reconcilePredictionProgram(
   const seasonId = program.seasonId;
   const now = await databaseTime(tx);
   const base = await loadBaseline(tx, seasonId);
-  const [job] = await tx.select().from(jobs).where(eq(jobs.seasonId, seasonId));
   const due = await tx.execute<{ due: boolean }>(
-    sql`select exists(select 1 from prediction_contests where season_id=${seasonId} and locked_at is null and deadline <= clock_timestamp()) or exists(select 1 from prediction_markets where season_id=${seasonId} and locked_at is null and deadline <= clock_timestamp()) as due`,
+    sql`select public.prediction_reconciliation_is_due(${seasonId}::uuid) as due`,
   );
-  if (!force && !job?.dirty && !due.rows[0]?.due) {
+  if (!force && !due.rows[0]?.due) {
     await tx
       .update(jobs)
       .set({ updatedAt: now })
@@ -408,7 +407,9 @@ export async function enablePredictionsInTx(
 ) {
   await assertSeasonAllowsTournamentMutationInTx(tx, input.seasonId);
   rulesSchema.parse(input.rules);
-  await loadBaseline(tx, input.seasonId); // canonical standard-Major capability gate
+  const base = await loadBaseline(tx, input.seasonId); // canonical standard-Major capability gate
+  if (input.rules.diamond > predictionChallengeCapacity(base.stages))
+    invalid("纪念币门槛不能超过本届赛事可完成的挑战总数");
   const inserted = await tx
     .insert(programs)
     .values({ seasonId: input.seasonId, rules: input.rules })

@@ -31,7 +31,7 @@ vi.mock("@/db/schema/player-stats", () => ({
 }));
 
 vi.mock("@/db/schema", () => ({
-  eventRosterMembers: { userId: {}, eventRosterId: {} },
+  eventRosterMembers: { id: {}, userId: {}, eventRosterId: {}, isCurrent: {} },
   eventRosters: { id: {}, entryId: {} },
 }));
 
@@ -52,10 +52,13 @@ describe("PlayerStatsTable", () => {
     mockMembershipInnerJoin.mockReset();
     mockMembershipFrom.mockReset();
     mockMembershipSelect.mockReset();
+    const query = { innerJoin: mockMembershipInnerJoin, where: mockMembershipWhere };
     mockMembershipSelect.mockReturnValue({ from: mockMembershipFrom });
-    mockMembershipFrom.mockReturnValue({ innerJoin: mockMembershipInnerJoin });
-    mockMembershipInnerJoin.mockReturnValue({ where: mockMembershipWhere });
-    mockMembershipWhere.mockResolvedValue([{ userId: "u-a", entryId: "ta" }, { userId: "u-b", entryId: "tb" }]);
+    mockMembershipFrom.mockReturnValue(query);
+    mockMembershipInnerJoin.mockReturnValue(query);
+    mockMembershipWhere
+      .mockResolvedValueOnce([{ userId: "u-a", entryId: "ta" }, { userId: "u-b", entryId: "tb" }])
+      .mockResolvedValueOnce([]);
   });
 
   it("renders empty state when no stats", async () => {
@@ -107,15 +110,28 @@ describe("PlayerStatsTable", () => {
       { id: "p1", userId: "u-a", perfectName: "A队选手", kills: 10, deaths: 5, assists: 3, adr: 80, ratingPro: 1.1, hsPercent: 50, firstKills: 2, multiKills: 1, clutches: 0, rws: 12, we: 1.5 },
       { id: "p2", userId: "u-b", perfectName: "B队选手", kills: 5, deaths: 10, assists: 1, adr: 50, ratingPro: 0.8, hsPercent: 40, firstKills: 0, multiKills: 0, clutches: 0, rws: 8, we: 0.8 },
     ]);
-    mockMembershipWhere.mockResolvedValue([
-      { userId: "u-a", entryId: "ta" },
-      { userId: "u-b", entryId: "tb" },
-    ]);
     const jsx = await PlayerStatsTable(baseProps);
     render(jsx);
     // 两队都能正确归属渲染
     expect(screen.getByText("A队选手")).toBeDefined();
     expect(screen.getByText("B队选手")).toBeDefined();
-    expect(mockMembershipWhere).toHaveBeenCalledTimes(1);
+    expect(mockMembershipWhere).toHaveBeenCalledTimes(2);
+  });
+
+  it("resolves stats for a historical member through this match roster", async () => {
+    mockFindMany.mockResolvedValue([
+      { id: "p1", userId: "u-history", perfectName: "历史名单选手", kills: 10, deaths: 5, assists: 3, adr: 80, ratingPro: 1.1, hsPercent: 50, firstKills: 2, multiKills: 1, clutches: 0, rws: 12, we: 1.5 },
+      { id: "p2", userId: "u-b", perfectName: "B队选手", kills: 5, deaths: 10, assists: 1, adr: 50, ratingPro: 0.8, hsPercent: 40, firstKills: 0, multiKills: 0, clutches: 0, rws: 8, we: 0.8 },
+    ]);
+    mockMembershipWhere.mockReset()
+      .mockResolvedValueOnce([{ userId: "u-b", entryId: "tb" }])
+      .mockResolvedValueOnce([{ userId: "u-history", entryId: "ta" }]);
+
+    const jsx = await PlayerStatsTable(baseProps);
+    render(jsx);
+
+    expect(screen.getByText("历史名单选手")).toBeDefined();
+    expect(screen.getByText("队伍 A")).toBeDefined();
+    expect(screen.getByText("队伍 B")).toBeDefined();
   });
 });

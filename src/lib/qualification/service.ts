@@ -1,6 +1,6 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { and, asc, eq, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
-import { competitiveRankFacts, educationVerifications, institutions, steamProfiles, users } from "@/db/schema";
+import { competitivePlatformSeasons, competitiveRankFacts, educationVerifications, institutions, steamProfiles, users } from "@/db/schema";
 import { BUILT_IN_COMPETITIVE_PLATFORMS, isBuiltInCompetitivePlatformKey, isBuiltInStarRank } from "@/lib/competitive/builtins";
 import { convertFiveeToPerfect } from "@/lib/competitive/conversion-policy";
 import { comparePlayerStrengthFacts, evaluateExternalStrengthRule, getPlayerStrengthFindings, type PlayerStrengthFact, type PlayerStrengthInput } from "@/lib/major/player-strength";
@@ -43,6 +43,8 @@ export interface ParticipantQualificationFacts {
   historicalPeak: QualificationPeak | null;
   /** Season peaks keyed by catalogued platform season key. */
   seasonPeaks?: Map<string, QualificationSeasonPeak>;
+  /** Target-platform catalogue chronology, oldest → newest. */
+  platformSeasonOrder?: string[];
   /** Optional source-platform facts, loaded only for an event's frozen fallback policy. */
   fallbackFacts?: {
     historicalPeak: QualificationPeak | null;
@@ -74,9 +76,27 @@ type SelectableCompetitivePeak = QualificationPeak | QualificationSeasonPeak;
 
 type CompetitiveEvidenceSlot = {
   label: string;
+  targetKey: string;
   primary: SelectableCompetitivePeak | null | undefined;
   fallback: SelectableCompetitivePeak | null | undefined;
 };
+
+function qualificationPlatformLabel(platform: string): string {
+  if (platform === "perfect_world") return "完美平台";
+  if (platform === "fivee") return "5E";
+  return "竞技平台";
+}
+
+function qualificationSeasonLabel(seasonKey: string, fallback = "指定赛季"): string {
+  const yearSeason = /^(\d{4})s(\d+)$/i.exec(seasonKey);
+  if (yearSeason) return `${yearSeason[1]} S${yearSeason[2]}`;
+  if (/^s\d+$/i.test(seasonKey)) return seasonKey.toUpperCase();
+  const prefixedSeason = /^(?:5e[-_])(s\d+)$/i.exec(seasonKey);
+  if (prefixedSeason) return prefixedSeason[1]!.toUpperCase();
+  return fallback;
+}
+
+export type ParticipantEducationReadiness = "ready" | "pending_review" | "rejected" | "missing";
 
 export interface ParticipantReadiness {
   ready: boolean;
@@ -84,6 +104,7 @@ export interface ParticipantReadiness {
   findings: QualificationFinding[];
   strength: PlayerStrengthInput;
   educationApproved: boolean;
+  educationState: ParticipantEducationReadiness;
 }
 
 function createCompetitiveCandidateResolver(context: CompetitiveProfileConfig | null): (
@@ -92,16 +113,11 @@ function createCompetitiveCandidateResolver(context: CompetitiveProfileConfig | 
 ) => PlayerStrengthFact | null {
   const policy = context?.evidencePolicy;
   const fallback = context?.fallbackConversion;
-  const lowestRank = context?.rankOrder[0] ?? null;
   const sourceSelection = policy?.sourceSelection ?? "primary_then_fallback";
   const nativeCandidate = (primary: SelectableCompetitivePeak | null | undefined): PlayerStrengthFact | null => {
-    if (primary?.status === "unranked") {
-      // Explicitly unranked is a declared lowest available platform state. The
-      // lowest frozen rank is derived from the event map, not a magic rank key.
-      return lowestRank
-        ? { rank: lowestRank, rating: 0, ratingComparable: false, stars: null, sourcePlatform: primary.sourcePlatform, sourceSeasonKey: primary.sourceSeasonKey }
-        : null;
-    }
+    // "Unranked" is evidence about the season state, not a rank. It must never
+    // be silently rewritten to the bottom rung of the event ladder.
+    if (primary?.status === "unranked") return null;
     if (!primary?.rank || primary.rating === null || primary.rating === undefined) return null;
     return {
       rank: primary.rank,
@@ -113,7 +129,8 @@ function createCompetitiveCandidateResolver(context: CompetitiveProfileConfig | 
     };
   };
   const fallbackCandidate = (fallbackFact: SelectableCompetitivePeak | null | undefined): PlayerStrengthFact | null => {
-    if (!fallback || !fallbackFact?.rank || fallbackFact.rating === null || fallbackFact.rating === undefined) return null;
+    if (!fallback || !fallbackFact || fallbackFact.status === "unranked") return null;
+    if (!fallbackFact.rank || fallbackFact.rating === null || fallbackFact.rating === undefined) return null;
     if (fallback.mapping) {
       const converted = convertFiveeToPerfect(fallbackFact.rank, fallbackFact.stars ?? null, fallback.mapping);
       // A 5E Rating+ has no reviewed conversion to Perfect Rating Pro. It can
@@ -154,8 +171,8 @@ function createCompetitiveCandidateResolver(context: CompetitiveProfileConfig | 
     const native = nativeCandidate(primary);
     const converted = fallbackCandidate(fallbackFact);
     if (sourceSelection !== "strongest_equivalent") {
-      // Preserve the legacy primary-first rule, including its treatment of an
-      // explicitly unranked primary as a fallback opportunity.
+      // An explicitly unranked primary still gives a ranked fallback source the
+      // opportunity to supply the season's usable evidence.
       if (primary?.status !== "unranked" && native) return native;
       return converted ?? native;
     }
@@ -169,7 +186,7 @@ function createCompetitiveCandidateResolver(context: CompetitiveProfileConfig | 
 
 /** Adapts long-term facts to the event's frozen evidence policy in one place. */
 export function toPlayerStrengthInput(
-  fact: Pick<ParticipantQualificationFacts, "userId" | "displayName" | "perfectName" | "personaName" | "email" | "historicalPeak" | "seasonPeaks" | "fallbackFacts">,
+  fact: Pick<ParticipantQualificationFacts, "userId" | "displayName" | "perfectName" | "personaName" | "email" | "historicalPeak" | "seasonPeaks" | "platformSeasonOrder" | "fallbackFacts">,
   context: CompetitiveProfileConfig | null,
 ): PlayerStrengthInput {
   const policy = context?.evidencePolicy;
@@ -184,13 +201,75 @@ export function toPlayerStrengthInput(
   };
   const referenceSeasonKey = policy?.referenceSeasonKey ?? context?.previousSeasonKey ?? "";
   const recentSeasonKeys = policy?.recentSeasonKeys ?? (context?.currentSeasonKey ? [context.currentSeasonKey] : []);
+  const evidenceSeasonKeys = [...new Set([
+    referenceSeasonKey,
+    ...recentSeasonKeys,
+    context?.currentSeasonKey ?? "",
+  ].filter(Boolean))];
+  const catalogSeasonKeys = fact.platformSeasonOrder?.length
+    ? fact.platformSeasonOrder
+    : evidenceSeasonKeys;
+  const seasonOrder = [...new Set([
+    ...catalogSeasonKeys,
+    ...evidenceSeasonKeys,
+    ...(fact.seasonPeaks ? [...fact.seasonPeaks.keys()] : []),
+  ])];
+  const directForSeason = (seasonKey: string): PlayerStrengthFact | null =>
+    resolve(fact.seasonPeaks?.get(seasonKey), fallbackFor(seasonKey));
+  const lowerOneRung = (
+    source: PlayerStrengthFact,
+    targetSeasonKey: string,
+    basis: { seasonKey?: string; historical?: boolean },
+  ): PlayerStrengthFact | null => {
+    if (!context) return null;
+    const sourceRankIndex = context.rankOrder.indexOf(source.rank);
+    if (sourceRankIndex < 0) return null;
+    return {
+      rank: context.rankOrder[Math.max(0, sourceRankIndex - 1)]!,
+      rating: 0,
+      ratingComparable: false,
+      stars: null,
+      sourcePlatform: context.platform,
+      sourceSeasonKey: targetSeasonKey,
+      estimatedFromUnranked: true,
+      ...(basis.seasonKey ? { estimatedFromSeasonKey: basis.seasonKey } : {}),
+      ...(basis.historical ? { estimatedFromHistorical: true } : {}),
+    };
+  };
+  const estimateUnrankedSeason = (seasonKey: string): PlayerStrengthFact | null => {
+    if (!context) return null;
+    const targetIndex = seasonOrder.indexOf(seasonKey);
+    if (targetIndex >= 0) {
+      // Prefer an actual earlier ranked season. Never chain an estimate from
+      // another unranked season.
+      for (let index = targetIndex - 1; index >= 0; index -= 1) {
+        const sourceSeasonKey = seasonOrder[index]!;
+        const source = directForSeason(sourceSeasonKey);
+        if (!source) continue;
+        return lowerOneRung(source, seasonKey, { seasonKey: sourceSeasonKey });
+      }
+    }
+
+    // Last-resort estimate for profiles with no season-level ranked history.
+    // Historical peak remains a declared ranked fact, but provenance is kept
+    // explicit so the UI never presents the estimate as a real season result.
+    const historical = resolve(fact.historicalPeak, fact.fallbackFacts?.historicalPeak);
+    return historical ? lowerOneRung(historical, seasonKey, { historical: true }) : null;
+  };
+  const seasonFact = (seasonKey: string): PlayerStrengthFact | null => {
+    const primary = fact.seasonPeaks?.get(seasonKey);
+    const fallbackFact = fallbackFor(seasonKey);
+    const direct = resolve(primary, fallbackFact);
+    if (direct || !context || (primary?.status !== "unranked" && fallbackFact?.status !== "unranked")) return direct;
+    return estimateUnrankedSeason(seasonKey);
+  };
   return {
     userId: fact.userId ?? "",
     label: getDisplayName(fact),
     historicalPeak: resolve(fact.historicalPeak, fact.fallbackFacts?.historicalPeak),
-    previousSeasonPeak: resolve(fact.seasonPeaks?.get(referenceSeasonKey), fallbackFor(referenceSeasonKey)),
-    currentSeasonPeak: resolve(fact.seasonPeaks?.get(context?.currentSeasonKey ?? ""), fallbackFor(context?.currentSeasonKey ?? "")),
-    recentSeasonPeaks: recentSeasonKeys.map((key) => resolve(fact.seasonPeaks?.get(key), fallbackFor(key))),
+    previousSeasonPeak: seasonFact(referenceSeasonKey),
+    currentSeasonPeak: seasonFact(context?.currentSeasonKey ?? ""),
+    recentSeasonPeaks: recentSeasonKeys.map(seasonFact),
   };
 }
 
@@ -225,18 +304,20 @@ function getMissingStarFindings(
     return sourceSeasonKey ? fact.fallbackFacts?.seasonPeaks.get(sourceSeasonKey) : undefined;
   };
   const slots: CompetitiveEvidenceSlot[] = [
-    { label: "历史最高", primary: fact.historicalPeak, fallback: fact.fallbackFacts?.historicalPeak },
+    { label: "历史最高", targetKey: "historical", primary: fact.historicalPeak, fallback: fact.fallbackFacts?.historicalPeak },
   ];
   const referenceSeasonKey = policy?.referenceSeasonKey ?? context.previousSeasonKey;
   slots.push({
     label: policy ? `前一完整赛季 · ${referenceSeasonKey}` : `上一赛季 · ${referenceSeasonKey}`,
+    targetKey: referenceSeasonKey,
     primary: fact.seasonPeaks?.get(referenceSeasonKey),
     fallback: fallbackFor(referenceSeasonKey),
   });
   const recentSeasonKeys = policy?.recentSeasonKeys ?? [context.currentSeasonKey];
   for (const seasonKey of recentSeasonKeys) {
     slots.push({
-      label: policy ? `近期赛季 · ${seasonKey}` : `当前赛季 · ${seasonKey}`,
+      label: policy ? `近期赛季 · ${qualificationSeasonLabel(seasonKey)}` : `当前赛季 · ${qualificationSeasonLabel(seasonKey)}`,
+      targetKey: seasonKey,
       primary: fact.seasonPeaks?.get(seasonKey),
       fallback: fallbackFor(seasonKey),
     });
@@ -276,6 +357,8 @@ function getMissingStarFindings(
       ? fallbackMissing ?? (primaryMissing && !selectedFallback ? primaryMissing : null)
       : primaryHasPriorityInLegacy ? primaryMissing : fallbackMissing;
     if (report) {
+      const reportUsesFallback = report === fallbackMissing;
+      const sourcePeak = reportUsesFallback ? slot.fallback : slot.primary;
       findings.push({
         code: "competitive_profile_incomplete",
         message: `${slot.label}的 ${report.label} 段位需要填写准确星数，竞技资料未填写完整。`,
@@ -283,7 +366,8 @@ function getMissingStarFindings(
         metadata: {
           field: "stars",
           slot: slot.label,
-          platform: fallbackMissing && sourceSelection === "strongest_equivalent" ? fallbackPlatform : context.platform,
+          platform: reportUsesFallback ? fallbackPlatform ?? context.platform : context.platform,
+          seasonKey: slot.targetKey === "historical" ? "historical" : sourcePeak?.sourceSeasonKey ?? slot.targetKey,
           rankKey: report.rankKey,
           rankLabel: report.label,
         },
@@ -298,26 +382,34 @@ function getCompetitiveProfileFindings(
   fact: ParticipantQualificationFacts,
   context: CompetitiveProfileConfig | null,
 ): QualificationFinding[] {
-  if (!context) return [{ code: "competitive_context_unavailable", message: "竞技平台赛季目录尚未完成当前与上一赛季配置。", waivable: false, metadata: { field: "competitive_context" } }];
+  if (!context) return [{ code: "competitive_context_unavailable", message: "本届赛事的竞技资料要求暂时无法确认，请联系赛事管理员。", waivable: false, metadata: { field: "competitive_context" } }];
   const strength = toPlayerStrengthInput(fact, context);
   const strengthFindings = getPlayerStrengthFindings(strength, context).map((finding) => {
     if (finding.code !== "competitive_profile_incomplete") return finding;
     const field = finding.metadata?.field;
     if (field === "reference_season_peak") {
+      const seasonKey = context.evidencePolicy?.referenceSeasonKey ?? context.previousSeasonKey;
       return {
         ...finding,
         message: context.evidencePolicy
-          ? `缺少${context.platform} · ${context.evidencePolicy.referenceSeasonKey} 的最高段位及 Rating。`
-          : `缺少${context.platform} · ${context.previousSeasonKey} 的最高段位及 Rating。`,
+          ? `缺少${qualificationPlatformLabel(context.platform)} ${qualificationSeasonLabel(context.evidencePolicy.referenceSeasonKey, "前一完整赛季")}的最高段位和 Rating。`
+          : `缺少${qualificationPlatformLabel(context.platform)} ${qualificationSeasonLabel(context.previousSeasonKey, "上一赛季")}的最高段位和 Rating。`,
+        metadata: { ...finding.metadata, platform: context.platform, seasonKey },
       };
     }
     if (field === "recent_season_peak") {
+      const seasonKeys = context.evidencePolicy?.recentSeasonKeys ?? [context.currentSeasonKey];
+      const seasonKey = seasonKeys.find((key) => !fact.seasonPeaks?.has(key)) ?? seasonKeys[0] ?? context.currentSeasonKey;
       return {
         ...finding,
         message: context.evidencePolicy
-          ? `缺少${context.platform} · ${context.evidencePolicy.recentSeasonKeys.join(" / ")} 的可用竞技资料。`
-          : `缺少${context.platform} · ${context.currentSeasonKey} 的最高段位及 Rating。`,
+          ? `请补充${qualificationPlatformLabel(context.platform)} ${[...new Set(context.evidencePolicy.recentSeasonKeys.map((key) => qualificationSeasonLabel(key, "近期赛季")))].join(" / ")}中至少一个赛季的最高段位和 Rating。`
+          : `缺少${qualificationPlatformLabel(context.platform)} ${qualificationSeasonLabel(context.currentSeasonKey, "当前赛季")}的最高段位和 Rating。`,
+        metadata: { ...finding.metadata, platform: context.platform, seasonKey },
       };
+    }
+    if (field === "historical_peak") {
+      return { ...finding, metadata: { ...finding.metadata, platform: context.platform, seasonKey: "historical" } };
     }
     return finding;
   });
@@ -411,6 +503,13 @@ export async function loadParticipantQualificationFacts(
   const rankRows = includeCompetitiveFacts
     ? await executor.select().from(competitiveRankFacts).where(rankFactsFilter)
     : [];
+  const platformSeasonRows = includeCompetitiveFacts && options.platform
+    ? await executor.select({ seasonKey: competitivePlatformSeasons.seasonKey })
+      .from(competitivePlatformSeasons)
+      .where(eq(competitivePlatformSeasons.platform, options.platform))
+      .orderBy(asc(competitivePlatformSeasons.sortOrder))
+    : [];
+  const platformSeasonOrder = platformSeasonRows.map((row) => row.seasonKey);
 
   const approvedEducation = new Set(
     verificationRows.filter((row) => row.status === "approved").map((row) => row.userId),
@@ -456,10 +555,29 @@ export async function loadParticipantQualificationFacts(
       educationHistory: historyByUser.get(user.id) ?? [],
       historicalPeak: toHistoricalPeak(historical),
       seasonPeaks,
+      platformSeasonOrder,
       fallbackFacts: options.fallbackPlatform ? { historicalPeak: toHistoricalPeak(fallbackHistorical), seasonPeaks: fallbackSeasonPeaks } : undefined,
     });
   }
   return facts;
+}
+
+function resolveParticipantEducationReadiness(fact: ParticipantQualificationFacts): ParticipantEducationReadiness {
+  if (fact.approvedEducation) return "ready";
+  if (fact.educationHistory.some((entry) => entry.status === "pending")) return "pending_review";
+  const latest = [...fact.educationHistory].sort(
+    (left, right) => (right.submittedAt?.getTime() ?? 0) - (left.submittedAt?.getTime() ?? 0),
+  )[0];
+  return latest?.status === "rejected" ? "rejected" : "missing";
+}
+
+function educationReadinessFinding(state: Exclude<ParticipantEducationReadiness, "ready">): QualificationFinding {
+  const message = state === "pending_review"
+    ? "高校身份认证审核中 · 等待赛委会"
+    : state === "rejected"
+      ? "需要本人处理 · 高校身份认证已驳回"
+      : "需要本人补充 · 高校身份认证";
+  return { code: "education_incomplete", message, waivable: false, metadata: { field: "approved_education", state } };
 }
 
 /** Pure evaluation of one participant's readiness from loaded facts. */
@@ -468,15 +586,23 @@ export function computeParticipantReadiness(
   context: CompetitiveProfileConfig | null,
 ): ParticipantReadiness {
   const strength = toPlayerStrengthInput(fact, context);
+  const educationState = resolveParticipantEducationReadiness(fact);
   const findings = context
     ? [
       ...getParticipantIdentityFindings(fact),
-      ...(fact.approvedEducation ? [] : [{ code: "education_incomplete", message: "请完成并通过高校身份认证。", waivable: false, metadata: { field: "approved_education" } }]),
+      ...(educationState === "ready" ? [] : [educationReadinessFinding(educationState)]),
       ...getCompetitiveProfileFindings(fact, context),
     ]
     : getCompetitiveProfileFindings(fact, null);
   const uniqueFindings = uniqueQualificationFindings(findings);
-  return { ready: uniqueFindings.length === 0, blockers: blockersFromQualificationFindings(uniqueFindings), findings: uniqueFindings, strength, educationApproved: fact.approvedEducation };
+  return {
+    ready: uniqueFindings.length === 0,
+    blockers: blockersFromQualificationFindings(uniqueFindings),
+    findings: uniqueFindings,
+    strength,
+    educationApproved: fact.approvedEducation,
+    educationState,
+  };
 }
 
 /** Batched readiness for a roster. Single-user helper delegates here with [userId]. */
@@ -494,7 +620,7 @@ export async function getParticipantReadinessBatch(
     const fact = facts.get(userId);
     if (!fact) {
       const findings: QualificationFinding[] = [{ code: "participant_missing", message: "选手账号不存在。", waivable: false, metadata: { field: "participant" } }];
-      result.set(userId, { ready: false, blockers: blockersFromQualificationFindings(findings), findings, strength: { userId, label: "选手", historicalPeak: null, previousSeasonPeak: null, currentSeasonPeak: null }, educationApproved: false });
+      result.set(userId, { ready: false, blockers: blockersFromQualificationFindings(findings), findings, strength: { userId, label: "选手", historicalPeak: null, previousSeasonPeak: null, currentSeasonPeak: null }, educationApproved: false, educationState: "missing" });
       continue;
     }
     result.set(userId, computeParticipantReadiness({ ...fact, userId }, context));
@@ -506,7 +632,7 @@ export async function getParticipantReadiness(userId: string, config: Competitiv
   const [readiness] = (await getParticipantReadinessBatch([userId], config)).values();
   if (readiness) return readiness;
   const findings: QualificationFinding[] = [{ code: "participant_missing", message: "选手账号不存在。", waivable: false, metadata: { field: "participant" } }];
-  return { ready: false, blockers: blockersFromQualificationFindings(findings), findings, strength: { userId, label: "选手", historicalPeak: null, previousSeasonPeak: null, currentSeasonPeak: null }, educationApproved: false };
+  return { ready: false, blockers: blockersFromQualificationFindings(findings), findings, strength: { userId, label: "选手", historicalPeak: null, previousSeasonPeak: null, currentSeasonPeak: null }, educationApproved: false, educationState: "missing" };
 }
 
 export interface RosterQualificationMember {
@@ -584,7 +710,7 @@ export async function evaluateRosterQualificationFromFacts(input: {
       const fact = facts.get(member.userId);
       const readiness = fact
         ? computeParticipantReadiness({ ...fact, userId: member.userId }, context)
-        : { ready: false, blockers: ["选手账号不存在。"], findings: [{ code: "participant_missing", message: "选手账号不存在。", waivable: false, metadata: { field: "participant" } }], strength: { userId: member.userId, label: "选手", historicalPeak: null, previousSeasonPeak: null, currentSeasonPeak: null }, educationApproved: false };
+        : { ready: false, blockers: ["选手账号不存在。"], findings: [{ code: "participant_missing", message: "选手账号不存在。", waivable: false, metadata: { field: "participant" } }], strength: { userId: member.userId, label: "选手", historicalPeak: null, previousSeasonPeak: null, currentSeasonPeak: null }, educationApproved: false, educationState: "missing" as const };
       readinessByUser.set(member.userId, readiness);
       findings.push(...readiness.findings);
     }

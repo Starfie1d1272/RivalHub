@@ -5,7 +5,7 @@ export type MajorPlayoffRound = "quarterfinal" | "semifinal" | "third_place" | "
 export interface MajorPlayoffEntrant {
   teamId: string;
 
-  /** Final Stage 3 seed, exactly 1..8. */
+  /** Final Swiss stage seed, exactly 1..8. */
   playoffSeed: number;
 }
 
@@ -69,7 +69,7 @@ export function seedMajorPlayoffEntrants(
 ): readonly MajorPlayoffEntrant[] {
   if (qualifiers.length !== PLAYOFF_TEAM_COUNT) {
     throw new Error(
-      `playoffs require exactly ${PLAYOFF_TEAM_COUNT} Stage 3 qualifiers ` +
+      `playoffs require exactly ${PLAYOFF_TEAM_COUNT} final Swiss qualifiers ` +
         `(got ${qualifiers.length})`,
     );
   }

@@ -1,112 +1,23 @@
-vi.mock("@/lib/players/public-record", () => ({ getPublicPlayerRecord: vi.fn().mockResolvedValue({ wins: 0, losses: 0, played: 0 }) }));
 import { renderToStaticMarkup } from "react-dom/server";
 import * as React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const connectionMock = vi.hoisted(() => vi.fn());
-const getPublicPlayerByIdMock = vi.hoisted(() => vi.fn());
-const resolveCanonicalUserIdMock = vi.hoisted(() => vi.fn());
-const {
-  userFindFirstMock,
-  selectMock,
-  selectDistinctMock,
-  loadCompetitivePlatformCatalogMock,
-  getSeasonHexagonScoresMock,
-  getPublicPlayerLftMock,
-} = vi.hoisted(() => ({
-  userFindFirstMock: vi.fn(),
-  selectMock: vi.fn(),
-  selectDistinctMock: vi.fn(),
-  loadCompetitivePlatformCatalogMock: vi.fn(),
-  getSeasonHexagonScoresMock: vi.fn(),
-  getPublicPlayerLftMock: vi.fn(),
+const { profileReadModelMock, canonicalUserMock } = vi.hoisted(() => ({
+  profileReadModelMock: vi.fn(),
+  canonicalUserMock: vi.fn(),
 }));
 
-vi.mock("@/db/client", () => ({
-  db: {
-    query: { users: { findFirst: userFindFirstMock } },
-    select: selectMock,
-    selectDistinct: selectDistinctMock,
-  },
-}));
-
-vi.mock("@/lib/competitive/catalog", () => ({ loadCompetitivePlatformCatalog: loadCompetitivePlatformCatalogMock }));
-vi.mock("@/actions/hexagon", () => ({ getSeasonHexagonScores: getSeasonHexagonScoresMock }));
-vi.mock("@/lib/recruitment/data", () => ({ getPublicPlayerLft: getPublicPlayerLftMock }));
-vi.mock("next/server", () => ({ connection: connectionMock }));
-vi.mock("@/lib/data/public-players", () => ({ getPublicPlayerById: getPublicPlayerByIdMock }));
-vi.mock("@/lib/identity/canonical", () => ({ resolveCanonicalUserId: resolveCanonicalUserIdMock }));
+vi.mock("@/db/client", () => ({ db: {} }));
+vi.mock("@/lib/identity/canonical", () => ({ resolveCanonicalUserId: canonicalUserMock }));
+vi.mock("@/lib/players/public-profile", () => ({ getPublicPlayerProfileReadModel: profileReadModelMock }));
+vi.mock("@/components/stats/players/PlayerWorkspace", () => ({ PlayerWorkspace: () => <div>Shared player metrics</div> }));
+vi.mock("@/components/players/PlayerPerformanceFilters", () => ({ PlayerPerformanceFilters: () => <div>Event and map filters</div> }));
 
 import { PlayerPageContent } from "@/app/players/[userId]/page";
 
-function chain<T>(value: T) {
-  const result = {
-    from: () => result,
-    innerJoin: () => result,
-    where: () => result,
-    orderBy: () => result,
-    groupBy: () => result,
-    then: (resolve: (resolved: T) => unknown, reject?: (reason: unknown) => unknown) =>
-      Promise.resolve(value).then(resolve, reject),
-  };
-  return result;
-}
-
-describe("player page education wiring", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    vi.stubGlobal("React", React);
-    connectionMock.mockResolvedValue(undefined);
-    resolveCanonicalUserIdMock.mockImplementation(async (_db: unknown, userId: string) => userId);
-    getPublicPlayerByIdMock.mockResolvedValue({
-      id: "user-1",
-      displayName: "玩家甲",
-      perfectName: null,
-      personaName: null,
-      steam64: null,
-      steamProfileUrl: null,
-      avatarUrl: null,
-      gameplayStyle: null,
-      competitionHistory: null,
-    });
-    loadCompetitivePlatformCatalogMock.mockResolvedValue([]);
-    getSeasonHexagonScoresMock.mockResolvedValue(new Map());
-    getPublicPlayerLftMock.mockResolvedValue(null);
-    selectDistinctMock.mockImplementation(() => chain([]));
-    selectMock.mockImplementation((selection?: Record<string, unknown>) => {
-      if (selection && "institutionName" in selection) {
-        return chain([{
-          id: "claim-1",
-          institutionId: "institution-nju",
-          institutionName: "南京大学",
-          academicStatus: "enrolled",
-          status: "approved",
-          submittedAt: new Date("2026-08-01T00:00:00Z"),
-        }]);
-      }
-      return chain([]);
-    });
-  });
-
-  it("renders approved education identity and keeps the page query explicit", async () => {
-    const page = await PlayerPageContent({ params: Promise.resolve({ userId: "user-1" }) });
-    const html = renderToStaticMarkup(page);
-
-    expect(html).toContain("高校身份");
-    expect(html).toContain("南京大学 · 在读 · 已认证");
-
-    const educationSelection = selectMock.mock.calls
-      .map(([selection]) => selection as Record<string, unknown> | undefined)
-      .find((selection) => selection && "institutionName" in selection);
-    expect(educationSelection).toBeDefined();
-    expect(educationSelection).not.toHaveProperty("evidenceCode");
-    expect(educationSelection).not.toHaveProperty("evidenceType");
-    expect(educationSelection).not.toHaveProperty("reviewNote");
-    expect(educationSelection).not.toHaveProperty("reviewedBy");
-  });
-
-  it("renders the current long-lived player-declared profile without a registration snapshot", async () => {
-    getPublicPlayerByIdMock.mockResolvedValueOnce({
+function profile() {
+  return {
+    user: {
       id: "user-1",
       displayName: "玩家甲",
       perfectName: null,
@@ -115,36 +26,76 @@ describe("player page education wiring", () => {
       avatarUrl: null,
       gameplayStyle: "当前偏稳健控图",
       competitionHistory: "参加过 NJU Major",
-    });
+    },
+    career: {
+      playerId: "user-1",
+      scoreboard: [{ avgRating: 1.2, avgAdr: 80, kdRatio: 1.4, kpr: 0.8, avgHs: 45, avgWe: 9, avgRws: 12, mkpr: 5, kast: 70, maps: 2, rounds: 48, teamName: null, teamId: null, perfectName: "玩家甲", ratingSamples: 2, fkpr: 0.1, cpr: 0.02, fdpr: 0.08, tradeKpr: 0.04 }],
+      scoreboardMaps: [],
+      performance: null,
+      maps: [],
+      coverage: { detailedMaps: 2, completedMaps: 2, maps: [] },
+      summary: { matches: 2, wins: 1, losses: 1, mvp: 1, maps: 2, rounds: 48 },
+      events: [{ id: "season-1", slug: "event-2025", name: "2025 赛事", maps: ["de_nuke"] }],
+      selectedEvent: null,
+      mapFilter: undefined,
+    },
+    currentTeams: [],
+    eventTeams: [{ seasonId: "season-1", seasonSlug: "event-2025", seasonName: "2025 赛事", seasonStatus: "finished", teamId: "entry-1", teamName: "队伍甲" }],
+    currentEventTeams: [],
+    careerHistory: [{ seasonId: "season-1", seasonSlug: "event-2025", seasonName: "2025 赛事", seasonStatus: "finished", teamId: "entry-1", teamName: "队伍甲", placement: "第 2 名", honors: ["最佳选手"], record: { wins: 1, losses: 1, played: 2 } }],
+    registrationSnapshots: [{ id: "registration-1", seasonId: "season-1", primaryPosition: "igl", peakRank: "Legend", peakRankSeason: "2025", peakRating: 1900, peakWe: null, highlightVideoUrl: null, seasonName: "2025 赛事", seasonSlug: "event-2025" }],
+    publicCompetitiveProfile: [],
+    publicCompetitiveRoles: [],
+    publicEducationIdentities: [{ institutionName: "南京大学", academicStatus: "在读", verificationLabel: "已认证" }],
+    mapPreferences: [],
+    playerLft: null,
+    radar: null,
+  };
+}
 
-    const page = await PlayerPageContent({ params: Promise.resolve({ userId: "user-1" }) });
+describe("public Player Profile", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.stubGlobal("React", React);
+    canonicalUserMock.mockImplementation(async (_db: unknown, userId: string) => userId);
+    profileReadModelMock.mockResolvedValue(profile());
+  });
+
+  it("keeps long-lived identity details and event snapshots distinct", async () => {
+    const page = await PlayerPageContent({ params: Promise.resolve({ userId: "user-1" }), searchParams: Promise.resolve({}) });
     const html = renderToStaticMarkup(page);
 
+    expect(html).toContain("高校身份");
+    expect(html).toContain("南京大学 · 在读 · 已认证");
     expect(html).toContain("当前偏稳健控图");
     expect(html).toContain("参加过 NJU Major");
+    expect(html).toContain("报名档案（报名时资料）");
   });
 
-  it("orders seasonal performance by the last completed match, not the season import time", async () => {
-    selectMock.mockImplementation((selection?: Record<string, unknown>) => {
-      if (selection && "seasonCompletedAt" in selection) {
-        return chain([
-          {
-            mapId: "map-imported-late", userId: "user-1", perfectName: "玩家甲", kills: 20, deaths: 10, assists: 5, hsPercent: 50, firstKills: 2, multiKills: 3, clutches: 1, adr: 80, rws: 10, ratingPro: 1.2, we: 8,
-            seasonId: "season-2024", seasonName: "2024 赛事", seasonSlug: "event-2024", seasonCompletedAt: new Date("2024-12-01T00:00:00Z"), rounds: 24,
-          },
-          {
-            mapId: "map-normal", userId: "user-1", perfectName: "玩家甲", kills: 18, deaths: 12, assists: 4, hsPercent: 45, firstKills: 1, multiKills: 2, clutches: 0, adr: 75, rws: 9, ratingPro: 1.1, we: 7,
-            seasonId: "season-2025", seasonName: "2025 赛事", seasonSlug: "event-2025", seasonCompletedAt: new Date("2025-12-01T00:00:00Z"), rounds: 24,
-          },
-        ]);
-      }
-      return chain([]);
+  it("loads the requested event/map scope and exposes the shared metric workspace", async () => {
+    const defaultProfile = profile();
+    profileReadModelMock.mockResolvedValueOnce({
+      ...defaultProfile,
+      career: { ...defaultProfile.career, selectedEvent: { id: "season-1", slug: "event-2025", name: "2025 赛事", maps: ["de_nuke"] }, mapFilter: "de_nuke" },
     });
-
-    const page = await PlayerPageContent({ params: Promise.resolve({ userId: "user-1" }) });
+    const page = await PlayerPageContent({
+      params: Promise.resolve({ userId: "user-1" }),
+      searchParams: Promise.resolve({ event: "event-2025", map: "de_nuke" }),
+    });
     const html = renderToStaticMarkup(page);
 
-    expect(html.indexOf("2025 赛事")).toBeLessThan(html.indexOf("2024 赛事"));
+    expect(profileReadModelMock).toHaveBeenCalledWith("user-1", { eventSlug: "event-2025", mapFilter: "de_nuke" });
+    expect(html).toContain("Event and map filters");
+    expect(html).toContain("Shared player metrics");
+  });
+
+  it("shows event placement, official honor, record, and a scoped stats link", async () => {
+    const page = await PlayerPageContent({ params: Promise.resolve({ userId: "user-1" }), searchParams: Promise.resolve({}) });
+    const html = renderToStaticMarkup(page);
+
+    expect(html).toContain("第 2 名");
+    expect(html).toContain("官方荣誉 · 最佳选手");
+    expect(html).toContain("2 场 · 1 胜 / 1 负");
+    expect(html).toContain("/event-2025/stats?tab=players&amp;teamFilter=entry-1");
   });
 });
-vi.mock("@/lib/stats/public-query", () => ({ getPublicPlayerMapExperience: vi.fn().mockResolvedValue([]) }));

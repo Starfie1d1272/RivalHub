@@ -4,11 +4,12 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { and, eq, sql } from "drizzle-orm";
 import { describe, it, expect } from "vitest";
 import * as schema from "@/db/schema";
-import { createMajorDefaultCapabilities } from "@/lib/competition/templates";
+import { createMajorDefaultCapabilities, createMajor24Capabilities } from "@/lib/competition/templates";
 import { makeMajorRunSnapshotV4 } from "@/lib/major/run-snapshot";
 import { finalizeMajorSwissRoundInTransaction } from "@/lib/major/swiss-runtime";
 import { transitionMajorSwissStageInTransaction } from "@/lib/major/stage-transition";
-import { DEFAULT_RULES } from "@/lib/predictions/rules";
+import { DEFAULT_RULES, defaultPredictionRules } from "@/lib/predictions/rules";
+import { runPredictionReconciliationJob } from "@/lib/predictions/reconciliation";
 import { loadBaseline } from "@/lib/predictions/baseline";
 import { simulateMajor } from "@/lib/predictions/simulator";
 import {
@@ -42,7 +43,7 @@ type Fixture = {
   runId: string;
   matchIds: string[];
 };
-async function fixture(work: (f: Fixture) => Promise<void>) {
+async function fixture(work: (f: Fixture) => Promise<void>, capacity: 24 | 32 = 32) {
   await withScratchDatabase("prediction_test", async (client) => {
     for (const file of migrationFiles((name) => /^\d{4}_.*\.sql$/.test(name)))
       await replayMigration(client, file);
@@ -67,7 +68,7 @@ async function fixture(work: (f: Fixture) => Promise<void>) {
           displayName: id === userId ? "观众甲" : "观众乙",
         })),
       );
-      const cap = createMajorDefaultCapabilities();
+      const cap = capacity === 24 ? createMajor24Capabilities() : createMajorDefaultCapabilities();
       await db.insert(schema.seasons).values({
         ...cap,
         id: seasonId,
@@ -78,7 +79,7 @@ async function fixture(work: (f: Fixture) => Promise<void>) {
         status: "playing",
       });
       const entrants: { id: string; teamId: string; seed: number }[] = [];
-      for (let seed = 1; seed <= 32; seed++) {
+      for (let seed = 1; seed <= capacity; seed++) {
         const teamId = randomUUID(),
           revisionId = randomUUID();
         await db.transaction(async (tx) => {
@@ -147,12 +148,12 @@ async function fixture(work: (f: Fixture) => Promise<void>) {
       const runId = run!.id;
       await db.insert(schema.majorStageEntrants).values(
         entrants
-          .filter((e) => e.seed >= 17)
+          .filter((e) => e.seed > capacity - 16)
           .map((e) => ({
             seasonId,
             stageRunId: runId,
             tournamentEntrantId: e.id,
-            stageSeed: e.seed - 16,
+            stageSeed: e.seed - (capacity - 16),
           })),
       );
       const base = await loadBaseline(db, seasonId);
@@ -169,7 +170,7 @@ async function fixture(work: (f: Fixture) => Promise<void>) {
             round: 1,
             entryAId: m.a,
             entryBId: m.b,
-            format: "bo1" as const,
+            format: m.format as "bo1" | "bo3",
             scheduledAt: new Date(Date.now() + 3600000),
           })),
         )
@@ -177,7 +178,7 @@ async function fixture(work: (f: Fixture) => Promise<void>) {
       await db.transaction((tx) =>
         enablePredictionsInTx(tx, {
           seasonId,
-          rules: DEFAULT_RULES,
+          rules: defaultPredictionRules(base.stages),
           actorId: "test",
         }),
       );
@@ -252,6 +253,65 @@ function fill(base: Awaited<ReturnType<typeof loadBaseline>>) {
 }
 
 describe("spectator prediction PostgreSQL contracts", () => {
+  it("submits against the frozen 24-team profile and settles BO3 winner pools", async () =>
+    fixture(async (f) => {
+      const { db, seasonId, userId, otherId } = f;
+      // A later edit to the live preset must not reinterpret an already started event.
+      await db.update(schema.seasons).set({ stagePlan: createMajorDefaultCapabilities().stagePlan }).where(eq(schema.seasons.id, seasonId));
+      const base = await loadBaseline(db, seasonId);
+      expect(base.teams).toHaveLength(24);
+      expect(base.stages).toHaveLength(3);
+      await expect(db.transaction((tx) => enablePredictionsInTx(tx, {
+        seasonId, actorId: "test", rules: DEFAULT_RULES,
+      }))).rejects.toThrow("纪念币门槛不能超过本届赛事可完成的挑战总数");
+      const { id } = await db.transaction((tx) => openPredictionWindowInTx(tx, {
+        seasonId, actorId: "test", stageKey: "stage1", deadline: new Date(Date.now() + 1800000),
+      }));
+      await db.transaction((tx) => savePickInTx(tx, {
+        seasonId, userId, contestId: id, pick: fill(base).stage.pick!, submitted: true, requestId: randomUUID(),
+      }));
+      const pool = await market(f, 0);
+      for (const [index, actor] of [userId, otherId].entries()) {
+        await db.transaction((tx) => stakeInTx(tx, {
+          seasonId, userId: actor, marketId: pool.id, optionId: pool.options[index]!.id, amount: "all", requestId: randomUUID(),
+        }));
+      }
+      await db.update(schema.matches).set({ status: "finished", scoreA: 2, scoreB: 0, completedAt: new Date() }).where(eq(schema.matches.id, f.matchIds[0]!));
+      await reconcile(f);
+      expect(await balance(f)).toBe(BigInt(2000));
+      expect(await balance(f, otherId)).toBe(BigInt(0));
+      const board = await db.transaction((tx) => predictionBoard(tx, seasonId, userId));
+      expect(board.rules).toMatchObject({ silver: 4, gold: 6, diamond: 8 });
+      expect(board.contests[0]!.submitted).toBeTruthy();
+      expect(board.contests[0]!.locked).toBe(true);
+    }, 24));
+
+  it("shares due-work detection across primary dispatch and deadline reconciliation without idle batch starvation", async () =>
+    fixture(async (f) => {
+      const { db, seasonId } = f;
+      await reconcile(f);
+      const due = async () => (await f.pool.query<{ due: boolean }>("select public.scheduler_job_is_due('reconcile-predictions') as due")).rows[0]!.due;
+      expect(await due()).toBe(false);
+      expect((await f.pool.query("select public.dispatch_rivalhub_scheduler_job('reconcile-predictions') as request_id")).rows[0]!.request_id).toBeNull();
+      expect((await f.pool.query("select has_function_privilege('anon', 'public.prediction_reconciliation_is_due(uuid)', 'EXECUTE') as allowed")).rows[0]!.allowed).toBe(false);
+      for (let i = 0; i < 11; i++) {
+        const idleId = randomUUID();
+        await db.insert(schema.seasons).values({ ...createMajorDefaultCapabilities(), id: idleId, slug: `idle-${idleId}`, name: "Idle", kind: "Major", competitionTemplate: "major", status: "playing" });
+        await db.insert(schema.predictionPrograms).values({ seasonId: idleId, rules: DEFAULT_RULES });
+        await db.insert(schema.predictionJobs).values({ seasonId: idleId, dirty: false, updatedAt: new Date(0) });
+      }
+      const pool = await market(f, 0);
+      await db.update(schema.predictionMarkets).set({ deadline: new Date(Date.now() - 1000) }).where(eq(schema.predictionMarkets.id, pool.id));
+      await db.update(schema.predictionJobs).set({ dirty: false }).where(eq(schema.predictionJobs.seasonId, seasonId));
+      expect(await due()).toBe(true);
+      expect((await runPredictionReconciliationJob(db)).result.completed).toBe(1);
+      expect((await db.select().from(schema.predictionMarkets).where(eq(schema.predictionMarkets.id, pool.id)))[0]!.lockedAt).not.toBeNull();
+      expect(await due()).toBe(false);
+      expect((await runPredictionReconciliationJob(db)).result.completed).toBe(0);
+      await db.update(schema.matches).set({ status: "in_progress" }).where(eq(schema.matches.id, f.matchIds[0]!));
+      expect(await due()).toBe(true);
+    }));
+
   it("keeps versioned submissions separate, blocks late requests, permanently locks on early start and protects identity/history", async () =>
     fixture(async (f) => {
       const { db, seasonId, userId } = f;

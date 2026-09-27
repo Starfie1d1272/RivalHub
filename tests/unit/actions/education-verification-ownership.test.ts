@@ -1,11 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ErrorCode } from "@/lib/errors";
 
-const { requireAuthMock, requireSuperAdminMock, userFindFirstMock, institutionFindFirstMock, transactionMock, reviewFindFirstMock, updateSetMock, updateWhereMock, insertValuesMock, selectMock } = vi.hoisted(() => ({
+const { requireAuthMock, requireSuperAdminMock, userFindFirstMock, institutionFindFirstMock, institutionFindManyMock, transactionMock, reviewFindFirstMock, updateSetMock, updateWhereMock, insertValuesMock, selectMock } = vi.hoisted(() => ({
   requireAuthMock: vi.fn(),
   requireSuperAdminMock: vi.fn(),
   userFindFirstMock: vi.fn(),
   institutionFindFirstMock: vi.fn(),
+  institutionFindManyMock: vi.fn(),
   transactionMock: vi.fn(),
   reviewFindFirstMock: vi.fn(),
   updateSetMock: vi.fn(),
@@ -26,14 +27,14 @@ vi.mock("@/db/client", () => ({
   db: {
     query: {
       users: { findFirst: userFindFirstMock },
-      institutions: { findFirst: institutionFindFirstMock },
+      institutions: { findFirst: institutionFindFirstMock, findMany: institutionFindManyMock },
     },
     transaction: transactionMock,
     select: selectMock,
   },
 }));
 
-import { reviewEducationVerification, submitEducationVerification } from "@/actions/education-verifications";
+import { createManualInstitution, getInstitutionSearch, reviewEducationVerification, submitEducationVerification } from "@/actions/education-verifications";
 
 const REVIEW_ID = "00000000-0000-0000-0000-000000000003";
 
@@ -51,6 +52,7 @@ describe("submitEducationVerification email ownership boundary", () => {
       insert: vi.fn(() => ({ values: insertValuesMock })),
     }));
     selectMock.mockReturnValue({ from: () => ({ where: () => ({ limit: () => Promise.resolve([]) }) }) });
+    institutionFindManyMock.mockResolvedValue([]);
   });
 
   it("rejects an unverified authenticated account before any institution lookup or write", async () => {
@@ -84,5 +86,78 @@ describe("submitEducationVerification email ownership boundary", () => {
 
     expect(result).toMatchObject({ success: false, error: { code: ErrorCode.VALIDATION_FAILED } });
     expect(updateSetMock).not.toHaveBeenCalled();
+  });
+
+  it("reuses a case-insensitive exact institution match instead of inserting a duplicate", async () => {
+    requireSuperAdminMock.mockResolvedValue({ userId: "00000000-0000-0000-0000-000000000004", email: "admin@example.test", role: "super_admin", seasonIds: [] });
+    const insert = vi.fn();
+    transactionMock.mockImplementationOnce(async (callback: (tx: unknown) => Promise<unknown>) => callback({
+      select: vi.fn(() => ({
+        from: vi.fn(() => ({
+          where: vi.fn(() => ({
+            limit: vi.fn(() => Promise.resolve([{ id: "institution-1", name: "南京大学", province: "江苏" }])),
+          })),
+        })),
+      })),
+      insert,
+    }));
+
+    const result = await createManualInstitution({ name: "  南京大学  ", province: "江苏" });
+
+    expect(result).toEqual({
+      success: true,
+      data: { institution: { id: "institution-1", name: "南京大学", province: "江苏" }, reused: true },
+    });
+    expect(requireSuperAdminMock).toHaveBeenCalledTimes(1);
+    expect(insert).not.toHaveBeenCalled();
+  });
+
+  it("returns manual canonical rows through the normal institution search path", async () => {
+    institutionFindManyMock.mockResolvedValue([{
+      id: "institution-2",
+      name: "测试大学",
+      moeInstitutionCode: null,
+      province: "江苏",
+    }]);
+
+    const result = await getInstitutionSearch("测试大学");
+
+    expect(result).toEqual({
+      success: true,
+      data: [{ id: "institution-2", name: "测试大学", code: null, province: "江苏" }],
+    });
+    expect(institutionFindManyMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("creates a manual canonical institution and writes its audit fact in the same transaction", async () => {
+    requireSuperAdminMock.mockResolvedValue({ userId: "00000000-0000-0000-0000-000000000004", email: "admin@example.test", role: "super_admin", seasonIds: [] });
+    const created = { id: "institution-2", name: "测试大学", province: "江苏" };
+    const institutionValues = vi.fn(() => ({ returning: vi.fn(() => Promise.resolve([created])) }));
+    const auditValues = vi.fn(() => Promise.resolve([]));
+    const insert = vi.fn()
+      .mockReturnValueOnce({ values: institutionValues })
+      .mockReturnValueOnce({ values: auditValues });
+    transactionMock.mockImplementationOnce(async (callback: (tx: unknown) => Promise<unknown>) => callback({
+      select: vi.fn(() => ({
+        from: vi.fn(() => ({
+          where: vi.fn(() => ({
+            limit: vi.fn(() => Promise.resolve([])),
+          })),
+        })),
+      })),
+      insert,
+    }));
+
+    const result = await createManualInstitution({ name: " 测试大学 ", province: " 江苏 " });
+
+    expect(result).toEqual({ success: true, data: { institution: created, reused: false } });
+    expect(institutionValues).toHaveBeenCalledWith(expect.objectContaining({
+      name: "测试大学",
+      province: "江苏",
+      moeInstitutionCode: null,
+      source: "manual",
+      sourceVersion: "manual",
+    }));
+    expect(auditValues).toHaveBeenCalledTimes(1);
   });
 });

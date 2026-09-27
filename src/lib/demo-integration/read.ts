@@ -66,9 +66,15 @@ function projectIssues(value: unknown): IntegrationIssue[] {
   });
 }
 
+type CurrentDemoImportCandidate = Pick<typeof matchDemoImports.$inferSelect, "semanticProfile" | "status">;
+
+export function selectCurrentDemoImport<T extends CurrentDemoImportCandidate>(rows: readonly T[]): T | undefined;
 export function selectCurrentDemoImport(
   rows: readonly (typeof matchDemoImports.$inferSelect)[],
-): typeof matchDemoImports.$inferSelect | undefined {
+): typeof matchDemoImports.$inferSelect | undefined;
+export function selectCurrentDemoImport(
+  rows: readonly CurrentDemoImportCandidate[],
+): CurrentDemoImportCandidate | undefined {
   return rows.find((row) => isCurrentDakSemanticProfile(row.semanticProfile) && row.status !== "superseded");
 }
 
@@ -225,7 +231,7 @@ export async function readRivalHubEvents(pairing: PairingScope): Promise<RivalHu
       .innerJoin(competitionEntries, eq(competitionEntries.id, eventRosters.entryId))
       .innerJoin(users, eq(users.id, eventRosterMembers.userId))
       .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
-      .where(and(inArray(competitionEntries.competitionId, seasonIds), inArray(eventRosters.status, ["confirmed", "frozen"]))),
+      .where(and(inArray(competitionEntries.competitionId, seasonIds), inArray(eventRosters.status, ["confirmed", "frozen"]), eq(eventRosterMembers.isCurrent, true))),
     db.select().from(matches).where(and(inArray(matches.seasonId, seasonIds), or(inArray(matches.entryAId, entryIds), inArray(matches.entryBId, entryIds)))),
   ]);
   const matchIds = matchRows.map((match) => match.id);

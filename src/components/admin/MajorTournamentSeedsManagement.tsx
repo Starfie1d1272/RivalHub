@@ -4,113 +4,81 @@ import { useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { confirmMajorTournamentSeeds, saveMajorTournamentSeeds } from "@/actions/major-prestart";
 import { Button } from "@/components/ui/button";
-import { MajorStrengthStarterSummary, sourceLabel } from "@/components/admin/MajorStrengthStarterSummary";
+import { Marker, Panel } from "@/components/rivalhub";
 import { formatCST } from "@/lib/utils/date";
 import type { MajorPrestartPageData } from "@/lib/admin/season-workspace/types";
-import { Marker, Panel } from "@/components/rivalhub";
+import { MajorRankingWorkspace, type RankingTeam } from "./MajorRankingWorkspace";
 
 export type MajorTournamentSeedsManagementData = MajorPrestartPageData["seedManagement"];
 
-export function MajorTournamentSeedsManagement({ data }: { data: MajorTournamentSeedsManagementData }) {
+type Management = MajorPrestartPageData["management"];
+
+export function MajorTournamentSeedsManagement({ data, management }: { data: MajorTournamentSeedsManagementData; management: Management }) {
   const [isPending, startTransition] = useTransition();
   const capacity = data.entrants.length;
   const saved = [...data.seeds].sort((a, b) => a.tournamentSeed - b.tournamentSeed).map((seed) => seed.teamId);
-  const recommendationOrder = data.recommendation?.teams
-    .slice()
-    .map((team) => team.teamId) ?? [];
-  const initialOrder = saved.length === capacity
-    ? saved
-    : recommendationOrder.length === capacity
-      ? recommendationOrder
-      : data.entrants.map((entrant) => entrant.teamId);
+  const recommendationOrder = data.recommendation?.teams.map((team) => team.teamId) ?? [];
+  const initialOrder = saved.length === capacity ? saved : recommendationOrder.length === capacity
+    ? recommendationOrder : data.entrants.map((entrant) => entrant.teamId);
   const initialOrderKey = initialOrder.join(",");
-  const initialStateKey = initialOrderKey;
-  const [seedStateKey, setSeedStateKey] = useState(initialStateKey);
+  const [seedStateKey, setSeedStateKey] = useState(initialOrderKey);
   const [order, setOrder] = useState<string[]>(initialOrder);
-
-  if (seedStateKey !== initialStateKey) {
-    setSeedStateKey(initialStateKey);
-    setOrder(initialOrderKey ? initialOrderKey.split(",") : []);
+  if (seedStateKey !== initialOrderKey) {
+    setSeedStateKey(initialOrderKey);
+    setOrder(initialOrder);
   }
-
-  const teamById = useMemo(() => new Map(data.entrants.map((entrant) => [entrant.teamId, entrant])), [data.entrants]);
   const recommendation = data.recommendation;
-  const analysisRows = useMemo(() => [...(recommendation?.teams ?? [])], [recommendation]);
   const recommendationReady = data.recommendationStatus === "ready";
   const confirmed = data.seedsConfirmed;
   const orderMatchesSaved = order.length === saved.length && order.every((teamId, index) => teamId === saved[index]);
-  const move = (index: number, offset: -1 | 1) => setOrder((current) => {
-    const next = index + offset;
-    if (next < 0 || next >= current.length) return current;
-    const copy = [...current];
-    [copy[index], copy[next]] = [copy[next]!, copy[index]!];
-    return copy;
+  const teamById = useMemo(() => new Map(data.entrants.map((entrant) => [entrant.teamId, entrant])), [data.entrants]);
+  const rosterById = new Map(management.rankingRoster.map((row) => [row.entryId, row.members]));
+  const preliminaryById = new Map(management.qualification.run?.entrants.map((entrant) => [entrant.entryId, entrant]) ?? []);
+  const referenceById = new Map(recommendation?.teams.map((team) => [team.teamId, team]) ?? []);
+  const rankingTeams: RankingTeam[] = data.entrants.map((entrant) => {
+    const reference = referenceById.get(entrant.teamId);
+    const frozenStarters = new Map(reference?.starters.map((starter) => [starter.userId, starter]) ?? []);
+    const preliminary = preliminaryById.get(entrant.teamId);
+    return {
+      entryId: entrant.teamId,
+      teamName: entrant.teamName,
+      systemRank: reference?.recommendationRank ?? null,
+      tieState: reference?.tieState,
+      members: (rosterById.get(entrant.teamId) ?? []).map((member) => ({ ...member, ...(member.isPrimaryStarter ? frozenStarters.get(member.userId) : undefined) })),
+      preliminaryRank: preliminary?.preliminarySeed ?? null,
+      route: preliminary?.route === "direct" ? "直通正赛" : preliminary?.route === "play-in" ? "Play-in 晋级" : undefined,
+      result: preliminary?.route === "play-in" ? `${preliminary.wins}-${preliminary.losses}` : undefined,
+    };
   });
-
+  const cohortBoundaries = data.entryCohorts.filter((cohort) => cohort.toSeed < data.entrantCapacity)
+    .map((cohort) => ({ after: cohort.toSeed, label: `进入 ${cohort.stageName} / 下一批次` }));
   const save = () => startTransition(async () => {
-    const result = await saveMajorTournamentSeeds({
-      seasonId: data.seasonId,
-      entryIds: order,
-    });
+    const result = await saveMajorTournamentSeeds({ seasonId: data.seasonId, entryIds: order });
     if (!result.success) toast.error(result.error.message);
-    else toast.success("最终种子已保存，需重新确认");
+    else toast.success("最终种子排序已保存，需重新确认");
   });
 
-  return (
-    <Panel label="赛事 1–32 种子">
-      {!data.entrantsLocked ? <p className="text-sm text-[var(--color-fg-mid)]">请先锁定正式参赛队和最终赛事名单，种子才能保存。</p> : <div className="space-y-5">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <Marker sub={confirmed ? "当前排序已确认" : data.seeds.length > 0 ? "排序已变更，需要重新确认" : "尚未保存排序"}>{confirmed ? "种子已确认" : "种子待确认"}</Marker>
-            <p className="mt-1 text-sm text-[var(--color-fg-mid)]">系统建议会在名单锁定后固定保存；下面的最终排序由管理员确认。查看参考排序不会改变最终种子。</p>
-          </div>
-          <div className="flex gap-2">
-            <Button variant="outline" disabled={isPending || !recommendationReady || order.length !== capacity} onClick={save}>保存排序</Button>
-            <Button disabled={isPending || !recommendationReady || confirmed || data.seeds.length !== capacity || !orderMatchesSaved} onClick={() => startTransition(async () => {
-              const result = await confirmMajorTournamentSeeds({ seasonId: data.seasonId });
-              if (!result.success) toast.error(result.error.message); else toast.success("赛事种子已确认");
-            })}>确认种子</Button>
-          </div>
+  return <Panel label={`正式种子 · ${data.entrantCapacity} 支队伍`}>
+    {!data.entrantsLocked ? <p className="text-sm text-[var(--color-fg-mid)]">冻结正式名单后，才能保存最终种子。</p> : <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <Marker sub={confirmed ? "当前排序已确认" : data.seeds.length > 0 ? "排序待确认" : "尚未保存排序"}>{confirmed ? "种子已确认" : "种子待确认"}</Marker>
+          <p className="mt-1 text-sm text-[var(--color-fg-mid)]">系统参考在名单锁定时固定；原预排和资格赛结果用于对照，不会自动继承为最终种子。</p>
+          {recommendation && <p className="text-xs text-[var(--color-fg-mid)]">系统参考生成于 {formatCST(recommendation.generatedAt)}</p>}
         </div>
-
-        {data.recommendationStatus !== "ready" && <p className="border border-[var(--color-warn)] px-3 py-2 text-sm text-[var(--color-warn)]">
-          {data.recommendationStatus === "missing" ? "统一冻结完成后才会生成系统种子建议。" : "系统种子建议与当前冻结事实不一致，已停止用于最终种子。"}
-        </p>}
-
-        {data.recommendation && <section className="space-y-3">
-          <div className="flex flex-wrap items-end justify-between gap-3">
-            <div><h3 className="font-medium text-[var(--color-fg)]">队伍实力参考</h3><p className="mt-1 text-xs text-[var(--color-fg-mid)]">依据 {sourceLabel(data.recommendation.platform)} 资料生成于 {formatCST(data.recommendation.generatedAt)}，用于辅助确认种子。</p></div>
-            <span className="text-xs text-[var(--color-fg-mid)]">按系统建议排序 · 不改变最终种子</span>
-          </div>
-          <div className="overflow-x-auto border border-[var(--color-border)]">
-            <table className="min-w-[820px] w-full text-left text-xs">
-              <thead className="bg-[var(--color-panel-low)] text-[var(--color-fg-mid)]"><tr><th className="px-3 py-2">系统参考顺序</th><th className="px-3 py-2">已确认主力 · 竞技资料</th></tr></thead>
-            <tbody>{analysisRows.map((team) => <tr key={team.teamId} className="border-t border-[var(--color-border)] align-top"><td className="w-48 px-3 py-3"><p className="font-medium text-[var(--color-fg)]">#{team.recommendationRank} · {team.teamName}</p><p className="mt-1 text-[var(--color-fg-mid)]">{team.tieState === "tied" ? "系统并列" : "系统参考顺序"}</p></td><td className="px-3 py-3"><div className="grid gap-2 md:grid-cols-5">{team.starters.map((starter) => <MajorStrengthStarterSummary key={starter.userId} starter={starter} platform={data.recommendation!.platform} recentLabel="近期（实际参与 30%）" showProvenance />)}</div></td></tr>)}</tbody>
-            </table>
-          </div>
-        </section>}
-
-        <section>
-          <h3 className="font-medium text-[var(--color-fg)]">最终种子顺序</h3>
-          <ol className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">{order.map((teamId, index) => <li key={teamId} className="flex items-center gap-2 border border-[var(--color-border)] px-2 py-1.5 text-sm"><span className="w-8 font-mono text-[var(--color-fg-mid)]">#{index + 1}</span><span className="min-w-0 flex-1 truncate">{teamById.get(teamId)?.teamName ?? teamId}</span><div className="flex gap-1"><Button type="button" size="sm" variant="ghost" disabled={isPending || index === 0} onClick={() => move(index, -1)}>↑</Button><Button type="button" size="sm" variant="ghost" disabled={isPending || index === order.length - 1} onClick={() => move(index, 1)}>↓</Button></div></li>)}</ol>
-        </section>
-
-
-        {data.seeds.length === capacity ? <section aria-labelledby="major-seed-cohorts-title">
-          <h3 id="major-seed-cohorts-title" className="font-medium text-[var(--color-fg)]">入场批次</h3>
-          <div className="mt-2 grid gap-3 lg:grid-cols-3">
-            <SeedCohort label="Stage 3" range="#1–8" />
-            <SeedCohort label="Stage 2" range="#9–16" />
-            <SeedCohort label="Stage 1" range="#17–32" />
-          </div>
-        </section> : <p className="text-sm text-[var(--color-fg-mid)]">保存后将按 #1–8 → Stage 3、#9–16 → Stage 2、#17–32 → Stage 1 展示入场批次。</p>}
-
-        <section aria-labelledby="major-first-round-preview-title"><h3 id="major-first-round-preview-title" className="font-medium text-[var(--color-fg)]">Stage 1 首轮预览</h3>{data.firstRound ? <ol className="mt-2 grid gap-2 text-sm md:grid-cols-2">{data.firstRound.map((pairing) => <li key={`${pairing.higherSeed}-${pairing.lowerSeed}`} className="border border-[var(--color-border)] px-3 py-2">#{pairing.higherSeed} {teamById.get(data.seeds.find((seed) => seed.tournamentSeed === pairing.higherSeed)?.teamId ?? "")?.teamName} vs #{pairing.lowerSeed} {teamById.get(data.seeds.find((seed) => seed.tournamentSeed === pairing.lowerSeed)?.teamId ?? "")?.teamName} · {pairing.format.toUpperCase()}</li>)}</ol> : <p className="mt-1 text-sm text-[var(--color-fg-mid)]">需先保存完整种子才能构造预览。</p>}<p className="mt-2 text-sm text-[var(--color-fg-mid)]">首轮完整对阵预览只在这里展示；保存种子前不会创建比赛。</p></section>
-      </div>}
-    </Panel>
-  );
-}
-
-function SeedCohort({ label, range }: { label: string; range: string }) {
-  return <div className="border border-[var(--color-border)] p-3"><p className="font-medium text-[var(--color-fg)]">{range}</p><p className="mt-1 text-sm text-[var(--color-fg-mid)]">进入 {label}</p></div>;
+        <div className="flex gap-2">
+          <Button variant="outline" disabled={isPending || confirmed || !recommendationReady || order.length !== capacity || orderMatchesSaved} onClick={save}>保存排序</Button>
+          <Button disabled={isPending || !recommendationReady || confirmed || data.seeds.length !== capacity || !orderMatchesSaved} onClick={() => startTransition(async () => {
+            const result = await confirmMajorTournamentSeeds({ seasonId: data.seasonId });
+            if (!result.success) toast.error(result.error.message); else toast.success("最终种子已确认");
+          })}>确认最终种子</Button>
+        </div>
+      </div>
+      {data.recommendationStatus !== "ready" && <p className="border border-[var(--color-warn)] px-3 py-2 text-sm text-[var(--color-warn)]">
+        {data.recommendationStatus === "missing" ? "冻结正式名单后才会生成系统参考。" : "系统参考与当前冻结名单不一致，已停止用于最终种子。"}
+      </p>}
+      <MajorRankingWorkspace mode="final" teams={rankingTeams} order={order} onOrderChange={confirmed ? undefined : setOrder} platform={recommendation?.platform ?? management.strengthPreview.platform} cohortBoundaries={cohortBoundaries} />
+      <section aria-labelledby="major-first-round-preview-title"><h3 id="major-first-round-preview-title" className="font-medium text-[var(--color-fg)]">{data.firstSwissStageName} 首轮预览</h3>{data.firstRound ? <ol className="mt-2 grid gap-2 text-sm md:grid-cols-2">{data.firstRound.map((pairing) => <li key={`${pairing.higherSeed}-${pairing.lowerSeed}`} className="border border-[var(--color-border)] px-3 py-2">#{pairing.higherSeed} {teamById.get(data.seeds.find((seed) => seed.tournamentSeed === pairing.higherSeed)?.teamId ?? "")?.teamName} vs #{pairing.lowerSeed} {teamById.get(data.seeds.find((seed) => seed.tournamentSeed === pairing.lowerSeed)?.teamId ?? "")?.teamName} · {pairing.format.toUpperCase()}</li>)}</ol> : <p className="mt-1 text-sm text-[var(--color-fg-mid)]">需先保存完整种子才能构造预览。</p>}<p className="mt-2 text-sm text-[var(--color-fg-mid)]">保存种子前不会创建比赛。</p></section>
+    </div>}
+  </Panel>;
 }

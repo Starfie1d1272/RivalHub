@@ -203,6 +203,7 @@ export async function loadMyCompetitionNextMatches(userId: string): Promise<Map<
     .innerJoin(seasons, eq(seasons.id, competitionEntries.competitionId))
     .where(and(
       eq(eventRosterMembers.userId, userId),
+      eq(eventRosterMembers.isCurrent, true),
       eq(seasons.status, "playing"),
       inArray(eventRosters.status, ["confirmed", "frozen"]),
     ));

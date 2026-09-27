@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { createCompetitionTemplate, type CompetitionTemplate } from "@/lib/competition/templates";
+import { checkStandardMajorCapabilities } from "@/lib/competition/definition";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { parseCSTInput } from "@/lib/utils/date";
 import {
@@ -231,6 +232,10 @@ export function resolveCompetitionDefinition(data: ParsedSeasonForm, applyTempla
   const fallbackConversion = template === "major"
     ? input.teamRegistrationConfig?.competitiveProfile?.fallbackConversion
     : undefined;
+  const majorProfile = template === "major"
+    ? checkStandardMajorCapabilities({ ...builtIn, stagePlan: input.stagePlan })
+    : null;
+  const stagePlan = majorProfile?.isStandardMajor ? structuredClone(input.stagePlan) : builtIn.stagePlan;
   return {
     ...input,
     kind: template === "major" ? "Major" : "Rivals",
@@ -240,7 +245,7 @@ export function resolveCompetitionDefinition(data: ParsedSeasonForm, applyTempla
     // Community awards are an operator-owned capability, not built-in
     // competition semantics. Preserve an explicit draft choice.
     hasCommunityAwards: input.hasCommunityAwards,
-    stagePlan: builtIn.stagePlan,
+    stagePlan,
     teamRegistrationConfig: {
       ...builtIn.teamRegistrationConfig,
       competitiveProfile: builtIn.teamRegistrationConfig.competitiveProfile
@@ -415,10 +420,10 @@ export function planSeasonUpdate(existing: SeasonRow, parsed: ParsedSeasonForm):
     registrationOpensAt: capabilities.canEditRegistrationOpenSchedule
       ? submittedDates.registrationOpensAt
       : existing.registrationOpensAt,
-    registrationClosesAt: capabilities.canEditRegistrationDeadlines
+    registrationClosesAt: capabilities.canEditRegistrationDeadlines && template !== "major"
       ? submittedDates.registrationClosesAt
       : existing.registrationClosesAt,
-    rosterChangeClosesAt: capabilities.canEditRegistrationDeadlines
+    rosterChangeClosesAt: capabilities.canEditRegistrationDeadlines && template !== "major"
       ? submittedDates.rosterChangeClosesAt
       : existing.rosterChangeClosesAt,
   };
@@ -458,13 +463,13 @@ export function planSeasonUpdate(existing: SeasonRow, parsed: ParsedSeasonForm):
     kind: data.kind,
     competitionTemplate: template,
     themeColor: data.themeColor,
-    endAt: submittedDates.endAt,
+    endAt: template === "major" ? existing.endAt : submittedDates.endAt,
     updatedAt: new Date(),
   };
   if (capabilities.canEditRegistrationOpenSchedule) {
     metadata.registrationOpensAt = submittedDates.registrationOpensAt;
   }
-  if (capabilities.canEditRegistrationDeadlines) {
+  if (capabilities.canEditRegistrationDeadlines && template !== "major") {
     metadata.registrationClosesAt = submittedDates.registrationClosesAt;
     metadata.rosterChangeClosesAt = submittedDates.rosterChangeClosesAt;
   }

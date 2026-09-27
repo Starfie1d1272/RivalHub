@@ -9,6 +9,13 @@ describe("PlayerAvatar", () => {
     expect(screen.getByRole("img", { name: "Player One" })).toHaveTextContent("P");
     expect(document.querySelector("img")).toBeNull();
   });
+
+  it("delivers persisted Steam avatars directly without the Next image optimizer", () => {
+    const avatarUrl = "https://avatars.steamstatic.com/direct.jpg";
+    render(<PlayerAvatar name="Player" avatarUrl={avatarUrl} />);
+    expect(screen.getByRole("img", { name: "Player" })).toHaveAttribute("src", avatarUrl);
+  });
+
   it("falls back after failure and allows a changed URL", () => {
     const { rerender } = render(<PlayerAvatar name="Player" avatarUrl="https://avatars.steamstatic.com/old.jpg" />);
     fireEvent.error(screen.getByRole("img", { name: "Player" }));

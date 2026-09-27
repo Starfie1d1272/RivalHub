@@ -15,6 +15,8 @@ import * as schema from "../../../src/db/schema";
 import { issueSanctionInTx } from "../../../src/lib/discipline/service";
 import { AppError, ErrorCode } from "../../../src/lib/errors";
 import { lockMatchInTx } from "../../../src/lib/match-rosters/service";
+import { createMajorTemplate } from "../../../src/lib/competition/templates";
+import { makeMajorRunSnapshotV4 } from "../../../src/lib/major/run-snapshot";
 import {
   archiveTournamentInTx,
   confirmMajorFinalResultInTx,
@@ -66,12 +68,31 @@ async function prepareFixture(pool: Pool): Promise<Fixture> {
   const userId = randomUUID();
   const resultId = randomUUID();
   const matchId = randomUUID();
+  const majorCapabilities = createMajorTemplate();
+  const frozenStagePlan = majorCapabilities.stagePlan.map((stage) => ({
+    ...stage,
+    matchFormat: stage.matchFormat ?? "bo1",
+    finalFormat: stage.finalFormat ?? null,
+    advanceTiers: [...stage.advanceTiers],
+    ...(stage.seeds ? { seeds: [...stage.seeds] } : {}),
+  }));
+  const ruleSnapshot = makeMajorRunSnapshotV4({
+    stagePlan: frozenStagePlan,
+    rosterRules: {
+      minTeamSize: majorCapabilities.minTeamSize,
+      maxTeamSize: majorCapabilities.maxTeamSize,
+      starterCount: majorCapabilities.starterCount,
+    },
+    affiliationRules: majorCapabilities.affiliationRules,
+    competitiveProfile: null,
+    frozenCompetitiveFacts: [],
+  });
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
     await client.query(
-      `INSERT INTO seasons (id, slug, name, kind, status, registration_mode, has_captain_voting, has_draft, stage_plan, registration_config, team_registration_config, affiliation_rules, min_team_size, max_team_size, starter_count, positions)
-       VALUES ($1, $2, 'Local Post-event', 'Major', 'playing', 'team', false, false, '[]'::json, '{}'::json, '{}'::json, '[]'::json, 5, 7, 5, ARRAY['igl','awper','opener','closer','anchor'])`,
+      `INSERT INTO seasons (id, slug, name, kind, competition_template, status, registration_mode, has_captain_voting, has_draft, stage_plan, registration_config, team_registration_config, affiliation_rules, min_team_size, max_team_size, starter_count, positions)
+       VALUES ($1, $2, 'Local Post-event', 'Major', 'major', 'playing', 'team', false, false, '[]'::json, '{}'::json, '{}'::json, '[]'::json, 5, 7, 5, ARRAY['igl','awper','opener','closer','anchor'])`,
       [seasonId, `local-postevent-${seasonId}`],
     );
     await client.query(`INSERT INTO users (id, email, email_verified_at) VALUES ($1, $2, now())`, [userId, `h2-${userId}@local.test`]);
@@ -83,11 +104,12 @@ async function prepareFixture(pool: Pool): Promise<Fixture> {
       await client.query(`INSERT INTO competition_entries (id, competition_id, source, name, representative_user_id, current_roster_revision_id, approved_roster_revision_id, registration_status) VALUES ($1, $2, 'event_native', $3, $4, $5, $5, 'approved')`, [id, seasonId, name, userId, revisionId]);
       await client.query("INSERT INTO competition_entry_representative_changes (entry_id, from_user_id, to_user_id, changed_by_actor_id) VALUES ($1, NULL, $2, 'local-admin')", [id, userId]);
       await client.query("INSERT INTO competition_entry_roster_revisions (id, entry_id, revision_number, status, created_by, approved_at) VALUES ($1, $2, 1, 'approved', 'local-admin', now())", [revisionId, id]);
+      await client.query("INSERT INTO major_tournament_entrants (season_id, competition_entry_id) VALUES ($1, $2)", [seasonId, id]);
     }
     await client.query(
       `INSERT INTO major_stage_runs (id, season_id, stage_key, rule_snapshot, started_by)
-       VALUES ($1, $2, 'playoff', '{}'::jsonb, $3)`,
-      [runId, seasonId, ACTOR],
+       VALUES ($1, $2, 'playoff', $3::jsonb, $4)`,
+      [runId, seasonId, JSON.stringify(ruleSnapshot), ACTOR],
     );
     await client.query(
       `INSERT INTO matches (id, season_id, entry_a_id, entry_b_id, stage, entry_round, format, status, score_a, score_b, completed_at, ownership, major_stage_run_id, managed_key)
@@ -125,6 +147,7 @@ async function cleanup(pool: Pool, fixture: Fixture): Promise<void> {
     await client.query("DELETE FROM major_final_results WHERE season_id = $1", [fixture.seasonId]);
     await client.query("DELETE FROM matches WHERE season_id = $1", [fixture.seasonId]);
     await client.query("DELETE FROM major_stage_runs WHERE season_id = $1", [fixture.seasonId]);
+    await client.query("DELETE FROM major_tournament_entrants WHERE season_id = $1", [fixture.seasonId]);
     await client.query("SET LOCAL session_replication_role = replica");
     await client.query("DELETE FROM competition_entry_roster_revisions WHERE entry_id IN (SELECT id FROM competition_entries WHERE competition_id = $1)", [fixture.seasonId]);
     await client.query("DELETE FROM competition_entry_representative_changes WHERE entry_id IN (SELECT id FROM competition_entries WHERE competition_id = $1)", [fixture.seasonId]);

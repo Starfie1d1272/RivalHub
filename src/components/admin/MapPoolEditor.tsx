@@ -38,7 +38,7 @@ export function MapPoolEditor({ value, disabled, onChange }: { value: string[]; 
     <div className="space-y-3">
       <Label>比赛图池</Label>
       <div className="space-y-2">
-        <p className="text-xs text-[var(--color-fg-dim)]">当前 Active Duty（可作为默认候选）</p>
+        <p className="text-xs text-[var(--color-fg-dim)]">当前地图池（默认候选）</p>
         <div className="flex flex-wrap gap-2">{activeDutyMaps.map(renderCatalogMap)}</div>
         <p className="text-xs text-[var(--color-fg-dim)]">稳定地图目录中的其它地图</p>
         <div className="flex flex-wrap gap-2">{otherCatalogMaps.map(renderCatalogMap)}</div>

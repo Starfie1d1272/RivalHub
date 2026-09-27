@@ -8,6 +8,9 @@ export type ProjectableStrengthFact = {
   sourceRank?: string | null;
   sourceStars?: number | null;
   conversionVersion?: string | null;
+  estimatedFromUnranked?: boolean;
+  estimatedFromSeasonKey?: string | null;
+  estimatedFromHistorical?: boolean;
 };
 
 type StrengthStarterProjection = {
@@ -53,6 +56,9 @@ export function projectStrengthFact(fact: ProjectableStrengthFact | null): Major
     sourceRank: fact.sourceRank ?? null,
     sourceStars: fact.sourceStars ?? null,
     conversionVersion: fact.conversionVersion ?? null,
+    estimatedFromUnranked: fact.estimatedFromUnranked ?? false,
+    estimatedFromSeasonKey: fact.estimatedFromSeasonKey ?? null,
+    estimatedFromHistorical: fact.estimatedFromHistorical ?? false,
   } : null;
 }
 
@@ -94,6 +100,7 @@ export function projectStrengthTeams(teams: readonly StrengthTeamProjection[]): 
     available: team.available,
     blockers: [...team.blockers],
     recommendationRank: team.recommendationRank,
+    displayOrder: team.displayOrder,
     tieState: projectTieState(team, team.tieGroup === null ? 0 : tieGroupSizes.get(team.tieGroup) ?? 0),
     starters: team.starters.map(projectStrengthStarter),
   }));

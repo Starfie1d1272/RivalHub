@@ -18,6 +18,6 @@ export function PlayerAvatar({ name, avatarUrl, size = "md", failed = false, onE
   const [failedUrl, setFailedUrl] = useState<string | null>(null);
   const style = sizes[size];
   const classes = cn("inline-flex shrink-0 items-center justify-center rounded-full border border-[var(--color-border)] bg-[var(--color-panel-hi)] font-semibold text-[var(--color-fg-mid)] object-cover", style.className, className);
-  if (avatarUrl && !failed && avatarUrl !== failedUrl) return <Image src={avatarUrl} alt={name} width={style.pixels} height={style.pixels} className={classes} referrerPolicy="no-referrer" onError={() => { setFailedUrl(avatarUrl); onError?.(); }} />;
+  if (avatarUrl && !failed && avatarUrl !== failedUrl) return <Image src={avatarUrl} alt={name} width={style.pixels} height={style.pixels} className={classes} referrerPolicy="no-referrer" unoptimized onError={() => { setFailedUrl(avatarUrl); onError?.(); }} />;
   return <span role="img" aria-label={name} className={classes}>{name.trim().charAt(0).toUpperCase() || "?"}</span>;
 }

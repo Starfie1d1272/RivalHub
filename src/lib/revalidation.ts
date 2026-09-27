@@ -1,9 +1,13 @@
 import { revalidatePath, revalidateTag, updateTag } from "next/cache";
 
 import {
+  PUBLIC_ANNOUNCEMENTS_TAG,
+  PUBLIC_HOME_TAG,
   PUBLIC_SEASON_CATALOG_TAG,
   publicPlayerTag,
+  publicAnnouncementsSeasonTag,
   publicSeasonTag,
+  publicSeasonInfoTag,
   seasonMatchesTag,
   seasonParticipantsTag,
   seasonStandingsTag,
@@ -30,6 +34,7 @@ type RevalidationMode = "action" | "route";
 export function updatePublicSeasonTags(slug: string, seasonId?: string): void {
   updateTag(PUBLIC_SEASON_CATALOG_TAG);
   updateTag(publicSeasonTag(slug));
+  updatePublicHomeTag();
   if (seasonId) {
     updateTag(seasonParticipantsTag(seasonId));
     updateTag(seasonMatchesTag(seasonId));
@@ -41,11 +46,25 @@ export function updatePublicSeasonTags(slug: string, seasonId?: string): void {
 export function revalidatePublicSeasonTags(slug: string, seasonId?: string): void {
   revalidateTag(PUBLIC_SEASON_CATALOG_TAG, "max");
   revalidateTag(publicSeasonTag(slug), "max");
+  revalidateTag(PUBLIC_HOME_TAG, "max");
   if (seasonId) {
     revalidateTag(seasonParticipantsTag(seasonId), "max");
     revalidateTag(seasonMatchesTag(seasonId), "max");
     revalidateTag(seasonStandingsTag(seasonId), "max");
   }
+}
+
+export function updatePublicHomeTag(): void {
+  updateTag(PUBLIC_HOME_TAG);
+}
+
+export function updatePublicAnnouncementTags(seasonId?: string | null): void {
+  updateTag(PUBLIC_ANNOUNCEMENTS_TAG);
+  if (seasonId) updateTag(publicAnnouncementsSeasonTag(seasonId));
+}
+
+export function updatePublicSeasonInfoTag(seasonId: string): void {
+  updateTag(publicSeasonInfoTag(seasonId));
 }
 
 export function revalidatePublicPlayerTag(userId: string): void {

@@ -16,6 +16,8 @@ import {
 import { MiniStat, Panel, StatusPill } from "@/components/rivalhub";
 import { Button } from "@/components/ui/button";
 
+export { shouldLoadRegistrationPositionCounts } from "@/lib/home/presentation";
+
 interface HomePanelSeason {
   name: string;
   slug: string;
@@ -50,10 +52,6 @@ interface HomeSeasonPanelProps {
   liveAndUpcomingMatches: HomeMatchSummary[];
   teamCount: number;
   playerCount: number;
-}
-
-export function shouldLoadRegistrationPositionCounts(season: Pick<HomePanelSeason, "status" | "registrationMode" | "registrationOpensAt" | "registrationOpenedAt" | "registrationClosesAt">): boolean {
-  return season.registrationMode === "solo" && isRegistrationActuallyOpen(season);
 }
 
 export function HomeSeasonPanel({

@@ -36,6 +36,13 @@ function publicNameSearchCondition(pattern: string) {
   )!;
 }
 
+function intentCompatibleWithSelectedEventCondition(selectedEventId: string) {
+  return or(
+    eq(recruitmentIntents.targetSeasonId, selectedEventId),
+    isNull(recruitmentIntents.targetSeasonId),
+  )!;
+}
+
 export interface TeamRecruitmentCardData extends PublicRecruitmentIntent {
   teamId: string;
   teamSlug: string;
@@ -71,7 +78,7 @@ function openConditions(kind: "team_recruiting" | "player_lft", filters: Recruit
       ? or(ilike(teams.name, pattern), publicNameSearchCondition(pattern))!
       : publicNameSearchCondition(pattern));
   }
-  if (filters.targetSeasonId) conditions.push(eq(recruitmentIntents.targetSeasonId, filters.targetSeasonId));
+  if (filters.targetSeasonId) conditions.push(intentCompatibleWithSelectedEventCondition(filters.targetSeasonId));
   if (filters.position) {
     conditions.push(kind === "team_recruiting"
       ? sql`${recruitmentIntents.positions} = ARRAY[]::cs2_role[] OR ${recruitmentIntents.positions} @> ARRAY[${filters.position}]::cs2_role[]`
@@ -97,6 +104,7 @@ export async function getRecruitmentLobbyData(filters: RecruitmentFilters, viewe
   mapOptions: string[];
   normalizedFilters: RecruitmentFilters;
   viewerInterestedIntentIds: Set<string>;
+  viewerInvitedTeamIds: Set<string>;
 }> {
   const currentPlayerTeam = alias(teams, "recruitment_current_player_team");
   const now = new Date();
@@ -169,7 +177,7 @@ export async function getRecruitmentLobbyData(filters: RecruitmentFilters, viewe
   const teamIds = teamRows.map((row) => row.teamId);
   const playerIds = [...new Set(playerRows.map((row) => row.userId))];
   const interestIntentIds = teamRows.map((row) => row.id);
-  const [memberCounts, roles, mapPreferences, interests, rankFacts, competitiveCatalog] = await Promise.all([
+  const [memberCounts, roles, mapPreferences, interests, pendingInvitations, rankFacts, competitiveCatalog] = await Promise.all([
     teamIds.length
       ? db.select({ teamId: teamMemberships.teamId, count: sql<number>`count(*)::int` }).from(teamMemberships).innerJoin(users, and(eq(teamMemberships.userId, users.id), eq(users.status, "active"))).where(and(inArray(teamMemberships.teamId, teamIds), isNull(teamMemberships.endedAt))).groupBy(teamMemberships.teamId)
       : Promise.resolve([]),
@@ -181,6 +189,15 @@ export async function getRecruitmentLobbyData(filters: RecruitmentFilters, viewe
       : Promise.resolve([]),
     viewerUserId && interestIntentIds.length
       ? db.select({ recruitmentIntentId: recruitmentInterests.recruitmentIntentId }).from(recruitmentInterests).where(and(eq(recruitmentInterests.userId, viewerUserId), inArray(recruitmentInterests.recruitmentIntentId, interestIntentIds)))
+      : Promise.resolve([]),
+    viewerUserId && teamIds.length
+      ? db.select({ teamId: teamInvitations.teamId }).from(teamInvitations).where(and(
+        eq(teamInvitations.invitedUserId, viewerUserId),
+        eq(teamInvitations.kind, "direct"),
+        eq(teamInvitations.status, "pending"),
+        gt(teamInvitations.expiresAt, now),
+        inArray(teamInvitations.teamId, teamIds),
+      ))
       : Promise.resolve([]),
     playerIds.length
       ? db.select({ id: competitiveRankFacts.id, userId: competitiveRankFacts.userId, platform: competitiveRankFacts.platform, kind: competitiveRankFacts.kind, platformSeasonKey: competitiveRankFacts.platformSeasonKey, status: competitiveRankFacts.status, rank: competitiveRankFacts.rank, rating: competitiveRankFacts.rating, stars: competitiveRankFacts.stars, achievedSeasonKey: competitiveRankFacts.achievedSeasonKey }).from(competitiveRankFacts).where(inArray(competitiveRankFacts.userId, playerIds))
@@ -194,9 +211,12 @@ export async function getRecruitmentLobbyData(filters: RecruitmentFilters, viewe
   for (const row of mapPreferences) mapPreferencesByUser.set(row.userId, row.mapPreferences);
   const factsByUser = new Map<string, typeof rankFacts>();
   for (const row of rankFacts) factsByUser.set(row.userId, [...(factsByUser.get(row.userId) ?? []), row]);
-  const mapPoolForPlayer = (targetSeasonId: string | null) => targetSeasonId
-    ? targetMapPools.get(targetSeasonId) ?? [...CURRENT_CS2_ACTIVE_DUTY_MAP_POOL]
-    : CURRENT_CS2_ACTIVE_DUTY_MAP_POOL;
+  const mapPoolForPlayer = (intentTargetSeasonId: string | null) => {
+    const projectionSeasonId = normalizedFilters.targetSeasonId ?? intentTargetSeasonId;
+    return projectionSeasonId
+      ? targetMapPools.get(projectionSeasonId) ?? [...CURRENT_CS2_ACTIVE_DUTY_MAP_POOL]
+      : [...CURRENT_CS2_ACTIVE_DUTY_MAP_POOL];
+  };
   const teamRecruitments = teamRows
     .map(({ captainDisplayName, captainPersonaName, captainPerfectName, ...row }) => ({
       ...row,
@@ -211,7 +231,7 @@ export async function getRecruitmentLobbyData(filters: RecruitmentFilters, viewe
     positions: row.positions as Cs2Position[],
     competitiveRoles: rolesByUser.get(row.userId) ?? [],
     mapPreferences: projectMapPreferences(mapPreferencesByUser.get(row.userId) ?? [], mapPoolForPlayer(row.targetSeasonId)),
-    mapPreferenceContextLabel: row.targetSeasonId ? "目标赛事图池熟练度" : "当前 Active Duty 熟练度",
+    mapPreferenceContextLabel: normalizedFilters.targetSeasonId || row.targetSeasonId ? "目标赛事图池熟练度" : "当前地图池熟练度",
     competitiveSummary: presentPublicCompetitiveSummary(competitiveCatalog, factsByUser.get(row.userId) ?? []),
   })).filter((item) => !normalizedFilters.map || hasPlayableMapPreference(item.mapPreferences, normalizedFilters.map));
   return {
@@ -221,6 +241,7 @@ export async function getRecruitmentLobbyData(filters: RecruitmentFilters, viewe
     mapOptions,
     normalizedFilters,
     viewerInterestedIntentIds: new Set(interests.map((row) => row.recruitmentIntentId)),
+    viewerInvitedTeamIds: new Set(pendingInvitations.map((row) => row.teamId)),
   };
 }
 

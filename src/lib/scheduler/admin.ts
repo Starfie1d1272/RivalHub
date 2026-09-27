@@ -8,6 +8,7 @@ export interface SchedulerHealthView {
   label: string;
   status: "normal" | "degraded";
   primaryTriggeredAt: string | null;
+  dispatchRequestedAt: string | null;
   endpointSucceededAt: string | null;
   businessTransitionAt: string | null;
   watchdogSucceededAt: string | null;
@@ -26,6 +27,7 @@ export async function getSchedulerHealthView(now = new Date()): Promise<Schedule
       label: definition.label,
       status: primaryHealthy ? "normal" : "degraded",
       primaryTriggeredAt: record?.lastPrimaryTriggeredAt?.toISOString() ?? null,
+      dispatchRequestedAt: record?.lastPrimaryDispatchRequestedAt?.toISOString() ?? null,
       endpointSucceededAt: record?.lastPrimaryEndpointSucceededAt?.toISOString() ?? null,
       businessTransitionAt: record?.lastBusinessTransitionAt?.toISOString() ?? null,
       watchdogSucceededAt: record?.lastWatchdogSucceededAt?.toISOString() ?? null,

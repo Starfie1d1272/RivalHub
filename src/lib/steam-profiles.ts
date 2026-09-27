@@ -69,25 +69,58 @@ export async function upsertSteamProfile(
       fetchedAt: sql`excluded.fetched_at`,
     },
   });
-  await syncLegacySteamProfileShadow(database, profile);
 }
 
 /**
- * Keep the previous stable release's legacy projection coherent during the
- * N/N+1 rollback window. steam_profiles remains the only authority.
+ * Server-only cache-miss owner for operator paths (such as Demo review):
+ * 1. Read existing steam_profiles from the database.
+ * 2. For missing Steam64 values only, batch-fetch from Steam GetPlayerSummaries.
+ * 3. Upsert successfully retrieved profiles into steam_profiles.
+ * 4. Provider failure or missing profiles degrade gracefully (return what is available, never throw).
+ *
+ * Never call on public render critical paths.
+ * Does NOT register Steam64s into periodic current-primary refresh.
  */
-async function syncLegacySteamProfileShadow(
+export async function loadOrFetchSteamProfiles(
   database: SteamProfileDatabase,
-  profile: SteamProfileSummary,
-): Promise<void> {
-  await database.execute(sql`
-    UPDATE ${users}
-       SET "steam_name" = ${profile.personaName},
-           "steam_profile_url" = ${profile.profileUrl},
-           "avatar_url" = ${profile.avatarUrl}
-     WHERE "status" = 'active'
-       AND "steam64" = ${profile.steam64}
-  `);
+  steam64Values: readonly string[],
+): Promise<Map<string, SteamProfileSummary>> {
+  const values = [...new Set(steam64Values.filter((value) => /^\d{17}$/.test(value)))];
+  if (values.length === 0) return new Map();
+
+  const cached = await loadSteamProfilesBySteam64(database, values);
+
+  const missing = values.filter((steam64) => !cached.has(steam64));
+  if (missing.length === 0) return cached;
+
+  let result;
+  try {
+    result = await getSteamPlayerSummaries(missing);
+  } catch {
+    // Provider failure graceful degrade: do not block operator review.
+    return cached;
+  }
+  if (result.status !== "ok" || result.profiles.size === 0) return cached;
+
+  const fetchedProfiles = [...result.profiles.values()];
+  const fetchedAt = new Date();
+  await database.insert(steamProfiles).values(fetchedProfiles.map((p) => ({
+    steam64: p.steam64,
+    personaName: p.personaName,
+    profileUrl: p.profileUrl,
+    avatarUrl: p.avatarUrl,
+    fetchedAt,
+  }))).onConflictDoUpdate({
+    target: steamProfiles.steam64,
+    set: {
+      personaName: sql`excluded.persona_name`,
+      profileUrl: sql`excluded.profile_url`,
+      avatarUrl: sql`excluded.avatar_url`,
+      fetchedAt: sql`excluded.fetched_at`,
+    },
+  });
+  for (const profile of fetchedProfiles) cached.set(profile.steam64, profile);
+  return cached;
 }
 
 /** Query the provider and cache one profile for an explicit user action. */
@@ -167,9 +200,7 @@ export async function refreshSteamProfiles() {
     });
   }
 
-  for (const profile of result.profiles.values()) {
-    await syncLegacySteamProfileShadow(db, profile);
-  }
+
 
   const changedUserIds = candidates
     .filter((candidate) => candidate.steam64 && changedSteam64s.has(candidate.steam64))

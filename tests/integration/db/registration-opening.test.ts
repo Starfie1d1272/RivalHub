@@ -6,7 +6,7 @@ import type { TxDb } from "../../../src/db/client";
 import * as schema from "../../../src/db/schema";
 import { publicCompetitionEntryCondition } from "../../../src/lib/competition-entries/public-visibility";
 import { createCompetitionEntryInTx, saveCompetitionEntryRosterInTx, confirmCompetitionEntryParticipationInTx, submitCompetitionEntryInTx, withdrawCompetitionEntryFromReviewInTx } from "../../../src/lib/competition-entries/commands";
-import { createLocalPool, capturePostgresError } from "./harness/database";
+import { createLocalPool, capturePostgresError, measureMaxConcurrentClientQueries } from "./harness/database";
 
 // Every fixture is rolled back, including the circular entry/revision facts.
 describe("registration opening PostgreSQL", () => {
@@ -60,7 +60,10 @@ describe("registration opening PostgreSQL", () => {
       await database.update(schema.teams).set({ logoUrl: "https://local.test/second.png" }).where(eq(schema.teams.id, teamId));
       await save();
       expect((await database.query.competitionEntries.findFirst({ where: eq(schema.competitionEntries.id, entryId) }))?.logoUrl).toBe("https://local.test/first.png");
-      await submitCompetitionEntryInTx(tx, { entryId, userId, actorId: userId });
+      const maxConcurrentQueries = await measureMaxConcurrentClientQueries(client, () =>
+        submitCompetitionEntryInTx(tx, { entryId, userId, actorId: userId }),
+      );
+      expect(maxConcurrentQueries).toBe(1);
       expect((await database.query.competitionEntries.findFirst({ where: eq(schema.competitionEntries.id, entryId) }))?.registrationStatus).toBe("submitted");
       const repeated = await capturePostgresError(client, () => submitCompetitionEntryInTx(tx, { entryId, userId, actorId: userId }));
       expect(repeated).toMatchObject({ message: "当前报名状态不能提交。" });

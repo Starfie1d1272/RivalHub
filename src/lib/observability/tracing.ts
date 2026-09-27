@@ -40,7 +40,7 @@ function hasSpanErrored(span: Span): boolean {
 export async function traceOperation<T>(name: string, options: TraceOptions, work: (span: Span) => Promise<T>): Promise<T> {
   const tracer = trace.getTracer("rivalhub");
   const span = tracer.startSpan(safeSpanName(name), { attributes: sanitizeSpanAttributes(options) });
-  const startedAt = Date.now();
+  const startedAt = performance.now();
   return otelContext.with(trace.setSpan(otelContext.active(), span), async () => {
     try {
       const result = await work(span);
@@ -87,7 +87,7 @@ export async function traceOperation<T>(name: string, options: TraceOptions, wor
       throw error;
     } finally {
       try {
-        span.setAttribute("rivalhub.duration_ms", Math.max(0, Date.now() - startedAt));
+        span.setAttribute("rivalhub.duration_ms", Math.max(0, performance.now() - startedAt));
         span.end();
       } catch {
         // An exporter failure must not change the operation result.

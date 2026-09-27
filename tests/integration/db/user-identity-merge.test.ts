@@ -512,6 +512,135 @@ describe("canonical user identity merge PostgreSQL invariants", () => {
     }
   });
 
+  it("preserves a historical EventRoster row while reparenting the current member during identity merge", async () => {
+    const pool = createLocalPool();
+    const ids = {
+      canonical: randomUUID(),
+      merged: randomUUID(),
+      admin: randomUUID(),
+      season: randomUUID(),
+      entry: randomUUID(),
+      revision: randomUUID(),
+      opponentEntry: randomUUID(),
+      opponentRevision: randomUUID(),
+      participant: randomUUID(),
+      eventRoster: randomUUID(),
+      historicalMember: randomUUID(),
+      currentMember: randomUUID(),
+      match: randomUUID(),
+      matchRoster: randomUUID(),
+    };
+    const rollbackFixture = Symbol("rollback fixture");
+    const database = drizzle(pool, { schema });
+    try {
+      try {
+        await database.transaction(async (tx) => {
+          await insertTestSeason(tx, ids.season);
+          await insertTestUser(tx, ids.canonical, `canonical-${ids.canonical}@local.test`);
+          await insertTestUser(tx, ids.merged, `merged-${ids.merged}@local.test`);
+          await insertTestUser(tx, ids.admin, `admin-${ids.admin}@local.test`, "super_admin");
+          await insertTestEntry(tx, {
+            entryId: ids.entry,
+            revisionId: ids.revision,
+            seasonId: ids.season,
+            sourceRegistrationId: null,
+            representativeUserId: ids.merged,
+          });
+          await insertTestEntry(tx, {
+            entryId: ids.opponentEntry,
+            revisionId: ids.opponentRevision,
+            seasonId: ids.season,
+            sourceRegistrationId: null,
+            representativeUserId: ids.admin,
+          });
+          await tx.execute(sql`
+            UPDATE competition_entries
+            SET registration_status = 'approved', approved_roster_revision_id = ${ids.revision}
+            WHERE id = ${ids.entry}
+          `);
+          await tx.execute(sql`
+            UPDATE competition_entry_roster_revisions
+            SET status = 'approved', submitted_at = now(), approved_at = now()
+            WHERE id = ${ids.revision}
+          `);
+          await tx.execute(sql`
+            INSERT INTO competition_entry_participants (id, entry_id, user_id, status, confirmed_at)
+            VALUES (${ids.participant}, ${ids.entry}, ${ids.merged}, 'confirmed', now())
+          `);
+          await tx.execute(sql`
+            INSERT INTO competition_entry_roster_members (revision_id, participant_id, user_id, is_primary_starter)
+            VALUES (${ids.revision}, ${ids.participant}, ${ids.merged}, true)
+          `);
+          await tx.execute(sql`
+            INSERT INTO event_rosters (id, entry_id, source_roster_revision_id, status, confirmed_at, confirmed_by)
+            VALUES (${ids.eventRoster}, ${ids.entry}, ${ids.revision}, 'confirmed', now(), 'identity-merge-test')
+          `);
+          await tx.execute(sql`
+            INSERT INTO event_roster_members (id, event_roster_id, user_id, is_current)
+            VALUES (${ids.historicalMember}, ${ids.eventRoster}, ${ids.canonical}, false)
+          `);
+          await tx.execute(sql`
+            INSERT INTO event_roster_members (id, event_roster_id, participant_id, user_id, is_current, is_primary_starter)
+            VALUES (${ids.currentMember}, ${ids.eventRoster}, ${ids.participant}, ${ids.merged}, true, true)
+          `);
+          await tx.execute(sql`
+            INSERT INTO matches (id, season_id, entry_a_id, entry_b_id, stage, format)
+            VALUES (${ids.match}, ${ids.season}, ${ids.entry}, ${ids.opponentEntry}, 'stage1', 'bo1')
+          `);
+          await tx.execute(sql`
+            INSERT INTO match_rosters (id, match_id, entry_id, source, status)
+            VALUES (${ids.matchRoster}, ${ids.match}, ${ids.entry}, 'admin_select', 'submitted')
+          `);
+          await tx.execute(sql`
+            INSERT INTO match_roster_players (roster_id, event_roster_member_id, is_starter)
+            VALUES (${ids.matchRoster}, ${ids.historicalMember}, true)
+          `);
+
+          const preflight = await buildUserMergePreflight(tx, {
+            canonicalUserId: ids.canonical,
+            mergedUserId: ids.merged,
+          }, { evidenceClass: "super_admin_review" });
+
+          expect(preflight.executable).toBe(true);
+          expect(preflight.items).not.toEqual(expect.arrayContaining([
+            expect.objectContaining({ key: "competition:confirmed-different-entry", category: "BLOCKER" }),
+            expect.objectContaining({ key: "competition:approved-or-frozen-duplicate", category: "BLOCKER" }),
+          ]));
+
+          await executeUserMergeInTx(tx, {
+            canonicalUserId: ids.canonical,
+            mergedUserId: ids.merged,
+            actorUserId: ids.admin,
+            expectedFingerprint: preflight.fingerprint,
+            evidenceClass: "super_admin_review",
+            reason: "preserve historical EventRoster member during identity merge",
+          });
+
+          await expect(tx.execute(sql`
+            SELECT id, user_id, participant_id, is_current
+            FROM event_roster_members
+            WHERE event_roster_id = ${ids.eventRoster}
+            ORDER BY is_current DESC
+          `)).resolves.toMatchObject({ rows: [
+            { id: ids.currentMember, user_id: ids.canonical, participant_id: ids.participant, is_current: true },
+            { id: ids.historicalMember, user_id: ids.canonical, participant_id: null, is_current: false },
+          ] });
+          await expect(tx.execute(sql`
+            SELECT event_roster_member_id
+            FROM match_roster_players
+            WHERE roster_id = ${ids.matchRoster}
+          `)).resolves.toMatchObject({ rows: [{ event_roster_member_id: ids.historicalMember }] });
+
+          throw rollbackFixture;
+        });
+      } catch (error) {
+        if (error !== rollbackFixture) throw error;
+      }
+    } finally {
+      await pool.end();
+    }
+  });
+
   it("turns an unverified historical counterparty identity into usable OTP proof before self-service merge", async () => {
     const pool = createLocalPool();
     const ids = { current: randomUUID(), counterparty: randomUUID(), auth: randomUUID(), request: randomUUID(), emailIdentity: randomUUID(), authIdentity: randomUUID() };

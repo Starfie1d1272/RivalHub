@@ -58,7 +58,6 @@ export interface PublicEventTeamContext {
     representativeUserId: string;
     teamId: string | null;
   };
-  cardLabel: string;
   participation: {
     label: string;
     tone: StatusPresentation["tone"];
@@ -296,7 +295,7 @@ export async function getPublicCompetitionEntryTeamContext(
       .innerJoin(eventRosters, eq(eventRosters.id, eventRosterMembers.eventRosterId))
       .innerJoin(users, eq(users.id, eventRosterMembers.userId))
       .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
-      .where(eq(eventRosters.entryId, entry.id)),
+      .where(and(eq(eventRosters.entryId, entry.id), eq(eventRosterMembers.isCurrent, true))),
     getPublicEventTeamMatchFacts(season.id, [entry.id]),
   ]);
   const matchFacts = matchFactsByEntryId.get(entry.id) ?? {
@@ -308,7 +307,6 @@ export async function getPublicCompetitionEntryTeamContext(
   return {
     season,
     entry,
-    cardLabel: entry.registrationStatus === "approved" ? "已通过报名审核" : registrationPresentation.label,
     participation: {
       label: registrationPresentation.label,
       tone: registrationPresentation.tone,

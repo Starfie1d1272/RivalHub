@@ -19,7 +19,7 @@ import { compactUndefined } from "@/lib/utils/object";
 import { changePrimarySteam64InTx, assertSteam64Available } from "@/lib/identity/gameplay-steam";
 import { getSteamProfileForPrimary, upsertSteamProfile } from "@/lib/steam-profiles";
 import { assertUsersNotBlockedInTx } from "@/lib/discipline/service";
-import { updatePublicPlayerTag } from "@/lib/revalidation";
+import { updatePublicHomeTag, updatePublicPlayerTag, updatePublicSeasonTags } from "@/lib/revalidation";
 import { traceOperation } from "@/lib/observability/server";
 import { normalizePlayerDeclaredProfile } from "@/lib/player-declared-profile";
 import { ensureRegistrationOpenForParticipantInTx } from "@/lib/seasons/registration-recovery";
@@ -99,6 +99,9 @@ export async function saveRegistrationDraft(input: unknown) {
     });
 
     revalidatePath(`/${currentSeason.slug}/register`);
+    if (initialWindow.needsOpeningRecovery) {
+      updatePublicSeasonTags(currentSeason.slug, currentSeason.id);
+    }
     return ok({ email });
   } catch (e) {
     return actionError("saveRegistrationDraft", e);
@@ -394,6 +397,11 @@ export async function submitRegistration(input: RegistrationFormData) {
     });
 
     updatePublicPlayerTag(user.id);
+    if (initialWindow.needsOpeningRecovery) {
+      updatePublicSeasonTags(registration.seasonSlug, registration.registration.seasonId);
+    } else {
+      updatePublicHomeTag();
+    }
     revalidatePath(`/${registration.seasonSlug}/register`);
     return ok({ registrationId: registration.registration.id, email: data.email });
   } catch (e) {

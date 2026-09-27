@@ -4,20 +4,20 @@ RivalHub 的所有 Vercel Preview 固定连接 `rivalhub-dev`，不连接 produc
 
 ## 刷新边界
 
-- 每日定时、手动 dispatch，以及 Release 成功后的 `workflow_run` 都进入同一个不可并行的 refresh concurrency。
+- 每日定时和 Release 成功后的 `workflow_run` 固定使用 `main`；手动 dispatch 使用 `migration_ref` 选择 production snapshot export policy 与 dev refresh code，并要求它与 dispatch branch 一致，默认 `main`。这些运行都进入同一个不可并行的 refresh concurrency。
 - production job 只使用 production environment 的 `DATABASE_URL`/Supabase secret key；它不能写 production。公共 asset allowlist 在这一 job 生效。
 - dev job 只使用 staging environment 的 dev DB password 和 dev Supabase secret；persona password 是仓库定义的公开 fixture，不需要 secret provisioning。它不能读取 production credential。
-- snapshot 只包含审查过的 public/domain projections。Auth identity、邮件、教育证据、邀请 token、审计、`recruitment_interests` 和 private bucket 不导出；公共 Team 招募 projection、team logo 与显式 allowlist 的赛事公共 asset 可以镜像。Preview 固定使用 dev `team-logos` public bucket，其 contract 为 1 MiB、`image/jpeg`/`image/png`/`image/webp`；refresh 只对这个固定 bucket 做幂等的 get/create/update bootstrap，不复制 production bucket 配置或对象。
+- snapshot 只包含审查过的 public/domain projections。Auth identity、邮件、教育证据、邀请 token、审计、`recruitment_interests` 和 private bucket 不导出；公共 Team 招募 projection、team logo 与显式 allowlist 的赛事公共 asset 可以镜像。为支持赛事统计的真实 Preview 验收，DAK stats substrate（`dak_pairing_intents`、`dak_pairings`、`match_demo_imports`、`match_round_facts`、`user_gameplay_steam_ids` 以及 `match_player_stats.dak_import_id`）也通过固定列清单镜像；其中只复制数据库内已有的 hash/provenance。Qualification Preview 只镜像运行格式、名额、状态时间、批准 Entry 的预排名和 Qualification 比赛关联；`configured_by`、`started_by` 等 actor ID 不导出。Preview 仍不连接 production，也不获得原始 credential。Preview 固定使用 dev `team-logos` public bucket，其 contract 为 1 MiB、`image/jpeg`/`image/png`/`image/webp`；refresh 只对这个固定 bucket 做幂等的 get/create/update bootstrap，不复制 production bucket 配置或对象。
 - `preview_mirror_state` 只记录 source tag/commit、refresh 时间和计数，供 Preview banner 诊断；它不是 availability 状态机。
-- refresh 先完成 dev Storage preflight，再 reset 并应用 snapshot source migrations，导入脱敏 production snapshot 和验证外键；manual dispatch 可随后把指定 ref 的当前 migration 应用到这份 production-derived 数据并再次验证，最后才 provision persona、公共 assets 与 mirror state。命令只输出固定的 phase 名称和完成/失败状态，不输出 row value、asset path、credential 或 provider 原始错误。旧 Preview 因共享 schema/data 失效是可接受的 trade-off；daily/post-release refresh 始终用 `main`。
+- refresh 先完成 dev Storage preflight，再 reset 并应用 snapshot source migrations，导入脱敏 production snapshot 和验证外键；manual dispatch 可通过 `apply_current_migrations` 选择是否把 `migration_ref` 的当前 migration 应用到这份 production-derived 数据并再次验证，最后才 provision persona、公共 assets 与 mirror state。命令只输出固定的 phase 名称和完成/失败状态，不输出 row value、asset path、credential 或 provider 原始错误。旧 Preview 因共享 schema/data 失效是可接受的 trade-off；daily/post-release refresh 始终用 `main`。
 
 ## Source schema compatibility and diagnostics
 
-Preview export 的 policy 以 source 的 Drizzle migration ledger 为输入，而不是无条件使用 latest `main` 的完整 table/column 清单。migration-keyed policy 只要求 source 已拥有的 table 与 exported column；source 尚未应用的 additive table/column 留在 future policy 中，不会被查询。reviewed-but-omitted column 不进入 export projection。Steam legacy shadow 由显式 lifecycle 管理：当前 N/N+1 compatibility window 内允许物理存在，预留的 `0053_steam_profile_contract_cleanup` marker 生效后缺失合法，但同一 shadow 重新出现会以 `REMOVED_MIRROR_COLUMNS` fail closed。source physical inventory 中的 unknown table/column、缺失 exported column 和不匹配的 migration prefix 仍 fail closed。
+Preview export 的 policy 以 source 的 Drizzle migration ledger 为输入，而不是无条件使用 latest `main` 的完整 table/column 清单。migration-keyed policy 只要求 source 已拥有的 table 与 exported column；source 尚未应用的 additive table/column 留在 future policy 中，不会被查询。reviewed-but-omitted column 不进入 export projection。Steam legacy shadow 由真实 cleanup migration 的 lifecycle marker 管理：source 尚未应用该 migration 时，Preview 允许这些物理列存在但不导出；migration 已应用后，若列重新出现则以 `REMOVED_MIRROR_COLUMNS` fail closed。source physical inventory 中的 unknown table/column、缺失 exported column 和不匹配的 migration prefix 仍 fail closed。
 
 Export 与 refresh 的失败都经过现有 `src/lib/observability/` safe exception boundary，保留内部 `cause` chain，并输出稳定的 phase/code 与有限 structural context（例如 table、column、provider、providerCode、httpStatus、retryable）。允许的 export phase 包括 source identity、source DB connection、migration ledger、schema inventory-policy、table export、persona selection、public asset export 和 snapshot write；refresh phase 也会区分 snapshot read、DB、persona、asset 与 mirror-state 步骤。日志不会输出 production row、SQL/params、credential、provider body 或 asset path。
 
-PostgreSQL CI integration 同时在 latest fresh schema 和 previous-production-compatible N/N+1 schema 的真实 `information_schema` inventory 上运行 policy validation，覆盖 additive table/column、Steam rollback shadow、contract cleanup DROP 以及 unknown table/column 的 fail-closed contract。
+PostgreSQL CI integration 同时在 latest fresh schema 和 previous-production-compatible N/N+1 schema 的真实 `information_schema` inventory 上运行 policy validation，覆盖 additive table/column、真实 Steam cleanup migration 前后的列生命周期，以及 unknown 或已删除列复现时的 fail-closed contract。
 
 ## Vercel Preview 必须配置
 

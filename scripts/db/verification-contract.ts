@@ -265,16 +265,16 @@ async function verifySchedulerDispatch(pool: Pool, apiUrl: string): Promise<void
       "SELECT clock_timestamp() AS verified_at",
     )).rows[0]?.verified_at;
     const requestId = (await pool.query<{ request_id: string | null }>(
-      "SELECT public.dispatch_rivalhub_scheduler_job($1::text)::text AS request_id",
+      "SELECT public.force_dispatch_rivalhub_scheduler_job($1::text)::text AS request_id",
       [definition.key],
     )).rows[0]?.request_id;
-    const health = (await pool.query<{ last_primary_triggered_at: Date | null }>(`
-      SELECT last_primary_triggered_at
+    const health = (await pool.query<{ last_primary_dispatch_requested_at: Date | null }>(`
+      SELECT last_primary_dispatch_requested_at
       FROM public.scheduled_job_health
       WHERE job_key = $1
     `, [definition.key])).rows[0];
-    if (!verifiedAt || !requestId || !health?.last_primary_triggered_at || health.last_primary_triggered_at < verifiedAt) {
-      throw new Error("Local Supabase scheduler dispatch 未写入 fresh primary health。");
+    if (!verifiedAt || !requestId || !health?.last_primary_dispatch_requested_at || health.last_primary_dispatch_requested_at < verifiedAt) {
+      throw new Error("Local Supabase scheduler force dispatch 未写入 fresh dispatch health。");
     }
   } finally {
     await pool.query("ROLLBACK");

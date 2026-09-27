@@ -15,7 +15,7 @@ import {
   users,
 } from "@/db/schema";
 import { generateMajorPlayoffQuarterfinals } from "@/lib/major/playoff";
-import { DEFAULT_RULES, coinLevel, judgePick } from "./rules";
+import { defaultPredictionRules, stageChallengeCount, coinLevel, judgePick } from "./rules";
 import { loadBaseline } from "./baseline";
 import { lockPredictionProgram, reconcilePredictionProgram } from "./service";
 import { simulateMajor } from "./simulator";
@@ -34,7 +34,7 @@ export async function predictionBoard(
   const base = program
     ? await reconcilePredictionProgram(tx, program)
     : await loadBaseline(tx, seasonId);
-  const rules = program?.rules ?? DEFAULT_RULES;
+  const rules = program?.rules ?? defaultPredictionRules(base.stages);
   const allAccounts = await tx
     .select({
       id: accounts.id,
@@ -103,7 +103,7 @@ export async function predictionBoard(
         challenges: results.filter(Boolean).length,
         possible:
           !contest?.voidedAt && (!contest?.lockedAt || !!pick)
-            ? (stage.type === "swiss" ? 1 : 3) + (locked ? 0 : 1)
+            ? stageChallengeCount(stage.type) + (locked ? 0 : 1)
             : 0,
       };
     });

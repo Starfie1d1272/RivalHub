@@ -592,6 +592,13 @@ async function exerciseSuccessfulFreezeWorkflow(): Promise<void> {
     );
     expect(beforeLock.rows[0]).toEqual({ total: String(fixture.entries.length), confirmed: String(fixture.entries.length) });
 
+    await pool.query("UPDATE seasons SET roster_change_closes_at = now() + interval '1 day' WHERE id = $1", [fixture.seasonId]);
+    await expect(database.transaction((tx) => lockMajorPrestartEntrantsInTx(tx, {
+      seasonId: fixture!.seasonId,
+      actorId: ACTOR,
+    }))).rejects.toThrow("最终名单调整截止时间尚未到达");
+    await pool.query("UPDATE seasons SET roster_change_closes_at = now() - interval '1 second' WHERE id = $1", [fixture.seasonId]);
+
     const locked = await database.transaction((tx) => lockMajorPrestartEntrantsInTx(tx, {
       seasonId: fixture!.seasonId,
       actorId: ACTOR,

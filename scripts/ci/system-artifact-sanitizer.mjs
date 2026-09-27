@@ -1,7 +1,5 @@
-import { execFileSync } from "node:child_process";
-import { copyFileSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { extname, join, resolve } from "node:path";
-import { tmpdir } from "node:os";
+import { copyFileSync, lstatSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { extname, resolve } from "node:path";
 
 const TEXT_EXTENSIONS = new Set([
   ".css", ".csv", ".html", ".js", ".json", ".jsonl", ".log", ".md", ".mjs", ".svg", ".trace", ".ts", ".tsx", ".txt", ".xml", ".yaml", ".yml",
@@ -45,27 +43,15 @@ export function copySafeTree(source, target, includeReportJson, options = {}) {
     const extension = extname(name).toLowerCase();
     try {
       if (extension === ".json" && !includeReportJson) continue;
-      if (extension === ".zip") {
-        sanitizeTraceArchive(sourcePath, targetPath);
-        continue;
-      }
+      // Playwright traces may contain full page data and many binary assets.
+      // Keep the default failure bundle to redacted text and bounded screenshots.
+      if (extension === ".zip") continue;
       const content = readTextFile(sourcePath);
       if (content === undefined) continue;
       writeFileSync(targetPath, redact(content), "utf8");
     } catch {
       // A transient report file must never hide the original test failure.
     }
-  }
-}
-
-function sanitizeTraceArchive(source, target) {
-  const temporaryDirectory = mkdtempSync(join(tmpdir(), "rivalhub-trace-"));
-  try {
-    execFileSync("unzip", ["-qq", source, "-d", temporaryDirectory], { stdio: "ignore" });
-    sanitizeTree(temporaryDirectory);
-    execFileSync("zip", ["-q", "-r", target, "."], { cwd: temporaryDirectory, stdio: "ignore" });
-  } finally {
-    rmSync(temporaryDirectory, { recursive: true, force: true });
   }
 }
 
@@ -85,37 +71,6 @@ export function redact(value) {
     safe = safe.split(secret).join("[REDACTED_ENV]");
   }
   return safe;
-}
-
-function sanitizeTree(directory) {
-  for (const name of readdirSync(directory)) {
-    if (shouldSkipName(name)) {
-      rmSync(resolve(directory, name), { recursive: true, force: true });
-      continue;
-    }
-    const path = resolve(directory, name);
-    let stat;
-    try {
-      stat = lstatSync(path);
-    } catch {
-      continue;
-    }
-    if (stat.isSymbolicLink()) {
-      rmSync(path, { force: true });
-      continue;
-    }
-    if (stat.isDirectory()) {
-      sanitizeTree(path);
-      continue;
-    }
-    if (!stat.isFile() || isBinaryPath(path)) {
-      rmSync(path, { force: true });
-      continue;
-    }
-    const content = readTextFile(path);
-    if (content === undefined) rmSync(path, { force: true });
-    else writeFileSync(path, redact(content), "utf8");
-  }
 }
 
 function readTextFile(path) {

@@ -6,26 +6,17 @@ import { scheduledJobHealth } from "@/db/schema";
 import { classifyError } from "@/lib/observability/errors";
 import { captureException } from "@/lib/observability/server";
 import type { SchedulerJobDefinition, SchedulerJobKey, SchedulerSource } from "./definitions";
+import { isPrimaryHealthHealthy } from "./health-contract";
 
 export type SchedulerHealthRecord = typeof scheduledJobHealth.$inferSelect;
 
-function isFresh(lastAt: Date, staleAfterMs: number, now = new Date()): boolean {
-  const age = now.getTime() - lastAt.getTime();
-  return age >= 0 && age <= staleAfterMs;
-}
-
-/** Primary is healthy only after both dispatch and endpoint execution are fresh. */
+/** Primary health treats idle checks as healthy and only requires endpoint success for requested dispatches. */
 export function isPrimaryHealthy(
-  record: Pick<SchedulerHealthRecord, "lastPrimaryTriggeredAt" | "lastPrimaryEndpointSucceededAt"> | null | undefined,
+  record: Pick<SchedulerHealthRecord, "lastPrimaryTriggeredAt" | "lastPrimaryDispatchRequestedAt" | "lastPrimaryEndpointSucceededAt"> | null | undefined,
   definition: Pick<SchedulerJobDefinition, "staleAfterMs">,
   now = new Date(),
 ): boolean {
-  return Boolean(
-    record?.lastPrimaryTriggeredAt &&
-    record.lastPrimaryEndpointSucceededAt &&
-    isFresh(record.lastPrimaryTriggeredAt, definition.staleAfterMs, now) &&
-    isFresh(record.lastPrimaryEndpointSucceededAt, definition.staleAfterMs, now),
-  );
+  return isPrimaryHealthHealthy(record ?? null, definition, now);
 }
 
 const databaseConfigured = (): boolean => Boolean(process.env.DATABASE_URL?.trim());

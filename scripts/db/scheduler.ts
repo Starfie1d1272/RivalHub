@@ -124,6 +124,7 @@ async function verifyVaultNames(pool: Pool): Promise<void> {
 type SchedulerHealthEvidence = {
   job_key: string;
   last_primary_triggered_at: Date | null;
+  last_primary_dispatch_requested_at: Date | null;
   last_primary_endpoint_succeeded_at: Date | null;
 };
 
@@ -137,10 +138,10 @@ export function hasCompletePrimaryEvidence(
   const healthByKey = new Map(healthRows.map((row) => [row.job_key, row]));
   const healthReady = SCHEDULER_JOB_DEFINITIONS.every((definition) => {
     const row = healthByKey.get(definition.key);
-    return !!row?.last_primary_triggered_at
-      && row.last_primary_triggered_at >= verifiedAt
+    return !!row?.last_primary_dispatch_requested_at
+      && row.last_primary_dispatch_requested_at >= verifiedAt
       && !!row.last_primary_endpoint_succeeded_at
-      && row.last_primary_endpoint_succeeded_at >= verifiedAt;
+      && row.last_primary_endpoint_succeeded_at >= row.last_primary_dispatch_requested_at;
   });
   const minuteJobNames = new Set(SCHEDULER_JOB_DEFINITIONS
     .filter((definition) => definition.primaryCron === "* * * * *")
@@ -158,7 +159,7 @@ async function verifyPrimaryDispatch(pool: Pool): Promise<void> {
   if (!verifiedAt) throw new Error("Production scheduler 无法建立 dispatch 验证时间边界。");
 
   for (const definition of SCHEDULER_JOB_DEFINITIONS) {
-    await pool.query("SELECT public.dispatch_rivalhub_scheduler_job($1::text)", [definition.key]);
+    await pool.query("SELECT public.force_dispatch_rivalhub_scheduler_job($1::text)", [definition.key]);
   }
 
   const names = SCHEDULER_JOB_DEFINITIONS.map((definition) => schedulerJobName(definition.key));
@@ -167,7 +168,7 @@ async function verifyPrimaryDispatch(pool: Pool): Promise<void> {
   while (Date.now() < deadline) {
     const [healthResult, runResult] = await Promise.all([
       pool.query<SchedulerHealthEvidence>(`
-        SELECT job_key, last_primary_triggered_at, last_primary_endpoint_succeeded_at
+        SELECT job_key, last_primary_triggered_at, last_primary_dispatch_requested_at, last_primary_endpoint_succeeded_at
         FROM public.scheduled_job_health
         WHERE job_key = ANY($1::text[])
       `, [SCHEDULER_JOB_DEFINITIONS.map((definition) => definition.key)]),
@@ -187,7 +188,7 @@ async function verifyPrimaryDispatch(pool: Pool): Promise<void> {
     await new Promise((resolve) => setTimeout(resolve, DISPATCH_VERIFY_POLL_MS));
   }
 
-  throw new Error("Production scheduler 未在有界窗口内形成 fresh primary trigger、endpoint success 与分钟级 cron 成功证据。");
+  throw new Error("Production scheduler 未在有界窗口内形成 fresh forced dispatch、endpoint success 与分钟级 cron 成功证据。");
 }
 
 export function dispatchCommand(definition: SchedulerJobDefinition): string {

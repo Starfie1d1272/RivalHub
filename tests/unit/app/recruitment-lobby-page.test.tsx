@@ -30,6 +30,7 @@ const baseLobbyData = {
   playerLfts: [basePlayer],
   targetSeasons: [],
   viewerInterestedIntentIds: new Set<string>(),
+  viewerInvitedTeamIds: new Set<string>(),
 };
 
 describe("recruitment lobby cards", () => {
@@ -45,6 +46,13 @@ describe("recruitment lobby cards", () => {
     const html = renderToStaticMarkup(page);
 
     expect(html).toContain(`最近更新 · ${formatCSTShortDate(updatedAt)}`);
+  });
+
+  it("passes a directly selected event from the URL into the server read model", async () => {
+    const selectedEventId = "b2ee0a76-feb1-4e15-9f2b-5298a4f1a3dc";
+    await RecruitmentLobbyPage({ searchParams: Promise.resolve({ view: "teams", event: selectedEventId }) });
+
+    expect(getRecruitmentLobbyDataMock.mock.calls[0]?.[0]).toMatchObject({ targetSeasonId: selectedEventId });
   });
 
   it("renders a real avatar when the public DTO provides one", async () => {
@@ -119,5 +127,14 @@ describe("recruitment lobby cards", () => {
     const emptyPage = await RecruitmentLobbyPage({ searchParams: Promise.resolve({ view: "players" }) });
     const emptyHtml = renderToStaticMarkup(emptyPage);
     expect(emptyHtml).toContain("未填写地图熟练度");
+
+    getRecruitmentLobbyDataMock.mockResolvedValueOnce({
+      ...baseLobbyData,
+      playerLfts: [{ ...basePlayer, mapPreferences: [{ map: "de_mirage", level: "strong" }] }],
+    });
+    const currentPoolPage = await RecruitmentLobbyPage({ searchParams: Promise.resolve({ view: "players" }) });
+    const currentPoolHtml = renderToStaticMarkup(currentPoolPage);
+    expect(currentPoolHtml).toContain("当前地图池熟练度");
+    expect(currentPoolHtml).not.toContain("Active Duty");
   });
 });

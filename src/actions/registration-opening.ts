@@ -6,6 +6,7 @@ import { db } from "@/db/client";
 import { actionError, failValidation } from "@/lib/action-utils";
 import { requireAuth } from "@/lib/auth/session";
 import { ensureRegistrationOpenForParticipantInTx } from "@/lib/seasons/registration-recovery";
+import { updatePublicSeasonTags } from "@/lib/revalidation";
 import { ok, type ActionResult } from "@/types/action";
 
 export async function recoverRegistrationOpening(input: unknown): Promise<ActionResult<{ opened: boolean }>> {
@@ -15,6 +16,7 @@ export async function recoverRegistrationOpening(input: unknown): Promise<Action
   try {
     await requireAuth();
     const result = await db.transaction((tx) => ensureRegistrationOpenForParticipantInTx(tx, parsed.data.seasonId));
+    if (result.opened) updatePublicSeasonTags(result.season.slug, result.season.id);
     revalidatePath(`/${result.season.slug}/register`);
     return ok({ opened: result.opened });
   } catch (error) {

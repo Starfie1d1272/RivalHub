@@ -1,0 +1,1 @@
+ALTER TABLE "major_prestart_states" ADD COLUMN "main_event_planned_start_at" timestamp with time zone;

@@ -20,6 +20,7 @@ import {
   type MajorPlayoffMatchFact,
 } from "./playoff";
 import { buildFinalMajorPlacements, type MajorSwissStageFacts } from "./placement";
+import { createMajorDefaultCapabilities } from "@/lib/competition/templates";
 
 interface SimulatedStage extends MajorSwissStageFacts {
   qualifiers: ReturnType<typeof getMajorSwissQualifiers>;
@@ -198,6 +199,20 @@ function createGoldenMajor(hasThirdPlaceMatch = false): GoldenMajor {
   };
 }
 
+function buildPlacements(major: GoldenMajor) {
+  return buildFinalMajorPlacements({
+    tournamentTeams: major.tournamentTeams,
+    stagePlan: createMajorDefaultCapabilities().stagePlan,
+    swissStages: [
+      { stageKey: "stage1", facts: major.stage1 },
+      { stageKey: "stage2", facts: major.stage2 },
+      { stageKey: "stage3", facts: major.stage3 },
+    ],
+    playoffMatches: major.playoffMatches,
+    hasThirdPlaceMatch: major.hasThirdPlaceMatch,
+  });
+}
+
 function expectPlacementGroups(
   placements: ReturnType<typeof buildFinalMajorPlacements>,
   ranges: readonly (readonly [number, number])[],
@@ -233,7 +248,7 @@ function expectSwissEliminationGroups(
 describe("golden 32-team Major domain simulation", () => {
   it("runs the 106-match no-third-place path and derives canonical placement groups", () => {
     const major = createGoldenMajor();
-    const placements = buildFinalMajorPlacements(major);
+    const placements = buildPlacements(major);
 
     expect(major.stage1.matches).toHaveLength(33);
     expect(major.stage2.matches).toHaveLength(33);
@@ -263,7 +278,7 @@ describe("golden 32-team Major domain simulation", () => {
 
   it("runs the 107-match third-place path and derives separate third and fourth groups", () => {
     const major = createGoldenMajor(true);
-    const placements = buildFinalMajorPlacements(major);
+    const placements = buildPlacements(major);
 
     expect(major.playoffMatches).toHaveLength(8);
     expect(
@@ -280,21 +295,14 @@ describe("golden 32-team Major domain simulation", () => {
 
   it("is independent from fact and entrant input ordering", () => {
     const major = createGoldenMajor();
-    const baseline = buildFinalMajorPlacements(major);
+    const baseline = buildPlacements(major);
     const reversed = buildFinalMajorPlacements({
       tournamentTeams: [...major.tournamentTeams].reverse(),
-      stage1: {
-        entrants: [...major.stage1.entrants].reverse(),
-        matches: [...major.stage1.matches].reverse(),
-      },
-      stage2: {
-        entrants: [...major.stage2.entrants].reverse(),
-        matches: [...major.stage2.matches].reverse(),
-      },
-      stage3: {
-        entrants: [...major.stage3.entrants].reverse(),
-        matches: [...major.stage3.matches].reverse(),
-      },
+      stagePlan: createMajorDefaultCapabilities().stagePlan,
+      swissStages: [major.stage1, major.stage2, major.stage3].map((facts, index) => ({
+        stageKey: ["stage1", "stage2", "stage3"][index]!,
+        facts: { entrants: [...facts.entrants].reverse(), matches: [...facts.matches].reverse() },
+      })),
       playoffMatches: [...major.playoffMatches].reverse(),
       hasThirdPlaceMatch: major.hasThirdPlaceMatch,
     });
@@ -304,10 +312,7 @@ describe("golden 32-team Major domain simulation", () => {
   it("fails closed when a completed stage is incomplete", () => {
     const major = createGoldenMajor();
     expect(() =>
-      buildFinalMajorPlacements({
-        ...major,
-        stage2: { ...major.stage2, matches: major.stage2.matches.slice(0, -1) },
-      }),
+      buildPlacements({ ...major, stage2: { ...major.stage2, matches: major.stage2.matches.slice(0, -1) } }),
     ).toThrow(/incomplete/);
   });
 
@@ -323,9 +328,10 @@ describe("golden 32-team Major domain simulation", () => {
     const replace = (teamId: string) => (teamId === advancedId ? eliminatedId : teamId);
 
     expect(() =>
-      buildFinalMajorPlacements({
+      buildPlacements({
         ...major,
         stage2: {
+          ...major.stage2,
           entrants: major.stage2.entrants.map((entrant) => ({
             ...entrant,
             teamId: replace(entrant.teamId),
@@ -338,6 +344,6 @@ describe("golden 32-team Major domain simulation", () => {
           })),
         },
       }),
-    ).toThrow(/Stage 2 advancing entrants|Stage 3 advancing entrants/);
+    ).toThrow(/阶段二 entrants/);
   });
 });

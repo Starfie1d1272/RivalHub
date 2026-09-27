@@ -17,7 +17,7 @@ interface TeamCardProps {
   entryId: string;
   teamName: string;
   seasonSlug: string;
-  eyebrow: string;
+  eyebrow?: string;
   logoUrl?: string | null;
   players: PlayerPreview[];
   record?: {
@@ -72,7 +72,7 @@ export function TeamCard({
           <Link href={`/${seasonSlug}/teams/${entryId}`} className="group flex min-w-0 items-center gap-3">
             <TeamLogo logoUrl={logoUrl ?? null} teamName={teamName} />
             <div className="min-w-0">
-              <span className="text-xs text-[var(--color-fg-mid)]">{eyebrow}</span>
+              {eyebrow && <span className="text-xs text-[var(--color-fg-mid)]">{eyebrow}</span>}
               <h3 className="font-bold text-lg text-[var(--color-fg)] leading-tight break-words group-hover:text-[var(--color-accent)] transition-colors">
                 {teamName}
               </h3>

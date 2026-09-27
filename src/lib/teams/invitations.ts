@@ -4,7 +4,7 @@ import { writeAuditInTx } from "@/lib/audit/write";
 import { db, type TxDb } from "@/db/client";
 import { teamInvitations, teamMemberships, teams } from "@/db/schema";
 import { AppError, ErrorCode } from "@/lib/errors";
-import { closePlayerLftInTx } from "@/lib/recruitment/commands";
+import { clearRecruitmentInterestForTeamUserInTx, closePlayerLftInTx } from "@/lib/recruitment/commands";
 
 /**
  * Canonical expiration transition for pending team invitations.
@@ -92,6 +92,7 @@ export async function acceptTeamInvitationInTx(
   const sameCurrent = await tx.query.teamMemberships.findFirst({ where: and(eq(teamMemberships.teamId, team.id), eq(teamMemberships.userId, input.userId), isNull(teamMemberships.endedAt)) });
   if (sameCurrent) throw new AppError(ErrorCode.REGISTRATION_DUPLICATE, "你当前已属于这支队伍。");
   await tx.insert(teamMemberships).values({ teamId: team.id, userId: input.userId, status: "active", invitedByUserId: invitation.invitedByUserId });
+  await clearRecruitmentInterestForTeamUserInTx(tx, team.id, input.userId);
   await closePlayerLftInTx(tx, { userId: input.userId });
   await tx.update(teamInvitations).set({ status: "accepted", respondedByUserId: input.userId, respondedAt: new Date(), updatedAt: new Date() }).where(eq(teamInvitations.id, invitation.id));
   await writeAuditInTx(tx, { seasonId: null, action: "team.invite.accept", actorId: input.actorId, targetId: team.id,meta: { invitationId: invitation.id, userId: input.userId } });

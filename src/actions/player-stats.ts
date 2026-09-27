@@ -2,7 +2,7 @@
 
 import { writeAuditInTx } from "@/lib/audit/write";
 
-import { and, eq, desc, sql, inArray, isNotNull } from "drizzle-orm";
+import { and, eq, desc, sql, inArray, isNotNull, or } from "drizzle-orm";
 import { db } from "@/db/client";
 import { matchMaps } from "@/db/schema/match-maps";
 import { matches } from "@/db/schema/matches";
@@ -61,7 +61,16 @@ export async function extractStatsFromScreenshot(
       .select({ userId: eventRosterMembers.userId })
       .from(eventRosterMembers)
       .innerJoin(eventRosters, eq(eventRosterMembers.eventRosterId, eventRosters.id))
-      .where(inArray(eventRosters.entryId, [match.entryAId, match.entryBId]));
+      .where(and(
+        inArray(eventRosters.entryId, [match.entryAId, match.entryBId]),
+        or(
+          eq(eventRosterMembers.isCurrent, true),
+          inArray(eventRosterMembers.id, db.select({ memberId: matchRosterPlayers.eventRosterMemberId })
+            .from(matchRosterPlayers)
+            .innerJoin(matchRosters, eq(matchRosters.id, matchRosterPlayers.rosterId))
+            .where(eq(matchRosters.matchId, match.id))),
+        ),
+      ));
 
     const teamUserIds = teamMemberRows.map((r) => r.userId);
 
@@ -278,7 +287,16 @@ export async function getMatchPlayerOptions(mapId: string): Promise<PlayerOption
       .select({ userId: eventRosterMembers.userId })
       .from(eventRosterMembers)
       .innerJoin(eventRosters, eq(eventRosterMembers.eventRosterId, eventRosters.id))
-      .where(inArray(eventRosters.entryId, [match.entryAId, match.entryBId]));
+      .where(and(
+        inArray(eventRosters.entryId, [match.entryAId, match.entryBId]),
+        or(
+          eq(eventRosterMembers.isCurrent, true),
+          inArray(eventRosterMembers.id, db.select({ memberId: matchRosterPlayers.eventRosterMemberId })
+            .from(matchRosterPlayers)
+            .innerJoin(matchRosters, eq(matchRosters.id, matchRosterPlayers.rosterId))
+            .where(eq(matchRosters.matchId, match.id))),
+        ),
+      ));
 
     const teamUserIds = teamMemberRows.map((r) => r.userId);
     if (!teamUserIds.length) return [];

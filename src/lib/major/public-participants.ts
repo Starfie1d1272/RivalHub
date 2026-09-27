@@ -318,7 +318,7 @@ async function loadMajorPublicParticipantState(
         .innerJoin(eventRosters, eq(eventRosters.id, eventRosterMembers.eventRosterId))
         .innerJoin(users, eq(users.id, eventRosterMembers.userId))
         .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
-        .where(inArray(eventRosters.entryId, eventMemberEntryIds))
+        .where(and(inArray(eventRosters.entryId, eventMemberEntryIds), eq(eventRosterMembers.isCurrent, true)))
         .orderBy(asc(eventRosters.entryId), asc(users.id))
       : Promise.resolve([] as RosterMemberRow[]),
     db
@@ -401,9 +401,6 @@ async function loadMajorPublicParticipantState(
         representativeUserId: entry.representativeUserId,
         teamId: entry.teamId,
       },
-      cardLabel: isOfficial
-        ? seed === null ? "正式参赛队" : `#${seed} 种子`
-        : "已通过报名审核",
       participation,
       roster: roster.map(publicRosterMember),
       rosterLabel: isOfficial

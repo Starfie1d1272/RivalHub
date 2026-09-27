@@ -35,7 +35,7 @@ export function simulateMajor(
     throw new Error("该推演使用旧版规则，只能查看保存结果");
   const ordered = orderedPredictionStages(base.stages);
   const first = ordered.find((stage) => stage.previousKey === null);
-  if (!first || base.teams.length !== 32) return [];
+  if (!first || base.teams.length !== first.directSeeds[1]) return [];
   const result: SimStage[] = [];
   let qualifiers: { teamId: string; finalStageSeed: number }[] = [];
   let hypothetical = false;

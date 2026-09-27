@@ -52,6 +52,9 @@ export interface MajorStrengthFact {
   sourceRank: string | null;
   sourceStars: number | null;
   conversionVersion: string | null;
+  estimatedFromUnranked?: boolean;
+  estimatedFromSeasonKey?: string | null;
+  estimatedFromHistorical?: boolean;
 }
 
 export interface MajorStrengthStarter {
@@ -76,6 +79,7 @@ export interface MajorStrengthTeam {
   available: boolean;
   blockers: string[];
   recommendationRank: number | null;
+  displayOrder: number | null;
   tieState: MajorStrengthTieState;
   starters: MajorStrengthStarter[];
 }
@@ -98,9 +102,23 @@ export interface MajorPrestartPageData {
   readiness: MajorPrestartReadiness;
   management: {
     seasonId: string;
+    seasonSlug: string;
+    seasonStatus: Season["status"];
+    managedProfileId: "major-24" | "major-32";
+    registrationClosesAt: string | null;
+    registrationOpenState: "pending" | "open" | "closed";
+    rosterChangeClosesAt: string | null;
+    rosterAdjustmentDeadlinePassed: boolean;
+    mainEventPlannedStartAt: string | null;
+    mainEventStartOverdue: boolean;
+    registrationClosed: boolean;
     entrantCapacity: number;
     entrantsLocked: boolean;
+    approvedCandidateCount: number;
+    pendingReviewCount: number;
+    initialPreliminaryOrderEntryIds: string[];
     strengthPreview: MajorPrestartStrengthPreview;
+    rankingRoster: Array<{ entryId: string; members: Array<MajorStrengthStarter & { isPrimaryStarter: boolean }> }>;
     approvedCandidates: Array<{
       id: string;
       name: string;
@@ -122,10 +140,39 @@ export interface MajorPrestartPageData {
       teamName: string;
       rosterStatus: "preparing" | "confirmed" | "frozen";
       roster: Array<{ userId: string; label: string; isPrimaryStarter: boolean; educationVerified: boolean }>;
+      recentRosterChange: { added: string[]; removed: string[]; primaryChanged: string[] } | null;
     }>;
+    qualification: {
+      run: {
+        id: string;
+        format: "direct_bo3" | "short_swiss_2w2l";
+        targetEntrantCount: number;
+        candidateCount: number;
+        directEntryCount: number;
+        playInEntryCount: number;
+        qualifierCount: number;
+        startedAt: string | null;
+        completedAt: string | null;
+        entrants: Array<{
+          entryId: string;
+          teamName: string;
+          preliminarySeed: number;
+          route: "direct" | "play-in";
+          wins: number;
+          losses: number;
+          status: "active" | "advanced" | "eliminated" | "not_started";
+        }>;
+        currentRound: number;
+        matchCount: number;
+        finishedMatchCount: number;
+      } | null;
+    };
   };
   seedManagement: {
     seasonId: string;
+    entrantCapacity: number;
+    firstSwissStageName: string;
+    entryCohorts: Array<{ stageKey: string; stageName: string; fromSeed: number; toSeed: number }>;
     entrantsLocked: boolean;
     entrants: Array<{ teamId: string; teamName: string }>;
     seeds: Array<{ teamId: string; tournamentSeed: number }>;

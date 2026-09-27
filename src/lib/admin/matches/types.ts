@@ -2,7 +2,8 @@ import type { CompetitionEntry, Match, MatchMap, MatchRosterStatus, Season } fro
 import type { MajorPlayoffRuntimeData, MajorSwissRuntimeData } from "@/lib/admin/major-runtime";
 import type { TeamStanding } from "@/lib/standings";
 import type { StageConfig, StagePlan } from "@/types/season";
-import type { MajorSwissStageReadModel } from "@/lib/matches/stage-read-model";
+import type { SwissStageReadModel } from "@/lib/matches/stage-read-model";
+import type { CompetitionQualificationRun } from "@/db/schema";
 
 export interface TeamMemberData {
   id: string;
@@ -11,12 +12,14 @@ export interface TeamMemberData {
   displayName: string | null;
   perfectName: string | null;
   primaryPosition: string;
+  isCurrent: boolean;
 }
 
 export interface RosterData {
   rosterId: string | null;
   starters: string[];
   substitutes: string[];
+  vetoRepresentativeEventRosterMemberId: string | null;
   status: MatchRosterStatus | null;
 }
 
@@ -69,9 +72,16 @@ export interface AdminDemoReviewParticipant {
   observedSteam64: string;
   demoName: string;
   teamName: string;
-  canConfirm: boolean;
+  state: "confirmable" | "conflict-retirable" | "conflict-nonretirable" | "roster-mismatch" | "blocked";
+  currentPlayer: { userId: string; name: string } | null;
+  retirableIdentityId: string | null;
   note: string | null;
   candidates: AdminDemoReviewCandidate[];
+  observedSteamProfile?: {
+    personaName: string;
+    avatarUrl: string | null;
+    profileUrl: string;
+  } | null;
 }
 
 export interface AdminDemoReviewMap {
@@ -80,7 +90,9 @@ export interface AdminDemoReviewMap {
   mapOrder: number;
   mapName: string;
   invalidPayload: boolean;
-  message: string | null;
+  message: string;
+  resolvedCount: number;
+  blockingIssues: string[];
   participants: AdminDemoReviewParticipant[];
 }
 
@@ -113,7 +125,8 @@ export interface AdminMatchOverviewData {
   stagePlan: StagePlan;
   matches: AdminMatchSummary[];
   stageViews: { stage: StageConfig; matches: AdminMatchSummary[] }[];
-  stageReadModels: Map<string, MajorSwissStageReadModel>;
+  stageReadModels: Map<string, SwissStageReadModel>;
+  qualificationRun: Pick<CompetitionQualificationRun, "id" | "format" | "playInEntryCount"> | null;
   commentaryEffectiveness: AdminCommentaryEffectiveness[];
   unconfiguredMatches: AdminMatchSummary[];
   standingsByStage: Map<string, TeamStanding[]>;
@@ -147,6 +160,7 @@ export interface AdminMatchWorkbenchData {
   completedMaps: AdminCompletedMap[];
   pendingMaps: AdminPendingMap[];
   finishedMaps: AdminFinishedMap[];
+  vetoCompletedAt: Date | null;
   postMatch: AdminPostMatchRecordData | null;
   demoReviews?: AdminDemoReviewMap[];
 }

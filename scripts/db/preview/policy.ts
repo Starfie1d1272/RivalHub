@@ -28,9 +28,11 @@ export const PREVIEW_COLUMNS: Record<string, string> = {
   competition_entry_roster_revisions: "id entry_id revision_number status origin created_by created_at submitted_at approved_at",
   competition_entry_submissions: "id entry_id roster_revision_id sequence decision submitted_by submitted_at decided_by decided_at",
   competition_entry_representative_changes: "id entry_id from_user_id to_user_id changed_at changed_by_actor_id",
+  competition_qualification_runs: "id season_id format target_entrant_count candidate_count direct_entry_count play_in_entry_count qualifier_count configured_at started_at completed_at created_at updated_at",
+  competition_qualification_entrants: "id run_id season_id competition_entry_id preliminary_seed created_at",
   event_rosters: "id entry_id source_roster_revision_id status confirmed_at confirmed_by frozen_at frozen_by created_at updated_at",
-  event_roster_members: "id event_roster_id user_id participant_id education_verification_id is_primary_starter created_at",
-  major_prestart_states: "id season_id entrants_locked_at entrants_locked_by seeds_confirmed_at seeds_confirmed_by seeds_locked_at seeds_locked_by created_at updated_at",
+  event_roster_members: "id event_roster_id user_id participant_id education_verification_id is_primary_starter is_current created_at",
+  major_prestart_states: "id season_id entrants_locked_at entrants_locked_by seeds_confirmed_at seeds_confirmed_by seeds_locked_at seeds_locked_by main_event_planned_start_at created_at updated_at",
   major_tournament_entrants: "id season_id competition_entry_id created_at",
   major_tournament_seeds: "id season_id tournament_entrant_id seed created_at",
   major_stage_runs: "id season_id stage_key rule_snapshot finalized_round started_at started_by",
@@ -39,12 +41,19 @@ export const PREVIEW_COLUMNS: Record<string, string> = {
   captain_votes: "id voter_registration_id candidate_registration_id created_at",
   draft_picks: "id season_id entry_id registration_id round pick_number auto_picked created_at",
   draft_state: "id season_id current_round current_entry_id round_deadline is_active updated_at",
-  matches: "id season_id entry_a_id entry_b_id stage round format entry_round score_a score_b status is_forfeit bracket_node_id ownership major_stage_run_id managed_key scheduled_at completion_deadline completed_at mvp_winner_user_id created_at updated_at",
+  dak_pairing_intents: "id poll_token_hash status authorized_by_user_id expires_at authorized_at delivered_at created_at",
+  dak_pairings: "id pairing_intent_id user_id token_hash scopes season_ids status revoked_at last_used_at created_at",
+  matches: "id season_id entry_a_id entry_b_id stage round format entry_round score_a score_b status is_forfeit bracket_node_id ownership major_stage_run_id qualification_run_id managed_key scheduled_at completion_deadline completed_at mvp_winner_user_id created_at updated_at",
   match_maps: "id match_id map_order map_name picked_by_entry_id team_a_start_side score_a score_b completed_at created_at",
-  match_player_stats: "id match_id map_id perfect_name user_id kills deaths assists hs_percent first_kills first_deaths multi_kills trade_kills kast_rounds clutches adr rws rating_pro we verified_by_admin verified_at created_at",
+  match_demo_imports: "id season_id match_id match_map_id stage_key stage_run_id demo_sha256 payload_sha256 contract_version semantic_profile analysis_version evidence_revision status payload submitted_by_pairing_id idempotency_key supersedes_import_id issues submitted_at confirmed_at created_at",
+  match_player_stats: "id match_id map_id perfect_name user_id kills deaths assists hs_percent first_kills first_deaths multi_kills trade_kills kast_rounds clutches adr rws rating_pro we dak_import_id verified_by_admin verified_at created_at",
+  match_round_facts: "id import_id round_seq source_round_number phase start_tick freeze_end_tick end_tick team_a_side team_b_side team_a_score_before team_b_score_before team_a_economy team_b_economy winner_team_key winner_side end_reason created_at",
   match_rosters: "id match_id entry_id submitted_by source status locked_at confirmed_at confirmed_by created_at updated_at",
-  match_roster_players: "roster_id event_roster_member_id is_starter",
-  match_veto_steps: "id match_id step_order action_type map_name entry_id side created_at",
+  match_roster_players: "roster_id event_roster_member_id is_starter is_veto_representative",
+  match_veto_sessions: "match_id privileged_entry_id veto_team_a_entry_id entry_a_start_requested_at entry_a_start_requested_by entry_b_start_requested_at entry_b_start_requested_by map_pool_snapshot started_at completed_at current_turn_key turn_started_at turn_deadline_at paused_at paused_by revision created_at updated_at",
+  match_veto_steps: "id match_id step_order action_type map_name entry_id side source actor_user_id turn_key created_at",
+  match_veto_timeout_incidents: "id match_id turn_key entry_id representative_user_id deadline_at resolved_at eligible_options selected_options created_at",
+  match_veto_appeals: "id timeout_incident_id submitted_by status resolution_scope resolved_by created_at resolved_at",
   match_commentators: "match_id user_id added_by_user_id added_at",
   post_match_reports: "match_id submitted_by_user_id submitted_at",
   community_awards: "id season_id submitted_by_user_id name condition prize public_note status reviewed_by_user_id reviewed_at recipient_user_id outcome_note outcome_by_user_id outcome_at created_at updated_at",
@@ -55,6 +64,7 @@ export const PREVIEW_COLUMNS: Record<string, string> = {
   competition_stage_bracket_states: "competition_id stage_key data updated_at",
   post_event_adjudications: "id season_id status kind target impacts target_entry_id target_user_id target_match_id public_explanation created_by created_at revoked_by revoked_at",
   tournament_honors: "id season_id honor_key type label state basis placement_from placement_to entry_id user_id source_final_result_id adjudication_id awarded_by awarded_at revoked_by revoked_at created_at updated_at",
+  user_gameplay_steam_ids: "id user_id steam64 status provenance source_import_id confirmed_by_user_id confirmed_at reason retired_by_user_id retired_at retired_reason created_at",
 };
 
 /** Known columns deliberately not exported. New columns require an explicit review. */
@@ -65,14 +75,17 @@ export const OMITTED_COLUMNS: Record<string, string> = {
   team_memberships: "ended_reason",
   competition_entries: "review_reason",
   competition_entry_submissions: "reason",
+  competition_qualification_runs: "configured_by started_by",
   major_prestart_states: "seed_override_reason",
   draft_picks: "client_request_id",
   matches: "video_url",
   community_awards: "supplementary_note review_note",
+  match_veto_steps: "client_request_id",
+  match_veto_sessions: "pause_reason",
+  match_veto_appeals: "reason resolution_note",
   post_event_adjudications: "client_request_id reason internal_evidence revocation_reason",
   tournament_honors: "client_request_id revocation_reason",
   recruitment_intents: "note",
-  match_player_stats: "dak_import_id",
 };
 
 type PreviewSchemaColumnLifecycle = {
@@ -95,9 +108,33 @@ type PreviewSchemaLifecycleTable = {
  * policy remains the latest-main projection; previewPolicyFor() removes future
  * entries for a lagging source and rejects columns past their removal marker.
  */
-export const PREVIEW_STEAM_SHADOW_CLEANUP_MIGRATION = "0053_steam_profile_contract_cleanup";
-
 export const PREVIEW_SCHEMA_LIFECYCLE: readonly PreviewSchemaLifecycleTable[] = [
+  { table: "competition_qualification_runs", introducedAt: "0056_competition-qualification-playin" },
+  { table: "competition_qualification_entrants", introducedAt: "0056_competition-qualification-playin" },
+  {
+    table: "event_roster_members",
+    columns: [{ name: "is_current", introducedAt: "0057_event_roster_member_history" }],
+  },
+  {
+    table: "match_roster_players",
+    columns: [{ name: "is_veto_representative", introducedAt: "0058_bright_mikhail_rasputin" }],
+  },
+  { table: "match_veto_sessions", introducedAt: "0058_bright_mikhail_rasputin" },
+  {
+    table: "match_veto_steps",
+    columns: [
+      { name: "source", introducedAt: "0058_bright_mikhail_rasputin" },
+      { name: "actor_user_id", introducedAt: "0058_bright_mikhail_rasputin" },
+      { name: "client_request_id", introducedAt: "0058_bright_mikhail_rasputin" },
+      { name: "turn_key", introducedAt: "0058_bright_mikhail_rasputin" },
+    ],
+  },
+  { table: "match_veto_timeout_incidents", introducedAt: "0058_bright_mikhail_rasputin" },
+  { table: "match_veto_appeals", introducedAt: "0058_bright_mikhail_rasputin" },
+  { table: "dak_pairing_intents", introducedAt: "0051_sour_grim_reaper" },
+  { table: "dak_pairings", introducedAt: "0051_sour_grim_reaper" },
+  { table: "match_demo_imports", introducedAt: "0051_sour_grim_reaper" },
+  { table: "match_round_facts", introducedAt: "0051_sour_grim_reaper" },
   {
     table: "match_player_stats",
     columns: [
@@ -112,11 +149,20 @@ export const PREVIEW_SCHEMA_LIFECYCLE: readonly PreviewSchemaLifecycleTable[] = 
     introducedAt: "0052_gray_supernaut",
   },
   {
+    table: "major_prestart_states",
+    columns: [{ name: "main_event_planned_start_at", introducedAt: "0060_calm_matthew_murdock" }],
+  },
+  {
+    table: "matches",
+    columns: [{ name: "qualification_run_id", introducedAt: "0056_competition-qualification-playin" }],
+  },
+  { table: "user_gameplay_steam_ids", introducedAt: "0052_gray_supernaut" },
+  {
     table: "users",
     columns: [
-      { name: "steam_name", removedAt: PREVIEW_STEAM_SHADOW_CLEANUP_MIGRATION, compatibility: "legacy-shadow" },
-      { name: "steam_profile_url", removedAt: PREVIEW_STEAM_SHADOW_CLEANUP_MIGRATION, compatibility: "legacy-shadow" },
-      { name: "avatar_url", removedAt: PREVIEW_STEAM_SHADOW_CLEANUP_MIGRATION, compatibility: "legacy-shadow" },
+      { name: "steam_name", compatibility: "legacy-shadow", removedAt: "0055_steam_profile_shadow_cleanup" },
+      { name: "steam_profile_url", compatibility: "legacy-shadow", removedAt: "0055_steam_profile_shadow_cleanup" },
+      { name: "avatar_url", compatibility: "legacy-shadow", removedAt: "0055_steam_profile_shadow_cleanup" },
     ],
   },
 ] as const;
@@ -128,7 +174,7 @@ export const EXCLUDED_TABLES = new Set(`identity_link_requests user_identities u
   user_sessions disciplinary_case_idempotency disciplinary_cases community_award_evidence
   prediction_programs prediction_accounts prediction_contests prediction_picks prediction_judgements prediction_scenarios
   prediction_markets prediction_market_options prediction_stakes prediction_settlements prediction_ledger prediction_jobs prediction_stage_milestones
-  scheduled_job_health feedback_reports dak_pairing_intents dak_pairings match_demo_imports match_round_facts user_gameplay_steam_ids`.split(/\s+/));
+  scheduled_job_health feedback_reports`.split(/\s+/));
 
 export interface PreviewTablePolicy {
   exportedColumns: readonly string[];
@@ -328,18 +374,18 @@ function assertPolicyDefinition(expectedMigrations: readonly ExpectedMigration[]
       seenColumns.add(key);
       const known = PREVIEW_COLUMNS[event.table]?.split(" ").includes(column.name) || OMITTED_COLUMNS[event.table]?.split(" ").includes(column.name);
       if (column.compatibility === "legacy-shadow") {
-        if (known || !column.removedAt) {
-          throw new PreviewMirrorError("PREVIEW_SCHEMA_POLICY_INVALID", "Preview legacy shadow lifecycle is not a removed compatibility column.", {
+        if (known) {
+          throw new PreviewMirrorError("PREVIEW_SCHEMA_POLICY_INVALID", "Preview legacy shadow must not remain in permanent preview columns.", {
+            context: { phase: "schema inventory-policy", table: event.table, column: column.name },
+          });
+        }
+        if (column.removedAt && !knownMigrationIndexes.has(column.removedAt)) {
+          throw new PreviewMirrorError("PREVIEW_SCHEMA_POLICY_INVALID", "Preview schema lifecycle references an unknown migration tag.", {
             context: { phase: "schema inventory-policy", table: event.table, column: column.name },
           });
         }
       } else if (!known) {
         throw new PreviewMirrorError("PREVIEW_SCHEMA_POLICY_INVALID", "Preview schema policy references an unknown column owner.", {
-          context: { phase: "schema inventory-policy", table: event.table, column: column.name },
-        });
-      }
-      if (column.compatibility === "legacy-shadow" && OMITTED_COLUMNS[event.table]?.split(" ").includes(column.name)) {
-        throw new PreviewMirrorError("PREVIEW_SCHEMA_POLICY_INVALID", "Preview legacy shadow must not remain in permanent omitted columns.", {
           context: { phase: "schema inventory-policy", table: event.table, column: column.name },
         });
       }

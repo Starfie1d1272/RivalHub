@@ -92,6 +92,13 @@ export const USER_REFERENCE_RULES: readonly UserReferenceRule[] = [
   { table: "user_merge_ledger", column: "merged_user_id", label: "归并历史旧账号", mode: "preserve" },
   { table: "user_merge_ledger", column: "executed_by_user_id", label: "归并执行人", mode: "preserve" },
   { table: "match_rosters", column: "submitted_by", label: "比赛名单提交人", mode: "preserve" },
+  { table: "match_veto_appeals", column: "resolved_by", label: "BP 申诉处理人", mode: "preserve" },
+  { table: "match_veto_appeals", column: "submitted_by", label: "BP 申诉提交人", mode: "preserve" },
+  { table: "match_veto_sessions", column: "entry_a_start_requested_by", label: "BP A 方开始请求人", mode: "preserve" },
+  { table: "match_veto_sessions", column: "entry_b_start_requested_by", label: "BP B 方开始请求人", mode: "preserve" },
+  { table: "match_veto_sessions", column: "paused_by", label: "BP 暂停操作人", mode: "preserve" },
+  { table: "match_veto_steps", column: "actor_user_id", label: "BP 步骤操作人", mode: "preserve" },
+  { table: "match_veto_timeout_incidents", column: "representative_user_id", label: "BP 超时责任代表", mode: "preserve" },
   { table: "match_time_proposals", column: "proposed_by", label: "比赛时间提议人", mode: "preserve" },
   { table: "match_time_proposals", column: "force_assigned_by", label: "比赛时间强制安排人", mode: "preserve" },
   { table: "match_mvp_votes", column: "player_user_id", label: "MVP 候选人", mode: "reparent" },
@@ -430,8 +437,8 @@ async function loadCollisionFacts(queryable: MergeQueryable, input: { canonicalU
         WHERE b.user_id = ${input.mergedUserId} AND a.entry_id <> b.entry_id)
         + (SELECT count(*)::int FROM competition_entry_participants b JOIN competition_entries eb ON eb.id = b.entry_id JOIN competition_entry_participants a ON a.user_id = ${input.canonicalUserId} AND a.status = 'confirmed' JOIN competition_entries ea ON ea.id = a.entry_id AND ea.competition_id = eb.competition_id
         WHERE b.user_id = ${input.mergedUserId} AND b.status = 'confirmed' AND ea.id <> eb.id)
-        + (SELECT count(*)::int FROM event_roster_members b JOIN event_rosters rb ON rb.id = b.event_roster_id JOIN competition_entries eb ON eb.id = rb.entry_id JOIN event_roster_members a ON a.user_id = ${input.canonicalUserId} JOIN event_rosters ra ON ra.id = a.event_roster_id AND ra.status IN ('confirmed', 'frozen') JOIN competition_entries ea ON ea.id = ra.entry_id AND ea.competition_id = eb.competition_id
-        WHERE b.user_id = ${input.mergedUserId} AND rb.status IN ('confirmed', 'frozen') AND ea.id <> eb.id) AS competition_commitment_conflict,
+        + (SELECT count(*)::int FROM event_roster_members b JOIN event_rosters rb ON rb.id = b.event_roster_id JOIN competition_entries eb ON eb.id = rb.entry_id JOIN event_roster_members a ON a.user_id = ${input.canonicalUserId} AND a.is_current JOIN event_rosters ra ON ra.id = a.event_roster_id AND ra.status IN ('confirmed', 'frozen') JOIN competition_entries ea ON ea.id = ra.entry_id AND ea.competition_id = eb.competition_id
+        WHERE b.user_id = ${input.mergedUserId} AND b.is_current AND rb.status IN ('confirmed', 'frozen') AND ea.id <> eb.id) AS competition_commitment_conflict,
       (SELECT count(*)::int
         FROM competition_entry_roster_members b
         JOIN competition_entry_roster_members a
@@ -443,10 +450,12 @@ async function loadCollisionFacts(queryable: MergeQueryable, input: { canonicalU
         + (SELECT count(*)::int
           FROM event_roster_members b
           JOIN event_roster_members a
-            ON a.user_id = ${input.canonicalUserId}
-           AND a.event_roster_id = b.event_roster_id
+          ON a.user_id = ${input.canonicalUserId}
+         AND a.event_roster_id = b.event_roster_id
+         AND a.is_current
           JOIN event_rosters r ON r.id = b.event_roster_id
           WHERE b.user_id = ${input.mergedUserId}
+            AND b.is_current
             AND r.status IN ('confirmed', 'frozen')) AS competition_roster_conflict
   `);
   const row = result.rows[0] as Record<string, unknown> | undefined;
@@ -808,11 +817,13 @@ async function mergeCompetitionFactsInTx(tx: TxDb, canonicalUserId: string, merg
     else await tx.execute(sql`UPDATE competition_entry_roster_members SET user_id = ${canonicalUserId}, participant_id = ${targetParticipant} WHERE id = ${row.id}`);
   }
 
-  const eventRows = (await tx.execute(sql`SELECT em.id, em.event_roster_id, em.participant_id, em.education_verification_id, em.is_primary_starter, er.status FROM event_roster_members em JOIN event_rosters er ON er.id = em.event_roster_id WHERE em.user_id = ${mergedUserId} ORDER BY em.id`)).rows as Array<{ id: string; event_roster_id: string; participant_id: string | null; education_verification_id: string | null; is_primary_starter: boolean; status: string }>;
+  const eventRows = (await tx.execute(sql`SELECT em.id, em.event_roster_id, em.participant_id, em.education_verification_id, em.is_primary_starter, em.is_current, er.status FROM event_roster_members em JOIN event_rosters er ON er.id = em.event_roster_id WHERE em.user_id = ${mergedUserId} ORDER BY em.id`)).rows as Array<{ id: string; event_roster_id: string; participant_id: string | null; education_verification_id: string | null; is_primary_starter: boolean; is_current: boolean; status: string }>;
   for (const row of eventRows) {
     const targetParticipant = row.participant_id ? participantMap.get(row.participant_id) ?? row.participant_id : null;
-    const [winner] = (await tx.execute(sql`SELECT id, education_verification_id, is_primary_starter FROM event_roster_members WHERE user_id = ${canonicalUserId} AND event_roster_id = ${row.event_roster_id} LIMIT 1`)).rows as Array<{ id: string; education_verification_id: string | null; is_primary_starter: boolean }>;
-    if (winner) {
+    const [winner] = row.is_current
+      ? (await tx.execute(sql`SELECT id, education_verification_id, is_primary_starter FROM event_roster_members WHERE user_id = ${canonicalUserId} AND event_roster_id = ${row.event_roster_id} AND is_current ORDER BY id LIMIT 1`)).rows as Array<{ id: string; education_verification_id: string | null; is_primary_starter: boolean }>
+      : [];
+    if (winner && row.is_current) {
       await tx.execute(sql`UPDATE event_roster_members SET education_verification_id = coalesce(education_verification_id, ${row.education_verification_id}), is_primary_starter = is_primary_starter OR ${row.is_primary_starter} WHERE id = ${winner.id}`);
       await tx.execute(sql`DELETE FROM match_roster_players loser USING match_roster_players winner WHERE loser.event_roster_member_id = ${row.id} AND winner.event_roster_member_id = ${winner.id} AND loser.roster_id = winner.roster_id`);
       await tx.execute(sql`UPDATE match_roster_players SET event_roster_member_id = ${winner.id} WHERE event_roster_member_id = ${row.id}`);

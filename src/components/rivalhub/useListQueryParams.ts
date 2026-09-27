@@ -7,7 +7,7 @@ import { applyListQueryUpdates, type ListQueryParamsOptions, type ListQueryUpdat
 export { applyListQueryUpdates } from "@/lib/list-query";
 export type { ListQueryValue, ListQueryUpdates, ListQueryDefaults, ListQuerySearchParams, ListQueryUpdateOptions, ListQueryUpdate, ListQueryParamsOptions } from "@/lib/list-query";
 
-export function useListQueryParams({ routeBase, defaults = {} }: ListQueryParamsOptions = {}) {
+export function useListQueryParams({ routeBase, defaults = {}, preserveScroll = false }: ListQueryParamsOptions = {}) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -26,9 +26,10 @@ export function useListQueryParams({ routeBase, defaults = {} }: ListQueryParams
       const query = next.toString();
       const href = query ? `${base}?${query}` : base;
       const navigate = options.history === "push" ? router.push : router.replace;
-      navigate(href as never);
+      if (preserveScroll) navigate(href as never, { scroll: false });
+      else navigate(href as never);
     },
-    [defaults, pathname, routeBase, router],
+    [defaults, pathname, preserveScroll, routeBase, router],
   );
 
   return { searchParams, update };

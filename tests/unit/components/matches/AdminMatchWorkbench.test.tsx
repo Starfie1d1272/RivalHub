@@ -43,6 +43,7 @@ function data(status: Match["status"]) {
     bracketNodeId: null,
     ownership: "major_stage" as const,
     majorStageRunId: "run-1",
+    qualificationRunId: null,
     managedKey: "swiss:1:1",
     scheduledAt: new Date("2026-09-05T02:00:00Z"),
     completionDeadline: null,
@@ -52,7 +53,7 @@ function data(status: Match["status"]) {
     createdAt: new Date("2026-09-05T00:00:00Z"),
     updatedAt: new Date("2026-09-05T00:00:00Z"),
   } satisfies Match;
-  const roster = { rosterId: "roster-a", starters: ["a1", "a2", "a3", "a4", "a5"], substitutes: [], status: "confirmed" as const };
+  const roster = { rosterId: "roster-a", starters: ["a1", "a2", "a3", "a4", "a5"], substitutes: [], vetoRepresentativeEventRosterMemberId: null, status: "confirmed" as const };
   return {
     season: { id: "season-1", slug: "major", name: "Major" },
     stageName: "Swiss",
@@ -60,8 +61,8 @@ function data(status: Match["status"]) {
     teamAName: "Alpha",
     teamBName: "Beta",
     mapPool: ["de_inferno"],
-    teamAMembers: ["a1", "a2", "a3", "a4", "a5"].map((id) => ({ id, entryId: "entry-a", personaName: id, displayName: null, perfectName: null, primaryPosition: "rifler" })),
-    teamBMembers: ["b1", "b2", "b3", "b4", "b5"].map((id) => ({ id, entryId: "entry-b", personaName: id, displayName: null, perfectName: null, primaryPosition: "rifler" })),
+    teamAMembers: ["a1", "a2", "a3", "a4", "a5"].map((id) => ({ id, entryId: "entry-a", personaName: id, displayName: null, perfectName: null, primaryPosition: "rifler", isCurrent: true })),
+    teamBMembers: ["b1", "b2", "b3", "b4", "b5"].map((id) => ({ id, entryId: "entry-b", personaName: id, displayName: null, perfectName: null, primaryPosition: "rifler", isCurrent: true })),
     teamARoster: roster,
     teamBRoster: { ...roster, rosterId: "roster-b", starters: ["b1", "b2", "b3", "b4", "b5"] },
     teamAPreflight: { valid: true, blockers: [] },
@@ -69,6 +70,7 @@ function data(status: Match["status"]) {
     completedMaps: status === "finished" ? [{ mapOrder: 1, mapName: "de_inferno", scoreA: 13, scoreB: 9, pickedByEntryId: null, teamAStartSide: "t" as const }] : [],
     pendingMaps: [],
     finishedMaps: status === "finished" ? [{ id: "map-1", mapName: "de_inferno", scoreA: 13, scoreB: 9 }] : [],
+    vetoCompletedAt: status === "finished" ? new Date("2026-09-05T03:00:00Z") : null,
     postMatch: { commentators: [], seasonAdmins: [], submittedAt: null, submittedByUserId: null, videoUrl: null, completionLabel: "待整理", canSubmit: status === "finished" },
   };
 }
@@ -81,9 +83,20 @@ describe("AdminMatchWorkbench", () => {
 
     expect(screen.getByRole("heading", { name: "首发名单" })).toBeInTheDocument();
     expect(screen.getByTestId("roster-dialog")).toBeInTheDocument();
-    expect(screen.getByTestId("veto-dialog")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "打开 Veto Room" })).toBeInTheDocument();
     expect(screen.getByTestId("forfeit-button")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "危险操作与恢复" })).toBeInTheDocument();
+  });
+
+  it("hides map scoring until the Veto map plan is complete", () => {
+    const workbench = data("in_progress");
+    const view = render(<AdminMatchWorkbench {...workbench} />);
+
+    expect(screen.getByRole("status")).toHaveTextContent("完成 BP 地图计划后才能录入地图比分");
+    expect(screen.queryByTestId("map-input")).not.toBeInTheDocument();
+
+    view.rerender(<AdminMatchWorkbench {...workbench} vetoCompletedAt={new Date("2026-09-05T03:00:00Z")} />);
+    expect(screen.getByTestId("map-input")).toBeInTheDocument();
   });
 
   it("keeps finished roster visibility, post-match/OCR and recovery actions together", () => {

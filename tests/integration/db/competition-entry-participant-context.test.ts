@@ -5,9 +5,9 @@ import { describe, expect, it } from "vitest";
 import type { TxDb } from "../../../src/db/client";
 import * as schema from "../../../src/db/schema";
 import { confirmCompetitionEntryParticipationInTx, withdrawCompetitionEntryParticipationInTx } from "../../../src/lib/competition-entries/commands";
-import { loadCompetitionEntryParticipantContext } from "../../../src/lib/competition-entries/participant-context";
+import { loadCompetitionEntryParticipantContextInTx } from "../../../src/lib/competition-entries/participant-context";
 import { ErrorCode } from "../../../src/lib/errors";
-import { capturePostgresError, createLocalPool } from "./harness/database";
+import { capturePostgresError, createLocalPool, measureMaxConcurrentClientQueries } from "./harness/database";
 
 describe("competition-entry participant context", () => {
   it("deduplicates an Entry when the user is both its representative and participant", async () => {
@@ -26,7 +26,11 @@ describe("competition-entry participant context", () => {
       await database.insert(schema.competitionEntryRosterRevisions).values({ id: ids.revision, entryId: ids.entry, revisionNumber: 1, status: "draft", createdBy: ids.user });
       await database.insert(schema.competitionEntryParticipants).values({ id: ids.participant, entryId: ids.entry, userId: ids.user, status: "invited", invitedByUserId: ids.user });
 
-      const context = await loadCompetitionEntryParticipantContext({ competitionId: ids.season, userId: ids.user }, tx);
+      const maxConcurrentQueries = await measureMaxConcurrentClientQueries(client, () =>
+        loadCompetitionEntryParticipantContextInTx(tx, { competitionId: ids.season, userId: ids.user }),
+      );
+      expect(maxConcurrentQueries).toBe(1);
+      const context = await loadCompetitionEntryParticipantContextInTx(tx, { competitionId: ids.season, userId: ids.user });
       expect(context.primaryEntry?.id).toBe(ids.entry);
       expect(context.activeClaimEntryId).toBeNull();
       expect(context.invitationConflict).toBeNull();
@@ -103,7 +107,7 @@ describe("competition-entry participant context", () => {
         participantId: ids.oldParticipant,
       });
 
-      const beforeWithdrawal = await loadCompetitionEntryParticipantContext({ competitionId: ids.season, userId: ids.player }, tx);
+      const beforeWithdrawal = await loadCompetitionEntryParticipantContextInTx(tx, { competitionId: ids.season, userId: ids.player });
       expect(beforeWithdrawal.primaryEntry?.id).toBe(ids.oldEntry);
       expect(beforeWithdrawal.activeClaimEntryId).toBe(ids.oldEntry);
       expect(beforeWithdrawal.invitationConflict).toEqual({ pendingInvitationCount: 1, latestPendingInvitationName: "新队" });
@@ -121,7 +125,7 @@ describe("competition-entry participant context", () => {
       const selfRosterChange = await database.query.competitionEntryRosterRevisions.findFirst({ where: eq(schema.competitionEntryRosterRevisions.id, changedOldEntry!.currentRosterRevisionId) });
       expect(selfRosterChange).toMatchObject({ status: "draft", origin: "self_roster_change" });
 
-      const afterWithdrawal = await loadCompetitionEntryParticipantContext({ competitionId: ids.season, userId: ids.player }, tx);
+      const afterWithdrawal = await loadCompetitionEntryParticipantContextInTx(tx, { competitionId: ids.season, userId: ids.player });
       expect(afterWithdrawal.primaryEntry?.id).toBe(ids.newEntry);
       expect(afterWithdrawal.activeClaimEntryId).toBeNull();
       expect(afterWithdrawal.invitationConflict).toBeNull();

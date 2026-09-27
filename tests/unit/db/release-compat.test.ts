@@ -98,6 +98,62 @@ export type NewOldTeam = typeof oldTeams.$inferInsert;
     expect(result.findings[0]).toMatchObject({ status: "pass", finding: { category: "drop" } });
   });
 
+  it("does not mistake Steam profile output aliases for users column dependencies", () => {
+    const fixture = createFixture({
+      migration: `${MIGRATION_CONTRACT_ANNOTATION}\nALTER TABLE "users" DROP COLUMN "steam_profile_url", DROP COLUMN "avatar_url";`,
+      source: `export const users = pgTable("users", { steam64: text("steam64") });\n`,
+      extraFiles: {
+        "src/lib/profile-read.ts": `import { sql } from "drizzle-orm";\nexport const query = sql\`SELECT sp.profile_url AS steam_profile_url, sp.avatar_url AS avatar_url FROM users u JOIN steam_profiles sp ON sp.steam64 = u.steam64\`;\n`,
+      },
+    });
+    configureExplicitPreviousRelease(fixture);
+
+    const result = checkReleaseCompatibility(fixture.directory);
+
+    expect(result.failures).toEqual([]);
+    expect(result.findings).toMatchObject([{
+      status: "pass",
+      finding: { category: "drop" },
+      owners: [
+        { displayName: "users.steam_profile_url" },
+        { displayName: "users.avatar_url" },
+      ],
+      evidence: [],
+    }]);
+  });
+
+  it("still fails when previous stable SQL reads a dropped column without a table schema mapping", () => {
+    const fixture = createFixture({
+      migration: `${MIGRATION_CONTRACT_ANNOTATION}\nALTER TABLE "users" DROP COLUMN "avatar_url";`,
+      source: `export const users = pgTable("users", { steam64: text("steam64") });\n`,
+      extraFiles: {
+        "src/lib/legacy-reader.ts": `import { sql } from "drizzle-orm";\nexport const query = sql\`SELECT avatar_url FROM users WHERE id = 'user-1'\`;\n`,
+      },
+    });
+    configureExplicitPreviousRelease(fixture);
+
+    const result = checkReleaseCompatibility(fixture.directory);
+
+    expect(result.failures[0]).toContain("src/lib/legacy-reader.ts:");
+    expect(result.failures[0]).toContain("users.avatar_url");
+  });
+
+  it("recognizes a dropped-column read through a SQL table alias", () => {
+    const fixture = createFixture({
+      migration: `${MIGRATION_CONTRACT_ANNOTATION}\nALTER TABLE "users" DROP COLUMN "avatar_url";`,
+      source: `export const users = pgTable("users", { steam64: text("steam64") });\n`,
+      extraFiles: {
+        "src/lib/legacy-reader.ts": `import { sql } from "drizzle-orm";\nexport const query = sql\`SELECT u.avatar_url FROM users AS u WHERE u.id = 'user-1'\`;\n`,
+      },
+    });
+    configureExplicitPreviousRelease(fixture);
+
+    const result = checkReleaseCompatibility(fixture.directory);
+
+    expect(result.failures[0]).toContain("src/lib/legacy-reader.ts:");
+    expect(result.failures[0]).toContain("users.avatar_url");
+  });
+
   it("finds a previous stable Drizzle property consumer outside the schema directory", () => {
     const fixture = createFixture({
       migration: `${MIGRATION_CONTRACT_ANNOTATION}\nALTER TABLE "teams" DROP COLUMN "old_column";`,

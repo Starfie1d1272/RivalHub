@@ -9,6 +9,7 @@ const baseEnvironment: NodeJS.ProcessEnv = {
   GITHUB_REF: "refs/heads/main",
   GITHUB_WORKFLOW: "Refresh Preview Data",
   GITHUB_EVENT_NAME: "workflow_dispatch",
+  RIVALHUB_PREVIEW_MIGRATION_REF: "main",
   RIVALHUB_PREVIEW_RESET_CONFIRM: STAGING_PROJECT_REF,
   RIVALHUB_STAGING_PROJECT_CONFIRM: STAGING_PROJECT_REF,
   RIVALHUB_STAGING_DB_HOST_CONFIRM: "aws-0-ap-northeast-1.pooler.supabase.com:6543",

@@ -5,6 +5,7 @@ const {
   matchFindFirstMock,
   entryFindManyMock,
   mapFindManyMock,
+  vetoSessionFindFirstMock,
   postMatchFindFirstMock,
   requireSeasonAdminMock,
   selectMock,
@@ -13,6 +14,7 @@ const {
   matchFindFirstMock: vi.fn(),
   entryFindManyMock: vi.fn(),
   mapFindManyMock: vi.fn(),
+  vetoSessionFindFirstMock: vi.fn(),
   postMatchFindFirstMock: vi.fn(),
   requireSeasonAdminMock: vi.fn(),
   selectMock: vi.fn(),
@@ -25,6 +27,7 @@ vi.mock("@/db/client", () => ({
       matches: { findFirst: matchFindFirstMock },
       competitionEntries: { findMany: entryFindManyMock },
       matchMaps: { findMany: mapFindManyMock },
+      matchVetoSessions: { findFirst: vetoSessionFindFirstMock },
       postMatchReports: { findFirst: postMatchFindFirstMock },
     },
     select: selectMock,
@@ -90,6 +93,7 @@ describe("loadAdminMatchWorkbench", () => {
       { id: "entry-b", name: "Beta" },
     ]);
     mapFindManyMock.mockResolvedValue([]);
+    vetoSessionFindFirstMock.mockResolvedValue(undefined);
     postMatchFindFirstMock.mockResolvedValue(undefined);
     requireSeasonAdminMock.mockResolvedValue({ userId: "admin-1" });
     selectMock.mockImplementation(() => selectBuilder([]));
@@ -104,6 +108,7 @@ describe("loadAdminMatchWorkbench", () => {
       match: { id: "match-1", seasonId: "season-1" },
       teamAName: "Alpha",
       teamBName: "Beta",
+      vetoCompletedAt: null,
     });
   });
 

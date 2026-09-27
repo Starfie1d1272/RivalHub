@@ -2,7 +2,7 @@ import "server-only";
 import { and, eq, inArray, or, ne } from "drizzle-orm";
 import { db } from "@/db/client";
 import { matchMaps, matches, seasons, steamProfiles, userMapPreferences, users } from "@/db/schema";
-import { getPublicPlayerMapExperience } from "@/lib/stats/public-query";
+import { getPublicPlayerMapExperience, getPublicPlayerMapExperienceCoverage } from "@/lib/stats/public-query";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
 
 type PublicFinishedMatch = {
@@ -64,9 +64,10 @@ export function aggregatePublicTeamMapPreviews(
 /** Explicit entry identity owns W/L; current members contribute scouting context only. */
 export async function getPublicTeamMapProfile(entryIds: readonly string[], memberIds: readonly string[]) {
   const ids = [...new Set(entryIds)];
-  const [played, experience, preferences] = await Promise.all([
+  const [played, experience, experienceMemberIds, preferences] = await Promise.all([
     ids.length ? db.select({ id: matches.id, stage: matches.stage, entryAId: matches.entryAId, entryBId: matches.entryBId }).from(matches).innerJoin(seasons, eq(seasons.id, matches.seasonId)).where(and(eq(matches.status, "finished"), ne(seasons.status, "draft"), or(inArray(matches.entryAId, ids), inArray(matches.entryBId, ids)))) : [],
     getPublicPlayerMapExperience(memberIds),
+    getPublicPlayerMapExperienceCoverage(memberIds),
     memberIds.length ? db.select({ userId: users.id, displayName: users.displayName, perfectName: users.perfectName, personaName: steamProfiles.personaName, preferences: userMapPreferences.mapPreferences }).from(userMapPreferences).innerJoin(users, eq(users.id, userMapPreferences.userId)).leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64)).where(inArray(users.id, [...new Set(memberIds)])) : [],
   ]);
   const matchIds = played.map((match) => match.id);
@@ -85,6 +86,11 @@ export async function getPublicTeamMapProfile(entryIds: readonly string[], membe
     playedStages: [...new Set(played.map((match) => match.stage))],
     own: [...own.values()].sort((a, b) => b.played - a.played || a.mapName.localeCompare(b.mapName)),
     experience,
+    experienceCoverage: {
+      rosterMembers: [...new Set(memberIds)].length,
+      experiencedMembers: experienceMemberIds.length,
+      experiencedMemberIds: experienceMemberIds,
+    },
     preferences: preferences.map((row) => ({ userId: row.userId, name: getPublicDisplayName(row), preferences: row.preferences })),
   };
 }

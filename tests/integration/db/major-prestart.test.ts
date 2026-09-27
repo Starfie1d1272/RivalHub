@@ -3,7 +3,7 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import { describe, expect, it } from "vitest";
 import * as schema from "../../../src/db/schema";
-import { assertPrestartEntryCoherenceInTx } from "../../../src/lib/major/prestart-entry";
+import { assertPrestartEntryCoherenceInTx } from "../../../src/lib/event-rosters/coherence";
 import { ErrorCode } from "../../../src/lib/errors";
 import { capturePostgresError, localDatabaseUrl } from "./harness/database";
 

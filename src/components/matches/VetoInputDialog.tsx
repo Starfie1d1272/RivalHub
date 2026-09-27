@@ -122,7 +122,7 @@ function buildTemplate(
         { actionType: "decider", mapName: "", entryId: entryBId, side: null },
       ];
     case "bo5":
-      // A ban, B ban → A/B/A/B pick → decider (B picks side)
+      // A ban, B ban → A/B/A/B pick → knife decides the decider side.
       return [
         { actionType: "ban", mapName: "", entryId: entryAId, side: null },
         { actionType: "ban", mapName: "", entryId: entryBId, side: null },
@@ -130,7 +130,7 @@ function buildTemplate(
         { actionType: "pick", mapName: "", entryId: entryBId, side: null },
         { actionType: "pick", mapName: "", entryId: entryAId, side: null },
         { actionType: "pick", mapName: "", entryId: entryBId, side: null },
-        { actionType: "decider", mapName: "", entryId: entryBId, side: null },
+        { actionType: "decider", mapName: "", entryId: null, side: null },
       ];
   }
 }
@@ -324,11 +324,11 @@ export function VetoInputDialog({
                     <div className="flex min-w-0 items-center gap-2">
                       {/* 操作类型 */}
                       <span className="w-16 shrink-0 rounded-sm bg-[var(--color-panel-low)] px-1.5 py-0.5 text-center font-mono text-xs uppercase text-[var(--color-fg-mid)]">
-                        {ACTION_LABELS[step.actionType]}
+                        {format === "bo5" && step.actionType === "decider" ? "刀赛" : ACTION_LABELS[step.actionType]}
                       </span>
 
                       {/* 执行队伍 */}
-                      <div className="flex shrink-0 gap-1">
+                      {!(format === "bo5" && step.actionType === "decider") && <div className="flex shrink-0 gap-1">
                         <button
                           type="button"
                           onClick={() => updateStep(i, { entryId: step.entryId === entryAId ? null : entryAId, side: step.entryId === entryAId ? null : step.side })}
@@ -353,7 +353,7 @@ export function VetoInputDialog({
                         >
                           B
                         </button>
-                      </div>
+                      </div>}
                     </div>
 
                     {/* 地图 */}
@@ -383,7 +383,10 @@ export function VetoInputDialog({
                         onSideChange={(side) => updateStep(i, { side })}
                       />
                     )}
-                    {step.actionType === "decider" && step.entryId && (
+                    {format === "bo5" && step.actionType === "decider" && (
+                      <p className="text-xs text-[var(--color-fg-mid)]">第五图起始方由刀赛决定。</p>
+                    )}
+                    {format !== "bo5" && step.actionType === "decider" && step.entryId && (
                       <SideSelect
                         label="→ 选边"
                         side={step.side}

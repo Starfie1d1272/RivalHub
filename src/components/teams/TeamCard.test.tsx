@@ -10,7 +10,6 @@ const props = {
   entryId: "entry-1",
   teamName: "Rival Orange",
   seasonSlug: "spring",
-  eyebrow: "正式参赛队",
   logoUrl: null,
   players: [
     {
@@ -47,6 +46,7 @@ describe("TeamCard", () => {
   it("uses event roster facts without rendering registration positions", () => {
     render(<TeamCard {...props} />);
 
+    expect(screen.queryByText("正式参赛队")).not.toBeInTheDocument();
     expect(screen.queryByText("代表人")).not.toBeInTheDocument();
     expect(screen.getAllByText("Captain Star")).not.toHaveLength(0);
     expect(screen.getByText("2 首发")).toBeInTheDocument();

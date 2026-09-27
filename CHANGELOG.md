@@ -1,5 +1,155 @@
 # Changelog
 
+## [2.13.4]
+
+### Fixed
+
+#### Major 系统参考
+
+修复未定级选手较多时部分队伍系统参考整体缺失的问题。明确未定级赛季不等同 D，也不等同资料缺失：优先使用同赛季等价证据，否则按最近一个更早的真实已定级赛季下一档估算；没有此前逐赛季已定级记录时，以历史最高下一档作为保守参考。估算值始终保留来源说明，不会使用后来的赛季反推更早赛季。
+
+## [2.13.3]
+
+### Fixed
+
+#### Major 赛前排名与队伍身份
+
+Major 排名矩阵支持缩小至 50%。未定级赛季不再等同最低 D 段位：在没有同赛季可用等价证据时，按最近一个此前已定级赛季向低一档生成明确标识的实力参考；连续未定级不会重复降档。长期队伍改名会同步仍在进行中的赛事参赛名称，并回填现有未结束赛事中的旧名称。
+
+#### 赛前数据镜像与设置边界
+
+补齐 Main Event 计划开始时间的 Preview Mirror 生命周期声明，并验证 Major 的报名截止与最终名单调整截止继续由赛前工作区管理，不被通用赛季设置覆盖。
+
+## [2.13.2]
+
+### Changed
+
+#### Major 赛前工作区
+
+Major 赛前管理按报名收口、资格方案、资格赛、正赛名单、正赛种子和开赛确认六阶段推进；报名期、预排名与最终种子共用完整队伍排名矩阵，并按资格赛生命周期冻结、重开和最终锁定名单调整。报名截止、最终名单调整截止与 Main Event 计划开始分别由对应阶段管理。
+
+## [2.13.1]
+
+### Fixed
+
+#### BP 超时调度
+
+修复 Production 数据库拒绝派发 Veto Room 超时任务的问题，并补齐 BP 操作人账号归并与 Preview schema 策略。
+
+## [2.13.0]
+
+### Added
+
+#### 在线 Veto Room
+
+比赛双方负责人可在线确认并完成地图 BP，系统独立记录地图计划、超时与申诉；资格赛先手依据冻结预排名确定。
+
+### Changed
+
+#### NJU Major 统一赛事规则
+
+发布规则 v1.1，明确 Play-In、BP、名单调整和赛前身份核验要求；各届具体赛制参数由正式赛事公告承载。
+
+## [2.12.3]
+
+### Added
+
+#### Major 资格赛
+
+新增独立 Qualification / Play-in 流程，支持 Direct BO3 与 Short Swiss，并将晋级结果纳入正赛名单确认。
+
+### Changed
+
+#### 队伍报名资料补全
+
+改善报名资格缺口的恢复与行动路径，支持精确赛季资料链接、院校搜索无结果恢复，以及管理员补充院校目录。
+
+#### Steam 官方资料缓存
+
+移除已停用的用户资料兼容列，统一使用 `steam_profiles` 保存 Steam 官方资料缓存。
+
+## [2.12.2]
+
+### Added
+
+#### Demo 身份复核中的 Steam 官方资料
+
+管理员现在可以在 Demo 复核中查看陌生或历史观测 Steam64 对应的官方头像、昵称和个人主页；资料获取失败时仍可继续核对。
+
+### Changed
+
+#### Steam 资料缓存与玩家头像
+
+Steam 官方资料缓存统一使用 `steam_profiles` 保存；玩家头像改为直连 Steam CDN 展示。
+
+## [2.12.1]
+
+### Changed
+
+#### 队伍公开页与选手统计表
+
+调整赛事队伍公开页的信息层级，并改善移动端选手统计表中长名称的展示。
+
+### Fixed
+
+#### 队伍邀请与调度器
+
+修复队伍邀请和加入意向的状态冲突，并修正 Scheduler watchdog planner 在 GitHub Actions 中的执行问题。
+
+## [2.12.0]
+
+### Added
+
+#### Major 赛制与选手生涯数据
+
+管理员现可配置并运行 24 队 Major，默认 32 队赛制和历史赛事保持兼容。选手主页新增跨赛事生涯表现、赛事与地图筛选，以及基于全站历史样本的 Player Attributes 评分和可视化。
+
+### Changed
+
+#### 选手主页与统计说明
+
+重组选手主页信息层级和竞技数据工作区，拆分 Opening、Teamplay、Maps 与 Weapons；赛事统计指标说明统一通过提示入口查看，移除重复的区块解释。
+
+### Fixed
+
+#### 参赛资料、招募与报名名单
+
+修复通用参赛资料就绪判断、5E 未定级赛事 fallback、招募筛选和地图池上下文，并统一相关中文文案。报名名单校验在同一 PostgreSQL 事务中按序读取，避免事务连接上的查询重叠。
+
+#### 调度器派发
+
+调度器仅在存在到期工作时唤醒 Vercel，并将主调度检查、实际派发和端点成功记录为独立健康事实。
+
+## [2.11.0]
+
+### Added
+
+#### 赛事统计中心
+
+赛事统计整理为 Overview、Players、Teams、Maps 和 Weapons 五个入口，并支持 Stage、Best-of、Map 与 Team 等可分享筛选。新增地图池与 BP 视图、队伍 Rating 汇总、赛事经济摘要和 Situation Highlights；正式赛果、BP 暴露及已确认 DAK 详细覆盖继续分开呈现。
+
+### Fixed
+
+#### 公开页面缓存与加载
+
+首页、公告和赛季信息改用可定向失效的共享缓存，公开路由复用 App Shell，同时保持 viewer 专属任务独立加载。更新 Next.js 与 eslint-config-next 安全补丁，并记录 Vercel build footprint。
+
+## [2.10.7]
+
+### Fixed
+
+#### Demo 审核与身份重检
+
+比赛 Steam 身份确认后会自动重新检查同赛事中受同一 Steam64 影响的待处理 Demo，并为管理员提供按当前资料手动重检入口；同时将真实出场名单差异与 Steam 身份冲突分开呈现，避免错误改绑。
+
+## [2.10.6]
+
+### Fixed
+
+#### Demo 审核与身份纠错
+
+比赛后台 Demo 审核聚焦异常选手并说明比分、QA 等阻塞原因，正常身份改为人数摘要。支持填写原因并确认撤销本赛事比赛确认产生的错误 Steam 关联，刷新后重新核对；保留既有身份校验和审计边界。
+
 ## [2.10.5]
 
 ### Fixed
@@ -2307,6 +2457,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[2.13.4]: https://github.com/Starfie1d1272/RivalHub/compare/v2.13.3...v2.13.4
+[2.13.3]: https://github.com/Starfie1d1272/RivalHub/compare/v2.13.2...v2.13.3
+[2.13.2]: https://github.com/Starfie1d1272/RivalHub/compare/v2.13.1...v2.13.2
+[2.13.1]: https://github.com/Starfie1d1272/RivalHub/compare/v2.13.0...v2.13.1
+[2.13.0]: https://github.com/Starfie1d1272/RivalHub/compare/v2.12.3...v2.13.0
+[2.12.3]: https://github.com/Starfie1d1272/RivalHub/compare/v2.12.2...v2.12.3
+[2.12.2]: https://github.com/Starfie1d1272/RivalHub/compare/v2.12.1...v2.12.2
+[2.12.1]: https://github.com/Starfie1d1272/RivalHub/compare/v2.12.0...v2.12.1
+[2.10.7]: https://github.com/Starfie1d1272/RivalHub/compare/v2.10.6...v2.10.7
+[2.11.0]: https://github.com/Starfie1d1272/RivalHub/compare/v2.10.7...v2.11.0
+[2.10.6]: https://github.com/Starfie1d1272/RivalHub/compare/v2.10.5...v2.10.6
 [2.10.5]: https://github.com/Starfie1d1272/RivalHub/compare/v2.10.4...v2.10.5
 [2.10.4]: https://github.com/Starfie1d1272/RivalHub/compare/v2.10.3...v2.10.4
 [2.10.3]: https://github.com/Starfie1d1272/RivalHub/compare/v2.10.2...v2.10.3
@@ -2361,6 +2522,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [1.28.2]: https://github.com/Starfie1d1272/RivalHub/compare/v1.28.1...v1.28.2
 [1.28.1]: https://github.com/Starfie1d1272/RivalHub/compare/v1.28.0...v1.28.1
 [1.28.0]: https://github.com/Starfie1d1272/RivalHub/compare/v1.27.8...v1.28.0
+[2.12.0]: https://github.com/Starfie1d1272/RivalHub/compare/v2.11.0...v2.12.0
 [1.27.8]: https://github.com/Starfie1d1272/RivalHub/compare/v1.27.7...v1.27.8
 [1.27.7]: https://github.com/Starfie1d1272/RivalHub/compare/v1.27.6...v1.27.7
 [1.27.6]: https://github.com/Starfie1d1272/RivalHub/compare/v1.27.5...v1.27.6

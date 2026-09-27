@@ -14,6 +14,7 @@ export const SCHEDULER_JOB_KEYS = [
   "match-time-auto-award",
   "cleanup-education-evidence",
   "refresh-steam-profiles",
+  "resolve-match-veto-timeouts",
   "reconcile-predictions",
 ] as const;
 
@@ -49,7 +50,13 @@ export const SCHEDULER_JOB_DEFINITIONS = [
     primaryCron: "0 */6 * * *",
     staleAfterMs: 18 * 60 * 60 * 1000,
   },
-  { key: SCHEDULER_JOB_KEYS[5], label: "观赛预测结算", primaryCron: "* * * * *", staleAfterMs: 3 * 60 * 1000 },
+  {
+    key: SCHEDULER_JOB_KEYS[5],
+    label: "BP 超时与开始协调",
+    primaryCron: "* * * * *",
+    staleAfterMs: 3 * 60 * 1000,
+  },
+  { key: SCHEDULER_JOB_KEYS[6], label: "观赛预测结算", primaryCron: "* * * * *", staleAfterMs: 3 * 60 * 1000 },
 ] as const;
 
 export type SchedulerJobKey = (typeof SCHEDULER_JOB_DEFINITIONS)[number]["key"];

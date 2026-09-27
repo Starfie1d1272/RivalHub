@@ -29,7 +29,8 @@ export interface StandardMajorRuleCheck {
     | "stage1"
     | "stage2"
     | "stage3"
-    | "playoff";
+    | "playoff"
+    | "managed-profile";
   passed: boolean;
   reason: string;
 }
@@ -37,8 +38,27 @@ export interface StandardMajorRuleCheck {
 export interface StandardMajorCheckResult {
   isStandardMajor: boolean;
   entrantCapacity: number;
+  managedProfile: ManagedMajorProfile | null;
   checks: StandardMajorRuleCheck[];
   failures: StandardMajorRuleCheck[];
+}
+
+export type ManagedMajorProfileId = "major-24" | "major-32";
+
+export interface ManagedMajorSeedCohort {
+  stageKey: string;
+  stageName: string;
+  fromSeed: number;
+  toSeed: number;
+}
+
+/** The exact event shapes supported by the managed Major runtime. */
+export interface ManagedMajorProfile {
+  id: ManagedMajorProfileId;
+  entrantCapacity: 24 | 32;
+  swissStages: readonly StageConfig[];
+  playoffStage: StageConfig;
+  directEntryCohorts: readonly ManagedMajorSeedCohort[];
 }
 
 export type SeasonCapabilityRow = Pick<SeasonCapabilities,
@@ -80,28 +100,95 @@ function entrantCapacity(stagePlan: readonly StageConfig[]): number {
   return stagePlan.reduce((total, stage, index) => total + (directEntrantCount(stage, index === 0) ?? 0), 0);
 }
 
-function hasStandardStageOneSeeds(seeds: readonly number[] | undefined): boolean {
+function hasStageOneSeeds(seeds: readonly number[] | undefined, capacity: 24 | 32): boolean {
+  const from = capacity === 24 ? 9 : 17;
   return seeds?.length === 16 &&
     new Set(seeds).size === 16 &&
-    seeds.every((seed) => seed >= 17 && seed <= 32);
+    seeds.every((seed) => seed >= from && seed < from + 16);
 }
 
-function hasFrozenMajorSwissMatchFormats(
-  stage1: StageConfig | undefined,
-  stage2: StageConfig | undefined,
-  stage3: StageConfig | undefined,
-): boolean {
-  return stage1?.matchFormat === "bo1" &&
-    stage2?.matchFormat === "bo1" &&
-    stage3?.matchFormat === "bo3";
+function supportedStageTypes(stagePlan: readonly StageConfig[]): boolean {
+  const swissCount = stagePlan.length - 1;
+  return (swissCount === 2 || swissCount === 3) &&
+    stagePlan.slice(0, -1).every((stage) => stage.type === "swiss") &&
+    stagePlan.at(-1)?.type === "single_elim";
+}
+
+function hasSupportedSwissFormats(stages: readonly StageConfig[], capacity: 24 | 32): boolean {
+  const formats = capacity === 24 ? ["bo3", "bo3"] : ["bo1", "bo1", "bo3"];
+  return stages.length === formats.length && stages.every((stage, index) => stage.matchFormat === formats[index]);
+}
+
+/** Resolve the only two frozen stage-plan shapes owned by the managed Major runtime. */
+export function resolveManagedMajorProfile(input: {
+  stagePlan: readonly StageConfig[];
+}): ManagedMajorProfile | null {
+  const { stagePlan } = input;
+  if (!supportedStageTypes(stagePlan)) return null;
+  const swissStages = stagePlan.slice(0, -1);
+  const playoffStage = stagePlan.at(-1);
+  if (!playoffStage || (swissStages.length !== 2 && swissStages.length !== 3)) return null;
+  const capacity: 24 | 32 = swissStages.length === 2 ? 24 : 32;
+  const expectedSwissFormats = capacity === 24 ? ["bo3", "bo3"] : ["bo1", "bo1", "bo3"];
+  const firstSeed = capacity === 24 ? 9 : 17;
+  if (swissStages.some((stage, index) =>
+    stage.teamCount !== 16 ||
+    !advancesEight(stage) ||
+    stage.groupCount !== undefined && stage.groupCount !== 1 ||
+    stage.matchFormat !== expectedSwissFormats[index] ||
+    (index === 0 ? directEntrantCount(stage, true) !== 16 : directEntrantCount(stage) !== 8)
+  )) return null;
+  if (!hasStageOneSeeds(swissStages[0]?.seeds, capacity)) return null;
+  if (swissStages.slice(1).some((stage) => stage.seeds !== undefined && stage.seeds.length > 0)) return null;
+  if (
+    playoffStage.type !== "single_elim" ||
+    playoffStage.teamCount !== 8 ||
+    playoffStage.matchFormat !== "bo3" ||
+    playoffStage.finalFormat !== "bo5" ||
+    directEntrantCount(playoffStage) !== 0 ||
+    playoffStage.groupCount !== undefined && playoffStage.groupCount !== 1
+  ) return null;
+
+  const directEntryCohorts: ManagedMajorSeedCohort[] = [];
+  directEntryCohorts.push({
+    stageKey: swissStages[0]!.key,
+    stageName: swissStages[0]!.name,
+    fromSeed: firstSeed,
+    toSeed: firstSeed + 15,
+  });
+  let nextDirectSeed = 1;
+  for (const stage of swissStages.slice(1).reverse()) {
+    directEntryCohorts.unshift({
+      stageKey: stage.key,
+      stageName: stage.name,
+      fromSeed: nextDirectSeed,
+      toSeed: nextDirectSeed + 7,
+    });
+    nextDirectSeed += 8;
+  }
+  return {
+    id: capacity === 24 ? "major-24" : "major-32",
+    entrantCapacity: capacity,
+    swissStages,
+    playoffStage,
+    directEntryCohorts: directEntryCohorts.sort((a, b) => a.fromSeed - b.fromSeed),
+  };
 }
 
 /** Pure definition validation for the managed standard Major runtime. */
 export function checkStandardMajorCapabilities(
   capabilities: SeasonCapabilities,
 ): StandardMajorCheckResult {
-  const [stage1, stage2, stage3, playoff] = capabilities.stagePlan;
-  const capacity = entrantCapacity(capabilities.stagePlan);
+  const stage1 = capabilities.stagePlan[0];
+  const stage2 = capabilities.stagePlan[1];
+  const stage3 = capabilities.stagePlan.length === 4 ? capabilities.stagePlan[2] : undefined;
+  const playoff = capabilities.stagePlan.at(-1);
+  const profile = resolveManagedMajorProfile({ stagePlan: capabilities.stagePlan });
+  const capacity = profile?.entrantCapacity ?? entrantCapacity(capabilities.stagePlan);
+  const swissCount = capabilities.stagePlan.length - 1;
+  const expectedCapacity = swissCount === 2 ? 24 : 32;
+  const swissStages = capabilities.stagePlan.slice(0, -1);
+  const expectedDirectCounts = expectedCapacity === 24 ? [16, 8] : [16, 8, 8];
   const checks: StandardMajorRuleCheck[] = [
     {
       key: "registration-mode",
@@ -125,32 +212,30 @@ export function checkStandardMajorCapabilities(
     },
     {
       key: "stage-count",
-      passed: capabilities.stagePlan.length === 4,
-      reason: "标准 Major 必须包含三个瑞士轮阶段和一个淘汰赛阶段。",
+      passed: capabilities.stagePlan.length === 3 || capabilities.stagePlan.length === 4,
+      reason: "标准 Major 必须包含两个或三个瑞士轮阶段，随后是一个淘汰赛阶段。",
     },
     {
       key: "stage-order",
-      passed: capabilities.stagePlan.map(({ type }) => type).join("|") === "swiss|swiss|swiss|single_elim",
-      reason: "标准 Major 的阶段顺序必须为阶段一、阶段二、阶段三瑞士轮，随后是单败淘汰。",
+      passed: supportedStageTypes(capabilities.stagePlan),
+      reason: "标准 Major 的瑞士轮阶段必须连续排列，并由单败淘汰收尾。",
     },
     {
       key: "swiss-match-format",
-      passed: hasFrozenMajorSwissMatchFormats(stage1, stage2, stage3),
-      reason: "NJU Major 阶段一、阶段二的普通比赛为 BO1，决定晋级或淘汰的比赛由 Swiss 引擎升级为 BO3；阶段三全部为 BO3。",
+      passed: hasSupportedSwissFormats(swissStages, expectedCapacity),
+      reason: "24 队 Major 的两个瑞士轮均为 BO3；32 队 Major 的前两个瑞士轮为 BO1、第三个为 BO3。",
     },
     {
       key: "entry-cohorts",
-      passed:
-        directEntrantCount(stage1, true) === 16 &&
-        directEntrantCount(stage2) === 8 &&
-        directEntrantCount(stage3) === 8 &&
+      passed: swissStages.length === expectedDirectCounts.length &&
+        swissStages.every((stage, index) => directEntrantCount(stage, index === 0) === expectedDirectCounts[index]) &&
         directEntrantCount(playoff) === 0,
-      reason: "标准 Major 必须按 16 / 8 / 8 三批队伍进入三个瑞士轮阶段，并由阶段三的 8 支晋级队进入淘汰赛。",
+      reason: "标准 Major 的种子直入批次必须与已支持的 24 队或 32 队 profile 一致。",
     },
     {
       key: "stage1-seeds",
-      passed: hasStandardStageOneSeeds(stage1?.seeds),
-      reason: "阶段一必须完整且唯一地使用 17–32 号种子。",
+      passed: hasStageOneSeeds(stage1?.seeds, expectedCapacity),
+      reason: "首个瑞士轮必须完整且唯一地使用对应 profile 的末 16 个种子。",
     },
     {
       key: "affiliation-rule",
@@ -166,26 +251,31 @@ export function checkStandardMajorCapabilities(
     {
       key: "stage1",
       passed: stage1?.type === "swiss" && stage1.teamCount === 16 && advancesEight(stage1),
-      reason: "阶段一必须为 16 队瑞士轮，8 队晋级。",
+      reason: "首个瑞士轮必须为 16 队并有 8 队晋级。",
     },
     {
       key: "stage2",
       passed: stage2?.type === "swiss" && stage2.teamCount === 16 && advancesEight(stage2),
-      reason: "阶段二必须为 16 队瑞士轮，8 队晋级。",
+      reason: "第二个瑞士轮必须为 16 队并有 8 队晋级。",
     },
     {
       key: "stage3",
-      passed: stage3?.type === "swiss" && stage3.teamCount === 16 && advancesEight(stage3),
-      reason: "阶段三必须为 16 队瑞士轮，8 队晋级。",
+      passed: stage3 === undefined || stage3.type === "swiss" && stage3.teamCount === 16 && advancesEight(stage3),
+      reason: "如配置第三个瑞士轮，该阶段必须为 16 队并有 8 队晋级。",
     },
     {
       key: "playoff",
       passed: playoff?.type === "single_elim" && playoff.teamCount === 8 && playoff.matchFormat === "bo3" && playoff.finalFormat === "bo5",
       reason: "淘汰赛必须为 8 队单败淘汰，四分之一决赛和半决赛 BO3、决赛 BO5。",
     },
+    {
+      key: "managed-profile",
+      passed: profile !== null,
+      reason: "托管 Major 运行时只支持明确配置的 Major-24 或 Major-32 阶段计划。",
+    },
   ];
   const failures = checks.filter((check) => !check.passed);
-  return { isStandardMajor: failures.length === 0, entrantCapacity: capacity, checks, failures };
+  return { isStandardMajor: failures.length === 0, entrantCapacity: capacity, managedProfile: profile, checks, failures };
 }
 
 /** Read-only migration verifier for rows predating the explicit affiliation rule. */

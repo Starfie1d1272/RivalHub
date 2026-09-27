@@ -78,8 +78,7 @@ async function buildPlan(
     throw new Error(lookup.status === "unconfigured" ? "STEAM_PROFILE_UNCONFIGURED" : "STEAM_PROFILE_PROVIDER_FAILED");
   }
 
-  // Apply every resolved current primary so the N/N+1 rollback shadow is also
-  // repaired when the official cache already contains the same values.
+  // Upsert every resolved current primary profile into steam_profiles.
   const profilesToWrite = [...lookup.profiles.values()];
   return {
     requested: steam64s.length,

@@ -4,6 +4,8 @@ import { and, count, eq, inArray, isNull } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
   competitionEntries,
+  competitionQualificationRuns,
+  majorTournamentEntrants,
   eventRosters,
   competitionEntryParticipants,
   competitionEntryRosterMembers,
@@ -18,7 +20,8 @@ import {
 } from "@/db/schema";
 import { getPositionCounts, getApprovedCount } from "@/actions/register";
 import { RegistrationForm } from "@/components/register/RegistrationForm";
-import { normalizeAffiliationRules, normalizeRegistrationConfig, normalizeTeamRegistrationConfig } from "@/lib/seasons/compatibility";
+import { normalizeAffiliationRules, normalizeRegistrationConfig, normalizeStagePlan, normalizeTeamRegistrationConfig } from "@/lib/seasons/compatibility";
+import { resolveManagedMajorProfile } from "@/lib/competition/definition";
 import { REGISTRATION_STATUS_LABELS } from "@/types/registration";
 import { PageLayout, Panel, StatusBanner, PosChip } from "@/components/rivalhub";
 import { positionLabel } from "@/lib/validators/registration";
@@ -38,6 +41,7 @@ import { RegistrationOpeningRecovery } from "@/components/register/RegistrationO
 
 import { publicCompetitionEntryCondition } from "@/lib/competition-entries/public-visibility";
 import { getCompetitionEntryCapabilities } from "@/lib/competition-entries/capabilities";
+import { isMajorRosterAdjustmentPhaseOpen } from "@/lib/major/roster-window";
 import { loadCompetitionEntryParticipantContext } from "@/lib/competition-entries/participant-context";
 
 interface RegisterPageProps {
@@ -139,6 +143,16 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
     let entryView: Parameters<typeof CompetitionEntryFlow>[0]["entry"] = null;
     let capabilities = getCompetitionEntryCapabilities({ season, entry: null, revision: null, rosterFrozen: false });
     if (entry) {
+      const [qualificationRun, finalEntrant] = season.competitionTemplate === "major" ? await Promise.all([
+        db.query.competitionQualificationRuns.findFirst({ where: eq(competitionQualificationRuns.seasonId, season.id) }),
+        db.query.majorTournamentEntrants.findFirst({ where: and(eq(majorTournamentEntrants.seasonId, season.id), eq(majorTournamentEntrants.competitionEntryId, entry.id)) }),
+      ]) : [null, null];
+      const majorAdjustmentPhaseOpen = season.competitionTemplate !== "major" || isMajorRosterAdjustmentPhaseOpen({
+        registrationClosesAt: season.registrationClosesAt,
+        qualificationConfigured: Boolean(qualificationRun),
+        qualificationCompleted: Boolean(qualificationRun?.completedAt),
+        finalEntrant: Boolean(finalEntrant),
+      });
       const [[revision], [eventRoster], [entryTeam]] = await Promise.all([
         db.select({ id: competitionEntryRosterRevisions.id, status: competitionEntryRosterRevisions.status, origin: competitionEntryRosterRevisions.origin })
           .from(competitionEntryRosterRevisions)
@@ -149,7 +163,7 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
           ? db.select({ logoUrl: teams.logoUrl }).from(teams).where(eq(teams.id, entry.teamId)).limit(1)
           : Promise.resolve([]),
       ]);
-      capabilities = getCompetitionEntryCapabilities({ season, entry: { status: entry.registrationStatus, hasApprovedRoster: !!entry.approvedRosterRevisionId }, revision: revision ?? null, rosterFrozen: eventRoster?.status === "frozen" });
+      capabilities = getCompetitionEntryCapabilities({ season, entry: { status: entry.registrationStatus, hasApprovedRoster: !!entry.approvedRosterRevisionId }, revision: revision ?? null, rosterFrozen: eventRoster?.status === "frozen", majorAdjustmentPhaseOpen });
       const candidateRows = entry.teamId
         ? await db.select({ membershipId: teamMemberships.id, userId: teamMemberships.userId, status: teamMemberships.status, email: users.email, displayName: users.displayName, perfectName: users.perfectName, personaName: steamProfiles.personaName })
             .from(teamMemberships).innerJoin(users, eq(users.id, teamMemberships.userId)).leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
@@ -245,7 +259,7 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
           <StatusBanner
             tone={getWindowTone(registrationWindow.phase, registrationWindow.canSubmit)}
             title={registrationWindow.message}
-            sub={[registrationSchedule?.primary, registrationSchedule?.secondary, season.rosterChangeClosesAt ? `名单可自行调整至 ${formatCST(season.rosterChangeClosesAt)}` : "名单调整截止时间与报名截止时间一致"].filter(Boolean).join(" · ")}
+            sub={[registrationSchedule?.primary, registrationSchedule?.secondary, season.rosterChangeClosesAt ? `${season.competitionTemplate === "major" ? "最终名单调整截止" : "名单可自行调整至"} ${formatCST(season.rosterChangeClosesAt)}` : "名单调整截止时间与报名截止时间一致"].filter(Boolean).join(" · ")}
           />
           <RegistrationScheduleCountdown target={registrationSchedule?.countdownTarget ?? null} />
           <CompetitionEntryFlow
@@ -254,6 +268,12 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
             requiresTeamLogo={normalizeTeamRegistrationConfig(season.teamRegistrationConfig).requireTeamLogo}
             canManageEntryTeamProfile={Boolean(entry?.teamId && captainedTeams.some((team) => team.id === entry.teamId))}
             approvedTeamCount={approvedCount?.value ?? 0}
+            majorEntrantCapacity={season.competitionTemplate === "major"
+              ? resolveManagedMajorProfile({ stagePlan: normalizeStagePlan(season.stagePlan) })?.entrantCapacity ?? null
+              : null}
+            registrationWindowCanSubmit={registrationWindow.canSubmit}
+            registrationWindowPhase={registrationWindow.phase}
+            rosterChangeClosesAtLabel={season.rosterChangeClosesAt ? formatCST(season.rosterChangeClosesAt) : null}
             competitionId={season.id}
             competitionName={season.name}
             currentUserId={userSession.userId}

@@ -14,10 +14,17 @@ interface Props {
 }
 
 const ACTION_VERBS: Record<string, string> = {
-  ban: "removed",
-  pick: "picked",
-  side_pick: "picked side for",
-  decider: "was left over",
+  ban: "BAN",
+  pick: "PICK",
+  side_pick: "为地图选择起始方",
+  decider: "成为决胜图",
+};
+
+const ACTION_LABELS: Record<string, string> = {
+  ban: "BAN",
+  pick: "PICK",
+  side_pick: "SIDE",
+  decider: "DECIDER",
 };
 
 const ACTION_COLORS: Record<string, string> = {
@@ -77,7 +84,7 @@ export async function VetoView({
                   className="text-xs font-mono uppercase px-1.5 py-0.5 rounded-sm shrink-0"
                   style={{ background: `${color}20`, color }}
                 >
-                  {step.actionType}
+                  {ACTION_LABELS[step.actionType] ?? "BP"}
                 </span>
 
                 {team ? (
@@ -95,7 +102,11 @@ export async function VetoView({
                   {mapLabel(step.mapName)}
                 </span>
 
-                {step.side && (() => {
+                {step.actionType === "side_pick" && step.side ? (
+                  <span className="text-xs text-[var(--color-fg-mid)]">
+                    → {SIDE_LABELS[step.side] ?? step.side} 先
+                  </span>
+                ) : step.side && (() => {
                   if (step.actionType === "pick" && step.entryId) {
                     return (
                       <span className="text-xs text-[var(--color-fg-mid)]">

@@ -48,8 +48,9 @@ const getHeaderViewer = cache(async (): Promise<{
 });
 
 async function HeaderViewer({ variant }: { variant: "desktop" | "mobile" }) {
-  // Viewer identity is request-bound. `connection()` makes that boundary
-  // explicit inside this Suspense island so public navigation can stay instant.
+  // iron-session evaluates cookie expiry against the current time while unsealing.
+  // Keep that work behind this smallest real-request Suspense island so the
+  // public header shell and navigation remain eligible for prerender/prefetch.
   await connection();
   const viewer = await getHeaderViewer();
   return (

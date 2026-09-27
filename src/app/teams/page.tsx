@@ -1,6 +1,5 @@
 import { Suspense } from "react";
 import Link from "next/link";
-import { connection } from "next/server";
 import { and, eq, isNull } from "drizzle-orm";
 import { db } from "@/db/client";
 import { teamMemberships, teams } from "@/db/schema";
@@ -28,7 +27,6 @@ function TeamDirectoryFallback() {
 }
 
 async function TeamDirectoryContent({ searchParams }: { searchParams: Promise<TeamDirectorySearchParams> }) {
-  await connection();
   const [rawSearchParams, session] = await Promise.all([searchParams, getUserSession()]);
   const query = normalizeTeamDirectoryQuery(rawSearchParams);
   const [directory, currentTeamRows, pendingDirectInvitationCount] = await Promise.all([

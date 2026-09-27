@@ -402,8 +402,8 @@ export function PredictionBoard({
                   </div>
                   {!stage ? (
                     <p className="py-12 text-center text-sm">
-                      {base.teams.length !== 32
-                        ? "等待赛事方确认完整32队种子。"
+                      {base.teams.length === 0
+                        ? "等待赛事方确认完整赛事种子。"
                         : "请先完成上一阶段推演，或等待本阶段官方名单。"}
                     </p>
                   ) : (

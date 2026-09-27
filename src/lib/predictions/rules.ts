@@ -3,7 +3,7 @@ import {
   generateMajorPlayoffNextRound,
   type MajorPlayoffMatchFact,
 } from "@/lib/major/playoff";
-import type { Pick, PredictionRules } from "./types";
+import type { Pick, PredictionRules, PublicStage } from "./types";
 export const rulesSchema = z
   .object({
     perfect: z.number().int().min(0).max(2),
@@ -39,6 +39,16 @@ export const DEFAULT_RULES: PredictionRules = {
   participationPoints: 0,
   cutoffMinutes: 5,
 };
+export function stageChallengeCount(type: PublicStage["type"]): number {
+  return type === "swiss" ? 1 : 3;
+}
+export function predictionChallengeCapacity(stages: readonly PublicStage[]): number {
+  return stages.reduce((total, stage) => total + 1 + stageChallengeCount(stage.type), 0);
+}
+export function defaultPredictionRules(stages: readonly PublicStage[]): PredictionRules {
+  const maximum = predictionChallengeCapacity(stages);
+  return { ...DEFAULT_RULES, silver: Math.ceil(maximum / 2), gold: Math.ceil(maximum * 0.7), diamond: maximum };
+}
 export const pickSchema = z.union([
   z.object({
     perfect: z.array(z.union([z.guid(), z.literal("")])).max(2),

@@ -75,11 +75,15 @@ function queueFactSelects(options: {
   user?: Record<string, unknown> | null;
   verifications?: unknown[];
   rankFacts?: unknown[];
+  platformSeasons?: Array<{ seasonKey: string }>;
 }) {
   const users = options.user === null ? [] : [userRow(options.user)];
   const verifications = options.verifications ?? [];
   const rankFacts = options.rankFacts ?? [];
-  // loadParticipantQualificationFacts issues users → verifications → rank facts selects.
+  const platformSeasons = options.platformSeasons ?? [{ seasonKey: "S20" }, { seasonKey: "S21" }];
+  // loadParticipantQualificationFacts issues users → verifications → rank facts
+  // → optional platform chronology selects. Tests that do not request a
+  // platform simply leave the final queued select unused.
   selectMock.mockImplementationOnce(() => ({
     from: vi.fn().mockReturnValue({
       leftJoin: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue(users) }),
@@ -94,6 +98,13 @@ function queueFactSelects(options: {
   }));
   selectMock.mockImplementationOnce(() => ({
     from: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue(rankFacts) }),
+  }));
+  selectMock.mockImplementationOnce(() => ({
+    from: vi.fn().mockReturnValue({
+      where: vi.fn().mockReturnValue({
+        orderBy: vi.fn().mockResolvedValue(platformSeasons),
+      }),
+    }),
   }));
 }
 
@@ -195,9 +206,10 @@ describe("participant readiness", () => {
     }), CONTEXT);
     expect(readiness.ready).toBe(false);
     expect(readiness.blockers).toContain("请填写 Steam64 ID。");
-    expect(readiness.blockers).toContain("请完成并通过高校身份认证。");
-    expect(readiness.blockers).toContain("缺少perfect_world · S20 的最高段位及 Rating。");
+    expect(readiness.blockers).toContain("需要本人补充 · 高校身份认证");
+    expect(readiness.blockers).toContain("缺少完美平台 S20的最高段位和 Rating。");
     expect(readiness.findings.every((finding) => finding.waivable === false)).toBe(true);
+    expect(readiness.blockers.join(" ")).not.toContain("perfect_world");
   });
 
   it("accepts a participant whose canonical Perfect nickname is present", () => {
@@ -284,7 +296,7 @@ describe("participant readiness", () => {
     expect(exactTie.strength.historicalPeak).toMatchObject({ stars: 10 });
   });
 
-  it("treats Perfect unranked as the lowest usable state and lets 5E replace it", () => {
+  it("lets a ranked equivalent source replace an explicitly unranked primary fact", () => {
     const readiness = computeParticipantReadiness(fullFact({
       historicalPeak: { status: "unranked", rank: null, rating: null },
       fallbackFacts: {
@@ -294,6 +306,152 @@ describe("participant readiness", () => {
     }), STRONGEST_CONTEXT);
     expect(readiness.ready).toBe(true);
     expect(readiness.strength.historicalPeak).toMatchObject({ rank: "黄金S", sourcePlatform: "fivee" });
+  });
+
+  it("never rewrites explicit unranked evidence to the bottom rank", () => {
+    const unranked = { status: "unranked" as const, rank: null, rating: null, stars: null };
+    const fact = fullFact({
+      historicalPeak: unranked,
+      seasonPeaks: new Map([["S20", unranked], ["S21", unranked]]),
+      fallbackFacts: {
+        historicalPeak: unranked,
+        seasonPeaks: new Map([["5E-S20", unranked], ["5E-S21", unranked]]),
+      },
+    });
+    const readiness = computeParticipantReadiness(fact, STRONGEST_CONTEXT);
+    expect(readiness.ready).toBe(false);
+    expect(readiness.strength.historicalPeak).toBeNull();
+    expect(readiness.strength.previousSeasonPeak).toBeNull();
+    expect(readiness.strength.currentSeasonPeak).toBeNull();
+    expect(readiness.blockers.join(" ")).toContain("历史最高");
+  });
+
+  it("estimates an explicitly unranked season one rung below the nearest prior ranked season", () => {
+    const context: CompetitiveProfileConfig = {
+      ...CONTEXT,
+      rankOrder: ["D", "C", "C+", "C++", "B", "B+", "B++", "A", "A+", "A++"],
+      evidencePolicy: {
+        historicalWeight: 50,
+        referenceSeasonKey: "S19",
+        referenceSeasonWeight: 20,
+        recentSeasonKeys: ["S20", "S21"],
+        recentSeasonWeight: 30,
+        sourceSelection: "strongest_equivalent",
+      },
+    };
+    const readiness = computeParticipantReadiness(fullFact({
+      historicalPeak: { rank: "A+", rating: 1900 },
+      seasonPeaks: new Map([
+        ["S19", { rank: "B+", rating: 1600 }],
+        ["S20", { rank: "A", rating: 1750 }],
+        ["S21", { status: "unranked", rank: null, rating: null }],
+      ]),
+    }), context);
+
+    expect(readiness.ready).toBe(true);
+    expect(readiness.strength.currentSeasonPeak).toEqual({
+      rank: "B++",
+      rating: 0,
+      ratingComparable: false,
+      stars: null,
+      sourcePlatform: "perfect_world",
+      sourceSeasonKey: "S21",
+      estimatedFromUnranked: true,
+      estimatedFromSeasonKey: "S20",
+    });
+    // The recent term still chooses the stronger actual S20 result.
+    expect(readiness.strength.recentSeasonPeaks?.[0]).toMatchObject({ rank: "A" });
+    expect(readiness.strength.recentSeasonPeaks?.[1]).toMatchObject({ rank: "B++", estimatedFromUnranked: true });
+  });
+
+  it("skips consecutive unranked seasons and derives from the nearest earlier ranked season", () => {
+    const context: CompetitiveProfileConfig = {
+      ...CONTEXT,
+      rankOrder: ["D", "C", "B", "A", "S"],
+      evidencePolicy: {
+        historicalWeight: 50,
+        referenceSeasonKey: "S19",
+        referenceSeasonWeight: 20,
+        recentSeasonKeys: ["S20", "S21"],
+        recentSeasonWeight: 30,
+        sourceSelection: "strongest_equivalent",
+      },
+    };
+    type SeasonFact = { status?: "ranked" | "unranked"; rank: string | null; rating: number | null; stars?: number | null };
+    const unranked: SeasonFact = { status: "unranked", rank: null, rating: null };
+    const input = toPlayerStrengthInput(fullFact({
+      seasonPeaks: new Map<string, SeasonFact>([
+        ["S19", { rank: "A", rating: 1600 }],
+        ["S20", unranked],
+        ["S21", unranked],
+      ]),
+    }), context);
+
+    expect(input.recentSeasonPeaks?.[0]).toMatchObject({ rank: "B", estimatedFromSeasonKey: "S19" });
+    expect(input.recentSeasonPeaks?.[1]).toMatchObject({ rank: "B", estimatedFromSeasonKey: "S19" });
+  });
+
+  it("looks beyond the scoring window for the nearest earlier ranked season", () => {
+    const context: CompetitiveProfileConfig = {
+      ...CONTEXT,
+      rankOrder: ["D", "C", "C+", "C++", "B", "B+", "B++", "A", "A+", "A++"],
+      evidencePolicy: {
+        historicalWeight: 50,
+        referenceSeasonKey: "S19",
+        referenceSeasonWeight: 20,
+        recentSeasonKeys: ["S20", "S21"],
+        recentSeasonWeight: 30,
+        sourceSelection: "strongest_equivalent",
+      },
+    };
+    const input = toPlayerStrengthInput(fullFact({
+      historicalPeak: { rank: "A+", rating: 1900 },
+      platformSeasonOrder: ["S18", "S19", "S20", "S21"],
+      seasonPeaks: new Map([
+        ["S18", { rank: "A", rating: 1700 }],
+        ["S19", { status: "unranked", rank: null, rating: null }],
+        ["S20", { rank: "B+", rating: 1600 }],
+        ["S21", { rank: "B", rating: 1500 }],
+      ]),
+    }), context);
+
+    expect(input.previousSeasonPeak).toMatchObject({
+      rank: "B++",
+      estimatedFromUnranked: true,
+      estimatedFromSeasonKey: "S18",
+    });
+  });
+
+  it("falls back to historical peak one rung lower when no ranked season fact exists", () => {
+    const context: CompetitiveProfileConfig = {
+      ...CONTEXT,
+      rankOrder: ["D", "C", "C+", "C++", "B", "B+", "B++", "A", "A+", "A++"],
+      evidencePolicy: {
+        historicalWeight: 50,
+        referenceSeasonKey: "S19",
+        referenceSeasonWeight: 20,
+        recentSeasonKeys: ["S20", "S21"],
+        recentSeasonWeight: 30,
+        sourceSelection: "strongest_equivalent",
+      },
+    };
+    const unranked = { status: "unranked" as const, rank: null, rating: null };
+    const input = toPlayerStrengthInput(fullFact({
+      historicalPeak: { rank: "A", rating: 1800 },
+      platformSeasonOrder: ["S19", "S20", "S21"],
+      seasonPeaks: new Map([
+        ["S19", unranked],
+        ["S20", unranked],
+        ["S21", unranked],
+      ]),
+    }), context);
+
+    expect(input.previousSeasonPeak).toMatchObject({
+      rank: "B++",
+      estimatedFromUnranked: true,
+      estimatedFromHistorical: true,
+    });
+    expect(input.previousSeasonPeak).not.toHaveProperty("estimatedFromSeasonKey");
   });
 
   it("allows a native Perfect fact when 5E is absent, but fails closed for declared 5E S facts without stars", () => {
@@ -467,7 +625,7 @@ describe("participant readiness", () => {
 
     expect(batch.get(USER_ID)).toEqual(single);
     expect(single.ready).toBe(false);
-    expect(single.blockers.join(" ")).toContain("缺少perfect_world · S20 的最高段位及 Rating");
+    expect(single.blockers.join(" ")).toContain("缺少完美平台 S20的最高段位和 Rating");
   });
 
   it("uses a preloaded fact bundle without issuing a second read", async () => {
@@ -508,5 +666,72 @@ describe("isHomeAffiliatedMember", () => {
     expect(isHomeAffiliatedMember({ institutionCode: "4132010284", academicStatus: "enrolled" }, rules)).toBe(true);
     expect(isHomeAffiliatedMember({ institutionCode: "4132010284", academicStatus: null }, rules)).toBe(false);
     expect(isHomeAffiliatedMember({ institutionCode: "9999999999", academicStatus: "enrolled" }, rules)).toBe(false);
+  });
+});
+
+
+describe("participant readiness recovery states", () => {
+  const recoveryFact = (overrides?: Partial<ParticipantQualificationFacts>): ParticipantQualificationFacts => ({
+    userId: USER_ID,
+    displayName: "选手甲",
+    perfectName: "perfect-a",
+    personaName: "steam-a",
+    email: "a@rivalhub.test",
+    emailVerifiedAt: new Date(),
+    steam64: "76561198000000001",
+    qq: "10001",
+    approvedEducation: true,
+    educationHistory: [],
+    historicalPeak: { rank: "S", rating: 1900 },
+    seasonPeaks: new Map([["S20", { rank: "A", rating: 1700 }], ["S21", { rank: "S", rating: 1850 }]]),
+    ...overrides,
+  });
+
+  it.each([
+    {
+      status: "pending_review" as const,
+      history: [{ id: "education-pending", institutionCode: "4132010284", institutionName: "南京大学", academicStatus: "enrolled" as const, status: "pending" as const, submittedAt: new Date("2026-09-26T01:00:00Z") }],
+      message: "高校身份认证审核中 · 等待赛委会",
+    },
+    {
+      status: "rejected" as const,
+      history: [{ id: "education-rejected", institutionCode: "4132010284", institutionName: "南京大学", academicStatus: "enrolled" as const, status: "rejected" as const, submittedAt: new Date("2026-09-26T01:00:00Z") }],
+      message: "需要本人处理 · 高校身份认证已驳回",
+    },
+    {
+      status: "missing" as const,
+      history: [],
+      message: "需要本人补充 · 高校身份认证",
+    },
+  ])("distinguishes $status education readiness without relaxing the gate", ({ status, history, message }) => {
+    const readiness = computeParticipantReadiness(recoveryFact({ approvedEducation: false, educationHistory: history }), CONTEXT);
+    expect(readiness.educationState).toBe(status);
+    expect(readiness.ready).toBe(false);
+    expect(readiness.findings).toContainEqual(expect.objectContaining({
+      code: "education_incomplete",
+      message,
+      waivable: false,
+      metadata: expect.objectContaining({ state: status }),
+    }));
+  });
+
+  it("targets the historical editor for a missing historical peak", () => {
+    const readiness = computeParticipantReadiness(recoveryFact({
+      historicalPeak: null,
+    }), CONTEXT);
+    expect(readiness.findings).toContainEqual(expect.objectContaining({
+      code: "competitive_profile_incomplete",
+      metadata: expect.objectContaining({ field: "historical_peak", platform: CONTEXT.platform, seasonKey: "historical" }),
+    }));
+  });
+
+  it("adds platform and exact season metadata to seasonal competitive gaps", () => {
+    const readiness = computeParticipantReadiness(recoveryFact({
+      seasonPeaks: new Map([["S21", { rank: "A", rating: 1000 }]]),
+    }), CONTEXT);
+    expect(readiness.findings).toContainEqual(expect.objectContaining({
+      code: "competitive_profile_incomplete",
+      metadata: expect.objectContaining({ platform: CONTEXT.platform, seasonKey: CONTEXT.previousSeasonKey }),
+    }));
   });
 });

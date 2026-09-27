@@ -8,13 +8,12 @@ import { SeasonNextStep } from "@/components/season/SeasonNextStep";
 import { publicCompetitionEntryCondition } from "@/lib/competition-entries/public-visibility";
 import Link from "next/link";
 import { Fragment, Suspense, type ReactNode } from "react";
-import { connection } from "next/server";
 import { notFound } from "next/navigation";
 import { eq, count, or, and, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { UserPlus, Vote, Users, Swords, Shuffle, BarChart3, UserRoundSearch, Trophy } from "lucide-react";
 import { db } from "@/db/client";
-import { matches, competitionEntries } from "@/db/schema";
+import { matches, competitionEntries, competitionQualificationRuns, majorTournamentEntrants } from "@/db/schema";
 import { formatCSTDateTime } from "@/lib/utils/date";
 import type { SeasonStatus } from "@/types/season";
 import { showStats } from "@/lib/utils/season";
@@ -38,6 +37,7 @@ import { getLatestSeasonAnnouncement } from "@/lib/announcements/read-model";
 import { toAnnouncementExcerpt } from "@/lib/announcements/presentation";
 import { getPublicSeasonInfo } from "@/lib/season-public-info/read-model";
 import { hasPublicSeasonInfo, activeGroupCount } from "@/lib/season-public-info/presentation";
+import type { PublicSeason } from "@/lib/data/public-seasons";
 
 const STATUS_IDX: Record<SeasonStatus, number> = {
   draft: 0, registration: 1, voting: 2, drafting: 3,
@@ -57,7 +57,6 @@ export default function SeasonPage({ params }: SeasonPageProps) {
 }
 
 export async function SeasonPageContent({ params }: SeasonPageProps) {
-  await connection();
   const { seasonSlug } = await params;
 
   const season = await getPublicOrAuthorizedDraftSeason(seasonSlug);
@@ -67,7 +66,6 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
     getPublicSeasonInfo(season.id),
   ]);
   const results = ["finished", "archived"].includes(season.status) ? await getPublicSeasonResults(season) : null;
-  const personalTask = await getSeasonPersonalNextStep(season);
   const stagePresentation = await getPublicSeasonStagePresentation(season);
   const stagePlan = stagePresentation.stagePlan;
   const stageLabelByKey = new Map(Object.entries(stagePresentation.labels));
@@ -103,7 +101,7 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
     : null;
 
   const isMajor = season.competitionTemplate === "major";
-  const [majorParticipantOverview, [teamCountRow], participantSummary, [matchCountRow], upcomingMatches, standings] =
+  const [majorParticipantOverview, [teamCountRow], participantSummary, [matchCountRow], upcomingMatches, standings, qualificationRun, [finalMainEntrantCountRow]] =
     await Promise.all([
       isMajor ? getMajorPublicParticipantOverview(season) : Promise.resolve(null),
       isMajor
@@ -116,9 +114,28 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
       }).from(matches).where(eq(matches.seasonId, season.id)),
       upcomingMatchesQuery ?? Promise.resolve([] as { id: string; status: string; scheduledAt: Date | null; stage: string; teamAName: string | null; teamBName: string | null }[]),
       season.status === "playing" ? getStandings(season.id) : Promise.resolve([]),
+      isMajor
+        ? db.query.competitionQualificationRuns.findFirst({ where: eq(competitionQualificationRuns.seasonId, season.id) })
+        : Promise.resolve(undefined),
+      isMajor
+        ? db.select({ value: count() }).from(majorTournamentEntrants).where(eq(majorTournamentEntrants.seasonId, season.id))
+        : Promise.resolve([] as { value: number }[]),
     ]);
+  const qualificationMatches = qualificationRun
+    ? await db.select({ status: matches.status, round: matches.round }).from(matches).where(eq(matches.qualificationRunId, qualificationRun.id))
+    : [];
+  const mainEventStarted = Boolean(stagePresentation.currentStageKey) || initializedStages.has(stagePlan[0]?.key ?? "");
+  const qualificationBeforeMainStart = Boolean(qualificationRun) && !mainEventStarted;
   const publicTeamCount = majorParticipantOverview?.teamCount ?? Number(teamCountRow?.value ?? 0);
   const publicPlayerCount = majorParticipantOverview?.playerCount ?? participantSummary?.count ?? 0;
+  const incompleteQualificationRounds = qualificationMatches
+    .filter((match) => match.status !== "finished" && match.round !== null)
+    .map((match) => match.round!);
+  const qualificationCurrentRound = incompleteQualificationRounds.length > 0
+    ? Math.min(...incompleteQualificationRounds)
+    : Math.max(0, ...qualificationMatches.map((match) => match.round ?? 0)) + 1;
+  const finalMainEntrantsConfirmed = qualificationRun !== undefined &&
+    Number(finalMainEntrantCountRow?.value ?? 0) === qualificationRun.targetEntrantCount;
 
   // ── 动态阶段列表 ──────────────────────────────────────────
   interface Phase {
@@ -144,7 +161,7 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
     phases.push({
       key: rule.key,
       label: rule.label,
-      done: currentStatusIdx > STATUS_IDX[rule.doneAfter],
+      done: (qualificationBeforeMainStart && rule.key === "register") || currentStatusIdx > STATUS_IDX[rule.doneAfter],
     });
   }
 
@@ -185,8 +202,8 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
   });
 
   // 找当前阶段（第一个未完成的）
-  let currentPhaseIdx = phases.findIndex((p) => !p.done);
-  if (currentPhaseIdx === -1) currentPhaseIdx = phases.length - 1;
+  let currentPhaseIdx = qualificationBeforeMainStart ? -1 : phases.findIndex((p) => !p.done);
+  if (currentPhaseIdx === -1 && !qualificationBeforeMainStart) currentPhaseIdx = phases.length - 1;
 
   const isHistorical = season.status === "finished" || season.status === "archived";
   const registrationIsOpen = isRegistrationActuallyOpen(season);
@@ -197,7 +214,7 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
       label: "报名",
       description: "提交报名信息",
       icon: UserPlus,
-      show: !isHistorical && registrationIsOpen && !personalTask,
+      show: !isHistorical && registrationIsOpen,
     },
     {
       href: `/${seasonSlug}/players`,
@@ -268,13 +285,15 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
         )}
       </div>
 
-      <SeasonNextStep task={personalTask} />
+      <Suspense fallback={null}>
+        <SeasonPersonalNextStep season={season} />
+      </Suspense>
       {results && <SeasonResults results={results} slug={seasonSlug} />}
 
       {/* Phase tracker */}
       <Panel contentClassName="p-6">
         <ScrollHint fromColor="var(--color-panel)">
-          <div className="flex items-start">
+          <div role="list" aria-label="赛事阶段" className="flex items-start">
             {phases.map((phase, i) => (
               <PhaseStep
                 key={phase.key}
@@ -288,6 +307,38 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
           </div>
         </ScrollHint>
       </Panel>
+
+      {qualificationRun && !mainEventStarted && (
+        <Panel label="PLAY-IN" contentClassName="p-5">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="space-y-1">
+              {!qualificationRun.startedAt ? (
+                <>
+                  <p className="font-medium text-[var(--color-fg)]">{qualificationRun.candidateCount} 支候选 · {qualificationRun.targetEntrantCount} 支正赛</p>
+                  <p className="text-sm text-[var(--color-fg-mid)]">{qualificationRun.playInEntryCount} 支进入 Play-in · {qualificationRun.qualifierCount} 支晋级</p>
+                  <p className="text-sm text-[var(--color-fg-mid)]">赛制：{qualificationRun.format === "direct_bo3" ? "BO3 决胜赛" : "Short Swiss · BO1 · 2胜晋级 / 2负淘汰"}</p>
+                  <p className="text-sm font-medium text-[var(--color-fg)]">赛程待生成</p>
+                </>
+              ) : qualificationRun.completedAt ? (
+                <>
+                  <p className="font-medium text-[var(--color-fg)]">Play-in 已结束</p>
+                  <p className="text-sm text-[var(--color-fg-mid)]">{qualificationRun.qualifierCount} 支队伍晋级</p>
+                  <p className="text-sm text-[var(--color-fg-mid)]">正式正赛名单{finalMainEntrantsConfirmed ? "已确认" : "待确认"}</p>
+                </>
+              ) : (
+                <>
+                  <p className="font-medium text-[var(--color-fg)]">Play-in 进行中</p>
+                  <p className="text-sm text-[var(--color-fg-mid)]">Round {qualificationCurrentRound}</p>
+                  <p className="text-sm text-[var(--color-fg-mid)]">{qualificationRun.playInEntryCount} 支争夺 {qualificationRun.qualifierCount} 个正赛席位</p>
+                </>
+              )}
+            </div>
+            <Button size="sm" variant="outline" asChild>
+              <Link href={`/${seasonSlug}/matches?stage=play-in`}>查看 PLAY-IN 赛程 →</Link>
+            </Button>
+          </div>
+        </Panel>
+      )}
 
       {/* Upcoming matches and standings share a dual-column layout. */}
       {(upcomingMatches.length > 0 || standings.length > 0) && (
@@ -325,7 +376,7 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
                       </div>
                       <div className="shrink-0 flex flex-col items-end gap-0.5">
                         <span className="font-mono text-[10px] text-[var(--color-fg-dim)] uppercase tracking-wider">
-                          {stageLabelByKey.get(match.stage) ?? "比赛阶段"}
+                          {match.stage === "play-in" ? "PLAY-IN" : stageLabelByKey.get(match.stage) ?? "比赛阶段"}
                         </span>
                         <MatchStatusBadge status={match.status as MatchStatus} scheduledAt={match.scheduledAt} />
                         {match.scheduledAt && <span className="font-mono text-[10px] text-[var(--color-fg-dim)]">{formatCSTDateTime(match.scheduledAt)}</span>}
@@ -452,6 +503,11 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
 
     </PageLayout>
   );
+}
+
+async function SeasonPersonalNextStep({ season }: { season: PublicSeason }) {
+  const task = await getSeasonPersonalNextStep(season);
+  return <SeasonNextStep task={task} />;
 }
 
 function SeasonPageFallback() {

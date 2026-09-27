@@ -41,5 +41,6 @@ describe("Major browser fixture profile contract", () => {
     expect(createMajorBrowserScenario("profile-auth", "auth").accounts.map(({ key }) => key)).toEqual(["player3"]);
     expect(createMajorBrowserScenario("profile-major", "major-entry").accounts.map(({ key }) => key)).toEqual(["captain"]);
     expect(createMajorBrowserScenario("profile-education", "education").accounts.map(({ key }) => key)).toEqual(["player1", "admin"]);
+    expect(createMajorBrowserScenario("profile-major-qualification", "major-qualification").accounts.map(({ key }) => key)).toEqual(["admin"]);
   });
 });

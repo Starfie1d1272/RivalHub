@@ -6,6 +6,7 @@ import { db } from "@/db/client";
 import { actionError, failValidation } from "@/lib/action-utils";
 import { auditActorId, requireAdmin } from "@/lib/auth/session";
 import { createAnnouncementInTx, setAnnouncementStatusInTx, updateAnnouncementInTx } from "@/lib/announcements/commands";
+import { updatePublicAnnouncementTags } from "@/lib/revalidation";
 import { ok, type ActionResult } from "@/types/action";
 
 const uuid = z.guid();
@@ -44,6 +45,7 @@ function parseInput(input: AnnouncementActionInput):
 }
 
 function revalidateAnnouncementPaths(seasonId: string | null): void {
+  updatePublicAnnouncementTags(seasonId);
   revalidatePath("/announcements");
   revalidatePath("/admin/operations/announcements");
   if (seasonId) {

@@ -55,7 +55,6 @@ export default async function CompetitionEntriesPage({ params, searchParams }: {
               entryId={team.entry.id}
               teamName={team.entry.name}
               seasonSlug={seasonSlug}
-              eyebrow={team.cardLabel}
               logoUrl={team.entry.logoUrl}
               players={team.roster}
               record={team.record}
@@ -73,16 +72,11 @@ export default async function CompetitionEntriesPage({ params, searchParams }: {
   const entries = await db.query.competitionEntries.findMany({ where: and(eq(competitionEntries.competitionId, season.id), publicCompetitionEntryCondition()), orderBy: [asc(competitionEntries.formationOrder), asc(competitionEntries.id)] });
   if (entries.length === 0) return <PageLayout variant="wide" className="py-16 text-center text-[var(--color-fg-mid)]">赛事队伍尚未形成</PageLayout>;
   const members = await db.select({ entryId: eventRosters.entryId, userId: users.id, personaName: steamProfiles.personaName, avatarUrl: steamProfiles.avatarUrl, perfectName: users.perfectName, displayName: users.displayName, isStarter: eventRosterMembers.isPrimaryStarter })
-    .from(eventRosterMembers).innerJoin(eventRosters, eq(eventRosters.id, eventRosterMembers.eventRosterId)).innerJoin(users, eq(users.id, eventRosterMembers.userId)).leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64)).where(and(inArray(eventRosters.entryId, entries.map((entry) => entry.id)), inArray(eventRosters.status, ["confirmed", "frozen"])));
+    .from(eventRosterMembers).innerJoin(eventRosters, eq(eventRosters.id, eventRosterMembers.eventRosterId)).innerJoin(users, eq(users.id, eventRosterMembers.userId)).leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64)).where(and(inArray(eventRosters.entryId, entries.map((entry) => entry.id)), inArray(eventRosters.status, ["confirmed", "frozen"]), eq(eventRosterMembers.isCurrent, true)));
   const matchSummary = await getPublicEventTeamMatchSummary(season.id, entries.map((entry) => entry.id));
   const membersByEntry = new Map<string, typeof members>();
   for (const member of members) membersByEntry.set(member.entryId, [...(membersByEntry.get(member.entryId) ?? []), member]);
   const record = (entryId: string) => matchSummary.records.get(entryId) ?? createEmptyPublicEventTeamRecord();
-  const entryEyebrow = (formationOrder: number | null) => season.registrationMode === "team" && season.status === "registration"
-    ? "已通过报名审核"
-    : formationOrder !== null
-      ? `选秀第 ${formationOrder} 顺位`
-      : "赛事队伍";
   const visibleEntries = entries.filter((entry) => matchesDirectorySearch(q, entry.name, ...(membersByEntry.get(entry.id) ?? []).map(getPublicDisplayName)));
   const [mapPreviews, results, stagePresentation] = await Promise.all([
     getBatchPublicTeamMapPreviews(visibleEntries.map((entry) => entry.id)),
@@ -97,7 +91,7 @@ export default async function CompetitionEntriesPage({ params, searchParams }: {
     {visibleEntries.length === 0 ? (
       <div className="py-16 text-center text-[var(--color-fg-mid)]">{q ? "没有匹配的队伍或选手" : "赛事队伍尚未形成"}</div>
     ) : (
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">{visibleEntries.map((entry) => <TeamCard stages={mapPreviews.get(entry.id)?.playedStages?.map((key) => stagePresentation.labels[key]).filter((name): name is string => Boolean(name))} maps={mapPreviews.get(entry.id)?.own} placement={results.placements.find((placement) => placement.entryId === entry.id)?.label} key={entry.id} entryId={entry.id} teamName={entry.name} seasonSlug={seasonSlug} eyebrow={entryEyebrow(entry.formationOrder)} logoUrl={entry.logoUrl} players={(membersByEntry.get(entry.id) ?? []).map((member) => ({ name: getPublicDisplayName(member), avatarUrl: member.avatarUrl, isStarter: member.isStarter, userId: member.userId }))} record={record(entry.id)} summary={null} />)}</div>
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">{visibleEntries.map((entry) => <TeamCard stages={mapPreviews.get(entry.id)?.playedStages?.map((key) => stagePresentation.labels[key]).filter((name): name is string => Boolean(name))} maps={mapPreviews.get(entry.id)?.own} placement={results.placements.find((placement) => placement.entryId === entry.id)?.label} key={entry.id} entryId={entry.id} teamName={entry.name} seasonSlug={seasonSlug} logoUrl={entry.logoUrl} players={(membersByEntry.get(entry.id) ?? []).map((member) => ({ name: getPublicDisplayName(member), avatarUrl: member.avatarUrl, isStarter: member.isStarter, userId: member.userId }))} record={record(entry.id)} summary={null} />)}</div>
     )}
   </PageLayout>;
 }

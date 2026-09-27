@@ -14,7 +14,7 @@ import {
   type ConversionPolicyMapping,
 } from "@/lib/competitive/conversion-policy";
 
-export type ConversionPolicyDatabaseExecutor = DB | TxDb;
+export type ConversionPolicyDatabaseExecutor = DB;
 
 export interface ConversionPolicyEventReference {
   seasonId: string;

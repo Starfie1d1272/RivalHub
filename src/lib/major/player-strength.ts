@@ -15,6 +15,12 @@ export interface PlayerStrengthFact {
   conversionVersion?: string;
   /** Total stars on a star-based (S) rank; null for starless ranks or legacy facts. */
   stars?: number | null;
+  /** Explicitly unranked season estimated one rung below its nearest prior ranked season. */
+  estimatedFromUnranked?: boolean;
+  /** Canonical target-platform season key used as the estimate basis. */
+  estimatedFromSeasonKey?: string | null;
+  /** Estimate fell back to the declared historical peak because no ranked season fact exists. */
+  estimatedFromHistorical?: boolean;
 }
 
 export interface PlayerStrengthInput {

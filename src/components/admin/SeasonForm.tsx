@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { toast } from "sonner";
 import { createSeason, deleteSeason, openSeasonRegistration, publishSeason, updateSeason, revertSeasonToDraft, revertSeasonToRegistration, forceFinishSeason, archiveSeason, type SeasonFormInput } from "@/actions/seasons";
 import {
@@ -13,7 +14,7 @@ import {
   type StagePlan,
 } from "@/types/season";
 import { checkStandardMajorCapabilities } from "@/lib/competition/definition";
-import { createCompetitionTemplate, type CompetitionTemplate } from "@/lib/competition/templates";
+import { createCompetitionTemplate, createMajor24Capabilities, createMajorDefaultCapabilities, type CompetitionTemplate } from "@/lib/competition/templates";
 import { getSeasonEditCapabilities, type SeasonEditPhase } from "@/lib/seasons/edit";
 import { parseCSTInput } from "@/lib/utils/date";
 import { PLAYER_TYPE_LABELS } from "@/lib/seasons/presentation";
@@ -432,14 +433,32 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
             ? "rounded-sm border border-[var(--color-ok-edge)] bg-[var(--color-ok-soft)] p-4 text-sm"
             : "rounded-sm border border-[var(--color-warn-edge)] bg-[var(--color-warn-soft)] p-4 text-sm"}
         >
+          <div className="mb-4 max-w-sm space-y-2">
+            <Label htmlFor="major-profile">Major 正赛规模</Label>
+            <Select
+              value={standardMajorCheck.managedProfile?.id ?? "unsupported"}
+              onValueChange={(value) => setStagePlan(value === "major-24" ? createMajor24Capabilities().stagePlan : createMajorDefaultCapabilities().stagePlan)}
+              disabled={!editCapabilities.canEditPublicRules}
+            >
+              <SelectTrigger id="major-profile"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="major-32">Major 32 · 默认</SelectItem>
+                <SelectItem value="major-24">Major 24</SelectItem>
+                {!standardMajorCheck.managedProfile && <SelectItem value="unsupported" disabled>当前赛制不受支持</SelectItem>}
+              </SelectContent>
+            </Select>
+          </div>
           {standardMajorCheck.isStandardMajor ? (
             <>
               <h2 className="font-semibold">标准 Major 摘要</h2>
               <p className="mt-1 text-[var(--color-fg-mid)]">
-                32 支队伍；队伍整体报名；每队 {minTeamSize}–{maxTeamSize} 人；三阶段瑞士轮；8 队单败淘汰。
+                {standardMajorCheck.managedProfile?.entrantCapacity} 支队伍；队伍整体报名；每队 {minTeamSize}–{maxTeamSize} 人；{standardMajorCheck.managedProfile?.swissStages.length} 个瑞士轮阶段；8 队单败淘汰。
               </p>
               <p className="mt-1 text-[var(--color-fg-mid)]">
-                阶段一、二：普通比赛 BO1，晋级/淘汰局 BO3；阶段三：全部 BO3；淘汰赛：四分之一决赛、半决赛 BO3，决赛 BO5。
+                {standardMajorCheck.managedProfile?.id === "major-24"
+                  ? `${standardMajorCheck.managedProfile.swissStages.map((stage) => stage.name).join("、")}全部 BO3`
+                  : `${standardMajorCheck.managedProfile?.swissStages[0]?.name}、${standardMajorCheck.managedProfile?.swissStages[1]?.name} 普通比赛 BO1，晋级/淘汰局 BO3；${standardMajorCheck.managedProfile?.swissStages[2]?.name} 全部 BO3`}
+                ；淘汰赛：四分之一决赛、半决赛 BO3，决赛 BO5。
               </p>
             </>
           ) : (
@@ -473,15 +492,15 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
               <Label htmlFor="registration-opens-at">报名开放时间</Label>
               <Input id="registration-opens-at" type="datetime-local" value={registrationOpensAt ?? ""} disabled={!editCapabilities.canEditRegistrationOpenSchedule} onChange={(e) => setRegistrationOpensAt(e.target.value)} />
             </div>
-            <div>
+            {template !== "major" && <div>
               <Label htmlFor="registration-closes-at">报名截止时间</Label>
               <Input id="registration-closes-at" type="datetime-local" value={registrationClosesAt ?? ""} disabled={!editCapabilities.canEditRegistrationDeadlines} onChange={(e) => setRegistrationClosesAt(e.target.value)} />
-            </div>
-            <div>
+            </div>}
+            {template !== "major" && <div>
               <Label htmlFor="roster-change-closes-at">名单调整截止时间</Label>
               <Input id="roster-change-closes-at" type="datetime-local" value={rosterChangeClosesAt ?? ""} disabled={!editCapabilities.canEditRegistrationDeadlines} onChange={(e) => setRosterChangeClosesAt(e.target.value)} />
-            </div>
-            <div><Label htmlFor="end-at">赛季结束时间</Label><Input id="end-at" type="datetime-local" value={endAt ?? ""} onChange={(e) => setEndAt(e.target.value)} /></div>
+            </div>}
+            {template !== "major" && <div><Label htmlFor="end-at">赛季结束时间</Label><Input id="end-at" type="datetime-local" value={endAt ?? ""} onChange={(e) => setEndAt(e.target.value)} /></div>}
           </div>
         </section>
 
@@ -637,7 +656,7 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
         {saveButton}
       </SettingsPanel>
 
-      <SettingsPanel id="lifecycle" label="时间与生命周期">
+      <SettingsPanel id="lifecycle" label={template === "major" ? "发布与开放报名" : "时间与生命周期"}>
         <LifecycleFacts status={initial?.status ?? "draft"} phase={editCapabilities.phase} registrationOpenedAt={initial?.registrationOpenedAt} />
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
@@ -645,22 +664,26 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
             <Input id="registration-opens-at" type="datetime-local" value={registrationOpensAt ?? ""} disabled={!editCapabilities.canEditRegistrationOpenSchedule} onChange={(e) => setRegistrationOpensAt(e.target.value)} />
             <p className="mt-1 text-xs text-[var(--color-fg-dim)]">{editCapabilities.canEditRegistrationOpenSchedule ? "可稍后填写；留空表示赛事已公开但报名时间待定。" : "实际开放后锁定报名开放时间。"}</p>
           </div>
-          <div>
+          {template !== "major" && <div>
             <Label htmlFor="registration-closes-at">报名截止时间</Label>
             <Input id="registration-closes-at" type="datetime-local" value={registrationClosesAt ?? ""} disabled={!editCapabilities.canEditRegistrationDeadlines} onChange={(e) => setRegistrationClosesAt(e.target.value)} />
             <p className="mt-1 text-xs text-[var(--color-fg-dim)]">截止后不再接受新的报名。{editCapabilities.canEditRegistrationDeadlines ? "比赛开始前仍可运营调整。" : "比赛开始后锁定。"}</p>
-          </div>
-          <div>
+          </div>}
+          {template !== "major" && <div>
             <Label htmlFor="roster-change-closes-at">名单调整截止时间</Label>
             <Input id="roster-change-closes-at" type="datetime-local" value={rosterChangeClosesAt ?? ""} disabled={!editCapabilities.canEditRegistrationDeadlines} onChange={(e) => setRosterChangeClosesAt(e.target.value)} />
             <p className="mt-1 text-xs text-[var(--color-fg-dim)]">已报名队伍可在此之前自行调整本届名单；留空时回退到报名截止时间。{editCapabilities.canEditRegistrationDeadlines ? "比赛开始前仍可运营调整。" : "比赛开始后锁定。"}</p>
-          </div>
-          <div>
+          </div>}
+          {template !== "major" && <div>
             <Label htmlFor="end-at">赛季结束时间</Label>
             <Input id="end-at" type="datetime-local" value={endAt ?? ""} onChange={(e) => setEndAt(e.target.value)} />
             <p className="mt-1 text-xs text-[var(--color-fg-dim)]">用于赛事信息展示与赛后收尾；修改此时间不会自动结束赛事。</p>
-          </div>
+          </div>}
         </div>
+        {template === "major" && initial?.slug && <p className="mt-4 border-t border-[var(--color-border)] pt-4 text-sm text-[var(--color-fg-mid)]">
+          Major 的报名截止、最终名单调整截止和 Main Event 计划开始时间统一在赛前准备中管理。{" "}
+          <Link href={`/admin/${initial.slug}/prestart`} className="text-[var(--color-accent)] hover:underline">前往赛前准备</Link>
+        </p>}
         <div className="mt-5 flex flex-wrap items-center justify-end gap-3 border-t border-[var(--color-border)] pt-4">
           {initial?.status === "draft" && <Button type="button" variant="outline" disabled={isPending} onClick={() => setPublishConfirmationOpen(true)}>发布赛季</Button>}
           {initial?.status === "registration" && !initial.registrationOpenedAt && <Button type="button" disabled={isPending} onClick={requestOpenRegistration}>立即开放报名</Button>}
@@ -762,6 +785,12 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
       <SettingsPanel id="format" label="赛制与地图">
         <div className="space-y-5">
           <MapPoolEditor value={mapPool} disabled={!editCapabilities.canEditPublicRules} onChange={setMapPool} />
+          {template === "major" && initial?.status === "registration" && (
+            <p className="border-t border-[var(--color-border)] pt-4 text-sm text-[var(--color-fg-mid)]">
+              正赛规模可在“赛前准备”中、且尚未产生依赖事实前调整。{" "}
+              <Link href={`/admin/${initial.slug}/prestart`} className="text-[var(--color-accent)] hover:underline">前往赛前准备</Link>
+            </p>
+          )}
           {template === "custom" ? (
             <div className="border-t border-[var(--color-border)] pt-5">
               <h3 className="mb-3 text-sm font-medium">赛程阶段</h3>

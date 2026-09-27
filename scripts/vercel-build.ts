@@ -17,6 +17,7 @@ try {
     assertPreviewAuthEnvironment(process.env);
   }
   run(resolve(projectRoot, `node_modules/.bin/next${binSuffix}`), ["build"], process.env);
+  run(process.execPath, [resolve(projectRoot, "scripts/report-build-footprint.mjs")], process.env);
 } catch (error) {
   console.error(error instanceof Error ? error.message : String(error));
   process.exit(1);

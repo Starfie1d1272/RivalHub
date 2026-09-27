@@ -9,12 +9,15 @@ import {
 
 describe("scheduler definitions", () => {
   it("keeps one provider-neutral registry with the Beijing cleanup schedule", () => {
-    expect(SCHEDULER_JOB_DEFINITIONS).toHaveLength(6);
+    expect(SCHEDULER_JOB_DEFINITIONS).toHaveLength(7);
+    expect(getSchedulerJobDefinition("reconcile-predictions")).toMatchObject({ primaryCron: "* * * * *", staleAfterMs: 3 * 60 * 1000 });
     expect(getSchedulerJobDefinition("cleanup-education-evidence")).toMatchObject({
       primaryCron: "0 22 * * *",
       staleAfterMs: 36 * 60 * 60 * 1000,
     });
     expect(getSchedulerJobDefinition("refresh-steam-profiles")).toMatchObject({ primaryCron: "0 */6 * * *", staleAfterMs: 18 * 60 * 60 * 1000 });
+    expect(getSchedulerJobDefinition("resolve-match-veto-timeouts")).toMatchObject({ primaryCron: "* * * * *", staleAfterMs: 3 * 60 * 1000 });
+    expect(getSchedulerRoute("resolve-match-veto-timeouts")).toBe("/api/cron/resolve-match-veto-timeouts");
     expect(getSchedulerRoute(SCHEDULER_JOB_DEFINITIONS[0]!.key)).toBe("/api/cron/draft-timeout");
     expect(schedulerJobName("draft-timeout")).toBe("rivalhub-draft-timeout");
   });

@@ -59,7 +59,7 @@ export function MapPreferencesForm({ initialPreferences }: { initialPreferences:
           </p>
         </div>
         <MapPreferenceSection
-          title="当前 Active Duty"
+          title="当前地图池"
           mapPool={activeMaps}
           mapPreferences={preferences}
           error={null}

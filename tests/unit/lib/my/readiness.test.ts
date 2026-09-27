@@ -202,6 +202,25 @@ describe("我的 readiness read model", () => {
     ])).toBe(true);
   });
 
+  it("keeps optional Perfect and 5E maintenance gaps out of generic settings readiness", () => {
+    const profile = { id: "profile", title: "个人资料", state: "ready" as const, detail: "", cta: { href: "/settings", label: "查看" } };
+    const education = { id: "education", title: "教育认证", state: "ready" as const, detail: "", cta: { href: "/settings/education", label: "查看" } };
+    expect(isSettingsProfileReadinessReady(profile, education, [
+      { key: "perfect_world", displayName: "完美世界竞技", state: "incomplete", blockers: ["完美世界竞技 · 历史最高尚未录入。"], required: false },
+      { key: "fivee", displayName: "5E", state: "incomplete", blockers: ["5E · 历史最高尚未录入。"], required: false },
+    ])).toBe(true);
+  });
+
+  it("continues to block settings readiness on missing identity or education facts", () => {
+    const readyProfile = { id: "profile", title: "个人资料", state: "ready" as const, detail: "", cta: { href: "/settings", label: "查看" } };
+    const readyEducation = { id: "education", title: "教育认证", state: "ready" as const, detail: "", cta: { href: "/settings/education", label: "查看" } };
+    const incompleteProfile = { ...readyProfile, state: "incomplete" as const };
+    const incompleteEducation = { ...readyEducation, state: "incomplete" as const };
+
+    expect(isSettingsProfileReadinessReady(incompleteProfile, readyEducation, [])).toBe(false);
+    expect(isSettingsProfileReadinessReady(readyProfile, incompleteEducation, [])).toBe(false);
+  });
+
   it("surfaces every active sanction effect with the affected competition", () => {
     const sanctions = [sanction(["registration_block"]), sanction(["roster_block"]), sanction(["match_participation_block"])];
     const result = model({ sanctions });

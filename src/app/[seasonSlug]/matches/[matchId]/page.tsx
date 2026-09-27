@@ -1,8 +1,9 @@
 import { MatchLiveViewing } from "@/components/matches/MatchLiveViewing";
 import { notFound } from "next/navigation";
-import { eq, and, inArray, isNotNull } from "drizzle-orm";
+import Link from "next/link";
+import { eq, and, inArray, isNotNull, or } from "drizzle-orm";
 import { db } from "@/db/client";
-import { matches, competitionEntries, eventRosters, eventRosterMembers, matchCommentators, matchMaps, steamProfiles, users, seasonRegistrations } from "@/db/schema";
+import { matches, competitionEntries, eventRosters, eventRosterMembers, matchCommentators, matchMaps, matchRosterPlayers, matchRosters, steamProfiles, users, seasonRegistrations } from "@/db/schema";
 import { matchPlayerStats } from "@/db/schema/player-stats";
 import { matchMvpVotes } from "@/db/schema/mvp-votes";
 import { MatchMvpVote } from "@/components/matches/MatchMvpVote";
@@ -27,7 +28,7 @@ import { getMatchMvpResults, ensureMvpWinner } from "@/actions/player-stats";
 import { getMatchTimeProposalViews } from "@/lib/matches/time-proposals";
 import { getTimeBufferHoursForStage } from "@/lib/matches/time-rules";
 import { getMatchRoster } from "@/actions/matches/roster";
-import { getSeasonHexagonScores } from "@/actions/hexagon";
+import { getSeasonHexagonScores } from "@/lib/stats/hexagon-query";
 import { computeTeamDimensions } from "@/lib/utils/hexagon";
 import type { HexagonScores } from "@/lib/utils/hexagon";
 import { getUserSession, requireSeasonAdmin } from "@/lib/auth/session";
@@ -94,12 +95,22 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
           perfectName: users.perfectName,
           userId: users.id,
           avatarUrl: steamProfiles.avatarUrl,
+          isCurrent: eventRosterMembers.isCurrent,
         })
         .from(eventRosterMembers)
         .innerJoin(eventRosters, eq(eventRosterMembers.eventRosterId, eventRosters.id))
         .innerJoin(users, eq(eventRosterMembers.userId, users.id))
         .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
-        .where(inArray(eventRosters.entryId, [match.entryAId, match.entryBId])),
+        .where(and(
+          inArray(eventRosters.entryId, [match.entryAId, match.entryBId]),
+          or(
+            eq(eventRosterMembers.isCurrent, true),
+            inArray(eventRosterMembers.id, db.select({ memberId: matchRosterPlayers.eventRosterMemberId })
+              .from(matchRosterPlayers)
+              .innerJoin(matchRosters, eq(matchRosters.id, matchRosterPlayers.rosterId))
+              .where(eq(matchRosters.matchId, match.id))),
+          ),
+        )),
       getSeasonFinishedMatches(season.id, match.entryAId),
       getSeasonFinishedMatches(season.id, match.entryBId),
       getSeasonHexagonScores(season.id),
@@ -159,18 +170,27 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
   const h2hWinsB = h2hMatches.filter((m) => !m.teamAWon).length;
 
   // 建立 userId 集合
-  const teamAUserIds = allTeamMembers
-    .filter((m) => m.teamId === match.entryAId && m.userId)
-    .map((m) => m.userId as string);
-  const teamBUserIds = allTeamMembers
-    .filter((m) => m.teamId === match.entryBId && m.userId)
-    .map((m) => m.userId as string);
+  const matchRosterMemberIds = new Set([
+    ...(rosterA?.players.map((player) => player.eventRosterMemberId) ?? []),
+    ...(rosterB?.players.map((player) => player.eventRosterMemberId) ?? []),
+  ]);
+  const teamAUserIds = [...new Set(allTeamMembers
+    .filter((m) => m.teamId === match.entryAId && m.userId && (m.isCurrent || matchRosterMemberIds.has(m.id)))
+    .map((m) => m.userId as string))];
+  const teamBUserIds = [...new Set(allTeamMembers
+    .filter((m) => m.teamId === match.entryBId && m.userId && (m.isCurrent || matchRosterMemberIds.has(m.id)))
+    .map((m) => m.userId as string))];
   const userIdToTeamId = new Map<string, string>(
-    allTeamMembers.filter((m) => m.userId).map((m) => [m.userId as string, m.teamId]),
+    allTeamMembers.filter((m) => m.userId && m.isCurrent).map((m) => [m.userId as string, m.teamId]),
   );
   const userIdToMember = new Map(
-    allTeamMembers.filter((m) => m.userId).map((m) => [m.userId as string, m]),
+    allTeamMembers.filter((m) => m.userId && m.isCurrent).map((m) => [m.userId as string, m]),
   );
+  for (const member of allTeamMembers) {
+    if (!member.userId || !matchRosterMemberIds.has(member.id)) continue;
+    userIdToTeamId.set(member.userId, member.teamId);
+    userIdToMember.set(member.userId, member);
+  }
 
   // 首发阵容 userId（来自已提交名单）
   const starterAMemberIds = new Set(
@@ -296,7 +316,7 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
     if (isCaptainA || isCaptainB) {
       const captainTeamId = isCaptainA ? match.entryAId : match.entryBId;
       captainTeamMembers = allTeamMembers
-        .filter((m) => m.teamId === captainTeamId)
+        .filter((m) => m.teamId === captainTeamId && m.isCurrent)
         .map((r) => ({
           id: r.id,
           personaName: r.personaName ?? null,
@@ -420,6 +440,7 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
                 rosterStatus={captainRoster?.status ?? null}
                 initialStarterIds={captainRoster?.players.filter((player) => player.isStarter).map((player) => player.eventRosterMemberId) ?? []}
                 initialSubstituteIds={captainRoster?.players.filter((player) => !player.isStarter).map((player) => player.eventRosterMemberId) ?? []}
+                initialVetoRepresentativeEventRosterMemberId={captainRoster?.players.find((player) => player.isVetoRepresentative)?.eventRosterMemberId ?? null}
                 allowSubstitutes={match.ownership !== "major_stage"}
               />
             </Panel>
@@ -494,6 +515,21 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
       )}
 
       {!isFinished && <>
+      {(match.status === "scheduled" || match.status === "in_progress") && (
+        <section className="space-y-3">
+          <Panel label="BP 与开赛">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 className="font-semibold text-[var(--color-fg)]">Veto Room</h2>
+                <p className="mt-1 text-sm text-[var(--color-fg-mid)]">{match.status === "scheduled" ? "双方负责人确认后开始 BP；Veto Session 开始时比赛进入进行中。" : "查看当前禁选进度、倒计时与超时记录。"}</p>
+              </div>
+              <Link className="inline-flex min-h-10 items-center rounded border border-[var(--color-border)] px-4 text-sm font-medium hover:border-[var(--color-border-hover)]" href={`/${seasonSlug}/matches/${match.id}/veto`}>
+                {match.status === "scheduled" ? "打开 Veto Room" : "查看 Veto Room"}
+              </Link>
+            </div>
+          </Panel>
+        </section>
+      )}
       {/* BP 流程（进行中 / 已结束时显示） */}
       {match.status !== "scheduled" && (
         <VetoView
@@ -614,6 +650,9 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
         />
       )}
       {isFinished && <>
+      <div className="flex justify-end">
+        <Link className="text-sm text-[var(--color-accent)] hover:underline" href={`/${seasonSlug}/matches/${match.id}/veto`}>打开 Veto Room 记录</Link>
+      </div>
       {/* BP 流程（进行中 / 已结束时显示） */}
       {match.status !== "scheduled" && (
         <VetoView

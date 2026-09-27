@@ -6,6 +6,8 @@ import {
   validatePick,
   coinLevel,
   rulesSchema,
+  defaultPredictionRules,
+  predictionChallengeCapacity,
 } from "@/lib/predictions/rules";
 import {
   simulateMajor,
@@ -18,7 +20,7 @@ import {
 } from "@/lib/predictions/types";
 import { projectPredictionStages } from "@/lib/predictions/stage-projection";
 import { resolveMarketOptions } from "@/lib/predictions/market-resolution";
-import { MAJOR_STAGE_PLAN } from "@/lib/competition/templates";
+import { MAJOR_STAGE_PLAN, MAJOR_24_STAGE_PLAN } from "@/lib/competition/templates";
 const B = BigInt;
 function baseline(): Baseline {
   return {
@@ -49,6 +51,32 @@ function complete(base: Baseline) {
   throw new Error("simulation failed to converge");
 }
 describe("Major spectator simulation and independent Pick'Em", () => {
+  it("keeps all coin tiers attainable in each supported event profile", () => {
+    for (const plan of [MAJOR_24_STAGE_PLAN, MAJOR_STAGE_PLAN]) {
+      const stages = projectPredictionStages(plan);
+      const rules = defaultPredictionRules(stages);
+      expect(rulesSchema.safeParse(rules).success).toBe(true);
+      expect(coinLevel(stages.length, predictionChallengeCapacity(stages), rules)).toBe("钻石");
+    }
+    expect(defaultPredictionRules(projectPredictionStages(MAJOR_STAGE_PLAN))).toEqual(DEFAULT_RULES);
+    expect(defaultPredictionRules(projectPredictionStages(MAJOR_24_STAGE_PLAN))).toMatchObject({ silver: 4, gold: 6, diamond: 8 });
+  });
+  it("completes the 24-team profile using frozen direct seeds and BO3 Swiss rules", () => {
+    const base = baseline();
+    base.stages = projectPredictionStages(MAJOR_24_STAGE_PLAN);
+    base.teams = base.teams.slice(0, 24);
+    const { stages } = complete(base);
+    expect(stages.map((s) => s.matches.length)).toEqual([33, 33, 7]);
+    expect(stages[0]!.entrants.map((e) => e.teamId)).toEqual(base.teams.slice(8).map((t) => t.teamId));
+    expect(stages[1]!.entrants.slice(0, 8).map((e) => e.teamId)).toEqual(base.teams.slice(0, 8).map((t) => t.teamId));
+    expect(stages.slice(0, 2).flatMap((s) => s.matches).every((m) => m.format === "bo3")).toBe(true);
+    expect(stages[2]!.matches.at(-1)?.format).toBe("bo5");
+    for (const stage of stages) {
+      validatePick(stage.pick!, stage.entrants, base.stages.find((s) => s.key === stage.key)!.type, DEFAULT_RULES);
+    }
+    base.teams.pop();
+    expect(simulateMajor(base, {}, true)).toEqual([]);
+  });
   it("completes 32 entrants through three canonical Swiss stages and seven playoff matches", () => {
     const { stages } = complete(baseline());
     expect(stages).toHaveLength(4);

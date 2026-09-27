@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { checkStandardMajorCapabilities } from "@/lib/competition/definition";
-import { createCompetitionTemplate, createCustomTournamentTemplate, createMajorTemplate, createRivalsTemplate } from "@/lib/competition/templates";
+import { createCompetitionTemplate, createCustomTournamentTemplate, createMajor24Capabilities, createMajorTemplate, createRivalsTemplate } from "@/lib/competition/templates";
 import { isStageExecutorSupported } from "@/lib/formats";
 import { planSeasonCreate, resolveCompetitionDefinition, seasonFormSchema, type SeasonFormInput } from "@/lib/seasons/edit";
 import type { SeasonCapabilities } from "@/types/season";
@@ -50,6 +50,12 @@ describe("competition templates", () => {
     const capabilities = createMajorTemplate();
     expect(checkStandardMajorCapabilities(capabilities).isStandardMajor).toBe(true);
     expect(capabilities.hasCommunityAwards).toBe(true);
+  });
+
+  it("provides a Major-24 capability preset while keeping the default Major-32", () => {
+    const major24 = createMajor24Capabilities();
+    expect(checkStandardMajorCapabilities(major24).managedProfile?.id).toBe("major-24");
+    expect(checkStandardMajorCapabilities(createMajorTemplate()).managedProfile?.id).toBe("major-32");
   });
 
   it("custom tournament starts from an empty executable contract", () => {
@@ -125,6 +131,23 @@ describe("resolveCompetitionDefinition (draft canonicalization)", () => {
     expect(data.teamRegistrationConfig?.requireCompetitiveProfile).toBe(true);
     expect(data.affiliationRules).toEqual(major.affiliationRules);
     expect(data.kind).toBe("Major");
+  });
+
+  it("preserves only a resolver-approved Major-24 stage plan on save", () => {
+    const major24 = createMajor24Capabilities();
+    const input = formInput({
+      template: "major",
+      kind: "Major",
+      stagePlan: major24.stagePlan,
+      affiliationRules: major24.affiliationRules,
+      teamRegistrationConfig: major24.teamRegistrationConfig,
+    });
+    const saved = resolveCompetitionDefinition(input, true);
+    expect(saved.stagePlan).toEqual(major24.stagePlan);
+    expect(checkStandardMajorCapabilities({ ...major24, stagePlan: saved.stagePlan }).managedProfile?.id).toBe("major-24");
+
+    const unsupported = resolveCompetitionDefinition({ ...input, stagePlan: [{ ...major24.stagePlan[0]!, matchFormat: "bo1" }] }, true);
+    expect(unsupported.stagePlan).toEqual(createMajorTemplate().stagePlan);
   });
 
   it("preserves an explicitly disabled community-awards capability on a built-in draft", () => {

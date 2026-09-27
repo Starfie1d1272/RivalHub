@@ -33,7 +33,7 @@ validate tag belongs to main
    ↓ all pre-promotion evidence complete
 release lineage gate (`rivalhub-release-lineage`)
 → if requiresProductionMigration: production migration + verify
-→ if requiresSteamProfileBackfill: protected Steam profile backfill → read-only coverage/shadow verify
+→ if requiresSteamProfileBackfill: protected Steam profile backfill → read-only coverage verify
 → if fresh: OIDC exact candidate smoke → `scripts/release/routing.ts`
 → if requiresSchedulerProvision: scheduler provision + verify
 → publish/update Production-delta GitHub Release notes
@@ -55,7 +55,7 @@ PG17 rehearsal、checkpoint 与 candidate build 在 preflight 完成后并行；
 6. **Staged Production deployment**：使用 `vercel deploy --prod --skip-domain` 在 Production 环境完成构建，但不将生产域名指向该 candidate；先用短期 GitHub OIDC token 对 exact candidate URL 完成 `/` 与 `/api/system/release` smoke 验证。candidate build 与 PG17/checkpoint 并行，routing 仍在 release lineage gate 内执行。
 7. **Promotion / rollback boundary**：Candidate smoke 通过后，唯一 executable owner `scripts/release/routing.ts`（workflow 通过 `pnpm release:routing` 调用）只消费 release 开始时冻结的 previous Production identity，并在任何 routing mutation 前冻结 previous deployment 与 candidate deployment 的 project/target/readiness。它通过 `scripts/release/vercel-routing.ts` 复用 Vercel REST API `POST /v10/projects/{projectId}/promote/{deploymentId}` 与 `POST /v1/projects/{projectId}/rollback/{deploymentId}`，不调用需要 user-scope lookup 的 CLI；promote 不触发二次构建。YAML 只负责 protected config 与 controller wiring。Issue #637 不改变 Issue #636 routing owner 或 semantics。
 8. **Same-tag resume**：若某次 run 已完成 promote，canonical Production 已等于 candidate，但后续 scheduler 或 GitHub Release 步骤失败，retry 不得把 candidate 自己当作 previous，也不得重新执行 checkpoint/migration/deploy/routing。此时 workflow dispatch 必须显式提供首次 run 冻结的 `previous_release_tag` / `previous_release_commit`；脚本验证 canonical 已精确等于 candidate、previous pair 合法且位于 candidate ancestry 后设置 `RIVALHUB_RELEASE_MODE=resume`，仅继续幂等的 post-promotion 步骤。若 canonical 仍是旧版，则这些 resume inputs 反而是错误配置并 fail closed，正常走 fresh path。
-9. **Protected Steam profile gate**：当 Release Plan 要求 backfill 时，production migration/verify 成功后必须使用 protected `STEAM_API_KEY` 和显式 cache-write confirmation 执行完整 current-primary backfill，再以 `REPEATABLE READ READ ONLY` coverage verify 同时确认 cache coverage 与 N/N+1 legacy shadow 一致；任一 provider、backfill 或 coverage failure 都阻止 candidate smoke/routing，旧 Production 保持为当前线上版本。
+9. **Protected Steam profile gate**：当 Release Plan 要求 backfill 时，production migration/verify 成功后必须使用 protected `STEAM_API_KEY` 和显式 cache-write confirmation 执行完整 current-primary backfill，再以 `REPEATABLE READ READ ONLY` coverage verify 确认 current-primary profile cache coverage；任一 provider、backfill 或 coverage failure 都阻止 candidate smoke/routing，旧 Production 保持为当前线上版本。
 10. **Phase timing evidence**：各阶段耗时由 `scripts/ci/timing.mjs` 统一记录并写入 Step Summary，至少区分 Release Plan、bootstrap、PG17 replay、DB-only/full checkpoint、production migration、Steam profile backfill/coverage、candidate build/smoke、routing、scheduler、GitHub Release 与 Total。最终 publish job 使用调用 workflow 的 `github.run_started_at` 作为 `Total` 起点，覆盖 job waiting 与并行阶段。
 
 production secrets、target confirmations 与 remote-write authorization 只存在于 protected production Environment/canonical wrappers。`VERCEL_TOKEN` 必须是 project-scoped credential，仅用于 exact production deployment、project-scoped promotion/rollback API calls；不得为了解决 CLI scope lookup 改用 Full Account/user/team token。`candidate_build` job 使用 `id-token: write`，在运行时向 GitHub OIDC endpoint 申请短期 token，audience 为 `https://github.com/Starfie1d1272`；protected exact `https://<deployment>.vercel.app` smoke 只发送 `x-vercel-trusted-oidc-idp-token`。canonical `https://match.starfie1d.top` 使用普通 HTTPS read-back，不携带 OIDC header。
@@ -151,7 +151,7 @@ Recovery acceptance 还要人工确认 Supabase plan/physical backup/PITR、Auth
 - tag、实际 release commit、production deployment identity 对齐；
 - previous Production tag/SHA 已冻结并校验，migration compatibility、routing 与 release notes 使用同一 baseline；
 - Release Plan 要求的 DB-only 或 full checkpoint 已完成并通过 R2 HEAD/real GET/hash read-back；application-only、metadata-only、普通 source/migration/Vercel deploy 与普通 forward-compatible migration 不机械创建 full checkpoint；
-- 仅在 Release Plan 标记时执行 production migration/verify、Steam profile backfill/coverage、scheduler provision/verify 或 Storage full checkpoint；若要求 Steam profile gate，则 backfill 与 read-only coverage/shadow verify 必须在 candidate smoke/routing 前成功；Vercel protected smoke、canonical identity read-back 始终通过；
+- 仅在 Release Plan 标记时执行 production migration/verify、Steam profile backfill/coverage、scheduler provision/verify 或 Storage full checkpoint；若要求 Steam profile gate，则 backfill 与 read-only coverage verify 必须在 candidate smoke/routing 前成功；Vercel protected smoke、canonical identity read-back 始终通过；
 - GitHub Release notes 使用真实 previous Production → current Production delta，failed intermediate tag 不被表述为曾上线；
 - Vercel Trusted Source 已由 owner 配置并以短期 GitHub OIDC exact deployment smoke 证明；
 - 需要 production acceptance 的 Issue 具备真实 evidence 后再关闭。

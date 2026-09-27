@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -46,5 +47,23 @@ describe("system artifact sanitizer", () => {
     expect(value).not.toContain("signature-secret");
     expect(value).not.toContain("education-evidence");
     expect(value).toContain("[REDACTED_SIGNED_URL]");
+  });
+
+  it("omits Playwright trace archives from the default failure bundle", () => {
+    const source = mkdtempSync(join(tmpdir(), "rivalhub-trace-source-"));
+    const archiveContent = mkdtempSync(join(tmpdir(), "rivalhub-trace-content-"));
+    const target = mkdtempSync(join(tmpdir(), "rivalhub-trace-target-"));
+    try {
+      writeFileSync(join(archiveContent, "trace.trace"), "password=private-value\n", "utf8");
+      execFileSync("zip", ["-q", join(source, "trace.zip"), "trace.trace"], { cwd: archiveContent });
+
+      copySafeTree(source, join(target, "safe"), false);
+
+      expect(existsSync(join(target, "safe", "trace.zip"))).toBe(false);
+    } finally {
+      rmSync(source, { recursive: true, force: true });
+      rmSync(archiveContent, { recursive: true, force: true });
+      rmSync(target, { recursive: true, force: true });
+    }
   });
 });

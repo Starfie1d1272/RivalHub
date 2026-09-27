@@ -57,13 +57,18 @@ DB/internal facts
 → public RSC payload / Client props
 ```
 
+Public profile routes compose server-only read models; scope selection and derived metrics stay in the read model instead of the route entrypoint.
+
 公开页面默认不暴露 email、QQ、`studentId`、`authId`、管理员授权范围、教育证据或内部备注。不能把内部查询对象直接序列化给浏览器。
+
+公开导航使用 app-level Partial Prefetching；`params` / `searchParams` 驱动的内容留在最小 Suspense 区域，使同一路由可以复用 URL 无关的 shell。Server Action 写入的 mutation-driven public read model 使用语义 cache tag 并以 `updateTag()` 即时失效；Route Handler 或 webhook 使用 `revalidateTag(tag, "max")`。session、authorization、admin 与 draft facts 不进入共享 public cache，request boundary 由 `cookies()` / `headers()` 提供。需要保持 production build 与 runtime 数据源隔离、由首次 runtime request 填充的 public cache，可在最小 Suspense leaf 使用 `io()`；它不会把真实 request / prefetch 推迟到完整 navigation。`connection()` 只用于确实要求真实用户 navigation 的语义。
 
 ### Persistence
 
 - `src/db/schema/` 表达当前应用 schema；`drizzle/migrations/` 是唯一 active migration chain。
 - `pnpm db:push` 被阻止；远程 schema write 只能走受保护的 staging/release path。
 - 应用代码通过 server-only DB facade 取得 Drizzle client；CLI/runtime exception 使用显式共享 runtime boundary。
+- Pool-level `DB` 可以并行执行互相独立的查询；单个 transaction 的 `TxDb` 共用一个 `pg.Client`，查询必须逐个 `await`，或合并为单条 SQL，不能在同一事务上用 `Promise.all` / `Promise.allSettled` 重叠执行。需要同时支持 pool 与 transaction 的 read model 必须暴露明确分开的 pool / `InTx` 执行入口，不能只依赖 TypeScript 结构类型收窄来区分执行器。
 - 需要历史复现、审计或恢复的 snapshot 是领域事实，不因与 live data 重复而去重。
 
 ## Competition architecture
@@ -75,7 +80,7 @@ DB/internal facts
 | 体系 | 参与模型 | 专属运行时 |
 | --- | --- | --- |
 | Rivals | 个人报名后形成赛事原生 CompetitionEntry | 投票、选秀、循环赛/双败流程 |
-| Major | 长期 Team 创建 CompetitionEntry | 赛前冻结、managed StageRun、Swiss/Playoffs、恢复与赛后事实 |
+| Major | 长期 Team 创建 CompetitionEntry | Qualification、赛前冻结、managed StageRun、Swiss/Playoffs、恢复与赛后事实 |
 
 具体赛制属于赛事政策和 stage/runtime owner，不在架构文档复制当前轮次、人数或 BO 数字。
 
@@ -101,7 +106,7 @@ Major runtime 的阶段参与者和已完成比赛是推进依据；standings、
 
 通用 Stage 的 logical identity 是 `(seasonId, StageConfig.key)`；`StageConfig.name` 只用于展示。`brackets-manager` 只能经 `src/lib/bracket/` adapter 使用，每个 provider-backed Stage 独立拥有 `(competition_id, stage_key)` 状态，provider stage name 和 numeric participant id 不得扩散成领域 contract。参与者必须携带稳定的 `rivalhubEntryId`，比赛解析只消费该 metadata。
 
-Major Swiss 不经过通用 provider adapter：它由 `majorStageEntrants`、official managed matches 和 StageRun 的 `finalizedRound` 投影，配对与晋级继续由 `src/lib/major/swiss.ts` / runtime owner 决定。
+Major Swiss 不经过通用 provider adapter：它由 `majorStageEntrants`、official managed matches 和 StageRun 的 `finalizedRound` 投影，配对与晋级继续由 `src/lib/major/swiss.ts` / runtime owner 决定。Qualification 使用独立 run 与 Qualification-owned manual matches；它不属于 Season StagePlan 或 Major StageRun。`src/lib/swiss/` 只投影 canonical 赛果、W/L、对手、BU、状态和排名，并提供配对 building blocks；每种赛事自己的 policy 验证完整轮次、战绩组限制、轮次上限与 bye/floater 语义。
 
 ## Spectator predictions
 

@@ -4,6 +4,7 @@ export interface MajorSwissRuntimeData {
   seasonId: string;
   stageRunId: string;
   stageKey: string;
+  stageName: string;
   finalizedRound: 0 | 1 | 2 | 3 | 4 | 5;
   currentRound: 1 | 2 | 3 | 4 | 5;
   currentMatchCount: number;
@@ -80,6 +81,7 @@ export function buildMajorRuntimeData({
       seasonId,
       stageRunId: stageRun.id,
       stageKey: stageRun.stageKey,
+      stageName: configuredStage.name,
       finalizedRound,
       currentRound,
       currentMatchCount: currentMatches.length,

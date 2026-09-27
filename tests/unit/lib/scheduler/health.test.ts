@@ -30,16 +30,32 @@ describe("scheduler health projection", () => {
     });
   });
 
-  it("requires both a fresh primary trigger and a fresh endpoint success", () => {
+  it("treats fresh idle checks as healthy and detects outstanding dispatches", () => {
     const definition = { staleAfterMs: 3 * 60 * 1000 };
     const now = new Date("2026-09-09T06:00:00.000Z");
+
     expect(isPrimaryHealthy({
       lastPrimaryTriggeredAt: new Date("2026-09-09T05:59:00.000Z"),
+      lastPrimaryDispatchRequestedAt: null,
+      lastPrimaryEndpointSucceededAt: null,
+    }, definition, now)).toBe(true);
+
+    expect(isPrimaryHealthy({
+      lastPrimaryTriggeredAt: new Date("2026-09-09T05:59:00.000Z"),
+      lastPrimaryDispatchRequestedAt: new Date("2026-09-09T05:59:15.000Z"),
       lastPrimaryEndpointSucceededAt: new Date("2026-09-09T05:59:30.000Z"),
     }, definition, now)).toBe(true);
+
     expect(isPrimaryHealthy({
       lastPrimaryTriggeredAt: new Date("2026-09-09T05:59:00.000Z"),
-      lastPrimaryEndpointSucceededAt: new Date("2026-09-09T05:55:00.000Z"),
+      lastPrimaryDispatchRequestedAt: new Date("2026-09-09T05:59:30.000Z"),
+      lastPrimaryEndpointSucceededAt: new Date("2026-09-09T05:59:15.000Z"),
+    }, definition, now)).toBe(false);
+
+    expect(isPrimaryHealthy({
+      lastPrimaryTriggeredAt: new Date("2026-09-09T05:55:00.000Z"),
+      lastPrimaryDispatchRequestedAt: null,
+      lastPrimaryEndpointSucceededAt: null,
     }, definition, now)).toBe(false);
   });
 

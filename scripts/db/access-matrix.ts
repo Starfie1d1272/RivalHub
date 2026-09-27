@@ -210,6 +210,20 @@ export const DATABASE_ACCESS_MATRIX: readonly DatabaseAccessEntry[] = [
     "只记录管理员针对当前 roster revision 的显式、可解除政策限制；资料缺失仍由资格 owner 阻断。",
   ),
   serverOnly(
+    "competition_qualification_entrants",
+    "Major Qualification",
+    "冻结候选预排名与参赛身份",
+    "src/lib/competition-qualification/runtime.ts; src/lib/admin/season-workspace/major-prestart.ts",
+    "资格赛候选顺序与晋级路线只经服务端读写，公开页面只消费显式赛程投影。",
+  ),
+  serverOnly(
+    "competition_qualification_runs",
+    "Major Qualification",
+    "资格赛配置、运行状态与 actor",
+    "src/lib/competition-qualification/runtime.ts; src/actions/competition-qualification.ts",
+    "资格赛生命周期由服务端事务维护，浏览器不直连运行记录。",
+  ),
+  serverOnly(
     "competitive_platform_ranks",
     "竞技资料目录",
     "内部等级目录配置",
@@ -453,6 +467,27 @@ export const DATABASE_ACCESS_MATRIX: readonly DatabaseAccessEntry[] = [
     "时间协商与自动判定事实",
     "src/lib/matches/time-proposals.ts; src/actions/matches/scheduling.ts",
     "proposal lifecycle 和 auto-award 由服务端事务维护。",
+  ),
+  serverOnly(
+    "match_veto_appeals",
+    "比赛 / BP 申诉",
+    "超时申诉原因、提交人与裁定事实",
+    "src/lib/matches/veto-room/service.ts; src/actions/matches/veto-room.ts",
+    "申诉与裁定只通过服务端 Veto Room action 读写，不直接开放 browser Data API。",
+  ),
+  serverOnly(
+    "match_veto_sessions",
+    "比赛 / BP",
+    "开赛请求、冻结先手、地图池与倒计时事实",
+    "src/lib/matches/veto-room/service.ts; src/lib/matches/veto-room/read-model.ts",
+    "Session 与 Match 生命周期在同一服务端事务内推进；浏览器只消费显式 Veto Room DTO。",
+  ),
+  serverOnly(
+    "match_veto_timeout_incidents",
+    "比赛 / BP 申诉",
+    "超时责任、可选项、随机结果与申诉关联事实",
+    "src/lib/matches/veto-room/service.ts; src/actions/matches/veto-room.ts",
+    "超时选择和申诉关联仅由服务端事务维护，不通过 Data API 或 Realtime 暴露。",
   ),
   serverOnly(
     "match_veto_steps",

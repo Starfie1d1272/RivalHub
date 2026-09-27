@@ -238,10 +238,13 @@ export const eventRosterMembers = pgTable("event_roster_members", {
   participantId: uuid("participant_id").references(() => competitionEntryParticipants.id),
   educationVerificationId: uuid("education_verification_id").references(() => educationVerifications.id),
   isPrimaryStarter: boolean("is_primary_starter").notNull().default(false),
+  isCurrent: boolean("is_current").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
-  rosterUserUnique: unique("event_roster_members_roster_user_unique").on(t.eventRosterId, t.userId),
-  participantUnique: unique("event_roster_members_participant_unique").on(t.eventRosterId, t.participantId),
+  rosterUserUnique: uniqueIndex("event_roster_members_roster_user_current_unique")
+    .on(t.eventRosterId, t.userId).where(sql`${t.isCurrent}`),
+  participantUnique: uniqueIndex("event_roster_members_participant_current_unique")
+    .on(t.eventRosterId, t.participantId).where(sql`${t.isCurrent}`),
   rosterIndex: index("event_roster_members_roster_idx").on(t.eventRosterId),
 }));
 

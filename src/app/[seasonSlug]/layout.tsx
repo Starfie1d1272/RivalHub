@@ -1,7 +1,6 @@
 import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { connection } from "next/server";
 import { Breadcrumb } from "@/components/layout/Breadcrumb";
 import { SeasonNav } from "@/components/layout/SeasonNav";
 import { hexToRgbString } from "@/lib/utils/color";
@@ -35,7 +34,6 @@ export default function SeasonLayout({ children, params }: SeasonLayoutProps) {
 }
 
 async function SeasonLayoutContent({ children, params }: SeasonLayoutProps) {
-  await connection();
   const { seasonSlug } = await params;
   const season = await getPublicOrAuthorizedDraftSeason(seasonSlug);
 
@@ -68,7 +66,9 @@ async function SeasonLayoutContent({ children, params }: SeasonLayoutProps) {
         hasPredictions={season.competitionTemplate === "major"}
       />
       {children}
-      <SeasonInformationFeedbackLauncher season={{ id: season.id, slug: season.slug }} />
+      <Suspense fallback={null}>
+        <SeasonInformationFeedbackLauncher season={{ id: season.id, slug: season.slug }} />
+      </Suspense>
     </div>
   );
 }

@@ -2,8 +2,9 @@ import "server-only";
 
 import { and, asc, count, eq } from "drizzle-orm";
 import { db } from "@/db/client";
-import { competitionEntries, majorFinalResults, matches, postEventAdjudications, tournamentHonors } from "@/db/schema";
+import { competitionEntries, majorFinalResults, majorStageRuns, matches, postEventAdjudications, tournamentHonors } from "@/db/schema";
 import { parseMajorFinalPlacementGroups } from "@/lib/major/placement";
+import { getManagedMajorProfileFromRunSnapshot } from "@/lib/major/standard";
 import type { Season } from "@/db/schema/seasons";
 import type { PostEventPageData } from "./types";
 
@@ -45,6 +46,14 @@ export async function loadPostEventPageData(season: Season): Promise<PostEventPa
       .from(postEventAdjudications).where(eq(postEventAdjudications.seasonId, season.id)).orderBy(asc(postEventAdjudications.createdAt)),
     db.select({ count: count() }).from(matches).where(eq(matches.seasonId, season.id)),
   ]);
+  let placementGroups: ReturnType<typeof parseMajorFinalPlacementGroups> | null = null;
+  if (finalResult) {
+    const [playoffRun] = await db.select({ stageKey: majorStageRuns.stageKey, ruleSnapshot: majorStageRuns.ruleSnapshot }).from(majorStageRuns)
+      .where(eq(majorStageRuns.id, finalResult.playoffStageRunId));
+    if (!playoffRun) throw new Error("正式结果关联的淘汰赛 StageRun 不存在。");
+    const profile = getManagedMajorProfileFromRunSnapshot(playoffRun.ruleSnapshot, playoffRun.stageKey);
+    placementGroups = parseMajorFinalPlacementGroups(finalResult.placementGroups, finalResult.championEntryId, profile.entrantCapacity);
+  }
 
   return {
     season: { id: season.id, name: season.name, status: season.status, competitionTemplate: season.competitionTemplate },
@@ -59,7 +68,7 @@ export async function loadPostEventPageData(season: Season): Promise<PostEventPa
         id: finalResult.id,
         status: finalResult.status,
         championEntryId: finalResult.championEntryId,
-        placementGroups: parseMajorFinalPlacementGroups(finalResult.placementGroups, finalResult.championEntryId).map((group) => ({ ...group, entryIds: [...group.entryIds] })),
+        placementGroups: placementGroups!.map((group) => ({ ...group, entryIds: [...group.entryIds] })),
       } : null,
       teams: seasonTeams,
       honors: honorRows,

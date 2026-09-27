@@ -5,7 +5,9 @@ import { describe, expect, it, vi } from "vitest";
 
 import { TeamPublicProfile } from "@/components/teams/TeamPublicProfile";
 import type { PublicEventTeamContext } from "@/lib/competition-entries/public-team-context";
+import type { PublicTeamMapProfile } from "@/lib/teams/map-profile";
 import type { PublicTeamProfile } from "@/lib/teams/public-profile";
+import type { PublicLongTeamProfileReadModel } from "@/lib/teams/profile-read-model";
 
 vi.mock("next/image", () => ({ default: () => null }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
@@ -13,7 +15,7 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 const longLivedTeam: PublicTeamProfile = {
   team: { id: "team-1", slug: "rival-team", name: "Rival Team", logoUrl: null, description: "队伍简介", status: "active", captainUserId: "captain-1" },
   currentMembers: [{ id: "member-1", userId: "captain-1", name: "队长甲", avatarUrl: null, status: "active" }, { id: "member-2", userId: "member-1", name: "选手乙", avatarUrl: null, status: "benched" }],
-  entries: [{ id: "entry-1", name: "Rival Entry", seasonName: "2026 秋季赛", seasonSlug: "autumn-2026", seasonStatus: "finished", completedAt: new Date("2026-08-01T00:00:00Z") }],
+  entries: [{ id: "entry-1", name: "Rival Entry", seasonId: "season-1", seasonName: "2026 秋季赛", seasonSlug: "autumn-2026", seasonStatus: "finished", completedAt: new Date("2026-08-01T00:00:00Z") }],
   nameChanges: [{ id: "name-1", oldName: "Old Team", newName: "Rival Team", changedAt: new Date("2026-08-01T00:00:00Z") }],
   captainChanges: [{ id: "captain-1", name: "队长甲", changedAt: new Date("2026-08-01T00:00:00Z") }],
   playedCount: 4,
@@ -21,13 +23,24 @@ const longLivedTeam: PublicTeamProfile = {
   currentUserMembership: { userId: "captain-1", status: "active" },
   recruitment: { id: "intent-1", positions: ["awper"], targetSeasonId: null, targetSeasonName: null, note: "缺一名主狙", expiresAt: new Date("2026-09-30T00:00:00Z"), updatedAt: new Date("2026-09-01T00:00:00Z") },
   viewerInterested: false,
+  viewerInvited: false,
   loggedIn: true,
 };
+
+const career: PublicLongTeamProfileReadModel["career"] = [{
+  ...longLivedTeam.entries[0],
+  placement: "第 3–4 名",
+  honors: ["最佳黑马"],
+  matchWins: 3,
+  matchLosses: 1,
+  mapWins: 6,
+  mapLosses: 3,
+  maps: 9,
+}];
 
 const linkedEvent: PublicEventTeamContext = {
   season: { id: "season-1", slug: "autumn-2026", name: "2026 秋季赛", status: "playing" },
   entry: { id: "entry-1", name: "Frozen Entry", logoUrl: null, registrationStatus: "approved", representativeUserId: "captain-1", teamId: "team-1" },
-  cardLabel: "已通过报名审核",
   participation: { label: "已通过", tone: "success", detail: "报名已通过审核。" },
   roster: [{ userId: "captain-1", name: "赛事队长", avatarUrl: null, isStarter: true }, { userId: "event-only-player", name: "赛事选手", avatarUrl: null, isStarter: false }],
   rosterLabel: "本届参赛名单",
@@ -35,7 +48,29 @@ const linkedEvent: PublicEventTeamContext = {
   seed: null,
   seedPresentation: null,
   record: { played: 2, wins: 1, losses: 1, winRate: "50%" },
-  matches: [{ id: "match-1", opponentId: "entry-2", opponentName: "Opponent", status: "finished", isForfeit: false, scheduledAt: new Date("2026-08-10T00:00:00Z"), completedAt: new Date("2026-08-10T01:00:00Z"), ownScore: 1, opponentScore: 0 }],
+  matches: [
+    { id: "match-1", opponentId: "entry-2", opponentName: "Opponent", status: "finished", isForfeit: false, scheduledAt: new Date("2026-08-10T00:00:00Z"), completedAt: new Date("2026-08-10T01:00:00Z"), ownScore: 1, opponentScore: 0 },
+    { id: "match-2", opponentId: "entry-3", opponentName: "Future Opponent", status: "scheduled", isForfeit: false, scheduledAt: new Date("2026-08-12T00:00:00Z"), completedAt: null, ownScore: null, opponentScore: null },
+  ],
+};
+
+const eventPerformance = {
+  teamId: "entry-1",
+  analytics: null,
+  performance: null,
+  selection: [],
+  maps: [],
+  economyMatrix: [],
+  detailedPlayers: [],
+  scoreboard: [],
+};
+
+const rosterMapProfile: PublicTeamMapProfile = {
+  playedStages: [],
+  own: [],
+  experience: [{ mapName: "de_mirage", players: 2, samples: 12, rating: 1.12, adr: 75.3, kd: 1.1 }],
+  experienceCoverage: { rosterMembers: 2, experiencedMembers: 2, experiencedMemberIds: ["captain-1", "event-only-player"] },
+  preferences: [{ userId: "captain-1", name: "赛事队长", preferences: [{ map: "de_mirage", level: "proficient" }] }],
 };
 
 const eventNative: PublicEventTeamContext = {
@@ -46,7 +81,7 @@ const eventNative: PublicEventTeamContext = {
 
 describe("TeamPublicProfile", () => {
   it("keeps the complete long-lived Team profile when no event context exists", () => {
-    render(<TeamPublicProfile team={longLivedTeam} />);
+    render(<TeamPublicProfile team={longLivedTeam} career={career} />);
 
     expect(screen.getByText("活跃")).toBeInTheDocument();
     expect(screen.getByText("招募中")).toBeInTheDocument();
@@ -54,8 +89,10 @@ describe("TeamPublicProfile", () => {
     expect(screen.getByRole("link", { name: "管理我的队伍" })).toHaveAttribute("href", "/my/teams");
     expect(screen.queryByRole("button", { name: "表达加入意向" })).not.toBeInTheDocument();
     expect(screen.getAllByText("当前成员").length).toBeGreaterThan(0);
-    expect(screen.getByText("赛事记录")).toBeInTheDocument();
-    expect(screen.getByText("完赛")).toBeInTheDocument();
+    expect(screen.getByText("Match W-L")).toBeInTheDocument();
+    expect(screen.getByText("Map W-L")).toBeInTheDocument();
+    expect(screen.getByText("第 3–4 名")).toBeInTheDocument();
+    expect(screen.getByText("最佳黑马")).toBeInTheDocument();
     expect(screen.getByText("Rival Entry")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /2026 秋季赛/ })).toHaveAttribute("href", "/autumn-2026/teams/entry-1");
     expect(screen.getByText("队伍历史")).toBeInTheDocument();
@@ -63,14 +100,25 @@ describe("TeamPublicProfile", () => {
     expect(screen.getByText("队长变更")).toBeInTheDocument();
   });
 
+  it("routes an invited viewer to the existing invitation workspace", () => {
+    render(<TeamPublicProfile team={{
+      ...longLivedTeam,
+      currentUserMembership: null,
+      viewerInvited: true,
+    }} />);
+
+    expect(screen.getByRole("link", { name: "已收到队伍邀请" })).toHaveAttribute("href", "/my/teams");
+    expect(screen.queryByRole("button", { name: "表达加入意向" })).not.toBeInTheDocument();
+  });
+
   it("keeps an active event out of the completed career list", () => {
     render(<TeamPublicProfile team={{
       ...longLivedTeam,
       entries: [
-        { id: "entry-current", name: "Current Entry", seasonName: "2026 冬季赛", seasonSlug: "winter-2026", seasonStatus: "playing", completedAt: null },
+        { id: "entry-current", name: "Current Entry", seasonId: "season-current", seasonName: "2026 冬季赛", seasonSlug: "winter-2026", seasonStatus: "playing", completedAt: null },
         ...longLivedTeam.entries,
       ],
-    }} />);
+    }} career={career} />);
 
     expect(screen.getAllByRole("link", { name: /2026 冬季赛/ })).toHaveLength(1);
     expect(screen.getByRole("link", { name: /Current Entry/ })).toHaveAttribute("href", "/winter-2026/teams/entry-current");
@@ -81,16 +129,82 @@ describe("TeamPublicProfile", () => {
     render(<TeamPublicProfile team={longLivedTeam} event={linkedEvent} />);
 
     expect(screen.getByRole("heading", { name: /Frozen Entry/ })).toBeInTheDocument();
-    expect(screen.getByText("Rival Team")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /队伍主页 · Rival Team/ })).toHaveAttribute("href", "/teams/rival-team");
     expect(screen.getByText("本届参赛名单")).toBeInTheDocument();
-    expect(screen.getAllByText("名单已冻结")).not.toHaveLength(0);
+    expect(screen.queryByText("名单已冻结")).not.toBeInTheDocument();
+    expect(screen.queryByText("已通过")).not.toBeInTheDocument();
+    expect(screen.queryByText("报名已通过审核。")).not.toBeInTheDocument();
+    expect(screen.queryByText("种子待确认")).not.toBeInTheDocument();
+    expect(screen.queryByText("赛事概览")).not.toBeInTheDocument();
+    expect(screen.queryByText("下一场")).not.toBeInTheDocument();
+    expect(screen.queryByText("2 名")).not.toBeInTheDocument();
+    expect(screen.getAllByText("1-1")).toHaveLength(1);
     expect(screen.getByText("赛事队长")).toBeInTheDocument();
     expect(screen.getByText("赛事选手")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "返回赛事队伍" })).toHaveAttribute("href", "/autumn-2026/teams");
-    expect(screen.getByRole("link", { name: "查看队伍资料" })).toHaveAttribute("href", "/teams/rival-team");
-    expect(screen.getAllByRole("link", { name: /队伍资料/ })).toHaveLength(1);
+    expect(screen.getByRole("link", { name: /队伍主页 · Rival Team/ })).toHaveAttribute("href", "/teams/rival-team");
     expect(screen.getAllByText("本届比赛")).not.toHaveLength(0);
     expect(screen.getByText("对阵 Opponent")).toBeInTheDocument();
+    expect(screen.getByText("1 : 0")).toHaveClass("text-base", "font-semibold", "tabular-nums");
+    expect(screen.getByText("1 : 0").parentElement).toHaveClass("w-[5.5rem]", "shrink-0", "tabular-nums");
+    expect(screen.getByText("已结束")).toHaveClass("text-xs", "text-[var(--color-fg-mid)]");
+    expect(screen.getByText("对阵 Future Opponent")).toBeInTheDocument();
+    expect(screen.queryByText("0 : 0")).not.toBeInTheDocument();
+  });
+
+  it("uses finished-event placement and roster facts without exposing seed or lifecycle state", () => {
+    render(<TeamPublicProfile
+      team={null}
+      event={{
+        ...linkedEvent,
+        season: { ...linkedEvent.season, status: "finished" },
+        rosterLabel: "最终参赛名单",
+        seed: 2,
+        seedPresentation: { label: "#2 种子", tone: "success" },
+      }}
+      results={{
+        placements: [{ entryId: "entry-1", label: "第 2 名" }],
+        honors: [{ id: "honor-1", entryId: "entry-1", label: "赛事荣誉" }],
+      } as never}
+    />);
+
+    expect(screen.getByRole("heading", { name: "本届名单" })).toBeInTheDocument();
+    expect(screen.getByText("第 2 名")).toBeInTheDocument();
+    expect(screen.getByText("赛事荣誉")).toBeInTheDocument();
+    expect(screen.queryByText("#2 种子")).not.toBeInTheDocument();
+    expect(screen.queryByText("名单已冻结")).not.toBeInTheDocument();
+  });
+
+  it.each([
+    { name: "own map samples", ownMaps: true, experiencedMembers: 2, hasExperience: true, hasPreferences: true, historyOpen: false, preferencesOpen: false },
+    { name: "full history coverage", ownMaps: false, experiencedMembers: 2, hasExperience: true, hasPreferences: true, historyOpen: true, preferencesOpen: false },
+    { name: "partial history coverage", ownMaps: false, experiencedMembers: 1, hasExperience: true, hasPreferences: true, historyOpen: true, preferencesOpen: true },
+    { name: "preference fallback", ownMaps: false, experiencedMembers: 0, hasExperience: false, hasPreferences: true, historyOpen: null, preferencesOpen: true },
+  ])("places roster map context after roster and applies $name disclosure", ({ ownMaps, experiencedMembers, hasExperience, hasPreferences, historyOpen, preferencesOpen }) => {
+    const mapProfile: PublicTeamMapProfile = {
+      ...rosterMapProfile,
+      own: ownMaps ? [{ mapName: "de_mirage", wins: 2, played: 3 }] : [],
+      experience: hasExperience ? rosterMapProfile.experience : [],
+      experienceCoverage: { ...rosterMapProfile.experienceCoverage, experiencedMembers },
+      preferences: hasPreferences ? rosterMapProfile.preferences : [],
+    };
+    const performance = ownMaps
+      ? { ...eventPerformance, maps: [{ mapName: "de_mirage", results: { played: 3 } }] } as never
+      : eventPerformance;
+    render(<TeamPublicProfile team={null} event={linkedEvent} performance={performance as never} mapProfile={mapProfile} />);
+
+    const rosterHeading = screen.getByRole("heading", { name: "本届参赛名单" });
+    const performanceHeading = screen.getByRole("heading", { name: "竞技表现" });
+    const contextHeading = screen.getByRole("heading", { name: "阵容地图参考" });
+    const matchesHeading = screen.getByRole("heading", { name: "本届比赛" });
+    expect(rosterHeading.compareDocumentPosition(performanceHeading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(performanceHeading.compareDocumentPosition(contextHeading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(contextHeading.compareDocumentPosition(matchesHeading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+    const historyDetails = screen.queryByText("阵容成员历史正式地图经验")?.closest("details");
+    const preferencesDetails = screen.queryByText("成员自报地图熟练度")?.closest("details");
+    expect(historyDetails?.open ?? null).toBe(historyOpen);
+    expect(preferencesDetails?.open ?? null).toBe(preferencesOpen);
   });
 
   it("uses the same shell for event-native entries and omits absent long-lived sections", () => {

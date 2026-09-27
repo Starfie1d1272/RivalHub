@@ -25,6 +25,7 @@ describe("scoped revalidation", () => {
     expect(updateTagMock.mock.calls).toEqual([
       ["public-season-catalog"],
       ["public-season:major-2027"],
+      ["public-home"],
     ]);
   });
 
@@ -43,6 +44,7 @@ describe("scoped revalidation", () => {
     expect(revalidateTagMock.mock.calls).toEqual([
       ["public-season-catalog", "max"],
       ["public-season:major-2027", "max"],
+      ["public-home", "max"],
       ["season-participants:season-1", "max"],
       ["season-matches:season-1", "max"],
       ["season-standings:season-1", "max"],

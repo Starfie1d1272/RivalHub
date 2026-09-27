@@ -1,13 +1,14 @@
 {
   "name": "rivalhub",
-  "version": "2.10.5",
+  "version": "2.13.4",
   "private": true,
   "license": "AGPL-3.0",
   "scripts": {
     "dev": "tsx scripts/with-node-options.ts next dev",
     "dev:local": "tsx scripts/db/local.ts dev",
     "build:local": "tsx scripts/db/local.ts build",
-    "build": "next build",
+    "build": "next build && node scripts/report-build-footprint.mjs",
+    "report:build-footprint": "node scripts/report-build-footprint.mjs",
     "start": "next start",
     "lint": "eslint .",
     "type-check:app": "next typegen && tsc -p tsconfig.app.json --noEmit",
@@ -77,9 +78,11 @@
     "test:integration": "tsx scripts/db/local.ts test-integration",
     "test:integration:pg17": "tsx scripts/db/pg17-integration.ts",
     "test:e2e": "tsx scripts/db/local.ts test-e2e",
-    "seed": "tsx scripts/with-node-options.ts tsx scripts/seed.ts"
+    "seed": "tsx scripts/with-node-options.ts tsx scripts/seed.ts",
+    "db:production:scheduler:watchdog-plan": "tsx scripts/db/scheduler-watchdog-plan.ts"
   },
   "dependencies": {
+    "@cs2dak/tournament": "1.1.1",
     "@hookform/resolvers": "^5.9.1",
     "@opentelemetry/api": "^1.9.0",
     "@opentelemetry/api-logs": "^0.222.0",
@@ -109,7 +112,7 @@
     "drizzle-orm": "^0.45.2",
     "iron-session": "^9.0.1",
     "lucide-react": "^1.41.0",
-    "next": "16.3.4",
+    "next": "16.3.6",
     "next-themes": "^0.4.6",
     "react": "19.2.8",
     "react-dom": "19.2.8",
@@ -135,7 +138,7 @@
     "@vitest/coverage-v8": "5.0.0",
     "drizzle-kit": "^0.31.1",
     "eslint": "^10.10.0",
-    "eslint-config-next": "16.3.4",
+    "eslint-config-next": "16.3.6",
     "jsdom": "^30.0.1",
     "knip": "^6.34.0",
     "pg": "^8.23.0",
