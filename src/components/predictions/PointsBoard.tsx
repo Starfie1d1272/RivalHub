@@ -5,6 +5,7 @@ import { TeamLogo } from "@/components/teams/TeamLogo";
 import { Input } from "@/components/ui/input";
 import { Panel } from "@/components/rivalhub";
 import type { PredictionBoardData } from "@/lib/predictions/data";
+import { predictionChallengeCapacity } from "@/lib/predictions/rules";
 export function PointsBoard({
   data,
   busy,
@@ -189,6 +190,7 @@ export function PointsBoard({
 }
 export function PredictionRecord({ data }: { data: PredictionBoardData }) {
   const coin = data.achievement?.coin ?? "未获得";
+  const challengeCapacity = predictionChallengeCapacity(data.base.stages);
   const coinTone: Record<string, string> = {
     未获得: "border-slate-600 text-slate-400",
     青铜: "border-amber-700 text-amber-500",
@@ -218,7 +220,7 @@ export function PredictionRecord({ data }: { data: PredictionBoardData }) {
           </div>
           <div>
             <h2 className="text-xl font-semibold">
-              {data.achievement?.challenges ?? 0} / 10 项挑战
+              {data.achievement?.challenges ?? 0} / {challengeCapacity} 项挑战
             </h2>
             <p className="text-sm">
               最高仍可达到：{data.achievement?.maximumCoin ?? "钻石"}
