@@ -71,7 +71,10 @@ test("管理员预览并确认 30 队到 Major 24 的 Play-in 配置与首轮对
   await expect(page.getByText("12 → 6 · BO1 · 2胜晋级 / 2负淘汰 · Round 1")).toBeVisible();
   await expect(page.getByRole("heading", { name: "第 1 轮" })).toBeVisible();
   await expect(page.getByRole("cell", { name: "P1", exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "Buchholz 说明" }).focus();
+  const buchholzHelp = page.getByRole("button", { name: "Buchholz 说明" });
+  // The mobile table scrolls horizontally; open after scrolling, which closes tooltips.
+  await buchholzHelp.scrollIntoViewIfNeeded();
+  await buchholzHelp.click();
   await expect(page.getByRole("tooltip")).toContainText("下一轮组内配对顺序");
 });
 
