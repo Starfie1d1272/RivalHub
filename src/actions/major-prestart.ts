@@ -89,9 +89,11 @@ export async function saveMajorPrestartSchedule(input: {
         .where(eq(competitionQualificationRuns.seasonId, current.id)).limit(1);
       const [stage] = await tx.select({ id: majorStageRuns.id }).from(majorStageRuns)
         .where(eq(majorStageRuns.seasonId, current.id)).limit(1);
+      const [entrant] = await tx.select({ id: majorTournamentEntrants.id }).from(majorTournamentEntrants)
+        .where(eq(majorTournamentEntrants.seasonId, current.id)).limit(1);
       let previous: Date | null;
       if (parsed.data.kind === "registration-close") {
-        if (run || state.entrantsLockedAt) throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "资格方案或正式名单已经冻结，不能调整报名截止。");
+        if (run || entrant || state.entrantsLockedAt) throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "资格方案或正式参赛队已经确定，不能调整报名截止。");
         if (next && current.registrationOpensAt && next <= current.registrationOpensAt) throw new AppError(ErrorCode.VALIDATION_FAILED, "报名截止必须晚于报名开放时间。");
         if (next && current.rosterChangeClosesAt && next > current.rosterChangeClosesAt) throw new AppError(ErrorCode.VALIDATION_FAILED, "报名截止不能晚于最终名单调整截止。");
         if (next && state.mainEventPlannedStartAt && next > state.mainEventPlannedStartAt) throw new AppError(ErrorCode.VALIDATION_FAILED, "报名截止不能晚于 Main Event 计划开始时间。");
