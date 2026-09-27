@@ -29,8 +29,12 @@ const seeds: MajorTournamentSeedsManagementData = {
   recommendationStatus: "missing", recommendation: null, firstRound: null,
 };
 
-function markup(current: MajorPrestartManagementData, seedState = seeds) {
-  return renderToStaticMarkup(<MajorPrestartConsole seasonName="Major" readiness={readiness} management={current} seedManagement={seedState} started={false} />);
+function markup(current: MajorPrestartManagementData, seedState = seeds, started = false) {
+  return renderToStaticMarkup(<MajorPrestartConsole seasonName="Major" readiness={readiness} management={current} seedManagement={seedState} started={started} />);
+}
+
+function scheduleCount(html: string) {
+  return html.split("SCHEDULE").length - 1;
 }
 
 describe("MajorPrestartConsole", () => {
@@ -41,6 +45,7 @@ describe("MajorPrestartConsole", () => {
     expect(html).toContain("LIVE MATRIX");
     expect(html).not.toContain("FINAL MATRIX");
     expect(html).not.toContain("START ACTION");
+    expect(scheduleCount(html)).toBe(1);
   });
   it("folds completed phases and opens the final seed workspace after roster lock", () => {
     const html = markup({ ...management, registrationClosed: true, approvedCandidateCount: 32, entrantsLocked: true }, { ...seeds, seedsConfirmed: false });
@@ -48,5 +53,23 @@ describe("MajorPrestartConsole", () => {
     expect(html).toContain("<details");
     expect(html).not.toContain("LIVE MATRIX");
     expect(html).not.toContain("START ACTION");
+    expect(scheduleCount(html)).toBe(0);
+  });
+  it("exposes operational schedule controls only in the phase that owns them", () => {
+    const finalRoster = markup({
+      ...management,
+      registrationClosed: true,
+      approvedCandidateCount: 32,
+      entrants: [{ id: "entrant-1", teamId: "entry-1", teamName: "Team One", rosterStatus: "confirmed", roster: [], recentRosterChange: null }],
+    });
+    expect(finalRoster).toContain("FINAL ROSTER");
+    expect(scheduleCount(finalRoster)).toBe(1);
+
+    const start = markup(
+      { ...management, registrationClosed: true, approvedCandidateCount: 32, entrantsLocked: true },
+      { ...seeds, seedsConfirmed: true },
+    );
+    expect(start).toContain("START ACTION");
+    expect(scheduleCount(start)).toBe(1);
   });
 });
