@@ -431,6 +431,7 @@ export interface PersistedRosterSummary {
   entryId: string;
   starterIds: string[];
   substituteIds: string[];
+  vetoRepresentativeEventRosterMemberId: string | null;
 }
 
 /**
@@ -446,9 +447,14 @@ export async function persistMatchRosterInTx(
     source: "participant" | "admin_select";
     starterIds: readonly string[];
     substituteIds?: readonly string[];
+    vetoRepresentativeEventRosterMemberId?: string | null;
   },
 ): Promise<PersistedRosterSummary> {
   const substituteIds = args.substituteIds ?? [];
+  const vetoRepresentativeEventRosterMemberId = args.vetoRepresentativeEventRosterMemberId ?? null;
+  if (vetoRepresentativeEventRosterMemberId && !args.starterIds.includes(vetoRepresentativeEventRosterMemberId)) {
+    throw new AppError(ErrorCode.VALIDATION_FAILED, "BP 负责人必须是本场首发队员。");
+  }
   await lockCurrentEventRosterForLineupInTx(tx, args.match, args.entryId);
   await assertStartingLineupAllowedInTx(tx, {
     match: args.match,
@@ -495,7 +501,12 @@ export async function persistMatchRosterInTx(
   }
 
   await tx.insert(matchRosterPlayers).values([
-    ...args.starterIds.map((id) => ({ rosterId, eventRosterMemberId: id, isStarter: true })),
+    ...args.starterIds.map((id) => ({
+      rosterId,
+      eventRosterMemberId: id,
+      isStarter: true,
+      isVetoRepresentative: id === vetoRepresentativeEventRosterMemberId,
+    })),
     ...substituteIds.map((id) => ({ rosterId, eventRosterMemberId: id, isStarter: false })),
   ]);
 
@@ -505,6 +516,7 @@ export async function persistMatchRosterInTx(
     entryId: args.entryId,
     starterIds: [...args.starterIds],
     substituteIds: [...substituteIds],
+    vetoRepresentativeEventRosterMemberId,
   };
 }
 
@@ -666,14 +678,26 @@ async function assertConfirmedLineupsForStartInTx(
     }
 
     const players = await tx
-      .select({ eventRosterMemberId: matchRosterPlayers.eventRosterMemberId, isStarter: matchRosterPlayers.isStarter })
+      .select({
+        eventRosterMemberId: matchRosterPlayers.eventRosterMemberId,
+        isStarter: matchRosterPlayers.isStarter,
+        isVetoRepresentative: matchRosterPlayers.isVetoRepresentative,
+      })
       .from(matchRosterPlayers)
       .where(eq(matchRosterPlayers.rosterId, roster.id));
     const { starterIds, substituteIds } = loadPersistedPlayers(players);
 
     await lockCurrentEventRosterForLineupInTx(tx, match, entryId);
     await assertStartingLineupAllowedInTx(tx, { match, entryId, starterIds, substituteIds });
-    summaries.push({ rosterId: roster.id, matchId: match.id, entryId, starterIds, substituteIds, status: "confirmed" });
+    summaries.push({
+      rosterId: roster.id,
+      matchId: match.id,
+      entryId,
+      starterIds,
+      substituteIds,
+      vetoRepresentativeEventRosterMemberId: players.find((player) => player.isVetoRepresentative)?.eventRosterMemberId ?? null,
+      status: "confirmed",
+    });
   }
   return summaries;
 }

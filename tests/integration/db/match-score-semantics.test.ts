@@ -1,7 +1,28 @@
 import { randomUUID } from "node:crypto";
 import { Pool } from "pg";
 import { describe, expect, it, vi } from "vitest";
+import {
+  readVetoRoomCore,
+  requestVetoStart,
+  setManualPrivilegedEntry,
+  submitVetoCommand,
+} from "../../../src/lib/matches/veto-room/service";
 import { localDatabaseUrl } from "./harness/database";
+
+async function waitForMatchRowLock(pool: Pool): Promise<void> {
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    const result = await pool.query<{ pid: number }>(
+      `SELECT pid FROM pg_stat_activity
+       WHERE pid <> pg_backend_pid()
+         AND wait_event_type = 'Lock'
+         AND query ILIKE '%FROM "matches"%'
+         AND query ILIKE '%FOR UPDATE%'`,
+    );
+    if (result.rowCount) return;
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  throw new Error("expected Veto Room command to wait for the Match row lock");
+}
 
 const requireSeasonAdminMock = vi.hoisted(() => vi.fn());
 const auditActorIdMock = vi.hoisted(() => vi.fn((session: { userId: string }) => session.userId));
@@ -29,9 +50,7 @@ import {
   correctMapScore,
   forfeitMatch,
   recordMapResult,
-  updateMatchStatus,
 } from "../../../src/actions/matches/results";
-import { saveVetoSteps } from "../../../src/actions/matches/veto";
 
 type MatchFormat = "bo1" | "bo3" | "bo5";
 
@@ -45,37 +64,13 @@ const MAP_POOL = [
   "de_nuke",
 ] as const;
 
-function vetoSteps(format: MatchFormat, entryAId: string, entryBId: string) {
-  const maps = MAP_POOL;
-  const steps =
-    format === "bo1"
-      ? [
-          ["ban", entryAId], ["ban", entryAId], ["ban", entryBId], ["ban", entryBId],
-          ["ban", entryBId], ["ban", entryAId], ["decider", entryBId],
-        ]
-      : format === "bo3"
-        ? [
-            ["ban", entryAId], ["ban", entryBId], ["pick", entryAId], ["pick", entryBId],
-            ["ban", entryBId], ["ban", entryAId], ["decider", entryBId],
-          ]
-        : [
-            ["ban", entryAId], ["ban", entryBId], ["pick", entryAId], ["pick", entryBId],
-            ["pick", entryAId], ["pick", entryBId], ["decider", entryBId],
-          ];
-
-  return steps.map(([actionType, entryId], index) => ({
-    actionType: actionType as "ban" | "pick" | "decider",
-    mapName: maps[index]!,
-    entryId,
-    side: null as null,
-  }));
-}
-
 interface Fixture {
   seasonId: string;
   adminId: string;
   entryAId: string;
   entryBId: string;
+  representativeUserAId: string;
+  representativeUserBId: string;
   memberAId: string;
   memberBId: string;
   eventRosterAId: string;
@@ -88,6 +83,8 @@ async function createFixture(client: import("pg").PoolClient): Promise<Fixture> 
     adminId: randomUUID(),
     entryAId: randomUUID(),
     entryBId: randomUUID(),
+    representativeUserAId: randomUUID(),
+    representativeUserBId: randomUUID(),
     memberAId: randomUUID(),
     memberBId: randomUUID(),
     eventRosterAId: randomUUID(),
@@ -95,9 +92,6 @@ async function createFixture(client: import("pg").PoolClient): Promise<Fixture> 
   };
   const revisionAId = randomUUID();
   const revisionBId = randomUUID();
-  const rosterUserAId = randomUUID();
-  const rosterUserBId = randomUUID();
-
   await client.query("BEGIN");
   try {
     await client.query(
@@ -105,9 +99,9 @@ async function createFixture(client: import("pg").PoolClient): Promise<Fixture> 
       [
         fixture.adminId,
         `score-admin-${fixture.seasonId}@local.test`,
-        rosterUserAId,
+        fixture.representativeUserAId,
         `score-a-${fixture.seasonId}@local.test`,
-        rosterUserBId,
+        fixture.representativeUserBId,
         `score-b-${fixture.seasonId}@local.test`,
       ],
     );
@@ -129,12 +123,12 @@ async function createFixture(client: import("pg").PoolClient): Promise<Fixture> 
          current_roster_revision_id, approved_roster_revision_id, registration_status
        ) VALUES ($1, $2, 'event_native', 'Score A', $3, $4, $4, 'approved'),
                 ($5, $2, 'event_native', 'Score B', $6, $7, $7, 'approved')`,
-      [fixture.entryAId, fixture.seasonId, rosterUserAId, revisionAId, fixture.entryBId, rosterUserBId, revisionBId],
+      [fixture.entryAId, fixture.seasonId, fixture.representativeUserAId, revisionAId, fixture.entryBId, fixture.representativeUserBId, revisionBId],
     );
     await client.query(
       `INSERT INTO competition_entry_representative_changes (entry_id, from_user_id, to_user_id, changed_by_actor_id)
        VALUES ($1, NULL, $2, 'score-test'), ($3, NULL, $4, 'score-test')`,
-      [fixture.entryAId, rosterUserAId, fixture.entryBId, rosterUserBId],
+      [fixture.entryAId, fixture.representativeUserAId, fixture.entryBId, fixture.representativeUserBId],
     );
     await client.query(
       `INSERT INTO competition_entry_roster_revisions (id, entry_id, revision_number, status, created_by, approved_at)
@@ -152,7 +146,7 @@ async function createFixture(client: import("pg").PoolClient): Promise<Fixture> 
     await client.query(
       `INSERT INTO event_roster_members (id, event_roster_id, user_id, is_primary_starter)
        VALUES ($1, $2, $3, true), ($4, $5, $6, true)`,
-      [fixture.memberAId, fixture.eventRosterAId, rosterUserAId, fixture.memberBId, fixture.eventRosterBId, rosterUserBId],
+      [fixture.memberAId, fixture.eventRosterAId, fixture.representativeUserAId, fixture.memberBId, fixture.eventRosterBId, fixture.representativeUserBId],
     );
     await client.query(
       `UPDATE event_rosters
@@ -199,8 +193,8 @@ async function createMatch(
       [rosterAId, matchId, fixture.entryAId, rosterBId, fixture.entryBId],
     );
     await client.query(
-      `INSERT INTO match_roster_players (roster_id, event_roster_member_id, is_starter)
-       VALUES ($1, $2, true), ($3, $4, true)`,
+      `INSERT INTO match_roster_players (roster_id, event_roster_member_id, is_starter, is_veto_representative)
+       VALUES ($1, $2, true, true), ($3, $4, true, true)`,
       [rosterAId, fixture.memberAId, rosterBId, fixture.memberBId],
     );
   }
@@ -215,9 +209,88 @@ async function expectSuccess<T>(resultPromise: Promise<{ success: boolean; data?
   return result.data as T;
 }
 
+async function startVetoRoom(
+  fixture: Fixture,
+  matchId: string,
+): Promise<Awaited<ReturnType<typeof readVetoRoomCore>>> {
+  await setManualPrivilegedEntry({
+    matchId,
+    entryId: fixture.entryAId,
+    actorId: fixture.adminId,
+  });
+
+  let room = await readVetoRoomCore(matchId);
+  const firstRequest = await requestVetoStart({
+    matchId,
+    entryId: fixture.entryAId,
+    actorId: fixture.representativeUserAId,
+    expectedRevision: room.session.revision,
+    expectedTurnKey: room.session.currentTurnKey,
+  });
+  expect(firstRequest).toBe("applied");
+  room = await readVetoRoomCore(matchId);
+  const secondRequest = await requestVetoStart({
+    matchId,
+    entryId: fixture.entryBId,
+    actorId: fixture.representativeUserBId,
+    expectedRevision: room.session.revision,
+    expectedTurnKey: room.session.currentTurnKey,
+  });
+  expect(secondRequest).toBe("applied");
+  return readVetoRoomCore(matchId);
+}
+
+async function startWithVetoPlan(
+  fixture: Fixture,
+  matchId: string,
+  format: MatchFormat,
+): Promise<void> {
+  let room = await startVetoRoom(fixture, matchId);
+
+  const userByEntry = new Map([
+    [fixture.entryAId, fixture.representativeUserAId],
+    [fixture.entryBId, fixture.representativeUserBId],
+  ]);
+  for (let commandNumber = 0; commandNumber < 20 && !room.session.completedAt; commandNumber += 1) {
+    const turn = room.currentTurn;
+    if (!turn?.actorEntryId) throw new Error("Veto Room lost its participant turn before map plan completion");
+    const actorId = userByEntry.get(turn.actorEntryId);
+    if (!actorId) throw new Error("Veto Room turn owner has no confirmed representative");
+    const command = turn.actionType === "role_select"
+      ? { kind: "role_select" as const, entryId: fixture.entryAId }
+      : turn.actionType === "side_pick"
+        ? { kind: "step" as const, actionType: "side_pick" as const, side: "ct" as const }
+        : turn.actionType === "ban" || turn.actionType === "pick"
+          ? {
+              kind: "step" as const,
+              actionType: turn.actionType,
+              mapName: room.session.mapPoolSnapshot!.find((mapName) =>
+                !room.steps.some((step) => step.actionType !== "side_pick" && step.mapName === mapName),
+              )!,
+            }
+          : null;
+    if (!command) throw new Error(`Unexpected participant Veto Room turn: ${turn.actionType}`);
+    const outcome = await submitVetoCommand({
+      matchId,
+      actorId,
+      expectedRevision: room.session.revision,
+      expectedTurnKey: turn.key,
+      clientRequestId: randomUUID(),
+      command,
+    });
+    expect(outcome).toBe("applied");
+    room = await readVetoRoomCore(matchId);
+    if (turn.actionType === "role_select") {
+      expect(room.currentTurn?.durationSeconds).toBe(format === "bo1" ? 60 : 45);
+    }
+  }
+  expect(room.session.completedAt).not.toBeNull();
+  expect(room.match.status).toBe("in_progress");
+}
+
 describe("match score persistence semantics PostgreSQL integration", () => {
   it("uses map facts for BO1/BO3/BO5 results and never creates forfeit maps", async () => {
-    const pool = new Pool({ connectionString: localDatabaseUrl(), ssl: false, max: 2 });
+    const pool = new Pool({ connectionString: localDatabaseUrl(), ssl: false, max: 3 });
     const client = await pool.connect();
     let fixture: Fixture | undefined;
     try {
@@ -230,16 +303,176 @@ describe("match score persistence semantics PostgreSQL integration", () => {
       const forfeitBo1MatchId = await createMatch(client, fixture, "bo1");
       const forfeitBo3MatchId = await createMatch(client, fixture, "bo3");
       const scoredForfeitMatchId = await createMatch(client, fixture, "bo3", { withLineups: true });
+      const partialVetoMatchId = await createMatch(client, fixture, "bo3", { withLineups: true });
+      const timeoutVetoMatchId = await createMatch(client, fixture, "bo5", { withLineups: true });
+      const lockDelayedVetoMatchId = await createMatch(client, fixture, "bo3", { withLineups: true });
+      const lockDelayedStartMatchId = await createMatch(client, fixture, "bo3", { withLineups: true });
+      const lateVetoMatchId = await createMatch(client, fixture, "bo3", { withLineups: true });
 
-      for (const [matchId, format] of [[bo1MatchId, "bo1"], [bo3MatchId, "bo3"], [bo5MatchId, "bo5"]] as const) {
-        await expectSuccess(saveVetoSteps(matchId, { steps: vetoSteps(format, fixture.entryAId, fixture.entryBId) }));
-        await expectSuccess(updateMatchStatus(matchId, "in_progress"));
+      await startWithVetoPlan(fixture, bo1MatchId, "bo1");
+      await startWithVetoPlan(fixture, bo3MatchId, "bo3");
+      await startWithVetoPlan(fixture, bo5MatchId, "bo5");
+      await startWithVetoPlan(fixture, scoredForfeitMatchId, "bo3");
+
+      await setManualPrivilegedEntry({
+        matchId: lockDelayedStartMatchId,
+        entryId: fixture.entryAId,
+        actorId: fixture.adminId,
+      });
+      let delayedStartRoom = await readVetoRoomCore(lockDelayedStartMatchId);
+      expect(await requestVetoStart({
+        matchId: lockDelayedStartMatchId,
+        entryId: fixture.entryAId,
+        actorId: fixture.representativeUserAId,
+        expectedRevision: delayedStartRoom.session.revision,
+        expectedTurnKey: delayedStartRoom.session.currentTurnKey,
+      })).toBe("applied");
+      delayedStartRoom = await readVetoRoomCore(lockDelayedStartMatchId);
+
+      const startLockHolder = await pool.connect();
+      let startLockHeld = false;
+      let delayedStartRequest: Promise<"applied" | "idempotent" | "stale"> | null = null;
+      try {
+        await startLockHolder.query("BEGIN");
+        await startLockHolder.query("SELECT id FROM matches WHERE id = $1 FOR UPDATE", [lockDelayedStartMatchId]);
+        startLockHeld = true;
+        delayedStartRequest = requestVetoStart({
+          matchId: lockDelayedStartMatchId,
+          entryId: fixture.entryBId,
+          actorId: fixture.representativeUserBId,
+          expectedRevision: delayedStartRoom.session.revision,
+          expectedTurnKey: delayedStartRoom.session.currentTurnKey,
+        });
+        await waitForMatchRowLock(pool);
+        await new Promise((resolve) => setTimeout(resolve, 250));
+        await startLockHolder.query("COMMIT");
+        startLockHeld = false;
+        expect(await delayedStartRequest).toBe("applied");
+      } finally {
+        if (startLockHeld) await startLockHolder.query("ROLLBACK").catch(() => undefined);
+        if (delayedStartRequest) await delayedStartRequest.catch(() => undefined);
+        startLockHolder.release();
       }
-      await expectSuccess(saveVetoSteps(forfeitBo3MatchId, { steps: vetoSteps("bo3", fixture.entryAId, fixture.entryBId) }));
-      await expectSuccess(saveVetoSteps(scoredForfeitMatchId, { steps: vetoSteps("bo3", fixture.entryAId, fixture.entryBId) }));
-      await expectSuccess(updateMatchStatus(scoredForfeitMatchId, "in_progress"));
 
-      const bo1MapName = MAP_POOL[6]!;
+      const delayedStartFacts = await client.query<{
+        requested_at: Date;
+        started_at: Date;
+        turn_started_at: Date;
+        turn_deadline_at: Date;
+      }>(
+        `SELECT entry_b_start_requested_at AS requested_at, started_at, turn_started_at, turn_deadline_at
+         FROM match_veto_sessions WHERE match_id = $1`,
+        [lockDelayedStartMatchId],
+      );
+      expect(delayedStartFacts.rows[0]!.started_at.getTime())
+        .toBeGreaterThan(delayedStartFacts.rows[0]!.requested_at.getTime());
+      expect(delayedStartFacts.rows[0]!.turn_started_at.getTime())
+        .toBe(delayedStartFacts.rows[0]!.started_at.getTime());
+      expect(delayedStartFacts.rows[0]!.turn_deadline_at.getTime() - delayedStartFacts.rows[0]!.started_at.getTime())
+        .toBe(45_000);
+
+      const lockDelayedRoom = await startVetoRoom(fixture, lockDelayedVetoMatchId);
+      const lockDelayedTurn = lockDelayedRoom.currentTurn!;
+      expect(lockDelayedTurn.actionType).toBe("role_select");
+      const lockHolder = await pool.connect();
+      let lockHeld = false;
+      let delayedCommand: Promise<"applied" | "idempotent" | "stale"> | null = null;
+      try {
+        await lockHolder.query("BEGIN");
+        await lockHolder.query("SELECT id FROM matches WHERE id = $1 FOR UPDATE", [lockDelayedVetoMatchId]);
+        const deadlineResult = await lockHolder.query<{ turn_deadline_at: Date }>(
+          `UPDATE match_veto_sessions
+           SET turn_deadline_at = clock_timestamp() + interval '1000 milliseconds'
+           WHERE match_id = $1
+           RETURNING turn_deadline_at`,
+          [lockDelayedVetoMatchId],
+        );
+        const deadlineAt = deadlineResult.rows[0]!.turn_deadline_at;
+        lockHeld = true;
+        delayedCommand = submitVetoCommand({
+          matchId: lockDelayedVetoMatchId,
+          actorId: fixture.representativeUserAId,
+          expectedRevision: lockDelayedRoom.session.revision,
+          expectedTurnKey: lockDelayedTurn.key,
+          clientRequestId: randomUUID(),
+          command: { kind: "role_select", entryId: fixture.entryAId },
+        });
+        await waitForMatchRowLock(pool);
+        const waitMs = Math.max(0, deadlineAt.getTime() + 3_100 - Date.now());
+        await new Promise((resolve) => setTimeout(resolve, waitMs));
+        await lockHolder.query("COMMIT");
+        lockHeld = false;
+        expect(await delayedCommand).toBe("applied");
+        const afterDelayedCommand = await readVetoRoomCore(lockDelayedVetoMatchId);
+        expect(afterDelayedCommand.session.vetoTeamAEntryId).toBe(fixture.entryAId);
+        expect(afterDelayedCommand.currentTurn).toMatchObject({ actionType: "ban", durationSeconds: 45 });
+      } finally {
+        if (lockHeld) await lockHolder.query("ROLLBACK").catch(() => undefined);
+        if (delayedCommand) await delayedCommand.catch(() => undefined);
+        lockHolder.release();
+      }
+
+      const lateRoom = await startVetoRoom(fixture, lateVetoMatchId);
+      const lateTurn = lateRoom.currentTurn!;
+      await client.query(
+        "UPDATE match_veto_sessions SET turn_deadline_at = clock_timestamp() - interval '500 milliseconds' WHERE match_id = $1",
+        [lateVetoMatchId],
+      );
+      expect(await submitVetoCommand({
+        matchId: lateVetoMatchId,
+        actorId: fixture.representativeUserAId,
+        expectedRevision: lateRoom.session.revision,
+        expectedTurnKey: lateTurn.key,
+        clientRequestId: randomUUID(),
+        command: { kind: "role_select", entryId: fixture.entryAId },
+      })).toBe("stale");
+
+      const timeoutRoom = await startVetoRoom(fixture, timeoutVetoMatchId);
+      await client.query(
+        "UPDATE match_veto_sessions SET turn_deadline_at = clock_timestamp() - interval '2100 milliseconds' WHERE match_id = $1",
+        [timeoutVetoMatchId],
+      );
+      const afterRoleTimeout = await readVetoRoomCore(timeoutVetoMatchId);
+      expect(afterRoleTimeout.session.vetoTeamAEntryId).toBeTruthy();
+      expect(afterRoleTimeout.currentTurn).toMatchObject({ actionType: "ban", durationSeconds: 45 });
+      expect(afterRoleTimeout.session.turnDeadlineAt!.getTime() - afterRoleTimeout.session.turnStartedAt!.getTime()).toBe(45_000);
+      expect(afterRoleTimeout.session.revision).toBeGreaterThan(timeoutRoom.session.revision);
+
+      let partialRoom = await startVetoRoom(fixture, partialVetoMatchId);
+      const roleTurn = partialRoom.currentTurn!;
+      expect(roleTurn.actionType).toBe("role_select");
+      const roleSelectOutcome = await submitVetoCommand({
+        matchId: partialVetoMatchId,
+        actorId: fixture.representativeUserAId,
+        expectedRevision: partialRoom.session.revision,
+        expectedTurnKey: roleTurn.key,
+        clientRequestId: randomUUID(),
+        command: { kind: "role_select", entryId: fixture.entryAId },
+      });
+      expect(roleSelectOutcome).toBe("applied");
+      partialRoom = await readVetoRoomCore(partialVetoMatchId);
+      const firstBanTurn = partialRoom.currentTurn!;
+      expect(firstBanTurn).toMatchObject({ actionType: "ban", durationSeconds: 45 });
+      const firstBan = await submitVetoCommand({
+        matchId: partialVetoMatchId,
+        actorId: fixture.representativeUserAId,
+        expectedRevision: partialRoom.session.revision,
+        expectedTurnKey: firstBanTurn.key,
+        clientRequestId: randomUUID(),
+        command: { kind: "step", actionType: "ban", mapName: MAP_POOL[0] },
+      });
+      expect(firstBan).toBe("applied");
+      const prematureResult = await recordMapResult(partialVetoMatchId, 1, MAP_POOL[0], 13, 8, null, null);
+      expect(prematureResult).toMatchObject({
+        success: false,
+        error: { message: expect.stringContaining("请先完成 BP") },
+      });
+
+      const plannedMapNames = async (matchId: string) => (await client.query<{ map_name: string }>(
+        "SELECT map_name FROM match_maps WHERE match_id = $1 ORDER BY map_order",
+        [matchId],
+      )).rows.map((row) => row.map_name);
+      const bo1MapName = (await plannedMapNames(bo1MatchId))[0]!;
       const bo1Result = await expectSuccess(recordMapResult(bo1MatchId, 1, bo1MapName, 13, 8, null, null));
       expect(bo1Result).toEqual({ seriesFinished: true });
       const bo1MapId = (await client.query<{ id: string }>(
@@ -249,18 +482,18 @@ describe("match score persistence semantics PostgreSQL integration", () => {
       await expectSuccess(correctMapScore(bo1MapId, 13, 10));
 
       const bo3Scores = [[13, 8], [10, 13], [13, 7]] as const;
-      const bo3MapNames = [MAP_POOL[2], MAP_POOL[3], MAP_POOL[6]] as const;
+      const bo3MapNames = await plannedMapNames(bo3MatchId);
       for (const [index, [scoreA, scoreB]] of bo3Scores.entries()) {
         await expectSuccess(recordMapResult(bo3MatchId, index + 1, bo3MapNames[index]!, scoreA, scoreB, null, null));
       }
 
       const bo5Scores = [[13, 8], [10, 13], [13, 7], [8, 13], [13, 10]] as const;
-      const bo5MapNames = [MAP_POOL[2], MAP_POOL[3], MAP_POOL[4], MAP_POOL[5], MAP_POOL[6]] as const;
+      const bo5MapNames = await plannedMapNames(bo5MatchId);
       for (const [index, [scoreA, scoreB]] of bo5Scores.entries()) {
         await expectSuccess(recordMapResult(bo5MatchId, index + 1, bo5MapNames[index]!, scoreA, scoreB, null, null));
       }
 
-      await expectSuccess(recordMapResult(scoredForfeitMatchId, 1, MAP_POOL[2]!, 13, 8, null, null));
+      await expectSuccess(recordMapResult(scoredForfeitMatchId, 1, (await plannedMapNames(scoredForfeitMatchId))[0]!, 13, 8, null, null));
       await expectSuccess(forfeitMatch(forfeitBo1MatchId, fixture.entryBId, "BO1 fixture adjudication"));
       await expectSuccess(forfeitMatch(forfeitBo3MatchId, fixture.entryBId, "BO3 fixture adjudication"));
       await expectSuccess(forfeitMatch(scoredForfeitMatchId, fixture.entryBId, "BO3 after one played map"));

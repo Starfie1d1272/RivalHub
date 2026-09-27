@@ -19,6 +19,7 @@ export interface RosterData {
   rosterId: string | null;
   starters: string[];
   substitutes: string[];
+  vetoRepresentativeEventRosterMemberId: string | null;
   status: MatchRosterStatus | null;
 }
 
@@ -159,6 +160,7 @@ export interface AdminMatchWorkbenchData {
   completedMaps: AdminCompletedMap[];
   pendingMaps: AdminPendingMap[];
   finishedMaps: AdminFinishedMap[];
+  vetoCompletedAt: Date | null;
   postMatch: AdminPostMatchRecordData | null;
   demoReviews?: AdminDemoReviewMap[];
 }

@@ -30,6 +30,7 @@ export * from "./mvp-votes";
 export * from "./match-time-proposals";
 export * from "./match-rosters";
 export * from "./match-veto-steps";
+export * from "./match-veto-room";
 export * from "./user-sessions";
 export * from "./discipline";
 export * from "./postevent";

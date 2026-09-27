@@ -56,11 +56,13 @@ describe("MatchRosterForm lifecycle gate", () => {
     for (let index = 1; index <= 5; index += 1) {
       fireEvent.click(screen.getByRole("button", { name: new RegExp(`Player ${index}`) }));
     }
+    fireEvent.click(screen.getByRole("radio", { name: "Player 1" }));
 
     fireEvent.click(screen.getByRole("button", { name: "提交名单" }));
     await waitFor(() => expect(submitMatchRosterMock).toHaveBeenCalledWith("match-1", {
       starterIds: ["member-1", "member-2", "member-3", "member-4", "member-5"],
       substituteIds: [],
+      vetoRepresentativeEventRosterMemberId: "member-1",
     }));
   });
 
@@ -97,12 +99,14 @@ describe("MatchRosterForm lifecycle gate", () => {
       fireEvent.click(screen.getAllByRole("button", { name: new RegExp(`Player ${index}`) })[0]);
     }
     fireEvent.click(screen.getAllByRole("button", { name: /Player 6/ })[1]);
+    fireEvent.click(screen.getByRole("radio", { name: "Player 1" }));
 
     fireEvent.click(screen.getByRole("button", { name: "提交名单" }));
 
     await waitFor(() => expect(submitMatchRosterMock).toHaveBeenCalledWith("match-1", {
       starterIds: ["member-1", "member-2", "member-3", "member-4", "member-5"],
       substituteIds: ["member-6"],
+      vetoRepresentativeEventRosterMemberId: "member-1",
     }));
     expect(toastSuccessMock).toHaveBeenCalledWith("名单提交成功");
   });

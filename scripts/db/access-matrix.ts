@@ -455,6 +455,27 @@ export const DATABASE_ACCESS_MATRIX: readonly DatabaseAccessEntry[] = [
     "proposal lifecycle 和 auto-award 由服务端事务维护。",
   ),
   serverOnly(
+    "match_veto_appeals",
+    "比赛 / BP 申诉",
+    "超时申诉原因、提交人与裁定事实",
+    "src/lib/matches/veto-room/service.ts; src/actions/matches/veto-room.ts",
+    "申诉与裁定只通过服务端 Veto Room action 读写，不直接开放 browser Data API。",
+  ),
+  serverOnly(
+    "match_veto_sessions",
+    "比赛 / BP",
+    "开赛请求、冻结先手、地图池与倒计时事实",
+    "src/lib/matches/veto-room/service.ts; src/lib/matches/veto-room/read-model.ts",
+    "Session 与 Match 生命周期在同一服务端事务内推进；浏览器只消费显式 Veto Room DTO。",
+  ),
+  serverOnly(
+    "match_veto_timeout_incidents",
+    "比赛 / BP 申诉",
+    "超时责任、可选项、随机结果与申诉关联事实",
+    "src/lib/matches/veto-room/service.ts; src/actions/matches/veto-room.ts",
+    "超时选择和申诉关联仅由服务端事务维护，不通过 Data API 或 Realtime 暴露。",
+  ),
+  serverOnly(
     "match_veto_steps",
     "比赛 / BP",
     "BP 操作历史",
