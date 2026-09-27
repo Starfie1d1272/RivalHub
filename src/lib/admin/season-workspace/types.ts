@@ -52,6 +52,8 @@ export interface MajorStrengthFact {
   sourceRank: string | null;
   sourceStars: number | null;
   conversionVersion: string | null;
+  estimatedFromUnranked: boolean;
+  estimatedFromSeasonKey: string | null;
 }
 
 export interface MajorStrengthStarter {
