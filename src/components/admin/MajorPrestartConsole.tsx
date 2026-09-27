@@ -43,14 +43,14 @@ export function MajorPrestartConsole({ seasonName, readiness, management, seedMa
   const history = [
     <p key="registration">{summaries[0]} · 报名截止后候选集合用于资格方案。</p>,
     run ? <ol key="qualification-plan" className="grid gap-1 sm:grid-cols-2">{run.entrants.slice().sort((a, b) => a.preliminarySeed - b.preliminarySeed).map((entrant) => <li key={entrant.entryId}>#{entrant.preliminarySeed} {entrant.teamName} · {entrant.route === "direct" ? "直通正赛" : "Play-in"}</li>)}</ol> : <p key="qualification-plan">{summaries[1]}</p>,
-    <p key="qualification">{summaries[2]} · <Link className="text-[var(--color-accent)] underline" href={`/admin/${management.seasonSlug}/matches?stage=play-in`}>查看比赛管理</Link></p>,
+    noPlayIn ? <p key="qualification">无需资格赛</p> : <p key="qualification">{summaries[2]} · <Link className="text-[var(--color-accent)] underline" href={`/admin/${management.seasonSlug}/matches?stage=play-in`}>查看比赛管理</Link></p>,
     <ol key="roster" className="grid gap-1 sm:grid-cols-2">{management.entrants.map((entrant) => <li key={entrant.id}>{entrant.teamName} · {entrant.roster.length} 人 · {entrant.rosterStatus === "frozen" ? "已冻结" : "待确认"}</li>)}</ol>,
     <ol key="seeds" className="grid gap-1 sm:grid-cols-2">{seedManagement.seeds.slice().sort((a, b) => a.tournamentSeed - b.tournamentSeed).map((seed) => <li key={seed.teamId}>#{seed.tournamentSeed} {seedManagement.entrants.find((entrant) => entrant.teamId === seed.teamId)?.teamName ?? seed.teamId}</li>)}</ol>,
     <p key="start">{summaries[5]}</p>,
   ];
   return <div className="space-y-5">
     <div>
-      <Marker sub={started ? "Stage 1 已创建" : `当前：${MAJOR_PRESTART_PHASES[phase - 1]}`}>
+      <Marker sub={started ? `${readiness.openingPlan?.stage1.name ?? "首阶段"}已创建` : `当前：${MAJOR_PRESTART_PHASES[phase - 1]}`}>
         赛事赛前 · {seasonName}
       </Marker>
       <p className="mt-1 text-sm text-[var(--color-fg-mid)]">按阶段确认候选、资格赛、最终名单和种子；实际开赛只在最后一步由管理员确认。</p>
