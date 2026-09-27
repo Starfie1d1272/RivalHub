@@ -2,7 +2,7 @@ import React from "react";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import { PointsBoard } from "@/components/predictions/PointsBoard";
+import { PointsBoard, PredictionRecord } from "@/components/predictions/PointsBoard";
 import type { PredictionBoardData } from "@/lib/predictions/data";
 
 const data = {
@@ -39,4 +39,30 @@ describe("points workbench", () => {
     expect(screen.getByText("已关盘，等待官方确认本轮结果。")).toBeVisible();
     expect(screen.queryByRole("button", { name: "确认投入" })).not.toBeInTheDocument();
   });
+  it("uses the event challenge capacity instead of a fixed total", () => {
+    const recordData = {
+      ...data,
+      base: {
+        ...data.base,
+        stages: [
+          { key: "stage1", type: "swiss" },
+          { key: "stage2", type: "swiss" },
+          { key: "playoff", type: "single_elim" },
+        ],
+      },
+      achievement: {
+        coin: "青铜",
+        challenges: 1,
+        maximumCoin: "钻石",
+        progress: [],
+      },
+      pointsLeaderboard: [],
+      pickLeaderboard: [],
+      ledger: [],
+      rules: { silver: 4, gold: 6, diamond: 8, swissTarget: 5 },
+    } as unknown as PredictionBoardData;
+    render(<PredictionRecord data={recordData} />);
+    expect(screen.getByText("1 / 8 项挑战")).toBeVisible();
+  });
+
 });
