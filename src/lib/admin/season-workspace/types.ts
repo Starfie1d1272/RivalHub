@@ -54,6 +54,7 @@ export interface MajorStrengthFact {
   conversionVersion: string | null;
   estimatedFromUnranked?: boolean;
   estimatedFromSeasonKey?: string | null;
+  estimatedFromHistorical?: boolean;
 }
 
 export interface MajorStrengthStarter {
