@@ -52,12 +52,15 @@ test("观众完成选队提交、草稿隔离、图片导出与真实积分投�
       ).toBeVisible();
     }
     for (let i = mobile ? 0 : 1; i < slotNames.length; i++) {
-      await page
-        .getByRole("button", { name: new RegExp(`^${slotNames[i]}：`) })
-        .press("Enter");
+      const slot = page.getByRole("button", { name: new RegExp(`^${slotNames[i]}：`) });
+      // Keyboard press does not wait for enabled state, unlike a user click.
+      await expect(slot).toBeEnabled();
+      await slot.press("Enter");
+      await expect(slot).toHaveAttribute("aria-pressed", "true");
       await page
         .getByRole("button", { name: `选择 队伍 ${17 + i}`, exact: true })
         .press("Enter");
+      await expect(slot).toHaveAccessibleName(`${slotNames[i]}：队伍 ${17 + i}`);
     }
     await page.getByRole("button", { name: "提交预测", exact: true }).click();
     await expect(page.getByText(/已提交 · 版本/)).toBeVisible();
