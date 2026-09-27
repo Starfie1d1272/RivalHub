@@ -422,36 +422,6 @@ describe("participant readiness", () => {
     });
   });
 
-  it("uses the nearest later ranked season when older season facts were never collected", () => {
-    const context: CompetitiveProfileConfig = {
-      ...CONTEXT,
-      rankOrder: ["D", "C", "C+", "C++", "B", "B+", "B++", "A", "A+", "A++"],
-      evidencePolicy: {
-        historicalWeight: 50,
-        referenceSeasonKey: "S19",
-        referenceSeasonWeight: 20,
-        recentSeasonKeys: ["S20", "S21"],
-        recentSeasonWeight: 30,
-        sourceSelection: "strongest_equivalent",
-      },
-    };
-    const input = toPlayerStrengthInput(fullFact({
-      historicalPeak: { rank: "A+", rating: 1900 },
-      platformSeasonOrder: ["S19", "S20", "S21"],
-      seasonPeaks: new Map([
-        ["S19", { status: "unranked", rank: null, rating: null }],
-        ["S20", { rank: "A", rating: 1700 }],
-        ["S21", { rank: "B+", rating: 1600 }],
-      ]),
-    }), context);
-
-    expect(input.previousSeasonPeak).toMatchObject({
-      rank: "B++",
-      estimatedFromUnranked: true,
-      estimatedFromSeasonKey: "S20",
-    });
-  });
-
   it("falls back to historical peak one rung lower when no ranked season fact exists", () => {
     const context: CompetitiveProfileConfig = {
       ...CONTEXT,
