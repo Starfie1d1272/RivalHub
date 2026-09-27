@@ -19,6 +19,8 @@ export interface PlayerStrengthFact {
   estimatedFromUnranked?: boolean;
   /** Canonical target-platform season key used as the estimate basis. */
   estimatedFromSeasonKey?: string | null;
+  /** Estimate fell back to the declared historical peak because no ranked season fact exists. */
+  estimatedFromHistorical?: boolean;
 }
 
 export interface PlayerStrengthInput {

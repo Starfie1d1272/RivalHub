@@ -10,6 +10,7 @@ export type ProjectableStrengthFact = {
   conversionVersion?: string | null;
   estimatedFromUnranked?: boolean;
   estimatedFromSeasonKey?: string | null;
+  estimatedFromHistorical?: boolean;
 };
 
 type StrengthStarterProjection = {
@@ -57,6 +58,7 @@ export function projectStrengthFact(fact: ProjectableStrengthFact | null): Major
     conversionVersion: fact.conversionVersion ?? null,
     estimatedFromUnranked: fact.estimatedFromUnranked ?? false,
     estimatedFromSeasonKey: fact.estimatedFromSeasonKey ?? null,
+    estimatedFromHistorical: fact.estimatedFromHistorical ?? false,
   } : null;
 }
 
