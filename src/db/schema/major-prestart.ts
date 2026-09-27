@@ -36,6 +36,8 @@ export const majorPrestartIssueCategoryEnum = pgEnum("major_prestart_issue_categ
 export const majorPrestartStates = pgTable("major_prestart_states", {
   id: uuid("id").primaryKey().defaultRandom(),
   seasonId: uuid("season_id").notNull().unique().references(() => seasons.id),
+  /** Operating plan only; StageRun creation is the actual Main Event start. */
+  mainEventPlannedStartAt: timestamp("main_event_planned_start_at", { withTimezone: true }),
   entrantsLockedAt: timestamp("entrants_locked_at", { withTimezone: true }),
   entrantsLockedBy: text("entrants_locked_by"),
   /** Explicit confirmation is cleared by every seed edit. */

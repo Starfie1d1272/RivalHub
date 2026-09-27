@@ -492,15 +492,15 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
               <Label htmlFor="registration-opens-at">报名开放时间</Label>
               <Input id="registration-opens-at" type="datetime-local" value={registrationOpensAt ?? ""} disabled={!editCapabilities.canEditRegistrationOpenSchedule} onChange={(e) => setRegistrationOpensAt(e.target.value)} />
             </div>
-            <div>
+            {template !== "major" && <div>
               <Label htmlFor="registration-closes-at">报名截止时间</Label>
               <Input id="registration-closes-at" type="datetime-local" value={registrationClosesAt ?? ""} disabled={!editCapabilities.canEditRegistrationDeadlines} onChange={(e) => setRegistrationClosesAt(e.target.value)} />
-            </div>
-            <div>
+            </div>}
+            {template !== "major" && <div>
               <Label htmlFor="roster-change-closes-at">名单调整截止时间</Label>
               <Input id="roster-change-closes-at" type="datetime-local" value={rosterChangeClosesAt ?? ""} disabled={!editCapabilities.canEditRegistrationDeadlines} onChange={(e) => setRosterChangeClosesAt(e.target.value)} />
-            </div>
-            <div><Label htmlFor="end-at">赛季结束时间</Label><Input id="end-at" type="datetime-local" value={endAt ?? ""} onChange={(e) => setEndAt(e.target.value)} /></div>
+            </div>}
+            {template !== "major" && <div><Label htmlFor="end-at">赛季结束时间</Label><Input id="end-at" type="datetime-local" value={endAt ?? ""} onChange={(e) => setEndAt(e.target.value)} /></div>}
           </div>
         </section>
 
@@ -656,7 +656,7 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
         {saveButton}
       </SettingsPanel>
 
-      <SettingsPanel id="lifecycle" label="时间与生命周期">
+      <SettingsPanel id="lifecycle" label={template === "major" ? "发布与开放报名" : "时间与生命周期"}>
         <LifecycleFacts status={initial?.status ?? "draft"} phase={editCapabilities.phase} registrationOpenedAt={initial?.registrationOpenedAt} />
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
@@ -664,22 +664,26 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
             <Input id="registration-opens-at" type="datetime-local" value={registrationOpensAt ?? ""} disabled={!editCapabilities.canEditRegistrationOpenSchedule} onChange={(e) => setRegistrationOpensAt(e.target.value)} />
             <p className="mt-1 text-xs text-[var(--color-fg-dim)]">{editCapabilities.canEditRegistrationOpenSchedule ? "可稍后填写；留空表示赛事已公开但报名时间待定。" : "实际开放后锁定报名开放时间。"}</p>
           </div>
-          <div>
+          {template !== "major" && <div>
             <Label htmlFor="registration-closes-at">报名截止时间</Label>
             <Input id="registration-closes-at" type="datetime-local" value={registrationClosesAt ?? ""} disabled={!editCapabilities.canEditRegistrationDeadlines} onChange={(e) => setRegistrationClosesAt(e.target.value)} />
             <p className="mt-1 text-xs text-[var(--color-fg-dim)]">截止后不再接受新的报名。{editCapabilities.canEditRegistrationDeadlines ? "比赛开始前仍可运营调整。" : "比赛开始后锁定。"}</p>
-          </div>
-          <div>
+          </div>}
+          {template !== "major" && <div>
             <Label htmlFor="roster-change-closes-at">名单调整截止时间</Label>
             <Input id="roster-change-closes-at" type="datetime-local" value={rosterChangeClosesAt ?? ""} disabled={!editCapabilities.canEditRegistrationDeadlines} onChange={(e) => setRosterChangeClosesAt(e.target.value)} />
             <p className="mt-1 text-xs text-[var(--color-fg-dim)]">已报名队伍可在此之前自行调整本届名单；留空时回退到报名截止时间。{editCapabilities.canEditRegistrationDeadlines ? "比赛开始前仍可运营调整。" : "比赛开始后锁定。"}</p>
-          </div>
-          <div>
+          </div>}
+          {template !== "major" && <div>
             <Label htmlFor="end-at">赛季结束时间</Label>
             <Input id="end-at" type="datetime-local" value={endAt ?? ""} onChange={(e) => setEndAt(e.target.value)} />
             <p className="mt-1 text-xs text-[var(--color-fg-dim)]">用于赛事信息展示与赛后收尾；修改此时间不会自动结束赛事。</p>
-          </div>
+          </div>}
         </div>
+        {template === "major" && initial?.slug && <p className="mt-4 border-t border-[var(--color-border)] pt-4 text-sm text-[var(--color-fg-mid)]">
+          Major 的报名截止、最终名单调整截止和 Main Event 计划开始时间统一在赛前准备中管理。{" "}
+          <Link href={`/admin/${initial.slug}/prestart`} className="text-[var(--color-accent)] hover:underline">前往赛前准备</Link>
+        </p>}
         <div className="mt-5 flex flex-wrap items-center justify-end gap-3 border-t border-[var(--color-border)] pt-4">
           {initial?.status === "draft" && <Button type="button" variant="outline" disabled={isPending} onClick={() => setPublishConfirmationOpen(true)}>发布赛季</Button>}
           {initial?.status === "registration" && !initial.registrationOpenedAt && <Button type="button" disabled={isPending} onClick={requestOpenRegistration}>立即开放报名</Button>}

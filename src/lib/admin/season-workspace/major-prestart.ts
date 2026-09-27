@@ -43,6 +43,8 @@ import type { CompetitiveProfileConfig } from "@/types/season";
 import type { Season } from "@/db/schema/seasons";
 import type { MajorPrestartPageData, MajorPrestartStrengthPreview } from "./types";
 import { projectStrengthTeams } from "./strength";
+import { projectStrengthStarter } from "./strength";
+import { getPlayerStrengthBreakdown, type PlayerStrengthInput } from "@/lib/major/player-strength";
 import { orderQualificationCandidates, SHORT_SWISS_MAX_ROUNDS } from "@/lib/competition-qualification/policy";
 import { projectShortSwissStage } from "@/lib/competition-qualification/swiss";
 
@@ -211,13 +213,12 @@ export async function loadMajorPrestartPageData(season: Season): Promise<MajorPr
   const competitiveProfile = configuredCompetitiveProfile
     ? await resolveCompetitiveContext(configuredCompetitiveProfile)
     : null;
-  const candidateStarterUserIds = [...new Set(candidateEntries.flatMap((entry) =>
+  const candidateMemberUserIds = [...new Set(candidateEntries.flatMap((entry) =>
     (approvedMembersByEntryId.get(entry.id) ?? [])
-      .filter((member) => member.isPrimaryStarter)
       .map((member) => member.userId),
   ))];
   const qualificationFacts = competitiveProfile
-    ? await loadParticipantQualificationFacts(candidateStarterUserIds, {
+    ? await loadParticipantQualificationFacts(candidateMemberUserIds, {
       platform: competitiveProfile.platform,
       fallbackPlatform: competitiveProfile.fallbackConversion?.sourcePlatform,
       includeCompetitiveFacts: true,
@@ -311,6 +312,65 @@ export async function loadMajorPrestartPageData(season: Season): Promise<MajorPr
     ...member,
     label: getDisplayName({ displayName, perfectName, personaName, email }),
   }));
+  const previousApprovedRevisions = entrantRows.length === 0 ? [] : await db.select({
+    id: competitionEntryRosterRevisions.id,
+    entryId: competitionEntryRosterRevisions.entryId,
+    revisionNumber: competitionEntryRosterRevisions.revisionNumber,
+  }).from(competitionEntryRosterRevisions)
+    .where(and(inArray(competitionEntryRosterRevisions.entryId, entrantRows.map((entrant) => entrant.teamId)), isNotNull(competitionEntryRosterRevisions.approvedAt)))
+    .orderBy(asc(competitionEntryRosterRevisions.entryId), asc(competitionEntryRosterRevisions.revisionNumber));
+  const previousRevisionIds = entrantRows.flatMap((entrant) => {
+    const revisions = previousApprovedRevisions.filter((revision) => revision.entryId === entrant.teamId);
+    return revisions.length > 1 ? [revisions[revisions.length - 2]!.id] : [];
+  });
+  const previousMemberRows = previousRevisionIds.length === 0 ? [] : await db.select({
+    revisionId: competitionEntryRosterMembers.revisionId,
+    userId: competitionEntryRosterMembers.userId,
+    isPrimaryStarter: competitionEntryRosterMembers.isPrimaryStarter,
+    displayName: users.displayName,
+    perfectName: users.perfectName,
+    personaName: steamProfiles.personaName,
+    email: users.email,
+  }).from(competitionEntryRosterMembers)
+    .innerJoin(users, eq(users.id, competitionEntryRosterMembers.userId))
+    .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
+    .where(inArray(competitionEntryRosterMembers.revisionId, previousRevisionIds));
+  const recentRosterChangeByEntryId = new Map<string, { added: string[]; removed: string[]; primaryChanged: string[] }>();
+  for (const entrant of entrantRows) {
+    const revisions = previousApprovedRevisions.filter((revision) => revision.entryId === entrant.teamId);
+    const previousRevisionId = revisions.length > 1 ? revisions[revisions.length - 2]!.id : null;
+    if (!previousRevisionId) continue;
+    const previous = previousMemberRows.filter((member) => member.revisionId === previousRevisionId);
+    const current = rosterRows.filter((member) => member.entrantId === entrant.id);
+    const previousByUserId = new Map(previous.map((member) => [member.userId, member]));
+    const currentByUserId = new Map(current.map((member) => [member.userId, member]));
+    const added = current.filter((member) => !previousByUserId.has(member.userId)).map((member) => member.label);
+    const removed = previous.filter((member) => !currentByUserId.has(member.userId)).map(getDisplayName);
+    const primaryChanged = current.filter((member) => previousByUserId.has(member.userId) && previousByUserId.get(member.userId)!.isPrimaryStarter !== member.isPrimaryStarter)
+      .map((member) => member.label);
+    if (added.length || removed.length || primaryChanged.length) recentRosterChangeByEntryId.set(entrant.teamId, { added, removed, primaryChanged });
+  }
+  const missingRosterUserIds = [...new Set(rosterRows.map((member) => member.userId))]
+    .filter((userId) => !qualificationFacts.has(userId));
+  if (competitiveProfile && missingRosterUserIds.length > 0) {
+    const finalFacts = await loadParticipantQualificationFacts(missingRosterUserIds, {
+      platform: competitiveProfile.platform,
+      fallbackPlatform: competitiveProfile.fallbackConversion?.sourcePlatform,
+      includeCompetitiveFacts: true,
+    });
+    for (const [userId, fact] of finalFacts) qualificationFacts.set(userId, fact);
+  }
+  const rosterStrength = (member: { userId: string; label: string; isPrimaryStarter: boolean }) => {
+    const fact = qualificationFacts.get(member.userId);
+    const input: PlayerStrengthInput = fact
+      ? toPlayerStrengthInput(fact, competitiveProfile)
+      : { userId: member.userId, label: member.label, historicalPeak: null, previousSeasonPeak: null, currentSeasonPeak: null };
+    const breakdown = competitiveProfile ? getPlayerStrengthBreakdown(input, competitiveProfile) : {
+      available: false, blockers: ["竞技上下文暂不可用。"], weightedRank: null, historicalValue: null,
+      previousValue: null, currentValue: null, effectiveRecentPeak: null, historicalRating: null,
+    };
+    return { ...projectStrengthStarter({ userId: member.userId, label: member.label, input, breakdown }), isPrimaryStarter: member.isPrimaryStarter };
+  };
   const frozenTeams = frozenTeamsForSnapshot(entrantRows, rosterRows);
   const frozenSetFingerprint = buildFrozenSetFingerprint(season.id, frozenTeams);
   const recommendationStatus = getSeedRecommendationSnapshotStatus({ snapshot, seasonId: season.id, frozenSetFingerprint });
@@ -391,6 +451,19 @@ export async function loadMajorPrestartPageData(season: Season): Promise<MajorPr
       seasonStatus: season.status,
       managedProfileId: managedProfile.id,
       registrationClosesAt: season.registrationClosesAt?.toISOString() ?? null,
+      registrationOpenState: season.registrationClosesAt && season.registrationClosesAt.getTime() <= Date.now()
+        ? "closed" : season.registrationOpenedAt ? "open" : "pending",
+      rosterChangeClosesAt: season.rosterChangeClosesAt?.toISOString() ?? null,
+      rosterAdjustmentDeadlinePassed: qualificationRun
+        ? Boolean(
+            qualificationRun.completedAt &&
+            season.rosterChangeClosesAt &&
+            season.rosterChangeClosesAt.getTime() > qualificationRun.completedAt.getTime() &&
+            season.rosterChangeClosesAt.getTime() <= Date.now()
+          )
+        : !season.rosterChangeClosesAt || season.rosterChangeClosesAt.getTime() <= Date.now(),
+      mainEventPlannedStartAt: state?.mainEventPlannedStartAt?.toISOString() ?? null,
+      mainEventStartOverdue: Boolean(state?.mainEventPlannedStartAt && state.mainEventPlannedStartAt.getTime() < Date.now() && stageRunRows.length === 0),
       registrationClosed: Boolean(season.registrationClosesAt && season.registrationClosesAt.getTime() <= Date.now()),
       entrantCapacity,
       entrantsLocked: Boolean(state?.entrantsLockedAt),
@@ -398,6 +471,13 @@ export async function loadMajorPrestartPageData(season: Season): Promise<MajorPr
       pendingReviewCount: pendingReviews.length,
       initialPreliminaryOrderEntryIds,
       strengthPreview,
+      rankingRoster: [
+        ...candidateEntries.map((entry) => ({ entryId: entry.id, members: (approvedMembersByEntryId.get(entry.id) ?? [])
+          .map(rosterStrength).sort((a, b) => Number(b.isPrimaryStarter) - Number(a.isPrimaryStarter)) })),
+        ...entrantRows.map((entrant) => ({ entryId: entrant.teamId, members: rosterRows
+          .filter((member) => member.entrantId === entrant.id)
+          .map(rosterStrength).sort((a, b) => Number(b.isPrimaryStarter) - Number(a.isPrimaryStarter)) })),
+      ],
       approvedCandidates: candidateEntries.map((entry) => ({
         id: entry.id,
         name: entry.name,
@@ -418,6 +498,7 @@ export async function loadMajorPrestartPageData(season: Season): Promise<MajorPr
         teamId: entrant.teamId,
         teamName: entrant.teamName ?? entrant.teamId,
         rosterStatus: entrant.rosterStatus,
+        recentRosterChange: recentRosterChangeByEntryId.get(entrant.teamId) ?? null,
         roster: (rosterByEntrant.get(entrant.id) ?? []).map((member) => ({
           userId: member.userId,
           label: member.label,

@@ -306,7 +306,7 @@ describe("planSeasonUpdate template identity", () => {
     expect(opened.set).not.toHaveProperty("registrationOpensAt");
   });
 
-  it("ignores a malicious frozen open time even when the raw replay breaks date ordering", () => {
+  it("ignores Major operational dates and a frozen open time in a Settings replay", () => {
     const openedAt = new Date("2026-05-01T02:00:03.838Z");
     const currentClose = new Date("2026-05-02T02:00:00.000Z");
     const row = seasonRow({
@@ -323,8 +323,8 @@ describe("planSeasonUpdate template identity", () => {
     }));
 
     const { set } = planSeasonUpdate(row, parsed);
-    expect(set.registrationClosesAt).toEqual(new Date("2026-05-02T04:00:00.000Z"));
-    expect(set.rosterChangeClosesAt).toEqual(new Date("2026-05-03T02:00:00.000Z"));
+    expect(set).not.toHaveProperty("registrationClosesAt");
+    expect(set).not.toHaveProperty("rosterChangeClosesAt");
     expect(set).not.toHaveProperty("registrationOpensAt");
   });
 
@@ -392,7 +392,7 @@ describe("planSeasonUpdate template identity", () => {
     }))).toThrowError(/只有 draft 状态可修改核心赛季配置/);
   });
 
-  it("keeps registration deadlines operational through pre-playing phases and locks them at playing", () => {
+  it("keeps Major deadlines in the prestart workspace through every phase", () => {
     const openedAt = new Date("2026-05-01T02:00:00.000Z");
     const currentClose = new Date("2026-05-02T02:00:00.000Z");
     const currentRoster = new Date("2026-05-03T02:00:00.000Z");
@@ -408,8 +408,8 @@ describe("planSeasonUpdate template identity", () => {
       registrationClosesAt: "2026-05-04T10:00",
       rosterChangeClosesAt: "2026-05-05T10:00",
     }));
-    expect(updated.set.registrationClosesAt).toEqual(new Date("2026-05-04T02:00:00.000Z"));
-    expect(updated.set.rosterChangeClosesAt).toEqual(new Date("2026-05-05T02:00:00.000Z"));
+    expect(updated.set).not.toHaveProperty("registrationClosesAt");
+    expect(updated.set).not.toHaveProperty("rosterChangeClosesAt");
 
     const playingRow = seasonRow({ ...row, status: "playing" });
     const playingUpdated = planSeasonUpdate(playingRow, parseInput({
@@ -421,7 +421,7 @@ describe("planSeasonUpdate template identity", () => {
     expect(playingUpdated.set).not.toHaveProperty("rosterChangeClosesAt");
   });
 
-  it("keeps name, theme and endAt as editable metadata after publish", () => {
+  it("keeps Major name and theme editable without replaying the old end date", () => {
     const openedAt = new Date("2026-05-01T02:00:00.000Z");
     const result = planSeasonUpdate(seasonRow({
       status: "playing",
@@ -435,7 +435,7 @@ describe("planSeasonUpdate template identity", () => {
     }));
     expect(result.set.name).toBe("Renamed Major");
     expect(result.set.themeColor).toBe("#112233");
-    expect(result.set.endAt).toEqual(new Date("2026-06-01T02:00:00.000Z"));
+    expect(result.set.endAt).toBeNull();
     expect(result.set).not.toHaveProperty("stagePlan");
   });
 

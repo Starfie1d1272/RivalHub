@@ -8,19 +8,22 @@ export function getCompetitionEntryCapabilities(input: {
   entry: { status: CompetitionEntryRegistrationStatus; hasApprovedRoster: boolean } | null;
   revision: { status: string; origin: CompetitionEntryRosterRevisionOrigin } | null;
   rosterFrozen: boolean;
+  majorAdjustmentPhaseOpen?: boolean;
 }, now = new Date()) {
-  const { season, entry, revision, rosterFrozen } = input;
+  const { season, entry, revision, rosterFrozen, majorAdjustmentPhaseOpen = true } = input;
   const window = getRegistrationWindowState(season, now);
   const editable = !rosterFrozen && !!entry && !!revision && revision.status === "draft"
     && (entry.status === "draft" || entry.status === "changes_requested")
-    && canMutateCompetitionEntryRoster(entry.status, revision.origin, season, now);
+    && canMutateCompetitionEntryRoster(entry.status, revision.origin, season, now, majorAdjustmentPhaseOpen);
   const canRequestRosterChange = !rosterFrozen && entry?.status === "approved"
-    && entry.hasApprovedRoster && canSelfChangeApprovedRoster(season, now);
+    && entry.hasApprovedRoster && majorAdjustmentPhaseOpen && canSelfChangeApprovedRoster(season, now);
+  const selfChangeOpen = majorAdjustmentPhaseOpen && canSelfChangeApprovedRoster(season, now);
   const canWithdrawParticipation = !rosterFrozen && !!entry
-    && (entry.status !== "approved" || (entry.hasApprovedRoster && canSelfChangeApprovedRoster(season, now)));
+    && (entry.status === "approved" ? entry.hasApprovedRoster && selfChangeOpen
+      : revision?.origin === "self_roster_change" ? selfChangeOpen : majorAdjustmentPhaseOpen);
   const canWithdrawFromReview = !rosterFrozen && entry?.status === "submitted"
     && revision?.status === "submitted" && window.canSubmit;
-  const rosterChangeClosed = !canSelfChangeApprovedRoster(season, now);
+  const rosterChangeClosed = !selfChangeOpen;
   return {
     canStartRegistration: !entry && window.canSubmit,
     canEditCurrentRoster: editable,

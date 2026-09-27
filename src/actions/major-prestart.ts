@@ -33,6 +33,7 @@ import { assertSinglePrestartEntryCoherenceInTx } from "@/lib/event-rosters/cohe
 import { lockMajorPrestartEntrantsInTx, selectMajorEntrantsAndSyncRostersInTx } from "@/lib/major/prestart-entrants";
 import { saveMajorPrestartRosterInTx } from "@/lib/major/prestart-roster";
 import { assertMajorPrestartEntrantsMutable, ensureMajorPrestartStateInTx } from "@/lib/major/prestart-state";
+import { parseCSTInput } from "@/lib/utils/date";
 import { confirmMajorTournamentSeedsInTx, saveMajorTournamentSeedsInTx } from "@/lib/major/prestart-seeds";
 
 const uuid = z.guid();
@@ -63,6 +64,63 @@ function revalidateMajorPrestart(seasonSlug: string): void {
   updatePublicHomeTag();
   revalidatePath(`/admin/${seasonSlug}`);
   revalidatePath(`/admin/${seasonSlug}/prestart`);
+}
+
+export async function saveMajorPrestartSchedule(input: {
+  seasonId: string;
+  kind: "registration-close" | "final-roster-close" | "main-event-start";
+  value: string | null;
+}): Promise<ActionResult<void>> {
+  const parsed = z.object({
+    seasonId: uuid,
+    kind: z.enum(["registration-close", "final-roster-close", "main-event-start"]),
+    value: z.string().datetime({ local: true }).nullable(),
+  }).safeParse(input);
+  if (!parsed.success) return failValidation("赛前计划时间无效。");
+  const next = parseCSTInput(parsed.data.value);
+  if (parsed.data.value && !next) return failValidation("赛前计划时间无效。");
+  try {
+    const { season, admin } = await seasonAndAdminOrThrow(parsed.data.seasonId);
+    await db.transaction(async (tx) => {
+      const [current] = await tx.select().from(seasons).where(eq(seasons.id, season.id)).for("update");
+      if (!current || current.status !== "registration") throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "当前赛事阶段不能调整赛前计划。");
+      const state = await ensureMajorPrestartStateInTx(tx, current.id);
+      const [run] = await tx.select({ id: competitionQualificationRuns.id, completedAt: competitionQualificationRuns.completedAt }).from(competitionQualificationRuns)
+        .where(eq(competitionQualificationRuns.seasonId, current.id)).limit(1);
+      const [stage] = await tx.select({ id: majorStageRuns.id }).from(majorStageRuns)
+        .where(eq(majorStageRuns.seasonId, current.id)).limit(1);
+      const [entrant] = await tx.select({ id: majorTournamentEntrants.id }).from(majorTournamentEntrants)
+        .where(eq(majorTournamentEntrants.seasonId, current.id)).limit(1);
+      let previous: Date | null;
+      if (parsed.data.kind === "registration-close") {
+        if (run || entrant || state.entrantsLockedAt) throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "资格方案或正式参赛队已经确定，不能调整报名截止。");
+        if (next && current.registrationOpensAt && next <= current.registrationOpensAt) throw new AppError(ErrorCode.VALIDATION_FAILED, "报名截止必须晚于报名开放时间。");
+        if (next && current.rosterChangeClosesAt && next > current.rosterChangeClosesAt) throw new AppError(ErrorCode.VALIDATION_FAILED, "报名截止不能晚于最终名单调整截止。");
+        if (next && state.mainEventPlannedStartAt && next > state.mainEventPlannedStartAt) throw new AppError(ErrorCode.VALIDATION_FAILED, "报名截止不能晚于 Main Event 计划开始时间。");
+        previous = current.registrationClosesAt;
+        await tx.update(seasons).set({ registrationClosesAt: next }).where(eq(seasons.id, current.id));
+      } else if (parsed.data.kind === "final-roster-close") {
+        if (state.entrantsLockedAt || stage) throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "最终名单已经冻结，不能调整名单截止。");
+        if (next && current.registrationClosesAt && next < current.registrationClosesAt) throw new AppError(ErrorCode.VALIDATION_FAILED, "最终名单调整截止不能早于报名截止。");
+        if (next && run?.completedAt && next <= run.completedAt) throw new AppError(ErrorCode.VALIDATION_FAILED, "最终名单调整截止必须晚于 Play-in 实际完成时间。");
+        if (next && run && !run.completedAt && next <= new Date()) throw new AppError(ErrorCode.VALIDATION_FAILED, "Play-in 尚未完成时，最终名单调整截止必须设置为未来时间。");
+        if (next && state.mainEventPlannedStartAt && next > state.mainEventPlannedStartAt) throw new AppError(ErrorCode.VALIDATION_FAILED, "最终名单调整截止不能晚于 Main Event 计划开始时间。");
+        previous = current.rosterChangeClosesAt;
+        await tx.update(seasons).set({ rosterChangeClosesAt: next }).where(eq(seasons.id, current.id));
+      } else {
+        if (stage) throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "Main Event 已开始，不能调整计划开赛时间。");
+        if (next && current.registrationClosesAt && next < current.registrationClosesAt) throw new AppError(ErrorCode.VALIDATION_FAILED, "Main Event 计划开始时间不能早于报名截止。");
+        if (next && current.rosterChangeClosesAt && next < current.rosterChangeClosesAt) throw new AppError(ErrorCode.VALIDATION_FAILED, "Main Event 计划开始时间不能早于最终名单调整截止。");
+        previous = state.mainEventPlannedStartAt;
+        await tx.update(majorPrestartStates).set({ mainEventPlannedStartAt: next, updatedAt: new Date() }).where(eq(majorPrestartStates.id, state.id));
+      }
+      await writeAuditInTx(tx, { seasonId: current.id, action: "major_prestart.save_schedule", actorId: auditActorId(admin), targetId: state.id,
+        meta: { kind: parsed.data.kind, previous: previous?.toISOString() ?? null, next: next?.toISOString() ?? null } });
+    });
+    revalidateMajorPrestart(season.slug);
+    revalidatePath(`/admin/${season.slug}/settings`);
+    return ok(undefined);
+  } catch (error) { return actionError("saveMajorPrestartSchedule", error); }
 }
 
 export async function selectMajorEntrants(input: { seasonId: string; competitionEntryIds: string[] }): Promise<ActionResult<void>> {

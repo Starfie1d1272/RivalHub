@@ -103,6 +103,11 @@ export interface MajorPrestartPageData {
     seasonStatus: Season["status"];
     managedProfileId: "major-24" | "major-32";
     registrationClosesAt: string | null;
+    registrationOpenState: "pending" | "open" | "closed";
+    rosterChangeClosesAt: string | null;
+    rosterAdjustmentDeadlinePassed: boolean;
+    mainEventPlannedStartAt: string | null;
+    mainEventStartOverdue: boolean;
     registrationClosed: boolean;
     entrantCapacity: number;
     entrantsLocked: boolean;
@@ -110,6 +115,7 @@ export interface MajorPrestartPageData {
     pendingReviewCount: number;
     initialPreliminaryOrderEntryIds: string[];
     strengthPreview: MajorPrestartStrengthPreview;
+    rankingRoster: Array<{ entryId: string; members: Array<MajorStrengthStarter & { isPrimaryStarter: boolean }> }>;
     approvedCandidates: Array<{
       id: string;
       name: string;
@@ -131,6 +137,7 @@ export interface MajorPrestartPageData {
       teamName: string;
       rosterStatus: "preparing" | "confirmed" | "frozen";
       roster: Array<{ userId: string; label: string; isPrimaryStarter: boolean; educationVerified: boolean }>;
+      recentRosterChange: { added: string[]; removed: string[]; primaryChanged: string[] } | null;
     }>;
     qualification: {
       run: {
