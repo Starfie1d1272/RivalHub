@@ -23,8 +23,12 @@ test("管理员预览并确认 30 队到 Major 24 的 Play-in 配置与首轮对
   await expect(configurationPreview.getByRole("row").filter({ hasText: "P19" })).toContainText("Play-in");
   await configurationPreview.getByRole("button", { name: "确认并锁定配置" }).click();
   await expect(configurationPreview).not.toBeVisible();
-  const directEntrantRows = page.getByRole("row").filter({ has: page.getByText("直通正赛", { exact: true }) });
-  await expect(directEntrantRows).toHaveCount(18);
+  const confirmedPlan = page.locator("details").filter({
+    has: page.locator("summary").filter({ hasText: "资格方案" }),
+  });
+  await confirmedPlan.locator("summary").click();
+  await expect(confirmedPlan.getByRole("listitem").filter({ hasText: / · 直通正赛$/ })).toHaveCount(18);
+  await expect(confirmedPlan.getByRole("listitem").filter({ hasText: / · Play-in$/ })).toHaveCount(12);
 
   await page.goto(`/${scenario.slug}`);
   await expect(page.getByText("30 支候选 · 24 支正赛")).toBeVisible();
