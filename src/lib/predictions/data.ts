@@ -15,7 +15,13 @@ import {
   users,
 } from "@/db/schema";
 import { generateMajorPlayoffQuarterfinals } from "@/lib/major/playoff";
-import { defaultPredictionRules, stageChallengeCount, coinLevel, judgePick } from "./rules";
+import {
+  defaultPredictionRules,
+  effectivePredictionMarketDeadline,
+  stageChallengeCount,
+  coinLevel,
+  judgePick,
+} from "./rules";
 import { loadBaseline } from "./baseline";
 
 import { simulateMajor } from "./simulator";
@@ -34,7 +40,11 @@ export async function predictionBoard(
   const base = await loadBaseline(tx, seasonId);
   const records = view === "record" || view === "all";
   const poolsVisible = view === "points" || view === "all";
-  const now = Date.now();
+  const [databaseClock] = await tx.select({
+    now: sql<Date>`clock_timestamp()`,
+  });
+  if (!databaseClock) throw new Error("Database clock unavailable");
+  const now = databaseClock.now.getTime();
   const rules = program?.rules ?? defaultPredictionRules(base.stages);
   const allAccounts = await tx
     .select({
@@ -228,6 +238,12 @@ export async function predictionBoard(
     }),
     markets: pools.map((m) => {
       const rows = investments.filter((s) => s.marketId === m.id);
+      const match = base.matches.find((candidate) => candidate.id === m.matchId);
+      const effectiveDeadline = effectivePredictionMarketDeadline({
+        marketDeadline: m.deadline,
+        scheduledAt: match?.scheduledAt ? new Date(match.scheduledAt) : null,
+        cutoffMinutes: rules.cutoffMinutes,
+      });
       const sum = (optionId: string) => rows.find((s) => s.optionId === optionId)?.total ?? "0";
       const mine = rows.filter((s) => BigInt(s.mine) > BigInt(0));
       const batch = batches.find(
@@ -248,8 +264,8 @@ export async function predictionBoard(
             entryId: o.entryId,
             pool: sum(o.id),
           })),
-        deadline: m.deadline.toISOString(),
-        locked: !!m.lockedAt || m.deadline.getTime() <= now,
+        deadline: effectiveDeadline.toISOString(),
+        locked: !!m.lockedAt || effectiveDeadline.getTime() <= now,
         state: batch?.state ?? "pending",
         winningOptionIds: batch?.winningOptionIds ?? [],
         participants: participants.find((p) => p.marketId === m.id)?.count ?? 0,
