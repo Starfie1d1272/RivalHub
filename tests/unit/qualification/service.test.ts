@@ -57,11 +57,6 @@ const STRONGEST_CONTEXT: CompetitiveProfileConfig = {
   },
 };
 
-const LEGACY_FALLBACK_CONTEXT: CompetitiveProfileConfig = {
-  ...STRONGEST_CONTEXT,
-  evidencePolicy: undefined,
-};
-
 function userRow(overrides?: Record<string, unknown>) {
   return {
     id: USER_ID,
