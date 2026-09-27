@@ -85,7 +85,7 @@ export async function saveMajorPrestartSchedule(input: {
       const [current] = await tx.select().from(seasons).where(eq(seasons.id, season.id)).for("update");
       if (!current || current.status !== "registration") throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "当前赛事阶段不能调整赛前计划。");
       const state = await ensureMajorPrestartStateInTx(tx, current.id);
-      const [run] = await tx.select({ id: competitionQualificationRuns.id }).from(competitionQualificationRuns)
+      const [run] = await tx.select({ id: competitionQualificationRuns.id, completedAt: competitionQualificationRuns.completedAt }).from(competitionQualificationRuns)
         .where(eq(competitionQualificationRuns.seasonId, current.id)).limit(1);
       const [stage] = await tx.select({ id: majorStageRuns.id }).from(majorStageRuns)
         .where(eq(majorStageRuns.seasonId, current.id)).limit(1);
@@ -100,6 +100,8 @@ export async function saveMajorPrestartSchedule(input: {
       } else if (parsed.data.kind === "final-roster-close") {
         if (state.entrantsLockedAt || stage) throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "最终名单已经冻结，不能调整名单截止。");
         if (next && current.registrationClosesAt && next < current.registrationClosesAt) throw new AppError(ErrorCode.VALIDATION_FAILED, "最终名单调整截止不能早于报名截止。");
+        if (next && run?.completedAt && next <= run.completedAt) throw new AppError(ErrorCode.VALIDATION_FAILED, "最终名单调整截止必须晚于 Play-in 实际完成时间。");
+        if (next && run && !run.completedAt && next <= new Date()) throw new AppError(ErrorCode.VALIDATION_FAILED, "Play-in 尚未完成时，最终名单调整截止必须设置为未来时间。");
         if (next && state.mainEventPlannedStartAt && next > state.mainEventPlannedStartAt) throw new AppError(ErrorCode.VALIDATION_FAILED, "最终名单调整截止不能晚于 Main Event 计划开始时间。");
         previous = current.rosterChangeClosesAt;
         await tx.update(seasons).set({ rosterChangeClosesAt: next }).where(eq(seasons.id, current.id));
