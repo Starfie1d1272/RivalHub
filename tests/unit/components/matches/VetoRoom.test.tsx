@@ -210,6 +210,40 @@ describe("VetoRoom", () => {
     }
   });
 
+  it("reconciles immediately when both start requests are already ready after a blocker clears", async () => {
+    vi.useFakeTimers();
+    const originalDescriptor = Object.getOwnPropertyDescriptor(document, "visibilityState");
+    Object.defineProperty(document, "visibilityState", { configurable: true, value: "hidden" });
+    const room = roomFixture();
+    room.match.statusKey = "scheduled";
+    room.match.statusLabel = "待进行";
+    room.session.currentTurnKey = null;
+    room.session.currentTurnAction = null;
+    room.session.currentTurnLabel = null;
+    room.session.currentTurnEntryName = null;
+    room.session.currentTurnEntryId = null;
+    room.session.turnStartedAt = null;
+    room.session.turnDeadlineAt = null;
+    room.session.startedAt = null;
+    room.session.effectiveForceAt = new Date(Date.now() + 60_000).toISOString();
+    room.session.previousMatchBlocker = false;
+    room.permissions.canOperateCurrentTurn = false;
+    actionMocks.reconcileVetoRoomAction.mockResolvedValue(ok({ outcome: "applied", room }));
+
+    try {
+      render(<VetoRoom initialRoom={room} />);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      expect(actionMocks.reconcileVetoRoomAction).toHaveBeenCalledTimes(1);
+      expect(actionMocks.reconcileVetoRoomAction).toHaveBeenCalledWith({ matchId: room.match.id });
+    } finally {
+      if (originalDescriptor) Object.defineProperty(document, "visibilityState", originalDescriptor);
+      else Reflect.deleteProperty(document, "visibilityState");
+      vi.useRealTimers();
+    }
+  });
+
   it("requires impact confirmation before an administrator rewinds Veto facts", async () => {
     const room = roomFixture();
     room.permissions.isAdmin = true;

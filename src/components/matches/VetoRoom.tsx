@@ -61,7 +61,6 @@ export function VetoRoom({ initialRoom }: { initialRoom: VetoRoomView }) {
   const [appealReasons, setAppealReasons] = useState<Record<string, string>>({});
   const reconciledDeadlineRef = useRef<string | null>(null);
   const reconciledStartBoundaryRef = useRef<string | null>(null);
-  const previousMatchBlockerRef = useRef(initialRoom.session.previousMatchBlocker);
 
   const refresh = useCallback(async () => {
     const result = await readVetoRoom(room.match.id);
@@ -130,13 +129,20 @@ export function VetoRoom({ initialRoom }: { initialRoom: VetoRoomView }) {
 
 
   useEffect(() => {
-    const { effectiveForceAt, startedAt, completedAt } = room.session;
-    if (room.match.statusKey !== "scheduled" || startedAt || completedAt || !effectiveForceAt) return;
-    if (!room.entries.some((entry) => entry.startRequested)) return;
-    const boundaryMs = new Date(effectiveForceAt).getTime();
-    const attemptKey = `start:${boundaryMs}`;
-    if (reconciledStartBoundaryRef.current === attemptKey) return;
+    const { effectiveForceAt, startedAt, completedAt, previousMatchBlocker, revision } = room.session;
+    if (room.match.statusKey !== "scheduled" || startedAt || completedAt || previousMatchBlocker) return;
+    const requestedCount = room.entries.filter((entry) => entry.startRequested).length;
+    if (requestedCount === 0) return;
+
     const estimatedServerNow = clockAnchor.serverNowMs + (performance.now() - clockAnchor.performanceNowMs);
+    const allRequested = room.entries.length > 0 && requestedCount === room.entries.length;
+    const boundaryMs = allRequested
+      ? estimatedServerNow
+      : effectiveForceAt ? new Date(effectiveForceAt).getTime() : null;
+    if (boundaryMs === null) return;
+
+    const attemptKey = allRequested ? `ready:${revision}` : `force:${boundaryMs}`;
+    if (reconciledStartBoundaryRef.current === attemptKey) return;
     const delay = Math.max(0, boundaryMs - estimatedServerNow);
     const timer = window.setTimeout(() => {
       if (reconciledStartBoundaryRef.current === attemptKey) return;
@@ -151,27 +157,8 @@ export function VetoRoom({ initialRoom }: { initialRoom: VetoRoomView }) {
     room.match.statusKey,
     room.session.completedAt,
     room.session.effectiveForceAt,
-    room.session.startedAt,
-  ]);
-
-  useEffect(() => {
-    const previous = previousMatchBlockerRef.current;
-    const current = room.session.previousMatchBlocker;
-    previousMatchBlockerRef.current = current;
-    if (
-      previous &&
-      !current &&
-      room.match.statusKey === "scheduled" &&
-      !room.session.startedAt &&
-      room.entries.some((entry) => entry.startRequested)
-    ) {
-      void reconcileRoomBoundary();
-    }
-  }, [
-    reconcileRoomBoundary,
-    room.entries,
-    room.match.statusKey,
     room.session.previousMatchBlocker,
+    room.session.revision,
     room.session.startedAt,
   ]);
 
