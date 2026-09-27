@@ -700,6 +700,7 @@ describe("spectator prediction PostgreSQL contracts", () => {
           .set({ finalizedRound: 5 })
           .where(eq(schema.majorStageRuns.id, f.runId));
       });
+      await reconcile(f);
       const board = await db.transaction((tx) =>
         predictionBoard(tx, seasonId, userId),
       );
