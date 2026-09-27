@@ -45,6 +45,19 @@ export function stageChallengeCount(type: PublicStage["type"]): number {
 export function predictionChallengeCapacity(stages: readonly PublicStage[]): number {
   return stages.reduce((total, stage) => total + 1 + stageChallengeCount(stage.type), 0);
 }
+export function effectivePredictionMarketDeadline(input: {
+  marketDeadline: Date;
+  scheduledAt: Date | null;
+  cutoffMinutes: number;
+}): Date {
+  if (!input.scheduledAt) return input.marketDeadline;
+  const scheduledCutoff = new Date(
+    input.scheduledAt.getTime() - input.cutoffMinutes * 60_000,
+  );
+  return scheduledCutoff < input.marketDeadline
+    ? scheduledCutoff
+    : input.marketDeadline;
+}
 export function defaultPredictionRules(stages: readonly PublicStage[]): PredictionRules {
   const maximum = predictionChallengeCapacity(stages);
   return { ...DEFAULT_RULES, silver: Math.ceil(maximum / 2), gold: Math.ceil(maximum * 0.7), diamond: maximum };
