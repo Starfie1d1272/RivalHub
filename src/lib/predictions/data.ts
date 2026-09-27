@@ -40,11 +40,10 @@ export async function predictionBoard(
   const base = await loadBaseline(tx, seasonId);
   const records = view === "record" || view === "all";
   const poolsVisible = view === "points" || view === "all";
-  const [databaseClock] = await tx.select({
-    now: sql<Date>`clock_timestamp()`,
-  });
-  if (!databaseClock) throw new Error("Database clock unavailable");
-  const now = databaseClock.now.getTime();
+  const databaseClock = await tx.execute<{ now: Date }>(
+    sql`select clock_timestamp() as now`,
+  );
+  const now = new Date(databaseClock.rows[0]!.now).getTime();
   const rules = program?.rules ?? defaultPredictionRules(base.stages);
   const allAccounts = await tx
     .select({
