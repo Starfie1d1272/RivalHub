@@ -1,6 +1,6 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { and, asc, eq, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
-import { competitiveRankFacts, educationVerifications, institutions, steamProfiles, users } from "@/db/schema";
+import { competitivePlatformSeasons, competitiveRankFacts, educationVerifications, institutions, steamProfiles, users } from "@/db/schema";
 import { BUILT_IN_COMPETITIVE_PLATFORMS, isBuiltInCompetitivePlatformKey, isBuiltInStarRank } from "@/lib/competitive/builtins";
 import { convertFiveeToPerfect } from "@/lib/competitive/conversion-policy";
 import { comparePlayerStrengthFacts, evaluateExternalStrengthRule, getPlayerStrengthFindings, type PlayerStrengthFact, type PlayerStrengthInput } from "@/lib/major/player-strength";
@@ -43,6 +43,8 @@ export interface ParticipantQualificationFacts {
   historicalPeak: QualificationPeak | null;
   /** Season peaks keyed by catalogued platform season key. */
   seasonPeaks?: Map<string, QualificationSeasonPeak>;
+  /** Target-platform catalogue chronology, oldest → newest. */
+  platformSeasonOrder?: string[];
   /** Optional source-platform facts, loaded only for an event's frozen fallback policy. */
   fallbackFacts?: {
     historicalPeak: QualificationPeak | null;
@@ -184,7 +186,7 @@ function createCompetitiveCandidateResolver(context: CompetitiveProfileConfig | 
 
 /** Adapts long-term facts to the event's frozen evidence policy in one place. */
 export function toPlayerStrengthInput(
-  fact: Pick<ParticipantQualificationFacts, "userId" | "displayName" | "perfectName" | "personaName" | "email" | "historicalPeak" | "seasonPeaks" | "fallbackFacts">,
+  fact: Pick<ParticipantQualificationFacts, "userId" | "displayName" | "perfectName" | "personaName" | "email" | "historicalPeak" | "seasonPeaks" | "platformSeasonOrder" | "fallbackFacts">,
   context: CompetitiveProfileConfig | null,
 ): PlayerStrengthInput {
   const policy = context?.evidencePolicy;
@@ -204,34 +206,71 @@ export function toPlayerStrengthInput(
     ...recentSeasonKeys,
     context?.currentSeasonKey ?? "",
   ].filter(Boolean))];
+  const catalogSeasonKeys = fact.platformSeasonOrder?.length
+    ? fact.platformSeasonOrder
+    : evidenceSeasonKeys;
+  const seasonOrder = [...new Set([
+    ...catalogSeasonKeys,
+    ...evidenceSeasonKeys,
+    ...(fact.seasonPeaks ? [...fact.seasonPeaks.keys()] : []),
+  ])];
   const directForSeason = (seasonKey: string): PlayerStrengthFact | null =>
     resolve(fact.seasonPeaks?.get(seasonKey), fallbackFor(seasonKey));
+  const lowerOneRung = (
+    source: PlayerStrengthFact,
+    targetSeasonKey: string,
+    basis: { seasonKey?: string; historical?: boolean },
+  ): PlayerStrengthFact | null => {
+    if (!context) return null;
+    const sourceRankIndex = context.rankOrder.indexOf(source.rank);
+    if (sourceRankIndex < 0) return null;
+    return {
+      rank: context.rankOrder[Math.max(0, sourceRankIndex - 1)]!,
+      rating: 0,
+      ratingComparable: false,
+      stars: null,
+      sourcePlatform: context.platform,
+      sourceSeasonKey: targetSeasonKey,
+      estimatedFromUnranked: true,
+      estimatedFromSeasonKey: basis.seasonKey ?? null,
+      estimatedFromHistorical: basis.historical ?? false,
+    };
+  };
+  const estimateUnrankedSeason = (seasonKey: string): PlayerStrengthFact | null => {
+    if (!context) return null;
+    const targetIndex = seasonOrder.indexOf(seasonKey);
+    if (targetIndex >= 0) {
+      // Prefer an actual earlier ranked season. Never chain an estimate from
+      // another unranked season.
+      for (let index = targetIndex - 1; index >= 0; index -= 1) {
+        const sourceSeasonKey = seasonOrder[index]!;
+        const source = directForSeason(sourceSeasonKey);
+        if (!source) continue;
+        return lowerOneRung(source, seasonKey, { seasonKey: sourceSeasonKey });
+      }
+      // Some long-lived profiles started collecting season facts after the
+      // requested reference slot. Reconstruct from the nearest later ranked
+      // season rather than turning explicit "unranked" into a missing fact.
+      for (let index = targetIndex + 1; index < seasonOrder.length; index += 1) {
+        const sourceSeasonKey = seasonOrder[index]!;
+        const source = directForSeason(sourceSeasonKey);
+        if (!source) continue;
+        return lowerOneRung(source, seasonKey, { seasonKey: sourceSeasonKey });
+      }
+    }
+
+    // Last-resort estimate for profiles with no season-level ranked history.
+    // Historical peak remains a declared ranked fact, but provenance is kept
+    // explicit so the UI never presents the estimate as a real season result.
+    const historical = resolve(fact.historicalPeak, fact.fallbackFacts?.historicalPeak);
+    return historical ? lowerOneRung(historical, seasonKey, { historical: true }) : null;
+  };
   const seasonFact = (seasonKey: string): PlayerStrengthFact | null => {
     const primary = fact.seasonPeaks?.get(seasonKey);
     const fallbackFact = fallbackFor(seasonKey);
     const direct = resolve(primary, fallbackFact);
     if (direct || !context || (primary?.status !== "unranked" && fallbackFact?.status !== "unranked")) return direct;
-
-    const targetIndex = evidenceSeasonKeys.indexOf(seasonKey);
-    if (targetIndex <= 0) return null;
-    for (let index = targetIndex - 1; index >= 0; index -= 1) {
-      const previousSeasonKey = evidenceSeasonKeys[index]!;
-      const previous = directForSeason(previousSeasonKey);
-      if (!previous) continue;
-      const previousRankIndex = context.rankOrder.indexOf(previous.rank);
-      if (previousRankIndex < 0) return null;
-      return {
-        rank: context.rankOrder[Math.max(0, previousRankIndex - 1)]!,
-        rating: 0,
-        ratingComparable: false,
-        stars: null,
-        sourcePlatform: context.platform,
-        sourceSeasonKey: seasonKey,
-        estimatedFromUnranked: true,
-        estimatedFromSeasonKey: previousSeasonKey,
-      };
-    }
-    return null;
+    return estimateUnrankedSeason(seasonKey);
   };
   return {
     userId: fact.userId ?? "",
@@ -473,6 +512,13 @@ export async function loadParticipantQualificationFacts(
   const rankRows = includeCompetitiveFacts
     ? await executor.select().from(competitiveRankFacts).where(rankFactsFilter)
     : [];
+  const platformSeasonRows = includeCompetitiveFacts && options.platform
+    ? await executor.select({ seasonKey: competitivePlatformSeasons.seasonKey })
+      .from(competitivePlatformSeasons)
+      .where(eq(competitivePlatformSeasons.platform, options.platform))
+      .orderBy(asc(competitivePlatformSeasons.sortOrder))
+    : [];
+  const platformSeasonOrder = platformSeasonRows.map((row) => row.seasonKey);
 
   const approvedEducation = new Set(
     verificationRows.filter((row) => row.status === "approved").map((row) => row.userId),
@@ -518,6 +564,7 @@ export async function loadParticipantQualificationFacts(
       educationHistory: historyByUser.get(user.id) ?? [],
       historicalPeak: toHistoricalPeak(historical),
       seasonPeaks,
+      platformSeasonOrder,
       fallbackFacts: options.fallbackPlatform ? { historicalPeak: toHistoricalPeak(fallbackHistorical), seasonPeaks: fallbackSeasonPeaks } : undefined,
     });
   }
