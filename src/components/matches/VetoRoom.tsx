@@ -136,12 +136,19 @@ export function VetoRoom({ initialRoom }: { initialRoom: VetoRoomView }) {
 
     const estimatedServerNow = clockAnchor.serverNowMs + (performance.now() - clockAnchor.performanceNowMs);
     const allRequested = room.entries.length > 0 && requestedCount === room.entries.length;
-    const boundaryMs = allRequested
-      ? estimatedServerNow
-      : effectiveForceAt ? new Date(effectiveForceAt).getTime() : null;
+    const opensAtMs = room.match.scheduledAt
+      ? new Date(room.match.scheduledAt).getTime() - 15 * 60_000
+      : null;
+    const readyBoundaryMs = allRequested
+      ? Math.max(estimatedServerNow, opensAtMs ?? estimatedServerNow)
+      : null;
+    const boundaryMs = readyBoundaryMs
+      ?? (effectiveForceAt ? new Date(effectiveForceAt).getTime() : null);
     if (boundaryMs === null) return;
 
-    const attemptKey = allRequested ? `ready:${revision}` : `force:${boundaryMs}`;
+    const attemptKey = allRequested
+      ? `ready:${revision}:${opensAtMs ?? "unscheduled"}`
+      : `force:${boundaryMs}`;
     if (reconciledStartBoundaryRef.current === attemptKey) return;
     const delay = Math.max(0, boundaryMs - estimatedServerNow);
     const timer = window.setTimeout(() => {
@@ -154,6 +161,7 @@ export function VetoRoom({ initialRoom }: { initialRoom: VetoRoomView }) {
     clockAnchor,
     reconcileRoomBoundary,
     room.entries,
+    room.match.scheduledAt,
     room.match.statusKey,
     room.session.completedAt,
     room.session.effectiveForceAt,
