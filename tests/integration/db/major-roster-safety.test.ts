@@ -96,6 +96,7 @@ async function submitLineupProductionLogic(
       match: locked,
       entryId: args.entryId,
       submittedBy,
+      actorId: ACTOR,
       source: args.source,
       starterIds: args.starterIds,
       substituteIds: args.substituteIds,
@@ -160,7 +161,7 @@ function teamUserLayout(offset: number): { userIdIndex: number; institutionCode:
   ];
 }
 
-async function prepareFixture(pool: Pool, label: string): Promise<RosterSafetyFixture> {
+async function prepareFixture(pool: Pool, label: string, options: { primaryStarters?: boolean; includeActors?: boolean } = {}): Promise<RosterSafetyFixture> {
   const client = await pool.connect();
   const seasonId = randomUUID();
   const capabilities = createMajorDefaultCapabilities();
@@ -191,7 +192,7 @@ async function prepareFixture(pool: Pool, label: string): Promise<RosterSafetyFi
     );
 
     const allLayouts = [...teamUserLayout(0), ...teamUserLayout(100)];
-    const userIds = [...allLayouts.map(() => randomUUID()), ACTOR, ACTOR_A, ACTOR_B];
+    const userIds = [...allLayouts.map(() => randomUUID()), ...(options.includeActors === false ? [] : [ACTOR, ACTOR_A, ACTOR_B])];
     for (let i = 0; i < userIds.length; i += 1) {
       await client.query(
         `INSERT INTO users (id, email, email_verified_at) VALUES ($1, $2, now())`,
@@ -286,9 +287,9 @@ async function prepareFixture(pool: Pool, label: string): Promise<RosterSafetyFi
           [sideUsers[offset], layouts[offset].institutionCode],
         )).rows[0]!.id;
         await client.query(
-          `INSERT INTO event_roster_members (id, event_roster_id, participant_id, user_id, education_verification_id)
-           VALUES ($1, $2, $3, $4, $5)`,
-          [memberId, eventRosterIds[side], participantIds[offset], sideUsers[offset], verificationId],
+          `INSERT INTO event_roster_members (id, event_roster_id, participant_id, user_id, education_verification_id, is_primary_starter)
+           VALUES ($1, $2, $3, $4, $5, $6)`,
+          [memberId, eventRosterIds[side], participantIds[offset], sideUsers[offset], verificationId, options.primaryStarters === true && offset < 5],
         );
       }
       revisionMemberIdsBySide.push(revisionMemberIds);
@@ -401,6 +402,7 @@ async function cleanupFixture(pool: Pool, fixture: RosterSafetyFixture): Promise
       WHERE p.roster_id = r.id AND r.match_id IN (SELECT id FROM matches WHERE season_id = $1)`, [fixture.seasonId]);
     await client.query(`DELETE FROM match_rosters WHERE match_id IN (SELECT id FROM matches WHERE season_id = $1)`,
       [fixture.seasonId]);
+    await client.query("DELETE FROM match_lineup_incidents WHERE match_id IN (SELECT id FROM matches WHERE season_id = $1)", [fixture.seasonId]);
     await client.query("DELETE FROM matches WHERE season_id = $1", [fixture.seasonId]);
     await client.query("DELETE FROM major_stage_runs WHERE season_id = $1", [fixture.seasonId]);
     // Frozen-roster immutability and append-only provenance are intentional in
@@ -455,6 +457,7 @@ async function main(): Promise<void> {
   const pool = new Pool({ connectionString: databaseUrl, ssl: false, max: 6 });
   const database = drizzle(pool, { schema });
   let fixture: RosterSafetyFixture | null = null;
+  let defaultFixture: RosterSafetyFixture | null = null;
 
   try {
     fixture = await prepareFixture(pool, "g1");
@@ -717,10 +720,22 @@ async function main(): Promise<void> {
       }
     }
 
+    // A late admin correction retains admin_select metadata and the real actor.
+    {
+      const lateMatch = await createManagedMatch(pool, fixture, "r1-late-admin");
+      await submitLineupProductionLogic(database, { matchId: lateMatch, entryId: entryAId, source: "admin_select", submittedBy: null, starterIds: lineupA.starters });
+      await pool.query(`UPDATE matches SET scheduled_at = now() WHERE id = $1`, [lateMatch]);
+      await submitLineupProductionLogic(database, { matchId: lateMatch, entryId: entryAId, source: "admin_select", submittedBy: null, starterIds: lineupA.starters });
+      const incident = await pool.query<{ actor_id: string }>(`SELECT actor_id FROM match_lineup_incidents WHERE match_id = $1`, [lateMatch]);
+      expect(incident.rows.map(row => row.actor_id)).toEqual([ACTOR]);
+      const roster = await pool.query<{ source: string; submitted_by: string | null }>(`SELECT source, submitted_by FROM match_rosters WHERE match_id = $1`, [lateMatch]);
+      expect(roster.rows).toEqual([{ source: "admin_select", submitted_by: null }]);
+    }
+
     // System default retains its own provenance and needs no participant action.
     {
-      await pool.query(`UPDATE event_roster_members SET is_primary_starter = true WHERE id = ANY($1::uuid[])`, [[...lineupA.starters, ...lineupB.starters]]);
-      const defaultMatch = await createManagedMatch(pool, fixture, "r1-default-lineup");
+      defaultFixture = await prepareFixture(pool, "g1-default", { primaryStarters: true, includeActors: false });
+      const defaultMatch = await createManagedMatch(pool, defaultFixture, "r1-default-lineup");
       await database.transaction(tx => applyMatchStatusTransitionInTx(tx, { matchId: defaultMatch, nextStatus: "in_progress", actorId: ACTOR }));
       const rows = await pool.query<{ source: string; status: string }>(`SELECT source, status FROM match_rosters WHERE match_id = $1`, [defaultMatch]);
       expect(rows.rows).toHaveLength(2);
@@ -820,6 +835,7 @@ async function main(): Promise<void> {
 
     console.log("G1 roster safety integration suite passed.");
   } finally {
+    if (defaultFixture) await cleanupFixture(pool, defaultFixture);
     if (fixture) await cleanupFixture(pool, fixture);
     await pool.end();
   }

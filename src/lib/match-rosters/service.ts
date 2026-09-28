@@ -445,6 +445,7 @@ export async function persistMatchRosterInTx(
     match: Match;
     entryId: string;
     submittedBy: string | null;
+    actorId?: string;
     source: "participant" | "system_default" | "admin_select";
     starterIds: readonly string[];
     substituteIds?: readonly string[];
@@ -467,14 +468,14 @@ export async function persistMatchRosterInTx(
   if (args.match.status !== "scheduled") throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "比赛已开始，首发已定格。");
   const late = args.match.scheduledAt !== null && now.getTime() >= args.match.scheduledAt.getTime() - 2 * 60 * 60_000;
   if (late && args.source === "participant") throw new AppError(ErrorCode.VALIDATION_FAILED, "临近开赛调整首发，请联系赛事管理员。");
-  if (late && args.source === "admin_select" && !args.submittedBy) throw new AppError(ErrorCode.VALIDATION_FAILED, "临近开赛调整首发必须记录操作人。");
+  if (late && args.source === "admin_select" && !args.actorId) throw new AppError(ErrorCode.VALIDATION_FAILED, "临近开赛调整首发必须记录操作人。");
   const [existing] = await tx
     .select({ id: matchRosters.id })
     .from(matchRosters)
     .where(and(eq(matchRosters.matchId, args.match.id), eq(matchRosters.entryId, args.entryId)));
   if (late && args.source === "admin_select" && existing) {
-    await tx.insert(matchLineupIncidents).values({ matchId: args.match.id, entryId: args.entryId, actorId: args.submittedBy!, reason: "临近开赛调整首发" });
-    await writeAuditInTx(tx, { seasonId: args.match.seasonId, action: "match.roster.late_lineup", actorId: args.submittedBy!, targetId: args.match.id, meta: { entryId: args.entryId, starterIds: args.starterIds } });
+    await tx.insert(matchLineupIncidents).values({ matchId: args.match.id, entryId: args.entryId, actorId: args.actorId!, reason: "临近开赛调整首发" });
+    await writeAuditInTx(tx, { seasonId: args.match.seasonId, action: "match.roster.late_lineup", actorId: args.actorId!, targetId: args.match.id, meta: { entryId: args.entryId, starterIds: args.starterIds } });
   }
   let rosterId: string;
   if (existing) {
