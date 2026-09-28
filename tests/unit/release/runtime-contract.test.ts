@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const projectRoot = resolve(process.cwd());
-const PNPM_SETUP_SHA = "703c52620218391530e48b9e8870d5c0082e1b9b";
+const PNPM_SETUP_SHA = "fbda4c85fc2e1e08721cd8763afea8f48d60f024";
 
 function readProjectFile(path: string): string {
   return readFileSync(resolve(projectRoot, path), "utf8");
@@ -37,7 +37,7 @@ function expectPnpmSetup(workflow: string, jobNames: string[]): void {
 
   for (const jobName of jobNames) {
     const job = readWorkflowJob(workflow, jobName);
-    expect(job).toContain(`uses: pnpm/setup@${PNPM_SETUP_SHA} # v2.1.0`);
+    expect(job).toContain(`uses: pnpm/setup@${PNPM_SETUP_SHA} # v3.0.0`);
     expect(job).toContain("cache: true");
     expect(job).toContain("require-lockfile: true");
     expect(job).not.toContain("version: 11.25.0");
