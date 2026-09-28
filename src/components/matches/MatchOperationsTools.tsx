@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
-import { createCoverageSlot, removeCoverageSlot, generateMizarPairing, disconnectMizar, uploadSeasonLogo } from "@/actions/matches/operations";
+import { createCoverageSlot, removeCoverageSlot, disconnectMizar, uploadSeasonLogo } from "@/actions/matches/operations";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Panel } from "@/components/rivalhub";
@@ -14,7 +14,6 @@ type Device = { id: string; displayName: string; lastSeenAt: string | null };
 export function MatchOperationsTools({ seasonId, slots, devices, logoUrl }: { seasonId: string; slots: Slot[]; devices: Device[]; logoUrl: string | null }) {
   const router = useRouter();
   const [pending, transition] = useTransition();
-  const [pairing, setPairing] = useState<{ code: string; expiresAt: string } | null>(null);
   const [startsAt, setStartsAt] = useState("");
   const [endsAt, setEndsAt] = useState("");
   const [capacity, setCapacity] = useState(1);
@@ -41,9 +40,7 @@ export function MatchOperationsTools({ seasonId, slots, devices, logoUrl }: { se
     </Panel>
     <div className="space-y-4">
       <Panel label="制播设备" contentClassName="space-y-3 p-4">
-        <p className="text-xs text-[var(--color-fg-mid)]">在 Mizar 的“连接 RivalHub”中输入一次性连接码；连接后可浏览本届比赛。</p>
-        <Button disabled={pending} onClick={() => transition(async () => { const result = await generateMizarPairing(seasonId); if (!result.success) toast.error(result.error.message); else setPairing(result.data); })}>生成连接码</Button>
-        {pairing && <p role="status" className="rounded border border-[var(--color-accent)] p-3 font-mono text-lg tracking-wider">{pairing.code}<span className="block font-sans text-xs tracking-normal text-[var(--color-fg-mid)]">15 分钟内有效，仅显示一次</span></p>}
+        <p className="text-xs text-[var(--color-fg-mid)]">在 Mizar 点击“连接 RivalHub”，浏览器会打开本站授权页。登录后选择赛事并确认，即可自动完成连接。</p>
         {devices.length ? <ul className="space-y-2">{devices.map(device => <li key={device.id} className="flex items-center justify-between gap-2 text-sm"><span>{device.displayName}{device.lastSeenAt ? ` · 最近连接 ${new Date(device.lastSeenAt).toLocaleString("zh-CN", { timeZone: "Asia/Shanghai" })}` : ""}</span><Button size="sm" variant="outline" disabled={pending} onClick={() => transition(async () => { const result = await disconnectMizar(seasonId, device.id); if (!result.success) toast.error(result.error.message); else router.refresh(); })}>撤销</Button></li>)}</ul> : <p className="text-sm text-[var(--color-fg-mid)]">尚无已连接设备</p>}
       </Panel>
       <Panel label="赛事 Logo" contentClassName="space-y-3 p-4">

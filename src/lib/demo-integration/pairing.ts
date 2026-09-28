@@ -1,6 +1,6 @@
 import "server-only";
 
-import { createHash, createHmac, randomBytes } from "node:crypto";
+import { randomBytes } from "node:crypto";
 import { and, eq, isNull } from "drizzle-orm";
 
 import { db } from "@/db/client";
@@ -9,8 +9,8 @@ import { AppError, ErrorCode } from "@/lib/errors";
 import { writeAuditInTx } from "@/lib/audit/write";
 import { DAK_SCOPES, type DakScope } from "./contracts";
 import type { CurrentUserAuthorization } from "@/lib/auth/session";
+import { hashOpaque, pairingProof, PAIRING_TTL_MS } from "@/lib/integrations/pairing-security";
 
-const PAIRING_TTL_MS = 10 * 60 * 1000;
 
 export interface DakPairingStart {
   pairingId: string;
@@ -29,22 +29,12 @@ export interface DakIntegrationPrincipal {
   userId: string;
 }
 
-function hashOpaque(value: string): string {
-  return createHash("sha256").update(value).digest("hex");
-}
-
-function pairingSecret(): string {
-  const secret = process.env.ADMIN_SESSION_SECRET;
-  if (!secret || secret.length < 32) throw new AppError(ErrorCode.INTERNAL_ERROR, "DAK 连接服务未配置安全凭据。");
-  return secret;
-}
-
 function accessTokenFor(intentId: string, pollTokenHash: string): string {
   // pollToken is returned only to the waiting Studio process. The browser URL
   // contains pairingId alone, so the browser never receives the API credential.
   // HMAC also prevents a database reader from reconstructing the credential
   // from the stored poll-token hash.
-  const proof = createHmac("sha256", pairingSecret()).update(`${intentId}:${pollTokenHash}`).digest("hex");
+  const proof = pairingProof(intentId, pollTokenHash);
   return `rh_dak_${intentId}_${proof}`;
 }
 

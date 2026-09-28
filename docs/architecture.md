@@ -104,7 +104,7 @@ FinalResult / adjudication / honor
 
 Major runtime 的阶段参与者和已完成比赛是推进依据；standings、后台摘要和其它 UI projection 只是 read model。比赛更正如果影响下游配对，必须经过受控 recovery，而不是直接改 projection。
 
-Match runtime 由 `src/lib/match-rosters/` 的阵容与开赛 transition、`src/lib/matches/` 的排期/覆盖名额/官方结果、`src/lib/mizar/` 的版本化 provider adapter 与数据源协调共同组成。Mizar 不直连赛事数据库；设备凭据只授权一个赛事，单场活跃数据源由 row lock 与 authority revision 串行接管。可靠事件调用同一个官方地图结果 owner；公开实时数据仅经校验后的私有 Supabase Broadcast 发布，观众只持有单场短寿命 receive token，不能通过 Data API 读取内部运行表。断流与过期由浏览器 presentation 降级，不改写 canonical Match。
+Match runtime 由 `src/lib/match-rosters/` 的阵容与开赛 transition、`src/lib/matches/` 的排期/覆盖名额/官方结果、`src/lib/mizar/` 的版本化 provider adapter 与数据源协调共同组成。Mizar 不直连赛事数据库；浏览器授权和本机 poll secret 共享 DAK 的 pairing 安全机制，但使用独立的 Mizar installation、credential 与赛事级权限，设备凭据只授权一个赛事，单场活跃数据源由 row lock 与 authority revision 串行接管。可靠事件调用同一个官方地图结果 owner；公开实时数据仅经校验后的私有 Supabase Broadcast 发布，观众只持有单场短寿命 receive token，不能通过 Data API 读取内部运行表。断流与过期由浏览器 presentation 降级，不改写 canonical Match。
 
 通用 Stage 的 logical identity 是 `(seasonId, StageConfig.key)`；`StageConfig.name` 只用于展示。`brackets-manager` 只能经 `src/lib/bracket/` adapter 使用，每个 provider-backed Stage 独立拥有 `(competition_id, stage_key)` 状态，provider stage name 和 numeric participant id 不得扩散成领域 contract。参与者必须携带稳定的 `rivalhubEntryId`，比赛解析只消费该 metadata。
 

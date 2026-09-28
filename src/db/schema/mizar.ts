@@ -1,24 +1,36 @@
 import { sql } from "drizzle-orm";
-import { pgTable, uuid, text, timestamp, integer, boolean, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, uuid, text, timestamp, integer, boolean, uniqueIndex, pgEnum, check, index } from "drizzle-orm/pg-core";
 import { seasons } from "./seasons";
 import { matches } from "./matches";
+import { users } from "./users";
+
+export const mizarPairingIntentStatusEnum = pgEnum("mizar_pairing_intent_status", ["pending", "authorized", "expired"]);
+
+/** Browser authorization intent. Only the Mizar process receives the raw poll token. */
+export const mizarPairingIntents = pgTable("mizar_pairing_intents", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  pollTokenHash: text("poll_token_hash").notNull().unique(),
+  status: mizarPairingIntentStatusEnum("status").notNull().default("pending"),
+  competitionId: uuid("competition_id").references(() => seasons.id),
+  authorizedByUserId: uuid("authorized_by_user_id").references(() => users.id, { onDelete: "restrict" }),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  authorizedAt: timestamp("authorized_at", { withTimezone: true }),
+  deliveredAt: timestamp("delivered_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, t => ({
+  statusShape: check("mizar_pairing_intents_status_shape_check", sql`(${t.status} = 'pending' AND ${t.competitionId} IS NULL AND ${t.authorizedByUserId} IS NULL AND ${t.authorizedAt} IS NULL) OR (${t.status} = 'authorized' AND ${t.competitionId} IS NOT NULL AND ${t.authorizedByUserId} IS NOT NULL AND ${t.authorizedAt} IS NOT NULL) OR (${t.status} = 'expired')`),
+  expiryIndex: index("mizar_pairing_intents_expires_at_idx").on(t.expiresAt),
+}));
 
 export const mizarInstallations = pgTable("mizar_installations", {
   id: uuid("id").defaultRandom().primaryKey(),
   competitionId: uuid("competition_id").notNull().references(() => seasons.id),
-  displayName: text("display_name").notNull(),
+  pairingIntentId: uuid("pairing_intent_id").notNull().unique().references(() => mizarPairingIntents.id, { onDelete: "restrict" }),
+  authorizedByUserId: uuid("authorized_by_user_id").notNull().references(() => users.id, { onDelete: "restrict" }),
   credentialHash: text("credential_hash").notNull().unique(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
   revokedAt: timestamp("revoked_at", { withTimezone: true }),
-});
-
-export const mizarPairings = pgTable("mizar_pairings", {
-  id: uuid("id").defaultRandom().primaryKey(),
-  competitionId: uuid("competition_id").notNull().references(() => seasons.id),
-  codeHash: text("code_hash").notNull().unique(),
-  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
-  consumedAt: timestamp("consumed_at", { withTimezone: true }),
 });
 
 // Low-frequency authority and reliable continuity only. No live frame columns.

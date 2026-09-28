@@ -89,7 +89,7 @@ export const DATABASE_ACCESS_MATRIX: readonly DatabaseAccessEntry[] = [
   serverOnly("official_coverage_slots", "比赛运营", "官方转播时段", "src/lib/matches/coverage.ts", "运营容量由服务端事务维护。"),
   serverOnly("match_live_sessions", "制播集成", "低频数据源权威和连续性", "src/lib/mizar/", "不存储 LiveSnapshot 高频历史。"),
   serverOnly("mizar_installations", "制播集成", "设备凭据散列和撤销状态", "src/lib/mizar/installation.ts", "设备凭据不进入浏览器或公开 read model。"),
-  serverOnly("mizar_pairings", "制播集成", "短期连接码散列", "src/lib/mizar/installation.ts", "连接码仅一次使用。"),
+  serverOnly("mizar_pairing_intents", "制播集成", "短期浏览器授权意图与轮询密钥散列", "src/lib/mizar/installation.ts", "轮询密钥仅由 Mizar 本机持有。"),
   serverOnly("mizar_reliable_receipts", "制播集成", "可靠事件去重", "src/lib/mizar/reliable.ts", "只保存低频事件摘要，不保存帧。"),
   serverOnly(
     "admin_invite_claims",

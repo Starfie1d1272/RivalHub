@@ -23,7 +23,19 @@ export async function readBoundedMizarJson(request: Request, maxBytes: number): 
 }
 
 export function mizarHttpError(error: unknown) {
-  return Response.json({ error: error instanceof AppError && error.code !== "INTERNAL_ERROR" ? error.message : "制播连接暂时不可用，请稍后重试。" }, { status: error instanceof AppError && error.code === "FORBIDDEN" ? 403 : 400, headers: { "Cache-Control": "no-store" } });
+  return Response.json({ error: error instanceof AppError && error.code !== "INTERNAL_ERROR" ? error.message : "制播连接暂时不可用，请稍后重试。" }, { status: error instanceof AppError && error.code === "UNAUTHORIZED" ? 401 : error instanceof AppError && error.code === "FORBIDDEN" ? 403 : 400, headers: { "Cache-Control": "no-store" } });
+}
+
+/** Pairing endpoints accept desktop WebView origins but never browser cookies. */
+export function mizarPairingHeaders(request: Request): Headers {
+  const headers = new Headers({ "Cache-Control": "no-store", "Access-Control-Allow-Methods": "POST, OPTIONS", "Access-Control-Allow-Headers": "Content-Type" });
+  const origin = request.headers.get("origin");
+  const configured = process.env.MIZAR_ALLOWED_ORIGINS?.split(",").map(value => value.trim()).filter(Boolean) ?? [];
+  if (origin && (configured.includes(origin) || origin === "null" || origin.startsWith("http://localhost:") || origin.startsWith("http://127.0.0.1:"))) {
+    headers.set("Access-Control-Allow-Origin", origin);
+    headers.set("Vary", "Origin");
+  }
+  return headers;
 }
 
 export function mizarContextResponse(request: Request, document: { revision: string }) {

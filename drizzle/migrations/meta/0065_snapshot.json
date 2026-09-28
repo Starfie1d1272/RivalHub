@@ -12493,7 +12493,7 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "default": "'\u8d5b\u4e8b\u89c4\u5219'"
+          "default": "'赛事规则'"
         },
         "rules_href": {
           "name": "rules_href",
@@ -14317,9 +14317,15 @@
           "primaryKey": false,
           "notNull": true
         },
-        "display_name": {
-          "name": "display_name",
-          "type": "text",
+        "pairing_intent_id": {
+          "name": "pairing_intent_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "authorized_by_user_id": {
+          "name": "authorized_by_user_id",
+          "type": "uuid",
           "primaryKey": false,
           "notNull": true
         },
@@ -14363,6 +14369,32 @@
           ],
           "onDelete": "no action",
           "onUpdate": "no action"
+        },
+        "mizar_installations_pairing_intent_id_mizar_pairing_intents_id_fk": {
+          "name": "mizar_installations_pairing_intent_id_mizar_pairing_intents_id_fk",
+          "tableFrom": "mizar_installations",
+          "tableTo": "mizar_pairing_intents",
+          "columnsFrom": [
+            "pairing_intent_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "mizar_installations_authorized_by_user_id_users_id_fk": {
+          "name": "mizar_installations_authorized_by_user_id_users_id_fk",
+          "tableFrom": "mizar_installations",
+          "tableTo": "users",
+          "columnsFrom": [
+            "authorized_by_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
@@ -14373,14 +14405,21 @@
           "columns": [
             "credential_hash"
           ]
+        },
+        "mizar_installations_pairing_intent_id_unique": {
+          "name": "mizar_installations_pairing_intent_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "pairing_intent_id"
+          ]
         }
       },
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.mizar_pairings": {
-      "name": "mizar_pairings",
+    "public.mizar_pairing_intents": {
+      "name": "mizar_pairing_intents",
       "schema": "",
       "columns": {
         "id": {
@@ -14390,17 +14429,31 @@
           "notNull": true,
           "default": "gen_random_uuid()"
         },
+        "poll_token_hash": {
+          "name": "poll_token_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "mizar_pairing_intent_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'pending'"
+        },
         "competition_id": {
           "name": "competition_id",
           "type": "uuid",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
-        "code_hash": {
-          "name": "code_hash",
-          "type": "text",
+        "authorized_by_user_id": {
+          "name": "authorized_by_user_id",
+          "type": "uuid",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
         "expires_at": {
           "name": "expires_at",
@@ -14408,18 +14461,60 @@
           "primaryKey": false,
           "notNull": true
         },
-        "consumed_at": {
-          "name": "consumed_at",
+        "authorized_at": {
+          "name": "authorized_at",
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
+        },
+        "delivered_at": {
+          "name": "delivered_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
         }
       },
-      "indexes": {},
+      "indexes": {
+        "mizar_pairing_intents_expires_at_idx": {
+          "name": "mizar_pairing_intents_expires_at_idx",
+          "columns": [
+            {
+              "expression": "expires_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {
-        "mizar_pairings_competition_id_seasons_id_fk": {
-          "name": "mizar_pairings_competition_id_seasons_id_fk",
-          "tableFrom": "mizar_pairings",
+        "mizar_pairing_intents_authorized_by_user_id_users_id_fk": {
+          "name": "mizar_pairing_intents_authorized_by_user_id_users_id_fk",
+          "tableFrom": "mizar_pairing_intents",
+          "tableTo": "users",
+          "columnsFrom": [
+            "authorized_by_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "mizar_pairing_intents_competition_id_seasons_id_fk": {
+          "name": "mizar_pairing_intents_competition_id_seasons_id_fk",
+          "tableFrom": "mizar_pairing_intents",
           "tableTo": "seasons",
           "columnsFrom": [
             "competition_id"
@@ -14433,16 +14528,21 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
-        "mizar_pairings_code_hash_unique": {
-          "name": "mizar_pairings_code_hash_unique",
+        "mizar_pairing_intents_poll_token_hash_unique": {
+          "name": "mizar_pairing_intents_poll_token_hash_unique",
           "nullsNotDistinct": false,
           "columns": [
-            "code_hash"
+            "poll_token_hash"
           ]
         }
       },
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "mizar_pairing_intents_status_shape_check": {
+          "name": "mizar_pairing_intents_status_shape_check",
+          "value": "(\"mizar_pairing_intents\".\"status\" = 'pending' AND \"mizar_pairing_intents\".\"competition_id\" IS NULL AND \"mizar_pairing_intents\".\"authorized_by_user_id\" IS NULL AND \"mizar_pairing_intents\".\"authorized_at\" IS NULL) OR (\"mizar_pairing_intents\".\"status\" = 'authorized' AND \"mizar_pairing_intents\".\"competition_id\" IS NOT NULL AND \"mizar_pairing_intents\".\"authorized_by_user_id\" IS NOT NULL AND \"mizar_pairing_intents\".\"authorized_at\" IS NOT NULL) OR (\"mizar_pairing_intents\".\"status\" = 'expired')"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.mizar_reliable_receipts": {
@@ -15210,6 +15310,15 @@
       "values": [
         "active",
         "closed"
+      ]
+    },
+    "public.mizar_pairing_intent_status": {
+      "name": "mizar_pairing_intent_status",
+      "schema": "public",
+      "values": [
+        "pending",
+        "authorized",
+        "expired"
       ]
     }
   },

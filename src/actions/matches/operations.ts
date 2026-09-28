@@ -9,7 +9,7 @@ import { requireSeasonAdmin } from "@/lib/auth/session";
 import { writeAuditInTx } from "@/lib/audit/write";
 import { actionError } from "@/lib/action-utils";
 import { AppError, ErrorCode } from "@/lib/errors";
-import { createMizarPairing, revokeMizarInstallation } from "@/lib/mizar/installation";
+import { revokeMizarInstallation } from "@/lib/mizar/installation";
 import { takeOverCurrentMap } from "@/lib/mizar/source";
 import { seasonPublicAssetsStorage } from "@/lib/season-public-info/storage";
 import { SEASON_PUBLIC_ASSETS_BUCKET } from "@/lib/season-public-info/presentation";
@@ -54,14 +54,6 @@ export async function removeCoverageSlot(seasonId: string, slotId: string): Prom
     if (season) revalidatePath(`/admin/${season.slug}/matches`);
     return ok(undefined);
   } catch (error) { return actionError("removeCoverageSlot", error); }
-}
-
-export async function generateMizarPairing(seasonId: string): Promise<ActionResult<{ code: string; expiresAt: string }>> {
-  try {
-    id.parse(seasonId);
-    const admin = await requireSeasonAdmin(seasonId);
-    return ok(await createMizarPairing(seasonId, admin.userId));
-  } catch (error) { return actionError("generateMizarPairing", error); }
 }
 
 export async function disconnectMizar(seasonId: string, installationId: string): Promise<ActionResult<void>> {

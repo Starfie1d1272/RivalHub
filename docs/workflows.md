@@ -163,7 +163,7 @@ EventRoster
 → runtime settlement
 ```
 
-本场实际首发可以不同于赛事预定主力，但必须满足本届 frozen roster/eligibility 约束。管理员可在单场工作台生成一次性 Mizar 连接码、查看或撤销本赛事设备，并处理当前地图的人工接管；Mizar 工作区从赛事赛程选择比赛，本机显式认领或接管单场活跃数据源。可靠事件只在当前 installation、authority revision、session、generation、map epoch、身份与首发证据一致时进入结果 owner；不可靠或冲突的候选留待人工处理。公开 LIVE 只消费接收方限定到单场的短期实时投递，断流降级到正式赛程与赛果。正常结果由实际地图推导；弃赛不制造未进行地图。
+本场实际首发可以不同于赛事预定主力，但必须满足本届 frozen roster/eligibility 约束。Mizar 发起短期 pairing intent 并在本机保留 poll secret；本站授权页要求当前登录的赛事管理员选择一个有权限的赛事并确认，Mizar 轮询后取得该赛事独立的 installation credential。管理员在赛事管理页查看或撤销连接，并处理当前地图的人工接管；Mizar 工作区从赛事赛程选择比赛，本机显式认领或接管单场活跃数据源。可靠事件只在当前 installation、authority revision、session、generation、map epoch、身份与首发证据一致时进入结果 owner；不可靠或冲突的候选留待人工处理。公开 LIVE 只消费接收方限定到单场的短期实时投递，断流降级到正式赛程与赛果。正常结果由实际地图推导；弃赛不制造未进行地图。
 
 赛后 Demo 闭环：DAK 提交的 `/3` Evidence 先以不可变 payload 保存，再由服务端基于当前目标、正式地图结果和 effective MatchRoster 重新校验。Steam64 既可以命中当前主身份，也可以命中 active gameplay alias；无法解析、已撤销或跨用户冲突都进入待处理。赛季管理员只能在单场工作台中从该份不可变 payload 选择本场当前首发，服务端再次核对观察 Steam64、队伍和候选身份后，只有同一 participant path 当前确实存在可确认的身份问题时，才经 gameplay identity owner 保存 alternate identity，并自动重跑同一 canonical validator；其它比分、QA、回合或 summary 问题仍保持待处理。工作台按当前 canonical validator 投影待确认身份、已关联其它选手的冲突与非身份阻塞，正常匹配者只显示人数摘要；候选只来自观察队伍的本场首发。冲突展示当前关联，只有来源属于当前赛事的 active `admin_confirmed_alternate` 提供填写原因、二次确认后的 scoped retire；主身份、`profile_change` 与跨赛事来源指向相应身份核对流程。撤销后刷新当前解析结果，再由同一确认 owner 决定下一步，不自动改绑或重写历史统计。无效 payload 保留在工作台并可拒绝，不能通过身份确认绕过完整校验。拒绝作为次级危险操作，比分、QA 等问题保留独立说明。确认、重检、拒绝和撤销都写入业务审计；不修改登录/报名资料中的当前 Steam64。
 

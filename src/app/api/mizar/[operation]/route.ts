@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { authenticateMizar, redeemMizarPairing } from "@/lib/mizar/installation";
+import { authenticateMizar } from "@/lib/mizar/installation";
 import { loadMizarMatchDocument, loadMizarScheduleWindow } from "@/lib/mizar/context";
 import { claimMizarSource, releaseMizarSource, sourceClaimSchema } from "@/lib/mizar/source";
 import { ingestMizarReliable } from "@/lib/mizar/reliable";
@@ -25,10 +25,6 @@ export async function GET(request: Request, context: Context) {
 export async function POST(request: Request, context: Context) {
   try {
     const { operation } = await context.params;
-    if (operation === "pair") {
-      const input = z.strictObject({ code: z.string().max(22), displayName: z.string().max(80) }).parse(await readBoundedMizarJson(request, 1024));
-      return Response.json(await redeemMizarPairing(input.code, input.displayName), { headers: { "Cache-Control": "no-store" } });
-    }
     const installation = await authenticateMizar(request.headers.get("authorization"));
     const input = await readBoundedMizarJson(request, operation === "live" ? 262_144 : 20_480);
     if (operation === "claim") return Response.json(await claimMizarSource(installation.id, installation.competitionId, sourceClaimSchema.parse(input)));

@@ -2,7 +2,7 @@ import "server-only";
 import { and, eq, isNull, desc } from "drizzle-orm";
 import { z } from "zod";
 import { db, type TxDb } from "@/db/client";
-import { matchLiveSessions, mizarInstallations, type Match } from "@/db/schema";
+import { matchLiveSessions, mizarInstallations, users, type Match } from "@/db/schema";
 import { lockMatchInTx, materializeDefaultLineupsInTx } from "@/lib/match-rosters/service";
 import { loadEffectiveMatchRoster } from "@/lib/match-rosters/effective";
 import { AppError, ErrorCode } from "@/lib/errors";
@@ -39,8 +39,8 @@ export async function claimMizarSource(installationId: string, competitionId: st
       return { authorityRevision: active.authorityRevision, claimed: true };
     }
     if (active && !input.takeover) {
-      const [device] = await tx.select({ displayName: mizarInstallations.displayName }).from(mizarInstallations).where(eq(mizarInstallations.id, active.installationId));
-      return { claimed: false, activeDeviceName: device?.displayName ?? "另一台制播设备", authorityRevision: active.authorityRevision };
+      const [device] = await tx.select({ displayName: users.displayName }).from(mizarInstallations).innerJoin(users, eq(users.id, mizarInstallations.authorizedByUserId)).where(eq(mizarInstallations.id, active.installationId));
+      return { claimed: false, activeDeviceName: device?.displayName?.trim() || "另一位赛事管理员", authorityRevision: active.authorityRevision };
     }
     const [latest] = await tx.select({ revision: matchLiveSessions.authorityRevision }).from(matchLiveSessions).where(eq(matchLiveSessions.matchId, match.id)).orderBy(desc(matchLiveSessions.authorityRevision)).limit(1);
     const now = new Date();

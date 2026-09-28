@@ -180,7 +180,7 @@ export const EXCLUDED_TABLES = new Set(`identity_link_requests user_identities u
   prediction_programs prediction_accounts prediction_contests prediction_picks prediction_judgements prediction_scenarios
   prediction_markets prediction_market_options prediction_stakes prediction_settlements prediction_ledger prediction_jobs prediction_stage_milestones
   scheduled_job_health feedback_reports coverage_allocations coverage_holds match_lineup_incidents
-  official_coverage_slots match_live_sessions mizar_installations mizar_pairings mizar_reliable_receipts`.split(/\s+/));
+  official_coverage_slots match_live_sessions mizar_installations mizar_pairing_intents mizar_reliable_receipts`.split(/\s+/));
 
 export interface PreviewTablePolicy {
   exportedColumns: readonly string[];

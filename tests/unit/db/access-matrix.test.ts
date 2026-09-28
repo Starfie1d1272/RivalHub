@@ -117,7 +117,7 @@ describe("database access matrix", () => {
         .filter((table) =>
           !table.startsWith("prediction_") && ![
             "coverage_allocations", "coverage_holds", "match_lineup_incidents", "official_coverage_slots",
-            "match_live_sessions", "mizar_installations", "mizar_pairings", "mizar_reliable_receipts",
+            "match_live_sessions", "mizar_installations", "mizar_pairing_intents", "mizar_reliable_receipts",
             "competition_entry_restriction_overrides",
             "competition_qualification_entrants",
             "competition_qualification_runs",

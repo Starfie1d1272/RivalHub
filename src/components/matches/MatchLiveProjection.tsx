@@ -46,10 +46,17 @@ export function MatchLiveProjection({ matchId, entryAId, entryBId, teamAName, te
       return response.ok ? response.json() as Promise<ViewerCredential> : null;
     };
     let client: ReturnType<typeof createLiveViewerClient> | null = null;
+    let refreshTimer: number | null = null;
     void (async () => {
       const first = await credential().catch(() => null);
       if (!first || cancelled) return;
       client = createLiveViewerClient(async () => (await credential().catch(() => null))?.token ?? null);
+      await client.realtime.setAuth(first.token);
+      if (cancelled) { await client.removeAllChannels(); return; }
+      refreshTimer = window.setInterval(() => { void (async () => {
+        const renewed = await credential().catch(() => null);
+        if (!cancelled && renewed && client) await client.realtime.setAuth(renewed.token);
+      })(); }, 240_000);
       const channel = client.channel(first.topic, { config: { private: true } });
       channel.on("broadcast", { event: "snapshot" }, ({ payload }) => {
         const next = payload as PublicLiveMatchProjection;
@@ -60,7 +67,7 @@ export function MatchLiveProjection({ matchId, entryAId, entryBId, teamAName, te
         });
       }).subscribe(status => setConnected(status === "SUBSCRIBED"));
     })();
-    return () => { cancelled = true; if (client) void client.removeAllChannels(); setConnected(false); setDelivery(null); };
+    return () => { cancelled = true; if (refreshTimer !== null) window.clearInterval(refreshTimer); if (client) void client.removeAllChannels(); setConnected(false); setDelivery(null); };
   }, [matchId]);
   const live = delivery?.live;
   const freshness = delivery && connected ? liveFreshness(now - delivery.arrivedAt) : "unavailable";

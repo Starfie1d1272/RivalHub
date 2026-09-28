@@ -33,7 +33,7 @@
 | official_coverage_slots | 官方转播时段 | 比赛运营 | src/lib/matches/coverage.ts | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 运营容量由服务端事务维护。 |
 | match_live_sessions | 低频数据源权威和连续性 | 制播集成 | src/lib/mizar/ | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 不存储 LiveSnapshot 高频历史。 |
 | mizar_installations | 设备凭据散列和撤销状态 | 制播集成 | src/lib/mizar/installation.ts | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 设备凭据不进入浏览器或公开 read model。 |
-| mizar_pairings | 短期连接码散列 | 制播集成 | src/lib/mizar/installation.ts | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 连接码仅一次使用。 |
+| mizar_pairing_intents | 短期浏览器授权意图与轮询密钥散列 | 制播集成 | src/lib/mizar/installation.ts | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 轮询密钥仅由 Mizar 本机持有。 |
 | mizar_reliable_receipts | 可靠事件去重 | 制播集成 | src/lib/mizar/reliable.ts | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 只保存低频事件摘要，不保存帧。 |
 | admin_invite_claims | 高敏感授权 ledger | 鉴权 / 管理员提权 | src/lib/auth/admin-invites.ts | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 邀请码领取、计数和幂等事实只能在服务端事务内写入。 |
 | admin_invites | 高敏感邀请码与授权范围 | 鉴权 / 管理员提权 | src/lib/auth/admin-invites.ts; src/actions/admin.ts | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 包含角色、赛季范围和使用限制，不是公开配置。 |
