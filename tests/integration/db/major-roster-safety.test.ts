@@ -701,13 +701,19 @@ async function main(): Promise<void> {
       const staleMatch = await createManagedMatch(pool, fixture, "r1-stale-lineup");
       await submitLineupProductionLogic(database, { matchId: staleMatch, entryId: entryAId, source: "participant", submittedBy: null, starterIds: lineupA.starters });
       await submitLineupProductionLogic(database, { matchId: staleMatch, entryId: entryBId, source: "admin_select", submittedBy: null, starterIds: lineupB.starters });
-      await pool.query(`UPDATE event_roster_members SET is_current = false WHERE id = $1`, [lineupA.starters[0]]);
+      const verification = await pool.query<{ id: string | null }>(
+        `SELECT education_verification_id AS id FROM event_roster_members WHERE id = $1`,
+        [lineupA.starters[0]],
+      );
+      const verificationId = verification.rows[0]?.id;
+      if (!verificationId) throw new Error("首发缺少冻结赛事名单采用的学籍核验事实。");
+      await pool.query(`UPDATE education_verifications SET status = 'rejected' WHERE id = $1`, [verificationId]);
       try {
         await expectAppError(() => database.transaction(tx => applyMatchStatusTransitionInTx(tx, { matchId: staleMatch, nextStatus: "in_progress", actorId: ACTOR })), ErrorCode.VALIDATION_FAILED);
         const rows = await pool.query<{ status: string }>(`SELECT status FROM match_rosters WHERE match_id = $1`, [staleMatch]);
         expect(rows.rows.every(row => row.status === "submitted")).toBe(true);
       } finally {
-        await pool.query(`UPDATE event_roster_members SET is_current = true WHERE id = $1`, [lineupA.starters[0]]);
+        await pool.query(`UPDATE education_verifications SET status = 'approved' WHERE id = $1`, [verificationId]);
       }
     }
 
