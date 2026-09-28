@@ -22,13 +22,13 @@ describe("match runtime presentation", () => {
 });
 
 describe("public live delivery", () => {
-  const delivery = (authorityRevision: number, sequence: number, producedAt = "2026-09-28T00:00:00Z") => ({ matchId: "match", producedAt, delivery: { authorityRevision, generation: 1, epoch: 1, sequence } }) as PublicLiveMatchProjection;
+  const delivery = (authorityRevision: number, sequence: number, producedAt = "2026-09-28T00:00:00Z", receivedAt = "2026-09-28T00:00:00Z") => ({ matchId: "match", producedAt, receivedAt, delivery: { authorityRevision, generation: 1, epoch: 1, sequence } }) as PublicLiveMatchProjection;
 
   it("drops stale frames across source takeover and accepts a fresh heartbeat", () => {
     const current = delivery(2, 100);
     expect(acceptsLiveDelivery(current, delivery(1, 999), "match")).toBe(false);
     expect(acceptsLiveDelivery(current, delivery(3, 0), "match")).toBe(true);
-    expect(acceptsLiveDelivery(current, delivery(2, 100, "2026-09-28T00:00:01Z"), "match")).toBe(true);
+    expect(acceptsLiveDelivery(current, delivery(2, 100, "2026-09-27T23:00:00Z", "2026-09-28T00:00:01Z"), "match")).toBe(true);
     expect(acceptsLiveDelivery(current, { ...delivery(2, 101), matchId: "other" }, "match")).toBe(false);
   });
 

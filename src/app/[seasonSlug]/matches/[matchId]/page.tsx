@@ -1,51 +1,40 @@
 import { MatchLiveViewing } from "@/components/matches/MatchLiveViewing";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { eq, and, inArray, isNotNull, or } from "drizzle-orm";
+import { eq, and, inArray, or } from "drizzle-orm";
 import { db } from "@/db/client";
 import { matches, competitionEntries, eventRosters, eventRosterMembers, matchCommentators, matchMaps, matchRosterPlayers, matchRosters, steamProfiles, users, seasonRegistrations } from "@/db/schema";
-import { matchPlayerStats } from "@/db/schema/player-stats";
 import { matchMvpVotes } from "@/db/schema/mvp-votes";
 import { MatchMvpVote } from "@/components/matches/MatchMvpVote";
 import { PageLayout, Panel, PosChip } from "@/components/rivalhub";
 import { mapLabel } from "@/lib/maps";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { MATCH_FORMAT_LABELS, SIDE_LABELS } from "@/types/match";
-import { PlayerStatsTable } from "@/components/matches/PlayerStatsTable";
 import { StatsOCRPanel } from "@/components/matches/StatsOCRPanel";
 import { TimeProposalHistory } from "@/components/matches/TimeProposalHistory";
 import { MatchTimeNegotiation } from "@/components/matches/MatchTimeNegotiation";
 import { MatchRosterView } from "@/components/matches/MatchRosterView";
 import { MatchRosterForm } from "@/components/matches/MatchRosterForm";
 import { VetoView } from "@/components/matches/VetoView";
-import { MapPoolRadarChart } from "@/components/matches/MapPoolRadarChart";
-import { MatchLineupsH2H } from "@/components/matches/MatchLineupsH2H";
-import { PlayerRadarChart } from "@/components/matches/PlayerRadarChart";
-import { TeamStatsCompare } from "@/components/matches/TeamStatsCompare";
+import { MatchMapProfile } from "@/components/matches/MatchMapProfile";
 import { MatchHeadToHead } from "@/components/matches/MatchHeadToHead";
+import { MatchRecentResults } from "@/components/matches/MatchRecentResults";
 import { MatchSummaryStats } from "@/components/matches/MatchSummaryStats";
+import { PlayerStatsTable } from "@/components/matches/PlayerStatsTable";
 import { getMatchMvpResults, ensureMvpWinner } from "@/actions/player-stats";
 import { getMatchTimeProposalViews } from "@/lib/matches/time-proposals";
 import { getTimeBufferHoursForStage } from "@/lib/matches/time-rules";
 import { getMatchRoster } from "@/actions/matches/roster";
-import { getSeasonHexagonScores } from "@/lib/stats/hexagon-query";
-import { computeTeamDimensions } from "@/lib/utils/hexagon";
-import type { HexagonScores } from "@/lib/utils/hexagon";
 import { getUserSession, requireSeasonAdmin } from "@/lib/auth/session";
 import { isExpectedAuthFailure } from "@/lib/errors";
 import { normalizeRegistrationConfig } from "@/lib/seasons/compatibility";
-import { getTeamMapWinStats, getTeamPickStats, getTeamBanStats } from "@/lib/teams/data";
 import {
-  aggregateFinishedPlayerStats,
-  buildLineupsPlayers,
-  buildRadarData,
   buildRoster,
-  computeRecord,
-  computeTeamAvgStats,
-  type MatchPlayerStatsRow,
   type RosterPlayer,
 } from "@/lib/matches/detail-stats";
-import { getSeasonFinishedMatches } from "@/lib/matches/detail-data";
+import { loadMatchPreAnalysis } from "@/lib/matches/pre-analysis";
+import { loadMatchScoreboard } from "@/lib/matches/detail-scoreboard";
+import { canConfirmMapScoreboard } from "@/lib/matches/map-scoreboard";
 import { MatchHeroHeader } from "@/components/matches/MatchHeroHeader";
 import { MatchMapTabsNavigation } from "@/components/matches/MatchMapTabsNavigation";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
@@ -57,13 +46,19 @@ import { projectMatchPrimaryTask } from "@/lib/matches/runtime-presentation";
 import { MatchLiveProjection } from "@/components/matches/MatchLiveProjection";
 import { Dialog, DialogBody, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { officialCoverageSlots } from "@/db/schema";
+import { getMatchPlayerDetail } from "@/lib/stats/tournament-query";
+import { PlayerWorkspace } from "@/components/stats/players/PlayerWorkspace";
+import { loadMatchPrediction } from "@/lib/matches/prediction-read-model";
+import { MatchPrediction } from "@/components/matches/MatchPrediction";
 
 interface MatchDetailPageProps {
   params: Promise<{ seasonSlug: string; matchId: string }>;
+  searchParams: Promise<{ statsPlayer?: string; statsMap?: string }>;
 }
 
-export default async function MatchDetailPage({ params }: MatchDetailPageProps) {
+export default async function MatchDetailPage({ params, searchParams }: MatchDetailPageProps) {
   const { seasonSlug, matchId } = await params;
+  const statsQuery = await searchParams;
 
   const [season, match] = await Promise.all([
     getPublicOrAuthorizedDraftSeason(seasonSlug),
@@ -86,7 +81,7 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
   const isFinished = match.status === "finished";
 
   // Phase 3: 所有独立查询并行
-  const [rosterA, rosterB, userSession, allTeamMemberRows, seasonMatchesA, seasonMatchesB, seasonHexagonScores, commentatorRows] =
+  const [rosterA, rosterB, userSession, allTeamMemberRows, preAnalysis, commentatorRows] =
     await Promise.all([
       getMatchRoster(match.id, match.entryAId),
       getMatchRoster(match.id, match.entryBId),
@@ -116,9 +111,7 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
               .where(eq(matchRosters.matchId, match.id))),
           ),
         )),
-      getSeasonFinishedMatches(season.id, match.entryAId),
-      getSeasonFinishedMatches(season.id, match.entryBId),
-      getSeasonHexagonScores(season.id),
+      loadMatchPreAnalysis(season.id, match.entryAId, match.entryBId, mapPool),
       db.select({ userId: users.id, displayName: users.displayName, perfectName: users.perfectName, personaName: steamProfiles.personaName, liveStreamUrl: users.liveStreamUrl })
         .from(matchCommentators)
         .innerJoin(users, eq(matchCommentators.userId, users.id))
@@ -139,52 +132,13 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
     primaryPosition: positionByUserId.get(row.userId) ?? "",
   }));
 
-  // 从赛季对局列表计算战绩、H2H
-  const recordA = computeRecord(match.entryAId, seasonMatchesA);
-  const recordB = computeRecord(match.entryBId, seasonMatchesB);
-
-  const matchIdsA = seasonMatchesA.map((m) => m.id);
-  const matchIdsB = seasonMatchesB.map((m) => m.id);
-
-  // H2H：teamA 的赛季对局中与 teamB 的交手记录
-  const h2hRaw = seasonMatchesA
-    .filter((m) => (m.entryAId === match.entryBId || m.entryBId === match.entryBId) && m.scoreA !== null && m.scoreB !== null)
-    .sort((a, b) => {
-      const ta = (a.completedAt ?? a.scheduledAt)?.getTime() ?? 0;
-      const tb = (b.completedAt ?? b.scheduledAt)?.getTime() ?? 0;
-      return tb - ta;
-    });
-
-  const h2hMatches = h2hRaw.slice(0, 10).map((m) => {
-    const aIsTeamA = m.entryAId === match.entryAId;
-    const scoreA = aIsTeamA ? (m.scoreA ?? 0) : (m.scoreB ?? 0);
-    const scoreB = aIsTeamA ? (m.scoreB ?? 0) : (m.scoreA ?? 0);
-    return {
-      matchId: m.id,
-      scheduledAt: m.scheduledAt,
-      completedAt: m.completedAt,
-      stage: m.stage,
-      format: m.format,
-      scoreA,
-      scoreB,
-      teamAWon: scoreA > scoreB,
-    };
-  });
-
-  const h2hWinsA = h2hMatches.filter((m) => m.teamAWon).length;
-  const h2hWinsB = h2hMatches.filter((m) => !m.teamAWon).length;
+  const { mapProfileRows, recentResultsA, recentResultsB, h2hMatches, h2hWinsA, h2hWinsB } = preAnalysis;
 
   // 建立 userId 集合
   const matchRosterMemberIds = new Set([
     ...(rosterA?.players.map((player) => player.eventRosterMemberId) ?? []),
     ...(rosterB?.players.map((player) => player.eventRosterMemberId) ?? []),
   ]);
-  const teamAUserIds = [...new Set(allTeamMembers
-    .filter((m) => m.teamId === match.entryAId && m.userId && (m.isCurrent || matchRosterMemberIds.has(m.id)))
-    .map((m) => m.userId as string))];
-  const teamBUserIds = [...new Set(allTeamMembers
-    .filter((m) => m.teamId === match.entryBId && m.userId && (m.isCurrent || matchRosterMemberIds.has(m.id)))
-    .map((m) => m.userId as string))];
   const userIdToTeamId = new Map<string, string>(
     allTeamMembers.filter((m) => m.userId && m.isCurrent).map((m) => [m.userId as string, m.teamId]),
   );
@@ -196,110 +150,6 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
     userIdToTeamId.set(member.userId, member.teamId);
     userIdToMember.set(member.userId, member);
   }
-
-  // 首发阵容 userId（来自已提交名单）
-  const starterAMemberIds = new Set(
-    rosterA ? rosterA.players.filter((p) => p.isStarter).map((p) => p.eventRosterMemberId) : [],
-  );
-  const starterBMemberIds = new Set(
-    rosterB ? rosterB.players.filter((p) => p.isStarter).map((p) => p.eventRosterMemberId) : [],
-  );
-  const starterAUserIds = allTeamMembers
-    .filter((m) => m.teamId === match.entryAId && starterAMemberIds.has(m.id) && m.userId)
-    .map((m) => m.userId as string);
-  const starterBUserIds = allTeamMembers
-    .filter((m) => m.teamId === match.entryBId && starterBMemberIds.has(m.id) && m.userId)
-    .map((m) => m.userId as string);
-
-  // Phase 4: 地图胜/pick/ban 率 + 队伍赛季数据（全部并行）
-  const allSeasonMatchIds = [...new Set([...matchIdsA, ...matchIdsB])];
-  const [
-    mapWinA, mapWinB,
-    pickStatsA, pickStatsB,
-    banStatsA, banStatsB,
-    teamRawStatsA, teamRawStatsB,
-    seasonMapScoresRaw,
-  ] = await Promise.all([
-    getTeamMapWinStats(match.entryAId, seasonMatchesA),
-    getTeamMapWinStats(match.entryBId, seasonMatchesB),
-    getTeamPickStats(match.entryAId, matchIdsA),
-    getTeamPickStats(match.entryBId, matchIdsB),
-    getTeamBanStats(match.entryAId, matchIdsA),
-    getTeamBanStats(match.entryBId, matchIdsB),
-    teamAUserIds.length > 0 && matchIdsA.length > 0
-      ? db.select().from(matchPlayerStats).where(
-          and(
-            inArray(matchPlayerStats.matchId, matchIdsA),
-            inArray(matchPlayerStats.userId as never, teamAUserIds),
-            isNotNull(matchPlayerStats.verifiedByAdmin),
-          ),
-        )
-      : ([] as MatchPlayerStatsRow[]),
-    teamBUserIds.length > 0 && matchIdsB.length > 0
-      ? db.select().from(matchPlayerStats).where(
-          and(
-            inArray(matchPlayerStats.matchId, matchIdsB),
-            inArray(matchPlayerStats.userId as never, teamBUserIds),
-            isNotNull(matchPlayerStats.verifiedByAdmin),
-          ),
-        )
-      : ([] as MatchPlayerStatsRow[]),
-    // 赛季历史图级回合数（用于 buildLineupsPlayers 的 fkpr / adr 正确计算）
-    allSeasonMatchIds.length > 0
-      ? db
-          .select({ id: matchMaps.id, scoreA: matchMaps.scoreA, scoreB: matchMaps.scoreB })
-          .from(matchMaps)
-          .where(inArray(matchMaps.matchId, allSeasonMatchIds))
-      : Promise.resolve([] as { id: string; scoreA: number | null; scoreB: number | null }[]),
-  ]);
-
-  // 首发选手赛季数据从 teamRawStats 内存过滤（启动者是队伍成员子集）
-  const starterAIdSet = new Set(starterAUserIds);
-  const starterBIdSet = new Set(starterBUserIds);
-  const starterStatsA = teamRawStatsA.filter((r) => r.userId && starterAIdSet.has(r.userId));
-  const starterStatsB = teamRawStatsB.filter((r) => r.userId && starterBIdSet.has(r.userId));
-
-  // 所有 format 的统计回合数都只来自已记录的地图级比分。
-  const seasonMapRoundsMap = new Map<string, number>();
-  for (const map of seasonMapScoresRaw) {
-    if (map.scoreA !== null && map.scoreB !== null) {
-      seasonMapRoundsMap.set(map.id, map.scoreA + map.scoreB);
-    }
-  }
-
-  // 队伍赛季平均数据（用于 TeamStatsCompare）
-  const teamAvgA = computeTeamAvgStats(teamRawStatsA, seasonMapRoundsMap);
-  const teamAvgB = computeTeamAvgStats(teamRawStatsB, seasonMapRoundsMap);
-
-  // 雷达图数据
-  const radarDataA = buildRadarData(mapPool, mapWinA, pickStatsA, banStatsA);
-  const radarDataB = buildRadarData(mapPool, mapWinB, pickStatsB, banStatsB);
-
-  // 双方阵容六维雷达图
-  const hexA = starterAUserIds
-    .map((uid) => seasonHexagonScores.get(uid))
-    .filter((s): s is HexagonScores => s != null);
-  const hexB = starterBUserIds
-    .map((uid) => seasonHexagonScores.get(uid))
-    .filter((s): s is HexagonScores => s != null);
-  const teamHexA = hexA.length > 0 ? computeTeamDimensions(hexA) : null;
-  const teamHexB = hexB.length > 0 ? computeTeamDimensions(hexB) : null;
-  const showHexComparison = teamHexA != null && teamHexB != null && !isFinished;
-
-  // 当前比赛图级回合数（用于 aggregateFinishedPlayerStats）
-  const currentMapRoundsMap = new Map<string, number>();
-  for (const m of maps) {
-    if (m.scoreA !== null && m.scoreB !== null) {
-      currentMapRoundsMap.set(m.id, m.scoreA + m.scoreB);
-    }
-  }
-
-  const lineupsPlayersA = buildLineupsPlayers(starterStatsA, starterAUserIds, userIdToMember, seasonMapRoundsMap);
-  const lineupsPlayersB = buildLineupsPlayers(starterStatsB, starterBUserIds, userIdToMember, seasonMapRoundsMap);
-  const showLineupsH2H =
-    lineupsPlayersA.length > 0 &&
-    lineupsPlayersB.length > 0 &&
-    (lineupsPlayersA.some((p) => p.maps > 0) || lineupsPlayersB.some((p) => p.maps > 0));
 
   // 队长 / 管理员权限检查
   let isCaptainA = false;
@@ -378,17 +228,16 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
     mapsPlayed: number;
   }[] = [];
 
+  const scoreboard = await loadMatchScoreboard(match, maps, userIdToTeamId);
+  const detailedPlayerId = scoreboard.detailedPlayerIds.has(statsQuery.statsPlayer ?? "") ? statsQuery.statsPlayer! : [...scoreboard.detailedPlayerIds][0] ?? null;
+  const detailedMap = maps.find(map => map.id === statsQuery.statsMap && scoreboard.detailedMapIds.has(map.id));
+  const detailed = detailedPlayerId ? await getMatchPlayerDetail(match.id, detailedPlayerId, detailedMap?.mapName) : null;
+  summaryPlayers = scoreboard.summaryPlayers;
   if (isFinished) {
-    const allStats = await db.query.matchPlayerStats.findMany({
-      where: and(eq(matchPlayerStats.matchId, match.id), isNotNull(matchPlayerStats.verifiedByAdmin)),
-    });
-
-    const aggregatedStats = aggregateFinishedPlayerStats(allStats, userIdToTeamId, match.entryAId, match.entryBId, currentMapRoundsMap);
-    mvpCandidates = aggregatedStats.mvpCandidates.map((candidate) => ({
+    mvpCandidates = scoreboard.mvpCandidates.map((candidate) => ({
       ...candidate,
       avatarUrl: candidate.userId ? userIdToMember.get(candidate.userId)?.avatarUrl ?? null : null,
     }));
-    summaryPlayers = aggregatedStats.summaryPlayers;
 
     mvpVoteResults = await getMatchMvpResults(match.id);
     ensureMvpWinner(match.id);
@@ -404,15 +253,16 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
     }
   }
 
-  const showSummaryTab = isFinished && summaryPlayers.length > 0;
-  // 已结束比赛仅显示已录入比分的图；进行中/未开始显示所有地图
-  const visibleMaps = isFinished ? maps.filter((m) => m.scoreA !== null && m.scoreB !== null) : maps;
-  const defaultTab = showSummaryTab ? "summary" : (visibleMaps[0]?.id ?? "");
+  const showSummaryTab = summaryPlayers.length > 0;
+  const visibleMaps = maps;
   const runtime = await loadMatchRuntimePresentation(match.id);
   const phase = runtime?.phase ?? "preparing";
-  const showPreAnalysis = phase === "preparing" || phase === "waiting_veto" || phase === "waiting_gameplay";
+  const showPreAnalysis = phase === "preparing" || phase === "waiting_veto" || phase === "veto" || phase === "waiting_gameplay";
+  const liveMapId = phase === "gameplay" ? maps.find(map => !canConfirmMapScoreboard(map))?.id ?? null : null;
+  const defaultTab = liveMapId ?? (showSummaryTab ? "summary" : (visibleMaps[0]?.id ?? ""));
   const primaryTask = runtime ? projectMatchPrimaryTask({ phase, needsAttention: runtime.needsAttention, scheduledAt: match.scheduledAt, isAdmin: isSeasonAdmin, isTeamRepresentative: isCaptainA || isCaptainB, isBpRepresentative: Boolean(userSession?.userId && runtime.bpRepresentativeUserIds.includes(userSession.userId)), lineupsReady: runtime.lineupsReady }) : { key: "none", label: "" };
   const coverageSlots = match.status === "scheduled" ? await db.select({ id: officialCoverageSlots.id, startsAt: officialCoverageSlots.startsAt, endsAt: officialCoverageSlots.endsAt, capacity: officialCoverageSlots.capacity, note: officialCoverageSlots.note }).from(officialCoverageSlots).where(eq(officialCoverageSlots.seasonId, season.id)) : [];
+  const prediction = await loadMatchPrediction(match.id, season.id, match.scheduledAt, userSession?.userId ?? null);
 
   return (
     <PageLayout variant="standard" className="space-y-8">
@@ -424,22 +274,23 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
         isFinished={isFinished}
       />
 
-      <Panel contentClassName="space-y-3 p-4">
+      {(primaryTask.key !== "none" || ((isCaptainA || isCaptainB || isSeasonAdmin) && match.status === "scheduled")) && <Panel contentClassName="space-y-3 p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div><p className="text-xs text-[var(--color-fg-mid)]">本场阶段</p><p className="text-lg font-semibold">{runtime?.phaseLabel ?? "赛前准备"}</p></div>
-          {primaryTask.key !== "none" && <p className="text-sm font-medium text-[var(--color-accent)]">下一步：{primaryTask.label}</p>}
+          <p className="text-sm font-semibold">你的赛务</p>
+          {primaryTask.key !== "none" && <p className="text-sm font-medium text-[var(--color-accent)]">{primaryTask.label}</p>}
         </div>
         {(isCaptainA || isCaptainB || isSeasonAdmin || Boolean(userSession?.userId && runtime?.bpRepresentativeUserIds.includes(userSession.userId))) && match.status === "scheduled" && <div className="flex flex-wrap gap-2 border-t border-[var(--color-border)] pt-3">
           {(isCaptainA || isCaptainB || isSeasonAdmin) && <Dialog><DialogTrigger className="min-h-10 rounded border border-[var(--color-border)] px-3 text-sm">约定比赛时间</DialogTrigger><DialogContent size="lg"><DialogHeader><DialogTitle>比赛时间</DialogTitle></DialogHeader><DialogBody><MatchTimeNegotiation matchId={match.id} isCaptainA={isCaptainA} isCaptainB={isCaptainB} isAdmin={isSeasonAdmin} currentScheduledAt={match.scheduledAt} currentCompletionDeadline={match.completionDeadline} initialProposals={timeProposals} bufferHours={getTimeBufferHoursForStage(season.stagePlan, match.stage)} coverageSlots={coverageSlots} /><div className="mt-6"><h3 className="mb-2 text-sm font-medium">协商历史</h3><TimeProposalHistory proposals={timeProposals} /></div></DialogBody></DialogContent></Dialog>}
           {(isCaptainA || isCaptainB) && <Dialog><DialogTrigger className="min-h-10 rounded border border-[var(--color-border)] px-3 text-sm">本场首发</DialogTrigger><DialogContent size="lg"><DialogHeader><DialogTitle>调整本场首发</DialogTitle></DialogHeader><DialogBody><MatchRosterForm matchId={match.id} teamMembers={captainTeamMembers} hasExistingRoster={Boolean(captainRoster)} matchStatus={match.status} rosterStatus={captainRoster?.status ?? null} initialStarterIds={captainRoster?.players.filter(player => player.isStarter).map(player => player.eventRosterMemberId) ?? []} initialSubstituteIds={captainRoster?.players.filter(player => !player.isStarter).map(player => player.eventRosterMemberId) ?? []} initialVetoRepresentativeEventRosterMemberId={captainRoster?.players.find(player => player.isVetoRepresentative)?.eventRosterMemberId ?? null} allowSubstitutes={match.ownership !== "major_stage"} /></DialogBody></DialogContent></Dialog>}
           <Link className="inline-flex min-h-10 items-center rounded border border-[var(--color-border)] px-3 text-sm" href={`/${seasonSlug}/matches/${match.id}/veto`}>进入 BP 房间</Link>
         </div>}
-      </Panel>
+      </Panel>}
 
       <MatchLiveViewing status={match.status} commentators={commentatorRows} />
-      {match.status === "in_progress" && ["waiting_gameplay", "gameplay", "inter_map"].includes(phase) && <MatchLiveProjection matchId={match.id} teamAName={teamA?.name ?? "队伍 A"} teamBName={teamB?.name ?? "队伍 B"} />}
+      {prediction && <MatchPrediction data={prediction} teamAName={teamA?.name ?? "队伍 A"} teamBName={teamB?.name ?? "队伍 B"} entryAId={match.entryAId} seasonSlug={seasonSlug} />}
+      {match.status === "in_progress" && phase === "gameplay" && maps.length === 0 && <MatchLiveProjection matchId={match.id} entryAId={match.entryAId} entryBId={match.entryBId} teamAName={teamA?.name ?? "队伍 A"} teamBName={teamB?.name ?? "队伍 B"} />}
 
-      {!isFinished && <>
+      {showPreAnalysis && <>
       {/* 赛前名单 */}
       {(
         <section className="space-y-3">
@@ -456,30 +307,14 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
       )}
 
       </>}
-      {/* 赛季综合对比（比赛未结束时显示） */}
+      {showPreAnalysis && mapProfileRows.length > 0 && (
+        <MatchMapProfile rows={mapProfileRows} teamAName={teamA?.name ?? "队伍 A"} teamBName={teamB?.name ?? "队伍 B"} />
+      )}
+
       {showPreAnalysis && (
-        <TeamStatsCompare
-          teamAName={teamA?.name ?? "队伍 A"}
-          teamBName={teamB?.name ?? "队伍 B"}
-          statA={{ ...recordA, ...teamAvgA }}
-          statB={{ ...recordB, ...teamAvgB }}
-        />
+        <MatchRecentResults teamAName={teamA?.name ?? "队伍 A"} teamBName={teamB?.name ?? "队伍 B"} teamA={recentResultsA} teamB={recentResultsB} seasonSlug={seasonSlug} />
       )}
 
-      {/* 地图池雷达图（比赛未结束时显示） */}
-      {showPreAnalysis && mapPool.length > 0 && (
-        <Panel label="地图池">
-          <MapPoolRadarChart
-            mapPool={mapPool}
-            teamAName={teamA?.name ?? "A"}
-            teamBName={teamB?.name ?? "B"}
-            teamAData={radarDataA}
-            teamBData={radarDataB}
-          />
-        </Panel>
-      )}
-
-      {/* 历史交锋（比赛未结束时显示） */}
       {showPreAnalysis && (
         <MatchHeadToHead
           teamAName={teamA?.name ?? "队伍 A"}
@@ -489,36 +324,6 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
           matches={h2hMatches}
           seasonSlug={seasonSlug}
         />
-      )}
-
-      {/* 阵容对比（比赛未结束时显示，双方名单提交后且有赛季数据时显示） */}
-      {showPreAnalysis && showLineupsH2H && (
-        <section className="space-y-3">
-          <h2 className="text-lg font-semibold text-[var(--color-fg)]">阵容对比</h2>
-          <MatchLineupsH2H
-            teamAName={teamA?.name ?? "队伍 A"}
-            teamBName={teamB?.name ?? "队伍 B"}
-            teamAPlayers={lineupsPlayersA}
-            teamBPlayers={lineupsPlayersB}
-          />
-        </section>
-      )}
-
-      {showHexComparison && (
-        <section className="space-y-3">
-          <Panel label="六维能力对比" contentClassName="p-4">
-            <PlayerRadarChart
-              players={[
-                { name: teamA?.name ?? "队伍 A", scores: teamHexA, color: "var(--color-accent)", strokeColor: "var(--color-accent)" },
-                { name: teamB?.name ?? "队伍 B", scores: teamHexB, color: "var(--color-accent-b)", strokeColor: "var(--color-accent-b)" },
-              ]}
-              size={320}
-            />
-          </Panel>
-          <p className="text-[11px] text-[var(--color-fg-dim)] px-1 leading-relaxed">
-            双方预计出场阵容六维均值对比，六维评分在本赛事内标准化。
-          </p>
-        </section>
       )}
 
       {!isFinished && <>
@@ -561,6 +366,7 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
               teamBId={match.entryBId}
               teamAName={teamA?.name}
               teamBName={teamB?.name}
+              liveMapId={liveMapId}
             />
 
             {/* 整场汇总 Tab */}
@@ -601,19 +407,18 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
                       )}
                     </div>
                   </div>
-                  {isFinished && (
+                  {scoreboard.confirmedMapIds.has(map.id) && (
                     <PlayerStatsTable
-                      mapId={map.id}
+                      players={scoreboard.mapPlayers.get(map.id) ?? []}
                       entryAId={match.entryAId}
                       entryBId={match.entryBId}
                       teamAName={teamA?.name ?? "队伍 A"}
                       teamBName={teamB?.name ?? "队伍 B"}
                     />
                   )}
-                  {!isFinished && map.scoreA == null && (
-                    <p className="text-xs text-[var(--color-fg-dim)] py-2">比赛未开始</p>
-                  )}
-                  {isFinished && isSeasonAdmin && <StatsOCRPanel mapId={map.id} mapName={map.mapName} />}
+                  {map.id === liveMapId && <MatchLiveProjection matchId={match.id} entryAId={match.entryAId} entryBId={match.entryBId} teamAName={teamA?.name ?? "队伍 A"} teamBName={teamB?.name ?? "队伍 B"} />}
+                  {map.scoreA === null && map.id !== liveMapId && <p className="text-xs text-[var(--color-fg-dim)] py-2">地图待进行</p>}
+                  {isSeasonAdmin && canConfirmMapScoreboard(map) && <StatsOCRPanel mapId={map.id} mapName={map.mapName} />}
                 </Panel>
               </TabsContent>
             ))}
@@ -645,6 +450,18 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
           )}
         </section>
       ) : null}
+
+      {detailed && detailedPlayerId && <section id="detailed-stats" className="min-w-0 space-y-4">
+        <h2 className="text-lg font-semibold">详细统计</h2>
+        <nav aria-label="统计范围" className="flex flex-wrap gap-2">
+          <Link href={`/${seasonSlug}/matches/${match.id}?statsPlayer=${detailedPlayerId}#detailed-stats`} aria-current={!detailedMap ? "page" : undefined} className="rounded border border-[var(--color-border)] px-3 py-1.5 text-sm aria-[current=page]:border-[var(--color-accent)]">整场汇总</Link>
+          {scoreboard.completed.filter(map => scoreboard.detailedMapIds.has(map.id)).map(map => <Link key={map.id} href={`/${seasonSlug}/matches/${match.id}?statsPlayer=${detailedPlayerId}&statsMap=${map.id}#detailed-stats`} aria-current={detailedMap?.id === map.id ? "page" : undefined} className="rounded border border-[var(--color-border)] px-3 py-1.5 text-sm aria-[current=page]:border-[var(--color-accent)]">{mapLabel(map.mapName)}</Link>)}
+        </nav>
+        <nav aria-label="选手" className="flex flex-wrap gap-2">
+          {scoreboard.detailedPlayers.map(player => <Link key={player.userId} href={`/${seasonSlug}/matches/${match.id}?statsPlayer=${player.userId}${detailedMap ? `&statsMap=${detailedMap.id}` : ""}#detailed-stats`} aria-current={detailedPlayerId === player.userId ? "page" : undefined} className="rounded border border-[var(--color-border)] px-3 py-1.5 text-sm aria-[current=page]:border-[var(--color-accent)]">{player.name}</Link>)}
+        </nav>
+        <PlayerWorkspace detail={detailed} hideMaps />
+      </section>}
 
       {/* MVP 投票（2×2） */}
       {isFinished && mvpCandidates.length > 0 && (

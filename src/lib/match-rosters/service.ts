@@ -467,13 +467,14 @@ export async function persistMatchRosterInTx(
   if (args.match.status !== "scheduled") throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "比赛已开始，首发已定格。");
   const late = args.match.scheduledAt !== null && now.getTime() >= args.match.scheduledAt.getTime() - 2 * 60 * 60_000;
   if (late && args.source === "participant") throw new AppError(ErrorCode.VALIDATION_FAILED, "临近开赛调整首发，请联系赛事管理员。");
+  if (late && args.source === "admin_select" && !args.submittedBy) throw new AppError(ErrorCode.VALIDATION_FAILED, "临近开赛调整首发必须记录操作人。");
   const [existing] = await tx
     .select({ id: matchRosters.id })
     .from(matchRosters)
     .where(and(eq(matchRosters.matchId, args.match.id), eq(matchRosters.entryId, args.entryId)));
   if (late && args.source === "admin_select" && existing) {
-    await tx.insert(matchLineupIncidents).values({ matchId: args.match.id, entryId: args.entryId, actorId: args.submittedBy ?? "admin", reason: "临近开赛调整首发" });
-    await writeAuditInTx(tx, { seasonId: args.match.seasonId, action: "match.roster.late_lineup", actorId: args.submittedBy ?? "admin", targetId: args.match.id, meta: { entryId: args.entryId, starterIds: args.starterIds } });
+    await tx.insert(matchLineupIncidents).values({ matchId: args.match.id, entryId: args.entryId, actorId: args.submittedBy!, reason: "临近开赛调整首发" });
+    await writeAuditInTx(tx, { seasonId: args.match.seasonId, action: "match.roster.late_lineup", actorId: args.submittedBy!, targetId: args.match.id, meta: { entryId: args.entryId, starterIds: args.starterIds } });
   }
   let rosterId: string;
   if (existing) {
@@ -601,7 +602,7 @@ export interface MatchTransitionOutcome {
 /**
  * The complete production body of a match status transition, shared by the
  * Server Action wrapper and the local integration suite:
- * row-lock → re-checked state machine gate → (start) both-teams-confirmed
+ * row-lock → re-checked state machine gate → (start) both lineups validated and confirmed
  * lineup gate → status write → audit (match.start / match.status_update).
  */
 export async function applyMatchStatusTransitionInTx(
@@ -656,9 +657,8 @@ export async function applyMatchStatusTransitionInTx(
 }
 
 /**
- * Start gate: both canonical teams must hold an already-confirmed lineup that
- * still validates against freshly loaded facts. There is no fallback path here
- * by design — nothing infers starters from membership ordering.
+ * Start gate: fresh validation turns each effective submitted lineup into a
+ * confirmed historical lineup in the same transaction as the Match start.
  */
 async function freezeEffectiveLineupsForStartInTx(
   tx: TxDb,
@@ -678,7 +678,7 @@ async function freezeEffectiveLineupsForStartInTx(
     if (!roster) {
       throw new AppError(
         ErrorCode.VALIDATION_FAILED,
-        "该场比赛还有队伍未提交并确认首发阵容，不能开始比赛。",
+        "该场比赛还有队伍没有有效首发阵容，不能开始比赛。",
       );
     }
 
@@ -692,19 +692,13 @@ async function freezeEffectiveLineupsForStartInTx(
       .where(eq(matchRosterPlayers.rosterId, roster.id));
     const { starterIds, substituteIds } = loadPersistedPlayers(players);
 
-    if (roster.status !== "confirmed") {
-      if (roster.source === "system_default") {
-        await tx.update(matchRosters).set({ status: "confirmed", confirmedAt: now, confirmedBy: actorId, updatedAt: now }).where(eq(matchRosters.id, roster.id));
-      } else {
-        throw new AppError(
-          ErrorCode.VALIDATION_FAILED,
-          "存在尚未确认的首发阵容，必须先执行名单确认才能开始比赛。",
-        );
-      }
-    }
-
+    if (roster.status !== "submitted" && roster.status !== "confirmed") throw new AppError(ErrorCode.VALIDATION_FAILED, "本场首发状态无效，请重新提交。");
     await lockCurrentEventRosterForLineupInTx(tx, match, entryId);
     await assertStartingLineupAllowedInTx(tx, { match, entryId, starterIds, substituteIds });
+    if (roster.status === "submitted") {
+      await tx.update(matchRosters).set({ status: "confirmed", confirmedAt: now, confirmedBy: actorId, updatedAt: now }).where(eq(matchRosters.id, roster.id));
+      await writeAuditInTx(tx, { seasonId: match.seasonId, action: "match.roster.confirm", actorId, targetId: roster.id, meta: { matchId: match.id, entryId, atStart: true, source: roster.source, submittedBy: roster.submittedBy, starterIds, substituteIds } });
+    }
     summaries.push({
       rosterId: roster.id,
       matchId: match.id,

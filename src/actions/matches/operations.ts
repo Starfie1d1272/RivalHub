@@ -96,12 +96,21 @@ export async function uploadSeasonLogo(seasonId: string, formData: FormData): Pr
     const path = `${seasonId}/logo-${randomUUID()}.${ext}`;
     await seasonPublicAssetsStorage.upload(path, file, file.type);
     const logoUrl = createServiceClient().storage.from(SEASON_PUBLIC_ASSETS_BUCKET).getPublicUrl(path).data.publicUrl;
+    let previousLogoUrl: string | null;
     try {
-      await db.transaction(async tx => {
+      previousLogoUrl = await db.transaction(async tx => {
+        const [current] = await tx.select({ logoUrl: seasons.logoUrl }).from(seasons).where(eq(seasons.id, seasonId)).for("update");
+        if (!current) throw new AppError(ErrorCode.NOT_FOUND, "赛事不存在。");
         await tx.update(seasons).set({ logoUrl, updatedAt: new Date() }).where(eq(seasons.id, seasonId));
         await writeAuditInTx(tx, { seasonId, actorId: admin.userId, action: "season.logo.upload", targetId: seasonId, meta: { path } });
+        return current.logoUrl;
       });
     } catch (error) { await seasonPublicAssetsStorage.remove(path); throw error; }
+    const baseUrl = logoUrl.slice(0, -path.length);
+    const previousPath = previousLogoUrl?.startsWith(baseUrl) ? previousLogoUrl.slice(baseUrl.length) : null;
+    if (previousPath && new RegExp(`^${seasonId}/logo-[0-9a-f-]+\\.(png|jpg|webp)$`).test(previousPath) && previousPath !== path) {
+      await seasonPublicAssetsStorage.remove(previousPath).catch(() => {});
+    }
     const [season] = await db.select({ slug: seasons.slug }).from(seasons).where(eq(seasons.id, seasonId));
     if (season) { revalidatePath(`/${season.slug}`); revalidatePath(`/admin/${season.slug}/matches`); }
     return ok({ logoUrl });

@@ -22,6 +22,8 @@ import type { PlayerRowOCR } from "@/lib/ocr";
 import { requireSeasonAdmin, auditActorId, requireAuth } from "@/lib/auth/session";
 import { revalidatePath } from "next/cache";
 import { isStatOutOfRange } from "@/lib/config/stat-ranges";
+import { canConfirmMapScoreboard } from "@/lib/matches/map-scoreboard";
+import { applyOcrScoreboardEnrichment } from "@/lib/matches/scoreboard-ownership";
 
 export type PlayerStatsDraft = PlayerRowOCR & {
   userId: string | null;
@@ -141,8 +143,8 @@ export async function savePlayerStats(
       where: eq(matches.id, map.matchId),
     });
     if (!match) throw new AppError(ErrorCode.NOT_FOUND, "比赛记录不存在");
-    if (match.status !== "finished") {
-      throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "只有已结束比赛可以确认选手数据。");
+    if (!canConfirmMapScoreboard(map)) {
+      throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "只有已结束的地图可以确认选手数据。");
     }
     const session = await requireSeasonAdmin(match.seasonId);
     const actor = auditActorId(session);
@@ -176,6 +178,9 @@ export async function savePlayerStats(
     }));
 
     await db.transaction(async (tx) => {
+      const [currentMatch] = await tx.select({ id: matches.id }).from(matches).where(eq(matches.id, map.matchId)).for("share");
+      const [currentMap] = await tx.select({ scoreA: matchMaps.scoreA, scoreB: matchMaps.scoreB }).from(matchMaps).where(eq(matchMaps.id, mapId)).for("update");
+      if (!currentMap || !currentMatch || !canConfirmMapScoreboard(currentMap)) throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "只有已结束的地图可以确认选手数据。");
       const existing = await tx.select().from(matchPlayerStats).where(eq(matchPlayerStats.mapId, mapId)).for("update");
       const existingByUser = new Map(existing.filter((row) => row.userId != null).map((row) => [row.userId!, row]));
       const existingByName = new Map(existing.map((row) => [row.perfectName, row]));
@@ -195,12 +200,11 @@ export async function savePlayerStats(
         const now = new Date();
         if (prior) {
           matchedIds.add(prior.id);
+          const enrichment = applyOcrScoreboardEnrichment(prior, s);
           const ocrValues = {
             perfectName: s.perfectName,
             userId,
-            ratingPro: s.ratingPro,
-            rws: s.rws,
-            we: s.we,
+            ...enrichment,
             verifiedByAdmin: actor,
             verifiedAt: now,
           };

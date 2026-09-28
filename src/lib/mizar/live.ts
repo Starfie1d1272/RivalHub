@@ -16,7 +16,6 @@ export const matchLiveTopic = (matchId: string) => `match-live:${matchId}`;
 export async function ingestMizarLive(installationId: string, competitionId: string, input: unknown, authorityRevision: number) {
   const snapshot = parseLiveSnapshotV1(input);
   if (snapshot.competitionId !== competitionId || snapshot.cursor.liveSessionId === null) throw new AppError(ErrorCode.FORBIDDEN, "制播数据不属于当前连接。");
-  if (Math.abs(Date.now() - Date.parse(snapshot.producedAt)) > 10_000) throw new AppError(ErrorCode.VALIDATION_FAILED, "实时数据已过期。");
   return db.transaction(async tx => {
     await assertInstallationInTx(tx, installationId, competitionId);
     const [match] = await tx.select().from(matches).where(and(eq(matches.id, snapshot.matchId), eq(matches.seasonId, competitionId))).for("share");

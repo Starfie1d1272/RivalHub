@@ -29,6 +29,19 @@ export function acceptsLiveDelivery(current: PublicLiveMatchProjection | null, n
   if (b.authorityRevision !== a.authorityRevision) return b.authorityRevision > a.authorityRevision;
   if (b.generation !== a.generation) return b.generation > a.generation;
   if (b.epoch !== a.epoch) return b.epoch > a.epoch;
-  // Same semantic cursor with a newly projected heartbeat refreshes freshness.
-  return b.sequence > a.sequence || (b.sequence === a.sequence && next.producedAt > current.producedAt);
+  // A same-cursor heartbeat can refresh delivery even if the producer clock
+  // moves backwards. RivalHub's receive time rejects older/replayed frames.
+  return b.sequence > a.sequence || (b.sequence === a.sequence && Date.parse(next.receivedAt) > Date.parse(current.receivedAt));
+}
+
+/** Same-cursor heartbeats refresh arrival freshness without replacing semantic state. */
+export function mergeLiveDelivery(current: PublicLiveMatchProjection | null, next: PublicLiveMatchProjection, matchId: string): PublicLiveMatchProjection | null {
+  if (!acceptsLiveDelivery(current, next, matchId)) return current;
+  if (!current) return next;
+  const a = current.delivery, b = next.delivery;
+  const sameCursor = a.authorityRevision === b.authorityRevision
+    && a.generation === b.generation
+    && a.epoch === b.epoch
+    && a.sequence === b.sequence;
+  return sameCursor ? { ...current, receivedAt: next.receivedAt } : next;
 }

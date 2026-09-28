@@ -51,7 +51,7 @@ analysisVersion  = actual DAK analysis software version
 
 Quality 保持轻量：继续区分 `null != 0`、missing 与 empty，并保留 QA / availability。核心 Demo/Stats 明显不完整或 QA 失败时，整份 Evidence 不进入正常 confirm；可选高级 capability 缺失时，仅不展示对应统计，不为极端 partial case 建设通用 completeness framework。
 
-OCR 与 DAK 不进入通用 per-metric provenance framework，而按 source group 明确 ownership：DAK/Demo 拥有 rounds、KDA、damage、HS、KAST、opening、trade、clutch、utility、weapon、team conversions 等；Scoreboard/OCR 拥有 Rating Pro、RWS、WE 等外部 scoreboard 字段。两条写入路径不得清空对方拥有的数据，现有 destructive map-level replace 在接入时应退役。
+OCR 与 DAK 不进入通用 per-metric provenance framework，而按 source group 明确 ownership：DAK/Demo 拥有 rounds、KDA、damage、HS、KAST、opening、trade、clutch、utility、weapon、team conversions 等；Scoreboard/OCR 拥有 Rating Pro、RWS、WE 等外部 scoreboard 字段。官方单图结果完成后即可接收该图的 operator-confirmed scoreboard 与 DAK Evidence，即使系列赛仍在进行中；地图结果变化会使对应 Evidence revision 失效，而系列赛完成、弃权或取消不会单独使已确认单图失效。两条写入路径不得清空对方拥有的数据。
 
 Evidence artifact 本身 immutable；pending / confirmed / rejected / stale / superseded 属于 RivalHub import/review decision。`dak-stable/3` 是当前唯一可 promotion 的 profile；同一 Demo 从 `/2` 迁移到 `/3` 时保持 `evidenceRevision` 不变，使用新的 payload/idempotency identity。Promotion owner 在同一事务内锁定整张 map 的 import lineage，选择 canonical predecessor、把同一 Demo 的其它 active source 一并置为 `superseded`，并由新 import 的 `supersedesImportId` 保留历史 parent；不同 Demo 的 confirmed content 必须保持显式冲突，不能被 lineage cleanup 静默替换。`/1` 与 `/2` 的既有 Evidence 只读保留，read model 只选择当前 profile 的 active import，不因迟到的历史 profile row 回退。Schema V1 允许 additive optional field/capability/extension；删除字段、改变类型/单位/既有语义属于 breaking change。跨仓兼容以 machine-readable contract 与 golden JSON fixtures 验证，不重新通过共享裸 TypeScript runtime package 耦合两个仓库。
 

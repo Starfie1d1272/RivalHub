@@ -27,15 +27,15 @@ import { ErrorCode } from "@/lib/errors";
 describe("savePlayerStats", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    matchMapsFindFirstMock.mockResolvedValue({ id: "map-1", matchId: "match-1" });
+    matchMapsFindFirstMock.mockResolvedValue({ id: "map-1", matchId: "match-1", scoreA: null, scoreB: null });
   });
 
-  it("fails closed before authorization or writes when the match has not finished", async () => {
+  it("fails closed before authorization or writes when the map has not finished", async () => {
     matchesFindFirstMock.mockResolvedValue({ id: "match-1", seasonId: "season-1", status: "scheduled" });
 
     const result = await savePlayerStats("map-1", { rows: [] });
 
-    expect(result).toEqual({ success: false, error: { code: ErrorCode.MATCH_INVALID_TRANSITION, message: "只有已结束比赛可以确认选手数据。" } });
+    expect(result).toEqual({ success: false, error: { code: ErrorCode.MATCH_INVALID_TRANSITION, message: "只有已结束的地图可以确认选手数据。" } });
     expect(requireSeasonAdminMock).not.toHaveBeenCalled();
     expect(transactionMock).not.toHaveBeenCalled();
   });

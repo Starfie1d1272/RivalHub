@@ -10,7 +10,7 @@
  *  6. 合法 5 人但 NJU 首发 <3 → fail
  *  7. 合法且 NJU 首发 ≥3 → confirm → start 通过
  *  8. mutable season 规则改变不影响 frozen StageRun 快照
- *  9. admin 选择默认首发但不确认 → start fail；显式确认 → 通过
+ *  9. participant/admin_select 提交后在开赛边界自动确认；显式确认仍幂等
  * 10. repeated submit 幂等/确定性
  * 11. repeated confirm 幂等且不重复写 audit
  * 12. 并发 start 只产生一次状态推进、一次 match.start audit，无双 roster
@@ -583,7 +583,7 @@ async function main(): Promise<void> {
       expect(njuShortfall.message.includes("南京大学"),  "S7 需要给出 NJU 归属 shortfall 文案").toBe(true);
     }
 
-    // S8 admin 选择默认首发但未确认 → start 必须拒绝。
+    // S8 admin 选择首发后保留 submitted，开赛边界再重新校验并确认。
     const adminSelectARoster = (
       await submitLineupProductionLogic(database, {
         matchId: mgMatch, entryId: entryAId, source: "admin_select", submittedBy: null,
@@ -596,13 +596,8 @@ async function main(): Promise<void> {
         starterIds: lineupB.starters, substituteIds: [],
       })
     ).rosterId;
-    await expectAppError(
-      () => database.transaction((tx) =>
-        applyMatchStatusTransitionInTx(tx, { matchId: mgMatch, nextStatus: "in_progress", actorId: ACTOR }),
-      ),
-      ErrorCode.VALIDATION_FAILED,
-      "S8 默认首发未确认就开赛",
-    );
+    const submittedRows = await pool.query<{ status: string }>(`SELECT status FROM match_rosters WHERE match_id = $1`, [mgMatch]);
+    expect(submittedRows.rows.every(row => row.status === "submitted")).toBe(true);
 
     // S9 repeated submit 是幂等覆写（同一 roster 行、无重复行）。
     {
@@ -685,6 +680,43 @@ async function main(): Promise<void> {
         ErrorCode.MATCH_INVALID_TRANSITION,
         "S11 开赛后禁止再改阵容",
       );
+    }
+
+    // Submitted participant/admin lineups become frozen historical facts at start.
+    {
+      const autoMatch = await createManagedMatch(pool, fixture, "r1-auto-confirm");
+      await submitLineupProductionLogic(database, { matchId: autoMatch, entryId: entryAId, source: "participant", submittedBy: ACTOR, starterIds: lineupA.starters });
+      await submitLineupProductionLogic(database, { matchId: autoMatch, entryId: entryBId, source: "admin_select", submittedBy: ACTOR, starterIds: lineupB.starters });
+      await database.transaction(tx => applyMatchStatusTransitionInTx(tx, { matchId: autoMatch, nextStatus: "in_progress", actorId: ACTOR }));
+      const rows = await pool.query<{ source: string; status: string; confirmed_by: string }>(`SELECT source, status, confirmed_by FROM match_rosters WHERE match_id = $1 ORDER BY source`, [autoMatch]);
+      expect(rows.rows.map(row => row.source)).toEqual(["admin_select", "participant"]);
+      expect(rows.rows.every(row => row.status === "confirmed" && row.confirmed_by === ACTOR)).toBe(true);
+      expect((await pool.query(`SELECT count(*)::int AS count FROM audit_logs WHERE action = 'match.roster.confirm' AND meta->>'atStart' = 'true' AND meta->>'matchId' = $1`, [autoMatch])).rows[0]?.count).toBe(2);
+    }
+
+    // An eligibility change after submission must fail at the fresh start gate.
+    {
+      const staleMatch = await createManagedMatch(pool, fixture, "r1-stale-lineup");
+      await submitLineupProductionLogic(database, { matchId: staleMatch, entryId: entryAId, source: "participant", submittedBy: ACTOR, starterIds: lineupA.starters });
+      await submitLineupProductionLogic(database, { matchId: staleMatch, entryId: entryBId, source: "admin_select", submittedBy: ACTOR, starterIds: lineupB.starters });
+      await pool.query(`UPDATE event_roster_members SET is_current = false WHERE id = $1`, [lineupA.starters[0]]);
+      try {
+        await expectAppError(() => database.transaction(tx => applyMatchStatusTransitionInTx(tx, { matchId: staleMatch, nextStatus: "in_progress", actorId: ACTOR })), ErrorCode.VALIDATION_FAILED);
+        const rows = await pool.query<{ status: string }>(`SELECT status FROM match_rosters WHERE match_id = $1`, [staleMatch]);
+        expect(rows.rows.every(row => row.status === "submitted")).toBe(true);
+      } finally {
+        await pool.query(`UPDATE event_roster_members SET is_current = true WHERE id = $1`, [lineupA.starters[0]]);
+      }
+    }
+
+    // System default retains its own provenance and needs no participant action.
+    {
+      await pool.query(`UPDATE event_roster_members SET is_primary_starter = true WHERE id = ANY($1::uuid[])`, [[...lineupA.starters, ...lineupB.starters]]);
+      const defaultMatch = await createManagedMatch(pool, fixture, "r1-default-lineup");
+      await database.transaction(tx => applyMatchStatusTransitionInTx(tx, { matchId: defaultMatch, nextStatus: "in_progress", actorId: ACTOR }));
+      const rows = await pool.query<{ source: string; status: string }>(`SELECT source, status FROM match_rosters WHERE match_id = $1`, [defaultMatch]);
+      expect(rows.rows).toHaveLength(2);
+      expect(rows.rows.every(row => row.source === "system_default" && row.status === "confirmed")).toBe(true);
     }
 
     // S12 mutable season 规则被清空、live competitive profile 被篡改后，

@@ -13,6 +13,7 @@ import { PageHeader, Panel, Section } from "@/components/rivalhub";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { loadAdminMatchOverview } from "@/lib/admin/matches/overview";
 import { loadMatchOperationsOverview } from "@/lib/admin/matches/operations";
+import { projectAdminMatchBuckets } from "@/lib/admin/matches/buckets";
 import { presentMatchLabel } from "@/lib/matches/presentation";
 import { presentSeasonStatus } from "@/lib/seasons/presentation";
 import { MatchOperationsTools } from "@/components/matches/MatchOperationsTools";
@@ -31,13 +32,7 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
   const matchCount = data.matches.length;
   const teamNameById = new Map(data.teams.map((team) => [team.id, team.name]));
   const operations = await loadMatchOperationsOverview(data.season.id, data.matches.map(match => match.id));
-  const now = operations.now;
-  const groups = [
-    { label: "需要处理", matches: data.matches.filter(match => Boolean(match.demoNeedsAttentionCount) || operations.conflicts.has(match.id)) },
-    { label: "进行中", matches: data.matches.filter(match => match.status === "in_progress") },
-    { label: "今日 / 即将开始", matches: data.matches.filter(match => match.status === "scheduled" && match.scheduledAt && match.scheduledAt.getTime() >= now - 3600_000 && match.scheduledAt.getTime() < now + 24 * 3600_000) },
-    { label: "待排期", matches: data.matches.filter(match => match.status === "scheduled" && !match.scheduledAt) },
-  ];
+  const groups = projectAdminMatchBuckets(data.matches, operations.conflicts, operations.now);
 
   return (
     <div className="min-w-0 space-y-6">
