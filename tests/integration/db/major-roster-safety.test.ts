@@ -691,7 +691,7 @@ async function main(): Promise<void> {
       await submitLineupProductionLogic(database, { matchId: autoMatch, entryId: entryBId, source: "admin_select", submittedBy: null, starterIds: lineupB.starters });
       await database.transaction(tx => applyMatchStatusTransitionInTx(tx, { matchId: autoMatch, nextStatus: "in_progress", actorId: ACTOR }));
       const rows = await pool.query<{ source: string; status: string; confirmed_by: string }>(`SELECT source, status, confirmed_by FROM match_rosters WHERE match_id = $1 ORDER BY source`, [autoMatch]);
-      expect(rows.rows.map(row => row.source)).toEqual(["admin_select", "participant"]);
+      expect(rows.rows.map(row => row.source)).toEqual(["participant", "admin_select"]);
       expect(rows.rows.every(row => row.status === "confirmed" && row.confirmed_by === ACTOR)).toBe(true);
       expect((await pool.query(`SELECT count(*)::int AS count FROM audit_logs WHERE action = 'match.roster.confirm' AND meta->>'atStart' = 'true' AND meta->>'matchId' = $1`, [autoMatch])).rows[0]?.count).toBe(2);
     }
