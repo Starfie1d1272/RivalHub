@@ -7,11 +7,12 @@ export const MATCH_PHASE_LABELS: Record<MatchPresentationPhase, string> = {
 };
 export function deriveMatchPresentationPhase(input: {
   status: MatchStatus; lineupsReady: boolean; vetoStarted: boolean; vetoCompleted: boolean;
-  mapExecution: "waiting" | "gameplay" | "inter_map"; completedMaps: number;
+  mapExecution: "waiting" | "gameplay" | "inter_map"; completedMaps: number; currentMapCompleted?: boolean;
 }): MatchPresentationPhase {
   if (input.status === "finished" || input.status === "cancelled") return "post";
   if (!input.vetoStarted) return input.lineupsReady ? "waiting_veto" : "preparing";
   if (!input.vetoCompleted) return "veto";
+  if (input.currentMapCompleted) return "inter_map";
   if (input.mapExecution === "gameplay") return "gameplay";
   if (input.mapExecution === "inter_map" || input.completedMaps > 0) return "inter_map";
   return "waiting_gameplay";

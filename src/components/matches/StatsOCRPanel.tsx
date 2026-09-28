@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useMemo, useEffect } from "react";
+import React, { useState, useRef, useMemo, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -37,7 +37,26 @@ interface Props {
   mapName: string;
 }
 
-type DraftRow = PlayerStatsDraft;
+type DraftRow = PlayerStatsDraft & { gameplayLocked?: boolean };
+const OPERATOR_FIELDS = new Set<string>(["ratingPro", "rws", "we"]);
+function savedDrafts(rows: Awaited<ReturnType<typeof getPlayerStatsByMap>>): DraftRow[] {
+  return rows.map(row => ({
+    perfectName: row.perfectName,
+    userId: row.userId,
+    kills: row.kills,
+    deaths: row.deaths,
+    assists: row.assists,
+    hsPercent: row.hsPercent,
+    firstKills: row.firstKills,
+    multiKills: row.multiKills,
+    clutches: row.clutches,
+    adr: row.adr,
+    rws: row.rws,
+    ratingPro: row.ratingPro,
+    we: row.we,
+    gameplayLocked: Boolean(row.dakImportId),
+  }));
+}
 
 const NUM_FIELDS = [
   { key: "kills",      label: "K"   },
@@ -58,6 +77,7 @@ type NumFieldKey = typeof NUM_FIELDS[number]["key"];
 export function StatsOCRPanel({ mapId, mapName }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [drafts, setDrafts] = useState<DraftRow[]>([]);
+  const [canonicalDrafts, setCanonicalDrafts] = useState<DraftRow[]>([]);
   const [playerOptions, setPlayerOptions] = useState<PlayerOption[]>([]);
   const [extracting, setExtracting] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -74,23 +94,9 @@ export function StatsOCRPanel({ mapId, mapName }: Props) {
       .then((rows) => {
         if (cancelled) return;
         if (rows.length > 0) {
-          setDrafts(
-            rows.map((r) => ({
-              perfectName: r.perfectName,
-              userId: r.userId ?? null,
-              kills: r.kills ?? null,
-              deaths: r.deaths ?? null,
-              assists: r.assists ?? null,
-              hsPercent: r.hsPercent ?? null,
-              firstKills: r.firstKills ?? null,
-              multiKills: r.multiKills ?? null,
-              clutches: r.clutches ?? null,
-              adr: r.adr ?? null,
-              rws: r.rws ?? null,
-              ratingPro: r.ratingPro ?? null,
-              we: r.we ?? null,
-            })),
-          );
+          const saved = savedDrafts(rows);
+          setDrafts(saved);
+          setCanonicalDrafts(saved);
           setViewMode(true);
         }
         setInitialLoading(false);
@@ -131,7 +137,10 @@ export function StatsOCRPanel({ mapId, mapName }: Props) {
         return;
       }
 
-      setDrafts(result.data.drafts);
+      setDrafts(result.data.drafts.map(row => {
+        const prior = canonicalDrafts.find(saved => saved.gameplayLocked && (row.userId ? saved.userId === row.userId : saved.perfectName === row.perfectName));
+        return prior ? { ...prior, ratingPro: row.ratingPro ?? prior.ratingPro, rws: row.rws ?? prior.rws, we: row.we ?? prior.we } : row;
+      }).concat(canonicalDrafts.filter(saved => saved.gameplayLocked && !result.data.drafts.some(row => row.userId ? row.userId === saved.userId : row.perfectName === saved.perfectName))));
       setPlayerOptions(result.data.playerOptions);
     } catch (e) {
       setError(e instanceof Error ? e.message : "OCR 请求失败，请检查网络连接后重试");
@@ -187,6 +196,9 @@ export function StatsOCRPanel({ mapId, mapName }: Props) {
       setError(result.error.message);
       return;
     }
+    const saved = savedDrafts(await getPlayerStatsByMap(mapId));
+    setCanonicalDrafts(saved);
+    setDrafts(saved);
     setViewMode(true);
   }
 
@@ -226,10 +238,12 @@ export function StatsOCRPanel({ mapId, mapName }: Props) {
     if (!result.success) {
       toast.error(result.error.message);
     } else {
-      setDrafts([]);
-      setViewMode(false);
+      const saved = savedDrafts(await getPlayerStatsByMap(mapId));
+      setCanonicalDrafts(saved);
+      setDrafts(saved);
+      setViewMode(saved.length > 0);
       setShowClearConfirm(false);
-      toast.success("数据已清除");
+      toast.success("计分板输入已清除");
     }
   }
 
@@ -251,8 +265,8 @@ export function StatsOCRPanel({ mapId, mapName }: Props) {
           <div className="flex gap-2 items-center">
             {showClearConfirm ? (
               <InlineConfirm
-                title="确认清除所有数据？"
-                sub="此操作不可撤销"
+                title="确认清除计分板输入？"
+                sub="已确认 Demo 的比赛数据保留，Rating / RWS / WE 将清空"
                 onConfirm={handleClear}
                 onCancel={() => setShowClearConfirm(false)}
               />
@@ -266,7 +280,7 @@ export function StatsOCRPanel({ mapId, mapName }: Props) {
                 className="text-[var(--color-danger)]"
                 onClick={() => setShowClearConfirm(true)}
               >
-                清除数据
+                清除计分板输入
               </Button>
             )}
           </div>
@@ -320,6 +334,7 @@ export function StatsOCRPanel({ mapId, mapName }: Props) {
             >
               {extracting ? "识别中…" : "OCR 识别截图"}
             </Button>
+            {drafts.some(row => row.gameplayLocked) && <p className="text-xs text-[var(--color-fg-mid)]">Demo 已确认的选手只能修正 Rating / RWS / WE。</p>}
             <Button size="sm" variant="outline" onClick={handleAddRow}>
               添加行
             </Button>
@@ -358,6 +373,7 @@ export function StatsOCRPanel({ mapId, mapName }: Props) {
                         </TableCell>
                         <TableCell>
                           <Select
+                            disabled={row.gameplayLocked}
                             value={row.userId ?? "__none__"}
                             onValueChange={(v) => handleUserChange(idx, v)}
                           >
@@ -388,6 +404,8 @@ export function StatsOCRPanel({ mapId, mapName }: Props) {
                                   isStatOutOfRange(f.key, row[f.key] as number) &&
                                   "border-[var(--color-danger)] text-[var(--color-danger)]",
                               )}
+                              aria-label={`${row.perfectName} ${f.label}`}
+                              disabled={row.gameplayLocked && !OPERATOR_FIELDS.has(f.key)}
                               type="number"
                               value={(row[f.key] as number | null) ?? ""}
                               onChange={(e) =>
@@ -402,6 +420,7 @@ export function StatsOCRPanel({ mapId, mapName }: Props) {
                             size="sm"
                             className="h-7 w-7 p-0 text-[var(--color-danger)]"
                             onClick={() => handleDeleteRow(idx)}
+                            disabled={row.gameplayLocked}
                             title="删除此行"
                           >
                             ×

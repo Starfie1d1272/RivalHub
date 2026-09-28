@@ -12,6 +12,13 @@ describe("match runtime presentation", () => {
     expect(deriveMatchPresentationPhase({ ...base, status: "finished" })).toBe("post");
   });
 
+  it("uses canonical completion after manual takeover, while the next map can be live", () => {
+    const base = { status: "in_progress" as const, lineupsReady: true, vetoStarted: true, vetoCompleted: true, mapExecution: "gameplay" as const, completedMaps: 1 };
+    expect(deriveMatchPresentationPhase({ ...base, currentMapCompleted: true })).toBe("inter_map");
+    expect(deriveMatchPresentationPhase({ ...base, currentMapCompleted: false })).toBe("gameplay");
+    expect(deriveMatchPresentationPhase({ ...base, currentMapCompleted: true, status: "finished" })).toBe("post");
+  });
+
   it("prioritizes the task that the viewer can actually perform", () => {
     const base = { phase: "preparing" as const, needsAttention: false, scheduledAt: null, isAdmin: false, isTeamRepresentative: true, isBpRepresentative: false, lineupsReady: false };
     expect(projectMatchPrimaryTask(base).key).toBe("schedule");
