@@ -27,6 +27,7 @@ async function create() {
       const revisionId = randomUUID();
       await tx.insert(schema.competitionEntries).values({ id, competitionId: seasonId, source: "event_native", name, representativeUserId: userId, currentRosterRevisionId: revisionId, reviewReason: "private-review-marker", perfectTeamId: "private-perfect-marker" });
       await tx.insert(schema.competitionEntryRosterRevisions).values({ id: revisionId, entryId: id, revisionNumber: 1, createdBy: userId });
+      await tx.insert(schema.competitionEntryRepresentativeChanges).values({ entryId: id, fromUserId: null, toUserId: userId, changedByActorId: "live-transport-fixture" });
     }
     await tx.insert(schema.matches).values([matchId, otherMatchId].map(id => ({ id, seasonId, entryAId: entryA, entryBId: entryB, stage: "test", format: "bo3" as const, status: "in_progress" as const, startedAt: new Date() })));
     await tx.insert(schema.matchMaps).values({ id: mapId, matchId, mapOrder: 1, mapName: "de_nuke" });
@@ -77,6 +78,7 @@ async function cleanup() {
     await tx.delete(schema.matches).where(eq(schema.matches.seasonId, seasonId));
     await tx.delete(schema.auditLogs).where(eq(schema.auditLogs.seasonId, seasonId));
     await tx.delete(schema.mizarInstallations).where(eq(schema.mizarInstallations.competitionId, seasonId));
+    await tx.execute(sql`DELETE FROM competition_entry_representative_changes WHERE entry_id IN (SELECT id FROM competition_entries WHERE competition_id = ${seasonId})`);
     await tx.execute(sql`DELETE FROM competition_entry_roster_revisions WHERE entry_id IN (SELECT id FROM competition_entries WHERE competition_id = ${seasonId})`);
     await tx.delete(schema.competitionEntries).where(eq(schema.competitionEntries.competitionId, seasonId));
     await tx.delete(schema.seasons).where(eq(schema.seasons.id, seasonId));
