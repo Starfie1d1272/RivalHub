@@ -80,6 +80,8 @@ export const USER_REFERENCE_RULES: readonly UserReferenceRule[] = [
   { table: "disciplinary_cases", column: "subject_user_id", label: "纪律处分对象", mode: "reparent" },
   { table: "dak_pairing_intents", column: "authorized_by_user_id", label: "DAK 配对授权人", mode: "preserve" },
   { table: "dak_pairings", column: "user_id", label: "DAK 连接所有人", mode: "reparent" },
+  { table: "mizar_pairing_intents", column: "authorized_by_user_id", label: "Mizar 配对授权人", mode: "preserve" },
+  { table: "mizar_installations", column: "authorized_by_user_id", label: "Mizar 设备授权人", mode: "reparent" },
   { table: "education_verifications", column: "user_id", label: "教育认证记录", mode: "reparent" },
   { table: "identity_link_requests", column: "user_id", label: "身份绑定请求", mode: "delete" },
   { table: "user_identities", column: "user_id", label: "已验证登录身份", mode: "special" },
@@ -424,6 +426,7 @@ async function loadCollisionFacts(queryable: MergeQueryable, input: { canonicalU
       (SELECT count(*)::int FROM community_awards WHERE submitted_by_user_id = ${input.mergedUserId} OR reviewed_by_user_id = ${input.mergedUserId} OR outcome_by_user_id = ${input.mergedUserId})
         + (SELECT count(*)::int FROM community_award_evidence WHERE submitted_by_user_id = ${input.mergedUserId})
         + (SELECT count(*)::int FROM dak_pairing_intents WHERE authorized_by_user_id = ${input.mergedUserId})
+        + (SELECT count(*)::int FROM mizar_pairing_intents WHERE authorized_by_user_id = ${input.mergedUserId})
         + (SELECT count(*)::int FROM announcements WHERE created_by = ${input.mergedUserId} OR updated_by = ${input.mergedUserId})
         + (SELECT count(*)::int FROM competition_entry_participants WHERE invited_by_user_id = ${input.mergedUserId})
         + (SELECT count(*)::int FROM competition_entry_representative_changes WHERE from_user_id = ${input.mergedUserId} OR to_user_id = ${input.mergedUserId})
@@ -472,6 +475,8 @@ async function loadSnapshotHash(queryable: MergeQueryable, input: { canonicalUse
       UNION ALL SELECT 'community_award_evidence', id::text, row_to_json(e)::text FROM community_award_evidence e WHERE submitted_by_user_id IN (${input.canonicalUserId}, ${input.mergedUserId}) OR candidate_user_id IN (${input.canonicalUserId}, ${input.mergedUserId})
       UNION ALL SELECT 'dak_pairing_intents', id::text, row_to_json(i)::text FROM dak_pairing_intents i WHERE authorized_by_user_id IN (${input.canonicalUserId}, ${input.mergedUserId})
       UNION ALL SELECT 'dak_pairings', id::text, row_to_json(p)::text FROM dak_pairings p WHERE user_id IN (${input.canonicalUserId}, ${input.mergedUserId})
+      UNION ALL SELECT 'mizar_pairing_intents', id::text, row_to_json(mi)::text FROM mizar_pairing_intents mi WHERE authorized_by_user_id IN (${input.canonicalUserId}, ${input.mergedUserId})
+      UNION ALL SELECT 'mizar_installations', id::text, row_to_json(mp)::text FROM mizar_installations mp WHERE authorized_by_user_id IN (${input.canonicalUserId}, ${input.mergedUserId})
       UNION ALL SELECT 'entries', id::text, row_to_json(e)::text FROM competition_entries e WHERE representative_user_id IN (${input.canonicalUserId}, ${input.mergedUserId})
       UNION ALL SELECT 'entry_sources', id::text, row_to_json(e)::text FROM competition_entries e WHERE source_registration_id IN (SELECT id FROM season_registrations WHERE user_id IN (${input.canonicalUserId}, ${input.mergedUserId}))
       UNION ALL SELECT 'identities', id::text, row_to_json(i)::text FROM user_identities i WHERE user_id IN (${input.canonicalUserId}, ${input.mergedUserId})
