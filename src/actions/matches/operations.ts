@@ -108,7 +108,12 @@ export async function uploadSeasonLogo(seasonId: string, formData: FormData): Pr
     } catch (error) { await seasonPublicAssetsStorage.remove(path); throw error; }
     const baseUrl = logoUrl.slice(0, -path.length);
     const previousPath = previousLogoUrl?.startsWith(baseUrl) ? previousLogoUrl.slice(baseUrl.length) : null;
-    if (previousPath && new RegExp(`^${seasonId}/logo-[0-9a-f-]+\\.(png|jpg|webp)$`).test(previousPath) && previousPath !== path) {
+    const [previousSeasonId, previousFilename, ...previousPathRemainder] = previousPath?.split("/") ?? [];
+    const isPreviousSeasonLogo = previousPath
+      && previousSeasonId === seasonId
+      && previousPathRemainder.length === 0
+      && /^logo-[0-9a-f-]+\.(png|jpg|webp)$/.test(previousFilename ?? "");
+    if (isPreviousSeasonLogo && previousPath !== path) {
       await seasonPublicAssetsStorage.remove(previousPath).catch(() => {});
     }
     const [season] = await db.select({ slug: seasons.slug }).from(seasons).where(eq(seasons.id, seasonId));

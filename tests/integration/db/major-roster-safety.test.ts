@@ -39,7 +39,9 @@ import { capturePostgresError, localDatabaseUrl } from "./harness/database";
 
 const databaseUrl = localDatabaseUrl();
 
-const ACTOR = "local-admin-g1";
+const ACTOR = randomUUID();
+const ACTOR_A = randomUUID();
+const ACTOR_B = randomUUID();
 
 async function expectAppError(work: () => Promise<unknown>, code: ErrorCode, hint?: string): Promise<AppError> {
   try {
@@ -189,7 +191,7 @@ async function prepareFixture(pool: Pool, label: string): Promise<RosterSafetyFi
     );
 
     const allLayouts = [...teamUserLayout(0), ...teamUserLayout(100)];
-    const userIds = allLayouts.map(() => randomUUID());
+    const userIds = [...allLayouts.map(() => randomUUID()), ACTOR, ACTOR_A, ACTOR_B];
     for (let i = 0; i < userIds.length; i += 1) {
       await client.query(
         `INSERT INTO users (id, email, email_verified_at) VALUES ($1, $2, now())`,
@@ -785,10 +787,10 @@ async function main(): Promise<void> {
 
       const results = await Promise.allSettled([
         database.transaction((tx) =>
-          applyMatchStatusTransitionInTx(tx, { matchId: mcMatch, nextStatus: "in_progress", actorId: `${ACTOR}-a` }),
+          applyMatchStatusTransitionInTx(tx, { matchId: mcMatch, nextStatus: "in_progress", actorId: ACTOR_A }),
         ),
         database.transaction((tx) =>
-          applyMatchStatusTransitionInTx(tx, { matchId: mcMatch, nextStatus: "in_progress", actorId: `${ACTOR}-b` }),
+          applyMatchStatusTransitionInTx(tx, { matchId: mcMatch, nextStatus: "in_progress", actorId: ACTOR_B }),
         ),
       ]);
       const fulfilled = results.filter((r): r is PromiseFulfilledResult<MatchTransitionOutcome> => r.status === "fulfilled");
