@@ -295,6 +295,52 @@ describe("spectator prediction PostgreSQL contracts", () => {
       expect(board.contests[0]!.locked).toBe(true);
     }, 24));
 
+  it("reads scoped spectator projections without taking reconciliation locks or writing due work", async () =>
+    fixture(async (f) => {
+      const { db, seasonId, userId, otherId } = f;
+      for (const actor of [userId, otherId]) await db.transaction((tx) => joinPredictionsInTx(tx, { seasonId, userId: actor }));
+      const pool = await market(f, 0);
+      for (const [index, actor] of [userId, otherId].entries()) await db.transaction((tx) => stakeInTx(tx, {
+        seasonId, userId: actor, marketId: pool.id, optionId: pool.options[index]!.id, amount: "100", requestId: randomUUID(),
+      }));
+      // A later schedule move can make the cutoff earlier than the frozen market deadline.
+      // Reads must project the same effective deadline that stake mutations enforce.
+      await db
+        .update(schema.matches)
+        .set({ scheduledAt: new Date(Date.now() + 60_000) })
+        .where(eq(schema.matches.id, f.matchIds[0]!));
+      const locker = await f.pool.connect();
+      try {
+        await locker.query("BEGIN");
+        await locker.query("select season_id from prediction_programs where season_id = $1 for update", [seasonId]);
+        await locker.query("select season_id from prediction_jobs where season_id = $1 for update", [seasonId]);
+        const read = (view: "sim" | "points" | "record") => db.transaction(async (tx) => {
+          await tx.execute(sql`set local statement_timeout = '2000ms'`);
+          return predictionBoard(tx, seasonId, userId, view);
+        }, { accessMode: "read only", isolationLevel: "repeatable read" });
+        const sim = await read("sim");
+        expect(sim.markets).toEqual([]);
+        expect(sim.ledger).toEqual([]);
+        expect(sim.pickLeaderboard).toEqual([]);
+        const points = await read("points");
+        expect(points.markets[0]).toMatchObject({
+          participants: 2,
+          myStake: "100",
+          myOptionId: pool.options[0]!.id,
+          locked: true,
+        });
+        expect(new Date(points.markets[0]!.deadline).getTime()).toBeLessThan(Date.now());
+        expect(points.markets[0]!.options.map((option) => option.pool)).toEqual(["100", "100"]);
+        expect(points.ledger).toEqual([]);
+        expect((await read("record")).markets).toEqual([]);
+        const [unchanged] = await db.select().from(schema.predictionMarkets).where(eq(schema.predictionMarkets.id, pool.id));
+        expect(unchanged!.lockedAt).toBeNull();
+      } finally {
+        await locker.query("ROLLBACK");
+        locker.release();
+      }
+    }));
+
   it("shares due-work detection across primary dispatch and deadline reconciliation without idle batch starvation", async () =>
     fixture(async (f) => {
       const { db, seasonId } = f;
@@ -665,6 +711,7 @@ describe("spectator prediction PostgreSQL contracts", () => {
           .set({ finalizedRound: 5 })
           .where(eq(schema.majorStageRuns.id, f.runId));
       });
+      await reconcile(f);
       const board = await db.transaction((tx) =>
         predictionBoard(tx, seasonId, userId),
       );

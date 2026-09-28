@@ -9,6 +9,7 @@ import {
   boolean,
   bigint,
   unique,
+  index,
   foreignKey,
   check,
 } from "drizzle-orm/pg-core";
@@ -93,6 +94,13 @@ export const predictionPicks = pgTable(
   (t) => [
     unique().on(t.accountId, t.requestId),
     unique().on(t.contestId, t.accountId, t.version),
+    index("prediction_picks_latest_by_account_idx").on(
+      t.seasonId,
+      t.accountId,
+      t.contestId,
+      t.submitted,
+      t.version.desc(),
+    ),
     foreignKey({
       columns: [t.contestId, t.seasonId],
       foreignColumns: [predictionContests.id, predictionContests.seasonId],
@@ -137,6 +145,7 @@ export const predictionMarkets = pgTable(
   (t) => [
     unique().on(t.id, t.seasonId),
     unique().on(t.matchId, t.resolver),
+    index("prediction_markets_season_deadline_idx").on(t.seasonId, t.deadline),
   ],
 );
 /** Immutable options; stakes cannot reference an option from another market. */
@@ -173,6 +182,7 @@ export const predictionStakes = pgTable(
       foreignColumns: [predictionAccounts.id, predictionAccounts.seasonId],
     }),
     foreignKey({ columns: [t.optionId, t.marketId], foreignColumns: [predictionMarketOptions.id, predictionMarketOptions.marketId] }),
+    index("prediction_stakes_season_market_option_idx").on(t.seasonId, t.marketId, t.optionId),
     check("prediction_stake_positive", sql`${t.amount} > 0`),
   ],
 );
@@ -227,6 +237,7 @@ export const predictionLedger = pgTable(
   },
   (t) => [
     unique().on(t.accountId, t.source),
+    index("prediction_ledger_season_account_idx").on(t.seasonId, t.accountId),
     foreignKey({
       columns: [t.accountId, t.seasonId],
       foreignColumns: [predictionAccounts.id, predictionAccounts.seasonId],

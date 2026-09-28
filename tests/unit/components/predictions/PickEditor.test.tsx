@@ -28,6 +28,7 @@ const contest: Contest = {
   ],
   deadline: "2030-01-01T00:00:00Z",
   locked: false,
+  deadlineReached: false,
   voidReason: null,
   submitted: null,
   draft: null,

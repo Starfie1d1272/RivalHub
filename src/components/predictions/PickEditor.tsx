@@ -85,7 +85,7 @@ export function PickEditor({
     onChange({ bracket: next });
     setMessage(`${name(id)} 晋级；受影响的下游选择已清空`);
   }
-  const logo = (id: string, size = "h-10 w-10") => (
+  const logo = (id: string, size = "h-7 w-7") => (
     <TeamLogo
       teamName={name(id)}
       logoUrl={team(id)?.logoUrl ?? null}
@@ -98,11 +98,13 @@ export function PickEditor({
         <p className="text-sm" role="status">
           {contest.voidReason
             ? `已作废：${contest.voidReason}`
-            : contest.locked
-              ? "已锁定"
-              : contest.submitted
-                ? `已提交 · 版本 ${contest.submitted.version}`
-                : "尚未提交"}
+            : contest.deadlineReached
+              ? "已截止，不能再提交"
+              : contest.locked
+                ? "已锁定"
+                : contest.submitted
+                  ? `已提交 · 版本 ${contest.submitted.version}`
+                  : "尚未提交"}
           {dirty && " · 有未提交修改"}
         </p>
         <p className="text-xs text-[var(--color-fg-mid)]">
@@ -164,7 +166,7 @@ export function PickEditor({
                             e.dataTransfer.setData("text/plain", id);
                             e.dataTransfer.effectAllowed = "move";
                           }}
-                          className={`flex min-h-24 w-full flex-col items-center justify-center gap-1 border p-2 text-xs transition-colors motion-reduce:transition-none focus-visible:outline-2 focus-visible:outline-[var(--color-accent)] ${active ? "border-[var(--color-accent)] bg-[var(--color-accent)]/10" : id ? "border-[var(--color-border)] bg-[var(--color-panel-hi)]" : "border-dashed border-[var(--color-border)]"}`}
+                          className={`flex min-h-16 w-full flex-col items-center justify-center gap-1 border p-2 text-xs transition-colors motion-reduce:transition-none focus-visible:outline-2 focus-visible:outline-[var(--color-accent)] ${active ? "border-[var(--color-accent)] bg-[var(--color-accent)]/10" : id ? "border-[var(--color-border)] bg-[var(--color-panel-hi)]" : "border-dashed border-[var(--color-border)]"}`}
                         >
                           {id ? (
                             logo(id)
@@ -215,13 +217,11 @@ export function PickEditor({
                           ? assign(id, slot)
                           : setSelectedTeam(selectedTeam === id ? null : id)
                       }
-                      className={`flex min-h-20 min-w-0 flex-col items-center gap-1 border p-1 text-[11px] focus-visible:outline-2 focus-visible:outline-[var(--color-accent)] ${selectedTeam === id ? "border-[var(--color-accent)]" : "border-transparent"}`}
+                      className={`flex min-h-14 min-w-0 flex-col items-center gap-1 border p-1 text-[11px] focus-visible:outline-2 focus-visible:outline-[var(--color-accent)] ${selectedTeam === id ? "border-[var(--color-accent)]" : chosen.includes(id) ? "border-transparent opacity-40" : "border-transparent"}`}
                     >
-                      {logo(id, "h-9 w-9")}
+                      {logo(id, "h-7 w-7")}
                       <span className="line-clamp-2">{name(id)}</span>
-                      <span className="text-[10px] text-[var(--color-fg-mid)]">
-                        {chosen.includes(id) ? "已选 · 可移动" : "可选"}
-                      </span>
+                      {chosen.includes(id) && <span className="sr-only">已选 · 可移动</span>}
                     </button>
                   ))}
                 </div>
@@ -242,7 +242,7 @@ export function PickEditor({
                     {["八强", "半决赛", "冠军"][column]}
                   </h3>
                   <div
-                    className="grid h-[640px]"
+                    className="grid h-[400px]"
                     style={{
                       gridTemplateRows: `repeat(${indexes.length}, minmax(0,1fr))`,
                     }}

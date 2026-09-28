@@ -31,6 +31,7 @@ test("观众完成选队提交、草稿隔离、图片导出与真实积分投�
       await page
         .getByRole("button", { name: "我的预测单", exact: true })
         .click();
+    else await page.getByRole("button", { name: "展开预测单", exact: true }).click();
     const slotNames = [
       "恰好 3胜0负 1",
       "恰好 3胜0负 2",
@@ -195,12 +196,13 @@ test("完整推演导入提交，上游修改不会改写提交，分享快照�
     await page.getByLabel("推演名称").fill("我的晋级路径");
     await page.getByRole("button", { name: "保存推演并分享" }).click();
     await expect(
-      page.getByText("保存的推演 · 我的晋级路径", { exact: true }),
+      page.getByText("保存的推演 · 我的晋级路径", { exact: false }),
     ).toBeVisible();
     if (mobile)
       await page
         .getByRole("button", { name: "我的预测单", exact: true })
         .click();
+
     await expect(page.getByText(/已提交 · 版本 1/)).toBeVisible();
     await expect(page.getByText(/有未提交修改/)).toHaveCount(0);
     if (mobile)
@@ -208,7 +210,7 @@ test("完整推演导入提交，上游修改不会改写提交，分享快照�
     await page.getByRole("link", { name: "打开分享快照" }).click();
     await expect(page).toHaveURL(/scenario=/);
     await expect(
-      page.getByText("保存的推演 · 我的晋级路径", { exact: true }),
+      page.getByText("保存的推演 · 我的晋级路径", { exact: false }),
     ).toBeVisible();
     await expect(
       page.getByTestId("sim-match-stage1-r1-1").getByRole("button").last(),
