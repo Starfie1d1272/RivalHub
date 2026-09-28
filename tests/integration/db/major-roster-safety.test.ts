@@ -103,7 +103,7 @@ async function submitLineupProductionLogic(
     await tx.insert(auditLogs).values({
       seasonId: locked.seasonId,
       action: "match.roster.submit",
-      actorId: ACTOR,
+      actorId: args.source === "participant" ? submittedBy ?? ACTOR : ACTOR,
       targetId: summary.rosterId,
       targetType: "match_roster",
       meta: {
@@ -687,8 +687,8 @@ async function main(): Promise<void> {
     // Submitted participant/admin lineups become frozen historical facts at start.
     {
       const autoMatch = await createManagedMatch(pool, fixture, "r1-auto-confirm");
-      await submitLineupProductionLogic(database, { matchId: autoMatch, entryId: entryAId, source: "participant", submittedBy: ACTOR, starterIds: lineupA.starters });
-      await submitLineupProductionLogic(database, { matchId: autoMatch, entryId: entryBId, source: "admin_select", submittedBy: ACTOR, starterIds: lineupB.starters });
+      await submitLineupProductionLogic(database, { matchId: autoMatch, entryId: entryAId, source: "participant", submittedBy: null, starterIds: lineupA.starters });
+      await submitLineupProductionLogic(database, { matchId: autoMatch, entryId: entryBId, source: "admin_select", submittedBy: null, starterIds: lineupB.starters });
       await database.transaction(tx => applyMatchStatusTransitionInTx(tx, { matchId: autoMatch, nextStatus: "in_progress", actorId: ACTOR }));
       const rows = await pool.query<{ source: string; status: string; confirmed_by: string }>(`SELECT source, status, confirmed_by FROM match_rosters WHERE match_id = $1 ORDER BY source`, [autoMatch]);
       expect(rows.rows.map(row => row.source)).toEqual(["admin_select", "participant"]);
@@ -699,8 +699,8 @@ async function main(): Promise<void> {
     // An eligibility change after submission must fail at the fresh start gate.
     {
       const staleMatch = await createManagedMatch(pool, fixture, "r1-stale-lineup");
-      await submitLineupProductionLogic(database, { matchId: staleMatch, entryId: entryAId, source: "participant", submittedBy: ACTOR, starterIds: lineupA.starters });
-      await submitLineupProductionLogic(database, { matchId: staleMatch, entryId: entryBId, source: "admin_select", submittedBy: ACTOR, starterIds: lineupB.starters });
+      await submitLineupProductionLogic(database, { matchId: staleMatch, entryId: entryAId, source: "participant", submittedBy: null, starterIds: lineupA.starters });
+      await submitLineupProductionLogic(database, { matchId: staleMatch, entryId: entryBId, source: "admin_select", submittedBy: null, starterIds: lineupB.starters });
       await pool.query(`UPDATE event_roster_members SET is_current = false WHERE id = $1`, [lineupA.starters[0]]);
       try {
         await expectAppError(() => database.transaction(tx => applyMatchStatusTransitionInTx(tx, { matchId: staleMatch, nextStatus: "in_progress", actorId: ACTOR })), ErrorCode.VALIDATION_FAILED);
