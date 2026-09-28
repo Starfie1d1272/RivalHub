@@ -2,7 +2,7 @@ import "server-only";
 import { randomBytes } from "node:crypto";
 import { and, eq, isNull } from "drizzle-orm";
 import { db, type TxDb } from "@/db/client";
-import { mizarInstallations, mizarPairingIntents, matchLiveSessions, seasons } from "@/db/schema";
+import { mizarInstallations, mizarPairingIntents, matchLiveSessions, seasons, users } from "@/db/schema";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { writeAuditInTx } from "@/lib/audit/write";
 import { hashOpaque, pairingProof, PAIRING_TTL_MS } from "@/lib/integrations/pairing-security";
@@ -19,7 +19,7 @@ export interface MizarPairingStart {
 
 export type MizarPairingPoll =
   | { status: "pending"; expiresAt: string }
-  | { status: "authorized"; expiresAt: string; installationId: string; competitionId: string; credential: string }
+  | { status: "authorized"; expiresAt: string; installationId: string; competitionId: string; credential: string; displayName: string }
   | { status: "expired"; expiresAt: string };
 
 function installationCredential(intentId: string, pollTokenHash: string): string {
@@ -73,10 +73,26 @@ export async function pollMizarPairing(pairingId: string, pollToken: string): Pr
   }
   if (intent.status === "pending") return { status: "pending", expiresAt };
   if (intent.status === "expired") return { status: "expired", expiresAt };
-  const [installation] = await db.select().from(mizarInstallations).where(eq(mizarInstallations.pairingIntentId, intent.id));
+  const [installation] = await db
+    .select({
+      id: mizarInstallations.id,
+      competitionId: mizarInstallations.competitionId,
+      revokedAt: mizarInstallations.revokedAt,
+      displayName: users.displayName,
+    })
+    .from(mizarInstallations)
+    .innerJoin(users, eq(users.id, mizarInstallations.authorizedByUserId))
+    .where(eq(mizarInstallations.pairingIntentId, intent.id));
   if (!installation || installation.revokedAt) throw new AppError(ErrorCode.FORBIDDEN, "Mizar 连接已撤销。");
   if (!intent.deliveredAt) await db.update(mizarPairingIntents).set({ deliveredAt: new Date() }).where(and(eq(mizarPairingIntents.id, intent.id), isNull(mizarPairingIntents.deliveredAt)));
-  return { status: "authorized", expiresAt, installationId: installation.id, competitionId: installation.competitionId, credential: installationCredential(intent.id, tokenHash) };
+  return {
+    status: "authorized",
+    expiresAt,
+    installationId: installation.id,
+    competitionId: installation.competitionId,
+    credential: installationCredential(intent.id, tokenHash),
+    displayName: installation.displayName?.trim() || "赛事管理员",
+  };
 }
 
 export async function authenticateMizar(authorization: string | null) {

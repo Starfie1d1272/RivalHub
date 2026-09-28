@@ -75,15 +75,15 @@ describe("Mizar pairing unit tests", () => {
         competitionId,
         pairingIntentId: pairingId,
         revokedAt: null as Date | null,
+        displayName: "赛事管理员",
       };
 
-      let selectCount = 0;
       selectMock.mockImplementation(() => ({
         from: () => ({
-          where: async () => {
-            selectCount += 1;
-            return selectCount % 2 === 1 ? [intent] : [installation];
-          },
+          innerJoin: () => ({
+            where: async () => [installation],
+          }),
+          where: async () => [intent],
         }),
       }));
 
@@ -105,6 +105,7 @@ describe("Mizar pairing unit tests", () => {
         installationId,
         competitionId,
         credential: deriveMizarCredentialForTest(pairingId, pollToken),
+        displayName: "赛事管理员",
       });
       expect(updateMock).toHaveBeenCalledOnce();
     });
@@ -124,13 +125,12 @@ describe("Mizar pairing unit tests", () => {
         revokedAt: new Date(),
       };
 
-      let selectCount = 0;
       selectMock.mockImplementation(() => ({
         from: () => ({
-          where: async () => {
-            selectCount += 1;
-            return selectCount % 2 === 1 ? [intent] : [installation];
-          },
+          innerJoin: () => ({
+            where: async () => [installation],
+          }),
+          where: async () => [intent],
         }),
       }));
 
@@ -219,14 +219,14 @@ describe("Mizar pairing unit tests", () => {
         competitionId,
         pairingIntentId: pairingId,
         revokedAt: null,
+        displayName: "赛事管理员",
       };
-      let selectCount = 0;
       selectMock.mockImplementation(() => ({
         from: () => ({
-          where: async () => {
-            selectCount += 1;
-            return selectCount % 2 === 1 ? [intent] : [installation];
-          },
+          innerJoin: () => ({
+            where: async () => [installation],
+          }),
+          where: async () => [intent],
         }),
       }));
       updateMock.mockImplementation(() => ({
@@ -247,9 +247,10 @@ describe("Mizar pairing unit tests", () => {
       const postRes = await pollPost(postReq);
       expect(postRes.status).toBe(200);
       expect(postRes.headers.get("Access-Control-Allow-Origin")).toBe("http://127.0.0.1:8080");
-      const json = await postRes.json() as { status: string; installationId: string };
+      const json = await postRes.json() as { status: string; installationId: string; displayName: string };
       expect(json.status).toBe("authorized");
       expect(json.installationId).toBe(installationId);
+      expect(json.displayName).toBe("赛事管理员");
     });
 
     it("rejects invalid request body on /api/mizar/pairing/poll", async () => {

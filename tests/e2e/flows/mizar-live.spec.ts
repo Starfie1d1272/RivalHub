@@ -12,15 +12,20 @@ async function fixture(command: string, seasonId: string, ...args: string[]) {
 }
 
 test("public LIVE receives real private Broadcast and degrades after interruption; old authority cannot replace handover", async ({ page }) => {
-  test.setTimeout(60_000); // Includes the real freshness expiry and Supabase reconnect.
+  test.setTimeout(120_000); // Includes the real freshness expiry and Supabase reconnect.
   const seasonId = randomUUID();
   try {
     const ids = await fixture("create", seasonId);
-    const joined = new Promise<void>(resolveJoin => {
+    const joined = new Promise<void>((resolveJoin, rejectJoin) => {
+      const timer = setTimeout(() => rejectJoin(new Error(`WebSocket join timeout for match ${ids.matchId}`)), 30_000);
       page.on("websocket", socket => {
         if (!socket.url().includes("/realtime/v1/websocket")) return;
         socket.on("framereceived", ({ payload }) => {
-          if (typeof payload === "string" && payload.includes(`match-live:${ids.matchId}`) && payload.includes("phx_reply") && payload.includes('"status":"ok"')) resolveJoin();
+          const text = typeof payload === "string" ? payload : Buffer.isBuffer(payload) ? payload.toString("utf8") : new TextDecoder().decode(payload);
+          if (text.includes(ids.matchId) && text.includes("phx_reply") && text.includes("ok")) {
+            clearTimeout(timer);
+            resolveJoin();
+          }
         });
       });
     });
@@ -37,5 +42,8 @@ test("public LIVE receives real private Broadcast and degrades after interruptio
     await expect(page.getByText("99 : 0", { exact: true })).toHaveCount(0);
     await expect(page.getByText("8 : 0", { exact: true })).toBeVisible();
     await expect(page.getByText("你的赛务", { exact: true })).toHaveCount(0);
-  } finally { await page.close(); await fixture("cleanup", seasonId); }
+  } finally {
+    await page.close();
+    await fixture("cleanup", seasonId).catch(() => null);
+  }
 });

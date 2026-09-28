@@ -18,6 +18,8 @@ const command = process.argv[2];
 const seasonId = process.argv[3] ?? randomUUID();
 
 async function create() {
+  const staleSeasons = await db.select({ id: schema.seasons.id }).from(schema.seasons).where(eq(schema.seasons.name, "Live transport evidence"));
+  for (const stale of staleSeasons) await cleanup(stale.id);
   const userId = randomUUID(), entryA = randomUUID(), entryB = randomUUID();
   const matchId = randomUUID(), otherMatchId = randomUUID(), mapId = randomUUID();
   const installationId = randomUUID(), pairingIntentId = randomUUID();
@@ -72,21 +74,21 @@ async function handover() {
     .where(and(eq(schema.matchLiveSessions.installationId, installationId), eq(schema.matchLiveSessions.matchId, match.id)));
   return result;
 }
-async function cleanup() {
+async function cleanup(targetSeasonId = seasonId) {
   await db.transaction(async tx => {
-    const entries = await tx.select().from(schema.competitionEntries).where(eq(schema.competitionEntries.competitionId, seasonId));
+    const entries = await tx.select().from(schema.competitionEntries).where(eq(schema.competitionEntries.competitionId, targetSeasonId));
     await tx.execute(sql`SET LOCAL session_replication_role = replica`);
-    await tx.execute(sql`DELETE FROM match_live_sessions WHERE match_id IN (SELECT id FROM matches WHERE season_id = ${seasonId})`);
-    await tx.execute(sql`DELETE FROM match_veto_sessions WHERE match_id IN (SELECT id FROM matches WHERE season_id = ${seasonId})`);
-    await tx.execute(sql`DELETE FROM match_maps WHERE match_id IN (SELECT id FROM matches WHERE season_id = ${seasonId})`);
-    await tx.delete(schema.matches).where(eq(schema.matches.seasonId, seasonId));
-    await tx.delete(schema.auditLogs).where(eq(schema.auditLogs.seasonId, seasonId));
-    await tx.delete(schema.mizarInstallations).where(eq(schema.mizarInstallations.competitionId, seasonId));
-    await tx.delete(schema.mizarPairingIntents).where(eq(schema.mizarPairingIntents.competitionId, seasonId));
-    await tx.execute(sql`DELETE FROM competition_entry_representative_changes WHERE entry_id IN (SELECT id FROM competition_entries WHERE competition_id = ${seasonId})`);
-    await tx.execute(sql`DELETE FROM competition_entry_roster_revisions WHERE entry_id IN (SELECT id FROM competition_entries WHERE competition_id = ${seasonId})`);
-    await tx.delete(schema.competitionEntries).where(eq(schema.competitionEntries.competitionId, seasonId));
-    await tx.delete(schema.seasons).where(eq(schema.seasons.id, seasonId));
+    await tx.execute(sql`DELETE FROM match_live_sessions WHERE match_id IN (SELECT id FROM matches WHERE season_id = ${targetSeasonId})`);
+    await tx.execute(sql`DELETE FROM match_veto_sessions WHERE match_id IN (SELECT id FROM matches WHERE season_id = ${targetSeasonId})`);
+    await tx.execute(sql`DELETE FROM match_maps WHERE match_id IN (SELECT id FROM matches WHERE season_id = ${targetSeasonId})`);
+    await tx.delete(schema.matches).where(eq(schema.matches.seasonId, targetSeasonId));
+    await tx.delete(schema.auditLogs).where(eq(schema.auditLogs.seasonId, targetSeasonId));
+    await tx.delete(schema.mizarInstallations).where(eq(schema.mizarInstallations.competitionId, targetSeasonId));
+    await tx.delete(schema.mizarPairingIntents).where(eq(schema.mizarPairingIntents.competitionId, targetSeasonId));
+    await tx.execute(sql`DELETE FROM competition_entry_representative_changes WHERE entry_id IN (SELECT id FROM competition_entries WHERE competition_id = ${targetSeasonId})`);
+    await tx.execute(sql`DELETE FROM competition_entry_roster_revisions WHERE entry_id IN (SELECT id FROM competition_entries WHERE competition_id = ${targetSeasonId})`);
+    await tx.delete(schema.competitionEntries).where(eq(schema.competitionEntries.competitionId, targetSeasonId));
+    await tx.delete(schema.seasons).where(eq(schema.seasons.id, targetSeasonId));
     for (const userId of new Set(entries.map(row => row.representativeUserId))) await tx.delete(schema.users).where(eq(schema.users.id, userId));
   });
 }
