@@ -50,6 +50,7 @@
     "scripts/db/pg17-integration.ts!",
     "scripts/db/release-rehearsal.ts!",
     "scripts/db/major-browser-fixture.ts!",
+    "scripts/db/mizar-live-fixture.ts!",
     "scripts/db/seed-local-fixtures.ts!",
     "scripts/db/verify-db.ts!",
     "scripts/db/verify-local.ts!",

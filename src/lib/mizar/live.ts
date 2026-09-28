@@ -28,6 +28,7 @@ export async function ingestMizarLive(installationId: string, competitionId: str
     const client = createServiceClient();
     const channel = client.channel(matchLiveTopic(match.id), { config: { private: true } });
     try {
+      await client.realtime.setAuth();
       const result = await channel.httpSend("snapshot", payload, { timeout: 2000 });
       if (!result.success) throw new Error("broadcast_unavailable");
       return { accepted: true };

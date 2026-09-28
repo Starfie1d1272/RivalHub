@@ -25,7 +25,7 @@ production smoke / real operation
 | Auth / Storage / browser critical path | PostgreSQL（如涉及）+ Local Supabase/browser E2E |
 | migration | PostgreSQL replay + migration risk/release compatibility |
 | runtime observability | focused unit contract；涉及 provider/DB 时叠加对应真实层 |
-| Mizar pairing / source handover / live Broadcast | contract unit + PostgreSQL transaction/concurrency + Local Supabase Realtime 正反例 + public browser freshness |
+| Mizar pairing / source handover / live Broadcast | contract unit + PostgreSQL transaction/concurrency + Local Supabase Realtime 正反例 + public browser freshness；CI 在 live surface 或 FULL 收敛时启用 Realtime 并执行 viewer JWT / private channel / HTTP Broadcast / 跨场隔离 / 写入拒绝与浏览器断流测试 |
 | release / production boundary | protected release evidence + smoke；真实运营事实只能由真实运营证明 |
 
 App Router 的 Partial Prefetching、URL data Suspense boundary 和 instant navigation 要用 production build/start 检查；`next dev` 不执行 production automatic prefetch。浏览器 evidence 覆盖共享 App Shell、动态链接复用及公开搜索从可见到可编辑的过程，不用固定等待、retry 或延长 timeout 隐藏阻塞。

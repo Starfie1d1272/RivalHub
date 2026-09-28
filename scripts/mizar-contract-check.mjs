@@ -1,10 +1,15 @@
+import { execFileSync } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
-// Run against a local Mizar checkout after building @mizar/protocol and
-// @mizar/rivalhub. This executes Mizar's actual adapter and owned parsers.
+// Rebuild the chosen local Mizar checkout and execute its real adapter/parsers.
+// Report the exact HEAD for this run without making rapid Mizar development a version gate.
 const mizarRoot = resolve(process.argv[2] ?? "../Mizar");
+const sha = execFileSync("git", ["rev-parse", "HEAD"], { cwd: mizarRoot, encoding: "utf8" }).trim();
+const dirty = Boolean(execFileSync("git", ["status", "--porcelain", "--untracked-files=no"], { cwd: mizarRoot, encoding: "utf8" }).trim());
+execFileSync(process.platform === "win32" ? "pnpm.cmd" : "pnpm", ["--filter", "@mizar/rivalhub...", "build"], { cwd: mizarRoot, stdio: "inherit" });
+process.stdout.write(`Mizar compatibility commit: ${sha}${dirty ? " + local changes" : ""} (rebuilt adapter/parser)\n`);
 const adapter = await import(pathToFileURL(resolve(mizarRoot, "packages/rivalhub/dist/index.js")).href);
 const protocol = await import(pathToFileURL(resolve(mizarRoot, "packages/protocol/dist/context.js")).href);
 const fixture = async (name) => JSON.parse(await readFile(resolve("tests/fixtures/contracts", name), "utf8"));

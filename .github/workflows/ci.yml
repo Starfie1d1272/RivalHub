@@ -42,6 +42,7 @@ jobs:
       integration_specs: ${{ steps.plan.outputs.integration_specs }}
       system_mode: ${{ steps.plan.outputs.system_mode }}
       e2e_specs: ${{ steps.plan.outputs.e2e_specs }}
+      live_evidence: ${{ steps.plan.outputs.live_evidence }}
       mobile_search_evidence: ${{ steps.plan.outputs.mobile_search_evidence }}
       gate_name: ${{ steps.plan.outputs.gate_name }}
       release_metadata_only: ${{ steps.plan.outputs.release_metadata_only }}
@@ -195,6 +196,8 @@ jobs:
 
   system:
     name: system
+    env:
+      RIVALHUB_LIVE_EVIDENCE: ${{ needs.plan.outputs.live_evidence == 'true' && '1' || '0' }}
     if: needs.plan.outputs.run_system == 'true'
     needs: plan
     runs-on: ubuntu-24.04
