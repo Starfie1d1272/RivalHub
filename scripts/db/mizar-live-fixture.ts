@@ -139,9 +139,9 @@ async function verify() {
     await received;
     await subscribed(viewer.channel(matchLiveTopic(ids.otherMatchId), { config: { private: true } }), true);
     await viewer.realtime.setAuth();
-    const httpWrite = await channel.httpSend("snapshot", { forged: true });
+    const httpWrite = await channel.httpSend("snapshot", { forged: true }).catch(() => ({ success: false }));
     if (httpWrite.success) throw new Error("Viewer HTTP write was authorized");
-    if (await channel.send({ type: "broadcast", event: "snapshot", payload: { forged: true } }) === "ok") throw new Error("Viewer WebSocket write was authorized");
+    if (await channel.send({ type: "broadcast", event: "snapshot", payload: { forged: true } }).catch(() => "error") === "ok") throw new Error("Viewer WebSocket write was authorized");
     console.log("Mizar pairing and live transport: intent scope / retry / revoke / viewer JWT / private Broadcast / cross-match denial / viewer write denial passed");
   } finally { await viewer.removeAllChannels(); await cleanup(); }
 }
