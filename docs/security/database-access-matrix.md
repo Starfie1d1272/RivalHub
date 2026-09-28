@@ -4,11 +4,11 @@
 
 ## 结论
 
-- 当前 active chain 的 100 张 application-owned `public` base table 全部归类为 `server_only`。业务数据库只由 server-side Drizzle 访问，browser Data API consumer 为零。
+- 当前 active chain 的 108 张 application-owned `public` base table 全部归类为 `server_only`。业务数据库只由 server-side Drizzle 访问，browser Data API consumer 为零。
 - `users`、`user_sessions`、`admin_invites`、`admin_invite_claims`、`season_admin_grants`、`audit_logs`、education evidence、Major prestart/runtime 和 bracket runtime 均按高敏感 server-only 处理。
 - 通用 provider bracket state 按 `(competition_id, stage_key)` 归属 canonical logical Stage；Major Swiss standings 只由 StageRun entrants、managed matches 与 finalized round 投影。
-- `DraftLiveRoom` 与 `CaptainVotingPanel` 的 Realtime subscription 已删除。两处继续使用既有 10 秒 polling fallback；`ResetPasswordForm` 保留 browser Supabase client，但仅调用 Supabase Auth，不调用 public table Data API。
-- `supabase_realtime` publication 不应包含本矩阵中的任何表；若新增 direct Data API 或 Realtime surface，必须先新增明确 classification、最小 privilege、RLS policy、publication 说明和正反例测试。
+- `DraftLiveRoom` 与 `CaptainVotingPanel` 继续使用 10 秒 polling；`ResetPasswordForm` 仅调用 Supabase Auth。比赛直播使用独立的 private Broadcast channel 和短期 receive-only viewer JWT；不开放业务表 Data API。
+- `supabase_realtime` publication 不包含应用业务表。比赛直播通过 `realtime.messages` 上仅 SELECT 的 match-scoped Broadcast policy；浏览器无 INSERT policy，不能向可信频道发消息。项目级 public-channel access 必须关闭。
 
 ## Terminal access matrix
 
@@ -27,6 +27,14 @@
 | prediction_ledger | 服务端预测事实与积分流水 | 观赛预测 | src/lib/predictions/ | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 不开放浏览器 Data API；只返回明确的公开或本人 DTO。 |
 | prediction_scenarios | 服务端预测事实与积分流水 | 观赛预测 | src/lib/predictions/ | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 不开放浏览器 Data API；只返回明确的公开或本人 DTO。 |
 | prediction_jobs | 服务端预测事实与积分流水 | 观赛预测 | src/lib/predictions/ | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 不开放浏览器 Data API；只返回明确的公开或本人 DTO。 |
+| coverage_allocations | 官方转播分配 | 比赛运营 | src/lib/matches/coverage.ts | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 分配容量与解说展示是不同事实。 |
+| coverage_holds | 短期转播容量占用 | 比赛运营 | src/lib/matches/coverage.ts | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 过期占用只释放容量，不删除排期提议。 |
+| match_lineup_incidents | 临场调整与裁决事实 | 比赛首发 | src/lib/match-rosters/service.ts | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 自动默认首发不产生事故；管理员临时换人需审计。 |
+| official_coverage_slots | 官方转播时段 | 比赛运营 | src/lib/matches/coverage.ts | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 运营容量由服务端事务维护。 |
+| match_live_sessions | 低频数据源权威和连续性 | 制播集成 | src/lib/mizar/ | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 不存储 LiveSnapshot 高频历史。 |
+| mizar_installations | 设备凭据散列和撤销状态 | 制播集成 | src/lib/mizar/installation.ts | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 设备凭据不进入浏览器或公开 read model。 |
+| mizar_pairings | 短期连接码散列 | 制播集成 | src/lib/mizar/installation.ts | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 连接码仅一次使用。 |
+| mizar_reliable_receipts | 可靠事件去重 | 制播集成 | src/lib/mizar/reliable.ts | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 只保存低频事件摘要，不保存帧。 |
 | admin_invite_claims | 高敏感授权 ledger | 鉴权 / 管理员提权 | src/lib/auth/admin-invites.ts | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 邀请码领取、计数和幂等事实只能在服务端事务内写入。 |
 | admin_invites | 高敏感邀请码与授权范围 | 鉴权 / 管理员提权 | src/lib/auth/admin-invites.ts; src/actions/admin.ts | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 包含角色、赛季范围和使用限制，不是公开配置。 |
 | announcements | 公告内容、发布状态与 actor metadata | 运营公告 | src/lib/announcements/commands.ts; src/lib/announcements/read-model.ts | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 公告 fact 与 actor metadata 由服务端维护，公开公告只经安全 Markdown projection。 |

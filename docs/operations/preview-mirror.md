@@ -25,6 +25,7 @@ Vercel Preview environment 只配置 dev-scoped 值：
 
 - `DATABASE_URL`：`postgres.cueazphyskstwdhnzsxx` 的 Transaction Pooler URL（6543、`pgbouncer=true`）；
 - `NEXT_PUBLIC_SUPABASE_URL`/`NEXT_PUBLIC_SUPABASE_ANON_KEY` 与 `SUPABASE_SECRET_KEY`：`rivalhub-dev` credential；`SUPABASE_SERVICE_ROLE_KEY` 只作为尚未迁移环境的临时 fallback；
+- `SUPABASE_JWT_SECRET`：仅使用 `rivalhub-dev` 的 JWT signing secret，用于签发 5 分钟、单场次、只读的 Realtime viewer token；不得使用 production signing secret；
 - 独立 Preview `ADMIN_SESSION_SECRET`，以及仅用于 dev/sandbox 的邮件、OCR 或其它 provider credential。
 
 Preview runtime 拒绝非 `rivalhub-dev` database/public Auth URL 与缺失的 server credential；production DB/Auth/Storage/provider credential 永远不得出现。Vercel Deployment Protection 仍是 Preview 的访问边界；persona fixture credential 不是安全边界。正常的 dev 写入、Auth、Storage 和 sandbox provider 行为不受 Preview 专用限制；没有 sandbox provider credential 的单项能力应独立 fail closed。

@@ -10,7 +10,6 @@
 | `MatchDetail` | 比赛详情（系列赛比分 + 单图列表 + 双方阵容） |
 | `MapResultRow` | 单图结果行（地图 + 双方比分 + picked-by 标记 + 起始边） |
 | `BracketView` | `brackets-viewer` 封装组件（注入 theme_color，多 stage 支持） |
-| `ScoreInput` | 管理员控制 scheduled 比赛开始/取消（admin only） |
 | `MapResultInput` | 管理员录入单图结果（admin only，BO3/BO5 多次提交） |
 
 ## v1 范围

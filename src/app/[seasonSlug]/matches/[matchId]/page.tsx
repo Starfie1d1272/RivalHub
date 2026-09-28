@@ -52,6 +52,11 @@ import { getPublicDisplayName } from "@/lib/identity/display-name";
 import { supportsRegistrationPositionDirectory } from "@/lib/players/directory-query";
 import { isHttpUrl } from "@/lib/external-url";
 import { getPublicOrAuthorizedDraftSeason } from "@/lib/data/public-seasons";
+import { loadMatchRuntimePresentation } from "@/lib/matches/runtime-read-model";
+import { projectMatchPrimaryTask } from "@/lib/matches/runtime-presentation";
+import { MatchLiveProjection } from "@/components/matches/MatchLiveProjection";
+import { Dialog, DialogBody, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { officialCoverageSlots } from "@/db/schema";
 
 interface MatchDetailPageProps {
   params: Promise<{ seasonSlug: string; matchId: string }>;
@@ -403,6 +408,11 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
   // 已结束比赛仅显示已录入比分的图；进行中/未开始显示所有地图
   const visibleMaps = isFinished ? maps.filter((m) => m.scoreA !== null && m.scoreB !== null) : maps;
   const defaultTab = showSummaryTab ? "summary" : (visibleMaps[0]?.id ?? "");
+  const runtime = await loadMatchRuntimePresentation(match.id);
+  const phase = runtime?.phase ?? "preparing";
+  const showPreAnalysis = phase === "preparing" || phase === "waiting_veto" || phase === "waiting_gameplay";
+  const primaryTask = runtime ? projectMatchPrimaryTask({ phase, needsAttention: runtime.needsAttention, scheduledAt: match.scheduledAt, isAdmin: isSeasonAdmin, isTeamRepresentative: isCaptainA || isCaptainB, isBpRepresentative: Boolean(userSession?.userId && runtime.bpRepresentativeUserIds.includes(userSession.userId)), lineupsReady: runtime.lineupsReady }) : { key: "none", label: "" };
+  const coverageSlots = match.status === "scheduled" ? await db.select({ id: officialCoverageSlots.id, startsAt: officialCoverageSlots.startsAt, endsAt: officialCoverageSlots.endsAt, capacity: officialCoverageSlots.capacity, note: officialCoverageSlots.note }).from(officialCoverageSlots).where(eq(officialCoverageSlots.seasonId, season.id)) : [];
 
   return (
     <PageLayout variant="standard" className="space-y-8">
@@ -414,7 +424,20 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
         isFinished={isFinished}
       />
 
+      <Panel contentClassName="space-y-3 p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div><p className="text-xs text-[var(--color-fg-mid)]">本场阶段</p><p className="text-lg font-semibold">{runtime?.phaseLabel ?? "赛前准备"}</p></div>
+          {primaryTask.key !== "none" && <p className="text-sm font-medium text-[var(--color-accent)]">下一步：{primaryTask.label}</p>}
+        </div>
+        {(isCaptainA || isCaptainB || isSeasonAdmin || Boolean(userSession?.userId && runtime?.bpRepresentativeUserIds.includes(userSession.userId))) && match.status === "scheduled" && <div className="flex flex-wrap gap-2 border-t border-[var(--color-border)] pt-3">
+          {(isCaptainA || isCaptainB || isSeasonAdmin) && <Dialog><DialogTrigger className="min-h-10 rounded border border-[var(--color-border)] px-3 text-sm">约定比赛时间</DialogTrigger><DialogContent size="lg"><DialogHeader><DialogTitle>比赛时间</DialogTitle></DialogHeader><DialogBody><MatchTimeNegotiation matchId={match.id} isCaptainA={isCaptainA} isCaptainB={isCaptainB} isAdmin={isSeasonAdmin} currentScheduledAt={match.scheduledAt} currentCompletionDeadline={match.completionDeadline} initialProposals={timeProposals} bufferHours={getTimeBufferHoursForStage(season.stagePlan, match.stage)} coverageSlots={coverageSlots} /><div className="mt-6"><h3 className="mb-2 text-sm font-medium">协商历史</h3><TimeProposalHistory proposals={timeProposals} /></div></DialogBody></DialogContent></Dialog>}
+          {(isCaptainA || isCaptainB) && <Dialog><DialogTrigger className="min-h-10 rounded border border-[var(--color-border)] px-3 text-sm">本场首发</DialogTrigger><DialogContent size="lg"><DialogHeader><DialogTitle>调整本场首发</DialogTitle></DialogHeader><DialogBody><MatchRosterForm matchId={match.id} teamMembers={captainTeamMembers} hasExistingRoster={Boolean(captainRoster)} matchStatus={match.status} rosterStatus={captainRoster?.status ?? null} initialStarterIds={captainRoster?.players.filter(player => player.isStarter).map(player => player.eventRosterMemberId) ?? []} initialSubstituteIds={captainRoster?.players.filter(player => !player.isStarter).map(player => player.eventRosterMemberId) ?? []} initialVetoRepresentativeEventRosterMemberId={captainRoster?.players.find(player => player.isVetoRepresentative)?.eventRosterMemberId ?? null} allowSubstitutes={match.ownership !== "major_stage"} /></DialogBody></DialogContent></Dialog>}
+          <Link className="inline-flex min-h-10 items-center rounded border border-[var(--color-border)] px-3 text-sm" href={`/${seasonSlug}/matches/${match.id}/veto`}>进入 BP 房间</Link>
+        </div>}
+      </Panel>
+
       <MatchLiveViewing status={match.status} commentators={commentatorRows} />
+      {match.status === "in_progress" && ["waiting_gameplay", "gameplay", "inter_map"].includes(phase) && <MatchLiveProjection matchId={match.id} teamAName={teamA?.name ?? "队伍 A"} teamBName={teamB?.name ?? "队伍 B"} />}
 
       {!isFinished && <>
       {/* 赛前名单 */}
@@ -429,28 +452,12 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
               teamBRoster={teamBRoster}
             />
           </Panel>
-          {!isFinished && (isCaptainA || isCaptainB) && (
-            <Panel contentClassName="p-4">
-              <h3 className="text-sm font-medium">提交名单</h3>
-              <MatchRosterForm
-                matchId={match.id}
-                teamMembers={captainTeamMembers}
-                hasExistingRoster={Boolean(captainRoster)}
-                matchStatus={match.status}
-                rosterStatus={captainRoster?.status ?? null}
-                initialStarterIds={captainRoster?.players.filter((player) => player.isStarter).map((player) => player.eventRosterMemberId) ?? []}
-                initialSubstituteIds={captainRoster?.players.filter((player) => !player.isStarter).map((player) => player.eventRosterMemberId) ?? []}
-                initialVetoRepresentativeEventRosterMemberId={captainRoster?.players.find((player) => player.isVetoRepresentative)?.eventRosterMemberId ?? null}
-                allowSubstitutes={match.ownership !== "major_stage"}
-              />
-            </Panel>
-          )}
         </section>
       )}
 
       </>}
       {/* 赛季综合对比（比赛未结束时显示） */}
-      {!isFinished && (
+      {showPreAnalysis && (
         <TeamStatsCompare
           teamAName={teamA?.name ?? "队伍 A"}
           teamBName={teamB?.name ?? "队伍 B"}
@@ -460,7 +467,7 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
       )}
 
       {/* 地图池雷达图（比赛未结束时显示） */}
-      {!isFinished && mapPool.length > 0 && (
+      {showPreAnalysis && mapPool.length > 0 && (
         <Panel label="地图池">
           <MapPoolRadarChart
             mapPool={mapPool}
@@ -473,7 +480,7 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
       )}
 
       {/* 历史交锋（比赛未结束时显示） */}
-      {!isFinished && (
+      {showPreAnalysis && (
         <MatchHeadToHead
           teamAName={teamA?.name ?? "队伍 A"}
           teamBName={teamB?.name ?? "队伍 B"}
@@ -485,7 +492,7 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
       )}
 
       {/* 阵容对比（比赛未结束时显示，双方名单提交后且有赛季数据时显示） */}
-      {!isFinished && showLineupsH2H && (
+      {showPreAnalysis && showLineupsH2H && (
         <section className="space-y-3">
           <h2 className="text-lg font-semibold text-[var(--color-fg)]">阵容对比</h2>
           <MatchLineupsH2H
@@ -515,7 +522,7 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
       )}
 
       {!isFinished && <>
-      {(match.status === "scheduled" || match.status === "in_progress") && (
+      {(["preparing", "waiting_veto", "veto", "waiting_gameplay"].includes(phase)) && (
         <section className="space-y-3">
           <Panel label="BP 与开赛">
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -531,7 +538,7 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
         </section>
       )}
       {/* BP 流程（进行中 / 已结束时显示） */}
-      {match.status !== "scheduled" && (
+      {phase === "veto" && (
         <VetoView
           matchId={match.id}
           teamAName={teamA?.name ?? "队伍 A"}
@@ -664,61 +671,14 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
         />
       )}
 
-      {/* 赛前名单 */}
-      {(
-        <section className="space-y-3">
-          <h2 className="text-lg font-semibold text-[var(--color-fg)]">本场阵容</h2>
-          <Panel contentClassName="p-4">
-            <MatchRosterView
-              teamAName={teamA?.name ?? "队伍 A"}
-              teamARoster={teamARoster}
-              teamBName={teamB?.name ?? "队伍 B"}
-              teamBRoster={teamBRoster}
-            />
-          </Panel>
-          {!isFinished && (isCaptainA || isCaptainB) && (
-            <Panel contentClassName="p-4">
-              <h3 className="text-sm font-medium">提交名单</h3>
-              <MatchRosterForm
-                matchId={match.id}
-                teamMembers={captainTeamMembers}
-                hasExistingRoster={Boolean(captainRoster)}
-                matchStatus={match.status}
-                rosterStatus={captainRoster?.status ?? null}
-                initialStarterIds={captainRoster?.players.filter((player) => player.isStarter).map((player) => player.eventRosterMemberId) ?? []}
-                initialSubstituteIds={captainRoster?.players.filter((player) => !player.isStarter).map((player) => player.eventRosterMemberId) ?? []}
-                allowSubstitutes={match.ownership !== "major_stage"}
-              />
-            </Panel>
-          )}
-        </section>
-      )}
+      <section className="space-y-3">
+        <h2 className="text-lg font-semibold text-[var(--color-fg)]">本场阵容</h2>
+        <Panel contentClassName="p-4">
+          <MatchRosterView teamAName={teamA?.name ?? "队伍 A"} teamARoster={teamARoster} teamBName={teamB?.name ?? "队伍 B"} teamBRoster={teamBRoster} />
+        </Panel>
+      </section>
 
       </>}
-      {/* 比赛时间协商 */}
-      {match.status === "scheduled" && (
-        <section className="space-y-3">
-          <h2 className="text-lg font-semibold text-[var(--color-fg)]">比赛时间协商</h2>
-          <Panel contentClassName="p-4">
-            <MatchTimeNegotiation
-              matchId={match.id}
-              isCaptainA={isCaptainA}
-              isCaptainB={isCaptainB}
-              isAdmin={isSeasonAdmin}
-              currentScheduledAt={match.scheduledAt}
-              currentCompletionDeadline={match.completionDeadline}
-              initialProposals={timeProposals}
-              hasSubmittedRoster={captainRoster?.status === "submitted"}
-              bufferHours={getTimeBufferHoursForStage(season.stagePlan, match.stage)}
-            />
-          </Panel>
-          <Panel contentClassName="p-4">
-            <h3 className="text-sm font-medium mb-2">协商历史</h3>
-            <TimeProposalHistory proposals={timeProposals} />
-          </Panel>
-        </section>
-      )}
-
       {isFinished && (commentatorRows.length > 0 || (match.videoUrl && isHttpUrl(match.videoUrl))) && (
         <Panel label="录像与解说" contentClassName="space-y-2 p-4">
           {commentatorRows.length > 0 && <p className="text-sm">解说：{commentatorRows.map(getPublicDisplayName).join("、")}</p>}

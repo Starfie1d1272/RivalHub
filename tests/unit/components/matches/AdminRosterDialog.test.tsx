@@ -80,7 +80,7 @@ describe("AdminRosterDialog — explicit two-step lineup selection", () => {
     );
 
     await openDialog(user);
-    expect(screen.getByText("为双方选择并确认本场 5 名首发选手。")).toBeInTheDocument();
+    expect(screen.getByText("为双方选择本场 5 名首发；开赛时系统会重新校验并定格。")).toBeInTheDocument();
     await pickFiveStarters(user, "a");
 
     await user.click(screen.getAllByRole("button", { name: /核对并保存 Alpha 名单/ })[0]!);
@@ -101,7 +101,7 @@ describe("AdminRosterDialog — explicit two-step lineup selection", () => {
     expect(payload!.substituteIds).toEqual([]);
   });
 
-  it("offers confirmation for saved-but-unconfirmed rosters and stays silent once confirmed", async () => {
+  it("uses a saved lineup without a separate administrator confirmation", async () => {
     const user = userEvent.setup();
     mockedConfirm.mockResolvedValue(
       ok({ alreadyConfirmed: false, matchId: "match-1", entryId: "team-a" }),
@@ -128,10 +128,9 @@ describe("AdminRosterDialog — explicit two-step lineup selection", () => {
     );
 
     await openDialog(user);
-    const confirmButton = screen.getByRole("button", { name: "确认名单" });
-    await user.click(confirmButton);
-
-    await waitFor(() => expect(mockedConfirm).toHaveBeenCalledWith("roster-a"));
+    expect(screen.getByText(/当前首发/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "确认名单" })).not.toBeInTheDocument();
+    expect(mockedConfirm).not.toHaveBeenCalled();
   });
 
   it("does not offer a confirm button for already-confirmed rosters", async () => {
@@ -159,7 +158,7 @@ describe("AdminRosterDialog — explicit two-step lineup selection", () => {
 
     await openDialog(user);
     expect(mockedConfirm).not.toHaveBeenCalled();
-    // Only team A's section renders an inline confirm control; team B shows 已确认.
+    // Existing confirmed records remain visible without another confirmation action.
     expect(screen.getByText(/已确认/)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "确认名单" })).not.toBeInTheDocument();
   });

@@ -13,7 +13,7 @@ describe("PreMatchOperatorChecklist", () => {
     render(<PreMatchOperatorChecklist teamA={team} teamB={{ ...team, name: "Beta" }} mapState="not_recorded" />);
 
     expect(screen.getByText("可以开始比赛")).toBeInTheDocument();
-    expect(screen.getAllByText(/按常规赛务流程进行/)).toHaveLength(2);
+    expect(screen.getAllByText(/开赛时重新检查资格/)).toHaveLength(2);
   });
 
   it("shows absent Major preflight as a server-check blocker", () => {

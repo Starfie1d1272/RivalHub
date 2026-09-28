@@ -53,7 +53,6 @@ export function AdminMatchRow({
       </div>
 
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[var(--color-fg-mid)]">
-        <span className="font-mono">比赛 ID：{match.id}</span>
         <span>
           {presentMatchLabel({
             stage: match.stage,
@@ -65,7 +64,6 @@ export function AdminMatchRow({
           })}
         </span>
         <span>{match.scheduledAt ? `排期：${formatCSTDateTime(match.scheduledAt)}` : "尚未排期"}</span>
-        {match.ownership === "major_stage" ? <span>Major runtime 管理</span> : <span>手动比赛</span>}
         {match.demoNeedsAttentionCount && match.demoNeedsAttentionCount > 0 && (
           <span className="font-medium text-[var(--color-warn)]">
             Demo 数据需要处理 · {match.demoNeedsAttentionCount} 张地图

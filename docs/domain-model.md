@@ -112,7 +112,11 @@ Rivals 的个人报名仍由 `season_registrations` 表达；投票由 `captain_
 
 `matches` 是比赛身份、状态和官方系列赛结果；`match_maps` 是实际进行地图及其回合比分。正常 BO1/BO3/BO5 都由 map-level 事实推导系列赛比分；弃赛只记录官方系列赛结果，不制造未进行地图。
 
-BP、时间协商、实际阵容、玩家统计和赛后资料拥有各自明确事实。后台列表、standings、工作台摘要都只是这些事实的 projection，不成为新的结果或 roster owner。
+BP、时间协商、实际阵容、玩家统计和赛后资料拥有各自明确事实。每场只能有一个待回应的时间提议；接受、超时、截止自动确认和管理员指定保留不同的排期来源。官方转播时段由赛事管理员维护，提议可短暂占用名额，但转播名额不是自由约定比赛时间的前置条件。
+
+本场默认首发只来自当前合法 EventRoster 明确标记的五名主力；队伍提交的合法首发覆盖默认值。开赛 transition 在同一事务内重新校验并定格双方本场名单，不依赖管理员另行确认。临近开赛的管理员调整保留事故事实。`matches` 的 `startedAt` 记录实际进入 `in_progress` 的时间，不从排期或 BP 完成时间推断。
+
+Mizar installation 是赛事级可撤销凭据，Match Live Session 是单场单活跃数据源与递增 authority revision；换机接管、新 generation/map epoch 或人工接管会解除当前地图的自动赛果授权。Mizar 的可靠事件只是经过身份、阵容、连续性与地图计划核对的候选；正式地图与系列赛结果仍由 Match result owner 在事务中写入。短寿命公开实时画面经私有 Broadcast 投递，不进入高频 PostgreSQL 历史；断流时公开页回到 canonical 赛程和赛果。后台列表、standings、工作台摘要都是这些事实的 projection，不成为新的结果或 roster owner。
 
 Demo Evidence 的不可变 payload 与 `match_demo_imports` workflow projection 由 Demo integration owner 管理。正常提交和存量 `/3` recheck 共享同一套 server-owned target、Steam identity、正式比分、QA、回合、summary、effective MatchRoster 和 evidence revision 校验；participant payload 中的客户端 identity resolution 不是事实来源。通过校验的 source round facts 与 `match_player_stats` projection 由同一晋级 owner 物化，并按 Demo lineage 保留 supersede/content conflict；管理员确认只补足 gameplay identity 后触发同一存量 recheck，不另起一套验证或直接改写 payload。
 

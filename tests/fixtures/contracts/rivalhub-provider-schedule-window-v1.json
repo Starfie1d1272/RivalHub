@@ -1,0 +1,93 @@
+{
+  "schemaVersion": "rivalhub.broadcast-schedule-window.v1",
+  "revision": "fixture-schedule-r1",
+  "competition": {
+    "competitionId": "competition-m2",
+    "slug": "m2-sample",
+    "name": "M2 示例赛",
+    "themeColor": "#1d4ed8",
+    "logoUrl": "https://example.test/storage/v1/object/public/season-public-assets/season/logo.png"
+  },
+  "from": "2026-09-16T08:00:00.000Z",
+  "to": "2026-09-16T14:00:00.000Z",
+  "matches": [
+    {
+      "matchId": "match-m2-01",
+      "scheduledAt": "2026-09-16T10:00:00.000Z",
+      "startedAt": "2026-09-16T10:03:00.000Z",
+      "completedAt": null,
+      "status": "in_progress",
+      "format": "bo3",
+      "stage": "swiss",
+      "round": 1,
+      "isForfeit": false,
+      "scoreA": null,
+      "scoreB": null,
+      "entrantA": {
+        "entryId": "entry-m2-a",
+        "name": "Fixture Team 001",
+        "logoUrl": null
+      },
+      "entrantB": {
+        "entryId": "entry-m2-b",
+        "name": "Fixture Team 002",
+        "logoUrl": null
+      },
+      "stageLabel": "瑞士赛",
+      "roundLabel": "第 1 轮",
+      "matchLabel": null
+    },
+    {
+      "matchId": "match-m2-00",
+      "scheduledAt": null,
+      "startedAt": "2026-09-16T09:02:00.000Z",
+      "completedAt": "2026-09-16T09:55:00.000Z",
+      "status": "finished",
+      "format": "bo1",
+      "stage": "swiss",
+      "round": 1,
+      "isForfeit": false,
+      "scoreA": 13,
+      "scoreB": 7,
+      "entrantA": {
+        "entryId": "entry-m2-c",
+        "name": "赤焰战队",
+        "logoUrl": null
+      },
+      "entrantB": {
+        "entryId": "entry-m2-d",
+        "name": "海风战队",
+        "logoUrl": null
+      },
+      "stageLabel": "瑞士赛",
+      "roundLabel": "第 1 轮",
+      "matchLabel": null
+    },
+    {
+      "matchId": "match-m2-unknown-time",
+      "scheduledAt": null,
+      "startedAt": null,
+      "completedAt": null,
+      "status": "scheduled",
+      "format": "bo5",
+      "stage": "swiss",
+      "round": null,
+      "isForfeit": false,
+      "scoreA": null,
+      "scoreB": null,
+      "entrantA": {
+        "entryId": "entry-m2-e",
+        "name": "青岚战队",
+        "logoUrl": null
+      },
+      "entrantB": {
+        "entryId": "entry-m2-f",
+        "name": "长夜战队",
+        "logoUrl": null
+      },
+      "stageLabel": "瑞士赛",
+      "roundLabel": null,
+      "matchLabel": null
+    }
+  ]
+}

@@ -25,6 +25,7 @@ export const seasons = pgTable("seasons", {
   // 创建时选择的产品模板。它是模板所有权，而不是 capability branching 的替代品。
   competitionTemplate: competitionTemplateEnum("competition_template").notNull().default("custom"),
   status: seasonStatusEnum("status").notNull().default("draft"),
+  logoUrl: text("logo_url"),
   themeColor: text("theme_color"),
 
   // ── Capability 字段（业务逻辑的唯一判断依据）──────────────────────────
