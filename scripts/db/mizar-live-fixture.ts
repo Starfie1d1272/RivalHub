@@ -140,6 +140,10 @@ async function verify() {
     await subscribed(channel);
     if (!(await publish(1, 7)).accepted) throw new Error("Service broadcast rejected");
     await received;
+    // The custom Realtime token uses the authenticated role only to satisfy the
+    // private Broadcast policy. Project-wide Data API remains deny-by-default.
+    const businessRead = await viewer.from("seasons").select("id").limit(1);
+    if (!businessRead.error) throw new Error("Viewer token unexpectedly read application Data API");
     await subscribed(viewer.channel(matchLiveTopic(ids.otherMatchId), { config: { private: true } }), true);
     await viewer.realtime.setAuth();
     const httpWrite = await channel.httpSend("snapshot", { forged: true }).catch(() => ({ success: false }));
