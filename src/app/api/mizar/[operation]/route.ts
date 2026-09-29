@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { authenticateMizar, revokeMizarInstallation } from "@/lib/mizar/installation";
 import { loadMizarMatchDocument, loadMizarScheduleWindow } from "@/lib/mizar/context";
-import { claimMizarSource, releaseMizarSource, sourceClaimSchema } from "@/lib/mizar/source";
+import { claimMizarSource, releaseMizarSource, sourceClaimSchema, sourceReleaseSchema } from "@/lib/mizar/source";
 import { ingestMizarReliable } from "@/lib/mizar/reliable";
 import { ingestMizarLive } from "@/lib/mizar/live";
 import { mizarHttpError, mizarContextResponse, readBoundedMizarJson } from "@/lib/mizar/http";
@@ -33,12 +33,11 @@ export async function POST(request: Request, context: Context) {
     const installation = await authenticateMizar(request.headers.get("authorization"));
     const input = await readBoundedMizarJson(request, operation === "live" ? 262_144 : 20_480);
     if (operation === "claim") return Response.json(await claimMizarSource(installation.id, installation.competitionId, sourceClaimSchema.parse(input)));
+    const revision = z.coerce.number().int().positive().parse(request.headers.get("x-rivalhub-authority"));
     if (operation === "release") {
-      const { matchId } = z.strictObject({ matchId: z.uuid() }).parse(input);
-      await releaseMizarSource(installation.id, installation.competitionId, matchId);
+      await releaseMizarSource(installation.id, installation.competitionId, sourceReleaseSchema.parse(input), revision);
       return Response.json({ released: true });
     }
-    const revision = z.coerce.number().int().positive().parse(request.headers.get("x-rivalhub-authority"));
     if (operation === "live") return Response.json(await ingestMizarLive(installation.id, installation.competitionId, input, revision));
     if (operation === "reliable") {
       const envelope = z.strictObject({ event: z.unknown(), lineupSteam64: z.array(z.string().regex(/^\d{17}$/)).max(10).default([]) }).parse(input);
