@@ -872,7 +872,7 @@ export async function requestVetoStart(input: {
   return db.transaction(async (tx) => {
     const receivedAt = await databaseNow(tx);
     const match = await lockMatchInTx(tx, input.matchId);
-    await materializeDefaultLineupsInTx(tx, match);
+    await materializeDefaultLineupsInTx(tx, match, receivedAt, match.scheduledAt === null);
     let session = await getSessionForUpdateInTx(tx, match);
     const processingNow = await databaseNow(tx);
     session = await reconcileVetoSessionInTx(tx, match, session, processingNow, input.actorId);
