@@ -87,7 +87,6 @@
     "scripts/vercel-build.ts!",
     "scripts/report-build-footprint.mjs!",
     "scripts/with-node-options.ts!",
-    "scripts/assets/import-cs2-radar.mjs!",
     "scripts/mizar-contract-check.mjs!",
     "tests/mocks/server-only.ts",
     "src/components/stats/players/PlayerWorkspace.tsx!",
