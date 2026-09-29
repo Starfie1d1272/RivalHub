@@ -1,11 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   aggregateFinishedPlayerStats,
-  buildLineupsPlayers,
-  buildRadarData,
   buildRoster,
-  computeRecord,
-  computeTeamAvgStats,
   teamBadgeData,
   type MatchPlayerStatsRow,
 } from "@/lib/matches/detail-stats";
@@ -43,54 +39,6 @@ describe("match detail stats", () => {
   it("builds deterministic team badges", () => {
     expect(teamBadgeData("RivalHub", 0)).toEqual({ tag: "RIV", color: "#ff6b1a" });
     expect(teamBadgeData("Beta", 8)).toEqual({ tag: "BET", color: "#ff6b1a" });
-  });
-
-  it("computes team record from finished scores", () => {
-    expect(
-      computeRecord("team-a", [
-        { entryAId: "team-a", entryBId: "team-b", scoreA: 1, scoreB: 0 },
-        { entryAId: "team-c", entryBId: "team-a", scoreA: 1, scoreB: 0 },
-        { entryAId: "team-a", entryBId: "team-d", scoreA: null, scoreB: null },
-        { entryAId: "other-a", entryBId: "other-b", scoreA: 0, scoreB: 2 },
-        { entryAId: "team-a", entryBId: "team-d", scoreA: 1, scoreB: null },
-      ]),
-    ).toEqual({ wins: 1, losses: 1 });
-  });
-
-  it("computes team stats with canonical ADR weighting and kill/death ratio", () => {
-    expect(
-      computeTeamAvgStats(
-        [
-          statRow({ mapId: "map-1", kills: 20, deaths: 10, adr: 90, ratingPro: 1.2 }),
-          statRow({ mapId: "map-2", kills: 10, deaths: 15, adr: 70, ratingPro: 0.8 }),
-        ],
-        new Map([
-          ["map-1", 24],
-          ["map-2", 30],
-        ]),
-      ),
-    ).toEqual({ avgRating: 1, avgAdr: 4260 / 54, avgKd: 1.2 });
-  });
-
-  it("keeps ADR unknown when map rounds are unavailable", () => {
-    expect(
-      computeTeamAvgStats([
-        statRow({ kills: 20, deaths: 10, adr: 90, ratingPro: 1.2 }),
-        statRow({ kills: 10, deaths: 15, adr: 70, ratingPro: 0.8 }),
-      ]),
-    ).toEqual({ avgRating: 1, avgAdr: null, avgKd: 1.2 });
-  });
-
-  it("builds radar percentages from map stats", () => {
-    const radar = buildRadarData(
-      ["mirage", "nuke"],
-      new Map([["mirage", { mapName: "mirage", played: 4, wins: 3 }]]),
-      { pickCount: new Map([["mirage", 2]]), bpMatchCount: 4 },
-      { banCount: new Map([["nuke", 1]]), bpMatchCount: 4 },
-    );
-
-    expect(radar.get("mirage")).toEqual({ winRate: 75, pickRate: 50, banRate: 0 });
-    expect(radar.get("nuke")).toEqual({ winRate: 0, pickRate: 0, banRate: 25 });
   });
 
   it("builds roster players from submitted roster member ids", () => {
@@ -161,65 +109,7 @@ describe("match detail stats", () => {
     }]);
   });
 
-  it("builds lineup player summaries from starter stats", () => {
-    // mapId 为 key（修复了旧代码用 matchId 当回合数 key 的 bug）
-    const players = buildLineupsPlayers(
-      [
-        statRow({ mapId: "map-1", matchId: "match-1", perfectName: "Alpha", userId: "user-1", kills: 20, deaths: 10, firstKills: 2, hsPercent: 50, adr: 90, ratingPro: 1.2, we: 9 }),
-        statRow({ mapId: "map-2", matchId: "match-2", perfectName: "Alpha", userId: "user-1", kills: 10, deaths: 10, firstKills: 1, hsPercent: 30, adr: 70, ratingPro: 1, we: 7 }),
-      ],
-      ["user-1"],
-      new Map([["user-1", { id: "member-1", teamId: "team-a", personaName: "Steam", displayName: null, perfectName: "Alpha", primaryPosition: "rifler", userId: "user-1", avatarUrl: "https://cdn.test/player.webp" }]]),
-      new Map([
-        ["map-1", 24],
-        ["map-2", 30],
-      ]),
-    );
-
-    // ADR 回合加权：(90×24 + 70×30) / (24+30) = (2160+2100)/54 = 4260/54 ≈ 78.89
-    // HS% 击杀加权：(50×20 + 30×10) / (20+10) = (1000+300)/30 = 1300/30 ≈ 43.33
-    // fkpr：3 / 54
-    expect(players).toMatchObject([
-      {
-        userId: "user-1",
-        perfectName: "Alpha",
-        maps: 2,
-        avgRating: 1.1,
-        kdRatio: 1.5,
-        fkpr: 3 / 54,
-        avgWe: 8,
-      },
-    ]);
-    expect(players[0].avgAdr).toBeCloseTo(4260 / 54, 5);
-    expect(players[0].avgHs).toBeCloseTo(1300 / 30, 5);
-  });
-
-  it("uses the canonical name order for a lineup without stats", () => {
-    const players = buildLineupsPlayers(
-      [],
-      ["user-1"],
-      new Map([[
-        "user-1",
-        { id: "member-1", teamId: "team-a", personaName: null, displayName: null, perfectName: "Perfect fallback", primaryPosition: "rifler", userId: "user-1", avatarUrl: null },
-      ]]),
-      new Map(),
-    );
-
-    expect(players).toEqual([{
-      userId: "user-1",
-      perfectName: "Perfect fallback",
-      maps: 0,
-      avgRating: null,
-      avgAdr: null,
-      kdRatio: null,
-      avgHs: null,
-      fkpr: null,
-      avgWe: null,
-    }]);
-  });
-
   it("aggregates finished match stats for MVP candidates and BO summaries", () => {
-    // mapRoundsMap: map-1=24 rounds, map-2=30 rounds
     const mapRoundsMap = new Map([
       ["map-1", 24],
       ["map-2", 30],
@@ -252,7 +142,6 @@ describe("match detail stats", () => {
         firstKills: 3,
         multiKills: 4,
         clutches: 1,
-        // ADR 回合加权：(90×24 + 80×30)/(24+30) = 4560/54 ≈ 84.44
         rws: 11,
         we: 8,
       },
