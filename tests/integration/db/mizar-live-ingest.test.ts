@@ -200,7 +200,9 @@ describe("Mizar reliable event ingest ownership", () => {
     expect([map!.scoreA, map!.scoreB]).toEqual([13, 9]);
     expect(map!.completedAt).not.toBeNull();
     const [match] = await db.select().from(schema.matches).where(eq(schema.matches.id, fixture.matchId));
-    expect([match!.scoreA, match!.scoreB]).toEqual([1, 0]);
+    // Series score stays derived from map-level facts: a non-final map must never
+    // write a series result, only the canonical map row above.
+    expect([match!.scoreA, match!.scoreB]).toEqual([null, null]);
     expect(match!.status).toBe("in_progress");
 
     const source = await loadSource(fixture.sessionId);
@@ -438,6 +440,8 @@ describe("Mizar live snapshot ingest boundary", () => {
       () => ingestMizarLive(fixture.installationId, fixture.seasonId, snapshot(fixture, { cursor: { ...snapshot(fixture).cursor, runtimeSeq: 1 } }), fixture.authorityRevision),
       ErrorCode.FORBIDDEN,
     );
+    // Restore the water mark so the remaining cases exercise their own boundary.
+    await db.update(schema.matchLiveSessions).set({ lastReliableSeq: -1 }).where(eq(schema.matchLiveSessions.id, fixture.sessionId));
     await expectCode(
       () => ingestMizarLive(fixture.installationId, fixture.seasonId, snapshot(fixture, { cursor: { ...snapshot(fixture).cursor, mapEpoch: 4 } }), fixture.authorityRevision),
       ErrorCode.FORBIDDEN,
