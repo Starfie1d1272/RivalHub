@@ -46,7 +46,10 @@ class LiveFixtureWorker {
   send<T>(action: string, ...args: unknown[]): Promise<T> {
     const id = this.nextId++;
     return new Promise<T>((resolve, reject) => {
-      this.pending.set(id, { resolve, reject });
+      this.pending.set(id, {
+        resolve: (val: unknown) => resolve(val as T),
+        reject,
+      });
       this.child.stdin!.write(JSON.stringify({ id, action, args }) + "\n");
     });
   }
