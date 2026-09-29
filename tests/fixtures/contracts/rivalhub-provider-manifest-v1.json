@@ -1,0 +1,215 @@
+{
+  "schemaVersion": "rivalhub.broadcast-manifest.v1",
+  "revision": "fixture-manifest-r1",
+  "match": {
+    "matchId": "match-m2-01",
+    "competition": {
+      "competitionId": "competition-m2",
+      "slug": "m2-sample",
+      "name": "M2 示例赛",
+      "themeColor": "#1d4ed8",
+      "logoUrl": "https://example.test/storage/v1/object/public/season-public-assets/season/logo.png"
+    },
+    "status": "in_progress",
+    "format": "bo3",
+    "stage": "swiss",
+    "round": 1,
+    "entryRound": "upper",
+    "scheduledAt": "2026-09-16T10:00:00.000Z",
+    "startedAt": "2026-09-16T10:03:00.000Z",
+    "completedAt": null,
+    "scoreA": null,
+    "scoreB": null,
+    "isForfeit": false,
+    "stageKey": "swiss",
+    "stageLabel": "瑞士赛",
+    "roundLabel": "第 1 轮",
+    "matchLabel": null,
+    "stakesLabel": null,
+    "mapPool": [
+      "de_ancient",
+      "de_mirage",
+      "de_nuke",
+      "de_dust2",
+      "de_inferno",
+      "de_overpass",
+      "de_train"
+    ]
+  },
+  "entrants": {
+    "a": {
+      "entryId": "entry-m2-a",
+      "name": "Fixture Team 001",
+      "logoUrl": null,
+      "roster": {
+        "rosterId": "roster-m2-a",
+        "players": [
+          {
+            "playerId": "player-m2-a-001",
+            "steam64": "76561198000000001",
+            "displayName": "星火一号",
+            "avatarUrl": null,
+            "isStarter": true
+          },
+          {
+            "playerId": "player-m2-a-002",
+            "steam64": "76561198000000002",
+            "displayName": "星火二号",
+            "avatarUrl": null,
+            "isStarter": true
+          },
+          {
+            "playerId": "player-m2-a-003",
+            "steam64": "76561198000000003",
+            "displayName": "星火三号",
+            "avatarUrl": null,
+            "isStarter": true
+          },
+          {
+            "playerId": "player-m2-a-004",
+            "steam64": "76561198000000004",
+            "displayName": "星火四号",
+            "avatarUrl": null,
+            "isStarter": true
+          },
+          {
+            "playerId": "player-m2-a-005",
+            "steam64": "76561198000000005",
+            "displayName": "星火五号",
+            "avatarUrl": null,
+            "isStarter": true
+          },
+          {
+            "playerId": "player-m2-a-006",
+            "steam64": null,
+            "displayName": "星火替补",
+            "avatarUrl": null,
+            "isStarter": false
+          }
+        ]
+      }
+    },
+    "b": {
+      "entryId": "entry-m2-b",
+      "name": "Fixture Team 002",
+      "logoUrl": null,
+      "roster": {
+        "rosterId": "roster-m2-b",
+        "players": [
+          {
+            "playerId": "player-m2-b-001",
+            "steam64": "76561198000000011",
+            "displayName": "北极光一号",
+            "avatarUrl": null,
+            "isStarter": true
+          },
+          {
+            "playerId": "player-m2-b-002",
+            "steam64": "76561198000000012",
+            "displayName": "北极光二号",
+            "avatarUrl": null,
+            "isStarter": true
+          },
+          {
+            "playerId": "player-m2-b-003",
+            "steam64": "76561198000000013",
+            "displayName": "北极光三号",
+            "avatarUrl": null,
+            "isStarter": true
+          },
+          {
+            "playerId": "player-m2-b-004",
+            "steam64": "76561198000000014",
+            "displayName": "北极光四号",
+            "avatarUrl": null,
+            "isStarter": true
+          },
+          {
+            "playerId": "player-m2-b-005",
+            "steam64": "76561198000000015",
+            "displayName": "北极光五号",
+            "avatarUrl": null,
+            "isStarter": true
+          }
+        ]
+      }
+    }
+  },
+  "maps": [
+    {
+      "mapId": "map-m2-01",
+      "mapOrder": 1,
+      "mapName": "de_ancient",
+      "pickedByEntryId": "entry-m2-a",
+      "teamAStartSide": "t",
+      "scoreA": 16,
+      "scoreB": 12,
+      "completedAt": "2026-09-16T11:15:00.000Z"
+    },
+    {
+      "mapId": "map-m2-02",
+      "mapOrder": 2,
+      "mapName": "de_mirage",
+      "pickedByEntryId": "entry-m2-b",
+      "teamAStartSide": "ct",
+      "scoreA": null,
+      "scoreB": null,
+      "completedAt": null
+    },
+    {
+      "mapId": "map-m2-03",
+      "mapOrder": 3,
+      "mapName": "de_nuke",
+      "pickedByEntryId": null,
+      "teamAStartSide": null,
+      "scoreA": null,
+      "scoreB": null,
+      "completedAt": null
+    }
+  ],
+  "veto": [
+    {
+      "stepOrder": 1,
+      "actionType": "ban",
+      "mapName": "de_dust2",
+      "entryId": "entry-m2-a",
+      "side": null
+    },
+    {
+      "stepOrder": 2,
+      "actionType": "ban",
+      "mapName": "de_inferno",
+      "entryId": "entry-m2-b",
+      "side": null
+    },
+    {
+      "stepOrder": 3,
+      "actionType": "pick",
+      "mapName": "de_ancient",
+      "entryId": "entry-m2-a",
+      "side": "t"
+    },
+    {
+      "stepOrder": 4,
+      "actionType": "side_pick",
+      "mapName": "de_ancient",
+      "entryId": "entry-m2-b",
+      "side": "ct"
+    },
+    {
+      "stepOrder": 5,
+      "actionType": "decider",
+      "mapName": "de_nuke",
+      "entryId": null,
+      "side": null
+    }
+  ],
+  "commentators": [
+    {
+      "userId": "user-commentator-m2",
+      "displayName": "现场解说",
+      "avatarUrl": null,
+      "liveStreamUrl": "https://stream.example.test/m2"
+    }
+  ]
+}

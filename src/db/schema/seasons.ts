@@ -26,6 +26,8 @@ export const seasons = pgTable("seasons", {
   competitionTemplate: competitionTemplateEnum("competition_template").notNull().default("custom"),
   status: seasonStatusEnum("status").notNull().default("draft"),
   themeColor: text("theme_color"),
+  // 赛事标识：Tournament Context provider 投影给 Mizar 的 canonical 品牌字段。
+  logoUrl: text("logo_url"),
 
   // ── Capability 字段（业务逻辑的唯一判断依据）──────────────────────────
   // 报名模式

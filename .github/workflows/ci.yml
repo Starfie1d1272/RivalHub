@@ -42,6 +42,7 @@ jobs:
       integration_specs: ${{ steps.plan.outputs.integration_specs }}
       system_mode: ${{ steps.plan.outputs.system_mode }}
       e2e_specs: ${{ steps.plan.outputs.e2e_specs }}
+      live_evidence: ${{ steps.plan.outputs.live_evidence }}
       mobile_search_evidence: ${{ steps.plan.outputs.mobile_search_evidence }}
       gate_name: ${{ steps.plan.outputs.gate_name }}
       release_metadata_only: ${{ steps.plan.outputs.release_metadata_only }}
@@ -198,6 +199,8 @@ jobs:
     if: needs.plan.outputs.run_system == 'true'
     needs: plan
     runs-on: ubuntu-24.04
+    env:
+      RIVALHUB_LIVE_EVIDENCE: ${{ needs.plan.outputs.live_evidence == 'true' && '1' || '0' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
@@ -217,9 +220,22 @@ jobs:
         run: node scripts/ci/timing.mjs "system/bootstrap" -- pnpm db:local:bootstrap-services
       - name: Provider contract
         run: node scripts/ci/timing.mjs "system/provider verify" -- pnpm db:local:verify-supabase
+      - name: Checkout Mizar
+        if: needs.plan.outputs.live_evidence == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          repository: Starfie1d1272/Mizar
+          ref: b2820834e76a139318d2e4db6e6ed5db3a57b67a # Mizar main 2026-09-29
+          path: .mizar-checkout
+      - name: Mizar cross-repo contract
+        if: needs.plan.outputs.live_evidence == 'true'
+        run: node scripts/ci/timing.mjs "system/mizar contract" -- pnpm mizar:contract-check .mizar-checkout
       - name: Browser runtime
         run: google-chrome --version
       - name: E2E body
+        # A system run is also used for non-browser evidence (Supabase Realtime, Mizar
+        # cross-repo contract). Only an affected spec selection or a FULL gate runs browsers.
+        if: needs.plan.outputs.e2e_specs != '[]' || needs.plan.outputs.full == 'true'
         env:
           RIVALHUB_TIMING_TEST_KIND: e2e
           PLAYWRIGHT_CHANNEL: chrome

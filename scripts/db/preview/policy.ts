@@ -79,6 +79,7 @@ export const OMITTED_COLUMNS: Record<string, string> = {
   major_prestart_states: "seed_override_reason",
   draft_picks: "client_request_id",
   matches: "video_url",
+  seasons: "logo_url",
   community_awards: "supplementary_note review_note",
   match_veto_steps: "client_request_id",
   match_veto_sessions: "pause_reason",
@@ -159,6 +160,7 @@ export const PREVIEW_SCHEMA_LIFECYCLE: readonly PreviewSchemaLifecycleTable[] = 
       { name: "started_at", introducedAt: "0065_match_runtime_foundation" },
     ],
   },
+  { table: "seasons", columns: [{ name: "logo_url", introducedAt: "0066_mizar_backend_contracts" }] },
   { table: "user_gameplay_steam_ids", introducedAt: "0052_gray_supernaut" },
   {
     table: "users",
@@ -178,7 +180,7 @@ export const EXCLUDED_TABLES = new Set(`identity_link_requests user_identities u
   prediction_programs prediction_accounts prediction_contests prediction_picks prediction_judgements prediction_scenarios
   prediction_markets prediction_market_options prediction_stakes prediction_settlements prediction_ledger prediction_jobs prediction_stage_milestones
   scheduled_job_health feedback_reports coverage_allocations coverage_holds match_lineup_incidents
-  official_coverage_slots`.split(/\s+/));
+  official_coverage_slots match_live_sessions mizar_installations mizar_pairing_intents mizar_reliable_receipts`.split(/\s+/));
 
 export interface PreviewTablePolicy {
   exportedColumns: readonly string[];

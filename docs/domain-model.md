@@ -113,6 +113,7 @@ Rivals 的个人报名仍由 `season_registrations` 表达；投票由 `captain_
 `matches` 是比赛身份、状态和官方系列赛结果；`match_maps` 是实际进行地图及其回合比分。正常 BO1/BO3/BO5 都由 map-level 事实推导系列赛比分；弃赛只记录官方系列赛结果，不制造未进行地图。
 
 BP、时间协商、实际阵容、玩家统计和赛后资料拥有各自明确事实。每场只能有一个待回应的时间提议；接受、超时、截止自动确认和管理员指定保留不同的排期来源。官方转播时段是独立的可选运营容量事实；排期提议可短暂占用名额，但转播名额不是自由约定比赛时间的前置条件。后台列表、standings、工作台摘要都只是这些事实的 projection，不成为新的结果或 roster owner。
+RivalHub ↔ Mizar 是单向机器接口，不是数据共享。赛事管理员在浏览器授权页为 Mizar 创建赛事级 installation credential；installation 保存授权用户 identity，界面操作者名称读取该用户当前 `display_name`，机器身份只由 installation ID 表达。Mizar 只能经 server-only provider 读取该赛事的 Tournament Context 与赛程窗口，得到的是明确的 provider DTO，而不是 Drizzle 行、后台私有 read model、凭据或内部诊断。`match_live_sessions` 表达单场单活跃数据源与递增 authority revision：换机接管、新 program generation、新 map epoch 或管理员人工接管都会解除当前地图的自动赛果授权，被替换的数据源即使凭据仍然有效也必须 fail closed。Mizar 的可靠事件只是候选；正式地图与系列赛结果仍由 canonical result owner 在事务内写入，`series_ended` 不能在没有正式地图结果时推进系列赛。公开实时画面只经 RivalHub 校验、投射为有硬上限的 public payload 并通过私有 Supabase Realtime Broadcast 投递，不写入 PostgreSQL；观众只持有单场、短寿命、receive-only 的 viewer token。
 
 本场默认首发只来自当前合法 EventRoster 明确标记的五名主力；队伍提交的合法首发覆盖默认值。`participant`、`admin_select` 与 `system_default` 均先作为 `submitted` 的有效名单保留各自来源；开赛 transition 在同一事务内重新校验当前 EventRoster、人数、资格和限制，并将有效名单确认为不可再修改的历史 MatchRoster，不依赖管理员另行确认。临近开赛的管理员调整必须记录真实操作人与事故事实。`matches` 的 `startedAt` 记录实际进入 `in_progress` 的时间，不从排期或 BP 完成时间推断。
 

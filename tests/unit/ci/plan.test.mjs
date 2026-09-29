@@ -43,6 +43,22 @@ describe("changed-surface planner", () => {
     expect(classifyChangedFiles([{ status: "M", paths: [path] }]).requiredJobs).toEqual(requiredJobs);
   });
 
+  it("requires system evidence and the Mizar cross-repo contract for live surfaces", () => {
+    const live = classifyChangedFiles([{ status: "M", paths: ["src/lib/mizar/protocol.ts"] }]);
+    expect(live.liveEvidence).toBe(true);
+    expect(live.requiredJobs).toContain("system");
+    expect(live.full).toBe(false);
+
+    const contract = classifyChangedFiles([{ status: "M", paths: ["scripts/mizar-contract-check.mjs"] }]);
+    expect(contract.liveEvidence).toBe(true);
+    expect(contract.requiredJobs).toEqual(["static", "system"]);
+
+    const unrelated = classifyChangedFiles([{ status: "M", paths: ["src/components/layout/Footer.tsx"] }]);
+    expect(unrelated.liveEvidence).toBe(false);
+
+    expect(classifyChangedFiles([{ status: "M", paths: ["docs/testing.md"] }], { forceFull: true }).liveEvidence).toBe(true);
+  });
+
   it("parses git name-status lines without depending on pnpm", () => {
     expect(parseNameStatus("M\tsrc/lib/date.ts\nA\tdocs/testing.md\n")).toEqual([
       { status: "M", paths: ["src/lib/date.ts"] },
