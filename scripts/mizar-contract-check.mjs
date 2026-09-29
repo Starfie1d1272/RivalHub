@@ -88,6 +88,9 @@ try {
       const payload = pollCount === 1 ? pollPending : pollAuth;
       return new Response(JSON.stringify(payload), { status: 200, headers: { "content-type": "application/json" } });
     }
+    if (u.pathname === "/api/mizar/disconnect" || u.pathname === "/api/mizar/revoke" || u.pathname === "/api/mizar/release") {
+      return new Response(JSON.stringify({ revoked: true, released: true }), { status: 200, headers: { "content-type": "application/json" } });
+    }
     throw new Error(`Unexpected url: ${url}`);
   };
 

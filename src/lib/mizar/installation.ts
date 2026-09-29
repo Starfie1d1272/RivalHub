@@ -95,11 +95,14 @@ export async function pollMizarPairing(pairingId: string, pollToken: string): Pr
   };
 }
 
-export async function authenticateMizar(authorization: string | null) {
+export async function authenticateMizar(authorization: string | null, options: { allowRevoked?: boolean } = {}) {
   const token = authorization?.match(/^Bearer\s+(rh_mizar_[0-9a-f-]{36}_[0-9a-f]{64})$/i)?.[1];
   if (!token) throw new AppError(ErrorCode.FORBIDDEN, "制播设备凭据无效。");
-  const [installation] = await db.select().from(mizarInstallations).where(and(eq(mizarInstallations.credentialHash, hashCredential(token)), isNull(mizarInstallations.revokedAt)));
-  if (!installation) throw new AppError(ErrorCode.FORBIDDEN, "制播设备连接已撤销。");
+  const [installation] = await db.select().from(mizarInstallations).where(eq(mizarInstallations.credentialHash, hashCredential(token)));
+  if (!installation) throw new AppError(ErrorCode.FORBIDDEN, "制播设备凭据无效。");
+  if (!options.allowRevoked && installation.revokedAt !== null) {
+    throw new AppError(ErrorCode.FORBIDDEN, "制播设备连接已撤销。");
+  }
   return installation;
 }
 
@@ -110,12 +113,14 @@ export async function assertInstallationInTx(tx: TxDb, installationId: string, c
 }
 
 export async function revokeMizarInstallation(installationId: string, competitionId: string, actorId: string) {
-  await db.transaction(async tx => {
+  return await db.transaction(async tx => {
     const [installation] = await tx.select().from(mizarInstallations).where(and(eq(mizarInstallations.id, installationId), eq(mizarInstallations.competitionId, competitionId))).for("update");
     if (!installation) throw new AppError(ErrorCode.NOT_FOUND, "制播设备不存在。");
+    if (installation.revokedAt !== null) return { revoked: true, alreadyRevoked: true };
     const now = new Date();
     await tx.update(mizarInstallations).set({ revokedAt: now }).where(eq(mizarInstallations.id, installationId));
     await tx.update(matchLiveSessions).set({ closedAt: now, closeReason: "revoked", autoCanonicalizationArmed: false }).where(and(eq(matchLiveSessions.installationId, installationId), isNull(matchLiveSessions.closedAt)));
     await writeAuditInTx(tx, { seasonId: competitionId, actorId, action: "mizar.installation.revoke", targetId: installationId });
+    return { revoked: true, alreadyRevoked: false };
   });
 }
