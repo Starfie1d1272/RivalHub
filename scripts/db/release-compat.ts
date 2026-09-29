@@ -175,6 +175,9 @@ function resolveStableTag(cwd: string, tag: string, label: string): string {
 
 function evaluateFinding(finding: MigrationRiskFinding, sources: readonly ShippedSource[]): CompatibilityFinding {
   if (finding.category === "alter-type" || finding.category === "set-not-null") {
+    if (finding.category === "alter-type" && /\bALTER\s+TYPE\b[\s\S]*?\bADD\s+VALUE\b/i.test(finding.statementText ?? finding.statement)) {
+      return { finding, owners: [], evidence: [], status: "not-applicable" };
+    }
     return {
       finding,
       owners: [],

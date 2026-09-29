@@ -65,7 +65,8 @@ const vetoRoomMigration = readFileSync(
   "utf8",
 );
 const predictionMigration = readFileSync(join(root, "drizzle/migrations/0062_prediction_markets.sql"), "utf8");
-const migration = `${predictionMigration}\n${terminalMigration}\n${restrictionOverrideMigration}\n${conversionPolicyMigration}\n${seedRecommendationSnapshotMigration}\n${identityMigration}\n${schedulerMigration}\n${stageConvergenceMigration}\n${contractCleanupMigration}\n${operationsMigration}\n${demoIntegrationMigration}\n${steamIdentityMigration}\n${qualificationMigration}\n${vetoRoomMigration}`;
+const matchRuntimeMigration = readFileSync(join(root, "drizzle/migrations/0065_match_runtime_live.sql"), "utf8");
+const migration = `${predictionMigration}\n${terminalMigration}\n${restrictionOverrideMigration}\n${conversionPolicyMigration}\n${seedRecommendationSnapshotMigration}\n${identityMigration}\n${schedulerMigration}\n${stageConvergenceMigration}\n${contractCleanupMigration}\n${operationsMigration}\n${demoIntegrationMigration}\n${steamIdentityMigration}\n${qualificationMigration}\n${vetoRoomMigration}\n${matchRuntimeMigration}`;
 const droppedTables = [...contractCleanupMigration.matchAll(/DROP TABLE "([^"]+)"/g)].map((match) => match[1]);
 
 function expectedFacts(): DatabaseAccessFacts[] {
@@ -82,13 +83,13 @@ function expectedFacts(): DatabaseAccessFacts[] {
 describe("database access matrix", () => {
   it("classifies every current public application table and keeps the generated document aligned", () => {
     const snapshot = JSON.parse(
-      readFileSync(join(root, "drizzle/migrations/meta/0062_snapshot.json"), "utf8"),
+      readFileSync(join(root, "drizzle/migrations/meta/0065_snapshot.json"), "utf8"),
     ) as { tables: Record<string, unknown> };
     const snapshotTables = Object.keys(snapshot.tables)
       .map((table) => table.replace(/^public\./, ""))
       .sort();
 
-    expect(DATABASE_ACCESS_MATRIX).toHaveLength(100);
+    expect(DATABASE_ACCESS_MATRIX).toHaveLength(108);
     expect(new Set(DATABASE_ACCESS_TABLES).size).toBe(DATABASE_ACCESS_TABLES.length);
     expect(snapshotTables).toEqual([...DATABASE_ACCESS_TABLES].sort());
     expect(renderDatabaseAccessMatrixMarkdown()).toBe(
@@ -115,6 +116,8 @@ describe("database access matrix", () => {
       [...DATABASE_ACCESS_TABLES]
         .filter((table) =>
           !table.startsWith("prediction_") && ![
+            "coverage_allocations", "coverage_holds", "match_lineup_incidents", "official_coverage_slots",
+            "match_live_sessions", "mizar_installations", "mizar_pairing_intents", "mizar_reliable_receipts",
             "competition_entry_restriction_overrides",
             "competition_qualification_entrants",
             "competition_qualification_runs",

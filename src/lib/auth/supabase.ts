@@ -10,3 +10,12 @@ export function createBrowserClient() {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
 }
+
+/** Short-lived public match viewer token, scoped by Realtime RLS to one topic. */
+export function createLiveViewerClient(accessToken: () => Promise<string | null>) {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    { accessToken },
+  );
+}

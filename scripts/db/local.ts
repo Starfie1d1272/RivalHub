@@ -186,7 +186,7 @@ function startLocalServices(): void {
   ensureLoopbackDockerNetwork();
   runQuiet(
     supabaseBin,
-    ["start", "--exclude", MINIMAL_SUPABASE_EXCLUDES, "--network-id", DOCKER_NETWORK, "--yes"],
+    ["start", "--exclude", process.env.RIVALHUB_LIVE_EVIDENCE === "1" ? MINIMAL_SUPABASE_EXCLUDES.replace("realtime,", "") : MINIMAL_SUPABASE_EXCLUDES, "--network-id", DOCKER_NETWORK, "--yes"],
     sanitizedEnvironment(),
   );
   printStatus(readLocalStatus());
@@ -230,9 +230,12 @@ function verifyDatabase(): void {
 
 function verifySupabaseServices(): void {
   const status = readLocalStatus();
-  run(tsxBin, ["scripts/db/verify-supabase.ts"], {
-    env: buildLocalAppEnvironment(status, sanitizedEnvironment()),
-  });
+  const env = buildLocalAppEnvironment(status, sanitizedEnvironment());
+  run(tsxBin, ["scripts/db/verify-supabase.ts"], { env });
+  if (process.env.RIVALHUB_LIVE_EVIDENCE === "1") {
+    if (!env.SUPABASE_JWT_SECRET) throw new Error("Local Supabase JWT_SECRET unavailable for live evidence");
+    run(tsxBin, ["scripts/db/run-server-cli.ts", "scripts/db/mizar-live-fixture.ts", "verify"], { env });
+  }
 }
 
 function verifyLocalMigrations(): void {
@@ -530,6 +533,8 @@ function sanitizedEnvironment(): NodeJS.ProcessEnv {
     "NEXT_PUBLIC_SUPABASE_URL",
     "NEXT_PUBLIC_SUPABASE_ANON_KEY",
     "SUPABASE_SERVICE_ROLE_KEY",
+    "SUPABASE_SECRET_KEY",
+    "SUPABASE_JWT_SECRET",
     "SUPABASE_ACCESS_TOKEN",
     "SUPABASE_DB_PASSWORD",
     "SUPABASE_PROJECT_ID",

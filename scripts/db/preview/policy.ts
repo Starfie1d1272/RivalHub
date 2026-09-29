@@ -43,7 +43,7 @@ export const PREVIEW_COLUMNS: Record<string, string> = {
   draft_state: "id season_id current_round current_entry_id round_deadline is_active updated_at",
   dak_pairing_intents: "id poll_token_hash status authorized_by_user_id expires_at authorized_at delivered_at created_at",
   dak_pairings: "id pairing_intent_id user_id token_hash scopes season_ids status revoked_at last_used_at created_at",
-  matches: "id season_id entry_a_id entry_b_id stage round format entry_round score_a score_b status is_forfeit bracket_node_id ownership major_stage_run_id qualification_run_id managed_key scheduled_at completion_deadline completed_at mvp_winner_user_id created_at updated_at",
+  matches: "id season_id entry_a_id entry_b_id stage round format entry_round score_a score_b status is_forfeit bracket_node_id ownership major_stage_run_id qualification_run_id managed_key scheduled_at started_at completion_deadline completed_at mvp_winner_user_id created_at updated_at",
   match_maps: "id match_id map_order map_name picked_by_entry_id team_a_start_side score_a score_b completed_at created_at",
   match_demo_imports: "id season_id match_id match_map_id stage_key stage_run_id demo_sha256 payload_sha256 contract_version semantic_profile analysis_version evidence_revision status payload submitted_by_pairing_id idempotency_key supersedes_import_id issues submitted_at confirmed_at created_at",
   match_player_stats: "id match_id map_id perfect_name user_id kills deaths assists hs_percent first_kills first_deaths multi_kills trade_kills kast_rounds clutches adr rws rating_pro we dak_import_id verified_by_admin verified_at created_at",
@@ -79,6 +79,7 @@ export const OMITTED_COLUMNS: Record<string, string> = {
   major_prestart_states: "seed_override_reason",
   draft_picks: "client_request_id",
   matches: "video_url",
+  seasons: "logo_url",
   community_awards: "supplementary_note review_note",
   match_veto_steps: "client_request_id",
   match_veto_sessions: "pause_reason",
@@ -154,8 +155,12 @@ export const PREVIEW_SCHEMA_LIFECYCLE: readonly PreviewSchemaLifecycleTable[] = 
   },
   {
     table: "matches",
-    columns: [{ name: "qualification_run_id", introducedAt: "0056_competition-qualification-playin" }],
+    columns: [
+      { name: "qualification_run_id", introducedAt: "0056_competition-qualification-playin" },
+      { name: "started_at", introducedAt: "0065_match_runtime_live" },
+    ],
   },
+  { table: "seasons", columns: [{ name: "logo_url", introducedAt: "0065_match_runtime_live" }] },
   { table: "user_gameplay_steam_ids", introducedAt: "0052_gray_supernaut" },
   {
     table: "users",
@@ -174,7 +179,8 @@ export const EXCLUDED_TABLES = new Set(`identity_link_requests user_identities u
   user_sessions disciplinary_case_idempotency disciplinary_cases community_award_evidence
   prediction_programs prediction_accounts prediction_contests prediction_picks prediction_judgements prediction_scenarios
   prediction_markets prediction_market_options prediction_stakes prediction_settlements prediction_ledger prediction_jobs prediction_stage_milestones
-  scheduled_job_health feedback_reports`.split(/\s+/));
+  scheduled_job_health feedback_reports coverage_allocations coverage_holds match_lineup_incidents
+  official_coverage_slots match_live_sessions mizar_installations mizar_pairing_intents mizar_reliable_receipts`.split(/\s+/));
 
 export interface PreviewTablePolicy {
   exportedColumns: readonly string[];

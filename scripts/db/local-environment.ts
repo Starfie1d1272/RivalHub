@@ -14,6 +14,7 @@ export interface LocalSupabaseStatus {
   publishableKey: string;
   serviceRoleKey: string;
   studioUrl?: string;
+  jwtSecret?: string;
 }
 
 export interface LocalDatabaseStatus {
@@ -53,6 +54,7 @@ export function parseLocalSupabaseStatus(raw: string): LocalSupabaseStatus {
     apiUrl,
     publishableKey,
     serviceRoleKey,
+    ...(stringValue(values.JWT_SECRET) ? { jwtSecret: stringValue(values.JWT_SECRET) } : {}),
     studioUrl: studioUrlValue
       ? assertLocalHttpUrl(studioUrlValue, "Supabase STUDIO_URL")
       : undefined,
@@ -81,6 +83,8 @@ export function buildLocalAppEnvironment(
     NEXT_PUBLIC_SUPABASE_URL: status.apiUrl,
     NEXT_PUBLIC_SUPABASE_ANON_KEY: status.publishableKey,
     SUPABASE_SERVICE_ROLE_KEY: status.serviceRoleKey,
+    SUPABASE_SECRET_KEY: undefined,
+    SUPABASE_JWT_SECRET: status.jwtSecret,
     NEXT_PUBLIC_TURNSTILE_SITE_KEY: LOCAL_TURNSTILE_SITE_KEY,
     TURNSTILE_SECRET_KEY: LOCAL_TURNSTILE_SECRET_KEY,
     ADMIN_SESSION_SECRET:

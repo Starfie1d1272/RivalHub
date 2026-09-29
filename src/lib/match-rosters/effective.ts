@@ -34,6 +34,7 @@ export interface EffectiveMatchRosterPlayer {
 export async function loadEffectiveMatchRoster(
   database: MatchRosterExecutor,
   matchIds: readonly string[],
+  includeSubstitutes = false,
 ): Promise<EffectiveMatchRosterPlayer[]> {
   if (matchIds.length === 0) return [];
 
@@ -56,7 +57,7 @@ export async function loadEffectiveMatchRoster(
     .where(and(
       inArray(matchRosters.matchId, [...matchIds]),
       inArray(matchRosters.status, ["submitted", "confirmed"]),
-      eq(matchRosterPlayers.isStarter, true),
+      ...(includeSubstitutes ? [] : [eq(matchRosterPlayers.isStarter, true)]),
     ))
     .orderBy(
       asc(matchRosters.matchId),
