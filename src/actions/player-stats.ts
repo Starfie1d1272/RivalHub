@@ -2,7 +2,7 @@
 
 import { writeAuditInTx } from "@/lib/audit/write";
 
-import { and, eq, desc, sql, inArray, isNotNull, or } from "drizzle-orm";
+import { and, eq, desc, sql, isNotNull } from "drizzle-orm";
 import { db } from "@/db/client";
 import { matchMaps } from "@/db/schema/match-maps";
 import { matches } from "@/db/schema/matches";
@@ -10,7 +10,7 @@ import { matchPlayerStats } from "@/db/schema/player-stats";
 import { matchMvpVotes } from "@/db/schema/mvp-votes";
 import { matchRosters, matchRosterPlayers } from "@/db/schema/match-rosters";
 import { users } from "@/db/schema/users";
-import { eventRosterMembers, eventRosters } from "@/db/schema/competition-entries";
+import { eventRosterMembers } from "@/db/schema/competition-entries";
 import { ok, fail, type ActionResult } from "@/types/action";
 import { AppError, ErrorCode, ERROR_MESSAGES } from "@/lib/errors";
 import { actionError } from "@/lib/action-utils";
@@ -22,6 +22,16 @@ import type { PlayerRowOCR } from "@/lib/ocr";
 import { requireSeasonAdmin, auditActorId, requireAuth } from "@/lib/auth/session";
 import { revalidatePath } from "next/cache";
 import { isStatOutOfRange } from "@/lib/config/stat-ranges";
+import { canConfirmMapScoreboard } from "@/lib/matches/map-scoreboard";
+import { z } from "zod";
+import { playerRowSchema } from "@/lib/ocr/types";
+import {
+  loadScoreboardPlayers,
+  clearOperatorScoreboardInTx,
+  loadOperatorScoreboard,
+  type OperatorScoreboardRow,
+} from "@/lib/matches/operator-scoreboard";
+import { applyOcrScoreboardEnrichment } from "@/lib/matches/scoreboard-ownership";
 
 export type PlayerStatsDraft = PlayerRowOCR & {
   userId: string | null;
@@ -56,33 +66,7 @@ export async function extractStatsFromScreenshot(
     if (!match) throw new AppError(ErrorCode.NOT_FOUND, "比赛记录不存在");
     await requireSeasonAdmin(match.seasonId);
 
-    // 仅查询本场比赛两队队员（用于昵称匹配 + 下拉选择）
-    const teamMemberRows = await db
-      .select({ userId: eventRosterMembers.userId })
-      .from(eventRosterMembers)
-      .innerJoin(eventRosters, eq(eventRosterMembers.eventRosterId, eventRosters.id))
-      .where(and(
-        inArray(eventRosters.entryId, [match.entryAId, match.entryBId]),
-        or(
-          eq(eventRosterMembers.isCurrent, true),
-          inArray(eventRosterMembers.id, db.select({ memberId: matchRosterPlayers.eventRosterMemberId })
-            .from(matchRosterPlayers)
-            .innerJoin(matchRosters, eq(matchRosters.id, matchRosterPlayers.rosterId))
-            .where(eq(matchRosters.matchId, match.id))),
-        ),
-      ));
-
-    const teamUserIds = teamMemberRows.map((r) => r.userId);
-
-    const seasonPlayers = teamUserIds.length
-      ? await db
-          .select({
-            userId: users.id,
-            perfectName: users.perfectName,
-          })
-          .from(users)
-          .where(inArray(users.id, teamUserIds))
-      : [];
+    const seasonPlayers = await loadScoreboardPlayers(db, match.id, [match.entryAId, match.entryBId]);
 
     const nameToUserId = new Map<string, string>();
     for (const p of seasonPlayers) {
@@ -130,8 +114,12 @@ export async function savePlayerStats(
   mapId: string,
   input: { rows: PlayerStatsDraft[] }
 ) {
-  const stats = input.rows;
   try {
+    const parsed = z.object({ rows: z.array(playerRowSchema.extend({ perfectName: z.string().trim().min(1).max(128), userId: z.uuid().nullable() })).max(20) }).safeParse(input);
+    if (!parsed.success) throw new AppError(ErrorCode.VALIDATION_FAILED, "选手数据格式不合法");
+    const stats = parsed.data.rows;
+    const userIds = stats.flatMap(row => row.userId ? [row.userId] : []);
+    if (new Set(userIds).size !== userIds.length) throw new AppError(ErrorCode.VALIDATION_FAILED, "同一张地图不能重复关联同一选手");
     const map = await db.query.matchMaps.findFirst({
       where: eq(matchMaps.id, mapId),
     });
@@ -141,8 +129,8 @@ export async function savePlayerStats(
       where: eq(matches.id, map.matchId),
     });
     if (!match) throw new AppError(ErrorCode.NOT_FOUND, "比赛记录不存在");
-    if (match.status !== "finished") {
-      throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "只有已结束比赛可以确认选手数据。");
+    if (!canConfirmMapScoreboard(map)) {
+      throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "只有已结束的地图可以确认选手数据。");
     }
     const session = await requireSeasonAdmin(match.seasonId);
     const actor = auditActorId(session);
@@ -163,19 +151,14 @@ export async function savePlayerStats(
       );
     }
 
-    // 对有 userId 的行，用 users.perfectName 覆盖 OCR 识别昵称，保证数据库一致性
-    const userIds = stats.map((s) => s.userId).filter(Boolean) as string[];
-    const userRows = userIds.length
-      ? await db.select({ id: users.id, perfectName: users.perfectName })
-          .from(users).where(inArray(users.id, userIds))
-      : [];
-    const userPerfectNames = new Map(userRows.map((u) => [u.id, u.perfectName]));
-    const normalizedStats = stats.map((s) => ({
-      ...s,
-      perfectName: (s.userId && userPerfectNames.get(s.userId)) || (s.perfectName as string),
-    }));
-
     await db.transaction(async (tx) => {
+      const [currentMatch] = await tx.select({ id: matches.id }).from(matches).where(eq(matches.id, map.matchId)).for("share");
+      const [currentMap] = await tx.select({ scoreA: matchMaps.scoreA, scoreB: matchMaps.scoreB }).from(matchMaps).where(eq(matchMaps.id, mapId)).for("update");
+      if (!currentMap || !currentMatch || !canConfirmMapScoreboard(currentMap)) throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "只有已结束的地图可以确认选手数据。");
+      const allowed = await loadScoreboardPlayers(tx, match.id, [match.entryAId, match.entryBId]);
+      const userPerfectNames = new Map(allowed.map(row => [row.userId, row.perfectName]));
+      if (userIds.some(id => !userPerfectNames.has(id))) throw new AppError(ErrorCode.VALIDATION_FAILED, "选手不属于本场出场阵容");
+      const normalizedStats = stats.map(row => ({ ...row, perfectName: (row.userId && userPerfectNames.get(row.userId)) || row.perfectName }));
       const existing = await tx.select().from(matchPlayerStats).where(eq(matchPlayerStats.mapId, mapId)).for("update");
       const existingByUser = new Map(existing.filter((row) => row.userId != null).map((row) => [row.userId!, row]));
       const existingByName = new Map(existing.map((row) => [row.perfectName, row]));
@@ -192,15 +175,15 @@ export async function savePlayerStats(
         const prior = (s.userId ? existingByUser.get(s.userId) : undefined)
           ?? (named && (!s.userId || named.userId == null || named.userId === s.userId) ? named : undefined);
         const userId = s.userId ?? prior?.userId ?? null;
+        if (userId && !userPerfectNames.has(userId)) throw new AppError(ErrorCode.VALIDATION_FAILED, "选手不属于本场出场阵容");
         const now = new Date();
         if (prior) {
           matchedIds.add(prior.id);
+          const enrichment = applyOcrScoreboardEnrichment(prior, s);
           const ocrValues = {
             perfectName: s.perfectName,
             userId,
-            ratingPro: s.ratingPro,
-            rws: s.rws,
-            we: s.we,
+            ...enrichment,
             verifiedByAdmin: actor,
             verifiedAt: now,
           };
@@ -252,7 +235,7 @@ export async function savePlayerStats(
         seasonId: match.seasonId,
         action: "match.save_player_stats",
         actorId: actor,
-        targetId: mapId,meta: { playerCount: stats.length, matchId: map.matchId },
+        targetId: mapId, meta: { playerCount: stats.length, matchId: map.matchId },
       });
     });
 
@@ -263,13 +246,24 @@ export async function savePlayerStats(
 }
 
 /**
- * 查询某张地图已保存的玩家数据
+ * 查询某张地图已保存的计分板数据。只服务后台编辑器：先按本场所属赛季授权，
+ * 再经 server-only read model 返回 sanitized DTO，不下发 DAK lineage 与审核字段。
  */
-export async function getPlayerStatsByMap(mapId: string) {
-  return db.query.matchPlayerStats.findMany({
-    where: eq(matchPlayerStats.mapId, mapId),
-    orderBy: (t, { desc }) => [desc(t.ratingPro)],
-  });
+export async function getPlayerStatsByMap(mapId: string): Promise<OperatorScoreboardRow[]> {
+  try {
+    const map = await db.query.matchMaps.findFirst({ where: eq(matchMaps.id, mapId) });
+    if (!map) return [];
+    const match = await db.query.matches.findFirst({ where: eq(matches.id, map.matchId) });
+    if (!match) return [];
+    await requireSeasonAdmin(match.seasonId);
+    return await loadOperatorScoreboard(db, mapId);
+  } catch (error) {
+    captureException("action.player_stats_read_failure", error, {
+      scope: "action",
+      operation: "getPlayerStatsByMap",
+    });
+    return [];
+  }
 }
 
 /**
@@ -283,28 +277,7 @@ export async function getMatchPlayerOptions(mapId: string): Promise<PlayerOption
     if (!match) return [];
     await requireSeasonAdmin(match.seasonId);
 
-    const teamMemberRows = await db
-      .select({ userId: eventRosterMembers.userId })
-      .from(eventRosterMembers)
-      .innerJoin(eventRosters, eq(eventRosterMembers.eventRosterId, eventRosters.id))
-      .where(and(
-        inArray(eventRosters.entryId, [match.entryAId, match.entryBId]),
-        or(
-          eq(eventRosterMembers.isCurrent, true),
-          inArray(eventRosterMembers.id, db.select({ memberId: matchRosterPlayers.eventRosterMemberId })
-            .from(matchRosterPlayers)
-            .innerJoin(matchRosters, eq(matchRosters.id, matchRosterPlayers.rosterId))
-            .where(eq(matchRosters.matchId, match.id))),
-        ),
-      ));
-
-    const teamUserIds = teamMemberRows.map((r) => r.userId);
-    if (!teamUserIds.length) return [];
-
-    const seasonPlayers = await db
-      .select({ userId: users.id, perfectName: users.perfectName })
-      .from(users)
-      .where(inArray(users.id, teamUserIds));
+    const seasonPlayers = await loadScoreboardPlayers(db, match.id, [match.entryAId, match.entryBId]);
 
     return seasonPlayers.map((p) => ({
       userId: p.userId,
@@ -448,7 +421,7 @@ export async function ensureMvpWinner(matchId: string): Promise<string | null> {
 }
 
 /**
- * 清除某张地图的所有玩家数据（管理员操作，写 audit log）。
+ * 清除管理员记分板输入；保留 DAK gameplay projection 与确认事实。
  */
 export async function deletePlayerStatsByMap(mapId: string): Promise<ActionResult<void>> {
   try {
@@ -459,12 +432,14 @@ export async function deletePlayerStatsByMap(mapId: string): Promise<ActionResul
     const session = await requireSeasonAdmin(match.seasonId);
 
     await db.transaction(async (tx) => {
-      await tx.delete(matchPlayerStats).where(eq(matchPlayerStats.mapId, mapId));
+      await tx.select({ id: matches.id }).from(matches).where(eq(matches.id, map.matchId)).for("share");
+      await tx.select({ id: matchMaps.id }).from(matchMaps).where(eq(matchMaps.id, mapId)).for("update");
+      await clearOperatorScoreboardInTx(tx, mapId);
       await writeAuditInTx(tx, {
         seasonId: match.seasonId,
-        action: "match.delete_player_stats",
+        action: "match.clear_operator_scoreboard",
         actorId: auditActorId(session),
-        targetId: mapId,meta: { mapId },
+        targetId: mapId, meta: { mapId },
       });
     });
 

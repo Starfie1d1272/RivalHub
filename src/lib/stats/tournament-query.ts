@@ -57,7 +57,7 @@ async function loadStatsEvidence(tx: TxDb, scope: StatsEvidenceScope, options: {
         scope.format ? eq(matches.format, scope.format) : undefined,
       )) : [];
   const selectedTeamId = options.teamId ?? scope.teamFilter;
-  const baseMatches = matchRows.filter((match) => match.status !== "cancelled");
+  const baseMatches = matchRows;
   const scopedMatches = baseMatches.filter((match) => !selectedTeamId || [match.entryAId, match.entryBId].includes(selectedTeamId));
   const matchesById = new Map(scopedMatches.map((match) => [match.id, match]));
   const matchIds = scopedMatches.map((match) => match.id);
@@ -105,7 +105,7 @@ async function loadStatsEvidence(tx: TxDb, scope: StatsEvidenceScope, options: {
   const currentRefs = scopedMaps.flatMap((map) => {
     const current = selectCurrentDemoImport(importsByMapId.get(map.id) ?? []);
     const match = matchesById.get(map.matchId);
-    if (!current || !match || current.status !== "confirmed" || match.status !== "finished" || !map.completedAt || map.scoreA === null || map.scoreB === null) return [];
+    if (!current || !match || current.status !== "confirmed" || !map.completedAt || map.scoreA === null || map.scoreB === null) return [];
     if (current.evidenceRevision !== buildEvidenceRevisionForTarget({ match, map, roster: rosterByMatchId.get(match.id) ?? [] })) return [];
     return [{ current, match, map }];
   });
