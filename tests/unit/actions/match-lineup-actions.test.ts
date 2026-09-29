@@ -188,6 +188,7 @@ describe("match lineup actions", () => {
     const [, payload] = stubs.persistMatchRosterInTx.mock.calls[0]!;
     expect(payload.source).toBe("admin_select");
     expect(payload.submittedBy).toBeNull();
+    expect(payload.actorId).toBe("admin@local.test");
     expect(payload.entryId).toBe("team-b");
   });
 

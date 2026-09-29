@@ -449,6 +449,20 @@
       "when": 1790524621598,
       "tag": "0063_violet_baron_strucker",
       "breakpoints": true
+    },
+    {
+      "idx": 64,
+      "version": "7",
+      "when": 1790671886656,
+      "tag": "0064_match_roster_system_default",
+      "breakpoints": true
+    },
+    {
+      "idx": 65,
+      "version": "7",
+      "when": 1790671886657,
+      "tag": "0065_match_runtime_foundation",
+      "breakpoints": true
     }
   ]
 }

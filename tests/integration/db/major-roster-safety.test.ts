@@ -10,7 +10,7 @@
  *  6. 合法 5 人但 NJU 首发 <3 → fail
  *  7. 合法且 NJU 首发 ≥3 → confirm → start 通过
  *  8. mutable season 规则改变不影响 frozen StageRun 快照
- *  9. admin 选择默认首发但不确认 → start fail；显式确认 → 通过
+ *  9. participant/admin_select 提交后在开赛边界自动确认；显式确认仍幂等
  * 10. repeated submit 幂等/确定性
  * 11. repeated confirm 幂等且不重复写 audit
  * 12. 并发 start 只产生一次状态推进、一次 match.start audit，无双 roster
@@ -39,7 +39,9 @@ import { capturePostgresError, localDatabaseUrl } from "./harness/database";
 
 const databaseUrl = localDatabaseUrl();
 
-const ACTOR = "local-admin-g1";
+const ACTOR = randomUUID();
+const ACTOR_A = randomUUID();
+const ACTOR_B = randomUUID();
 
 async function expectAppError(work: () => Promise<unknown>, code: ErrorCode, hint?: string): Promise<AppError> {
   try {
@@ -94,6 +96,7 @@ async function submitLineupProductionLogic(
       match: locked,
       entryId: args.entryId,
       submittedBy,
+      actorId: ACTOR,
       source: args.source,
       starterIds: args.starterIds,
       substituteIds: args.substituteIds,
@@ -101,7 +104,7 @@ async function submitLineupProductionLogic(
     await tx.insert(auditLogs).values({
       seasonId: locked.seasonId,
       action: "match.roster.submit",
-      actorId: ACTOR,
+      actorId: args.source === "participant" ? submittedBy ?? ACTOR : ACTOR,
       targetId: summary.rosterId,
       targetType: "match_roster",
       meta: {
@@ -158,7 +161,7 @@ function teamUserLayout(offset: number): { userIdIndex: number; institutionCode:
   ];
 }
 
-async function prepareFixture(pool: Pool, label: string): Promise<RosterSafetyFixture> {
+async function prepareFixture(pool: Pool, label: string, options: { primaryStarters?: boolean; includeActors?: boolean } = {}): Promise<RosterSafetyFixture> {
   const client = await pool.connect();
   const seasonId = randomUUID();
   const capabilities = createMajorDefaultCapabilities();
@@ -189,7 +192,7 @@ async function prepareFixture(pool: Pool, label: string): Promise<RosterSafetyFi
     );
 
     const allLayouts = [...teamUserLayout(0), ...teamUserLayout(100)];
-    const userIds = allLayouts.map(() => randomUUID());
+    const userIds = [...allLayouts.map(() => randomUUID()), ...(options.includeActors === false ? [] : [ACTOR, ACTOR_A, ACTOR_B])];
     for (let i = 0; i < userIds.length; i += 1) {
       await client.query(
         `INSERT INTO users (id, email, email_verified_at) VALUES ($1, $2, now())`,
@@ -284,9 +287,9 @@ async function prepareFixture(pool: Pool, label: string): Promise<RosterSafetyFi
           [sideUsers[offset], layouts[offset].institutionCode],
         )).rows[0]!.id;
         await client.query(
-          `INSERT INTO event_roster_members (id, event_roster_id, participant_id, user_id, education_verification_id)
-           VALUES ($1, $2, $3, $4, $5)`,
-          [memberId, eventRosterIds[side], participantIds[offset], sideUsers[offset], verificationId],
+          `INSERT INTO event_roster_members (id, event_roster_id, participant_id, user_id, education_verification_id, is_primary_starter)
+           VALUES ($1, $2, $3, $4, $5, $6)`,
+          [memberId, eventRosterIds[side], participantIds[offset], sideUsers[offset], verificationId, options.primaryStarters === true && offset < 5],
         );
       }
       revisionMemberIdsBySide.push(revisionMemberIds);
@@ -399,6 +402,7 @@ async function cleanupFixture(pool: Pool, fixture: RosterSafetyFixture): Promise
       WHERE p.roster_id = r.id AND r.match_id IN (SELECT id FROM matches WHERE season_id = $1)`, [fixture.seasonId]);
     await client.query(`DELETE FROM match_rosters WHERE match_id IN (SELECT id FROM matches WHERE season_id = $1)`,
       [fixture.seasonId]);
+    await client.query("DELETE FROM match_lineup_incidents WHERE match_id IN (SELECT id FROM matches WHERE season_id = $1)", [fixture.seasonId]);
     await client.query("DELETE FROM matches WHERE season_id = $1", [fixture.seasonId]);
     await client.query("DELETE FROM major_stage_runs WHERE season_id = $1", [fixture.seasonId]);
     // Frozen-roster immutability and append-only provenance are intentional in
@@ -453,6 +457,7 @@ async function main(): Promise<void> {
   const pool = new Pool({ connectionString: databaseUrl, ssl: false, max: 6 });
   const database = drizzle(pool, { schema });
   let fixture: RosterSafetyFixture | null = null;
+  let defaultFixture: RosterSafetyFixture | null = null;
 
   try {
     fixture = await prepareFixture(pool, "g1");
@@ -583,7 +588,7 @@ async function main(): Promise<void> {
       expect(njuShortfall.message.includes("南京大学"),  "S7 需要给出 NJU 归属 shortfall 文案").toBe(true);
     }
 
-    // S8 admin 选择默认首发但未确认 → start 必须拒绝。
+    // S8 admin 选择首发后保留 submitted，开赛边界再重新校验并确认。
     const adminSelectARoster = (
       await submitLineupProductionLogic(database, {
         matchId: mgMatch, entryId: entryAId, source: "admin_select", submittedBy: null,
@@ -596,13 +601,8 @@ async function main(): Promise<void> {
         starterIds: lineupB.starters, substituteIds: [],
       })
     ).rosterId;
-    await expectAppError(
-      () => database.transaction((tx) =>
-        applyMatchStatusTransitionInTx(tx, { matchId: mgMatch, nextStatus: "in_progress", actorId: ACTOR }),
-      ),
-      ErrorCode.VALIDATION_FAILED,
-      "S8 默认首发未确认就开赛",
-    );
+    const submittedRows = await pool.query<{ status: string }>(`SELECT status FROM match_rosters WHERE match_id = $1`, [mgMatch]);
+    expect(submittedRows.rows.every(row => row.status === "submitted")).toBe(true);
 
     // S9 repeated submit 是幂等覆写（同一 roster 行、无重复行）。
     {
@@ -687,6 +687,61 @@ async function main(): Promise<void> {
       );
     }
 
+    // Submitted participant/admin lineups become frozen historical facts at start.
+    {
+      const autoMatch = await createManagedMatch(pool, fixture, "r1-auto-confirm");
+      await submitLineupProductionLogic(database, { matchId: autoMatch, entryId: entryAId, source: "participant", submittedBy: null, starterIds: lineupA.starters });
+      await submitLineupProductionLogic(database, { matchId: autoMatch, entryId: entryBId, source: "admin_select", submittedBy: null, starterIds: lineupB.starters });
+      await database.transaction(tx => applyMatchStatusTransitionInTx(tx, { matchId: autoMatch, nextStatus: "in_progress", actorId: ACTOR }));
+      const rows = await pool.query<{ source: string; status: string; confirmed_by: string }>(`SELECT source, status, confirmed_by FROM match_rosters WHERE match_id = $1 ORDER BY source`, [autoMatch]);
+      expect(rows.rows.map(row => row.source)).toEqual(["participant", "admin_select"]);
+      expect(rows.rows.every(row => row.status === "confirmed" && row.confirmed_by === ACTOR)).toBe(true);
+      expect((await pool.query(`SELECT count(*)::int AS count FROM audit_logs WHERE action = 'match.roster.confirm' AND meta->>'atStart' = 'true' AND meta->>'matchId' = $1`, [autoMatch])).rows[0]?.count).toBe(2);
+    }
+
+    // An eligibility change after submission must fail at the fresh start gate.
+    {
+      const staleMatch = await createManagedMatch(pool, fixture, "r1-stale-lineup");
+      await submitLineupProductionLogic(database, { matchId: staleMatch, entryId: entryAId, source: "participant", submittedBy: null, starterIds: lineupA.starters });
+      await submitLineupProductionLogic(database, { matchId: staleMatch, entryId: entryBId, source: "admin_select", submittedBy: null, starterIds: lineupB.starters });
+      const verification = await pool.query<{ id: string | null }>(
+        `SELECT education_verification_id AS id FROM event_roster_members WHERE id = $1`,
+        [lineupA.starters[0]],
+      );
+      const verificationId = verification.rows[0]?.id;
+      if (!verificationId) throw new Error("首发缺少冻结赛事名单采用的学籍核验事实。");
+      await pool.query(`UPDATE education_verifications SET status = 'rejected' WHERE id = $1`, [verificationId]);
+      try {
+        await expectAppError(() => database.transaction(tx => applyMatchStatusTransitionInTx(tx, { matchId: staleMatch, nextStatus: "in_progress", actorId: ACTOR })), ErrorCode.VALIDATION_FAILED);
+        const rows = await pool.query<{ status: string }>(`SELECT status FROM match_rosters WHERE match_id = $1`, [staleMatch]);
+        expect(rows.rows.every(row => row.status === "submitted")).toBe(true);
+      } finally {
+        await pool.query(`UPDATE education_verifications SET status = 'approved' WHERE id = $1`, [verificationId]);
+      }
+    }
+
+    // A late admin correction retains admin_select metadata and the real actor.
+    {
+      const lateMatch = await createManagedMatch(pool, fixture, "r1-late-admin");
+      await submitLineupProductionLogic(database, { matchId: lateMatch, entryId: entryAId, source: "admin_select", submittedBy: null, starterIds: lineupA.starters });
+      await pool.query(`UPDATE matches SET scheduled_at = now() WHERE id = $1`, [lateMatch]);
+      await submitLineupProductionLogic(database, { matchId: lateMatch, entryId: entryAId, source: "admin_select", submittedBy: null, starterIds: lineupA.starters });
+      const incident = await pool.query<{ actor_id: string }>(`SELECT actor_id FROM match_lineup_incidents WHERE match_id = $1`, [lateMatch]);
+      expect(incident.rows.map(row => row.actor_id)).toEqual([ACTOR]);
+      const roster = await pool.query<{ source: string; submitted_by: string | null }>(`SELECT source, submitted_by FROM match_rosters WHERE match_id = $1`, [lateMatch]);
+      expect(roster.rows).toEqual([{ source: "admin_select", submitted_by: null }]);
+    }
+
+    // System default retains its own provenance and needs no participant action.
+    {
+      defaultFixture = await prepareFixture(pool, "g1-default", { primaryStarters: true, includeActors: false });
+      const defaultMatch = await createManagedMatch(pool, defaultFixture, "r1-default-lineup");
+      await database.transaction(tx => applyMatchStatusTransitionInTx(tx, { matchId: defaultMatch, nextStatus: "in_progress", actorId: ACTOR }));
+      const rows = await pool.query<{ source: string; status: string }>(`SELECT source, status FROM match_rosters WHERE match_id = $1`, [defaultMatch]);
+      expect(rows.rows).toHaveLength(2);
+      expect(rows.rows.every(row => row.source === "system_default" && row.status === "confirmed")).toBe(true);
+    }
+
     // S12 mutable season 规则被清空、live competitive profile 被篡改后，
     // frozen StageRun 规则与竞技事实仍然生效。
     {
@@ -753,10 +808,10 @@ async function main(): Promise<void> {
 
       const results = await Promise.allSettled([
         database.transaction((tx) =>
-          applyMatchStatusTransitionInTx(tx, { matchId: mcMatch, nextStatus: "in_progress", actorId: `${ACTOR}-a` }),
+          applyMatchStatusTransitionInTx(tx, { matchId: mcMatch, nextStatus: "in_progress", actorId: ACTOR_A }),
         ),
         database.transaction((tx) =>
-          applyMatchStatusTransitionInTx(tx, { matchId: mcMatch, nextStatus: "in_progress", actorId: `${ACTOR}-b` }),
+          applyMatchStatusTransitionInTx(tx, { matchId: mcMatch, nextStatus: "in_progress", actorId: ACTOR_B }),
         ),
       ]);
       const fulfilled = results.filter((r): r is PromiseFulfilledResult<MatchTransitionOutcome> => r.status === "fulfilled");
@@ -780,6 +835,7 @@ async function main(): Promise<void> {
 
     console.log("G1 roster safety integration suite passed.");
   } finally {
+    if (defaultFixture) await cleanupFixture(pool, defaultFixture);
     if (fixture) await cleanupFixture(pool, fixture);
     await pool.end();
   }

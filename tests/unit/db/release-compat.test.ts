@@ -191,6 +191,18 @@ export type NewOldTeam = typeof oldTeams.$inferInsert;
     expect(result.failures).toEqual([]);
   });
 
+  it("passes additive enum value alterations", () => {
+    const fixture = createFixture({
+      migration: `ALTER TYPE "team_status" ADD VALUE 'paused';`,
+      source: OLD_TEAMS_SOURCE,
+    });
+    const result = checkReleaseCompatibility(fixture.directory);
+
+    expect(result.changedMigrationFiles).toEqual(["drizzle/migrations/0002_next.sql"]);
+    expect(result.failures).toEqual([]);
+    expect(result.findings).toMatchObject([{ status: "not-applicable", finding: { category: "alter-type" } }]);
+  });
+
   it("keeps locking findings outside previous-app owner proof", () => {
     const fixture = createFixture({
       migration: `${MIGRATION_LOCKING_ANNOTATION}\nCREATE INDEX teams_name_idx ON teams (name);`,
