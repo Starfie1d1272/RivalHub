@@ -9,6 +9,10 @@ vi.mock("@/lib/matches/operator-scoreboard", () => ({ loadScoreboardPlayers: loa
 vi.mock("@/lib/observability/server", () => ({ captureException: vi.fn() }));
 
 const requireSeasonAdminMock = vi.hoisted(() => vi.fn());
+const auditActorIdMock = vi.hoisted(() => vi.fn(() => "admin@local.test"));
+const writeAuditInTxMock = vi.hoisted(() => vi.fn());
+
+vi.mock("@/lib/audit/write", () => ({ writeAuditInTx: writeAuditInTxMock }));
 
 vi.mock("@/db/client", () => ({
   db: {
@@ -22,7 +26,7 @@ vi.mock("@/db/client", () => ({
 
 vi.mock("@/lib/auth/session", () => ({
   requireSeasonAdmin: requireSeasonAdminMock,
-  auditActorId: vi.fn(),
+  auditActorId: auditActorIdMock,
   requireAuth: vi.fn(),
 }));
 
@@ -32,11 +36,12 @@ import { ErrorCode } from "@/lib/errors";
 describe("savePlayerStats", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    matchMapsFindFirstMock.mockResolvedValue({ id: "map-1", matchId: "match-1", scoreA: null, scoreB: null });
+    matchMapsFindFirstMock.mockResolvedValue({ id: "map-1", matchId: "match-1", scoreA: null, scoreB: null, completedAt: null });
   });
 
   it("fails closed before authorization or writes when the map has not finished", async () => {
-    matchesFindFirstMock.mockResolvedValue({ id: "match-1", seasonId: "season-1", status: "scheduled" });
+    matchMapsFindFirstMock.mockResolvedValue({ id: "map-1", matchId: "match-1", scoreA: 13, scoreB: 9, completedAt: null });
+    matchesFindFirstMock.mockResolvedValue({ id: "match-1", seasonId: "season-1", status: "in_progress" });
 
     const result = await savePlayerStats("map-1", { rows: [] });
 
@@ -52,7 +57,7 @@ describe("operator scoreboard identity boundary", () => {
   const draft = { perfectName: "Player", userId, kills: 10, deaths: 5, assists: 2, hsPercent: 50, firstKills: 1, multiKills: 1, clutches: 0, adr: 80, ratingPro: 1.2, rws: 7, we: 8 };
 
   it("rejects malformed and duplicate identities before persistence", async () => {
-    for (const rows of [[{ ...draft, userId: "invalid" }], [draft, { ...draft, perfectName: "Different" }], [{ ...draft, kills: "10" }]]) {
+    for (const rows of [[{ ...draft, userId: "invalid" }], [{ ...draft, userId: null }], [draft, { ...draft, perfectName: "Different" }], [{ ...draft, kills: "10" }]]) {
       const result = await savePlayerStats("map-1", { rows: rows as Parameters<typeof savePlayerStats>[1]["rows"] });
       expect(result.success).toBe(false);
     }
@@ -60,12 +65,12 @@ describe("operator scoreboard identity boundary", () => {
   });
 
   it("rejects a well-formed user outside the match roster inside the transaction", async () => {
-    matchMapsFindFirstMock.mockResolvedValue({ id: "map-1", matchId: "match-1", scoreA: 13, scoreB: 9 });
+    matchMapsFindFirstMock.mockResolvedValue({ id: "map-1", matchId: "match-1", scoreA: 13, scoreB: 9, completedAt: new Date("2026-09-29T00:00:00.000Z") });
     matchesFindFirstMock.mockResolvedValue({ id: "match-1", seasonId: "season-1", entryAId: "entry-a", entryBId: "entry-b", status: "in_progress" });
     loadScoreboardPlayersMock.mockResolvedValue([]);
     const select = vi.fn()
       .mockReturnValueOnce({ from: () => ({ where: () => ({ for: async () => [{ id: "match-1" }] }) }) })
-      .mockReturnValueOnce({ from: () => ({ where: () => ({ for: async () => [{ scoreA: 13, scoreB: 9 }] }) }) });
+      .mockReturnValueOnce({ from: () => ({ where: () => ({ for: async () => [{ scoreA: 13, scoreB: 9, completedAt: new Date("2026-09-29T00:00:00.000Z") }] }) }) });
     const tx = { select, insert: vi.fn(), update: vi.fn(), delete: vi.fn() };
     transactionMock.mockImplementation(async callback => callback(tx));
     const result = await savePlayerStats("map-1", { rows: [draft] });
@@ -73,6 +78,71 @@ describe("operator scoreboard identity boundary", () => {
     expect(tx.insert).not.toHaveBeenCalled();
     expect(tx.update).not.toHaveBeenCalled();
     expect(tx.delete).not.toHaveBeenCalled();
+
+  it("lets OCR enrich only Rating/RWS/WE on a DAK-owned row", async () => {
+    const completedAt = new Date("2026-09-29T00:00:00.000Z");
+    matchMapsFindFirstMock.mockResolvedValue({ id: "map-1", matchId: "match-1", scoreA: 13, scoreB: 9, completedAt });
+    matchesFindFirstMock.mockResolvedValue({ id: "match-1", seasonId: "season-1", entryAId: "entry-a", entryBId: "entry-b", status: "in_progress" });
+    requireSeasonAdminMock.mockResolvedValue({ userId: "admin", email: "admin@local.test" });
+    loadScoreboardPlayersMock.mockResolvedValue([{ userId, perfectName: "Player" }]);
+
+    const dakRow = {
+      id: "stat-1",
+      matchId: "match-1",
+      mapId: "map-1",
+      perfectName: "Demo Snapshot",
+      userId,
+      kills: 20,
+      deaths: 10,
+      assists: 5,
+      hsPercent: 50,
+      firstKills: 2,
+      firstDeaths: 1,
+      multiKills: 3,
+      tradeKills: 4,
+      kastRounds: 20,
+      clutches: 1,
+      adr: 85,
+      ratingPro: 1.1,
+      rws: 6,
+      we: 7,
+      dakImportId: "import-1",
+      verifiedByAdmin: "dak-verifier",
+      verifiedAt: new Date("2026-09-28T00:00:00.000Z"),
+      createdAt: new Date("2026-09-28T00:00:00.000Z"),
+    };
+
+    const select = vi.fn()
+      .mockReturnValueOnce({ from: () => ({ where: () => ({ for: async () => [{ id: "match-1" }] }) }) })
+      .mockReturnValueOnce({ from: () => ({ where: () => ({ for: async () => [{ scoreA: 13, scoreB: 9, completedAt }] }) }) })
+      .mockReturnValueOnce({ from: () => ({ where: () => ({ for: async () => [dakRow] }) }) });
+    const updateValues: Record<string, unknown>[] = [];
+    const tx = {
+      select,
+      insert: vi.fn(),
+      delete: vi.fn(),
+      update: vi.fn(() => ({
+        set: vi.fn((values: Record<string, unknown>) => {
+          updateValues.push(values);
+          return { where: vi.fn().mockResolvedValue(undefined) };
+        }),
+      })),
+    };
+    transactionMock.mockImplementation(async callback => callback(tx));
+
+    const result = await savePlayerStats("map-1", {
+      rows: [{ ...draft, ratingPro: 1.3, rws: 8, we: 9 }],
+    });
+
+    expect(result).toMatchObject({ success: true });
+    expect(updateValues).toEqual([{ ratingPro: 1.3, rws: 8, we: 9 }]);
+    expect(updateValues[0]).not.toHaveProperty("userId");
+    expect(updateValues[0]).not.toHaveProperty("perfectName");
+    expect(updateValues[0]).not.toHaveProperty("verifiedByAdmin");
+    expect(updateValues[0]).not.toHaveProperty("verifiedAt");
+    expect(writeAuditInTxMock).toHaveBeenCalledTimes(1);
+  });
+
   });
 });
 
