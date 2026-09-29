@@ -118,7 +118,8 @@ export async function savePlayerStats(
     const parsed = z.object({ rows: z.array(playerRowSchema.extend({ perfectName: z.string().trim().min(1).max(128), userId: z.uuid().nullable() })).max(20) }).safeParse(input);
     if (!parsed.success) throw new AppError(ErrorCode.VALIDATION_FAILED, "选手数据格式不合法");
     const stats = parsed.data.rows;
-    const userIds = stats.flatMap(row => row.userId ? [row.userId] : []);
+    if (stats.some(row => row.userId === null)) throw new AppError(ErrorCode.VALIDATION_FAILED, "每行选手都必须匹配本场出场阵容");
+    const userIds = stats.map(row => row.userId!);
     if (new Set(userIds).size !== userIds.length) throw new AppError(ErrorCode.VALIDATION_FAILED, "同一张地图不能重复关联同一选手");
     const map = await db.query.matchMaps.findFirst({
       where: eq(matchMaps.id, mapId),
@@ -153,7 +154,7 @@ export async function savePlayerStats(
 
     await db.transaction(async (tx) => {
       const [currentMatch] = await tx.select({ id: matches.id }).from(matches).where(eq(matches.id, map.matchId)).for("share");
-      const [currentMap] = await tx.select({ scoreA: matchMaps.scoreA, scoreB: matchMaps.scoreB }).from(matchMaps).where(eq(matchMaps.id, mapId)).for("update");
+      const [currentMap] = await tx.select({ scoreA: matchMaps.scoreA, scoreB: matchMaps.scoreB, completedAt: matchMaps.completedAt }).from(matchMaps).where(eq(matchMaps.id, mapId)).for("update");
       if (!currentMap || !currentMatch || !canConfirmMapScoreboard(currentMap)) throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "只有已结束的地图可以确认选手数据。");
       const allowed = await loadScoreboardPlayers(tx, match.id, [match.entryAId, match.entryBId]);
       const userPerfectNames = new Map(allowed.map(row => [row.userId, row.perfectName]));
@@ -180,18 +181,17 @@ export async function savePlayerStats(
         if (prior) {
           matchedIds.add(prior.id);
           const enrichment = applyOcrScoreboardEnrichment(prior, s);
-          const ocrValues = {
-            perfectName: s.perfectName,
-            userId,
-            ...enrichment,
-            verifiedByAdmin: actor,
-            verifiedAt: now,
-          };
           if (prior.dakImportId) {
-            await tx.update(matchPlayerStats).set(ocrValues).where(eq(matchPlayerStats.id, prior.id));
+            // DAK owns identity, gameplay and confirmation provenance. OCR may
+            // enrich only the three operator scoreboard fields.
+            await tx.update(matchPlayerStats).set(enrichment).where(eq(matchPlayerStats.id, prior.id));
           } else {
             await tx.update(matchPlayerStats).set({
-              ...ocrValues,
+              perfectName: s.perfectName,
+              userId,
+              ...enrichment,
+              verifiedByAdmin: actor,
+              verifiedAt: now,
               kills: s.kills,
               deaths: s.deaths,
               assists: s.assists,
