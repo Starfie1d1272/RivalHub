@@ -463,6 +463,13 @@
       "when": 1790671886657,
       "tag": "0065_match_runtime_foundation",
       "breakpoints": true
+    },
+    {
+      "idx": 66,
+      "version": "7",
+      "when": 1790676217771,
+      "tag": "0066_mizar_backend_contracts",
+      "breakpoints": true
     }
   ]
 }

@@ -1,0 +1,246 @@
+{
+  "$comment": "Frozen rivalhub.reliable-event.v1 corpus consumed by scripts/mizar-contract-check.mjs. Each entry must parse in both RivalHub and Mizar.",
+  "events": [
+    {
+      "schemaVersion": "mizar.reliable-event.v1",
+      "idempotencyKey": "evt-match-started",
+      "cursor": {
+        "producerInstanceId": "producer-m2-01",
+        "liveSessionId": "live-m2-01",
+        "runtimeSeq": 12,
+        "programSourceGeneration": 0,
+        "programReceiveSequence": 12,
+        "mapEpoch": 1
+      },
+      "observedAt": "2026-09-28T00:00:00.000Z",
+      "matchId": "match-m2-01",
+      "competitionId": "competition-m2",
+      "contextRevision": "fixture-manifest-r1",
+      "mapId": "map-m2-01",
+      "mapName": "de_ancient",
+      "entryAId": "entry-m2-a",
+      "entryBId": "entry-m2-b",
+      "evidence": {
+        "identity": "matched",
+        "telemetryFresh": true,
+        "contextFresh": true,
+        "source": "runtime-transition"
+      },
+      "kind": "match_started",
+      "payload": {}
+    },
+    {
+      "schemaVersion": "mizar.reliable-event.v1",
+      "idempotencyKey": "evt-map-started",
+      "cursor": {
+        "producerInstanceId": "producer-m2-01",
+        "liveSessionId": "live-m2-01",
+        "runtimeSeq": 12,
+        "programSourceGeneration": 0,
+        "programReceiveSequence": 12,
+        "mapEpoch": 1
+      },
+      "observedAt": "2026-09-28T00:00:00.000Z",
+      "matchId": "match-m2-01",
+      "competitionId": "competition-m2",
+      "contextRevision": "fixture-manifest-r1",
+      "mapId": "map-m2-01",
+      "mapName": "de_ancient",
+      "entryAId": "entry-m2-a",
+      "entryBId": "entry-m2-b",
+      "evidence": {
+        "identity": "matched",
+        "telemetryFresh": true,
+        "contextFresh": true,
+        "source": "runtime-transition"
+      },
+      "kind": "map_started",
+      "payload": {}
+    },
+    {
+      "schemaVersion": "mizar.reliable-event.v1",
+      "idempotencyKey": "evt-map-ended",
+      "cursor": {
+        "producerInstanceId": "producer-m2-01",
+        "liveSessionId": "live-m2-01",
+        "runtimeSeq": 12,
+        "programSourceGeneration": 0,
+        "programReceiveSequence": 12,
+        "mapEpoch": 1
+      },
+      "observedAt": "2026-09-28T00:00:00.000Z",
+      "matchId": "match-m2-01",
+      "competitionId": "competition-m2",
+      "contextRevision": "fixture-manifest-r1",
+      "mapId": "map-m2-01",
+      "mapName": "de_ancient",
+      "entryAId": "entry-m2-a",
+      "entryBId": "entry-m2-b",
+      "evidence": {
+        "identity": "matched",
+        "telemetryFresh": true,
+        "contextFresh": true,
+        "source": "runtime-transition"
+      },
+      "kind": "map_ended",
+      "payload": {
+        "scoreA": 13,
+        "scoreB": 9,
+        "scoreCT": 4,
+        "scoreT": 9
+      }
+    },
+    {
+      "schemaVersion": "mizar.reliable-event.v1",
+      "idempotencyKey": "evt-series-ended",
+      "cursor": {
+        "producerInstanceId": "producer-m2-01",
+        "liveSessionId": "live-m2-01",
+        "runtimeSeq": 12,
+        "programSourceGeneration": 0,
+        "programReceiveSequence": 12,
+        "mapEpoch": 1
+      },
+      "observedAt": "2026-09-28T00:00:00.000Z",
+      "matchId": "match-m2-01",
+      "competitionId": "competition-m2",
+      "contextRevision": "fixture-manifest-r1",
+      "mapId": "map-m2-01",
+      "mapName": "de_ancient",
+      "entryAId": "entry-m2-a",
+      "entryBId": "entry-m2-b",
+      "evidence": {
+        "identity": "matched",
+        "telemetryFresh": true,
+        "contextFresh": true,
+        "source": "runtime-transition"
+      },
+      "kind": "series_ended",
+      "payload": {
+        "scoreA": 2,
+        "scoreB": 1
+      }
+    },
+    {
+      "schemaVersion": "mizar.reliable-event.v1",
+      "idempotencyKey": "evt-generation",
+      "cursor": {
+        "producerInstanceId": "producer-m2-01",
+        "liveSessionId": "live-m2-01",
+        "runtimeSeq": 12,
+        "programSourceGeneration": 0,
+        "programReceiveSequence": 12,
+        "mapEpoch": 1
+      },
+      "observedAt": "2026-09-28T00:00:00.000Z",
+      "matchId": "match-m2-01",
+      "competitionId": "competition-m2",
+      "contextRevision": "fixture-manifest-r1",
+      "mapId": "map-m2-01",
+      "mapName": "de_ancient",
+      "entryAId": "entry-m2-a",
+      "entryBId": "entry-m2-b",
+      "evidence": {
+        "identity": "matched",
+        "telemetryFresh": true,
+        "contextFresh": true,
+        "source": "runtime-transition"
+      },
+      "kind": "source_generation_changed",
+      "payload": {
+        "previousSourceGeneration": 0
+      }
+    },
+    {
+      "schemaVersion": "mizar.reliable-event.v1",
+      "idempotencyKey": "evt-epoch",
+      "cursor": {
+        "producerInstanceId": "producer-m2-01",
+        "liveSessionId": "live-m2-01",
+        "runtimeSeq": 12,
+        "programSourceGeneration": 0,
+        "programReceiveSequence": 12,
+        "mapEpoch": 1
+      },
+      "observedAt": "2026-09-28T00:00:00.000Z",
+      "matchId": "match-m2-01",
+      "competitionId": "competition-m2",
+      "contextRevision": "fixture-manifest-r1",
+      "mapId": "map-m2-01",
+      "mapName": "de_ancient",
+      "entryAId": "entry-m2-a",
+      "entryBId": "entry-m2-b",
+      "evidence": {
+        "identity": "matched",
+        "telemetryFresh": true,
+        "contextFresh": true,
+        "source": "runtime-transition"
+      },
+      "kind": "map_epoch_changed",
+      "payload": {
+        "previousMapEpoch": 1,
+        "reason": "producer-restart"
+      }
+    },
+    {
+      "schemaVersion": "mizar.reliable-event.v1",
+      "idempotencyKey": "evt-identity",
+      "cursor": {
+        "producerInstanceId": "producer-m2-01",
+        "liveSessionId": "live-m2-01",
+        "runtimeSeq": 12,
+        "programSourceGeneration": 0,
+        "programReceiveSequence": 12,
+        "mapEpoch": 1
+      },
+      "observedAt": "2026-09-28T00:00:00.000Z",
+      "matchId": "match-m2-01",
+      "competitionId": "competition-m2",
+      "contextRevision": "fixture-manifest-r1",
+      "mapId": "map-m2-01",
+      "mapName": "de_ancient",
+      "entryAId": "entry-m2-a",
+      "entryBId": "entry-m2-b",
+      "evidence": {
+        "identity": "matched",
+        "telemetryFresh": true,
+        "contextFresh": true,
+        "source": "runtime-transition"
+      },
+      "kind": "identity_mismatch",
+      "payload": {
+        "reason": null
+      }
+    },
+    {
+      "schemaVersion": "mizar.reliable-event.v1",
+      "idempotencyKey": "evt-lineup",
+      "cursor": {
+        "producerInstanceId": "producer-m2-01",
+        "liveSessionId": "live-m2-01",
+        "runtimeSeq": 12,
+        "programSourceGeneration": 0,
+        "programReceiveSequence": 12,
+        "mapEpoch": 1
+      },
+      "observedAt": "2026-09-28T00:00:00.000Z",
+      "matchId": "match-m2-01",
+      "competitionId": "competition-m2",
+      "contextRevision": "fixture-manifest-r1",
+      "mapId": "map-m2-01",
+      "mapName": "de_ancient",
+      "entryAId": "entry-m2-a",
+      "entryBId": "entry-m2-b",
+      "evidence": {
+        "identity": "matched",
+        "telemetryFresh": true,
+        "contextFresh": true,
+        "source": "runtime-transition"
+      },
+      "kind": "lineup_mismatch",
+      "payload": {
+        "reason": "starter-steam64-unknown"
+      }
+    }
+  ]
+}

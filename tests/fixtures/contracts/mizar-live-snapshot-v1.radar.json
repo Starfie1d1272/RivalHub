@@ -1,0 +1,126 @@
+{
+  "schemaVersion": "mizar.live-snapshot.v1",
+  "cursor": {
+    "producerInstanceId": "fixture-producer",
+    "liveSessionId": null,
+    "runtimeSeq": 1,
+    "programSourceGeneration": 0,
+    "programReceiveSequence": 1,
+    "mapEpoch": 1
+  },
+  "producedAt": "2026-09-28T00:00:00.000Z",
+  "matchId": "local-match-1",
+  "competitionId": "local-event-1",
+  "format": "bo3",
+  "series": {
+    "scoreA": 0,
+    "scoreB": 0,
+    "currentMapOrder": null
+  },
+  "map": {
+    "mapId": null,
+    "name": "de_nuke",
+    "phase": "live",
+    "roundNumber": 1,
+    "scoreCT": 0,
+    "scoreT": 0
+  },
+  "roundPhase": "live",
+  "clock": null,
+  "teams": {
+    "ct": {
+      "entryId": "team-a",
+      "name": "甲队"
+    },
+    "t": {
+      "entryId": "team-b",
+      "name": "乙队"
+    }
+  },
+  "players": [],
+  "observedPlayerSourceId": null,
+  "bomb": null,
+  "radar": {
+    "mapName": "de_nuke",
+    "calibrationRevision": "cs2-overview/2026-09-16",
+    "layers": ["upper", "lower"],
+    "activeLayer": "upper",
+    "players": [
+      {
+        "sourcePlayerId": "source-a",
+        "canonicalPlayerId": "player-a",
+        "side": "CT",
+        "lifeState": "alive",
+        "position": {
+          "x": 0.5,
+          "y": 0.5,
+          "layer": "upper"
+        },
+        "facing": {
+          "x": 1,
+          "y": 0
+        }
+      }
+    ],
+    "bomb": {
+      "position": {
+        "x": 0.25,
+        "y": 0.75,
+        "layer": "lower"
+      }
+    },
+    "utility": [
+      {
+        "sourceEntityId": "smoke",
+        "kind": "smoke",
+        "ownerSourceId": "source-a",
+        "position": {
+          "x": 0.3,
+          "y": 0.4,
+          "layer": "upper"
+        },
+        "lifetimeSeconds": 7,
+        "effectTimeSeconds": 5,
+        "flames": []
+      },
+      {
+        "sourceEntityId": "inferno",
+        "kind": "inferno",
+        "ownerSourceId": "source-a",
+        "position": null,
+        "lifetimeSeconds": 3,
+        "effectTimeSeconds": null,
+        "flames": [
+          {
+            "sourceFlameId": "flame",
+            "position": {
+              "x": 0.4,
+              "y": 0.6,
+              "layer": "lower"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "capability": {
+    "telemetryFresh": true,
+    "contextFresh": true,
+    "identity": "matched",
+    "lineupComplete": false,
+    "radarCurrent": true,
+    "canonicalTeams": true
+  },
+  "roundHistory": {
+    "mapOrder": 1,
+    "completeness": "partial",
+    "rounds": [
+      {
+        "roundNumber": 1,
+        "winnerSide": "CT",
+        "winnerEntryId": "team-a",
+        "winCondition": "elimination"
+      }
+    ]
+  }
+}

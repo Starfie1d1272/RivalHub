@@ -14,6 +14,7 @@ export interface LocalSupabaseStatus {
   publishableKey: string;
   serviceRoleKey: string;
   studioUrl?: string;
+  jwtSecret?: string;
 }
 
 export interface LocalDatabaseStatus {
@@ -53,6 +54,7 @@ export function parseLocalSupabaseStatus(raw: string): LocalSupabaseStatus {
     apiUrl,
     publishableKey,
     serviceRoleKey,
+    ...(jwtSecretValue(values) ? { jwtSecret: jwtSecretValue(values) } : {}),
     studioUrl: studioUrlValue
       ? assertLocalHttpUrl(studioUrlValue, "Supabase STUDIO_URL")
       : undefined,
@@ -81,6 +83,8 @@ export function buildLocalAppEnvironment(
     NEXT_PUBLIC_SUPABASE_URL: status.apiUrl,
     NEXT_PUBLIC_SUPABASE_ANON_KEY: status.publishableKey,
     SUPABASE_SERVICE_ROLE_KEY: status.serviceRoleKey,
+    SUPABASE_SECRET_KEY: undefined,
+    SUPABASE_JWT_SECRET: status.jwtSecret,
     NEXT_PUBLIC_TURNSTILE_SITE_KEY: LOCAL_TURNSTILE_SITE_KEY,
     TURNSTILE_SECRET_KEY: LOCAL_TURNSTILE_SECRET_KEY,
     ADMIN_SESSION_SECRET:
@@ -151,6 +155,16 @@ function requiredString(value: string | undefined, label: string): string {
 
 function stringValue(value: unknown): string | undefined {
   return typeof value === "string" ? value : undefined;
+}
+
+/** supabase status keys are not guaranteed to keep one casing; match on the normalized name. */
+function jwtSecretValue(values: Record<string, unknown>): string | undefined {
+  for (const [key, value] of Object.entries(values)) {
+    if (key.toUpperCase().replace(/[^A-Z]/g, "") !== "JWTSECRET") continue;
+    const normalized = stringValue(value);
+    if (normalized) return normalized;
+  }
+  return undefined;
 }
 
 function parseStatusObject(raw: string): Record<string, unknown> {
