@@ -41,7 +41,11 @@ export async function ingestMizarLive(installationId: string, competitionId: str
 
 /** Scope-limited five-minute JWT. No Auth user or producer credential is created. */
 export async function issueLiveViewerToken(matchId: string) {
-  const [match] = await db.select({ id: matches.id }).from(matches).innerJoin(seasons, eq(seasons.id, matches.seasonId)).where(and(eq(matches.id, matchId), eq(seasons.status, "playing")));
+  const [match] = await db.select({ id: matches.id }).from(matches).innerJoin(seasons, eq(seasons.id, matches.seasonId)).where(and(
+    eq(matches.id, matchId),
+    eq(matches.status, "in_progress"),
+    eq(seasons.status, "playing"),
+  ));
   if (!match) throw new AppError(ErrorCode.NOT_FOUND, "比赛实时数据不可用。");
   const secret = process.env.SUPABASE_JWT_SECRET;
   if (!secret) throw new AppError(ErrorCode.INTERNAL_ERROR, "实时连接暂时不可用。");
