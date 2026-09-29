@@ -27,7 +27,7 @@ export async function POST(request: Request, context: Context) {
     const { operation } = await context.params;
     if (operation === "disconnect") {
       const installation = await authenticateMizar(request.headers.get("authorization"), { allowRevoked: true });
-      await revokeMizarInstallation(installation.id, installation.competitionId, installation.authorizedByUserId);
+      await revokeMizarInstallation(installation.id, installation.competitionId, installation.id);
       return Response.json({ revoked: true });
     }
     const installation = await authenticateMizar(request.headers.get("authorization"));
