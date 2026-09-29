@@ -128,6 +128,7 @@ export async function adminSelectMatchRoster(
         match: locked,
         entryId,
         submittedBy: null,
+        actorId,
         source: "admin_select",
         starterIds,
         substituteIds,

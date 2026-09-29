@@ -46,6 +46,7 @@ function data(status: Match["status"]) {
     qualificationRunId: null,
     managedKey: "swiss:1:1",
     scheduledAt: new Date("2026-09-05T02:00:00Z"),
+    startedAt: status === "scheduled" ? null : new Date("2026-09-05T02:05:00Z"),
     completionDeadline: null,
     completedAt: status === "finished" ? new Date("2026-09-05T04:00:00Z") : null,
     videoUrl: status === "finished" ? "https://video.example/match" : null,

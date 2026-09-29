@@ -104,6 +104,8 @@ FinalResult / adjudication / honor
 
 Major runtime 的阶段参与者和已完成比赛是推进依据；standings、后台摘要和其它 UI projection 只是 read model。比赛更正如果影响下游配对，必须经过受控 recovery，而不是直接改 projection。
 
+Match runtime 由 `src/lib/match-rosters/` 的阵容与开赛 transition、`src/lib/matches/` 的排期/覆盖名额/官方结果共同组成。地图结果只有一个 canonical owner，人工录入与后续经过校验的可靠数据源调用同一入口；`matches.startedAt` 是实际进入 `in_progress` 的时间事实，不从排期或 BP 完成时间推断。
+
 通用 Stage 的 logical identity 是 `(seasonId, StageConfig.key)`；`StageConfig.name` 只用于展示。`brackets-manager` 只能经 `src/lib/bracket/` adapter 使用，每个 provider-backed Stage 独立拥有 `(competition_id, stage_key)` 状态，provider stage name 和 numeric participant id 不得扩散成领域 contract。参与者必须携带稳定的 `rivalhubEntryId`，比赛解析只消费该 metadata。
 
 Major Swiss 不经过通用 provider adapter：它由 `majorStageEntrants`、official managed matches 和 StageRun 的 `finalizedRound` 投影，配对与晋级继续由 `src/lib/major/swiss.ts` / runtime owner 决定。Qualification 使用独立 run 与 Qualification-owned manual matches；它不属于 Season StagePlan 或 Major StageRun。`src/lib/swiss/` 只投影 canonical 赛果、W/L、对手、BU、状态和排名，并提供配对 building blocks；每种赛事自己的 policy 验证完整轮次、战绩组限制、轮次上限与 bye/floater 语义。

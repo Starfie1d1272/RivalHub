@@ -483,6 +483,11 @@ describe("match score persistence semantics PostgreSQL integration", () => {
 
       const bo3Scores = [[13, 8], [10, 13], [13, 7]] as const;
       const bo3MapNames = await plannedMapNames(bo3MatchId);
+      const mismatchedMapResult = await recordMapResult(bo3MatchId, 2, bo3MapNames[0]!, 13, 8, null, null);
+      expect(mismatchedMapResult).toMatchObject({
+        success: false,
+        error: { code: "MATCH_MAP_INVALID" },
+      });
       for (const [index, [scoreA, scoreB]] of bo3Scores.entries()) {
         await expectSuccess(recordMapResult(bo3MatchId, index + 1, bo3MapNames[index]!, scoreA, scoreB, null, null));
       }

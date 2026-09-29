@@ -83,6 +83,11 @@ export const DATABASE_ACCESS_MATRIX: readonly DatabaseAccessEntry[] = [
   serverOnly("prediction_scenarios", "观赛预测", "服务端预测事实与积分流水", "src/lib/predictions/", "不开放浏览器 Data API；只返回明确的公开或本人 DTO。"),
   serverOnly("prediction_jobs", "观赛预测", "服务端预测事实与积分流水", "src/lib/predictions/", "不开放浏览器 Data API；只返回明确的公开或本人 DTO。"),
 
+  serverOnly("coverage_allocations", "比赛运营", "官方转播分配", "src/lib/matches/coverage.ts", "分配容量与解说展示是不同事实。"),
+  serverOnly("coverage_holds", "比赛运营", "短期转播容量占用", "src/lib/matches/coverage.ts", "过期占用只释放容量，不删除排期提议。"),
+  serverOnly("match_lineup_incidents", "比赛首发", "临场调整与裁决事实", "src/lib/match-rosters/service.ts", "自动默认首发不产生事故；管理员临时换人需审计。"),
+  serverOnly("official_coverage_slots", "比赛运营", "官方转播时段", "src/lib/matches/coverage.ts", "运营容量由服务端事务维护。"),
+
   serverOnly(
     "admin_invite_claims",
     "鉴权 / 管理员提权",

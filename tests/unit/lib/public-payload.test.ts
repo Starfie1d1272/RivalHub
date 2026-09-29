@@ -147,6 +147,7 @@ describe("public payload serializers", () => {
     expect(serialized).toEqual({
       id: "proposal-1",
       status: "pending",
+      resolution: null,
       proposedTime: now,
       responseAt: null,
       rejectReason: null,

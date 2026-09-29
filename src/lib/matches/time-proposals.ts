@@ -22,6 +22,7 @@ export function normalizeMatchTimeProposalStatus(status: string): MatchTimePropo
 /** Fields allowed on the public match-time proposal view. */
 export interface PublicMatchTimeProposal {
   id: string;
+  resolution?: "participant_accept" | "auto_timeout" | "auto_cutoff" | "admin_force" | null;
   status: MatchTimeProposalStatus;
   proposedTime: Date;
   responseAt: Date | null;
@@ -44,6 +45,7 @@ function loadMatchTimeProposalRows(matchId: string): Promise<MatchTimeProposalSo
     .select({
       id: matchTimeProposals.id,
       status: matchTimeProposals.status,
+      resolution: matchTimeProposals.resolution,
       proposedTime: matchTimeProposals.proposedTime,
       responseAt: matchTimeProposals.responseAt,
       rejectReason: matchTimeProposals.rejectReason,
@@ -74,6 +76,7 @@ export function serializePublicMatchTimeProposal(
     status: normalizeMatchTimeProposalStatus(row.status),
     proposedTime: row.proposedTime,
     responseAt: row.responseAt,
+    resolution: row.resolution ?? null,
     rejectReason: row.rejectReason,
     createdAt: row.createdAt,
     isMine: Boolean(viewerUserId && viewerUserId === row.proposedBy),

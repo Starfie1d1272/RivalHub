@@ -15,7 +15,7 @@ const CURRENT_PRODUCER_ACTIONS = [
   "captain.cast_vote", "captain.retract_vote", "captain.confirm",
   "draft.start", "draft.pick", "draft.skip_turn", "draft.pause", "draft.resume",
   "match.generate_schedule", "match.initialize_stage", "match.create", "match.record_result", "match.record_map_result",
-  "match.save_player_stats", "match.delete_player_stats", "match.status_update", "match.start", "match.roster.submit",
+  "match.save_player_stats", "match.delete_player_stats", "match.status_update", "match.start", "match.roster.system_default", "match.roster.late_lineup", "match.roster.submit",
   "match.roster.admin_select", "match.roster.confirm", "match.roster.unlock", "match.save_veto", "match.propose_time",
   "match.veto.privileged_entry_set", "match.veto.representative_set", "match.veto.representative_claim",
   "match.veto.start_request", "match.veto.start", "match.veto.role_select", "match.veto.step", "match.veto.timeout",

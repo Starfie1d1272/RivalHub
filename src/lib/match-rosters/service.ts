@@ -10,6 +10,7 @@ import {
   institutions,
   majorStageRuns,
   matchCommentators,
+  matchLineupIncidents,
   matchRosterPlayers,
   matchRosters,
   matches,
@@ -444,7 +445,8 @@ export async function persistMatchRosterInTx(
     match: Match;
     entryId: string;
     submittedBy: string | null;
-    source: "participant" | "admin_select";
+    actorId?: string;
+    source: "participant" | "system_default" | "admin_select";
     starterIds: readonly string[];
     substituteIds?: readonly string[];
     vetoRepresentativeEventRosterMemberId?: string | null;
@@ -463,11 +465,18 @@ export async function persistMatchRosterInTx(
     substituteIds,
   });
   const now = new Date();
+  if (args.match.status !== "scheduled") throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "比赛已开始，首发已定格。");
+  const late = args.match.scheduledAt !== null && now.getTime() >= args.match.scheduledAt.getTime() - 2 * 60 * 60_000;
+  if (late && args.source === "participant") throw new AppError(ErrorCode.VALIDATION_FAILED, "临近开赛调整首发，请联系赛事管理员。");
+  if (late && args.source === "admin_select" && !args.actorId) throw new AppError(ErrorCode.VALIDATION_FAILED, "临近开赛调整首发必须记录操作人。");
   const [existing] = await tx
     .select({ id: matchRosters.id })
     .from(matchRosters)
     .where(and(eq(matchRosters.matchId, args.match.id), eq(matchRosters.entryId, args.entryId)));
-
+  if (late && args.source === "admin_select" && existing) {
+    await tx.insert(matchLineupIncidents).values({ matchId: args.match.id, entryId: args.entryId, actorId: args.actorId!, reason: "临近开赛调整首发" });
+    await writeAuditInTx(tx, { seasonId: args.match.seasonId, action: "match.roster.late_lineup", actorId: args.actorId!, targetId: existing.id, meta: { matchId: args.match.id, entryId: args.entryId, starterIds: args.starterIds } });
+  }
   let rosterId: string;
   if (existing) {
     rosterId = existing.id;
@@ -594,21 +603,23 @@ export interface MatchTransitionOutcome {
 /**
  * The complete production body of a match status transition, shared by the
  * Server Action wrapper and the local integration suite:
- * row-lock → re-checked state machine gate → (start) both-teams-confirmed
+ * row-lock → re-checked state machine gate → (start) both lineups validated and confirmed
  * lineup gate → status write → audit (match.start / match.status_update).
  */
 export async function applyMatchStatusTransitionInTx(
   tx: TxDb,
-  args: { matchId: string; nextStatus: "in_progress" | "cancelled"; actorId: string },
+  args: { matchId: string; nextStatus: "in_progress" | "cancelled"; actorId: string; now?: Date },
 ): Promise<MatchTransitionOutcome> {
   const locked = await lockMatchInTx(tx, args.matchId);
   if (locked.qualificationRunId && args.nextStatus === "cancelled") {
     throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "Play-in 比赛不能取消，请使用弃赛判负录入正式赛果。");
   }
   assertMatchTransition(locked.status, args.nextStatus);
+  const now = args.now ?? new Date();
+  if (args.nextStatus === "in_progress") await materializeDefaultLineupsInTx(tx, locked, now, true);
   const lineups =
     args.nextStatus === "in_progress"
-      ? await assertConfirmedLineupsForStartInTx(tx, locked)
+      ? await freezeEffectiveLineupsForStartInTx(tx, locked, now, args.actorId)
       : null;
   const clearedCommentators =
     args.nextStatus === "cancelled"
@@ -617,7 +628,7 @@ export async function applyMatchStatusTransitionInTx(
 
   await tx
     .update(matches)
-    .set({ status: args.nextStatus, updatedAt: new Date() })
+    .set({ status: args.nextStatus, ...(args.nextStatus === "in_progress" && locked.startedAt === null ? { startedAt: now } : {}), updatedAt: now })
     .where(eq(matches.id, args.matchId));
 
   await writeAuditInTx(tx, {
@@ -647,13 +658,14 @@ export async function applyMatchStatusTransitionInTx(
 }
 
 /**
- * Start gate: both canonical teams must hold an already-confirmed lineup that
- * still validates against freshly loaded facts. There is no fallback path here
- * by design — nothing infers starters from membership ordering.
+ * Start gate: fresh validation turns each effective submitted lineup into a
+ * confirmed historical lineup in the same transaction as the Match start.
  */
-async function assertConfirmedLineupsForStartInTx(
+async function freezeEffectiveLineupsForStartInTx(
   tx: TxDb,
   match: Match,
+  now: Date,
+  actorId: string,
 ): Promise<StartLineupSummary[]> {
   const rosters = await tx
     .select()
@@ -667,13 +679,7 @@ async function assertConfirmedLineupsForStartInTx(
     if (!roster) {
       throw new AppError(
         ErrorCode.VALIDATION_FAILED,
-        "该场比赛还有队伍未提交并确认首发阵容，不能开始比赛。",
-      );
-    }
-    if (roster.status !== "confirmed") {
-      throw new AppError(
-        ErrorCode.VALIDATION_FAILED,
-        "存在尚未确认的首发阵容，必须先执行名单确认才能开始比赛。",
+        "该场比赛还有队伍没有有效首发阵容，不能开始比赛。",
       );
     }
 
@@ -687,8 +693,13 @@ async function assertConfirmedLineupsForStartInTx(
       .where(eq(matchRosterPlayers.rosterId, roster.id));
     const { starterIds, substituteIds } = loadPersistedPlayers(players);
 
+    if (roster.status !== "submitted" && roster.status !== "confirmed") throw new AppError(ErrorCode.VALIDATION_FAILED, "本场首发状态无效，请重新提交。");
     await lockCurrentEventRosterForLineupInTx(tx, match, entryId);
     await assertStartingLineupAllowedInTx(tx, { match, entryId, starterIds, substituteIds });
+    if (roster.status === "submitted") {
+      await tx.update(matchRosters).set({ status: "confirmed", confirmedAt: now, confirmedBy: actorId, updatedAt: now }).where(eq(matchRosters.id, roster.id));
+      await writeAuditInTx(tx, { seasonId: match.seasonId, action: "match.roster.confirm", actorId, targetId: roster.id, meta: { matchId: match.id, entryId, atStart: true, source: roster.source, submittedBy: roster.submittedBy, starterIds, substituteIds } });
+    }
     summaries.push({
       rosterId: roster.id,
       matchId: match.id,
@@ -700,4 +711,22 @@ async function assertConfirmedLineupsForStartInTx(
     });
   }
   return summaries;
+}
+
+/** Materialize only declared current primary starters; no membership-order fallback. */
+export async function materializeDefaultLineupsInTx(tx: TxDb, match: Match, now = new Date(), force = false): Promise<void> {
+  if (match.status !== "scheduled") return;
+  if (!force && (!match.scheduledAt || now.getTime() < match.scheduledAt.getTime() - 2 * 60 * 60_000)) return;
+  for (const entryId of [match.entryAId, match.entryBId]) {
+    const [existing] = await tx.select({ id: matchRosters.id }).from(matchRosters).where(and(eq(matchRosters.matchId, match.id), eq(matchRosters.entryId, entryId)));
+    if (existing) continue;
+    await lockCurrentEventRosterForLineupInTx(tx, match, entryId);
+    const members = await tx.select({ id: eventRosterMembers.id, primary: eventRosterMembers.isPrimaryStarter, userId: eventRosterMembers.userId })
+      .from(eventRosterMembers).innerJoin(eventRosters, eq(eventRosters.id, eventRosterMembers.eventRosterId)).where(and(eq(eventRosters.entryId, entryId), eq(eventRosterMembers.isCurrent, true)));
+    const starterIds = members.filter(member => member.primary).map(member => member.id);
+    if (starterIds.length !== 5) throw new AppError(ErrorCode.VALIDATION_FAILED, "本队尚无五名合法默认首发，请联系赛事管理员。");
+    const [entry] = await tx.select({ representative: competitionEntries.representativeUserId }).from(competitionEntries).where(eq(competitionEntries.id, entryId));
+    const summary = await persistMatchRosterInTx(tx, { match, entryId, source: "system_default", submittedBy: null, starterIds, vetoRepresentativeEventRosterMemberId: members.find(member => member.primary && member.userId === entry?.representative)?.id ?? null });
+    await writeAuditInTx(tx, { seasonId: match.seasonId, action: "match.roster.system_default", actorId: "system", targetId: summary.rosterId, meta: { matchId: match.id, entryId, starterIds } });
+  }
 }
