@@ -537,10 +537,59 @@ describe("Mizar source authority", () => {
     );
   });
 
+  it("fails an old producer release closed after same-installation takeover and keeps exact retries idempotent", async () => {
+    const fixture = await seedFixture();
+    const context = await db.transaction((tx) => loadMizarMatchDocumentInTx(tx, fixture.matchId, fixture.seasonId));
+    const takeover = await claimMizarSource(fixture.installationId, fixture.seasonId, {
+      matchId: fixture.matchId,
+      producerInstanceId: "producer-new",
+      liveSessionId: "live-new",
+      programSourceGeneration: 0,
+      mapEpoch: 1,
+      contextRevision: context.revision,
+      takeover: true,
+      lineupSteam64: [],
+    });
+    expect(takeover).toEqual({ claimed: true, authorityRevision: 2 });
+
+    await expectCode(
+      () => releaseMizarSource(fixture.installationId, fixture.seasonId, {
+        matchId: fixture.matchId,
+        producerInstanceId: fixture.producerInstanceId,
+        liveSessionId: fixture.liveSessionId,
+      }, fixture.authorityRevision),
+      ErrorCode.FORBIDDEN,
+    );
+    const [active] = await db.select().from(schema.matchLiveSessions).where(and(
+      eq(schema.matchLiveSessions.matchId, fixture.matchId),
+      isNull(schema.matchLiveSessions.closedAt),
+    ));
+    expect(active).toMatchObject({
+      installationId: fixture.installationId,
+      producerInstanceId: "producer-new",
+      liveSessionId: "live-new",
+      authorityRevision: 2,
+    });
+
+    const release = () => releaseMizarSource(fixture.installationId, fixture.seasonId, {
+      matchId: fixture.matchId,
+      producerInstanceId: "producer-new",
+      liveSessionId: "live-new",
+    }, 2);
+    await release();
+    await expect(release()).resolves.toBeUndefined();
+    const [released] = await db.select().from(schema.matchLiveSessions).where(eq(schema.matchLiveSessions.id, active!.id));
+    expect(released!.closeReason).toBe("released");
+  });
+
   it("releases an active source so a fresh authority revision can claim the match", async () => {
     const fixture = await seedFixture();
     const context = await db.transaction((tx) => loadMizarMatchDocumentInTx(tx, fixture.matchId, fixture.seasonId));
-    await releaseMizarSource(fixture.installationId, fixture.seasonId, fixture.matchId);
+    await releaseMizarSource(fixture.installationId, fixture.seasonId, {
+      matchId: fixture.matchId,
+      producerInstanceId: fixture.producerInstanceId,
+      liveSessionId: fixture.liveSessionId,
+    }, fixture.authorityRevision);
     const released = await loadSource(fixture.sessionId);
     expect(released.closedAt).not.toBeNull();
     expect(released.closeReason).toBe("released");
