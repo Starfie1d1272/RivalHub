@@ -62,16 +62,17 @@ function PlayerRow({ player }: PlayerRowProps) {
 
   return (
     <tr className="border-b border-[var(--color-border)] last:border-0">
-      <td className="py-1.5 pl-3 pr-1 whitespace-nowrap">
+      <td className="min-w-0 py-1.5 pl-3 pr-1">
         {player.userId ? (
           <Link
             href={`/players/${player.userId}`}
-            className="text-sm font-medium hover:text-[var(--color-accent)] transition-colors"
+            className="block truncate text-sm font-medium hover:text-[var(--color-accent)] transition-colors"
+            title={player.perfectName}
           >
             {player.perfectName}
           </Link>
         ) : (
-          <span className="text-sm text-[var(--color-fg)]">{player.perfectName}</span>
+          <span className="block truncate text-sm text-[var(--color-fg)]" title={player.perfectName}>{player.perfectName}</span>
         )}
       </td>
       {COLS.map((col) => {
@@ -117,7 +118,8 @@ function TeamBlock({ teamName, borderColor, bgColor, players }: TeamBlockProps) 
         {teamName}
       </div>
       <div className="overflow-x-auto">
-        <table className="w-full" style={{ minWidth: 560 }}>
+        <table className="w-full min-w-[760px] table-fixed">
+          <colgroup><col style={{ width: "25%" }} />{COLS.map(col => <col key={col.key} style={{ width: "7.5%" }} />)}</colgroup>
           <thead>
             <tr className="border-b border-[var(--color-border)]">
               <th className="text-left text-[10px] text-[var(--color-fg-dim)] font-medium py-1 pl-3 pr-1 whitespace-nowrap">

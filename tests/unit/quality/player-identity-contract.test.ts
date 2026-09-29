@@ -23,7 +23,6 @@ const PLAYER_IDENTITY_CONSUMERS: Consumer[] = [
   { path: "src/components/draft/PlayerPool.tsx", mode: "avatar" },
   { path: "src/components/draft/TeamDraftGrid.tsx", mode: "avatar" },
   { path: "src/components/layout/HeaderViewerClient.tsx", mode: "avatar" },
-  { path: "src/components/matches/MatchLineupsH2H.tsx", mode: "text-first", reason: "高密度双方统计对比以文字和指标可读性为优先。" },
   { path: "src/components/matches/MatchMvpVote.tsx", mode: "avatar" },
   { path: "src/components/matches/MatchRosterView.tsx", mode: "avatar" },
   { path: "src/components/matches/MatchSummaryStats.tsx", mode: "text-first", reason: "高密度赛后统计表以指标扫描为优先。" },
