@@ -46,7 +46,7 @@ describe("getStatsLeaderboard roster scoping", () => {
     await getStatsLeaderboard({}, ["00000000-0000-0000-0000-000000000005"], [], database, { requireCurrentImports: true });
 
     const built = new PgDialect().sqlToQuery(captured as Parameters<PgDialect["sqlToQuery"]>[0]);
-    expect(built.sql).toContain("mm.score_a IS NOT NULL AND mm.score_b IS NOT NULL");
+    expect(built.sql).toContain("mm.score_a IS NOT NULL AND mm.score_b IS NOT NULL AND mm.completed_at IS NOT NULL");
     expect(built.sql).not.toContain("m.status =");
     expect(built.sql).not.toContain("m.is_forfeit");
   });
