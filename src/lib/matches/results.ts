@@ -62,7 +62,15 @@ export async function recordCanonicalMapResultInTx(tx: TxDb, command: CanonicalM
       const existingMaps = await tx.query.matchMaps.findMany({
         where: eq(matchMaps.matchId, matchId),
       });
-      const existingRow = existingMaps.find((m) => m.mapName === mapName);
+      const existingOrderRow = existingMaps.find((m) => m.mapOrder === mapOrder);
+      const existingNameRow = existingMaps.find((m) => m.mapName === mapName);
+      if (existingOrderRow && existingOrderRow.mapName !== mapName) {
+        throw new AppError(ErrorCode.MATCH_MAP_INVALID, `第 ${mapOrder} 图应为 ${existingOrderRow.mapName}，不能写入 ${mapName}`);
+      }
+      if (existingNameRow && existingNameRow.mapOrder !== mapOrder) {
+        throw new AppError(ErrorCode.MATCH_MAP_INVALID, `地图 ${mapName} 属于第 ${existingNameRow.mapOrder} 图，不能写入第 ${mapOrder} 图`);
+      }
+      const existingRow = existingOrderRow ?? existingNameRow;
       if (existingMaps.some((m) => (m.scoreA === null) !== (m.scoreB === null))) {
         throw new AppError(ErrorCode.VALIDATION_FAILED, "地图比分数据不完整，无法继续录入");
       }
