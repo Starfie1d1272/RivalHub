@@ -17,6 +17,12 @@ export const sourceClaimSchema = z.strictObject({
   lineupSteam64: z.array(z.string().regex(/^\d{17}$/)).max(10).default([]),
 });
 
+export const sourceReleaseSchema = z.strictObject({
+  matchId: z.uuid(),
+  producerInstanceId: z.string().min(1).max(128),
+  liveSessionId: z.string().min(1).max(128),
+});
+
 export async function validateObservedLineupInTx(tx: TxDb, match: Match, steam64s: readonly string[]) {
   const players = await loadEffectiveMatchRoster(tx, [match.id]);
   const expected = players.filter(player => player.isStarter).map(player => player.steam64);
@@ -52,13 +58,38 @@ export async function claimMizarSource(installationId: string, competitionId: st
   });
 }
 
-export async function releaseMizarSource(installationId: string, competitionId: string, matchId: string) {
+export async function releaseMizarSource(
+  installationId: string,
+  competitionId: string,
+  input: z.infer<typeof sourceReleaseSchema>,
+  authorityRevision: number,
+) {
   await db.transaction(async tx => {
     await assertInstallationInTx(tx, installationId, competitionId);
-    const match = await lockMatchInTx(tx, matchId);
+    const match = await lockMatchInTx(tx, input.matchId);
     if (match.seasonId !== competitionId) throw new AppError(ErrorCode.FORBIDDEN, "不能访问这场比赛。");
-    await tx.update(matchLiveSessions).set({ closedAt: new Date(), closeReason: "released", autoCanonicalizationArmed: false }).where(and(eq(matchLiveSessions.matchId, matchId), eq(matchLiveSessions.installationId, installationId), isNull(matchLiveSessions.closedAt)));
-    await writeAuditInTx(tx, { seasonId: competitionId, actorId: installationId, action: "mizar.source.release", targetId: matchId });
+    const [source] = await tx.select().from(matchLiveSessions).where(and(
+      eq(matchLiveSessions.matchId, input.matchId),
+      eq(matchLiveSessions.installationId, installationId),
+      eq(matchLiveSessions.authorityRevision, authorityRevision),
+      eq(matchLiveSessions.producerInstanceId, input.producerInstanceId),
+      eq(matchLiveSessions.liveSessionId, input.liveSessionId),
+    )).for("update");
+    if (!source) throw new AppError(ErrorCode.FORBIDDEN, "数据源权限已变化，请刷新后重试。");
+    if (source.closedAt) {
+      // A lost response may retry the exact release, but a source closed by
+      // handover/revoke must never release a newer authority.
+      if (source.closeReason === "released") return;
+      throw new AppError(ErrorCode.FORBIDDEN, "数据源权限已变化，请刷新后重试。");
+    }
+    await tx.update(matchLiveSessions).set({ closedAt: new Date(), closeReason: "released", autoCanonicalizationArmed: false }).where(eq(matchLiveSessions.id, source.id));
+    await writeAuditInTx(tx, {
+      seasonId: competitionId,
+      actorId: installationId,
+      action: "mizar.source.release",
+      targetId: input.matchId,
+      meta: { authorityRevision, producerInstanceId: input.producerInstanceId, liveSessionId: input.liveSessionId },
+    });
   });
 }
 
