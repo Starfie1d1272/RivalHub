@@ -34,7 +34,7 @@ function Radar({ live }: { live: PublicLiveMatchProjection }) {
 export function MatchLiveProjection({ matchId, entryAId, entryBId, teamAName, teamBName }: { matchId: string; entryAId: string; entryBId: string; teamAName: string; teamBName: string }) {
   const [delivery, setDelivery] = useState<{ live: PublicLiveMatchProjection; arrivedAt: number } | null>(null);
   const [connected, setConnected] = useState(false);
-  const [now, setNow] = useState(0);
+  const [now, setNow] = useState(() => (typeof performance !== "undefined" ? performance.now() : 0));
   useEffect(() => {
     const timer = window.setInterval(() => setNow(performance.now()), 500);
     return () => window.clearInterval(timer);
@@ -61,6 +61,7 @@ export function MatchLiveProjection({ matchId, entryAId, entryBId, teamAName, te
       channel.on("broadcast", { event: "snapshot" }, ({ payload }) => {
         const next = payload as PublicLiveMatchProjection;
         const arrivedAt = performance.now();
+        setNow(arrivedAt);
         setDelivery(current => {
           const merged = mergeLiveDelivery(current?.live ?? null, next, matchId);
           return merged && merged !== current?.live ? { live: merged, arrivedAt } : current;

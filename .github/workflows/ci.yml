@@ -220,6 +220,16 @@ jobs:
         run: node scripts/ci/timing.mjs "system/bootstrap" -- pnpm db:local:bootstrap-services
       - name: Provider contract
         run: node scripts/ci/timing.mjs "system/provider verify" -- pnpm db:local:verify-supabase
+      - name: Checkout Mizar
+        if: needs.plan.outputs.live_evidence == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          repository: Starfie1d1272/Mizar
+          ref: c2afa9783daf993ce6deaeac05fffc01ebc86312 # Mizar #105
+          path: .mizar-checkout
+      - name: Mizar cross-repo contract
+        if: needs.plan.outputs.live_evidence == 'true'
+        run: node scripts/ci/timing.mjs "system/mizar contract" -- pnpm mizar:contract-check .mizar-checkout
       - name: Browser runtime
         run: google-chrome --version
       - name: E2E body

@@ -1,6 +1,7 @@
 /** Disposable Local Supabase evidence, never a production entrypoint. */
 import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
+import * as readline from "node:readline";
 import { and, eq, sql } from "drizzle-orm";
 import { createClient, type RealtimeChannel } from "@supabase/supabase-js";
 import { db } from "../../src/db/client";
@@ -153,10 +154,53 @@ async function expectRejected(action: () => Promise<unknown>, message: string) {
   throw new Error(message);
 }
 
+async function runWorker() {
+  const rl = readline.createInterface({ input: process.stdin });
+  for await (const raw of rl) {
+    const trimmed = raw.trim();
+    if (!trimmed) continue;
+    let message: { id: string | number; action: string; args?: unknown[] };
+    try {
+      message = JSON.parse(trimmed);
+    } catch {
+      continue;
+    }
+    const { id, action, args = [] } = message;
+    try {
+      let result: unknown;
+      if (action === "create") {
+        result = await create();
+      } else if (action === "publish") {
+        try {
+          result = await publish(Number(args[0]), Number(args[1]));
+        } catch (error) {
+          if (error instanceof Error && "code" in error && error.code === "FORBIDDEN") result = { rejected: true };
+          else throw error;
+        }
+      } else if (action === "handover") {
+        result = await handover();
+      } else if (action === "cleanup") {
+        await cleanup();
+        result = { cleaned: true };
+      } else if (action === "exit") {
+        await cleanup().catch(() => null);
+        console.log(JSON.stringify({ id, ok: true, result: { exit: true } }));
+        process.exit(0);
+      } else {
+        throw new Error(`Unknown worker action: ${action}`);
+      }
+      console.log(JSON.stringify({ id, ok: true, result }));
+    } catch (err) {
+      console.log(JSON.stringify({ id, ok: false, error: err instanceof Error ? err.message : String(err) }));
+    }
+  }
+}
+
 async function main() {
   try {
     let result: unknown;
-    if (command === "create") result = await create();
+    if (command === "worker") await runWorker();
+    else if (command === "create") result = await create();
     else if (command === "publish") {
       try { result = await publish(Number(process.argv[4]), Number(process.argv[5])); }
       catch (error) { if (error instanceof Error && "code" in error && error.code === "FORBIDDEN") result = { rejected: true }; else throw error; }
