@@ -10,7 +10,7 @@ test.describe.configure({ retries: 0 });
 class LiveFixtureWorker {
   private child: ChildProcess;
   private rl: readline.Interface;
-  private pending = new Map<number, { resolve: (val: any) => void; reject: (err: Error) => void }>();
+  private pending = new Map<number, { resolve: (val: unknown) => void; reject: (err: Error) => void }>();
   private nextId = 1;
 
   constructor(seasonId: string) {
@@ -66,7 +66,7 @@ test("public LIVE receives real private Broadcast and degrades after interruptio
   const fixture = new LiveFixtureWorker(seasonId);
 
   try {
-    const ids = await test.step("setup fixture and wait for WebSocket join", async () => {
+    await test.step("setup fixture and wait for WebSocket join", async () => {
       const created = await fixture.send<{ matchId: string; seasonId: string }>("create");
       const joined = new Promise<void>((resolveJoin, rejectJoin) => {
         const timer = setTimeout(() => rejectJoin(new Error(`WebSocket join deadline (15s) exceeded for match ${created.matchId}`)), 15_000);
@@ -83,7 +83,6 @@ test("public LIVE receives real private Broadcast and degrades after interruptio
       });
       await page.goto(`/${seasonId}/matches/${created.matchId}`);
       await joined;
-      return created;
     });
 
     await test.step("publish score 7:0 and assert fresh projection", async () => {
