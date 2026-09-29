@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { and, eq, isNull } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 import { db } from "../../../src/db/client";
+import { testSteam64 } from "./harness/database";
 import * as schema from "../../../src/db/schema";
 import { AppError, ErrorCode } from "../../../src/lib/errors";
 import { loadMizarMatchDocumentInTx } from "../../../src/lib/mizar/context";
@@ -31,10 +32,6 @@ interface Fixture {
   steam64: string[];
 }
 
-function steam64For(index: number): string {
-  return `765611980000000${String(index + 1).padStart(2, "0")}`;
-}
-
 async function seedFixture(options: { matchStatus?: "scheduled" | "in_progress" } = {}): Promise<Fixture> {
   const seasonId = randomUUID();
   const entryAId = randomUUID();
@@ -55,102 +52,104 @@ async function seedFixture(options: { matchStatus?: "scheduled" | "in_progress" 
   const userIds = Array.from({ length: 10 }, () => randomUUID());
   const participantIds = Array.from({ length: 10 }, () => randomUUID());
   const eventMemberIds = Array.from({ length: 10 }, () => randomUUID());
-  const steam64 = userIds.map((_, index) => steam64For(index));
-
-  await db.insert(schema.users).values(userIds.map((id, index) => ({ id, email: `${id}@local.test`, steam64: steam64[index]! })));
-  await db.insert(schema.seasons).values({ id: seasonId, slug: seasonId, name: "Mizar live boundary", kind: "custom", status: "playing" });
-  await db.insert(schema.competitionEntries).values([
-    { id: entryAId, competitionId: seasonId, source: "event_native", name: "Provider A", representativeUserId: userIds[0]!, registrationStatus: "approved", currentRosterRevisionId: revisionA, approvedRosterRevisionId: revisionA, reviewReason: "private-review-marker", perfectTeamId: "private-perfect-marker" },
-    { id: entryBId, competitionId: seasonId, source: "event_native", name: "Provider B", representativeUserId: userIds[5]!, registrationStatus: "approved", currentRosterRevisionId: revisionB, approvedRosterRevisionId: revisionB },
-  ]);
-  await db.insert(schema.competitionEntryRepresentativeChanges).values([
-    { entryId: entryAId, fromUserId: null, toUserId: userIds[0]!, changedByActorId: "integration-test" },
-    { entryId: entryBId, fromUserId: null, toUserId: userIds[5]!, changedByActorId: "integration-test" },
-  ]);
-  await db.insert(schema.competitionEntryRosterRevisions).values([
-    { id: revisionA, entryId: entryAId, revisionNumber: 1, status: "approved", createdBy: userIds[0]!, approvedAt: NOW },
-    { id: revisionB, entryId: entryBId, revisionNumber: 1, status: "approved", createdBy: userIds[5]!, approvedAt: NOW },
-  ]);
-  await db.insert(schema.competitionEntryParticipants).values(userIds.map((userId, index) => ({
-    id: participantIds[index]!,
-    entryId: index < 5 ? entryAId : entryBId,
-    userId,
-    status: "confirmed" as const,
-    invitedByUserId: index < 5 ? userIds[0]! : userIds[5]!,
-    confirmedAt: NOW,
-  })));
-  await db.insert(schema.competitionEntryRosterMembers).values(userIds.map((userId, index) => ({
-    id: randomUUID(),
-    revisionId: index < 5 ? revisionA : revisionB,
-    participantId: participantIds[index]!,
-    userId,
-    isPrimaryStarter: true,
-  })));
-  await db.insert(schema.eventRosters).values([
-    { id: eventRosterA, entryId: entryAId, sourceRosterRevisionId: revisionA, status: "frozen", confirmedAt: NOW, confirmedBy: userIds[0]!, frozenAt: NOW, frozenBy: userIds[0]! },
-    { id: eventRosterB, entryId: entryBId, sourceRosterRevisionId: revisionB, status: "frozen", confirmedAt: NOW, confirmedBy: userIds[5]!, frozenAt: NOW, frozenBy: userIds[5]! },
-  ]);
-  await db.insert(schema.eventRosterMembers).values(userIds.map((userId, index) => ({
-    id: eventMemberIds[index]!,
-    eventRosterId: index < 5 ? eventRosterA : eventRosterB,
-    userId,
-    participantId: participantIds[index]!,
-    isPrimaryStarter: true,
-  })));
-  await db.insert(schema.matches).values({
-    id: matchId,
-    seasonId,
-    entryAId,
-    entryBId,
-    stage: "fixture-stage",
-    format: "bo3",
-    status: options.matchStatus ?? "in_progress",
-    scheduledAt: new Date("2026-09-28T01:00:00.000Z"),
-  });
-  await db.insert(schema.matchMaps).values([
-    { id: mapOneId, matchId, mapOrder: 1, mapName: "de_ancient" },
-    { id: mapTwoId, matchId, mapOrder: 2, mapName: "de_mirage" },
-  ]);
-  await db.insert(schema.matchVetoSessions).values({ matchId, startedAt: NOW, completedAt: NOW });
-  await db.insert(schema.matchRosters).values([
-    { id: rosterA, matchId, entryId: entryAId, source: "admin_select", status: "submitted" },
-    { id: rosterB, matchId, entryId: entryBId, source: "admin_select", status: "submitted" },
-  ]);
-  await db.insert(schema.matchRosterPlayers).values(userIds.map((_, index) => ({
-    rosterId: index < 5 ? rosterA : rosterB,
-    eventRosterMemberId: eventMemberIds[index]!,
-    isStarter: true,
-  })));
-  await db.insert(schema.mizarPairingIntents).values([
-    { id: pairingIntentA, pollTokenHash: randomUUID(), status: "authorized", competitionId: seasonId, authorizedByUserId: userIds[0]!, authorizedAt: NOW, expiresAt: new Date(NOW.getTime() + 600_000) },
-    { id: pairingIntentB, pollTokenHash: randomUUID(), status: "authorized", competitionId: seasonId, authorizedByUserId: userIds[5]!, authorizedAt: NOW, expiresAt: new Date(NOW.getTime() + 600_000) },
-  ]);
-  await db.insert(schema.mizarInstallations).values([
-    { id: installationId, competitionId: seasonId, pairingIntentId: pairingIntentA, authorizedByUserId: userIds[0]!, credentialHash: randomUUID() },
-    { id: installationBId, competitionId: seasonId, pairingIntentId: pairingIntentB, authorizedByUserId: userIds[5]!, credentialHash: randomUUID() },
-  ]);
+  const steam64 = userIds.map((id) => testSteam64(id));
   const producerInstanceId = "producer-fixture";
   const liveSessionId = "live-fixture";
   const contextRevision = "context-fixture";
   const authorityRevision = 1;
-  const [session] = await db.insert(schema.matchLiveSessions).values({
-    matchId,
-    installationId,
-    producerInstanceId,
-    liveSessionId,
-    contextRevision,
-    authorityRevision,
-    programSourceGeneration: 0,
-    mapEpoch: 1,
-    identityHealth: "healthy",
-    lineupHealth: "healthy",
-    continuityHealth: "healthy",
-    autoCanonicalizationArmed: true,
-    currentMapId: mapOneId,
-    mapExecutionPhase: "gameplay",
-  }).returning({ id: schema.matchLiveSessions.id });
+  let session: { id: string }[] | undefined;
 
-  return { seasonId, entryAId, entryBId, matchId, mapOneId, mapTwoId, installationId, installationBId, sessionId: session!.id, producerInstanceId, liveSessionId, contextRevision, authorityRevision, steam64 };
+  await db.transaction(async (tx) => {
+    await tx.insert(schema.users).values(userIds.map((id, index) => ({ id, email: `${id}@local.test`, steam64: steam64[index]! })));
+    await tx.insert(schema.seasons).values({ id: seasonId, slug: seasonId, name: "Mizar live boundary", kind: "custom", status: "playing" });
+    await tx.insert(schema.competitionEntries).values([
+      { id: entryAId, competitionId: seasonId, source: "event_native", name: "Provider A", representativeUserId: userIds[0]!, registrationStatus: "approved", currentRosterRevisionId: revisionA, approvedRosterRevisionId: revisionA, reviewReason: "private-review-marker", perfectTeamId: "private-perfect-marker" },
+      { id: entryBId, competitionId: seasonId, source: "event_native", name: "Provider B", representativeUserId: userIds[5]!, registrationStatus: "approved", currentRosterRevisionId: revisionB, approvedRosterRevisionId: revisionB },
+    ]);
+    await tx.insert(schema.competitionEntryRepresentativeChanges).values([
+      { entryId: entryAId, fromUserId: null, toUserId: userIds[0]!, changedByActorId: "integration-test" },
+      { entryId: entryBId, fromUserId: null, toUserId: userIds[5]!, changedByActorId: "integration-test" },
+    ]);
+    await tx.insert(schema.competitionEntryRosterRevisions).values([
+      { id: revisionA, entryId: entryAId, revisionNumber: 1, status: "approved", createdBy: userIds[0]!, approvedAt: NOW },
+      { id: revisionB, entryId: entryBId, revisionNumber: 1, status: "approved", createdBy: userIds[5]!, approvedAt: NOW },
+    ]);
+    await tx.insert(schema.competitionEntryParticipants).values(userIds.map((userId, index) => ({
+      id: participantIds[index]!,
+      entryId: index < 5 ? entryAId : entryBId,
+      userId,
+      status: "confirmed" as const,
+      invitedByUserId: index < 5 ? userIds[0]! : userIds[5]!,
+      confirmedAt: NOW,
+    })));
+    await tx.insert(schema.competitionEntryRosterMembers).values(userIds.map((userId, index) => ({
+      id: randomUUID(),
+      revisionId: index < 5 ? revisionA : revisionB,
+      participantId: participantIds[index]!,
+      userId,
+      isPrimaryStarter: true,
+    })));
+    await tx.insert(schema.eventRosters).values([
+      { id: eventRosterA, entryId: entryAId, sourceRosterRevisionId: revisionA, status: "frozen", confirmedAt: NOW, confirmedBy: userIds[0]!, frozenAt: NOW, frozenBy: userIds[0]! },
+      { id: eventRosterB, entryId: entryBId, sourceRosterRevisionId: revisionB, status: "frozen", confirmedAt: NOW, confirmedBy: userIds[5]!, frozenAt: NOW, frozenBy: userIds[5]! },
+    ]);
+    await tx.insert(schema.eventRosterMembers).values(userIds.map((userId, index) => ({
+      id: eventMemberIds[index]!,
+      eventRosterId: index < 5 ? eventRosterA : eventRosterB,
+      userId,
+      participantId: participantIds[index]!,
+      isPrimaryStarter: true,
+    })));
+    await tx.insert(schema.matches).values({
+      id: matchId,
+      seasonId,
+      entryAId,
+      entryBId,
+      stage: "fixture-stage",
+      format: "bo3",
+      status: options.matchStatus ?? "in_progress",
+      scheduledAt: new Date("2026-09-28T01:00:00.000Z"),
+    });
+    await tx.insert(schema.matchMaps).values([
+      { id: mapOneId, matchId, mapOrder: 1, mapName: "de_ancient" },
+      { id: mapTwoId, matchId, mapOrder: 2, mapName: "de_mirage" },
+    ]);
+    await tx.insert(schema.matchVetoSessions).values({ matchId, startedAt: NOW, completedAt: NOW });
+    await tx.insert(schema.matchRosters).values([
+      { id: rosterA, matchId, entryId: entryAId, source: "admin_select", status: "submitted" },
+      { id: rosterB, matchId, entryId: entryBId, source: "admin_select", status: "submitted" },
+    ]);
+    await tx.insert(schema.matchRosterPlayers).values(userIds.map((_, index) => ({
+      rosterId: index < 5 ? rosterA : rosterB,
+      eventRosterMemberId: eventMemberIds[index]!,
+      isStarter: true,
+    })));
+    await tx.insert(schema.mizarPairingIntents).values([
+      { id: pairingIntentA, pollTokenHash: randomUUID(), status: "authorized", competitionId: seasonId, authorizedByUserId: userIds[0]!, authorizedAt: NOW, expiresAt: new Date(NOW.getTime() + 600_000) },
+      { id: pairingIntentB, pollTokenHash: randomUUID(), status: "authorized", competitionId: seasonId, authorizedByUserId: userIds[5]!, authorizedAt: NOW, expiresAt: new Date(NOW.getTime() + 600_000) },
+    ]);
+    await tx.insert(schema.mizarInstallations).values([
+      { id: installationId, competitionId: seasonId, pairingIntentId: pairingIntentA, authorizedByUserId: userIds[0]!, credentialHash: randomUUID() },
+      { id: installationBId, competitionId: seasonId, pairingIntentId: pairingIntentB, authorizedByUserId: userIds[5]!, credentialHash: randomUUID() },
+    ]);
+    session = await tx.insert(schema.matchLiveSessions).values({
+      matchId,
+      installationId,
+      producerInstanceId,
+      liveSessionId,
+      contextRevision,
+      authorityRevision,
+      programSourceGeneration: 0,
+      mapEpoch: 1,
+      identityHealth: "healthy",
+      lineupHealth: "healthy",
+      continuityHealth: "healthy",
+      autoCanonicalizationArmed: true,
+      currentMapId: mapOneId,
+      mapExecutionPhase: "gameplay",
+    }).returning({ id: schema.matchLiveSessions.id });
+  });
+  return { seasonId, entryAId, entryBId, matchId, mapOneId, mapTwoId, installationId, installationBId, sessionId: session![0]!.id, producerInstanceId, liveSessionId, contextRevision, authorityRevision, steam64 };
 }
 
 function reliableEvent(fixture: Fixture, overrides: Record<string, unknown> = {}) {
@@ -357,7 +356,7 @@ describe("Mizar reliable event ingest ownership", () => {
       mismatch.seasonId,
       reliableEvent(mismatch, { kind: "match_started" }),
       mismatch.authorityRevision,
-      [steam64For(0)],
+      [fixture.steam64[0]!],
     );
     expect(needsAttention.outcome).toBe("needs_attention");
     const [stillScheduled] = await db.select().from(schema.matches).where(eq(schema.matches.id, mismatch.matchId));
