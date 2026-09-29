@@ -42,3 +42,6 @@ export * from "./season-public-info";
 export * from "./feedback";
 
 export * from "./predictions";
+
+export * from "./match-operations";
+export * from "./mizar";

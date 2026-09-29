@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AdminMatchWorkbench } from "@/components/matches/AdminMatchWorkbench";
 import { loadAdminMatchWorkbench } from "@/lib/admin/matches/workbench";
+import { loadMatchRuntimePresentation } from "@/lib/matches/runtime-read-model";
 
 interface AdminMatchWorkbenchPageProps {
   params: Promise<{ seasonSlug: string; matchId: string }>;
@@ -11,6 +12,7 @@ export default async function AdminMatchWorkbenchPage({ params }: AdminMatchWork
   const { seasonSlug, matchId } = await params;
   const data = await loadAdminMatchWorkbench({ seasonSlug, matchId });
   if (!data) notFound();
+  const runtime = await loadMatchRuntimePresentation(matchId);
 
   return (
     <div className="min-w-0 space-y-5">
@@ -27,7 +29,7 @@ export default async function AdminMatchWorkbenchPage({ params }: AdminMatchWork
           ← 回到赛事比赛总览
         </Link>
       </header>
-      <AdminMatchWorkbench {...data} />
+      <AdminMatchWorkbench {...data} runtime={runtime} />
     </div>
   );
 }

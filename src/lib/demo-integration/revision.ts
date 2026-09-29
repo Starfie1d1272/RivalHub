@@ -63,7 +63,10 @@ export function buildEvidenceRevisionForTarget(input: {
     mapScoreA: input.map.scoreA,
     mapScoreB: input.map.scoreB,
     mapCompletedAt: input.map.completedAt?.toISOString() ?? null,
-    matchStatus: input.match.status,
+    // A completed map keeps its evidence valid when the series later finishes.
+    // Preserve the historical "finished" revision value for existing imports.
+    matchStatus: input.map.completedAt && input.map.scoreA !== null && input.map.scoreB !== null
+      ? "finished" : input.match.status,
     entryAId: input.match.entryAId,
     entryBId: input.match.entryBId,
     roster: input.roster.map((member) => ({

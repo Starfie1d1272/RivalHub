@@ -77,7 +77,6 @@ export async function validateCanonicalTarget(
   if (evidence.target.mapOrder !== map.mapOrder) issues.push(integrationIssue("TARGET_MAP_ORDER_MISMATCH", "目标图序已变化。", "target.mapOrder"));
   if (evidence.target.expectedMapName !== map.mapName) issues.push(integrationIssue("TARGET_MAP_MISMATCH", "目标地图已变化。", "target.expectedMapName"));
   if (evidence.target.entryAId !== match.entryAId || evidence.target.entryBId !== match.entryBId) issues.push(integrationIssue("TARGET_ENTRY_MISMATCH", "目标参赛队已变化。", "target.entryAId"));
-  if (match.status !== "finished" || match.completedAt == null) issues.push(integrationIssue("MATCH_NOT_FINISHED", "比赛尚未形成可接收的正式结果。", "target.matchId"));
   if (map.scoreA == null || map.scoreB == null || map.completedAt == null) issues.push(integrationIssue("MAP_RESULT_MISSING", "目标地图缺少已完成的正式比分。", "target.matchMapId"));
   if (evidence.quality.qa.ok !== true) issues.push(integrationIssue("DAK_QA_FAILED", "DAK QA 未通过，不能自动接收。", "quality.qa"));
 

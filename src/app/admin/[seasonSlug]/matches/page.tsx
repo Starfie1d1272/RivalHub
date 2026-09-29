@@ -12,8 +12,11 @@ import { MajorSwissRuntimeManagement } from "@/components/admin/MajorSwissRuntim
 import { PageHeader, Panel, Section } from "@/components/rivalhub";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { loadAdminMatchOverview } from "@/lib/admin/matches/overview";
+import { loadMatchOperationsOverview } from "@/lib/admin/matches/operations";
+import { projectAdminMatchBuckets } from "@/lib/admin/matches/buckets";
 import { presentMatchLabel } from "@/lib/matches/presentation";
 import { presentSeasonStatus } from "@/lib/seasons/presentation";
+import { MatchOperationsTools } from "@/components/matches/MatchOperationsTools";
 
 interface AdminMatchesPageProps {
   params: Promise<{ seasonSlug: string }>;
@@ -28,12 +31,14 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
 
   const matchCount = data.matches.length;
   const teamNameById = new Map(data.teams.map((team) => [team.id, team.name]));
+  const operations = await loadMatchOperationsOverview(data.season.id, data.matches.map(match => match.id));
+  const groups = projectAdminMatchBuckets(data.matches, operations.conflicts, operations.now);
 
   return (
     <div className="min-w-0 space-y-6">
       <PageHeader
         title={`比赛总览 · ${data.season.name}`}
-        description="按阶段查看赛程、积分与 Major runtime；进入单场工作台处理本场运营细节。"
+        description="先处理当前比赛任务，再查看阶段赛程与积分。"
         actions={(
           <>
           {data.teams.length >= 2 && data.stagePlan.length > 0 && (
@@ -52,6 +57,18 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
           </>
         )}
       />
+
+      <Section className="space-y-4">
+        <h2 className="text-lg font-semibold">当前赛务</h2>
+        {groups.map(group => <div key={group.label} className="space-y-2">
+          <h3 className="text-sm font-semibold">{group.label} · {group.matches.length}</h3>
+          {group.matches.length > 0 && <div className="grid gap-3 xl:grid-cols-2">{group.matches.slice(0, 12).map(match => <AdminMatchRow key={match.id} match={match} teamAName={teamNameById.get(match.entryAId) ?? "待定"} teamBName={teamNameById.get(match.entryBId) ?? "待定"} seasonSlug={seasonSlug} stageName={data.stagePlan.find(stage => stage.key === match.stage)?.name} />)}</div>}
+        </div>)}
+      </Section>
+
+      <MatchOperationsTools seasonId={data.season.id} logoUrl={operations.logoUrl} slots={operations.slots} devices={operations.devices} />
+
+      <details open={Boolean(filters.stage || filters.team || filters.status) || undefined} className="space-y-4"><summary className="cursor-pointer text-base font-semibold">阶段赛程、积分与赛事运行</summary>
 
       {matchCount > 0 && (
         <AdminMatchFilter
@@ -179,6 +196,7 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
       {!data.canGenerate && matchCount === 0 && (
         <Panel contentClassName="p-8 text-center text-[var(--color-fg-mid)]">暂无比赛记录</Panel>
       )}
+      </details>
     </div>
   );
 }

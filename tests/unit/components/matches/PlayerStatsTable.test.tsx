@@ -1,137 +1,67 @@
 /**
  * @vitest-environment jsdom
  */
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
+import React from "react";
 import { render, screen } from "@testing-library/react";
-
-const { mockFindMany, mockMembershipWhere, mockMembershipInnerJoin, mockMembershipFrom, mockMembershipSelect } = vi.hoisted(() => ({
-  mockFindMany: vi.fn(),
-  mockMembershipWhere: vi.fn(),
-  mockMembershipInnerJoin: vi.fn(),
-  mockMembershipFrom: vi.fn(),
-  mockMembershipSelect: vi.fn(),
-}));
-
-vi.mock("@/db/client", () => ({
-  db: {
-    select: mockMembershipSelect,
-    query: {
-      matchPlayerStats: { findMany: mockFindMany },
-    },
-  },
-}));
-
-vi.mock("@/db/schema/player-stats", () => ({
-  matchPlayerStats: {
-    id: {}, mapId: {}, userId: {}, perfectName: {},
-    kills: {}, deaths: {}, assists: {}, adr: {}, ratingPro: {},
-    hsPercent: {}, firstKills: {}, multiKills: {}, clutches: {},
-    rws: {}, we: {},
-  },
-}));
-
-vi.mock("@/db/schema", () => ({
-  eventRosterMembers: { id: {}, userId: {}, eventRosterId: {}, isCurrent: {} },
-  eventRosters: { id: {}, entryId: {} },
-}));
-
 import { PlayerStatsTable } from "@/components/matches/PlayerStatsTable";
+import type { SummaryPlayer } from "@/components/matches/MatchSummaryStats";
 
 const baseProps = {
-  mapId: "mp1",
   entryAId: "ta",
   entryBId: "tb",
   teamAName: "队伍 A",
   teamBName: "队伍 B",
 };
 
+function player(overrides: Partial<SummaryPlayer> = {}): SummaryPlayer {
+  return {
+    userId: "u-a",
+    perfectName: "选手 A",
+    teamId: "ta",
+    kills: 10,
+    deaths: 5,
+    assists: 3,
+    adr: 80,
+    ratingPro: 1.1,
+    hsPercent: 50,
+    firstKills: 2,
+    multiKills: 1,
+    clutches: 0,
+    rws: 12,
+    we: 1.5,
+    mapsPlayed: 1,
+    ...overrides,
+  };
+}
+
 describe("PlayerStatsTable", () => {
-  beforeEach(() => {
-    mockFindMany.mockReset();
-    mockMembershipWhere.mockReset();
-    mockMembershipInnerJoin.mockReset();
-    mockMembershipFrom.mockReset();
-    mockMembershipSelect.mockReset();
-    const query = { innerJoin: mockMembershipInnerJoin, where: mockMembershipWhere };
-    mockMembershipSelect.mockReturnValue({ from: mockMembershipFrom });
-    mockMembershipFrom.mockReturnValue(query);
-    mockMembershipInnerJoin.mockReturnValue(query);
-    mockMembershipWhere
-      .mockResolvedValueOnce([{ userId: "u-a", entryId: "ta" }, { userId: "u-b", entryId: "tb" }])
-      .mockResolvedValueOnce([]);
+  it("renders the empty state when no confirmed stats are available", () => {
+    render(<PlayerStatsTable {...baseProps} players={[]} />);
+    expect(screen.getByText("暂无玩家数据")).toBeInTheDocument();
   });
 
-  it("renders empty state when no stats", async () => {
-    mockFindMany.mockResolvedValue([]);
-    const jsx = await PlayerStatsTable(baseProps);
-    render(jsx);
-    expect(screen.getByText("暂无玩家数据")).toBeDefined();
+  it("renders both team blocks and the fixed base scoreboard fields", () => {
+    render(<PlayerStatsTable {...baseProps} players={[player(), player({ userId: "u-b", perfectName: "选手 B", teamId: "tb" })]} />);
+    expect(screen.getByText("选手 A")).toBeInTheDocument();
+    expect(screen.getByText("选手 B")).toBeInTheDocument();
+    expect(screen.getByText("队伍 A")).toBeInTheDocument();
+    expect(screen.getByText("队伍 B")).toBeInTheDocument();
+    for (const column of ["Rating", "K", "D", "A", "ADR", "HS%", "FK", "MK", "CL", "WE"]) {
+      expect(screen.getAllByText(column).length).toBe(2);
+    }
+    expect(screen.queryByText("RWS")).not.toBeInTheDocument();
   });
 
-  it("renders team names and player names", async () => {
-    mockFindMany.mockResolvedValue([
-      { id: "p1", userId: "u-a", perfectName: "选手1", kills: 10, deaths: 5, assists: 3, adr: 80, ratingPro: 1.1, hsPercent: 50, firstKills: 2, multiKills: 1, clutches: 0, rws: 12, we: 1.5 },
-      { id: "p2", userId: "u-b", perfectName: "选手2", kills: 5, deaths: 10, assists: 1, adr: 50, ratingPro: 0.8, hsPercent: 40, firstKills: 0, multiKills: 0, clutches: 0, rws: 8, we: 0.8 },
-    ]);
-    const jsx = await PlayerStatsTable(baseProps);
-    render(jsx);
-    expect(screen.getByText("选手1")).toBeDefined();
-    expect(screen.getByText("选手2")).toBeDefined();
-    expect(screen.getByText("队伍 A")).toBeDefined();
-    expect(screen.getByText("队伍 B")).toBeDefined();
-  });
-
-  it("renders rating values", async () => {
-    mockFindMany.mockResolvedValue([
-      { id: "p1", userId: "u-a", perfectName: "高Rating选手", kills: 25, deaths: 8, assists: 5, adr: 95, ratingPro: 1.35, hsPercent: 60, firstKills: 3, multiKills: 2, clutches: 1, rws: 15, we: 2.0 },
-    ]);
-    const jsx = await PlayerStatsTable(baseProps);
-    render(jsx);
-    expect(screen.getByText("1.35")).toBeDefined();
-  });
-
-  it("keeps missing map values unknown while showing real zero", async () => {
-    mockFindMany.mockResolvedValue([
-      { id: "p1", userId: "u-a", perfectName: "缺失数据", kills: null, deaths: null, assists: null, adr: null, ratingPro: null, hsPercent: null, firstKills: null, multiKills: null, clutches: null, rws: null, we: null },
-      { id: "p2", userId: "u-b", perfectName: "零数据", kills: 0, deaths: 0, assists: 0, adr: 0, ratingPro: 0, hsPercent: 0, firstKills: 0, multiKills: 0, clutches: 0, rws: 0, we: 0 },
-    ]);
-    const jsx = await PlayerStatsTable(baseProps);
-    render(jsx);
-
+  it("keeps missing values unknown while showing real zero", () => {
+    render(<PlayerStatsTable {...baseProps} players={[
+      player({ perfectName: "缺失数据", kills: null, deaths: null, assists: null, adr: null, ratingPro: null, hsPercent: null, firstKills: null, multiKills: null, clutches: null, we: null }),
+      player({ userId: "u-b", perfectName: "零数据", teamId: "tb", kills: 0, deaths: 0, assists: 0, adr: 0, ratingPro: 0, hsPercent: 0, firstKills: 0, multiKills: 0, clutches: 0, we: 0 }),
+    ]} />);
     expect(screen.getByText("缺失数据")).toBeInTheDocument();
     expect(screen.getByText("零数据")).toBeInTheDocument();
-    expect(screen.getAllByText("—").length).toBeGreaterThanOrEqual(10);
+    expect(screen.getAllByText("—").length).toBeGreaterThanOrEqual(8);
     expect(screen.getAllByText("0").length).toBeGreaterThanOrEqual(6);
     expect(screen.getAllByText("0.0").length).toBe(2);
-  });
-
-  it("assigns players through the frozen event roster", async () => {
-    mockFindMany.mockResolvedValue([
-      { id: "p1", userId: "u-a", perfectName: "A队选手", kills: 10, deaths: 5, assists: 3, adr: 80, ratingPro: 1.1, hsPercent: 50, firstKills: 2, multiKills: 1, clutches: 0, rws: 12, we: 1.5 },
-      { id: "p2", userId: "u-b", perfectName: "B队选手", kills: 5, deaths: 10, assists: 1, adr: 50, ratingPro: 0.8, hsPercent: 40, firstKills: 0, multiKills: 0, clutches: 0, rws: 8, we: 0.8 },
-    ]);
-    const jsx = await PlayerStatsTable(baseProps);
-    render(jsx);
-    // 两队都能正确归属渲染
-    expect(screen.getByText("A队选手")).toBeDefined();
-    expect(screen.getByText("B队选手")).toBeDefined();
-    expect(mockMembershipWhere).toHaveBeenCalledTimes(2);
-  });
-
-  it("resolves stats for a historical member through this match roster", async () => {
-    mockFindMany.mockResolvedValue([
-      { id: "p1", userId: "u-history", perfectName: "历史名单选手", kills: 10, deaths: 5, assists: 3, adr: 80, ratingPro: 1.1, hsPercent: 50, firstKills: 2, multiKills: 1, clutches: 0, rws: 12, we: 1.5 },
-      { id: "p2", userId: "u-b", perfectName: "B队选手", kills: 5, deaths: 10, assists: 1, adr: 50, ratingPro: 0.8, hsPercent: 40, firstKills: 0, multiKills: 0, clutches: 0, rws: 8, we: 0.8 },
-    ]);
-    mockMembershipWhere.mockReset()
-      .mockResolvedValueOnce([{ userId: "u-b", entryId: "tb" }])
-      .mockResolvedValueOnce([{ userId: "u-history", entryId: "ta" }]);
-
-    const jsx = await PlayerStatsTable(baseProps);
-    render(jsx);
-
-    expect(screen.getByText("历史名单选手")).toBeDefined();
-    expect(screen.getByText("队伍 A")).toBeDefined();
-    expect(screen.getByText("队伍 B")).toBeDefined();
   });
 });

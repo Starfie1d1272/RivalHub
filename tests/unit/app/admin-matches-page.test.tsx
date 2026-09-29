@@ -12,6 +12,8 @@ const { loadOverviewMock, matchRowMock } = vi.hoisted(() => ({
 }));
 
 vi.mock("@/lib/admin/matches/overview", () => ({ loadAdminMatchOverview: loadOverviewMock }));
+vi.mock("@/lib/admin/matches/operations", () => ({ loadMatchOperationsOverview: vi.fn().mockResolvedValue({ now: Date.parse("2026-09-05T00:00:00Z"), logoUrl: null, slots: [], devices: [], conflicts: new Set() }) }));
+vi.mock("@/components/matches/MatchOperationsTools", () => ({ MatchOperationsTools: () => null }));
 vi.mock("@/components/matches/AdminMatchRow", () => ({ AdminMatchRow: matchRowMock }));
 vi.mock("@/components/matches/AdminMatchFilter", () => ({ AdminMatchFilter: () => null }));
 vi.mock("@/components/matches/CreateMatchForm", () => ({ CreateMatchForm: () => null }));
@@ -117,5 +119,21 @@ describe("AdminMatchesPage overview boundary", () => {
     expect(html).toContain("解说有效场次统计");
     expect(html).toContain("解说甲");
     expect(html).toContain("1 场");
+  });
+
+  it("expands the stage schedule section when a filter or stage query is present", async () => {
+    loadOverviewMock.mockResolvedValue(overviewData());
+
+    const htmlWithStage = renderToStaticMarkup(await AdminMatchesPage({
+      params: Promise.resolve({ seasonSlug: "major" }),
+      searchParams: Promise.resolve({ stage: "swiss" }),
+    }));
+    expect(htmlWithStage).toMatch(/<details\s+open/);
+
+    const htmlWithoutStage = renderToStaticMarkup(await AdminMatchesPage({
+      params: Promise.resolve({ seasonSlug: "major" }),
+      searchParams: Promise.resolve({}),
+    }));
+    expect(htmlWithoutStage).not.toMatch(/<details\s+open/);
   });
 });

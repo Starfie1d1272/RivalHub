@@ -9,22 +9,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { formatCST, parseCSTInput, toCSTDateTimeInput } from "@/lib/utils/date";
 import type { MatchTimeProposalView } from "@/lib/matches/time-proposals";
+import { TIME_RESOLUTION_LABELS } from "@/lib/matches/time-resolution-presentation";
 
 const PROPOSAL_AUTO_ACCEPT_HOURS = 24;
-
-/** 推荐有解说覆盖的时间段（按 Asia/Shanghai 当地时间）。 */
-const CASTER_SLOTS: readonly { start: number; end: number }[] = [
-  { start: 14, end: 17 }, // 14:00 – 17:00
-  { start: 19, end: 22 }, // 19:00 – 22:00
-];
-
-/** 判断给定时间（北京时间起点）是否落在推荐解说时段内。 */
-function isWithinCasterSlot(date: Date | null): boolean {
-  if (!date || Number.isNaN(date.getTime())) return false;
-  // 用东八区小时数判断；Date 内部是 UTC，加偏移得到 CST 小时。
-  const cstHour = (date.getUTCHours() + 8) % 24;
-  return CASTER_SLOTS.some((slot) => cstHour >= slot.start && cstHour < slot.end);
-}
 
 interface MatchTimeNegotiationProps {
   matchId: string;
@@ -34,9 +21,9 @@ interface MatchTimeNegotiationProps {
   currentScheduledAt: Date | null;
   currentCompletionDeadline: Date | null;
   initialProposals: MatchTimeProposalView[];
-  hasSubmittedRoster: boolean;
   /** 协商缓冲小时数，排位赛默认 24，正赛 0。决定 confirmationCutoff = completionDeadline - bufferHours。 */
   bufferHours?: number;
+  coverageSlots?: { id: string; startsAt: Date; endsAt: Date; capacity: number; note: string | null }[];
 }
 
 export function MatchTimeNegotiation({
@@ -47,15 +34,14 @@ export function MatchTimeNegotiation({
   currentScheduledAt,
   currentCompletionDeadline,
   initialProposals,
-  hasSubmittedRoster = false,
   bufferHours = 24,
+  coverageSlots = [],
 }: MatchTimeNegotiationProps) {
   const router = useRouter();
-  // 0 缓冲（=与最晚完成时间一致）目前仅正赛使用，沿用作为是否显示解说时段提示的判据。
-  const isPlayoff = bufferHours === 0;
   const [isPending, startTransition] = useTransition();
   const [now, setNow] = useState(() => Date.now());
   const [proposedTime, setProposedTime] = useState("");
+  const [coverageSlotId, setCoverageSlotId] = useState("");
   const [rejectReasons, setRejectReasons] = useState<Record<string, string>>({});
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const isCaptain = isCaptainA || isCaptainB;
@@ -83,22 +69,20 @@ export function MatchTimeNegotiation({
     return () => window.clearInterval(timer);
   }, [confirmationCutoffTime, pendingProposals.length, router]);
 
-  // 检测被系统自动采纳的提议
-  const autoAcceptedProposal = initialProposals.find((p) => {
-    if (p.status !== "accepted" || !p.responseAt) return false;
-    const elapsed = new Date(p.responseAt).getTime() - new Date(p.createdAt).getTime();
-    return elapsed >= PROPOSAL_AUTO_ACCEPT_HOURS * 60 * 60 * 1000 - 1800_000; // 23.5h+
-  });
+  const acceptedProposal = initialProposals.find((proposal) => proposal.status === "accepted" && proposal.resolution);
+  const selectedTime = parseCSTInput(proposedTime);
+  const availableSlots = selectedTime ? coverageSlots.filter(slot => selectedTime >= new Date(slot.startsAt) && selectedTime < new Date(slot.endsAt)) : [];
 
   const handlePropose = () => {
     if (!proposedTime) return;
     startTransition(async () => {
       const parsed = parseCSTInput(proposedTime);
       if (!parsed) { toast.error("请输入有效的时间"); return; }
-      const result = await proposeMatchTime(matchId, parsed);
+      const result = await proposeMatchTime(matchId, parsed, coverageSlotId || undefined);
       if (result.success) {
         toast.success("时间提议已发送");
         setProposedTime("");
+        setCoverageSlotId("");
       } else {
         toast.error(result.error.message ?? "提议失败");
       }
@@ -136,15 +120,6 @@ export function MatchTimeNegotiation({
 
   return (
     <div className="space-y-4">
-      {isCaptain && !hasSubmittedRoster && (
-        <div className="rounded border p-3" style={{ borderColor: "var(--color-warn-edge)", background: "var(--color-warn-soft)" }}>
-          <p className="text-sm text-[var(--color-fg)]">请先提交赛前名单</p>
-          <p className="text-xs text-[var(--color-fg-dim)] mt-1">
-            在确认比赛时间之前，请先在「提交名单」中选择 5 名首发队员。裁判在正式开赛时会检查队员信息，队员不正确将无法进行比赛。
-          </p>
-        </div>
-      )}
-
       {/* 当前确定的比赛时间 */}
       <div className="flex items-center gap-2">
         <span className="text-sm font-medium">比赛时间：</span>
@@ -154,11 +129,11 @@ export function MatchTimeNegotiation({
       </div>
 
       {/* 系统自动采纳提示 */}
-      {autoAcceptedProposal && currentScheduledAt && (
+      {acceptedProposal && currentScheduledAt && (
         <div className="rounded border p-3 text-sm" style={{ borderColor: "var(--color-ok-edge)", background: "var(--color-ok-soft)" }}>
-          <p className="font-medium text-[var(--color-fg)]">比赛时间已自动设定</p>
+          <p className="font-medium text-[var(--color-fg)]">比赛时间已确定</p>
           <p className="text-xs text-[var(--color-fg-dim)] mt-0.5">
-            对方 24 小时内未回应，比赛时间已按提议自动采纳为 {formatCST(autoAcceptedProposal.proposedTime)}。
+            {TIME_RESOLUTION_LABELS[acceptedProposal.resolution!]}：{formatCST(acceptedProposal.proposedTime)}。
           </p>
         </div>
       )}
@@ -257,7 +232,7 @@ export function MatchTimeNegotiation({
               id="propose-time"
               type="datetime-local"
               value={proposedTime}
-              onChange={(e) => setProposedTime(e.target.value)}
+              onChange={(e) => { setProposedTime(e.target.value); setCoverageSlotId(""); }}
               max={completionDeadline ? toCSTDateTimeInput(completionDeadline) ?? undefined : undefined}
             />
             <Button
@@ -267,13 +242,13 @@ export function MatchTimeNegotiation({
               提议
             </Button>
           </div>
-          {isPlayoff &&
-            proposedTime &&
-            !isWithinCasterSlot(parseCSTInput(proposedTime)) && (
-              <p className="text-xs text-[var(--color-warn)]">
-                所选时间在推荐解说时段外，比赛可正常进行，但不保证有官方解说。
-              </p>
-            )}
+          {selectedTime && <label className="block text-xs">官方转播名额（可选）
+            <select className="mt-1 min-h-10 w-full rounded border border-[var(--color-border)] bg-[var(--color-panel)] px-2" value={coverageSlotId} onChange={event => setCoverageSlotId(event.target.value)}>
+              <option value="">自由约定，无官方转播占位</option>
+              {availableSlots.map(slot => <option key={slot.id} value={slot.id}>{formatCST(slot.startsAt)} – {formatCST(slot.endsAt)} · 容量 {slot.capacity}{slot.note ? ` · ${slot.note}` : ""}</option>)}
+            </select>
+            <span className="mt-1 block text-[var(--color-fg-mid)]">转播名额临时保留 15 分钟；超时只释放名额，时间提议仍有效。</span>
+          </label>}
         </div>
       )}
 
@@ -291,11 +266,6 @@ export function MatchTimeNegotiation({
         <div>
           单条提议超时：对方 24 小时未回应将自动采纳
         </div>
-        {isPlayoff && (
-          <div className="mt-1 text-[var(--color-fg)]">
-            推荐解说时段：每天 14:00–17:00 / 19:00–22:00（有官方解说覆盖）；可在此之外协商时间，但不保证解说。
-          </div>
-        )}
         {isNegotiationClosed && (
           <div className="mt-1 text-[var(--color-danger)]">
             队长时间协商已截止，请联系管理员指定比赛时间。

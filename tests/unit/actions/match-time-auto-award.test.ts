@@ -45,6 +45,7 @@ vi.mock("@/db/client", () => {
 
   return {
     db: {
+      select: vi.fn().mockReturnValue({ from: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue([]) }) }),
       query: {
         matches: { findMany: matchFindManyMock },
         matchTimeProposals: { findMany: proposalFindManyMock },
@@ -53,6 +54,8 @@ vi.mock("@/db/client", () => {
     },
   };
 });
+
+vi.mock("@/lib/matches/coverage", () => ({ allocateHeldCoverageInTx: vi.fn() }));
 
 vi.mock("@/db/schema", () => ({
   matches: {
@@ -136,6 +139,7 @@ describe("runMatchTimeAutoAwardCron", () => {
     expect(updateSetCalls).toContainEqual({ status: "expired", updatedAt: now });
     expect(updateSetCalls).toContainEqual({
       status: "accepted",
+      resolution: "auto_cutoff",
       responseAt: now,
       updatedAt: now,
     });

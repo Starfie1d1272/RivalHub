@@ -5,7 +5,6 @@ import { presentMatchFormat, presentMatchLabel } from "@/lib/matches/presentatio
 import { Separator } from "@/components/ui/separator";
 import { Panel, StatusPill } from "@/components/rivalhub";
 import { MatchStatusBadge } from "@/components/matches/MatchStatusBadge";
-import { ScoreInput } from "@/components/matches/ScoreInput";
 import { MapByMapInput } from "@/components/matches/MapByMapInput";
 import { ScheduledAtInput } from "@/components/matches/ScheduledAtInput";
 import { VetoInputDialog } from "@/components/matches/VetoInputDialog";
@@ -23,8 +22,11 @@ import type { AdminMatchWorkbenchData } from "@/lib/admin/matches/types";
 import { getDisplayName } from "@/lib/identity/display-name";
 import { getAdminMatchStartBlockers } from "@/lib/admin/matches/start-blockers";
 import { formatCSTDateTime, toCSTDateTimeInput } from "@/lib/utils/date";
+import { projectMatchPrimaryTask } from "@/lib/matches/runtime-presentation";
+import type { loadMatchRuntimePresentation } from "@/lib/matches/runtime-read-model";
+import { ManualMapTakeover } from "./ManualMapTakeover";
 
-export type AdminMatchWorkbenchProps = AdminMatchWorkbenchData;
+export type AdminMatchWorkbenchProps = AdminMatchWorkbenchData & { runtime: Awaited<ReturnType<typeof loadMatchRuntimePresentation>> };
 
 function RosterSummary({
   teamName,
@@ -54,9 +56,7 @@ function RosterSummary({
     <div className="rounded border border-[var(--color-border)] p-3 text-sm">
       <div className="flex items-center justify-between gap-2">
         <p className="font-medium">{teamName}</p>
-        <span className="text-xs text-[var(--color-fg-mid)]">
-          {roster.status === "confirmed" ? "已确认" : "待确认"}
-        </span>
+        <span className="text-xs text-[var(--color-fg-mid)]">{roster.status === "confirmed" ? "已定格" : "当前首发"}</span>
       </div>
       <p className="mt-2 text-xs leading-5 text-[var(--color-fg-mid)]">
         首发：{labelMembers(roster.starters) || "—"}
@@ -93,6 +93,7 @@ export function AdminMatchWorkbench({
   vetoCompletedAt,
   postMatch,
   demoReviews = [],
+  runtime,
 }: AdminMatchWorkbenchProps) {
   const requiresPreflight = match.ownership === "major_stage";
   const startBlockers = getAdminMatchStartBlockers({
@@ -112,6 +113,7 @@ export function AdminMatchWorkbench({
     teamAName,
     teamBName,
   });
+  const task = runtime ? projectMatchPrimaryTask({ phase: runtime.phase, needsAttention: runtime.needsAttention, scheduledAt: match.scheduledAt, isAdmin: true, isTeamRepresentative: false, isBpRepresentative: false, lineupsReady: runtime.lineupsReady }) : { key: "none", label: "" };
 
   return (
     <Panel
@@ -154,47 +156,8 @@ export function AdminMatchWorkbench({
 
       <Separator />
 
-      <section aria-labelledby="match-workbench-overview" className="space-y-3">
-        <div>
-          <h2 id="match-workbench-overview" className="font-mono text-[11px] tracking-[0.12em] text-[var(--color-fg-mid)]">
-            概览与下一步
-          </h2>
-          <p className="mt-1 text-xs leading-5 text-[var(--color-fg-mid)]">
-            本页承载本场的实际首发、BP、地图、赛果、赛后资料和恢复操作；公开比赛页仍只展示公开事实。
-          </p>
-        </div>
-        {match.status === "scheduled" && (
-          <PreMatchOperatorChecklist
-            requiresPreflight={requiresPreflight}
-            teamA={{
-              name: teamAName,
-              submitted: Boolean(teamARoster),
-              confirmed: teamARoster?.status === "confirmed",
-              starters: teamARoster?.starters.length ?? 0,
-              preflight: teamAPreflight,
-            }}
-            teamB={{
-              name: teamBName,
-              submitted: Boolean(teamBRoster),
-              confirmed: teamBRoster?.status === "confirmed",
-              starters: teamBRoster?.starters.length ?? 0,
-              preflight: teamBPreflight,
-            }}
-            mapState={completedMaps.length + pendingMaps.length > 0 ? "recorded" : "not_recorded"}
-          />
-        )}
-        {match.status === "scheduled" && startBlockers.length > 0 && (
-          <p className="text-xs leading-5 text-[var(--color-warn)]">
-            下一步：{startBlockers.join("；")}
-          </p>
-        )}
-        {match.status === "scheduled" && (
-          <p className="text-xs leading-5 text-[var(--color-fg-mid)]">
-            默认宽限为 15 分钟，不会自动判负。延长宽限或重新排期请使用赛程时间；需要判负时请在下方“危险操作与恢复”记录原因。
-          </p>
-        )}
-      </section>
-
+      <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1fr)_300px]">
+      <main className="min-w-0 space-y-6">
       {match.status !== "cancelled" && (
         <section aria-labelledby="match-workbench-lineup" className="space-y-3">
           <div>
@@ -265,9 +228,7 @@ export function AdminMatchWorkbench({
                   Veto Session 已开始；完成 BP 地图计划后才能录入地图比分。
                 </p>
               )
-            ) : (
-              <ScoreInput matchId={match.id} currentStatus={match.status} allowCancel={match.qualificationRunId === null} />
-            )}
+            ) : <p className="text-sm text-[var(--color-fg-mid)]">从 BP 房间开始比赛；若赛事已实际开始但未留下正常开赛记录，请处理现场异常。</p>}
           </section>
 
           {postMatch && (
@@ -279,7 +240,7 @@ export function AdminMatchWorkbench({
             </section>
           )}
 
-          <section aria-labelledby="match-workbench-danger" className="space-y-3 border-t border-[var(--color-danger-edge)] pt-4">
+          <details className="border-t border-[var(--color-danger-edge)] pt-4"><summary className="cursor-pointer text-sm text-[var(--color-danger)]">判负与异常处理</summary><section aria-labelledby="match-workbench-danger" className="mt-3 space-y-3">
             <div>
               <h2 id="match-workbench-danger" className="font-mono text-[11px] tracking-[0.12em] text-[var(--color-danger)]">
                 危险操作与恢复
@@ -295,7 +256,7 @@ export function AdminMatchWorkbench({
               teamAName={teamAName}
               teamBName={teamBName}
             />
-          </section>
+          </section></details>
         </>
       )}
 
@@ -343,7 +304,7 @@ export function AdminMatchWorkbench({
             </section>
           )}
 
-          <section aria-labelledby="match-workbench-recovery" className="space-y-4 border-t border-[var(--color-danger-edge)] pt-4">
+          <details className="border-t border-[var(--color-danger-edge)] pt-4"><summary className="cursor-pointer text-sm text-[var(--color-danger)]">结果更正与恢复</summary><section aria-labelledby="match-workbench-recovery" className="mt-3 space-y-4">
             <div>
               <h2 id="match-workbench-recovery" className="font-mono text-[11px] tracking-[0.12em] text-[var(--color-danger)]">
                 危险操作与结果恢复
@@ -382,7 +343,7 @@ export function AdminMatchWorkbench({
               matchId={match.id}
               initialValue={toCSTDateTimeInput(match.completedAt)}
             />
-          </section>
+          </section></details>
         </>
       )}
 
@@ -391,6 +352,22 @@ export function AdminMatchWorkbench({
           本场已取消，没有可执行的首发、BP、结果或赛后操作。
         </p>
       )}
+
+      </main>
+      <aside className="space-y-4 lg:sticky lg:top-4 lg:self-start" aria-label="比赛状态与准备情况">
+        <Panel label="当前阶段" contentClassName="space-y-3 p-4">
+          <p className="text-lg font-semibold">{runtime?.phaseLabel ?? "赛前准备"}</p>
+          {task.key !== "none" && <p className="text-sm text-[var(--color-accent)]">下一步：{task.label}</p>}
+          {runtime?.source ? <p className={`text-sm ${runtime.needsAttention ? "text-[var(--color-warn)]" : "text-[var(--color-fg-mid)]"}`}>{runtime.source.deviceName} · {runtime.source.label}</p> : <p className="text-sm text-[var(--color-fg-mid)]">本场没有制播设备，按正常人工赛务处理。</p>}
+          {runtime?.source && match.status === "in_progress" && <ManualMapTakeover matchId={match.id} seasonId={season.id} />}
+        </Panel>
+        {match.status === "scheduled" && <PreMatchOperatorChecklist requiresPreflight={requiresPreflight}
+          teamA={{ name: teamAName, submitted: Boolean(teamARoster), confirmed: false, starters: teamARoster?.starters.length ?? 0, preflight: teamAPreflight }}
+          teamB={{ name: teamBName, submitted: Boolean(teamBRoster), confirmed: false, starters: teamBRoster?.starters.length ?? 0, preflight: teamBPreflight }}
+          mapState={completedMaps.length + pendingMaps.length > 0 ? "recorded" : "not_recorded"} />}
+        {startBlockers.length > 0 && <p className="text-xs text-[var(--color-warn)]">需要处理：{startBlockers.join("；")}</p>}
+      </aside>
+      </div>
 
       <footer className="flex items-center justify-between gap-3 border-t border-[var(--color-border)] pt-4">
         <Link

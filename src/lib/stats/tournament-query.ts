@@ -57,7 +57,7 @@ async function loadStatsEvidence(tx: TxDb, scope: StatsEvidenceScope, options: {
         scope.format ? eq(matches.format, scope.format) : undefined,
       )) : [];
   const selectedTeamId = options.teamId ?? scope.teamFilter;
-  const baseMatches = matchRows.filter((match) => match.status !== "cancelled");
+  const baseMatches = matchRows;
   const scopedMatches = baseMatches.filter((match) => !selectedTeamId || [match.entryAId, match.entryBId].includes(selectedTeamId));
   const matchesById = new Map(scopedMatches.map((match) => [match.id, match]));
   const matchIds = scopedMatches.map((match) => match.id);
@@ -105,7 +105,7 @@ async function loadStatsEvidence(tx: TxDb, scope: StatsEvidenceScope, options: {
   const currentRefs = scopedMaps.flatMap((map) => {
     const current = selectCurrentDemoImport(importsByMapId.get(map.id) ?? []);
     const match = matchesById.get(map.matchId);
-    if (!current || !match || current.status !== "confirmed" || match.status !== "finished" || !map.completedAt || map.scoreA === null || map.scoreB === null) return [];
+    if (!current || !match || current.status !== "confirmed" || !map.completedAt || map.scoreA === null || map.scoreB === null) return [];
     if (current.evidenceRevision !== buildEvidenceRevisionForTarget({ match, map, roster: rosterByMatchId.get(match.id) ?? [] })) return [];
     return [{ current, match, map }];
   });
@@ -480,6 +480,16 @@ export async function getTournamentPlayerDetail(scope: TournamentStatsScope & { 
   return database.transaction(async (tx) => {
     const playerScope = await loadPlayerAppearanceScope(tx, scope.playerId, scope);
     return loadTournamentPlayerDetail(tx, scope, playerScope.matchIds);
+  }, { isolationLevel: "repeatable read", accessMode: "read only" });
+}
+
+/** Match Detail reuses the Stats Center metric owner for one canonical match scope. */
+export async function getMatchPlayerDetail(matchId: string, playerId: string, mapName?: string) {
+  return db.transaction(async (tx) => {
+    const [match] = await tx.select({ seasonId: matches.seasonId }).from(matches).where(eq(matches.id, matchId));
+    if (!match) return null;
+    const detail = await loadTournamentPlayerDetail(tx, { seasonId: match.seasonId, playerId, mapFilter: mapName }, [matchId], { requireCurrentImports: true });
+    return detail.performance ? detail : null;
   }, { isolationLevel: "repeatable read", accessMode: "read only" });
 }
 

@@ -16,6 +16,7 @@ import {
   getTimeBufferHoursForStage,
 } from "@/lib/matches/time-rules";
 import { getEntryIdForRepresentative } from "./_shared";
+import { holdCoverageInTx, allocateHeldCoverageInTx, releaseMatchCoverageInTx } from "@/lib/matches/coverage";
 import { lockMatchInTx } from "@/lib/match-rosters/service";
 
 /**
@@ -25,6 +26,7 @@ import { lockMatchInTx } from "@/lib/match-rosters/service";
 export async function proposeMatchTime(
   matchId: string,
   proposedTime: Date,
+  coverageSlotId?: string,
 ): Promise<ActionResult<{ proposalId: string }>> {
   try {
     const session = await requireAuth();
@@ -42,20 +44,18 @@ export async function proposeMatchTime(
       throw new AppError(ErrorCode.FORBIDDEN, "只有队长可以提议时间");
     }
 
-    const [proposal] = await db
-      .insert(matchTimeProposals)
-      .values({
-        matchId,
-        proposedBy: session.userId,
-        proposedTime,
-      })
-      .returning({ id: matchTimeProposals.id });
-
-    await writeAuditInTx(db, {
-      seasonId: match.seasonId,
-      action: "match.propose_time",
-      actorId: session.userId,
-      targetId: matchId,meta: { proposalId: proposal.id, proposedTime: proposedTime.toISOString() },
+    const proposal = await db.transaction(async tx => {
+      const locked = await lockMatchInTx(tx, matchId);
+      if (locked.status !== "scheduled") throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "比赛已经开始，不能更改时间。");
+      const [currentSeason] = await tx.select().from(seasons).where(eq(seasons.id, locked.seasonId));
+      assertBeforeTimeConfirmationCutoff(locked.completionDeadline, getTimeBufferHoursForStage(currentSeason?.stagePlan, locked.stage));
+      assertProposedTimeFitsDeadline(proposedTime, locked.completionDeadline);
+      await tx.update(matchTimeProposals).set({ status: "expired", updatedAt: new Date() }).where(and(eq(matchTimeProposals.matchId, matchId), eq(matchTimeProposals.status, "pending")));
+      if (coverageSlotId) await holdCoverageInTx(tx, locked, coverageSlotId, proposedTime);
+      else await releaseMatchCoverageInTx(tx, matchId);
+      const [created] = await tx.insert(matchTimeProposals).values({ matchId, proposedBy: session.userId, proposedTime }).returning({ id: matchTimeProposals.id });
+      await writeAuditInTx(tx, { seasonId: match.seasonId, action: "match.propose_time", actorId: session.userId, targetId: matchId, meta: { proposalId: created.id, proposedTime: proposedTime.toISOString() } });
+      return created;
     });
 
     revalidateMatchPaths(season.slug, matchId);
@@ -79,11 +79,14 @@ export async function respondToTimeProposal(
   try {
     const session = await requireAuth();
     const outcome = await db.transaction(async (tx) => {
+      const candidate = await tx.query.matchTimeProposals.findFirst({ where: eq(matchTimeProposals.id, proposalId) });
+      if (!candidate) throw new AppError(ErrorCode.NOT_FOUND, "提议不存在");
+      const match = await lockMatchInTx(tx, candidate.matchId);
+      if (match.status !== "scheduled") throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "比赛已经开始。");
       const [proposal] = await tx.select().from(matchTimeProposals)
         .where(eq(matchTimeProposals.id, proposalId)).for("update");
       if (!proposal) throw new AppError(ErrorCode.NOT_FOUND, "提议不存在");
       if (proposal.status !== "pending") throw new AppError(ErrorCode.VALIDATION_FAILED, "提议已失效");
-      const match = await lockMatchInTx(tx, proposal.matchId);
       const [season] = await tx.select().from(seasons).where(eq(seasons.id, match.seasonId));
       if (!season) throw new AppError(ErrorCode.SEASON_NOT_FOUND, "赛季不存在");
       const bufferHours = getTimeBufferHoursForStage(season.stagePlan, match.stage);
@@ -98,6 +101,7 @@ export async function respondToTimeProposal(
       if (!captain) throw new AppError(ErrorCode.FORBIDDEN, "只有对方队长可以回应");
       const updates: Record<string, unknown> = {
         status: action === "accept" ? "accepted" : "rejected",
+        resolution: action === "accept" ? "participant_accept" : null,
         responseAt: new Date(),
         updatedAt: new Date(),
       };
@@ -113,6 +117,7 @@ export async function respondToTimeProposal(
         .where(eq(matchTimeProposals.id, proposalId));
 
       if (action === "accept") {
+        await allocateHeldCoverageInTx(tx, match.id, proposal.proposedTime);
         await tx
           .update(matches)
           .set({ scheduledAt: proposal.proposedTime, updatedAt: new Date() })
@@ -158,6 +163,10 @@ export async function forceSetMatchTime(
     assertProposedTimeFitsDeadline(time, match.completionDeadline);
 
     await db.transaction(async (tx) => {
+      const locked = await lockMatchInTx(tx, matchId);
+      if (locked.status !== "scheduled") throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "只能调整尚未开始的比赛时间。");
+      assertProposedTimeFitsDeadline(time, locked.completionDeadline);
+      await releaseMatchCoverageInTx(tx, matchId);
       await tx
         .update(matchTimeProposals)
         .set({ status: "expired", updatedAt: new Date() })
@@ -172,6 +181,7 @@ export async function forceSetMatchTime(
         proposedBy: admin.userId,
         forceAssignedBy: admin.userId,
         status: "accepted",
+        resolution: "admin_force",
         proposedTime: time,
         responseAt: new Date(),
       });

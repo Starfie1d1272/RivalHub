@@ -17,7 +17,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
 import { getDisplayName } from "@/lib/identity/display-name";
-import { adminSelectMatchRoster, confirmMatchRoster } from "@/actions/matches/roster";
+import { adminSelectMatchRoster } from "@/actions/matches/roster";
 import type { RosterData } from "@/lib/admin/matches/types";
 import type { MatchRosterStatus } from "@/db/schema";
 
@@ -55,7 +55,7 @@ interface RosterTeamSectionProps {
 }
 
 const STATUS_LABELS = {
-  submitted: "已提交，待确认",
+  submitted: "当前首发",
   confirmed: "已确认",
 } satisfies Record<MatchRosterStatus, string>;
 
@@ -71,7 +71,7 @@ function RosterTeamSection({
 }: RosterTeamSectionProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  // Two-step explicit flow: first pick, then review the exact five and confirm.
+  // Review the exact five before recording an administrator selection.
   const [pendingLineup, setPendingLineup] = useState<{ starterIds: string[]; substituteIds: string[]; vetoRepresentativeEventRosterMemberId: string | null } | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>(() => {
     if (existingRoster) {
@@ -141,19 +141,7 @@ function RosterTeamSection({
       );
       setPendingLineup(null);
       if (result.success) {
-        toast.success(`${teamName} 名单已保存，开赛前需另行确认`);
-        router.refresh();
-      } else {
-        toast.error(result.error.message);
-      }
-    });
-  }
-
-  function handleConfirm(rosterId: string) {
-    startTransition(async () => {
-      const result = await confirmMatchRoster(rosterId);
-      if (result.success) {
-        toast.success(result.data.alreadyConfirmed ? `${teamName} 名单此前已确认` : `${teamName} 名单已确认，可以开始比赛`);
+        toast.success(`${teamName} 首发已保存`);
         router.refresh();
       } else {
         toast.error(result.error.message);
@@ -173,11 +161,6 @@ function RosterTeamSection({
               : ""}
             {existingRoster.status && ` · ${STATUS_LABELS[existingRoster.status]}`}
           </p>
-          {existingRoster.rosterId && existingRoster.status !== "confirmed" && (
-            <Button size="sm" variant="secondary" onClick={() => handleConfirm(existingRoster.rosterId!)} disabled={isPending}>
-              确认名单
-            </Button>
-          )}
         </div>
       )}
 
@@ -202,9 +185,7 @@ function RosterTeamSection({
               ? getDisplayName(memberMap.get(pendingLineup.vetoRepresentativeEventRosterMemberId)!)
               : "暂未指定，首发可在 Veto Room 中认领"}
           </p>
-          <p className="text-xs text-[var(--color-fg-mid)]">
-            保存后仍需点击「确认名单」，否则该场比赛无法开始。
-          </p>
+          <p className="text-xs text-[var(--color-fg-mid)]">开赛时系统会重新校验并定格首发。</p>
           <div className="flex gap-2 pt-1">
             <Button size="sm" onClick={executeSave} disabled={isPending}>
               {isPending ? "保存中..." : "确认保存"}
@@ -379,7 +360,7 @@ export function AdminRosterDialog({
           <DialogTitle>
             名单管理 · {teamAName} vs {teamBName}
           </DialogTitle>
-          <DialogDescription>为双方选择并确认本场 5 名首发选手。</DialogDescription>
+          <DialogDescription>为双方选择本场 5 名首发；开赛时系统会重新校验并定格。</DialogDescription>
         </DialogHeader>
 
         <DialogBody className="space-y-6">

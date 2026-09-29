@@ -4,7 +4,7 @@ import { matches } from "./matches";
 import { users } from "./users";
 import { competitionEntries, eventRosterMembers } from "./competition-entries";
 
-export const matchRosterSourceEnum = pgEnum("match_roster_source", ["participant", "admin_select"]);
+export const matchRosterSourceEnum = pgEnum("match_roster_source", ["participant", "system_default", "admin_select"]);
 export const matchRosterStatusEnum = pgEnum("match_roster_status", ["submitted", "confirmed"]);
 export type MatchRosterStatus = (typeof matchRosterStatusEnum.enumValues)[number];
 
@@ -24,7 +24,7 @@ export const matchRosters = pgTable("match_rosters", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
   unq: unique().on(t.matchId, t.entryId),
-  metadataShape: check("match_rosters_metadata_shape_check", sql`(${t.source} = 'participant' AND ${t.submittedBy} IS NOT NULL) OR (${t.source} = 'admin_select' AND ${t.submittedBy} IS NULL)`),
+  metadataShape: check("match_rosters_metadata_shape_check", sql`(${t.source} = 'participant' AND ${t.submittedBy} IS NOT NULL) OR (${t.source} IN ('admin_select', 'system_default') AND ${t.submittedBy} IS NULL)`),
   confirmationShape: check("match_rosters_confirmation_shape_check", sql`(${t.status} = 'submitted' AND ${t.confirmedAt} IS NULL AND ${t.confirmedBy} IS NULL) OR (${t.status} = 'confirmed' AND ${t.confirmedAt} IS NOT NULL AND ${t.confirmedBy} IS NOT NULL)`),
 }));
 

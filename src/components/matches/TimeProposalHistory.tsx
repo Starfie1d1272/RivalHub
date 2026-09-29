@@ -1,5 +1,6 @@
 import { formatCST } from "@/lib/utils/date";
 import { MATCH_TIME_PROPOSAL_STATUS_LABELS, type MatchTimeProposalStatus, type PublicMatchTimeProposal } from "@/lib/matches/time-proposals";
+import { TIME_RESOLUTION_LABELS } from "@/lib/matches/time-resolution-presentation";
 
 interface TimeProposalHistoryProps {
   proposals: PublicMatchTimeProposal[];
@@ -40,6 +41,7 @@ export function TimeProposalHistory({ proposals }: TimeProposalHistoryProps) {
               {MATCH_TIME_PROPOSAL_STATUS_LABELS[p.status]}
             </span>
           </div>
+          {p.resolution && <p className="mt-1 text-xs text-[var(--color-fg-mid)]">{TIME_RESOLUTION_LABELS[p.resolution]}</p>}
           {p.rejectReason && (
             <p className="mt-1 text-xs" style={{ color: "var(--color-fg-mid)" }}>
               拒绝原因：{p.rejectReason}

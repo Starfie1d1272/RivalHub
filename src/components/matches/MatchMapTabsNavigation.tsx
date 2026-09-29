@@ -6,6 +6,8 @@ export interface MatchMapTab {
   id: string;
   mapName: string;
   pickedByEntryId: string | null;
+  scoreA: number | null;
+  scoreB: number | null;
 }
 
 interface MatchMapTabsNavigationProps {
@@ -15,6 +17,7 @@ interface MatchMapTabsNavigationProps {
   teamBId: string;
   teamAName?: string | null;
   teamBName?: string | null;
+  liveMapId?: string | null;
 }
 
 export function MatchMapTabsNavigation({
@@ -24,6 +27,7 @@ export function MatchMapTabsNavigation({
   teamBId,
   teamAName,
   teamBName,
+  liveMapId,
 }: MatchMapTabsNavigationProps) {
   return (
     <div className="w-full min-w-0 max-w-full overflow-x-auto">
@@ -36,6 +40,7 @@ export function MatchMapTabsNavigation({
         {maps.map((map) => (
           <TabsTrigger key={map.id} value={map.id} className="text-xs">
             {mapLabel(map.mapName)}
+            <span className="ml-1 font-mono tabular-nums">{map.scoreA !== null && map.scoreB !== null ? `${map.scoreA}:${map.scoreB}` : map.id === liveMapId ? "LIVE" : "—"}</span>
             {map.pickedByEntryId && (
               <span
                 className="ml-1 text-[10px] font-mono px-1 py-0.5"

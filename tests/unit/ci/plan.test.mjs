@@ -43,6 +43,15 @@ describe("changed-surface planner", () => {
     expect(classifyChangedFiles([{ status: "M", paths: [path] }]).requiredJobs).toEqual(requiredJobs);
   });
 
+  it("enables Realtime only for live surfaces or full convergence", () => {
+    const live = classifyChangedFiles([{ status: "M", paths: ["src/lib/mizar/live.ts"] }]);
+    expect(live.liveEvidence).toBe(true);
+    expect(live.e2eSpecs).toContain("tests/e2e/flows/mizar-live.spec.ts");
+    expect(live.requiredJobs).toContain("system");
+    expect(classifyChangedFiles([{ status: "M", paths: ["src/components/layout/Footer.tsx"] }]).liveEvidence).toBe(false);
+    expect(classifyChangedFiles([{ status: "M", paths: ["docs/testing.md"] }], { forceFull: true }).liveEvidence).toBe(true);
+  });
+
   it("parses git name-status lines without depending on pnpm", () => {
     expect(parseNameStatus("M\tsrc/lib/date.ts\nA\tdocs/testing.md\n")).toEqual([
       { status: "M", paths: ["src/lib/date.ts"] },
@@ -145,7 +154,7 @@ describe("changed-surface planner", () => {
   it("routes Auth and Storage providers to system", () => {
     const authProvider = classifyChangedFiles([{ status: "M", paths: ["src/lib/auth/supabase.ts"] }], { draft: false });
     expect(authProvider.requiredJobs).toContain("system");
-    expect(authProvider.e2eSpecs).toEqual(["tests/e2e/flows/major-entry.spec.ts"]);
+    expect(authProvider.e2eSpecs).toEqual(["tests/e2e/flows/major-entry.spec.ts", "tests/e2e/flows/mizar-live.spec.ts"]);
 
     const storageProvider = classifyChangedFiles([{ status: "M", paths: ["src/lib/education/storage.ts"] }], { draft: false });
     expect(storageProvider.requiredJobs).toContain("system");

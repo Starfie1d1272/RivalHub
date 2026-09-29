@@ -11,6 +11,9 @@ import {
   getTimeBufferHoursForStage,
 } from "@/lib/matches/time-rules";
 
+import { allocateHeldCoverageInTx } from "./coverage";
+import { materializeDefaultLineupsInTx } from "@/lib/match-rosters/service";
+
 const PROPOSAL_AUTO_ACCEPT_HOURS = 24;
 
 export interface MatchTimeAutoAwardCronSummary {
@@ -24,6 +27,15 @@ export interface MatchTimeAutoAwardCronSummary {
 export async function runMatchTimeAutoAwardCron(
   now = new Date(),
 ): Promise<MatchTimeAutoAwardCronSummary> {
+  const dueLineups = await db.select().from(matches).where(and(eq(matches.status, "scheduled"), isNotNull(matches.scheduledAt), lte(matches.scheduledAt, new Date(now.getTime() + 2 * 60 * 60_000))));
+  for (const match of dueLineups) {
+    try {
+      await db.transaction(async tx => {
+        const [locked] = await tx.select().from(matches).where(eq(matches.id, match.id)).for("update");
+        await materializeDefaultLineupsInTx(tx, locked, now);
+      });
+    } catch { /* Unavailable legal lineup remains a visible start blocker. */ }
+  }
   const proposalTimeoutResult = await autoAcceptExpiredProposals(now);
 
   const cutoffThreshold = new Date(
@@ -143,7 +155,7 @@ async function autoAcceptSingleProposal(
 
     await tx
       .update(matchTimeProposals)
-      .set({ status: "accepted", responseAt: now, updatedAt: now })
+      .set({ status: "accepted", resolution: "auto_timeout", responseAt: now, updatedAt: now })
       .where(eq(matchTimeProposals.id, proposalId));
     await tx
       .update(matchTimeProposals)
@@ -154,6 +166,7 @@ async function autoAcceptSingleProposal(
           eq(matchTimeProposals.status, "pending"),
         ),
       );
+    await allocateHeldCoverageInTx(tx, matchId, proposal.proposedTime, now);
     await tx
       .update(matches)
       .set({ scheduledAt: proposal.proposedTime, updatedAt: now })
@@ -210,6 +223,7 @@ async function autoAwardMatchTime(
       return { awarded: false };
     }
 
+    await allocateHeldCoverageInTx(tx, matchId, proposal.proposedTime, now);
     await tx
       .update(matches)
       .set({ scheduledAt: proposal.proposedTime, updatedAt: now })
@@ -225,7 +239,7 @@ async function autoAwardMatchTime(
       );
     await tx
       .update(matchTimeProposals)
-      .set({ status: "accepted", responseAt: now, updatedAt: now })
+      .set({ status: "accepted", resolution: "auto_cutoff", responseAt: now, updatedAt: now })
       .where(eq(matchTimeProposals.id, proposal.id));
 
     await writeAuditInTx(tx, {

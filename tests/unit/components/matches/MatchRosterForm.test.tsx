@@ -45,7 +45,7 @@ describe("MatchRosterForm lifecycle gate", () => {
     renderForm();
 
     expect(screen.getAllByRole("button", { name: /Player 1/ })[0]).toBeEnabled();
-    expect(screen.getByText(/比赛尚未开始。提交后由管理员确认/)).toBeInTheDocument();
+    expect(screen.getByText(/提交后即成为本场当前首发/)).toBeInTheDocument();
   });
 
   it("keeps five starter choices available when substitutes are disabled", async () => {
@@ -87,9 +87,9 @@ describe("MatchRosterForm lifecycle gate", () => {
   it("locks a scheduled roster only after the persisted roster is confirmed", () => {
     renderForm({ rosterStatus: "confirmed", hasExistingRoster: true });
 
-    expect(screen.getByText("名单已由管理员确认")).toBeInTheDocument();
+    expect(screen.getByText("本场首发已确认")).toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: /Player 1/ })[0]).toBeDisabled();
-    expect(screen.getByText("名单已确认，等待比赛开始")).toBeInTheDocument();
+    expect(screen.getByText("首发已定格")).toBeInTheDocument();
   });
 
   it("submits the selected five starters and optional substitute", async () => {

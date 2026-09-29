@@ -126,7 +126,7 @@ export async function projectVetoRoomView(
     const entry = entryById.get(entryId);
     const rows = rosterByEntry.get(entryId) ?? [];
     const bpRepresentative = rows.find((row) => row.isVetoRepresentative && row.isStarter) ?? null;
-    const lineupConfirmed = rows[0]?.rosterStatus === "confirmed";
+    const lineupConfirmed = rows.length > 0;
     const currentViewerStarter = rows.some((row) => row.userId === viewerId && row.isStarter);
     const isViewerEntryRepresentative = entry?.representativeUserId === viewerId;
     const mayEditRepresentative = Boolean(
@@ -144,11 +144,11 @@ export async function projectVetoRoomView(
       id: entryId,
       name: entry?.name ?? "未知队伍",
       vetoRoleLabel: core.session.vetoTeamAEntryId === entryId ? "VETO A" : core.session.vetoTeamAEntryId && core.session.vetoTeamAEntryId !== entryId ? "VETO B" : null,
-      rosterConfirmed: rows[0]?.rosterStatus === "confirmed",
-      rosterStatusLabel: rows[0]?.rosterStatus === "confirmed" ? "首发已确认" : rows.length > 0 ? "首发待确认" : "尚未提交首发",
+      rosterConfirmed: rows.length > 0,
+      rosterStatusLabel: rows[0]?.rosterStatus === "confirmed" ? "首发已定格" : rows.length > 0 ? "本场首发已就绪" : "尚未提交首发",
       lineupBlocker: rows.length === 0
         ? "尚未提交本场首发"
-        : rows[0]?.rosterStatus !== "confirmed" ? "本场首发尚未确认" : null,
+        : rows.length === 0 ? "本场首发尚未就绪" : null,
       starters: rows.filter((row) => row.isStarter).map((row) => ({
         id: row.memberId,
         name: getPublicDisplayName(row),

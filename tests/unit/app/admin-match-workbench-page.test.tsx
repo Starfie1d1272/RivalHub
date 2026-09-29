@@ -12,6 +12,7 @@ const { loadWorkbenchMock, workbenchMock, notFoundMock } = vi.hoisted(() => ({
 }));
 
 vi.mock("@/lib/admin/matches/workbench", () => ({ loadAdminMatchWorkbench: loadWorkbenchMock }));
+vi.mock("@/lib/matches/runtime-read-model", () => ({ loadMatchRuntimePresentation: vi.fn().mockResolvedValue(null) }));
 vi.mock("@/components/matches/AdminMatchWorkbench", () => ({ AdminMatchWorkbench: workbenchMock }));
 vi.mock("next/navigation", () => ({ notFound: notFoundMock }));
 vi.mock("next/link", () => ({ default: ({ children, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement>) => <a {...props}>{children}</a> }));

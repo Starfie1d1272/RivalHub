@@ -31,6 +31,7 @@ function match(overrides: Partial<Match> = {}): Match {
     qualificationRunId: null,
     managedKey: "swiss:1:1",
     scheduledAt: null,
+    startedAt: null,
     completionDeadline: null,
     completedAt: null,
     videoUrl: "https://video.example/detail-only",

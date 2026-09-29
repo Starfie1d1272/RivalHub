@@ -46,7 +46,10 @@ const SYSTEM_ACTION_PREFIXES = [
 const MOBILE_PUBLIC_EVENT_SEARCH_SPEC = "tests/e2e/flows/public-event-experience.spec.ts";
 const MOBILE_PUBLIC_EVENT_SEARCH_SOURCES = new Set(["src/components/rivalhub/ListSearchField.tsx"]);
 
+const LIVE_SPEC = "tests/e2e/flows/mizar-live.spec.ts";
+const LIVE_SURFACES = ["src/lib/mizar/", "src/actions/mizar", "src/app/api/mizar/", "src/app/api/matches/", "src/components/matches/MatchLiveProjection", "src/lib/auth/supabase", "scripts/db/mizar-live-fixture", "drizzle/migrations/0065", LIVE_SPEC];
 const SYSTEM_FLOW_MAP = [
+  { prefixes: LIVE_SURFACES, specs: [LIVE_SPEC] },
   {
     prefixes: [
       "src/app/auth/",
@@ -95,7 +98,11 @@ export function classifyChangedFiles(entries, options = {}) {
   const mobileSearchEvidence = entries.some((entry) =>
     (entry.paths ?? []).some((path) => MOBILE_PUBLIC_EVENT_SEARCH_SOURCES.has(path) || path === MOBILE_PUBLIC_EVENT_SEARCH_SPEC),
   );
-  const result = (...args) => ({ ...resultFor(...args), gateName, mobileSearchEvidence });
+  const liveEvidence = forceFull || entries.length === 0 || entries.some(entry => (entry.paths ?? []).some(path => LIVE_SURFACES.some(prefix => path.startsWith(prefix))));
+  const result = (...args) => {
+    const plan = resultFor(...args);
+    return { ...plan, gateName, mobileSearchEvidence, liveEvidence: plan.full || liveEvidence };
+  };
   if (forceFull) {
     return result(CAPABILITIES, true, "受保护分支、merge queue、schedule 或手动运行，强制 full gate");
   }
@@ -335,6 +342,7 @@ function classifyScriptPath(path) {
   if (path.startsWith("scripts/ci/system-artifact")) {
     return { capabilities: ["static", "system"], reason: `system artifact security surface: ${path}` };
   }
+  if (path.startsWith("scripts/db/mizar-live-fixture")) return { capabilities: ["static", "system"], reason: `live provider fixture: ${path}` };
   if (path.startsWith("scripts/db/major-browser-fixture") || path.startsWith("scripts/db/local")) {
     return { capabilities: ["static", "postgres", "system"], reason: `database/browser fixture surface: ${path}` };
   }
@@ -517,6 +525,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   output("integration_specs", JSON.stringify(plan.integrationSpecs));
   output("system_mode", plan.e2eSpecs.length > 0 ? "affected" : "full");
   output("e2e_specs", JSON.stringify(plan.e2eSpecs));
+  output("live_evidence", String(plan.liveEvidence));
   output("mobile_search_evidence", String(plan.mobileSearchEvidence));
   output("gate_name", plan.gateName);
   output("release_metadata_only", String(isReleaseMetadataOnly(entries, {

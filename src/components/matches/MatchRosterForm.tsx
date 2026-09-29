@@ -112,15 +112,15 @@ export function MatchRosterForm({
         </div>
       ) : rosterLocked ? (
         <div className="rounded border p-3" style={{ borderColor: "var(--color-warn-edge)", background: "var(--color-warn-soft)" }}>
-          <p className="text-sm text-[var(--color-fg)]">名单已由管理员确认</p>
+          <p className="text-sm text-[var(--color-fg)]">本场首发已确认</p>
           <p className="text-xs text-[var(--color-fg-dim)] mt-1">
-            如需修改请联系管理员解锁后重新提交。
+            如需更正，请联系赛事管理员。
           </p>
         </div>
       ) : (
         <div className="rounded border border-[var(--color-border)] bg-[var(--color-panel)] p-2">
           <p className="text-xs text-[var(--color-fg-dim)]">
-            比赛尚未开始。提交后由管理员确认；确认后如需调整，必须由管理员显式解锁。裁判开赛时会再次检查队员资格。
+            比赛尚未开始。提交后即成为本场当前首发；开赛时系统会重新检查资格并定格。
           </p>
         </div>
       )}
@@ -205,7 +205,7 @@ export function MatchRosterForm({
       )}
       {rosterLocked && hasExistingRoster && (
         <p className="text-xs text-[var(--color-fg-dim)]">
-          名单已确认，等待比赛开始
+          首发已定格
         </p>
       )}
     </div>
