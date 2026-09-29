@@ -56,7 +56,7 @@ describe("operator scoreboard identity boundary", () => {
   const userId = "10000000-0000-4000-8000-000000000001";
   const draft = { perfectName: "Player", userId, kills: 10, deaths: 5, assists: 2, hsPercent: 50, firstKills: 1, multiKills: 1, clutches: 0, adr: 80, ratingPro: 1.2, rws: 7, we: 8 };
 
-  it("rejects malformed and duplicate identities before persistence", async () => {
+  it("rejects malformed, unmatched and duplicate identities before persistence", async () => {
     for (const rows of [[{ ...draft, userId: "invalid" }], [{ ...draft, userId: null }], [draft, { ...draft, perfectName: "Different" }], [{ ...draft, kills: "10" }]]) {
       const result = await savePlayerStats("map-1", { rows: rows as Parameters<typeof savePlayerStats>[1]["rows"] });
       expect(result.success).toBe(false);
@@ -65,12 +65,13 @@ describe("operator scoreboard identity boundary", () => {
   });
 
   it("rejects a well-formed user outside the match roster inside the transaction", async () => {
-    matchMapsFindFirstMock.mockResolvedValue({ id: "map-1", matchId: "match-1", scoreA: 13, scoreB: 9, completedAt: new Date("2026-09-29T00:00:00.000Z") });
+    const completedAt = new Date("2026-09-29T00:00:00.000Z");
+    matchMapsFindFirstMock.mockResolvedValue({ id: "map-1", matchId: "match-1", scoreA: 13, scoreB: 9, completedAt });
     matchesFindFirstMock.mockResolvedValue({ id: "match-1", seasonId: "season-1", entryAId: "entry-a", entryBId: "entry-b", status: "in_progress" });
     loadScoreboardPlayersMock.mockResolvedValue([]);
     const select = vi.fn()
       .mockReturnValueOnce({ from: () => ({ where: () => ({ for: async () => [{ id: "match-1" }] }) }) })
-      .mockReturnValueOnce({ from: () => ({ where: () => ({ for: async () => [{ scoreA: 13, scoreB: 9, completedAt: new Date("2026-09-29T00:00:00.000Z") }] }) }) });
+      .mockReturnValueOnce({ from: () => ({ where: () => ({ for: async () => [{ scoreA: 13, scoreB: 9, completedAt }] }) }) });
     const tx = { select, insert: vi.fn(), update: vi.fn(), delete: vi.fn() };
     transactionMock.mockImplementation(async callback => callback(tx));
     const result = await savePlayerStats("map-1", { rows: [draft] });
@@ -78,6 +79,7 @@ describe("operator scoreboard identity boundary", () => {
     expect(tx.insert).not.toHaveBeenCalled();
     expect(tx.update).not.toHaveBeenCalled();
     expect(tx.delete).not.toHaveBeenCalled();
+  });
 
   it("lets OCR enrich only Rating/RWS/WE on a DAK-owned row", async () => {
     const completedAt = new Date("2026-09-29T00:00:00.000Z");
@@ -141,8 +143,6 @@ describe("operator scoreboard identity boundary", () => {
     expect(updateValues[0]).not.toHaveProperty("verifiedByAdmin");
     expect(updateValues[0]).not.toHaveProperty("verifiedAt");
     expect(writeAuditInTxMock).toHaveBeenCalledTimes(1);
-  });
-
   });
 });
 
