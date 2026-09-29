@@ -94,7 +94,7 @@ export async function getStatsLeaderboard(
     WHERE true
       ${seasonFilter}
       AND mps.verified_by_admin IS NOT NULL
-      AND m.status = 'finished'
+      AND mm.score_a IS NOT NULL AND mm.score_b IS NOT NULL AND mm.completed_at IS NOT NULL
       AND mps.user_id IS NOT NULL
       AND ${importFilter}
       ${stageFilter}

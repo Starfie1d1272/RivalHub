@@ -116,7 +116,9 @@ BP、时间协商、实际阵容、玩家统计和赛后资料拥有各自明确
 
 本场默认首发只来自当前合法 EventRoster 明确标记的五名主力；队伍提交的合法首发覆盖默认值。`participant`、`admin_select` 与 `system_default` 均先作为 `submitted` 的有效名单保留各自来源；开赛 transition 在同一事务内重新校验当前 EventRoster、人数、资格和限制，并将有效名单确认为不可再修改的历史 MatchRoster，不依赖管理员另行确认。临近开赛的管理员调整必须记录真实操作人与事故事实。`matches` 的 `startedAt` 记录实际进入 `in_progress` 的时间，不从排期或 BP 完成时间推断。
 
-Demo Evidence 的不可变 payload 与 `match_demo_imports` workflow projection 由 Demo integration owner 管理。正常提交和存量 `/3` recheck 共享同一套 server-owned target、Steam identity、正式比分、QA、回合、summary、effective MatchRoster 和 evidence revision 校验；participant payload 中的客户端 identity resolution 不是事实来源。通过校验的 source round facts 与 `match_player_stats` projection 由同一晋级 owner 物化，并按 Demo lineage 保留 supersede/content conflict；管理员确认只补足 gameplay identity 后触发同一存量 recheck，不另起一套验证或直接改写 payload。
+Demo Evidence 的不可变 payload 与 `match_demo_imports` workflow projection 由 Demo integration owner 管理。正常提交和存量 `/3` recheck 共享同一套 server-owned target、Steam identity、正式比分、QA、回合、summary、effective MatchRoster 和 evidence revision 校验；一张地图具备正式比分与完成时间后即可接收该图 Demo，整场系列赛仍可进行；已完成地图的 evidence revision 不因系列赛进入完成、弃权或取消状态而失效。participant payload 中的客户端 identity resolution 不是事实来源。通过校验的 source round facts 与 `match_player_stats` projection 由同一晋级 owner 物化，并按 Demo lineage 保留 supersede/content conflict；管理员确认只补足 gameplay identity 后触发同一存量 recheck，不另起一套验证或直接改写 payload。
+
+`match_player_stats` 是字段级混合的赛后投影。地图正式结束后，管理员可用 OCR 或手填确认 Rating、RWS、WE 与可用的基础记分板字段；身份关联在服务端按本场有效 MatchRoster 校验，存量无本场阵容的比赛才回退当前 EventRoster。管理员清除计分板输入时删除仅由 OCR 持有的行，并只清空 DAK 行的 Rating、RWS、WE，保留 DAK gameplay、import 关联和确认事实。DAK 确认后接管 K/D/A、ADR、HS、FK、MK、残局等 gameplay facts 并提供高级统计；DAK 晋级不得清除已有 Rating、RWS、WE。LIVE 遥测只服务当前地图的临时画面，不作为赛后比分或选手统计。公开整场汇总只累计已有正式结果且具有确认数据的地图；进行中的系列赛也可展示已完成地图的累计值。
 
 结果更正不能绕开赛事运行时。Major StageRun 更正通过 managed recovery owner 处理；Qualification 胜者更正仅在尚未产生正赛 entrants 且所有后续 Qualification 比赛仍为 scheduled 时允许，后续轮在同一事务中作废并审计后由 Qualification projection 重算。后续比赛已开始/结束或正赛 entrants 已产生时，必须转入赛事事故裁决。
 
