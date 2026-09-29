@@ -625,7 +625,7 @@ export async function getLongTeamCareerDetail(teamId: string, database: DB = db)
       teams: { ...loaded.labels.teams, [teamId]: linkedEntries[0]?.name ?? teamId },
     };
     const longPerformance = buildLongTeamPerformanceProjection(loaded.selected, linkedEntryIds, teamId, labels);
-    const { remapped, performance, teamPerformance, detailedPlayers } = longPerformance;
+    const { remapped, teamPerformance, detailedPlayers } = longPerformance;
     const analytics = buildTournamentAnalytics(remapped.map((row) => row.facts.tournament), { labels });
     const teamAnalytics = analytics.teams.find((row) => row.team.entityKey === teamId) ?? null;
 
@@ -709,7 +709,6 @@ export async function getTournamentTeamDetail(scope: TournamentStatsScope & { te
     const results = buildTournamentResults(resultMatchesForMapScope(loaded.matches, loaded.scopedMaps, scope.mapFilter), loaded.scopedMaps, loaded.entries);
     const analytics = buildTournamentAnalytics(loaded.selected.map((row) => row.facts.tournament), { labels: loaded.labels });
     const performanceProjection = buildCompetitionEntryPerformanceProjection(loaded.selected, scope.teamId, loaded.labels);
-    const performance = performanceProjection.performance;
     const scoreboard = await getStatsLeaderboard({ ...scope, teamFilter: scope.teamId }, loaded.selected.map((row) => row.importId), loaded.roster, tx);
     const teamRating = buildTeamRatings(scoreboard).find((row) => row.entryId === scope.teamId) ?? null;
     const analyticsByMapName = new Map<string, ReturnType<typeof aggregateEvidenceByMap>[number]>();
