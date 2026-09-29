@@ -1,5 +1,7 @@
-// Frozen producer contract: Mizar 15845ef, packages/protocol/src/output.ts.
-// Keep wire schema aligned with producer; RivalHub projection lives separately.
+// Frozen producer contract, vendored from Mizar packages/protocol/src/output.ts.
+// Verified against Mizar main b2820834e76a139318d2e4db6e6ed5db3a57b67a by
+// scripts/mizar-contract-check.mjs; change it only together with the producer.
+// RivalHub public projection lives in live-projection.ts.
 import { z } from 'zod';
 
 export const LIVE_SNAPSHOT_SCHEMA_VERSION = 'mizar.live-snapshot.v1' as const;
