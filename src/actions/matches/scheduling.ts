@@ -16,7 +16,7 @@ import {
   getTimeBufferHoursForStage,
 } from "@/lib/matches/time-rules";
 import { getEntryIdForRepresentative } from "./_shared";
-import { holdCoverageInTx, allocateHeldCoverageInTx, releaseMatchCoverageInTx } from "@/lib/matches/coverage";
+import { holdCoverageInTx, allocateHeldCoverageInTx, releaseMatchCoverageHoldInTx, releaseMatchCoverageInTx } from "@/lib/matches/coverage";
 import { lockMatchInTx } from "@/lib/match-rosters/service";
 
 /**
@@ -52,7 +52,7 @@ export async function proposeMatchTime(
       assertProposedTimeFitsDeadline(proposedTime, locked.completionDeadline);
       await tx.update(matchTimeProposals).set({ status: "expired", updatedAt: new Date() }).where(and(eq(matchTimeProposals.matchId, matchId), eq(matchTimeProposals.status, "pending")));
       if (coverageSlotId) await holdCoverageInTx(tx, locked, coverageSlotId, proposedTime);
-      else await releaseMatchCoverageInTx(tx, matchId);
+      else await releaseMatchCoverageHoldInTx(tx, matchId);
       const [created] = await tx.insert(matchTimeProposals).values({ matchId, proposedBy: session.userId, proposedTime }).returning({ id: matchTimeProposals.id });
       await writeAuditInTx(tx, { seasonId: match.seasonId, action: "match.propose_time", actorId: session.userId, targetId: matchId, meta: { proposalId: created.id, proposedTime: proposedTime.toISOString() } });
       return created;
@@ -131,15 +131,17 @@ export async function respondToTimeProposal(
               eq(matchTimeProposals.status, "pending"),
             ),
           );
+      } else {
+        await releaseMatchCoverageHoldInTx(tx, match.id);
       }
-      return { seasonSlug: season.slug, matchId: match.id, seasonId: match.seasonId };
-    });
-
-    await writeAuditInTx(db, {
-      seasonId: outcome.seasonId,
-      action: "match.respond_time_proposal",
-      actorId: session.userId,
-      targetId: proposalId,meta: { matchId: outcome.matchId, action, rejectReason: rejectReason ?? null },
+      await writeAuditInTx(tx, {
+        seasonId: match.seasonId,
+        action: "match.respond_time_proposal",
+        actorId: session.userId,
+        targetId: proposalId,
+        meta: { matchId: match.id, action, rejectReason: rejectReason ?? null },
+      });
+      return { seasonSlug: season.slug, matchId: match.id };
     });
 
     revalidateMatchPaths(outcome.seasonSlug, outcome.matchId);
