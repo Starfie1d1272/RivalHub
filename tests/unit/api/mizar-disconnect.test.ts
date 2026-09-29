@@ -235,6 +235,15 @@ describe("Mizar self-revoke / disconnect endpoint and lifecycle", () => {
       expect(res.status).toBe(200);
       const body = await res.json();
       expect(body).toEqual({ revoked: true });
+      expect(writeAuditInTxMock).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          action: "mizar.installation.revoke",
+          actorId: installationId,
+          targetId: installationId,
+          seasonId: competitionId,
+        }),
+      );
     });
 
     it("returns 200 { revoked: true } idempotently when retrying disconnect after already revoked", async () => {
