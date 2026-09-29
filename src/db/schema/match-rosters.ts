@@ -12,9 +12,9 @@ export const matchRosters = pgTable("match_rosters", {
   id: uuid("id").defaultRandom().primaryKey(),
   matchId: uuid("match_id").notNull().references(() => matches.id),
   entryId: uuid("entry_id").notNull().references(() => competitionEntries.id),
-  /** The participant who submitted; null when an admin selected the lineup. */
+  /** The participant who submitted; null for admin-selected or system-default lineups. */
   submittedBy: uuid("submitted_by").references(() => users.id),
-  /** participant | admin_select — who authored this explicit lineup. */
+  /** Provenance of the effective lineup: participant | system_default | admin_select. */
   source: matchRosterSourceEnum("source").notNull().default("participant"),
   status: matchRosterStatusEnum("status").notNull().default("submitted"),
   lockedAt: timestamp("locked_at", { withTimezone: true }).notNull().defaultNow(),
