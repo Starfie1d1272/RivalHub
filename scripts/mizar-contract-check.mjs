@@ -10,6 +10,7 @@ const mizarRoot = resolve(process.argv[2] ?? "../Mizar");
 const sha = execFileSync("git", ["rev-parse", "HEAD"], { cwd: mizarRoot, encoding: "utf8" }).trim();
 const dirty = Boolean(execFileSync("git", ["status", "--porcelain", "--untracked-files=no"], { cwd: mizarRoot, encoding: "utf8" }).trim());
 try {
+  execFileSync(process.platform === "win32" ? "pnpm.cmd" : "pnpm", ["install", "--frozen-lockfile"], { cwd: mizarRoot, stdio: "pipe" });
   execFileSync(process.platform === "win32" ? "pnpm.cmd" : "pnpm", ["--filter", "@mizar/rivalhub...", "build"], { cwd: mizarRoot, stdio: "pipe" });
   process.stdout.write(`Mizar compatibility commit: ${sha}${dirty ? " + local changes" : ""} (rebuilt adapter/parser)\n`);
 } catch {

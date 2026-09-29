@@ -227,10 +227,6 @@ jobs:
           repository: Starfie1d1272/Mizar
           ref: c2afa9783daf993ce6deaeac05fffc01ebc86312 # Mizar #105
           path: .mizar-checkout
-      - name: Setup Mizar workspace
-        if: needs.plan.outputs.live_evidence == 'true'
-        working-directory: .mizar-checkout
-        run: pnpm install --frozen-lockfile
       - name: Mizar cross-repo contract
         if: needs.plan.outputs.live_evidence == 'true'
         run: node scripts/ci/timing.mjs "system/mizar contract" -- pnpm mizar:contract-check .mizar-checkout
