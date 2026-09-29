@@ -221,13 +221,14 @@ try {
       method: (init.method ?? "GET").toUpperCase(),
       headers,
     });
+    const dynamicExpiry = new Date(Date.now() + 600_000).toISOString();
     if (u.pathname === "/api/mizar/pairing/start") {
-      return new Response(JSON.stringify(startRes), { status: 200, headers: { "content-type": "application/json" } });
+      return new Response(JSON.stringify({ ...startRes, expiresAt: dynamicExpiry }), { status: 200, headers: { "content-type": "application/json" } });
     }
     if (u.pathname === "/api/mizar/pairing/poll") {
       pollCount++;
       const payload = pollCount === 1 ? pollPending : pollAuth;
-      return new Response(JSON.stringify(payload), { status: 200, headers: { "content-type": "application/json" } });
+      return new Response(JSON.stringify({ ...payload, expiresAt: dynamicExpiry }), { status: 200, headers: { "content-type": "application/json" } });
     }
     if (u.pathname === "/api/mizar/release") {
       return new Response(JSON.stringify({ released: true }), { status: 200, headers: { "content-type": "application/json" } });

@@ -2,5 +2,5 @@
   "pairingId": "10000000-0000-4000-8000-000000000001",
   "pollToken": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
   "authorizeUrl": "https://match.starfie1d.top/integrations/mizar/connect?pairingId=10000000-0000-4000-8000-000000000001",
-  "expiresAt": "2026-09-29T12:10:00.000Z"
+  "expiresAt": "2035-01-01T00:00:00.000Z"
 }
