@@ -27,6 +27,7 @@ export function PlayerStatsTable({
       entryBId={entryBId}
       teamAName={teamAName}
       teamBName={teamBName}
+      noPanel
     />
   );
 }
