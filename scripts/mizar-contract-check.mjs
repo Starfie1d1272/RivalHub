@@ -9,13 +9,9 @@ import { pathToFileURL } from "node:url";
 const mizarRoot = resolve(process.argv[2] ?? "../Mizar");
 const sha = execFileSync("git", ["rev-parse", "HEAD"], { cwd: mizarRoot, encoding: "utf8" }).trim();
 const dirty = Boolean(execFileSync("git", ["status", "--porcelain", "--untracked-files=no"], { cwd: mizarRoot, encoding: "utf8" }).trim());
-try {
-  execFileSync(process.platform === "win32" ? "pnpm.cmd" : "pnpm", ["install", "--frozen-lockfile"], { cwd: mizarRoot, stdio: "pipe" });
-  execFileSync(process.platform === "win32" ? "pnpm.cmd" : "pnpm", ["--filter", "@mizar/rivalhub...", "build"], { cwd: mizarRoot, stdio: "pipe" });
-  process.stdout.write(`Mizar compatibility commit: ${sha}${dirty ? " + local changes" : ""} (rebuilt adapter/parser)\n`);
-} catch {
-  process.stdout.write(`Mizar compatibility commit: ${sha}${dirty ? " + local changes" : ""} (using existing build/source)\n`);
-}
+execFileSync(process.platform === "win32" ? "pnpm.cmd" : "pnpm", ["install", "--frozen-lockfile"], { cwd: mizarRoot, stdio: "pipe" });
+execFileSync(process.platform === "win32" ? "pnpm.cmd" : "pnpm", ["--filter", "@mizar/rivalhub...", "build"], { cwd: mizarRoot, stdio: "pipe" });
+process.stdout.write(`Mizar compatibility commit: ${sha}${dirty ? " + local changes" : ""} (rebuilt adapter/parser)\n`);
 const pick = (...candidates) => candidates.find((candidate) => existsSync(candidate));
 const adapterPath = pick(
   resolve(mizarRoot, "packages/rivalhub/dist/index.js"),
@@ -35,8 +31,21 @@ if (!outputPath) throw new Error(`Cannot find Mizar protocol output in ${mizarRo
 const adapter = await import(pathToFileURL(adapterPath).href);
 const protocol = await import(pathToFileURL(protocolPath).href);
 const output = await import(pathToFileURL(outputPath).href);
-const rivalhubProtocol = await import(pathToFileURL(resolve("src/lib/mizar/protocol.ts")).href);
+const rivalhubProtocolPath = resolve("src/lib/mizar/protocol.ts");
+const rivalhubProtocol = await import(pathToFileURL(rivalhubProtocolPath).href);
 const fixture = async (name) => JSON.parse(await readFile(resolve("tests/fixtures/contracts", name), "utf8"));
+
+// The vendored wire contract is intentionally exact. Compare source bodies as well
+// as executable parser behavior so an unexercised schema change cannot drift silently.
+const producerProtocolSource = await readFile(resolve(mizarRoot, "packages/protocol/src/output.ts"), "utf8");
+const rivalhubProtocolSource = await readFile(rivalhubProtocolPath, "utf8");
+const protocolMarker = "import { z } from 'zod';";
+const producerBodyStart = producerProtocolSource.indexOf(protocolMarker);
+const rivalhubBodyStart = rivalhubProtocolSource.indexOf(protocolMarker);
+if (producerBodyStart < 0 || rivalhubBodyStart < 0 || producerProtocolSource.slice(producerBodyStart) !== rivalhubProtocolSource.slice(rivalhubBodyStart)) {
+  throw new Error("protocol drift: RivalHub vendored output.ts body is not byte-identical to Mizar");
+}
+process.stdout.write("mizar protocol source: RivalHub vendor body is byte-identical to the producer\n");
 
 // RivalHub vendor copy must agree with the producer-owned parser, not merely exist.
 for (const key of ["LIVE_SNAPSHOT_SCHEMA_VERSION", "RELIABLE_EVENT_SCHEMA_VERSION", "LIVE_SNAPSHOT_MAX_BYTES"]) {
