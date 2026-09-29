@@ -55,7 +55,6 @@ const LIVE_SURFACES = [
   "src/app/api/mizar/",
   "src/app/api/matches/",
   "src/app/integrations/mizar/",
-  "src/actions/matches/operations.ts",
   "scripts/db/mizar-live-fixture",
   "scripts/mizar-contract-check.mjs",
   "tests/fixtures/contracts/",

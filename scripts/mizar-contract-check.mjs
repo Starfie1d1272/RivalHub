@@ -57,6 +57,50 @@ for (const [name, validate, convert, parse] of [
   process.stdout.write(`${name}: Mizar adapter and owned parser passed\n`);
 }
 
+// Provider edge matrix: the DTO must stay valid across null branding, absent start time,
+// every owned status/format, and must never smuggle persistence or review facts.
+const manifestBase = await fixture("rivalhub-provider-manifest-v1.json");
+const scheduleBase = await fixture("rivalhub-provider-schedule-window-v1.json");
+const manifestVariants = [
+  ["competition logoUrl null", { ...manifestBase, match: { ...manifestBase.match, competition: { ...manifestBase.match.competition, logoUrl: null } } }],
+  ["startedAt null", { ...manifestBase, match: { ...manifestBase.match, startedAt: null } }],
+  ["scheduled", { ...manifestBase, match: { ...manifestBase.match, status: "scheduled", startedAt: null, scoreA: null, scoreB: null } }],
+  ["finished", { ...manifestBase, match: { ...manifestBase.match, status: "finished", scoreA: 2, scoreB: 1 } }],
+  ["cancelled", { ...manifestBase, match: { ...manifestBase.match, status: "cancelled" } }],
+  ["bo1", { ...manifestBase, match: { ...manifestBase.match, format: "bo1" }, maps: manifestBase.maps.slice(0, 1) }],
+  ["bo5", { ...manifestBase, match: { ...manifestBase.match, format: "bo5" } }],
+];
+for (const [label, variant] of manifestVariants) {
+  const result = adapter.validateBroadcastManifest(variant);
+  if (!result.ok) throw new Error("provider manifest " + label + ": " + JSON.stringify(result.diagnostics));
+  protocol.parseMatchDocumentV1(adapter.toMatchDocumentV1(variant));
+}
+const scheduleVariants = [
+  ["scheduledAt null", { ...scheduleBase, matches: scheduleBase.matches.map((match) => ({ ...match, scheduledAt: null })) }],
+  ["empty window", { ...scheduleBase, matches: [] }],
+];
+for (const [label, variant] of scheduleVariants) {
+  const result = adapter.validateBroadcastScheduleWindow(variant);
+  if (!result.ok) throw new Error("provider schedule " + label + ": " + JSON.stringify(result.diagnostics));
+  protocol.parseScheduleWindowV1(adapter.toScheduleWindowV1(variant));
+}
+if (adapter.validateBroadcastManifest({ ...manifestBase, schemaVersion: "rivalhub.broadcast-manifest.v2" }).ok) {
+  throw new Error("provider manifest accepted an unsupported schemaVersion");
+}
+if (adapter.validateBroadcastScheduleWindow({ ...scheduleBase, schemaVersion: "rivalhub.broadcast-schedule-window.v2" }).ok) {
+  throw new Error("provider schedule accepted an unsupported schemaVersion");
+}
+const smuggledManifest = {
+  ...manifestBase,
+  match: { ...manifestBase.match, credentialHash: "smuggled-credential", reviewNote: "smuggled-review" },
+  entrants: { a: { ...manifestBase.entrants.a, email: "smuggled@example.test" }, b: manifestBase.entrants.b },
+};
+const smuggledDocument = adapter.toMatchDocumentV1(smuggledManifest);
+if (JSON.stringify(smuggledDocument).includes("smuggled")) {
+  throw new Error("Mizar document carried RivalHub private fields across the adapter");
+}
+process.stdout.write("rivalhub provider edge matrix: logo/startedAt/status/format variants and private-field smuggling refused\n");
+
 // Provider DTO may never leak internal persistence or review facts.
 const manifestFixture = await fixture("rivalhub-provider-manifest-v1.json");
 const manifestJson = JSON.stringify(manifestFixture);

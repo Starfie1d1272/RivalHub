@@ -1,18 +1,20 @@
 import { createHash } from "node:crypto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { selectMock, updateMock, insertMock } = vi.hoisted(() => ({
+const { selectMock, updateMock, insertMock, transactionMock } = vi.hoisted(() => ({
   selectMock: vi.fn(),
   updateMock: vi.fn(),
   insertMock: vi.fn(),
+  transactionMock: vi.fn(),
 }));
 
 vi.mock("@/db/client", () => ({
-  db: { select: selectMock, update: updateMock, insert: insertMock },
+  db: { select: selectMock, update: updateMock, insert: insertMock, transaction: transactionMock },
 }));
 vi.mock("@/lib/audit/write", () => ({ writeAuditInTx: vi.fn() }));
 
 import {
+  authorizeMizarPairing,
   deriveMizarCredentialForTest,
   pollMizarPairing,
   startMizarPairing,
@@ -179,6 +181,27 @@ describe("Mizar pairing unit tests", () => {
       const result = await pollMizarPairing(pairingId, pollToken);
       expect(result).toMatchObject({ status: "expired" });
       expect(updateMock).toHaveBeenCalled();
+    });
+  });
+
+  describe("authorizeMizarPairing competition scope", () => {
+    it("rejects an admin who does not hold the requested competition", async () => {
+      await expect(
+        authorizeMizarPairing(pairingId, competitionId, { userId: "admin-user", email: "admin@local.test", role: "user", seasonIds: [] }),
+      ).rejects.toMatchObject({ code: ErrorCode.FORBIDDEN });
+      expect(transactionMock).not.toHaveBeenCalled();
+    });
+
+    it("binds the installation to one competition and records the authorized user", async () => {
+      const txUpdateMock = vi.fn().mockReturnValue({ set: () => ({ where: async () => [] }) });
+      transactionMock.mockImplementation(async (callback: (tx: unknown) => Promise<unknown>) => callback({
+        select: () => ({ from: () => ({ where: () => { const rows = [{ id: pairingId, status: "pending", expiresAt: new Date(Date.now() + 60_000), pollTokenHash: "hash" }]; return Object.assign(Promise.resolve(rows), { for: async () => rows }); } }) }),
+        insert: () => ({ values: () => ({ returning: async () => [{ id: installationId }] }) }),
+        update: txUpdateMock,
+      }));
+
+      await authorizeMizarPairing(pairingId, competitionId, { userId: "admin-user", email: "admin@local.test", role: "user", seasonIds: [competitionId] });
+      expect(txUpdateMock).toHaveBeenCalled();
     });
   });
 

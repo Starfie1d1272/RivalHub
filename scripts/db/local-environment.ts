@@ -54,7 +54,7 @@ export function parseLocalSupabaseStatus(raw: string): LocalSupabaseStatus {
     apiUrl,
     publishableKey,
     serviceRoleKey,
-    ...(stringValue(values.JWT_SECRET) ? { jwtSecret: stringValue(values.JWT_SECRET) } : {}),
+    ...(jwtSecretValue(values) ? { jwtSecret: jwtSecretValue(values) } : {}),
     studioUrl: studioUrlValue
       ? assertLocalHttpUrl(studioUrlValue, "Supabase STUDIO_URL")
       : undefined,
@@ -155,6 +155,16 @@ function requiredString(value: string | undefined, label: string): string {
 
 function stringValue(value: unknown): string | undefined {
   return typeof value === "string" ? value : undefined;
+}
+
+/** supabase status keys are not guaranteed to keep one casing; match on the normalized name. */
+function jwtSecretValue(values: Record<string, unknown>): string | undefined {
+  for (const [key, value] of Object.entries(values)) {
+    if (key.toUpperCase().replace(/[^A-Z]/g, "") !== "JWTSECRET") continue;
+    const normalized = stringValue(value);
+    if (normalized) return normalized;
+  }
+  return undefined;
 }
 
 function parseStatusObject(raw: string): Record<string, unknown> {

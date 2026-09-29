@@ -33,6 +33,10 @@ describe("Mizar live snapshot wire contract", () => {
     expect(() => parseLiveSnapshotV1({ ...fixture, roundHistory: { ...fixture.roundHistory, mapOrder: 7 } })).toThrow();
     expect(() => parseLiveSnapshotV1({ ...fixture, radar: { ...fixture.radar, activeLayer: "lower" } })).not.toThrow();
     expect(() => parseLiveSnapshotV1({ ...fixture, radar: { ...fixture.radar, layers: ["upper"] } })).toThrow();
+    // A single-layer calibration must use the reserved 'single' layer for every point.
+    const singleLayer = { ...fixture, radar: { ...fixture.radar, layers: ["single"], activeLayer: "single", players: fixture.radar.players.map((player: { position: { layer: string } | null }) => ({ ...player, position: player.position ? { ...player.position, layer: "single" } : null })), bomb: { position: { x: 0.25, y: 0.75, layer: "single" } }, utility: [] } };
+    expect(parseLiveSnapshotV1(singleLayer).radar?.layers).toEqual(["single"]);
+    expect(() => parseLiveSnapshotV1({ ...singleLayer, radar: { ...singleLayer.radar, layers: ["single", "upper"] } })).toThrow();
     expect(() => parseLiveSnapshotV1({ ...fixture, radar: null, capability: { ...fixture.capability, radarCurrent: false } })).not.toThrow();
   });
 
