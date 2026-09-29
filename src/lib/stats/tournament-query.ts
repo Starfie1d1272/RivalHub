@@ -483,6 +483,16 @@ export async function getTournamentPlayerDetail(scope: TournamentStatsScope & { 
   }, { isolationLevel: "repeatable read", accessMode: "read only" });
 }
 
+/** Match Detail reuses the Stats Center metric owner for one canonical match scope. */
+export async function getMatchPlayerDetail(matchId: string, playerId: string, mapName?: string) {
+  return db.transaction(async (tx) => {
+    const [match] = await tx.select({ seasonId: matches.seasonId }).from(matches).where(eq(matches.id, matchId));
+    if (!match) return null;
+    const detail = await loadTournamentPlayerDetail(tx, { seasonId: match.seasonId, playerId, mapFilter: mapName }, [matchId], { requireCurrentImports: true });
+    return detail.performance ? detail : null;
+  }, { isolationLevel: "repeatable read", accessMode: "read only" });
+}
+
 export async function getPlayerCareerDetail(
   scope: { playerId: string; eventSlug?: string; mapFilter?: string },
   database: DB = db,

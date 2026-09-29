@@ -1,120 +1,32 @@
 import React from "react";
-import { and, eq, inArray, isNotNull } from "drizzle-orm";
-import { db } from "@/db/client";
-import { matchMaps } from "@/db/schema/match-maps";
-import { matchRosterPlayers, matchRosters } from "@/db/schema/match-rosters";
-import { matchPlayerStats } from "@/db/schema/player-stats";
-import { eventRosterMembers, eventRosters } from "@/db/schema";
 import { MatchSummaryStats, type SummaryPlayer } from "./MatchSummaryStats";
 
 interface PlayerStatsTableProps {
-  mapId: string;
+  players: SummaryPlayer[];
   entryAId: string;
   entryBId: string;
   teamAName: string;
   teamBName: string;
 }
 
-async function getStatsGroupedByTeam(
-  mapId: string,
-  entryAId: string,
-  entryBId: string,
-) {
-  const stats = await db.query.matchPlayerStats.findMany({
-    where: and(eq(matchPlayerStats.mapId, mapId), isNotNull(matchPlayerStats.verifiedByAdmin)),
-    orderBy: (t, { desc }) => [desc(t.ratingPro)],
-  });
-
-  if (stats.length === 0) return { teamA: [] as SummaryPlayer[], teamB: [] as SummaryPlayer[] };
-
-  const userIds = stats.map((s) => s.userId).filter(Boolean) as string[];
-  const memberships = userIds.length
-    ? await db
-        .select({ userId: eventRosterMembers.userId, entryId: eventRosters.entryId })
-        .from(eventRosterMembers)
-        .innerJoin(eventRosters, eq(eventRosterMembers.eventRosterId, eventRosters.id))
-        .where(and(
-          inArray(eventRosterMembers.userId, userIds),
-          inArray(eventRosters.entryId, [entryAId, entryBId]),
-          eq(eventRosterMembers.isCurrent, true),
-        ))
-    : [];
-
-  const userIdToTeam = new Map(memberships.map((m) => [m.userId, m.entryId]));
-  if (userIds.length > 0) {
-    const matchMemberships = await db
-      .select({ userId: eventRosterMembers.userId, entryId: matchRosters.entryId })
-      .from(matchMaps)
-      .innerJoin(matchRosters, eq(matchRosters.matchId, matchMaps.matchId))
-      .innerJoin(matchRosterPlayers, eq(matchRosterPlayers.rosterId, matchRosters.id))
-      .innerJoin(eventRosterMembers, eq(eventRosterMembers.id, matchRosterPlayers.eventRosterMemberId))
-      .where(and(
-        eq(matchMaps.id, mapId),
-        inArray(matchRosters.status, ["submitted", "confirmed"]),
-        inArray(matchRosters.entryId, [entryAId, entryBId]),
-        inArray(eventRosterMembers.userId, userIds),
-      ));
-    for (const membership of matchMemberships) {
-      userIdToTeam.set(membership.userId, membership.entryId);
-    }
-  }
-
-  const teamARows = stats.filter((s) => s.userId && userIdToTeam.get(s.userId) === entryAId);
-  const teamBRows = stats.filter((s) => s.userId && userIdToTeam.get(s.userId) === entryBId);
-
-  return {
-    teamA: teamARows.map((s) =>
-      toSummaryPlayer(s, entryAId),
-    ),
-    teamB: teamBRows.map((s) =>
-      toSummaryPlayer(s, entryBId),
-    ),
-  };
-}
-
-type StatRow = typeof matchPlayerStats.$inferSelect;
-
-function toSummaryPlayer(s: StatRow, teamId: string): SummaryPlayer {
-  return {
-    userId: s.userId,
-    perfectName: s.perfectName,
-    teamId,
-    kills: s.kills,
-    deaths: s.deaths,
-    assists: s.assists,
-    hsPercent: s.hsPercent,
-    firstKills: s.firstKills,
-    multiKills: s.multiKills,
-    clutches: s.clutches,
-    adr: s.adr,
-    rws: s.rws,
-    ratingPro: s.ratingPro,
-    we: s.we,
-    mapsPlayed: 1,
-  };
-}
-
-export async function PlayerStatsTable({
-  mapId,
+export function PlayerStatsTable({
+  players,
   entryAId,
   entryBId,
   teamAName,
   teamBName,
 }: PlayerStatsTableProps) {
-  const { teamA, teamB } = await getStatsGroupedByTeam(mapId, entryAId, entryBId);
-
-  if (teamA.length === 0 && teamB.length === 0) {
+  if (players.length === 0) {
     return <p className="text-xs text-[var(--color-fg-dim)] py-2">暂无玩家数据</p>;
   }
 
   return (
     <MatchSummaryStats
-      players={[...teamA, ...teamB]}
+      players={players}
       entryAId={entryAId}
       entryBId={entryBId}
       teamAName={teamAName}
       teamBName={teamBName}
-      noPanel
     />
   );
 }

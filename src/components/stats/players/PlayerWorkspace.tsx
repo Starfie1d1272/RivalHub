@@ -55,7 +55,7 @@ function ScopeSideTabs({ value, onChange }: { value: Side; onChange: (side: Side
   );
 }
 
-export function PlayerWorkspace({ detail, compact = false }: { detail: TournamentPlayerDetail; compact?: boolean }) {
+export function PlayerWorkspace({ detail, compact = false, hideMaps = false }: { detail: TournamentPlayerDetail; compact?: boolean; hideMaps?: boolean }) {
   const [tab, setTab] = useState<PlayerTab>("overview");
   const [side, setSide] = useState<Side>("overall");
   const player = detail.performance;
@@ -105,7 +105,7 @@ export function PlayerWorkspace({ detail, compact = false }: { detail: Tournamen
         </header>
       )}
 
-      <MetricFamilyTabs label="Player workspace" value={tab} options={tabs} onChange={setTab} />
+      <MetricFamilyTabs label="Player workspace" value={tab} options={hideMaps ? tabs.filter(item => item.key !== "maps") : tabs} onChange={setTab} />
       {tab !== "overview" && tab !== "maps" && tab !== "weapons" && <ScopeSideTabs value={side} onChange={setSide} />}
 
       {tab === "overview" && (
