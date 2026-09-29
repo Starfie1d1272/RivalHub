@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 import { db } from "../../../src/db/client";
 import { testSteam64 } from "./harness/database";
@@ -32,7 +32,7 @@ interface Fixture {
   steam64: string[];
 }
 
-async function seedFixture(options: { matchStatus?: "scheduled" | "in_progress" } = {}): Promise<Fixture> {
+async function seedFixture(options: { matchStatus?: "scheduled" | "in_progress"; freezeEventRoster?: boolean } = {}): Promise<Fixture> {
   const seasonId = randomUUID();
   const entryAId = randomUUID();
   const entryBId = randomUUID();
@@ -89,9 +89,11 @@ async function seedFixture(options: { matchStatus?: "scheduled" | "in_progress" 
       userId,
       isPrimaryStarter: true,
     })));
+    // Members must be written before the roster is frozen; the active chain has a
+    // trigger that makes frozen event-roster members immutable.
     await tx.insert(schema.eventRosters).values([
-      { id: eventRosterA, entryId: entryAId, sourceRosterRevisionId: revisionA, status: "frozen", confirmedAt: NOW, confirmedBy: userIds[0]!, frozenAt: NOW, frozenBy: userIds[0]! },
-      { id: eventRosterB, entryId: entryBId, sourceRosterRevisionId: revisionB, status: "frozen", confirmedAt: NOW, confirmedBy: userIds[5]!, frozenAt: NOW, frozenBy: userIds[5]! },
+      { id: eventRosterA, entryId: entryAId, sourceRosterRevisionId: revisionA, status: "confirmed", confirmedAt: NOW, confirmedBy: userIds[0]! },
+      { id: eventRosterB, entryId: entryBId, sourceRosterRevisionId: revisionB, status: "confirmed", confirmedAt: NOW, confirmedBy: userIds[5]! },
     ]);
     await tx.insert(schema.eventRosterMembers).values(userIds.map((userId, index) => ({
       id: eventMemberIds[index]!,
@@ -99,7 +101,9 @@ async function seedFixture(options: { matchStatus?: "scheduled" | "in_progress" 
       userId,
       participantId: participantIds[index]!,
       isPrimaryStarter: true,
-    })));
+    })));    if (options.freezeEventRoster) {
+      await tx.update(schema.eventRosters).set({ status: "frozen", frozenAt: NOW, frozenBy: userIds[0]! }).where(inArray(schema.eventRosters.id, [eventRosterA, eventRosterB]));
+    }
     await tx.insert(schema.matches).values({
       id: matchId,
       seasonId,
@@ -333,7 +337,7 @@ describe("Mizar reliable event ingest ownership", () => {
   });
 
   it("records match_started as a reality primitive only when identity and lineup evidence agree", async () => {
-    const fixture = await seedFixture({ matchStatus: "scheduled" });
+    const fixture = await seedFixture({ matchStatus: "scheduled", freezeEventRoster: true });
     const observed = await ingestMizarReliable(
       fixture.installationId,
       fixture.seasonId,
@@ -350,13 +354,13 @@ describe("Mizar reliable event ingest ownership", () => {
     const audits = await db.select().from(schema.auditLogs).where(and(eq(schema.auditLogs.seasonId, fixture.seasonId), eq(schema.auditLogs.action, "match.start.reality_warning")));
     expect(audits).toHaveLength(1);
 
-    const mismatch = await seedFixture({ matchStatus: "scheduled" });
+    const mismatch = await seedFixture({ matchStatus: "scheduled", freezeEventRoster: true });
     const needsAttention = await ingestMizarReliable(
       mismatch.installationId,
       mismatch.seasonId,
       reliableEvent(mismatch, { kind: "match_started" }),
       mismatch.authorityRevision,
-      [fixture.steam64[0]!],
+      [mismatch.steam64[0]!],
     );
     expect(needsAttention.outcome).toBe("needs_attention");
     const [stillScheduled] = await db.select().from(schema.matches).where(eq(schema.matches.id, mismatch.matchId));
