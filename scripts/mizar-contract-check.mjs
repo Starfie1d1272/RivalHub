@@ -78,8 +78,17 @@ const { RivalHubConnection } = await import(connUrl);
 const tmpPath = resolve("/tmp", `test-mizar-connection-${Date.now()}.json`);
 try {
   let pollCount = 0;
-  const mockFetch = async (url) => {
-    const u = new URL(url);
+  const recordedRequests = [];
+  const mockFetch = async (url, init = {}) => {
+    const rawUrl = typeof url === "string" ? url : url instanceof URL ? url.href : url.url;
+    const u = new URL(rawUrl);
+    const headers = new Headers(init.headers ?? (typeof url === "object" && "headers" in url ? url.headers : undefined));
+    recordedRequests.push({
+      url: rawUrl,
+      pathname: u.pathname,
+      method: (init.method ?? "GET").toUpperCase(),
+      headers,
+    });
     if (u.pathname === "/api/mizar/pairing/start") {
       return new Response(JSON.stringify(startRes), { status: 200, headers: { "content-type": "application/json" } });
     }
@@ -88,10 +97,13 @@ try {
       const payload = pollCount === 1 ? pollPending : pollAuth;
       return new Response(JSON.stringify(payload), { status: 200, headers: { "content-type": "application/json" } });
     }
-    if (u.pathname === "/api/mizar/disconnect" || u.pathname === "/api/mizar/revoke" || u.pathname === "/api/mizar/release") {
-      return new Response(JSON.stringify({ revoked: true, released: true }), { status: 200, headers: { "content-type": "application/json" } });
+    if (u.pathname === "/api/mizar/release") {
+      return new Response(JSON.stringify({ released: true }), { status: 200, headers: { "content-type": "application/json" } });
     }
-    throw new Error(`Unexpected url: ${url}`);
+    if (u.pathname === "/api/mizar/disconnect") {
+      return new Response(JSON.stringify({ revoked: true }), { status: 200, headers: { "content-type": "application/json" } });
+    }
+    throw new Error(`Unexpected url: ${rawUrl}`);
   };
 
   const conn = new RivalHubConnection(tmpPath, mockFetch, "https://match.starfie1d.top");
@@ -106,7 +118,26 @@ try {
     throw new Error(`Mizar connection view mismatch: ${JSON.stringify(view)}`);
   }
   await conn.disconnect();
-  process.stdout.write("Mizar consumer RivalHubConnection verified against pairing contract\n");
+  const disconnectReqs = recordedRequests.filter(r => r.pathname === "/api/mizar/disconnect");
+  if (disconnectReqs.length !== 1) {
+    throw new Error(`Expected exactly 1 call to /api/mizar/disconnect, got ${disconnectReqs.length}`);
+  }
+  const disconnectReq = disconnectReqs[0];
+  if (disconnectReq.method !== "POST") {
+    throw new Error(`Expected POST method for /api/mizar/disconnect, got ${disconnectReq.method}`);
+  }
+  const authHeader = disconnectReq.headers.get("authorization");
+  if (authHeader !== `Bearer ${pollAuth.credential}`) {
+    throw new Error(`Expected authorization 'Bearer ${pollAuth.credential}', got '${authHeader}'`);
+  }
+  const finalView = conn.view();
+  if (finalView.paired !== false) {
+    throw new Error(`Mizar connection expected unpaired after disconnect, got: ${JSON.stringify(finalView)}`);
+  }
+  if (existsSync(tmpPath)) {
+    throw new Error(`Mizar connection file expected unlinked after disconnect: ${tmpPath}`);
+  }
+  process.stdout.write("Mizar consumer RivalHubConnection verified against pairing and canonical disconnect contract\n");
 } finally {
   await rm(tmpPath, { force: true }).catch(() => null);
 }

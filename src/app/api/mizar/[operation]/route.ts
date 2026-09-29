@@ -25,7 +25,7 @@ export async function GET(request: Request, context: Context) {
 export async function POST(request: Request, context: Context) {
   try {
     const { operation } = await context.params;
-    if (operation === "disconnect" || operation === "revoke") {
+    if (operation === "disconnect") {
       const installation = await authenticateMizar(request.headers.get("authorization"), { allowRevoked: true });
       await revokeMizarInstallation(installation.id, installation.competitionId, installation.authorizedByUserId);
       return Response.json({ revoked: true });
@@ -47,18 +47,6 @@ export async function POST(request: Request, context: Context) {
       const { matchId } = z.object({ matchId: z.uuid() }).parse(envelope.event);
       if (season) revalidateMatchPaths(season.slug, matchId);
       return Response.json(outcome);
-    }
-    return new Response(null, { status: 404 });
-  } catch (error) { return mizarHttpError(error); }
-}
-
-export async function DELETE(request: Request, context: Context) {
-  try {
-    const { operation } = await context.params;
-    if (operation === "disconnect" || operation === "revoke" || operation === "installation") {
-      const installation = await authenticateMizar(request.headers.get("authorization"), { allowRevoked: true });
-      await revokeMizarInstallation(installation.id, installation.competitionId, installation.authorizedByUserId);
-      return Response.json({ revoked: true });
     }
     return new Response(null, { status: 404 });
   } catch (error) { return mizarHttpError(error); }

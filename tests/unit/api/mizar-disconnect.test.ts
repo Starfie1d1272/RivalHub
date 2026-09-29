@@ -27,7 +27,7 @@ import {
   hashCredential,
   revokeMizarInstallation,
 } from "@/lib/mizar/installation";
-import { POST, DELETE } from "@/app/api/mizar/[operation]/route";
+import { GET, POST } from "@/app/api/mizar/[operation]/route";
 
 const pairingId = "10000000-0000-4000-8000-000000000001";
 const pollToken = "b".repeat(64);
@@ -193,7 +193,7 @@ describe("Mizar self-revoke / disconnect endpoint and lifecycle", () => {
     });
   });
 
-  describe("API route POST/DELETE /api/mizar/disconnect", () => {
+  describe("API route POST /api/mizar/disconnect", () => {
     it("disconnects via POST /api/mizar/disconnect and returns { revoked: true }", async () => {
       const row = {
         id: installationId,
@@ -278,7 +278,7 @@ describe("Mizar self-revoke / disconnect endpoint and lifecycle", () => {
       expect(writeAuditInTxMock).not.toHaveBeenCalled();
     });
 
-    it("supports operation 'revoke' and DELETE method", async () => {
+    it("rejects non-canonical operation 'revoke' with 404", async () => {
       const row = {
         id: installationId,
         competitionId,
@@ -293,28 +293,17 @@ describe("Mizar self-revoke / disconnect endpoint and lifecycle", () => {
         }),
       });
 
-      transactionMock.mockImplementation(async (cb: (tx: unknown) => Promise<unknown>) => {
-        return await cb({
-          select: () => ({ from: () => ({ where: () => ({ for: async () => [row] }) }) }),
-          update: () => ({ set: () => ({ where: async () => [] }) }),
-        });
-      });
-
       const postRevokeReq = new Request("http://localhost:3000/api/mizar/revoke", {
         method: "POST",
-        headers: { authorization: `Bearer ${credential}` },
+        headers: {
+          authorization: `Bearer ${credential}`,
+          "content-type": "application/json",
+          "x-rivalhub-authority": "1",
+        },
+        body: JSON.stringify({}),
       });
       const postRevokeRes = await POST(postRevokeReq, { params: Promise.resolve({ operation: "revoke" }) });
-      expect(postRevokeRes.status).toBe(200);
-      expect(await postRevokeRes.json()).toEqual({ revoked: true });
-
-      const deleteReq = new Request("http://localhost:3000/api/mizar/disconnect", {
-        method: "DELETE",
-        headers: { authorization: `Bearer ${credential}` },
-      });
-      const deleteRes = await DELETE(deleteReq, { params: Promise.resolve({ operation: "disconnect" }) });
-      expect(deleteRes.status).toBe(200);
-      expect(await deleteRes.json()).toEqual({ revoked: true });
+      expect(postRevokeRes.status).toBe(404);
     });
 
     it("rejects unauthorized request with 403", async () => {
@@ -323,6 +312,28 @@ describe("Mizar self-revoke / disconnect endpoint and lifecycle", () => {
       });
       const res = await POST(req, { params: Promise.resolve({ operation: "disconnect" }) });
       expect(res.status).toBe(403);
+    });
+    it("rejects GET method on /api/mizar/disconnect with 404", async () => {
+      const row = {
+        id: installationId,
+        competitionId,
+        authorizedByUserId,
+        credentialHash: credHash,
+        revokedAt: null,
+      };
+
+      selectMock.mockReturnValue({
+        from: () => ({
+          where: async () => [row],
+        }),
+      });
+
+      const req = new Request("http://localhost:3000/api/mizar/disconnect", {
+        method: "GET",
+        headers: { authorization: `Bearer ${credential}` },
+      });
+      const res = await GET(req, { params: Promise.resolve({ operation: "disconnect" }) });
+      expect(res.status).toBe(404);
     });
   });
 });
