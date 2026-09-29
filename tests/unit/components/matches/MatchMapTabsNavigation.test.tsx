@@ -26,7 +26,6 @@ describe("MatchMapTabsNavigation", () => {
           teamBId="team-b"
           teamAName="Alpha University Prime"
           teamBName="Beta University Prime"
-          liveMapId="map-2"
         />
       </Tabs>,
     );
@@ -36,8 +35,9 @@ describe("MatchMapTabsNavigation", () => {
     expect(tablist).toHaveClass("w-max", "justify-start");
     expect(screen.getAllByRole("tab")).toHaveLength(6);
     expect(screen.getByRole("tab", { name: "整场汇总" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: /very-long-map-name-for-mobile-regression/ })).toHaveTextContent("13:9");
     expect(screen.getByRole("tab", { name: /very-long-map-name-for-mobile-regression/ })).toHaveTextContent("ALP PICK");
-    expect(screen.getByRole("tab", { name: /Ancient/ })).toHaveTextContent("LIVE");
+    expect(screen.getByRole("tab", { name: /Ancient/ })).toHaveTextContent("—");
 
     const finalMapTab = screen.getByRole("tab", { name: /Nuke/ });
     fireEvent.mouseDown(finalMapTab, { button: 0, ctrlKey: false });
