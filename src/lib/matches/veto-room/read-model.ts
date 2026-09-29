@@ -146,9 +146,7 @@ export async function projectVetoRoomView(
       vetoRoleLabel: core.session.vetoTeamAEntryId === entryId ? "VETO A" : core.session.vetoTeamAEntryId && core.session.vetoTeamAEntryId !== entryId ? "VETO B" : null,
       rosterConfirmed: rows.length > 0,
       rosterStatusLabel: rows[0]?.rosterStatus === "confirmed" ? "首发已定格" : rows.length > 0 ? "本场首发已就绪" : "尚未提交首发",
-      lineupBlocker: rows.length === 0
-        ? "尚未提交本场首发"
-        : rows.length === 0 ? "本场首发尚未就绪" : null,
+      lineupBlocker: rows.length === 0 ? "尚未提交本场首发" : null,
       starters: rows.filter((row) => row.isStarter).map((row) => ({
         id: row.memberId,
         name: getPublicDisplayName(row),
