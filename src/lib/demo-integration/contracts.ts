@@ -129,6 +129,8 @@ const remoteSeriesSchema = z.object({
   entryRound: z.string().nullable(),
   bracketNodeId: z.string().nullable(),
   status: z.enum(["scheduled", "in_progress", "finished", "cancelled"]),
+  /** Present only when the client opts in with seriesDisposition=1. */
+  isForfeit: z.boolean().optional(),
   format: z.enum(["bo1", "bo3", "bo5"]),
   entryAId: z.guid(),
   entryBId: z.guid(),
