@@ -135,9 +135,9 @@ export async function freezeCanonicalProductionIdentity(options: {
   return frozenIdentity;
 }
 
-async function readCanonicalProductionIdentity(
-  env: ReleaseEnvironment,
-  fetcher: ProductionReleaseFetcher,
+export async function readCanonicalProductionIdentity(
+  env: ReleaseEnvironment = process.env,
+  fetcher: ProductionReleaseFetcher = fetch,
 ): Promise<ReleaseIdentity> {
   const endpoint = buildReleaseEndpoint(env.RIVALHUB_PRODUCTION_BASE_URL);
   let response: Response;
