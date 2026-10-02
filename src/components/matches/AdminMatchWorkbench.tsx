@@ -19,6 +19,10 @@ import { CompletedAtInput } from "@/components/matches/CompletedAtInput";
 import { PreMatchOperatorChecklist } from "@/components/matches/PreMatchOperatorChecklist";
 import { PostMatchRecordPanel } from "@/components/matches/PostMatchRecordPanel";
 import { DemoDataReviewPanel } from "@/components/matches/DemoDataReviewPanel";
+import { PerfectRoomGuide } from "@/components/matches/PerfectRoomGuide";
+import { OperatorTaskControls } from "@/components/matches/OperatorTaskControls";
+import { CommentaryMatchLink, MatchCommentaryStatus } from "@/components/matches/MatchCommentaryQueue";
+import { mapLabel } from "@/lib/maps";
 import type { AdminMatchWorkbenchData } from "@/lib/admin/matches/types";
 import { getDisplayName } from "@/lib/identity/display-name";
 import { getAdminMatchStartBlockers } from "@/lib/admin/matches/start-blockers";
@@ -93,6 +97,8 @@ export function AdminMatchWorkbench({
   vetoCompletedAt,
   postMatch,
   demoReviews = [],
+  operator,
+  commentary,
 }: AdminMatchWorkbenchProps) {
   const requiresPreflight = match.ownership === "major_stage";
   const startBlockers = getAdminMatchStartBlockers({
@@ -153,6 +159,42 @@ export function AdminMatchWorkbench({
       </header>
 
       <Separator />
+
+      <section aria-labelledby="operator-task" className="space-y-3 rounded border border-[var(--color-border)] p-4">
+        {commentary.byMatchId[match.id] && <MatchCommentaryStatus matchId={match.id} assignment={commentary.byMatchId[match.id]} />}
+        <p className="text-xs text-[var(--color-fg-mid)]">当前任务</p>
+        <h2 id="operator-task" className="text-lg font-semibold">{operator.workflow.title}</h2>
+        <p className="text-sm text-[var(--color-fg-mid)]">{operator.workflow.description}</p>
+        <p className="text-sm">下一步：{operator.workflow.nextStep}</p>
+        <div className="flex flex-wrap gap-4 text-sm text-[var(--color-accent)]">
+          {operator.workflow.focusMapId && <a className="underline underline-offset-4" href={`#scoreboard-${operator.workflow.focusMapId}`}>打开本图 OCR</a>}
+          {operator.roomGuide && <a className="underline underline-offset-4" href="#perfect-room-guide">{operator.workflow.focusMapId ? "暂后补 OCR，查看下一图建房指引" : "查看 Perfect 建房指引"}</a>}
+        </div>
+        <OperatorTaskControls elapsed={operator.workflow.elapsed} />
+        <div className="border-t border-[var(--color-border)] pt-3">
+          <p className="mb-1 text-sm font-medium">我的下一场</p>
+          {commentary.nextMatch ? <CommentaryMatchLink match={commentary.nextMatch} seasonSlug={season.slug} /> : <p className="text-sm text-[var(--color-fg-mid)]">当前没有已认领的下一场</p>}
+        </div>
+        {operator.roomGuide && <div id="perfect-room-guide"><PerfectRoomGuide guide={operator.roomGuide} /></div>}
+      </section>
+
+      {operator.workflow.completedMaps.length > 0 && match.status !== "cancelled" && (
+        <section aria-labelledby="operator-scoreboards" className="space-y-3">
+          <h2 id="operator-scoreboards" className="font-semibold">已完成地图 · 平台计分板与 Demo</h2>
+          <p className="text-sm text-[var(--color-fg-mid)]">图间可去 Perfect 查看本图数据并截图 OCR，也可赛后补齐。补录不阻断下一图建房或赛后资料整理。</p>
+          {operator.workflow.completedMaps.map(map => <details key={map.id} id={`scoreboard-${map.id}`} open={operator.workflow.focusMapId === map.id} className="rounded border border-[var(--color-border)] p-3">
+            <summary className="cursor-pointer text-sm">Map {map.order} · {mapLabel(map.name)} · {map.scoreboardComplete ? "平台计分板已补齐" : "平台计分板待补"} · Demo {map.demoLabel}</summary>
+            <div className="mt-3"><StatsOCRPanel mapId={map.id} mapName={map.name} /></div>
+            {map.demoNeedsAttention && <p className="mt-2 text-sm text-[var(--color-warn)]">请检查下方 Demo 待处理项；若阵容或比分已更正，请在上传器中重新生成并同步。</p>}
+          </details>)}
+          {operator.workflow.isPostMatch && <div className="space-y-2 rounded border border-[var(--color-border)] p-3 text-sm">
+            <p>去 Perfect 下载本场已完成地图的 Demo，再使用 RivalHub Demo Uploader 上传。上传后刷新当前任务，检查每图同步结果。</p>
+            <a className="text-[var(--color-accent)] underline underline-offset-4" href="https://github.com/Starfie1d1272/cs2-demo-analysis-kit/releases/latest" target="_blank" rel="noreferrer">获取 RivalHub Demo Uploader ↗</a>
+          </div>}
+        </section>
+      )}
+
+      {match.status !== "cancelled" && <DemoDataReviewPanel reviews={demoReviews} />}
 
       <section aria-labelledby="match-workbench-overview" className="space-y-3">
         <div>
@@ -327,19 +369,12 @@ export function AdminMatchWorkbench({
             )}
           </section>
 
-          <DemoDataReviewPanel reviews={demoReviews} />
-
           {postMatch && (
             <section aria-labelledby="match-workbench-finished-postmatch" className="space-y-3">
               <h2 id="match-workbench-finished-postmatch" className="font-mono text-[11px] tracking-[0.12em] text-[var(--color-fg-mid)]">
-                赛后资料与 OCR
+                赛后资料
               </h2>
               <PostMatchRecordPanel matchId={match.id} data={postMatch} />
-              {finishedMaps.map((map) => (
-                <div key={map.id}>
-                  <StatsOCRPanel mapId={map.id} mapName={map.mapName} />
-                </div>
-              ))}
             </section>
           )}
 
