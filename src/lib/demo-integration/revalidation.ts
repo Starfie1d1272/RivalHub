@@ -1,6 +1,6 @@
 import "server-only";
 
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { db, type TxDb } from "@/db/client";
 import { matchDemoImports } from "@/db/schema";
 import { writeAuditInTx } from "@/lib/audit/write";
@@ -21,12 +21,12 @@ export interface StoredDemoRevalidationResult {
   issues: IntegrationIssue[];
 }
 
-interface StoredEvidenceResult {
+export interface StoredEvidenceResult {
   evidence: RivalHubEvidenceSubmission | null;
   issues: IntegrationIssue[];
 }
 
-function parseStoredEvidence(row: typeof matchDemoImports.$inferSelect): StoredEvidenceResult {
+export function parseStoredEvidence(row: typeof matchDemoImports.$inferSelect): StoredEvidenceResult {
   let evidence: RivalHubEvidenceSubmission;
   try {
     evidence = parseRivalHubDemoEvidenceV1(row.payload);
@@ -47,14 +47,14 @@ function parseStoredEvidence(row: typeof matchDemoImports.$inferSelect): StoredE
   return { evidence, issues };
 }
 
-async function writeRecheckIssue(
+export async function writeRecheckIssue(
   tx: TxDb,
   row: typeof matchDemoImports.$inferSelect,
   issues: IntegrationIssue[],
   target?: CanonicalTarget,
   actorId?: string,
 ): Promise<StoredDemoRevalidationResult> {
-  await tx.update(matchDemoImports).set({ issues }).where(eq(matchDemoImports.id, row.id));
+  await tx.update(matchDemoImports).set({ status: "needs_attention", issues }).where(eq(matchDemoImports.id, row.id));
   await writeAuditInTx(tx, {
     seasonId: row.seasonId,
     action: "match.demo.recheck",
@@ -72,20 +72,34 @@ export async function revalidateStoredDemoImportInTx(
   tx: TxDb,
   input: { importId: string; actorId: string; verifiedBy?: string },
 ): Promise<StoredDemoRevalidationResult> {
+  const row = await loadStoredDemoImportForRecheckInTx(tx, input.importId);
+  return revalidateStoredDemoImportRowInTx(tx, row, input);
+}
+
+async function loadStoredDemoImportForRecheckInTx(tx: TxDb, importId: string) {
   const [scope] = await tx.select({ matchMapId: matchDemoImports.matchMapId }).from(matchDemoImports)
-    .where(eq(matchDemoImports.id, input.importId));
+    .where(eq(matchDemoImports.id, importId));
   if (!scope) throw new AppError(ErrorCode.NOT_FOUND, "待处理的 Demo 数据不存在。");
   await lockDemoImportLineageInTx(tx, scope.matchMapId);
   const [row] = await tx.select().from(matchDemoImports)
-    .where(eq(matchDemoImports.id, input.importId))
+    .where(eq(matchDemoImports.id, importId))
     .for("update");
   if (!row) throw new AppError(ErrorCode.NOT_FOUND, "待处理的 Demo 数据不存在。");
   if (row.matchMapId !== scope.matchMapId) throw new AppError(ErrorCode.INTERNAL_ERROR, "Demo 数据在重新检查期间发生了目标变化。");
+  return row;
+}
+
+async function revalidateStoredDemoImportRowInTx(
+  tx: TxDb,
+  row: typeof matchDemoImports.$inferSelect,
+  input: { actorId: string; verifiedBy?: string },
+  parsedEvidence?: StoredEvidenceResult,
+): Promise<StoredDemoRevalidationResult> {
   if (!isCurrentDakSemanticProfile(row.semanticProfile)) throw new AppError(ErrorCode.VALIDATION_FAILED, "只有当前 Demo 数据版本可以重新检查。");
   if (row.status === "confirmed") return { status: "confirmed", importId: row.id, issues: [] };
   if (row.status !== "needs_attention") throw new AppError(ErrorCode.VALIDATION_FAILED, "这份 Demo 数据当前不在待处理状态。");
 
-  const stored = parseStoredEvidence(row);
+  const stored = parsedEvidence ?? parseStoredEvidence(row);
   if (!stored.evidence || stored.issues.length > 0) return writeRecheckIssue(tx, row, stored.issues, undefined, input.actorId);
 
   let target: CanonicalTarget;
@@ -136,11 +150,17 @@ export interface RelatedDemoRevalidationSummary {
   affectedMatchIds: string[];
 }
 
-type RecheckCandidate = typeof matchDemoImports.$inferSelect;
+type RecheckCandidate = Pick<typeof matchDemoImports.$inferSelect, "id" | "matchId" | "matchMapId" | "semanticProfile" | "status">;
 
 async function loadSeasonNeedsAttentionCandidates(seasonId: string): Promise<RecheckCandidate[]> {
   const rows = await db
-    .select()
+    .select({
+      id: matchDemoImports.id,
+      matchId: matchDemoImports.matchId,
+      matchMapId: matchDemoImports.matchMapId,
+      semanticProfile: matchDemoImports.semanticProfile,
+      status: matchDemoImports.status,
+    })
     .from(matchDemoImports)
     .where(eq(matchDemoImports.seasonId, seasonId))
     .orderBy(desc(matchDemoImports.createdAt));
@@ -163,7 +183,9 @@ async function loadSeasonNeedsAttentionCandidates(seasonId: string): Promise<Rec
 async function revalidateCandidateRows(
   rows: readonly RecheckCandidate[],
   actorId: string,
+  observedSteam64?: string,
 ): Promise<RelatedDemoRevalidationSummary> {
+  let attempted = 0;
   let confirmed = 0;
   let remaining = 0;
   let failed = 0;
@@ -171,21 +193,30 @@ async function revalidateCandidateRows(
 
   for (const row of rows) {
     try {
-      const result = await db.transaction((tx) => revalidateStoredDemoImportInTx(tx, {
-        importId: row.id,
-        actorId,
-        verifiedBy: `admin:${actorId}`,
-      }));
+      const result = await db.transaction(async (tx) => {
+        const stored = await loadStoredDemoImportForRecheckInTx(tx, row.id);
+        let parsedEvidence: StoredEvidenceResult | undefined;
+        if (observedSteam64) {
+          // Keep the original full-contract check for Steam fanout, but reuse
+          // this locked artifact for revalidation instead of downloading twice.
+          parsedEvidence = parseStoredEvidence(stored);
+          if (!parsedEvidence.evidence?.participants.some((participant) => participant.steamId64 === observedSteam64)) return null;
+        }
+        return revalidateStoredDemoImportRowInTx(tx, stored, { actorId, verifiedBy: `admin:${actorId}` }, parsedEvidence);
+      });
+      if (!result) continue;
+      attempted++;
       affectedMatchIds.add(row.matchId);
       if (result.status === "confirmed") confirmed++;
       else remaining++;
     } catch {
+      attempted++;
       failed++;
     }
   }
 
   return {
-    attempted: rows.length,
+    attempted,
     confirmed,
     remaining,
     failed,
@@ -222,14 +253,16 @@ export async function revalidateNeedsAttentionImportsForSteam64(input: {
     throw new AppError(ErrorCode.VALIDATION_FAILED, "Steam64 ID 格式无效。");
   }
 
-  const matching = (await loadSeasonNeedsAttentionCandidates(input.seasonId)).filter((row) => {
-    if (row.id === input.excludeImportId || !isCurrentDakSemanticProfile(row.semanticProfile)) return false;
-    try {
-      return parseRivalHubDemoEvidenceV1(row.payload).participants.some((participant) => participant.steamId64 === input.steam64);
-    } catch {
-      return false;
-    }
-  });
-
-  return revalidateCandidateRows(matching, input.actorId);
+  const candidates = (await loadSeasonNeedsAttentionCandidates(input.seasonId))
+    .filter((row) => row.id !== input.excludeImportId && isCurrentDakSemanticProfile(row.semanticProfile));
+  // PostgreSQL checks participant membership without returning any raw artifact.
+  // Only matching current imports proceed to the locked full-contract recheck.
+  const matchingIds = candidates.length
+    ? await db.select({ id: matchDemoImports.id }).from(matchDemoImports).where(and(
+      inArray(matchDemoImports.id, candidates.map((row) => row.id)),
+      sql`${matchDemoImports.payload} @> ${JSON.stringify({ participants: [{ steamId64: input.steam64 }] })}::jsonb`,
+    ))
+    : [];
+  const matching = new Set(matchingIds.map((row) => row.id));
+  return revalidateCandidateRows(candidates.filter((row) => matching.has(row.id)), input.actorId, input.steam64);
 }

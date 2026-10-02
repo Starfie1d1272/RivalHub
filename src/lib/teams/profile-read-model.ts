@@ -1,15 +1,12 @@
 import "server-only";
 
-import { and, eq, inArray, or } from "drizzle-orm";
-import { db } from "@/db/client";
-import { matchMaps, matches } from "@/db/schema";
-
 import type { PublicEventTeamContext } from "@/lib/competition-entries/public-team-context";
 import { getPublicSeasonCatalog, type PublicSeason } from "@/lib/data/public-seasons";
 import { getPublicSeasonResults } from "@/lib/seasons/public-results";
-import { getLongTeamCareerDetail, getTournamentTeamDetail } from "@/lib/stats/tournament-query";
-import { getPublicTeamMapProfile } from "@/lib/teams/map-profile";
-import { getPublicTeamProfile, type PublicTeamIdentity } from "@/lib/teams/public-profile";
+import { getPublicLongTeamCareerDetail, getPublicTournamentTeamDetail } from "@/lib/stats/cached-query";
+import { aggregatePublicTeamMapProfile, getPublicTeamMapProfile } from "@/lib/teams/map-profile";
+import { getPublicTeamProfileCore, getTeamProfileViewerState, type PublicTeamIdentity } from "@/lib/teams/public-profile";
+import { readOptionalPublicStats } from "@/lib/stats/availability";
 
 /**
  * Profile-facing projection for a stable Team identity.
@@ -23,57 +20,19 @@ export async function getPublicLongTeamProfileReadModel(
   viewerUserId?: string | null,
   knownTeam?: PublicTeamIdentity,
 ) {
-  const [profile, performance] = await Promise.all([
-    getPublicTeamProfile(teamId, viewerUserId, knownTeam),
-    getLongTeamCareerDetail(teamId),
-  ]);
-  if (!profile) return null;
+  const performance = await readOptionalPublicStats("team_career", () => getPublicLongTeamCareerDetail(teamId));
+  const core = await getPublicTeamProfileCore(teamId, knownTeam, performance?.official.matches);
+  if (!core) return null;
+  const profile = { ...core, ...await getTeamProfileViewerState(core, viewerUserId) };
   const entryIds = profile.entries.map((entry) => entry.id);
   const historicalSeasonIds = new Set(profile.entries.filter((entry) => ["finished", "archived"].includes(entry.seasonStatus)).map((entry) => entry.seasonId));
-  const [mapProfile, seasonCatalog, matchRows] = await Promise.all([
-    getPublicTeamMapProfile(
-      profile.entries.map((entry) => entry.id),
-      profile.currentMembers.map((member) => member.userId),
-    ),
+  const completedMaps = performance?.official.maps.filter((map) => map.completedAt !== null && map.scoreA !== null && map.scoreB !== null) ?? [];
+  const preview = performance ? aggregatePublicTeamMapProfile(entryIds, performance.official.matches, completedMaps) : undefined;
+  const [mapProfile, seasonCatalog] = await Promise.all([
+    getPublicTeamMapProfile(entryIds, profile.currentMembers.map((member) => member.userId), preview),
     getPublicSeasonCatalog(),
-    entryIds.length ? db.select({
-      id: matches.id,
-      entryAId: matches.entryAId,
-      entryBId: matches.entryBId,
-      scoreA: matches.scoreA,
-      scoreB: matches.scoreB,
-    }).from(matches).where(and(
-      eq(matches.status, "finished"),
-      or(inArray(matches.entryAId, entryIds), inArray(matches.entryBId, entryIds)),
-    )) : Promise.resolve([]),
   ]);
-  const mapRows = matchRows.length ? await db.select({
-    matchId: matchMaps.matchId,
-    scoreA: matchMaps.scoreA,
-    scoreB: matchMaps.scoreB,
-  }).from(matchMaps).where(inArray(matchMaps.matchId, matchRows.map((match) => match.id))) : [];
-  const mapsByMatch = new Map<string, typeof mapRows>();
-  for (const map of mapRows) mapsByMatch.set(map.matchId, [...(mapsByMatch.get(map.matchId) ?? []), map]);
-  const profileEntryRecords = new Map(profile.entries.map((entry) => [entry.id, { wins: 0, losses: 0, mapWins: 0, mapLosses: 0, maps: 0 }]));
-  for (const match of matchRows) {
-    const entryId = entryIds.includes(match.entryAId) ? match.entryAId : entryIds.includes(match.entryBId) ? match.entryBId : null;
-    if (!entryId) continue;
-    const record = profileEntryRecords.get(entryId)!;
-    const ownScore = entryId === match.entryAId ? match.scoreA : match.scoreB;
-    const opponentScore = entryId === match.entryAId ? match.scoreB : match.scoreA;
-    if (ownScore !== null && opponentScore !== null) {
-      if (ownScore > opponentScore) record.wins += 1;
-      else if (ownScore < opponentScore) record.losses += 1;
-    }
-    for (const map of mapsByMatch.get(match.id) ?? []) {
-      record.maps += 1;
-      if (map.scoreA === null || map.scoreB === null || map.scoreA === map.scoreB) continue;
-      const ownMapScore = entryId === match.entryAId ? map.scoreA : map.scoreB;
-      const opponentMapScore = entryId === match.entryAId ? map.scoreB : map.scoreA;
-      if (ownMapScore > opponentMapScore) record.mapWins += 1;
-      else record.mapLosses += 1;
-    }
-  }
+  const profileEntryRecords = new Map(performance?.official.entries.map((entry) => [entry.entryId, entry]) ?? []);
   const careerResults = await Promise.all(seasonCatalog.filter((season) => historicalSeasonIds.has(season.id)).map(async (season) => [season.id, await getPublicSeasonResults(season)] as const));
   const resultBySeason = new Map(careerResults);
 
@@ -86,17 +45,18 @@ export async function getPublicLongTeamProfileReadModel(
         ...entry,
         placement: results?.placements.find((placement) => placement.entryId === entry.id)?.label ?? null,
         honors: results?.honors.filter((honor) => honor.entryId === entry.id).map((honor) => honor.label) ?? [],
-        matchWins: profileEntryRecords.get(entry.id)?.wins ?? 0,
-        matchLosses: profileEntryRecords.get(entry.id)?.losses ?? 0,
-        mapWins: profileEntryRecords.get(entry.id)?.mapWins ?? 0,
-        mapLosses: profileEntryRecords.get(entry.id)?.mapLosses ?? 0,
-        maps: profileEntryRecords.get(entry.id)?.maps ?? 0,
+        matchWins: performance ? profileEntryRecords.get(entry.id)?.matchWins ?? 0 : null,
+        matchLosses: performance ? profileEntryRecords.get(entry.id)?.matchLosses ?? 0 : null,
+        mapWins: performance ? profileEntryRecords.get(entry.id)?.mapWins ?? 0 : null,
+        mapLosses: performance ? profileEntryRecords.get(entry.id)?.mapLosses ?? 0 : null,
+        maps: performance ? profileEntryRecords.get(entry.id)?.maps ?? 0 : null,
       };
     });
   return {
     mode: "long" as const,
     profile,
     performance,
+    statsUnavailable: performance === null,
     mapProfile,
     mapExperienceCoverage: mapProfile.experienceCoverage,
     career,
@@ -108,19 +68,24 @@ export async function getPublicLongTeamProfileReadModel(
  * linkage is presentation context only and never rewrites this event identity.
  */
 export async function getPublicCompetitionEntryPerformanceReadModel(
-  season: Pick<PublicSeason, "id">,
+  season: Pick<PublicSeason, "id" | "status">,
   event: PublicEventTeamContext,
 ) {
-  const [performance, mapProfile] = await Promise.all([
-    getTournamentTeamDetail({ seasonId: season.id, teamId: event.entry.id }),
-    getPublicTeamMapProfile(
-      [event.entry.id],
-      event.roster.map((member) => member.userId),
-    ),
-  ]);
+  const performance = await readOptionalPublicStats("event_team", () => getPublicTournamentTeamDetail(
+    { seasonId: season.id, teamId: event.entry.id },
+    season.status === "draft" ? "draft" : "public",
+  ));
+  const completedMaps = performance?.official.maps.filter((map) => map.completedAt !== null && map.scoreA !== null && map.scoreB !== null) ?? [];
+  const preview = performance ? aggregatePublicTeamMapProfile([event.entry.id], performance.official.matches.filter((match) => match.status === "finished"), completedMaps) : undefined;
+  const mapProfile = await getPublicTeamMapProfile(
+    [event.entry.id],
+    event.roster.map((member) => member.userId),
+    preview,
+  );
   return {
     mode: "event" as const,
     performance,
+    statsUnavailable: performance === null,
     mapProfile,
     mapExperienceCoverage: mapProfile.experienceCoverage,
   };

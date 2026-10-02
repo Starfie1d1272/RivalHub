@@ -30,6 +30,7 @@ import {
   hashTeamInvitationToken,
 } from "@/lib/teams/commands";
 import { fail, ok, type ActionResult } from "@/types/action";
+import { updatePublicStatsTag } from "@/lib/revalidation";
 
 const PENDING_DIRECT_INVITATION_CONSTRAINT = "team_invitations_one_pending_direct_per_user";
 
@@ -38,6 +39,7 @@ const teamName = teamNameSchema;
 const description = z.string().trim().max(500);
 
 function revalidateTeam(slug?: string): void {
+  updatePublicStatsTag();
   revalidatePath("/teams");
   revalidatePath("/teams/recruitment");
   revalidatePath("/my/teams");

@@ -4,15 +4,17 @@ import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import type { TxDb } from "@/db/client";
 import { matchDemoImports, matchPlayerStats, matchRoundFacts } from "@/db/schema";
 import { writeAuditInTx } from "@/lib/audit/write";
+import { materializeStatisticsProjectionInTx } from "@/lib/stats/projection";
 import { AppError, ErrorCode } from "@/lib/errors";
 import type { GameplayUserResolution } from "@/lib/identity/gameplay-steam";
 import type { RivalHubEvidenceSubmission } from "./contracts";
 import { dakStableScoreboardValues } from "./scoreboard";
 import type { CanonicalTarget } from "./validation";
+import { demoImportMetadataSelection, type DemoImportMetadata } from "./metadata";
 
 export interface PromoteDemoImportInput {
   tx: TxDb;
-  row: typeof matchDemoImports.$inferSelect;
+  row: DemoImportMetadata;
   evidence: RivalHubEvidenceSubmission;
   target: CanonicalTarget;
   resolutions: Map<string, GameplayUserResolution>;
@@ -39,14 +41,14 @@ const LINEAGE_ACTIVE_STATUSES = ["confirmed", "needs_attention", "stale"] as con
 type LineageActiveStatus = typeof LINEAGE_ACTIVE_STATUSES[number];
 
 export interface DemoImportLineage {
-  sameContent?: typeof matchDemoImports.$inferSelect;
-  sameDemoPriors: Array<typeof matchDemoImports.$inferSelect & { status: LineageActiveStatus }>;
-  sameDemoPredecessor?: typeof matchDemoImports.$inferSelect & { status: LineageActiveStatus };
-  differentDemoConfirmed?: typeof matchDemoImports.$inferSelect;
+  sameContent?: DemoImportMetadata;
+  sameDemoPriors: Array<DemoImportMetadata & { status: LineageActiveStatus }>;
+  sameDemoPredecessor?: DemoImportMetadata & { status: LineageActiveStatus };
+  differentDemoConfirmed?: DemoImportMetadata;
 }
 
 export function isSameDemoImportContent(
-  row: typeof matchDemoImports.$inferSelect,
+  row: DemoImportMetadata,
   content: Pick<DemoImportLineageInput, "demoSha256" | "payloadSha256">,
 ): boolean {
   return row.demoSha256 === content.demoSha256 && row.payloadSha256 === content.payloadSha256;
@@ -63,7 +65,7 @@ export async function resolveDemoImportLineageInTx(
   tx: TxDb,
   input: DemoImportLineageInput,
 ): Promise<DemoImportLineage> {
-  const rows = await tx.select().from(matchDemoImports)
+  const rows = await tx.select(demoImportMetadataSelection).from(matchDemoImports)
     .where(eq(matchDemoImports.matchMapId, input.matchMapId))
     .orderBy(desc(matchDemoImports.createdAt), desc(matchDemoImports.id))
     .for("update");
@@ -228,6 +230,7 @@ export async function promoteDemoImportInTx(input: PromoteDemoImportInput): Prom
     confirmedAt: input.row.confirmedAt ?? new Date(),
     supersedesImportId,
   }).where(eq(matchDemoImports.id, input.row.id));
+  await materializeStatisticsProjectionInTx(input);
   await materializeRoundFacts(input.tx, input.row.id, input.evidence);
   const playerCount = await materializePlayerStats(input.tx, input);
   await writeAuditInTx(input.tx, {

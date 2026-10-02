@@ -110,13 +110,16 @@ overrides:
   esbuild@0.18.20: 0.28.2
   esbuild@0.27.7: 0.28.2
 
+patchedDependencies:
+  '@cs2dak/tournament@1.1.1': db3cc3484eb2c7ff0be4c076d780908c83ce583eb5c34e49d259fd870251143c
+
 importers:
 
   .:
     dependencies:
       '@cs2dak/tournament':
         specifier: 1.1.1
-        version: 1.1.1
+        version: 1.1.1(patch_hash=db3cc3484eb2c7ff0be4c076d780908c83ce583eb5c34e49d259fd870251143c)
       '@hookform/resolvers':
         specifier: ^5.9.1
         version: 5.9.1(@standard-schema/spec@1.1.0)(react-hook-form@7.87.0(react@19.2.8))(zod@4.5.4)
@@ -5365,7 +5368,7 @@ snapshots:
       fast-wrap-ansi: 0.2.2
       sisteransi: 1.0.5
 
-  '@cs2dak/tournament@1.1.1': {}
+  '@cs2dak/tournament@1.1.1(patch_hash=db3cc3484eb2c7ff0be4c076d780908c83ce583eb5c34e49d259fd870251143c)': {}
 
   '@csstools/color-helpers@6.1.1': {}
 

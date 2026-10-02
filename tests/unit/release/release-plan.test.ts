@@ -89,6 +89,19 @@ describe("release plan", () => {
     expect(result.requiresSteamProfileBackfill).toBe(true);
   });
 
+  it("requires projection backfill before routing a new table or reducer version", () => {
+    const schema = plan(
+      [{ status: "A", paths: ["drizzle/migrations/0067_projection.sql"] }],
+      { "drizzle/migrations/0067_projection.sql": 'CREATE TABLE "match_demo_stat_projections" (import_id uuid NOT NULL);' },
+    );
+    expect(schema.requiresStatsProjectionBackfill).toBe(true);
+    const version = plan([{ status: "M", paths: ["src/lib/stats/projection-version.ts"] }]);
+    expect(version.requiresStatsProjectionBackfill).toBe(true);
+    expect(version.requiresProductionMigration).toBe(true);
+    expect(version.requiresMigrationRehearsal).toBe(false);
+    expect(plan([{ status: "M", paths: ["src/lib/stats/format.ts"] }]).requiresStatsProjectionBackfill).toBe(false);
+  });
+
   it("requires a DB-only checkpoint for destructive or unrecognised SQL", () => {
     const result = plan(
       [{ status: "M", paths: ["drizzle/migrations/0053_contract.sql"] }],

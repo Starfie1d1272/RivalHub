@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { TournamentPerformancePlayerSummary } from "@cs2dak/tournament";
-import { buildPlayerAttributeProfile } from "./player-attributes";
+import { compilePlayerAttributeBenchmark, projectPlayerAttributeProfile } from "./player-attributes";
+
+function buildPlayerAttributeProfile(player: TournamentPerformancePlayerSummary, population: readonly TournamentPerformancePlayerSummary[]) {
+  return projectPlayerAttributeProfile(player, compilePlayerAttributeBenchmark(population));
+}
 
 type PlayerOptions = {
   id: string;
@@ -172,6 +176,26 @@ function population() {
 }
 
 describe("player attributes", () => {
+  it("reuses a serializable benchmark without retaining or mutating player summaries", () => {
+    const compiled = JSON.parse(JSON.stringify(compilePlayerAttributeBenchmark(population())));
+    const saved = JSON.stringify(compiled);
+    const target = makePlayer({ id: "qualified", rounds: 140, kills: 95, damagePerRound: 88, awpKills: 20 });
+    const profile = projectPlayerAttributeProfile(target, compiled);
+
+    expect(profile).toEqual(buildPlayerAttributeProfile(target, population()));
+    expect(profile.attributes.find((row) => row.key === "firepower")).toMatchObject({ status: "qualified", rankedCount: 4 });
+    projectPlayerAttributeProfile(makePlayer({ id: "another", awpKills: 0 }), compiled);
+    expect(JSON.stringify(compiled)).toBe(saved);
+    expect(JSON.stringify(compiled)).not.toContain("teamEntityKeys");
+  });
+
+  it("retains separate event observations for a returning player", () => {
+    const observations = population().map((row) => ({ ...row, player: { ...row.player, entityKey: "returning-player" } }));
+    const compiled = compilePlayerAttributeBenchmark(observations);
+
+    expect(compiled.rankedScores.firepower).toHaveLength(4);
+  });
+
   it("lets limited samples receive scores without entering official ranking", () => {
     const target = makePlayer({
       id: "limited",

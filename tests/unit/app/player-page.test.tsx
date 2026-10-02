@@ -98,4 +98,16 @@ describe("public Player Profile", () => {
     expect(html).toContain("2 场 · 1 胜 / 1 负");
     expect(html).toContain("/event-2025/stats?tab=players&amp;teamFilter=entry-1");
   });
+
+  it("keeps identity and history available without presenting unavailable statistics as zero", async () => {
+    profileReadModelMock.mockResolvedValueOnce({ ...profile(), career: null, statsUnavailable: true });
+    const page = await PlayerPageContent({ params: Promise.resolve({ userId: "user-1" }), searchParams: Promise.resolve({ event: "event-2025" }) });
+    const html = renderToStaticMarkup(page);
+
+    expect(html).toContain("玩家甲");
+    expect(html).toContain("第 2 名");
+    expect(html).toContain("竞技统计暂时无法加载");
+    expect(html).not.toContain("Shared player metrics");
+    expect(html).not.toContain("Event and map filters");
+  });
 });

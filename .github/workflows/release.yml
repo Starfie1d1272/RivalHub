@@ -57,6 +57,7 @@ jobs:
       requires_migration_rehearsal: ${{ steps.plan.outputs.requiresMigrationRehearsal }}
       requires_production_migration: ${{ steps.plan.outputs.requiresProductionMigration }}
       requires_steam_profile_backfill: ${{ steps.plan.outputs.requiresSteamProfileBackfill }}
+      requires_stats_projection_backfill: ${{ steps.plan.outputs.requiresStatsProjectionBackfill }}
       requires_db_checkpoint: ${{ steps.plan.outputs.requiresDbCheckpoint }}
       requires_full_checkpoint: ${{ steps.plan.outputs.requiresFullCheckpoint }}
       checkpoint_kind: ${{ steps.checkpoint_kind.outputs.kind }}
@@ -395,6 +396,18 @@ jobs:
             scripts/db/verify-migrations.ts \
             scripts/db/production.ts \
             scripts/db/production-environment.ts \
+            scripts/db/stats-projections.ts \
+            scripts/db/production-stats-projections.ts \
+            src/lib/stats/projection-backfill.ts \
+            src/lib/stats/projection-version.ts \
+            src/lib/stats/projection.ts \
+            src/lib/stats/evidence-adapter.ts \
+            src/lib/demo-integration \
+            src/lib/identity/gameplay-steam.ts \
+            src/lib/match-rosters \
+            src/db \
+            patches \
+            pnpm-workspace.yaml \
             package.json \
             pnpm-lock.yaml
           then
@@ -416,7 +429,9 @@ jobs:
             echo "GitHub production Environment secret DATABASE_URL 未设置。" >&2
             exit 1
           fi
-          node scripts/ci/timing.mjs "Production migration" -- env RIVALHUB_ALLOW_REMOTE_DB_WRITE=production pnpm db:production:migrate
+          if [[ "${{ needs.preflight.outputs.requires_migration_rehearsal }}" == "true" ]]; then
+            node scripts/ci/timing.mjs "Production migration" -- env RIVALHUB_ALLOW_REMOTE_DB_WRITE=production pnpm db:production:migrate
+          fi
           node scripts/ci/timing.mjs "Production DB verify" -- pnpm db:production:verify
 
       - name: 回填 production Steam profile cache
@@ -439,6 +454,20 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: node scripts/ci/timing.mjs "Production Steam profile coverage" -- pnpm db:production:steam-profile:coverage
+
+      - name: 回填 production 每图统计投影
+        if: needs.preflight.outputs.requires_stats_projection_backfill == 'true'
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          RIVALHUB_ALLOW_REMOTE_DB_WRITE: production
+          RIVALHUB_STATS_PROJECTION_WRITE_CONFIRM: I_UNDERSTAND_STATS_PROJECTION_WRITE
+        run: node scripts/ci/timing.mjs "Production statistics projection backfill" -- pnpm db:production:stats-projections:backfill --apply
+
+      - name: 验证 production 统计投影覆盖
+        if: needs.preflight.outputs.requires_stats_projection_backfill == 'true'
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: node scripts/ci/timing.mjs "Production statistics projection coverage" -- pnpm db:production:stats-projections:coverage
 
       - name: Write timing summary
         if: always()

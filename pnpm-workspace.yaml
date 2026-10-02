@@ -23,3 +23,7 @@ overrides:
   'esbuild@0.27.7': 0.28.2
 minimumReleaseAgeExclude:
   - '@cs2dak/tournament@1.1.1'
+# Persist DAK-owned sufficient accumulators without duplicating metric formulas.
+# Exit: upstream publishes this projection contract; see patches/README.md.
+patchedDependencies:
+  '@cs2dak/tournament@1.1.1': patches/@cs2dak__tournament@1.1.1.patch

@@ -1,4 +1,5 @@
 import "server-only";
+import { invalidateConfirmedDemoIdentityInTx } from "./statistics-invalidation";
 
 import { and, eq, inArray, sql } from "drizzle-orm";
 import type { DB, TxDb } from "@/db/client";
@@ -269,6 +270,7 @@ export async function retireGameplaySteamIdentityInTx(
     eq(userGameplaySteamIds.id, input.identityId),
     eq(userGameplaySteamIds.status, "active"),
   ));
+  await invalidateConfirmedDemoIdentityInTx(tx, { steam64: identity.steam64 });
   return { retired: true };
 }
 

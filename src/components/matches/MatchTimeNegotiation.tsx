@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRoutePolling } from "@/components/use-visible-polling";
 import { toast } from "sonner";
 import { proposeMatchTime, respondToTimeProposal, forceSetMatchTime } from "@/actions/matches/scheduling";
 import { Button } from "@/components/ui/button";
@@ -50,7 +50,6 @@ export function MatchTimeNegotiation({
   hasSubmittedRoster = false,
   bufferHours = 24,
 }: MatchTimeNegotiationProps) {
-  const router = useRouter();
   // 0 缓冲（=与最晚完成时间一致）目前仅正赛使用，沿用作为是否显示解说时段提示的判据。
   const isPlayoff = bufferHours === 0;
   const [isPending, startTransition] = useTransition();
@@ -73,15 +72,21 @@ export function MatchTimeNegotiation({
   const isNegotiationClosed =
     confirmationCutoffTime !== null && now >= confirmationCutoffTime;
 
-  // 有 pending 提议时自动轮询，确保自动采纳后页面及时更新
+  useRoutePolling(pendingProposals.length > 0 ? 30_000 : null, isPending);
+
+  // Deadline display is local; it must recover after a suspended browser tab.
   useEffect(() => {
     if (pendingProposals.length === 0 && confirmationCutoffTime === null) return;
-    const timer = window.setInterval(() => {
-      setNow(Date.now());
-      if (pendingProposals.length > 0) router.refresh();
-    }, 30_000);
-    return () => window.clearInterval(timer);
-  }, [confirmationCutoffTime, pendingProposals.length, router]);
+    const tick = () => {
+      if (document.visibilityState !== "hidden") setNow(Date.now());
+    };
+    const timer = window.setInterval(tick, 30_000);
+    document.addEventListener("visibilitychange", tick);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", tick);
+    };
+  }, [confirmationCutoffTime, pendingProposals.length]);
 
   // 检测被系统自动采纳的提议
   const autoAcceptedProposal = initialProposals.find((p) => {

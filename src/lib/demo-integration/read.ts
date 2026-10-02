@@ -25,6 +25,7 @@ import { loadEffectiveMatchRoster } from "@/lib/match-rosters/effective";
 import { normalizeRegistrationConfig, normalizeStagePlan } from "@/lib/seasons/compatibility";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
 import { pairingCanReadSeason } from "./pairing";
+import { demoImportMetadataSelection, type DemoImportMetadata } from "./metadata";
 import { buildEvidenceRevisionForTarget, sha256Json } from "./revision";
 import { projectStage } from "./stage-projection";
 import { dakSemanticProfileIssueMessage, isCurrentDakSemanticProfile } from "./semantic-profile";
@@ -66,12 +67,12 @@ function projectIssues(value: unknown): IntegrationIssue[] {
   });
 }
 
-type CurrentDemoImportCandidate = Pick<typeof matchDemoImports.$inferSelect, "semanticProfile" | "status">;
+type CurrentDemoImportCandidate = Pick<DemoImportMetadata, "semanticProfile" | "status">;
 
 export function selectCurrentDemoImport<T extends CurrentDemoImportCandidate>(rows: readonly T[]): T | undefined;
 export function selectCurrentDemoImport(
-  rows: readonly (typeof matchDemoImports.$inferSelect)[],
-): typeof matchDemoImports.$inferSelect | undefined;
+  rows: readonly DemoImportMetadata[],
+): DemoImportMetadata | undefined;
 export function selectCurrentDemoImport(
   rows: readonly CurrentDemoImportCandidate[],
 ): CurrentDemoImportCandidate | undefined {
@@ -79,8 +80,8 @@ export function selectCurrentDemoImport(
 }
 
 function selectLatestNonCanonicalDemoImport(
-  rows: readonly (typeof matchDemoImports.$inferSelect)[],
-): typeof matchDemoImports.$inferSelect | undefined {
+  rows: readonly DemoImportMetadata[],
+): DemoImportMetadata | undefined {
   return rows.find((row) => !isCurrentDakSemanticProfile(row.semanticProfile) && row.status !== "superseded");
 }
 
@@ -108,7 +109,7 @@ function projectPlayer(row: {
 export function projectDemoStatus(
   match: { status: "scheduled" | "in_progress" | "finished" | "cancelled" },
   map: { completedAt: Date | null; scoreA: number | null; scoreB: number | null },
-  latest: typeof matchDemoImports.$inferSelect | undefined,
+  latest: DemoImportMetadata | undefined,
   currentEvidenceRevision?: string,
 ): RivalHubRemoteMap["demoStatus"] {
   const mapFinished = map.completedAt != null && map.scoreA != null && map.scoreB != null;
@@ -135,8 +136,8 @@ const staleEvidenceIssue: IntegrationIssue = {
 };
 
 export function projectDemoIssues(
-  latest: typeof matchDemoImports.$inferSelect | undefined,
-  latestConfirmed: typeof matchDemoImports.$inferSelect | undefined,
+  latest: DemoImportMetadata | undefined,
+  latestConfirmed: DemoImportMetadata | undefined,
   currentEvidenceRevision: string,
 ): IntegrationIssue[] {
   const issues = projectIssues(latest?.issues);
@@ -246,18 +247,18 @@ export async function readRivalHubEvents(
     : [];
   const matchRosterRows = await loadEffectiveMatchRoster(db, matchIds);
   const importRows = mapRows.length > 0
-    ? await db.select().from(matchDemoImports).where(inArray(matchDemoImports.matchMapId, mapRows.map((map) => map.id))).orderBy(desc(matchDemoImports.createdAt))
+    ? await db.select(demoImportMetadataSelection).from(matchDemoImports).where(inArray(matchDemoImports.matchMapId, mapRows.map((map) => map.id))).orderBy(desc(matchDemoImports.createdAt))
     : [];
 
-  const importsByMap = new Map<string, Array<typeof matchDemoImports.$inferSelect>>();
+  const importsByMap = new Map<string, Array<DemoImportMetadata>>();
   for (const row of importRows) {
     const rows = importsByMap.get(row.matchMapId) ?? [];
     rows.push(row);
     importsByMap.set(row.matchMapId, rows);
   }
-  const latestCurrentImportByMap = new Map<string, typeof matchDemoImports.$inferSelect>();
-  const latestNonCanonicalImportByMap = new Map<string, typeof matchDemoImports.$inferSelect>();
-  const latestConfirmedImportByMap = new Map<string, typeof matchDemoImports.$inferSelect>();
+  const latestCurrentImportByMap = new Map<string, DemoImportMetadata>();
+  const latestNonCanonicalImportByMap = new Map<string, DemoImportMetadata>();
+  const latestConfirmedImportByMap = new Map<string, DemoImportMetadata>();
   for (const [mapId, rows] of importsByMap) {
     const current = selectCurrentDemoImport(rows);
     const nonCanonical = selectLatestNonCanonicalDemoImport(rows);

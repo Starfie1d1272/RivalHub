@@ -65,6 +65,7 @@ vi.mock("@/lib/auth/supabase-server", () => ({
 }));
 
 vi.mock("@/lib/revalidation", () => ({
+  updatePublicStatsTag: vi.fn(),
   revalidateSeasonPaths: revalidateSeasonPathsMock,
 }));
 

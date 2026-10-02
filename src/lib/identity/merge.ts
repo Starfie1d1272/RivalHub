@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { writeAuditInTx } from "@/lib/audit/write";
+import { invalidateConfirmedDemoIdentityInTx } from "./statistics-invalidation";
 
 import { and, eq, inArray, sql } from "drizzle-orm";
 import type { DB, TxDb } from "@/db/client";
@@ -564,6 +565,8 @@ export async function executeUserMergeInTx(tx: TxDb, input: ExecuteUserMergeInpu
   if (!preflight.executable) throw new AppError(ErrorCode.VALIDATION_FAILED, "存在未解决冲突，系统拒绝执行归并。");
   const authorizationId = await verifyMergeAuthorityInTx(tx, input);
 
+  // Capture the old attribution before the merge reparents its roster/stat references.
+  await invalidateConfirmedDemoIdentityInTx(tx, { userId: input.mergedUserId });
   await mergeTeamFactsInTx(tx, input.canonicalUserId, input.mergedUserId);
   await mergeSeasonRegistrationsInTx(tx, input.canonicalUserId, input.mergedUserId);
   await tx.execute(sql`SET LOCAL rivalhub.identity_merge_reparent = 'on'`);

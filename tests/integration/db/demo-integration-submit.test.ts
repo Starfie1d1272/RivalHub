@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { resolve } from "node:path";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { buildTournamentAnalytics, buildTournamentPerformanceAnalytics } from "@cs2dak/tournament";
 import { describe, expect, it } from "vitest";
@@ -23,8 +23,11 @@ import {
 } from "../../../src/lib/demo-integration/review";
 import { dakStableScoreboardValues, submitRivalHubEvidence } from "../../../src/lib/demo-integration/submit";
 import { recordGameplaySteamIdentityInTx } from "../../../src/lib/identity/gameplay-steam";
-import { getPlayerCareerDetail, getTournamentMapDetail, getTournamentPlayerDetail, getTournamentStats } from "../../../src/lib/stats/tournament-query";
+import { getCurrentStatsSelectionInTx, getPlayerCareerDetail, getTournamentMapDetail, getTournamentPlayerDetail, getTournamentStats } from "../../../src/lib/stats/tournament-query";
 import { adaptStatsEvidence } from "../../../src/lib/stats/evidence-adapter";
+import { STATISTICS_PROJECTION_VERSION } from "../../../src/lib/stats/projection-version";
+import { backfillStatisticsProjectionForMapInTx, reconcileMissingStatisticsProjections } from "../../../src/lib/stats/projection-backfill";
+import { invalidateConfirmedDemoIdentityInTx } from "../../../src/lib/identity/statistics-invalidation";
 import { createLocalPool } from "./harness/database";
 
 const fixturePath = resolve(process.cwd(), "tests/fixtures/demo-evidence/normal-map-v1.json");
@@ -402,6 +405,70 @@ describe("DAK evidence submit persistence", () => {
       });
       expect(importsAfterPromotion.find((row) => row.id === importId)?.confirmedAt).not.toBeNull();
       expect(importsAfterPromotion.find((row) => row.id === ids.legacyImport)?.payloadSha256).not.toBe(importsAfterPromotion.find((row) => row.id === importId)?.payloadSha256);
+      const projectionsAfterPromotion = await database.select().from(schema.matchDemoStatProjections).where(eq(schema.matchDemoStatProjections.importId, importId));
+      expect(projectionsAfterPromotion).toHaveLength(1);
+      expect(projectionsAfterPromotion[0]).toMatchObject({
+        projectionVersion: STATISTICS_PROJECTION_VERSION,
+        payloadSha256: sha256Json(evidence),
+        evidenceRevision: evidence.target.evidenceRevision,
+      });
+      expect(projectionsAfterPromotion[0]?.identityBindings).toHaveLength(10);
+      expect(projectionsAfterPromotion[0]?.facts.performance).not.toHaveProperty("playerRounds");
+
+      // A missing or older projection lowers coverage without a payload fallback.
+      await database.delete(schema.matchDemoStatProjections).where(eq(schema.matchDemoStatProjections.importId, importId));
+      queryLog.length = 0;
+      queryBindings.length = 0;
+      expect((await getTournamentStats({ seasonId: ids.season }, observedDatabase)).coverage.detailedMaps).toBe(0);
+      expect(queryLog.some((query) => /from "match_demo_imports"/i.test(query) && query.includes('"payload"'))).toBe(false);
+      await database.insert(schema.matchDemoStatProjections).values({ ...projectionsAfterPromotion[0]!, projectionVersion: "retired-version" });
+      queryLog.length = 0;
+      queryBindings.length = 0;
+      expect((await getTournamentStats({ seasonId: ids.season }, observedDatabase)).coverage.detailedMaps).toBe(0);
+      expect(queryLog.some((query) => /from "match_demo_imports"/i.test(query) && query.includes('"payload"'))).toBe(false);
+      await expect(database.transaction((tx) => backfillStatisticsProjectionForMapInTx(tx, ids.map, false))).resolves.toBe("missing");
+      await expect(database.transaction((tx) => backfillStatisticsProjectionForMapInTx(tx, ids.map, true))).resolves.toBe("rebuilt");
+      queryLog.length = 0;
+      queryBindings.length = 0;
+      await expect(observedDatabase.transaction((tx) => backfillStatisticsProjectionForMapInTx(tx, ids.map, true))).resolves.toBe("unchanged");
+      expect(queryLog.some((query) => /from "match_demo_imports"/i.test(query) && query.includes('"payload"'))).toBe(false);
+      const [rebuiltProjection] = await database.select().from(schema.matchDemoStatProjections).where(and(
+        eq(schema.matchDemoStatProjections.importId, importId), eq(schema.matchDemoStatProjections.projectionVersion, STATISTICS_PROJECTION_VERSION),
+      ));
+      expect(rebuiltProjection?.facts).toEqual(projectionsAfterPromotion[0]?.facts);
+      await expect(database.transaction(async (tx) => {
+        await tx.delete(schema.matchDemoStatProjections).where(eq(schema.matchDemoStatProjections.importId, importId));
+        await backfillStatisticsProjectionForMapInTx(tx, ids.map, true);
+        throw new Error("projection-rollback-probe");
+      })).rejects.toThrow("projection-rollback-probe");
+      expect((await database.select().from(schema.matchDemoStatProjections).where(and(
+        eq(schema.matchDemoStatProjections.importId, importId), eq(schema.matchDemoStatProjections.projectionVersion, STATISTICS_PROJECTION_VERSION),
+      )))[0]).toEqual(rebuiltProjection);
+      queryLog.length = 0;
+      queryBindings.length = 0;
+      const selection = await observedDatabase.transaction((tx) => getCurrentStatsSelectionInTx(tx, { seasonId: ids.season }));
+      expect(selection.currentImportIds).toEqual([importId]);
+      expect(queryLog.some((query) => /"payload"|"facts"/.test(query))).toBe(false);
+      // The worker quarantines only proven source/canonical issues; the release
+      // tool remains fail-closed, and invalid imports stop being rebuild targets.
+      await expect(database.transaction(async (tx) => {
+        await tx.delete(schema.matchDemoStatProjections).where(eq(schema.matchDemoStatProjections.importId, importId));
+        await tx.update(schema.matchDemoImports).set({ payloadSha256: "0".repeat(64) }).where(eq(schema.matchDemoImports.id, importId));
+        await expect(backfillStatisticsProjectionForMapInTx(tx, ids.map, true)).rejects.toThrow("source integrity failed");
+        expect((await tx.select({ status: schema.matchDemoImports.status }).from(schema.matchDemoImports).where(eq(schema.matchDemoImports.id, importId)))[0]?.status).toBe("confirmed");
+        await expect(backfillStatisticsProjectionForMapInTx(tx, ids.map, true, { quarantineInvalid: true })).resolves.toBe("invalid");
+        expect((await tx.select({ status: schema.matchDemoImports.status }).from(schema.matchDemoImports).where(eq(schema.matchDemoImports.id, importId)))[0]?.status).toBe("needs_attention");
+        expect((await tx.select().from(schema.auditLogs).where(and(eq(schema.auditLogs.action, "match.demo.recheck"), eq(schema.auditLogs.targetId, importId)))).some((row) => row.actorId === "system:statistics-projection")).toBe(true);
+        await expect(backfillStatisticsProjectionForMapInTx(tx, ids.map, true, { quarantineInvalid: true })).resolves.toBe("not_current");
+        throw new Error("invalid-projection-rollback-probe");
+      })).rejects.toThrow("invalid-projection-rollback-probe");
+      await expect(database.transaction(async (tx) => {
+        await invalidateConfirmedDemoIdentityInTx(tx, { userId: randomUUID() });
+        expect((await tx.select({ status: schema.matchDemoImports.status }).from(schema.matchDemoImports).where(eq(schema.matchDemoImports.id, importId)))[0]?.status).toBe("confirmed");
+        await invalidateConfirmedDemoIdentityInTx(tx, { userId: userIds[0]! });
+        expect((await tx.select({ status: schema.matchDemoImports.status }).from(schema.matchDemoImports).where(eq(schema.matchDemoImports.id, importId)))[0]?.status).toBe("needs_attention");
+        throw new Error("identity-projection-rollback-probe");
+      })).rejects.toThrow("identity-projection-rollback-probe");
       const factsAfterPromotion = await database.select().from(schema.matchRoundFacts).where(eq(schema.matchRoundFacts.importId, importId));
       expect(factsAfterPromotion).toHaveLength(evidence.sourceFacts.rounds.length);
       expect((await database.select().from(schema.matchPlayerStats).where(eq(schema.matchPlayerStats.id, ids.ocrStat)))[0]).toMatchObject({
@@ -433,16 +500,16 @@ describe("DAK evidence submit persistence", () => {
       });
 
       queryLog.length = 0;
+      queryBindings.length = 0;
       const stats = await getTournamentStats({ seasonId: ids.season }, observedDatabase);
       const importQueries = queryLog.filter((query) => /from "match_demo_imports"/i.test(query));
       const metadataQuery = importQueries.find((query) => !query.includes('"payload"'));
-      const payloadQuery = importQueries.find((query) => query.includes('"payload"'));
-      expect(importQueries).toHaveLength(2);
+      expect(importQueries).toHaveLength(1);
       expect(metadataQuery).toContain('"created_at"');
-      expect(payloadQuery).toMatch(/where .*"id" in \(\$1\)/i);
-      expect(queryBindings[queryLog.indexOf(payloadQuery!)]).toEqual([importId]);
-      expect(queryBindings[queryLog.indexOf(payloadQuery!)]).not.toContain(ids.legacyImport);
-      expect(queryBindings[queryLog.indexOf(payloadQuery!)]).not.toContain(conflictBeforePromotionId);
+      expect(importQueries.every((query) => !query.includes('"payload"'))).toBe(true);
+      const projectionQuery = queryLog.find((query) => /from "match_demo_stat_projections"/i.test(query) && query.includes('"facts"'));
+      expect(projectionQuery).toMatch(/where .*"import_id" in \(\$1\)/i);
+      expect(queryBindings[queryLog.indexOf(projectionQuery!)]).toEqual([importId, STATISTICS_PROJECTION_VERSION]);
       expect(stats.coverage).toEqual({
         detailedMaps: 1,
         completedMaps: 1,
@@ -466,6 +533,7 @@ describe("DAK evidence submit persistence", () => {
       expect(stats.performance).toEqual(buildTournamentPerformanceAnalytics([expectedFacts.performance], { labels }));
 
       queryLog.length = 0;
+      queryBindings.length = 0;
       const mapDetail = await getTournamentMapDetail({ seasonId: ids.season, map: "de_ancient" }, observedDatabase);
       expect(mapDetail).toMatchObject({
         map: "de_ancient",
@@ -478,7 +546,7 @@ describe("DAK evidence submit persistence", () => {
       expect(queryLog.some((query) => query.includes("match_player_stats"))).toBe(false);
       expect(queryLog.some((query) => /from "match_maps" inner join "matches"/i.test(query) && query.includes('"map_name" ='))).toBe(true);
       expect(queryLog.some((query) => /from "matches"/i.test(query) && !/inner join "match_maps"/i.test(query))).toBe(false);
-      expect(queryLog.filter((query) => /from "match_demo_imports"/i.test(query) && query.includes('"payload"'))).toHaveLength(1);
+      expect(queryLog.filter((query) => /from "match_demo_imports"/i.test(query) && query.includes('"payload"'))).toHaveLength(0);
 
       // A second event proves the all-time profile merges independently
       // confirmed imports while map filtering leaves series facts intact.
@@ -636,6 +704,26 @@ describe("DAK evidence submit persistence", () => {
       });
       expect(secondEventImport).toMatchObject({ status: "synced", issues: [] });
 
+      // Old app writes during cutover are repaired independently of page reads.
+      // A stale first candidate must not starve a later valid map with limit=1.
+      const orderedCandidates = [
+        { mapId: ids.map, importId, revision: evidence.target.evidenceRevision },
+        { mapId: ids.careerMap, importId: secondEventImport.importId!, revision: secondEventEvidence.target.evidenceRevision },
+      ].sort((a, b) => a.mapId.localeCompare(b.mapId));
+      await database.delete(schema.matchDemoStatProjections).where(and(
+        inArray(schema.matchDemoStatProjections.importId, orderedCandidates.map((row) => row.importId)),
+        eq(schema.matchDemoStatProjections.projectionVersion, STATISTICS_PROJECTION_VERSION),
+      ));
+      await database.update(schema.matchDemoImports).set({ evidenceRevision: "stale-revision" }).where(eq(schema.matchDemoImports.id, orderedCandidates[0]!.importId));
+      expect(await reconcileMissingStatisticsProjections(database, { limit: 1 })).toMatchObject({ rebuilt: 1, skipped: 1, invalid: 0, failed: 0 });
+      await database.update(schema.matchDemoImports).set({ evidenceRevision: orderedCandidates[0]!.revision }).where(eq(schema.matchDemoImports.id, orderedCandidates[0]!.importId));
+      expect(await reconcileMissingStatisticsProjections(database, { limit: 1 })).toMatchObject({ rebuilt: 1, invalid: 0, failed: 0 });
+      queryLog.length = 0;
+      queryBindings.length = 0;
+      expect(await reconcileMissingStatisticsProjections(observedDatabase)).toMatchObject({ candidates: 0, scanned: 0, rebuilt: 0 });
+      expect(queryLog.some((query) => /"payload"|"facts"/.test(query))).toBe(false);
+
+
       queryLog.length = 0;
       queryBindings.length = 0;
       const allTimeCareer = await getPlayerCareerDetail({ playerId: userIds[0]! }, observedDatabase);
@@ -643,10 +731,12 @@ describe("DAK evidence submit persistence", () => {
       expect(allTimeCareer.scoreboard[0]).toMatchObject({ maps: 2 });
       expect(allTimeCareer.scoreboardMaps.map((row) => row.mapName)).toEqual(["de_ancient", "de_nuke"]);
       expect(allTimeCareer.events).toHaveLength(2);
-      const evidencePayloadQuery = queryLog.find((query) => /from "match_demo_imports"/i.test(query) && query.includes('"payload"'));
-      expect(evidencePayloadQuery).toBeDefined();
-      const selectedImportIds = queryBindings[queryLog.indexOf(evidencePayloadQuery!)];
-      expect(selectedImportIds).toHaveLength(2);
+      expect(queryLog.some((query) => /from "match_demo_imports"/i.test(query) && query.includes('"payload"'))).toBe(false);
+      const evidenceProjectionQuery = queryLog.find((query) => /from "match_demo_stat_projections"/i.test(query) && query.includes('"facts"'));
+      expect(evidenceProjectionQuery).toBeDefined();
+      const selectedImportIds = queryBindings[queryLog.indexOf(evidenceProjectionQuery!)];
+      expect(selectedImportIds).toHaveLength(3);
+      expect(selectedImportIds).toContain(STATISTICS_PROJECTION_VERSION);
       expect(selectedImportIds).not.toContain(ids.legacyImport);
       expect(selectedImportIds).not.toContain(conflictBeforePromotionId);
       const appearanceScopeQuery = queryLog.find((query) => /from "match_roster_players"/i.test(query) && query.includes('"event_roster_members"."user_id" ='));
@@ -881,6 +971,9 @@ describe("DAK evidence submit persistence", () => {
         reason: "测试撤销错误身份确认",
       }));
       expect(retired).toEqual({ retired: true });
+      expect((await database.select({ status: schema.matchDemoImports.status }).from(schema.matchDemoImports)
+        .where(eq(schema.matchDemoImports.id, idempotentAliasImportId)))[0]?.status).toBe("needs_attention");
+      await expect(getTournamentStats({ seasonId: ids.season }, database)).resolves.toMatchObject({ coverage: { detailedMaps: 0 } });
       expect(await database.select().from(schema.userGameplaySteamIds).where(eq(schema.userGameplaySteamIds.id, identity.id))).toMatchObject([
         expect.objectContaining({ status: "retired", retiredReason: "测试撤销错误身份确认" }),
       ]);

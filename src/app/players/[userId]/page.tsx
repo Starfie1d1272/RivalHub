@@ -51,15 +51,15 @@ export async function PlayerPageContent({ params, searchParams }: PlayerPageProp
     mapFilter: query.map || undefined,
   });
   if (!profile) notFound();
-  if (query.event && !profile.career.selectedEvent) redirect(`/players/${userId}`);
-  if (query.map && !profile.career.mapFilter) {
+  if (profile.career && query.event && !profile.career.selectedEvent) redirect(`/players/${userId}`);
+  if (profile.career && query.map && !profile.career.mapFilter) {
     redirect(query.event
       ? `/players/${userId}?event=${encodeURIComponent(query.event)}`
       : `/players/${userId}`);
   }
 
   const { user, career } = profile;
-  const score = career.scoreboard[0];
+  const score = career?.scoreboard[0];
   const registrationBySeasonId = new Map(profile.registrationSnapshots.map((registration) => [registration.seasonId, registration]));
   const careerSeasonIds = new Set(profile.careerHistory.map((entry) => entry.seasonId));
   const standaloneRegistrationSnapshots = profile.registrationSnapshots.filter((registration) => !careerSeasonIds.has(registration.seasonId));
@@ -217,7 +217,7 @@ export async function PlayerPageContent({ params, searchParams }: PlayerPageProp
           </div>
           <div className="border-l border-[var(--color-border)] px-3 py-3">
             <dt className="text-[11px] text-[var(--color-fg-mid)]">Maps</dt>
-            <dd className="mt-1 text-lg font-semibold tabular-nums">{career.summary.maps}</dd>
+            <dd className="mt-1 text-lg font-semibold tabular-nums">{career?.summary.maps ?? "—"}</dd>
           </div>
         </dl>
       </section>
@@ -339,7 +339,7 @@ export async function PlayerPageContent({ params, searchParams }: PlayerPageProp
         </section>
       )}
 
-      <section className="space-y-5" aria-labelledby="player-performance-heading">
+      {career ? <section className="space-y-5" aria-labelledby="player-performance-heading">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div className="space-y-1">
             <SectionHeading>Performance</SectionHeading>
@@ -377,9 +377,10 @@ export async function PlayerPageContent({ params, searchParams }: PlayerPageProp
         </dl>
 
         {profile.attributes && <PlayerAttributes profile={profile.attributes} />}
+        {profile.benchmarkUnavailable && <p role="status" className="text-sm text-[var(--color-fg-mid)]">选手属性暂时无法加载，请稍后重试。</p>}
 
         <PlayerWorkspace detail={career} compact />
-      </section>
+      </section> : <p role="status" className="text-sm text-[var(--color-fg-mid)]">竞技统计暂时无法加载，请稍后重试。</p>}
 
     </PageLayout>
   );

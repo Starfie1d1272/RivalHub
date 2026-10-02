@@ -9,7 +9,9 @@ import {
 
 describe("scheduler definitions", () => {
   it("keeps one provider-neutral registry with the Beijing cleanup schedule", () => {
-    expect(SCHEDULER_JOB_DEFINITIONS).toHaveLength(7);
+    expect(SCHEDULER_JOB_DEFINITIONS).toHaveLength(9);
+    expect(getSchedulerJobDefinition("rebuild-statistics-projections")).toMatchObject({ primaryCron: "*/5 * * * *", staleAfterMs: 15 * 60 * 1000 });
+    expect(getSchedulerJobDefinition("settle-match-mvp")).toMatchObject({ primaryCron: "*/5 * * * *", staleAfterMs: 15 * 60 * 1000 });
     expect(getSchedulerJobDefinition("reconcile-predictions")).toMatchObject({ primaryCron: "* * * * *", staleAfterMs: 3 * 60 * 1000 });
     expect(getSchedulerJobDefinition("cleanup-education-evidence")).toMatchObject({
       primaryCron: "0 22 * * *",

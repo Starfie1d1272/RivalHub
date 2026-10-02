@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo, useTransition } from "react";
+import React, { useState, useEffect, useMemo, useOptimistic, useTransition } from "react";
 import Link from "next/link";
 import { Panel } from "@/components/rivalhub";
 import { PlayerAvatar } from "@/components/players/PlayerAvatar";
@@ -31,7 +31,10 @@ interface MatchMvpVoteProps {
   currentVotes: { playerUserId: string | null; playerName: string; count: number }[];
   userVotedPlayerName: string | null;
   completedAt: string | null;
+  winnerUserId: string | null;
 }
+
+const candidateKey = (userId: string | null, name: string) => userId ?? `legacy:${name}`;
 
 export function MatchMvpVote({
   matchId,
@@ -39,8 +42,17 @@ export function MatchMvpVote({
   currentVotes,
   userVotedPlayerName,
   completedAt,
+  winnerUserId,
 }: MatchMvpVoteProps) {
-  const [optimisticVotes, setOptimisticVotes] = useState(currentVotes);
+  const [optimisticVotes, addOptimisticVote] = useOptimistic(
+    currentVotes,
+    (votes, candidate: { playerUserId: string; playerName: string }) => {
+      const existing = votes.some((vote) => vote.playerUserId === candidate.playerUserId);
+      return existing
+        ? votes.map((vote) => vote.playerUserId === candidate.playerUserId ? { ...vote, count: vote.count + 1 } : vote)
+        : [...votes, { ...candidate, count: 1 }];
+    },
+  );
   const [votedName, setVotedName] = useState(userVotedPlayerName);
   const [now, setNow] = useState(() => Date.now());
   const [isPending, startTransition] = useTransition();
@@ -49,7 +61,7 @@ export function MatchMvpVote({
     () => (completedAt ? new Date(new Date(completedAt).getTime() + MVP_DEADLINE_MS) : null),
     [completedAt],
   );
-  const votingClosed = deadline ? isDeadlinePassed(deadline) : false;
+  const votingClosed = winnerUserId !== null || (deadline ? isDeadlinePassed(deadline) : false);
   const timeLeft = deadline && !votingClosed
     ? Math.max(0, deadline.getTime() - now)
     : 0;
@@ -68,34 +80,31 @@ export function MatchMvpVote({
   async function handleVote(playerUserId: string | null, playerName: string) {
     if (!playerUserId || votedName || votingClosed) return;
     startTransition(async () => {
+      addOptimisticVote({ playerUserId, playerName });
       const result = await castMatchMvpVote(matchId, playerUserId);
       if (result.success) {
         setVotedName(playerName);
-        setOptimisticVotes((prev) =>
-          prev.map((v) =>
-            v.playerName === playerName ? { ...v, count: v.count + 1 } : v,
-          ),
-        );
       }
     });
   }
 
   const allVotes = [...optimisticVotes];
   for (const c of candidates) {
-    if (!allVotes.find((v) => v.playerName === c.perfectName)) {
+    if (!allVotes.find((v) => candidateKey(v.playerUserId, v.playerName) === candidateKey(c.userId, c.perfectName))) {
       allVotes.push({ playerUserId: c.userId, playerName: c.perfectName, count: 0 });
     }
   }
-  const mvp = allVotes.reduce((a, b) => (a.count >= b.count ? a : b), allVotes[0]);
-  const maxVoteCount = Math.max(...allVotes.map((v) => v.count));
-  const mvpStats = candidates.find((c) => c.perfectName === mvp?.playerName);
+  const mvp = winnerUserId ? allVotes.find((vote) => vote.playerUserId === winnerUserId) : undefined;
+  const awaitingSettlement = votingClosed && !winnerUserId && allVotes.some((vote) => vote.playerUserId && vote.count > 0);
+  const maxVoteCount = Math.max(0, ...allVotes.map((v) => v.count));
+  const mvpStats = mvp ? candidates.find((c) => c.userId === mvp.playerUserId) : undefined;
 
   // ── 投票截止：展示 MVP 结果 ──
   if (votingClosed) {
     return (
       <Panel contentClassName="space-y-5 p-6">
         <div className="text-center space-y-1">
-          <p className="text-sm text-[var(--color-fg-mid)]">本场 MVP</p>
+          <p className="text-sm text-[var(--color-fg-mid)]">{awaitingSettlement ? "MVP 结果确认中" : "本场 MVP"}</p>
           <div className="flex items-center justify-center gap-2 text-2xl font-bold text-[var(--color-accent)]">
             {mvpStats && <PlayerAvatar name={mvp?.playerName ?? "MVP"} avatarUrl={mvpStats.avatarUrl} size="md" />}
             {mvp?.playerUserId ? (
@@ -139,17 +148,17 @@ export function MatchMvpVote({
           </div>
         )}
 
-        {allVotes.filter((v) => v.playerName !== mvp?.playerName).length > 0 && (
+        {allVotes.filter((v) => v !== mvp).length > 0 && (
           <div className="text-xs space-y-1">
             <p className="text-[var(--color-fg-dim)]">其他候选人</p>
             {allVotes
-              .filter((v) => v.playerName !== mvp?.playerName)
+              .filter((v) => v !== mvp)
               .sort((a, b) => b.count - a.count)
               .map((v) => (
-                <div key={v.playerName} className="flex justify-between text-[var(--color-fg-mid)]">
+                <div key={candidateKey(v.playerUserId, v.playerName)} className="flex justify-between text-[var(--color-fg-mid)]">
                   <span className="inline-flex items-center gap-1">
                     {(() => {
-                      const candidate = candidates.find((c) => c.perfectName === v.playerName);
+                      const candidate = candidates.find((c) => candidateKey(c.userId, c.perfectName) === candidateKey(v.playerUserId, v.playerName));
                       return candidate ? <PlayerAvatar name={v.playerName} avatarUrl={candidate.avatarUrl} size="sm" /> : null;
                     })()}
                     {v.playerUserId ? (
@@ -190,14 +199,14 @@ export function MatchMvpVote({
 
       <div className="grid grid-cols-2 gap-3">
         {candidates.map((c) => {
-          const v = optimisticVotes.find((x) => x.playerName === c.perfectName);
+          const v = optimisticVotes.find((x) => candidateKey(x.playerUserId, x.playerName) === candidateKey(c.userId, c.perfectName));
           const count = v?.count ?? 0;
           const isVoted = votedName === c.perfectName;
           const isLeading = count === maxVoteCount && count > 0;
 
           return (
             <button
-              key={c.perfectName}
+              key={candidateKey(c.userId, c.perfectName)}
               disabled={!c.userId || !!votedName || isPending}
               onClick={() => handleVote(c.userId, c.perfectName)}
               className={[

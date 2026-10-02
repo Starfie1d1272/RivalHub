@@ -503,20 +503,34 @@ function projectAttributes(
   });
 }
 
-export function buildPlayerAttributeProfile(
-  player: TournamentPerformancePlayerSummary,
-  population: readonly TournamentPerformancePlayerSummary[],
-): PlayerAttributeProfile {
-  const benchmarks = buildBenchmarks(population);
-  const target = projectAttributes(player, benchmarks);
-  const populationAttributes = population.map((candidate) => projectAttributes(candidate, benchmarks));
+interface CompiledPlayerAttributeBenchmark {
+  metrics: MetricBenchmarks;
+  rankedScores: Record<PlayerAttributeKey, number[]>;
+}
 
-  const attributes = target.map((attribute) => {
-    const rankedScores = populationAttributes
-      .map((candidate) => candidate.find((row) => row.key === attribute.key))
+/** Compile the player-event corpus once; projecting another player needs no corpus scan. */
+export function compilePlayerAttributeBenchmark(
+  population: readonly TournamentPerformancePlayerSummary[],
+): CompiledPlayerAttributeBenchmark {
+  const benchmarks = buildBenchmarks(population);
+  const populationAttributes = population.map((candidate) => projectAttributes(candidate, benchmarks));
+  const rankedScores = Object.fromEntries(PLAYER_ATTRIBUTE_DEFINITIONS.map((definition) => [
+    definition.key,
+    populationAttributes
+      .map((candidate) => candidate.find((row) => row.key === definition.key))
       .filter((row): row is PlayerAttributeProjection => row != null && row.status === "qualified" && row.score != null)
       .map((row) => row.score!)
-      .sort((left, right) => right - left);
+      .sort((left, right) => right - left),
+  ])) as Record<PlayerAttributeKey, number[]>;
+  return { metrics: benchmarks, rankedScores };
+}
+
+export function projectPlayerAttributeProfile(
+  player: TournamentPerformancePlayerSummary,
+  benchmark: CompiledPlayerAttributeBenchmark,
+): PlayerAttributeProfile {
+  const attributes = projectAttributes(player, benchmark.metrics).map((attribute) => {
+    const rankedScores = benchmark.rankedScores[attribute.key];
 
     const rank = attribute.status === "qualified" && attribute.score != null
       ? 1 + rankedScores.filter((score) => score > attribute.score!).length

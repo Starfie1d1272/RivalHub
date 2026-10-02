@@ -4,6 +4,7 @@ import {
   PUBLIC_ANNOUNCEMENTS_TAG,
   PUBLIC_HOME_TAG,
   PUBLIC_SEASON_CATALOG_TAG,
+  PUBLIC_STATS_TAG,
   publicPlayerTag,
   publicAnnouncementsSeasonTag,
   publicSeasonTag,
@@ -32,6 +33,7 @@ type RevalidationMode = "action" | "route";
 
 /** Server Action semantics: invalidate immediately for read-your-own-writes. */
 export function updatePublicSeasonTags(slug: string, seasonId?: string): void {
+  updatePublicStatsTag();
   updateTag(PUBLIC_SEASON_CATALOG_TAG);
   updateTag(publicSeasonTag(slug));
   updatePublicHomeTag();
@@ -44,6 +46,7 @@ export function updatePublicSeasonTags(slug: string, seasonId?: string): void {
 
 /** Route Handler/webhook semantics: stale-while-revalidate the public tags. */
 export function revalidatePublicSeasonTags(slug: string, seasonId?: string): void {
+  revalidatePublicStatsTag();
   revalidateTag(PUBLIC_SEASON_CATALOG_TAG, "max");
   revalidateTag(publicSeasonTag(slug), "max");
   revalidateTag(PUBLIC_HOME_TAG, "max");
@@ -69,10 +72,22 @@ export function updatePublicSeasonInfoTag(seasonId: string): void {
 
 export function revalidatePublicPlayerTag(userId: string): void {
   revalidateTag(publicPlayerTag(userId), "max");
+  revalidatePublicStatsTag();
 }
 
 export function updatePublicPlayerTag(userId: string): void {
   updateTag(publicPlayerTag(userId));
+  updatePublicStatsTag();
+}
+
+/** Includes removals and identity corrections; never serve a stale statistical attribution. */
+export function updatePublicStatsTag(): void {
+  updateTag(PUBLIC_STATS_TAG);
+}
+
+/** Route/webhook equivalent of updateTag, which is only legal inside Server Actions. */
+export function revalidatePublicStatsTag(): void {
+  revalidateTag(PUBLIC_STATS_TAG, { expire: 0 });
 }
 
 export function revalidateSeasonPaths(

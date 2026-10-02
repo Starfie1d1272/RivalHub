@@ -33,7 +33,7 @@ import { MatchHeadToHead } from "@/components/matches/MatchHeadToHead";
 import { MatchRecentResults } from "@/components/matches/MatchRecentResults";
 import { MatchSummaryStats, type SummaryPlayer } from "@/components/matches/MatchSummaryStats";
 import { PlayerStatsTable } from "@/components/matches/PlayerStatsTable";
-import { getMatchMvpResults, ensureMvpWinner } from "@/actions/player-stats";
+import { getMatchMvpResults } from "@/actions/player-stats";
 import { getMatchTimeProposalViews } from "@/lib/matches/time-proposals";
 import { getTimeBufferHoursForStage } from "@/lib/matches/time-rules";
 import { getMatchRoster } from "@/actions/matches/roster";
@@ -54,7 +54,8 @@ import { supportsRegistrationPositionDirectory } from "@/lib/players/directory-q
 import { isHttpUrl } from "@/lib/external-url";
 import { getPublicOrAuthorizedDraftSeason } from "@/lib/data/public-seasons";
 import { Dialog, DialogBody, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { getMatchPlayerDetail } from "@/lib/stats/tournament-query";
+import { getPublicMatchPlayerDetail } from "@/lib/stats/cached-query";
+import { readOptionalPublicStats } from "@/lib/stats/availability";
 import { PlayerWorkspace } from "@/components/stats/players/PlayerWorkspace";
 import { loadMatchPrediction } from "@/lib/matches/prediction-read-model";
 import { MatchPrediction } from "@/components/matches/MatchPrediction";
@@ -246,7 +247,8 @@ export default async function MatchDetailPage({ params, searchParams }: MatchDet
     ? await loadMatchScoreboard(match, maps, userIdToTeamId)
     : null;
 
-  let detailed: Awaited<ReturnType<typeof getMatchPlayerDetail>> = null;
+  let detailed: Awaited<ReturnType<typeof getPublicMatchPlayerDetail>> = null;
+  let detailedUnavailable = false;
   let detailedPlayerId: string | null = null;
   let detailedMap: (typeof maps)[number] | undefined = undefined;
 
@@ -256,9 +258,14 @@ export default async function MatchDetailPage({ params, searchParams }: MatchDet
       ? statsQuery.statsPlayer!
       : [...scoreboard.detailedPlayerIds][0] ?? null;
     detailedMap = maps.find((map) => map.id === statsQuery.statsMap && scoreboard.detailedMapIds.has(map.id));
-    detailed = detailedPlayerId
-      ? await getMatchPlayerDetail(match.id, detailedPlayerId, detailedMap?.mapName)
-      : null;
+    if (detailedPlayerId) {
+      const playerId = detailedPlayerId;
+      const result = await readOptionalPublicStats("match_player", async () => ({
+        detail: await getPublicMatchPlayerDetail(match.id, playerId, detailedMap?.mapName, season.status === "draft" ? "draft" : "public"),
+      }));
+      detailed = result?.detail ?? null;
+      detailedUnavailable = result === null;
+    }
   }
 
   if (isFinished && scoreboard) {
@@ -268,7 +275,6 @@ export default async function MatchDetailPage({ params, searchParams }: MatchDet
     }));
 
     mvpVoteResults = await getMatchMvpResults(match.id);
-    ensureMvpWinner(match.id);
 
     if (userSession?.userId) {
       const existingVote = await db.query.matchMvpVotes.findFirst({
@@ -546,6 +552,7 @@ export default async function MatchDetailPage({ params, searchParams }: MatchDet
       ) : null}
 
       {/* 详细统计 */}
+      {detailedUnavailable && <p role="status">高级统计暂时无法加载，请稍后重试。</p>}
       {detailed && detailedPlayerId && (
         <section id="detailed-stats" className="min-w-0 space-y-4">
           <h2 className="text-lg font-semibold">详细统计</h2>
@@ -594,6 +601,7 @@ export default async function MatchDetailPage({ params, searchParams }: MatchDet
           currentVotes={mvpVoteResults}
           userVotedPlayerName={userVoted}
           completedAt={match.completedAt?.toISOString() ?? null}
+          winnerUserId={match.mvpWinnerUserId}
         />
       )}
 

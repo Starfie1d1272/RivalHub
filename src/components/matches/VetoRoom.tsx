@@ -5,6 +5,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Button } from "@/components/ui/button";
 import { Panel } from "@/components/rivalhub";
 import { InlineConfirm } from "@/components/rivalhub/InlineConfirm";
+import { useVisiblePolling } from "@/components/use-visible-polling";
 import type { VetoRoomView } from "@/lib/matches/veto-room/read-model";
 import type { ActionResult } from "@/types/action";
 import {
@@ -48,7 +49,6 @@ export function VetoRoom({ initialRoom }: { initialRoom: VetoRoomView }) {
     ? new Date(initialRoom.session.turnDeadlineAt).getTime() - new Date(initialRoom.session.serverNow).getTime()
     : 0);
   const [serverNowMs, setServerNowMs] = useState(clockAnchor.serverNowMs);
-  const [hidden, setHidden] = useState(false);
   const [representatives, setRepresentatives] = useState<Record<string, string>>(() => Object.fromEntries(
     initialRoom.entries.map((entry) => [entry.id, entry.vetoRepresentativeMemberId ?? ""]),
   ));
@@ -61,16 +61,25 @@ export function VetoRoom({ initialRoom }: { initialRoom: VetoRoomView }) {
   const [appealReasons, setAppealReasons] = useState<Record<string, string>>({});
   const reconciledDeadlineRef = useRef<string | null>(null);
   const reconciledStartBoundaryRef = useRef<string | null>(null);
+  const refreshInFlight = useRef(false);
 
   const refresh = useCallback(async () => {
-    const result = await readVetoRoom(room.match.id);
-    if (!result.success) {
-      setError(result.error.message);
-      return;
+    if (refreshInFlight.current) return;
+    refreshInFlight.current = true;
+    try {
+      const result = await readVetoRoom(room.match.id);
+      if (!result.success) {
+        setError(result.error.message);
+        return;
+      }
+      const next = result.data;
+      setRoom(next);
+      setClockAnchor({ serverNowMs: new Date(next.session.serverNow).getTime(), performanceNowMs: performance.now() });
+    } catch {
+      setError("同步失败，请稍后重试。");
+    } finally {
+      refreshInFlight.current = false;
     }
-    const next = result.data;
-    setRoom(next);
-    setClockAnchor({ serverNowMs: new Date(next.session.serverNow).getTime(), performanceNowMs: performance.now() });
   }, [room.match.id]);
 
   const reconcileRoomBoundary = useCallback(async () => {
@@ -84,18 +93,11 @@ export function VetoRoom({ initialRoom }: { initialRoom: VetoRoomView }) {
     if (result.data.outcome === "applied") setNotice("房间状态已按服务器时间推进。");
   }, [room.match.id]);
 
-  useEffect(() => {
-    const onVisibility = () => setHidden(document.visibilityState === "hidden");
-    onVisibility();
-    document.addEventListener("visibilitychange", onVisibility);
-    return () => document.removeEventListener("visibilitychange", onVisibility);
-  }, []);
-
-  useEffect(() => {
-    const interval = hidden ? 10_000 : room.session.startedAt && !room.session.completedAt ? 2_000 : 5_000;
-    const timer = window.setInterval(() => void refresh(), interval);
-    return () => window.clearInterval(timer);
-  }, [hidden, refresh, room.session.completedAt, room.session.startedAt]);
+  // Keep a slow recovery read after completion/pause: administrators may rewind
+  // or resume BP. Hidden tabs stop reads; returning to the tab resynchronizes.
+  const quietRoom = room.session.completedAt || room.session.paused
+    || room.match.statusKey === "finished" || room.match.statusKey === "cancelled";
+  useVisiblePolling(refresh, quietRoom ? 60_000 : room.session.startedAt ? 2_000 : 5_000);
 
   useEffect(() => {
     const timer = window.setInterval(() => {

@@ -42,10 +42,14 @@ async function loadDemoNeedsAttentionCounts(matchIds: readonly string[]): Promis
     .from(matchMaps)
     .where(inArray(matchMaps.matchId, [...matchIds]));
   if (mapRows.length === 0) return new Map();
-  const importRows = await db.select().from(matchDemoImports)
+  const importRows = await db.select({
+    matchMapId: matchDemoImports.matchMapId,
+    semanticProfile: matchDemoImports.semanticProfile,
+    status: matchDemoImports.status,
+  }).from(matchDemoImports)
     .where(inArray(matchDemoImports.matchMapId, mapRows.map((row) => row.id)))
     .orderBy(desc(matchDemoImports.createdAt));
-  const rowsByMap = new Map<string, Array<typeof matchDemoImports.$inferSelect>>();
+  const rowsByMap = new Map<string, typeof importRows>();
   for (const row of importRows) rowsByMap.set(row.matchMapId, [...(rowsByMap.get(row.matchMapId) ?? []), row]);
   const matchIdByMap = new Map(mapRows.map((row) => [row.id, row.matchId]));
   const counts = new Map<string, number>();

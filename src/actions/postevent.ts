@@ -18,7 +18,7 @@ import {
   revokeTournamentHonorInTx,
 } from "@/lib/postevent/service";
 import { ok, type ActionResult } from "@/types/action";
-import { updatePublicHomeTag } from "@/lib/revalidation";
+import { updatePublicHomeTag, updatePublicStatsTag } from "@/lib/revalidation";
 
 const uuid = z.guid();
 const clientRequestId = z.guid();
@@ -33,6 +33,7 @@ async function seasonAndAdminOrThrow(seasonId: string) {
 
 function revalidatePostEvent(slug: string): void {
   updatePublicHomeTag();
+  updatePublicStatsTag();
   revalidatePath(`/admin/${slug}`);
   revalidatePath(`/${slug}`);
   revalidatePath(`/${slug}/matches`);
