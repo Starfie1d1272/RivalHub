@@ -394,7 +394,11 @@ describe("deployment and operations contracts", () => {
     expect(workflow).toContain("--max-time 60");
     expect(workflow).toContain("--retry 2");
     expect(workflow).toContain("--retry-all-errors");
-    expect(workflow).toContain("failing closed to all watchdog targets");
+    expect(workflow).toContain("watchdog-plan freeze");
+    expect(workflow).toContain("steps.production.outputs.release_commit");
+    expect(workflow).toContain("watchdog-plan verify");
+    expect(workflow).not.toContain("ALL='");
+    expect(workflow).not.toContain("reconcile-predictions");
     expect(workflow).not.toContain("continue-on-error");
     expect(workflow).not.toContain("|| true");
   });
