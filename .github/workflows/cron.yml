@@ -12,54 +12,66 @@ jobs:
   trigger:
     name: Cron / watchdog
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 35
     environment: production
-    env:
-      DATABASE_URL: ${{ secrets.DATABASE_URL }}
-      CRON_SECRET: ${{ secrets.CRON_SECRET }}
     steps:
-      - name: Resolve manual targets
-        if: github.event_name == 'workflow_dispatch'
-        id: manual
-        run: echo 'job_keys=["draft-timeout","check-registration-deadline","match-time-auto-award","cleanup-education-evidence","refresh-steam-profiles","reconcile-predictions"]' >> "$GITHUB_OUTPUT"
+      - name: Require main operator source
+        run: test "$GITHUB_REF" = refs/heads/main
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        if: github.event_name == 'schedule'
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
 
       - uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024 # v3.0.0
-        if: github.event_name == 'schedule'
         with:
           cache: true
           require-lockfile: true
 
-      - name: Plan degraded scheduler fallbacks
-        if: github.event_name == 'schedule'
+      - name: Freeze verified Production source
+        id: production
+        run: pnpm --silent db:production:scheduler:watchdog-plan freeze
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ steps.production.outputs.release_commit }}
+          path: .scheduler-production
+          persist-credentials: false
+
+      - name: Plan deployed scheduler fallbacks
         id: plan
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          RIVALHUB_SCHEDULER_RELEASE_TAG: ${{ steps.production.outputs.release_tag }}
+          RIVALHUB_SCHEDULER_RELEASE_COMMIT: ${{ steps.production.outputs.release_commit }}
+          PLAN_MODE: ${{ github.event_name == 'workflow_dispatch' && 'manual' || 'scheduled' }}
         shell: bash
         run: |
-          set -uo pipefail
-          ALL='["draft-timeout","check-registration-deadline","match-time-auto-award","cleanup-education-evidence","refresh-steam-profiles","reconcile-predictions"]'
-          if PLAN="$(pnpm --silent db:production:scheduler:watchdog-plan)"; then
-            echo "job_keys=$PLAN" >> "$GITHUB_OUTPUT"
-          else
-            echo "::warning::Scheduler health read failed; failing closed to all watchdog targets."
-            echo "job_keys=$ALL" >> "$GITHUB_OUTPUT"
-          fi
+          set -euo pipefail
+          PLAN="$(pnpm --silent db:production:scheduler:watchdog-plan "$PLAN_MODE" .scheduler-production)"
+          echo "job_keys=$PLAN" >> "$GITHUB_OUTPUT"
 
       - name: Invoke required scheduler fallbacks
         env:
-          CRON_JOB_KEYS: ${{ github.event_name == 'workflow_dispatch' && steps.manual.outputs.job_keys || steps.plan.outputs.job_keys }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          RIVALHUB_SCHEDULER_RELEASE_TAG: ${{ steps.production.outputs.release_tag }}
+          RIVALHUB_SCHEDULER_RELEASE_COMMIT: ${{ steps.production.outputs.release_commit }}
+          CRON_JOB_KEYS: ${{ steps.plan.outputs.job_keys }}
           CRON_SOURCE: ${{ github.event_name == 'workflow_dispatch' && 'github-manual' || 'github-watchdog' }}
         shell: bash
         run: |
           set -euo pipefail
+          pnpm --silent db:production:scheduler:watchdog-plan verify
           mapfile -t JOB_KEYS < <(jq -r '.[]' <<< "$CRON_JOB_KEYS")
           if [ "${#JOB_KEYS[@]}" -eq 0 ]; then
             echo "Primary scheduler is healthy; no Vercel fallback required."
             exit 0
           fi
+          FAILED=0
           for CRON_JOB_KEY in "${JOB_KEYS[@]}"; do
-            curl --fail --silent --show-error \
+            pnpm --silent db:production:scheduler:watchdog-plan verify
+            if ! curl --fail --silent --show-error \
               --connect-timeout 10 \
               --max-time 60 \
               --retry 2 \
@@ -68,5 +80,9 @@ jobs:
               --retry-max-time 180 \
               --header "Authorization: Bearer ${CRON_SECRET}" \
               --header "X-RivalHub-Cron-Source: ${CRON_SOURCE}" \
-              "https://match.starfie1d.top/api/cron/${CRON_JOB_KEY}"
+              "https://match.starfie1d.top/api/cron/${CRON_JOB_KEY}"; then
+              echo "::error::Deployed scheduler target failed: ${CRON_JOB_KEY}"
+              FAILED=1
+            fi
           done
+          exit "$FAILED"

@@ -171,7 +171,7 @@ Major Swiss 的 public/admin read model 只从 `major_stage_entrants`、`matches
 
 处罚不会自动改写比分、placement 或 honor；冠军/荣誉撤销也不会隐式递补另一名获奖者。任何连锁影响必须由显式 adjudication 产生可审计事实。
 
-`audit_logs` 记录“谁改变了什么业务事实”，不是领域状态本身，也不是 runtime observability。
+`audit_logs` 记录“谁改变了什么业务事实”，不是领域状态本身，也不是 runtime observability。历史 action 与当前 action 共用 presentation registry，已退休 action 仅供读取，不重新开放为 producer write type；读取不改写历史 fact 或 target。用户名称是 canonical profile 的实时展示，DAK Studio、发布流程与系统 actor 保留机器身份语义。高影响 meta 只通过 action allowlist 提取用户引用，在已授权的服务端批量解析为人名；未知/已删除对象使用自然语言 fallback，原始 ID、凭证、证据、内部原因和 raw JSON 不进入默认列表。
 
 ## Spectator prediction facts
 

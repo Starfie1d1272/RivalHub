@@ -52,7 +52,9 @@ RLS、GRANT、trigger、policy、backfill 和 custom SQL 都进入 active migrat
 
 Production primary 使用 Supabase `pg_cron` + `pg_net`：`public.dispatch_rivalhub_scheduler_job(text)` 只接受安全的 route segment、写入有界的 `scheduled_job_health.last_primary_triggered_at`，再从 Vault 读取固定名称的调度 base URL/credential 并异步调用现有 `/api/cron/<job-key>` endpoint。哪些 job 实际被创建由受保护的 TypeScript registry/provisioning command 唯一决定；领域 transition 仍由现有 TypeScript owner 执行，数据库函数不实现业务规则。
 
-`.github/workflows/cron.yml` 保留每 5 分钟的四路调用，作为 watchdog 和人工 dispatch fallback。请求携带 `X-RivalHub-Cron-Source`；只有 primary trigger 与 primary endpoint success 都在 stale threshold 内时，watchdog 才返回 no-op，否则执行 canonical runner。缺少该 header 的旧调用按 `legacy` 执行，未知 source fail closed。浏览器不直连健康表、Data API 或 Realtime。
+`.github/workflows/cron.yml` 每 5 分钟检查 primary health，并保留人工 dispatch fallback。可信 main operator SHA 上的 controller 先通过 canonical `/api/system/release` 冻结实际 Production identity，验证 immutable tag/commit 一致且属于 operator 的 main ancestry，再在独立 checkout 读取该 exact deployed SHA 的 scheduler registry 与 health contract；controller/runtime/dependencies 始终保留在 operator checkout。手动运行和健康读取失败都只调用这份已部署 registry 的全部任务，不从较新的 main 推导生产能力、不在 YAML 复制任务清单。身份或 source 验证失败直接阻止调用；每个任务前重新回读 identity，发布切换时中止并等待下一次重新规划。单个 endpoint 失败保留失败状态，同时继续尝试其它已规划的任务，不把 404 当作成功。
+
+请求携带 `X-RivalHub-Cron-Source`；primary trigger 在 stale threshold 内且没有尚未成功执行的 dispatch 时，watchdog 返回 no-op，否则执行 canonical runner。健康查询只读并有连接/查询超时。缺少该 header 的旧调用按 `legacy` 执行，未知 source fail closed。浏览器不直连健康表、Data API 或 Realtime。
 
 参与者在报名页看到“已到开放时间但 canonical opening fact 尚未落库”时，页面只触发一次受保护的 recovery Server Action；真正的 `registrationOpenedAt` 物化、重读和后续报名写入仍在同一 transaction owner 中完成。GET/RSC 本身不执行 mutation。
 
