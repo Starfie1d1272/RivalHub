@@ -144,6 +144,8 @@ pnpm db:recovery:checkpoint
 
 `db:recovery:backup` 必须通过 production target/project/host/URL、Session Pooler、Supabase key、age recipient 与 R2 writer 校验；`db:recovery:checkpoint` 只通过 production database、age recipient 与 R2 writer 校验。两者都不要求 remote DB write authorization，也不执行 application mutation。任何 database dump、policy-owned reference read、full artifact 的 Storage snapshot、加密、R2 PUT/HEAD/real GET/hash read-back 失败，整个 run 失败且不得产生可信 completion 状态；DB-only checkpoint 不读取 Storage，workflow 不上传明文 Actions artifact。
 
+Storage inventory/download 失败只记录操作阶段和经过校验的 HTTP status，不输出 provider 原始错误、object key 或凭据。HTTP 402 时先在 Supabase Dashboard 核实账单、用量或 Spend Cap 限制；401/403 时检查受保护 workflow 的 Storage 凭据和权限。修复 provider 配置后重新运行受保护 backup workflow，并核实完整 artifact 的 completion 与 read-back；不得跳过 Storage、把失败伪装成空清单或依靠反复重试绕过限制。
+
 `pnpm db:recovery:checkpoint` 是不可逆 migration 的 DB-only gate：它只要求 database、age recipient 与 R2 credentials，不要求 Supabase Storage secret；完成 marker 出现前，Release 不得执行 production mutation。普通 application-only、forward-compatible migration 或仅 Vercel/release infra 的发布不自动执行上述 backup/checkpoint。
 
 ## Offline read-only fetch

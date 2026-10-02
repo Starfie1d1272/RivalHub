@@ -69,6 +69,10 @@ const CURRENT_PRODUCER_ACTIONS = [
 describe("audit presentation owner", () => {
   it("retains observed legacy actions only on the read side", () => {
     const legacy = {
+      "announcement.import_release_history": "导入历史发布公告",
+      "identity.merge_preflight.remediation": "修复身份合并预检数据",
+      "identity.steam64.remediation": "修复 Steam64 身份资料",
+      "match.roster.correction": "修正比赛阵容",
       "match.import_demo": "导入 Demo 数据",
       "match.admin_update_roster": "管理员调整比赛阵容",
       "season.recompute_ratings": "重新计算赛季 Rating",
