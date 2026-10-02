@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, expectTypeOf, it } from "vitest";
 import {
   AUDIT_ACTION_DEFINITIONS,
   AUDIT_ACTION_KEYS,
@@ -7,6 +7,7 @@ import {
   getAuditActionPresentation,
   getAuditTargetTypeLabel,
   summarizeAuditMeta,
+  type AuditAction,
 } from "@/lib/audit/presentation";
 
 const CURRENT_PRODUCER_ACTIONS = [
@@ -66,6 +67,30 @@ const CURRENT_PRODUCER_ACTIONS = [
 ] as const;
 
 describe("audit presentation owner", () => {
+  it("retains observed legacy actions only on the read side", () => {
+    const legacy = {
+      "match.import_demo": "导入 Demo 数据",
+      "match.admin_update_roster": "管理员调整比赛阵容",
+      "season.recompute_ratings": "重新计算赛季 Rating",
+      "season.rollback_to_voting": "将赛季恢复到队长投票阶段",
+    } as const;
+    expectTypeOf<Extract<AuditAction, keyof typeof legacy>>().toEqualTypeOf<never>();
+    for (const [action, label] of Object.entries(legacy)) {
+      expect(getAuditActionPresentation(action)).toMatchObject({ known: true, label });
+      expect(getAuditActionFilterOptions()).toContainEqual(expect.objectContaining({ value: action, label }));
+    }
+  });
+
+  it("summarizes Demo problems and merge counts without technical evidence", () => {
+    expect(summarizeAuditMeta("match.demo.needs_attention", {
+      mapOrder: 2, playerCount: 10, issueCount: 2, issues: ["PARTICIPANT_NOT_IN_ROSTER"],
+    })).toBe("第 2 图 · 选手 10 · 待处理问题 2");
+    expect(summarizeAuditMeta("user_identity.merge", {
+      summary: { AUTOMATIC: 12, PRESERVE: 3, BLOCKER: 0, secret: "secret" },
+      planFingerprint: "private-fingerprint", evidenceClass: "private-class",
+    })).toBe("合并记录 12 · 保留历史记录 3");
+    expect(summarizeAuditMeta("team.captain.transfer", { emergencyOverride: true })).toBe("管理员紧急转移");
+  });
   it("keeps every current producer action readable", () => {
     for (const action of CURRENT_PRODUCER_ACTIONS) {
       const presentation = getAuditActionPresentation(action);

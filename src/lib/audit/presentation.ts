@@ -42,9 +42,14 @@ export interface AuditTargetContract {
 
 export interface AuditEventDefinition extends AuditActionDefinition {
   target: AuditTargetContract;
+  legacy?: true;
 }
 
-export type AuditAction = keyof typeof AUDIT_ACTION_DEFINITIONS;
+export type AuditReadAction = keyof typeof AUDIT_ACTION_DEFINITIONS;
+/** Retired actions remain readable, but cannot be selected by new producers. */
+export type AuditAction = {
+  [Action in AuditReadAction]: typeof AUDIT_ACTION_DEFINITIONS[Action] extends { legacy: true } ? never : Action;
+}[AuditReadAction];
 
 const DEFAULT_TARGETS: Record<AuditCategory, AuditTargetContract> = {
   predictions: { type: "prediction_program", lifecycle: "stable" },
@@ -67,7 +72,7 @@ const DEFAULT_TARGETS: Record<AuditCategory, AuditTargetContract> = {
   recruitment: { type: "recruitment_intent", lifecycle: "stable" },
 };
 
-const TARGET_OVERRIDES: Readonly<Partial<Record<AuditAction, AuditTargetContract>>> = {
+const TARGET_OVERRIDES: Readonly<Partial<Record<AuditReadAction, AuditTargetContract>>> = {
   "predictions.open_market": { type: "prediction_market", lifecycle: "stable" },
   "predictions.open_contest": { type: "prediction_contest", lifecycle: "stable" },
   "predictions.void_contest": { type: "prediction_contest", lifecycle: "stable" },
@@ -179,6 +184,10 @@ const TARGET_OVERRIDES: Readonly<Partial<Record<AuditAction, AuditTargetContract
  * producer has been retired.
  */
 export const AUDIT_ACTION_DEFINITIONS = {
+  "match.import_demo": { label: "导入 Demo 数据", category: "match", legacy: true },
+  "match.admin_update_roster": { label: "管理员调整比赛阵容", category: "match", legacy: true },
+  "season.recompute_ratings": { label: "重新计算赛季 Rating", category: "season", legacy: true },
+  "season.rollback_to_voting": { label: "将赛季恢复到队长投票阶段", category: "season", legacy: true },
   "admin.dak.pair": { label: "连接 DAK Studio", category: "admin" },
   "admin.dak.revoke_pairing": { label: "撤销 DAK Studio 连接", category: "admin" },
   "announcement.create": { label: "创建公告", category: "season" },
@@ -458,11 +467,11 @@ export const AUDIT_ACTION_DEFINITIONS = {
   "team_application.materialize": { label: "生成正式参赛队", category: "entry" },
 } as const;
 
-export const AUDIT_EVENT_REGISTRY: Readonly<{ [Action in AuditAction]: AuditEventDefinition }> = Object.freeze(
+export const AUDIT_EVENT_REGISTRY: Readonly<{ [Action in AuditReadAction]: AuditEventDefinition }> = Object.freeze(
   Object.fromEntries(Object.entries(AUDIT_ACTION_DEFINITIONS).map(([action, definition]) => [
     action,
-    { ...definition, target: TARGET_OVERRIDES[action as AuditAction] ?? DEFAULT_TARGETS[definition.category] },
-  ])) as { [Action in AuditAction]: AuditEventDefinition },
+    { ...definition, target: TARGET_OVERRIDES[action as AuditReadAction] ?? DEFAULT_TARGETS[definition.category] },
+  ])) as { [Action in AuditReadAction]: AuditEventDefinition },
 );
 
 export const AUDIT_ACTION_KEYS = Object.freeze(Object.keys(AUDIT_EVENT_REGISTRY));
@@ -496,7 +505,7 @@ export interface AuditLogView {
 
 export function getAuditActionPresentation(action: string | null | undefined): AuditActionPresentation {
   const actionKey = action ?? "";
-  const definition = AUDIT_EVENT_REGISTRY[actionKey as AuditAction];
+  const definition = Object.hasOwn(AUDIT_EVENT_REGISTRY, actionKey) ? AUDIT_EVENT_REGISTRY[actionKey as AuditReadAction] : undefined;
   if (!definition) {
     return {
       actionKey,
@@ -580,9 +589,8 @@ export function getAuditTargetFallbackLabel(
   lifecycle: AuditTargetLifecycle = "stable",
 ): string {
   if (!targetId) return "未指定目标";
-  const shortId = targetId.trim().slice(0, 8);
-  if (lifecycle === "tombstone") return shortId ? `已删除 / 历史目标 · ${shortId}` : "已删除 / 历史目标";
-  return shortId ? `记录未找到 · ${shortId}` : "记录未找到";
+  if (lifecycle === "tombstone") return "已删除 / 历史目标";
+  return "记录未找到";
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -674,8 +682,10 @@ export function summarizeAuditMeta(action: string, meta: unknown): string | null
   }
 
   if (action.startsWith("match.")) {
-    appendCount(parts, meta, "mapOrder", "第");
+    const mapOrder = numberValue(meta, "mapOrder");
+    if (mapOrder !== null && Number.isInteger(mapOrder) && mapOrder > 0) parts.push(`第 ${mapOrder} 图`);
     appendCount(parts, meta, "playerCount", "选手");
+    if (action.startsWith("match.demo.")) appendCount(parts, meta, "issueCount", "待处理问题");
     appendCount(parts, meta, "stepCount", "步骤");
     appendBoolean(parts, meta, "seriesFinished", "系列赛已完成");
     appendBoolean(parts, meta, "winnerChanged", "胜者已变化");
@@ -715,6 +725,11 @@ export function summarizeAuditMeta(action: string, meta: unknown): string | null
   appendBoolean(parts, meta, "active", "已启用", "已停用");
   appendBoolean(parts, meta, "isCurrent", "已设为当前");
   appendBoolean(parts, meta, "autoPicked", "自动选人");
+  if (action === "team.captain.transfer") appendBoolean(parts, meta, "emergencyOverride", "管理员紧急转移");
+  if (action === "user_identity.merge" && isRecord(meta.summary)) {
+    appendCount(parts, meta.summary, "AUTOMATIC", "合并记录");
+    appendCount(parts, meta.summary, "PRESERVE", "保留历史记录");
+  }
 
   if (typeof meta.direction === "string") {
     const directionLabel = { up: "上移", down: "下移", left: "左移", right: "右移" }[meta.direction];
