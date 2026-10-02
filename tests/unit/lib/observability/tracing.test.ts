@@ -1,13 +1,21 @@
-import { context, ROOT_CONTEXT, SpanStatusCode, trace, type Context, type ContextManager } from "@opentelemetry/api";
+import { context, ROOT_CONTEXT, SpanKind, SpanStatusCode, TraceFlags, trace, type Context, type ContextManager } from "@opentelemetry/api";
 import { BasicTracerProvider, InMemorySpanExporter, SimpleSpanProcessor } from "@opentelemetry/sdk-trace-base";
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { captureException } from "@/lib/observability/logger";
 import { traceOperation } from "@/lib/observability/tracing";
+import { createTraceSampler } from "@/lib/observability/sampling";
+
+const emitted = vi.hoisted(() => vi.fn());
+vi.mock("@opentelemetry/api-logs", async (importOriginal) => ({
+  ...await importOriginal<typeof import("@opentelemetry/api-logs")>(),
+  logs: { getLogger: () => ({ emit: emitted }) },
+}));
 
 const spanExporter = new InMemorySpanExporter();
 const tracerProvider = new BasicTracerProvider({
   spanProcessors: [new SimpleSpanProcessor(spanExporter)],
+  sampler: createTraceSampler("production"),
 });
 trace.setGlobalTracerProvider(tracerProvider);
 
@@ -40,6 +48,37 @@ afterAll(() => context.disable());
 
 describe("observability tracing", () => {
   beforeEach(() => spanExporter.reset());
+
+  it("sampled-out cron still runs work and exports canonical error logs with no partial child trace", async () => {
+    vi.stubEnv("VERCEL_ENV", "production");
+    const stderr = vi.spyOn(process.stderr, "write").mockReturnValue(true);
+    emitted.mockClear();
+    const remote = trace.setSpanContext(ROOT_CONTEXT, {
+      traceId: "80000000000000000000000000000000", spanId: "1111111111111111",
+      traceFlags: TraceFlags.SAMPLED, isRemote: true,
+    });
+    const request = tracerProvider.getTracer("next.js").startSpan("GET", {
+      kind: SpanKind.SERVER, attributes: { "http.target": "/api/cron/draft-timeout" },
+    }, remote);
+    try {
+      expect(request.isRecording()).toBe(false);
+      await expect(context.with(trace.setSpan(ROOT_CONTEXT, request), () => traceOperation("scheduler.test", {}, async () => {
+        captureException("action.unexpected_error", new Error("controlled failure"), { scope: "action", operation: "test", errorClass: "application" });
+        return "business-result";
+      }))).resolves.toBe("business-result");
+      request.end();
+      await tracerProvider.forceFlush();
+      expect(spanExporter.getFinishedSpans()).toEqual([]);
+      expect(emitted).toHaveBeenCalledOnce();
+      expect(emitted.mock.calls[0][0].attributes).toMatchObject({
+        "rivalhub.environment": "production", "rivalhub.event": "action.unexpected_error",
+        "rivalhub.errorClass": "application", "rivalhub.level": "error",
+      });
+    } finally {
+      stderr.mockRestore();
+      vi.unstubAllEnvs();
+    }
+  });
 
   it("keeps span names and attributes low-cardinality and URL-safe", async () => {
     await traceOperation("provider.lookup", {
