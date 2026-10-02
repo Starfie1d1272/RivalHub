@@ -184,6 +184,10 @@ const TARGET_OVERRIDES: Readonly<Partial<Record<AuditReadAction, AuditTargetCont
  * producer has been retired.
  */
 export const AUDIT_ACTION_DEFINITIONS = {
+  "announcement.import_release_history": { label: "导入历史发布公告", category: "season", legacy: true },
+  "identity.merge_preflight.remediation": { label: "修复身份合并预检数据", category: "user", legacy: true },
+  "identity.steam64.remediation": { label: "修复 Steam64 身份资料", category: "user", legacy: true },
+  "match.roster.correction": { label: "修正比赛阵容", category: "match", legacy: true },
   "match.import_demo": { label: "导入 Demo 数据", category: "match", legacy: true },
   "match.admin_update_roster": { label: "管理员调整比赛阵容", category: "match", legacy: true },
   "season.recompute_ratings": { label: "重新计算赛季 Rating", category: "season", legacy: true },

@@ -74,7 +74,7 @@ export async function snapshotStorage(
   for (const [index, object] of discovered.entries()) {
     const downloaded = await client.storage.from(object.bucket).download(object.objectPath);
     if (downloaded.error || !downloaded.data) {
-      throw new Error("Supabase Storage object download failed; canonical backup aborted. ");
+      throw storageReadFailure("object download", downloaded.error);
     }
     const bytes = Buffer.from(await downloaded.data.arrayBuffer());
     const archivePath = `objects/${String(index + 1).padStart(OBJECT_FILE_WIDTH, "0")}.bin`;
@@ -219,7 +219,7 @@ async function listAllBuckets(client: SupabaseClient): Promise<StorageBucketReco
       sortOrder: "asc",
     });
     if (result.error || !result.data) {
-      throw new Error("Supabase Storage bucket inventory failed; canonical backup aborted. ");
+      throw storageReadFailure("bucket inventory", result.error);
     }
     for (const bucket of result.data) {
       assertSupportedStorageBucket(bucket);
@@ -252,7 +252,7 @@ async function collectObjects(
       sortBy: { column: "name", order: "asc" },
     });
     if (listed.error || !listed.data) {
-      throw new Error("Supabase Storage object inventory failed; canonical backup aborted. ");
+      throw storageReadFailure("object inventory", listed.error);
     }
 
     for (const item of listed.data) {
@@ -360,4 +360,22 @@ function isSha256(value: unknown): value is string {
 
 function isNonNegativeInteger(value: unknown): value is number {
   return typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
+}
+
+/** Log only a validated status, never provider messages, object keys or credentials. */
+function storageReadFailure(operation: string, error: unknown): Error {
+  const candidate = error && typeof error === "object"
+    ? error as { status?: unknown; statusCode?: unknown }
+    : {};
+  const rawStatus = candidate.status ?? candidate.statusCode;
+  const status = typeof rawStatus === "number" ? rawStatus
+    : typeof rawStatus === "string" && /^[1-5][0-9]{2}$/.test(rawStatus) ? Number(rawStatus) : null;
+  const statusLabel = status !== null && Number.isInteger(status) && status >= 100 && status <= 599
+    ? `HTTP ${status}` : "HTTP status unavailable";
+  const guidance = status === 402
+    ? " Check the Supabase Dashboard for billing, quota or Spend Cap restrictions before rerunning the protected backup workflow."
+    : status === 401 || status === 403
+      ? " Check the protected workflow Storage credential and project permissions."
+      : "";
+  return new Error(`Supabase Storage ${operation} failed (${statusLabel}); canonical backup aborted.${guidance}`);
 }
