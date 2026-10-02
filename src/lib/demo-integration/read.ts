@@ -196,7 +196,10 @@ function projectVeto(
   };
 }
 
-export async function readRivalHubEvents(pairing: PairingScope): Promise<RivalHubEventsResponse> {
+export async function readRivalHubEvents(
+  pairing: PairingScope,
+  options: { includeSeriesDisposition?: boolean } = {},
+): Promise<RivalHubEventsResponse> {
   const seasonRows = pairing.seasonIds.includes("*")
     ? await db.select().from(seasons).orderBy(asc(seasons.slug))
     : pairing.seasonIds.length > 0
@@ -398,6 +401,7 @@ export async function readRivalHubEvents(pairing: PairingScope): Promise<RivalHu
           entryRound: match.entryRound,
           bracketNodeId: match.bracketNodeId,
           status: match.status,
+          ...(options.includeSeriesDisposition === true ? { isForfeit: match.isForfeit } : {}),
           format: match.format,
           entryAId: match.entryAId,
           entryBId: match.entryBId,
@@ -425,7 +429,7 @@ export async function readRivalHubEvents(pairing: PairingScope): Promise<RivalHu
           seasonId: season.id,
           updatedAt: season.updatedAt.toISOString(),
           stages,
-          matches: series.map((item) => ({ id: item.id, maps: item.maps.map((map) => ({ id: map.id, evidenceRevision: map.evidenceRevision })) })),
+          matches: series.map((item) => ({ id: item.id, ...(item.isForfeit !== undefined ? { isForfeit: item.isForfeit } : {}), maps: item.maps.map((map) => ({ id: map.id, evidenceRevision: map.evidenceRevision })) })),
         }),
         stages,
         teams,

@@ -9,7 +9,9 @@ export async function OPTIONS(request: Request): Promise<Response> {
 export async function GET(request: Request): Promise<Response> {
   try {
     const principal = await authenticateDakRequest(request, "event:read");
-    return integrationJson(request, await readRivalHubEvents(principal.pairing));
+    // Published clients use strict schemas, so the default wire shape stays v1.
+    const includeSeriesDisposition = new URL(request.url).searchParams.get("seriesDisposition") === "1";
+    return integrationJson(request, await readRivalHubEvents(principal.pairing, { includeSeriesDisposition }));
   } catch (error) {
     return integrationError(request, error);
   }

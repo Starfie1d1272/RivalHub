@@ -205,6 +205,23 @@ describe("DAK stage projection PostgreSQL integration", () => {
       ]);
       expect(swiss?.standings).toHaveLength(16);
       expect(swiss?.standings?.[0]).toEqual(expect.objectContaining({ tiebreakFacts: { BU: expect.any(Number) }, status: expect.any(String) }));
+
+      // A 0:2 BO3 with no maps is not enough to infer disposition. Only the
+      // canonical flag may change the negotiated projection.
+      await pool.query(
+        "UPDATE matches SET status = 'finished', score_a = 0, score_b = 2, completed_at = $2 WHERE id = $1",
+        [playoffMatchId, now],
+      );
+      const played = await readRivalHubEvents({ seasonIds: [ids.season] }, { includeSeriesDisposition: true });
+      expect(played.events[0]!.series.find((series) => series.id === playoffMatchId)).toMatchObject({ isForfeit: false, scoreA: 0, scoreB: 2, maps: [], veto: null });
+      await pool.query("UPDATE matches SET is_forfeit = true WHERE id = $1", [playoffMatchId]);
+      const forfeit = await readRivalHubEvents({ seasonIds: [ids.season] }, { includeSeriesDisposition: true });
+      const projected = forfeit.events[0]!.series.find((series) => series.id === playoffMatchId);
+      expect(projected).toMatchObject({ status: "finished", isForfeit: true, scoreA: 0, scoreB: 2, maps: [], veto: null });
+      expect(forfeit.events[0]!.revision).not.toBe(played.events[0]!.revision);
+      expect(rivalHubEventsResponseSchema.safeParse(forfeit).success).toBe(true);
+      const legacy = await readRivalHubEvents({ seasonIds: [ids.season] });
+      expect(legacy.events[0]!.series.every((series) => !("isForfeit" in series))).toBe(true);
     } finally {
       const cleanupClient = await pool.connect();
       try {
