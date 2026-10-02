@@ -61,7 +61,15 @@ async function rebuildPool(): Promise<void> {
     _db = drizzle(pool, { schema });
     setupPoolGuard(pool);
     logEvent({ level: "warn", event: "db.pool.rebuilt", scope: "database", operation: "pool.rebuild" });
-  })().finally(() => {
+  })().catch((error: unknown) => {
+    captureException("db.pool.rebuild_failure", error, {
+      scope: "database",
+      operation: "pool.rebuild",
+      errorClass: "database",
+      retryable: true,
+    });
+    throw error;
+  }).finally(() => {
     rebuilding = null;
   });
   return rebuilding;
@@ -78,14 +86,8 @@ function setupPoolGuard(p: Pool) {
       safeContext: { phase: "guard" },
     });
     if (connectionError) {
-      void rebuildPool().catch((rebuildError: unknown) => {
-        captureException("db.pool.rebuild_failure", rebuildError, {
-          scope: "database",
-          operation: "pool.rebuild",
-          errorClass: "database",
-          retryable: true,
-        });
-      });
+      // The shared rebuild owner records failure once, including query retries.
+      void rebuildPool().catch(() => {});
     }
   });
 

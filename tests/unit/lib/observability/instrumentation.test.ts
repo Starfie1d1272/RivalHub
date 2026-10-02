@@ -1,3 +1,5 @@
+import { ROOT_CONTEXT, SpanKind } from "@opentelemetry/api";
+import { SamplingDecision, type Sampler } from "@opentelemetry/sdk-trace-base";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -14,7 +16,8 @@ vi.mock("@vercel/otel", () => ({
   OTLPHttpProtoTraceExporter: mocks.traceExporter,
 }));
 
-vi.mock("@opentelemetry/sdk-trace-base", () => ({
+vi.mock("@opentelemetry/sdk-trace-base", async (importOriginal) => ({
+  ...await importOriginal<typeof import("@opentelemetry/sdk-trace-base")>(),
   BatchSpanProcessor: mocks.batchSpanProcessor,
 }));
 
@@ -62,6 +65,18 @@ describe("observability runtime registration", () => {
       url: "https://logs.example.com/v1/logs",
       headers: { Authorization: "Bearer source-token" },
     });
+    expect(mocks.batchLogRecordProcessor).toHaveBeenCalledOnce();
+  });
+
+  it("wires the Production sampler without changing the unsampled log pipeline", async () => {
+    vi.stubEnv("VERCEL_ENV", "production");
+    const { registerNodeObservability } = await import("@/lib/observability/instrumentation-node");
+    registerNodeObservability();
+    registerNodeObservability();
+    expect(mocks.registerOTel).toHaveBeenCalledOnce();
+    const options = mocks.registerOTel.mock.calls[0][0] as { traceSampler: Sampler; logRecordProcessors: unknown[] };
+    expect(options.traceSampler.shouldSample(ROOT_CONTEXT, "80000000000000000000000000000000", "GET", SpanKind.SERVER, { "http.target": "/api/cron/draft-timeout" }, []).decision).toBe(SamplingDecision.NOT_RECORD);
+    expect(options.logRecordProcessors).toHaveLength(1);
     expect(mocks.batchLogRecordProcessor).toHaveBeenCalledOnce();
   });
 
