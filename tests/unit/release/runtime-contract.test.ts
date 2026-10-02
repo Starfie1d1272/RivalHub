@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -29,6 +30,40 @@ function readWorkflowJob(workflow: string, jobName: string): string {
   return match[1];
 }
 
+function readWorkflowStep(job: string, stepName: string): string {
+  const step = job.split(`      - name: ${stepName}\n`)[1]?.split("\n      - ")[0];
+  if (!step) throw new Error(`workflow step not found: ${stepName}`);
+  return step;
+}
+
+function runProductionMigrationStep(requiresRehearsal: boolean, failMigration = false) {
+  const job = readWorkflowJob(readProjectFile(".github/workflows/release.yml"), "production_migration");
+  const step = readWorkflowStep(job, "运行 production migration 与验证");
+  const run = step.match(/\n        run: \|\n([\s\S]*)$/)?.[1];
+  if (!run) throw new Error("production migration run script not found");
+  const script = run.replace(/^ {10}/gm, "").replaceAll(
+    "${{ needs.preflight.outputs.requires_migration_rehearsal }}",
+    String(requiresRehearsal),
+  );
+  // Execute the workflow's actual shell branch without running any DB command.
+  // GitHub's bash runner uses these same fail-fast shell options.
+  return spawnSync("bash", ["--noprofile", "--norc", "-e", "-o", "pipefail", "-c", `
+    node() {
+      printf '%s\\n' "$*"
+      if [[ "$*" == *"db:production:migrate" && "$TEST_MIGRATION_FAILURE" == "true" ]]; then return 1; fi
+    }
+    ${script}
+  `], {
+    encoding: "utf8",
+    env: {
+      NODE_ENV: "test",
+      PATH: process.env.PATH,
+      DATABASE_URL: "postgresql://release-test.invalid/unused",
+      TEST_MIGRATION_FAILURE: String(failMigration),
+    },
+  });
+}
+
 function expectPnpmSetup(workflow: string, jobNames: string[]): void {
   expect(workflow).not.toContain("pnpm/action-setup");
   expect(workflow).not.toContain("actions/setup-node");
@@ -46,6 +81,49 @@ function expectPnpmSetup(workflow: string, jobNames: string[]): void {
 }
 
 describe("deployment and operations contracts", () => {
+  it.each([false, true])("runs schema migration only when the release requires rehearsal (%s)", (requiresRehearsal) => {
+    const result = runProductionMigrationStep(requiresRehearsal);
+
+    expect(result.error).toBeUndefined();
+    expect(result.status, result.stderr).toBe(0);
+    expect(result.stdout.trim().split("\n")).toEqual([
+      ...(requiresRehearsal
+        ? ["scripts/ci/timing.mjs Production migration -- env RIVALHUB_ALLOW_REMOTE_DB_WRITE=production pnpm db:production:migrate"]
+        : []),
+      "scripts/ci/timing.mjs Production DB verify -- pnpm db:production:verify",
+    ]);
+  });
+
+  it("does not advance to verification after a schema migration fails", () => {
+    const result = runProductionMigrationStep(true, true);
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("db:production:migrate");
+    expect(result.stdout).not.toContain("db:production:verify");
+  });
+
+  it("requires protected projection backfill and coverage before candidate routing", () => {
+    const release = readProjectFile(".github/workflows/release.yml");
+    const migration = readWorkflowJob(release, "production_migration");
+    const finalize = readWorkflowJob(release, "finalize");
+    const backfill = readWorkflowStep(migration, "回填 production 每图统计投影");
+    const coverage = readWorkflowStep(migration, "验证 production 统计投影覆盖");
+
+    expect(migration).toContain("needs.preflight.outputs.requires_production_migration == 'true'");
+    expect(migration).toContain("needs.migration_rehearsal.result == 'skipped'");
+    expect(backfill).toContain("if: needs.preflight.outputs.requires_stats_projection_backfill == 'true'");
+    expect(backfill).toContain("RIVALHUB_ALLOW_REMOTE_DB_WRITE: production");
+    expect(backfill).toContain("RIVALHUB_STATS_PROJECTION_WRITE_CONFIRM: I_UNDERSTAND_STATS_PROJECTION_WRITE");
+    expect(backfill).toContain("pnpm db:production:stats-projections:backfill --apply");
+    expect(coverage).toContain("if: needs.preflight.outputs.requires_stats_projection_backfill == 'true'");
+    expect(coverage).toContain("pnpm db:production:stats-projections:coverage");
+    expect(coverage).not.toContain("RIVALHUB_ALLOW_REMOTE_DB_WRITE");
+    expect(migration.indexOf("回填 production 每图统计投影")).toBeLessThan(migration.indexOf("验证 production 统计投影覆盖"));
+    expect(finalize).toContain("needs.production_migration.result == 'success' || needs.production_migration.result == 'skipped'");
+    expect(finalize).toContain("needs: [preflight, candidate_build, migration_rehearsal, checkpoint, production_migration]");
+    expect(finalize.indexOf("运行 exact candidate smoke test")).toBeLessThan(finalize.indexOf("执行 release routing / rollback"));
+  });
+
   it("keeps pnpm and Node runtime ownership in the package manifest", () => {
     const manifest = readPackageManifest();
 

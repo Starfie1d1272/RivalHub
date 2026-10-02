@@ -27,7 +27,9 @@ export async function POST(request: Request): Promise<Response> {
       pairingScope: principal.pairing,
       idempotencyKey: request.headers.get("idempotency-key"),
     });
-    if (result.status === "synced") revalidatePublicStatsTag();
+    // A newer needs_attention import also changes which lineage is current and
+    // can remove an older confirmed sample from public statistics.
+    revalidatePublicStatsTag();
     return integrationJson(request, result);
   } catch (error) {
     return integrationError(request, error);

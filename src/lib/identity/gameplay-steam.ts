@@ -1,4 +1,5 @@
 import "server-only";
+import { lockGameplayIdentityWriteInTx } from "./write-lock";
 import { invalidateConfirmedDemoIdentityInTx } from "./statistics-invalidation";
 
 import { and, eq, inArray, sql } from "drizzle-orm";
@@ -195,6 +196,7 @@ export async function recordGameplaySteamIdentityInTx(
   tx: TxDb,
   input: GameplaySteamIdentityInput,
 ): Promise<{ id: string; created: boolean }> {
+  await lockGameplayIdentityWriteInTx(tx);
   if (!isSteam64(input.steam64)) {
     throw new AppError(ErrorCode.VALIDATION_FAILED, "Steam64 ID 格式不正确（应为 17 位数字）");
   }
@@ -246,6 +248,7 @@ export async function retireGameplaySteamIdentityInTx(
   tx: TxDb,
   input: { identityId: string; actorId: string; reason: string },
 ): Promise<{ retired: boolean }> {
+  await lockGameplayIdentityWriteInTx(tx);
   const reason = input.reason.trim();
   if (!reason) {
     throw new AppError(ErrorCode.VALIDATION_FAILED, "Steam 身份撤销原因不能为空");
@@ -284,6 +287,7 @@ export async function changePrimarySteam64InTx(
   tx: TxDb,
   input: { userId: string; nextSteam64: string | null; actorId: string },
 ): Promise<{ previousSteam64: string | null; steam64: string | null }> {
+  await lockGameplayIdentityWriteInTx(tx);
   if (input.nextSteam64 !== null && !isSteam64(input.nextSteam64)) {
     throw new AppError(ErrorCode.VALIDATION_FAILED, "Steam64 ID 格式不正确（应为 17 位数字）");
   }

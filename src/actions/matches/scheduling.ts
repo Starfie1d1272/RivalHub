@@ -58,7 +58,7 @@ export async function proposeMatchTime(
       return created;
     });
 
-    revalidateMatchPaths(season.slug, matchId);
+    revalidateMatchPaths(season.slug, matchId, { statistics: false });
 
     return ok({ proposalId: proposal.id });
   } catch (e) {
@@ -144,7 +144,7 @@ export async function respondToTimeProposal(
       return { seasonSlug: season.slug, matchId: match.id };
     });
 
-    revalidateMatchPaths(outcome.seasonSlug, outcome.matchId);
+    revalidateMatchPaths(outcome.seasonSlug, outcome.matchId, { statistics: false });
     return ok(undefined);
   } catch (e) {
     return actionError("respondToTimeProposal", e);
@@ -200,7 +200,7 @@ export async function forceSetMatchTime(
     });
 
     const season = await getSeasonOrThrow(match.seasonId);
-    revalidateMatchPaths(season.slug, matchId);
+    revalidateMatchPaths(season.slug, matchId, { statistics: false });
     return ok(undefined);
   } catch (e) {
     return actionError("forceSetMatchTime", e);

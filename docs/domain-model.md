@@ -117,7 +117,7 @@ RivalHub ↔ Mizar 是单向机器接口，不是数据共享。赛事管理员�
 
 本场默认首发只来自当前合法 EventRoster 明确标记的五名主力；队伍提交的合法首发覆盖默认值。`participant`、`admin_select` 与 `system_default` 均先作为 `submitted` 的有效名单保留各自来源；开赛 transition 在同一事务内重新校验当前 EventRoster、人数、资格和限制，并将有效名单确认为不可再修改的历史 MatchRoster，不依赖管理员另行确认。临近开赛的管理员调整必须记录真实操作人与事故事实。`matches` 的 `startedAt` 记录实际进入 `in_progress` 的时间，不从排期或 BP 完成时间推断。
 
-Demo Evidence 的不可变 payload 与 `match_demo_imports` workflow projection 由 Demo integration owner 管理。正常提交和存量 `/3` recheck 共享同一套 server-owned target、Steam identity、正式比分、QA、回合、summary、effective MatchRoster 和 evidence revision 校验；一张地图具备正式比分与完成时间后即可接收该图 Demo，整场系列赛仍可进行；已完成地图的 evidence revision 不因系列赛进入完成、弃权或取消状态而失效。participant payload 中的客户端 identity resolution 不是事实来源。通过校验的 source round facts、`match_player_stats` 与版本化 `match_demo_stat_projections` 由同一晋级 owner 在确认事务内物化，并按 Demo lineage 保留 supersede/content conflict；管理员确认只补足 gameplay identity 后触发同一存量 recheck，不另起一套验证或直接改写 payload。
+Demo Evidence 的不可变 payload 与 `match_demo_imports` workflow projection 由 Demo integration owner 管理。正常提交和存量 `/3` recheck 共享同一套 server-owned target、Steam identity、正式比分、QA、回合、summary、effective MatchRoster 和 evidence revision 校验；一张地图具备正式比分与完成时间后即可接收该图 Demo，整场系列赛仍可进行；已完成地图的 evidence revision 不因系列赛进入完成、弃权或取消状态而失效。participant payload 中的客户端 identity resolution 不是事实来源。通过校验的 source round facts、`match_player_stats` 与版本化 `match_demo_stat_projections` 由同一晋级 owner 在确认事务内物化，并按 Demo lineage 保留 supersede/content conflict；管理员确认只补足 gameplay identity 后触发同一存量 recheck，不另起一套验证或直接改写 payload。身份关联与已确认 Demo 的归属构成同一并发边界：所有确认/补建和 primary/alias/账号归并写入先取得 identity transaction gate，再持有各自业务行锁；撤销不能遗漏正在提交的确认结果。
 
 DAK events 目录的 series disposition 直接投影 `matches.isForfeit`，不从比分或地图数量猜测。
 `rivalhub-dak-events/1` 的已发布客户端使用 strict schema，因此只有

@@ -45,7 +45,9 @@ export function useVisiblePolling(poll: () => void | Promise<void>, intervalMs: 
 export function useRoutePolling(intervalMs: number | null, mutationPending = false) {
   const router = useRouter();
   const [refreshPending, startRefresh] = useTransition();
-  useVisiblePolling(() => {
+  const refresh = () => {
     if (!refreshPending && !mutationPending) startRefresh(() => router.refresh());
-  }, intervalMs);
+  };
+  useVisiblePolling(refresh, intervalMs);
+  return { refresh, refreshPending };
 }

@@ -5,8 +5,10 @@ import Link from "next/link";
 import { Panel } from "@/components/rivalhub";
 import { PlayerAvatar } from "@/components/players/PlayerAvatar";
 import { castMatchMvpVote } from "@/actions/player-stats";
-import { isDeadlinePassed, MVP_DEADLINE_MS } from "@/lib/utils/date";
+import { MVP_DEADLINE_MS } from "@/lib/utils/date";
 import { formatStat, type StatMetric } from "@/lib/stats";
+import { useRoutePolling } from "@/components/use-visible-polling";
+import { Button } from "@/components/ui/button";
 
 interface MvpCandidate {
   userId: string | null;
@@ -35,6 +37,7 @@ interface MatchMvpVoteProps {
 }
 
 const candidateKey = (userId: string | null, name: string) => userId ?? `legacy:${name}`;
+const RESULT_REFRESH_WINDOW_MS = 15 * 60_000;
 
 export function MatchMvpVote({
   matchId,
@@ -61,21 +64,32 @@ export function MatchMvpVote({
     () => (completedAt ? new Date(new Date(completedAt).getTime() + MVP_DEADLINE_MS) : null),
     [completedAt],
   );
-  const votingClosed = winnerUserId !== null || (deadline ? isDeadlinePassed(deadline) : false);
+  const votingClosed = winnerUserId !== null || (deadline ? now >= deadline.getTime() : false);
+  // Allow several scheduler runs without polling no-vote or historical matches
+  // indefinitely. Zero initial votes may still be a stale pre-cutoff snapshot.
+  const withinResultRefreshWindow = deadline !== null && now < deadline.getTime() + RESULT_REFRESH_WINDOW_MS;
+  const { refresh, refreshPending } = useRoutePolling(
+    votingClosed && !winnerUserId && withinResultRefreshWindow ? 60_000 : null,
+    isPending,
+  );
   const timeLeft = deadline && !votingClosed
     ? Math.max(0, deadline.getTime() - now)
     : 0;
   const hoursLeft = Math.floor(timeLeft / (60 * 60 * 1000));
   const minsLeft = Math.floor((timeLeft % (60 * 60 * 1000)) / (60 * 1000));
 
-  // 每 30s 刷新倒计时；截止时切到结果视图
+  // Keep the local clock through the bounded settlement window; returning from
+  // a suspended tab updates both the cutoff display and the polling lifetime.
   useEffect(() => {
-    if (!deadline || votingClosed) return;
-    const timer = setInterval(() => {
-      setNow(Date.now());
-    }, 30_000);
-    return () => clearInterval(timer);
-  }, [deadline, votingClosed]);
+    if (!deadline || winnerUserId || !withinResultRefreshWindow) return;
+    const tick = () => setNow(Date.now());
+    const timer = setInterval(tick, 30_000);
+    document.addEventListener("visibilitychange", tick);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", tick);
+    };
+  }, [deadline, winnerUserId, withinResultRefreshWindow]);
 
   async function handleVote(playerUserId: string | null, playerName: string) {
     if (!playerUserId || votedName || votingClosed) return;
@@ -118,6 +132,11 @@ export function MatchMvpVote({
           <p className="text-sm text-[var(--color-fg-mid)]">
             {mvp?.count ?? 0} 票
           </p>
+          {!winnerUserId && (
+            <Button variant="ghost" size="sm" onClick={refresh} disabled={refreshPending}>
+              刷新 MVP 结果
+            </Button>
+          )}
         </div>
 
         {mvpStats && (

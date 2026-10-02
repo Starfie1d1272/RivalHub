@@ -16,6 +16,7 @@ import { normalizeRegistrationConfig } from "@/lib/seasons/compatibility";
 import { getRegistrationWindowState } from "@/lib/registration/window";
 import { normalizeEmail } from "@/lib/utils/email";
 import { compactUndefined } from "@/lib/utils/object";
+import { lockGameplayIdentityWriteInTx } from "@/lib/identity/write-lock";
 import { changePrimarySteam64InTx, assertSteam64Available } from "@/lib/identity/gameplay-steam";
 import { getSteamProfileForPrimary, upsertSteamProfile } from "@/lib/steam-profiles";
 import { assertUsersNotBlockedInTx } from "@/lib/discipline/service";
@@ -305,6 +306,7 @@ export async function submitRegistration(input: RegistrationFormData) {
       attributes: { "rivalhub.workflow": "rivals_registration" },
     }, async () => {
       return db.transaction(async (tx) => {
+        await lockGameplayIdentityWriteInTx(tx);
         const currentSeason = initialWindow.needsOpeningRecovery
           ? (await ensureRegistrationOpenForParticipantInTx(tx, data.seasonId)).season
           : season;

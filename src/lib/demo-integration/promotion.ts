@@ -6,6 +6,7 @@ import { matchDemoImports, matchPlayerStats, matchRoundFacts } from "@/db/schema
 import { writeAuditInTx } from "@/lib/audit/write";
 import { materializeStatisticsProjectionInTx } from "@/lib/stats/projection";
 import { AppError, ErrorCode } from "@/lib/errors";
+import { lockGameplayIdentityWriteInTx } from "@/lib/identity/write-lock";
 import type { GameplayUserResolution } from "@/lib/identity/gameplay-steam";
 import type { RivalHubEvidenceSubmission } from "./contracts";
 import { dakStableScoreboardValues } from "./scoreboard";
@@ -33,6 +34,7 @@ export const DEMO_CONTENT_CONFLICT_MESSAGE = "该地图已有另一份已确认 
  * gap where SELECT ... FOR UPDATE cannot lock a row that does not exist yet.
  */
 export async function lockDemoImportLineageInTx(tx: TxDb, matchMapId: string): Promise<void> {
+  await lockGameplayIdentityWriteInTx(tx);
   await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${`demo-map:${matchMapId}`}, 0))`);
 }
 

@@ -59,7 +59,7 @@ DB/internal facts
 
 Public profile routes compose server-only read models; scope selection and derived metrics stay in the read model instead of the route entrypoint.
 
-公开赛事、选手生涯、长期队伍与赛事队伍统计共同消费经过确认的每图统计投影。Demo 晋级 owner 在同一事务中保存版本化 `match_demo_stat_projections`，复用 DAK 的中间统计与组合规则；来源 import、Evidence revision、身份绑定和计算版本共同决定投影是否适用。原始 Evidence 保留用于审计、重检及显式回填；公开冷读只加载有效投影，不回退读取完整 payload。身份撤销或账号归并在原事务中将依赖旧归属的 import 标为待重检，避免已撤销的事实继续进入公开统计。
+公开赛事、选手生涯、长期队伍与赛事队伍统计共同消费经过确认的每图统计投影。Demo 晋级 owner 在同一事务中保存版本化 `match_demo_stat_projections`，复用 DAK 的中间统计与组合规则；来源 import、Evidence revision、身份绑定和计算版本共同决定投影是否适用。原始 Evidence 保留用于审计、重检及显式回填；公开冷读只加载有效投影，不回退读取完整 payload。身份撤销或账号归并在原事务中将依赖旧归属的 import 标为待重检，避免已撤销的事实继续进入公开统计。Demo 提交、重检、补建与 gameplay identity 变更共用 `src/lib/identity/write-lock.ts` 的事务级排他 gate；先取 identity gate，再取地图 lineage、user/season 及业务行锁，持有到提交。管理员补身份再确认复用同一 gate，不做共享锁升级；公开读不取该锁。这样撤销必定先于确认校验，或在确认提交后扫描到并使其待重检。
 
 公开页面默认不暴露 email、QQ、`studentId`、`authId`、管理员授权范围、教育证据或内部备注。不能把内部查询对象直接序列化给浏览器。
 

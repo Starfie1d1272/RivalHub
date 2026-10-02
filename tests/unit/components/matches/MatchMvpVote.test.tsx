@@ -1,10 +1,12 @@
 /** @vitest-environment jsdom */
 import React from "react";
-import { render, screen, within } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MatchMvpVote } from "@/components/matches/MatchMvpVote";
 
 vi.mock("@/actions/player-stats", () => ({ castMatchMvpVote: vi.fn() }));
+const { refresh } = vi.hoisted(() => ({ refresh: vi.fn() }));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh }) }));
 
 const candidate = (perfectName: string, userId: string) => ({
   userId,
@@ -21,6 +23,66 @@ const candidate = (perfectName: string, userId: string) => ({
   rws: 10,
   ratingPro: 1.2,
   we: 8,
+});
+
+describe("MVP result refresh", () => {
+  const originalVisibility = Object.getOwnPropertyDescriptor(document, "visibilityState");
+  const props = {
+    matchId: "match-1", candidates: [candidate("Neo", "user-1")],
+    currentVotes: [], userVotedPlayerName: null, completedAt: "2026-10-01T12:00:00Z",
+    winnerUserId: null,
+  };
+  function visibility(value: "hidden" | "visible") {
+    Object.defineProperty(document, "visibilityState", { configurable: true, value });
+    document.dispatchEvent(new Event("visibilitychange"));
+  }
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-02T12:00:00Z"));
+    refresh.mockClear();
+    visibility("visible");
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    if (originalVisibility) Object.defineProperty(document, "visibilityState", originalVisibility);
+    else Reflect.deleteProperty(document, "visibilityState");
+  });
+
+  it("refreshes an initially empty closed snapshot and stops once the committed winner arrives", async () => {
+    const { rerender, unmount } = render(<MatchMvpVote {...props} />);
+    await act(async () => { await vi.advanceTimersByTimeAsync(60_000); });
+    expect(refresh).toHaveBeenCalledTimes(1);
+    rerender(<MatchMvpVote {...props} currentVotes={[{ playerUserId: "user-1", playerName: "Neo", count: 1 }]} winnerUserId="user-1" />);
+    await act(async () => { await vi.advanceTimersByTimeAsync(5 * 60_000); });
+    expect(refresh).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("button", { name: "刷新 MVP 结果" })).not.toBeInTheDocument();
+    unmount();
+  });
+
+  it("makes no hidden-tab requests and resumes on visibility", async () => {
+    visibility("hidden");
+    const { unmount } = render(<MatchMvpVote {...props} />);
+    await act(async () => { await vi.advanceTimersByTimeAsync(2 * 60_000); });
+    expect(refresh).not.toHaveBeenCalled();
+    await act(async () => visibility("visible"));
+    expect(refresh).toHaveBeenCalledTimes(1);
+    unmount();
+  });
+
+  it("bounds no-vote polling and preserves a manual refresh after the window", async () => {
+    const { unmount } = render(<MatchMvpVote {...props} />);
+    for (let minute = 0; minute < 16; minute++) {
+      await act(async () => { await vi.advanceTimersByTimeAsync(60_000); });
+    }
+    const calls = refresh.mock.calls.length;
+    expect(calls).toBeGreaterThan(0);
+    expect(calls).toBeLessThanOrEqual(15);
+    await act(async () => { await vi.advanceTimersByTimeAsync(60 * 60_000); });
+    expect(refresh).toHaveBeenCalledTimes(calls);
+    fireEvent.click(screen.getByRole("button", { name: "刷新 MVP 结果" }));
+    expect(refresh).toHaveBeenCalledTimes(calls + 1);
+    unmount();
+  });
 });
 
 describe("MatchMvpVote", () => {

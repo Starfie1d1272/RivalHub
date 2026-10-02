@@ -57,6 +57,8 @@ describe("postmatch PostgreSQL invariants", () => {
       await pool.query("INSERT INTO match_maps (id,match_id,map_order,map_name,score_a,score_b) VALUES ($1,$2,1,'de_inferno',13,10)", [statsMapId, matchId]);
       await pool.query("INSERT INTO match_player_stats (match_id,map_id,perfect_name,user_id,kills,deaths,adr,rating_pro,verified_by_admin,verified_at) VALUES ($1,$2,'解说甲',$3,20,10,80,1.2,$4,now())", [matchId, statsMapId, adminA, adminA]);
       const { getVerifiedPlayerStatsBySeason } = await import("../../../src/lib/stats/public-query");
+      expect((await getVerifiedPlayerStatsBySeason(seasonId, [adminA])).has(adminA)).toBe(false);
+      await pool.query("UPDATE match_maps SET completed_at=now() WHERE id=$1", [statsMapId]);
       expect((await getVerifiedPlayerStatsBySeason(seasonId, [adminA])).get(adminA)?.maps).toBe(1);
       await pool.query("UPDATE matches SET status='scheduled' WHERE id=$1", [matchId]);
       expect((await getVerifiedPlayerStatsBySeason(seasonId, [adminA])).has(adminA)).toBe(false);

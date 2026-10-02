@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { resolve } from "node:path";
+import type { PoolClient } from "pg";
 import { and, eq, inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { buildTournamentAnalytics, buildTournamentPerformanceAnalytics } from "@cs2dak/tournament";
@@ -13,6 +14,7 @@ import { ErrorCode } from "../../../src/lib/errors";
 import { parseRivalHubDemoEvidenceV1 } from "../../../src/lib/demo-evidence/contract";
 import type { RivalHubEvidenceSubmission } from "../../../src/lib/demo-integration/contracts";
 import { lockDemoImportLineageInTx } from "../../../src/lib/demo-integration/promotion";
+import { revalidateStoredDemoImportInTx } from "../../../src/lib/demo-integration/revalidation";
 import { readRivalHubEvents } from "../../../src/lib/demo-integration/read";
 import { buildEvidenceRevision, sha256Json } from "../../../src/lib/demo-integration/revision";
 import {
@@ -31,6 +33,17 @@ import { invalidateConfirmedDemoIdentityInTx } from "../../../src/lib/identity/s
 import { createLocalPool } from "./harness/database";
 
 const fixturePath = resolve(process.cwd(), "tests/fixtures/demo-evidence/normal-map-v1.json");
+
+async function waitForAdvisoryWait(observer: PoolClient, pid: number): Promise<void> {
+  const deadline = Date.now() + 3_000;
+  while (Date.now() < deadline) {
+    const result = await observer.query<{ wait_event: string | null }>("SELECT wait_event FROM pg_stat_activity WHERE pid = $1", [pid]);
+    if (result.rows[0]?.wait_event === "advisory") return;
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  throw new Error("Concurrent workflow did not wait for the identity advisory lock");
+}
+
 
 describe("DAK evidence submit persistence", () => {
   it("serializes mutable Demo workflows on the same map before row locks", async () => {
@@ -964,6 +977,55 @@ describe("DAK evidence submit persistence", () => {
 
       const [identity] = identityRows;
       if (!identity) throw new Error("测试未保存 gameplay alias");
+      // Real two-transaction races in both orders: the retiring workflow must
+      // either see the committed confirmation, or validation sees retirement.
+      const confirmingClient = await pool.connect();
+      const retiringClient = await pool.connect();
+      const confirmingDb = drizzle(confirmingClient, { schema }) as unknown as Parameters<typeof revalidateStoredDemoImportInTx>[0];
+      const retiringDb = drizzle(retiringClient, { schema }) as unknown as Parameters<typeof retireSeasonGameplaySteamIdentityInTx>[0];
+      const confirmingPid = (await confirmingClient.query<{ pid: number }>("SELECT pg_backend_pid() AS pid")).rows[0]!.pid;
+      const retiringPid = (await retiringClient.query<{ pid: number }>("SELECT pg_backend_pid() AS pid")).rows[0]!.pid;
+      const retireInput = { identityId: identity.id, seasonId: ids.season, actorId: userIds[0]!, reason: "并发身份撤销测试" };
+      let pendingRace: Promise<unknown> | undefined;
+      try {
+        await database.update(schema.matchDemoImports).set({ status: "needs_attention" }).where(eq(schema.matchDemoImports.id, idempotentAliasImportId));
+        await confirmingClient.query("BEGIN");
+        expect(await revalidateStoredDemoImportInTx(confirmingDb, { importId: idempotentAliasImportId, actorId: userIds[0]! })).toMatchObject({ status: "confirmed" });
+        await retiringClient.query("BEGIN");
+        const retiring = retireSeasonGameplaySteamIdentityInTx(retiringDb, retireInput);
+        pendingRace = retiring;
+        void retiring.catch(() => undefined);
+        await waitForAdvisoryWait(client, retiringPid);
+        await confirmingClient.query("COMMIT");
+        await retiring;
+        expect((await retiringDb.select({ status: schema.matchDemoImports.status }).from(schema.matchDemoImports)
+          .where(eq(schema.matchDemoImports.id, idempotentAliasImportId)))[0]?.status).toBe("needs_attention");
+        await retiringClient.query("ROLLBACK");
+        pendingRace = undefined;
+
+        await retiringClient.query("BEGIN");
+        await retireSeasonGameplaySteamIdentityInTx(retiringDb, retireInput);
+        await confirmingClient.query("BEGIN");
+        const confirming = revalidateStoredDemoImportInTx(confirmingDb, { importId: idempotentAliasImportId, actorId: userIds[0]! });
+        pendingRace = confirming;
+        void confirming.catch(() => undefined);
+        await waitForAdvisoryWait(client, confirmingPid);
+        await retiringClient.query("COMMIT");
+        expect(await confirming).toMatchObject({ status: "needs_attention", issues: expect.arrayContaining([expect.objectContaining({ code: "PARTICIPANT_IDENTITY_UNRESOLVED" })]) });
+        await confirmingClient.query("ROLLBACK");
+        pendingRace = undefined;
+      } finally {
+        // Release either holder before awaiting a blocked statement on the other.
+        await Promise.all([confirmingClient.query("ROLLBACK").catch(() => {}), retiringClient.query("ROLLBACK").catch(() => {})]);
+        await pendingRace?.catch(() => undefined);
+        confirmingClient.release();
+        retiringClient.release();
+      }
+      // Restore this fixture's active alias for the independent scoped-retire assertions.
+      await database.update(schema.userGameplaySteamIds).set({ status: "active", retiredByUserId: null, retiredAt: null, retiredReason: null })
+        .where(eq(schema.userGameplaySteamIds.id, identity.id));
+      await database.transaction((tx) => revalidateStoredDemoImportInTx(tx, { importId: idempotentAliasImportId, actorId: userIds[0]! }));
+
       const retired = await database.transaction((tx) => retireSeasonGameplaySteamIdentityInTx(tx, {
         identityId: identity.id,
         seasonId: ids.season,
@@ -1273,6 +1335,8 @@ describe("DAK evidence submit persistence", () => {
       // Fixture teardown intentionally bypasses immutable/append-only row
       // triggers, matching the repository's other integration cleanups.
       await client.query("SET LOCAL session_replication_role = replica").catch(() => {});
+      // replica disables FK cascades, so remove every projection version before imports.
+      await client.query("DELETE FROM match_demo_stat_projections WHERE import_id IN (SELECT id FROM match_demo_imports WHERE match_map_id = ANY($1::uuid[]))", [[ids.map, ids.careerMap]]).catch(() => {});
       await client.query("DELETE FROM match_round_facts WHERE import_id IN (SELECT id FROM match_demo_imports WHERE match_map_id = $1)", [ids.map]).catch(() => {});
       await client.query("DELETE FROM match_player_stats WHERE map_id = $1", [ids.map]).catch(() => {});
       await client.query("DELETE FROM match_demo_imports WHERE match_map_id = $1", [ids.map]).catch(() => {});

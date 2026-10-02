@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { writeAuditInTx } from "@/lib/audit/write";
+import { lockGameplayIdentityWriteInTx } from "./write-lock";
 import { invalidateConfirmedDemoIdentityInTx } from "./statistics-invalidation";
 
 import { and, eq, inArray, sql } from "drizzle-orm";
@@ -555,6 +556,7 @@ export interface ExecuteUserMergeInput {
 }
 
 export async function executeUserMergeInTx(tx: TxDb, input: ExecuteUserMergeInput): Promise<UserMergePreflight> {
+  await lockGameplayIdentityWriteInTx(tx);
   const locked = await tx.select({ id: users.id }).from(users).where(inArray(users.id, [input.canonicalUserId, input.mergedUserId].sort())).orderBy(users.id).for("update");
   if (locked.length !== 2) throw new AppError(ErrorCode.NOT_FOUND, "归并候选账号不存在。");
   const preflight = await buildUserMergePreflight(tx, {

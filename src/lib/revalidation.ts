@@ -30,10 +30,16 @@ const seasonPages = {
 
 type SeasonPage = keyof typeof seasonPages;
 type RevalidationMode = "action" | "route";
+type StatisticsRevalidationOptions = { statistics?: boolean };
+type RevalidationOptions = StatisticsRevalidationOptions & { mode?: RevalidationMode };
 
 /** Server Action semantics: invalidate immediately for read-your-own-writes. */
-export function updatePublicSeasonTags(slug: string, seasonId?: string): void {
-  updatePublicStatsTag();
+export function updatePublicSeasonTags(
+  slug: string,
+  seasonId?: string,
+  options: StatisticsRevalidationOptions = {},
+): void {
+  if (options.statistics !== false) updatePublicStatsTag();
   updateTag(PUBLIC_SEASON_CATALOG_TAG);
   updateTag(publicSeasonTag(slug));
   updatePublicHomeTag();
@@ -45,8 +51,12 @@ export function updatePublicSeasonTags(slug: string, seasonId?: string): void {
 }
 
 /** Route Handler/webhook semantics: stale-while-revalidate the public tags. */
-export function revalidatePublicSeasonTags(slug: string, seasonId?: string): void {
-  revalidatePublicStatsTag();
+export function revalidatePublicSeasonTags(
+  slug: string,
+  seasonId?: string,
+  options: StatisticsRevalidationOptions = {},
+): void {
+  if (options.statistics !== false) revalidatePublicStatsTag();
   revalidateTag(PUBLIC_SEASON_CATALOG_TAG, "max");
   revalidateTag(publicSeasonTag(slug), "max");
   revalidateTag(PUBLIC_HOME_TAG, "max");
@@ -93,12 +103,12 @@ export function revalidatePublicStatsTag(): void {
 export function revalidateSeasonPaths(
   slug: string,
   pages: SeasonPage[],
-  options: { mode?: RevalidationMode } = {},
+  options: RevalidationOptions = {},
 ) {
   if (options.mode === "route") {
-    revalidatePublicSeasonTags(slug);
+    revalidatePublicSeasonTags(slug, undefined, options);
   } else {
-    updatePublicSeasonTags(slug);
+    updatePublicSeasonTags(slug, undefined, options);
   }
   for (const page of pages) {
     revalidatePath(seasonPages[page](slug));
@@ -108,7 +118,7 @@ export function revalidateSeasonPaths(
 export function revalidateMatchPaths(
   slug: string,
   matchId: string,
-  options: { mode?: RevalidationMode } = {},
+  options: RevalidationOptions = {},
 ) {
   revalidateSeasonPaths(slug, ["matches", "adminMatches"], options);
   revalidatePath(`/admin/${slug}/matches/${matchId}`);

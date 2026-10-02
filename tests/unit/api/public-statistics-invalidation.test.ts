@@ -51,10 +51,15 @@ describe("machine writes refresh public statistics after commit", () => {
     expect(mocks.submit.mock.invocationCallOrder[0]).toBeLessThan(mocks.stats.mock.invocationCallOrder[0]!);
   });
 
-  it("does not invalidate for rejected or unconfirmed submissions", async () => {
+  it("invalidates committed pending evidence that can supersede a confirmed lineage", async () => {
     mocks.submit.mockResolvedValue({ status: "needs_attention", importId: "import" });
-    await submitEvidence(new Request("http://localhost/api/integrations/dak/evidence", { method: "POST", body: "{}" }));
-    expect(mocks.stats).not.toHaveBeenCalled();
+    const response = await submitEvidence(new Request("http://localhost/api/integrations/dak/evidence", { method: "POST", body: "{}" }));
+    expect(response.status).toBe(200);
+    expect(mocks.stats).toHaveBeenCalledOnce();
+    expect(mocks.submit.mock.invocationCallOrder[0]).toBeLessThan(mocks.stats.mock.invocationCallOrder[0]!);
+  });
+
+  it("does not invalidate when evidence submission fails before commit", async () => {
     mocks.submit.mockRejectedValue(new Error("not committed"));
     const response = await submitEvidence(new Request("http://localhost/api/integrations/dak/evidence", { method: "POST", body: "{}" }));
     expect(response.status).toBe(500);
