@@ -76,7 +76,7 @@ describe("fetchAuditLogs", () => {
       expect(result.data.logs[0]).toMatchObject({
         actionLabel: "删除比赛",
         targetTypeLabel: "比赛",
-        targetLabel: "已删除 / 历史目标 · deleted-",
+        targetLabel: "已删除 / 历史目标",
       });
     }
   });

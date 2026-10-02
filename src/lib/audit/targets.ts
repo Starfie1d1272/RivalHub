@@ -40,11 +40,12 @@ import {
   userGameplaySteamIds,
 } from "@/db/schema";
 import { getDisplayName } from "@/lib/identity/display-name";
+import { mapLabel } from "@/lib/maps";
 import {
   AUDIT_EVENT_REGISTRY,
   getAuditTargetFallbackLabel,
   getAuditTargetTypeLabel,
-  type AuditAction,
+  type AuditReadAction,
   type AuditTargetLifecycle,
 } from "@/lib/audit/presentation";
 
@@ -82,8 +83,10 @@ export function auditTargetKey(targetType: string, targetId: string): string {
 export function normalizeAuditTarget(ref: AuditTargetRef): NormalizedAuditTargetRef {
   const storedType = ref.targetType?.trim() || null;
   const storedId = ref.targetId?.trim() || null;
-  const definition = ref.action ? AUDIT_EVENT_REGISTRY[ref.action as AuditAction] : undefined;
-  if (!definition) return { targetType: storedType, targetId: storedId, lifecycle: "stable" };
+  const definition = ref.action && Object.hasOwn(AUDIT_EVENT_REGISTRY, ref.action)
+    ? AUDIT_EVENT_REGISTRY[ref.action as AuditReadAction] : undefined;
+  // Retired producers may have used several target shapes; preserve the fact.
+  if (!definition || definition.legacy) return { targetType: storedType, targetId: storedId, lifecycle: "stable" };
 
   const targetType = definition.target.type;
   let targetId = storedId;
@@ -206,8 +209,7 @@ export async function resolveAuditTargets(
   const targetGroups = new Map([...targetIdSets].map(([type, ids]) => [type, [...ids]]));
   const result: Record<string, AuditTargetPresentation> = {};
 
-  // Seed the result with a human-readable category and a weak short-ID
-  // fallback. A deleted target therefore never becomes raw type:uuid text.
+  // Missing targets retain a human fallback without exposing internal IDs.
   for (const ref of normalizedRefs) {
     if (!ref.targetType || !ref.targetId) continue;
     const { targetType, targetId } = ref;
@@ -317,7 +319,7 @@ export async function resolveAuditTargets(
     const labels = await resolveMatchLabels(executor, [...new Set(rows.map((row) => row.matchId))]);
     for (const row of rows) {
       const order = Number.isFinite(row.mapOrder) ? `第 ${row.mapOrder} 图 · ` : "";
-      setTarget(result, "match_map", row.id, `${order}${compactLabel(row.mapName)} · ${labels.get(row.matchId) ?? "比赛"}`);
+      setTarget(result, "match_map", row.id, `${order}${compactLabel(mapLabel(row.mapName))} · ${labels.get(row.matchId) ?? "比赛"}`);
     }
   }
 
@@ -338,7 +340,7 @@ export async function resolveAuditTargets(
     for (const row of rows) {
       const map = mapById.get(row.matchMapId);
       if (!map) continue;
-      setTarget(result, "match_demo_import", row.id, `Demo 数据 · 第 ${map.mapOrder} 图 · ${compactLabel(map.mapName)} · ${labels.get(map.matchId) ?? "比赛"}`);
+      setTarget(result, "match_demo_import", row.id, `${labels.get(map.matchId) ?? "比赛"} · 第 ${map.mapOrder} 图 ${compactLabel(mapLabel(map.mapName))}`);
     }
   }
 

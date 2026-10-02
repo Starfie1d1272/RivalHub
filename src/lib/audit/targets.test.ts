@@ -130,7 +130,7 @@ describe("audit target resolver", () => {
     expect(selectedTables.filter((table) => table === users)).toHaveLength(1);
   });
 
-  it("keeps deleted targets human-readable with a weak short-ID fallback", async () => {
+  it("keeps deleted targets human-readable without a raw identifier", async () => {
     const { executor } = fakeExecutor(new Map());
     const result = await resolveAuditTargets([{ targetType: "education_verification", targetId: "deleted-123456" }], executor);
     const target = result[auditTargetKey("education_verification", "deleted-123456")];
@@ -138,6 +138,15 @@ describe("audit target resolver", () => {
     expect(target).toMatchObject({ typeLabel: "教育认证", found: false });
     expect(target.label).toContain("记录未找到");
     expect(target.label).not.toContain("education_verification:");
+    expect(target.label).not.toContain("deleted-");
+  });
+
+  it("preserves stored legacy target types and safely handles missing Demo imports", async () => {
+    expect(normalizeAuditTarget({ action: "match.import_demo", targetType: "match_map", targetId: "map-1" }))
+      .toEqual({ targetType: "match_map", targetId: "map-1", lifecycle: "stable" });
+    const { executor } = fakeExecutor(new Map());
+    const targets = await resolveAuditTargets([{ action: "match.demo.needs_attention", targetType: "match_demo_import", targetId: "private-import-id" }], executor);
+    expect(targets[auditTargetKey("match_demo_import", "private-import-id")]).toEqual({ typeLabel: "Demo 数据", label: "记录未找到", found: false });
   });
 
   it("projects legacy recruitment interest removals onto their stable intent", async () => {
@@ -205,7 +214,7 @@ describe("audit target resolver", () => {
 
     expect(result[auditTargetKey("match_demo_import", demoId)]).toMatchObject({
       typeLabel: "Demo 数据",
-      label: "Demo 数据 · 第 2 图 · de_ancient · Alpha vs Beta",
+      label: "Alpha vs Beta · 第 2 图 Ancient",
       found: true,
     });
     expect(result[auditTargetKey("user_gameplay_steam_id", identityId)]).toMatchObject({
