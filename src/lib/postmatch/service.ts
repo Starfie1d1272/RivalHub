@@ -2,6 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { writeAuditInTx } from "@/lib/audit/write";
 
 import type { TxDb } from "@/db/client";
+import type { Match } from "@/db/schema";
 import { matchCommentators, matches, postMatchReports, seasonAdminGrants } from "@/db/schema";
 import { AppError, ErrorCode } from "@/lib/errors";
 
@@ -21,16 +22,29 @@ async function assertSeasonAdminInTx(tx: TxDb, seasonId: string, userId: string,
 async function assertRosterEditableInTx(tx: TxDb, matchId: string) {
   if (await lockSubmissionInTx(tx, matchId)) throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "赛后资料已提交；请先撤销提交后再修改解说名单。");
 }
-export async function addMatchCommentatorInTx(tx: TxDb, args: { matchId: string; userId: string; actorId: string }) {
-  const match = await lockMatchInTx(tx, args.matchId);
+async function addCommentatorToLockedMatchInTx(tx: TxDb, match: Match, args: { userId: string; actorId: string }) {
   await assertRosterEditableInTx(tx, match.id);
   if (match.status === "cancelled") throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "已取消比赛不能登记解说。");
   await assertSeasonAdminInTx(tx, match.seasonId, args.userId);
   const current = await tx.select({ userId: matchCommentators.userId }).from(matchCommentators).where(eq(matchCommentators.matchId, match.id));
-  if (current.length >= 2 && !current.some((row) => row.userId === args.userId)) throw new AppError(ErrorCode.VALIDATION_FAILED, "每场最多登记 2 名实际解说。");
+  // The DB's BEFORE INSERT capacity trigger also runs before ON CONFLICT.
+  // A repeated claim must therefore stop here, including when both slots are full.
+  if (current.some((row) => row.userId === args.userId)) return { seasonId: match.seasonId, added: false };
+  if (current.length >= 2) throw new AppError(ErrorCode.VALIDATION_FAILED, "每场最多登记 2 名实际解说。");
   const [created] = await tx.insert(matchCommentators).values({ matchId: match.id, userId: args.userId, addedByUserId: args.actorId }).onConflictDoNothing().returning({ matchId: matchCommentators.matchId });
   if (created) await writeAuditInTx(tx, { seasonId: match.seasonId, action: "postmatch.commentator.add", actorId: args.actorId, targetId: match.id,meta: { commentatorUserId: args.userId } });
   return { seasonId: match.seasonId, added: Boolean(created) };
+}
+export async function addMatchCommentatorInTx(tx: TxDb, args: { matchId: string; userId: string; actorId: string }) {
+  return addCommentatorToLockedMatchInTx(tx, await lockMatchInTx(tx, args.matchId), args);
+}
+/** Self-service assignment keeps the same roster, capacity and audit owner. */
+export async function claimMatchCommentaryInTx(tx: TxDb, args: { matchId: string; userId: string }) {
+  const match = await lockMatchInTx(tx, args.matchId);
+  if (match.status !== "scheduled" && match.status !== "in_progress") {
+    throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "只有待开赛或进行中的比赛可以认领。");
+  }
+  return addCommentatorToLockedMatchInTx(tx, match, { userId: args.userId, actorId: args.userId });
 }
 export async function removeMatchCommentatorInTx(tx: TxDb, args: { matchId: string; userId: string; actorId: string }) {
   const match = await lockMatchInTx(tx, args.matchId);

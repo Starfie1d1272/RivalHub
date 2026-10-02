@@ -14,6 +14,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { loadAdminMatchOverview } from "@/lib/admin/matches/overview";
 import { presentMatchLabel } from "@/lib/matches/presentation";
 import { presentSeasonStatus } from "@/lib/seasons/presentation";
+import { loadAdminMatchCommentary } from "@/lib/admin/matches/commentary";
+import { MatchCommentaryQueue } from "@/components/matches/MatchCommentaryQueue";
 
 interface AdminMatchesPageProps {
   params: Promise<{ seasonSlug: string }>;
@@ -25,6 +27,7 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
   const filters = await searchParams;
   const data = await loadAdminMatchOverview({ seasonSlug, ...filters });
   if (!data) notFound();
+  const commentary = await loadAdminMatchCommentary(data.season.id);
 
   const matchCount = data.matches.length;
   const teamNameById = new Map(data.teams.map((team) => [team.id, team.name]));
@@ -52,6 +55,8 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
           </>
         )}
       />
+
+      <MatchCommentaryQueue data={commentary} seasonSlug={seasonSlug} />
 
       {matchCount > 0 && (
         <AdminMatchFilter
@@ -165,6 +170,7 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
                           teamBName={teamNameById.get(match.entryBId) ?? (isPlayoff ? "待定" : "未知队伍")}
                           seasonSlug={seasonSlug}
                           stageName={stage.name}
+                          commentary={commentary.byMatchId[match.id]}
                         />
                       ))}
                     </div>

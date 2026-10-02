@@ -30,6 +30,8 @@ import { selectCurrentDemoImport } from "@/lib/demo-integration/read";
 import { loadAdminDemoReview } from "./demo-review";
 import type { AdminDemoReviewMap, AdminMatchWorkbenchData, RosterData, TeamMemberData } from "@/lib/admin/matches/types";
 import { mapCompletedMaps, mapFinishedMaps, mapPendingMaps } from "@/lib/admin/matches/shared";
+import { loadOperatorContext } from "./operator-context";
+import { readAdminMatchCommentary } from "./commentary";
 
 interface AdminMatchWorkbenchInput {
   seasonSlug: string;
@@ -104,7 +106,7 @@ export async function loadAdminMatchWorkbench({
     where: and(eq(matches.id, matchId), eq(matches.seasonId, season.id)),
   });
   if (!match || match.seasonId !== season.id) return null;
-  await requireSeasonAdmin(season.id);
+  const admin = await requireSeasonAdmin(season.id);
 
   const entryIds = [match.entryAId, match.entryBId];
   const entries = await db.query.competitionEntries.findMany({
@@ -271,12 +273,22 @@ export async function loadAdminMatchWorkbench({
         canSubmit: match.status === "finished",
       };
 
+  const stage = stagePlan.find((stage) => stage.key === match.stage);
+  const teamAName = entryName.get(match.entryAId) ?? "未知队伍";
+  const teamBName = entryName.get(match.entryBId) ?? "未知队伍";
+  const [operator, commentary] = await Promise.all([
+    loadOperatorContext({ match, maps: mapRecords, imports: demoImportRows, roster: effectiveRosterRows,
+      seasonName: season.name, stageName: stage?.name ?? null, isSwiss: stage?.type === "swiss",
+      teamAName, teamBName, vetoComplete: Boolean(vetoSession?.completedAt) }),
+    readAdminMatchCommentary(db, { seasonId: season.id, currentUserId: admin.userId, excludeMatchId: match.id }),
+  ]);
+
   return {
     season: { id: season.id, slug: season.slug, name: season.name },
-    stageName: stagePlan.find((stage) => stage.key === match.stage)?.name ?? null,
+    stageName: stage?.name ?? null,
     match,
-    teamAName: entryName.get(match.entryAId) ?? "未知队伍",
-    teamBName: entryName.get(match.entryBId) ?? "未知队伍",
+    teamAName,
+    teamBName,
     mapPool: normalizeRegistrationConfig(season.registrationConfig).mapPool,
     teamAMembers: membersByEntry.get(match.entryAId) ?? [],
     teamBMembers: membersByEntry.get(match.entryBId) ?? [],
@@ -290,5 +302,7 @@ export async function loadAdminMatchWorkbench({
     vetoCompletedAt: vetoSession?.completedAt ?? null,
     postMatch,
     demoReviews,
+    operator,
+    commentary,
   };
 }

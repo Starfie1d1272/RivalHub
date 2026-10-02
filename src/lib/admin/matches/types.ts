@@ -4,6 +4,8 @@ import type { TeamStanding } from "@/lib/standings";
 import type { StageConfig, StagePlan } from "@/types/season";
 import type { SwissStageReadModel } from "@/lib/matches/stage-read-model";
 import type { CompetitionQualificationRun } from "@/db/schema";
+import type { OperatorWorkflow, PerfectRoomGuideData } from "./operator-workflow";
+import type { AdminMatchCommentaryData } from "./commentary";
 
 export interface TeamMemberData {
   id: string;
@@ -163,6 +165,8 @@ export interface AdminMatchWorkbenchData {
   vetoCompletedAt: Date | null;
   postMatch: AdminPostMatchRecordData | null;
   demoReviews?: AdminDemoReviewMap[];
+  operator: { workflow: OperatorWorkflow; roomGuide: PerfectRoomGuideData | null };
+  commentary: AdminMatchCommentaryData;
 }
 
 export type AdminMatchMapRecord = Pick<

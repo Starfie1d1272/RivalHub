@@ -6,6 +6,8 @@ import { Panel, StatusPill } from "@/components/rivalhub";
 import { MatchStatusBadge } from "@/components/matches/MatchStatusBadge";
 import type { AdminMatchSummary } from "@/lib/admin/matches/types";
 import { formatCSTDateTime } from "@/lib/utils/date";
+import type { AdminMatchCommentaryAssignment } from "@/lib/admin/matches/commentary";
+import { MatchCommentaryStatus } from "./MatchCommentaryQueue";
 
 export interface AdminMatchRowProps {
   match: AdminMatchSummary;
@@ -13,6 +15,7 @@ export interface AdminMatchRowProps {
   teamBName: string;
   seasonSlug: string;
   stageName?: string | null;
+  commentary?: AdminMatchCommentaryAssignment;
 }
 
 /**
@@ -25,6 +28,7 @@ export function AdminMatchRow({
   teamBName,
   seasonSlug,
   stageName,
+  commentary,
 }: AdminMatchRowProps) {
   return (
     <Panel
@@ -72,6 +76,8 @@ export function AdminMatchRow({
           </span>
         )}
       </div>
+
+      {commentary && <MatchCommentaryStatus matchId={match.id} assignment={commentary} />}
 
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--color-border)] pt-3">
         <p className="text-xs text-[var(--color-fg-mid)]">

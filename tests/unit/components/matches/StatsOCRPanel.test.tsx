@@ -4,6 +4,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { StatsOCRPanel } from "@/components/matches/StatsOCRPanel";
 
 const actions = vi.hoisted(() => ({ getPlayerStatsByMap: vi.fn(), getMatchPlayerOptions: vi.fn(), savePlayerStats: vi.fn(), deletePlayerStatsByMap: vi.fn(), extractStatsFromScreenshot: vi.fn() }));
+const refresh = vi.hoisted(() => vi.fn());
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh }) }));
 vi.mock("@/actions/player-stats", () => actions);
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
@@ -32,5 +34,21 @@ describe("operator scoreboard editing", () => {
     fireEvent.click(await screen.findByRole("button", { name: "重新录入" }));
     await waitFor(() => expect(screen.getByLabelText("Demo Player K")).toBeEnabled());
     expect(screen.getByRole("combobox")).toBeEnabled();
+  });
+
+  it("refreshes the parent task after saving platform fields", async () => {
+    actions.savePlayerStats.mockResolvedValue({ success: true });
+    render(<StatsOCRPanel mapId="map" mapName="Nuke" />);
+    fireEvent.click(await screen.findByRole("button", { name: "重新录入" }));
+    fireEvent.click(await screen.findByRole("button", { name: /保存/ }));
+    await waitFor(() => expect(refresh).toHaveBeenCalledOnce());
+  });
+
+  it("refreshes the parent task after clearing platform fields", async () => {
+    actions.deletePlayerStatsByMap.mockResolvedValue({ success: true });
+    render(<StatsOCRPanel mapId="map" mapName="Nuke" />);
+    fireEvent.click(await screen.findByRole("button", { name: /清除/ }));
+    fireEvent.click(await screen.findByRole("button", { name: "确认" }));
+    await waitFor(() => expect(refresh).toHaveBeenCalledOnce());
   });
 });

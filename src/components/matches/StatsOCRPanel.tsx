@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useMemo, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -75,6 +76,7 @@ const NUM_FIELDS = [
 type NumFieldKey = typeof NUM_FIELDS[number]["key"];
 
 export function StatsOCRPanel({ mapId, mapName }: Props) {
+  const router = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);
   const [drafts, setDrafts] = useState<DraftRow[]>([]);
   const [canonicalDrafts, setCanonicalDrafts] = useState<DraftRow[]>([]);
@@ -200,6 +202,7 @@ export function StatsOCRPanel({ mapId, mapName }: Props) {
     setCanonicalDrafts(saved);
     setDrafts(saved);
     setViewMode(true);
+    router.refresh();
   }
 
   const assignedUserIdsByRow = useMemo(
@@ -244,6 +247,7 @@ export function StatsOCRPanel({ mapId, mapName }: Props) {
       setViewMode(saved.length > 0);
       setShowClearConfirm(false);
       toast.success("计分板输入已清除");
+      router.refresh();
     }
   }
 
