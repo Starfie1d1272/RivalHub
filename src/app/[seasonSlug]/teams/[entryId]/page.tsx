@@ -30,7 +30,7 @@ export default async function CompetitionEntryDetailPage({ params }: { params: P
   ]);
   return (
     <PageLayout as="div" variant="standard" className="space-y-8">
-      <TeamPublicProfile team={team} event={event} mapProfile={performanceModel.mapProfile} performance={performanceModel.performance} results={results} />
+      <TeamPublicProfile team={team} event={event} mapProfile={performanceModel.mapProfile} performance={performanceModel.performance} results={results} statsUnavailable={performanceModel.statsUnavailable} />
     </PageLayout>
   );
 }

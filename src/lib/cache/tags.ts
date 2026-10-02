@@ -2,6 +2,8 @@
 export const PUBLIC_SEASON_CATALOG_TAG = "public-season-catalog";
 export const PUBLIC_ANNOUNCEMENTS_TAG = "public-announcements";
 export const PUBLIC_HOME_TAG = "public-home";
+/** All public statistical projections share a corpus, including career and benchmark reads. */
+export const PUBLIC_STATS_TAG = "public-stats:v1";
 
 export function publicAnnouncementsSeasonTag(seasonId: string): string {
   return `${PUBLIC_ANNOUNCEMENTS_TAG}:season:${seasonId}`;

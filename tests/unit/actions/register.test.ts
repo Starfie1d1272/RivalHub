@@ -94,6 +94,7 @@ vi.mock("@/lib/utils/object", () => ({
   compactUndefined: (obj: Record<string, unknown>) => obj,
 }));
 
+vi.mock("@/lib/identity/write-lock", () => ({ lockGameplayIdentityWriteInTx: vi.fn().mockResolvedValue(undefined) }));
 vi.mock("@/lib/identity/gameplay-steam", () => ({
   assertSteam64Available: assertSteam64AvailableMock,
   changePrimarySteam64InTx: changePrimarySteam64InTxMock,

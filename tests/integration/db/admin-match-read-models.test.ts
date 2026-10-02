@@ -1,5 +1,5 @@
 import { getPublicTeamMapProfile } from "@/lib/teams/map-profile";
-import { getPublicPlayerMapExperience } from "@/lib/stats/public-query";
+import { getPublicPlayerMapExperienceContext } from "@/lib/stats/public-query";
 import { randomUUID } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 import { createLocalPool } from "./harness/database";
@@ -210,7 +210,7 @@ describe("admin match read models PostgreSQL integration", () => {
       expect(coldStart.own).toEqual([]);
       expect(coldStart.experience).toEqual(ownProfile.experience);
       await pool.query("UPDATE seasons SET status = 'draft' WHERE id = $1", [ids.seasonA]);
-      expect(await getPublicPlayerMapExperience([ids.playerA])).toEqual([]);
+      expect(await getPublicPlayerMapExperienceContext([ids.playerA])).toEqual({ experience: [], experiencedMemberIds: [] });
       expect((await getPublicTeamMapProfile([ids.entryA], [])).own).toEqual([]);
       await pool.query("UPDATE seasons SET status = 'playing' WHERE id = $1", [ids.seasonA]);
 

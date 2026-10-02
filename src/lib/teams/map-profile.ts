@@ -1,8 +1,8 @@
 import "server-only";
-import { and, eq, inArray, or, ne } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, or, ne } from "drizzle-orm";
 import { db } from "@/db/client";
 import { matchMaps, matches, seasons, steamProfiles, userMapPreferences, users } from "@/db/schema";
-import { getPublicPlayerMapExperience, getPublicPlayerMapExperienceCoverage } from "@/lib/stats/public-query";
+import { getPublicPlayerMapExperienceContext } from "@/lib/stats/public-query";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
 
 type PublicFinishedMatch = {
@@ -61,20 +61,13 @@ export function aggregatePublicTeamMapPreviews(
   return result;
 }
 
-/** Explicit entry identity owns W/L; current members contribute scouting context only. */
-export async function getPublicTeamMapProfile(entryIds: readonly string[], memberIds: readonly string[]) {
-  const ids = [...new Set(entryIds)];
-  const [played, experience, experienceMemberIds, preferences] = await Promise.all([
-    ids.length ? db.select({ id: matches.id, stage: matches.stage, entryAId: matches.entryAId, entryBId: matches.entryBId }).from(matches).innerJoin(seasons, eq(seasons.id, matches.seasonId)).where(and(eq(matches.status, "finished"), ne(seasons.status, "draft"), or(inArray(matches.entryAId, ids), inArray(matches.entryBId, ids)))) : [],
-    getPublicPlayerMapExperience(memberIds),
-    getPublicPlayerMapExperienceCoverage(memberIds),
-    memberIds.length ? db.select({ userId: users.id, displayName: users.displayName, perfectName: users.perfectName, personaName: steamProfiles.personaName, preferences: userMapPreferences.mapPreferences }).from(userMapPreferences).innerJoin(users, eq(users.id, userMapPreferences.userId)).leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64)).where(inArray(users.id, [...new Set(memberIds)])) : [],
-  ]);
-  const matchIds = played.map((match) => match.id);
-  const maps = matchIds.length
-    ? await db.select({ matchId: matchMaps.matchId, mapName: matchMaps.mapName, scoreA: matchMaps.scoreA, scoreB: matchMaps.scoreB }).from(matchMaps).where(inArray(matchMaps.matchId, matchIds))
-    : [];
-  const previews = aggregatePublicTeamMapPreviews(ids, played, maps);
+/** Combine linked event entries without treating current membership as history. */
+export function aggregatePublicTeamMapProfile(
+  entryIds: readonly string[],
+  played: readonly PublicFinishedMatch[],
+  maps: readonly PublicFinishedMap[],
+): PublicTeamMapPreview {
+  const previews = aggregatePublicTeamMapPreviews(entryIds, played, maps);
   const own = new Map<string, { mapName: string; wins: number; played: number }>();
   for (const preview of previews.values()) {
     for (const map of preview.own) {
@@ -83,13 +76,35 @@ export async function getPublicTeamMapProfile(entryIds: readonly string[], membe
     }
   }
   return {
-    playedStages: [...new Set(played.map((match) => match.stage))],
+    playedStages: [...new Set([...previews.values()].flatMap((preview) => preview.playedStages))],
     own: [...own.values()].sort((a, b) => b.played - a.played || a.mapName.localeCompare(b.mapName)),
-    experience,
+  };
+}
+
+/** Explicit entry identity owns W/L; current members contribute scouting context only. */
+export async function getPublicTeamMapProfile(
+  entryIds: readonly string[],
+  memberIds: readonly string[],
+  knownPreview?: PublicTeamMapPreview,
+) {
+  const ids = [...new Set(entryIds)];
+  const [played, experienceContext, preferences] = await Promise.all([
+    !knownPreview && ids.length ? db.select({ id: matches.id, stage: matches.stage, entryAId: matches.entryAId, entryBId: matches.entryBId }).from(matches).innerJoin(seasons, eq(seasons.id, matches.seasonId)).where(and(eq(matches.status, "finished"), ne(seasons.status, "draft"), or(inArray(matches.entryAId, ids), inArray(matches.entryBId, ids)))) : [],
+    getPublicPlayerMapExperienceContext(memberIds),
+    memberIds.length ? db.select({ userId: users.id, displayName: users.displayName, perfectName: users.perfectName, personaName: steamProfiles.personaName, preferences: userMapPreferences.mapPreferences }).from(userMapPreferences).innerJoin(users, eq(users.id, userMapPreferences.userId)).leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64)).where(inArray(users.id, [...new Set(memberIds)])) : [],
+  ]);
+  const matchIds = played.map((match) => match.id);
+  const maps = matchIds.length
+    ? await db.select({ matchId: matchMaps.matchId, mapName: matchMaps.mapName, scoreA: matchMaps.scoreA, scoreB: matchMaps.scoreB }).from(matchMaps).where(and(inArray(matchMaps.matchId, matchIds), isNotNull(matchMaps.completedAt)))
+    : [];
+  const preview = knownPreview ?? aggregatePublicTeamMapProfile(ids, played, maps);
+  return {
+    ...preview,
+    experience: experienceContext.experience,
     experienceCoverage: {
       rosterMembers: [...new Set(memberIds)].length,
-      experiencedMembers: experienceMemberIds.length,
-      experiencedMemberIds: experienceMemberIds,
+      experiencedMembers: experienceContext.experiencedMemberIds.length,
+      experiencedMemberIds: experienceContext.experiencedMemberIds,
     },
     preferences: preferences.map((row) => ({ userId: row.userId, name: getPublicDisplayName(row), preferences: row.preferences })),
   };
@@ -122,7 +137,7 @@ export async function getBatchPublicTeamMapPreviews(
 
   const matchIds = [...new Set(played.map((m) => m.id))];
   const maps = matchIds.length > 0
-    ? await db.select({ matchId: matchMaps.matchId, mapName: matchMaps.mapName, scoreA: matchMaps.scoreA, scoreB: matchMaps.scoreB }).from(matchMaps).where(inArray(matchMaps.matchId, matchIds))
+    ? await db.select({ matchId: matchMaps.matchId, mapName: matchMaps.mapName, scoreA: matchMaps.scoreA, scoreB: matchMaps.scoreB }).from(matchMaps).where(and(inArray(matchMaps.matchId, matchIds), isNotNull(matchMaps.completedAt)))
     : [];
   return aggregatePublicTeamMapPreviews(ids, played, maps);
 }

@@ -63,6 +63,11 @@ describe("preview mirror membership projection", () => {
       for (const row of catalog.rows) inventory.set(row.table_name, [...(inventory.get(row.table_name) ?? []), row.column_name]);
       for (const [table, columns] of inventory) assertReviewedColumns(table, columns);
 
+      const projectionColumns = inventory.get("match_demo_stat_projections");
+      expect(projectionColumns).toEqual(PREVIEW_COLUMNS.match_demo_stat_projections.split(" "));
+      const projected = await latest.query(`${exportQuery("match_demo_stat_projections")} LIMIT 0`);
+      expect(projected.fields.map((field) => field.name)).toEqual(projectionColumns);
+
       const users = inventory.get("users") ?? [];
       expect(users).not.toEqual(expect.arrayContaining(["steam_name", "steam_profile_url", "avatar_url"]));
       expect(inventory.has("steam_profiles")).toBe(true);

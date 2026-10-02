@@ -24,7 +24,7 @@ const uuid = z.guid();
 const steam64 = z.string().regex(/^\d{17}$/, "Steam64 ID 格式无效。");
 
 async function loadImportContext(importId: string) {
-  const row = await db.query.matchDemoImports.findFirst({ where: eq(matchDemoImports.id, importId) });
+  const row = await db.query.matchDemoImports.findFirst({ where: eq(matchDemoImports.id, importId), columns: { id: true, seasonId: true, matchId: true } });
   if (!row) throw new AppError(ErrorCode.NOT_FOUND, "待处理的 Demo 数据不存在。");
   const season = await db.query.seasons.findFirst({ where: eq(seasons.id, row.seasonId), columns: { id: true, slug: true } });
   if (!season) throw new AppError(ErrorCode.NOT_FOUND, "Demo 对应的赛季不存在。");
@@ -150,7 +150,7 @@ export async function retireGameplaySteamIdentity(
   try {
     const identity = await db.query.userGameplaySteamIds.findFirst({ where: eq(userGameplaySteamIds.id, parsed.data.identityId) });
     if (!identity?.sourceImportId) return failValidation("只能撤销由比赛确认产生的 Steam 身份。");
-    const source = await db.query.matchDemoImports.findFirst({ where: eq(matchDemoImports.id, identity.sourceImportId) });
+    const source = await db.query.matchDemoImports.findFirst({ where: eq(matchDemoImports.id, identity.sourceImportId), columns: { seasonId: true, matchId: true } });
     if (!source) return failValidation("该 Steam 身份的来源 Demo 不存在。");
     const season = await db.query.seasons.findFirst({ where: eq(seasons.id, source.seasonId), columns: { id: true, slug: true } });
     if (!season) return failValidation("该 Steam 身份的来源赛季不存在。");

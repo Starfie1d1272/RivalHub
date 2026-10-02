@@ -25,6 +25,7 @@ export interface ReleasePlan {
   requiresMigrationRehearsal: boolean;
   requiresProductionMigration: boolean;
   requiresSteamProfileBackfill: boolean;
+  requiresStatsProjectionBackfill: boolean;
   requiresDbCheckpoint: boolean;
   requiresFullCheckpoint: boolean;
   requiresSchedulerProvision: boolean;
@@ -91,6 +92,11 @@ export function buildReleasePlan(options: BuildReleasePlanOptions = {}): Release
     const text = migrationText(cwd, releaseSha, path, options.migrationContents);
     return text !== undefined && /CREATE TABLE\s+"steam_profiles"/i.test(text);
   });
+  const requiresStatsProjectionBackfill = changedPaths.includes("src/lib/stats/projection-version.ts")
+    || migrationPaths.some((path) => {
+      const text = migrationText(cwd, releaseSha, path, options.migrationContents);
+      return text !== undefined && /CREATE TABLE\s+"match_demo_stat_projections"/i.test(text);
+    });
   const storageMutationChanged = readReleaseTimeStorageMutationCapability(cwd, releaseSha);
   const schedulerChanged = changedPaths.some(isReleaseSchedulerPath)
     || migrationPaths.some((path) => {
@@ -119,8 +125,9 @@ export function buildReleasePlan(options: BuildReleasePlanOptions = {}): Release
     recoveryInfraChanged,
     releaseInfraChanged,
     requiresMigrationRehearsal: migrationChanged,
-    requiresProductionMigration: migrationChanged,
+    requiresProductionMigration: migrationChanged || requiresStatsProjectionBackfill,
     requiresSteamProfileBackfill,
+    requiresStatsProjectionBackfill,
     requiresDbCheckpoint: migrationRisk === "irreversible",
     requiresFullCheckpoint: storageMutationChanged,
     requiresSchedulerProvision: schedulerChanged,

@@ -35,7 +35,7 @@ vi.mock("@/db/client", () => ({
   },
 }));
 
-vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
+vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock, updateTag: vi.fn() }));
 vi.mock("@/lib/auth/supabase-server", () => ({ createServiceClient: vi.fn() }));
 vi.mock("@/lib/teams/invitations", () => ({ acceptTeamInvitationInTx: vi.fn() }));
 vi.mock("@/lib/teams/commands", () => ({

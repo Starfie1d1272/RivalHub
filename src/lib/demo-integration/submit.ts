@@ -9,6 +9,7 @@ import { AppError, ErrorCode } from "@/lib/errors";
 import { parseRivalHubDemoEvidenceV1 } from "@/lib/demo-evidence/contract";
 import type { IntegrationIssue, EvidenceSubmissionResponse, RivalHubEvidenceSubmission } from "./contracts";
 import { pairingCanReadSeason } from "./pairing";
+import { demoImportMetadataSelection, type DemoImportMetadata } from "./metadata";
 import { DEMO_CONTENT_CONFLICT_MESSAGE, isSameDemoImportContent, lockDemoImportLineageInTx, promoteDemoImportInTx, resolveDemoImportLineageInTx } from "./promotion";
 import { buildEvidenceRevisionForTarget, sha256Json } from "./revision";
 import { integrationIssue, loadCanonicalTarget, validateCanonicalTarget } from "./validation";
@@ -24,7 +25,7 @@ export interface SubmitEvidenceArgs {
   idempotencyKey?: string | null;
 }
 
-function statusOf(row: typeof matchDemoImports.$inferSelect): EvidenceSubmissionResponse["status"] {
+function statusOf(row: DemoImportMetadata): EvidenceSubmissionResponse["status"] {
   return row.status === "confirmed" ? "synced" : "needs_attention";
 }
 
@@ -38,7 +39,7 @@ export function assertEvidenceSeasonInPairingScope(
 }
 
 function responseFor(
-  row: typeof matchDemoImports.$inferSelect,
+  row: DemoImportMetadata,
   issues: readonly IntegrationIssue[] = row.issues ?? [],
 ): EvidenceSubmissionResponse {
   return {
@@ -82,9 +83,9 @@ export async function submitRivalHubEvidence(args: SubmitEvidenceArgs): Promise<
 
   return db.transaction(async (tx) => {
     await lockDemoImportLineageInTx(tx, evidence.target.matchMapId);
-    let idempotent: typeof matchDemoImports.$inferSelect | undefined;
+    let idempotent: DemoImportMetadata | undefined;
     if (args.idempotencyKey) {
-      [idempotent] = await tx.select().from(matchDemoImports)
+      [idempotent] = await tx.select(demoImportMetadataSelection).from(matchDemoImports)
         .where(eq(matchDemoImports.idempotencyKey, args.idempotencyKey))
         .for("update");
       if (idempotent && !isSameDemoImportContent(idempotent, {
@@ -154,7 +155,7 @@ export async function submitRivalHubEvidence(args: SubmitEvidenceArgs): Promise<
       supersedesImportId: null,
       issues,
       confirmedAt: status === "confirmed" ? now : null,
-    }).returning();
+    }).returning(demoImportMetadataSelection);
     if (!created) throw new AppError(ErrorCode.INTERNAL_ERROR, "保存 Demo Evidence 失败。");
 
     if (status === "confirmed") {

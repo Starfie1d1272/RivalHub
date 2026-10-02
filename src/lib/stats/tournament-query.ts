@@ -1,10 +1,9 @@
 import "server-only";
 
 import { and, count, desc, eq, inArray, ne, or } from "drizzle-orm";
-import { buildTournamentAnalytics, buildTournamentPerformanceAnalytics } from "@cs2dak/tournament";
+import { buildTournamentAnalytics, buildTournamentPerformanceAnalyticsFromProjections as buildTournamentPerformanceAnalytics, remapTournamentPerformanceMapProjection, scopeTournamentPerformanceMapProjectionToTeam } from "@cs2dak/tournament";
 import { db, type DB, type TxDb } from "@/db/client";
-import { competitionEntries, eventRosterMembers, matchDemoImports, matchMaps, matchRosterPlayers, matchRosters, matches, matchVetoSteps, seasons, steamProfiles, users } from "@/db/schema";
-import { parseRivalHubDemoEvidenceV1 } from "@/lib/demo-evidence/contract";
+import { competitionEntries, eventRosterMembers, matchDemoImports, matchDemoStatProjections, matchPlayerStats, matchMaps, matchRosterPlayers, matchRosters, matches, matchVetoSteps, seasons, steamProfiles, users } from "@/db/schema";
 import { selectCurrentDemoImport } from "@/lib/demo-integration/read";
 import { buildEvidenceRevisionForTarget } from "@/lib/demo-integration/revision";
 import { resolveGameplayUsersBySteam64InTx } from "@/lib/identity/gameplay-steam";
@@ -13,7 +12,8 @@ import { publicCompetitionEntryCondition } from "@/lib/competition-entries/publi
 import { loadEffectiveMatchRoster, type EffectiveMatchRosterPlayer } from "@/lib/match-rosters/effective";
 import { getPublicPlayerRecord } from "@/lib/players/public-record";
 import { getStatsLeaderboard } from "./leaderboard-query";
-import { adaptStatsEvidence, type StatsPlayerBinding } from "./evidence-adapter";
+import { STATISTICS_PROJECTION_VERSION } from "./projection-version";
+import { recordStatsProjectionRead } from "@/lib/observability/statistics";
 import { buildTournamentResults } from "./results";
 import { buildTeamRatings } from "./team-rating";
 import { classifyVetoSample } from "./veto-sample";
@@ -31,7 +31,7 @@ export interface PlayerStatsEventOption {
 
 export type StatsLabels = { teams: Record<string, string>; players: Record<string, string> };
 
-async function loadStatsEvidence(tx: TxDb, scope: StatsEvidenceScope, options: { mapName?: string; teamId?: string; matchIds?: readonly string[] } = {}) {
+async function loadStatsContext(tx: TxDb, scope: StatsEvidenceScope, options: { mapName?: string; teamId?: string; matchIds?: readonly string[] } = {}) {
   const selectedMapRows = options.mapName && options.matchIds?.length !== 0
     ? await tx.select({ match: matches, map: matchMaps }).from(matchMaps).innerJoin(matches, eq(matches.id, matchMaps.matchId)).where(and(
       scope.seasonId ? eq(matches.seasonId, scope.seasonId) : undefined,
@@ -83,7 +83,7 @@ async function loadStatsEvidence(tx: TxDb, scope: StatsEvidenceScope, options: {
     rosterByMatchAndUser.set(member.matchId, membersByUser);
   }
 
-  type ImportMetadata = Pick<typeof matchDemoImports.$inferSelect, "id" | "matchMapId" | "semanticProfile" | "status" | "evidenceRevision" | "createdAt">;
+  type ImportMetadata = Pick<typeof matchDemoImports.$inferSelect, "id" | "matchMapId" | "semanticProfile" | "status" | "evidenceRevision" | "createdAt" | "payloadSha256" | "demoSha256" | "analysisVersion">;
   const imports = scopedMaps.length
     ? await tx.select({
       id: matchDemoImports.id,
@@ -91,6 +91,9 @@ async function loadStatsEvidence(tx: TxDb, scope: StatsEvidenceScope, options: {
       semanticProfile: matchDemoImports.semanticProfile,
       status: matchDemoImports.status,
       evidenceRevision: matchDemoImports.evidenceRevision,
+      payloadSha256: matchDemoImports.payloadSha256,
+      demoSha256: matchDemoImports.demoSha256,
+      analysisVersion: matchDemoImports.analysisVersion,
       createdAt: matchDemoImports.createdAt,
     }).from(matchDemoImports).where(inArray(matchDemoImports.matchMapId, scopedMaps.map((map) => map.id)))
       .orderBy(desc(matchDemoImports.createdAt), desc(matchDemoImports.id))
@@ -109,48 +112,82 @@ async function loadStatsEvidence(tx: TxDb, scope: StatsEvidenceScope, options: {
     if (current.evidenceRevision !== buildEvidenceRevisionForTarget({ match, map, roster: rosterByMatchId.get(match.id) ?? [] })) return [];
     return [{ current, match, map }];
   });
-  const currentImportIds = currentRefs.map(({ current }) => current.id);
-  const payloadRows = currentImportIds.length
-    ? await tx.select({ id: matchDemoImports.id, payload: matchDemoImports.payload }).from(matchDemoImports).where(inArray(matchDemoImports.id, currentImportIds))
-    : [];
-  const payloadByImportId = new Map(payloadRows.map((row) => [row.id, row.payload]));
-  const selected = currentRefs.map(({ current, match, map }) => {
-    const payload = payloadByImportId.get(current.id);
-    if (payload === undefined) throw new Error("Selected stats evidence payload unavailable");
-    const evidence = parseRivalHubDemoEvidenceV1(payload);
-    if (evidence.target.matchMapId !== map.id || evidence.target.matchId !== match.id || evidence.target.seasonId !== match.seasonId || evidence.contract.semanticProfile !== current.semanticProfile) throw new Error("Stats evidence target mismatch");
-    return { evidence, match, map, importId: current.id };
+  return { matches: scopedMatches, matchIds, entries, participantEntries, maps, scopedMaps, roster, rosterByMatchAndUser, currentRefs };
+}
+
+/** Select valid materialized bindings without transferring statistics or Evidence. */
+async function loadCurrentProjectionRefs(tx: TxDb, context: Awaited<ReturnType<typeof loadStatsContext>>) {
+  const ids = context.currentRefs.map(({ current }) => current.id);
+  const rows = ids.length ? await tx.select({
+    importId: matchDemoStatProjections.importId,
+    identityBindings: matchDemoStatProjections.identityBindings,
+    payloadSha256: matchDemoStatProjections.payloadSha256,
+    demoSha256: matchDemoStatProjections.demoSha256,
+    evidenceRevision: matchDemoStatProjections.evidenceRevision,
+    semanticProfile: matchDemoStatProjections.semanticProfile,
+    analysisVersion: matchDemoStatProjections.analysisVersion,
+  }).from(matchDemoStatProjections).where(and(
+    inArray(matchDemoStatProjections.importId, ids),
+    eq(matchDemoStatProjections.projectionVersion, STATISTICS_PROJECTION_VERSION),
+  )) : [];
+  const projections = new Map(rows.map((row) => [row.importId, row]));
+  const resolutions = await resolveGameplayUsersBySteam64InTx(tx, rows.flatMap((row) => row.identityBindings.map((binding) => binding.steam64)));
+  return context.currentRefs.flatMap(({ current, match, map }) => {
+    const projection = projections.get(current.id);
+    if (!projection || projection.payloadSha256 !== current.payloadSha256
+      || projection.demoSha256 !== current.demoSha256
+      || projection.evidenceRevision !== current.evidenceRevision
+      || projection.semanticProfile !== current.semanticProfile
+      || projection.analysisVersion !== current.analysisVersion) return [];
+    const roster = context.rosterByMatchAndUser.get(match.id);
+    // Identity retirement invalidates every dependent map, including other
+    // events. Missing/stale projections lower coverage, never trigger raw reads.
+    if (projection.identityBindings.length !== 10 || !projection.identityBindings.every((binding) =>
+      resolutions.get(binding.steam64)?.userId === binding.userId
+      && roster?.get(binding.userId)?.entryId === binding.entryId
+    )) return [];
+    return [{ current, match, map, projection }];
   });
-  const resolutions = await resolveGameplayUsersBySteam64InTx(tx, selected.flatMap(({ evidence }) => evidence.participants.map((participant) => participant.steamId64)));
-  const facts = selected.map(({ evidence, match, importId }) => {
-    const bindings = new Map<string, StatsPlayerBinding>();
-    for (const participant of evidence.participants) {
-      const resolution = resolutions.get(participant.steamId64);
-      if (!resolution) throw new Error("Stats evidence identity unavailable");
-      const member = rosterByMatchAndUser.get(match.id)?.get(resolution.userId);
-      if (!member) throw new Error("Stats evidence identity unavailable");
-      bindings.set(participant.steamId64, { userId: resolution.userId, entryId: member.entryId });
+}
+
+/** Lightweight canonical selection for public directory/scouting aggregates. */
+export async function getCurrentStatsSelectionInTx(tx: TxDb, scope: { seasonId?: string; userIds?: readonly string[] }) {
+  if (scope.userIds?.length === 0) return { currentImportIds: [], roster: [], matchIds: [] };
+  const candidates = await tx.selectDistinct({ id: matches.id }).from(matches)
+    .innerJoin(seasons, eq(seasons.id, matches.seasonId))
+    .innerJoin(matchPlayerStats, eq(matchPlayerStats.matchId, matches.id))
+    .where(and(eq(matches.status, "finished"), ne(seasons.status, "draft"),
+      scope.seasonId ? eq(matches.seasonId, scope.seasonId) : undefined,
+      scope.userIds ? inArray(matchPlayerStats.userId, [...scope.userIds]) : undefined));
+  const context = await loadStatsContext(tx, {}, { matchIds: candidates.map((row) => row.id) });
+  const refs = await loadCurrentProjectionRefs(tx, context);
+  return { currentImportIds: refs.map(({ current }) => current.id), roster: context.roster, matchIds: context.matchIds };
+}
+
+async function loadStatsEvidence(tx: TxDb, scope: StatsEvidenceScope, options: { mapName?: string; teamId?: string; matchIds?: readonly string[] } = {}) {
+  const context = await loadStatsContext(tx, scope, options);
+  const refs = await loadCurrentProjectionRefs(tx, context);
+  const importIds = refs.map(({ current }) => current.id);
+  const rows = importIds.length ? await tx.select({ importId: matchDemoStatProjections.importId, facts: matchDemoStatProjections.facts })
+    .from(matchDemoStatProjections).where(and(inArray(matchDemoStatProjections.importId, importIds), eq(matchDemoStatProjections.projectionVersion, STATISTICS_PROJECTION_VERSION))) : [];
+  recordStatsProjectionRead(rows, context.currentRefs.length - refs.length);
+  const factsByImport = new Map(rows.map((row) => [row.importId, row.facts]));
+  const selected = refs.map(({ current, map, match }) => {
+    const facts = factsByImport.get(current.id);
+    if (!facts || facts.tournament.mapKey !== map.id || facts.performance.mapKey !== map.id
+      || facts.tournament.matchKey !== match.id || facts.performance.matchKey !== match.id) {
+      throw new Error("Statistics projection target mismatch");
     }
-    return { importId, facts: adaptStatsEvidence(evidence, bindings) };
+    return { importId: current.id, facts };
   });
-  const userIds = [...new Set([...resolutions.values()].map((row) => row.userId))];
+  const userIds = [...new Set(refs.flatMap(({ projection }) => projection.identityBindings.map((binding) => binding.userId)))];
   const identities = userIds.length ? await tx.select({ id: users.id, displayName: users.displayName, perfectName: users.perfectName, personaName: steamProfiles.personaName })
     .from(users).leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64)).where(inArray(users.id, userIds)) : [];
   const labels: StatsLabels = {
-    teams: Object.fromEntries(entries.map((entry) => [entry.id, entry.name])),
+    teams: Object.fromEntries(context.entries.map((entry) => [entry.id, entry.name])),
     players: Object.fromEntries(identities.map((user) => [user.id, getPublicDisplayName(user)])),
   };
-  return {
-    matches: scopedMatches,
-    matchIds,
-    entries,
-    participantEntries,
-    maps,
-    scopedMaps,
-    roster,
-    selected: facts,
-    labels,
-  };
+  return { ...context, selected, labels };
 }
 
 async function loadPlayerAppearanceScope(
@@ -331,12 +368,7 @@ async function loadVetoData(tx: TxDb, scope: Pick<TournamentStatsScope, "seasonI
 type PerformanceEvidenceFacts = Awaited<ReturnType<typeof loadStatsEvidence>>["selected"][number]["facts"]["performance"];
 
 export function scopePerformanceFactsToTeam(facts: PerformanceEvidenceFacts, teamId: string): PerformanceEvidenceFacts {
-  return {
-    ...facts,
-    playerRounds: facts.playerRounds.filter((fact) => fact.teamEntityKey === teamId),
-    objectives: facts.objectives.filter((fact) => fact.teamEntityKey === teamId),
-    playerWeapons: facts.playerWeapons.filter((fact) => fact.teamEntityKey === teamId),
-  };
+  return scopeTournamentPerformanceMapProjectionToTeam(facts, teamId);
 }
 
 function performanceFactsForScope(
@@ -493,6 +525,12 @@ export async function getMatchPlayerDetail(matchId: string, playerId: string, ma
   }, { isolationLevel: "repeatable read", accessMode: "read only" });
 }
 
+/** Small canonical option set, reused to bound public career cache keys. */
+export async function getPlayerCareerFilterOptions(playerId: string, database: DB = db) {
+  return database.transaction(async (tx) => (await loadPlayerAppearanceScope(tx, playerId)).events,
+    { isolationLevel: "repeatable read", accessMode: "read only" });
+}
+
 export async function getPlayerCareerDetail(
   scope: { playerId: string; eventSlug?: string; mapFilter?: string },
   database: DB = db,
@@ -533,28 +571,10 @@ export function remapLinkedTeamFacts(
         },
         playerWeapons: row.facts.tournament.playerWeapons.map((fact) => ({ ...fact, teamEntityKey: remap(fact.teamEntityKey) })),
       },
-      performance: {
-        ...row.facts.performance,
-        teamEntityKeys: {
-          teamA: remap(row.facts.performance.teamEntityKeys.teamA),
-          teamB: remap(row.facts.performance.teamEntityKeys.teamB),
-        },
-        playerRounds: row.facts.performance.playerRounds.map((fact) => ({
-          ...fact,
-          playerEntityKey: projectPlayer(fact.playerEntityKey, fact.teamEntityKey),
-          teamEntityKey: remap(fact.teamEntityKey),
-        })),
-        objectives: row.facts.performance.objectives.map((fact) => ({
-          ...fact,
-          playerEntityKey: fact.playerEntityKey && fact.teamEntityKey ? projectPlayer(fact.playerEntityKey, fact.teamEntityKey) : fact.playerEntityKey,
-          teamEntityKey: fact.teamEntityKey ? remap(fact.teamEntityKey) : null,
-        })),
-        playerWeapons: row.facts.performance.playerWeapons.map((fact) => ({
-          ...fact,
-          playerEntityKey: projectPlayer(fact.playerEntityKey, fact.teamEntityKey),
-          teamEntityKey: remap(fact.teamEntityKey),
-        })),
-      },
+      performance: remapTournamentPerformanceMapProjection(row.facts.performance, {
+        teamEntityKey: remap,
+        playerEntityKey: projectPlayer,
+      }),
     },
   }));
 }
@@ -586,6 +606,16 @@ export function buildCompetitionEntryPerformanceProjection(
   return buildLongTeamPerformanceProjection(selected, new Set([teamId]), teamId, labels);
 }
 
+function officialTeamFacts(loaded: Awaited<ReturnType<typeof loadStatsContext>>) {
+  return {
+    matches: loaded.matches.map(({ id, stage, entryAId, entryBId, scoreA, scoreB, status, completedAt }) =>
+      ({ id, stage, entryAId, entryBId, scoreA, scoreB, status, completedAt })),
+    maps: loaded.scopedMaps.map(({ matchId, mapName, scoreA, scoreB, completedAt }) =>
+      ({ matchId, mapName, scoreA, scoreB, completedAt })),
+    entries: buildTournamentResults(loaded.matches, loaded.scopedMaps, loaded.entries).teams,
+  };
+}
+
 /**
  * Canonical all-time Team projection.
  *
@@ -612,6 +642,7 @@ export async function getLongTeamCareerDetail(teamId: string, database: DB = db)
     if (!linkedEntryIds.size) return {
       teamId,
       linkedEntries,
+      official: { matches: [], maps: [], entries: [] } as ReturnType<typeof officialTeamFacts>,
       results: { played: 0, wins: 0, losses: 0, maps: 0, mapWins: 0, mapLosses: 0 },
       analytics: null,
       economyMatrix: [],
@@ -698,6 +729,7 @@ export async function getLongTeamCareerDetail(teamId: string, database: DB = db)
     return {
       teamId,
       linkedEntries,
+      official: officialTeamFacts(loaded),
       results: { played, wins, losses, maps: mapWins + mapLosses, mapWins, mapLosses },
       analytics: teamAnalytics,
       economyMatrix: analytics.economyMatrix,
@@ -754,6 +786,7 @@ export async function getTournamentTeamDetail(scope: TournamentStatsScope & { te
     });
     return {
       teamId: scope.teamId,
+      official: officialTeamFacts(loaded),
       results: results.teams.find((row) => row.entryId === scope.teamId) ?? null,
       selection,
       analytics: teamAnalytics.get(scope.teamId) ?? null,

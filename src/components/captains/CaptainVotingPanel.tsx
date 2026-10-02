@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useTransition } from "react";
+import { useTransition } from "react";
+import { useRoutePolling } from "@/components/use-visible-polling";
 import { RefreshCw, Undo2, Vote } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -35,11 +36,7 @@ export function CaptainVotingPanel({
   const [isPending, startTransition] = useTransition();
   const isVotingOpen = seasonStatus === "voting";
 
-  useEffect(() => {
-    if (!isVotingOpen) return;
-    const timer = window.setInterval(() => router.refresh(), 10_000);
-    return () => window.clearInterval(timer);
-  }, [isVotingOpen, router]);
+  useRoutePolling(isVotingOpen ? 10_000 : null, isPending);
 
   // votes 已在服务端按当前用户过滤
   const votedCandidateIds = new Set(votes.map((vote) => vote.candidateRegistrationId));

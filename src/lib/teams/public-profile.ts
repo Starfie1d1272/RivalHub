@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, asc, eq, gt, inArray, ne, or } from "drizzle-orm";
+import { and, asc, eq, gt, inArray, isNull, ne, or } from "drizzle-orm";
 
 import { db } from "@/db/client";
 import {
@@ -110,11 +110,16 @@ export async function resolvePublicTeamProfileTarget(slug: string): Promise<Publ
   })) ?? null;
 }
 
-export async function getPublicTeamProfile(
+export type PublicTeamProfileCore = Omit<PublicTeamProfile, "currentUserMembership" | "viewerInterested" | "viewerInvited" | "loggedIn">;
+type TeamProfileViewerState = Pick<PublicTeamProfile, "currentUserMembership" | "viewerInterested" | "viewerInvited" | "loggedIn">;
+type PublicTeamOfficialMatch = Pick<typeof matches.$inferSelect, "entryAId" | "entryBId" | "scoreA" | "scoreB" | "completedAt">;
+
+/** Viewer-independent facts can be shared without caching private recruitment state. */
+export async function getPublicTeamProfileCore(
   teamId: string,
-  viewerUserId?: string | null,
   knownTeam?: PublicTeamIdentity,
-): Promise<PublicTeamProfile | null> {
+  knownMatches?: readonly PublicTeamOfficialMatch[],
+): Promise<PublicTeamProfileCore | null> {
   const team = knownTeam?.id === teamId
     ? knownTeam
     : await db.query.teams.findFirst({
@@ -146,7 +151,7 @@ export async function getPublicTeamProfile(
       .from(teamMemberships)
       .innerJoin(users, eq(users.id, teamMemberships.userId))
       .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
-      .where(eq(teamMemberships.teamId, team.id))
+      .where(and(eq(teamMemberships.teamId, team.id), isNull(teamMemberships.endedAt), ne(teamMemberships.status, "left")))
       .orderBy(asc(teamMemberships.startedAt)),
     db
       .select({
@@ -202,7 +207,7 @@ export async function getPublicTeamProfile(
       avatarUrl,
     }));
   const entryIds = entries.map((entry) => entry.id);
-  const played = entryIds.length
+  const played = knownMatches ?? (entryIds.length
     ? await db
       .select({ entryAId: matches.entryAId, entryBId: matches.entryBId, scoreA: matches.scoreA, scoreB: matches.scoreB, completedAt: matches.completedAt })
       .from(matches)
@@ -210,7 +215,7 @@ export async function getPublicTeamProfile(
         eq(matches.status, "finished"),
         or(inArray(matches.entryAId, entryIds), inArray(matches.entryBId, entryIds)),
       ))
-    : [];
+    : []);
   const completedAtByEntryId = new Map<string, Date>();
   for (const match of played) {
     if (!match.completedAt) continue;
@@ -229,6 +234,31 @@ export async function getPublicTeamProfile(
     const opponentScore = isA ? match.scoreB : match.scoreA;
     return ownScore !== null && opponentScore !== null && ownScore > opponentScore;
   }).length;
+
+  return {
+    team,
+    currentMembers,
+    entries: careerEntries,
+    nameChanges: names.filter((n) => n.oldName !== null),
+    captainChanges: captains
+      .filter((c) => c.fromUserId !== null)
+      .map((captain) => ({
+        id: captain.id,
+        name: getPublicDisplayName(captain),
+        changedAt: captain.changedAt,
+      })),
+    playedCount: played.length,
+    wins,
+    recruitment,
+  };
+}
+
+/** Personal overlay always runs outside shared public caches. */
+export async function getTeamProfileViewerState(
+  profile: PublicTeamProfileCore,
+  viewerUserId?: string | null,
+): Promise<TeamProfileViewerState> {
+  const { team, currentMembers, recruitment } = profile;
   const currentUserMembership = viewerUserId
     ? currentMembers.find((member) => member.userId === viewerUserId) ?? null
     : null;
@@ -255,23 +285,18 @@ export async function getPublicTeamProfile(
     : null;
 
   return {
-    team,
-    currentMembers,
-    entries: careerEntries,
-    nameChanges: names.filter((n) => n.oldName !== null),
-    captainChanges: captains
-      .filter((c) => c.fromUserId !== null)
-      .map((captain) => ({
-        id: captain.id,
-        name: getPublicDisplayName(captain),
-        changedAt: captain.changedAt,
-      })),
-    playedCount: played.length,
-    wins,
     currentUserMembership,
-    recruitment,
     viewerInterested: Boolean(viewerInterest),
     viewerInvited: Boolean(viewerInvitation),
     loggedIn: Boolean(viewerUserId),
   };
+}
+
+export async function getPublicTeamProfile(
+  teamId: string,
+  viewerUserId?: string | null,
+  knownTeam?: PublicTeamIdentity,
+): Promise<PublicTeamProfile | null> {
+  const core = await getPublicTeamProfileCore(teamId, knownTeam);
+  return core ? { ...core, ...await getTeamProfileViewerState(core, viewerUserId) } : null;
 }

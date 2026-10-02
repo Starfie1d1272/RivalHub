@@ -57,6 +57,7 @@
 - [`observability.md`](./operations/observability.md)
 - [`database-migrations.md`](./operations/database-migrations.md)
 - [`steam-profile-migration.md`](./operations/steam-profile-migration.md)
+- [`statistics-projections.md`](./operations/statistics-projections.md)
 - [`staging.md`](./operations/staging.md)
 - [`release.md`](./operations/release.md)
 - [`disaster-recovery.md`](./operations/disaster-recovery.md)

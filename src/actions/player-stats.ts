@@ -2,7 +2,7 @@
 
 import { writeAuditInTx } from "@/lib/audit/write";
 
-import { and, eq, desc, sql, isNotNull } from "drizzle-orm";
+import { and, eq, isNotNull } from "drizzle-orm";
 import { db } from "@/db/client";
 import { matchMaps } from "@/db/schema/match-maps";
 import { matches } from "@/db/schema/matches";
@@ -16,11 +16,13 @@ import { AppError, ErrorCode, ERROR_MESSAGES } from "@/lib/errors";
 import { actionError } from "@/lib/action-utils";
 import { isPgUniqueViolation } from "@/db/errors";
 import { captureException } from "@/lib/observability/server";
+import { readMatchMvpResults } from "@/lib/matches/mvp";
 import { MVP_DEADLINE_MS } from "@/lib/utils/date";
 import { extractScoreboardFromBase64 } from "@/lib/ocr";
 import type { PlayerRowOCR } from "@/lib/ocr";
 import { requireSeasonAdmin, auditActorId, requireAuth } from "@/lib/auth/session";
 import { revalidatePath } from "next/cache";
+import { updatePublicStatsTag } from "@/lib/revalidation";
 import { isStatOutOfRange } from "@/lib/config/stat-ranges";
 import { canConfirmMapScoreboard } from "@/lib/matches/map-scoreboard";
 import { z } from "zod";
@@ -239,6 +241,8 @@ export async function savePlayerStats(
       });
     });
 
+    updatePublicStatsTag();
+    revalidatePath("/[seasonSlug]/matches/[matchId]", "page");
     return ok({ saved: stats.length });
   } catch (e) {
     return actionError("savePlayerStats", e);
@@ -320,60 +324,73 @@ export async function castMatchMvpVote(
       });
     }
 
-    const match = await db.query.matches.findFirst({
-      where: eq(matches.id, matchId),
-    });
-    if (!match) throw new AppError(ErrorCode.MATCH_NOT_FOUND, ERROR_MESSAGES.MATCH_NOT_FOUND);
-    if (match.status !== "finished") {
-      return fail({ code: ErrorCode.MATCH_INVALID_TRANSITION, message: "比赛尚未结束" });
-    }
+    const voteResult = await db.transaction(async (tx) => {
+      // Serialize the acceptance window with scheduled settlement. The shared
+      // match lock allows concurrent voters but excludes winner finalization.
+      const [match] = await tx.select({
+        id: matches.id,
+        status: matches.status,
+        completedAt: matches.completedAt,
+        mvpWinnerUserId: matches.mvpWinnerUserId,
+      }).from(matches).where(eq(matches.id, matchId)).for("share");
+      if (!match) throw new AppError(ErrorCode.MATCH_NOT_FOUND, ERROR_MESSAGES.MATCH_NOT_FOUND);
+      if (match.status !== "finished") {
+        return fail({ code: ErrorCode.MATCH_INVALID_TRANSITION, message: "比赛尚未结束" });
+      }
 
-    // 比赛结束 24 小时后停止投票
-    if (match.completedAt) {
-      const deadline = match.completedAt.getTime() + MVP_DEADLINE_MS;
-      if (Date.now() >= deadline) {
+      // 比赛结束 24 小时后停止投票
+      if (match.mvpWinnerUserId) {
         return fail({ code: ErrorCode.MATCH_INVALID_TRANSITION, message: "MVP 投票已截止" });
       }
-    }
+      if (match.completedAt) {
+        const deadline = match.completedAt.getTime() + MVP_DEADLINE_MS;
+        if (Date.now() >= deadline) {
+          return fail({ code: ErrorCode.MATCH_INVALID_TRANSITION, message: "MVP 投票已截止" });
+        }
+      }
 
-    const confirmedCandidates = await db
-      .select({ userId: users.id, playerName: users.perfectName })
-      .from(matchRosters)
-      .innerJoin(matchRosterPlayers, eq(matchRosterPlayers.rosterId, matchRosters.id))
-      .innerJoin(eventRosterMembers, eq(eventRosterMembers.id, matchRosterPlayers.eventRosterMemberId))
-      .innerJoin(users, eq(users.id, eventRosterMembers.userId))
-      .where(and(
-        eq(matchRosters.matchId, matchId),
-        eq(matchRosters.status, "confirmed"),
-        eq(matchRosterPlayers.isStarter, true),
-      ));
-    // Confirmed match roster is the sole normal-path candidate owner. Older
-    // Rivals records predate it, so only then derive compatible candidates
-    // from verified match stats.
-    const candidates = confirmedCandidates.length > 0
-      ? confirmedCandidates
-      : await db
-          .select({ userId: users.id, playerName: users.perfectName })
-          .from(matchPlayerStats)
-          .innerJoin(users, eq(users.id, matchPlayerStats.userId))
-          .where(and(
-            eq(matchPlayerStats.matchId, matchId),
-            isNotNull(matchPlayerStats.userId),
-            isNotNull(matchPlayerStats.verifiedAt),
-          ));
-    const selected = candidates.find((candidate) => candidate.userId === playerUserId);
-    if (!selected) {
-      return fail({ code: ErrorCode.VALIDATION_FAILED, message: "该选手不在本场可投票名单中" });
-    }
+      const confirmedCandidates = await tx
+        .select({ userId: users.id, playerName: users.perfectName })
+        .from(matchRosters)
+        .innerJoin(matchRosterPlayers, eq(matchRosterPlayers.rosterId, matchRosters.id))
+        .innerJoin(eventRosterMembers, eq(eventRosterMembers.id, matchRosterPlayers.eventRosterMemberId))
+        .innerJoin(users, eq(users.id, eventRosterMembers.userId))
+        .where(and(
+          eq(matchRosters.matchId, matchId),
+          eq(matchRosters.status, "confirmed"),
+          eq(matchRosterPlayers.isStarter, true),
+        ));
+      // Confirmed match roster is the sole normal-path candidate owner. Older
+      // Rivals records predate it, so only then derive compatible candidates
+      // from verified match stats.
+      const candidates = confirmedCandidates.length > 0
+        ? confirmedCandidates
+        : await tx
+            .select({ userId: users.id, playerName: users.perfectName })
+            .from(matchPlayerStats)
+            .innerJoin(users, eq(users.id, matchPlayerStats.userId))
+            .where(and(
+              eq(matchPlayerStats.matchId, matchId),
+              isNotNull(matchPlayerStats.userId),
+              isNotNull(matchPlayerStats.verifiedAt),
+            ));
+      const selected = candidates.find((candidate) => candidate.userId === playerUserId);
+      if (!selected) {
+        return fail({ code: ErrorCode.VALIDATION_FAILED, message: "该选手不在本场可投票名单中" });
+      }
 
-    await db.insert(matchMvpVotes).values({
-      matchId,
-      playerUserId: selected.userId,
-      playerName: selected.playerName ?? "未填写昵称",
-      voterUserId: session.userId,
+      await tx.insert(matchMvpVotes).values({
+        matchId,
+        playerUserId: selected.userId,
+        playerName: selected.playerName ?? "未填写昵称",
+        voterUserId: session.userId,
+      });
+
+      return ok(undefined);
     });
+    if (!voteResult.success) return voteResult;
 
-    revalidatePath(`/${match.seasonId}/matches/${matchId}`);
+    revalidatePath("/[seasonSlug]/matches/[matchId]", "page");
     return ok(undefined);
   } catch (e) {
     if (e instanceof AppError) return fail({ code: e.code, message: e.code === ErrorCode.INTERNAL_ERROR ? ERROR_MESSAGES.INTERNAL_ERROR : e.presentation?.message ?? e.message });
@@ -386,37 +403,6 @@ export async function castMatchMvpVote(
       errorClass: "application",
     });
     return fail({ code: ErrorCode.INTERNAL_ERROR, message: ERROR_MESSAGES.INTERNAL_ERROR });
-  }
-}
-
-/** 确定并持久化比赛 MVP 胜者。已锁定时直接返回；投票未截止则返回 null。幂等。 */
-export async function ensureMvpWinner(matchId: string): Promise<string | null> {
-  try {
-    const match = await db.query.matches.findFirst({
-      where: eq(matches.id, matchId),
-      columns: { id: true, status: true, completedAt: true, mvpWinnerUserId: true },
-    });
-    if (!match || match.status !== "finished" || !match.completedAt) return null;
-    if (match.mvpWinnerUserId) return match.mvpWinnerUserId;
-    if (Date.now() < match.completedAt.getTime() + MVP_DEADLINE_MS) return null;
-
-    const results = await getMatchMvpResults(matchId);
-    if (results.length === 0) return null;
-    const winner = results[0]; // 已按 count DESC 排
-
-    await db
-      .update(matches)
-      .set({ mvpWinnerUserId: winner.playerUserId, updatedAt: new Date() })
-      .where(eq(matches.id, matchId));
-
-    return winner.playerUserId;
-  } catch (e) {
-    captureException("action.background_failure", e, {
-      scope: "action",
-      operation: "ensureMvpWinner",
-      errorClass: "application",
-    });
-    return null;
   }
 }
 
@@ -443,6 +429,8 @@ export async function deletePlayerStatsByMap(mapId: string): Promise<ActionResul
       });
     });
 
+    updatePublicStatsTag();
+    revalidatePath("/[seasonSlug]/matches/[matchId]", "page");
     return ok(undefined);
   } catch (e) {
     return actionError("deletePlayerStatsByMap", e);
@@ -450,16 +438,5 @@ export async function deletePlayerStatsByMap(mapId: string): Promise<ActionResul
 }
 
 export async function getMatchMvpResults(matchId: string) {
-  const votes = await db
-    .select({
-      playerUserId: matchMvpVotes.playerUserId,
-      playerName: matchMvpVotes.playerName,
-      count: sql<number>`count(*)::int`,
-    })
-    .from(matchMvpVotes)
-    .where(eq(matchMvpVotes.matchId, matchId))
-    .groupBy(matchMvpVotes.playerUserId, matchMvpVotes.playerName)
-    .orderBy((t) => desc(t.count));
-
-  return votes;
+  return readMatchMvpResults(matchId);
 }

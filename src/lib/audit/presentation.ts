@@ -257,6 +257,7 @@ export const AUDIT_ACTION_DEFINITIONS = {
   "match.demo.identity_retire": { label: "撤销比赛 Steam 身份", category: "match" },
   "match.delete_player_stats": { label: "删除地图选手数据", category: "match" },
   "match.status_update": { label: "更新比赛状态", category: "match" },
+  "match.mvp.settle": { label: "确定比赛 MVP", category: "match" },
   "match.start": { label: "开始比赛", category: "match" },
   "match.submit_roster": { label: "提交比赛阵容", category: "match" },
   "match.roster.submit": { label: "提交比赛阵容", category: "match" },

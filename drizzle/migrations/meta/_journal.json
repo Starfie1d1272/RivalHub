@@ -470,6 +470,13 @@
       "when": 1790676217771,
       "tag": "0066_mizar_backend_contracts",
       "breakpoints": true
+    },
+    {
+      "idx": 67,
+      "version": "7",
+      "when": 1790954214794,
+      "tag": "0067_chief_midnight",
+      "breakpoints": true
     }
   ]
 }

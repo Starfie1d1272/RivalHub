@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRoutePolling } from "@/components/use-visible-polling";
 import { DRAFT_TOTAL_ROUNDS } from "@/types/draft";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
 import { DraftCountdown } from "./DraftCountdown";
@@ -25,7 +25,6 @@ export function DraftLiveRoom({
   seasonPositions,
   readonly: isReadonly,
 }: DraftLiveRoomProps) {
-  const router = useRouter();
   const { state, teams, snakeOrder, remainingPlayers, completedPicks, totalPicks, maxPicks } =
     data;
 
@@ -65,12 +64,8 @@ export function DraftLiveRoom({
     };
   }, []);
 
-  // 轮询兜底（10 秒刷新）—— 仅直播模式
-  useEffect(() => {
-    if (isReadonly) return;
-    const timer = window.setInterval(() => router.refresh(), 10_000);
-    return () => window.clearInterval(timer);
-  }, [isReadonly, router]);
+  const isComplete = maxPicks > 0 && totalPicks >= maxPicks;
+  useRoutePolling(isReadonly || isComplete ? null : isLive ? 10_000 : 30_000);
 
   // Watch for new picks via completedPicks changes
   const prevPickCountRef = useRef(completedPicks.length);

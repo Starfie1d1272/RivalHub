@@ -2,6 +2,7 @@ import { authenticateDakRequest } from "@/lib/demo-integration/pairing";
 import { submitRivalHubEvidence } from "@/lib/demo-integration/submit";
 import { integrationError, integrationJson, integrationOptions } from "@/lib/demo-integration/http";
 import { AppError, ErrorCode } from "@/lib/errors";
+import { revalidatePublicStatsTag } from "@/lib/revalidation";
 
 const MAX_BODY_BYTES = 5 * 1024 * 1024;
 
@@ -20,12 +21,16 @@ export async function POST(request: Request): Promise<Response> {
     } catch {
       throw new AppError(ErrorCode.VALIDATION_FAILED, "Demo Evidence 必须是 JSON。");
     }
-    return integrationJson(request, await submitRivalHubEvidence({
+    const result = await submitRivalHubEvidence({
       input,
       pairingId: principal.pairing.id,
       pairingScope: principal.pairing,
       idempotencyKey: request.headers.get("idempotency-key"),
-    }));
+    });
+    // A newer needs_attention import also changes which lineage is current and
+    // can remove an older confirmed sample from public statistics.
+    revalidatePublicStatsTag();
+    return integrationJson(request, result);
   } catch (error) {
     return integrationError(request, error);
   }

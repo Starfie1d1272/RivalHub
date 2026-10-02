@@ -43,7 +43,8 @@ const {
   notFoundMock: vi.fn(() => { throw new Error("NEXT_NOT_FOUND"); }),
 }));
 
-vi.mock("next/navigation", () => ({ notFound: notFoundMock }));
+vi.mock("next/navigation", () => ({ notFound: notFoundMock, unstable_rethrow: vi.fn() }));
+vi.mock("@/lib/observability/server", () => ({ captureException: vi.fn() }));
 vi.mock("next/link", () => ({ default: ({ children, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement>) => <a {...props}>{children}</a> }));
 
 vi.mock("@/lib/data/public-seasons", () => ({
@@ -70,7 +71,7 @@ vi.mock("@/lib/auth/session", () => ({
 vi.mock("@/lib/matches/pre-analysis", () => ({ loadMatchPreAnalysis: loadMatchPreAnalysisMock }));
 vi.mock("@/lib/matches/prediction-read-model", () => ({ loadMatchPrediction: loadMatchPredictionMock }));
 vi.mock("@/lib/matches/detail-scoreboard", () => ({ loadMatchScoreboard: loadMatchScoreboardMock }));
-vi.mock("@/lib/stats/tournament-query", () => ({ getMatchPlayerDetail: getMatchPlayerDetailMock }));
+vi.mock("@/lib/stats/cached-query", () => ({ getPublicMatchPlayerDetail: getMatchPlayerDetailMock }));
 vi.mock("@/lib/matches/time-proposals", () => ({ getMatchTimeProposalViews: getMatchTimeProposalViewsMock }));
 vi.mock("@/actions/player-stats", () => ({
   getMatchMvpResults: getMatchMvpResultsMock,
@@ -423,6 +424,36 @@ describe("Public Match Detail Page (PRE / POST)", () => {
   });
 
   describe("Security & Separation Boundary", () => {
+    it("keeps the official scoreboard visible when advanced-statistics transport is unavailable", async () => {
+      findFirstMatchMock.mockResolvedValue({
+        id: "match-unavailable", seasonId: "season-1", entryAId: "entry-a", entryBId: "entry-b",
+        status: "in_progress", format: "bo3", stage: "group", scoreA: null, scoreB: null,
+      });
+      findManyMapsMock.mockResolvedValue([{
+        id: "map-single", matchId: "match-unavailable", mapOrder: 1, mapName: "de_ancient",
+        scoreA: 13, scoreB: 9, completedAt: new Date(),
+      }]);
+      loadMatchScoreboardMock.mockResolvedValue({
+        completed: [{ id: "map-single", scoreA: 13, scoreB: 9, mapName: "de_ancient" }],
+        confirmedMapIds: new Set(["map-single"]),
+        mapPlayers: new Map([["map-single", [{ userId: "u-1", perfectName: "Player 1", teamId: "entry-a" }]]]),
+        detailedPlayers: [{ userId: "u-1", name: "Player 1" }],
+        detailedPlayerIds: new Set(["u-1"]), detailedMapIds: new Set(["map-single"]),
+        mvpCandidates: [], summaryPlayers: [],
+      });
+      getMatchPlayerDetailMock.mockRejectedValueOnce(Object.assign(new Error("provider unavailable"), { code: "ECONNREFUSED" }));
+
+      const html = renderToStaticMarkup(await MatchDetailPage({
+        params: Promise.resolve({ seasonSlug: "spring-2026", matchId: "match-unavailable" }),
+        searchParams: Promise.resolve({}),
+      }));
+
+      expect(html).toContain('data-testid="player-stats-table"');
+      expect(html).toContain("高级统计暂时无法加载");
+      expect(html).not.toContain('data-testid="player-workspace"');
+      expect(getMatchPlayerDetailMock).toHaveBeenCalledOnce();
+    });
+
     it("never imports or renders StatsOCRPanel on the public spectator route", () => {
       const pageSource = readFileSync(
         resolve(process.cwd(), "src/app/[seasonSlug]/matches/[matchId]/page.tsx"),
