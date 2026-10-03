@@ -23,7 +23,15 @@ test("public match consumes private Broadcast and recovers with canonical layout
     const font = resolve(".agent-tmp/evidence-fonts/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc");
     if (existsSync(font)) {
       await target.route("**/__public-evidence-font", route => route.fulfill({ path: font, contentType: "font/collection" }));
-      await target.addStyleTag({ content: '@font-face { font-family: "Public Evidence"; src: url("/__public-evidence-font"); } body { font-family: Arial, "Public Evidence", sans-serif; }' });
+      await target.evaluate(async () => {
+        if (![...document.fonts].some(face => face.family === "Public Evidence" && face.status === "loaded")) {
+          const response = await fetch("/__public-evidence-font");
+          const face = new FontFace("Public Evidence", await response.arrayBuffer());
+          await face.load();
+          document.fonts.add(face);
+        }
+      });
+      await target.addStyleTag({ content: 'body { --font-noto-sans-sc: "Public Evidence"; --font-sans: Arial, "Public Evidence", sans-serif; --font-display: Arial, "Public Evidence", sans-serif; --font-mono: "JetBrains Mono", ui-monospace, "Public Evidence", monospace; font-family: var(--font-sans); }' });
     }
     await target.evaluate(() => document.fonts.ready);
     await target.addStyleTag({ content: "nextjs-portal { display: none !important; }" });
