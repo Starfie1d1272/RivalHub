@@ -38,7 +38,7 @@ describe("authorized operator context", () => {
 
   it("binds scoreboard completion to ten effective starters and only offers canonical completed maps", async () => {
     const roster = Array.from({ length: 10 }, (_, i) => ({ userId: `player-${i}`, isStarter: true })) as EffectiveMatchRosterPlayer[];
-    const rows = roster.map(player => ({ mapId: "map", userId: player.userId, ratingPro: 0, rws: 0, we: 0 }));
+    const rows = roster.map(player => ({ matchId: "match", mapId: "map", userId: player.userId, perfectName: player.userId, kills: 10, deaths: 10, assists: 0, hsPercent: 0, firstKills: 0, multiKills: 0, clutches: 0, adr: 50, ratingPro: 1, rws: 0, we: 0 }));
     mocks.select.mockReturnValue({ from: () => ({ where: () => Promise.resolve(rows) }) });
     const completed = { ...map, scoreA: 13, scoreB: 5, completedAt: new Date("2026-10-01T13:00:00Z") };
     const result = await loadOperatorContext({ ...input, roster, match: { ...match, status: "finished" }, maps: [completed] });
@@ -49,9 +49,10 @@ describe("authorized operator context", () => {
   });
 
   it("uses accepted gameplay phase only, without interpreting a waiting session as a live start", async () => {
-    mocks.live.mockResolvedValue({ currentMapId: "map", mapExecutionPhase: "waiting" });
-    expect((await loadOperatorContext(input)).workflow.title).toBe("确认 Map 1 建房与开播");
-    mocks.live.mockResolvedValue({ currentMapId: "map", mapExecutionPhase: "gameplay" });
-    expect((await loadOperatorContext(input)).workflow.title).toBe("进行 Map 1 解说");
+    const source = { id: "session", currentMapId: "map", mapEpoch: 1, manualTakeoverMapEpoch: null, identityHealth: "healthy", lineupHealth: "healthy", continuityHealth: "healthy", autoCanonicalizationArmed: true };
+    mocks.live.mockResolvedValue({ ...source, mapExecutionPhase: "waiting" });
+    expect((await loadOperatorContext(input)).workflow.phase).toBe("awaiting_gameplay");
+    mocks.live.mockResolvedValue({ ...source, mapExecutionPhase: "gameplay" });
+    expect((await loadOperatorContext(input)).workflow.phase).toBe("gameplay");
   });
 });
