@@ -146,4 +146,3 @@ export async function seedFixture(options: { matchStatus?: "scheduled" | "in_pro
   });
   return { seasonId, entryAId, entryBId, matchId, mapOneId, mapTwoId, installationId, installationBId, sessionId: session![0]!.id, producerInstanceId, liveSessionId, contextRevision, authorityRevision, steam64 };
 }
-
