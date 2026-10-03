@@ -9,6 +9,7 @@ import { loadMizarMatchDocumentInTx } from "../../../src/lib/mizar/context";
 import { ingestMizarLive } from "../../../src/lib/mizar/live";
 import { ingestMizarReliable } from "../../../src/lib/mizar/reliable";
 import { claimMizarSource, releaseMizarSource, takeOverCurrentMap } from "../../../src/lib/mizar/source";
+import { recordManualMapResultInTx } from "../../../src/lib/matches/manual-result";
 import { RELIABLE_EVENT_SCHEMA_VERSION } from "../../../src/lib/mizar/protocol";
 
 // The integration runner provisions a disposable database per worker (see
@@ -310,7 +311,7 @@ describe("Mizar reliable event ingest ownership", () => {
     const maps = await db.select().from(schema.matchMaps).where(eq(schema.matchMaps.matchId, fixture.matchId));
     expect(maps.every((map) => map.scoreA === null && map.completedAt === null)).toBe(true);
     const source = await loadSource(fixture.sessionId);
-    expect(source.continuityHealth).toBe("conflict");
+    expect(source.continuityHealth).toBe("result_conflict");
     expect(source.autoCanonicalizationArmed).toBe(false);
   });
 
@@ -609,7 +610,11 @@ describe("Mizar source authority", () => {
 
   it("scopes manual takeover to the current map execution and blocks automatic canonicalization for that epoch", async () => {
     const fixture = await seedFixture();
-    await takeOverCurrentMap(fixture.matchId, fixture.entryAId);
+    const scope = { sessionId: fixture.sessionId, mapId: fixture.mapOneId, mapEpoch: (await loadSource(fixture.sessionId)).mapEpoch };
+    await db.update(schema.matchLiveSessions).set({ currentMapId: fixture.mapOneId, identityHealth: "conflict" }).where(eq(schema.matchLiveSessions.id, fixture.sessionId));
+    await expect(takeOverCurrentMap(fixture.matchId, fixture.entryAId, { ...scope, mapEpoch: scope.mapEpoch + 1 })).rejects.toThrow("已变化");
+    await takeOverCurrentMap(fixture.matchId, fixture.entryAId, scope);
+    await takeOverCurrentMap(fixture.matchId, fixture.entryAId, scope);
     const source = await loadSource(fixture.sessionId);
     expect(source.manualTakeoverMapEpoch).toBe(source.mapEpoch);
     expect(source.autoCanonicalizationArmed).toBe(false);
@@ -624,6 +629,41 @@ describe("Mizar source authority", () => {
     expect(outcome.outcome).toBe("needs_attention");
     const [map] = await db.select().from(schema.matchMaps).where(eq(schema.matchMaps.id, fixture.mapOneId));
     expect(map!.scoreA).toBeNull();
+    await db.update(schema.matchLiveSessions).set({ autoCanonicalizationArmed: false }).where(eq(schema.matchLiveSessions.id, fixture.sessionId));
+    const command = { matchId: fixture.matchId, mapOrder: 1, mapName: "de_ancient", scoreA: 13, scoreB: 9, actorId: fixture.entryAId, pickedByEntryId: null, teamAStartSide: null };
+    await db.transaction(tx => recordManualMapResultInTx(tx, command));
+    await expect(db.transaction(tx => recordManualMapResultInTx(tx, command))).rejects.toThrow("已录入");
+    await expect(takeOverCurrentMap(fixture.matchId, fixture.entryAId, scope)).rejects.toThrow("正式赛果");
+    const [official] = await db.select().from(schema.matchMaps).where(eq(schema.matchMaps.id, fixture.mapOneId));
+    expect(official!.scoreA).toBe(13);
+    await ingestMizarReliable(fixture.installationId, fixture.seasonId, reliableEvent(fixture, { kind: "map_ended", payload: { scoreA: 9, scoreB: 13, scoreCT: 9, scoreT: 13 } }), fixture.authorityRevision);
+    expect((await loadSource(fixture.sessionId)).continuityHealth).toBe("result_conflict");
+    const [unchanged] = await db.select().from(schema.matchMaps).where(eq(schema.matchMaps.id, fixture.mapOneId));
+    expect(unchanged!.scoreA).toBe(13);
+  });
+  it("separates explicit stale evidence from identity conflict and rearms only a healthy next epoch", async () => {
+    const fixture = await seedFixture();
+    const stale = reliableEvent(fixture, { kind: "map_started" });
+    stale.evidence.telemetryFresh = false;
+    await ingestMizarReliable(fixture.installationId, fixture.seasonId, stale, fixture.authorityRevision, fixture.steam64);
+    const source = await loadSource(fixture.sessionId);
+    expect(source.identityHealth).toBe("healthy");
+    expect(source.continuityHealth).toBe("stale");
+    await takeOverCurrentMap(fixture.matchId, fixture.entryAId, { sessionId: fixture.sessionId, mapEpoch: source.mapEpoch, mapId: fixture.mapOneId });
+    await db.transaction(tx => recordManualMapResultInTx(tx, { matchId: fixture.matchId, mapOrder: 1, mapName: "de_ancient", scoreA: 13, scoreB: 9, actorId: fixture.entryAId, pickedByEntryId: null, teamAStartSide: null }));
+    const epoch = reliableEvent(fixture, { kind: "map_epoch_changed", idempotencyKey: "next-epoch", payload: { previousMapEpoch: 1, reason: "next map" } });
+    epoch.cursor.mapEpoch = 2;
+    epoch.cursor.runtimeSeq = 2;
+    await ingestMizarReliable(fixture.installationId, fixture.seasonId, epoch, fixture.authorityRevision);
+    const start = reliableEvent(fixture, { kind: "map_started", idempotencyKey: "next-start", mapId: fixture.mapTwoId, mapName: "de_mirage" });
+    start.cursor.mapEpoch = 2;
+    start.cursor.runtimeSeq = 3;
+    await ingestMizarReliable(fixture.installationId, fixture.seasonId, start, fixture.authorityRevision, fixture.steam64);
+    expect(await loadSource(fixture.sessionId)).toMatchObject({ autoCanonicalizationArmed: true, currentMapId: fixture.mapTwoId, mapEpoch: 2, manualTakeoverMapEpoch: 1 });
+  });
+  it("rejects manual results while AUTO owns the current execution", async () => {
+    const fixture = await seedFixture();
+    await expect(db.transaction(tx => recordManualMapResultInTx(tx, { matchId: fixture.matchId, mapOrder: 1, mapName: "de_ancient", scoreA: 13, scoreB: 9, actorId: fixture.entryAId, pickedByEntryId: null, teamAStartSide: null }))).rejects.toThrow("自动数据源");
   });
 });
 

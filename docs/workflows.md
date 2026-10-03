@@ -163,7 +163,7 @@ EventRoster
 → runtime settlement
 ```
 
-本场实际首发可以不同于赛事预定主力，但必须满足本届 frozen roster/eligibility 约束。地图结果由单一 canonical result owner 在事务内写入并推进 runtime；人工录入与后续经过校验的可靠数据源复用同一入口，不能另起一套结果写入路径。正常结果由实际地图推导；弃赛不制造未进行地图。单图正式结束后，管理员可用 OCR 或手填确认该图 Rating / RWS / WE 与基础记分板；DAK 已确认的 gameplay facts 不被 OCR 覆盖，清除计分板输入只清空仅由 OCR 持有的行与 DAK 行的 Rating / RWS / WE。
+本场实际首发可以不同于赛事预定主力，但必须满足本届 frozen roster/eligibility 约束。地图结果由单一 canonical result owner 在事务内写入并推进 runtime；人工录入与后续经过校验的可靠数据源复用同一入口，不能另起一套结果写入路径。正常结果由实际地图推导；弃赛不制造未进行地图。单图正式结束后，管理员可用 OCR 或手填补齐实际首发十人的全部基础记分板字段；身份覆盖、唯一性、字段范围和正式回合上下文核验通过才表示齐备。DAK 已确认的 gameplay facts 不被 OCR 覆盖，清除计分板输入只清空仅由 OCR 持有的行与 DAK 行的 Rating / RWS / WE。
 Mizar 数据源闭环：Mizar 在本机发起短期 pairing intent 并保留 poll secret，本站授权页要求当前登录的赛事管理员选择一个有权限的赛事，Mizar 轮询后取得该赛事独立的 installation credential。管理员在赛事管理页查看或撤销连接；Mizar 从赛程窗口选择比赛，并在本机显式认领单场活跃数据源，换机时以递增 authority revision 接管。可靠事件只在当前 installation、authority revision、session、generation、map epoch、序列、身份与首发证据一致时进入结果 owner；`map_ended` 的 `scoreA`/`scoreB` 是 entrant-relative 候选，`scoreCT`/`scoreT` 只作为证据，`series_ended` 不会绕过缺失的地图结果推进系列赛。公开 LIVE 只消费接收方限定到单场的短期投递，断流或不健康时降级到正式赛程与赛果。
 
 赛后 Demo 闭环：DAK 提交的 `/3` Evidence 先以不可变 payload 保存，再由服务端基于当前目标、正式地图结果和 effective MatchRoster 重新校验；单图具备正式比分与完成时间后即可接收该图 Evidence，不必等待整场系列赛结束。Steam64 既可以命中当前主身份，也可以命中 active gameplay alias；无法解析、已撤销或跨用户冲突都进入待处理。赛季管理员只能在单场工作台中从该份不可变 payload 选择本场当前首发，服务端再次核对观察 Steam64、队伍和候选身份后，只有同一 participant path 当前确实存在可确认的身份问题时，才经 gameplay identity owner 保存 alternate identity，并自动重跑同一 canonical validator；其它比分、QA、回合或 summary 问题仍保持待处理。工作台按当前 canonical validator 投影待确认身份、已关联其它选手的冲突与非身份阻塞，正常匹配者只显示人数摘要；候选只来自观察队伍的本场首发。冲突展示当前关联，只有来源属于当前赛事的 active `admin_confirmed_alternate` 提供填写原因、二次确认后的 scoped retire；主身份、`profile_change` 与跨赛事来源指向相应身份核对流程。撤销在同一事务中把所有依赖该观察身份的已确认 Demo 标为待处理，并在提交后立即失效公开统计缓存；后续由同一确认 owner 重检并重建投影，不自动改绑。无效 payload 保留在工作台并可拒绝，不能通过身份确认绕过完整校验。拒绝作为次级危险操作，比分、QA 等问题保留独立说明。确认及重检晋级同时保存带来源、身份绑定和计算版本的每图统计投影；原文保持不可变。确认、重检、拒绝和撤销都写入业务审计，并刷新公开统计、生涯和基准；不修改登录/报名资料中的当前 Steam64。
@@ -218,3 +218,9 @@ Saved scenarios are independent public snapshots with an engine version. Opening
 - frozen facts 不从 mutable profile 重新计算；历史恢复只消费当时 snapshot。
 - loading/empty/presentation 状态不能制造不存在的业务事实。
 - 需要理解精确 transaction lock、幂等顺序或 recovery algorithm 时直接读对应 code + real PostgreSQL tests，不把实现步骤继续追加到本文件。
+
+### Admin Match operations projection
+
+单场工作台复用 canonical phase facts，将当前任务、source mode、health 和 review reasons 分开投影。真实身份/阵容/连续性/赛果冲突优先处理，无 Mizar 是正常人工路径；AUTO 已核验时以观察为主。服务端人工命令与可靠事件共用比赛锁及结果 owner；人工接管校验预期 source session、地图与 epoch，已有正式赛果只能走更正流程，下一图健康开始后重新自动 armed。失鲜只能依据 producer 明确的 freshness evidence，不能由低频 reliable-event 时间推断；未知状态保留未知。
+
+官方完赛不等待 OCR/DAK 或制作资料。实际完成地图分别检查完整计分板与 Demo 同步，未打 decider 和无实际地图弃赛不生成任务；制作资料按解说认领适用，无人认领为不适用。Bilibili 状态采用低频服务端缓存查询，失败显示「无法确认」。Uploader 下载消费 DAK 的稳定 manifest，失败时保留官方 Release fallback。

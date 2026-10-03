@@ -53,8 +53,9 @@ export async function ingestMizarReliable(installationId: string, competitionId:
       const lineupValid = await validateObservedLineupInTx(tx, match, lineupSteam64);
       if (!fresh || !lineupValid) {
         updates.autoCanonicalizationArmed = false;
-        updates.identityHealth = fresh ? "healthy" : "conflict";
+        updates.identityHealth = event.evidence.identity === "matched" ? "healthy" : "conflict";
         updates.lineupHealth = lineupValid ? "healthy" : "conflict";
+        if (!event.evidence.telemetryFresh || !event.evidence.contextFresh) updates.continuityHealth = "stale";
         outcome = "needs_attention";
       } else {
         await applyMatchStatusTransitionInTx(tx, { matchId: match.id, nextStatus: "in_progress", actorId: installationId, now });
@@ -70,30 +71,33 @@ export async function ingestMizarReliable(installationId: string, competitionId:
       const lineupValid = await validateObservedLineupInTx(tx, match, lineupSteam64);
       const mayArm = match.status === "in_progress" && fresh && validMap && lineupValid && source.manualTakeoverMapEpoch !== event.cursor.mapEpoch;
       updates.autoCanonicalizationArmed = mayArm;
-      updates.identityHealth = fresh ? "healthy" : "conflict";
+      updates.identityHealth = event.evidence.identity === "matched" ? "healthy" : "conflict";
       updates.lineupHealth = lineupValid ? "healthy" : "conflict";
-      updates.continuityHealth = validMap ? "healthy" : "conflict";
+      updates.continuityHealth = !validMap ? "conflict" : !event.evidence.telemetryFresh || !event.evidence.contextFresh ? "stale" : "healthy";
       updates.currentMapId = validMap ? map!.id : null;
       updates.mapExecutionPhase = mayArm ? "gameplay" : "waiting";
       outcome = mayArm ? "armed" : "needs_attention";
     } else if (event.kind === "map_ended") {
       const [map] = await tx.select().from(matchMaps).where(and(eq(matchMaps.matchId, match.id), eq(matchMaps.mapName, event.mapName ?? "")));
-      if (!fresh || !source.autoCanonicalizationArmed || source.manualTakeoverMapEpoch === event.cursor.mapEpoch || !map || source.currentMapId !== map.id || (event.mapId !== null && event.mapId !== map.id)) {
+      const sameExecution = Boolean(map && source.currentMapId === map.id && (event.mapId === null || event.mapId === map.id));
+      if (fresh && sameExecution && map!.completedAt !== null) {
+        outcome = map!.scoreA === event.payload.scoreA && map!.scoreB === event.payload.scoreB ? "consistent" : "needs_attention";
+        if (outcome === "needs_attention") { updates.continuityHealth = "result_conflict"; updates.autoCanonicalizationArmed = false; }
+      } else if (!fresh || !source.autoCanonicalizationArmed || source.manualTakeoverMapEpoch === event.cursor.mapEpoch || !sameExecution) {
         updates.autoCanonicalizationArmed = false;
+        if (event.evidence.identity !== "matched") updates.identityHealth = "conflict";
+        else if (!event.evidence.telemetryFresh || !event.evidence.contextFresh) updates.continuityHealth = "stale";
         outcome = "needs_attention";
-      } else if (map.completedAt !== null) {
-        outcome = map.scoreA === event.payload.scoreA && map.scoreB === event.payload.scoreB ? "consistent" : "needs_attention";
-        if (outcome === "needs_attention") { updates.continuityHealth = "conflict"; updates.autoCanonicalizationArmed = false; }
       } else {
         // A/B are producer-owned CompetitionEntry-relative candidates. CT/T are evidence only.
-        await recordCanonicalMapResultInTx(tx, { matchId: match.id, mapOrder: map.mapOrder, mapName: map.mapName, scoreA: event.payload.scoreA, scoreB: event.payload.scoreB, pickedByEntryId: null, teamAStartSide: null, actorId: installationId });
+        await recordCanonicalMapResultInTx(tx, { matchId: match.id, mapOrder: map!.mapOrder, mapName: map!.mapName, scoreA: event.payload.scoreA, scoreB: event.payload.scoreB, pickedByEntryId: null, teamAStartSide: null, actorId: installationId });
         updates.mapExecutionPhase = "inter_map";
         outcome = "canonicalized";
       }
     } else if (event.kind === "series_ended") {
       const [current] = await tx.select().from(matches).where(eq(matches.id, match.id));
       outcome = current.status === "finished" && current.scoreA === event.payload.scoreA && current.scoreB === event.payload.scoreB ? "consistent" : "needs_attention";
-      if (outcome === "needs_attention") { updates.continuityHealth = "conflict"; updates.autoCanonicalizationArmed = false; }
+      if (outcome === "needs_attention") { updates.continuityHealth = "result_conflict"; updates.autoCanonicalizationArmed = false; }
     }
     await tx.update(matchLiveSessions).set(updates).where(eq(matchLiveSessions.id, source.id));
     await tx.update(mizarInstallations).set({ lastSeenAt: now }).where(eq(mizarInstallations.id, installationId));
