@@ -50,6 +50,8 @@ export function connectLiveViewer(matchId: string, onState: (state: LiveViewerSt
       const ttl = expiresAt - Date.now();
       if (ttl <= 0 || ttl > 330000) throw new Error("expired_viewer");
       client = environment.createClient(environment.url, environment.key, async () => token);
+      await client.realtime.setAuth(token);
+      if (stopped || current !== generation) return;
       // Arm before subscribe: even synchronous readiness must replace this deadline.
       schedule(15000);
       client.channel(topic, { config: { private: true, broadcast: { self: false } } })

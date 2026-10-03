@@ -8,13 +8,13 @@ import fixture from "../../../tests/fixtures/contracts/mizar-live-real-derived.j
 
 function setup() {
   vi.useFakeTimers();
-  const clients: { status: (value: string) => void; deliver: (input: { payload: unknown }) => void; removeAllChannels: ReturnType<typeof vi.fn>; realtime: { disconnect: ReturnType<typeof vi.fn> }; channel: ReturnType<typeof vi.fn> }[] = [];
+  const clients: { status: (value: string) => void; deliver: (input: { payload: unknown }) => void; removeAllChannels: ReturnType<typeof vi.fn>; realtime: { disconnect: ReturnType<typeof vi.fn>; setAuth: ReturnType<typeof vi.fn> }; channel: ReturnType<typeof vi.fn> }[] = [];
   let resume = () => {};
   let visible = true;
   const removeListener = vi.fn();
   const fetcher = vi.fn(async () => new Response(JSON.stringify({ token: "viewer", topic: "server-owned-topic", expiresAt: Date.now() + 300000 })));
   const factory = vi.fn(() => {
-    const client = { status: vi.fn<(value: string) => void>(), deliver: vi.fn<(input: { payload: unknown }) => void>(), removeAllChannels: vi.fn(async () => []), realtime: { disconnect: vi.fn() }, channel: vi.fn() };
+    const client = { status: vi.fn<(value: string) => void>(), deliver: vi.fn<(input: { payload: unknown }) => void>(), removeAllChannels: vi.fn(async () => []), realtime: { disconnect: vi.fn(), setAuth: vi.fn(async () => {}) }, channel: vi.fn() };
     const channel = { on: vi.fn((_kind, _filter, handler) => { client.deliver = handler; return channel; }), subscribe: vi.fn(handler => { client.status = handler; return channel; }) };
     client.channel.mockReturnValue(channel);
     clients.push(client);
@@ -34,6 +34,7 @@ describe("private viewer lifecycle", () => {
   it("subscribes privately with the receive token, renews and disposes every client", async () => {
     const h = setup();
     await vi.advanceTimersByTimeAsync(0);
+    expect(h.clients[0].realtime.setAuth).toHaveBeenCalledWith("viewer");
     expect(h.clients[0].channel).toHaveBeenCalledWith("server-owned-topic", { config: { private: true, broadcast: { self: false } } });
     const options = h.factory.mock.calls[0] as unknown as [string, string, () => Promise<string>];
     expect(await options[2]()).toBe("viewer");

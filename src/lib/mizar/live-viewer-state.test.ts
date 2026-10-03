@@ -62,6 +62,14 @@ describe("public LIVE receive boundary", () => {
     expect(next.revision).toBe(1);
     expect(next.snapshot).toEqual(takeover);
   });
+  it("accepts a newer authority with a sane slower producer clock", () => {
+    const first = payload(2);
+    const state = receivePublicLive(initialLiveViewerState(), first, first.matchId, 0);
+    const takeover = payload(1);
+    takeover.receivedAt = payload(3).receivedAt;
+    takeover.delivery.authorityRevision = 2;
+    expect(receivePublicLive(state, takeover, first.matchId, 1000).snapshot).toEqual(takeover);
+  });
   it("reconnect waits for a new heartbeat while retaining the replay watermark", () => {
     const input = payload();
     const state = receivePublicLive(initialLiveViewerState(), input, input.matchId, 0);

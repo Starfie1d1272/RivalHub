@@ -3,6 +3,7 @@ import { promisify } from "node:util";
 import { resolve } from "node:path";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
+import { redactText } from "../../../src/lib/observability/redact";
 import { test, expect } from "@playwright/test";
 const execute = promisify(execFile);
 const tsx = resolve("node_modules/.bin/tsx");
@@ -25,9 +26,17 @@ test("public match consumes private Broadcast and recovers with canonical layout
     writeFileSync(resolve(directory, `${name}.png`), body);
   };
   let producer: ChildProcess | undefined;
-  const stream = (matchId: string) => {
-    return spawn(process.execPath, ["--import", "tsx", browserFixture, "stream", matchId], { env, stdio: "ignore" });
-  };
+  const stream = (matchId: string) => new Promise<ChildProcess>((resolve, reject) => {
+    const child = spawn(process.execPath, ["--import", "tsx", browserFixture, "stream", matchId], { env, stdio: ["ignore", "pipe", "pipe"] });
+    let diagnostics = "";
+    const deadline = setTimeout(() => { child.kill(); reject(new Error(`Producer readiness deadline: ${redactText(diagnostics)}`)); }, 10000);
+    child.stderr!.on("data", chunk => { diagnostics = (diagnostics + String(chunk)).slice(-4096); });
+    child.stdout!.on("data", chunk => {
+      if (String(chunk).includes("PUBLIC_LIVE_READY")) { clearTimeout(deadline); resolve(child); }
+    });
+    child.once("exit", code => { clearTimeout(deadline); reject(new Error(`Producer exited ${code}: ${redactText(diagnostics)}`)); });
+    child.once("error", error => { clearTimeout(deadline); reject(error); });
+  });
   try {
     const output = await run(fixture, "create", seasonId);
     const line = output.split("\n").find(value => value.startsWith("LIVE_FIXTURE "));
@@ -35,12 +44,14 @@ test("public match consumes private Broadcast and recovers with canonical layout
     const { matchId, otherMatchId } = JSON.parse(line.slice("LIVE_FIXTURE ".length)) as { matchId: string; otherMatchId: string };
     await run(browserFixture, "prepare", matchId);
     const url = `/${seasonId}/matches/${matchId}`;
-    producer = stream(matchId);
+    producer = await stream(matchId);
+    const tokenResponse = page.waitForResponse(response => response.url().endsWith(`/api/matches/${matchId}/live-viewer`), { timeout: 10000 });
     await page.goto(url);
+    expect((await tokenResponse).status()).toBe(200);
     const live = page.getByTestId("match-realtime");
     await expect(live.getByText("FalleN", { exact: true })).toBeVisible();
     await expect(live.locator("canvas")).toBeVisible();
-    await expect(page.getByText("暂无直播入口，可以继续查看比赛数据。")).toBeVisible();
+    await expect(page.getByText("暂无直播入口，可继续查看比赛数据。")).toBeVisible();
     for (const width of [1440, 390, 320]) {
       await page.setViewportSize({ width, height: 1000 });
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
@@ -55,6 +66,19 @@ test("public match consumes private Broadcast and recovers with canonical layout
     }
     producer?.kill(); producer = undefined;
     await expect(live.getByText("实时数据暂时中断", { exact: true })).toBeVisible({ timeout: 6000 });
+    const radarFrozen = await live.locator("canvas").evaluate(canvas => new Promise<boolean>(resolve => {
+      const surface = canvas as HTMLCanvasElement;
+      const first = surface.toDataURL();
+      let frames = 0;
+      const check = () => {
+        if (surface.toDataURL() !== first) resolve(false);
+        else if (++frames === 8) resolve(true);
+        else requestAnimationFrame(check);
+      };
+      requestAnimationFrame(check);
+    }));
+    expect(radarFrozen).toBe(true);
+    await capture("public-stale");
     await live.evaluate(element => {
       const clock = element.querySelector('[aria-label="回合时钟"]')!.textContent;
       const observer = new MutationObserver(() => {
@@ -67,7 +91,8 @@ test("public match consumes private Broadcast and recovers with canonical layout
     await expect(live.getByText("实时数据暂不可用", { exact: true })).toBeVisible({ timeout: 12000 });
     await expect(live).not.toHaveAttribute("data-clock-moved", "true");
     await expect(live.locator("canvas")).toHaveCount(0);
-    producer = stream(matchId);
+    await capture("public-unavailable");
+    producer = await stream(matchId);
     await expect(live.getByText("FalleN", { exact: true })).toBeVisible();
     await page.reload();
     await expect(live.locator("canvas")).toBeVisible();
@@ -79,10 +104,11 @@ test("public match consumes private Broadcast and recovers with canonical layout
     await page.reload();
     await expect(live.getByText("雷达暂不可用，比赛数据仍可查看")).toBeVisible();
     await expect(live.getByText("FalleN", { exact: true })).toBeVisible();
+    await capture("public-asset-failure");
     await page.unrouteAll();
     producer?.kill(); producer = undefined;
     await run(browserFixture, "switch-map", matchId);
-    producer = stream(matchId);
+    producer = await stream(matchId);
     await page.reload();
     await expect(live.getByText("上下层", { exact: true })).toBeVisible();
     await expect(live.locator("canvas")).toBeVisible();

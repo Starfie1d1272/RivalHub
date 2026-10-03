@@ -38,6 +38,7 @@ if (command === "prepare") {
   const wireFixture = currentMap?.mapName === "de_nuke"
     ? JSON.parse(readFileSync("tests/fixtures/contracts/mizar-live-snapshot-v1.radar.json", "utf8")) : original;
   let sequence = Date.now();
+  let ready = false;
   const deadline = Date.now() + 180000;
   while (Date.now() < deadline) {
     const snapshot = structuredClone(wireFixture);
@@ -52,6 +53,7 @@ if (command === "prepare") {
     for (const player of snapshot.players) player.canonicalPlayerId = null;
     const result = await ingestMizarLive(source.installationId, match.seasonId, parseLiveSnapshotV1(snapshot), source.authorityRevision);
     if (!result.accepted) throw new Error("Local Broadcast rejected");
+    if (!ready) { console.log("PUBLIC_LIVE_READY"); ready = true; }
     await new Promise(resolve => setTimeout(resolve, 1000));
   }
 } else if (command === "phase") {

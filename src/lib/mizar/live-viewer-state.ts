@@ -56,7 +56,10 @@ export function receivePublicLive(state: LiveViewerState, input: unknown, matchI
       if (next.delivery[key] > previous.delivery[key]) break;
     }
     // Same gameplay sequence is legal for a newly produced heartbeat, never for a replay.
-    if (Date.parse(next.receivedAt) <= Date.parse(previous.receivedAt) || Date.parse(next.producedAt) <= Date.parse(previous.producedAt)) return state;
+    if (Date.parse(next.receivedAt) <= Date.parse(previous.receivedAt)) return state;
+    const sameCursor = (["authorityRevision", "generation", "epoch", "sequence"] as const).every(key => next.delivery[key] === previous.delivery[key]);
+    // Producer clocks can differ across a handover; only equal-cursor replay needs this check.
+    if (sameCursor && Date.parse(next.producedAt) <= Date.parse(previous.producedAt)) return state;
   }
   const changed = previous !== null && liveBoundary(previous) !== liveBoundary(next);
   return { snapshot: next, watermark: next, receivedAt: now, revision: state.revision + Number(changed) };
