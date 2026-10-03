@@ -160,7 +160,7 @@ async function verify() {
 /** Small real Local Supabase fan-out check, not a hosted-provider load test. */
 async function verifyFanout(credential: Awaited<ReturnType<typeof issueLiveViewerToken>>) {
   const count = 8;
-  const viewers = Array.from({ length: count }, () => createClient(apiUrl, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, { accessToken: async () => credential.token }));
+  const viewers = Array.from({ length: count }, () => createClient(apiUrl, requireSupabasePublicKey(process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY), { accessToken: async () => credential.token }));
   const deliveries: number[] = Array.from({ length: count }, () => 0);
   let receivedBytes = 0;
   const latencies: number[] = [];
