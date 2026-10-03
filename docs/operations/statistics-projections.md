@@ -53,7 +53,7 @@ ranges without holding the cursor lock while rebuilding. The cursor wraps on an
 empty suffix. Stale, failed, unprocessed and interrupted claims are revisited on
 subsequent sweeps, so a stale prefix cannot starve later maps. Progress is a repair
 hint, never a coverage assertion. Reports expose claimed `candidates`, actually
-`scanned`, outcome counters, `afterMapId`, `wrapped` and `budgetExhausted`; counters
+`scanned`, outcome counters, `afterMapId`, `wrapped`, `durationMs` and `budgetExhausted`; counters
 are per invocation, not whole-database totals. It expires statistics after changes, and quarantines deterministically invalid sources through
 the existing recheck owner. Dependency errors remain retryable failures. This also
 prevents repeatedly downloading a permanently invalid artifact.

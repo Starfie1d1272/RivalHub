@@ -143,7 +143,8 @@ export async function inspectStatisticsProjectionCoverage(
   const batchSize = positiveInteger(options.batchSize ?? 50, "Coverage batch size");
   const scanLimit = positiveInteger(options.scanLimit ?? 10_000, "Coverage scan limit");
   const maxDurationMs = positiveInteger(options.maxDurationMs ?? 60_000, "Coverage duration");
-  const deadline = Date.now() + maxDurationMs;
+  const startedAt = Date.now();
+  const deadline = startedAt + maxDurationMs;
   let after: string | undefined;
   let scanned = 0;
   let eligibleMaps = 0;
@@ -158,7 +159,7 @@ export async function inspectStatisticsProjectionCoverage(
     if (!maps.length) { complete = true; break; }
     for (const { matchMapId } of maps) {
       if (scanned >= scanLimit || Date.now() >= deadline) {
-        return { projectionVersion: STATISTICS_PROJECTION_VERSION, scanned, eligibleMaps, missing, complete: false, ready: false };
+        return { projectionVersion: STATISTICS_PROJECTION_VERSION, scanned, eligibleMaps, missing, complete: false, ready: false, durationMs: Date.now() - startedAt };
       }
       const candidate = await currentProjectionCandidate(tx, matchMapId);
       scanned++;
@@ -168,7 +169,7 @@ export async function inspectStatisticsProjectionCoverage(
       if (!await hasCurrentProjection(tx, candidate)) missing++;
     }
   }
-  return { projectionVersion: STATISTICS_PROJECTION_VERSION, scanned, eligibleMaps, missing, complete, ready: complete && missing === 0 };
+  return { projectionVersion: STATISTICS_PROJECTION_VERSION, scanned, eligibleMaps, missing, complete, ready: complete && missing === 0, durationMs: Date.now() - startedAt };
 }
 
 function positiveInteger(value: number, name: string): number {
@@ -180,7 +181,8 @@ function positiveInteger(value: number, name: string): number {
 export async function reconcileMissingStatisticsProjections(database: DB, options: { limit?: number; scanLimit?: number; maxDurationMs?: number } = {}) {
   const limit = positiveInteger(options.limit ?? 10, "Projection rebuild limit");
   const scanLimit = positiveInteger(options.scanLimit ?? 50, "Projection scan limit");
-  const deadline = Date.now() + positiveInteger(options.maxDurationMs ?? 20_000, "Projection repair duration");
+  const startedAt = Date.now();
+  const deadline = startedAt + positiveInteger(options.maxDurationMs ?? 20_000, "Projection repair duration");
   // Claim a bounded range before taking domain locks. A crashed worker's range is
   // revisited on wrap; the cursor never certifies that projections were repaired.
   const { candidates, afterMapId, wrapped } = await database.transaction(async (tx) => {
@@ -229,5 +231,5 @@ export async function reconcileMissingStatisticsProjections(database: DB, option
       report.failed++;
     }
   }
-  return report;
+  return { ...report, durationMs: Date.now() - startedAt };
 }
