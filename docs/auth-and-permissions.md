@@ -12,6 +12,8 @@ login  → password authentication → application session
 forgot password → recovery email → /reset-password
 ```
 
+每个环境的 Supabase Auth redirect allowlist 必须包含该环境 `NEXT_PUBLIC_APP_URL` 下的 `/reset-password` 精确地址，否则恢复邮件可能回退到首页。本地配置同时覆盖 localhost 与 127.0.0.1；Hosted 配置在对应环境迁移/上线时核实。
+
 注册不会直接根据 signup response 建立应用身份或 session；确认/登录成功后才同步 `public.users`。对外提示不得泄露账号是否已存在等可枚举状态。
 
 Fresh deployment 的 owner bootstrap 只通过 `RIVALHUB_OWNER_EMAIL`：当尚无 `super_admin` 时，该邮箱的正常账号流程可在锁保护下完成首次提权；一旦已有 super admin，此路径失效。
