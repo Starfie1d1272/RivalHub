@@ -68,6 +68,9 @@ vi.mock("@/lib/auth/session", () => ({
   getUserSession: getUserSessionMock,
   requireSeasonAdmin: requireSeasonAdminMock,
 }));
+vi.mock("@/lib/matches/public-phase", () => ({ loadPublicMatchPhase: vi.fn(async (match: { status: string }) => ({ phase: match.status === "finished" ? "post" : match.status === "scheduled" ? "preparation" : "awaiting_gameplay", currentMapId: null })) }));
+vi.mock("@/components/matches/MatchRealtime", () => ({ MatchRealtime: () => <div data-testid="match-realtime" /> }));
+vi.mock("@/components/matches/MatchContextRefresh", () => ({ MatchContextRefresh: () => null }));
 vi.mock("@/lib/matches/pre-analysis", () => ({ loadMatchPreAnalysis: loadMatchPreAnalysisMock }));
 vi.mock("@/lib/matches/prediction-read-model", () => ({ loadMatchPrediction: loadMatchPredictionMock }));
 vi.mock("@/lib/matches/detail-scoreboard", () => ({ loadMatchScoreboard: loadMatchScoreboardMock }));
@@ -466,7 +469,7 @@ describe("Public Match Detail Page (PRE / POST)", () => {
       expect(pageSource).not.toContain("clearOperatorScoreboardInTx");
       expect(pageSource).not.toContain("dakImportId");
       expect(pageSource).not.toContain("verifiedByAdmin");
-      expect(pageSource).not.toContain("MatchLiveProjection");
+      expect(pageSource).toContain("MatchRealtime");
       expect(pageSource).not.toContain("runtime-presentation");
       expect(pageSource).not.toContain("cs2-radar-assets");
     });
