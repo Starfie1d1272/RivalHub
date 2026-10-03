@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { cpus, totalmem, platform, arch } from "node:os";
 import { existsSync } from "node:fs";
 import { execFileSync } from "node:child_process";
@@ -67,7 +67,7 @@ const fixtureWire = JSON.parse(
 const pool = (db as typeof db & { $client: ReturnType<typeof createLocalPool> })
   .$client;
 const monitor = createLocalPool({ max: 1 });
-let mode: "fast" | "slow" | "timeout" | "disconnect" | "429" | "stalled-body" =
+let mode: "fast" | "slow" | "timeout" | "disconnect" | "429" | "invalid-body" | "stalled-body" =
   "fast";
 let sent = 0;
 let bytes = 0;
@@ -101,10 +101,10 @@ const server = createServer(async (req, res) => {
     return;
   }
   await delay(current === "slow" ? 700 : current === "timeout" ? 2600 : 5);
-  res.writeHead(current === "429" ? 429 : 202, {
+  res.writeHead(current === "429" || current === "invalid-body" ? 429 : 202, {
     "Content-Type": "application/json",
   });
-  res.end(current === "429" ? '{"error":"quota"}' : "{}");
+  res.end(current === "invalid-body" ? "not-json" : current === "429" ? '{"error":"quota"}' : "{}");
 });
 function snapshot(f: Fixture, seq = 1, producedAt = new Date().toISOString()) {
   return {
@@ -230,6 +230,7 @@ afterAll(async () => {
           sourceSha256: Object.fromEntries(
             [
               "src/lib/mizar/live.ts",
+              "src/lib/mizar/installation.ts",
               "src/lib/mizar/http.ts",
               "src/lib/mizar/live-admission.ts",
               "src/lib/mizar/live-broadcast.ts",
@@ -265,6 +266,7 @@ describe("LIVE capacity: real PostgreSQL and loopback HTTP faults", () => {
     "disconnect",
     "429",
     "stalled-body",
+    "invalid-body",
     "burst",
     "sixteen-fast",
     "sixteen-slow",
@@ -325,9 +327,11 @@ describe("LIVE capacity: real PostgreSQL and loopback HTTP faults", () => {
           await delay(20);
         }
       })();
-      const tasks: Promise<{ accepted?: boolean; status: number }>[] = [];
+      const tasks: Promise<{ matchId: string; at: number; accepted?: boolean; status: number }>[] = [];
+      const publicationStart = publications.length;
+      const began = performance.now();
       try {
-        const count = scenario === "burst" ? 24 : 3;
+        const count = scenario === "burst" ? 24 : scenario === "sixteen-slow" ? 32 : 20;
         for (let tick = 0; tick < count; tick++) {
           for (const f of fixtures)
             tasks.push(
@@ -336,14 +340,27 @@ describe("LIVE capacity: real PostgreSQL and loopback HTTP faults", () => {
                 const res = await upload(f, tick + 1);
                 elapsed.push(performance.now() - start);
                 const body = await res.json();
-                return { accepted: body.accepted, status: res.status };
+                return { matchId: f.matchId, at: performance.now() - began, accepted: body.accepted, status: res.status };
               })(),
             );
           if (scenario !== "burst" && tick < count - 1) await delay(500);
         }
         const results = await Promise.all(tasks);
+        const ended = performance.now() - began;
+        const perMatch = fixtures.map(f => {
+          const rows = results.filter(row => row.matchId === f.matchId);
+          const acceptedAt = rows.filter(row => row.accepted).map(row => row.at).sort((a, b) => a - b);
+          const attempts = publications.slice(publicationStart).filter(row => row.payload.matchId === f.matchId).map(row => row.at - began);
+          const attemptEdges = [0, ...attempts, ended];
+          const edges = [0, ...acceptedAt, ended];
+          return { providerAttempts: attempts.length,
+            maxAdmissionGapMs: Math.max(...attemptEdges.slice(1).map((at, i) => at - attemptEdges[i]!)), matchId: f.matchId, source: f.installationId, accepted: acceptedAt.length,
+            maxStarvationMs: Math.max(...edges.slice(1).map((at, i) => at - edges[i]!)),
+            recovered: false };
+        });
         const report = {
           scenario,
+          perMatch,
           matches: matchCount,
           inputs: results.length,
           accepted: results.filter((x) => x.accepted).length,
@@ -364,6 +381,22 @@ describe("LIVE capacity: real PostgreSQL and loopback HTTP faults", () => {
           sampledTransactionAgeMs: summary(txAge),
           sampledLockHoldingAgeMs: summary(lockAge),
         };
+        // Recovery uses new frames, the same source cadence, no resend of rejected frames.
+        mode = "fast";
+        for (let tick = 0; tick < matchCount + 4; tick++) {
+          await Promise.all(fixtures.map(async (f, i) => {
+            const result = await upload(f, count + tick + 1);
+            if ((await result.json()).accepted) perMatch[i]!.recovered = true;
+          }));
+          if (perMatch.every(row => row.recovered)) break;
+          await delay(500);
+        }
+        expect(perMatch.every(row => row.recovered)).toBe(true);
+        if (scenario !== "burst") expect(perMatch.every(row => row.providerAttempts > 0)).toBe(true);
+        if (["fast", "slow", "sixteen-fast", "sixteen-slow"].includes(scenario)) {
+          expect(perMatch.every(row => row.accepted > 0)).toBe(true);
+          expect(perMatch.every(row => row.maxStarvationMs < (matchCount + 4) * 500)).toBe(true);
+        }
         reports.push(report);
         console.log("LIVE_CAPACITY", JSON.stringify(report));
         expect(results).toHaveLength(count * matchCount);
@@ -388,12 +421,115 @@ describe("LIVE capacity: real PostgreSQL and loopback HTTP faults", () => {
     });
   }
 
+  it("rotates synchronous sources even while credential authentication waits on PostgreSQL", async () => {
+    const fixtures = await Promise.all(Array.from({ length: 4 }, () => prepared()));
+    await delay(1500); // Prior scenarios have stopped; expire their demand leases.
+    const accepted = [0, 0, 0, 0];
+    mode = "fast";
+    for (let tick = 0; tick < 4; tick++) {
+      const blocker = await monitor.connect();
+      try {
+        await blocker.query("BEGIN");
+        await blocker.query("LOCK TABLE mizar_installations IN ACCESS EXCLUSIVE MODE");
+        const batch = fixtures.map(async (f, i) => {
+          const response = await upload(f, tick + 1);
+          if ((await response.json()).accepted) accepted[i]!++;
+        });
+        // A database barrier, not an arbitrary sleep: both fair permits must be
+        // occupied by the actual credential SELECT before releasing authentication.
+        await expect.poll(async () => {
+          const result = await pool.query("SELECT count(*)::int AS n FROM pg_stat_activity WHERE datname=current_database() AND wait_event_type='Lock' AND query LIKE '%mizar_installations%'");
+          return result.rows[0].n;
+        }, { timeout: 3000, interval: 5 }).toBe(2);
+        await blocker.query("COMMIT");
+        await Promise.all(batch);
+      } finally { await blocker.query("ROLLBACK"); blocker.release(); }
+      if (tick < 3) await delay(500);
+    }
+    expect(accepted).toEqual([2, 2, 2, 2]);
+    reports.push({ scenario: "blocked-authentication", perMatch: fixtures.map((f, i) => ({ matchId: f.matchId, accepted: accepted[i] })) });
+  });
+
+  it("keeps four synchronous matches from the same installation moving", async () => {
+    const first = await prepared();
+    const fixtures = [first];
+    for (let i = 1; i < 4; i++) {
+      const matchId = randomUUID();
+      await db.insert(schema.matches).values({ id: matchId, seasonId: first.seasonId, entryAId: first.entryAId, entryBId: first.entryBId, stage: "shared-installation", format: "bo3", status: "in_progress" });
+      const [source] = await db.insert(schema.matchLiveSessions).values({ matchId, installationId: first.installationId, producerInstanceId: first.producerInstanceId, liveSessionId: first.liveSessionId, contextRevision: first.contextRevision, authorityRevision: 1, programSourceGeneration: 0, mapEpoch: 1, identityHealth: "healthy", lineupHealth: "healthy", continuityHealth: "healthy" }).returning({ id: schema.matchLiveSessions.id });
+      fixtures.push({ ...first, matchId, sessionId: source!.id });
+    }
+    mode = "fast";
+    const accepted = [0, 0, 0, 0], last = [0, 0, 0, 0], gaps = [0, 0, 0, 0];
+    const began = performance.now();
+    for (let tick = 0; tick < 20; tick++) {
+      await Promise.all(fixtures.map(async (f, i) => {
+        const result = await upload(f, tick + 1);
+        if ((await result.json()).accepted) {
+          const at = performance.now() - began;
+          accepted[i]!++; gaps[i] = Math.max(gaps[i]!, at - last[i]!); last[i] = at;
+        }
+      }));
+      if (tick < 19) await delay(Math.max(0, began + (tick + 1) * 500 - performance.now()));
+    }
+    const ended = performance.now() - began;
+    const perMatch = fixtures.map((f, i) => ({ matchId: f.matchId, source: f.installationId, accepted: accepted[i], maxStarvationMs: Math.max(gaps[i]!, ended - last[i]!) }));
+    reports.push({ scenario: "shared-installation", perMatch });
+    expect(accepted.every(count => count >= 8)).toBe(true);
+    expect(perMatch.every(row => row.maxStarvationMs < 3000)).toBe(true);
+  });
+
+  it("prevents a single-source burst from monopolizing three healthy matches", async () => {
+    const fixtures = await Promise.all(Array.from({ length: 4 }, () => prepared()));
+    const accepted = [0, 0, 0, 0], last = [0, 0, 0, 0], gaps = [0, 0, 0, 0];
+    const began = performance.now();
+    mode = "fast";
+    for (let tick = 0; tick < 8; tick++) {
+      await Promise.all(fixtures.flatMap((f, i) => Array.from({ length: i === 0 ? 24 : 1 }, async (_, burst) => {
+        const response = await upload(f, tick * 24 + burst + 1);
+        if ((await response.json()).accepted) {
+          const at = performance.now() - began;
+          accepted[i]!++; gaps[i] = Math.max(gaps[i]!, at - last[i]!); last[i] = at;
+        }
+      })));
+      if (tick < 7) await delay(500);
+    }
+    const ended = performance.now() - began;
+    const perMatch = fixtures.map((f, i) => ({ matchId: f.matchId, accepted: accepted[i], maxStarvationMs: Math.max(gaps[i]!, ended - last[i]!) }));
+    reports.push({ scenario: "single-source-burst", perMatch });
+    expect(accepted.every(count => count > 0)).toBe(true);
+    expect(perMatch.every(row => row.maxStarvationMs < 3000)).toBe(true);
+  });
+
+  it("releases ingress after malicious bodies and rejects expired waiters without publication", async () => {
+    const f = await prepared();
+    const before = publications.length;
+    let reading!: () => void;
+    const started = new Promise<void>(resolve => { reading = resolve; });
+    let cancelled = 0, readers = 0;
+    const stalled = () => new ReadableStream<Uint8Array>({ pull() { if (++readers === 2) reading(); }, cancel() { cancelled++; } });
+    const post = (body: BodyInit) => POST(new Request("http://local.test/api/mizar/live", { method: "POST", headers: { authorization: `Bearer ${f.token}`, "x-rivalhub-authority": "1" }, body, duplex: "half" } as RequestInit), { params: Promise.resolve({ operation: "live" }) });
+    const slow = Promise.all([post(stalled()), post(stalled())]);
+    await started;
+    expect((await upload(f, 1)).status).toBe(429);
+    expect((await slow).map(response => response.status)).toEqual([400, 400]);
+    expect(cancelled).toBe(2);
+    expect((await post("{" )).status).toBe(400);
+    expect((await post("x".repeat(262145))).status).toBe(400);
+    expect(publications.length).toBe(before);
+    mode = "fast";
+    expect((await (await upload(f, 2)).json()).accepted).toBe(true);
+  });
+
   it("serves four staggered 2 Hz sources and preserves unchanged 1 Hz heartbeats after disconnect", async () => {
     const fixtures = await Promise.all(
       Array.from({ length: 4 }, () => prepared()),
     );
+    // This scenario starts after the previous sources stop. Let their bounded
+    // demand leases expire; recovery while other tickets exist is tested above.
+    await delay(1500);
     mode = "fast";
-    const outcomes: boolean[] = [];
+    const outcomes: boolean[][] = fixtures.map(() => []);
     const start = performance.now();
     const tasks = fixtures.map(async (f, i) => {
       await delay(i * 125);
@@ -401,11 +537,11 @@ describe("LIVE capacity: real PostgreSQL and loopback HTTP faults", () => {
         const target = start + i * 125 + tick * 510;
         await delay(Math.max(0, target - performance.now()));
         const result = await upload(f, tick + 1);
-        outcomes.push((await result.json()).accepted === true);
+        outcomes[i]!.push((await result.json()).accepted === true);
       }
     });
     await Promise.all(tasks);
-    expect(outcomes.every(Boolean)).toBe(true);
+    expect(outcomes.every(rows => rows.every(Boolean))).toBe(true);
     const f = fixtures[0]!;
     await delay(1000);
     mode = "disconnect";
@@ -421,7 +557,8 @@ describe("LIVE capacity: real PostgreSQL and loopback HTTP faults", () => {
       scenario: "staggered",
       matches: 4,
       inputs: 16,
-      accepted: outcomes.filter(Boolean).length,
+      accepted: outcomes.flat().filter(Boolean).length,
+      perMatch: fixtures.map((f, i) => ({ matchId: f.matchId, accepted: outcomes[i]!.filter(Boolean).length })),
       heartbeatRecovery: true,
     });
   });

@@ -95,10 +95,16 @@ export async function pollMizarPairing(pairingId: string, pollToken: string): Pr
   };
 }
 
-export async function authenticateMizar(authorization: string | null, options: { allowRevoked?: boolean } = {}) {
+/** Syntax and opaque lookup key only; never authenticates the installation. */
+export function readMizarCredentialHash(authorization: string | null): string {
   const token = authorization?.match(/^Bearer\s+(rh_mizar_[0-9a-f-]{36}_[0-9a-f]{64})$/i)?.[1];
   if (!token) throw new AppError(ErrorCode.FORBIDDEN, "制播设备凭据无效。");
-  const [installation] = await db.select().from(mizarInstallations).where(eq(mizarInstallations.credentialHash, hashCredential(token)));
+  return hashCredential(token);
+}
+
+export async function authenticateMizar(authorization: string | null, options: { allowRevoked?: boolean } = {}) {
+  const credentialHash = readMizarCredentialHash(authorization);
+  const [installation] = await db.select().from(mizarInstallations).where(eq(mizarInstallations.credentialHash, credentialHash));
   if (!installation) throw new AppError(ErrorCode.FORBIDDEN, "制播设备凭据无效。");
   if (!options.allowRevoked && installation.revokedAt !== null) {
     throw new AppError(ErrorCode.FORBIDDEN, "制播设备连接已撤销。");

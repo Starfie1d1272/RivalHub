@@ -1,10 +1,10 @@
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
-import { authenticateMizar, revokeMizarInstallation } from "@/lib/mizar/installation";
+import { authenticateMizar, readMizarCredentialHash, revokeMizarInstallation } from "@/lib/mizar/installation";
 import { loadMizarMatchDocument, loadMizarScheduleWindow } from "@/lib/mizar/context";
 import { claimMizarSource, releaseMizarSource, sourceClaimSchema, sourceReleaseSchema } from "@/lib/mizar/source";
 import { ingestMizarReliable } from "@/lib/mizar/reliable";
-import { tryAdmitLiveRequest } from "@/lib/mizar/live-admission";
+import { admitLiveIngress, tryAdmitLiveRequest } from "@/lib/mizar/live-admission";
 import { ingestMizarLive } from "@/lib/mizar/live";
 import { mizarHttpError, mizarContextResponse, readBoundedMizarJson } from "@/lib/mizar/http";
 import { revalidateMatchPaths } from "@/lib/revalidation";
@@ -26,12 +26,25 @@ export async function GET(request: Request, context: Context) {
 
 export async function POST(request: Request, context: Context) {
   const receivedAt = performance.now();
+  let releaseIngress: (() => void) | null = null;
   let releaseLive: (() => void) | null = null;
   try {
     const { operation } = await context.params;
     if (operation === "live") {
-      releaseLive = tryAdmitLiveRequest();
+      releaseIngress = await admitLiveIngress();
+      if (!releaseIngress) return Response.json({ accepted: false }, { status: 429, headers: { "Cache-Control": "no-store", "Retry-After": "1" } });
+      const credentialHash = readMizarCredentialHash(request.headers.get("authorization"));
+      const input = await readBoundedMizarJson(request, 262_144, 2000);
+      const { matchId } = z.object({ matchId: z.uuid() }).parse(input);
+      // Untrusted scheduling key, not authority. Fairness covers auth latency too;
+      // one installation's simultaneous matches get distinct turns.
+      releaseLive = tryAdmitLiveRequest(`${credentialHash}:${matchId}`);
+      releaseIngress();
+      releaseIngress = null;
       if (!releaseLive) return Response.json({ accepted: false }, { status: 429, headers: { "Cache-Control": "no-store", "Retry-After": "1" } });
+      const installation = await authenticateMizar(request.headers.get("authorization"));
+      const revision = z.coerce.number().int().positive().parse(request.headers.get("x-rivalhub-authority"));
+      return Response.json(await ingestMizarLive(installation.id, installation.competitionId, input, revision, receivedAt));
     }
     if (operation === "disconnect") {
       const installation = await authenticateMizar(request.headers.get("authorization"), { allowRevoked: true });
@@ -39,14 +52,13 @@ export async function POST(request: Request, context: Context) {
       return Response.json({ revoked: true });
     }
     const installation = await authenticateMizar(request.headers.get("authorization"));
-    const input = await readBoundedMizarJson(request, operation === "live" ? 262_144 : 20_480, operation === "live" ? 2000 : undefined);
+    const input = await readBoundedMizarJson(request, 20_480);
     if (operation === "claim") return Response.json(await claimMizarSource(installation.id, installation.competitionId, sourceClaimSchema.parse(input)));
     const revision = z.coerce.number().int().positive().parse(request.headers.get("x-rivalhub-authority"));
     if (operation === "release") {
       await releaseMizarSource(installation.id, installation.competitionId, sourceReleaseSchema.parse(input), revision);
       return Response.json({ released: true });
     }
-    if (operation === "live") return Response.json(await ingestMizarLive(installation.id, installation.competitionId, input, revision, receivedAt));
     if (operation === "reliable") {
       const envelope = z.strictObject({ event: z.unknown(), lineupSteam64: z.array(z.string().regex(/^\d{17}$/)).max(10).default([]) }).parse(input);
       const outcome = await ingestMizarReliable(installation.id, installation.competitionId, envelope.event, revision, envelope.lineupSteam64);
@@ -64,5 +76,5 @@ export async function POST(request: Request, context: Context) {
       return Response.json(outcome);
     }
     return new Response(null, { status: 404 });
-  } catch (error) { return mizarHttpError(error); } finally { releaseLive?.(); }
+  } catch (error) { return mizarHttpError(error); } finally { releaseIngress?.(); releaseLive?.(); }
 }

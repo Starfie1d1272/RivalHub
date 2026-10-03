@@ -1,59 +1,40 @@
 # LIVE 接收容量与 authority 边界
 
-本专题只拥有接收端准入与投递；`source.ts`、`installation.ts` 和 canonical result owner 继续拥有源接管、撤销和官方赛果。公开 `rivalhub.public-live.v1` / topic / viewer JWT 不变。模拟测量不是生产事故证据或 provider 容量证明。
+本专题只拥有接收端准入与投递；`source.ts`、`installation.ts` 和 canonical result owner 继续拥有源接管、撤销和官方赛果。公开协议、topic、viewer JWT 与 HTTP Broadcast transport 不变。隔离复现不代表生产事故，loopback 测量不代表 provider 容量。
 
-## 实现前的不变量与并发时序
+## 准入、互斥与授权
 
-1. 每份尝试必须重新验证 installation → match → active source；比赛、session、authority revision、generation、epoch、reliable sequence floor、identity 和 lineup 继续 fail closed。准入信息不能替代数据库授权。
-2. **发送仍在上述 share locks 内完成。** LIVE 先持锁，则 revoke/handover/manual command 等待发送返回；mutation 先持锁，则 LIVE 在短锁预算后丢弃，或在下一次请求重新验证新事实。不能用 Promise.race 放弃仍在运行的发送并提前解锁。
-3. 比赛级 PostgreSQL try-advisory transaction lock 只排斥其它 LIVE 投递，不改变 mutation 的锁协议；争用立即丢弃，不保存等待帧。安装/比赛/源行锁仍是 authority fence，advisory lock 不是授权。
-4. 进程级准入是资源保护，最多两个 LIVE 请求（包括凭据查询和 body read），不排队；不是跨实例 current-state authority。生产池为三连接，因此 LIVE 自身不吃完该池。其它业务和多实例仍须另外做容量预算。
-5. 有界的进程内元数据只保留近期已验证投递的 cursor/timestamp/节流时间，不保存 snapshot。每源使用容量 2、每秒补充 2 个令牌的准入预算，吸收合法 2 Hz producer 的到达抖动；不强制接收间隔恰好大于 500ms。跨实例与进程重启不能承诺全局去重：公开 consumer 必须按现有 delivery cursor 与 producedAt 丢弃旧帧/重复帧，相同 gameplay sequence 的较新 heartbeat 合法。
-6. 不重试当前帧，不持久化，不补发；过载返回 `accepted:false`，入口满载返回 429。恢复只靠下一份 eligible heartbeat；官方赛果从不消费 LIVE。
-7. provider 的 202 只证明接受 HTTP 请求，不证明所有观众已收到。网络 timeout 的结果可能不明；不重试、不宣称取消已经到达 provider 的投递。provider 延迟投递与 viewer reset 仍需真实环境联调。
+接收分成两个资源阶段。读取/解析最多两个活跃请求，最多 256 个尚未解析的入口等待者，FIFO 等待最多 500ms；body 最多 256 KiB、读取最多 2 秒。入口满载或等待超时返回 429。这个短入口队列不查询数据库、不等待鉴权或广播、不保存解析后的 snapshot；没有重试或历史/快照仓库。释放入口后，最多两个请求进入鉴权查询与 LIVE 事务，因此 LIVE 自身最多使用生产三连接池中的两个连接，保留一个给其它业务。
 
-## 可复现环境与数据
+广播准入按 **credential hash + match**（正常凭据与 installation 一一对应） 保存最多 256 个需求票据；同一安装下的不同比赛也独立轮转。调度 key 经过凭据语法和比赛 UUID 检查，但仍是不可信的输入，不代表合法比赛。票据只有 key 和最后到达的单调时间，不持有帧、请求或 promise。先前被拒绝的源保留顺序；后来的源不能越过已等待的源占用空闲名额。被拒绝的当前帧立即丢弃，下一份新 heartbeat 取得轮到的名额；同一个 key 不能同时占用两个名额。停止发送的票据最多保留 1.5 秒，避免静默源永久占位。
 
-2026-10-03，隔离 Linux x64 cloud workspace；cgroup 4 CPU / 16 GiB，Node 24.20.0、pnpm 12.3.4。PostgreSQL 17.11，镜像 `postgres:17@sha256:d74eeac9a635390a49bc21bd49fccd973de707e2a53a76ac49b552b8712ec46f`，只监听 `127.0.0.1:55432`。每次 canonical integration runner 从 active migration chain 建立独立临时数据库，结束后删除；不读取任何远程数据库/生产配置。
+持续以 500ms cadence 到达、已登记的有限源，其票据顺序只会因前驱被服务或过期而前进；新到达者只能排在后面。因此有限的事务/发送完成时间下，每场都能持续取得发送机会。四源同相、每轮内完成的确定性回归从 **20/20/0/0** 变为 **10/10/10/10**，最长无接受间隔从后两源整段 10 秒变为每场 1 秒。700ms/2s permit 占用下，四场最长准入间隔分别为 2s/4s。每场 2Hz 仍是输入 cadence，不承诺所有输入帧投递成功；两并发是进程资源预算，不是“两场比赛”的产品限制。
 
-- 对照 main：`45219bf8deb94ec46dc30587a31d6d0ad8fcb82a`（包含 #787/#788/#789/#790/#791）。
-- 修复运行：`99c3336f31e0dbb3fc89ed2519871b68cb767e15`。报告后续提交仅保存证据/说明；两个 JSON 同时记录测试与 runtime 文件 SHA-256，便于核对测量代码。
-- 应用池明确设置为生产同样的 3 连接、10 秒 acquisition timeout；另用 1 连接观测池。只替换 DB factory 以注入真实 pg/Drizzle 测量池、stub Next cache hooks；SQL、事务、授权、route、SDK、HTTP 都真实执行。
-- 每场有两支队伍、10 名首发、2 张地图、2 个 installation、1 个 active session；4/16 场分别独立 fixture，避免跨场 fixture 污染。payload 为 10 玩家、10 Radar markers、24 回合、2 utility / 1 flame，public JSON **10,111 bytes**（两位 sequence 时再增 1 byte）；不是最大复杂度或真实 CS2 录制数据。
-- 4 源通常发 3 轮 × 500ms（共 12 帧）；16 源 48 帧。突发为 4 源 × 24 帧一次提交，共 96 帧，是明确的异常输入。错峰情景为 4 源各偏移 125ms、间隔 510ms，共 16 帧；低于 2 Hz 上限。另测相同 sequence 的 1Hz heartbeat、断连恢复、revoke/handover/manual result 并发和迟到可靠赛果。
-- HTTP loopback 故障服务逐项注入：5ms/202、700ms/202、2600ms 响应头（触发 SDK 2 秒 abort）、主动断开 socket、429、立即 429 响应头但 2600ms 后才结束错误 JSON。错误体取消后不会解析或保存 provider 内容。不注入生产压测。
+公平性有明确适用范围：入口须能在 freshness 预算内完成读取/解析，随后鉴权仍受原 freshness 检查；需求集合与请求占用须有界。超过入口/元数据预算的持续流量、恶意凭据洪泛、事件循环暂停、DB 不可用或任意多实例路由，不能由本地调度器承诺每场送达。需要在目标并发、RTT 和实例路由下验证；这不是已批准的新产品上限。进程重启会丢失票据，不改变 authority。
 
-## 指标与前后对比
+每个获准请求仍在事务中重新验证 installation → match → active source，包括比赛状态、session、authority revision、generation、epoch、reliable sequence floor、identity/lineup、队伍映射及能力字段。入口票据不授予任何权限。**广播仍在原 installation/match/source share locks 内完成**：LIVE 先持锁则撤销/交接/人工结果等待广播返回；mutation 先持锁则本帧在锁预算后丢弃或重新验证新事实。不把发送移出事务，也不通过 Promise.race 提前放开锁。
 
-`accepted` = HTTP Broadcast 返回成功；`dropped` = 200/accepted:false；`rejected` = 接收入口 429；`failed` = 其它非 2xx。四类互斥。`httpRequests/bytes` 是故障服务实际收到的 POST 数量/UTF-8 JSON 字节，不是 viewer 出站计费。
+跨实例同场互斥由 PostgreSQL `pg_try_advisory_xact_lock` 提供，争用立即丢弃。它不是跨比赛公平调度，也不是 project-wide provider 限流。SQL statement 预算 1 秒、单次锁等待 25ms；接收到完成授权的 freshness 预算仍为 500ms，连接池 acquisition timeout 仍为 10 秒。HTTP 发送仍使用 SDK 的 2 秒 abort，错误响应体取消逻辑不变。网络异常可能有未知投递结果；不重试、不宣称能撤回 provider 已接收的消息。
 
-`poolWaitMs` 测 pg.Pool 实际 acquire（含外层 authenticateMizar）；`transactionMs` 从真实 BEGIN 后的 callback 到 COMMIT/ROLLBACK 完成。20ms 采样 `pg_stat_activity` / `pg_locks`；`sampledLockHoldingAgeMs` 是观测到 relation RowShareLock 时的最老 transaction age，**不是精确每一行的锁持有分位数**，也不把 relation lock 数冒充行锁数。短查询可能未被采到（0 不表示没有锁）。mutation 用真实 `wait_event_type=Lock` 证明等待，再测 command wall time。独立运行时的采样仍有约 20ms 的观测误差。
+已授权投递的 cursor/timestamp/token bucket 元数据仍最多 256 条，10 秒过期；容量 2、补充 2/s 吸收到达抖动，不保存 snapshot。跨实例/重启后的旧帧与重复帧仍由现有 viewer cursor/producedAt 规则处理。相同 gameplay sequence 的较新 heartbeat 合法，官方赛果不消费 LIVE。
 
-原始报告：[baseline](evidence/live-capacity-baseline.json)、[after](evidence/live-capacity-after.json)。下表 `A/D/R/F` 为接受/丢弃/拒绝/失败，时间为毫秒；小样本 p95 仅用于故障复现，不能当作生产 SLO。
+## 证据分层
 
-| 场景 | 输入 | 基线 A/D/R/F → 修复 | 最大 pool queue 前→后 | pool wait p95 前→后 | transaction p95 前→后 |
-| --- | ---: | --- | ---: | ---: | ---: |
-| fast | 12 | 12/0/0/0 → 6/0/6/0 | 1 → 0 | 14.3 → 1.1 | 34.8 → 36.6 |
-| slow | 12 | 12/0/0/0 → 4/0/8/0 | 6 → 0 | 706.7 → 0.3 | 729.1 → 718.2 |
-| timeout | 12 | 0/12/0/0 → 0/2/10/0 | 9 → 0 | 4018.8 → 0.2 | 2016.2 → 2008.9 |
-| disconnect | 12 | 0/12/0/0 → 0/6/6/0 | 1 → 0 | 11.3 → 0.2 | 37.7 → 11.8 |
-| 429 | 12 | 0/12/0/0 → 0/6/6/0 | 1 → 0 | 14.6 → 0.3 | 19.6 → 12.7 |
-| stalled-body | 12 | 0/12/0/0 → 0/6/6/0 | 9 → 0 | 5220.4 → 0.2 | 2616.3 → 24.7 |
-| burst | 96 | 45/0/0/51 → 2/0/94/0 | 93 → 0 | 8535.4 → 0.7 | 720.3 → 706.5 |
-| sixteen-fast | 48 | 48/0/0/0 → 6/0/42/0 | 13 → 0 | 47.4 → 0.3 | 12.2 → 13.6 |
-| sixteen-slow | 48 | 48/0/0/0 → 4/0/44/0 | 42 → 0 | 6354.5 → 0.3 | 708.6 → 707.5 |
+审查基线为 `09fe43a`，已合入 main `7b75b671`。原先仅 aggregate accepted>0 与错峰成功不能证明同步公平；确定性 unit 回归先在原准入函数上失败，再在轮转实现上通过。
 
-错峰 fast 在本次前后均为 16/16 接受；相同 gameplay sequence 的较新 heartbeat 在断连后恢复。同步 fast 会因进程并发预算拒绝部分帧，**不是吞吐提升**。该实现优先限制资源占用；16 场同步 2Hz 明显超出单实例“无丢帧”边界。不能根据某次错峰成功承诺正常赛事永不丢帧。
+本地真实 PostgreSQL 17 使用独立 loopback 容器，每次 canonical runner 重放 active migration chain、建立临时 worker DB 并清理。应用 pg pool 为 3，另用 1 连接观测；SQL、事务、授权、route、SDK 和 HTTP 均真实执行，只替换 DB factory 与 Next cache hooks。HTTP 故障服务分别注入 5ms/202、700ms/202、2600ms 响应头、断连、429、错误 JSON、错误体挂起。它的 viewer 数为 0。
 
-700ms 慢广播下，修复后的 revoke / handover / manual command 分别等待约 **658 / 669 / 664ms**，且观察到真实 Lock waiter；这项等待有意保留。旧 installation 在 revoke/handover 后仍 403；人工接管和 13:9 官方结果提交后，迟到 9:13 reliable candidate 不能覆盖。另一连接预先占用任一 installation/match/source 行时，本帧在 25ms 锁预算后丢弃；另一 LIVE 持有 advisory gate 时立即丢弃。被其它业务占满连接池超过一帧预算的请求恢复后也不再发送旧帧。
+[逐场报告](evidence/live-fairness-after.json)记录 source/match、接受次数、最长无成功时间、provider 尝试次数/最长间隔和恢复。成功接受与获准发送分开：provider 故障时可以每场都获得尝试但接受数均为 0；恢复断言要求每场的新帧成功，不能只看总量。4 场通常运行 20 轮 × 500ms；16 场慢广播运行 32 轮。另覆盖同一安装四场、四场错峰、单源突发、恶意/超大/挂起 body、入口超时、handover/revoke、人工赛果与迟到可靠事件。
 
-## 可解释的运行边界
+`maxPoolQueue` 来自 pg.Pool；事务/锁采样间隔 20ms，relation RowShareLock 的数量不是精确行锁数量。请求/事务分位数是小样本故障证据，不是生产 SLO。JSON 保存运行 SHA 及关键源码 SHA-256；后续只保存证据的提交不改变测量实现。历史 [baseline](evidence/live-capacity-baseline.json) / [after](evidence/live-capacity-after.json) 属于轮转修复前的资源保护实验，不能用于证明当前公平性。
 
-- 每进程 LIVE 入口最多 2 个请求，包括 auth query/body read；拒绝不查 DB、不读 body。body 最大 256 KiB、读入预算 2 秒；单帧从入口到 DB 授权完成预算 500ms（一个 producer cadence interval），超出即丢弃。已进入共享连接池的最多两个请求仍受既有 10 秒 acquisition timeout 约束，不改 #787 的安全 retry owner。
-- LIVE SQL statement 预算 1 秒、单次锁等待 25ms。HTTP 发送仍为 SDK 2 秒 abort；不 `Promise.race` 提前放开 authority fence。数据库链路故障、事件循环暂停、provider 已接受但响应丢失不等同硬实时取消保证。
-- `M` 场每源 `r≤2/s`，平均投递占用 `D` 秒，平均需要约 `M*r*D` 个 LIVE slots。若预留 30% 余量，评估条件是 `M*r*D ≤ 1.4`（本进程 2 slots），同时考虑同相突发、鉴权/DB 延迟和其它业务。此条件只是必要预算，不是吞吐证明或公平调度保证。
-- 以 4 场、2Hz 为规划情景，700ms provider 延迟需要约 5.6 slots，单实例必须丢帧；16 场 2Hz 则需约 22.4 slots。增加实例会乘大总 DB/provider 开销，不能把进程保护误称为 project-wide rate limit。跨实例仅比赛 try-lock 共用，节流/去重元数据不共用。
-- 同相突发可能偏向较早到达的源；无跨实例公平性保证。需要用真实目标赛程、实例路由、连接预算和 provider 延迟复测，再选择赛事同时 LIVE 的范围/运营 cadence/plan。本 PR 不改基础设施或扩大生产权限。
+Local Supabase 单独验证真实 Realtime/WebSocket、JWT/RLS 与 fan-out；不把 loopback 故障服务说成真实 Supabase。托管项目的 quota、跨区 RTT、project-wide 限流和线上账单属于第三层，未进行生产压测。
+
+## 容量估计与公平性的区别
+
+`M` 场输入速率 `r≤2/s`、平均发送占用 `D` 秒，维持所有帧需约 `M*r*D` 个 slots。按本进程两个 slots 和 30% 余量，必要预算为 `M*r*D≤1.4`，还需考虑同相突发、入口鉴权耗时和其它业务。这不是支持场数或吞吐保证。
+
+四场 2Hz、700ms provider 延迟约需 5.6 slots；十六场约需 22.4。当前选择降低各场投递频率并保持轮转，不让前两场永久占用。多实例会增加 DB/provider 总需求；同场 PG 互斥不能自动解决跨实例公平和 provider 配额。上线前需用实际赛程、实例路由与 provider RTT 验证每场间隔。
 
 ## Viewer fan-out 与费用假设
 
@@ -73,31 +54,23 @@
 
 ## 重复执行
 
-只在隔离工作区执行；下例密码仅用于 disposable loopback PG，不是生产凭据。
+使用 Node 24 与仓库固定的 pnpm；只在隔离的 loopback 目标执行：
 
 ```bash
-corepack pnpm install --frozen-lockfile
-docker run -d --name rivalhub-live-pg -e POSTGRES_PASSWORD=local-live-test \
-  -p 127.0.0.1:55432:5432 \
-  postgres:17@sha256:d74eeac9a635390a49bc21bd49fccd973de707e2a53a76ac49b552b8712ec46f
+pnpm install --frozen-lockfile
+pnpm exec vitest run tests/unit/lib/mizar-live-admission.test.ts
 RIVALHUB_ALLOW_LOCAL_CONTAINERS=1 \
-RIVALHUB_LOCAL_DATABASE_URL=postgresql://postgres:local-live-test@127.0.0.1:55432/postgres \
-RIVALHUB_INTEGRATION_WORKERS=1 LIVE_CAPACITY_REPORT=/tmp/live-after.json \
-corepack pnpm test:integration:pg17 tests/integration/db/mizar-live-capacity.test.ts \
+RIVALHUB_LOCAL_DATABASE_URL=postgresql://postgres:local-review-only@127.0.0.1:55432/postgres \
+RIVALHUB_INTEGRATION_WORKERS=1 LIVE_CAPACITY_REPORT=/tmp/live-fairness.json \
+pnpm test:integration:pg17 tests/integration/db/mizar-live-capacity.test.ts \
   tests/integration/db/mizar-live-ingest.test.ts
-```
-
-基线：checkout 上述 exact main SHA，将本 PR 的 `mizar-live-capacity.test.ts` 和 `harness/mizar.ts` 两个测试文件复制到该 worktree，安装相同 lockfile；同命令加 `LIVE_CAPACITY_BASELINE=1`，只运行 capacity spec。该开关只关闭新增背压断言，**不替换 runtime 实现**。前后顺序执行，避免两个负载互相干扰；报告的 source hashes 必须匹配。若共享已安装 node_modules，pnpm workspace 校验会拒绝跨 worktree 复用；可各自安装，或像本次基线一样通过已安装的 `node_modules/.bin/tsx scripts/db/pg17-integration.ts ...` 运行同一个 canonical runner（报告确认 Node 24.20.0）。
-
-本地真实 provider 回归使用 canonical wrapper：
-
-```bash
-RIVALHUB_ALLOW_LOCAL_CONTAINERS=1 corepack pnpm db:local:bootstrap-services
 RIVALHUB_ALLOW_LOCAL_CONTAINERS=1 RIVALHUB_LIVE_EVIDENCE=1 \
-corepack pnpm db:local:verify-supabase
+pnpm db:local:bootstrap-services
+RIVALHUB_ALLOW_LOCAL_CONTAINERS=1 RIVALHUB_LIVE_EVIDENCE=1 \
+pnpm db:local:verify-supabase
 ```
 
-wrapper 隔离本地目标；不要自行注入远程 URL/key。CI 的 system lane 已根据 Mizar changed surface 强制该 evidence，并验证 pinned Mizar adapter/parser。
+上例密码只属于 disposable 本地容器；wrapper 隔离目标，不注入远程 URL/key。CI system lane 根据 Mizar changed surface 强制 Local Supabase evidence，并验证 pinned Mizar adapter/parser。
 
 ## 尚未证明的事实
 
