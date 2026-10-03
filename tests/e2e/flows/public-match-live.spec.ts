@@ -26,12 +26,18 @@ test("public match consumes private Broadcast and recovers with canonical layout
       await target.evaluate(async () => {
         if (![...document.fonts].some(face => face.family === "Public Evidence" && face.status === "loaded")) {
           const response = await fetch("/__public-evidence-font");
-          const face = new FontFace("Public Evidence", await response.arrayBuffer());
+          const face = new FontFace("Public Evidence", await response.arrayBuffer(), { unicodeRange: "U+2E80-9FFF,U+F900-FAFF,U+FF00-FFEF" });
           await face.load();
           document.fonts.add(face);
         }
+        // The hermetic Next font may claim CJK glyphs while drawing boxes. Prefer
+        // this CJK-only face, retaining each element's original Latin/mono family.
+        for (const element of document.querySelectorAll("*")) {
+          if (!(element instanceof HTMLElement)) continue;
+          const family = getComputedStyle(element).fontFamily;
+          if (!family.includes("Public Evidence")) element.style.fontFamily = `"Public Evidence", ${family}`;
+        }
       });
-      await target.addStyleTag({ content: 'body[class] { --font-noto-sans-sc: "Public Evidence"; --font-sans: Arial, "Public Evidence", sans-serif; --font-display: Arial, "Public Evidence", sans-serif; --font-mono: "JetBrains Mono", ui-monospace, "Public Evidence", monospace; font-family: var(--font-sans); }' });
     }
     await target.evaluate(() => document.fonts.ready);
     await target.addStyleTag({ content: "nextjs-portal { display: none !important; }" });
