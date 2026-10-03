@@ -477,6 +477,13 @@
       "when": 1790954214794,
       "tag": "0067_chief_midnight",
       "breakpoints": true
+    },
+    {
+      "idx": 68,
+      "version": "7",
+      "when": 1791007307117,
+      "tag": "0068_faulty_hellion",
+      "breakpoints": true
     }
   ]
 }

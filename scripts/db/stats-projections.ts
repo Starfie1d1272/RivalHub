@@ -13,6 +13,7 @@ export function parseStatsProjectionArguments(argv: readonly string[]) {
   while (args[0] === "--") args.shift();
   const mode = args.shift();
   if (mode !== "backfill" && mode !== "coverage") throw new Error("用法：stats-projections.ts backfill [--apply] [--limit N] | coverage");
+  const coverageOptions: { scanLimit?: number; batchSize?: number; maxDurationMs?: number } = {};
   let apply = false;
   let limit: number | undefined;
   for (let index = 0; index < args.length; index++) {
@@ -22,9 +23,17 @@ export function parseStatsProjectionArguments(argv: readonly string[]) {
       if (!Number.isSafeInteger(limit) || limit < 1) throw new Error("--limit 必须是正整数。");
       continue;
     }
+    const coverageFlags = { "--scan-limit": "scanLimit", "--batch-size": "batchSize", "--max-duration-ms": "maxDurationMs" } as const;
+    const flag = args[index] as keyof typeof coverageFlags;
+    if (mode === "coverage" && Object.hasOwn(coverageFlags, flag)) {
+      const value = Number(args[++index]);
+      if (!Number.isSafeInteger(value) || value < 1) throw new Error(`${flag} 必须是正整数。`);
+      coverageOptions[coverageFlags[flag]] = value;
+      continue;
+    }
     throw new Error(`无效的统计投影参数：${args[index]}`);
   }
-  return { mode, apply, limit };
+  return { mode, apply, limit, ...(Object.keys(coverageOptions).length ? { coverageOptions } : {}) };
 }
 
 export function statsProjectionDatabaseTarget(apply: boolean, env: NodeJS.ProcessEnv = process.env) {
@@ -49,9 +58,9 @@ async function main() {
   try {
     const database = drizzle(pool, { schema });
     if (args.mode === "coverage") {
-      const report = await database.transaction(inspectStatisticsProjectionCoverage, { isolationLevel: "repeatable read", accessMode: "read only" });
+      const report = await database.transaction((tx) => inspectStatisticsProjectionCoverage(tx, args.coverageOptions), { isolationLevel: "repeatable read", accessMode: "read only" });
       console.log(JSON.stringify({ target, mode: "read-only", ...report }, null, 2));
-      if (!report.ready) throw new Error(`统计投影 coverage 未通过：missing=${report.missing}。旧 Production 保持不变。`);
+      if (!report.ready) throw new Error(`统计投影 coverage 未通过：complete=${report.complete}, scanned=${report.scanned}, missing=${report.missing}。旧 Production 保持不变。`);
     } else {
       const report = await backfillStatisticsProjections(database, args);
       console.log(JSON.stringify({ target, mode: args.apply ? "apply" : "dry-run", ...report }, null, 2));

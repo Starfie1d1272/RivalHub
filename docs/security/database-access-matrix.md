@@ -4,7 +4,7 @@
 
 ## 结论
 
-- 当前 active chain 的 109 张 application-owned `public` base table 全部归类为 `server_only`。业务数据库只由 server-side Drizzle 访问，browser Data API consumer 为零。
+- 当前 active chain 的 110 张 application-owned `public` base table 全部归类为 `server_only`。业务数据库只由 server-side Drizzle 访问，browser Data API consumer 为零。
 - `users`、`user_sessions`、`admin_invites`、`admin_invite_claims`、`season_admin_grants`、`audit_logs`、education evidence、Major prestart/runtime 和 bracket runtime 均按高敏感 server-only 处理。
 - 通用 provider bracket state 按 `(competition_id, stage_key)` 归属 canonical logical Stage；Major Swiss standings 只由 StageRun entrants、managed matches 与 finalized round 投影。
 - `DraftLiveRoom` 与 `CaptainVotingPanel` 继续使用 10 秒 polling；`ResetPasswordForm` 仅调用 Supabase Auth。比赛直播使用独立的 private Broadcast channel 与短期 receive-only viewer JWT，不开放业务表 Data API。
@@ -14,6 +14,7 @@
 
 | Table | Sensitivity | Domain | Server Drizzle consumer | Browser Data API consumer | Realtime consumer | anon privileges | authenticated privileges | RLS enabled | policy summary | publication membership | Target class | Reason |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| statistics_projection_repair_cursors | 后台修复进度 | 赛事统计 | src/lib/stats/projection-backfill.ts | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 后台有界扫描游标，不是统计或发布验收事实。 |
 | match_demo_stat_projections | 版本化每图统计与身份绑定 | 赛事统计 | src/lib/stats/projection.ts; src/lib/stats/tournament-query.ts | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 只经服务端验证当前来源与身份后返回公开统计 DTO。 |
 | prediction_stage_milestones | 阶段首次开放事实 | 观赛预测 | src/lib/predictions/service.ts | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 恢复比赛不能重发历史阶段补给。 |
 | prediction_programs | 服务端预测事实与积分流水 | 观赛预测 | src/lib/predictions/ | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 不开放浏览器 Data API；只返回明确的公开或本人 DTO。 |

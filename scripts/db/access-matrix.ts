@@ -69,6 +69,7 @@ function serverOnly(
  * adding a table without adding an explicit classification fails closed.
  */
 export const DATABASE_ACCESS_MATRIX: readonly DatabaseAccessEntry[] = [
+  serverOnly("statistics_projection_repair_cursors", "赛事统计", "后台修复进度", "src/lib/stats/projection-backfill.ts", "后台有界扫描游标，不是统计或发布验收事实。"),
   serverOnly("match_demo_stat_projections", "赛事统计", "版本化每图统计与身份绑定", "src/lib/stats/projection.ts; src/lib/stats/tournament-query.ts", "只经服务端验证当前来源与身份后返回公开统计 DTO。"),
   serverOnly("prediction_stage_milestones", "观赛预测", "阶段首次开放事实", "src/lib/predictions/service.ts", "恢复比赛不能重发历史阶段补给。"),
   serverOnly("prediction_programs", "观赛预测", "服务端预测事实与积分流水", "src/lib/predictions/", "不开放浏览器 Data API；只返回明确的公开或本人 DTO。"),

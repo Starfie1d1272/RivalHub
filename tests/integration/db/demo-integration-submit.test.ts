@@ -28,7 +28,7 @@ import { recordGameplaySteamIdentityInTx } from "../../../src/lib/identity/gamep
 import { getCurrentStatsSelectionInTx, getPlayerCareerDetail, getTournamentMapDetail, getTournamentPlayerDetail, getTournamentStats } from "../../../src/lib/stats/tournament-query";
 import { adaptStatsEvidence } from "../../../src/lib/stats/evidence-adapter";
 import { STATISTICS_PROJECTION_VERSION } from "../../../src/lib/stats/projection-version";
-import { backfillStatisticsProjectionForMapInTx, reconcileMissingStatisticsProjections } from "../../../src/lib/stats/projection-backfill";
+import { backfillStatisticsProjectionForMapInTx, inspectStatisticsProjectionCoverage, reconcileMissingStatisticsProjections } from "../../../src/lib/stats/projection-backfill";
 import { invalidateConfirmedDemoIdentityInTx } from "../../../src/lib/identity/statistics-invalidation";
 import { createLocalPool } from "./harness/database";
 
@@ -717,6 +717,13 @@ describe("DAK evidence submit persistence", () => {
       });
       expect(secondEventImport).toMatchObject({ status: "synced", issues: [] });
 
+      const coverage = await database.transaction((tx) => inspectStatisticsProjectionCoverage(tx, { batchSize: 1 }),
+        { isolationLevel: "repeatable read", accessMode: "read only" });
+      expect(coverage).toMatchObject({ complete: true, ready: true, missing: 0 });
+      const truncated = await database.transaction((tx) => inspectStatisticsProjectionCoverage(tx, { batchSize: 1, scanLimit: 1 }),
+        { isolationLevel: "repeatable read", accessMode: "read only" });
+      expect(truncated).toMatchObject({ complete: false, ready: false, scanned: 1, missing: 0 });
+
       // Old app writes during cutover are repaired independently of page reads.
       // A stale first candidate must not starve a later valid map with limit=1.
       const orderedCandidates = [
@@ -728,9 +735,24 @@ describe("DAK evidence submit persistence", () => {
         eq(schema.matchDemoStatProjections.projectionVersion, STATISTICS_PROJECTION_VERSION),
       ));
       await database.update(schema.matchDemoImports).set({ evidenceRevision: "stale-revision" }).where(eq(schema.matchDemoImports.id, orderedCandidates[0]!.importId));
-      expect(await reconcileMissingStatisticsProjections(database, { limit: 1 })).toMatchObject({ rebuilt: 1, skipped: 1, invalid: 0, failed: 0 });
+      await database.delete(schema.statisticsProjectionRepairCursors);
+      expect(await reconcileMissingStatisticsProjections(database, { limit: 1, scanLimit: 1 })).toMatchObject({ candidates: 1, scanned: 1, rebuilt: 0, skipped: 1, invalid: 0, failed: 0 });
+      // A new invocation resumes after the stale prefix, even with a one-ID budget.
+      expect(await reconcileMissingStatisticsProjections(database, { limit: 1, scanLimit: 1 })).toMatchObject({ candidates: 1, scanned: 1, rebuilt: 1, invalid: 0, failed: 0 });
       await database.update(schema.matchDemoImports).set({ evidenceRevision: orderedCandidates[0]!.revision }).where(eq(schema.matchDemoImports.id, orderedCandidates[0]!.importId));
-      expect(await reconcileMissingStatisticsProjections(database, { limit: 1 })).toMatchObject({ rebuilt: 1, invalid: 0, failed: 0 });
+      expect(await reconcileMissingStatisticsProjections(database, { limit: 1, scanLimit: 1 })).toMatchObject({ wrapped: true, scanned: 0 });
+      expect(await reconcileMissingStatisticsProjections(database, { limit: 1, scanLimit: 1 })).toMatchObject({ rebuilt: 1, invalid: 0, failed: 0 });
+      // Simulate a worker lost after claiming a range: the persisted cursor is
+      // past still-missing work. Wrap must revisit it, including concurrent runs.
+      await database.delete(schema.matchDemoStatProjections).where(inArray(schema.matchDemoStatProjections.importId, orderedCandidates.map((row) => row.importId)));
+      await database.update(schema.statisticsProjectionRepairCursors).set({ afterMapId: orderedCandidates[1]!.mapId });
+      expect(await reconcileMissingStatisticsProjections(database, { scanLimit: 1 })).toMatchObject({ wrapped: true, scanned: 0 });
+      const concurrentRepair = await Promise.all([
+        reconcileMissingStatisticsProjections(database, { limit: 1, scanLimit: 1 }),
+        reconcileMissingStatisticsProjections(database, { limit: 1, scanLimit: 1 }),
+      ]);
+      expect(concurrentRepair.map((report) => report.rebuilt)).toEqual([1, 1]);
+      expect(new Set(concurrentRepair.map((report) => report.afterMapId)).size).toBe(2);
       queryLog.length = 0;
       queryBindings.length = 0;
       expect(await reconcileMissingStatisticsProjections(observedDatabase)).toMatchObject({ candidates: 0, scanned: 0, rebuilt: 0 });

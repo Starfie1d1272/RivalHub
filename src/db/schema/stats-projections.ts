@@ -29,3 +29,10 @@ export const matchDemoStatProjections = pgTable("match_demo_stat_projections", {
 }));
 
 export type MatchDemoStatProjection = typeof matchDemoStatProjections.$inferSelect;
+
+/** One rotating repair cursor per reducer version; not a coverage or completion assertion. */
+export const statisticsProjectionRepairCursors = pgTable("statistics_projection_repair_cursors", {
+  projectionVersion: text("projection_version").primaryKey(),
+  afterMapId: uuid("after_map_id"),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
