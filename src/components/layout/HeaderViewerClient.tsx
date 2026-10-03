@@ -63,7 +63,7 @@ export function HeaderViewerClient({
         {session ? (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button className="focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] rounded-full">
+              <button aria-label="账号菜单" className="focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] rounded-full">
                 <PlayerAvatar
                   name={userLabel} size="sm"
                   avatarUrl={avatarUrl}

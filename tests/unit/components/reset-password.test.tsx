@@ -6,6 +6,8 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ResetPasswordForm } from "@/components/auth/ResetPasswordForm";
 
+vi.mock("@/actions/password-recovery", () => ({ resetUserPassword: updateUserMock }));
+
 const { toastErrorMock, updateUserMock } = vi.hoisted(() => ({
   toastErrorMock: vi.fn(),
   updateUserMock: vi.fn(),

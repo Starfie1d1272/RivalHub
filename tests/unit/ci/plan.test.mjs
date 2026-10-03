@@ -161,7 +161,7 @@ describe("changed-surface planner", () => {
   it("routes Auth and Storage providers to system", () => {
     const authProvider = classifyChangedFiles([{ status: "M", paths: ["src/lib/auth/supabase.ts"] }], { draft: false });
     expect(authProvider.requiredJobs).toContain("system");
-    expect(authProvider.e2eSpecs).toEqual(["tests/e2e/flows/major-entry.spec.ts"]);
+    expect(authProvider.e2eSpecs).toEqual(["tests/e2e/flows/major-entry.spec.ts", "tests/e2e/flows/session-revocation.spec.ts"]);
 
     const storageProvider = classifyChangedFiles([{ status: "M", paths: ["src/lib/education/storage.ts"] }], { draft: false });
     expect(storageProvider.requiredJobs).toContain("system");

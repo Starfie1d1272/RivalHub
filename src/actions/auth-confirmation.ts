@@ -1,5 +1,6 @@
 "use server";
 
+import { beginAuthentication } from "@/lib/auth/session-registry";
 import { db } from "@/db/client";
 import { actionError } from "@/lib/action-utils";
 import { createUserSession } from "@/lib/auth/session";
@@ -32,6 +33,7 @@ export async function confirmEmailVerification(
   }
 
   try {
+    const authenticationStartedAt = await beginAuthentication(db);
     const { data, error } = await traceOperation("provider.supabase.auth.verify_email", {
       scope: "provider",
       operation: "auth.verify_email",
@@ -52,6 +54,7 @@ export async function confirmEmailVerification(
     const source = flow === "signup" ? "signup_confirmation" : "existing_account_reverification";
     const user = await db.transaction(async (tx) => {
       const canonicalUser = await resolveOrCreateCanonicalUserInTx(tx, {
+        authenticationStartedAt,
         authId,
         email,
         verifiedAt: new Date(confirmedAt),
@@ -61,7 +64,7 @@ export async function confirmEmailVerification(
       return bootstrapConfiguredOwnerInTx(tx, canonicalUser);
     });
 
-    await createUserSession({ userId: user.id, email: user.email });
+    await createUserSession({ userId: user.id, email: user.email }, authenticationStartedAt);
     return ok({
       redirectTo: safeLocalRedirect(next, flow === "reverify" ? "/settings/education" : "/"),
     });
