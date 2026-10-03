@@ -1,3 +1,4 @@
+import type { PublicMatchContext } from "@/lib/matches/public-context";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MatchCard } from "@/components/matches/MatchCard";
 import { isMatchFormat, isMatchStatus } from "@/types/match";
@@ -17,6 +18,7 @@ interface MatchRow {
 
 interface MatchTabsSectionProps {
   activeMatches: MatchRow[];
+  liveContexts?: Map<string, PublicMatchContext>;
   doneMatches: MatchRow[];
   stageLabel: string;
   seasonSlug: string;
@@ -29,6 +31,7 @@ interface MatchTabsSectionProps {
 
 export function MatchTabsSection({
   activeMatches,
+  liveContexts,
   doneMatches,
   stageLabel,
   seasonSlug,
@@ -50,6 +53,7 @@ export function MatchTabsSection({
               <MatchCard
                 key={m.id}
                 matchId={m.id}
+                entryAId={m.entryAId} entryBId={m.entryBId} liveContext={liveContexts?.get(m.id)}
                 highlighted={Boolean(highlightTeamId && [m.entryAId, m.entryBId].includes(highlightTeamId))}
                 seasonSlug={seasonSlug}
                 teamAName={teamMap.get(m.entryAId) ?? unknownTeamName}
@@ -75,6 +79,7 @@ export function MatchTabsSection({
               <MatchCard
                 key={m.id}
                 matchId={m.id}
+                entryAId={m.entryAId} entryBId={m.entryBId} liveContext={liveContexts?.get(m.id)}
                 highlighted={Boolean(highlightTeamId && [m.entryAId, m.entryBId].includes(highlightTeamId))}
                 seasonSlug={seasonSlug}
                 teamAName={teamMap.get(m.entryAId) ?? unknownTeamName}

@@ -123,7 +123,7 @@ function TeamBlock({ teamName, borderColor, bgColor, players }: TeamBlockProps) 
           <thead>
             <tr className="border-b border-[var(--color-border)]">
               <th className="text-left text-[10px] text-[var(--color-fg-dim)] font-medium py-1 pl-3 pr-1 whitespace-nowrap">
-                选手
+                Player
               </th>
               {COLS.map((col) => (
                 <th

@@ -2,12 +2,18 @@
 
 import React, { useState, useEffect, useMemo, useOptimistic, useTransition } from "react";
 import Link from "next/link";
+import type { Route } from "next";
 import { Panel } from "@/components/rivalhub";
 import { PlayerAvatar } from "@/components/players/PlayerAvatar";
 import { castMatchMvpVote } from "@/actions/player-stats";
 import { MVP_DEADLINE_MS } from "@/lib/utils/date";
 import { formatStat, type StatMetric } from "@/lib/stats";
 import { useRoutePolling } from "@/components/use-visible-polling";
+import { StatsMetricHelp } from "@/components/stats/StatsMetricHelp";
+import { HelpTooltip } from "@/components/rivalhub/HelpTooltip";
+import { MetricValue } from "@/components/stats/MetricValue";
+import { STATS_METRICS } from "@/lib/stats/metrics";
+import type { StatsRateValue } from "@/lib/stats/presentation";
 import { Button } from "@/components/ui/button";
 
 interface MvpCandidate {
@@ -27,6 +33,15 @@ interface MvpCandidate {
   we: number | null;
 }
 
+export interface MvpPerformance {
+  playerId: string;
+  rounds: number;
+  kast: StatsRateValue;
+  trade: StatsRateValue;
+  utility: StatsRateValue;
+  flashAssist: StatsRateValue;
+}
+
 interface MatchMvpVoteProps {
   matchId: string;
   candidates: MvpCandidate[];
@@ -34,6 +49,8 @@ interface MatchMvpVoteProps {
   userVotedPlayerName: string | null;
   completedAt: string | null;
   winnerUserId: string | null;
+  winnerPerformance?: MvpPerformance | null;
+  winnerDetailsHref?: string;
 }
 
 const candidateKey = (userId: string | null, name: string) => userId ?? `legacy:${name}`;
@@ -46,6 +63,8 @@ export function MatchMvpVote({
   userVotedPlayerName,
   completedAt,
   winnerUserId,
+  winnerPerformance,
+  winnerDetailsHref,
 }: MatchMvpVoteProps) {
   const [optimisticVotes, addOptimisticVote] = useOptimistic(
     currentVotes,
@@ -119,18 +138,18 @@ export function MatchMvpVote({
       <Panel contentClassName="space-y-5 p-6">
         <div className="text-center space-y-1">
           <p className="text-sm text-[var(--color-fg-mid)]">{awaitingSettlement ? "MVP 结果确认中" : "本场 MVP"}</p>
-          <div className="flex items-center justify-center gap-2 text-2xl font-bold text-[var(--color-accent)]">
+          <div className="flex items-center justify-center gap-2 text-xl font-bold text-[var(--color-accent)]">
             {mvpStats && <PlayerAvatar name={mvp?.playerName ?? "MVP"} avatarUrl={mvpStats.avatarUrl} size="md" />}
             {mvp?.playerUserId ? (
               <Link href={`/players/${mvp.playerUserId}`} className="hover:underline">
-                {mvp?.playerName ?? "—"}
+                {mvp?.playerName ?? (awaitingSettlement ? "等待结果确认" : "暂无 MVP 结果")}
               </Link>
             ) : (
-              mvp?.playerName ?? "—"
+              mvp?.playerName ?? (awaitingSettlement ? "等待结果确认" : "暂无 MVP 结果")
             )}
           </div>
           <p className="text-sm text-[var(--color-fg-mid)]">
-            {mvp?.count ?? 0} 票
+            {mvp ? mvp.count > 0 ? `${mvp.count} 票` : "已确认" : "投票已截止"}
           </p>
           {!winnerUserId && (
             <Button variant="ghost" size="sm" onClick={refresh} disabled={refreshPending}>
@@ -139,56 +158,53 @@ export function MatchMvpVote({
           )}
         </div>
 
-        {mvpStats && (
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs border-collapse">
-              <thead>
-                <tr>
-                  {STAT_COLS.map((c) => (
-                    <th key={c.key} className="pb-1 text-[10px] text-[var(--color-fg-dim)] font-normal text-center">
-                      {c.label}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                <tr className="border-t border-[var(--color-border)]">
-                  {STAT_COLS.map((c) => {
-                    const v = mvpStats[c.key];
-                    return (
-                      <td key={c.key} className="py-1.5 tabular-nums text-center text-[var(--color-fg)]">
-                        {formatStat(c.metric, v)}
-                      </td>
-                    );
-                  })}
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        )}
+        {mvpStats && <dl className="grid grid-cols-3 divide-x divide-[var(--color-border)] border-y border-[var(--color-border)] py-4 text-center">
+          <div><dt className="text-xs text-[var(--color-fg-dim)]"><MvpMetricLabel help={<StatsMetricHelp metric="rating" />}>Rating</MvpMetricLabel></dt><dd className="mt-1 font-mono text-2xl font-bold tabular-nums text-[var(--color-accent)]">{formatStat("ratingPro", mvpStats.ratingPro)}</dd></div>
+          <div><dt className="text-xs text-[var(--color-fg-dim)]"><MvpMetricLabel help={<HelpTooltip label="K / D / A 指标说明" content="依次为本场击杀、死亡和助攻总数。" />}>K / D / A</MvpMetricLabel></dt><dd className="mt-1 font-mono text-lg font-semibold tabular-nums">{mvpStats.kills ?? "—"} / {mvpStats.deaths ?? "—"} / {mvpStats.assists ?? "—"}</dd></div>
+          <div><dt className="text-xs text-[var(--color-fg-dim)]"><MvpMetricLabel help={<StatsMetricHelp metric="adr" />}>ADR</MvpMetricLabel></dt><dd className="mt-1 font-mono text-2xl font-bold tabular-nums">{formatStat("adr", mvpStats.adr)}</dd></div>
+        </dl>}
+
+        {mvpStats && <div className="grid grid-cols-2 gap-x-6 gap-y-4 text-center text-sm sm:grid-cols-6" aria-label="MVP 关键表现">
+          <StatCell label="HS%" value={mvpStats.hsPercent} metric="hsPercent" help={STATS_METRICS.hs.description} />
+          <StatCell label="FK" value={mvpStats.firstKills} metric="firstKills" help={"本场取得首杀的总次数。"} />
+          <StatCell label="MK" value={mvpStats.multiKills} metric="multiKills" help={"本场取得至少双杀的回合数。"} />
+          <StatCell label="CL" value={mvpStats.clutches} metric="clutches" help={STATS_METRICS.clutchWins.description} />
+          <StatCell label="RWS" value={mvpStats.rws} metric="rws" help={STATS_METRICS.rws.description} />
+          <StatCell label="WE" value={mvpStats.we} metric="we" help={STATS_METRICS.we.description} />
+        </div>}
+        {mvpStats && winnerPerformance?.playerId === winnerUserId && <div className="space-y-3 border-t border-[var(--color-border)] pt-4" aria-label="MVP 进阶表现">
+          <p className="text-xs text-[var(--color-fg-dim)]">Advanced · {winnerPerformance.rounds} rounds</p>
+          <dl className="grid grid-cols-2 gap-x-6 gap-y-4 text-center sm:grid-cols-4">
+            {(["kast", "trade", "utility", "flashAssist"] as const).map(metric => <div key={metric}>
+              <dt className="text-xs text-[var(--color-fg-dim)]"><MvpMetricLabel help={<StatsMetricHelp metric={metric} />}>{STATS_METRICS[metric].label}</MvpMetricLabel></dt>
+              <dd className="mt-1 flex justify-center font-mono text-lg font-semibold"><MetricValue metric={metric} value={winnerPerformance[metric]} sampleDisplay="hidden" /></dd>
+            </div>)}
+          </dl>
+        </div>}
+        {mvpStats && winnerDetailsHref && <div className="text-center"><Link href={winnerDetailsHref as Route} className="text-sm text-[var(--color-accent)] hover:underline">完整数据 →</Link></div>}
 
         {allVotes.filter((v) => v !== mvp).length > 0 && (
-          <div className="text-xs space-y-1">
-            <p className="text-[var(--color-fg-dim)]">其他候选人</p>
+          <div className="grid gap-3 text-xs sm:grid-cols-2 lg:grid-cols-4">
+            <p className="text-[var(--color-fg-dim)] sm:col-span-2 lg:col-span-4">其他候选人</p>
             {allVotes
               .filter((v) => v !== mvp)
               .sort((a, b) => b.count - a.count)
               .map((v) => (
-                <div key={candidateKey(v.playerUserId, v.playerName)} className="flex justify-between text-[var(--color-fg-mid)]">
-                  <span className="inline-flex items-center gap-1">
+                <div key={candidateKey(v.playerUserId, v.playerName)} className="flex min-w-0 items-center justify-between gap-3 border border-[var(--color-border)] p-3 text-[var(--color-fg-mid)]">
+                  <span className="inline-flex min-w-0 items-center gap-2">
                     {(() => {
                       const candidate = candidates.find((c) => candidateKey(c.userId, c.perfectName) === candidateKey(v.playerUserId, v.playerName));
                       return candidate ? <PlayerAvatar name={v.playerName} avatarUrl={candidate.avatarUrl} size="sm" /> : null;
                     })()}
                     {v.playerUserId ? (
-                      <Link href={`/players/${v.playerUserId}`} className="hover:text-[var(--color-accent)] transition-colors">
+                      <Link href={`/players/${v.playerUserId}`} className="truncate hover:text-[var(--color-accent)] transition-colors">
                         {v.playerName}
                       </Link>
                     ) : (
                       v.playerName
                     )}
                   </span>
-                  <span className="tabular-nums">{v.count} 票</span>
+                  <span className="shrink-0 tabular-nums">{v.count} 票</span>
                 </div>
               ))}
           </div>
@@ -262,7 +278,7 @@ export function MatchMvpVote({
                 <StatCell label="HS%" value={c.hsPercent} metric="hsPercent" />
                 <StatCell label="FK" value={c.firstKills} metric="firstKills" />
                 <StatCell label="MK" value={c.multiKills} metric="multiKills" />
-                <StatCell label="残局" value={c.clutches} metric="clutches" />
+                <StatCell label="CL" value={c.clutches} metric="clutches" />
               </div>
 
               <div className="flex items-center justify-between border-t border-[var(--color-border)] pt-2">
@@ -283,14 +299,16 @@ function StatCell({
   label,
   value,
   metric,
+  help,
 }: {
   label: string;
   value: number | null;
   metric: StatMetric;
+  help?: string;
 }) {
   return (
     <div>
-      <span className="text-[var(--color-fg-dim)]">{label}</span>
+      <span className="text-[var(--color-fg-dim)]"><MvpMetricLabel help={help ? <HelpTooltip label={`${label} 指标说明`} content={help} /> : undefined}>{label}</MvpMetricLabel></span>
       <span className="tabular-nums block text-[var(--color-fg)]">
         {formatStat(metric, value)}
       </span>
@@ -298,15 +316,7 @@ function StatCell({
   );
 }
 
-const STAT_COLS = [
-  { key: "kills" as const,      label: "K",      metric: "kills" },
-  { key: "deaths" as const,     label: "D",      metric: "deaths" },
-  { key: "assists" as const,    label: "A",      metric: "assists" },
-  { key: "hsPercent" as const,  label: "HS%",    metric: "hsPercent" },
-  { key: "firstKills" as const, label: "FK",     metric: "firstKills" },
-  { key: "multiKills" as const, label: "MK",     metric: "multiKills" },
-  { key: "clutches" as const,   label: "残局",   metric: "clutches" },
-  { key: "adr" as const,        label: "ADR",    metric: "adr" },
-  { key: "rws" as const,        label: "RWS",    metric: "rws" },
-  { key: "ratingPro" as const,  label: "Rating", metric: "ratingPro" },
-] as const satisfies readonly { key: keyof MvpCandidate; label: string; metric: StatMetric }[];
+/** Help sits beside the label without shifting its alignment with the value. */
+function MvpMetricLabel({ children, help }: { children: React.ReactNode; help?: React.ReactNode }) {
+  return <span className="relative inline-block">{children}{help && <span className="absolute left-full top-1/2 ml-1 -translate-y-1/2 leading-none">{help}</span>}</span>;
+}

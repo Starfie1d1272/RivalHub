@@ -123,6 +123,9 @@ importers:
       '@hookform/resolvers':
         specifier: ^5.9.1
         version: 5.9.1(@standard-schema/spec@1.1.0)(react-hook-form@7.87.0(react@19.2.8))(zod@4.5.4)
+      '@mizar-hud/radar-view':
+        specifier: 0.1.0
+        version: 0.1.0(react@19.2.8)
       '@opentelemetry/api':
         specifier: ^1.9.0
         version: 1.9.1
@@ -1235,6 +1238,11 @@ packages:
   '@manypkg/tools@2.1.2':
     resolution: {integrity: sha512-6QEf6yqFbETdwGITKq57aYoPfX/3K8XFNwsAlx0C1M7o8cb79sv1M3w+tWuWvIcSbNqrLF7OD7YpZMVVz335hQ==}
     engines: {node: '>=20.0.0'}
+
+  '@mizar-hud/radar-view@0.1.0':
+    resolution: {integrity: sha512-P7NFFYMfSQB8DRPqX4gFF+y5WoCdz1iUfwgAnQqDzknzAoKQyb1FIGwfMKm6I9eAtqNJ8OvUQNDdn3hJF4MipQ==}
+    peerDependencies:
+      react: ^19.0.0
 
   '@napi-rs/wasm-runtime@1.2.3':
     resolution: {integrity: sha512-UMduMbqO5s5zF2NkNacMT/yK5Y5QiKvWr2+50bzIIxFDwVJ2h49b+oyjaCGPhJxd2/gC2x39EHv/gHVuu36x2Q==}
@@ -5831,6 +5839,10 @@ snapshots:
       jju: 1.4.0
       tinyglobby: 0.2.17
       yaml: 2.9.0
+
+  '@mizar-hud/radar-view@0.1.0(react@19.2.8)':
+    dependencies:
+      react: 19.2.8
 
   '@napi-rs/wasm-runtime@1.2.3(@emnapi/core@1.10.0)(@emnapi/runtime@1.10.0)':
     dependencies:

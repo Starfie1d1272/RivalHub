@@ -1,0 +1,125 @@
+{
+  "schemaVersion": 1,
+  "assets": {
+    "map.de_ancient": {
+      "sourceRepository": "MurkyYT/cs2-map-icons",
+      "sourceCommit": "73fb0ba378e4183603eb4d8c4842340dc32eb877",
+      "sourcePath": "images/thumbs/de_ancient_1_png.png",
+      "sourceUrl": "https://github.com/MurkyYT/cs2-map-icons/blob/73fb0ba378e4183603eb4d8c4842340dc32eb877/images/thumbs/de_ancient_1_png.png",
+      "sourceSha256": "fe12819edeecd58017021caf29ad3b46223de6018104ed3b2c2fa4aa89602da5",
+      "transformation": "Resize to 480x270; encode JPEG quality 82 with macOS sips",
+      "outputPath": "/assets/cs2/thumbnails/de_ancient.1dea314b9eba.jpg",
+      "outputSha256": "1dea314b9eba42fde07929fb7057479d73a2b3ac986f65d99eaad93fba7137e5",
+      "mediaType": "image/jpeg",
+      "owner": "Valve / Counter-Strike 2 game asset"
+    },
+    "map.de_anubis": {
+      "sourceRepository": "MurkyYT/cs2-map-icons",
+      "sourceCommit": "73fb0ba378e4183603eb4d8c4842340dc32eb877",
+      "sourcePath": "images/thumbs/de_anubis_1_png.png",
+      "sourceUrl": "https://github.com/MurkyYT/cs2-map-icons/blob/73fb0ba378e4183603eb4d8c4842340dc32eb877/images/thumbs/de_anubis_1_png.png",
+      "sourceSha256": "cb8d4ded519953859bc20e724f455fc3860d7c3cbfcb4fe8d5093be1adcc9625",
+      "transformation": "Resize to 480x270; encode JPEG quality 82 with macOS sips",
+      "outputPath": "/assets/cs2/thumbnails/de_anubis.d38beccad971.jpg",
+      "outputSha256": "d38beccad971688e41ab8f37658bab16dac6f431f952dded2d6005cbc793eb08",
+      "mediaType": "image/jpeg",
+      "owner": "Valve / Counter-Strike 2 game asset"
+    },
+    "map.de_cache": {
+      "sourceRepository": "MurkyYT/cs2-map-icons",
+      "sourceCommit": "73fb0ba378e4183603eb4d8c4842340dc32eb877",
+      "sourcePath": "images/thumbs/de_cache_1_png.png",
+      "sourceUrl": "https://github.com/MurkyYT/cs2-map-icons/blob/73fb0ba378e4183603eb4d8c4842340dc32eb877/images/thumbs/de_cache_1_png.png",
+      "sourceSha256": "eeb70850ac9049c31bfa1a8ddee0383255668bff3b534ff5f52fd4b9770dbfe0",
+      "transformation": "Resize to 480x270; encode JPEG quality 82 with macOS sips",
+      "outputPath": "/assets/cs2/thumbnails/de_cache.4c5c4b47aa0b.jpg",
+      "outputSha256": "4c5c4b47aa0b9ff30a8692750fbec3290e295b4f1bb78090bc27021236c58815",
+      "mediaType": "image/jpeg",
+      "owner": "Valve / Counter-Strike 2 game asset"
+    },
+    "map.de_dust2": {
+      "sourceRepository": "MurkyYT/cs2-map-icons",
+      "sourceCommit": "73fb0ba378e4183603eb4d8c4842340dc32eb877",
+      "sourcePath": "images/thumbs/de_dust2_1_png.png",
+      "sourceUrl": "https://github.com/MurkyYT/cs2-map-icons/blob/73fb0ba378e4183603eb4d8c4842340dc32eb877/images/thumbs/de_dust2_1_png.png",
+      "sourceSha256": "21b370251067263a3089704000f7bba1744c5a5afef0a261cf1eec2be325dff2",
+      "transformation": "Resize to 480x270; encode JPEG quality 82 with macOS sips",
+      "outputPath": "/assets/cs2/thumbnails/de_dust2.6db77406b610.jpg",
+      "outputSha256": "6db77406b6104f3f8f7cd7cf75debb866e90775ecfdb0216cfa93f55ba19c64c",
+      "mediaType": "image/jpeg",
+      "owner": "Valve / Counter-Strike 2 game asset"
+    },
+    "map.de_inferno": {
+      "sourceRepository": "MurkyYT/cs2-map-icons",
+      "sourceCommit": "73fb0ba378e4183603eb4d8c4842340dc32eb877",
+      "sourcePath": "images/thumbs/de_inferno_1_png.png",
+      "sourceUrl": "https://github.com/MurkyYT/cs2-map-icons/blob/73fb0ba378e4183603eb4d8c4842340dc32eb877/images/thumbs/de_inferno_1_png.png",
+      "sourceSha256": "bbe721b0dd3f24a67d2b5c47d93cd5ab35c56e659481334f2214a9ee0eb83df0",
+      "transformation": "Resize to 480x270; encode JPEG quality 82 with macOS sips",
+      "outputPath": "/assets/cs2/thumbnails/de_inferno.9e7b3eb1ca57.jpg",
+      "outputSha256": "9e7b3eb1ca57e18b478800cb54544924dc0dd82736606f5d73084e7fe14e1706",
+      "mediaType": "image/jpeg",
+      "owner": "Valve / Counter-Strike 2 game asset"
+    },
+    "map.de_mirage": {
+      "sourceRepository": "MurkyYT/cs2-map-icons",
+      "sourceCommit": "73fb0ba378e4183603eb4d8c4842340dc32eb877",
+      "sourcePath": "images/thumbs/de_mirage_1_png.png",
+      "sourceUrl": "https://github.com/MurkyYT/cs2-map-icons/blob/73fb0ba378e4183603eb4d8c4842340dc32eb877/images/thumbs/de_mirage_1_png.png",
+      "sourceSha256": "d66fb70fd111e7878634241c324886badb89b099cde4ce178077683668220c64",
+      "transformation": "Resize to 480x270; encode JPEG quality 82 with macOS sips",
+      "outputPath": "/assets/cs2/thumbnails/de_mirage.fd875833a6b6.jpg",
+      "outputSha256": "fd875833a6b62be535c19b13bec7a9d2b3ecfd6178f7b3dadd6e0a22c492ca31",
+      "mediaType": "image/jpeg",
+      "owner": "Valve / Counter-Strike 2 game asset"
+    },
+    "map.de_nuke": {
+      "sourceRepository": "MurkyYT/cs2-map-icons",
+      "sourceCommit": "73fb0ba378e4183603eb4d8c4842340dc32eb877",
+      "sourcePath": "images/thumbs/de_nuke_1_png.png",
+      "sourceUrl": "https://github.com/MurkyYT/cs2-map-icons/blob/73fb0ba378e4183603eb4d8c4842340dc32eb877/images/thumbs/de_nuke_1_png.png",
+      "sourceSha256": "504ce2c7253de22211b06dd07929c0c81c1ecf523f91a40e3b186c2d9b560c23",
+      "transformation": "Resize to 480x270; encode JPEG quality 82 with macOS sips",
+      "outputPath": "/assets/cs2/thumbnails/de_nuke.3639de870587.jpg",
+      "outputSha256": "3639de870587fd56ce9ba0c5ffb39b720fc47a7ab9df86be9193831f5c94689b",
+      "mediaType": "image/jpeg",
+      "owner": "Valve / Counter-Strike 2 game asset"
+    },
+    "map.de_overpass": {
+      "sourceRepository": "MurkyYT/cs2-map-icons",
+      "sourceCommit": "73fb0ba378e4183603eb4d8c4842340dc32eb877",
+      "sourcePath": "images/thumbs/de_overpass_1_png.png",
+      "sourceUrl": "https://github.com/MurkyYT/cs2-map-icons/blob/73fb0ba378e4183603eb4d8c4842340dc32eb877/images/thumbs/de_overpass_1_png.png",
+      "sourceSha256": "829193078909448dd953cbebcdbb8dd1a9c7e1bc3906c049907a4f8db1fc9a72",
+      "transformation": "Resize to 480x270; encode JPEG quality 82 with macOS sips",
+      "outputPath": "/assets/cs2/thumbnails/de_overpass.b60d014a30d1.jpg",
+      "outputSha256": "b60d014a30d160f105ae798deb612a25f7170743af7cc5bf8d82109e886881a2",
+      "mediaType": "image/jpeg",
+      "owner": "Valve / Counter-Strike 2 game asset"
+    },
+    "map.de_train": {
+      "sourceRepository": "MurkyYT/cs2-map-icons",
+      "sourceCommit": "73fb0ba378e4183603eb4d8c4842340dc32eb877",
+      "sourcePath": "images/thumbs/de_train_1_png.png",
+      "sourceUrl": "https://github.com/MurkyYT/cs2-map-icons/blob/73fb0ba378e4183603eb4d8c4842340dc32eb877/images/thumbs/de_train_1_png.png",
+      "sourceSha256": "72fb730ac3233c1160476a5bd3b1d29d6106e10d2eb0c5f408727bdbb1a3220f",
+      "transformation": "Resize to 480x270; encode JPEG quality 82 with macOS sips",
+      "outputPath": "/assets/cs2/thumbnails/de_train.6a84fae5c126.jpg",
+      "outputSha256": "6a84fae5c126d3ea80da05f97102f7684e3936bd13c7af6900e2f872ddb3b05f",
+      "mediaType": "image/jpeg",
+      "owner": "Valve / Counter-Strike 2 game asset"
+    },
+    "map.de_vertigo": {
+      "sourceRepository": "MurkyYT/cs2-map-icons",
+      "sourceCommit": "73fb0ba378e4183603eb4d8c4842340dc32eb877",
+      "sourcePath": "images/thumbs/de_vertigo_1_png.png",
+      "sourceUrl": "https://github.com/MurkyYT/cs2-map-icons/blob/73fb0ba378e4183603eb4d8c4842340dc32eb877/images/thumbs/de_vertigo_1_png.png",
+      "sourceSha256": "f63d0fdfef7825449f1f5ed3688a37d7845edc63c020a949834157447f119273",
+      "transformation": "Resize to 480x270; encode JPEG quality 82 with macOS sips",
+      "outputPath": "/assets/cs2/thumbnails/de_vertigo.7558ced946a5.jpg",
+      "outputSha256": "7558ced946a586895b4aa967e41e8c876962104050d19d010db2433551250a06",
+      "mediaType": "image/jpeg",
+      "owner": "Valve / Counter-Strike 2 game asset"
+    }
+  }
+}

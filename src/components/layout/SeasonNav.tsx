@@ -51,7 +51,7 @@ export function SeasonNav({
 
   return (
     <nav className="border-b border-[var(--color-border)]">
-      <div className="container mx-auto px-4">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <ScrollHint>
         <ul className="flex gap-1">
           {items.map(({ label, href }) => {

@@ -6,6 +6,7 @@ import { submitMatchRoster } from "@/actions/matches/roster";
 import { Button } from "@/components/ui/button";
 import { PosChip } from "@/components/rivalhub";
 
+import { positionLabel } from "@/lib/validators/registration";
 import { getDisplayName } from "@/lib/identity/display-name";
 
 interface TeamMember {
@@ -142,7 +143,7 @@ export function MatchRosterForm({
               className={playerBtnClass(selectedStarterIds.includes(m.id), rosterLocked || isMatchStarted)}
             >
               <span className="text-sm font-medium">{getDisplayName(m)}</span>
-              {m.primaryPosition && <span className="text-xs">报名位置 · <PosChip pos={m.primaryPosition} /></span>}
+              {m.primaryPosition && <PosChip pos={positionLabel(m.primaryPosition)} />}
             </button>
           ))}
         </div>
@@ -185,7 +186,7 @@ export function MatchRosterForm({
               )}
             >
               <span className="text-sm font-medium">{getDisplayName(m)}</span>
-              {m.primaryPosition && <span className="text-xs">报名位置 · <PosChip pos={m.primaryPosition} /></span>}
+              {m.primaryPosition && <PosChip pos={positionLabel(m.primaryPosition)} />}
             </button>
           ))}
         </div>

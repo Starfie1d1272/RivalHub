@@ -1,7 +1,8 @@
 import { db } from "@/db/client";
 import { matchVetoSteps } from "@/db/schema/match-veto-steps";
 import { asc, eq } from "drizzle-orm";
-import { SIDE_LABELS } from "@/types/match";
+import React from "react";
+import { HelpTooltip } from "@/components/rivalhub/HelpTooltip";
 import { mapLabel } from "@/lib/maps";
 import { Panel } from "@/components/rivalhub";
 
@@ -12,13 +13,6 @@ interface Props {
   entryAId: string;
   entryBId: string;
 }
-
-const ACTION_VERBS: Record<string, string> = {
-  ban: "BAN",
-  pick: "PICK",
-  side_pick: "为地图选择起始方",
-  decider: "成为决胜图",
-};
 
 const ACTION_LABELS: Record<string, string> = {
   ban: "BAN",
@@ -62,75 +56,35 @@ export async function VetoView({
   }
 
   return (
-    <section className="space-y-3">
-      <h2 className="text-lg font-semibold text-[var(--color-fg)]">BP 流程</h2>
+    <section className="space-y-3" aria-label="BP 流程">
       <Panel contentClassName="p-4">
-        <div className="space-y-2">
+        <ol className="space-y-2.5">
           {steps.map((step) => {
-            const verb = ACTION_VERBS[step.actionType] ?? step.actionType;
             const color = ACTION_COLORS[step.actionType] ?? "var(--color-fg-mid)";
             const team = formatTeam(step.entryId);
-
+            const map = mapLabel(step.mapName);
+            const side = step.side === "ct" ? "CT" : step.side === "t" ? "T" : null;
+            const sideTeam = step.actionType === "pick" ? opponentName(step.entryId) : team;
             return (
-              <div
-                key={step.id}
-                className="flex items-center gap-3 text-sm"
-              >
-                <span className="text-xs text-[var(--color-fg-mid)] w-5 text-right tabular-nums">
-                  {step.stepOrder}.
-                </span>
-
-                <span
-                  className="text-xs font-mono uppercase px-1.5 py-0.5 rounded-sm shrink-0"
-                  style={{ background: `${color}20`, color }}
-                >
+              <li key={step.id} className="grid grid-cols-[1rem_4rem_minmax(0,1fr)] items-baseline gap-x-2 text-sm sm:gap-x-3">
+                <span className="text-right text-xs tabular-nums text-[var(--color-fg-dim)]">{step.stepOrder}.</span>
+                <span className="justify-self-start font-mono text-xs" style={{ color }}>
                   {ACTION_LABELS[step.actionType] ?? "BP"}
                 </span>
-
-                {team ? (
-                  <span
-                    className="font-semibold text-[var(--color-fg)] shrink-0"
-                    style={{ minWidth: 0 }}
-                  >
-                    {team}
-                  </span>
-                ) : null}
-
-                <span className="text-[var(--color-fg-mid)]">{verb}</span>
-
-                <span className="font-medium text-[var(--color-fg)]">
-                  {mapLabel(step.mapName)}
-                </span>
-
-                {step.actionType === "side_pick" && step.side ? (
-                  <span className="text-xs text-[var(--color-fg-mid)]">
-                    → {SIDE_LABELS[step.side] ?? step.side} 先
-                  </span>
-                ) : step.side && (() => {
-                  if (step.actionType === "pick" && step.entryId) {
-                    return (
-                      <span className="text-xs text-[var(--color-fg-mid)]">
-                        → {opponentName(step.entryId)}选{SIDE_LABELS[step.side] ?? step.side}先
-                      </span>
-                    );
-                  }
-                  if (step.actionType === "decider" && step.entryId) {
-                    return (
-                      <span className="text-xs text-[var(--color-fg-mid)]">
-                        → {formatTeam(step.entryId)}选{SIDE_LABELS[step.side] ?? step.side}先
-                      </span>
-                    );
-                  }
-                  return (
-                    <span className="text-xs text-[var(--color-fg-mid)]">
-                      ({SIDE_LABELS[step.side] ?? step.side})
-                    </span>
-                  );
-                })()}
-              </div>
+                <div className="min-w-0 break-words leading-6">
+                  {step.actionType === "decider" ? <><span className="font-medium">{map}</span> <span className="text-[var(--color-fg-mid)]">was left over</span></>
+                    : step.actionType === "ban" || step.actionType === "pick" ? <><span className="font-semibold">{team || "—"}</span> <span className="text-[var(--color-fg-mid)]">{step.actionType === "ban" ? "removed" : "picked"}</span> <span className="font-medium">{map}</span></>
+                    : step.actionType === "side_pick" ? <><span className="font-semibold">{team || "—"}</span> <span className="text-[var(--color-fg-mid)]">chose</span> <span className="font-medium">{side ?? "—"}</span> <span className="text-[var(--color-fg-mid)]">on</span> <span className="font-medium">{map}</span></>
+                    : <span className="text-[var(--color-fg-dim)]">记录暂不可用</span>}
+                  {side && ["pick", "decider"].includes(step.actionType) && <span className="ml-3 inline-flex items-center gap-1 text-xs text-[var(--color-fg-dim)]">
+                    {sideTeam && <span>{sideTeam} ·</span>} {side}
+                    <HelpTooltip label={`${map} 起始方说明`} content={`${sideTeam || "该队"}选择以 ${side} 开局。`} />
+                  </span>}
+                </div>
+              </li>
             );
           })}
-        </div>
+        </ol>
       </Panel>
     </section>
   );

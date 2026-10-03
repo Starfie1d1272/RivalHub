@@ -68,6 +68,9 @@ vi.mock("@/lib/auth/session", () => ({
   getUserSession: getUserSessionMock,
   requireSeasonAdmin: requireSeasonAdminMock,
 }));
+vi.mock("@/lib/matches/public-phase", () => ({ loadPublicMatchPhase: vi.fn(async (match: { status: string }) => ({ phase: match.status === "finished" ? "post" : match.status === "scheduled" ? "preparation" : "awaiting_gameplay", currentMapId: null })) }));
+vi.mock("@/components/matches/MatchRealtime", () => ({ MatchRealtime: () => <div data-testid="match-realtime" /> }));
+vi.mock("@/components/matches/MatchContextRefresh", () => ({ MatchContextRefresh: () => null }));
 vi.mock("@/lib/matches/pre-analysis", () => ({ loadMatchPreAnalysis: loadMatchPreAnalysisMock }));
 vi.mock("@/lib/matches/prediction-read-model", () => ({ loadMatchPrediction: loadMatchPredictionMock }));
 vi.mock("@/lib/matches/detail-scoreboard", () => ({ loadMatchScoreboard: loadMatchScoreboardMock }));
@@ -241,7 +244,7 @@ describe("Public Match Detail Page (PRE / POST)", () => {
       expect(html).toContain('data-testid="match-recent-results"');
       expect(html).toContain('data-testid="match-prediction"');
       expect(html).toContain('data-testid="match-h2h"');
-      expect(html).toContain("打开 Veto Room");
+      expect(html).toContain("查看 BP 进度");
       expect(html).not.toContain('data-testid="match-summary-stats"');
       expect(html).not.toContain('data-testid="match-mvp-vote"');
       expect(loadMatchScoreboardMock).not.toHaveBeenCalled();
@@ -283,7 +286,7 @@ describe("Public Match Detail Page (PRE / POST)", () => {
       expect(html).not.toContain('data-testid="match-recent-results"');
       expect(html).not.toContain('data-testid="match-prediction"');
       expect(html).not.toContain('data-testid="match-h2h"');
-      expect(html).toContain("打开 Veto Room");
+      expect(html).toContain("查看 BP 进度");
     });
   });
 
@@ -341,9 +344,26 @@ describe("Public Match Detail Page (PRE / POST)", () => {
       expect(html).toContain('data-testid="player-workspace"');
       expect(html).toContain('data-testid="match-mvp-vote"');
       expect(html).toContain("观看比赛录像 →");
-      expect(html).toContain("打开 Veto Room 记录");
+      expect(html).toContain("BP 记录");
+      expect(html.indexOf('data-testid="match-bp-record"')).toBeLessThan(html.indexOf('data-testid="match-mvp-vote"'));
+      expect(html.match(/data-testid="veto-view"/g)).toHaveLength(1);
       expect(loadMatchPreAnalysisMock).not.toHaveBeenCalled();
       expect(loadMatchPredictionMock).not.toHaveBeenCalled();
+    });
+
+    it("reads MVP whole-match metrics through the public cache even when a different map/player is selected", async () => {
+      findFirstMatchMock.mockResolvedValue({ id: "finished", seasonId: "season-1", entryAId: "entry-a", entryBId: "entry-b", status: "finished", format: "bo3", stage: "playoff", completedAt: new Date(), mvpWinnerUserId: "winner" });
+      findManyMapsMock.mockResolvedValue([{ id: "map-1", mapOrder: 1, mapName: "de_ancient", scoreA: 13, scoreB: 9, completedAt: new Date() }]);
+      loadMatchScoreboardMock.mockResolvedValue({ completed: [], confirmedMapIds: new Set(), mapPlayers: new Map(), detailedPlayers: [{ userId: "winner", name: "Winner" }, { userId: "other", name: "Other" }], detailedPlayerIds: new Set(["winner", "other"]), detailedMapIds: new Set(["map-1"]), mvpCandidates: [], summaryPlayers: [] });
+      getMatchMvpResultsMock.mockResolvedValue([]);
+      getMatchPlayerDetailMock.mockResolvedValue(null);
+      await MatchDetailPage({ params: Promise.resolve({ seasonSlug: "spring-2026", matchId: "finished" }), searchParams: Promise.resolve({ statsPlayer: "other", statsMap: "map-1" }) });
+      expect(getMatchPlayerDetailMock).toHaveBeenCalledWith("finished", "other", "de_ancient", "public");
+      expect(getMatchPlayerDetailMock).toHaveBeenCalledWith("finished", "winner", undefined, "public");
+      getMatchPlayerDetailMock.mockClear();
+      await MatchDetailPage({ params: Promise.resolve({ seasonSlug: "spring-2026", matchId: "finished" }), searchParams: Promise.resolve({}) });
+      expect(getMatchPlayerDetailMock).toHaveBeenCalledTimes(1);
+      expect(getMatchPlayerDetailMock).toHaveBeenCalledWith("finished", "winner", undefined, "public");
     });
 
     it("renders per-map scoreboard in the active map tab when summary is not shown", async () => {
@@ -466,7 +486,7 @@ describe("Public Match Detail Page (PRE / POST)", () => {
       expect(pageSource).not.toContain("clearOperatorScoreboardInTx");
       expect(pageSource).not.toContain("dakImportId");
       expect(pageSource).not.toContain("verifiedByAdmin");
-      expect(pageSource).not.toContain("MatchLiveProjection");
+      expect(pageSource).toContain("MatchRealtime");
       expect(pageSource).not.toContain("runtime-presentation");
       expect(pageSource).not.toContain("cs2-radar-assets");
     });

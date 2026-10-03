@@ -48,6 +48,17 @@ describe("MVP result refresh", () => {
     else Reflect.deleteProperty(document, "visibilityState");
   });
 
+  it("shows winner secondary and scoped advanced metrics without inventing missing values", () => {
+    const performance = { playerId: "user-1", rounds: 20, kast: { rate: .75, successes: 15, attempts: 20 }, trade: { rate: .1, successes: 2, attempts: 20 }, utility: { rate: null }, flashAssist: { rate: 0, successes: 0, attempts: 20 } };
+    const { rerender } = render(<MatchMvpVote {...props} winnerUserId="user-1" winnerPerformance={performance} />);
+    expect(screen.getByLabelText("MVP 关键表现")).toHaveTextContent(/CL\s*\?0/);
+    const advanced = screen.getByLabelText("MVP 进阶表现");
+    expect(advanced).toHaveTextContent("20 rounds"); expect(advanced).toHaveTextContent("75.0%"); expect(advanced).toHaveTextContent(/Util\/r\s*\?—/);
+    fireEvent.click(screen.getByRole("button", { name: "MK 指标说明" }));
+    expect(screen.getByRole("tooltip")).toHaveTextContent("本场取得至少双杀的回合数。");
+    rerender(<MatchMvpVote {...props} winnerUserId="user-1" winnerPerformance={{ ...performance, playerId: "someone-else" }} />);
+    expect(screen.queryByLabelText("MVP 进阶表现")).not.toBeInTheDocument();
+  });
   it("refreshes an initially empty closed snapshot and stops once the committed winner arrives", async () => {
     const { rerender, unmount } = render(<MatchMvpVote {...props} />);
     await act(async () => { await vi.advanceTimersByTimeAsync(60_000); });
@@ -100,7 +111,7 @@ describe("MatchMvpVote", () => {
 
   it("does not invent a winner for a closed match with no votes", () => {
     render(<MatchMvpVote matchId="match-1" candidates={[candidate("Neo", "user-1")]} currentVotes={[]} userVotedPlayerName={null} completedAt="2020-01-01T00:00:00.000Z" winnerUserId={null} />);
-    expect(screen.getByText("—")).toBeInTheDocument();
+    expect(screen.getByText("暂无 MVP 结果")).toBeInTheDocument();
   });
 
   it("waits for the committed winner instead of declaring a read-time result", () => {

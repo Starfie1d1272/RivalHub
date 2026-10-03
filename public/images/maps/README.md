@@ -1,0 +1,1 @@
+Map thumbnails copied from Mizar packages/cs2-assets/generated with original content hashes. Valve / Counter-Strike 2 game artwork; source repository, pinned commit, extraction and transformation are recorded in provenance.json. These presentation-only thumbnails do not define radar calibration or telemetry.

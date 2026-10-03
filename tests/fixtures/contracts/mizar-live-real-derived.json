@@ -1,0 +1,896 @@
+{
+  "provenance": {
+    "mizarCommit": "e52c455fb4caea0284dc5f6d0d8ec52bb8159364",
+    "program": {
+      "kind": "real-derived",
+      "capturePath": "fixtures/gsi/semantic/observer/rich-live-state",
+      "sourceCaptureId": "20260914T060149Z-4cda66b7-recovered-match",
+      "sourceFramesSha256": "7a2dfed10f28903de6a94e782ca3f0955593fe2f653e7e831e05305d8e99347a",
+      "targetSequence": 727,
+      "firstSequence": 727,
+      "lastSequence": 727,
+      "sanitizerVersion": 2
+    },
+    "radar": {
+      "kind": "real-derived",
+      "capturePath": "fixtures/gsi/semantic/observer/rich-live-state",
+      "framesSha256": "8f112d20b0b7e4ad4a4383ee0a75169faabf408a6f2df1b63cc382e66ac7ce51",
+      "source": {
+        "fixtureKind": "sanitized-real-capture",
+        "sourceCaptureId": "20260914T060149Z-4cda66b7-recovered-match",
+        "sourceFramesSha256": "7a2dfed10f28903de6a94e782ca3f0955593fe2f653e7e831e05305d8e99347a",
+        "sourceFrameSelection": {
+          "kind": "sequence-range",
+          "firstSequence": 727,
+          "lastSequence": 727
+        },
+        "sanitizerVersion": 2,
+        "lifecycleCoverage": "partial"
+      }
+    },
+    "description": "Real sanitized GSI replay projections through Mizar projectLiveSnapshotV1. Match context is the existing Mizar fixture; not a recording of an NJU match."
+  },
+  "snapshot": {
+    "schemaVersion": "mizar.live-snapshot.v1",
+    "cursor": {
+      "producerInstanceId": "real-program-replay",
+      "liveSessionId": null,
+      "runtimeSeq": 1,
+      "programSourceGeneration": 0,
+      "programReceiveSequence": 727,
+      "mapEpoch": 1
+    },
+    "producedAt": "2026-10-03T00:00:00.000Z",
+    "matchId": "match-m2-01",
+    "competitionId": "competition-m2",
+    "format": "bo3",
+    "series": {
+      "scoreA": 0,
+      "scoreB": 0,
+      "currentMapOrder": 1
+    },
+    "roundHistory": {
+      "mapOrder": 1,
+      "completeness": "complete",
+      "rounds": [
+        {
+          "roundNumber": 1,
+          "winnerSide": "CT",
+          "winnerEntryId": null,
+          "winCondition": "elimination"
+        },
+        {
+          "roundNumber": 2,
+          "winnerSide": "CT",
+          "winnerEntryId": null,
+          "winCondition": "elimination"
+        }
+      ]
+    },
+    "map": {
+      "mapId": "map-m2-01",
+      "name": "de_ancient",
+      "phase": "live",
+      "roundNumber": 2,
+      "scoreCT": 2,
+      "scoreT": 0
+    },
+    "roundPhase": "live",
+    "clock": {
+      "phase": "live",
+      "remainingSeconds": 100.1
+    },
+    "teams": {
+      "ct": {
+        "entryId": "entry-m2-a",
+        "name": "FURIA"
+      },
+      "t": {
+        "entryId": "entry-m2-b",
+        "name": "G2.Esports"
+      }
+    },
+    "players": [
+      {
+        "sourcePlayerId": "76561197960690195",
+        "canonicalPlayerId": "steam-76561197960690195",
+        "identityEvidence": "canonical",
+        "lineupEvidence": "current",
+        "displayName": "FalleN",
+        "side": "CT",
+        "lifeState": "alive",
+        "health": 100,
+        "armor": 100,
+        "hasHelmet": true,
+        "hasDefuser": null,
+        "money": 350,
+        "equipmentValue": 5400,
+        "activeWeapon": {
+          "name": "weapon_m4a1_silencer",
+          "ammoClip": 1,
+          "ammoReserve": 3
+        },
+        "stats": {
+          "kills": 1,
+          "assists": 0,
+          "deaths": 0,
+          "liveAdr": null,
+          "completedAdr": null
+        }
+      },
+      {
+        "sourcePlayerId": "76561198012872053",
+        "canonicalPlayerId": "steam-76561198012872053",
+        "identityEvidence": "canonical",
+        "lineupEvidence": "current",
+        "displayName": "huNter-",
+        "side": "T",
+        "lifeState": "alive",
+        "health": 100,
+        "armor": 100,
+        "hasHelmet": true,
+        "hasDefuser": null,
+        "money": 200,
+        "equipmentValue": 4100,
+        "activeWeapon": {
+          "name": "weapon_galilar",
+          "ammoClip": 35,
+          "ammoReserve": 4
+        },
+        "stats": {
+          "kills": 0,
+          "assists": 0,
+          "deaths": 2,
+          "liveAdr": null,
+          "completedAdr": null
+        }
+      },
+      {
+        "sourcePlayerId": "76561198053126645",
+        "canonicalPlayerId": "steam-76561198053126645",
+        "identityEvidence": "canonical",
+        "lineupEvidence": "current",
+        "displayName": "NertZ",
+        "side": "T",
+        "lifeState": "alive",
+        "health": 100,
+        "armor": 100,
+        "hasHelmet": true,
+        "hasDefuser": null,
+        "money": 50,
+        "equipmentValue": 4800,
+        "activeWeapon": {
+          "name": "weapon_ak47",
+          "ammoClip": 30,
+          "ammoReserve": 3
+        },
+        "stats": {
+          "kills": 0,
+          "assists": 0,
+          "deaths": 2,
+          "liveAdr": null,
+          "completedAdr": null
+        }
+      },
+      {
+        "sourcePlayerId": "76561198058500492",
+        "canonicalPlayerId": "steam-76561198058500492",
+        "identityEvidence": "canonical",
+        "lineupEvidence": "current",
+        "displayName": "KSCERATO",
+        "side": "CT",
+        "lifeState": "alive",
+        "health": 97,
+        "armor": 65,
+        "hasHelmet": true,
+        "hasDefuser": true,
+        "money": 0,
+        "equipmentValue": 5800,
+        "activeWeapon": {
+          "name": "weapon_m4a1_silencer",
+          "ammoClip": 8,
+          "ammoReserve": 3
+        },
+        "stats": {
+          "kills": 4,
+          "assists": 3,
+          "deaths": 0,
+          "liveAdr": null,
+          "completedAdr": null
+        }
+      },
+      {
+        "sourcePlayerId": "76561198068002993",
+        "canonicalPlayerId": "steam-76561198068002993",
+        "identityEvidence": "canonical",
+        "lineupEvidence": "current",
+        "displayName": "HeavyGod",
+        "side": "T",
+        "lifeState": "alive",
+        "health": 100,
+        "armor": 100,
+        "hasHelmet": true,
+        "hasDefuser": null,
+        "money": 100,
+        "equipmentValue": 4800,
+        "activeWeapon": {
+          "name": "weapon_ak47",
+          "ammoClip": 23,
+          "ammoReserve": 3
+        },
+        "stats": {
+          "kills": 1,
+          "assists": 0,
+          "deaths": 2,
+          "liveAdr": null,
+          "completedAdr": null
+        }
+      },
+      {
+        "sourcePlayerId": "76561198134401925",
+        "canonicalPlayerId": "steam-76561198134401925",
+        "identityEvidence": "canonical",
+        "lineupEvidence": "current",
+        "displayName": "YEKINDAR",
+        "side": "CT",
+        "lifeState": "alive",
+        "health": 100,
+        "armor": 100,
+        "hasHelmet": true,
+        "hasDefuser": true,
+        "money": 1800,
+        "equipmentValue": 3650,
+        "activeWeapon": {
+          "name": "weapon_smokegrenade",
+          "ammoClip": null,
+          "ammoReserve": 1
+        },
+        "stats": {
+          "kills": 2,
+          "assists": 1,
+          "deaths": 2,
+          "liveAdr": null,
+          "completedAdr": null
+        }
+      },
+      {
+        "sourcePlayerId": "76561198164970560",
+        "canonicalPlayerId": "steam-76561198164970560",
+        "identityEvidence": "canonical",
+        "lineupEvidence": "current",
+        "displayName": "yuurih",
+        "side": "CT",
+        "lifeState": "alive",
+        "health": 100,
+        "armor": 100,
+        "hasHelmet": true,
+        "hasDefuser": true,
+        "money": 2400,
+        "equipmentValue": 4150,
+        "activeWeapon": {
+          "name": "weapon_mp9",
+          "ammoClip": 30,
+          "ammoReserve": 2
+        },
+        "stats": {
+          "kills": 0,
+          "assists": 1,
+          "deaths": 1,
+          "liveAdr": null,
+          "completedAdr": null
+        }
+      },
+      {
+        "sourcePlayerId": "76561198200982290",
+        "canonicalPlayerId": "steam-76561198200982290",
+        "identityEvidence": "canonical",
+        "lineupEvidence": "current",
+        "displayName": "molodoy",
+        "side": "CT",
+        "lifeState": "alive",
+        "health": 100,
+        "armor": 100,
+        "hasHelmet": true,
+        "hasDefuser": true,
+        "money": 950,
+        "equipmentValue": 7550,
+        "activeWeapon": {
+          "name": "weapon_awp",
+          "ammoClip": 5,
+          "ammoReserve": 2
+        },
+        "stats": {
+          "kills": 3,
+          "assists": 1,
+          "deaths": 2,
+          "liveAdr": null,
+          "completedAdr": null
+        }
+      },
+      {
+        "sourcePlayerId": "76561198294381090",
+        "canonicalPlayerId": "steam-76561198294381090",
+        "identityEvidence": "canonical",
+        "lineupEvidence": "current",
+        "displayName": "r1nkle",
+        "side": "T",
+        "lifeState": "alive",
+        "health": 100,
+        "armor": 100,
+        "hasHelmet": true,
+        "hasDefuser": null,
+        "money": 50,
+        "equipmentValue": 4900,
+        "activeWeapon": {
+          "name": "weapon_ak47",
+          "ammoClip": 30,
+          "ammoReserve": 3
+        },
+        "stats": {
+          "kills": 1,
+          "assists": 0,
+          "deaths": 2,
+          "liveAdr": null,
+          "completedAdr": null
+        }
+      },
+      {
+        "sourcePlayerId": "76561199046478501",
+        "canonicalPlayerId": "steam-76561199046478501",
+        "identityEvidence": "canonical",
+        "lineupEvidence": "current",
+        "displayName": "MATYS",
+        "side": "T",
+        "lifeState": "alive",
+        "health": 98,
+        "armor": 99,
+        "hasHelmet": true,
+        "hasDefuser": null,
+        "money": 150,
+        "equipmentValue": 4600,
+        "activeWeapon": {
+          "name": "weapon_ak47",
+          "ammoClip": 30,
+          "ammoReserve": 3
+        },
+        "stats": {
+          "kills": 3,
+          "assists": 0,
+          "deaths": 2,
+          "liveAdr": null,
+          "completedAdr": null
+        }
+      }
+    ],
+    "observedPlayerSourceId": "76561198058500492",
+    "bomb": {
+      "state": "carried",
+      "carrierSourceId": "76561198012872053",
+      "action": null
+    },
+    "radar": {
+      "mapName": "de_ancient",
+      "calibrationRevision": "cs2-overview/2026-09-16",
+      "layers": [
+        "single"
+      ],
+      "activeLayer": "single",
+      "players": [
+        {
+          "sourcePlayerId": "76561197960690195",
+          "canonicalPlayerId": "steam-76561197960690195",
+          "side": "CT",
+          "lifeState": "alive",
+          "position": {
+            "x": 0.4794921875,
+            "y": 0.29494140625,
+            "layer": "single"
+          },
+          "facing": {
+            "x": 0.09356123036917634,
+            "y": 0.9956135275154743
+          }
+        },
+        {
+          "sourcePlayerId": "76561198012872053",
+          "canonicalPlayerId": "steam-76561198012872053",
+          "side": "T",
+          "lifeState": "alive",
+          "position": {
+            "x": 0.35697265625,
+            "y": 0.6232421875,
+            "layer": "single"
+          },
+          "facing": {
+            "x": 0.4781511196344805,
+            "y": -0.8782775795796525
+          }
+        },
+        {
+          "sourcePlayerId": "76561198053126645",
+          "canonicalPlayerId": "steam-76561198053126645",
+          "side": "T",
+          "lifeState": "alive",
+          "position": {
+            "x": 0.38826171875000004,
+            "y": 0.5798046875,
+            "layer": "single"
+          },
+          "facing": {
+            "x": 0.7577000594066929,
+            "y": -0.6526029573753815
+          }
+        },
+        {
+          "sourcePlayerId": "76561198058500492",
+          "canonicalPlayerId": "steam-76561198058500492",
+          "side": "CT",
+          "lifeState": "alive",
+          "position": {
+            "x": 0.48388671875,
+            "y": 0.33671875,
+            "layer": "single"
+          },
+          "facing": {
+            "x": 0.0790204205333022,
+            "y": 0.9968729974970432
+          }
+        },
+        {
+          "sourcePlayerId": "76561198068002993",
+          "canonicalPlayerId": "steam-76561198068002993",
+          "side": "T",
+          "lifeState": "alive",
+          "position": {
+            "x": 0.52126953125,
+            "y": 0.5885351562500001,
+            "layer": "single"
+          },
+          "facing": {
+            "x": -0.6515328459914961,
+            "y": -0.7586204259010046
+          }
+        },
+        {
+          "sourcePlayerId": "76561198134401925",
+          "canonicalPlayerId": "steam-76561198134401925",
+          "side": "CT",
+          "lifeState": "alive",
+          "position": {
+            "x": 0.62849609375,
+            "y": 0.53478515625,
+            "layer": "single"
+          },
+          "facing": {
+            "x": -0.6386509769546448,
+            "y": 0.7694965429648647
+          }
+        },
+        {
+          "sourcePlayerId": "76561198164970560",
+          "canonicalPlayerId": "steam-76561198164970560",
+          "side": "CT",
+          "lifeState": "alive",
+          "position": {
+            "x": 0.66576171875,
+            "y": 0.44035156249999996,
+            "layer": "single"
+          },
+          "facing": {
+            "x": -0.07202906959555641,
+            "y": 0.9974025331495798
+          }
+        },
+        {
+          "sourcePlayerId": "76561198200982290",
+          "canonicalPlayerId": "steam-76561198200982290",
+          "side": "CT",
+          "lifeState": "alive",
+          "position": {
+            "x": 0.29654296874999997,
+            "y": 0.388984375,
+            "layer": "single"
+          },
+          "facing": {
+            "x": 0.7511498693498945,
+            "y": 0.6601317094153534
+          }
+        },
+        {
+          "sourcePlayerId": "76561198294381090",
+          "canonicalPlayerId": "steam-76561198294381090",
+          "side": "T",
+          "lifeState": "alive",
+          "position": {
+            "x": 0.35847656250000004,
+            "y": 0.6507031249999999,
+            "layer": "single"
+          },
+          "facing": {
+            "x": -0.9310800284705157,
+            "y": -0.3648149950088996
+          }
+        },
+        {
+          "sourcePlayerId": "76561199046478501",
+          "canonicalPlayerId": "steam-76561199046478501",
+          "side": "T",
+          "lifeState": "alive",
+          "position": {
+            "x": 0.8241992187499999,
+            "y": 0.5584765625,
+            "layer": "single"
+          },
+          "facing": {
+            "x": -0.21682267389129845,
+            "y": -0.9762110059237333
+          }
+        }
+      ],
+      "bomb": {
+        "position": {
+          "x": 0.35697265625,
+          "y": 0.6232421875,
+          "layer": "single"
+        }
+      },
+      "utility": [
+        {
+          "sourceEntityId": "156",
+          "kind": "frag",
+          "ownerSourceId": "76561198134401925",
+          "position": {
+            "x": 0.7105859375,
+            "y": 0.57373046875,
+            "layer": "single"
+          },
+          "lifetimeSeconds": 5.357,
+          "effectTimeSeconds": null,
+          "flames": []
+        },
+        {
+          "sourceEntityId": "157",
+          "kind": "frag",
+          "ownerSourceId": "76561199046478501",
+          "position": {
+            "x": 0.8065820312499999,
+            "y": 0.35654296875,
+            "layer": "single"
+          },
+          "lifetimeSeconds": 1.498,
+          "effectTimeSeconds": null,
+          "flames": []
+        },
+        {
+          "sourceEntityId": "163",
+          "kind": "inferno",
+          "ownerSourceId": "76561198164970560",
+          "position": null,
+          "lifetimeSeconds": 3.951,
+          "effectTimeSeconds": null,
+          "flames": [
+            {
+              "sourceFlameId": "flame_p496_n804_p113",
+              "position": {
+                "x": 0.6736328125,
+                "y": 0.5796875,
+                "layer": "single"
+              }
+            },
+            {
+              "sourceFlameId": "flame_p534_n811_p108",
+              "position": {
+                "x": 0.6810546875,
+                "y": 0.5810546875,
+                "layer": "single"
+              }
+            },
+            {
+              "sourceFlameId": "flame_p567_n827_p106",
+              "position": {
+                "x": 0.6875,
+                "y": 0.5841796875,
+                "layer": "single"
+              }
+            },
+            {
+              "sourceFlameId": "flame_p571_n785_p105",
+              "position": {
+                "x": 0.68828125,
+                "y": 0.5759765625,
+                "layer": "single"
+              }
+            },
+            {
+              "sourceFlameId": "flame_p579_n731_p105",
+              "position": {
+                "x": 0.68984375,
+                "y": 0.5654296875,
+                "layer": "single"
+              }
+            },
+            {
+              "sourceFlameId": "flame_p606_n769_p91",
+              "position": {
+                "x": 0.6951171875,
+                "y": 0.5728515625,
+                "layer": "single"
+              }
+            },
+            {
+              "sourceFlameId": "flame_p610_n714_p93",
+              "position": {
+                "x": 0.6958984375,
+                "y": 0.562109375,
+                "layer": "single"
+              }
+            },
+            {
+              "sourceFlameId": "flame_p615_n835_p91",
+              "position": {
+                "x": 0.696875,
+                "y": 0.5857421875,
+                "layer": "single"
+              }
+            },
+            {
+              "sourceFlameId": "flame_p626_n643_p94",
+              "position": {
+                "x": 0.6990234375,
+                "y": 0.5482421875,
+                "layer": "single"
+              }
+            },
+            {
+              "sourceFlameId": "flame_p628_n730_p88",
+              "position": {
+                "x": 0.6994140625,
+                "y": 0.565234375,
+                "layer": "single"
+              }
+            },
+            {
+              "sourceFlameId": "flame_p635_n798_p85",
+              "position": {
+                "x": 0.70078125,
+                "y": 0.578515625,
+                "layer": "single"
+              }
+            },
+            {
+              "sourceFlameId": "flame_p648_n691_p87",
+              "position": {
+                "x": 0.7033203125,
+                "y": 0.5576171875,
+                "layer": "single"
+              }
+            },
+            {
+              "sourceFlameId": "flame_p655_n774_p82",
+              "position": {
+                "x": 0.7046875,
+                "y": 0.573828125,
+                "layer": "single"
+              }
+            },
+            {
+              "sourceFlameId": "flame_p675_n726_p81",
+              "position": {
+                "x": 0.70859375,
+                "y": 0.564453125,
+                "layer": "single"
+              }
+            },
+            {
+              "sourceFlameId": "flame_p679_n691_p84",
+              "position": {
+                "x": 0.709375,
+                "y": 0.5576171875,
+                "layer": "single"
+              }
+            },
+            {
+              "sourceFlameId": "flame_p682_n760_p78",
+              "position": {
+                "x": 0.7099609375,
+                "y": 0.57109375,
+                "layer": "single"
+              }
+            }
+          ]
+        },
+        {
+          "sourceEntityId": "188",
+          "kind": "smoke",
+          "ownerSourceId": "76561198012872053",
+          "position": {
+            "x": 0.474453125,
+            "y": 0.38208984375,
+            "layer": "single"
+          },
+          "lifetimeSeconds": 14.482,
+          "effectTimeSeconds": 9.172,
+          "flames": []
+        },
+        {
+          "sourceEntityId": "202",
+          "kind": "smoke",
+          "ownerSourceId": "76561198068002993",
+          "position": {
+            "x": 0.437109375,
+            "y": 0.58541015625,
+            "layer": "single"
+          },
+          "lifetimeSeconds": 7.107,
+          "effectTimeSeconds": 5.641,
+          "flames": []
+        },
+        {
+          "sourceEntityId": "220",
+          "kind": "flashbang",
+          "ownerSourceId": "76561198053126645",
+          "position": {
+            "x": 0.4207421875,
+            "y": 0.543203125,
+            "layer": "single"
+          },
+          "lifetimeSeconds": 0.811,
+          "effectTimeSeconds": null,
+          "flames": []
+        },
+        {
+          "sourceEntityId": "231",
+          "kind": "frag",
+          "ownerSourceId": "76561198058500492",
+          "position": {
+            "x": 0.4752734375,
+            "y": 0.378125,
+            "layer": "single"
+          },
+          "lifetimeSeconds": 4.67,
+          "effectTimeSeconds": null,
+          "flames": []
+        },
+        {
+          "sourceEntityId": "242",
+          "kind": "smoke",
+          "ownerSourceId": "76561198164970560",
+          "position": {
+            "x": 0.82564453125,
+            "y": 0.46810546875,
+            "layer": "single"
+          },
+          "lifetimeSeconds": 2.92,
+          "effectTimeSeconds": 1.812,
+          "flames": []
+        },
+        {
+          "sourceEntityId": "274",
+          "kind": "smoke",
+          "ownerSourceId": "76561198200982290",
+          "position": {
+            "x": 0.357109375,
+            "y": 0.5992578125,
+            "layer": "single"
+          },
+          "lifetimeSeconds": 14.342,
+          "effectTimeSeconds": 8.266,
+          "flames": []
+        },
+        {
+          "sourceEntityId": "277",
+          "kind": "smoke",
+          "ownerSourceId": "76561198294381090",
+          "position": {
+            "x": 0.61265625,
+            "y": 0.5616992187500001,
+            "layer": "single"
+          },
+          "lifetimeSeconds": 10.936,
+          "effectTimeSeconds": 4.359,
+          "flames": []
+        },
+        {
+          "sourceEntityId": "288",
+          "kind": "frag",
+          "ownerSourceId": "76561198164970560",
+          "position": {
+            "x": 0.750703125,
+            "y": 0.5577929687500001,
+            "layer": "single"
+          },
+          "lifetimeSeconds": 4.17,
+          "effectTimeSeconds": null,
+          "flames": []
+        },
+        {
+          "sourceEntityId": "359",
+          "kind": "inferno",
+          "ownerSourceId": "76561199046478501",
+          "position": null,
+          "lifetimeSeconds": 4.42,
+          "effectTimeSeconds": null,
+          "flames": [
+            {
+              "sourceFlameId": "flame_p1011_n141_p124",
+              "position": {
+                "x": 0.77421875,
+                "y": 0.4501953125,
+                "layer": "single"
+              }
+            },
+            {
+              "sourceFlameId": "flame_p1041_n100_p128",
+              "position": {
+                "x": 0.780078125,
+                "y": 0.4421875,
+                "layer": "single"
+              }
+            },
+            {
+              "sourceFlameId": "flame_p1065_n31_p130",
+              "position": {
+                "x": 0.784765625,
+                "y": 0.4287109375,
+                "layer": "single"
+              }
+            },
+            {
+              "sourceFlameId": "flame_p1117_n24_p129",
+              "position": {
+                "x": 0.794921875,
+                "y": 0.42734375,
+                "layer": "single"
+              }
+            },
+            {
+              "sourceFlameId": "flame_p1163_n12_p129",
+              "position": {
+                "x": 0.80390625,
+                "y": 0.425,
+                "layer": "single"
+              }
+            },
+            {
+              "sourceFlameId": "flame_p1185_n17_p146",
+              "position": {
+                "x": 0.808203125,
+                "y": 0.4259765625,
+                "layer": "single"
+              }
+            },
+            {
+              "sourceFlameId": "flame_p999_n199_p122",
+              "position": {
+                "x": 0.771875,
+                "y": 0.4615234375,
+                "layer": "single"
+              }
+            }
+          ]
+        },
+        {
+          "sourceEntityId": "364",
+          "kind": "smoke",
+          "ownerSourceId": "76561198294381090",
+          "position": {
+            "x": 0.41187500000000005,
+            "y": 0.46414062500000003,
+            "layer": "single"
+          },
+          "lifetimeSeconds": 12.857,
+          "effectTimeSeconds": 7.297,
+          "flames": []
+        }
+      ]
+    },
+    "capability": {
+      "telemetryFresh": true,
+      "contextFresh": true,
+      "identity": "matched",
+      "lineupComplete": true,
+      "radarCurrent": true,
+      "canonicalTeams": true
+    }
+  }
+}
