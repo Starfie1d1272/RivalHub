@@ -88,7 +88,7 @@ test("public match consumes private Broadcast and recovers with canonical layout
     expect(viewerJoins).toBe(1);
     await expect(page.getByLabel("系列赛比分").filter({ visible: true })).toHaveCount(0);
     await expect(page.getByRole("region", { name: "BP 结果与地图" }).getByText("2 : 0", { exact: true })).toBeVisible();
-    await expect(page.getByText("暂无直播入口，可继续查看比赛数据。")).toBeVisible();
+    await expect(page.getByText("暂无直播", { exact: true })).toBeVisible();
     for (const width of [1440, 390, 320]) {
       await page.setViewportSize({ width, height: 1000 });
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);

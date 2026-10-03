@@ -27,22 +27,8 @@ export function publicRoundScore(snapshot: PublicLiveMatchProjection, entryAId: 
   return null;
 }
 
-/** Short public names shared by the table and the package's existing marker label. */
+/** Stable numeric markers shared by the table and radar; independent of names and CT/T. */
 export function publicPlayerLabels(players: PublicLiveMatchProjection["players"]): Map<string, string> {
-  const labels = new Map<string, string>();
-  const used = new Set<string>();
-  // Source identity gives deterministic tie-breaking independent of roster order or CT/T swaps.
-  for (const player of [...players].sort((a, b) => a.sourcePlayerId.localeCompare(b.sourcePlayerId))) {
-    const letters = Array.from(player.displayName?.normalize("NFKC").replace(/[^\p{L}\p{N}]/gu, "") ?? "");
-    const base = Array.from(letters.join("").toUpperCase()).slice(0, 2).join("") || "?";
-    let label = base;
-    let suffix = 1;
-    while (used.has(label)) {
-      const tag = (suffix++).toString(36).toUpperCase();
-      label = `${Array.from(base).slice(0, 3 - tag.length).join("")}${tag}`;
-    }
-    used.add(label);
-    labels.set(player.sourcePlayerId, label);
-  }
-  return labels;
+  return new Map([...players].sort((a, b) => a.sourcePlayerId.localeCompare(b.sourcePlayerId))
+    .map((player, index) => [player.sourcePlayerId, String(index + 1)]));
 }

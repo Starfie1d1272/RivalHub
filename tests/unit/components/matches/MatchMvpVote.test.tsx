@@ -51,9 +51,11 @@ describe("MVP result refresh", () => {
   it("shows winner secondary and scoped advanced metrics without inventing missing values", () => {
     const performance = { playerId: "user-1", rounds: 20, kast: { rate: .75, successes: 15, attempts: 20 }, trade: { rate: .1, successes: 2, attempts: 20 }, utility: { rate: null }, flashAssist: { rate: 0, successes: 0, attempts: 20 } };
     const { rerender } = render(<MatchMvpVote {...props} winnerUserId="user-1" winnerPerformance={performance} />);
-    expect(screen.getByLabelText("MVP 关键表现")).toHaveTextContent("残局获胜0");
+    expect(screen.getByLabelText("MVP 关键表现")).toHaveTextContent(/CL\s*\?0/);
     const advanced = screen.getByLabelText("MVP 进阶表现");
-    expect(advanced).toHaveTextContent("20 回合样本"); expect(advanced).toHaveTextContent("75.0%"); expect(advanced).toHaveTextContent("Util/r—");
+    expect(advanced).toHaveTextContent("20 rounds"); expect(advanced).toHaveTextContent("75.0%"); expect(advanced).toHaveTextContent(/Util\/r\s*\?—/);
+    fireEvent.click(screen.getByRole("button", { name: "MK 指标说明" }));
+    expect(screen.getByRole("tooltip")).toHaveTextContent("本场取得至少双杀的回合数。");
     rerender(<MatchMvpVote {...props} winnerUserId="user-1" winnerPerformance={{ ...performance, playerId: "someone-else" }} />);
     expect(screen.queryByLabelText("MVP 进阶表现")).not.toBeInTheDocument();
   });

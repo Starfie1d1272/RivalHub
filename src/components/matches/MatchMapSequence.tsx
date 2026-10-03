@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import { HelpTooltip } from "@/components/rivalhub/HelpTooltip";
 import { useMatchLive } from "./MatchLiveProvider";
 import { liveFreshness, visibleLiveSnapshot } from "@/lib/mizar/live-viewer-state";
 import { publicRoundScore } from "@/lib/mizar/live-presentation";
@@ -35,7 +36,7 @@ export function MatchMapSequence({ maps, currentMapId, entryAId, teamAName, team
   const stale = liveFreshness(state, now) === "stale";
   return <section aria-label="BP 结果与地图" className="min-w-0 space-y-3">
     <div className="flex flex-wrap items-baseline justify-between gap-2"><h2 className="text-lg font-semibold">BP 结果与地图</h2>
-      {progress && <p className="text-sm text-[var(--color-fg-mid)]" aria-label="地图胜场">地图胜场 {progress.scoreA ?? "—"} : {progress.scoreB ?? "—"}</p>}</div>
+      {progress && <p className="text-sm text-[var(--color-fg-mid)]" aria-label="地图胜场">Series {progress.scoreA ?? "—"} : {progress.scoreB ?? "—"} <HelpTooltip label="地图胜场说明" content="Series 表示双方已赢下的地图数；每张地图上的数字表示该图回合比分。" /></p>}</div>
     <ol className="grid gap-3 sm:grid-cols-3">{maps.map(map => {
       const completed = map.completedAt !== null && map.scoreA !== null && map.scoreB !== null;
       const current = !finished && map.id === currentMapId;
@@ -43,7 +44,7 @@ export function MatchMapSequence({ maps, currentMapId, entryAId, teamAName, team
         <div className="flex items-center justify-between gap-2 text-xs text-[var(--color-fg-mid)]"><span className="font-mono">MAP {map.mapOrder}</span><span>{completed ? "已结束" : finished ? "未进行" : current ? snapshot ? stale ? "更新暂时中断" : "进行中" : phase === "inter_map" ? "下一张地图" : "当前地图" : "待进行"}</span></div>
         <div className="mt-2 flex items-center justify-between gap-3"><span className="font-semibold text-[var(--color-fg)]">{mapLabel(map.mapName)}</span><span className="font-mono font-bold tabular-nums text-[var(--color-fg)]">{completed ? `${map.scoreA} : ${map.scoreB}` : current && liveScore ? `${liveScore.scoreA ?? "—"} : ${liveScore.scoreB ?? "—"}` : "—"}</span></div>
         {current && liveScore && <p className="sr-only">本图回合</p>}
-        <p className="mt-1 truncate text-xs text-[var(--color-fg-mid)]">{map.pickedByEntryId ? `${map.pickedByEntryId === entryAId ? teamAName : teamBName} 选图` : "决胜图"}</p>
+        <p className="mt-1 truncate text-xs text-[var(--color-fg-mid)]">{map.pickedByEntryId ? `${map.pickedByEntryId === entryAId ? teamAName : teamBName} · PICK` : "DECIDER"}</p>
       </li>;
     })}</ol>
   </section>;

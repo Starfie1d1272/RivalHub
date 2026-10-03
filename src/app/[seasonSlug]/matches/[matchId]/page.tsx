@@ -423,12 +423,12 @@ export default async function MatchDetailPage({ params, searchParams }: MatchDet
           )}
       </div>}
       <MatchLiveProvider matchId={match.id} enabled={afterVeto}>
-      {afterVeto && <MatchMapSequence
+      {(afterVeto || isFinished) && maps.length > 0 && <MatchMapSequence
         maps={maps.map(map => ({ id: map.id, mapOrder: map.mapOrder, mapName: map.mapName, pickedByEntryId: map.pickedByEntryId, scoreA: map.scoreA, scoreB: map.scoreB, completedAt: map.completedAt?.toISOString() ?? null }))}
-        currentMapId={publicContext.currentMapId} entryAId={match.entryAId} entryBId={match.entryBId} phase={phase} seriesProgress={publicContext.seriesProgress}
+        currentMapId={publicContext.currentMapId} entryAId={match.entryAId} entryBId={match.entryBId} phase={phase} seriesProgress={isFinished && match.scoreA !== null && match.scoreB !== null ? { scoreA: match.scoreA, scoreB: match.scoreB } : publicContext.seriesProgress}
         teamAName={teamA?.name ?? "队伍 A"} teamBName={teamB?.name ?? "队伍 B"} finished={isFinished}
       />}
-      {afterVeto && <details className="text-sm"><summary className="cursor-pointer text-[var(--color-fg-mid)]">查看完整 BP 流程</summary><div className="mt-3"><VetoView matchId={match.id} teamAName={teamA?.name ?? "队伍 A"} teamBName={teamB?.name ?? "队伍 B"} entryAId={match.entryAId} entryBId={match.entryBId} /></div></details>}
+      {(afterVeto || isFinished) && maps.length > 0 && <details className="text-sm" data-testid="match-bp-record"><summary className="cursor-pointer text-[var(--color-fg-mid)]">BP 记录</summary><div className="mt-3"><VetoView matchId={match.id} teamAName={teamA?.name ?? "队伍 A"} teamBName={teamB?.name ?? "队伍 B"} entryAId={match.entryAId} entryBId={match.entryBId} /></div></details>}
       <MatchLiveViewing status={match.status} commentators={commentatorRows} showEmpty={afterVeto} />
       {afterVeto && <MatchRealtime matchId={match.id} phase={phase} currentMapId={publicContext.currentMapId} lastCompletedMap={publicContext.lastCompletedMap} seriesProgress={publicContext.seriesProgress} />}
       {prediction && (
@@ -641,24 +641,9 @@ export default async function MatchDetailPage({ params, searchParams }: MatchDet
         />
       )}
 
-      {/* 赛后 BP 流程与最终名单 */}
+      {/* 赛后最终名单；BP 记录与地图保持在顶部 */}
       {isFinished && (
         <>
-          <div className="flex justify-end">
-            <Link className="text-sm text-[var(--color-accent)] hover:underline" href={`/${seasonSlug}/matches/${match.id}/veto`}>
-              查看 BP 记录
-            </Link>
-          </div>
-          {match.status !== "scheduled" && (
-            <VetoView
-              matchId={match.id}
-              teamAName={teamA?.name ?? "队伍 A"}
-              teamBName={teamB?.name ?? "队伍 B"}
-              entryAId={match.entryAId}
-              entryBId={match.entryBId}
-            />
-          )}
-
           <section className="space-y-3">
             <h2 className="text-lg font-semibold text-[var(--color-fg)]">本场阵容</h2>
             <Panel contentClassName="p-4">

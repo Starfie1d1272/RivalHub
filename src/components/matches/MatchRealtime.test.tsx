@@ -18,6 +18,8 @@ describe("public LIVE presentation", () => {
   it("renders real public projection stats and SSR-safe radar without provenance or expanded equipment table", () => {
     const html = render("gameplay");
     expect(html).toContain("FalleN"); expect(html).toContain("KSCERATO");
+    expect(html).toContain("K / D / A");
+    expect(html).not.toContain("本图回合</span>");
     expect(html).toContain("战术雷达"); expect(html).toContain("Armor"); expect(html).toContain("Money");
     for (const forbidden of ["identityEvidence", "sourcePlayerId", "runtimeSeq", "OCR", "DAK", "弹药", "武器", "装备值", "kill feed"]) expect(html).not.toContain(forbidden);
   });

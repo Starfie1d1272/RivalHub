@@ -55,7 +55,7 @@ export function MatchLiveViewing({
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [loadedRooms, setLoadedRooms] = useState<Record<string, boolean>>({});
 
-  if (!resources.length) return showEmpty ? <section aria-label="直播观看" className="border-y border-[var(--color-border)] py-4"><h2 className="text-sm font-semibold">直播观看</h2><p className="mt-1 text-sm text-[var(--color-fg-dim)]">暂无直播入口，可继续查看比赛数据。</p></section> : null;
+  if (!resources.length) return showEmpty ? <section aria-label="直播观看" className="border-y border-[var(--color-border)] py-4"><h2 className="text-sm font-semibold">直播观看</h2><p className="mt-1 text-sm text-[var(--color-fg-dim)]">暂无直播</p></section> : null;
 
   const activeCommentator =
     resources.find((c) => c.userId === selectedUserId) ?? resources[0];

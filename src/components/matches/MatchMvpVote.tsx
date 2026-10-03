@@ -9,6 +9,8 @@ import { castMatchMvpVote } from "@/actions/player-stats";
 import { MVP_DEADLINE_MS } from "@/lib/utils/date";
 import { formatStat, type StatMetric } from "@/lib/stats";
 import { useRoutePolling } from "@/components/use-visible-polling";
+import { StatsMetricLabel } from "@/components/stats/StatsMetricHelp";
+import { HelpTooltip } from "@/components/rivalhub/HelpTooltip";
 import { MetricValue } from "@/components/stats/MetricValue";
 import { STATS_METRICS } from "@/lib/stats/metrics";
 import type { StatsRateValue } from "@/lib/stats/presentation";
@@ -157,29 +159,29 @@ export function MatchMvpVote({
         </div>
 
         {mvpStats && <dl className="grid grid-cols-3 divide-x divide-[var(--color-border)] border-y border-[var(--color-border)] py-4 text-center">
-          <div><dt className="text-xs text-[var(--color-fg-dim)]">Rating</dt><dd className="mt-1 font-mono text-2xl font-bold tabular-nums text-[var(--color-accent)]">{formatStat("ratingPro", mvpStats.ratingPro)}</dd></div>
-          <div><dt className="text-xs text-[var(--color-fg-dim)]">K / D / A</dt><dd className="mt-1 font-mono text-lg font-semibold tabular-nums">{mvpStats.kills ?? "—"} / {mvpStats.deaths ?? "—"} / {mvpStats.assists ?? "—"}</dd></div>
-          <div><dt className="text-xs text-[var(--color-fg-dim)]">ADR</dt><dd className="mt-1 font-mono text-2xl font-bold tabular-nums">{formatStat("adr", mvpStats.adr)}</dd></div>
+          <div><dt className="text-xs text-[var(--color-fg-dim)]"><StatsMetricLabel metric="rating">Rating</StatsMetricLabel></dt><dd className="mt-1 font-mono text-2xl font-bold tabular-nums text-[var(--color-accent)]">{formatStat("ratingPro", mvpStats.ratingPro)}</dd></div>
+          <div><dt className="text-xs text-[var(--color-fg-dim)]">K / D / A <HelpTooltip label="K / D / A 指标说明" content="依次为本场击杀、死亡和助攻总数。" /></dt><dd className="mt-1 font-mono text-lg font-semibold tabular-nums">{mvpStats.kills ?? "—"} / {mvpStats.deaths ?? "—"} / {mvpStats.assists ?? "—"}</dd></div>
+          <div><dt className="text-xs text-[var(--color-fg-dim)]"><StatsMetricLabel metric="adr">ADR</StatsMetricLabel></dt><dd className="mt-1 font-mono text-2xl font-bold tabular-nums">{formatStat("adr", mvpStats.adr)}</dd></div>
         </dl>}
 
         {mvpStats && <div className="grid grid-cols-2 gap-x-6 gap-y-4 text-center text-sm sm:grid-cols-6" aria-label="MVP 关键表现">
-          <StatCell label="爆头率" value={mvpStats.hsPercent} metric="hsPercent" />
-          <StatCell label="首杀" value={mvpStats.firstKills} metric="firstKills" />
-          <StatCell label="多杀" value={mvpStats.multiKills} metric="multiKills" />
-          <StatCell label="残局获胜" value={mvpStats.clutches} metric="clutches" />
-          <StatCell label="RWS" value={mvpStats.rws} metric="rws" />
-          <StatCell label="WE" value={mvpStats.we} metric="we" />
+          <StatCell label="HS%" value={mvpStats.hsPercent} metric="hsPercent" help={STATS_METRICS.hs.description} />
+          <StatCell label="FK" value={mvpStats.firstKills} metric="firstKills" help={"本场取得首杀的总次数。"} />
+          <StatCell label="MK" value={mvpStats.multiKills} metric="multiKills" help={"本场取得至少双杀的回合数。"} />
+          <StatCell label="CL" value={mvpStats.clutches} metric="clutches" help={STATS_METRICS.clutchWins.description} />
+          <StatCell label="RWS" value={mvpStats.rws} metric="rws" help={STATS_METRICS.rws.description} />
+          <StatCell label="WE" value={mvpStats.we} metric="we" help={STATS_METRICS.we.description} />
         </div>}
         {mvpStats && winnerPerformance?.playerId === winnerUserId && <div className="space-y-3 border-t border-[var(--color-border)] pt-4" aria-label="MVP 进阶表现">
-          <p className="text-xs text-[var(--color-fg-dim)]">本场进阶表现 · {winnerPerformance.rounds} 回合样本</p>
+          <p className="text-xs text-[var(--color-fg-dim)]">Advanced · {winnerPerformance.rounds} rounds</p>
           <dl className="grid grid-cols-2 gap-x-6 gap-y-4 text-center sm:grid-cols-4">
             {(["kast", "trade", "utility", "flashAssist"] as const).map(metric => <div key={metric}>
-              <dt className="text-xs text-[var(--color-fg-dim)]" title={STATS_METRICS[metric].description}>{STATS_METRICS[metric].label}</dt>
+              <dt className="text-xs text-[var(--color-fg-dim)]"><StatsMetricLabel metric={metric}>{STATS_METRICS[metric].label}</StatsMetricLabel></dt>
               <dd className="mt-1 flex justify-center font-mono text-lg font-semibold"><MetricValue metric={metric} value={winnerPerformance[metric]} sampleDisplay="hidden" /></dd>
             </div>)}
           </dl>
         </div>}
-        {mvpStats && winnerDetailsHref && <div className="text-center"><Link href={winnerDetailsHref as Route} className="text-sm text-[var(--color-accent)] hover:underline">查看本场完整数据 →</Link></div>}
+        {mvpStats && winnerDetailsHref && <div className="text-center"><Link href={winnerDetailsHref as Route} className="text-sm text-[var(--color-accent)] hover:underline">完整数据 →</Link></div>}
 
         {allVotes.filter((v) => v !== mvp).length > 0 && (
           <div className="grid gap-3 text-xs sm:grid-cols-2 lg:grid-cols-4">
@@ -276,7 +278,7 @@ export function MatchMvpVote({
                 <StatCell label="HS%" value={c.hsPercent} metric="hsPercent" />
                 <StatCell label="FK" value={c.firstKills} metric="firstKills" />
                 <StatCell label="MK" value={c.multiKills} metric="multiKills" />
-                <StatCell label="残局" value={c.clutches} metric="clutches" />
+                <StatCell label="CL" value={c.clutches} metric="clutches" />
               </div>
 
               <div className="flex items-center justify-between border-t border-[var(--color-border)] pt-2">
@@ -297,14 +299,16 @@ function StatCell({
   label,
   value,
   metric,
+  help,
 }: {
   label: string;
   value: number | null;
   metric: StatMetric;
+  help?: string;
 }) {
   return (
     <div>
-      <span className="text-[var(--color-fg-dim)]">{label}</span>
+      <span className="text-[var(--color-fg-dim)]">{label}{help && <> <HelpTooltip label={`${label} 指标说明`} content={help} /></>}</span>
       <span className="tabular-nums block text-[var(--color-fg)]">
         {formatStat(metric, value)}
       </span>

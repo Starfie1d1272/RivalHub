@@ -47,7 +47,7 @@ export function MatchMapTabsNavigation({
                 className="ml-1 text-[10px] font-mono px-1 py-0.5"
                 style={{ background: "var(--color-ok-soft)", color: "var(--color-ok)" }}
               >
-                选图
+                PICK
               </span>
             )}
           </TabsTrigger>

@@ -12,14 +12,14 @@ describe("public player labels", () => {
     const frame = fromPublicRadar({ ...radar, players: radar.players.map(p => ({ ...p, label: labels.get(p.sourcePlayerId) })) }, { boundary: "test", sequence: 1, current: true });
     expect(frame!.payload.players[0].label).toBe(labels.get(radar.players[0].sourcePlayerId));
     expect(frame!.payload.players[0].position).toEqual(radar.players[0].position);
-    expect([...labels.values()]).toContain("FA");
+    expect([...labels.values()]).toContain("1");
   });
-  it("keeps collision labels stable through reordering and side swaps, including Unicode", () => {
+  it("keeps numeric labels stable through reordering, renamed players and side swaps", () => {
     const players = snapshot.players.slice(0, 4).map((p, i) => ({ ...p, displayName: ["Alpha", "Alex", "克里斯甜", "克里斯"][i] }));
     const labels = publicPlayerLabels(players);
     expect(new Set(labels.values()).size).toBe(4);
-    for (const label of labels.values()) expect(Array.from(label).length).toBeLessThanOrEqual(3);
-    expect(publicPlayerLabels([...players].reverse().map(p => ({ ...p, side: p.side === "CT" ? "T" : "CT" })))).toEqual(labels);
+    for (const label of labels.values()) expect(label).toMatch(/^\d+$/);
+    expect(publicPlayerLabels([...players].reverse().map(p => ({ ...p, displayName: "Changed", side: p.side === "CT" ? "T" : "CT" })))).toEqual(labels);
   });
   it("bounds duplicate labels even at the protocol player limit", () => {
     const players = Array.from({ length: 64 }, (_, i) => ({ ...snapshot.players[0], sourcePlayerId: String(i), displayName: "Alpha" }));
