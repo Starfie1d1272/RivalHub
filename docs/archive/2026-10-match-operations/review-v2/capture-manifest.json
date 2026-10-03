@@ -42,20 +42,62 @@
     "height": 1080
   },
   {
+    "file": "bp-admin-active-01.png",
+    "title": "BP · 管理员 · 进行中",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "bp-admin-active-02.png",
+    "title": "BP · 管理员 · 进行中",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "bp-admin-cancelled-01.png",
+    "title": "BP · 管理员 · 取消后只读",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "bp-admin-complete-01.png",
+    "title": "BP · 管理员 · 完成结果",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "bp-admin-complete-02.png",
+    "title": "BP · 管理员 · 完成结果",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "bp-admin-complete-03.png",
+    "title": "BP · 管理员 · 完成结果",
+    "width": 1920,
+    "height": 1080
+  },
+  {
     "file": "bp-b-ready.png",
     "title": "队长 B：准备 BP",
     "width": 1920,
     "height": 1080
   },
   {
-    "file": "bp-completed-01.png",
-    "title": "完整 BP 结束：正式地图计划",
+    "file": "bp-captain-cancelled-01.png",
+    "title": "BP · 队长 / BP 负责人 · 取消后只读",
     "width": 1920,
     "height": 1080
   },
   {
-    "file": "bp-completed-02.png",
-    "title": "完整 BP 结束：正式地图计划",
+    "file": "bp-captain-complete-01.png",
+    "title": "BP · 队长 / BP 负责人 · 完成结果",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "bp-captain-complete-02.png",
+    "title": "BP · 队长 / BP 负责人 · 完成结果",
     "width": 1920,
     "height": 1080
   },
@@ -66,8 +108,68 @@
     "height": 1080
   },
   {
-    "file": "bp-rewind-paused.png",
+    "file": "bp-player-active-01.png",
+    "title": "BP · 普通首发 · 进行中",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "bp-player-active-02.png",
+    "title": "BP · 普通首发 · 进行中",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "bp-player-complete-01.png",
+    "title": "BP · 普通首发 · 完成结果",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "bp-player-complete-02.png",
+    "title": "BP · 普通首发 · 完成结果",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "bp-rewind-paused-01.png",
     "title": "管理员恢复 BP 步骤：暂停待继续",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "bp-rewind-paused-02.png",
+    "title": "管理员恢复 BP 步骤：暂停待继续",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "bp-spectator-active-01.png",
+    "title": "BP · 未登录观众 · 进行中",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "bp-spectator-active-02.png",
+    "title": "BP · 未登录观众 · 进行中",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "bp-spectator-cancelled-01.png",
+    "title": "BP · 未登录观众 · 取消后只读",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "bp-spectator-complete-01.png",
+    "title": "BP · 未登录观众 · 完成结果",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "bp-spectator-complete-02.png",
+    "title": "BP · 未登录观众 · 完成结果",
     "width": 1920,
     "height": 1080
   },

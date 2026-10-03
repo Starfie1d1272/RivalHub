@@ -10,6 +10,7 @@ import {
   submitVetoCommand,
 } from "../../../src/lib/matches/veto-room/service";
 import { localDatabaseUrl } from "./harness/database";
+import { projectVetoRoomView } from "../../../src/lib/matches/veto-room/read-model";
 
 async function waitForMatchRowLock(pool: Pool): Promise<void> {
   for (let attempt = 0; attempt < 100; attempt += 1) {
@@ -315,6 +316,19 @@ describe("match score persistence semantics PostgreSQL integration", () => {
       await startWithVetoPlan(fixture, bo3MatchId, "bo3");
       await startWithVetoPlan(fixture, bo5MatchId, "bo5");
       await startWithVetoPlan(fixture, scoredForfeitMatchId, "bo3");
+      const completedBp = await readVetoRoomCore(bo3MatchId);
+      for (const viewer of [null, fixture.representativeUserAId, fixture.adminId]) {
+        const view = await projectVetoRoomView(completedBp, viewer, viewer === fixture.adminId
+          ? { userId: viewer, email: "operator@local.test", role: "super_admin", seasonIds: [fixture.seasonId] } : null);
+        expect(view.maps).toHaveLength(3);
+        expect(view.maps.map(map => map.mapOrder)).toEqual([1, 2, 3]);
+        expect(view.maps.every(map => map.teamAStartSide !== null)).toBe(true);
+        expect(view.steps.every(step => step.sourceLabel === null)).toBe(true);
+        expect(view.permissions.isAdmin).toBe(viewer === fixture.adminId);
+        expect(view.permissions.canOperateCurrentTurn).toBe(false);
+        expect(view.permissions.canRewind).toBe(viewer === fixture.adminId);
+      }
+
 
       await setManualPrivilegedEntry({
         matchId: lockDelayedStartMatchId,
@@ -488,6 +502,12 @@ describe("match score persistence semantics PostgreSQL integration", () => {
         success: false,
         error: { message: expect.stringContaining("请先完成 BP") },
       });
+
+      await client.query("UPDATE matches SET status = 'cancelled' WHERE id = $1", [partialVetoMatchId]);
+      const cancelledBp = await projectVetoRoomView(await readVetoRoomCore(partialVetoMatchId), fixture.adminId, {
+        userId: fixture.adminId, email: "operator@local.test", role: "super_admin", seasonIds: [fixture.seasonId],
+      });
+      expect(cancelledBp.permissions).toMatchObject({ canOperateCurrentTurn: false, canPause: false, canResume: false, canRewind: false });
 
       const plannedMapNames = async (matchId: string) => (await client.query<{ map_name: string }>(
         "SELECT map_name FROM match_maps WHERE match_id = $1 ORDER BY map_order",

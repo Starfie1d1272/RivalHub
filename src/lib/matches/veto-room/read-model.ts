@@ -6,6 +6,7 @@ import {
   competitionEntries,
   eventRosterMembers,
   matchRosterPlayers,
+  matchMaps,
   matchRosters,
   seasons,
   steamProfiles,
@@ -26,7 +27,7 @@ const MATCH_STATUS_LABELS = {
 } as const;
 
 const VETO_ACTION_LABELS = {
-  role_select: "选择 VETO A",
+  role_select: "选择先禁图队伍",
   ban: "禁图",
   pick: "选图",
   side_pick: "选边",
@@ -126,7 +127,8 @@ export async function projectVetoRoomView(
     const entry = entryById.get(entryId);
     const rows = rosterByEntry.get(entryId) ?? [];
     const bpRepresentative = rows.find((row) => row.isVetoRepresentative && row.isStarter) ?? null;
-    const lineupConfirmed = rows.length > 0;
+    const starterCount = rows.filter(row => row.isStarter).length;
+    const lineupConfirmed = starterCount === 5;
     const currentViewerStarter = rows.some((row) => row.userId === viewerId && row.isStarter);
     const isViewerEntryRepresentative = entry?.representativeUserId === viewerId;
     const mayEditRepresentative = Boolean(
@@ -143,10 +145,10 @@ export async function projectVetoRoomView(
     return {
       id: entryId,
       name: entry?.name ?? "未知队伍",
-      vetoRoleLabel: core.session.vetoTeamAEntryId === entryId ? "VETO A" : core.session.vetoTeamAEntryId && core.session.vetoTeamAEntryId !== entryId ? "VETO B" : null,
-      rosterConfirmed: rows.length > 0,
-      rosterStatusLabel: rows[0]?.rosterStatus === "confirmed" ? "首发已定格" : rows.length > 0 ? "本场首发已就绪" : "尚未提交首发",
-      lineupBlocker: rows.length === 0 ? "尚未提交本场首发" : null,
+      vetoRoleLabel: core.session.vetoTeamAEntryId === entryId ? "先禁图方" : core.session.vetoTeamAEntryId && core.session.vetoTeamAEntryId !== entryId ? "后禁图方" : null,
+      rosterConfirmed: lineupConfirmed,
+      rosterStatusLabel: lineupConfirmed ? rows[0]?.rosterStatus === "confirmed" ? "首发已确认" : "首发已提交" : "首发待准备",
+      lineupBlocker: rows.length === 0 ? "请提交本场首发" : starterCount !== 5 ? `请补齐 5 名首发（当前 ${starterCount} 人）` : null,
       starters: rows.filter((row) => row.isStarter).map((row) => ({
         id: row.memberId,
         name: getPublicDisplayName(row),
@@ -170,9 +172,9 @@ export async function projectVetoRoomView(
   const stepEntries = core.steps.map((step) => {
     const actionType = (step.actionType in VETO_ACTION_LABELS ? step.actionType : "decider") as keyof typeof VETO_ACTION_LABELS;
     const entryName = step.entryId ? entryById.get(step.entryId)?.name ?? "未知队伍" : null;
-    const sourceLabel = step.source === "timeout" ? "AUTO" : step.source === "system" ? "SYSTEM" : step.source === null ? "历史记录" : "人工";
+    const sourceLabel = step.source === "timeout" ? "超时自动选择" : step.source === "admin" ? "管理员调整" : null;
     const description = actionType === "side_pick"
-      ? `${entryName ?? "队伍"} 为 ${mapLabel(step.mapName)} 选择起始方`
+      ? `${entryName ?? "队伍"} 为 ${mapLabel(step.mapName)} 选择起始阵营`
       : actionType === "decider"
         ? `${mapLabel(step.mapName)} 成为决胜图`
         : `${entryName ?? "队伍"} ${VETO_ACTION_LABELS[actionType]} ${mapLabel(step.mapName)}`;
@@ -200,7 +202,7 @@ export async function projectVetoRoomView(
       id: incident.id,
       entryName: incident.entryId ? entryById.get(incident.entryId)?.name ?? "未知队伍" : "系统",
       selected,
-      sourceLabel: "AUTO",
+      sourceLabel: "超时自动选择",
       appeal: appeal ? {
         id: appeal.id,
         statusLabel: APPEAL_STATUS_LABELS[appeal.status],
@@ -214,6 +216,9 @@ export async function projectVetoRoomView(
     };
   });
 
+  const completedMaps = core.session.completedAt ? await db.select({
+    id: matchMaps.id, mapOrder: matchMaps.mapOrder, mapName: matchMaps.mapName, teamAStartSide: matchMaps.teamAStartSide,
+  }).from(matchMaps).where(eq(matchMaps.matchId, core.match.id)) : [];
   const map = (value: string) => mapLabel(value);
   return {
     seasonSlug: context.seasonSlug,
@@ -260,14 +265,15 @@ export async function projectVetoRoomView(
       previousMatchBlocker: core.previousMatchBlocker,
       startWindowOpen: core.match.scheduledAt === null || serverNow >= new Date(core.match.scheduledAt.getTime() - 15 * 60_000),
     },
+    maps: completedMaps.sort((a, b) => a.mapOrder - b.mapOrder).map(row => ({ ...row, mapLabel: map(row.mapName) })),
     steps: stepEntries,
     incidents,
     permissions: {
       isAdmin,
       viewerEntryId,
       canOperateCurrentTurn: Boolean(core.match.status === "in_progress" && viewerId && currentTurnEntry && entries.some((entry) => entry.id === currentTurnEntry && entry.isViewerVetoRepresentative)),
-      canPause: Boolean(isAdmin && core.session.startedAt && !core.session.completedAt && !core.session.pausedAt),
-      canResume: Boolean(isAdmin && core.session.pausedAt),
+      canPause: Boolean(isAdmin && core.match.status === "in_progress" && core.session.startedAt && !core.session.completedAt && !core.session.pausedAt),
+      canResume: Boolean(isAdmin && core.match.status === "in_progress" && core.session.pausedAt),
       canRewind: Boolean(isAdmin && core.session.startedAt && core.match.status === "in_progress"),
       canSetManualPrivilegedEntry: Boolean(isAdmin && core.match.status === "scheduled" && !core.session.startedAt && !core.match.majorStageRunId && !core.match.qualificationRunId),
     },

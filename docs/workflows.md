@@ -148,7 +148,7 @@ scheduled / in_progress → cancelled
 
 forfeit 是 `finished` 的结果形态，不是额外比赛状态。
 
-采用 #713 的 2026-09-25 lifecycle contract：在线 Veto Session 在 Match 通过共享 status transition 从 `scheduled` 进入 `in_progress` 时开始；计划开赛时间只用于开放协调窗口，不单独启动比赛。BP 步骤完成仅表示地图计划完成，不推进或结束 Match。进入 Veto 前，本场首发取队伍已提交的合法阵容；若未提交，则在计划开赛前两小时从 EventRoster 的五名当前主力生成默认阵容，提前开始 Veto 时同事务生成。实际开赛时再次核对并定格双方首发，不要求管理员单独确认。Qualification run 的 BP privileged entry 从该 run 的冻结 `competition_qualification_entrants.preliminary_seed` 推导，数字较小者为 higher seed；Major StageRun 使用冻结阶段种子。只有 `majorStageRunId` 与 `qualificationRunId` 都为空的 manual Match 才由赛季管理员显式指定 privileged entry。
+采用 #713 的 2026-09-25 lifecycle contract：在线 Veto Session 在 Match 通过共享 status transition 从 `scheduled` 进入 `in_progress` 时开始；计划开赛时间只用于开放协调窗口，不单独启动比赛。BP 步骤完成仅表示地图计划完成，不推进或结束 Match。进入 Veto 前，本场首发取队伍已提交的合法阵容；若未提交，则在计划开赛前两小时从 EventRoster 的五名当前主力生成默认阵容，提前开始 Veto 时同事务生成。实际开赛时再次核对并定格双方首发，不要求管理员单独确认。Qualification run 的 BP privileged entry 从该 run 的冻结 `competition_qualification_entrants.preliminary_seed` 推导，数字较小者为 higher seed；Major StageRun 使用冻结阶段种子。只有 `majorStageRunId` 与 `qualificationRunId` 都为空的 manual Match 才由赛季管理员显式指定 privileged entry。 BP 公开 projection 按观众、首发、负责人和管理员权限呈现，建房及工作台入口仅面向管理员。完成页消费正式 match_maps 汇总地图顺序与起始阵营，内部 participant/system 来源保持审计事实，页面只说明超时自动选择及管理员调整。取消后停止操作倒计时和自动边界推进，保留历史记录；恢复先手选择后为实际操作方重新生成完整操作时限。
 
 Qualification-owned Play-in 比赛不允许进入 `cancelled`，以免冻结资格赛轮次；需要裁决时使用正式弃赛判负，写入可投影的胜者结果。资格赛比赛也不能通过通用 delete 路径单独删除。
 
