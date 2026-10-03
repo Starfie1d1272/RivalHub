@@ -67,12 +67,17 @@ test("public match consumes private Broadcast and recovers with canonical layout
     await run(browserFixture, "prepare", matchId);
     const url = `/${seasonId}/matches/${matchId}`;
     producer = await stream(matchId);
+    let viewerRequests = 0;
+    page.on("request", request => { if (request.url().endsWith(`/api/matches/${matchId}/live-viewer`)) viewerRequests++; });
     const tokenResponse = page.waitForResponse(response => response.url().endsWith(`/api/matches/${matchId}/live-viewer`), { timeout: 10000 });
     await page.goto(url);
     expect((await tokenResponse).status()).toBe(200);
     const live = page.getByTestId("match-realtime").filter({ visible: true });
     await expect(live.getByText("FalleN", { exact: true })).toBeVisible();
     await expect(live.locator("canvas")).toBeVisible();
+    expect(viewerRequests).toBe(1);
+    await expect(page.getByLabel("系列赛比分").filter({ visible: true })).toHaveCount(0);
+    await expect(page.getByRole("region", { name: "BP 结果与地图" }).getByText("2 : 0", { exact: true })).toBeVisible();
     await expect(page.getByText("暂无直播入口，可继续查看比赛数据。")).toBeVisible();
     for (const width of [1440, 390, 320]) {
       await page.setViewportSize({ width, height: 1000 });
@@ -122,6 +127,26 @@ test("public match consumes private Broadcast and recovers with canonical layout
     await expect(page.getByText("FalleN", { exact: true })).toHaveCount(0);
     await page.goto(url);
     await expect(live.locator("canvas")).toBeVisible();
+    await page.goto(`/${seasonId}/matches`);
+    const listCard = page.locator(`a[href="${url}"]`).filter({ visible: true });
+    await listCard.scrollIntoViewIfNeeded();
+    const listScore = listCard.getByTestId("match-list-live-score");
+    await expect(listScore.getByLabel("本图回合比分")).toHaveText("2 : 0");
+    for (const width of [1440, 390, 320]) {
+      await page.setViewportSize({ width, height: 1000 });
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+      await listCard.scrollIntoViewIfNeeded();
+      await expect(listScore.getByLabel("本图回合比分")).toHaveText("2 : 0");
+      await capture(`public-list-${width}`);
+    }
+    producer?.kill(); producer = undefined;
+    await expect(listScore.getByText("Ancient · 更新暂时中断")).toBeVisible({ timeout: 6000 });
+    await expect(listScore.getByText("实时数据暂不可用")).toBeVisible({ timeout: 12000 });
+    await expect(listScore.getByLabel("本图回合比分")).toHaveCount(0);
+    producer = await stream(matchId);
+    await expect(listScore.getByLabel("本图回合比分")).toHaveText("2 : 0");
+    await page.goto(url);
+    await expect(live.locator("canvas")).toBeVisible();
     // A fresh context has no decoded image cache that can bypass a network failure.
     const failurePage = await browser.newPage({ viewport: { width: 390, height: 1000 } });
     let failedIcons = 0;
@@ -149,7 +174,10 @@ test("public match consumes private Broadcast and recovers with canonical layout
       await page.reload();
       if (label) await expect(page.getByText(label, { exact: true }).filter({ visible: true })).toBeVisible();
       else await expect(live).toHaveCount(0);
-      if (phase === "inter_map") await expect(page.getByLabel("系列赛比分").filter({ visible: true })).toHaveText(/1\s*:\s*0/);
+      if (phase === "inter_map") {
+        await expect(page.getByLabel("系列赛比分").filter({ visible: true })).toHaveCount(0);
+        await expect(page.getByLabel("地图胜场", { exact: true }).filter({ visible: true })).toHaveText(/1\s*:\s*0/);
+      }
       if (phase === "post") await expect(page.getByLabel("系列赛比分").filter({ visible: true })).toHaveText(/2\s*:\s*0/);
       await capture(`public-${phase}`);
     }

@@ -1,10 +1,10 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React from "react";
+import { useMatchLive } from "./MatchLiveProvider";
 import Link from "next/link";
 import { MatchRadar } from "./MatchRadar";
-import { connectLiveViewer, browserViewerEnvironment } from "@/lib/mizar/live-viewer";
-import { initialLiveViewerState, liveFreshness, liveClockSeconds, type LiveViewerState } from "@/lib/mizar/live-viewer-state";
+import { visibleLiveSnapshot, liveFreshness, liveClockSeconds, type LiveViewerState } from "@/lib/mizar/live-viewer-state";
 import { presentBomb, presentLivePhase, formatLiveClock } from "@/lib/mizar/live-presentation";
 import { mapLabel } from "@/lib/maps";
 import type { PublicLiveMatchProjection } from "@/lib/mizar/live-projection";
@@ -17,17 +17,8 @@ export interface MatchRealtimeProps {
 }
 
 export function MatchRealtime(props: MatchRealtimeProps) {
-  return <MatchRealtimeConnection key={props.matchId} {...props} />;
-}
-function MatchRealtimeConnection({ matchId, phase, currentMapId }: MatchRealtimeProps) {
-  const [state, setState] = useState(initialLiveViewerState);
-  const [now, setNow] = useState(0);
-  useEffect(() => connectLiveViewer(matchId, setState, browserViewerEnvironment()), [matchId]);
-  useEffect(() => {
-    const timer = setInterval(() => setNow(performance.now()), 100);
-    return () => clearInterval(timer);
-  }, []);
-  return <MatchRealtimeSurface state={state} now={now} phase={phase} currentMapId={currentMapId} />;
+  const { state, now } = useMatchLive();
+  return <MatchRealtimeSurface state={state} now={now} {...props} />;
 }
 
 /** Same surface for waiting, gameplay and inter-map; canonical context stays authoritative. */
@@ -39,8 +30,8 @@ export function MatchRealtimeSurface({ state, now, phase, currentMapId, assetBas
   assetBaseUrl?: string;
 }) {
   const freshness = liveFreshness(state, now);
-  const snapshot = state.snapshot;
-  const showLive = phase === "gameplay" && snapshot && freshness !== "unavailable" && snapshot.map.mapId === currentMapId && snapshot.map.phase !== "gameover";
+  const snapshot = visibleLiveSnapshot(state, now, phase, currentMapId);
+  const showLive = snapshot !== null;
   const bomb = showLive ? presentBomb(snapshot.bomb) : null;
   return <section className="min-w-0 space-y-4" aria-label="实时比赛数据" data-testid="match-realtime">
     <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--color-border)] pb-3">
@@ -53,7 +44,7 @@ export function MatchRealtimeSurface({ state, now, phase, currentMapId, assetBas
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div><p className="font-semibold">{mapLabel(snapshot.map.name ?? "")} <span className="ml-2 text-sm font-normal text-[var(--color-fg-mid)]">第 {snapshot.map.roundNumber ?? "—"} 回合</span></p>
           <p className="mt-1 text-xs text-[var(--color-fg-dim)]">{presentLivePhase(snapshot.roundPhase)}{bomb ? ` · ${bomb}` : ""}</p></div>
-        <div className="flex items-center gap-4 font-mono tabular-nums"><span className="text-xs text-[var(--color-fg-dim)]">系列赛 {snapshot.series.scoreA ?? "—"} : {snapshot.series.scoreB ?? "—"}</span><span className="text-2xl font-bold" aria-label="回合时钟">{formatLiveClock(liveClockSeconds(state, now))}</span></div>
+        <div className="flex items-center gap-4 font-mono tabular-nums"><span className="text-xs text-[var(--color-fg-dim)]">地图胜场 {snapshot.series.scoreA ?? "—"} : {snapshot.series.scoreB ?? "—"}</span><span className="text-2xl font-bold" aria-label="回合时钟">{formatLiveClock(liveClockSeconds(state, now))}</span></div>
       </div>
       <div className="grid min-w-0 items-stretch gap-5 lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]">
         <div className="grid min-w-0 grid-rows-2 gap-3">
@@ -76,7 +67,7 @@ function LiveTeamTable({ snapshot, side }: { snapshot: PublicLiveMatchProjection
   return <div className="flex min-w-0 flex-col overflow-hidden border border-[var(--color-border)]">
     <div className="flex items-center justify-between gap-3 bg-[var(--color-panel-hi)] px-3 py-2">
       <div className="flex min-w-0 items-center gap-2"><span className={`font-mono text-xs font-bold ${side === "CT" ? "text-[var(--color-info)]" : "text-[var(--color-warn)]"}`}>{side}</span><h3 className="truncate text-sm font-semibold">{team.name}</h3></div>
-      <span className="font-mono text-xl font-bold tabular-nums">{score ?? "—"}</span>
+      <span className="flex items-baseline gap-2"><span className="text-xs text-[var(--color-fg-dim)]">本图回合</span><span className="font-mono text-xl font-bold tabular-nums">{score ?? "—"}</span></span>
     </div>
     <div className="flex-1 overflow-x-auto">
       <table className="h-full w-full min-w-[400px] text-xs tabular-nums">

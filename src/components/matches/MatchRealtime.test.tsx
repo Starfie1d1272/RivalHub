@@ -36,13 +36,13 @@ describe("public LIVE presentation", () => {
     }
     expect(render("gameplay", 0, "other-map")).not.toContain("战术雷达");
   });
-  it("retains known canonical series score during inter-map without inventing unknown scores", () => {
+  it("reserves the hero scoreboard for final results", () => {
     const match = { id: "match", entryAId: "a", entryBId: "b", stage: "playoffs", format: "bo3" as const, status: "in_progress", scoreA: null, scoreB: null, scheduledAt: null, completedAt: null, bracketNodeId: null, isForfeit: false };
-    const html = renderToStaticMarkup(<MatchHeroHeader seasonSlug="sample" match={match} teamA={null} teamB={null} isFinished={false} seriesProgress={{ scoreA: 1, scoreB: 0 }} />);
-    expect(html).toContain('aria-label="系列赛比分"');
-    expect(new DOMParser().parseFromString(html, "text/html").body.textContent).toContain("1:0");
-    const unknown = renderToStaticMarkup(<MatchHeroHeader seasonSlug="sample" match={{ ...match, scoreA: null, scoreB: null }} teamA={null} teamB={null} isFinished={false} />);
-    expect(unknown).toContain("VS"); expect(unknown).not.toContain('aria-label="系列赛比分"');
+    const html = renderToStaticMarkup(<MatchHeroHeader seasonSlug="sample" match={match} teamA={null} teamB={null} isFinished={false} />);
+    expect(html).toContain("VS");
+    expect(html).not.toContain('aria-label="系列赛比分"');
+    const unknown = renderToStaticMarkup(<MatchHeroHeader seasonSlug="sample" match={{ ...match, status: "finished", scoreA: 2, scoreB: 0 }} teamA={null} teamB={null} isFinished />);
+    expect(unknown).not.toContain("VS"); expect(unknown).toContain('aria-label="系列赛比分"');
   });
   it("keeps BO3 2:0 unused decider distinct from an actual 2:1 result", () => {
     const maps = [1, 2, 3].map(order => ({ id: String(order), mapOrder: order, mapName: "de_ancient", pickedByEntryId: null, scoreA: order < 3 ? 13 : null, scoreB: order < 3 ? 9 : null, completedAt: order < 3 ? "2026-10-03T00:00:00Z" : null }));

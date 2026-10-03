@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { and, eq, isNull } from "drizzle-orm";
 import { db } from "../../src/db/client";
-import { matches, matchMaps, matchLiveSessions, matchVetoSessions, competitionEntries } from "../../src/db/schema";
+import { matches, matchMaps, matchLiveSessions, matchVetoSessions, competitionEntries, seasons } from "../../src/db/schema";
 import { ingestMizarLive } from "../../src/lib/mizar/live";
 import { parseLiveSnapshotV1 } from "../../src/lib/mizar/protocol";
 import { assertDeclaredDatabaseTarget } from "./local-environment";
@@ -25,6 +25,7 @@ async function ensureMaps() {
 }
 if (command === "prepare") {
   await ensureMaps();
+  await db.update(seasons).set({ stagePlan: [{ key: "test", name: "比赛", type: "round_robin", teamCount: 2, advanceTiers: [], matchFormat: "bo3" }] }).where(eq(seasons.id, match.seasonId));
   await db.update(matchMaps).set({ mapName: original.map.name }).where(eq(matchMaps.id, source.currentMapId!));
   await db.update(competitionEntries).set({ name: original.teams.ct.name }).where(eq(competitionEntries.id, match.entryAId));
   await db.update(competitionEntries).set({ name: original.teams.t.name }).where(eq(competitionEntries.id, match.entryBId));

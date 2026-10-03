@@ -1,3 +1,5 @@
+import { loadPublicMatchContexts } from "@/lib/matches/public-phase";
+import { MatchContextRefresh } from "@/components/matches/MatchContextRefresh";
 import { publicCompetitionEntryCondition } from "@/lib/competition-entries/public-visibility";
 import { Suspense } from "react";
 import { notFound } from "next/navigation";
@@ -50,6 +52,7 @@ export default async function MatchesPage({ params, searchParams }: MatchesPageP
     db.query.competitionQualificationRuns.findFirst({ where: eq(competitionQualificationRuns.seasonId, season.id) }),
   ]);
 
+  const liveContexts = await loadPublicMatchContexts(allMatches);
   const teamMap = new Map(allTeams.map((team) => [team.id, team.name]));
   const roundScoresByMatchId = await getMatchMapRoundScores(
     allMatches.filter((match) => match.status === "finished").map((match) => match.id),
@@ -116,6 +119,7 @@ export default async function MatchesPage({ params, searchParams }: MatchesPageP
 
   return (
     <PageLayout as="div" variant="standard" className="space-y-8">
+      <MatchContextRefresh enabled={allMatches.some(match => match.status === "in_progress" || match.status === "scheduled")} />
       <PageHeader
         title="赛程"
         eyebrow={season.name}
@@ -181,6 +185,7 @@ export default async function MatchesPage({ params, searchParams }: MatchesPageP
                   const { active, done } = splitMatches(qualificationMatches);
                   return <MatchTabsSection
                     activeMatches={active}
+                    liveContexts={liveContexts}
                     doneMatches={done}
                     stageLabel="PLAY-IN"
                     seasonSlug={seasonSlug}
@@ -248,6 +253,7 @@ export default async function MatchesPage({ params, searchParams }: MatchesPageP
                         <section className="space-y-3">
                           <MatchTabsSection
                             activeMatches={active}
+                            liveContexts={liveContexts}
                             doneMatches={done}
                             stageLabel={stageLabel}
                             seasonSlug={seasonSlug}

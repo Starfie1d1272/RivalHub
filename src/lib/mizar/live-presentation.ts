@@ -18,3 +18,11 @@ export function formatLiveClock(seconds: number | null): string {
   const value = Math.ceil(seconds);
   return `${Math.floor(value / 60)}:${String(value % 60).padStart(2, "0")}`;
 }
+
+/** CT/T can swap at halftime: public A/B scores follow canonical entry IDs. */
+export function publicRoundScore(snapshot: PublicLiveMatchProjection, entryAId: string, entryBId: string) {
+  const { ct, t } = snapshot.teams;
+  if (ct.entryId === entryAId && t.entryId === entryBId) return { scoreA: snapshot.map.scoreCT, scoreB: snapshot.map.scoreT };
+  if (t.entryId === entryAId && ct.entryId === entryBId) return { scoreA: snapshot.map.scoreT, scoreB: snapshot.map.scoreCT };
+  return null;
+}

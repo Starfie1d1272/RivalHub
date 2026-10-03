@@ -1,5 +1,6 @@
 import React from "react";
 import { MatchContextRefresh } from "@/components/matches/MatchContextRefresh";
+import { MatchLiveProvider } from "@/components/matches/MatchLiveProvider";
 import { MatchRealtime } from "@/components/matches/MatchRealtime";
 import { MatchMapSequence } from "@/components/matches/MatchMapSequence";
 import { loadPublicMatchPhase } from "@/lib/matches/public-phase";
@@ -307,7 +308,6 @@ export default async function MatchDetailPage({ params, searchParams }: MatchDet
         teamA={teamA}
         teamB={teamB}
         isFinished={isFinished}
-        seriesProgress={publicContext.seriesProgress}
       />
 
       {/* 赛前管理员 / 队长聚焦赛务弹窗 */}
@@ -409,14 +409,16 @@ export default async function MatchDetailPage({ params, searchParams }: MatchDet
             />
           )}
       </div>}
+      <MatchLiveProvider matchId={match.id} enabled={afterVeto}>
       {afterVeto && <MatchMapSequence
         maps={maps.map(map => ({ id: map.id, mapOrder: map.mapOrder, mapName: map.mapName, pickedByEntryId: map.pickedByEntryId, scoreA: map.scoreA, scoreB: map.scoreB, completedAt: map.completedAt?.toISOString() ?? null }))}
-        currentMapId={publicContext.currentMapId} entryAId={match.entryAId}
+        currentMapId={publicContext.currentMapId} entryAId={match.entryAId} entryBId={match.entryBId} phase={phase} seriesProgress={publicContext.seriesProgress}
         teamAName={teamA?.name ?? "队伍 A"} teamBName={teamB?.name ?? "队伍 B"} finished={isFinished}
       />}
       {afterVeto && <details className="text-sm"><summary className="cursor-pointer text-[var(--color-fg-mid)]">查看完整 BP 流程</summary><div className="mt-3"><VetoView matchId={match.id} teamAName={teamA?.name ?? "队伍 A"} teamBName={teamB?.name ?? "队伍 B"} entryAId={match.entryAId} entryBId={match.entryBId} /></div></details>}
       <MatchLiveViewing status={match.status} commentators={commentatorRows} showEmpty={afterVeto} />
       {afterVeto && <MatchRealtime matchId={match.id} phase={phase} currentMapId={publicContext.currentMapId} />}
+      </MatchLiveProvider>
       {prediction && (
         <MatchPrediction
           data={prediction}

@@ -74,3 +74,8 @@ export function liveClockSeconds(state: LiveViewerState, now: number): number | 
   const elapsed = running ? Math.min(3000, Math.max(0, now - state.receivedAt)) / 1000 : 0;
   return Math.max(0, remaining - elapsed);
 }
+
+export function visibleLiveSnapshot(state: LiveViewerState, now: number, phase: import("../matches/presentation-phase").MatchPresentationPhase, currentMapId: string | null) {
+  const snapshot = state.snapshot;
+  return phase === "gameplay" && snapshot && liveFreshness(state, now) !== "unavailable" && snapshot.map.mapId === currentMapId && snapshot.map.phase !== "gameover" ? snapshot : null;
+}

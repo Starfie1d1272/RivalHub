@@ -1,3 +1,5 @@
+import { MatchListLiveScore } from "./MatchListLiveScore";
+import type { PublicMatchContext } from "@/lib/matches/public-context";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { MatchStatusBadge } from "./MatchStatusBadge";
@@ -7,6 +9,9 @@ import type { MatchFormat } from "@/types/match";
 
 interface MatchCardProps {
   matchId: string;
+  entryAId?: string;
+  entryBId?: string;
+  liveContext?: PublicMatchContext;
   seasonSlug: string;
   teamAName: string;
   teamBName: string;
@@ -23,6 +28,7 @@ interface MatchCardProps {
 
 export function MatchCard({
   matchId,
+  entryAId, entryBId, liveContext,
   seasonSlug,
   teamAName,
   teamBName,
@@ -57,7 +63,7 @@ export function MatchCard({
         <span className="text-[var(--color-fg-mid)] text-sm shrink-0">
           {status === "finished"
             ? `${scoreA ?? "—"} : ${scoreB ?? "—"}`
-            : "vs"}
+            : status === "in_progress" && liveContext && entryAId && entryBId ? <MatchListLiveScore matchId={matchId} entryAId={entryAId} entryBId={entryBId} context={liveContext} /> : "vs"}
         </span>
         <span className="font-semibold truncate min-w-0 flex-1 text-[var(--color-fg)] text-sm sm:text-base">{teamBName}</span>
       </div>
