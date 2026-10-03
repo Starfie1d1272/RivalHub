@@ -60,7 +60,7 @@ if (command === "prepare") {
   if (!["pre", "bp", "waiting", "gameplay", "inter_map", "post"].includes(phase)) throw new Error("Unknown phase");
   if (phase === "pre") await db.delete(matchMaps).where(eq(matchMaps.matchId, matchId));
   else if (phase !== "bp") await ensureMaps();
-  await db.update(matches).set({ status: phase === "post" ? "finished" : phase === "pre" ? "scheduled" : "in_progress", scoreA: phase === "post" ? 2 : phase === "inter_map" ? 1 : null, scoreB: ["post", "inter_map"].includes(phase) ? 0 : null, completedAt: phase === "post" ? new Date() : null }).where(eq(matches.id, match.id));
+  await db.update(matches).set({ status: phase === "post" ? "finished" : phase === "pre" ? "scheduled" : "in_progress", scoreA: phase === "post" ? 2 : null, scoreB: phase === "post" ? 0 : null, completedAt: phase === "post" ? new Date() : null }).where(eq(matches.id, match.id));
   await db.update(matchVetoSessions).set({ startedAt: phase === "pre" ? null : new Date(), completedAt: ["pre", "bp"].includes(phase) ? null : new Date() }).where(eq(matchVetoSessions.matchId, match.id));
   await db.update(matchLiveSessions).set({ mapExecutionPhase: phase === "gameplay" ? "gameplay" : "waiting" }).where(eq(matchLiveSessions.id, source.id));
   await db.update(matchMaps).set({ completedAt: ["inter_map", "post"].includes(phase) ? new Date() : null, scoreA: ["inter_map", "post"].includes(phase) ? 13 : null, scoreB: ["inter_map", "post"].includes(phase) ? 9 : null }).where(eq(matchMaps.id, source.currentMapId!));

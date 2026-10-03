@@ -34,6 +34,7 @@ interface MatchHeroHeaderProps {
   teamA: MatchHeroTeam | null | undefined;
   teamB: MatchHeroTeam | null | undefined;
   isFinished: boolean;
+  seriesProgress?: { scoreA: number; scoreB: number } | null;
 }
 
 export function MatchHeroHeader({
@@ -42,7 +43,9 @@ export function MatchHeroHeader({
   teamA,
   teamB,
   isFinished,
+  seriesProgress,
 }: MatchHeroHeaderProps) {
+  const score = isFinished ? match : match.status === "in_progress" ? seriesProgress : null;
   return (
     <>
       <div className="flex items-center gap-4">
@@ -95,7 +98,7 @@ export function MatchHeroHeader({
         </div>
 
         <div className="text-center px-4">
-          {isFinished || (match.status === "in_progress" && match.scoreA !== null && match.scoreB !== null) ? (
+          {isFinished || score ? (
             <div
               aria-label="系列赛比分"
               className="font-bold text-4xl sm:text-[56px]"
@@ -106,9 +109,9 @@ export function MatchHeroHeader({
                 lineHeight: 1,
               }}
             >
-              {match.scoreA ?? "—"}
+              {score?.scoreA ?? "—"}
               <span className="mx-3" style={{ color: "var(--color-fg-dim)", fontSize: 24 }}>:</span>
-              {match.scoreB ?? "—"}
+              {score?.scoreB ?? "—"}
             </div>
           ) : (
             <div

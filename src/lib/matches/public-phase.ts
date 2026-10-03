@@ -2,6 +2,7 @@ import "server-only";
 import { and, eq, isNull } from "drizzle-orm";
 import { db } from "@/db/client";
 import { matchLiveSessions, matchVetoSessions, type Match, type MatchMap } from "@/db/schema";
+import { computeSeriesScoreAfterMap } from "./result-rules";
 import { canConfirmMapScoreboard } from "./map-scoreboard";
 import { projectMatchPresentationPhase } from "./presentation-phase";
 
@@ -19,5 +20,11 @@ export async function loadPublicMatchPhase(match: Match, maps: MatchMap[]) {
     gameplayMapId: session?.mapExecutionPhase === "gameplay" ? session.currentMapId : null,
   };
   const currentMapId = [...facts.maps].sort((a, b) => a.order - b.order).find(map => map.completedAt === null)?.id ?? null;
-  return { phase: projectMatchPresentationPhase(facts), currentMapId };
+  const confirmed = maps.filter(canConfirmMapScoreboard);
+  const last = confirmed.at(-1);
+  const progress = match.status === "in_progress" && last
+    ? computeSeriesScoreAfterMap(match.format, confirmed.slice(0, -1), last.scoreA!, last.scoreB!) : null;
+  return { phase: projectMatchPresentationPhase(facts), currentMapId,
+    seriesProgress: progress ? { scoreA: progress.mapWinsA, scoreB: progress.mapWinsB } : null };
+
 }

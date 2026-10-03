@@ -37,8 +37,8 @@ describe("public LIVE presentation", () => {
     expect(render("gameplay", 0, "other-map")).not.toContain("战术雷达");
   });
   it("retains known canonical series score during inter-map without inventing unknown scores", () => {
-    const match = { id: "match", entryAId: "a", entryBId: "b", stage: "playoffs", format: "bo3" as const, status: "in_progress", scoreA: 1, scoreB: 0, scheduledAt: null, completedAt: null, bracketNodeId: null, isForfeit: false };
-    const html = renderToStaticMarkup(<MatchHeroHeader seasonSlug="sample" match={match} teamA={null} teamB={null} isFinished={false} />);
+    const match = { id: "match", entryAId: "a", entryBId: "b", stage: "playoffs", format: "bo3" as const, status: "in_progress", scoreA: null, scoreB: null, scheduledAt: null, completedAt: null, bracketNodeId: null, isForfeit: false };
+    const html = renderToStaticMarkup(<MatchHeroHeader seasonSlug="sample" match={match} teamA={null} teamB={null} isFinished={false} seriesProgress={{ scoreA: 1, scoreB: 0 }} />);
     expect(html).toContain('aria-label="系列赛比分"');
     expect(new DOMParser().parseFromString(html, "text/html").body.textContent).toContain("1:0");
     const unknown = renderToStaticMarkup(<MatchHeroHeader seasonSlug="sample" match={{ ...match, scoreA: null, scoreB: null }} teamA={null} teamB={null} isFinished={false} />);

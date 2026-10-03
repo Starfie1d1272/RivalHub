@@ -56,7 +56,7 @@ test("public match consumes private Broadcast and recovers with canonical layout
     const tokenResponse = page.waitForResponse(response => response.url().endsWith(`/api/matches/${matchId}/live-viewer`), { timeout: 10000 });
     await page.goto(url);
     expect((await tokenResponse).status()).toBe(200);
-    const live = page.getByTestId("match-realtime");
+    const live = page.getByTestId("match-realtime").filter({ visible: true });
     await expect(live.getByText("FalleN", { exact: true })).toBeVisible();
     await expect(live.locator("canvas")).toBeVisible();
     await expect(page.getByText("暂无直播入口，可继续查看比赛数据。")).toBeVisible();
@@ -133,10 +133,10 @@ test("public match consumes private Broadcast and recovers with canonical layout
     for (const [phase, label] of [["pre", "等待 BP"], ["bp", "BP 进行中"], ["waiting", "等待正式对局"], ["inter_map", "图间休息"], ["post", null]] as const) {
       await run(browserFixture, "phase", matchId, phase);
       await page.reload();
-      if (label) await expect(page.getByText(label, { exact: true })).toBeVisible();
+      if (label) await expect(page.getByText(label, { exact: true }).filter({ visible: true })).toBeVisible();
       else await expect(live).toHaveCount(0);
-      if (phase === "inter_map") await expect(page.getByLabel("系列赛比分")).toHaveText(/1\s*:\s*0/);
-      if (phase === "post") await expect(page.getByLabel("系列赛比分")).toHaveText(/2\s*:\s*0/);
+      if (phase === "inter_map") await expect(page.getByLabel("系列赛比分").filter({ visible: true })).toHaveText(/1\s*:\s*0/);
+      if (phase === "post") await expect(page.getByLabel("系列赛比分").filter({ visible: true })).toHaveText(/2\s*:\s*0/);
       await capture(`public-${phase}`);
     }
   } finally {

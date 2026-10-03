@@ -307,6 +307,7 @@ export default async function MatchDetailPage({ params, searchParams }: MatchDet
         teamA={teamA}
         teamB={teamB}
         isFinished={isFinished}
+        seriesProgress={publicContext.seriesProgress}
       />
 
       {/* 赛前管理员 / 队长聚焦赛务弹窗 */}
