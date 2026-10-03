@@ -100,7 +100,7 @@ describe("MatchMvpVote", () => {
 
   it("does not invent a winner for a closed match with no votes", () => {
     render(<MatchMvpVote matchId="match-1" candidates={[candidate("Neo", "user-1")]} currentVotes={[]} userVotedPlayerName={null} completedAt="2020-01-01T00:00:00.000Z" winnerUserId={null} />);
-    expect(screen.getByText("—")).toBeInTheDocument();
+    expect(screen.getByText("暂无 MVP 结果")).toBeInTheDocument();
   });
 
   it("waits for the committed winner instead of declaring a read-time result", () => {

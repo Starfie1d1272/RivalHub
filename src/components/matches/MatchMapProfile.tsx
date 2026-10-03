@@ -17,7 +17,7 @@ export function MatchMapProfile({ rows, teamAName, teamBName }: { rows: MapProfi
         <button key={key} type="button" aria-pressed={metric === key} onClick={() => setMetric(key)} className={`rounded px-3 py-1.5 text-xs font-medium ${metric === key ? "bg-[var(--color-accent)] text-black" : "border border-[var(--color-border)]"}`}>{label}</button>
       )}
     </div>
-    <div className="grid grid-cols-[minmax(0,1fr)_6rem_minmax(0,1fr)] gap-2 border-b border-[var(--color-border)] pb-2 text-xs text-[var(--color-fg-mid)]"><span className="truncate">{teamAName}</span><span className="text-center">地图</span><span className="truncate text-right">{teamBName}</span></div>
+    <div className="grid grid-cols-[minmax(0,1fr)_6rem_minmax(0,1fr)] gap-2 border-b border-[var(--color-border)] pb-2 text-xs text-[var(--color-fg-mid)]"><span className="truncate text-right">{teamAName}</span><span className="text-center">地图</span><span className="truncate text-left">{teamBName}</span></div>
     {rows.map(row => <div key={row.mapName} className="grid grid-cols-[minmax(0,1fr)_6rem_minmax(0,1fr)] items-center gap-2 border-b border-[var(--color-border)] py-2 last:border-0">
       <div className="text-right tabular-nums"><span className="text-sm font-semibold">{value(row.a[metric])}</span><span className="ml-2 text-xs text-[var(--color-fg-mid)]">{row.a[metric].sample} {sampleUnit}</span></div>
       <div className="truncate text-center text-xs font-medium">{mapLabel(row.mapName)}</div>

@@ -63,7 +63,10 @@ export function MatchRadar({ snapshot, freshness, revision, sequence, assetBaseU
       <h3 className="text-sm font-semibold">战术雷达</h3>
       <span className="text-xs text-[var(--color-fg-dim)]">{radar?.layers.length === 2 ? "上下层" : "全图"}{freshness === "stale" ? " · 画面已暂停" : ""}</span>
     </div>
-    <div className="relative aspect-square p-2" aria-label="比赛战术雷达">
+    <div className="relative aspect-square p-2 [&:has(canvas[data-radar-sample-sequence]:not([data-radar-sample-sequence='']))_.radar-static]:hidden" aria-label="比赛战术雷达">
+      {compatible && artwork && freshness === "stale" && <div className="radar-static pointer-events-none absolute inset-2 grid" aria-hidden="true">
+        {Object.entries(artwork.artwork).map(([layer, path]) => <div key={layer} style={{ backgroundImage: `url("${radarAssetUrl(path, assetBaseUrl)}")`, backgroundSize: "contain", backgroundPosition: "center", backgroundRepeat: "no-repeat" }} />)}
+      </div>}
       {ready && compatible ? <RadarView snapshot={frame} paused={freshness === "stale"} presentationRevision={revision} assetBaseUrl={assetBaseUrl} /> : <div className="flex h-full items-center justify-center p-6 text-center text-sm text-[var(--color-fg-dim)]" role="status">{failed ? "雷达暂不可用，比赛数据仍可查看" : "正在加载地图…"}</div>}
     </div>
   </div>;

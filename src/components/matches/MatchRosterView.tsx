@@ -27,8 +27,8 @@ function RosterColumn({ teamName, roster }: { teamName: string; roster: RosterPl
   return (
     <div>
       <div
-        className="mb-2 text-xs font-bold uppercase"
-        style={{ fontFamily: "var(--font-mono)", letterSpacing: "0.12em", color: "var(--color-fg-dim)" }}
+        className="mb-3 text-sm font-semibold"
+        style={{ color: "var(--color-fg-mid)" }}
       >
         {teamName}
       </div>
@@ -60,7 +60,7 @@ function RosterColumn({ teamName, roster }: { teamName: string; roster: RosterPl
               style={{ borderTop: "1px solid var(--color-border)", color: "var(--color-fg-mid)" }}
             >
               替补：{subs.map((p, i) => (
-                <span key={i} className="inline-flex items-center gap-1">
+                <span key={i} className="inline-flex items-center gap-1 align-middle">
                   {i > 0 && "、"}
                   {p.userId ? (
                     <Link href={`/players/${p.userId}`} className="hover:text-[var(--color-accent)] transition-colors">

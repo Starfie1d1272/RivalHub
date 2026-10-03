@@ -5,6 +5,7 @@ import { useMatchLive } from "./MatchLiveProvider";
 import { liveFreshness, visibleLiveSnapshot } from "@/lib/mizar/live-viewer-state";
 import { publicRoundScore } from "@/lib/mizar/live-presentation";
 import type { MatchPresentationPhase } from "@/lib/matches/presentation-phase";
+import { mapThumbnail } from "@/lib/map-thumbnail";
 import { mapLabel } from "@/lib/maps";
 
 export interface PublicSeriesMap {
@@ -35,14 +36,14 @@ export function MatchMapSequence({ maps, currentMapId, entryAId, teamAName, team
   return <section aria-label="BP 结果与地图" className="min-w-0 space-y-3">
     <div className="flex flex-wrap items-baseline justify-between gap-2"><h2 className="text-lg font-semibold">BP 结果与地图</h2>
       {progress && <p className="text-sm text-[var(--color-fg-mid)]" aria-label="地图胜场">地图胜场 {progress.scoreA ?? "—"} : {progress.scoreB ?? "—"}</p>}</div>
-    <ol className="grid gap-2 sm:grid-cols-3">{maps.map(map => {
+    <ol className="grid gap-3 sm:grid-cols-3">{maps.map(map => {
       const completed = map.completedAt !== null && map.scoreA !== null && map.scoreB !== null;
       const current = !finished && map.id === currentMapId;
-      return <li key={map.id} className={`min-w-0 border bg-[var(--color-panel-low)] p-3 ${current ? "border-[var(--color-accent)]" : "border-[var(--color-border)]"}`}>
-        <div className="flex items-center justify-between gap-2 text-xs text-[var(--color-fg-dim)]"><span className="font-mono">MAP {map.mapOrder}</span><span>{completed ? "已结束" : finished ? "未进行" : current ? snapshot ? stale ? "更新暂时中断" : "实时" : phase === "inter_map" ? "下一张地图" : "当前地图" : "待进行"}</span></div>
-        <div className="mt-2 flex items-center justify-between gap-3"><span className="font-semibold">{mapLabel(map.mapName)}</span><span className="font-mono font-bold tabular-nums">{completed ? `${map.scoreA} : ${map.scoreB}` : current && liveScore ? `${liveScore.scoreA ?? "—"} : ${liveScore.scoreB ?? "—"}` : "—"}</span></div>
-        {current && liveScore && <p className="mt-1 text-xs text-[var(--color-fg-dim)]">本图回合</p>}
-        <p className="mt-1 truncate text-xs text-[var(--color-fg-dim)]">{map.pickedByEntryId ? `${map.pickedByEntryId === entryAId ? teamAName : teamBName} 选图` : "决胜图"}</p>
+      return <li key={map.id} style={{ backgroundImage: mapThumbnail(map.mapName) ? `linear-gradient(90deg, color-mix(in srgb, var(--color-bg) 88%, transparent), color-mix(in srgb, var(--color-bg) 55%, transparent)), url("${mapThumbnail(map.mapName)}")` : undefined }} className={`min-w-0 border bg-[var(--color-panel-low)] bg-cover bg-center p-4 ${current ? "border-[var(--color-accent)]" : "border-[var(--color-border)]"}`}>
+        <div className="flex items-center justify-between gap-2 text-xs text-[var(--color-fg-mid)]"><span className="font-mono">MAP {map.mapOrder}</span><span>{completed ? "已结束" : finished ? "未进行" : current ? snapshot ? stale ? "更新暂时中断" : "进行中" : phase === "inter_map" ? "下一张地图" : "当前地图" : "待进行"}</span></div>
+        <div className="mt-2 flex items-center justify-between gap-3"><span className="font-semibold text-[var(--color-fg)]">{mapLabel(map.mapName)}</span><span className="font-mono font-bold tabular-nums text-[var(--color-fg)]">{completed ? `${map.scoreA} : ${map.scoreB}` : current && liveScore ? `${liveScore.scoreA ?? "—"} : ${liveScore.scoreB ?? "—"}` : "—"}</span></div>
+        {current && liveScore && <p className="sr-only">本图回合</p>}
+        <p className="mt-1 truncate text-xs text-[var(--color-fg-mid)]">{map.pickedByEntryId ? `${map.pickedByEntryId === entryAId ? teamAName : teamBName} 选图` : "决胜图"}</p>
       </li>;
     })}</ol>
   </section>;

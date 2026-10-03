@@ -43,15 +43,11 @@ export function MatchMapTabsNavigation({
             </span>
             {map.pickedByEntryId && (
               <span
+                title={`${map.pickedByEntryId === teamAId ? teamAName : map.pickedByEntryId === teamBId ? teamBName : "队伍"} 选图`}
                 className="ml-1 text-[10px] font-mono px-1 py-0.5"
                 style={{ background: "var(--color-ok-soft)", color: "var(--color-ok)" }}
               >
-                {map.pickedByEntryId === teamAId
-                  ? teamAName?.slice(0, 3).toUpperCase()
-                  : map.pickedByEntryId === teamBId
-                    ? teamBName?.slice(0, 3).toUpperCase()
-                    : null}{" "}
-                PICK
+                选图
               </span>
             )}
           </TabsTrigger>

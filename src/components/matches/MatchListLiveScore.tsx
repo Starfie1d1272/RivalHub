@@ -26,11 +26,15 @@ export function MatchListScoreSurface({ entryAId, entryBId, context }: Omit<Prop
   const score = snapshot ? publicRoundScore(snapshot, entryAId, entryBId) : null;
   const stale = liveFreshness(state, now) === "stale";
   const phaseLabel = context.phase === "veto" ? "BP 进行中" : context.phase === "inter_map" ? "图间休息" : context.phase === "awaiting_gameplay" ? "等待对局" : context.phase === "gameplay" ? "实时数据暂不可用" : "等待 BP";
-  return <>
+  const series = snapshot?.series ?? context.seriesProgress;
+  return <span className="flex min-h-10 flex-col justify-center" title="括号为地图胜场，中间为本图回合比分">
     {score && snapshot ? <>
-      <span className="block text-lg font-bold tabular-nums text-[var(--color-fg)]" aria-label="本图回合比分">{score.scoreA ?? "—"} : {score.scoreB ?? "—"}</span>
-      <span className={`block text-xs ${stale ? "text-[var(--color-fg-dim)]" : "text-[var(--color-ok)]"}`}>{mapLabel(snapshot.map.name ?? "")} · {stale ? "更新暂时中断" : "实时"}</span>
-    </> : <span className="block text-xs text-[var(--color-fg-mid)]">{phaseLabel}</span>}
-    {(snapshot || context.seriesProgress) && <span className="block text-xs text-[var(--color-fg-dim)]">地图胜场 {snapshot?.series.scoreA ?? context.seriesProgress?.scoreA ?? "—"} : {snapshot?.series.scoreB ?? context.seriesProgress?.scoreB ?? "—"}</span>}
-  </>;
+      <span className="flex items-baseline justify-center gap-2 font-mono tabular-nums">
+        <span className="text-xs text-[var(--color-fg-dim)]" aria-label="A 队地图胜场">({series?.scoreA ?? "—"})</span>
+        <span className="text-lg font-bold text-[var(--color-fg)]" aria-label="本图回合比分">{score.scoreA ?? "—"} : {score.scoreB ?? "—"}</span>
+        <span className="text-xs text-[var(--color-fg-dim)]" aria-label="B 队地图胜场">({series?.scoreB ?? "—"})</span>
+      </span>
+      <span className="text-[11px] text-[var(--color-fg-dim)]">{mapLabel(snapshot.map.name ?? "")}{stale ? " · 更新暂时中断" : ""}</span>
+    </> : <span className="text-xs text-[var(--color-fg-mid)]">{phaseLabel}</span>}
+  </span>;
 }

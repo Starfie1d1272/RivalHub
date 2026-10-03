@@ -119,18 +119,18 @@ export function MatchMvpVote({
       <Panel contentClassName="space-y-5 p-6">
         <div className="text-center space-y-1">
           <p className="text-sm text-[var(--color-fg-mid)]">{awaitingSettlement ? "MVP 结果确认中" : "本场 MVP"}</p>
-          <div className="flex items-center justify-center gap-2 text-2xl font-bold text-[var(--color-accent)]">
+          <div className="flex items-center justify-center gap-2 text-xl font-bold text-[var(--color-accent)]">
             {mvpStats && <PlayerAvatar name={mvp?.playerName ?? "MVP"} avatarUrl={mvpStats.avatarUrl} size="md" />}
             {mvp?.playerUserId ? (
               <Link href={`/players/${mvp.playerUserId}`} className="hover:underline">
-                {mvp?.playerName ?? "—"}
+                {mvp?.playerName ?? (awaitingSettlement ? "等待结果确认" : "暂无 MVP 结果")}
               </Link>
             ) : (
-              mvp?.playerName ?? "—"
+              mvp?.playerName ?? (awaitingSettlement ? "等待结果确认" : "暂无 MVP 结果")
             )}
           </div>
           <p className="text-sm text-[var(--color-fg-mid)]">
-            {mvp?.count ?? 0} 票
+            {mvp ? mvp.count > 0 ? `${mvp.count} 票` : "已确认" : "投票已截止"}
           </p>
           {!winnerUserId && (
             <Button variant="ghost" size="sm" onClick={refresh} disabled={refreshPending}>
@@ -139,56 +139,34 @@ export function MatchMvpVote({
           )}
         </div>
 
-        {mvpStats && (
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs border-collapse">
-              <thead>
-                <tr>
-                  {STAT_COLS.map((c) => (
-                    <th key={c.key} className="pb-1 text-[10px] text-[var(--color-fg-dim)] font-normal text-center">
-                      {c.label}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                <tr className="border-t border-[var(--color-border)]">
-                  {STAT_COLS.map((c) => {
-                    const v = mvpStats[c.key];
-                    return (
-                      <td key={c.key} className="py-1.5 tabular-nums text-center text-[var(--color-fg)]">
-                        {formatStat(c.metric, v)}
-                      </td>
-                    );
-                  })}
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        )}
+        {mvpStats && <dl className="grid grid-cols-3 divide-x divide-[var(--color-border)] border-y border-[var(--color-border)] py-4 text-center">
+          <div><dt className="text-xs text-[var(--color-fg-dim)]">Rating</dt><dd className="mt-1 font-mono text-2xl font-bold tabular-nums text-[var(--color-accent)]">{formatStat("ratingPro", mvpStats.ratingPro)}</dd></div>
+          <div><dt className="text-xs text-[var(--color-fg-dim)]">K / D / A</dt><dd className="mt-1 font-mono text-lg font-semibold tabular-nums">{mvpStats.kills ?? "—"} / {mvpStats.deaths ?? "—"} / {mvpStats.assists ?? "—"}</dd></div>
+          <div><dt className="text-xs text-[var(--color-fg-dim)]">ADR</dt><dd className="mt-1 font-mono text-2xl font-bold tabular-nums">{formatStat("adr", mvpStats.adr)}</dd></div>
+        </dl>}
 
         {allVotes.filter((v) => v !== mvp).length > 0 && (
-          <div className="text-xs space-y-1">
-            <p className="text-[var(--color-fg-dim)]">其他候选人</p>
+          <div className="grid gap-3 text-xs sm:grid-cols-2 lg:grid-cols-4">
+            <p className="text-[var(--color-fg-dim)] sm:col-span-2 lg:col-span-4">其他候选人</p>
             {allVotes
               .filter((v) => v !== mvp)
               .sort((a, b) => b.count - a.count)
               .map((v) => (
-                <div key={candidateKey(v.playerUserId, v.playerName)} className="flex justify-between text-[var(--color-fg-mid)]">
-                  <span className="inline-flex items-center gap-1">
+                <div key={candidateKey(v.playerUserId, v.playerName)} className="flex min-w-0 items-center justify-between gap-3 border border-[var(--color-border)] p-3 text-[var(--color-fg-mid)]">
+                  <span className="inline-flex min-w-0 items-center gap-2">
                     {(() => {
                       const candidate = candidates.find((c) => candidateKey(c.userId, c.perfectName) === candidateKey(v.playerUserId, v.playerName));
                       return candidate ? <PlayerAvatar name={v.playerName} avatarUrl={candidate.avatarUrl} size="sm" /> : null;
                     })()}
                     {v.playerUserId ? (
-                      <Link href={`/players/${v.playerUserId}`} className="hover:text-[var(--color-accent)] transition-colors">
+                      <Link href={`/players/${v.playerUserId}`} className="truncate hover:text-[var(--color-accent)] transition-colors">
                         {v.playerName}
                       </Link>
                     ) : (
                       v.playerName
                     )}
                   </span>
-                  <span className="tabular-nums">{v.count} 票</span>
+                  <span className="shrink-0 tabular-nums">{v.count} 票</span>
                 </div>
               ))}
           </div>
@@ -297,16 +275,3 @@ function StatCell({
     </div>
   );
 }
-
-const STAT_COLS = [
-  { key: "kills" as const,      label: "K",      metric: "kills" },
-  { key: "deaths" as const,     label: "D",      metric: "deaths" },
-  { key: "assists" as const,    label: "A",      metric: "assists" },
-  { key: "hsPercent" as const,  label: "HS%",    metric: "hsPercent" },
-  { key: "firstKills" as const, label: "FK",     metric: "firstKills" },
-  { key: "multiKills" as const, label: "MK",     metric: "multiKills" },
-  { key: "clutches" as const,   label: "残局",   metric: "clutches" },
-  { key: "adr" as const,        label: "ADR",    metric: "adr" },
-  { key: "rws" as const,        label: "RWS",    metric: "rws" },
-  { key: "ratingPro" as const,  label: "Rating", metric: "ratingPro" },
-] as const satisfies readonly { key: keyof MvpCandidate; label: string; metric: StatMetric }[];

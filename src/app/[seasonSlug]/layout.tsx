@@ -47,7 +47,7 @@ async function SeasonLayoutContent({ children, params }: SeasonLayoutProps) {
         "--color-accent-rgb": hexToRgbString(season.themeColor),
       } as React.CSSProperties : undefined}
     >
-      <div className="container mx-auto px-4 pt-6">
+      <div className="mx-auto max-w-7xl px-4 pt-6 sm:px-6 lg:px-8">
         <Breadcrumb
           items={[
             { label: "首页", href: "/" },

@@ -244,7 +244,7 @@ describe("Public Match Detail Page (PRE / POST)", () => {
       expect(html).toContain('data-testid="match-recent-results"');
       expect(html).toContain('data-testid="match-prediction"');
       expect(html).toContain('data-testid="match-h2h"');
-      expect(html).toContain("打开 Veto Room");
+      expect(html).toContain("查看 BP 进度");
       expect(html).not.toContain('data-testid="match-summary-stats"');
       expect(html).not.toContain('data-testid="match-mvp-vote"');
       expect(loadMatchScoreboardMock).not.toHaveBeenCalled();
@@ -286,7 +286,7 @@ describe("Public Match Detail Page (PRE / POST)", () => {
       expect(html).not.toContain('data-testid="match-recent-results"');
       expect(html).not.toContain('data-testid="match-prediction"');
       expect(html).not.toContain('data-testid="match-h2h"');
-      expect(html).toContain("打开 Veto Room");
+      expect(html).toContain("查看 BP 进度");
     });
   });
 
@@ -344,7 +344,7 @@ describe("Public Match Detail Page (PRE / POST)", () => {
       expect(html).toContain('data-testid="player-workspace"');
       expect(html).toContain('data-testid="match-mvp-vote"');
       expect(html).toContain("观看比赛录像 →");
-      expect(html).toContain("打开 Veto Room 记录");
+      expect(html).toContain("查看 BP 记录");
       expect(loadMatchPreAnalysisMock).not.toHaveBeenCalled();
       expect(loadMatchPredictionMock).not.toHaveBeenCalled();
     });

@@ -1,4 +1,5 @@
 import React from "react";
+import { PreMatchContext } from "@/components/matches/PreMatchContext";
 import { MatchContextRefresh } from "@/components/matches/MatchContextRefresh";
 import { MatchLiveProvider } from "@/components/matches/MatchLiveProvider";
 import { MatchRealtime } from "@/components/matches/MatchRealtime";
@@ -98,9 +99,9 @@ export default async function MatchDetailPage({ params, searchParams }: MatchDet
   const isFinished = match.status === "finished";
   const hasCompletedMaps = maps.some(canConfirmMapScoreboard);
 
-  // PRE scouting is queried only for matches that have not finished and have no completed map yet.
+  // Keep scouting available throughout an unfinished match, including loss of live data.
   // POST scoreboard is queried only when finished or when maps have been completed.
-  const needPreAnalysis = !isFinished && !hasCompletedMaps;
+  const needPreAnalysis = !isFinished;
   const needScoreboard = isFinished || hasCompletedMaps;
 
   const userSession = await getUserSession();
@@ -300,7 +301,7 @@ export default async function MatchDetailPage({ params, searchParams }: MatchDet
   const defaultTab = showSummaryTab ? "summary" : (visibleMaps[0]?.id ?? "");
 
   return (
-    <PageLayout variant="standard" className="space-y-8">
+    <PageLayout variant="wide" className="space-y-8">
       <MatchContextRefresh enabled={match.status === "scheduled" || match.status === "in_progress"} />
       <MatchHeroHeader
         seasonSlug={seasonSlug}
@@ -393,7 +394,7 @@ export default async function MatchDetailPage({ params, searchParams }: MatchDet
                   className="inline-flex min-h-10 items-center rounded border border-[var(--color-border)] px-4 text-sm font-medium hover:border-[var(--color-border-hover)]"
                   href={`/${seasonSlug}/matches/${match.id}/veto`}
                 >
-                  {match.status === "scheduled" ? "打开 Veto Room" : "查看 Veto Room"}
+                  查看 BP 进度
                 </Link>
               </div>
             </Panel>
@@ -418,7 +419,6 @@ export default async function MatchDetailPage({ params, searchParams }: MatchDet
       {afterVeto && <details className="text-sm"><summary className="cursor-pointer text-[var(--color-fg-mid)]">查看完整 BP 流程</summary><div className="mt-3"><VetoView matchId={match.id} teamAName={teamA?.name ?? "队伍 A"} teamBName={teamB?.name ?? "队伍 B"} entryAId={match.entryAId} entryBId={match.entryBId} /></div></details>}
       <MatchLiveViewing status={match.status} commentators={commentatorRows} showEmpty={afterVeto} />
       {afterVeto && <MatchRealtime matchId={match.id} phase={phase} currentMapId={publicContext.currentMapId} />}
-      </MatchLiveProvider>
       {prediction && (
         <MatchPrediction
           data={prediction}
@@ -431,7 +431,7 @@ export default async function MatchDetailPage({ params, searchParams }: MatchDet
 
       {/* 赛前分析与预备信息（未结束时展示） */}
       {!isFinished && (
-        <PreMatchContext collapsed={afterVeto}>
+        <PreMatchContext phase={phase} currentMapId={publicContext.currentMapId}>
           <section className="space-y-3">
             <h2 className="text-lg font-semibold text-[var(--color-fg)]">本场阵容</h2>
             <Panel contentClassName="p-4">
@@ -476,6 +476,8 @@ export default async function MatchDetailPage({ params, searchParams }: MatchDet
 
         </PreMatchContext>
       )}
+
+      </MatchLiveProvider>
 
       {/* 地图结果 */}
       {maps.length > 0 && (!afterVeto || hasCompletedMaps) ? (
@@ -630,7 +632,7 @@ export default async function MatchDetailPage({ params, searchParams }: MatchDet
         <>
           <div className="flex justify-end">
             <Link className="text-sm text-[var(--color-accent)] hover:underline" href={`/${seasonSlug}/matches/${match.id}/veto`}>
-              打开 Veto Room 记录
+              查看 BP 记录
             </Link>
           </div>
           {match.status !== "scheduled" && (
@@ -670,12 +672,4 @@ export default async function MatchDetailPage({ params, searchParams }: MatchDet
       )}
     </PageLayout>
   );
-}
-
-function PreMatchContext({ collapsed, children }: { collapsed: boolean; children: React.ReactNode }) {
-  if (!collapsed) return <>{children}</>;
-  return <details className="border-t border-[var(--color-border)] pt-4">
-    <summary className="cursor-pointer text-sm font-medium text-[var(--color-fg-mid)]">阵容与赛前资料</summary>
-    <div className="mt-5 space-y-8">{children}</div>
-  </details>;
 }

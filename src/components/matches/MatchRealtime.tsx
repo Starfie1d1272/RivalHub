@@ -64,7 +64,7 @@ function LiveTeamTable({ snapshot, side }: { snapshot: PublicLiveMatchProjection
   const team = side === "CT" ? snapshot.teams.ct : snapshot.teams.t;
   const score = side === "CT" ? snapshot.map.scoreCT : snapshot.map.scoreT;
   const players = snapshot.players.filter(player => player.side === side);
-  return <div className="flex min-w-0 flex-col overflow-hidden border border-[var(--color-border)]">
+  return <div className="flex min-w-0 flex-col overflow-hidden bg-[var(--color-panel-low)] border border-[var(--color-border)]">
     <div className="flex items-center justify-between gap-3 bg-[var(--color-panel-hi)] px-3 py-2">
       <div className="flex min-w-0 items-center gap-2"><span className={`font-mono text-xs font-bold ${side === "CT" ? "text-[var(--color-info)]" : "text-[var(--color-warn)]"}`}>{side}</span><h3 className="truncate text-sm font-semibold">{team.name}</h3></div>
       <span className="flex items-baseline gap-2"><span className="text-xs text-[var(--color-fg-dim)]">本图回合</span><span className="font-mono text-xl font-bold tabular-nums">{score ?? "—"}</span></span>
