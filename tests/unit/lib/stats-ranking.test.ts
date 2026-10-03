@@ -22,7 +22,7 @@ describe("shared statistics ranking eligibility", () => {
     expect(partitionRankingPopulation(rows, value, sample).ranked).toEqual(rows);
   });
   it("does not invent a winner for an empty or zero-opportunity population", () => {
-    expect(partitionRankingPopulation([], value, sample).ranked).toEqual([]);
+    expect(partitionRankingPopulation<{ rate: number | null; sample: number }>([], value, sample).ranked).toEqual([]);
     expect(partitionRankingPopulation([{ rate: null, sample: 0 }], value, sample).ranked).toEqual([]);
   });
 });
