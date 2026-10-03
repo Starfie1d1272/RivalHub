@@ -1,3 +1,4 @@
+import { requireSupabasePublicKey, requireSupabaseSecretKey } from "../../src/lib/runtime/supabase-keys";
 import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -66,8 +67,8 @@ export async function verifySupabaseServices(): Promise<void> {
     "NEXT_PUBLIC_SUPABASE_URL",
   );
   const databaseUrl = assertLocalDatabaseUrl(process.env.DATABASE_URL);
-  const publishableKey = required(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY, "publishable key");
-  const serviceRoleKey = required(process.env.SUPABASE_SERVICE_ROLE_KEY, "service role key");
+  const publishableKey = requireSupabasePublicKey(process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+  const serviceRoleKey = requireSupabaseSecretKey(process.env.SUPABASE_SECRET_KEY, process.env.SUPABASE_SERVICE_ROLE_KEY);
   const client = createClient(apiUrl, serviceRoleKey, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
@@ -137,7 +138,7 @@ export async function verifySupabaseServices(): Promise<void> {
       throw new Error(`Local Auth authenticated session 验证失败：${signedIn.error?.message ?? "missing access token"}`);
     }
 
-    await verifyDeniedDataApiAccess(apiUrl, publishableKey, publishableKey, "anon");
+    await verifyDeniedDataApiAccess(apiUrl, publishableKey, undefined, "anon");
     await verifyDeniedDataApiAccess(
       apiUrl,
       publishableKey,
@@ -284,12 +285,12 @@ async function verifySchedulerDispatch(pool: Pool, apiUrl: string): Promise<void
 async function verifyDeniedDataApiAccess(
   apiUrl: string,
   publishableKey: string,
-  token: string,
+  token: string | undefined,
   role: "anon" | "authenticated",
 ): Promise<void> {
   const headers = {
     apikey: publishableKey,
-    Authorization: `Bearer ${token}`,
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
   };
   for (const entry of DATABASE_ACCESS_MATRIX) {
     const response = await fetch(
@@ -302,9 +303,4 @@ async function verifyDeniedDataApiAccess(
       );
     }
   }
-}
-
-function required(value: string | undefined, label: string): string {
-  if (!value?.trim()) throw new Error(`${label} 未设置。`);
-  return value.trim();
 }
