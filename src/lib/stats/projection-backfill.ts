@@ -1,8 +1,8 @@
 import "server-only";
 
-import { and, asc, desc, eq, gt, isNotNull, isNull, ne } from "drizzle-orm";
+import { and, asc, desc, eq, gt, isNotNull, isNull, ne, sql } from "drizzle-orm";
 import type { DB, TxDb } from "@/db/client";
-import { matchDemoImports, matchDemoStatProjections, matchMaps, matches } from "@/db/schema";
+import { matchDemoImports, matchDemoStatProjections, matchMaps, matches, statisticsProjectionRepairCursors } from "@/db/schema";
 import { demoImportMetadataSelection } from "@/lib/demo-integration/metadata";
 import { lockDemoImportLineageInTx } from "@/lib/demo-integration/promotion";
 import { selectCurrentDemoImport } from "@/lib/demo-integration/read";
@@ -14,11 +14,12 @@ import { resolveGameplayUsersBySteam64InTx } from "@/lib/identity/gameplay-steam
 import { loadEffectiveMatchRoster } from "@/lib/match-rosters/effective";
 import { materializeStatisticsProjectionInTx, STATISTICS_PROJECTION_VERSION } from "./projection";
 
-/** Read only metadata, even when a map has many historical artifacts. */
+/** Read only the latest eligible lineage metadata, bounded even with many historical artifacts. */
 async function currentProjectionCandidate(tx: TxDb, matchMapId: string) {
   const rows = await tx.select(demoImportMetadataSelection).from(matchDemoImports)
-    .where(eq(matchDemoImports.matchMapId, matchMapId))
-    .orderBy(desc(matchDemoImports.createdAt), desc(matchDemoImports.id));
+    .where(and(eq(matchDemoImports.matchMapId, matchMapId),
+      eq(matchDemoImports.semanticProfile, CURRENT_DAK_SEMANTIC_PROFILE), ne(matchDemoImports.status, "superseded")))
+    .orderBy(desc(matchDemoImports.createdAt), desc(matchDemoImports.id)).limit(1);
   const current = selectCurrentDemoImport(rows);
   if (!current || current.status !== "confirmed") return null;
   const [mapMatch] = await tx.select({ map: matchMaps, match: matches }).from(matchMaps)
@@ -135,49 +136,81 @@ export async function backfillStatisticsProjections(
   return report;
 }
 
-/** One consistent, read-only snapshot; missing current projections block release routing. */
-export async function inspectStatisticsProjectionCoverage(tx: TxDb) {
-  const maps = await tx.selectDistinct({ matchMapId: matchDemoImports.matchMapId }).from(matchDemoImports);
+/** One consistent, read-only snapshot; an exhausted budget can never pass the release gate. */
+export async function inspectStatisticsProjectionCoverage(
+  tx: TxDb,
+  options: { batchSize?: number; scanLimit?: number; maxDurationMs?: number } = {},
+) {
+  const batchSize = positiveInteger(options.batchSize ?? 50, "Coverage batch size");
+  const scanLimit = positiveInteger(options.scanLimit ?? 10_000, "Coverage scan limit");
+  const maxDurationMs = positiveInteger(options.maxDurationMs ?? 60_000, "Coverage duration");
+  const startedAt = Date.now();
+  const deadline = startedAt + maxDurationMs;
+  let after: string | undefined;
+  let scanned = 0;
   let eligibleMaps = 0;
   let missing = 0;
-  for (const { matchMapId } of maps) {
-    const candidate = await currentProjectionCandidate(tx, matchMapId);
-    if (!candidate) continue;
-    eligibleMaps++;
-    if (!await hasCurrentProjection(tx, candidate)) missing++;
+  let complete = false;
+  while (Date.now() < deadline) {
+    await tx.execute(sql`SELECT set_config('statement_timeout', ${String(Math.max(1, deadline - Date.now()))}, true)`);
+    // One extra ID distinguishes a complete scan from an exactly exhausted budget.
+    const maps = await tx.selectDistinct({ matchMapId: matchDemoImports.matchMapId }).from(matchDemoImports)
+      .where(after ? gt(matchDemoImports.matchMapId, after) : undefined)
+      .orderBy(asc(matchDemoImports.matchMapId)).limit(Math.min(batchSize, scanLimit - scanned + 1));
+    if (!maps.length) { complete = true; break; }
+    for (const { matchMapId } of maps) {
+      if (scanned >= scanLimit || Date.now() >= deadline) {
+        return { projectionVersion: STATISTICS_PROJECTION_VERSION, scanned, eligibleMaps, missing, complete: false, ready: false, durationMs: Date.now() - startedAt };
+      }
+      const candidate = await currentProjectionCandidate(tx, matchMapId);
+      scanned++;
+      after = matchMapId;
+      if (!candidate) continue;
+      eligibleMaps++;
+      if (!await hasCurrentProjection(tx, candidate)) missing++;
+    }
   }
-  return { projectionVersion: STATISTICS_PROJECTION_VERSION, eligibleMaps, missing, ready: missing === 0 };
+  return { projectionVersion: STATISTICS_PROJECTION_VERSION, scanned, eligibleMaps, missing, complete, ready: complete && missing === 0, durationMs: Date.now() - startedAt };
 }
 
+function positiveInteger(value: number, name: string): number {
+  if (!Number.isSafeInteger(value) || value < 1) throw new Error(`${name} must be a positive integer`);
+  return value;
+}
 
 /** Only the scheduler/release path may repair old-writer gaps; page reads never do. */
-export async function reconcileMissingStatisticsProjections(database: DB, options: { limit?: number } = {}) {
-  const limit = options.limit ?? 10;
-  if (!Number.isSafeInteger(limit) || limit < 1) throw new Error("Projection rebuild limit must be a positive integer");
-  // Select the current lineage BEFORE testing confirmed, so a newer rejected or
-  // pending import cannot resurrect an older confirmed artifact. Only IDs cross
-  // the wire; stale revisions are cheaply skipped before any raw payload read.
-  const latest = database.selectDistinctOn([matchDemoImports.matchMapId], {
-    importId: matchDemoImports.id, matchMapId: matchDemoImports.matchMapId, status: matchDemoImports.status,
-  }).from(matchDemoImports).where(and(
-    eq(matchDemoImports.semanticProfile, CURRENT_DAK_SEMANTIC_PROFILE), ne(matchDemoImports.status, "superseded"),
-  )).orderBy(asc(matchDemoImports.matchMapId), desc(matchDemoImports.createdAt), desc(matchDemoImports.id)).as("current_demo_import");
-  const candidates = await database.select({ matchMapId: latest.matchMapId }).from(latest)
-    .innerJoin(matchMaps, eq(matchMaps.id, latest.matchMapId))
-    .leftJoin(matchDemoStatProjections, and(
-      eq(matchDemoStatProjections.importId, latest.importId), eq(matchDemoStatProjections.projectionVersion, STATISTICS_PROJECTION_VERSION),
-    )).where(and(
-      eq(latest.status, "confirmed"), isNotNull(matchMaps.completedAt), isNotNull(matchMaps.scoreA), isNotNull(matchMaps.scoreB),
-      isNull(matchDemoStatProjections.importId),
-    )).orderBy(asc(latest.matchMapId));
-  const report = { candidates: candidates.length, scanned: 0, rebuilt: 0, skipped: 0, invalid: 0, failed: 0 };
-  for (const { matchMapId } of candidates) {
-    // The bound applies to actual rebuild attempts. Metadata-only stale maps
-    // never consume it and therefore cannot starve a valid later map forever.
-    if (report.rebuilt + report.invalid + report.failed >= limit) break;
+export async function reconcileMissingStatisticsProjections(database: DB, options: { limit?: number; scanLimit?: number; maxDurationMs?: number } = {}) {
+  const limit = positiveInteger(options.limit ?? 10, "Projection rebuild limit");
+  const scanLimit = positiveInteger(options.scanLimit ?? 50, "Projection scan limit");
+  const startedAt = Date.now();
+  const deadline = startedAt + positiveInteger(options.maxDurationMs ?? 20_000, "Projection repair duration");
+  const report = { candidates: 0, scanned: 0, rebuilt: 0, skipped: 0, invalid: 0, failed: 0,
+    afterMapId: null as string | null, wrapped: false, budgetExhausted: false };
+  while (report.scanned < scanLimit) {
+    if (report.rebuilt + report.invalid + report.failed >= limit || Date.now() >= deadline) {
+      report.budgetExhausted = true;
+      break;
+    }
+    // Claim one map at a time: advancing past an unprocessed batch suffix can
+    // starve it forever when the same early maps repeatedly exhaust the budget.
+    let matchMapId: string | null;
+    try {
+      matchMapId = await claimNextProjectionRepairMap(database);
+    } catch {
+      // Preserve prior committed transitions so the scheduler invalidates them
+      // before reporting a later candidate-selection dependency failure.
+      report.failed++;
+      break;
+    }
+    report.afterMapId = matchMapId;
+    if (!matchMapId) { report.wrapped = true; break; }
+    report.candidates++;
     report.scanned++;
     try {
-      const outcome = await database.transaction((tx) => backfillStatisticsProjectionForMapInTx(tx, matchMapId, true, { quarantineInvalid: true }));
+      const outcome = await database.transaction(async (tx) => {
+        await tx.execute(sql`SELECT set_config('statement_timeout', ${String(Math.max(1, Math.min(5000, deadline - Date.now())))}, true)`);
+        return backfillStatisticsProjectionForMapInTx(tx, matchMapId, true, { quarantineInvalid: true });
+      });
       if (outcome === "rebuilt") report.rebuilt++;
       else if (outcome === "invalid") report.invalid++;
       else report.skipped++;
@@ -185,5 +218,36 @@ export async function reconcileMissingStatisticsProjections(database: DB, option
       report.failed++;
     }
   }
-  return report;
+  return { ...report, budgetExhausted: report.budgetExhausted || report.scanned === scanLimit, durationMs: Date.now() - startedAt };
+}
+
+/** Claims commit before identity locks; a lost claim is revisited on wrap. */
+async function claimNextProjectionRepairMap(database: DB): Promise<string | null> {
+  return database.transaction(async (tx) => {
+    await tx.execute(sql`SET LOCAL statement_timeout = '5s'`);
+    await tx.insert(statisticsProjectionRepairCursors).values({ projectionVersion: STATISTICS_PROJECTION_VERSION }).onConflictDoNothing();
+    const [cursor] = await tx.select().from(statisticsProjectionRepairCursors)
+      .where(eq(statisticsProjectionRepairCursors.projectionVersion, STATISTICS_PROJECTION_VERSION)).for("update");
+    // Select the current lineage BEFORE testing confirmed, so a newer rejected or
+    // pending import cannot resurrect an older confirmed artifact. Only IDs cross
+    // the wire; stale revisions are cheaply skipped before any raw payload read.
+    const latest = tx.selectDistinctOn([matchDemoImports.matchMapId], {
+      importId: matchDemoImports.id, matchMapId: matchDemoImports.matchMapId, status: matchDemoImports.status,
+    }).from(matchDemoImports).where(and(
+      eq(matchDemoImports.semanticProfile, CURRENT_DAK_SEMANTIC_PROFILE), ne(matchDemoImports.status, "superseded"),
+      cursor!.afterMapId ? gt(matchDemoImports.matchMapId, cursor!.afterMapId) : undefined,
+    )).orderBy(asc(matchDemoImports.matchMapId), desc(matchDemoImports.createdAt), desc(matchDemoImports.id)).as("current_demo_import");
+    const candidates = await tx.select({ matchMapId: latest.matchMapId }).from(latest)
+      .innerJoin(matchMaps, eq(matchMaps.id, latest.matchMapId))
+      .leftJoin(matchDemoStatProjections, and(
+        eq(matchDemoStatProjections.importId, latest.importId), eq(matchDemoStatProjections.projectionVersion, STATISTICS_PROJECTION_VERSION),
+      )).where(and(
+        eq(latest.status, "confirmed"), isNotNull(matchMaps.completedAt), isNotNull(matchMaps.scoreA), isNotNull(matchMaps.scoreB),
+        isNull(matchDemoStatProjections.importId),
+      )).orderBy(asc(latest.matchMapId)).limit(1);
+    const afterMapId = candidates.at(-1)?.matchMapId ?? null;
+    await tx.update(statisticsProjectionRepairCursors).set({ afterMapId, updatedAt: new Date() })
+      .where(eq(statisticsProjectionRepairCursors.projectionVersion, STATISTICS_PROJECTION_VERSION));
+    return afterMapId;
+  });
 }

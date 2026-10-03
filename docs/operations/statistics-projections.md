@@ -27,8 +27,14 @@ only a single current artifact when that projection requires rebuilding. Each ma
 commits independently; retries skip already-current projections. `--limit N`
 bounds eligible maps for a controlled run. Raw source integrity or canonical
 validation failure stops the run for investigation instead of publishing a
-partial replacement silently. Coverage is read-only and fails when a currently
-eligible import lacks a valid projection. Superseded, rejected, stale-revision and
+partial replacement silently. Coverage scans keyset pages in one repeatable-read,
+read-only snapshot. Defaults are 50 IDs per page, 10,000 scanned maps and a 60-second
+between-map time budget, with PostgreSQL statement timeouts. Missing projections,
+query timeouts or `complete=false` all block release; zero observed missing maps
+in a truncated scan never means ready. Operators may explicitly increase
+`coverage --scan-limit N --batch-size N --max-duration-ms N` after reviewing the
+workload; partial reports from different snapshots cannot be combined into ready.
+A currently eligible import must have a valid projection. Superseded, rejected, stale-revision and
 non-current-profile imports are not eligible. Older projection versions may remain
 for rollback but are never selected by a different reducer version.
 
@@ -39,8 +45,18 @@ production target checks and, for `--apply`,
 The registered repair job checks missing current-version projections periodically,
 including writes made by the previous application during release cutover. Its SQL
 wake-up does not freeze a reducer version; the application owns candidate selection.
-It reads only candidate IDs until a map needs rebuilding, bounds work, expires
-statistics after changes, and quarantines deterministically invalid sources through
+Each invocation claims at most 50 candidate IDs, one at a time, using a persisted,
+version-scoped keyset cursor, attempts at most 10 rebuilds, and stops starting maps
+after 20 seconds. Claiming only the next map prevents an unprocessed batch suffix
+from being skipped repeatedly when early candidates exhaust the rebuild budget.
+Each SQL statement is capped at five seconds (or the remaining start budget).
+Cursor claims commit before identity/lineage locks; concurrent workers claim ordered
+individual maps without holding the cursor lock while rebuilding. The cursor wraps on an
+empty suffix. Stale, failed, unprocessed and interrupted claims are revisited on
+subsequent sweeps, so a stale prefix cannot starve later maps. Progress is a repair
+hint, never a coverage assertion. Reports expose claimed `candidates`, actually
+`scanned`, outcome counters, `afterMapId`, `wrapped`, `durationMs` and `budgetExhausted`; counters
+are per invocation, not whole-database totals. It expires statistics after changes, and quarantines deterministically invalid sources through
 the existing recheck owner. Dependency errors remain retryable failures. This also
 prevents repeatedly downloading a permanently invalid artifact.
 

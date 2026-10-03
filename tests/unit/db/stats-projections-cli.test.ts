@@ -9,6 +9,12 @@ describe("statistics projection rebuild boundary", () => {
     expect(() => parseStatsProjectionArguments(["backfill", "--limit", "0"])).toThrow();
   });
 
+  it("accepts explicit coverage budgets without weakening read-only mode", () => {
+    expect(parseStatsProjectionArguments(["coverage", "--scan-limit", "20000", "--batch-size", "100", "--max-duration-ms", "120000"]))
+      .toMatchObject({ mode: "coverage", apply: false, coverageOptions: { scanLimit: 20000, batchSize: 100, maxDurationMs: 120000 } });
+    expect(() => parseStatsProjectionArguments(["coverage", "--scan-limit", "0"])).toThrow();
+  });
+
   it("requires protected remote authorization and a separate write confirmation", () => {
     const remote = { NODE_ENV: "test" as const, RIVALHUB_DB_TARGET: "production", DATABASE_URL: "postgresql://example.invalid/database" };
     expect(() => statsProjectionDatabaseTarget(false, remote)).toThrow("protected");
