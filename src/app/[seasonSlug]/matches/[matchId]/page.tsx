@@ -381,11 +381,11 @@ export default async function MatchDetailPage({ params, searchParams }: MatchDet
             <Panel label="BP 与开赛">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <h2 className="font-semibold text-[var(--color-fg)]">Veto Room</h2>
+                  <h2 className="font-semibold text-[var(--color-fg)]">{phase === "veto" ? "BP 进行中" : "等待 BP"}</h2>
                   <p className="mt-1 text-sm text-[var(--color-fg-mid)]">
                     {match.status === "scheduled"
-                      ? "双方负责人确认后开始 BP；Veto Session 开始时比赛进入进行中。"
-                      : "查看当前禁选进度、倒计时与超时记录。"}
+                      ? "双方负责人确认后开始地图禁选。"
+                      : "查看当前地图禁选进度。"}
                   </p>
                 </div>
                 <Link

@@ -38,6 +38,7 @@ describe("public LIVE presentation", () => {
     const maps = [1, 2, 3].map(order => ({ id: String(order), mapOrder: order, mapName: "de_ancient", pickedByEntryId: null, scoreA: order < 3 ? 13 : null, scoreB: order < 3 ? 9 : null, completedAt: order < 3 ? "2026-10-03T00:00:00Z" : null }));
     const html = renderToStaticMarkup(<MatchMapSequence maps={maps} currentMapId={null} entryAId="a" teamAName="A" teamBName="B" finished />);
     expect(html).toContain("未进行"); expect(html).not.toContain("当前地图");
+    maps[1] = { ...maps[1], scoreA: 9, scoreB: 13 };
     maps[2] = { ...maps[2], scoreA: 16, scoreB: 14, completedAt: "2026-10-03T01:00:00Z" };
     const three = renderToStaticMarkup(<MatchMapSequence maps={maps} currentMapId={null} entryAId="a" teamAName="A" teamBName="B" finished />);
     expect(three).not.toContain("未进行"); expect(three).toContain("16 : 14");

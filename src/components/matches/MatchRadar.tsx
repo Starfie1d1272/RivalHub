@@ -6,7 +6,7 @@ import "@mizar-hud/radar-view/radar.css";
 import { liveBoundary, type LiveFreshness } from "@/lib/mizar/live-viewer-state";
 import type { PublicLiveMatchProjection } from "@/lib/mizar/live-projection";
 
-export const RADAR_ASSET_BASE = "/vendor/radar/0.1.0";
+const RADAR_ASSET_BASE = "/vendor/radar/0.1.0";
 
 export function MatchRadar({ snapshot, freshness, revision, assetBaseUrl = RADAR_ASSET_BASE }: {
   snapshot: PublicLiveMatchProjection;

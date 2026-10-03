@@ -84,3 +84,9 @@ Pure tests exercise full Major simulation, upstream invalidation, exact slot jud
 - 不在文档复制测试数、表数或 migration 数。
 - 不能用“CI 绿”“已知 flaky”或视觉 demo 替代所需 evidence。
 - canonical domain rule 尽量在其 owner 附近测试；跨层 E2E 只证明组合行为。
+
+## Public match LIVE consumer evidence
+
+`mizar-live-real-derived.json` retains the source Mizar commit and sanitized capture provenance. It was produced from Mizar's `real-live-rich` program and matching `dense-utility` radar fixture through `projectLiveSnapshotV1`; RivalHub tests must still run its wire parser, `projectPublicLive`, delivery reducer and the published `fromPublicRadar` adapter. The professional capture is a fixture, not evidence that an NJU match was played.
+
+`tests/e2e/flows/public-match-live.spec.ts` uses disposable Local Supabase facts, the existing private viewer endpoint and production ingest/public projection. Its dedicated producer only rewrites local match/context IDs and delivery timestamps; it sends the captured player/radar data at 1 Hz. The Chromium scenario checks all three viewport widths (1440/390/320), equal desktop panel bottoms, stale clock freezing, unavailable fallback, resumed delivery, navigation, icon failure, BP/waiting/inter-map/POST and attaches screenshots. It never publishes to a hosted Supabase project. Token expiry, rejected replay and foreground cleanup are deterministic lifecycle tests; exact age boundaries and authority/map resets are reducer tests. These checks do not certify a production deployment, real operator handover or sustained multi-viewer capacity.

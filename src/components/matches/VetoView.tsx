@@ -74,7 +74,7 @@ export async function VetoView({
             return (
               <div
                 key={step.id}
-                className="flex items-center gap-3 text-sm"
+                className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm"
               >
                 <span className="text-xs text-[var(--color-fg-mid)] w-5 text-right tabular-nums">
                   {step.stepOrder}.

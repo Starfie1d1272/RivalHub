@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { cp, mkdir, readFile, writeFile } from 'node:fs/promises';
@@ -16,5 +17,6 @@ for (const name of ['radar-provenance.json', 'icon-provenance.json', 'THIRD-PART
 const icons = JSON.parse(await readFile(join(root, 'icon-provenance.json'), 'utf8'));
 const paths = Object.entries(icons.assets)
   .filter(([id]) => id === 'objective.c4' || id.startsWith('utility.'))
-  .map(([, asset]) => asset.outputPath);
+  .map(([, asset]) => asset.outputPath)
+  .filter(path => existsSync(join(root, path)));
 await writeFile(new URL('viewer-assets.json', destination), JSON.stringify(paths));

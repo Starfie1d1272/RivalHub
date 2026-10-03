@@ -225,7 +225,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           repository: Starfie1d1272/Mizar
-          ref: 84fca284a9dec46c0a5b1985a8c9115c9801542c # Mizar main 2026-09-29
+          ref: e52c455fb4caea0284dc5f6d0d8ec52bb8159364 # Mizar #118, published radar-view 0.1.0
           path: .mizar-checkout
       - name: Mizar cross-repo contract
         if: needs.plan.outputs.live_evidence == 'true'
