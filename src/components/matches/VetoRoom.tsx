@@ -336,7 +336,6 @@ export function VetoRoom({ initialRoom }: { initialRoom: VetoRoomView }) {
                     {map.teamAStartSide ? <div className="mt-2 space-y-1 text-sm text-[var(--color-fg-mid)]"><p>{room.entries[0]?.name} · {map.teamAStartSide.toUpperCase()} 开局</p><p>{room.entries[1]?.name} · {map.teamAStartSide === "ct" ? "T" : "CT"} 开局</p></div> : <p className="mt-2 text-sm text-[var(--color-fg-mid)]">{match.formatKey === "bo5" && map.mapOrder === 5 ? "刀赛决定起始阵营" : "起始阵营待确认"}</p>}
                   </li>)}
                 </ol>
-                {room.permissions.isAdmin && !matchClosed && <Link className="text-sm text-[var(--color-accent)] underline" href={`/admin/${room.seasonSlug}/matches/${match.id}#perfect-room-guide`}>返回工作台，按 BP 结果创建 Perfect 房间</Link>}
               </div>
             ) : matchClosed ? <p className="text-sm text-[var(--color-fg-mid)]">本场比赛{match.statusLabel}。以下保留已完成的 BP 记录。</p> : (
               <div className="flex flex-wrap items-center justify-between gap-3 rounded border border-[var(--color-border)] bg-[var(--color-panel-hi)] p-4">

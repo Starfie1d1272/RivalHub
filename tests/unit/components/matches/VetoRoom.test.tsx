@@ -279,8 +279,9 @@ describe("VetoRoom", () => {
     expect(screen.getByRole("list", { name: "最终地图顺序与起始阵营" })).toHaveTextContent("Map 1 · Ancient");
     expect(screen.getByText("Alpha · CT 开局")).toBeInTheDocument();
     expect(screen.getByText("Beta · T 开局")).toBeInTheDocument();
+    expect(screen.queryByText(/Perfect|建房/)).not.toBeInTheDocument();
     if (role === "admin") {
-      expect(screen.getByRole("link", { name: /创建 Perfect 房间/ })).toHaveAttribute("href", `/admin/rivals/matches/${room.match.id}#perfect-room-guide`);
+      expect(screen.getByRole("link", { name: "返回比赛工作台" })).toHaveAttribute("href", `/admin/rivals/matches/${room.match.id}`);
     } else {
       expect(screen.queryByText(/Perfect|工作台|建房/)).not.toBeInTheDocument();
       expect(screen.getByRole("link", { name: "返回比赛" })).toHaveAttribute("href", `/rivals/matches/${room.match.id}`);
