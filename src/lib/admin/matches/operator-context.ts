@@ -69,9 +69,13 @@ export async function loadOperatorContext(input: {
   const description = input.isSwiss || match.qualificationRunId ? (record && !record.includes("待定") ? record.replaceAll(":", "-") : null)
     : match.entryRound ? playoffLabel[match.entryRound] ?? null : match.round !== null ? `第 ${match.round} 轮` : null;
   const roundLabel = ({ stage1: "Stage1", stage2: "Stage2", stage3: "Stage3" } as Record<string, string>)[match.stage] ?? swiss?.stageName ?? input.stageName;
+  const recoveryMap = input.vetoComplete && liveSession && liveSession.currentMapId === null && !liveSession.autoCanonicalizationArmed && ["execution_conflict", "conflict"].includes(liveSession.continuityHealth)
+    ? [...maps].sort((a, b) => a.mapOrder - b.mapOrder).find(map => map.completedAt === null) : null;
+  const takeoverMap = maps.find(map => map.id === liveSession?.currentMapId && map.completedAt === null) ?? recoveryMap;
   return {
     workflow,
-    takeover: liveSession?.currentMapId && workflow.sourceMode !== "manual_map" && (workflow.reviewReasons.length > 0 || workflow.sourceHealth === "stale") && match.status === "in_progress" ? { sessionId: liveSession.id, mapEpoch: liveSession.mapEpoch, mapId: liveSession.currentMapId } : null,
+    recoveryMapLabel: recoveryMap ? `Map ${recoveryMap.mapOrder} · ${recoveryMap.mapName}` : null,
+    takeover: liveSession && takeoverMap && workflow.sourceMode !== "manual_map" && (workflow.reviewReasons.length > 0 || workflow.sourceHealth === "stale") && match.status === "in_progress" ? { sessionId: liveSession.id, mapEpoch: liveSession.mapEpoch, mapId: takeoverMap.id, ...(recoveryMap ? { recoverMapBinding: true } : {}) } : null,
     roomGuide: roomMap ? buildPerfectRoomGuide({
       seasonName: input.seasonName, roundLabel, description,
       teamAName: input.teamAName, teamBName: input.teamBName, map: roomMap,

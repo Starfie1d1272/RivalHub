@@ -12,3 +12,11 @@ it("projects phases from their owners without turning in_progress into gameplay"
  expect(projectMatchPresentationPhase({ ...base, maps, status: "finished", gameplayMapId: "b" })).toBe("post");
  expect(projectMatchPresentationPhase({ ...base, status: "cancelled" })).toBe("cancelled");
 });
+
+it("uses only the next canonical map even for an unordered plan and a late prior-map observation", () => {
+ const facts: MatchPhaseFacts = { ...base, status: "in_progress", veto: "completed", maps: [{ id: "decider", order: 3, completedAt: null }, { id: "one", order: 1, completedAt: "done" }, { id: "two", order: 2, completedAt: null }], gameplayMapId: "one" };
+ expect(projectMatchPresentationPhase(facts)).toBe("inter_map");
+ expect(projectMatchPresentationPhase({ ...facts, gameplayMapId: "two" })).toBe("gameplay");
+ expect(projectMatchPresentationPhase({ ...facts, status: "finished", gameplayMapId: "decider" })).toBe("post");
+ expect(projectMatchPresentationPhase({ ...facts, status: "cancelled" })).toBe("cancelled");
+});

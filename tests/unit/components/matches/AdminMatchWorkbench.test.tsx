@@ -2,8 +2,9 @@
  * @vitest-environment jsdom
  */
 import React from "react";
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { takeOverMatchMap } from "@/actions/match-operations";
 import type { Match } from "@/db/schema";
 import { buildPerfectRoomGuide, projectOperatorWorkflow, type OperatorMap } from "@/lib/admin/matches/operator-workflow";
 
@@ -170,4 +171,32 @@ it("keeps AUTO as observation and makes review take precedence without a manual 
  view.rerender(<AdminMatchWorkbench {...props} />);
  expect(screen.getByRole("heading",{name:"需要处理本场异常"})).toBeInTheDocument();
  expect(screen.queryByTestId("map-input")).not.toBeInTheDocument();
+});
+
+it("explains canonical-map recovery, requires confirmation, and forwards only the reviewed scope", async () => {
+ const props = data("in_progress");
+ const scope = { sessionId: "session", mapEpoch: 1, mapId: "map-1", recoverMapBinding: true };
+ vi.mocked(takeOverMatchMap).mockResolvedValue({ success: true, data: undefined });
+ const view = render(<AdminMatchWorkbench {...props} operator={{ ...props.operator, takeover: scope, recoveryMapLabel: "Map 1 · de_ancient" }} />);
+ expect(screen.getByText(/请核对正式地图计划：Map 1/)).toBeInTheDocument();
+ fireEvent.click(screen.getByRole("button", { name: "人工接管本图赛果" }));
+ expect(takeOverMatchMap).not.toHaveBeenCalled();
+ const changedScope = { ...scope, mapEpoch: 2 };
+ view.rerender(<AdminMatchWorkbench {...props} operator={{ ...props.operator, takeover: changedScope, recoveryMapLabel: "Map 1 · de_ancient" }} />);
+ expect(screen.queryByRole("button", { name: "确认人工接管本图赛果" })).not.toBeInTheDocument();
+ view.rerender(<AdminMatchWorkbench {...props} operator={{ ...props.operator, takeover: scope, recoveryMapLabel: "Map 1 · de_ancient" }} />);
+ fireEvent.click(screen.getByRole("button", { name: "人工接管本图赛果" }));
+ fireEvent.click(screen.getByRole("button", { name: "确认人工接管本图赛果" }));
+ await waitFor(() => expect(takeOverMatchMap).toHaveBeenCalledWith(props.match.id, scope));
+ view.unmount();
+});
+
+it("does not render an inter-map reminder or room guide during stale manual gameplay", () => {
+ const props = data("in_progress"); props.vetoCompletedAt = new Date();
+ const maps: OperatorMap[] = [1, 2].map(order => ({ id: `map-${order}`, order, name: "de_inferno", startSide: "ct", completedAt: order === 1 ? "2026-09-05T04:00:00Z" : null, scoreboardComplete: false, demoLabel: "待上传", demoNeedsAttention: false }));
+ const workflow = projectOperatorWorkflow({ status: "in_progress", isForfeit: false, vetoComplete: true, maps, observedGameplayMapId: "map-2", source: { currentMapId: "map-2", mapEpoch: 2, manualTakeoverMapEpoch: 2, identityHealth: "healthy", lineupHealth: "healthy", continuityHealth: "stale", autoCanonicalizationArmed: false } });
+ render(<AdminMatchWorkbench {...props} operator={{ workflow, roomGuide: null }} />);
+ expect(screen.getByRole("heading", { name: "人工记录 Map 2 结果" })).toBeInTheDocument();
+ expect(screen.getByTestId("map-input")).toBeInTheDocument();
+ expect(screen.queryByText(/距 Map 1 结束|已超过 10 分钟|准备 Map 2 房间/)).not.toBeInTheDocument();
 });

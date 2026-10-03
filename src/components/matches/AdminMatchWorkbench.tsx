@@ -171,7 +171,7 @@ export function AdminMatchWorkbench({
           {operator.workflow.focusMapId && <a className="underline underline-offset-4" href={`#scoreboard-${operator.workflow.focusMapId}`}>打开本图 OCR</a>}
           {operator.roomGuide && <a className="underline underline-offset-4" href="#perfect-room-guide">{operator.workflow.focusMapId ? "暂后补 OCR，查看下一图建房指引" : "查看 Perfect 建房指引"}</a>}
         </div>
-        {operator.takeover && <ManualMapTakeover matchId={match.id} scope={operator.takeover} />}
+        {operator.takeover && <ManualMapTakeover key={`${operator.takeover.sessionId}:${operator.takeover.mapEpoch}:${operator.takeover.mapId}:${Boolean(operator.takeover.recoverMapBinding)}`} matchId={match.id} scope={operator.takeover} mapLabel={operator.recoveryMapLabel ?? undefined} />}
         {broadcasts.length > 0 && <aside aria-label="转播状态" className="space-y-1 text-sm">{broadcasts.map((row, i) => <p key={i}>{row.name} · {row.label}</p>)}</aside>}
         <OperatorTaskControls elapsed={operator.workflow.elapsed} />
         {match.status === "in_progress" && vetoCompletedAt && operator.workflow.manualResultAllowed && <div id="manual-result" className="pt-3">

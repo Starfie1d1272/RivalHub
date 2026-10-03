@@ -69,13 +69,18 @@ export async function ingestMizarReliable(installationId: string, competitionId:
       const [map] = await tx.select().from(matchMaps).where(eq(matchMaps.matchId, match.id)).orderBy(asc(matchMaps.mapOrder)).then(rows => rows.filter(map => map.completedAt === null));
       const validMap = Boolean(map && map.mapName === event.mapName && (event.mapId === null || map.id === event.mapId));
       const lineupValid = await validateObservedLineupInTx(tx, match, lineupSteam64);
-      const mayArm = match.status === "in_progress" && fresh && validMap && lineupValid && source.manualTakeoverMapEpoch !== event.cursor.mapEpoch;
+      const executionConflict = source.continuityHealth === "execution_conflict";
+      const mayArm = !executionConflict && match.status === "in_progress" && fresh && validMap && lineupValid && source.manualTakeoverMapEpoch !== event.cursor.mapEpoch;
       updates.autoCanonicalizationArmed = mayArm;
       updates.identityHealth = event.evidence.identity === "matched" ? "healthy" : "conflict";
       updates.lineupHealth = lineupValid ? "healthy" : "conflict";
-      updates.continuityHealth = !validMap ? "conflict" : !event.evidence.telemetryFresh || !event.evidence.contextFresh ? "stale" : "healthy";
-      updates.currentMapId = validMap ? map!.id : null;
-      updates.mapExecutionPhase = mayArm ? "gameplay" : "waiting";
+      updates.continuityHealth = !validMap || executionConflict ? "execution_conflict" : !event.evidence.telemetryFresh || !event.evidence.contextFresh ? "stale" : "healthy";
+      // An invalid observation cannot erase the trusted execution or a manual binding.
+      // Execution conflicts stay latched until a new epoch or explicit admin recovery.
+      if (validMap && !executionConflict) {
+        updates.currentMapId = map!.id;
+        if (fresh && lineupValid && match.status === "in_progress") updates.mapExecutionPhase = "gameplay";
+      }
       outcome = mayArm ? "armed" : "needs_attention";
     } else if (event.kind === "map_ended") {
       const [map] = await tx.select().from(matchMaps).where(and(eq(matchMaps.matchId, match.id), eq(matchMaps.mapName, event.mapName ?? "")));
@@ -86,6 +91,7 @@ export async function ingestMizarReliable(installationId: string, competitionId:
       } else if (!fresh || !source.autoCanonicalizationArmed || source.manualTakeoverMapEpoch === event.cursor.mapEpoch || !sameExecution) {
         updates.autoCanonicalizationArmed = false;
         if (event.evidence.identity !== "matched") updates.identityHealth = "conflict";
+        if (!sameExecution || source.continuityHealth === "execution_conflict") updates.continuityHealth = "execution_conflict";
         else if (!event.evidence.telemetryFresh || !event.evidence.contextFresh) updates.continuityHealth = "stale";
         outcome = "needs_attention";
       } else {
@@ -102,7 +108,7 @@ export async function ingestMizarReliable(installationId: string, competitionId:
     await tx.update(matchLiveSessions).set(updates).where(eq(matchLiveSessions.id, source.id));
     await tx.update(mizarInstallations).set({ lastSeenAt: now }).where(eq(mizarInstallations.id, installationId));
     await tx.insert(mizarReliableReceipts).values({ sessionId: source.id, idempotencyKey: event.idempotencyKey, eventHash, kind: event.kind, outcome });
-    await writeAuditInTx(tx, { seasonId: competitionId, actorId: installationId, action: "mizar.reliable.accept", targetId: match.id, meta: { kind: event.kind, outcome, ...(event.kind === "map_ended" ? event.payload : {}) } });
+    await writeAuditInTx(tx, { seasonId: competitionId, actorId: installationId, action: "mizar.reliable.accept", targetId: match.id, meta: { kind: event.kind, outcome, sessionId: source.id, mapEpoch: source.mapEpoch, currentMapId: source.currentMapId, receivedMapId: event.mapId, receivedMapName: event.mapName, continuityHealth: updates.continuityHealth ?? source.continuityHealth, ...(event.kind === "map_ended" ? event.payload : {}) } });
     return { outcome, duplicate: false };
   });
 }

@@ -4,7 +4,7 @@ const takeover = vi.hoisted(() => vi.fn());
 const revoke = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/auth/session", () => ({ requireSeasonAdmin: admin, auditActorId: () => "actor" }));
 vi.mock("@/lib/action-utils", () => ({ getMatchOrThrow: async () => ({ seasonId: "22222222-2222-4222-8222-222222222222" }), getSeasonOrThrow: async () => ({slug:"season"}), actionError: () => ({ success:false }) }));
-vi.mock("@/lib/mizar/source", async () => { const { z } = await import("zod"); return { takeOverCurrentMap: takeover, manualMapTakeoverSchema: z.strictObject({ sessionId:z.uuid(), mapEpoch:z.number().int().nonnegative(), mapId:z.uuid() }) }; });
+vi.mock("@/lib/mizar/source", async () => { const { z } = await import("zod"); return { takeOverCurrentMap: takeover, manualMapTakeoverSchema: z.strictObject({ sessionId:z.uuid(), mapEpoch:z.number().int().nonnegative(), mapId:z.uuid(), recoverMapBinding:z.boolean().optional() }) }; });
 vi.mock("@/lib/mizar/installation", () => ({ revokeMizarInstallation: revoke }));
 vi.mock("@/lib/revalidation", () => ({ revalidateMatchPaths:vi.fn() }));
 vi.mock("next/cache", () => ({ revalidatePath:vi.fn() }));
@@ -25,4 +25,14 @@ it("blocks unauthorized takeover and revocation before mutation", async () => {
 });
 it("rejects malformed execution scope", async () => {
  expect(await takeOverMatchMap(id,{...scope,mapEpoch:-1})).toMatchObject({success:false}); expect(takeover).not.toHaveBeenCalled();
+});
+
+it("authorizes and forwards explicit canonical-map recovery through the same action", async () => {
+ const recovery = { ...scope, recoverMapBinding: true };
+ expect(await takeOverMatchMap(id, recovery)).toMatchObject({success:true});
+ expect(takeover).toHaveBeenCalledWith(id, "actor", recovery);
+ admin.mockRejectedValue(new Error("forbidden"));
+ takeover.mockClear();
+ expect(await takeOverMatchMap(id, recovery)).toMatchObject({success:false});
+ expect(takeover).not.toHaveBeenCalled();
 });
