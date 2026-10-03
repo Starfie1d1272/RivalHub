@@ -79,7 +79,7 @@ Sampler 在 SERVER span 创建时读取 Next 提供的 `http.target`，兼容 `u
 不为每个 helper 创建 span，只为可运营的边界创建：
 
 - request → route / Server Action；
-- DB query、连接池创建、重建和一次 retry；
+- DB query、连接池创建、重建和仅限建立连接前失败的一次 retry；
 - Supabase Auth/session、Turnstile、Steam、SiliconFlow/OCR；
 - Rivals registration submit；CompetitionEntry submit/review；
 - Major prestart final entrant selection/reconciliation and lock, Major start、Swiss round finalize、stage transition、playoff start；
@@ -148,13 +148,13 @@ Scheduler 的 `scheduled_job_health` 只保存有界 current projection，不是
 | --- | --- | --- |
 | 意外应用故障信号 | `errorClass=application` | 60 秒 |
 | 严重 / 安全 / 不变量信号 | `errorClass` 为 `security` 或 `invariant` | 0 秒 |
-| 数据库连接性降级信号 | `errorClass=database`，且 `event` 为 `db.pool.error`、`db.pool.rebuild_failure`，或 `event=db.query.failure AND retryable=true` | 60 秒 |
+| 数据库连接性降级信号 | `errorClass=database`，且 `event` 为 `db.pool.error`、`db.pool.rebuild_failure`、`db.query.outcome_unknown`，或 `event=db.query.failure AND retryable=true` | 60 秒 |
 
 三条规则均使用事件数 `> 0`、check period 60 秒、query period 300 秒、recovery period 300 秒、`on_missing_data=dont_fire`。这是故障信号计数，不是唯一 incident 数；一个请求可能经过多个错误边界，排障时按 requestId/traceId 关联，不应因此恢复为通用 span 计数。
 
 应用故障包括 `next.request.unhandled_error`、`action.internal_error`、`action.unexpected_error`、`http.response.server_error` 等 canonical application 事件，不维护会遗漏新 owner 的固定 event 白名单。普通权限拒绝、validation、重复邀请/投票属于 `expected`，不进入安全或应用告警。
 
-数据库规则排除成功 DB span、已恢复的 `db.query.retry`、`db.pool.rebuilt`，以及 `retryable=false` 的 SQL/schema query failure。连接池重建失败由共享 rebuild owner 记录一次，覆盖 pool guard 与 query retry 两个入口。连接性分类复用数据库 runtime 的稳定字段，不在外部 SQL 中解析异常 message。
+数据库规则排除成功 DB span、已恢复的 `db.query.retry`、`db.pool.rebuilt`，以及 `retryable=false` 的 SQL/schema query failure。`db.query.outcome_unknown` 表示连接中断后无法确定执行结果，`retryable=false`，禁止自动重放（包括有副作用的 SELECT）；连接池仅为后续请求重建。只有明确建立连接前的 ECONNREFUSED / ENOTFOUND 可以自动重试一次。连接池重建失败由共享 rebuild owner 记录一次，覆盖 pool guard 与 query retry 两个入口。连接性分类复用数据库 runtime 的稳定字段，不在外部 SQL 中解析异常 message。
 
 ### Better Stack 规则迁移与验证
 

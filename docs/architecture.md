@@ -71,7 +71,7 @@ session、authorization、admin 与 draft facts 不进入共享 public cache；�
 
 - `src/db/schema/` 表达当前应用 schema；`drizzle/migrations/` 是唯一 active migration chain。
 - `pnpm db:push` 被阻止；远程 schema write 只能走受保护的 staging/release path。
-- 应用代码通过 server-only DB facade 取得 Drizzle client；CLI/runtime exception 使用显式共享 runtime boundary。
+- 应用代码通过 server-only DB facade 取得 Drizzle client；CLI/runtime exception 使用显式共享 runtime boundary。Pool query 仅对明确建立连接前的失败自动重试一次；连接中断导致结果不明时记录告警并向调用方抛错，不依据 SQL 首词重放，后续恢复由 command 的幂等/状态回读契约负责。显式事务不自动重跑。
 - Pool-level `DB` 可以并行执行互相独立的查询；单个 transaction 的 `TxDb` 共用一个 `pg.Client`，查询必须逐个 `await`，或合并为单条 SQL，不能在同一事务上用 `Promise.all` / `Promise.allSettled` 重叠执行。需要同时支持 pool 与 transaction 的 read model 必须暴露明确分开的 pool / `InTx` 执行入口，不能只依赖 TypeScript 结构类型收窄来区分执行器。
 - 需要历史复现、审计或恢复的 snapshot 是领域事实，不因与 live data 重复而去重。
 
