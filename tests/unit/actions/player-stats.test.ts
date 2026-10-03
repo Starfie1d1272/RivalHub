@@ -7,6 +7,9 @@ const loadScoreboardPlayersMock = vi.hoisted(() => vi.fn());
 const loadOperatorScoreboardMock = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/matches/operator-scoreboard", () => ({ loadScoreboardPlayers: loadScoreboardPlayersMock, clearOperatorScoreboardInTx: vi.fn(), loadOperatorScoreboard: loadOperatorScoreboardMock }));
 vi.mock("@/lib/observability/server", () => ({ captureException: vi.fn() }));
+const updatePublicStatsTagMock = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/revalidation", () => ({ updatePublicStatsTag: updatePublicStatsTagMock }));
+vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 
 const requireSeasonAdminMock = vi.hoisted(() => vi.fn());
 const auditActorIdMock = vi.hoisted(() => vi.fn(() => "admin@local.test"));

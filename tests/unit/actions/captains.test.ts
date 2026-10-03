@@ -264,6 +264,7 @@ describe("castVote()", () => {
       actorId: USER_ID_1,
       targetId: CANDIDATE_REG_ID,
     });
+    expect(revalidateSeasonPathsMock).toHaveBeenCalledWith(SEASON.slug, ["captains", "adminCaptains"], { statistics: false });
   });
 
   it("正常重复投票继续由 domain validation 返回 VOTE_DUPLICATE", async () => {
@@ -372,5 +373,6 @@ describe("retractVote()", () => {
       actorId: USER_ID_1,
       targetId: CANDIDATE_REG_ID,
     });
+    expect(revalidateSeasonPathsMock).toHaveBeenCalledWith(SEASON.slug, ["captains", "adminCaptains"], { statistics: false });
   });
 });

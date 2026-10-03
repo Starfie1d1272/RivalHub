@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { revalidatePath } from "next/cache";
 import { authenticateMizar, revokeMizarInstallation } from "@/lib/mizar/installation";
 import { loadMizarMatchDocument, loadMizarScheduleWindow } from "@/lib/mizar/context";
 import { claimMizarSource, releaseMizarSource, sourceClaimSchema, sourceReleaseSchema } from "@/lib/mizar/source";
@@ -44,7 +45,15 @@ export async function POST(request: Request, context: Context) {
       const outcome = await ingestMizarReliable(installation.id, installation.competitionId, envelope.event, revision, envelope.lineupSteam64);
       const [season] = await db.select({ slug: seasons.slug }).from(seasons).where(eq(seasons.id, installation.competitionId));
       const { matchId } = z.object({ matchId: z.uuid() }).parse(envelope.event);
-      if (season) revalidateMatchPaths(season.slug, matchId);
+      if (season) {
+        if (outcome.outcome === "canonicalized") {
+          revalidateMatchPaths(season.slug, matchId, { mode: "route" });
+        } else if (!outcome.duplicate) {
+          // Source health/telemetry changes do not alter the statistical corpus.
+          revalidatePath(`/admin/${season.slug}/matches/${matchId}`);
+          revalidatePath(`/${season.slug}/matches/${matchId}`);
+        }
+      }
       return Response.json(outcome);
     }
     return new Response(null, { status: 404 });

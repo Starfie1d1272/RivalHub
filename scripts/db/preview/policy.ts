@@ -46,6 +46,7 @@ export const PREVIEW_COLUMNS: Record<string, string> = {
   matches: "id season_id entry_a_id entry_b_id stage round format entry_round score_a score_b status is_forfeit bracket_node_id ownership major_stage_run_id qualification_run_id managed_key scheduled_at started_at completion_deadline completed_at mvp_winner_user_id created_at updated_at",
   match_maps: "id match_id map_order map_name picked_by_entry_id team_a_start_side score_a score_b completed_at created_at",
   match_demo_imports: "id season_id match_id match_map_id stage_key stage_run_id demo_sha256 payload_sha256 contract_version semantic_profile analysis_version evidence_revision status payload submitted_by_pairing_id idempotency_key supersedes_import_id issues submitted_at confirmed_at created_at",
+  match_demo_stat_projections: "import_id projection_version payload_sha256 demo_sha256 semantic_profile analysis_version evidence_revision identity_bindings facts created_at",
   match_player_stats: "id match_id map_id perfect_name user_id kills deaths assists hs_percent first_kills first_deaths multi_kills trade_kills kast_rounds clutches adr rws rating_pro we dak_import_id verified_by_admin verified_at created_at",
   match_round_facts: "id import_id round_seq source_round_number phase start_tick freeze_end_tick end_tick team_a_side team_b_side team_a_score_before team_b_score_before team_a_economy team_b_economy winner_team_key winner_side end_reason created_at",
   match_rosters: "id match_id entry_id submitted_by source status locked_at confirmed_at confirmed_by created_at updated_at",
@@ -135,6 +136,7 @@ export const PREVIEW_SCHEMA_LIFECYCLE: readonly PreviewSchemaLifecycleTable[] = 
   { table: "dak_pairing_intents", introducedAt: "0051_sour_grim_reaper" },
   { table: "dak_pairings", introducedAt: "0051_sour_grim_reaper" },
   { table: "match_demo_imports", introducedAt: "0051_sour_grim_reaper" },
+  { table: "match_demo_stat_projections", introducedAt: "0067_chief_midnight" },
   { table: "match_round_facts", introducedAt: "0051_sour_grim_reaper" },
   {
     table: "match_player_stats",

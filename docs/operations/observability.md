@@ -70,10 +70,16 @@ PostgreSQL 分类必须复用 `src/db/errors.ts` 的 `extractPgError()`。日志
 
 ## 当前关键 span
 
+Node trace sampling 由 `src/lib/observability/sampling.ts` 在唯一的 `registerOTel()` provider 上决定：Production `/api/cron/*` 请求按 trace ID 采样 5%，其他 Production 请求与 Preview 请求保留 100%。Development/test 不接外部 sink。结构化日志（包括错误事件）不参与 trace sampling，仍完整输出。
+
+Sampler 在 SERVER span 创建时读取 Next 提供的 `http.target`，兼容 `url.path`、`http.route`、`next.route`，忽略 query/hash；不依赖请求结束才更新的 span name。远端 parent 的采样标志不覆盖本服务请求策略，本地 child span 跟随本地 parent，避免零散丢弃 child span。未知路由或属性读取失败保留 trace，不影响请求。未采样日志仍可携带 trace ID，但不保证存在可打开的完整 trace。
+
+此策略不改变 scheduler 触发频率、due gating 或 health projection。发布后必须回读实际请求树，确认平台没有在 Next 请求之前创建无法识别路径的本地 parent；若有，先修正入口识别，不用 child span 过滤掩盖问题。5% 是采样概率，不是小窗口内的精确计数或已测得的 ingest 降幅。
+
 不为每个 helper 创建 span，只为可运营的边界创建：
 
 - request → route / Server Action；
-- DB query、连接池创建、重建和一次 retry；
+- DB query、连接池创建、重建和仅限建立连接前失败的一次 retry；
 - Supabase Auth/session、Turnstile、Steam、SiliconFlow/OCR；
 - Rivals registration submit；CompetitionEntry submit/review；
 - Major prestart final entrant selection/reconciliation and lock, Major start、Swiss round finalize、stage transition、playoff start；
@@ -136,15 +142,27 @@ Scheduler 的 `scheduled_job_health` 只保存有界 current projection，不是
 
 ## 告警原则
 
-告警要面向可行动的变化：
+告警统计 canonical **结构化日志事件**，不能把通用 `label('error')='1'` 的 framework、child 或 DB span 数量当成应用故障数。所有规则先限制 `environment=production`，再应用下列条件：
 
-- Production `fatal`、`invariant`、`security` 或 integrity 事件；
-- Production unexpected 5xx spike；
-- DB pool/query failure 增长、持续 retry 或连接重建；
-- 关键 Auth、Turnstile、mail、OCR/provider 的连续失败或不可重试失败；
-- 新 release/deployment 首次出现的新错误。
+| 告警 / 图表名称 | 事件条件 | confirmation period |
+| --- | --- | --- |
+| 意外应用故障信号 | `errorClass=application` | 60 秒 |
+| 严重 / 安全 / 不变量信号 | `errorClass` 为 `security` 或 `invariant` | 0 秒 |
+| 数据库连接性降级信号 | `errorClass=database`，且 `event` 为 `db.pool.error`、`db.pool.rebuild_failure`、`db.query.outcome_unknown`，或 `event=db.query.failure AND retryable=true` | 60 秒 |
 
-不要为 validation、权限拒绝、重复邀请、重复投票、正常邮件 rate limit 或单个可恢复 OCR 行过滤创建 paging 告警。阈值应在 Better Stack/Vercel 中以 production 流量基线设定，并按 `event`、`environment`、`deployment` 分组，避免同一故障重复通知。
+三条规则均使用事件数 `> 0`、check period 60 秒、query period 300 秒、recovery period 300 秒、`on_missing_data=dont_fire`。这是故障信号计数，不是唯一 incident 数；一个请求可能经过多个错误边界，排障时按 requestId/traceId 关联，不应因此恢复为通用 span 计数。
+
+应用故障包括 `next.request.unhandled_error`、`action.internal_error`、`action.unexpected_error`、`http.response.server_error` 等 canonical application 事件，不维护会遗漏新 owner 的固定 event 白名单。普通权限拒绝、validation、重复邀请/投票属于 `expected`，不进入安全或应用告警。
+
+数据库规则排除成功 DB span、已恢复的 `db.query.retry`、`db.pool.rebuilt`，以及 `retryable=false` 的 SQL/schema query failure。`db.query.outcome_unknown` 表示连接中断后无法确定执行结果，`retryable=false`，禁止自动重放（包括有副作用的 SELECT）；连接池仅为后续请求重建。只有明确建立连接前的 ECONNREFUSED / ENOTFOUND 可以自动重试一次。连接池重建失败由共享 rebuild owner 记录一次，覆盖 pool guard 与 query retry 两个入口。连接性分类复用数据库 runtime 的稳定字段，不在外部 SQL 中解析异常 message。
+
+### Better Stack 规则迁移与验证
+
+1. 导出既有 alert/chart 配置和时间窗口基线；暂停噪音 application 告警，保留 incident history。旧的泛化 “Error rate high” 规则保持暂停。
+2. 查询实际 source schema 和日志样本。OTLP log attributes 由应用发出为 `rivalhub.environment`、`rivalhub.event`、`rivalhub.errorClass`、`rivalhub.retryable`；JSON log body 对应无前缀字段。**以 source 实际解析字段和类型为准映射 SQL**，尤其不能混用 span 的 `rivalhub.error_class`，也不能把 boolean 当作字符串盲猜。确认查询只统计一份 canonical log，不将 stdout 与 OTLP 重复相加。
+3. 按上表替换 query、时序参数和图表名称，回读保存后的配置。alert ID、source ID、实际 SQL 与回读证据记录在执行 Issue，避免在运行手册复制账户状态。
+4. 在 Preview 或受控非生产环境，用同一 predicate（仅替换环境筛选）验证 application、security/invariant、final DB failure 正例，以及 expected 拒绝、成功 span、retry 后成功、非连接性 SQL error 反例。验证恢复/去重和通知路由后再启用新规则；禁止为验收故意制造 Production 500。
+5. 统一发布后，对比等长、代表性的前后窗口：cron 请求数与 sampled request trace 数、非 cron trace 覆盖、canonical 错误日志、scheduler health 和真实 ingest 使用量/账户配额。采样命中率与成本是不同指标，不用估算 bytes 冒充账户测量。
 
 ## 验收清单
 
@@ -155,7 +173,7 @@ Scheduler 的 `scheduled_job_health` 只保存有界 current projection，不是
 - 结构化事件不包含 secret、token、邮箱、教育证据、request body、SQL params 或 provider raw response；
 - `BETTER_STACK_SOURCE_TOKEN` 与 `BETTER_STACK_INGESTING_HOST` 仅在 Preview/Production 配置，且两套环境使用不同 source 值；
 - Preview/Production deployment 页面能按 requestId/traceId/release 查询，并能区分 Vercel 与 Better Stack 的同一事件；
-- 手工制造一次受控 application/provider/DB failure，确认核心请求返回语义不因 sink 不可用而改变，且事件可在两端关联；
+- 在 Preview 或受控非生产环境制造 application/provider/DB failure，确认核心请求返回语义不因 sink 不可用而改变，且事件可在两端关联；
 - 受控触发一次告警并确认恢复/去重策略。
 
 没有真实 Better Stack source token 或 Vercel Preview/Production 环境时，只能声明代码、测试和配置 contract 已准备；不能把外部查询、trace、告警或 source isolation 写成已验收。Issue 的最终 production acceptance 需要在真实环境完成后再更新。

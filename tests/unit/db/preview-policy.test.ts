@@ -69,6 +69,25 @@ describe("sanitized mirror policy", () => {
     expect(policy.tables.match_player_stats.exportedColumns).toContain("dak_import_id");
   });
 
+  it("copies stored statistics projections only after their source migration without rereading Evidence", () => {
+    const expected = readExpectedMigrations();
+    const projectionIndex = expected.findIndex(({ tag }) => tag === "0067_chief_midnight");
+    expect(projectionIndex).toBeGreaterThan(0);
+    const beforeProjection = previewPolicyFor(expected.slice(0, projectionIndex));
+    expect(beforeProjection.tables).not.toHaveProperty("match_demo_stat_projections");
+    expect(beforeProjection.futureTables).toContain("match_demo_stat_projections");
+    expect(() => exportQuery("match_demo_stat_projections", beforeProjection)).toThrow(/not permitted/);
+
+    const current = previewPolicyFor(expected);
+    const columns = ["import_id", "projection_version", "payload_sha256", "demo_sha256", "semantic_profile", "analysis_version", "evidence_revision", "identity_bindings", "facts", "created_at"];
+    expect(current.tables.match_demo_stat_projections.exportedColumns).toEqual(columns);
+    expect(() => assertReviewedColumns("match_demo_stat_projections", columns, current)).not.toThrow();
+    expect(() => assertReviewedColumns("match_demo_stat_projections", [...columns, "payload"], current)).toThrow(/unreviewed column/);
+    expect(exportQuery("match_demo_stat_projections", current)).toBe(
+      `SELECT ${columns.map((column) => `"${column}"`).join(", ")} FROM public."match_demo_stat_projections"`,
+    );
+  });
+
   it("mirrors only public qualification facts and withholds actor identifiers", () => {
     const expected = readExpectedMigrations();
     const qualificationIndex = expected.findIndex(({ tag }) => tag === "0056_competition-qualification-playin");

@@ -8,6 +8,7 @@ import { getBetterStackConfig, OBSERVABILITY_SERVICE_NAME } from "@/lib/observab
 import { getFetchInstrumentationConfig } from "@/lib/observability/instrumentation-config";
 import { logEvent } from "@/lib/observability/server";
 import { SanitizingSpanProcessor } from "@/lib/observability/span-sanitizer";
+import { createTraceSampler } from "@/lib/observability/sampling";
 
 let registered = false;
 
@@ -36,6 +37,7 @@ export function registerNodeObservability(): void {
   registerOTel({
     serviceName: OBSERVABILITY_SERVICE_NAME,
     spanProcessors,
+    traceSampler: createTraceSampler(betterStack.environment),
     ...(logRecordProcessors ? { logRecordProcessors } : {}),
     instrumentationConfig: { fetch: getFetchInstrumentationConfig(betterStack.config) },
   });

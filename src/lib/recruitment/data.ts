@@ -4,7 +4,7 @@ import { alias } from "drizzle-orm/pg-core";
 import { and, desc, eq, gt, ilike, inArray, isNull, or, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import { competitiveRankFacts, competitionEntries, recruitmentIntents, recruitmentInterests, seasons, steamProfiles, teamMemberships, teams, teamInvitations, userCompetitiveRoles, userMapPreferences, users } from "@/db/schema";
-import { loadCompetitivePlatformCatalog } from "@/lib/competitive/catalog";
+import { getPublicCompetitiveCatalog } from "@/lib/competitive/public-catalog";
 import { presentPublicCompetitiveSummary, type PublicCompetitiveProfilePlatform } from "@/lib/competitive/presentation";
 import type { Cs2Position } from "@/lib/config/cs2-positions";
 import { PLAYABLE_MAP_LEVELS, projectMapPreferences } from "@/lib/maps";
@@ -202,7 +202,7 @@ export async function getRecruitmentLobbyData(filters: RecruitmentFilters, viewe
     playerIds.length
       ? db.select({ id: competitiveRankFacts.id, userId: competitiveRankFacts.userId, platform: competitiveRankFacts.platform, kind: competitiveRankFacts.kind, platformSeasonKey: competitiveRankFacts.platformSeasonKey, status: competitiveRankFacts.status, rank: competitiveRankFacts.rank, rating: competitiveRankFacts.rating, stars: competitiveRankFacts.stars, achievedSeasonKey: competitiveRankFacts.achievedSeasonKey }).from(competitiveRankFacts).where(inArray(competitiveRankFacts.userId, playerIds))
       : Promise.resolve([]),
-    playerIds.length ? loadCompetitivePlatformCatalog(db) : Promise.resolve([]),
+    playerIds.length ? getPublicCompetitiveCatalog() : Promise.resolve([]),
   ]);
   const countByTeam = new Map(memberCounts.map((row) => [row.teamId, row.count]));
   const rolesByUser = new Map<string, Cs2Position[]>();

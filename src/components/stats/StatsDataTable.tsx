@@ -10,7 +10,7 @@ import { PaginationControls } from "@/components/rivalhub";
 import { StatsMetricHelp } from "@/components/stats/StatsMetricHelp";
 import { StatsTooltip } from "@/components/stats/StatsTooltip";
 import { STATS_METRICS, type StatsMetricKey } from "@/lib/stats/metrics";
-import { getDynamicRankingFloor, isRankingEligible } from "@/lib/stats/ranking";
+import { partitionRankingPopulation } from "@/lib/stats/ranking";
 import { compareStatsValues, type StatsSortDirection, type StatsSortValue } from "@/lib/stats/sorting";
 
 export interface StatsDataColumn<T> {
@@ -67,21 +67,10 @@ export function StatsDataTable<T>({
 
   const rankingState = useMemo<RankingState<T> | null>(() => {
     if (!activeColumn?.sortValue || !activeColumn.rankingSample) return null;
-    const baseline = rankingBaselineRows ?? rows;
-    const dynamicFloor = getDynamicRankingFloor(baseline.map((row) => {
-      const value = activeColumn.sortValue!(row);
-      return value === null || value === undefined ? null : activeColumn.rankingSample!(row);
-    }));
+    const { dynamicFloor, ranked, limited } = partitionRankingPopulation(
+      rows, activeColumn.sortValue, activeColumn.rankingSample, rankingBaselineRows ?? rows,
+    );
     if (!dynamicFloor) return null;
-
-    const ranked: T[] = [];
-    const limited: T[] = [];
-    for (const row of rows) {
-      const value = activeColumn.sortValue(row);
-      const hasValue = value !== null && value !== undefined;
-      if (hasValue && isRankingEligible(activeColumn.rankingSample(row), dynamicFloor.floor)) ranked.push(row);
-      else limited.push(row);
-    }
 
     const compare = (left: T, right: T) => compareStatsValues(activeColumn.sortValue!(left), activeColumn.sortValue!(right), direction);
     ranked.sort(compare);

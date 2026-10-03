@@ -59,15 +59,19 @@ DB/internal facts
 
 Public profile routes compose server-only read models; scope selection and derived metrics stay in the read model instead of the route entrypoint.
 
+公开赛事、选手生涯、长期队伍与赛事队伍统计共同消费经过确认的每图统计投影。Demo 晋级 owner 在同一事务中保存版本化 `match_demo_stat_projections`，复用 DAK 的中间统计与组合规则；来源 import、Evidence revision、身份绑定和计算版本共同决定投影是否适用。原始 Evidence 保留用于审计、重检及显式回填；公开冷读只加载有效投影，不回退读取完整 payload。身份撤销或账号归并在原事务中将依赖旧归属的 import 标为待重检，避免已撤销的事实继续进入公开统计。Demo 提交、重检、补建与 gameplay identity 变更共用 `src/lib/identity/write-lock.ts` 的事务级排他 gate；先取 identity gate，再取地图 lineage、user/season 及业务行锁，持有到提交。管理员补身份再确认复用同一 gate，不做共享锁升级；公开读不取该锁。这样撤销必定先于确认校验，或在确认提交后扫描到并使其待重检。
+
 公开页面默认不暴露 email、QQ、`studentId`、`authId`、管理员授权范围、教育证据或内部备注。不能把内部查询对象直接序列化给浏览器。
 
-公开导航使用 app-level Partial Prefetching；`params` / `searchParams` 驱动的内容留在最小 Suspense 区域，使同一路由可以复用 URL 无关的 shell。Server Action 写入的 mutation-driven public read model 使用语义 cache tag 并以 `updateTag()` 即时失效；Route Handler 或 webhook 使用 `revalidateTag(tag, "max")`。session、authorization、admin 与 draft facts 不进入共享 public cache，request boundary 由 `cookies()` / `headers()` 提供。需要保持 production build 与 runtime 数据源隔离、由首次 runtime request 填充的 public cache，可在最小 Suspense leaf 使用 `io()`；它不会把真实 request / prefetch 推迟到完整 navigation。`connection()` 只用于确实要求真实用户 navigation 的语义。
+公开导航使用 app-level Partial Prefetching；`params` / `searchParams` 驱动的内容留在最小 Suspense 区域，使同一路由可以复用 URL 无关的 shell。公开统计和编译后的全站基准通过 `use cache: remote` 使用部署平台的共享运行时缓存；普通 `use cache` 的实例内存不能作为跨实例或长期保存保证。所有统计组合结果共享语义统计 tag；Demo、正式赛果、阵容、身份、参赛归属、公开状态和展示身份变更都使它失效。Server Action 使用 `updateTag()`，Route Handler、webhook 与 scheduler 使用 `revalidateTag(tag, { expire: 0 })`，撤回或归属更正不返回旧统计。队伍邀请的发送、拒绝、撤销只刷新邀请 UI，不失效统计；队伍资料、Logo 与成员/队长变更继续保守失效统计。公开玩家资料与招募列表通过独立竞技目录 tag 共享只读目录，目录 mutation 提交后立即失效；资格校验、管理页与发布冻结继续使用直接/事务内读取。公开赛事目录与 slug lookup 使用 remote cache，保留短生命周期和 draft 授权隔离。允许短时旧值的非统计 read model 才使用 `revalidateTag(tag, "max")`。
+
+session、authorization、admin 与 draft facts 不进入共享 public cache；统计缓存外校验当前赛事公开性，授权草稿读取绕过共享缓存，request boundary 由 `cookies()` / `headers()` 提供。公开身份页面将个人操作与共享统计分开，统计依赖暂时不可用时保留基础资料并明确显示不可用，不把失败解释为零样本，也不绕过远程缓存重新放大源站读取。需要保持 production build 与 runtime 数据源隔离、由首次 runtime request 填充的 public cache，可在最小 Suspense leaf 使用 `io()`；它不会把真实 request / prefetch 推迟到完整 navigation。`connection()` 只用于确实要求真实用户 navigation 的语义。
 
 ### Persistence
 
 - `src/db/schema/` 表达当前应用 schema；`drizzle/migrations/` 是唯一 active migration chain。
 - `pnpm db:push` 被阻止；远程 schema write 只能走受保护的 staging/release path。
-- 应用代码通过 server-only DB facade 取得 Drizzle client；CLI/runtime exception 使用显式共享 runtime boundary。
+- 应用代码通过 server-only DB facade 取得 Drizzle client；CLI/runtime exception 使用显式共享 runtime boundary。Pool query 仅对明确建立连接前的失败自动重试一次；连接中断导致结果不明时记录告警并向调用方抛错，不依据 SQL 首词重放，后续恢复由 command 的幂等/状态回读契约负责。显式事务不自动重跑。
 - Pool-level `DB` 可以并行执行互相独立的查询；单个 transaction 的 `TxDb` 共用一个 `pg.Client`，查询必须逐个 `await`，或合并为单条 SQL，不能在同一事务上用 `Promise.all` / `Promise.allSettled` 重叠执行。需要同时支持 pool 与 transaction 的 read model 必须暴露明确分开的 pool / `InTx` 执行入口，不能只依赖 TypeScript 结构类型收窄来区分执行器。
 - 需要历史复现、审计或恢复的 snapshot 是领域事实，不因与 live data 重复而去重。
 

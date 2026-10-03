@@ -11,8 +11,10 @@ import { runDraftTimeoutCron } from "@/lib/draft/operations";
 import { runMatchTimeAutoAwardCron } from "@/lib/matches/time-auto-award";
 import { purgeExpiredEducationEvidence } from "@/lib/education/retention";
 import { ensureRegistrationOpenForParticipantInTx } from "@/lib/seasons/registration-recovery";
-import { revalidateMatchPaths, revalidatePublicSeasonTags, revalidateSeasonPaths } from "@/lib/revalidation";
+import { revalidateMatchPaths, revalidatePublicSeasonTags, revalidatePublicStatsTag, revalidateSeasonPaths } from "@/lib/revalidation";
 import { readVetoRoomCore } from "@/lib/matches/veto-room/service";
+import { settleExpiredMatchMvpVotes } from "@/lib/matches/mvp";
+import { reconcileMissingStatisticsProjections } from "@/lib/stats/projection-backfill";
 import type { SchedulerJobKey } from "./definitions";
 import type { SchedulerRunnerResult } from "./execution";
 
@@ -144,6 +146,8 @@ export async function runMatchVetoTimeoutJob() {
 
 export async function runSchedulerJobByKey(key: SchedulerJobKey): Promise<SchedulerRunnerResult<unknown>> {
   switch (key) {
+    case "rebuild-statistics-projections": return runStatisticsProjectionRebuildJob();
+    case "settle-match-mvp": return runMatchMvpSettlementJob();
     case "reconcile-predictions": return runPredictionReconciliationJob();
     case "refresh-steam-profiles": return runSteamProfileRefreshJob();
     case "resolve-match-veto-timeouts": return runMatchVetoTimeoutJob();
@@ -152,4 +156,23 @@ export async function runSchedulerJobByKey(key: SchedulerJobKey): Promise<Schedu
     case "match-time-auto-award": return runMatchTimeAutoAwardJob();
     case "cleanup-education-evidence": return runEducationEvidenceCleanupJob();
   }
+}
+
+export async function runMatchMvpSettlementJob() {
+  const { affectedMatches, failures, ...result } = await settleExpiredMatchMvpVotes();
+  for (const { seasonSlug, matchId } of affectedMatches) {
+    revalidateMatchPaths(seasonSlug, matchId, { mode: "route" });
+  }
+  // Invalidate committed successes even when another match failed. Pending
+  // matches remain due, and scheduler health must report the failed batch.
+  if (failures.length > 0) throw new AggregateError(failures, "MVP settlement failed");
+  return { result, businessTransitions: result.settled } satisfies SchedulerRunnerResult<typeof result>;
+}
+
+export async function runStatisticsProjectionRebuildJob() {
+  const result = await reconcileMissingStatisticsProjections(db);
+  const transitions = result.rebuilt + result.invalid;
+  if (transitions > 0) revalidatePublicStatsTag();
+  if (result.failed > 0) throw new Error(`Failed to rebuild ${result.failed} statistics projections`);
+  return { result, businessTransitions: transitions } satisfies SchedulerRunnerResult<typeof result>;
 }

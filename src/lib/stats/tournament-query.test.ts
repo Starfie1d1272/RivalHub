@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { collectTournamentPerformanceMapProjection, buildTournamentPerformanceAnalyticsFromProjections } from "@cs2dak/tournament";
 import normal from "../../../tests/fixtures/demo-evidence/normal-map-v1.json";
 import overtime from "../../../tests/fixtures/demo-evidence/overtime-map-v1.json";
 import { parseRivalHubDemoEvidenceV1 } from "@/lib/demo-evidence/contract";
@@ -7,31 +8,17 @@ import { buildCompetitionEntryPerformanceProjection, buildLongTeamPerformancePro
 
 describe("team performance fact scoping", () => {
   it("keeps a transferred player's advanced facts only for the represented team", () => {
-    const playerId = "player-1";
-    const facts = {
-      teamEntityKeys: { teamA: "team-a", teamB: "team-b" },
-      playerRounds: [
-        { playerEntityKey: playerId, teamEntityKey: "team-a", roundNumber: 1 },
-        { playerEntityKey: playerId, teamEntityKey: "team-b", roundNumber: 2 },
-      ],
-      objectives: [
-        { playerEntityKey: playerId, teamEntityKey: "team-a", roundNumber: 1 },
-        { playerEntityKey: playerId, teamEntityKey: "team-b", roundNumber: 2 },
-      ],
-      playerWeapons: [
-        { playerEntityKey: playerId, teamEntityKey: "team-a", weapon: "ak47" },
-        { playerEntityKey: playerId, teamEntityKey: "team-b", weapon: "m4a1" },
-      ],
-    } as unknown as Parameters<typeof scopePerformanceFactsToTeam>[0];
+    const evidence = parseRivalHubDemoEvidenceV1(normal);
+    const bindings = new Map(evidence.participants.map((row, index) => [row.steamId64, {
+      userId: `player-${index}`,
+      entryId: row.observedTeamKey === "teamA" ? evidence.target.entryAId : evidence.target.entryBId,
+    }]));
+    const facts = adaptStatsEvidence(evidence, bindings);
+    const scoped = scopePerformanceFactsToTeam(collectTournamentPerformanceMapProjection(facts.performance), evidence.target.entryAId);
+    const result = buildTournamentPerformanceAnalyticsFromProjections([scoped]);
+    expect(result.players).toHaveLength(5);
+    expect(result.players.every((row) => row.teamEntityKeys.every((team) => team === evidence.target.entryAId))).toBe(true);
 
-    const scoped = scopePerformanceFactsToTeam(facts, "team-a");
-
-    expect(scoped.playerRounds).toHaveLength(1);
-    expect(scoped.playerRounds[0]?.teamEntityKey).toBe("team-a");
-    expect(scoped.objectives).toHaveLength(1);
-    expect(scoped.objectives[0]?.teamEntityKey).toBe("team-a");
-    expect(scoped.playerWeapons).toHaveLength(1);
-    expect(scoped.playerWeapons[0]?.teamEntityKey).toBe("team-a");
   });
 });
 
@@ -67,8 +54,8 @@ describe("long-team transferred-player projection", () => {
     second.performance.mapKey = "transfer-map";
 
     const projection = buildLongTeamPerformanceProjection([
-      { importId: "first", facts: first },
-      { importId: "second", facts: second },
+      { importId: "first", facts: { ...first, performance: collectTournamentPerformanceMapProjection(first.performance) } },
+      { importId: "second", facts: { ...second, performance: collectTournamentPerformanceMapProjection(second.performance) } },
     ] as Parameters<typeof buildLongTeamPerformanceProjection>[0], new Set([linkedEntryId]), longTeamId);
 
     const player = projection.detailedPlayers.find((row) => row.player.entityKey === transferredUserId)!;
@@ -80,9 +67,6 @@ describe("long-team transferred-player projection", () => {
     expect(player).toBeDefined();
     expect(player.teamEntityKeys).toEqual([longTeamId]);
     expect(player.slices.overall.kast.attempts).toBe(expectedRounds.length);
-    expect(projection.remapped[1]!.facts.performance.playerRounds.some((row) => row.playerEntityKey === transferredUserId)).toBe(false);
-    expect(projection.remapped[1]!.facts.performance.playerRounds.some((row) => row.playerEntityKey === `opponent:${secondTeamB}:${transferredUserId}`)).toBe(true);
-    expect(projection.remapped[1]!.facts.performance.playerWeapons.some((row) => row.playerEntityKey === transferredUserId)).toBe(false);
     expect(projection.detailedPlayers.some((row) => row.player.entityKey === `opponent:${secondTeamB}:${transferredUserId}`)).toBe(false);
   });
 });
@@ -118,8 +102,8 @@ describe("competition-entry transferred-player projection", () => {
     second.performance.mapKey = "event-transfer-map";
 
     const projection = buildCompetitionEntryPerformanceProjection([
-      { importId: "event-first", facts: first },
-      { importId: "event-second", facts: second },
+      { importId: "event-first", facts: { ...first, performance: collectTournamentPerformanceMapProjection(first.performance) } },
+      { importId: "event-second", facts: { ...second, performance: collectTournamentPerformanceMapProjection(second.performance) } },
     ] as Parameters<typeof buildCompetitionEntryPerformanceProjection>[0], entryId);
 
     const player = projection.detailedPlayers.find((row) => row.player.entityKey === transferredUserId)!;
@@ -131,8 +115,6 @@ describe("competition-entry transferred-player projection", () => {
     expect(player).toBeDefined();
     expect(player.teamEntityKeys).toEqual([entryId]);
     expect(player.slices.overall.kast.attempts).toBe(expectedRounds.length);
-    expect(projection.remapped[1]!.facts.performance.playerRounds.some((row) => row.playerEntityKey === transferredUserId)).toBe(false);
-    expect(projection.remapped[1]!.facts.performance.playerRounds.some((row) => row.playerEntityKey === `opponent:${secondTeamB}:${transferredUserId}`)).toBe(true);
     expect(projection.detailedPlayers.some((row) => row.player.entityKey === `opponent:${secondTeamB}:${transferredUserId}`)).toBe(false);
   });
 });

@@ -24,11 +24,12 @@ import {
 } from "@/lib/competition-entries/commands";
 import { ok, type ActionResult } from "@/types/action";
 import { traceOperation } from "@/lib/observability/server";
-import { updatePublicHomeTag } from "@/lib/revalidation";
+import { updatePublicHomeTag, updatePublicStatsTag } from "@/lib/revalidation";
 
 const uuid = z.guid();
 
 function revalidateEntry(seasonSlug: string, entryId?: string): void {
+  updatePublicStatsTag();
   updatePublicHomeTag();
   revalidatePath(`/${seasonSlug}/register`);
   revalidatePath(`/admin/${seasonSlug}/registrations`);

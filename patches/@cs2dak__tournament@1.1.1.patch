@@ -1,0 +1,492 @@
+diff --git a/dist/index.d.ts b/dist/index.d.ts
+index bd6c79f86fbbbf8b72ab93b20ca8e11685a1b91d..34319c70044d71ce27ddde8fcda622bd8582b151 100644
+--- a/dist/index.d.ts
++++ b/dist/index.d.ts
+@@ -1,3 +1,5 @@
+ export { buildTournamentAnalytics } from "./aggregate.js";
+ export { buildTournamentPerformanceAnalytics } from "./performance.js";
+ export type { RateCount, TournamentAnalytics, TournamentEconomyType, TournamentEntityLabels, TournamentEntityRef, TournamentManAdvantage, TournamentMapFacts, TournamentPlayerWeaponCount, TournamentTeamConversionCount, TournamentTeamMapCount, TournamentTeamSlot, WinLossCount, TournamentClutchOpponentCount, TournamentClutchSplitKey, TournamentClutchSplits, TournamentOpeningDuel, TournamentPerformanceAnalytics, TournamentPerformanceClutchSummary, TournamentPerformanceCombatSummary, TournamentPerformanceGlobalWeaponSummary, TournamentPerformanceMapFacts, TournamentPerformanceMapSummary, TournamentPerformanceObjectiveFact, TournamentPerformanceObjectiveSummary, TournamentPerformanceOpeningSummary, TournamentPerformanceOpeningConversionSummary, TournamentPerformancePlayerRoundFact, TournamentPerformancePlayerSlice, TournamentPerformancePlayerSummary, TournamentPerformancePlayerWeaponFact, TournamentPerformancePlayerWeaponSummary, TournamentPerformanceSample, TournamentPerformanceTeamSlice, TournamentPerformanceTeamSummary, TournamentPerformanceTradeSummary, TournamentPerformanceUtilityFact, TournamentPerformanceUtilitySummary, TournamentPerformanceWeaponSummary, TournamentRateSample, TournamentSideSlices, TournamentSide, } from "./types.js";
++export { TOURNAMENT_PERFORMANCE_PROJECTION_VERSION, collectTournamentPerformanceMapProjection, buildTournamentPerformanceAnalyticsFromProjections, remapTournamentPerformanceMapProjection, scopeTournamentPerformanceMapProjectionToTeam, } from "./projection.js";
++export type { TournamentPerformanceMapProjection, TournamentPerformanceIdentityRemap } from "./projection.js";
+diff --git a/dist/index.js b/dist/index.js
+index 2c7e4d0d79525315167ce6a1e28e915af92bcc20..d293456a8458d3d98464cc5e14ce3a5acefa6b65 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -1,2 +1,3 @@
+ export { buildTournamentAnalytics } from "./aggregate.js";
+ export { buildTournamentPerformanceAnalytics } from "./performance.js";
++export { TOURNAMENT_PERFORMANCE_PROJECTION_VERSION, collectTournamentPerformanceMapProjection, buildTournamentPerformanceAnalyticsFromProjections, remapTournamentPerformanceMapProjection, scopeTournamentPerformanceMapProjectionToTeam, } from "./projection.js";
+diff --git a/dist/performance.d.ts b/dist/performance.d.ts
+index f8dd4bb05954c3c246547411ccf00823206d460b..5922f55ec69be6538a50acd071635bfaaec82f81 100644
+--- a/dist/performance.d.ts
++++ b/dist/performance.d.ts
+@@ -1,9 +1,110 @@
+-import type { TournamentEntityLabels, TournamentPerformanceAnalytics, TournamentPerformanceMapFacts } from "./types.js";
++import type { TournamentClutchSplitKey, TournamentEntityLabels, TournamentPerformanceAnalytics, TournamentPerformanceMapFacts, TournamentPerformanceUtilityFact } from "./types.js";
++type MutableRateSample = {
++    successes: number;
++    attempts: number;
++};
++interface MutableCombat {
++    kills: number;
++    deaths: number;
++    assists: number;
++    damage: number;
++    headshots: number;
++    twoKillRounds: number;
++    threeKillRounds: number;
++    fourKillRounds: number;
++    fiveKillRounds: number;
++}
++interface MutableOpening {
++    firstKills: number;
++    firstDeaths: number;
++    roundWinsAfterWinningOpeningDuel: number;
++    roundWinsAfterLosingOpeningDuel: number;
++}
++interface MutableOpeningConversion {
++    roundsWithOpening: Set<string>;
++    openingWinnerTeamRoundWins: number;
++    openingLoserTeamComebacks: number;
++}
++interface MutableTrade {
++    tradeKills: number;
++    tradedDeaths: number;
++    tradedOpeningDeaths: number;
++    deaths: number;
++}
++interface MutableClutch {
++    attempts: number;
++    wins: number;
++    byOpponentCount: Record<TournamentClutchSplitKey, MutableRateSample>;
++}
++type MutableUtility = TournamentPerformanceUtilityFact;
++interface MutableObjective {
++    plants: number;
++    defuses: number;
++    plantsConverted: number;
++    knownPlantOpportunities: number;
++}
++interface MutableSharedSlice {
++    roundKeys: Set<string>;
++    opening: MutableOpening;
++    trade: MutableTrade;
++    clutch: MutableClutch;
++    utility: MutableUtility;
++    objective: MutableObjective;
++}
++interface MutablePlayerSlice extends MutableSharedSlice {
++    combat: MutableCombat;
++    kastRounds: number;
++    survivalRounds: number;
++}
++interface MutableWeapon {
++    weapon: string;
++    kills: number;
++    headshotKills: number;
++    players: Map<string, number>;
++    teamEntityKeys: Set<string>;
++}
++interface MutablePlayer {
++    mapKeys: Set<string>;
++    matchKeys: Set<string>;
++    teamEntityKeys: Set<string>;
++    slices: Record<"overall" | "t" | "ct", MutablePlayerSlice>;
++    weapons: Map<string, MutableWeapon>;
++}
++interface MutableTeam {
++    mapKeys: Set<string>;
++    matchKeys: Set<string>;
++    slices: Record<"overall" | "t" | "ct", MutableSharedSlice>;
++    weapons: Map<string, MutableWeapon>;
++}
++interface MutableMap {
++    mapKeys: Set<string>;
++    matchKeys: Set<string>;
++    shared: MutableSharedSlice;
++    opening: MutableOpeningConversion;
++}
+ /**
+  * Merge frozen, identity-safe player-round sufficient facts across maps.
+  * This function intentionally has no dependency on DemoPackage, core, Zod,
+  * storage, or product code.
+  */
++export interface PerformanceAccumulator {
++    mapKeys: Set<string>;
++    matchKeys: Set<string>;
++    semanticProfile: string | null;
++    analysisVersions: Set<string>;
++    global: MutableSharedSlice;
++    globalOpening: MutableOpeningConversion;
++    players: Map<string, MutablePlayer>;
++    teams: Map<string, MutableTeam>;
++    maps: Map<string, MutableMap>;
++    globalWeapons: Map<string, MutableWeapon>;
++    teamOpenings: Map<string, MutableOpeningConversion>;
++}
+ export declare function buildTournamentPerformanceAnalytics(facts: readonly TournamentPerformanceMapFacts[], options?: {
+     labels?: TournamentEntityLabels;
+ }): TournamentPerformanceAnalytics;
++export declare function collectPerformanceAccumulator(facts: readonly TournamentPerformanceMapFacts[]): PerformanceAccumulator;
++export declare function finalizePerformanceAccumulator(state: PerformanceAccumulator, options?: {
++    labels?: TournamentEntityLabels;
++}): TournamentPerformanceAnalytics;
++export {};
+diff --git a/dist/performance.js b/dist/performance.js
+index 1250a183c31b0c98398d404997a28b7428ea2a77..e02696f818939e2c79946f7132d0a87bdd9d0892 100644
+--- a/dist/performance.js
++++ b/dist/performance.js
+@@ -582,14 +582,12 @@ function zeroPerformanceModel() {
+         weapons: [],
+     };
+ }
+-/**
+- * Merge frozen, identity-safe player-round sufficient facts across maps.
+- * This function intentionally has no dependency on DemoPackage, core, Zod,
+- * storage, or product code.
+- */
+ export function buildTournamentPerformanceAnalytics(facts, options = {}) {
+     if (facts.length === 0)
+         return zeroPerformanceModel();
++    return finalizePerformanceAccumulator(collectPerformanceAccumulator(facts), options);
++}
++export function collectPerformanceAccumulator(facts) {
+     const mapKeys = new Set();
+     const matchKeys = new Set();
+     let semanticProfile = null;
+@@ -613,6 +611,7 @@ export function buildTournamentPerformanceAnalytics(facts, options = {}) {
+     const teams = new Map();
+     const maps = new Map();
+     const globalWeapons = new Map();
++    const teamOpenings = new Map();
+     for (const { mapFacts, validation } of validated) {
+         const mapRow = maps.get(mapFacts.mapName) ?? emptyMap();
+         mapRow.mapKeys.add(mapFacts.mapKey);
+@@ -636,6 +635,9 @@ export function buildTournamentPerformanceAnalytics(facts, options = {}) {
+             addOpeningConversion(mapRow.opening, row, key);
+             addSharedPlayerRound(global, row, key, false);
+             addOpeningConversion(globalOpening, row, key);
++            const teamOpening = teamOpenings.get(row.teamEntityKey) ?? emptyOpeningConversion();
++            addOpeningConversion(teamOpening, row, key);
++            teamOpenings.set(row.teamEntityKey, teamOpening);
+             const player = players.get(row.playerEntityKey) ?? emptyPlayer();
+             player.mapKeys.add(mapFacts.mapKey);
+             player.matchKeys.add(mapFacts.matchKey);
+@@ -672,6 +674,10 @@ export function buildTournamentPerformanceAnalytics(facts, options = {}) {
+             addWeapon(team.weapons, row);
+         }
+     }
++    return { mapKeys, matchKeys, semanticProfile, analysisVersions, global, globalOpening, players, teams, maps, globalWeapons, teamOpenings };
++}
++export function finalizePerformanceAccumulator(state, options = {}) {
++    const { mapKeys, matchKeys, semanticProfile, analysisVersions, global, globalOpening, players, teams, maps, globalWeapons } = state;
+     const playerRows = [...players.entries()]
+         .sort(([left], [right]) => lexicalCompare(left, right))
+         .map(([playerEntityKey, value]) => {
+diff --git adist/projection.d.ts b/dist/projection.d.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..42e26afee46ed017a5fdc1674b94aa1cce3e2a3a
+--- /dev/null
++++ b/dist/projection.d.ts
+@@ -0,0 +1,40 @@
++import type { TournamentEntityLabels, TournamentPerformanceAnalytics, TournamentPerformanceMapFacts, TournamentTeamSlot } from "./types.js";
++export declare const TOURNAMENT_PERFORMANCE_PROJECTION_VERSION: 1;
++type ProjectionValue = string | number | null | ProjectionValue[] | {
++    [key: string]: ProjectionValue;
++};
++/**
++ * A JSON-safe, versioned single-map sufficient accumulator. It contains no
++ * player-round facts or display rates. `data` is owned by this package; consumers
++ * persist it verbatim and use the public scope/remap/aggregation operations.
++ * Round sets contain local sequence numbers, never repeated map identifiers.
++ */
++export interface TournamentPerformanceMapProjection {
++    version: typeof TOURNAMENT_PERFORMANCE_PROJECTION_VERSION;
++    semanticProfile: string;
++    analysisVersion: string;
++    mapKey: string;
++    matchKey: string;
++    mapName: string;
++    teamEntityKeys: Record<TournamentTeamSlot, string>;
++    data: ProjectionValue;
++}
++/** Validate frozen facts once, then retain the existing DAK raw accumulators. */
++export declare function collectTournamentPerformanceMapProjection(facts: TournamentPerformanceMapFacts): TournamentPerformanceMapProjection;
++/** Finalize with the same owner used by the player-round input API. */
++export declare function buildTournamentPerformanceAnalyticsFromProjections(projections: readonly TournamentPerformanceMapProjection[], options?: {
++    labels?: TournamentEntityLabels;
++}): TournamentPerformanceAnalytics;
++export interface TournamentPerformanceIdentityRemap {
++    teamEntityKey: (teamEntityKey: string) => string;
++    playerEntityKey: (playerEntityKey: string, teamEntityKey: string) => string;
++}
++/** Remapping is explicit and cannot collapse two identities within one map. */
++export declare function remapTournamentPerformanceMapProjection(projection: TournamentPerformanceMapProjection, remap: TournamentPerformanceIdentityRemap): TournamentPerformanceMapProjection;
++/**
++ * Scope contributions after complete-map validation. Opening duels remain
++ * valid even though only one team's contribution is retained. Opponent team
++ * identities/map participation stay present, with zero performance samples.
++ */
++export declare function scopeTournamentPerformanceMapProjectionToTeam(projection: TournamentPerformanceMapProjection, teamEntityKey: string): TournamentPerformanceMapProjection;
++export {};
+diff --git adist/projection.js b/dist/projection.js
+new file mode 100644
+index 0000000000000000000000000000000000000000..5bfe2022b26ffce617b6083a76e183734b514e3b
+--- /dev/null
++++ b/dist/projection.js
+@@ -0,0 +1,255 @@
++import { collectPerformanceAccumulator, finalizePerformanceAccumulator, } from "./performance.js";
++export const TOURNAMENT_PERFORMANCE_PROJECTION_VERSION = 1;
++function fail(message) {
++    throw new Error(`Invalid TournamentPerformanceMapProjection: ${message}`);
++}
++// Stable wire schemas replace repeated quantity field names, not quantities.
++// Their order is part of PROJECTION_VERSION; changing it requires a new version.
++const QUANTITY_SCHEMAS = [
++    ["combat", ["kills", "deaths", "assists", "damage", "headshots", "twoKillRounds", "threeKillRounds", "fourKillRounds", "fiveKillRounds"]],
++    ["opening", ["firstKills", "firstDeaths", "roundWinsAfterWinningOpeningDuel", "roundWinsAfterLosingOpeningDuel"]],
++    ["trade", ["tradeKills", "tradedDeaths", "tradedOpeningDeaths", "deaths"]],
++    ["utility", ["flashesThrown", "enemyBlindSeconds", "teamBlindSeconds", "enemyBlindVictims", "flashAssists", "heThrows", "heDamage", "fireThrows", "fireDamage", "smokesThrown", "utilityKills", "utilityDamage"]],
++    ["objective", ["plants", "defuses", "plantsConverted", "knownPlantOpportunities"]],
++    ["clutch", ["attempts", "wins", ...["1", "2", "3", "4", "5"].flatMap((key) => [`byOpponentCount.${key}.successes`, `byOpponentCount.${key}.attempts`])]],
++];
++function freeze(value, field = "") {
++    if (value === null || typeof value === "string" || typeof value === "number")
++        return value;
++    if (value instanceof Set) {
++        if (field === "roundKeys" || field === "roundsWithOpening") {
++            return { rounds: [...value].map((key) => Number(key.slice(key.lastIndexOf("\u0000") + 1))) };
++        }
++        return { set: [...value].map((item) => freeze(item)) };
++    }
++    if (value instanceof Map)
++        return { entries: [...value].map(([key, item]) => [key, freeze(item)]) };
++    if (typeof value !== "object" || value === undefined || Array.isArray(value))
++        fail("unsupported accumulator value");
++    const schemaIndex = QUANTITY_SCHEMAS.findIndex(([name]) => name === field);
++    if (schemaIndex >= 0) {
++        const fields = QUANTITY_SCHEMAS[schemaIndex][1];
++        return { q: [schemaIndex, ...fields.map((path) => path.split(".").reduce((row, key) => row[key], value))] };
++    }
++    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, freeze(item, key)]));
++}
++function thaw(value, mapKey) {
++    if (value === null || typeof value === "string")
++        return value;
++    if (typeof value === "number") {
++        if (!Number.isFinite(value) || value < 0)
++            fail("accumulator quantities must be finite and non-negative");
++        return value;
++    }
++    if (!value || Array.isArray(value))
++        fail("invalid accumulator object");
++    if (Object.keys(value).length === 1 && Array.isArray(value.q)) {
++        const quantities = value.q;
++        const index = quantities[0];
++        if (typeof index !== "number" || !Number.isInteger(index) || !QUANTITY_SCHEMAS[index])
++            fail("unknown quantity schema");
++        const fields = QUANTITY_SCHEMAS[index][1];
++        if (quantities.length !== fields.length + 1)
++            fail("incomplete quantities");
++        const result = {};
++        fields.forEach((path, offset) => {
++            const quantity = quantities[offset + 1];
++            if (typeof quantity !== "number" || !Number.isFinite(quantity) || quantity < 0)
++                fail("invalid quantity");
++            const keys = path.split(".");
++            const last = keys.pop();
++            let target = result;
++            for (const key of keys)
++                target = (target[key] ??= {});
++            target[last] = quantity;
++        });
++        return result;
++    }
++    if (Object.keys(value).length === 1 && Array.isArray(value.rounds)) {
++        if (value.rounds.some((round) => typeof round !== "number" || !Number.isInteger(round) || round <= 0))
++            fail("invalid round sequence");
++        if (new Set(value.rounds).size !== value.rounds.length)
++            fail("duplicate round sequence");
++        return new Set(value.rounds.map((round) => `${mapKey}\u0000${round}`));
++    }
++    if (Object.keys(value).length === 1 && Array.isArray(value.set)) {
++        if (value.set.some((item) => typeof item !== "string" || !item))
++            fail("invalid identity set");
++        if (new Set(value.set).size !== value.set.length)
++            fail("duplicate identity");
++        return new Set(value.set);
++    }
++    if (Object.keys(value).length === 1 && Array.isArray(value.entries)) {
++        const entries = value.entries.map((entry) => {
++            if (!Array.isArray(entry) || entry.length !== 2 || typeof entry[0] !== "string" || !entry[0])
++                fail("invalid keyed accumulator");
++            return [entry[0], thaw(entry[1], mapKey)];
++        });
++        if (new Set(entries.map(([key]) => key)).size !== entries.length)
++            fail("duplicate accumulator key");
++        return new Map(entries);
++    }
++    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, thaw(item, mapKey)]));
++}
++function restore(projection) {
++    if (projection.version !== TOURNAMENT_PERFORMANCE_PROJECTION_VERSION)
++        fail("unsupported version");
++    for (const field of ["mapKey", "matchKey", "mapName", "semanticProfile", "analysisVersion"]) {
++        if (typeof projection[field] !== "string" || !projection[field])
++            fail(`missing ${field}`);
++    }
++    const stored = thaw(projection.data, projection.mapKey);
++    if (!(stored.players instanceof Map) || !(stored.teams instanceof Map) || !(stored.teamOpenings instanceof Map))
++        fail("invalid entity accumulators");
++    const teamKeys = Object.values(projection.teamEntityKeys);
++    if (teamKeys.length !== 2 || new Set(teamKeys).size !== 2 || teamKeys.some((key) => typeof key !== "string" || !key || !stored.teams.has(key))
++        || stored.teams.size !== 2)
++        fail("invalid map teams");
++    const mapKeys = new Set([projection.mapKey]);
++    const matchKeys = new Set([projection.matchKey]);
++    const state = {
++        ...stored,
++        mapKeys,
++        matchKeys,
++        semanticProfile: projection.semanticProfile,
++        analysisVersions: new Set([projection.analysisVersion]),
++        maps: new Map([[projection.mapName, { mapKeys, matchKeys, shared: stored.global, opening: stored.globalOpening }]]),
++        globalWeapons: new Map(),
++    };
++    for (const team of state.teams.values()) {
++        team.mapKeys = new Set(mapKeys);
++        team.matchKeys = new Set(matchKeys);
++        team.weapons = new Map();
++    }
++    for (const player of state.players.values()) {
++        player.mapKeys = new Set(mapKeys);
++        player.matchKeys = new Set(matchKeys);
++        if (!(player.teamEntityKeys instanceof Set) || player.teamEntityKeys.size !== 1 || !(player.weapons instanceof Map))
++            fail("invalid player accumulator");
++        const team = state.teams.get([...player.teamEntityKeys][0]);
++        if (!team)
++            fail("unknown player team");
++        team.weapons = merge(team.weapons, structuredClone(player.weapons));
++        state.globalWeapons = merge(state.globalWeapons, structuredClone(player.weapons));
++    }
++    return state;
++}
++/** Merge counters, union sample identities, and merge weapon/player buckets. */
++function merge(left, right) {
++    if (typeof left === "number" && typeof right === "number")
++        return (left + right);
++    if (left instanceof Set && right instanceof Set)
++        return new Set([...left, ...right]);
++    if (left instanceof Map && right instanceof Map) {
++        const result = new Map(left);
++        for (const [key, value] of right)
++            result.set(key, result.has(key) ? merge(result.get(key), value) : value);
++        return result;
++    }
++    if (left === null)
++        return right;
++    if (left === right)
++        return left;
++    if (typeof left === "object" && left !== null && typeof right === "object" && right !== null) {
++        return Object.fromEntries(Object.entries(left).map(([key, value]) => [key, merge(value, right[key])]));
++    }
++    fail("incompatible accumulators");
++}
++/** Omit single-map metadata and repeated map/weapon aggregates on the wire. */
++function pack(state) {
++    return freeze({
++        global: state.global,
++        globalOpening: state.globalOpening,
++        players: new Map([...state.players].map(([key, player]) => [key, {
++                teamEntityKeys: player.teamEntityKeys,
++                slices: player.slices,
++                weapons: player.weapons,
++            }])),
++        teams: new Map([...state.teams].map(([key, team]) => [key, { slices: team.slices }])),
++        teamOpenings: state.teamOpenings,
++    });
++}
++/** Validate frozen facts once, then retain the existing DAK raw accumulators. */
++export function collectTournamentPerformanceMapProjection(facts) {
++    const state = collectPerformanceAccumulator([facts]);
++    return {
++        version: TOURNAMENT_PERFORMANCE_PROJECTION_VERSION,
++        semanticProfile: facts.semanticProfile,
++        analysisVersion: facts.analysisVersion,
++        mapKey: facts.mapKey,
++        matchKey: facts.matchKey,
++        mapName: facts.mapName,
++        teamEntityKeys: { ...facts.teamEntityKeys },
++        data: pack(state),
++    };
++}
++/** Finalize with the same owner used by the player-round input API. */
++export function buildTournamentPerformanceAnalyticsFromProjections(projections, options = {}) {
++    let merged = collectPerformanceAccumulator([]);
++    for (const projection of [...projections].sort((a, b) => a.mapKey < b.mapKey ? -1 : a.mapKey > b.mapKey ? 1 : 0)) {
++        const state = restore(projection);
++        if (merged.mapKeys.has(projection.mapKey))
++            fail(`duplicate mapKey ${projection.mapKey}`);
++        if (merged.semanticProfile !== null && merged.semanticProfile !== projection.semanticProfile)
++            fail("mixed semantic profile");
++        merged = merge(merged, state);
++    }
++    return finalizePerformanceAccumulator(merged, options);
++}
++/** Remapping is explicit and cannot collapse two identities within one map. */
++export function remapTournamentPerformanceMapProjection(projection, remap) {
++    const state = restore(projection);
++    const teams = new Map([...state.teams.keys()].map((key) => [key, remap.teamEntityKey(key)]));
++    const players = new Map([...state.players].map(([key, player]) => [key, remap.playerEntityKey(key, [...player.teamEntityKeys][0])]));
++    for (const identities of [teams, players]) {
++        if ([...identities.values()].some((key) => typeof key !== "string" || !key)
++            || new Set(identities.values()).size !== identities.size)
++            fail("remap must preserve distinct non-empty identities within a map");
++    }
++    const remapKeys = (values, identities) => new Map([...values].map(([key, value]) => [identities.get(key) ?? key, value]));
++    const remapWeapons = (weapons) => {
++        for (const weapon of weapons.values()) {
++            weapon.players = remapKeys(weapon.players, players);
++            weapon.teamEntityKeys = new Set([...weapon.teamEntityKeys].map((key) => teams.get(key)));
++        }
++    };
++    for (const player of state.players.values()) {
++        player.teamEntityKeys = new Set([...player.teamEntityKeys].map((key) => teams.get(key)));
++        remapWeapons(player.weapons);
++    }
++    for (const team of state.teams.values())
++        remapWeapons(team.weapons);
++    remapWeapons(state.globalWeapons);
++    state.players = remapKeys(state.players, players);
++    state.teams = remapKeys(state.teams, teams);
++    state.teamOpenings = remapKeys(state.teamOpenings, teams);
++    return {
++        ...projection,
++        teamEntityKeys: { teamA: teams.get(projection.teamEntityKeys.teamA), teamB: teams.get(projection.teamEntityKeys.teamB) },
++        data: pack(state),
++    };
++}
++/**
++ * Scope contributions after complete-map validation. Opening duels remain
++ * valid even though only one team's contribution is retained. Opponent team
++ * identities/map participation stay present, with zero performance samples.
++ */
++export function scopeTournamentPerformanceMapProjectionToTeam(projection, teamEntityKey) {
++    const state = restore(projection);
++    const selected = state.teams.get(teamEntityKey);
++    if (!selected)
++        fail("team does not belong to map");
++    state.players = new Map([...state.players].filter(([, player]) => player.teamEntityKeys.has(teamEntityKey)));
++    const empty = collectPerformanceAccumulator([{ ...projection, playerRounds: [], objectives: [], playerWeapons: [] }]);
++    for (const [key, team] of state.teams)
++        if (key !== teamEntityKey)
++            state.teams.set(key, empty.teams.get(key));
++    state.global = selected.slices.overall;
++    state.globalOpening = state.teamOpenings.get(teamEntityKey) ?? empty.globalOpening;
++    state.globalWeapons = selected.weapons;
++    state.teamOpenings = new Map([[teamEntityKey, state.globalOpening]]);
++    const map = state.maps.get(projection.mapName);
++    map.shared = state.global;
++    map.opening = state.globalOpening;
++    return { ...projection, data: pack(state) };
++}

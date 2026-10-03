@@ -30,6 +30,7 @@ import {
   hashTeamInvitationToken,
 } from "@/lib/teams/commands";
 import { fail, ok, type ActionResult } from "@/types/action";
+import { updatePublicStatsTag } from "@/lib/revalidation";
 
 const PENDING_DIRECT_INVITATION_CONSTRAINT = "team_invitations_one_pending_direct_per_user";
 
@@ -37,7 +38,8 @@ const uuid = z.guid();
 const teamName = teamNameSchema;
 const description = z.string().trim().max(500);
 
-function revalidateTeam(slug?: string): void {
+function revalidateTeam(slug?: string, options: { statistics?: boolean } = {}): void {
+  if (options.statistics !== false) updatePublicStatsTag();
   revalidatePath("/teams");
   revalidatePath("/teams/recruitment");
   revalidatePath("/my/teams");
@@ -97,7 +99,7 @@ export async function inviteTeamMember(input: { teamId: string; email: string })
     const user = await db.query.users.findFirst({ where: eq(users.email, normalizeEmail(parsed.data.email)) });
     if (!user) throw new AppError(ErrorCode.NOT_FOUND, "该邮箱尚未注册 RivalHub。");
     await db.transaction((tx) => inviteTeamMemberInTx(tx, { teamId: parsed.data.teamId, userId: session.userId, invitedUserId: user.id, actorId: auditActorId(session) }));
-    revalidateTeam();
+    revalidateTeam(undefined, { statistics: false });
     return ok(undefined);
   } catch (error) {
     if (isPgUniqueViolation(error, PENDING_DIRECT_INVITATION_CONSTRAINT)) return failValidation("该邀请已存在。");
@@ -113,7 +115,7 @@ export async function inviteTeamMemberByUserId(input: { teamId: string; userId: 
     const session = await requireAuth();
     await db.transaction((tx) => inviteTeamMemberInTx(tx, { teamId: parsed.data.teamId, userId: session.userId, invitedUserId: parsed.data.userId, actorId: auditActorId(session) }));
     revalidatePath(`/players/${parsed.data.userId}`);
-    revalidateTeam();
+    revalidateTeam(undefined, { statistics: false });
     return ok(undefined);
   } catch (error) {
     if (isPgUniqueViolation(error, PENDING_DIRECT_INVITATION_CONSTRAINT)) return failValidation("该邀请已存在。");
@@ -157,7 +159,7 @@ export async function declineTeamInvitation(input: { invitationId: string }): Pr
   try {
     const session = await requireAuth();
     await db.transaction((tx) => declineTeamInvitationInTx(tx, { invitationId: parsed.data.invitationId, userId: session.userId, actorId: auditActorId(session) }));
-    revalidateTeam();
+    revalidateTeam(undefined, { statistics: false });
     return ok(undefined);
   } catch (error) { return actionError("declineTeamInvitation", error); }
 }
@@ -168,7 +170,7 @@ export async function revokeTeamInvitation(input: { teamId: string; invitationId
   try {
     const session = await requireAuth();
     await db.transaction((tx) => revokeTeamInvitationInTx(tx, { ...parsed.data, userId: session.userId, actorId: auditActorId(session) }));
-    revalidateTeam();
+    revalidateTeam(undefined, { statistics: false });
     return ok(undefined);
   } catch (error) { return actionError("revokeTeamInvitation", error); }
 }

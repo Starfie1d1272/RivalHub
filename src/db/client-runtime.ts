@@ -49,7 +49,7 @@ export const db = new Proxy({} as DB, {
 export type DB = NodePgDatabase<typeof schema>;
 export type TxDb = Parameters<Parameters<DB["transaction"]>[0]>[0];
 
-// Vercel 冷启动 env 延迟保护：连接级错误时重读 DATABASE_URL 并重建 Pool，重试查询
+// Vercel 冷启动 env 延迟保护：连接失败时重读 DATABASE_URL 并重建 Pool；只重试明确未建立连接的查询
 let rebuilding: Promise<void> | null = null;
 
 async function rebuildPool(): Promise<void> {
@@ -61,7 +61,15 @@ async function rebuildPool(): Promise<void> {
     _db = drizzle(pool, { schema });
     setupPoolGuard(pool);
     logEvent({ level: "warn", event: "db.pool.rebuilt", scope: "database", operation: "pool.rebuild" });
-  })().finally(() => {
+  })().catch((error: unknown) => {
+    captureException("db.pool.rebuild_failure", error, {
+      scope: "database",
+      operation: "pool.rebuild",
+      errorClass: "database",
+      retryable: true,
+    });
+    throw error;
+  }).finally(() => {
     rebuilding = null;
   });
   return rebuilding;
@@ -78,14 +86,8 @@ function setupPoolGuard(p: Pool) {
       safeContext: { phase: "guard" },
     });
     if (connectionError) {
-      void rebuildPool().catch((rebuildError: unknown) => {
-        captureException("db.pool.rebuild_failure", rebuildError, {
-          scope: "database",
-          operation: "pool.rebuild",
-          errorClass: "database",
-          retryable: true,
-        });
-      });
+      // The shared rebuild owner records failure once, including query retries.
+      void rebuildPool().catch(() => {});
     }
   });
 
@@ -114,7 +116,7 @@ function setupPoolGuard(p: Pool) {
           },
         }, () => queryFn(...args));
       } catch (err: unknown) {
-        if (attempt === 0 && isConnectionError(err)) {
+        if (attempt === 0 && isPreConnectionError(err)) {
           logEvent({
             level: "warn",
             event: "db.query.retry",
@@ -127,13 +129,16 @@ function setupPoolGuard(p: Pool) {
           await rebuildPool();
           continue;
         }
-        captureException("db.query.failure", err, {
+        const outcomeUnknown = isConnectionError(err) && !isPreConnectionError(err);
+        captureException(outcomeUnknown ? "db.query.outcome_unknown" : "db.query.failure", err, {
           scope: "database",
           operation: "query",
           errorClass: "database",
-          retryable: isConnectionError(err),
+          retryable: isPreConnectionError(err),
           safeContext: { attempt, queryOperation },
         });
+        // Recover future requests, never replay a statement whose commit is unknown.
+        if (outcomeUnknown) void rebuildPool().catch(() => {});
         throw err;
       }
     }
@@ -185,10 +190,17 @@ function shouldUseSsl(databaseUrl?: string): boolean {
   }
 }
 
+function isPreConnectionError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const code = (error as { code?: unknown }).code;
+  return code === "ECONNREFUSED" || code === "ENOTFOUND";
+}
+
 function isConnectionError(error: unknown): boolean {
   if (!error || typeof error !== "object") return false;
   const candidate = error as { code?: unknown; message?: unknown };
-  return candidate.code === "ECONNREFUSED" || candidate.code === "ENOTFOUND" ||
+  return isPreConnectionError(error) || candidate.code === "ECONNRESET" ||
+    candidate.code === "EPIPE" || candidate.code === "ETIMEDOUT" ||
     (typeof candidate.message === "string" && candidate.message.includes("Connection terminated"));
 }
 

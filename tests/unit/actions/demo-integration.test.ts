@@ -170,6 +170,7 @@ describe("Demo identity action authorization", () => {
     });
 
     expect(result).toMatchObject({ success: false, error: { code: ErrorCode.FORBIDDEN } });
+    expect(matchDemoImportsFindFirstMock.mock.calls[0]?.[0]?.columns).toEqual({ id: true, seasonId: true, matchId: true });
     expect(confirmMock).not.toHaveBeenCalled();
     expect(transactionMock).not.toHaveBeenCalled();
   });
@@ -182,6 +183,7 @@ describe("Demo identity action authorization", () => {
 
     expect(result).toMatchObject({ success: false, error: { code: ErrorCode.FORBIDDEN } });
     expect(requireSeasonAdminMock).toHaveBeenCalledWith(OTHER_SEASON_ID);
+    expect(matchDemoImportsFindFirstMock.mock.calls[0]?.[0]?.columns).toEqual({ id: true, seasonId: true, matchId: true });
     expect(rejectMock).not.toHaveBeenCalled();
     expect(transactionMock).not.toHaveBeenCalled();
   });
@@ -230,6 +232,7 @@ describe("Demo identity action authorization", () => {
     const result = await retireGameplaySteamIdentity({ identityId: IDENTITY_ID, reason: "错误确认" });
 
     expect(result).toMatchObject({ success: false, error: { code: ErrorCode.FORBIDDEN } });
+    expect(matchDemoImportsFindFirstMock.mock.calls[0]?.[0]?.columns).toEqual({ seasonId: true, matchId: true });
     expect(requireSeasonAdminMock).toHaveBeenCalledWith(OTHER_SEASON_ID);
     expect(retireMock).not.toHaveBeenCalled();
     expect(transactionMock).not.toHaveBeenCalled();

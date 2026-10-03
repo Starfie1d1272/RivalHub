@@ -24,9 +24,10 @@ export interface TeamPublicProfileProps {
   event?: PublicEventTeamContext | null;
   performance?: LongTeamCareerDetail | TournamentTeamDetail | null;
   career?: PublicLongTeamProfileReadModel["career"];
+  statsUnavailable?: boolean;
 }
 
-export function TeamPublicProfile({ team, event = null, mapProfile, results, performance, career = [] }: TeamPublicProfileProps) {
+export function TeamPublicProfile({ team, event = null, mapProfile, results, performance, career = [], statsUnavailable = false }: TeamPublicProfileProps) {
   const identity = event?.entry ?? team?.team;
   if (!identity) return null;
 
@@ -106,6 +107,7 @@ export function TeamPublicProfile({ team, event = null, mapProfile, results, per
         </div>
       </div>
 
+      {statsUnavailable && <p role="status" className="text-sm text-[var(--color-fg-mid)]">竞技统计暂时无法加载，请稍后重试。</p>}
       {event && <div className="grid gap-8">
         <section className="space-y-4">
           <div><p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--color-fg-dim)]">MEMBERS</p><h2 className="mt-1 text-lg font-semibold">{eventRosterHeading}</h2></div>
@@ -184,9 +186,9 @@ export function TeamPublicProfile({ team, event = null, mapProfile, results, per
                       {entry.honors.length > 0 && <span className="mt-1.5 flex flex-wrap gap-x-2 gap-y-1 text-xs font-medium text-[var(--color-accent)]">{entry.honors.map((honor) => <span key={honor}>{honor}</span>)}</span>}
                     </span>
                     <span className="grid grid-cols-3 gap-3 text-xs tabular-nums text-[var(--color-fg-mid)]">
-                      <span><span className="block text-[10px] uppercase tracking-wide text-[var(--color-fg-dim)]">Match</span><span className="mt-0.5 block font-medium text-[var(--color-fg)]">{entry.matchWins}-{entry.matchLosses}</span></span>
-                      <span><span className="block text-[10px] uppercase tracking-wide text-[var(--color-fg-dim)]">Map</span><span className="mt-0.5 block font-medium text-[var(--color-fg)]">{entry.mapWins}-{entry.mapLosses}</span></span>
-                      <span><span className="block text-[10px] uppercase tracking-wide text-[var(--color-fg-dim)]">Maps</span><span className="mt-0.5 block font-medium text-[var(--color-fg)]">{entry.maps}</span></span>
+                      <span><span className="block text-[10px] uppercase tracking-wide text-[var(--color-fg-dim)]">Match</span><span className="mt-0.5 block font-medium text-[var(--color-fg)]">{entry.matchWins === null ? "—" : `${entry.matchWins}-${entry.matchLosses}`}</span></span>
+                      <span><span className="block text-[10px] uppercase tracking-wide text-[var(--color-fg-dim)]">Map</span><span className="mt-0.5 block font-medium text-[var(--color-fg)]">{entry.mapWins === null ? "—" : `${entry.mapWins}-${entry.mapLosses}`}</span></span>
+                      <span><span className="block text-[10px] uppercase tracking-wide text-[var(--color-fg-dim)]">Maps</span><span className="mt-0.5 block font-medium text-[var(--color-fg)]">{entry.maps ?? "—"}</span></span>
                     </span>
                     <span className="flex items-center justify-between gap-3 sm:justify-end">
                       <span className="text-xs font-medium text-[var(--color-fg-mid)]">{entry.placement ?? "完赛"}</span>

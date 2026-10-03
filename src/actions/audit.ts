@@ -5,7 +5,7 @@ import { db } from "@/db/client";
 import { auditLogs, seasons, steamProfiles, users } from "@/db/schema";
 import { actionError } from "@/lib/action-utils";
 import { requireSeasonAdmin, requireSuperAdmin } from "@/lib/auth/session";
-import { getDisplayName } from "@/lib/identity/display-name";
+import { getPublicDisplayName } from "@/lib/identity/display-name";
 import { escapeLikePattern } from "@/lib/db/search";
 import {
   getAuditActionPresentation,
@@ -14,6 +14,7 @@ import {
   type AuditLogView,
 } from "@/lib/audit/presentation";
 import { auditTargetKey, normalizeAuditTarget, resolveAuditTargets } from "@/lib/audit/targets";
+import { getAuditActorLabel, getAuditContextUserReferences, isAuditUserEmail, isAuditUserId, summarizeAuditPeople } from "@/lib/audit/people";
 import { ok } from "@/types/action";
 
 function parseCSTDateStart(value: string) {
@@ -47,11 +48,6 @@ export interface AuditLogFilters {
 export interface AuditLogsData {
   logs: AuditLogView[];
   total: number;
-}
-
-function actorLabel(actorId: string | null, names: Record<string, string>): string {
-  if (!actorId || actorId === "system" || actorId.startsWith("system:")) return "系统";
-  return names[actorId] ?? `用户 · ${actorId.slice(0, 8)}`;
 }
 
 export async function fetchAuditLogs(filters: AuditLogFilters = {}) {
@@ -93,13 +89,14 @@ export async function fetchAuditLogs(filters: AuditLogFilters = {}) {
     ]);
 
     const actorIds = [...new Set(rows.map((row) => row.actorId).filter((id): id is string => id != null))];
-    const actorNameMap: Record<string, string> = {};
-    if (actorIds.length) {
-      const uuidIds = actorIds.filter((id) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id));
-      const nonUuidIds = actorIds.filter((id) => !uuidIds.includes(id));
+    const contextUserIds = rows.flatMap((row) => [...getAuditContextUserReferences(row.action, row.meta).values()]);
+    const userNameMap = new Map<string, string>();
+    if (actorIds.length || contextUserIds.length) {
+      const uuidIds = [...new Set([...actorIds.filter(isAuditUserId), ...contextUserIds])];
+      const emailIds = actorIds.filter(isAuditUserEmail);
       const clauses = [];
       if (uuidIds.length) clauses.push(inArray(users.id, uuidIds));
-      if (nonUuidIds.length) clauses.push(inArray(users.email, nonUuidIds));
+      if (emailIds.length) clauses.push(inArray(users.email, emailIds));
       if (clauses.length) {
         const actorUsers = await db.select({
           id: users.id,
@@ -109,9 +106,9 @@ export async function fetchAuditLogs(filters: AuditLogFilters = {}) {
           perfectName: users.perfectName,
         }).from(users).leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64)).where(or(...clauses));
         for (const user of actorUsers) {
-          const name = getDisplayName(user);
-          actorNameMap[user.id] = name;
-          if (user.email) actorNameMap[user.email] = name;
+          const name = getPublicDisplayName(user);
+          userNameMap.set(user.id, name);
+          if (user.email) userNameMap.set(user.email, name);
         }
       }
     }
@@ -131,6 +128,8 @@ export async function fetchAuditLogs(filters: AuditLogFilters = {}) {
       const target = normalizedTarget?.targetType && normalizedTarget.targetId
         ? targetMap[auditTargetKey(normalizedTarget.targetType, normalizedTarget.targetId)]
         : undefined;
+      const peopleSummary = summarizeAuditPeople(row.action, row.meta, userNameMap);
+      const metaSummary = summarizeAuditMeta(row.action, row.meta);
       return {
         id: row.id,
         createdAt: row.createdAt.toISOString(),
@@ -138,10 +137,10 @@ export async function fetchAuditLogs(filters: AuditLogFilters = {}) {
         actionLabel: action.label,
         categoryLabel: action.categoryLabel,
         categoryColor: action.categoryColor,
-        actorLabel: actorLabel(row.actorId, actorNameMap),
+        actorLabel: getAuditActorLabel(row.actorId, userNameMap),
         targetTypeLabel: target?.typeLabel ?? getAuditTargetTypeLabel(normalizedTarget?.targetType),
         targetLabel: target?.label ?? "未指定目标",
-        summary: summarizeAuditMeta(row.action, row.meta),
+        summary: [peopleSummary, metaSummary === "已记录" && peopleSummary ? null : metaSummary].filter(Boolean).join(" · ") || null,
       };
     });
 

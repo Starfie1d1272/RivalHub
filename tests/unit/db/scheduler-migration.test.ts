@@ -16,6 +16,24 @@ const vetoSchedulerMigration = readFileSync(
 );
 
 describe("scheduler migration contract", () => {
+  it("keeps repair dispatch independent of the application calculation version", () => {
+    const projectionMigration = readFileSync(join(process.cwd(), "drizzle/migrations/0067_chief_midnight.sql"), "utf8");
+    expect(projectionMigration.match(/'rebuild-statistics-projections'/g)).toHaveLength(3);
+    const dispatchCase = projectionMigration.split("WHEN 'rebuild-statistics-projections' THEN")[1]?.split("WHEN 'settle-match-mvp' THEN")[0];
+    expect(dispatchCase).toContain("RETURN true;");
+    expect(dispatchCase).not.toContain("projection_version =");
+  });
+
+  it("only dispatches MVP settlement for due matches with eligible votes", () => {
+    const mvpMigration = readFileSync(join(process.cwd(), "drizzle/migrations/0067_chief_midnight.sql"), "utf8");
+    expect(mvpMigration.match(/'settle-match-mvp'/g)).toHaveLength(3);
+    expect(mvpMigration).toContain("mvp_match.status = 'finished'");
+    expect(mvpMigration).toContain("mvp_match.completed_at <= clock_timestamp() - interval '24 hours'");
+    expect(mvpMigration).toContain("mvp_match.mvp_winner_user_id IS NULL");
+    expect(mvpMigration).toContain("vote.match_id = mvp_match.id AND vote.player_user_id IS NOT NULL");
+    expect(mvpMigration).toContain('REVOKE ALL PRIVILEGES ON FUNCTION "public"."scheduler_job_is_due"(text) FROM PUBLIC, anon, authenticated;');
+  });
+
   it("keeps health and dispatch server-only", () => {
     expect(migration).toContain('ALTER TABLE "scheduled_job_health" ENABLE ROW LEVEL SECURITY;');
     expect(migration).toContain('REVOKE ALL PRIVILEGES ON TABLE "scheduled_job_health" FROM anon, authenticated;');

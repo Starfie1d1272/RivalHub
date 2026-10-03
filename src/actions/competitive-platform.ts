@@ -4,7 +4,8 @@ import { writeAuditInTx } from "@/lib/audit/write";
 
 import { and, asc, desc, eq, gt, lt, or, sql } from "drizzle-orm";
 import { z } from "zod";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
+import { PUBLIC_COMPETITIVE_CATALOG_TAG } from "@/lib/cache/tags";
 import { db } from "@/db/client";
 import { competitivePlatformRanks, competitivePlatformSeasons, competitivePlatforms, competitiveRankFacts } from "@/db/schema";
 import { actionError } from "@/lib/action-utils";
@@ -27,6 +28,7 @@ const rankKeySchema = z.string().trim().min(1).max(64);
 const labelSchema = z.string().trim().min(1).max(128);
 
 function revalidateCatalog(): void {
+  updateTag(PUBLIC_COMPETITIVE_CATALOG_TAG);
   revalidatePath("/admin/competitive-seasons");
   revalidatePath("/settings");
   revalidatePath("/settings/competitive");

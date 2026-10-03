@@ -99,17 +99,13 @@ export async function getPublicCaptainVotingData(
       : await db
           .select({
             candidateRegistrationId: captainVotes.candidateRegistrationId,
+            voteCount: count(),
           })
           .from(captainVotes)
-          .where(inArray(captainVotes.candidateRegistrationId, registrationIds));
+          .where(inArray(captainVotes.candidateRegistrationId, registrationIds))
+          .groupBy(captainVotes.candidateRegistrationId);
 
-  const voteCounts = new Map<string, number>();
-  for (const vote of voteRows) {
-    voteCounts.set(
-      vote.candidateRegistrationId,
-      (voteCounts.get(vote.candidateRegistrationId) ?? 0) + 1,
-    );
-  }
+  const voteCounts = new Map(voteRows.map((vote) => [vote.candidateRegistrationId, vote.voteCount]));
 
   const voters: PublicCaptainVoter[] = registrations.map((r) => ({
     id: r.id,

@@ -6,12 +6,16 @@ test("移动端公开发现列表可操作共享筛选工具栏", async ({ page 
   await page.goto("/teams");
   await expect(page.getByRole("heading", { name: "队伍", exact: true })).toBeVisible();
   await expect(page.getByLabel("队伍状态")).toHaveValue("active");
+  await expect(page.getByLabel("搜索队伍")).toBeEditable();
   await page.goto("/teams?status=history");
   await expect(page.getByLabel("队伍状态")).toHaveValue("history");
-  await page.goBack({ waitUntil: "commit" });
+  // A visible server-rendered select does not prove that Next has hydrated its history owner.
+  await expect(page.getByLabel("搜索队伍")).toBeEditable();
+  await page.goBack();
   await expect(page).toHaveURL(/\/teams$/);
   await expect(page.getByLabel("队伍状态")).toHaveValue("active");
-  await page.goForward({ waitUntil: "commit" });
+  await expect(page.getByLabel("搜索队伍")).toBeEditable();
+  await page.goForward();
   await expect(page).toHaveURL(/\/teams\?status=history$/);
   await expect(page.getByLabel("队伍状态")).toHaveValue("history");
   await page.goto("/teams");

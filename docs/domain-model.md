@@ -117,7 +117,14 @@ RivalHub ↔ Mizar 是单向机器接口，不是数据共享。赛事管理员�
 
 本场默认首发只来自当前合法 EventRoster 明确标记的五名主力；队伍提交的合法首发覆盖默认值。`participant`、`admin_select` 与 `system_default` 均先作为 `submitted` 的有效名单保留各自来源；开赛 transition 在同一事务内重新校验当前 EventRoster、人数、资格和限制，并将有效名单确认为不可再修改的历史 MatchRoster，不依赖管理员另行确认。临近开赛的管理员调整必须记录真实操作人与事故事实。`matches` 的 `startedAt` 记录实际进入 `in_progress` 的时间，不从排期或 BP 完成时间推断。
 
-Demo Evidence 的不可变 payload 与 `match_demo_imports` workflow projection 由 Demo integration owner 管理。正常提交和存量 `/3` recheck 共享同一套 server-owned target、Steam identity、正式比分、QA、回合、summary、effective MatchRoster 和 evidence revision 校验；一张地图具备正式比分与完成时间后即可接收该图 Demo，整场系列赛仍可进行；已完成地图的 evidence revision 不因系列赛进入完成、弃权或取消状态而失效。participant payload 中的客户端 identity resolution 不是事实来源。通过校验的 source round facts 与 `match_player_stats` projection 由同一晋级 owner 物化，并按 Demo lineage 保留 supersede/content conflict；管理员确认只补足 gameplay identity 后触发同一存量 recheck，不另起一套验证或直接改写 payload。
+Demo Evidence 的不可变 payload 与 `match_demo_imports` workflow projection 由 Demo integration owner 管理。正常提交和存量 `/3` recheck 共享同一套 server-owned target、Steam identity、正式比分、QA、回合、summary、effective MatchRoster 和 evidence revision 校验；一张地图具备正式比分与完成时间后即可接收该图 Demo，整场系列赛仍可进行；已完成地图的 evidence revision 不因系列赛进入完成、弃权或取消状态而失效。participant payload 中的客户端 identity resolution 不是事实来源。通过校验的 source round facts、`match_player_stats` 与版本化 `match_demo_stat_projections` 由同一晋级 owner 在确认事务内物化，并按 Demo lineage 保留 supersede/content conflict；管理员确认只补足 gameplay identity 后触发同一存量 recheck，不另起一套验证或直接改写 payload。身份关联与已确认 Demo 的归属构成同一并发边界：所有确认/补建和 primary/alias/账号归并写入先取得 identity transaction gate，再持有各自业务行锁；撤销不能遗漏正在提交的确认结果。
+
+DAK events 目录的 series disposition 直接投影 `matches.isForfeit`，不从比分或地图数量猜测。
+`rivalhub-dak-events/1` 的已发布客户端使用 strict schema，因此只有
+`GET /api/integrations/dak/events?seriesDisposition=1` 才返回 optional boolean `isForfeit`；
+默认响应保持旧字段集，继续经设备 scope 鉴权并使用 `Cache-Control: no-store`。
+新版 DAK 接受旧服务端缺字段的响应并保留“未知”，两仓无需绑定部署顺序。
+完成的弃权场次可以没有 BP、地图或 Demo，但已实际打出的地图与 evidence 不因弃权被移除。
 
 `match_player_stats` 是字段级混合的赛后投影。地图正式结束后，管理员可用 OCR 或手填确认 Rating、RWS、WE 与可用的基础记分板字段；身份关联在服务端按本场有效 MatchRoster 校验，存量无本场阵容的比赛才回退当前 EventRoster。管理员清除计分板输入时删除仅由 OCR 持有的行，并只清空 DAK 行的 Rating、RWS、WE，保留 DAK gameplay、import 关联和确认事实。DAK 确认后接管 K/D/A、ADR、HS、FK、MK、残局等 gameplay facts 并提供高级统计；DAK 晋级不得清除已有 Rating、RWS、WE。LIVE 遥测只服务当前地图的临时画面，不作为赛后比分或选手统计。公开整场汇总只累计已有正式结果且具有确认数据的地图；进行中的系列赛也可展示已完成地图的累计值。
 
@@ -164,7 +171,7 @@ Major Swiss 的 public/admin read model 只从 `major_stage_entrants`、`matches
 
 处罚不会自动改写比分、placement 或 honor；冠军/荣誉撤销也不会隐式递补另一名获奖者。任何连锁影响必须由显式 adjudication 产生可审计事实。
 
-`audit_logs` 记录“谁改变了什么业务事实”，不是领域状态本身，也不是 runtime observability。
+`audit_logs` 记录“谁改变了什么业务事实”，不是领域状态本身，也不是 runtime observability。历史 action 与当前 action 共用 presentation registry，已退休 action 仅供读取，不重新开放为 producer write type；读取不改写历史 fact 或 target。用户名称是 canonical profile 的实时展示，DAK Studio、发布流程与系统 actor 保留机器身份语义。高影响 meta 只通过 action allowlist 提取用户引用，在已授权的服务端批量解析为人名；未知/已删除对象使用自然语言 fallback，原始 ID、凭证、证据、内部原因和 raw JSON 不进入默认列表。
 
 ## Spectator prediction facts
 
@@ -209,4 +216,10 @@ Challenge coins are derived spectator achievements, separate from player `tourna
 
 ## Tournament statistics
 
-`src/lib/stats/` owns the server-only shared stats read model. It selects the current confirmed Demo lineage, checks the effective MatchRoster/result revision, and binds observed Steam identities through the gameplay identity owner. The published `@cs2dak/tournament` package aggregates frozen sufficient facts; RivalHub supplies canonical user/CompetitionEntry keys and public labels. Retired, superseded and stale evidence never contributes to detailed analytics. Player career starts from canonical `users.id`, follows effective starter MatchRoster rows to finished public matches, and selects only that player's MatchMaps before loading Evidence. Its #381 scoreboard metrics and DAK advanced metrics use the same selected current-confirmed imports; All-time is the default corpus and Event, Stage, Format, Map, and internal Team/CompetitionEntry projections are optional scopes. Existing verified scoreboard metrics retain their SQL semantics; Team Rating is the sample-weighted aggregation of the same valid player-map Rating observations, not a second rating formula. Canonical veto steps supply selection counts independently of Demo coverage; veto samples distinguish recorded, missing, and not-applicable finished matches, while the participant universe remains all finished-match participants in scope. Rates retain additive numerators and denominators, with zero opportunities represented as null. Registration position is not a tournament role fact.
+`src/lib/stats/` owns the server-only shared statistics read model. Confirmation materializes versioned per-map DAK sufficient statistics alongside the existing source-round and player-scoreboard projections. The immutable Evidence artifact remains the audit/recheck/rebuild source and is never loaded by public statistics, player careers, or Team profiles. Current selection first chooses the latest non-superseded import in the active semantic profile, then requires confirmation, the effective MatchRoster/result revision, matching projection provenance and current gameplay identity bindings. Missing or invalid projections reduce detailed coverage without a raw-payload fallback. Identity retirement and account merge mark dependent confirmed imports for review across all affected events before cached attribution can be reused.
+
+The `@cs2dak/tournament` reducer owns collection, merge and finalization; its dependency patch and upstream removal condition are recorded in `patches/README.md`. RivalHub supplies canonical user/CompetitionEntry keys and labels. Additive counters, denominators, side slices, weapon/player attribution and map/match identity preserve the existing metrics. Scoreboard SQL retains per-map Rating/RWS/WE averages, round-weighted ADR and kill-weighted HS; Team Rating weights valid player-map Rating samples. Zero opportunities remain null. The attribute benchmark retains one player-event observation per eligible event, compiles shared distributions/ranking scores once, and never silently changes to a deduplicated career population.
+
+Player careers start from canonical users and effective starter appearances in finished public matches. Long Team careers follow historical linked CompetitionEntries, not the current roster's lifetime statistics; opponent identities remain isolated when players transfer. All-time is the default corpus, with Event, Stage, Format, Map and Team scopes. Team record/history/map previews reuse the same official match/map facts and count only completed maps. Current members contribute separate scouting context. Veto steps independently supply selection counts and distinguish recorded, missing and not-applicable samples. Registration position is not a tournament role fact. Cache boundaries, public/draft isolation and invalidation are defined in [architecture](architecture.md); rebuild and egress acceptance are defined in [statistics operations](operations/statistics-projections.md).
+
+统计表格与 Overview situation highlights 共享 `src/lib/stats/ranking.ts` 的样本资格投影；门槛按当前可比较指标的样本分布计算，空指标不参与基线。表格保留 limited-sample 行，Overview 只从 qualified population 选最佳，不另设固定样本门槛。

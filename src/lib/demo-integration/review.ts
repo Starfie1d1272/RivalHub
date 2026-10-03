@@ -14,6 +14,7 @@ import {
   recordGameplaySteamIdentityInTx,
   retireGameplaySteamIdentityInTx as retireCanonicalGameplaySteamIdentityInTx,
 } from "@/lib/identity/gameplay-steam";
+import { lockGameplayIdentityWriteInTx } from "@/lib/identity/write-lock";
 import { getDisplayName } from "@/lib/identity/display-name";
 import { parseRivalHubDemoEvidenceV1 } from "@/lib/demo-evidence/contract";
 import { lockDemoImportLineageInTx } from "./promotion";
@@ -198,6 +199,7 @@ export async function retireSeasonGameplaySteamIdentityInTx(
   tx: TxDb,
   input: RetireSeasonGameplaySteamIdentityInput,
 ): Promise<{ retired: boolean }> {
+  await lockGameplayIdentityWriteInTx(tx);
   const reason = input.reason.trim();
   if (reason.length < 2 || reason.length > 500) {
     throw new AppError(ErrorCode.VALIDATION_FAILED, "撤销比赛 Steam 身份必须填写原因。");

@@ -68,7 +68,9 @@ const predictionMigration = readFileSync(join(root, "drizzle/migrations/0062_pre
 const matchRuntimeEnumMigration = readFileSync(join(root, "drizzle/migrations/0064_match_roster_system_default.sql"), "utf8");
 const matchRuntimeMigration = readFileSync(join(root, "drizzle/migrations/0065_match_runtime_foundation.sql"), "utf8");
 const mizarMigration = readFileSync(join(root, "drizzle/migrations/0066_mizar_backend_contracts.sql"), "utf8");
-const migration = `${predictionMigration}\n${terminalMigration}\n${restrictionOverrideMigration}\n${conversionPolicyMigration}\n${seedRecommendationSnapshotMigration}\n${identityMigration}\n${schedulerMigration}\n${stageConvergenceMigration}\n${contractCleanupMigration}\n${operationsMigration}\n${demoIntegrationMigration}\n${steamIdentityMigration}\n${qualificationMigration}\n${vetoRoomMigration}\n${matchRuntimeEnumMigration}\n${matchRuntimeMigration}\n${mizarMigration}`;
+const statsProjectionMigration = readFileSync(join(root, "drizzle/migrations/0067_chief_midnight.sql"), "utf8");
+const repairCursorMigration = readFileSync(join(process.cwd(), "drizzle/migrations/0068_faulty_hellion.sql"), "utf8");
+const migration = `${repairCursorMigration}\n${statsProjectionMigration}\n${predictionMigration}\n${terminalMigration}\n${restrictionOverrideMigration}\n${conversionPolicyMigration}\n${seedRecommendationSnapshotMigration}\n${identityMigration}\n${schedulerMigration}\n${stageConvergenceMigration}\n${contractCleanupMigration}\n${operationsMigration}\n${demoIntegrationMigration}\n${steamIdentityMigration}\n${qualificationMigration}\n${vetoRoomMigration}\n${matchRuntimeEnumMigration}\n${matchRuntimeMigration}\n${mizarMigration}`;
 const droppedTables = [...contractCleanupMigration.matchAll(/DROP TABLE "([^"]+)"/g)].map((match) => match[1]);
 
 function expectedFacts(): DatabaseAccessFacts[] {
@@ -85,13 +87,13 @@ function expectedFacts(): DatabaseAccessFacts[] {
 describe("database access matrix", () => {
   it("classifies every current public application table and keeps the generated document aligned", () => {
     const snapshot = JSON.parse(
-      readFileSync(join(root, "drizzle/migrations/meta/0066_snapshot.json"), "utf8"),
+      readFileSync(join(root, "drizzle/migrations/meta/0068_snapshot.json"), "utf8"),
     ) as { tables: Record<string, unknown> };
     const snapshotTables = Object.keys(snapshot.tables)
       .map((table) => table.replace(/^public\./, ""))
       .sort();
 
-    expect(DATABASE_ACCESS_MATRIX).toHaveLength(108);
+    expect(DATABASE_ACCESS_MATRIX).toHaveLength(110);
     expect(new Set(DATABASE_ACCESS_TABLES).size).toBe(DATABASE_ACCESS_TABLES.length);
     expect(snapshotTables).toEqual([...DATABASE_ACCESS_TABLES].sort());
     expect(renderDatabaseAccessMatrixMarkdown()).toBe(
@@ -132,6 +134,8 @@ describe("database access matrix", () => {
             "scheduled_job_health",
             "competition_stage_bracket_states",
             "steam_profiles",
+            "match_demo_stat_projections",
+            "statistics_projection_repair_cursors",
             "user_gameplay_steam_ids",
           ].includes(table),
         )

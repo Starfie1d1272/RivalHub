@@ -193,7 +193,12 @@ export async function loadAdminMatchWorkbench({
   ]);
 
   const demoImportRows = mapRecords.length > 0
-    ? await db.select().from(matchDemoImports)
+    ? await db.select({
+      id: matchDemoImports.id,
+      matchMapId: matchDemoImports.matchMapId,
+      semanticProfile: matchDemoImports.semanticProfile,
+      status: matchDemoImports.status,
+    }).from(matchDemoImports)
       .where(inArray(matchDemoImports.matchMapId, mapRecords.map((map) => map.id)))
       .orderBy(desc(matchDemoImports.createdAt))
     : [];
@@ -235,12 +240,17 @@ export async function loadAdminMatchWorkbench({
 
   const stagePlan = normalizeStagePlan(season.stagePlan);
   const entryName = new Map(entries.map((entry) => [entry.id, entry.name]));
-  const currentImportByMap = new Map<string, typeof matchDemoImports.$inferSelect>();
+  const reviewImportIds: string[] = [];
   for (const map of mapRecords) {
     const rows = demoImportRows.filter((row) => row.matchMapId === map.id);
     const current = selectCurrentDemoImport(rows);
-    if (current?.status === "needs_attention") currentImportByMap.set(map.id, current);
+    if (current?.status === "needs_attention") reviewImportIds.push(current.id);
   }
+  // Only the selected current review artifacts need their original Evidence.
+  const reviewImports = reviewImportIds.length
+    ? await db.select().from(matchDemoImports).where(inArray(matchDemoImports.id, reviewImportIds))
+    : [];
+  const currentImportByMap = new Map(reviewImports.map((row) => [row.matchMapId, row]));
   const demoReviews: AdminDemoReviewMap[] = [];
   for (const map of mapRecords) {
     const row = currentImportByMap.get(map.id);
