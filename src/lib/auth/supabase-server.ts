@@ -6,7 +6,7 @@ import { providerFetch } from "@/lib/observability/fetch";
 import { assertPreviewAuthEnvironment } from "@/lib/runtime/preview";
 
 /** Privileged Supabase client. This module is server-only because its key bypasses RLS. */
-export function createServiceClient() {
+export function createServiceClient(options: { fetch?: typeof fetch } = {}) {
   assertPreviewAuthEnvironment();
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -16,7 +16,7 @@ export function createServiceClient() {
         autoRefreshToken: false,
         persistSession: false,
       },
-      global: { fetch: providerFetch("supabase") },
+      global: { fetch: options.fetch ?? providerFetch("supabase") },
     },
   );
 }

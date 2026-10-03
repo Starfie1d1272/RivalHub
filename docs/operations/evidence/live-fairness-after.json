@@ -1,0 +1,1184 @@
+{
+  "sha": "b475a03044a77df1b90a7776b1393af35d257cb1",
+  "baseline": false,
+  "node": "v24.20.0",
+  "platform": "linux",
+  "arch": "x64",
+  "cpus": 5,
+  "hostMemoryBytes": 18882699264,
+  "poolMax": 3,
+  "sourceSha256": {
+    "src/lib/mizar/live.ts": "5f22649533590d055a179b440679ecf55c7fcc8fdbef4a7ca994ebd3ef0dc310",
+    "src/lib/mizar/installation.ts": "ef1aa382a11b98f0db1bac0cb312bd72c4ad2be5bd20a4cd6895016fcad9c322",
+    "src/lib/mizar/http.ts": "8ba2b3ed3d2e8b6717b288b3d30352b46aad07032f65d48fe7a6695188da142d",
+    "src/lib/mizar/live-admission.ts": "10aa506744ac2ad7741cf9ba85a01d0b531d9c1cb23eb6f9bd9f9c1cf16b0c48",
+    "src/lib/mizar/live-broadcast.ts": "158a886499c38b1ccd04386903544624ab55dbc1fa8cc2426d666e434386c9c6",
+    "src/lib/auth/supabase-server.ts": "3a7a59a195f1938324428595587b26c28a726106547d809feb8dc63863d2f974",
+    "src/app/api/mizar/[operation]/route.ts": "e4a50d2830fab8e0adf32d5736a7ae2c3e2cd4142dda27bdd9fff5ea1ecd277c",
+    "tests/integration/db/mizar-live-capacity.test.ts": "abd36e9a0cbec2d59eecc4090fad72d013b60c680f421443fa8c34a487126aef",
+    "tests/integration/db/harness/mizar.ts": "7a42c7efe70aa885f7c1ddb9008193e4b27800fb1e2f30d8de06459cf1a12afc"
+  },
+  "reports": [
+    {
+      "scenario": "fast",
+      "perMatch": [
+        {
+          "providerAttempts": 10,
+          "maxAdmissionGapMs": 1004.5304269999997,
+          "matchId": "266324a9-9eca-4945-875b-e904bf53b2d2",
+          "source": "25f2e393-d3ad-403f-b13c-0bcea0040360",
+          "accepted": 10,
+          "maxStarvationMs": 1005.400079,
+          "recovered": true
+        },
+        {
+          "providerAttempts": 10,
+          "maxAdmissionGapMs": 1001.8492899999997,
+          "matchId": "da540d06-ef2e-4c13-9f99-f47753565e11",
+          "source": "caf38140-b73b-44fe-9928-5a624beafe98",
+          "accepted": 10,
+          "maxStarvationMs": 1002.942669,
+          "recovered": true
+        },
+        {
+          "providerAttempts": 10,
+          "maxAdmissionGapMs": 1019.5376879999997,
+          "matchId": "19d9ddb5-224a-4ce0-89d4-afcd3b34e2d9",
+          "source": "95e5ac15-6290-499a-9125-a3edf26eacc9",
+          "accepted": 10,
+          "maxStarvationMs": 1017.5328589999997,
+          "recovered": true
+        },
+        {
+          "providerAttempts": 10,
+          "maxAdmissionGapMs": 1018.7652730000007,
+          "matchId": "ba0c7fe5-59a2-4bc2-a4d5-2ee033be96a0",
+          "source": "c45b7bcc-cb6c-4772-a4cf-487fc9b8e3be",
+          "accepted": 10,
+          "maxStarvationMs": 1017.9779500000006,
+          "recovered": true
+        }
+      ],
+      "matches": 4,
+      "inputs": 80,
+      "accepted": 40,
+      "dropped": 0,
+      "rejected": 40,
+      "failed": 0,
+      "httpRequests": 40,
+      "bytes": 404462,
+      "maxHttp": 2,
+      "maxPoolQueue": 0,
+      "maxRelationShareLocks": 28,
+      "maxWaitingLocks": 0,
+      "transactionMs": {
+        "n": 40,
+        "p50": 12.673161000000619,
+        "p95": 32.68905299999983,
+        "max": 33.743402999999944
+      },
+      "requestMs": {
+        "n": 80,
+        "p50": 13.657330000000002,
+        "p95": 34.91122500000074,
+        "max": 62.92208400000004
+      },
+      "poolWaitMs": {
+        "n": 80,
+        "p50": 0.06489800000008472,
+        "p95": 1.096943999999894,
+        "max": 3.1407060000001366
+      },
+      "sampledTransactionAgeMs": {
+        "n": 438,
+        "p50": 0,
+        "p95": 0,
+        "max": 26.054
+      },
+      "sampledLockHoldingAgeMs": {
+        "n": 13,
+        "p50": 6.664,
+        "p95": 26.054,
+        "max": 26.054
+      }
+    },
+    {
+      "scenario": "slow",
+      "perMatch": [
+        {
+          "providerAttempts": 5,
+          "maxAdmissionGapMs": 2009.4535700000015,
+          "matchId": "2d402d8b-164c-4803-a557-74daf7d6875f",
+          "source": "3caaad34-5d49-40c2-aa84-a9182c8236e4",
+          "accepted": 5,
+          "maxStarvationMs": 2226.2513900000013,
+          "recovered": true
+        },
+        {
+          "providerAttempts": 5,
+          "maxAdmissionGapMs": 2006.6280590000024,
+          "matchId": "ac4c37bb-e94c-4616-88a1-42f7d37e9705",
+          "source": "09457f10-3e58-43d6-b6e9-f0b99b84d23c",
+          "accepted": 5,
+          "maxStarvationMs": 2226.156747000001,
+          "recovered": true
+        },
+        {
+          "providerAttempts": 4,
+          "maxAdmissionGapMs": 2526.1645130000015,
+          "matchId": "66b7e176-3de9-4bf6-86af-d019b44fb515",
+          "source": "30745702-d73b-4135-aee5-f021527fb4af",
+          "accepted": 4,
+          "maxStarvationMs": 3226.340591,
+          "recovered": true
+        },
+        {
+          "providerAttempts": 4,
+          "maxAdmissionGapMs": 2523.920089000001,
+          "matchId": "c09152fc-6799-40af-ab0c-f21fa948955b",
+          "source": "53615a30-a83f-4e52-90d9-078b395457c4",
+          "accepted": 4,
+          "maxStarvationMs": 3225.425701,
+          "recovered": true
+        }
+      ],
+      "matches": 4,
+      "inputs": 80,
+      "accepted": 18,
+      "dropped": 0,
+      "rejected": 62,
+      "failed": 0,
+      "httpRequests": 18,
+      "bytes": 182010,
+      "maxHttp": 2,
+      "maxPoolQueue": 0,
+      "maxRelationShareLocks": 28,
+      "maxWaitingLocks": 0,
+      "transactionMs": {
+        "n": 18,
+        "p50": 707.5712240000012,
+        "p95": 708.2414230000013,
+        "max": 708.2414230000013
+      },
+      "requestMs": {
+        "n": 80,
+        "p50": 1.4307880000014848,
+        "p95": 713.4197720000011,
+        "max": 716.5334230000008
+      },
+      "poolWaitMs": {
+        "n": 36,
+        "p50": 0.07034600000042701,
+        "p95": 0.7175219999990077,
+        "max": 0.7555800000009185
+      },
+      "sampledTransactionAgeMs": {
+        "n": 475,
+        "p50": 136.375,
+        "p95": 650.454,
+        "max": 701.765
+      },
+      "sampledLockHoldingAgeMs": {
+        "n": 295,
+        "p50": 351.283,
+        "p95": 671.931,
+        "max": 701.765
+      }
+    },
+    {
+      "scenario": "timeout",
+      "perMatch": [
+        {
+          "providerAttempts": 2,
+          "maxAdmissionGapMs": 5010.210499000001,
+          "matchId": "6748416d-d13d-4049-b87d-9da1862aebf9",
+          "source": "9bad125c-a525-4fc2-88f1-696bacf1fd05",
+          "accepted": 0,
+          "maxStarvationMs": 11024.189202000001,
+          "recovered": true
+        },
+        {
+          "providerAttempts": 2,
+          "maxAdmissionGapMs": 5008.209643000002,
+          "matchId": "3d08cf76-b5f7-4957-b22f-9c50f7251e3f",
+          "source": "d34f72dc-1992-49d6-9f85-b100d6d5a9a6",
+          "accepted": 0,
+          "maxStarvationMs": 11024.189202000001,
+          "recovered": true
+        },
+        {
+          "providerAttempts": 2,
+          "maxAdmissionGapMs": 5007.641208000001,
+          "matchId": "8340f7b0-50dc-432a-bb4d-31746019ae8d",
+          "source": "ac4fffa7-ad38-4106-a93d-a12d4e56bc9d",
+          "accepted": 0,
+          "maxStarvationMs": 11024.189202000001,
+          "recovered": true
+        },
+        {
+          "providerAttempts": 2,
+          "maxAdmissionGapMs": 5007.6632119999995,
+          "matchId": "028590c6-4eb7-49fe-92dd-f1d42b2a1d96",
+          "source": "e92e4729-9d7f-4acc-8d2b-900d529063c5",
+          "accepted": 0,
+          "maxStarvationMs": 11024.189202000001,
+          "recovered": true
+        }
+      ],
+      "matches": 4,
+      "inputs": 80,
+      "accepted": 0,
+      "dropped": 8,
+      "rejected": 72,
+      "failed": 0,
+      "httpRequests": 8,
+      "bytes": 80892,
+      "maxHttp": 2,
+      "maxPoolQueue": 0,
+      "maxRelationShareLocks": 28,
+      "maxWaitingLocks": 0,
+      "transactionMs": {
+        "n": 8,
+        "p50": 2007.1888269999981,
+        "p95": 2011.2031129999996,
+        "max": 2011.2031129999996
+      },
+      "requestMs": {
+        "n": 80,
+        "p50": 1.136884999999893,
+        "p95": 2010.712185999997,
+        "max": 2014.7907030000024
+      },
+      "poolWaitMs": {
+        "n": 16,
+        "p50": 0.06921499999953085,
+        "p95": 0.9573139999993145,
+        "max": 0.9573139999993145
+      },
+      "sampledTransactionAgeMs": {
+        "n": 515,
+        "p50": 626.62,
+        "p95": 1864.353,
+        "max": 2010.763
+      },
+      "sampledLockHoldingAgeMs": {
+        "n": 374,
+        "p50": 1008.048,
+        "p95": 1904.362,
+        "max": 2010.763
+      }
+    },
+    {
+      "scenario": "disconnect",
+      "perMatch": [
+        {
+          "providerAttempts": 9,
+          "maxAdmissionGapMs": 1511.9395119999972,
+          "matchId": "0f9610ae-9ebe-4293-8789-a3059a48970e",
+          "source": "5fe883b8-fe2b-433d-bda9-5f20ec824546",
+          "accepted": 0,
+          "maxStarvationMs": 9528.164022999998,
+          "recovered": true
+        },
+        {
+          "providerAttempts": 9,
+          "maxAdmissionGapMs": 1510.5250889999952,
+          "matchId": "89a1ddc2-acfd-47ae-a68b-b7676b227c1f",
+          "source": "174ca5c5-55aa-412d-8df9-2990f40655c2",
+          "accepted": 0,
+          "maxStarvationMs": 9528.164022999998,
+          "recovered": true
+        },
+        {
+          "providerAttempts": 8,
+          "maxAdmissionGapMs": 2012.557302000001,
+          "matchId": "17349f4f-4d6b-4672-a9e3-93d3e6ad900a",
+          "source": "2eb11cab-b9b4-4ab3-a5c6-45bdea8f796d",
+          "accepted": 0,
+          "maxStarvationMs": 9528.164022999998,
+          "recovered": true
+        },
+        {
+          "providerAttempts": 8,
+          "maxAdmissionGapMs": 2013.0150319999957,
+          "matchId": "09591091-0f35-4579-a099-8c91cacc2ce3",
+          "source": "787b299f-3218-45bb-9f1e-b96865541959",
+          "accepted": 0,
+          "maxStarvationMs": 9528.164022999998,
+          "recovered": true
+        }
+      ],
+      "matches": 4,
+      "inputs": 80,
+      "accepted": 0,
+      "dropped": 34,
+      "rejected": 46,
+      "failed": 0,
+      "httpRequests": 34,
+      "bytes": 343796,
+      "maxHttp": 1,
+      "maxPoolQueue": 0,
+      "maxRelationShareLocks": 28,
+      "maxWaitingLocks": 0,
+      "transactionMs": {
+        "n": 34,
+        "p50": 7.498016999998072,
+        "p95": 10.583368999999948,
+        "max": 10.590259999997215
+      },
+      "requestMs": {
+        "n": 80,
+        "p50": 1.590808000000834,
+        "p95": 14.267454000000726,
+        "max": 17.995817000002717
+      },
+      "poolWaitMs": {
+        "n": 68,
+        "p50": 0.06224400000064634,
+        "p95": 0.6395940000002156,
+        "max": 0.836170000002312
+      },
+      "sampledTransactionAgeMs": {
+        "n": 445,
+        "p50": 0,
+        "p95": 0,
+        "max": 5.342
+      },
+      "sampledLockHoldingAgeMs": {
+        "n": 4,
+        "p50": 5.018,
+        "p95": 5.342,
+        "max": 5.342
+      }
+    },
+    {
+      "scenario": "429",
+      "perMatch": [
+        {
+          "providerAttempts": 9,
+          "maxAdmissionGapMs": 1511.4635819999967,
+          "matchId": "e00f94bb-a411-4ccc-9df7-df9ec8f88d3e",
+          "source": "5fd23e7a-34a4-453e-aaaf-a15a1d60f7fb",
+          "accepted": 0,
+          "maxStarvationMs": 9527.519103999999,
+          "recovered": true
+        },
+        {
+          "providerAttempts": 9,
+          "maxAdmissionGapMs": 1511.2036000000007,
+          "matchId": "18d0bb7c-20d1-41a4-81fa-92764ac83c1d",
+          "source": "d91e53c3-c240-468c-b996-ecd1e2ecba7a",
+          "accepted": 0,
+          "maxStarvationMs": 9527.519103999999,
+          "recovered": true
+        },
+        {
+          "providerAttempts": 8,
+          "maxAdmissionGapMs": 2011.4857120000015,
+          "matchId": "976a851f-ced7-4fe4-a9fa-69beaf76102a",
+          "source": "06e1351a-72bc-4479-988c-c7c179b88707",
+          "accepted": 0,
+          "maxStarvationMs": 9527.519103999999,
+          "recovered": true
+        },
+        {
+          "providerAttempts": 8,
+          "maxAdmissionGapMs": 2011.6849319999965,
+          "matchId": "76b742b8-643a-42c2-8ab3-62d2311549cc",
+          "source": "05cbd202-33fb-4701-afa6-aeb5d2baded7",
+          "accepted": 0,
+          "maxStarvationMs": 9527.519103999999,
+          "recovered": true
+        }
+      ],
+      "matches": 4,
+      "inputs": 80,
+      "accepted": 0,
+      "dropped": 34,
+      "rejected": 46,
+      "failed": 0,
+      "httpRequests": 34,
+      "bytes": 343796,
+      "maxHttp": 2,
+      "maxPoolQueue": 0,
+      "maxRelationShareLocks": 28,
+      "maxWaitingLocks": 0,
+      "transactionMs": {
+        "n": 34,
+        "p50": 12.39890700000251,
+        "p95": 113.53247099999862,
+        "max": 148.96020399999543
+      },
+      "requestMs": {
+        "n": 80,
+        "p50": 1.5610739999974612,
+        "p95": 84.075245,
+        "max": 154.04831700000068
+      },
+      "poolWaitMs": {
+        "n": 68,
+        "p50": 0.06354599999758648,
+        "p95": 0.756850999998278,
+        "max": 1.1610310000032769
+      },
+      "sampledTransactionAgeMs": {
+        "n": 443,
+        "p50": 0,
+        "p95": 0,
+        "max": 143.847
+      },
+      "sampledLockHoldingAgeMs": {
+        "n": 21,
+        "p50": 13.796,
+        "p95": 122.395,
+        "max": 143.847
+      }
+    },
+    {
+      "scenario": "stalled-body",
+      "perMatch": [
+        {
+          "providerAttempts": 9,
+          "maxAdmissionGapMs": 1513.9853220000005,
+          "matchId": "f8657523-dfec-4d5d-b569-d1e7f2650110",
+          "source": "e2e60830-6d17-44ec-8da6-dc2ac787185c",
+          "accepted": 0,
+          "maxStarvationMs": 9527.367163999996,
+          "recovered": true
+        },
+        {
+          "providerAttempts": 9,
+          "maxAdmissionGapMs": 1517.8981319999948,
+          "matchId": "fc923c68-ad26-486a-adfa-9f62d12ef35b",
+          "source": "d20515cb-21a3-48e4-b61b-77ab58ca4655",
+          "accepted": 0,
+          "maxStarvationMs": 9527.367163999996,
+          "recovered": true
+        },
+        {
+          "providerAttempts": 8,
+          "maxAdmissionGapMs": 2011.466198999995,
+          "matchId": "641a03fa-a8fe-45f1-9970-2be83744ba4f",
+          "source": "06d79661-ee14-4652-aa57-b45c486a75d1",
+          "accepted": 0,
+          "maxStarvationMs": 9527.367163999996,
+          "recovered": true
+        },
+        {
+          "providerAttempts": 8,
+          "maxAdmissionGapMs": 2011.712679999997,
+          "matchId": "3eabdb64-f5b0-42b6-986c-09eedcdd0f6d",
+          "source": "d0211302-fb81-4b12-a025-ca8c65108ac5",
+          "accepted": 0,
+          "maxStarvationMs": 9527.367163999996,
+          "recovered": true
+        }
+      ],
+      "matches": 4,
+      "inputs": 80,
+      "accepted": 0,
+      "dropped": 34,
+      "rejected": 46,
+      "failed": 0,
+      "httpRequests": 34,
+      "bytes": 343796,
+      "maxHttp": 2,
+      "maxPoolQueue": 0,
+      "maxRelationShareLocks": 28,
+      "maxWaitingLocks": 0,
+      "transactionMs": {
+        "n": 34,
+        "p50": 7.802055000000109,
+        "p95": 10.71987000000081,
+        "max": 12.823402000001806
+      },
+      "requestMs": {
+        "n": 80,
+        "p50": 1.619511999997485,
+        "p95": 15.900787999999011,
+        "max": 18.66385799999989
+      },
+      "poolWaitMs": {
+        "n": 68,
+        "p50": 0.05918999999994412,
+        "p95": 0.6203450000029989,
+        "max": 0.9815700000035577
+      },
+      "sampledTransactionAgeMs": {
+        "n": 440,
+        "p50": 0,
+        "p95": 0,
+        "max": 8.156
+      },
+      "sampledLockHoldingAgeMs": {
+        "n": 5,
+        "p50": 4.247,
+        "p95": 7.268,
+        "max": 7.268
+      }
+    },
+    {
+      "scenario": "invalid-body",
+      "perMatch": [
+        {
+          "providerAttempts": 9,
+          "maxAdmissionGapMs": 1511.5152400000006,
+          "matchId": "dbafbb2d-33d9-4c54-b95f-6be2ab982361",
+          "source": "a3ade691-7840-467b-aad3-afe817fbdc73",
+          "accepted": 0,
+          "maxStarvationMs": 9532.79288,
+          "recovered": true
+        },
+        {
+          "providerAttempts": 9,
+          "maxAdmissionGapMs": 1511.658875999994,
+          "matchId": "39dbe71f-6336-45cf-9d4a-cf6c4baae795",
+          "source": "083ee371-ba3b-4f28-84e1-aa899d05e53c",
+          "accepted": 0,
+          "maxStarvationMs": 9532.79288,
+          "recovered": true
+        },
+        {
+          "providerAttempts": 8,
+          "maxAdmissionGapMs": 2010.7403229999982,
+          "matchId": "ecfba5fc-e598-4919-b29a-64300e6dbba0",
+          "source": "5aff9620-7105-4eb3-b0d1-6b834dd9ad37",
+          "accepted": 0,
+          "maxStarvationMs": 9532.79288,
+          "recovered": true
+        },
+        {
+          "providerAttempts": 8,
+          "maxAdmissionGapMs": 2012.1998839999942,
+          "matchId": "451a781b-9c87-491b-b9ac-8c645d342b10",
+          "source": "267b2dc3-fbde-43bc-9195-499a512add6b",
+          "accepted": 0,
+          "maxStarvationMs": 9532.79288,
+          "recovered": true
+        }
+      ],
+      "matches": 4,
+      "inputs": 80,
+      "accepted": 0,
+      "dropped": 34,
+      "rejected": 46,
+      "failed": 0,
+      "httpRequests": 34,
+      "bytes": 343796,
+      "maxHttp": 2,
+      "maxPoolQueue": 0,
+      "maxRelationShareLocks": 28,
+      "maxWaitingLocks": 0,
+      "transactionMs": {
+        "n": 34,
+        "p50": 12.826202000011108,
+        "p95": 18.200030000007246,
+        "max": 21.482875000001513
+      },
+      "requestMs": {
+        "n": 80,
+        "p50": 1.4251799999910872,
+        "p95": 23.601600000009057,
+        "max": 25.714225000003353
+      },
+      "poolWaitMs": {
+        "n": 68,
+        "p50": 0.06363600000622682,
+        "p95": 0.5951469999999972,
+        "max": 0.6760389999981271
+      },
+      "sampledTransactionAgeMs": {
+        "n": 438,
+        "p50": 0,
+        "p95": 0,
+        "max": 13.289
+      },
+      "sampledLockHoldingAgeMs": {
+        "n": 13,
+        "p50": 4.611,
+        "p95": 12.809,
+        "max": 12.809
+      }
+    },
+    {
+      "scenario": "burst",
+      "perMatch": [
+        {
+          "providerAttempts": 0,
+          "maxAdmissionGapMs": 22.41566199999943,
+          "matchId": "feb762dd-35ed-4bf5-8deb-73b4ed03a27e",
+          "source": "6ccab8ae-73cf-41c8-aef6-c44cb900a9c0",
+          "accepted": 0,
+          "maxStarvationMs": 22.41566199999943,
+          "recovered": true
+        },
+        {
+          "providerAttempts": 0,
+          "maxAdmissionGapMs": 22.41566199999943,
+          "matchId": "9ee9a90b-1633-466f-b050-20c6bf2d583e",
+          "source": "d03dfe0c-3f8c-4c4c-aa58-60d144e04f95",
+          "accepted": 0,
+          "maxStarvationMs": 22.41566199999943,
+          "recovered": true
+        },
+        {
+          "providerAttempts": 0,
+          "maxAdmissionGapMs": 22.41566199999943,
+          "matchId": "f9d40c32-67fe-4d90-bdff-45e4903ed379",
+          "source": "bc73a90a-e513-4b64-ad62-4cc57d959479",
+          "accepted": 0,
+          "maxStarvationMs": 22.41566199999943,
+          "recovered": true
+        },
+        {
+          "providerAttempts": 0,
+          "maxAdmissionGapMs": 22.41566199999943,
+          "matchId": "a1c50d5f-9b5c-4a93-abb0-72c86ba0e95f",
+          "source": "e2ac2a4b-a3c2-4165-b68e-2750cceaa2e1",
+          "accepted": 0,
+          "maxStarvationMs": 22.41566199999943,
+          "recovered": true
+        }
+      ],
+      "matches": 4,
+      "inputs": 96,
+      "accepted": 0,
+      "dropped": 0,
+      "rejected": 96,
+      "failed": 0,
+      "httpRequests": 0,
+      "bytes": 0,
+      "maxHttp": 0,
+      "maxPoolQueue": 0,
+      "maxRelationShareLocks": 0,
+      "maxWaitingLocks": 0,
+      "transactionMs": {
+        "n": 0,
+        "p50": 0,
+        "p95": 0,
+        "max": 0
+      },
+      "requestMs": {
+        "n": 96,
+        "p50": 10.812355000001844,
+        "p95": 14.638684000005014,
+        "max": 14.8146199999901
+      },
+      "poolWaitMs": {
+        "n": 0,
+        "p50": 0,
+        "p95": 0,
+        "max": 0
+      },
+      "sampledTransactionAgeMs": {
+        "n": 0,
+        "p50": 0,
+        "p95": 0,
+        "max": 0
+      },
+      "sampledLockHoldingAgeMs": {
+        "n": 0,
+        "p50": 0,
+        "p95": 0,
+        "max": 0
+      }
+    },
+    {
+      "scenario": "sixteen-fast",
+      "perMatch": [
+        {
+          "providerAttempts": 3,
+          "maxAdmissionGapMs": 4018.4909009999974,
+          "matchId": "aa65ad06-b094-4c73-a681-fa8f6d143a37",
+          "source": "45fdcfed-8aef-4822-9156-b76b505aa390",
+          "accepted": 3,
+          "maxStarvationMs": 4017.1748459999944,
+          "recovered": true
+        },
+        {
+          "providerAttempts": 3,
+          "maxAdmissionGapMs": 4018.4912710000062,
+          "matchId": "8f79b235-2804-4861-b520-00fbc3ebca12",
+          "source": "d08136db-be4a-4b56-b372-1e58bcb99759",
+          "accepted": 3,
+          "maxStarvationMs": 4017.8776750000106,
+          "recovered": true
+        },
+        {
+          "providerAttempts": 2,
+          "maxAdmissionGapMs": 4017.8690239999996,
+          "matchId": "f9bb94f8-c182-45fa-afbd-02ae9f473f22",
+          "source": "65918c8d-9589-4bb6-9934-30382b5ba721",
+          "accepted": 2,
+          "maxStarvationMs": 4016.569284000012,
+          "recovered": true
+        },
+        {
+          "providerAttempts": 2,
+          "maxAdmissionGapMs": 4020.689738000001,
+          "matchId": "3c499ddb-00c1-4df7-a8cd-7ad232d8166b",
+          "source": "90d9d81c-a2ff-4533-a3f7-72e387295021",
+          "accepted": 2,
+          "maxStarvationMs": 4020.977131000007,
+          "recovered": true
+        },
+        {
+          "providerAttempts": 2,
+          "maxAdmissionGapMs": 4015.2925499999983,
+          "matchId": "f142a3fe-476d-488a-9e79-544bcbd3bb67",
+          "source": "55b0b3a3-f8a1-44c7-9e1d-7fd9908b892a",
+          "accepted": 2,
+          "maxStarvationMs": 4016.037916999994,
+          "recovered": true
+        },
+        {
+          "providerAttempts": 2,
+          "maxAdmissionGapMs": 4017.050621000002,
+          "matchId": "12b8b191-43b4-4548-aef4-3843f4dde01f",
+          "source": "0cc212d5-a568-4ff6-84a2-b0d54811e15d",
+          "accepted": 2,
+          "maxStarvationMs": 4018.659520999994,
+          "recovered": true
+        },
+        {
+          "providerAttempts": 2,
+          "maxAdmissionGapMs": 4013.584784999999,
+          "matchId": "50b8747b-f954-47b5-b003-0ac7b8d987a6",
+          "source": "8d5de1df-0bb3-48cd-aeca-ec85bcd8d0f1",
+          "accepted": 2,
+          "maxStarvationMs": 4014.708222000001,
+          "recovered": true
+        },
+        {
+          "providerAttempts": 2,
+          "maxAdmissionGapMs": 4013.5378150000033,
+          "matchId": "c7db08e8-2d86-4d26-87f2-dca44f640af9",
+          "source": "2088fb1f-c464-46cf-a413-826a60493ad0",
+          "accepted": 2,
+          "maxStarvationMs": 4013.899204000001,
+          "recovered": true
+        },
+        {
+          "providerAttempts": 2,
+          "maxAdmissionGapMs": 4009.378389000005,
+          "matchId": "d8390b68-2e18-4bfb-b7bd-f2ae54e421df",
+          "source": "084bb3f1-daba-4c42-904e-ac8642171dac",
+          "accepted": 2,
+          "maxStarvationMs": 4006.1441110000014,
+          "recovered": true
+        },
+        {
+          "providerAttempts": 2,
+          "maxAdmissionGapMs": 4010.3296839999966,
+          "matchId": "b4699ba4-2a4d-445a-8c64-21858337c60a",
+          "source": "272a06e4-6ac3-4069-a93c-63a56a9d5c06",
+          "accepted": 2,
+          "maxStarvationMs": 4006.090219999998,
+          "recovered": true
+        },
+        {
+          "providerAttempts": 2,
+          "maxAdmissionGapMs": 4029.3398850000085,
+          "matchId": "733d7065-b055-4cbc-8ac1-56002b6e21d8",
+          "source": "eeb5f0b7-2c96-4913-8809-668114e108be",
+          "accepted": 2,
+          "maxStarvationMs": 4037.2648659999977,
+          "recovered": true
+        },
+        {
+          "providerAttempts": 2,
+          "maxAdmissionGapMs": 4027.846443000002,
+          "matchId": "aa5d8698-6e8e-4415-81a5-d85cc5272303",
+          "source": "b31a67cc-ff1c-41b4-9d66-f0ee3a52a1ac",
+          "accepted": 2,
+          "maxStarvationMs": 4036.8846420000045,
+          "recovered": true
+        },
+        {
+          "providerAttempts": 2,
+          "maxAdmissionGapMs": 4528.419223000004,
+          "matchId": "1b804ea2-62b4-457b-8655-346d7a3f7337",
+          "source": "617347e2-977a-4adf-ab8f-3e32900e9430",
+          "accepted": 2,
+          "maxStarvationMs": 4535.568966000006,
+          "recovered": true
+        },
+        {
+          "providerAttempts": 2,
+          "maxAdmissionGapMs": 4528.778485000003,
+          "matchId": "3075e071-0d7c-4562-abdd-6dcec2848e3a",
+          "source": "ed8ec3a4-1a5b-4368-bd63-745b769c82a5",
+          "accepted": 2,
+          "maxStarvationMs": 4535.699982999999,
+          "recovered": true
+        },
+        {
+          "providerAttempts": 2,
+          "maxAdmissionGapMs": 5034.254297000007,
+          "matchId": "01c003e2-2ce8-4370-910f-3266870dfe8d",
+          "source": "4d58c5e4-1fd2-4f54-a06a-adcbc6fb7b59",
+          "accepted": 2,
+          "maxStarvationMs": 5042.018674999999,
+          "recovered": true
+        },
+        {
+          "providerAttempts": 2,
+          "maxAdmissionGapMs": 5034.521680000005,
+          "matchId": "7f5622fa-9f8d-40a9-a5a6-c93a75da0001",
+          "source": "5a77cefb-644e-4bc3-a667-4cc2677c13e2",
+          "accepted": 2,
+          "maxStarvationMs": 5042.424457000001,
+          "recovered": true
+        }
+      ],
+      "matches": 16,
+      "inputs": 320,
+      "accepted": 34,
+      "dropped": 0,
+      "rejected": 286,
+      "failed": 0,
+      "httpRequests": 34,
+      "bytes": 343796,
+      "maxHttp": 2,
+      "maxPoolQueue": 0,
+      "maxRelationShareLocks": 28,
+      "maxWaitingLocks": 0,
+      "transactionMs": {
+        "n": 34,
+        "p50": 12.948778000005404,
+        "p95": 15.752533999999287,
+        "max": 16.48605300000054
+      },
+      "requestMs": {
+        "n": 320,
+        "p50": 2.6762549999984913,
+        "p95": 19.365403999996488,
+        "max": 25.593611999996938
+      },
+      "poolWaitMs": {
+        "n": 68,
+        "p50": 0.09115700000256766,
+        "p95": 3.2367010000016307,
+        "max": 5.086449999987963
+      },
+      "sampledTransactionAgeMs": {
+        "n": 438,
+        "p50": 0,
+        "p95": 0,
+        "max": 7.396
+      },
+      "sampledLockHoldingAgeMs": {
+        "n": 8,
+        "p50": 5.219,
+        "p95": 7.396,
+        "max": 7.396
+      }
+    },
+    {
+      "scenario": "sixteen-slow",
+      "perMatch": [
+        {
+          "providerAttempts": 2,
+          "maxAdmissionGapMs": 8024.131167999993,
+          "matchId": "a66d7013-61e3-410b-b7a6-e7c64ae48809",
+          "source": "56068ab2-d451-4b08-9703-666645bba286",
+          "accepted": 2,
+          "maxStarvationMs": 8023.691419999988,
+          "recovered": true
+        },
+        {
+          "providerAttempts": 2,
+          "maxAdmissionGapMs": 8023.589921999999,
+          "matchId": "4beb2638-f3ff-4174-b905-74d7c381f33c",
+          "source": "f022d0d6-0e26-4c4c-8f23-530598d3925a",
+          "accepted": 2,
+          "maxStarvationMs": 8023.131444999992,
+          "recovered": true
+        },
+        {
+          "providerAttempts": 2,
+          "maxAdmissionGapMs": 8025.90943,
+          "matchId": "3043ef39-12b2-4134-8543-969d33395e30",
+          "source": "565d3d03-1f7f-4bd4-bb66-e500f3ac0a0c",
+          "accepted": 2,
+          "maxStarvationMs": 8026.098419000002,
+          "recovered": true
+        },
+        {
+          "providerAttempts": 2,
+          "maxAdmissionGapMs": 8025.893406999996,
+          "matchId": "365b8e1b-463d-46a1-9c6f-f3edf35bc5ff",
+          "source": "66c03365-dc2d-486f-b53d-526da1c0d0a1",
+          "accepted": 2,
+          "maxStarvationMs": 8026.125870999997,
+          "recovered": true
+        },
+        {
+          "providerAttempts": 2,
+          "maxAdmissionGapMs": 8027.0689989999955,
+          "matchId": "9b8adba5-da9f-4255-b823-8e0cea14c710",
+          "source": "fbbf2bfd-3e2c-45c8-93c6-f3868776371a",
+          "accepted": 2,
+          "maxStarvationMs": 8023.190905999989,
+          "recovered": true
+        },
+        {
+          "providerAttempts": 2,
+          "maxAdmissionGapMs": 8025.269235999993,
+          "matchId": "f931d508-80b2-4ad3-895e-69ad1a6abfaf",
+          "source": "9b7116e4-aed0-466f-94aa-24cbd776333d",
+          "accepted": 2,
+          "maxStarvationMs": 8022.390109,
+          "recovered": true
+        },
+        {
+          "providerAttempts": 2,
+          "maxAdmissionGapMs": 8026.099699000013,
+          "matchId": "da39d3ab-36bc-40f9-b605-a70587fb22e1",
+          "source": "3cab9732-34da-4983-affe-ffc1063acba0",
+          "accepted": 2,
+          "maxStarvationMs": 8026.606039000006,
+          "recovered": true
+        },
+        {
+          "providerAttempts": 2,
+          "maxAdmissionGapMs": 8026.288825000011,
+          "matchId": "3a80a8cd-471e-4db8-a90b-ed60fc6c9cb0",
+          "source": "d4e05fb6-984c-4438-9fbf-8f59eddb806c",
+          "accepted": 2,
+          "maxStarvationMs": 8026.604837000006,
+          "recovered": true
+        },
+        {
+          "providerAttempts": 2,
+          "maxAdmissionGapMs": 8036.697264000002,
+          "matchId": "d03d07e0-0347-4286-b1cb-f0abf0607db8",
+          "source": "bc17b032-d900-49d3-b625-e76aba6f97bb",
+          "accepted": 2,
+          "maxStarvationMs": 8035.424872000003,
+          "recovered": true
+        },
+        {
+          "providerAttempts": 2,
+          "maxAdmissionGapMs": 8038.731400999997,
+          "matchId": "6d03e200-cc87-48af-ad0c-889f226a615a",
+          "source": "e5e54494-9f56-4255-8250-75feb7a93e39",
+          "accepted": 2,
+          "maxStarvationMs": 8037.305978000004,
+          "recovered": true
+        },
+        {
+          "providerAttempts": 2,
+          "maxAdmissionGapMs": 8029.297474999999,
+          "matchId": "a11db50e-3edf-401a-a424-1a455ac3dee5",
+          "source": "36eade2e-4f4d-44d2-bd3d-7f2a493cfd12",
+          "accepted": 2,
+          "maxStarvationMs": 8029.848039999997,
+          "recovered": true
+        },
+        {
+          "providerAttempts": 2,
+          "maxAdmissionGapMs": 8027.475437000001,
+          "matchId": "4ed5be4e-3d31-4431-b7a6-f877d3a2cb60",
+          "source": "86f051e4-0129-438c-af2a-fa1afc106e1b",
+          "accepted": 2,
+          "maxStarvationMs": 8029.130988000004,
+          "recovered": true
+        },
+        {
+          "providerAttempts": 2,
+          "maxAdmissionGapMs": 8032.699948000009,
+          "matchId": "b57bd6e3-0bde-4048-a2c5-7d952c59e8a3",
+          "source": "4a347171-2847-4585-aad2-2c7fe3e345b1",
+          "accepted": 2,
+          "maxStarvationMs": 8238.661787000005,
+          "recovered": true
+        },
+        {
+          "providerAttempts": 2,
+          "maxAdmissionGapMs": 8032.989944999994,
+          "matchId": "5fb679cf-bf96-4f65-89d2-cbd6bf08567e",
+          "source": "3d4e1e7c-941e-45ae-b462-49b1990371d7",
+          "accepted": 2,
+          "maxStarvationMs": 8238.906746000008,
+          "recovered": true
+        },
+        {
+          "providerAttempts": 1,
+          "maxAdmissionGapMs": 8540.043816000005,
+          "matchId": "919c3971-71c4-4ef5-b6ff-f20adc4892e6",
+          "source": "c3fe852f-2616-4bef-a00b-5fa8d024ec2a",
+          "accepted": 1,
+          "maxStarvationMs": 9241.930700000012,
+          "recovered": true
+        },
+        {
+          "providerAttempts": 1,
+          "maxAdmissionGapMs": 8540.203307000003,
+          "matchId": "ce321eae-0f5c-46ac-84fc-815ae079026f",
+          "source": "53e42ddb-4fc1-499f-93a3-012c55d59d4e",
+          "accepted": 1,
+          "maxStarvationMs": 9242.16543400001,
+          "recovered": true
+        }
+      ],
+      "matches": 16,
+      "inputs": 512,
+      "accepted": 30,
+      "dropped": 0,
+      "rejected": 482,
+      "failed": 0,
+      "httpRequests": 30,
+      "bytes": 303354,
+      "maxHttp": 2,
+      "maxPoolQueue": 0,
+      "maxRelationShareLocks": 28,
+      "maxWaitingLocks": 0,
+      "transactionMs": {
+        "n": 30,
+        "p50": 707.8268549999921,
+        "p95": 710.5805030000047,
+        "max": 711.0198659999878
+      },
+      "requestMs": {
+        "n": 512,
+        "p50": 2.532748999990872,
+        "p95": 712.8797610000038,
+        "max": 723.3812920000055
+      },
+      "poolWaitMs": {
+        "n": 60,
+        "p50": 0.06455700000515208,
+        "p95": 2.2031520000018645,
+        "max": 2.417626000009477
+      },
+      "sampledTransactionAgeMs": {
+        "n": 747,
+        "p50": 164.744,
+        "p95": 656.947,
+        "max": 710.595
+      },
+      "sampledLockHoldingAgeMs": {
+        "n": 485,
+        "p50": 356.838,
+        "p95": 673.085,
+        "max": 710.595
+      }
+    },
+    {
+      "scenario": "blocked-authentication",
+      "perMatch": [
+        {
+          "matchId": "250c565b-a76a-4e58-8d71-d9d5f1c14cbb",
+          "accepted": 2
+        },
+        {
+          "matchId": "78518a2c-b795-455f-9f3e-4a304bc7da5d",
+          "accepted": 2
+        },
+        {
+          "matchId": "341b1533-fbb8-421d-94a3-82fce1563e7c",
+          "accepted": 2
+        },
+        {
+          "matchId": "51424fa3-821e-4cc9-a0b9-db2a3cec1463",
+          "accepted": 2
+        }
+      ]
+    },
+    {
+      "scenario": "shared-installation",
+      "perMatch": [
+        {
+          "matchId": "8426883d-c2ad-42db-9de2-82cd65f93e28",
+          "source": "ce414322-e0b5-4da5-af53-78079fec90ca",
+          "accepted": 9,
+          "maxStarvationMs": 1519.3625199999951
+        },
+        {
+          "matchId": "0c68b427-7d26-4e86-83de-1f1b893a280d",
+          "source": "ce414322-e0b5-4da5-af53-78079fec90ca",
+          "accepted": 9,
+          "maxStarvationMs": 1519.5276589999994
+        },
+        {
+          "matchId": "1debce80-23a8-4128-aa95-1c61f42f26f8",
+          "source": "ce414322-e0b5-4da5-af53-78079fec90ca",
+          "accepted": 8,
+          "maxStarvationMs": 2015.472292999999
+        },
+        {
+          "matchId": "531c7629-6db1-4c5a-9c97-7443dd466d9b",
+          "source": "ce414322-e0b5-4da5-af53-78079fec90ca",
+          "accepted": 8,
+          "maxStarvationMs": 2017.768876000002
+        }
+      ]
+    },
+    {
+      "scenario": "single-source-burst",
+      "perMatch": [
+        {
+          "matchId": "0e327c1a-0918-4edf-9097-434f683a1144",
+          "accepted": 3,
+          "maxStarvationMs": 1555.0309209999978
+        },
+        {
+          "matchId": "c88fd47e-b85e-4671-8be8-cf59d55b1da3",
+          "accepted": 3,
+          "maxStarvationMs": 1554.9333740000002
+        },
+        {
+          "matchId": "b4a60a82-10ee-478b-af41-88f4e65f689b",
+          "accepted": 2,
+          "maxStarvationMs": 2077.769696999996
+        },
+        {
+          "matchId": "1a9ed8b9-67bc-4062-8497-953547eff958",
+          "accepted": 2,
+          "maxStarvationMs": 2077.580290999991
+        }
+      ]
+    },
+    {
+      "scenario": "staggered",
+      "matches": 4,
+      "inputs": 16,
+      "accepted": 16,
+      "perMatch": [
+        {
+          "matchId": "5c6f5640-ac61-437a-ae8f-32fe14f08c51",
+          "accepted": 4
+        },
+        {
+          "matchId": "fac31127-3e3e-44c5-ab9b-dc615226fd27",
+          "accepted": 4
+        },
+        {
+          "matchId": "56669d5d-e69a-4f0d-be76-4ebd579e2327",
+          "accepted": 4
+        },
+        {
+          "matchId": "796b8db9-a00f-4dc7-9f6a-7acceee0693d",
+          "accepted": 4
+        }
+      ],
+      "heartbeatRecovery": true
+    },
+    {
+      "change": "revoke",
+      "mutationMs": 662.6057789999759,
+      "observedLockWaiters": 1
+    },
+    {
+      "change": "handover",
+      "mutationMs": 687.2755089999991,
+      "observedLockWaiters": 1
+    },
+    {
+      "change": "manual",
+      "mutationMs": 672.4915010000113,
+      "observedLockWaiters": 1
+    }
+  ]
+}

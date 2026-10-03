@@ -1,0 +1,37 @@
+{
+  "synchronousAdmission": [
+    {
+      "source": "A",
+      "accepted": 20,
+      "maxStarvationMs": 500
+    },
+    {
+      "source": "B",
+      "accepted": 20,
+      "maxStarvationMs": 500
+    },
+    {
+      "source": "C",
+      "accepted": 0,
+      "maxStarvationMs": 10000
+    },
+    {
+      "source": "D",
+      "accepted": 0,
+      "maxStarvationMs": 10000
+    }
+  ],
+  "reviewSha": "09fe43aba11fdbe7533c994baad464477de472a8",
+  "environment": "deterministic isolated admission function; no database or provider",
+  "rounds": 20,
+  "cadenceMs": 500,
+  "order": [
+    "A",
+    "B",
+    "C",
+    "D"
+  ],
+  "completion": "all admitted requests released before the next round",
+  "runtimeSha256": "7035ab9c9c7cc70fe1ec2ab18b0268565a0f7cd0b7161e469491a30642e2c52d",
+  "regression": "fails before fix: expected every source to receive 10 admissions"
+}
