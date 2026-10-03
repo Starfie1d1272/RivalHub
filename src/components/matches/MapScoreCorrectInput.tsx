@@ -1,116 +1,38 @@
 "use client";
-
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { InlineConfirm } from "@/components/rivalhub";
 import { correctMapScore } from "@/actions/matches";
 import { mapLabel } from "@/lib/maps";
 
-interface MapScoreCorrectInputProps {
-  mapId: string;
-  mapName: string;
-  scoreA: number;
-  scoreB: number;
-  teamAName: string;
-  teamBName: string;
-}
-
-export function MapScoreCorrectInput({
-  mapId,
-  mapName,
-  scoreA,
-  scoreB,
-  teamAName,
-  teamBName,
-}: MapScoreCorrectInputProps) {
+export function MapScoreCorrectInput({ mapId, mapName, scoreA, scoreB, teamAName, teamBName }: {
+  mapId: string; mapName: string; scoreA: number; scoreB: number; teamAName: string; teamBName: string;
+}) {
   const [editing, setEditing] = useState(false);
+  const [confirming, setConfirming] = useState(false);
   const [valA, setValA] = useState(String(scoreA));
   const [valB, setValB] = useState(String(scoreB));
-  const [isPending, startTransition] = useTransition();
-
-  function handleEdit() {
-    setValA(String(scoreA));
-    setValB(String(scoreB));
-    setEditing(true);
-  }
-
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    const a = parseInt(valA, 10);
-    const b = parseInt(valB, 10);
-    if (isNaN(a) || isNaN(b) || a < 0 || b < 0) {
-      toast.error("请输入有效的非负整数");
-      return;
-    }
-    if (a === b) {
-      toast.error("单图不能平局");
-      return;
-    }
-    startTransition(async () => {
-      const result = await correctMapScore(mapId, a, b);
-      if (result.success) {
-        toast.success(`${mapLabel(mapName)} 比分已修正，大比分已自动更新`);
-        setEditing(false);
-      } else {
-        toast.error(result.error.message);
-      }
-    });
-  }
-
-  return (
-    <div className="flex items-center gap-3 flex-wrap text-xs">
-      <span className="text-[var(--color-fg-mid)] w-20 shrink-0">{mapLabel(mapName)}</span>
-      {!editing ? (
-        <>
-          <span className="font-mono text-[var(--color-fg)]">
-            {scoreA} : {scoreB}
-          </span>
-          <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={handleEdit}>
-            修改
-          </Button>
-        </>
-      ) : (
-        <form onSubmit={handleSubmit} className="flex items-end gap-2">
-          <div className="space-y-1">
-            <Label className="text-[10px] text-[var(--color-fg-dim)]">{teamAName}</Label>
-            <Input
-              type="number"
-              min="0"
-              value={valA}
-              onChange={(e) => setValA(e.target.value)}
-              className="w-14 text-center h-7 text-xs"
-              disabled={isPending}
-            />
-          </div>
-          <span className="text-[var(--color-fg-mid)] pb-1">:</span>
-          <div className="space-y-1">
-            <Label className="text-[10px] text-[var(--color-fg-dim)]">{teamBName}</Label>
-            <Input
-              type="number"
-              min="0"
-              value={valB}
-              onChange={(e) => setValB(e.target.value)}
-              className="w-14 text-center h-7 text-xs"
-              disabled={isPending}
-            />
-          </div>
-          <Button type="submit" size="sm" className="h-7 text-xs" disabled={isPending}>
-            确认
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            className="h-7 text-xs"
-            disabled={isPending}
-            onClick={() => setEditing(false)}
-          >
-            取消
-          </Button>
-        </form>
-      )}
-    </div>
-  );
+  const [reason, setReason] = useState("");
+  const [error, setError] = useState("");
+  const [pending, startTransition] = useTransition();
+  const router = useRouter();
+  return <div className="space-y-3 text-sm">
+    {!editing ? <Button size="sm" variant="outline" onClick={() => { setValA(String(scoreA)); setValB(String(scoreB)); setEditing(true); }}>更正比分</Button> : <form className="space-y-3 rounded border border-[var(--color-border)] p-3" onSubmit={event => { event.preventDefault(); setConfirming(true); }}>
+      <p>{mapLabel(mapName)} · 正式比分 {scoreA}:{scoreB}</p>
+      <div className="flex flex-wrap items-end gap-3">
+        <label className="space-y-1">{teamAName}<Input aria-label={`${teamAName}更正比分`} type="number" min="0" step="1" required value={valA} onChange={event => { setValA(event.target.value); setConfirming(false); }} className="w-24" disabled={pending} /></label>
+        <label className="space-y-1">{teamBName}<Input aria-label={`${teamBName}更正比分`} type="number" min="0" step="1" required value={valB} onChange={event => { setValB(event.target.value); setConfirming(false); }} className="w-24" disabled={pending} /></label>
+      </div>
+      <label className="block space-y-1">更正原因<Input required maxLength={500} value={reason} onChange={event => { setReason(event.target.value); setConfirming(false); }} disabled={pending} /></label>
+      {error && <p role="alert" className="text-[var(--color-danger)]">{error}</p>}
+      {pending ? <p role="status">正在保存更正…</p> : confirming ? <InlineConfirm title={`确认更正为 ${valA}:${valB}？`} sub="将更新本图比分与系列赛地图胜数，保存更正原因。已同步的 Demo 会按新比分重新核对。" onCancel={() => setConfirming(false)} onConfirm={() => startTransition(async () => {
+        const result = await correctMapScore(mapId, Number(valA), Number(valB), { expectedScoreA: scoreA, expectedScoreB: scoreB, reason });
+        if (!result.success) { setError(result.error.message); setConfirming(false); }
+        else { toast.success("比分已更正"); setEditing(false); setConfirming(false); router.refresh(); }
+      })} /> : <div className="flex gap-2"><Button size="sm" type="submit" disabled={pending}>核对更正</Button><Button size="sm" type="button" variant="ghost" onClick={() => setEditing(false)}>取消</Button></div>}
+    </form>}
+  </div>;
 }

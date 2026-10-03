@@ -14,7 +14,7 @@ export function PerfectRoomGuide({ guide }: { guide: PerfectRoomGuideData }) {
     <section aria-label={`Map ${guide.mapOrder} Perfect 建房指引`} className="space-y-4 border-t border-[var(--color-border)] pt-4">
       <div>
         <h3 className="font-semibold">Map {guide.mapOrder} · {guide.mapName} · Perfect 建房指引</h3>
-        <p className="mt-1 text-sm text-[var(--color-fg-mid)]">轮次取自赛事阶段；短描述取自对阵轮次或 Swiss 本轮战绩。选边取自已完成的 BP，Team 1 / Team 2 整场保持不变。下方“比赛归属”是 Perfect 建房时选择的赛事名称。</p>
+        <p className="mt-1 text-sm text-[var(--color-fg-mid)]">按本场赛程和 BP 结果填写 Perfect 房间。</p>
       </div>
       <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-2">
         {guide.copyFields.map(field => (

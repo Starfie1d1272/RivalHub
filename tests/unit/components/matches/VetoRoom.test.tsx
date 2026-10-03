@@ -86,7 +86,7 @@ function roomFixture(): VetoRoomView {
       revision: 4,
       currentTurnKey: "ban-veto-a-opening",
       currentTurnAction: "ban",
-      currentTurnLabel: "BAN",
+      currentTurnLabel: "禁图",
       currentTurnEntryName: "Alpha",
       currentTurnEntryId: "00000000-0000-4000-8000-000000000002",
       currentTurnMapName: null,
@@ -254,7 +254,7 @@ describe("VetoRoom", () => {
 
     await user.selectOptions(screen.getByLabelText("重做位置"), room.session.currentTurnKey!);
     await user.type(screen.getByLabelText("恢复原因"), "修正错误的回合记录");
-    expect(screen.getByRole("option", { name: "从当前「BAN」开始重做" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "从当前「禁图」开始重做" })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "恢复 BP 步骤" }));
     expect(screen.getByText(/这会移除该回合及之后的 BP 步骤和地图计划/)).toBeInTheDocument();
     expect(actionMocks.rewindVetoRoomAction).not.toHaveBeenCalled();

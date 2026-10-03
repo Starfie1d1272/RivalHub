@@ -167,10 +167,11 @@ export function AdminMatchWorkbench({
         <p className="text-xs text-[var(--color-fg-mid)]">{operator.workflow.primaryTask === "observe" ? "比赛状态" : "当前任务"}</p>
         <h2 id="operator-task" className="text-lg font-semibold">{operator.workflow.title}</h2>
         <p className="text-sm text-[var(--color-fg-mid)]">{operator.workflow.description}</p>
-        <p className="text-sm">下一步：{operator.workflow.nextStep}</p>
-        <div className="flex flex-wrap gap-4 text-sm text-[var(--color-accent)]">
+        {operator.workflow.nextStep && <p className="text-sm">{operator.workflow.nextStep}</p>}
+        <div className="flex flex-wrap items-center gap-4 text-sm text-[var(--color-accent)]">
+          <Link className="inline-flex min-h-10 items-center rounded border border-[var(--color-border)] px-4 font-medium" href={`/${season.slug}/matches/${match.id}/veto`}>{vetoCompletedAt ? "查看 BP" : "进入 BP"}</Link>
           {operator.workflow.focusMapId && <a className="underline underline-offset-4" href={`#scoreboard-${operator.workflow.focusMapId}`}>打开本图 OCR</a>}
-          {operator.roomGuide && <a className="underline underline-offset-4" href="#perfect-room-guide">{operator.workflow.focusMapId ? "暂后补 OCR，查看下一图建房指引" : "查看 Perfect 建房指引"}</a>}
+          {operator.roomGuide && <a className="underline underline-offset-4" href="#perfect-room-guide">{operator.workflow.focusMapId ? "下一图建房指引" : "查看 Perfect 建房指引"}</a>}
         </div>
         {operator.review && <OperatorIssuePanel reasons={operator.workflow.reviewReasons} review={operator.review} />}
         {operator.takeover && <ManualMapTakeover key={`${operator.takeover.sessionId}:${operator.takeover.mapEpoch}:${operator.takeover.mapId}:${Boolean(operator.takeover.recoverMapBinding)}`} matchId={match.id} scope={operator.takeover} mapLabel={operator.recoveryMapLabel ?? undefined} />}
@@ -190,18 +191,18 @@ export function AdminMatchWorkbench({
                   mapPool={mapPool}
                 />
         </details>}
+        {operator.roomGuide && <div id="perfect-room-guide"><PerfectRoomGuide guide={operator.roomGuide} /></div>}
+      </section>
+      <aside aria-label="比赛与数据源" className="space-y-3 text-sm rounded border border-[var(--color-border)] p-4 self-start">
+        <p className="font-semibold">比分记录</p>
+        <p>{SOURCE_MODE_LABEL[operator.workflow.sourceMode]}</p>
+        <p>{SOURCE_HEALTH_LABEL[operator.workflow.sourceHealth]}</p>
         <div className="border-t border-[var(--color-border)] pt-3">
           <p className="mb-1 text-sm font-medium">我的下一场</p>
           {commentary.nextMatch ? <CommentaryMatchLink match={commentary.nextMatch} seasonSlug={season.slug} /> : <p className="text-sm text-[var(--color-fg-mid)]">当前没有已认领的下一场</p>}
         </div>
-        {operator.roomGuide && <div id="perfect-room-guide"><PerfectRoomGuide guide={operator.roomGuide} /></div>}
-      </section>
-      <aside aria-label="比赛与数据源" className="space-y-3 text-sm rounded border border-[var(--color-border)] p-4 self-start">
-        <p className="font-semibold">本场状态</p>
-        <p>{SOURCE_MODE_LABEL[operator.workflow.sourceMode]}</p>
-        <p>{SOURCE_HEALTH_LABEL[operator.workflow.sourceHealth]}</p>
-        <p className="text-[var(--color-fg-mid)]">{postMatch?.commentators.length ? "已登记解说，赛后需确认名单与录像" : "未登记解说，无需提交解说名单或录像"}</p>
-        <a className="text-[var(--color-accent)] underline" href={`/admin/${season.slug}/matches#match-resources`}>Mizar 授权与 Demo 工具</a>
+
+        <a className="text-[var(--color-accent)] underline" href={`/admin/${season.slug}/matches#match-resources`}>设备与下载</a>
       </aside>
       </div>
 
@@ -213,9 +214,10 @@ export function AdminMatchWorkbench({
       {operator.workflow.completedMaps.length > 0 && match.status !== "cancelled" && (
         <section aria-labelledby="operator-scoreboards" className="space-y-3">
           <h2 id="operator-scoreboards" className="font-semibold">已完成地图 · 平台计分板与 Demo</h2>
-          <p className="text-sm text-[var(--color-fg-mid)]">图间可去 Perfect 查看本图数据并截图 OCR，也可赛后补齐。补录不阻断下一图建房或赛后资料整理。</p>
+          <p className="text-sm text-[var(--color-fg-mid)]">在 Perfect 截取计分板并识别；下载 Demo 后使用 Uploader 同步分析结果。</p>
           {operator.workflow.completedMaps.map(map => <details key={map.id} id={`scoreboard-${map.id}`} open={operator.workflow.focusMapId === map.id} className="rounded border border-[var(--color-border)] p-3">
             <summary className="cursor-pointer text-sm">Map {map.order} · {mapLabel(map.name)} · {map.scoreboardComplete ? "平台计分板已补齐" : "平台计分板待补"} · Demo {map.demoLabel}</summary>
+            <div className="mt-3">{(() => { const result = finishedMaps.find(row => row.id === map.id); return result && <MapScoreCorrectInput key={`${result.id}:${result.scoreA}:${result.scoreB}`} mapId={result.id} mapName={map.name} scoreA={result.scoreA} scoreB={result.scoreB} teamAName={teamAName} teamBName={teamBName} />; })()}</div>
             <div className="mt-3"><StatsOCRPanel mapId={map.id} mapName={map.name} /></div>
             {map.demoNeedsAttention && <p className="mt-2 text-sm text-[var(--color-warn)]">请检查下方 Demo 待处理项；若阵容或比分已更正，请在上传器中重新生成并同步。</p>}
           </details>)}
@@ -229,17 +231,9 @@ export function AdminMatchWorkbench({
 
       {match.status !== "cancelled" && <DemoDataReviewPanel reviews={demoReviews} />}
 
-      <details className="space-y-4" open={match.status === "scheduled" || operator.workflow.primaryTask === "review"}>
+      <details id="match-lineups" className="space-y-4 rounded border border-[var(--color-border)] p-4" open={match.status === "scheduled"}>
         <summary className="cursor-pointer font-semibold">首发、BP 与赛程管理</summary>
       <section aria-labelledby="match-workbench-overview" className="space-y-3">
-        <div>
-          <h2 id="match-workbench-overview" className="font-mono text-[11px] tracking-[0.12em] text-[var(--color-fg-mid)]">
-            概览与下一步
-          </h2>
-          <p className="mt-1 text-xs leading-5 text-[var(--color-fg-mid)]">
-            本页承载本场的实际首发、BP、地图、赛果、赛后资料和恢复操作；公开比赛页仍只展示公开事实。
-          </p>
-        </div>
         {match.status === "scheduled" && (
           <PreMatchOperatorChecklist
             requiresPreflight={requiresPreflight}
@@ -267,7 +261,7 @@ export function AdminMatchWorkbench({
         )}
         {match.status === "scheduled" && (
           <p className="text-xs leading-5 text-[var(--color-fg-mid)]">
-            默认宽限为 15 分钟，不会自动判负。延长宽限或重新排期请使用赛程时间；需要判负时请在下方“危险操作与恢复”记录原因。
+            默认宽限为 15 分钟。排期可在下方调整；弃赛或判负请记录原因。
           </p>
         )}
       </section>
@@ -279,7 +273,7 @@ export function AdminMatchWorkbench({
               首发名单
             </h2>
             <p className="mt-1 text-xs leading-5 text-[var(--color-fg-mid)]">
-              这里记录本场实际出场阵容；可与赛事主力名单不同，但只能从已锁定的本届名单中选择。
+              从本届赛事名单中选择本场实际出场选手。
             </p>
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
@@ -311,13 +305,8 @@ export function AdminMatchWorkbench({
                 BP、地图与比赛时间
               </h2>
               <p className="mt-1 text-xs leading-5 text-[var(--color-fg-mid)]">
-                双方在 Veto Room 完成禁选后，再按地图录入回合比分；系统将自动计算系列赛比分。
+                双方完成 BP 后，系统生成地图与选边计划。
               </p>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <Link className="inline-flex min-h-10 items-center rounded border border-[var(--color-border)] px-4 text-sm font-medium hover:border-[var(--color-border-hover)]" href={`/${season.slug}/matches/${match.id}/veto`}>
-                {match.status === "scheduled" ? "打开 Veto Room" : "查看 Veto Room"}
-              </Link>
             </div>
             <ScheduledAtInput
               matchId={match.id}
@@ -327,9 +316,9 @@ export function AdminMatchWorkbench({
             {match.status === "in_progress" ? (
               vetoCompletedAt ? (operator.workflow.manualResultAllowed ? (
                 <a href="#manual-result" className="text-sm text-[var(--color-accent)] underline">前往当前任务记录本图结果</a>
-              ) : <p role="status" className="text-sm">{operator.workflow.sourceHealth === "healthy" ? "自动记录赛果，无需重复人工录分。" : "请先核对数据源与本图异常。"}</p>) : (
+              ) : <p role="status" className="text-sm">{operator.workflow.sourceHealth === "healthy" ? "Mizar 自动记录比分。" : "请先核对数据源与本图异常。"}</p>) : (
                 <p role="status" className="rounded border border-[var(--color-warn-edge)] px-3 py-2 text-sm text-[var(--color-fg-mid)]">
-                  Veto Session 已开始；完成 BP 地图计划后才能录入地图比分。
+                  BP 正在进行，完成后按地图计划建房。
                 </p>
               )
             ) : (
@@ -337,14 +326,7 @@ export function AdminMatchWorkbench({
             )}
           </section>
 
-          {postMatch && (
-            <section aria-labelledby="match-workbench-postmatch" className="space-y-3">
-              <h2 id="match-workbench-postmatch" className="font-mono text-[11px] tracking-[0.12em] text-[var(--color-fg-mid)]">
-                赛后资料
-              </h2>
-              <PostMatchRecordPanel matchId={match.id} data={postMatch} />
-            </section>
-          )}
+
 
           <section aria-labelledby="match-workbench-danger" className="space-y-3 border-t border-[var(--color-danger-edge)] pt-4">
             <div>
@@ -376,7 +358,7 @@ export function AdminMatchWorkbench({
                 BP 与已完成地图
               </h2>
               <p className="mt-1 text-xs leading-5 text-[var(--color-fg-mid)]">
-                赛后可查看或补录 BP；实际地图回合比分仍是赛果的底层事实。
+                查看本场 BP 记录，或补充线下禁选结果。
               </p>
             </div>
             <VetoInputDialog
@@ -391,18 +373,20 @@ export function AdminMatchWorkbench({
             />
             {finishedMaps.length === 0 && (
               <p className="text-xs leading-5 text-[var(--color-fg-mid)]">
-                {match.isForfeit ? "本场为弃赛，无实际进行的地图，不提供地图比分或 Stats OCR。" : "本场没有已记录的实际地图比分。"}
+                {match.isForfeit ? "本场已记录弃赛结果。" : "本场没有已记录的实际地图比分。"}
               </p>
             )}
           </section>
 
           {postMatch && (
+            <details open={postMatch.commentators.length > 0} className="space-y-3 rounded border border-[var(--color-border)] p-3">
+              <summary className="cursor-pointer font-medium">{postMatch.commentators.length ? "解说与录像" : "补充实际解说"}</summary>
             <section aria-labelledby="match-workbench-finished-postmatch" className="space-y-3">
               <h2 id="match-workbench-finished-postmatch" className="font-mono text-[11px] tracking-[0.12em] text-[var(--color-fg-mid)]">
                 赛后资料
               </h2>
               <PostMatchRecordPanel matchId={match.id} data={postMatch} />
-            </section>
+            </section></details>
           )}
 
           <details aria-labelledby="match-workbench-recovery" className="space-y-4 border-t border-[var(--color-danger-edge)] pt-4">
@@ -410,28 +394,8 @@ export function AdminMatchWorkbench({
                 危险操作与结果恢复
               </summary>
               <p className="mt-1 text-xs leading-5 text-[var(--color-fg-mid)]">
-                下列操作会改变已完成比赛的正式事实或下游运行时；按现有更正与 recovery 流程执行，不直接修改 projection。
+                更正整场结果前，请核对影响的后续赛程。
               </p>
-            {finishedMaps.length > 0 ? (
-              <div className="space-y-2">
-                <p className="text-xs text-[var(--color-fg-mid)]">逐图比分（修改后大比分自动更新）</p>
-                {finishedMaps.map((map) => (
-                  <MapScoreCorrectInput
-                    key={map.id}
-                    mapId={map.id}
-                    mapName={map.mapName}
-                    scoreA={map.scoreA}
-                    scoreB={map.scoreB}
-                    teamAName={teamAName}
-                    teamBName={teamBName}
-                  />
-                ))}
-              </div>
-            ) : (
-              <p className="text-xs leading-5 text-[var(--color-fg-mid)]">
-                没有实际地图比分，不能通过系列赛比分直接修改。
-              </p>
-            )}
             <ResultCorrectionPanel
               matchId={match.id}
               teamAName={teamAName}
@@ -448,7 +412,7 @@ export function AdminMatchWorkbench({
 
       {match.status === "cancelled" && (
         <p className="text-sm text-[var(--color-fg-mid)]">
-          本场已取消，没有可执行的首发、BP、结果或赛后操作。
+          本场已取消。
         </p>
       )}
 
@@ -461,7 +425,7 @@ export function AdminMatchWorkbench({
         >
           查看公开页 ↗
         </Link>
-        {match.bracketNodeId == null && match.qualificationRunId === null && <DeleteMatchButton matchId={match.id} />}
+        {match.status === "scheduled" && match.ownership === "manual" && match.bracketNodeId == null && match.qualificationRunId === null && <DeleteMatchButton matchId={match.id} />}
       </footer>
     </Panel>
   );

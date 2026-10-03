@@ -27,10 +27,10 @@ const MATCH_STATUS_LABELS = {
 
 const VETO_ACTION_LABELS = {
   role_select: "选择 VETO A",
-  ban: "BAN",
-  pick: "PICK",
-  side_pick: "SIDE",
-  decider: "DECIDER",
+  ban: "禁图",
+  pick: "选图",
+  side_pick: "选边",
+  decider: "决胜图",
 } as const;
 
 const APPEAL_STATUS_LABELS = {

@@ -83,10 +83,6 @@ describe("Mizar reliable event ingest ownership", () => {
     const correct = reliableEvent(fixture, { kind: "map_ended", payload: { scoreA: 13, scoreB: 9, scoreCT: 4, scoreT: 9 } });
     correct.cursor.runtimeSeq = 2;
     expect((await ingestMizarReliable(fixture.installationId, fixture.seasonId, correct, fixture.authorityRevision)).outcome).toBe("needs_attention");
-    // A fresh map_started for this epoch must not erase the unresolved conflict either.
-    const restart = reliableEvent(fixture);
-    restart.cursor.runtimeSeq = 3;
-    await ingestMizarReliable(fixture.installationId, fixture.seasonId, restart, fixture.authorityRevision, fixture.steam64);
     const context = await operatorContext(fixture);
     expect(context.review.evidence?.mapName).toBe(wrong.mapName);
     expect(context.review.evidence?.mapBinding).toBe(mismatch === "mapId" ? "Map 2 · Mirage" : "Map 1 · Ancient");
@@ -754,3 +750,83 @@ function snapshotForAuthority(fixture: Fixture) {
     capability: { telemetryFresh: true, contextFresh: true, identity: "matched", lineupComplete: true, radarCurrent: true, canonicalTeams: true },
   };
 }
+
+describe("operator repair before manual fallback", () => {
+  it.each([false, true])("revalidates a correct newer start after wrong room (unbound=%s), protects late/duplicate results and rearms next map", async unboundSource => {
+    const f = await seedFixture({ unboundSource });
+    const wrong = reliableEvent(f, { mapId: f.mapTwoId, mapName: "de_mirage" });
+    await ingestMizarReliable(f.installationId, f.seasonId, wrong, f.authorityRevision, f.steam64);
+    const correct = reliableEvent(f);
+    // Same-cursor observations cannot erase a recorded conflict.
+    expect((await ingestMizarReliable(f.installationId, f.seasonId, correct, f.authorityRevision, f.steam64)).outcome).toBe("needs_attention");
+    correct.idempotencyKey = randomUUID(); correct.cursor.runtimeSeq = 2;
+    expect((await ingestMizarReliable(f.installationId, f.seasonId, correct, f.authorityRevision, f.steam64)).outcome).toBe("armed");
+    expect((await operatorContext(f)).workflow).toMatchObject({ primaryTask: "observe", sourceHealth: "healthy", manualResultAllowed: false });
+    expect((await operatorContext(f)).takeover).toBeNull();
+    await expect(ingestMizarReliable(f.installationId, f.seasonId, { ...wrong, idempotencyKey: randomUUID() }, f.authorityRevision, f.steam64)).rejects.toThrow("过期");
+    const end = reliableEvent(f, { kind: "map_ended", payload: { scoreA: 13, scoreB: 9, scoreCT: 4, scoreT: 9 } }); end.cursor.runtimeSeq = 3;
+    expect((await ingestMizarReliable(f.installationId, f.seasonId, end, f.authorityRevision)).outcome).toBe("canonicalized");
+    expect((await ingestMizarReliable(f.installationId, f.seasonId, end, f.authorityRevision)).duplicate).toBe(true);
+    await nextEpoch(f);
+    expect((await operatorContext(f)).workflow.primaryTask).toBe("observe");
+    const audits = await db.select().from(schema.auditLogs).where(and(eq(schema.auditLogs.targetId, f.matchId), eq(schema.auditLogs.action, "mizar.map.revalidated")));
+    expect(audits).toHaveLength(1);
+  });
+
+  it("keeps an explicit manual choice during correct same-epoch observations and exposes the observed player differences", async () => {
+    const f = await seedFixture();
+    const observed = [...f.steam64]; observed[0] = "76561198000000001"; observed[1] = observed[2]!;
+    await ingestMizarReliable(f.installationId, f.seasonId, reliableEvent(f, { kind: "lineup_mismatch", payload: { reason: "lineup_changed" } }), f.authorityRevision, observed);
+    await db.insert(schema.steamProfiles).values([
+      { steam64: f.steam64[0]!, personaName: "Steam 首发昵称", profileUrl: `https://steamcommunity.com/profiles/${f.steam64[0]}`, fetchedAt: new Date() },
+      { steam64: observed[0]!, personaName: "Steam 额外玩家", profileUrl: `https://steamcommunity.com/profiles/${observed[0]}`, fetchedAt: new Date() },
+    ]).onConflictDoNothing();
+    const context = await operatorContext(f);
+    expect(context.review.evidence?.lineupDifference?.missing.find(player => player.steam64 === f.steam64[0])?.name).toBe("Steam 首发昵称");
+    expect(context.review.evidence?.lineupDifference).toMatchObject({ missing: expect.arrayContaining([expect.objectContaining({ steam64: f.steam64[0] }), expect.objectContaining({ steam64: f.steam64[1] })]), unexpected: [expect.objectContaining({ steam64: observed[0], name: "Steam 额外玩家", profileUrl: `https://steamcommunity.com/profiles/${observed[0]}` })], duplicated: [expect.objectContaining({ steam64: observed[2], name: "待识别玩家" })] });
+    await takeOverCurrentMap(f.matchId, f.entryAId, context.takeover!);
+    const start = reliableEvent(f); start.cursor.runtimeSeq = 2;
+    await ingestMizarReliable(f.installationId, f.seasonId, start, f.authorityRevision, f.steam64);
+    expect((await operatorContext(f)).workflow).toMatchObject({ sourceMode: "manual_map", manualResultAllowed: true });
+    await db.transaction(tx => recordManualMapResultInTx(tx, manualCommand(f)));
+    await nextEpoch(f);
+    expect((await operatorContext(f)).workflow.sourceMode).toBe("mizar_auto");
+  });
+});
+
+describe("operator authorization and in-progress score correction", () => {
+  it("restricts peer revocation while allowing audited super-admin intervention and self disconnect", async () => {
+    const { revokeMizarInstallation } = await import("../../../src/lib/mizar/installation");
+    const f = await seedFixture();
+    const peer = randomUUID(), superAdmin = randomUUID();
+    await db.insert(schema.users).values([{ id: peer, email: `${peer}@local.test`, role: "user" }, { id: superAdmin, email: `${superAdmin}@local.test`, role: "super_admin" }]);
+    await db.insert(schema.seasonAdminGrants).values({ userId: peer, seasonId: f.seasonId });
+    await expect(revokeMizarInstallation(f.installationId, f.seasonId, peer, "test")).rejects.toThrow("授权人");
+    expect((await loadSource(f.sessionId)).closedAt).toBeNull();
+    await expect(revokeMizarInstallation(f.installationId, f.seasonId, superAdmin)).rejects.toThrow("原因");
+    await revokeMizarInstallation(f.installationId, f.seasonId, superAdmin, "设备遗失，撤销授权");
+    expect((await loadSource(f.sessionId)).closeReason).toBe("revoked");
+    const audits = await db.select().from(schema.auditLogs).where(and(eq(schema.auditLogs.targetId, f.installationId), eq(schema.auditLogs.action, "mizar.installation.revoke")));
+    expect(audits[0]?.meta).toMatchObject({ reason: "设备遗失，撤销授权" });
+    await revokeMizarInstallation(f.installationId, f.seasonId, f.installationId);
+  });
+
+  it("corrects a completed map during the next map, checks reviewed scores, and retains epoch/official completion", async () => {
+    const { correctMapScoreInTx } = await import("../../../src/lib/matches/map-score-correction");
+    const f = await seedFixture();
+    await ingestMizarReliable(f.installationId, f.seasonId, reliableEvent(f, { kind: "map_ended", payload: { scoreA: 13, scoreB: 9, scoreCT: 4, scoreT: 9 } }), f.authorityRevision);
+    await nextEpoch(f);
+    const before = (await db.select().from(schema.matchMaps).where(eq(schema.matchMaps.id, f.mapOneId)))[0]!;
+    const input = { matchId: f.matchId, mapId: f.mapOneId, scoreA: 13, scoreB: 10, actorId: f.entryAId, review: { expectedScoreA: 13, expectedScoreB: 9, reason: "对照 Perfect 更正" } };
+    await db.transaction(tx => correctMapScoreInTx(tx, input));
+    await db.transaction(tx => correctMapScoreInTx(tx, input));
+    expect((await loadSource(f.sessionId))).toMatchObject({ currentMapId: f.mapTwoId, mapEpoch: 2, autoCanonicalizationArmed: true });
+    expect((await db.select().from(schema.matchMaps).where(eq(schema.matchMaps.id, f.mapOneId)))[0]).toMatchObject({ scoreA: 13, scoreB: 10, completedAt: before.completedAt });
+    await expect(db.transaction(tx => correctMapScoreInTx(tx, { ...input, scoreB: 11 }))).rejects.toThrow("已更新");
+    await expect(db.transaction(tx => correctMapScoreInTx(tx, { ...input, mapId: f.mapTwoId }))).rejects.toThrow("先提交");
+    await expect(db.transaction(tx => correctMapScoreInTx(tx, { ...input, review: { ...input.review, reason: "" } }))).rejects.toThrow();
+    const audits = await db.select().from(schema.auditLogs).where(and(eq(schema.auditLogs.targetId, f.matchId), eq(schema.auditLogs.action, "match.correct_map_score")));
+    expect(audits).toHaveLength(1);
+    expect((await operatorContext(f)).workflow).toMatchObject({ phase: "gameplay", elapsed: null });
+  });
+});

@@ -31,9 +31,9 @@ export function projectOperatorSource(source: OperatorSourceFacts | null) {
   return { sourceMode, sourceHealth, reviewReasons };
 }
 export const REVIEW_REASON_LABEL: Record<ReviewReason, string> = {
-  execution_mismatch: "地图与当前对局不一致", identity_mismatch: "比赛身份不一致", lineup_mismatch: "实际首发不一致", source_conflict: "数据源归属冲突",
-  continuity_failure: "对局连续性需要核对", result_conflict: "候选赛果与正式赛果冲突",
+  execution_mismatch: "地图与当前对局不一致", identity_mismatch: "采集的比赛需要核对", lineup_mismatch: "采集玩家与首发有差异", source_conflict: "请确认发送数据的设备",
+  continuity_failure: "采集来源已变化，请确认当前对局", result_conflict: "上报比分与正式比分有差异",
 };
 
-export const SOURCE_MODE_LABEL: Record<SourceMode, string> = { none: "人工赛务", mizar_auto: "Mizar 自动赛果", manual_map: "本图人工接管" };
-export const SOURCE_HEALTH_LABEL: Record<SourceHealth, string> = { not_applicable: "正常人工流程", healthy: "自动赛果核验正常", unknown: "待核验", stale: "数据已失鲜", conflict: "需要处理" };
+export const SOURCE_MODE_LABEL: Record<SourceMode, string> = { none: "人工赛务", mizar_auto: "Mizar 自动赛果", manual_map: "本图手动录分" };
+export const SOURCE_HEALTH_LABEL: Record<SourceHealth, string> = { not_applicable: "正常人工流程", healthy: "自动赛果核验正常", unknown: "待核验", stale: "比赛数据暂未更新", conflict: "需要处理" };

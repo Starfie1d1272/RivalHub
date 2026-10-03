@@ -48,6 +48,8 @@ vi.mock("@/lib/revalidation", () => ({
   revalidateMatchPaths: revalidateMatchPathsMock,
 }));
 
+vi.mock("@/lib/match-rosters/service", () => ({ lockMatchInTx: () => matchesFindFirstMock() }));
+
 // ── import after mocks ─────────────────────────────────────────────────────────
 import { correctMapScore } from "@/actions/matches/results";
 import { matches, matchMaps } from "@/db/schema";
@@ -162,7 +164,7 @@ describe("correctMapScore — shared legality + winner guard", () => {
       { id: "m3", scoreA: 8, scoreB: 13 },
     ]);
 
-    const result = await correctMapScore("m1", 16, 14);
+    const result = await correctMapScore("m1", 16, 14, { expectedScoreA: 13, expectedScoreB: 8, reason: "核对 Perfect 最终比分" });
 
     expect(result.success).toBe(true);
     // 单图比分更新
@@ -189,7 +191,7 @@ describe("correctMapScore — shared legality + winner guard", () => {
       { id: "m3", scoreA: 8, scoreB: 13 },
     ]);
 
-    const result = await correctMapScore("m1", 14, 13);
+    const result = await correctMapScore("m1", 14, 13, { expectedScoreA: 13, expectedScoreB: 8, reason: "核对 Perfect 最终比分" });
 
     expect(result.success).toBe(false);
     if (!result.success) {
@@ -210,7 +212,7 @@ describe("correctMapScore — shared legality + winner guard", () => {
       { id: "m3", scoreA: 8, scoreB: 13 },
     ]);
 
-    const result = await correctMapScore("m2", 8, 13);
+    const result = await correctMapScore("m2", 8, 13, { expectedScoreA: 13, expectedScoreB: 10, reason: "核对 Perfect 最终比分" });
 
     expect(result.success).toBe(false);
     if (!result.success) {
@@ -230,7 +232,7 @@ describe("correctMapScore — shared legality + winner guard", () => {
       { id: "m2", scoreA: 13, scoreB: 10 },
     ]);
 
-    const result = await correctMapScore("m2", 8, 13);
+    const result = await correctMapScore("m2", 8, 13, { expectedScoreA: 13, expectedScoreB: 10, reason: "核对 Perfect 最终比分" });
 
     expect(result.success).toBe(false);
     if (!result.success) {
@@ -247,7 +249,7 @@ describe("correctMapScore — shared legality + winner guard", () => {
     setupMapRecord({ id: "m1" });
     setupTxMaps([{ id: "m1", scoreA: 13, scoreB: 8 }]);
 
-    const result = await correctMapScore("m1", 16, 14);
+    const result = await correctMapScore("m1", 16, 14, { expectedScoreA: 13, expectedScoreB: 8, reason: "核对 Perfect 最终比分" });
 
     expect(result.success).toBe(true);
     expect(matchMapsUpdateSetCalls).toContainEqual({ scoreA: 16, scoreB: 14 });
@@ -264,7 +266,7 @@ describe("correctMapScore — shared legality + winner guard", () => {
     setupMapRecord({ id: "m1" });
     setupTxMaps([{ id: "m1", scoreA: 13, scoreB: 8 }]);
 
-    const result = await correctMapScore("m1", 8, 13);
+    const result = await correctMapScore("m1", 8, 13, { expectedScoreA: 13, expectedScoreB: 8, reason: "核对 Perfect 最终比分" });
 
     expect(result.success).toBe(false);
     if (!result.success) {

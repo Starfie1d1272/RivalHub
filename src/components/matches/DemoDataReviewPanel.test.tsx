@@ -59,7 +59,7 @@ describe("DemoDataReviewPanel", () => {
         state: "roster-mismatch",
         currentPlayer: { userId: "sub-user", name: "替补选手" },
         retirableIdentityId: null,
-        note: "这个 Steam64 已明确属于本队赛事名单成员，但不在本场记录的首发五人中。这是实际出场名单问题，不是 Steam 身份冲突；请不要改绑或撤销 Steam 身份。",
+        note: "该玩家已对应到本队赛事成员。请核对实际出场名单，并通过本场首发管理处理差异。",
         candidates: [],
       }],
     })]} />);
@@ -124,12 +124,12 @@ describe("DemoDataReviewPanel", () => {
 
   it.each([false, true])("keeps rejection available without identity controls for invalid=%s", async (invalidPayload) => {
     const user = userEvent.setup();
-    const message = invalidPayload ? "这份 Demo 数据无法重新读取，请核对或拒绝。" : "这份 Demo 当前不是 Steam 身份确认问题。";
+    const message = invalidPayload ? "这份 Demo 数据无法重新读取，请核对或拒绝。" : "请按下方检查结果处理这份 Demo。";
     render(<DemoDataReviewPanel reviews={[review({ invalidPayload, participants: [], message, resolvedCount: invalidPayload ? 0 : 10,
-      blockingIssues: invalidPayload ? [] : ["Demo 回合比分与正式比分不一致，请核对本图赛果。", "DAK QA 未通过，本问题不能通过身份确认解决。"] })]} />);
+      blockingIssues: invalidPayload ? [] : ["Demo 回合比分与正式比分不一致，请核对本图赛果。", "请在 Uploader 查看 DAK 检查结果，处理后重新解析并同步。"] })]} />);
     expect(screen.getByText(message)).toBeInTheDocument();
     expect(screen.queryByRole("radio")).not.toBeInTheDocument();
-    if (!invalidPayload) expect(screen.getByText(/DAK QA 未通过/)).toBeInTheDocument();
+    if (!invalidPayload) expect(screen.getByText(/Uploader 查看 DAK 检查结果/)).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "拒绝这份 Demo 数据" }));
     expect(mocks.reject).not.toHaveBeenCalled();
     await user.click(screen.getByRole("button", { name: "确认拒绝" }));

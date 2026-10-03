@@ -78,7 +78,7 @@ function data(status: Match["status"]) {
     pendingMaps: [],
     finishedMaps: status === "finished" ? [{ id: "map-1", mapName: "de_inferno", scoreA: 13, scoreB: 9 }] : [],
     vetoCompletedAt: status === "finished" ? new Date("2026-09-05T03:00:00Z") : null,
-    postMatch: { commentators: [], seasonAdmins: [], submittedAt: null, submittedByUserId: null, videoUrl: null, completionLabel: "待整理", canSubmit: status === "finished" },
+    postMatch: { commentators: [{ userId: "operator", name: "解说", hasLiveStream: false }], seasonAdmins: [], submittedAt: null, submittedByUserId: null, videoUrl: null, completionLabel: "待整理", canSubmit: status === "finished" },
     operator: { workflow: projectOperatorWorkflow({ status, isForfeit: false, vetoComplete: status !== "scheduled", observedGameplayMapId: null,
       maps: status === "finished" ? [{ id: "map-1", order: 1, name: "de_inferno", startSide: "t", completedAt: "2026-09-05T04:00:00Z", scoreboardComplete: false, demoLabel: "待上传", demoNeedsAttention: false }] : [] }), roomGuide: null },
     commentary: { currentMatches: [], nextMatch: null, unclaimedMatches: [], unclaimedCount: 0, byMatchId: {} },
@@ -93,7 +93,7 @@ describe("AdminMatchWorkbench", () => {
 
     expect(screen.getByRole("heading", { name: "首发名单" })).toBeInTheDocument();
     expect(screen.getByTestId("roster-dialog")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "打开 Veto Room" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "进入 BP" })).toBeInTheDocument();
     expect(screen.getByTestId("forfeit-button")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "危险操作与恢复" })).toBeInTheDocument();
   });
@@ -102,7 +102,7 @@ describe("AdminMatchWorkbench", () => {
     const workbench = data("in_progress");
     const view = render(<AdminMatchWorkbench {...workbench} />);
 
-    expect(screen.getByRole("status")).toHaveTextContent("完成 BP 地图计划后才能录入地图比分");
+    expect(screen.getByRole("status")).toHaveTextContent("BP 正在进行，完成后按地图计划建房");
     expect(screen.queryByTestId("map-input")).not.toBeInTheDocument();
 
     view.rerender(<AdminMatchWorkbench {...workbench} vetoCompletedAt={new Date("2026-09-05T03:00:00Z")} />);
@@ -129,7 +129,7 @@ describe("AdminMatchWorkbench", () => {
       roomGuide: buildPerfectRoomGuide({ seasonName: "Major", roundLabel: "Stage1", description: "1-1", teamAName: "Alpha", teamBName: "Beta", map: maps[1] }) };
     render(<AdminMatchWorkbench {...workbench} operator={operator} />);
     expect(screen.getByTestId("ocr-panel")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "暂后补 OCR，查看下一图建房指引" })).toHaveAttribute("href", "#perfect-room-guide");
+    expect(screen.getByRole("link", { name: "下一图建房指引" })).toHaveAttribute("href", "#perfect-room-guide");
     expect(screen.getByRole("heading", { name: /Map 2.*Perfect 建房指引/ })).toBeInTheDocument();
   });
 
@@ -169,7 +169,7 @@ it("keeps AUTO as observation and makes review take precedence without a manual 
  expect(screen.queryByTestId("map-input")).not.toBeInTheDocument();
  props.operator.workflow = projectOperatorWorkflow({status:"in_progress", isForfeit:false, vetoComplete:true, observedGameplayMapId:"map-1", maps, source:{...source,lineupHealth:"conflict",autoCanonicalizationArmed:false}});
  view.rerender(<AdminMatchWorkbench {...props} />);
- expect(screen.getByRole("heading",{name:"自动赛果已暂停：请核对以下问题"})).toBeInTheDocument();
+ expect(screen.getByRole("heading",{name:"比赛数据需要核对"})).toBeInTheDocument();
  expect(screen.queryByTestId("map-input")).not.toBeInTheDocument();
 });
 

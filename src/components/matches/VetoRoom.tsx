@@ -90,7 +90,7 @@ export function VetoRoom({ initialRoom }: { initialRoom: VetoRoomView }) {
     }
     setRoom(result.data.room);
     setClockAnchor({ serverNowMs: new Date(result.data.room.session.serverNow).getTime(), performanceNowMs: performance.now() });
-    if (result.data.outcome === "applied") setNotice("房间状态已按服务器时间推进。");
+    if (result.data.outcome === "applied") setNotice("BP 进度已更新。");
   }, [room.match.id]);
 
   // Keep a slow recovery read after completion/pause: administrators may rewind
@@ -241,13 +241,13 @@ export function VetoRoom({ initialRoom }: { initialRoom: VetoRoomView }) {
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <h1 className="text-2xl font-semibold text-[var(--color-fg)] sm:text-3xl">{room.entries[0]?.name} <span className="text-[var(--color-fg-dim)]">vs</span> {room.entries[1]?.name}</h1>
-            <p className="mt-1 text-sm text-[var(--color-fg-mid)]">Veto Room · {match.format} · 比赛{match.statusLabel}</p>
+            <p className="mt-1 text-sm text-[var(--color-fg-mid)]">地图 BP · {match.format} · 比赛{match.statusLabel}</p>
           </div>
           <span className="rounded border border-[var(--color-border)] px-3 py-1.5 text-sm text-[var(--color-fg-mid)]" aria-live="polite">
             {turn.completedAt ? "地图计划已完成" : turn.startedAt ? turn.paused ? "BP 已暂停" : "BP 进行中" : "等待开始"}
           </span>
         </div>
-        <p className="text-sm text-[var(--color-fg-mid)]">BP 开始时比赛会进入进行中；完成 BP 只会写入地图计划。</p>
+        <p className="text-sm text-[var(--color-fg-mid)]">双方完成禁图、选图与选边后，按结果创建 Perfect 房间。</p>
       </header>
 
       {(notice || error) && (
@@ -257,7 +257,7 @@ export function VetoRoom({ initialRoom }: { initialRoom: VetoRoomView }) {
       )}
 
       {canStart && (
-        <Panel label="开始协调">
+        <Panel label="双方准备">
           <div className="space-y-4">
             <div className="grid gap-3 sm:grid-cols-2">
               {room.entries.map((entry) => (
@@ -268,19 +268,19 @@ export function VetoRoom({ initialRoom }: { initialRoom: VetoRoomView }) {
                   </div>
                   {entry.lineupBlocker && <p className="mt-2 text-xs text-[var(--color-warn)]">{entry.lineupBlocker}</p>}
                   <p className="mt-2 text-sm text-[var(--color-fg-mid)]">BP 负责人：{entry.vetoRepresentativeName ?? "尚未指定"}</p>
-                  <p className="mt-2 text-xs text-[var(--color-fg-dim)]">首发：{entry.starters.map((starter) => starter.name).join("、") || "—"}</p>
+                  <details className="mt-2 text-xs text-[var(--color-fg-dim)]"><summary className="cursor-pointer">查看本场首发（{entry.starters.length} 人）</summary><p className="mt-2">{entry.starters.map((starter) => starter.name).join("、") || "待提交"}</p></details>
                   {entry.mayClaimRepresentative && (
                     <Button className="mt-3" size="sm" variant="outline" disabled={pending} onClick={() => void mutate(claimVetoRepresentativeAction, { matchId: match.id, entryId: entry.id }, "已认领 BP 负责人。")}>认领 BP 负责人</Button>
                   )}
                   {entry.mayEditRepresentative && (
-                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <details className="mt-3"><summary className="cursor-pointer text-sm">更换 BP 负责人</summary><div className="mt-2 flex flex-wrap items-center gap-2">
                       <label className="text-xs text-[var(--color-fg-mid)]" htmlFor={`veto-rep-${entry.id}`}>指定本场负责人</label>
                       <select id={`veto-rep-${entry.id}`} className="min-h-9 rounded border border-[var(--color-border)] bg-[var(--color-panel)] px-2 text-sm" value={representatives[entry.id] ?? ""} onChange={(event) => setRepresentatives((current) => ({ ...current, [entry.id]: event.target.value }))}>
                         <option value="">选择首发队员</option>
                         {entry.starters.map((starter) => <option key={starter.id} value={starter.id}>{starter.name}</option>)}
                       </select>
                       <Button size="sm" variant="outline" disabled={pending || !representatives[entry.id]} onClick={() => void mutate(updateVetoRepresentative, { matchId: match.id, entryId: entry.id, eventRosterMemberId: representatives[entry.id] }, "BP 负责人已更新。")}>保存负责人</Button>
-                    </div>
+                    </div></details>
                   )}
                   {entry.mayRequestStart && (
                     <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -300,7 +300,7 @@ export function VetoRoom({ initialRoom }: { initialRoom: VetoRoomView }) {
                   {room.entries.map((entry) => <option key={entry.id} value={entry.id}>{entry.name}</option>)}
                 </select>
                 <Button size="sm" variant="outline" disabled={pending || !manualPrivilege} onClick={() => void mutate(setManualVetoPrivilege, { matchId: match.id, entryId: manualPrivilege }, "BP 先手队伍已指定。")}>保存先手</Button>
-                <span className="basis-full text-xs text-[var(--color-fg-dim)]">Major 与资格赛比赛使用冻结预排名，不接受手动覆盖。</span>
+                <span className="basis-full text-xs text-[var(--color-fg-dim)]">Major 与资格赛的先手由赛前预排名确定。</span>
               </div>
             )}
 
@@ -316,11 +316,11 @@ export function VetoRoom({ initialRoom }: { initialRoom: VetoRoomView }) {
       )}
 
       {turn.startedAt && (
-        <Panel label={turn.completedAt ? "地图计划" : turn.paused ? "暂停的 Veto Session" : "当前操作"}>
+        <Panel label={turn.completedAt ? "地图计划" : turn.paused ? "BP 已暂停" : "当前操作"}>
           <div className="space-y-4">
-            {turn.paused && <p role="status" className="rounded border border-[var(--color-warn-edge)] px-3 py-2 text-sm text-[var(--color-warn)]">管理员已暂停 BP 房间。{turn.pauseReason ? `原因：${turn.pauseReason}` : ""}</p>}
+            {turn.paused && <p role="status" className="rounded border border-[var(--color-warn-edge)] px-3 py-2 text-sm text-[var(--color-warn)]">BP 已暂停。{turn.pauseReason ? `原因：${turn.pauseReason}` : ""}</p>}
             {turn.completedAt ? (
-              <p className="text-sm text-[var(--color-ok)]">地图计划已在 {timeLabel(turn.completedAt)} 完成。{match.formatKey === "bo5" ? "第五图起始方由刀赛决定。" : ""}比赛仍处于进行中，比分通过地图结果录入。</p>
+              <p className="text-sm text-[var(--color-ok)]">地图计划已在 {timeLabel(turn.completedAt)} 完成。{match.formatKey === "bo5" ? "第五图起始方由刀赛决定。" : ""}可返回比赛工作台查看建房指引与比分。</p>
             ) : (
               <div className="flex flex-wrap items-center justify-between gap-3 rounded border border-[var(--color-border)] bg-[var(--color-panel-hi)] p-4">
                 <div>
@@ -333,7 +333,7 @@ export function VetoRoom({ initialRoom }: { initialRoom: VetoRoomView }) {
                 </div>
                 {countdown && <div className="text-right">
                   <p className="font-mono text-3xl tabular-nums" aria-live="off">{countdown}</p>
-                  <p className="text-xs text-[var(--color-fg-dim)]">服务器回合倒计时</p>
+                  <p className="text-xs text-[var(--color-fg-dim)]">本次操作剩余时间</p>
                   {remainingMs <= 10_000 && remainingMs > 0 && (
                     <p role="status" aria-live="polite" className="mt-1 rounded border border-[var(--color-danger-edge)] px-2 py-1 text-xs font-medium text-[var(--color-danger)]">
                       最后 10 秒，请尽快完成当前操作。
@@ -372,31 +372,31 @@ export function VetoRoom({ initialRoom }: { initialRoom: VetoRoomView }) {
               </div>
             )}
 
-            {!turn.completedAt && !turn.paused && match.statusKey !== "in_progress" && <p className="text-sm text-[var(--color-fg-mid)]">比赛已结束或取消，Veto Room 只读。</p>}
+            {!turn.completedAt && !turn.paused && match.statusKey !== "in_progress" && <p className="text-sm text-[var(--color-fg-mid)]">本场 BP 记录已保留，可随时查看。</p>}
             {!turn.completedAt && !turn.paused && match.statusKey === "in_progress" && !room.permissions.canOperateCurrentTurn && <p className="text-sm text-[var(--color-fg-mid)]">当前由对应队伍的 BP 负责人操作。房间会自动同步操作与计时。</p>}
           </div>
         </Panel>
       )}
 
-      <section className="grid gap-4 md:grid-cols-2" aria-label="队伍与负责人">
+      {turn.startedAt && <section className="grid gap-4 md:grid-cols-2" aria-label="队伍与负责人">
         {room.entries.map((entry) => (
           <Panel key={entry.id} label={entry.vetoRoleLabel ?? "队伍"}>
             <div className="space-y-3">
               <h2 className="text-lg font-semibold">{entry.name}</h2>
               <p className="text-sm text-[var(--color-fg-mid)]">BP 负责人：{entry.vetoRepresentativeName ?? "尚未指定"}</p>
-              <ul className="space-y-1 text-sm text-[var(--color-fg-mid)]">
+              <details className="text-sm text-[var(--color-fg-mid)]"><summary className="cursor-pointer">查看首发</summary><ul className="mt-2 space-y-1">
                 {entry.starters.map((starter) => <li key={starter.id}>{starter.name}{starter.isVetoRepresentative ? " · BP 负责人" : ""}</li>)}
-              </ul>
+              </ul></details>
               {entry.lineupBlocker && <p className="text-xs text-[var(--color-warn)]">{entry.lineupBlocker}</p>}
             </div>
           </Panel>
         ))}
-      </section>
+      </section>}
 
-      <Panel label="Veto 记录">
+      <Panel label="BP 记录">
         {room.steps.length === 0 ? <p className="text-sm text-[var(--color-fg-mid)]">尚无操作记录。</p> : (
           <ol className="space-y-2">
-            {room.steps.map((step) => <li key={step.id} className="flex flex-wrap items-center gap-x-2 rounded border border-[var(--color-border)] px-3 py-2 text-sm"><span className="w-6 text-right text-xs tabular-nums text-[var(--color-fg-dim)]">{step.stepOrder}.</span><strong>{step.entryName ?? step.sourceLabel}</strong><span className="text-[var(--color-fg-mid)]">{step.description}{step.sideLabel ? ` · ${step.sideLabel} 先` : ""}</span><span className="ml-auto text-xs text-[var(--color-fg-dim)]">{step.sourceLabel}</span></li>)}
+            {room.steps.map((step) => <li key={step.id} className="flex flex-wrap items-center gap-x-2 rounded border border-[var(--color-border)] px-3 py-2 text-sm"><span className="w-6 text-right text-xs tabular-nums text-[var(--color-fg-dim)]">{step.stepOrder}.</span><span className="text-[var(--color-fg-mid)]">{step.description}{step.sideLabel ? ` · ${step.sideLabel} 先` : ""}</span><span className="ml-auto text-xs text-[var(--color-fg-dim)]">{step.sourceLabel}</span></li>)}
           </ol>
         )}
       </Panel>
@@ -481,7 +481,7 @@ export function VetoRoom({ initialRoom }: { initialRoom: VetoRoomView }) {
       )}
 
       <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--color-border)] pt-4 text-xs text-[var(--color-fg-dim)]">
-        <span>最近一次服务器校时 {timeLabel(turn.serverNow)}</span>
+        <span>最近同步 {timeLabel(turn.serverNow)}</span>
         <Button size="sm" variant="ghost" disabled={pending} onClick={() => void refresh()}>立即同步</Button>
       </footer>
     </div>

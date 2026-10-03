@@ -180,7 +180,7 @@ Mizar 数据源闭环：Mizar 在本机发起短期 pairing intent 并保留 pol
 
 图间 OCR 与下一图准备可并行，不构成建房或赛后资料的门槛。图间计时仅在派生阶段为 inter_map 时从上一图正式 completed_at 正计时，10 分钟软提醒；下一图已经 gameplay 或系列结束后不再显示图间提醒、催促准备已开打的地图，即使随后失鲜或人工接管也如此。保存/清除后刷新投影，页面可见时定期刷新，仍可手动刷新。正式系列赛结束立即进入赛后整理，BO3 的 2:0 不准备 Map 3，仍进行中的 1:1 才继续；无实际地图的弃赛不要求 OCR 或 Demo。赛后提供 Demo Uploader 稳定下载入口及逐图同步状态，needs_attention 面板保留独立恢复入口，即使当前地图缺少正式结果也不隐藏。
 
-可靠事件的错图拒绝持久化为 execution_conflict，工作台优先 REVIEW，保留既有可信 currentMapId 与 gameplay 事实；同 epoch 后续正确事件不自动清除该冲突或重新 armed。管理员核对后显式接管本图，人工命令仍经同一正式赛果 owner。若 invalid map_started 后没有可信地图绑定，工作台展示正式计划中第一张未完成地图；管理员明确确认恢复并接管，服务端在 match→source 锁内重验 session、map epoch、空绑定、冲突与未完成地图顺序，记录恢复前后地图及操作者审计。已人工接管的同 epoch 若因 source generation 切换丢失绑定，后续可靠事件确认 execution_conflict 后仍提供此显式恢复入口；单独 unknown 不授权恢复，已绑定且已接管时不重复提示。恢复审计包含 generation 与原人工接管 epoch。此恢复不切换 installation，不允许任选地图或覆盖正式赛果；下一图新 epoch 仍须通过健康检查才恢复 AUTO。
+可靠事件的错图拒绝持久化为 execution_conflict，工作台优先 REVIEW，保留既有可信 currentMapId 与 gameplay 事实；后续单独的结束事件保留冲突；同 epoch 更新的 map_started 在 BP 完成、正式第一张待进行地图、十人名单、identity/freshness、session/authority/context/generation 校验均通过后可重新 armed，并记录 revalidated 审计。显式人工接管的本 epoch 保持手动选择。Mizar 当前每个 epoch 只发送一次开始事件，现场修正应通过其比赛/采集来源选择产生有效的新开始证据；页面刷新只读取处理状态。管理员仍可显式接管本图，人工命令经同一正式赛果 owner。若 invalid map_started 后没有可信地图绑定，工作台展示正式计划中第一张未完成地图；管理员明确确认恢复并接管，服务端在 match→source 锁内重验 session、map epoch、空绑定、冲突与未完成地图顺序，记录恢复前后地图及操作者审计。已人工接管的同 epoch 若因 source generation 切换丢失绑定，后续可靠事件确认 execution_conflict 后仍提供此显式恢复入口；单独 unknown 不授权恢复，已绑定且已接管时不重复提示。恢复审计包含 generation 与原人工接管 epoch。此恢复不切换 installation，不允许任选地图或覆盖正式赛果；下一图新 epoch 仍须通过健康检查才恢复 AUTO。
 
 ## Discipline and post-event
 
@@ -227,8 +227,12 @@ Saved scenarios are independent public snapshots with an engine version. Opening
 
 单场工作台复用 canonical phase facts，将当前任务、source mode、health 和 review reasons 分开投影。真实身份/阵容/连续性/赛果冲突优先处理，无 Mizar 是正常人工路径；AUTO 已核验时展示「Map N · 地图名进行中」，解说认领另行展示；认领不等于已经开播或正在解说。准备房间时先展示 Perfect 指引，手动录分收在「比赛结束后录入本图比分」，显式接管后展开。服务端人工命令与可靠事件共用比赛锁及结果 owner；人工接管校验预期 source session、地图与 epoch，已有正式赛果只能走更正流程，下一图健康开始后重新自动 armed。失鲜只能依据 producer 明确的 freshness evidence，不能由低频 reliable-event 时间推断；未知状态保留未知。
 
-官方完赛不等待 OCR/DAK 或制作资料。实际完成地图分别检查完整计分板与 Demo 同步，未打 decider 和无实际地图弃赛不生成任务；解说与录像按实际认领单独检查；未登记解说时明确提示无需提交名单或录像，不免除比赛统计和 Demo 的要求。Bilibili 状态采用低频服务端缓存查询，失败显示「无法确认」。Uploader 下载消费 DAK 的稳定 manifest，失败时保留官方 Release fallback。
+官方完赛不等待 OCR/DAK 或制作资料。实际完成地图分别检查完整计分板与 Demo 同步，未打 decider 和无实际地图弃赛不生成任务；解说与录像按实际认领单独检查；暂无解说认领时显示认领状态，收起解说资料项；比赛统计和 Demo 仍逐图检查。Bilibili 状态采用低频服务端缓存查询，失败显示「无法确认」。Uploader 下载消费 DAK 的稳定 manifest，失败时保留官方 Release fallback。
 
-异常面板按原因给出本站记录、当前 source session / map epoch 对应的有界的最近未采纳上报（地图名称、地图绑定与比分；地图冲突优先显示真正错图的报告，避免后续正确但未被采纳的上报掩盖原因）和操作步骤。身份／阵容报告未包含逐项差异时明确说明证据缺失，不能虚构错队或错人。手动录分确认解释仅影响本图比分写入，不控制 Mizar HUD、OBS 或设备来源，也不解除网站实时数据校验。刷新只重新读取信息并提供完成反馈，不修改比分。当前逐图比分更正仅对已结束系列赛开放且不能改变胜者；进行中的正式比分若有误，页面明确提示记录差异并联系赛事管理员、暂停后续录分，不给出不存在的更正入口。
+异常面板优先展示差异、修复位置与完成条件。管理员先检查 Perfect 房间和 Mizar 当前比赛/采集来源，正确的本图开始证据重新核验后恢复自动记录；备用手动录分收起，确认时说明本图范围和采集仍需处理。当前 source session / map epoch 的最近未采纳上报按有界查询读取；地图冲突优先选择实际错图报告，阵容报告保存当时首发与采集玩家的缺少、额外、重复差异。页面通过既有 Steam profile 缓存与批量缺失查询显示 Steam 昵称及主页链接，昵称暂缺时显示待识别玩家；Steam64 继续承担内部匹配。比赛 identity 协议目前只有总体状态和 reason，具体队伍对应差异依赖生产端扩展；admin 私有证据与公开 projection 分离。
+
+进行中与已结束系列赛的已完成地图共用 `map-score-correction.ts`。更正要求原因和预期旧比分，在 match→source 锁内再次核验，重复目标幂等、旧页面冲突拒绝，保留原 completed_at；进行中地图胜数继续从 maps 派生，整场正式比分仅在完赛时保存。更正造成已完赛系列胜者变化时，使用已有整场结果更正并核对后续赛程；使进行中系列提前结束的更正会被拒绝，该类恢复仍需专门的系列赛处置流程。DAK payload/gameplay/lineage 保留，原 evidence revision 按新比分显示待重新核验。当前图来源暂停自动写入，下一图仍按完整核验恢复。
+
+设备授权管理展示授权人、活动连接和受影响比赛。普通赛事管理员管理自己授权的设备，跨用户撤销由超级管理员填写原因；服务端事务执行相同校验并审计。设备凭据验证后的自行断开仍支持幂等重试。
 
 Perfect 六项复制复用 canonical 赛事事实：轮次来自阶段（含 Direct BO3 Play-in），短描述来自对阵轮次／淘汰赛轮次／Swiss 当前轮战绩；Direct BO3 不读取不存在的 Swiss 战绩。队伍 1/2 来自本场 A/B，起始边来自 BP；缺失事实时禁用复制并指向赛程或 BP 核对，不生成猜测值。

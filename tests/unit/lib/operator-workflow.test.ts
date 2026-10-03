@@ -14,7 +14,7 @@ describe("single-operator task projection", () => {
   it("keeps missing between-map OCR optional and advances when its fields are complete", () => {
     const pending = project([map(1, true), map(2), map(3)]);
     expect(pending).toMatchObject({ focusMapId: "map-1", roomMapId: "map-2", elapsed: { since: completedAt } });
-    expect(pending.description).toContain("可赛后补齐");
+    expect(pending.description).toContain("可同时补充");
     expect(project([map(1, true, true), map(2), map(3)])).toMatchObject({ focusMapId: null, roomMapId: "map-2", title: "准备 Map 2 · Nuke 房间" });
   });
   it("shows Map3 for an ongoing 1:1, but a completed 2:0 goes straight to post-match despite its unused map", () => {
@@ -30,7 +30,7 @@ describe("single-operator task projection", () => {
   });
   it("does not require artifacts for an unplayed forfeit or plan future maps for cancellation", () => {
     expect(project([map(1)], { status: "finished", isForfeit: true })).toMatchObject({ completedMaps: [], roomMapId: null, focusMapId: null });
-    expect(project([map(1)], { status: "finished", isForfeit: true }).description).toContain("无需 OCR 或 Demo");
+    expect(project([map(1)], { status: "finished", isForfeit: true }).description).toBe("弃赛结果已记录。");
     expect(project([map(1)], { status: "cancelled" }).roomMapId).toBeNull();
   });
   it("does not infer a room before the BP plan, and never pretends room creation is known", () => {
@@ -84,7 +84,7 @@ it("prioritizes explicit source/result conflicts, and never enables a prior map 
 it("separates official, data and production completion for unclaimed, forfeit and played matches", async () => {
   const { projectOperatorCompletion } = await import("@/lib/admin/matches/operator-workflow");
   const base = { status: "finished" as const, isForfeit: false, maps: [map(1, true)], commentatorCount: 0, submitted: true, hasVideo: true };
-  expect(projectOperatorCompletion(base)).toEqual({ official: "已完赛", data: "待补齐 OCR / Demo", production: "未登记解说，无需提交名单或录像" });
+  expect(projectOperatorCompletion(base)).toEqual({ official: "已完赛", data: "待补齐 OCR / Demo", production: "暂无解说认领" });
   expect(projectOperatorCompletion({ ...base, maps: [], isForfeit: true }).data).toBe("已齐备");
   expect(projectOperatorCompletion({ ...base, maps: [] }).data).toBe("待补齐 OCR / Demo");
   expect(projectOperatorCompletion({ ...base, commentatorCount: 1, maps: [{ ...map(1, true, true), demoComplete: true }] })).toEqual({ official: "已完赛", data: "已齐备", production: "已完成" });

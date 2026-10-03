@@ -18,7 +18,7 @@ export default async function AdminMatchWorkbenchPage({ params }: AdminMatchWork
         <p className="font-mono text-[11px] tracking-[0.12em] text-[var(--color-fg-mid)]">{data.season.name}</p>
         <h1 className="mt-1 text-2xl font-bold text-[var(--color-fg)]">单场比赛工作台</h1>
         <p className="mt-1 text-sm text-[var(--color-fg-mid)]">
-          仅在本页处理实际首发、BP、地图、赛果、赛后资料和恢复操作。
+          查看本场进度，完成准备、比分记录与赛后资料。
         </p>
         <Link
           href={`/admin/${seasonSlug}/matches`}

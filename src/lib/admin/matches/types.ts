@@ -7,6 +7,9 @@ import type { CompetitionQualificationRun } from "@/db/schema";
 import type { OperatorWorkflow, PerfectRoomGuideData } from "./operator-workflow";
 import type { AdminMatchCommentaryData } from "./commentary";
 
+export type OperatorLineupPlayer = { name: string; userId?: string; steam64: string | null; profileUrl: string | null };
+export type OperatorLineupDifference = { missing: OperatorLineupPlayer[]; unexpected: OperatorLineupPlayer[]; duplicated: OperatorLineupPlayer[] };
+
 export interface TeamMemberData {
   id: string;
   entryId: string;
@@ -168,7 +171,7 @@ export interface AdminMatchWorkbenchData {
   vetoCompletedAt: Date | null;
   postMatch: AdminPostMatchRecordData | null;
   demoReviews?: AdminDemoReviewMap[];
-  operator: { review?: { expectedTeams: string; currentMap: string | null; officialScore: string | null; evidence: { at: string; mapBinding: string; mapName: string | null; scoreA: number | null; scoreB: number | null } | null }; workflow: OperatorWorkflow; roomGuide: PerfectRoomGuideData | null; recoveryMapLabel?: string | null; takeover?: { sessionId: string; mapEpoch: number; mapId: string; recoverMapBinding?: boolean } | null };
+  operator: { review?: { expectedTeams: string; currentMap: string | null; officialScore: string | null; evidence: { lineupDifference?: OperatorLineupDifference | null; at: string; mapBinding: string; mapName: string | null; scoreA: number | null; scoreB: number | null } | null }; workflow: OperatorWorkflow; roomGuide: PerfectRoomGuideData | null; recoveryMapLabel?: string | null; takeover?: { sessionId: string; mapEpoch: number; mapId: string; recoverMapBinding?: boolean } | null };
   commentary: AdminMatchCommentaryData;
 }
 

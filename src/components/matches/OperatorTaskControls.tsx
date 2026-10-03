@@ -21,6 +21,6 @@ export function OperatorTaskControls({ elapsed }: { elapsed: { since: string; la
     {elapsed && <p className="text-sm text-[var(--color-fg-mid)]">{elapsed.label} <span className="font-mono tabular-nums">{now === null ? "—" : formatOperatorElapsed(elapsed.since, now)}</span></p>}
     {elapsed && now !== null && now - new Date(elapsed.since).getTime() >= 600000 && <p role="status" className="text-sm text-[var(--color-warn)]">图间已达 10 分钟，请核对下一图房间并提醒双方进入。</p>}
     <Button size="sm" variant="outline" disabled={pending} onClick={() => { setRefreshed(new Date().toLocaleTimeString("zh-CN", { hour12: false })); startTransition(() => router.refresh()); }}>{pending ? "刷新中…" : "更新比赛信息"}</Button>
-    <span role={refreshed ? "status" : undefined} className="text-xs text-[var(--color-fg-mid)]">{refreshed && !pending ? `已更新 ${refreshed} · ` : ""}页面每 30 秒更新，刷新不会修改比分。</span>
+    <span role={refreshed ? "status" : undefined} className="text-xs text-[var(--color-fg-mid)]">{refreshed && !pending ? `已更新 ${refreshed} · ` : ""}每 30 秒自动更新</span>
   </div>;
 }

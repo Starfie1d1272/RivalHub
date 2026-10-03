@@ -1,0 +1,608 @@
+[
+  {
+    "file": "auto-01.png",
+    "title": "自动记录：地图进行中",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "auto-02.png",
+    "title": "自动记录：地图进行中",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "auto-refresh-01.png",
+    "title": "手动更新比赛信息：完成反馈",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "auto-refresh-02.png",
+    "title": "手动更新比赛信息：完成反馈",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "bp-01.png",
+    "title": "工作台：进入已有公开 BP 页面",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "bp-02.png",
+    "title": "工作台：进入已有公开 BP 页面",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "bp-a-ready.png",
+    "title": "队长 A：准备 BP",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "bp-b-ready.png",
+    "title": "队长 B：准备 BP",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "bp-completed-01.png",
+    "title": "完整 BP 结束：正式地图计划",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "bp-completed-02.png",
+    "title": "完整 BP 结束：正式地图计划",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "bp-completed.png",
+    "title": "完整 BP 结束：正式地图计划",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "bp-rewind-paused.png",
+    "title": "管理员恢复 BP 步骤：暂停待继续",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "bp-to-perfect.png",
+    "title": "BP 完成返回工作台：创建 Perfect 房间",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "bp-turn-01.png",
+    "title": "BP 实际操作 · 第 01 步",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "bp-turn-02.png",
+    "title": "BP 实际操作 · 第 02 步",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "bp-turn-03.png",
+    "title": "BP 实际操作 · 第 03 步",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "bp-turn-04.png",
+    "title": "BP 实际操作 · 第 04 步",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "bp-turn-05.png",
+    "title": "BP 实际操作 · 第 05 步",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "bp-turn-06.png",
+    "title": "BP 实际操作 · 第 06 步",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "bp-turn-07.png",
+    "title": "BP 实际操作 · 第 07 步",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "bp-turn-08.png",
+    "title": "BP 实际操作 · 第 08 步",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "bp-turn-09.png",
+    "title": "BP 实际操作 · 第 09 步",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "bp-turn-10.png",
+    "title": "BP 实际操作 · 第 10 步",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "cancelled-01.png",
+    "title": "比赛取消",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "cancelled-02.png",
+    "title": "比赛取消",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "commentary-confirmed-01.png",
+    "title": "实际解说名单：确认并刷新验证",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "commentary-confirmed-02.png",
+    "title": "实际解说名单：确认并刷新验证",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "commentary-confirmed-03.png",
+    "title": "实际解说名单：确认并刷新验证",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "dak-complete-and-attention-01.png",
+    "title": "Demo 数据：已同步与待处理地图",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "dak-complete-and-attention-02.png",
+    "title": "Demo 数据：已同步与待处理地图",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "dak-complete-and-attention-03.png",
+    "title": "Demo 数据：已同步与待处理地图",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "dak-complete-and-attention-04.png",
+    "title": "Demo 数据：已同步与待处理地图",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "device-peer-permissions.png",
+    "title": "同级管理员：只管理自己的设备授权",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "device-revoke-confirm.png",
+    "title": "超级管理员撤销他人授权：原因与影响确认",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "devices-01.png",
+    "title": "设备与下载：授权人、影响范围与操作权限",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "devices-02.png",
+    "title": "设备与下载：授权人、影响范围与操作权限",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "devices-03.png",
+    "title": "设备与下载：授权人、影响范围与操作权限",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "execution-01.png",
+    "title": "地图差异：正式地图与收到地图对照",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "execution-02.png",
+    "title": "地图差异：正式地图与收到地图对照",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "execution-manual-option-01.png",
+    "title": "地图差异：正式地图与收到地图对照 · 展开备用手动录分",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "execution-manual-option-02.png",
+    "title": "地图差异：正式地图与收到地图对照 · 展开备用手动录分",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "forfeit-01.png",
+    "title": "弃赛完结：正式赛果状态",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "forfeit-02.png",
+    "title": "弃赛完结：正式赛果状态",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "identity-01.png",
+    "title": "当前比赛数据待核对：检查 Perfect 房间与 Mizar 选择",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "identity-02.png",
+    "title": "当前比赛数据待核对：检查 Perfect 房间与 Mizar 选择",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "identity-manual-option-01.png",
+    "title": "当前比赛数据待核对：检查 Perfect 房间与 Mizar 选择 · 展开备用手动录分",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "identity-manual-option-02.png",
+    "title": "当前比赛数据待核对：检查 Perfect 房间与 Mizar 选择 · 展开备用手动录分",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "intermap-01.png",
+    "title": "图间：上一图完成时间与下一图准备",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "intermap-02.png",
+    "title": "图间：上一图完成时间与下一图准备",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "intermap-map-details-01.png",
+    "title": "图间：上一图基础板和比分更正",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "intermap-map-details-02.png",
+    "title": "图间：上一图基础板和比分更正",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "lineup-01.png",
+    "title": "首发差异：Steam 昵称、缺少与额外玩家",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "lineup-02.png",
+    "title": "首发差异：Steam 昵称、缺少与额外玩家",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "lineup-manual-option-01.png",
+    "title": "首发差异：Steam 昵称、缺少与额外玩家 · 展开备用手动录分",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "lineup-manual-option-02.png",
+    "title": "首发差异：Steam 昵称、缺少与额外玩家 · 展开备用手动录分",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "manual-01.png",
+    "title": "正常纯人工比赛：记录本图比分",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "manual-02.png",
+    "title": "正常纯人工比赛：记录本图比分",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "manual-official.png",
+    "title": "纯人工提交后：正式赛果已保存",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "missing-01.png",
+    "title": "资料缺失：轮次、地图起始边的真实缺失状态",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "missing-02.png",
+    "title": "资料缺失：轮次、地图起始边的真实缺失状态",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "ocr-after-dak-01.png",
+    "title": "DAK 后：三项平台补充字段",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "ocr-after-dak-02.png",
+    "title": "DAK 后：三项平台补充字段",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "ocr-after-dak-03.png",
+    "title": "DAK 后：三项平台补充字段",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "ocr-after-dak-04.png",
+    "title": "DAK 后：三项平台补充字段",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "ocr-before-dak-01.png",
+    "title": "DAK 前：十人十一字段基础板",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "ocr-before-dak-02.png",
+    "title": "DAK 前：十人十一字段基础板",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "ocr-before-dak-03.png",
+    "title": "DAK 前：十人十一字段基础板",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "ongoing-correction-confirm.png",
+    "title": "进行中系列赛：更正已完成地图的确认",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "ongoing-correction-saved.png",
+    "title": "比分更正已保存：保留图间计时起点",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "other-01.png",
+    "title": "他人已认领解说：显示认领人与比赛进度",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "other-02.png",
+    "title": "他人已认领解说：显示认领人与比赛进度",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "overview-01.png",
+    "title": "赛事比赛总览：当前场、下一场和待认领比赛",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "overview-02.png",
+    "title": "赛事比赛总览：当前场、下一场和待认领比赛",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "perfect-six-copy.png",
+    "title": "六项实际剪贴板复制验收",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "post20-01.png",
+    "title": "2:0 完赛：核对两张实际地图",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "post20-02.png",
+    "title": "2:0 完赛：核对两张实际地图",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "post20-map-details-01.png",
+    "title": "2:0：展开基础板与地图操作",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "post20-map-details-02.png",
+    "title": "2:0：展开基础板与地图操作",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "post20-map-details-03.png",
+    "title": "2:0：展开基础板与地图操作",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "post21-01.png",
+    "title": "2:1 完赛：逐图收尾",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "post21-02.png",
+    "title": "2:1 完赛：逐图收尾",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "post21-map-details-01.png",
+    "title": "2:1：展开地图操作",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "post21-map-details-02.png",
+    "title": "2:1：展开地图操作",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "post21-map-details-03.png",
+    "title": "2:1：展开地图操作",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "recovery-confirm.png",
+    "title": "明确确认恢复当前地图并改用手动录分",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "recovery-form.png",
+    "title": "恢复后出现本图比分表单",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "recovery-official.png",
+    "title": "恢复后提交的正式地图结果",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "result-01.png",
+    "title": "赛果差异：核对正式比分并进入更正",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "result-02.png",
+    "title": "赛果差异：核对正式比分并进入更正",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "room-01.png",
+    "title": "Perfect 房间：六项复制与设置指引",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "room-02.png",
+    "title": "Perfect 房间：六项复制与设置指引",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "scheduled-01.png",
+    "title": "赛前：首发与 BP 准备",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "scheduled-02.png",
+    "title": "赛前：首发与 BP 准备",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "stale-01.png",
+    "title": "比赛数据暂未更新：检查采集与连接",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "stale-02.png",
+    "title": "比赛数据暂未更新：检查采集与连接",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "stale-manual-option-01.png",
+    "title": "比赛数据暂未更新：检查采集与连接 · 展开备用手动录分",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "stale-manual-option-02.png",
+    "title": "比赛数据暂未更新：检查采集与连接 · 展开备用手动录分",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "unbound-01.png",
+    "title": "当前地图绑定缺失：核对正式计划",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "unbound-02.png",
+    "title": "当前地图绑定缺失：核对正式计划",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "unbound-manual-option-01.png",
+    "title": "当前地图绑定缺失：核对正式计划 · 展开备用手动录分",
+    "width": 1920,
+    "height": 1080
+  },
+  {
+    "file": "unbound-manual-option-02.png",
+    "title": "当前地图绑定缺失：核对正式计划 · 展开备用手动录分",
+    "width": 1920,
+    "height": 1080
+  }
+]

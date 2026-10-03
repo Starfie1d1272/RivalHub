@@ -1107,7 +1107,7 @@ export async function resumeVetoRoom(input: { matchId: string; actorId: string }
     const pausedAt = session.pausedAt;
     const current = currentTurn(match, session, await readStepsInTx(tx, match.id));
     const duration = current?.durationSeconds;
-    const rewoundTurnNeedsFullTime = session.turnDeadlineAt === null && current !== null && current.actor !== "system";
+    const rewoundTurnNeedsFullTime = session.turnDeadlineAt === null && current !== null && current.actorEntryId !== null;
     const resumedStart = rewoundTurnNeedsFullTime ? now : session.turnStartedAt ? new Date(session.turnStartedAt.getTime() + now.getTime() - pausedAt.getTime()) : null;
     const resumedDeadline = rewoundTurnNeedsFullTime && duration !== null && duration !== undefined
       ? new Date(now.getTime() + duration * 1_000)

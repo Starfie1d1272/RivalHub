@@ -91,7 +91,7 @@ function ParticipantReview({ importId, participant }: { importId: string; partic
               </label>
             ))}
           </fieldset>
-          <p className="text-xs leading-5 text-[var(--color-fg-mid)]">确认后会保存比赛身份并重新检查这份 Demo；其它问题全部解决后才会更新统计。这不会修改登录或报名资料中的 Steam64。</p>
+          <p className="text-xs leading-5 text-[var(--color-fg-mid)]">确认后会保存这份 Demo 的选手对应关系并重新核验，通过后更新统计。</p>
           <Button type="button" size="sm" disabled={!selected || isPending} onClick={confirmIdentity} className="h-auto whitespace-normal break-all">
             {selected ? `确认 ${participant.observedSteam64} 是 ${selected.name}` : "请先选择本场首发"}
           </Button>
@@ -107,7 +107,7 @@ function ParticipantReview({ importId, participant }: { importId: string; partic
           <Textarea id={`${id}-reason`} value={reason} maxLength={500} onChange={(event) => { setReason(event.target.value); setRetiring(false); }} />
           <Button type="button" variant="outline" size="sm" disabled={reason.trim().length < 2 || isPending} onClick={() => setRetiring(true)}>撤销比赛确认的 Steam 身份</Button>
           {retiring && <InlineConfirm danger title={`确认撤销 ${participant.currentPlayer?.name ?? "该选手"} 的比赛 Steam 身份？`}
-            sub="将保留历史来源与审计记录，不修改选手资料中的 Steam64。撤销后刷新页面，再按最新核对结果处理；不会自动改绑或改写历史统计。"
+            sub="撤销后保留历史来源与审计记录，并将关联数据列为待核验。刷新后按最新差异处理。"
             confirmLabel="确认撤销" onCancel={() => setRetiring(false)} onConfirm={retire} />}
         </div>
       )}
@@ -135,7 +135,7 @@ function SeasonRecheckControl({ importId }: { importId: string }) {
 
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 rounded border border-[var(--color-border)] bg-[var(--color-bg-soft)] p-3">
-      <p className="text-xs leading-5 text-[var(--color-fg-mid)]">身份或赛事资料已经修正时，可安全重新计算本赛事全部 current Demo；不会修改原始 Demo、Steam 身份或比赛名单。</p>
+      <p className="text-xs leading-5 text-[var(--color-fg-mid)]">选手对应关系或赛事资料修正后，重新核验本赛事的当前 Demo 数据。</p>
       <Button type="button" variant="secondary" size="sm" disabled={isPending} onClick={recheckSeason}>
         {isPending ? "重新检查中..." : "重新检查本赛事全部待处理 Demo"}
       </Button>
@@ -186,7 +186,7 @@ function MapReview({ review }: { review: AdminDemoReviewMap }) {
           <Button type="button" variant="secondary" size="sm" disabled={isPending} onClick={recheck}>按当前资料重新检查</Button>
           <Button type="button" variant="ghost" size="sm" disabled={isPending} onClick={() => setRejecting(true)}>拒绝这份 Demo 数据</Button>
         </div>
-        {rejecting && <InlineConfirm danger title="确认拒绝这份 Demo 数据？" sub="拒绝后不会写入比赛统计；原始 Demo 数据仍会保留。" confirmLabel="确认拒绝" onCancel={() => setRejecting(false)} onConfirm={reject} />}
+        {rejecting && <InlineConfirm danger title="确认拒绝这份 Demo 数据？" sub="拒绝后保留原始 Demo 数据供追溯，比赛统计采用已确认的数据。" confirmLabel="确认拒绝" onCancel={() => setRejecting(false)} onConfirm={reject} />}
       </fieldset>
     </section>
   );

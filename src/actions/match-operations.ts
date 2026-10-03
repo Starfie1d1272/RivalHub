@@ -21,12 +21,12 @@ export async function takeOverMatchMap(matchId: string, expected: unknown) {
   } catch (error) { return actionError("takeOverMatchMap", error); }
 }
 
-export async function revokeMatchInstallation(seasonId: string, installationId: string) {
+export async function revokeMatchInstallation(seasonId: string, installationId: string, reason = "") {
   try {
     const id = z.uuid().parse(installationId);
     const competitionId = z.uuid().parse(seasonId);
     const session = await requireSeasonAdmin(competitionId);
-    await revokeMizarInstallation(id, competitionId, auditActorId(session));
+    await revokeMizarInstallation(id, competitionId, auditActorId(session), z.string().max(500).parse(reason));
     const season = await getSeasonOrThrow(competitionId);
     revalidatePath(`/admin/${season.slug}/matches`);
     return ok(undefined);

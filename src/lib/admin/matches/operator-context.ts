@@ -85,7 +85,7 @@ export async function loadOperatorContext(input: {
     : reportedMap ? `Map ${reportedMap.mapOrder} · ${mapLabel(reportedMap.mapName)}` : "不属于本场正式地图";
   return {
     review: {
-      evidence: evidence ? { at: evidence.at, mapName: evidence.mapName, scoreA: evidence.scoreA, scoreB: evidence.scoreB, mapBinding } : null,
+      evidence: evidence ? { at: evidence.at, lineupDifference: evidence.lineupDifference, mapName: evidence.mapName, scoreA: evidence.scoreA, scoreB: evidence.scoreB, mapBinding } : null,
       expectedTeams: `${input.teamAName} vs ${input.teamBName}`,
       currentMap: currentMap ? `Map ${currentMap.mapOrder} · ${mapLabel(currentMap.mapName)}` : null,
       officialScore: currentMap?.completedAt ? `${currentMap.scoreA}:${currentMap.scoreB}` : null,

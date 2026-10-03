@@ -1,5 +1,6 @@
 "use server";
 
+import { correctMapScoreInTx, mapCorrectionReviewSchema } from "@/lib/matches/map-score-correction";
 import { writeAuditInTx } from "@/lib/audit/write";
 
 import { revalidatePath } from "next/cache";
@@ -26,7 +27,6 @@ import { revalidateMatchPaths, revalidateSeasonPaths, updatePublicSeasonTags } f
 import { normalizeRegistrationConfig, normalizeStagePlan } from "@/lib/seasons/compatibility";
 import { assertSeasonAllowsTournamentMutationInTx } from "@/lib/postevent/guard";
 import {
-  computeSeriesScoreAfterMap,
   validateMapScore,
 } from "@/lib/matches/result-rules";
 import { recordManualMapResultInTx } from "@/lib/matches/manual-result";
@@ -432,98 +432,20 @@ export async function updateMatchCompletedAt(
 
 // ── 修正单图比分 ──────────────────────────────────────────────────────────────
 
-/**
- * 修正已完成比赛中某张地图的比分，并按正常录分语义重算系列赛大比分。
- * 与 recordMapResult 共享同一套比分合法性（MR12），且只允许不改变系列赛胜者的修正；
- * 会改变胜者或无法构成完整系列赛的修正一律拒绝（fail closed），不影响 bracket。
- */
-export async function correctMapScore(
-  mapId: string,
-  scoreA: number,
-  scoreB: number,
-): Promise<ActionResult<void>> {
+/** Correct a reviewed completed map through the shared official-result owner. */
+export async function correctMapScore(mapId: string, scoreA: number, scoreB: number, reviewed: unknown): Promise<ActionResult<void>> {
   try {
-    // 与正常录分共享同一套单图比分合法性（MR12：胜者 13 + 3k）
     validateMapScore(scoreA, scoreB);
-
-    const mapRecord = await db.query.matchMaps.findFirst({
-      where: eq(matchMaps.id, mapId),
-    });
-    if (!mapRecord) throw new AppError(ErrorCode.NOT_FOUND, "地图记录不存在");
-    if (mapRecord.scoreA === null || mapRecord.scoreB === null) {
-      throw new AppError(ErrorCode.VALIDATION_FAILED, "该图尚未录入比分，无法修正");
-    }
-
-    const match = await getMatchOrThrow(mapRecord.matchId);
+    const review = mapCorrectionReviewSchema.parse(reviewed);
+    const map = await db.query.matchMaps.findFirst({ where: eq(matchMaps.id, mapId) });
+    if (!map) throw new AppError(ErrorCode.NOT_FOUND, "地图记录不存在");
+    const match = await getMatchOrThrow(map.matchId);
     const session = await requireSeasonAdmin(match.seasonId);
-
-    if (match.status !== "finished") {
-      throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "只有已结束的比赛才能修正比分");
-    }
-
     const season = await getSeasonOrThrow(match.seasonId);
-
-    await db.transaction(async (tx) => {
-      await assertSeasonAllowsTournamentMutationInTx(tx, match.seasonId);
-      // 事务内读取所有图，将目标图替换为 proposed score 后按正常语义重算系列赛
-      const allMaps = await tx.query.matchMaps.findMany({
-        where: eq(matchMaps.matchId, mapRecord.matchId),
-      });
-      if (allMaps.some((m) => (m.scoreA === null) !== (m.scoreB === null))) {
-        throw new AppError(ErrorCode.VALIDATION_FAILED, "地图比分数据不完整，无法修正");
-      }
-      const otherMaps = allMaps.filter((m) => m.id !== mapId);
-      const { mapWinsA, mapWinsB, seriesFinished } = computeSeriesScoreAfterMap(
-        match.format,
-        otherMaps,
-        scoreA,
-        scoreB,
-      );
-
-      // 修正后必须仍是合法、确定、已完结的系列赛比分（禁止写成 1:1 之类不完整状态）
-      if (!seriesFinished || mapWinsA === mapWinsB) {
-        throw new AppError(
-          ErrorCode.VALIDATION_FAILED,
-          "修正后系列赛无法构成完整比分，已拒绝修正。",
-        );
-      }
-
-      // winner guard：拒绝改变系列赛胜者的纠错（当前版本无法安全重建 downstream bracket）
-      const existingWinner =
-        match.scoreA !== null && match.scoreB !== null
-          ? match.scoreA > match.scoreB
-            ? match.entryAId
-            : match.entryBId
-          : null;
-      const proposedWinner = mapWinsA > mapWinsB ? match.entryAId : match.entryBId;
-      if (existingWinner !== null && existingWinner !== proposedWinner) {
-        throw new AppError(
-          ErrorCode.VALIDATION_FAILED,
-          "该修正会改变比赛胜者。当前版本无法安全重建后续赛程，请勿直接修改；需通过赛事事故处理流程解决。",
-        );
-      }
-
-      await tx.update(matchMaps)
-        .set({ scoreA, scoreB })
-        .where(eq(matchMaps.id, mapId));
-
-      await tx.update(matches)
-        .set({ scoreA: mapWinsA, scoreB: mapWinsB, updatedAt: new Date() })
-        .where(eq(matches.id, mapRecord.matchId));
-
-      await writeAuditInTx(tx, {
-        seasonId: match.seasonId,
-        action: "match.correct_map_score",
-        actorId: auditActorId(session),
-        targetId: mapRecord.matchId,meta: { mapId, mapName: mapRecord.mapName, prevScoreA: mapRecord.scoreA, prevScoreB: mapRecord.scoreB, scoreA, scoreB, seriesA: mapWinsA, seriesB: mapWinsB },
-      });
-    });
-
-    revalidateMatchPaths(season.slug, mapRecord.matchId);
+    await db.transaction(tx => correctMapScoreInTx(tx, { matchId: match.id, mapId, scoreA, scoreB, review, actorId: auditActorId(session) }));
+    revalidateMatchPaths(season.slug, match.id);
     return ok(undefined);
-  } catch (e) {
-    return actionError("correctMapScore", e);
-  }
+  } catch (error) { return actionError("correctMapScore", error); }
 }
 
 // ── 弃赛判负 ─────────────────────────────────────────────────────────────────
