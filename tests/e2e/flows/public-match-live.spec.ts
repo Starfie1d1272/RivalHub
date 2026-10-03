@@ -185,12 +185,15 @@ test("public match consumes private Broadcast and recovers with canonical layout
     await expect(live.getByText("Ancient", { exact: true })).toHaveCount(0);
     await capture("public-map-change");
     producer?.kill(); producer = undefined;
-    for (const [phase, label] of [["pre", "等待 BP"], ["bp", "BP 进行中"], ["waiting", "等待正式对局"], ["inter_map", "图间休息"], ["post", null]] as const) {
+    for (const [phase, label] of [["pre", "等待 BP"], ["bp", "BP 进行中"], ["waiting", "等待正式对局"], ["inter_map", null], ["post", null]] as const) {
       await run(browserFixture, "phase", matchId, phase);
       await page.reload();
       if (label) await expect(page.getByText(label, { exact: true }).filter({ visible: true })).toBeVisible();
-      else await expect(live).toHaveCount(0);
+      else if (phase === "post") await expect(live).toHaveCount(0);
       if (phase === "inter_map") {
+        await expect(live.getByLabel("上一图比分与地图胜场")).toHaveText(/\(1\)\s*13:9\s*\(0\)/);
+        await expect(live.getByText("图间休息", { exact: true })).toHaveCount(0);
+        await expect(live.locator("canvas")).toHaveCount(0);
         await expect(page.getByLabel("系列赛比分").filter({ visible: true })).toHaveCount(0);
         await expect(page.getByLabel("地图胜场", { exact: true }).filter({ visible: true })).toHaveText(/1\s*:\s*0/);
       }
