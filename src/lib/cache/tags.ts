@@ -1,4 +1,5 @@
 /** Semantic cache tags shared by public read models and their mutation owners. */
+export const PUBLIC_COMPETITIVE_CATALOG_TAG = "public-competitive-catalog";
 export const PUBLIC_SEASON_CATALOG_TAG = "public-season-catalog";
 export const PUBLIC_ANNOUNCEMENTS_TAG = "public-announcements";
 export const PUBLIC_HOME_TAG = "public-home";

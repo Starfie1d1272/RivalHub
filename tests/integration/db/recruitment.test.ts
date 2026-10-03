@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import * as schema from "../../../src/db/schema";
 import { loadCompetitivePlatformCatalog } from "../../../src/lib/competitive/catalog";
 import { acceptTeamInvitationInTx } from "../../../src/lib/teams/invitations";
@@ -10,6 +10,9 @@ import { closeTeamRecruitmentInTx, expressRecruitmentInterestInTx, upsertPlayerL
 import { getPublicPlayerLft, getPublicTeamRecruitment, getRecruitmentLobbyData, getTeamRecruitmentWorkspace } from "../../../src/lib/recruitment/data";
 import { ErrorCode } from "../../../src/lib/errors";
 import { localDatabaseUrl } from "./harness/database";
+
+// Vitest exercises real PostgreSQL without the Next request/cache runtime.
+vi.mock("next/cache", () => ({ cacheLife: vi.fn(), cacheTag: vi.fn() }));
 
 const databaseUrl = localDatabaseUrl();
 

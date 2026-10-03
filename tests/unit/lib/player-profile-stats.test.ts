@@ -9,7 +9,7 @@ vi.mock("@/lib/stats/cached-query", () => ({ getPublicPlayerCareerDetail: mocks.
 vi.mock("@/lib/stats/player-attribute-benchmark", () => ({ getPlayerAttributeBenchmark: mocks.benchmark }));
 vi.mock("@/lib/stats/availability", () => ({ readOptionalPublicStats: (_operation: string, read: () => Promise<unknown>) => read() }));
 vi.mock("@/lib/players/public-record", () => ({ getPublicPlayerRecords: async () => new Map() }));
-vi.mock("@/lib/competitive/catalog", () => ({ loadCompetitivePlatformCatalog: async () => [] }));
+vi.mock("@/lib/competitive/public-catalog", () => ({ getPublicCompetitiveCatalog: async () => [] }));
 vi.mock("@/lib/competitive/presentation", () => ({ presentCompetitiveRole: () => null, presentPublicCompetitiveProfile: () => [] }));
 vi.mock("@/lib/education/presentation", () => ({ presentPublicEducationIdentities: () => [] }));
 vi.mock("@/lib/recruitment/data", () => ({ getPublicPlayerLft: async () => null }));
