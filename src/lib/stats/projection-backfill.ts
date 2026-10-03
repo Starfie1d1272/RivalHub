@@ -14,11 +14,12 @@ import { resolveGameplayUsersBySteam64InTx } from "@/lib/identity/gameplay-steam
 import { loadEffectiveMatchRoster } from "@/lib/match-rosters/effective";
 import { materializeStatisticsProjectionInTx, STATISTICS_PROJECTION_VERSION } from "./projection";
 
-/** Read only metadata, even when a map has many historical artifacts. */
+/** Read only the latest eligible lineage metadata, bounded even with many historical artifacts. */
 async function currentProjectionCandidate(tx: TxDb, matchMapId: string) {
   const rows = await tx.select(demoImportMetadataSelection).from(matchDemoImports)
-    .where(eq(matchDemoImports.matchMapId, matchMapId))
-    .orderBy(desc(matchDemoImports.createdAt), desc(matchDemoImports.id));
+    .where(and(eq(matchDemoImports.matchMapId, matchMapId),
+      eq(matchDemoImports.semanticProfile, CURRENT_DAK_SEMANTIC_PROFILE), ne(matchDemoImports.status, "superseded")))
+    .orderBy(desc(matchDemoImports.createdAt), desc(matchDemoImports.id)).limit(1);
   const current = selectCurrentDemoImport(rows);
   if (!current || current.status !== "confirmed") return null;
   const [mapMatch] = await tx.select({ map: matchMaps, match: matches }).from(matchMaps)
@@ -234,6 +235,7 @@ async function claimNextProjectionRepairMap(database: DB): Promise<string | null
       importId: matchDemoImports.id, matchMapId: matchDemoImports.matchMapId, status: matchDemoImports.status,
     }).from(matchDemoImports).where(and(
       eq(matchDemoImports.semanticProfile, CURRENT_DAK_SEMANTIC_PROFILE), ne(matchDemoImports.status, "superseded"),
+      cursor!.afterMapId ? gt(matchDemoImports.matchMapId, cursor!.afterMapId) : undefined,
     )).orderBy(asc(matchDemoImports.matchMapId), desc(matchDemoImports.createdAt), desc(matchDemoImports.id)).as("current_demo_import");
     const candidates = await tx.select({ matchMapId: latest.matchMapId }).from(latest)
       .innerJoin(matchMaps, eq(matchMaps.id, latest.matchMapId))
@@ -242,7 +244,6 @@ async function claimNextProjectionRepairMap(database: DB): Promise<string | null
       )).where(and(
         eq(latest.status, "confirmed"), isNotNull(matchMaps.completedAt), isNotNull(matchMaps.scoreA), isNotNull(matchMaps.scoreB),
         isNull(matchDemoStatProjections.importId),
-        cursor!.afterMapId ? gt(latest.matchMapId, cursor!.afterMapId) : undefined,
       )).orderBy(asc(latest.matchMapId)).limit(1);
     const afterMapId = candidates.at(-1)?.matchMapId ?? null;
     await tx.update(statisticsProjectionRepairCursors).set({ afterMapId, updatedAt: new Date() })
