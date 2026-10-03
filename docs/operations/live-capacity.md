@@ -20,13 +20,28 @@
 
 ## 证据分层
 
-审查基线为 `09fe43a`，已合入 main `7b75b671`。原先仅 aggregate accepted>0 与错峰成功不能证明同步公平；确定性 unit 回归先在原准入函数上失败，再在轮转实现上通过。
+审查基线为 `09fe43a`，已合入 main `7b75b671`。原先仅 aggregate accepted>0 与错峰成功不能证明同步公平；[确定性 unit 回归](evidence/live-fairness-baseline.json)先在原准入函数上失败，再在轮转实现上通过。
 
 本地真实 PostgreSQL 17 使用独立 loopback 容器，每次 canonical runner 重放 active migration chain、建立临时 worker DB 并清理。应用 pg pool 为 3，另用 1 连接观测；SQL、事务、授权、route、SDK 和 HTTP 均真实执行，只替换 DB factory 与 Next cache hooks。HTTP 故障服务分别注入 5ms/202、700ms/202、2600ms 响应头、断连、429、错误 JSON、错误体挂起。它的 viewer 数为 0。
 
 [逐场报告](evidence/live-fairness-after.json)记录 source/match、接受次数、最长无成功时间、provider 尝试次数/最长间隔和恢复。成功接受与获准发送分开：provider 故障时可以每场都获得尝试但接受数均为 0；恢复断言要求每场的新帧成功，不能只看总量。4 场通常运行 20 轮 × 500ms；16 场慢广播运行 32 轮。另覆盖同一安装四场、四场错峰、单源突发、恶意/超大/挂起 body、入口超时、handover/revoke、人工赛果与迟到可靠事件。
 
 `maxPoolQueue` 来自 pg.Pool；事务/锁采样间隔 20ms，relation RowShareLock 的数量不是精确行锁数量。请求/事务分位数是小样本故障证据，不是生产 SLO。JSON 保存运行 SHA 及关键源码 SHA-256；后续只保存证据的提交不改变测量实现。历史 [baseline](evidence/live-capacity-baseline.json) / [after](evidence/live-capacity-after.json) 属于轮转修复前的资源保护实验，不能用于证明当前公平性。
+
+本次固定实现 `b475a030` 的 PostgreSQL 专项共 36 项通过，相关 unit 共 47 项通过；下列顺序对应报告中逐场的 UUID，时间取整到毫秒。场景转换时旧源的票据最多还保留 1.5 秒，表中包含这段恢复等待。
+
+| 场景 | 每场成功接受数 | 每场最长无成功间隔（ms） | 恢复 |
+| --- | --- | --- | --- |
+| 四场同步 fast，20 轮 | 10 / 10 / 10 / 10 | 1005 / 1003 / 1018 / 1018 | 四场全部恢复 |
+| 四场同步 700ms，20 轮 | 5 / 5 / 4 / 4 | 2226 / 2226 / 3226 / 3225 | 四场全部恢复 |
+| 四场 timeout | 0 / 0 / 0 / 0（尝试各 2 次） | 故障期间均 11024 | 四场全部恢复 |
+| 同一安装四场，20 轮 | 9 / 9 / 8 / 8 | 1519 / 1520 / 2015 / 2018 | 持续取得新帧 |
+| 单源突发 + 三场正常源 | 3 / 3 / 2 / 2 | 1555 / 1555 / 2078 / 2078 | 四场持续取得新帧 |
+| 四场错峰 | 4 / 4 / 4 / 4 | 断连后的较新 heartbeat 另有断言 | 无首次帧丢失 |
+
+16 场 fast 的逐场接受数为 `3,3,2,2,2,2,2,2,2,2,2,2,2,2,2,2`，700ms 慢广播为 `2,2,2,2,2,2,2,2,2,2,2,2,2,2,1,1`；各场最长间隔与恢复标记完整保存在 JSON。所有故障矩阵场景观测到广播并发不超过 2、pool queue 峰值 0；429/断连/错误体期间每场都有发送尝试，恢复后每场均接受新帧。恶意同步 burst 可全部拒绝，不能把其后恢复计入故障阶段的接受数。
+
+本工作区启动 Local Supabase 时镜像解包磁盘不足，未得到本地 provider 通过结果；该层以最终 HEAD 的 CI system job 为证据入口，不能把这里的 PostgreSQL 通过当作替代。
 
 Local Supabase 单独验证真实 Realtime/WebSocket、JWT/RLS 与 fan-out；不把 loopback 故障服务说成真实 Supabase。托管项目的 quota、跨区 RTT、project-wide 限流和线上账单属于第三层，未进行生产压测。
 
