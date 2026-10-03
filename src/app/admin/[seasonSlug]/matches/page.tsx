@@ -1,3 +1,5 @@
+import { loadMatchResources } from "@/lib/admin/matches/resources";
+import { MatchResources } from "@/components/matches/MatchResources";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { BatchDeadlineCard } from "@/components/matches/BatchDeadlineCard";
@@ -14,6 +16,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { loadAdminMatchOverview } from "@/lib/admin/matches/overview";
 import { presentMatchLabel } from "@/lib/matches/presentation";
 import { presentSeasonStatus } from "@/lib/seasons/presentation";
+import { loadAdminMatchCommentary } from "@/lib/admin/matches/commentary";
+import { MatchCommentaryQueue } from "@/components/matches/MatchCommentaryQueue";
 
 interface AdminMatchesPageProps {
   params: Promise<{ seasonSlug: string }>;
@@ -25,6 +29,7 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
   const filters = await searchParams;
   const data = await loadAdminMatchOverview({ seasonSlug, ...filters });
   if (!data) notFound();
+  const [commentary, resources] = await Promise.all([loadAdminMatchCommentary(data.season.id), loadMatchResources(data.season.id)]);
 
   const matchCount = data.matches.length;
   const teamNameById = new Map(data.teams.map((team) => [team.id, team.name]));
@@ -33,7 +38,7 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
     <div className="min-w-0 space-y-6">
       <PageHeader
         title={`比赛总览 · ${data.season.name}`}
-        description="按阶段查看赛程、积分与 Major runtime；进入单场工作台处理本场运营细节。"
+        description="查看当前与下一场任务，进入单场处理赛务；赛程和积分按阶段浏览。"
         actions={(
           <>
           {data.teams.length >= 2 && data.stagePlan.length > 0 && (
@@ -52,6 +57,9 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
           </>
         )}
       />
+
+      <MatchCommentaryQueue data={commentary} seasonSlug={seasonSlug} />
+      <MatchResources seasonId={data.season.id} data={resources} />
 
       {matchCount > 0 && (
         <AdminMatchFilter
@@ -165,6 +173,7 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
                           teamBName={teamNameById.get(match.entryBId) ?? (isPlayoff ? "待定" : "未知队伍")}
                           seasonSlug={seasonSlug}
                           stageName={stage.name}
+                          commentary={commentary.byMatchId[match.id]}
                         />
                       ))}
                     </div>

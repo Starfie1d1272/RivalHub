@@ -4,10 +4,11 @@ import { z } from "zod";
 const numOrNull = z.preprocess(
   (v) => {
     if (v === null || v === undefined) return null;
-    if (typeof v === "number" && !Number.isNaN(v)) return v;
+    if (typeof v === "number" && Number.isFinite(v)) return v;
     if (typeof v === "string") {
+      if (!v.trim()) return null;
       const n = Number(v);
-      if (!Number.isNaN(n)) return n;
+      if (Number.isFinite(n)) return n;
     }
     return null;
   },

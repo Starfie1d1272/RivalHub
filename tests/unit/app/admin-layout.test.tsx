@@ -12,6 +12,7 @@ const { requireAdminMock, redirectMock, adminSidebarMock } = vi.hoisted(() => ({
 vi.mock("@/lib/auth/session", () => ({
   requireAdmin: requireAdminMock,
 }));
+vi.mock("next/server", () => ({ connection: vi.fn().mockResolvedValue(undefined) }));
 vi.mock("next/navigation", () => ({
   redirect: redirectMock,
 }));

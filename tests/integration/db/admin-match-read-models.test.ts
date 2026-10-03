@@ -224,6 +224,12 @@ describe("admin match read models PostgreSQL integration", () => {
         teamBName: "Beta",
         teamARoster: { rosterId: ids.rosterA, starters: [ids.memberA], status: "confirmed" },
         completedMaps: [{ mapOrder: 1, mapName: "de_inferno", scoreA: 13, scoreB: 8 }],
+        operator: {
+          roomGuide: null,
+          workflow: { isPostMatch: true, roomMapId: null, focusMapId: ids.mapA,
+            completedMaps: [{ id: ids.mapA, scoreboardComplete: false, demoLabel: "待上传" }] },
+        },
+        commentary: { currentMatches: [], nextMatch: null, byMatchId: { [ids.matchA]: { isMine: true, canClaim: false } } },
         postMatch: {
           submittedByUserId: ids.admin,
           videoUrl: "https://video.example/read-model",
@@ -252,6 +258,12 @@ describe("admin match read models PostgreSQL integration", () => {
           matches: [expect.objectContaining({ id: ids.matchA })],
         }),
       ]);
+
+      // A historical score without a canonical completion time cannot open OCR.
+      await pool.query("UPDATE match_maps SET completed_at = NULL WHERE id = $1", [ids.mapA]);
+      const missingCompletion = await loadAdminMatchWorkbench({ seasonSlug: seasonASlug, matchId: ids.matchA });
+      expect(missingCompletion?.operator.workflow.completedMaps).toEqual([]);
+      expect(missingCompletion?.operator.workflow.focusMapId).toBeNull();
     } finally {
       const cleanupClient = await pool.connect();
       try {
