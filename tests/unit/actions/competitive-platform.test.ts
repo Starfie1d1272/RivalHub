@@ -1,3 +1,4 @@
+import { updateTag } from "next/cache";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ErrorCode } from "@/lib/errors";
 import { findAuditEntry, mockUserSession, resetAuditTracking } from "tests/helpers";
@@ -188,6 +189,7 @@ describe("platform identity actions", () => {
     expect(JSON.stringify(updateSetCalls)).not.toContain("ratingLabel");
     expect(JSON.stringify(updateSetCalls)).not.toContain("Elo");
     expect(findAuditEntry(insertValuesCalls, "competitive_platform.update")).toMatchObject({ targetId: "fivee" });
+    expect(updateTag).toHaveBeenCalledExactlyOnceWith("public-competitive-catalog");
   });
 });
 

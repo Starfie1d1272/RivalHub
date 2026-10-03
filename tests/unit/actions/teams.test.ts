@@ -99,7 +99,8 @@ vi.mock("@/db/client", () => {
 });
 
 // ── import after mocks ─────────────────────────────────────────────────────────
-import { uploadTeamLogo } from "@/actions/teams";
+import { uploadTeamLogo, inviteTeamMemberByUserId, declineTeamInvitation, revokeTeamInvitation, updateTeamProfile } from "@/actions/teams";
+import { updatePublicStatsTag } from "@/lib/revalidation";
 import { requireAuth } from "@/lib/auth/session";
 
 // ── constants ──────────────────────────────────────────────────────────────────
@@ -260,6 +261,30 @@ describe("uploadTeamLogo", () => {
     });
 
     expect(revalidatePathMock).toHaveBeenCalledWith("/teams");
+    expect(updatePublicStatsTag).toHaveBeenCalledOnce();
   });
 
+});
+
+describe("team mutation cache dependencies", () => {
+  beforeEach(() => { vi.clearAllMocks(); setupAuth(); });
+
+  it.each([
+    () => inviteTeamMemberByUserId({ teamId: TEAM_ID, userId: SEASON_ID }),
+    () => declineTeamInvitation({ invitationId: SEASON_ID }),
+    () => revokeTeamInvitation({ teamId: TEAM_ID, invitationId: SEASON_ID }),
+  ])("refreshes invitation UI without invalidating statistics", async (action) => {
+    transactionMock.mockResolvedValueOnce(undefined);
+    expect((await action()).success).toBe(true);
+    expect(revalidatePathMock).toHaveBeenCalledWith("/my/teams");
+    expect(updatePublicStatsTag).not.toHaveBeenCalled();
+  });
+
+  it("still invalidates statistics on a team display identity change", async () => {
+    transactionMock.mockResolvedValueOnce({ oldSlug: "old", slug: "new" });
+    expect((await updateTeamProfile({ teamId: TEAM_ID, name: "New name" })).success).toBe(true);
+    expect(updatePublicStatsTag).toHaveBeenCalled();
+    expect(revalidatePathMock).toHaveBeenCalledWith("/teams/old");
+    expect(revalidatePathMock).toHaveBeenCalledWith("/teams/new");
+  });
 });
