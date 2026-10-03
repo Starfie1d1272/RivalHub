@@ -17,6 +17,7 @@ import { RELIABLE_EVENT_SCHEMA_VERSION } from "../../../src/lib/mizar/protocol";
 // The integration runner provisions a disposable database per worker (see
 // scripts/db/integration-runner.ts), so committed fixtures need no teardown.
 import { seedFixture, NOW, type Fixture } from "./harness/mizar";
+import { testSteam64 } from "./harness/database";
 
 function reliableEvent(fixture: Fixture, overrides: Record<string, unknown> = {}) {
   return {
@@ -775,7 +776,7 @@ describe("operator repair before manual fallback", () => {
 
   it("keeps an explicit manual choice during correct same-epoch observations and exposes the observed player differences", async () => {
     const f = await seedFixture();
-    const observed = [...f.steam64]; observed[0] = "76561198000000001"; observed[1] = observed[2]!;
+    const observed = [...f.steam64]; observed[0] = testSteam64(randomUUID()); observed[1] = observed[2]!;
     await ingestMizarReliable(f.installationId, f.seasonId, reliableEvent(f, { kind: "lineup_mismatch", payload: { reason: "lineup_changed" } }), f.authorityRevision, observed);
     await db.insert(schema.steamProfiles).values([
       { steam64: f.steam64[0]!, personaName: "Steam 首发昵称", profileUrl: `https://steamcommunity.com/profiles/${f.steam64[0]}`, fetchedAt: new Date() },
