@@ -66,6 +66,25 @@ describe("database final-failure telemetry", () => {
       expect.objectContaining({ errorClass: "database", retryable }));
   });
 
+  it.each(["insert into audit values (1)", "select side_effect_function()"])(
+    "does not replay an ambiguously committed statement: %s", async (sql) => {
+      let committed = 0;
+      const lostResponse = new Error("Connection terminated unexpectedly");
+      mocks.query.mockImplementation(async () => {
+        committed += 1;
+        throw lostResponse;
+      });
+      const pool = await getPool();
+      await expect(pool.query(sql)).rejects.toBe(lostResponse);
+      expect(committed).toBe(1);
+      expect(mocks.captureException).toHaveBeenCalledWith("db.query.outcome_unknown", lostResponse,
+        expect.objectContaining({ retryable: false }));
+      await vi.waitFor(() => expect(mocks.construct).toHaveBeenCalledTimes(2));
+      mocks.query.mockResolvedValue({ rows: [] });
+      await expect((await getPool()).query("select 1")).resolves.toEqual({ rows: [] });
+    },
+  );
+
   it("records query-triggered rebuild failure once and preserves the rejection", async () => {
     const rebuildError = new Error("pool creation failed");
     mocks.construct.mockImplementationOnce(() => {}).mockImplementationOnce(() => { throw rebuildError; });
