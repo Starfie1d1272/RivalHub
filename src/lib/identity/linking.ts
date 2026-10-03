@@ -1,4 +1,5 @@
 import "server-only";
+import { revokeAllApplicationSessionsInTx } from "@/lib/auth/session-registry";
 
 import { writeAuditInTx } from "@/lib/audit/write";
 
@@ -6,7 +7,8 @@ import { createHash, timingSafeEqual } from "node:crypto";
 import { and, eq, gt, inArray, or } from "drizzle-orm";
 import type { TxDb } from "@/db/client";
 import {
-    identityLinkRequests,
+  users,
+  identityLinkRequests,
   userIdentities,
   userMergeAuthorizations,
 } from "@/db/schema";
@@ -137,6 +139,8 @@ export async function revokeSecondaryEmailIdentityInTx(
 ): Promise<void> {
   const canonicalUserId = await resolveCanonicalUserId(tx, input.userId);
   if (!canonicalUserId) throw new AppError(ErrorCode.UNAUTHORIZED, "账号不存在，请重新登录。");
+  // Match login/merge lock order: user before identity rows.
+  await tx.select({ id: users.id }).from(users).where(eq(users.id, canonicalUserId)).for("update");
   const [identity] = await tx.select().from(userIdentities).where(and(
     eq(userIdentities.id, input.identityId),
     eq(userIdentities.userId, canonicalUserId),
@@ -155,6 +159,7 @@ export async function revokeSecondaryEmailIdentityInTx(
   if (related.some((row) => row.isPrimary)) {
     throw identityAppError(ErrorCode.VALIDATION_FAILED, "emailStillPrimary");
   }
+  await revokeAllApplicationSessionsInTx(tx, canonicalUserId);
   const now = new Date();
   await tx.update(userIdentities).set({
     status: "revoked",
