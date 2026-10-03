@@ -45,11 +45,13 @@ production target checks and, for `--apply`,
 The registered repair job checks missing current-version projections periodically,
 including writes made by the previous application during release cutover. Its SQL
 wake-up does not freeze a reducer version; the application owns candidate selection.
-Each invocation claims at most 50 candidate IDs using a persisted, version-scoped
-keyset cursor, attempts at most 10 rebuilds, and stops starting maps after 20 seconds.
+Each invocation claims at most 50 candidate IDs, one at a time, using a persisted,
+version-scoped keyset cursor, attempts at most 10 rebuilds, and stops starting maps
+after 20 seconds. Claiming only the next map prevents an unprocessed batch suffix
+from being skipped repeatedly when early candidates exhaust the rebuild budget.
 Each SQL statement is capped at five seconds (or the remaining start budget).
 Cursor claims commit before identity/lineage locks; concurrent workers claim ordered
-ranges without holding the cursor lock while rebuilding. The cursor wraps on an
+individual maps without holding the cursor lock while rebuilding. The cursor wraps on an
 empty suffix. Stale, failed, unprocessed and interrupted claims are revisited on
 subsequent sweeps, so a stale prefix cannot starve later maps. Progress is a repair
 hint, never a coverage assertion. Reports expose claimed `candidates`, actually

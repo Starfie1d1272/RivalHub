@@ -183,9 +183,38 @@ export async function reconcileMissingStatisticsProjections(database: DB, option
   const scanLimit = positiveInteger(options.scanLimit ?? 50, "Projection scan limit");
   const startedAt = Date.now();
   const deadline = startedAt + positiveInteger(options.maxDurationMs ?? 20_000, "Projection repair duration");
-  // Claim a bounded range before taking domain locks. A crashed worker's range is
-  // revisited on wrap; the cursor never certifies that projections were repaired.
-  const { candidates, afterMapId, wrapped } = await database.transaction(async (tx) => {
+  const report = { candidates: 0, scanned: 0, rebuilt: 0, skipped: 0, invalid: 0, failed: 0,
+    afterMapId: null as string | null, wrapped: false, budgetExhausted: false };
+  while (report.scanned < scanLimit) {
+    if (report.rebuilt + report.invalid + report.failed >= limit || Date.now() >= deadline) {
+      report.budgetExhausted = true;
+      break;
+    }
+    // Claim one map at a time: advancing past an unprocessed batch suffix can
+    // starve it forever when the same early maps repeatedly exhaust the budget.
+    const matchMapId = await claimNextProjectionRepairMap(database);
+    report.afterMapId = matchMapId;
+    if (!matchMapId) { report.wrapped = true; break; }
+    report.candidates++;
+    report.scanned++;
+    try {
+      const outcome = await database.transaction(async (tx) => {
+        await tx.execute(sql`SELECT set_config('statement_timeout', ${String(Math.max(1, Math.min(5000, deadline - Date.now())))}, true)`);
+        return backfillStatisticsProjectionForMapInTx(tx, matchMapId, true, { quarantineInvalid: true });
+      });
+      if (outcome === "rebuilt") report.rebuilt++;
+      else if (outcome === "invalid") report.invalid++;
+      else report.skipped++;
+    } catch {
+      report.failed++;
+    }
+  }
+  return { ...report, budgetExhausted: report.budgetExhausted || report.scanned === scanLimit, durationMs: Date.now() - startedAt };
+}
+
+/** Claims commit before identity locks; a lost claim is revisited on wrap. */
+async function claimNextProjectionRepairMap(database: DB): Promise<string | null> {
+  return database.transaction(async (tx) => {
     await tx.execute(sql`SET LOCAL statement_timeout = '5s'`);
     await tx.insert(statisticsProjectionRepairCursors).values({ projectionVersion: STATISTICS_PROJECTION_VERSION }).onConflictDoNothing();
     const [cursor] = await tx.select().from(statisticsProjectionRepairCursors)
@@ -206,30 +235,10 @@ export async function reconcileMissingStatisticsProjections(database: DB, option
         eq(latest.status, "confirmed"), isNotNull(matchMaps.completedAt), isNotNull(matchMaps.scoreA), isNotNull(matchMaps.scoreB),
         isNull(matchDemoStatProjections.importId),
         cursor!.afterMapId ? gt(latest.matchMapId, cursor!.afterMapId) : undefined,
-      )).orderBy(asc(latest.matchMapId)).limit(scanLimit);
+      )).orderBy(asc(latest.matchMapId)).limit(1);
     const afterMapId = candidates.at(-1)?.matchMapId ?? null;
     await tx.update(statisticsProjectionRepairCursors).set({ afterMapId, updatedAt: new Date() })
       .where(eq(statisticsProjectionRepairCursors.projectionVersion, STATISTICS_PROJECTION_VERSION));
-    return { candidates, afterMapId, wrapped: candidates.length === 0 };
+    return afterMapId;
   });
-  const report = { candidates: candidates.length, scanned: 0, rebuilt: 0, skipped: 0, invalid: 0, failed: 0, afterMapId, wrapped, budgetExhausted: candidates.length === scanLimit };
-  for (const { matchMapId } of candidates) {
-    if (report.rebuilt + report.invalid + report.failed >= limit || Date.now() >= deadline) {
-      report.budgetExhausted = true;
-      break;
-    }
-    report.scanned++;
-    try {
-      const outcome = await database.transaction(async (tx) => {
-        await tx.execute(sql`SELECT set_config('statement_timeout', ${String(Math.max(1, Math.min(5000, deadline - Date.now())))}, true)`);
-        return backfillStatisticsProjectionForMapInTx(tx, matchMapId, true, { quarantineInvalid: true });
-      });
-      if (outcome === "rebuilt") report.rebuilt++;
-      else if (outcome === "invalid") report.invalid++;
-      else report.skipped++;
-    } catch {
-      report.failed++;
-    }
-  }
-  return { ...report, durationMs: Date.now() - startedAt };
 }
