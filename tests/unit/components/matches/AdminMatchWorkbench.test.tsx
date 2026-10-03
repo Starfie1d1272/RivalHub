@@ -7,6 +7,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Match } from "@/db/schema";
 import { buildPerfectRoomGuide, projectOperatorWorkflow, type OperatorMap } from "@/lib/admin/matches/operator-workflow";
 
+vi.mock("@/actions/match-operations", () => ({ takeOverMatchMap: vi.fn() }));
 vi.mock("next/link", () => ({ default: ({ children, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement>) => <a {...props}>{children}</a> }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 vi.mock("@/components/matches/ClaimMatchButton", () => ({ ClaimMatchButton: () => <button>我来解说</button> }));
@@ -59,6 +60,7 @@ function data(status: Match["status"]) {
   } satisfies Match;
   const roster = { rosterId: "roster-a", starters: ["a1", "a2", "a3", "a4", "a5"], substitutes: [], vetoRepresentativeEventRosterMemberId: null, status: "confirmed" as const };
   return {
+    completion: { official: "已完赛", data: "待补齐 OCR / Demo", production: "不适用" },
     season: { id: "season-1", slug: "major", name: "Major" },
     stageName: "Swiss",
     match,
@@ -113,7 +115,7 @@ describe("AdminMatchWorkbench", () => {
     expect(screen.getByRole("heading", { name: "赛后资料" })).toBeInTheDocument();
     expect(screen.getByTestId("ocr-panel")).toBeInTheDocument();
     expect(screen.getByTestId("result-correction")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "危险操作与结果恢复" })).toBeInTheDocument();
+    expect(screen.getByText("危险操作与结果恢复")).toBeInTheDocument();
   });
 
   it("offers completed-map OCR during a series with an independent next-room path", () => {
@@ -154,4 +156,18 @@ describe("AdminMatchWorkbench", () => {
     expect(screen.queryByTestId("ocr-panel")).not.toBeInTheDocument();
     expect(screen.getByTestId("demo-review")).toBeInTheDocument();
   });
+});
+
+it("keeps AUTO as observation and makes review take precedence without a manual score form", () => {
+ const props = data("in_progress"); props.vetoCompletedAt = new Date();
+ const source = { currentMapId:"map-1", mapEpoch:1, manualTakeoverMapEpoch:null, identityHealth:"healthy", lineupHealth:"healthy", continuityHealth:"healthy", autoCanonicalizationArmed:true };
+ const maps: OperatorMap[] = [{ id:"map-1", order:1, name:"de_inferno", startSide:"ct", completedAt:null, scoreboardComplete:false, demoLabel:"待上传", demoNeedsAttention:false }];
+ props.operator.workflow = projectOperatorWorkflow({status:"in_progress", isForfeit:false, vetoComplete:true, observedGameplayMapId:"map-1", maps, source});
+ const view = render(<AdminMatchWorkbench {...props} />);
+ expect(screen.getByRole("heading",{name:"观察 Map 1 对局"})).toBeInTheDocument();
+ expect(screen.queryByTestId("map-input")).not.toBeInTheDocument();
+ props.operator.workflow = projectOperatorWorkflow({status:"in_progress", isForfeit:false, vetoComplete:true, observedGameplayMapId:"map-1", maps, source:{...source,lineupHealth:"conflict",autoCanonicalizationArmed:false}});
+ view.rerender(<AdminMatchWorkbench {...props} />);
+ expect(screen.getByRole("heading",{name:"需要处理本场异常"})).toBeInTheDocument();
+ expect(screen.queryByTestId("map-input")).not.toBeInTheDocument();
 });

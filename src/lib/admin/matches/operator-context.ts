@@ -2,20 +2,22 @@ import "server-only";
 
 import { and, eq, inArray, isNull } from "drizzle-orm";
 import { db } from "@/db/client";
-import { matchLiveSessions, matchPlayerStats as playerStats, type Match, type MatchMap, type MatchDemoImport } from "@/db/schema";
+import { matchLiveSessions, matchPlayerStats as playerStats, type Match, type MatchMap } from "@/db/schema";
 import type { EffectiveMatchRosterPlayer } from "@/lib/match-rosters/effective";
 import { canConfirmMapScoreboard } from "@/lib/matches/map-scoreboard";
 import { loadMajorSwissStageReadModel } from "@/lib/matches/stage-read-model";
 import { loadQualificationSwissStageReadModel } from "@/lib/matches/qualification-stage-read-model";
 import { projectDemoStatus, selectCurrentDemoImport } from "@/lib/demo-integration/read";
+import type { DemoImportMetadata } from "@/lib/demo-integration/metadata";
 import { buildEvidenceRevisionForTarget } from "@/lib/demo-integration/revision";
-import { buildPerfectRoomGuide, isOperatorScoreboardComplete, projectOperatorWorkflow } from "./operator-workflow";
+import { isCompleteScoreboard } from "@/lib/matches/scoreboard-completeness";
+import { buildPerfectRoomGuide, projectOperatorWorkflow } from "./operator-workflow";
 
 /** Called only after the workbench has authorized this match's season. */
 export async function loadOperatorContext(input: {
   match: Match;
   maps: MatchMap[];
-  imports: MatchDemoImport[];
+  imports: DemoImportMetadata[];
   roster: EffectiveMatchRosterPlayer[];
   seasonName: string;
   stageName: string | null;
@@ -26,17 +28,17 @@ export async function loadOperatorContext(input: {
 }) {
   const { match, maps, roster } = input;
   const [scoreboards, liveSession, swiss] = await Promise.all([
-    maps.length ? db.select({ mapId: playerStats.mapId, userId: playerStats.userId, ratingPro: playerStats.ratingPro, rws: playerStats.rws, we: playerStats.we })
+    maps.length ? db.select()
       .from(playerStats).where(inArray(playerStats.mapId, maps.map(map => map.id))) : Promise.resolve([]),
     db.query.matchLiveSessions.findFirst({
       where: and(eq(matchLiveSessions.matchId, match.id), isNull(matchLiveSessions.closedAt)),
-      columns: { currentMapId: true, mapExecutionPhase: true },
+      columns: { id: true, currentMapId: true, mapExecutionPhase: true, mapEpoch: true, manualTakeoverMapEpoch: true, identityHealth: true, lineupHealth: true, continuityHealth: true, autoCanonicalizationArmed: true },
     }),
     match.qualificationRunId ? loadQualificationSwissStageReadModel(match.seasonId)
       : input.isSwiss && match.ownership === "major_stage"
         ? loadMajorSwissStageReadModel(match.seasonId, match.stage) : Promise.resolve(null),
   ]);
-  const starterIds = roster.filter(player => player.isStarter).map(player => player.userId);
+  const participants = roster.filter(player => player.isStarter);
   const operatorMaps = maps.map(map => {
     const imports = input.imports.filter(row => row.matchMapId === map.id);
     // Surface an incompatible latest import too; it is not a missing upload.
@@ -48,12 +50,15 @@ export async function loadOperatorContext(input: {
     return {
       id: map.id, order: map.mapOrder, name: map.mapName, startSide: map.teamAStartSide,
       completedAt: canConfirmMapScoreboard(map) ? map.completedAt!.toISOString() : null,
-      scoreboardComplete: isOperatorScoreboardComplete(starterIds, scoreboards.filter(row => row.mapId === map.id)),
+      scoreboardComplete: isCompleteScoreboard({ matchId: match.id, mapId: map.id, scoreA: map.scoreA, scoreB: map.scoreB, participants }, scoreboards.filter(row => row.mapId === map.id)),
       demoLabel: demoStatus === "synced" ? "已同步" : demoStatus === "demo_processing" ? "处理中" : demoStatus === "needs_attention" ? "需要处理" : "待上传",
       demoNeedsAttention: demoStatus === "needs_attention",
+      demoComplete: demoStatus === "synced",
     };
   });
   const workflow = projectOperatorWorkflow({
+    source: liveSession,
+    scheduledAt: match.scheduledAt?.toISOString(), startedAt: match.startedAt?.toISOString(), completedAt: match.completedAt?.toISOString(),
     status: match.status, isForfeit: match.isForfeit, vetoComplete: input.vetoComplete,
     maps: operatorMaps,
     observedGameplayMapId: liveSession?.mapExecutionPhase === "gameplay" ? liveSession.currentMapId : null,
@@ -66,6 +71,7 @@ export async function loadOperatorContext(input: {
   const roundLabel = ({ stage1: "Stage1", stage2: "Stage2", stage3: "Stage3" } as Record<string, string>)[match.stage] ?? swiss?.stageName ?? input.stageName;
   return {
     workflow,
+    takeover: liveSession?.currentMapId && workflow.sourceMode !== "manual_map" && (workflow.reviewReasons.length > 0 || workflow.sourceHealth === "stale") && match.status === "in_progress" ? { sessionId: liveSession.id, mapEpoch: liveSession.mapEpoch, mapId: liveSession.currentMapId } : null,
     roomGuide: roomMap ? buildPerfectRoomGuide({
       seasonName: input.seasonName, roundLabel, description,
       teamAName: input.teamAName, teamBName: input.teamBName, map: roomMap,

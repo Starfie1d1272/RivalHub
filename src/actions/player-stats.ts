@@ -4,6 +4,7 @@ import { writeAuditInTx } from "@/lib/audit/write";
 
 import { and, eq, isNotNull } from "drizzle-orm";
 import { db } from "@/db/client";
+import { isScoreboardRoundConsistent } from "@/lib/matches/scoreboard-completeness";
 import { matchMaps } from "@/db/schema/match-maps";
 import { matches } from "@/db/schema/matches";
 import { matchPlayerStats } from "@/db/schema/player-stats";
@@ -179,6 +180,7 @@ export async function savePlayerStats(
           ?? (named && (!s.userId || named.userId == null || named.userId === s.userId) ? named : undefined);
         const userId = s.userId ?? prior?.userId ?? null;
         if (userId && !userPerfectNames.has(userId)) throw new AppError(ErrorCode.VALIDATION_FAILED, "选手不属于本场出场阵容");
+        if (!prior?.dakImportId && !isScoreboardRoundConsistent(s, currentMap.scoreA! + currentMap.scoreB!)) throw new AppError(ErrorCode.VALIDATION_FAILED, "选手数据与本图正式回合数不一致，请核对地图与截图。");
         const now = new Date();
         if (prior) {
           matchedIds.add(prior.id);

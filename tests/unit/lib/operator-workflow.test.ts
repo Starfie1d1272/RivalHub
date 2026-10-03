@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildPerfectRoomGuide, formatOperatorElapsed, isOperatorScoreboardComplete, projectOperatorWorkflow, type OperatorMap } from "@/lib/admin/matches/operator-workflow";
+import { buildPerfectRoomGuide, formatOperatorElapsed, projectOperatorWorkflow, type OperatorMap } from "@/lib/admin/matches/operator-workflow";
 
 const completedAt = "2026-10-01T13:00:00.000Z";
 const map = (order: number, completed = false, scoreboardComplete = false): OperatorMap => ({
@@ -15,13 +15,7 @@ describe("single-operator task projection", () => {
     const pending = project([map(1, true), map(2), map(3)]);
     expect(pending).toMatchObject({ focusMapId: "map-1", roomMapId: "map-2", elapsed: { since: completedAt } });
     expect(pending.description).toContain("可赛后补齐");
-    expect(project([map(1, true, true), map(2), map(3)])).toMatchObject({ focusMapId: null, roomMapId: "map-2", title: "确认 Map 2 建房与开播" });
-  });
-  it("gives an accepted start priority over previous OCR without claiming live health", () => {
-    const result = project([map(1, true), map(2), map(3)], { observedGameplayMapId: "map-2" });
-    expect(result).toMatchObject({ title: "进行 Map 2 解说", roomMapId: null, focusMapId: null });
-    expect(result.completedMaps).toHaveLength(1);
-    expect(result.description).toContain("开始记录");
+    expect(project([map(1, true, true), map(2), map(3)])).toMatchObject({ focusMapId: null, roomMapId: "map-2", title: "人工记录 Map 2 结果" });
   });
   it("shows Map3 for an ongoing 1:1, but a completed 2:0 goes straight to post-match despite its unused map", () => {
     const maps = [map(1, true, true), map(2, true, true), map(3)];
@@ -41,23 +35,11 @@ describe("single-operator task projection", () => {
   });
   it("does not infer a room before the BP plan, and never pretends room creation is known", () => {
     expect(project([map(1)], { vetoComplete: false }).roomMapId).toBeNull();
-    expect(project([map(1)]).description).toContain("如果本图已经开始");
+    expect(project([map(1)]).description).toContain("本图结束后记录正式比分");
   });
   it("formats elapsed wall time and clamps future timestamps", () => {
     expect(formatOperatorElapsed(completedAt, Date.parse(completedAt) + 754000)).toBe("+12:34");
     expect(formatOperatorElapsed(completedAt, Date.parse(completedAt) - 1)).toBe("+00:00");
-  });
-});
-
-describe("platform scoreboard completeness", () => {
-  const ids = Array.from({ length: 10 }, (_, i) => `player-${i}`);
-  const rows = ids.map(userId => ({ userId, ratingPro: 0, rws: 0, we: 0 }));
-  it("requires all three platform fields for all ten bound starters; zeros are valid", () => {
-    expect(isOperatorScoreboardComplete(ids, rows)).toBe(true);
-    expect(isOperatorScoreboardComplete(ids, rows.map((row, i) => i === 0 ? { ...row, ratingPro: null } : row))).toBe(false);
-    expect(isOperatorScoreboardComplete(ids, [...rows.slice(1), { ...rows[0], userId: "substitute" }])).toBe(false);
-    expect(isOperatorScoreboardComplete(ids.slice(1), rows)).toBe(false);
-    expect(isOperatorScoreboardComplete(ids, Array.from({ length: 10 }, () => rows[0]))).toBe(false);
   });
 });
 
@@ -74,4 +56,36 @@ describe("Perfect guide", () => {
     expect(guide.instructions.find(row => row.label === "选边方式")?.value).toBe("TEAM 1 CT / TEAM 2 T");
     expect(buildPerfectRoomGuide({ ...input, map: { ...map(3), startSide: null } }).instructions.find(row => row.label === "选边方式")?.value).toContain("尚未确定");
   });
+});
+
+const healthy = { currentMapId: "map-1", mapEpoch: 1, manualTakeoverMapEpoch: null, identityHealth: "healthy", lineupHealth: "healthy", continuityHealth: "healthy", autoCanonicalizationArmed: true };
+describe("source and task dimensions", () => {
+  it("observes healthy AUTO without manual form", () => expect(project([map(1)], { source: healthy, observedGameplayMapId: "map-1" })).toMatchObject({ primaryTask: "observe", manualResultAllowed: false }));
+  it("treats no source as normal manual work", () => {
+    const result = project([map(1)]);
+    expect(result).toMatchObject({ sourceMode: "none", sourceHealth: "not_applicable", primaryTask: "manual_result", manualResultAllowed: true });
+    expect(JSON.stringify(result)).not.toMatch(/返回 Mizar|开播|recovery|degraded/);
+  });
+  it.each(["identityHealth", "lineupHealth", "continuityHealth"])("prioritizes %s conflicts even after completion", key => {
+    expect(project([map(1, true)], { status: "finished", source: { ...healthy, [key]: "conflict" } })).toMatchObject({ primaryTask: "review", sourceHealth: "conflict" });
+  });
+  it("keeps stale separate from conflict", () => expect(project([map(1)], { source: { ...healthy, freshness: "stale" } })).toMatchObject({ primaryTask: "source_check", sourceHealth: "stale", reviewReasons: [] }));
+  it("permits manual result after scoped takeover and returns to AUTO on the next healthy epoch", () => {
+    expect(project([map(1)], { source: { ...healthy, manualTakeoverMapEpoch: 1, autoCanonicalizationArmed: false } })).toMatchObject({ sourceMode: "manual_map", manualResultAllowed: true });
+    expect(project([map(1, true), map(2)], { source: { ...healthy, mapEpoch: 2, manualTakeoverMapEpoch: 1 }, observedGameplayMapId: "map-2" })).toMatchObject({ primaryTask: "observe", manualResultAllowed: false });
+  });
+});
+
+it("prioritizes explicit source/result conflicts, and never enables a prior map takeover for the next map", () => {
+  for (const continuityHealth of ["source_conflict", "result_conflict"]) expect(project([map(1)], { source: { ...healthy, continuityHealth } }).primaryTask).toBe("review");
+  expect(project([map(1, true), map(2)], { source: { ...healthy, manualTakeoverMapEpoch: 1, autoCanonicalizationArmed: false } }).manualResultAllowed).toBe(false);
+});
+
+it("separates official, data and production completion for unclaimed, forfeit and played matches", async () => {
+  const { projectOperatorCompletion } = await import("@/lib/admin/matches/operator-workflow");
+  const base = { status: "finished" as const, isForfeit: false, maps: [map(1, true)], commentatorCount: 0, submitted: true, hasVideo: true };
+  expect(projectOperatorCompletion(base)).toEqual({ official: "已完赛", data: "待补齐 OCR / Demo", production: "不适用" });
+  expect(projectOperatorCompletion({ ...base, maps: [], isForfeit: true }).data).toBe("已齐备");
+  expect(projectOperatorCompletion({ ...base, maps: [] }).data).toBe("待补齐 OCR / Demo");
+  expect(projectOperatorCompletion({ ...base, commentatorCount: 1, maps: [{ ...map(1, true, true), demoComplete: true }] })).toEqual({ official: "已完赛", data: "已齐备", production: "已完成" });
 });

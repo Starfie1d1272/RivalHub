@@ -1,4 +1,6 @@
 import "server-only";
+import { readBilibiliStatus, BROADCAST_STATUS_LABEL } from "@/lib/production/bilibili";
+import { readUploaderDownloads } from "@/lib/production/uploader";
 
 import { and, asc, desc, eq, inArray, or } from "drizzle-orm";
 import { db } from "@/db/client";
@@ -26,10 +28,12 @@ import { getDisplayName } from "@/lib/identity/display-name";
 import { getPostMatchCompletion, POST_MATCH_COMPLETION_LABEL } from "@/lib/postmatch/service";
 import { normalizeRegistrationConfig, normalizeStagePlan } from "@/lib/seasons/compatibility";
 import { loadEffectiveMatchRoster } from "@/lib/match-rosters/effective";
+import { demoImportMetadataSelection } from "@/lib/demo-integration/metadata";
 import { selectCurrentDemoImport } from "@/lib/demo-integration/read";
 import { loadAdminDemoReview } from "./demo-review";
 import type { AdminDemoReviewMap, AdminMatchWorkbenchData, RosterData, TeamMemberData } from "@/lib/admin/matches/types";
 import { mapCompletedMaps, mapFinishedMaps, mapPendingMaps } from "@/lib/admin/matches/shared";
+import { projectOperatorCompletion } from "./operator-workflow";
 import { loadOperatorContext } from "./operator-context";
 import { readAdminMatchCommentary } from "./commentary";
 
@@ -193,12 +197,7 @@ export async function loadAdminMatchWorkbench({
   ]);
 
   const demoImportRows = mapRecords.length > 0
-    ? await db.select({
-      id: matchDemoImports.id,
-      matchMapId: matchDemoImports.matchMapId,
-      semanticProfile: matchDemoImports.semanticProfile,
-      status: matchDemoImports.status,
-    }).from(matchDemoImports)
+    ? await db.select(demoImportMetadataSelection).from(matchDemoImports)
       .where(inArray(matchDemoImports.matchMapId, mapRecords.map((map) => map.id)))
       .orderBy(desc(matchDemoImports.createdAt))
     : [];
@@ -279,7 +278,7 @@ export async function loadAdminMatchWorkbench({
         submittedAt,
         submittedByUserId: submission?.submittedByUserId ?? null,
         videoUrl: match.videoUrl,
-        completionLabel: POST_MATCH_COMPLETION_LABEL[getPostMatchCompletion(submittedAt, match.videoUrl)],
+        completionLabel: commentatorRows.length ? POST_MATCH_COMPLETION_LABEL[getPostMatchCompletion(submittedAt, match.videoUrl)] : "不适用",
         canSubmit: match.status === "finished",
       };
 
@@ -293,7 +292,13 @@ export async function loadAdminMatchWorkbench({
     readAdminMatchCommentary(db, { seasonId: season.id, currentUserId: admin.userId, excludeMatchId: match.id }),
   ]);
 
+  const [broadcasts, uploaderDownloads] = await Promise.all([
+    match.status === "scheduled" || match.status === "in_progress" ? Promise.all(commentatorRows.map(async row => ({ name: getDisplayName(row), label: BROADCAST_STATUS_LABEL[await readBilibiliStatus(row.liveStreamUrl)] }))) : Promise.resolve([]),
+    operator.workflow.completedMaps.length ? readUploaderDownloads() : Promise.resolve(null),
+  ]);
   return {
+    broadcasts, uploaderDownloads,
+    completion: projectOperatorCompletion({ status: match.status, isForfeit: match.isForfeit, maps: operator.workflow.completedMaps, commentatorCount: commentatorRows.length, submitted: Boolean(submittedAt), hasVideo: Boolean(match.videoUrl) }),
     season: { id: season.id, slug: season.slug, name: season.name },
     stageName: stage?.name ?? null,
     match,

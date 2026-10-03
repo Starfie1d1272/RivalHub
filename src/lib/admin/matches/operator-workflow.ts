@@ -1,4 +1,6 @@
 import type { MatchStatus, Side } from "@/types/match";
+import { projectMatchPresentationPhase, type MatchPresentationPhase } from "@/lib/matches/presentation-phase";
+import { projectOperatorSource, REVIEW_REASON_LABEL, type OperatorSourceFacts, type AdminPrimaryTask, type SourceMode, type SourceHealth, type ReviewReason } from "./source-state";
 import { mapLabel } from "@/lib/maps";
 
 export interface OperatorMap {
@@ -10,6 +12,7 @@ export interface OperatorMap {
   scoreboardComplete: boolean;
   demoLabel: string;
   demoNeedsAttention: boolean;
+  demoComplete?: boolean;
 }
 
 export interface PerfectRoomGuideData {
@@ -53,17 +56,13 @@ export function buildPerfectRoomGuide(input: {
   };
 }
 
-/** Data completeness, not an invented OCR submission or a DAK verification flag. */
-export function isOperatorScoreboardComplete(
-  starterUserIds: readonly string[],
-  rows: readonly { userId: string | null; ratingPro: number | null; rws: number | null; we: number | null }[],
-): boolean {
-  const starters = new Set(starterUserIds);
-  if (starters.size !== 10) return false;
-  return [...starters].every(userId => rows.some(row => row.userId === userId && row.ratingPro !== null && row.rws !== null && row.we !== null));
-}
-
 export interface OperatorWorkflow {
+  phase: MatchPresentationPhase;
+  primaryTask: AdminPrimaryTask;
+  sourceMode: SourceMode;
+  sourceHealth: SourceHealth;
+  reviewReasons: ReviewReason[];
+  manualResultAllowed: boolean;
   title: string;
   description: string;
   nextStep: string;
@@ -81,18 +80,28 @@ export function projectOperatorWorkflow(input: {
   vetoComplete: boolean;
   maps: readonly OperatorMap[];
   observedGameplayMapId: string | null;
+  source?: OperatorSourceFacts | null;
+  scheduledAt?: string | null;
+  startedAt?: string | null;
+  completedAt?: string | null;
 }): OperatorWorkflow {
   const maps = [...input.maps].sort((a, b) => a.order - b.order);
   const completedMaps = maps.filter(map => map.completedAt !== null);
   const outstanding = completedMaps.filter(map => !map.scoreboardComplete);
-  const base = { focusMapId: null, roomMapId: null, elapsed: null, completedMaps, isPostMatch: false };
+  const source = projectOperatorSource(input.source ?? null);
+  const phase = projectMatchPresentationPhase({ status: input.status, scheduledAt: input.scheduledAt ?? null, startedAt: input.startedAt ?? null, completedAt: input.completedAt ?? null, veto: input.vetoComplete ? "completed" : input.status === "in_progress" ? "in_progress" : "not_started", maps, gameplayMapId: input.observedGameplayMapId });
+  const manualResultAllowed = source.sourceMode === "none" || (source.sourceMode === "manual_map" && input.source?.currentMapId === maps.find(map => map.completedAt === null)?.id);
+  const completedPrevious = completedMaps.at(-1);
+  const elapsed = phase === "inter_map" && maps.some(map => map.completedAt === null) && completedPrevious?.completedAt ? { since: completedPrevious.completedAt, label: `距 Map ${completedPrevious.order} 结束` } : null;
+  const base = { ...source, phase, primaryTask: "prepare" as AdminPrimaryTask, manualResultAllowed, focusMapId: null, roomMapId: null, elapsed, completedMaps, isPostMatch: input.status === "finished" };
   if (input.status === "cancelled") return { ...base, title: "本场已取消", description: "不再准备后续地图。", nextStep: "回到比赛总览查看其它场次。" };
+  if (source.reviewReasons.length) return { ...base, primaryTask: "review", title: "需要处理本场异常", description: source.reviewReasons.map(reason => REVIEW_REASON_LABEL[reason]).join("；"), nextStep: source.sourceMode === "manual_map" ? "本图已转为人工记录赛果；请核对异常，下一图通过健康检查后再恢复自动记录。" : "先核对身份、首发与正式赛果；需要人工收口时，明确接管当前地图。" };
   if (input.status === "finished") {
-    if (input.isForfeit && completedMaps.length === 0) return { ...base, isPostMatch: true, title: "本场已判负 / 弃权", description: "没有实际进行的地图，无需 OCR 或 Demo。", nextStep: "核对赛后资料，再查看你的下一场。" };
+    if (input.isForfeit && completedMaps.length === 0) return { ...base, isPostMatch: true, primaryTask: "post", title: "本场已判负 / 弃权", description: "没有实际进行的地图，无需 OCR 或 Demo。", nextStep: "核对赛后资料，再查看你的下一场。" };
     return {
-      ...base, isPostMatch: true,
+      ...base, isPostMatch: true, primaryTask: "post",
       title: outstanding.length ? `补齐 Map ${outstanding[0].order} 平台计分板` : "整理赛后资料",
-      description: "系列赛已结束。可先完成赛后口播，再回到这里整理资料。",
+      description: "正式系列赛已结束，比赛数据与适用的制作资料分别收尾。",
       nextStep: completedMaps.length ? "去 Perfect 下载已完成地图的 Demo，用 RivalHub Demo Uploader 上传，再检查同步结果与赛后资料。" : "核对已完成比赛的地图记录与赛后资料。",
       focusMapId: outstanding[0]?.id ?? null,
     };
@@ -105,19 +114,25 @@ export function projectOperatorWorkflow(input: {
   };
   const nextMap = maps.find(map => map.completedAt === null);
   if (!nextMap) return { ...base, title: "核对本场赛果", description: "当前没有待进行地图，请核对正式系列赛结果。", nextStep: "需要更正时使用下方结果与恢复操作。" };
-  if (input.observedGameplayMapId === nextMap.id) return {
-    ...base,
-    title: `进行 Map ${nextMap.order} 解说`,
-    description: `已收到 ${mapLabel(nextMap.name)} 的开始记录；请在 Mizar 检查现场与直播。`,
-    nextStep: `本图结束后回到这里完成 Map ${nextMap.order} OCR，再查看下一步。`,
+  if (input.source && source.sourceMode === "mizar_auto" && source.sourceHealth !== "healthy") return {
+    ...base, primaryTask: "source_check", title: source.sourceHealth === "stale" ? "实时数据已失鲜" : "等待数据源核验",
+    description: "自动赛果尚未就绪，正式比赛与已确认赛果保持有效。",
+    nextStep: "核对数据源；有明确中断且需要人工收口时接管本图。",
+    roomMapId: nextMap.id,
+  };
+  if (input.observedGameplayMapId === nextMap.id && source.sourceMode === "mizar_auto") return {
+    ...base, primaryTask: "observe", title: `观察 Map ${nextMap.order} 对局`,
+    description: "数据源核验正常，系统自动接收本图赛果。",
+    nextStep: "无需重复人工录分；图后可补齐平台计分板与 Demo。",
   };
   const previous = completedMaps.at(-1);
   const previousNeedsScoreboard = previous && !previous.scoreboardComplete;
   return {
     ...base,
-    title: previousNeedsScoreboard ? `补齐 Map ${previous.order} 平台计分板` : `确认 Map ${nextMap.order} 建房与开播`,
-    description: previousNeedsScoreboard ? "去 Perfect 查看本图数据并完成 OCR；来不及时可赛后补齐，下方建房指引始终可用。" : "按建房指引核对 Perfect 房间；如果本图已经开始，直接返回 Mizar 继续解说。",
-    nextStep: `准备 Map ${nextMap.order} 房间，提醒双方进入，然后返回 Mizar 检查 CS2 / OBS / 直播并继续解说。`,
+    primaryTask: manualResultAllowed ? "manual_result" : "prepare",
+    title: previousNeedsScoreboard ? `补齐 Map ${previous.order} 平台计分板` : manualResultAllowed ? `人工记录 Map ${nextMap.order} 结果` : `准备 Map ${nextMap.order} 房间`,
+    description: previousNeedsScoreboard ? "去 Perfect 查看本图数据并完成 OCR；来不及时可赛后补齐，下方建房指引始终可用。" : "按建房指引核对 Perfect 房间，提醒双方进入；本图结束后记录正式比分。",
+    nextStep: `准备 Map ${nextMap.order} 房间，提醒双方进入；平台计分板可稍后补齐。`,
     focusMapId: previousNeedsScoreboard ? previous.id : null,
     roomMapId: nextMap.id,
     elapsed: previous?.completedAt ? { since: previous.completedAt, label: `距 Map ${previous.order} 结束` } : null,
@@ -127,4 +142,17 @@ export function projectOperatorWorkflow(input: {
 export function formatOperatorElapsed(since: string, now: number): string {
   const seconds = Math.max(0, Math.floor((now - new Date(since).getTime()) / 1000));
   return `+${Math.floor(seconds / 60).toString().padStart(2, "0")}:${(seconds % 60).toString().padStart(2, "0")}`;
+}
+
+/** Official result, map data and applicable production records have separate owners. */
+export function projectOperatorCompletion(input: {
+  status: MatchStatus; isForfeit: boolean; maps: readonly OperatorMap[];
+  commentatorCount: number; submitted: boolean; hasVideo: boolean;
+}) {
+  const played = input.maps.filter(map => map.completedAt !== null);
+  return {
+    official: input.status === "finished" ? "已完赛" : "未完赛",
+    data: (played.length > 0 || input.isForfeit) && played.every(map => map.scoreboardComplete && map.demoComplete) ? "已齐备" : "待补齐 OCR / Demo",
+    production: input.commentatorCount === 0 ? "不适用" : input.submitted && input.hasVideo ? "已完成" : "待补齐制作资料",
+  };
 }

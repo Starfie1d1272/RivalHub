@@ -16,3 +16,15 @@ describe("shared canonical match phase", () => {
     expect(phase({ ...facts, status: "cancelled" })).toBe("cancelled");
   });
 });
+
+it("projects phases from their owners without turning in_progress into gameplay", () => {
+ expect(phase(base)).toBe("preparation");
+ expect(phase({ ...base, scheduledAt: "2026-10-03" })).toBe("awaiting_veto");
+ expect(phase({ ...base, status: "in_progress", veto: "in_progress" })).toBe("veto");
+ expect(phase({ ...base, status: "in_progress", veto: "completed" })).toBe("awaiting_gameplay");
+ const maps = [{ id: "a", order: 1, completedAt: "2026-10-03" }, { id: "b", order: 2, completedAt: null }];
+ expect(phase({ ...base, maps, veto: "completed" })).toBe("inter_map");
+ expect(phase({ ...base, maps, veto: "completed", gameplayMapId: "b" })).toBe("gameplay");
+ expect(phase({ ...base, maps, status: "finished", gameplayMapId: "b" })).toBe("post");
+ expect(phase({ ...base, status: "cancelled" })).toBe("cancelled");
+});

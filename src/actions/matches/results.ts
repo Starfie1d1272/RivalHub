@@ -29,7 +29,7 @@ import {
   computeSeriesScoreAfterMap,
   validateMapScore,
 } from "@/lib/matches/result-rules";
-import { recordCanonicalMapResultInTx } from "@/lib/matches/results";
+import { recordManualMapResultInTx } from "@/lib/matches/manual-result";
 import { traceOperation } from "@/lib/observability/server";
 import { completeCompetitionQualificationIfReadyInTx } from "@/lib/competition-qualification/runtime";
 import { assertGenericMatchCanBeDeleted, deleteScheduledMatchAndDependentsInTx } from "@/lib/matches/deletion";
@@ -150,7 +150,7 @@ export async function recordMapResult(
       operation: "result.record",
       attributes: { "rivalhub.workflow": "match_runtime" },
     }, () => db.transaction(async (tx) => {
-      const result = await recordCanonicalMapResultInTx(tx, { matchId, mapOrder, mapName, scoreA, scoreB, pickedByEntryId, teamAStartSide, actorId: session.email });
+      const result = await recordManualMapResultInTx(tx, { matchId, mapOrder, mapName, scoreA, scoreB, pickedByEntryId, teamAStartSide, actorId: auditActorId(session) });
       seriesFinished = result.seriesFinished;
       finishedSlug = result.finishedSlug;
     }));

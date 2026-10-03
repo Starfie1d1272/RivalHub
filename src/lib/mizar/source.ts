@@ -2,7 +2,7 @@ import "server-only";
 import { and, eq, isNull, desc } from "drizzle-orm";
 import { z } from "zod";
 import { db, type TxDb } from "@/db/client";
-import { matchLiveSessions, mizarInstallations, users, type Match } from "@/db/schema";
+import { matchLiveSessions, matchMaps, mizarInstallations, users, type Match } from "@/db/schema";
 import { lockMatchInTx, materializeDefaultLineupsInTx } from "@/lib/match-rosters/service";
 import { loadEffectiveMatchRoster } from "@/lib/match-rosters/effective";
 import { AppError, ErrorCode } from "@/lib/errors";
@@ -93,11 +93,17 @@ export async function releaseMizarSource(
   });
 }
 
-export async function takeOverCurrentMap(matchId: string, actorId: string) {
+export const manualMapTakeoverSchema = z.strictObject({ sessionId: z.uuid(), mapEpoch: z.number().int().nonnegative(), mapId: z.uuid() });
+export async function takeOverCurrentMap(matchId: string, actorId: string, expected: z.infer<typeof manualMapTakeoverSchema>) {
   await db.transaction(async tx => {
     const match = await lockMatchInTx(tx, matchId);
     const [source] = await tx.select().from(matchLiveSessions).where(and(eq(matchLiveSessions.matchId, matchId), isNull(matchLiveSessions.closedAt))).for("update");
     if (!source || match.status !== "in_progress") throw new AppError(ErrorCode.VALIDATION_FAILED, "当前没有需要接管的正式对局。");
+    if (source.id !== expected.sessionId || source.mapEpoch !== expected.mapEpoch || source.currentMapId !== expected.mapId) throw new AppError(ErrorCode.VALIDATION_FAILED, "当前地图或数据源已变化，请刷新后重试。");
+    const [map] = await tx.select().from(matchMaps).where(and(eq(matchMaps.id, expected.mapId), eq(matchMaps.matchId, matchId)));
+    if (!map || map.completedAt !== null) throw new AppError(ErrorCode.VALIDATION_FAILED, "本图已有正式赛果，请使用结果更正流程。");
+    if (source.manualTakeoverMapEpoch === source.mapEpoch) return;
+    if (![source.identityHealth, source.lineupHealth, source.continuityHealth].some(health => ["conflict", "source_conflict", "result_conflict", "stale"].includes(health))) throw new AppError(ErrorCode.VALIDATION_FAILED, "当前没有已核实的异常需要人工接管。");
     await tx.update(matchLiveSessions).set({ autoCanonicalizationArmed: false, manualTakeoverMapEpoch: source.mapEpoch }).where(eq(matchLiveSessions.id, source.id));
     await writeAuditInTx(tx, { seasonId: match.seasonId, actorId, action: "mizar.map.manual_takeover", targetId: matchId, meta: { sessionId: source.id, mapEpoch: source.mapEpoch } });
   });
