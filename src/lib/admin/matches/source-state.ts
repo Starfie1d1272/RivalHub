@@ -1,7 +1,7 @@
 /** Private operator projection. Never included in the public phase contract. */
 export type SourceMode = "none" | "mizar_auto" | "manual_map";
 export type SourceHealth = "not_applicable" | "healthy" | "unknown" | "stale" | "conflict";
-export type ReviewReason = "identity_mismatch" | "lineup_mismatch" | "source_conflict" | "continuity_failure" | "result_conflict";
+export type ReviewReason = "identity_mismatch" | "lineup_mismatch" | "source_conflict" | "continuity_failure" | "result_conflict" | "execution_mismatch";
 export type AdminPrimaryTask = "prepare" | "observe" | "manual_result" | "review" | "source_check" | "post";
 export interface OperatorSourceFacts {
   currentMapId: string | null;
@@ -19,6 +19,7 @@ export interface OperatorSourceFacts {
 export function projectOperatorSource(source: OperatorSourceFacts | null) {
   const sourceMode: SourceMode = !source ? "none" : source.manualTakeoverMapEpoch === source.mapEpoch ? "manual_map" : "mizar_auto";
   const reviewReasons: ReviewReason[] = [];
+  if (source?.continuityHealth === "execution_conflict") reviewReasons.push("execution_mismatch");
   if (source?.identityHealth === "conflict") reviewReasons.push("identity_mismatch");
   if (source?.lineupHealth === "conflict") reviewReasons.push("lineup_mismatch");
   if (source?.sourceConflict || source?.continuityHealth === "source_conflict") reviewReasons.push("source_conflict");
@@ -30,7 +31,7 @@ export function projectOperatorSource(source: OperatorSourceFacts | null) {
   return { sourceMode, sourceHealth, reviewReasons };
 }
 export const REVIEW_REASON_LABEL: Record<ReviewReason, string> = {
-  identity_mismatch: "比赛身份不一致", lineup_mismatch: "实际首发不一致", source_conflict: "数据源归属冲突",
+  execution_mismatch: "地图与当前对局不一致", identity_mismatch: "比赛身份不一致", lineup_mismatch: "实际首发不一致", source_conflict: "数据源归属冲突",
   continuity_failure: "对局连续性需要核对", result_conflict: "候选赛果与正式赛果冲突",
 };
 

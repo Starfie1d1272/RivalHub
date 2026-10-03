@@ -18,3 +18,9 @@
 - [三组赛后完成度 · 390px](post-390.png)
 
 当前边界：本线没有实现公开 viewer / Radar 或 OBS 控制。source stale 只消费明确的 producer/source evidence，不用低频 reliable-event 时间推断网络断流；连续直播断流/reconnect 展示属于公开/实时专项。Bilibili provider 故障保持 unknown，不作为比赛 gate。#610/#613/#764 的跨产品现场 rehearsal、公开体验和各自其它未交付项仍须单独验收。
+
+## 异常恢复复审证据
+
+针对 a86330fb 的复审，在同步 main #794 后补充真实可靠事件 → PostgreSQL → operator-context → 人工命令回归。错图结果产生持久 execution_conflict，后续正确事件保持 REVIEW；invalid start 不删除可信执行事实，空绑定只通过明确确认 BP 的第一张未完成地图恢复，session/epoch/顺序/正式结果校验与审计保留。另验证迟到旧 epoch 拒绝、下一图健康 re-arm、gameplay→stale→人工接管不再显示图间任务、无 Mizar 正常人工路径。26 个集成测试通过，70 条迁移与 112 表 access matrix 通过。
+
+37 个定向与 61 个 affected 测试通过；组件验证恢复说明、二次确认及目标变化后的重新确认。app/tests 类型、文件级 lint、architecture 与 diff check 通过。共享 presentation-phase 实现不变，保留原覆盖并补齐 #792 的乱序地图/旧 observation/2:0 覆盖。上述截图仍是前轮 fixture 截图，不作为新增空绑定恢复 UI 的现场截图；本轮没有真实 CS2/OBS 验收。

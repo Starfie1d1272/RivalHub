@@ -89,3 +89,12 @@ it("separates official, data and production completion for unclaimed, forfeit an
   expect(projectOperatorCompletion({ ...base, maps: [] }).data).toBe("待补齐 OCR / Demo");
   expect(projectOperatorCompletion({ ...base, commentatorCount: 1, maps: [{ ...map(1, true, true), demoComplete: true }] })).toEqual({ official: "已完赛", data: "已齐备", production: "已完成" });
 });
+
+it("keeps gameplay and POST free of inter-map timers after stale manual takeover", () => {
+ const maps = [map(1, true), map(2), map(3)];
+ const source = { ...healthy, currentMapId: "map-2", mapEpoch: 2, manualTakeoverMapEpoch: 2, autoCanonicalizationArmed: false, continuityHealth: "stale" };
+ const ongoing = project(maps, { source, observedGameplayMapId: "map-2" });
+ expect(ongoing).toMatchObject({ phase: "gameplay", primaryTask: "manual_result", elapsed: null, roomMapId: null });
+ expect(ongoing.nextStep).not.toContain("准备");
+ expect(project(maps, { source, observedGameplayMapId: "map-2", status: "finished" })).toMatchObject({ phase: "post", elapsed: null });
+});

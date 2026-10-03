@@ -168,7 +168,7 @@ export interface AdminMatchWorkbenchData {
   vetoCompletedAt: Date | null;
   postMatch: AdminPostMatchRecordData | null;
   demoReviews?: AdminDemoReviewMap[];
-  operator: { workflow: OperatorWorkflow; roomGuide: PerfectRoomGuideData | null; takeover?: { sessionId: string; mapEpoch: number; mapId: string } | null };
+  operator: { workflow: OperatorWorkflow; roomGuide: PerfectRoomGuideData | null; recoveryMapLabel?: string | null; takeover?: { sessionId: string; mapEpoch: number; mapId: string; recoverMapBinding?: boolean } | null };
   commentary: AdminMatchCommentaryData;
 }
 

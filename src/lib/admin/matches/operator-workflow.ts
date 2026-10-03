@@ -118,12 +118,17 @@ export function projectOperatorWorkflow(input: {
     ...base, primaryTask: "source_check", title: source.sourceHealth === "stale" ? "实时数据已失鲜" : "等待数据源核验",
     description: "自动赛果尚未就绪，正式比赛与已确认赛果保持有效。",
     nextStep: "核对数据源；有明确中断且需要人工收口时接管本图。",
-    roomMapId: nextMap.id,
+    roomMapId: phase === "gameplay" ? null : nextMap.id,
   };
   if (input.observedGameplayMapId === nextMap.id && source.sourceMode === "mizar_auto") return {
     ...base, primaryTask: "observe", title: `观察 Map ${nextMap.order} 对局`,
     description: "数据源核验正常，系统自动接收本图赛果。",
     nextStep: "无需重复人工录分；图后可补齐平台计分板与 Demo。",
+  };
+  if (phase === "gameplay" && manualResultAllowed) return {
+    ...base, primaryTask: "manual_result", title: `人工记录 Map ${nextMap.order} 结果`,
+    description: "本图已开始，继续比赛并在结束后记录正式比分。",
+    nextStep: "核对本图比分；上一图平台计分板可赛后补齐。",
   };
   const previous = completedMaps.at(-1);
   const previousNeedsScoreboard = previous && !previous.scoreboardComplete;
@@ -135,7 +140,6 @@ export function projectOperatorWorkflow(input: {
     nextStep: `准备 Map ${nextMap.order} 房间，提醒双方进入；平台计分板可稍后补齐。`,
     focusMapId: previousNeedsScoreboard ? previous.id : null,
     roomMapId: nextMap.id,
-    elapsed: previous?.completedAt ? { since: previous.completedAt, label: `距 Map ${previous.order} 结束` } : null,
   };
 }
 

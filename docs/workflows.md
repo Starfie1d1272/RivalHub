@@ -176,7 +176,11 @@ Mizar 数据源闭环：Mizar 在本机发起短期 pairing intent 并保留 pol
 
 单场工作台从正式地图计划、正式单图完成事实与已有 Mizar 开始记录投影当前任务。BP 后提供 Perfect 建房指引，整个系列赛保持 RivalHub A/B 对应 Perfect Team 1/2；起始边未知时要求核对，不猜边。轮次和短描述分开，Swiss 短描述来自相应 StageRun / Qualification 的 canonical Swiss read model，未知值不能复制。仅轮次、短描述、两队名、GOTV 线路 2 延迟和密码提供复制；其余为核对项，不保存或推断外部房间是否已创建。
 
-单图同时具备正式比分与完成时间即可打开 OCR；图间优先提示本图平台计分板待补，但可直接准备下一图，OCR 不构成建房或赛后资料的门槛。已有本图开始记录优先显示解说任务，不把上一图待补挡在现场操作之前；低频开始记录不表示实时直播健康。平台计分板「已补齐」仅指当前十名 effective starters 都具有非空 Rating / RWS / WE（0 有效），不使用 DAK 的验证标记或行数推测。保存/清除平台数据后刷新任务投影；其它外部更新可手动刷新。图间计时只显示距上一图正式完成的经过时间，不设未定的运营提醒阈值。正式系列赛结束立即进入赛后整理，BO3 的 2:0 不准备 Map 3，仍进行中的 1:1 才继续；无实际地图的弃赛不要求 OCR 或 Demo。赛后提供 Demo Uploader 最新发布入口及逐图同步状态，待处理 Demo 面板保留独立恢复入口，即使当前地图缺少正式结果也不隐藏。
+单图同时具备正式比分与完成时间即可打开 OCR。DAK 前的基础计分板齐备要求十名 effective starters 完整身份覆盖、无重复或越界，Match/Map/队伍归属一致，且 kills、deaths、assists、hsPercent、firstKills、multiKills、clutches、adr、ratingPro、rws、we 十一项字段齐全，通过既有 schema / stat-ranges 与正式回合上下文核验。缺值保持 incomplete，零值按各字段既有合法范围处理。DAK 后 identity/gameplay/verification lineage 仍归 DAK，OCR 只补 Rating Pro / RWS / WE；缺值不抹掉已有 enrichment，基础板从已核验的 DAK gameplay 与平台 enrichment 合并判定，DAK evidence 同步状态单独检查。
+
+图间 OCR 与下一图准备可并行，不构成建房或赛后资料的门槛。图间计时仅在派生阶段为 inter_map 时从上一图正式 completed_at 正计时，10 分钟软提醒；下一图已经 gameplay 或系列结束后不再显示图间提醒、催促准备已开打的地图，即使随后失鲜或人工接管也如此。保存/清除后刷新投影，页面可见时定期刷新，仍可手动刷新。正式系列赛结束立即进入赛后整理，BO3 的 2:0 不准备 Map 3，仍进行中的 1:1 才继续；无实际地图的弃赛不要求 OCR 或 Demo。赛后提供 Demo Uploader 稳定下载入口及逐图同步状态，needs_attention 面板保留独立恢复入口，即使当前地图缺少正式结果也不隐藏。
+
+可靠事件的错图拒绝持久化为 execution_conflict，工作台优先 REVIEW，保留既有可信 currentMapId 与 gameplay 事实；同 epoch 后续正确事件不自动清除该冲突或重新 armed。管理员核对后显式接管本图，人工命令仍经同一正式赛果 owner。若 invalid map_started 后没有可信地图绑定，工作台展示正式计划中第一张未完成地图；管理员明确确认恢复并接管，服务端在 match→source 锁内重验 session、map epoch、空绑定、冲突与未完成地图顺序，记录恢复前后地图及操作者审计。此恢复不切换 installation，不允许任选地图或覆盖正式赛果；下一图新 epoch 仍须通过健康检查才恢复 AUTO。
 
 ## Discipline and post-event
 
