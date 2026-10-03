@@ -56,8 +56,8 @@ export function copySafeTree(source, target, includeReportJson, options = {}) {
 }
 
 export function redact(value) {
-  let safe = value
-    .replace(/(["']?(?:SUPABASE_SERVICE_ROLE_KEY|SUPABASE_ANON_KEY|ADMIN_SESSION_SECRET|password|passwd|token|access_token|refresh_token|secret|signedUrl|signed_url|authorization|cookie|set-cookie)["']?\s*[:=]\s*)(["']?)[^\s,"'}]+\2/gi, "$1$2[REDACTED]$2")
+  let safe = value.replace(/\bsb_secret_[A-Za-z0-9_-]+/g, "[REDACTED_KEY]")
+    .replace(/(["']?(?:SUPABASE_SECRET_KEY|SUPABASE_SERVICE_ROLE_KEY|SUPABASE_ANON_KEY|ADMIN_SESSION_SECRET|password|passwd|token|access_token|refresh_token|secret|signedUrl|signed_url|authorization|cookie|set-cookie)["']?\s*[:=]\s*)(["']?)[^\s,"'}]+\2/gi, "$1$2[REDACTED]$2")
     .replace(/https?:\/\/[^\s"']*[?&](?:token|access_token|refresh_token|signature)=[^\s"']*/gi, "[REDACTED_SIGNED_URL]")
     .replace(/\b(?:Bearer|Basic)\s+[A-Za-z0-9._~+/=-]+/gi, (match) => `${match.split(/\s+/, 1)[0]} [REDACTED]`)
     .replace(/\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9._-]+\.[A-Za-z0-9._-]+\b/g, "[REDACTED_JWT]")

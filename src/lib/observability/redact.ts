@@ -86,7 +86,7 @@ function readString(value: ErrorObject, property: string): string | undefined {
 }
 
 export function redactText(value: string, maxLength = MAX_TEXT_LENGTH): string {
-  let safe = value.replace(/[\u0000-\u001f\u007f]/g, " ").trim();
+  let safe = value.replace(/\bsb_secret_[A-Za-z0-9_-]+/g, "[REDACTED_KEY]").replace(/[\u0000-\u001f\u007f]/g, " ").trim();
   if (SQL_TEXT_PATTERN.test(safe)) return "[REDACTED]";
   safe = safe
     .replace(/data:[^,;\s]+;base64,[A-Za-z0-9+/=]+/gi, "data:[REDACTED]")
@@ -108,7 +108,7 @@ export function redactText(value: string, maxLength = MAX_TEXT_LENGTH): string {
 export function safeCode(value: unknown): string | undefined {
   if (typeof value !== "string") return undefined;
   const code = value.trim();
-  if (/^(?:sk|rk|pk)_[A-Za-z0-9_-]{8,}$/i.test(code)) return undefined;
+  if (/^(?:sb_secret|sk|rk|pk)_[A-Za-z0-9_-]{8,}$/i.test(code)) return undefined;
   return /^[A-Za-z0-9_.:-]{1,100}$/.test(code) ? code : undefined;
 }
 

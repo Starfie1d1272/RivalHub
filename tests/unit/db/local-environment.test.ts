@@ -54,7 +54,8 @@ describe("local database target guard", () => {
           DB_URL: "postgresql://postgres:postgres@127.0.0.1:54322/postgres",
           API_URL: "http://127.0.0.1:54321",
           PUBLISHABLE_KEY: "publishable-local",
-          SERVICE_ROLE_KEY: "service-local",
+          SECRET_KEY: "service-local",
+          SERVICE_ROLE_KEY: "legacy-service-local",
           STUDIO_URL: "http://127.0.0.1:54323",
         }),
       ),
@@ -89,11 +90,16 @@ describe("local database target guard", () => {
       {
         DATABASE_URL: "postgresql://prod.example.com/prod",
         NEXT_PUBLIC_SUPABASE_URL: "https://prod.example.com",
+        NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "sb_publishable_prod",
+        SUPABASE_SECRET_KEY: "sb_secret_prod",
       },
     );
 
     expect(env.DATABASE_URL).toContain("127.0.0.1:54322");
     expect(env.NEXT_PUBLIC_SUPABASE_URL).toBe("http://127.0.0.1:54321");
+    expect(env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY).toBe("publishable-local");
+    expect(env.SUPABASE_SECRET_KEY).toBeUndefined();
+    expect(env.SUPABASE_SERVICE_ROLE_KEY).toBe("service-local");
     expect(env.RIVALHUB_DB_TARGET).toBe("local");
   });
 
