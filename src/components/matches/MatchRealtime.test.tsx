@@ -40,7 +40,7 @@ describe("public LIVE presentation", () => {
     const match = { id: "match", entryAId: "a", entryBId: "b", stage: "playoffs", format: "bo3" as const, status: "in_progress", scoreA: 1, scoreB: 0, scheduledAt: null, completedAt: null, bracketNodeId: null, isForfeit: false };
     const html = renderToStaticMarkup(<MatchHeroHeader seasonSlug="sample" match={match} teamA={null} teamB={null} isFinished={false} />);
     expect(html).toContain('aria-label="系列赛比分"');
-    expect(html.replace(/<[^>]*>/g, "")).toContain("1:0");
+    expect(new DOMParser().parseFromString(html, "text/html").body.textContent).toContain("1:0");
     const unknown = renderToStaticMarkup(<MatchHeroHeader seasonSlug="sample" match={{ ...match, scoreA: null, scoreB: null }} teamA={null} teamB={null} isFinished={false} />);
     expect(unknown).toContain("VS"); expect(unknown).not.toContain('aria-label="系列赛比分"');
   });
