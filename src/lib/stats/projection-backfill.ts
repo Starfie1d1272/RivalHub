@@ -192,7 +192,15 @@ export async function reconcileMissingStatisticsProjections(database: DB, option
     }
     // Claim one map at a time: advancing past an unprocessed batch suffix can
     // starve it forever when the same early maps repeatedly exhaust the budget.
-    const matchMapId = await claimNextProjectionRepairMap(database);
+    let matchMapId: string | null;
+    try {
+      matchMapId = await claimNextProjectionRepairMap(database);
+    } catch {
+      // Preserve prior committed transitions so the scheduler invalidates them
+      // before reporting a later candidate-selection dependency failure.
+      report.failed++;
+      break;
+    }
     report.afterMapId = matchMapId;
     if (!matchMapId) { report.wrapped = true; break; }
     report.candidates++;
