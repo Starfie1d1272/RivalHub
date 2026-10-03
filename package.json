@@ -20,7 +20,7 @@
     "demo-evidence:schema:check": "tsx scripts/demo-evidence/generate-json-schema.ts --check",
     "mizar:contract-check": "tsx scripts/mizar-contract-check.mjs",
     "check": "pnpm type-check && pnpm lint && pnpm architecture:check && pnpm db:check && pnpm test",
-    "verify": "pnpm check && env -u DATABASE_URL -u RIVALHUB_LOCAL_DATABASE_URL -u NEXT_PUBLIC_SUPABASE_URL -u NEXT_PUBLIC_SUPABASE_ANON_KEY -u SUPABASE_SERVICE_ROLE_KEY -u RIVALHUB_DB_TARGET pnpm build",
+    "verify": "pnpm check && env -u DATABASE_URL -u RIVALHUB_LOCAL_DATABASE_URL -u NEXT_PUBLIC_SUPABASE_URL -u NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY -u NEXT_PUBLIC_SUPABASE_ANON_KEY -u SUPABASE_SECRET_KEY -u SUPABASE_SERVICE_ROLE_KEY -u RIVALHUB_DB_TARGET pnpm build",
     "verify:services": "tsx scripts/db/local.ts verify-services",
     "db:generate": "drizzle-kit generate",
     "db:check": "pnpm db:migration-risk && drizzle-kit check",

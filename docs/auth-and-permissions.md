@@ -77,4 +77,4 @@ Server Action 返回赛事范围的读取 DTO 时，也必须在 action 自身�
 
 Preview 固定使用 `rivalhub-dev` 的 Auth。refresh 会提供 deterministic `player`、`invited`、`captain`、`season-admin`、`super-admin` 便捷测试账号：队长优先绑定当前赛事 linked Team 的 captain，season-admin 获得当前赛季 grant，super-admin 独立选择。它们使用公开、统一、可重置的 disposable fixture credential，不是安全边界；Vercel Deployment Protection 仍负责 Preview 访问控制。它们不是唯一允许登录的账号；正常 dev 注册、登录、重置和业务写入都可用。
 
-Vercel Preview 仅可配置 dev-scoped Supabase URL、anon/secret credential、独立 `ADMIN_SESSION_SECRET` 与必要的 dev/sandbox provider credential；`SUPABASE_SERVICE_ROLE_KEY` 仅作为尚未迁移环境的 fallback。privileged credential 可以存在，但其权限必须只限 `rivalhub-dev`；production credential 永远不得进入 Preview。
+Vercel Preview 仅可配置 dev-scoped Supabase URL、publishable/secret credential（旧 anon 配置兼容）、独立 `ADMIN_SESSION_SECRET` 与必要的 dev/sandbox provider credential；`SUPABASE_SERVICE_ROLE_KEY` 仅作为尚未迁移环境的 fallback。privileged credential 可以存在，但其权限必须只限 `rivalhub-dev`；production credential 永远不得进入 Preview。

@@ -226,3 +226,5 @@ Player careers start from canonical users and effective starter appearances in f
 `src/lib/matches/presentation-phase.ts` owns `MatchPhaseFacts`, `MatchPresentationPhase` and the pure `projectMatchPresentationPhase` function. Inputs are canonical lifecycle timestamps/status, Veto progress, ordered official map completion facts, and a validated current gameplay observation. The phase is never persisted. `in_progress` alone does not prove gameplay; completed series take precedence over an unused decider or late observation.
 
 Public and admin server read models explicitly adapt their own authorized facts to this small contract. Public DTOs may expose the derived phase, but never import/serialize the admin workbench DTO, source authority, review reasons, credentials or private operational records. Admin task, source mode/health and review reasons remain independent admin projections. Freshness comes from live/source evidence, never the age of a low-frequency reliable event.
+
+统计表格与 Overview situation highlights 共享 `src/lib/stats/ranking.ts` 的样本资格投影；门槛按当前可比较指标的样本分布计算，空指标不参与基线。表格保留 limited-sample 行，Overview 只从 qualified population 选最佳，不另设固定样本门槛。
