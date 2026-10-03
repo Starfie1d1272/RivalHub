@@ -52,7 +52,7 @@ function RosterColumn({ teamName, roster }: { teamName: string; roster: RosterPl
                   <span className="truncate">{getPublicDisplayName(p)}</span>
                 </span>
               )}
-              {p.registrationPosition && CS2_POSITION_LABELS[p.registrationPosition as Cs2Position] && <span className="text-xs text-[var(--color-fg-dim)]">报名位置 · {CS2_POSITION_LABELS[p.registrationPosition as Cs2Position].cn}</span>}
+              {p.registrationPosition && CS2_POSITION_LABELS[p.registrationPosition as Cs2Position] && <span className="text-xs text-[var(--color-fg-dim)]">{CS2_POSITION_LABELS[p.registrationPosition as Cs2Position].cn}</span>}
             </div>
           ))}
           {subs.length > 0 && (

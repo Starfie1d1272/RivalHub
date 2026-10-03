@@ -142,7 +142,7 @@ export function MatchRosterForm({
               className={playerBtnClass(selectedStarterIds.includes(m.id), rosterLocked || isMatchStarted)}
             >
               <span className="text-sm font-medium">{getDisplayName(m)}</span>
-              {m.primaryPosition && <span className="text-xs">报名位置 · <PosChip pos={m.primaryPosition} /></span>}
+              {m.primaryPosition && <span className="text-xs"><PosChip pos={m.primaryPosition} /></span>}
             </button>
           ))}
         </div>
@@ -185,7 +185,7 @@ export function MatchRosterForm({
               )}
             >
               <span className="text-sm font-medium">{getDisplayName(m)}</span>
-              {m.primaryPosition && <span className="text-xs">报名位置 · <PosChip pos={m.primaryPosition} /></span>}
+              {m.primaryPosition && <span className="text-xs"><PosChip pos={m.primaryPosition} /></span>}
             </button>
           ))}
         </div>
