@@ -81,13 +81,13 @@ describe("page layout ownership", () => {
     }
   });
 
-  it("keeps Match Detail normal, loading, and error states on standard width", () => {
+  it("keeps Match Detail normal, loading, and error states on wide width", () => {
     for (const path of [
       "src/app/[seasonSlug]/matches/[matchId]/page.tsx",
       "src/app/[seasonSlug]/matches/[matchId]/loading.tsx",
       "src/app/[seasonSlug]/matches/[matchId]/error.tsx",
     ]) {
-      expect(readFileSync(resolve(projectRoot, path), "utf8")).toContain('variant="standard"');
+      expect(readFileSync(resolve(projectRoot, path), "utf8")).toContain('variant="wide"');
     }
   });
 });
