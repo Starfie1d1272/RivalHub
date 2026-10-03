@@ -75,7 +75,7 @@ export async function loadOperatorContext(input: {
   return {
     workflow,
     recoveryMapLabel: recoveryMap ? `Map ${recoveryMap.mapOrder} · ${recoveryMap.mapName}` : null,
-    takeover: liveSession && takeoverMap && workflow.sourceMode !== "manual_map" && (workflow.reviewReasons.length > 0 || workflow.sourceHealth === "stale") && match.status === "in_progress" ? { sessionId: liveSession.id, mapEpoch: liveSession.mapEpoch, mapId: takeoverMap.id, ...(recoveryMap ? { recoverMapBinding: true } : {}) } : null,
+    takeover: liveSession && takeoverMap && (workflow.sourceMode !== "manual_map" || recoveryMap != null) && (workflow.reviewReasons.length > 0 || workflow.sourceHealth === "stale") && match.status === "in_progress" ? { sessionId: liveSession.id, mapEpoch: liveSession.mapEpoch, mapId: takeoverMap.id, ...(recoveryMap ? { recoverMapBinding: true } : {}) } : null,
     roomGuide: roomMap ? buildPerfectRoomGuide({
       seasonName: input.seasonName, roundLabel, description,
       teamAName: input.teamAName, teamBName: input.teamBName, map: roomMap,
