@@ -50,3 +50,5 @@ Preview runtime 拒绝非 `rivalhub-dev` database/public Auth URL 与缺失的 s
 2. 在 GitHub `staging` environment 录入 `RIVALHUB_PREVIEW_DEV_SECRET_KEY` 与现有 `RIVALHUB_STAGING_DB_PASSWORD`；无需配置 persona password secret。
 3. 在 Vercel Preview environment 录入上述 dev-scoped 值，删除任何 production 或身份不明的同名值；保留 Deployment Protection。
 4. 手动运行 `Refresh Preview Data`，确认 job summary 的 source commit、各 phase 结果和页面 smoke。artifact 保留一天，且不得下载到个人设备或把 secret 写入 PR。
+
+生产的 `application_sessions`、`application_session_controls` 和统计修复游标不进入脱敏镜像；Preview persona 必须通过目标 Auth 重新登录，目标自行建立会话与维护进度。

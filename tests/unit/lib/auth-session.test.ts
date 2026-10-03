@@ -2,17 +2,24 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ErrorCode } from "@/lib/errors";
 
-const { cookiesMock, getIronSessionMock, selectMock, resolveCanonicalUserIdMock } = vi.hoisted(() => ({
+const { cookiesMock, getIronSessionMock, selectMock, readApplicationSessionMock } = vi.hoisted(() => ({
   cookiesMock: vi.fn(),
   getIronSessionMock: vi.fn(),
   selectMock: vi.fn(),
-  resolveCanonicalUserIdMock: vi.fn(),
+  readApplicationSessionMock: vi.fn(),
 }));
 
 vi.mock("next/headers", () => ({ cookies: cookiesMock }));
 vi.mock("iron-session", () => ({ getIronSession: getIronSessionMock }));
-vi.mock("@/db/client", () => ({ db: { select: selectMock } }));
-vi.mock("@/lib/identity/canonical", () => ({ resolveCanonicalUserId: resolveCanonicalUserIdMock }));
+vi.mock("@/db/client", () => ({ db: { select: selectMock, transaction: (fn: (tx: unknown) => unknown) => fn({}) } }));
+
+
+vi.mock("@/lib/auth/session-registry", () => ({
+  readApplicationSession: readApplicationSessionMock,
+  issueApplicationSessionInTx: vi.fn(async () => "11111111-1111-4111-8111-111111111111"),
+  revokeApplicationSession: vi.fn(),
+  SESSION_MAX_AGE_SECONDS: 2592000,
+}));
 
 import {
   auditActorId,
@@ -28,8 +35,10 @@ import {
 
 const identity = { userId: "user-1", email: "player@example.test" };
 
+const registryId = "11111111-1111-4111-8111-111111111111";
+
 function session(data: Record<string, unknown> = {}) {
-  return { ...data, save: vi.fn(), destroy: vi.fn(), updateConfig: vi.fn() };
+  return { sessionId: registryId, ...data, save: vi.fn(), destroy: vi.fn(), updateConfig: vi.fn() };
 }
 
 function mockCurrentAuthorization(role: "user" | "super_admin", seasonIds: string[]) {
@@ -51,10 +60,10 @@ describe("auth session guards", () => {
     process.env.ADMIN_SESSION_SECRET = "local-test-session-secret-that-is-long-enough";
     vi.clearAllMocks();
     cookiesMock.mockResolvedValue({});
-    resolveCanonicalUserIdMock.mockImplementation(async (_db: unknown, userId: string) => userId);
+    readApplicationSessionMock.mockResolvedValue(identity);
   });
 
-  it("session cookie 只读取并保存 userId/email，清除旧授权 payload", async () => {
+  it("session cookie 保存随机注册 id，授权与当前邮箱来自 DB，清除旧 payload", async () => {
     getIronSessionMock.mockResolvedValueOnce(
       session({ ...identity, role: "super_admin", seasonIds: ["season-1"], extra: "stale" }),
     );
@@ -62,7 +71,7 @@ describe("auth session guards", () => {
 
     const writable = session({ role: "super_admin", seasonIds: ["season-1"], extra: "stale" });
     getIronSessionMock.mockResolvedValueOnce(writable);
-    await createUserSession(identity);
+    await createUserSession(identity, "2026-10-03 00:00:00+00");
 
     expect(writable).toMatchObject(identity);
     expect(writable).not.toHaveProperty("role");
@@ -80,6 +89,18 @@ describe("auth session guards", () => {
 
     expect(cookie.destroy).toHaveBeenCalledOnce();
     expect(auditActorId(identity)).toBe("user-1");
+  });
+
+  it("rejects a pre-upgrade cookie with no registry id", async () => {
+    getIronSessionMock.mockResolvedValueOnce(session({ ...identity, sessionId: undefined }));
+    await expect(getUserSession()).resolves.toBeNull();
+    expect(readApplicationSessionMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects a revoked registry entry instead of resolving a merged alias", async () => {
+    getIronSessionMock.mockResolvedValueOnce(session(identity));
+    readApplicationSessionMock.mockResolvedValueOnce(null);
+    await expect(getUserSession()).resolves.toBeNull();
   });
 
   it("requireAuth rejects missing identity", async () => {

@@ -1,3 +1,4 @@
+vi.mock("@/lib/auth/session-registry", () => ({ beginAuthentication: vi.fn(async () => "2026-10-03 00:00:00+00") }));
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -185,7 +186,7 @@ describe("loginWithPassword", () => {
     expect(createUserSessionMock).toHaveBeenCalledWith({
       userId: MOCK_USER_ROW.id,
       email: MOCK_USER_ROW.email,
-    });
+    }, "2026-10-03 00:00:00+00");
     expect(resolveOrCreateCanonicalUserInTxMock).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
       authId: "auth-uuid-1",
       email: VALID_EMAIL,
@@ -563,7 +564,7 @@ describe("claimInviteCode", () => {
     }
   });
 
-  it("delegates the production transaction command and refreshes identity-only session", async () => {
+  it("delegates invite claims without minting a fresh authentication session", async () => {
     claimAdminInviteInTxMock.mockResolvedValue({
       role: "season_admin",
       userId: MOCK_SESSION.userId,
@@ -577,7 +578,7 @@ describe("claimInviteCode", () => {
       code: "VALID123",
       userId: MOCK_SESSION.userId,
     });
-    expect(createUserSessionMock).toHaveBeenCalledWith(MOCK_SESSION);
+    expect(createUserSessionMock).not.toHaveBeenCalled();
     expect(revalidatePathMock).toHaveBeenCalledWith("/admin");
   });
 

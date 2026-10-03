@@ -46,7 +46,21 @@ Server Action 返回赛事范围的读取 DTO 时，也必须在 action 自身�
 
 ## Session
 
-`rivalhub-session` 只保存最小身份信息。当前 role 与 season grants 每次从数据库读取，因此撤销权限会在后续请求生效；session 不保存可长期延续的授权快照。
+`rivalhub-session` 保存最小身份信息和随机 session id；每个请求必须同时命中未过期的 `application_sessions` 注册记录及 active user。有效期 30 天，旧版本没有 session id 的 cookie 一律要求重新登录。读取不沿 merged alias 继承身份；当前邮箱、role 和 season grants 从数据库读取，权限撤销仍独立于登录撤销生效。React cache 只复用当前请求的认证快照，不跨请求缓存。
+
+| 操作 | 会话结果 |
+| --- | --- |
+| 主动退出 | 删除当前注册记录；复制的同一 cookie 也失效，其它登录保留 |
+| 改密、找回、撤销备用登录凭据 | 撤销该 canonical user 的全部应用会话，要求重新登录 |
+| 账号归并 | 双方全部旧会话失效；重新证明凭据后才能登录保留账号 |
+| 管理员强制退出 | 经 `revokeUserSessions`、`requireSuperAdmin` 与 audit 撤销目标的全部应用会话 |
+| 修改角色、赛季授权、领取邀请码 | 后续请求读取最新权限，不补发登录会话 |
+
+`src/lib/auth/session-registry.ts` 是唯一注册/校验/撤销 owner。颁发与撤销按 user row lock 串行；provider 验证前从数据库获取 authentication start timestamp，注册时与持久化撤销边界比较，避免旧登录请求在撤销后补发会话。时间比较留在 PostgreSQL，不将微秒精度降为 JavaScript Date 毫秒。注册时按用户清理过期记录，退出和全撤销直接删除对应记录。`user_sessions` 仅是在线心跳表，不承担认证。
+
+密码更新先提交全撤销与 durable issuance block，再调用 Auth，最后重新推进撤销边界并解除 block。明确的 provider 拒绝不会报告成功，旧登录仍保持撤销；网络异常、5xx、数据库最终提交失败或进程中断时保留 block，避免跨系统未知结果下继续颁发会话。找回页面把 provider access token 交给 server boundary，通过 Supabase `getUser(token)` 远程验证 subject，再解析有效 credential 绑定；不相信客户端自报已改密，也不根据未经验证的 JWT claim 更新账号。
+
+外部 Auth Dashboard/API 修改密码不会自动触发应用数据库撤销。受支持操作必须配套调用管理员 `revokeUserSessions`，且在 provider 修改前后各撤销一次；不能将 provider refresh token 撤销等同于应用会话撤销。若有中断的密码更新，先确认 provider 请求已终止、核实账号密码状态或完成受控重置，再由 super admin 显式调用 `revokeUserSessions({ userId, providerMutationSettled: true })` 解除阻断并再次全撤销；未核实结果不得解除。入口为管理员「所有用户 → 退出旧登录」；解除阻断必须显式勾选已核实声明。该操作有 audit，不提供设备列表 UI，不自动重试未知结果的密码写入。
 
 ## Data API baseline
 

@@ -1,5 +1,6 @@
 "use client";
 
+import { resetUserPassword } from "@/actions/password-recovery";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -25,12 +26,15 @@ export function ResetPasswordForm() {
     }
     startTransition(async () => {
       const supabase = createBrowserClient();
-      const { error } = await supabase.auth.updateUser({ password });
-      if (error) {
-        toast.error("密码重置失败，链接可能已过期，请重新请求重置链接");
+      const { data } = await supabase.auth.getSession();
+      const result = await resetUserPassword(data.session?.access_token ?? "", password);
+      if (!result.success) {
+        toast.error(result.error.message);
       } else {
-        toast.success("密码已重置，请用新密码登录");
-        router.push("/login");
+        await supabase.auth.signOut({ scope: "local" });
+        toast.success("密码已重置，所有旧登录已退出，请用新密码登录");
+        router.replace("/login");
+        router.refresh();
       }
     });
   };

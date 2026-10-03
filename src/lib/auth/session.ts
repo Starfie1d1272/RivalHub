@@ -8,7 +8,7 @@ import { cache } from "react";
 import { db } from "@/db/client";
 import { seasonAdminGrants, users } from "@/db/schema";
 import { AppError, ErrorCode, ERROR_MESSAGES, isExpectedAuthFailure } from "@/lib/errors";
-import { resolveCanonicalUserId } from "@/lib/identity/canonical";
+import { issueApplicationSessionInTx, readApplicationSession, revokeApplicationSession, SESSION_MAX_AGE_SECONDS } from "./session-registry";
 
 export interface UserSession {
   userId: string;
@@ -21,7 +21,7 @@ export interface CurrentUserAuthorization extends UserSession {
   seasonIds: string[];
 }
 
-type SessionPayload = Partial<UserSession> & Record<string, unknown>;
+type SessionPayload = Partial<UserSession> & { sessionId?: string } & Record<string, unknown>;
 
 function userSessionOptions() {
   const password = process.env.ADMIN_SESSION_SECRET;
@@ -36,7 +36,7 @@ function userSessionOptions() {
       secure: process.env.NODE_ENV === "production",
       httpOnly: true,
       sameSite: "lax" as const,
-      maxAge: 60 * 60 * 24 * 30,
+      maxAge: SESSION_MAX_AGE_SECONDS,
     },
   };
 }
@@ -45,19 +45,11 @@ function userSessionOptions() {
 // intentionally not Next's persistent or cross-request cache.
 export const getUserSession = cache(async (): Promise<UserSession | null> => {
   const session = await getIronSession<SessionPayload>(await cookies(), userSessionOptions());
-  if (!session.userId || !session.email) return null;
-
-  const canonicalUserId = await resolveCanonicalUserId(db, session.userId);
-  if (!canonicalUserId) return null;
-  return {
-    userId: canonicalUserId,
-    // The cookie email is display-only; authorization is derived from the
-    // resolved canonical user id on every request.
-    email: session.email,
-  };
+  if (!session.userId || !session.sessionId || !/^[0-9a-f-]{36}$/i.test(session.sessionId)) return null;
+  return readApplicationSession(db, session.sessionId, session.userId);
 });
 
-export async function createUserSession(user: UserSession): Promise<void> {
+export async function createUserSession(user: UserSession, authenticationStartedAt: string): Promise<void> {
   const session = await getIronSession<SessionPayload>(await cookies(), userSessionOptions());
 
   // Clear any pre-existing payload so an old cookie cannot retain authorization data.
@@ -66,6 +58,7 @@ export async function createUserSession(user: UserSession): Promise<void> {
   for (const key of Object.keys(session)) {
     if (!sessionMethods.has(key)) delete session[key];
   }
+  session.sessionId = await db.transaction((tx) => issueApplicationSessionInTx(tx, user.userId, authenticationStartedAt));
   session.userId = user.userId;
   session.email = user.email;
   await session.save();
@@ -73,6 +66,7 @@ export async function createUserSession(user: UserSession): Promise<void> {
 
 export async function destroyUserSession(): Promise<void> {
   const session = await getIronSession<SessionPayload>(await cookies(), userSessionOptions());
+  if (session.sessionId) await revokeApplicationSession(db, session.sessionId);
   session.destroy();
 }
 

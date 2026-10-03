@@ -70,7 +70,8 @@ const matchRuntimeMigration = readFileSync(join(root, "drizzle/migrations/0065_m
 const mizarMigration = readFileSync(join(root, "drizzle/migrations/0066_mizar_backend_contracts.sql"), "utf8");
 const statsProjectionMigration = readFileSync(join(root, "drizzle/migrations/0067_chief_midnight.sql"), "utf8");
 const repairCursorMigration = readFileSync(join(process.cwd(), "drizzle/migrations/0068_faulty_hellion.sql"), "utf8");
-const migration = `${repairCursorMigration}\n${statsProjectionMigration}\n${predictionMigration}\n${terminalMigration}\n${restrictionOverrideMigration}\n${conversionPolicyMigration}\n${seedRecommendationSnapshotMigration}\n${identityMigration}\n${schedulerMigration}\n${stageConvergenceMigration}\n${contractCleanupMigration}\n${operationsMigration}\n${demoIntegrationMigration}\n${steamIdentityMigration}\n${qualificationMigration}\n${vetoRoomMigration}\n${matchRuntimeEnumMigration}\n${matchRuntimeMigration}\n${mizarMigration}`;
+const sessionMigration = readFileSync(join(root, "drizzle/migrations/0069_wealthy_violations.sql"), "utf8");
+const migration = `${sessionMigration}\n${repairCursorMigration}\n${statsProjectionMigration}\n${predictionMigration}\n${terminalMigration}\n${restrictionOverrideMigration}\n${conversionPolicyMigration}\n${seedRecommendationSnapshotMigration}\n${identityMigration}\n${schedulerMigration}\n${stageConvergenceMigration}\n${contractCleanupMigration}\n${operationsMigration}\n${demoIntegrationMigration}\n${steamIdentityMigration}\n${qualificationMigration}\n${vetoRoomMigration}\n${matchRuntimeEnumMigration}\n${matchRuntimeMigration}\n${mizarMigration}`;
 const droppedTables = [...contractCleanupMigration.matchAll(/DROP TABLE "([^"]+)"/g)].map((match) => match[1]);
 
 function expectedFacts(): DatabaseAccessFacts[] {
@@ -87,13 +88,13 @@ function expectedFacts(): DatabaseAccessFacts[] {
 describe("database access matrix", () => {
   it("classifies every current public application table and keeps the generated document aligned", () => {
     const snapshot = JSON.parse(
-      readFileSync(join(root, "drizzle/migrations/meta/0068_snapshot.json"), "utf8"),
+      readFileSync(join(root, "drizzle/migrations/meta/0069_snapshot.json"), "utf8"),
     ) as { tables: Record<string, unknown> };
     const snapshotTables = Object.keys(snapshot.tables)
       .map((table) => table.replace(/^public\./, ""))
       .sort();
 
-    expect(DATABASE_ACCESS_MATRIX).toHaveLength(110);
+    expect(DATABASE_ACCESS_MATRIX).toHaveLength(112);
     expect(new Set(DATABASE_ACCESS_TABLES).size).toBe(DATABASE_ACCESS_TABLES.length);
     expect(snapshotTables).toEqual([...DATABASE_ACCESS_TABLES].sort());
     expect(renderDatabaseAccessMatrixMarkdown()).toBe(
@@ -120,6 +121,7 @@ describe("database access matrix", () => {
       [...DATABASE_ACCESS_TABLES]
         .filter((table) =>
           !table.startsWith("prediction_") && ![
+            "application_sessions", "application_session_controls",
             "coverage_allocations", "coverage_holds", "match_lineup_incidents", "official_coverage_slots",
             "match_live_sessions", "mizar_installations", "mizar_pairing_intents", "mizar_reliable_receipts",
             "competition_entry_restriction_overrides",

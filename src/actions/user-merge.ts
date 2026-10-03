@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/db/client";
 import { actionError } from "@/lib/action-utils";
-import { createUserSession, requireAuth } from "@/lib/auth/session";
+import { destroyUserSession, requireAuth } from "@/lib/auth/session";
 import { ErrorCode } from "@/lib/errors";
 import { executeUserMergeInTx } from "@/lib/identity/merge";
 import { loadSelfServiceMergeAuthorization, selectSelfServiceMergePair } from "@/lib/identity/self-service";
@@ -38,15 +38,13 @@ export async function executeSelfServiceUserMerge(input: unknown): Promise<Actio
       reason: "用户证明控制双方 verified identity 后自助归并",
       authorizationId: authorization.id,
     }));
-    const canonicalAccount = authorization.accounts.find((account) => account.id === pair.canonicalUserId);
-    if (!canonicalAccount) throw new Error("归并完成后缺少 canonical account");
-    await createUserSession({ userId: pair.canonicalUserId, email: canonicalAccount.email });
+    await destroyUserSession();
     updatePublicPlayerTag(pair.canonicalUserId);
     updatePublicPlayerTag(pair.mergedUserId);
     revalidatePath("/settings/security");
     revalidatePath("/settings/education");
     revalidatePath(`/players/${pair.canonicalUserId}`);
-    return ok({ redirectTo: "/settings/security?merged=1" });
+    return ok({ redirectTo: "/login?merged=1" });
   } catch (error) {
     return actionError("executeSelfServiceUserMerge", error);
   }

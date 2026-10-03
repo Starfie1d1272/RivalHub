@@ -1,3 +1,4 @@
+vi.mock("@/lib/auth/session-registry", () => ({ beginAuthentication: vi.fn(async () => "2026-10-03 00:00:00+00") }));
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ErrorCode } from "@/lib/errors";
 
@@ -80,7 +81,7 @@ describe("confirmEmailVerification", () => {
       allowCreate: true,
       verifiedAt: expect.any(Date),
     }));
-    expect(createUserSessionMock).toHaveBeenCalledWith({ userId: userRow.id, email: userRow.email });
+    expect(createUserSessionMock).toHaveBeenCalledWith({ userId: userRow.id, email: userRow.email }, "2026-10-03 00:00:00+00");
   });
 
   it("reverify 也通过显式 POST 验证，并使用它自己的默认跳转", async () => {

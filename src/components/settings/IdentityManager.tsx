@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { requestSecondaryEmailIdentity, revokeSecondaryEmailIdentity } from "@/actions/identity";
 import { Button } from "@/components/ui/button";
@@ -11,6 +12,7 @@ import { Panel, StatusBanner } from "@/components/rivalhub";
 type Identity = { id: string; email: string; primary: boolean; verifiedAt: string };
 
 export function IdentityManager({ identities }: { identities: Identity[] }) {
+  const router = useRouter();
   const [email, setEmail] = useState("");
   const [pending, startTransition] = useTransition();
 
@@ -33,7 +35,9 @@ export function IdentityManager({ identities }: { identities: Identity[] }) {
         toast.error(result.error.message);
         return;
       }
-      toast.success("备用邮箱已撤销；赛事历史与个人事实未改变。");
+      toast.success("备用邮箱已撤销，所有旧登录已退出，请重新登录。");
+      router.replace("/login");
+      router.refresh();
     });
   }
 
