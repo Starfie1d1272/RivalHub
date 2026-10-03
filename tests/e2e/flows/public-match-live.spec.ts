@@ -31,7 +31,7 @@ test("public match consumes private Broadcast and recovers with canonical layout
           document.fonts.add(face);
         }
       });
-      await target.addStyleTag({ content: 'body { --font-noto-sans-sc: "Public Evidence"; --font-sans: Arial, "Public Evidence", sans-serif; --font-display: Arial, "Public Evidence", sans-serif; --font-mono: "JetBrains Mono", ui-monospace, "Public Evidence", monospace; font-family: var(--font-sans); }' });
+      await target.addStyleTag({ content: 'body[class] { --font-noto-sans-sc: "Public Evidence"; --font-sans: Arial, "Public Evidence", sans-serif; --font-display: Arial, "Public Evidence", sans-serif; --font-mono: "JetBrains Mono", ui-monospace, "Public Evidence", monospace; font-family: var(--font-sans); }' });
     }
     await target.evaluate(() => document.fonts.ready);
     await target.addStyleTag({ content: "nextjs-portal { display: none !important; }" });
