@@ -253,6 +253,15 @@ jobs:
           RIVALHUB_E2E_SPECS: '["tests/e2e/flows/public-event-experience.spec.ts"]'
         run: node scripts/ci/timing.mjs "system/mobile public event search ×10" -- pnpm test:e2e -- --project=mobile-chrome --repeat-each=10
 
+      - name: Upload public match screenshots
+        if: always() && needs.plan.outputs.live_evidence == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: public-match-live-screenshots
+          path: .agent-tmp/public-match-live-evidence/*.png
+          if-no-files-found: ignore
+          retention-days: 14
+
       - name: Prepare safe system artifacts
         if: failure()
         run: node scripts/ci/prepare-system-artifacts.mjs
