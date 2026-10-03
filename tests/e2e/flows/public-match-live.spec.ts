@@ -129,6 +129,8 @@ test("public match consumes private Broadcast and recovers with canonical layout
       await page.reload();
       if (label) await expect(page.getByText(label, { exact: true })).toBeVisible();
       else await expect(live).toHaveCount(0);
+      if (phase === "inter_map") await expect(page.getByLabel("系列赛比分")).toHaveText(/1\s*:\s*0/);
+      if (phase === "post") await expect(page.getByLabel("系列赛比分")).toHaveText(/2\s*:\s*0/);
       await capture(`public-${phase}`);
     }
   } finally {

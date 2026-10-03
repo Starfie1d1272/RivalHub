@@ -95,8 +95,9 @@ export function MatchHeroHeader({
         </div>
 
         <div className="text-center px-4">
-          {isFinished ? (
+          {isFinished || (match.status === "in_progress" && match.scoreA !== null && match.scoreB !== null) ? (
             <div
+              aria-label="系列赛比分"
               className="font-bold text-4xl sm:text-[56px]"
               style={{
                 fontFamily: "var(--font-mono)",
