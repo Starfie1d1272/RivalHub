@@ -278,7 +278,7 @@ export async function loadAdminMatchWorkbench({
         submittedAt,
         submittedByUserId: submission?.submittedByUserId ?? null,
         videoUrl: match.videoUrl,
-        completionLabel: commentatorRows.length ? POST_MATCH_COMPLETION_LABEL[getPostMatchCompletion(submittedAt, match.videoUrl)] : "不适用",
+        completionLabel: commentatorRows.length ? POST_MATCH_COMPLETION_LABEL[getPostMatchCompletion(submittedAt, match.videoUrl)] : "未登记解说，无需提交名单或录像",
         canSubmit: match.status === "finished",
       };
 

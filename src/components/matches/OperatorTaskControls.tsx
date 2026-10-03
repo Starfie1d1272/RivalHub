@@ -10,6 +10,7 @@ export function OperatorTaskControls({ elapsed }: { elapsed: { since: string; la
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   useRoutePolling(30000, pending);
+  const [refreshed, setRefreshed] = useState<string | null>(null);
   const [now, setNow] = useState<number | null>(null);
   useEffect(() => {
     if (!elapsed) return;
@@ -19,6 +20,7 @@ export function OperatorTaskControls({ elapsed }: { elapsed: { since: string; la
   return <div className="flex flex-wrap items-center gap-3">
     {elapsed && <p className="text-sm text-[var(--color-fg-mid)]">{elapsed.label} <span className="font-mono tabular-nums">{now === null ? "—" : formatOperatorElapsed(elapsed.since, now)}</span></p>}
     {elapsed && now !== null && now - new Date(elapsed.since).getTime() >= 600000 && <p role="status" className="text-sm text-[var(--color-warn)]">图间已达 10 分钟，请核对下一图房间并提醒双方进入。</p>}
-    <Button size="sm" variant="outline" disabled={pending} onClick={() => startTransition(() => router.refresh())}>{pending ? "刷新中…" : "刷新当前任务"}</Button>
+    <Button size="sm" variant="outline" disabled={pending} onClick={() => { setRefreshed(new Date().toLocaleTimeString("zh-CN", { hour12: false })); startTransition(() => router.refresh()); }}>{pending ? "刷新中…" : "更新比赛信息"}</Button>
+    <span role={refreshed ? "status" : undefined} className="text-xs text-[var(--color-fg-mid)]">{refreshed && !pending ? `已更新 ${refreshed} · ` : ""}页面每 30 秒更新，刷新不会修改比分。</span>
   </div>;
 }

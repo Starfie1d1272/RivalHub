@@ -1,3 +1,4 @@
+import { OperatorIssuePanel } from "./OperatorIssuePanel";
 import Link from "next/link";
 import React from "react";
 import { cn } from "@/lib/utils/cn";
@@ -163,7 +164,7 @@ export function AdminMatchWorkbench({
       <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_15rem]">
       <section aria-labelledby="operator-task" className="space-y-3 rounded border border-[var(--color-border)] p-4">
         {commentary.byMatchId[match.id] && <MatchCommentaryStatus matchId={match.id} assignment={commentary.byMatchId[match.id]} />}
-        <p className="text-xs text-[var(--color-fg-mid)]">当前任务</p>
+        <p className="text-xs text-[var(--color-fg-mid)]">{operator.workflow.primaryTask === "observe" ? "比赛状态" : "当前任务"}</p>
         <h2 id="operator-task" className="text-lg font-semibold">{operator.workflow.title}</h2>
         <p className="text-sm text-[var(--color-fg-mid)]">{operator.workflow.description}</p>
         <p className="text-sm">下一步：{operator.workflow.nextStep}</p>
@@ -171,10 +172,12 @@ export function AdminMatchWorkbench({
           {operator.workflow.focusMapId && <a className="underline underline-offset-4" href={`#scoreboard-${operator.workflow.focusMapId}`}>打开本图 OCR</a>}
           {operator.roomGuide && <a className="underline underline-offset-4" href="#perfect-room-guide">{operator.workflow.focusMapId ? "暂后补 OCR，查看下一图建房指引" : "查看 Perfect 建房指引"}</a>}
         </div>
+        {operator.review && <OperatorIssuePanel reasons={operator.workflow.reviewReasons} review={operator.review} />}
         {operator.takeover && <ManualMapTakeover key={`${operator.takeover.sessionId}:${operator.takeover.mapEpoch}:${operator.takeover.mapId}:${Boolean(operator.takeover.recoverMapBinding)}`} matchId={match.id} scope={operator.takeover} mapLabel={operator.recoveryMapLabel ?? undefined} />}
-        {broadcasts.length > 0 && <aside aria-label="转播状态" className="space-y-1 text-sm">{broadcasts.map((row, i) => <p key={i}>{row.name} · {row.label}</p>)}</aside>}
+        {broadcasts.length > 0 && <aside aria-label="转播状态" className="space-y-1 text-sm">{broadcasts.map((row, i) => <p key={i}>B站直播：{row.name} · {row.label}</p>)}</aside>}
         <OperatorTaskControls elapsed={operator.workflow.elapsed} />
-        {match.status === "in_progress" && vetoCompletedAt && operator.workflow.manualResultAllowed && <div id="manual-result" className="pt-3">
+        {match.status === "in_progress" && vetoCompletedAt && operator.workflow.manualResultAllowed && <details id="manual-result" className="space-y-3 pt-3" open={operator.workflow.sourceMode === "manual_map" || operator.workflow.phase === "gameplay"}>
+          <summary className="cursor-pointer text-sm font-medium">比赛结束后录入本图比分</summary>
                 <MapByMapInput
                   matchId={match.id}
                   format={match.format}
@@ -186,7 +189,7 @@ export function AdminMatchWorkbench({
                   pendingMaps={pendingMaps}
                   mapPool={mapPool}
                 />
-        </div>}
+        </details>}
         <div className="border-t border-[var(--color-border)] pt-3">
           <p className="mb-1 text-sm font-medium">我的下一场</p>
           {commentary.nextMatch ? <CommentaryMatchLink match={commentary.nextMatch} seasonSlug={season.slug} /> : <p className="text-sm text-[var(--color-fg-mid)]">当前没有已认领的下一场</p>}
@@ -197,15 +200,15 @@ export function AdminMatchWorkbench({
         <p className="font-semibold">本场状态</p>
         <p>{SOURCE_MODE_LABEL[operator.workflow.sourceMode]}</p>
         <p>{SOURCE_HEALTH_LABEL[operator.workflow.sourceHealth]}</p>
-        <p className="text-[var(--color-fg-mid)]">{postMatch?.commentators.length ? "已认领解说，制作资料适用" : "无人认领，制作资料不适用"}</p>
-        <a className="text-[var(--color-accent)] underline" href={`/admin/${season.slug}/matches#match-resources`}>赛事运营资源</a>
+        <p className="text-[var(--color-fg-mid)]">{postMatch?.commentators.length ? "已登记解说，赛后需确认名单与录像" : "未登记解说，无需提交解说名单或录像"}</p>
+        <a className="text-[var(--color-accent)] underline" href={`/admin/${season.slug}/matches#match-resources`}>Mizar 授权与 Demo 工具</a>
       </aside>
       </div>
 
       {match.status === "finished" && <section aria-label="赛后完成度" className="grid gap-3 sm:grid-cols-3 text-sm">
         <p>官方比赛：{completion.official}</p>
         <p>比赛数据：{completion.data}</p>
-        <p>制作资料：{completion.production}</p>
+        <p>解说与录像：{completion.production}</p>
       </section>}
       {operator.workflow.completedMaps.length > 0 && match.status !== "cancelled" && (
         <section aria-labelledby="operator-scoreboards" className="space-y-3">
@@ -226,7 +229,7 @@ export function AdminMatchWorkbench({
 
       {match.status !== "cancelled" && <DemoDataReviewPanel reviews={demoReviews} />}
 
-      <details className="space-y-4" open={match.status === "scheduled"}>
+      <details className="space-y-4" open={match.status === "scheduled" || operator.workflow.primaryTask === "review"}>
         <summary className="cursor-pointer font-semibold">首发、BP 与赛程管理</summary>
       <section aria-labelledby="match-workbench-overview" className="space-y-3">
         <div>

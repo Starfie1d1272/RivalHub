@@ -168,7 +168,7 @@ export interface AdminMatchWorkbenchData {
   vetoCompletedAt: Date | null;
   postMatch: AdminPostMatchRecordData | null;
   demoReviews?: AdminDemoReviewMap[];
-  operator: { workflow: OperatorWorkflow; roomGuide: PerfectRoomGuideData | null; recoveryMapLabel?: string | null; takeover?: { sessionId: string; mapEpoch: number; mapId: string; recoverMapBinding?: boolean } | null };
+  operator: { review?: { expectedTeams: string; currentMap: string | null; officialScore: string | null; evidence: { at: string; mapBinding: string; mapName: string | null; scoreA: number | null; scoreB: number | null } | null }; workflow: OperatorWorkflow; roomGuide: PerfectRoomGuideData | null; recoveryMapLabel?: string | null; takeover?: { sessionId: string; mapEpoch: number; mapId: string; recoverMapBinding?: boolean } | null };
   commentary: AdminMatchCommentaryData;
 }
 

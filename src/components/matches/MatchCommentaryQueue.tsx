@@ -10,7 +10,7 @@ import { presentMatchStatus } from "@/lib/matches/presentation";
 export function MatchCommentaryStatus({ matchId, assignment }: { matchId: string; assignment: AdminMatchCommentaryAssignment }) {
   return <div className="flex flex-wrap items-center gap-2 text-sm">
     <span>{assignment.commentators.length === 0 ? "尚无解说" : <>解说：{assignment.commentators.map((person, index) => <React.Fragment key={person.userId}>{index > 0 ? "、" : null}<PlayerProfileLink userId={person.userId}>{person.name}</PlayerProfileLink></React.Fragment>)}</>}</span>
-    {assignment.isMine && <span className="text-[var(--color-accent)]">你已负责本场</span>}
+    {assignment.isMine && <span className="text-[var(--color-accent)]">你已认领本场解说</span>}
     {assignment.commentators.length === 0 && assignment.canClaim && <ClaimMatchButton matchId={matchId} />}
   </div>;
 }

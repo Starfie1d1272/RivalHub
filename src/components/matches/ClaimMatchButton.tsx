@@ -23,7 +23,7 @@ export function ClaimMatchButton({ matchId }: { matchId: string }) {
           }
         });
       }}>
-        {pending ? "正在认领…" : claimed ? "已由你负责" : "由我负责本场"}
+        {pending ? "正在认领…" : claimed ? "你已认领解说" : "认领本场解说"}
       </Button>
       {error && <p role="alert" className="text-sm text-[var(--color-danger)]">{error}</p>}
     </div>

@@ -165,11 +165,11 @@ it("keeps AUTO as observation and makes review take precedence without a manual 
  const maps: OperatorMap[] = [{ id:"map-1", order:1, name:"de_inferno", startSide:"ct", completedAt:null, scoreboardComplete:false, demoLabel:"待上传", demoNeedsAttention:false }];
  props.operator.workflow = projectOperatorWorkflow({status:"in_progress", isForfeit:false, vetoComplete:true, observedGameplayMapId:"map-1", maps, source});
  const view = render(<AdminMatchWorkbench {...props} />);
- expect(screen.getByRole("heading",{name:"观察 Map 1 对局"})).toBeInTheDocument();
+ expect(screen.getByRole("heading",{name:"Map 1 · Inferno 进行中"})).toBeInTheDocument();
  expect(screen.queryByTestId("map-input")).not.toBeInTheDocument();
  props.operator.workflow = projectOperatorWorkflow({status:"in_progress", isForfeit:false, vetoComplete:true, observedGameplayMapId:"map-1", maps, source:{...source,lineupHealth:"conflict",autoCanonicalizationArmed:false}});
  view.rerender(<AdminMatchWorkbench {...props} />);
- expect(screen.getByRole("heading",{name:"需要处理本场异常"})).toBeInTheDocument();
+ expect(screen.getByRole("heading",{name:"自动赛果已暂停：请核对以下问题"})).toBeInTheDocument();
  expect(screen.queryByTestId("map-input")).not.toBeInTheDocument();
 });
 
@@ -179,14 +179,14 @@ it("explains canonical-map recovery, requires confirmation, and forwards only th
  vi.mocked(takeOverMatchMap).mockResolvedValue({ success: true, data: undefined });
  const view = render(<AdminMatchWorkbench {...props} operator={{ ...props.operator, takeover: scope, recoveryMapLabel: "Map 1 · de_ancient" }} />);
  expect(screen.getByText(/请核对正式地图计划：Map 1/)).toBeInTheDocument();
- fireEvent.click(screen.getByRole("button", { name: "人工接管本图赛果" }));
+ fireEvent.click(screen.getByRole("button", { name: "确认当前地图并恢复手动录分" }));
  expect(takeOverMatchMap).not.toHaveBeenCalled();
  const changedScope = { ...scope, mapEpoch: 2 };
  view.rerender(<AdminMatchWorkbench {...props} operator={{ ...props.operator, takeover: changedScope, recoveryMapLabel: "Map 1 · de_ancient" }} />);
- expect(screen.queryByRole("button", { name: "确认人工接管本图赛果" })).not.toBeInTheDocument();
+ expect(screen.queryByRole("button", { name: "确认：本图改用手动比分" })).not.toBeInTheDocument();
  view.rerender(<AdminMatchWorkbench {...props} operator={{ ...props.operator, takeover: scope, recoveryMapLabel: "Map 1 · de_ancient" }} />);
- fireEvent.click(screen.getByRole("button", { name: "人工接管本图赛果" }));
- fireEvent.click(screen.getByRole("button", { name: "确认人工接管本图赛果" }));
+ fireEvent.click(screen.getByRole("button", { name: "确认当前地图并恢复手动录分" }));
+ fireEvent.click(screen.getByRole("button", { name: "确认：本图改用手动比分" }));
  await waitFor(() => expect(takeOverMatchMap).toHaveBeenCalledWith(props.match.id, scope));
  view.unmount();
 });

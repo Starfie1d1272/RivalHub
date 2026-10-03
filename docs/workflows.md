@@ -225,6 +225,10 @@ Saved scenarios are independent public snapshots with an engine version. Opening
 
 ### Admin Match operations projection
 
-单场工作台复用 canonical phase facts，将当前任务、source mode、health 和 review reasons 分开投影。真实身份/阵容/连续性/赛果冲突优先处理，无 Mizar 是正常人工路径；AUTO 已核验时以观察为主。服务端人工命令与可靠事件共用比赛锁及结果 owner；人工接管校验预期 source session、地图与 epoch，已有正式赛果只能走更正流程，下一图健康开始后重新自动 armed。失鲜只能依据 producer 明确的 freshness evidence，不能由低频 reliable-event 时间推断；未知状态保留未知。
+单场工作台复用 canonical phase facts，将当前任务、source mode、health 和 review reasons 分开投影。真实身份/阵容/连续性/赛果冲突优先处理，无 Mizar 是正常人工路径；AUTO 已核验时展示「Map N · 地图名进行中」，解说认领另行展示；认领不等于已经开播或正在解说。准备房间时先展示 Perfect 指引，手动录分收在「比赛结束后录入本图比分」，显式接管后展开。服务端人工命令与可靠事件共用比赛锁及结果 owner；人工接管校验预期 source session、地图与 epoch，已有正式赛果只能走更正流程，下一图健康开始后重新自动 armed。失鲜只能依据 producer 明确的 freshness evidence，不能由低频 reliable-event 时间推断；未知状态保留未知。
 
-官方完赛不等待 OCR/DAK 或制作资料。实际完成地图分别检查完整计分板与 Demo 同步，未打 decider 和无实际地图弃赛不生成任务；制作资料按解说认领适用，无人认领为不适用。Bilibili 状态采用低频服务端缓存查询，失败显示「无法确认」。Uploader 下载消费 DAK 的稳定 manifest，失败时保留官方 Release fallback。
+官方完赛不等待 OCR/DAK 或制作资料。实际完成地图分别检查完整计分板与 Demo 同步，未打 decider 和无实际地图弃赛不生成任务；解说与录像按实际认领单独检查；未登记解说时明确提示无需提交名单或录像，不免除比赛统计和 Demo 的要求。Bilibili 状态采用低频服务端缓存查询，失败显示「无法确认」。Uploader 下载消费 DAK 的稳定 manifest，失败时保留官方 Release fallback。
+
+异常面板按原因给出本站记录、当前 source session / map epoch 对应的有界的最近未采纳上报（地图名称、地图绑定与比分；地图冲突优先显示真正错图的报告，避免后续正确但未被采纳的上报掩盖原因）和操作步骤。身份／阵容报告未包含逐项差异时明确说明证据缺失，不能虚构错队或错人。手动录分确认解释仅影响本图比分写入，不控制 Mizar HUD、OBS 或设备来源，也不解除网站实时数据校验。刷新只重新读取信息并提供完成反馈，不修改比分。当前逐图比分更正仅对已结束系列赛开放且不能改变胜者；进行中的正式比分若有误，页面明确提示记录差异并联系赛事管理员、暂停后续录分，不给出不存在的更正入口。
+
+Perfect 六项复制复用 canonical 赛事事实：轮次来自阶段（含 Direct BO3 Play-in），短描述来自对阵轮次／淘汰赛轮次／Swiss 当前轮战绩；Direct BO3 不读取不存在的 Swiss 战绩。队伍 1/2 来自本场 A/B，起始边来自 BP；缺失事实时禁用复制并指向赛程或 BP 核对，不生成猜测值。

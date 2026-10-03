@@ -2,8 +2,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Match, MatchMap } from "@/db/schema";
 import type { EffectiveMatchRosterPlayer } from "@/lib/match-rosters/effective";
 
-const mocks = vi.hoisted(() => ({ select: vi.fn(), live: vi.fn(), major: vi.fn(), qualification: vi.fn() }));
-vi.mock("@/db/client", () => ({ db: { select: mocks.select, query: { matchLiveSessions: { findFirst: mocks.live } } } }));
+const mocks = vi.hoisted(() => ({ select: vi.fn(), live: vi.fn(), major: vi.fn(), qualification: vi.fn(), run: vi.fn() }));
+vi.mock("@/lib/admin/matches/operator-evidence", () => ({ loadOperatorEvidence: vi.fn().mockResolvedValue(null) }));
+vi.mock("@/db/client", () => ({ db: { select: mocks.select, query: { competitionQualificationRuns: { findFirst: mocks.run }, matchLiveSessions: { findFirst: mocks.live } } } }));
 vi.mock("@/lib/matches/stage-read-model", () => ({ loadMajorSwissStageReadModel: mocks.major }));
 vi.mock("@/lib/matches/qualification-stage-read-model", () => ({ loadQualificationSwissStageReadModel: mocks.qualification }));
 vi.mock("@/lib/demo-integration/revision", () => ({ buildEvidenceRevisionForTarget: () => "current" }));
@@ -21,6 +22,7 @@ describe("authorized operator context", () => {
     mocks.live.mockResolvedValue(undefined);
     mocks.major.mockResolvedValue(null);
     mocks.qualification.mockResolvedValue(null);
+    mocks.run.mockResolvedValue(null);
   });
 
   it("uses Qualification's canonical Swiss record even when Play-in is absent from stagePlan", async () => {
@@ -29,6 +31,13 @@ describe("authorized operator context", () => {
     expect(mocks.qualification).toHaveBeenCalledWith("season");
     expect(mocks.major).not.toHaveBeenCalled();
     expect(result.roomGuide?.copyFields.slice(0, 2)).toEqual([{ label: "轮次", value: "Play-in · Short Swiss" }, { label: "比赛短描述", value: "0-0" }]);
+  });
+
+
+  it("uses canonical Direct BO3 qualification instead of requiring a Swiss record", async () => {
+    mocks.run.mockResolvedValue({ format: "direct_bo3" });
+    const result = await loadOperatorContext(input);
+    expect(result.roomGuide?.copyFields.slice(0, 2)).toEqual([{ label: "轮次", value: "Play-in" }, { label: "比赛短描述", value: "第 1 轮" }]);
   });
 
   it("leaves unknown stage and Swiss record uncopyable rather than inventing room data", async () => {

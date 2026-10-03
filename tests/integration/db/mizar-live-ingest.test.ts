@@ -8,6 +8,7 @@ import { loadMizarMatchDocumentInTx } from "../../../src/lib/mizar/context";
 import { ingestMizarLive } from "../../../src/lib/mizar/live";
 import { ingestMizarReliable } from "../../../src/lib/mizar/reliable";
 import { claimMizarSource, releaseMizarSource, takeOverCurrentMap } from "../../../src/lib/mizar/source";
+import { loadOperatorEvidence } from "../../../src/lib/admin/matches/operator-evidence";
 import { loadOperatorContext } from "../../../src/lib/admin/matches/operator-context";
 import { loadEffectiveMatchRoster } from "../../../src/lib/match-rosters/effective";
 import { recordManualMapResultInTx } from "../../../src/lib/matches/manual-result";
@@ -73,6 +74,12 @@ describe("Mizar reliable event ingest ownership", () => {
     const wrong = reliableEvent(fixture, { kind: "map_ended", [mismatch]: mismatch === "mapId" ? fixture.mapTwoId : "de_mirage", payload: { scoreA: 13, scoreB: 9, scoreCT: 4, scoreT: 9 } });
     expect((await ingestMizarReliable(fixture.installationId, fixture.seasonId, wrong, fixture.authorityRevision)).outcome).toBe("needs_attention");
     expect(await loadSource(fixture.sessionId)).toMatchObject({ currentMapId: fixture.mapOneId, mapExecutionPhase: "gameplay", continuityHealth: "execution_conflict", autoCanonicalizationArmed: false });
+    const rejectedContext = await operatorContext(fixture);
+    expect(rejectedContext.review.evidence).toMatchObject({ mapName: wrong.mapName, scoreA: 13, scoreB: 9 });
+    expect(rejectedContext.review.currentMap).toBe("Map 1 · Ancient");
+    expect(rejectedContext.review.evidence?.mapBinding).toBe(mismatch === "mapId" ? "Map 2 · Mirage" : "Map 1 · Ancient");
+    expect(await loadOperatorEvidence(fixture.seasonId, fixture.matchId, fixture.sessionId, 2)).toBeNull();
+    expect(await loadOperatorEvidence(fixture.seasonId, fixture.matchId, randomUUID(), 1)).toBeNull();
     const correct = reliableEvent(fixture, { kind: "map_ended", payload: { scoreA: 13, scoreB: 9, scoreCT: 4, scoreT: 9 } });
     correct.cursor.runtimeSeq = 2;
     expect((await ingestMizarReliable(fixture.installationId, fixture.seasonId, correct, fixture.authorityRevision)).outcome).toBe("needs_attention");
@@ -81,6 +88,8 @@ describe("Mizar reliable event ingest ownership", () => {
     restart.cursor.runtimeSeq = 3;
     await ingestMizarReliable(fixture.installationId, fixture.seasonId, restart, fixture.authorityRevision, fixture.steam64);
     const context = await operatorContext(fixture);
+    expect(context.review.evidence?.mapName).toBe(wrong.mapName);
+    expect(context.review.evidence?.mapBinding).toBe(mismatch === "mapId" ? "Map 2 · Mirage" : "Map 1 · Ancient");
     expect(context.workflow).toMatchObject({ primaryTask: "review", reviewReasons: ["execution_mismatch"], manualResultAllowed: false });
     expect(context.takeover).toEqual({ sessionId: fixture.sessionId, mapEpoch: 1, mapId: fixture.mapOneId });
     await expect(db.transaction(tx => recordManualMapResultInTx(tx, manualCommand(fixture)))).rejects.toThrow("自动数据源");
@@ -93,6 +102,7 @@ describe("Mizar reliable event ingest ownership", () => {
     expect((await operatorContext(fixture)).workflow.reviewReasons).toContain("result_conflict");
     await nextEpoch(fixture);
     expect((await operatorContext(fixture)).workflow).toMatchObject({ primaryTask: "observe", sourceHealth: "healthy", manualResultAllowed: false, elapsed: null });
+    expect((await operatorContext(fixture)).review.evidence).toBeNull();
     late.cursor.runtimeSeq = 12;
     await expectCode(() => ingestMizarReliable(fixture.installationId, fixture.seasonId, late, fixture.authorityRevision), ErrorCode.VALIDATION_FAILED);
     const [official] = await db.select().from(schema.matchMaps).where(eq(schema.matchMaps.id, fixture.mapOneId));
@@ -113,7 +123,7 @@ describe("Mizar reliable event ingest ownership", () => {
     expect(await loadSource(fixture.sessionId)).toMatchObject({ currentMapId: null, continuityHealth: "execution_conflict" });
     const context = await operatorContext(fixture);
     expect(context.workflow.primaryTask).toBe("review");
-    expect(context.recoveryMapLabel).toBe("Map 1 · de_ancient");
+    expect(context.recoveryMapLabel).toBe("Map 1 · Ancient");
     const scope = context.takeover!;
     expect(scope).toEqual({ sessionId: fixture.sessionId, mapEpoch: 1, mapId: fixture.mapOneId, recoverMapBinding: true });
     await expect(takeOverCurrentMap(fixture.matchId, fixture.entryAId, { ...scope, recoverMapBinding: false })).rejects.toThrow("已变化");

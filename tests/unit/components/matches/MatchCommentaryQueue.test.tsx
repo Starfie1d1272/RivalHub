@@ -5,7 +5,7 @@ import type { AdminMatchCommentaryData } from "@/lib/admin/matches/commentary";
 
 vi.mock("next/link", () => ({ default: ({ children, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement>) => <a {...props}>{children}</a> }));
 vi.mock("@/components/rivalhub", () => ({ Panel: ({ children }: { children: React.ReactNode }) => <div>{children}</div> }));
-vi.mock("@/components/matches/ClaimMatchButton", () => ({ ClaimMatchButton: ({ matchId }: { matchId: string }) => <button data-match-id={matchId}>由我负责本场</button> }));
+vi.mock("@/components/matches/ClaimMatchButton", () => ({ ClaimMatchButton: ({ matchId }: { matchId: string }) => <button data-match-id={matchId}>认领本场解说</button> }));
 import { MatchCommentaryQueue, MatchCommentaryStatus } from "@/components/matches/MatchCommentaryQueue";
 
 const empty: AdminMatchCommentaryData = { currentMatches: [], nextMatch: null, unclaimedMatches: [], unclaimedCount: 0, byMatchId: {} };
@@ -34,13 +34,13 @@ describe("personal commentary queue", () => {
     const next = screen.getByRole("region", { name: "我的下一场" });
     expect(within(next).getByRole("link")).toHaveAttribute("href", "/admin/major/matches/next");
     expect(within(next).getByRole("link")).toHaveTextContent("20:30");
-    expect(screen.getByRole("button", { name: "由我负责本场" })).toHaveAttribute("data-match-id", "unclaimed");
+    expect(screen.getByRole("button", { name: "认领本场解说" })).toHaveAttribute("data-match-id", "unclaimed");
   });
 
   it("displays actual commentators and does not present an occupied slot as unclaimed", () => {
     render(<MatchCommentaryStatus matchId="match" assignment={{ commentators: [{ userId: "me", name: "解说甲" }], isMine: true, canClaim: false }} />);
     expect(screen.getByRole("link", { name: "解说甲" })).toHaveAttribute("href", "/players/me");
-    expect(screen.getByText("你已负责本场")).toBeInTheDocument();
+    expect(screen.getByText("你已认领本场解说")).toBeInTheDocument();
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
 });
