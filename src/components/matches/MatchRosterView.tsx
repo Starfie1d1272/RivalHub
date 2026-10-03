@@ -1,6 +1,7 @@
 import React from "react";
 import Link from "next/link";
 import { PlayerAvatar } from "@/components/players/PlayerAvatar";
+import { CS2_POSITION_LABELS, type Cs2Position } from "@/lib/config/cs2-positions";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
 
 interface RosterPlayer {
@@ -37,21 +38,21 @@ function RosterColumn({ teamName, roster }: { teamName: string; roster: RosterPl
           {starters.map((p, i) => (
             <div
               key={i}
-              className="flex items-center justify-between text-sm"
+              className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-sm"
               style={{ color: "var(--color-fg)" }}
             >
               {p.userId ? (
-                <Link href={`/players/${p.userId}`} className="flex min-w-0 items-center gap-2 hover:text-[var(--color-accent)] transition-colors">
+                <Link href={`/players/${p.userId}`} className="flex max-w-full min-w-0 items-center gap-2 hover:text-[var(--color-accent)] transition-colors">
                   <PlayerAvatar name={getPublicDisplayName(p)} avatarUrl={p.avatarUrl} size="sm" />
-                  {getPublicDisplayName(p)}
+                  <span className="truncate">{getPublicDisplayName(p)}</span>
                 </Link>
               ) : (
-                <span className="flex min-w-0 items-center gap-2">
+                <span className="flex max-w-full min-w-0 items-center gap-2">
                   <PlayerAvatar name={getPublicDisplayName(p)} avatarUrl={p.avatarUrl} size="sm" />
-                  {getPublicDisplayName(p)}
+                  <span className="truncate">{getPublicDisplayName(p)}</span>
                 </span>
               )}
-              {p.registrationPosition && <span className="text-xs text-[var(--color-fg-dim)]">报名位置 · {p.registrationPosition}</span>}
+              {p.registrationPosition && CS2_POSITION_LABELS[p.registrationPosition as Cs2Position] && <span className="text-xs text-[var(--color-fg-dim)]">报名位置 · {CS2_POSITION_LABELS[p.registrationPosition as Cs2Position].cn}</span>}
             </div>
           ))}
           {subs.length > 0 && (
@@ -65,12 +66,12 @@ function RosterColumn({ teamName, roster }: { teamName: string; roster: RosterPl
                   {p.userId ? (
                     <Link href={`/players/${p.userId}`} className="hover:text-[var(--color-accent)] transition-colors">
                       <PlayerAvatar name={getPublicDisplayName(p)} avatarUrl={p.avatarUrl} size="sm" />
-                      {getPublicDisplayName(p)}
+                      <span className="truncate">{getPublicDisplayName(p)}</span>
                     </Link>
                   ) : (
                     <>
                       <PlayerAvatar name={getPublicDisplayName(p)} avatarUrl={p.avatarUrl} size="sm" />
-                      {getPublicDisplayName(p)}
+                      <span className="truncate">{getPublicDisplayName(p)}</span>
                     </>
                   )}
                 </span>
