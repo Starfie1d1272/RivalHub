@@ -67,15 +67,25 @@ test("public match consumes private Broadcast and recovers with canonical layout
     await run(browserFixture, "prepare", matchId);
     const url = `/${seasonId}/matches/${matchId}`;
     producer = await stream(matchId);
-    let viewerRequests = 0;
-    page.on("request", request => { if (request.url().endsWith(`/api/matches/${matchId}/live-viewer`)) viewerRequests++; });
+    let viewerJoins = 0;
+    // Dev Strict Mode aborts its first token fetch. Count actual channel joins,
+    // not those disposable setup requests, to detect duplicate subscriptions.
+    page.on("websocket", socket => {
+      if (!socket.url().includes("/realtime/v1/websocket")) return;
+      socket.on("framesent", ({ payload }) => {
+        const message = JSON.parse(String(payload)) as unknown;
+        if (!Array.isArray(message)) return;
+        const [, , topic, event] = message; // Supabase Realtime v2 wire envelope.
+        if (event === "phx_join" && topic === `realtime:match-live:${matchId}`) viewerJoins++;
+      });
+    });
     const tokenResponse = page.waitForResponse(response => response.url().endsWith(`/api/matches/${matchId}/live-viewer`), { timeout: 10000 });
     await page.goto(url);
     expect((await tokenResponse).status()).toBe(200);
     const live = page.getByTestId("match-realtime").filter({ visible: true });
     await expect(live.getByText("FalleN", { exact: true })).toBeVisible();
     await expect(live.locator("canvas")).toBeVisible();
-    expect(viewerRequests).toBe(1);
+    expect(viewerJoins).toBe(1);
     await expect(page.getByLabel("系列赛比分").filter({ visible: true })).toHaveCount(0);
     await expect(page.getByRole("region", { name: "BP 结果与地图" }).getByText("2 : 0", { exact: true })).toBeVisible();
     await expect(page.getByText("暂无直播入口，可继续查看比赛数据。")).toBeVisible();

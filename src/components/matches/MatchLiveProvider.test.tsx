@@ -1,4 +1,4 @@
-import React from "react";
+import React, { StrictMode } from "react";
 import { act, render, screen } from "@testing-library/react";
 import { expect, it, vi } from "vitest";
 import { initialLiveViewerState, type LiveViewerState } from "@/lib/mizar/live-viewer-state";
@@ -25,4 +25,15 @@ it("shares one receiver across consumers and disposes it on match/visibility cha
   expect(mocks.connect).toHaveBeenCalledTimes(3);
   view.unmount();
   expect(mocks.stop).toHaveBeenCalledTimes(3);
+});
+
+it("cleans the Strict Mode probe before establishing the lasting receiver", () => {
+  mocks.connect.mockClear(); mocks.stop.mockClear();
+  mocks.connect.mockReturnValue(mocks.stop);
+  const view = render(<StrictMode><MatchLiveProvider matchId="strict"><Consumer /><Consumer /></MatchLiveProvider></StrictMode>);
+  expect(mocks.connect).toHaveBeenCalledTimes(2);
+  expect(mocks.stop).toHaveBeenCalledTimes(1);
+  expect(screen.getAllByText("frame 0")).toHaveLength(2);
+  view.unmount();
+  expect(mocks.stop).toHaveBeenCalledTimes(2);
 });
