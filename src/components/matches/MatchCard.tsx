@@ -42,6 +42,7 @@ export function MatchCard({
   isForfeit = false,
   highlighted = false,
 }: MatchCardProps) {
+  const showLiveScore = status === "in_progress" && liveContext && entryAId && entryBId;
   const finishedTime = completedAt ?? scheduledAt ?? null;
   const timeText =
     status === "finished"
@@ -58,14 +59,14 @@ export function MatchCard({
       data-highlighted={highlighted || undefined}
       className="data-[highlighted=true]:bg-[var(--color-accent-soft)] data-[highlighted=true]:border-l-4 data-[highlighted=true]:border-l-[var(--color-accent)] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 px-4 py-3 border-b border-[var(--color-border)] last:border-b-0 hover:bg-[var(--color-panel-hi)] transition-colors duration-150"
     >
-      <div className="flex items-center gap-3 flex-1 min-w-0">
-        <span className="font-semibold truncate min-w-0 flex-1 text-right text-[var(--color-fg)] text-sm sm:text-base">{teamAName}</span>
-        <span className="text-[var(--color-fg-mid)] text-sm shrink-0">
+      <div className={`flex-1 min-w-0 ${showLiveScore ? "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 sm:flex sm:gap-3" : "flex items-center gap-3"}`}>
+        <span className={`font-semibold truncate min-w-0 flex-1 text-[var(--color-fg)] text-sm sm:text-base ${showLiveScore ? "col-start-1 row-start-1 sm:text-right" : "text-right"}`}>{teamAName}</span>
+        <span className={`text-[var(--color-fg-mid)] text-sm shrink-0 ${showLiveScore ? "col-start-2 row-start-1 row-span-2" : ""}`}>
           {status === "finished"
             ? `${scoreA ?? "—"} : ${scoreB ?? "—"}`
-            : status === "in_progress" && liveContext && entryAId && entryBId ? <MatchListLiveScore matchId={matchId} entryAId={entryAId} entryBId={entryBId} context={liveContext} /> : "vs"}
+            : showLiveScore ? <MatchListLiveScore matchId={matchId} entryAId={entryAId} entryBId={entryBId} context={liveContext} /> : "vs"}
         </span>
-        <span className="font-semibold truncate min-w-0 flex-1 text-[var(--color-fg)] text-sm sm:text-base">{teamBName}</span>
+        <span className={`font-semibold truncate min-w-0 flex-1 text-[var(--color-fg)] text-sm sm:text-base ${showLiveScore ? "col-start-1 row-start-2" : ""}`}>{teamBName}</span>
       </div>
       <div className="flex items-center gap-2 shrink-0 flex-wrap">
         {timeText && (

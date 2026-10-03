@@ -26,9 +26,10 @@ async function ensureMaps() {
 if (command === "prepare") {
   await ensureMaps();
   await db.update(seasons).set({ stagePlan: [{ key: "test", name: "比赛", type: "round_robin", teamCount: 2, advanceTiers: [], matchFormat: "bo3" }] }).where(eq(seasons.id, match.seasonId));
-  await db.update(matchMaps).set({ mapName: original.map.name }).where(eq(matchMaps.id, source.currentMapId!));
-  await db.update(competitionEntries).set({ name: original.teams.ct.name }).where(eq(competitionEntries.id, match.entryAId));
-  await db.update(competitionEntries).set({ name: original.teams.t.name }).where(eq(competitionEntries.id, match.entryBId));
+  await db.update(matchMaps).set({ mapName: original.map.name, pickedByEntryId: match.entryAId }).where(eq(matchMaps.id, source.currentMapId!));
+  await db.update(matchMaps).set({ pickedByEntryId: match.entryBId }).where(and(eq(matchMaps.matchId, matchId), eq(matchMaps.mapOrder, 2)));
+  await db.update(competitionEntries).set({ name: original.teams.ct.name, registrationStatus: "approved" }).where(eq(competitionEntries.id, match.entryAId));
+  await db.update(competitionEntries).set({ name: original.teams.t.name, registrationStatus: "approved" }).where(eq(competitionEntries.id, match.entryBId));
 } else if (command === "switch-map") {
   await db.update(matchMaps).set({ scoreA: 13, scoreB: 9, completedAt: new Date() }).where(eq(matchMaps.id, source.currentMapId!));
   const next = await db.query.matchMaps.findFirst({ where: and(eq(matchMaps.matchId, matchId), eq(matchMaps.mapOrder, 2)) });

@@ -140,6 +140,9 @@ test("public match consumes private Broadcast and recovers with canonical layout
     await page.goto(`/${seasonId}/matches`);
     const listCard = page.locator(`a[href="${url}"]`).filter({ visible: true });
     await listCard.scrollIntoViewIfNeeded();
+    await expect(listCard.getByText("FURIA", { exact: true })).toBeVisible();
+    await expect(listCard.getByText("G2.Esports", { exact: true })).toBeVisible();
+    await expect(listCard.getByText("未知队伍", { exact: true })).toHaveCount(0);
     const listScore = listCard.getByTestId("match-list-live-score");
     await expect(listScore.getByLabel("本图回合比分")).toHaveText("2 : 0");
     for (const width of [1440, 390, 320]) {
@@ -147,6 +150,9 @@ test("public match consumes private Broadcast and recovers with canonical layout
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
       await listCard.scrollIntoViewIfNeeded();
       await expect(listScore.getByLabel("本图回合比分")).toHaveText("2 : 0");
+      for (const team of ["FURIA", "G2.Esports"]) {
+        expect(await listCard.getByText(team, { exact: true }).evaluate(element => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
+      }
       await capture(`public-list-${width}`);
     }
     producer?.kill(); producer = undefined;
