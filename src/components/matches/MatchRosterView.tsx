@@ -1,5 +1,7 @@
 import React from "react";
 import Link from "next/link";
+import { PosChip } from "@/components/rivalhub/PosChip";
+import { positionLabel } from "@/lib/validators/registration";
 import { PlayerAvatar } from "@/components/players/PlayerAvatar";
 import { CS2_POSITION_LABELS, type Cs2Position } from "@/lib/config/cs2-positions";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
@@ -52,7 +54,7 @@ function RosterColumn({ teamName, roster }: { teamName: string; roster: RosterPl
                   <span className="truncate">{getPublicDisplayName(p)}</span>
                 </span>
               )}
-              {p.registrationPosition && CS2_POSITION_LABELS[p.registrationPosition as Cs2Position] && <span className="text-xs text-[var(--color-fg-dim)]">{CS2_POSITION_LABELS[p.registrationPosition as Cs2Position].cn}</span>}
+              {p.registrationPosition && CS2_POSITION_LABELS[p.registrationPosition as Cs2Position] && <PosChip pos={positionLabel(p.registrationPosition)} small />}
             </div>
           ))}
           {subs.length > 0 && (
