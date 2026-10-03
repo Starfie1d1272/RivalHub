@@ -4,6 +4,7 @@ import { asc, eq } from "drizzle-orm";
 import React from "react";
 import { HelpTooltip } from "@/components/rivalhub/HelpTooltip";
 import { mapLabel } from "@/lib/maps";
+import { VETO_ACTION_LABELS } from "@/lib/matches/veto-presentation";
 import { Panel } from "@/components/rivalhub";
 
 interface Props {
@@ -13,13 +14,6 @@ interface Props {
   entryAId: string;
   entryBId: string;
 }
-
-const ACTION_LABELS: Record<string, string> = {
-  ban: "BAN",
-  pick: "PICK",
-  side_pick: "SIDE",
-  decider: "DECIDER",
-};
 
 const ACTION_COLORS: Record<string, string> = {
   ban: "var(--color-danger)",
@@ -69,7 +63,7 @@ export async function VetoView({
               <li key={step.id} className="grid grid-cols-[1rem_4rem_minmax(0,1fr)] items-baseline gap-x-2 text-sm sm:gap-x-3">
                 <span className="text-right text-xs tabular-nums text-[var(--color-fg-dim)]">{step.stepOrder}.</span>
                 <span className="justify-self-start font-mono text-xs" style={{ color }}>
-                  {ACTION_LABELS[step.actionType] ?? "BP"}
+                  {VETO_ACTION_LABELS[step.actionType as keyof typeof VETO_ACTION_LABELS] ?? "BP"}
                 </span>
                 <div className="min-w-0 break-words leading-6">
                   {step.actionType === "decider" ? <><span className="font-medium">{map}</span> <span className="text-[var(--color-fg-mid)]">was left over</span></>

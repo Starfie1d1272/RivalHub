@@ -86,7 +86,7 @@ function roomFixture(): VetoRoomView {
       revision: 4,
       currentTurnKey: "ban-veto-a-opening",
       currentTurnAction: "ban",
-      currentTurnLabel: "禁图",
+      currentTurnLabel: "BAN",
       currentTurnEntryName: "Alpha",
       currentTurnEntryId: "00000000-0000-4000-8000-000000000002",
       currentTurnMapName: null,
@@ -255,7 +255,7 @@ describe("VetoRoom", () => {
 
     await user.selectOptions(screen.getByLabelText("重做位置"), room.session.currentTurnKey!);
     await user.type(screen.getByLabelText("恢复原因"), "修正错误的回合记录");
-    expect(screen.getByRole("option", { name: "从当前「禁图」开始重做" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "从当前「BAN」开始重做" })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "恢复 BP 步骤" }));
     expect(screen.getByText(/确认后将清除所选位置及之后的 BP 结果/)).toBeInTheDocument();
     expect(actionMocks.rewindVetoRoomAction).not.toHaveBeenCalled();
@@ -277,8 +277,8 @@ describe("VetoRoom", () => {
     actionMocks.readVetoRoom.mockResolvedValue(ok(room));
     render(<VetoRoom initialRoom={room} />);
     expect(screen.getByRole("list", { name: "最终地图顺序与起始阵营" })).toHaveTextContent("Map 1 · Ancient");
-    expect(screen.getByText("Alpha · CT 开局")).toBeInTheDocument();
-    expect(screen.getByText("Beta · T 开局")).toBeInTheDocument();
+    expect(screen.getByText("Alpha · CT")).toBeInTheDocument();
+    expect(screen.getByText("Beta · T")).toBeInTheDocument();
     expect(screen.queryByText(/Perfect|建房/)).not.toBeInTheDocument();
     if (role === "admin") {
       expect(screen.getByRole("link", { name: "返回比赛工作台" })).toHaveAttribute("href", `/admin/rivals/matches/${room.match.id}`);
@@ -322,4 +322,28 @@ describe("VetoRoom", () => {
     expect(await screen.findByText("BP 信息已更新。")).toBeInTheDocument();
   });
 
+  it("keeps the responsible team's historical appeal available on demand after cancellation", async () => {
+    const room = roomFixture();
+    room.match.statusKey = "cancelled";
+    room.match.statusLabel = "已取消";
+    room.permissions.canOperateCurrentTurn = false;
+    room.incidents = [{ id: "incident-1", entryName: "Alpha", selected: ["Ancient"], sourceLabel: "超时自动选择", appeal: null, mayAppeal: true }];
+    actionMocks.readVetoRoom.mockResolvedValue(ok(room));
+    render(<VetoRoom initialRoom={room} />);
+    expect(screen.getByRole("button", { name: "提交申诉" })).not.toBeVisible();
+    await userEvent.setup().click(screen.getByText("对本条超时提出申诉"));
+    expect(screen.getByLabelText("申诉原因")).toBeVisible();
+    expect(screen.getByRole("button", { name: "提交申诉" })).toBeDisabled();
+    expect(screen.queryByTestId("veto-primary-actions")).not.toBeInTheDocument();
+  });
+
 });
+
+ it("keeps common BP terms concise and explains the current action on demand", async () => {
+    const user = userEvent.setup();
+    render(<VetoRoom initialRoom={roomFixture()} />);
+    expect(screen.getByText("BAN", { exact: true })).toBeInTheDocument();
+    expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "当前 BP 操作说明" }));
+    expect(screen.getByRole("tooltip")).toHaveTextContent("禁用地图，将其移出本场可选地图池。");
+ });

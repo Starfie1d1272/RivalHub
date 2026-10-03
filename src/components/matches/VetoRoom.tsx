@@ -4,6 +4,8 @@ import Link from "next/link";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Panel } from "@/components/rivalhub";
+import { HelpTooltip } from "@/components/rivalhub/HelpTooltip";
+import { VETO_ACTION_HELP } from "@/lib/matches/veto-presentation";
 import { InlineConfirm } from "@/components/rivalhub/InlineConfirm";
 import { useVisiblePolling } from "@/components/use-visible-polling";
 import type { VetoRoomView } from "@/lib/matches/veto-room/read-model";
@@ -255,7 +257,6 @@ export function VetoRoom({ initialRoom }: { initialRoom: VetoRoomView }) {
             {match.statusKey === "cancelled" ? "比赛已取消" : turn.completedAt ? "BP 已完成" : matchClosed ? "比赛已结束" : turn.startedAt ? turn.paused ? "BP 已暂停" : "BP 进行中" : "等待开始"}
           </span>
         </div>
-        <p className="text-sm text-[var(--color-fg-mid)]">查看双方禁图、选图、选边的进度与结果。</p>
       </header>
 
       {(notice || error) && (
@@ -302,13 +303,13 @@ export function VetoRoom({ initialRoom }: { initialRoom: VetoRoomView }) {
 
             {turn.manualPrivilegedSelectionRequired && room.permissions.canSetManualPrivilegedEntry && (
               <div className="flex flex-wrap items-center gap-2 rounded border border-[var(--color-warn-edge)] p-3">
-                <label htmlFor="manual-veto-privilege" className="text-sm">指定决定禁图顺序的队伍</label>
+                <label htmlFor="manual-veto-privilege" className="text-sm">BP 优先权</label>
+                <HelpTooltip label="BP 优先权说明" content="该队先选择自己或对手先禁图。赛事规则已确定优先权时，系统自动带入；自定义比赛由管理员指定。" />
                 <select id="manual-veto-privilege" className="min-h-10 rounded border border-[var(--color-border)] bg-[var(--color-panel)] px-2 text-sm" value={manualPrivilege} onChange={(event) => setManualPrivilege(event.target.value)}>
                   <option value="">选择队伍</option>
                   {room.entries.map((entry) => <option key={entry.id} value={entry.id}>{entry.name}</option>)}
                 </select>
                 <Button size="sm" variant="outline" disabled={pending || !manualPrivilege} onClick={() => void mutate(setManualVetoPrivilege, { matchId: match.id, entryId: manualPrivilege }, "已指定决定禁图顺序的队伍。")}>确认队伍</Button>
-                <span className="basis-full text-xs text-[var(--color-fg-dim)]">该队随后选择自己或对手先禁图。</span>
               </div>
             )}
 
@@ -332,15 +333,15 @@ export function VetoRoom({ initialRoom }: { initialRoom: VetoRoomView }) {
                 <p className="text-sm text-[var(--color-ok)]">BP 已于 {timeLabel(turn.completedAt)} 完成。</p>
                 <ol className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3" aria-label="最终地图顺序与起始阵营">
                   {room.maps.map(map => <li key={map.id} className="rounded border border-[var(--color-border)] p-3">
-                    <p className="font-semibold">Map {map.mapOrder} · {map.mapLabel}</p>
-                    {map.teamAStartSide ? <div className="mt-2 space-y-1 text-sm text-[var(--color-fg-mid)]"><p>{room.entries[0]?.name} · {map.teamAStartSide.toUpperCase()} 开局</p><p>{room.entries[1]?.name} · {map.teamAStartSide === "ct" ? "T" : "CT"} 开局</p></div> : <p className="mt-2 text-sm text-[var(--color-fg-mid)]">{match.formatKey === "bo5" && map.mapOrder === 5 ? "刀赛决定起始阵营" : "起始阵营待确认"}</p>}
+                    <p className="font-semibold">Map {map.mapOrder} · {map.mapLabel}<HelpTooltip className="ml-1" label={`Map ${map.mapOrder} 起始方说明`} content="CT / T 表示各队在该图的起始阵营。" /></p>
+                    {map.teamAStartSide ? <div className="mt-2 space-y-1 text-sm text-[var(--color-fg-mid)]"><p>{room.entries[0]?.name} · {map.teamAStartSide.toUpperCase()}</p><p>{room.entries[1]?.name} · {map.teamAStartSide === "ct" ? "T" : "CT"}</p></div> : <p className="mt-2 text-sm text-[var(--color-fg-mid)]">{match.formatKey === "bo5" && map.mapOrder === 5 ? "刀赛决定起始阵营" : "起始阵营待确认"}</p>}
                   </li>)}
                 </ol>
               </div>
             ) : matchClosed ? <p className="text-sm text-[var(--color-fg-mid)]">本场比赛{match.statusLabel}。以下保留已完成的 BP 记录。</p> : (
               <div className="flex flex-wrap items-center justify-between gap-3 rounded border border-[var(--color-border)] bg-[var(--color-panel-hi)] p-4">
                 <div>
-                  <p className="font-semibold text-[var(--color-fg)]">{turn.currentTurnLabel ?? "等待下一步"}</p>
+                  <p className="font-semibold text-[var(--color-fg)]">{turn.currentTurnLabel ?? "等待下一步"}{turn.currentTurnAction && <HelpTooltip className="ml-1" label="当前 BP 操作说明" content={VETO_ACTION_HELP[turn.currentTurnAction]} />}</p>
                   <p className="mt-1 text-sm text-[var(--color-fg-mid)]">
                     {currentEntry ? `${currentEntry.name}${currentEntry.vetoRoleLabel ? ` · ${currentEntry.vetoRoleLabel}` : ""}` : "系统处理"}
                     {turn.currentTurnMapLabel ? ` · ${turn.currentTurnMapLabel}` : ""}
@@ -389,7 +390,7 @@ export function VetoRoom({ initialRoom }: { initialRoom: VetoRoomView }) {
             )}
 
             {!turn.completedAt && !turn.paused && match.statusKey !== "in_progress" && <p className="text-sm text-[var(--color-fg-mid)]">本场 BP 记录已保留，可随时查看。</p>}
-            {!turn.completedAt && !turn.paused && match.statusKey === "in_progress" && !room.permissions.canOperateCurrentTurn && <p className="text-sm text-[var(--color-fg-mid)]">等待{currentEntry?.name ?? "对应队伍"}完成{turn.currentTurnLabel ?? "本轮操作"}。</p>}
+            {!turn.completedAt && !turn.paused && match.statusKey === "in_progress" && !room.permissions.canOperateCurrentTurn && <p className="text-sm text-[var(--color-fg-mid)]">等待{currentEntry?.name ?? "对应队伍"}完成本轮操作。</p>}
           </div>
         </Panel>
       )}
@@ -412,7 +413,7 @@ export function VetoRoom({ initialRoom }: { initialRoom: VetoRoomView }) {
       <Panel label="BP 记录">
         {room.steps.length === 0 ? <p className="text-sm text-[var(--color-fg-mid)]">尚无操作记录。</p> : (
           <ol className="space-y-2">
-            {room.steps.map((step) => <li key={step.id} className="flex flex-wrap items-center gap-x-2 rounded border border-[var(--color-border)] px-3 py-2 text-sm"><span className="w-6 text-right text-xs tabular-nums text-[var(--color-fg-dim)]">{step.stepOrder}.</span><span className="text-[var(--color-fg-mid)]">{step.description}{step.sideLabel ? ` · ${step.sideLabel} 先` : ""}</span>{step.sourceLabel && <span className="ml-auto text-xs text-[var(--color-fg-dim)]">{step.sourceLabel}</span>}</li>)}
+            {room.steps.map((step) => <li key={step.id} className="flex flex-wrap items-center gap-x-2 rounded border border-[var(--color-border)] px-3 py-2 text-sm"><span className="w-6 text-right text-xs tabular-nums text-[var(--color-fg-dim)]">{step.stepOrder}.</span><span className="font-mono text-xs text-[var(--color-accent)]">{step.actionLabel}</span><span className="text-[var(--color-fg-mid)]">{step.description}</span>{step.sourceLabel && <span className="ml-auto text-xs text-[var(--color-fg-dim)]">{step.sourceLabel}</span>}</li>)}
           </ol>
         )}
       </Panel>
@@ -440,11 +441,12 @@ export function VetoRoom({ initialRoom }: { initialRoom: VetoRoomView }) {
                     )}
                   </div>
                 ) : incident.mayAppeal ? (
-                  <div className="space-y-2">
+                  <details className="space-y-2">
+                    <summary className="cursor-pointer text-sm text-[var(--color-accent)]">对本条超时提出申诉</summary>
                     <label htmlFor={`appeal-${incident.id}`} className="text-xs text-[var(--color-fg-mid)]">申诉原因</label>
                     <textarea id={`appeal-${incident.id}`} className="min-h-20 w-full rounded border border-[var(--color-border)] bg-[var(--color-panel)] p-2 text-sm" value={appealReasons[incident.id] ?? ""} onChange={(event) => setAppealReasons((current) => ({ ...current, [incident.id]: event.target.value }))} />
                     <Button size="sm" variant="outline" disabled={pending || (appealReasons[incident.id] ?? "").trim().length < 3} onClick={() => void mutate(submitVetoRoomAppeal, { matchId: match.id, incidentId: incident.id, reason: appealReasons[incident.id] }, "申诉已提交。")}>提交申诉</Button>
-                  </div>
+                  </details>
                 ) : null}
               </li>
             ))}

@@ -26,13 +26,7 @@ const MATCH_STATUS_LABELS = {
   cancelled: "已取消",
 } as const;
 
-const VETO_ACTION_LABELS = {
-  role_select: "选择先禁图队伍",
-  ban: "禁图",
-  pick: "选图",
-  side_pick: "选边",
-  decider: "决胜图",
-} as const;
+import { VETO_ACTION_LABELS } from "@/lib/matches/veto-presentation";
 
 const APPEAL_STATUS_LABELS = {
   pending: "待裁定",
@@ -174,10 +168,10 @@ export async function projectVetoRoomView(
     const entryName = step.entryId ? entryById.get(step.entryId)?.name ?? "未知队伍" : null;
     const sourceLabel = step.source === "timeout" ? "超时自动选择" : step.source === "admin" ? "管理员调整" : null;
     const description = actionType === "side_pick"
-      ? `${entryName ?? "队伍"} 为 ${mapLabel(step.mapName)} 选择起始阵营`
+      ? `${entryName ?? "队伍"} chose ${step.side?.toUpperCase() ?? "—"} on ${mapLabel(step.mapName)}`
       : actionType === "decider"
-        ? `${mapLabel(step.mapName)} 成为决胜图`
-        : `${entryName ?? "队伍"} ${VETO_ACTION_LABELS[actionType]} ${mapLabel(step.mapName)}`;
+        ? `${mapLabel(step.mapName)} was left over`
+        : `${entryName ?? "队伍"} ${actionType === "ban" ? "removed" : "picked"} ${mapLabel(step.mapName)}`;
     return {
       id: step.id,
       stepOrder: step.stepOrder,
