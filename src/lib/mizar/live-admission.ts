@@ -26,6 +26,7 @@ const recent = new Map<
     sequence: number;
     producedAt: number;
     attemptedAt: number;
+    tokens: number;
   }
 >();
 /** Called only after fresh DB authorization, with the cross-instance LIVE lock held. */
@@ -48,17 +49,22 @@ export function admitLiveDelivery(
   const producedAt = Date.parse(snapshot.producedAt);
   if (
     old?.identity === identity &&
-    (now - old.attemptedAt < 500 ||
-      sequence < old.sequence ||
-      producedAt <= old.producedAt)
+    (sequence < old.sequence || producedAt <= old.producedAt)
   )
     return false;
-  if (!old && recent.size >= RECENT_LIMIT) return false;
+  // Two-token burst absorbs arrival jitter from a legitimate 2 Hz producer;
+  // sustained refill remains 2/s. A rigid 500ms receipt gap drops healthy frames.
+  const available =
+    old?.identity === identity
+      ? Math.min(2, old.tokens + (now - old.attemptedAt) / 500)
+      : 2;
+  if (available < 1 || (!old && recent.size >= RECENT_LIMIT)) return false;
   recent.set(snapshot.matchId, {
     identity,
     sequence,
     producedAt,
     attemptedAt: now,
+    tokens: available - 1,
   });
   return true;
 }

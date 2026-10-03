@@ -57,6 +57,49 @@ describe("bounded LIVE admission metadata", () => {
         { ...snapshot, producedAt: "2026-09-28T00:00:02.000Z" },
         2,
       ),
+    ).toBe(true);
+    expect(
+      admitLiveDelivery(
+        { ...snapshot, producedAt: "2026-09-28T00:00:03.000Z" },
+        2,
+      ),
+    ).toBe(false);
+  });
+  it("absorbs arrival jitter without exceeding a two-token sustained 2/s budget", async () => {
+    const { admitLiveDelivery } = await import("@/lib/mizar/live-admission");
+    const snapshot = parseLiveSnapshotV1(wire);
+    for (const ms of [0, 490, 1010, 1490, 2000]) {
+      clock.now = ms;
+      expect(
+        admitLiveDelivery(
+          {
+            ...snapshot,
+            producedAt: new Date(
+              Date.parse(snapshot.producedAt) + ms,
+            ).toISOString(),
+          },
+          1,
+        ),
+      ).toBe(true);
+    }
+    clock.now = 3000;
+    expect(
+      admitLiveDelivery(
+        { ...snapshot, producedAt: "2026-09-28T00:00:09.000Z" },
+        1,
+      ),
+    ).toBe(true);
+    expect(
+      admitLiveDelivery(
+        { ...snapshot, producedAt: "2026-09-28T00:00:10.000Z" },
+        1,
+      ),
+    ).toBe(true);
+    expect(
+      admitLiveDelivery(
+        { ...snapshot, producedAt: "2026-09-28T00:00:11.000Z" },
+        1,
+      ),
     ).toBe(false);
   });
   it("bounds keys without eviction bypass, expires metadata and never holds snapshots", async () => {
