@@ -19,6 +19,8 @@ Export 与 refresh 的失败都经过现有 `src/lib/observability/` safe except
 
 PostgreSQL CI integration 同时在 latest fresh schema 和 previous-production-compatible N/N+1 schema 的真实 `information_schema` inventory 上运行 policy validation，覆盖 additive table/column、真实 Steam cleanup migration 前后的列生命周期，以及 unknown 或已删除列复现时的 fail-closed contract。
 
+生产的 `application_sessions`、`application_session_controls` 和统计修复游标不进入脱敏镜像；Preview persona 必须通过目标 Auth 重新登录，目标自行建立会话与维护进度。
+
 ## Vercel Preview 必须配置
 
 Vercel Preview environment 只配置 dev-scoped 值：
@@ -50,5 +52,3 @@ Preview runtime 拒绝非 `rivalhub-dev` database/public Auth URL 与缺失的 s
 2. 在 GitHub `staging` environment 录入 `RIVALHUB_PREVIEW_DEV_SECRET_KEY` 与现有 `RIVALHUB_STAGING_DB_PASSWORD`；无需配置 persona password secret。
 3. 在 Vercel Preview environment 录入上述 dev-scoped 值，删除任何 production 或身份不明的同名值；保留 Deployment Protection。
 4. 手动运行 `Refresh Preview Data`，确认 job summary 的 source commit、各 phase 结果和页面 smoke。artifact 保留一天，且不得下载到个人设备或把 secret 写入 PR。
-
-生产的 `application_sessions`、`application_session_controls` 和统计修复游标不进入脱敏镜像；Preview persona 必须通过目标 Auth 重新登录，目标自行建立会话与维护进度。

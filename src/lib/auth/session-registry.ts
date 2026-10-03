@@ -19,7 +19,8 @@ async function lockUser(tx: TxDb, userId: string) {
   await tx.insert(controls).values({ userId }).onConflictDoNothing();
 }
 
-async function assertFreshProof(tx: TxDb, userId: string, startedAt: string) {
+export async function assertFreshAuthenticationInTx(tx: TxDb, userId: string, startedAt: string) {
+  await lockUser(tx, userId);
   const [control] = await tx.select({
     stale: sql<boolean>`${controls.revokedBefore} >= ${startedAt}::timestamptz`,
     pending: controls.passwordMutationId,
@@ -30,8 +31,7 @@ async function assertFreshProof(tx: TxDb, userId: string, startedAt: string) {
 }
 
 export async function issueApplicationSessionInTx(tx: TxDb, userId: string, startedAt: string): Promise<string> {
-  await lockUser(tx, userId);
-  await assertFreshProof(tx, userId, startedAt);
+  await assertFreshAuthenticationInTx(tx, userId, startedAt);
   // Opportunistic per-user cleanup keeps expired sessions out of repeated-login growth.
   await tx.delete(sessions).where(and(eq(sessions.userId, userId), sql`${sessions.expiresAt} <= clock_timestamp()`));
   const [session] = await tx.insert(sessions).values({
@@ -60,8 +60,7 @@ export async function revokeAllApplicationSessionsInTx(tx: TxDb, userId: string)
 
 /** Commit BEFORE touching Auth: a crash or ambiguous provider outcome leaves issuance blocked. */
 export async function beginPasswordMutationInTx(tx: TxDb, userId: string, startedAt: string): Promise<string> {
-  await lockUser(tx, userId);
-  await assertFreshProof(tx, userId, startedAt);
+  await assertFreshAuthenticationInTx(tx, userId, startedAt);
   await revokeAllApplicationSessionsInTx(tx, userId);
   const mutationId = randomUUID();
   await tx.update(controls).set({ passwordMutationId: mutationId }).where(eq(controls.userId, userId));

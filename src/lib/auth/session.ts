@@ -32,6 +32,7 @@ function userSessionOptions() {
   return {
     password,
     cookieName: "rivalhub-session",
+    ttl: SESSION_MAX_AGE_SECONDS,
     cookieOptions: {
       secure: process.env.NODE_ENV === "production",
       httpOnly: true,

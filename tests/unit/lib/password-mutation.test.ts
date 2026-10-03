@@ -36,7 +36,8 @@ describe("password provider / registry coordination", () => {
   it.each([undefined, 0, 408, 503])("keeps the durable block on ambiguous HTTP %s", async (status) => {
     await expect(mutatePassword("user", "proof", "user.change_password", async () => ({ error: { status } }))).rejects.toThrow(/无法确认/);
     expect(finish).not.toHaveBeenCalled();
-    expect(audit).not.toHaveBeenCalled();
+    expect(audit).toHaveBeenCalledTimes(1);
+    expect(audit).toHaveBeenCalledWith("tx", expect.objectContaining({ action: "user.password_update_started" }));
   });
   it("retains the block on transport exceptions", async () => {
     await expect(mutatePassword("user", "proof", "user.change_password", async () => { throw new Error("timeout"); })).rejects.toThrow();

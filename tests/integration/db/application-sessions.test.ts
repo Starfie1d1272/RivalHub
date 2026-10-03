@@ -6,6 +6,7 @@ import {
   beginAuthentication, beginPasswordMutationInTx, finishPasswordMutationInTx,
   issueApplicationSessionInTx, readApplicationSession, revokeAllApplicationSessionsInTx, revokeApplicationSession,
 } from "../../../src/lib/auth/session-registry";
+import { resolveOrCreateCanonicalUserInTx } from "../../../src/lib/identity/canonical";
 import { revokeSecondaryEmailIdentityInTx } from "../../../src/lib/identity/linking";
 import { createLocalPool } from "./harness/database";
 
@@ -18,6 +19,19 @@ async function fixture() {
 }
 
 describe("application session PostgreSQL lifecycle", () => {
+  it("rejects stale authentication before credential synchronization can recreate identity rows", async () => {
+    const f = await fixture();
+    try {
+      const proof = await beginAuthentication(f.database);
+      await f.database.transaction(tx => revokeAllApplicationSessionsInTx(tx, f.userId));
+      await expect(f.database.transaction(tx => resolveOrCreateCanonicalUserInTx(tx, {
+        authId: randomUUID(), email: `sessions-${f.userId}@local.test`, verifiedAt: new Date(),
+        source: "signup_confirmation", allowCreate: false, authenticationStartedAt: proof,
+      }))).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+      expect((await f.pool.query("SELECT id FROM user_identities WHERE user_id=$1", [f.userId])).rows).toEqual([]);
+    } finally { await f.cleanup(); }
+  });
+
   it("revokes every session when a secondary credential is withdrawn", async () => {
     const f = await fixture();
     try {

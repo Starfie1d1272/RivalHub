@@ -57,6 +57,7 @@ export async function loginWithPassword(
 
     const userRow = await db.transaction(async (tx) => {
       const canonicalUser = await resolveOrCreateCanonicalUserInTx(tx, {
+        authenticationStartedAt,
         authId: data.user.id,
         email: normalizedEmail,
         verifiedAt: new Date(data.user.email_confirmed_at ?? Date.now()),

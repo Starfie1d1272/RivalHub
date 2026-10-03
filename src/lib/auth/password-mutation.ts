@@ -11,7 +11,11 @@ export async function mutatePassword(
   action: "user.change_password" | "user.reset_password",
   update: () => Promise<{ error: unknown }>,
 ): Promise<void> {
-  const mutationId = await db.transaction((tx) => beginPasswordMutationInTx(tx, userId, startedAt));
+  const mutationId = await db.transaction(async (tx) => {
+    const id = await beginPasswordMutationInTx(tx, userId, startedAt);
+    await writeAuditInTx(tx, { action: "user.password_update_started", actorId: userId, targetId: userId, meta: { operation: action } });
+    return id;
+  });
   // Thrown/unknown provider outcomes deliberately retain the block for operator reconciliation.
   let result: { error: unknown };
   try {

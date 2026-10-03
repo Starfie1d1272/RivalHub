@@ -38,7 +38,7 @@ const CURRENT_PRODUCER_ACTIONS = [
   "competition_entry.changes_requested", "competition_entry.waitlisted", "competition_entry.approved", "competition_entry.rejected",
   "competition_entry.withdrawn", "competition_entry.representative.transfer", "competition_entry.restriction_override.grant",
   "competition_entry.restriction_override.revoke",
-  "user.reset_password", "user.password_update_failed", "user.sessions_revoke", "user.change_password", "user.claim_invite", "user.owner_bootstrap", "identity.link.merge_required",
+  "user.password_update_started", "user.reset_password", "user.password_update_failed", "user.sessions_revoke", "user.change_password", "user.claim_invite", "user.owner_bootstrap", "identity.link.merge_required",
   "identity.link.complete", "identity.link.revoke", "user_identity.merge",
   "education_verification.submit", "education_verification.institutional_email", "education_verification.approved", "education_verification.rejected",
   "competitive_platform.update", "competitive_platform_season.create", "competitive_platform_season.update",

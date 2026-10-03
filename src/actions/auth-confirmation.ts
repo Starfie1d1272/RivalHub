@@ -54,6 +54,7 @@ export async function confirmEmailVerification(
     const source = flow === "signup" ? "signup_confirmation" : "existing_account_reverification";
     const user = await db.transaction(async (tx) => {
       const canonicalUser = await resolveOrCreateCanonicalUserInTx(tx, {
+        authenticationStartedAt,
         authId,
         email,
         verifiedAt: new Date(confirmedAt),

@@ -79,6 +79,7 @@ describe("auth session guards", () => {
     expect(writable).not.toHaveProperty("extra");
     expect(writable.updateConfig).toEqual(expect.any(Function));
     expect(writable.save).toHaveBeenCalledOnce();
+    expect(getIronSessionMock).toHaveBeenLastCalledWith(expect.anything(), expect.objectContaining({ ttl: 2592000, cookieOptions: expect.objectContaining({ maxAge: 2592000 }) }));
   });
 
   it("只销毁 normal session，audit actor 永远是 session userId", async () => {

@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { revokeUserSessions } from "@/actions/session-management";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 
 export function UserSessionControl({ userId }: { userId: string }) {
   const [open, setOpen] = useState(false);
@@ -14,7 +14,7 @@ export function UserSessionControl({ userId }: { userId: string }) {
     <DialogTrigger asChild><Button size="sm" variant="ghost">退出旧登录</Button></DialogTrigger>
     <DialogContent>
       <DialogHeader><DialogTitle>退出该用户的所有登录</DialogTitle></DialogHeader>
-      <p className="text-sm">所有现有登录都会失效，用户需要重新登录。此操作不会更改用户权限或密码。</p>
+      <DialogDescription>所有现有登录都会失效，用户需要重新登录。此操作不会更改用户权限或密码。</DialogDescription>
       <label className="flex items-start gap-2 text-sm">
         <input type="checkbox" checked={settled} onChange={(event) => setSettled(event.target.checked)} />
         <span>同时解除异常密码更新造成的登录暂停。我已确认密码更新请求结束，并核实密码状态或完成受控重置。</span>

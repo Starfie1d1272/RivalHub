@@ -12,6 +12,8 @@
 
 credential linking 只证明并绑定新的 identity，不复制或移动赛事事实。两个已有 `users.id` 的归并必须先生成 fail-closed preflight：用户选择的保留账号资料和竞技资料原样不变，待归并账号的竞技资料直接删除；登录身份、已确认的 person facts 和不冲突的业务历史归到保留账号，临时状态关闭，历史 actor/provenance 继续保留原账号。只有 Steam 身份、Team 时间线/队长状态、不同参赛身份或同一地图两份正式比赛数据等无法无歧义处理的事实才阻止自助归并。成功归并后 loser 作为可追溯 alias 保留在 `user_merge_ledger`，不会被无痕删除。
 
+应用登录凭据的生命周期由 `application_sessions` 与 `application_session_controls` 表达，前者是可撤销的注册记录，后者是跨请求颁发 fence 和密码更新状态；在线心跳 `user_sessions` 不提供认证。账号归并保留撤销边界、撤销双方登录，旧会话不 reparent。详见 [鉴权与权限](auth-and-permissions.md#session)。
+
 ### Player-declared profile
 
 `users.gameplay_style` 与 `users.competition_history` 是 canonical user-owned long-lived profile，回答选手当前公开声明的打法/风格与比赛经历。设置页可以随时维护这两个字段，公开 Player Profile 只通过显式 `PublicPlayer` DTO 消费它们；空值保持 unknown，不从某届赛事推断当前资料。
@@ -223,5 +225,3 @@ The `@cs2dak/tournament` reducer owns collection, merge and finalization; its de
 Player careers start from canonical users and effective starter appearances in finished public matches. Long Team careers follow historical linked CompetitionEntries, not the current roster's lifetime statistics; opponent identities remain isolated when players transfer. All-time is the default corpus, with Event, Stage, Format, Map and Team scopes. Team record/history/map previews reuse the same official match/map facts and count only completed maps. Current members contribute separate scouting context. Veto steps independently supply selection counts and distinguish recorded, missing and not-applicable samples. Registration position is not a tournament role fact. Cache boundaries, public/draft isolation and invalidation are defined in [architecture](architecture.md); rebuild and egress acceptance are defined in [statistics operations](operations/statistics-projections.md).
 
 统计表格与 Overview situation highlights 共享 `src/lib/stats/ranking.ts` 的样本资格投影；门槛按当前可比较指标的样本分布计算，空指标不参与基线。表格保留 limited-sample 行，Overview 只从 qualified population 选最佳，不另设固定样本门槛。
-
-应用登录凭据的生命周期由 `application_sessions` 与 `application_session_controls` 表达，前者是可撤销的注册记录，后者是跨请求颁发 fence 和密码更新状态；在线心跳 `user_sessions` 不提供认证。账号归并保留撤销边界、撤销双方登录，旧会话不 reparent。详见 [鉴权与权限](auth-and-permissions.md#session)。
