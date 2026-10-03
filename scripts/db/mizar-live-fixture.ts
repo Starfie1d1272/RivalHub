@@ -2,6 +2,7 @@ import { requireSupabasePublicKey } from "../../src/lib/runtime/supabase-keys";
 /** Disposable Local Supabase evidence, never a production entrypoint. */
 import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
+import { setTimeout as delay } from "node:timers/promises";
 import * as readline from "node:readline";
 import { and, eq, sql } from "drizzle-orm";
 import { createClient, type RealtimeChannel } from "@supabase/supabase-js";
@@ -54,6 +55,7 @@ async function publish(authorityRevision: number, score: number) {
   const { match, source } = await binding();
   const fixture = JSON.parse(readFileSync("tests/fixtures/contracts/mizar-live-snapshot-v1.radar.json", "utf8"));
   fixture.matchId = match.id; fixture.competitionId = seasonId;
+  fixture.producedAt = new Date().toISOString();
   fixture.cursor.liveSessionId = source.liveSessionId;
   fixture.cursor.producerInstanceId = source.producerInstanceId;
   fixture.cursor.runtimeSeq = score + 1;
@@ -150,8 +152,44 @@ async function verify() {
     const httpWrite = await channel.httpSend("snapshot", { forged: true }).catch(() => ({ success: false }));
     if (httpWrite.success) throw new Error("Viewer HTTP write was authorized");
     if (await channel.send({ type: "broadcast", event: "snapshot", payload: { forged: true } }).catch(() => "error") === "ok") throw new Error("Viewer WebSocket write was authorized");
+    await verifyFanout(credential);
     console.log("Mizar pairing and live transport: intent scope / retry / revoke / viewer JWT / private Broadcast / cross-match denial / viewer write denial passed");
   } finally { await viewer.removeAllChannels(); await cleanup(); }
+}
+
+/** Small real Local Supabase fan-out check, not a hosted-provider load test. */
+async function verifyFanout(credential: Awaited<ReturnType<typeof issueLiveViewerToken>>) {
+  const count = 8;
+  const viewers = Array.from({ length: count }, () => createClient(apiUrl, requireSupabasePublicKey(process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY), { accessToken: async () => credential.token }));
+  const deliveries: number[] = Array.from({ length: count }, () => 0);
+  let receivedBytes = 0;
+  const latencies: number[] = [];
+  const started = new Map<number, number>();
+  try {
+    await Promise.all(viewers.map(async (viewer, index) => {
+      await viewer.realtime.setAuth(credential.token);
+      const channel = viewer.channel(credential.topic, { config: { private: true } });
+      channel.on("broadcast", { event: "snapshot" }, ({ payload }) => {
+        const sentAt = started.get(payload.delivery?.sequence);
+        if (sentAt === undefined) return;
+        deliveries[index]++;
+        receivedBytes += Buffer.byteLength(JSON.stringify(payload));
+        latencies.push(performance.now() - sentAt);
+      });
+      await subscribed(channel);
+    }));
+    for (let frame = 0; frame < 3; frame++) {
+      // At most 2 Hz; slight margin avoids clock/scheduler boundary rounding.
+      await delay(510);
+      started.set(9 + frame, performance.now());
+      if (!(await publish(1, 8 + frame)).accepted) throw new Error("Fan-out publication rejected");
+    }
+    const deadline = performance.now() + 5000;
+    while (deliveries.some(value => value < 3) && performance.now() < deadline) await delay(20);
+    if (deliveries.some(value => value !== 3)) throw new Error("Local fan-out lost/duplicated a frame");
+    latencies.sort((a, b) => a - b);
+    console.log(`LIVE_FANOUT ${JSON.stringify({ environment: "Local Supabase", viewers: count, publications: 3, receivedMessages: deliveries.reduce((a, b) => a + b, 0), receivedPayloadBytes: receivedBytes, p95EndToEndMs: latencies[Math.floor(latencies.length * .95)], maxEndToEndMs: latencies.at(-1), productionCapacityProven: false })}`);
+  } finally { await Promise.all(viewers.map(viewer => viewer.removeAllChannels())); }
 }
 
 async function expectRejected(action: () => Promise<unknown>, message: string) {
