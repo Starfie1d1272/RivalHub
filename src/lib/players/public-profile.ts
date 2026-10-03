@@ -13,7 +13,7 @@ import { getPlayerAttributeBenchmark } from "@/lib/stats/player-attribute-benchm
 import { projectPlayerAttributeProfile } from "@/lib/stats/player-attributes";
 import { readOptionalPublicStats } from "@/lib/stats/availability";
 import { getPublicPlayerRecords } from "./public-record";
-import { loadCompetitivePlatformCatalog } from "@/lib/competitive/catalog";
+import { getPublicCompetitiveCatalog } from "@/lib/competitive/public-catalog";
 import { presentCompetitiveRole, presentPublicCompetitiveProfile } from "@/lib/competitive/presentation";
 import { presentPublicEducationIdentities } from "@/lib/education/presentation";
 import { getPublicPlayerLft } from "@/lib/recruitment/data";
@@ -60,7 +60,7 @@ export async function getPublicPlayerProfileReadModel(
     db.select().from(competitiveRankFacts).where(eq(competitiveRankFacts.userId, userId)),
     db.select().from(userCompetitiveRoles).where(eq(userCompetitiveRoles.userId, userId)),
     db.select().from(userMapPreferences).where(eq(userMapPreferences.userId, userId)),
-    loadCompetitivePlatformCatalog(db),
+    getPublicCompetitiveCatalog(),
     db.select({
       id: educationVerifications.id,
       institutionId: educationVerifications.institutionId,

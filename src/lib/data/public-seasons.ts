@@ -84,7 +84,7 @@ const publicSeasonColumns = {
 const PUBLIC_CACHE_LIFE = "seconds" as const;
 
 export async function getPublicSeasonCatalog(): Promise<PublicSeasonWithCompletion[]> {
-  "use cache";
+  "use cache: remote";
   cacheLife(PUBLIC_CACHE_LIFE);
   cacheTag(PUBLIC_SEASON_CATALOG_TAG);
 
@@ -105,7 +105,7 @@ export async function getPublicSeasonCatalog(): Promise<PublicSeasonWithCompleti
 }
 
 export async function getPublicSeasonBySlug(slug: string): Promise<PublicSeason | null> {
-  "use cache";
+  "use cache: remote";
   cacheLife(PUBLIC_CACHE_LIFE);
   cacheTag(PUBLIC_SEASON_CATALOG_TAG, publicSeasonTag(slug));
 
