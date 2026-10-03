@@ -33,7 +33,7 @@ describe("password provider / registry coordination", () => {
     expect(finish).toHaveBeenCalledOnce();
     expect(audit).toHaveBeenCalledWith("tx", expect.objectContaining({ action: "user.password_update_failed" }));
   });
-  it.each([0, 408, 503])("keeps the durable block on ambiguous HTTP %s", async (status) => {
+  it.each([undefined, 0, 408, 503])("keeps the durable block on ambiguous HTTP %s", async (status) => {
     await expect(mutatePassword("user", "proof", "user.change_password", async () => ({ error: { status } }))).rejects.toThrow(/无法确认/);
     expect(finish).not.toHaveBeenCalled();
     expect(audit).not.toHaveBeenCalled();

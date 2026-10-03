@@ -26,6 +26,10 @@ describe("application session PostgreSQL lifecycle", () => {
       const proof = await beginAuthentication(f.database);
       const a = await f.database.transaction(tx => issueApplicationSessionInTx(tx, f.userId, proof));
       const b = await f.database.transaction(tx => issueApplicationSessionInTx(tx, f.userId, proof));
+      await f.pool.query("UPDATE user_identities SET is_primary=true WHERE id=$1", [identityId]);
+      await expect(f.database.transaction(tx => revokeSecondaryEmailIdentityInTx(tx, { userId: f.userId, identityId }))).rejects.toThrow();
+      expect(await readApplicationSession(f.database, a, f.userId)).not.toBeNull();
+      await f.pool.query("UPDATE user_identities SET is_primary=false WHERE id=$1", [identityId]);
       await f.database.transaction(tx => revokeSecondaryEmailIdentityInTx(tx, { userId: f.userId, identityId }));
       expect(await readApplicationSession(f.database, a, f.userId)).toBeNull();
       expect(await readApplicationSession(f.database, b, f.userId)).toBeNull();

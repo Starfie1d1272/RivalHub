@@ -60,7 +60,7 @@ Server Action 返回赛事范围的读取 DTO 时，也必须在 action 自身�
 
 密码更新先提交全撤销与 durable issuance block，再调用 Auth，最后重新推进撤销边界并解除 block。明确的 provider 拒绝不会报告成功，旧登录仍保持撤销；网络异常、5xx、数据库最终提交失败或进程中断时保留 block，避免跨系统未知结果下继续颁发会话。找回页面把 provider access token 交给 server boundary，通过 Supabase `getUser(token)` 远程验证 subject，再解析有效 credential 绑定；不相信客户端自报已改密，也不根据未经验证的 JWT claim 更新账号。
 
-外部 Auth Dashboard/API 修改密码不会自动触发应用数据库撤销。受支持操作必须配套调用管理员 `revokeUserSessions`，且在 provider 修改前后各撤销一次；不能将 provider refresh token 撤销等同于应用会话撤销。若有中断的密码更新，先确认 provider 请求已终止、核实账号密码状态或完成受控重置，再由 super admin 显式调用 `revokeUserSessions({ userId, providerMutationSettled: true })` 解除阻断并再次全撤销；未核实结果不得解除。入口为管理员「所有用户 → 退出旧登录」；解除阻断必须显式勾选已核实声明。该操作有 audit，不提供设备列表 UI，不自动重试未知结果的密码写入。
+外部 Auth Dashboard/API 修改密码不会自动触发应用数据库撤销。受支持操作必须配套调用管理员 `revokeUserSessions`，且在 provider 修改前后各撤销一次；不能将 provider refresh token 撤销等同于应用会话撤销。若有中断的密码更新，先确认 provider 请求已终止、核实账号密码状态或完成受控重置，再由 super admin 显式调用 `revokeUserSessions({ userId, providerMutationSettled: true })` 解除阻断并再次全撤销；未核实结果不得解除。入口为管理员「所有用户 → 退出旧登录」；解除阻断必须显式勾选已核实声明。该操作有 audit，不提供设备列表 UI，不自动重试未知结果的密码写入。数据库备份可能携带历史注册记录；灾难恢复切换前必须轮换 `ADMIN_SESSION_SECRET`，避免恢复已撤销 cookie 的有效性。
 
 ## Data API baseline
 

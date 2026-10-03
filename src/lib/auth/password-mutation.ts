@@ -13,10 +13,15 @@ export async function mutatePassword(
 ): Promise<void> {
   const mutationId = await db.transaction((tx) => beginPasswordMutationInTx(tx, userId, startedAt));
   // Thrown/unknown provider outcomes deliberately retain the block for operator reconciliation.
-  const result = await update();
+  let result: { error: unknown };
+  try {
+    result = await update();
+  } catch {
+    throw new AppError(ErrorCode.INTERNAL_ERROR, "密码更新结果暂时无法确认，登录已暂停，请联系管理员核实。");
+  }
   if (result.error) {
     const status = typeof result.error === "object" && "status" in result.error ? Number(result.error.status) : 0;
-    if (status < 400 || status >= 500 || status === 408) {
+    if (!Number.isInteger(status) || status < 400 || status >= 500 || status === 408) {
       throw new AppError(ErrorCode.INTERNAL_ERROR, "密码更新结果暂时无法确认，登录已暂停，请联系管理员核实。 ");
     }
   }
