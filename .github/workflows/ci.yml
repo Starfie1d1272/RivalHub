@@ -232,7 +232,12 @@ jobs:
         run: node scripts/ci/timing.mjs "system/mizar contract" -- pnpm mizar:contract-check .mizar-checkout
       - name: CJK fonts for public match evidence
         if: needs.plan.outputs.live_evidence == 'true'
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends fonts-noto-cjk
+        run: |
+          sudo apt-get update
+          mkdir -p .agent-tmp/evidence-fonts
+          cd .agent-tmp/evidence-fonts
+          apt-get download fonts-noto-cjk
+          dpkg-deb -x fonts-noto-cjk_*.deb .
       - name: Browser runtime
         run: google-chrome --version
       - name: E2E body

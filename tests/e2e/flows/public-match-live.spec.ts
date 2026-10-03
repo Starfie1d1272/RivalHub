@@ -1,7 +1,7 @@
 import { execFile, spawn, type ChildProcess } from "node:child_process";
 import { promisify } from "node:util";
 import { resolve } from "node:path";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { redactText } from "../../../src/lib/observability/redact";
 import { test, expect, type Page } from "@playwright/test";
@@ -19,6 +19,12 @@ test("public match consumes private Broadcast and recovers with canonical layout
   test.setTimeout(180000);
   const seasonId = randomUUID();
   const capture = async (name: string, target: Page = page) => {
+    // Scope the evidence font to this page; system installation changes unrelated visual baselines.
+    const font = resolve(".agent-tmp/evidence-fonts/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc");
+    if (existsSync(font)) {
+      await target.route("**/__public-evidence-font", route => route.fulfill({ path: font, contentType: "font/collection" }));
+      await target.addStyleTag({ content: '@font-face { font-family: "Public Evidence"; src: url("/__public-evidence-font"); } body { font-family: Arial, "Public Evidence", sans-serif; }' });
+    }
     await target.evaluate(() => document.fonts.ready);
     await target.addStyleTag({ content: "nextjs-portal { display: none !important; }" });
     const body = await target.screenshot({ fullPage: true });
