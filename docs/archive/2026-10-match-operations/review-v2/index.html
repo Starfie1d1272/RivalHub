@@ -46,7 +46,7 @@
 - DAK 前 110 个可编辑数值字段（十人×十一项）；DAK 后 30 个平台字段；实际解说确认与刷新。
 - 返回导航、更新反馈、同级管理员权限、超级管理员确认取消；8 种状态各在 320/390px 验证横向布局。
 - 真实 PostgreSQL：Mizar ingest / 工作台 / 赛果语义共 33 项，LIVE capacity 18 项；覆盖同 epoch generation 切换空绑定恢复、错图、迟到/重复、显式接管、下一图恢复、gameplay 后 stale 接管和正常人工比赛。Steam 昵称优先及查询缺失回退也由实际数据库回归验证。
-- 定向单元/组件测试、完整 app/tests/scripts 类型检查、变更文件 ESLint、architecture check、diff check。最终远端 required CI 见 PR 最新 HEAD。
+- 110 项定向单元/组件测试、完整 app/tests/scripts 类型检查、变更文件 ESLint、architecture check、diff check。最终远端 required CI 见 PR 最新 HEAD。
 
 截图内的外部上报来自协议样例，DAK 使用隔离证据包；浏览器内的 BP、确认和提交均实际执行。Perfect 建房、真实 CS2 采集和 OBS 推流仍需跨产品现场联调。
 

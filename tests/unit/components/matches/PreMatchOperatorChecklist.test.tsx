@@ -12,15 +12,16 @@ describe("PreMatchOperatorChecklist", () => {
   it("does not turn a non-Major match's absent preflight into a blocker", () => {
     render(<PreMatchOperatorChecklist teamA={team} teamB={{ ...team, name: "Beta" }} mapState="not_recorded" />);
 
-    expect(screen.getByText("可以开始比赛")).toBeInTheDocument();
-    expect(screen.getAllByText(/按常规赛务流程进行/)).toHaveLength(2);
+    expect(screen.getByText("首发已准备好")).toBeInTheDocument();
+    expect(screen.getByText("双方进入 BP，确认准备后开始禁选。")).toBeInTheDocument();
+    expect(screen.queryAllByRole("checkbox")).toHaveLength(0);
   });
 
   it("shows absent Major preflight as a server-check blocker", () => {
     render(<PreMatchOperatorChecklist requiresPreflight teamA={team} teamB={{ ...team, name: "Beta" }} mapState="not_recorded" />);
 
-    expect(screen.getByText("当前不可开赛")).toBeInTheDocument();
-    expect(screen.getByText(/Alpha 尚未完成首发资格检查/)).toBeInTheDocument();
-    expect(screen.getByText(/Beta 尚未完成首发资格检查/)).toBeInTheDocument();
+    expect(screen.getByText("首发待处理")).toBeInTheDocument();
+    expect(screen.getByText(/Alpha：请完成首发资格检查/)).toBeInTheDocument();
+    expect(screen.getByText(/Beta：请完成首发资格检查/)).toBeInTheDocument();
   });
 });
