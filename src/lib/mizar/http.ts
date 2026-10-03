@@ -2,14 +2,20 @@ import "server-only";
 import { AppError } from "@/lib/errors";
 
 /** Bound bytes while streaming; Content-Length is untrusted. */
-export async function readBoundedMizarJson(request: Request, maxBytes: number): Promise<unknown> {
+export async function readBoundedMizarJson(request: Request, maxBytes: number, timeoutMs?: number): Promise<unknown> {
   const reader = request.body?.getReader();
   if (!reader) throw new Error("invalid_body");
+  let timedOut = false;
+  const timer = timeoutMs === undefined ? undefined : setTimeout(() => {
+    timedOut = true;
+    void reader.cancel().catch(() => {});
+  }, timeoutMs);
   const chunks: Uint8Array[] = [];
   let size = 0;
   try {
     while (true) {
       const { value, done } = await reader.read();
+      if (timedOut) throw new Error("body_timeout");
       if (done) break;
       size += value.byteLength;
       if (size > maxBytes) { await reader.cancel(); throw new Error("payload_too_large"); }
@@ -19,7 +25,7 @@ export async function readBoundedMizarJson(request: Request, maxBytes: number): 
     let offset = 0;
     for (const chunk of chunks) { buffer.set(chunk, offset); offset += chunk.length; }
     return JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(buffer));
-  } finally { reader.releaseLock(); }
+  } finally { clearTimeout(timer); reader.releaseLock(); }
 }
 
 export function mizarHttpError(error: unknown) {

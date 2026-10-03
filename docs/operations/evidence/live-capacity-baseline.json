@@ -1,0 +1,331 @@
+{
+  "sha": "c7de35ef0f5d90ff61ea6a1b4da727331e707132",
+  "baseline": true,
+  "node": "v24.20.0",
+  "poolMax": 3,
+  "reports": [
+    {
+      "scenario": "fast",
+      "matches": 4,
+      "inputs": 12,
+      "accepted": 12,
+      "dropped": 0,
+      "failed": 0,
+      "httpRequests": 12,
+      "bytes": 19728,
+      "maxHttp": 3,
+      "maxPoolQueue": 1,
+      "maxRelationShareLocks": 42,
+      "maxWaitingLocks": 0,
+      "transactionMs": {
+        "n": 12,
+        "p50": 14.313610000000153,
+        "p95": 33.555667000000085,
+        "max": 33.555667000000085
+      },
+      "requestMs": {
+        "n": 12,
+        "p50": 27.738155000000006,
+        "p95": 64.422955,
+        "max": 64.422955
+      },
+      "poolWaitMs": {
+        "n": 24,
+        "p50": 0.30096100000014303,
+        "p95": 13.896892000000207,
+        "max": 31.454327999999805
+      },
+      "sampledTransactionAgeMs": {
+        "n": 46,
+        "p50": 0,
+        "p95": 10.876,
+        "max": 25.982
+      },
+      "sampledLockHoldingAgeMs": {
+        "n": 4,
+        "p50": 12.397,
+        "p95": 25.982,
+        "max": 25.982
+      }
+    },
+    {
+      "scenario": "slow",
+      "matches": 4,
+      "inputs": 12,
+      "accepted": 12,
+      "dropped": 0,
+      "failed": 0,
+      "httpRequests": 12,
+      "bytes": 19728,
+      "maxHttp": 3,
+      "maxPoolQueue": 6,
+      "maxRelationShareLocks": 42,
+      "maxWaitingLocks": 0,
+      "transactionMs": {
+        "n": 12,
+        "p50": 706.0882350000002,
+        "p95": 709.1711339999997,
+        "max": 709.1711339999997
+      },
+      "requestMs": {
+        "n": 12,
+        "p50": 1416.8809229999997,
+        "p95": 1835.4369719999995,
+        "max": 1835.4369719999995
+      },
+      "poolWaitMs": {
+        "n": 24,
+        "p50": 209.38405199999988,
+        "p95": 705.7496579999997,
+        "max": 706.6753390000003
+      },
+      "sampledTransactionAgeMs": {
+        "n": 131,
+        "p50": 351.319,
+        "p95": 673.988,
+        "max": 703.273
+      },
+      "sampledLockHoldingAgeMs": {
+        "n": 131,
+        "p50": 351.319,
+        "p95": 673.988,
+        "max": 703.273
+      }
+    },
+    {
+      "scenario": "timeout",
+      "matches": 4,
+      "inputs": 12,
+      "accepted": 0,
+      "dropped": 12,
+      "failed": 0,
+      "httpRequests": 12,
+      "bytes": 19728,
+      "maxHttp": 3,
+      "maxPoolQueue": 9,
+      "maxRelationShareLocks": 42,
+      "maxWaitingLocks": 0,
+      "transactionMs": {
+        "n": 12,
+        "p50": 2007.2905070000006,
+        "p95": 2012.4269440000007,
+        "max": 2012.4269440000007
+      },
+      "requestMs": {
+        "n": 12,
+        "p50": 5036.882197,
+        "p95": 7042.320516000001,
+        "max": 7042.320516000001
+      },
+      "poolWaitMs": {
+        "n": 24,
+        "p50": 1019.1317119999994,
+        "p95": 4014.417593,
+        "max": 4014.7681079999993
+      },
+      "sampledTransactionAgeMs": {
+        "n": 373,
+        "p50": 997.662,
+        "p95": 1905.594,
+        "max": 2002.585
+      },
+      "sampledLockHoldingAgeMs": {
+        "n": 372,
+        "p50": 1002.994,
+        "p95": 1905.594,
+        "max": 2002.585
+      }
+    },
+    {
+      "scenario": "disconnect",
+      "matches": 4,
+      "inputs": 12,
+      "accepted": 0,
+      "dropped": 12,
+      "failed": 0,
+      "httpRequests": 12,
+      "bytes": 19728,
+      "maxHttp": 2,
+      "maxPoolQueue": 1,
+      "maxRelationShareLocks": 42,
+      "maxWaitingLocks": 0,
+      "transactionMs": {
+        "n": 12,
+        "p50": 8.440676000000167,
+        "p95": 9.6153460000005,
+        "max": 9.6153460000005
+      },
+      "requestMs": {
+        "n": 12,
+        "p50": 13.957832000000053,
+        "p95": 18.05993699999999,
+        "max": 18.05993699999999
+      },
+      "poolWaitMs": {
+        "n": 24,
+        "p50": 0.2180660000012722,
+        "p95": 8.672613000000638,
+        "max": 9.647934999999052
+      },
+      "sampledTransactionAgeMs": {
+        "n": 48,
+        "p50": 0,
+        "p95": 0,
+        "max": 4.109
+      },
+      "sampledLockHoldingAgeMs": {
+        "n": 2,
+        "p50": 4.109,
+        "p95": 4.109,
+        "max": 4.109
+      }
+    },
+    {
+      "scenario": "429",
+      "matches": 4,
+      "inputs": 12,
+      "accepted": 0,
+      "dropped": 12,
+      "failed": 0,
+      "httpRequests": 12,
+      "bytes": 19728,
+      "maxHttp": 3,
+      "maxPoolQueue": 1,
+      "maxRelationShareLocks": 14,
+      "maxWaitingLocks": 0,
+      "transactionMs": {
+        "n": 12,
+        "p50": 10.741433999999572,
+        "p95": 13.85656999999992,
+        "max": 13.85656999999992
+      },
+      "requestMs": {
+        "n": 12,
+        "p50": 17.633718999999473,
+        "p95": 26.886671999998725,
+        "max": 26.886671999998725
+      },
+      "poolWaitMs": {
+        "n": 24,
+        "p50": 0.22989500000039698,
+        "p95": 10.703215999999884,
+        "max": 13.421598000000813
+      },
+      "sampledTransactionAgeMs": {
+        "n": 48,
+        "p50": 0,
+        "p95": 0,
+        "max": 7.202
+      },
+      "sampledLockHoldingAgeMs": {
+        "n": 3,
+        "p50": 6.449,
+        "p95": 7.202,
+        "max": 7.202
+      }
+    },
+    {
+      "scenario": "stalled-body",
+      "matches": 4,
+      "inputs": 12,
+      "accepted": 0,
+      "dropped": 12,
+      "failed": 0,
+      "httpRequests": 12,
+      "bytes": 19728,
+      "maxHttp": 3,
+      "maxPoolQueue": 9,
+      "maxRelationShareLocks": 42,
+      "maxWaitingLocks": 0,
+      "transactionMs": {
+        "n": 12,
+        "p50": 2607.127045999998,
+        "p95": 2609.8906179999994,
+        "max": 2609.8906179999994
+      },
+      "requestMs": {
+        "n": 12,
+        "p50": 6829.502411999998,
+        "p95": 9436.974628,
+        "max": 9436.974628
+      },
+      "poolWaitMs": {
+        "n": 24,
+        "p50": 1614.3875590000025,
+        "p95": 5213.520263999999,
+        "max": 5214.641052999999
+      },
+      "sampledTransactionAgeMs": {
+        "n": 487,
+        "p50": 1308.431,
+        "p95": 2475.724,
+        "max": 2603.522
+      },
+      "sampledLockHoldingAgeMs": {
+        "n": 487,
+        "p50": 1308.431,
+        "p95": 2475.724,
+        "max": 2603.522
+      }
+    },
+    {
+      "scenario": "burst",
+      "matches": 4,
+      "inputs": 96,
+      "accepted": 45,
+      "dropped": 0,
+      "failed": 51,
+      "httpRequests": 45,
+      "bytes": 73989,
+      "maxHttp": 3,
+      "maxPoolQueue": 93,
+      "maxRelationShareLocks": 42,
+      "maxWaitingLocks": 0,
+      "transactionMs": {
+        "n": 45,
+        "p50": 705.8590289999993,
+        "p95": 708.5861959999966,
+        "max": 709.9291989999983
+      },
+      "requestMs": {
+        "n": 96,
+        "p50": 10022.801285999998,
+        "p95": 10042.981592999997,
+        "max": 10650.011190999998
+      },
+      "poolWaitMs": {
+        "n": 141,
+        "p50": 19.77480999999898,
+        "p95": 8509.720802,
+        "max": 9921.707426000004
+      },
+      "sampledTransactionAgeMs": {
+        "n": 498,
+        "p50": 353.358,
+        "p95": 673.303,
+        "max": 705.936
+      },
+      "sampledLockHoldingAgeMs": {
+        "n": 496,
+        "p50": 353.479,
+        "p95": 673.303,
+        "max": 705.936
+      }
+    },
+    {
+      "change": "revoke",
+      "mutationMs": 660.1947010000004,
+      "observedLockWaiters": 1
+    },
+    {
+      "change": "handover",
+      "mutationMs": 678.9022719999994,
+      "observedLockWaiters": 1
+    },
+    {
+      "change": "manual",
+      "mutationMs": 667.386897000004,
+      "observedLockWaiters": 1
+    }
+  ]
+}
