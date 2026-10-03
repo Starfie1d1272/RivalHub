@@ -9,7 +9,7 @@ import { presentBomb, presentLivePhase, formatLiveClock } from "@/lib/mizar/live
 import { mapLabel } from "@/lib/maps";
 import type { PublicLiveMatchProjection } from "@/lib/mizar/live-projection";
 
-type LivePhase = "awaiting_gameplay" | "gameplay" | "inter_map";
+type LivePhase = Extract<import("@/lib/matches/presentation-phase").MatchPresentationPhase, "awaiting_gameplay" | "gameplay" | "inter_map">;
 export interface MatchRealtimeProps {
   matchId: string;
   phase: LivePhase;
@@ -74,7 +74,7 @@ function LiveTeamTable({ snapshot, side }: { snapshot: PublicLiveMatchProjection
   const score = side === "CT" ? snapshot.map.scoreCT : snapshot.map.scoreT;
   const players = snapshot.players.filter(player => player.side === side);
   return <div className="min-w-0 overflow-hidden border border-[var(--color-border)]">
-    <div className="flex items-center justify-between gap-3 bg-[var(--color-panel-hi)] px-3 py-2.5">
+    <div className="flex items-center justify-between gap-3 bg-[var(--color-panel-hi)] px-3 py-2">
       <div className="flex min-w-0 items-center gap-2"><span className={`font-mono text-xs font-bold ${side === "CT" ? "text-[var(--color-info)]" : "text-[var(--color-warn)]"}`}>{side}</span><h3 className="truncate text-sm font-semibold">{team.name}</h3></div>
       <span className="font-mono text-xl font-bold tabular-nums">{score ?? "—"}</span>
     </div>
@@ -83,7 +83,7 @@ function LiveTeamTable({ snapshot, side }: { snapshot: PublicLiveMatchProjection
         <caption className="sr-only">{team.name} 选手基础数据</caption>
         <thead className="text-right text-[var(--color-fg-dim)]"><tr><th className="p-2 text-left font-normal">选手</th>{["HP", "护甲", "$", "K / A / D", "ADR"].map(label => <th key={label} className="whitespace-nowrap p-2 font-normal">{label}</th>)}</tr></thead>
         <tbody>{players.map(player => <tr key={player.sourcePlayerId} className={`border-t border-[var(--color-border)] ${player.lifeState === "dead" ? "text-[var(--color-fg-dim)]" : "text-[var(--color-fg)]"}`}>
-          <th scope="row" className="max-w-32 p-2 text-left font-medium"><div className="truncate">{player.canonicalPlayerId ? <Link href={`/players/${player.canonicalPlayerId}`} className="hover:underline">{player.displayName ?? "未知选手"}</Link> : player.displayName ?? "未知选手"}</div><span className="text-[10px] font-normal text-[var(--color-fg-dim)]">{player.lifeState === "alive" ? "存活" : player.lifeState === "dead" ? "阵亡" : "状态未知"}</span></th>
+          <th scope="row" className="max-w-32 p-2 text-left font-medium"><div className="truncate">{player.canonicalPlayerId ? <Link href={`/players/${player.canonicalPlayerId}`} className="hover:underline">{player.displayName ?? "未知选手"}</Link> : player.displayName ?? "未知选手"}</div><span className="sr-only">{player.lifeState === "alive" ? "存活" : player.lifeState === "dead" ? "阵亡" : "状态未知"}</span></th>
           <td className="p-2 text-right">{player.health ?? "—"}</td><td className="p-2 text-right">{player.armor ?? "—"}</td><td className="p-2 text-right">{player.money?.toLocaleString("en-US") ?? "—"}</td>
           <td className="whitespace-nowrap p-2 text-right">{player.stats.kills ?? "—"} / {player.stats.assists ?? "—"} / {player.stats.deaths ?? "—"}</td><td className="p-2 text-right">{player.stats.liveAdr?.toFixed(1) ?? "—"}</td>
         </tr>)}</tbody>

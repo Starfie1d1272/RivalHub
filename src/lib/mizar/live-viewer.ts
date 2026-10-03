@@ -36,10 +36,11 @@ export function connectLiveViewer(matchId: string, onState: (state: LiveViewerSt
     if (stopped || !environment.visible() || !environment.url || !environment.key) return;
     reset();
     const current = generation;
-    request = new AbortController();
-    const timeout = setTimeout(() => request?.abort(), 10000);
+    const controller = new AbortController();
+    request = controller;
+    const timeout = setTimeout(() => controller.abort(), 10000);
     try {
-      const response = await environment.fetch(`/api/matches/${encodeURIComponent(matchId)}/live-viewer`, { cache: "no-store", signal: request.signal });
+      const response = await environment.fetch(`/api/matches/${encodeURIComponent(matchId)}/live-viewer`, { cache: "no-store", signal: controller.signal });
       if (!response.ok) throw new Error("viewer_unavailable");
       const data: unknown = await response.json();
       if (stopped || current !== generation) return;
@@ -48,6 +49,8 @@ export function connectLiveViewer(matchId: string, onState: (state: LiveViewerSt
       const ttl = expiresAt - Date.now();
       if (ttl <= 0 || ttl > 330000) throw new Error("expired_viewer");
       client = environment.createClient(environment.url, environment.key, async () => token);
+      // Arm before subscribe: even synchronous readiness must replace this deadline.
+      schedule(15000);
       client.channel(topic, { config: { private: true, broadcast: { self: false } } })
         .on("broadcast", { event: "snapshot" }, ({ payload }: { payload: unknown }) => {
           if (stopped || current !== generation || !environment.visible()) return;
@@ -59,8 +62,7 @@ export function connectLiveViewer(matchId: string, onState: (state: LiveViewerSt
           if (status === "SUBSCRIBED") { retry = 1000; schedule(Math.max(1000, ttl - 30000)); }
           else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") { clear(); reset(); schedule(retry); retry = Math.min(retry * 2, 30000); }
         });
-      // A channel that never reports readiness must not leave the viewer stuck forever.
-      schedule(15000);
+
     } catch {
       if (!stopped && current === generation) { schedule(retry); retry = Math.min(retry * 2, 30000); }
     } finally { clearTimeout(timeout); }
