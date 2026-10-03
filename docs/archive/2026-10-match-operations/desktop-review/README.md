@@ -56,6 +56,7 @@
 - 18 种初始桌面情景，检查无页面横向溢出和 pageerror；另补操作与赛后细分截图。
 - 实际点击：刷新及完成反馈、总览返回、恢复取消／确认／刷新、手动正式录分与数据库持久化、六项剪贴板内容、解说认领后刷新、解说名单提交、名单／BP 弹窗与 Veto 导航。
 - PostgreSQL 17：45 项 Mizar ingest + main LIVE capacity 回归通过；补充当前 session/epoch 的上报证据读取后再次运行 ingest 27 项通过。保留 main 的三连接池并发测试，并适配严格接管参数与明确失鲜前置事实。既有 generation 恢复、迟到事件、下一图 re-arm、无 Mizar 路径均保留。
+- CI 发现 main 的 Demo egress 测试使用非 UUID 的管理员占位符；改用已创建的 fixture 用户，保持真实权限查询及 payload 读取边界断言，单独 PostgreSQL 复验通过。
 - 定向单元／组件 42 项通过，另有 workbench loader/page 6 项；app/tests 类型检查与文件级 ESLint 通过。最终交付状态以 PR 最新 HEAD required CI 为准。
 - 单独自查：未修改来源锁与 LIVE ingress；共享 phase 仍单一实现；admin evidence 只在赛季授权后读取并投影白名单字段，没有进入公开 DTO；正式赛果与 DAK ownership 未放宽。
 - **进行中系列赛的已完成地图更正仍缺失。** 现有 `correctMapScore` 只接受已结束比赛，且拒绝改变胜者；本轮没有放宽这个正式赛果边界。遇到本站正式比分本身错误，仍需赛事管理员处理，不应继续录分制造错误完赛。页面已撤掉不存在的操作指引。
