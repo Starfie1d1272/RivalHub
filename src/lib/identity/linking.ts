@@ -38,11 +38,28 @@ export async function completeSecondaryIdentityLinkInTx(
     verifiedAt: Date;
   },
 ): Promise<CompleteIdentityLinkOutcome> {
+  const canonicalCurrentId = await resolveCanonicalUserId(tx, input.currentUserId);
+  const normalizedEmail = normalizeEmail(input.email);
+  if (!canonicalCurrentId) throw identityAppError(ErrorCode.UNAUTHORIZED, "loginMethodNotBound");
+  const matchingCredential = and(
+    eq(userIdentities.status, "active"),
+    or(
+      and(eq(userIdentities.kind, "email"), eq(userIdentities.normalizedValue, normalizedEmail)),
+      and(eq(userIdentities.provider, "supabase_auth"), eq(userIdentities.providerSubject, input.authId)),
+    ),
+  );
+  // Discovery takes no row locks. Match merge's sorted user -> request/identity
+  // order; never hold a request or foreign identity while waiting for its user.
+  const candidates = await tx.select({ userId: userIdentities.userId }).from(userIdentities).where(matchingCredential);
+  const userIds = [...new Set([canonicalCurrentId, ...candidates.map(row => row.userId)])].sort();
+  const lockedUsers = await tx.select({ id: users.id, status: users.status }).from(users)
+    .where(inArray(users.id, userIds)).orderBy(users.id).for("update");
+  if (lockedUsers.length !== userIds.length || lockedUsers.some(row => row.status !== "active")) {
+    throw identityAppError(ErrorCode.UNAUTHORIZED, "loginMethodNotBound");
+  }
   const [request] = await tx.select().from(identityLinkRequests)
     .where(eq(identityLinkRequests.id, input.requestId)).for("update");
   const stateMatches = request ? safeHashEqual(request.stateTokenHash, hashIdentityLinkState(input.stateToken)) : false;
-  const canonicalCurrentId = await resolveCanonicalUserId(tx, input.currentUserId);
-  const normalizedEmail = normalizeEmail(input.email);
   if (
     !request ||
     !stateMatches ||
@@ -55,13 +72,10 @@ export async function completeSecondaryIdentityLinkInTx(
     throw new AppError(ErrorCode.VALIDATION_FAILED, "邮箱绑定请求已失效，请重新发起。");
   }
 
-  const matchingIdentities = await tx.select().from(userIdentities).where(and(
-    eq(userIdentities.status, "active"),
-    or(
-      and(eq(userIdentities.kind, "email"), eq(userIdentities.normalizedValue, normalizedEmail)),
-      and(eq(userIdentities.provider, "supabase_auth"), eq(userIdentities.providerSubject, input.authId)),
-    ),
-  )).for("update");
+  const matchingIdentities = await tx.select().from(userIdentities).where(matchingCredential);
+  if (matchingIdentities.some(row => !userIds.includes(row.userId))) {
+    throw identityAppError(ErrorCode.UNAUTHORIZED, "loginMethodNotBound");
+  }
   const ownerIds = new Set<string>();
   for (const identity of matchingIdentities) {
     const ownerId = await resolveCanonicalUserId(tx, identity.userId);
@@ -140,7 +154,8 @@ export async function revokeSecondaryEmailIdentityInTx(
   const canonicalUserId = await resolveCanonicalUserId(tx, input.userId);
   if (!canonicalUserId) throw new AppError(ErrorCode.UNAUTHORIZED, "账号不存在，请重新登录。");
   // Match login/merge lock order: user before identity rows.
-  await tx.select({ id: users.id }).from(users).where(eq(users.id, canonicalUserId)).for("update");
+  const [owner] = await tx.select({ status: users.status }).from(users).where(eq(users.id, canonicalUserId)).for("update");
+  if (owner?.status !== "active") throw identityAppError(ErrorCode.UNAUTHORIZED, "loginMethodNotBound");
   const [identity] = await tx.select().from(userIdentities).where(and(
     eq(userIdentities.id, input.identityId),
     eq(userIdentities.userId, canonicalUserId),
@@ -167,6 +182,11 @@ export async function revokeSecondaryEmailIdentityInTx(
     retiredAt: now,
     retiredReason: "self_revoke",
   }).where(inArray(userIdentities.id, related.map((row) => row.id)));
+  await tx.update(identityLinkRequests).set({ status: "cancelled", completedAt: now }).where(and(
+    eq(identityLinkRequests.userId, canonicalUserId),
+    eq(identityLinkRequests.normalizedEmail, identity.normalizedValue),
+    eq(identityLinkRequests.status, "pending"),
+  ));
   await writeAuditInTx(tx, {
     action: "identity.link.revoke",
     actorId: canonicalUserId,
