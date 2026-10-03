@@ -9,7 +9,7 @@ import { castMatchMvpVote } from "@/actions/player-stats";
 import { MVP_DEADLINE_MS } from "@/lib/utils/date";
 import { formatStat, type StatMetric } from "@/lib/stats";
 import { useRoutePolling } from "@/components/use-visible-polling";
-import { StatsMetricLabel } from "@/components/stats/StatsMetricHelp";
+import { StatsMetricHelp } from "@/components/stats/StatsMetricHelp";
 import { HelpTooltip } from "@/components/rivalhub/HelpTooltip";
 import { MetricValue } from "@/components/stats/MetricValue";
 import { STATS_METRICS } from "@/lib/stats/metrics";
@@ -159,9 +159,9 @@ export function MatchMvpVote({
         </div>
 
         {mvpStats && <dl className="grid grid-cols-3 divide-x divide-[var(--color-border)] border-y border-[var(--color-border)] py-4 text-center">
-          <div><dt className="text-xs text-[var(--color-fg-dim)]"><StatsMetricLabel metric="rating">Rating</StatsMetricLabel></dt><dd className="mt-1 font-mono text-2xl font-bold tabular-nums text-[var(--color-accent)]">{formatStat("ratingPro", mvpStats.ratingPro)}</dd></div>
-          <div><dt className="text-xs text-[var(--color-fg-dim)]">K / D / A <HelpTooltip label="K / D / A 指标说明" content="依次为本场击杀、死亡和助攻总数。" /></dt><dd className="mt-1 font-mono text-lg font-semibold tabular-nums">{mvpStats.kills ?? "—"} / {mvpStats.deaths ?? "—"} / {mvpStats.assists ?? "—"}</dd></div>
-          <div><dt className="text-xs text-[var(--color-fg-dim)]"><StatsMetricLabel metric="adr">ADR</StatsMetricLabel></dt><dd className="mt-1 font-mono text-2xl font-bold tabular-nums">{formatStat("adr", mvpStats.adr)}</dd></div>
+          <div><dt className="text-xs text-[var(--color-fg-dim)]"><MvpMetricLabel help={<StatsMetricHelp metric="rating" />}>Rating</MvpMetricLabel></dt><dd className="mt-1 font-mono text-2xl font-bold tabular-nums text-[var(--color-accent)]">{formatStat("ratingPro", mvpStats.ratingPro)}</dd></div>
+          <div><dt className="text-xs text-[var(--color-fg-dim)]"><MvpMetricLabel help={<HelpTooltip label="K / D / A 指标说明" content="依次为本场击杀、死亡和助攻总数。" />}>K / D / A</MvpMetricLabel></dt><dd className="mt-1 font-mono text-lg font-semibold tabular-nums">{mvpStats.kills ?? "—"} / {mvpStats.deaths ?? "—"} / {mvpStats.assists ?? "—"}</dd></div>
+          <div><dt className="text-xs text-[var(--color-fg-dim)]"><MvpMetricLabel help={<StatsMetricHelp metric="adr" />}>ADR</MvpMetricLabel></dt><dd className="mt-1 font-mono text-2xl font-bold tabular-nums">{formatStat("adr", mvpStats.adr)}</dd></div>
         </dl>}
 
         {mvpStats && <div className="grid grid-cols-2 gap-x-6 gap-y-4 text-center text-sm sm:grid-cols-6" aria-label="MVP 关键表现">
@@ -176,7 +176,7 @@ export function MatchMvpVote({
           <p className="text-xs text-[var(--color-fg-dim)]">Advanced · {winnerPerformance.rounds} rounds</p>
           <dl className="grid grid-cols-2 gap-x-6 gap-y-4 text-center sm:grid-cols-4">
             {(["kast", "trade", "utility", "flashAssist"] as const).map(metric => <div key={metric}>
-              <dt className="text-xs text-[var(--color-fg-dim)]"><StatsMetricLabel metric={metric}>{STATS_METRICS[metric].label}</StatsMetricLabel></dt>
+              <dt className="text-xs text-[var(--color-fg-dim)]"><MvpMetricLabel help={<StatsMetricHelp metric={metric} />}>{STATS_METRICS[metric].label}</MvpMetricLabel></dt>
               <dd className="mt-1 flex justify-center font-mono text-lg font-semibold"><MetricValue metric={metric} value={winnerPerformance[metric]} sampleDisplay="hidden" /></dd>
             </div>)}
           </dl>
@@ -308,10 +308,15 @@ function StatCell({
 }) {
   return (
     <div>
-      <span className="text-[var(--color-fg-dim)]">{label}{help && <> <HelpTooltip label={`${label} 指标说明`} content={help} /></>}</span>
+      <span className="text-[var(--color-fg-dim)]"><MvpMetricLabel help={help ? <HelpTooltip label={`${label} 指标说明`} content={help} /> : undefined}>{label}</MvpMetricLabel></span>
       <span className="tabular-nums block text-[var(--color-fg)]">
         {formatStat(metric, value)}
       </span>
     </div>
   );
+}
+
+/** Help sits beside the label without shifting its alignment with the value. */
+function MvpMetricLabel({ children, help }: { children: React.ReactNode; help?: React.ReactNode }) {
+  return <span className="relative inline-block">{children}{help && <span className="absolute left-full top-1/2 ml-1 -translate-y-1/2 leading-none">{help}</span>}</span>;
 }

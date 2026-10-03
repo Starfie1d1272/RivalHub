@@ -66,9 +66,9 @@ export async function VetoView({
             const side = step.side === "ct" ? "CT" : step.side === "t" ? "T" : null;
             const sideTeam = step.actionType === "pick" ? opponentName(step.entryId) : team;
             return (
-              <li key={step.id} className="grid grid-cols-[1rem_4.5rem_minmax(0,1fr)] items-baseline gap-x-2 text-sm sm:gap-x-3">
+              <li key={step.id} className="grid grid-cols-[1rem_4rem_minmax(0,1fr)] items-baseline gap-x-2 text-sm sm:gap-x-3">
                 <span className="text-right text-xs tabular-nums text-[var(--color-fg-dim)]">{step.stepOrder}.</span>
-                <span className="rounded-sm px-1.5 py-0.5 text-center font-mono text-[10px]" style={{ background: `color-mix(in srgb, ${color} 12%, transparent)`, color }}>
+                <span className="justify-self-start font-mono text-xs" style={{ color }}>
                   {ACTION_LABELS[step.actionType] ?? "BP"}
                 </span>
                 <div className="min-w-0 break-words leading-6">
