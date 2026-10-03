@@ -68,10 +68,13 @@ const SYSTEM_FLOW_MAP = [
       "src/app/forgot-password/",
       "src/app/reset-password/",
       "src/actions/auth",
+      "src/actions/account.ts",
+      "src/actions/password-recovery.ts",
+      "src/actions/session-management.ts",
       "src/lib/auth/",
       "src/lib/session/",
     ],
-    specs: ["tests/e2e/flows/major-entry.spec.ts"],
+    specs: ["tests/e2e/flows/major-entry.spec.ts", "tests/e2e/flows/session-revocation.spec.ts"],
   },
   {
     prefixes: [

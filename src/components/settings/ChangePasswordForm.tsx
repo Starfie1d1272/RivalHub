@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { changeUserPassword } from "@/actions/account";
 import { Field } from "@/components/rivalhub";
@@ -8,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { MIN_PASSWORD_LENGTH } from "@/lib/config/auth-config";
 
 export function ChangePasswordForm() {
+  const router = useRouter();
   const [oldPassword, setOldPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -24,7 +26,9 @@ export function ChangePasswordForm() {
     startTransition(async () => {
       const result = await changeUserPassword(oldPassword, newPassword);
       if (result.success) {
-        toast.success("密码已更新");
+        toast.success("密码已更新，所有旧登录已退出，请重新登录");
+        router.replace("/login");
+        router.refresh();
         setOldPassword("");
         setNewPassword("");
         setConfirmPassword("");
