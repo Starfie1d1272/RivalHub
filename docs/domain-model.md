@@ -12,6 +12,10 @@
 
 credential linking 只证明并绑定新的 identity，不复制或移动赛事事实。两个已有 `users.id` 的归并必须先生成 fail-closed preflight：用户选择的保留账号资料和竞技资料原样不变，待归并账号的竞技资料直接删除；登录身份、已确认的 person facts 和不冲突的业务历史归到保留账号，临时状态关闭，历史 actor/provenance 继续保留原账号。只有 Steam 身份、Team 时间线/队长状态、不同参赛身份或同一地图两份正式比赛数据等无法无歧义处理的事实才阻止自助归并。成功归并后 loser 作为可追溯 alias 保留在 `user_merge_ledger`，不会被无痕删除。
 
+登录在用户行锁内重新确认已验证凭据仍属于该 canonical user；锁前查询只用于发现候选。时间戳 fence 独立阻止旧 proof 和密码更新期间的会话颁发，不能替代凭据归属复核。备用邮箱撤销同时撤销相关 provider identity、会话及该邮箱未完成的绑定请求；旧 provider subject 不能借随后重新绑定的邮箱恢复权限。用户可以新发起显式绑定以恢复同一凭据，或绑定新的 provider subject。没有既有 owner 的新凭据仍可走正常注册。
+
+登录、撤销和绑定均先锁用户，再访问可变凭据；绑定涉及两个 owner 时与归并一样按用户 ID 排序取锁，再锁绑定请求。发现 owner 已变化或账号已归并时 fail closed，由新的请求重新解析。重复登录按 credential advisory lock 串行，重复绑定请求由一次性状态拒绝；active-only 唯一索引仍是冲突兜底，不承担撤销语义。
+
 应用登录凭据的生命周期由 `application_sessions` 与 `application_session_controls` 表达，前者是可撤销的注册记录，后者是跨请求颁发 fence 和密码更新状态；在线心跳 `user_sessions` 不提供认证。账号归并保留撤销边界、撤销双方登录，旧会话不 reparent。详见 [鉴权与权限](auth-and-permissions.md#session)。
 
 ### Player-declared profile

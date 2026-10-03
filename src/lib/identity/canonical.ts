@@ -89,7 +89,34 @@ export async function resolveOrCreateCanonicalUserInTx(
   }
   if (!user) throw identityAppError(ErrorCode.UNAUTHORIZED, "loginMethodNotBound");
 
-  // Fence credential synchronization too: a delayed login must not recreate a revoked identity.
+  // The pre-lock lookup discovers a candidate, not authority. READ COMMITTED must
+  // observe ownership again after waiting for revoke/merge/link to release users.
+  if (existingId) {
+    const current = await tx.select().from(userIdentities).where(and(
+      eq(userIdentities.status, "active"),
+      or(
+        and(eq(userIdentities.provider, "supabase_auth"), eq(userIdentities.providerSubject, input.authId)),
+        and(eq(userIdentities.kind, "email"), eq(userIdentities.normalizedValue, email)),
+      ),
+    ));
+    const legacyOwnsCredential = user.authId === input.authId || normalizeEmail(user.email) === email;
+    if (current.some(row => row.userId !== user!.id) ||
+        (!legacyOwnsCredential && !current.some(row => row.userId === user!.id))) {
+      throw identityAppError(ErrorCode.UNAUTHORIZED, "loginMethodNotBound");
+    }
+    // An old provider subject is not a new credential merely because the same
+    // email has subsequently been explicitly linked with a different subject.
+    const revokedSubject = await tx.select({ id: userIdentities.id }).from(userIdentities).where(and(
+      eq(userIdentities.userId, user.id), eq(userIdentities.status, "revoked"),
+      eq(userIdentities.provider, "supabase_auth"), eq(userIdentities.providerSubject, input.authId),
+    )).limit(1);
+    if (revokedSubject.length && !current.some(row => row.provider === "supabase_auth" && row.providerSubject === input.authId)) {
+      throw identityAppError(ErrorCode.UNAUTHORIZED, "loginMethodNotBound");
+    }
+  }
+
+  // Time fencing remains necessary for session/password revocation, independently
+  // of the locked credential ownership check above.
   await assertFreshAuthenticationInTx(tx, user.id, input.authenticationStartedAt);
   const primaryEmail = normalizeEmail(user.email);
   const isPrimaryEmail = primaryEmail === email;
