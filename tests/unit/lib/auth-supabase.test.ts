@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const createClientMock = vi.hoisted(() => vi.fn());
 vi.mock("@supabase/supabase-js", () => ({ createClient: createClientMock }));
@@ -12,7 +12,17 @@ describe("Supabase client boundaries", () => {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = "anon-key";
     process.env.SUPABASE_SECRET_KEY = "sb_secret-key";
     process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-key";
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", "");
     vi.clearAllMocks();
+  });
+
+  afterEach(() => vi.unstubAllEnvs());
+
+  it("prefers the publishable key for both public clients", () => {
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", "sb_publishable_test");
+    createBrowserClient();
+    createPublicAuthClient();
+    expect(createClientMock.mock.calls.map((call) => call[1])).toEqual(["sb_publishable_test", "sb_publishable_test"]);
   });
 
   it("uses the secret key for server clients with persistent auth disabled", () => {
