@@ -22,8 +22,9 @@ export interface LiveViewerState {
   watermark: PublicLiveMatchProjection | null;
   receivedAt: number | null;
   revision: number;
+  acceptedFrames: number;
 }
-export const initialLiveViewerState = (): LiveViewerState => ({ snapshot: null, watermark: null, receivedAt: null, revision: 0 });
+export const initialLiveViewerState = (): LiveViewerState => ({ snapshot: null, watermark: null, receivedAt: null, revision: 0, acceptedFrames: 0 });
 export function liveFreshness(state: LiveViewerState, now: number): LiveFreshness {
   if (!state.snapshot || state.receivedAt === null) return "unavailable";
   const age = Math.max(0, now - state.receivedAt);
@@ -56,13 +57,12 @@ export function receivePublicLive(state: LiveViewerState, input: unknown, matchI
       if (next.delivery[key] > previous.delivery[key]) break;
     }
     // Same gameplay sequence is legal for a newly produced heartbeat, never for a replay.
-    if (Date.parse(next.receivedAt) <= Date.parse(previous.receivedAt)) return state;
     const sameCursor = (["authorityRevision", "generation", "epoch", "sequence"] as const).every(key => next.delivery[key] === previous.delivery[key]);
-    // Producer clocks can differ across a handover; only equal-cursor replay needs this check.
-    if (sameCursor && Date.parse(next.producedAt) <= Date.parse(previous.producedAt)) return state;
+    // Wall clocks can differ across producer/server handover; the cursor owns execution order.
+    if (sameCursor && (Date.parse(next.receivedAt) <= Date.parse(previous.receivedAt) || Date.parse(next.producedAt) <= Date.parse(previous.producedAt))) return state;
   }
   const changed = previous !== null && liveBoundary(previous) !== liveBoundary(next);
-  return { snapshot: next, watermark: next, receivedAt: now, revision: state.revision + Number(changed) };
+  return { snapshot: next, watermark: next, receivedAt: now, revision: state.revision + Number(changed), acceptedFrames: state.acceptedFrames + 1 };
 }
 
 /** Stop at the exact freshness boundary, independent of delayed timer callbacks. */

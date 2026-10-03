@@ -428,7 +428,7 @@ export default async function MatchDetailPage({ params, searchParams }: MatchDet
 
       {/* 赛前分析与预备信息（未结束时展示） */}
       {!isFinished && (
-        <>
+        <PreMatchContext collapsed={afterVeto}>
           <section className="space-y-3">
             <h2 className="text-lg font-semibold text-[var(--color-fg)]">本场阵容</h2>
             <Panel contentClassName="p-4">
@@ -471,11 +471,11 @@ export default async function MatchDetailPage({ params, searchParams }: MatchDet
           )}
 
 
-        </>
+        </PreMatchContext>
       )}
 
       {/* 地图结果 */}
-      {maps.length > 0 ? (
+      {maps.length > 0 && (!afterVeto || hasCompletedMaps) ? (
         <section className="min-w-0 space-y-3">
           <h2 className="text-lg font-semibold text-[var(--color-fg)]">地图结果</h2>
           <Tabs defaultValue={defaultTab}>
@@ -535,7 +535,7 @@ export default async function MatchDetailPage({ params, searchParams }: MatchDet
                       teamBName={teamB?.name ?? "队伍 B"}
                     />
                   )}
-                  {map.scoreA === null && <p className="text-xs text-[var(--color-fg-dim)] py-2">地图待进行</p>}
+                  {map.scoreA === null && <p className="text-xs text-[var(--color-fg-dim)] py-2">{isFinished ? "本图未进行" : "地图待进行"}</p>}
                 </Panel>
               </TabsContent>
             ))}
@@ -667,4 +667,12 @@ export default async function MatchDetailPage({ params, searchParams }: MatchDet
       )}
     </PageLayout>
   );
+}
+
+function PreMatchContext({ collapsed, children }: { collapsed: boolean; children: React.ReactNode }) {
+  if (!collapsed) return <>{children}</>;
+  return <details className="border-t border-[var(--color-border)] pt-4">
+    <summary className="cursor-pointer text-sm font-medium text-[var(--color-fg-mid)]">阵容与赛前资料</summary>
+    <div className="mt-5 space-y-8">{children}</div>
+  </details>;
 }

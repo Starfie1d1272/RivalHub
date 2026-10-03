@@ -4,7 +4,7 @@ import { resolve } from "node:path";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { redactText } from "../../../src/lib/observability/redact";
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
 const execute = promisify(execFile);
 const tsx = resolve("node_modules/.bin/tsx");
 const env = { ...process.env, NODE_OPTIONS: `${process.env.NODE_OPTIONS ?? ""} --conditions=react-server` };
@@ -14,12 +14,14 @@ async function run(script: string, ...args: string[]) {
   return (await execute(tsx, [script, ...args], { env, timeout: 15000 })).stdout;
 }
 
-test("public match consumes private Broadcast and recovers with canonical layout", async ({ page }, testInfo) => {
+test("public match consumes private Broadcast and recovers with canonical layout", async ({ page, browser }, testInfo) => {
   test.skip(testInfo.project.name !== "chromium", "One real producer fixture checks desktop, 390px and 320px together.");
   test.setTimeout(180000);
   const seasonId = randomUUID();
-  const capture = async (name: string) => {
-    const body = await page.screenshot({ fullPage: true });
+  const capture = async (name: string, target: Page = page) => {
+    await target.evaluate(() => document.fonts.ready);
+    await target.addStyleTag({ content: "nextjs-portal { display: none !important; }" });
+    const body = await target.screenshot({ fullPage: true });
     await testInfo.attach(name, { body, contentType: "image/png" });
     const directory = resolve(".agent-tmp/public-match-live-evidence");
     mkdirSync(directory, { recursive: true });
@@ -100,12 +102,19 @@ test("public match consumes private Broadcast and recovers with canonical layout
     await expect(page.getByText("FalleN", { exact: true })).toHaveCount(0);
     await page.goto(url);
     await expect(live.locator("canvas")).toBeVisible();
-    await page.route("**/vendor/radar/**/assets/cs2/objective/*.svg", route => route.abort());
-    await page.reload();
-    await expect(live.getByText("雷达暂不可用，比赛数据仍可查看")).toBeVisible();
-    await expect(live.getByText("FalleN", { exact: true })).toBeVisible();
-    await capture("public-asset-failure");
-    await page.unrouteAll();
+    // A fresh context has no decoded image cache that can bypass a network failure.
+    const failurePage = await browser.newPage({ viewport: { width: 390, height: 1000 } });
+    let failedIcons = 0;
+    try {
+      await failurePage.route(/\/vendor\/radar\/.*\/assets\/cs2\/objective\/.*\.svg$/, route => { failedIcons++; return route.abort(); });
+      await failurePage.goto(url);
+      const failureLive = failurePage.getByTestId("match-realtime");
+      await expect(failureLive.getByText("雷达暂不可用，比赛数据仍可查看")).toBeVisible();
+      await expect(failureLive.getByText("FalleN", { exact: true })).toBeVisible();
+      expect(failedIcons).toBeGreaterThan(0);
+      await capture("public-asset-failure", failurePage);
+    } finally { await failurePage.close(); }
+    await page.bringToFront();
     producer?.kill(); producer = undefined;
     await run(browserFixture, "switch-map", matchId);
     producer = await stream(matchId);

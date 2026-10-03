@@ -8,10 +8,11 @@ import type { PublicLiveMatchProjection } from "@/lib/mizar/live-projection";
 
 const RADAR_ASSET_BASE = "/vendor/radar/0.1.0";
 
-export function MatchRadar({ snapshot, freshness, revision, assetBaseUrl = RADAR_ASSET_BASE }: {
+export function MatchRadar({ snapshot, freshness, revision, sequence, assetBaseUrl = RADAR_ASSET_BASE }: {
   snapshot: PublicLiveMatchProjection;
   freshness: LiveFreshness;
   revision: number;
+  sequence: number;
   assetBaseUrl?: string;
 }) {
   const radar = snapshot.radar;
@@ -51,10 +52,10 @@ export function MatchRadar({ snapshot, freshness, revision, assetBaseUrl = RADAR
     };
   }, [compatible, artwork, assetBaseUrl, assetKey]);
   const frame = useMemo(() => fromPublicRadar(radar, {
-    boundary: liveBoundary(snapshot), // Accepted heartbeats can share the gameplay cursor; the package needs a new presentation sequence.
-    sequence: Date.parse(snapshot.receivedAt),
+    boundary: liveBoundary(snapshot), // Logical accepted-frame order also advances for heartbeats with an unchanged gameplay cursor.
+    sequence,
     current: compatible && freshness !== "unavailable", bomb: snapshot.bomb ? { state: snapshot.bomb.state, sourcePlayerId: snapshot.bomb.carrierSourceId } : null,
-  }), [radar, snapshot, compatible, freshness]);
+  }), [radar, snapshot, sequence, compatible, freshness]);
   const ready = loaded?.key === assetKey && loaded.ok;
   const failed = !compatible || (loaded?.key === assetKey && !loaded.ok);
   return <div className="min-w-0 border border-[var(--color-border)] bg-[var(--color-panel-low)]">

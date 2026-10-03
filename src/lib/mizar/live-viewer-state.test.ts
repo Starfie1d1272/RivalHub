@@ -40,6 +40,7 @@ describe("public LIVE receive boundary", () => {
     expect(receivePublicLive(state, input, input.matchId, 3000)).toBe(state);
     const next = receivePublicLive(state, payload(1), input.matchId, 1000);
     expect(next.receivedAt).toBe(1000);
+    expect(next.acceptedFrames).toBe(2);
     expect(receivePublicLive(next, input, input.matchId, 2000)).toBe(next);
   });
   it("rejects wrong match, malformed, oversized and stale capability", () => {
@@ -62,11 +63,10 @@ describe("public LIVE receive boundary", () => {
     expect(next.revision).toBe(1);
     expect(next.snapshot).toEqual(takeover);
   });
-  it("accepts a newer authority with a sane slower producer clock", () => {
+  it("accepts a newer authority without assuming globally monotonic wall clocks", () => {
     const first = payload(2);
     const state = receivePublicLive(initialLiveViewerState(), first, first.matchId, 0);
     const takeover = payload(1);
-    takeover.receivedAt = payload(3).receivedAt;
     takeover.delivery.authorityRevision = 2;
     expect(receivePublicLive(state, takeover, first.matchId, 1000).snapshot).toEqual(takeover);
   });

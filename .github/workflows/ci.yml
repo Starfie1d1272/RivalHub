@@ -230,6 +230,9 @@ jobs:
       - name: Mizar cross-repo contract
         if: needs.plan.outputs.live_evidence == 'true'
         run: node scripts/ci/timing.mjs "system/mizar contract" -- pnpm mizar:contract-check .mizar-checkout
+      - name: CJK fonts for public match evidence
+        if: needs.plan.outputs.live_evidence == 'true'
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends fonts-noto-cjk
       - name: Browser runtime
         run: google-chrome --version
       - name: E2E body

@@ -18,5 +18,6 @@ const icons = JSON.parse(await readFile(join(root, 'icon-provenance.json'), 'utf
 const paths = Object.entries(icons.assets)
   .filter(([id]) => id === 'objective.c4' || id.startsWith('utility.'))
   .map(([, asset]) => asset.outputPath)
-  .filter(path => existsSync(join(root, path)));
+  .filter(path => existsSync(join(fileURLToPath(destination), path)));
+if (!paths.includes(icons.assets['objective.c4'].outputPath)) throw new Error('Published radar C4 asset is missing');
 await writeFile(new URL('viewer-assets.json', destination), JSON.stringify(paths));

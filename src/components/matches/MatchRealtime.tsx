@@ -60,7 +60,7 @@ export function MatchRealtimeSurface({ state, now, phase, currentMapId, assetBas
           <LiveTeamTable snapshot={snapshot} side="CT" />
           <LiveTeamTable snapshot={snapshot} side="T" />
         </div>
-        <MatchRadar snapshot={snapshot} freshness={freshness} revision={state.revision} assetBaseUrl={assetBaseUrl} />
+        <MatchRadar snapshot={snapshot} freshness={freshness} revision={state.revision} sequence={state.acceptedFrames} assetBaseUrl={assetBaseUrl} />
       </div>
       <RoundHistory snapshot={snapshot} />
     </> : <div className="border-l-2 border-[var(--color-border)] py-2 pl-4 text-sm leading-6 text-[var(--color-fg-mid)]">
