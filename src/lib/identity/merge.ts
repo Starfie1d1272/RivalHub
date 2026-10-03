@@ -1,3 +1,4 @@
+import { revokeAllApplicationSessionsInTx } from "@/lib/auth/session-registry";
 import { createHash } from "node:crypto";
 import { writeAuditInTx } from "@/lib/audit/write";
 import { lockGameplayIdentityWriteInTx } from "./write-lock";
@@ -6,7 +7,8 @@ import { invalidateConfirmedDemoIdentityInTx } from "./statistics-invalidation";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import type { DB, TxDb } from "@/db/client";
 import {
-    identityLinkRequests,
+  applicationSessionControls,
+  identityLinkRequests,
   userIdentities,
   userMergeAuthorizations,
   userMergeLedger,
@@ -127,6 +129,8 @@ export const USER_REFERENCE_RULES: readonly UserReferenceRule[] = [
   { table: "team_invitations", column: "invited_user_id", label: "队伍邀请对象", mode: "special" },
   { table: "team_invitations", column: "invited_by_user_id", label: "队伍邀请发起人", mode: "preserve" },
   { table: "team_invitations", column: "responded_by_user_id", label: "队伍邀请处理人", mode: "preserve" },
+  { table: "application_sessions", column: "user_id", label: "应用登录会话", mode: "delete" },
+  { table: "application_session_controls", column: "user_id", label: "会话撤销边界", mode: "preserve" },
   { table: "user_sessions", column: "user_id", label: "登录会话", mode: "delete" },
   { table: "users", column: "merged_into_user_id", label: "旧账号别名", mode: "preserve" },
   { table: "prediction_accounts", column: "user_id", label: "观赛预测账户", mode: "special" },
@@ -558,6 +562,8 @@ export interface ExecuteUserMergeInput {
 export async function executeUserMergeInTx(tx: TxDb, input: ExecuteUserMergeInput): Promise<UserMergePreflight> {
   await lockGameplayIdentityWriteInTx(tx);
   const locked = await tx.select({ id: users.id }).from(users).where(inArray(users.id, [input.canonicalUserId, input.mergedUserId].sort())).orderBy(users.id).for("update");
+  const pendingPassword = await tx.select({ id: applicationSessionControls.userId }).from(applicationSessionControls).where(and(inArray(applicationSessionControls.userId, [input.canonicalUserId, input.mergedUserId]), sql`${applicationSessionControls.passwordMutationId} IS NOT NULL`));
+  if (pendingPassword.length) throw new AppError(ErrorCode.VALIDATION_FAILED, "账号正在更新密码，请稍后重新预检。 ");
   if (locked.length !== 2) throw new AppError(ErrorCode.NOT_FOUND, "归并候选账号不存在。");
   const preflight = await buildUserMergePreflight(tx, {
     canonicalUserId: input.canonicalUserId,
@@ -578,6 +584,8 @@ export async function executeUserMergeInTx(tx: TxDb, input: ExecuteUserMergeInpu
   await mergeHonorFactsInTx(tx, input.canonicalUserId, input.mergedUserId);
   await mergeMvpFactsInTx(tx, input.canonicalUserId, input.mergedUserId);
   await mergeUnionFactsInTx(tx, input.canonicalUserId, input.mergedUserId);
+  await revokeAllApplicationSessionsInTx(tx, input.canonicalUserId);
+  await revokeAllApplicationSessionsInTx(tx, input.mergedUserId);
   await closeTransientFactsInTx(tx, input.canonicalUserId, input.mergedUserId);
   await mergeIdentitiesInTx(tx, input.canonicalUserId, input.mergedUserId);
   for (const rule of USER_REFERENCE_RULES.filter((entry) => entry.mode === "reparent" && !["match_player_stats.user_id", "match_mvp_votes.player_user_id", "tournament_honors.user_id"].includes(`${entry.table}.${entry.column}`))) {

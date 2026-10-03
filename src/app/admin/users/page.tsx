@@ -1,3 +1,4 @@
+import { UserSessionControl } from "@/components/admin/UserSessionControl";
 import Link from "next/link";
 import { and, asc, eq, isNotNull, or } from "drizzle-orm";
 import { db } from "@/db/client";
@@ -199,6 +200,7 @@ export default async function AdminUsersPage({ searchParams }: PageProps) {
                           steam64={r.steam64 as string | null}
                           steamProfileUrl={r.steam_profile_url as string | null}
                         />
+                        <UserSessionControl userId={r.id as string} />
                       </td>
                       <td className="px-4 py-2.5 text-center tabular-nums text-sm">
                         {hasParticipated ? (

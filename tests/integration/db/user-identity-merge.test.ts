@@ -1,3 +1,4 @@
+import { beginAuthentication, issueApplicationSessionInTx, readApplicationSession } from "../../../src/lib/auth/session-registry";
 import { randomUUID } from "node:crypto";
 import { sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
@@ -35,6 +36,9 @@ describe("canonical user identity merge PostgreSQL invariants", () => {
         [ids.merged],
       );
 
+      const proof = await beginAuthentication(database);
+      const canonicalSession = await database.transaction(tx => issueApplicationSessionInTx(tx, ids.canonical, proof));
+      const mergedSession = await database.transaction(tx => issueApplicationSessionInTx(tx, ids.merged, proof));
       const preflight = await buildUserMergePreflight(database, {
         canonicalUserId: ids.canonical,
         mergedUserId: ids.merged,
@@ -55,6 +59,10 @@ describe("canonical user identity merge PostgreSQL invariants", () => {
         reason: "local PostgreSQL merge invariant test",
       }));
 
+      expect(await readApplicationSession(database, canonicalSession, ids.canonical)).toBeNull();
+      expect(await readApplicationSession(database, mergedSession, ids.merged)).toBeNull();
+      expect(await readApplicationSession(database, mergedSession, ids.canonical)).toBeNull();
+      await expect(database.transaction(tx => issueApplicationSessionInTx(tx, ids.canonical, proof))).rejects.toMatchObject({ code: "UNAUTHORIZED" });
       await expect(pool.query("SELECT count(*)::text AS count FROM education_verifications WHERE user_id = $1", [ids.canonical])).resolves.toMatchObject({ rows: [{ count: "1" }] });
       await expect(pool.query("SELECT count(*)::text AS count FROM competitive_rank_facts WHERE user_id = $1", [ids.canonical])).resolves.toMatchObject({ rows: [{ count: "0" }] });
       await expect(pool.query("SELECT display_name, qq FROM users WHERE id = $1", [ids.canonical])).resolves.toMatchObject({ rows: [{ display_name: "Selected profile", qq: "selected-qq" }] });

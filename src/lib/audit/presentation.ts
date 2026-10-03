@@ -359,6 +359,10 @@ export const AUDIT_ACTION_DEFINITIONS = {
   "competition_entry.restriction_override.grant": { label: "解除参赛限制", category: "entry" },
   "competition_entry.restriction_override.revoke": { label: "撤销参赛限制解除", category: "entry" },
 
+  "user.password_update_started": { label: "开始密码更新并退出旧会话", category: "user" },
+  "user.reset_password": { label: "找回密码", category: "user" },
+  "user.password_update_failed": { label: "密码更新失败并退出旧会话", category: "user" },
+  "user.sessions_revoke": { label: "撤销用户登录", category: "user" },
   "user.change_password": { label: "修改密码", category: "user" },
   "user.claim_invite": { label: "使用管理员邀请码", category: "user" },
   "user.owner_bootstrap": { label: "初始化平台所有者", category: "user" },

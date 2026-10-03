@@ -9,7 +9,7 @@ import { identityLinkRequests } from "@/db/schema";
 import { actionError } from "@/lib/action-utils";
 import { createPublicAuthClient } from "@/lib/auth/supabase-server";
 import { isSecondaryEmailOtpType } from "@/lib/auth/secondary-email-otp";
-import { requireAuth } from "@/lib/auth/session";
+import { destroyUserSession, requireAuth } from "@/lib/auth/session";
 import {
   completeSecondaryIdentityLinkInTx,
   hashIdentityLinkState,
@@ -113,6 +113,7 @@ export async function revokeSecondaryEmailIdentity(identityId: string): Promise<
   try {
     const session = await requireAuth();
     await db.transaction((tx) => revokeSecondaryEmailIdentityInTx(tx, { userId: session.userId, identityId: parsed.data }));
+    await destroyUserSession();
     revalidatePath("/settings/security");
     revalidatePath("/settings/education");
     return ok(undefined);

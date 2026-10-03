@@ -1,5 +1,6 @@
 "use server";
 
+import { beginAuthentication } from "@/lib/auth/session-registry";
 import { revalidatePath } from "next/cache";
 import { eq } from "drizzle-orm";
 import { createPublicAuthClient, createServiceClient } from "@/lib/auth/supabase-server";
@@ -36,6 +37,7 @@ export async function loginWithPassword(
   const normalizedEmail = normalizeEmail(email);
 
   try {
+    const authenticationStartedAt = await beginAuthentication(db);
     const supabase = createPublicAuthClient();
     const { data, error } = await traceOperation("provider.supabase.auth.sign_in", {
       scope: "provider",
@@ -55,6 +57,7 @@ export async function loginWithPassword(
 
     const userRow = await db.transaction(async (tx) => {
       const canonicalUser = await resolveOrCreateCanonicalUserInTx(tx, {
+        authenticationStartedAt,
         authId: data.user.id,
         email: normalizedEmail,
         verifiedAt: new Date(data.user.email_confirmed_at ?? Date.now()),
@@ -69,7 +72,7 @@ export async function loginWithPassword(
     await createUserSession({
       userId: userRow.id,
       email: userRow.email,
-    });
+    }, authenticationStartedAt);
 
     return ok({ email: normalizedEmail });
   } catch (e) {
@@ -314,7 +317,7 @@ export async function claimInviteCode(code: string): Promise<ActionResult<{ role
       }),
     );
 
-    await createUserSession({ userId: result.userId, email: result.email });
+    // Role/grants are DB-derived; claiming an invite does not reissue a login.
 
     revalidatePath("/admin");
     return ok({ role: result.role });

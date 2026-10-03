@@ -1,12 +1,13 @@
 "use server";
 
-import { writeAuditInTx } from "@/lib/audit/write";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/db/client";
 import { users } from "@/db/schema";
-import { createServiceClient } from "@/lib/auth/supabase-server";
-import { requireAuth } from "@/lib/auth/session";
+import { beginAuthentication } from "@/lib/auth/session-registry";
+import { mutatePassword } from "@/lib/auth/password-mutation";
+import { createPublicAuthClient, createServiceClient } from "@/lib/auth/supabase-server";
+import { destroyUserSession, requireAuth } from "@/lib/auth/session";
 import { ok, fail, type ActionResult } from "@/types/action";
 import { failValidation, actionError, isPgUniqueViolation } from "@/lib/action-utils";
 import { AppError, ErrorCode } from "@/lib/errors";
@@ -27,33 +28,24 @@ export async function changeUserPassword(
 
   try {
     const session = await requireAuth();
+    const startedAt = await beginAuthentication(db);
     const supabase = createServiceClient();
 
-    const [{ error: signInError }, userRow] = await Promise.all([
-      supabase.auth.signInWithPassword({ email: session.email, password: oldPassword }),
+    const [{ data: signInData, error: signInError }, userRow] = await Promise.all([
+      createPublicAuthClient().auth.signInWithPassword({ email: session.email, password: oldPassword }),
       db.query.users.findFirst({ where: eq(users.id, session.userId), columns: { authId: true } }),
     ]);
 
     if (signInError) {
       return fail({ code: ErrorCode.UNAUTHORIZED, message: "原密码错误" });
     }
-    if (!userRow?.authId) {
+    if (!userRow?.authId || signInData.user?.id !== userRow.authId) {
       throw new AppError(ErrorCode.NOT_FOUND, "用户不存在");
     }
 
-    const { error: updateError } = await supabase.auth.admin.updateUserById(
-      userRow.authId,
-      { password: newPassword },
-    );
-    if (updateError) {
-      throw new AppError(ErrorCode.INTERNAL_ERROR, "密码更新失败，请重试");
-    }
-
-    await writeAuditInTx(db, {
-      seasonId: null,
-      action: "user.change_password",
-      actorId: session.userId,
-      targetId: session.userId,});
+    await mutatePassword(session.userId, startedAt, "user.change_password", () =>
+      supabase.auth.admin.updateUserById(userRow.authId!, { password: newPassword }));
+    await destroyUserSession();
 
     return ok(undefined);
   } catch (e) {

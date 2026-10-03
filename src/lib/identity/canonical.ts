@@ -1,4 +1,5 @@
 import "server-only";
+import { assertFreshAuthenticationInTx } from "@/lib/auth/session-registry";
 
 import { and, eq, or, sql } from "drizzle-orm";
 import type { DB, TxDb } from "@/db/client";
@@ -43,6 +44,7 @@ export async function resolveOrCreateCanonicalUserInTx(
     verifiedAt: Date;
     source: VerificationSource;
     allowCreate: boolean;
+    authenticationStartedAt: string;
   },
 ): Promise<typeof users.$inferSelect> {
   const email = normalizeEmail(input.email);
@@ -87,6 +89,8 @@ export async function resolveOrCreateCanonicalUserInTx(
   }
   if (!user) throw identityAppError(ErrorCode.UNAUTHORIZED, "loginMethodNotBound");
 
+  // Fence credential synchronization too: a delayed login must not recreate a revoked identity.
+  await assertFreshAuthenticationInTx(tx, user.id, input.authenticationStartedAt);
   const primaryEmail = normalizeEmail(user.email);
   const isPrimaryEmail = primaryEmail === email;
   const isPrimaryAuth = user.authId === input.authId || (isPrimaryEmail && user.authId === null);
