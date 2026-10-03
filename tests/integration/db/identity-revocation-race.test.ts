@@ -22,7 +22,7 @@ async function fixture() {
   return {
     a, b, pool, dbA, dbB, userId, identityId, authId, email,
     login: (proof: string, hold?: () => Promise<void>) => dbB.transaction(async tx => {
-      const user = await resolveOrCreateCanonicalUserInTx(tx, { authId, email, verifiedAt: new Date(), source: "existing_account_reverification", allowCreate: false, authenticationStartedAt: proof });
+      const user = await resolveOrCreateCanonicalUserInTx(tx, { authId, email, verifiedAt: new Date(), source: "signup_confirmation", allowCreate: true, authenticationStartedAt: proof });
       const session = await issueApplicationSessionInTx(tx, user.id, proof);
       await hold?.();
       return session;
@@ -128,7 +128,7 @@ describe("secondary credential revocation versus login on independent PostgreSQL
         await expect(f.dbB.transaction(tx => completeSecondaryIdentityLinkInTx(tx, linkInput))).rejects.toThrow();
         const proof = await beginAuthentication(f.dbB);
         const login = () => f.dbB.transaction(async tx => {
-          const user = await resolveOrCreateCanonicalUserInTx(tx, { ...input, source: "existing_account_reverification", allowCreate: false, authenticationStartedAt: proof });
+          const user = await resolveOrCreateCanonicalUserInTx(tx, { ...input, source: "signup_confirmation", allowCreate: true, authenticationStartedAt: proof });
           return issueApplicationSessionInTx(tx, user.id, proof);
         });
         expect(await readApplicationSession(f.dbA, await login(), f.userId)).not.toBeNull();
@@ -177,5 +177,29 @@ describe("secondary credential revocation versus login on independent PostgreSQL
       } finally { await f.cleanup(); }
     });
   }
+
+  it("distinguishes a new provider subject from a withdrawn one when the email is reused", async () => {
+    const f = await fixture();
+    let newUserId: string | undefined;
+    try {
+      await f.dbA.transaction(tx => revokeSecondaryEmailIdentityInTx(tx, f));
+      const proof = await beginAuthentication(f.dbB);
+      await expect(f.login(proof)).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+      const result = await f.dbB.transaction(async tx => {
+        const user = await resolveOrCreateCanonicalUserInTx(tx, { authId: randomUUID(), email: f.email, verifiedAt: new Date(), source: "signup_confirmation", allowCreate: true, authenticationStartedAt: proof });
+        return { user, session: await issueApplicationSessionInTx(tx, user.id, proof) };
+      });
+      newUserId = result.user.id;
+      expect(newUserId).not.toBe(f.userId);
+      expect(await readApplicationSession(f.dbA, result.session, newUserId)).not.toBeNull();
+      // Even though the email is active again on another person, the withdrawn
+      // provider subject cannot ride that email lookup into a new session.
+      await expect(f.login(await beginAuthentication(f.dbB))).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+      expect((await f.a.query("SELECT id FROM user_identities WHERE user_id=$1 AND status='active'", [f.userId])).rows).toEqual([]);
+    } finally {
+      if (newUserId) { await f.a.query("DELETE FROM user_identities WHERE user_id=$1", [newUserId]); await f.a.query("DELETE FROM users WHERE id=$1", [newUserId]); }
+      await f.cleanup();
+    }
+  });
 
 });

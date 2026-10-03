@@ -80,6 +80,13 @@ export async function resolveOrCreateCanonicalUserInTx(
   if (existingId) {
     [user] = await tx.select().from(users).where(and(eq(users.id, existingId), eq(users.status, "active"))).for("update");
   } else if (input.allowCreate) {
+    // Password login also allows first-time account synchronization. Absence of
+    // an active binding is not proof that this provider credential is new.
+    const withdrawn = await tx.select({ id: userIdentities.id }).from(userIdentities).where(and(
+      eq(userIdentities.status, "revoked"), eq(userIdentities.provider, "supabase_auth"),
+      eq(userIdentities.providerSubject, input.authId),
+    )).limit(1);
+    if (withdrawn.length) throw identityAppError(ErrorCode.UNAUTHORIZED, "loginMethodNotBound");
     [user] = await tx.insert(users).values({
       email,
       authId: input.authId,
@@ -107,7 +114,7 @@ export async function resolveOrCreateCanonicalUserInTx(
     // An old provider subject is not a new credential merely because the same
     // email has subsequently been explicitly linked with a different subject.
     const revokedSubject = await tx.select({ id: userIdentities.id }).from(userIdentities).where(and(
-      eq(userIdentities.userId, user.id), eq(userIdentities.status, "revoked"),
+      eq(userIdentities.status, "revoked"),
       eq(userIdentities.provider, "supabase_auth"), eq(userIdentities.providerSubject, input.authId),
     )).limit(1);
     if (revokedSubject.length && !current.some(row => row.provider === "supabase_auth" && row.providerSubject === input.authId)) {
