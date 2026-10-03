@@ -10,7 +10,7 @@ import { StatsDataTable, type StatsDataColumn } from "@/components/stats/StatsDa
 import { StatsTooltip } from "@/components/stats/StatsTooltip";
 import type { TournamentStats } from "@/lib/stats/tournament-query";
 import { statsHref, type StatsQuery } from "@/lib/stats/view-state";
-import { getDynamicRankingFloor, isRankingEligible } from "@/lib/stats/ranking";
+import { getDynamicRankingFloor, isRankingEligible, partitionRankingPopulation } from "@/lib/stats/ranking";
 import { displayWeaponName, statsRateDenominator, type StatsRateValue } from "@/lib/stats/presentation";
 import type { StatsMetricKey } from "@/lib/stats/metrics";
 import { sortStatsRows } from "@/lib/stats/sorting";
@@ -61,10 +61,9 @@ function bestTeamRate<T extends { team: TeamAnalyticsRow["team"] }>(
   teams: readonly T[],
   valueFor: (team: T) => StatsRateValue,
 ): { team: TeamAnalyticsRow["team"]; value: StatsRateValue } | null {
-  return teams
-    .map((row) => ({ team: row.team, value: valueFor(row) }))
-    .filter(({ value }) => value.rate !== null && (statsRateDenominator(value) ?? 0) > 0)
-    .sort((left, right) =>
+  const population = teams.map((row) => ({ team: row.team, value: valueFor(row) }));
+  const { ranked } = partitionRankingPopulation(population, (row) => row.value.rate, (row) => statsRateDenominator(row.value));
+  return ranked.sort((left, right) =>
       (right.value.rate ?? -1) - (left.value.rate ?? -1) ||
       (statsRateDenominator(right.value) ?? 0) - (statsRateDenominator(left.value) ?? 0) ||
       left.team.displayName.localeCompare(right.team.displayName),
