@@ -112,6 +112,6 @@ export async function takeOverCurrentMap(matchId: string, actorId: string, expec
     if (alreadyTakenOver) return;
     if (![source.identityHealth, source.lineupHealth, source.continuityHealth].some(health => ["conflict", "source_conflict", "result_conflict", "execution_conflict", "stale"].includes(health))) throw new AppError(ErrorCode.VALIDATION_FAILED, "当前没有已核实的异常需要人工接管。");
     await tx.update(matchLiveSessions).set({ autoCanonicalizationArmed: false, manualTakeoverMapEpoch: source.mapEpoch, currentMapId: map.id }).where(eq(matchLiveSessions.id, source.id));
-    await writeAuditInTx(tx, { seasonId: match.seasonId, actorId, action: "mizar.map.manual_takeover", targetId: matchId, meta: { sessionId: source.id, mapEpoch: source.mapEpoch, previousMapId: source.currentMapId, mapId: map.id, mapOrder: map.mapOrder, recoveredMapBinding: expected.recoverMapBinding === true, continuityHealth: source.continuityHealth } });
+    await writeAuditInTx(tx, { seasonId: match.seasonId, actorId, action: "mizar.map.manual_takeover", targetId: matchId, meta: { sessionId: source.id, mapEpoch: source.mapEpoch, programSourceGeneration: source.programSourceGeneration, previousManualTakeoverMapEpoch: source.manualTakeoverMapEpoch, previousMapId: source.currentMapId, mapId: map.id, mapOrder: map.mapOrder, recoveredMapBinding: expected.recoverMapBinding === true, continuityHealth: source.continuityHealth } });
   });
 }
