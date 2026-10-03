@@ -6,6 +6,8 @@ import "@mizar-hud/radar-view/radar.css";
 import { liveBoundary, type LiveFreshness } from "@/lib/mizar/live-viewer-state";
 import type { PublicLiveMatchProjection } from "@/lib/mizar/live-projection";
 
+import { publicPlayerLabels } from "@/lib/mizar/live-presentation";
+
 const RADAR_ASSET_BASE = "/vendor/radar/0.1.0";
 
 export function MatchRadar({ snapshot, freshness, revision, sequence, assetBaseUrl = RADAR_ASSET_BASE }: {
@@ -51,11 +53,14 @@ export function MatchRadar({ snapshot, freshness, revision, sequence, assetBaseU
       for (const image of pending) { image.onload = null; image.onerror = null; }
     };
   }, [compatible, artwork, assetBaseUrl, assetKey]);
-  const frame = useMemo(() => fromPublicRadar(radar, {
+  const frame = useMemo(() => {
+    const labels = publicPlayerLabels(snapshot.players);
+    return fromPublicRadar(radar ? { ...radar, players: radar.players.map(player => ({ ...player, label: labels.get(player.sourcePlayerId) ?? "?" })) } : null, {
     boundary: liveBoundary(snapshot), // Logical accepted-frame order also advances for heartbeats with an unchanged gameplay cursor.
     sequence,
     current: compatible && freshness !== "unavailable", bomb: snapshot.bomb ? { state: snapshot.bomb.state, sourcePlayerId: snapshot.bomb.carrierSourceId } : null,
-  }), [radar, snapshot, sequence, compatible, freshness]);
+  });
+  }, [radar, snapshot, sequence, compatible, freshness]);
   const ready = loaded?.key === assetKey && loaded.ok;
   const failed = !compatible || (loaded?.key === assetKey && !loaded.ok);
   return <div className="min-w-0 border border-[var(--color-border)] bg-[var(--color-panel-low)]">

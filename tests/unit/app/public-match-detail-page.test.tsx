@@ -349,6 +349,21 @@ describe("Public Match Detail Page (PRE / POST)", () => {
       expect(loadMatchPredictionMock).not.toHaveBeenCalled();
     });
 
+    it("reads MVP whole-match metrics through the public cache even when a different map/player is selected", async () => {
+      findFirstMatchMock.mockResolvedValue({ id: "finished", seasonId: "season-1", entryAId: "entry-a", entryBId: "entry-b", status: "finished", format: "bo3", stage: "playoff", completedAt: new Date(), mvpWinnerUserId: "winner" });
+      findManyMapsMock.mockResolvedValue([{ id: "map-1", mapOrder: 1, mapName: "de_ancient", scoreA: 13, scoreB: 9, completedAt: new Date() }]);
+      loadMatchScoreboardMock.mockResolvedValue({ completed: [], confirmedMapIds: new Set(), mapPlayers: new Map(), detailedPlayers: [{ userId: "winner", name: "Winner" }, { userId: "other", name: "Other" }], detailedPlayerIds: new Set(["winner", "other"]), detailedMapIds: new Set(["map-1"]), mvpCandidates: [], summaryPlayers: [] });
+      getMatchMvpResultsMock.mockResolvedValue([]);
+      getMatchPlayerDetailMock.mockResolvedValue(null);
+      await MatchDetailPage({ params: Promise.resolve({ seasonSlug: "spring-2026", matchId: "finished" }), searchParams: Promise.resolve({ statsPlayer: "other", statsMap: "map-1" }) });
+      expect(getMatchPlayerDetailMock).toHaveBeenCalledWith("finished", "other", "de_ancient", "public");
+      expect(getMatchPlayerDetailMock).toHaveBeenCalledWith("finished", "winner", undefined, "public");
+      getMatchPlayerDetailMock.mockClear();
+      await MatchDetailPage({ params: Promise.resolve({ seasonSlug: "spring-2026", matchId: "finished" }), searchParams: Promise.resolve({}) });
+      expect(getMatchPlayerDetailMock).toHaveBeenCalledTimes(1);
+      expect(getMatchPlayerDetailMock).toHaveBeenCalledWith("finished", "winner", undefined, "public");
+    });
+
     it("renders per-map scoreboard in the active map tab when summary is not shown", async () => {
       findFirstMatchMock.mockResolvedValue({
         id: "match-single-map",

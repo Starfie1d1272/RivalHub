@@ -7,6 +7,7 @@ import { projectPublicLive } from "@/lib/mizar/live-projection";
 import { initialLiveViewerState, receivePublicLive } from "@/lib/mizar/live-viewer-state";
 import { MatchRealtimeSurface } from "./MatchRealtime";
 import { MatchHeroHeader } from "./MatchHeroHeader";
+import { MatchListScoreSurface } from "./MatchListLiveScore";
 import { MatchMapSequence } from "./MatchMapSequence";
 vi.mock("./MatchStatusBadge", () => ({ MatchStatusBadge: () => null }));
 vi.mock("next/link", () => ({ default: ({ children, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement>) => <a {...props}>{children}</a> }));
@@ -17,7 +18,7 @@ describe("public LIVE presentation", () => {
   it("renders real public projection stats and SSR-safe radar without provenance or expanded equipment table", () => {
     const html = render("gameplay");
     expect(html).toContain("FalleN"); expect(html).toContain("KSCERATO");
-    expect(html).toContain("战术雷达"); expect(html).toContain("护甲");
+    expect(html).toContain("战术雷达"); expect(html).toContain("Armor"); expect(html).toContain("Money");
     for (const forbidden of ["identityEvidence", "sourcePlayerId", "runtimeSeq", "OCR", "DAK", "弹药", "武器", "装备值", "kill feed"]) expect(html).not.toContain(forbidden);
   });
   it("freezes stale clock and hides time-sensitive data at unavailable", () => {
@@ -35,6 +36,14 @@ describe("public LIVE presentation", () => {
       expect(html).not.toContain("暂时中断");
     }
     expect(render("gameplay", 0, "other-map")).not.toContain("战术雷达");
+  });
+  it("preserves compact canonical map/series results during inter-map without stale telemetry", () => {
+    const context = { phase: "inter_map" as const, currentMapId: "next", seriesProgress: { scoreA: 1, scoreB: 0 }, lastCompletedMap: { id: "previous", mapName: "de_ancient", scoreA: 13, scoreB: 9 } };
+    const list = renderToStaticMarkup(<MatchListScoreSurface entryAId="a" entryBId="b" context={context} />);
+    expect(list).toContain("13 : 9"); expect(list).toContain("(1)"); expect(list).toContain("(0)");
+    expect(list).not.toContain("图间休息"); expect(list).not.toContain("等待下一图");
+    const detail = renderToStaticMarkup(<MatchRealtimeSurface state={state} now={20_000} {...context} />);
+    expect(detail).toContain("13:9"); expect(detail).not.toContain("战术雷达"); expect(detail).not.toContain("回合时钟");
   });
   it("reserves the hero scoreboard for final results", () => {
     const match = { id: "match", entryAId: "a", entryBId: "b", stage: "playoffs", format: "bo3" as const, status: "in_progress", scoreA: null, scoreB: null, scheduledAt: null, completedAt: null, bracketNodeId: null, isForfeit: false };

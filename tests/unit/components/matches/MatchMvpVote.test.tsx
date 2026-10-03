@@ -48,6 +48,15 @@ describe("MVP result refresh", () => {
     else Reflect.deleteProperty(document, "visibilityState");
   });
 
+  it("shows winner secondary and scoped advanced metrics without inventing missing values", () => {
+    const performance = { playerId: "user-1", rounds: 20, kast: { rate: .75, successes: 15, attempts: 20 }, trade: { rate: .1, successes: 2, attempts: 20 }, utility: { rate: null }, flashAssist: { rate: 0, successes: 0, attempts: 20 } };
+    const { rerender } = render(<MatchMvpVote {...props} winnerUserId="user-1" winnerPerformance={performance} />);
+    expect(screen.getByLabelText("MVP 关键表现")).toHaveTextContent("残局获胜0");
+    const advanced = screen.getByLabelText("MVP 进阶表现");
+    expect(advanced).toHaveTextContent("20 回合样本"); expect(advanced).toHaveTextContent("75.0%"); expect(advanced).toHaveTextContent("Util/r—");
+    rerender(<MatchMvpVote {...props} winnerUserId="user-1" winnerPerformance={{ ...performance, playerId: "someone-else" }} />);
+    expect(screen.queryByLabelText("MVP 进阶表现")).not.toBeInTheDocument();
+  });
   it("refreshes an initially empty closed snapshot and stops once the committed winner arrives", async () => {
     const { rerender, unmount } = render(<MatchMvpVote {...props} />);
     await act(async () => { await vi.advanceTimersByTimeAsync(60_000); });

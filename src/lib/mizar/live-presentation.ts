@@ -11,7 +11,7 @@ export function presentBomb(bomb: PublicLiveMatchProjection["bomb"]): string | n
   if (!bomb) return null;
   if (bomb.action?.kind === "plant") return "正在安放 C4";
   if (bomb.action?.kind === "defuse") return "正在拆除 C4";
-  return ({ carried: "C4 携带中", dropped: "C4 已掉落", planted: "C4 已安放", defused: "C4 已拆除", exploded: "C4 已爆炸" } as Record<string, string>)[bomb.state ?? ""] ?? null;
+  return ({ dropped: "C4 已掉落", planted: "C4 已安放", defused: "C4 已拆除", exploded: "C4 已爆炸" } as Record<string, string>)[bomb.state ?? ""] ?? null;
 }
 export function formatLiveClock(seconds: number | null): string {
   if (seconds === null) return "—";
@@ -25,4 +25,24 @@ export function publicRoundScore(snapshot: PublicLiveMatchProjection, entryAId: 
   if (ct.entryId === entryAId && t.entryId === entryBId) return { scoreA: snapshot.map.scoreCT, scoreB: snapshot.map.scoreT };
   if (t.entryId === entryAId && ct.entryId === entryBId) return { scoreA: snapshot.map.scoreT, scoreB: snapshot.map.scoreCT };
   return null;
+}
+
+/** Short public names shared by the table and the package's existing marker label. */
+export function publicPlayerLabels(players: PublicLiveMatchProjection["players"]): Map<string, string> {
+  const labels = new Map<string, string>();
+  const used = new Set<string>();
+  // Source identity gives deterministic tie-breaking independent of roster order or CT/T swaps.
+  for (const player of [...players].sort((a, b) => a.sourcePlayerId.localeCompare(b.sourcePlayerId))) {
+    const letters = Array.from(player.displayName?.normalize("NFKC").replace(/[^\p{L}\p{N}]/gu, "") ?? "");
+    const base = Array.from(letters.join("").toUpperCase()).slice(0, 2).join("") || "?";
+    let label = base;
+    let suffix = 1;
+    while (used.has(label)) {
+      const tag = (suffix++).toString(36).toUpperCase();
+      label = `${Array.from(base).slice(0, 3 - tag.length).join("")}${tag}`;
+    }
+    used.add(label);
+    labels.set(player.sourcePlayerId, label);
+  }
+  return labels;
 }

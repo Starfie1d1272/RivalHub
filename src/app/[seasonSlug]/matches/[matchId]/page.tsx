@@ -24,7 +24,7 @@ import {
   seasonRegistrations,
 } from "@/db/schema";
 import { matchMvpVotes } from "@/db/schema/mvp-votes";
-import { MatchMvpVote } from "@/components/matches/MatchMvpVote";
+import { MatchMvpVote, type MvpPerformance } from "@/components/matches/MatchMvpVote";
 import { PageLayout, Panel, PosChip } from "@/components/rivalhub";
 import { mapLabel } from "@/lib/maps";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
@@ -265,7 +265,7 @@ export default async function MatchDetailPage({ params, searchParams }: MatchDet
     summaryPlayers = scoreboard.summaryPlayers;
     detailedPlayerId = scoreboard.detailedPlayerIds.has(statsQuery.statsPlayer ?? "")
       ? statsQuery.statsPlayer!
-      : [...scoreboard.detailedPlayerIds][0] ?? null;
+      : scoreboard.detailedPlayerIds.has(match.mvpWinnerUserId ?? "") ? match.mvpWinnerUserId : [...scoreboard.detailedPlayerIds][0] ?? null;
     detailedMap = maps.find((map) => map.id === statsQuery.statsMap && scoreboard.detailedMapIds.has(map.id));
     if (detailedPlayerId) {
       const playerId = detailedPlayerId;
@@ -294,6 +294,18 @@ export default async function MatchDetailPage({ params, searchParams }: MatchDet
       });
       if (existingVote) userVoted = existingVote.playerName;
     }
+  }
+
+  // Winner metrics always use the whole-match public cache, independent of the detail tabs.
+  let winnerPerformance: MvpPerformance | null = null;
+  const winnerHasDetail = isFinished && match.mvpWinnerUserId !== null && scoreboard?.detailedPlayerIds.has(match.mvpWinnerUserId);
+  if (winnerHasDetail) {
+    const winnerId = match.mvpWinnerUserId!;
+    const winnerDetail = detailedPlayerId === winnerId && !detailedMap
+      ? detailed
+      : (await readOptionalPublicStats("match_player", async () => ({ detail: await getPublicMatchPlayerDetail(match.id, winnerId, undefined, season.status === "draft" ? "draft" : "public") })))?.detail;
+    const slice = winnerDetail?.performance?.slices.overall;
+    if (slice) winnerPerformance = { playerId: winnerId, rounds: slice.sample.rounds, kast: slice.kast, trade: slice.trade.tradeKillsPerRound, utility: slice.utility.utilityDamagePerRound, flashAssist: slice.utility.flashAssistsPerRound };
   }
 
   const showSummaryTab = summaryPlayers.length > 0;
@@ -418,7 +430,7 @@ export default async function MatchDetailPage({ params, searchParams }: MatchDet
       />}
       {afterVeto && <details className="text-sm"><summary className="cursor-pointer text-[var(--color-fg-mid)]">查看完整 BP 流程</summary><div className="mt-3"><VetoView matchId={match.id} teamAName={teamA?.name ?? "队伍 A"} teamBName={teamB?.name ?? "队伍 B"} entryAId={match.entryAId} entryBId={match.entryBId} /></div></details>}
       <MatchLiveViewing status={match.status} commentators={commentatorRows} showEmpty={afterVeto} />
-      {afterVeto && <MatchRealtime matchId={match.id} phase={phase} currentMapId={publicContext.currentMapId} />}
+      {afterVeto && <MatchRealtime matchId={match.id} phase={phase} currentMapId={publicContext.currentMapId} lastCompletedMap={publicContext.lastCompletedMap} seriesProgress={publicContext.seriesProgress} />}
       {prediction && (
         <MatchPrediction
           data={prediction}
@@ -624,6 +636,8 @@ export default async function MatchDetailPage({ params, searchParams }: MatchDet
           userVotedPlayerName={userVoted}
           completedAt={match.completedAt?.toISOString() ?? null}
           winnerUserId={match.mvpWinnerUserId}
+          winnerPerformance={winnerPerformance}
+          winnerDetailsHref={winnerHasDetail ? `/${seasonSlug}/matches/${match.id}?statsPlayer=${match.mvpWinnerUserId}#detailed-stats` : undefined}
         />
       )}
 

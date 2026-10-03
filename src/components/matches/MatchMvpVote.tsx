@@ -2,12 +2,16 @@
 
 import React, { useState, useEffect, useMemo, useOptimistic, useTransition } from "react";
 import Link from "next/link";
+import type { Route } from "next";
 import { Panel } from "@/components/rivalhub";
 import { PlayerAvatar } from "@/components/players/PlayerAvatar";
 import { castMatchMvpVote } from "@/actions/player-stats";
 import { MVP_DEADLINE_MS } from "@/lib/utils/date";
 import { formatStat, type StatMetric } from "@/lib/stats";
 import { useRoutePolling } from "@/components/use-visible-polling";
+import { MetricValue } from "@/components/stats/MetricValue";
+import { STATS_METRICS } from "@/lib/stats/metrics";
+import type { StatsRateValue } from "@/lib/stats/presentation";
 import { Button } from "@/components/ui/button";
 
 interface MvpCandidate {
@@ -27,6 +31,15 @@ interface MvpCandidate {
   we: number | null;
 }
 
+export interface MvpPerformance {
+  playerId: string;
+  rounds: number;
+  kast: StatsRateValue;
+  trade: StatsRateValue;
+  utility: StatsRateValue;
+  flashAssist: StatsRateValue;
+}
+
 interface MatchMvpVoteProps {
   matchId: string;
   candidates: MvpCandidate[];
@@ -34,6 +47,8 @@ interface MatchMvpVoteProps {
   userVotedPlayerName: string | null;
   completedAt: string | null;
   winnerUserId: string | null;
+  winnerPerformance?: MvpPerformance | null;
+  winnerDetailsHref?: string;
 }
 
 const candidateKey = (userId: string | null, name: string) => userId ?? `legacy:${name}`;
@@ -46,6 +61,8 @@ export function MatchMvpVote({
   userVotedPlayerName,
   completedAt,
   winnerUserId,
+  winnerPerformance,
+  winnerDetailsHref,
 }: MatchMvpVoteProps) {
   const [optimisticVotes, addOptimisticVote] = useOptimistic(
     currentVotes,
@@ -144,6 +161,25 @@ export function MatchMvpVote({
           <div><dt className="text-xs text-[var(--color-fg-dim)]">K / D / A</dt><dd className="mt-1 font-mono text-lg font-semibold tabular-nums">{mvpStats.kills ?? "—"} / {mvpStats.deaths ?? "—"} / {mvpStats.assists ?? "—"}</dd></div>
           <div><dt className="text-xs text-[var(--color-fg-dim)]">ADR</dt><dd className="mt-1 font-mono text-2xl font-bold tabular-nums">{formatStat("adr", mvpStats.adr)}</dd></div>
         </dl>}
+
+        {mvpStats && <div className="grid grid-cols-2 gap-x-6 gap-y-4 text-center text-sm sm:grid-cols-6" aria-label="MVP 关键表现">
+          <StatCell label="爆头率" value={mvpStats.hsPercent} metric="hsPercent" />
+          <StatCell label="首杀" value={mvpStats.firstKills} metric="firstKills" />
+          <StatCell label="多杀" value={mvpStats.multiKills} metric="multiKills" />
+          <StatCell label="残局获胜" value={mvpStats.clutches} metric="clutches" />
+          <StatCell label="RWS" value={mvpStats.rws} metric="rws" />
+          <StatCell label="WE" value={mvpStats.we} metric="we" />
+        </div>}
+        {mvpStats && winnerPerformance?.playerId === winnerUserId && <div className="space-y-3 border-t border-[var(--color-border)] pt-4" aria-label="MVP 进阶表现">
+          <p className="text-xs text-[var(--color-fg-dim)]">本场进阶表现 · {winnerPerformance.rounds} 回合样本</p>
+          <dl className="grid grid-cols-2 gap-x-6 gap-y-4 text-center sm:grid-cols-4">
+            {(["kast", "trade", "utility", "flashAssist"] as const).map(metric => <div key={metric}>
+              <dt className="text-xs text-[var(--color-fg-dim)]" title={STATS_METRICS[metric].description}>{STATS_METRICS[metric].label}</dt>
+              <dd className="mt-1 flex justify-center font-mono text-lg font-semibold"><MetricValue metric={metric} value={winnerPerformance[metric]} sampleDisplay="hidden" /></dd>
+            </div>)}
+          </dl>
+        </div>}
+        {mvpStats && winnerDetailsHref && <div className="text-center"><Link href={winnerDetailsHref as Route} className="text-sm text-[var(--color-accent)] hover:underline">查看本场完整数据 →</Link></div>}
 
         {allVotes.filter((v) => v !== mvp).length > 0 && (
           <div className="grid gap-3 text-xs sm:grid-cols-2 lg:grid-cols-4">
