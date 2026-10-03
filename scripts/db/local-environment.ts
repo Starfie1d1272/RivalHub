@@ -44,8 +44,8 @@ export function parseLocalSupabaseStatus(raw: string): LocalSupabaseStatus {
     "Supabase PUBLISHABLE_KEY/ANON_KEY",
   );
   const serviceRoleKey = requiredString(
-    stringValue(values.SERVICE_ROLE_KEY),
-    "Supabase SERVICE_ROLE_KEY",
+    stringValue(values.SECRET_KEY) ?? stringValue(values.SERVICE_ROLE_KEY),
+    "Supabase SECRET_KEY/SERVICE_ROLE_KEY",
   );
   const studioUrlValue = stringValue(values.STUDIO_URL);
 
@@ -81,6 +81,7 @@ export function buildLocalAppEnvironment(
     NODE_ENV: nodeEnv,
     DATABASE_URL: status.databaseUrl,
     NEXT_PUBLIC_SUPABASE_URL: status.apiUrl,
+    NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: status.publishableKey,
     NEXT_PUBLIC_SUPABASE_ANON_KEY: status.publishableKey,
     SUPABASE_SERVICE_ROLE_KEY: status.serviceRoleKey,
     SUPABASE_SECRET_KEY: undefined,

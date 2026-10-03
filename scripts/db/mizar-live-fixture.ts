@@ -1,3 +1,4 @@
+import { requireSupabasePublicKey } from "../../src/lib/runtime/supabase-keys";
 /** Disposable Local Supabase evidence, never a production entrypoint. */
 import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
@@ -130,7 +131,7 @@ async function verify() {
   const publicJson = JSON.stringify(document);
   if (["private-review-marker", "private-perfect-marker", "@live.local", "credentialHash", "installationId"].some(value => publicJson.includes(value))) throw new Error("Provider DTO leaked private facts");
   const credential = await issueLiveViewerToken(ids.matchId);
-  const viewer = createClient(apiUrl, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, { accessToken: async () => credential.token });
+  const viewer = createClient(apiUrl, requireSupabasePublicKey(process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY), { accessToken: async () => credential.token });
   await viewer.realtime.setAuth(credential.token);
   const channel = viewer.channel(credential.topic, { config: { private: true, broadcast: { ack: true } } });
   try {

@@ -2,6 +2,10 @@ import { describe, expect, it } from "vitest";
 import { extractSafeException, redactText, sanitizeSafeContext } from "@/lib/observability/redact";
 
 describe("observability redaction", () => {
+  it("redacts opaque Supabase secrets from text and exception codes", () => {
+    expect(redactText("provider failed sb_secret_abc123_X-y")).not.toContain("abc123_X-y");
+    expect(extractSafeException({ code: "sb_secret_abc123_X-y" }).code).toBeUndefined();
+  });
   it("uses the PostgreSQL classification fields without exposing query details or params", () => {
     const error = {
       name: "DatabaseError",

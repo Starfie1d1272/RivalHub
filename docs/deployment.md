@@ -21,6 +21,14 @@ Production 对外提供 public、no-store 的 `/api/system/release` read-back en
 
 执行流程见 [`operations/release.md`](./operations/release.md)。
 
+## Supabase API credentials
+
+公开客户端优先读取 `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`，为空时回退到 `NEXT_PUBLIC_SUPABASE_ANON_KEY`；服务端特权客户端优先读取 `SUPABASE_SECRET_KEY`，为空时回退到 `SUPABASE_SERVICE_ROLE_KEY`。secret/service-role 只能留在服务端，不能配置到任何 `NEXT_PUBLIC_*` 变量。公开环境变量在构建时内联，切换后必须重新构建。
+
+新版 API key 是 opaque credential，不能当作用户 JWT 放入 `Authorization: Bearer`；SDK 负责 API key 传输，已认证请求使用真实用户 access token。`SUPABASE_JWT_SECRET`（自定义 Realtime JWT 签名）和 `CRON_SECRET`（调度认证）保持独立，不用 API key 替代。本地验证和恢复入口覆盖或清除继承的 hosted keys，始终使用已校验目标自己的凭据。
+
+代码兼容不等于完成生产轮换。目标环境应先配置新 key，重新构建并验证 Auth、Storage、Realtime 和定时任务，再决定撤销旧 key；正式切换遵循 release procedure。
+
 ## Database authority
 
 - `src/db/schema/`：当前应用 schema；

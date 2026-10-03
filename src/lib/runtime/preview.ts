@@ -21,9 +21,9 @@ export function assertPreviewDatabaseUrl(value: string, env: NodeJS.ProcessEnv =
 export function assertPreviewAuthEnvironment(env: NodeJS.ProcessEnv = process.env): void {
   if (!isPreview(env)) return;
   if (env.NEXT_PUBLIC_SUPABASE_URL !== `https://${PREVIEW_PROJECT_REF}.supabase.co`
-    || !env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    || (!env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY && !env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
     || (!env.SUPABASE_SECRET_KEY && !env.SUPABASE_SERVICE_ROLE_KEY)
     || !env.ADMIN_SESSION_SECRET || env.ADMIN_SESSION_SECRET.length < 32) {
-    throw new Error("Preview 必须配置 dev Supabase URL/anon/secret credential（或 legacy service-role fallback）与独立 ADMIN_SESSION_SECRET。");
+    throw new Error("Preview 必须配置 dev Supabase URL/publishable/secret credential（或 legacy service-role fallback）与独立 ADMIN_SESSION_SECRET。");
   }
 }

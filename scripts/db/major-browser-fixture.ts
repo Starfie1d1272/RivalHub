@@ -1,3 +1,4 @@
+import { requireSupabaseSecretKey } from "../../src/lib/runtime/supabase-keys";
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -203,7 +204,7 @@ function scenarioDefinition(rawScenarioId: string, profile: MajorBrowserScenario
 function openLocalDependencies(env: Readonly<Record<string, string | undefined>>): { auth: SupabaseClient; pool: Pool } {
   const databaseUrl = assertLocalDatabaseUrl(env.DATABASE_URL, "DATABASE_URL");
   const apiUrl = assertLocalHttpUrl(env.NEXT_PUBLIC_SUPABASE_URL, "NEXT_PUBLIC_SUPABASE_URL");
-  const serviceRoleKey = required(env.SUPABASE_SERVICE_ROLE_KEY, "service role key");
+  const serviceRoleKey = requireSupabaseSecretKey(env.SUPABASE_SECRET_KEY, env.SUPABASE_SERVICE_ROLE_KEY);
   return {
     auth: createClient(apiUrl, serviceRoleKey, { auth: { autoRefreshToken: false, persistSession: false } }),
     pool: new Pool({ connectionString: databaseUrl, ssl: false, max: 1 }),
@@ -653,11 +654,6 @@ function deterministicUuid(scope: string): string {
   hex[12] = "5";
   hex[16] = ((Number.parseInt(hex[16]!, 16) & 0x3) | 0x8).toString(16);
   return `${hex.slice(0, 8).join("")}-${hex.slice(8, 12).join("")}-${hex.slice(12, 16).join("")}-${hex.slice(16, 20).join("")}-${hex.slice(20).join("")}`;
-}
-
-function required(value: string | undefined, label: string): string {
-  if (!value?.trim()) throw new Error(`${label} 未设置。`);
-  return value.trim();
 }
 
 function parseProfile(value: string | undefined): MajorBrowserScenarioProfile {
