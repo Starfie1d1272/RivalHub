@@ -97,6 +97,7 @@ export function MatchHeroHeader({
         <div className="text-center px-4">
           {isFinished ? (
             <div
+              aria-label="系列赛比分"
               className="font-bold text-4xl sm:text-[56px]"
               style={{
                 fontFamily: "var(--font-mono)",
@@ -114,7 +115,7 @@ export function MatchHeroHeader({
               className="font-bold"
               style={{
                 fontFamily: "var(--font-display)",
-                fontSize: 42,
+                fontSize: 24,
                 color: "var(--color-fg-dim)",
                 letterSpacing: "var(--tracking-tight-1)",
               }}

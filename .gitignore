@@ -159,3 +159,6 @@ vite.config.ts.timestamp-*
 # Playwright 本地产物
 playwright-report/
 test-results/
+
+# Distributed assets, copied from the locked radar-view package at install time
+/public/vendor/radar/

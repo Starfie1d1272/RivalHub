@@ -23,6 +23,7 @@ const PLAYER_IDENTITY_CONSUMERS: Consumer[] = [
   { path: "src/components/draft/PlayerPool.tsx", mode: "avatar" },
   { path: "src/components/draft/TeamDraftGrid.tsx", mode: "avatar" },
   { path: "src/components/layout/HeaderViewerClient.tsx", mode: "avatar" },
+  { path: "src/components/matches/MatchRealtime.tsx", mode: "text-first", reason: "实时基础表优先扫描十位选手的数据，并与共享雷达对齐；公开协议不含头像。" },
   { path: "src/components/matches/MatchMvpVote.tsx", mode: "avatar" },
   { path: "src/components/matches/MatchRosterView.tsx", mode: "avatar" },
   { path: "src/components/matches/MatchSummaryStats.tsx", mode: "text-first", reason: "高密度赛后统计表以指标扫描为优先。" },

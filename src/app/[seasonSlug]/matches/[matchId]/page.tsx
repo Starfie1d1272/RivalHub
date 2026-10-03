@@ -1,4 +1,9 @@
 import React from "react";
+import { MatchContextRefresh } from "@/components/matches/MatchContextRefresh";
+import { MatchLiveProvider } from "@/components/matches/MatchLiveProvider";
+import { MatchRealtime } from "@/components/matches/MatchRealtime";
+import { MatchMapSequence } from "@/components/matches/MatchMapSequence";
+import { loadPublicMatchPhase } from "@/lib/matches/public-phase";
 import { MatchLiveViewing } from "@/components/matches/MatchLiveViewing";
 import { notFound } from "next/navigation";
 import Link from "next/link";
@@ -87,6 +92,9 @@ export default async function MatchDetailPage({ params, searchParams }: MatchDet
     }),
   ]);
 
+  const publicContext = await loadPublicMatchPhase(match, maps);
+  const phase = publicContext.phase;
+  const afterVeto = phase === "awaiting_gameplay" || phase === "gameplay" || phase === "inter_map";
   const isFinished = match.status === "finished";
   const hasCompletedMaps = maps.some(canConfirmMapScoreboard);
 
@@ -293,6 +301,7 @@ export default async function MatchDetailPage({ params, searchParams }: MatchDet
 
   return (
     <PageLayout variant="standard" className="space-y-8">
+      <MatchContextRefresh enabled={match.status === "scheduled" || match.status === "in_progress"} />
       <MatchHeroHeader
         seasonSlug={seasonSlug}
         match={match}
@@ -369,7 +378,47 @@ export default async function MatchDetailPage({ params, searchParams }: MatchDet
         </Panel>
       )}
 
-      <MatchLiveViewing status={match.status} commentators={commentatorRows} />
+      {(phase === "veto" || phase === "awaiting_veto" || phase === "preparation") && <div className="space-y-4" data-testid="match-bp-primary">          <section className="space-y-3">
+            <Panel label="BP 与开赛">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h2 className="font-semibold text-[var(--color-fg)]">{phase === "veto" ? "BP 进行中" : "等待 BP"}</h2>
+                  <p className="mt-1 text-sm text-[var(--color-fg-mid)]">
+                    {match.status === "scheduled"
+                      ? "双方负责人确认后开始地图禁选。"
+                      : "查看当前地图禁选进度。"}
+                  </p>
+                </div>
+                <Link
+                  className="inline-flex min-h-10 items-center rounded border border-[var(--color-border)] px-4 text-sm font-medium hover:border-[var(--color-border-hover)]"
+                  href={`/${seasonSlug}/matches/${match.id}/veto`}
+                >
+                  {match.status === "scheduled" ? "打开 Veto Room" : "查看 Veto Room"}
+                </Link>
+              </div>
+            </Panel>
+          </section>
+
+          {match.status !== "scheduled" && (
+            <VetoView
+              matchId={match.id}
+              teamAName={teamA?.name ?? "队伍 A"}
+              teamBName={teamB?.name ?? "队伍 B"}
+              entryAId={match.entryAId}
+              entryBId={match.entryBId}
+            />
+          )}
+      </div>}
+      <MatchLiveProvider matchId={match.id} enabled={afterVeto}>
+      {afterVeto && <MatchMapSequence
+        maps={maps.map(map => ({ id: map.id, mapOrder: map.mapOrder, mapName: map.mapName, pickedByEntryId: map.pickedByEntryId, scoreA: map.scoreA, scoreB: map.scoreB, completedAt: map.completedAt?.toISOString() ?? null }))}
+        currentMapId={publicContext.currentMapId} entryAId={match.entryAId} entryBId={match.entryBId} phase={phase} seriesProgress={publicContext.seriesProgress}
+        teamAName={teamA?.name ?? "队伍 A"} teamBName={teamB?.name ?? "队伍 B"} finished={isFinished}
+      />}
+      {afterVeto && <details className="text-sm"><summary className="cursor-pointer text-[var(--color-fg-mid)]">查看完整 BP 流程</summary><div className="mt-3"><VetoView matchId={match.id} teamAName={teamA?.name ?? "队伍 A"} teamBName={teamB?.name ?? "队伍 B"} entryAId={match.entryAId} entryBId={match.entryBId} /></div></details>}
+      <MatchLiveViewing status={match.status} commentators={commentatorRows} showEmpty={afterVeto} />
+      {afterVeto && <MatchRealtime matchId={match.id} phase={phase} currentMapId={publicContext.currentMapId} />}
+      </MatchLiveProvider>
       {prediction && (
         <MatchPrediction
           data={prediction}
@@ -382,7 +431,7 @@ export default async function MatchDetailPage({ params, searchParams }: MatchDet
 
       {/* 赛前分析与预备信息（未结束时展示） */}
       {!isFinished && (
-        <>
+        <PreMatchContext collapsed={afterVeto}>
           <section className="space-y-3">
             <h2 className="text-lg font-semibold text-[var(--color-fg)]">本场阵容</h2>
             <Panel contentClassName="p-4">
@@ -424,41 +473,12 @@ export default async function MatchDetailPage({ params, searchParams }: MatchDet
             />
           )}
 
-          <section className="space-y-3">
-            <Panel label="BP 与开赛">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <h2 className="font-semibold text-[var(--color-fg)]">Veto Room</h2>
-                  <p className="mt-1 text-sm text-[var(--color-fg-mid)]">
-                    {match.status === "scheduled"
-                      ? "双方负责人确认后开始 BP；Veto Session 开始时比赛进入进行中。"
-                      : "查看当前禁选进度、倒计时与超时记录。"}
-                  </p>
-                </div>
-                <Link
-                  className="inline-flex min-h-10 items-center rounded border border-[var(--color-border)] px-4 text-sm font-medium hover:border-[var(--color-border-hover)]"
-                  href={`/${seasonSlug}/matches/${match.id}/veto`}
-                >
-                  {match.status === "scheduled" ? "打开 Veto Room" : "查看 Veto Room"}
-                </Link>
-              </div>
-            </Panel>
-          </section>
 
-          {match.status !== "scheduled" && (
-            <VetoView
-              matchId={match.id}
-              teamAName={teamA?.name ?? "队伍 A"}
-              teamBName={teamB?.name ?? "队伍 B"}
-              entryAId={match.entryAId}
-              entryBId={match.entryBId}
-            />
-          )}
-        </>
+        </PreMatchContext>
       )}
 
       {/* 地图结果 */}
-      {maps.length > 0 ? (
+      {maps.length > 0 && (!afterVeto || hasCompletedMaps) ? (
         <section className="min-w-0 space-y-3">
           <h2 className="text-lg font-semibold text-[var(--color-fg)]">地图结果</h2>
           <Tabs defaultValue={defaultTab}>
@@ -518,7 +538,7 @@ export default async function MatchDetailPage({ params, searchParams }: MatchDet
                       teamBName={teamB?.name ?? "队伍 B"}
                     />
                   )}
-                  {map.scoreA === null && <p className="text-xs text-[var(--color-fg-dim)] py-2">地图待进行</p>}
+                  {map.scoreA === null && <p className="text-xs text-[var(--color-fg-dim)] py-2">{isFinished ? "本图未进行" : "地图待进行"}</p>}
                 </Panel>
               </TabsContent>
             ))}
@@ -650,4 +670,12 @@ export default async function MatchDetailPage({ params, searchParams }: MatchDet
       )}
     </PageLayout>
   );
+}
+
+function PreMatchContext({ collapsed, children }: { collapsed: boolean; children: React.ReactNode }) {
+  if (!collapsed) return <>{children}</>;
+  return <details className="border-t border-[var(--color-border)] pt-4">
+    <summary className="cursor-pointer text-sm font-medium text-[var(--color-fg-mid)]">阵容与赛前资料</summary>
+    <div className="mt-5 space-y-8">{children}</div>
+  </details>;
 }

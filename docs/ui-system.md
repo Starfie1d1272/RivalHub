@@ -107,6 +107,12 @@ Major Play-in 管理使用正赛规模、候选与直通/晋级数等紧凑统�
 
 社区奖公开页面以进行中、已结奖、未颁/取消及个人提交组织浏览。申报与证据表单由 CTA 打开，复用既有 action workflow；候选人与获奖者保持赛事相关人员语义，仅在获奖者确认具有本届选手公开身份时链接选手主页，非选手相关人员展示公开姓名，公开 DTO 与管理审核字段保持分离。
 
+### Public Match live composition
+
+公开比赛用 shared Match phase projection 区分 BP、等待正式对局、对局和图间；freshness 与直播资源独立。详情页 Hero 在赛前、对局与图间保留弱化的 VS，只有赛后显示最终系列赛比分；进行中「地图胜场」放在地图区，以「本图回合」明确当前图比分。地图卡与实时数据区共用单份 viewer state，CT/T 换边后按 canonical 队伍 A/B 映射比分。BP 当前进度先于其它赛前内容。BP 后固定为地图序列/BP 结果、直播播放器、比赛数据，三个阶段复用同一布局；没有直播入口显示紧凑缺省文案。桌面比赛数据为左侧基础数据、右侧共享雷达；两队紧凑表格的总高度与雷达面板齐平，回合记录放在整行下方。窄屏纵向排列、表格局部滚动。BP 后将阵容与赛前资料收在可展开区域，已有正式地图结果继续显示；未产生结果时不重复展示待进行的地图详情。
+
+实时基础表以名称为高密度 identity，不重复头像，展示当前边、存活、HP、护甲、经济、K/A/D、ADR；不展示武器、弹药、装备值、kill feed 或来源诊断。共享雷达展示真实协议已有的玩家、C4、楼层、投掷物、烟雾及火焰，缺失本地增强不补造。接收后不超过三秒为 fresh，三至十秒明确显示「实时数据暂时中断」并冻结时钟/雷达；超过十秒或尚无合法帧时隐藏动态画面，保留 canonical 比赛内容。图间不沿用上一图动态画面，地图/比赛切换重置视觉历史。外部赛程列表的进行中卡片在窄屏将队名上下排列、比分置于右侧，保留队名阅读宽度；只在可见且处于 gameplay 的比赛行订阅同一 private viewer，显示地图名、本图回合比分与次级地图胜场；BP/等待/图间显示 canonical 阶段，失鲜标注中断，unavailable 移除实时比分，赛后只展示最终结果。
+
 ### Public player profile
 
 `/players/[userId]` 是选手的长期资料页，维持 PageLayout standard，保留当前身份、活动、找队状态、报名时资料、公开竞技档案、自报地图熟练度和选手自述。Performance 默认使用 All-time；Event 和 Map 是可分享、刷新可恢复的 URL scope，默认值从 URL 省略，切换 Event 时只在所选赛事不包含当前 Map 时清除 Map。Side（Overall / T / CT）留在指标 workspace 内。系列赛 W/L 与 MVP 随 Event scope 变化，不随 Map scope 变化；Map 只筛选地图、回合和选手表现。指标沿用赛事 Player detail 的 Overview、Opening、Teamplay、Utility、Clutch、Maps、Weapons 家族、MetricValue、样本与 tooltip 语义。Player detail 以 full-width metric section 和紧凑数据行组织，不用等高卡片墙填充指标；Opening 与 Teamplay 分离，地图与武器按列表/表格 grain 展示，不把赛事 Players 宽表直接嵌入 standard 页面。Radar 仅显示所选单届赛事的赛事内标准化结果，不合并不同赛事的分数。赛事履历展示当届队伍、正式战绩、已确认名次和有效官方荣誉，并链接到赛事队伍页与选手统计；用户文案使用「队伍 / Team」，不泄漏 `CompetitionEntry` 等内部术语。

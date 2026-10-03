@@ -225,11 +225,19 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           repository: Starfie1d1272/Mizar
-          ref: 84fca284a9dec46c0a5b1985a8c9115c9801542c # Mizar main 2026-09-29
+          ref: e52c455fb4caea0284dc5f6d0d8ec52bb8159364 # Mizar #118, published radar-view 0.1.0
           path: .mizar-checkout
       - name: Mizar cross-repo contract
         if: needs.plan.outputs.live_evidence == 'true'
         run: node scripts/ci/timing.mjs "system/mizar contract" -- pnpm mizar:contract-check .mizar-checkout
+      - name: CJK fonts for public match evidence
+        if: needs.plan.outputs.live_evidence == 'true'
+        run: |
+          sudo apt-get update
+          mkdir -p .agent-tmp/evidence-fonts
+          cd .agent-tmp/evidence-fonts
+          apt-get download fonts-noto-cjk
+          dpkg-deb -x fonts-noto-cjk_*.deb .
       - name: Browser runtime
         run: google-chrome --version
       - name: E2E body
@@ -252,6 +260,15 @@ jobs:
           PLAYWRIGHT_RETRIES: 0
           RIVALHUB_E2E_SPECS: '["tests/e2e/flows/public-event-experience.spec.ts"]'
         run: node scripts/ci/timing.mjs "system/mobile public event search ×10" -- pnpm test:e2e -- --project=mobile-chrome --repeat-each=10
+
+      - name: Upload public match screenshots
+        if: always() && needs.plan.outputs.live_evidence == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: public-match-live-screenshots
+          path: .agent-tmp/public-match-live-evidence/*.png
+          if-no-files-found: ignore
+          retention-days: 14
 
       - name: Prepare safe system artifacts
         if: failure()

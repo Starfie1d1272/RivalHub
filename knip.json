@@ -92,7 +92,9 @@
     "scripts/mizar-contract-check.mjs!",
     "tests/mocks/server-only.ts",
     "src/components/stats/players/PlayerWorkspace.tsx!",
-    "src/components/stats/teams/TeamWorkspace.tsx!"
+    "src/components/stats/teams/TeamWorkspace.tsx!",
+    "scripts/prepare-radar-assets.mjs!",
+    "scripts/db/public-live-browser-fixture.ts!"
   ],
   "project": [
     "src/**/*.{js,mjs,cjs,jsx,ts,tsx,mts,cts}!",
