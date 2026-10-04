@@ -18,10 +18,10 @@ describe("fixed platform navigation", () => {
   });
   it("matches path boundaries and highlights event pages as events", () => {
     state.pathname = "/event-one/matches";
-    const { rerender } = render(<HeaderNavigation seasons={[{ slug: "event-one", name: "event", status: "playing", registrationOpensAt: null, registrationOpenedAt: null, registrationClosesAt: null }]} />);
+    const { rerender } = render(<HeaderNavigation seasons={[{ slug: "event-one" }]} />);
     expect(screen.getByRole("link", { name: "赛事" })).toHaveAttribute("aria-current", "page");
     state.pathname = "/event-one-more";
-    rerender(<HeaderNavigation seasons={[{ slug: "event-one", name: "event", status: "playing", registrationOpensAt: null, registrationOpenedAt: null, registrationClosesAt: null }]} />);
+    rerender(<HeaderNavigation seasons={[{ slug: "event-one" }]} />);
     expect(screen.getByRole("link", { name: "赛事" })).not.toHaveAttribute("aria-current");
     state.pathname = "/teams-more";
     rerender(<HeaderNavigation seasons={[]} />);

@@ -271,7 +271,7 @@ export function OverviewStats({ data, query, seasonSlug }: { data: TournamentSta
               <StatsDataTable embedded rows={economyRows} columns={economyColumns} rowKey={(row) => row.lowEconomy} tableClassName="table-fixed" emptyLabel="暂无对 Full Buy 的经济样本" />
               <div className="flex items-end justify-between gap-4 border-t border-[var(--color-border)] bg-[var(--color-panel-low)] px-4 py-4">
                 <div className="min-w-0">
-                  <p className="text-[11px] uppercase tracking-[var(--tracking-label)] text-[var(--color-fg-mid)]"><span className="inline-flex items-center gap-1">Overall vs Full Buy<StatsTooltip label="Overall vs Full Buy 统计口径说明" content="汇总 ECO、半起和强起对阵 Full Buy 的回合；不包含手枪局及双方经济等级相同的回合。" /></span></p>
+                  <p className="text-[11px] uppercase tracking-[var(--tracking-label)] text-[var(--color-fg-mid)]"><span className="relative inline-block">Overall vs Full Buy<StatsTooltip className="absolute left-full top-1/2 ml-1 -translate-y-1/2" label="Overall vs Full Buy 统计口径说明" content="汇总 ECO、半起和强起对阵 Full Buy 的回合；不包含手枪局及双方经济等级相同的回合。" /></span></p>
                 </div>
                 <div className="shrink-0 text-right tabular-nums">
                   <p className="text-xl font-semibold">{formatPercent(overallEconomy.rate)}</p>

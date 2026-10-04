@@ -30,4 +30,9 @@ describe("bounded event selection", () => {
     await user.click(screen.getByRole("option"));
     expect(router.push).toHaveBeenCalledWith("/stats");
   });
+  it("shows an authorized current draft name without adding it to public options", () => {
+    render(<EventSelector events={[]} value="draft-event" selectedName="Draft Cup" hrefFor={(slug) => `/${slug}`} />);
+    expect(screen.getByRole("button", { name: "选择赛事" })).toHaveTextContent("Draft Cup");
+  });
+
 });

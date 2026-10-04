@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildInsights, selectInsights, wilsonInterval, type InsightEntity, type InsightFact, type InsightMetric } from "./insights";
+import { buildInsights, selectInsights, type InsightEntity, type InsightFact, type InsightMetric } from "./insights";
 const probability = (x: number, n = 100, coverage = "same-map-set"): InsightFact => ({ kind: "probability", x, n, value: n ? x / n : null, coverage });
 const amount = (x: number, n = 100): InsightFact => ({ kind: "amountPerUnit", x, n, value: n ? x / n : null, coverage: "same-map-set" });
 function population(type: "team" | "player", primary: InsightMetric, secondary?: InsightMetric): InsightEntity[] {
@@ -12,7 +12,7 @@ function flashPopulation(): InsightEntity[] {
     blindPerFlash: amount(enemy * 100), netBlindPerFlash: amount(enemy * 100 - i * 100), friendlyBlindPerFlash: amount(i * 100),
   }, flashMaps: ["a", "b"].map((mapKey) => ({ mapKey, enemy: enemy * 50, friendly: i * 50, flashes: 50 })) }));
 }
-describe("Insight rules v1", () => {
+describe("Insight rules v2", () => {
   it.each([
     ["team", "fourVFive", undefined, "four_v_five_resilience"],
     ["team", "fourVFive", "fiveVFour", "advantage_disadvantage_inversion"],
@@ -27,11 +27,6 @@ describe("Insight rules v1", () => {
     expect(result[0]?.observations[0]).not.toHaveProperty("coverage");
   });
   it("never recommends tiny samples, ties, missing denominators, or N < 4", () => {
-    expect(wilsonInterval(1, 1)!.upper - wilsonInterval(1, 1)!.lower).toBeGreaterThan(0.5);
-    expect(wilsonInterval(2, 2)!.upper - wilsonInterval(2, 2)!.lower).toBeGreaterThan(0.5);
-    expect(wilsonInterval(2, 1)).toBeNull();
-    expect(wilsonInterval(0, 0)).toBeNull();
-    expect(wilsonInterval(-1, 10)).toBeNull();
     const rows = population("team", "fourVFive");
     expect(buildInsights(rows.slice(0, 3), "all")).toEqual([]);
     for (const row of rows) row.metrics.fourVFive = probability(20);
@@ -41,11 +36,31 @@ describe("Insight rules v1", () => {
     rows[0]!.metrics.fourVFive = probability(0, 0);
     expect(buildInsights(rows, "all")).toEqual([]);
   });
+  it.each([1, 2, 3, 4])("uses sample maturity, not the observed rate, at n=%s", (n) => {
+    const rows = population("team", "fourVFive");
+    rows.forEach((row, i) => { row.metrics.fourVFive = probability(i === 0 ? n : 0, n); });
+    expect(buildInsights(rows, "all").length).toBe(n < 4 ? 0 : 1);
+    rows[0]!.metrics.fourVFive = probability(n - 1, n);
+    expect(buildInsights(rows, "all").length).toBe(n < 4 ? 0 : 1);
+  });
+  it("keeps canonical-qualified peers below the insight floor in the pooled reference", () => {
+    const rows = population("team", "fourVFive");
+    rows[1]!.metrics.fourVFive = probability(20, 25);
+    const result = buildInsights(rows, "all")[0]!;
+    expect(result.observations[0]).toMatchObject({ insightFloor: 50, peerRate: 70 / 225, count: 4 });
+  });
+  it("requires five percentage points beyond peers", () => {
+    const rows = population("team", "fourVFive");
+    rows.forEach((row, i) => { row.metrics.fourVFive = probability(i === 0 ? 54 : 50); });
+    expect(buildInsights(rows, "all")).toEqual([]);
+    rows[0]!.metrics.fourVFive = probability(56);
+    expect(buildInsights(rows, "all")).toHaveLength(1);
+  });
   it("uses the shared P75 qualification floor before building the comparison population", () => {
     const rows = population("team", "fourVFive");
     rows[0]!.metrics.fourVFive = probability(22, 24);
-    expect(buildInsights(rows, "all")).toEqual([]); // P75=100 => floor=25; N drops to 3.
-    rows[0]!.metrics.fourVFive = probability(23, 25);
+    expect(buildInsights(rows, "all")).toEqual([]); // Ranking floor remains25; insight floor50 suppresses the narrative.
+    rows[0]!.metrics.fourVFive = probability(45, 50);
     expect(buildInsights(rows, "all").map((row) => row.rule)).toEqual(["four_v_five_resilience"]);
   });
   it("suppresses combinations with different coverage and insufficient R2 opportunities", () => {
@@ -99,7 +114,7 @@ describe("Insight rules v1", () => {
     const selected = selectInsights([...candidates].reverse());
     expect(selected.map((r) => r.family)).toEqual(["team-manpower", "player-opening", "player-utility"]);
     expect(selected.filter((r) => r.entityKey === "player:0")).toHaveLength(2);
-    expect(selected.find((r) => r.family === "player-opening")?.rule).toBe("opening_death_traded");
+    expect(selected.find((r) => r.family === "player-opening")?.rule).toBe("opening_loss_recovery_profile");
     expect(buildInsights(teams, "all").some((r) => r.rule === "four_v_five_resilience")).toBe(false);
     expect(() => buildInsights([teams[0]!, teams[0]!], "all")).toThrow("Duplicate insight entity");
   });

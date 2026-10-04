@@ -70,3 +70,9 @@ describe("stats URL scope", () => {
    const query = parseStatsQuery({ tab: "maps", map: "de_ancient" }, []);
    expect(statsHref("major", query, { tab: "players" })).toBe("/stats?tab=players&mapFilter=de_ancient&event=major");
  });
+
+it("never emits conflicting map detail and mapFilter when selecting another map", () => {
+ const query = parseStatsQuery({tab:"maps",map:"de_ancient",mapFilter:"de_ancient"},[]);
+ expect(statsHref("",query,{map:"de_train"})).toBe("/stats?tab=maps&mapFilter=de_train&map=de_train");
+ expect(statsHref("",query,{mapFilter:"de_nuke"})).toBe("/stats?tab=maps&mapFilter=de_nuke");
+});

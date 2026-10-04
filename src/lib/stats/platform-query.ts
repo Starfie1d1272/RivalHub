@@ -1,8 +1,8 @@
 import "server-only";
-import { and, eq, inArray, isNotNull, ne } from "drizzle-orm";
+import { and, eq, inArray, ne } from "drizzle-orm";
 import { cacheLife, cacheTag } from "next/cache";
 import { db } from "@/db/client";
-import { competitionEntries, matchMaps, matches, seasons } from "@/db/schema";
+import { competitionEntries, matchMaps, matchVetoSteps, matches, seasons } from "@/db/schema";
 import { PUBLIC_STATS_TAG } from "@/lib/cache/tags";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { normalizeStagePlan } from "@/lib/seasons/compatibility";
@@ -10,6 +10,7 @@ import { traceOperation } from "@/lib/observability/server";
 import { STATISTICS_PROJECTION_VERSION } from "./projection-version";
 import { INSIGHT_RULES_VERSION } from "./insights";
 import { getTournamentStats, type PlatformStatsScope } from "./tournament-query";
+import { buildRecords } from "./records";
 import { publicStatsView } from "./public-view";
 import { parseStatsQuery, type StatsSearch } from "./view-state";
 
@@ -41,7 +42,10 @@ export async function getPlatformStatsPage(raw: StatsSearch) {
   if ((!event && (raw.stage || raw.teamFilter)) || query.stage === "__invalid__" || query.mapFilter === "__invalid__") throw new AppError(ErrorCode.NOT_FOUND, "统计范围不可用。");
   const ids = event ? [event.id] : events.map((e) => e.id);
   const maps = events.length ? await db.selectDistinct({ name: matchMaps.mapName, seasonId: matches.seasonId }).from(matchMaps)
-    .innerJoin(matches, eq(matches.id, matchMaps.matchId)).where(and(inArray(matches.seasonId, events.map((e) => e.id)), isNotNull(matchMaps.completedAt), isNotNull(matchMaps.scoreA), isNotNull(matchMaps.scoreB))) : [];
+    .innerJoin(matches, eq(matches.id, matchMaps.matchId)).where(inArray(matches.seasonId, events.map((e) => e.id))) : [];
+  const vetoMaps = events.length ? await db.selectDistinct({ name: matchVetoSteps.mapName, seasonId: matches.seasonId }).from(matchVetoSteps)
+    .innerJoin(matches, eq(matches.id, matchVetoSteps.matchId)).where(inArray(matches.seasonId, events.map((e) => e.id))) : [];
+  maps.push(...vetoMaps);
   const allowedMaps = [...new Set(maps.filter((m) => ids.includes(m.seasonId)).map((m) => m.name))].sort();
   if ((raw.map && !/^de_[a-z0-9_]+$/.test(raw.map as string)) || (raw.map && query.tab !== "maps")
     || (query.map && !allowedMaps.includes(query.map)) || (query.mapFilter && !allowedMaps.includes(query.mapFilter))
@@ -63,7 +67,7 @@ export async function getPlatformStatsPage(raw: StatsSearch) {
     const page = Number(requestedPage), max = Math.max(1, ...(data.records ?? []).map((r) => r.pages));
     if (page > max) throw new AppError(ErrorCode.NOT_FOUND, "纪录页不可用。");
     query.recordPage = page;
-    if (page > 1) data = await cachedPlatformStats({ ...scope, recordPage: page }, `${STATISTICS_PROJECTION_VERSION}:insights/${INSIGHT_RULES_VERSION}`);
+    if (page > 1) data = { ...data, records: buildRecords(data.recordTies ?? [], page) };
   }
   return { data: publicStatsView(data, query), query, event, stages, maps: allowedMaps, events: events.map(({ id, slug, name, status }) => ({ slug, name, status, maps: [...new Set(maps.filter((m) => m.seasonId === id).map((m) => m.name))].sort() })) };
 }

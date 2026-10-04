@@ -3,6 +3,7 @@ import React from "react";
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import type { Route } from "next";
 import { useRouter } from "next/navigation";
 import { MetricFamilyTabs } from "@/components/stats/MetricFamilyTabs";
 import { StatsSideSplit } from "@/components/stats/StatsSideSplit";
@@ -102,11 +103,13 @@ function VetoMatrix({
   rows,
   maps,
   seasonSlug,
+  teamLinks,
   query,
 }: {
   rows: readonly VetoMatrixRow[];
   maps: readonly string[];
   seasonSlug: string;
+  teamLinks: Record<string, string>;
   query: StatsQuery;
 }) {
   const columnCount = 2 + maps.length * 2;
@@ -185,7 +188,7 @@ function VetoMatrix({
             {sortedRows.map((row) => (
               <tr key={row.entryId} className="group transition-colors hover:bg-[var(--color-panel-hi)]">
                 <td className="sticky left-0 z-20 min-w-56 bg-[var(--color-panel)] px-4 py-3 font-medium transition-colors group-hover:bg-[var(--color-panel-hi)]">
-                  <Link href={`/${seasonSlug}/teams/${row.entryId}`} className="hover:text-[var(--color-accent)]">{row.name}</Link>
+                  <Link href={teamLinks[row.entryId] as Route} className="hover:text-[var(--color-accent)]">{row.name}</Link>
                 </td>
                 <td className="w-20 min-w-20 px-3 py-3 text-right font-mono tabular-nums text-[var(--color-fg-mid)]">{row.vetoes}</td>
                 {maps.flatMap((mapName) => {
@@ -279,7 +282,7 @@ export function MapsExplorer({ data, query, seasonSlug }: { data: TournamentStat
               <span>{vetoRows.length} teams · {mapNames.length} maps</span>
             </div>
           </div>
-          <VetoMatrix rows={vetoRows} maps={mapNames} seasonSlug={seasonSlug} query={query} />
+          <VetoMatrix rows={vetoRows} teamLinks={data.teamLinks ?? {}} maps={mapNames} seasonSlug={seasonSlug} query={query} />
         </>
       )}
     </section>

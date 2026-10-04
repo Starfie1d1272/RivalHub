@@ -16,7 +16,7 @@ import { STATISTICS_PROJECTION_VERSION } from "./projection-version";
 import { recordStatsProjectionRead } from "@/lib/observability/statistics";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { buildScopeInsights } from "./insight-facts";
-import { buildRecords, type RecordOccurrence, type RecordSummary } from "./records";
+import { buildRecords, collectRecordTies, type RecordOccurrence, type RecordSummary } from "./records";
 import type { Insight } from "./insights";
 import { buildTournamentResults } from "./results";
 import { buildTeamRatings } from "./team-rating";
@@ -24,7 +24,7 @@ import { classifyVetoSample } from "./veto-sample";
 
 export interface TournamentStatsScope { seasonId: string; stage?: string; format?: "bo1" | "bo3" | "bo5"; mapFilter?: string; teamFilter?: string }
 
-export type PlatformStatsScope = Omit<TournamentStatsScope, "seasonId"> & { seasonId?: string; seasonIds?: string[]; recordPage?: number; weaponTeamId?: string; publicOnly?: boolean };
+export type PlatformStatsScope = Omit<TournamentStatsScope, "seasonId"> & { seasonId?: string; seasonIds?: string[]; weaponTeamId?: string; publicOnly?: boolean };
 type StatsEvidenceScope = PlatformStatsScope;
 
 export interface PlayerStatsEventOption {
@@ -456,7 +456,7 @@ export async function getTournamentStats(scope: PlatformStatsScope, database: DB
     const platform = !scope.seasonId;
     const mapping = new Map(original.entryRows.map((row) => [row.id, platform && row.teamId ? row.teamId : row.id]));
     const remap = (id: string) => mapping.get(id) ?? id;
-    const teamLinks = Object.fromEntries(original.entryRows.map((row) => [remap(row.id), row.teamSlug ? `/teams/${row.teamSlug}` : `/${row.eventSlug}/teams/${row.id}`]));
+    const teamLinks = Object.fromEntries(original.entryRows.map((row) => [remap(row.id), platform && row.teamSlug ? `/teams/${row.teamSlug}` : `/${row.eventSlug}/teams/${row.id}`]));
     const entries = [...new Map(original.entryRows.map((row) => [remap(row.id), { id: remap(row.id), name: platform ? row.teamName ?? `${row.name} · ${row.eventName}` : row.name }])).values()];
     for (const match of original.matches) if (remap(match.entryAId) === remap(match.entryBId)) throw new Error("Platform team identity collision");
     const selected = platform ? original.selected.map((row) => ({ ...row, facts: { ...row.facts,
@@ -492,7 +492,8 @@ export async function getTournamentStats(scope: PlatformStatsScope, database: DB
           entityHref: isTeam ? teamLinks[id]! : `/players/${id}`, opponent };
       });
     });
-    const records = buildRecords(occurrences, scope.recordPage);
+    const recordTies = collectRecordTies(occurrences);
+    const records = buildRecords(recordTies);
     const recordCoverage = { maps: original.selected.filter((r) => r.facts.records).length, economyRounds: original.selected.reduce((sum, r) => sum + (r.facts.records?.economyKnownRounds ?? 0), 0) };
     return {
       leaderboard,
@@ -500,7 +501,7 @@ export async function getTournamentStats(scope: PlatformStatsScope, database: DB
       ...({ teamLinks } as { teamLinks?: Record<string, string> }),
       analytics,
       performance: scope.weaponTeamId ? buildTournamentPerformanceAnalytics(performanceFactsForScope(loaded, scope.weaponTeamId), { labels: loaded.labels }) : performance,
-      ...({ insights, records, recordCoverage } as { insights?: Insight[]; records?: RecordSummary[]; recordCoverage?: { maps: number; economyRounds: number } }),
+      ...({ insights, records, recordTies, recordCoverage } as { insights?: Insight[]; records?: RecordSummary[]; recordTies?: RecordOccurrence[]; recordCoverage?: { maps: number; economyRounds: number } }),
       results,
       selection: buildVetoSelection(veto.participants, veto.rows, mapNames, scope.mapFilter),
       veto: { teams: veto.teams, sample: veto.sample },

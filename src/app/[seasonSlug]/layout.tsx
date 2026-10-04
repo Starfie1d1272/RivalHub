@@ -56,7 +56,7 @@ async function SeasonLayoutContent({ children, params }: SeasonLayoutProps) {
             { label: season.name },
           ]}
         />
-        <SeasonEventSelector value={seasonSlug} events={(await getPublicSeasonCatalog()).map(({ slug, name, status }) => ({ slug, name, status }))} />
+        <SeasonEventSelector value={seasonSlug} currentName={season.name} events={(await getPublicSeasonCatalog()).map(({ slug, name, status }) => ({ slug, name, status }))} />
       </div>
       <SeasonNav
         slug={season.slug}

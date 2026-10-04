@@ -69,6 +69,7 @@ export function statsHref(slug: string, current: StatsQuery, updates: StatsQuery
   }
   if (Object.hasOwn(updates, "mapFilter")) {
     next.mapFilter = updates.mapFilter ?? "";
+    if (next.map && next.map !== next.mapFilter) next.map = "";
     next.player = "";
     if (nextTab === "teams") next.team = "";
   }
@@ -76,7 +77,10 @@ export function statsHref(slug: string, current: StatsQuery, updates: StatsQuery
     next.teamFilter = updates.teamFilter ?? "";
     next.player = "";
   }
-  if (Object.hasOwn(updates, "map") && nextTab === "maps") next.map = updates.map ?? "";
+  if (Object.hasOwn(updates, "map") && nextTab === "maps") {
+    next.map = updates.map ?? "";
+    if (next.map && next.mapFilter && next.map !== next.mapFilter) next.mapFilter = next.map;
+  }
   if (Object.hasOwn(updates, "mapsView") && nextTab === "maps") next.mapsView = updates.mapsView ?? "pool";
 
   if (updates.recordPage !== undefined && nextTab === "records") next.recordPage = updates.recordPage;

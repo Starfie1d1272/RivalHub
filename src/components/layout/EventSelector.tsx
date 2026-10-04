@@ -10,8 +10,8 @@ import { presentSeasonStatus } from "@/lib/seasons/presentation";
 
 export interface EventOption { slug: string; name: string; status: string; maps?: string[] }
 /** Public-safe summaries only. Search changes the list; confirmation changes the scope. */
-export function EventSelector({ events, value, allHref, hrefFor }: {
-  events: EventOption[]; value: string; allHref?: string; hrefFor: (slug: string) => string;
+export function EventSelector({ events, value, selectedName, allHref, hrefFor }: {
+  events: EventOption[]; value: string; selectedName?: string; allHref?: string; hrefFor: (slug: string) => string;
 }) {
   const router = useRouter(), id = useId(), list = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false), [search, setSearch] = useState("");
@@ -19,7 +19,7 @@ export function EventSelector({ events, value, allHref, hrefFor }: {
     .filter((e) => `${e.name} ${e.slug}`.toLowerCase().includes(search.trim().toLowerCase()));
   const select = (slug: string) => { setOpen(false); router.push((slug ? hrefFor(slug) : allHref!) as Route); };
   return <Dialog open={open} onOpenChange={(next) => { setOpen(next); if (next) setSearch(""); }}>
-    <DialogTrigger asChild><Button variant="outline" className="max-w-full min-w-0 justify-between sm:max-w-72" aria-label="选择赛事"><span className="truncate">{events.find((e) => e.slug === value)?.name ?? (allHref ? "全部公开赛事" : "选择赛事")}</span><span aria-hidden> ▾</span></Button></DialogTrigger>
+    <DialogTrigger asChild><Button variant="outline" className="max-w-full min-w-0 justify-between sm:max-w-72" aria-label="选择赛事"><span className="truncate">{events.find((e) => e.slug === value)?.name ?? selectedName ?? (allHref ? "全部公开赛事" : "选择赛事")}</span><span aria-hidden> ▾</span></Button></DialogTrigger>
     <DialogContent size="sm" aria-describedby={undefined}>
       <DialogHeader><DialogTitle>选择赛事</DialogTitle></DialogHeader>
       <div className="min-h-0 space-y-3 px-4 pb-4 sm:px-6 sm:pb-6">

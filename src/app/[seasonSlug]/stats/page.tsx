@@ -5,6 +5,7 @@ import { TournamentStatsView } from "@/components/stats/TournamentStats";
 import { getPublicOrAuthorizedDraftSeason, getPublicSeasonBySlug } from "@/lib/data/public-seasons";
 import { normalizeStagePlan } from "@/lib/seasons/compatibility";
 import { getPublicTournamentMapDetail, getPublicTournamentStats } from "@/lib/stats/cached-query";
+import { publicStatsView } from "@/lib/stats/public-view";
 import { parseStatsQuery, statsHref, type StatsSearch } from "@/lib/stats/view-state";
 import { ErrorCode, isAppErrorCode } from "@/lib/errors";
 import { readOptionalPublicStats } from "@/lib/stats/availability";
@@ -56,7 +57,7 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
   return (
     <PageLayout as="div" variant="wide" className="space-y-6">
       <PageHeader title="数据统计" eyebrow={season.name} />
-      <TournamentStatsView data={data} mapDetail={mapDetail} query={query} seasonSlug={seasonSlug} stages={stages} />
+      <TournamentStatsView data={data ? publicStatsView(data, query) : undefined} mapDetail={mapDetail} query={query} seasonSlug={seasonSlug} stages={stages} />
     </PageLayout>
   );
 }

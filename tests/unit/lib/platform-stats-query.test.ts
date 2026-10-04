@@ -40,11 +40,19 @@ describe("platform scope and cache boundary", () => {
     await expect(getPlatformStatsPage(query)).rejects.toMatchObject({ code: "NOT_FOUND" });
     expect(mocks.stats).not.toHaveBeenCalled();
   });
+  it("accepts veto-only and planned maps offered by the UI", async () => {
+    mocks.rows = [events, [{ name: "de_planned", seasonId: "a" }], [{ name: "de_veto_only", seasonId: "a" }]];
+    const result = await getPlatformStatsPage({ event: "current", tab: "maps", map: "de_veto_only" });
+    expect(result.maps).toEqual(["de_planned", "de_veto_only"]);
+    expect(result.events[0]?.maps).toEqual(result.maps);
+  });
   it("validates bounded record pages and never changes the qualification corpus", async () => {
     mocks.rows = [events, []];
     await expect(getPlatformStatsPage({ tab: "records", recordPage: "3" })).rejects.toMatchObject({ code: "NOT_FOUND" });
     mocks.rows = [events, []];
     await getPlatformStatsPage({ tab: "records", recordPage: "2" });
-    expect(mocks.stats).toHaveBeenLastCalledWith(expect.objectContaining({ seasonIds: ["a", "b"], recordPage: 2 }));
+    expect(mocks.stats).toHaveBeenCalledTimes(2); // One aggregate per request, never a page variant.
+    expect(mocks.stats).toHaveBeenLastCalledWith(expect.objectContaining({ seasonIds: ["a", "b"], publicOnly: true }));
+    expect(mocks.stats.mock.calls.at(-1)?.[0]).not.toHaveProperty("recordPage");
   });
 });

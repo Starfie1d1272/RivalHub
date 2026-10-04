@@ -776,6 +776,8 @@ describe("DAK evidence submit persistence", () => {
         expect(linkedStats.analytics.teams).toHaveLength(3);
         expect(linkedStats.analytics.teams.find((row) => row.team.entityKey === linkedTeamId)?.mapCount).toBe(2);
         expect(linkedStats.teamLinks?.[linkedTeamId]).toBe(`/teams/${linkedTeamId}`);
+        const linkedEvent = await getTournamentStats({ seasonId: ids.season, publicOnly: true }, observedDatabase);
+        expect(linkedEvent.teamLinks?.[ids.entryA]).toBe(eventViews[0]!.teamLinks?.[ids.entryA]);
         expect(linkedStats.performance.players).toHaveLength(10);
       } finally {
         await database.update(schema.competitionEntries).set({ source: "event_native", teamId: null }).where(inArray(schema.competitionEntries.id, [ids.entryA, ids.careerEntryA]));

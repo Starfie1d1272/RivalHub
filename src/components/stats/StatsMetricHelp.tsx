@@ -12,9 +12,9 @@ export function StatsMetricHelp({ metric }: { metric: StatsMetricKey }) {
 
 export function StatsMetricLabel({ metric, children }: { metric: StatsMetricKey; children: ReactNode }) {
   return (
-    <span className="inline-flex max-w-full items-center gap-1">
+    <span className="relative inline-flex max-w-full items-center">
       <span className="min-w-0">{children}</span>
-      <StatsMetricHelp metric={metric} />
+      <span className="absolute left-full top-1/2 ml-1 -translate-y-1/2"><StatsMetricHelp metric={metric} /></span>
     </span>
   );
 }

@@ -3,7 +3,9 @@ import type { StatsQuery } from "./view-state";
 /** Only aggregated summaries used by the selected view cross the RSC boundary. */
 export function publicStatsView(data: TournamentStats, query: StatsQuery): TournamentStats {
   const overview = query.tab === "overview", players = query.tab === "players", teams = query.tab === "teams", maps = query.tab === "maps", weapons = query.tab === "weapons", records = query.tab === "records";
-  return { ...data,
+  const { recordTies, ...publicData } = data;
+  void recordTies;
+  return { ...publicData,
     leaderboard: overview || players ? data.leaderboard : [],
     teamRatings: overview || teams ? data.teamRatings : [],
     insights: overview ? data.insights : undefined,

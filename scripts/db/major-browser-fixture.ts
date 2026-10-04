@@ -27,6 +27,7 @@ export const MAJOR_BROWSER_PROFILE_ACCOUNT_KEYS = {
   "major-entry": ["captain"],
   education: ["player1", "admin"],
   layout: ["player2", "admin"],
+  stats: ["player2", "admin"],
   "major-prestart": ["admin"],
   "major-qualification": ["admin"],
 } as const satisfies Record<string, readonly MajorBrowserAccountKey[]>;
@@ -302,6 +303,8 @@ async function removeFixtureDatabaseRows(client: PoolClient, scenario: ScenarioD
   await client.query("DELETE FROM seasons WHERE slug = $1", [configuredProfileSlug]);
   await client.query("DELETE FROM match_roster_players WHERE roster_id IN (SELECT id FROM match_rosters WHERE match_id IN (SELECT id FROM matches WHERE season_id = $1))", [scenario.seasonId]);
   await client.query("DELETE FROM match_rosters WHERE match_id IN (SELECT id FROM matches WHERE season_id = $1)", [scenario.seasonId]);
+  await client.query("DELETE FROM match_veto_steps WHERE match_id IN (SELECT id FROM matches WHERE season_id = $1)", [scenario.seasonId]);
+  await client.query("DELETE FROM match_maps WHERE match_id IN (SELECT id FROM matches WHERE season_id = $1)", [scenario.seasonId]);
   await client.query("DELETE FROM matches WHERE season_id = $1", [scenario.seasonId]);
   await client.query("DELETE FROM competition_qualification_entrants WHERE season_id = $1", [scenario.seasonId]);
   await client.query("DELETE FROM competition_qualification_runs WHERE season_id = $1", [scenario.seasonId]);
@@ -340,7 +343,7 @@ async function removeFixtureDatabaseRows(client: PoolClient, scenario: ScenarioD
 }
 
 async function insertFixture(client: PoolClient, scenario: ScenarioDefinition, authIds: Map<string, string>): Promise<void> {
-  if (scenario.profile === "major-entry" || scenario.profile === "layout" || scenario.profile === "major-prestart" || scenario.profile === "major-qualification") await insertMajorSeason(client, scenario);
+  if (scenario.profile === "major-entry" || (scenario.profile === "layout" || scenario.profile === "stats") || scenario.profile === "major-prestart" || scenario.profile === "major-qualification") await insertMajorSeason(client, scenario);
 
   for (const [index, account] of scenario.accounts.entries()) {
     const ready = account.key !== "player1";
@@ -372,7 +375,7 @@ async function insertFixture(client: PoolClient, scenario: ScenarioDefinition, a
     return;
   }
   if (scenario.profile === "team-invite") await insertInvitationTeam(client, scenario);
-  if (scenario.profile === "major-entry" || scenario.profile === "layout" || scenario.profile === "major-prestart" || scenario.profile === "major-qualification") {
+  if (scenario.profile === "major-entry" || (scenario.profile === "layout" || scenario.profile === "stats") || scenario.profile === "major-prestart" || scenario.profile === "major-qualification") {
     await seedCompetitivePlatformCatalog(client, scenario.platform, [
       { seasonKey: scenario.previousSeasonKey, label: "Browser 上一赛季", sortOrder: 0, isCurrent: false },
       { seasonKey: scenario.currentSeasonKey, label: "Browser 当前赛季", sortOrder: 1, isCurrent: true },
@@ -385,6 +388,20 @@ async function insertFixture(client: PoolClient, scenario: ScenarioDefinition, a
       await insertQualificationCandidates(client, scenario);
     }
   }
+  if (scenario.profile === "stats") await insertStatsNavigationFixture(client, scenario);
+}
+
+async function insertStatsNavigationFixture(client: PoolClient, scenario: ScenarioDefinition): Promise<void> {
+  const entries = ["Alpha", "Bravo"].map((name, i) => ({ id: deterministicUuid(`${scenario.scenarioId}:stats-entry:${i}`), revision: deterministicUuid(`${scenario.scenarioId}:stats-revision:${i}`), name: `${name} ${scenario.shortKey}`, userId: scenario.accounts[i]!.userId }));
+  for (const e of entries) {
+    await client.query(`INSERT INTO competition_entries (id,competition_id,source,name,representative_user_id,current_roster_revision_id,registration_status) VALUES ($1,$2,'event_native',$3,$4,$5,'approved')`, [e.id,scenario.seasonId,e.name,e.userId,e.revision]);
+    await client.query(`INSERT INTO competition_entry_roster_revisions (id,entry_id,revision_number,status,created_by) VALUES ($1,$2,1,'approved','local-browser-fixture')`, [e.revision,e.id]);
+    await client.query(`INSERT INTO competition_entry_representative_changes (entry_id,to_user_id,changed_by_actor_id) VALUES ($1,$2,'local-browser-fixture')`,[e.id,e.userId]);
+  }
+  const matchId = deterministicUuid(`${scenario.scenarioId}:stats-match`);
+  await client.query(`INSERT INTO matches (id,season_id,stage,entry_a_id,entry_b_id,format,status,score_a,score_b) VALUES ($1,$2,'stage1',$3,$4,'bo1','finished',1,0)`,[matchId,scenario.seasonId,entries[0]!.id,entries[1]!.id]);
+  await client.query(`INSERT INTO match_maps (match_id,map_order,map_name) VALUES ($1,1,'de_vertigo')`,[matchId]);
+  await client.query(`INSERT INTO match_veto_steps (match_id,step_order,action_type,map_name,entry_id) VALUES ($1,1,'ban','de_train',$2)`,[matchId,entries[0]!.id]);
 }
 
 async function insertMajorSeason(client: PoolClient, scenario: ScenarioDefinition): Promise<void> {

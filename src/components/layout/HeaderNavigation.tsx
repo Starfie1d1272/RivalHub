@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils/cn";
 import type { HeaderSeason } from "./Header.types";
 
 interface HeaderNavigationProps {
-  seasons: HeaderSeason[];
+  seasons: Pick<HeaderSeason, "slug">[];
   mobile?: boolean;
 }
 

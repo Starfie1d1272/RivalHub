@@ -10,13 +10,14 @@ function source(): TournamentStats {
   return { leaderboard: [], teamRatings: [], analytics: buildTournamentAnalytics([], { labels }),
     performance: buildTournamentPerformanceAnalytics([], { labels }), results: buildTournamentResults([], [], []),
     selection: [], veto: { teams: [], sample: { finishedMatches: 0, applicableMatches: 0, recordedMatches: 0, missingMatches: 0, notApplicableMatches: 0 } }, coverage: { detailedMaps: 0, completedMaps: 0, maps: [] },
-    options: { teams: [], maps: [] }, records: buildRecords([]), insights: [], recordCoverage: { maps: 0, economyRounds: 0 } };
+    options: { teams: [], maps: [] }, recordTies: [], records: buildRecords([]), insights: [], recordCoverage: { maps: 0, economyRounds: 0 } };
 }
 describe("public statistics DTO", () => {
   it("includes Records only for Records and Insights only for Overview", () => {
     const data = source();
     for (const tab of ["overview", "players", "teams", "maps", "weapons", "records"]) {
       const dto = publicStatsView(data, parseStatsQuery({ tab }, []));
+      expect(dto).not.toHaveProperty("recordTies");
       expect(dto.records).toEqual(tab === "records" ? data.records : undefined);
       expect(dto.insights).toEqual(tab === "overview" ? [] : undefined);
       expect(dto.analytics.provenance).toEqual({ semanticProfile: null, analysisVersions: [] });
