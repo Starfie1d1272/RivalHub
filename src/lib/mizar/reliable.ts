@@ -1,10 +1,12 @@
 import "server-only";
 import { and, eq, isNull, asc } from "drizzle-orm";
 import { db } from "@/db/client";
-import { matches, matchMaps, matchLiveSessions, mizarReliableReceipts, mizarInstallations } from "@/db/schema";
+import { matches, matchMaps, matchLiveSessions, mizarReliableReceipts, mizarInstallations, matchVetoSessions } from "@/db/schema";
 import { writeAuditInTx } from "@/lib/audit/write";
 import { lockMatchInTx, applyMatchStatusTransitionInTx } from "@/lib/match-rosters/service";
 import { recordCanonicalMapResultInTx } from "@/lib/matches/results";
+import { getDisplayName } from "@/lib/identity/display-name";
+import { loadEffectiveMatchRoster } from "@/lib/match-rosters/effective";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { assertInstallationInTx, hashCredential } from "./installation";
 import { validateObservedLineupInTx } from "./source";
@@ -53,8 +55,9 @@ export async function ingestMizarReliable(installationId: string, competitionId:
       const lineupValid = await validateObservedLineupInTx(tx, match, lineupSteam64);
       if (!fresh || !lineupValid) {
         updates.autoCanonicalizationArmed = false;
-        updates.identityHealth = fresh ? "healthy" : "conflict";
+        updates.identityHealth = event.evidence.identity === "matched" ? "healthy" : "conflict";
         updates.lineupHealth = lineupValid ? "healthy" : "conflict";
+        if (!event.evidence.telemetryFresh || !event.evidence.contextFresh) updates.continuityHealth = "stale";
         outcome = "needs_attention";
       } else {
         await applyMatchStatusTransitionInTx(tx, { matchId: match.id, nextStatus: "in_progress", actorId: installationId, now });
@@ -68,37 +71,60 @@ export async function ingestMizarReliable(installationId: string, competitionId:
       const [map] = await tx.select().from(matchMaps).where(eq(matchMaps.matchId, match.id)).orderBy(asc(matchMaps.mapOrder)).then(rows => rows.filter(map => map.completedAt === null));
       const validMap = Boolean(map && map.mapName === event.mapName && (event.mapId === null || map.id === event.mapId));
       const lineupValid = await validateObservedLineupInTx(tx, match, lineupSteam64);
-      const mayArm = match.status === "in_progress" && fresh && validMap && lineupValid && source.manualTakeoverMapEpoch !== event.cursor.mapEpoch;
+      const executionConflict = source.continuityHealth === "execution_conflict";
+      const veto = await tx.query.matchVetoSessions.findFirst({ where: eq(matchVetoSessions.matchId, match.id), columns: { completedAt: true } });
+      const mayArm = Boolean(veto?.completedAt) && (!executionConflict || event.cursor.runtimeSeq > source.lastReliableSeq) && match.status === "in_progress" && fresh && validMap && lineupValid && source.manualTakeoverMapEpoch !== event.cursor.mapEpoch;
       updates.autoCanonicalizationArmed = mayArm;
-      updates.identityHealth = fresh ? "healthy" : "conflict";
+      updates.identityHealth = event.evidence.identity === "matched" ? "healthy" : "conflict";
       updates.lineupHealth = lineupValid ? "healthy" : "conflict";
-      updates.continuityHealth = validMap ? "healthy" : "conflict";
-      updates.currentMapId = validMap ? map!.id : null;
-      updates.mapExecutionPhase = mayArm ? "gameplay" : "waiting";
+      updates.continuityHealth = !validMap || (executionConflict && !mayArm) ? "execution_conflict" : !event.evidence.telemetryFresh || !event.evidence.contextFresh ? "stale" : "healthy";
+      // An invalid observation cannot erase the trusted execution or a manual binding.
+      // A complete, current start observation can revalidate AUTO; an explicit
+      // manual choice remains authoritative for this epoch. End events never re-arm.
+      if (validMap && (!executionConflict || mayArm)) {
+        updates.currentMapId = map!.id;
+        if (fresh && lineupValid && match.status === "in_progress") updates.mapExecutionPhase = "gameplay";
+      }
       outcome = mayArm ? "armed" : "needs_attention";
     } else if (event.kind === "map_ended") {
       const [map] = await tx.select().from(matchMaps).where(and(eq(matchMaps.matchId, match.id), eq(matchMaps.mapName, event.mapName ?? "")));
-      if (!fresh || !source.autoCanonicalizationArmed || source.manualTakeoverMapEpoch === event.cursor.mapEpoch || !map || source.currentMapId !== map.id || (event.mapId !== null && event.mapId !== map.id)) {
+      const sameExecution = Boolean(map && source.currentMapId === map.id && (event.mapId === null || event.mapId === map.id));
+      if (fresh && sameExecution && map!.completedAt !== null) {
+        outcome = map!.scoreA === event.payload.scoreA && map!.scoreB === event.payload.scoreB ? "consistent" : "needs_attention";
+        if (outcome === "needs_attention") { updates.continuityHealth = "result_conflict"; updates.autoCanonicalizationArmed = false; }
+      } else if (!fresh || !source.autoCanonicalizationArmed || source.manualTakeoverMapEpoch === event.cursor.mapEpoch || !sameExecution) {
         updates.autoCanonicalizationArmed = false;
+        if (event.evidence.identity !== "matched") updates.identityHealth = "conflict";
+        if (!sameExecution || source.continuityHealth === "execution_conflict") updates.continuityHealth = "execution_conflict";
+        else if (!event.evidence.telemetryFresh || !event.evidence.contextFresh) updates.continuityHealth = "stale";
         outcome = "needs_attention";
-      } else if (map.completedAt !== null) {
-        outcome = map.scoreA === event.payload.scoreA && map.scoreB === event.payload.scoreB ? "consistent" : "needs_attention";
-        if (outcome === "needs_attention") { updates.continuityHealth = "conflict"; updates.autoCanonicalizationArmed = false; }
       } else {
         // A/B are producer-owned CompetitionEntry-relative candidates. CT/T are evidence only.
-        await recordCanonicalMapResultInTx(tx, { matchId: match.id, mapOrder: map.mapOrder, mapName: map.mapName, scoreA: event.payload.scoreA, scoreB: event.payload.scoreB, pickedByEntryId: null, teamAStartSide: null, actorId: installationId });
+        await recordCanonicalMapResultInTx(tx, { matchId: match.id, mapOrder: map!.mapOrder, mapName: map!.mapName, scoreA: event.payload.scoreA, scoreB: event.payload.scoreB, pickedByEntryId: null, teamAStartSide: null, actorId: installationId });
         updates.mapExecutionPhase = "inter_map";
         outcome = "canonicalized";
       }
     } else if (event.kind === "series_ended") {
       const [current] = await tx.select().from(matches).where(eq(matches.id, match.id));
       outcome = current.status === "finished" && current.scoreA === event.payload.scoreA && current.scoreB === event.payload.scoreB ? "consistent" : "needs_attention";
-      if (outcome === "needs_attention") { updates.continuityHealth = "conflict"; updates.autoCanonicalizationArmed = false; }
+      if (outcome === "needs_attention") { updates.continuityHealth = "result_conflict"; updates.autoCanonicalizationArmed = false; }
+    }
+    const observed = [...lineupSteam64];
+    const expectedPlayers = outcome === "needs_attention" && observed.length > 0
+      ? (await loadEffectiveMatchRoster(tx, [match.id])).filter(player => player.isStarter) : [];
+    const lineupDifference = expectedPlayers.length ? {
+      missing: expectedPlayers.filter(player => !player.steam64 || !observed.includes(player.steam64)).map(player => ({ name: getDisplayName(player), userId: player.userId, steam64: player.steam64 })),
+      unexpected: observed.filter(id => !expectedPlayers.some(player => player.steam64 === id)),
+      duplicated: [...new Set(observed.filter((id, index) => observed.indexOf(id) !== index))],
+    } : null;
+    if (source.continuityHealth === "execution_conflict" && outcome === "armed") {
+      await writeAuditInTx(tx, { seasonId: competitionId, actorId: installationId, action: "mizar.map.revalidated", targetId: match.id,
+        meta: { sessionId: source.id, mapEpoch: source.mapEpoch, mapId: updates.currentMapId, programSourceGeneration: source.programSourceGeneration, runtimeSeq: event.cursor.runtimeSeq } });
     }
     await tx.update(matchLiveSessions).set(updates).where(eq(matchLiveSessions.id, source.id));
     await tx.update(mizarInstallations).set({ lastSeenAt: now }).where(eq(mizarInstallations.id, installationId));
     await tx.insert(mizarReliableReceipts).values({ sessionId: source.id, idempotencyKey: event.idempotencyKey, eventHash, kind: event.kind, outcome });
-    await writeAuditInTx(tx, { seasonId: competitionId, actorId: installationId, action: "mizar.reliable.accept", targetId: match.id, meta: { kind: event.kind, outcome, ...(event.kind === "map_ended" ? event.payload : {}) } });
+    await writeAuditInTx(tx, { seasonId: competitionId, actorId: installationId, action: "mizar.reliable.accept", targetId: match.id, meta: { kind: event.kind, outcome, lineupDifference, ...(event.kind === "identity_mismatch" || event.kind === "lineup_mismatch" ? { reason: event.payload.reason } : {}), sessionId: source.id, mapEpoch: source.mapEpoch, currentMapId: source.currentMapId, receivedMapId: event.mapId, receivedMapName: event.mapName, continuityHealth: updates.continuityHealth ?? source.continuityHealth, ...(event.kind === "map_ended" ? event.payload : {}) } });
     return { outcome, duplicate: false };
   });
 }

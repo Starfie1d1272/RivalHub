@@ -1,3 +1,4 @@
+import { connection } from "next/server";
 import type { ReactNode } from "react";
 import { requireAdmin } from "@/lib/auth/session";
 import { resolveAdminPageAccess } from "@/lib/auth/admin-access";
@@ -9,6 +10,7 @@ import { AdminSidebar } from "@/components/admin/AdminSidebar";
 export const instant = false;
 
 export default async function AdminLayout({ children }: { children: ReactNode }) {
+  await connection();
   const session = await resolveAdminPageAccess(requireAdmin);
   if (!session) return <AdminAccessDenied />;
   return (

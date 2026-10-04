@@ -118,15 +118,21 @@ export async function assertInstallationInTx(tx: TxDb, installationId: string, c
   return installation;
 }
 
-export async function revokeMizarInstallation(installationId: string, competitionId: string, actorId: string) {
+export async function revokeMizarInstallation(installationId: string, competitionId: string, actorId: string, reason = "") {
   return await db.transaction(async tx => {
     const [installation] = await tx.select().from(mizarInstallations).where(and(eq(mizarInstallations.id, installationId), eq(mizarInstallations.competitionId, competitionId))).for("update");
     if (!installation) throw new AppError(ErrorCode.NOT_FOUND, "制播设备不存在。");
+    // The authenticated producer disconnect route uses its own installation ID.
+    if (installation.authorizedByUserId !== actorId && installation.id !== actorId) {
+      const [actor] = await tx.select({ role: users.role }).from(users).where(eq(users.id, actorId));
+      if (actor?.role !== "super_admin") throw new AppError(ErrorCode.FORBIDDEN, "请由设备授权人或超级管理员撤销连接。");
+      if (!reason.trim() || reason.length > 500) throw new AppError(ErrorCode.VALIDATION_FAILED, "请填写撤销他人设备授权的原因（500 字以内）。");
+    }
     if (installation.revokedAt !== null) return { revoked: true, alreadyRevoked: true };
     const now = new Date();
     await tx.update(mizarInstallations).set({ revokedAt: now }).where(eq(mizarInstallations.id, installationId));
     await tx.update(matchLiveSessions).set({ closedAt: now, closeReason: "revoked", autoCanonicalizationArmed: false }).where(and(eq(matchLiveSessions.installationId, installationId), isNull(matchLiveSessions.closedAt)));
-    await writeAuditInTx(tx, { seasonId: competitionId, actorId, action: "mizar.installation.revoke", targetId: installationId });
+    await writeAuditInTx(tx, { seasonId: competitionId, actorId, action: "mizar.installation.revoke", targetId: installationId, meta: { authorizedByUserId: installation.authorizedByUserId, reason: reason.trim() } });
     return { revoked: true, alreadyRevoked: false };
   });
 }

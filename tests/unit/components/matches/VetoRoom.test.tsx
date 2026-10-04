@@ -46,7 +46,7 @@ function roomFixture(): VetoRoomView {
       {
         id: "00000000-0000-4000-8000-000000000002",
         name: "Alpha",
-        vetoRoleLabel: "VETO A",
+        vetoRoleLabel: "先禁图方",
         rosterConfirmed: true,
         rosterStatusLabel: "首发已确认",
         lineupBlocker: null,
@@ -65,7 +65,7 @@ function roomFixture(): VetoRoomView {
       {
         id: "00000000-0000-4000-8000-000000000003",
         name: "Beta",
-        vetoRoleLabel: "VETO B",
+        vetoRoleLabel: "后禁图方",
         rosterConfirmed: true,
         rosterStatusLabel: "首发已确认",
         lineupBlocker: null,
@@ -109,6 +109,7 @@ function roomFixture(): VetoRoomView {
       previousMatchBlocker: false,
       startWindowOpen: true,
     },
+    maps: [],
     steps: [],
     incidents: [],
     permissions: {
@@ -159,7 +160,7 @@ describe("VetoRoom", () => {
 
     try {
       render(<VetoRoom initialRoom={room} />);
-      expect(screen.getByText("最后 10 秒，请尽快完成当前操作。")).toHaveAttribute("role", "status");
+      expect(screen.getByText("最后 10 秒，请完成当前操作。")).toHaveAttribute("role", "status");
 
       await act(async () => {
         await vi.advanceTimersByTimeAsync(7_000);
@@ -256,7 +257,7 @@ describe("VetoRoom", () => {
     await user.type(screen.getByLabelText("恢复原因"), "修正错误的回合记录");
     expect(screen.getByRole("option", { name: "从当前「BAN」开始重做" })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "恢复 BP 步骤" }));
-    expect(screen.getByText(/这会移除该回合及之后的 BP 步骤和地图计划/)).toBeInTheDocument();
+    expect(screen.getByText(/确认后将清除所选位置及之后的 BP 结果/)).toBeInTheDocument();
     expect(actionMocks.rewindVetoRoomAction).not.toHaveBeenCalled();
 
     await user.click(screen.getByRole("button", { name: "确认恢复" }));
@@ -266,4 +267,83 @@ describe("VetoRoom", () => {
       reason: "修正错误的回合记录",
     }));
   });
+  it.each(["spectator", "captain", "admin"])("shows completed BP results with role-specific next steps for %s", role => {
+    const room = roomFixture();
+    room.session.completedAt = room.session.serverNow;
+    room.permissions.isAdmin = role === "admin";
+    room.permissions.viewerEntryId = role === "spectator" ? null : room.match.entryAId;
+    room.permissions.canOperateCurrentTurn = false;
+    room.maps = [{ id: "map-1", mapName: "de_ancient", mapLabel: "Ancient", mapOrder: 1, teamAStartSide: "ct" }];
+    actionMocks.readVetoRoom.mockResolvedValue(ok(room));
+    render(<VetoRoom initialRoom={room} />);
+    expect(screen.getByRole("list", { name: "最终地图顺序与起始阵营" })).toHaveTextContent("Map 1 · Ancient");
+    expect(screen.getByText("Alpha · CT")).toBeInTheDocument();
+    expect(screen.getByText("Beta · T")).toBeInTheDocument();
+    expect(screen.queryByText(/Perfect|建房/)).not.toBeInTheDocument();
+    if (role === "admin") {
+      expect(screen.getByRole("link", { name: "返回比赛工作台" })).toHaveAttribute("href", `/admin/rivals/matches/${room.match.id}`);
+    } else {
+      expect(screen.queryByText(/Perfect|工作台|建房/)).not.toBeInTheDocument();
+      expect(screen.getByRole("link", { name: "返回比赛" })).toHaveAttribute("href", `/rivals/matches/${room.match.id}`);
+      expect(screen.queryByLabelText("恢复原因")).not.toBeInTheDocument();
+    }
+  });
+
+  it("shows spectators a neutral deadline and preserves actions for the acting representative", () => {
+    const room = roomFixture();
+    room.permissions.canOperateCurrentTurn = false;
+    room.permissions.viewerEntryId = null;
+    room.session.turnDeadlineAt = new Date(new Date(room.session.serverNow).getTime() + 5_000).toISOString();
+    actionMocks.readVetoRoom.mockResolvedValue(ok(room));
+    render(<VetoRoom initialRoom={room} />);
+    expect(screen.getByText("本轮操作剩余 10 秒。")).toBeInTheDocument();
+    expect(screen.queryByText(/请完成当前操作/)).not.toBeInTheDocument();
+    expect(screen.queryByTestId("veto-primary-actions")).not.toBeInTheDocument();
+  });
+
+  it("keeps cancelled BP history without a live countdown or commands", () => {
+    const room = roomFixture();
+    room.match.statusKey = "cancelled";
+    room.match.statusLabel = "已取消";
+    actionMocks.readVetoRoom.mockResolvedValue(ok(room));
+    render(<VetoRoom initialRoom={room} />);
+    expect(screen.getByText("比赛已取消")).toBeInTheDocument();
+    expect(screen.queryByText("本次操作剩余时间")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("veto-primary-actions")).not.toBeInTheDocument();
+    expect(actionMocks.reconcileVetoRoomAction).not.toHaveBeenCalled();
+  });
+
+  it("acknowledges an explicit refresh while keeping background reads quiet", async () => {
+    const room = roomFixture();
+    actionMocks.readVetoRoom.mockResolvedValue(ok(room));
+    render(<VetoRoom initialRoom={room} />);
+    expect(screen.queryByText("BP 信息已更新。")).not.toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole("button", { name: "更新 BP 信息" }));
+    expect(await screen.findByText("BP 信息已更新。")).toBeInTheDocument();
+  });
+
+  it("keeps the responsible team's historical appeal available on demand after cancellation", async () => {
+    const room = roomFixture();
+    room.match.statusKey = "cancelled";
+    room.match.statusLabel = "已取消";
+    room.permissions.canOperateCurrentTurn = false;
+    room.incidents = [{ id: "incident-1", entryName: "Alpha", selected: ["Ancient"], sourceLabel: "超时自动选择", appeal: null, mayAppeal: true }];
+    actionMocks.readVetoRoom.mockResolvedValue(ok(room));
+    render(<VetoRoom initialRoom={room} />);
+    expect(screen.getByRole("button", { name: "提交申诉" })).not.toBeVisible();
+    await userEvent.setup().click(screen.getByText("对本条超时提出申诉"));
+    expect(screen.getByLabelText("申诉原因")).toBeVisible();
+    expect(screen.getByRole("button", { name: "提交申诉" })).toBeDisabled();
+    expect(screen.queryByTestId("veto-primary-actions")).not.toBeInTheDocument();
+  });
+
 });
+
+ it("keeps common BP terms concise and explains the current action on demand", async () => {
+    const user = userEvent.setup();
+    render(<VetoRoom initialRoom={roomFixture()} />);
+    expect(screen.getByText("BAN", { exact: true })).toBeInTheDocument();
+    expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "当前 BP 操作说明" }));
+    expect(screen.getByRole("tooltip")).toHaveTextContent("禁用地图，将其移出本场可选地图池。");
+ });

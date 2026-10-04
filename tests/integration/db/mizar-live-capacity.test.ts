@@ -626,6 +626,7 @@ describe("LIVE capacity: real PostgreSQL and loopback HTTP faults", () => {
   it("holds authority fencing through send while revoke, handover and manual results contend", async () => {
     for (const change of ["revoke", "handover", "manual"] as const) {
       const f = await prepared();
+      if (change === "manual") await db.update(schema.matchLiveSessions).set({ continuityHealth: "stale", autoCanonicalizationArmed: false }).where(eq(schema.matchLiveSessions.id, f.sessionId));
       mode = "slow";
       const before = publications.length;
       const live = ingestMizarLive(
@@ -662,7 +663,7 @@ describe("LIVE capacity: real PostgreSQL and loopback HTTP faults", () => {
           });
         }
         if (change === "manual") {
-          await takeOverCurrentMap(f.matchId, f.installationId);
+          await takeOverCurrentMap(f.matchId, f.installationId, { sessionId: f.sessionId, mapEpoch: 1, mapId: f.mapOneId });
           await db.transaction((tx) =>
             recordCanonicalMapResultInTx(tx, {
               matchId: f.matchId,

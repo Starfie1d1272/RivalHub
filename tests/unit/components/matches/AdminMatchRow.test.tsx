@@ -9,6 +9,7 @@ vi.mock("next/link", () => ({ default: ({ children, ...props }: React.AnchorHTML
 vi.mock("@/lib/utils/cn", () => ({ cn: (...classes: Array<string | false | null | undefined>) => classes.filter(Boolean).join(" ") }));
 vi.mock("@/components/rivalhub", () => ({ Panel: ({ children }: { children?: React.ReactNode }) => <div>{children}</div>, StatusPill: () => null }));
 vi.mock("@/components/matches/MatchStatusBadge", () => ({ MatchStatusBadge: () => null }));
+vi.mock("@/components/matches/ClaimMatchButton", () => ({ ClaimMatchButton: ({ matchId }: { matchId: string }) => <button data-match-id={matchId}>由我负责本场</button> }));
 
 import { AdminMatchRow } from "@/components/matches/AdminMatchRow";
 import { getAdminMatchStartBlockers } from "@/lib/admin/matches/start-blockers";
@@ -65,6 +66,7 @@ describe("AdminMatchRow start gate presentation", () => {
         teamAName="Alpha"
         teamBName="Beta"
         seasonSlug="local-major"
+        commentary={{ commentators: [], isMine: false, canClaim: true }}
       />,
     );
 
@@ -72,5 +74,7 @@ describe("AdminMatchRow start gate presentation", () => {
     expect(screen.getByText("Beta")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "进入比赛工作台 →" })).toHaveAttribute("href", "/admin/local-major/matches/match-1");
     expect(screen.getByText("Demo 数据需要处理 · 2 张地图")).toBeInTheDocument();
+    expect(screen.getByText("尚无解说")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "由我负责本场" })).toHaveAttribute("data-match-id", "match-1");
   });
 });

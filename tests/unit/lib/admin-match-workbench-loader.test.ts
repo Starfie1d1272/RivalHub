@@ -29,6 +29,7 @@ vi.mock("@/db/client", () => ({
       matchMaps: { findMany: mapFindManyMock },
       matchVetoSessions: { findFirst: vetoSessionFindFirstMock },
       postMatchReports: { findFirst: postMatchFindFirstMock },
+      matchLiveSessions: { findFirst: vi.fn().mockResolvedValue(undefined) },
     },
     select: selectMock,
   },

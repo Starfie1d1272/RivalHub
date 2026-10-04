@@ -1,6 +1,8 @@
 "use client";
 
 import React, { useState, useRef, useMemo, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { mapLabel } from "@/lib/maps";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -75,6 +77,7 @@ const NUM_FIELDS = [
 type NumFieldKey = typeof NUM_FIELDS[number]["key"];
 
 export function StatsOCRPanel({ mapId, mapName }: Props) {
+  const router = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);
   const [drafts, setDrafts] = useState<DraftRow[]>([]);
   const [canonicalDrafts, setCanonicalDrafts] = useState<DraftRow[]>([]);
@@ -200,6 +203,7 @@ export function StatsOCRPanel({ mapId, mapName }: Props) {
     setCanonicalDrafts(saved);
     setDrafts(saved);
     setViewMode(true);
+    router.refresh();
   }
 
   const assignedUserIdsByRow = useMemo(
@@ -244,6 +248,7 @@ export function StatsOCRPanel({ mapId, mapName }: Props) {
       setViewMode(saved.length > 0);
       setShowClearConfirm(false);
       toast.success("计分板输入已清除");
+      router.refresh();
     }
   }
 
@@ -259,7 +264,7 @@ export function StatsOCRPanel({ mapId, mapName }: Props) {
     <div className="mt-4 space-y-4">
       <div className="flex items-center justify-between gap-2">
         <h4 className="font-semibold text-sm">
-          {mapName} — 玩家数据
+          {mapLabel(mapName)} — 玩家数据
         </h4>
         {viewMode && drafts.length > 0 && (
           <div className="flex gap-2 items-center">
@@ -399,7 +404,7 @@ export function StatsOCRPanel({ mapId, mapName }: Props) {
                           <TableCell key={f.key} className="text-center p-1">
                             <Input
                               className={cn(
-                                "h-7 text-xs text-center w-14",
+                                "h-7 text-xs text-center w-20 min-w-20 px-2",
                                 (row[f.key] as number | null) !== null &&
                                   isStatOutOfRange(f.key, row[f.key] as number) &&
                                   "border-[var(--color-danger)] text-[var(--color-danger)]",

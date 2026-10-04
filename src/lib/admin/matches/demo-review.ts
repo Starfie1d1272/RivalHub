@@ -12,7 +12,7 @@ import type { AdminDemoReviewMap, AdminDemoReviewParticipant } from "./types";
 const ISSUE_TEXT: Record<string, string> = {
   SCORE_MISMATCH: "Demo 回合比分与正式比分不一致，请核对本图赛果。",
   SUMMARY_SCORE_MISMATCH: "Demo 汇总比分与正式比分不一致，请核对本图赛果。",
-  DAK_QA_FAILED: "DAK QA 未通过，本问题不能通过身份确认解决。",
+  DAK_QA_FAILED: "请在 Uploader 查看 DAK 检查结果，处理后重新解析并同步。",
   TARGET_STAGE_MISMATCH: "Demo 对应的比赛阶段已变化，请核对数据来源。",
   TARGET_STAGE_RUN_MISMATCH: "Demo 对应的阶段轮次已变化，请核对数据来源。",
   TARGET_MAP_ORDER_MISMATCH: "Demo 图序与当前比赛不一致，请核对数据来源。",
@@ -90,15 +90,15 @@ export async function loadAdminDemoReview(
           } : null;
         })(),
         note: state === "confirmable" ? null : state === "roster-mismatch"
-          ? "这个 Steam64 已明确属于本队赛事名单成员，但不在本场记录的首发五人中。这是实际出场名单问题，不是 Steam 身份冲突；请不要改绑或撤销 Steam 身份。"
+          ? "该玩家已对应到本队赛事成员。请核对实际出场名单，并通过本场首发管理处理差异。"
           : state === "conflict-retirable"
             ? "请先核对当前关联和本场首发。确认关联错误后，可撤销本赛事比赛确认产生的身份，再重新选择选手。"
             : state === "conflict-nonretirable"
               ? resolution?.source === "primary"
-                ? "这是选手资料中的当前 Steam64，不能在此撤销。请联系该选手核对账号设置，并由平台管理员处理身份争议。"
+                ? "这是选手资料中的当前 Steam64。请由选手核对账号设置，身份争议交由平台管理员处理。"
                 : identity?.provenance === "profile_change"
-                  ? "这是更换账号资料时保留的历史身份，不能在此撤销。请联系平台管理员核对历史身份。"
-                  : "该身份的来源不属于当前赛事可撤销范围，请联系来源赛事管理员或平台管理员核对。"
+                  ? "这是更换账号时保留的历史 Steam64，请联系平台管理员核对。"
+                  : "请联系来源赛事管理员或平台管理员核对这条选手对应记录。"
               : "本场当前首发名单没有可确认的选手，请先核对出场名单。",
         candidates: state === "confirmable" || state.startsWith("conflict-")
           ? starters.map((member) => ({ eventRosterMemberId: member.eventRosterMemberId,
@@ -119,9 +119,9 @@ export async function loadAdminDemoReview(
           conflicts > 0 ? `${conflicts} 名选手 Steam64 已关联其他选手` : "",
           rosterMismatches > 0 ? `${rosterMismatches} 名选手实际出场与本场记录首发不一致` : "",
         ].filter(Boolean).join("；")}`
-      : "这份 Demo 当前不是 Steam 身份确认问题。";
+      : "请按下方检查结果处理这份 Demo。";
     return { ...base, invalidPayload: false, message, resolvedCount, blockingIssues: blockingIssues.length > 0 ? blockingIssues
-      : participants.length === 0 ? ["当前身份已正常匹配，待处理记录仍需核对；本页刷新不会自动写入比赛统计。"] : [], participants };
+      : participants.length === 0 ? ["选手已匹配，请核对其余待处理项，再确认同步统计。"] : [], participants };
   } catch {
     return { ...base, invalidPayload: false, message: "当前无法核对选手身份，请联系平台管理员检查赛事身份资料后重试。",
       resolvedCount: 0, blockingIssues: [], participants: [] };

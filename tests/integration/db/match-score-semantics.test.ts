@@ -4,10 +4,13 @@ import { describe, expect, it, vi } from "vitest";
 import {
   readVetoRoomCore,
   requestVetoStart,
+  rewindVetoRoom,
+  resumeVetoRoom,
   setManualPrivilegedEntry,
   submitVetoCommand,
 } from "../../../src/lib/matches/veto-room/service";
 import { localDatabaseUrl } from "./harness/database";
+import { projectVetoRoomView } from "../../../src/lib/matches/veto-room/read-model";
 
 async function waitForMatchRowLock(pool: Pool): Promise<void> {
   for (let attempt = 0; attempt < 100; attempt += 1) {
@@ -313,6 +316,19 @@ describe("match score persistence semantics PostgreSQL integration", () => {
       await startWithVetoPlan(fixture, bo3MatchId, "bo3");
       await startWithVetoPlan(fixture, bo5MatchId, "bo5");
       await startWithVetoPlan(fixture, scoredForfeitMatchId, "bo3");
+      const completedBp = await readVetoRoomCore(bo3MatchId);
+      for (const viewer of [null, fixture.representativeUserAId, fixture.adminId]) {
+        const view = await projectVetoRoomView(completedBp, viewer, viewer === fixture.adminId
+          ? { userId: viewer, email: "operator@local.test", role: "super_admin", seasonIds: [fixture.seasonId] } : null);
+        expect(view.maps).toHaveLength(3);
+        expect(view.maps.map(map => map.mapOrder)).toEqual([1, 2, 3]);
+        expect(view.maps.every(map => map.teamAStartSide !== null)).toBe(true);
+        expect(view.steps.every(step => step.sourceLabel === null)).toBe(true);
+        expect(view.permissions.isAdmin).toBe(viewer === fixture.adminId);
+        expect(view.permissions.canOperateCurrentTurn).toBe(false);
+        expect(view.permissions.canRewind).toBe(viewer === fixture.adminId);
+      }
+
 
       await setManualPrivilegedEntry({
         matchId: lockDelayedStartMatchId,
@@ -438,6 +454,25 @@ describe("match score persistence semantics PostgreSQL integration", () => {
       expect(afterRoleTimeout.session.turnDeadlineAt!.getTime() - afterRoleTimeout.session.turnStartedAt!.getTime()).toBe(45_000);
       expect(afterRoleTimeout.session.revision).toBeGreaterThan(timeoutRoom.session.revision);
 
+      await rewindVetoRoom({
+        matchId: timeoutVetoMatchId,
+        actorId: fixture.adminId,
+        targetTurnKey: "choose-veto-team-a",
+        reason: "恢复先手选择并验证队长能够继续 BP",
+      });
+      await resumeVetoRoom({ matchId: timeoutVetoMatchId, actorId: fixture.adminId });
+      const resumedRole = await readVetoRoomCore(timeoutVetoMatchId);
+      expect(resumedRole.currentTurn).toMatchObject({ actionType: "role_select", actorEntryId: fixture.entryAId });
+      expect(resumedRole.session.turnDeadlineAt!.getTime() - resumedRole.session.turnStartedAt!.getTime()).toBe(45_000);
+      expect(await submitVetoCommand({
+        matchId: timeoutVetoMatchId,
+        actorId: fixture.representativeUserAId,
+        expectedRevision: resumedRole.session.revision,
+        expectedTurnKey: resumedRole.currentTurn!.key,
+        clientRequestId: randomUUID(),
+        command: { kind: "role_select", entryId: fixture.entryAId },
+      })).toBe("applied");
+
       let partialRoom = await startVetoRoom(fixture, partialVetoMatchId);
       const roleTurn = partialRoom.currentTurn!;
       expect(roleTurn.actionType).toBe("role_select");
@@ -468,6 +503,12 @@ describe("match score persistence semantics PostgreSQL integration", () => {
         error: { message: expect.stringContaining("请先完成 BP") },
       });
 
+      await client.query("UPDATE matches SET status = 'cancelled' WHERE id = $1", [partialVetoMatchId]);
+      const cancelledBp = await projectVetoRoomView(await readVetoRoomCore(partialVetoMatchId), fixture.adminId, {
+        userId: fixture.adminId, email: "operator@local.test", role: "super_admin", seasonIds: [fixture.seasonId],
+      });
+      expect(cancelledBp.permissions).toMatchObject({ canOperateCurrentTurn: false, canPause: false, canResume: false, canRewind: false });
+
       const plannedMapNames = async (matchId: string) => (await client.query<{ map_name: string }>(
         "SELECT map_name FROM match_maps WHERE match_id = $1 ORDER BY map_order",
         [matchId],
@@ -479,7 +520,7 @@ describe("match score persistence semantics PostgreSQL integration", () => {
         "SELECT id FROM match_maps WHERE match_id = $1 AND map_name = $2",
         [bo1MatchId, bo1MapName],
       )).rows[0]!.id;
-      await expectSuccess(correctMapScore(bo1MapId, 13, 10));
+      await expectSuccess(correctMapScore(bo1MapId, 13, 10, { expectedScoreA: 13, expectedScoreB: 8, reason: "核对 Perfect 最终比分" }));
 
       const bo3Scores = [[13, 8], [10, 13], [13, 7]] as const;
       const bo3MapNames = await plannedMapNames(bo3MatchId);

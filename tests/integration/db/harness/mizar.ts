@@ -23,7 +23,7 @@ export interface Fixture {
   steam64: string[];
 }
 
-export async function seedFixture(options: { matchStatus?: "scheduled" | "in_progress"; freezeEventRoster?: boolean } = {}): Promise<Fixture> {
+export async function seedFixture(options: { matchStatus?: "scheduled" | "in_progress"; freezeEventRoster?: boolean; unboundSource?: boolean } = {}): Promise<Fixture> {
   const seasonId = randomUUID();
   const entryAId = randomUUID();
   const entryBId = randomUUID();
@@ -139,9 +139,9 @@ export async function seedFixture(options: { matchStatus?: "scheduled" | "in_pro
       identityHealth: "healthy",
       lineupHealth: "healthy",
       continuityHealth: "healthy",
-      autoCanonicalizationArmed: true,
-      currentMapId: mapOneId,
-      mapExecutionPhase: "gameplay",
+      autoCanonicalizationArmed: !options.unboundSource,
+      currentMapId: options.unboundSource ? null : mapOneId,
+      mapExecutionPhase: options.unboundSource ? "waiting" : "gameplay",
     }).returning({ id: schema.matchLiveSessions.id });
   });
   return { seasonId, entryAId, entryBId, matchId, mapOneId, mapTwoId, installationId, installationBId, sessionId: session![0]!.id, producerInstanceId, liveSessionId, contextRevision, authorityRevision, steam64 };

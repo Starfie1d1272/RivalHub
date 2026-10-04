@@ -1,3 +1,5 @@
+vi.mock("@/lib/admin/matches/resources", () => ({ loadMatchResources: vi.fn().mockResolvedValue({ installations: [], downloads: null }) }));
+vi.mock("@/components/matches/MatchResources", () => ({ MatchResources: () => <div>赛事运营资源</div> }));
 /**
  * @vitest-environment jsdom
  */
@@ -6,12 +8,16 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AdminMatchOverviewData } from "@/lib/admin/matches/types";
 
-const { loadOverviewMock, matchRowMock } = vi.hoisted(() => ({
+const { loadOverviewMock, loadCommentaryMock, commentaryQueueMock, matchRowMock } = vi.hoisted(() => ({
   loadOverviewMock: vi.fn(),
+  loadCommentaryMock: vi.fn(),
+  commentaryQueueMock: vi.fn(() => <div>我的下一场</div>),
   matchRowMock: vi.fn((props: { teamAName: string; teamBName: string }) => <div>{props.teamAName} vs {props.teamBName}</div>),
 }));
 
 vi.mock("@/lib/admin/matches/overview", () => ({ loadAdminMatchOverview: loadOverviewMock }));
+vi.mock("@/lib/admin/matches/commentary", () => ({ loadAdminMatchCommentary: loadCommentaryMock }));
+vi.mock("@/components/matches/MatchCommentaryQueue", () => ({ MatchCommentaryQueue: commentaryQueueMock }));
 vi.mock("@/components/matches/AdminMatchRow", () => ({ AdminMatchRow: matchRowMock }));
 vi.mock("@/components/matches/AdminMatchFilter", () => ({ AdminMatchFilter: () => null }));
 vi.mock("@/components/matches/CreateMatchForm", () => ({ CreateMatchForm: () => null }));
@@ -82,6 +88,7 @@ describe("AdminMatchesPage overview boundary", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.stubGlobal("React", React);
+    loadCommentaryMock.mockResolvedValue({ currentMatches: [], nextMatch: null, unclaimedMatches: [], unclaimedCount: 0, byMatchId: { "match-1": { commentators: [], isMine: false, canClaim: true } } });
   });
 
   it("passes only summary data to the list row and leaves detail for the workbench", async () => {
@@ -93,12 +100,22 @@ describe("AdminMatchesPage overview boundary", () => {
     }));
 
     expect(loadOverviewMock).toHaveBeenCalledWith({ seasonSlug: "major" });
+    expect(loadCommentaryMock).toHaveBeenCalledWith("season-1");
     expect(html).toContain("Alpha vs Beta");
     const rowProps = matchRowMock.mock.calls[0]?.[0] as Record<string, unknown>;
     expect(rowProps).toMatchObject({ teamAName: "Alpha", teamBName: "Beta", seasonSlug: "major" });
+    expect(rowProps.commentary).toEqual({ commentators: [], isMine: false, canClaim: true });
     expect(rowProps).not.toHaveProperty("teamARoster");
     expect(rowProps).not.toHaveProperty("finishedMaps");
     expect(rowProps).not.toHaveProperty("postMatch");
+  });
+
+  it("keeps personal commentary tasks independent of the selected stage and status filters", async () => {
+    loadOverviewMock.mockResolvedValue(overviewData());
+    renderToStaticMarkup(await AdminMatchesPage({ params: Promise.resolve({ seasonSlug: "major" }), searchParams: Promise.resolve({ stage: "final", status: "finished" }) }));
+    expect(loadOverviewMock).toHaveBeenCalledWith({ seasonSlug: "major", stage: "final", status: "finished" });
+    expect(loadCommentaryMock).toHaveBeenCalledWith("season-1");
+    expect(commentaryQueueMock).toHaveBeenCalled();
   });
 
   it("keeps the season-level commentary effectiveness aggregate on the overview", async () => {

@@ -80,7 +80,7 @@ export function ResultCorrectionPanel({
       if (result.success) {
         toast.success(
           result.data.alreadyApplied
-            ? "当前结果已是目标状态，无需重复修改。"
+            ? "当前结果已更新为目标状态。"
             : result.data.winnerChanged && plan.affectsQualificationRun
               ? result.data.invalidatedCount > 0
                 ? `资格赛赛果已更正并作废 ${result.data.invalidatedCount} 场未开始的后续比赛，请重新预览并生成轮次`

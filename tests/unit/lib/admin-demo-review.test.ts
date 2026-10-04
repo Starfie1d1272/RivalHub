@@ -39,8 +39,8 @@ describe("admin Demo review projection", () => {
   it("reduces normal participants to a count and projects score/QA without internal messages", async () => {
     mocks.validate.mockResolvedValue({ issues: [{ code: "SCORE_MISMATCH" }, { code: "DAK_QA_FAILED" }], resolutions: new Map([[steam64, { userId: "starter", source: "primary" }]]) });
     const result = await load();
-    expect(result).toMatchObject({ resolvedCount: 1, participants: [], message: "这份 Demo 当前不是 Steam 身份确认问题。" });
-    expect(result.blockingIssues).toEqual(["Demo 回合比分与正式比分不一致，请核对本图赛果。", "DAK QA 未通过，本问题不能通过身份确认解决。"]);
+    expect(result).toMatchObject({ resolvedCount: 1, participants: [], message: "请按下方检查结果处理这份 Demo。" });
+    expect(result.blockingIssues).toEqual(["Demo 回合比分与正式比分不一致，请核对本图赛果。", "请在 Uploader 查看 DAK 检查结果，处理后重新解析并同步。"]);
   });
   it("classifies a resolved same-team EventRoster member outside the recorded starters as a lineup mismatch", async () => {
     const detail: GameplayIdentityReviewDetail = { userId: "substitute", name: "替补选手", source: "primary", identity: null };
@@ -61,7 +61,7 @@ describe("admin Demo review projection", () => {
       retirableIdentityId: null,
     });
     expect(result.message).toBe("需要处理：1 名选手实际出场与本场记录首发不一致");
-    expect(result.participants[0]?.note).toContain("不是 Steam 身份冲突");
+    expect(result.participants[0]?.note).toContain("通过本场首发管理处理差异");
   });
 
   it.each([

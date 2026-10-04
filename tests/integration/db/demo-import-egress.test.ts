@@ -5,7 +5,7 @@ import type { Pool } from "pg";
 import { describe, expect, it, vi } from "vitest";
 import { createLocalPool } from "./harness/database";
 
-const observation = vi.hoisted(() => ({ queries: [] as { sql: string; params: unknown[] }[] }));
+const observation = vi.hoisted(() => ({ userId: "", queries: [] as { sql: string; params: unknown[] }[] }));
 
 // Observe actual PostgreSQL queries, including transactions, without replacing
 // any query/lineage behavior with mocks.
@@ -21,7 +21,7 @@ vi.mock("@/db/client", async (importOriginal) => {
     }),
   };
 });
-vi.mock("@/lib/auth/session", () => ({ requireSeasonAdmin: vi.fn(async () => ({ userId: "admin" })) }));
+vi.mock("@/lib/auth/session", () => ({ requireSeasonAdmin: vi.fn(async () => ({ userId: observation.userId })) }));
 vi.mock("@/lib/admin/matches/demo-review", () => ({
   loadAdminDemoReview: vi.fn(async (_tx: unknown, row: { id: string }) => ({ importId: row.id })),
 }));
@@ -52,6 +52,7 @@ describe("Demo metadata PostgreSQL egress boundary", () => {
       entries: [randomUUID(), randomUUID()], revisions: [randomUUID(), randomUUID()],
       maps: Array.from({ length: 5 }, () => randomUUID()),
     };
+    observation.userId = ids.user;
     const slug = `demo-egress-${ids.season}`;
     const fixture = parseRivalHubDemoEvidenceV1(JSON.parse(readFileSync(resolve(process.cwd(), "tests/fixtures/demo-evidence/normal-map-v1.json"), "utf8")));
     const steam64 = fixture.participants[0]!.steamId64;
