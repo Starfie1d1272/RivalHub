@@ -41,6 +41,13 @@ describe("Insight rules v1", () => {
     rows[0]!.metrics.fourVFive = probability(0, 0);
     expect(buildInsights(rows, "all")).toEqual([]);
   });
+  it("uses the shared P75 qualification floor before building the comparison population", () => {
+    const rows = population("team", "fourVFive");
+    rows[0]!.metrics.fourVFive = probability(22, 24);
+    expect(buildInsights(rows, "all")).toEqual([]); // P75=100 => floor=25; N drops to 3.
+    rows[0]!.metrics.fourVFive = probability(23, 25);
+    expect(buildInsights(rows, "all").map((row) => row.rule)).toEqual(["four_v_five_resilience"]);
+  });
   it("suppresses combinations with different coverage and insufficient R2 opportunities", () => {
     const rows = population("team", "pistol", "conversion");
     rows[0]!.metrics.conversion = probability(1, 2);

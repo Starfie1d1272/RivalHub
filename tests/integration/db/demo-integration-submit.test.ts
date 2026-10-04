@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { resolve } from "node:path";
 import type { PoolClient } from "pg";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { buildTournamentAnalytics, buildTournamentPerformanceAnalytics } from "@cs2dak/tournament";
 import { describe, expect, it } from "vitest";
@@ -716,6 +716,85 @@ describe("DAK evidence submit persistence", () => {
         idempotencyKey: "dak-career-second-event-1",
       });
       expect(secondEventImport).toMatchObject({ status: "synced", issues: [] });
+
+      // The platform corpus is one batch, preserving canonical users across events.
+      const platformScope = { seasonIds: [ids.season, ids.careerSeason] };
+      queryLog.length = 0;
+      const baselineStarted = performance.now();
+      const eventViews = [];
+      for (const seasonId of platformScope.seasonIds) eventViews.push(await getTournamentStats({ seasonId }, observedDatabase));
+      const baselineMs = performance.now() - baselineStarted;
+      const baselineQueries = queryLog.length;
+      queryLog.length = 0;
+      const platformStarted = performance.now();
+      const platformStats = await getTournamentStats(platformScope, observedDatabase);
+      const platformMs = performance.now() - platformStarted;
+      expect(platformStats.coverage.detailedMaps).toBe(2);
+      expect(platformStats.performance.players).toHaveLength(10);
+      expect(platformStats.leaderboard).toHaveLength(10);
+      expect(platformStats.leaderboard.every((row) => row.maps === 2)).toBe(true);
+      expect(platformStats.analytics.teams).toHaveLength(4); // Same names do not merge event-native entries.
+      expect(platformStats.options.teams).toEqual([]);
+      expect(platformStats.leaderboard.find((row) => row.userId === userIds[0])?.teamIds?.sort()).toEqual([ids.entryA, ids.careerEntryA].sort());
+      const publicEventStats = await getTournamentStats({ seasonId: ids.season, publicOnly: true }, database);
+      expect(publicEventStats.leaderboard.find((row) => row.userId === userIds[0])?.teamIds).toEqual([ids.entryA]);
+      expect(queryLog.filter((query) => /from "match_demo_stat_projections"/i.test(query) && query.includes('"facts"'))).toHaveLength(1);
+      expect(queryLog.some((query) => /from "match_demo_imports"/i.test(query) && query.includes('"payload"'))).toBe(false);
+      expect(queryLog.length).toBeLessThan(baselineQueries);
+      console.info(JSON.stringify({ scenario: "platform-two-event-batch", baselineQueries, platformQueries: queryLog.length,
+        baselineMs, platformMs, baselineDtoBytes: Buffer.byteLength(JSON.stringify(eventViews)), platformDtoBytes: Buffer.byteLength(JSON.stringify(platformStats)),
+        maps: 2, users: 10, cache: "uncached PostgreSQL; no production latency claim" }));
+      expect(platformStats.records).toHaveLength(6);
+      expect(platformStats.records?.filter((row) => row.value !== null).length).toBeGreaterThanOrEqual(4);
+      expect(platformStats.records?.flatMap((row) => row.occurrences).every((row) => row.entityHref.startsWith("/players/") || row.entityHref.includes("/teams/"))).toBe(true);
+      const projectionByteRows = await database.execute(sql`SELECT sum(octet_length(facts::text))::int AS bytes FROM match_demo_stat_projections
+        WHERE import_id IN (${importId}, ${secondEventImport.importId!}) AND projection_version = ${STATISTICS_PROJECTION_VERSION}`);
+      const warmStarted = performance.now();
+      queryLog.length = 0;
+      await getTournamentStats(platformScope, observedDatabase);
+      console.info(JSON.stringify({ scenario: "platform-two-event-warm-db", queries: queryLog.length, durationMs: performance.now() - warmStarted,
+        projectionJsonBytes: projectionByteRows.rows[0]?.bytes, cache: "warm PostgreSQL buffers, uncached application" }));
+      const platformLabels = { teams: Object.fromEntries(platformStats.analytics.teams.map((row) => [row.team.entityKey, row.team.displayName])),
+        players: Object.fromEntries(platformStats.performance.players.map((row) => [row.player.entityKey, row.player.displayName])) };
+      const careerBindings = new Map(secondEventEvidence.participants.map((participant, index) => [participant.steamId64,
+        { userId: userIds[index]!, entryId: index < 5 ? ids.careerEntryA : ids.careerEntryB }]));
+      const careerFacts = adaptStatsEvidence(secondEventEvidence, careerBindings);
+      // SQL/map ordering may change the last binary digit of floating-point sums.
+      const stableNumbers = (value: unknown) => JSON.parse(JSON.stringify(value, (_key, item) => typeof item === "number" ? Number(item.toPrecision(12)) : item));
+      expect(stableNumbers(platformStats.performance)).toEqual(stableNumbers(buildTournamentPerformanceAnalytics([expectedFacts.performance, careerFacts.performance], { labels: platformLabels })));
+      expect(platformStats.analytics).toEqual(buildTournamentAnalytics([expectedFacts.tournament, careerFacts.tournament], { labels: platformLabels }));
+      const linkedTeamId = randomUUID();
+      await database.transaction(async (tx) => {
+        await tx.insert(schema.teams).values({ id: linkedTeamId, slug: linkedTeamId, name: "Explicit cross-event team", creatorUserId: userIds[0]!, captainUserId: userIds[0]! });
+        await tx.insert(schema.teamNameChanges).values({ teamId: linkedTeamId, newName: "Explicit cross-event team", changedByActorId: "integration-test" });
+        await tx.insert(schema.teamCaptainChanges).values({ teamId: linkedTeamId, toUserId: userIds[0]!, changedByActorId: "integration-test" });
+        await tx.insert(schema.teamMemberships).values({ teamId: linkedTeamId, userId: userIds[0]!, status: "active", invitedByUserId: userIds[0]! });
+      });
+      try {
+        await database.update(schema.competitionEntries).set({ source: "linked_team", teamId: linkedTeamId }).where(inArray(schema.competitionEntries.id, [ids.entryA, ids.careerEntryA]));
+        const linkedStats = await getTournamentStats(platformScope, observedDatabase);
+        expect(linkedStats.analytics.teams).toHaveLength(3);
+        expect(linkedStats.analytics.teams.find((row) => row.team.entityKey === linkedTeamId)?.mapCount).toBe(2);
+        expect(linkedStats.teamLinks?.[linkedTeamId]).toBe(`/teams/${linkedTeamId}`);
+        expect(linkedStats.performance.players).toHaveLength(10);
+      } finally {
+        await database.update(schema.competitionEntries).set({ source: "event_native", teamId: null }).where(inArray(schema.competitionEntries.id, [ids.entryA, ids.careerEntryA]));
+        await database.transaction(async (tx) => {
+          // Isolated fixture teardown follows the existing append-only cleanup below.
+          await tx.execute(sql`SET LOCAL session_replication_role = replica`);
+          await tx.delete(schema.teamMemberships).where(eq(schema.teamMemberships.teamId, linkedTeamId));
+          await tx.delete(schema.teamCaptainChanges).where(eq(schema.teamCaptainChanges.teamId, linkedTeamId));
+          await tx.delete(schema.teamNameChanges).where(eq(schema.teamNameChanges.teamId, linkedTeamId));
+          await tx.delete(schema.teams).where(eq(schema.teams.id, linkedTeamId));
+        });
+      }
+      // Public membership is re-read: archived stays included, draft never leaks.
+      await database.update(schema.seasons).set({ status: "archived" }).where(eq(schema.seasons.id, ids.careerSeason));
+      expect((await getTournamentStats(platformScope, observedDatabase)).coverage.detailedMaps).toBe(2);
+      await database.update(schema.seasons).set({ status: "draft" }).where(eq(schema.seasons.id, ids.careerSeason));
+      expect((await getTournamentStats(platformScope, observedDatabase)).coverage.detailedMaps).toBe(1);
+      await expect(getTournamentStats({ seasonId: ids.careerSeason, publicOnly: true }, observedDatabase)).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND });
+      await database.update(schema.seasons).set({ status: "playing" }).where(eq(schema.seasons.id, ids.careerSeason));
 
       const coverage = await database.transaction((tx) => inspectStatisticsProjectionCoverage(tx, { batchSize: 1 }),
         { isolationLevel: "repeatable read", accessMode: "read only" });

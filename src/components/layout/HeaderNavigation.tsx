@@ -53,7 +53,7 @@ export function HeaderNavigation({ seasons, mobile = false }: HeaderNavigationPr
           href={link.href as never}
           aria-current={link.active ? "page" : undefined}
           className={mobile
-            ? "flex items-center justify-between px-3 py-2 rounded-md text-sm text-[var(--color-fg-mid)] hover:text-[var(--color-fg)] hover:bg-[var(--color-panel-hi)]"
+            ? cn("flex items-center justify-between px-3 py-2 rounded-md text-sm hover:bg-[var(--color-panel-hi)]", link.active ? "bg-[var(--color-panel)] text-[var(--color-fg)] font-semibold" : "text-[var(--color-fg-mid)] hover:text-[var(--color-fg)]")
             : cn(
                 "flex items-center gap-1.5 px-3 py-1.5 text-xs transition-colors",
                 link.active

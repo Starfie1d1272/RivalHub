@@ -57,7 +57,7 @@ export async function getStatsLeaderboard(
   const mapName = options.groupByMap ? sql`mm.map_name AS map_name,` : sql`NULL::text AS map_name,`;
   const mapGroup = options.groupByMap ? sql`, mm.map_name` : sql``;
   const teamColumns = options.groupByTeam === false
-    ? sql`string_agg(DISTINCT entrant.name, ' · ') AS team_name, NULL::uuid AS team_id,`
+    ? sql`string_agg(DISTINCT entrant.name, ' · ') AS team_name, NULL::uuid AS team_id, array_agg(DISTINCT entrant.id) AS team_ids,`
     : sql`entrant.name AS team_name, entrant.id AS team_id,`;
   const teamGroup = options.groupByTeam === false ? sql`` : sql`, entrant.name, entrant.id`;
   const teamOrder = options.groupByTeam === false ? sql`` : sql`, entrant.id`;
@@ -118,6 +118,7 @@ export async function getStatsLeaderboard(
     perfectName: getPublicDisplayName({ displayName: r.display_name as string | null, personaName: r.persona_name as string | null, perfectName: r.perfect_name as string | null }),
     teamName:   r.team_name as string | null,
     teamId:     r.team_id as string | null,
+    ...(options.groupByTeam === false ? { teamIds: (r.team_ids as string[] | null) ?? [] } : {}),
     maps:       Number(r.maps),
     ratingSamples: Number(r.rating_samples),
     rounds:     toNumOrNull(r.rounds),

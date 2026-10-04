@@ -1,0 +1,44 @@
+[
+  {
+    "tab": "overview",
+    "phase": "cold process",
+    "status": 200,
+    "htmlBytes": 233335,
+    "durationMs": 572.07
+  },
+  {
+    "tab": "overview",
+    "phase": "repeat",
+    "status": 200,
+    "htmlBytes": 233249,
+    "durationMs": 61.01
+  },
+  {
+    "tab": "players",
+    "phase": "shared aggregate already requested",
+    "status": 200,
+    "htmlBytes": 336603,
+    "durationMs": 47.5
+  },
+  {
+    "tab": "players",
+    "phase": "repeat",
+    "status": 200,
+    "htmlBytes": 336603,
+    "durationMs": 43.08
+  },
+  {
+    "tab": "records",
+    "phase": "shared aggregate already requested",
+    "status": 200,
+    "htmlBytes": 144576,
+    "durationMs": 35.88
+  },
+  {
+    "tab": "records",
+    "phase": "repeat",
+    "status": 200,
+    "htmlBytes": 144576,
+    "durationMs": 40.02
+  }
+]

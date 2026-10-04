@@ -4,7 +4,7 @@ import type { Route } from "next";
 import type { SeasonStatus } from "@/types/season";
 import { useId, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { presentSeasonStatus } from "@/lib/seasons/presentation";
 
@@ -20,8 +20,9 @@ export function EventSelector({ events, value, allHref, hrefFor }: {
   const select = (slug: string) => { setOpen(false); router.push((slug ? hrefFor(slug) : allHref!) as Route); };
   return <Dialog open={open} onOpenChange={(next) => { setOpen(next); if (next) setSearch(""); }}>
     <DialogTrigger asChild><Button variant="outline" className="max-w-full min-w-0 justify-between sm:max-w-72" aria-label="选择赛事"><span className="truncate">{events.find((e) => e.slug === value)?.name ?? (allHref ? "全部公开赛事" : "选择赛事")}</span><span aria-hidden> ▾</span></Button></DialogTrigger>
-    <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-md">
-      <DialogTitle>选择赛事</DialogTitle>
+    <DialogContent size="sm" aria-describedby={undefined}>
+      <DialogHeader><DialogTitle>选择赛事</DialogTitle></DialogHeader>
+      <div className="min-h-0 space-y-3 px-4 pb-4 sm:px-6 sm:pb-6">
       <label htmlFor={id} className="text-sm">搜索名称或 slug</label>
       <input id={id} value={search} onChange={(e) => setSearch(e.target.value)} className="w-full border border-[var(--color-border)] bg-[var(--color-panel)] px-3 py-2" onKeyDown={(e) => {
         if (e.key === "ArrowDown" || e.key === "ArrowUp") { e.preventDefault(); const nodes = list.current?.querySelectorAll<HTMLButtonElement>('[role="option"]'); (e.key === "ArrowDown" ? nodes?.[0] : nodes?.[nodes.length - 1])?.focus(); }
@@ -38,6 +39,7 @@ export function EventSelector({ events, value, allHref, hrefFor }: {
         </button>)}
         {!options.length && <p role="status" className="p-3 text-sm">没有匹配的公开赛事</p>}
       </div>
+    </div>
     </DialogContent>
   </Dialog>;
 }

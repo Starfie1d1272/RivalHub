@@ -468,21 +468,25 @@ export async function getTournamentStats(scope: PlatformStatsScope, database: DB
     const results = buildTournamentResults(resultMatchesForMapScope(loaded.matches, loaded.scopedMaps, scope.mapFilter), loaded.scopedMaps, loaded.entries);
     const coverage = buildCoverage(loaded, results);
     const mapNames = [...new Set([...loaded.maps.map((map) => map.mapName), ...veto.rows.map((row) => row.mapName)])].sort();
-    const leaderboard = await getStatsLeaderboard({ ...scope, matchIds: loaded.matchIds }, loaded.selected.map((row) => row.importId), loaded.roster, tx, { groupByTeam: !platform });
-    const teamScoreboard = platform ? await getStatsLeaderboard({ ...scope, matchIds: loaded.matchIds }, loaded.selected.map((row) => row.importId), loaded.roster, tx) : leaderboard;
+    const unifiedPlayers = platform || scope.publicOnly;
+    const leaderboard = await getStatsLeaderboard({ ...scope, matchIds: loaded.matchIds }, loaded.selected.map((row) => row.importId), loaded.roster, tx, { groupByTeam: !unifiedPlayers });
+    const teamScoreboard = unifiedPlayers ? await getStatsLeaderboard({ ...scope, matchIds: loaded.matchIds }, loaded.selected.map((row) => row.importId), loaded.roster, tx) : leaderboard;
     const analytics = buildTournamentAnalytics(loaded.selected.map((row) => row.facts.tournament), { labels: loaded.labels });
     const performance = buildTournamentPerformanceAnalytics(performanceFactsForScope(loaded, scope.teamFilter), { labels: loaded.labels });
     const scopeLabel = [scope.seasonId ? original.entryRows[0]?.eventName ?? "所选赛事" : "全部公开赛事", scope.stage, scope.format?.toUpperCase(), scope.mapFilter].filter(Boolean).join(" · ");
     const perMap = loaded.selected.map((row) => ({ mapKey: row.facts.performance.mapKey, performance: buildTournamentPerformanceAnalytics([row.facts.performance], { labels: loaded.labels }) }));
     const insights = buildScopeInsights(analytics, performance, perMap, teamLinks, scopeLabel);
+    const mapsById = new Map(original.scopedMaps.map((map) => [map.id, map]));
+    const matchesById = new Map(original.matches.map((match) => [match.id, match]));
+    const entriesById = new Map(original.entryRows.map((entry) => [entry.id, entry]));
     const occurrences: RecordOccurrence[] = original.selected.flatMap((row) => {
-      const map = original.scopedMaps.find((m) => m.id === row.facts.tournament.mapKey)!;
-      const match = original.matches.find((m) => m.id === map.matchId)!;
+      const map = mapsById.get(row.facts.tournament.mapKey)!;
+      const match = matchesById.get(map.matchId)!;
       return (row.facts.records?.candidates ?? []).map((candidate) => {
-        const entry = original.entryRows.find((e) => e.id === candidate.entryId)!;
+        const entry = entriesById.get(candidate.entryId)!;
         const isTeam = candidate.kind === "economy";
         const id = isTeam ? remap(candidate.entityId) : candidate.entityId;
-        const opponent = original.entries.find((e) => e.id === (candidate.entryId === match.entryAId ? match.entryBId : match.entryAId))?.name ?? "—";
+        const opponent = entriesById.get(candidate.entryId === match.entryAId ? match.entryBId : match.entryAId)?.name ?? "—";
         return { ...candidate, entityId: id, eventName: entry.eventName, eventSlug: entry.eventSlug, matchId: match.id, mapId: map.id, mapName: map.mapName,
           score: `${map.scoreA}-${map.scoreB}`, rounds: map.scoreA! + map.scoreB!, entityName: isTeam ? entry.name : original.labels.players[id] ?? "选手",
           entityHref: isTeam ? teamLinks[id]! : `/players/${id}`, opponent };

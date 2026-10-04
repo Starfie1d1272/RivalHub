@@ -58,7 +58,7 @@ function teamColumns(family: Family, seasonSlug: string, links?: Record<string, 
     className: "w-[28%]",
     sortable: true,
     sortValue: (row) => row.name,
-    render: (row) => <Link href={(links?.[row.entryId] ?? `/${seasonSlug}/teams/${row.entryId}`) as never} className="font-medium hover:text-[var(--color-accent)]">{row.name}</Link>,
+    render: (row) => <span className="block truncate" title={row.name}><Link href={(links?.[row.entryId] ?? `/${seasonSlug}/teams/${row.entryId}`) as never} className="font-medium hover:text-[var(--color-accent)]">{row.name}</Link></span>,
   };
   const detailSample: StatsDataColumn<TeamDirectoryRow>[] = [
     { key: "detailMaps", label: "Maps", numeric: true, className: "w-[9%]", sortable: true, sortValue: (row) => row.analytics?.mapCount ?? null, render: (row) => row.analytics?.mapCount ?? 0 },

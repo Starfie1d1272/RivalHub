@@ -49,10 +49,10 @@ function DAKColumns(family: Exclude<Family, "overall">, teamNames: ReadonlyMap<s
     };
   };
   const identity: StatsDataColumn<DAKPlayer>[] = [
-    { key: "player", label: "Player", className: "w-[24%]", render: (row) => playerLink(row.player.entityKey, row.player.displayName) },
-    { key: "team", label: "Team", className: "hidden w-[20%] sm:table-cell", render: (row) => playerTeam(row, teamNames) },
-    { key: "maps", label: "Maps", numeric: true, className: "hidden w-[8%] sm:table-cell", sortable: true, sortValue: (row) => row.mapCount, render: (row) => row.mapCount },
-    { key: "rounds", label: "Rounds", numeric: true, className: "w-[9%]", sortable: true, sortValue: rounds, render: rounds },
+    { key: "player", label: "Player", identity: true, render: (row) => playerLink(row.player.entityKey, row.player.displayName) },
+    { key: "team", label: "Team", className: "hidden w-48 sm:table-cell", render: (row) => <span className="block truncate" title={playerTeam(row, teamNames)}>{playerTeam(row, teamNames)}</span> },
+    { key: "maps", label: "Maps", numeric: true, className: "hidden w-16 sm:table-cell", sortable: true, sortValue: (row) => row.mapCount, render: (row) => row.mapCount },
+    { key: "rounds", label: "Rounds", numeric: true, className: "w-20", sortable: true, sortValue: rounds, render: rounds },
   ];
 
   const columns: Record<Exclude<Family, "overall">, StatsDataColumn<DAKPlayer>[]> = {
@@ -61,7 +61,7 @@ function DAKColumns(family: Exclude<Family, "overall">, teamNames: ReadonlyMap<s
       { key: "win", metric: "openingWin", numeric: true, sortable: true, sortValue: (row) => row.slices.overall.opening.successRate.rate, rankingSample: (row) => statsRateDenominator(row.slices.overall.opening.successRate), render: (row) => <MetricValue metric="openingWin" value={row.slices.overall.opening.successRate} sampleDisplay="compact" /> },
       { key: "fk", metric: "firstKill", numeric: true, className: "hidden lg:table-cell", sortable: true, sortValue: (row) => row.slices.overall.opening.firstKillsPerRound.rate, rankingSample: rounds, render: (row) => <MetricValue metric="firstKill" value={row.slices.overall.opening.firstKillsPerRound} sampleDisplay="hidden" /> },
       { key: "fd", metric: "firstDeath", numeric: true, className: "hidden lg:table-cell", sortable: true, sortValue: (row) => row.slices.overall.opening.firstDeathsPerRound.rate, rankingSample: rounds, render: (row) => <MetricValue metric="firstDeath" value={row.slices.overall.opening.firstDeathsPerRound} sampleDisplay="hidden" /> },
-      { key: "openingDeathTradedRate", metric: "openingDeathTradedRate", numeric: true, className: "hidden lg:table-cell", sortable: true, sortValue: (row) => openingDeathTraded(row.slices.overall).rate, rankingSample: (row) => row.slices.overall.opening.firstDeaths, render: (row) => <MetricValue metric="openingDeathTradedRate" value={openingDeathTraded(row.slices.overall)} sampleDisplay="compact" /> },
+      { key: "openingDeathTradedRate", metric: "openingDeathTradedRate", numeric: true, className: "hidden w-40 lg:table-cell", sortable: true, sortValue: (row) => openingDeathTraded(row.slices.overall).rate, rankingSample: (row) => row.slices.overall.opening.firstDeaths, render: (row) => <MetricValue metric="openingDeathTradedRate" value={openingDeathTraded(row.slices.overall)} sampleDisplay="compact" /> },
     ],
     teamplay: [
       { key: "kast", metric: "kast", numeric: true, sortable: true, sortValue: (row) => row.slices.overall.kast.rate, rankingSample: rounds, render: (row) => <MetricValue metric="kast" value={row.slices.overall.kast} sampleDisplay="hidden" /> },
@@ -72,8 +72,8 @@ function DAKColumns(family: Exclude<Family, "overall">, teamNames: ReadonlyMap<s
     utility: [
       { key: "util", metric: "utility", numeric: true, sortable: true, sortValue: (row) => row.slices.overall.utility.utilityDamagePerRound.rate, rankingSample: rounds, render: (row) => <MetricValue metric="utility" value={row.slices.overall.utility.utilityDamagePerRound} sampleDisplay="hidden" /> },
       { key: "fa", metric: "flashAssist", numeric: true, sortable: true, sortValue: (row) => row.slices.overall.utility.flashAssistsPerRound.rate, rankingSample: rounds, render: (row) => <MetricValue metric="flashAssist" value={row.slices.overall.utility.flashAssistsPerRound} sampleDisplay="hidden" /> },
-      { key: "blind", metric: "blindPerFlash", numeric: true, className: "hidden lg:table-cell", sortable: true, sortValue: (row) => row.slices.overall.utility.enemyBlindSecondsPerFlash.rate, rankingSample: (row) => statsRateDenominator(row.slices.overall.utility.enemyBlindSecondsPerFlash), render: (row) => <MetricValue metric="blindPerFlash" value={row.slices.overall.utility.enemyBlindSecondsPerFlash} /> },
-      { key: "netBlindPerFlash", metric: "netBlindPerFlash", numeric: true, className: "hidden lg:table-cell", sortable: true, sortValue: (row) => row.slices.overall.utility.netBlindSecondsPerFlash.rate, rankingSample: (row) => row.slices.overall.utility.flashesThrown, render: (row) => <MetricValue metric="netBlindPerFlash" value={row.slices.overall.utility.netBlindSecondsPerFlash} /> },
+      { key: "blind", metric: "blindPerFlash", numeric: true, className: "hidden w-40 lg:table-cell", sortable: true, sortValue: (row) => row.slices.overall.utility.enemyBlindSecondsPerFlash.rate, rankingSample: (row) => statsRateDenominator(row.slices.overall.utility.enemyBlindSecondsPerFlash), render: (row) => <MetricValue metric="blindPerFlash" value={row.slices.overall.utility.enemyBlindSecondsPerFlash} /> },
+      { key: "netBlindPerFlash", metric: "netBlindPerFlash", numeric: true, className: "hidden w-44 lg:table-cell", sortable: true, sortValue: (row) => row.slices.overall.utility.netBlindSecondsPerFlash.rate, rankingSample: (row) => row.slices.overall.utility.flashesThrown, render: (row) => <MetricValue metric="netBlindPerFlash" value={row.slices.overall.utility.netBlindSecondsPerFlash} /> },
       { key: "he", metric: "hePerRound", numeric: true, className: "hidden lg:table-cell", sortable: true, sortValue: (row) => row.slices.overall.utility.heDamagePerRound.rate, rankingSample: rounds, render: (row) => <MetricValue metric="hePerRound" value={row.slices.overall.utility.heDamagePerRound} sampleDisplay="hidden" /> },
     ],
     clutch: [
@@ -94,7 +94,7 @@ export function PlayersExplorer({ data, query, seasonSlug }: { data: TournamentS
   const normalizedSearch = search.trim().toLocaleLowerCase();
   const teamNames = useMemo(() => new Map(data.performance.teams.map((team) => [team.team.entityKey, team.team.displayName])), [data.performance.teams]);
   const scoreboardRows = useMemo(
-    () => data.leaderboard.filter((row) => (!query.teamFilter || row.teamId === query.teamFilter) && `${row.perfectName} ${row.teamName ?? ""}`.toLocaleLowerCase().includes(normalizedSearch)),
+    () => data.leaderboard.filter((row) => (!query.teamFilter || row.teamId === query.teamFilter || row.teamIds?.includes(query.teamFilter)) && `${row.perfectName} ${row.teamName ?? ""}`.toLocaleLowerCase().includes(normalizedSearch)),
     [data.leaderboard, normalizedSearch, query.teamFilter],
   );
   const dakRows = useMemo(
@@ -103,8 +103,8 @@ export function PlayersExplorer({ data, query, seasonSlug }: { data: TournamentS
   );
 
   const overallColumns: StatsDataColumn<ScoreboardRow>[] = [
-    { key: "player", label: "Player", className: "w-[24%]", render: (row) => playerLink(row.userId, row.perfectName) },
-    { key: "team", label: "Team", className: "hidden w-[20%] sm:table-cell", render: (row) => row.teamName ?? "—" },
+    { key: "player", label: "Player", identity: true, render: (row) => playerLink(row.userId, row.perfectName) },
+    { key: "team", label: "Team", className: "hidden w-48 sm:table-cell", render: (row) => <span className="block truncate" title={row.teamName ?? undefined}>{row.teamName ?? "—"}</span> },
     { key: "maps", label: "Maps", numeric: true, className: "w-[8%]", sortable: true, sortValue: (row) => row.maps, render: (row) => row.maps },
     { key: "rounds", label: "Rounds", numeric: true, className: "hidden w-[9%] sm:table-cell", sortable: true, sortValue: (row) => row.rounds, render: (row) => row.rounds ?? "—" },
     { key: "rating", metric: "rating", numeric: true, sortable: true, sortValue: (row) => row.avgRating, rankingSample: (row) => row.rounds, render: (row) => <MetricValue metric="rating" value={row.avgRating} /> },
@@ -146,7 +146,7 @@ export function PlayersExplorer({ data, query, seasonSlug }: { data: TournamentS
         columns={DAKColumns(family, teamNames)}
         rowKey={(row, index) => `${row.player.entityKey}:detail:${index}`}
         initialSortKey={family === "opening" ? "win" : family === "teamplay" ? "kast" : family === "utility" ? "util" : "clutch"}
-        tableClassName="min-w-[960px] table-fixed"
+        tableClassName="min-w-[1280px] table-fixed"
         emptyLabel="该范围暂无详细统计"
       />
     );

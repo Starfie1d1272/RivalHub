@@ -156,7 +156,7 @@ function leaders(data: TournamentStats, query: StatsQuery, seasonSlug: string) {
     { key: "sample", label: "Maps / Rds", numeric: true, className: "hidden w-[26%] sm:table-cell", render: (row) => <span>{row.maps} / {row.rounds ?? "—"}</span> },
   ];
   const teamColumns: StatsDataColumn<typeof teamRows[number]>[] = [
-    { key: "team", label: "Team", className: "w-[34%]", render: (row) => <Link href={(data.teamLinks?.[row.entryId] ?? `/${seasonSlug}/teams/${row.entryId}`) as never} className="font-medium hover:text-[var(--color-accent)]">{row.name}</Link> },
+    { key: "team", label: "Team", className: "w-[34%]", render: (row) => <span className="block truncate" title={row.name}><Link href={(data.teamLinks?.[row.entryId] ?? `/${seasonSlug}/teams/${row.entryId}`) as never} className="font-medium hover:text-[var(--color-accent)]">{row.name}</Link></span> },
     { key: "rating", metric: "rating", numeric: true, className: "w-[21%]", render: (row) => <MetricValue metric="rating" value={row.rating} /> },
     { key: "match", label: "W-L", numeric: true, className: "w-[18%]", render: (row) => `${row.matchWins}-${row.matchLosses}` },
     { key: "maps", label: "Maps", numeric: true, className: "hidden w-[15%] sm:table-cell", render: (row) => row.maps },

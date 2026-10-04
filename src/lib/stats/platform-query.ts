@@ -1,5 +1,5 @@
 import "server-only";
-import { and, eq, inArray, ne } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, ne } from "drizzle-orm";
 import { cacheLife, cacheTag } from "next/cache";
 import { db } from "@/db/client";
 import { competitionEntries, matchMaps, matches, seasons } from "@/db/schema";
@@ -41,9 +41,10 @@ export async function getPlatformStatsPage(raw: StatsSearch) {
   if ((!event && (raw.stage || raw.teamFilter)) || query.stage === "__invalid__" || query.mapFilter === "__invalid__") throw new AppError(ErrorCode.NOT_FOUND, "统计范围不可用。");
   const ids = event ? [event.id] : events.map((e) => e.id);
   const maps = events.length ? await db.selectDistinct({ name: matchMaps.mapName, seasonId: matches.seasonId }).from(matchMaps)
-    .innerJoin(matches, eq(matches.id, matchMaps.matchId)).where(inArray(matches.seasonId, events.map((e) => e.id))) : [];
+    .innerJoin(matches, eq(matches.id, matchMaps.matchId)).where(and(inArray(matches.seasonId, events.map((e) => e.id)), isNotNull(matchMaps.completedAt), isNotNull(matchMaps.scoreA), isNotNull(matchMaps.scoreB))) : [];
   const allowedMaps = [...new Set(maps.filter((m) => ids.includes(m.seasonId)).map((m) => m.name))].sort();
-  if ((query.map && !allowedMaps.includes(query.map)) || (query.mapFilter && !allowedMaps.includes(query.mapFilter))
+  if ((raw.map && !/^de_[a-z0-9_]+$/.test(raw.map as string)) || (raw.map && query.tab !== "maps")
+    || (query.map && !allowedMaps.includes(query.map)) || (query.mapFilter && !allowedMaps.includes(query.mapFilter))
     || (query.map && query.mapFilter && query.map !== query.mapFilter)) throw new AppError(ErrorCode.NOT_FOUND, "地图范围不可用。");
   if (raw.teamFilter && (query.tab === "players" || query.tab === "weapons") && !query.teamFilter) throw new AppError(ErrorCode.NOT_FOUND, "统计范围不可用。");
   if (query.teamFilter) {
