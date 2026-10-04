@@ -59,7 +59,7 @@ export function statsHref(slug: string, current: StatsQuery, updates: StatsQuery
   const nextTab = updates.tab && Object.hasOwn(STATS_TABS, updates.tab) ? updates.tab : current.tab;
   let next: StatsQuery = nextTab === current.tab
     ? { ...current }
-    : { tab: nextTab, stage: current.stage, format: current.format, mapFilter: current.mapFilter, teamFilter: "", player: "", team: "", map: "", mapsView: "pool", preview: current.preview };
+    : { tab: nextTab, stage: current.stage, format: current.format, mapFilter: current.map || current.mapFilter, teamFilter: "", player: "", team: "", map: "", mapsView: "pool", preview: current.preview };
 
   if (Object.hasOwn(updates, "stage") && updates.stage !== current.stage) {
     next = { tab: nextTab, stage: updates.stage ?? "", format: current.format, mapFilter: "", teamFilter: "", player: "", team: "", map: "", mapsView: "pool" };

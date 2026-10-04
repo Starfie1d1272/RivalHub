@@ -65,3 +65,8 @@ describe("stats URL scope", () => {
     expect(href).toContain("mapFilter=de_ancient");
   });
 });
+
+ it("preserves a map detail scope visibly as mapFilter when switching tabs", () => {
+   const query = parseStatsQuery({ tab: "maps", map: "de_ancient" }, []);
+   expect(statsHref("major", query, { tab: "players" })).toBe("/stats?tab=players&mapFilter=de_ancient&event=major");
+ });

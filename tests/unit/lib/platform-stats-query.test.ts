@@ -34,7 +34,7 @@ describe("platform scope and cache boundary", () => {
     expect(mocks.stats).toHaveBeenLastCalledWith(expect.objectContaining({ seasonIds: ["a"] }));
   });
   it.each([{ event: "draft" }, { event: ["current", "historic"] }, { stage: "swiss" }, { format: "bo7" },
-    { map: "garbage" }, { tab: "players", map: "de_oldmap" }, { mapFilter: "de_unknown" },
+    { event: "current", tab: "overview", teamFilter: "unknown-entry" }, { map: "garbage" }, { tab: "players", map: "de_oldmap" }, { mapFilter: "de_unknown" },
     { tab: "maps", map: "de_oldmap", mapFilter: "de_nuke" }])("rejects invalid scope instead of broadening %j", async (query) => {
     mocks.rows = [events, [{ name: "de_oldmap", seasonId: "b" }]];
     await expect(getPlatformStatsPage(query)).rejects.toMatchObject({ code: "NOT_FOUND" });

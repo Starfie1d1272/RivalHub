@@ -20,6 +20,11 @@ test("数据中心统一入口、赛事选择、六视图和旧入口迁移", as
   await tabs.getByRole("link", { name: "Records", exact: true }).click();
   await expect(page.getByRole("heading", { name: "当前范围纪录" })).toBeVisible();
   await expect(page.getByText("暂无满足所需完整数据的纪录")).toHaveCount(6);
+  await page.goBack();
+  await expect(page).toHaveURL(`/stats?event=${scenario.slug}`);
+  await expect(tabs.getByRole("link", { name: "Overview", exact: true })).toHaveAttribute("aria-current", "page");
+  await page.goForward();
+  await expect(page.getByRole("heading", { name: "当前范围纪录" })).toBeVisible();
   await page.goto(`/${scenario.slug}/stats?tab=players&format=bo3`);
   await expect(page).toHaveURL(`/stats?tab=players&format=bo3&event=${scenario.slug}`);
   await expect(page.getByLabel("赛制")).toHaveValue("bo3");

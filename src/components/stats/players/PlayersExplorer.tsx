@@ -50,8 +50,8 @@ function DAKColumns(family: Exclude<Family, "overall">, teamNames: ReadonlyMap<s
   };
   const identity: StatsDataColumn<DAKPlayer>[] = [
     { key: "player", label: "Player", identity: true, render: (row) => playerLink(row.player.entityKey, row.player.displayName) },
-    { key: "team", label: "Team", className: "hidden w-48 sm:table-cell", render: (row) => <span className="block truncate" title={playerTeam(row, teamNames)}>{playerTeam(row, teamNames)}</span> },
-    { key: "maps", label: "Maps", numeric: true, className: "hidden w-16 sm:table-cell", sortable: true, sortValue: (row) => row.mapCount, render: (row) => row.mapCount },
+    { key: "team", label: "Team", className: "hidden w-48 xl:table-cell", render: (row) => <span className="block truncate" title={playerTeam(row, teamNames)}>{playerTeam(row, teamNames)}</span> },
+    { key: "maps", label: "Maps", numeric: true, className: "hidden w-16 xl:table-cell", sortable: true, sortValue: (row) => row.mapCount, render: (row) => row.mapCount },
     { key: "rounds", label: "Rounds", numeric: true, className: "w-20", sortable: true, sortValue: rounds, render: rounds },
   ];
 
@@ -146,7 +146,7 @@ export function PlayersExplorer({ data, query, seasonSlug }: { data: TournamentS
         columns={DAKColumns(family, teamNames)}
         rowKey={(row, index) => `${row.player.entityKey}:detail:${index}`}
         initialSortKey={family === "opening" ? "win" : family === "teamplay" ? "kast" : family === "utility" ? "util" : "clutch"}
-        tableClassName="min-w-[1280px] table-fixed"
+        tableClassName="min-w-[960px] table-fixed"
         emptyLabel="该范围暂无详细统计"
       />
     );

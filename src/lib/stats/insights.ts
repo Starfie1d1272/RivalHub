@@ -92,6 +92,9 @@ export function buildInsights(entities: readonly InsightEntity[], scope: string)
       if (!maps || maps.length < 2 || new Set(maps.map((m) => m.mapKey)).size !== maps.length) continue;
       if (maps.reduce((s, m) => s + m.flashes, 0) !== enemy.n) continue;
       const baselineE = baselines.get("blindPerFlash")!, baselineT = baselines.get("friendlyBlindPerFlash")!;
+      const baselineNet = baselines.get("netBlindPerFlash")!;
+      if (displayed(enemy.value!, enemy.metric, enemy.kind) <= displayed(baselineE.median, enemy.metric, enemy.kind)
+        || displayed(net.value!, net.metric, net.kind) <= displayed(baselineNet.median, net.metric, net.kind)) continue;
       const stable = maps.every((map) => {
         const f = enemy.n - map.flashes, e = enemy.x - map.enemy, t = friendly.x - map.friendly;
         return f > 0 && f >= baselineE.floor && e - t > 0 && e / f >= baselineE.median && t / f <= baselineT.median;

@@ -4,41 +4,53 @@
     "phase": "cold process",
     "status": 200,
     "htmlBytes": 233335,
-    "durationMs": 572.07
+    "queries": 23,
+    "estimatedDbResultJsonBytes": 156829,
+    "durationMs": 527.5
   },
   {
     "tab": "overview",
     "phase": "repeat",
     "status": 200,
     "htmlBytes": 233249,
-    "durationMs": 61.01
+    "queries": 6,
+    "estimatedDbResultJsonBytes": 46245,
+    "durationMs": 53.34
   },
   {
     "tab": "players",
-    "phase": "shared aggregate already requested",
+    "phase": "shared aggregate requested",
     "status": 200,
     "htmlBytes": 336603,
-    "durationMs": 47.5
+    "queries": 4,
+    "estimatedDbResultJsonBytes": 30830,
+    "durationMs": 52.59
   },
   {
     "tab": "players",
     "phase": "repeat",
     "status": 200,
     "htmlBytes": 336603,
-    "durationMs": 43.08
+    "queries": 4,
+    "estimatedDbResultJsonBytes": 30830,
+    "durationMs": 52.48
   },
   {
     "tab": "records",
-    "phase": "shared aggregate already requested",
+    "phase": "shared aggregate requested",
     "status": 200,
-    "htmlBytes": 144576,
-    "durationMs": 35.88
+    "htmlBytes": 144619,
+    "queries": 4,
+    "estimatedDbResultJsonBytes": 30830,
+    "durationMs": 47.61
   },
   {
     "tab": "records",
     "phase": "repeat",
     "status": 200,
     "htmlBytes": 144576,
-    "durationMs": 40.02
+    "queries": 3,
+    "estimatedDbResultJsonBytes": 30724,
+    "durationMs": 31.28
   }
 ]

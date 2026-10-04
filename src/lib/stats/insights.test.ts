@@ -80,6 +80,17 @@ describe("Insight rules v1", () => {
     rows[0]!.flashMaps = ["a", "b"].map((mapKey) => ({ mapKey, enemy: 5000, friendly: 2500, flashes: 50 }));
     expect(buildInsights(rows, "all")).toEqual([]);
   });
+  it("suppresses continuous differences that disappear at canonical display precision", () => {
+    const rows = flashPopulation();
+    rows.forEach((row, i) => {
+      const seconds = (3 + i * 1e-8) * 100;
+      row.metrics.blindPerFlash = amount(seconds);
+      row.metrics.netBlindPerFlash = amount(seconds);
+      row.metrics.friendlyBlindPerFlash = amount(0);
+      row.flashMaps = ["a", "b"].map((mapKey) => ({ mapKey, enemy: seconds / 2, friendly: 0, flashes: 50 }));
+    });
+    expect(buildInsights(rows, "all")).toEqual([]);
+  });
   it("deduplicates opening family, caps entities, and round-robins families deterministically", () => {
     const teams = population("team", "fourVFive", "fiveVFour");
     const players = population("player", "winAfterOpeningLoss", "openingDeathTradedRate");

@@ -46,7 +46,7 @@ export async function getPlatformStatsPage(raw: StatsSearch) {
   if ((raw.map && !/^de_[a-z0-9_]+$/.test(raw.map as string)) || (raw.map && query.tab !== "maps")
     || (query.map && !allowedMaps.includes(query.map)) || (query.mapFilter && !allowedMaps.includes(query.mapFilter))
     || (query.map && query.mapFilter && query.map !== query.mapFilter)) throw new AppError(ErrorCode.NOT_FOUND, "地图范围不可用。");
-  if (raw.teamFilter && (query.tab === "players" || query.tab === "weapons") && !query.teamFilter) throw new AppError(ErrorCode.NOT_FOUND, "统计范围不可用。");
+  if (raw.teamFilter && (!query.teamFilter || (query.tab !== "players" && query.tab !== "weapons"))) throw new AppError(ErrorCode.NOT_FOUND, "统计范围不可用。");
   if (query.teamFilter) {
     const [entry] = await db.select({ id: competitionEntries.id }).from(competitionEntries).where(and(
       eq(competitionEntries.id, query.teamFilter), eq(competitionEntries.competitionId, event!.id), eq(competitionEntries.registrationStatus, "approved"),

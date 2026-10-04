@@ -40,7 +40,7 @@ fresh public IDs 在 remote cache 外读取并进入 key；共享 `PUBLIC_STATS_
 | advantage_disadvantage_inversion | 4v5 High；5v4=10/100，Ready且低分位；P差≥.35 | 次项2次机会/不同 coverage 抑制；命中后替代 simple 4v5 |
 | opening_death_resilience | 90/100；真实 sanitized fixture 为6/6，N=8、P=.9375、peer≈.1053 | 首死 n=0、低资格或显示精度不可区分抑制；文案说明队伍赢回合 |
 | opening_death_traded | 90/100；与 Win after FD 同族 | 同实体同族只保留1条，按P、L-peer、n、稳定 key 排序 |
-| flash_effectiveness | 2张有 F 的贡献图；E/F和Net/F高、T/F低；每图删除均稳定 | 单图、599/1尖峰、未知T、高队友致盲、删除后不达原floor/中位数抑制；全体T=0可用精确0分支 |
+| flash_effectiveness | 2张有 F 的贡献图；E/F和Net/F高、T/F低；每图删除均稳定 | 单图、599/1尖峰、未知T、高队友致盲、删除后不达原floor/中位数抑制；全体T=0可用精确0分支；E/Net与中位数在显示精度下不可区分时抑制 |
 | pistol_conversion_contrast | pistol90/100 High、conversion10/100 Ready且P差≥.35 | 次项缺资格/窄样本/不同覆盖抑制；保留独立分母 |
 | second_round_recovery | break90/100 High、pistol10/100 Ready且P差≥.35 | 回击机会缺失/低样本抑制；不声称故意输手枪有利 |
 
@@ -48,9 +48,9 @@ fresh public IDs 在 remote cache 外读取并进入 key；共享 `PUBLIC_STATS_
 
 ## 验证与性能
 
-定向统计、组件、profile 回归 33 文件 / 134 tests；后续长文本/合并选手筛选组件回归通过。应用、tests、scripts 类型及改动文件 lint、architecture 均通过。真实 PostgreSQL 17 回归通过，校验两届10个 canonical user、同名不合并、显式 teamId 合并、archived纳入/draft排除、DAK聚合一致性、新投影与repair/coverage、无 raw payload 读取。浮点累计比较保留12位有效数，避免不同SQL地图顺序的最后二进制位噪声。
+定向统计、组件、profile 回归 33 文件 / 134 tests；后续长文本/合并选手筛选组件回归通过；最终scope/显示精度/选择器增量回归5文件36项通过。应用、tests、scripts 类型及改动文件 lint、architecture 均通过。真实 PostgreSQL 17 回归通过，校验两届10个 canonical user、同名不合并、显式 teamId 合并、archived纳入/draft排除、DAK聚合一致性、新投影与repair/coverage、无 raw payload 读取。浮点累计比较保留12位有效数，避免不同SQL地图顺序的最后二进制位噪声。
 
-浏览器回归使用真实 Local Supabase，Chromium 和 mobile-chrome 均通过，重试为0：六视图、旧入口永久迁移的实际客户端导航、无循环、键盘选择、Escape焦点返回、未知范围不可用与320/390/1440px无页面横向溢出。另在 `next build` / `next start` 的本地生产模式检查含数据的两列、六类 Records、Overview及展开解释、0/2/20/100赛事与长名称。截图的数据是仓库 sanitized normal-map fixture 的隔离合成身份绑定，不是今日真实比赛或生产 holder；100赛事测试中98届是无比赛的列表负载样本。
+浏览器回归使用真实 Local Supabase，Chromium 和 mobile-chrome 均通过，重试为0：六视图、旧入口永久迁移的实际客户端导航、无循环、键盘选择、Escape焦点返回、未知范围不可用与320/390/1440px无页面横向溢出。追加地图详情→标签/换赛事范围保持、纪录分页重置及浏览器前进后退回归。1024px两列未增加表格横向滚动（960px表格内容与容器同宽），次要身份列沿用断点隐藏。另在 `next build` / `next start` 的本地生产模式检查含数据的两列、六类 Records、Overview及展开解释、0/2/20/100赛事与长名称。截图的数据是仓库 sanitized normal-map fixture 的隔离合成身份绑定，不是今日真实比赛或生产 holder；100赛事测试中98届是无比赛的列表负载样本。
 
 | 隔离两届 / 两图 / 十用户 | 逐届现有查询组合 baseline | 平台批量聚合 |
 | --- | ---: | ---: |
@@ -62,7 +62,18 @@ fresh public IDs 在 remote cache 外读取并进入 key；共享 `PUBLIC_STATS_
 
 baseline 是**同一fixture的逐届查询组合**，不是虚构一个旧版全站 API，也不是完整生产before/after。计数不随用户逐个增长；不据此推断大历史规模。真实托管查询计费、跨实例 remote-cache hit/miss、容量上限及失效流量未验收。
 
-[本地生产模式 HTTP 数据](local-http.json)：新进程、100公开赛事（98为空）、2图，Overview冷请求572.07ms /重复61.01ms；Players共享aggregate后47.50ms /重复43.08ms；Records35.88ms /40.02ms。HTML/RSC合并响应分别约233/337/145KB；没有把HTML bytes混作DTO或投影wire bytes。Node默认cache行为不等于托管remote-cache命中率。
+[本地生产模式 HTTP 数据](local-http.json)：新进程、100公开赛事（98为空）、2图。临时本地计数器覆盖 pg Client 的事务查询，仅记录计数和结果JSON估算字节，不记录SQL/参数/内容；未加入产品代码。包含Header/PPR与fresh membership查询。
+
+| HTTP视图 / 请求 | 查询数 | DB结果JSON估算bytes | HTML/RSC合并bytes | 耗时 |
+| --- | ---: | ---: | ---: | ---: |
+| Overview 冷进程 | 23 | 156829 | 233335 | 527.50ms |
+| Overview 重复 | 6 | 46245 | 233249 | 53.34ms |
+| Players 共享聚合已请求 / 重复 | 4 / 4 | 30830 / 30830 | 336603 / 336603 | 52.59 / 52.48ms |
+| Records 共享聚合已请求 / 重复 | 4 / 3 | 30830 / 30724 | 144619 / 144576 | 47.61 / 31.28ms |
+
+没有把HTML bytes混作DTO或投影wire bytes。DB结果JSON是本地估算，不是wire/计费量；Node默认cache行为不等于托管remote-cache命中率。
+
+最终浏览器复跑前，视觉样本的Steam ID与E2E固定ID碰撞，建数阶段中止；清除隔离样本的Steam占用后，两浏览器重试0复跑通过。
 
 本地 Supabase slim image 的健康检查曾因回环 wget 走代理而失败；Auth `/health` 实际可用。浏览器使用其真实端点；数据库证据另用独立回环PG17。该环境差异不作为生产服务健康的证据。
 
