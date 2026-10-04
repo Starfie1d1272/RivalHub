@@ -1,4 +1,5 @@
 import React from "react";
+import userEvent from "@testing-library/user-event";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SeasonLogoEditor } from "@/components/admin/SeasonLogoEditor";
@@ -17,14 +18,17 @@ describe("event logo editor", () => {
     mocks.upload.mockResolvedValueOnce({ success: false, error: { message: "上传失败" } }).mockResolvedValueOnce({ success: true, data: { logoUrl: "/new.png" } });
     mocks.remove.mockResolvedValue({ success: true });
     render(<SeasonLogoEditor seasonId="season" logoUrl="/old.png" />);
+    const user = userEvent.setup();
     const file = new File(["png"], "logo.png", { type: "image/png" });
-    fireEvent.change(screen.getByLabelText("更换赛事 Logo"), { target: { files: [file] } });
+    await user.upload(screen.getByLabelText("更换赛事 Logo"), file);
     await waitFor(() => expect(mocks.error).toHaveBeenCalledWith("上传失败"));
     expect(screen.getByAltText("赛事 Logo")).toHaveAttribute("src", "/old.png");
     expect(mocks.refresh).not.toHaveBeenCalled();
-    fireEvent.change(screen.getByLabelText("更换赛事 Logo"), { target: { files: [file] } });
+    await waitFor(() => expect(screen.getByLabelText("更换赛事 Logo")).toBeEnabled());
+    await user.upload(screen.getByLabelText("更换赛事 Logo"), file);
     await waitFor(() => expect(screen.getByAltText("赛事 Logo")).toHaveAttribute("src", "/new.png"));
-    fireEvent.click(screen.getByRole("button", { name: "移除赛事 Logo" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "移除赛事 Logo" })).toBeEnabled());
+    await user.click(screen.getByRole("button", { name: "移除赛事 Logo" }));
     await waitFor(() => expect(screen.queryByAltText("赛事 Logo")).not.toBeInTheDocument());
     expect(mocks.refresh).toHaveBeenCalledTimes(2);
     expect(screen.getByLabelText("上传赛事 Logo")).toHaveAttribute("type", "file");

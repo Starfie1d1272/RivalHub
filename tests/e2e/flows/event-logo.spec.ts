@@ -33,13 +33,17 @@ test("赛事 Logo 正常上传、更换与移除更新公开展示", async ({ pa
     const replacementUrl = await adminLogo.getAttribute("src");
     await viewer.goto(`/${scenario.slug}`);
     await expect(viewer.getByAltText("赛事 Logo")).toHaveAttribute("src", replacementUrl!);
-    expect((await viewer.request.get(firstUrl!)).status()).toBe(404);
+    const oldObject = await viewer.request.get(firstUrl!);
+    expect(oldObject.ok()).toBe(false);
+    expect(await oldObject.json()).toMatchObject({ message: "Object not found" });
     await page.getByRole("button", { name: "移除赛事 Logo", exact: true }).click();
     await expect(page.getByText("尚未上传赛事 Logo", { exact: true })).toBeVisible();
     await viewer.reload();
     await expect(viewer.getByAltText("赛事 Logo")).toHaveCount(0);
     await expect(viewer.getByRole("heading", { name: scenario.seasonName, exact: true })).toBeVisible();
-    expect((await viewer.request.get(replacementUrl!)).status()).toBe(404);
+    const removedObject = await viewer.request.get(replacementUrl!);
+    expect(removedObject.ok()).toBe(false);
+    expect(await removedObject.json()).toMatchObject({ message: "Object not found" });
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1)).toBe(true);
   } finally { await publicContext.close(); }
 });
