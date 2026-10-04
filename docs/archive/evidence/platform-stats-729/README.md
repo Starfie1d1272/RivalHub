@@ -26,7 +26,7 @@ ADR/HS%/Rating/RWS/WE 的聚合继续使用既有 SQL/aggregate owner：ADR 按�
 
 `/stats` 默认全部公开赛事，包含 archived；仅支持 all 或单 event。stage 仅在单届使用 canonical key，format 限 BO1/3/5，历史地图来自实际已完成地图而非现地图池。非法、未知或 draft 范围进入不可用页，不退回全范围。map detail 与 mapFilter 不得冲突。六个 tab 共用 href/parser；换 tab 保留兼容范围、清详情；换 event 清 stage/entry/详情、保留仍存在地图。
 
-fresh public IDs 在 remote cache 外读取并进入 key；共享 `PUBLIC_STATS_TAG`，key 包含投影/规则版本。聚合内部再读 public membership。entity/search 只改变展示，不改变 qualification 总体。公开查询只读 metadata 和有效版本化投影；SQL logger 回归证明不选择 `match_demo_imports.payload`。DTO 仅传所选视图的汇总与紧凑纪录，移除分析 provenance；不传 Evidence、roundSeq 数组或 LOO 地图事实。投影过期/撤回降低 coverage，不从公开请求 repair。
+fresh public IDs 在 remote cache 外读取并进入 key；共享 `PUBLIC_STATS_TAG`，key 包含投影/规则版本。聚合内部再读 public membership。entity/search 只改变展示，不改变 qualification 总体。公开查询只读 metadata 和有效版本化投影；SQL logger 回归证明不选择 `match_demo_imports.payload`。DTO 仅传所选视图的汇总与紧凑纪录，移除分析 provenance；不传 Evidence、roundSeq 数组或 LOO 地图事实。投影过期/撤回降低 coverage，不从公开请求 repair。本地生产模式先热读两届范围，再将其中一届的隔离fixture改为draft：原单届链接进入不可用页，全站summary立即为1场/1图/22回合；恢复公开后重新纳入。这验证fresh membership，不代替托管跨实例tag验收。
 
 `/stats` slug 与其它静态入口预留；新增和更新校验、发布锁内校验、只读 coverage 的 route conflict gate 都已接入。现有冲突不会被自动改名。
 
