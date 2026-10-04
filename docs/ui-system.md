@@ -77,6 +77,18 @@ Major 赛前工作区按报名收口、资格方案、资格赛、正赛名单�
 
 个人工作区使用真实导航链接和 `aria-current`，窄屏允许换行；父级 `PageLayout` 持有整页宽度与 gutter，子路由不重复创建页面壳。离开长期队伍的说明必须明确：该操作不会自动改写已经提交、审核通过或冻结的赛事名单。
 
+### Platform data center
+
+全站固定入口为「赛事 / 队伍 / 数据中心」，桌面、移动与 fallback 复用相同目的地。赛事内部页面归属「赛事」，路径匹配遵守 segment 边界。公共导航与 viewer/session Suspense island 保持隔离；不在 Header 展开赛事名称。赛事 breadcrumb 附近的有界赛事选择器只切换到赛事首页，保留赛事内部业务导航。
+
+`/stats` 使用平台主题与 `PageLayout wide`，默认全部公开赛事，包括 archived 历史。赛事是可搜索的上下文筛选，不是统计页面归属；选择器只接收 public-safe 摘要，确认选项才导航，支持键盘、焦点返回与内部滚动。阶段只用于单届；赛制与地图属于共享 scope。Overview / Players / Teams / Maps / Weapons / Records 是固定六个内容 tab。旧公开赛事统计入口永久迁移到 canonical URL；授权 draft preview 继续隔离在薄适配入口中。
+
+Players Opening 在 FD/100r 后显示 Traded FD%；Utility 在 Blind/Flash 后显示 Net Blind/Flash。两列沿用排序、dynamic qualification、样本与 tooltip contract，次级列在窄屏隐藏，净值保留负数。搜索与队伍展示过滤不改变指标资格总体。
+
+Overview 的概要之后展示至多六条紧凑「数据观察 / Insights」，无候选时省略。每条提供范围、自然中文、分子/分母或秒/颗与投掷数、可展开的「为何出现」及相关统计链接；不使用能力分、奖项标签、因果或显著性断言。保留 Situation Highlights，避免卡片墙。
+
+Records 按 Performance / Clutch / Rounds 分组，以当前范围内完整有效的单图或回合事实比较极值。保持者与发生次数分开，全部并列通过有界分页追溯赛事、比赛、地图、比分和回合；没有回合详情路由时链接比赛并注明 Rn。覆盖说明限定纪录结论，未知值不解释为零。
+
 ### Public Team profile composition
 
 公开队伍详情只有一个 canonical `TeamPublicProfile` composition owner。长期队伍路由 `/teams/[slug]` 只注入长期 Team read model；赛事队伍路由 `/[seasonSlug]/teams/[entryId]` 注入本届赛事的 public event context，并在 `entry.teamId` 存在时一并注入长期 Team read model。两条路由保持各自的事实 owner，不把一届赛事中的参赛队伍当作长期 Team。

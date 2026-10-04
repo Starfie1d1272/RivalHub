@@ -8,6 +8,7 @@ import { completeSum, killWeightedAvg, perRound, ratioOfSums, roundWeightedAvg, 
 
 export interface StatsLeaderboardFilters {
   seasonId?: string;
+  matchIds?: readonly string[];
   stage?: string;
   format?: "bo1" | "bo3" | "bo5";
   mapFilter?: string;
@@ -50,6 +51,7 @@ export async function getStatsLeaderboard(
     ? currentImportFilter
     : sql`(mps.dak_import_id IS NULL OR ${currentImportFilter})`;
   const seasonFilter = scope.seasonId ? sql`AND m.season_id = ${scope.seasonId}` : sql``;
+  const matchFilter = scope.matchIds ? scope.matchIds.length ? sql`AND m.id IN (${sql.join(scope.matchIds.map((id) => sql`${id}`), sql`, `)})` : sql`AND false` : sql``;
   const stageFilter = scope.stage ? sql`AND m.stage = ${scope.stage}` : sql``;
   const formatFilter = scope.format ? sql`AND m.format = ${scope.format}` : sql``;
   const mapName = options.groupByMap ? sql`mm.map_name AS map_name,` : sql`NULL::text AS map_name,`;
@@ -93,6 +95,7 @@ export async function getStatsLeaderboard(
     LEFT JOIN competition_entries entrant ON entrant.id = lineup.entry_id
     WHERE true
       ${seasonFilter}
+      ${matchFilter}
       AND mps.verified_by_admin IS NOT NULL
       AND mm.score_a IS NOT NULL AND mm.score_b IS NOT NULL AND mm.completed_at IS NOT NULL
       AND mps.user_id IS NOT NULL

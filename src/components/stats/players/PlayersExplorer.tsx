@@ -7,11 +7,11 @@ import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
 import { MetricFamilyTabs } from "@/components/stats/MetricFamilyTabs";
 import { MetricValue } from "@/components/stats/MetricValue";
 import { StatsDataTable, type StatsDataColumn } from "@/components/stats/StatsDataTable";
+import { openingDeathTraded } from "@/lib/stats/derived-metrics";
 import { statsRateDenominator, statsRateNumerator } from "@/lib/stats/presentation";
 import type { TournamentStats } from "@/lib/stats/tournament-query";
 import type { StatsQuery } from "@/lib/stats/view-state";
 import { navigateStatsScope } from "@/lib/stats/view-state";
-import { CS2_MAP_CATALOG } from "@/lib/config/cs2-maps";
 
 type Family = "overall" | "opening" | "teamplay" | "utility" | "clutch";
 const families = [
@@ -61,6 +61,7 @@ function DAKColumns(family: Exclude<Family, "overall">, teamNames: ReadonlyMap<s
       { key: "win", metric: "openingWin", numeric: true, sortable: true, sortValue: (row) => row.slices.overall.opening.successRate.rate, rankingSample: (row) => statsRateDenominator(row.slices.overall.opening.successRate), render: (row) => <MetricValue metric="openingWin" value={row.slices.overall.opening.successRate} sampleDisplay="compact" /> },
       { key: "fk", metric: "firstKill", numeric: true, className: "hidden lg:table-cell", sortable: true, sortValue: (row) => row.slices.overall.opening.firstKillsPerRound.rate, rankingSample: rounds, render: (row) => <MetricValue metric="firstKill" value={row.slices.overall.opening.firstKillsPerRound} sampleDisplay="hidden" /> },
       { key: "fd", metric: "firstDeath", numeric: true, className: "hidden lg:table-cell", sortable: true, sortValue: (row) => row.slices.overall.opening.firstDeathsPerRound.rate, rankingSample: rounds, render: (row) => <MetricValue metric="firstDeath" value={row.slices.overall.opening.firstDeathsPerRound} sampleDisplay="hidden" /> },
+      { key: "openingDeathTradedRate", metric: "openingDeathTradedRate", numeric: true, className: "hidden lg:table-cell", sortable: true, sortValue: (row) => openingDeathTraded(row.slices.overall).rate, rankingSample: (row) => row.slices.overall.opening.firstDeaths, render: (row) => <MetricValue metric="openingDeathTradedRate" value={openingDeathTraded(row.slices.overall)} sampleDisplay="compact" /> },
     ],
     teamplay: [
       { key: "kast", metric: "kast", numeric: true, sortable: true, sortValue: (row) => row.slices.overall.kast.rate, rankingSample: rounds, render: (row) => <MetricValue metric="kast" value={row.slices.overall.kast} sampleDisplay="hidden" /> },
@@ -72,6 +73,7 @@ function DAKColumns(family: Exclude<Family, "overall">, teamNames: ReadonlyMap<s
       { key: "util", metric: "utility", numeric: true, sortable: true, sortValue: (row) => row.slices.overall.utility.utilityDamagePerRound.rate, rankingSample: rounds, render: (row) => <MetricValue metric="utility" value={row.slices.overall.utility.utilityDamagePerRound} sampleDisplay="hidden" /> },
       { key: "fa", metric: "flashAssist", numeric: true, sortable: true, sortValue: (row) => row.slices.overall.utility.flashAssistsPerRound.rate, rankingSample: rounds, render: (row) => <MetricValue metric="flashAssist" value={row.slices.overall.utility.flashAssistsPerRound} sampleDisplay="hidden" /> },
       { key: "blind", metric: "blindPerFlash", numeric: true, className: "hidden lg:table-cell", sortable: true, sortValue: (row) => row.slices.overall.utility.enemyBlindSecondsPerFlash.rate, rankingSample: (row) => statsRateDenominator(row.slices.overall.utility.enemyBlindSecondsPerFlash), render: (row) => <MetricValue metric="blindPerFlash" value={row.slices.overall.utility.enemyBlindSecondsPerFlash} /> },
+      { key: "netBlindPerFlash", metric: "netBlindPerFlash", numeric: true, className: "hidden lg:table-cell", sortable: true, sortValue: (row) => row.slices.overall.utility.netBlindSecondsPerFlash.rate, rankingSample: (row) => row.slices.overall.utility.flashesThrown, render: (row) => <MetricValue metric="netBlindPerFlash" value={row.slices.overall.utility.netBlindSecondsPerFlash} /> },
       { key: "he", metric: "hePerRound", numeric: true, className: "hidden lg:table-cell", sortable: true, sortValue: (row) => row.slices.overall.utility.heDamagePerRound.rate, rankingSample: rounds, render: (row) => <MetricValue metric="hePerRound" value={row.slices.overall.utility.heDamagePerRound} sampleDisplay="hidden" /> },
     ],
     clutch: [
@@ -90,14 +92,14 @@ export function PlayersExplorer({ data, query, seasonSlug }: { data: TournamentS
   const [family, setFamily] = useState<Family>("overall");
   const [search, setSearch] = useState("");
   const normalizedSearch = search.trim().toLocaleLowerCase();
-  const teamNames = useMemo(() => new Map(data.options.teams.map((team) => [team.id, team.name])), [data.options.teams]);
+  const teamNames = useMemo(() => new Map(data.performance.teams.map((team) => [team.team.entityKey, team.team.displayName])), [data.performance.teams]);
   const scoreboardRows = useMemo(
-    () => data.leaderboard.filter((row) => `${row.perfectName} ${row.teamName ?? ""}`.toLocaleLowerCase().includes(normalizedSearch)),
-    [data.leaderboard, normalizedSearch],
+    () => data.leaderboard.filter((row) => (!query.teamFilter || row.teamId === query.teamFilter) && `${row.perfectName} ${row.teamName ?? ""}`.toLocaleLowerCase().includes(normalizedSearch)),
+    [data.leaderboard, normalizedSearch, query.teamFilter],
   );
   const dakRows = useMemo(
-    () => data.performance.players.filter((row) => `${row.player.displayName} ${playerTeam(row, teamNames)}`.toLocaleLowerCase().includes(normalizedSearch)),
-    [data.performance.players, normalizedSearch, teamNames],
+    () => data.performance.players.filter((row) => (!query.teamFilter || row.teamEntityKeys.includes(query.teamFilter)) && `${row.player.displayName} ${playerTeam(row, teamNames)}`.toLocaleLowerCase().includes(normalizedSearch)),
+    [data.performance.players, normalizedSearch, teamNames, query.teamFilter],
   );
 
   const overallColumns: StatsDataColumn<ScoreboardRow>[] = [
@@ -155,20 +157,13 @@ export function PlayersExplorer({ data, query, seasonSlug }: { data: TournamentS
       <MetricFamilyTabs label="Player metrics" value={family} options={families} onChange={setFamily} />
 
       <div className="flex min-w-0 flex-wrap items-end gap-3">
-        <label className="grid gap-1">
-          <span className="text-[11px] uppercase tracking-[var(--tracking-label)] text-[var(--color-fg-mid)]">Map</span>
-          <select value={query.mapFilter} onChange={(event) => navigateStatsScope(router, seasonSlug, query, { mapFilter: event.target.value })} className="min-h-8 min-w-36 border border-[var(--color-border)] bg-[var(--color-panel-low)] px-2.5 py-1.5 text-sm">
-            <option value="">All maps</option>
-            {data.options.maps.map((map) => <option key={map} value={map}>{CS2_MAP_CATALOG.find((row) => row.key === map)?.label ?? map}</option>)}
-          </select>
-        </label>
-        <label className="grid gap-1">
+        {seasonSlug && <label className="grid gap-1">
           <span className="text-[11px] uppercase tracking-[var(--tracking-label)] text-[var(--color-fg-mid)]">Team</span>
           <select value={query.teamFilter} onChange={(event) => navigateStatsScope(router, seasonSlug, query, { teamFilter: event.target.value })} className="min-h-8 min-w-40 border border-[var(--color-border)] bg-[var(--color-panel-low)] px-2.5 py-1.5 text-sm">
             <option value="">All teams</option>
             {data.options.teams.map((team) => <option key={team.id} value={team.id}>{team.name}</option>)}
           </select>
-        </label>
+        </label>}
         <label className="grid min-w-56 flex-1 gap-1 sm:max-w-sm">
           <span className="text-[11px] uppercase tracking-[var(--tracking-label)] text-[var(--color-fg-mid)]">Search</span>
           <input value={search} onChange={(event) => setSearch(event.target.value)} type="search" className="min-h-8 border border-[var(--color-border)] bg-[var(--color-panel-low)] px-2.5 py-1.5 text-sm" placeholder="Player or team" />

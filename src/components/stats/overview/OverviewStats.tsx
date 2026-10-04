@@ -3,6 +3,7 @@ import React from "react";
 
 import Link from "next/link";
 import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
+import { Insights } from "./Insights";
 import { MetricValue } from "@/components/stats/MetricValue";
 import { StatsMetricLabel } from "@/components/stats/StatsMetricHelp";
 import { StatsSideSplit } from "@/components/stats/StatsSideSplit";
@@ -155,7 +156,7 @@ function leaders(data: TournamentStats, query: StatsQuery, seasonSlug: string) {
     { key: "sample", label: "Maps / Rds", numeric: true, className: "hidden w-[26%] sm:table-cell", render: (row) => <span>{row.maps} / {row.rounds ?? "—"}</span> },
   ];
   const teamColumns: StatsDataColumn<typeof teamRows[number]>[] = [
-    { key: "team", label: "Team", className: "w-[34%]", render: (row) => <Link href={`/${seasonSlug}/teams/${row.entryId}`} className="font-medium hover:text-[var(--color-accent)]">{row.name}</Link> },
+    { key: "team", label: "Team", className: "w-[34%]", render: (row) => <Link href={(data.teamLinks?.[row.entryId] ?? `/${seasonSlug}/teams/${row.entryId}`) as never} className="font-medium hover:text-[var(--color-accent)]">{row.name}</Link> },
     { key: "rating", metric: "rating", numeric: true, className: "w-[21%]", render: (row) => <MetricValue metric="rating" value={row.rating} /> },
     { key: "match", label: "W-L", numeric: true, className: "w-[18%]", render: (row) => `${row.matchWins}-${row.matchLosses}` },
     { key: "maps", label: "Maps", numeric: true, className: "hidden w-[15%] sm:table-cell", render: (row) => row.maps },
@@ -215,6 +216,8 @@ export function OverviewStats({ data, query, seasonSlug }: { data: TournamentSta
           </div>
         </div>
       </section>
+
+      <Insights insights={data.insights ?? []} query={query} seasonSlug={seasonSlug} />
 
       <section aria-labelledby="maps-heading">
         <div className="mb-3 flex items-end justify-between gap-3">
@@ -288,7 +291,7 @@ export function OverviewStats({ data, query, seasonSlug }: { data: TournamentSta
                   <p className="text-[11px] uppercase tracking-[var(--tracking-label)] text-[var(--color-fg-mid)]"><StatsMetricLabel metric={highlight.metric}>{highlight.label}</StatsMetricLabel></p>
                   {highlight.team && highlight.value ? (
                     <>
-                      <Link href={`/${seasonSlug}/teams/${highlight.team.entityKey}`} className="mt-1.5 block truncate text-sm font-medium hover:text-[var(--color-accent)]">{highlight.team.displayName}</Link>
+                      <Link href={(data.teamLinks?.[highlight.team.entityKey] ?? `/${seasonSlug}/teams/${highlight.team.entityKey}`) as never} className="mt-1.5 block truncate text-sm font-medium hover:text-[var(--color-accent)]">{highlight.team.displayName}</Link>
                       <div className="mt-1 text-lg font-semibold"><MetricValue metric={highlight.metric} value={highlight.value} sampleDisplay="compact" /></div>
                     </>
                   ) : <p className="mt-2 text-sm text-[var(--color-fg-dim)]">—</p>}

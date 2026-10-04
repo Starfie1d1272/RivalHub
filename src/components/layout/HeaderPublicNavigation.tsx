@@ -4,9 +4,7 @@ import { HeaderNavigation } from "./HeaderNavigation";
 
 export async function HeaderPublicNavigation({ mobile = false }: { mobile?: boolean }) {
   await io();
-  const seasons = (await getPublicSeasonCatalog()).filter(
-    (season) => season.status !== "archived",
-  );
+  const seasons = await getPublicSeasonCatalog();
 
   return (
     <HeaderNavigation

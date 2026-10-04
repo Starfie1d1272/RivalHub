@@ -1,3 +1,4 @@
+import { statsEntryHref } from "@/lib/stats/view-state";
 import type { RegistrationMode, SeasonStatus } from "@/types/season";
 import { getSeasonLifecycleGroup, isRegistrationActuallyOpen } from "@/lib/seasons/presentation";
 import { showStats } from "@/lib/utils/season";
@@ -151,7 +152,7 @@ export function buildHomeNavEntries(
     },
     {
       key: "stats",
-      href: `/${season.slug}/stats`,
+      href: statsEntryHref(season.slug, {}, season.status === "draft"),
       label: "数据统计",
       mono: "STATS",
       meta: "Rating · ADR",

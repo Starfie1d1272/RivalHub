@@ -11,7 +11,6 @@ import { statsRateDenominator } from "@/lib/stats/presentation";
 import type { TournamentStats } from "@/lib/stats/tournament-query";
 import { type StatsQuery } from "@/lib/stats/view-state";
 import { navigateStatsScope } from "@/lib/stats/view-state";
-import { CS2_MAP_CATALOG } from "@/lib/config/cs2-maps";
 
 type Family = "results" | "rounds" | "conversion" | "teamplay";
 const families = [
@@ -52,14 +51,14 @@ function rowsFor(data: TournamentStats): TeamDirectoryRow[] {
   });
 }
 
-function teamColumns(family: Family, seasonSlug: string): StatsDataColumn<TeamDirectoryRow>[] {
+function teamColumns(family: Family, seasonSlug: string, links?: Record<string, string>): StatsDataColumn<TeamDirectoryRow>[] {
   const teamColumn: StatsDataColumn<TeamDirectoryRow> = {
     key: "team",
     label: "Team",
     className: "w-[28%]",
     sortable: true,
     sortValue: (row) => row.name,
-    render: (row) => <Link href={`/${seasonSlug}/teams/${row.entryId}`} className="font-medium hover:text-[var(--color-accent)]">{row.name}</Link>,
+    render: (row) => <Link href={(links?.[row.entryId] ?? `/${seasonSlug}/teams/${row.entryId}`) as never} className="font-medium hover:text-[var(--color-accent)]">{row.name}</Link>,
   };
   const detailSample: StatsDataColumn<TeamDirectoryRow>[] = [
     { key: "detailMaps", label: "Maps", numeric: true, className: "w-[9%]", sortable: true, sortValue: (row) => row.analytics?.mapCount ?? null, render: (row) => row.analytics?.mapCount ?? 0 },
@@ -116,13 +115,6 @@ export function TeamsExplorer({ data, query, seasonSlug }: { data: TournamentSta
       <MetricFamilyTabs label="Team metrics" value={family} options={families} onChange={setFamily} />
 
       <div className="flex min-w-0 flex-wrap items-end gap-3">
-        <label className="grid gap-1">
-          <span className="text-[11px] uppercase tracking-[var(--tracking-label)] text-[var(--color-fg-mid)]">Map</span>
-          <select value={query.mapFilter} onChange={(event) => navigateStatsScope(router, seasonSlug, query, { mapFilter: event.target.value })} className="min-h-8 min-w-40 border border-[var(--color-border)] bg-[var(--color-panel-low)] px-2.5 py-1.5 text-sm">
-            <option value="">All maps</option>
-            {data.options.maps.map((map) => <option key={map} value={map}>{CS2_MAP_CATALOG.find((row) => row.key === map)?.label ?? map}</option>)}
-          </select>
-        </label>
         <div className="ml-auto flex items-center gap-3 pb-1 text-xs text-[var(--color-fg-dim)]">
           {partialCoverage && <span>Coverage {data.coverage.detailedMaps}/{data.coverage.completedMaps}</span>}
           <span>{rows.length} teams</span>
@@ -134,7 +126,7 @@ export function TeamsExplorer({ data, query, seasonSlug }: { data: TournamentSta
         key={family}
         rows={rows}
         rankingBaselineRows={rows}
-        columns={teamColumns(family, seasonSlug)}
+        columns={teamColumns(family, seasonSlug, data.teamLinks)}
         rowKey={(row) => row.entryId}
         initialSortKey={family === "results" ? "match" : family === "rounds" ? "rw" : family === "conversion" ? "r2" : "opening"}
         tableClassName={family === "results" ? "min-w-[700px] table-fixed" : family === "conversion" ? "min-w-[1120px] table-fixed" : "min-w-[940px] table-fixed"}

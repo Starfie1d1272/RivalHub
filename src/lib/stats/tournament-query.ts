@@ -3,7 +3,7 @@ import "server-only";
 import { and, count, desc, eq, inArray, ne, or } from "drizzle-orm";
 import { buildTournamentAnalytics, buildTournamentPerformanceAnalyticsFromProjections as buildTournamentPerformanceAnalytics, remapTournamentPerformanceMapProjection, scopeTournamentPerformanceMapProjectionToTeam } from "@cs2dak/tournament";
 import { db, type DB, type TxDb } from "@/db/client";
-import { competitionEntries, eventRosterMembers, matchDemoImports, matchDemoStatProjections, matchPlayerStats, matchMaps, matchRosterPlayers, matchRosters, matches, matchVetoSteps, seasons, steamProfiles, users } from "@/db/schema";
+import { competitionEntries, eventRosterMembers, matchDemoImports, matchDemoStatProjections, matchPlayerStats, matchMaps, matchRosterPlayers, matchRosters, matches, matchVetoSteps, seasons, steamProfiles, teams, users } from "@/db/schema";
 import { selectCurrentDemoImport } from "@/lib/demo-integration/read";
 import { buildEvidenceRevisionForTarget } from "@/lib/demo-integration/revision";
 import { resolveGameplayUsersBySteam64InTx } from "@/lib/identity/gameplay-steam";
@@ -14,13 +14,18 @@ import { getPublicPlayerRecord } from "@/lib/players/public-record";
 import { getStatsLeaderboard } from "./leaderboard-query";
 import { STATISTICS_PROJECTION_VERSION } from "./projection-version";
 import { recordStatsProjectionRead } from "@/lib/observability/statistics";
+import { AppError, ErrorCode } from "@/lib/errors";
+import { buildScopeInsights } from "./insight-facts";
+import { buildRecords, type RecordOccurrence, type RecordSummary } from "./records";
+import type { Insight } from "./insights";
 import { buildTournamentResults } from "./results";
 import { buildTeamRatings } from "./team-rating";
 import { classifyVetoSample } from "./veto-sample";
 
 export interface TournamentStatsScope { seasonId: string; stage?: string; format?: "bo1" | "bo3" | "bo5"; mapFilter?: string; teamFilter?: string }
 
-type StatsEvidenceScope = Omit<TournamentStatsScope, "seasonId"> & { seasonId?: string };
+export type PlatformStatsScope = Omit<TournamentStatsScope, "seasonId"> & { seasonId?: string; seasonIds?: string[]; recordPage?: number; weaponTeamId?: string; publicOnly?: boolean };
+type StatsEvidenceScope = PlatformStatsScope;
 
 export interface PlayerStatsEventOption {
   id: string;
@@ -34,7 +39,7 @@ export type StatsLabels = { teams: Record<string, string>; players: Record<strin
 async function loadStatsContext(tx: TxDb, scope: StatsEvidenceScope, options: { mapName?: string; teamId?: string; matchIds?: readonly string[] } = {}) {
   const selectedMapRows = options.mapName && options.matchIds?.length !== 0
     ? await tx.select({ match: matches, map: matchMaps }).from(matchMaps).innerJoin(matches, eq(matches.id, matchMaps.matchId)).where(and(
-      scope.seasonId ? eq(matches.seasonId, scope.seasonId) : undefined,
+      scope.seasonId ? eq(matches.seasonId, scope.seasonId) : scope.seasonIds ? inArray(matches.seasonId, scope.seasonIds) : undefined,
       eq(matchMaps.mapName, options.mapName),
       options.matchIds ? inArray(matches.id, [...options.matchIds]) : undefined,
       scope.stage ? eq(matches.stage, scope.stage) : undefined,
@@ -47,12 +52,12 @@ async function loadStatsContext(tx: TxDb, scope: StatsEvidenceScope, options: { 
     : options.matchIds
       ? options.matchIds.length ? await tx.select().from(matches).where(and(
         inArray(matches.id, [...options.matchIds]),
-        scope.seasonId ? eq(matches.seasonId, scope.seasonId) : undefined,
+        scope.seasonId ? eq(matches.seasonId, scope.seasonId) : scope.seasonIds ? inArray(matches.seasonId, scope.seasonIds) : undefined,
         scope.stage ? eq(matches.stage, scope.stage) : undefined,
         scope.format ? eq(matches.format, scope.format) : undefined,
       )) : []
-      : scope.seasonId ? await tx.select().from(matches).where(and(
-        eq(matches.seasonId, scope.seasonId),
+      : scope.seasonId || scope.seasonIds ? await tx.select().from(matches).where(and(
+        scope.seasonId ? eq(matches.seasonId, scope.seasonId) : scope.seasonIds ? inArray(matches.seasonId, scope.seasonIds) : undefined,
         scope.stage ? eq(matches.stage, scope.stage) : undefined,
         scope.format ? eq(matches.format, scope.format) : undefined,
       )) : [];
@@ -62,8 +67,11 @@ async function loadStatsContext(tx: TxDb, scope: StatsEvidenceScope, options: { 
   const matchesById = new Map(scopedMatches.map((match) => [match.id, match]));
   const matchIds = scopedMatches.map((match) => match.id);
   const seasonIds = scope.seasonId ? [scope.seasonId] : [...new Set(scopedMatches.map((match) => match.seasonId))];
-  const entries = seasonIds.length ? await tx.select({ id: competitionEntries.id, name: competitionEntries.name }).from(competitionEntries)
+  const entryRows = seasonIds.length ? await tx.select({ id: competitionEntries.id, name: competitionEntries.name, teamId: competitionEntries.teamId, teamName: teams.name, teamSlug: teams.slug, eventSlug: seasons.slug, eventName: seasons.name }).from(competitionEntries)
+    .innerJoin(seasons, eq(seasons.id, competitionEntries.competitionId))
+    .leftJoin(teams, eq(teams.id, competitionEntries.teamId))
     .where(inArray(competitionEntries.competitionId, seasonIds)) : [];
+  const entries = entryRows.map((row) => ({ id: row.id, name: row.name }));
   const participantIds = new Set(baseMatches.filter((match) => match.status === "finished").flatMap((match) => [match.entryAId, match.entryBId].filter((id): id is string => Boolean(id))));
   const participantEntries = entries.filter((entry) => participantIds.has(entry.id));
   const maps = selectedMapRows
@@ -112,7 +120,7 @@ async function loadStatsContext(tx: TxDb, scope: StatsEvidenceScope, options: { 
     if (current.evidenceRevision !== buildEvidenceRevisionForTarget({ match, map, roster: rosterByMatchId.get(match.id) ?? [] })) return [];
     return [{ current, match, map }];
   });
-  return { matches: scopedMatches, matchIds, entries, participantEntries, maps, scopedMaps, roster, rosterByMatchAndUser, currentRefs };
+  return { entryRows, matches: scopedMatches, matchIds, entries, participantEntries, maps, scopedMaps, roster, rosterByMatchAndUser, currentRefs };
 }
 
 /** Select valid materialized bindings without transferring statistics or Evidence. */
@@ -296,7 +304,7 @@ function buildVetoSelection(
 
 async function loadScopedVetoRows(
   tx: TxDb,
-  scope: Pick<TournamentStatsScope, "seasonId" | "stage" | "format">,
+  scope: StatsEvidenceScope,
   mapName?: string,
 ) {
   return tx.select({
@@ -305,7 +313,7 @@ async function loadScopedVetoRows(
     action: matchVetoSteps.actionType,
     entryId: matchVetoSteps.entryId,
   }).from(matchVetoSteps).innerJoin(matches, eq(matches.id, matchVetoSteps.matchId)).where(and(
-    eq(matches.seasonId, scope.seasonId),
+    scope.seasonId ? eq(matches.seasonId, scope.seasonId) : scope.seasonIds ? inArray(matches.seasonId, scope.seasonIds) : undefined,
     eq(matches.status, "finished"),
     scope.stage ? eq(matches.stage, scope.stage) : undefined,
     scope.format ? eq(matches.format, scope.format) : undefined,
@@ -313,18 +321,19 @@ async function loadScopedVetoRows(
   ));
 }
 
-async function loadVetoData(tx: TxDb, scope: Pick<TournamentStatsScope, "seasonId" | "stage" | "format">, entries: Array<{ id: string; name: string }>) {
-  const matchRows = await tx.select({
+async function loadVetoData(tx: TxDb, scope: StatsEvidenceScope, entries: Array<{ id: string; name: string }>, remap: (id: string) => string = (id) => id) {
+  const originalMatches = await tx.select({
     id: matches.id,
     status: matches.status,
     isForfeit: matches.isForfeit,
     entryAId: matches.entryAId,
     entryBId: matches.entryBId,
   }).from(matches).where(and(
-    eq(matches.seasonId, scope.seasonId),
+    scope.seasonId ? eq(matches.seasonId, scope.seasonId) : scope.seasonIds ? inArray(matches.seasonId, scope.seasonIds) : undefined,
     scope.stage ? eq(matches.stage, scope.stage) : undefined,
     scope.format ? eq(matches.format, scope.format) : undefined,
   ));
+  const matchRows = originalMatches.map((row) => ({ ...row, entryAId: row.entryAId ? remap(row.entryAId) : row.entryAId, entryBId: row.entryBId ? remap(row.entryBId) : row.entryBId }));
   const finished = matchRows.filter((match) => match.status === "finished");
   const finishedIds = finished.map((match) => match.id);
   const allVeto = finishedIds.length
@@ -342,7 +351,7 @@ async function loadVetoData(tx: TxDb, scope: Pick<TournamentStatsScope, "seasonI
   ]));
   const applicableMatches = finished.filter((match) => sampleStateByMatchId.get(match.id) !== "not_applicable");
   const applicableIds = new Set(applicableMatches.map((match) => match.id));
-  const rows = allVeto.filter((row) => applicableIds.has(row.matchId));
+  const rows = allVeto.filter((row) => applicableIds.has(row.matchId)).map((row) => ({ ...row, entryId: row.entryId ? remap(row.entryId) : null }));
   const participantIds = new Set(finished.flatMap((match) => [match.entryAId, match.entryBId].filter((id): id is string => Boolean(id))));
   const participants = entries.filter((entry) => participantIds.has(entry.id));
   const recordedApplicableIds = new Set(rows.map((row) => row.matchId));
@@ -433,24 +442,66 @@ function buildCoverage(
   };
 }
 
-export async function getTournamentStats(scope: TournamentStatsScope, database: DB = db) {
+export async function getTournamentStats(scope: PlatformStatsScope, database: DB = db) {
   return database.transaction(async (tx) => {
-    const loaded = await loadStatsEvidence(tx, scope);
-    const veto = await loadVetoData(tx, scope, loaded.entries);
+    if (!scope.seasonId || scope.publicOnly) {
+      const publicEvents = await tx.select({ id: seasons.id }).from(seasons).where(and(ne(seasons.status, "draft"),
+        scope.seasonIds ? inArray(seasons.id, scope.seasonIds) : undefined,
+        scope.seasonId ? eq(seasons.id, scope.seasonId) : undefined));
+      const ids = publicEvents.map((e) => e.id);
+      if (scope.seasonId && !ids.includes(scope.seasonId)) throw new AppError(ErrorCode.NOT_FOUND, "统计范围不可用。");
+      scope = { ...scope, seasonIds: ids };
+    }
+    const original = await loadStatsEvidence(tx, scope);
+    const platform = !scope.seasonId;
+    const mapping = new Map(original.entryRows.map((row) => [row.id, platform && row.teamId ? row.teamId : row.id]));
+    const remap = (id: string) => mapping.get(id) ?? id;
+    const teamLinks = Object.fromEntries(original.entryRows.map((row) => [remap(row.id), row.teamSlug ? `/teams/${row.teamSlug}` : `/${row.eventSlug}/teams/${row.id}`]));
+    const entries = [...new Map(original.entryRows.map((row) => [remap(row.id), { id: remap(row.id), name: platform ? row.teamName ?? `${row.name} · ${row.eventName}` : row.name }])).values()];
+    for (const match of original.matches) if (remap(match.entryAId) === remap(match.entryBId)) throw new Error("Platform team identity collision");
+    const selected = platform ? original.selected.map((row) => ({ ...row, facts: { ...row.facts,
+      tournament: { ...row.facts.tournament, teamEntityKeys: { teamA: remap(row.facts.tournament.teamEntityKeys.teamA), teamB: remap(row.facts.tournament.teamEntityKeys.teamB) }, playerWeapons: row.facts.tournament.playerWeapons.map((weapon) => ({ ...weapon, teamEntityKey: remap(weapon.teamEntityKey) })) },
+      performance: remapTournamentPerformanceMapProjection(row.facts.performance, { teamEntityKey: remap, playerEntityKey: (id) => id }),
+    } })) : original.selected;
+    const loaded = { ...original, selected, entries, matches: original.matches.map((match) => ({ ...match, entryAId: remap(match.entryAId), entryBId: remap(match.entryBId) })), labels: { ...original.labels, teams: Object.fromEntries(entries.map((e) => [e.id, e.name])) } };
+    const veto = await loadVetoData(tx, scope, entries, remap);
     const results = buildTournamentResults(resultMatchesForMapScope(loaded.matches, loaded.scopedMaps, scope.mapFilter), loaded.scopedMaps, loaded.entries);
     const coverage = buildCoverage(loaded, results);
     const mapNames = [...new Set([...loaded.maps.map((map) => map.mapName), ...veto.rows.map((row) => row.mapName)])].sort();
-    const leaderboard = await getStatsLeaderboard(scope, loaded.selected.map((row) => row.importId), loaded.roster, tx);
+    const leaderboard = await getStatsLeaderboard({ ...scope, matchIds: loaded.matchIds }, loaded.selected.map((row) => row.importId), loaded.roster, tx, { groupByTeam: !platform });
+    const teamScoreboard = platform ? await getStatsLeaderboard({ ...scope, matchIds: loaded.matchIds }, loaded.selected.map((row) => row.importId), loaded.roster, tx) : leaderboard;
+    const analytics = buildTournamentAnalytics(loaded.selected.map((row) => row.facts.tournament), { labels: loaded.labels });
+    const performance = buildTournamentPerformanceAnalytics(performanceFactsForScope(loaded, scope.teamFilter), { labels: loaded.labels });
+    const scopeLabel = [scope.seasonId ? original.entryRows[0]?.eventName ?? "所选赛事" : "全部公开赛事", scope.stage, scope.format?.toUpperCase(), scope.mapFilter].filter(Boolean).join(" · ");
+    const perMap = loaded.selected.map((row) => ({ mapKey: row.facts.performance.mapKey, performance: buildTournamentPerformanceAnalytics([row.facts.performance], { labels: loaded.labels }) }));
+    const insights = buildScopeInsights(analytics, performance, perMap, teamLinks, scopeLabel);
+    const occurrences: RecordOccurrence[] = original.selected.flatMap((row) => {
+      const map = original.scopedMaps.find((m) => m.id === row.facts.tournament.mapKey)!;
+      const match = original.matches.find((m) => m.id === map.matchId)!;
+      return (row.facts.records?.candidates ?? []).map((candidate) => {
+        const entry = original.entryRows.find((e) => e.id === candidate.entryId)!;
+        const isTeam = candidate.kind === "economy";
+        const id = isTeam ? remap(candidate.entityId) : candidate.entityId;
+        const opponent = original.entries.find((e) => e.id === (candidate.entryId === match.entryAId ? match.entryBId : match.entryAId))?.name ?? "—";
+        return { ...candidate, entityId: id, eventName: entry.eventName, eventSlug: entry.eventSlug, matchId: match.id, mapId: map.id, mapName: map.mapName,
+          score: `${map.scoreA}-${map.scoreB}`, rounds: map.scoreA! + map.scoreB!, entityName: isTeam ? entry.name : original.labels.players[id] ?? "选手",
+          entityHref: isTeam ? teamLinks[id]! : `/players/${id}`, opponent };
+      });
+    });
+    const records = buildRecords(occurrences, scope.recordPage);
+    const recordCoverage = { maps: original.selected.filter((r) => r.facts.records).length, economyRounds: original.selected.reduce((sum, r) => sum + (r.facts.records?.economyKnownRounds ?? 0), 0) };
     return {
       leaderboard,
-      teamRatings: buildTeamRatings(leaderboard),
-      analytics: buildTournamentAnalytics(loaded.selected.map((row) => row.facts.tournament), { labels: loaded.labels }),
-      performance: buildTournamentPerformanceAnalytics(performanceFactsForScope(loaded, scope.teamFilter), { labels: loaded.labels }),
+      teamRatings: buildTeamRatings(teamScoreboard.map((row) => ({ ...row, teamId: row.teamId ? remap(row.teamId) : null }))),
+      ...({ teamLinks } as { teamLinks?: Record<string, string> }),
+      analytics,
+      performance: scope.weaponTeamId ? buildTournamentPerformanceAnalytics(performanceFactsForScope(loaded, scope.weaponTeamId), { labels: loaded.labels }) : performance,
+      ...({ insights, records, recordCoverage } as { insights?: Insight[]; records?: RecordSummary[]; recordCoverage?: { maps: number; economyRounds: number } }),
       results,
       selection: buildVetoSelection(veto.participants, veto.rows, mapNames, scope.mapFilter),
       veto: { teams: veto.teams, sample: veto.sample },
       coverage,
-      options: { teams: loaded.participantEntries, maps: mapNames },
+      options: { teams: platform ? [] : loaded.participantEntries, maps: mapNames },
     };
   }, { isolationLevel: "repeatable read", accessMode: "read only" });
 }
@@ -475,7 +526,7 @@ async function loadTournamentPlayerDetail(
   const [mvpRow] = matchIds.length ? await tx.select({ count: count() }).from(matches).where(and(
     eq(matches.mvpWinnerUserId, scope.playerId),
     eq(matches.status, "finished"),
-    scope.seasonId ? eq(matches.seasonId, scope.seasonId) : undefined,
+    scope.seasonId ? eq(matches.seasonId, scope.seasonId) : scope.seasonIds ? inArray(matches.seasonId, scope.seasonIds) : undefined,
     inArray(matches.id, [...matchIds]),
   )) : [];
   const completedMaps = loaded.scopedMaps.filter((map) => map.completedAt !== null && map.scoreA !== null && map.scoreB !== null);

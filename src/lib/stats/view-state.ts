@@ -1,11 +1,13 @@
 import type { Route } from "next";
 
-export const STATS_TABS = { overview: "Overview", players: "Players", teams: "Teams", maps: "Maps", weapons: "Weapons" } as const;
+export const STATS_TABS = { overview: "Overview", players: "Players", teams: "Teams", maps: "Maps", weapons: "Weapons", records: "Records" } as const;
 export type StatsTab = keyof typeof STATS_TABS;
 export type StatsMatchFormat = "" | "bo1" | "bo3" | "bo5";
 export type StatsSearch = Record<string, string | string[] | undefined>;
 
 export interface StatsQuery {
+  recordPage?: number;
+  preview?: boolean;
   tab: StatsTab;
   stage: string;
   format: StatsMatchFormat;
@@ -22,16 +24,16 @@ const mapKeyPattern = /^de_[a-z0-9_]+$/;
 const idPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export function parseStatsQuery(raw: StatsSearch, stages: readonly string[]): StatsQuery {
-  const value = (key: string) => typeof raw[key] === "string" ? raw[key] as string : "";
+  const value = (key: string) => typeof raw[key] === "string" && raw[key].length <= 128 ? raw[key] as string : "";
   const requestedTab = value("tab");
   const requestedFormat = value("format");
-  const tab = Object.hasOwn(STATS_TABS, requestedTab) ? requestedTab as StatsTab : "overview";
+  const tab = Object.hasOwn(STATS_TABS, requestedTab) ? requestedTab as StatsTab : !requestedTab && value("map") ? "maps" : "overview";
   const format: StatsMatchFormat = requestedFormat === "bo1" || requestedFormat === "bo3" || requestedFormat === "bo5" ? requestedFormat : "";
   return {
     tab,
-    stage: stages.includes(value("stage")) ? value("stage") : "",
+    stage: value("stage") ? stages.includes(value("stage")) ? value("stage") : "__invalid__" : "",
     format,
-    mapFilter: mapKeyPattern.test(value("mapFilter")) ? value("mapFilter") : "",
+    mapFilter: value("mapFilter") ? mapKeyPattern.test(value("mapFilter")) ? value("mapFilter") : "__invalid__" : "",
     teamFilter: (tab === "players" || tab === "weapons") && idPattern.test(value("teamFilter")) ? value("teamFilter") : "",
     player: "",
     team: "",
@@ -45,9 +47,10 @@ function serializeStatsQuery(query: StatsQuery): URLSearchParams {
   if (query.tab !== "overview") params.set("tab", query.tab);
   if (query.stage) params.set("stage", query.stage);
   if (query.format) params.set("format", query.format);
-  if ((query.tab === "players" || query.tab === "teams" || query.tab === "weapons") && query.mapFilter) params.set("mapFilter", query.mapFilter);
+  if (query.mapFilter) params.set("mapFilter", query.mapFilter);
   if ((query.tab === "players" || query.tab === "weapons") && query.teamFilter) params.set("teamFilter", query.teamFilter);
   if (query.tab === "maps" && query.map) params.set("map", query.map);
+  if (query.tab === "records" && query.recordPage && query.recordPage > 1) params.set("recordPage", String(query.recordPage));
   if (query.tab === "maps" && query.mapsView === "veto") params.set("mapsView", "veto");
   return params;
 }
@@ -56,7 +59,7 @@ export function statsHref(slug: string, current: StatsQuery, updates: StatsQuery
   const nextTab = updates.tab && Object.hasOwn(STATS_TABS, updates.tab) ? updates.tab : current.tab;
   let next: StatsQuery = nextTab === current.tab
     ? { ...current }
-    : { tab: nextTab, stage: current.stage, format: current.format, mapFilter: "", teamFilter: "", player: "", team: "", map: "", mapsView: "pool" };
+    : { tab: nextTab, stage: current.stage, format: current.format, mapFilter: current.mapFilter, teamFilter: "", player: "", team: "", map: "", mapsView: "pool", preview: current.preview };
 
   if (Object.hasOwn(updates, "stage") && updates.stage !== current.stage) {
     next = { tab: nextTab, stage: updates.stage ?? "", format: current.format, mapFilter: "", teamFilter: "", player: "", team: "", map: "", mapsView: "pool" };
@@ -76,8 +79,12 @@ export function statsHref(slug: string, current: StatsQuery, updates: StatsQuery
   if (Object.hasOwn(updates, "map") && nextTab === "maps") next.map = updates.map ?? "";
   if (Object.hasOwn(updates, "mapsView") && nextTab === "maps") next.mapsView = updates.mapsView ?? "pool";
 
+  if (updates.recordPage !== undefined && nextTab === "records") next.recordPage = updates.recordPage;
+  if (nextTab !== current.tab || updates.stage !== undefined || updates.format !== undefined || updates.mapFilter !== undefined) next.recordPage = 1;
   const params = serializeStatsQuery(next);
-  return `/${slug}/stats${params.size ? `?${params.toString()}` : ""}` as Route;
+  if (slug && !current.preview) params.set("event", slug);
+  const path = current.preview ? `/${slug}/stats` : "/stats";
+  return `${path}${params.size ? `?${params.toString()}` : ""}` as Route;
 }
 
 export interface StatsScopeRouter {
@@ -88,4 +95,9 @@ export function navigateStatsScope(router: StatsScopeRouter, slug: string, query
   const href = statsHref(slug, query, updates);
   router.push(href, { scroll: false });
   return href;
+}
+
+/** Canonical public entry link; authorized draft adapters explicitly opt into preview. */
+export function statsEntryHref(slug = "", updates: StatsQueryUpdates = {}, preview = false): Route {
+  return statsHref(slug, { ...parseStatsQuery({}, []), preview }, updates);
 }

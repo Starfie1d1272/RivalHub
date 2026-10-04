@@ -1,8 +1,8 @@
 import "server-only";
 
-import { and, asc, desc, eq, gt, isNotNull, isNull, ne, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, ne, sql } from "drizzle-orm";
 import type { DB, TxDb } from "@/db/client";
-import { matchDemoImports, matchDemoStatProjections, matchMaps, matches, statisticsProjectionRepairCursors } from "@/db/schema";
+import { matchDemoImports, matchDemoStatProjections, matchMaps, matches, seasons, statisticsProjectionRepairCursors } from "@/db/schema";
 import { demoImportMetadataSelection } from "@/lib/demo-integration/metadata";
 import { lockDemoImportLineageInTx } from "@/lib/demo-integration/promotion";
 import { selectCurrentDemoImport } from "@/lib/demo-integration/read";
@@ -12,6 +12,7 @@ import { buildEvidenceRevisionForTarget } from "@/lib/demo-integration/revision"
 import { loadCanonicalTarget, validateCanonicalTarget } from "@/lib/demo-integration/validation";
 import { resolveGameplayUsersBySteam64InTx } from "@/lib/identity/gameplay-steam";
 import { loadEffectiveMatchRoster } from "@/lib/match-rosters/effective";
+import { PLATFORM_ROUTE_SEGMENTS } from "@/lib/seasons/slug";
 import { materializeStatisticsProjectionInTx, STATISTICS_PROJECTION_VERSION } from "./projection";
 
 /** Read only the latest eligible lineage metadata, bounded even with many historical artifacts. */
@@ -146,6 +147,7 @@ export async function inspectStatisticsProjectionCoverage(
   const maxDurationMs = positiveInteger(options.maxDurationMs ?? 60_000, "Coverage duration");
   const startedAt = Date.now();
   const deadline = startedAt + maxDurationMs;
+  const routeConflicts = await tx.select({ id: seasons.id, slug: seasons.slug }).from(seasons).where(inArray(seasons.slug, [...PLATFORM_ROUTE_SEGMENTS]));
   let after: string | undefined;
   let scanned = 0;
   let eligibleMaps = 0;
@@ -170,7 +172,7 @@ export async function inspectStatisticsProjectionCoverage(
       if (!await hasCurrentProjection(tx, candidate)) missing++;
     }
   }
-  return { projectionVersion: STATISTICS_PROJECTION_VERSION, scanned, eligibleMaps, missing, complete, ready: complete && missing === 0, durationMs: Date.now() - startedAt };
+  return { projectionVersion: STATISTICS_PROJECTION_VERSION, scanned, eligibleMaps, missing, complete, ready: complete && missing === 0 && routeConflicts.length === 0, routeConflicts, durationMs: Date.now() - startedAt };
 }
 
 function positiveInteger(value: number, name: string): number {

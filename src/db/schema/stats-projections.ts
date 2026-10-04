@@ -1,10 +1,12 @@
 import { sql } from "drizzle-orm";
 import { check, jsonb, pgTable, primaryKey, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import type { TournamentMapFacts, TournamentPerformanceMapProjection } from "@cs2dak/tournament";
+import type { CompactRecordFacts } from "@/lib/stats/record-facts";
 import { matchDemoImports } from "./demo-integration";
 
 export interface StatisticsProjectionBinding { steam64: string; userId: string; entryId: string }
 export interface StatisticsProjectionFacts {
+  records?: CompactRecordFacts;
   tournament: TournamentMapFacts;
   performance: TournamentPerformanceMapProjection;
 }
