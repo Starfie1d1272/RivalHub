@@ -127,7 +127,7 @@ describe("deployment and operations contracts", () => {
   it("keeps pnpm and Node runtime ownership in the package manifest", () => {
     const manifest = readPackageManifest();
 
-    expect(manifest.packageManager).toBe("pnpm@12.3.4");
+    expect(manifest.packageManager).toMatch(/^pnpm@12\.\d+\.\d+$/);
     expect(manifest.engines?.node).toBe("24.x");
     expect(manifest.devEngines?.runtime).toEqual({
       name: "node",

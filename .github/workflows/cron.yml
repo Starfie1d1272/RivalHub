@@ -18,7 +18,7 @@ jobs:
       - name: Require main operator source
         run: test "$GITHUB_REF" = refs/heads/main
 
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.sha }}
           fetch-depth: 0
@@ -33,7 +33,7 @@ jobs:
         id: production
         run: pnpm --silent db:production:scheduler:watchdog-plan freeze
 
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ steps.production.outputs.release_commit }}
           path: .scheduler-production
