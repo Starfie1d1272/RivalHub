@@ -1,5 +1,6 @@
 "use server";
 
+import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
@@ -8,11 +9,11 @@ import { communityGroups, seasonContacts, seasons } from "@/db/schema";
 import { actionError, failValidation } from "@/lib/action-utils";
 import { auditActorId, requireAdmin } from "@/lib/auth/session";
 import { LOGO_ALLOWED_TYPES, LOGO_MAX_BYTES } from "@/lib/config/upload-limits";
-import { assertSeasonAccess, createCommunityGroupInTx, createSeasonContactInTx, deleteCommunityGroupInTx, deleteSeasonContactInTx, moveCommunityGroupInTx, moveSeasonContactInTx, updateCommunityGroupInTx, updateSeasonContactInTx, upsertSeasonPublicInfoInTx } from "@/lib/season-public-info/commands";
-import { isSafePublicHref } from "@/lib/season-public-info/presentation";
+import { assertSeasonAccess, createCommunityGroupInTx, createSeasonContactInTx, deleteCommunityGroupInTx, deleteSeasonContactInTx, moveCommunityGroupInTx, moveSeasonContactInTx, updateCommunityGroupInTx, updateSeasonContactInTx, upsertSeasonPublicInfoInTx, replaceSeasonLogoInTx } from "@/lib/season-public-info/commands";
+import { isSafePublicHref, seasonPublicAssetUrl, seasonLogoAssetPath } from "@/lib/season-public-info/presentation";
 import { seasonPublicAssetsStorage } from "@/lib/season-public-info/storage";
 import { fail, ok, type ActionResult } from "@/types/action";
-import { updatePublicSeasonInfoTag } from "@/lib/revalidation";
+import { updatePublicSeasonInfoTag, updatePublicSeasonTags } from "@/lib/revalidation";
 
 const uuid = z.guid();
 const hrefSchema = z.string().trim().max(1000).refine(isSafePublicHref, "链接必须是站内路径或 HTTP(S) 地址。 ");
@@ -192,4 +193,55 @@ export async function moveSeasonContact(id: string, direction: "up" | "down"): P
     revalidateSeasonInfo(row.seasonId, await seasonSlug(row.seasonId));
     return ok(undefined);
   } catch (error) { return actionError("moveSeasonContact", error); }
+}
+
+function revalidateSeasonLogo(seasonId: string, slug: string): void {
+  updatePublicSeasonTags(slug, undefined, { statistics: false });
+  revalidateSeasonInfo(seasonId, slug);
+  revalidatePath(`/admin/${slug}/settings`);
+  revalidatePath(`/${slug}`, "layout");
+}
+
+// Storage failure after commit must not report a persisted replacement as failed.
+async function cleanupLogo(path: string | null): Promise<void> {
+  if (path) await seasonPublicAssetsStorage.remove(path).catch(() => undefined);
+}
+
+export async function uploadSeasonLogo(seasonId: string, formData: FormData): Promise<ActionResult<{ logoUrl: string }>> {
+  const file = formData.get("file");
+  if (!uuid.safeParse(seasonId).success || !(file instanceof File) || file.size === 0) return failValidation("请选择非空的赛事 Logo 图片。");
+  if (!(LOGO_ALLOWED_TYPES as readonly string[]).includes(file.type)) return failValidation("请上传 JPG、PNG 或 WebP 格式的图片。");
+  if (file.size > LOGO_MAX_BYTES) return failValidation("赛事 Logo 不能超过 1 MB。");
+  try {
+    const admin = await requireAdmin();
+    const ctx = context(admin);
+    assertSeasonAccess(ctx, seasonId);
+    if (!(await seasonSlug(seasonId))) return fail({ code: "NOT_FOUND", message: "赛事不存在。" });
+    const extension = file.type === "image/png" ? "png" : file.type === "image/webp" ? "webp" : "jpg";
+    const path = `${seasonId}/event-logo/${randomUUID()}.${extension}`;
+    const logoUrl = seasonPublicAssetUrl(path);
+    if (!logoUrl) return fail({ code: "INTERNAL_ERROR", message: "赛事公开图片存储暂时不可用，请稍后重试。" });
+    await seasonPublicAssetsStorage.upload(path, file, file.type);
+    let updated;
+    try {
+      updated = await db.transaction((tx) => replaceSeasonLogoInTx(tx, ctx, seasonId, logoUrl));
+    } catch (error) {
+      await cleanupLogo(path);
+      throw error;
+    }
+    revalidateSeasonLogo(seasonId, updated.slug);
+    await cleanupLogo(seasonLogoAssetPath(updated.oldLogoUrl, seasonId));
+    return ok({ logoUrl });
+  } catch (error) { return actionError("uploadSeasonLogo", error); }
+}
+
+export async function removeSeasonLogo(seasonId: string): Promise<ActionResult<void>> {
+  if (!uuid.safeParse(seasonId).success) return failValidation("赛事标识无效。");
+  try {
+    const admin = await requireAdmin();
+    const updated = await db.transaction((tx) => replaceSeasonLogoInTx(tx, context(admin), seasonId, null));
+    revalidateSeasonLogo(seasonId, updated.slug);
+    await cleanupLogo(seasonLogoAssetPath(updated.oldLogoUrl, seasonId));
+    return ok(undefined);
+  } catch (error) { return actionError("removeSeasonLogo", error); }
 }

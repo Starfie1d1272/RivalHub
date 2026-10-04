@@ -3,6 +3,13 @@ import { describe, expect, it } from "vitest";
 import { classifyChangedFiles, isReleaseMetadataOnly, parseNameStatus } from "../../../scripts/ci/plan.mjs";
 
 describe("changed-surface planner", () => {
+  it("requires event-logo browser and actual Mizar compatibility evidence for canonical branding writes", () => {
+    const plan = classifyChangedFiles([{ status: "M", paths: ["src/actions/season-public-info.ts"] }], { draft: false });
+    expect(plan.runSystem).toBe(true);
+    expect(plan.liveEvidence).toBe(true);
+    expect(plan.e2eSpecs).toContain("tests/e2e/flows/event-logo.spec.ts");
+    expect(plan.gateName).toBe("ci-gate");
+  });
   it.each([
     ["docs-only", ["docs/testing.md", "README.md"], [], false],
     ["Changeset-only", [".changeset/ci-planner.md", ".changeset/config.json"], [], false],

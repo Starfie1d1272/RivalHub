@@ -113,3 +113,11 @@ export function activeGroupCount(info: PublicSeasonInfo): number {
 export function hasPublicSeasonInfo(info: PublicSeasonInfo): boolean {
   return Boolean(info.rules.href) || activeGroupCount(info) > 0 || info.contacts.length > 0;
 }
+
+/** Cleanup may only delete objects owned by this event's logo upload workflow. */
+export function seasonLogoAssetPath(logoUrl: string | null, seasonId: string): string | null {
+  const prefix = seasonPublicAssetUrl(`${seasonId}/event-logo/`);
+  if (!prefix || !logoUrl?.startsWith(prefix)) return null;
+  const filename = logoUrl.slice(prefix.length);
+  return /^[0-9a-f-]{36}\.(png|jpg|webp)$/.test(filename) ? `${seasonId}/event-logo/${filename}` : null;
+}

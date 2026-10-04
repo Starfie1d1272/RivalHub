@@ -1,3 +1,4 @@
+import { EventLogo } from "@/components/season/EventLogo";
 import React from "react";
 import Link from "next/link";
 import type { RegistrationMode, SeasonStatus } from "@/types/season";
@@ -9,6 +10,7 @@ import { Button } from "@/components/ui/button";
 
 interface HomeHeroSeason {
   name: string;
+  logoUrl?: string | null;
   slug: string;
   status: SeasonStatus;
   registrationMode: RegistrationMode;
@@ -47,7 +49,7 @@ export function HomeHero({ season, eyebrow }: HomeHeroProps) {
         >
           {APP_BRAND.name}
           <br />
-          <span style={{ color: "var(--color-accent)" }}>{season.name}</span>
+          <span className="inline-flex items-center gap-3" style={{ color: "var(--color-accent)" }}><EventLogo logoUrl={season.logoUrl ?? null} /><span>{season.name}</span></span>
         </h1>
         <div
           className="mt-3.5 max-w-[520px] leading-relaxed"

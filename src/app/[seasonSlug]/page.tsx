@@ -1,3 +1,4 @@
+import { EventLogo } from "@/components/season/EventLogo";
 import { MatchStatusBadge } from "@/components/matches/MatchStatusBadge";
 import type { MatchStatus } from "@/types/match";
 import { getPublicSeasonResults } from "@/lib/seasons/public-results";
@@ -269,7 +270,8 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
           <span className="text-[var(--color-fg-dim)]">{presentSeasonKind(season.kind)}</span>
         </div>
         <div className="flex items-center gap-3 mb-4">
-          <h1 className="text-4xl sm:text-5xl font-bold text-[var(--color-fg)] leading-tight">
+          <EventLogo logoUrl={season.logoUrl} />
+          <h1 className="min-w-0 text-4xl sm:text-5xl font-bold text-[var(--color-fg)] leading-tight">
             {season.name}
           </h1>
           <Suspense fallback={null}>

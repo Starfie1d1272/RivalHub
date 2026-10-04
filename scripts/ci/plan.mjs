@@ -49,6 +49,8 @@ const MOBILE_PUBLIC_EVENT_SEARCH_SOURCES = new Set(["src/components/rivalhub/Lis
 // Mizar/RivalHub machine contract surfaces. These need the cross-repo adapter and
 // parser evidence from scripts/mizar-contract-check.mjs, not business-table REST.
 const LIVE_SURFACES = [
+  "src/actions/season-public-info.ts",
+  "src/lib/season-public-info/",
   "src/lib/mizar/",
   "src/lib/integrations/pairing-security.ts",
   "src/db/schema/mizar.ts",
@@ -61,6 +63,10 @@ const LIVE_SURFACES = [
   "drizzle/migrations/0066_mizar_backend_contracts",
 ];
 const SYSTEM_FLOW_MAP = [
+  {
+    prefixes: ["src/actions/season-public-info.ts", "src/lib/season-public-info/", "src/components/admin/SeasonLogoEditor.tsx", "src/components/season/EventLogo.tsx"],
+    specs: ["tests/e2e/flows/event-logo.spec.ts"],
+  },
   {
     prefixes: [
       "src/app/auth/",

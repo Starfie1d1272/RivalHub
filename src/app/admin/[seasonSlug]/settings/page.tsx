@@ -38,6 +38,7 @@ export default async function SeasonSettingsPage({ params }: SeasonSettingsPageP
           template: season.competitionTemplate,
           status: season.status,
           themeColor: season.themeColor,
+          logoUrl: season.logoUrl,
           registrationOpensAt: toCSTDateTimeInput(season.registrationOpensAt),
           registrationClosesAt: toCSTDateTimeInput(season.registrationClosesAt),
           rosterChangeClosesAt: toCSTDateTimeInput(season.rosterChangeClosesAt),

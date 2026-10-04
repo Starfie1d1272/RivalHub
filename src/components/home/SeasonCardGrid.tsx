@@ -1,3 +1,4 @@
+import { EventLogo } from "@/components/season/EventLogo";
 import React from "react";
 import Link from "next/link";
 import type { SeasonStatus } from "@/types/season";
@@ -7,6 +8,7 @@ import { Marker, Panel, StatusPill } from "@/components/rivalhub";
 interface SeasonCard {
   id: string;
   name: string;
+  logoUrl?: string | null;
   slug: string;
   kind: string;
   status: SeasonStatus;
@@ -60,8 +62,9 @@ export function SeasonCardGrid({
                   {presentSeasonKind(season.kind)}
                 </span>
               </div>
+              <div className="flex items-center gap-3"><EventLogo logoUrl={season.logoUrl ?? null} className="h-10 w-10 shrink-0 object-contain" />
               <div
-                className="font-semibold"
+                className="min-w-0 font-semibold"
                 style={{
                   fontFamily: "var(--font-sans)",
                   fontSize: 16,
@@ -69,7 +72,7 @@ export function SeasonCardGrid({
                 }}
               >
                 {season.name}
-              </div>
+              </div></div>
               {registrationSchedule && (
                 <p className="mt-2 text-xs text-[var(--color-fg-mid)]">
                   {registrationSchedule.primary}
