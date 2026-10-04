@@ -3,7 +3,7 @@ import { writeAuditInTx } from "@/lib/audit/write";
 import type { AuditAction } from "@/lib/audit/presentation";
 
 import type { TxDb } from "@/db/client";
-import { communityGroups, seasonContacts, seasonPublicInfo } from "@/db/schema";
+import { communityGroups, seasonContacts, seasonPublicInfo, seasons } from "@/db/schema";
 import { AppError, ErrorCode } from "@/lib/errors";
 
 export type SeasonInfoAdminContext = { role: "season_admin" | "super_admin"; seasonIds: readonly string[]; actorId: string };
@@ -118,4 +118,14 @@ export async function deleteSeasonContactInTx(tx: TxDb, context: SeasonInfoAdmin
   await tx.delete(seasonContacts).where(eq(seasonContacts.id, id));
   await audit(tx, existing.seasonId, context.actorId, "season_public_info.contact.delete", id);
   return existing;
+}
+
+/** Branding stays on the existing season row; the lock serializes replacements. */
+export async function replaceSeasonLogoInTx(tx: TxDb, context: SeasonInfoAdminContext, seasonId: string, logoUrl: string | null) {
+  assertSeasonAccess(context, seasonId);
+  const [existing] = await tx.select().from(seasons).where(eq(seasons.id, seasonId)).for("update");
+  if (!existing) throw new AppError(ErrorCode.NOT_FOUND, "赛事不存在。");
+  await tx.update(seasons).set({ logoUrl, updatedAt: new Date() }).where(eq(seasons.id, seasonId));
+  await audit(tx, seasonId, context.actorId, "season.update", seasonId, { logoChanged: true, hasLogo: logoUrl !== null });
+  return { slug: existing.slug, oldLogoUrl: existing.logoUrl };
 }

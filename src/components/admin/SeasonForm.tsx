@@ -1,5 +1,6 @@
 "use client";
 
+import { SeasonLogoEditor } from "@/components/admin/SeasonLogoEditor";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -58,6 +59,7 @@ const PLAYER_TYPES: PlayerType[] = ["enrolled", "graduated", "external"];
 interface SeasonFormProps {
   mode: "create" | "edit";
   initial?: SeasonFormInput & {
+    logoUrl?: string | null;
     registrationOpenedAt?: Date | null;
     conversionPolicyProvenance?: ConversionPolicyProvenance | null;
   };
@@ -655,6 +657,8 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
         </div>
         {saveButton}
       </SettingsPanel>
+
+      {initial?.id && <SettingsPanel id="logo" label="赛事 Logo"><SeasonLogoEditor seasonId={initial.id} logoUrl={initial.logoUrl ?? null} /></SettingsPanel>}
 
       <SettingsPanel id="lifecycle" label={template === "major" ? "发布与开放报名" : "时间与生命周期"}>
         <LifecycleFacts status={initial?.status ?? "draft"} phase={editCapabilities.phase} registrationOpenedAt={initial?.registrationOpenedAt} />

@@ -1,5 +1,6 @@
 "use client";
 
+import { SeasonLogoEditor } from "@/components/admin/SeasonLogoEditor";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { createCommunityGroup, createSeasonContact, deleteCommunityGroup, deleteSeasonContact, moveCommunityGroup, moveSeasonContact, removeCommunityGroupQr, saveSeasonPublicInfo, updateCommunityGroup, updateSeasonContact, uploadCommunityGroupQr } from "@/actions/season-public-info";
@@ -27,6 +28,7 @@ export function SeasonPublicInfoManager({ data }: { data: SeasonPublicInfoAdmin 
   });
   return (
     <div className="space-y-6">
+      <section className="space-y-4 border border-[var(--color-border)] bg-[var(--color-panel-low)] p-5"><h2 className="text-lg font-semibold">赛事 Logo</h2><SeasonLogoEditor seasonId={data.season.id} logoUrl={data.season.logoUrl} /></section>
       <section className="space-y-4 border border-[var(--color-border)] bg-[var(--color-panel-low)] p-5">
         <div><h2 className="text-lg font-semibold text-[var(--color-fg)]">规则入口</h2><p className="mt-1 text-sm text-[var(--color-fg-mid)]">只维护规则页面入口，不复制规则正文。</p></div>
         <div className="grid gap-4 sm:grid-cols-2"><Field label="显示名称" value={rulesLabel} onChange={setRulesLabel} /><Field label="链接" value={rulesHref} onChange={setRulesHref} /></div>

@@ -25,6 +25,7 @@ export type PublicSeason = Pick<
   | "competitionTemplate"
   | "status"
   | "themeColor"
+  | "logoUrl"
   | "registrationMode"
   | "hasCaptainVoting"
   | "hasDraft"
@@ -57,6 +58,7 @@ const publicSeasonColumns = {
   competitionTemplate: seasons.competitionTemplate,
   status: seasons.status,
   themeColor: seasons.themeColor,
+  logoUrl: seasons.logoUrl,
   registrationMode: seasons.registrationMode,
   hasCaptainVoting: seasons.hasCaptainVoting,
   hasDraft: seasons.hasDraft,

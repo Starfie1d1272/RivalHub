@@ -8,7 +8,7 @@ import { communityGroups, seasonContacts, seasonPublicInfo, seasons, type Commun
 import { toPublicSeasonInfo, type PublicSeasonInfo } from "./presentation";
 
 export type SeasonPublicInfoAdmin = {
-  season: { id: string; slug: string; name: string };
+  season: { id: string; slug: string; name: string; logoUrl: string | null };
   info: SeasonPublicInfo | null;
   groups: CommunityGroup[];
   contacts: SeasonContact[];
@@ -32,7 +32,7 @@ export async function getPublicSeasonInfoBySlug(seasonSlug: string): Promise<(Pu
 }
 
 export async function listSeasonPublicInfoAdmin(role: "season_admin" | "super_admin", seasonIds: readonly string[]): Promise<SeasonPublicInfoAdmin[]> {
-  const seasonRows = await db.select({ id: seasons.id, slug: seasons.slug, name: seasons.name })
+  const seasonRows = await db.select({ id: seasons.id, slug: seasons.slug, name: seasons.name, logoUrl: seasons.logoUrl })
     .from(seasons)
     .where(role === "super_admin" ? undefined : seasonIds.length ? inArray(seasons.id, seasonIds) : eq(seasons.id, "00000000-0000-0000-0000-000000000000"))
     .orderBy(asc(seasons.name), asc(seasons.id));
@@ -52,8 +52,9 @@ export async function listSeasonPublicInfoAdmin(role: "season_admin" | "super_ad
 }
 
 export async function getSeasonPublicInfoAdmin(seasonSlug: string, role: "season_admin" | "super_admin", seasonIds: readonly string[]): Promise<SeasonPublicInfoAdmin | null> {
-  const [season] = await db.select({ id: seasons.id, slug: seasons.slug, name: seasons.name }).from(seasons).where(eq(seasons.slug, seasonSlug)).limit(1);
+  const [season] = await db.select({ id: seasons.id, slug: seasons.slug, name: seasons.name, logoUrl: seasons.logoUrl }).from(seasons).where(eq(seasons.slug, seasonSlug)).limit(1);
   if (!season || (role !== "super_admin" && !seasonIds.includes(season.id))) return null;
-  const [result] = await listSeasonPublicInfoAdmin(role, [season.id]);
+  // Authorization above permits super admins too; this read stays event-scoped.
+  const [result] = await listSeasonPublicInfoAdmin("season_admin", [season.id]);
   return result ?? null;
 }

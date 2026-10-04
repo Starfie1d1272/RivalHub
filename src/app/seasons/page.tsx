@@ -1,3 +1,4 @@
+import { EventLogo } from "@/components/season/EventLogo";
 import { getMajorPublicParticipantOverview } from "@/lib/major/public-participants";
 import { getPublicSeasonResults } from "@/lib/seasons/public-results";
 import { SeasonResults } from "@/components/season/SeasonResults";
@@ -71,7 +72,7 @@ async function SeasonsContent() {
                 return <Panel key={season.id} hoverable contentClassName="space-y-4 p-5">
                   <Link href={`/${season.slug}`} className="block">
                     <StatusPill {...presentSeasonParticipationState(season)} />
-                    <h3 className="my-3 text-xl font-semibold">{season.name}</h3>
+                    <div className="my-3 flex items-center gap-3"><EventLogo logoUrl={season.logoUrl} className="h-10 w-10 shrink-0 object-contain" /><h3 className="min-w-0 text-xl font-semibold">{season.name}</h3></div>
                     {schedule && <p className="text-sm">{schedule.primary}</p>}
                     {activity && <p className="text-sm text-[var(--color-fg-mid)]">{activity}</p>}
                     <p className="text-sm text-[var(--color-fg-mid)]">{summary.participants.count} 位选手{summary.results ? ` · ${summary.results.finishedMatches} 场比赛` : ""}</p>
