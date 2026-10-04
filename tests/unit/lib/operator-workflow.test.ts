@@ -98,3 +98,11 @@ it("keeps gameplay and POST free of inter-map timers after stale manual takeover
  expect(ongoing.nextStep).not.toContain("准备");
  expect(project(maps, { source, observedGameplayMapId: "map-2", status: "finished" })).toMatchObject({ phase: "post", elapsed: null });
 });
+
+it("keeps the next official room and OCR available after manual completion with an old source conflict", () => {
+  const result = project([map(1, true), map(2)], { source: { ...healthy, continuityHealth: "execution_conflict", manualTakeoverMapEpoch: 1, autoCanonicalizationArmed: false }, observedGameplayMapId: "map-1" });
+  expect(result).toMatchObject({ primaryTask: "review", phase: "inter_map", roomMapId: "map-2", focusMapId: "map-1", manualResultAllowed: false });
+  expect(result.title).toBe("Map 1 已记录 · 准备 Map 2");
+  expect(result.nextStep).not.toContain("在本图结束后提交比分");
+  expect(project([map(1, true)], { status: "finished", source: { ...healthy, continuityHealth: "execution_conflict", manualTakeoverMapEpoch: 1 } }).nextStep).toContain("赛后资料");
+});

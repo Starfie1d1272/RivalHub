@@ -36,4 +36,4 @@ export const REVIEW_REASON_LABEL: Record<ReviewReason, string> = {
 };
 
 export const SOURCE_MODE_LABEL: Record<SourceMode, string> = { none: "人工赛务", mizar_auto: "Mizar 自动赛果", manual_map: "本图手动录分" };
-export const SOURCE_HEALTH_LABEL: Record<SourceHealth, string> = { not_applicable: "正常人工流程", healthy: "自动赛果核验正常", unknown: "待核验", stale: "比赛数据暂未更新", conflict: "需要处理" };
+export const SOURCE_HEALTH_LABEL: Record<SourceHealth, string> = { not_applicable: "正常人工流程", healthy: "自动赛果已核验", unknown: "待核验", stale: "比赛数据暂未更新", conflict: "需要处理" };

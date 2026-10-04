@@ -171,7 +171,10 @@ export interface AdminMatchWorkbenchData {
   vetoCompletedAt: Date | null;
   postMatch: AdminPostMatchRecordData | null;
   demoReviews?: AdminDemoReviewMap[];
-  operator: { review?: { expectedTeams: string; currentMap: string | null; officialScore: string | null; evidence: { lineupDifference?: OperatorLineupDifference | null; at: string; mapBinding: string; mapName: string | null; scoreA: number | null; scoreB: number | null } | null }; workflow: OperatorWorkflow; roomGuide: PerfectRoomGuideData | null; recoveryMapLabel?: string | null; takeover?: { sessionId: string; mapEpoch: number; mapId: string; recoverMapBinding?: boolean } | null };
+  operator: {
+    liveScope?: { authorityRevision: number; generation: number; epoch: number; mapId: string | null } | null;
+    problemRecovery?: { sessionId: string; mapEpoch: number; mapId: string; recoverMapBinding: boolean; mapLabel: string; reportContext: { programSourceGeneration: number; lastReliableSeq: number; currentMapId: string | null } } | null;
+    review?: { expectedTeams: string; currentMap: string | null; officialScore: string | null; evidence: { lineupDifference?: OperatorLineupDifference | null; at: string; mapBinding: string; mapName: string | null; scoreA: number | null; scoreB: number | null } | null }; workflow: OperatorWorkflow; roomGuide: PerfectRoomGuideData | null; recoveryMapLabel?: string | null; takeover?: { sessionId: string; mapEpoch: number; mapId: string; recoverMapBinding?: boolean } | null };
   commentary: AdminMatchCommentaryData;
 }
 

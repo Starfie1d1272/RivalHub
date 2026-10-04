@@ -93,25 +93,46 @@ export async function releaseMizarSource(
   });
 }
 
-export const manualMapTakeoverSchema = z.strictObject({ sessionId: z.uuid(), mapEpoch: z.number().int().nonnegative(), mapId: z.uuid(), recoverMapBinding: z.boolean().optional() });
+export const manualMapTakeoverSchema = z.strictObject({
+  sessionId: z.uuid(), mapEpoch: z.number().int().nonnegative(), mapId: z.uuid(), recoverMapBinding: z.boolean().optional(),
+  // An authenticated administrator reports a real collection failure. Browser
+  // freshness is presentation only and is never an authorization fact.
+  operatorReport: z.strictObject({
+    reason: z.string().trim().min(1, "请填写已确认的采集问题。").max(500),
+    programSourceGeneration: z.number().int().nonnegative(),
+    lastReliableSeq: z.number().int().min(-1),
+    currentMapId: z.uuid().nullable(),
+  }).optional(),
+});
 export async function takeOverCurrentMap(matchId: string, actorId: string, expected: z.infer<typeof manualMapTakeoverSchema>) {
+  expected = manualMapTakeoverSchema.parse(expected);
   await db.transaction(async tx => {
     const match = await lockMatchInTx(tx, matchId);
     const [source] = await tx.select().from(matchLiveSessions).where(and(eq(matchLiveSessions.matchId, matchId), isNull(matchLiveSessions.closedAt))).for("update");
     if (!source || match.status !== "in_progress") throw new AppError(ErrorCode.VALIDATION_FAILED, "当前没有需要接管的正式对局。");
     if (source.id !== expected.sessionId || source.mapEpoch !== expected.mapEpoch) throw new AppError(ErrorCode.VALIDATION_FAILED, "当前地图或数据源已变化，请刷新后重试。");
+    const report = expected.operatorReport;
     const [map] = await tx.select().from(matchMaps).where(and(eq(matchMaps.id, expected.mapId), eq(matchMaps.matchId, matchId)));
     if (!map || map.completedAt !== null) throw new AppError(ErrorCode.VALIDATION_FAILED, "本图已有正式赛果，请使用结果更正流程。");
     const alreadyTakenOver = source.manualTakeoverMapEpoch === source.mapEpoch && source.currentMapId === expected.mapId && !source.autoCanonicalizationArmed;
-    if (expected.recoverMapBinding) {
+    if (report && (source.programSourceGeneration !== report.programSourceGeneration || source.lastReliableSeq !== report.lastReliableSeq
+      || (source.currentMapId !== report.currentMapId && !(alreadyTakenOver && report.currentMapId === null)))) {
+      throw new AppError(ErrorCode.VALIDATION_FAILED, "采集状态已变化，请刷新后重新核对问题。");
+    }
+    if (expected.recoverMapBinding || report) {
       const veto = await tx.query.matchVetoSessions.findFirst({ where: eq(matchVetoSessions.matchId, matchId), columns: { completedAt: true } });
       if (!veto?.completedAt) throw new AppError(ErrorCode.VALIDATION_FAILED, "请先完成 BP 地图计划，再恢复地图绑定。");
       const [nextMap] = await tx.select().from(matchMaps).where(and(eq(matchMaps.matchId, matchId), isNull(matchMaps.completedAt))).orderBy(asc(matchMaps.mapOrder)).limit(1);
-      if (nextMap?.id !== expected.mapId || (!alreadyTakenOver && (source.currentMapId !== null || source.autoCanonicalizationArmed || !["execution_conflict", "conflict"].includes(source.continuityHealth)))) throw new AppError(ErrorCode.VALIDATION_FAILED, "正式待进行地图或异常已变化，请刷新后重新核对。");
+      const bindingAllowed = report
+        ? source.currentMapId === null || source.currentMapId === map.id
+        : source.currentMapId === null && !source.autoCanonicalizationArmed && ["execution_conflict", "conflict"].includes(source.continuityHealth);
+      if (nextMap?.id !== expected.mapId || (!alreadyTakenOver && !bindingAllowed)) {
+        throw new AppError(ErrorCode.VALIDATION_FAILED, "正式待进行地图或异常已变化，请刷新后重新核对。");
+      }
     } else if (source.currentMapId !== expected.mapId) throw new AppError(ErrorCode.VALIDATION_FAILED, "当前地图或数据源已变化，请刷新后重试。");
     if (alreadyTakenOver) return;
-    if (![source.identityHealth, source.lineupHealth, source.continuityHealth].some(health => ["conflict", "source_conflict", "result_conflict", "execution_conflict", "stale"].includes(health))) throw new AppError(ErrorCode.VALIDATION_FAILED, "当前没有已核实的异常需要人工接管。");
+    if (!report && ![source.identityHealth, source.lineupHealth, source.continuityHealth].some(health => ["conflict", "source_conflict", "result_conflict", "execution_conflict", "stale"].includes(health))) throw new AppError(ErrorCode.VALIDATION_FAILED, "当前没有已核实的异常需要人工接管。");
     await tx.update(matchLiveSessions).set({ autoCanonicalizationArmed: false, manualTakeoverMapEpoch: source.mapEpoch, currentMapId: map.id }).where(eq(matchLiveSessions.id, source.id));
-    await writeAuditInTx(tx, { seasonId: match.seasonId, actorId, action: "mizar.map.manual_takeover", targetId: matchId, meta: { sessionId: source.id, mapEpoch: source.mapEpoch, programSourceGeneration: source.programSourceGeneration, previousManualTakeoverMapEpoch: source.manualTakeoverMapEpoch, previousMapId: source.currentMapId, mapId: map.id, mapOrder: map.mapOrder, recoveredMapBinding: expected.recoverMapBinding === true, continuityHealth: source.continuityHealth } });
+    await writeAuditInTx(tx, { seasonId: match.seasonId, actorId, action: "mizar.map.manual_takeover", targetId: matchId, meta: { sessionId: source.id, mapEpoch: source.mapEpoch, programSourceGeneration: source.programSourceGeneration, previousManualTakeoverMapEpoch: source.manualTakeoverMapEpoch, previousMapId: source.currentMapId, mapId: map.id, mapOrder: map.mapOrder, recoveredMapBinding: source.currentMapId === null, continuityHealth: source.continuityHealth, operatorReportedProblem: report?.reason ?? null, reviewedReliableSeq: report?.lastReliableSeq ?? null } });
   });
 }

@@ -4,7 +4,7 @@ const takeover = vi.hoisted(() => vi.fn());
 const revoke = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/auth/session", () => ({ requireSeasonAdmin: admin, auditActorId: () => "actor" }));
 vi.mock("@/lib/action-utils", () => ({ getMatchOrThrow: async () => ({ seasonId: "22222222-2222-4222-8222-222222222222" }), getSeasonOrThrow: async () => ({slug:"season"}), actionError: () => ({ success:false }) }));
-vi.mock("@/lib/mizar/source", async () => { const { z } = await import("zod"); return { takeOverCurrentMap: takeover, manualMapTakeoverSchema: z.strictObject({ sessionId:z.uuid(), mapEpoch:z.number().int().nonnegative(), mapId:z.uuid(), recoverMapBinding:z.boolean().optional() }) }; });
+vi.mock("@/lib/mizar/source", async () => { const { z } = await import("zod"); return { takeOverCurrentMap: takeover, manualMapTakeoverSchema: z.strictObject({ sessionId:z.uuid(), mapEpoch:z.number().int().nonnegative(), mapId:z.uuid(), recoverMapBinding:z.boolean().optional(), operatorReport:z.strictObject({reason:z.string().trim().min(1).max(500),programSourceGeneration:z.number().int().nonnegative(),lastReliableSeq:z.number().int().min(-1),currentMapId:z.uuid().nullable()}).optional() }) }; });
 vi.mock("@/lib/mizar/installation", () => ({ revokeMizarInstallation: revoke }));
 vi.mock("@/lib/revalidation", () => ({ revalidateMatchPaths:vi.fn() }));
 vi.mock("next/cache", () => ({ revalidatePath:vi.fn() }));
@@ -34,5 +34,15 @@ it("authorizes and forwards explicit canonical-map recovery through the same act
  admin.mockRejectedValue(new Error("forbidden"));
  takeover.mockClear();
  expect(await takeOverMatchMap(id, recovery)).toMatchObject({success:false});
+ expect(takeover).not.toHaveBeenCalled();
+});
+
+it("requires season administration for operator-reported collection failure", async () => {
+ const reported = { ...scope, operatorReport: { reason: "采集断网", programSourceGeneration: 3, lastReliableSeq: 7, currentMapId: id } };
+ expect(await takeOverMatchMap(id, reported)).toMatchObject({success:true});
+ expect(takeover).toHaveBeenCalledWith(id, "actor", reported);
+ admin.mockRejectedValue(new Error("forbidden"));
+ takeover.mockClear();
+ expect(await takeOverMatchMap(id, reported)).toMatchObject({success:false});
  expect(takeover).not.toHaveBeenCalled();
 });

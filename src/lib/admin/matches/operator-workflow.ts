@@ -95,7 +95,17 @@ export function projectOperatorWorkflow(input: {
   const elapsed = phase === "inter_map" && maps.some(map => map.completedAt === null) && completedPrevious?.completedAt ? { since: completedPrevious.completedAt, label: `距 Map ${completedPrevious.order} 结束` } : null;
   const base = { ...source, phase, primaryTask: "prepare" as AdminPrimaryTask, manualResultAllowed, focusMapId: null, roomMapId: null, elapsed, completedMaps, isPostMatch: input.status === "finished" };
   if (input.status === "cancelled") return { ...base, title: "本场已取消", description: "可在比赛总览查看其它场次。", nextStep: "回到比赛总览查看其它场次。" };
-  if (source.reviewReasons.length) return { ...base, primaryTask: "review", title: source.sourceMode === "manual_map" ? "本图手动录分 · 采集问题待处理" : "比赛数据需要核对", description: "请根据下方差异检查比赛与采集来源。", nextStep: source.sourceMode === "manual_map" ? "核对当前地图，在本图结束后提交比分。" : "" };
+  const nextMap = maps.find(map => map.completedAt === null);
+  if (source.reviewReasons.length) {
+    const prepareNext = input.vetoComplete && phase === "inter_map" && nextMap;
+    return { ...base, primaryTask: "review",
+      title: prepareNext ? `Map ${completedPrevious!.order} 已记录 · 准备 Map ${nextMap.order}` : input.status === "finished" ? "赛果已记录 · 核对采集差异" : source.sourceMode === "manual_map" ? "本图手动录分 · 采集问题待处理" : "比赛数据需要核对",
+      description: "请根据下方差异检查比赛与采集来源。",
+      nextStep: prepareNext ? "按正式地图计划准备下一图房间，上一图计分板可同时补充。" : input.status === "finished" ? "继续整理赛后资料，并核对采集差异。" : source.sourceMode === "manual_map" ? "核对当前地图，在本图结束后提交比分。" : "",
+      roomMapId: prepareNext ? nextMap.id : null,
+      focusMapId: prepareNext ? outstanding[0]?.id ?? null : null,
+    };
+  }
 
   if (input.status === "finished") {
     if (input.isForfeit && completedMaps.length === 0) return { ...base, isPostMatch: true, primaryTask: "post", title: "本场已判负 / 弃权", description: "弃赛结果已记录。", nextStep: "核对赛后资料，再查看你的下一场。" };
@@ -113,7 +123,6 @@ export function projectOperatorWorkflow(input: {
     description: "双方完成地图禁选与选边后，按结果创建 Perfect 房间。",
     nextStep: "BP 完成后，查看 Map 1 的 Perfect 建房指引。",
   };
-  const nextMap = maps.find(map => map.completedAt === null);
   if (!nextMap) return { ...base, title: "核对本场赛果", description: "当前没有待进行地图，请核对正式系列赛结果。", nextStep: "需要更正时使用下方结果与恢复操作。" };
   if (input.source && source.sourceMode === "mizar_auto" && source.sourceHealth !== "healthy") return {
     ...base, primaryTask: "source_check", title: source.sourceHealth === "stale" ? "比赛数据暂未更新" : "等待 Mizar 核验本场数据",
@@ -123,7 +132,7 @@ export function projectOperatorWorkflow(input: {
   };
   if (input.observedGameplayMapId === nextMap.id && source.sourceMode === "mizar_auto") return {
     ...base, primaryTask: "observe", title: `Map ${nextMap.order} · ${mapLabel(nextMap.name)} 进行中`,
-    description: "Mizar 自动记录比分。",
+    description: "本图采用 Mizar 自动赛果。",
     nextStep: "",
   };
   if (phase === "gameplay" && manualResultAllowed) return {

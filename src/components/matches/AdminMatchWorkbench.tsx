@@ -1,3 +1,4 @@
+import { OperatorLiveStatus } from "./OperatorLiveStatus";
 import { OperatorIssuePanel } from "./OperatorIssuePanel";
 import Link from "next/link";
 import React from "react";
@@ -174,7 +175,10 @@ export function AdminMatchWorkbench({
           {operator.roomGuide && <a className="underline underline-offset-4" href="#perfect-room-guide">{operator.workflow.focusMapId ? "下一图建房指引" : "查看 Perfect 建房指引"}</a>}
         </div>
         {operator.review && <OperatorIssuePanel reasons={operator.workflow.reviewReasons} review={operator.review} />}
-        {operator.takeover && <ManualMapTakeover key={`${operator.takeover.sessionId}:${operator.takeover.mapEpoch}:${operator.takeover.mapId}:${Boolean(operator.takeover.recoverMapBinding)}`} matchId={match.id} scope={operator.takeover} mapLabel={operator.recoveryMapLabel ?? undefined} />}
+        {operator.takeover ? <ManualMapTakeover key={`${operator.takeover.sessionId}:${operator.takeover.mapEpoch}:${operator.takeover.mapId}:${Boolean(operator.takeover.recoverMapBinding)}`} matchId={match.id} scope={operator.takeover} mapLabel={operator.recoveryMapLabel ?? undefined} /> : operator.problemRecovery ? <ManualMapTakeover
+          key={`${operator.problemRecovery.sessionId}:${operator.problemRecovery.mapEpoch}:${operator.problemRecovery.reportContext.programSourceGeneration}:${operator.problemRecovery.reportContext.lastReliableSeq}:${operator.problemRecovery.mapId}`}
+          matchId={match.id} scope={{ sessionId: operator.problemRecovery.sessionId, mapEpoch: operator.problemRecovery.mapEpoch, mapId: operator.problemRecovery.mapId, recoverMapBinding: operator.problemRecovery.recoverMapBinding }}
+          reportContext={operator.problemRecovery.reportContext} mapLabel={operator.problemRecovery.mapLabel} /> : null}
         {broadcasts.length > 0 && <aside aria-label="转播状态" className="space-y-1 text-sm">{broadcasts.map((row, i) => <p key={i}>B站直播：{row.name} · {row.label}</p>)}</aside>}
         <OperatorTaskControls elapsed={operator.workflow.elapsed} />
         {match.status === "in_progress" && vetoCompletedAt && operator.workflow.manualResultAllowed && <details id="manual-result" className="space-y-3 pt-3" open={operator.workflow.sourceMode === "manual_map" || operator.workflow.phase === "gameplay"}>
@@ -196,7 +200,9 @@ export function AdminMatchWorkbench({
       <aside aria-label="比赛与数据源" className="space-y-3 text-sm rounded border border-[var(--color-border)] p-4 self-start">
         <p className="font-semibold">比分记录</p>
         <p>{SOURCE_MODE_LABEL[operator.workflow.sourceMode]}</p>
-        <p>{SOURCE_HEALTH_LABEL[operator.workflow.sourceHealth]}</p>
+        {operator.liveScope && operator.workflow.sourceMode === "mizar_auto" && !operator.workflow.reviewReasons.length
+          ? <OperatorLiveStatus matchId={match.id} scope={operator.liveScope} />
+          : <p>{SOURCE_HEALTH_LABEL[operator.workflow.sourceHealth]}</p>}
         <div className="border-t border-[var(--color-border)] pt-3">
           <p className="mb-1 text-sm font-medium">我的下一场</p>
           {commentary.nextMatch ? <CommentaryMatchLink match={commentary.nextMatch} seasonSlug={season.slug} /> : <p className="text-sm text-[var(--color-fg-mid)]">当前没有已认领的下一场</p>}
@@ -316,7 +322,7 @@ export function AdminMatchWorkbench({
             {match.status === "in_progress" ? (
               vetoCompletedAt ? (operator.workflow.manualResultAllowed ? (
                 <a href="#manual-result" className="text-sm text-[var(--color-accent)] underline">前往当前任务记录本图结果</a>
-              ) : <p role="status" className="text-sm">{operator.workflow.sourceHealth === "healthy" ? "Mizar 自动记录比分。" : "请先核对数据源与本图异常。"}</p>) : (
+              ) : <p role="status" className="text-sm">{operator.workflow.sourceHealth === "healthy" ? "本图采用 Mizar 自动赛果。" : "请先核对数据源与本图异常。"}</p>) : (
                 <p role="status" className="rounded border border-[var(--color-warn-edge)] px-3 py-2 text-sm text-[var(--color-fg-mid)]">
                   BP 正在进行，完成后按地图计划建房。
                 </p>

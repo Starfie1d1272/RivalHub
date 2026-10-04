@@ -34,7 +34,7 @@ export async function loadOperatorContext(input: {
       .from(playerStats).where(inArray(playerStats.mapId, maps.map(map => map.id))) : Promise.resolve([]),
     db.query.matchLiveSessions.findFirst({
       where: and(eq(matchLiveSessions.matchId, match.id), isNull(matchLiveSessions.closedAt)),
-      columns: { id: true, currentMapId: true, mapExecutionPhase: true, mapEpoch: true, manualTakeoverMapEpoch: true, identityHealth: true, lineupHealth: true, continuityHealth: true, autoCanonicalizationArmed: true },
+      columns: { id: true, authorityRevision: true, programSourceGeneration: true, lastReliableSeq: true, currentMapId: true, mapExecutionPhase: true, mapEpoch: true, manualTakeoverMapEpoch: true, identityHealth: true, lineupHealth: true, continuityHealth: true, autoCanonicalizationArmed: true },
     }),
     match.qualificationRunId ? loadQualificationSwissStageReadModel(match.seasonId)
       : input.isSwiss && match.ownership === "major_stage"
@@ -83,7 +83,20 @@ export async function loadOperatorContext(input: {
   const reportedMap = maps.find(map => map.id === evidence?.mapId);
   const mapBinding = !evidence?.mapId ? "未提供地图绑定"
     : reportedMap ? `Map ${reportedMap.mapOrder} · ${mapLabel(reportedMap.mapName)}` : "不属于本场正式地图";
+  const nextMap = [...maps].sort((a, b) => a.mapOrder - b.mapOrder).find(map => map.completedAt === null);
+  const problemRecovery = input.vetoComplete && match.status === "in_progress" && liveSession && nextMap
+    && (liveSession.currentMapId === null || liveSession.currentMapId === nextMap.id)
+    && !(workflow.sourceMode === "manual_map" && liveSession.currentMapId === nextMap.id)
+    ? { sessionId: liveSession.id, mapEpoch: liveSession.mapEpoch, mapId: nextMap.id,
+      recoverMapBinding: liveSession.currentMapId === null,
+      reportContext: { programSourceGeneration: liveSession.programSourceGeneration, lastReliableSeq: liveSession.lastReliableSeq, currentMapId: liveSession.currentMapId },
+      mapLabel: `Map ${nextMap.mapOrder} · ${mapLabel(nextMap.mapName)}` } : null;
   return {
+    problemRecovery,
+    liveScope: liveSession && match.status === "in_progress" ? {
+      authorityRevision: liveSession.authorityRevision, generation: liveSession.programSourceGeneration,
+      epoch: liveSession.mapEpoch, mapId: liveSession.currentMapId,
+    } : null,
     review: {
       evidence: evidence ? { at: evidence.at, lineupDifference: evidence.lineupDifference, mapName: evidence.mapName, scoreA: evidence.scoreA, scoreB: evidence.scoreB, mapBinding } : null,
       expectedTeams: `${input.teamAName} vs ${input.teamBName}`,

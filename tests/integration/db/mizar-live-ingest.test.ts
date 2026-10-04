@@ -70,6 +70,43 @@ async function nextEpoch(fixture: Fixture, sequence = 10) {
 }
 
 describe("Mizar reliable event ingest ownership", () => {
+  it.each([false, true])("recovers a silent source only through a scoped operator report (unbound=%s)", async unboundSource => {
+    const f = await seedFixture({ unboundSource });
+    const context = await operatorContext(f);
+    expect(context.takeover).toBeNull();
+    const recovery = context.problemRecovery!;
+    const scope = { sessionId: recovery.sessionId, mapEpoch: recovery.mapEpoch, mapId: recovery.mapId, recoverMapBinding: recovery.recoverMapBinding };
+    const reported = { ...scope, operatorReport: { ...recovery.reportContext, reason: "采集电脑断网，已核对正式地图" } };
+    await expect(takeOverCurrentMap(f.matchId, f.entryAId, scope)).rejects.toThrow();
+    await expect(takeOverCurrentMap(f.matchId, f.entryAId, { ...reported, operatorReport: { ...reported.operatorReport, reason: " " } })).rejects.toThrow();
+    await expect(takeOverCurrentMap(f.matchId, f.entryAId, { ...reported, mapId: f.mapTwoId })).rejects.toThrow("重新核对");
+    await Promise.all([takeOverCurrentMap(f.matchId, f.entryAId, reported), takeOverCurrentMap(f.matchId, f.entryAId, reported)]);
+    expect(await loadSource(f.sessionId)).toMatchObject({ currentMapId: f.mapOneId, manualTakeoverMapEpoch: 1, autoCanonicalizationArmed: false });
+    const audits = await db.select().from(schema.auditLogs).where(and(eq(schema.auditLogs.targetId, f.matchId), eq(schema.auditLogs.action, "mizar.map.manual_takeover")));
+    expect(audits).toHaveLength(1);
+    expect(audits[0]!.meta).toMatchObject({ operatorReportedProblem: reported.operatorReport.reason, reviewedReliableSeq: -1, recoveredMapBinding: unboundSource });
+    expect((await operatorContext(f)).workflow.manualResultAllowed).toBe(true);
+    await db.transaction(tx => recordManualMapResultInTx(tx, manualCommand(f)));
+    await expect(takeOverCurrentMap(f.matchId, f.entryAId, reported)).rejects.toThrow("正式赛果");
+    await nextEpoch(f);
+    expect(await loadSource(f.sessionId)).toMatchObject({ currentMapId: f.mapTwoId, autoCanonicalizationArmed: true });
+  });
+
+  it("rejects an operator report after reliable progress or a same-epoch generation change", async () => {
+    const f = await seedFixture();
+    const recovery = (await operatorContext(f)).problemRecovery!;
+    const reported = { sessionId: recovery.sessionId, mapEpoch: recovery.mapEpoch, mapId: recovery.mapId, operatorReport: { ...recovery.reportContext, reason: "已确认断网" } };
+    await ingestMizarReliable(f.installationId, f.seasonId, reliableEvent(f), f.authorityRevision, f.steam64);
+    await expect(takeOverCurrentMap(f.matchId, f.entryAId, reported)).rejects.toThrow("采集状态已变化");
+    const refreshed = (await operatorContext(f)).problemRecovery!;
+    const generation = reliableEvent(f, { kind: "source_generation_changed", payload: { previousSourceGeneration: 0 } });
+    generation.cursor.runtimeSeq = 2;
+    generation.cursor.programSourceGeneration = 1;
+    await ingestMizarReliable(f.installationId, f.seasonId, generation, f.authorityRevision);
+    await expect(takeOverCurrentMap(f.matchId, f.entryAId, { ...reported, operatorReport: { ...refreshed.reportContext, reason: "已确认断网" } })).rejects.toThrow("采集状态已变化");
+    expect((await loadSource(f.sessionId)).manualTakeoverMapEpoch).toBeNull();
+  });
+
   it.each(["mapId", "mapName"])("persists wrong %s map_ended as REVIEW and completes through explicit takeover", async mismatch => {
     const fixture = await seedFixture();
     const wrong = reliableEvent(fixture, { kind: "map_ended", [mismatch]: mismatch === "mapId" ? fixture.mapTwoId : "de_mirage", payload: { scoreA: 13, scoreB: 9, scoreCT: 4, scoreT: 9 } });
@@ -93,6 +130,9 @@ describe("Mizar reliable event ingest ownership", () => {
     await takeOverCurrentMap(fixture.matchId, fixture.entryAId, context.takeover!);
     expect((await operatorContext(fixture)).workflow.manualResultAllowed).toBe(true);
     await db.transaction(tx => recordManualMapResultInTx(tx, manualCommand(fixture)));
+    const between = await operatorContext(fixture);
+    expect(between.workflow).toMatchObject({ primaryTask: "review", roomMapId: fixture.mapTwoId, focusMapId: fixture.mapOneId, manualResultAllowed: false });
+    expect(between.workflow.title).toBe("Map 1 已记录 · 准备 Map 2");
     const late = reliableEvent(fixture, { kind: "map_ended", payload: { scoreA: 9, scoreB: 13, scoreCT: 9, scoreT: 13 } });
     late.cursor.runtimeSeq = 4;
     await ingestMizarReliable(fixture.installationId, fixture.seasonId, late, fixture.authorityRevision);

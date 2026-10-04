@@ -200,3 +200,17 @@ it("does not render an inter-map reminder or room guide during stale manual game
  expect(screen.getByTestId("map-input")).toBeInTheDocument();
  expect(screen.queryByText(/距 Map 1 结束|已超过 10 分钟|准备 Map 2 房间/)).not.toBeInTheDocument();
 });
+
+it("requires an operator problem report and confirmation without using browser elapsed time", async () => {
+  const props = data("in_progress");
+  const reportContext = { programSourceGeneration: 2, lastReliableSeq: 7, currentMapId: null };
+  vi.mocked(takeOverMatchMap).mockClear();
+  render(<AdminMatchWorkbench {...props} operator={{ ...props.operator, problemRecovery: { sessionId: "session", mapEpoch: 1, mapId: "map-1", recoverMapBinding: true, reportContext, mapLabel: "Map 1 · Ancient" } }} />);
+  fireEvent.click(screen.getByRole("button", { name: "确认当前地图并恢复手动录分" }));
+  expect(takeOverMatchMap).not.toHaveBeenCalled();
+  fireEvent.change(screen.getByLabelText("已确认的采集问题"), { target: { value: "采集电脑断网，已核对地图" } });
+  fireEvent.click(screen.getByRole("button", { name: "确认当前地图并恢复手动录分" }));
+  expect(takeOverMatchMap).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole("button", { name: "确认：本图改用手动比分" }));
+  await waitFor(() => expect(takeOverMatchMap).toHaveBeenCalledWith("match-1", expect.objectContaining({ operatorReport: { ...reportContext, reason: "采集电脑断网，已核对地图" } })));
+});
