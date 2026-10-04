@@ -6,13 +6,13 @@ import type { RecordSummary } from "@/lib/stats/records";
 import { statsHref, type StatsQuery } from "@/lib/stats/view-state";
 export function Records({ records, query, seasonSlug, coverage }: { records: RecordSummary[]; query: StatsQuery; seasonSlug: string; coverage?: { maps: number; economyRounds: number } }) {
   return <section aria-labelledby="records-heading" className="space-y-4">
-    <h2 id="records-heading" className="text-base font-semibold"><span className="relative inline-block">Records<HelpTooltip className="absolute left-full top-1/2 ml-1 -translate-y-1/2" label="Records 说明" content="比较当前有效的完整确认数据，含加时。覆盖不完整时不代表全历史最高；装备差值不等于取胜难度。" /></span></h2>
+    <h2 id="records-heading" className="text-base font-semibold"><span className="relative inline-block">Records<HelpTooltip className="absolute left-full top-1/2 ml-1 -translate-y-1/2" label="Records 说明" content="比较当前范围已确认的完整数据，含加时；Coverage展示参与比较的地图与回合。装备差值展示获胜回合双方的装备投入差。" /></span></h2>
     {coverage && <p className="text-xs text-[var(--color-fg-mid)]">{coverage.maps} maps · {coverage.economyRounds} equipment rounds</p>}
     {([{ label: "Performance", kinds: ["kills", "adr", "firstKills", "tradeKills"] }, { label: "Clutch", kinds: ["clutch"] }, { label: "Rounds", kinds: ["economy"] }]).map((group) => <section key={group.label} className="space-y-2">
       <h3 className="text-sm font-semibold">{group.label}</h3>
       <div className="divide-y divide-[var(--color-border)] border-y border-[var(--color-border)]">{records.filter((r) => group.kinds.includes(r.kind)).map((record) => <div key={record.kind} className="py-3">
         <div className="flex flex-wrap items-baseline justify-between gap-2"><h4 className="text-sm font-medium">{record.label}</h4><span className="font-semibold tabular-nums">{record.value === null ? "—" : record.kind === "clutch" ? `1v${record.value}` : record.kind === "adr" ? record.value.toFixed(1) : record.kind === "economy" ? `$${record.value}` : record.value}</span></div>
-        {record.value === null ? <p className="mt-1 text-xs text-[var(--color-fg-mid)]">暂无纪录</p> : <details className="mt-2" open={record.occurrenceCount === 1}>
+        {record.value === null ? <p className="mt-1 text-xs text-[var(--color-fg-mid)]">确认完整数据后展示</p> : <details className="mt-2" open={record.occurrenceCount === 1}>
           <summary className="cursor-pointer text-xs text-[var(--color-fg-mid)]">{record.holders.map((h) => h.name).join(" / ")}{record.holderCount > record.holders.length ? ` 等 ${record.holderCount} 位保持者` : ""} · {record.occurrenceCount} 次 · Sources</summary>
           <ul className="mt-2 space-y-3 text-xs">{record.occurrences.map((o) => <li key={`${o.mapId}:${o.round ?? 0}:${o.entityId}`} className="flex flex-wrap gap-x-3 gap-y-1 leading-5">
             <Link href={o.entityHref as Route} className="font-medium hover:text-[var(--color-accent)]">{o.entityName}</Link><Link href={`/${o.eventSlug}` as Route}>{o.eventName}</Link>

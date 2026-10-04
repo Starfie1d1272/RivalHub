@@ -206,7 +206,7 @@ function VetoMatrix({
             ))}
             {sortedRows.length === 0 && (
               <tr>
-                <td colSpan={columnCount} className="px-4 py-8 text-center text-[var(--color-fg-mid)]">当前范围暂无匹配队伍或 BP 数据</td>
+                <td colSpan={columnCount} className="px-4 py-8 text-center text-[var(--color-fg-mid)]">调整范围查看队伍与 BP</td>
               </tr>
             )}
           </tbody>
@@ -267,7 +267,7 @@ export function MapsExplorer({ data, query, seasonSlug }: { data: TournamentStat
             rowKey={(row) => row.mapName}
             initialSortKey="played"
             tableClassName="min-w-[860px] table-fixed"
-            emptyLabel="暂无地图赛果或 BP 数据"
+            emptyLabel="赛果与 BP 数据确认后展示"
           />
         </>
       ) : (

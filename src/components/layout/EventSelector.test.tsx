@@ -25,7 +25,7 @@ describe("bounded event selection", () => {
     render(<EventSelector events={[]} value="" allHref="/stats" hrefFor={(slug) => `/${slug}`} />);
     await user.click(screen.getByRole("button", { name: "选择赛事" }));
     await user.type(screen.getByLabelText("搜索名称或 slug"), "missing");
-    expect(screen.getByRole("status")).toHaveTextContent("没有匹配的公开赛事");
+    expect(screen.getByRole("status")).toHaveTextContent("试试其它赛事名称");
     await user.clear(screen.getByLabelText("搜索名称或 slug"));
     await user.click(screen.getByRole("option"));
     expect(router.push).toHaveBeenCalledWith("/stats");

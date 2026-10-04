@@ -40,7 +40,7 @@ fresh public IDs 在 remote cache 外读取并进入 key；共享 `PUBLIC_STATS_
 | advantage_disadvantage_inversion | 4v5 High；5v4=10/100，Ready且低分位；P差≥.35 | 次项2次机会/不同 coverage 抑制；命中后替代 simple 4v5 |
 | opening_death_resilience | 90/100；真实 sanitized fixture 为6/6，N=8、P=.9375、peer≈.1053 | 首死 n=0、低资格或显示精度不可区分抑制；文案说明队伍赢回合 |
 | opening_death_traded | 90/100；与 Win after FD 同族 | 同实体同族只保留1条，按P、L-peer、n、稳定 key 排序 |
-| opening_loss_recovery_profile | Win after FD与Traded FD同时High，n与coverage一致 | 组合替代两条单项；共享首死分母不意味着两个分子的回合交集，解释可展开 |
+| opening_loss_recovery_profile | Win after FD与Traded FD同时High，n与coverage一致 | 组合替代两条单项；两项分别累计首死被补枪次数和队伍取胜回合，共用首死分母；回合交集以逐回合记录为依据，解释可展开 |
 | flash_effectiveness | 2张有 F 的贡献图；E/F和Net/F高、T/F低；每图删除均稳定 | 单图、599/1尖峰、未知T、高队友致盲、删除后不达原floor/中位数抑制；全体T=0可用精确0分支；E/Net与中位数在显示精度下不可区分时抑制 |
 | pistol_conversion_contrast | pistol90/100 High、conversion10/100 Ready且P差≥.35 | 次项缺资格/窄样本/不同覆盖抑制；保留独立分母 |
 | second_round_recovery | break90/100 High、pistol10/100 Ready且P差≥.35 | 回击机会缺失/低样本抑制；不声称故意输手枪有利 |
@@ -49,7 +49,7 @@ fresh public IDs 在 remote cache 外读取并进入 key；共享 `PUBLIC_STATS_
 
 ## 验证与性能
 
-定向统计、组件、profile 回归 33 文件 / 134 tests；后续长文本/合并选手筛选组件回归通过；本轮delta最终定向13文件81项通过，追加Opening组合展示与交集限制组件回归通过。应用、tests、scripts 类型及改动文件 lint、architecture 均通过。真实 PostgreSQL 17 回归通过，校验两届10个 canonical user、同名不合并、显式 teamId 合并、archived纳入/draft排除、DAK聚合一致性、新投影与repair/coverage、无 raw payload 读取。浮点累计比较保留12位有效数，避免不同SQL地图顺序的最后二进制位噪声。
+定向统计、组件、profile 回归 33 文件 / 134 tests；后续长文本/合并选手筛选组件回归通过；本轮delta最终定向13文件81项通过，追加Opening组合展示与逐回合依据说明组件回归通过。应用、tests、scripts 类型及改动文件 lint、architecture 均通过。真实 PostgreSQL 17 回归通过，校验两届10个 canonical user、同名不合并、显式 teamId 合并、archived纳入/draft排除、DAK聚合一致性、新投影与repair/coverage、无 raw payload 读取。浮点累计比较保留12位有效数，避免不同SQL地图顺序的最后二进制位噪声。
 
 浏览器回归使用真实 Local Supabase，Chromium 和 mobile-chrome 均通过，重试为0：六视图、旧入口永久迁移的实际客户端导航、无循环、键盘选择、Escape焦点返回、all-public Veto真实点击、veto-only与未完成计划地图详情、未知范围不可用与320/390/1440px无页面横向溢出。追加地图详情→标签/换赛事范围保持、纪录分页重置及浏览器前进后退回归。1024px两列未增加表格横向滚动（960px表格内容与容器同宽），次要身份列沿用断点隐藏。另在 `next build` / `next start` 的本地生产模式检查含数据的两列、六类 Records、Overview及展开解释、0/2/20/100赛事与长名称。截图的数据是仓库 sanitized normal-map fixture 的隔离合成身份绑定，不是今日真实比赛或生产 holder；100赛事测试中98届是无比赛的列表负载样本。
 
@@ -80,7 +80,7 @@ baseline 是**同一fixture的逐届查询组合**，不是虚构一个旧版全
 
 ## 250-map容量实验（本轮review）
 
-使用同一隔离Local Supabase，通过canonical materializer把sanitized normal-map Evidence绑定到248个独立match/map，加原2图共250个当前版本有效投影、10个重复参赛身份；另有1个retired-version投影未参与公开读取。不是250场真实比赛，也不代表多阵容或不同Demo大小的分布。补入1张未完成计划和1张veto-only地图。造数不在公开请求进行。
+使用同一隔离Local Supabase，通过canonical materializer把sanitized normal-map Evidence绑定到248个独立match/map，加原2图共250个当前版本有效投影、10个重复参赛身份；另有1个retired-version投影未参与公开读取。该样本用于衡量重复阵容、同一Demo大小下的250图容量；多阵容与不同Demo大小分布交由生产验收。补入1张未完成计划和1张veto-only地图。造数不在公开请求进行。
 
 [aggregate数据](capacity-aggregate.json)、[HTTP/RSC数据](capacity-http.json)。单次uncached聚合17queries，250当前投影facts::text估算10,845,994B；缓存内部aggregate 1,366,684B（含全部紧凑并列集合），Overview public DTO 72,522B。HTTP直接请求`RSC:1`并核对text/x-component；查询计数包含Header/PPR和fresh membership，不与核心17queries混作一项。
 
@@ -94,15 +94,17 @@ baseline 是**同一fixture的逐届查询组合**，不是虚构一个旧版全
 
 投影JSON是客户端解析结果的JSON估算；PG facts::text包含不同空白，两者均不是wire账单。临时localhost POST调用既有revalidatePublicStatsTag owner；该测试入口已移除，不加入产品或部署。没有统计缓存第二套materialization。该规模能完成冷填充，warm和翻页无projection重读；冷填充仍O(history)、约3.4–3.6秒及9.62MB投影JSON，频繁上传失效仍可能放大读取，**没有证明托管egress安全或可接受计费**。以此作为容量边界证据交审，不把2-map/100-event列表负载冒充历史规模验收；生产托管实测仍是release未执行项。HTTP采样是本轮规则/缓存代码的本地构建，后续仅短标签文案变化。
 
-UI自审使用具体短标签Win after FD、Traded FD、Flash output等，主行保留样本/值；scope和统计解释在Why?，组合明确不推断交集。Records/Insights标题与指标问号定位在标签右侧且不参与正常排版，支持focus/触屏；未通过满屏中文说明拉长页面。授权draft选择器显示当前赛事名称，不把draft加入公开选项；Header只发送slug用于导航active。
+UI自审使用具体短标签Win after FD、Traded FD、Flash output等，主行保留样本/值；scope和统计解释在Why?，组合说明分项计数、共享分母和逐回合核对依据。Records/Insights标题与指标问号定位在标签右侧且不参与正常排版，支持focus/触屏；解释按需展开。授权draft选择器显示当前赛事名称，公开选项保持公开赛事范围；Header只发送slug用于导航active。
 
 ## 截图
 
-- [Overview / 展开观察](overview.png)
+- [Overview / 展开观察](overview.png)、[390px](overview-mobile.png)
 - [Opening](opening.png)、[Utility / 负Net](utility.png)
-- [六类 Records](records.png)、[移动端](records-mobile.png)
+- [六类 Records](records.png)、[移动端](records-mobile.png)、[问号展开](records-help-mobile.png)
 - [100赛事移动选择器](selector-mobile.png)
 
 ## 未执行的生产验收
 
 没有读取或修改生产数据，没有生产迁移/backfill/部署/合并。仍由既有 release/运维流程执行：生产 reserved slug冲突核查；新投影版本受保护重建、全coverage gate、托管超时/内存/容量；跨实例PUBLIC_STATS_TAG真实失效（含公开性撤回与新公开赛事）；托管cold/warm查询数、wire bytes、RSC payload和计费；staging rehearsal与production smoke。此PR停在代码审查点。
+
+本轮 UI 文案自查：范围、指标解释和空状态均用正向描述，直接陈述来源、分母、展示条件与操作。主行使用具体英文短标签，说明由问号和 Why? 按需展开；问号绝对定位于标签外侧。统计组件与赛事选择器回归 11 文件 / 38 项通过，应用与 tests 类型、改动文件 lint、本地生产模式构建通过。250图页面在390px视觉检查定位到Side Split最小宽度，改为随卡片宽度伸缩，窄屏标签按需换行。含数据 Overview 在 320/390px 的文档宽度均与视口一致；390px Records 问号触屏展开核对通过。桌面与 mobile-chrome 流程 2 项通过，重试 0。

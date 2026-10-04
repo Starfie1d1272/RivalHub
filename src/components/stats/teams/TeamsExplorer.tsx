@@ -130,7 +130,7 @@ export function TeamsExplorer({ data, query, seasonSlug }: { data: TournamentSta
         rowKey={(row) => row.entryId}
         initialSortKey={family === "results" ? "match" : family === "rounds" ? "rw" : family === "conversion" ? "r2" : "opening"}
         tableClassName={family === "results" ? "min-w-[700px] table-fixed" : family === "conversion" ? "min-w-[1120px] table-fixed" : "min-w-[940px] table-fixed"}
-        emptyLabel="当前地图范围没有已完成赛果"
+        emptyLabel="赛果随完成地图展示"
       />
     </section>
   );

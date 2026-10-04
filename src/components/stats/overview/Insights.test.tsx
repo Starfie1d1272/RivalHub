@@ -15,9 +15,9 @@ describe("Insights presentation", () => {
     expect(screen.getByText(/FD recovery \+ trade/)).toBeInTheDocument();
     expect(screen.getByText(/90\/100/)).toBeInTheDocument();
     expect(screen.getByText(/95\/100/)).toBeInTheDocument();
-    expect(screen.getByText(/不能推断交集/)).toBeInTheDocument();
-    expect(screen.queryByText(/区间|下界|靠前/)).not.toBeInTheDocument();
+    expect(screen.getByText(/回合交集可通过逐回合记录核对/)).toBeInTheDocument();
+    expect(screen.queryByText(/区间|下界|靠前|不代表|不意味着|未校正|不能/)).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Insights 说明" }));
-    expect(screen.getByRole("tooltip")).toHaveTextContent("不是因果或显著性结论");
+    expect(screen.getByRole("tooltip")).toHaveTextContent("按当前范围的样本量、分位和同类差距筛选的统计摘要");
   });
 });

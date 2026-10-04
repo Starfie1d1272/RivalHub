@@ -23,8 +23,8 @@ export function StatsSideSplit({
   if (ctPct === null || tPct === null) return <span className="text-[var(--color-fg-dim)]">—</span>;
 
   return (
-    <div className={compact ? "min-w-[156px]" : "min-w-[190px] max-w-[240px]"} aria-label={`CT ${ctPct.toFixed(1)}%, T ${tPct.toFixed(1)}%`}>
-      <div className="flex items-center justify-between gap-3 text-xs font-medium tabular-nums">
+    <div className={compact ? "min-w-[156px]" : "w-full max-w-[240px]"} aria-label={`CT ${ctPct.toFixed(1)}%, T ${tPct.toFixed(1)}%`}>
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs font-medium tabular-nums">
         <span className="text-[var(--color-accent-b)]">CT {ctPct.toFixed(1)}%</span>
         <span className="text-[var(--color-accent)]">{tPct.toFixed(1)}% T</span>
       </div>

@@ -51,7 +51,7 @@ export function WeaponsExplorer({ data, query, seasonSlug }: { data: TournamentS
         rowKey={(row) => row.weapon}
         initialSortKey="kills"
         tableClassName="min-w-[820px] table-fixed"
-        emptyLabel="当前范围暂无武器统计"
+        emptyLabel="调整范围查看武器统计"
       />
     </section>
   );

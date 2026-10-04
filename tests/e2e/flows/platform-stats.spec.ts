@@ -19,7 +19,7 @@ test("数据中心统一入口、赛事选择、六视图和旧入口迁移", as
   await expect(page.getByRole("button", { name: "选择赛事", exact: true })).toContainText(scenario.seasonName);
   await tabs.getByRole("link", { name: "Records", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Records" })).toBeVisible();
-  await expect(page.getByText("暂无纪录")).toHaveCount(6);
+  await expect(page.getByText("确认完整数据后展示")).toHaveCount(6);
   await page.goBack();
   await expect(page).toHaveURL(`/stats?event=${scenario.slug}`);
   await expect(tabs.getByRole("link", { name: "Overview", exact: true })).toHaveAttribute("aria-current", "page");
@@ -46,11 +46,11 @@ test("数据中心统一入口、赛事选择、六视图和旧入口迁移", as
   await page.goto(`/stats?event=${scenario.slug}&tab=maps&mapsView=veto`);
   await page.getByRole("link", { name: "Train", exact: true }).click();
   await expect(page).toHaveURL(new RegExp("map=de_train"));
-  await expect(page.getByRole("heading", { name: "统计范围不可用" })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "重新选择范围" })).toHaveCount(0);
   await page.goto(`/stats?event=${scenario.slug}&tab=maps&map=de_vertigo`);
-  await expect(page.getByRole("heading", { name: "统计范围不可用" })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "重新选择范围" })).toHaveCount(0);
   await page.goto("/stats?event=does-not-exist");
-  await expect(page.getByRole("heading", { name: "统计范围不可用" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "重新选择范围" })).toBeVisible();
   await page.goto("/stats?stage=unknown");
-  await expect(page.getByRole("heading", { name: "统计范围不可用" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "重新选择范围" })).toBeVisible();
 });

@@ -78,7 +78,7 @@ export const STATS_METRICS = {
   flashAssist: metric("FA/100r", "per100Round", 2, "rounds", "每 100 回合闪光助攻次数。", { rankingSampleKind: "rounds" }),
   flashesThrown: metric("Flashes thrown", "count", 0, "throws", "当前统计范围内投掷闪光弹的总次数。", { sampleMode: "hidden" }),
   blindPerFlash: metric("Blind/Flash", "seconds", 2, "flashes", "每颗闪光对敌方造成的平均致盲时间。", { sampleMode: "denominator", rankingSampleKind: "flashes" }),
-  netBlindPerFlash: metric("Net Blind/Flash", "seconds", 2, "flashes", "（敌方致盲秒数 − 队友致盲秒数）/ 投掷闪光数，单位秒/颗；可为负值，不代表已验证的净战术收益。", { sampleMode: "denominator", rankingSampleKind: "flashes" }),
+  netBlindPerFlash: metric("Net Blind/Flash", "seconds", 2, "flashes", "（敌方致盲秒数 − 队友致盲秒数）/ 投掷闪光数，单位秒/颗。正值表示敌方致盲更多，负值表示队友致盲更多。", { sampleMode: "denominator", rankingSampleKind: "flashes" }),
   enemyBlindPerRound: metric("Enemy blind/r", "seconds", 2, "rounds", "平均每回合对敌方造成的致盲时间。", { rankingSampleKind: "rounds" }),
   teamBlindPerRound: metric("Team blind/r", "seconds", 2, "rounds", "平均每回合对队友造成的致盲时间。", { rankingSampleKind: "rounds" }),
   heThrows: metric("HE thrown", "count", 0, "throws", "当前统计范围内投掷 HE 手雷的总次数。", { sampleMode: "hidden" }),

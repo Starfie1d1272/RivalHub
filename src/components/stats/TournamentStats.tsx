@@ -39,20 +39,20 @@ export function TournamentStatsView({
     directoryLabel = "全部地图";
   }
 
-  let content = <EmptyState title="当前统计范围不可用" />;
+  let content = <EmptyState title="选择统计范围" />;
   if (query.tab === "overview" && data) content = <OverviewStats data={data} query={query} seasonSlug={seasonSlug} />;
   if (query.tab === "players") content = data
     ? <PlayersExplorer data={data} query={query} seasonSlug={seasonSlug} />
-    : <EmptyState title="暂无选手统计数据" />;
+    : <EmptyState title="选手数据确认后展示" />;
   if (query.tab === "teams") content = data
     ? <TeamsExplorer data={data} query={query} seasonSlug={seasonSlug} />
-    : <EmptyState title="暂无队伍统计数据" />;
+    : <EmptyState title="队伍数据确认后展示" />;
   if (query.tab === "maps") content = mapDetail
     ? <MapWorkspace detail={mapDetail} seasonSlug={seasonSlug} teamLinks={data?.teamLinks} />
-    : data ? <MapsExplorer data={data} query={query} seasonSlug={seasonSlug} /> : <EmptyState title="暂无地图统计数据" />;
+    : data ? <MapsExplorer data={data} query={query} seasonSlug={seasonSlug} /> : <EmptyState title="地图数据确认后展示" />;
   if (query.tab === "weapons") content = data
     ? <WeaponsExplorer data={data} query={query} seasonSlug={seasonSlug} />
-    : <EmptyState title="暂无武器统计数据" />;
+    : <EmptyState title="武器数据确认后展示" />;
 
   if (query.tab === "records" && data) content = <Records records={data.records ?? []} query={query} seasonSlug={seasonSlug} coverage={data.recordCoverage} />;
 

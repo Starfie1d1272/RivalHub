@@ -134,7 +134,7 @@ export function PlayersExplorer({ data, query, seasonSlug }: { data: TournamentS
         rowKey={(row, index) => `${row.userId ?? row.perfectName}:${row.teamId ?? ""}:${index}`}
         initialSortKey="rating"
         tableClassName="min-w-[980px] table-fixed"
-        emptyLabel="暂无选手统计"
+        emptyLabel="选手数据确认后展示"
       />
     );
   } else {
@@ -147,7 +147,7 @@ export function PlayersExplorer({ data, query, seasonSlug }: { data: TournamentS
         rowKey={(row, index) => `${row.player.entityKey}:detail:${index}`}
         initialSortKey={family === "opening" ? "win" : family === "teamplay" ? "kast" : family === "utility" ? "util" : "clutch"}
         tableClassName="min-w-[960px] table-fixed"
-        emptyLabel="该范围暂无详细统计"
+        emptyLabel="调整范围查看详细统计"
       />
     );
   }

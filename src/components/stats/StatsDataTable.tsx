@@ -46,7 +46,7 @@ interface RankingState<T> {
 
 export function StatsDataTable<T>({
   rows, columns, rowKey, initialSortKey, initialDirection = "desc", pageSize = 25, showRank = false, embedded = false,
-  tableClassName = "min-w-max", emptyLabel = "当前范围暂无数据", rankingBaselineRows,
+  tableClassName = "min-w-max", emptyLabel = "调整范围查看数据", rankingBaselineRows,
 }: {
   rows: readonly T[];
   columns: readonly StatsDataColumn<T>[];
@@ -114,7 +114,7 @@ export function StatsDataTable<T>({
             <span>min {rankingState.floor} {rankingState.sampleLabel}</span>
             <StatsTooltip
               label="排名样本说明"
-              content={`当前按 ${rankingState.metricLabel} 排序。排名样本线取当前有效比较范围内有效样本 P75 的 25%，向上取整。搜索与实体展示筛选只过滤当前显示，不重建比较样本线。`}
+              content={`当前按 ${rankingState.metricLabel} 排序。排名样本线取当前有效比较范围内有效样本 P75 的 25%，向上取整。搜索与实体筛选改变展示列表；样本线使用同一比较范围。`}
             />
           </span>
         </div>

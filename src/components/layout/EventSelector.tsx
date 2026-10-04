@@ -37,7 +37,7 @@ export function EventSelector({ events, value, selectedName, allHref, hrefFor }:
           <span className="min-w-0"><span className="block break-words">{e.name}</span><span className="text-xs text-[var(--color-fg-dim)]">{e.slug}</span></span>
           <span className="shrink-0 text-xs">{value === e.slug ? "✓ " : ""}{e.status ? presentSeasonStatus(e.status as SeasonStatus).label : "历史与当前"}</span>
         </button>)}
-        {!options.length && <p role="status" className="p-3 text-sm">没有匹配的公开赛事</p>}
+        {!options.length && <p role="status" className="p-3 text-sm">试试其它赛事名称</p>}
       </div>
     </div>
     </DialogContent>
