@@ -22,7 +22,7 @@ jobs:
       RIVALHUB_STAGING_PROJECT_CONFIRM: cueazphyskstwdhnzsxx
       RIVALHUB_ALLOW_REMOTE_DB_WRITE: staging
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.ref }}
           fetch-depth: 0

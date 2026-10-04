@@ -67,7 +67,7 @@ jobs:
         id: workflow_start
         run: echo "started_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
 
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.tag || github.ref }}
           fetch-depth: 0
@@ -202,7 +202,7 @@ jobs:
       RIVALHUB_LOCAL_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
       RIVALHUB_DB_TARGET: local
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ needs.preflight.outputs.release_tag }}
           fetch-depth: 0
@@ -238,7 +238,7 @@ jobs:
       RIVALHUB_RELEASE_SHA: ${{ needs.preflight.outputs.release_sha }}
       CHECKPOINT_KIND: ${{ needs.preflight.outputs.checkpoint_kind }}
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ needs.preflight.outputs.release_tag }}
           fetch-depth: 0
@@ -303,7 +303,7 @@ jobs:
       RELEASE_SHA: ${{ needs.preflight.outputs.release_sha }}
       RIVALHUB_RELEASE_SHA: ${{ needs.preflight.outputs.release_sha }}
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ needs.preflight.outputs.release_tag }}
           fetch-depth: 0
@@ -374,7 +374,7 @@ jobs:
       RELEASE_SHA: ${{ needs.preflight.outputs.release_sha }}
       RIVALHUB_RELEASE_SHA: ${{ needs.preflight.outputs.release_sha }}
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event_name == 'workflow_dispatch' && needs.preflight.outputs.release_operator_sha || needs.preflight.outputs.release_tag }}
           fetch-depth: 0
@@ -513,7 +513,7 @@ jobs:
       REQUIRES_SCHEDULER_PROVISION: ${{ needs.preflight.outputs.requires_scheduler_provision }}
       RELEASE_WORKFLOW_STARTED_AT: ${{ needs.preflight.outputs.workflow_started_at }}
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ needs.preflight.outputs.release_tag }}
           fetch-depth: 0

@@ -28,3 +28,4 @@ minimumReleaseAgeExclude:
 # Exit: upstream publishes this projection contract; see patches/README.md.
 patchedDependencies:
   '@cs2dak/tournament@1.1.1': patches/@cs2dak__tournament@1.1.1.patch
+frozenLockfile: true
