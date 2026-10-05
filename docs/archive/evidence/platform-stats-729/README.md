@@ -94,7 +94,7 @@ baseline 是**同一fixture的逐届查询组合**，不是虚构一个旧版全
 
 投影JSON是客户端解析结果的JSON估算；PG facts::text包含不同空白，两者均不是wire账单。临时localhost POST调用既有revalidatePublicStatsTag owner；该测试入口已移除，不加入产品或部署。没有统计缓存第二套materialization。该规模能完成冷填充，warm和翻页无projection重读；冷填充仍O(history)、约3.4–3.6秒及9.62MB投影JSON，频繁上传失效仍可能放大读取，**没有证明托管egress安全或可接受计费**。以此作为容量边界证据交审，不把2-map/100-event列表负载冒充历史规模验收；生产托管实测仍是release未执行项。HTTP采样是本轮规则/缓存代码的本地构建，后续仅短标签文案变化。
 
-UI自审使用具体短标签Win after FD、Traded FD、Flash output等，主行保留样本/值；scope和统计解释在Why?，组合说明分项计数、共享分母和逐回合核对依据。Records/Insights标题与指标问号定位在标签右侧且不参与正常排版，支持focus/触屏；解释按需展开。授权draft选择器显示当前赛事名称，公开选项保持公开赛事范围；Header只发送slug用于导航active。
+UI终审使用 CS 常见短标签（FD、Traded、Win after FD、Flash Output 等）；Opening 组合主行收敛为 `FD n · Traded x · Team Wins y`。正常页面只保留事实、指标与操作，Why? 展示 scope、percentile 与 peer value，不展示 insight floor、方法论免责声明或逐回合交集说明。Records/Insights 问号按需解释定义；无纪录只显示 `—`。授权 draft 选择器显示当前赛事名称，公开选项保持公开赛事范围；Header 只发送 slug 用于导航 active。
 
 ## 截图
 
@@ -107,4 +107,4 @@ UI自审使用具体短标签Win after FD、Traded FD、Flash output等，主行
 
 没有读取或修改生产数据，没有生产迁移/backfill/部署/合并。仍由既有 release/运维流程执行：生产 reserved slug冲突核查；新投影版本受保护重建、全coverage gate、托管超时/内存/容量；跨实例PUBLIC_STATS_TAG真实失效（含公开性撤回与新公开赛事）；托管cold/warm查询数、wire bytes、RSC payload和计费；staging rehearsal与production smoke。此PR停在代码审查点。
 
-本轮 UI 文案自查：范围、指标解释和空状态均用正向描述，直接陈述来源、分母、展示条件与操作。主行使用具体英文短标签，说明由问号和 Why? 按需展开；问号绝对定位于标签外侧。统计组件与赛事选择器回归 11 文件 / 38 项通过，应用与 tests 类型、改动文件 lint、本地生产模式构建通过。250图页面在390px视觉检查定位到Side Split最小宽度，改为随卡片宽度伸缩，窄屏标签按需换行。含数据 Overview 在 320/390px 的文档宽度均与视口一致；390px Records 问号触屏展开核对通过。桌面与 mobile-chrome 流程 2 项通过，重试 0。
+本轮 UI 文案终审：Stats 页面使用短标签与事实型空态，不再把“正向表达”理解为机械移除 `暂无`；用户可操作的空态给出动作，纯数据空态使用 `—` / `暂无…`。Insights 正常表面不展示算法 gate 或免责声明，Why? 使用 Pxx / Peers 等短格式；Records 无值不再追加解释句。问号绝对定位于标签外侧。此前统计组件、赛事选择器、320/390px 与 mobile-chrome 证据继续适用；本次文案改动以最终 HEAD 的 targeted tests 与 required CI 重新确认。
