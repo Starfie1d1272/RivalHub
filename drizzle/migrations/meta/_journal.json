@@ -498,6 +498,13 @@
       "when": 1791184989533,
       "tag": "0070_supabase_organization_storage_urls",
       "breakpoints": true
+    },
+    {
+      "idx": 71,
+      "version": "7",
+      "when": 1791186905297,
+      "tag": "0071_restore_private_live_broadcast_policy",
+      "breakpoints": true
     }
   ]
 }
