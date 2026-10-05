@@ -222,7 +222,7 @@ export function OverviewStats({ data, query, seasonSlug }: { data: TournamentSta
       <section aria-labelledby="maps-heading">
         <div className="mb-3 flex items-end justify-between gap-3">
           <h2 id="maps-heading" className="text-base font-semibold">Maps</h2>
-          <span className="text-xs text-[var(--color-fg-dim)]">{maps.length} maps</span>
+          <span className="text-xs text-[var(--color-fg-dim)]">{maps.length} map{maps.length === 1 ? "" : "s"}</span>
         </div>
         <StatsDataTable rows={maps} columns={mapColumns} rowKey={(row) => row.mapName} initialSortKey="played" tableClassName="table-fixed" />
       </section>
