@@ -21,5 +21,5 @@ it("filters merged user rows by their actual entries without recalculating the a
   expect(screen.queryByText("Beta")).not.toBeInTheDocument();
   expect(screen.getByText("2")).toBeInTheDocument();
   expect(screen.getByText("40")).toBeInTheDocument();
-  expect(screen.getByText("1 players")).toBeInTheDocument();
+  expect(screen.getByText("1 player")).toBeInTheDocument();
 });
