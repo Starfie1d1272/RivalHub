@@ -259,7 +259,7 @@ export function MapsExplorer({ data, query, seasonSlug }: { data: TournamentStat
         <>
           <div className="flex items-center justify-end gap-3 text-xs text-[var(--color-fg-dim)]">
             {partialCoverage && <span>Coverage {data.coverage.detailedMaps}/{data.coverage.completedMaps}</span>}
-            <span>{rows.length} maps</span>
+            <span>{rows.length} map{rows.length === 1 ? "" : "s"}</span>
           </div>
           <StatsDataTable
             rows={rows}
@@ -267,7 +267,7 @@ export function MapsExplorer({ data, query, seasonSlug }: { data: TournamentStat
             rowKey={(row) => row.mapName}
             initialSortKey="played"
             tableClassName="min-w-[860px] table-fixed"
-            emptyLabel="赛果与 BP 数据确认后展示"
+            emptyLabel="暂无赛果或 BP 数据"
           />
         </>
       ) : (
@@ -279,7 +279,7 @@ export function MapsExplorer({ data, query, seasonSlug }: { data: TournamentStat
             </label>
             <div className="ml-auto flex items-center gap-3 pb-1 text-xs text-[var(--color-fg-dim)]">
               {data.veto.sample.missingMatches > 0 && <span>BP {data.veto.sample.recordedMatches}/{data.veto.sample.applicableMatches} matches</span>}
-              <span>{vetoRows.length} teams · {mapNames.length} maps</span>
+              <span>{vetoRows.length} team{vetoRows.length === 1 ? "" : "s"} · {mapNames.length} map{mapNames.length === 1 ? "" : "s"}</span>
             </div>
           </div>
           <VetoMatrix rows={vetoRows} teamLinks={data.teamLinks ?? {}} maps={mapNames} seasonSlug={seasonSlug} query={query} />
