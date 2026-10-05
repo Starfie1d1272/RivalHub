@@ -41,7 +41,7 @@ export function WeaponsExplorer({ data, query, seasonSlug }: { data: TournamentS
         </label>}
         <div className="ml-auto flex items-center gap-3 pb-1 text-xs text-[var(--color-fg-dim)]">
           {partialCoverage && <span>Coverage {data.coverage.detailedMaps}/{data.coverage.completedMaps}</span>}
-          <span>{rows.length} weapons</span>
+          <span>{rows.length} weapon{rows.length === 1 ? "" : "s"}</span>
           {hasFilters && <button type="button" onClick={clearFilters} className="text-[var(--color-fg-mid)] transition-colors hover:text-[var(--color-accent)]">Clear filters</button>}
         </div>
       </div>
