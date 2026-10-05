@@ -8,12 +8,12 @@ import { Input } from "@/components/ui/input";
 import { confirmSeriesMapCorrection } from "@/actions/matches/series-correction";
 import type { SeriesCorrectionPreview, SeriesCorrectionRequest } from "@/lib/matches/series-score-correction";
 
-export function SeriesScoreCorrectionReview({ preview, request, teamAName, teamBName, onCancel, onDone }: {
-  preview: SeriesCorrectionPreview; request: SeriesCorrectionRequest;
+export function SeriesScoreCorrectionReview({ preview, request, initialReason, teamAName, teamBName, onCancel, onDone }: {
+  preview: SeriesCorrectionPreview; request: SeriesCorrectionRequest; initialReason: string;
   teamAName: string; teamBName: string; onCancel: () => void; onDone: () => void;
 }) {
   const [opened, setOpened] = useState(false);
-  const [reason, setReason] = useState("");
+  const [reason, setReason] = useState(initialReason);
   const [confirmed, setConfirmed] = useState(false);
   const [error, setError] = useState("");
   const [pending, startTransition] = useTransition();
