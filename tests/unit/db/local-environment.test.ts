@@ -98,7 +98,7 @@ describe("local database target guard", () => {
     expect(env.DATABASE_URL).toContain("127.0.0.1:54322");
     expect(env.NEXT_PUBLIC_SUPABASE_URL).toBe("http://127.0.0.1:54321");
     expect(env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY).toBe("publishable-local");
-    expect(env.SUPABASE_SECRET_KEY).toBeUndefined();
+    expect(env.SUPABASE_SECRET_KEY).toBe("service-local");
     expect(env.SUPABASE_SERVICE_ROLE_KEY).toBe("service-local");
     expect(env.RIVALHUB_DB_TARGET).toBe("local");
   });

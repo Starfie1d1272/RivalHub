@@ -47,7 +47,7 @@ test("provider recovery through the real browser form revokes both prior applica
     await signInProgrammatically(other, account, scenario, "/settings/security");
     const saved = await page.context().cookies();
     const apiUrl = assertLocalHttpUrl(process.env.NEXT_PUBLIC_SUPABASE_URL, "local auth URL");
-    const admin = createClient(apiUrl, requireSupabaseSecretKey(process.env.SUPABASE_SECRET_KEY, process.env.SUPABASE_SERVICE_ROLE_KEY), { auth: { persistSession: false, autoRefreshToken: false } });
+    const admin = createClient(apiUrl, requireSupabaseSecretKey(process.env.SUPABASE_SECRET_KEY, process.env.NEXT_PUBLIC_SUPABASE_URL), { auth: { persistSession: false, autoRefreshToken: false } });
     const { data, error } = await admin.auth.admin.generateLink({ type: "recovery", email: account.email, options: { redirectTo: new URL("/reset-password", page.url()).href } });
     if (error) throw new Error("Local recovery link generation failed");
     await page.goto(data.properties.action_link);

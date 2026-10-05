@@ -157,7 +157,7 @@ describe("recovery contracts", () => {
       RIVALHUB_PRODUCTION_PROJECT_CONFIRM: "rrrebbxfghmgnoyyeqqd",
       RIVALHUB_PRODUCTION_DB_HOST_CONFIRM: "aws-0-ap-northeast-1.pooler.supabase.com:6543",
       DATABASE_URL: "postgresql://postgres.rrrebbxfghmgnoyyeqqd:secret@aws-0-ap-northeast-1.pooler.supabase.com:6543/postgres?pgbouncer=true",
-      SUPABASE_SECRET_KEY: "sb_secret-modern",
+      SUPABASE_SECRET_KEY: "sb_secret_modern",
       SUPABASE_SERVICE_ROLE_KEY: "service-role-secret",
       RIVALHUB_BACKUP_AGE_RECIPIENT: "age1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq",
       RIVALHUB_R2_ACCOUNT_ID: "0123456789abcdef0123456789abcdef",
@@ -169,7 +169,7 @@ describe("recovery contracts", () => {
     expect(environment.databaseUrl).toBe("postgresql://postgres.rrrebbxfghmgnoyyeqqd:secret@aws-0-ap-northeast-1.pooler.supabase.com:5432/postgres");
     expect(environment.databaseUrl).not.toContain(":6543");
     expect(environment.databaseUrl).not.toContain("pgbouncer");
-    expect(environment.supabaseSecretKey).toBe("sb_secret-modern");
+    expect(environment.supabaseSecretKey).toBe("sb_secret_modern");
     expect(() => assertProductionBackupEnvironment({
       RIVALHUB_DB_TARGET: "local",
       DATABASE_URL: "postgresql://postgres:postgres@127.0.0.1:5432/postgres",
@@ -183,7 +183,7 @@ describe("recovery contracts", () => {
     })).toThrow();
   });
 
-  it("uses the modern Supabase secret key first and only falls back to the legacy name", () => {
+  it("requires a modern Supabase secret key without hosted fallback", () => {
     const baseEnvironment = {
       RIVALHUB_DB_TARGET: "production",
       RIVALHUB_PRODUCTION_PROJECT_CONFIRM: "rrrebbxfghmgnoyyeqqd",
@@ -198,16 +198,14 @@ describe("recovery contracts", () => {
 
     expect(assertProductionBackupEnvironment({
       ...baseEnvironment,
-      SUPABASE_SECRET_KEY: "  sb_secret-modern  ",
+      SUPABASE_SECRET_KEY: "  sb_secret_modern  ",
       SUPABASE_SERVICE_ROLE_KEY: "legacy-service-role",
-    }).supabaseSecretKey).toBe("sb_secret-modern");
-    expect(assertProductionBackupEnvironment({
+    }).supabaseSecretKey).toBe("sb_secret_modern");
+    expect(() => assertProductionBackupEnvironment({
       ...baseEnvironment,
       SUPABASE_SERVICE_ROLE_KEY: "legacy-service-role",
-    }).supabaseSecretKey).toBe("legacy-service-role");
-    expect(() => assertProductionBackupEnvironment(baseEnvironment)).toThrow(
-      /SUPABASE_SECRET_KEY\/SUPABASE_SERVICE_ROLE_KEY 未设置/,
-    );
+    })).toThrow(/SUPABASE_SECRET_KEY 未设置/);
+    expect(() => assertProductionBackupEnvironment(baseEnvironment)).toThrow(/SUPABASE_SECRET_KEY 未设置/);
   });
 
   it("uses the storage policy registry for supported buckets and managed references", async () => {
@@ -335,7 +333,7 @@ describe("recovery contracts", () => {
       RIVALHUB_PRODUCTION_PROJECT_CONFIRM: "rrrebbxfghmgnoyyeqqd",
       RIVALHUB_PRODUCTION_DB_HOST_CONFIRM: "aws-0-ap-northeast-1.pooler.supabase.com:6543",
       DATABASE_URL: "postgresql://postgres.rrrebbxfghmgnoyyeqqd:secret@aws-0-ap-northeast-1.pooler.supabase.com:6543/postgres?pgbouncer=true",
-      SUPABASE_SECRET_KEY: "sb_secret-modern",
+      SUPABASE_SECRET_KEY: "sb_secret_modern",
       RIVALHUB_BACKUP_AGE_RECIPIENT: "age1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq",
       RIVALHUB_R2_ACCOUNT_ID: "0123456789abcdef0123456789abcdef",
       RIVALHUB_R2_BUCKET: "rivalhub-recovery",

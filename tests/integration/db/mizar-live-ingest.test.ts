@@ -486,7 +486,7 @@ describe("Mizar live snapshot ingest boundary", () => {
     const previousUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const previousKey = process.env.SUPABASE_SECRET_KEY;
     process.env.NEXT_PUBLIC_SUPABASE_URL = "http://127.0.0.1:1";
-    process.env.SUPABASE_SECRET_KEY = "integration-test-service-key";
+    process.env.SUPABASE_SECRET_KEY = "sb_secret_integration-test-service-key";
     try {
       // Transport availability is not part of this boundary. A healthy frame must pass
       // authorization and only then degrade or fail at Broadcast, never before it.

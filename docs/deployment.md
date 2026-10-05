@@ -33,7 +33,7 @@ Production 对外提供 public、no-store 的 `/api/system/release` read-back en
 
 ## Supabase API credentials
 
-公开客户端优先读取 `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`，为空时回退到 `NEXT_PUBLIC_SUPABASE_ANON_KEY`；服务端特权客户端优先读取 `SUPABASE_SECRET_KEY`，为空时回退到 `SUPABASE_SERVICE_ROLE_KEY`。secret/service-role 只能留在服务端，不能配置到任何 `NEXT_PUBLIC_*` 变量。公开环境变量在构建时内联，切换后必须重新构建。
+Hosted 公开客户端仅读取现代 `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`；服务端特权客户端仅读取现代 `SUPABASE_SECRET_KEY`，缺失或 key 类型不匹配时拒绝启动。secret 只能留在服务端，不能配置到任何 `NEXT_PUBLIC_*` 变量。Local Supabase adapter 将官方工具输出的 JWT-shaped keys 映射到这两个变量，仅在 loopback URL 下接受。公开环境变量在构建时内联，切换后必须重新构建。
 
 新版 API key 是 opaque credential，不能当作用户 JWT 放入 `Authorization: Bearer`；SDK 负责 API key 传输，已认证请求使用真实用户 access token。`SUPABASE_JWT_SECRET`（自定义 Realtime JWT 签名）和 `CRON_SECRET`（调度认证）保持独立，不用 API key 替代。本地验证和恢复入口覆盖或清除继承的 hosted keys，始终使用已校验目标自己的凭据。
 

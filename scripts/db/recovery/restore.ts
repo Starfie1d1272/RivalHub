@@ -538,7 +538,7 @@ function runLifecycleReconciliation(target: IsolatedRecoveryEnvironment): void {
     NEXT_PUBLIC_SUPABASE_URL: target.supabase.apiUrl,
     NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: target.supabase.publishableKey,
     NEXT_PUBLIC_SUPABASE_ANON_KEY: target.supabase.publishableKey,
-    SUPABASE_SECRET_KEY: undefined,
+    SUPABASE_SECRET_KEY: target.supabase.serviceRoleKey,
     SUPABASE_SERVICE_ROLE_KEY: target.supabase.serviceRoleKey,
     RIVALHUB_RECOVERY_DATABASE_URL: target.databaseUrl,
     RIVALHUB_RECOVERY_SUPABASE_URL: target.supabase.apiUrl,
