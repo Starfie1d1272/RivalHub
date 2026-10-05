@@ -134,7 +134,7 @@ export function PlayersExplorer({ data, query, seasonSlug }: { data: TournamentS
         rowKey={(row, index) => `${row.userId ?? row.perfectName}:${row.teamId ?? ""}:${index}`}
         initialSortKey="rating"
         tableClassName="min-w-[980px] table-fixed"
-        emptyLabel="选手数据确认后展示"
+        emptyLabel="暂无选手统计"
       />
     );
   } else {
@@ -170,7 +170,7 @@ export function PlayersExplorer({ data, query, seasonSlug }: { data: TournamentS
         </label>
         <div className="ml-auto flex items-center gap-3 pb-1 text-xs text-[var(--color-fg-dim)]">
           {partialCoverage && <span>Coverage {data.coverage.detailedMaps}/{data.coverage.completedMaps}</span>}
-          <span>{visibleRows.length} players</span>
+          <span>{visibleRows.length} player{visibleRows.length === 1 ? "" : "s"}</span>
           {hasFilters && <button type="button" onClick={clearFilters} className="text-[var(--color-fg-mid)] transition-colors hover:text-[var(--color-accent)]">Clear filters</button>}
         </div>
       </div>
