@@ -1,3 +1,4 @@
+import { postgresConnection } from "../../src/db/postgres-connection";
 import { Pool } from "pg";
 import { pathToFileURL } from "node:url";
 import { buildProductionEnvironment } from "./production-environment";
@@ -23,7 +24,7 @@ async function main(): Promise<void> {
     requiresWriteAuthorization: command === "provision",
   });
   const databaseUrl = required(environment.DATABASE_URL, "DATABASE_URL");
-  const pool = new Pool({ connectionString: databaseUrl, ssl: { rejectUnauthorized: false }, max: 1 });
+  const pool = new Pool({ ...postgresConnection(databaseUrl), max: 1 });
 
   try {
     await assertProviderContract(pool);

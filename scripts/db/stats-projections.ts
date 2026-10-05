@@ -1,3 +1,4 @@
+import { postgresConnection } from "../../src/db/postgres-connection";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { drizzle } from "drizzle-orm/node-postgres";
@@ -54,7 +55,7 @@ export function statsProjectionDatabaseTarget(apply: boolean, env: NodeJS.Proces
 async function main() {
   const args = parseStatsProjectionArguments(process.argv.slice(2));
   const { target, databaseUrl } = statsProjectionDatabaseTarget(args.apply);
-  const pool = new Pool({ connectionString: databaseUrl, ssl: target === "production" ? { rejectUnauthorized: false } : false, max: 1 });
+  const pool = new Pool({ ...postgresConnection(databaseUrl), max: 1 });
   try {
     const database = drizzle(pool, { schema });
     if (args.mode === "coverage") {

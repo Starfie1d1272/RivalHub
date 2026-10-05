@@ -1,3 +1,4 @@
+import { postgresConnection } from "../../src/db/postgres-connection";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -19,8 +20,7 @@ async function main(): Promise<void> {
   const databaseUrl = databaseUrlFor(target, process.env.DATABASE_URL);
   const expected = readExpectedMigrations();
   const pool = new Pool({
-    connectionString: databaseUrl,
-    ssl: target === "staging" || target === "production" ? { rejectUnauthorized: false } : false,
+    ...postgresConnection(databaseUrl),
     max: 1,
   });
 

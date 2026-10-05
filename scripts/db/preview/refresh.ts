@@ -1,3 +1,4 @@
+import { postgresConnection } from "../../../src/db/postgres-connection";
 import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -191,7 +192,7 @@ export async function refreshMirror(path: string): Promise<void> {
   const snapshot = await runPreviewRefreshPhase("snapshot read", async () => readSnapshot(path));
   const storage = createClient(target.supabaseUrl, target.secretKey, { auth: { persistSession: false, autoRefreshToken: false } }).storage;
   await runPreviewRefreshPhase("dev storage preflight", () => ensurePreviewTeamLogoBucket(storage));
-  const pool = new Pool({ connectionString: target.databaseUrl, ssl: { rejectUnauthorized: false }, max: 1 });
+  const pool = new Pool({ ...postgresConnection(target.databaseUrl), max: 1 });
   let client: PoolClient | undefined;
   try {
     const connected = await runPreviewRefreshPhase("db connection", () => pool.connect());

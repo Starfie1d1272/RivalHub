@@ -1,3 +1,5 @@
+import { runVerifiedSupabaseDump } from "./verified-dump";
+import { postgresConnection } from "../../../src/db/postgres-connection";
 import { randomUUID } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { performance } from "node:perf_hooks";
@@ -126,9 +128,9 @@ export async function createDatabaseSnapshot(
   const rolesPath = join(stagingRoot, "roles.sql");
   const schemaPath = join(stagingRoot, "schema.sql");
   const dataPath = join(stagingRoot, "data.sql");
-  runSupabaseDump(databaseUrl, ["--role-only"], rolesPath);
-  runSupabaseDump(databaseUrl, ["--schema", "public"], schemaPath);
-  runSupabaseDump(databaseUrl, ["--data-only", "--use-copy", "--schema", "public,auth"], dataPath);
+  runVerifiedSupabaseDump(databaseUrl, ["--role-only"], rolesPath);
+  runVerifiedSupabaseDump(databaseUrl, ["--schema", "public"], schemaPath);
+  runVerifiedSupabaseDump(databaseUrl, ["--data-only", "--use-copy", "--schema", "public,auth"], dataPath);
   return {
     roles: digestFile(rolesPath, "roles.sql"),
     schema: digestFile(schemaPath, "schema.sql"),
@@ -136,29 +138,12 @@ export async function createDatabaseSnapshot(
   };
 }
 
-function runSupabaseDump(databaseUrl: string, flags: readonly string[], outputPath: string): void {
-  runCommand(
-    pnpmBin,
-    [
-      "exec",
-      "supabase",
-      "db",
-      "dump",
-      "--db-url",
-      databaseUrl,
-      "--file",
-      outputPath,
-      ...flags,
-    ],
-  );
-}
-
 export async function readProductionMigrationIdentity(databaseUrl: string): Promise<{
   postgresVersion: string;
   ledger: RecoveryManifest["source"]["databaseMigrationTerminal"];
 }> {
   const expected = readExpectedMigrations();
-  const pool = new Pool({ connectionString: databaseUrl, ssl: { rejectUnauthorized: false }, max: 1 });
+  const pool = new Pool({ ...postgresConnection(databaseUrl), max: 1 });
   try {
     const version = await pool.query<{ server_version: string }>("SHOW server_version");
     const ledgerResult = await pool.query<Migration>(
@@ -209,22 +194,11 @@ export function readGitCommit(): string {
 }
 
 async function readManagedStorageReferencesFromProduction(databaseUrl: string): Promise<readonly ManagedStorageReference[]> {
-  const pool = new Pool({ connectionString: databaseUrl, ssl: { rejectUnauthorized: false }, max: 1 });
+  const pool = new Pool({ ...postgresConnection(databaseUrl), max: 1 });
   try {
     return await readManagedStorageReferences(pool);
   } finally {
     await pool.end();
-  }
-}
-
-function runCommand(executable: string, args: readonly string[]): void {
-  const result = spawnSync(executable, [...args], {
-    cwd: projectRoot,
-    encoding: "utf8",
-    stdio: ["ignore", "pipe", "pipe"],
-  });
-  if (result.error || result.status !== 0 || result.signal) {
-    throw new Error(`${executable} recovery operation failed; canonical backup aborted. `);
   }
 }
 

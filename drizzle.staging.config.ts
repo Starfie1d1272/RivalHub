@@ -1,3 +1,4 @@
+import { postgresConnection } from "./src/db/postgres-connection";
 import type { Config } from "drizzle-kit";
 import { assertStagingDatabaseUrl } from "./scripts/db/staging-environment";
 
@@ -8,7 +9,7 @@ export default {
   out: "./drizzle/migrations",
   dialect: "postgresql",
   dbCredentials: {
-    url: databaseUrl,
-    ssl: true,
+    url: postgresConnection(databaseUrl).connectionString,
+    ssl: postgresConnection(databaseUrl).ssl,
   },
 } satisfies Config;

@@ -102,6 +102,7 @@
     "tests/**/*.{js,mjs,cjs,jsx,ts,tsx,mts,cts}",
     "*.{js,mjs,cjs,jsx,ts,tsx,mts,cts}!"
   ],
+  "ignoreBinaries": ["openssl"],
   "ignoreDependencies": [
     "supabase"
   ],

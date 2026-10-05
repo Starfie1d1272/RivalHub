@@ -1,3 +1,4 @@
+import { postgresConnection } from "../../src/db/postgres-connection";
 import { and, asc, eq, isNotNull } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
@@ -92,8 +93,7 @@ async function main(): Promise<void> {
   const args = parseArguments(process.argv.slice(2));
   const { target, databaseUrl } = databaseTarget(args.apply);
   const pool = new Pool({
-    connectionString: databaseUrl,
-    ssl: target === PROTECTED_WRITE_TARGET ? { rejectUnauthorized: false } : false,
+    ...postgresConnection(databaseUrl),
     max: 1,
   });
   try {
