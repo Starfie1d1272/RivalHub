@@ -1,3 +1,4 @@
+import { postgresConnection } from "../../src/db/postgres-connection";
 import { Pool, type PoolClient } from "pg";
 import { assertLocalDatabaseUrl } from "./local-environment";
 
@@ -81,8 +82,7 @@ function databaseTarget(env: NodeJS.ProcessEnv = process.env): { target: string;
 async function main(): Promise<void> {
   const { target, databaseUrl } = databaseTarget();
   const pool = new Pool({
-    connectionString: databaseUrl,
-    ssl: target === PROTECTED_READ_ONLY_TARGET ? { rejectUnauthorized: false } : false,
+    ...postgresConnection(databaseUrl),
     max: 1,
   });
   const client = await pool.connect();

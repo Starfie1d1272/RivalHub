@@ -1,3 +1,4 @@
+import { postgresConnection } from "../../src/db/postgres-connection";
 import { execFileSync } from "node:child_process";
 import { appendFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -90,8 +91,7 @@ async function readHealth(keys: string[]): Promise<HealthRow[]> {
   const databaseUrl = process.env.DATABASE_URL?.trim();
   if (!databaseUrl) throw new Error("DATABASE_URL is required for scheduler watchdog planning.");
   const pool = new Pool({
-    connectionString: databaseUrl,
-    ssl: { rejectUnauthorized: false },
+    ...postgresConnection(databaseUrl),
     max: 1,
     connectionTimeoutMillis: 10_000,
     query_timeout: 10_000,

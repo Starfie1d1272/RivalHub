@@ -1,3 +1,4 @@
+import { postgresConnection } from "../../../src/db/postgres-connection";
 import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
@@ -54,7 +55,7 @@ export async function runPreviewExportPhase<T>(phase: PreviewExportPhase, operat
 export async function exportMirror(): Promise<MirrorSnapshot> {
   const databaseUrl = await runPreviewExportPhase("source DB connection", async () => sourceDatabaseUrl());
   const identity = await runPreviewExportPhase("source identity", () => resolveProductionSourceIdentity());
-  const pool = new Pool({ connectionString: databaseUrl, ssl: { rejectUnauthorized: false }, max: 1 });
+  const pool = new Pool({ ...postgresConnection(databaseUrl), max: 1 });
   let client: PoolClient | undefined;
   try {
     client = await runPreviewExportPhase("source DB connection", () => pool.connect());

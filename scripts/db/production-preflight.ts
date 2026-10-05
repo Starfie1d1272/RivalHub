@@ -1,3 +1,4 @@
+import { postgresConnection } from "../../src/db/postgres-connection";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -14,7 +15,7 @@ export async function verifyProductionPreflight(): Promise<void> {
   assertProductionConfirmations(process.env);
   const databaseUrl = assertProductionDatabaseUrl(process.env.DATABASE_URL);
   const expected = readExpectedMigrations();
-  const pool = new Pool({ connectionString: databaseUrl, ssl: { rejectUnauthorized: false }, max: 1 });
+  const pool = new Pool({ ...postgresConnection(databaseUrl), max: 1 });
   try {
     await pool.query("BEGIN TRANSACTION READ ONLY");
     const ledger = await pool.query<Migration>("SELECT hash, created_at::bigint::text AS when FROM drizzle.__drizzle_migrations ORDER BY created_at");

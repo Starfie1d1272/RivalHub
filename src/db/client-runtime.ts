@@ -1,3 +1,4 @@
+import { postgresConnection } from "./postgres-connection";
 import { drizzle } from "drizzle-orm/node-postgres";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
@@ -11,7 +12,8 @@ import { assertPreviewDatabaseUrl } from "../lib/runtime/preview";
 function createPool(): Pool {
   const connectionString = requireDatabaseUrl();
   const url = new URL(connectionString);
-  const ssl = shouldUseSsl(connectionString);
+  const connection = postgresConnection(connectionString);
+  const ssl = connection.ssl !== false;
   logEvent({
     level: "info",
     event: "db.pool.created",
@@ -22,8 +24,7 @@ function createPool(): Pool {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const pgConfig: any = {
-    connectionString,
-    ssl: ssl ? { rejectUnauthorized: false } : undefined,
+    ...connection,
     // Transaction Pooler (port 6543) 共享连接池，适合 serverless
     // 回退 Session Pooler (port 5432) 时删除 prepare: false 并调回 max: 1
     prepare: false,
@@ -168,26 +169,6 @@ function requireDatabaseUrl(): string {
   }
   assertPreviewDatabaseUrl(value);
   return value;
-}
-
-function shouldUseSsl(databaseUrl?: string): boolean {
-  if (!databaseUrl) return false;
-
-  try {
-    const url = new URL(databaseUrl);
-    if (url.searchParams.get("sslmode") === "disable") return false;
-    return !["localhost", "127.0.0.1", "::1"].includes(url.hostname);
-  } catch {
-    logEvent({
-      level: "warn",
-      event: "db.connection_string.invalid",
-      scope: "database",
-      operation: "connection.configure",
-      errorClass: "database",
-      safeContext: { phase: "ssl_detection" },
-    });
-    return true;
-  }
 }
 
 function isPreConnectionError(error: unknown): boolean {

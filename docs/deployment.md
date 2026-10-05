@@ -2,6 +2,16 @@
 
 本文件定义稳定环境模型；具体命令见 [`operations/`](./operations/)。RivalHub 2.x 优先服务官方实例，不承诺第三方 production self-hosting。
 
+## PostgreSQL TLS
+
+`src/db/postgres-connection.ts` 是 runtime、protected migration/preflight、Preview、scheduler、statistics、Steam 与 recovery 的唯一远程 TLS owner。Hosted Supabase 使用仓库中从 Dashboard 下载并记录来源/fingerprint 的公开 CA，强制证书和 hostname 验证；不允许未验证的远程 fallback。loopback 本地数据库维持独立 plaintext contract。
+
+URL 中的 `sslmode=require` 仅作旧连接串兼容输入，最终升级为同样的 CA/hostname 校验；其它弱模式及自定义 TLS override 被拒绝，经过规范化后 URL SSL 参数不会覆盖 Node `pg` 的安全配置。Transaction/Session Pooler 保留各自既有端口与 target guard。
+
+Recovery 使用 Supabase CLI 的 canonical dump filters，但该 CLI 模板不会传播 URL SSL 参数，因此 `scripts/db/recovery/verified-dump.ts` 在 disposable PostgreSQL 17 client container 内显式设置 `PGSSLMODE=verify-full` 与同一公开 CA。无需维护额外 DB password/CA secret，也不修改 operator 全局 trust store。
+
+Provider SSL enforcement 是独立的第二阶段：先验证 Preview/runtime/tools/backup 兼容并发布，再在 Dashboard 受控启用，随后核验连接、scheduler、full backup。启用可能导致短暂数据库重启；不能用 enforcement 开关代替客户端身份校验。
+
 ## Environments
 
 | 环境 | 用途 | 写入边界 |
