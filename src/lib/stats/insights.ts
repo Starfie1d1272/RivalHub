@@ -67,15 +67,15 @@ export function buildInsights(entities: readonly InsightEntity[], scope: string)
   for (const entity of entities) {
     if (entity.type === "team") {
       const a = get(entity, "fourVFive"), b = get(entity, "fiveVFour");
-      if (contrast(a, b)) add(entity, "advantage_disadvantage_inversion", "team-manpower", "4v5 / 5v4 contrast", [a!, b!]);
-      else if (high(a)) add(entity, "four_v_five_resilience", "team-manpower", "4v5 wins", [a]);
+      if (contrast(a, b)) add(entity, "advantage_disadvantage_inversion", "team-manpower", "4v5 vs 5v4", [a!, b!]);
+      else if (high(a)) add(entity, "four_v_five_resilience", "team-manpower", "4v5 Win%", [a]);
       const pistol = get(entity, "pistol"), conversion = get(entity, "conversion"), recovery = get(entity, "break");
-      if (contrast(pistol, conversion)) add(entity, "pistol_conversion_contrast", "team-start", "Pistol / R2 contrast", [pistol!, conversion!]);
-      if (contrast(recovery, pistol)) add(entity, "second_round_recovery", "team-start", "R2 break / Pistol", [recovery!, pistol!]);
+      if (contrast(pistol, conversion)) add(entity, "pistol_conversion_contrast", "team-start", "Pistol vs R2", [pistol!, conversion!]);
+      if (contrast(recovery, pistol)) add(entity, "second_round_recovery", "team-start", "R2 Break", [recovery!, pistol!]);
     } else {
       const death = get(entity, "winAfterOpeningLoss"), traded = get(entity, "openingDeathTradedRate");
       if (high(death) && high(traded) && death.n === traded.n && death.coverage === traded.coverage) {
-        add(entity, "opening_loss_recovery_profile", "player-opening", "FD recovery + trade", [death, traded]);
+        add(entity, "opening_loss_recovery_profile", "player-opening", "FD Recovery", [death, traded]);
       } else {
       if (high(death)) add(entity, "opening_death_resilience", "player-opening", "Win after FD", [death]);
       if (high(traded)) add(entity, "opening_death_traded", "player-opening", "Traded FD", [traded]);
@@ -94,7 +94,7 @@ export function buildInsights(entities: readonly InsightEntity[], scope: string)
         const f = enemy.n - map.flashes, e = enemy.x - map.enemy, t = friendly.x - map.friendly;
         return f > 0 && f >= baselineE.floor && e - t > 0 && e / f >= baselineE.median && t / f <= baselineT.median;
       });
-      if (stable) add(entity, "flash_effectiveness", "player-utility", "Flash output", [enemy, net, friendly]);
+      if (stable) add(entity, "flash_effectiveness", "player-utility", "Flash Output", [enemy, net, friendly]);
     }
   }
   return selectInsights(candidates);
