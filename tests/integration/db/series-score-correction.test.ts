@@ -10,7 +10,7 @@ import { loadOperatorContext } from "../../../src/lib/admin/matches/operator-con
 import { loadEffectiveMatchRoster } from "../../../src/lib/match-rosters/effective";
 import { readRivalHubEvents } from "../../../src/lib/demo-integration/read";
 import { buildEvidenceRevisionForTarget } from "../../../src/lib/demo-integration/revision";
-import { getCurrentStatsSelectionInTx } from "../../../src/lib/stats/tournament-query";
+import { getCurrentStatsSelectionInTx, getTournamentStats } from "../../../src/lib/stats/tournament-query";
 import { CURRENT_DAK_SEMANTIC_PROFILE } from "../../../src/lib/demo-integration/semantic-profile";
 import { createStageBracket, saveStageBracketState, advanceStageBracket, ensureResolvedBracketMatch, loadStageBracketNodeViews } from "../../../src/lib/bracket";
 import normalEvidence from "../../fixtures/demo-evidence/normal-map-v1.json";
@@ -102,10 +102,12 @@ describe("reviewed early series completion PostgreSQL", () => {
     }
     const evidence = parseRivalHubDemoEvidenceV1(JSON.parse(serialized));
     evidence.target.entryAId = f.entryAId; evidence.target.entryBId = f.entryBId;
+    evidence.target.matchId = f.matchId; evidence.target.matchMapId = f.mapTwoId;
+    evidence.target.seasonId = f.seasonId; evidence.target.expectedMapName = "de_mirage"; evidence.source.mapName = "de_mirage";
     const bindings = roster.map(member => ({ steam64: member.steam64!, userId: member.userId, entryId: member.entryId }));
     const adapted = adaptStatsEvidence(evidence, new Map(bindings.map(binding => [binding.steam64, binding])));
     await db.insert(schema.matchDemoStatProjections).values({ importId, projectionVersion: STATISTICS_PROJECTION_VERSION, payloadSha256: "b".repeat(64), demoSha256: "a".repeat(64), semanticProfile: CURRENT_DAK_SEMANTIC_PROFILE, analysisVersion: "fixture", evidenceRevision: revision, identityBindings: bindings, facts: { tournament: adapted.tournament, performance: collectTournamentPerformanceMapProjection(adapted.performance) } });
-    expect((await db.transaction(tx => getCurrentStatsSelectionInTx(tx, { seasonId: f.seasonId }))).currentImportIds).toContain(importId);
+    expect((await getTournamentStats({ seasonId: f.seasonId })).coverage.detailedMaps).toBe(1);
     await db.insert(schema.matchPlayerStats).values({ matchId: f.matchId, mapId: f.mapTwoId, perfectName: "原始 OCR", kills: 17, deaths: 9, assists: 3, userId: owner, dakImportId: importId });
     const before = (await readRivalHubEvents({ seasonIds: [f.seasonId] })).events[0]!.series.find(row => row.id === match.id)!;
     expect(before.maps.find(row => row.id === f.mapTwoId)?.demoStatus).toBe("synced");
@@ -117,6 +119,7 @@ describe("reviewed early series completion PostgreSQL", () => {
     expect((await db.query.matchDemoImports.findFirst({ where: eq(schema.matchDemoImports.id, importId) }))?.payload).toEqual(payload);
     expect(await db.query.matchPlayerStats.findFirst({ where: eq(schema.matchPlayerStats.mapId, f.mapTwoId) })).toMatchObject({ kills: 17, deaths: 9, assists: 3, dakImportId: importId });
     expect((await db.transaction(tx => getCurrentStatsSelectionInTx(tx, { seasonId: f.seasonId }))).currentImportIds).not.toContain(importId);
+    expect((await getTournamentStats({ seasonId: f.seasonId })).coverage.detailedMaps).toBe(0);
     expect(await db.query.matchDemoStatProjections.findFirst({ where: eq(schema.matchDemoStatProjections.importId, importId) })).toMatchObject({ evidenceRevision: revision, identityBindings: bindings });
   });
 
