@@ -63,10 +63,11 @@ describe("reviewed early series completion PostgreSQL", () => {
     expect((await db.query.matches.findFirst({ where: eq(schema.matches.id, f.matchId) }))?.status).toBe("in_progress");
     expect(await db.query.matchMaps.findFirst({ where: eq(schema.matchMaps.id, f.mapThreeId) })).toBeDefined();
   });
-  it.each(["score", "source", "later-map", "same-round"])("refuses stale preview (%s)", async kind => {
+  it.each(["score", "completed-at", "source", "later-map", "same-round"])("refuses stale preview (%s)", async kind => {
     const f = await fixture(); const input = await confirmation(f.request);
     if (kind === "same-round") await db.insert(schema.matches).values({ seasonId: f.seasonId, stage: "fixture-stage", entryAId: f.entryAId, entryBId: f.entryBId, format: "bo3", status: "scheduled" });
     if (kind === "score") await db.update(schema.matchMaps).set({ scoreA: 10 }).where(eq(schema.matchMaps.id, f.mapTwoId));
+    if (kind === "completed-at") await db.update(schema.matchMaps).set({ completedAt: new Date(end.getTime() + 60000) }).where(eq(schema.matchMaps.id, f.mapTwoId));
     if (kind === "source") await db.update(schema.matchLiveSessions).set({ lastReliableSeq: 20 }).where(eq(schema.matchLiveSessions.id, f.sessionId));
     if (kind === "later-map") await db.update(schema.matchLiveSessions).set({ currentMapId: f.mapThreeId, mapExecutionPhase: "gameplay" }).where(eq(schema.matchLiveSessions.id, f.sessionId));
     await expect(apply(input)).rejects.toThrow(/已更新|已变化/);
