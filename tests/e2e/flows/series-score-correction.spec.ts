@@ -35,14 +35,14 @@ test("管理员核对过期预览后完成系列更正，未打地图没有赛�
     await expect(review.getByText(`更正后：${teamA} 2 : 0 ${teamB}`, { exact: true })).toBeVisible();
     await expect(review.getByText("Map 3：未进行，更正后不再需要", { exact: true })).toBeVisible();
     const confirm = review.getByRole("button", { name: "确认更正系列赛果", exact: true });
-    await expect(confirm).toBeDisabled(); await review.getByLabel("整场更正原因").fill("复核已打两图"); await expect(confirm).toBeDisabled();
+    await expect(confirm).toBeDisabled(); await expect(review.getByLabel("整场更正原因")).toHaveValue("核对 Perfect 实际比分");
     await review.getByRole("checkbox").check();
     await pool.query("UPDATE match_maps SET score_a = 10 WHERE id = $1", [map!.id]);
     await confirm.click(); await expect(review.getByRole("alert")).toContainText("正式比分已更新");
     expect((await pool.query("SELECT status FROM matches WHERE id = $1", [match.id])).rows[0].status).toBe("in_progress");
     await pool.query("UPDATE match_maps SET score_a = 9 WHERE id = $1", [map!.id]);
     await review.getByRole("button", { name: "返回重新核对" }).click(); await preview();
-    await review.getByLabel("整场更正原因").fill("复核已打两图"); await review.getByRole("checkbox").check();
+    await expect(review.getByLabel("整场更正原因")).toHaveValue("核对 Perfect 实际比分"); await review.getByRole("checkbox").check();
     for (const width of [1440, 390, 320]) {
       await page.setViewportSize({ width, height: 900 });
       await expect(confirm).toBeVisible();
