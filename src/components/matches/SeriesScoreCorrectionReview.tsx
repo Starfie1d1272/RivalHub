@@ -31,7 +31,7 @@ export function SeriesScoreCorrectionReview({ preview, request, teamAName, teamB
     <ul className="list-inside list-disc">{preview.maps.map(map => <li key={map.order}>Map {map.order}：{map.label}</li>)}</ul>
     <p>{preview.progressionLabel}</p>
     <p>{preview.downstreamCount ? `已有 ${preview.downstreamCount} 场后续比赛` : "尚无后续比赛"}；{preview.postTasksExist ? "已有赛后数据或资料，需要按更正后的比分核对" : "尚无赛后数据或资料"}</p>
-    <p>已同步的 Demo 将重新核验；平台计分板保留。</p>
+    <p>已同步的 Demo 需重新核验；平台计分板保留。</p>
     {preview.blockers.length ? <div role="alert" className="space-y-1 text-[var(--color-danger)]"><p>无法直接完成更正</p>{preview.blockers.map(message => <p key={message}>{message}</p>)}</div> : <>
       <label className="block space-y-1">整场更正原因<Input aria-label="整场更正原因" value={reason} maxLength={500} onChange={event => setReason(event.target.value)} disabled={pending} /></label>
       <label className="flex items-start gap-2"><input type="checkbox" checked={confirmed} disabled={pending} onChange={event => setConfirmed(event.target.checked)} /><span>我已核对实际比赛事实，后续地图尚未开打，确认结束比赛并重新核算晋级结果</span></label>

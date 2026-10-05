@@ -47,7 +47,7 @@ export async function planSeriesAfterMapScoreChangeInTx(tx: TxDb, raw: SeriesCor
   const imports = await tx.select({ id: matchDemoImports.id, matchMapId: matchDemoImports.matchMapId, status: matchDemoImports.status, evidenceRevision: matchDemoImports.evidenceRevision }).from(matchDemoImports).where(eq(matchDemoImports.matchId, match.id)).orderBy(asc(matchDemoImports.id));
   const stats = maps.length ? await tx.select().from(matchPlayerStats).where(inArray(matchPlayerStats.mapId, maps.map(row => row.id))).orderBy(asc(matchPlayerStats.id)) : [];
   const roster = await loadEffectiveMatchRoster(tx, [match.id]);
-  const reports = await tx.select().from(postMatchReports).where(eq(postMatchReports.matchId, match.id));
+  const reports = await tx.select().from(postMatchReports).where(eq(postMatchReports.matchId, match.id)).orderBy(asc(postMatchReports.matchId));
   const blockers = [...result.blockers, ...progression.blockers];
   if (match.startedAt && result.completedAt < match.startedAt) blockers.push("地图完成时间早于比赛开始，请先核对实际比赛时间。");
   const startedIds = new Set<string>();
