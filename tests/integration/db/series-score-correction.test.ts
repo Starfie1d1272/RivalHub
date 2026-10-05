@@ -92,9 +92,17 @@ describe("reviewed early series completion PostgreSQL", () => {
     await db.insert(schema.dakPairings).values({ id: pairingId, pairingIntentId, userId: owner, tokenHash: randomUUID(), scopes: ["events:read", "evidence:write"], seasonIds: [f.seasonId] });
     const payload = { preserved: "immutable gameplay evidence" };
     await db.insert(schema.matchDemoImports).values({ id: importId, seasonId: f.seasonId, matchId: f.matchId, matchMapId: f.mapTwoId, stageKey: match.stage, demoSha256: "a".repeat(64), payloadSha256: "b".repeat(64), contractVersion: "rivalhub-demo-evidence/1", semanticProfile: CURRENT_DAK_SEMANTIC_PROFILE, analysisVersion: "fixture", evidenceRevision: revision, status: "confirmed", payload, submittedByPairingId: pairingId, confirmedAt: end });
-    const evidence = parseRivalHubDemoEvidenceV1(normalEvidence);
+    const sourceEvidence = parseRivalHubDemoEvidenceV1(normalEvidence);
+    const members = { teamA: roster.filter(member => member.entryId === f.entryAId), teamB: roster.filter(member => member.entryId === f.entryBId) };
+    const offsets = { teamA: 0, teamB: 0 };
+    let serialized = JSON.stringify(normalEvidence);
+    for (const participant of sourceEvidence.participants) {
+      const member = members[participant.observedTeamKey][offsets[participant.observedTeamKey]++]!;
+      serialized = serialized.replaceAll(participant.steamId64, member.steam64!);
+    }
+    const evidence = parseRivalHubDemoEvidenceV1(JSON.parse(serialized));
+    evidence.target.entryAId = f.entryAId; evidence.target.entryBId = f.entryBId;
     const bindings = roster.map(member => ({ steam64: member.steam64!, userId: member.userId, entryId: member.entryId }));
-    evidence.participants.forEach((participant, index) => { participant.steamId64 = bindings[index]!.steam64; });
     const adapted = adaptStatsEvidence(evidence, new Map(bindings.map(binding => [binding.steam64, binding])));
     await db.insert(schema.matchDemoStatProjections).values({ importId, projectionVersion: STATISTICS_PROJECTION_VERSION, payloadSha256: "b".repeat(64), demoSha256: "a".repeat(64), semanticProfile: CURRENT_DAK_SEMANTIC_PROFILE, analysisVersion: "fixture", evidenceRevision: revision, identityBindings: bindings, facts: { tournament: adapted.tournament, performance: collectTournamentPerformanceMapProjection(adapted.performance) } });
     expect((await db.transaction(tx => getCurrentStatsSelectionInTx(tx, { seasonId: f.seasonId }))).currentImportIds).toContain(importId);
