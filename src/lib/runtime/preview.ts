@@ -1,5 +1,5 @@
 // Pure environment contract shared by the server-only facade and Node DB adapter.
-export const PREVIEW_PROJECT_REF = "cueazphyskstwdhnzsxx";
+export const PREVIEW_PROJECT_REF = "tpbqpbnuonnubiyfdrfe";
 const PREVIEW_POOLER_HOST = "aws-0-ap-northeast-1.pooler.supabase.com";
 
 export function isPreview(env: NodeJS.ProcessEnv = process.env): boolean {

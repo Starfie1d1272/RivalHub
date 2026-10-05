@@ -36,7 +36,7 @@ jobs:
       RIVALHUB_TIMING: 1
       RIVALHUB_TIMING_TITLE: "Release 阶段耗时"
       RIVALHUB_PRODUCTION_BASE_URL: https://match.starfie1d.top
-      RIVALHUB_PRODUCTION_PROJECT_CONFIRM: sucokfotkypwqkckfynp
+      RIVALHUB_PRODUCTION_PROJECT_CONFIRM: rrrebbxfghmgnoyyeqqd
       RIVALHUB_PRODUCTION_DB_HOST_CONFIRM: aws-0-ap-northeast-1.pooler.supabase.com:6543
       RIVALHUB_RETRY_PREVIOUS_RELEASE_TAG: ${{ inputs.previous_release_tag || '' }}
       RIVALHUB_RETRY_PREVIOUS_RELEASE_COMMIT: ${{ inputs.previous_release_commit || '' }}
@@ -231,7 +231,7 @@ jobs:
       RIVALHUB_TIMING: 1
       RIVALHUB_DB_TARGET: production
       RIVALHUB_PRODUCTION_BASE_URL: https://match.starfie1d.top
-      RIVALHUB_PRODUCTION_PROJECT_CONFIRM: sucokfotkypwqkckfynp
+      RIVALHUB_PRODUCTION_PROJECT_CONFIRM: rrrebbxfghmgnoyyeqqd
       RIVALHUB_PRODUCTION_DB_HOST_CONFIRM: aws-0-ap-northeast-1.pooler.supabase.com:6543
       RELEASE_TAG: ${{ needs.preflight.outputs.release_tag }}
       RELEASE_SHA: ${{ needs.preflight.outputs.release_sha }}
@@ -368,7 +368,7 @@ jobs:
       RIVALHUB_TIMING_TITLE: "Release 阶段耗时"
       RIVALHUB_DB_TARGET: production
       RIVALHUB_PRODUCTION_BASE_URL: https://match.starfie1d.top
-      RIVALHUB_PRODUCTION_PROJECT_CONFIRM: sucokfotkypwqkckfynp
+      RIVALHUB_PRODUCTION_PROJECT_CONFIRM: rrrebbxfghmgnoyyeqqd
       RIVALHUB_PRODUCTION_DB_HOST_CONFIRM: aws-0-ap-northeast-1.pooler.supabase.com:6543
       RELEASE_TAG: ${{ needs.preflight.outputs.release_tag }}
       RELEASE_SHA: ${{ needs.preflight.outputs.release_sha }}
@@ -501,7 +501,7 @@ jobs:
       VERCEL_PROJECT_ID: prj_3bjmfKrSqRh4szrkEE4HpavnhI0E
       RIVALHUB_PRODUCTION_BASE_URL: https://match.starfie1d.top
       RIVALHUB_DB_TARGET: production
-      RIVALHUB_PRODUCTION_PROJECT_CONFIRM: sucokfotkypwqkckfynp
+      RIVALHUB_PRODUCTION_PROJECT_CONFIRM: rrrebbxfghmgnoyyeqqd
       RIVALHUB_PRODUCTION_DB_HOST_CONFIRM: aws-0-ap-northeast-1.pooler.supabase.com:6543
       RELEASE_TAG: ${{ needs.preflight.outputs.release_tag }}
       RELEASE_SHA: ${{ needs.preflight.outputs.release_sha }}

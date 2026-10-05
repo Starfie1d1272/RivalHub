@@ -6,7 +6,7 @@ import {
   type ProtectedRemoteDatabaseConfig,
 } from "./remote-environment";
 
-export const PRODUCTION_PROJECT_REF = "sucokfotkypwqkckfynp";
+export const PRODUCTION_PROJECT_REF = "rrrebbxfghmgnoyyeqqd";
 export const PRODUCTION_POOLER_HOST = "aws-0-ap-northeast-1.pooler.supabase.com";
 export const PRODUCTION_POOLER_PORT = "6543";
 export const PRODUCTION_SESSION_POOLER_PORT = "5432";

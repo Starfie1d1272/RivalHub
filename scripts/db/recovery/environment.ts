@@ -11,6 +11,11 @@ export { PRODUCTION_PROJECT_REF } from "../production-environment";
 const PRODUCTION_SUPABASE_URL = `https://${PRODUCTION_PROJECT_REF}.supabase.co`;
 const RECOVERY_TARGET = "isolated" as const;
 
+/** Retain recovery compatibility with encrypted backups from the previous organization. */
+export function isProductionRecoverySource(projectRef: string): boolean {
+  return projectRef === PRODUCTION_PROJECT_REF || projectRef === "sucokfotkypwqkckfynp";
+}
+
 export type BackupClass = "daily" | "pre-release" | "manual";
 export type RecoveryArtifactClass = BackupClass | "release-db";
 export type RecoveryArtifactKind = "full" | "db-checkpoint";

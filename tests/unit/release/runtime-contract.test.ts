@@ -406,7 +406,7 @@ describe("deployment and operations contracts", () => {
     expect(workflow).toContain("permissions:\n  contents: read");
     expect(workflow).not.toMatch(/contents:\s+write/);
     expect(workflow).toContain("RIVALHUB_DB_TARGET: staging");
-    expect(workflow).toContain("RIVALHUB_STAGING_PROJECT_CONFIRM: cueazphyskstwdhnzsxx");
+    expect(workflow).toContain("RIVALHUB_STAGING_PROJECT_CONFIRM: tpbqpbnuonnubiyfdrfe");
     expect(workflow).toContain("RIVALHUB_ALLOW_REMOTE_DB_WRITE: staging");
     expect(workflow).toContain("RIVALHUB_STAGING_DB_PASSWORD: ${{ secrets.RIVALHUB_STAGING_DB_PASSWORD }}");
     expect(workflow).toContain("pnpm db:local:start-db");

@@ -8,7 +8,7 @@ import {
   buildIsolatedRecoveryDatabaseEnvironment,
   buildIsolatedRecoveryEnvironment,
   parseLocalRecoveryStatus,
-  PRODUCTION_PROJECT_REF,
+  isProductionRecoverySource,
   type RecoveryArtifactKind,
   type IsolatedRecoveryDatabaseEnvironment,
   type IsolatedRecoveryEnvironment,
@@ -282,7 +282,7 @@ function extractSafeArchive(archivePath: string, destination: string): void {
 }
 
 function assertManifestCompatibility(manifest: RecoveryManifest): void {
-  if (manifest.sourceProjectRef !== PRODUCTION_PROJECT_REF || manifest.database.schemas.join(",") !== "public,auth") {
+  if (!isProductionRecoverySource(manifest.sourceProjectRef) || manifest.database.schemas.join(",") !== "public,auth") {
     throw new Error("Recovery manifest source or schema identity is incompatible; restore aborted. ");
   }
   const sourceTagCommit = resolveReleaseTagCommit(manifest.source.deployedReleaseTag);

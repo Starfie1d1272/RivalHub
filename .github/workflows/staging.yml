@@ -19,7 +19,7 @@ jobs:
     env:
       NEXT_TELEMETRY_DISABLED: 1
       RIVALHUB_DB_TARGET: staging
-      RIVALHUB_STAGING_PROJECT_CONFIRM: cueazphyskstwdhnzsxx
+      RIVALHUB_STAGING_PROJECT_CONFIRM: tpbqpbnuonnubiyfdrfe
       RIVALHUB_ALLOW_REMOTE_DB_WRITE: staging
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
