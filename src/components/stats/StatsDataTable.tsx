@@ -35,6 +35,13 @@ function hasNumericAdornment<T>(column: StatsDataColumn<T>) {
   return Boolean(column.numeric && (column.metric || (column.sortable && column.sortValue)));
 }
 
+function sampleLabel(label: string, count: number) {
+  if (count !== 1) return label;
+  if (label.endsWith("ies")) return `${label.slice(0, -3)}y`;
+  if (label.endsWith("s")) return label.slice(0, -1);
+  return label;
+}
+
 interface RankingState<T> {
   rows: T[];
   rankedCount: number;
@@ -46,7 +53,7 @@ interface RankingState<T> {
 
 export function StatsDataTable<T>({
   rows, columns, rowKey, initialSortKey, initialDirection = "desc", pageSize = 25, showRank = false, embedded = false,
-  tableClassName = "min-w-max", emptyLabel = "调整范围查看数据", rankingBaselineRows,
+  tableClassName = "min-w-max", emptyLabel = "暂无数据", rankingBaselineRows,
 }: {
   rows: readonly T[];
   columns: readonly StatsDataColumn<T>[];
@@ -109,12 +116,12 @@ export function StatsDataTable<T>({
     <div className={embedded ? "min-w-0" : "min-w-0 overflow-hidden border border-[var(--color-border)] bg-[var(--color-panel)]"}>
       {rankingState && rankingState.limitedCount > 0 && (
         <div className="flex flex-wrap items-center justify-end gap-2 border-b border-[var(--color-border)] px-3 py-2 text-xs text-[var(--color-fg-dim)]">
-          <span>{rankingState.rankedCount} ranked · {rankingState.limitedCount} limited sample</span>
+          <span>{rankingState.rankedCount} ranked · {rankingState.limitedCount} limited sample{rankingState.limitedCount === 1 ? "" : "s"}</span>
           <span className="inline-flex items-center gap-1">
-            <span>min {rankingState.floor} {rankingState.sampleLabel}</span>
+            <span>min {rankingState.floor} {sampleLabel(rankingState.sampleLabel, rankingState.floor)}</span>
             <StatsTooltip
               label="排名样本说明"
-              content={`当前按 ${rankingState.metricLabel} 排序。排名样本线取当前有效比较范围内有效样本 P75 的 25%，向上取整。搜索与实体筛选改变展示列表；样本线使用同一比较范围。`}
+              content={`当前按 ${rankingState.metricLabel} 排序。min 表示进入排名所需的样本量；搜索与实体筛选不会改变这条样本线。`}
             />
           </span>
         </div>
@@ -175,7 +182,7 @@ export function StatsDataTable<T>({
                   {limitedBoundary && (
                     <tr>
                       <td colSpan={columns.length + Number(showRank)} className="bg-[var(--color-panel-low)] px-3 py-2 text-[11px] uppercase tracking-[var(--tracking-label)] text-[var(--color-fg-dim)]">
-                        Limited sample · below {rankingState.floor} {rankingState.sampleLabel}
+                        Limited sample · below {rankingState.floor} {sampleLabel(rankingState.sampleLabel, rankingState.floor)}
                       </td>
                     </tr>
                   )}
