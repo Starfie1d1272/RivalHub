@@ -3,16 +3,20 @@ import Link from "next/link";
 import type { Route } from "next";
 import { HelpTooltip } from "@/components/rivalhub/HelpTooltip";
 import type { Insight, InsightMetric, InsightObservation } from "@/lib/stats/insights";
-import { STATS_METRICS } from "@/lib/stats/metrics";
+import { STATS_METRICS, type StatsMetricKey } from "@/lib/stats/metrics";
 import { formatStatsMetric } from "@/lib/stats/presentation";
 import { statsHref, type StatsQuery } from "@/lib/stats/view-state";
+
+function presentationMetric(metric: InsightMetric): StatsMetricKey {
+  return metric === "friendlyBlindPerFlash" ? "netBlindPerFlash" : metric;
+}
 
 function metricLabel(metric: InsightMetric) {
   return metric === "friendlyBlindPerFlash" ? "Team Blind/Flash" : STATS_METRICS[metric].label;
 }
 
 function metricValue(observation: InsightObservation) {
-  const metric = observation.metric === "friendlyBlindPerFlash" ? "netBlindPerFlash" : observation.metric;
+  const metric = presentationMetric(observation.metric);
   return observation.kind === "probability"
     ? `${observation.x}/${observation.n} · ${formatStatsMetric(metric, observation.value)}`
     : `${observation.value!.toFixed(2)} s/flash · ${observation.n} flashes`;
@@ -44,7 +48,7 @@ export function Insights({ insights, query, seasonSlug }: { insights: Insight[];
                 <p>{insight.scope}</p>
                 {insight.observations.map((o) => <p key={o.metric}>
                   {metricLabel(o.metric)}：P{(o.percentile * 100).toFixed(1)}
-                  {o.kind === "probability" && o.peerRate !== undefined ? ` · Peers ${formatStatsMetric(o.metric, o.peerRate)}` : ""}
+                  {o.kind === "probability" && o.peerRate !== undefined ? ` · Peers ${formatStatsMetric(presentationMetric(o.metric), o.peerRate)}` : ""}
                 </p>)}
               </div>
             </details>
