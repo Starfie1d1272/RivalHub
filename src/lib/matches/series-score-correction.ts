@@ -30,6 +30,15 @@ export interface SeriesCorrectionPreview {
   downstreamCount: number; postTasksExist: boolean; progressionLabel: string; blockers: string[];
 }
 
+function previewRevisionValue(value: unknown): unknown {
+  if (value instanceof Date) return value.toISOString();
+  if (Array.isArray(value)) return value.map(previewRevisionValue);
+  if (value && typeof value === "object") {
+    return Object.fromEntries(Object.entries(value as Record<string, unknown>).map(([key, item]) => [key, previewRevisionValue(item)]));
+  }
+  return value;
+}
+
 /** Match → season → source/downstream locks, shared with reliable/manual owners. */
 export async function planSeriesAfterMapScoreChangeInTx(tx: TxDb, raw: SeriesCorrectionRequest): Promise<SeriesCorrectionPreview | null> {
   const input = seriesCorrectionRequestSchema.parse(raw);
@@ -64,7 +73,7 @@ export async function planSeriesAfterMapScoreChangeInTx(tx: TxDb, raw: SeriesCor
     if (imports.some(item => item.matchMapId === row.id) || stats.some(item => item.mapId === row.id)) blockers.push(`Map ${row.mapOrder} 已有比赛数据，请先处理实际比赛事实。`);
   }
   return {
-    revision: sha256Json({ input, match, maps, sessions, history, imports, stats, roster, reports, progression }),
+    revision: sha256Json(previewRevisionValue({ input, match, maps, sessions, history, imports, stats, roster, reports, progression })),
     currentA: result.currentA, currentB: result.currentB, scoreA: result.scoreA, scoreB: result.scoreB,
     correctedMapOrder: map.mapOrder, oldA: map.scoreA!, oldB: map.scoreB!, newA: input.scoreA, newB: input.scoreB,
     maps: maps.map(row => ({ order: row.mapOrder, label: row.completedAt ? "已有正式结果" : startedIds.has(row.id) ? "已开始" : row.mapOrder > result.clinchingOrder ? "未进行，更正后不再需要" : "尚未开始" })),
