@@ -31,6 +31,8 @@ export function MapWorkspace({ detail, seasonSlug, teamLinks }: { detail: Tourna
   const mapAnalytics = detail.analytics.maps.find((row) => row.mapName === detail.map);
   const performanceMap = detail.performance.maps.find((row) => row.mapName === detail.map);
   const bp = detail.selection[0];
+  const playedMaps = detail.results.maps.find((row) => row.mapName === detail.map)?.played ?? 0;
+  const roundCount = mapAnalytics?.roundCount ?? 0;
   const partialCoverage = detail.coverage.completedMaps > 0 && detail.coverage.detailedMaps < detail.coverage.completedMaps;
   const performanceByTeam = new Map(detail.performance.teams.map((row) => [row.team.entityKey, row]));
   const teamNames = new Map(detail.entries.map((row) => [row.id, row.name]));
@@ -66,7 +68,7 @@ export function MapWorkspace({ detail, seasonSlug, teamLinks }: { detail: Tourna
 
   return (
     <section className="space-y-5">
-      <header><h2 className="text-xl font-semibold">{mapName}</h2><p className="mt-1 text-sm text-[var(--color-fg-mid)]">{detail.results.maps.find((row) => row.mapName === detail.map)?.played ?? 0} maps · {mapAnalytics?.roundCount ?? 0} rounds{partialCoverage ? ` · Coverage ${detail.coverage.detailedMaps}/${detail.coverage.completedMaps}` : ""}</p></header>
+      <header><h2 className="text-xl font-semibold">{mapName}</h2><p className="mt-1 text-sm text-[var(--color-fg-mid)]">{playedMaps} map{playedMaps === 1 ? "" : "s"} · {roundCount} round{roundCount === 1 ? "" : "s"}{partialCoverage ? ` · Coverage ${detail.coverage.detailedMaps}/${detail.coverage.completedMaps}` : ""}</p></header>
       <MetricFamilyTabs label="Map workspace" value={tab} options={tabs} onChange={setTab} />
 
       {tab === "overview" && <div className="grid gap-4 lg:grid-cols-2">
