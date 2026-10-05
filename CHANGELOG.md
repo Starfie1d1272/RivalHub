@@ -1,5 +1,23 @@
 # Changelog
 
+## [2.14.1]
+
+### Security
+
+#### 数据库连接身份校验
+
+正式与预览环境的数据库连接、迁移、调度和灾备统一校验 Supabase 官方 CA 与目标主机身份，不再接受未经验证的远程 TLS。灾备导出同样使用 verify-full，避免 CLI 丢弃连接参数后绕过身份校验；本地 loopback 数据库保持独立。
+
+#### Supabase API keys
+
+Hosted 环境仅接受对应的现代 publishable/secret keys，缺少配置或类型不匹配时明确拒绝，移除旧 anon/service-role 变量回退。浏览器与服务端特权仍保持分离；Local Supabase 官方工具输出的 JWT 格式 key 仅允许在 loopback adapter 使用，不改变用户 session 或 LIVE viewer signing key。
+
+### Fixed
+
+#### Preview 镜像刷新
+
+Preview 重置时先移除本应用的 Realtime 接收 policy，再由 active migration chain 重建，避免重复 policy 导致镜像恢复失败。
+
 ## [2.14.0]
 
 ### Added
@@ -2608,6 +2626,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[2.14.1]: https://github.com/Starfie1d1272/RivalHub/compare/v2.14.0...v2.14.1
 [2.14.0]: https://github.com/Starfie1d1272/RivalHub/compare/v2.13.4...v2.14.0
 [2.13.4]: https://github.com/Starfie1d1272/RivalHub/compare/v2.13.3...v2.13.4
 [2.13.3]: https://github.com/Starfie1d1272/RivalHub/compare/v2.13.2...v2.13.3
