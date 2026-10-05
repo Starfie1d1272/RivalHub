@@ -78,8 +78,8 @@ export function connectLiveViewer(matchId: string, onState: (state: LiveViewerSt
 export function browserViewerEnvironment(): ViewerEnvironment {
   return {
     url: process.env.NEXT_PUBLIC_SUPABASE_URL ?? "",
-    key: process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-      ? requireSupabasePublicKey(process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) : "",
+    key: process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+      ? requireSupabasePublicKey(process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY, process.env.NEXT_PUBLIC_SUPABASE_URL) : "",
     fetch: window.fetch.bind(window), createClient: createLiveViewerClient, now: () => performance.now(),
     visible: () => document.visibilityState !== "hidden" && navigator.onLine,
     onResume(callback) {

@@ -205,7 +205,7 @@ function scenarioDefinition(rawScenarioId: string, profile: MajorBrowserScenario
 function openLocalDependencies(env: Readonly<Record<string, string | undefined>>): { auth: SupabaseClient; pool: Pool } {
   const databaseUrl = assertLocalDatabaseUrl(env.DATABASE_URL, "DATABASE_URL");
   const apiUrl = assertLocalHttpUrl(env.NEXT_PUBLIC_SUPABASE_URL, "NEXT_PUBLIC_SUPABASE_URL");
-  const serviceRoleKey = requireSupabaseSecretKey(env.SUPABASE_SECRET_KEY, env.SUPABASE_SERVICE_ROLE_KEY);
+  const serviceRoleKey = requireSupabaseSecretKey(env.SUPABASE_SECRET_KEY, env.NEXT_PUBLIC_SUPABASE_URL);
   return {
     auth: createClient(apiUrl, serviceRoleKey, { auth: { autoRefreshToken: false, persistSession: false } }),
     pool: new Pool({ connectionString: databaseUrl, ssl: false, max: 1 }),

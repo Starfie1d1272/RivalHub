@@ -143,7 +143,7 @@ workflow dispatch 只能从当前 `main` HEAD 发起；preflight 会冻结该 op
 
 Recovery acceptance 还要人工确认 Supabase plan/physical backup/PITR、Auth/API keys、Realtime、required DB extensions/settings、Storage config、Vercel Trusted Source、GitHub Environment/OIDC/secrets/vars、R2 30d lifecycle/lock/private domains 和 scheduler pg_cron/pg_net/Vault names。只记录 presence/owner/capability/retention，不记录 secret value、PII、signed URL 或 dump。Supabase database backup 不包含 Storage objects，provider clone/restore 后必须单独重建这些配置。
 
-PostgreSQL TLS contract 由 `src/db/postgres-connection.ts` 统一维护，详见 `../deployment.md`；recovery/backup 只使用现代 `SUPABASE_SECRET_KEY`，并为既有配置保留明确的 legacy fallback。offline fetch 复用标准 R2 credential；该 credential 本身可能具备写权限，但 fetch path 只暴露 `HEAD/GET`，不调用 R2 write API，也不读取 DB、deploy 或 age private-key credential。
+PostgreSQL TLS contract 由 `src/db/postgres-connection.ts` 统一维护，详见 `../deployment.md`；Hosted recovery/backup 只使用现代 `SUPABASE_SECRET_KEY`，不接受 legacy fallback；loopback Local Supabase adapter 保持独立。offline fetch 复用标准 R2 credential；该 credential 本身可能具备写权限，但 fetch path 只暴露 `HEAD/GET`，不调用 R2 write API，也不读取 DB、deploy 或 age private-key credential。
 
 ## 7. Release 完成条件
 

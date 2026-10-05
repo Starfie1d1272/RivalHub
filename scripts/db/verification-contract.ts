@@ -67,8 +67,8 @@ export async function verifySupabaseServices(): Promise<void> {
     "NEXT_PUBLIC_SUPABASE_URL",
   );
   const databaseUrl = assertLocalDatabaseUrl(process.env.DATABASE_URL);
-  const publishableKey = requireSupabasePublicKey(process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
-  const serviceRoleKey = requireSupabaseSecretKey(process.env.SUPABASE_SECRET_KEY, process.env.SUPABASE_SERVICE_ROLE_KEY);
+  const publishableKey = requireSupabasePublicKey(process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY, process.env.NEXT_PUBLIC_SUPABASE_URL);
+  const serviceRoleKey = requireSupabaseSecretKey(process.env.SUPABASE_SECRET_KEY, process.env.NEXT_PUBLIC_SUPABASE_URL);
   const client = createClient(apiUrl, serviceRoleKey, {
     auth: { autoRefreshToken: false, persistSession: false },
   });

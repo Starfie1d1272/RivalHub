@@ -78,7 +78,6 @@ GitHub `production` job 读取以下名称；值不得写入仓库、Issue、PR�
 | `DATABASE_URL` | secret | production runtime/migration 使用的 Transaction Pooler URL（`:6543 / pgbouncer=true`） |
 | `RIVALHUB_PRODUCTION_BACKUP_DATABASE_URL` | secret，可选 | 经过固定 project/host 校验的 Session Pooler（`:5432`）backup connection；缺省从 `DATABASE_URL` 派生 |
 | `SUPABASE_SECRET_KEY` | secret | backup 的 canonical Supabase API credential；脚本只执行受控 dump/Storage read |
-| `SUPABASE_SERVICE_ROLE_KEY` | secret，legacy fallback，可选 | 只兼容已有配置；新 recovery 配置不要求创建，不能借此扩大全仓库 migration |
 | `RIVALHUB_BACKUP_AGE_RECIPIENT` | environment variable | backup runner 只能使用的 age 公钥 |
 | `RIVALHUB_PRODUCTION_BASE_URL` | environment variable | canonical production HTTPS origin 与 release identity read-back |
 | `RIVALHUB_R2_ACCOUNT_ID` / `RIVALHUB_R2_BUCKET` | environment variables | private recovery bucket identity |

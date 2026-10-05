@@ -209,7 +209,7 @@ beforeAll(async () => {
   if (!address || typeof address === "string")
     throw new Error("loopback listener missing");
   vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", `http://127.0.0.1:${address.port}`);
-  vi.stubEnv("SUPABASE_SECRET_KEY", "local-fault-injector-key");
+  vi.stubEnv("SUPABASE_SECRET_KEY", "sb_secret_local-fault-injector-key");
 });
 afterAll(async () => {
   if (process.env.LIVE_CAPACITY_REPORT)

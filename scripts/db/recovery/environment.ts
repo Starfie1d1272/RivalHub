@@ -1,3 +1,4 @@
+import { requireSupabaseSecretKey } from "../../../src/lib/runtime/supabase-keys";
 import {
   assertProductionBackupDatabaseUrl,
   buildProductionEnvironment,
@@ -75,10 +76,7 @@ export function assertProductionBackupEnvironment(
   return {
     databaseUrl: backupDatabaseUrl,
     supabaseUrl,
-    supabaseSecretKey: required(
-      env.SUPABASE_SECRET_KEY?.trim() || env.SUPABASE_SERVICE_ROLE_KEY?.trim(),
-      "SUPABASE_SECRET_KEY/SUPABASE_SERVICE_ROLE_KEY",
-    ),
+    supabaseSecretKey: requireSupabaseSecretKey(env.SUPABASE_SECRET_KEY, supabaseUrl),
     ageRecipient: assertAgeRecipient(required(env.RIVALHUB_BACKUP_AGE_RECIPIENT, "RIVALHUB_BACKUP_AGE_RECIPIENT")),
     r2: {
       accountId: assertCloudflareAccountId(required(env.RIVALHUB_R2_ACCOUNT_ID, "RIVALHUB_R2_ACCOUNT_ID")),

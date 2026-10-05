@@ -10,11 +10,11 @@ describe("Preview mirror runtime boundary", () => {
   });
 
   it("requires dev-scoped Auth and session credentials, preferring the secret key", () => {
-    const env = { ...process.env, VERCEL_ENV: "preview", NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "", NEXT_PUBLIC_SUPABASE_URL: "https://tpbqpbnuonnubiyfdrfe.supabase.co", NEXT_PUBLIC_SUPABASE_ANON_KEY: "dev-anon-key", SUPABASE_SECRET_KEY: "sb_secret_dev", ADMIN_SESSION_SECRET: "a".repeat(32) };
+    const env = { ...process.env, VERCEL_ENV: "preview", NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "sb_publishable_dev", NEXT_PUBLIC_SUPABASE_URL: "https://tpbqpbnuonnubiyfdrfe.supabase.co", NEXT_PUBLIC_SUPABASE_ANON_KEY: "dev-anon-key", SUPABASE_SECRET_KEY: "sb_secret_dev", ADMIN_SESSION_SECRET: "a".repeat(32) };
     expect(() => assertPreviewAuthEnvironment(env)).not.toThrow();
     expect(() => assertPreviewAuthEnvironment({ ...env, NEXT_PUBLIC_SUPABASE_ANON_KEY: "", NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "sb_publishable_dev" })).not.toThrow();
-    expect(() => assertPreviewAuthEnvironment({ ...env, SUPABASE_SECRET_KEY: "", SUPABASE_SERVICE_ROLE_KEY: "legacy-service-key" })).not.toThrow();
-    expect(() => assertPreviewAuthEnvironment({ ...env, NEXT_PUBLIC_SUPABASE_ANON_KEY: "" })).toThrow();
+    expect(() => assertPreviewAuthEnvironment({ ...env, SUPABASE_SECRET_KEY: "", SUPABASE_SERVICE_ROLE_KEY: "legacy-service-key" })).toThrow();
+    expect(() => assertPreviewAuthEnvironment({ ...env, NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "", NEXT_PUBLIC_SUPABASE_ANON_KEY: "legacy-anon" })).toThrow();
     expect(() => assertPreviewAuthEnvironment({ ...env, SUPABASE_SECRET_KEY: "", SUPABASE_SERVICE_ROLE_KEY: "" })).toThrow();
     expect(() => assertPreviewAuthEnvironment({ ...env, NEXT_PUBLIC_SUPABASE_URL: "https://rrrebbxfghmgnoyyeqqd.supabase.co" })).toThrow();
   });

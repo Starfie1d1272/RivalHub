@@ -10,7 +10,7 @@ export function createServiceClient(options: { fetch?: typeof fetch } = {}) {
   assertPreviewAuthEnvironment();
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    requireSupabaseSecretKey(process.env.SUPABASE_SECRET_KEY, process.env.SUPABASE_SERVICE_ROLE_KEY),
+    requireSupabaseSecretKey(process.env.SUPABASE_SECRET_KEY, process.env.NEXT_PUBLIC_SUPABASE_URL),
     {
       auth: {
         autoRefreshToken: false,
@@ -26,7 +26,7 @@ export function createPublicAuthClient() {
   assertPreviewAuthEnvironment();
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    requireSupabasePublicKey(process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY),
+    requireSupabasePublicKey(process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY, process.env.NEXT_PUBLIC_SUPABASE_URL),
     {
       auth: { autoRefreshToken: false, persistSession: false },
       global: { fetch: providerFetch("supabase") },

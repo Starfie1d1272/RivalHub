@@ -26,7 +26,7 @@ PostgreSQL CI integration 同时在 latest fresh schema 和 previous-production-
 Vercel Preview environment 只配置 dev-scoped 值：
 
 - `DATABASE_URL`：`postgres.tpbqpbnuonnubiyfdrfe` 的 Transaction Pooler URL（6543、`pgbouncer=true`）；
-- `NEXT_PUBLIC_SUPABASE_URL`/`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`（兼容 `NEXT_PUBLIC_SUPABASE_ANON_KEY`） 与 `SUPABASE_SECRET_KEY`：`rivalhub-dev` credential；`SUPABASE_SERVICE_ROLE_KEY` 只作为尚未迁移环境的临时 fallback；
+- `NEXT_PUBLIC_SUPABASE_URL`/`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` 与 `SUPABASE_SECRET_KEY`：仅使用 `rivalhub-dev` 的现代 publishable/secret credential，不接受 legacy fallback；
 - `SUPABASE_JWT_SECRET`：仅使用 `rivalhub-dev` 的 JWT signing secret，用于签发 5 分钟、单场、只读的 Realtime viewer token；不得使用 production signing secret；
 - 独立 Preview `ADMIN_SESSION_SECRET`，以及仅用于 dev/sandbox 的邮件、OCR 或其它 provider credential。
 

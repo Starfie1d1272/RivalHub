@@ -176,7 +176,7 @@ describe("deployment and operations contracts", () => {
     expect(backup).toContain("RIVALHUB_PRODUCTION_BASE_URL: https://match.starfie1d.top");
     expect(backup).not.toContain("RIVALHUB_PRODUCTION_STABLE_REF");
     expect(backup).toContain("SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}");
-    expect(backup).toContain("SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}");
+    expect(backup).not.toContain("SUPABASE_SERVICE_ROLE_KEY");
     expect(backup).toContain("RIVALHUB_BACKUP_AGE_RECIPIENT: ${{ vars.RIVALHUB_BACKUP_AGE_RECIPIENT }}");
     expect(backup).not.toContain("RIVALHUB_BACKUP_HEARTBEAT_URL");
     expect(backup).toContain("RIVALHUB_R2_ACCESS_KEY_ID: ${{ secrets.RIVALHUB_R2_ACCESS_KEY_ID }}");
@@ -238,7 +238,7 @@ describe("deployment and operations contracts", () => {
     expect(release.indexOf("运行 production migration 与验证")).toBeLessThan(release.indexOf("运行 exact candidate smoke test"));
     expect(finalize.indexOf("运行 exact candidate smoke test")).toBeLessThan(finalize.indexOf("执行 release routing / rollback"));
     expect(release).toContain("SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}");
-    expect(release).toContain("SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}");
+    expect(release).not.toContain("SUPABASE_SERVICE_ROLE_KEY");
     expect(release).not.toContain("RIVALHUB_BACKUP_HEARTBEAT_URL");
     expect(candidateBuild).toContain("contents: read");
     expect(candidateBuild).not.toContain("id-token: write");
