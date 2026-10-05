@@ -223,7 +223,6 @@ export function AdminMatchWorkbench({
           <p className="text-sm text-[var(--color-fg-mid)]">在 Perfect 截取计分板并识别；下载 Demo 后使用 Uploader 同步分析结果。</p>
           {operator.workflow.completedMaps.map(map => <details key={map.id} id={`scoreboard-${map.id}`} open={operator.workflow.focusMapId === map.id} className="rounded border border-[var(--color-border)] p-3">
             <summary className="cursor-pointer text-sm">Map {map.order} · {mapLabel(map.name)} · {map.scoreboardComplete ? "平台计分板已补齐" : "平台计分板待补"} · Demo {map.demoLabel}</summary>
-            <div className="mt-3">{(() => { const result = finishedMaps.find(row => row.id === map.id); return result && <MapScoreCorrectInput key={`${result.id}:${result.scoreA}:${result.scoreB}`} mapId={result.id} mapName={map.name} scoreA={result.scoreA} scoreB={result.scoreB} teamAName={teamAName} teamBName={teamBName} />; })()}</div>
             <div className="mt-3"><StatsOCRPanel mapId={map.id} mapName={map.name} /></div>
             {map.demoNeedsAttention && <p className="mt-2 text-sm text-[var(--color-warn)]">请检查下方 Demo 待处理项；若阵容或比分已更正，请在上传器中重新生成并同步。</p>}
           </details>)}
@@ -234,6 +233,14 @@ export function AdminMatchWorkbench({
           </div>}
         </section>
       )}
+
+      {finishedMaps.length > 0 && ["in_progress", "finished"].includes(match.status) && <details aria-label="比分更正与系列恢复" className="space-y-3 rounded border border-[var(--color-border)] p-3">
+        <summary className="cursor-pointer text-sm font-medium">比分更正与系列恢复</summary>
+        {finishedMaps.map(map => <div key={`${map.id}:${map.scoreA}:${map.scoreB}`} className="pt-2">
+          <p className="mb-2 text-sm">{mapLabel(map.mapName)} · {map.scoreA} : {map.scoreB}</p>
+          <MapScoreCorrectInput matchId={match.id} matchInProgress={match.status === "in_progress"} mapId={map.id} mapName={map.mapName} scoreA={map.scoreA} scoreB={map.scoreB} teamAName={teamAName} teamBName={teamBName} />
+        </div>)}
+      </details>}
 
       {match.status !== "cancelled" && <DemoDataReviewPanel reviews={demoReviews} />}
 

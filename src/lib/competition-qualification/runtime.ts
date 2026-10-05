@@ -599,7 +599,7 @@ export interface QualificationResultCorrectionPlan {
  */
 export async function planCompetitionQualificationResultCorrectionInTx(
   tx: TxDb,
-  input: { seasonId: string; runId: string; matchId: string; round: number | null },
+  input: { seasonId: string; runId: string; matchId: string; round: number | null; sourceStatus?: "finished" | "in_progress" },
 ): Promise<QualificationResultCorrectionPlan> {
   const [run] = await tx.select().from(competitionQualificationRuns)
     .where(and(eq(competitionQualificationRuns.id, input.runId), eq(competitionQualificationRuns.seasonId, input.seasonId)))
@@ -612,7 +612,7 @@ export async function planCompetitionQualificationResultCorrectionInTx(
   const linked = await tx.select().from(matches).where(eq(matches.qualificationRunId, run.id))
     .orderBy(asc(matches.round), asc(matches.id)).for("update");
   const source = linked.find((match) => match.id === input.matchId);
-  if (!source || source.status !== "finished" || source.round !== input.round) {
+  if (!source || source.status !== (input.sourceStatus ?? "finished") || source.round !== input.round) {
     throw new AppError(ErrorCode.INTERNAL_ERROR, "更正比赛与 Qualification run 的 canonical 事实不一致。");
   }
 

@@ -312,7 +312,7 @@ export async function loadAdminMatchWorkbench({
     teamAPreflight,
     teamBPreflight,
     completedMaps: mapCompletedMaps(mapRecords),
-    pendingMaps: mapPendingMaps(mapRecords),
+    pendingMaps: match.status === "finished" ? [] : mapPendingMaps(mapRecords),
     finishedMaps: mapFinishedMaps(mapRecords),
     vetoCompletedAt: vetoSession?.completedAt ?? null,
     postMatch,

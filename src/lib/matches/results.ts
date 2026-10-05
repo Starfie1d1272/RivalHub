@@ -32,6 +32,29 @@ async function insertResolvedBracketMatches(
 }
 
 
+/** Complete a validated series through the same lifecycle/progression owner.
+ * Major stages keep their explicit round-finalization gate. */
+export async function finishCanonicalSeriesInTx(tx: TxDb, input: {
+  match: typeof matches.$inferSelect; scoreA: number; scoreB: number;
+  completedAt: Date; preserveMapPlans?: boolean;
+}) {
+  const locked = input.match;
+  const [lockedSeason] = await tx.select().from(seasons).where(eq(seasons.id, locked.seasonId)).for("update");
+  if (!lockedSeason) throw new AppError(ErrorCode.SEASON_NOT_FOUND, "赛季不存在");
+  const bracketState = locked.bracketNodeId ? await loadStageBracketState(tx, locked.seasonId, locked.stage) : null;
+  if (!input.preserveMapPlans) {
+    await tx.delete(matchMaps).where(and(eq(matchMaps.matchId, locked.id), isNull(matchMaps.scoreA), isNull(matchMaps.scoreB)));
+  }
+  await tx.update(matches).set({ scoreA: input.scoreA, scoreB: input.scoreB, status: "finished", completedAt: input.completedAt, updatedAt: new Date() }).where(eq(matches.id, locked.id));
+  if (locked.qualificationRunId) await completeCompetitionQualificationIfReadyInTx(tx, locked.qualificationRunId);
+  if (bracketState && locked.bracketNodeId) {
+    const { updatedData, newResolvedMatches } = await advanceStageBracket(locked.stage, locked.bracketNodeId, { scoreA: input.scoreA, scoreB: input.scoreB }, bracketState);
+    await saveStageBracketState(tx, locked.seasonId, locked.stage, updatedData);
+    await insertResolvedBracketMatches(tx, locked.seasonId, locked.stage, newResolvedMatches, normalizeStagePlan(lockedSeason.stagePlan));
+  }
+  return maybeFinishSeason(tx, locked.seasonId);
+}
+
 export interface CanonicalMapResultCommand {
   matchId: string; mapOrder: number; mapName: string; scoreA: number; scoreB: number;
   pickedByEntryId: string | null; teamAStartSide: "t" | "ct" | null; actorId: string;
@@ -51,9 +74,6 @@ export async function recordCanonicalMapResultInTx(tx: TxDb, command: CanonicalM
       if (!vetoSession?.completedAt) throw new AppError(ErrorCode.VALIDATION_FAILED, "请先完成 BP 地图计划，再录入地图结果");
       const [lockedSeason] = await tx.select().from(seasons).where(eq(seasons.id, locked.seasonId)).for("update");
       if (!lockedSeason) throw new AppError(ErrorCode.SEASON_NOT_FOUND, "赛季不存在");
-      const bracketState = locked.bracketNodeId
-        ? await loadStageBracketState(tx, locked.seasonId, locked.stage)
-        : null;
       const lockedPool = normalizeRegistrationConfig(lockedSeason.registrationConfig).mapPool;
       if (!lockedPool.includes(mapName)) throw new AppError(ErrorCode.MATCH_MAP_INVALID, "地图不在当前赛季图池中");
       const lockedMaxMaps = getMaxMaps(locked.format);
@@ -107,37 +127,7 @@ export async function recordCanonicalMapResultInTx(tx: TxDb, command: CanonicalM
       }
 
       if (seriesFinished) {
-        await tx.delete(matchMaps).where(
-          and(eq(matchMaps.matchId, matchId), isNull(matchMaps.scoreA), isNull(matchMaps.scoreB))
-        );
-
-        await tx.update(matches).set({
-          scoreA: mapWinsA,
-          scoreB: mapWinsB,
-          status: "finished",
-          completedAt: new Date(),
-          updatedAt: new Date(),
-        }).where(eq(matches.id, matchId));
-
-        if (locked.qualificationRunId) {
-          await completeCompetitionQualificationIfReadyInTx(tx, locked.qualificationRunId);
-        }
-
-        if (bracketState && locked.bracketNodeId) {
-          const { updatedData, newResolvedMatches } = await advanceStageBracket(
-            locked.stage,
-            locked.bracketNodeId,
-            { scoreA: mapWinsA, scoreB: mapWinsB },
-            bracketState,
-          );
-          await saveStageBracketState(tx, locked.seasonId, locked.stage, updatedData);
-          await insertResolvedBracketMatches(
-            tx, locked.seasonId, locked.stage, newResolvedMatches,
-            normalizeStagePlan(lockedSeason.stagePlan),
-          );
-        }
-
-        finishedSlug = await maybeFinishSeason(tx, locked.seasonId);
+        finishedSlug = await finishCanonicalSeriesInTx(tx, { match: locked, scoreA: mapWinsA, scoreB: mapWinsB, completedAt: new Date() });
       }
 
       await writeAuditInTx(tx, {
