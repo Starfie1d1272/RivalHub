@@ -20,6 +20,7 @@ import { reviewCompetitionEntryInTx, submitCompetitionEntryInTx } from "../../..
 import { requestCompetitionEntryRosterChangeInTx } from "../../../src/lib/competition-entries/roster-change";
 import { applyMatchStatusTransitionInTx, confirmMatchRosterInTx, persistMatchRosterInTx } from "../../../src/lib/match-rosters/service";
 import { assertGenericMatchCanBeDeleted } from "../../../src/lib/matches/deletion";
+import { planSeriesAfterMapScoreChangeInTx, correctSeriesAfterMapScoreChangeInTx } from "../../../src/lib/matches/series-score-correction";
 import { applyResultCorrectionInTx, planResultCorrectionInTx } from "../../../src/lib/match-corrections/service";
 import { lockMajorPrestartEntrantsInTx, selectMajorEntrantsAndSyncRostersInTx } from "../../../src/lib/major/prestart-entrants";
 import { readVetoRoomCore, readVetoRoomSnapshot, requestVetoStart, submitVetoCommand } from "../../../src/lib/matches/veto-room/service";
@@ -285,6 +286,7 @@ async function cleanupAcceptanceFixture(pool: Pool, fixture: AcceptanceFixture):
     await client.query("DELETE FROM audit_logs WHERE season_id = $1", [fixture.seasonId]);
     await client.query("DELETE FROM match_roster_players WHERE roster_id IN (SELECT id FROM match_rosters WHERE match_id IN (SELECT id FROM matches WHERE season_id = $1))", [fixture.seasonId]);
     await client.query("DELETE FROM match_rosters WHERE match_id IN (SELECT id FROM matches WHERE season_id = $1)", [fixture.seasonId]);
+    await client.query("DELETE FROM match_maps WHERE match_id IN (SELECT id FROM matches WHERE season_id = $1)", [fixture.seasonId]);
     await client.query("DELETE FROM matches WHERE season_id = $1", [fixture.seasonId]);
     await client.query("DELETE FROM competition_qualification_entrants WHERE season_id = $1", [fixture.seasonId]);
     await client.query("DELETE FROM competition_qualification_runs WHERE season_id = $1", [fixture.seasonId]);
@@ -811,7 +813,24 @@ async function exerciseDirectBo3CompletionAndCorrection(): Promise<void> {
        WHERE qualification_run_id = $1`,
       [runId],
     );
-    expect(await database.transaction((tx) => completeCompetitionQualificationIfReadyInTx(tx, runId))).toBe(true);
+    // The last Direct BO3 was misrecorded 1:1; the reviewed map correction
+    // completes Qualification through the canonical completion owner.
+    const pendingCorrection = (await database.select().from(schema.matches).where(eq(schema.matches.qualificationRunId, runId)))[0]!;
+    const correctedMapId = randomUUID();
+    const actualEnd = new Date("2026-10-01T12:30:00Z");
+    await database.update(schema.matches).set({ status: "in_progress", scoreA: null, scoreB: null, completedAt: null }).where(eq(schema.matches.id, pendingCorrection.id));
+    await database.insert(schema.matchMaps).values([
+      { matchId: pendingCorrection.id, mapOrder: 1, mapName: "de_ancient", scoreA: 13, scoreB: 9, completedAt: actualEnd },
+      { id: correctedMapId, matchId: pendingCorrection.id, mapOrder: 2, mapName: "de_mirage", scoreA: 9, scoreB: 13, completedAt: actualEnd },
+      { matchId: pendingCorrection.id, mapOrder: 3, mapName: "de_nuke" },
+    ]);
+    const request = { matchId: pendingCorrection.id, mapId: correctedMapId, scoreA: 13, scoreB: 9, expectedScoreA: 9, expectedScoreB: 13 };
+    const seriesPlan = await database.transaction(tx => planSeriesAfterMapScoreChangeInTx(tx, request));
+    expect(seriesPlan?.blockers).toEqual([]);
+    const confirmation = { ...request, previewRevision: seriesPlan!.revision, reason: "复核实际赛果", confirmed: true as const, laterMapsNotStarted: true as const };
+    expect(await database.transaction(tx => correctSeriesAfterMapScoreChangeInTx(tx, confirmation, ACTOR))).toMatchObject({ alreadyApplied: false });
+    expect(await database.transaction(tx => correctSeriesAfterMapScoreChangeInTx(tx, confirmation, ACTOR))).toMatchObject({ alreadyApplied: true });
+    expect(await database.transaction((tx) => completeCompetitionQualificationIfReadyInTx(tx, runId))).toBe(false);
     const [completedRun] = await database.select().from(schema.competitionQualificationRuns)
       .where(eq(schema.competitionQualificationRuns.id, runId));
     expect(completedRun?.completedAt).toBeInstanceOf(Date);

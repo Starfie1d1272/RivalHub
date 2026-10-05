@@ -307,6 +307,7 @@ export const AUDIT_ACTION_DEFINITIONS = {
   "match.delete": { label: "删除比赛", category: "match" },
   "match.forfeit": { label: "判定比赛弃权", category: "match" },
   "update_match_completed_at": { label: "更新比赛完成时间", category: "match" },
+  "match.series.corrected": { label: "更正系列赛果", category: "match" },
   "match.result.corrected": { label: "修正正式赛果", category: "match" },
   "match.managed.invalidated": { label: "使后续比赛失效", category: "match" },
   "competition_qualification.invalidate_match": { label: "作废后续 Play-in 比赛", category: "major" },

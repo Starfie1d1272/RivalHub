@@ -1,3 +1,4 @@
+import { canConfirmMapScoreboard } from "@/lib/matches/map-scoreboard";
 import "server-only";
 
 import { and, asc, desc, eq, inArray, or } from "drizzle-orm";
@@ -357,7 +358,7 @@ export async function readRivalHubEvents(
         const entryA = entryById.get(match.entryAId)!;
         const entryB = entryById.get(match.entryBId)!;
         const matchRoster = (matchRosterByMatch.get(match.id) ?? []).map((row) => projectPlayer(row)).filter((row): row is RivalHubRemotePlayer => row != null);
-        const mapRecords: RivalHubRemoteMap[] = (mapsByMatch.get(match.id) ?? []).map((map) => {
+        const mapRecords: RivalHubRemoteMap[] = (mapsByMatch.get(match.id) ?? []).filter(map => match.status !== "finished" || canConfirmMapScoreboard(map)).map((map) => {
           const evidenceRevision = buildEvidenceRevisionForTarget({
             match,
             map,
