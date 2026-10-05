@@ -22,7 +22,7 @@ export function Records({ records, query, seasonSlug, coverage }: { records: Rec
           <ul className="mt-2 space-y-3 text-xs">{record.occurrences.map((o) => <li key={`${o.mapId}:${o.round ?? 0}:${o.entityId}`} className="flex flex-wrap gap-x-3 gap-y-1 leading-5">
             <Link href={o.entityHref as Route} className="font-medium hover:text-[var(--color-accent)]">{o.entityName}</Link><Link href={`/${o.eventSlug}` as Route}>{o.eventName}</Link>
             <Link href={`/${o.eventSlug}/matches/${o.matchId}` as Route} className="hover:text-[var(--color-accent)]">vs {o.opponent} · {o.mapName} · {o.score}{o.round ? ` · R${o.round}` : ` · ${plural(o.rounds, "round")}`}</Link>
-            {o.kind === "economy" && <span>Equipment · Winner ${o.winnerEquipment} · Loser ${o.loserEquipment} · Gap ${o.numerator}</span>}
+            {o.kind === "economy" && <span>{`Equipment · Winner ${o.winnerEquipment} · Loser ${o.loserEquipment} · Gap ${o.numerator}`}</span>}
           </li>)}</ul>
           {record.pages > 1 && <nav aria-label={`${record.label} 并列纪录分页`} className="mt-3 flex gap-4 text-xs">
             {record.page > 1 && <Link href={statsHref(seasonSlug, query, { recordPage: record.page - 1 })} scroll={false}>上一页</Link>}
