@@ -1,6 +1,6 @@
 # Preview 脱敏镜像运行手册
 
-RivalHub 的所有 Vercel Preview 固定连接 `rivalhub-dev`，不连接 production，也不读取 #569 的正式 R2 灾备 artifact。`rivalhub-dev` 是可牺牲 shared staging：Preview 可完整读写，下一次 refresh 覆盖测试数据。镜像由受保护的 `Refresh Preview Data` workflow 生成：production job 只读导出，dev job 在固定的 `cueazphyskstwdhnzsxx` 上重置和导入。
+RivalHub 的所有 Vercel Preview 固定连接 `rivalhub-dev`，不连接 production，也不读取 #569 的正式 R2 灾备 artifact。`rivalhub-dev` 是可牺牲 shared staging：Preview 可完整读写，下一次 refresh 覆盖测试数据。镜像由受保护的 `Refresh Preview Data` workflow 生成：production job 只读导出，dev job 在固定的 `tpbqpbnuonnubiyfdrfe` 上重置和导入。
 
 ## 刷新边界
 
@@ -25,7 +25,7 @@ PostgreSQL CI integration 同时在 latest fresh schema 和 previous-production-
 
 Vercel Preview environment 只配置 dev-scoped 值：
 
-- `DATABASE_URL`：`postgres.cueazphyskstwdhnzsxx` 的 Transaction Pooler URL（6543、`pgbouncer=true`）；
+- `DATABASE_URL`：`postgres.tpbqpbnuonnubiyfdrfe` 的 Transaction Pooler URL（6543、`pgbouncer=true`）；
 - `NEXT_PUBLIC_SUPABASE_URL`/`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`（兼容 `NEXT_PUBLIC_SUPABASE_ANON_KEY`） 与 `SUPABASE_SECRET_KEY`：`rivalhub-dev` credential；`SUPABASE_SERVICE_ROLE_KEY` 只作为尚未迁移环境的临时 fallback；
 - `SUPABASE_JWT_SECRET`：仅使用 `rivalhub-dev` 的 JWT signing secret，用于签发 5 分钟、单场、只读的 Realtime viewer token；不得使用 production signing secret；
 - 独立 Preview `ADMIN_SESSION_SECRET`，以及仅用于 dev/sandbox 的邮件、OCR 或其它 provider credential。

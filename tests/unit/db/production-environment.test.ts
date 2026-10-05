@@ -37,7 +37,7 @@ describe("production database target guard", () => {
 
   it("rejects non-production DATABASE_URL values and only lets Vercel production builds inherit the runtime URL", () => {
     expect(() => buildProductionEnvironment({ ...confirmation, DATABASE_URL: "postgresql://prod.example.com/postgres" }, { requiresWriteAuthorization: false })).toThrow(/固定的 production/);
-    expect(() => assertProductionDatabaseUrl(`postgresql://postgres.cueazphyskstwdhnzsxx:pw@${PRODUCTION_POOLER_HOST}:${PRODUCTION_POOLER_PORT}/postgres?pgbouncer=true`)).toThrow(/project ref/);
+    expect(() => assertProductionDatabaseUrl(`postgresql://postgres.tpbqpbnuonnubiyfdrfe:pw@${PRODUCTION_POOLER_HOST}:${PRODUCTION_POOLER_PORT}/postgres?pgbouncer=true`)).toThrow(/project ref/);
 
     expect(() => buildVercelProductionVerificationEnvironment({ VERCEL_ENV: "preview", DATABASE_URL: runtimeUrl })).toThrow(/VERCEL_ENV=production/);
     const vercelEnv = buildVercelProductionVerificationEnvironment({ VERCEL_ENV: "production", DATABASE_URL: runtimeUrl });

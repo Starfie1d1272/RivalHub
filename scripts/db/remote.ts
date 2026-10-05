@@ -1,5 +1,6 @@
 import { spawnSync, type SpawnSyncOptions } from "node:child_process";
 import { resolve } from "node:path";
+import { runCanonicalMigrations } from "./canonical-migrate";
 
 interface ProtectedRemoteMigrationTarget {
   drizzleConfig: string;
@@ -67,7 +68,7 @@ export function runProtectedRemoteCommand(
         run(tsxBin, ["scripts/db/local.ts", "verify-migrations"]);
       }
       target.beforeMigrate?.(environment);
-      run(drizzleBin, ["migrate", `--config=${target.drizzleConfig}`], { env: environment });
+      runCanonicalMigrations(target.drizzleConfig, environment);
       run(tsxBin, ["scripts/db/verify-migrations.ts"], { env: environment });
       return;
     }

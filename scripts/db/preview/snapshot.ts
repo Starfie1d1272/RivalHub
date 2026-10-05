@@ -159,7 +159,7 @@ function rewriteTeamLogoUrls(tables: MirrorSnapshot["tables"]): void {
     const ref = parsePublicStorageUrl(row.logo_url);
     if (ref?.bucket !== "team-logos") continue;
     const encoded = ref.path.split("/").map(encodeURIComponent).join("/");
-    row.logo_url = `https://cueazphyskstwdhnzsxx.supabase.co/storage/v1/object/public/team-logos/${encoded}`;
+    row.logo_url = `https://tpbqpbnuonnubiyfdrfe.supabase.co/storage/v1/object/public/team-logos/${encoded}`;
   }
 }
 
@@ -189,7 +189,7 @@ export async function selectPersonaCandidates(client: Pick<PoolClient, "query">,
 async function exportPublicAssets(tables: MirrorSnapshot["tables"], allowlistedSeasonAssets: Set<string>): Promise<MirrorAsset[]> {
   const secret = process.env.SUPABASE_SECRET_KEY;
   if (!secret) return [];
-  const supabaseUrl = process.env.RIVALHUB_PRODUCTION_SUPABASE_URL ?? "https://sucokfotkypwqkckfynp.supabase.co";
+  const supabaseUrl = process.env.RIVALHUB_PRODUCTION_SUPABASE_URL ?? "https://rrrebbxfghmgnoyyeqqd.supabase.co";
   const client = createClient(supabaseUrl, secret, { auth: { persistSession: false, autoRefreshToken: false } });
   const refs = new Map<string, MirrorAsset["bucket"]>();
   for (const row of [...tables.teams, ...tables.competition_entries]) {

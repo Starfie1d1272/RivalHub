@@ -8,6 +8,7 @@ import {
   assertProductionBackupEnvironment,
   assertR2BucketName,
   buildIsolatedRecoveryEnvironment,
+  isProductionRecoverySource,
 } from "../../scripts/db/recovery/environment";
 import {
   assertRecoveryCompletionMarker,
@@ -45,7 +46,7 @@ function validManifest() {
     runId: RUN_ID,
     createdAt: CREATED_AT,
     sourceEnvironment: "production" as const,
-    sourceProjectRef: "sucokfotkypwqkckfynp",
+    sourceProjectRef: "rrrebbxfghmgnoyyeqqd",
     postgresVersion: "17.6",
     supabaseCliVersion: "2.116.0",
     producer: {
@@ -83,6 +84,13 @@ function validManifest() {
 }
 
 describe("recovery contracts", () => {
+  it("accepts both Production backup lineages and rejects Preview or unknown sources", () => {
+    expect(isProductionRecoverySource("rrrebbxfghmgnoyyeqqd")).toBe(true);
+    expect(isProductionRecoverySource("sucokfotkypwqkckfynp")).toBe(true);
+    expect(isProductionRecoverySource("tpbqpbnuonnubiyfdrfe")).toBe(false);
+    expect(isProductionRecoverySource("cueazphyskstwdhnzsxx")).toBe(false);
+    expect(isProductionRecoverySource("aaaaaaaaaaaaaaaaaaaa")).toBe(false);
+  });
   it("accepts a complete manifest and serializes it deterministically", () => {
     const manifest = validManifest();
     const parsed = assertRecoveryManifest(JSON.parse(serializeManifest(manifest)));
@@ -146,9 +154,9 @@ describe("recovery contracts", () => {
   it("keeps production backup read-only and rejects loopback/remote target confusion", () => {
     const environment = assertProductionBackupEnvironment({
       RIVALHUB_DB_TARGET: "production",
-      RIVALHUB_PRODUCTION_PROJECT_CONFIRM: "sucokfotkypwqkckfynp",
+      RIVALHUB_PRODUCTION_PROJECT_CONFIRM: "rrrebbxfghmgnoyyeqqd",
       RIVALHUB_PRODUCTION_DB_HOST_CONFIRM: "aws-0-ap-northeast-1.pooler.supabase.com:6543",
-      DATABASE_URL: "postgresql://postgres.sucokfotkypwqkckfynp:secret@aws-0-ap-northeast-1.pooler.supabase.com:6543/postgres?pgbouncer=true",
+      DATABASE_URL: "postgresql://postgres.rrrebbxfghmgnoyyeqqd:secret@aws-0-ap-northeast-1.pooler.supabase.com:6543/postgres?pgbouncer=true",
       SUPABASE_SECRET_KEY: "sb_secret-modern",
       SUPABASE_SERVICE_ROLE_KEY: "service-role-secret",
       RIVALHUB_BACKUP_AGE_RECIPIENT: "age1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq",
@@ -158,7 +166,7 @@ describe("recovery contracts", () => {
       RIVALHUB_R2_SECRET_ACCESS_KEY: "secret-key",
     });
 
-    expect(environment.databaseUrl).toBe("postgresql://postgres.sucokfotkypwqkckfynp:secret@aws-0-ap-northeast-1.pooler.supabase.com:5432/postgres");
+    expect(environment.databaseUrl).toBe("postgresql://postgres.rrrebbxfghmgnoyyeqqd:secret@aws-0-ap-northeast-1.pooler.supabase.com:5432/postgres");
     expect(environment.databaseUrl).not.toContain(":6543");
     expect(environment.databaseUrl).not.toContain("pgbouncer");
     expect(environment.supabaseSecretKey).toBe("sb_secret-modern");
@@ -169,7 +177,7 @@ describe("recovery contracts", () => {
     expect(() => buildIsolatedRecoveryEnvironment({
       RIVALHUB_RECOVERY_TARGET: "isolated",
       RIVALHUB_RECOVERY_DATABASE_URL: "postgresql://postgres:postgres@127.0.0.1:5432/postgres",
-      RIVALHUB_RECOVERY_SUPABASE_URL: "https://sucokfotkypwqkckfynp.supabase.co",
+      RIVALHUB_RECOVERY_SUPABASE_URL: "https://rrrebbxfghmgnoyyeqqd.supabase.co",
       RIVALHUB_RECOVERY_PUBLISHABLE_KEY: "publishable",
       RIVALHUB_RECOVERY_SERVICE_ROLE_KEY: "service-role",
     })).toThrow();
@@ -178,9 +186,9 @@ describe("recovery contracts", () => {
   it("uses the modern Supabase secret key first and only falls back to the legacy name", () => {
     const baseEnvironment = {
       RIVALHUB_DB_TARGET: "production",
-      RIVALHUB_PRODUCTION_PROJECT_CONFIRM: "sucokfotkypwqkckfynp",
+      RIVALHUB_PRODUCTION_PROJECT_CONFIRM: "rrrebbxfghmgnoyyeqqd",
       RIVALHUB_PRODUCTION_DB_HOST_CONFIRM: "aws-0-ap-northeast-1.pooler.supabase.com:6543",
-      DATABASE_URL: "postgresql://postgres.sucokfotkypwqkckfynp:secret@aws-0-ap-northeast-1.pooler.supabase.com:6543/postgres?pgbouncer=true",
+      DATABASE_URL: "postgresql://postgres.rrrebbxfghmgnoyyeqqd:secret@aws-0-ap-northeast-1.pooler.supabase.com:6543/postgres?pgbouncer=true",
       RIVALHUB_BACKUP_AGE_RECIPIENT: "age1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq",
       RIVALHUB_R2_ACCOUNT_ID: "0123456789abcdef0123456789abcdef",
       RIVALHUB_R2_BUCKET: "rivalhub-recovery",
@@ -324,9 +332,9 @@ describe("recovery contracts", () => {
   it("enforces session pooler :5432 for production backup and rejects :6543 transaction mode", () => {
     const baseEnvironment = {
       RIVALHUB_DB_TARGET: "production",
-      RIVALHUB_PRODUCTION_PROJECT_CONFIRM: "sucokfotkypwqkckfynp",
+      RIVALHUB_PRODUCTION_PROJECT_CONFIRM: "rrrebbxfghmgnoyyeqqd",
       RIVALHUB_PRODUCTION_DB_HOST_CONFIRM: "aws-0-ap-northeast-1.pooler.supabase.com:6543",
-      DATABASE_URL: "postgresql://postgres.sucokfotkypwqkckfynp:secret@aws-0-ap-northeast-1.pooler.supabase.com:6543/postgres?pgbouncer=true",
+      DATABASE_URL: "postgresql://postgres.rrrebbxfghmgnoyyeqqd:secret@aws-0-ap-northeast-1.pooler.supabase.com:6543/postgres?pgbouncer=true",
       SUPABASE_SECRET_KEY: "sb_secret-modern",
       RIVALHUB_BACKUP_AGE_RECIPIENT: "age1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq",
       RIVALHUB_R2_ACCOUNT_ID: "0123456789abcdef0123456789abcdef",
@@ -337,7 +345,7 @@ describe("recovery contracts", () => {
 
     const derived = assertProductionBackupEnvironment(baseEnvironment);
     expect(derived.databaseUrl).toBe(
-      "postgresql://postgres.sucokfotkypwqkckfynp:secret@aws-0-ap-northeast-1.pooler.supabase.com:5432/postgres",
+      "postgresql://postgres.rrrebbxfghmgnoyyeqqd:secret@aws-0-ap-northeast-1.pooler.supabase.com:5432/postgres",
     );
     expect(derived.databaseUrl).not.toContain("6543");
     expect(derived.databaseUrl).not.toContain("pgbouncer");
@@ -345,12 +353,12 @@ describe("recovery contracts", () => {
     // Rejects an explicit backup URL targeting the 6543 transaction pooler or setting pgbouncer=true
     expect(() => assertProductionBackupEnvironment({
       ...baseEnvironment,
-      RIVALHUB_PRODUCTION_BACKUP_DATABASE_URL: "postgresql://postgres.sucokfotkypwqkckfynp:secret@aws-0-ap-northeast-1.pooler.supabase.com:6543/postgres?pgbouncer=true",
+      RIVALHUB_PRODUCTION_BACKUP_DATABASE_URL: "postgresql://postgres.rrrebbxfghmgnoyyeqqd:secret@aws-0-ap-northeast-1.pooler.supabase.com:6543/postgres?pgbouncer=true",
     })).toThrow(/Transaction Pooler/);
 
     expect(() => assertProductionBackupEnvironment({
       ...baseEnvironment,
-      RIVALHUB_PRODUCTION_BACKUP_DATABASE_URL: "postgresql://postgres.sucokfotkypwqkckfynp:secret@aws-0-ap-northeast-1.pooler.supabase.com:5432/postgres?pgbouncer=true",
+      RIVALHUB_PRODUCTION_BACKUP_DATABASE_URL: "postgresql://postgres.rrrebbxfghmgnoyyeqqd:secret@aws-0-ap-northeast-1.pooler.supabase.com:5432/postgres?pgbouncer=true",
     })).toThrow(/Session Pooler/);
 
     // Static code contract proving backup.ts passes the verified session pooler URL to dump

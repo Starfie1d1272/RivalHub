@@ -8,7 +8,7 @@ import {
   buildIsolatedRecoveryDatabaseEnvironment,
   buildIsolatedRecoveryEnvironment,
   parseLocalRecoveryStatus,
-  PRODUCTION_PROJECT_REF,
+  isProductionRecoverySource,
   type RecoveryArtifactKind,
   type IsolatedRecoveryDatabaseEnvironment,
   type IsolatedRecoveryEnvironment,
@@ -36,6 +36,7 @@ import { readManagedStorageReferences } from "./storage-policy";
 import { buildRecoveryR2Keys } from "./r2";
 import { buildRecoveryMigrationPlan } from "./source";
 import { assertManifestMigrationMatches, verifyRecoveryDatabase } from "./verify";
+import { runCanonicalMigrations } from "../canonical-migrate";
 import { readExpectedMigrations, type ExpectedMigration, type Migration } from "../production-preflight";
 
 const projectRoot = resolve(process.cwd());
@@ -281,7 +282,7 @@ function extractSafeArchive(archivePath: string, destination: string): void {
 }
 
 function assertManifestCompatibility(manifest: RecoveryManifest): void {
-  if (manifest.sourceProjectRef !== PRODUCTION_PROJECT_REF || manifest.database.schemas.join(",") !== "public,auth") {
+  if (!isProductionRecoverySource(manifest.sourceProjectRef) || manifest.database.schemas.join(",") !== "public,auth") {
     throw new Error("Recovery manifest source or schema identity is incompatible; restore aborted. ");
   }
   const sourceTagCommit = resolveReleaseTagCommit(manifest.source.deployedReleaseTag);
@@ -472,11 +473,7 @@ function prepareRecoveryTargetMigration(
     ].join("\n"),
     { flag: "wx" },
   );
-  runCommand(
-    pnpmBin,
-    ["exec", "drizzle-kit", "migrate", `--config=${configPath}`],
-    { ...process.env, RIVALHUB_RECOVERY_DATABASE_URL: databaseUrl },
-  );
+  runCanonicalMigrations(configPath, { ...process.env, RIVALHUB_RECOVERY_DATABASE_URL: databaseUrl }, migrationRoot);
 }
 
 export async function prepareTargetForDataImport(pool: Pick<Pool, "query">): Promise<string[]> {

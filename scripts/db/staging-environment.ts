@@ -5,7 +5,7 @@ import {
   type ProtectedRemoteDatabaseConfig,
 } from "./remote-environment";
 
-const STAGING_PROJECT_REF = "cueazphyskstwdhnzsxx";
+const STAGING_PROJECT_REF = "tpbqpbnuonnubiyfdrfe";
 const stagingConfig: ProtectedRemoteDatabaseConfig = {
   target: "staging",
   projectRef: STAGING_PROJECT_REF,
