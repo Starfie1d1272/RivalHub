@@ -9,7 +9,7 @@ import { advanceStageBracket, ensureResolvedBracketMatch, loadStageBracketState,
 import { resolveMatchFormat } from "@/lib/match-transitions";
 import { normalizeRegistrationConfig, normalizeStagePlan } from "@/lib/seasons/compatibility";
 import { getMaxMaps } from "@/types/match";
-import { computeSeriesScoreAfterMap, validateMapScore } from "./result-rules";
+import { computeSeriesScoreAfterMap, validateMapScore, validateSeriesScore } from "./result-rules";
 import { maybeFinishSeason } from "@/lib/seasons/transitions";
 import { completeCompetitionQualificationIfReadyInTx } from "@/lib/competition-qualification/runtime";
 
@@ -39,6 +39,7 @@ export async function finishCanonicalSeriesInTx(tx: TxDb, input: {
   completedAt: Date; preserveMapPlans?: boolean;
 }) {
   const locked = input.match;
+  validateSeriesScore(locked.format, input.scoreA, input.scoreB);
   const [lockedSeason] = await tx.select().from(seasons).where(eq(seasons.id, locked.seasonId)).for("update");
   if (!lockedSeason) throw new AppError(ErrorCode.SEASON_NOT_FOUND, "赛季不存在");
   const bracketState = locked.bracketNodeId ? await loadStageBracketState(tx, locked.seasonId, locked.stage) : null;

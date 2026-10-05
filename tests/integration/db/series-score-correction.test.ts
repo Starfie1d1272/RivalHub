@@ -141,8 +141,8 @@ describe("reviewed early series completion PostgreSQL", () => {
   });
   it.each(["swiss", "single_elim"] as const)("keeps %s stage advancement on its canonical round owner", async stageType => {
     const f = await fixture(); const runId = randomUUID();
-    const stage = { key: "fixture-stage", name: "阶段", type: stageType, teamCount: stageType === "swiss" ? 16 : 8, matchFormat: "bo3", finalFormat: stageType === "swiss" ? null : "bo5", advanceTiers: [] };
-    await db.update(schema.seasons).set({ stagePlan: [stage] }).where(eq(schema.seasons.id, f.seasonId));
+    const stage = { key: "fixture-stage", name: "阶段", type: stageType, teamCount: stageType === "swiss" ? 16 : 8, matchFormat: "bo3" as const, finalFormat: stageType === "swiss" ? null : "bo5" as const, advanceTiers: [] };
+    await db.update(schema.seasons).set({ stagePlan: [{ ...stage, finalFormat: stage.finalFormat ?? undefined }] }).where(eq(schema.seasons.id, f.seasonId));
     await db.insert(schema.majorStageRuns).values({ id: runId, seasonId: f.seasonId, stageKey: stage.key, startedBy: "admin", finalizedRound: 0, ruleSnapshot: { version: 4, stagePlan: [stage], rosterRules: { minTeamSize: 5, maxTeamSize: 7, starterCount: 5 }, affiliationRules: [], competitiveProfile: null, frozenCompetitiveFacts: [], runOptions: { hasThirdPlaceMatch: false } } });
     await db.update(schema.matches).set({ ownership: "major_stage", majorStageRunId: runId, managedKey: stageType === "swiss" ? "swiss-1-1" : "qf-1", round: 1, entryRound: stageType === "swiss" ? null : "quarterfinal" }).where(eq(schema.matches.id, f.matchId));
     const input = await confirmation(f.request); await apply(input);

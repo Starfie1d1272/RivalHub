@@ -1,5 +1,5 @@
 import "server-only";
-import { asc, eq } from "drizzle-orm";
+import { asc, eq, inArray } from "drizzle-orm";
 import type { TxDb } from "@/db/client";
 import { majorFinalResults, majorStageRuns, matches, seasons, type Match } from "@/db/schema";
 import { loadStageBracketNodeViews, loadStageBracketViews } from "@/lib/bracket";
@@ -13,7 +13,8 @@ import { classifyDownstreamManagedMatches, loadFrozenRunFacts } from "./service"
 export async function planSeriesCompletionProgressionInTx(tx: TxDb, match: Match) {
   const blockers: string[] = [];
   const season = await tx.query.seasons.findFirst({ where: eq(seasons.id, match.seasonId) });
-  const allMatches = await tx.select().from(matches).where(eq(matches.seasonId, match.seasonId)).orderBy(asc(matches.id)).for("update");
+  const allMatches = await tx.select().from(matches).where(eq(matches.seasonId, match.seasonId)).orderBy(asc(matches.id));
+  let ownerFacts: unknown = { season };
   const downstreamIds = new Set<string>();
   let mode: "qualification" | "major" | "bracket" | "manual" = "manual";
   const [final] = await tx.select({ id: majorFinalResults.id }).from(majorFinalResults).where(eq(majorFinalResults.seasonId, match.seasonId));
@@ -29,6 +30,7 @@ export async function planSeriesCompletionProgressionInTx(tx: TxDb, match: Match
     const run = runs.find(row => row.id === match.majorStageRunId);
     if (!run) throw new Error("Managed match has no StageRun");
     const frozen = loadFrozenRunFacts(run);
+    ownerFacts = { season, runs };
     for (const row of classifyDownstreamManagedMatches(allMatches.filter(row => row.majorStageRunId === run.id), match, frozen.stageType)) downstreamIds.add(row.matchId);
     const myIndex = frozen.stagePlanKeys.indexOf(match.stage);
     if (myIndex < 0) blockers.push("阶段记录不完整，请先核对赛程。");
@@ -37,6 +39,7 @@ export async function planSeriesCompletionProgressionInTx(tx: TxDb, match: Match
   } else if (match.bracketNodeId) {
     mode = "bracket";
     const view = (await loadStageBracketViews(tx, match.seasonId)).get(match.stage);
+    ownerFacts = { season, view };
     const independent = view?.stage[0]?.type === "round_robin" && view.match.some(row => String(row.id) === match.bracketNodeId);
     const nodes = (await loadStageBracketNodeViews(tx, match.seasonId)).get(match.stage) ?? [];
     const source = nodes.find(row => row.id === match.bracketNodeId);
@@ -56,8 +59,8 @@ export async function planSeriesCompletionProgressionInTx(tx: TxDb, match: Match
   const plan = normalizeStagePlan(season?.stagePlan);
   const index = plan.findIndex(row => row.key === match.stage);
   if (index >= 0) for (const row of allMatches) if (plan.findIndex(stage => stage.key === row.stage) > index) downstreamIds.add(row.id);
-  const downstream = allMatches.filter(row => downstreamIds.has(row.id));
+  const downstream = downstreamIds.size ? await tx.select().from(matches).where(inArray(matches.id, [...downstreamIds])).orderBy(asc(matches.id)).for("update") : [];
   if (downstream.some(row => row.status !== "scheduled" || row.startedAt || row.completedAt || row.scoreA !== null)) blockers.push("下游比赛已开始或已有正式结果，请先处理实际比赛事实。");
   else if (downstream.length) blockers.push("后续赛程已生成，请先通过赛程恢复处理后再更正。");
-  return { mode, downstream, blockers };
+  return { mode, downstream, blockers, ownerFacts };
 }

@@ -37,7 +37,7 @@ export async function planSeriesAfterMapScoreChangeInTx(tx: TxDb, raw: SeriesCor
   await assertSeasonAllowsTournamentMutationInTx(tx, match.seasonId);
   if (match.status !== "in_progress" || match.isForfeit) throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "请在进行中的正常比赛中核对系列更正。");
   const sessions = await tx.select().from(matchLiveSessions).where(eq(matchLiveSessions.matchId, match.id)).orderBy(asc(matchLiveSessions.id)).for("update");
-  const maps = await tx.select().from(matchMaps).where(eq(matchMaps.matchId, match.id)).orderBy(asc(matchMaps.mapOrder));
+  const maps = await tx.select().from(matchMaps).where(eq(matchMaps.matchId, match.id)).orderBy(asc(matchMaps.mapOrder)).for("update");
   const map = maps.find(row => row.id === input.mapId);
   if (!map || map.scoreA !== input.expectedScoreA || map.scoreB !== input.expectedScoreB) throw new AppError(ErrorCode.VALIDATION_FAILED, "正式比分已更新，请重新核对后提交。");
   const result = planEarlySeriesFinish(match.format, maps, input);
