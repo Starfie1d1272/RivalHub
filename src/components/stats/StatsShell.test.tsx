@@ -51,7 +51,7 @@ describe("StatsShell navigation", () => {
       </StatsShell>,
     );
     fireEvent.change(screen.getByLabelText("Stage"), { target: { value: "playoff" } });
-    expect(router.push).toHaveBeenCalledWith("/major/stats?tab=players&stage=playoff", { scroll: false });
+    expect(router.push).toHaveBeenCalledWith("/stats?tab=players&stage=playoff&event=major", { scroll: false });
   });
 
   it("exposes Best-of as a global shareable scope", () => {
@@ -60,7 +60,7 @@ describe("StatsShell navigation", () => {
         <div />
       </StatsShell>,
     );
-    fireEvent.change(screen.getByLabelText("Best of"), { target: { value: "bo3" } });
-    expect(router.push).toHaveBeenCalledWith("/major/stats?tab=players&stage=swiss&format=bo3", { scroll: false });
+    fireEvent.change(screen.getByLabelText("赛制"), { target: { value: "bo3" } });
+    expect(router.push).toHaveBeenCalledWith("/stats?tab=players&stage=swiss&format=bo3&event=major", { scroll: false });
   });
 });

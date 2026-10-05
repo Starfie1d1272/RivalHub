@@ -1,14 +1,14 @@
 "use client";
 
+import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import { cn } from "@/lib/utils/cn";
-import { presentSeasonParticipationState } from "@/lib/seasons/presentation";
 import type { HeaderSeason } from "./Header.types";
 
 interface HeaderNavigationProps {
-  seasons: HeaderSeason[];
+  seasons: Pick<HeaderSeason, "slug">[];
   mobile?: boolean;
 }
 
@@ -16,6 +16,7 @@ export function HeaderNavigationFallback({ mobile = false }: { mobile?: boolean 
   const links = [
     { href: "/seasons", label: "赛事" },
     { href: "/teams", label: "队伍" },
+    { href: "/stats", label: "数据中心" },
   ];
 
   return (
@@ -37,16 +38,11 @@ export function HeaderNavigationFallback({ mobile = false }: { mobile?: boolean 
 
 export function HeaderNavigation({ seasons, mobile = false }: HeaderNavigationProps) {
   const pathname = usePathname();
-  const seasonLinks = seasons.map((season) => ({
-    href: `/${season.slug}`,
-    label: season.name,
-    badge: presentSeasonParticipationState(season).label,
-    active: pathname.startsWith(`/${season.slug}`),
-  }));
+  const within = (path: string) => pathname === path || pathname.startsWith(`${path}/`);
   const navLinks = [
-    { href: "/seasons", label: "赛事", badge: null, active: pathname === "/seasons" },
-    { href: "/teams", label: "队伍", badge: null, active: pathname.startsWith("/teams") },
-    ...seasonLinks,
+    { href: "/seasons", label: "赛事", active: within("/seasons") || seasons.some((season) => within(`/${season.slug}`)) },
+    { href: "/teams", label: "队伍", active: within("/teams") },
+    { href: "/stats", label: "数据中心", active: within("/stats") },
   ];
 
   return (
@@ -55,8 +51,9 @@ export function HeaderNavigation({ seasons, mobile = false }: HeaderNavigationPr
         <Link
           key={link.href}
           href={link.href as never}
+          aria-current={link.active ? "page" : undefined}
           className={mobile
-            ? "flex items-center justify-between px-3 py-2 rounded-md text-sm text-[var(--color-fg-mid)] hover:text-[var(--color-fg)] hover:bg-[var(--color-panel-hi)]"
+            ? cn("flex items-center justify-between px-3 py-2 rounded-md text-sm hover:bg-[var(--color-panel-hi)]", link.active ? "bg-[var(--color-panel)] text-[var(--color-fg)] font-semibold" : "text-[var(--color-fg-mid)] hover:text-[var(--color-fg)]")
             : cn(
                 "flex items-center gap-1.5 px-3 py-1.5 text-xs transition-colors",
                 link.active
@@ -66,17 +63,7 @@ export function HeaderNavigation({ seasons, mobile = false }: HeaderNavigationPr
               )}
         >
           <span>{link.label}</span>
-          {link.badge && (
-            <span
-              className="text-xs px-1.5 py-0.5 rounded-sm"
-              style={{
-                background: "var(--color-panel-low)",
-                color: "var(--color-fg-dim)",
-              }}
-            >
-              {link.badge}
-            </span>
-          )}
+
         </Link>
       ))}
     </>

@@ -86,7 +86,7 @@ describe("StatsDataTable client state", () => {
     expect(screen.getByText("min 20 rounds")).toBeInTheDocument();
     const rankingHelp = screen.getByRole("button", { name: "排名样本说明" });
     fireEvent.mouseEnter(rankingHelp);
-    expect(screen.getByRole("tooltip")).toHaveTextContent("排名样本线");
+    expect(screen.getByRole("tooltip")).toHaveTextContent("min 表示进入排名所需的样本量");
     const table = screen.getByRole("table");
     expect(within(table).getAllByRole("row").slice(1).map((row) => row.textContent)).toEqual([
       "High4",

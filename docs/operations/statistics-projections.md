@@ -5,6 +5,11 @@ Evidence. Confirmation and recheck materialize projections in the same transacti
 as the import and scoreboard. The current projection version is owned by
 `src/lib/stats/projection-version.ts`; bump it whenever the reducer, adapter or
 serialized representation changes. Formulas remain in `@cs2dak/tournament`.
+Compact record candidates retain all local maxima/ties and round provenance;
+map sufficient statistics also support deterministic flash leave-one-map-out.
+Equipment candidates require all ten known values and verified freeze-end exporter
+semantics. Unverified exporter versions lower economy coverage, never supply zero.
+The public serializer sends only selected-view summaries and bounded record ties.
 
 ## Rebuild and release
 
@@ -29,7 +34,7 @@ bounds eligible maps for a controlled run. Raw source integrity or canonical
 validation failure stops the run for investigation instead of publishing a
 partial replacement silently. Coverage scans keyset pages in one repeatable-read,
 read-only snapshot. Defaults are 50 IDs per page, 10,000 scanned maps and a 60-second
-between-map time budget, with PostgreSQL statement timeouts. Missing projections,
+between-map time budget, with PostgreSQL statement timeouts. Reserved platform/season slug conflicts are reported by the same protected read-only coverage gate and block release; operators resolve them explicitly, never through automatic production renaming. Missing projections,
 query timeouts or `complete=false` all block release; zero observed missing maps
 in a truncated scan never means ready. Operators may explicitly increase
 `coverage --scan-limit N --batch-size N --max-duration-ms N` after reviewing the
@@ -66,7 +71,7 @@ recovery and billing quota are separate from code deployment.
 ## Cache and invalidation
 
 Vercel's native Runtime Cache backs `use cache: remote`; local Next uses its local
-handler and cannot prove cross-instance reuse. Statistics and compiled historical
+handler and cannot prove cross-instance reuse. Fresh public event membership is read outside the cache and enters normalized platform/event keys; archived public events remain eligible and withdrawn drafts cannot reuse the previous aggregate. Statistics and compiled historical
 benchmarks share the semantic public-statistics tag. Authorized draft queries and
 viewer membership/invitation state bypass public caches. Mutations expire the tag
 immediately: Server Actions use `updateTag`, HTTP entrypoints use

@@ -1,3 +1,4 @@
+import { isReservedSeasonSlug } from "./slug";
 import { z } from "zod";
 import { createCompetitionTemplate, type CompetitionTemplate } from "@/lib/competition/templates";
 import { checkStandardMajorCapabilities } from "@/lib/competition/definition";
@@ -54,7 +55,7 @@ const registrationConfigSchema = z.object({
 const seasonFormBaseSchema = z.object({
   id: z.guid().optional(),
   name: z.string().min(1, "请填写赛季名称"),
-  slug: z.string().min(1, "请填写 slug").regex(/^[a-z0-9][a-z0-9-]*$/, "slug 只能使用小写字母、数字和连字符"),
+  slug: z.string().min(1, "请填写 slug").regex(/^[a-z0-9][a-z0-9-]*$/, "slug 只能使用小写字母、数字和连字符").refine((slug) => !isReservedSeasonSlug(slug), "slug 与平台保留路由冲突"),
   kind: z.string().min(1, "请填写赛事类型"),
   template: z.enum(["rivals", "major", "custom"]).optional(),
   status: z.enum(["draft", "registration", "voting", "drafting", "playing", "finished", "archived"]).optional(),

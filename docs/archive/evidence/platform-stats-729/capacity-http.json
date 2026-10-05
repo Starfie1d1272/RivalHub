@@ -1,0 +1,68 @@
+[
+  {
+    "phase": "cold aggregate after initial local invalidation",
+    "status": 200,
+    "contentType": "text/x-component",
+    "responseBytes": 125844,
+    "queryCount": 25,
+    "dbResultJsonEstimate": 10956113,
+    "projectionRows": 250,
+    "projectionJsonEstimate": 9618994,
+    "latencyMs": 3581.0
+  },
+  {
+    "phase": "warm repeat",
+    "status": 200,
+    "contentType": "text/x-component",
+    "responseBytes": 125844,
+    "queryCount": 8,
+    "dbResultJsonEstimate": 59786,
+    "projectionRows": 0,
+    "projectionJsonEstimate": 0,
+    "latencyMs": 66.15
+  },
+  {
+    "phase": "cold after PUBLIC_STATS_TAG invalidation",
+    "status": 200,
+    "contentType": "text/x-component",
+    "responseBytes": 125844,
+    "queryCount": 24,
+    "dbResultJsonEstimate": 10927633,
+    "projectionRows": 250,
+    "projectionJsonEstimate": 9618994,
+    "latencyMs": 3369.2
+  },
+  {
+    "phase": "Records page1 shared aggregate",
+    "status": 200,
+    "contentType": "text/x-component",
+    "responseBytes": 90136,
+    "queryCount": 6,
+    "dbResultJsonEstimate": 59573,
+    "projectionRows": 0,
+    "projectionJsonEstimate": 0,
+    "latencyMs": 35.07
+  },
+  {
+    "phase": "Records page2 presentation slice",
+    "status": 200,
+    "contentType": "text/x-component",
+    "responseBytes": 90231,
+    "queryCount": 5,
+    "dbResultJsonEstimate": 30884,
+    "projectionRows": 0,
+    "projectionJsonEstimate": 0,
+    "latencyMs": 37.15
+  },
+  {
+    "phase": "HTML shared aggregate",
+    "status": 200,
+    "contentType": "text/html; charset=utf-8",
+    "responseBytes": 201435,
+    "queryCount": 8,
+    "dbResultJsonEstimate": 31257,
+    "projectionRows": 0,
+    "projectionJsonEstimate": 0,
+    "latencyMs": 45.89
+  }
+]

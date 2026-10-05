@@ -1,11 +1,12 @@
-import { notFound } from "next/navigation";
+import { notFound, permanentRedirect } from "next/navigation";
 import type { Metadata } from "next";
 import { PageHeader, PageLayout } from "@/components/rivalhub";
 import { TournamentStatsView } from "@/components/stats/TournamentStats";
 import { getPublicOrAuthorizedDraftSeason, getPublicSeasonBySlug } from "@/lib/data/public-seasons";
 import { normalizeStagePlan } from "@/lib/seasons/compatibility";
 import { getPublicTournamentMapDetail, getPublicTournamentStats } from "@/lib/stats/cached-query";
-import { parseStatsQuery, type StatsSearch } from "@/lib/stats/view-state";
+import { publicStatsView } from "@/lib/stats/public-view";
+import { parseStatsQuery, statsHref, type StatsSearch } from "@/lib/stats/view-state";
 import { ErrorCode, isAppErrorCode } from "@/lib/errors";
 import { readOptionalPublicStats } from "@/lib/stats/availability";
 
@@ -13,7 +14,7 @@ interface StatsPageProps { params: Promise<{ seasonSlug: string }>; searchParams
 
 export async function generateMetadata({ params }: StatsPageProps): Promise<Metadata> {
   const season = await getPublicSeasonBySlug((await params).seasonSlug);
-  return { title: season ? `${season.name} · 数据统计` : "数据统计" };
+  return { title: season ? `${season.name} · 数据中心` : "数据中心", alternates: season ? { canonical: `/stats?event=${encodeURIComponent(season.slug)}` } : undefined };
 }
 
 export default async function StatsPage({ params, searchParams }: StatsPageProps) {
@@ -23,6 +24,8 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
 
   const stages = normalizeStagePlan(season.stagePlan).map(({ key, name }) => ({ key, name }));
   const query = parseStatsQuery(await searchParams, stages.map((stage) => stage.key));
+  if (season.status !== "draft") permanentRedirect(statsHref(seasonSlug, query));
+  query.preview = true;
   const scope = { seasonId: season.id, stage: query.stage || undefined, format: query.format || undefined };
   const visibility = season.status === "draft" ? "draft" : "public";
 
@@ -54,7 +57,7 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
   return (
     <PageLayout as="div" variant="wide" className="space-y-6">
       <PageHeader title="数据统计" eyebrow={season.name} />
-      <TournamentStatsView data={data} mapDetail={mapDetail} query={query} seasonSlug={seasonSlug} stages={stages} />
+      <TournamentStatsView data={data ? publicStatsView(data, query) : undefined} mapDetail={mapDetail} query={query} seasonSlug={seasonSlug} stages={stages} />
     </PageLayout>
   );
 }

@@ -117,7 +117,7 @@ export function PlayerWorkspace({ detail, compact = false, hideMaps = false }: {
               columns={teamColumns}
               rowKey={(row) => row.teamId ?? row.perfectName}
               pageSize={10}
-              emptyLabel="暂无已验证 scoreboard 数据"
+              emptyLabel="暂无 Scoreboard 数据"
             />
           )}
 
@@ -232,7 +232,7 @@ export function PlayerWorkspace({ detail, compact = false, hideMaps = false }: {
             rowKey={(row, index) => `${row.mapName ?? "map"}:${row.teamId ?? ""}:${index}`}
             initialSortKey="rating"
             tableClassName="min-w-[620px] table-fixed"
-            emptyLabel="暂无按地图拆分的 scoreboard 数据"
+            emptyLabel="暂无地图 Scoreboard 数据"
           />
         </section>
       )}
@@ -253,7 +253,7 @@ export function PlayerWorkspace({ detail, compact = false, hideMaps = false }: {
       )}
 
       {!slice && tab !== "overview" && tab !== "maps" && tab !== "weapons" && (
-        <p className="border-y border-[var(--color-border)] py-5 text-sm text-[var(--color-fg-mid)]">当前选手没有详细统计。</p>
+        <p className="border-y border-[var(--color-border)] py-5 text-sm text-[var(--color-fg-mid)]">暂无详细统计。</p>
       )}
     </section>
   );

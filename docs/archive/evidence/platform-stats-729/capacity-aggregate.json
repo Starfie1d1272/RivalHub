@@ -1,0 +1,12 @@
+{
+  "maps": 250,
+  "queryCount": 17,
+  "projection": {
+    "rows": 250,
+    "bytes": "10845994"
+  },
+  "aggregateBytes": 1366684,
+  "overviewDtoBytes": 72522,
+  "latencyMs": 4035.9110069999997,
+  "rawPayloadReads": false
+}

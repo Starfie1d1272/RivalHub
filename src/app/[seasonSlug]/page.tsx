@@ -1,3 +1,4 @@
+import { statsEntryHref } from "@/lib/stats/view-state";
 import { EventLogo } from "@/components/season/EventLogo";
 import { MatchStatusBadge } from "@/components/matches/MatchStatusBadge";
 import type { MatchStatus } from "@/types/match";
@@ -253,7 +254,7 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
       show: hasMatches,
     },
     {
-      href: `/${seasonSlug}/stats`,
+      href: statsEntryHref(seasonSlug, {}, season.status === "draft"),
       label: "数据统计",
       description: "赛事排行榜与个人数据",
       icon: BarChart3,

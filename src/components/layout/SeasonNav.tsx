@@ -1,5 +1,6 @@
 "use client";
 
+import { statsEntryHref } from "@/lib/stats/view-state";
 import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -46,7 +47,7 @@ export function SeasonNav({
     ...(hasMatches ? [{ label: "赛程", href: `/${slug}/matches` }] : []),
     ...(hasCommunityAwards ? [{ label: "社区奖", href: `/${slug}/community-awards` }] : []),
     ...(hasPredictions ? [{ label: "观赛预测", href: `/${slug}/predictions` }] : []),
-    ...(hasStats ? [{ label: "数据统计", href: `/${slug}/stats` }] : []),
+    ...(hasStats ? [{ label: "数据统计", href: statsEntryHref(slug, {}, status === "draft") }] : []),
   ];
 
   return (

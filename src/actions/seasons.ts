@@ -1,5 +1,6 @@
 "use server";
 
+import { isReservedSeasonSlug } from "@/lib/seasons/slug";
 import { writeAuditInTx } from "@/lib/audit/write";
 
 import { revalidatePath } from "next/cache";
@@ -129,6 +130,7 @@ export async function publishSeason(seasonId: string): Promise<ActionResult<{ sl
       const locked = await tx.query.seasons.findFirst({ where: eq(seasons.id, seasonId) });
       if (!locked) throw new AppError(ErrorCode.SEASON_NOT_FOUND, ERROR_MESSAGES.SEASON_NOT_FOUND);
       if (locked.status !== "draft") throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "只有 draft 状态可发布");
+      if (isReservedSeasonSlug(locked.slug)) throw new AppError(ErrorCode.VALIDATION_FAILED, "赛事 slug 与平台保留路由冲突，请先修正 draft 定义。");
       if (locked.competitionTemplate === "custom") assertRunnableCustomDefinition(locked);
 
       const config = normalizeTeamRegistrationConfig(locked.teamRegistrationConfig);

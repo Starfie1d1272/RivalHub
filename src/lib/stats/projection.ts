@@ -1,12 +1,13 @@
 import "server-only";
 
-import { collectTournamentPerformanceMapProjection } from "@cs2dak/tournament";
+import { buildTournamentPerformanceAnalyticsFromProjections, collectTournamentPerformanceMapProjection } from "@cs2dak/tournament";
 import type { TxDb } from "@/db/client";
 import { matchDemoStatProjections, type StatisticsProjectionBinding } from "@/db/schema";
 import type { DemoImportMetadata } from "@/lib/demo-integration/metadata";
 import type { RivalHubEvidenceSubmission } from "@/lib/demo-integration/contracts";
 import type { CanonicalTarget } from "@/lib/demo-integration/validation";
 import type { GameplayUserResolution } from "@/lib/identity/gameplay-steam";
+import { collectRecordFacts } from "./record-facts";
 import { adaptStatsEvidence } from "./evidence-adapter";
 import { STATISTICS_PROJECTION_VERSION } from "./projection-version";
 
@@ -30,6 +31,8 @@ export async function materializeStatisticsProjectionInTx(input: MaterializeStat
     return { steam64: participant.steamId64, userId: resolution.userId, entryId: member.entryId };
   }).sort((a, b) => a.steam64.localeCompare(b.steam64));
   const adapted = adaptStatsEvidence(input.evidence, new Map(identityBindings.map((binding) => [binding.steam64, binding])));
+  const performance = collectTournamentPerformanceMapProjection(adapted.performance);
+  const records = collectRecordFacts(input.evidence, new Map(identityBindings.map((b) => [b.steam64, b])), buildTournamentPerformanceAnalyticsFromProjections([performance]));
   const values = {
     importId: input.row.id,
     projectionVersion: STATISTICS_PROJECTION_VERSION,
@@ -41,7 +44,8 @@ export async function materializeStatisticsProjectionInTx(input: MaterializeStat
     identityBindings,
     facts: {
       tournament: adapted.tournament,
-      performance: collectTournamentPerformanceMapProjection(adapted.performance),
+      performance,
+      records,
     },
   };
   // Rechecking an identity is allowed to rebuild the derived projection; the

@@ -188,7 +188,7 @@ export function TeamWorkspace({ detail }: {
               { label: "T%", metric: "roundWin", value: <MetricValue metric="roundWin" value={analytics.t} sampleDisplay="hidden" /> },
               { label: "Pistol", metric: "pistol", value: <MetricValue metric="pistol" value={analytics.pistol} sampleDisplay="hidden" /> },
             ]} />
-          ) : <p className="border-y border-[var(--color-border)] py-5 text-sm text-[var(--color-fg-mid)]">当前队伍没有详细回合数据。</p>}
+          ) : <p className="border-y border-[var(--color-border)] py-5 text-sm text-[var(--color-fg-mid)]">暂无完整回合数据。</p>}
         </div>
       )}
 
@@ -209,10 +209,10 @@ export function TeamWorkspace({ detail }: {
             <MetricSection title="Low Economy" items={[
               { label: "Eco/Semi Win%", metric: "ecoSemi", value: <MetricValue metric="ecoSemi" value={analytics.ecoSemiUpset} /> },
             ]} columns={3} />
-          </> : <p className="border-y border-[var(--color-border)] py-5 text-sm text-[var(--color-fg-mid)]">当前队伍没有详细回合数据。</p>}
+          </> : <p className="border-y border-[var(--color-border)] py-5 text-sm text-[var(--color-fg-mid)]">完整回合数据确认后展示。</p>}
           <section className="border-t border-[var(--color-border)] pt-4">
             <h3 className="mb-1 text-sm font-semibold">Economy Matchups</h3>
-            <StatsDataTable embedded rows={detail.economyMatrix} columns={economyColumns} rowKey={(row) => `${row.lowEconomy}:${row.highEconomy}`} emptyLabel="暂无经济分类样本" />
+            <StatsDataTable embedded rows={detail.economyMatrix} columns={economyColumns} rowKey={(row) => `${row.lowEconomy}:${row.highEconomy}`} emptyLabel="暂无经济样本" />
           </section>
         </div>
       )}
@@ -243,14 +243,14 @@ export function TeamWorkspace({ detail }: {
           <MetricSection title="Objective" items={[
             { label: "Plant conversion", metric: "plantConversion", value: <MetricValue metric="plantConversion" value={performance.slices.overall.objective.plantConversions} /> },
           ]} columns={3} />
-        </div> : <p className="border-y border-[var(--color-border)] py-5 text-sm text-[var(--color-fg-mid)]">当前队伍没有详细团队数据。</p>
+        </div> : <p className="border-y border-[var(--color-border)] py-5 text-sm text-[var(--color-fg-mid)]">暂无团队统计。</p>
       )}
 
       {tab === "maps" && (
         <div className="space-y-5">
           <section className="space-y-3 border-t border-[var(--color-border)] pt-4">
             <h3 className="text-sm font-semibold">正式地图表现</h3>
-            <StatsDataTable embedded rows={mapRows} columns={mapColumns} rowKey={(row) => row.mapName} initialSortKey="played" emptyLabel="暂无队伍正式地图样本" />
+            <StatsDataTable embedded rows={mapRows} columns={mapColumns} rowKey={(row) => row.mapName} initialSortKey="played" emptyLabel="暂无正式地图样本" />
           </section>
         </div>
       )}

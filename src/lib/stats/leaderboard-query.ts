@@ -8,6 +8,7 @@ import { completeSum, killWeightedAvg, perRound, ratioOfSums, roundWeightedAvg, 
 
 export interface StatsLeaderboardFilters {
   seasonId?: string;
+  matchIds?: readonly string[];
   stage?: string;
   format?: "bo1" | "bo3" | "bo5";
   mapFilter?: string;
@@ -50,12 +51,13 @@ export async function getStatsLeaderboard(
     ? currentImportFilter
     : sql`(mps.dak_import_id IS NULL OR ${currentImportFilter})`;
   const seasonFilter = scope.seasonId ? sql`AND m.season_id = ${scope.seasonId}` : sql``;
+  const matchFilter = scope.matchIds ? scope.matchIds.length ? sql`AND m.id IN (${sql.join(scope.matchIds.map((id) => sql`${id}`), sql`, `)})` : sql`AND false` : sql``;
   const stageFilter = scope.stage ? sql`AND m.stage = ${scope.stage}` : sql``;
   const formatFilter = scope.format ? sql`AND m.format = ${scope.format}` : sql``;
   const mapName = options.groupByMap ? sql`mm.map_name AS map_name,` : sql`NULL::text AS map_name,`;
   const mapGroup = options.groupByMap ? sql`, mm.map_name` : sql``;
   const teamColumns = options.groupByTeam === false
-    ? sql`string_agg(DISTINCT entrant.name, ' · ') AS team_name, NULL::uuid AS team_id,`
+    ? sql`string_agg(DISTINCT entrant.name, ' · ') AS team_name, NULL::uuid AS team_id, array_agg(DISTINCT entrant.id) AS team_ids,`
     : sql`entrant.name AS team_name, entrant.id AS team_id,`;
   const teamGroup = options.groupByTeam === false ? sql`` : sql`, entrant.name, entrant.id`;
   const teamOrder = options.groupByTeam === false ? sql`` : sql`, entrant.id`;
@@ -93,6 +95,7 @@ export async function getStatsLeaderboard(
     LEFT JOIN competition_entries entrant ON entrant.id = lineup.entry_id
     WHERE true
       ${seasonFilter}
+      ${matchFilter}
       AND mps.verified_by_admin IS NOT NULL
       AND mm.score_a IS NOT NULL AND mm.score_b IS NOT NULL AND mm.completed_at IS NOT NULL
       AND mps.user_id IS NOT NULL
@@ -115,6 +118,7 @@ export async function getStatsLeaderboard(
     perfectName: getPublicDisplayName({ displayName: r.display_name as string | null, personaName: r.persona_name as string | null, perfectName: r.perfect_name as string | null }),
     teamName:   r.team_name as string | null,
     teamId:     r.team_id as string | null,
+    ...(options.groupByTeam === false ? { teamIds: (r.team_ids as string[] | null) ?? [] } : {}),
     maps:       Number(r.maps),
     ratingSamples: Number(r.rating_samples),
     rounds:     toNumOrNull(r.rounds),

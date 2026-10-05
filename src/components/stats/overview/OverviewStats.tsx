@@ -3,6 +3,7 @@ import React from "react";
 
 import Link from "next/link";
 import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
+import { Insights } from "./Insights";
 import { MetricValue } from "@/components/stats/MetricValue";
 import { StatsMetricLabel } from "@/components/stats/StatsMetricHelp";
 import { StatsSideSplit } from "@/components/stats/StatsSideSplit";
@@ -155,7 +156,7 @@ function leaders(data: TournamentStats, query: StatsQuery, seasonSlug: string) {
     { key: "sample", label: "Maps / Rds", numeric: true, className: "hidden w-[26%] sm:table-cell", render: (row) => <span>{row.maps} / {row.rounds ?? "—"}</span> },
   ];
   const teamColumns: StatsDataColumn<typeof teamRows[number]>[] = [
-    { key: "team", label: "Team", className: "w-[34%]", render: (row) => <Link href={`/${seasonSlug}/teams/${row.entryId}`} className="font-medium hover:text-[var(--color-accent)]">{row.name}</Link> },
+    { key: "team", label: "Team", className: "w-[34%]", render: (row) => <span className="block truncate" title={row.name}><Link href={(data.teamLinks?.[row.entryId] ?? `/${seasonSlug}/teams/${row.entryId}`) as never} className="font-medium hover:text-[var(--color-accent)]">{row.name}</Link></span> },
     { key: "rating", metric: "rating", numeric: true, className: "w-[21%]", render: (row) => <MetricValue metric="rating" value={row.rating} /> },
     { key: "match", label: "W-L", numeric: true, className: "w-[18%]", render: (row) => `${row.matchWins}-${row.matchLosses}` },
     { key: "maps", label: "Maps", numeric: true, className: "hidden w-[15%] sm:table-cell", render: (row) => row.maps },
@@ -216,10 +217,12 @@ export function OverviewStats({ data, query, seasonSlug }: { data: TournamentSta
         </div>
       </section>
 
+      <Insights insights={data.insights ?? []} query={query} seasonSlug={seasonSlug} />
+
       <section aria-labelledby="maps-heading">
         <div className="mb-3 flex items-end justify-between gap-3">
           <h2 id="maps-heading" className="text-base font-semibold">Maps</h2>
-          <span className="text-xs text-[var(--color-fg-dim)]">{maps.length} maps</span>
+          <span className="text-xs text-[var(--color-fg-dim)]">{maps.length} map{maps.length === 1 ? "" : "s"}</span>
         </div>
         <StatsDataTable rows={maps} columns={mapColumns} rowKey={(row) => row.mapName} initialSortKey="played" tableClassName="table-fixed" />
       </section>
@@ -265,10 +268,10 @@ export function OverviewStats({ data, query, seasonSlug }: { data: TournamentSta
               <h3 className="font-semibold">Economy vs Full Buy</h3>
             </div>
             <div className="border-y border-[var(--color-border)] bg-[var(--color-panel)]">
-              <StatsDataTable embedded rows={economyRows} columns={economyColumns} rowKey={(row) => row.lowEconomy} tableClassName="table-fixed" emptyLabel="暂无对 Full Buy 的经济样本" />
+              <StatsDataTable embedded rows={economyRows} columns={economyColumns} rowKey={(row) => row.lowEconomy} tableClassName="table-fixed" emptyLabel="暂无 Full Buy 对局样本" />
               <div className="flex items-end justify-between gap-4 border-t border-[var(--color-border)] bg-[var(--color-panel-low)] px-4 py-4">
                 <div className="min-w-0">
-                  <p className="text-[11px] uppercase tracking-[var(--tracking-label)] text-[var(--color-fg-mid)]"><span className="inline-flex items-center gap-1">Overall vs Full Buy<StatsTooltip label="Overall vs Full Buy 统计口径说明" content="汇总 ECO、半起和强起对阵 Full Buy 的回合；不包含手枪局及双方经济等级相同的回合。" /></span></p>
+                  <p className="text-[11px] uppercase tracking-[var(--tracking-label)] text-[var(--color-fg-mid)]"><span className="relative inline-block">Overall vs Full Buy<StatsTooltip className="absolute left-full top-1/2 ml-1 -translate-y-1/2" label="Overall vs Full Buy 统计口径说明" content="汇总 ECO、半起和强起对阵 Full Buy 的回合。" /></span></p>
                 </div>
                 <div className="shrink-0 text-right tabular-nums">
                   <p className="text-xl font-semibold">{formatPercent(overallEconomy.rate)}</p>
@@ -288,7 +291,7 @@ export function OverviewStats({ data, query, seasonSlug }: { data: TournamentSta
                   <p className="text-[11px] uppercase tracking-[var(--tracking-label)] text-[var(--color-fg-mid)]"><StatsMetricLabel metric={highlight.metric}>{highlight.label}</StatsMetricLabel></p>
                   {highlight.team && highlight.value ? (
                     <>
-                      <Link href={`/${seasonSlug}/teams/${highlight.team.entityKey}`} className="mt-1.5 block truncate text-sm font-medium hover:text-[var(--color-accent)]">{highlight.team.displayName}</Link>
+                      <Link href={(data.teamLinks?.[highlight.team.entityKey] ?? `/${seasonSlug}/teams/${highlight.team.entityKey}`) as never} className="mt-1.5 block truncate text-sm font-medium hover:text-[var(--color-accent)]">{highlight.team.displayName}</Link>
                       <div className="mt-1 text-lg font-semibold"><MetricValue metric={highlight.metric} value={highlight.value} sampleDisplay="compact" /></div>
                     </>
                   ) : <p className="mt-2 text-sm text-[var(--color-fg-dim)]">—</p>}

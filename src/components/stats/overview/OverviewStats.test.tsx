@@ -109,7 +109,7 @@ describe("OverviewStats", () => {
     }
 
     await user.click(screen.getByRole("button", { name: "Overall vs Full Buy 统计口径说明" }));
-    expect(screen.getByRole("tooltip")).toHaveTextContent("汇总 ECO、半起和强起对阵 Full Buy 的回合；不包含手枪局及双方经济等级相同的回合。");
+    expect(screen.getByRole("tooltip")).toHaveTextContent("汇总 ECO、半起和强起对阵 Full Buy 的回合。");
   });
 
   it("renders visual side splits and full-list navigation", () => {

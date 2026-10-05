@@ -16,6 +16,7 @@ vi.mock("next/link", async () => {
 
 function vetoData() {
   return {
+    teamLinks: { alpha: "/teams/alpha", zulu: "/major/teams/zulu" },
     results: { maps: [] },
     analytics: { maps: [] },
     coverage: { completedMaps: 0, detailedMaps: 0, maps: [] },
@@ -41,6 +42,11 @@ function vetoData() {
 }
 
 describe("MapsExplorer veto matrix", () => {
+  it("uses canonical team destinations in all-public Veto, never protocol-relative links", () => {
+    render(<MapsExplorer data={vetoData()} query={parseStatsQuery({ tab: "maps", mapsView: "veto" }, [])} seasonSlug="" />);
+    expect(screen.getByRole("link", { name: "Alpha" })).toHaveAttribute("href", "/teams/alpha");
+    expect(screen.getByRole("link", { name: "Zulu" })).toHaveAttribute("href", "/major/teams/zulu");
+  });
   it("uses neutral Pick/Ban values and sorts every leaf column with shared stats semantics", () => {
     render(<MapsExplorer data={vetoData()} query={parseStatsQuery({ tab: "maps", mapsView: "veto" }, [])} seasonSlug="major" />);
 

@@ -1,3 +1,4 @@
+import { statsEntryHref } from "@/lib/stats/view-state";
 import { Suspense, type ReactNode } from "react";
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
@@ -252,7 +253,7 @@ export async function PlayerPageContent({ params, searchParams }: PlayerPageProp
                       </div>
                     </div>
                     <Link
-                      href={`/${entry.seasonSlug}/stats?tab=players&teamFilter=${entry.teamId}`}
+                      href={statsEntryHref(entry.seasonSlug, { tab: "players", teamFilter: entry.teamId })}
                       className="shrink-0 text-xs text-[var(--color-accent)]"
                     >
                       赛事选手统计 →

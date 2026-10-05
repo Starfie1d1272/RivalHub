@@ -96,7 +96,7 @@ describe("public Player Profile", () => {
     expect(html).toContain("第 2 名");
     expect(html).toContain("官方荣誉 · 最佳选手");
     expect(html).toContain("2 场 · 1 胜 / 1 负");
-    expect(html).toContain("/event-2025/stats?tab=players&amp;teamFilter=entry-1");
+    expect(html).toContain("/stats?tab=players&amp;teamFilter=entry-1&amp;event=event-2025");
   });
 
   it("keeps identity and history available without presenting unavailable statistics as zero", async () => {

@@ -1,0 +1,122 @@
+import { partitionRankingPopulation, getDynamicRankingFloor } from "./ranking";
+import { buildMetricBenchmark, projectMetricBenchmarkScore } from "./benchmark";
+import { STATS_METRICS, type StatsMetricKey } from "./metrics";
+
+export const INSIGHT_RULES_VERSION = "2";
+export type InsightMetric = "fourVFive" | "fiveVFour" | "winAfterOpeningLoss" | "openingDeathTradedRate" | "pistol" | "conversion" | "break" | "blindPerFlash" | "netBlindPerFlash" | "friendlyBlindPerFlash";
+export type InsightFamily = "team-manpower" | "player-opening" | "player-utility" | "team-start";
+export type InsightRule = "four_v_five_resilience" | "advantage_disadvantage_inversion" | "opening_death_resilience" | "opening_death_traded" | "opening_loss_recovery_profile" | "flash_effectiveness" | "pistol_conversion_contrast" | "second_round_recovery";
+export interface InsightFact { kind: "probability" | "amountPerUnit"; x: number; n: number; value: number | null; coverage: string }
+export interface InsightEntity {
+  key: string; name: string; href: string; type: "player" | "team";
+  metrics: Partial<Record<InsightMetric, InsightFact>>;
+  flashMaps?: { mapKey: string; enemy: number; friendly: number; flashes: number }[];
+}
+export interface InsightObservation extends Omit<InsightFact, "coverage"> { metric: InsightMetric; percentile: number; count: number; peerRate?: number; insightFloor?: number }
+type ComparableObservation = InsightObservation & { coverage: string };
+export interface Insight {
+  rule: InsightRule; family: InsightFamily; entityKey: string; entityName: string; entityHref: string;
+  text: string; observations: InsightObservation[]; scope: string;
+}
+
+const families: InsightFamily[] = ["team-manpower", "player-opening", "player-utility", "team-start"];
+const probabilityMetrics: InsightMetric[] = ["fourVFive", "fiveVFour", "winAfterOpeningLoss", "openingDeathTradedRate", "pistol", "conversion", "break"];
+const amountMetrics: InsightMetric[] = ["blindPerFlash", "netBlindPerFlash", "friendlyBlindPerFlash"];
+const precision = (metric: InsightMetric) => metric === "friendlyBlindPerFlash" ? 2 : STATS_METRICS[metric as StatsMetricKey].precision;
+const displayed = (value: number, metric: InsightMetric, kind: InsightFact["kind"]) => Number((value * (kind === "probability" ? 100 : 1)).toFixed(precision(metric)));
+
+export function buildInsights(entities: readonly InsightEntity[], scope: string): Insight[] {
+  if (new Set(entities.map((e) => e.key)).size !== entities.length) throw new Error("Duplicate insight entity");
+  const comparisons = new Map<InsightMetric, Map<string, ComparableObservation>>();
+  const baselines = new Map<InsightMetric, { median: number; floor: number }>();
+  for (const metric of [...probabilityMetrics, ...amountMetrics]) {
+    const kind = probabilityMetrics.includes(metric) ? "probability" : "amountPerUnit";
+    const rows = entities.flatMap((entity) => {
+      const fact = entity.metrics[metric];
+      if (!fact || fact.kind !== kind || !fact.coverage || fact.value === null || !Number.isFinite(fact.value)
+        || !Number.isFinite(fact.x) || !Number.isFinite(fact.n) || fact.n <= 0
+        || (kind === "probability" && (!Number.isInteger(fact.x) || !Number.isInteger(fact.n) || fact.x < 0 || fact.x > fact.n))) return [];
+      return [{ entity, fact }];
+    });
+    const { ranked } = partitionRankingPopulation(rows, (r) => r.fact.value, (r) => r.fact.n);
+    const benchmark = buildMetricBenchmark(rows.map((r) => ({ value: r.fact.value, sample: r.fact.n })));
+    if (!benchmark || ranked.length < 4) continue;
+    const values = benchmark.qualifiedValues;
+    baselines.set(metric, { median: (values[Math.floor((values.length - 1) / 2)]! + values[Math.floor(values.length / 2)]!) / 2, floor: benchmark.floor.floor });
+    const insightFloor = Math.max(4, getDynamicRankingFloor(rows.map((r) => r.fact.n), 0.75, 0.5)!.floor);
+    const totals = ranked.reduce((sum, r) => ({ x: sum.x + r.fact.x, n: sum.n + r.fact.n }), { x: 0, n: 0 });
+    const observations = new Map<string, ComparableObservation>();
+    for (const row of ranked) {
+      const standing = projectMetricBenchmarkScore({ value: row.fact.value, sample: row.fact.n }, benchmark)!;
+      if (kind === "probability") {
+        if (row.fact.n < insightFloor || totals.n - row.fact.n <= 0) continue;
+        observations.set(row.entity.key, { ...row.fact, metric, percentile: standing.percentile, count: ranked.length,
+          insightFloor, peerRate: (totals.x - row.fact.x) / (totals.n - row.fact.n) });
+      } else observations.set(row.entity.key, { ...row.fact, metric, percentile: standing.percentile, count: ranked.length });
+    }
+    comparisons.set(metric, observations);
+  }
+  const get = (entity: InsightEntity, metric: InsightMetric) => comparisons.get(metric)?.get(entity.key);
+  const high = (o: ComparableObservation | undefined): o is ComparableObservation => Boolean(o && o.kind === "probability" && o.percentile >= 0.75
+    && o.value! - o.peerRate! + Number.EPSILON >= 0.05 && displayed(o.value!, o.metric, o.kind) > displayed(o.peerRate!, o.metric, o.kind));
+  const candidates: Insight[] = [];
+  const add = (entity: InsightEntity, rule: InsightRule, family: InsightFamily, text: string, observations: ComparableObservation[]) => {
+    if (observations.every((o) => o.coverage === observations[0]!.coverage)) candidates.push({ rule, family, entityKey: entity.key, entityName: entity.name, entityHref: entity.href, text, observations: observations.map(({ coverage, ...publicFact }) => { void coverage; return publicFact; }), scope });
+  };
+  const contrast = (primary: ComparableObservation | undefined, secondary: ComparableObservation | undefined) => high(primary) && secondary && secondary.percentile <= 0.5 && primary.percentile - secondary.percentile >= 0.35;
+  for (const entity of entities) {
+    if (entity.type === "team") {
+      const a = get(entity, "fourVFive"), b = get(entity, "fiveVFour");
+      if (contrast(a, b)) add(entity, "advantage_disadvantage_inversion", "team-manpower", "4v5 vs 5v4", [a!, b!]);
+      else if (high(a)) add(entity, "four_v_five_resilience", "team-manpower", "4v5 Win%", [a]);
+      const pistol = get(entity, "pistol"), conversion = get(entity, "conversion"), recovery = get(entity, "break");
+      if (contrast(pistol, conversion)) add(entity, "pistol_conversion_contrast", "team-start", "Pistol vs R2", [pistol!, conversion!]);
+      if (contrast(recovery, pistol)) add(entity, "second_round_recovery", "team-start", "R2 Break", [recovery!, pistol!]);
+    } else {
+      const death = get(entity, "winAfterOpeningLoss"), traded = get(entity, "openingDeathTradedRate");
+      if (high(death) && high(traded) && death.n === traded.n && death.coverage === traded.coverage) {
+        add(entity, "opening_loss_recovery_profile", "player-opening", "FD Recovery", [death, traded]);
+      } else {
+      if (high(death)) add(entity, "opening_death_resilience", "player-opening", "Win after FD", [death]);
+      if (high(traded)) add(entity, "opening_death_traded", "player-opening", "Traded FD", [traded]);
+      }
+      const enemy = get(entity, "blindPerFlash"), net = get(entity, "netBlindPerFlash"), friendly = get(entity, "friendlyBlindPerFlash");
+      if (!enemy || !net || !friendly || enemy.percentile < 0.75 || net.percentile < 0.75 || net.value! <= 0
+        || displayed(net.value!, net.metric, net.kind) <= 0 || (friendly.percentile > 0.25 && friendly.x !== 0)) continue;
+      const maps = entity.flashMaps?.filter((m) => m.flashes > 0);
+      if (!maps || maps.length < 2 || new Set(maps.map((m) => m.mapKey)).size !== maps.length) continue;
+      if (maps.reduce((s, m) => s + m.flashes, 0) !== enemy.n) continue;
+      const baselineE = baselines.get("blindPerFlash")!, baselineT = baselines.get("friendlyBlindPerFlash")!;
+      const baselineNet = baselines.get("netBlindPerFlash")!;
+      if (displayed(enemy.value!, enemy.metric, enemy.kind) <= displayed(baselineE.median, enemy.metric, enemy.kind)
+        || displayed(net.value!, net.metric, net.kind) <= displayed(baselineNet.median, net.metric, net.kind)) continue;
+      const stable = maps.every((map) => {
+        const f = enemy.n - map.flashes, e = enemy.x - map.enemy, t = friendly.x - map.friendly;
+        return f > 0 && f >= baselineE.floor && e - t > 0 && e / f >= baselineE.median && t / f <= baselineT.median;
+      });
+      if (stable) add(entity, "flash_effectiveness", "player-utility", "Flash Output", [enemy, net, friendly]);
+    }
+  }
+  return selectInsights(candidates);
+}
+
+export function selectInsights(candidates: readonly Insight[]): Insight[] {
+  const compare = (a: Insight, b: Insight) => {
+    const x = a.observations[0]!, y = b.observations[0]!;
+    const flashA = a.observations.find((o) => o.metric === "netBlindPerFlash")?.percentile ?? 0, flashB = b.observations.find((o) => o.metric === "netBlindPerFlash")?.percentile ?? 0;
+    return y.percentile - x.percentile || (a.family === "player-utility" && b.family === "player-utility" ? flashB - flashA : ((y.value ?? 0) - (y.peerRate ?? 0)) - ((x.value ?? 0) - (x.peerRate ?? 0)))
+      || y.n - x.n || a.entityKey.localeCompare(b.entityKey) || a.rule.localeCompare(b.rule);
+  };
+  const queues = families.map((family) => candidates.filter((c) => c.family === family).sort(compare));
+  const result: Insight[] = [], counts = new Map<string, number>(), used = new Set<string>();
+  while (queues.some((q) => q.length) && result.length < 6) {
+    for (const queue of queues) {
+      while (queue.length && result.length < 6) {
+        const candidate = queue.shift()!, key = `${candidate.entityKey}:${candidate.family}`;
+        if (used.has(key) || (counts.get(candidate.entityKey) ?? 0) >= 2) continue;
+        used.add(key); counts.set(candidate.entityKey, (counts.get(candidate.entityKey) ?? 0) + 1); result.push(candidate); break;
+      }
+    }
+  }
+  return result;
+}
