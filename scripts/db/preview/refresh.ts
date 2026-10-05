@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { Pool, type PoolClient } from "pg";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { drizzle } from "drizzle-orm/node-postgres";
-import { migrate } from "drizzle-orm/node-postgres/migrator";
+import { migrateCanonicalDatabase } from "../canonical-migrate";
 import { assertActiveChainPrefix, readExpectedMigrations } from "../production-preflight";
 import { verifyForeignKeys } from "../recovery/verify";
 import { targetEnvironment } from "./environment";
@@ -90,12 +90,12 @@ async function migrateToSource(client: PoolClient, snapshot: MirrorSnapshot): Pr
     journal.entries = journal.entries.slice(0, snapshot.migrations.length);
     writeFileSync(join(folder, "meta/_journal.json"), JSON.stringify(journal));
     for (const entry of readExpectedMigrations().slice(0, snapshot.migrations.length)) copyFileSync(`drizzle/migrations/${entry.tag}.sql`, join(folder, `${entry.tag}.sql`));
-    await migrate(drizzle(client), { migrationsFolder: folder });
+    await migrateCanonicalDatabase(drizzle(client), folder);
   } finally { rmSync(folder, { recursive: true, force: true }); }
 }
 
 async function migrateCurrent(client: PoolClient): Promise<void> {
-  await migrate(drizzle(client), { migrationsFolder: "drizzle/migrations" });
+  await migrateCanonicalDatabase(drizzle(client), "drizzle/migrations");
 }
 
 async function ensureMirrorState(client: PoolClient): Promise<void> {

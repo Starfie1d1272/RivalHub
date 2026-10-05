@@ -36,6 +36,7 @@ import { readManagedStorageReferences } from "./storage-policy";
 import { buildRecoveryR2Keys } from "./r2";
 import { buildRecoveryMigrationPlan } from "./source";
 import { assertManifestMigrationMatches, verifyRecoveryDatabase } from "./verify";
+import { runCanonicalMigrations } from "../canonical-migrate";
 import { readExpectedMigrations, type ExpectedMigration, type Migration } from "../production-preflight";
 
 const projectRoot = resolve(process.cwd());
@@ -472,11 +473,7 @@ function prepareRecoveryTargetMigration(
     ].join("\n"),
     { flag: "wx" },
   );
-  runCommand(
-    pnpmBin,
-    ["exec", "drizzle-kit", "migrate", `--config=${configPath}`],
-    { ...process.env, RIVALHUB_RECOVERY_DATABASE_URL: databaseUrl },
-  );
+  runCanonicalMigrations(configPath, { ...process.env, RIVALHUB_RECOVERY_DATABASE_URL: databaseUrl }, migrationRoot);
 }
 
 export async function prepareTargetForDataImport(pool: Pick<Pool, "query">): Promise<string[]> {
