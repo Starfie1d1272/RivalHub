@@ -71,7 +71,13 @@ export async function ensurePreviewTeamLogoBucket(
   }
 }
 
-async function resetDevSchema(client: PoolClient): Promise<void> {
+export async function resetDevSchema(client: Pick<PoolClient, "query">): Promise<void> {
+  // This application-owned policy lives outside public and otherwise survives reset.
+  await client.query(`DO $$ BEGIN
+    IF to_regclass('realtime.messages') IS NOT NULL THEN
+      DROP POLICY IF EXISTS rivalhub_match_live_receive ON realtime.messages;
+    END IF;
+  END $$`);
   await client.query("DROP SCHEMA IF EXISTS public CASCADE");
   await client.query("CREATE SCHEMA public");
   await client.query("GRANT ALL ON SCHEMA public TO postgres");
