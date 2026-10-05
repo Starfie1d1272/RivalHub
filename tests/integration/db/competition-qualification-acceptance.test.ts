@@ -286,6 +286,7 @@ async function cleanupAcceptanceFixture(pool: Pool, fixture: AcceptanceFixture):
     await client.query("DELETE FROM audit_logs WHERE season_id = $1", [fixture.seasonId]);
     await client.query("DELETE FROM match_roster_players WHERE roster_id IN (SELECT id FROM match_rosters WHERE match_id IN (SELECT id FROM matches WHERE season_id = $1))", [fixture.seasonId]);
     await client.query("DELETE FROM match_rosters WHERE match_id IN (SELECT id FROM matches WHERE season_id = $1)", [fixture.seasonId]);
+    await client.query("DELETE FROM match_maps WHERE match_id IN (SELECT id FROM matches WHERE season_id = $1)", [fixture.seasonId]);
     await client.query("DELETE FROM matches WHERE season_id = $1", [fixture.seasonId]);
     await client.query("DELETE FROM competition_qualification_entrants WHERE season_id = $1", [fixture.seasonId]);
     await client.query("DELETE FROM competition_qualification_runs WHERE season_id = $1", [fixture.seasonId]);

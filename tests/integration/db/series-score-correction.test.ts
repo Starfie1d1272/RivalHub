@@ -102,10 +102,11 @@ describe("reviewed early series completion PostgreSQL", () => {
   async function bracketFixture() {
     const f = await fixture();
     const extra = [randomUUID(), randomUUID()];
-    const owner = (await db.query.competitionEntries.findFirst({ where: eq(schema.competitionEntries.id, f.entryAId) }))!.representativeUserId;
+    const owner = (await db.query.competitionEntries.findFirst({ where: eq(schema.competitionEntries.id, f.entryAId) }))!.representativeUserId!;
     const revisions = extra.map(() => randomUUID());
     await db.transaction(async tx => {
       await tx.insert(schema.competitionEntries).values(extra.map((id, index) => ({ id, competitionId: f.seasonId, source: "event_native" as const, name: `Other ${index}`, representativeUserId: owner, currentRosterRevisionId: revisions[index]! })));
+      await tx.insert(schema.competitionEntryRepresentativeChanges).values(extra.map(id => ({ entryId: id, toUserId: owner, changedByActorId: owner })));
       await tx.insert(schema.competitionEntryRosterRevisions).values(extra.map((id, index) => ({ id: revisions[index]!, entryId: id, revisionNumber: 1, createdBy: owner })));
     });
     const entries = (await db.query.competitionEntries.findMany({ where: eq(schema.competitionEntries.competitionId, f.seasonId) }));
