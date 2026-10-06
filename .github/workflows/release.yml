@@ -57,6 +57,7 @@ jobs:
       requires_migration_rehearsal: ${{ steps.plan.outputs.requiresMigrationRehearsal }}
       requires_production_migration: ${{ steps.plan.outputs.requiresProductionMigration }}
       requires_steam_profile_backfill: ${{ steps.plan.outputs.requiresSteamProfileBackfill }}
+      requires_competitive_profile_repair: ${{ steps.plan.outputs.requiresCompetitiveProfileRepair }}
       requires_stats_projection_backfill: ${{ steps.plan.outputs.requiresStatsProjectionBackfill }}
       requires_db_checkpoint: ${{ steps.plan.outputs.requiresDbCheckpoint }}
       requires_full_checkpoint: ${{ steps.plan.outputs.requiresFullCheckpoint }}
@@ -397,6 +398,9 @@ jobs:
             scripts/db/production-environment.ts \
             scripts/db/stats-projections.ts \
             scripts/db/production-stats-projections.ts \
+            src/lib/competitive/profile-repair.ts \
+            scripts/db/competitive-profile-repair.ts \
+            scripts/db/production-competitive-profile-repair.ts \
             src/lib/stats/projection-backfill.ts \
             src/lib/stats/projection-version.ts \
             src/lib/stats/projection.ts \
@@ -432,6 +436,16 @@ jobs:
             node scripts/ci/timing.mjs "Production migration" -- env RIVALHUB_ALLOW_REMOTE_DB_WRITE=production pnpm db:production:migrate
           fi
           node scripts/ci/timing.mjs "Production DB verify" -- pnpm db:production:verify
+
+      - name: 安全补齐 production 历史最高达成赛季
+        if: needs.preflight.outputs.requires_competitive_profile_repair == 'true'
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          RIVALHUB_ALLOW_REMOTE_DB_WRITE: production
+        run: |
+          node scripts/ci/timing.mjs "Competitive profile repair dry-run" -- pnpm exec tsx scripts/db/production-competitive-profile-repair.ts
+          node scripts/ci/timing.mjs "Competitive profile repair apply" -- pnpm exec tsx scripts/db/production-competitive-profile-repair.ts --apply
+          node scripts/ci/timing.mjs "Competitive profile repair verify" -- pnpm exec tsx scripts/db/production-competitive-profile-repair.ts --verify
 
       - name: 回填 production Steam profile cache
         if: needs.preflight.outputs.requires_steam_profile_backfill == 'true'

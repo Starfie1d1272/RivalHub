@@ -60,6 +60,7 @@ export function CompetitiveProfileForm({
   const [seasonFacts, setSeasonFacts] = useState<Record<string, Fact>>(() => Object.fromEntries((first?.seasons ?? []).map((season) => [season.seasonKey, factFor(first, season.seasonKey)])));
   const [expanded, setExpanded] = useState(Boolean(targetedOlderSeason));
   const [editingHistory, setEditingHistory] = useState<string | null>(targetedOlderSeason?.seasonKey ?? null);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
@@ -152,13 +153,24 @@ export function CompetitiveProfileForm({
       })}
       {hiddenOlderCount > 0 && <Button type="button" variant="outline" aria-expanded={expanded} onClick={() => setExpanded((current) => !current)}>{expanded ? "收起历史赛季" : `查看全部历史赛季（${hiddenOlderCount}）`}</Button>}
     </section>}
+    {achievedSeasonKey !== "unknown" && <div className="space-y-2 text-sm"><p>保存后会同步为 {achievedSeasonKey} 的最高记录，无需重复填写。若两个值不同，请明确选择正确记录。</p><p>历史最高：{summary(historical, context)}；{achievedSeasonKey}：{summary(seasonFacts[achievedSeasonKey] ?? emptyFact(), context)}</p><div className="flex gap-2"><Button type="button" variant="outline" size="sm" onClick={() => { setSeasonFacts(current => ({ ...current, [achievedSeasonKey]: { ...historical } })); setSaved(false); setSaveError(null); }}>采用历史最高记录</Button><Button type="button" variant="outline" size="sm" disabled={seasonFacts[achievedSeasonKey]?.status !== "ranked"} onClick={() => { setHistorical({ ...seasonFacts[achievedSeasonKey]! }); setSaved(false); setSaveError(null); }}>采用该赛季记录</Button></div></div>}
+    {saveError && <StatusBanner tone="warn" title="竞技记录需要确认" sub={saveError} />}
     {saved && <StatusBanner tone="success" title="竞技档案已保存" sub="报名和赛务审核会使用你最新保存的资料。" />}
     <div className="flex flex-wrap items-center gap-3"><Button disabled={pending} onClick={() => {
       if (invalidRanked(HISTORICAL_KEY, historical)) { toast.error("历史最高需要填写段位、Rating，以及所选段位要求的星数。"); return; }
       const invalid = context.seasons.find((season) => invalidRanked(season.seasonKey, seasonFacts[season.seasonKey] ?? emptyFact()));
       if (invalid) { toast.error(`「${invalid.label}」已选择已定级，请补齐段位、Rating 与所需星数。`); return; }
       const payload = { platform: context.platform, historicalPeak: { status: "ranked" as const, rank: historical.rank, rating: Number(historical.rating), stars: historical.stars === "" ? null : Number(historical.stars), achievedSeasonKey: achievedSeasonKey === "unknown" ? null : achievedSeasonKey }, seasonPeaks: context.seasons.map((season) => { const fact = seasonFacts[season.seasonKey] ?? emptyFact(); return fact.status === "ranked" ? { seasonKey: season.seasonKey, status: "ranked" as const, rank: fact.rank, rating: Number(fact.rating), stars: fact.stars === "" ? null : Number(fact.stars) } : fact.status === "unranked" ? { seasonKey: season.seasonKey, status: "unranked" as const, rating: fact.rating === "" ? null : Number(fact.rating) } : { seasonKey: season.seasonKey, status: "unrecorded" as const }; }) };
-      startTransition(async () => { const result = await saveCompetitiveProfile(payload); if (result.success) { setSaved(true); toast.success("竞技档案已保存"); } else toast.error(result.error.message); });
+      startTransition(async () => { const result = await saveCompetitiveProfile(payload); if (result.success) {
+        if (result.data) {
+          const peak = result.data.historicalPeak;
+          setHistorical({ status: "ranked", rank: peak.rank, stars: peak.stars === null ? "" : String(peak.stars), rating: String(peak.rating) });
+          setAchievedSeasonKey(peak.achievedSeasonKey ?? "unknown");
+          setSeasonFacts(Object.fromEntries(result.data.seasonPeaks.map(peak => [peak.seasonKey, peak.status === "ranked" ? { status: peak.status, rank: peak.rank, stars: peak.stars === null ? "" : String(peak.stars), rating: String(peak.rating) } : peak.status === "unranked" ? { status: peak.status, rank: "", stars: "", rating: peak.rating === null ? "" : String(peak.rating) } : emptyFact()])));
+          toast.success(["竞技档案已保存", ...result.data.notices].join("；"));
+        } else toast.success("竞技档案已保存");
+        setSaveError(null); setSaved(true);
+      } else { setSaveError(result.error.message); toast.error(result.error.message); } });
     }}>{pending ? "保存中…" : "保存竞技档案"}</Button><span className="font-mono text-[11px] text-[var(--color-fg-mid)]">把已存资料改回“未录入”会删除该赛季声明。</span></div>
   </div></Panel>;
 }

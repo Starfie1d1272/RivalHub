@@ -45,6 +45,7 @@ export interface SeasonWorkspaceOverviewData {
 }
 
 export interface MajorStrengthFact {
+  rating?: number | null;
   rank: string;
   stars: number | null;
   sourcePlatform: string | null;
@@ -61,6 +62,7 @@ export interface MajorStrengthStarter {
   userId: string;
   label: string;
   presentation: {
+    compositeRank?: { rank: string; stars: number | null } | null;
     historicalPeak: MajorStrengthFact | null;
     referenceSeasonPeak: MajorStrengthFact | null;
     currentSeasonPeak: MajorStrengthFact | null;

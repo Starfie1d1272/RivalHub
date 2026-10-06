@@ -4,8 +4,8 @@ import {
   type PlayerStrengthInput,
 } from "./player-strength";
 
-/** Team scores are persisted at the smallest precision produced by five 50/20/30 weighted ranks. */
-export const TEAM_SEED_STRENGTH_SCALE = 100 as const;
+/** Team scores are persisted at the smallest precision produced by five 50/20/30 weighted continuous-star ranks. */
+export const TEAM_SEED_STRENGTH_SCALE = 150 as const;
 
 export type SeedOrderRowStatus = "aligned" | "tie_resolved" | "adjusted" | "unsaved";
 

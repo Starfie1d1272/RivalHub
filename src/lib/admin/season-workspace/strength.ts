@@ -1,6 +1,8 @@
+import { compositeDisplayRank } from "@/lib/major/composite-rank";
 import type { MajorStrengthFact, MajorStrengthStarter, MajorStrengthTeam, MajorStrengthTieState } from "./types";
 
 export type ProjectableStrengthFact = {
+  rating?: number | null;
   rank: string;
   stars?: number | null;
   sourcePlatform?: string | null;
@@ -49,6 +51,7 @@ type StrengthTeamProjection = {
 
 export function projectStrengthFact(fact: ProjectableStrengthFact | null): MajorStrengthFact | null {
   return fact ? {
+    rating: fact.rating ?? null,
     rank: fact.rank,
     stars: fact.stars ?? null,
     sourcePlatform: fact.sourcePlatform ?? null,
@@ -72,6 +75,7 @@ export function projectStrengthStarter(starter: StrengthStarterProjection): Majo
     userId: starter.userId,
     label: starter.label,
     presentation: {
+      compositeRank: compositeDisplayRank(starter.breakdown.weightedRank),
       historicalPeak,
       referenceSeasonPeak,
       currentSeasonPeak,
@@ -88,7 +92,7 @@ function projectTieState(team: StrengthTeamProjection, tieGroupSize: number): Ma
   return tieGroupSize > 1 ? "tied" : "not_tied";
 }
 
-export function projectStrengthTeams(teams: readonly StrengthTeamProjection[]): MajorStrengthTeam[] {
+export function projectStrengthTeams(teams: readonly StrengthTeamProjection[], compositeAxis = true): MajorStrengthTeam[] {
   const tieGroupSizes = new Map<number, number>();
   for (const team of teams) {
     if (team.tieGroup !== null) tieGroupSizes.set(team.tieGroup, (tieGroupSizes.get(team.tieGroup) ?? 0) + 1);
@@ -102,6 +106,10 @@ export function projectStrengthTeams(teams: readonly StrengthTeamProjection[]): 
     recommendationRank: team.recommendationRank,
     displayOrder: team.displayOrder,
     tieState: projectTieState(team, team.tieGroup === null ? 0 : tieGroupSizes.get(team.tieGroup) ?? 0),
-    starters: team.starters.map(projectStrengthStarter),
+    starters: team.starters.map(starter => {
+      const projected = projectStrengthStarter(starter);
+      if (!compositeAxis) projected.presentation.compositeRank = null;
+      return projected;
+    }),
   }));
 }
