@@ -143,6 +143,7 @@ export interface MajorPrestartPageData {
       recentRosterChange: { added: string[]; removed: string[]; primaryChanged: string[] } | null;
     }>;
     qualification: {
+      draft: { order: string[]; format: "direct_bo3" | "short_swiss_2w2l"; targetEntrantCount: number; version: number; updatedBy: string; updatedAt: string; stale: boolean } | null;
       run: {
         id: string;
         format: "direct_bo3" | "short_swiss_2w2l";

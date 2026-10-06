@@ -307,6 +307,7 @@ async function removeFixtureDatabaseRows(client: PoolClient, scenario: ScenarioD
   await client.query("DELETE FROM match_maps WHERE match_id IN (SELECT id FROM matches WHERE season_id = $1)", [scenario.seasonId]);
   await client.query("DELETE FROM matches WHERE season_id = $1", [scenario.seasonId]);
   await client.query("DELETE FROM competition_qualification_entrants WHERE season_id = $1", [scenario.seasonId]);
+  await client.query("DELETE FROM competition_qualification_drafts WHERE season_id = $1", [scenario.seasonId]);
   await client.query("DELETE FROM competition_qualification_runs WHERE season_id = $1", [scenario.seasonId]);
   await client.query("DELETE FROM major_final_results WHERE season_id = $1", [scenario.seasonId]);
   await client.query("DELETE FROM tournament_honors WHERE season_id = $1", [scenario.seasonId]);
@@ -460,8 +461,10 @@ async function insertEducationVerifications(client: PoolClient, scenario: Scenar
   await insertApprovedInstitutionalEmailVerifications(client, verifications);
 }
 
+const QUALIFICATION_ROSTER_SIZES = [5, ...Array(6).fill(6), ...Array(11).fill(7), ...Array(7).fill(8), ...Array(5).fill(9)] as number[];
+
 function qualificationCandidateUsers(scenario: ScenarioDefinition): Array<{ key: string; userId: string; email: string }> {
-  return Array.from({ length: 30 }, (_, teamIndex) => Array.from({ length: 5 }, (_, playerIndex) => {
+  return Array.from({ length: 30 }, (_, teamIndex) => Array.from({ length: QUALIFICATION_ROSTER_SIZES[teamIndex]! }, (_, playerIndex) => {
     const key = `candidate-${teamIndex + 1}-${playerIndex + 1}`;
     return {
       key,
@@ -474,7 +477,7 @@ function qualificationCandidateUsers(scenario: ScenarioDefinition): Array<{ key:
 async function insertQualificationCandidateUsers(client: PoolClient, scenario: ScenarioDefinition): Promise<void> {
   const rows = qualificationCandidateUsers(scenario).map((candidate, index) => {
     const steam64 = `765611980${String(index + 1).padStart(8, "0")}`;
-    return [candidate.userId, candidate.email, `Candidate ${candidate.key}`, `Candidate Perfect ${candidate.key}`, steam64, `743${String(index + 1).padStart(7, "0")}`];
+    return [candidate.userId, candidate.email, `Player${index + 1}`, `Player${index + 1}`, steam64, `743${String(index + 1).padStart(7, "0")}`];
   });
   const { sql: valuesSql, values } = parameterizedValues(rows, ["uuid", "text", "text", "text", "text", "text"]);
   await client.query(
@@ -513,14 +516,14 @@ async function insertQualificationCandidates(client: PoolClient, scenario: Scena
   for (let teamIndex = 0; teamIndex < 30; teamIndex += 1) {
     const entryId = deterministicUuid(`${scenario.scenarioId}:entry:${teamIndex + 1}`);
     const revisionId = deterministicUuid(`${scenario.scenarioId}:entry:${teamIndex + 1}:revision:1`);
-    const members = candidates.slice(teamIndex * 5, teamIndex * 5 + 5);
+    const members = candidates.filter(candidate => candidate.key.startsWith(`candidate-${teamIndex + 1}-`));
     const representative = members[0]!;
     entries.push([entryId, scenario.seasonId, `Qualification Entry ${String(teamIndex + 1).padStart(2, "0")}`, `https://local.test/${entryId}.png`, representative.userId, `fixture-${entryId}`, revisionId]);
     representativeChanges.push([entryId, representative.userId]);
     revisions.push([revisionId, entryId]);
-    for (const member of members) {
+    for (const [memberIndex, member] of members.entries()) {
       participants.push([entryId, member.userId, representative.userId]);
-      rosterMembers.push([entryId, revisionId, member.userId, true]);
+      rosterMembers.push([entryId, revisionId, member.userId, memberIndex < 5]);
     }
   }
 

@@ -7,11 +7,13 @@ import { MajorCompetitionFlow } from "@/components/admin/MajorCompetitionFlow";
 import type { MajorPrestartPageData } from "@/lib/admin/season-workspace/types";
 
 Object.assign(globalThis, { React });
+const saveDraft = vi.hoisted(() => vi.fn());
+const configure = vi.hoisted(() => vi.fn(async () => ({ success: true, data: undefined })));
 const saveOrder = vi.hoisted(() => vi.fn(async () => ({ success: true, data: undefined })));
 vi.mock("@/actions/competition-qualification", () => ({
-  configureCompetitionQualification: vi.fn(), generateCompetitionQualificationRound: vi.fn(),
+  configureCompetitionQualification: configure, generateCompetitionQualificationRound: vi.fn(),
   previewCompetitionQualificationRound: vi.fn(), resetCompetitionQualification: vi.fn(),
-  saveCompetitionQualificationOrder: saveOrder,
+  saveCompetitionQualificationOrder: saveOrder, saveCompetitionQualificationDraft: saveDraft,
 }));
 vi.mock("@/actions/major-prestart", () => ({ selectMajorEntrants: vi.fn(), setMajorManagedProfile: vi.fn() }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
@@ -33,14 +35,48 @@ const data = {
 } as unknown as MajorPrestartPageData["management"];
 
 describe("configured Qualification ranking", () => {
-  it("edits the persisted #2 rank rather than the stale system order and saves one batch", async () => {
-    const user = userEvent.setup();
+  it("keeps the configured order locked before round one", () => {
     render(<MajorCompetitionFlow data={data} phase="runtime" />);
     expect(screen.getByText("B").closest("tr")).toHaveTextContent("#2");
-    await user.click(screen.getByRole("button", { name: "将B下移" }));
-    expect(screen.getByText("B").closest("tr")).toHaveTextContent("#3");
-    await user.click(screen.getByRole("button", { name: "保存排序" }));
-    await waitFor(() => expect(saveOrder).toHaveBeenCalledWith({ seasonId: "season-1", runId: "run-1", orderedCompetitionEntryIds: ["A", "C", "B"] }));
-    expect(saveOrder).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("button", { name: "将B下移" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "保存排序" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "重置配置" })).toBeEnabled();
+    expect(saveOrder).not.toHaveBeenCalled();
+  });
+});
+
+function draftData() {
+  const ids = Array.from({ length: 26 }, (_, index) => `entry-${index}`);
+  return { ...data, approvedCandidateCount: 26, initialPreliminaryOrderEntryIds: ids,
+    approvedCandidates: ids.map(id => ({ id, name: id, roster: { members: [] } })),
+    qualification: { run: null, draft: null },
+  } as unknown as MajorPrestartPageData["management"];
+}
+
+describe("shared preliminary draft", () => {
+  it("requires save, marks edits dirty and confirms the saved version", async () => {
+    const user = userEvent.setup();
+    const fresh = draftData();
+    saveDraft.mockImplementation(async input => ({ success: true, data: { ...input, targetEntrantCount: 24, version: 1, updatedBy: "committee", updatedAt: "2026-10-06T08:00:00Z", stale: false } }));
+    render(<MajorCompetitionFlow data={fresh} phase="plan" />);
+    expect(screen.getByRole("button", { name: "预览 Play-in 配置" })).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: "保存草稿" }));
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("草稿 v1"));
+    await waitFor(() => expect(screen.getByRole("button", { name: "预览 Play-in 配置" })).toBeEnabled());
+    await user.click(screen.getByRole("button", { name: "将entry-0下移" }));
+    expect(screen.getByRole("status")).toHaveTextContent("未保存修改");
+    expect(screen.getByRole("button", { name: "预览 Play-in 配置" })).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: "将entry-0上移" }));
+    await user.click(screen.getByRole("button", { name: "预览 Play-in 配置" }));
+    await user.click(screen.getByRole("button", { name: "确认并锁定配置" }));
+    await waitFor(() => expect(configure).toHaveBeenCalledWith({ seasonId: fresh.seasonId, format: "direct_bo3", preliminaryOrderEntryIds: fresh.initialPreliminaryOrderEntryIds, expectedDraftVersion: 1 }));
+  });
+  it("does not restore missing candidates from a stale server draft", () => {
+    const fresh = draftData();
+    fresh.qualification.draft = { order: ["removed-entry"], format: "direct_bo3", targetEntrantCount: 24, version: 3, updatedBy: "committee", updatedAt: "2026-10-06T08:00:00Z", stale: true };
+    render(<MajorCompetitionFlow data={fresh} phase="plan" />);
+    expect(screen.getByRole("status")).toHaveTextContent("候选集合已变化");
+    expect(screen.queryByText("removed-entry")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "预览 Play-in 配置" })).toBeDisabled();
   });
 });

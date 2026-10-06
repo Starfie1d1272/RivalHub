@@ -34,7 +34,7 @@ describe("Major final seed workspace", () => {
     render(<MajorTournamentSeedsManagement data={data} management={management} />);
     expect(screen.getByRole("row", { name: /Team One/ })).toHaveTextContent("原 #4");
     expect(screen.getByRole("row", { name: /Team One/ })).toHaveTextContent("Play-in 晋级 · 2-0");
-    expect(screen.getByRole("link", { name: "Player One" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Player One，主力/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "保存排序" })).toBeEnabled();
     expect(screen.getByRole("button", { name: "确认最终种子" })).toBeDisabled();
     expect(screen.queryByText(/weightedRank|teamSeedStrength/)).not.toBeInTheDocument();

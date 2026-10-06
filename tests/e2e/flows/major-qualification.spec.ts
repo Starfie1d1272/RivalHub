@@ -11,6 +11,10 @@ test("管理员预览并确认 30 队到 Major 24 的 Play-in 配置与首轮对
   await expect(page.getByRole("button", { name: "预览 Play-in 配置" })).toBeVisible();
   await page.getByRole("combobox", { name: "赛制" }).click();
   await page.getByRole("option", { name: /Short Swiss BO1 · 2 胜晋级 \/ 2 负淘汰/ }).click();
+  await expect(page.getByRole("button", { name: "预览 Play-in 配置" })).toBeDisabled();
+  await page.getByRole("button", { name: "保存草稿" }).click();
+  await expect(page.getByRole("status")).toContainText("已保存");
+  await page.reload();
   await page.getByRole("button", { name: "预览 Play-in 配置" }).click();
 
   const configurationPreview = page.getByRole("dialog", { name: "Play-in 配置预览" });
@@ -83,6 +87,10 @@ test("Direct BO3 使用镜像种子且公开展示晋级摘要", async ({ page, 
   if (!admin) throw new Error(`E2E scenario ${scenario.scenarioId} 缺少管理员账号。`);
 
   await signInProgrammatically(page, admin, scenario, `/admin/${scenario.slug}/prestart`);
+  await expect(page.getByRole("button", { name: "预览 Play-in 配置" })).toBeDisabled();
+  await page.getByRole("button", { name: "保存草稿" }).click();
+  await expect(page.getByRole("status")).toContainText("已保存");
+  await page.reload();
   await page.getByRole("button", { name: "预览 Play-in 配置" }).click();
   const configurationPreview = page.getByRole("dialog", { name: "Play-in 配置预览" });
   await expect(configurationPreview.getByText(/赛制\s*Direct BO3/)).toBeVisible();

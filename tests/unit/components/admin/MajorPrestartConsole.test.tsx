@@ -21,7 +21,7 @@ const management: MajorPrestartManagementData = {
   entrantCapacity: 32, entrantsLocked: false, approvedCandidateCount: 0, pendingReviewCount: 0,
   initialPreliminaryOrderEntryIds: [], rankingRoster: [],
   strengthPreview: { status: "ready", platform: "perfect_world", conversionPolicyId: null, conversionPolicyVersion: null, blockers: [], teams: [] },
-  approvedCandidates: [], entrants: [], qualification: { run: null },
+  approvedCandidates: [], entrants: [], qualification: { run: null, draft: null },
 };
 const seeds: MajorTournamentSeedsManagementData = {
   seasonId: "season-1", entrantCapacity: 32, firstSwissStageName: "阶段一", entryCohorts: [],

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, type CSSProperties, type DragEvent } from "react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogBody } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
 import { isBuiltInStarRank } from "@/lib/competitive/builtins";
@@ -32,7 +33,7 @@ type Props = {
   cohortBoundaries?: Array<{ after: number; label: string }>;
 };
 
-const ZOOMS = [50, 60, 75, 90, 100, 110, 125] as const;
+const ZOOMS = [90, 100, 110, 125] as const;
 const STORAGE_KEY = "rivalhub-major-ranking-preferences";
 
 function rankText(fact: MajorStrengthFact | null, platform: string | null): string {
@@ -41,29 +42,47 @@ function rankText(fact: MajorStrengthFact | null, platform: string | null): stri
   return presentCompetitiveRankSummary(fact.rank, fact.stars, isBuiltInStarRank(platform ?? "perfect_world", fact.rank));
 }
 
+function compactRank(fact: MajorStrengthFact | null): string {
+  if (!fact) return "—";
+  const short = ({ "青铜S": "铜", "黄金S": "金", "钻石S": "钻", "魔王S": "魔" } as Record<string, string>)[fact.rank];
+  return short ? `${short}${fact.stars ?? "?"}` : `${fact.rank}${fact.stars === null ? "" : fact.stars}`;
+}
+
+function rankTone(fact: MajorStrengthFact | null): string {
+  if (!fact) return "text-[var(--color-fg-dim)]";
+  if (["青铜S", "黄金S", "钻石S", "魔王S", "S", "SS", "SSS"].includes(fact.rank)) return "border-violet-400/40 bg-violet-400/10 text-violet-600 dark:text-violet-300";
+  if (fact.rank.startsWith("A")) return "border-blue-400/40 bg-blue-400/10 text-blue-600 dark:text-blue-300";
+  if (fact.rank.startsWith("B")) return "border-emerald-400/40 bg-emerald-400/10 text-emerald-700 dark:text-emerald-300";
+  return "border-[var(--color-border)] text-[var(--color-fg-mid)]";
+}
+
 function PlayerCell({ member, platform }: { member: RankingMember; platform: string | null }) {
+  const [open, setOpen] = useState(false);
   const facts = [
-    ["今", member.presentation.currentSeasonPeak],
-    ["近", member.presentation.recentPeak],
-    ["前", member.presentation.referenceSeasonPeak],
-    ["史", member.presentation.historicalPeak],
+    ["今", member.presentation.currentSeasonPeak], ["近", member.presentation.recentPeak],
+    ["前", member.presentation.referenceSeasonPeak], ["史", member.presentation.historicalPeak],
   ] as const;
-  return <details className="group min-w-0">
-    <summary className="cursor-pointer list-none focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]">
-      <span className="flex items-center gap-1 truncate font-medium text-[var(--color-fg)]">
-        <PlayerProfileLink userId={member.userId} className="truncate" onClick={(event) => event.stopPropagation()}>{member.label}</PlayerProfileLink>
-        <span className="shrink-0 rounded border border-[var(--color-border)] px-1 text-[.9em] text-[var(--color-fg-mid)]">{member.isPrimaryStarter ? "主" : "替"}</span>
-      </span>
-      <span className="mt-0.5 grid grid-cols-2 gap-x-2 gap-y-0.5 text-[var(--color-fg-mid)]">
-        {facts.map(([label, fact]) => <span key={label} className="truncate whitespace-nowrap"><b className="font-normal text-[var(--color-fg-dim)]">{label}</b> {rankText(fact, platform)}</span>)}
-      </span>
-    </summary>
-    <div className="mt-2 min-w-48 border-t border-[var(--color-border)] pt-2 text-[.95em] text-[var(--color-fg-mid)]">
-      {facts.map(([label, fact]) => <p key={label}>{label}：{rankText(fact, platform)}{fact?.estimatedFromSeasonKey ? ` · 按 ${fact.estimatedFromSeasonKey} 已定级记录下一档估算` : fact?.estimatedFromHistorical ? " · 无逐赛季已定级记录，按历史最高下一档估算" : ""}{fact?.sourcePlatform && !fact.estimatedFromUnranked ? ` · ${sourceLabel(fact.sourcePlatform)}` : ""}{fact?.sourceSeasonKey && !fact.estimatedFromUnranked ? ` · ${fact.sourceSeasonKey}` : ""}{fact?.sourceRank ? ` · 原始 ${fact.sourceRank}${fact.sourceStars === null ? "" : ` ${fact.sourceStars} 星`}` : ""}{fact?.conversionVersion ? ` · 换算 ${fact.conversionVersion}` : ""}</p>)}
-      {member.presentation.historicalRating !== null && <p>历史 Rating {member.presentation.historicalRating}</p>}
-      {member.presentation.blockers.map((blocker) => <p key={blocker} className="text-[var(--color-warn)]">{blocker}</p>)}
-    </div>
-  </details>;
+  const flagged = member.presentation.blockers.length > 0 || facts.some(([, fact]) => fact?.estimatedFromUnranked);
+  return <>
+    <button type="button" onClick={() => setOpen(true)} aria-label={`${member.label}，${member.isPrimaryStarter ? "主力" : "替补"}，查看实力证据`}
+      className="inline-flex shrink-0 items-center gap-0.5 whitespace-nowrap rounded px-0.5 focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
+      title={`${member.label} · ${member.isPrimaryStarter ? "主力" : "替补"} · 近 ${rankText(member.presentation.recentPeak, platform)} · 史 ${rankText(member.presentation.historicalPeak, platform)}${flagged ? " · 资料需关注" : ""}`}>
+      <span className="max-w-[10em] truncate font-medium text-[var(--color-fg)]">{member.label}</span>
+      <span aria-label="近期有效段位" className={`rounded border px-0.5 tabular-nums ${rankTone(member.presentation.recentPeak)}`}>{compactRank(member.presentation.recentPeak)}</span>
+      {member.isPrimaryStarter && <span aria-label="历史最高段位" className="text-[var(--color-fg-mid)]">史{compactRank(member.presentation.historicalPeak)}</span>}
+      {member.isPrimaryStarter && member.presentation.historicalRating !== null && <span className="tabular-nums text-[var(--color-fg-mid)]">R{member.presentation.historicalRating.toFixed(2)}</span>}
+      {flagged && <span aria-label="资料需关注" className="text-[var(--color-warn)]">·</span>}
+    </button>
+    <Dialog open={open} onOpenChange={setOpen}><DialogContent>
+      <DialogHeader><DialogTitle>{member.label} · {member.isPrimaryStarter ? "主力" : "替补"}</DialogTitle><DialogDescription>本届统一段位与来源证据</DialogDescription></DialogHeader>
+      <DialogBody className="space-y-2 text-sm">
+        <PlayerProfileLink userId={member.userId}>查看选手资料</PlayerProfileLink>
+        {facts.map(([label, fact]) => <p key={label}>{label}：{rankText(fact, platform)}{fact?.estimatedFromSeasonKey ? ` · 按 ${fact.estimatedFromSeasonKey} 已定级记录下一档估算` : fact?.estimatedFromHistorical ? " · 无逐赛季已定级记录，按历史最高下一档估算" : ""}{fact?.sourcePlatform ? ` · ${sourceLabel(fact.sourcePlatform)}` : ""}{fact?.sourceSeasonKey ? ` · ${fact.sourceSeasonKey}` : ""}{fact?.sourceRank ? ` · 原始 ${fact.sourceRank}${fact.sourceStars === null ? "" : ` ${fact.sourceStars} 星`}` : ""}{fact?.conversionVersion ? ` · 换算 ${fact.conversionVersion}` : ""}</p>)}
+        {member.presentation.historicalRating !== null && <p>可比较历史 Rating {member.presentation.historicalRating}</p>}
+        {member.presentation.blockers.map(blocker => <p key={blocker} className="text-[var(--color-warn)]">{blocker}</p>)}
+      </DialogBody>
+    </DialogContent></Dialog>
+  </>;
 }
 
 function MoveControl({ rank, total, onMove }: { rank: number; total: number; onMove: (rank: number) => void }) {
@@ -97,18 +116,16 @@ export function MajorRankingWorkspace({ mode, teams, order, onOrderChange, platf
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ zoom, overview }));
   }, [zoom, overview]);
-  const factor = zoom / 100 * (overview ? .84 : 1);
+  const factor = zoom / 100;
   const style = {
     "--matrix-font": `${Math.max(9, 11 * factor)}px`,
-    "--matrix-player-width": `${Math.round(170 * factor)}px`,
-    "--matrix-team-width": `${Math.round(178 * factor)}px`,
-    "--matrix-pad-x": `${Math.round(8 * factor)}px`,
-    "--matrix-pad-y": `${Math.round(5 * factor)}px`,
-    "--matrix-row-height": `${Math.round(65 * factor)}px`,
+    "--matrix-team-width": `${Math.round(140 * factor)}px`,
+    "--matrix-pad-x": `${Math.round(4 * factor)}px`,
+    "--matrix-pad-y": `${Math.round(2 * factor)}px`,
+    "--matrix-row-height": `${Math.round((overview ? 24 : 28) * factor)}px`,
   } as CSSProperties;
   const byId = new Map(teams.map((team) => [team.entryId, team]));
   const ordered = order.map((id) => byId.get(id)).filter((team): team is RankingTeam => Boolean(team));
-  const maxMembers = Math.max(5, ...ordered.map((team) => team.members.length));
   const editable = Boolean(onOrderChange);
   const move = (entryId: string, targetRank: number) => {
     if (!onOrderChange) return;
@@ -123,7 +140,7 @@ export function MajorRankingWorkspace({ mode, teams, order, onOrderChange, platf
   const rankLabel = mode === "reference" ? "系统参考" : mode === "preliminary" ? "预排名" : "最终种子";
   return <section style={style} aria-label={`${rankLabel}工作台`} className="space-y-2">
     <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-[var(--color-fg-mid)]">
-      <p>系统参考仅按 5 名预定主力计算；完整名单供赛委会综合判断。</p>
+      <p>系统参考仅计算 5 名主力；细线右侧为替补。近：彩色段位 · 史：历史最高 · R：可比较 Rating。{boundaryAfter !== undefined ? ` 前 ${boundaryAfter} 队直通，其余 Play-in。` : ""}</p>
       <div className="flex items-center gap-2">
         <Button type="button" size="sm" variant="ghost" aria-label="缩小矩阵" disabled={zoom === ZOOMS[0]} onClick={() => setZoom(ZOOMS[Math.max(0, ZOOMS.indexOf(zoom as typeof ZOOMS[number]) - 1)]!)}>−</Button>
         <span className="w-9 text-center tabular-nums">{zoom}%</span>
@@ -138,7 +155,7 @@ export function MajorRankingWorkspace({ mode, teams, order, onOrderChange, platf
           {mode !== "reference" && <th className="sticky left-20 top-0 z-30 w-16 min-w-16 border-b border-[var(--color-border)] bg-[var(--color-panel-low)] px-1 py-2">系统参考</th>}
           <th className={`sticky top-0 z-30 border-b border-[var(--color-border)] bg-[var(--color-panel-low)] px-[var(--matrix-pad-x)] py-2 ${mode === "reference" ? "left-20" : "left-36"}`} style={{ minWidth: "var(--matrix-team-width)" }}>队伍</th>
           {mode === "final" && <th className="sticky top-0 z-20 min-w-32 border-b border-[var(--color-border)] bg-[var(--color-panel-low)] px-2 py-2">原预排 · 资格路径</th>}
-          {Array.from({ length: maxMembers }, (_, index) => <th key={index} className="sticky top-0 z-20 border-b border-[var(--color-border)] bg-[var(--color-panel-low)] px-[var(--matrix-pad-x)] py-2" style={{ minWidth: "var(--matrix-player-width)" }}>选手 {index + 1}</th>)}
+          <th className="sticky top-0 z-20 border-b border-[var(--color-border)] bg-[var(--color-panel-low)] px-1 py-2">完整阵容 · 主力 / 替补</th>
         </tr></thead>
         <tbody>{ordered.map((team, index) => {
           const rank = index + 1;
@@ -147,17 +164,24 @@ export function MajorRankingWorkspace({ mode, teams, order, onOrderChange, platf
           return <tr key={team.entryId} draggable={editable} onDragStart={() => setDraggingId(team.entryId)} onDragEnd={() => setDraggingId(null)} onDragOver={(event) => { if (editable) event.preventDefault(); }} onDrop={(event) => drop(event, rank)} className={`${draggingId === team.entryId ? "opacity-45" : ""} ${boundary || rank === (boundaryAfter ?? -1) + 1 ? "[&>td]:border-t-2 [&>td]:border-t-[var(--color-accent)]" : ""} ${direct ? "bg-[var(--color-panel-low)]" : ""}`} style={{ height: "var(--matrix-row-height)" }}>
             <td className="sticky left-0 z-10 border-b border-[var(--color-border)] bg-[var(--color-bg)] px-[var(--matrix-pad-x)] py-[var(--matrix-pad-y)] align-middle tabular-nums">
               <strong>{mode === "reference" && team.systemRank === null ? "—" : `#${mode === "reference" ? team.systemRank : rank}`}{mode === "reference" && team.tieState === "tied" ? " 并列" : ""}</strong>
-              {editable && <div className="mt-0.5 flex items-center gap-0.5"><button type="button" aria-label={`将${team.teamName}上移`} disabled={index === 0} onClick={() => move(team.entryId, rank - 1)} className="disabled:opacity-30">↑</button><button type="button" aria-label={`将${team.teamName}下移`} disabled={index === order.length - 1} onClick={() => move(team.entryId, rank + 1)} className="disabled:opacity-30">↓</button></div>}
+              {editable && <span className="ml-1 inline-flex items-center gap-0.5"><button type="button" aria-label={`将${team.teamName}上移`} disabled={index === 0} onClick={() => move(team.entryId, rank - 1)} className="disabled:opacity-30">↑</button><button type="button" aria-label={`将${team.teamName}下移`} disabled={index === order.length - 1} onClick={() => move(team.entryId, rank + 1)} className="disabled:opacity-30">↓</button></span>}
             </td>
-            {mode !== "reference" && <td className="sticky left-20 z-10 border-b border-[var(--color-border)] bg-[var(--color-bg)] px-1 py-[var(--matrix-pad-y)] align-middle tabular-nums">{team.systemRank === null ? "—" : `#${team.systemRank}`}{team.tieState === "tied" ? " 并列" : ""}</td>}
+            {mode !== "reference" && <td className="sticky left-20 z-10 border-b border-[var(--color-border)] bg-[var(--color-bg)] px-1 py-[var(--matrix-pad-y)] align-middle tabular-nums">{team.systemRank === null ? "—" : `#${team.systemRank}`}{team.tieState === "tied" ? " 并列" : team.systemRank !== null && team.systemRank !== rank ? <span className="ml-1 text-[var(--color-fg-mid)]" aria-label={`人工${team.systemRank > rank ? "上调" : "下调"}${Math.abs(team.systemRank - rank)}位`}>{team.systemRank > rank ? "↑" : "↓"}{Math.abs(team.systemRank - rank)}</span> : ""}</td>}
             <td className={`sticky z-10 border-b border-[var(--color-border)] bg-[var(--color-bg)] px-[var(--matrix-pad-x)] py-[var(--matrix-pad-y)] align-middle ${mode === "reference" ? "left-20" : "left-36"}`} style={{ minWidth: "var(--matrix-team-width)" }}>
-              <strong className="block truncate" title={team.teamName}>{team.teamName}</strong>
-              {editable ? <MoveControl key={`${team.entryId}:${rank}`} rank={rank} total={order.length} onMove={(target) => move(team.entryId, target)} /> : <span className="text-[var(--color-fg-mid)]">{team.route ?? (direct ? "直通正赛" : boundaryAfter !== undefined ? "Play-in" : "")}</span>}
-              {boundary && <span className="block text-[var(--color-accent)]">{boundary.label}</span>}
-              {rank === (boundaryAfter ?? -1) + 1 && <span className="block text-[var(--color-accent)]">{boundaryLabel ?? "Play-in"}</span>}
+              <strong className="inline-block max-w-36 truncate align-middle" title={team.teamName}>{team.teamName}</strong>
+              {editable ? <span className="ml-1 inline-block align-middle"><MoveControl key={`${team.entryId}:${rank}`} rank={rank} total={order.length} onMove={(target) => move(team.entryId, target)} /></span> : <span className="text-[var(--color-fg-mid)]">{team.route ?? (direct ? "直通正赛" : boundaryAfter !== undefined ? "Play-in" : "")}</span>}
+              {boundary && <span className="sr-only">{boundary.label}</span>}
+              {rank === (boundaryAfter ?? -1) + 1 && <span className="sr-only">{boundaryLabel ?? "Play-in"}</span>}
             </td>
-            {mode === "final" && <td className="border-b border-[var(--color-border)] px-2 py-[var(--matrix-pad-y)] text-[var(--color-fg-mid)]">{team.preliminaryRank ? `原 #${team.preliminaryRank}` : "—"}<br />{team.route ?? "—"}{team.result ? ` · ${team.result}` : ""}</td>}
-            {Array.from({ length: maxMembers }, (_, memberIndex) => <td key={memberIndex} className="border-b border-[var(--color-border)] px-[var(--matrix-pad-x)] py-[var(--matrix-pad-y)] align-middle" style={{ minWidth: "var(--matrix-player-width)" }}>{team.members[memberIndex] && <PlayerCell member={team.members[memberIndex]} platform={platform} />}</td>)}
+            {mode === "final" && <td className="border-b border-[var(--color-border)] px-2 py-[var(--matrix-pad-y)] text-[var(--color-fg-mid)]">{team.preliminaryRank ? `原 #${team.preliminaryRank}` : "—"} · {team.route ?? "—"}{team.result ? ` · ${team.result}` : ""}</td>}
+            <td className="border-b border-[var(--color-border)] px-1 py-[var(--matrix-pad-y)] align-middle">
+              <div className="flex items-center gap-1 whitespace-nowrap">
+                {team.members.filter(member => member.isPrimaryStarter).map(member => <PlayerCell key={member.userId} member={member} platform={platform} />)}
+                {team.members.some(member => !member.isPrimaryStarter) && <span aria-label="替补" className="inline-flex items-center gap-1 border-l border-[var(--color-border)] pl-1">
+                  {team.members.filter(member => !member.isPrimaryStarter).map(member => <PlayerCell key={member.userId} member={member} platform={platform} />)}
+                </span>}
+              </div>
+            </td>
           </tr>;
         })}</tbody>
       </table>

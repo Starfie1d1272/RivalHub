@@ -28,6 +28,7 @@ export const PREVIEW_COLUMNS: Record<string, string> = {
   competition_entry_roster_revisions: "id entry_id revision_number status origin created_by created_at submitted_at approved_at",
   competition_entry_submissions: "id entry_id roster_revision_id sequence decision submitted_by submitted_at decided_by decided_at",
   competition_entry_representative_changes: "id entry_id from_user_id to_user_id changed_at changed_by_actor_id",
+  competition_qualification_drafts: "season_id order format target_entrant_count version updated_at",
   competition_qualification_runs: "id season_id format target_entrant_count candidate_count direct_entry_count play_in_entry_count qualifier_count configured_at started_at completed_at created_at updated_at",
   competition_qualification_entrants: "id run_id season_id competition_entry_id preliminary_seed created_at",
   event_rosters: "id entry_id source_roster_revision_id status confirmed_at confirmed_by frozen_at frozen_by created_at updated_at",
@@ -76,7 +77,9 @@ export const OMITTED_COLUMNS: Record<string, string> = {
   team_memberships: "ended_reason",
   competition_entries: "review_reason",
   competition_entry_submissions: "reason",
-  competition_qualification_runs: "configured_by started_by",
+  competition_qualification_drafts: "updated_by",
+  event_rosters: "eligibility_snapshot",
+  competition_qualification_runs: "configured_by started_by eligibility_policy",
   major_prestart_states: "seed_override_reason",
   draft_picks: "client_request_id",
   matches: "video_url",
@@ -111,7 +114,9 @@ type PreviewSchemaLifecycleTable = {
  * entries for a lagging source and rejects columns past their removal marker.
  */
 export const PREVIEW_SCHEMA_LIFECYCLE: readonly PreviewSchemaLifecycleTable[] = [
-  { table: "competition_qualification_runs", introducedAt: "0056_competition-qualification-playin" },
+  { table: "competition_qualification_drafts", introducedAt: "0072_petite_iron_man" },
+  { table: "event_rosters", columns: [{ name: "eligibility_snapshot", introducedAt: "0072_petite_iron_man" }] },
+  { table: "competition_qualification_runs", introducedAt: "0056_competition-qualification-playin", columns: [{ name: "eligibility_policy", introducedAt: "0072_petite_iron_man" }] },
   { table: "competition_qualification_entrants", introducedAt: "0056_competition-qualification-playin" },
   {
     table: "event_roster_members",

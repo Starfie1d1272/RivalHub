@@ -97,7 +97,7 @@ describe("sanitized mirror policy", () => {
     const beforeQualification = previewPolicyFor(expected.slice(0, qualificationIndex));
 
     expect(current.tables.competition_qualification_runs.exportedColumns).toContain("qualifier_count");
-    expect(current.tables.competition_qualification_runs.omittedColumns).toEqual(["configured_by", "started_by"]);
+    expect(current.tables.competition_qualification_runs.omittedColumns).toEqual(["configured_by", "started_by", "eligibility_policy"]);
     expect(current.tables.competition_qualification_entrants.exportedColumns).toContain("preliminary_seed");
     expect(current.tables.matches.exportedColumns).toContain("qualification_run_id");
     expect(beforeQualification.tables).not.toHaveProperty("competition_qualification_runs");

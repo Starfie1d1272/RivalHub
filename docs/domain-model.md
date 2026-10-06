@@ -158,7 +158,11 @@ approved CompetitionEntry candidates
 
 Managed Major 的唯一 profile owner 从保存的 StagePlan 识别 Major-24 或 Major-32；默认模板继续使用 Major-32。报名阶段只有在未创建 Qualification run、正赛 entrants/seeds/StageRun 且未锁定赛前事实时，才能通过受控 owner 更新 profile。开赛时 StagePlan 随 StageRun 冻结，阶段转换、种子批次、开赛预览和最终名次都从该 frozen plan 派生，不从 mutable Season 配置或展示文字推断。
 
-Qualification 是独立于 Major StagePlan 的预赛运行事实：`competition_qualification_runs` 冻结赛制配置、容量关系与生命周期，`competition_qualification_entrants` 冻结候选集合和预排名；带 `qualification_run_id` 的 `play-in` Match 保持 manual ownership，不关联 Major StageRun、managed key 或 bracket node。正赛候选由冻结的直通队和已完成 Qualification 的晋级队共同派生，不能由管理员替换或补足。Swiss core 只从 canonical 比赛事实投影 W/L、对手、BU、状态与排名；轮次是否完整、是否必须同战绩配对以及是否允许 bye 由 Major 或 Qualification policy 验证，不由通用 projection 固定。Short Swiss 的 Qualification policy 是 2 胜晋级、2 负淘汰，最多三轮。
+Qualification 的 season-scoped 预排名草稿由 `competition_qualification_drafts` 保存完整 order、format、目标容量、operator/time/version；audit 保存每次差异。草稿不创建 run 或比赛。最终确认必须消费最新已保存版本，并验证候选集合与容量未变化。确认后候选、赛制和预排名均不可直接修改；首轮生成前只能显式 reset 返回草稿。
+
+Qualification 是独立于 Major StagePlan 的预赛运行事实：`competition_qualification_runs` 冻结赛制配置、容量关系、资格 policy 与生命周期，`competition_qualification_entrants` 冻结候选集合和预排名；带 `qualification_run_id` 的 `play-in` Match 保持 manual ownership，不关联 Major StageRun、managed key 或 bracket node。Play-in 首发从当前已批准 revision 同步的 confirmed/frozen EventRoster 读取资格快照：同步时采用 run 的 frozen policy，冻结竞技事实和对应 Entry/revision 的 override；比赛 gate 不重新解释可变个人档案。更新批准名单后显式同步新的 revision，旧事实不可跨 revision 生效。缺少快照的旧 run fail closed，首轮前须重置配置。
+
+正赛候选由冻结的直通队和已完成 Qualification 的晋级队共同派生，不能由管理员替换或补足。Swiss core 只从 canonical 比赛事实投影 W/L、对手、BU、状态与排名；轮次是否完整、是否必须同战绩配对以及是否允许 bye 由 Major 或 Qualification policy 验证，不由通用 projection 固定。Short Swiss 的 Qualification policy 是 2 胜晋级、2 负淘汰，最多三轮。
 
 通用阶段的 identity 是 `(seasonId, StageConfig.key)`，name 只负责展示。provider bracket state 按 `(competition_id, stage_key)` 隔离；participant 的 RivalHub identity 必须来自 `rivalhubEntryId`，不能从名称或 participant 数组位置反推。`matches` 的 provider node 唯一性也按 `(season_id, stage, bracket_node_id)` 约束，允许不同阶段复用 provider numeric node。
 

@@ -7,6 +7,7 @@ import {
   competitionEntryRosterMembers,
   competitionEntryRosterRevisions,
   competitionQualificationEntrants,
+  competitionQualificationDrafts,
   competitionQualificationRuns,
   eventRosterMembers,
   eventRosters,
@@ -266,6 +267,7 @@ export async function loadMajorPrestartPageData(season: Season): Promise<MajorPr
       })),
     };
 
+  const [qualificationDraft] = await db.select().from(competitionQualificationDrafts).where(eq(competitionQualificationDrafts.seasonId, season.id));
   const [state, entrantRows, rawRosterRows, seedRows, snapshot, stageRunRows, qualificationRun, qualificationEntrants, qualificationMatches, pendingReviews] = await Promise.all([
     db.query.majorPrestartStates.findFirst({ where: eq(majorPrestartStates.seasonId, season.id) }),
     db.select({
@@ -507,6 +509,11 @@ export async function loadMajorPrestartPageData(season: Season): Promise<MajorPr
         })),
       })),
       qualification: {
+        draft: qualificationDraft ? {
+          ...qualificationDraft, updatedAt: qualificationDraft.updatedAt.toISOString(),
+          stale: qualificationDraft.targetEntrantCount !== entrantCapacity || qualificationDraft.order.length !== candidateEntries.length ||
+            candidateEntries.some(entry => !qualificationDraft.order.includes(entry.id)),
+        } : null,
         run: qualificationRun ? {
           id: qualificationRun.id,
           format: qualificationRun.format,

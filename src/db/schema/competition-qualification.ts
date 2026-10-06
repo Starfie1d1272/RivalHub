@@ -4,6 +4,7 @@ import {
   foreignKey,
   index,
   integer,
+  jsonb,
   pgEnum,
   pgTable,
   text,
@@ -29,6 +30,7 @@ export const competitionQualificationRuns = pgTable("competition_qualification_r
   directEntryCount: integer("direct_entry_count").notNull(),
   playInEntryCount: integer("play_in_entry_count").notNull(),
   qualifierCount: integer("qualifier_count").notNull(),
+  eligibilityPolicy: jsonb("eligibility_policy").$type<import("@/lib/competition-qualification/eligibility").QualificationEligibilityPolicy>(),
   configuredAt: timestamp("configured_at", { withTimezone: true }).notNull().defaultNow(),
   configuredBy: text("configured_by").notNull(),
   startedAt: timestamp("started_at", { withTimezone: true }),
@@ -87,3 +89,14 @@ export const competitionQualificationEntrants = pgTable("competition_qualificati
 }));
 
 export type CompetitionQualificationRun = typeof competitionQualificationRuns.$inferSelect;
+
+/** Latest committee draft; audit owns its append-only history. */
+export const competitionQualificationDrafts = pgTable("competition_qualification_drafts", {
+  seasonId: uuid("season_id").primaryKey().references(() => seasons.id),
+  order: jsonb("order").$type<string[]>().notNull(),
+  format: competitionQualificationFormatEnum("format").notNull(),
+  targetEntrantCount: integer("target_entrant_count").notNull(),
+  version: integer("version").notNull(),
+  updatedBy: text("updated_by").notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({ positiveVersion: check("competition_qualification_drafts_version_check", sql`${t.version} > 0`) }));
