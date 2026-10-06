@@ -34,6 +34,18 @@ async function fixture(work:(f:{db:ReturnType<typeof drizzle<typeof schema>>;sea
 }
 const read=(db:ReturnType<typeof drizzle<typeof schema>>,seasonId:string,userId:string)=>db.transaction(tx=>betBoard(tx,seasonId,userId),{accessMode:"read only",isolationLevel:"repeatable read"});
 describe("BET transactional admission and settlement",()=>{
+  it("refunds an already locked market without changing the database lock precision",async()=>fixture(async f=>{
+    const market=(await read(f.db,f.seasonId,f.userId)).markets.find(m=>m.type==="match_winner")!;
+    await f.db.transaction(tx=>stakeBetInTx(tx,{seasonId:f.seasonId,userId:f.userId,marketId:market.id,optionId:market.options[0]!.id,amount:"200",requestId:randomUUID()}));
+    await f.db.update(schema.matches).set({gameplayStartedAt:new Date()}).where(eq(schema.matches.id,f.matchId));
+    const before=(await f.db.execute(sql`select locked_at::text as locked from bet_markets where id=${market.id}`)).rows[0]?.locked;
+    await f.db.transaction(tx=>operateBetInTx(tx,{seasonId:f.seasonId,actorId:f.userId,operation:"void",marketId:market.id,reason:"已锁盘异常退款"}));
+    const after=(await f.db.execute(sql`select locked_at::text as locked from bet_markets where id=${market.id}`)).rows[0]?.locked;
+    expect(after).toBe(before);
+    expect((await read(f.db,f.seasonId,f.userId)).balance).toBe("1000");
+    expect((await read(f.db,f.seasonId,f.userId)).markets.find(m=>m.id===market.id)?.state).toBe("refunded");
+  }));
+
   it("does not backfill pre-game markets for legacy gameplay and preserves deleted match refunds",async()=>fixture(async f=>{
     const original=await f.db.query.matches.findFirst({where:eq(schema.matches.id,f.matchId)});
     const oldDate=new Date(Date.now()-60000);

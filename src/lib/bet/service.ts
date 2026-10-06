@@ -169,7 +169,9 @@ export async function operateBetInTx(tx:TxDb,input:{seasonId:string;actorId:stri
     const target=await tx.query.betMarkets.findFirst({where:and(eq(markets.id,input.marketId!),eq(markets.seasonId,input.seasonId))});
     if(!target) invalid("盘口不存在");
     if(input.operation==="void" && !input.reason?.trim()) invalid("请填写退款原因");
-    await tx.update(markets).set({lockedAt:target.lockedAt??new Date(),...(input.operation==="void"?{voidedAt:target.voidedAt??new Date(),voidReason:input.reason}: {})}).where(eq(markets.id,target.id));
+    if(input.operation==="void" && target.voidedAt) invalid("盘口已作废，不能修改退款原因");
+    // Preserve PostgreSQL microseconds; round-tripping an existing Date changes a frozen lock.
+    await tx.update(markets).set({lockedAt:sql`coalesce(${markets.lockedAt},clock_timestamp())`,...(input.operation==="void"?{voidedAt:sql`clock_timestamp()`,voidReason:input.reason}: {})}).where(eq(markets.id,target.id));
   }
   await writeAuditInTx(tx,{seasonId:input.seasonId,actorId:input.actorId,action:`bet.${input.operation}`,targetId:input.marketId??input.seasonId,meta:{reason:input.reason??null}});
   await reconcileBetInTx(tx,input.seasonId);

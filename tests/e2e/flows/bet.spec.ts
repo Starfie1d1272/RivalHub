@@ -32,19 +32,26 @@ test("BET 完成投入、追加、ALL IN 确认与锁盘，桌面和手机无横
     await db.insert(schema.betLedger).values([{seasonId:fixture.seasonId,accountId:account!.id,amount:BigInt(1000),kind:"initial",source:"initial"},{seasonId:fixture.seasonId,accountId:account!.id,amount:BigInt(-300),kind:"stake",source:`stake/${stake!.id}`}]);
     await page.goto(`/${fixture.slug}/bet?match=${matches[0]!.id}`);
     await expect(page.getByRole("heading",{name:"BET",exact:true})).toBeVisible();
+    await expect(page.locator('[data-layout-variant="standard"]')).toBeVisible();
+    await expect(page.getByRole("link",{name:"竞猜平台",exact:true})).toBeVisible();
     await page.getByRole("button",{name:"领取 1,000 积分"}).click();await expect(page.getByRole("button",{name:"领取 1,000 积分"})).toHaveCount(0);
     const card=page.locator("article").filter({has:page.locator(`a[href="/${fixture.slug}/matches/${matches[0]!.id}"]`)});const winner=card.getByRole("region",{name:"比赛胜者"});
     // section has an accessible label and corresponding implicit region role.
     await winner.locator("button:not([aria-label])").first().click();
-    await page.getByLabel("投入积分",{exact:true}).fill("200");await page.getByRole("button",{name:"确认投入",exact:true}).click();await expect(page.getByRole("dialog")).toHaveCount(0);
+    const screenshotDir=resolve(".agent-tmp/bet/screenshots");mkdirSync(screenshotDir,{recursive:true});
+    await page.addStyleTag({content:"nextjs-portal{display:none!important}"});
+    await page.getByLabel("投入积分",{exact:true}).fill("200");
+    await page.getByRole("dialog").screenshot({path:resolve(screenshotDir,`${info.project.name}-stake.png`),animations:"disabled"});
+    await page.getByRole("button",{name:"确认投入",exact:true}).click();await expect(page.getByRole("dialog")).toHaveCount(0);
     await expect(winner).toContainText("已投 200");await expect(winner.locator("button:not([aria-label])").nth(1)).toBeDisabled();
     await winner.locator("button:not([aria-label])").first().click();await page.getByRole("button",{name:"ALL IN",exact:true}).click();await expect(page.getByRole("button",{name:"确认投入",exact:true})).toBeDisabled();
+    await page.getByRole("dialog").screenshot({path:resolve(screenshotDir,`${info.project.name}-all-in.png`),animations:"disabled"});
     await page.getByLabel("确认投入全部可用积分，不能撤回").check();await expect(page.getByRole("button",{name:"确认投入",exact:true})).toBeEnabled();
     await page.getByRole("button",{name:"取消",exact:true}).click();
     await card.getByRole("tab",{name:"BP"}).click();await expect(card).toContainText("BP · 首图");
     await expect(page.getByText("已投入 200 积分",{exact:true})).toBeHidden();
     await page.addStyleTag({content:"nextjs-portal{display:none!important}"});
-    const screenshotDir=resolve(".agent-tmp/bet/screenshots");mkdirSync(screenshotDir,{recursive:true});
+
     await page.evaluate(()=>window.scrollTo(0,0));await page.screenshot({path:resolve(screenshotDir,`${info.project.name}-bp.png`),fullPage:true});
     await card.getByRole("tab",{name:"比赛"}).click();await page.evaluate(()=>window.scrollTo(0,0));await page.screenshot({path:resolve(screenshotDir,`${info.project.name}-bet.png`),fullPage:true});
     expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
@@ -54,6 +61,35 @@ test("BET 完成投入、追加、ALL IN 确认与锁盘，桌面和手机无横
     await db.insert(schema.seasonAdminGrants).values({seasonId:fixture.seasonId,userId:user.userId});
     await page.goto(`/admin/${fixture.slug}/bet`);await expect(page.getByRole("heading",{name:"BET",exact:true})).toBeVisible();
     await page.getByRole("button",{name:"暂停投入",exact:true}).click();await page.getByRole("button",{name:"暂停投入",exact:true}).last().click();await expect(page.getByRole("button",{name:"恢复投入",exact:true})).toBeVisible();
+    await page.addStyleTag({content:"nextjs-portal{display:none!important}"});await page.evaluate(()=>window.scrollTo(0,0));await page.screenshot({path:resolve(screenshotDir,`${info.project.name}-admin-overview.png`),fullPage:true});
+    const team=await db.query.competitionEntries.findFirst({where:eq(schema.competitionEntries.id,matches[0]!.entryAId)});
+    await page.getByLabel("搜索比赛或盘口",{exact:true}).fill("没有这支队伍");
+    await expect(page.getByText("没有匹配的比赛或盘口",{exact:true})).toBeVisible();
+    await page.getByRole("button",{name:"清除筛选",exact:true}).click();
+    await expect(page.locator("details")).toHaveCount(9);
+    await page.getByLabel("搜索比赛或盘口",{exact:true}).fill(team!.name);
+    await expect(page.locator("details")).toHaveCount(2);
+    await page.getByRole("combobox",{name:"盘口状态",exact:true}).click();
+    await page.getByRole("option",{name:"已锁盘",exact:true}).click();
+    await page.getByRole("combobox",{name:"盘口类别",exact:true}).click();
+    await page.getByRole("option",{name:"BP",exact:true}).click();
+    await expect(page).toHaveURL(/category=/);
+    await expect(page.locator("details")).toHaveCount(1);
+    await page.reload();await expect(page.getByLabel("搜索比赛或盘口",{exact:true})).toHaveValue(team!.name);
+    await page.locator("details summary").first().click();
+    await expect(page.getByRole("heading",{name:"BP · 首图",exact:true})).toBeVisible();
+    await expect(page.getByRole("heading",{name:"比赛胜者",exact:true})).toHaveCount(0);
     await page.addStyleTag({content:"nextjs-portal{display:none!important}"});await page.evaluate(()=>window.scrollTo(0,0));await page.screenshot({path:resolve(screenshotDir,`${info.project.name}-admin.png`),fullPage:true});
+    expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
+
+    const bpMarket=page.getByRole("region",{name:/BP · 首图$/});
+    await bpMarket.getByRole("button",{name:"退款",exact:true}).click();
+    const confirmation=bpMarket.getByRole("region",{name:"BET 操作确认",exact:true});
+    await expect(confirmation).toContainText(team!.name);
+    await expect(confirmation).toContainText("BP · 首图");
+    await confirmation.getByLabel("退款原因",{exact:true}).fill("浏览器验收：退款指定盘口");
+    await confirmation.getByRole("button",{name:"作废并退款",exact:true}).click();
+    await expect(page.getByRole("heading",{name:"BP · 首图",exact:true})).toHaveCount(0);
+    await expect(page.getByRole("heading",{name:"BP · 决胜图",exact:true})).toBeVisible();
   }finally {await removePredictionBrowserFixture(fixture.seasonId);await db.delete(schema.users).where(eq(schema.users.id,other.userId));await pool.end();}
 });

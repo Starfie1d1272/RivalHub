@@ -38,7 +38,7 @@ export function SeasonSubNav({
     },
     ...(hasMatches ? [{ label: "比赛", href: `${root}/matches` }] : []),
     ...(hasCommunityAwards ? [{ label: "社区奖", href: `${root}/community-awards` }] : []),
-    ...(hasBet ? [{ label: "BET", href: `${root}/bet` }] : []),
+    ...(hasBet ? [{ label: "竞猜平台", href: `${root}/bet` }] : []),
     { label: "赛后", href: `${root}/post-event` },
   ];
   const governanceTabs = [
