@@ -2674,6 +2674,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[2.14.4]: https://github.com/Starfie1d1272/RivalHub/compare/v2.14.3...v2.14.4
+[2.14.3]: https://github.com/Starfie1d1272/RivalHub/compare/v2.14.2...v2.14.3
+[2.14.2]: https://github.com/Starfie1d1272/RivalHub/compare/v2.14.1...v2.14.2
 [2.14.1]: https://github.com/Starfie1d1272/RivalHub/compare/v2.14.0...v2.14.1
 [2.14.0]: https://github.com/Starfie1d1272/RivalHub/compare/v2.13.4...v2.14.0
 [2.13.4]: https://github.com/Starfie1d1272/RivalHub/compare/v2.13.3...v2.13.4
@@ -2684,8 +2687,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [2.12.3]: https://github.com/Starfie1d1272/RivalHub/compare/v2.12.2...v2.12.3
 [2.12.2]: https://github.com/Starfie1d1272/RivalHub/compare/v2.12.1...v2.12.2
 [2.12.1]: https://github.com/Starfie1d1272/RivalHub/compare/v2.12.0...v2.12.1
-[2.10.7]: https://github.com/Starfie1d1272/RivalHub/compare/v2.10.6...v2.10.7
+[2.12.0]: https://github.com/Starfie1d1272/RivalHub/compare/v2.11.0...v2.12.0
 [2.11.0]: https://github.com/Starfie1d1272/RivalHub/compare/v2.10.7...v2.11.0
+[2.10.7]: https://github.com/Starfie1d1272/RivalHub/compare/v2.10.6...v2.10.7
 [2.10.6]: https://github.com/Starfie1d1272/RivalHub/compare/v2.10.5...v2.10.6
 [2.10.5]: https://github.com/Starfie1d1272/RivalHub/compare/v2.10.4...v2.10.5
 [2.10.4]: https://github.com/Starfie1d1272/RivalHub/compare/v2.10.3...v2.10.4
@@ -2741,7 +2745,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [1.28.2]: https://github.com/Starfie1d1272/RivalHub/compare/v1.28.1...v1.28.2
 [1.28.1]: https://github.com/Starfie1d1272/RivalHub/compare/v1.28.0...v1.28.1
 [1.28.0]: https://github.com/Starfie1d1272/RivalHub/compare/v1.27.8...v1.28.0
-[2.12.0]: https://github.com/Starfie1d1272/RivalHub/compare/v2.11.0...v2.12.0
 [1.27.8]: https://github.com/Starfie1d1272/RivalHub/compare/v1.27.7...v1.27.8
 [1.27.7]: https://github.com/Starfie1d1272/RivalHub/compare/v1.27.6...v1.27.7
 [1.27.6]: https://github.com/Starfie1d1272/RivalHub/compare/v1.27.5...v1.27.6
@@ -2822,6 +2825,3 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [1.1.0]: https://github.com/Starfie1d1272/RivalHub/compare/v1.0.2...v1.1.0
 [1.0.2]: https://github.com/Starfie1d1272/RivalHub/compare/v1.0.0...v1.0.2
 [1.0.0]: https://github.com/Starfie1d1272/RivalHub/compare/v0.3.0...v1.0.0
-[2.14.2]: https://github.com/Starfie1d1272/RivalHub/compare/v2.14.1...v2.14.2
-[2.14.3]: https://github.com/Starfie1d1272/RivalHub/compare/v2.14.2...v2.14.3
-[2.14.4]: https://github.com/Starfie1d1272/RivalHub/compare/v2.14.3...v2.14.4
