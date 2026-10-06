@@ -1,6 +1,6 @@
 import { describe, expect, it, beforeAll, afterAll } from "vitest";
-import { execFileSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { execFileSync, spawnSync } from "node:child_process";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { connect, createServer, type Server } from "node:tls";
@@ -29,6 +29,18 @@ describe("canonical PostgreSQL TLS", () => {
     expect(() => postgresConnection(remote, " ")).toThrow(/CA/);
     expect(() => postgresConnection(remote.replace(host, "other.example"))).toThrow(/endpoint/);
     expect(() => postgresConnection("https://localhost")).toThrow(/protocol/);
+  });
+  it("migration CLI rejects unsafe URL TLS before any database connection", () => {
+    const root = mkdtempSync(join(tmpdir(), "rivalhub-migration-tls-"));
+    try {
+      const config = join(root, "config.ts");
+      writeFileSync(config, `export default ${JSON.stringify({ dialect: "postgresql", dbCredentials: { url: `${remote}&sslmode=disable` } })};`);
+      const result = spawnSync("node_modules/.bin/tsx", ["scripts/db/canonical-migrate-cli.ts", config, "drizzle/migrations"], { encoding: "utf8" });
+      expect(result.status).toBe(1);
+      expect(result.stderr).toContain("SSL mode conflicts");
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
   it("keeps loopback plaintext development isolated", () => {
     for (const host of ["localhost", "127.0.0.1", "[::1]"]) {

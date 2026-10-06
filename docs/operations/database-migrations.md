@@ -53,7 +53,7 @@ Release workflow 的 plain PostgreSQL 17 rehearsal 使用：
 pnpm db:release-rehearsal
 ```
 
-该命令复用 `preparePg17Database()` 与 `scripts/db/migration-replay.ts`；CI PostgreSQL lane、Release 和本地 `db:local:migrate` 不维护相互漂移的 replay runner。所有 replay / protected remote migration 通过 `canonical-migrate.ts` 执行原始 active chain，在含 `ALTER TYPE ... ADD VALUE` 的 migration 后提交事务，再执行后续 migration；每一阶段仍由 Drizzle 维护原始 SQL hash 与 ledger，避免 PostgreSQL 在同一事务中使用尚未提交的 enum value。
+该命令复用 `preparePg17Database()` 与 `scripts/db/migration-replay.ts`；CI PostgreSQL lane、Release 和本地 `db:local:migrate` 不维护相互漂移的 replay runner。所有 replay / protected remote migration 通过 `canonical-migrate.ts` 执行原始 active chain，在含 `ALTER TYPE ... ADD VALUE` 的 migration 后提交事务，再执行后续 migration；每一阶段仍由 Drizzle ORM migrator 维护原始 SQL hash 与 ledger，避免 PostgreSQL 在同一事务中使用尚未提交的 enum value。CLI wrapper 在独立子进程加载已校验的目标配置，使用 canonical `postgresConnection` 创建 node-postgres Pool；不把 URL 与显式 TLS 选项交给会丢弃 SSL 参数的 Drizzle Kit migrate 分支。
 
 ### 5. 验证 release compatibility
 
