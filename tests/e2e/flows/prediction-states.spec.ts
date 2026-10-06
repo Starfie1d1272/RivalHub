@@ -28,6 +28,21 @@ test("模拟数据覆盖 Pick’Em 状态与隐藏规则", async ({
   const dir = resolve(".agent-tmp/predictions-evidence");
   mkdirSync(dir, { recursive: true });
   const capture = async (name: string) => {
+    // Navigation can finish while the streamed prediction board is still loading.
+    await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+    await expect(page.getByText("正在加载观赛预测…", { exact: true })).toHaveCount(0);
+    const showingMobilePick = mobile && [
+      "not-joined", "empty", "draft", "submitted", "paused-submitted",
+      "closed-submitted", "voided-submitted", "paused-unsubmitted",
+    ].includes(name);
+    if (showingMobilePick) {
+      await expect(page.getByText("我的阶段预测单", { exact: true })).toBeVisible();
+    } else if (!name.startsWith("admin-")) {
+      await expect(page.getByRole("button", { name: "晋级路径", exact: true })).toBeVisible();
+      if (!name.endsWith("-results")) {
+        await expect(page.locator('[data-testid^="sim-match-"]:visible').first()).toBeVisible();
+      }
+    }
     await expect(page.locator("[data-sonner-toast]")).toHaveCount(0);
     await page.evaluate(() => window.scrollTo(0, 0));
     await page.screenshot({
