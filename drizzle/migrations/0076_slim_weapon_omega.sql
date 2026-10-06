@@ -42,6 +42,9 @@ BEGIN
     SELECT e.competition_id INTO sid FROM event_rosters r JOIN competition_entries e ON e.id=r.entry_id WHERE r.id=(rowdata->>'event_roster_id')::uuid;
   END IF;
   IF sid IS NULL THEN RETURN COALESCE(NEW,OLD); END IF;
+  -- Serialize before touching market rows, matching workers and administrative operations.
+  -- Workers never lock official rows, so an official writer can safely wait here.
+  PERFORM 1 FROM bet_programs WHERE season_id=sid FOR UPDATE;
   -- Lock financial admission in the official transaction, never wait for settlement.
   IF TG_TABLE_NAME='matches' THEN
     IF TG_OP='DELETE' OR rowdata->>'status' IN ('finished','cancelled') OR (rowdata->>'is_forfeit')::boolean
@@ -56,7 +59,12 @@ BEGIN
       UPDATE bet_markets SET locked_at=COALESCE(locked_at,clock_timestamp()) WHERE season_id=sid AND subject->>'kind'='event';
     END IF;
   ELSIF TG_TABLE_NAME='match_maps' AND (rowdata->>'started_at' IS NOT NULL OR rowdata->>'completed_at' IS NOT NULL) THEN
-    UPDATE bet_markets SET locked_at=COALESCE(locked_at,clock_timestamp()) WHERE match_id=mid AND subject->>'mapId'=rowdata->>'id';
+    -- A confirmed map start/result proves the series has begun, even when the
+    -- operator did not separately record gameplay_started_at.
+    UPDATE bet_markets SET locked_at=COALESCE(locked_at,clock_timestamp()) WHERE match_id=mid AND (subject->>'kind'='match' OR subject->>'mapId'=rowdata->>'id');
+    IF matchrow.major_stage_run_id IS NOT NULL THEN
+      UPDATE bet_markets SET locked_at=COALESCE(locked_at,clock_timestamp()) WHERE season_id=sid AND subject->>'kind'='event';
+    END IF;
   END IF;
   IF TG_TABLE_NAME='matches' AND rowdata->>'gameplay_started_at' IS NOT NULL AND rowdata->>'major_stage_run_id' IS NOT NULL THEN
     UPDATE bet_markets SET locked_at=COALESCE(locked_at,clock_timestamp()) WHERE season_id=sid AND subject->>'kind'='event';

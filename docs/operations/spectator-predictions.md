@@ -30,8 +30,8 @@ Sanitized preview mirror 不复制观众的草稿、提交和积分账本，也�
 
 BO1 不生成重复的单图胜者；总回合仍独立开放。BO3/BO5 的未打地图不生成新盘。总回合包含加时，以两队该地图近期正式样本优先、赛事历史次之、样本不足用 policy 基线；全部 line 在创建时冻结，不随奖池变化。官方对阵、运行身份或地图更正使旧 subject 作废，不复用旧池；在仍有合法开放窗口时生成新 identity。
 
-`matches.started_at` 继续表示原有 BP/赛务开始；`matches.gameplay_started_at` 和 `match_maps.started_at` 才是实际对局/地图的永久开始事实。通过完整校验的 Mizar 开图和管理员「确认本图已开局」共用 canonical map-start owner。人工路径必须在实际开图时确认；不能等录入比分才锁盘。启用前已经进行且无法证明尚未实际开图的比赛不补开赛前窗口。浏览器时间和排期都不授权投入。
+`matches.started_at` 继续表示原有 BP/赛务开始；`matches.gameplay_started_at` 和 `match_maps.started_at` 才是实际对局/地图的永久开始事实。通过完整校验的 Mizar 开图和管理员「确认本图已开局」共用 canonical map-start owner。人工路径必须在实际开图时确认；不能等录入比分才锁盘。已确认的地图开始或赛果也证明系列已经开始，即使独立开局标记缺失，仍同步锁定系列及赛事盘口。启用前已经进行且无法证明尚未实际开图的比赛不补开赛前窗口。浏览器时间和排期都不授权投入。
 
-官方修改在同事务触发轻量 BET outbox，并即时锁定受影响盘口；结算由既有 `reconcile-predictions` scheduler runner 同时运行独立 BET worker。失败保留 dirty 状态。公开读只返回只读 snapshot 与个人记录，不开盘或结算。积分池为整数、无抽水，无胜方投入或全池获胜时退款；弃权/取消退款。结果更正先冲销上一次返还，再按最新官方事实结算。已使用的错误返还形成待抵扣差额；所有新收入优先抵扣。流水、选项、投入、结算和阶段补给事实不可编辑或删除。
+官方修改在同事务触发轻量 BET outbox，先取得 BET 项目锁再锁盘口，与 worker／管理操作保持同一顺序，并即时锁定受影响盘口；结算由既有 `reconcile-predictions` scheduler runner 同时运行独立 BET worker。失败保留 dirty 状态。公开读只返回只读 snapshot 与个人记录，不开盘或结算。积分池为整数、无抽水，无胜方投入或全池获胜时退款；弃权/取消退款。结果更正先冲销上一次返还，再按最新官方事实结算。已使用的错误返还形成待抵扣差额；所有新收入优先抵扣。流水、选项、投入、结算和阶段补给事实不可编辑或删除。
 
 验证入口为 `tests/integration/db/bet.test.ts` 与 `tests/e2e/flows/bet.spec.ts`，只使用隔离本地数据库与真实浏览器登录。

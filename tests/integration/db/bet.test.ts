@@ -34,6 +34,41 @@ async function fixture(work:(f:{db:ReturnType<typeof drizzle<typeof schema>>;sea
 }
 const read=(db:ReturnType<typeof drizzle<typeof schema>>,seasonId:string,userId:string)=>db.transaction(tx=>betBoard(tx,seasonId,userId),{accessMode:"read only",isolationLevel:"repeatable read"});
 describe("BET transactional admission and settlement",()=>{
+  it("serializes official updates with BET operations without a market/program deadlock",async()=>fixture(async f=>{
+    const market=(await read(f.db,f.seasonId,f.userId)).markets.find(m=>m.type==="match_winner")!;
+    let official: Promise<unknown> | undefined;
+    await f.db.transaction(async tx=>{
+      await lockBetProgram(tx,f.seasonId);
+      let reportPid!: (pid:number)=>void;
+      const pidReady=new Promise<number>(resolve=>{reportPid=resolve;});
+      official=f.db.transaction(async writer=>{
+        const result=await writer.execute(sql`select pg_backend_pid() as pid`);
+        reportPid(Number(result.rows[0]!.pid));
+        await writer.update(schema.matches).set({gameplayStartedAt:new Date()}).where(eq(schema.matches.id,f.matchId));
+      }).then(()=>null,error=>error);
+      const pid=await pidReady;
+      await expect.poll(async()=>{
+        const result=await f.db.execute(sql`select cardinality(pg_blocking_pids(${pid})) > 0 as blocked`);
+        return result.rows[0]!.blocked;
+      }).toBe(true);
+      await operateBetInTx(tx,{seasonId:f.seasonId,actorId:f.userId,operation:"close",marketId:market.id});
+    });
+    expect(await official).toBeNull();
+    expect((await read(f.db,f.seasonId,f.userId)).markets.find(m=>m.id===market.id)?.state).toBe("locked");
+  }));
+
+  it("locks series admission from a canonical map result even without a separate start marker",async()=>fixture(async f=>{
+    const market=(await read(f.db,f.seasonId,f.userId)).markets.find(m=>m.type==="match_winner")!;
+    await f.db.update(schema.matches).set({status:"in_progress"}).where(eq(schema.matches.id,f.matchId));
+    await f.db.insert(schema.matchVetoSessions).values({matchId:f.matchId,startedAt:new Date(),completedAt:new Date(),mapPoolSnapshot:["de_inferno","de_nuke","de_mirage"]});
+    await f.db.insert(schema.matchMaps).values({matchId:f.matchId,mapOrder:1,mapName:"de_inferno",completedAt:new Date(),scoreA:13,scoreB:7});
+    const board=await read(f.db,f.seasonId,f.userId);
+    expect(board.markets.find(m=>m.id===market.id)?.state).toBe("locked");
+    await expect(f.db.transaction(tx=>stakeBetInTx(tx,{seasonId:f.seasonId,userId:f.userId,marketId:market.id,optionId:market.options[0]!.id,amount:"100",requestId:randomUUID()}))).rejects.toThrow(/锁定/);
+    await f.db.transaction(async tx=>{await lockBetProgram(tx,f.seasonId);await reconcileBetInTx(tx,f.seasonId);});
+    expect((await read(f.db,f.seasonId,f.userId)).markets.filter(m=>m.type==="match_winner")).toHaveLength(1);
+  }));
+
   it("refunds an already locked market without changing the database lock precision",async()=>fixture(async f=>{
     const market=(await read(f.db,f.seasonId,f.userId)).markets.find(m=>m.type==="match_winner")!;
     await f.db.transaction(tx=>stakeBetInTx(tx,{seasonId:f.seasonId,userId:f.userId,marketId:market.id,optionId:market.options[0]!.id,amount:"200",requestId:randomUUID()}));
