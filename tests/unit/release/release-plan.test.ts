@@ -55,6 +55,14 @@ function writeReleaseTimeCapabilities(storageMutation: boolean): void {
 }
 
 describe("release plan", () => {
+  it("runs missing-season repair in the protected data phase without schema replay", () => {
+    const result = plan([{ status: "A", paths: ["src/lib/competitive/profile-repair.ts"] }]);
+    expect(result.requiresCompetitiveProfileRepair).toBe(true);
+    expect(result.requiresProductionMigration).toBe(true);
+    expect(result.requiresMigrationRehearsal).toBe(false);
+    expect(result.requiresDbCheckpoint).toBe(false);
+    expect(plan([{ status: "M", paths: ["src/lib/competitive/normalize-profile.ts"] }]).requiresCompetitiveProfileRepair).toBe(false);
+  });
   it("classifies release metadata without treating package version as application code", () => {
     const result = plan([
       { status: "D", paths: [".changeset/release.md"] },

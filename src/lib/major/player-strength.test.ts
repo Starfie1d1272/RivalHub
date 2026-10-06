@@ -33,14 +33,15 @@ function player(
   previous: string,
   current: string,
   historicalRating = 1000,
-  historicalStars: number | null = null,
+  historicalStars: number | null | undefined = undefined,
 ): PlayerStrengthInput {
+  const stars = (rank: string) => ({ "青铜S": 0, "黄金S": 10, "钻石S": 25, "魔王S": 50 } as Record<string, number>)[rank] ?? null;
   return {
     userId: label,
     label,
-    historicalPeak: { rank: historical, rating: historicalRating, stars: historicalStars },
-    previousSeasonPeak: { rank: previous, rating: 900 },
-    currentSeasonPeak: { rank: current, rating: 800 },
+    historicalPeak: { rank: historical, rating: historicalRating, stars: historicalStars === undefined ? stars(historical) : historicalStars },
+    previousSeasonPeak: { rank: previous, rating: 900, stars: stars(previous) },
+    currentSeasonPeak: { rank: current, rating: 800, stars: stars(current) },
   };
 }
 
@@ -55,7 +56,7 @@ describe("Major player strength comparator", () => {
     },
     {
       name: "综合值相同后比较历史最高",
-      left: player("left", "青铜S", "B", "B"),
+      left: player("left", "A++", "B+", "B+"),
       right: player("right", "A", "A", "A"),
       order: 1,
       reason: "历史最高段位",
@@ -63,7 +64,7 @@ describe("Major player strength comparator", () => {
     {
       name: "综合值和历史相同后比较当前赛季",
       left: player("left", "A", "C", "青铜S"),
-      right: player("right", "A", "青铜S", "B"),
+      right: player("right", "A", "A", "A+"),
       order: 1,
       reason: "当前赛季最高段位",
     },
@@ -110,8 +111,8 @@ describe("Major player strength comparator", () => {
   it("uses the configured season rank order without converting an unspecified platform", () => {
     const high = getPlayerStrengthBreakdown(player("high", "魔王S", "魔王S", "魔王S"), CONFIG);
     const low = getPlayerStrengthBreakdown(player("low", "C", "C", "C"), CONFIG);
-    expect(high.weightedRank).toBe(14);
-    expect(low.weightedRank).toBe(2);
+    expect(high.weightedRank).toBeCloseTo(12 + 50 / 3);
+    expect(low.weightedRank).toBe(1);
     expect(getPlayerStrengthBreakdown(player("fivee", "5E", "5E", "5E"), CONFIG).available).toBe(false);
   });
 
@@ -128,12 +129,12 @@ describe("Major player strength comparator", () => {
     };
     const playerWithReset = {
       ...player("reset", "A", "A", "C"),
-      recentSeasonPeaks: [{ rank: "魔王S", rating: 1200 }, { rank: "C", rating: 800 }],
+      recentSeasonPeaks: [{ rank: "魔王S", rating: 1200, stars: 50 }, { rank: "C", rating: 800 }],
     };
     const breakdown = getPlayerStrengthBreakdown(playerWithReset, policyConfig);
     expect(breakdown.available).toBe(true);
-    expect(breakdown.currentValue).toBe(CONFIG.rankOrder.indexOf("魔王S") + 1);
-    expect(breakdown.effectiveRecentPeak).toMatchObject({ rank: "魔王S", rating: 1200 });
+    expect(breakdown.currentValue).toBeCloseTo(12 + 50 / 3);
+    expect(breakdown.effectiveRecentPeak).toMatchObject({ rank: "魔王S", rating: 1200, stars: 50 });
   });
 
   it("keeps legacy policy snapshots rank-first when recent ranks tie", () => {
@@ -308,7 +309,7 @@ describe("Major external-member strength rule", () => {
     expect(evaluateExternalStrengthRule({ config: CONFIG, players: [{ ...home, isHome: false }] }).blockers[0]).toContain("没有可确认的南京大学成员");
 
     // S 段位缺少准确星数 → 资料未完成，直接阻止提交。
-    const insufficient = player("external-no-stars", "钻石S", "A", "A");
+    const insufficient = player("external-no-stars", "钻石S", "A", "A", 1000, null);
     const result = evaluateExternalStrengthRule({
       config: CONFIG,
       players: [

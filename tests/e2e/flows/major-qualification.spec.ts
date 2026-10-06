@@ -9,6 +9,17 @@ test("管理员预览并确认 30 队到 Major 24 的 Play-in 配置与首轮对
 
   await signInProgrammatically(page, admin, scenario, `/admin/${scenario.slug}/prestart`);
   await expect(page.getByRole("button", { name: "预览 Play-in 配置" })).toBeVisible();
+  if (test.info().project.name !== "mobile-chrome") {
+    const ranking = page.getByRole("region", { name: "预排名工作台" });
+    const rows = ranking.locator("tbody tr");
+    const firstTeam = await rows.nth(0).locator("td").nth(2).innerText();
+    const secondTeam = await rows.nth(1).locator("td").nth(2).innerText();
+    await rows.nth(0).getByRole("button", { name: /移至排名$/ }).dragTo(rows.nth(1));
+    await expect(rows.nth(0).locator("td").nth(2)).toHaveText(secondTeam);
+    await rows.nth(1).getByRole("button", { name: /上移$/ }).click();
+    await expect(rows.nth(0).locator("td").nth(2)).toHaveText(firstTeam);
+  }
+
   await page.getByRole("combobox", { name: "赛制" }).click();
   await page.getByRole("option", { name: /Short Swiss BO1 · 2 胜晋级 \/ 2 负淘汰/ }).click();
   await expect(page.getByRole("button", { name: "预览 Play-in 配置" })).toBeDisabled();
@@ -38,6 +49,19 @@ test("管理员预览并确认 30 队到 Major 24 的 Play-in 配置与首轮对
   await expect(page.getByText("30 支候选 · 24 支正赛")).toBeVisible();
   await expect(page.getByText("赛程待生成", { exact: true })).toBeVisible();
   await page.goto(`/admin/${scenario.slug}/prestart`);
+  const ranking = page.getByRole("region", { name: "预排名工作台" });
+  for (let slot = 1; slot <= 5; slot++) await expect(ranking.getByRole("columnheader", { name: `主力${slot}` })).toBeVisible();
+  await expect(ranking.getByRole("columnheader", { name: "替补" })).toBeVisible();
+  await expect(ranking.getByRole("spinbutton")).toHaveCount(0);
+  await ranking.getByRole("button", { name: /主力，查看实力证据/ }).first().click();
+  if (test.info().project.name === "mobile-chrome") {
+    await expect(page.getByRole("dialog", { name: /实力证据/ })).toBeVisible();
+    await page.getByRole("dialog", { name: /实力证据/ }).getByRole("button", { name: "Close", exact: true }).click();
+  } else {
+    await expect(ranking.getByRole("complementary", { name: "选手实力证据" })).toBeVisible();
+    await ranking.getByRole("button", { name: "关闭选手证据" }).click();
+  }
+
 
   await expect(page.getByRole("button", { name: "预览首轮对阵" })).toBeVisible();
   await page.getByRole("button", { name: "预览首轮对阵" }).click();

@@ -59,11 +59,11 @@ presentation owner 对有限集合使用穷举映射（新增状态必须同时�
 
 Major 赛前工作区按报名收口、资格方案、资格赛、正赛名单、正赛种子、开赛确认六阶段组织；顶部始终显示进度，默认只完整展开当前阶段，已完成阶段提供可展开摘要，未来阶段只提示前置条件。报名截止、最终名单调整截止和 Main Event 计划开始分别在报名收口、正赛名单和开赛确认阶段编辑，并受当前 lifecycle gate 约束；未来阶段不提前暴露编辑面，计划时间不代表实际开赛。Qualification 比赛在工作区只显示汇总和统一比赛管理入口。
 
-报名期的系统参考、Qualification 预排名和最终种子共用一队一行的横向排名矩阵。固定排名、系统参考和队伍列，完整名单按主力、替补顺序横向展示，每人默认固定显示今、近、前、史四维，来源与 Rating 留在详情。矩阵只有横向滚动，提供 75%–125% 组件级缩放及概览密度。可编辑阶段的拖拽、上下微调和移至名次只改同一个本地顺序；保存排序与配置 Qualification、确认最终种子分别执行。直通/Play-in 切线和 profile 入场批次在矩阵内标示。
+报名期的系统参考、Qualification 预排名和最终种子共用一队一行的 Ranking Workspace：排名、系统参考、队伍、五个独立主力列和一个替补区。默认每人只显示 canonical identity 和综合段位；S 四档使用铜、金、冰蓝和 crimson 小面积 token，颜色同时配明确档位文本及星数。默认行高约 28px，组件缩放从 90% 起；局部横向滚动保留固定排名/队伍列。排名承担 drag handle，hover/focus 显示上下微调，点击排名打开精确移至；这些操作只修改本地顺序，保存草稿和确认配置仍分别执行。桌面选手证据使用右侧非 modal inspector，可连续选择不同选手，移动端使用 Dialog。直通/Play-in 切线和入场批次用空间边界标示。
 
 公开页面只消费 public DTO/read model。email、QQ、`studentId`、`authId`、教育证据、管理员范围和内部备注默认不进入 public HTML/Client props。
 
-人物主标签必须消费 canonical identity formatter：公开 surface 使用 `displayName → official Steam personaName → perfectName → 未知用户`；内部/operator surface 使用 `displayName → official Steam personaName → perfectName → email local-part → 未知用户`。`users` 中不存在可进入 canonical resolver 的手填 Steam 昵称；官方 personaName 只来自按 Steam64 键控的服务端缓存投影。完整邮箱只有在账号、联系、核验、归并或 disambiguation 本身就是当前任务时，才作为明确标注的 detail 展示，不能冒充人物主标签。Major 实力参考的普通 UI 展示真实的历史、参考赛季、近期段位/星级、必要的可比 Rating 与来源；系统参考顺序、真实并列和最终种子使用语义化表达，内部排序/换算标量、rank ordinal 与并列组编号不进入普通 UI。
+人物主标签必须消费 canonical identity formatter：公开 surface 使用 `displayName → official Steam personaName → perfectName → 未知用户`；内部/operator surface 使用 `displayName → official Steam personaName → perfectName → email local-part → 未知用户`。`users` 中不存在可进入 canonical resolver 的手填 Steam 昵称；官方 personaName 只来自按 Steam64 键控的服务端缓存投影。完整邮箱只有在账号、联系、核验、归并或 disambiguation 本身就是当前任务时，才作为明确标注的 detail 展示，不能冒充人物主标签。Major 排名默认只显示选手 identity + 综合段位，完整历史、参考赛季、近期/当前段位、星数、Rating 与来源证据按需下钻；内部强度标量、axis 参数和并列组编号不进入普通 UI。
 
 后台 operator surface 对已有 canonical `userId` 统一使用窄 `PlayerProfileLink`；联系方式只由有权限的 server read model 显式投影给 `AdminPlayerContact`，仅在后台提供查看、复制或打开，不进入 public Player DTO。selector、checkbox 或 voting 的 primary action 旁如需 profile access，使用独立 secondary affordance，不能把链接嵌入主操作。
 
@@ -152,7 +152,7 @@ MVP 已结算卡保留 Rating、K/D/A、ADR 主指标，次级使用 HS%、FK、
 
 反馈表单只提交明确的反馈类型、正文、当前同站 pathname、可选赛事上下文和版本标识。服务端负责正文规范化、honeypot、匿名频率限制、已登录用户冷却、重复正文去重与最终持久化；公开 DTO 不包含 fingerprint、secret、cookie、完整 URL 或内部运行时日志。赛事规则与交流群加入链接只接受同站路径或显式 HTTP(S) 地址，公开联系方式另外允许显式 `mailto:`；展示层对历史脏数据仍 fail closed。
 
-Major 排名保持一队一行，使用主力 / 替补 roster region，默认显示昵称、近期统一段位、历史最高和可比较的中性 Rating。点击或键盘选择选手下钻来源、换算和 blocker；排名偏移只在系统非并列时显示。预排名保存草稿、未保存修改、版本冲突和最终锁定是独立明确的状态。
+Major 排名的预排名草稿、未保存修改、版本冲突和最终锁定是独立明确的状态。排名偏移只在系统非并列时显示；并列不伪造精确位移。
 
 ## Dense data
 

@@ -38,6 +38,17 @@ function sectionByHeading(name: string) {
 }
 
 describe("CompetitiveProfileForm", () => {
+  it("shows the server conflict and explicitly converges both records before resaving", async () => {
+    const user = userEvent.setup();
+    saveCompetitiveProfileMock.mockResolvedValueOnce({ success: false, error: { code: "VALIDATION_FAILED", message: "历史最高 A @ 2025s4，但 2025s4 记录为未定级。请确认两个值。" } });
+    render(<CompetitiveProfileForm contexts={[perfect]} />);
+    await user.click(screen.getByRole("button", { name: "保存竞技档案" }));
+    expect(await screen.findByText("竞技记录需要确认")).toBeInTheDocument();
+    expect(screen.getByText(/但 2025s4 记录为未定级/)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "采用历史最高记录" }));
+    await user.click(screen.getByRole("button", { name: "保存竞技档案" }));
+    await waitFor(() => expect(saveCompetitiveProfileMock).toHaveBeenLastCalledWith(expect.objectContaining({ historicalPeak: expect.objectContaining({ rank: "A", achievedSeasonKey: "2025s4" }), seasonPeaks: expect.arrayContaining([expect.objectContaining({ seasonKey: "2025s4", status: "ranked", rank: "A", rating: 2100 })]) })));
+  });
   beforeEach(() => {
     saveCompetitiveProfileMock.mockReset().mockResolvedValue({ success: true, data: undefined });
   });

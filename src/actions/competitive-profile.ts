@@ -2,11 +2,11 @@
 
 import { writeAuditInTx } from "@/lib/audit/write";
 
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { db } from "@/db/client";
-import { competitivePlatforms, competitivePlatformRanks, competitivePlatformSeasons, competitiveRankFacts, userCompetitiveRoles, userMapPreferences } from "@/db/schema";
+import { userCompetitiveRoles, userMapPreferences } from "@/db/schema";
 import { actionError } from "@/lib/action-utils";
 import { auditActorId, requireAuth } from "@/lib/auth/session";
 import { AppError, ErrorCode } from "@/lib/errors";
@@ -14,6 +14,10 @@ import { fail, ok, type ActionResult } from "@/types/action";
 import { CS2_POSITION_VALUES } from "@/lib/config/cs2-positions";
 import { updatePublicPlayerTag } from "@/lib/revalidation";
 import { longTermMapPreferencesSchema } from "@/lib/validators/map-preferences";
+
+import type { normalizeCompetitivePeaks } from "@/lib/competitive/normalize-profile";
+
+import { saveCompetitiveProfileInTx } from "@/lib/competitive/save-profile";
 
 const starsSchema = z.number().int().nonnegative().nullable().optional().default(null);
 const rankedFactSchema = z.object({ status: z.literal("ranked").optional().default("ranked"), rank: z.string().trim().min(1).max(64), rating: z.coerce.number().finite().min(0).max(999999), stars: starsSchema });
@@ -66,7 +70,7 @@ export async function saveCompetitiveRoles(input: unknown): Promise<ActionResult
  * season, including inactive historical seasons a published event froze into
  * its qualification context.
  */
-export async function saveCompetitiveProfile(input: unknown): Promise<ActionResult<void>> {
+export async function saveCompetitiveProfile(input: unknown): Promise<ActionResult<ReturnType<typeof normalizeCompetitivePeaks>>> {
   const parsed = schema.safeParse(input);
   if (!parsed.success) return fail({ code: ErrorCode.VALIDATION_FAILED, message: "请完整填写历史最高；每个赛季请选择未录入、未定级或已定级。" });
   try {
@@ -75,60 +79,12 @@ export async function saveCompetitiveProfile(input: unknown): Promise<ActionResu
     if (new Set(seasonPeaks.map((peak) => peak.seasonKey)).size !== seasonPeaks.length) {
       throw new AppError(ErrorCode.VALIDATION_FAILED, "平台赛季资料不能重复同一赛季。");
     }
-    await db.transaction(async (tx) => {
-      const [platformRow] = await tx.select().from(competitivePlatforms).where(eq(competitivePlatforms.key, platform)).limit(1);
-      if (!platformRow) throw new AppError(ErrorCode.VALIDATION_FAILED, "竞技平台不存在，不能保存竞技档案。");
-      const ladder = await tx.select().from(competitivePlatformRanks).where(eq(competitivePlatformRanks.platformKey, platform));
-      const seasons = await tx.select().from(competitivePlatformSeasons).where(eq(competitivePlatformSeasons.platform, platform));
-      const ladderByKey = new Map(ladder.map((rank) => [rank.rankKey, rank]));
-      const seasonKeys = new Set(seasons.map((season) => season.seasonKey));
-      const existingFacts = await tx.select().from(competitiveRankFacts).where(and(eq(competitiveRankFacts.userId, session.userId), eq(competitiveRankFacts.platform, platform)));
-      const existingByKey = new Map(existingFacts.map((fact) => [fact.kind === "historical_peak" ? "historical_peak" : `season_peak:${fact.platformSeasonKey}`, fact]));
-      const validateFact = (key: string, fact: { rank: string; rating: number; stars: number | null }) => {
-        const rank = ladderByKey.get(fact.rank);
-        if (!rank) throw new AppError(ErrorCode.VALIDATION_FAILED, `段位不在平台段位表中，不能保存：${fact.rank}`);
-        if (rank.starMin === null) {
-          if (fact.stars !== null) throw new AppError(ErrorCode.VALIDATION_FAILED, `${rank.label} 不使用星数，不能填写星数。`);
-          return;
-        }
-        if (fact.stars !== null) {
-          if (fact.stars < rank.starMin || (rank.starMax !== null && fact.stars > rank.starMax)) {
-            const range = rank.starMax === null ? `${rank.starMin}+` : `${rank.starMin}–${rank.starMax}`;
-            throw new AppError(ErrorCode.VALIDATION_FAILED, `${rank.label} 的星数必须在 ${range} 范围内。`);
-          }
-          return;
-        }
-        throw new AppError(ErrorCode.VALIDATION_FAILED, `${rank.label} 需要填写准确星数。`);
-      };
-      if (historicalPeak.achievedSeasonKey && !seasonKeys.has(historicalPeak.achievedSeasonKey)) {
-        throw new AppError(ErrorCode.VALIDATION_FAILED, `历史最高达成赛季 ${historicalPeak.achievedSeasonKey} 不在目录中，不能保存。`);
-      }
-      for (const peak of seasonPeaks) {
-        if (!seasonKeys.has(peak.seasonKey)) throw new AppError(ErrorCode.VALIDATION_FAILED, `平台赛季 ${peak.seasonKey} 不在目录中，不能保存。`);
-        if (peak.status === "ranked") validateFact(`season_peak:${peak.seasonKey}`, peak);
-      }
-      validateFact("historical_peak", historicalPeak);
-      const facts = [
-        { key: "historical_peak", kind: "historical_peak" as const, platformSeasonKey: null as string | null, value: historicalPeak },
-        ...seasonPeaks.map((peak) => ({ key: `season_peak:${peak.seasonKey}`, kind: "season_peak" as const, platformSeasonKey: peak.seasonKey, value: peak })),
-      ];
-      for (const fact of facts) {
-        const existing = existingByKey.get(fact.key);
-        if (fact.kind === "season_peak" && fact.value.status === "unrecorded") {
-          if (existing) await tx.delete(competitiveRankFacts).where(eq(competitiveRankFacts.id, existing.id));
-          continue;
-        }
-        if (fact.value.status !== "ranked" && fact.value.status !== "unranked") continue;
-        const values = fact.value.status === "unranked"
-          ? { status: "unranked" as const, rank: null, rating: fact.value.rating === null ? null : String(fact.value.rating), stars: null, achievedSeasonKey: null, updatedAt: new Date() }
-          : { status: "ranked" as const, rank: fact.value.rank, rating: String(fact.value.rating), stars: fact.value.stars, achievedSeasonKey: fact.kind === "historical_peak" ? fact.value.achievedSeasonKey : null, updatedAt: new Date() };
-        if (existing) await tx.update(competitiveRankFacts).set(values).where(eq(competitiveRankFacts.id, existing.id));
-        else await tx.insert(competitiveRankFacts).values({ userId: session.userId, platform, kind: fact.kind, platformSeasonKey: fact.platformSeasonKey, ...values });
-      }
-      await writeAuditInTx(tx, { action: "competitive_profile.self_declare", actorId: auditActorId(session), targetId: session.userId,meta: { platform, seasonKeys: seasonPeaks.map((peak) => peak.seasonKey) } });
+    const normalized = await db.transaction(async (tx) => {
+      return saveCompetitiveProfileInTx(tx, { userId: session.userId, actorId: auditActorId(session), platform, historicalPeak, seasonPeaks });
     });
     updatePublicPlayerTag(session.userId);
-    return ok(undefined);
+    revalidatePath("/settings/competitive");
+    return ok(normalized);
   } catch (error) { return actionError("saveCompetitiveProfile", error); }
 }
 

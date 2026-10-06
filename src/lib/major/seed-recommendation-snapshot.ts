@@ -12,6 +12,9 @@ const SEED_RECOMMENDATION_SNAPSHOT_VERSION = 1 as const;
 export type SeedRecommendationSnapshotStatus = "missing" | "ready" | "mismatch";
 
 interface SeedRecommendationPlayerFactV1 {
+  estimatedFromUnranked?: boolean;
+  estimatedFromSeasonKey?: string | null;
+  estimatedFromHistorical?: boolean;
   rank: string;
   rating: number;
   ratingComparable: boolean;
@@ -82,6 +85,7 @@ export interface SeedRecommendationFrozenTeamV1 {
 }
 
 interface SeedRecommendationCompetitiveContextV1 {
+  strengthAxis?: "continuous-s-v1";
   platform: string;
   currentSeasonKey: string;
   previousSeasonKey: string;
@@ -97,7 +101,7 @@ export interface SeedRecommendationSnapshotContextV1 {
   version: typeof SEED_RECOMMENDATION_SNAPSHOT_VERSION;
   seasonId: string;
   frozenSetFingerprint: string;
-  teamSeedStrengthScale: typeof TEAM_SEED_STRENGTH_SCALE;
+  teamSeedStrengthScale: typeof TEAM_SEED_STRENGTH_SCALE | 100;
   frozenTeams: SeedRecommendationFrozenTeamV1[];
   competitiveContext: SeedRecommendationCompetitiveContextV1;
 }
@@ -165,6 +169,9 @@ function serializePlayerFact(fact: PlayerStrengthFact | null): SeedRecommendatio
   return {
     rank: fact.rank,
     rating: fact.rating,
+    estimatedFromUnranked: fact.estimatedFromUnranked ?? false,
+    estimatedFromSeasonKey: fact.estimatedFromSeasonKey ?? null,
+    estimatedFromHistorical: fact.estimatedFromHistorical ?? false,
     ratingComparable: fact.ratingComparable !== false,
     sourcePlatform: fact.sourcePlatform ?? null,
     sourceSeasonKey: fact.sourceSeasonKey ?? null,
@@ -216,6 +223,7 @@ function snapshotCompetitiveContextFromConfig(
   config: CompetitiveProfileConfig,
 ): SeedRecommendationCompetitiveContextV1 {
   return {
+    strengthAxis: "continuous-s-v1",
     platform: config.platform,
     currentSeasonKey: config.currentSeasonKey,
     previousSeasonKey: config.previousSeasonKey,
@@ -353,7 +361,10 @@ function isPlayerFact(value: unknown): value is SeedRecommendationPlayerFactV1 {
     isNullableString(value.sourceRank) &&
     isNullableNonNegativeInteger(value.sourceStars) &&
     isNullableString(value.conversionVersion) &&
-    isNullableNonNegativeInteger(value.stars);
+    isNullableNonNegativeInteger(value.stars) &&
+    (value.estimatedFromUnranked === undefined || typeof value.estimatedFromUnranked === "boolean") &&
+    (value.estimatedFromSeasonKey === undefined || isNullableString(value.estimatedFromSeasonKey)) &&
+    (value.estimatedFromHistorical === undefined || typeof value.estimatedFromHistorical === "boolean");
 }
 
 function isPlayerInput(value: unknown): value is SeedRecommendationPlayerInputV1 {
@@ -418,6 +429,7 @@ function isEvidencePolicy(value: unknown): value is CompetitiveProfileConfig["ev
 
 function isCompetitiveContext(value: unknown): value is SeedRecommendationCompetitiveContextV1 {
   return isRecord(value) &&
+    (value.strengthAxis === undefined || value.strengthAxis === "continuous-s-v1") &&
     typeof value.platform === "string" &&
     typeof value.currentSeasonKey === "string" &&
     typeof value.previousSeasonKey === "string" &&
@@ -443,7 +455,7 @@ function isSnapshotStarter(value: unknown): value is SeedRecommendationStarterV1
     value.breakdown.effectiveRecentPeak !== null;
 }
 
-function isSnapshotRecommendation(value: unknown): value is SeedRecommendationTeamV1 {
+function isSnapshotRecommendation(value: unknown, scale: number): value is SeedRecommendationTeamV1 {
   return isRecord(value) &&
     typeof value.entrantId === "string" &&
     typeof value.competitionEntryId === "string" &&
@@ -451,8 +463,8 @@ function isSnapshotRecommendation(value: unknown): value is SeedRecommendationTe
     (typeof value.sourceRosterRevisionId === "string" || value.sourceRosterRevisionId === null) &&
     typeof value.teamName === "string" &&
     isFiniteNumber(value.teamSeedStrength) &&
-    isPositiveInteger(value.teamSeedStrengthScaled) &&
-    value.teamSeedStrength === value.teamSeedStrengthScaled / TEAM_SEED_STRENGTH_SCALE &&
+    isFiniteNumber(value.teamSeedStrengthScaled) && Number.isInteger(value.teamSeedStrengthScaled) && value.teamSeedStrengthScaled >= 0 &&
+    value.teamSeedStrength === value.teamSeedStrengthScaled / scale &&
     isPositiveInteger(value.recommendationRank) &&
     isPositiveInteger(value.tieGroup) &&
     isPositiveInteger(value.displayOrder) &&
@@ -486,7 +498,7 @@ function isSeedRecommendationSnapshotContextV1(value: unknown): value is SeedRec
     typeof value.seasonId === "string" &&
     typeof value.frozenSetFingerprint === "string" &&
     /^[a-f0-9]{64}$/.test(value.frozenSetFingerprint) &&
-    value.teamSeedStrengthScale === TEAM_SEED_STRENGTH_SCALE &&
+    (value.teamSeedStrengthScale === TEAM_SEED_STRENGTH_SCALE || value.teamSeedStrengthScale === 100) &&
     Array.isArray(value.frozenTeams) &&
     new Set(value.frozenTeams.filter(isRecord).map((team) => team.entrantId)).size === value.frozenTeams.length &&
     new Set(value.frozenTeams.filter(isRecord).map((team) => team.competitionEntryId)).size === value.frozenTeams.length &&
@@ -501,7 +513,7 @@ function isSeedRecommendationSnapshotPayloadV1(
   if (!isSeedRecommendationSnapshotContextV1(context) || !Array.isArray(recommendations)) return false;
   if (
     recommendations.length !== context.frozenTeams.length ||
-    !recommendations.every(isSnapshotRecommendation) ||
+    !recommendations.every(value => isSnapshotRecommendation(value, context.teamSeedStrengthScale)) ||
     new Set(recommendations.map((recommendation) => recommendation.competitionEntryId)).size !== context.frozenTeams.length
   ) return false;
   const frozenByEntryId = new Map(context.frozenTeams.map((team) => [team.competitionEntryId, team]));

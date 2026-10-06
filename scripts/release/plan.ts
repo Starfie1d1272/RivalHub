@@ -26,6 +26,7 @@ export interface ReleasePlan {
   requiresProductionMigration: boolean;
   requiresSteamProfileBackfill: boolean;
   requiresStatsProjectionBackfill: boolean;
+  requiresCompetitiveProfileRepair: boolean;
   requiresDbCheckpoint: boolean;
   requiresFullCheckpoint: boolean;
   requiresSchedulerProvision: boolean;
@@ -97,6 +98,7 @@ export function buildReleasePlan(options: BuildReleasePlanOptions = {}): Release
       const text = migrationText(cwd, releaseSha, path, options.migrationContents);
       return text !== undefined && /CREATE TABLE\s+"match_demo_stat_projections"/i.test(text);
     });
+  const requiresCompetitiveProfileRepair = changedPaths.includes("src/lib/competitive/profile-repair.ts");
   const storageMutationChanged = readReleaseTimeStorageMutationCapability(cwd, releaseSha);
   const schedulerChanged = changedPaths.some(isReleaseSchedulerPath)
     || migrationPaths.some((path) => {
@@ -125,9 +127,10 @@ export function buildReleasePlan(options: BuildReleasePlanOptions = {}): Release
     recoveryInfraChanged,
     releaseInfraChanged,
     requiresMigrationRehearsal: migrationChanged,
-    requiresProductionMigration: migrationChanged || requiresStatsProjectionBackfill,
+    requiresProductionMigration: migrationChanged || requiresStatsProjectionBackfill || requiresCompetitiveProfileRepair,
     requiresSteamProfileBackfill,
     requiresStatsProjectionBackfill,
+    requiresCompetitiveProfileRepair,
     requiresDbCheckpoint: migrationRisk === "irreversible",
     requiresFullCheckpoint: storageMutationChanged,
     requiresSchedulerProvision: schedulerChanged,

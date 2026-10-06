@@ -105,7 +105,7 @@ function projectRecommendationSnapshot(
     tieGroup: recommendation.tieGroup,
     displayOrder: recommendation.displayOrder,
     starters: recommendation.starters,
-  })));
+  })), context.competitiveContext.strengthAxis === "continuous-s-v1");
   return {
     version: context.version,
     generatedAt: snapshot.generatedAt.toISOString(),

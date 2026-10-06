@@ -1,5 +1,6 @@
 import type { CompetitiveProfileConfig } from "@/types/season";
 import { isBuiltInStarRank } from "@/lib/competitive/builtins";
+import { compositeStrength } from "./composite-rank";
 import type { QualificationFinding } from "@/lib/qualification/finding";
 
 export interface PlayerStrengthFact {
@@ -48,6 +49,11 @@ export interface PlayerStrengthBreakdown {
 function rankValue(rank: string, config: CompetitiveProfileConfig): number | null {
   const index = config.rankOrder.findIndex((item) => item === rank);
   return index < 0 ? null : index + 1;
+}
+
+function strengthValue(fact: PlayerStrengthFact, config: CompetitiveProfileConfig): number | null {
+  if (!config.rankOrder.includes(fact.rank)) return null;
+  return config.platform === "perfect_world" ? compositeStrength(fact) : rankValue(fact.rank, config);
 }
 
 function targetUsesStars(rank: string, config: CompetitiveProfileConfig): boolean {
@@ -185,11 +191,11 @@ export function getPlayerStrengthBreakdown(player: PlayerStrengthInput, config: 
   const blockers = findings.map((finding) => finding.message);
   const recentPeak = effectiveRecentPeak(player, config);
   if (blockers.length > 0) return { available: false, blockers, weightedRank: null, historicalValue: null, previousValue: null, currentValue: null, effectiveRecentPeak: recentPeak, historicalRating: null };
-  const historicalValue = rankValue(player.historicalPeak!.rank, config);
-  const previousValue = rankValue(player.previousSeasonPeak!.rank, config);
-  const currentValue = rankValue(recentPeak!.rank, config);
+  const historicalValue = strengthValue(player.historicalPeak!, config);
+  const previousValue = strengthValue(player.previousSeasonPeak!, config);
+  const currentValue = strengthValue(recentPeak!, config);
   if (historicalValue === null || previousValue === null || currentValue === null) {
-    return { available: false, blockers: findings.map((finding) => finding.message), weightedRank: null, historicalValue, previousValue, currentValue, effectiveRecentPeak: recentPeak, historicalRating: player.historicalPeak!.rating };
+    return { available: false, blockers: ["综合实力证据缺少可确认的统一段位或准确 S 星数。"], weightedRank: null, historicalValue, previousValue, currentValue, effectiveRecentPeak: recentPeak, historicalRating: player.historicalPeak!.rating };
   }
   const weights = evidenceWeights(config);
   return { available: true, blockers: [], weightedRank: (historicalValue * weights.historicalWeight + previousValue * weights.referenceSeasonWeight + currentValue * weights.recentSeasonWeight) / 100, historicalValue, previousValue, currentValue, effectiveRecentPeak: recentPeak, historicalRating: player.historicalPeak!.ratingComparable === false ? null : player.historicalPeak!.rating };

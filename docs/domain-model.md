@@ -46,10 +46,13 @@ CompetitivePlatform
 - platform 拥有稳定 key 和 rank ladder；season 只表达时间目录，不拥有另一份段位顺序。
 - 当前竞技平台身份、ladder 与 canonical Rating 属于产品定义的内置 domain；新增平台、改变段位体系或重新定义 canonical Rating 需要显式产品/迁移变更，不能由管理员临时创建另一套语义。
 - `rank`、`stars`、`rating` 是不同事实：rank 是稳定段位身份，stars 是星段位内部精确值，rating 是平台定义的 performance rating。
+- `saveCompetitiveProfileInTx()` 是竞技资料保存 owner：catalog/ladder 校验后，同一事务将明确达成赛季的 historical peak 与 season peak 规范化为一致的 rank/stars/Rating；缺失行自动补齐，已有差异必须明确修正两条记录。逐赛季更高的段位/星数自动提升历史最高并更新达成赛季；Rating 不参与高低判断，同等最高保留已有达成赛季，新最高相同则按 catalog chronology 最早赛季确定。不确定达成赛季保持独立，不推断日期。保存与安全修复共用 user row lock，audit 与事实原子提交，不改 frozen event facts。
 - 缺失事实保持 unknown；不能为了展示或资格判断制造默认段位、默认星数或 `0`。
 - 跨平台比较使用版本化 `ConversionPolicy`。mapping 与 `sourceNote`、`rationale`、`changeSummary` 属于平台级可审计事实；`internalNote` 只属于 super admin 运营面，不进入赛事设置或冻结快照。
 - `ConversionPolicy` 由独立 lifecycle owner 管理：已有策略 clone 成 draft，draft 保存和 approve 共用 mapping validator，approved 版本可原子切换 current，只有非 current 的 approved 版本可以 retired；每个 mutation 都保留 `audit_logs`。
 - 需要竞技资格的赛事在实际报名开放时冻结本届需要的 season/ladder/evidence/conversion context。赛事只保存 policy identity/version 与当届 conversion snapshot；全局 current、provenance 或 policy retire 不得重解释该届或历史 StageRun。没有 stable policy id 的 legacy mapping 不伪造全局 policy 引用。
+
+Major 综合实力在 canonical conversion/source selection/未定级估算后计算：Perfect D–A++ 为 0–9，S 使用连续的 `12 + stars/3`，H/R/P 仍为 50/30/20，team reference 仅取五名 primary 的算术均值。显示映射到最近官方段位点，midpoint 向较高点取整；新 seed snapshot 明确记录 strength axis，已有 legacy snapshot 继续保留原数值与推荐顺序，不将旧 ordinal 误当新 axis 显示。
 
 CS2 地图同样区分稳定地图目录、当前轮换、长期用户熟练度与赛事自身图池。具体当前地图集合属于代码/config，不在本文件复制。
 

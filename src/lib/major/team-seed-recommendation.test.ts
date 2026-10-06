@@ -30,6 +30,15 @@ const player = (userId: string, rank = "A"): PlayerStrengthInput => ({
 const five = (prefix: string, rank = "A") => Array.from({ length: 5 }, (_, index) => player(`${prefix}-${index + 1}`, rank));
 
 describe("buildTeamSeedRecommendations", () => {
+  it("preserves zero D snapshots and exact arithmetic star means without false rounded ties", () => {
+    const continuousConfig = { platform: "perfect_world", currentSeasonKey: "s2", previousSeasonKey: "s1", rankOrder: ["D", "青铜S"] };
+    const starPlayer = (id: string, stars = 0) => ({ ...player(id, "青铜S"), historicalPeak: { rank: "青铜S", stars: 0, rating: 1 }, previousSeasonPeak: { rank: "青铜S", stars, rating: 1 }, currentSeasonPeak: { rank: "青铜S", stars: 0, rating: 1 } });
+    const rows = buildTeamSeedRecommendations([{ teamId: "zero", teamName: "zero", starters: Array.from({ length: 5 }, (_, i) => player(`d${i}`, "D")) }, { teamId: "base", teamName: "base", starters: Array.from({ length: 5 }, (_, i) => starPlayer(`b${i}`)) }, { teamId: "higher", teamName: "higher", starters: Array.from({ length: 5 }, (_, i) => starPlayer(`h${i}`, i === 0 ? 1 : 0)) }], continuousConfig);
+    expect(rows[0]?.teamId).toBe("higher");
+    expect(rows[0]?.teamSeedStrength).toBeCloseTo(12 + 1 / 75);
+    expect(rows[1]?.recommendationRank).toBe(2);
+    expect(rows[2]?.teamSeedStrength).toBe(0);
+  });
   it("averages exactly five frozen starters and ranks the stronger team first", () => {
     const result = buildTeamSeedRecommendations([
       { teamId: "weak", teamName: "Weak", starters: five("weak", "A") },
@@ -47,8 +56,8 @@ describe("buildTeamSeedRecommendations", () => {
       { teamId: "right", teamName: "Right", starters: ranked("right", ["A", "A", "B", "B", "C"]) },
     ], config);
 
-    expect(result[0]).toMatchObject({ teamSeedStrength: 1.8, teamSeedStrengthScaled: 180, recommendationRank: 1, tieGroup: 1 });
-    expect(result[1]).toMatchObject({ teamSeedStrength: 1.8, teamSeedStrengthScaled: 180, recommendationRank: 1, tieGroup: 1 });
+    expect(result[0]).toMatchObject({ teamSeedStrength: 1.8, teamSeedStrengthScaled: 270, recommendationRank: 1, tieGroup: 1 });
+    expect(result[1]).toMatchObject({ teamSeedStrength: 1.8, teamSeedStrengthScaled: 270, recommendationRank: 1, tieGroup: 1 });
   });
 
   it.each([
@@ -165,6 +174,14 @@ describe("seed recommendation snapshot contract", () => {
     const fingerprint = buildFrozenSetFingerprint("season-1", [frozenTeams[0]!.identity]);
     expect(payload.context).toMatchObject({ version: 1, seasonId: "season-1", frozenSetFingerprint: fingerprint });
     expect(payload.recommendations[0]?.starters).toHaveLength(5);
+    const zero = buildSeedRecommendationSnapshotPayload({ seasonId: "season-1", frozenTeams: [{ ...frozenTeams[0]!, starters: five("team", "D") }], competitiveContext: { ...config, platform: "perfect_world", rankOrder: ["D"] } });
+    expect(zero.recommendations[0]?.teamSeedStrength).toBe(0);
+    expect(getSeedRecommendationSnapshotStatus({ snapshot: { entrantSetFingerprint: fingerprint, ...zero }, seasonId: "season-1", frozenSetFingerprint: fingerprint })).toBe("ready");
+    const legacy = structuredClone(payload);
+    delete legacy.context.competitiveContext.strengthAxis;
+    legacy.context.teamSeedStrengthScale = 100;
+    legacy.recommendations.forEach(row => { row.teamSeedStrengthScaled = Math.round(row.teamSeedStrength! * 100); });
+    expect(getSeedRecommendationSnapshotStatus({ snapshot: { entrantSetFingerprint: fingerprint, ...legacy }, seasonId: "season-1", frozenSetFingerprint: fingerprint })).toBe("ready");
     expect(getSeedRecommendationSnapshotStatus({ snapshot: { entrantSetFingerprint: fingerprint, context: payload.context, recommendations: payload.recommendations }, seasonId: "season-1", frozenSetFingerprint: fingerprint })).toBe("ready");
     expect(getSeedRecommendationSnapshotStatus({ snapshot: { entrantSetFingerprint: "other", context: payload.context, recommendations: payload.recommendations }, seasonId: "season-1", frozenSetFingerprint: fingerprint })).toBe("mismatch");
   });
@@ -183,7 +200,7 @@ describe("seed recommendation snapshot contract", () => {
     const starter = player("effective-recent");
     starter.currentSeasonPeak = { rank: "A", rating: 1, sourceSeasonKey: "current" };
     starter.recentSeasonPeaks = [
-      { rank: "C", rating: 3, sourceSeasonKey: "older" },
+      { rank: "C", rating: 3, sourceSeasonKey: "older", estimatedFromUnranked: true, estimatedFromSeasonKey: "prior" },
       { rank: "A", rating: 1, sourceSeasonKey: "current" },
     ];
     const payload = buildSeedRecommendationSnapshotPayload({
@@ -203,7 +220,7 @@ describe("seed recommendation snapshot contract", () => {
     });
     expect(payload.recommendations[0]?.starters[0]?.breakdown).toMatchObject({
       currentValue: 3,
-      effectiveRecentPeak: { rank: "C", sourceSeasonKey: "older" },
+      effectiveRecentPeak: { rank: "C", sourceSeasonKey: "older", estimatedFromUnranked: true, estimatedFromSeasonKey: "prior" },
     });
   });
 
