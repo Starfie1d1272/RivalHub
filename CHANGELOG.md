@@ -1,5 +1,19 @@
 # Changelog
 
+## [2.14.3]
+
+### Fixed
+
+#### 竞技资料事实一致性
+
+保存历史最高时自动同步明确达成赛季的缺失记录，更高的逐赛季事实自动提升历史最高；段位、星数或 Rating 冲突显示两条记录，供确认后一起保存。受保护发布仅安全补齐既有资料中无歧义的缺失赛季记录，保留已有冲突、历史最高和冻结赛事事实。
+
+### Changed
+
+#### Major 综合实力与排名工作台
+
+系统参考使用连续 S 星数的综合实力段位，保留历史/近期/参考赛季权重与五名主力算术均值。排名总表恢复五个固定主力列和替补区，默认仅显示昵称和综合段位；排名数字支持拖动，上下移动与精确移位按需显示。桌面选手证据在侧边查看，移动端保留详情弹窗。共享排序草稿、冲突保护、最终锁定与已有冻结推荐模型保持。
+
 ## [2.14.2]
 
 ### Fixed
@@ -2795,3 +2809,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [1.0.2]: https://github.com/Starfie1d1272/RivalHub/compare/v1.0.0...v1.0.2
 [1.0.0]: https://github.com/Starfie1d1272/RivalHub/compare/v0.3.0...v1.0.0
 [2.14.2]: https://github.com/Starfie1d1272/RivalHub/compare/v2.14.1...v2.14.2
+[2.14.3]: https://github.com/Starfie1d1272/RivalHub/compare/v2.14.2...v2.14.3
