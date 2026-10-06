@@ -133,6 +133,7 @@ export const USER_REFERENCE_RULES: readonly UserReferenceRule[] = [
   { table: "application_session_controls", column: "user_id", label: "会话撤销边界", mode: "preserve" },
   { table: "user_sessions", column: "user_id", label: "登录会话", mode: "delete" },
   { table: "users", column: "merged_into_user_id", label: "旧账号别名", mode: "preserve" },
+  { table: "bet_accounts", column: "user_id", label: "BET 积分账户", mode: "special" },
   { table: "prediction_accounts", column: "user_id", label: "观赛预测账户", mode: "special" },
 ] as const;
 
@@ -260,6 +261,8 @@ export async function buildUserMergePreflight(
     ));
   }
 
+  const betAccounts = await countReference(queryable, "bet_accounts", "user_id", input.mergedUserId);
+  pushCount(items, "bet:account", "BLOCKER", "BET 积分账户", betAccounts, "blocked", "积分流水与投入不能自动合并。");
   const predictionAccounts = await countReference(queryable, "prediction_accounts", "user_id", input.mergedUserId);
   pushCount(items, "predictions:account", "BLOCKER", "观赛预测账户", predictionAccounts, "blocked", "待归并账号已有观赛预测账户，积分与正式提交不能自动合并，请先由赛事方处理。 ");
 

@@ -37,6 +37,7 @@ export const matchMaps = pgTable(
     scoreA: integer("score_a"),
     scoreB: integer("score_b"),
 
+    startedAt: timestamp("started_at", { withTimezone: true }),
     completedAt: timestamp("completed_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },

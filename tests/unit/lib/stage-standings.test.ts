@@ -46,6 +46,7 @@ function match(id: string, entryAId: string, entryBId: string, scoreA: number, s
     qualificationRunId: null,
     managedKey: null,
     scheduledAt: null,
+    gameplayStartedAt: null,
     startedAt: null,
     completionDeadline: null,
     completedAt: new Date("2026-01-01T00:00:00.000Z"),

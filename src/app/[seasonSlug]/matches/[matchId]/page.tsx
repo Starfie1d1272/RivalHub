@@ -1,4 +1,5 @@
-import React from "react";
+import React, { Suspense } from "react";
+import { MatchBetLink } from "@/components/bet/MatchBetLink";
 import { PreMatchContext } from "@/components/matches/PreMatchContext";
 import { MatchContextRefresh } from "@/components/matches/MatchContextRefresh";
 import { MatchLiveProvider } from "@/components/matches/MatchLiveProvider";
@@ -416,6 +417,7 @@ export default async function MatchDetailPage({ params, searchParams }: MatchDet
             />
           )}
       </div>}
+      {season.competitionTemplate === "major" && <Suspense fallback={null}><MatchBetLink seasonId={season.id} matchId={match.id} slug={seasonSlug} /></Suspense>}
       <MatchLiveProvider matchId={match.id} enabled={afterVeto}>
       {(afterVeto || isFinished) && maps.length > 0 && <MatchMapSequence
         maps={maps.map(map => ({ id: map.id, mapOrder: map.mapOrder, mapName: map.mapName, pickedByEntryId: map.pickedByEntryId, scoreA: map.scoreA, scoreB: map.scoreB, completedAt: map.completedAt?.toISOString() ?? null }))}

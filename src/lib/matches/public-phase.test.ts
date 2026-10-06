@@ -14,3 +14,9 @@ it("keeps the latest completed result and series wins independent of database ro
   maps[0].scoreA = 11;
   expect((await loadPublicMatchPhase(match, maps)).lastCompletedMap?.scoreA).toBe(11);
 });
+
+it("keeps an official map start after a data-source disconnect", async () => {
+  const match = { status: "in_progress", format: "bo3" } as Match;
+  const maps = [{id:"one",mapOrder:1,mapName:"de_nuke",scoreA:null,scoreB:null,startedAt:new Date(),completedAt:null}] as MatchMap[];
+  expect((await loadPublicMatchPhase(match,maps)).phase).toBe("gameplay");
+});

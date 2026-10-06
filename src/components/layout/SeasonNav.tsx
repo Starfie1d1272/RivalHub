@@ -46,7 +46,7 @@ export function SeasonNav({
     { label: "选手", href: `/${slug}/players` },
     ...(hasMatches ? [{ label: "赛程", href: `/${slug}/matches` }] : []),
     ...(hasCommunityAwards ? [{ label: "社区奖", href: `/${slug}/community-awards` }] : []),
-    ...(hasPredictions ? [{ label: "观赛预测", href: `/${slug}/predictions` }] : []),
+    ...(hasPredictions ? [{ label: "观赛预测", href: `/${slug}/predictions` }, { label: "竞猜平台", href: `/${slug}/bet` }] : []),
     ...(hasStats ? [{ label: "数据统计", href: statsEntryHref(slug, {}, status === "draft") }] : []),
   ];
 

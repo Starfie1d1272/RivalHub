@@ -24,6 +24,7 @@ import {
 } from "@/db/schema";
 import { requireSeasonAdmin } from "@/lib/auth/session";
 import { getStartingLineupPreflightInTx } from "@/lib/match-rosters/service";
+import { mapLabel } from "@/lib/maps";
 import { getDisplayName } from "@/lib/identity/display-name";
 import { getPostMatchCompletion, POST_MATCH_COMPLETION_LABEL } from "@/lib/postmatch/service";
 import { normalizeRegistrationConfig, normalizeStagePlan } from "@/lib/seasons/compatibility";
@@ -312,6 +313,7 @@ export async function loadAdminMatchWorkbench({
     teamAPreflight,
     teamBPreflight,
     completedMaps: mapCompletedMaps(mapRecords),
+    officialMapStart: (() => { const next = mapRecords.find(m => !m.completedAt); return match.status === "in_progress" && vetoSession?.completedAt && next && !next.startedAt ? { mapId: next.id, mapName: mapLabel(next.mapName) } : null; })(),
     pendingMaps: match.status === "finished" ? [] : mapPendingMaps(mapRecords),
     finishedMaps: mapFinishedMaps(mapRecords),
     vetoCompletedAt: vetoSession?.completedAt ?? null,

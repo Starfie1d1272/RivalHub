@@ -17,6 +17,7 @@ const AUDIT_CATEGORIES = {
   user: { label: "用户", color: "var(--color-fg-mid)" },
   education: { label: "教育认证", color: "var(--color-ok)" },
   competitive: { label: "竞技资料", color: "var(--color-info)" },
+  bet: { label: "BET", color: "var(--color-accent)" },
   predictions: { label: "观赛预测", color: "var(--color-accent)" },
   major: { label: "Major", color: "var(--color-accent-b)" },
   postevent: { label: "赛后裁定", color: "var(--color-warn)" },
@@ -52,6 +53,7 @@ export type AuditAction = {
 }[AuditReadAction];
 
 const DEFAULT_TARGETS: Record<AuditCategory, AuditTargetContract> = {
+  bet: { type: "bet_program", lifecycle: "stable" },
   predictions: { type: "prediction_program", lifecycle: "stable" },
   admin: { type: "admin_user", lifecycle: "stable" },
   registration: { type: "registration", lifecycle: "stable" },
@@ -73,6 +75,8 @@ const DEFAULT_TARGETS: Record<AuditCategory, AuditTargetContract> = {
 };
 
 const TARGET_OVERRIDES: Readonly<Partial<Record<AuditReadAction, AuditTargetContract>>> = {
+  "bet.close": { type: "bet_market", lifecycle: "stable" },
+  "bet.void": { type: "bet_market", lifecycle: "stable" },
   "predictions.open_market": { type: "prediction_market", lifecycle: "stable" },
   "predictions.open_contest": { type: "prediction_contest", lifecycle: "stable" },
   "predictions.void_contest": { type: "prediction_contest", lifecycle: "stable" },
@@ -212,6 +216,13 @@ export const AUDIT_ACTION_DEFINITIONS = {
   "season_public_info.contact.update": { label: "更新赛事联系方式", category: "season" },
   "season_public_info.contact.move": { label: "调整赛事联系方式顺序", category: "season" },
   "season_public_info.contact.delete": { label: "删除赛事联系方式", category: "season" },
+  "bet.enable": { label: "启用 BET", category: "bet" },
+  "bet.pause": { label: "暂停 BET 投入", category: "bet" },
+  "bet.resume": { label: "恢复 BET 投入", category: "bet" },
+  "bet.close": { label: "提前锁盘", category: "bet" },
+  "bet.void": { label: "作废并退款", category: "bet" },
+  "bet.retry": { label: "重试 BET 结算", category: "bet" },
+  "match.map.start": { label: "开始正式地图", category: "match" },
   "predictions.open_market": { label: "开放积分池", category: "predictions" },
   "predictions.open_contest": { label: "开放阶段预测", category: "predictions" },
   "predictions.void_contest": { label: "作废阶段预测", category: "predictions" },

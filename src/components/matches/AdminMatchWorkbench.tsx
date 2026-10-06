@@ -1,3 +1,4 @@
+import { OfficialMapStart } from "@/components/bet/OfficialMapStart";
 import { OperatorLiveStatus } from "./OperatorLiveStatus";
 import { OperatorIssuePanel } from "./OperatorIssuePanel";
 import Link from "next/link";
@@ -102,6 +103,7 @@ export function AdminMatchWorkbench({
   pendingMaps,
   finishedMaps,
   vetoCompletedAt,
+  officialMapStart,
   postMatch,
   demoReviews = [],
   operator,
@@ -180,6 +182,7 @@ export function AdminMatchWorkbench({
           matchId={match.id} scope={{ sessionId: operator.problemRecovery.sessionId, mapEpoch: operator.problemRecovery.mapEpoch, mapId: operator.problemRecovery.mapId, recoverMapBinding: operator.problemRecovery.recoverMapBinding }}
           reportContext={operator.problemRecovery.reportContext} mapLabel={operator.problemRecovery.mapLabel} /> : null}
         {broadcasts.length > 0 && <aside aria-label="转播状态" className="space-y-1 text-sm">{broadcasts.map((row, i) => <p key={i}>B站直播：{row.name} · {row.label}</p>)}</aside>}
+        {officialMapStart && <OfficialMapStart seasonId={season.id} matchId={match.id} mapId={officialMapStart.mapId} mapName={officialMapStart.mapName} />}
         <OperatorTaskControls elapsed={operator.workflow.elapsed} />
         {match.status === "in_progress" && vetoCompletedAt && operator.workflow.manualResultAllowed && <details id="manual-result" className="space-y-3 pt-3" open={operator.workflow.sourceMode === "manual_map" || operator.workflow.phase === "gameplay"}>
           <summary className="cursor-pointer text-sm font-medium">比赛结束后录入本图比分</summary>
