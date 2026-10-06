@@ -1,5 +1,25 @@
 # Changelog
 
+## [2.14.2]
+
+### Fixed
+
+#### Play-in 首发资格
+
+补齐 Play-in 首发的校籍与外校实力校验，使用当前已批准名单版本的资格快照和对应特批，避免个人资料变化影响比赛资格。
+
+### Added
+
+#### 共享预排名草稿
+
+Major 预排名可保存为跨管理员共享的服务器草稿，保留操作人、时间、版本和审计；最终确认只消费最新已保存版本并锁定赛制与排序，首轮前可显式重置返回草稿。
+
+### Changed
+
+#### Major 排名总表
+
+以紧凑阵容证据展示所有主力与替补，默认保留昵称和统一段位，主力同时显示历史最高与可比较 Rating；完整来源明细可按需查看，人工排名与非并列系统参考的差异清晰显示。系统种子算法仍只计算 5 名主力，50/20/30 权重不变。
+
 ## [2.14.1]
 
 ### Security
@@ -2774,3 +2794,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [1.1.0]: https://github.com/Starfie1d1272/RivalHub/compare/v1.0.2...v1.1.0
 [1.0.2]: https://github.com/Starfie1d1272/RivalHub/compare/v1.0.0...v1.0.2
 [1.0.0]: https://github.com/Starfie1d1272/RivalHub/compare/v0.3.0...v1.0.0
+[2.14.2]: https://github.com/Starfie1d1272/RivalHub/compare/v2.14.1...v2.14.2
