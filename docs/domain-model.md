@@ -52,6 +52,8 @@ CompetitivePlatform
 - `ConversionPolicy` 由独立 lifecycle owner 管理：已有策略 clone 成 draft，draft 保存和 approve 共用 mapping validator，approved 版本可原子切换 current，只有非 current 的 approved 版本可以 retired；每个 mutation 都保留 `audit_logs`。
 - 需要竞技资格的赛事在实际报名开放时冻结本届需要的 season/ladder/evidence/conversion context。赛事只保存 policy identity/version 与当届 conversion snapshot；全局 current、provenance 或 policy retire 不得重解释该届或历史 StageRun。没有 stable policy id 的 legacy mapping 不伪造全局 policy 引用。
 
+未定级仍按最近已定级记录或历史最高低一档估算；若目标档使用星数，代表星数取该档的有限上界（完美钻石 49、黄金 24、青铜 9），无星档保留 null。估算及来源标记保留，不能回写为真实申报事实。
+
 Major 综合实力在 canonical conversion/source selection/未定级估算后计算：Perfect D–A++ 为 0–9，S 使用连续的 `12 + stars/3`，H/R/P 仍为 50/30/20，team reference 仅取五名 primary 的算术均值。显示映射到最近官方段位点，midpoint 向较高点取整；新 seed snapshot 明确记录 strength axis，已有 legacy snapshot 继续保留原数值与推荐顺序，不将旧 ordinal 误当新 axis 显示。
 
 CS2 地图同样区分稳定地图目录、当前轮换、长期用户熟练度与赛事自身图池。具体当前地图集合属于代码/config，不在本文件复制。

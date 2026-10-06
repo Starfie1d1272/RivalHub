@@ -224,11 +224,17 @@ export function toPlayerStrengthInput(
     if (!context) return null;
     const sourceRankIndex = context.rankOrder.indexOf(source.rank);
     if (sourceRankIndex < 0) return null;
+    const rank = context.rankOrder[Math.max(0, sourceRankIndex - 1)]!;
+    // A bucket estimate is not an observed star count. Use the lower bucket's
+    // inclusive ceiling so continuous strength can consume it with provenance.
+    const estimatedStars = isBuiltInCompetitivePlatformKey(context.platform)
+      ? BUILT_IN_COMPETITIVE_PLATFORMS[context.platform].ranks.find(definition => definition.rankKey === rank)?.starMax ?? null
+      : null;
     return {
-      rank: context.rankOrder[Math.max(0, sourceRankIndex - 1)]!,
+      rank,
       rating: 0,
       ratingComparable: false,
-      stars: null,
+      stars: estimatedStars,
       sourcePlatform: context.platform,
       sourceSeasonKey: targetSeasonKey,
       estimatedFromUnranked: true,

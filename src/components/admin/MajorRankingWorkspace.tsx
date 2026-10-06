@@ -33,13 +33,13 @@ type Props = {
   cohortBoundaries?: Array<{ after: number; label: string }>;
 };
 
-const ZOOMS = [90, 100, 110, 125] as const;
+const ZOOMS = [50, 60, 75, 90, 100, 110, 125] as const;
 const STORAGE_KEY = "rivalhub-major-ranking-preferences";
 
 function rankText(fact: MajorStrengthFact | null, platform: string | null): string {
   if (!fact) return "—";
-  if (fact.estimatedFromUnranked) return `未定级 · 参考 ${fact.rank}`;
-  return presentCompetitiveRankSummary(fact.rank, fact.stars, isBuiltInStarRank(platform ?? "perfect_world", fact.rank));
+  const summary = presentCompetitiveRankSummary(fact.rank, fact.stars, isBuiltInStarRank(platform ?? "perfect_world", fact.rank));
+  return fact.estimatedFromUnranked ? `未定级 · 参考 ${summary}` : summary;
 }
 
 function compactRank(fact: { rank: string; stars: number | null } | null): string {

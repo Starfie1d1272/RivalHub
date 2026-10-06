@@ -59,7 +59,7 @@ presentation owner 对有限集合使用穷举映射（新增状态必须同时�
 
 Major 赛前工作区按报名收口、资格方案、资格赛、正赛名单、正赛种子、开赛确认六阶段组织；顶部始终显示进度，默认只完整展开当前阶段，已完成阶段提供可展开摘要，未来阶段只提示前置条件。报名截止、最终名单调整截止和 Main Event 计划开始分别在报名收口、正赛名单和开赛确认阶段编辑，并受当前 lifecycle gate 约束；未来阶段不提前暴露编辑面，计划时间不代表实际开赛。Qualification 比赛在工作区只显示汇总和统一比赛管理入口。
 
-报名期的系统参考、Qualification 预排名和最终种子共用一队一行的 Ranking Workspace：排名、系统参考、队伍、五个独立主力列和一个替补区。默认每人只显示 canonical identity 和综合段位；S 四档使用铜、金、冰蓝和 crimson 小面积 token，颜色同时配明确档位文本及星数。默认行高约 28px，组件缩放从 90% 起；局部横向滚动保留固定排名/队伍列。排名承担 drag handle，hover/focus 显示上下微调，点击排名打开精确移至；这些操作只修改本地顺序，保存草稿和确认配置仍分别执行。桌面选手证据使用右侧非 modal inspector，可连续选择不同选手，移动端使用 Dialog。直通/Play-in 切线和入场批次用空间边界标示。
+报名期的系统参考、Qualification 预排名和最终种子共用一队一行的 Ranking Workspace：排名、系统参考、队伍、五个独立主力列和一个替补区。默认每人只显示 canonical identity 和综合段位；S 四档使用铜、金、冰蓝和 crimson 小面积 token，颜色同时配明确档位文本及星数。默认 100% 时行高约 28px；可主动选择 50/60/75% 总览缩放，默认可读性不依赖缩小；局部横向滚动保留固定排名/队伍列。排名承担 drag handle，hover/focus 显示上下微调，点击排名打开精确移至；这些操作只修改本地顺序，保存草稿和确认配置仍分别执行。桌面选手证据使用右侧非 modal inspector，可连续选择不同选手，移动端使用 Dialog。直通/Play-in 切线和入场批次用空间边界标示。
 
 公开页面只消费 public DTO/read model。email、QQ、`studentId`、`authId`、教育证据、管理员范围和内部备注默认不进入 public HTML/Client props。
 

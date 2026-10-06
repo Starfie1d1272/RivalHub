@@ -22,6 +22,8 @@ import {
 } from "@/lib/qualification/service";
 import type { CompetitiveProfileConfig } from "@/types/season";
 import { comparePlayerStrength } from "@/lib/major/player-strength";
+import { PERFECT_WORLD_RANK_ORDER } from "@/lib/config/perfect-world";
+import { buildTeamSeedRecommendations } from "@/lib/major/team-seed-recommendation";
 
 const CONTEXT: CompetitiveProfileConfig = {
   platform: "perfect_world",
@@ -362,6 +364,30 @@ describe("participant readiness", () => {
     // The recent term still chooses the stronger actual S20 result.
     expect(readiness.strength.recentSeasonPeaks?.[0]).toMatchObject({ rank: "A" });
     expect(readiness.strength.recentSeasonPeaks?.[1]).toMatchObject({ rank: "B++", estimatedFromUnranked: true });
+  });
+
+  it.each([
+    ["魔王S", 50, "钻石S", 49],
+    ["钻石S", 26, "黄金S", 24],
+    ["黄金S", 16, "青铜S", 9],
+    ["青铜S", 8, "A++", null],
+  ])("keeps %s unranked estimates rankable at the lower bucket ceiling", (rank, stars, expectedRank, expectedStars) => {
+    const context: CompetitiveProfileConfig = {
+      ...CONTEXT, rankOrder: [...PERFECT_WORLD_RANK_ORDER],
+      evidencePolicy: { historicalWeight: 50, referenceSeasonKey: "S20", referenceSeasonWeight: 20, recentSeasonKeys: ["S21"], recentSeasonWeight: 30, sourceSelection: "strongest_equivalent" },
+    };
+    const unranked = { status: "unranked" as const, rank: null, rating: null };
+    const fact = fullFact({ historicalPeak: { rank, stars, rating: 1.14 }, platformSeasonOrder: ["S20", "S21"], seasonPeaks: new Map<string, typeof unranked | { rank: string; stars: number; rating: number }>([["S20", unranked], ["S21", { rank, stars, rating: 1.14 }]]) });
+    const before = structuredClone(fact);
+    const input = toPlayerStrengthInput(fact, context);
+    expect(input.previousSeasonPeak).toMatchObject({ rank: expectedRank, stars: expectedStars, ratingComparable: false, estimatedFromUnranked: true, estimatedFromHistorical: true });
+    const [recommendation] = buildTeamSeedRecommendations([{ teamId: "estimated-team", teamName: "estimated-team", starters: Array.from({ length: 5 }, (_, index) => ({ ...input, userId: `starter-${index}` })) }], context);
+    expect(recommendation).toMatchObject({ available: true, blockers: [], recommendationRank: 1 });
+    expect(recommendation?.teamSeedStrength).not.toBeNull();
+    expect(fact).toEqual(before);
+    const prior = toPlayerStrengthInput(fullFact({ ...fact, platformSeasonOrder: ["S19", "S20", "S21"], seasonPeaks: new Map([["S19", { rank, stars, rating: 1.14 }], ...fact.seasonPeaks!]) }), context);
+    expect(prior.previousSeasonPeak).toMatchObject({ rank: expectedRank, stars: expectedStars, estimatedFromSeasonKey: "S19" });
+    expect(prior.previousSeasonPeak).not.toHaveProperty("estimatedFromHistorical");
   });
 
   it("skips consecutive unranked seasons and derives from the nearest earlier ranked season", () => {
