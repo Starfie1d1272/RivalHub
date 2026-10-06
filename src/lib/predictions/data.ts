@@ -27,6 +27,7 @@ import { loadBaseline } from "./baseline";
 import { loadQualificationContext } from "./qualification-baseline";
 import type { SimulationContext } from "./types";
 import { simulateMajor } from "./simulator";
+import { officialPickEmStages, pickEmWindowState, samePredictionEntrants } from "./lifecycle";
 
 /** Only this projection reaches public RSC/actions; no private roster or account credentials. */
 export async function predictionBoard(
@@ -52,6 +53,7 @@ export async function predictionBoard(
   );
   const now = new Date(databaseClock.rows[0]!.now).getTime();
   const rules = program?.rules ?? defaultPredictionRules(base.stages);
+  const eligible = officialPickEmStages(base);
   const allAccounts = await tx
     .select({
       id: accounts.id,
@@ -120,7 +122,7 @@ export async function predictionBoard(
         hits: result?.hits ?? null,
         challenges: results.filter(Boolean).length,
         possible:
-          !contest?.voidedAt && (!contest || contest.deadline.getTime() > now || !!pick) && (!contest?.lockedAt || !!pick)
+          !contest?.voidedAt && (!contest || !pickEmWindowState(base, contest, new Date(now)).locked || !!pick) && (!contest?.lockedAt || !!pick)
             ? stageChallengeCount(stage.type) + (locked ? 0 : 1)
             : 0,
       };
@@ -211,6 +213,9 @@ export async function predictionBoard(
     rules,
     joined: !!me,
     contests: windows.map((c) => {
+      const state = pickEmWindowState(base, c, new Date(now));
+      const current = eligible.find((stage) => stage.key === c.stageKey);
+      const mismatch = !current || (c.stageRunId !== null && c.stageRunId !== current.stageRunId) || !samePredictionEntrants(current.entrants, c.entrants);
       const submitted = me ? submissions.get(`${me.id}/${c.id}`) : null;
       const draft = me ? latestPicks.get(`${me.id}/${c.id}`) : null;
       return {
@@ -227,10 +232,10 @@ export async function predictionBoard(
                 })),
               ).map((p) => [p.higherSeedTeamId, p.lowerSeedTeamId])
             : [],
-        deadline: c.deadline.toISOString(),
-        locked: !!c.lockedAt || c.deadline.getTime() <= now,
-        deadlineReached: c.deadline.getTime() <= now,
-        voidReason: c.voidReason,
+        deadline: state.deadline?.toISOString() ?? null,
+        locked: state.locked,
+        deadlineReached: !!state.deadline && state.deadline.getTime() <= now,
+        voidReason: c.voidReason ?? (mismatch ? "官方阶段名单更正，原预测单作废" : null),
         submitted: submitted
           ? {
               pick: submitted.pick,
@@ -313,9 +318,9 @@ export type PredictionBoardData = Awaited<ReturnType<typeof predictionBoard>>;
 
 /** Prediction/Pick’Em transport excludes Bet balances, markets and ledgers. */
 export function publicPickEmBoard(data: PredictionBoardData) {
-  const { view, base, contexts, defaultContext, enabled, paused, joined, contests, achievement, pickLeaderboard } = data;
+  const { view, base, contexts, defaultContext, enabled, joined, contests, achievement, pickLeaderboard } = data;
   const { perfect, advance, eliminated, swissTarget, silver, gold, diamond } = data.rules;
-  return { view, base, contexts, defaultContext, enabled, paused, joined, contests, achievement, pickLeaderboard,
+  return { view, base, contexts, defaultContext, enabled, joined, contests, achievement, pickLeaderboard,
     rules: { perfect, advance, eliminated, swissTarget, silver, gold, diamond } };
 }
 export type PickEmBoardData = ReturnType<typeof publicPickEmBoard>;

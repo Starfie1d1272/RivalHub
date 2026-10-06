@@ -1,3 +1,5 @@
+import { Pool } from "pg";
+import { assertLocalDatabaseUrl } from "../../../scripts/db/local-environment";
 import { test, expect, signInProgrammatically } from "../fixtures";
 test.use({ scenarioProfile: "auth" });
 test.setTimeout(120_000);
@@ -273,83 +275,28 @@ test("完整推演导入提交，上游修改不会改写提交，刷新恢复�
   }
 });
 
-test("赛事管理员冻结配置、开窗、暂停和作废阶段", async ({ page, scenario }) => {
+test("Pick’Em 跟随官方排期，未排期可提交，实际开赛后关闭", async ({ page, scenario }) => {
   const user = scenario.accounts[0]!;
-  const fixture = await createPredictionBrowserFixture(user.userId, true);
-  const errors: string[] = [];
-  page.on("pageerror", (e) => errors.push(e.message));
+  const fixture = await createPredictionBrowserFixture(user.userId);
+  const pool = new Pool({ connectionString: assertLocalDatabaseUrl(process.env.DATABASE_URL), ssl: false });
   try {
-    await signInProgrammatically(
-      page,
-      user,
-      scenario,
-      `/admin/${fixture.slug}/predictions`,
-    );
-    mkdirSync(resolve(".agent-tmp/predictions-evidence"), { recursive: true });
-    await page.screenshot({
-      path: resolve(
-        `.agent-tmp/predictions-evidence/${test.info().project.name}-admin-disabled.png`,
-      ),
-      fullPage: true,
-      scale: "css",
-      style: "nextjs-portal { visibility: hidden; }",
-    });
-    await page.getByRole("button", { name: "启用 Pick’Em" }).click();
-    await page
-      .getByRole("alertdialog")
-      .getByRole("button", { name: "确认继续" })
-      .click();
-    await expect(page.getByLabel("银币挑战数")).toBeDisabled();
-    await page.screenshot({
-      path: resolve(
-        `.agent-tmp/predictions-evidence/${test.info().project.name}-admin-enabled.png`,
-      ),
-      fullPage: true,
-      scale: "css",
-      style: "nextjs-portal { visibility: hidden; }",
-    });
-    const future = new Date(Date.now() + 1800000);
-    const local = new Date(
-      future.getTime() - future.getTimezoneOffset() * 60000,
-    )
-      .toISOString()
-      .slice(0, 16);
-    await page.getByLabel("截止时间（本机时区）").fill(local);
-    await page
-      .getByRole("button", { name: "开放阶段 Pick’Em", exact: true })
-      .first()
-      .click();
-    await expect(page.getByText(/已开放 ·/)).toBeVisible();
-    await expect(page.getByRole("button", { name: "开放积分池" })).toHaveCount(
-      0,
-    );
-    await page.getByLabel("操作理由").fill("本地验收暂停");
-    await page.getByRole("button", { name: "暂停提交" }).click();
-    await expect(page.getByRole("button", { name: "恢复提交" })).toBeVisible();
-    await page.screenshot({
-      path: resolve(
-        `.agent-tmp/predictions-evidence/${test.info().project.name}-admin-paused.png`,
-      ),
-      fullPage: true,
-      scale: "css",
-      style: "nextjs-portal { visibility: hidden; }",
-    });
-    await page.getByRole("button", { name: /^作废 / }).click();
-    await page
-      .getByRole("alertdialog")
-      .getByRole("button", { name: "确认继续" })
-      .click();
-    await expect(page.getByText(/已作废：本地验收暂停/)).toBeVisible();
-    await page.screenshot({
-      path: resolve(
-        `.agent-tmp/predictions-evidence/${test.info().project.name}-admin-voided.png`,
-      ),
-      fullPage: true,
-      scale: "css",
-      style: "nextjs-portal { visibility: hidden; }",
-    });
-    expect(errors).toEqual([]);
+    await pool.query("UPDATE matches SET scheduled_at=NULL WHERE season_id=$1", [fixture.seasonId]);
+    await signInProgrammatically(page, user, scenario, `/${fixture.slug}/predictions`);
+    await page.getByRole("button", { name: test.info().project.name === "mobile-chrome" ? "我的预测单" : "展开预测单", exact: true }).click();
+    await expect(page.getByText("截止：时间待公布", { exact: true })).toBeVisible();
+    await page.screenshot({ path: resolve(`.agent-tmp/predictions-evidence/${test.info().project.name}-deadline-unpublished.png`), fullPage: true, scale: "css", style: "nextjs-portal { visibility: hidden; }" });
+    await expect(page.getByRole("button", { name: "加入 Pick’Em", exact: true })).toBeEnabled();
+    await pool.query("UPDATE matches SET scheduled_at=clock_timestamp()+interval '2 hours' WHERE season_id=$1", [fixture.seasonId]);
+    await page.reload();
+    await page.getByRole("button", { name: test.info().project.name === "mobile-chrome" ? "我的预测单" : "展开预测单", exact: true }).click();
+    await expect(page.getByText("截止：时间待公布", { exact: true })).toHaveCount(0);
+    await pool.query("UPDATE matches SET status='in_progress' WHERE id=(SELECT id FROM matches WHERE season_id=$1 ORDER BY managed_key LIMIT 1)", [fixture.seasonId]);
+    await page.reload();
+    await expect(page.getByTestId("sim-match-stage1-r1-1")).toBeVisible();
+    await expect(page.getByRole("button", { name: "展开预测单", exact: true })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "我的预测单", exact: true })).toHaveCount(0);
   } finally {
+    await pool.end();
     await removePredictionBrowserFixture(fixture.seasonId);
   }
 });

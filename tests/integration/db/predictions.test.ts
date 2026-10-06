@@ -8,20 +8,19 @@ import { createMajorDefaultCapabilities, createMajor24Capabilities } from "@/lib
 import { makeMajorRunSnapshotV4 } from "@/lib/major/run-snapshot";
 import { finalizeMajorSwissRoundInTransaction } from "@/lib/major/swiss-runtime";
 import { transitionMajorSwissStageInTransaction } from "@/lib/major/stage-transition";
-import { DEFAULT_RULES, defaultPredictionRules } from "@/lib/predictions/rules";
+import { DEFAULT_RULES } from "@/lib/predictions/rules";
 import { runPredictionReconciliationJob } from "@/lib/predictions/reconciliation";
 import { loadBaseline } from "@/lib/predictions/baseline";
 import { simulateMajor } from "@/lib/predictions/simulator";
 import {
-  enablePredictionsInTx,
+  syncAutomaticPickEmInTx,
   joinPredictionsInTx,
-  openPredictionWindowInTx,
+  openPredictionMarketInTx,
   savePickInTx,
   stakeInTx,
   lockPredictionProgram,
   reconcilePredictionProgram,
   balanceOf,
-  moderatePredictionsInTx,
 } from "@/lib/predictions/service";
 import { predictionBoard } from "@/lib/predictions/data";
 import { buildUserMergePreflight } from "@/lib/identity/merge";
@@ -175,11 +174,7 @@ async function fixture(work: (f: Fixture) => Promise<void>, capacity: 24 | 32 = 
         )
         .returning({ id: schema.matches.id });
       await db.transaction((tx) =>
-        enablePredictionsInTx(tx, {
-          seasonId,
-          rules: defaultPredictionRules(base.stages),
-          actorId: "test",
-        }),
+        syncAutomaticPickEmInTx(tx, seasonId),
       );
       await Promise.all(
         [userId, otherId].map((id) =>
@@ -226,7 +221,7 @@ async function balance(f: Fixture, userId = f.userId) {
 }
 async function market(f: Fixture, index: number) {
   const { id } = await f.db.transaction((tx) =>
-    openPredictionWindowInTx(tx, {
+    openPredictionMarketInTx(tx, {
       seasonId: f.seasonId,
       actorId: "test",
       matchId: f.matchIds[index]!,
@@ -240,13 +235,13 @@ async function market(f: Fixture, index: number) {
   const options = await f.db.select().from(schema.predictionMarketOptions).where(eq(schema.predictionMarketOptions.marketId, id)).orderBy(schema.predictionMarketOptions.position);
   return { ...m!, options };
 }
-function fill(base: Awaited<ReturnType<typeof loadBaseline>>) {
+function fill(base: Awaited<ReturnType<typeof loadBaseline>>, key = "stage1") {
   const choices: Choices = {};
   for (let i = 0; i < 8; i++) {
-    const stage = simulateMajor(base, choices)[0]!;
+    const stage = simulateMajor(base, choices).find((stage) => stage.key === key)!;
     if (stage.complete) return { stage, choices };
     for (const m of stage.matches.filter((m) => !m.winner))
-      choices[`stage1/${m.key}`] = { a: m.a, b: m.b, winner: m.a };
+      choices[`${key}/${m.key}`] = { a: m.a, b: m.b, winner: m.a };
   }
   throw Error("incomplete");
 }
@@ -260,12 +255,7 @@ describe("spectator prediction PostgreSQL contracts", () => {
       const base = await loadBaseline(db, seasonId);
       expect(base.teams).toHaveLength(24);
       expect(base.stages).toHaveLength(3);
-      await expect(db.transaction((tx) => enablePredictionsInTx(tx, {
-        seasonId, actorId: "test", rules: DEFAULT_RULES,
-      }))).rejects.toThrow("纪念币门槛不能超过本届赛事可完成的挑战总数");
-      const { id } = await db.transaction((tx) => openPredictionWindowInTx(tx, {
-        seasonId, actorId: "test", stageKey: "stage1", deadline: new Date(Date.now() + 1800000),
-      }));
+      const { id } = (await db.select().from(schema.predictionContests).where(eq(schema.predictionContests.seasonId, seasonId)))[0]!;
       await db.transaction((tx) => savePickInTx(tx, {
         seasonId, userId, contestId: id, pick: fill(base).stage.pick!, submitted: true, requestId: randomUUID(),
       }));
@@ -369,14 +359,7 @@ describe("spectator prediction PostgreSQL contracts", () => {
   it("keeps versioned submissions separate, blocks late requests, permanently locks on early start and protects identity/history", async () =>
     fixture(async (f) => {
       const { db, seasonId, userId } = f;
-      const { id } = await db.transaction((tx) =>
-        openPredictionWindowInTx(tx, {
-          seasonId,
-          actorId: "test",
-          stageKey: "stage1",
-          deadline: new Date(Date.now() + 1800000),
-        }),
-      );
+      const { id } = (await db.select().from(schema.predictionContests).where(eq(schema.predictionContests.seasonId, seasonId)))[0]!;
       const base = await loadBaseline(db, seasonId);
       const complete = fill(base);
       const pick = complete.stage.pick!;
@@ -452,14 +435,6 @@ describe("spectator prediction PostgreSQL contracts", () => {
           .set({ rules: { ...DEFAULT_RULES, initialPoints: 2000 } })
           .where(eq(schema.predictionPrograms.seasonId, seasonId)),
       ).rejects.toThrow();
-      await db.transaction((tx) =>
-        moderatePredictionsInTx(tx, {
-          seasonId,
-          actorId: "test",
-          paused: true,
-          reason: "暂停",
-        }),
-      );
       const merged = await buildUserMergePreflight(
         db,
         { canonicalUserId: f.otherId, mergedUserId: userId },
@@ -649,14 +624,7 @@ describe("spectator prediction PostgreSQL contracts", () => {
       const { db, seasonId, userId } = f;
       const base = await loadBaseline(db, seasonId);
       const { stage } = fill(base);
-      const { id } = await db.transaction((tx) =>
-        openPredictionWindowInTx(tx, {
-          seasonId,
-          actorId: "test",
-          stageKey: "stage1",
-          deadline: new Date(Date.now() + 1800000),
-        }),
-      );
+      const { id } = (await db.select().from(schema.predictionContests).where(eq(schema.predictionContests.seasonId, seasonId)))[0]!;
       await db.transaction((tx) =>
         savePickInTx(tx, {
           seasonId,
@@ -710,6 +678,14 @@ describe("spectator prediction PostgreSQL contracts", () => {
       expect(board.achievement?.coin).toBe("青铜");
       expect(board.profit).toBe("0");
       expect(board.balance).toBe("1000");
+      const automaticNext = board.contests.find((contest) => contest.stageKey === "stage2")!;
+      expect(automaticNext.entrants).toHaveLength(16);
+      expect(automaticNext.deadline).toBeNull();
+      expect(automaticNext.locked).toBe(false);
+      await db.transaction(async (tx) => savePickInTx(tx, {
+        seasonId, userId, contestId: automaticNext.id,
+        pick: fill(await loadBaseline(tx, seasonId), "stage2").stage.pick!, submitted: true, requestId: randomUUID(),
+      }));
       const next = await db.transaction((tx) =>
         transitionMajorSwissStageInTransaction(tx, {
           seasonId,
@@ -717,6 +693,8 @@ describe("spectator prediction PostgreSQL contracts", () => {
           actorId: "test",
         }),
       );
+      const bound = await db.transaction((tx) => predictionBoard(tx, seasonId, userId));
+      expect(bound.contests.find((contest) => contest.id === automaticNext.id)?.submitted).not.toBeNull();
       const lateId = randomUUID();
       await db
         .insert(schema.users)
@@ -748,19 +726,15 @@ describe("spectator prediction PostgreSQL contracts", () => {
       expect(await balance(f)).toBe(BigInt(1300));
       expect(await balance(f, lateId)).toBe(BigInt(1000));
 
-      await db.transaction((tx) =>
-        moderatePredictionsInTx(tx, {
-          seasonId,
-          actorId: "test",
-          contestId: id,
-          reason: "赛段作废",
-        }),
-      );
+      // Official stage recovery invalidates dependent picks without a Pick’Em moderator.
+      await db.delete(schema.matches).where(eq(schema.matches.majorStageRunId, f.runId));
+      await db.delete(schema.majorStageRuns).where(eq(schema.majorStageRuns.id, f.runId));
+      await reconcile(f);
       const voided = await db.transaction((tx) =>
         predictionBoard(tx, seasonId, userId),
       );
       expect(voided.achievement?.challenges).toBe(0);
-      expect(voided.contests[0]!.submitted).not.toBeNull();
+      expect(voided.contests.find((contest) => contest.id === id)!.submitted).not.toBeNull();
     }));
 });
 
@@ -790,5 +764,34 @@ it("binds stakes to their market options, freezes options and reads started stag
     const after = await loadBaseline(f.db, f.seasonId);
     expect(after.stages).toEqual(before.stages);
     expect(after.runs[0]!.id).toBe(f.runId);
+  });
+});
+
+it("accepts unscheduled picks, follows postponements while open and latches elapsed deadlines atomically", async () => {
+  await fixture(async (f) => {
+    const { db, seasonId, userId } = f;
+    await db.update(schema.matches).set({ scheduledAt: null }).where(eq(schema.matches.seasonId, seasonId));
+    const read = () => db.transaction((tx) => predictionBoard(tx, seasonId, userId));
+    const initial = (await read()).contests.find((contest) => contest.stageKey === "stage1")!;
+    expect(initial.deadline).toBeNull();
+    expect(initial.locked).toBe(false);
+    const pick = fill(await loadBaseline(db, seasonId)).stage.pick!;
+    await db.transaction((tx) => savePickInTx(tx, { seasonId, userId, contestId: initial.id, pick, submitted: true, requestId: randomUUID() }));
+    for (const hours of [2, 3]) {
+      const planned = new Date(Date.now() + hours * 3600000);
+      await db.update(schema.matches).set({ scheduledAt: planned }).where(eq(schema.matches.seasonId, seasonId));
+      const window = (await read()).contests.find((contest) => contest.id === initial.id)!;
+      expect(window.deadline).toBe(planned.toISOString());
+      expect(window.locked).toBe(false);
+    }
+    await db.update(schema.matches).set({ scheduledAt: new Date(Date.now() - 1000) }).where(eq(schema.matches.seasonId, seasonId));
+    const closed = (await read()).contests.find((contest) => contest.id === initial.id)!;
+    expect(closed.locked).toBe(true);
+    await db.update(schema.matches).set({ scheduledAt: new Date(Date.now() + 86400000) }).where(eq(schema.matches.seasonId, seasonId));
+    const postponed = (await read()).contests.find((contest) => contest.id === initial.id)!;
+    expect(postponed.locked).toBe(true);
+    expect(postponed.deadline).toBe(closed.deadline);
+    await expect(db.transaction((tx) => savePickInTx(tx, { seasonId, userId, contestId: initial.id, pick, submitted: true, requestId: randomUUID() }))).rejects.toThrow("截止");
+    expect(postponed.submitted).not.toBeNull();
   });
 });

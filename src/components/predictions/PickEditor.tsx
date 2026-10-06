@@ -40,7 +40,7 @@ export function PickEditor({
   );
   const [selectedTeam, setSelectedTeam] = useState<string | null>(null);
   const [message, setMessage] = useState("");
-  const locked = contest.locked || !!contest.voidReason || data.paused || busy;
+  const locked = contest.locked || !!contest.voidReason || busy;
   const teamIds = contest.entrants.map((e) => e.teamId);
   const team = (id: string) => data.base.teams.find((t) => t.teamId === id);
   const name = (id: string) => team(id)?.name ?? "待选择";
@@ -110,15 +110,13 @@ export function PickEditor({
               ? "已截止，不能再提交"
               : contest.locked
                 ? "已锁定"
-                : data.paused
-                  ? "已暂停提交"
-                  : contest.submitted
+                : contest.submitted
                     ? "已提交"
                     : "尚未提交"}
           {dirty && " · 有未提交修改"}
         </p>
         <p className="text-xs text-[var(--color-fg-mid)]">
-          截止：{new Date(contest.deadline).toLocaleString("zh-CN")}
+          截止：{contest.deadline ? new Date(contest.deadline).toLocaleString("zh-CN") : "时间待公布"}
         </p>
         {"perfect" in pick ? (
           <>

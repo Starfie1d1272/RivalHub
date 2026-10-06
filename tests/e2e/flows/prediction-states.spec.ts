@@ -32,8 +32,7 @@ test("模拟数据覆盖 Pick’Em 状态与隐藏规则", async ({
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
     await expect(page.getByText("正在加载观赛预测…", { exact: true })).toHaveCount(0);
     const showingMobilePick = mobile && [
-      "not-joined", "empty", "draft", "submitted", "paused-submitted",
-      "closed-submitted", "voided-submitted", "paused-unsubmitted",
+      "not-joined", "empty", "draft", "submitted", "closed-submitted", "voided-submitted",
     ].includes(name);
     if (showingMobilePick) {
       await expect(page.getByText("我的阶段预测单", { exact: true })).toBeVisible();
@@ -81,6 +80,10 @@ test("模拟数据覆盖 Pick’Em 状态与隐藏规则", async ({
     ]) {
       await page.getByRole("button", { name: label, exact: true }).click();
       await capture(`swiss-${file}`);
+      if (!mobile && file === "compact") {
+        const region = page.getByRole("region", { name: "Swiss 完整赛事推演" });
+        expect(await region.evaluate((node) => node.scrollWidth <= node.clientWidth + 1)).toBe(true);
+      }
     }
     await page
       .getByTestId("sim-match-stage1-r1-1")
@@ -143,21 +146,6 @@ test("模拟数据覆盖 Pick’Em 状态与隐藏规则", async ({
     await expect(page.getByText("已提交", { exact: true })).toBeVisible();
     await capture("submitted");
     await pool.query(
-      "UPDATE prediction_programs SET paused=true WHERE season_id=$1",
-      [fixture.seasonId],
-    );
-    await page.reload();
-    await openDock();
-    await expect(page.getByText("已暂停提交", { exact: true })).toBeVisible();
-    await expect(
-      page.getByRole("button", { name: "提交预测", exact: true }),
-    ).toBeDisabled();
-    await capture("paused-submitted");
-    await pool.query(
-      "UPDATE prediction_programs SET paused=false WHERE season_id=$1",
-      [fixture.seasonId],
-    );
-    await pool.query(
       "UPDATE prediction_contests SET deadline=clock_timestamp()-interval '1 minute' WHERE season_id=$1",
       [fixture.seasonId],
     );
@@ -206,26 +194,6 @@ test("模拟数据覆盖 Pick’Em 状态与隐藏规则", async ({
     fixtures.push(fixture);
     await page.goto(`/${fixture.slug}/predictions`);
     await pool.query(
-      "UPDATE prediction_programs SET paused=true WHERE season_id=$1",
-      [fixture.seasonId],
-    );
-    await page.reload();
-    await openDock();
-    await capture("paused-unsubmitted");
-    await pool.query(
-      "UPDATE prediction_programs SET paused=false WHERE season_id=$1",
-      [fixture.seasonId],
-    );
-    await pool.query(
-      "INSERT INTO season_admin_grants (user_id,season_id) VALUES ($1,$2)",
-      [user.userId, fixture.seasonId],
-    );
-    await page.goto(`/admin/${fixture.slug}/predictions`);
-    await expect(
-      page.getByRole("button", { name: "暂停提交", exact: true }),
-    ).toBeVisible();
-    await capture("admin-open");
-    await pool.query(
       "UPDATE matches SET status='finished',score_a=1,score_b=0,completed_at=clock_timestamp() WHERE id=(SELECT id FROM matches WHERE season_id=$1 ORDER BY managed_key LIMIT 1)",
       [fixture.seasonId],
     );
@@ -235,6 +203,9 @@ test("模拟数据覆盖 Pick’Em 状态与隐藏规则", async ({
       "official",
     );
     await capture("official-result");
+    await page.getByRole("button", { name: "紧凑对阵", exact: true }).click();
+    await capture("official-result-compact");
+    await page.getByRole("button", { name: "晋级路径", exact: true }).click();
     await page
       .getByTestId("sim-match-stage1-r1-1")
       .getByRole("button")

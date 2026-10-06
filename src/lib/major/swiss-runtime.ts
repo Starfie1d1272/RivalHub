@@ -1,3 +1,4 @@
+import { syncAutomaticPickEmInTx } from "@/lib/predictions/service";
 import { and, eq } from "drizzle-orm";
 import { writeAuditInTx } from "@/lib/audit/write";
 
@@ -189,6 +190,7 @@ export async function finalizeMajorSwissRoundInTransaction(
       eliminatedTeams: projection.eliminated.length,
     },
   });
+  await syncAutomaticPickEmInTx(tx, input.seasonId);
   return {
     stageRunId: stageRun.id,
     finalizedRound: input.expectedRound,

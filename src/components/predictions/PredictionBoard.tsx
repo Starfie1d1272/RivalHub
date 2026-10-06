@@ -24,6 +24,7 @@ import {
   replaceContextChoice,
 } from "@/lib/predictions/context-simulator";
 import { orderedPredictionStages } from "@/lib/predictions/stage-projection";
+import { samePredictionEntrants } from "@/lib/predictions/lifecycle";
 import { pickEmDockVisible } from "@/lib/predictions/presentation";
 import { PickEditor, emptyPick } from "./PickEditor";
 import { TournamentBoard } from "./TournamentBoard";
@@ -186,6 +187,7 @@ export function PredictionBoard({
     if (
       !stage?.pick ||
       !contest ||
+      !samePredictionEntrants(stage.entrants, contest.entrants) ||
       !(await confirm(
         "用本阶段推演结果替换预测单草稿？正式提交需要再点击“提交预测”。",
       ))
@@ -264,7 +266,7 @@ export function PredictionBoard({
               </Link>
             ) : !data.joined ? (
               <Button
-                disabled={pending || data.paused}
+                disabled={pending}
                 onClick={() =>
                   run(async () => {
                     const r = await mutatePrediction({
@@ -281,7 +283,7 @@ export function PredictionBoard({
             ) : null)}
         </div>
       </div>
-      {data.enabled && context.kind === "major" && (
+      {context.kind === "major" && (
         <nav aria-label="观赛预测功能" className="flex gap-2">
           <Button
             variant={tab === "sim" ? "default" : "outline"}
@@ -359,7 +361,7 @@ export function PredictionBoard({
               <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[var(--color-fg-mid)]">
                 <span>
                   基于官方赛况 ·{" "}
-                  {stage?.officialEntrants ? "官方名单" : "推演名单"}
+                  {stage && contest && !contest.voidReason && samePredictionEntrants(stage.entrants, contest.entrants) ? "官方名单" : "推演名单"}
                 </span>
                 <span aria-live="polite">
                   我的选择 {Object.keys(choices).length} 场
@@ -425,10 +427,9 @@ export function PredictionBoard({
                     <Button
                       variant="outline"
                       disabled={
-                        !stage.officialEntrants ||
+                        !contest || !samePredictionEntrants(stage.entrants, contest.entrants) ||
                         contest?.locked ||
                         !!contest?.voidReason ||
-                        data.paused ||
                         pending
                       }
                       onClick={importPick}
@@ -443,6 +444,11 @@ export function PredictionBoard({
                 </p>
               )}
             </section>
+            {context.kind === "major" && !contest && (
+              <p role="status" className="text-sm text-[var(--color-fg-mid)]">
+                Pick’Em 等待本阶段官方名单确认；可以先进行赛事推演。
+              </p>
+            )}
             {dockVisible && contest && (
               <aside
                 className={`min-w-0 ${mobile !== "pick" ? "hidden lg:block" : ""} ${!sidebar ? "lg:hidden" : ""}`}

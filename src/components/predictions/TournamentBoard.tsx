@@ -21,7 +21,7 @@ type ResultGroup = {
   label: string;
   record: string;
   ids: string[];
-  tone: "advance" | "eliminated" | "champion";
+  tone: "advance" | "eliminated" | "champion" | "runner-up" | "placement";
 };
 export function TournamentBoard({
   stage,
@@ -42,6 +42,10 @@ export function TournamentBoard({
     () => new Map(teams.map((t) => [t.teamId, t])),
     [teams],
   );
+  const seeds = useMemo(
+    () => new Map(stage.entrants.map((entrant) => [entrant.teamId, entrant.seed])),
+    [stage.entrants],
+  );
   const rounds = [...new Set(stage.matches.map((m) => m.round))].sort(
     (a, b) => a - b,
   );
@@ -56,6 +60,7 @@ export function TournamentBoard({
       match={m}
       stageKey={stage.key}
       teams={teamMap}
+      seeds={seeds}
       compact={view === "compact"}
       busy={false}
       editable={editable}
@@ -109,7 +114,7 @@ export function TournamentBoard({
           key: `exit-${r}`,
           label: r === last ? "Runner-up" : r === last - 1 ? "SF" : "QF",
           record: `${r - 1}–1`,
-          tone: "eliminated",
+          tone: r === last ? "runner-up" : "placement",
           ids,
         });
       }
@@ -139,8 +144,8 @@ export function TournamentBoard({
   const roundBody = (round: number) => {
     const matches = stage.matches.filter((m) => m.round === round);
     const exits = results(round);
-    const upper = exits.filter((g) => g.tone !== "eliminated");
-    const lower = exits.filter((g) => g.tone === "eliminated");
+    const upper = exits.filter((g) => g.tone === "advance" || g.tone === "champion");
+    const lower = exits.filter((g) => g.tone !== "advance" && g.tone !== "champion");
     const records = [
       ...new Set(
         matches.map((m) =>

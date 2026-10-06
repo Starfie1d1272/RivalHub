@@ -1,3 +1,4 @@
+import { syncAutomaticPickEmInTx } from "@/lib/predictions/service";
 import { and, asc, count, eq, inArray } from "drizzle-orm";
 import { writeAuditInTx } from "@/lib/audit/write";
 
@@ -416,5 +417,6 @@ export async function startMajorInTransaction(
       managedMatches: createdMatches.length,
     },
   });
+  await syncAutomaticPickEmInTx(tx, season.id);
   return { stageRunId: stageRun.id, created: true, matchCount: createdMatches.length };
 }

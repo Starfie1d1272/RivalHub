@@ -4,7 +4,8 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import * as schema from "@/db/schema";
 import { createMajorDefaultCapabilities } from "@/lib/competition/templates";
 import { makeMajorRunSnapshotV4 } from "@/lib/major/run-snapshot";
-import { DEFAULT_RULES } from "@/lib/predictions/rules";
+import { defaultPredictionRules } from "@/lib/predictions/rules";
+import { officialPickEmStages } from "@/lib/predictions/lifecycle";
 import { simulateMajor } from "@/lib/predictions/simulator";
 import { projectPredictionStages } from "@/lib/predictions/stage-projection";
 import { SIMULATION_VERSION } from "@/lib/predictions/types";
@@ -150,21 +151,16 @@ export async function createPredictionBrowserFixture(
         })),
       )
       .returning();
+    // Browser fixtures use canonical pure policy; real transition hooks are covered in PostgreSQL tests.
+    await db.insert(schema.predictionPrograms).values({ seasonId, rules: defaultPredictionRules(base.stages) });
+    await db.insert(schema.predictionJobs).values({ seasonId });
+    await db.insert(schema.predictionContests).values(officialPickEmStages(base).map((stage) => ({
+      seasonId, stageKey: stage.key, kind: stage.kind,
+      stageRunId: stage.stageRunId, entrants: stage.entrants, deadline,
+    })));
     if (adminSetup) {
       await db.insert(schema.seasonAdminGrants).values({ userId, seasonId });
     } else {
-      await db
-        .insert(schema.predictionPrograms)
-        .values({ seasonId, rules: DEFAULT_RULES });
-      await db.insert(schema.predictionJobs).values({ seasonId });
-      await db.insert(schema.predictionContests).values({
-        seasonId,
-        stageKey: "stage1",
-        kind: "swiss",
-        stageRunId: run!.id,
-        entrants,
-        deadline,
-      });
       const match = inserted[0]!;
       const [market] = await db
         .insert(schema.predictionMarkets)

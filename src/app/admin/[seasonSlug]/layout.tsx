@@ -54,7 +54,6 @@ async function AdminSeasonContent({
         hasDraft={season.hasDraft}
         hasCommunityAwards={season.hasCommunityAwards}
         hasMatches={hasMatches}
-        hasPredictions={season.competitionTemplate === "major"}
         showSettings={isSuperAdmin}
       />
       {children}

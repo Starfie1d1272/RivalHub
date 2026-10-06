@@ -200,6 +200,21 @@
   justify-content: flex-start;
   padding: 6px 10px;
 }
+.compactMatch .teamSide[data-winning="true"] {
+  background: color-mix(in srgb, #35a64a 62%, var(--color-panel-hi));
+  color: #fff;
+}
+.seed {
+  width: 18px;
+  flex-shrink: 0;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-fg-mid);
+}
+.compactMatch .teamSide[data-winning="true"] .seed,
+.compactMatch .teamSide[data-winning="true"] .rowScore {
+  color: #fff;
+}
 .compactMatch .teamSide + .teamSide {
   border-top: 1px solid var(--color-border);
 }
@@ -247,6 +262,18 @@
 .result[data-tone="champion"] h4 {
   color: var(--gold);
 }
+.result[data-tone="runner-up"] {
+  border-color: var(--color-fg-mid);
+}
+.result[data-tone="runner-up"] h4 {
+  color: var(--color-fg-mid);
+}
+.result[data-tone="placement"] {
+  border-color: var(--color-accent);
+}
+.result[data-tone="placement"] h4 {
+  color: var(--color-accent);
+}
 .resultLogos {
   display: flex;
   flex-wrap: wrap;
@@ -282,8 +309,9 @@
   color: var(--color-fg-mid);
 }
 .board[data-layout="compact"] .rounds {
-  grid-template-columns: repeat(var(--round-count), minmax(250px, 1fr));
-  gap: 40px;
+  grid-template-columns: repeat(var(--round-count), minmax(200px, 240px));
+  gap: 24px;
+  justify-content: center;
 }
 .board[data-layout="list"] .rounds {
   display: flex;

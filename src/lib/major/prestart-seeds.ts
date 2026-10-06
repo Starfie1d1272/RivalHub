@@ -1,3 +1,4 @@
+import { syncAutomaticPickEmInTx } from "@/lib/predictions/service";
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { writeAuditInTx } from "@/lib/audit/write";
 
@@ -222,4 +223,5 @@ export async function confirmMajorTournamentSeedsInTx(
       systemTieResolution: decision.resolvesSystemTie,
     },
   });
+  await syncAutomaticPickEmInTx(tx, season.id);
 }

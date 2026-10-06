@@ -8,6 +8,7 @@ export function SimulationMatchCard({
   match,
   stageKey,
   teams,
+  seeds,
   busy,
   editable,
   compact = false,
@@ -16,6 +17,7 @@ export function SimulationMatchCard({
   match: SimMatch;
   stageKey: string;
   teams: ReadonlyMap<string, Baseline["teams"][number]>;
+  seeds: ReadonlyMap<string, number>;
   busy: boolean;
   editable: boolean;
   compact?: boolean;
@@ -39,6 +41,7 @@ export function SimulationMatchCard({
         data-winning={winning}
         className={styles.teamSide}
       >
+        {compact && <span className={styles.seed}>{seeds.get(id)}</span>}
         <TeamLogo
           teamName={team?.name ?? "队伍"}
           logoUrl={team?.logoUrl ?? null}
@@ -47,7 +50,7 @@ export function SimulationMatchCard({
         <span className={styles.teamName}>{team?.name ?? "队伍"}</span>
         {compact && (
           <strong className={styles.rowScore}>
-            {actual ? (score ?? "—") : winning ? (preview ? "↗" : "✓") : "—"}
+            {actual ? (score ?? "—") : winning ? "胜" : "—"}
           </strong>
         )}
       </button>

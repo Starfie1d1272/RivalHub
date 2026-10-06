@@ -39,11 +39,11 @@ export const predictionContests = pgTable(
       .references(() => predictionPrograms.seasonId),
     stageKey: text("stage_key").notNull(),
     kind: text("kind", { enum: ["swiss", "single_elim"] }).notNull(),
-    stageRunId: uuid("stage_run_id").notNull(),
+    stageRunId: uuid("stage_run_id"),
     entrants: jsonb("entrants")
       .$type<{ teamId: string; seed: number }[]>()
       .notNull(),
-    deadline: time("deadline").notNull(),
+    deadline: time("deadline"),
     lockedAt: time("locked_at"),
     voidedAt: time("voided_at"),
     voidReason: text("void_reason"),

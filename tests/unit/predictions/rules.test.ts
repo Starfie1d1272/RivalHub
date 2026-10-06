@@ -21,6 +21,7 @@ import {
 import { projectPredictionStages } from "@/lib/predictions/stage-projection";
 import { resolveMarketOptions } from "@/lib/predictions/market-resolution";
 import { MAJOR_STAGE_PLAN, MAJOR_24_STAGE_PLAN } from "@/lib/competition/templates";
+import { officialPickEmStages, pickEmWindowState } from "@/lib/predictions/lifecycle";
 const B = BigInt;
 function baseline(): Baseline {
   return {
@@ -339,4 +340,41 @@ it("preview fills the entire flow without creating choices or judgeable stage re
       { wins: 0, losses: 2 },
     ]),
   );
+});
+
+describe("automatic Pick’Em lifecycle", () => {
+  it("opens only confirmed entrants, including the next phase before a StageRun exists", () => {
+    const base = baseline();
+    expect(officialPickEmStages(base).map((stage) => stage.key)).toEqual(["stage1"]);
+    const first = complete(base).stages[0]!;
+    base.runs = [{ id: "run1", key: "stage1", finalizedRound: 4, entrants: first.entrants }];
+    base.matches = first.matches.map((match) => ({
+      ...match, id: match.key, stageKey: "stage1", status: "finished",
+      scheduledAt: null, format: match.format as "bo1" | "bo3",
+      scoreA: match.format === "bo1" ? 1 : 2, scoreB: 0,
+    }));
+    expect(officialPickEmStages(base).map((stage) => stage.key)).toEqual(["stage1"]);
+    base.runs[0]!.finalizedRound = 5;
+    const next = officialPickEmStages(base)[1]!;
+    expect(next.key).toBe("stage2");
+    expect(next.stageRunId).toBeNull();
+    expect(next.entrants).toHaveLength(16);
+    base.teams = [];
+    expect(officialPickEmStages(base)).toEqual([]);
+  });
+  it("follows the first scheduled match, allows an unknown deadline and never reopens a closed window", () => {
+    const base = baseline();
+    const now = new Date("2026-10-07T00:00:00Z");
+    const contest = { stageKey: "stage1", deadline: null, lockedAt: null };
+    expect(pickEmWindowState(base, contest, now)).toEqual({ deadline: null, locked: false });
+    base.matches = [{ id: "m", stageKey: "stage1", key: "r1-1", round: 1,
+      a: "team17", b: "team25", winner: null, scoreA: null, scoreB: null,
+      format: "bo1", status: "scheduled", scheduledAt: "2026-10-07T02:00:00Z" }];
+    const early = new Date("2026-10-07T01:00:00Z");
+    expect(pickEmWindowState(base, { ...contest, deadline: early }, now).deadline?.toISOString()).toBe("2026-10-07T02:00:00.000Z");
+    const elapsed = new Date("2026-10-06T23:00:00Z");
+    expect(pickEmWindowState(base, { ...contest, deadline: elapsed }, now)).toEqual({ deadline: elapsed, locked: true });
+    base.matches[0]!.status = "in_progress";
+    expect(pickEmWindowState(base, contest, now).locked).toBe(true);
+  });
 });
