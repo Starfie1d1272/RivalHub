@@ -68,6 +68,8 @@ Release N+1: expand + backfill + app switch
 Release N+2: old owner 不再被上一稳定版本依赖后再 contract cleanup
 ```
 
+Issue #806 的 `0073_careless_pretty_boy` 是明确的未开放功能清理例外：赛事负责人确认推演从未开放并授权直接删除 `prediction_scenarios`，不做 N/N+1 staged rollout。兼容 checker 只对该精确 migration/relation 记录这一授权，其它 owner 继续按默认规则检查。
+
 纯 additive migration 不要求机械拆成多个 release；会破坏上一稳定应用读写的变化必须跨 release 收敛。
 
 ## Staging

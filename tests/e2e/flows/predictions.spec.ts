@@ -7,7 +7,7 @@ import {
   createPredictionBrowserFixture,
   removePredictionBrowserFixture,
 } from "../helpers/prediction-fixture";
-test("观众完成选队提交、草稿隔离、图片导出与真实积分投入", async ({
+test("观众完成选队提交、草稿隔离、图片导出", async ({
   page,
   scenario,
 }, info) => {
@@ -24,14 +24,19 @@ test("观众完成选队提交、草稿隔离、图片导出与真实积分投�
     await expect(
       page.getByRole("heading", { name: /观赛预测验收赛/ }),
     ).toBeVisible();
-    await page.getByRole("button", { name: /免费加入/ }).click();
-    await expect(page.getByRole("button", { name: /免费加入/ })).toHaveCount(0);
+    await page.getByRole("button", { name: /加入 Pick’Em/ }).click();
+    await expect(
+      page.getByRole("button", { name: /加入 Pick’Em/ }),
+    ).toHaveCount(0);
     const mobile = info.project.name === "mobile-chrome";
     if (mobile)
       await page
         .getByRole("button", { name: "我的预测单", exact: true })
         .click();
-    else await page.getByRole("button", { name: "展开预测单", exact: true }).click();
+    else
+      await page
+        .getByRole("button", { name: "展开预测单", exact: true })
+        .click();
     const slotNames = [
       "恰好 3胜0负 1",
       "恰好 3胜0负 2",
@@ -53,7 +58,9 @@ test("观众完成选队提交、草稿隔离、图片导出与真实积分投�
       ).toBeVisible();
     }
     for (let i = mobile ? 0 : 1; i < slotNames.length; i++) {
-      const slot = page.getByRole("button", { name: new RegExp(`^${slotNames[i]}：`) });
+      const slot = page.getByRole("button", {
+        name: new RegExp(`^${slotNames[i]}：`),
+      });
       // Keyboard press does not wait for enabled state, unlike a user click.
       await expect(slot).toBeEnabled();
       await slot.press("Enter");
@@ -61,17 +68,27 @@ test("观众完成选队提交、草稿隔离、图片导出与真实积分投�
       await page
         .getByRole("button", { name: `选择 队伍 ${17 + i}`, exact: true })
         .press("Enter");
-      await expect(slot).toHaveAccessibleName(`${slotNames[i]}：队伍 ${17 + i}`);
+      await expect(slot).toHaveAccessibleName(
+        `${slotNames[i]}：队伍 ${17 + i}`,
+      );
     }
     await page.getByRole("button", { name: "提交预测", exact: true }).click();
-    await expect(page.getByText(/已提交 · 版本/)).toBeVisible();
+    await expect(page.getByText(/^已提交$/)).toBeVisible();
     await page.getByRole("button", { name: /^恰好 3胜0负 1：/ }).click();
     await page
       .getByRole("button", { name: "选择 队伍 32", exact: true })
       .click();
     await expect(page.getByText(/有未提交修改/)).toBeVisible();
+    await page.screenshot({
+      path: resolve(
+        `.agent-tmp/predictions-evidence/${info.project.name}-dirty.png`,
+      ),
+      fullPage: true,
+      scale: "css",
+      style: "nextjs-portal { visibility: hidden; }",
+    });
     await page.getByRole("button", { name: "保存草稿", exact: true }).click();
-    await expect(page.getByText(/已提交 · 版本 1/)).toBeVisible();
+    await expect(page.getByText(/^已提交 · 有未提交修改$/)).toBeVisible();
     const download = page.waitForEvent("download");
     await page.getByRole("button", { name: "导出图片", exact: true }).click();
     const file = await download;
@@ -97,6 +114,7 @@ test("观众完成选队提交、草稿隔离、图片导出与真实积分投�
       ),
       fullPage: false,
       scale: "css",
+      style: "nextjs-portal { visibility: hidden; }",
     });
     await page.screenshot({
       path: resolve(
@@ -104,19 +122,22 @@ test("观众完成选队提交、草稿隔离、图片导出与真实积分投�
       ),
       fullPage: true,
       scale: "css",
+      style: "nextjs-portal { visibility: hidden; }",
     });
-    await page.getByRole("button", { name: "单场积分", exact: true }).click();
-    await page.getByLabel("投入积分", { exact: true }).fill("100");
-    await page.getByRole("button", { name: "确认投入", exact: true }).click();
-    await page
-      .getByRole("alertdialog")
-      .getByRole("button", { name: "确认继续" })
-      .click();
-    await expect(page.getByText(/我已投入 100/)).toBeVisible();
-    await page.getByRole("button", { name: "我的战绩", exact: true }).click();
     await expect(
-      page.getByRole("cell", { name: "-100", exact: true }),
-    ).toBeVisible();
+      page.getByRole("button", { name: "单场积分", exact: true }),
+    ).toHaveCount(0);
+    await page.getByRole("button", { name: "我的战绩", exact: true }).click();
+    await expect(page.getByText("观赛成就", { exact: true })).toBeVisible();
+    await expect(page.getByText(/我的积分流水/)).toHaveCount(0);
+    await page.screenshot({
+      path: resolve(
+        `.agent-tmp/predictions-evidence/${info.project.name}-record.png`,
+      ),
+      fullPage: true,
+      scale: "css",
+      style: "nextjs-portal { visibility: hidden; }",
+    });
     expect(
       await page.evaluate(
         () => document.documentElement.scrollWidth <= window.innerWidth + 1,
@@ -127,7 +148,7 @@ test("观众完成选队提交、草稿隔离、图片导出与真实积分投�
   }
 });
 
-test("完整推演导入提交，上游修改不会改写提交，分享快照可恢复", async ({
+test("完整推演导入提交，上游修改不会改写提交，刷新恢复官方赛况", async ({
   page,
   scenario,
 }, info) => {
@@ -142,8 +163,10 @@ test("完整推演导入提交，上游修改不会改写提交，分享快照�
       scenario,
       `/${fixture.slug}/predictions`,
     );
-    await page.getByRole("button", { name: /免费加入/ }).click();
-    await expect(page.getByRole("button", { name: /免费加入/ })).toHaveCount(0);
+    await page.getByRole("button", { name: /加入 Pick’Em/ }).click();
+    await expect(
+      page.getByRole("button", { name: /加入 Pick’Em/ }),
+    ).toHaveCount(0);
     const mobile = info.project.name === "mobile-chrome";
     await expect(page.getByTestId("sim-match-stage1-r5-3")).toHaveCount(1);
     await expect(page.getByTestId("sim-match-stage1-r5-3")).toHaveAttribute(
@@ -166,7 +189,7 @@ test("完整推演导入提交，上游修改不会改写提交，分享快照�
       .getByRole("button", { name: "确认继续" })
       .click();
     await page.getByRole("button", { name: "提交预测", exact: true }).click();
-    await expect(page.getByText(/已提交 · 版本 1/)).toBeVisible();
+    await expect(page.getByText(/^已提交$/)).toBeVisible();
     if (mobile) {
       await page.getByRole("button", { name: "推演", exact: true }).click();
     }
@@ -193,28 +216,24 @@ test("完整推演导入提交，上游修改不会改写提交，分享快照�
       .getByRole("button")
       .last()
       .click();
-    await page.getByLabel("推演名称").fill("我的晋级路径");
-    await page.getByRole("button", { name: "保存推演并分享" }).click();
-    await expect(
-      page.getByText("保存的推演 · 我的晋级路径", { exact: false }),
-    ).toBeVisible();
     if (mobile)
       await page
         .getByRole("button", { name: "我的预测单", exact: true })
         .click();
 
-    await expect(page.getByText(/已提交 · 版本 1/)).toBeVisible();
+    await expect(page.getByText(/^已提交$/)).toBeVisible();
     await expect(page.getByText(/有未提交修改/)).toHaveCount(0);
     if (mobile)
       await page.getByRole("button", { name: "推演", exact: true }).click();
-    await page.getByRole("link", { name: "打开分享快照" }).click();
-    await expect(page).toHaveURL(/scenario=/);
+    await page.reload();
+    await expect(page.getByTestId("sim-match-stage1-r1-1")).toHaveAttribute(
+      "data-source",
+      "preview",
+    );
+    await expect(page.getByText("我的选择 0 场")).toBeVisible();
     await expect(
-      page.getByText("保存的推演 · 我的晋级路径", { exact: false }),
-    ).toBeVisible();
-    await expect(
-      page.getByTestId("sim-match-stage1-r1-1").getByRole("button").last(),
-    ).toHaveAttribute("aria-pressed", "true");
+      page.getByRole("button", { name: "保存推演并分享" }),
+    ).toHaveCount(0);
     await page.getByRole("button", { name: "淘汰赛", exact: true }).click();
     await expect(page.getByTestId("sim-match-playoff-final-1")).toHaveAttribute(
       "data-source",
@@ -241,6 +260,7 @@ test("完整推演导入提交，上游修改不会改写提交，分享快照�
       ),
       fullPage: true,
       scale: "css",
+      style: "nextjs-portal { visibility: hidden; }",
     });
     expect(
       await page.evaluate(
@@ -265,12 +285,29 @@ test("赛事管理员冻结配置、开窗、暂停和作废阶段", async ({ pa
       scenario,
       `/admin/${fixture.slug}/predictions`,
     );
-    await page.getByRole("button", { name: "冻结规则并开放" }).click();
+    mkdirSync(resolve(".agent-tmp/predictions-evidence"), { recursive: true });
+    await page.screenshot({
+      path: resolve(
+        `.agent-tmp/predictions-evidence/${test.info().project.name}-admin-disabled.png`,
+      ),
+      fullPage: true,
+      scale: "css",
+      style: "nextjs-portal { visibility: hidden; }",
+    });
+    await page.getByRole("button", { name: "启用 Pick’Em" }).click();
     await page
       .getByRole("alertdialog")
       .getByRole("button", { name: "确认继续" })
       .click();
-    await expect(page.getByLabel("首次免费积分")).toBeDisabled();
+    await expect(page.getByLabel("银币挑战数")).toBeDisabled();
+    await page.screenshot({
+      path: resolve(
+        `.agent-tmp/predictions-evidence/${test.info().project.name}-admin-enabled.png`,
+      ),
+      fullPage: true,
+      scale: "css",
+      style: "nextjs-portal { visibility: hidden; }",
+    });
     const future = new Date(Date.now() + 1800000);
     const local = new Date(
       future.getTime() - future.getTimezoneOffset() * 60000,
@@ -283,24 +320,34 @@ test("赛事管理员冻结配置、开窗、暂停和作废阶段", async ({ pa
       .first()
       .click();
     await expect(page.getByText(/已开放 ·/)).toBeVisible();
-    await page
-      .getByRole("button", { name: "开放积分池", exact: true })
-      .first()
-      .click();
-    await expect(
-      page.getByRole("button", { name: "积分池已创建", exact: true }),
-    ).toHaveCount(1);
+    await expect(page.getByRole("button", { name: "开放积分池" })).toHaveCount(
+      0,
+    );
     await page.getByLabel("操作理由").fill("本地验收暂停");
-    await page.getByRole("button", { name: "暂停新提交与投入" }).click();
-    await expect(
-      page.getByRole("button", { name: "恢复新提交与投入" }),
-    ).toBeVisible();
+    await page.getByRole("button", { name: "暂停提交" }).click();
+    await expect(page.getByRole("button", { name: "恢复提交" })).toBeVisible();
+    await page.screenshot({
+      path: resolve(
+        `.agent-tmp/predictions-evidence/${test.info().project.name}-admin-paused.png`,
+      ),
+      fullPage: true,
+      scale: "css",
+      style: "nextjs-portal { visibility: hidden; }",
+    });
     await page.getByRole("button", { name: /^作废 / }).click();
     await page
       .getByRole("alertdialog")
       .getByRole("button", { name: "确认继续" })
       .click();
     await expect(page.getByText(/已作废：本地验收暂停/)).toBeVisible();
+    await page.screenshot({
+      path: resolve(
+        `.agent-tmp/predictions-evidence/${test.info().project.name}-admin-voided.png`,
+      ),
+      fullPage: true,
+      scale: "css",
+      style: "nextjs-portal { visibility: hidden; }",
+    });
     expect(errors).toEqual([]);
   } finally {
     await removePredictionBrowserFixture(fixture.seasonId);

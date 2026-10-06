@@ -62,6 +62,17 @@ describe("release compatibility gate", () => {
     expect(result.failures[0]).toContain("上一生产版本");
   });
 
+  it("applies the owner-approved unopened scenario cleanup only to its exact migration and relation", () => {
+    const source = `export const scenarios = pgTable("prediction_scenarios", { id: uuid("id") });`;
+    const extraFiles = { "src/lib/scenarios.ts": `import { scenarios } from "@/db/schema"; export const read = scenarios;` };
+    const approved = createFixture({ source, extraFiles, migrationPath: "drizzle/migrations/0073_careless_pretty_boy.sql", migration: `${MIGRATION_CONTRACT_ANNOTATION}\nDROP TABLE prediction_scenarios;` });
+    expect(checkReleaseCompatibility(approved.directory).failures).toEqual([]);
+    const differentMigration = createFixture({ source, extraFiles, migration: `${MIGRATION_CONTRACT_ANNOTATION}\nDROP TABLE prediction_scenarios;` });
+    expect(checkReleaseCompatibility(differentMigration.directory).failures).toHaveLength(1);
+    const unrelated = createFixture({ source: OLD_TEAMS_SOURCE, migrationPath: "drizzle/migrations/0073_careless_pretty_boy.sql", migration: `${MIGRATION_CONTRACT_ANNOTATION}\nALTER TABLE teams DROP COLUMN old_column;` });
+    expect(checkReleaseCompatibility(unrelated.directory).failures).toHaveLength(1);
+  });
+
   it("allows an unconsumed legacy relation declaration in previous stable source", () => {
     const fixture = createFixture({
       migration: `${MIGRATION_CONTRACT_ANNOTATION}\nDROP TABLE "old_teams";`,
@@ -345,6 +356,7 @@ export type NewOldTeam = typeof oldTeams.$inferInsert;
 
 interface FixtureOptions {
   migration?: string;
+  migrationPath?: string;
   source?: string;
   extraFiles?: Record<string, string>;
   stableTags?: string[];
@@ -374,7 +386,7 @@ function createFixture(options: FixtureOptions): Fixture {
   runGit(directory, ["update-ref", "refs/remotes/origin/main", baselineCommit]);
   if (options.prereleaseTag) runGit(directory, ["tag", options.prereleaseTag]);
 
-  if (options.migration) writeFixtureFile(directory, "drizzle/migrations/0002_next.sql", options.migration);
+  if (options.migration) writeFixtureFile(directory, options.migrationPath ?? "drizzle/migrations/0002_next.sql", options.migration);
   else writeFixtureFile(directory, "README.md", "candidate\n");
   runGit(directory, ["add", "."]);
   runGit(directory, ["commit", "-q", "-m", "candidate"]);

@@ -4,7 +4,7 @@
 
 ## 结论
 
-- 当前 active chain 的 113 张 application-owned `public` base table 全部归类为 `server_only`。业务数据库只由 server-side Drizzle 访问，browser Data API consumer 为零。
+- 当前 active chain 的 112 张 application-owned `public` base table 全部归类为 `server_only`。业务数据库只由 server-side Drizzle 访问，browser Data API consumer 为零。
 - `users`、`user_sessions`、`admin_invites`、`admin_invite_claims`、`season_admin_grants`、`audit_logs`、education evidence、Major prestart/runtime 和 bracket runtime 均按高敏感 server-only 处理。
 - 通用 provider bracket state 按 `(competition_id, stage_key)` 归属 canonical logical Stage；Major Swiss standings 只由 StageRun entrants、managed matches 与 finalized round 投影。
 - `DraftLiveRoom` 与 `CaptainVotingPanel` 继续使用 10 秒 polling；`ResetPasswordForm` 仅调用 Supabase Auth。比赛直播使用独立的 private Broadcast channel 与短期 receive-only viewer JWT，不开放业务表 Data API。
@@ -29,7 +29,6 @@
 | prediction_stakes | 服务端预测事实与积分流水 | 观赛预测 | src/lib/predictions/ | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 不开放浏览器 Data API；只返回明确的公开或本人 DTO。 |
 | prediction_settlements | 服务端预测事实与积分流水 | 观赛预测 | src/lib/predictions/ | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 不开放浏览器 Data API；只返回明确的公开或本人 DTO。 |
 | prediction_ledger | 服务端预测事实与积分流水 | 观赛预测 | src/lib/predictions/ | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 不开放浏览器 Data API；只返回明确的公开或本人 DTO。 |
-| prediction_scenarios | 服务端预测事实与积分流水 | 观赛预测 | src/lib/predictions/ | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 不开放浏览器 Data API；只返回明确的公开或本人 DTO。 |
 | prediction_jobs | 服务端预测事实与积分流水 | 观赛预测 | src/lib/predictions/ | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 不开放浏览器 Data API；只返回明确的公开或本人 DTO。 |
 | coverage_allocations | 官方转播分配 | 比赛运营 | src/lib/matches/coverage.ts | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 分配容量与解说展示是不同事实。 |
 | coverage_holds | 短期转播容量占用 | 比赛运营 | src/lib/matches/coverage.ts | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 过期占用只释放容量，不删除排期提议。 |

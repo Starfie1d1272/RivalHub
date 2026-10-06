@@ -16,6 +16,7 @@ export interface PredictionRules {
   participationPoints: number;
   cutoffMinutes: number;
 }
+export type PickEmRules = { [K in "perfect" | "advance" | "eliminated" | "swissTarget" | "silver" | "gold" | "diamond"]: PredictionRules[K] };
 export interface PublicStage {
   previousKey: string | null;
   nextKey: string | null;
@@ -27,7 +28,7 @@ export interface PublicStage {
   entrySeeds: number;
   finalFormat: "bo5" | null;
 }
-interface PublicMatch {
+export interface PublicMatch {
   id: string;
   stageKey: string;
   key: string;
@@ -37,7 +38,6 @@ interface PublicMatch {
   winner: string | null;
   scoreA: number | null;
   scoreB: number | null;
-  stageRunId: string;
   format: "bo1" | "bo3" | "bo5";
   status: "scheduled" | "in_progress" | "finished" | "cancelled";
   scheduledAt: string | null;
@@ -81,7 +81,12 @@ export interface SimMatch {
   record: { wins: number; losses: number } | null;
   format: string;
 }
+export interface SwissPresentationPolicy {
+  winThreshold: number;
+  lossThreshold: number;
+}
 export interface SimStage {
+  swissPolicy?: SwissPresentationPolicy;
   key: string;
   entrants: { teamId: string; seed: number }[];
   officialEntrants: boolean;
@@ -100,3 +105,16 @@ export function samePick(a: Pick, b: Pick): boolean {
     );
   return false;
 }
+
+/** Discriminated contexts keep Qualification and Major engines separate. */
+export interface MajorContext {
+  kind: "major";
+  baseline: Baseline;
+}
+export interface QualificationShortSwissContext {
+  kind: "qualification-short-swiss";
+  baseline: Baseline;
+  runId: string;
+  entrants: { teamId: string; initialSeed: number }[];
+}
+export type SimulationContext = MajorContext | QualificationShortSwissContext;

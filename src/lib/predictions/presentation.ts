@@ -10,3 +10,15 @@ export const SWISS_PICK_GROUPS = [
   { key: "advance", label: "3胜1负 / 3胜2负", record: "3–1 / 3–2" },
   { key: "eliminated", label: "恰好 0胜3负", record: "0–3" },
 ] as const;
+
+/** Closed contests only occupy the dock when the viewer has a submission. */
+export function pickEmDockVisible(
+  kind: string,
+  contest?: { locked: boolean; voidReason: string | null; submitted: unknown },
+) {
+  return (
+    kind === "major" &&
+    !!contest &&
+    (!(contest.locked || contest.voidReason) || !!contest.submitted)
+  );
+}

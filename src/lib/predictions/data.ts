@@ -24,6 +24,8 @@ import {
 } from "./rules";
 import { loadBaseline } from "./baseline";
 
+import { loadQualificationContext } from "./qualification-baseline";
+import type { SimulationContext } from "./types";
 import { simulateMajor } from "./simulator";
 
 /** Only this projection reaches public RSC/actions; no private roster or account credentials. */
@@ -38,8 +40,13 @@ export async function predictionBoard(
     .from(programs)
     .where(eq(programs.seasonId, seasonId));
   const base = await loadBaseline(tx, seasonId);
+  const qualification = await loadQualificationContext(tx, seasonId, base.name);
+  const contexts: SimulationContext[] = [{ kind: "major", baseline: base }];
+  if (qualification) contexts.unshift(qualification);
+  const defaultContext = qualification && !base.teams.length ? "qualification-short-swiss" as const : "major" as const;
   const records = view === "record" || view === "all";
   const poolsVisible = view === "points" || view === "all";
+  const betRecords = view === "all";
   const databaseClock = await tx.execute<{ now: Date }>(
     sql`select clock_timestamp() as now`,
   );
@@ -72,14 +79,14 @@ export async function predictionBoard(
         .where(eq(contests.seasonId, seasonId))
         .orderBy(desc(judgements.createdAt))
     : [];
-  const totals = records || (poolsVisible && !!me) ? await tx
+  const totals = betRecords || (poolsVisible && !!me) ? await tx
     .select({
       accountId: ledger.accountId,
       balance: sql<string>`sum(${ledger.amount})::text`,
       profit: sql<string>`sum(${ledger.profit})::text`,
     })
     .from(ledger)
-    .where(and(eq(ledger.seasonId, seasonId), records ? undefined : me ? eq(ledger.accountId, me.id) : sql`false`))
+    .where(and(eq(ledger.seasonId, seasonId), betRecords ? undefined : me ? eq(ledger.accountId, me.id) : sql`false`))
     .groupBy(ledger.accountId) : [];
   const latestPicks = new Map<string, (typeof allPicks)[number]>();
   const submissions = new Map<string, (typeof allPicks)[number]>();
@@ -179,7 +186,7 @@ export async function predictionBoard(
     .innerJoin(markets, eq(markets.id, settlements.marketId))
     .where(eq(markets.seasonId, seasonId))
     .orderBy(desc(settlements.createdAt)) : [];
-  const myLedger = records && me
+  const myLedger = betRecords && me
     ? await tx
         .select({
           id: ledger.id,
@@ -195,6 +202,8 @@ export async function predictionBoard(
     : [];
   return {
     view,
+    contexts,
+    defaultContext,
     base,
     simulation: simulateMajor(base, {}, true),
     enabled: !!program,
@@ -285,7 +294,7 @@ export async function predictionBoard(
     })),
     achievement: achievements.find((a) => a.accountId === me?.id) ?? null,
     pointsLeaderboard: rank(
-      (records ? allAccounts : []).map((a) => ({
+      (betRecords ? allAccounts : []).map((a) => ({
         name: a.name ?? "观众",
         value: totalsByAccount.get(a.id)?.profit ?? "0",
         isMe: a.id === me?.id,
@@ -301,3 +310,12 @@ export async function predictionBoard(
   };
 }
 export type PredictionBoardData = Awaited<ReturnType<typeof predictionBoard>>;
+
+/** Prediction/Pick’Em transport excludes Bet balances, markets and ledgers. */
+export function publicPickEmBoard(data: PredictionBoardData) {
+  const { view, base, contexts, defaultContext, enabled, paused, joined, contests, achievement, pickLeaderboard } = data;
+  const { perfect, advance, eliminated, swissTarget, silver, gold, diamond } = data.rules;
+  return { view, base, contexts, defaultContext, enabled, paused, joined, contests, achievement, pickLeaderboard,
+    rules: { perfect, advance, eliminated, swissTarget, silver, gold, diamond } };
+}
+export type PickEmBoardData = ReturnType<typeof publicPickEmBoard>;

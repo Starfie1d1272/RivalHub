@@ -5,26 +5,23 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { HelpTooltip } from "@/components/rivalhub/HelpTooltip";
 import { Panel } from "@/components/rivalhub";
 import { administerPredictions } from "@/actions/predictions";
-import type { PredictionBoardData } from "@/lib/predictions/data";
+import type { PickEmBoardData } from "@/lib/predictions/data";
 import type { PredictionRules } from "@/lib/predictions/types";
-const labels: Record<keyof PredictionRules, string> = {
-  perfect: "3–0 槽位",
-  advance: "3–1/3–2 槽位",
-  eliminated: "0–3 槽位",
-  swissTarget: "Swiss 挑战命中门槛",
+const labels = {
   silver: "银币挑战数",
   gold: "金币挑战数",
   diamond: "钻币挑战数",
-  initialPoints: "首次免费积分",
-  stagePoints: "后续阶段补给",
-  participationPoints: "有效锁定参与奖励（0为关闭）",
-  cutoffMinutes: "单场提前关盘分钟",
-};
-export function PredictionAdmin({ data }: { data: PredictionBoardData }) {
+} satisfies Partial<Record<keyof PredictionRules, string>>;
+export function PredictionAdmin({ data }: { data: PickEmBoardData }) {
   const { confirm, confirmation } = usePredictionConfirmation();
-  const [rules, setRules] = useState(data.rules);
+  const [rules, setRules] = useState({
+    silver: data.rules.silver,
+    gold: data.rules.gold,
+    diamond: data.rules.diamond,
+  });
   const [deadline, setDeadline] = useState("");
   const [reason, setReason] = useState("");
   const [pending, start] = useTransition();
@@ -53,16 +50,18 @@ export function PredictionAdmin({ data }: { data: PredictionBoardData }) {
     }
     submit({ ...args, deadline: date.toISOString() });
   }
+  if (data.defaultContext === "qualification-short-swiss")
+    return <p>Pick’Em 在 Main Event 名单和种子确认后开放。</p>;
   return (
     <div className="space-y-5">
-      <h1 className="text-2xl font-bold">观赛预测管理 · {data.base.name}</h1>
-      <Panel label="赛事规则">
-        <p className="mb-4 text-sm">
-          开放后规则冻结。正式阶段名单必须已由 Major
-          运行时创建；推演名单不能开放窗口。赛事成绩与纪念币独立于积分，正确预测和币升级不发积分。
-        </p>
+      <h1 className="text-2xl font-bold">Pick’Em 管理 · {data.base.name}</h1>
+      <Panel label="纪念币规则">
+        <HelpTooltip
+          label="Pick’Em 开放规则"
+          content="槽位和挑战容量由赛事政策决定。纪念币门槛在启用时冻结；只有官方 Main Event 阶段名单生成后才能开放提交窗口。Play-in 不提供 Pick’Em。"
+        />
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {(Object.keys(labels) as (keyof PredictionRules)[]).map((key) => (
+          {(Object.keys(labels) as (keyof typeof labels)[]).map((key) => (
             <label key={key} className="text-sm">
               {labels[key]}
               <Input
@@ -86,13 +85,13 @@ export function PredictionAdmin({ data }: { data: PredictionBoardData }) {
                 submit({ operation: "enable", rules });
             }}
           >
-            冻结规则并开放
+            启用 Pick’Em
           </Button>
         )}
       </Panel>
       {data.enabled && (
         <>
-          <Panel label="开放提交与积分窗口">
+          <Panel label="开放阶段 Pick’Em">
             <label className="text-sm">
               截止时间（本机时区）
               <Input
@@ -102,9 +101,10 @@ export function PredictionAdmin({ data }: { data: PredictionBoardData }) {
                 onChange={(e) => setDeadline(e.target.value)}
               />
             </label>
-            <p className="mb-4 text-xs">
-              服务端会取填写时间与官方赛程的更早值；单场还会扣除提前关盘分钟。已关窗口不可重新打开。
-            </p>
+            <HelpTooltip
+              label="截止时间规则"
+              content="截止取填写时间与官方赛程的更早值，开赛后禁止提交；已关闭窗口不能重新打开。"
+            />
             <div className="space-y-3">
               {data.base.stages.map((stage) => {
                 const contest = data.contests.find(
@@ -144,35 +144,6 @@ export function PredictionAdmin({ data }: { data: PredictionBoardData }) {
                 );
               })}
             </div>
-            <h2 className="mt-6 mb-3 font-semibold">官方单场</h2>
-            <div className="space-y-2">
-              {data.base.matches.map((m) => (
-                <div
-                  key={m.id}
-                  className="flex flex-wrap items-center justify-between gap-2 border-t border-[var(--color-border)] py-2 text-sm"
-                >
-                  <span>
-                    {data.base.stages.find((s) => s.key === m.stageKey)?.name} ·{" "}
-                    {data.base.teams.find((t) => t.teamId === m.a)?.name} vs{" "}
-                    {data.base.teams.find((t) => t.teamId === m.b)?.name}
-                  </span>
-                  <Button
-                    variant="outline"
-                    disabled={
-                      pending ||
-                      data.paused ||
-                      m.status !== "scheduled" ||
-                      data.markets.some((pool) => pool.matchId === m.id)
-                    }
-                    onClick={() => open({ operation: "market", matchId: m.id })}
-                  >
-                    {data.markets.some((pool) => pool.matchId === m.id)
-                      ? "积分池已创建"
-                      : "开放积分池"}
-                  </Button>
-                </div>
-              ))}
-            </div>
           </Panel>
           <Panel label="暂停与异常处理">
             <label className="text-sm">
@@ -192,7 +163,7 @@ export function PredictionAdmin({ data }: { data: PredictionBoardData }) {
                   submit({ operation: "pause", paused: !data.paused, reason })
                 }
               >
-                {data.paused ? "恢复新提交与投入" : "暂停新提交与投入"}
+                {data.paused ? "恢复提交" : "暂停提交"}
               </Button>
               {data.contests
                 .filter((c) => !c.voidReason)
@@ -204,7 +175,7 @@ export function PredictionAdmin({ data }: { data: PredictionBoardData }) {
                     onClick={async () => {
                       if (
                         await confirm(
-                          "确认作废本阶段预测？有效提交、成绩挑战和参与奖励将撤销，历史保留。此操作不可撤销。",
+                          "确认作废本阶段预测？本阶段成绩挑战将失效，已有提交保留并显示作废原因。",
                         )
                       )
                         submit({ operation: "void", contestId: c.id, reason });
@@ -215,9 +186,10 @@ export function PredictionAdmin({ data }: { data: PredictionBoardData }) {
                   </Button>
                 ))}
             </div>
-            <p className="mt-4 text-sm">
-              官方比分或赛程请到比赛管理页更正。更正会进入持久重试队列；此页刷新会重新结算。单边池与取消比赛退款，冲正不覆盖原流水。
-            </p>
+            <HelpTooltip
+              label="官方赛果更正规则"
+              content="官方比分或赛程在比赛管理页更正；Pick’Em 由统一结算任务重新判定。"
+            />
           </Panel>
         </>
       )}

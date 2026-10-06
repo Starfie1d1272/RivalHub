@@ -8,6 +8,8 @@ import {
   seedMajorLaterStageEntrants,
 } from "@/lib/major/seeding";
 import {
+  MAJOR_SWISS_WIN_THRESHOLD,
+  MAJOR_SWISS_LOSS_THRESHOLD,
   generateNextMajorSwissRound,
   getMajorSwissQualifiers,
   projectMajorSwissStage,
@@ -32,7 +34,7 @@ export function simulateMajor(
   preview = false,
 ): SimStage[] {
   if (base.version !== SIMULATION_VERSION)
-    throw new Error("该推演使用旧版规则，只能查看保存结果");
+    throw new Error("赛事规则已变化，请刷新赛况");
   const ordered = orderedPredictionStages(base.stages);
   const first = ordered.find((stage) => stage.previousKey === null);
   if (!first || base.teams.length !== first.directSeeds[1]) return [];
@@ -197,6 +199,7 @@ export function simulateMajor(
       qualifiers =
         finalized === 5 ? [...getMajorSwissQualifiers(projection)] : [];
       result.push({
+        swissPolicy: { winThreshold: MAJOR_SWISS_WIN_THRESHOLD, lossThreshold: MAJOR_SWISS_LOSS_THRESHOLD },
         key: stage.key,
         entrants,
         officialEntrants,

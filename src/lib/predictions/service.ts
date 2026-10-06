@@ -15,7 +15,6 @@ import {
   predictionSettlements as settlements,
   predictionLedger as ledger,
   predictionJobs as jobs,
-  predictionScenarios as scenarios,
   users,
   matches,
   majorStageRuns,
@@ -42,7 +41,6 @@ import {
 import {
   samePick,
   type Baseline,
-  type Choices,
   type Pick,
   type PredictionRules,
 } from "./types";
@@ -874,30 +872,4 @@ export async function moderatePredictionsInTx(
     targetId: input.contestId ?? input.seasonId,
     meta: { paused: input.paused, reason: input.reason },
   });
-}
-export async function saveScenarioInTx(
-  tx: TxDb,
-  input: {
-    seasonId: string;
-    userId: string;
-    name: string;
-    choices: Choices;
-    baseline?: Baseline;
-  },
-) {
-  await activeUser(tx, input.userId);
-  const base = input.baseline ?? (await loadBaseline(tx, input.seasonId));
-  const projection = simulateMajor(base, input.choices, true);
-  const [saved] = await tx
-    .insert(scenarios)
-    .values({
-      seasonId: input.seasonId,
-      creatorId: input.userId,
-      name: input.name,
-      baseline: base,
-      choices: input.choices,
-      projection,
-    })
-    .returning({ id: scenarios.id });
-  return saved!;
 }

@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { db } from "@/db/client";
 import { seasons } from "@/db/schema";
 import { requireSeasonAdmin } from "@/lib/auth/session";
-import { predictionBoard } from "@/lib/predictions/data";
+import { predictionBoard, publicPickEmBoard } from "@/lib/predictions/data";
 import { PredictionAdmin } from "@/components/predictions/PredictionAdmin";
 export default function AdminPredictionsPage(props: {
   params: Promise<{ seasonSlug: string }>;
@@ -33,7 +33,7 @@ async function PredictionContent({
   if (!season || season.competitionTemplate !== "major") notFound();
   const admin = await requireSeasonAdmin(season.id);
   const data = await db.transaction((tx) =>
-    predictionBoard(tx, season.id, admin.userId),
+    predictionBoard(tx, season.id, admin.userId, "sim"),
   );
-  return <PredictionAdmin data={data} />;
+  return <PredictionAdmin data={publicPickEmBoard(data)} />;
 }

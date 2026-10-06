@@ -5,12 +5,13 @@ import {
   playoffDescendants,
 } from "@/lib/major/playoff-dependencies";
 import { Button } from "@/components/ui/button";
+import { HelpTooltip } from "@/components/rivalhub/HelpTooltip";
 import { Panel } from "@/components/rivalhub";
 import { TeamLogo } from "@/components/teams/TeamLogo";
-import type { PredictionBoardData } from "@/lib/predictions/data";
+import type { PickEmBoardData } from "@/lib/predictions/data";
 import { samePick, type Pick } from "@/lib/predictions/types";
 import { SWISS_PICK_GROUPS } from "@/lib/predictions/presentation";
-type Contest = PredictionBoardData["contests"][number];
+type Contest = PickEmBoardData["contests"][number];
 type Group = "perfect" | "advance" | "eliminated";
 export function emptyPick(kind: string): Pick {
   return kind === "swiss"
@@ -26,7 +27,7 @@ export function PickEditor({
   onExport,
   busy,
 }: {
-  data: PredictionBoardData;
+  data: PickEmBoardData;
   contest: Contest;
   pick: Pick;
   onChange: (pick: Pick) => void;
@@ -95,6 +96,13 @@ export function PickEditor({
   return (
     <Panel label="我的阶段预测单" className="h-fit">
       <div className="space-y-4">
+        <div className="flex items-center gap-1">
+          Pick’Em{" "}
+          <HelpTooltip
+            label="Pick’Em 说明"
+            content="拖动队伍到槽位，或点选槽位与队伍。普通晋级不含 3–0。保存草稿和导出图片不会更新正式提交；提前开赛也会锁定。"
+          />
+        </div>
         <p className="text-sm" role="status">
           {contest.voidReason
             ? `已作废：${contest.voidReason}`
@@ -102,21 +110,18 @@ export function PickEditor({
               ? "已截止，不能再提交"
               : contest.locked
                 ? "已锁定"
-                : contest.submitted
-                  ? `已提交 · 版本 ${contest.submitted.version}`
-                  : "尚未提交"}
+                : data.paused
+                  ? "已暂停提交"
+                  : contest.submitted
+                    ? "已提交"
+                    : "尚未提交"}
           {dirty && " · 有未提交修改"}
         </p>
         <p className="text-xs text-[var(--color-fg-mid)]">
           截止：{new Date(contest.deadline).toLocaleString("zh-CN")}
-          ；提前开赛也会锁定。
         </p>
         {"perfect" in pick ? (
           <>
-            <p className="text-xs text-[var(--color-fg-mid)]">
-              拖动队伍到槽位，或点选槽位后选择队伍。已选队伍可移动，普通晋级不含
-              3胜0负。
-            </p>
             {SWISS_PICK_GROUPS.map((group) => (
               <fieldset
                 key={group.key}
@@ -221,7 +226,9 @@ export function PickEditor({
                     >
                       {logo(id, "h-7 w-7")}
                       <span className="line-clamp-2">{name(id)}</span>
-                      {chosen.includes(id) && <span className="sr-only">已选 · 可移动</span>}
+                      {chosen.includes(id) && (
+                        <span className="sr-only">已选 · 可移动</span>
+                      )}
                     </button>
                   ))}
                 </div>
@@ -343,7 +350,6 @@ export function PickEditor({
           <p className="text-xs text-[var(--color-fg-mid)]">
             最近有效提交：
             {new Date(contest.submitted.at).toLocaleString("zh-CN")}
-            。保存草稿或导出图片不更新正式提交。
           </p>
         )}
       </div>

@@ -1,4 +1,4 @@
-import type { Baseline, Pick, PredictionRules } from "@/lib/predictions/types";
+import type { Baseline, Pick, PickEmRules } from "@/lib/predictions/types";
 import { SWISS_PICK_GROUPS } from "@/lib/predictions/presentation";
 /** Draw the same slot/bracket semantics, never an invented result or submission receipt. */
 export async function exportPredictionImage(input: {
@@ -7,7 +7,7 @@ export async function exportPredictionImage(input: {
   status: string;
   pick: Pick;
   teams: Baseline["teams"];
-  rules: PredictionRules;
+  rules: PickEmRules;
   filename: string;
 }) {
   await document.fonts.ready;

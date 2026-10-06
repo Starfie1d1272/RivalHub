@@ -27,6 +27,8 @@ import { planSeriesAfterMapScoreChangeInTx, correctSeriesAfterMapScoreChangeInTx
 import { applyResultCorrectionInTx, planResultCorrectionInTx } from "../../../src/lib/match-corrections/service";
 import { lockMajorPrestartEntrantsInTx, selectMajorEntrantsAndSyncRostersInTx } from "../../../src/lib/major/prestart-entrants";
 import { readVetoRoomCore, readVetoRoomSnapshot, requestVetoStart, submitVetoCommand } from "../../../src/lib/matches/veto-room/service";
+import { predictionBoard, publicPickEmBoard } from "../../../src/lib/predictions/data";
+import { simulateContext } from "../../../src/lib/predictions/context-simulator";
 import { localDatabaseUrl, testSteam64 } from "./harness/database";
 
 const databaseUrl = localDatabaseUrl();
@@ -411,6 +413,18 @@ async function exerciseThirtyToTwentyFourAcceptance(): Promise<void> {
     }));
     expect(configured).toMatchObject({ directEntryCount: 18, playInEntryCount: 12, qualifierCount: 6 });
 
+    const initialPrediction = await database.transaction((tx) => predictionBoard(tx, fixture!.seasonId, null, "sim"));
+    expect(initialPrediction.enabled).toBe(false);
+    expect(initialPrediction.defaultContext).toBe("qualification-short-swiss");
+    expect(initialPrediction.base.teams).toEqual([]);
+    expect(initialPrediction.contests).toEqual([]);
+    const playIn = initialPrediction.contexts.find((c) => c.kind === "qualification-short-swiss")!;
+    expect(playIn.baseline.teams).toHaveLength(12);
+    expect(simulateContext(playIn, {})[0]!.standings.filter((t) => t.wins === 2)).toHaveLength(6);
+    expect(publicPickEmBoard(initialPrediction)).not.toHaveProperty("markets");
+    expect(publicPickEmBoard(initialPrediction)).not.toHaveProperty("ledger");
+    expect(publicPickEmBoard(initialPrediction).rules).not.toHaveProperty("initialPoints");
+
     const runId = configured.runId;
     await expect(database.transaction(tx => saveCompetitionQualificationOrderInTx(tx, {
       seasonId: fixture!.seasonId, runId, orderedCompetitionEntryIds: preliminaryOrderEntryIds.slice().reverse(), actorId: ACTOR,
@@ -429,6 +443,7 @@ async function exerciseThirtyToTwentyFourAcceptance(): Promise<void> {
       [probeMatchId, fixture.seasonId, lowerSeed.entryId, higherSeed.entryId, runId],
     );
     try {
+      await expect(database.transaction((tx) => predictionBoard(tx, fixture!.seasonId, null, "sim"))).rejects.toThrow();
       const displaySnapshot = await readVetoRoomSnapshot(probeMatchId);
       expect(displaySnapshot.session.privilegedEntryId).toBe(higherSeed.entryId);
       const readSideEffect = await pool.query<{ count: string }>(
@@ -632,6 +647,17 @@ async function exerciseThirtyToTwentyFourAcceptance(): Promise<void> {
       }
 
       await finishRound(pool, database, runId, round);
+      const updatedPrediction = await database.transaction(tx => predictionBoard(tx, fixture!.seasonId, null, "sim"));
+      const updatedPlayIn = updatedPrediction.contexts.find(c => c.kind === "qualification-short-swiss")!;
+      expect(updatedPlayIn.baseline.revision).not.toBe(playIn.baseline.revision);
+      expect(simulateContext(updatedPlayIn, {})[0]!.matches.filter(m => m.source === "official")).toHaveLength([6, 12, 15][round - 1]!);
+      if (round === 1) {
+        const simulatedMatch = simulateContext(updatedPlayIn, {})[0]!.matches[0]!;
+        const ifChoices = { [`play-in/${simulatedMatch.key}`]: { a: simulatedMatch.a, b: simulatedMatch.b, winner: simulatedMatch.winner === simulatedMatch.a ? simulatedMatch.b : simulatedMatch.a } };
+        expect(simulateContext(updatedPlayIn, ifChoices)[0]!.matches[0]!.source).toBe("assumption");
+        expect(updatedPlayIn.baseline.matches.find(m => [m.a, m.b].includes(simulatedMatch.a))?.winner).toBe(simulatedMatch.winner);
+      }
+
 
       if (round === 1) {
         await pool.query("UPDATE matches SET score_a = 0, score_b = 1 WHERE id = $1", [firstRoundId]);

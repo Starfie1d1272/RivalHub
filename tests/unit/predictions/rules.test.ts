@@ -128,7 +128,6 @@ describe("Major spectator simulation and independent Pick'Em", () => {
       scheduledAt: null,
       scoreA: 1,
       scoreB: 0,
-      stageRunId: "run",
     }));
     const m = rows[0]!;
     const changed = replaceSimulationChoice(base, {}, "stage1", m, m.b);
@@ -168,8 +167,7 @@ describe("Major spectator simulation and independent Pick'Em", () => {
         scheduledAt: null,
         scoreA: 1,
         scoreB: 0,
-        stageRunId: "run",
-      })),
+        })),
     );
     const overridden = replaceSimulationChoice(base, {}, playoff.key, qf, qf.b);
     const result = simulateMajor(base, overridden)[3]!;
@@ -178,9 +176,9 @@ describe("Major spectator simulation and independent Pick'Em", () => {
     );
     expect(result.matches.find((m) => m.key === "sf-1")?.winner).toBeNull();
   });
-  it("rejects incompatible archived engine versions", () => {
+  it("rejects mismatched current engine versions", () => {
     expect(() => simulateMajor({ ...baseline(), version: 0 }, {})).toThrow(
-      "旧版",
+      "规则已变化",
     );
   });
   it("ordinary qualification is exact, duplicates invalid, champion evaluated independently", () => {

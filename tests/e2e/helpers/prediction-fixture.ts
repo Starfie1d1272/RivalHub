@@ -62,11 +62,20 @@ export async function createPredictionBrowserFixture(
     for (let i = 1; i <= 32; i++) {
       const teamId = randomUUID(),
         revisionId = randomUUID();
+      const colors = [
+        "#ffcf32",
+        "#29d9c6",
+        "#ee476d",
+        "#69b1ff",
+        "#a3de54",
+        "#bd8aff",
+      ];
+      const logoUrl = `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80"><path d="M40 4 70 20 65 58 40 76 15 58 10 20Z" fill="${colors[(i - 1) % colors.length]}"/><path d="M26 22 40 12 54 22 50 50 40 62 30 50Z" fill="#101827"/><text x="40" y="45" text-anchor="middle" font-family="sans-serif" font-size="22" font-weight="bold" fill="white">${i}</text></svg>`)}`;
       teams.push({
         teamId,
         tournamentSeed: i,
         name: `队伍 ${String(i).padStart(2, "0")}`,
-        logoUrl: null,
+        logoUrl,
       });
       await db.transaction(async (tx) => {
         await tx.insert(schema.competitionEntries).values({
@@ -74,6 +83,7 @@ export async function createPredictionBrowserFixture(
           competitionId: seasonId,
           source: "event_native",
           name: teams.at(-1)!.name,
+          logoUrl,
           representativeUserId: userId,
           currentRosterRevisionId: revisionId,
           approvedRosterRevisionId: revisionId,
@@ -156,16 +166,32 @@ export async function createPredictionBrowserFixture(
         deadline,
       });
       const match = inserted[0]!;
-      const [market] = await db.insert(schema.predictionMarkets).values({
-        seasonId,
-        matchId: match.id,
-        stageKey: "stage1",
-        title: "比赛胜者",
-        resolver: "match_winner",
-        subject: { stageRunId: run!.id, entryIds: [match.entryAId, match.entryBId] },
-        deadline: new Date(deadline.getTime() - 300000),
-      }).returning();
-      await db.insert(schema.predictionMarketOptions).values([match.entryAId, match.entryBId].map((id, position) => ({marketId: market!.id, key: id, entryId: id, label: teams.find((team) => team.teamId === id)!.name, position})));
+      const [market] = await db
+        .insert(schema.predictionMarkets)
+        .values({
+          seasonId,
+          matchId: match.id,
+          stageKey: "stage1",
+          title: "比赛胜者",
+          resolver: "match_winner",
+          subject: {
+            stageRunId: run!.id,
+            entryIds: [match.entryAId, match.entryBId],
+          },
+          deadline: new Date(deadline.getTime() - 300000),
+        })
+        .returning();
+      await db
+        .insert(schema.predictionMarketOptions)
+        .values(
+          [match.entryAId, match.entryBId].map((id, position) => ({
+            marketId: market!.id,
+            key: id,
+            entryId: id,
+            label: teams.find((team) => team.teamId === id)!.name,
+            position,
+          })),
+        );
     }
     return { slug, seasonId };
   } finally {
@@ -189,12 +215,14 @@ export async function removePredictionBrowserFixture(seasonId: string) {
       "DELETE FROM prediction_settlements WHERE market_id IN (SELECT id FROM prediction_markets WHERE season_id=$1)",
       [seasonId],
     );
-    await client.query("DELETE FROM prediction_market_options WHERE market_id IN (SELECT id FROM prediction_markets WHERE season_id=$1)", [seasonId]);
+    await client.query(
+      "DELETE FROM prediction_market_options WHERE market_id IN (SELECT id FROM prediction_markets WHERE season_id=$1)",
+      [seasonId],
+    );
     for (const table of [
       "prediction_picks",
       "prediction_stakes",
       "prediction_ledger",
-      "prediction_scenarios",
       "prediction_accounts",
       "prediction_contests",
       "prediction_markets",

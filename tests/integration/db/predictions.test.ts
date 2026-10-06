@@ -21,7 +21,6 @@ import {
   lockPredictionProgram,
   reconcilePredictionProgram,
   balanceOf,
-  saveScenarioInTx,
   moderatePredictionsInTx,
 } from "@/lib/predictions/service";
 import { predictionBoard } from "@/lib/predictions/data";
@@ -407,15 +406,6 @@ describe("spectator prediction PostgreSQL contracts", () => {
       );
       expect(board.contests[0]!.submitted?.version).toBe(saved.version);
       expect(board.contests[0]!.draft).not.toEqual(pick);
-      const scenario = await db.transaction((tx) =>
-        saveScenarioInTx(tx, {
-          seasonId,
-          userId,
-          name: "独立推演",
-          choices: complete.choices,
-        }),
-      );
-      expect(scenario.id).toBeTruthy();
       expect(
         (await loadBaseline(db, seasonId)).matches.every((m) => !m.winner),
       ).toBe(true);
