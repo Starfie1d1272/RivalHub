@@ -33,7 +33,7 @@ export function BetBoard({initial,slug,signedIn,view,matchFilter}:{initial:BetBo
   const current=data.markets.find(m=>m.id===selected?.market.id);
   return <div className="space-y-6">
     <header className="flex flex-wrap items-end justify-between gap-5 border-b border-[var(--color-border)] pb-6">
-      <div><div className="mb-2 text-xs font-mono tracking-[0.22em] text-[var(--color-fg-dim)]">COMMUNITY POOL</div><h1 className="relative inline-flex text-4xl font-black tracking-tight">BET<HelpTooltip className="absolute -right-4 top-1" label="BET 积分规则" content="使用赛事积分参与无抽水社区奖池。积分不能购买、交易、提现或兑换现实价值；只能追加原选项，不能换边或撤回。无胜方投入、全部投入均获胜或弃权时原额退款。预计回报随奖池变化。"/></h1></div>
+      <div><div className="mb-2 text-xs font-mono tracking-[0.22em] text-[var(--color-fg-dim)]">COMMUNITY POOL</div><div className="relative inline-flex"><h1 className="text-4xl font-black tracking-tight">BET</h1><HelpTooltip className="absolute -right-4 top-1" label="BET 积分规则" content="使用赛事积分参与无抽水社区奖池。积分不能购买、交易、提现或兑换现实价值；只能追加原选项，不能换边或撤回。无胜方投入、全部投入均获胜或弃权时原额退款。预计回报随奖池变化。"/></div></div>
       <div className="flex flex-wrap items-end gap-x-8 gap-y-4">
         <Metric label="可用积分" value={data.joined?formatPoints(data.balance):"—"} accent/>
         <Metric label="净收益" value={data.joined?`${BigInt(data.profit)>BigInt(0)?"+":""}${formatPoints(data.profit)}`:"—"}/>
@@ -44,11 +44,11 @@ export function BetBoard({initial,slug,signedIn,view,matchFilter}:{initial:BetBo
     {data.paused && <p role="status" className="border-l-2 border-[var(--color-warn)] pl-3 text-sm">投入已暂停，已有投入与结算记录保留。</p>}
     {BigInt(data.debt)>BigInt(0) && <p role="status" className="text-sm text-[var(--color-warn)]">待抵扣 {formatPoints(data.debt)} 积分 <HelpTooltip label="待抵扣积分说明" content="官方结果更正后产生的差额将从后续补给、退款与返还中优先抵扣。"/></p>}
     <nav aria-label="BET 筛选" className="flex flex-wrap items-center gap-1 border-b border-[var(--color-border)]">
-      {filters.map(f=><Link key={f.key} href={`/${slug}/bet${f.key==="open"?"":`?view=${f.key}`}` as never} aria-current={active===f.key?"page":undefined} className={cn("border-b-2 px-4 py-3 text-sm focus-visible:outline focus-visible:outline-[var(--color-accent)]",active===f.key?"border-[var(--color-accent)] font-semibold text-[var(--color-fg)]":"border-transparent text-[var(--color-fg-mid)]")}>{f.label}</Link>)}
+      {filters.map(f=><Link key={f.key} href={`/${slug}/bet${f.key==="open"?"":`?view=${f.key}`}` as never} aria-current={active===f.key?"page":undefined} className={cn("border-b-2 px-3 py-3 text-sm sm:px-4 focus-visible:outline focus-visible:outline-[var(--color-accent)]",active===f.key?"border-[var(--color-accent)] font-semibold text-[var(--color-fg)]":"border-transparent text-[var(--color-fg-mid)]")}>{f.label}</Link>)}
       <span className="ml-auto py-3 text-xs tabular-nums text-[var(--color-fg-dim)]">{visible.filter(m=>m.state==="open").length} 个开放盘口</span>
     </nav>
     {matchFilter && <Link href={`/${slug}/bet` as never} className="inline-block text-sm text-[var(--color-accent)]">查看全部比赛 →</Link>}
-    {!data.enabled?<Empty text="BET 尚未开放"/>:!visible.length?<Empty text={active==="mine"?"还没有投入记录":active==="settled"?"暂无已结算盘口":active==="event"?"等待正赛名单确认":"等待下一场对阵或地图"}/>:<div className="grid min-w-0 items-start gap-5 lg:grid-cols-2">
+    {!data.enabled?<Empty text="BET 尚未开放"/>:!visible.length?<Empty text={active==="mine"?"还没有投入记录":active==="settled"?"暂无已结算盘口":active==="event"?"等待正赛名单确认":"等待下一场对阵或地图"}/>:<div className={cn("grid min-w-0 items-start gap-5",matchFilter?"max-w-3xl":"lg:grid-cols-2")}>
       {[...new Set(visible.map(m=>m.matchId))].map(id=>id?<MatchCard key={id} match={data.matches.find(m=>m.id===id)!} markets={visible.filter(m=>m.matchId===id)} slug={slug} choose={choose}/>:<section key="event" className="space-y-5 lg:col-span-2">{visible.filter(m=>!m.matchId).map(m=><div key={m.id} className="border border-[var(--color-border)] bg-[var(--color-panel)] p-5"><MarketRow market={m} choose={choose}/></div>)}</section>)}
     </div>}
     <Dialog open={!!selected} onOpenChange={open=>{if(!open&&!pending)setSelected(null);}}><DialogContent size="sm" onInteractOutside={e=>{if(pending)e.preventDefault();}} onEscapeKeyDown={e=>{if(pending)e.preventDefault();}}>

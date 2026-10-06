@@ -48,11 +48,12 @@ async function publishMarkets(tx: TxDb,f: BetFacts) {
   for (const m of f.official) {
     if (!m.majorStageRunId && !m.qualificationRunId || m.entryRound==="third_place" || m.isForfeit || m.status==="finished" || m.status==="cancelled") continue;
     // Existing BP-era starts cannot prove a pre-game window after feature activation.
-    if (m.operationalStartedAt && program && m.operationalStartedAt < program.createdAt && !m.startedAt && !f.maps.some(map=>map.matchId===m.id && map.completedAt)) continue;
+    const legacyStart=Boolean(m.operationalStartedAt && program && m.operationalStartedAt < program.createdAt && !m.startedAt);
+    if (legacyStart && !f.maps.some(map=>map.matchId===m.id && map.completedAt && map.completedAt >= program!.createdAt)) continue;
     const veto=f.vetoByMatch.get(m.id);
     const subject: BetSubject={kind:"match",entryIds:[m.entryAId,m.entryBId],runId:(m.majorStageRunId??m.qualificationRunId)!,format:m.format,mapPool:[]};
     const teams=subject.entryIds.map(id=>({key:id,label:f.entries.find(e=>e.id===id)?.name??"队伍"}));
-    if (!m.startedAt) {
+    if (!m.startedAt && !legacyStart) {
       await createMarket(tx,seasonId,m.id,"match_winner",subject,teams);
       if (m.format!=="bo1") {
         const target=m.format==="bo3"?2:3;

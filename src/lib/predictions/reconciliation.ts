@@ -31,9 +31,9 @@ export async function runPredictionReconciliationJob(database: DB = db) {
       });
     }
   }
+  const betCompleted = await runBetReconciliationJob(database);
   // Partial failure must reach scheduler health; individual committed programs stay idempotent.
   if (failed)
     throw new Error(`Prediction reconciliation failed for ${failed} programs`);
-  const betCompleted = await runBetReconciliationJob(database);
   return { result: { completed, betCompleted }, businessTransitions: 0 };
 }

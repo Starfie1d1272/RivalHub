@@ -34,6 +34,22 @@ async function fixture(work:(f:{db:ReturnType<typeof drizzle<typeof schema>>;sea
 }
 const read=(db:ReturnType<typeof drizzle<typeof schema>>,seasonId:string,userId:string)=>db.transaction(tx=>betBoard(tx,seasonId,userId),{accessMode:"read only",isolationLevel:"repeatable read"});
 describe("BET transactional admission and settlement",()=>{
+  it("does not backfill pre-game markets for legacy gameplay and preserves deleted match refunds",async()=>fixture(async f=>{
+    const original=await f.db.query.matches.findFirst({where:eq(schema.matches.id,f.matchId)});
+    const oldDate=new Date(Date.now()-60000);
+    const [legacy]=await f.db.insert(schema.matches).values({seasonId:f.seasonId,entryAId:f.entryIds[0]!,entryBId:f.entryIds[1]!,stage:"stage1",majorStageRunId:original!.majorStageRunId,ownership:"major_stage",managedKey:"legacy",round:2,format:"bo3",status:"in_progress",startedAt:oldDate}).returning();
+    await f.db.insert(schema.matchVetoSessions).values({matchId:legacy!.id,startedAt:oldDate,completedAt:oldDate,mapPoolSnapshot:["de_inferno","de_nuke","de_mirage"]});
+    await f.db.insert(schema.matchMaps).values([{matchId:legacy!.id,mapOrder:1,mapName:"de_inferno",completedAt:oldDate,scoreA:13,scoreB:7},{matchId:legacy!.id,mapOrder:2,mapName:"de_nuke"}]);
+    const reconcile=()=>f.db.transaction(async tx=>{await lockBetProgram(tx,f.seasonId);await reconcileBetInTx(tx,f.seasonId);});
+    await reconcile();expect((await read(f.db,f.seasonId,f.userId)).markets.filter(m=>m.matchId===legacy!.id)).toHaveLength(0);
+    const market=(await read(f.db,f.seasonId,f.userId)).markets.find(m=>m.matchId===f.matchId && m.type==="match_winner")!;
+    await f.db.transaction(tx=>stakeBetInTx(tx,{seasonId:f.seasonId,userId:f.userId,marketId:market.id,optionId:market.options[0]!.id,amount:"200",requestId:randomUUID()}));
+    await f.db.delete(schema.matches).where(eq(schema.matches.id,f.matchId));await reconcile();
+    const board=await read(f.db,f.seasonId,f.userId);
+    expect(board.balance).toBe("1000");expect(board.markets.find(m=>m.id===market.id)?.state).toBe("refunded");
+    expect(board.matches.find(m=>m.id===f.matchId)).toMatchObject({a:"银河",b:"新星",stage:"已更正比赛"});
+  }));
+
   it("opens BO1 Play-in without a PickEm program and offers no duplicate map winner",async()=>fixture(async f=>{
     const [run]=await f.db.insert(schema.competitionQualificationRuns).values({seasonId:f.seasonId,format:"short_swiss_2w2l",targetEntrantCount:1,candidateCount:2,directEntryCount:0,playInEntryCount:2,qualifierCount:1,configuredBy:"test"}).returning();
     const [match]=await f.db.insert(schema.matches).values({seasonId:f.seasonId,entryAId:f.entryIds[0]!,entryBId:f.entryIds[1]!,stage:"play-in",qualificationRunId:run!.id,format:"bo1"}).returning();

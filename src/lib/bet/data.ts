@@ -18,7 +18,7 @@ export async function betBoard(tx:TxDb,seasonId:string,userId:string|null):Promi
   const totals=await tx.select({accountId:betLedger.accountId,balance:sql<string>`sum(${betLedger.amount})::text`,profit:sql<string>`sum(${betLedger.profit})::text`}).from(betLedger).where(eq(betLedger.seasonId,seasonId)).groupBy(betLedger.accountId);
   const mine=totals.find(t=>t.accountId===account?.id); const balance=BigInt(mine?.balance??"0");
   const rank=account?1+totals.filter(t=>BigInt(t.profit)>BigInt(mine?.profit??"0")).length:null;
-  const all=await tx.select().from(betMarkets).where(eq(betMarkets.seasonId,seasonId)).orderBy(asc(betMarkets.createdAt));
+  const all=await tx.select().from(betMarkets).where(eq(betMarkets.seasonId,seasonId)).orderBy(asc(betMarkets.createdAt),asc(betMarkets.id));
   const pool=await tx.select({marketId:betStakes.marketId,optionId:betStakes.optionId,amount:sql<string>`sum(${betStakes.amount})::text`}).from(betStakes).where(eq(betStakes.seasonId,seasonId)).groupBy(betStakes.marketId,betStakes.optionId);
   const counts=await tx.select({marketId:betStakes.marketId,count:sql<number>`count(distinct ${betStakes.accountId})::int`}).from(betStakes).where(eq(betStakes.seasonId,seasonId)).groupBy(betStakes.marketId);
   const myStakes=account?await tx.select({marketId:betStakes.marketId,optionId:betStakes.optionId,amount:sql<string>`sum(${betStakes.amount})::text`}).from(betStakes).where(eq(betStakes.accountId,account.id)).groupBy(betStakes.marketId,betStakes.optionId):[];
@@ -26,7 +26,13 @@ export async function betBoard(tx:TxDb,seasonId:string,userId:string|null):Promi
   const latestSettlements=await tx.selectDistinctOn([betSettlements.marketId],{batch:betSettlements}).from(betSettlements).innerJoin(betMarkets,eq(betMarkets.id,betSettlements.marketId)).where(eq(betMarkets.seasonId,seasonId)).orderBy(asc(betSettlements.marketId),desc(betSettlements.revision)).then(rows=>rows.map(r=>r.batch));
   const myPayouts=account?await tx.select().from(betLedger).where(and(eq(betLedger.accountId,account.id),eq(betLedger.kind,"settlement"))):[];
   const result:BetBoardDTO={seasonId,enabled:!!program,paused:program?.paused??false,joined:!!account,balance:(balance>BigInt(0)?balance:BigInt(0)).toString(),debt:(balance<BigInt(0)?-balance:BigInt(0)).toString(),profit:mine?.profit??"0",rank,markets:[],matches:f.official.map(m=>({id:m.id,a:f.entries.find(e=>e.id===m.entryAId)?.name??"队伍",b:f.entries.find(e=>e.id===m.entryBId)?.name??"队伍",logoA:f.entries.find(e=>e.id===m.entryAId)?.logoUrl??null,logoB:f.entries.find(e=>e.id===m.entryBId)?.logoUrl??null,stage:m.qualificationRunId?"PLAY-IN":f.season.stagePlan.find(s=>s.key===m.stage)?.name??"正赛",format:m.format.toUpperCase(),scheduledAt:m.scheduledAt?.toISOString()??null}))};
-  for(const market of all) {
+  for (const market of all) {
+    if (market.matchId && market.subject.kind !== "event" && !result.matches.some(m => m.id === market.matchId)) {
+      const subject = market.subject;
+      const a = f.entries.find(e => e.id === subject.entryIds[0]);
+      const b = f.entries.find(e => e.id === subject.entryIds[1]);
+      result.matches.push({id:market.matchId,a:a?.name??"队伍",b:b?.name??"队伍",logoA:a?.logoUrl??null,logoB:b?.logoUrl??null,stage:"已更正比赛",format:subject.format.toUpperCase(),scheduledAt:null});
+    }
     const latest=latestSettlements.find(s=>s.marketId===market.id);
     const choices=allOptions.filter(o=>o.marketId===market.id);
     const input=betFactInput(market,f); const current=resolveBetFact(input);
