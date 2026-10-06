@@ -104,11 +104,11 @@ Team captain creates Entry
 
 系统种子建议与最终人工 seed 分离：freeze 时从同一批 frozen primary starters 和竞技上下文生成不可变 snapshot；管理员随后确认最终顺序。查看不同排序、人工调序或之后全局资料变化都不重写 snapshot。启动只消费并校验已存在的赛前事实，不在 `startMajor` 临时生成第一份建议。
 
-候选期管理员通过只读排序矩阵查看完整已批准名单及各成员的竞技证据；系统参考仍仅由 5 名预定主力计算，不自动选择正式参赛队、不改变 qualification，也不创建或改写 `SeedRecommendationSnapshot`。资格方案和最终种子复用同一矩阵交互；预排名保存一次完整人工顺序，Qualification 开始后停止编辑，最终种子另行保存和确认。正式参赛队与 EventRoster 统一冻结后，系统才生成并保留 immutable seed snapshot。Qualification 的单场操作继续由统一比赛管理拥有，赛前工作区只展示比赛进度和入口。
+候选期管理员通过只读排序矩阵查看完整已批准名单及各成员的竞技证据；系统参考仍仅由 5 名预定主力计算，不自动选择正式参赛队、不改变 qualification，也不创建或改写 `SeedRecommendationSnapshot`。资格方案和最终种子复用同一矩阵交互；预排名与赛制先保存为共享的版本化草稿，确认 Qualification 后锁定，最终种子另行保存和确认。正式参赛队与 EventRoster 统一冻结后，系统才生成并保留 immutable seed snapshot。Qualification 的单场操作继续由统一比赛管理拥有，赛前工作区只展示比赛进度和入口。
 
 报名截止和最终名单截止仍由 `seasons` 保存，但 Major 的正常运营编辑入口位于赛前工作区；`mainEventPlannedStartAt` 仅是计划时间，到时未 ready 时显示待处理事项，不触发 `startMajor()`。实际开始只由管理员确认后创建 StageRun。
 
-#预排名调整先保存共享服务器草稿，再预览并确认最新版本。未保存修改、旧版本、候选集合或容量变化均阻止最终确认；保存不创建 QualificationRun。确认后排序与赛制锁定，首轮生成前显式 reset 可返回草稿继续修改。Play-in 首轮同步已批准名单并采用冻结资格规则；名单补正重新批准后同步当前 revision 的竞技事实和有效特批，首发 gate 同时执行校籍人数及外校实力规则。
+预排名调整先保存共享服务器草稿，再预览并确认最新版本。未保存修改、旧版本、候选集合或容量变化均阻止最终确认；保存不创建 QualificationRun。确认后排序与赛制锁定，首轮生成前显式 reset 可返回草稿继续修改。Play-in 首轮同步已批准名单并采用冻结资格规则；名单补正重新批准后同步当前 revision 的竞技事实和有效特批，首发 gate 同时执行校籍人数及外校实力规则。
 
 ## Major Qualification
 
