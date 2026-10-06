@@ -12,7 +12,7 @@ Pick’Em 不设独立管理员页面。Main Event 名单与赛事种子正式�
 
 本地验证使用 `pnpm test:integration tests/integration/db/predictions.test.ts` 和 `pnpm test:e2e tests/e2e/flows/predictions.spec.ts`；需要真实服务时显式设置 `RIVALHUB_ALLOW_LOCAL_CONTAINERS=1`，只能通过 active Drizzle migration chain 初始化隔离测试库。发布按通用 release runbook 执行，Pick’Em 跟随官方阶段自动开放，自由推演无需启用。
 
-Sanitized preview mirror 不复制观众的草稿、提交和积分账本，也不复制依赖它们的预测项目与窗口。预览库按 active migration chain 建表后，需用独立测试数据确认官方名单并形成阶段事实；不能把生产观众数据作为界面演示素材。
+Sanitized preview mirror 不复制观众的草稿、提交和积分账本，也不复制依赖它们的预测项目与窗口，独立 `bet_*` 项目、账户、盘口、投入、结算与流水也全部排除；公开的系列／单图开局事实按源迁移版本导出。预览库按 active migration chain 建表后，需用独立测试数据确认官方名单并形成阶段事实；不能把生产观众数据作为界面演示素材。
 
 
 ## BET

@@ -20,10 +20,23 @@ describe("sanitized mirror policy", () => {
   });
 
   it("excludes prediction submissions, balances and dependent program rows from sanitized mirrors", () => {
-    for (const table of ["prediction_programs", "prediction_accounts", "prediction_contests", "prediction_picks", "prediction_judgements", "prediction_markets", "prediction_market_options", "prediction_stakes", "prediction_settlements", "prediction_ledger", "prediction_jobs", "prediction_stage_milestones"]) {
+    for (const table of ["prediction_programs", "prediction_accounts", "prediction_contests", "prediction_picks", "prediction_judgements", "prediction_markets", "prediction_market_options", "prediction_stakes", "prediction_settlements", "prediction_ledger", "prediction_jobs", "prediction_stage_milestones", "bet_programs", "bet_accounts", "bet_markets", "bet_options", "bet_stakes", "bet_settlements", "bet_ledger", "bet_stage_milestones"]) {
       expect(EXCLUDED_TABLES.has(table)).toBe(true);
       expect(PREVIEW_COLUMNS).not.toHaveProperty(table);
     }
+  });
+
+  it("exports public gameplay facts only after their source migrations", () => {
+    const expected = readExpectedMigrations();
+    const index = expected.findIndex(({ tag }) => tag === "0075_lowly_sersi");
+    const older = previewPolicyFor(expected.slice(0, index));
+    const current = previewPolicyFor(expected);
+    expect(older.tables.matches.exportedColumns).not.toContain("gameplay_started_at");
+    expect(older.tables.match_maps.exportedColumns).not.toContain("started_at");
+    expect(current.tables.matches.exportedColumns).toContain("gameplay_started_at");
+    expect(current.tables.match_maps.exportedColumns).toContain("started_at");
+    expect(older.futureColumns.matches).toContain("gameplay_started_at");
+    expect(older.futureColumns.match_maps).toContain("started_at");
   });
 
   it("projects a fixed end reason without selecting the private source field", () => {
