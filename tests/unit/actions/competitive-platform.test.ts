@@ -390,6 +390,13 @@ describe("saveCompetitiveProfile platform-ladder validation", () => {
       const builder: Record<string, unknown> = {};
       builder.from = vi.fn(() => builder);
       builder.where = vi.fn(() => builder);
+      builder.for = vi.fn().mockResolvedValue([]);
+      return builder;
+    });
+    dbSelectMock.mockImplementationOnce(() => {
+      const builder: Record<string, unknown> = {};
+      builder.from = vi.fn(() => builder);
+      builder.where = vi.fn(() => builder);
       builder.limit = vi.fn(() => Promise.resolve(platform ? [{ key: "perfect_world" }] : []));
       return builder;
     });
@@ -419,7 +426,7 @@ describe("saveCompetitiveProfile platform-ladder validation", () => {
     queueLadder({ existingFacts: [{ id: "old-season", kind: "season_peak", platformSeasonKey: "s20", rank: "silver", rating: "1800", stars: null }] });
     const result = await saveCompetitiveProfile({
       platform: "perfect_world",
-      historicalPeak: { rank: "gold", rating: 2100, achievedSeasonKey: "s21" },
+      historicalPeak: { rank: "gold", rating: 2100, achievedSeasonKey: null },
       seasonPeaks: [
         { seasonKey: "s20", status: "unrecorded" },
         { seasonKey: "s21", status: "unranked", rating: null },
@@ -538,7 +545,7 @@ describe("saveCompetitiveProfile platform-ladder validation", () => {
       platform: "perfect_world", historicalPeak: { rank: "黄金S", rating: 2100, stars: 24 }, seasonPeaks: [{ seasonKey: "s21", rank: "魔王S", rating: 2200, stars: 50 }],
     });
     expect(perfect.success).toBe(true);
-    expect(insertValuesCalls.some((entry) => (entry as { stars?: number }).stars === 24)).toBe(true);
+    expect(insertValuesCalls).toContainEqual(expect.objectContaining({ kind: "historical_peak", rank: "魔王S", stars: 50, achievedSeasonKey: "s21" }));
 
     queueLadder({ ladder: ranks });
     const invalid = await saveCompetitiveProfile({

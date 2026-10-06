@@ -98,7 +98,7 @@ describe("Major player strength comparator", () => {
     expect(comparePlayerStrength(missing, player("other", "魔王S", "魔王S", "魔王S"), CONFIG).order).toBe(0);
 
     expect(getPlayerStrengthBreakdown(player("unknown", "X", "A", "A"), CONFIG).blockers).toContain(
-      "申报段位不在本赛事公布的段位映射中，或 S 段缺少准确星数。",
+      "申报段位不在本赛事公布的段位映射中。",
     );
     expect(getPlayerStrengthBreakdown(player("unconfigured", "A", "A", "A"), {
       ...CONFIG,

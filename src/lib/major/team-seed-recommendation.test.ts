@@ -174,6 +174,9 @@ describe("seed recommendation snapshot contract", () => {
     const fingerprint = buildFrozenSetFingerprint("season-1", [frozenTeams[0]!.identity]);
     expect(payload.context).toMatchObject({ version: 1, seasonId: "season-1", frozenSetFingerprint: fingerprint });
     expect(payload.recommendations[0]?.starters).toHaveLength(5);
+    const zero = buildSeedRecommendationSnapshotPayload({ seasonId: "season-1", frozenTeams: [{ ...frozenTeams[0]!, starters: five("team", "D") }], competitiveContext: { ...config, platform: "perfect_world", rankOrder: ["D"] } });
+    expect(zero.recommendations[0]?.teamSeedStrength).toBe(0);
+    expect(getSeedRecommendationSnapshotStatus({ snapshot: { entrantSetFingerprint: fingerprint, ...zero }, seasonId: "season-1", frozenSetFingerprint: fingerprint })).toBe("ready");
     const legacy = structuredClone(payload);
     delete legacy.context.competitiveContext.strengthAxis;
     legacy.context.teamSeedStrengthScale = 100;
@@ -197,7 +200,7 @@ describe("seed recommendation snapshot contract", () => {
     const starter = player("effective-recent");
     starter.currentSeasonPeak = { rank: "A", rating: 1, sourceSeasonKey: "current" };
     starter.recentSeasonPeaks = [
-      { rank: "C", rating: 3, sourceSeasonKey: "older" },
+      { rank: "C", rating: 3, sourceSeasonKey: "older", estimatedFromUnranked: true, estimatedFromSeasonKey: "prior" },
       { rank: "A", rating: 1, sourceSeasonKey: "current" },
     ];
     const payload = buildSeedRecommendationSnapshotPayload({
@@ -217,7 +220,7 @@ describe("seed recommendation snapshot contract", () => {
     });
     expect(payload.recommendations[0]?.starters[0]?.breakdown).toMatchObject({
       currentValue: 3,
-      effectiveRecentPeak: { rank: "C", sourceSeasonKey: "older" },
+      effectiveRecentPeak: { rank: "C", sourceSeasonKey: "older", estimatedFromUnranked: true, estimatedFromSeasonKey: "prior" },
     });
   });
 

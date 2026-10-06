@@ -166,13 +166,13 @@ export function getPlayerStrengthFindings(
   }
   if (findings.length > 0) return findings;
 
-  const historicalValue = strengthValue(player.historicalPeak!, config);
-  const previousValue = strengthValue(player.previousSeasonPeak!, config);
-  const currentValue = strengthValue(recentPeak!, config);
+  const historicalValue = rankValue(player.historicalPeak!.rank, config);
+  const previousValue = rankValue(player.previousSeasonPeak!.rank, config);
+  const currentValue = rankValue(recentPeak!.rank, config);
   if (historicalValue === null || previousValue === null || currentValue === null) {
     findings.push({
       code: "competitive_profile_invalid_rank",
-      message: "申报段位不在本赛事公布的段位映射中，或 S 段缺少准确星数。",
+      message: "申报段位不在本赛事公布的段位映射中。",
       waivable: false,
       metadata: {
         field: "rank",
@@ -195,7 +195,7 @@ export function getPlayerStrengthBreakdown(player: PlayerStrengthInput, config: 
   const previousValue = strengthValue(player.previousSeasonPeak!, config);
   const currentValue = strengthValue(recentPeak!, config);
   if (historicalValue === null || previousValue === null || currentValue === null) {
-    return { available: false, blockers: findings.map((finding) => finding.message), weightedRank: null, historicalValue, previousValue, currentValue, effectiveRecentPeak: recentPeak, historicalRating: player.historicalPeak!.rating };
+    return { available: false, blockers: ["综合实力证据缺少可确认的统一段位或准确 S 星数。"], weightedRank: null, historicalValue, previousValue, currentValue, effectiveRecentPeak: recentPeak, historicalRating: player.historicalPeak!.rating };
   }
   const weights = evidenceWeights(config);
   return { available: true, blockers: [], weightedRank: (historicalValue * weights.historicalWeight + previousValue * weights.referenceSeasonWeight + currentValue * weights.recentSeasonWeight) / 100, historicalValue, previousValue, currentValue, effectiveRecentPeak: recentPeak, historicalRating: player.historicalPeak!.ratingComparable === false ? null : player.historicalPeak!.rating };

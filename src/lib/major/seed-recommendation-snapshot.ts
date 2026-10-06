@@ -12,6 +12,9 @@ const SEED_RECOMMENDATION_SNAPSHOT_VERSION = 1 as const;
 export type SeedRecommendationSnapshotStatus = "missing" | "ready" | "mismatch";
 
 interface SeedRecommendationPlayerFactV1 {
+  estimatedFromUnranked?: boolean;
+  estimatedFromSeasonKey?: string | null;
+  estimatedFromHistorical?: boolean;
   rank: string;
   rating: number;
   ratingComparable: boolean;
@@ -166,6 +169,9 @@ function serializePlayerFact(fact: PlayerStrengthFact | null): SeedRecommendatio
   return {
     rank: fact.rank,
     rating: fact.rating,
+    estimatedFromUnranked: fact.estimatedFromUnranked ?? false,
+    estimatedFromSeasonKey: fact.estimatedFromSeasonKey ?? null,
+    estimatedFromHistorical: fact.estimatedFromHistorical ?? false,
     ratingComparable: fact.ratingComparable !== false,
     sourcePlatform: fact.sourcePlatform ?? null,
     sourceSeasonKey: fact.sourceSeasonKey ?? null,
@@ -355,7 +361,10 @@ function isPlayerFact(value: unknown): value is SeedRecommendationPlayerFactV1 {
     isNullableString(value.sourceRank) &&
     isNullableNonNegativeInteger(value.sourceStars) &&
     isNullableString(value.conversionVersion) &&
-    isNullableNonNegativeInteger(value.stars);
+    isNullableNonNegativeInteger(value.stars) &&
+    (value.estimatedFromUnranked === undefined || typeof value.estimatedFromUnranked === "boolean") &&
+    (value.estimatedFromSeasonKey === undefined || isNullableString(value.estimatedFromSeasonKey)) &&
+    (value.estimatedFromHistorical === undefined || typeof value.estimatedFromHistorical === "boolean");
 }
 
 function isPlayerInput(value: unknown): value is SeedRecommendationPlayerInputV1 {
