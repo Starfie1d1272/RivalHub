@@ -416,6 +416,7 @@ export const AUDIT_ACTION_DEFINITIONS = {
   "major_prestart.save_tournament_seeds": { label: "保存 Major 种子", category: "major" },
   "major_prestart.confirm_tournament_seeds": { label: "确认 Major 种子", category: "major" },
   "competition_qualification.configure": { label: "配置 Play-in", category: "major" },
+  "competition_qualification.save_draft": { label: "保存预排名草稿", category: "major" },
   "competition_qualification.rank": { label: "调整 Play-in 预排名", category: "major" },
   "competition_qualification.generate_round": { label: "生成 Play-in 轮次", category: "major" },
   "competition_qualification.reset": { label: "重置 Play-in 配置", category: "major" },

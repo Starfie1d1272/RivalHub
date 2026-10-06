@@ -4,7 +4,7 @@
 
 ## 结论
 
-- 当前 active chain 的 112 张 application-owned `public` base table 全部归类为 `server_only`。业务数据库只由 server-side Drizzle 访问，browser Data API consumer 为零。
+- 当前 active chain 的 113 张 application-owned `public` base table 全部归类为 `server_only`。业务数据库只由 server-side Drizzle 访问，browser Data API consumer 为零。
 - `users`、`user_sessions`、`admin_invites`、`admin_invite_claims`、`season_admin_grants`、`audit_logs`、education evidence、Major prestart/runtime 和 bracket runtime 均按高敏感 server-only 处理。
 - 通用 provider bracket state 按 `(competition_id, stage_key)` 归属 canonical logical Stage；Major Swiss standings 只由 StageRun entrants、managed matches 与 finalized round 投影。
 - `DraftLiveRoom` 与 `CaptainVotingPanel` 继续使用 10 秒 polling；`ResetPasswordForm` 仅调用 Supabase Auth。比赛直播使用独立的 private Broadcast channel 与短期 receive-only viewer JWT，不开放业务表 Data API。
@@ -58,6 +58,7 @@
 | competition_entry_submissions | 报名审核决策历史 | CompetitionEntry / review | src/lib/competition-entries/commands.ts | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 提交序列和审核决策用于 canonical lifecycle 与 audit。 |
 | competition_entry_restriction_overrides | 资格限制解除与审计事实 | CompetitionEntry / review | src/lib/competition-entries/restriction-overrides.ts; src/lib/competition-entries/commands.ts | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 只记录管理员针对当前 roster revision 的显式、可解除政策限制；资料缺失仍由资格 owner 阻断。 |
 | competition_qualification_entrants | 冻结候选预排名与参赛身份 | Major Qualification | src/lib/competition-qualification/runtime.ts; src/lib/admin/season-workspace/major-prestart.ts | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 资格赛候选顺序与晋级路线只经服务端读写，公开页面只消费显式赛程投影。 |
+| competition_qualification_drafts | 赛委会共享预排名草稿 | Major Qualification | src/lib/competition-qualification/draft.ts | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 只经授权服务端 action 读取和保存，不开放 Data API。 |
 | competition_qualification_runs | 资格赛配置、运行状态与 actor | Major Qualification | src/lib/competition-qualification/runtime.ts; src/actions/competition-qualification.ts | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 资格赛生命周期由服务端事务维护，浏览器不直连运行记录。 |
 | competitive_platform_ranks | 内部等级目录配置 | 竞技资料目录 | src/lib/competitive/catalog.ts | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 目录由服务端 bootstrap 和冻结快照 owner 管理。 |
 | competitive_platform_seasons | 内部赛季目录配置 | 竞技资料目录 | src/lib/competitive/catalog.ts; src/actions/competitive-platform.ts | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 目录 season key 和 rank order 不能由 Data API 改写。 |

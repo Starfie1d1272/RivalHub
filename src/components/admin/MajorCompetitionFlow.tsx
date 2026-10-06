@@ -8,7 +8,7 @@ import {
   generateCompetitionQualificationRound,
   previewCompetitionQualificationRound,
   resetCompetitionQualification,
-  saveCompetitionQualificationOrder,
+  saveCompetitionQualificationDraft,
 } from "@/actions/competition-qualification";
 import { selectMajorEntrants, setMajorManagedProfile } from "@/actions/major-prestart";
 import { Button } from "@/components/ui/button";
@@ -21,6 +21,7 @@ import { deriveCompetitionQualificationPlan, isShortSwissQualificationAllowed, t
 import type { MajorPrestartPageData } from "@/lib/admin/season-workspace/types";
 import type { ActionResult } from "@/types/action";
 import { MajorRankingWorkspace } from "./MajorRankingWorkspace";
+import { formatCST } from "@/lib/utils/date";
 import { initialPreliminaryOrder } from "@/lib/admin/season-workspace/ranking-order";
 
 type ManagementData = MajorPrestartPageData["management"];
@@ -45,10 +46,11 @@ async function reportResult(work: () => Promise<ActionResult<void>>, success: st
 
 export function MajorCompetitionFlow({ data, phase }: { data: ManagementData; phase: "plan" | "runtime" | "entrants" }) {
   const [pending, startTransition] = useTransition();
-  const [format, setFormat] = useState<CompetitionQualificationFormat>("direct_bo3");
+  const [savedDraft, setSavedDraft] = useState(data.qualification.draft);
+  const [format, setFormat] = useState<CompetitionQualificationFormat>(data.qualification.draft?.format ?? "direct_bo3");
   const run = data.qualification.run;
   const persistedOrder = run ? initialPreliminaryOrder([], run.entrants) : [];
-  const [order, setOrder] = useState(initialPreliminaryOrder(data.initialPreliminaryOrderEntryIds, run?.entrants ?? null));
+  const [order, setOrder] = useState(initialPreliminaryOrder(data.qualification.draft && !data.qualification.draft.stale ? data.qualification.draft.order : data.initialPreliminaryOrderEntryIds, run?.entrants ?? null));
   const [confirmReset, setConfirmReset] = useState(false);
   const [configPreviewOpen, setConfigPreviewOpen] = useState(false);
   const [roundPreview, setRoundPreview] = useState<QualificationRoundPreview | null>(null);
@@ -62,7 +64,9 @@ export function MajorCompetitionFlow({ data, phase }: { data: ManagementData; ph
     }
   }, [data.approvedCandidateCount, data.entrantCapacity]);
   const shortSwissAllowed = Boolean(plan && isShortSwissQualificationAllowed(plan.playInEntryCount));
-  const canConfigure = data.seasonStatus === "registration" && data.registrationClosed && !data.qualification.run &&
+  const draftStale = savedDraft?.stale === true || (savedDraft && (savedDraft.targetEntrantCount !== data.entrantCapacity || savedDraft.order.length !== data.approvedCandidateCount || data.approvedCandidates.some(candidate => !savedDraft.order.includes(candidate.id))));
+  const dirty = !savedDraft || format !== savedDraft.format || order.length !== savedDraft.order.length || order.some((id, index) => id !== savedDraft.order[index]);
+  const canConfigure = !dirty && !draftStale && Boolean(savedDraft) && data.seasonStatus === "registration" && data.registrationClosed && !data.qualification.run &&
     data.pendingReviewCount === 0 && plan !== null && data.approvedCandidates.length === data.approvedCandidateCount &&
     order.length === data.approvedCandidateCount;
   const finalEntryIds = run?.completedAt
@@ -71,8 +75,7 @@ export function MajorCompetitionFlow({ data, phase }: { data: ManagementData; ph
       ? data.approvedCandidates.map((candidate) => candidate.id)
       : [];
   const currentRoundFinished = run !== null && run.matchCount > 0 && run.finishedMatchCount === run.matchCount;
-  const orderMatchesSaved = order.length === persistedOrder.length && order.every((id, index) => id === persistedOrder[index]);
-  const canGenerate = Boolean(run && !run.completedAt && orderMatchesSaved && (run.matchCount === 0 || currentRoundFinished));
+  const canGenerate = Boolean(run && !run.completedAt && (run.matchCount === 0 || currentRoundFinished));
   const rosterByEntryId = new Map(data.rankingRoster.map((row) => [row.entryId, row.members]));
   const strengthByEntryId = new Map(data.strengthPreview.teams.map((team) => [team.teamId, team]));
   const rankingTeams = (run?.entrants.map((entrant) => ({ id: entrant.entryId, name: entrant.teamName, route: entrant.route, status: entrant.status, wins: entrant.wins, losses: entrant.losses }))
@@ -97,12 +100,22 @@ export function MajorCompetitionFlow({ data, phase }: { data: ManagementData; ph
     });
   }
 
+  function saveDraft() {
+    startTransition(async () => {
+      const result = await saveCompetitionQualificationDraft({ seasonId: data.seasonId, format, order, expectedVersion: savedDraft?.version ?? null });
+      if (!result.success) toast.error(result.error.message);
+      else { setSavedDraft(result.data); toast.success("预排名草稿已保存"); }
+    });
+  }
+
   function confirmConfiguration() {
+    if (!canConfigure || !savedDraft) return;
     startTransition(async () => {
       const result = await configureCompetitionQualification({
         seasonId: data.seasonId,
         format,
         preliminaryOrderEntryIds: order,
+        expectedDraftVersion: savedDraft!.version,
       });
       if (!result.success) toast.error(result.error.message);
       else {
@@ -193,7 +206,9 @@ export function MajorCompetitionFlow({ data, phase }: { data: ManagementData; ph
                 <MajorRankingWorkspace mode="preliminary" teams={rankingTeams} order={order} onOrderChange={setOrder} platform={data.strengthPreview.platform} boundaryAfter={plan.directEntryCount} boundaryLabel="直通正赛 / Play-in" />
                 {data.pendingReviewCount > 0 && <p className="text-sm text-[var(--color-warn)]">仍有 {data.pendingReviewCount} 支报名处于待审、补正或候补状态。</p>}
                 {data.approvedCandidates.length !== data.approvedCandidateCount && <p className="text-sm text-[var(--color-warn)]">部分已批准报名缺少有效审核名单，需先修复报名资料。</p>}
-                <div className="flex justify-end">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p role="status" className="text-xs text-[var(--color-fg-mid)]">{savedDraft ? `草稿 v${savedDraft.version} · ${formatCST(savedDraft.updatedAt)} · ${savedDraft.updatedBy}` : "尚未保存草稿"} · {draftStale ? "候选集合已变化，请重新编辑并保存" : dirty ? "有未保存修改" : "已保存"}</p>
+                  <Button disabled={pending || (!dirty && !draftStale)} onClick={saveDraft}>保存草稿</Button>
                   <Button disabled={pending || !canConfigure || (format === "short_swiss_2w2l" && !shortSwissAllowed)} onClick={() => setConfigPreviewOpen(true)}>预览 Play-in 配置</Button>
                 </div>
               </>
@@ -216,7 +231,7 @@ export function MajorCompetitionFlow({ data, phase }: { data: ManagementData; ph
             {confirmReset && <InlineConfirm
               danger
               title="重置尚未开始的 Play-in 配置？"
-              sub="候选预排名和赛制配置会被删除；已生成比赛或已开始的 run 无法重置。"
+              sub="返回可编辑的已保存草稿；已生成比赛或已开始的配置无法重置。"
               confirmLabel="确认重置"
               onCancel={() => setConfirmReset(false)}
               onConfirm={() => {
@@ -230,12 +245,8 @@ export function MajorCompetitionFlow({ data, phase }: { data: ManagementData; ph
             <p className="text-sm text-[var(--color-fg-mid)]">已生成 {run.matchCount} 场 · 已完成 {run.finishedMatchCount} 场{run.currentRound > 0 ? ` · 当前第 ${run.currentRound} 轮` : ""}</p>
             {run.startedAt ? <details className="border border-[var(--color-border)] p-3">
               <summary className="cursor-pointer text-sm">查看已冻结的预排名与队伍证据</summary>
-              <div className="mt-3"><MajorRankingWorkspace mode="preliminary" teams={rankingTeams} order={order} platform={data.strengthPreview.platform} boundaryAfter={cut} boundaryLabel="直通正赛 / Play-in" /></div>
-            </details> : <MajorRankingWorkspace mode="preliminary" teams={rankingTeams} order={order} onOrderChange={setOrder} platform={data.strengthPreview.platform} boundaryAfter={cut} boundaryLabel="直通正赛 / Play-in" />}
-            {!run.startedAt && <div className="flex justify-end"><Button disabled={pending || orderMatchesSaved} onClick={() => startTransition(() => void reportResult(
-              () => saveCompetitionQualificationOrder({ seasonId: data.seasonId, runId: run.id, orderedCompetitionEntryIds: order }),
-              "预排名排序已保存",
-            ))}>保存排序</Button></div>}
+              <div className="mt-3"><MajorRankingWorkspace mode="preliminary" teams={rankingTeams} order={persistedOrder} platform={data.strengthPreview.platform} boundaryAfter={cut} boundaryLabel="直通正赛 / Play-in" /></div>
+            </details> : <MajorRankingWorkspace mode="preliminary" teams={rankingTeams} order={persistedOrder} platform={data.strengthPreview.platform} boundaryAfter={cut} boundaryLabel="直通正赛 / Play-in" />}
             <Link className="text-sm text-[var(--color-accent)] underline" href={`/admin/${data.seasonSlug}/matches?stage=play-in`}>进入比赛管理</Link>
           </div>
         )}

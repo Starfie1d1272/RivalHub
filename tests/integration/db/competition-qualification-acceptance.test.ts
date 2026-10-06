@@ -16,9 +16,12 @@ import {
   saveCompetitionQualificationRankInTx,
   saveCompetitionQualificationOrderInTx,
 } from "../../../src/lib/competition-qualification/runtime";
+import { evaluateExternalStrengthRule } from "../../../src/lib/major/player-strength";
+import { loadParticipantQualificationFacts, toPlayerStrengthInput } from "../../../src/lib/qualification/service";
+import { saveCompetitionQualificationDraftInTx } from "../../../src/lib/competition-qualification/draft";
 import { reviewCompetitionEntryInTx, submitCompetitionEntryInTx } from "../../../src/lib/competition-entries/commands";
 import { requestCompetitionEntryRosterChangeInTx } from "../../../src/lib/competition-entries/roster-change";
-import { applyMatchStatusTransitionInTx, confirmMatchRosterInTx, persistMatchRosterInTx } from "../../../src/lib/match-rosters/service";
+import { applyMatchStatusTransitionInTx, confirmMatchRosterInTx, persistMatchRosterInTx, getStartingLineupPreflightInTx } from "../../../src/lib/match-rosters/service";
 import { assertGenericMatchCanBeDeleted } from "../../../src/lib/matches/deletion";
 import { planSeriesAfterMapScoreChangeInTx, correctSeriesAfterMapScoreChangeInTx } from "../../../src/lib/matches/series-score-correction";
 import { applyResultCorrectionInTx, planResultCorrectionInTx } from "../../../src/lib/match-corrections/service";
@@ -289,6 +292,7 @@ async function cleanupAcceptanceFixture(pool: Pool, fixture: AcceptanceFixture):
     await client.query("DELETE FROM match_maps WHERE match_id IN (SELECT id FROM matches WHERE season_id = $1)", [fixture.seasonId]);
     await client.query("DELETE FROM matches WHERE season_id = $1", [fixture.seasonId]);
     await client.query("DELETE FROM competition_qualification_entrants WHERE season_id = $1", [fixture.seasonId]);
+    await client.query("DELETE FROM competition_qualification_drafts WHERE season_id = $1", [fixture.seasonId]);
     await client.query("DELETE FROM competition_qualification_runs WHERE season_id = $1", [fixture.seasonId]);
     await client.query("DELETE FROM major_tournament_seeds WHERE season_id = $1", [fixture.seasonId]);
     await client.query("DELETE FROM major_tournament_entrants WHERE season_id = $1", [fixture.seasonId]);
@@ -297,6 +301,7 @@ async function cleanupAcceptanceFixture(pool: Pool, fixture: AcceptanceFixture):
     await client.query("DELETE FROM event_roster_members WHERE event_roster_id IN (SELECT id FROM event_rosters WHERE entry_id = ANY($1::uuid[]))", [entryIds]);
     await client.query("DELETE FROM event_rosters WHERE entry_id = ANY($1::uuid[])", [entryIds]);
     await client.query("DELETE FROM competition_entry_representative_changes WHERE entry_id = ANY($1::uuid[])", [entryIds]);
+    await client.query("DELETE FROM competition_entry_restriction_overrides WHERE competition_id = $1", [fixture.seasonId]);
     await client.query("DELETE FROM competition_entry_roster_members WHERE revision_id IN (SELECT id FROM competition_entry_roster_revisions WHERE entry_id = ANY($1::uuid[]))", [entryIds]);
     await client.query("DELETE FROM competition_entry_roster_revisions WHERE entry_id = ANY($1::uuid[])", [entryIds]);
     await client.query("DELETE FROM competition_entry_participants WHERE entry_id = ANY($1::uuid[])", [entryIds]);
@@ -314,6 +319,79 @@ async function cleanupAcceptanceFixture(pool: Pool, fixture: AcceptanceFixture):
   }
 }
 
+async function exerciseDraftConcurrencyAndEligibility(format: "direct_bo3" | "short_swiss_2w2l") {
+  const pool = new Pool({ connectionString: databaseUrl, ssl: false, max: 4 });
+  const database = drizzle(pool, { schema });
+  let fixture: AcceptanceFixture | undefined;
+  try {
+    fixture = await prepareAcceptanceFixture(pool);
+    const order = fixture.entries.map(entry => entry.entryId);
+    const input = { seasonId: fixture.seasonId, actorId: ACTOR, format, order, expectedVersion: null };
+    const saved = await database.transaction(tx => saveCompetitionQualificationDraftInTx(tx, input));
+    expect(saved.draft.version).toBe(1);
+    expect((await database.select().from(schema.competitionQualificationRuns).where(eq(schema.competitionQualificationRuns.seasonId, fixture.seasonId)))).toHaveLength(0);
+    expect((await database.select().from(schema.matches).where(eq(schema.matches.seasonId, fixture.seasonId)))).toHaveLength(0);
+    const concurrent = await Promise.allSettled([ACTOR, "second-committee-admin"].map(actorId => database.transaction(tx => saveCompetitionQualificationDraftInTx(tx, { ...input, actorId, expectedVersion: 1 }))));
+    expect(concurrent.filter(result => result.status === "fulfilled")).toHaveLength(1);
+    expect(concurrent.filter(result => result.status === "rejected")).toHaveLength(1);
+    await expect(database.transaction(tx => configureCompetitionQualificationRunInTx(tx, {
+      seasonId: fixture!.seasonId, actorId: ACTOR, format, preliminaryOrderEntryIds: order, expectedDraftVersion: 1,
+    }))).rejects.toThrow("最新草稿");
+    const external = await pool.query<{ id: string }>("SELECT id FROM institutions WHERE moe_institution_code <> $1 LIMIT 1", [NJU_CODE]);
+    if (!external.rows[0]) throw new Error("external institution fixture missing");
+    const probes = fixture.entries.slice(18, 20);
+    for (const entry of probes) {
+      await pool.query("UPDATE education_verifications SET institution_id = $1 WHERE user_id = ANY($2::uuid[])", [external.rows[0].id, entry.userIds.slice(3)]);
+      await pool.query("UPDATE competitive_rank_facts SET rank = '魔王S', stars = 50 WHERE user_id = ANY($1::uuid[]) AND kind = 'historical_peak'", [entry.userIds.slice(3)]);
+      await database.transaction(async tx => {
+        const participants = await tx.select().from(schema.competitionEntryParticipants).where(eq(schema.competitionEntryParticipants.entryId, entry.entryId));
+        await tx.insert(schema.competitionEntryRosterMembers).values(entry.userIds.slice(5).map(userId => ({ revisionId: entry.revisionId, participantId: participants.find(participant => participant.userId === userId)!.id, userId, isPrimaryStarter: false })));
+      });
+    }
+    // An approved override is adopted only for the exact Entry + approved revision.
+    const permitted = probes[1]!;
+    await database.transaction(async tx => {
+      const facts = await loadParticipantQualificationFacts(permitted.userIds, { executor: tx, platform: PROFILE.platform });
+      const config = { ...PROFILE, rankOrder: [...PROFILE.rankOrder] };
+      const players = permitted.userIds.slice(0, 5).map((userId, index) => ({ ...toPlayerStrengthInput(facts.get(userId)!, config), isHome: index < 3 }));
+      const finding = evaluateExternalStrengthRule({ config, players }).findings[0]!;
+      await tx.insert(schema.competitionEntryRestrictionOverrides).values({ competitionId: fixture!.seasonId, entryId: permitted.entryId, rosterRevisionId: permitted.revisionId, restrictionCode: finding.code, findingSnapshot: finding, reason: "fixture approved restriction", grantedBy: ACTOR });
+    });
+    const configured = await database.transaction(tx => configureCompetitionQualificationRunInTx(tx, {
+      seasonId: fixture!.seasonId, actorId: ACTOR, format, preliminaryOrderEntryIds: order, expectedDraftVersion: 2,
+    }));
+    const preview = await database.transaction(tx => previewCompetitionQualificationRoundInTx(tx, { seasonId: fixture!.seasonId, runId: configured.runId }));
+    await database.transaction(tx => generateCompetitionQualificationRoundInTx(tx, {
+      seasonId: fixture!.seasonId, runId: configured.runId, actorId: ACTOR, expectedPairings: preview.matchups,
+    }));
+    for (const [index, entry] of probes.entries()) {
+      const linked = await database.select().from(schema.matches).where(eq(schema.matches.qualificationRunId, configured.runId));
+      const match = linked.find(row => row.entryAId === entry.entryId || row.entryBId === entry.entryId)!;
+      const members = await database.select({ id: schema.eventRosterMembers.id, userId: schema.eventRosterMembers.userId }).from(schema.eventRosterMembers)
+        .innerJoin(schema.eventRosters, eq(schema.eventRosters.id, schema.eventRosterMembers.eventRosterId)).where(eq(schema.eventRosters.entryId, entry.entryId));
+      const ids = (users: string[]) => users.map(userId => members.find(member => member.userId === userId)!.id);
+      const preflight = await database.transaction(tx => getStartingLineupPreflightInTx(tx, { match, entryId: entry.entryId, starterIds: ids(entry.userIds.slice(0, 5)) }));
+      expect(preflight.valid).toBe(index === 1);
+      if (index === 0) {
+        expect(preflight.blockers.join(" ")).toContain("外校");
+        await expect(database.transaction(tx => persistMatchRosterInTx(tx, { match, entryId: entry.entryId, starterIds: ids(entry.userIds.slice(0, 5)), submittedBy: null, source: "admin_select" }))).rejects.toThrow("外校");
+      } else {
+        await database.transaction(tx => persistMatchRosterInTx(tx, { match, entryId: entry.entryId, starterIds: ids(entry.userIds.slice(0, 5)), submittedBy: null, source: "admin_select" }));
+      }
+      const insufficientHome = await database.transaction(tx => getStartingLineupPreflightInTx(tx, { match, entryId: entry.entryId, starterIds: ids([entry.userIds[0]!, entry.userIds[1]!, ...entry.userIds.slice(3, 6)]) }));
+      expect(insufficientHome.valid).toBe(false);
+      expect(insufficientHome.blockers.join(" ")).toContain("首发");
+      // Mutable rank edits cannot change the adopted eligibility facts.
+      await pool.query("UPDATE competitive_rank_facts SET rank = 'D', stars = NULL WHERE user_id = ANY($1::uuid[])", [entry.userIds]);
+      const frozen = await database.transaction(tx => getStartingLineupPreflightInTx(tx, { match, entryId: entry.entryId, starterIds: ids(entry.userIds.slice(0, 5)) }));
+      expect(frozen.valid).toBe(index === 1);
+    }
+  } finally {
+    if (fixture) await cleanupAcceptanceFixture(pool, fixture);
+    await pool.end();
+  }
+}
+
 async function exerciseThirtyToTwentyFourAcceptance(): Promise<void> {
   const pool = new Pool({ connectionString: databaseUrl, ssl: false, max: 4 });
   const database = drizzle(pool, { schema });
@@ -321,40 +399,22 @@ async function exerciseThirtyToTwentyFourAcceptance(): Promise<void> {
   try {
     fixture = await prepareAcceptanceFixture(pool);
     const preliminaryOrderEntryIds = fixture.entries.map((entry) => entry.entryId);
+    await database.transaction(tx => saveCompetitionQualificationDraftInTx(tx, {
+      seasonId: fixture!.seasonId, actorId: ACTOR, format: "short_swiss_2w2l", order: fixture!.entries.map(entry => entry.entryId), expectedVersion: null,
+    }));
     const configured = await database.transaction((tx) => configureCompetitionQualificationRunInTx(tx, {
       seasonId: fixture!.seasonId,
       actorId: ACTOR,
+      expectedDraftVersion: 1,
       format: "short_swiss_2w2l",
       preliminaryOrderEntryIds,
     }));
     expect(configured).toMatchObject({ directEntryCount: 18, playInEntryCount: 12, qualifierCount: 6 });
 
     const runId = configured.runId;
-    const swapped = [...preliminaryOrderEntryIds];
-    [swapped[1], swapped[2]] = [swapped[2]!, swapped[1]!];
-    await database.transaction((tx) => saveCompetitionQualificationOrderInTx(tx, {
-      seasonId: fixture!.seasonId, runId, orderedCompetitionEntryIds: swapped, actorId: ACTOR,
-    }));
-    const saved = await database.select({ entryId: schema.competitionQualificationEntrants.competitionEntryId })
-      .from(schema.competitionQualificationEntrants).where(eq(schema.competitionQualificationEntrants.runId, runId))
-      .orderBy(schema.competitionQualificationEntrants.preliminarySeed);
-    expect(saved.map((row) => row.entryId)).toEqual(swapped);
-    for (const invalid of [
-      [...swapped.slice(0, -1), swapped[0]!],
-      swapped.slice(0, -1),
-      [...swapped.slice(0, -1), randomUUID()],
-    ]) {
-      await expect(database.transaction((tx) => saveCompetitionQualificationOrderInTx(tx, {
-        seasonId: fixture!.seasonId, runId, orderedCompetitionEntryIds: invalid, actorId: ACTOR,
-      }))).rejects.toThrow("候选队伍集合已变化");
-    }
-    const afterRejectedSave = await database.select({ entryId: schema.competitionQualificationEntrants.competitionEntryId })
-      .from(schema.competitionQualificationEntrants).where(eq(schema.competitionQualificationEntrants.runId, runId))
-      .orderBy(schema.competitionQualificationEntrants.preliminarySeed);
-    expect(afterRejectedSave.map((row) => row.entryId)).toEqual(swapped);
-    await database.transaction((tx) => saveCompetitionQualificationOrderInTx(tx, {
-      seasonId: fixture!.seasonId, runId, orderedCompetitionEntryIds: preliminaryOrderEntryIds, actorId: ACTOR,
-    }));
+    await expect(database.transaction(tx => saveCompetitionQualificationOrderInTx(tx, {
+      seasonId: fixture!.seasonId, runId, orderedCompetitionEntryIds: preliminaryOrderEntryIds.slice().reverse(), actorId: ACTOR,
+    }))).rejects.toThrow("预排名已锁定");
     const frozenSeedRows = await database.select({
       entryId: schema.competitionQualificationEntrants.competitionEntryId,
       seed: schema.competitionQualificationEntrants.preliminarySeed,
@@ -390,29 +450,21 @@ async function exerciseThirtyToTwentyFourAcceptance(): Promise<void> {
     let revisionTwoUsers: string[] = [];
     for (const [roundIndex, expectedMatchCount] of [6, 6, 3].entries()) {
       const round = roundIndex + 1;
-      let preview = await database.transaction((tx) => previewCompetitionQualificationRoundInTx(tx, {
+      const preview = await database.transaction((tx) => previewCompetitionQualificationRoundInTx(tx, {
         seasonId: fixture!.seasonId,
         runId,
       }));
       expect(preview).toMatchObject({ round, format: "bo1" });
       expect(preview.matchups).toHaveLength(expectedMatchCount);
       if (round === 1) {
-        await database.transaction((tx) => saveCompetitionQualificationRankInTx(tx, {
-          seasonId: fixture!.seasonId,
-          entryId: preliminaryOrderEntryIds[18]!,
-          nextRank: 20,
-          actorId: ACTOR,
-        }));
-        await expect(database.transaction((tx) => generateCompetitionQualificationRoundInTx(tx, {
-          seasonId: fixture!.seasonId,
-          runId,
-          actorId: ACTOR,
-          expectedPairings: preview.matchups.map(({ higherSeedTeamId, lowerSeedTeamId }) => ({ higherSeedTeamId, lowerSeedTeamId })),
+        await expect(database.transaction(tx => saveCompetitionQualificationRankInTx(tx, {
+          seasonId: fixture!.seasonId, entryId: preliminaryOrderEntryIds[18]!, nextRank: 20, actorId: ACTOR,
+        }))).rejects.toThrow("预排名已锁定");
+        const stalePairings = preview.matchups.map(({ higherSeedTeamId, lowerSeedTeamId }) => ({ higherSeedTeamId, lowerSeedTeamId }));
+        stalePairings[0]!.lowerSeedTeamId = randomUUID();
+        await expect(database.transaction(tx => generateCompetitionQualificationRoundInTx(tx, {
+          seasonId: fixture!.seasonId, runId, actorId: ACTOR, expectedPairings: stalePairings,
         }))).rejects.toThrow("轮次对阵已变化");
-        preview = await database.transaction((tx) => previewCompetitionQualificationRoundInTx(tx, {
-          seasonId: fixture!.seasonId,
-          runId,
-        }));
       }
       const created = await database.transaction((tx) => generateCompetitionQualificationRoundInTx(tx, {
         seasonId: fixture!.seasonId,
@@ -435,7 +487,7 @@ async function exerciseThirtyToTwentyFourAcceptance(): Promise<void> {
       if (round === 1) {
         await expect(database.transaction((tx) => saveCompetitionQualificationOrderInTx(tx, {
           seasonId: fixture!.seasonId, runId, orderedCompetitionEntryIds: preliminaryOrderEntryIds, actorId: ACTOR,
-        }))).rejects.toThrow("开始后不能调整预排名");
+        }))).rejects.toThrow("预排名已锁定");
       }
 
       if (round === 1) {
@@ -682,9 +734,13 @@ async function exerciseShortSwissCorrectionRecovery(): Promise<void> {
   let fixture: AcceptanceFixture | undefined;
   try {
     fixture = await prepareAcceptanceFixture(pool);
+    await database.transaction(tx => saveCompetitionQualificationDraftInTx(tx, {
+      seasonId: fixture!.seasonId, actorId: ACTOR, format: "short_swiss_2w2l", order: fixture!.entries.map(entry => entry.entryId), expectedVersion: null,
+    }));
     const configured = await database.transaction((tx) => configureCompetitionQualificationRunInTx(tx, {
       seasonId: fixture!.seasonId,
       actorId: ACTOR,
+      expectedDraftVersion: 1,
       format: "short_swiss_2w2l",
       preliminaryOrderEntryIds: fixture!.entries.map((entry) => entry.entryId),
     }));
@@ -781,9 +837,13 @@ async function exerciseDirectBo3CompletionAndCorrection(): Promise<void> {
   try {
     fixture = await prepareAcceptanceFixture(pool);
     const preliminaryOrderEntryIds = fixture.entries.map((entry) => entry.entryId);
+    await database.transaction(tx => saveCompetitionQualificationDraftInTx(tx, {
+      seasonId: fixture!.seasonId, actorId: ACTOR, format: "direct_bo3", order: preliminaryOrderEntryIds, expectedVersion: null,
+    }));
     const configured = await database.transaction((tx) => configureCompetitionQualificationRunInTx(tx, {
       seasonId: fixture!.seasonId,
       actorId: ACTOR,
+      expectedDraftVersion: 1,
       format: "direct_bo3",
       preliminaryOrderEntryIds,
     }));
@@ -897,4 +957,10 @@ describe("Issue 743 qualification PostgreSQL acceptance", () => {
   it("completes Direct BO3 to six qualifiers and reprojects a corrected winner", async () => {
     await exerciseDirectBo3CompletionAndCorrection();
   });
+});
+
+describe("Qualification draft and lineup gate", () => {
+  for (const format of ["direct_bo3", "short_swiss_2w2l"] as const) {
+    it(`${format}: shared draft concurrency, affiliation, frozen strength and revision-bound override`, () => exerciseDraftConcurrencyAndEligibility(format), 120_000);
+  }
 });

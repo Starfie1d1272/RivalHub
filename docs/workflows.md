@@ -108,7 +108,9 @@ Team captain creates Entry
 
 报名截止和最终名单截止仍由 `seasons` 保存，但 Major 的正常运营编辑入口位于赛前工作区；`mainEventPlannedStartAt` 仅是计划时间，到时未 ready 时显示待处理事项，不触发 `startMajor()`。实际开始只由管理员确认后创建 StageRun。
 
-### Major Qualification
+#预排名调整先保存共享服务器草稿，再预览并确认最新版本。未保存修改、旧版本、候选集合或容量变化均阻止最终确认；保存不创建 QualificationRun。确认后排序与赛制锁定，首轮生成前显式 reset 可返回草稿继续修改。Play-in 首轮同步已批准名单并采用冻结资格规则；名单补正重新批准后同步当前 revision 的竞技事实和有效特批，首发 gate 同时执行校籍人数及外校实力规则。
+
+## Major Qualification
 
 Qualification 是 `registration` 到 Major 正赛 entrant set 之间的独立 run，不加入 StagePlan，也不创建 Major StageRun。Major 正赛规模只可在报名阶段、未配置 Qualification、未创建正赛 entrants/seeds/StageRun 且赛前事实未锁定时，通过 profile owner 更新；已发布设置展示调整边界并链接到赛前准备。
 

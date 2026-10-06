@@ -16,6 +16,8 @@ import {
 import { revalidateSeasonPaths, updatePublicHomeTag } from "@/lib/revalidation";
 import { ok, type ActionResult } from "@/types/action";
 
+import { saveCompetitionQualificationDraftInTx } from "@/lib/competition-qualification/draft";
+
 const uuid = z.guid();
 
 function revalidatePrestart(seasonSlug: string): void {
@@ -34,11 +36,13 @@ export async function configureCompetitionQualification(input: {
   seasonId: string;
   format: "direct_bo3" | "short_swiss_2w2l";
   preliminaryOrderEntryIds: string[];
+  expectedDraftVersion: number;
 }): Promise<ActionResult<void>> {
   const parsed = z.object({
     seasonId: uuid,
     format: z.enum(["direct_bo3", "short_swiss_2w2l"]),
     preliminaryOrderEntryIds: z.array(uuid).min(2).max(128),
+    expectedDraftVersion: z.number().int().positive(),
   }).safeParse(input);
   if (!parsed.success || new Set(parsed.data.preliminaryOrderEntryIds).size !== parsed.data.preliminaryOrderEntryIds.length) {
     return failValidation("Play-in 配置或预排名无效。");
@@ -121,4 +125,17 @@ export async function resetCompetitionQualification(input: { seasonId: string })
     revalidatePrestart(result.seasonSlug);
     return ok(undefined);
   } catch (error) { return actionError("resetCompetitionQualification", error); }
+}
+
+export async function saveCompetitionQualificationDraft(input: {
+  seasonId: string; format: "direct_bo3" | "short_swiss_2w2l"; order: string[]; expectedVersion: number | null;
+}) {
+  const parsed = z.object({ seasonId: uuid, format: z.enum(["direct_bo3", "short_swiss_2w2l"]), order: z.array(uuid).min(2).max(128), expectedVersion: z.number().int().positive().nullable() }).safeParse(input);
+  if (!parsed.success) return failValidation("预排名草稿参数无效。");
+  try {
+    const { actorId } = await adminOrThrow(parsed.data.seasonId);
+    const result = await db.transaction(tx => saveCompetitionQualificationDraftInTx(tx, { ...parsed.data, actorId }));
+    revalidatePrestart(result.seasonSlug);
+    return ok(result.draft);
+  } catch (error) { return actionError("saveCompetitionQualificationDraft", error); }
 }

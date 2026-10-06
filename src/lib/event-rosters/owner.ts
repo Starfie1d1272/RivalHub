@@ -15,6 +15,7 @@ import { evaluateRosterEducationEligibility, resolveSeasonEducationVerification 
 import { getDisplayName } from "@/lib/identity/display-name";
 import { assertSinglePrestartEntryCoherenceInTx, type PrestartEntryCoherence } from "@/lib/event-rosters/coherence";
 import { loadParticipantQualificationFacts } from "@/lib/qualification/service";
+import { freezeQualificationRosterInTx } from "@/lib/competition-qualification/eligibility";
 import { normalizeAffiliationRules } from "@/lib/seasons/compatibility";
 
 export async function loadApprovedRosterEducation(
@@ -189,11 +190,13 @@ export async function syncApprovedRosterToEventRosterInTx(
 ): Promise<{ eventRosterId: string; rosterSize: number | null; changed: boolean }> {
   const { season, coherent, actorId } = input;
   const { entry, approvedRevision, eventRoster } = coherent;
+  const freezeEligibility = () => freezeQualificationRosterInTx(tx, { season, entryId: entry.id, rosterRevisionId: approvedRevision.id, eventRosterId: eventRoster.id });
   if (eventRoster.status === "frozen") {
     if (eventRoster.sourceRosterRevisionId !== approvedRevision.id) {
       throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "最终赛事名单已冻结，不能自动改写为新的报名名单版本。 ");
     }
     await assertSinglePrestartEntryCoherenceInTx(tx, season.id, { competitionEntryId: entry.id });
+    await freezeEligibility();
     return { eventRosterId: eventRoster.id, rosterSize: null, changed: false };
   }
 
@@ -222,6 +225,7 @@ export async function syncApprovedRosterToEventRosterInTx(
   const membersUnchanged = sameEventRosterMembers(currentMembers, approvedMembers, verificationIds);
   if (sourceUnchanged && membersUnchanged && eventRoster.status === "confirmed") {
     await assertSinglePrestartEntryCoherenceInTx(tx, season.id, { competitionEntryId: entry.id });
+    await freezeEligibility();
     return { eventRosterId: eventRoster.id, rosterSize: approvedMembers.length, changed: false };
   }
 
@@ -237,6 +241,7 @@ export async function syncApprovedRosterToEventRosterInTx(
       updatedAt: now,
     }).where(eq(eventRosters.id, eventRoster.id));
     await assertSinglePrestartEntryCoherenceInTx(tx, season.id, { competitionEntryId: entry.id });
+    await freezeEligibility();
     return { eventRosterId: eventRoster.id, rosterSize: approvedMembers.length, changed: true };
   }
 
@@ -253,5 +258,6 @@ export async function syncApprovedRosterToEventRosterInTx(
     actorId,
   });
   await assertSinglePrestartEntryCoherenceInTx(tx, season.id, { competitionEntryId: entry.id });
+  await freezeEligibility();
   return { eventRosterId: eventRoster.id, rosterSize: approvedMembers.length, changed: true };
 }

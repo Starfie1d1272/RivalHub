@@ -4,6 +4,7 @@ import { writeAuditInTx } from "@/lib/audit/write";
 import type { TxDb } from "@/db/client";
 import {
     competitionEntries,
+  competitionQualificationRuns,
   educationVerifications,
   eventRosterMembers,
   eventRosters,
@@ -324,6 +325,18 @@ async function loadTeamLineupContextInTx(
     frozenRosterUserIds = roster.ids;
     verificationsByUser = roster.verificationsByUser;
     frozenRosterRevisionId = roster.rosterRevisionId;
+    const [run] = await tx.select().from(competitionQualificationRuns).where(and(eq(competitionQualificationRuns.id, match.qualificationRunId), eq(competitionQualificationRuns.seasonId, match.seasonId)));
+    const snapshot = coherent.eventRoster.eligibilitySnapshot;
+    if (!run?.eligibilityPolicy || !snapshot || snapshot.version !== 1 || snapshot.entryId !== entryId || snapshot.rosterRevisionId !== roster.rosterRevisionId ||
+        JSON.stringify(snapshot.policy) !== JSON.stringify(run.eligibilityPolicy)) {
+      throw new AppError(ErrorCode.VALIDATION_FAILED, "Play-in 资格快照缺失或名单版本已变化，请先同步已批准名单。");
+    }
+    rules = snapshot.policy.affiliationRules;
+    competitiveProfile = snapshot.policy.competitiveProfile;
+    externalStrengthGapEnabled = snapshot.policy.externalStrengthGapEnabled;
+    frozenCompetitiveFactsByUser = new Map(snapshot.competitiveFacts.map(fact => [fact.userId, fact]));
+    frozenRestrictionOverrides = snapshot.restrictionOverrides;
+    policy = { starterCount: snapshot.policy.starterCount, maxSubstitutes: snapshot.policy.maxSubstitutes };
   }
 
   const acceptedRosterStatuses = match.qualificationRunId ? ["confirmed", "frozen"] as const : ["frozen"] as const;

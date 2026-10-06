@@ -231,6 +231,13 @@ export const DATABASE_ACCESS_MATRIX: readonly DatabaseAccessEntry[] = [
     "资格赛候选顺序与晋级路线只经服务端读写，公开页面只消费显式赛程投影。",
   ),
   serverOnly(
+    "competition_qualification_drafts",
+    "Major Qualification",
+    "赛委会共享预排名草稿",
+    "src/lib/competition-qualification/draft.ts",
+    "只经授权服务端 action 读取和保存，不开放 Data API。",
+  ),
+  serverOnly(
     "competition_qualification_runs",
     "Major Qualification",
     "资格赛配置、运行状态与 actor",

@@ -21,20 +21,18 @@ function data(overrides: Partial<MajorPrestartManagementData> = {}): MajorPresta
     initialPreliminaryOrderEntryIds: ["team-1"], rankingRoster: [{ entryId: "team-1", members: [member("starter", true), member("substitute", false)] }],
     strengthPreview: { status: "ready", platform: "perfect_world", conversionPolicyId: null, conversionPolicyVersion: null, blockers: [], teams: [{ teamId: "team-1", teamName: "Team One", available: true, blockers: [], recommendationRank: 1, displayOrder: 1, tieState: "not_tied", starters: [] }] },
     approvedCandidates: [{ id: "team-1", name: "Team One", representativeName: "Captain", submittedAt: null, reviewedAt: null, approvedAt: null, qualificationStatus: "approved", selectedAsEntrant: false, roster: { memberCount: 2, primaryStarterCount: 1, members: [] } }],
-    entrants: [], qualification: { run: null }, ...overrides,
+    entrants: [], qualification: { run: null, draft: null }, ...overrides,
   };
 }
 
 describe("Major roster presentation", () => {
-  it("shows the complete roster and fixed current/recent/previous/history fields in one row", () => {
+  it("shows every nickname in one row with compact evidence", () => {
     render(<MajorLiveRanking data={data()} />);
     expect(screen.getByRole("row", { name: /Team One/ })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "starter" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "substitute" })).toBeInTheDocument();
-    expect(screen.getAllByText("今")).toHaveLength(2);
-    expect(screen.getAllByText("近")).toHaveLength(2);
-    expect(screen.getAllByText("前")).toHaveLength(2);
-    expect(screen.getAllByText("史")).toHaveLength(2);
+    expect(screen.getByRole("button", { name: /starter，主力/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /substitute，替补/ })).toBeInTheDocument();
+    expect(screen.queryByText("今")).not.toBeInTheDocument();
+    expect(screen.queryByText("前")).not.toBeInTheDocument();
     expect(screen.queryByText(/weightedRank|teamSeedStrength/)).not.toBeInTheDocument();
   });
   it("keeps final lock unavailable while entrants are incomplete", () => {

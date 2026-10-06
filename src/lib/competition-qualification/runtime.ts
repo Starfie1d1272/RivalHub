@@ -4,6 +4,7 @@ import { and, asc, eq, inArray } from "drizzle-orm";
 import type { TxDb } from "@/db/client";
 import {
   competitionEntries,
+  competitionQualificationDrafts,
   competitionQualificationEntrants,
   competitionQualificationRuns,
   eventRosters,
@@ -20,11 +21,12 @@ import type { SwissCompletedMatch, SwissEntrant } from "@/lib/swiss/types";
 import { assertPrestartEntryCoherenceInTx, assertSinglePrestartEntryCoherenceInTx } from "@/lib/event-rosters/coherence";
 import { syncApprovedRosterToEventRosterInTx } from "@/lib/event-rosters/owner";
 import { getStandardMajorDefinition } from "@/lib/major/standard";
+import { freezeQualificationPolicy, clearQualificationRosterSnapshotsInTx } from "./eligibility";
+import { sameCandidateSet } from "./draft";
 import {
   deriveCompetitionQualificationPlan,
   isShortSwissQualificationAllowed,
   SHORT_SWISS_MAX_ROUNDS,
-  swapQualificationPreliminaryRank,
   type CompetitionQualificationFormat,
 } from "./policy";
 import {
@@ -201,6 +203,7 @@ export async function configureCompetitionQualificationRunInTx(
     actorId: string;
     format: CompetitionQualificationFormat;
     preliminaryOrderEntryIds: readonly string[];
+    expectedDraftVersion: number;
   },
 ): Promise<{ seasonSlug: string; runId: string; directEntryCount: number; playInEntryCount: number; qualifierCount: number }> {
   const [season] = await tx.select().from(seasons).where(eq(seasons.id, input.seasonId)).for("update");
@@ -242,7 +245,13 @@ export async function configureCompetitionQualificationRunInTx(
   if (input.format === "short_swiss_2w2l" && !isShortSwissQualificationAllowed(plan.playInEntryCount)) {
     throw new AppError(ErrorCode.VALIDATION_FAILED, "Short Swiss 需要 Play-in 队伍数为 4 的倍数。");
   }
-  const ordered = input.preliminaryOrderEntryIds;
+  const [draft] = await tx.select().from(competitionQualificationDrafts).where(eq(competitionQualificationDrafts.seasonId, season.id));
+  if (!draft || draft.version !== input.expectedDraftVersion || draft.targetEntrantCount !== entrantCapacity || draft.format !== input.format ||
+      draft.order.length !== input.preliminaryOrderEntryIds.length || draft.order.some((id, index) => id !== input.preliminaryOrderEntryIds[index]) ||
+      !sameCandidateSet(draft.order, entries.map(entry => entry.id))) {
+    throw new AppError(ErrorCode.VALIDATION_FAILED, "请保存最新草稿并刷新版本后，再确认并锁定 Play-in。");
+  }
+  const ordered = draft.order;
   if (ordered.length !== entries.length || new Set(ordered).size !== ordered.length ||
       entries.some((entry) => !ordered.includes(entry.id))) {
     throw new AppError(ErrorCode.VALIDATION_FAILED, "报名候选队伍集合已变化，请刷新后重试。");
@@ -252,6 +261,7 @@ export async function configureCompetitionQualificationRunInTx(
     format: input.format,
     ...plan,
     configuredBy: input.actorId,
+    eligibilityPolicy: await freezeQualificationPolicy(season),
   }).returning({ id: competitionQualificationRuns.id });
   if (!run) throw new AppError(ErrorCode.INTERNAL_ERROR, "Play-in 配置保存失败。");
   await tx.insert(competitionQualificationEntrants).values(ordered.map((competitionEntryId, index) => ({
@@ -265,7 +275,7 @@ export async function configureCompetitionQualificationRunInTx(
     action: "competition_qualification.configure",
     actorId: input.actorId,
     targetId: run.id,
-    meta: { ...plan, format: input.format },
+    meta: { ...plan, format: input.format, draftVersion: draft.version, order: ordered },
   });
   return {
     seasonSlug: season.slug,
@@ -276,70 +286,21 @@ export async function configureCompetitionQualificationRunInTx(
   };
 }
 
+/** Compatibility boundary: configured decisions are immutable, including before round one. */
 export async function saveCompetitionQualificationRankInTx(
-  tx: TxDb,
-  input: { seasonId: string; entryId: string; nextRank: number; actorId: string },
+  _tx: TxDb,
+  _input: { seasonId: string; entryId: string; nextRank: number; actorId: string },
 ): Promise<{ seasonSlug: string }> {
-  const [season] = await tx.select().from(seasons).where(eq(seasons.id, input.seasonId)).for("update");
-  if (!season) throw new AppError(ErrorCode.SEASON_NOT_FOUND, "赛季不存在");
-  const [run] = await tx.select().from(competitionQualificationRuns)
-    .where(eq(competitionQualificationRuns.seasonId, season.id)).for("update");
-  if (!run) throw new AppError(ErrorCode.NOT_FOUND, "Play-in 尚未配置。");
-  if (run.startedAt) throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "Play-in 开始后不能调整预排名。");
-  const entrants = await loadRunEntrantsInTx(tx, run.id);
-  const nextOrder = swapQualificationPreliminaryRank(
-    entrants.map((entrant) => entrant.competitionEntryId),
-    input.entryId,
-    input.nextRank,
-  );
-  await tx.delete(competitionQualificationEntrants).where(eq(competitionQualificationEntrants.runId, run.id));
-  await tx.insert(competitionQualificationEntrants).values(nextOrder.map((competitionEntryId, index) => ({
-    runId: run.id,
-    seasonId: season.id,
-    competitionEntryId,
-    preliminarySeed: index + 1,
-  })));
-  await writeAuditInTx(tx, {
-    seasonId: season.id,
-    action: "competition_qualification.rank",
-    actorId: input.actorId,
-    targetId: run.id,
-    meta: { entryId: input.entryId, nextRank: input.nextRank },
-  });
-  return { seasonSlug: season.slug };
+  void _tx; void _input;
+  throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "Play-in 预排名已锁定，请先重置配置再编辑草稿。");
 }
 
-/** Save one complete preliminary decision under the run lock. */
 export async function saveCompetitionQualificationOrderInTx(
-  tx: TxDb,
-  input: { seasonId: string; runId: string; orderedCompetitionEntryIds: readonly string[]; actorId: string },
+  _tx: TxDb,
+  _input: { seasonId: string; runId: string; orderedCompetitionEntryIds: readonly string[]; actorId: string },
 ): Promise<{ seasonSlug: string }> {
-  const [season] = await tx.select().from(seasons).where(eq(seasons.id, input.seasonId)).for("update");
-  if (!season) throw new AppError(ErrorCode.SEASON_NOT_FOUND, "赛季不存在");
-  const [run] = await tx.select().from(competitionQualificationRuns)
-    .where(and(eq(competitionQualificationRuns.id, input.runId), eq(competitionQualificationRuns.seasonId, season.id))).for("update");
-  if (!run) throw new AppError(ErrorCode.NOT_FOUND, "Play-in 尚未配置。");
-  if (run.startedAt) throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "Play-in 开始后不能调整预排名。");
-  const entrants = await loadRunEntrantsInTx(tx, run.id);
-  assertCandidateSet(entrants, input.orderedCompetitionEntryIds);
-  const oldOrder = entrants.map((entrant) => entrant.competitionEntryId);
-  const newOrder = [...input.orderedCompetitionEntryIds];
-  if (oldOrder.every((id, index) => id === newOrder[index])) return { seasonSlug: season.slug };
-  await tx.delete(competitionQualificationEntrants).where(eq(competitionQualificationEntrants.runId, run.id));
-  await tx.insert(competitionQualificationEntrants).values(newOrder.map((competitionEntryId, index) => ({
-    runId: run.id,
-    seasonId: season.id,
-    competitionEntryId,
-    preliminarySeed: index + 1,
-  })));
-  await writeAuditInTx(tx, {
-    seasonId: season.id,
-    action: "competition_qualification.rank",
-    actorId: input.actorId,
-    targetId: run.id,
-    meta: { oldOrder, newOrder },
-  });
-  return { seasonSlug: season.slug };
+  void _tx; void _input;
+  throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "Play-in 预排名已锁定，请先重置配置再编辑草稿。");
 }
 
 export async function resetCompetitionQualificationRunInTx(
@@ -356,6 +317,8 @@ export async function resetCompetitionQualificationRunInTx(
   if (run.startedAt || linkedMatches.length > 0) {
     throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "Play-in 已开始或已生成比赛，不能重置。");
   }
+  const entrants = await loadRunEntrantsInTx(tx, run.id);
+  await clearQualificationRosterSnapshotsInTx(tx, entrants.map(entrant => entrant.competitionEntryId));
   await tx.delete(competitionQualificationEntrants).where(eq(competitionQualificationEntrants.runId, run.id));
   await tx.delete(competitionQualificationRuns).where(eq(competitionQualificationRuns.id, run.id));
   await writeAuditInTx(tx, {
