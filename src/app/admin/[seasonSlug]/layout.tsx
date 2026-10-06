@@ -55,6 +55,7 @@ async function AdminSeasonContent({
         hasCommunityAwards={season.hasCommunityAwards}
         hasMatches={hasMatches}
         showSettings={isSuperAdmin}
+        hasBet={season.competitionTemplate === "major"}
       />
       {children}
     </PageLayout>

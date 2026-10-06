@@ -215,7 +215,10 @@ export async function removePredictionBrowserFixture(seasonId: string) {
       "DELETE FROM prediction_market_options WHERE market_id IN (SELECT id FROM prediction_markets WHERE season_id=$1)",
       [seasonId],
     );
+    await client.query("DELETE FROM bet_settlements WHERE market_id IN (SELECT id FROM bet_markets WHERE season_id=$1)", [seasonId]);
+    await client.query("DELETE FROM bet_options WHERE market_id IN (SELECT id FROM bet_markets WHERE season_id=$1)", [seasonId]);
     for (const table of [
+      "bet_stakes", "bet_ledger", "bet_accounts", "bet_markets", "bet_stage_milestones", "bet_programs",
       "prediction_picks",
       "prediction_stakes",
       "prediction_ledger",

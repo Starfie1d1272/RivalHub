@@ -1,4 +1,5 @@
 import "server-only";
+import { runBetReconciliationJob } from "@/lib/bet/service";
 import { asc, desc, sql } from "drizzle-orm";
 import { db, type DB } from "@/db/client";
 import { predictionJobs } from "@/db/schema";
@@ -33,5 +34,6 @@ export async function runPredictionReconciliationJob(database: DB = db) {
   // Partial failure must reach scheduler health; individual committed programs stay idempotent.
   if (failed)
     throw new Error(`Prediction reconciliation failed for ${failed} programs`);
-  return { result: { completed }, businessTransitions: 0 };
+  const betCompleted = await runBetReconciliationJob(database);
+  return { result: { completed, betCompleted }, businessTransitions: 0 };
 }

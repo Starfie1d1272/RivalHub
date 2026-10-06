@@ -48,3 +48,4 @@ export * from "./match-operations";
 
 export * from "./mizar";
 export * from "./application-sessions";
+export * from "./bet";

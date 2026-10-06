@@ -1,0 +1,56 @@
+import { Pool } from "pg";
+import { drizzle } from "drizzle-orm/node-postgres";
+import { eq } from "drizzle-orm";
+import { mkdirSync } from "node:fs";
+import { resolve } from "node:path";
+import { test,expect,signInProgrammatically } from "../fixtures";
+import { assertLocalDatabaseUrl } from "../../../scripts/db/local-environment";
+import { createPredictionBrowserFixture,removePredictionBrowserFixture } from "../helpers/prediction-fixture";
+import * as schema from "@/db/schema";
+import { randomUUID } from "node:crypto";
+test.use({scenarioProfile:"auth"});test.setTimeout(120000);
+test("BET 完成投入、追加、ALL IN 确认与锁盘，桌面和手机无横向溢出",async({page,scenario},info)=>{
+  const user=scenario.accounts[0]!;const other={userId:randomUUID()};
+  const fixture=await createPredictionBrowserFixture(user.userId);
+  const pool=new Pool({connectionString:assertLocalDatabaseUrl(process.env.DATABASE_URL),ssl:false});const db=drizzle(pool,{schema});
+  try {
+    await db.insert(schema.users).values({id:other.userId,email:`bet-${other.userId}@example.test`,displayName:"观众乙",emailVerifiedAt:new Date(),emailVerificationSource:"admin_migration"});
+    const matches=await db.select().from(schema.matches).where(eq(schema.matches.seasonId,fixture.seasonId));
+    await db.update(schema.matches).set({format:"bo3"}).where(eq(schema.matches.id,matches[0]!.id));
+    await db.insert(schema.seasonAdminGrants).values({seasonId:fixture.seasonId,userId:user.userId});
+    await signInProgrammatically(page,user,scenario,`/admin/${fixture.slug}/bet`);
+    await page.goto(`/admin/${fixture.slug}/bet`);
+    await page.getByRole("button",{name:"启用 BET",exact:true}).click();
+    await page.getByRole("button",{name:"启用 BET",exact:true}).last().click();
+    await expect(page.getByRole("button",{name:"暂停投入",exact:true})).toBeVisible();
+    await db.delete(schema.seasonAdminGrants).where(eq(schema.seasonAdminGrants.seasonId,fixture.seasonId));
+    const [account]=await db.insert(schema.betAccounts).values({seasonId:fixture.seasonId,userId:other.userId}).returning();
+    const allMarkets=await db.select().from(schema.betMarkets).where(eq(schema.betMarkets.matchId,matches[0]!.id));
+    const market=allMarkets.find(m=>m.type==="match_winner")!;
+    const options=await db.select().from(schema.betOptions).where(eq(schema.betOptions.marketId,market.id));
+    const [stake]=await db.insert(schema.betStakes).values({seasonId:fixture.seasonId,accountId:account!.id,marketId:market.id,optionId:options[1]!.id,amount:BigInt(300),requestId:randomUUID()}).returning();
+    await db.insert(schema.betLedger).values([{seasonId:fixture.seasonId,accountId:account!.id,amount:BigInt(1000),kind:"initial",source:"initial"},{seasonId:fixture.seasonId,accountId:account!.id,amount:BigInt(-300),kind:"stake",source:`stake/${stake!.id}`}]);
+    await page.goto(`/${fixture.slug}/bet`);
+    await expect(page.getByRole("heading",{name:"BET",exact:true})).toBeVisible();
+    await page.getByRole("button",{name:"领取 1,000 积分"}).click();await expect(page.getByRole("button",{name:"领取 1,000 积分"})).toHaveCount(0);
+    const card=page.locator("article").first();const winner=card.getByRole("region",{name:"比赛胜者"});
+    // section has an accessible label and corresponding implicit region role.
+    await winner.getByRole("button").first().click();
+    await page.getByLabel("投入积分",{exact:true}).fill("200");await page.getByRole("button",{name:"确认投入",exact:true}).click();await expect(page.getByRole("dialog")).toHaveCount(0);
+    await expect(winner).toContainText("已投 200");await expect(winner.getByRole("button").nth(1)).toBeDisabled();
+    await winner.getByRole("button").first().click();await page.getByRole("button",{name:"ALL IN",exact:true}).click();await expect(page.getByRole("button",{name:"确认投入",exact:true})).toBeDisabled();
+    await page.getByLabel("确认投入全部可用积分，不能撤回").check();await expect(page.getByRole("button",{name:"确认投入",exact:true})).toBeEnabled();
+    await page.getByRole("button",{name:"取消",exact:true}).click();
+    await card.getByRole("tab",{name:"BP"}).click();await expect(card).toContainText("BP · 首图");
+    const screenshotDir=resolve(".agent-tmp/bet/screenshots");mkdirSync(screenshotDir,{recursive:true});
+    await page.screenshot({path:resolve(screenshotDir,`${info.project.name}-bp.png`),fullPage:true});
+    await card.getByRole("tab",{name:"比赛"}).click();await page.screenshot({path:resolve(screenshotDir,`${info.project.name}-bet.png`),fullPage:true});
+    expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
+    await db.update(schema.matches).set({gameplayStartedAt:new Date()}).where(eq(schema.matches.id,matches[0]!.id));
+    await page.reload();await expect(winner.getByRole("button").first()).toBeDisabled();await expect(winner).toContainText("已锁盘");
+    await db.insert(schema.seasonAdminGrants).values({seasonId:fixture.seasonId,userId:user.userId});
+    await page.goto(`/admin/${fixture.slug}/bet`);await expect(page.getByRole("heading",{name:"BET",exact:true})).toBeVisible();
+    await page.getByRole("button",{name:"暂停投入",exact:true}).click();await page.getByRole("button",{name:"暂停投入",exact:true}).last().click();await expect(page.getByRole("button",{name:"恢复投入",exact:true})).toBeVisible();
+    await page.screenshot({path:resolve(screenshotDir,`${info.project.name}-admin.png`),fullPage:true});
+  }finally {await removePredictionBrowserFixture(fixture.seasonId);await db.delete(schema.users).where(eq(schema.users.id,other.userId));await pool.end();}
+});

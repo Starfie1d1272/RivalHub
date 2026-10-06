@@ -4,6 +4,7 @@ import { db } from "@/db/client";
 import { matches, matchMaps, matchLiveSessions, mizarReliableReceipts, mizarInstallations, matchVetoSessions } from "@/db/schema";
 import { writeAuditInTx } from "@/lib/audit/write";
 import { lockMatchInTx, applyMatchStatusTransitionInTx } from "@/lib/match-rosters/service";
+import { startCanonicalMapInTx } from "@/lib/matches/map-start";
 import { recordCanonicalMapResultInTx } from "@/lib/matches/results";
 import { getDisplayName } from "@/lib/identity/display-name";
 import { loadEffectiveMatchRoster } from "@/lib/match-rosters/effective";
@@ -83,7 +84,10 @@ export async function ingestMizarReliable(installationId: string, competitionId:
       // manual choice remains authoritative for this epoch. End events never re-arm.
       if (validMap && (!executionConflict || mayArm)) {
         updates.currentMapId = map!.id;
-        if (fresh && lineupValid && match.status === "in_progress") updates.mapExecutionPhase = "gameplay";
+        if (fresh && lineupValid && match.status === "in_progress") {
+          await startCanonicalMapInTx(tx,match.id,map!.id,installationId);
+          updates.mapExecutionPhase = "gameplay";
+        }
       }
       outcome = mayArm ? "armed" : "needs_attention";
     } else if (event.kind === "map_ended") {

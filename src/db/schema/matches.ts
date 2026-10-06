@@ -43,6 +43,7 @@ export const matches = pgTable("matches", {
   qualificationRunId: uuid("qualification_run_id"),
   managedKey: text("managed_key"),
 
+  gameplayStartedAt: timestamp("gameplay_started_at", { withTimezone: true }),
   startedAt: timestamp("started_at", { withTimezone: true }),
   scheduledAt: timestamp("scheduled_at", { withTimezone: true }),
   completionDeadline: timestamp("completion_deadline", { withTimezone: true }),
