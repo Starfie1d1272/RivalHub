@@ -1,3 +1,4 @@
+import { syncAutomaticPickEmInTx } from "@/lib/predictions/service";
 import { and, eq, inArray } from "drizzle-orm";
 import { writeAuditInTx } from "@/lib/audit/write";
 import { resolveManagedMajorProfile } from "@/lib/competition/definition";
@@ -255,5 +256,6 @@ export async function finalizeMajorPlayoffRoundInTransaction(
     { seasonId: input.seasonId, action: "major.playoff.finalize_round", actorId: input.actorId, targetId: run.id,meta: { finalizedRound: "final", createdNextRound: 0 } },
     { seasonId: input.seasonId, action: "major.result.pending_confirmation", actorId: input.actorId, targetId: result.id,meta: { playoffStageRunId: run.id, championEntryId: playoff.championId, placementGroupCount: placements.length, hasThirdPlaceMatch: frozen.hasThirdPlaceMatch } },
   ]);
+  await syncAutomaticPickEmInTx(tx, input.seasonId);
   return { stageRunId: run.id, finalizedRound: "final", createdNextRound: 0, resultPendingConfirmation: true, alreadyFinalized: false };
 }

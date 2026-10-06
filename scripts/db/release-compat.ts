@@ -213,6 +213,24 @@ function evaluateFinding(finding: MigrationRiskFinding, sources: readonly Shippe
       message: `${formatFinding(finding)} 无法安全证明非 public schema 归属方 ${unsupportedSchema.displayName} 已停止被上一生产版本使用；拒绝猜测，请提供 Expand → Switch → Contract 迁移。`,
     };
   }
+  // Issue #806: owner explicitly confirms this feature never opened and requests
+  // direct deletion. This one migration does not require an N/N+1 rollout.
+  if (
+    finding.filePath === "drizzle/migrations/0073_careless_pretty_boy.sql" &&
+    finding.category === "drop" &&
+    owners.length === 1 &&
+    owners[0]?.kind === "relation" &&
+    owners[0].identifier === "prediction_scenarios" &&
+    (!owners[0].schema || owners[0].schema === "public")
+  ) {
+    return {
+      finding,
+      owners,
+      evidence,
+      status: "pass",
+      message: `${formatFinding(finding)} Issue #806：赛事负责人确认推演从未开放，授权直接删除，不做跨版本兼容发布。`,
+    };
+  }
   if (evidence.length > 0) {
     const evidenceText = evidence.map((item) => `${item.path}:${item.line} (${item.reason})`).join(", ");
     return {

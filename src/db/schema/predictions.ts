@@ -16,11 +16,8 @@ import {
 import { seasons } from "./seasons";
 import { users } from "./users";
 import type {
-  Baseline,
-  Choices,
   Pick,
   PredictionRules,
-  SimStage,
 } from "@/lib/predictions/types";
 const time = (name: string) => timestamp(name, { withTimezone: true });
 export const predictionPrograms = pgTable("prediction_programs", {
@@ -42,11 +39,11 @@ export const predictionContests = pgTable(
       .references(() => predictionPrograms.seasonId),
     stageKey: text("stage_key").notNull(),
     kind: text("kind", { enum: ["swiss", "single_elim"] }).notNull(),
-    stageRunId: uuid("stage_run_id").notNull(),
+    stageRunId: uuid("stage_run_id"),
     entrants: jsonb("entrants")
       .$type<{ teamId: string; seed: number }[]>()
       .notNull(),
-    deadline: time("deadline").notNull(),
+    deadline: time("deadline"),
     lockedAt: time("locked_at"),
     voidedAt: time("voided_at"),
     voidReason: text("void_reason"),
@@ -248,22 +245,6 @@ export const predictionLedger = pgTable(
     ),
   ],
 );
-export const predictionScenarios = pgTable("prediction_scenarios", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  seasonId: uuid("season_id")
-    .notNull()
-    .references(() => predictionPrograms.seasonId),
-  creatorId: uuid("creator_id")
-    .notNull()
-    .references(() => users.id),
-  name: text("name").notNull(),
-  baseline: jsonb("baseline").$type<Baseline>().notNull(),
-  choices: jsonb("choices").$type<Choices>().notNull(),
-  projection: jsonb("projection").$type<SimStage[]>().notNull(),
-  createdAt: time("created_at")
-    .notNull()
-    .default(sql`clock_timestamp()`),
-});
 /** Durable outbox, enqueued atomically with official changes. Worker failure leaves it dirty. */
 export const predictionJobs = pgTable("prediction_jobs", {
   seasonId: uuid("season_id")

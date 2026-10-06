@@ -1,3 +1,4 @@
+import { syncAutomaticPickEmInTx } from "@/lib/predictions/service";
 import { and, eq } from "drizzle-orm";
 import { writeAuditInTx } from "@/lib/audit/write";
 
@@ -159,5 +160,6 @@ export async function transitionMajorSwissStageInTransaction(
     actorId: input.actorId,
     targetId: stageRun.id,meta: { sourceStageRunId: sourceRun.id, sourceStageKey: sourceRun.stageKey, stageKey: nextSwissStage.key, directEntrants: directCount, advancingEntrants: qualifiers.length, managedMatches: createdMatches.length },
   });
+  await syncAutomaticPickEmInTx(tx, input.seasonId);
   return { sourceStageRunId: sourceRun.id, stageRunId: stageRun.id, stageKey: nextSwissStage.key, created: true, matchCount: createdMatches.length };
 }

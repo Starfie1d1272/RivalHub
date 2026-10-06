@@ -134,7 +134,6 @@ export const USER_REFERENCE_RULES: readonly UserReferenceRule[] = [
   { table: "user_sessions", column: "user_id", label: "登录会话", mode: "delete" },
   { table: "users", column: "merged_into_user_id", label: "旧账号别名", mode: "preserve" },
   { table: "prediction_accounts", column: "user_id", label: "观赛预测账户", mode: "special" },
-  { table: "prediction_scenarios", column: "creator_id", label: "推演快照作者", mode: "preserve" },
 ] as const;
 
 interface SeasonRegistrationReferenceRule {

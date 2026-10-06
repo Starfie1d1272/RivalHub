@@ -15,7 +15,6 @@ import {
   predictionSettlements as settlements,
   predictionLedger as ledger,
   predictionJobs as jobs,
-  predictionScenarios as scenarios,
   users,
   matches,
   majorStageRuns,
@@ -36,16 +35,14 @@ import {
   distributePool,
   effectivePredictionMarketDeadline,
   validatePick,
-  rulesSchema,
-  predictionChallengeCapacity,
+  defaultPredictionRules,
 } from "./rules";
 import {
   samePick,
   type Baseline,
-  type Choices,
   type Pick,
-  type PredictionRules,
 } from "./types";
+import { officialPickEmStages, pickEmWindowState, samePredictionEntrants } from "./lifecycle";
 const zero = BigInt(0);
 function invalid(message: string): never {
   throw new AppError(ErrorCode.VALIDATION_FAILED, message);
@@ -102,15 +99,46 @@ export async function balanceOf(tx: TxDb, accountId: string): Promise<bigint> {
     .where(eq(ledger.accountId, accountId));
   return BigInt(row?.amount ?? "0");
 }
-function sameEntrants(
-  a: { teamId: string; seed: number }[],
-  b: { teamId: string; seed: number }[],
-) {
-  return (
-    a.length === b.length &&
-    a.every((e) => b.some((f) => f.teamId === e.teamId && f.seed === e.seed))
-  );
+/** Window publication is separate from judging/Bet settlement: official transitions never wait for those. */
+async function syncPickEmWindowsInTx(tx: TxDb, base: Baseline, now: Date) {
+  const seasonId = base.seasonId;
+  const eligible = officialPickEmStages(base);
+  for (const stage of eligible) {
+    const state = pickEmWindowState(base, { stageKey: stage.key, deadline: null, lockedAt: null }, now);
+    await tx.insert(contests).values({
+      seasonId, stageKey: stage.key, kind: stage.kind, entrants: stage.entrants,
+      stageRunId: stage.stageRunId, deadline: state.deadline, lockedAt: state.locked ? now : null,
+    }).onConflictDoNothing();
+  }
+  const allContests = await tx
+    .select()
+    .from(contests)
+    .where(eq(contests.seasonId, seasonId));
+  for (const contest of allContests) {
+    const current = eligible.find((stage) => stage.key === contest.stageKey);
+    const mismatch = !current ||
+      (contest.stageRunId !== null && contest.stageRunId !== current.stageRunId) ||
+      !samePredictionEntrants(contest.entrants, current.entrants);
+    if (mismatch && !contest.voidedAt) {
+      await tx
+        .update(contests)
+        .set({ voidedAt: now, voidReason: "官方阶段名单更正，原预测单作废" })
+        .where(eq(contests.id, contest.id));
+      contest.voidedAt = now;
+    }
+    const state = pickEmWindowState(base, contest, now);
+    // Do not rewrite PostgreSQL's immutable lock timestamp through JS millisecond precision.
+    const binding = !mismatch && !contest.stageRunId && current?.stageRunId
+      ? { stageRunId: current.stageRunId } : {};
+    if (!contest.lockedAt || binding.stageRunId) {
+      await tx.update(contests).set({
+        ...(!contest.lockedAt ? { deadline: state.deadline, lockedAt: state.locked ? now : null } : {}),
+        ...binding,
+      }).where(eq(contests.id, contest.id));
+    }
+  }
 }
+
 /** Must hold outbox and program locks; all facts read without locking tournament owners. */
 export async function reconcilePredictionProgram(
   tx: TxDb,
@@ -165,39 +193,11 @@ export async function reconcilePredictionProgram(
       });
     }
   }
+  await syncPickEmWindowsInTx(tx, base, now);
   const stageResults = simulateMajor(base, {});
-  const allContests = await tx
-    .select()
-    .from(contests)
-    .where(eq(contests.seasonId, seasonId));
+  const allContests = await tx.select().from(contests).where(eq(contests.seasonId, seasonId));
   for (const contest of allContests) {
     const run = base.runs.find((r) => r.key === contest.stageKey);
-    const mismatch =
-      !run ||
-      contest.stageRunId !== run.id ||
-      !sameEntrants(contest.entrants, run.entrants);
-    if (mismatch && !contest.voidedAt) {
-      await tx
-        .update(contests)
-        .set({ voidedAt: now, voidReason: "官方阶段名单更正，原预测单作废" })
-        .where(eq(contests.id, contest.id));
-      contest.voidedAt = now;
-    }
-    if (
-      !contest.lockedAt &&
-      (now >= contest.deadline ||
-        official.some(
-          (m) =>
-            m.stage === contest.stageKey &&
-            ["in_progress", "finished"].includes(m.status),
-        ))
-    ) {
-      await tx
-        .update(contests)
-        .set({ lockedAt: now })
-        .where(eq(contests.id, contest.id));
-      contest.lockedAt = now;
-    }
     const stage = stageResults.find((s) => s.key === contest.stageKey);
     const accepted =
       contest.kind === "swiss"
@@ -407,46 +407,6 @@ export async function reconcilePredictionProgram(
     .where(eq(jobs.seasonId, seasonId));
   return base;
 }
-export async function enablePredictionsInTx(
-  tx: TxDb,
-  input: { seasonId: string; rules: PredictionRules; actorId: string },
-) {
-  await assertSeasonAllowsTournamentMutationInTx(tx, input.seasonId);
-  rulesSchema.parse(input.rules);
-  const base = await loadBaseline(tx, input.seasonId); // canonical standard-Major capability gate
-  if (input.rules.diamond > predictionChallengeCapacity(base.stages))
-    invalid("纪念币门槛不能超过本届赛事可完成的挑战总数");
-  const inserted = await tx
-    .insert(programs)
-    .values({ seasonId: input.seasonId, rules: input.rules })
-    .onConflictDoNothing()
-    .returning();
-  if (!inserted.length) invalid("规则已冻结，不能覆盖已开放赛事的预测配置");
-  await tx
-    .insert(jobs)
-    .values({ seasonId: input.seasonId })
-    .onConflictDoNothing();
-  const existingRuns = await tx
-    .select()
-    .from(majorStageRuns)
-    .where(eq(majorStageRuns.seasonId, input.seasonId));
-  for (const run of existingRuns)
-    await tx
-      .insert(milestones)
-      .values({
-        seasonId: input.seasonId,
-        stageKey: run.stageKey,
-        openedAt: run.startedAt,
-      })
-      .onConflictDoNothing();
-  await writeAuditInTx(tx, {
-    seasonId: input.seasonId,
-    actorId: input.actorId,
-    action: "predictions.enable",
-    targetId: input.seasonId,
-    meta: { rules: input.rules },
-  });
-}
 export async function joinPredictionsInTx(
   tx: TxDb,
   input: { seasonId: string; userId: string },
@@ -454,7 +414,6 @@ export async function joinPredictionsInTx(
   await activeUser(tx, input.userId);
   await assertSeasonAllowsTournamentMutationInTx(tx, input.seasonId);
   const program = await lockPredictionProgram(tx, input.seasonId);
-  if (program.paused) invalid("观赛预测已暂停");
   await reconcilePredictionProgram(tx, program);
   const [account] = await tx
     .insert(accounts)
@@ -534,19 +493,18 @@ export async function savePickInTx(
     .select()
     .from(contests)
     .where(eq(contests.id, input.contestId));
-  const run = base.runs.find((r) => r.key === target.stageKey);
+  const current = officialPickEmStages(base).find((stage) => stage.key === target.stageKey);
   if (
-    program.paused ||
     !contest ||
     contest.voidedAt ||
     contest.lockedAt ||
-    (await databaseTime(tx)) >= contest.deadline ||
-    !run ||
-    run.id !== contest.stageRunId ||
-    !sameEntrants(contest.entrants, run.entrants)
+    pickEmWindowState(base, contest, await databaseTime(tx)).locked ||
+    !current ||
+    current.stageRunId !== contest.stageRunId ||
+    !samePredictionEntrants(contest.entrants, current.entrants)
   )
-    invalid("阶段已截止、暂停或官方名单发生变化，原有效提交保持不变");
-  if ((contest.kind === "swiss") !== "perfect" in input.pick)
+    invalid("阶段已截止或官方名单发生变化，原有效提交保持不变");
+  if ((contest.kind === "swiss") !== ("perfect" in input.pick))
     invalid("草稿类型与本阶段不一致");
   if (input.submitted) {
     try {
@@ -720,13 +678,12 @@ export async function stakeInTx(
   });
   return { amount: amount.toString() };
 }
-export async function openPredictionWindowInTx(
+export async function openPredictionMarketInTx(
   tx: TxDb,
   input: {
     seasonId: string;
     actorId: string;
-    stageKey?: string;
-    matchId?: string;
+    matchId: string;
     deadline: Date;
   },
 ) {
@@ -737,9 +694,7 @@ export async function openPredictionWindowInTx(
     .where(
       and(
         eq(matches.seasonId, input.seasonId),
-        input.matchId
-          ? eq(matches.id, input.matchId)
-          : eq(matches.stage, input.stageKey!),
+        eq(matches.id, input.matchId),
       ),
     )
     .orderBy(asc(matches.id))
@@ -761,143 +716,56 @@ export async function openPredictionWindowInTx(
     .map(
       (m) =>
         m.scheduledAt!.getTime() -
-        (input.matchId ? program.rules.cutoffMinutes * 60000 : 0),
+        program.rules.cutoffMinutes * 60000,
     );
   const deadline = new Date(Math.min(input.deadline.getTime(), ...scheduled));
   if (deadline <= now) invalid("比赛计划开赛时间已到，不能延后开放");
-  let id: string;
-  if (input.matchId) {
-    const m = official[0]!;
-    if (m.entryRound === "third_place") invalid("本届不开放季军赛积分池");
-    const [created] = await tx
-      .insert(markets)
-      .values({
-        seasonId: input.seasonId,
-        matchId: m.id,
-        stageKey: m.stage,
-        resolver: "match_winner",
-        title: "比赛胜者",
-        subject: {
-          stageRunId: m.majorStageRunId!,
-          entryIds: [m.entryAId, m.entryBId],
-        },
-        deadline,
-      })
-      .returning();
-    id = created!.id;
-    await tx
-      .insert(options)
-      .values(
-        [m.entryAId, m.entryBId].map((entryId, position) => ({
-          marketId: id,
-          key: entryId,
-          entryId,
-          position,
-          label:
-            base.teams.find((team) => team.teamId === entryId)?.name ?? "队伍",
-        })),
-      );
-  } else {
-    const stage = base.stages.find((s) => s.key === input.stageKey);
-    const run = base.runs.find((r) => r.key === input.stageKey);
-    if (
-      !stage ||
-      !run ||
-      run.entrants.length !== (stage.type === "swiss" ? 16 : 8)
-    )
-      invalid("该阶段官方名单尚未冻结，模拟名单不能开放正式预测");
-    const [created] = await tx
-      .insert(contests)
-      .values({
-        seasonId: input.seasonId,
-        stageKey: stage.key,
-        kind: stage.type,
-        stageRunId: run.id,
-        entrants: run.entrants,
-        deadline,
-      })
-      .returning();
-    id = created!.id;
-  }
+
+  const m = official[0]!;
+  if (m.entryRound === "third_place") invalid("本届不开放季军赛积分池");
+  const [created] = await tx
+    .insert(markets)
+    .values({
+      seasonId: input.seasonId,
+      matchId: m.id,
+      stageKey: m.stage,
+      resolver: "match_winner",
+      title: "比赛胜者",
+      subject: {
+        stageRunId: m.majorStageRunId!,
+        entryIds: [m.entryAId, m.entryBId],
+      },
+      deadline,
+    })
+    .returning();
+  const id = created!.id;
+  await tx
+    .insert(options)
+    .values(
+      [m.entryAId, m.entryBId].map((entryId, position) => ({
+        marketId: id,
+        key: entryId,
+        entryId,
+        position,
+        label:
+          base.teams.find((team) => team.teamId === entryId)?.name ?? "队伍",
+      })),
+    );
+
   await writeAuditInTx(tx, {
     seasonId: input.seasonId,
     actorId: input.actorId,
-    action: input.matchId
-      ? "predictions.open_market"
-      : "predictions.open_contest",
+    action: "predictions.open_market",
     targetId: id,
     meta: { deadline: deadline.toISOString() },
   });
   return { id };
 }
-export async function moderatePredictionsInTx(
-  tx: TxDb,
-  input: {
-    seasonId: string;
-    actorId: string;
-    paused?: boolean;
-    contestId?: string;
-    reason: string;
-  },
-) {
-  await assertSeasonAllowsTournamentMutationInTx(tx, input.seasonId);
-  const program = await lockPredictionProgram(tx, input.seasonId);
-  if (input.paused !== undefined)
-    await tx
-      .update(programs)
-      .set({ paused: input.paused })
-      .where(eq(programs.seasonId, input.seasonId));
-  if (input.contestId) {
-    const [contest] = await tx
-      .select()
-      .from(contests)
-      .where(
-        and(
-          eq(contests.id, input.contestId),
-          eq(contests.seasonId, input.seasonId),
-        ),
-      );
-    if (!contest) invalid("阶段预测窗口不属于当前赛事");
-    if (!contest.voidedAt)
-      await tx
-        .update(contests)
-        .set({ voidedAt: await databaseTime(tx), voidReason: input.reason })
-        .where(eq(contests.id, contest.id));
-  }
-  await reconcilePredictionProgram(tx, program, true);
-  await writeAuditInTx(tx, {
-    seasonId: input.seasonId,
-    actorId: input.actorId,
-    action: input.contestId
-      ? "predictions.void_contest"
-      : "predictions.moderate",
-    targetId: input.contestId ?? input.seasonId,
-    meta: { paused: input.paused, reason: input.reason },
-  });
-}
-export async function saveScenarioInTx(
-  tx: TxDb,
-  input: {
-    seasonId: string;
-    userId: string;
-    name: string;
-    choices: Choices;
-    baseline?: Baseline;
-  },
-) {
-  await activeUser(tx, input.userId);
-  const base = input.baseline ?? (await loadBaseline(tx, input.seasonId));
-  const projection = simulateMajor(base, input.choices, true);
-  const [saved] = await tx
-    .insert(scenarios)
-    .values({
-      seasonId: input.seasonId,
-      creatorId: input.userId,
-      name: input.name,
-      baseline: base,
-      choices: input.choices,
-      projection,
-    })
-    .returning({ id: scenarios.id });
-  return saved!;
+/** Called after official transitions, never from a public read. */
+export async function syncAutomaticPickEmInTx(tx: TxDb, seasonId: string) {
+  const base = await loadBaseline(tx, seasonId);
+  if (!officialPickEmStages(base).length) return;
+  await tx.insert(programs).values({ seasonId, rules: defaultPredictionRules(base.stages) }).onConflictDoNothing();
+  await lockPredictionProgram(tx, seasonId);
+  await syncPickEmWindowsInTx(tx, base, await databaseTime(tx));
 }

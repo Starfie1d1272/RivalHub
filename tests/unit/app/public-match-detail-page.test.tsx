@@ -17,7 +17,6 @@ const {
   getUserSessionMock,
   requireSeasonAdminMock,
   loadMatchPreAnalysisMock,
-  loadMatchPredictionMock,
   loadMatchScoreboardMock,
   getMatchPlayerDetailMock,
   getMatchTimeProposalViewsMock,
@@ -34,7 +33,6 @@ const {
   getUserSessionMock: vi.fn(),
   requireSeasonAdminMock: vi.fn(),
   loadMatchPreAnalysisMock: vi.fn(),
-  loadMatchPredictionMock: vi.fn(),
   loadMatchScoreboardMock: vi.fn(),
   getMatchPlayerDetailMock: vi.fn(),
   getMatchTimeProposalViewsMock: vi.fn(),
@@ -72,7 +70,6 @@ vi.mock("@/lib/matches/public-phase", () => ({ loadPublicMatchPhase: vi.fn(async
 vi.mock("@/components/matches/MatchRealtime", () => ({ MatchRealtime: () => <div data-testid="match-realtime" /> }));
 vi.mock("@/components/matches/MatchContextRefresh", () => ({ MatchContextRefresh: () => null }));
 vi.mock("@/lib/matches/pre-analysis", () => ({ loadMatchPreAnalysis: loadMatchPreAnalysisMock }));
-vi.mock("@/lib/matches/prediction-read-model", () => ({ loadMatchPrediction: loadMatchPredictionMock }));
 vi.mock("@/lib/matches/detail-scoreboard", () => ({ loadMatchScoreboard: loadMatchScoreboardMock }));
 vi.mock("@/lib/stats/cached-query", () => ({ getPublicMatchPlayerDetail: getMatchPlayerDetailMock }));
 vi.mock("@/lib/matches/time-proposals", () => ({ getMatchTimeProposalViews: getMatchTimeProposalViewsMock }));
@@ -96,11 +93,6 @@ vi.mock("@/components/matches/MatchMapProfile", () => ({
 }));
 vi.mock("@/components/matches/MatchRecentResults", () => ({
   MatchRecentResults: () => <div data-testid="match-recent-results">RecentResults</div>,
-}));
-vi.mock("@/components/matches/MatchPrediction", () => ({
-  MatchPrediction: ({ data }: { data: { participants: number } }) => (
-    <div data-testid="match-prediction">Prediction participants:{data.participants}</div>
-  ),
 }));
 vi.mock("@/components/matches/MatchHeadToHead", () => ({
   MatchHeadToHead: ({ teamAWins, teamBWins }: { teamAWins: number; teamBWins: number }) => (
@@ -223,13 +215,6 @@ describe("Public Match Detail Page (PRE / POST)", () => {
         h2hWinsB: 0,
       });
 
-      loadMatchPredictionMock.mockResolvedValue({
-        shares: [{ entryId: "entry-a", percent: 65 }, { entryId: "entry-b", percent: 35 }],
-        participants: 42,
-        deadline: new Date("2026-09-01T09:30:00Z").toISOString(),
-        closed: false,
-        myStake: null,
-      });
 
       const jsx = await MatchDetailPage({
         params: Promise.resolve({ seasonSlug: "spring-2026", matchId: "match-scheduled" }),
@@ -242,7 +227,7 @@ describe("Public Match Detail Page (PRE / POST)", () => {
       expect(html).toContain('data-testid="match-roster-view"');
       expect(html).toContain('data-testid="match-map-profile"');
       expect(html).toContain('data-testid="match-recent-results"');
-      expect(html).toContain('data-testid="match-prediction"');
+      expect(html).not.toContain('data-testid="match-prediction"');
       expect(html).toContain('data-testid="match-h2h"');
       expect(html).toContain("查看 BP 进度");
       expect(html).not.toContain('data-testid="match-summary-stats"');
@@ -272,7 +257,6 @@ describe("Public Match Detail Page (PRE / POST)", () => {
         h2hWinsA: 0,
         h2hWinsB: 0,
       });
-      loadMatchPredictionMock.mockResolvedValue(null);
 
       const jsx = await MatchDetailPage({
         params: Promise.resolve({ seasonSlug: "spring-2026", matchId: "match-empty-pre" }),
@@ -348,7 +332,6 @@ describe("Public Match Detail Page (PRE / POST)", () => {
       expect(html.indexOf('data-testid="match-bp-record"')).toBeLessThan(html.indexOf('data-testid="match-mvp-vote"'));
       expect(html.match(/data-testid="veto-view"/g)).toHaveLength(1);
       expect(loadMatchPreAnalysisMock).not.toHaveBeenCalled();
-      expect(loadMatchPredictionMock).not.toHaveBeenCalled();
     });
 
     it("reads MVP whole-match metrics through the public cache even when a different map/player is selected", async () => {

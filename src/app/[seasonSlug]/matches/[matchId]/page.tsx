@@ -63,8 +63,6 @@ import { Dialog, DialogBody, DialogContent, DialogHeader, DialogTitle, DialogTri
 import { getPublicMatchPlayerDetail } from "@/lib/stats/cached-query";
 import { readOptionalPublicStats } from "@/lib/stats/availability";
 import { PlayerWorkspace } from "@/components/stats/players/PlayerWorkspace";
-import { loadMatchPrediction } from "@/lib/matches/prediction-read-model";
-import { MatchPrediction } from "@/components/matches/MatchPrediction";
 
 interface MatchDetailPageProps {
   params: Promise<{ seasonSlug: string; matchId: string }>;
@@ -112,7 +110,6 @@ export default async function MatchDetailPage({ params, searchParams }: MatchDet
     allTeamMemberRows,
     preAnalysis,
     commentatorRows,
-    prediction,
     timeProposals,
   ] = await Promise.all([
     getMatchRoster(match.id, match.entryAId),
@@ -150,9 +147,6 @@ export default async function MatchDetailPage({ params, searchParams }: MatchDet
       .innerJoin(users, eq(matchCommentators.userId, users.id))
       .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
       .where(eq(matchCommentators.matchId, match.id)),
-    !isFinished
-      ? loadMatchPrediction(match.id, season.id, match.scheduledAt, userSession?.userId ?? null)
-      : null,
     getMatchTimeProposalViews(match.id, userSession?.userId),
   ]);
 
@@ -431,15 +425,7 @@ export default async function MatchDetailPage({ params, searchParams }: MatchDet
       {(afterVeto || isFinished) && maps.length > 0 && <details className="text-sm" data-testid="match-bp-record"><summary className="cursor-pointer text-[var(--color-fg-mid)]">BP 记录</summary><div className="mt-3"><VetoView matchId={match.id} teamAName={teamA?.name ?? "队伍 A"} teamBName={teamB?.name ?? "队伍 B"} entryAId={match.entryAId} entryBId={match.entryBId} /></div></details>}
       <MatchLiveViewing status={match.status} commentators={commentatorRows} showEmpty={afterVeto} />
       {afterVeto && <MatchRealtime matchId={match.id} phase={phase} currentMapId={publicContext.currentMapId} lastCompletedMap={publicContext.lastCompletedMap} seriesProgress={publicContext.seriesProgress} />}
-      {prediction && (
-        <MatchPrediction
-          data={prediction}
-          teamAName={teamA?.name ?? "队伍 A"}
-          teamBName={teamB?.name ?? "队伍 B"}
-          entryAId={match.entryAId}
-          seasonSlug={seasonSlug}
-        />
-      )}
+
 
       {/* 赛前分析与预备信息（未结束时展示） */}
       {!isFinished && (

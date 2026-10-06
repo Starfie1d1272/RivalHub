@@ -151,7 +151,6 @@ export async function loadBaseline(
         winner: officialWinner(m),
         scoreA: m.scoreA,
         scoreB: m.scoreB,
-        stageRunId: m.majorStageRunId!,
         format: m.format,
         status: m.status,
         scheduledAt: m.scheduledAt?.toISOString() ?? null,

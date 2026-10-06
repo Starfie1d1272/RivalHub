@@ -11,7 +11,6 @@
 | `MatchHeroHeader` | 比赛头部展示（队伍双方、比分、赛制与比赛阶段） |
 | `MatchMapProfile` | 赛前地图池队伍战绩与胜选禁率分析（PRE） |
 | `MatchRecentResults` | 队伍本赛季近期赛果（PRE） |
-| `MatchPrediction` | 观赛积分预测投入比例与截止状态（PRE） |
 | `MatchHeadToHead` | 双方历史交锋与胜负记录（PRE） |
 | `MatchRosterView` | 本场阵容展示（首发与替补） |
 | `MatchRosterForm` | 队长首发阵容提交与调整弹窗 |

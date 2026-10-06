@@ -73,7 +73,8 @@ const repairCursorMigration = readFileSync(join(process.cwd(), "drizzle/migratio
 const sessionMigration = readFileSync(join(root, "drizzle/migrations/0069_wealthy_violations.sql"), "utf8");
 const draftMigration = readFileSync(join(root, "drizzle/migrations/0072_petite_iron_man.sql"), "utf8");
 const migration = `${draftMigration}\n${sessionMigration}\n${repairCursorMigration}\n${statsProjectionMigration}\n${predictionMigration}\n${terminalMigration}\n${restrictionOverrideMigration}\n${conversionPolicyMigration}\n${seedRecommendationSnapshotMigration}\n${identityMigration}\n${schedulerMigration}\n${stageConvergenceMigration}\n${contractCleanupMigration}\n${operationsMigration}\n${demoIntegrationMigration}\n${steamIdentityMigration}\n${qualificationMigration}\n${vetoRoomMigration}\n${matchRuntimeEnumMigration}\n${matchRuntimeMigration}\n${mizarMigration}`;
-const droppedTables = [...contractCleanupMigration.matchAll(/DROP TABLE "([^"]+)"/g)].map((match) => match[1]);
+const scenarioCleanupMigration = readFileSync(join(root, "drizzle/migrations/0073_careless_pretty_boy.sql"), "utf8");
+const droppedTables = [...`${contractCleanupMigration}\n${scenarioCleanupMigration}`.matchAll(/DROP TABLE "([^"]+)"/g)].map((match) => match[1]);
 
 function expectedFacts(): DatabaseAccessFacts[] {
   return DATABASE_ACCESS_MATRIX.map((entry) => ({
@@ -89,13 +90,13 @@ function expectedFacts(): DatabaseAccessFacts[] {
 describe("database access matrix", () => {
   it("classifies every current public application table and keeps the generated document aligned", () => {
     const snapshot = JSON.parse(
-      readFileSync(join(root, "drizzle/migrations/meta/0072_snapshot.json"), "utf8"),
+      readFileSync(join(root, "drizzle/migrations/meta/0073_snapshot.json"), "utf8"),
     ) as { tables: Record<string, unknown> };
     const snapshotTables = Object.keys(snapshot.tables)
       .map((table) => table.replace(/^public\./, ""))
       .sort();
 
-    expect(DATABASE_ACCESS_MATRIX).toHaveLength(113);
+    expect(DATABASE_ACCESS_MATRIX).toHaveLength(112);
     expect(new Set(DATABASE_ACCESS_TABLES).size).toBe(DATABASE_ACCESS_TABLES.length);
     expect(snapshotTables).toEqual([...DATABASE_ACCESS_TABLES].sort());
     expect(renderDatabaseAccessMatrixMarkdown()).toBe(

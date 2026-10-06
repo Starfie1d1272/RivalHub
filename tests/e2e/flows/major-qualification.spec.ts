@@ -1,69 +1,164 @@
+import { mkdirSync } from "node:fs";
+import { resolve } from "node:path";
 import { expect, signInProgrammatically, test } from "../fixtures";
 
 test.use({ scenarioProfile: "major-qualification" });
 
-test("管理员预览并确认 30 队到 Major 24 的 Play-in 配置与首轮对阵", async ({ page, scenario }) => {
+test("管理员预览并确认 30 队到 Major 24 的 Play-in 配置与首轮对阵", async ({
+  page,
+  scenario,
+}) => {
   test.setTimeout(120_000);
   const admin = scenario.accounts.find((account) => account.key === "admin");
-  if (!admin) throw new Error(`E2E scenario ${scenario.scenarioId} 缺少管理员账号。`);
+  if (!admin)
+    throw new Error(`E2E scenario ${scenario.scenarioId} 缺少管理员账号。`);
 
-  await signInProgrammatically(page, admin, scenario, `/admin/${scenario.slug}/prestart`);
-  await expect(page.getByRole("button", { name: "预览 Play-in 配置" })).toBeVisible();
+  await signInProgrammatically(
+    page,
+    admin,
+    scenario,
+    `/admin/${scenario.slug}/prestart`,
+  );
+  await expect(
+    page.getByRole("button", { name: "预览 Play-in 配置" }),
+  ).toBeVisible();
   if (test.info().project.name !== "mobile-chrome") {
     const ranking = page.getByRole("region", { name: "预排名工作台" });
     const rows = ranking.locator("tbody tr");
     const firstTeam = await rows.nth(0).locator("td").nth(2).innerText();
     const secondTeam = await rows.nth(1).locator("td").nth(2).innerText();
-    await rows.nth(0).getByRole("button", { name: /移至排名$/ }).dragTo(rows.nth(1));
+    await rows
+      .nth(0)
+      .getByRole("button", { name: /移至排名$/ })
+      .dragTo(rows.nth(1));
     await expect(rows.nth(0).locator("td").nth(2)).toHaveText(secondTeam);
     await rows.nth(1).getByRole("button", { name: /上移$/ }).click();
     await expect(rows.nth(0).locator("td").nth(2)).toHaveText(firstTeam);
   }
 
   await page.getByRole("combobox", { name: "赛制" }).click();
-  await page.getByRole("option", { name: /Short Swiss BO1 · 2 胜晋级 \/ 2 负淘汰/ }).click();
-  await expect(page.getByRole("button", { name: "预览 Play-in 配置" })).toBeDisabled();
+  await page
+    .getByRole("option", { name: /Short Swiss BO1 · 2 胜晋级 \/ 2 负淘汰/ })
+    .click();
+  await expect(
+    page.getByRole("button", { name: "预览 Play-in 配置" }),
+  ).toBeDisabled();
   await page.getByRole("button", { name: "保存草稿" }).click();
   await expect(page.getByRole("status")).toContainText("已保存");
   await page.reload();
   await page.getByRole("button", { name: "预览 Play-in 配置" }).click();
 
-  const configurationPreview = page.getByRole("dialog", { name: "Play-in 配置预览" });
+  const configurationPreview = page.getByRole("dialog", {
+    name: "Play-in 配置预览",
+  });
   await expect(configurationPreview.getByText(/正赛容量\s*24/)).toBeVisible();
   await expect(configurationPreview.getByText(/已批准候选\s*30/)).toBeVisible();
   await expect(configurationPreview.getByText(/直通正赛\s*18/)).toBeVisible();
-  await expect(configurationPreview.getByText(/参加 Play-in\s*12/)).toBeVisible();
+  await expect(
+    configurationPreview.getByText(/参加 Play-in\s*12/),
+  ).toBeVisible();
   await expect(configurationPreview.getByText(/晋级名额\s*6/)).toBeVisible();
-  await expect(configurationPreview.getByRole("row").filter({ hasText: "P18" })).toContainText("直通正赛");
-  await expect(configurationPreview.getByRole("row").filter({ hasText: "P19" })).toContainText("Play-in");
-  await configurationPreview.getByRole("button", { name: "确认并锁定配置" }).click();
+  await expect(
+    configurationPreview.getByRole("row").filter({ hasText: "P18" }),
+  ).toContainText("直通正赛");
+  await expect(
+    configurationPreview.getByRole("row").filter({ hasText: "P19" }),
+  ).toContainText("Play-in");
+  await configurationPreview
+    .getByRole("button", { name: "确认并锁定配置" })
+    .click();
   await expect(configurationPreview).not.toBeVisible();
   const confirmedPlan = page.locator("details").filter({
     has: page.locator("summary").filter({ hasText: "资格方案" }),
   });
   await confirmedPlan.locator("summary").click();
-  await expect(confirmedPlan.getByRole("listitem").filter({ hasText: / · 直通正赛$/ })).toHaveCount(18);
-  await expect(confirmedPlan.getByRole("listitem").filter({ hasText: / · Play-in$/ })).toHaveCount(12);
+  await expect(
+    confirmedPlan.getByRole("listitem").filter({ hasText: / · 直通正赛$/ }),
+  ).toHaveCount(18);
+  await expect(
+    confirmedPlan.getByRole("listitem").filter({ hasText: / · Play-in$/ }),
+  ).toHaveCount(12);
 
   await page.goto(`/${scenario.slug}`);
   await expect(page.getByText("30 支候选 · 24 支正赛")).toBeVisible();
   await expect(page.getByText("赛程待生成", { exact: true })).toBeVisible();
+  await page.goto(`/${scenario.slug}/predictions`);
+  await expect(page.getByTestId("sim-match-play-in-r3-1")).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "我的预测单", exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "展开预测单", exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "保存推演并分享" }),
+  ).toHaveCount(0);
+  mkdirSync(resolve(".agent-tmp/predictions-evidence"), { recursive: true });
+  await page.screenshot({
+    path: resolve(
+      `.agent-tmp/predictions-evidence/${test.info().project.name}-play-in-default.png`,
+    ),
+    fullPage: true,
+    scale: "css",
+      style: "nextjs-portal { visibility: hidden; }",
+  });
+  await page
+    .getByTestId("sim-match-play-in-r1-1")
+    .getByRole("button")
+    .last()
+    .click();
+  await expect(page.getByTestId("sim-match-play-in-r1-1")).toHaveAttribute(
+    "data-source",
+    "assumption",
+  );
+  await expect(page.getByTestId("sim-match-play-in-r3-1")).toHaveAttribute(
+    "data-source",
+    "preview",
+  );
+  await page.screenshot({
+    path: resolve(
+      `.agent-tmp/predictions-evidence/${test.info().project.name}-play-in-if.png`,
+    ),
+    fullPage: true,
+    scale: "css",
+      style: "nextjs-portal { visibility: hidden; }",
+  });
+  await page.reload();
+  await expect(page.getByTestId("sim-match-play-in-r1-1")).toHaveAttribute(
+    "data-source",
+    "preview",
+  );
+  await expect(page.getByText("我的选择 0 场")).toBeVisible();
   await page.goto(`/admin/${scenario.slug}/prestart`);
   const ranking = page.getByRole("region", { name: "预排名工作台" });
-  for (let slot = 1; slot <= 5; slot++) await expect(ranking.getByRole("columnheader", { name: `主力${slot}` })).toBeVisible();
-  await expect(ranking.getByRole("columnheader", { name: "替补" })).toBeVisible();
+  for (let slot = 1; slot <= 5; slot++)
+    await expect(
+      ranking.getByRole("columnheader", { name: `主力${slot}` }),
+    ).toBeVisible();
+  await expect(
+    ranking.getByRole("columnheader", { name: "替补" }),
+  ).toBeVisible();
   await expect(ranking.getByRole("spinbutton")).toHaveCount(0);
-  await ranking.getByRole("button", { name: /主力，查看实力证据/ }).first().click();
+  await ranking
+    .getByRole("button", { name: /主力，查看实力证据/ })
+    .first()
+    .click();
   if (test.info().project.name === "mobile-chrome") {
     await expect(page.getByRole("dialog", { name: /实力证据/ })).toBeVisible();
-    await page.getByRole("dialog", { name: /实力证据/ }).getByRole("button", { name: "Close", exact: true }).click();
+    await page
+      .getByRole("dialog", { name: /实力证据/ })
+      .getByRole("button", { name: "Close", exact: true })
+      .click();
   } else {
-    await expect(ranking.getByRole("complementary", { name: "选手实力证据" })).toBeVisible();
+    await expect(
+      ranking.getByRole("complementary", { name: "选手实力证据" }),
+    ).toBeVisible();
     await ranking.getByRole("button", { name: "关闭选手证据" }).click();
   }
 
-
-  await expect(page.getByRole("button", { name: "预览首轮对阵" })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "预览首轮对阵" }),
+  ).toBeVisible();
   await page.getByRole("button", { name: "预览首轮对阵" }).click();
   const roundPreview = page.getByRole("dialog", { name: "第 1 轮对阵预览" });
   const matchups = roundPreview.getByRole("listitem");
@@ -74,31 +169,52 @@ test("管理员预览并确认 30 队到 Major 24 的 Play-in 配置与首轮对
   await expect(page.getByText("第 1 轮对阵已生成")).toBeVisible();
 
   await page.goto(`/admin/${scenario.slug}/matches?stage=play-in`);
-  await expect(page.getByRole("tab", { name: "PLAY-IN" })).toHaveAttribute("data-state", "active");
-  const activeStagePanel = page.locator('[role="tabpanel"][data-state="active"]');
-  const matchPaths = await activeStagePanel.locator(`a[href^="/admin/${scenario.slug}/matches/"]`)
-    .evaluateAll((links) => links
-      .map((link) => link.getAttribute("href"))
-      .filter((href): href is string => Boolean(href)));
+  await expect(page.getByRole("tab", { name: "PLAY-IN" })).toHaveAttribute(
+    "data-state",
+    "active",
+  );
+  const activeStagePanel = page.locator(
+    '[role="tabpanel"][data-state="active"]',
+  );
+  const matchPaths = await activeStagePanel
+    .locator(`a[href^="/admin/${scenario.slug}/matches/"]`)
+    .evaluateAll((links) =>
+      links
+        .map((link) => link.getAttribute("href"))
+        .filter((href): href is string => Boolean(href)),
+    );
   expect([...new Set(matchPaths)]).toHaveLength(6);
 
   await page.goto(`/${scenario.slug}`);
-  await expect(page.getByText("PLAY-IN", { exact: true }).first()).toBeVisible();
+  await expect(
+    page.getByText("PLAY-IN", { exact: true }).first(),
+  ).toBeVisible();
   await expect(page.getByText("Play-in 进行中")).toBeVisible();
   await expect(page.getByText("Round 1", { exact: true })).toBeVisible();
   await expect(page.getByText("12 支争夺 6 个正赛席位")).toBeVisible();
   const phases = page.getByRole("list", { name: "赛事阶段" });
-  await expect(phases.getByRole("listitem", { name: "REGISTER 已完成" })).toBeVisible();
-  await expect(phases.getByRole("listitem", { name: "STAGE1 待开始" })).toBeVisible();
+  await expect(
+    phases.getByRole("listitem", { name: "REGISTER 已完成" }),
+  ).toBeVisible();
+  await expect(
+    phases.getByRole("listitem", { name: "STAGE1 待开始" }),
+  ).toBeVisible();
   await expect(page.locator('[aria-current="step"]')).toHaveCount(0);
 
   await page.goto(`/${scenario.slug}/matches?stage=play-in`);
   await expect(page).toHaveURL(new RegExp(`/matches\\?stage=play-in$`));
-  await expect(page.getByRole("tab", { name: "PLAY-IN" })).toHaveAttribute("data-state", "active");
+  await expect(page.getByRole("tab", { name: "PLAY-IN" })).toHaveAttribute(
+    "data-state",
+    "active",
+  );
   await expect(page.getByRole("heading", { name: "PLAY-IN" })).toBeVisible();
-  await expect(page.getByText("12 → 6 · BO1 · 2胜晋级 / 2负淘汰 · Round 1")).toBeVisible();
+  await expect(
+    page.getByText("12 → 6 · BO1 · 2胜晋级 / 2负淘汰 · Round 1"),
+  ).toBeVisible();
   await expect(page.getByRole("heading", { name: "第 1 轮" })).toBeVisible();
-  await expect(page.getByRole("cell", { name: "P1", exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("cell", { name: "P1", exact: true }),
+  ).toBeVisible();
   const buchholzHelp = page.getByRole("button", { name: "Buchholz 说明" });
   // The mobile table scrolls horizontally; open after scrolling, which closes tooltips.
   await buchholzHelp.scrollIntoViewIfNeeded();
@@ -106,19 +222,36 @@ test("管理员预览并确认 30 队到 Major 24 的 Play-in 配置与首轮对
   await expect(page.getByRole("tooltip")).toContainText("下一轮组内配对顺序");
 });
 
-test("Direct BO3 使用镜像种子且公开展示晋级摘要", async ({ page, scenario }) => {
+test("Direct BO3 使用镜像种子且公开展示晋级摘要", async ({
+  page,
+  scenario,
+}) => {
   const admin = scenario.accounts.find((account) => account.key === "admin");
-  if (!admin) throw new Error(`E2E scenario ${scenario.scenarioId} 缺少管理员账号。`);
+  if (!admin)
+    throw new Error(`E2E scenario ${scenario.scenarioId} 缺少管理员账号。`);
 
-  await signInProgrammatically(page, admin, scenario, `/admin/${scenario.slug}/prestart`);
-  await expect(page.getByRole("button", { name: "预览 Play-in 配置" })).toBeDisabled();
+  await signInProgrammatically(
+    page,
+    admin,
+    scenario,
+    `/admin/${scenario.slug}/prestart`,
+  );
+  await expect(
+    page.getByRole("button", { name: "预览 Play-in 配置" }),
+  ).toBeDisabled();
   await page.getByRole("button", { name: "保存草稿" }).click();
   await expect(page.getByRole("status")).toContainText("已保存");
   await page.reload();
   await page.getByRole("button", { name: "预览 Play-in 配置" }).click();
-  const configurationPreview = page.getByRole("dialog", { name: "Play-in 配置预览" });
-  await expect(configurationPreview.getByText(/赛制\s*Direct BO3/)).toBeVisible();
-  await configurationPreview.getByRole("button", { name: "确认并锁定配置" }).click();
+  const configurationPreview = page.getByRole("dialog", {
+    name: "Play-in 配置预览",
+  });
+  await expect(
+    configurationPreview.getByText(/赛制\s*Direct BO3/),
+  ).toBeVisible();
+  await configurationPreview
+    .getByRole("button", { name: "确认并锁定配置" })
+    .click();
   await page.getByRole("button", { name: "预览首轮对阵" }).click();
 
   const roundPreview = page.getByRole("dialog", { name: "第 1 轮对阵预览" });
@@ -131,9 +264,18 @@ test("Direct BO3 使用镜像种子且公开展示晋级摘要", async ({ page, 
   await roundPreview.getByRole("button", { name: "确认并生成对阵" }).click();
 
   await page.goto(`/${scenario.slug}/matches?stage=play-in`);
-  await expect(page.getByRole("tab", { name: "PLAY-IN" })).toHaveAttribute("data-state", "active");
+  await expect(page.getByRole("tab", { name: "PLAY-IN" })).toHaveAttribute(
+    "data-state",
+    "active",
+  );
   await expect(page.getByText("PLAY-IN · 12 → 6 · BO3 决胜赛")).toBeVisible();
   await page.goto(`/${scenario.slug}/matches?stage=stage1`);
-  await expect(page.getByRole("tab", { name: "STAGE1" })).toHaveAttribute("data-state", "active");
-  await expect(page.getByRole("tab", { name: "PLAY-IN" })).toHaveAttribute("data-state", "inactive");
+  await expect(page.getByRole("tab", { name: "STAGE1" })).toHaveAttribute(
+    "data-state",
+    "active",
+  );
+  await expect(page.getByRole("tab", { name: "PLAY-IN" })).toHaveAttribute(
+    "data-state",
+    "inactive",
+  );
 });
