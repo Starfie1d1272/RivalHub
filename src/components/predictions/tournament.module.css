@@ -321,18 +321,49 @@
 .board[data-layout="list"] .result {
   width: 210px;
 }
+.mobileRounds {
+  display: none;
+}
 @media (max-width: 640px) {
+  .workbench h1 {
+    font-size: 18px;
+    line-height: 1.4;
+  }
+  .workbench > div:first-child {
+    gap: 8px;
+  }
+  .workbench > div:first-child > div:first-child > p {
+    display: none;
+  }
+  .workbench [aria-label="赛事阶段"] {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 4px;
+  }
+  .workbench [aria-label="赛事阶段"] > button {
+    min-width: 0;
+    padding-inline: 4px;
+    font-size: 12px;
+  }
+
   .toolbar {
-    gap: 12px;
-    margin-bottom: 20px;
+    gap: 8px;
+    flex-wrap: nowrap;
+    margin-bottom: 12px;
   }
   .viewSwitch {
-    width: 100%;
+    flex: 1;
+    min-width: 0;
   }
   .viewSwitch button {
     flex: 1;
     justify-content: center;
-    padding: 8px;
+    padding: 8px 4px;
+    gap: 4px;
+    font-size: 11px;
+  }
+  .legend > span:nth-child(-n + 3) {
+    display: none;
   }
   .legend {
     gap: 12px;
@@ -347,11 +378,12 @@
   }
   .board[data-layout="list"] .match {
     width: calc(50% - 7px);
-    min-width: 140px;
+    min-height: 82px;
+    min-width: 0;
   }
   .board[data-layout="list"] .result {
     width: calc(50% - 10px);
-    min-width: 140px;
+    min-width: 0;
   }
   .board[data-layout="list"] .logoMatch {
     grid-template-columns: minmax(0, 1fr) 36px minmax(0, 1fr);
@@ -359,6 +391,61 @@
   .board[data-layout="list"] .logo {
     width: 36px !important;
     height: 36px !important;
+  }
+  .board[data-layout="list"] .roundTitle {
+    margin-bottom: 12px;
+  }
+  .mobileRounds {
+    display: flex;
+    gap: 5px;
+    margin-bottom: 20px;
+  }
+  .mobileRounds button {
+    flex: 1;
+    min-width: 0;
+    min-height: 44px;
+    border: 1px solid var(--color-border);
+    border-radius: 5px;
+    font-size: 12px;
+  }
+  .mobileRounds button[aria-pressed="true"] {
+    border-color: var(--color-accent);
+    color: var(--color-accent);
+    background: var(--color-accent-soft);
+  }
+  .board[data-layout="list"] .round[data-mobile-active="false"] {
+    display: none;
+  }
+  .board[data-layout="list"] .result h4 {
+    padding: 8px;
+    gap: 4px;
+    font-size: 9px;
+    letter-spacing: 0;
+  }
+  .board[data-layout="list"] .result h4 strong {
+    font-size: 18px;
+  }
+  .board[data-layout="list"] .logoMatch {
+    grid-template-columns: minmax(0, 1fr) 24px minmax(0, 1fr);
+  }
+  .board[data-layout="list"] .score {
+    font-size: 12px;
+  }
+  .board[data-layout="list"] .score small {
+    font-size: 8px;
+  }
+  .board[data-layout="list"] .teamSide {
+    padding: 8px 2px;
+  }
+  .board[data-layout="list"] .teamName {
+    font-size: 10px;
+  }
+  .board[data-layout="list"] .logo {
+    width: 28px !important;
+    height: 28px !important;
+  }
+  .board[data-layout="list"] .roundContent {
+    gap: 14px;
   }
   .viewport {
     padding-left: 0;

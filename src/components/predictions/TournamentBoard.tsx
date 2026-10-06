@@ -35,6 +35,9 @@ export function TournamentBoard({
   onChoose: (match: SimMatch, winner: string) => void;
 }) {
   const [view, setView] = useState<"flow" | "compact" | "list">("flow");
+  const [mobileRound, setMobileRound] = useState<number | "results">(
+    stage.matches[0]?.round ?? 1,
+  );
   const teamMap = useMemo(
     () => new Map(teams.map((t) => [t.teamId, t])),
     [teams],
@@ -72,7 +75,11 @@ export function TournamentBoard({
           losses: policy.lossThreshold,
         })),
       ]
-        .filter((r) => view === "flow" ? r.wins + r.losses === beforeRound - 1 : r.wins + r.losses < beforeRound)
+        .filter((r) =>
+          view === "flow"
+            ? r.wins + r.losses === beforeRound - 1
+            : r.wins + r.losses < beforeRound,
+        )
         .map((r) => ({
           key: `${r.wins}-${r.losses}`,
           record: `${r.wins}–${r.losses}`,
@@ -220,6 +227,28 @@ export function TournamentBoard({
           />
         </div>
       </div>
+      {view === "list" && (
+        <nav className={styles.mobileRounds} aria-label="当前展示轮次">
+          {rounds.map((round) => (
+            <button
+              key={round}
+              type="button"
+              aria-label={`展示第 ${round} 轮`}
+              aria-pressed={mobileRound === round}
+              onClick={() => setMobileRound(round)}
+            >
+              R{round}
+            </button>
+          ))}
+          <button
+            type="button"
+            aria-pressed={mobileRound === "results"}
+            onClick={() => setMobileRound("results")}
+          >
+            结果
+          </button>
+        </nav>
+      )}
       <div
         className={styles.viewport}
         tabIndex={0}
@@ -231,7 +260,11 @@ export function TournamentBoard({
           style={{ "--round-count": rounds.length + 1 } as React.CSSProperties}
         >
           {rounds.map((round) => (
-            <section key={round} className={styles.round}>
+            <section
+              key={round}
+              className={styles.round}
+              data-mobile-active={mobileRound === round}
+            >
               <h3 className={styles.roundTitle}>
                 {view === "list" && <ArrowDown size={18} />}
                 <span>ROUND {round}</span>
@@ -247,7 +280,11 @@ export function TournamentBoard({
               )}
             </section>
           ))}
-          <section className={styles.round} aria-label="最终结果">
+          <section
+            className={styles.round}
+            aria-label="最终结果"
+            data-mobile-active={mobileRound === "results"}
+          >
             <h3 className={`${styles.roundTitle} ${styles.finalTitle}`}>
               FINAL RESULTS{" "}
               <span className="sr-only">

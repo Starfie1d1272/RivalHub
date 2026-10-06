@@ -30,6 +30,7 @@ import { TournamentBoard } from "./TournamentBoard";
 import { PickEmRecord } from "./PickEmRecord";
 import { exportPredictionImage } from "./share-image";
 import { usePredictionConfirmation } from "./usePredictionConfirmation";
+import styles from "./tournament.module.css";
 
 function defaultStage(context: SimulationContext) {
   const stages = orderedPredictionStages(context.baseline.stages);
@@ -236,7 +237,7 @@ export function PredictionBoard({
     });
   }
   return (
-    <div className="min-w-0 space-y-4">
+    <div className={`${styles.workbench} min-w-0 space-y-4`}>
       <div className="flex flex-wrap justify-between gap-4">
         <div>
           <p className="text-xs font-semibold tracking-widest text-[var(--color-accent)]">

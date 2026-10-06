@@ -210,20 +210,53 @@ test("模拟数据覆盖 Pick’Em 状态与隐藏规则", async ({
       page.getByRole("button", { name: "暂停提交", exact: true }),
     ).toBeVisible();
     await capture("admin-open");
-    await pool.query("UPDATE matches SET status='finished',score_a=1,score_b=0,completed_at=clock_timestamp() WHERE id=(SELECT id FROM matches WHERE season_id=$1 ORDER BY managed_key LIMIT 1)", [fixture.seasonId]);
+    await pool.query(
+      "UPDATE matches SET status='finished',score_a=1,score_b=0,completed_at=clock_timestamp() WHERE id=(SELECT id FROM matches WHERE season_id=$1 ORDER BY managed_key LIMIT 1)",
+      [fixture.seasonId],
+    );
     await page.goto(`/${fixture.slug}/predictions`);
-    await expect(page.getByTestId("sim-match-stage1-r1-1")).toHaveAttribute("data-source", "official");
+    await expect(page.getByTestId("sim-match-stage1-r1-1")).toHaveAttribute(
+      "data-source",
+      "official",
+    );
     await capture("official-result");
-    await page.getByTestId("sim-match-stage1-r1-1").getByRole("button").last().click();
-    await expect(page.getByTestId("sim-match-stage1-r1-1")).toHaveAttribute("data-source", "assumption");
+    await page
+      .getByTestId("sim-match-stage1-r1-1")
+      .getByRole("button")
+      .last()
+      .click();
+    await expect(page.getByTestId("sim-match-stage1-r1-1")).toHaveAttribute(
+      "data-source",
+      "assumption",
+    );
     await capture("official-if");
     if (mobile) {
       await page.getByRole("button", { name: "轮次列表", exact: true }).click();
       await page.setViewportSize({ width: 320, height: 740 });
       await capture("round-cards-320");
+      const first = await page
+        .getByTestId("sim-match-stage1-r1-1")
+        .boundingBox();
+      const second = await page
+        .getByTestId("sim-match-stage1-r1-2")
+        .boundingBox();
+      expect(
+        first &&
+          second &&
+          Math.abs(first.y - second.y) < 2 &&
+          second.x > first.x,
+      ).toBe(true);
+      await expect(page.getByTestId("sim-match-stage1-r2-1")).toBeHidden();
+      await page
+        .getByRole("button", { name: "展示第 3 轮", exact: true })
+        .click();
+      await expect(page.getByTestId("sim-match-stage1-r3-1")).toBeVisible();
+      await capture("round-cards-320-r3");
+      await page.getByRole("button", { name: "结果", exact: true }).click();
+      await capture("round-cards-320-results");
+
       await page.setViewportSize({ width: 390, height: 844 });
     }
-
   } finally {
     await pool.end();
     for (const item of fixtures)
