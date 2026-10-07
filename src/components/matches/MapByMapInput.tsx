@@ -1,4 +1,5 @@
 "use client";
+import { TeamProfileLink } from "@/components/teams/TeamProfileLink";
 
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
@@ -124,11 +125,11 @@ export function MapByMapInput({
               <span className="w-4">#{m.mapOrder}</span>
               <span className="font-medium text-[var(--color-fg)]">{mapLabel(m.mapName)}</span>
               <Badge variant="outline" className="text-xs">
-                {resolvePickedByName(m.pickedByEntryId)} {m.pickedByEntryId ? "pick" : ""}
+                <TeamProfileLink entryId={m.pickedByEntryId}>{resolvePickedByName(m.pickedByEntryId)}</TeamProfileLink> {m.pickedByEntryId ? "pick" : ""}
               </Badge>
-              {m.teamAStartSide && <span>{teamAName} {SIDE_LABELS[m.teamAStartSide]}先</span>}
+              {m.teamAStartSide && <span><TeamProfileLink entryId={entryAId}>{teamAName}</TeamProfileLink> {SIDE_LABELS[m.teamAStartSide]}先</span>}
               <Badge variant="outline" className="text-xs font-mono">{m.scoreA} : {m.scoreB}</Badge>
-              <span>{m.scoreA > m.scoreB ? teamAName : teamBName} 胜</span>
+              <span><TeamProfileLink entryId={m.scoreA > m.scoreB ? entryAId : entryBId}>{m.scoreA > m.scoreB ? teamAName : teamBName}</TeamProfileLink> 胜</span>
             </div>
           ))}
         </div>
@@ -146,7 +147,7 @@ export function MapByMapInput({
               </Badge>
               {nextPending.teamAStartSide && (
                 <span className="text-xs text-[var(--color-fg-mid)]">
-                  {teamAName} {SIDE_LABELS[nextPending.teamAStartSide]}先（BP）
+                  <TeamProfileLink entryId={entryAId}>{teamAName}</TeamProfileLink> {SIDE_LABELS[nextPending.teamAStartSide]}先（BP）
                 </span>
               )}
             </div>
@@ -172,6 +173,7 @@ export function MapByMapInput({
 
                 <div className="space-y-1">
                   <Label className="text-xs text-[var(--color-fg-mid)]">Pick 方</Label>
+                  {manualPickedBy !== "decider" && <TeamProfileLink entryId={manualPickedBy} variant="dense" aria-label="查看所选 Pick 队伍资料">↗</TeamProfileLink>}
                   <Select value={manualPickedBy} onValueChange={setManualPickedBy}>
                     <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
                     <SelectContent>
@@ -205,13 +207,13 @@ export function MapByMapInput({
               <Label className="text-xs text-[var(--color-fg-mid)]">回合数</Label>
               <div className="flex items-end gap-1">
                 <div className="space-y-1">
-                  <span className="text-[10px] text-[var(--color-fg-dim)]">{teamAName}</span>
+                  <TeamProfileLink entryId={entryAId} className="text-[10px] text-[var(--color-fg-dim)]">{teamAName}</TeamProfileLink>
                   <Input type="number" min="0" value={scoreA} onChange={(e) => setScoreA(e.target.value)}
                     className="w-14 text-center h-8 text-xs" placeholder="0" />
                 </div>
                 <span className="text-[var(--color-fg-mid)] text-xs pb-1.5">:</span>
                 <div className="space-y-1">
-                  <span className="text-[10px] text-[var(--color-fg-dim)]">{teamBName}</span>
+                  <TeamProfileLink entryId={entryBId} className="text-[10px] text-[var(--color-fg-dim)]">{teamBName}</TeamProfileLink>
                   <Input type="number" min="0" value={scoreB} onChange={(e) => setScoreB(e.target.value)}
                     className="w-14 text-center h-8 text-xs" placeholder="0" />
                 </div>
@@ -227,7 +229,7 @@ export function MapByMapInput({
 
       {seriesFinished && (
         <p className="text-xs text-[var(--color-ok)] font-medium">
-          系列赛结束：{mapWinsA > mapWinsB ? teamAName : teamBName} 胜 {Math.max(mapWinsA, mapWinsB)}:{Math.min(mapWinsA, mapWinsB)}
+          系列赛结束：<TeamProfileLink entryId={mapWinsA > mapWinsB ? entryAId : entryBId}>{mapWinsA > mapWinsB ? teamAName : teamBName}</TeamProfileLink> 胜 {Math.max(mapWinsA, mapWinsB)}:{Math.min(mapWinsA, mapWinsB)}
         </p>
       )}
     </div>

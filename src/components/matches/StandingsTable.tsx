@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { TeamProfileLink } from "@/components/teams/TeamProfileLink";
 import type { TeamStanding } from "@/lib/standings";
 
 interface StandingsTableProps {
@@ -38,12 +38,12 @@ export function StandingsTable({ standings, seasonSlug, isFinal }: StandingsTabl
                 )}
               </td>
               <td className="py-3 px-3">
-                <Link
-                  href={`/${seasonSlug}/teams/${s.teamId}`}
+                <TeamProfileLink
+                  seasonSlug={seasonSlug} entryId={s.teamId}
                   className="font-semibold text-[var(--color-fg)] hover:text-[var(--color-accent)] transition-colors"
                 >
                   {s.teamName}
-                </Link>
+                </TeamProfileLink>
               </td>
               <td className="py-3 px-3 text-center tabular-nums text-[var(--color-ok)] font-medium">
                 {s.wins}

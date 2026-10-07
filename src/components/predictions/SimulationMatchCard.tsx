@@ -1,4 +1,5 @@
 "use client";
+import { TeamProfileLink } from "@/components/teams/TeamProfileLink";
 import React from "react";
 import { TeamLogo } from "@/components/teams/TeamLogo";
 import { SIMULATION_SOURCE_LABELS } from "@/lib/predictions/presentation";
@@ -31,15 +32,14 @@ export function SimulationMatchCard({
     const winning = match.winner === id;
     const score = index === 0 ? match.scoreA : match.scoreB;
     return (
-      <button
-        key={id}
+      <div key={id} className="relative min-w-0"><button
         type="button"
         aria-label={`${team?.name ?? "队伍"} 获胜${preview && winning ? " · 系统预览晋级" : ""}`}
         aria-pressed={winning && !preview}
         disabled={busy || !editable}
         onClick={() => onChoose(match, id)}
         data-winning={winning}
-        className={styles.teamSide}
+        className={`${styles.teamSide} h-full w-full pr-6`}
       >
         {compact && <span className={styles.seed}>{seeds.get(id)}</span>}
         <TeamLogo
@@ -53,7 +53,7 @@ export function SimulationMatchCard({
             {actual ? (score ?? "—") : winning ? "胜" : "—"}
           </strong>
         )}
-      </button>
+      </button><TeamProfileLink entryId={id} variant="dense" className="absolute right-0 top-0 bg-[var(--color-panel)]" aria-label={`查看 ${team?.name ?? "队伍"} 队伍资料`}>↗</TeamProfileLink></div>
     );
   };
   return (

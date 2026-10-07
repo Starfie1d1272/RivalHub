@@ -1,4 +1,5 @@
 "use client";
+import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
 
 import React, { useState } from "react";
 import { Panel } from "@/components/rivalhub";
@@ -9,6 +10,7 @@ import type { MatchStatus } from "@/types/match";
 
 type Commentator = {
   userId: string;
+  playerUserId?: string | null;
   liveStreamUrl: string | null;
   displayName: string | null;
   perfectName: string | null;
@@ -69,8 +71,7 @@ export function MatchLiveViewing({
         <div className="flex flex-wrap items-center gap-2 border-b border-[var(--color-border)] pb-3 text-xs">
           <span className="text-[var(--color-fg-dim)]">切换解说：</span>
           {resources.map((commentator) => (
-            <button
-              key={commentator.userId}
+            <div key={commentator.userId} className="flex items-center"><button
               type="button"
               onClick={() => setSelectedUserId(commentator.userId)}
               className={`rounded px-2 py-1 transition-colors ${
@@ -80,7 +81,7 @@ export function MatchLiveViewing({
               }`}
             >
               {getPublicDisplayName(commentator)}
-            </button>
+            </button>{commentator.playerUserId && <PlayerProfileLink userId={commentator.playerUserId} variant="dense" aria-label={`查看 ${getPublicDisplayName(commentator)} 选手资料`}>↗</PlayerProfileLink>}</div>
           ))}
         </div>
       )}
@@ -98,7 +99,7 @@ export function MatchLiveViewing({
               />
             ) : (
               <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center">
-                <p className="text-sm text-[var(--color-fg-mid)]">解说 · {getPublicDisplayName(activeCommentator)}</p>
+                <p className="text-sm text-[var(--color-fg-mid)]">解说 · {activeCommentator.playerUserId ? <PlayerProfileLink userId={activeCommentator.playerUserId}>{getPublicDisplayName(activeCommentator)}</PlayerProfileLink> : getPublicDisplayName(activeCommentator)}</p>
                 <div className="flex flex-wrap items-center justify-center gap-3">
                   <Button
                     onClick={() =>
@@ -144,7 +145,7 @@ export function MatchLiveViewing({
             </a>
           </Button>
           <span className="text-sm text-[var(--color-fg-mid)]">
-            解说 · {getPublicDisplayName(activeCommentator)}
+            解说 · {activeCommentator.playerUserId ? <PlayerProfileLink userId={activeCommentator.playerUserId}>{getPublicDisplayName(activeCommentator)}</PlayerProfileLink> : getPublicDisplayName(activeCommentator)}
           </span>
           {bilibiliRoomId && (
             <span className="text-xs text-[var(--color-fg-dim)]">

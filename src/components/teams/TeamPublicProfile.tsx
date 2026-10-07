@@ -1,3 +1,5 @@
+import { TeamProfileLink } from "@/components/teams/TeamProfileLink";
+import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
 import { TeamRosterMapContext, TeamWorkspace } from "@/components/stats/teams/TeamWorkspace";
 import type { PublicTeamMapProfile } from "@/lib/teams/map-profile";
 import type { PublicSeasonResults } from "@/lib/seasons/public-results";
@@ -83,7 +85,7 @@ export function TeamPublicProfile({ team, event = null, mapProfile, results, per
             )}
             actions={event ? (
               <div className="flex flex-wrap items-center gap-3">
-                {team && <Link href={`/teams/${team.team.slug}`} className="text-sm text-[var(--color-accent)] hover:underline">队伍主页 · {team.team.name}</Link>}
+                {team && <TeamProfileLink slug={team.team.slug} className="text-sm text-[var(--color-accent)] hover:underline">队伍主页 · {team.team.name}</TeamProfileLink>}
                 <Link href={`/${event.season.slug}/teams`} className="text-sm text-[var(--color-fg-secondary)] hover:text-[var(--color-fg-primary)]">返回赛事队伍</Link>
               </div>
             ) : (team && currentUserMembership && team.team.status === "active") ? (
@@ -118,7 +120,7 @@ export function TeamPublicProfile({ team, event = null, mapProfile, results, per
                   <div className="flex min-w-0 items-center gap-2">
                     <PlayerAvatar name={member.name} avatarUrl={member.avatarUrl} size="sm" />
                     {member.isStarter && <PosChip pos="S" small />}
-                    <Link href={`/players/${member.userId}`} className="min-w-0 break-words font-medium hover:text-[var(--color-accent)]">{member.name}</Link>
+                    <PlayerProfileLink userId={member.userId} className="min-w-0 break-words font-medium hover:text-[var(--color-accent)]">{member.name}</PlayerProfileLink>
                   </div>
                   <span className="text-xs text-[var(--color-fg-mid)]">{member.isStarter ? "首发" : "替补"}</span>
                 </div>
@@ -161,14 +163,14 @@ export function TeamPublicProfile({ team, event = null, mapProfile, results, per
                   <div className="flex min-w-0 items-center gap-2">
                     <PlayerAvatar name={member.name} avatarUrl={member.avatarUrl} size="sm" />
                     {member.userId === team.team.captainUserId && <PosChip pos="C" small />}
-                    <Link href={`/players/${member.userId}`} className="min-w-0 break-words text-sm hover:text-[var(--color-accent)]">{member.name}</Link>
+                    <PlayerProfileLink userId={member.userId} className="min-w-0 break-words text-sm hover:text-[var(--color-accent)]">{member.name}</PlayerProfileLink>
                   </div>
                   <StatusPill {...presentTeamMembershipStatus(member.status)} />
                 </div>
               )) : <EmptyState title="暂无当前成员" />}
             </div>
             </div>
-            {currentEntries.length > 0 && <div className="border-t border-[var(--color-border)] pt-3"><p className="mb-2 text-xs font-medium text-[var(--color-fg-dim)]">当前赛事</p><div className="space-y-2">{currentEntries.map((entry) => <Link key={entry.id} className="flex items-center justify-between gap-3 text-sm hover:text-[var(--color-accent)]" href={`/${entry.seasonSlug}/teams/${entry.id}`}><span><span className="font-medium">{entry.seasonName}</span><span className="ml-2 text-[var(--color-fg-mid)]">{entry.name}</span></span><span>→</span></Link>)}</div></div>}
+            {currentEntries.length > 0 && <div className="border-t border-[var(--color-border)] pt-3"><p className="mb-2 text-xs font-medium text-[var(--color-fg-dim)]">当前赛事</p><div className="space-y-2">{currentEntries.map((entry) => <TeamProfileLink key={entry.id} className="flex items-center justify-between gap-3 text-sm hover:text-[var(--color-accent)]" seasonSlug={entry.seasonSlug} entryId={entry.id}><span><span className="font-medium">{entry.seasonName}</span><span className="ml-2 text-[var(--color-fg-mid)]">{entry.name}</span></span><span>→</span></TeamProfileLink>)}</div></div>}
           </section>
 
           {longDetail && <section className="space-y-4"><div><p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--color-fg-dim)]">PERFORMANCE</p><h2 className="mt-1 text-lg font-semibold">竞技表现</h2></div><TeamWorkspace detail={longDetail} /></section>}
@@ -179,7 +181,7 @@ export function TeamPublicProfile({ team, event = null, mapProfile, results, per
             {career.length > 0 ? (
               <div className="divide-y divide-[var(--color-border)]">
                 {career.map((entry) => (
-                  <Link key={entry.id} href={`/${entry.seasonSlug}/teams/${entry.id}`} className="grid gap-3 px-5 py-4 hover:bg-[var(--color-panel-hi)] sm:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_auto] sm:items-center">
+                  <TeamProfileLink key={entry.id} seasonSlug={entry.seasonSlug} entryId={entry.id} className="grid gap-3 px-5 py-4 hover:bg-[var(--color-panel-hi)] sm:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_auto] sm:items-center">
                     <span className="min-w-0">
                       <span className="block break-words text-sm font-semibold">{entry.seasonName}</span>
                       <span className="mt-1 block break-words text-xs text-[var(--color-fg-mid)]">{entry.name}</span>
@@ -194,7 +196,7 @@ export function TeamPublicProfile({ team, event = null, mapProfile, results, per
                       <span className="text-xs font-medium text-[var(--color-fg-mid)]">{entry.placement ?? "完赛"}</span>
                       <span aria-hidden>→</span>
                     </span>
-                  </Link>
+                  </TeamProfileLink>
                 ))}
               </div>
             ) : <div className="p-5"><EmptyState title="尚无已结束赛事记录。" /></div>}

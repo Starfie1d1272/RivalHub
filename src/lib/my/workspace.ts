@@ -13,6 +13,8 @@ import type { PersonalMatchTask } from "@/lib/matches/presentation";
 
 export interface MyUpcomingMatch {
   seasonId: string;
+  seasonSlug: string;
+  entryId: string;
   seasonName: string;
   entryName: string;
   task: PersonalMatchTask;
@@ -60,6 +62,8 @@ function projectUpcomingMatches(contexts: readonly MyCompetitionContext[]): MyUp
     .filter((context): context is MyCompetitionContext & { nextMatch: PersonalMatchTask } => Boolean(context.nextMatch))
     .map((context) => ({
       seasonId: context.season.id,
+      seasonSlug: context.season.slug,
+      entryId: context.entryId,
       seasonName: context.season.name,
       entryName: context.entryName,
       task: context.nextMatch,

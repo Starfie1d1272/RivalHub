@@ -1,4 +1,5 @@
 "use client";
+import { TeamProfileLink } from "@/components/teams/TeamProfileLink";
 
 import React, { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
@@ -17,6 +18,9 @@ import {
 
 interface ResultCorrectionPanelProps {
   matchId: string;
+  entryAId?: string;
+  entryBId?: string;
+  seasonSlug?: string;
   teamAName: string;
   teamBName: string;
   format: "bo1" | "bo3" | "bo5";
@@ -28,6 +32,9 @@ interface ResultCorrectionPanelProps {
  */
 export function ResultCorrectionPanel({
   matchId,
+  entryAId,
+  entryBId,
+  seasonSlug,
   teamAName,
   teamBName,
   format,
@@ -119,7 +126,7 @@ export function ResultCorrectionPanel({
   return (
     <Panel label="比分更正与恢复" contentClassName="space-y-3 p-4">
       <p className="text-sm font-medium text-[var(--color-fg)]">
-        比分更正与恢复 · {teamAName} vs {teamBName}（{format.toUpperCase()}）
+        比分更正与恢复 · <TeamProfileLink seasonSlug={seasonSlug} entryId={entryAId}>{teamAName}</TeamProfileLink> vs <TeamProfileLink seasonSlug={seasonSlug} entryId={entryBId}>{teamBName}</TeamProfileLink>（{format.toUpperCase()}）
       </p>
       <p className="text-xs text-[var(--color-fg-mid)]">
         先计算影响清单并审阅；改变胜者会要求显式确认恢复。资格赛只会撤销尚未开始的后续轮；正赛名单已产生或后续比赛已开始/结束时须走赛事裁决。

@@ -1,5 +1,6 @@
 "use client";
 
+import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 
@@ -9,13 +10,15 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 
-type Candidate = { id: string; name: string };
+import type { SeasonAwardCandidate as Candidate } from "@/lib/community-awards/read-model";
 type Match = { id: string; label: string };
 
 /** Public evidence entry stays a small form, independent of award-card/admin UI. */
 export function CommunityAwardEvidenceForm({ awardId, candidates, matches }: { awardId: string; candidates: Candidate[]; matches: Match[] }) {
   const [isPending, startTransition] = useTransition();
   const [form, setForm] = useState({ explanation: "", candidateUserId: "", matchId: "", videoUrl: "" });
+
+  const candidatePlayer = candidates.find(candidate => candidate.id === form.candidateUserId)?.playerUserId;
 
   function submit() {
     startTransition(async () => {
@@ -37,6 +40,7 @@ export function CommunityAwardEvidenceForm({ awardId, candidates, matches }: { a
 
   return (
     <div className="grid gap-2">
+      {candidatePlayer && <PlayerProfileLink userId={candidatePlayer}>查看候选选手 ↗</PlayerProfileLink>}
       <Select value={form.candidateUserId} onValueChange={(candidateUserId) => setForm({ ...form, candidateUserId })}>
         <SelectTrigger aria-label="选择候选人"><SelectValue placeholder="候选人（选填）" /></SelectTrigger>
         <SelectContent>{candidates.map((candidate) => <SelectItem key={candidate.id} value={candidate.id}>{candidate.name}</SelectItem>)}</SelectContent>

@@ -1,5 +1,6 @@
 "use client";
 
+import { TeamProfileLink } from "@/components/teams/TeamProfileLink";
 import { useTransition } from "react";
 import { toast } from "sonner";
 import { lockMajorPrestartEntrants } from "@/actions/major-prestart";
@@ -67,7 +68,7 @@ export function MajorPrestartManagement({ data }: { data: MajorPrestartManagemen
     {changedRosters.length > 0 && <details className="mb-4 border border-[var(--color-border)] px-3 py-2 text-sm">
       <summary className="cursor-pointer">最近已审核名单变化 · {changedRosters.length} 支队伍</summary>
       <ul className="mt-2 space-y-1 text-[var(--color-fg-mid)]">{changedRosters.map((entrant) => <li key={entrant.id}>
-        <strong>{entrant.teamName}</strong>{entrant.recentRosterChange!.added.length > 0 ? ` · 加入 ${entrant.recentRosterChange!.added.join("、")}` : ""}{entrant.recentRosterChange!.removed.length > 0 ? ` · 离开 ${entrant.recentRosterChange!.removed.join("、")}` : ""}{entrant.recentRosterChange!.primaryChanged.length > 0 ? ` · 主力调整 ${entrant.recentRosterChange!.primaryChanged.join("、")}` : ""}
+        <strong><TeamProfileLink entryId={entrant.id}>{entrant.teamName}</TeamProfileLink></strong>{entrant.recentRosterChange!.added.length > 0 ? ` · 加入 ${entrant.recentRosterChange!.added.join("、")}` : ""}{entrant.recentRosterChange!.removed.length > 0 ? ` · 离开 ${entrant.recentRosterChange!.removed.join("、")}` : ""}{entrant.recentRosterChange!.primaryChanged.length > 0 ? ` · 主力调整 ${entrant.recentRosterChange!.primaryChanged.join("、")}` : ""}
       </li>)}</ul>
     </details>}
     {teams.length > 0 ? <MajorRankingWorkspace mode="reference" teams={teams} order={order} platform={data.strengthPreview.platform} /> : <p className="text-sm text-[var(--color-fg-mid)]">先确认并同步正赛参赛队。</p>}

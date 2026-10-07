@@ -6,6 +6,7 @@ import { getPublicDisplayName } from "@/lib/identity/display-name";
 
 /** Fields allowed to cross the public captains page boundary. */
 export interface PublicCaptainVoter {
+  userId: string;
   id: string;
   displayName: string;
   primaryPosition: string;
@@ -36,6 +37,7 @@ interface CaptainCandidateRankingRow extends PublicCaptainCandidate {
 }
 
 interface CaptainCandidateSource {
+  userId: string;
   id: string;
   displayName: string | null;
   perfectName: string | null;
@@ -56,6 +58,7 @@ export function serializePublicCaptainCandidate(
 ): PublicCaptainCandidate {
   return {
     id: row.id,
+    userId: row.userId,
     displayName: getPublicDisplayName(row),
     primaryPosition: row.primaryPosition,
     peakRank: row.peakRank,
@@ -71,6 +74,7 @@ export async function getPublicCaptainVotingData(
   const registrations = await db
     .select({
       id: seasonRegistrations.id,
+      userId: users.id,
       primaryPosition: seasonRegistrations.primaryPosition,
       peakRank: seasonRegistrations.peakRank,
       peakRating: seasonRegistrations.peakRating,
@@ -109,6 +113,7 @@ export async function getPublicCaptainVotingData(
 
   const voters: PublicCaptainVoter[] = registrations.map((r) => ({
     id: r.id,
+    userId: r.userId,
     displayName: getPublicDisplayName(r),
     primaryPosition: r.primaryPosition,
     peakRank: r.peakRank,
@@ -120,6 +125,7 @@ export async function getPublicCaptainVotingData(
     .map((r) => ({
       ...serializePublicCaptainCandidate({
         id: r.id,
+    userId: r.userId,
         displayName: r.displayName,
         perfectName: r.perfectName,
         personaName: r.personaName,
@@ -145,6 +151,7 @@ export async function getPublicCaptainVotingData(
     voters,
     candidates: sortedRankingRows.map((candidate) => ({
       id: candidate.id,
+      userId: candidate.userId,
       displayName: candidate.displayName,
       primaryPosition: candidate.primaryPosition,
       peakRank: candidate.peakRank,

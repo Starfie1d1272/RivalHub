@@ -1,3 +1,4 @@
+import { TeamProfileLink } from "@/components/teams/TeamProfileLink";
 import { statsEntryHref } from "@/lib/stats/view-state";
 import { Suspense, type ReactNode } from "react";
 import { notFound, redirect } from "next/navigation";
@@ -90,12 +91,12 @@ export async function PlayerPageContent({ params, searchParams }: PlayerPageProp
           <PosChip pos={position} />
           <span>{peak.join(" · ")}</span>
           {teamInfo && (
-            <Link
-              href={`/${teamInfo.seasonSlug}/teams/${teamInfo.teamId}`}
+            <TeamProfileLink
+              seasonSlug={teamInfo.seasonSlug} entryId={teamInfo.teamId}
               className="transition-colors hover:text-[var(--color-accent)]"
             >
               {teamInfo.teamName} ↗
-            </Link>
+            </TeamProfileLink>
           )}
           {registration.highlightVideoUrl && (
             <a
@@ -157,22 +158,22 @@ export async function PlayerPageContent({ params, searchParams }: PlayerPageProp
                 <p className="mb-1 text-[11px] uppercase tracking-[var(--tracking-label)] text-[var(--color-fg-dim)]">当前活动</p>
                 <div className="space-y-1.5">
                   {profile.currentTeams.map((team) => (
-                    <Link
+                    <TeamProfileLink
                       key={team.slug}
                       className="block font-semibold transition-colors hover:text-[var(--color-accent)]"
-                      href={`/teams/${team.slug}`}
+                      slug={team.slug}
                     >
                       {team.name} →
-                    </Link>
+                    </TeamProfileLink>
                   ))}
                   {profile.currentEventTeams.map((entry) => (
-                    <Link
+                    <TeamProfileLink
                       key={entry.teamId}
                       className="block text-[var(--color-fg-mid)] transition-colors hover:text-[var(--color-accent)]"
-                      href={`/${entry.seasonSlug}/teams/${entry.teamId}`}
+                      seasonSlug={entry.seasonSlug} entryId={entry.teamId}
                     >
                       {entry.seasonName} · {entry.teamName} →
-                    </Link>
+                    </TeamProfileLink>
                   ))}
                   {profile.currentTeams.length === 0 && profile.currentEventTeams.length === 0 && (
                     <p className="text-[var(--color-fg-mid)]">暂无当前赛事或队伍</p>
@@ -238,12 +239,12 @@ export async function PlayerPageContent({ params, searchParams }: PlayerPageProp
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div className="min-w-0 space-y-2">
                       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                        <Link
+                        <TeamProfileLink
                           className="font-semibold transition-colors hover:text-[var(--color-accent)]"
-                          href={`/${entry.seasonSlug}/teams/${entry.teamId}`}
+                          seasonSlug={entry.seasonSlug} entryId={entry.teamId}
                         >
                           {entry.seasonName}
-                        </Link>
+                        </TeamProfileLink>
                         <span className="text-sm text-[var(--color-fg-mid)]">{entry.teamName}</span>
                       </div>
                       <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-[var(--color-fg-mid)]">

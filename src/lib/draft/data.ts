@@ -21,6 +21,7 @@ export interface DraftTeamSlot {
   teamName: string;
   draftOrder: number;
   captain: {
+    userId: string | null;
     personaName: string | null;
     avatarUrl: string | null;
     displayName: string | null;
@@ -28,6 +29,7 @@ export interface DraftTeamSlot {
     primaryPosition: string;
   };
   members: {
+    userId: string;
     personaName: string | null;
     avatarUrl: string | null;
     perfectName: string | null;
@@ -76,6 +78,7 @@ export interface DraftLiveState {
 }
 
 export interface DraftCompletedPick {
+  userId: string;
   entryId: string;
   personaName: string | null;
   displayName: string | null;
@@ -218,6 +221,7 @@ async function loadDraftBase(seasonId: string): Promise<DraftBaseData> {
           .select({
             entryId: eventRosters.entryId,
             registrationId: seasonRegistrations.id,
+            userId: users.id,
             personaName: steamProfiles.personaName,
             avatarUrl: steamProfiles.avatarUrl,
             perfectName: users.perfectName,
@@ -239,6 +243,7 @@ async function loadDraftBase(seasonId: string): Promise<DraftBaseData> {
     .select({
       entryId: draftPicks.entryId,
       registrationId: draftPicks.registrationId,
+      userId: users.id,
       round: draftPicks.round,
       pickNumber: draftPicks.pickNumber,
       autoPicked: draftPicks.autoPicked,
@@ -285,6 +290,7 @@ async function loadDraftBase(seasonId: string): Promise<DraftBaseData> {
       .map((member) => {
         const pick = picksByRegistrationId.get(member.registrationId);
         return {
+          userId: member.userId,
           personaName: member.personaName ?? null,
           avatarUrl: member.avatarUrl,
           perfectName: member.perfectName ?? null,
@@ -302,6 +308,7 @@ async function loadDraftBase(seasonId: string): Promise<DraftBaseData> {
       teamName: team.name,
       draftOrder: team.draftOrder,
       captain: {
+        userId: captain?.userId ?? null,
         personaName: captain?.personaName ?? null,
         avatarUrl: captain?.avatarUrl ?? null,
         displayName: captain?.displayName ?? null,
@@ -332,6 +339,7 @@ async function loadDraftBase(seasonId: string): Promise<DraftBaseData> {
     snakeOrder,
     completedPicks: pickRows.map((pick) => ({
       entryId: pick.entryId,
+      userId: pick.userId,
       personaName: pick.personaName ?? null,
       displayName: pick.displayName ?? null,
       perfectName: pick.perfectName ?? null,

@@ -166,6 +166,7 @@ describe("team registration operations presentation", () => {
     expect(screen.getByLabelText("Team One报名状态摘要")).toHaveTextContent("名单1/5–9");
     expect(screen.getByLabelText("Team One报名状态摘要")).toHaveTextContent("资格待处理");
     expect(screen.getByText(/负责人：负责人甲/)).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Team One" })).not.toBeInTheDocument();
     expect(screen.getByText(/完美战队 ID（可选）：perfect-team-1/)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "队员甲" })).toHaveAttribute("href", "/players/user-1");
     expect(screen.getByText("联系")).toBeInTheDocument();

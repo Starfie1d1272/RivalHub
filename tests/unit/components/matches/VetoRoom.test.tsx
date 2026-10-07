@@ -50,8 +50,9 @@ function roomFixture(): VetoRoomView {
         rosterConfirmed: true,
         rosterStatusLabel: "首发已确认",
         lineupBlocker: null,
-        starters: [{ id: "00000000-0000-4000-8000-000000000004", name: "Alpha Player", isVetoRepresentative: true, isViewer: true }],
+        starters: [{ id: "00000000-0000-4000-8000-000000000004", userId: "alpha-player", name: "Alpha Player", isVetoRepresentative: true, isViewer: true }],
         vetoRepresentativeMemberId: "00000000-0000-4000-8000-000000000004",
+        vetoRepresentativeUserId: "alpha-player",
         vetoRepresentativeName: "Alpha Player",
         startRequested: true,
         isViewerEntryRepresentative: false,
@@ -69,8 +70,9 @@ function roomFixture(): VetoRoomView {
         rosterConfirmed: true,
         rosterStatusLabel: "首发已确认",
         lineupBlocker: null,
-        starters: [{ id: "00000000-0000-4000-8000-000000000005", name: "Beta Player", isVetoRepresentative: true, isViewer: false }],
+        starters: [{ id: "00000000-0000-4000-8000-000000000005", userId: "beta-player", name: "Beta Player", isVetoRepresentative: true, isViewer: false }],
         vetoRepresentativeMemberId: "00000000-0000-4000-8000-000000000005",
+        vetoRepresentativeUserId: "beta-player",
         vetoRepresentativeName: "Beta Player",
         startRequested: true,
         isViewerEntryRepresentative: false,
@@ -277,8 +279,8 @@ describe("VetoRoom", () => {
     actionMocks.readVetoRoom.mockResolvedValue(ok(room));
     render(<VetoRoom initialRoom={room} />);
     expect(screen.getByRole("list", { name: "最终地图顺序与起始阵营" })).toHaveTextContent("Map 1 · Ancient");
-    expect(screen.getByText("Alpha · CT")).toBeInTheDocument();
-    expect(screen.getByText("Beta · T")).toBeInTheDocument();
+    expect(screen.getByRole("list", { name: "最终地图顺序与起始阵营" })).toHaveTextContent("Alpha · CT");
+    expect(screen.getByRole("list", { name: "最终地图顺序与起始阵营" })).toHaveTextContent("Beta · T");
     expect(screen.queryByText(/Perfect|建房/)).not.toBeInTheDocument();
     if (role === "admin") {
       expect(screen.getByRole("link", { name: "返回比赛工作台" })).toHaveAttribute("href", `/admin/rivals/matches/${room.match.id}`);
@@ -327,7 +329,7 @@ describe("VetoRoom", () => {
     room.match.statusKey = "cancelled";
     room.match.statusLabel = "已取消";
     room.permissions.canOperateCurrentTurn = false;
-    room.incidents = [{ id: "incident-1", entryName: "Alpha", selected: ["Ancient"], sourceLabel: "超时自动选择", appeal: null, mayAppeal: true }];
+    room.incidents = [{ id: "incident-1", entryId: room.entries[0]!.id, selectedEntities: [{ entryId: null, label: "Ancient" }], entryName: "Alpha", selected: ["Ancient"], sourceLabel: "超时自动选择", appeal: null, mayAppeal: true }];
     actionMocks.readVetoRoom.mockResolvedValue(ok(room));
     render(<VetoRoom initialRoom={room} />);
     expect(screen.getByRole("button", { name: "提交申诉" })).not.toBeVisible();

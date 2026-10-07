@@ -77,6 +77,7 @@ function projectRoster(roster: MatchRosterWithPlayers | undefined): RosterData |
 }
 
 function projectTeamMember(row: {
+  userId: string;
   id: string;
   entryId: string;
   personaName: string | null;
@@ -87,6 +88,7 @@ function projectTeamMember(row: {
 }): TeamMemberData {
   return {
     id: row.id,
+    userId: row.userId,
     entryId: row.entryId,
     personaName: row.personaName ?? null,
     displayName: row.displayName ?? null,

@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useMemo, useState } from "react";
-import Link from "next/link";
 import { MapPreferenceChips } from "@/components/rivalhub/MapPreferenceChips";
 import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
 import { MetricFamilyTabs } from "@/components/stats/MetricFamilyTabs";
@@ -61,7 +60,7 @@ export function TeamRosterMapContext({
           <div className="mt-4 space-y-4">
             {mapProfile.preferences.map((member) => (
               <div key={member.userId} className="space-y-2">
-                <Link className="text-sm font-medium hover:text-[var(--color-accent)]" href={`/players/${member.userId}`}>{member.name}</Link>
+                <PlayerProfileLink className="text-sm font-medium hover:text-[var(--color-accent)]" userId={member.userId}>{member.name}</PlayerProfileLink>
                 <MapPreferenceChips preferences={member.preferences} minLevel="none" />
               </div>
             ))}

@@ -1,4 +1,5 @@
 "use client";
+import { TeamProfileLink } from "@/components/teams/TeamProfileLink";
 import React, { useState } from "react";
 import Link from "next/link";
 import { TeamLogo } from "@/components/teams/TeamLogo";
@@ -16,7 +17,7 @@ export function OfficialSwissFlow({ data, seasonSlug }: { data: SwissStageReadMo
   const results = swissResultRecords(policy);
   const result = (record: typeof results[number]) => {
     const advanced = record.wins === policy.winThreshold;
-    return <TournamentResult key={`${record.wins}-${record.losses}`} label={advanced ? "Qualified" : "Eliminated"}
+    return <TournamentResult seasonSlug={seasonSlug} key={`${record.wins}-${record.losses}`} label={advanced ? "Qualified" : "Eliminated"}
       record={`${record.wins}–${record.losses}`} tone={advanced ? "advance" : "eliminated"} view={view}
       teams={data.competitionEntries.filter(t => t.wins === record.wins && t.losses === record.losses && t.status === (advanced ? "advanced" : "eliminated"))
         .map(t => ({ id: t.entryId, name: t.teamName, logoUrl: t.logoUrl }))} />;
@@ -44,14 +45,14 @@ export function OfficialSwissFlow({ data, seasonSlug }: { data: SwissStageReadMo
     }} />;
 }
 function OfficialMatch({ match, slug }: { match: StageSwissMatchRow; slug: string }) {
-  return <Link href={`/${slug}/matches/${match.matchId}`} aria-label={`${match.teamAName} 对 ${match.teamBName}`}
+  return <div
     className={`${styles.match} ${styles.compactMatch} block focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]`}>
-    {([{ name: match.teamAName, logo: match.teamALogoUrl, score: match.scoreA, other: match.scoreB },
-      { name: match.teamBName, logo: match.teamBLogoUrl, score: match.scoreB, other: match.scoreA }]).map((team, i) =>
+    {([{ id: match.entryAId, name: match.teamAName, logo: match.teamALogoUrl, score: match.scoreA, other: match.scoreB },
+      { id: match.entryBId, name: match.teamBName, logo: match.teamBLogoUrl, score: match.scoreB, other: match.scoreA }]).map((team, i) =>
       <div key={i} className={styles.teamSide} data-winning={match.status === "finished" && team.score !== null && team.other !== null && team.score > team.other}>
-        <TeamLogo teamName={team.name} logoUrl={team.logo ?? null} className={styles.smallLogo} />
-        <span className={styles.teamName} title={team.name}>{team.name}</span>
-        <strong className={styles.rowScore}>{team.score ?? "—"}</strong>
+        <TeamProfileLink entryId={team.id} seasonSlug={slug} className="flex min-w-0 flex-1 items-center gap-2"><TeamLogo teamName={team.name} logoUrl={team.logo ?? null} className={styles.smallLogo} />
+        <span className={styles.teamName} title={team.name}>{team.name}</span></TeamProfileLink>
+        <Link href={`/${slug}/matches/${match.matchId}`} aria-label={`${match.teamAName} 对 ${match.teamBName}${i === 0 ? "" : " · 比分"}`} className={styles.rowScore}>{team.score ?? "—"}</Link>
       </div>)}
-  </Link>;
+  </div>;
 }

@@ -6,6 +6,7 @@ import type { PredictionBoardData } from "@/lib/predictions/data";
 import type { Pick } from "@/lib/predictions/types";
 import { DEFAULT_RULES } from "@/lib/predictions/rules";
 
+vi.mock("next/navigation", () => ({ useParams: () => ({ seasonSlug: "major" }) }));
 type Contest = PredictionBoardData["contests"][number];
 const teams = Array.from({ length: 16 }, (_, i) => ({
   teamId: `t${i + 1}`,
@@ -65,6 +66,17 @@ function Harness({
 }
 
 describe("independent Pick’Em slots and bracket", () => {
+  it("keeps locked bracket profiles reachable without altering winner state", () => {
+    const change = vi.fn();
+    const { container } = render(<PickEditor data={data} contest={{ ...contest, locked: true }} pick={{ bracket: ["t1"] }} onChange={change} onSave={vi.fn()} onExport={vi.fn()} busy={false}/>);
+    const profile = screen.getAllByRole("link", { name: "查看 队1 队伍资料" })[0]!;
+    profile.addEventListener("click", event => event.preventDefault());
+    fireEvent.click(profile);
+    expect(profile).toHaveAttribute("href", "/major/teams/t1");
+    expect(change).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "八强 1：队1" })).toHaveAttribute("aria-pressed", "true");
+    expect(container.querySelector("button a, a a, a button")).toBeNull();
+  });
   it("clears only the affected playoff descendants, preserving the other semifinal", () => {
     const save = vi.fn();
     render(

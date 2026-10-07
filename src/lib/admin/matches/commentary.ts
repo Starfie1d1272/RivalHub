@@ -6,16 +6,19 @@ import { db, type DB, type TxDb } from "@/db/client";
 import { competitionEntries, matchCommentators, matches, seasonAdminGrants, steamProfiles, users } from "@/db/schema";
 import { requireSeasonAdmin } from "@/lib/auth/session";
 import { getDisplayName } from "@/lib/identity/display-name";
+import { getPublicPlayerIdentityIds } from "@/lib/players/public-identity";
 import { sortAdminMatches } from "./shared";
 
 export interface AdminMatchCommentaryAssignment {
-  commentators: { userId: string; name: string }[];
+  commentators: { userId: string; name: string; playerUserId: string | null }[];
   isMine: boolean;
   canClaim: boolean;
 }
 
 export interface AdminCommentaryMatch {
   id: string;
+  entryAId: string;
+  entryBId: string;
   teamAName: string;
   teamBName: string;
   scheduledAt: Date | null;
@@ -46,6 +49,8 @@ export async function readAdminMatchCommentary(
   const [matchRows, grants] = await Promise.all([
     database.select({
       id: matches.id,
+      entryAId: matches.entryAId,
+      entryBId: matches.entryBId,
       teamAName: teamA.name,
       teamBName: teamB.name,
       status: matches.status,
@@ -71,10 +76,11 @@ export async function readAdminMatchCommentary(
     .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
     .where(inArray(matchCommentators.matchId, matchRows.map((match) => match.id)))
     .orderBy(asc(matchCommentators.userId));
+  const playerIds = await getPublicPlayerIdentityIds(database, commentatorRows.map(row => row.userId));
   const commentatorsByMatch = new Map<string, AdminMatchCommentaryAssignment["commentators"]>();
   for (const row of commentatorRows) {
     const commentators = commentatorsByMatch.get(row.matchId) ?? [];
-    commentators.push({ userId: row.userId, name: getDisplayName(row) });
+    commentators.push({ userId: row.userId, name: getDisplayName(row), playerUserId: playerIds.has(row.userId) ? row.userId : null });
     commentatorsByMatch.set(row.matchId, commentators);
   }
 
@@ -88,7 +94,7 @@ export async function readAdminMatchCommentary(
     const active = match.status === "scheduled" || match.status === "in_progress";
     byMatchId[match.id] = { commentators, isMine, canClaim: isSeasonAdmin && active && !isMine && commentators.length < 2 };
     if ((match.status === "scheduled" || match.status === "in_progress") && match.id !== excludeMatchId) {
-      activeMatches.push({ id: match.id, teamAName: match.teamAName, teamBName: match.teamBName, status: match.status, scheduledAt: match.scheduledAt });
+      activeMatches.push({ id: match.id, entryAId: match.entryAId, entryBId: match.entryBId, teamAName: match.teamAName, teamBName: match.teamBName, status: match.status, scheduledAt: match.scheduledAt });
     }
   }
   const claimable = activeMatches.filter((match) => byMatchId[match.id]!.canClaim);

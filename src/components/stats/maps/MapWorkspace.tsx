@@ -1,8 +1,8 @@
 "use client";
+import { TeamProfileLink } from "@/components/teams/TeamProfileLink";
 import React from "react";
 
 import { useState } from "react";
-import Link from "next/link";
 import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
 import { MetricFamilyTabs } from "@/components/stats/MetricFamilyTabs";
 import { MetricPanel, MetricValue } from "@/components/stats/MetricValue";
@@ -41,7 +41,7 @@ export function MapWorkspace({ detail, seasonSlug, teamLinks }: { detail: Tourna
     teamEntries: row.teamEntityKeys.map((key) => ({ id: key, name: teamNames.get(key) ?? key })),
   }));
   const teamColumns: StatsDataColumn<TeamRow>[] = [
-    { key: "team", label: "Team", render: (row) => <Link href={(teamLinks?.[row.team.entityKey] ?? `/${seasonSlug}/teams/${row.team.entityKey}`) as never} className="font-medium hover:text-[var(--color-accent)]">{row.team.displayName}</Link> },
+    { key: "team", label: "Team", render: (row) => <TeamProfileLink profileHref={teamLinks?.[row.team.entityKey] ?? `/${seasonSlug}/teams/${row.team.entityKey}`} className="font-medium hover:text-[var(--color-accent)]">{row.team.displayName}</TeamProfileLink> },
     { key: "maps", label: "Maps", numeric: true, sortable: true, sortValue: (row) => row.mapCount, render: (row) => row.mapCount },
     { key: "rounds", label: "Rounds", numeric: true, sortable: true, sortValue: (row) => row.rounds, render: (row) => row.rounds },
     { key: "rw", label: "RW%", metric: "roundWin", numeric: true, sortable: true, sortValue: (row) => row.roundWinRate, rankingSample: (row) => row.rounds, render: (row) => <MetricValue metric="roundWin" value={{ wins: row.roundWins, opportunities: row.rounds, rate: row.roundWinRate }} sampleDisplay="hidden" /> },
@@ -52,7 +52,7 @@ export function MapWorkspace({ detail, seasonSlug, teamLinks }: { detail: Tourna
   ];
   const playerColumns: StatsDataColumn<typeof playersWithTeam[number]>[] = [
     { key: "player", label: "Player", render: (row) => <PlayerProfileLink userId={row.player.entityKey} className="font-medium">{row.player.displayName}</PlayerProfileLink> },
-    { key: "team", label: "Team", className: "hidden lg:table-cell", render: (row) => row.teamEntries.length ? <span>{row.teamEntries.map((team, index) => <React.Fragment key={team.id}>{index > 0 ? " / " : null}<Link href={(teamLinks?.[team.id] ?? `/${seasonSlug}/teams/${team.id}`) as never} className="hover:text-[var(--color-accent)]">{team.name}</Link></React.Fragment>)}</span> : "—" },
+    { key: "team", label: "Team", className: "hidden lg:table-cell", render: (row) => row.teamEntries.length ? <span>{row.teamEntries.map((team, index) => <React.Fragment key={team.id}>{index > 0 ? " / " : null}<TeamProfileLink profileHref={teamLinks?.[team.id] ?? `/${seasonSlug}/teams/${team.id}`} className="hover:text-[var(--color-accent)]">{team.name}</TeamProfileLink></React.Fragment>)}</span> : "—" },
     { key: "rounds", label: "Rounds", numeric: true, sortable: true, sortValue: (row) => row.slices.overall.sample.rounds, render: (row) => row.slices.overall.sample.rounds },
     { key: "kpr", label: "KPR", metric: "kpr", numeric: true, sortable: true, sortValue: (row) => row.slices.overall.combat.killsPerRound.rate, rankingSample: (row) => row.slices.overall.sample.rounds, render: (row) => <MetricValue metric="kpr" value={row.slices.overall.combat.killsPerRound} sampleDisplay="hidden" /> },
     { key: "damage", label: "ADR", metric: "damagePerRound", numeric: true, className: "hidden sm:table-cell", sortable: true, sortValue: (row) => row.slices.overall.combat.damagePerRound.rate, rankingSample: (row) => row.slices.overall.sample.rounds, render: (row) => <MetricValue metric="damagePerRound" value={row.slices.overall.combat.damagePerRound} sampleDisplay="hidden" /> },

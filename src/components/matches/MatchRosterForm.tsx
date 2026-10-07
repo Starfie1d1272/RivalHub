@@ -1,5 +1,6 @@
 "use client";
 
+import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
 import React, { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { submitMatchRoster } from "@/actions/matches/roster";
@@ -10,6 +11,7 @@ import { positionLabel } from "@/lib/validators/registration";
 import { getDisplayName } from "@/lib/identity/display-name";
 
 interface TeamMember {
+  userId: string;
   id: string;
   personaName: string | null;
   displayName: string | null;
@@ -135,8 +137,7 @@ export function MatchRosterForm({
         <p className="text-sm font-medium text-[var(--color-fg)]">首发</p>
         <div className="flex flex-wrap gap-2">
           {teamMembers.map((m) => (
-            <button
-              key={m.id}
+            <div key={m.id} className="flex items-center"><button
               type="button"
               onClick={() => toggleStarter(m.id)}
               disabled={rosterLocked || isMatchStarted}
@@ -144,7 +145,7 @@ export function MatchRosterForm({
             >
               <span className="text-sm font-medium">{getDisplayName(m)}</span>
               {m.primaryPosition && <PosChip pos={positionLabel(m.primaryPosition)} />}
-            </button>
+            </button><PlayerProfileLink userId={m.userId} variant="dense" aria-label={`查看 ${getDisplayName(m)} 选手资料`}>↗</PlayerProfileLink></div>
           ))}
         </div>
         <p className="text-sm text-[var(--color-fg-dim)]">
@@ -157,7 +158,7 @@ export function MatchRosterForm({
         <p className="text-xs text-[var(--color-fg-dim)]">从已选首发中指定一人负责 BAN、PICK 和选边。</p>
         <div className="grid grid-cols-1 gap-1 sm:grid-cols-2">
           {teamMembers.filter((member) => selectedStarterIds.includes(member.id)).map((member) => (
-            <label key={member.id} className="flex min-h-10 items-center gap-2 rounded border border-[var(--color-border)] px-3 py-2 text-sm">
+            <div key={member.id} className="flex items-center"><label className="flex min-h-10 items-center gap-2 rounded border border-[var(--color-border)] px-3 py-2 text-sm">
               <input
                 type="radio"
                 name={`veto-representative-${matchId}`}
@@ -166,7 +167,7 @@ export function MatchRosterForm({
                 onChange={() => setVetoRepresentativeId(member.id)}
               />
               <span>{getDisplayName(member)}</span>
-            </label>
+            </label><PlayerProfileLink userId={member.userId} variant="dense" aria-label={`查看 ${getDisplayName(member)} 选手资料`}>↗</PlayerProfileLink></div>
           ))}
         </div>
       </fieldset>
@@ -175,8 +176,7 @@ export function MatchRosterForm({
         <p className="text-sm font-medium text-[var(--color-fg)]">替补</p>
         <div className="flex flex-wrap gap-2">
           {teamMembers.map((m) => (
-            <button
-              key={m.id}
+            <div key={m.id} className="flex items-center"><button
               type="button"
               onClick={() => toggleSubstitute(m.id)}
               disabled={selectedStarterIds.includes(m.id) || rosterLocked || isMatchStarted}
@@ -187,7 +187,7 @@ export function MatchRosterForm({
             >
               <span className="text-sm font-medium">{getDisplayName(m)}</span>
               {m.primaryPosition && <PosChip pos={positionLabel(m.primaryPosition)} />}
-            </button>
+            </button><PlayerProfileLink userId={m.userId} variant="dense" aria-label={`查看 ${getDisplayName(m)} 选手资料`}>↗</PlayerProfileLink></div>
           ))}
         </div>
         <p className="text-sm text-[var(--color-fg-dim)]">

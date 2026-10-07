@@ -1,5 +1,7 @@
 "use client";
 
+import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
+import { TeamProfileLink } from "@/components/teams/TeamProfileLink";
 import React, { useState } from "react";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
 import { PlayerAvatar } from "@/components/players/PlayerAvatar";
@@ -75,7 +77,7 @@ export function TeamDraftGrid({
                 <span className="font-mono text-xs text-[var(--color-fg-dim)] shrink-0 ml-2">
                   {team.members.length}/{totalRounds}
                 </span>
-              </button>
+              </button><TeamProfileLink entryId={team.entryId} variant="dense" className="px-3" aria-label={`查看 ${team.teamName} 队伍资料`}>查看队伍 ↗</TeamProfileLink>
 
               {/* 展开内容 */}
               {isExpanded && (
@@ -83,9 +85,8 @@ export function TeamDraftGrid({
                   {/* 队长行 */}
                   <div className="flex items-center justify-between py-1">
                     <span className="flex min-w-0 items-center gap-2 text-xs text-[var(--color-fg-mid)]">
-                      <PlayerAvatar name={getPublicDisplayName(team.captain)} avatarUrl={team.captain.avatarUrl} size="sm" />
                       <span className="text-[var(--color-fg-dim)]">队长 </span>
-                      {getPublicDisplayName(team.captain)}
+                      {team.captain.userId ? <PlayerProfileLink userId={team.captain.userId} aria-label={getPublicDisplayName(team.captain)} className="inline-flex min-w-0 items-center gap-2"><PlayerAvatar name={getPublicDisplayName(team.captain)} avatarUrl={team.captain.avatarUrl} size="sm" /><span>{getPublicDisplayName(team.captain)}</span></PlayerProfileLink> : <><PlayerAvatar name={getPublicDisplayName(team.captain)} avatarUrl={team.captain.avatarUrl} size="sm" />{getPublicDisplayName(team.captain)}</>}
                     </span>
                     <span className="font-mono text-[10px] text-[var(--color-fg-dim)] uppercase">
                       {positionLabel(team.captain.primaryPosition)}
@@ -98,8 +99,7 @@ export function TeamDraftGrid({
                       className="flex items-center justify-between py-1"
                     >
                       <span className="flex min-w-0 items-center gap-2 text-xs text-[var(--color-fg)]">
-                        <PlayerAvatar name={getPublicDisplayName(m)} avatarUrl={m.avatarUrl} size="sm" />
-                        {getPublicDisplayName(m)}
+                        <PlayerProfileLink userId={m.userId} aria-label={getPublicDisplayName(m)} className="inline-flex min-w-0 items-center gap-2"><PlayerAvatar name={getPublicDisplayName(m)} avatarUrl={m.avatarUrl} size="sm" /><span>{getPublicDisplayName(m)}</span></PlayerProfileLink>
                         {m.autoPicked && (
                           <span className="text-[var(--color-warn)] ml-0.5">⚡</span>
                         )}
@@ -154,7 +154,7 @@ export function TeamDraftGrid({
               {/* 队名 + draft order */}
               <div className="flex items-baseline justify-between mb-2">
                 <h3 className="text-sm font-bold text-[var(--color-fg)] truncate">
-                  {team.teamName}
+                  <TeamProfileLink entryId={team.entryId}>{team.teamName}</TeamProfileLink>
                 </h3>
                 <span className="text-xs text-[var(--color-fg-dim)] tabular">
                   #{team.draftOrder}
@@ -165,8 +165,7 @@ export function TeamDraftGrid({
               <div className="text-xs mb-1">
                 <span className="text-[var(--color-fg-dim)]">队长 </span>
                 <span className="inline-flex items-center gap-2 text-[var(--color-fg)] font-medium">
-                  <PlayerAvatar name={getPublicDisplayName(team.captain)} avatarUrl={team.captain.avatarUrl} size="sm" />
-                  {getPublicDisplayName(team.captain)}
+                  {team.captain.userId ? <PlayerProfileLink userId={team.captain.userId} aria-label={getPublicDisplayName(team.captain)} className="inline-flex min-w-0 items-center gap-2"><PlayerAvatar name={getPublicDisplayName(team.captain)} avatarUrl={team.captain.avatarUrl} size="sm" /><span>{getPublicDisplayName(team.captain)}</span></PlayerProfileLink> : <><PlayerAvatar name={getPublicDisplayName(team.captain)} avatarUrl={team.captain.avatarUrl} size="sm" />{getPublicDisplayName(team.captain)}</>}
                 </span>
                 <span className="text-[var(--color-fg-dim)] ml-1">
                   {positionLabel(team.captain.primaryPosition)}
@@ -180,8 +179,7 @@ export function TeamDraftGrid({
                     R{m.pickRound}P{m.pickNumber}{" "}
                   </span>
                   <span className="inline-flex items-center gap-2 text-[var(--color-fg)]">
-                    <PlayerAvatar name={getPublicDisplayName(m)} avatarUrl={m.avatarUrl} size="sm" />
-                    {getPublicDisplayName(m)}
+                    <PlayerProfileLink userId={m.userId} aria-label={getPublicDisplayName(m)} className="inline-flex min-w-0 items-center gap-2"><PlayerAvatar name={getPublicDisplayName(m)} avatarUrl={m.avatarUrl} size="sm" /><span>{getPublicDisplayName(m)}</span></PlayerProfileLink>
                   </span>
                   <span className="text-[var(--color-fg-dim)] ml-1">
                     {positionLabel(m.primaryPosition)}

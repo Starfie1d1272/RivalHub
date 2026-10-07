@@ -1,5 +1,6 @@
 "use client";
 
+import { TeamProfileLink } from "@/components/teams/TeamProfileLink";
 import { useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -90,7 +91,7 @@ export function BetOperations({ data, slug, pending, query }: {
       {list.groups.map(group => <details key={group.id} className="group border border-[var(--color-border)] bg-[var(--color-panel)]" aria-label={group.title}>
         <summary className="flex cursor-pointer list-none flex-wrap items-center gap-3 p-4 focus-visible:outline focus-visible:outline-[var(--color-accent)] [&::-webkit-details-marker]:hidden">
           {group.match && <div className="flex shrink-0 gap-1"><TeamLogo logoUrl={group.match.logoA} teamName={group.match.a} size="sm" /><TeamLogo logoUrl={group.match.logoB} teamName={group.match.b} size="sm" /></div>}
-          <div className="min-w-0 flex-1 basis-40"><h2 className="text-sm font-semibold">{group.title}</h2><p className="mt-1 text-xs text-[var(--color-fg-dim)]">{group.match ? `${group.match.stage} · ${group.match.format}${group.match.scheduledAt ? ` · ${formatCSTDateTime(group.match.scheduledAt)}` : ""}` : "Main Event"}</p></div>
+          <div className="min-w-0 flex-1 basis-40"><h2 className="text-sm font-semibold">{group.match ? <><TeamProfileLink seasonSlug={slug} entryId={group.match.entryAId} stopPropagation>{group.match.a}</TeamProfileLink> vs <TeamProfileLink seasonSlug={slug} entryId={group.match.entryBId} stopPropagation>{group.match.b}</TeamProfileLink></> : group.title}</h2><p className="mt-1 text-xs text-[var(--color-fg-dim)]">{group.match ? `${group.match.stage} · ${group.match.format}${group.match.scheduledAt ? ` · ${formatCSTDateTime(group.match.scheduledAt)}` : ""}` : "Main Event"}</p></div>
           <div className="flex flex-wrap gap-3 text-xs text-[var(--color-fg-mid)]"><span>{group.markets.length} 个盘口</span>{STATES.map(state => { const count = group.markets.filter(m => m.state === state).length; return count > 0 ? <span key={state}>{betStateLabel[state]} {count}</span> : null; })}<span>奖池 <b className="font-mono">{formatPoints(group.markets.reduce((n, m) => n + BigInt(m.pool), BigInt(0)).toString())}</b></span></div>
           <ChevronDown aria-hidden size={16} className="shrink-0 text-[var(--color-fg-dim)] group-open:rotate-180" />
         </summary>

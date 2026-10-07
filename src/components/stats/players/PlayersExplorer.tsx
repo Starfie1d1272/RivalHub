@@ -1,5 +1,6 @@
 "use client";
 import React from "react";
+import { TeamIdentityLinks } from "../TeamIdentityLinks";
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -37,7 +38,7 @@ function playerLink(id: string | null, name: string) {
     : name;
 }
 
-function DAKColumns(family: Exclude<Family, "overall">, teamNames: ReadonlyMap<string, string>): StatsDataColumn<DAKPlayer>[] {
+function DAKColumns(family: Exclude<Family, "overall">, teamNames: ReadonlyMap<string, string>, links: Record<string, string> | undefined, seasonSlug: string): StatsDataColumn<DAKPlayer>[] {
   const rounds = (row: DAKPlayer) => row.slices.overall.sample.rounds;
   const clutchWinsPerRound = (row: DAKPlayer) => {
     const wins = statsRateNumerator(row.slices.overall.clutch.winRate);
@@ -50,7 +51,7 @@ function DAKColumns(family: Exclude<Family, "overall">, teamNames: ReadonlyMap<s
   };
   const identity: StatsDataColumn<DAKPlayer>[] = [
     { key: "player", label: "Player", identity: true, render: (row) => playerLink(row.player.entityKey, row.player.displayName) },
-    { key: "team", label: "Team", className: "hidden w-48 xl:table-cell", render: (row) => <span className="block truncate" title={playerTeam(row, teamNames)}>{playerTeam(row, teamNames)}</span> },
+    { key: "team", label: "Team", className: "hidden w-48 xl:table-cell", render: (row) => <span className="block truncate" title={playerTeam(row, teamNames)}><TeamIdentityLinks ids={row.teamEntityKeys} names={teamNames} links={links} seasonSlug={seasonSlug}/></span> },
     { key: "maps", label: "Maps", numeric: true, className: "hidden w-16 xl:table-cell", sortable: true, sortValue: (row) => row.mapCount, render: (row) => row.mapCount },
     { key: "rounds", label: "Rounds", numeric: true, className: "w-20", sortable: true, sortValue: rounds, render: rounds },
   ];
@@ -104,7 +105,7 @@ export function PlayersExplorer({ data, query, seasonSlug }: { data: TournamentS
 
   const overallColumns: StatsDataColumn<ScoreboardRow>[] = [
     { key: "player", label: "Player", identity: true, render: (row) => playerLink(row.userId, row.perfectName) },
-    { key: "team", label: "Team", className: "hidden w-48 sm:table-cell", render: (row) => <span className="block truncate" title={row.teamName ?? undefined}>{row.teamName ?? "—"}</span> },
+    { key: "team", label: "Team", className: "hidden w-48 sm:table-cell", render: (row) => <span className="block truncate" title={row.teamName ?? undefined}><TeamIdentityLinks ids={row.teamIds ?? (row.teamId ? [row.teamId] : [])} names={teamNames} links={data.teamLinks} seasonSlug={seasonSlug} fallback={row.teamName}/></span> },
     { key: "maps", label: "Maps", numeric: true, className: "w-[8%]", sortable: true, sortValue: (row) => row.maps, render: (row) => row.maps },
     { key: "rounds", label: "Rounds", numeric: true, className: "hidden w-[9%] sm:table-cell", sortable: true, sortValue: (row) => row.rounds, render: (row) => row.rounds ?? "—" },
     { key: "rating", metric: "rating", numeric: true, sortable: true, sortValue: (row) => row.avgRating, rankingSample: (row) => row.rounds, render: (row) => <MetricValue metric="rating" value={row.avgRating} /> },
@@ -143,7 +144,7 @@ export function PlayersExplorer({ data, query, seasonSlug }: { data: TournamentS
         key={family}
         rows={dakRows}
         rankingBaselineRows={data.performance.players}
-        columns={DAKColumns(family, teamNames)}
+        columns={DAKColumns(family, teamNames, data.teamLinks, seasonSlug)}
         rowKey={(row, index) => `${row.player.entityKey}:detail:${index}`}
         initialSortKey={family === "opening" ? "win" : family === "teamplay" ? "kast" : family === "utility" ? "util" : "clutch"}
         tableClassName="min-w-[960px] table-fixed"

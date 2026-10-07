@@ -1,3 +1,4 @@
+import { betOptionEntity } from "./option-entity";
 import "server-only";
 import { and, eq, asc, desc, sql } from "drizzle-orm";
 import type { TxDb } from "@/db/client";
@@ -24,13 +25,13 @@ export async function betBoard(tx:TxDb,seasonId:string,userId:string|null):Promi
   const allOptions=await tx.select({option:betOptions}).from(betOptions).innerJoin(betMarkets,eq(betMarkets.id,betOptions.marketId)).where(eq(betMarkets.seasonId,seasonId)).orderBy(asc(betOptions.position)).then(rows=>rows.map(r=>r.option));
   const latestSettlements=await tx.selectDistinctOn([betSettlements.marketId],{batch:betSettlements}).from(betSettlements).innerJoin(betMarkets,eq(betMarkets.id,betSettlements.marketId)).where(eq(betMarkets.seasonId,seasonId)).orderBy(asc(betSettlements.marketId),desc(betSettlements.revision)).then(rows=>rows.map(r=>r.batch));
   const myPayouts=account?await tx.select().from(betLedger).where(and(eq(betLedger.accountId,account.id),eq(betLedger.kind,"settlement"))):[];
-  const result:BetBoardDTO={seasonId,enabled:!!program,paused:program?.paused??false,joined:!!account,balance:(balance>BigInt(0)?balance:BigInt(0)).toString(),debt:(balance<BigInt(0)?-balance:BigInt(0)).toString(),profit,rank,leaderboard,records,markets:[],matches:f.official.map(m=>({id:m.id,a:f.entries.find(e=>e.id===m.entryAId)?.name??"队伍",b:f.entries.find(e=>e.id===m.entryBId)?.name??"队伍",logoA:f.entries.find(e=>e.id===m.entryAId)?.logoUrl??null,logoB:f.entries.find(e=>e.id===m.entryBId)?.logoUrl??null,stage:m.qualificationRunId?"PLAY-IN":f.season.stagePlan.find(s=>s.key===m.stage)?.name??"正赛",format:m.format.toUpperCase(),scheduledAt:m.scheduledAt?.toISOString()??null}))};
+  const result:BetBoardDTO={seasonId,enabled:!!program,paused:program?.paused??false,joined:!!account,balance:(balance>BigInt(0)?balance:BigInt(0)).toString(),debt:(balance<BigInt(0)?-balance:BigInt(0)).toString(),profit,rank,leaderboard,records,markets:[],matches:f.official.map(m=>({id:m.id,entryAId:m.entryAId,entryBId:m.entryBId,a:f.entries.find(e=>e.id===m.entryAId)?.name??"队伍",b:f.entries.find(e=>e.id===m.entryBId)?.name??"队伍",logoA:f.entries.find(e=>e.id===m.entryAId)?.logoUrl??null,logoB:f.entries.find(e=>e.id===m.entryBId)?.logoUrl??null,stage:m.qualificationRunId?"PLAY-IN":f.season.stagePlan.find(s=>s.key===m.stage)?.name??"正赛",format:m.format.toUpperCase(),scheduledAt:m.scheduledAt?.toISOString()??null}))};
   for (const market of all) {
     if (market.matchId && market.subject.kind !== "event" && !result.matches.some(m => m.id === market.matchId)) {
       const subject = market.subject;
       const a = f.entries.find(e => e.id === subject.entryIds[0]);
       const b = f.entries.find(e => e.id === subject.entryIds[1]);
-      result.matches.push({id:market.matchId,a:a?.name??"队伍",b:b?.name??"队伍",logoA:a?.logoUrl??null,logoB:b?.logoUrl??null,stage:"已更正比赛",format:subject.format.toUpperCase(),scheduledAt:null});
+      result.matches.push({id:market.matchId,entryAId:subject.entryIds[0],entryBId:subject.entryIds[1],a:a?.name??"队伍",b:b?.name??"队伍",logoA:a?.logoUrl??null,logoB:b?.logoUrl??null,stage:"已更正比赛",format:subject.format.toUpperCase(),scheduledAt:null});
     }
     const latest=latestSettlements.find(s=>s.marketId===market.id);
     const choices=allOptions.filter(o=>o.marketId===market.id);
@@ -41,7 +42,7 @@ export async function betBoard(tx:TxDb,seasonId:string,userId:string|null):Promi
     const payout=latest && invested && account && latest.state!=="pending"?myPayouts.find(row=>row.source===`settlement/${latest.id}`):null;
     const restriction=user && (user.status!=="active" || !user.emailVerifiedAt)?"请先完成邮箱验证":betRosterRestriction(userId, market.subject.entryIds, f.roster);
     const presentation=marketPresentation(market.type,market.line);
-    result.markets.push({id:market.id,matchId:market.matchId,type:market.type,...presentation,context:market.subject.kind==="map"?`图${market.subject.mapOrder} · ${market.subject.mapName.replace(/^de_/,"").replace(/^./,c=>c.toUpperCase())}`:market.subject.kind==="event"?"MAIN EVENT":"",state,pool:total.toString(),participants:counts.find(c=>c.marketId===market.id)?.count??0,canStake:!!account && !!program && !program.paused && state==="open" && !restriction && !["finished","archived"].includes(f.season.status),restriction,options:choices.map(o=>{const amount=BigInt(pool.find(p=>p.marketId===market.id && p.optionId===o.id)?.amount??"0");return {id:o.id,label:o.label,pool:amount.toString(),percent:total?Number(amount*BigInt(10000)/total)/100:0,winner:latest?.winningOptionIds.includes(o.id)??false};}),mine:invested?{optionId:invested.optionId,amount:invested.amount,payout:payout?.amount.toString()??null,profit:payout?.profit.toString()??null}:null});
+    result.markets.push({id:market.id,matchId:market.matchId,type:market.type,...presentation,context:market.subject.kind==="map"?`图${market.subject.mapOrder} · ${market.subject.mapName.replace(/^de_/,"").replace(/^./,c=>c.toUpperCase())}`:market.subject.kind==="event"?"MAIN EVENT":"",state,pool:total.toString(),participants:counts.find(c=>c.marketId===market.id)?.count??0,canStake:!!account && !!program && !program.paused && state==="open" && !restriction && !["finished","archived"].includes(f.season.status),restriction,options:choices.map(o=>{const amount=BigInt(pool.find(p=>p.marketId===market.id && p.optionId===o.id)?.amount??"0");return {id:o.id,label:o.label,entity:betOptionEntity(market.type,market.subject,o.key),pool:amount.toString(),percent:total?Number(amount*BigInt(10000)/total)/100:0,winner:latest?.winningOptionIds.includes(o.id)??false};}),mine:invested?{optionId:invested.optionId,amount:invested.amount,payout:payout?.amount.toString()??null,profit:payout?.profit.toString()??null}:null});
   }
   return result;
 }

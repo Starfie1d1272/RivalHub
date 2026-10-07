@@ -6,12 +6,12 @@ import { DemoDataReviewPanel } from "./DemoDataReviewPanel";
 import type { AdminDemoReviewMap, AdminDemoReviewParticipant } from "@/lib/admin/matches/types";
 
 const mocks = vi.hoisted(() => ({ confirm: vi.fn(), recheckSeason: vi.fn(), recheck: vi.fn(), retire: vi.fn(), reject: vi.fn(), refresh: vi.fn(), success: vi.fn(), error: vi.fn() }));
-vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: mocks.refresh }) }));
+vi.mock("next/navigation", () => ({ useParams: () => ({ seasonSlug: "major" }), useRouter: () => ({ refresh: mocks.refresh }) }));
 vi.mock("sonner", () => ({ toast: { success: mocks.success, error: mocks.error } }));
 vi.mock("@/actions/demo-integration", () => ({ confirmStoredDemoParticipantIdentity: mocks.confirm, recheckSeasonStoredDemoImports: mocks.recheckSeason, recheckStoredDemoImport: mocks.recheck, retireGameplaySteamIdentity: mocks.retire, rejectStoredDemoImport: mocks.reject }));
 
 const participant: AdminDemoReviewParticipant = {
-  observedSteam64: "76561198123456789", demoName: "Demo player", teamName: "Alpha", state: "confirmable",
+  entryId: "entry-a", observedSteam64: "76561198123456789", demoName: "Demo player", teamName: "Alpha", state: "confirmable",
   currentPlayer: null, retirableIdentityId: null, note: null,
   candidates: [{ eventRosterMemberId: "member-a", entryId: "entry-a", name: "选手 A", steam64: "76561198000000001" }],
 };

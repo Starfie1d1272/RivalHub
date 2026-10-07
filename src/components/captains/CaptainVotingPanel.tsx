@@ -1,5 +1,6 @@
 "use client";
 
+import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
 import { useTransition } from "react";
 import { useRoutePolling } from "@/components/use-visible-polling";
 import { RefreshCw, Undo2, Vote } from "lucide-react";
@@ -141,7 +142,7 @@ export function CaptainVotingPanel({
                         #{index + 1}
                       </span>
                       <span className="text-sm font-semibold text-[var(--color-fg)] truncate">
-                        {candidate.displayName}
+                        <PlayerProfileLink userId={candidate.userId}>{candidate.displayName}</PlayerProfileLink>
                       </span>
                       {index < 8 && (
                         <span className="shrink-0 text-[10px] font-mono text-[var(--color-accent)] border border-[var(--color-accent)]/40 rounded-sm px-1">
@@ -205,7 +206,7 @@ export function CaptainVotingPanel({
               {currentVoter ? (
                 <>
                   <div className="rounded-md border border-[var(--color-border)] p-3 text-sm">
-                    <p className="font-medium">{currentVoter.displayName}</p>
+                    <p className="font-medium"><PlayerProfileLink userId={currentVoter.userId}>{currentVoter.displayName}</PlayerProfileLink></p>
                     <p className="mt-0.5 text-[var(--color-fg-mid)]">
                       {positionLabel(currentVoter.primaryPosition)} · Peak {currentVoter.peakRank} · RT {currentVoter.peakRating}
                     </p>
@@ -281,7 +282,7 @@ export function CaptainVotingPanel({
                           <Badge variant={index < 8 ? "default" : "outline"}>
                             #{index + 1}
                           </Badge>
-                          <h3 className="font-semibold">{candidate.displayName}</h3>
+                          <h3 className="font-semibold"><PlayerProfileLink userId={candidate.userId}>{candidate.displayName}</PlayerProfileLink></h3>
                           {index < 8 && (
                             <Badge variant="secondary" className="text-xs">
                               当前前 8

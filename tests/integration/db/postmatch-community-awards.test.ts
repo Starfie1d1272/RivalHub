@@ -71,12 +71,30 @@ describe("postmatch PostgreSQL invariants", () => {
       await expect(db.transaction((tx) => addCommunityAwardEvidenceInTx(tx, { awardId: award.awardId, submitterId: outsider, candidateUserId: outsider, matchId, explanation: "不在赛事范围" }))).rejects.toMatchObject({ code: "VALIDATION_FAILED" });
       await db.transaction((tx) => addCommunityAwardEvidenceInTx(tx, { awardId: award.awardId, submitterId: outsider, candidateUserId: adminA, matchId, explanation: "赛事相关人员的证据", videoUrl: "https://video.example/evidence" }));
       await db.transaction((tx) => resolveCommunityAwardInTx(tx, { awardId: award.awardId, status: "awarded", recipientUserId: adminA, outcomeNote: "确认获奖", actorId: adminB }));
-      const { getPublicCommunityAwardBoardData } = await import("../../../src/lib/community-awards/data");
+      const { getPublicCommunityAwardBoardData, getAdminCommunityAwardBoardData } = await import("../../../src/lib/community-awards/data");
       const { awards: publicAwards } = await getPublicCommunityAwardBoardData(db, { seasonId, currentUserId: null, stagePlan: [] });
       expect(publicAwards.find((item) => item.id === award.awardId)).toMatchObject({ recipientUserId: adminA, recipientName: "解说甲", recipientTarget: null });
+      const adminBoardBefore = await getAdminCommunityAwardBoardData(db, { seasonId, stagePlan: [] });
+      expect(adminBoardBefore.awards.find(item => item.id === award.awardId)).toMatchObject({ recipientTarget: null, submitterPlayerUserId: null, evidence: [expect.objectContaining({ candidatePlayerUserId: null, submitterPlayerUserId: null })] });
+      expect(adminBoardBefore.candidates.find(item => item.id === adminA)?.playerUserId).toBeNull();
       await pool.query("UPDATE event_rosters SET status='confirmed',confirmed_at=now(),confirmed_by='local-test' WHERE id=$1", [eventRosterId]);
       const { awards: confirmedRosterAwards } = await getPublicCommunityAwardBoardData(db, { seasonId, currentUserId: null, stagePlan: [] });
       expect(confirmedRosterAwards.find((item) => item.id === award.awardId)).toMatchObject({ recipientTarget: `/players/${adminA}` });
+      const { getPublicPlayerIdentityIds } = await import("../../../src/lib/players/public-identity");
+      expect(await getPublicPlayerIdentityIds(db, [adminA, adminB, outsider])).toEqual(new Set([adminA]));
+      await pool.query("UPDATE seasons SET status='archived' WHERE id=$1", [seasonId]);
+      expect(await getPublicPlayerIdentityIds(db, [adminA])).toEqual(new Set([adminA]));
+      await pool.query("UPDATE seasons SET status='playing' WHERE id=$1", [seasonId]);
+      for (const field of ["steam64", "perfect_name", "gameplay_style", "competition_history"]) {
+        await pool.query(`UPDATE users SET ${field}=$1 WHERE id=$2`, [field === "steam64" ? "76561198000000001" : "选手自述", adminB]);
+        const board = await getAdminCommunityAwardBoardData(db, { seasonId, stagePlan: [] });
+        expect(board.candidates.find(item => item.id === adminB)?.playerUserId).toBe(adminB);
+        await pool.query(`UPDATE users SET ${field}=NULL WHERE id=$1`, [adminB]);
+      }
+      await pool.query("UPDATE users SET live_stream_url='https://live.example/room',qq='123456',perfect_name='  ' WHERE id=$1", [adminB]);
+      expect(await getPublicPlayerIdentityIds(db, [adminB])).toEqual(new Set());
+      const adminBoardAfter = await getAdminCommunityAwardBoardData(db, { seasonId, stagePlan: [] });
+      expect(adminBoardAfter.awards.find(item => item.id === award.awardId)).toMatchObject({ recipientTarget: `/players/${adminA}`, evidence: [expect.objectContaining({ candidatePlayerUserId: adminA, submitterPlayerUserId: null })] });
       await db.transaction((tx) => resolveCommunityAwardInTx(tx, { awardId: award.awardId, status: "not_awarded", recipientUserId: null, outcomeNote: "更正结果", actorId: adminB }));
 
       const supplementWithdraw = await db.transaction((tx) => submitCommunityAwardInTx(tx, { seasonId, submitterId: outsider, name: "待补充撤回奖", condition: "原条件", prize: "原奖品" }));

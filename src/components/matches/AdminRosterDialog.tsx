@@ -1,5 +1,7 @@
 "use client";
 
+import { TeamProfileLink } from "@/components/teams/TeamProfileLink";
+import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
 import React, { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -24,6 +26,7 @@ import type { MatchRosterStatus } from "@/db/schema";
 // ── Types ───────────────────────────────────────────────────────────────────
 
 interface TeamMember {
+  userId: string;
   id: string;
   personaName: string | null;
   displayName: string | null;
@@ -163,7 +166,7 @@ function RosterTeamSection({
 
   return (
     <div className="space-y-3">
-      <h4 className="font-semibold text-[var(--color-fg)]">{teamName}</h4>
+      <h4 className="font-semibold text-[var(--color-fg)]"><TeamProfileLink entryId={teamId}>{teamName}</TeamProfileLink></h4>
       {existingRoster && (
         <div className="flex items-center gap-2">
           <p className="text-xs text-[var(--color-fg-mid)] flex-1">
@@ -188,7 +191,7 @@ function RosterTeamSection({
           <ol className="space-y-1">
             {pendingLineup.starterIds.map((id, index) => (
               <li key={id} className="text-sm text-[var(--color-fg)]">
-                首发 {index + 1}. {memberMap.get(id) ? getDisplayName(memberMap.get(id)!) : "未知队员"}
+                首发 {index + 1}. {memberMap.get(id) ? <PlayerProfileLink userId={memberMap.get(id)!.userId}>{getDisplayName(memberMap.get(id)!)}</PlayerProfileLink> : "未知队员"}
               </li>
             ))}
           </ol>
@@ -229,8 +232,7 @@ function RosterTeamSection({
                     ? "替补"
                     : null;
               return (
-                <label
-                  key={m.id}
+                <div key={m.id} className="flex items-center gap-1"><label
                   className={`flex items-center gap-2 p-1.5 rounded cursor-pointer transition-colors ${
                     isSelected
                       ? "bg-[var(--color-accent)]/10"
@@ -253,7 +255,7 @@ function RosterTeamSection({
                       {label}
                     </span>
                   )}
-                </label>
+                </label><PlayerProfileLink userId={m.userId} variant="dense" aria-label={`查看 ${getDisplayName(m)} 选手资料`}>↗</PlayerProfileLink></div>
               );
             })}
           </div>
@@ -277,7 +279,7 @@ function RosterTeamSection({
                         {index + 1}
                       </span>
                       <span className="text-sm flex-1 truncate">
-                        {getDisplayName(member)}
+                        <PlayerProfileLink userId={member.userId}>{getDisplayName(member)}</PlayerProfileLink>
                       </span>
                       <span className="text-xs text-[var(--color-fg-mid)]">
                         {member.primaryPosition}
@@ -314,7 +316,7 @@ function RosterTeamSection({
                 const member = memberMap.get(id);
                 if (!member) return null;
                 return (
-                  <label key={id} className="flex min-h-9 items-center gap-2 rounded border border-[var(--color-border)] px-2 py-1.5 text-sm">
+                  <div key={id} className="flex items-center"><label className="flex min-h-9 items-center gap-2 rounded border border-[var(--color-border)] px-2 py-1.5 text-sm">
                     <input
                       type="radio"
                       name={`admin-veto-representative-${teamId}`}
@@ -322,7 +324,7 @@ function RosterTeamSection({
                       onChange={() => setVetoRepresentativeId(id)}
                     />
                     <span>{getDisplayName(member)}</span>
-                  </label>
+                  </label><PlayerProfileLink userId={member.userId} variant="dense" aria-label={`查看 ${getDisplayName(member)} 选手资料`}>↗</PlayerProfileLink></div>
                 );
               })}
               {vetoRepresentativeId !== null && (
@@ -377,7 +379,7 @@ export function AdminRosterDialog({
       <DialogContent size="lg">
         <DialogHeader>
           <DialogTitle>
-            名单管理 · {teamAName} vs {teamBName}
+            名单管理 · <TeamProfileLink entryId={entryAId}>{teamAName}</TeamProfileLink> vs <TeamProfileLink entryId={entryBId}>{teamBName}</TeamProfileLink>
           </DialogTitle>
           <DialogDescription>为双方选择并确认本场 5 名首发选手。</DialogDescription>
         </DialogHeader>

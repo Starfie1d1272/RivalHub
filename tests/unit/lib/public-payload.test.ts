@@ -22,7 +22,7 @@ const PRIVATE_KEYS = [
 describe("public payload serializers", () => {
   it("does not copy private columns into the public captains DTO", () => {
     const source = {
-      id: "registration-1",
+      userId: "public-user", id: "registration-1",
       displayName: null,
       perfectName: "PerfectPlayer",
       personaName: "SteamPlayer",
@@ -42,7 +42,7 @@ describe("public payload serializers", () => {
     const serialized = serializePublicCaptainCandidate(source);
 
     expect(serialized).toEqual({
-      id: "registration-1",
+      userId: "public-user", id: "registration-1",
       displayName: "SteamPlayer",
       primaryPosition: "igl",
       peakRank: "S",
@@ -86,6 +86,7 @@ describe("public payload serializers", () => {
       captains: {
         candidates: [serializePublicCaptainCandidate({
           id: source.registrationId,
+          userId: source.userId,
           displayName: source.displayName,
           perfectName: source.perfectName,
           personaName: source.personaName,

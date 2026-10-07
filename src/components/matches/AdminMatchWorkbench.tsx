@@ -1,3 +1,5 @@
+import { TeamProfileLink } from "@/components/teams/TeamProfileLink";
+import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
 import { OfficialMapStart } from "@/components/bet/OfficialMapStart";
 import { OperatorLiveStatus } from "./OperatorLiveStatus";
 import { OperatorIssuePanel } from "./OperatorIssuePanel";
@@ -36,39 +38,39 @@ import { formatCSTDateTime, toCSTDateTimeInput } from "@/lib/utils/date";
 export type AdminMatchWorkbenchProps = AdminMatchWorkbenchData;
 
 function RosterSummary({
-  teamName,
+  teamName, entryId,
   members,
   roster,
 }: {
-  teamName: string;
+  teamName: string; entryId: string;
   members: AdminMatchWorkbenchData["teamAMembers"];
   roster: AdminMatchWorkbenchData["teamARoster"];
 }) {
   if (!roster) {
     return (
       <div className="rounded border border-[var(--color-border)] p-3 text-sm">
-        <p className="font-medium">{teamName}</p>
+        <p className="font-medium"><TeamProfileLink entryId={entryId}>{teamName}</TeamProfileLink></p>
         <p className="mt-1 text-xs text-[var(--color-warn)]">尚未提交本场首发</p>
       </div>
     );
   }
 
   const memberMap = new Map(members.map((member) => [member.id, member]));
-  const labelMembers = (ids: string[]) => ids.map((id) => {
+  const labelMembers = (ids: string[]) => ids.map((id, index) => {
     const member = memberMap.get(id);
-    return member ? getDisplayName(member) : "未知队员";
-  }).join("、");
+    return <span key={id}>{index > 0 && "、"}{member ? <PlayerProfileLink userId={member.userId}>{getDisplayName(member)}</PlayerProfileLink> : "未知队员"}</span>;
+  });
 
   return (
     <div className="rounded border border-[var(--color-border)] p-3 text-sm">
       <div className="flex items-center justify-between gap-2">
-        <p className="font-medium">{teamName}</p>
+        <p className="font-medium"><TeamProfileLink entryId={entryId}>{teamName}</TeamProfileLink></p>
         <span className="text-xs text-[var(--color-fg-mid)]">
           {roster.status === "confirmed" ? "开赛时已定格" : "有效首发，开赛时自动核验"}
         </span>
       </div>
       <p className="mt-2 text-xs leading-5 text-[var(--color-fg-mid)]">
-        首发：{labelMembers(roster.starters) || "—"}
+        首发：{roster.starters.length ? labelMembers(roster.starters) : "—"}
       </p>
       {roster.substitutes.length > 0 && (
         <p className="text-xs leading-5 text-[var(--color-fg-mid)]">
@@ -139,11 +141,11 @@ export function AdminMatchWorkbench({
       <header className="space-y-3">
         <div className="flex items-center justify-between gap-4 flex-wrap">
           <div className="flex min-w-0 flex-wrap items-center gap-3 break-words">
-            <span className="text-lg font-semibold">{teamAName}</span>
+            <TeamProfileLink seasonSlug={season.slug} entryId={match.entryAId} className="text-lg font-semibold">{teamAName}</TeamProfileLink>
             <span className="text-[var(--color-fg-mid)]">
               {match.status === "finished" ? `${match.scoreA ?? 0} : ${match.scoreB ?? 0}` : "vs"}
             </span>
-            <span className="text-lg font-semibold">{teamBName}</span>
+            <TeamProfileLink seasonSlug={season.slug} entryId={match.entryBId} className="text-lg font-semibold">{teamBName}</TeamProfileLink>
           </div>
           <div className="flex items-center gap-2">
             <StatusPill {...presentMatchFormat(match.format)} />
@@ -241,7 +243,7 @@ export function AdminMatchWorkbench({
         <summary className="cursor-pointer text-sm font-medium">比分更正与系列恢复</summary>
         {finishedMaps.map(map => <div key={`${map.id}:${map.scoreA}:${map.scoreB}`} className="pt-2">
           <p className="mb-2 text-sm">{mapLabel(map.mapName)} · {map.scoreA} : {map.scoreB}</p>
-          <MapScoreCorrectInput matchId={match.id} matchInProgress={match.status === "in_progress"} mapId={map.id} mapName={map.mapName} scoreA={map.scoreA} scoreB={map.scoreB} teamAName={teamAName} teamBName={teamBName} />
+          <MapScoreCorrectInput entryAId={match.entryAId} entryBId={match.entryBId} seasonSlug={season.slug} matchId={match.id} matchInProgress={match.status === "in_progress"} mapId={map.id} mapName={map.mapName} scoreA={map.scoreA} scoreB={map.scoreB} teamAName={teamAName} teamBName={teamBName} />
         </div>)}
       </details>}
 
@@ -293,8 +295,8 @@ export function AdminMatchWorkbench({
             </p>
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
-            <RosterSummary teamName={teamAName} members={teamAMembers} roster={teamARoster} />
-            <RosterSummary teamName={teamBName} members={teamBMembers} roster={teamBRoster} />
+            <RosterSummary entryId={match.entryAId} teamName={teamAName} members={teamAMembers} roster={teamARoster} />
+            <RosterSummary entryId={match.entryBId} teamName={teamBName} members={teamBMembers} roster={teamBRoster} />
           </div>
           {match.status !== "finished" && (
             <AdminRosterDialog
@@ -412,7 +414,7 @@ export function AdminMatchWorkbench({
               <p className="mt-1 text-xs leading-5 text-[var(--color-fg-mid)]">
                 更正整场结果前，请核对影响的后续赛程。
               </p>
-            <ResultCorrectionPanel
+            <ResultCorrectionPanel entryAId={match.entryAId} entryBId={match.entryBId} seasonSlug={season.slug}
               matchId={match.id}
               teamAName={teamAName}
               teamBName={teamBName}

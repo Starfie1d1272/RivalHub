@@ -1,4 +1,6 @@
 import { assertCompetitionMatch } from "@/lib/matches/competition-context";
+import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
+import { getPublicPlayerIdentityIds } from "@/lib/players/public-identity";
 import React, { Suspense } from "react";
 import { MatchBetLink } from "@/components/bet/MatchBetLink";
 import { PreMatchContext } from "@/components/matches/PreMatchContext";
@@ -153,6 +155,9 @@ export default async function MatchDetailPage({ params, searchParams }: MatchDet
     getMatchTimeProposalViews(match.id, userSession?.userId),
   ]);
 
+  const commentatorPlayerIds = await getPublicPlayerIdentityIds(db, commentatorRows.map(row => row.userId));
+  const publicCommentators = commentatorRows.map(row => ({ ...row, playerUserId: commentatorPlayerIds.has(row.userId) ? row.userId : null }));
+
   const registrationPositions = supportsRegistrationPositionDirectory(season.competitionTemplate)
     ? await db.select({ userId: seasonRegistrations.userId, position: seasonRegistrations.primaryPosition })
       .from(seasonRegistrations)
@@ -192,7 +197,7 @@ export default async function MatchDetailPage({ params, searchParams }: MatchDet
   let isCaptainA = false;
   let isCaptainB = false;
   let isSeasonAdmin = false;
-  let captainTeamMembers: { id: string; personaName: string | null; avatarUrl: string | null; displayName: string | null; perfectName: string | null; primaryPosition: string }[] = [];
+  let captainTeamMembers: { userId: string; id: string; personaName: string | null; avatarUrl: string | null; displayName: string | null; perfectName: string | null; primaryPosition: string }[] = [];
 
   if (userSession?.userId) {
     try {
@@ -211,6 +216,7 @@ export default async function MatchDetailPage({ params, searchParams }: MatchDet
         .filter((m) => m.teamId === captainTeamId && m.isCurrent)
         .map((r) => ({
           id: r.id,
+          userId: r.userId,
           personaName: r.personaName ?? null,
           avatarUrl: r.avatarUrl,
           displayName: r.displayName ?? null,
@@ -410,7 +416,7 @@ export default async function MatchDetailPage({ params, searchParams }: MatchDet
           </section>
 
           {match.status !== "scheduled" && (
-            <VetoView
+            <VetoView seasonSlug={seasonSlug}
               matchId={match.id}
               teamAName={teamA?.name ?? "队伍 A"}
               teamBName={teamB?.name ?? "队伍 B"}
@@ -421,13 +427,13 @@ export default async function MatchDetailPage({ params, searchParams }: MatchDet
       </div>}
       {season.competitionTemplate === "major" && <Suspense fallback={null}><MatchBetLink seasonId={season.id} matchId={match.id} slug={seasonSlug} /></Suspense>}
       <MatchLiveProvider matchId={match.id} enabled={afterVeto}>
-      {(afterVeto || isFinished) && maps.length > 0 && <MatchMapSequence
+      {(afterVeto || isFinished) && maps.length > 0 && <MatchMapSequence seasonSlug={seasonSlug}
         maps={maps.map(map => ({ id: map.id, mapOrder: map.mapOrder, mapName: map.mapName, pickedByEntryId: map.pickedByEntryId, scoreA: map.scoreA, scoreB: map.scoreB, completedAt: map.completedAt?.toISOString() ?? null }))}
         currentMapId={publicContext.currentMapId} entryAId={match.entryAId} entryBId={match.entryBId} phase={phase} seriesProgress={isFinished && match.scoreA !== null && match.scoreB !== null ? { scoreA: match.scoreA, scoreB: match.scoreB } : publicContext.seriesProgress}
         teamAName={teamA?.name ?? "队伍 A"} teamBName={teamB?.name ?? "队伍 B"} finished={isFinished}
       />}
-      {(afterVeto || isFinished) && maps.length > 0 && <details className="text-sm" data-testid="match-bp-record"><summary className="cursor-pointer text-[var(--color-fg-mid)]">BP 记录</summary><div className="mt-3"><VetoView matchId={match.id} teamAName={teamA?.name ?? "队伍 A"} teamBName={teamB?.name ?? "队伍 B"} entryAId={match.entryAId} entryBId={match.entryBId} /></div></details>}
-      <MatchLiveViewing status={match.status} commentators={commentatorRows} showEmpty={afterVeto} />
+      {(afterVeto || isFinished) && maps.length > 0 && <details className="text-sm" data-testid="match-bp-record"><summary className="cursor-pointer text-[var(--color-fg-mid)]">BP 记录</summary><div className="mt-3"><VetoView seasonSlug={seasonSlug} matchId={match.id} teamAName={teamA?.name ?? "队伍 A"} teamBName={teamB?.name ?? "队伍 B"} entryAId={match.entryAId} entryBId={match.entryBId} /></div></details>}
+      <MatchLiveViewing status={match.status} commentators={publicCommentators} showEmpty={afterVeto} />
       {afterVeto && <MatchRealtime matchId={match.id} phase={phase} currentMapId={publicContext.currentMapId} lastCompletedMap={publicContext.lastCompletedMap} seriesProgress={publicContext.seriesProgress} />}
 
 
@@ -437,7 +443,7 @@ export default async function MatchDetailPage({ params, searchParams }: MatchDet
           <section className="space-y-3">
             <h2 className="text-lg font-semibold text-[var(--color-fg)]">本场阵容</h2>
             <Panel contentClassName="p-4">
-              <MatchRosterView
+              <MatchRosterView entryAId={match.entryAId} entryBId={match.entryBId}
                 teamAName={teamA?.name ?? "队伍 A"}
                 teamARoster={teamARoster}
                 teamBName={teamB?.name ?? "队伍 B"}
@@ -447,7 +453,7 @@ export default async function MatchDetailPage({ params, searchParams }: MatchDet
           </section>
 
           {mapProfileRows.length > 0 && (
-            <MatchMapProfile
+            <MatchMapProfile entryAId={match.entryAId} entryBId={match.entryBId} seasonSlug={seasonSlug}
               rows={mapProfileRows}
               teamAName={teamA?.name ?? "队伍 A"}
               teamBName={teamB?.name ?? "队伍 B"}
@@ -455,7 +461,7 @@ export default async function MatchDetailPage({ params, searchParams }: MatchDet
           )}
 
           {(recentResultsA.length > 0 || recentResultsB.length > 0) && (
-            <MatchRecentResults
+            <MatchRecentResults entryAId={match.entryAId} entryBId={match.entryBId}
               teamAName={teamA?.name ?? "队伍 A"}
               teamBName={teamB?.name ?? "队伍 B"}
               teamA={recentResultsA}
@@ -465,7 +471,7 @@ export default async function MatchDetailPage({ params, searchParams }: MatchDet
           )}
 
           {h2hMatches.length > 0 && (
-            <MatchHeadToHead
+            <MatchHeadToHead entryAId={match.entryAId} entryBId={match.entryBId}
               teamAName={teamA?.name ?? "队伍 A"}
               teamBName={teamB?.name ?? "队伍 B"}
               teamAWins={h2hWinsA}
@@ -637,7 +643,7 @@ export default async function MatchDetailPage({ params, searchParams }: MatchDet
           <section className="space-y-3">
             <h2 className="text-lg font-semibold text-[var(--color-fg)]">本场阵容</h2>
             <Panel contentClassName="p-4">
-              <MatchRosterView
+              <MatchRosterView entryAId={match.entryAId} entryBId={match.entryBId}
                 teamAName={teamA?.name ?? "队伍 A"}
                 teamARoster={teamARoster}
                 teamBName={teamB?.name ?? "队伍 B"}
@@ -651,7 +657,7 @@ export default async function MatchDetailPage({ params, searchParams }: MatchDet
       {/* 赛后录像与解说 */}
       {isFinished && (commentatorRows.length > 0 || (match.videoUrl && isHttpUrl(match.videoUrl))) && (
         <Panel label="录像与解说" contentClassName="space-y-2 p-4">
-          {commentatorRows.length > 0 && <p className="text-sm">解说：{commentatorRows.map(getPublicDisplayName).join("、")}</p>}
+          {commentatorRows.length > 0 && <p className="text-sm">解说：{publicCommentators.map((person, index) => <React.Fragment key={person.userId}>{index > 0 ? "、" : null}{person.playerUserId ? <PlayerProfileLink userId={person.playerUserId}>{getPublicDisplayName(person)}</PlayerProfileLink> : getPublicDisplayName(person)}</React.Fragment>)}</p>}
           {match.videoUrl && isHttpUrl(match.videoUrl) && (
             <a href={match.videoUrl} target="_blank" rel="noopener noreferrer" className="inline-block text-sm text-[var(--color-accent)] hover:underline">
               观看比赛录像 →

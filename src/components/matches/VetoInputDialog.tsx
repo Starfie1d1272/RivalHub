@@ -1,5 +1,7 @@
 "use client";
 
+import { TeamProfileLink } from "@/components/teams/TeamProfileLink";
+
 import React, { useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -63,7 +65,7 @@ function SideSelect({
   side,
   onSideChange,
 }: {
-  label: string;
+  label: React.ReactNode;
   side: "t" | "ct" | null;
   onSideChange: (side: "t" | "ct" | null) => void;
 }) {
@@ -263,7 +265,7 @@ export function VetoInputDialog({
       <DialogContent size="lg">
         <DialogHeader>
           <DialogTitle className="min-w-0 break-words">
-            BP 选图 · {teamAName} vs {teamBName}（{format.toUpperCase()}）
+            BP 选图 · <TeamProfileLink entryId={entryAId}>{teamAName}</TeamProfileLink> vs <TeamProfileLink entryId={entryBId}>{teamBName}</TeamProfileLink>（{format.toUpperCase()}）
           </DialogTitle>
         </DialogHeader>
 
@@ -327,7 +329,7 @@ export function VetoInputDialog({
                         {format === "bo5" && step.actionType === "decider" ? "刀赛" : ACTION_LABELS[step.actionType]}
                       </span>
 
-                      {/* 执行队伍 */}
+                      {/* 执行队伍与独立资料入口 */}
                       {!(format === "bo5" && step.actionType === "decider") && <div className="flex shrink-0 gap-1">
                         <button
                           type="button"
@@ -340,7 +342,7 @@ export function VetoInputDialog({
                           )}
                         >
                           A
-                        </button>
+                        </button><TeamProfileLink entryId={entryAId} variant="dense" aria-label={`查看 ${teamAName} 队伍资料`}>↗</TeamProfileLink>
                         <button
                           type="button"
                           onClick={() => updateStep(i, { entryId: step.entryId === entryBId ? null : entryBId, side: step.entryId === entryBId ? null : step.side })}
@@ -352,7 +354,7 @@ export function VetoInputDialog({
                           )}
                         >
                           B
-                        </button>
+                        </button><TeamProfileLink entryId={entryBId} variant="dense" aria-label={`查看 ${teamBName} 队伍资料`}>↗</TeamProfileLink>
                       </div>}
                     </div>
 
@@ -378,7 +380,7 @@ export function VetoInputDialog({
                     {/* 选边（pick: 对手选边；decider: 选中队伍选边）*/}
                     {step.actionType === "pick" && step.entryId && (
                       <SideSelect
-                        label={`→ ${teamName(step.entryId === entryAId ? entryBId : entryAId)}选边`}
+                        label={<>→ <TeamProfileLink entryId={step.entryId === entryAId ? entryBId : entryAId}>{teamName(step.entryId === entryAId ? entryBId : entryAId)}</TeamProfileLink>选边</>}
                         side={step.side}
                         onSideChange={(side) => updateStep(i, { side })}
                       />

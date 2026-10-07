@@ -1,6 +1,7 @@
+import { TeamProfileLink } from "@/components/teams/TeamProfileLink";
+import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
 import React from "react";
 import { PlayerAvatar } from "@/components/players/PlayerAvatar";
-import Link from "next/link";
 import { Panel } from "@/components/rivalhub";
 import { DirectoryMetric } from "@/components/players/DirectoryMetric";
 import { formatStat } from "@/lib/stats";
@@ -30,23 +31,24 @@ export function EventPlayerDirectoryRow({
       <div className="grid gap-3 lg:grid-cols-[minmax(0,1.15fr)_auto] lg:items-center">
         <div className="min-w-0 space-y-2">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-            <PlayerAvatar name={player.name} avatarUrl={player.avatarUrl} size="sm" />
-            <Link
-              href={`/players/${player.userId}`}
-              className="truncate text-sm font-semibold text-[var(--color-fg)] hover:text-[var(--color-accent)] transition-colors sm:text-base"
+            <PlayerProfileLink
+              userId={player.userId}
+              aria-label={player.name}
+              className="inline-flex min-w-0 items-center gap-2 text-sm font-semibold text-[var(--color-fg)] hover:text-[var(--color-accent)] transition-colors sm:text-base"
             >
-              {player.name}
-            </Link>
+              <PlayerAvatar name={player.name} avatarUrl={player.avatarUrl} size="sm" />
+              <span className="truncate">{player.name}</span>
+            </PlayerProfileLink>
             <span className="border border-[var(--color-border)] px-1.5 py-0.5 text-[11px] text-[var(--color-fg-mid)]">
               {player.isStarter ? "首发" : "替补"}
             </span>
           </div>
-          <Link
-            href={`/${seasonSlug}/teams/${player.entryId}`}
+          <TeamProfileLink
+            seasonSlug={seasonSlug} entryId={player.entryId}
             className="text-xs text-[var(--color-fg-mid)] hover:text-[var(--color-accent)] transition-colors"
           >
             {player.entryName}
-          </Link>
+          </TeamProfileLink>
         </div>
 
         {player.stats ? (
