@@ -1,3 +1,4 @@
+import { assertCompetitionMatch } from "../../src/lib/matches/competition-context";
 /** Local browser evidence: real captured Mizar output through the production ingest/projection. */
 import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
@@ -13,6 +14,7 @@ if (process.env.RIVALHUB_DB_TARGET !== "local") throw new Error("Local browser e
 const [command, matchId, phase] = process.argv.slice(2);
 const match = await db.query.matches.findFirst({ where: eq(matches.id, matchId) });
 if (!match) throw new Error("Missing local fixture match");
+assertCompetitionMatch(match);
 const source = await db.query.matchLiveSessions.findFirst({ where: and(eq(matchLiveSessions.matchId, matchId), isNull(matchLiveSessions.closedAt)) });
 if (!source) throw new Error("Missing local fixture source");
 const original = JSON.parse(readFileSync("tests/fixtures/contracts/mizar-live-real-derived.json", "utf8")).snapshot;

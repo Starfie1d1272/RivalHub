@@ -138,7 +138,8 @@ test("public match consumes private Broadcast and recovers with canonical layout
     await page.goto(url);
     await expect(live.locator("canvas")).toBeVisible();
     await page.goto(`/${seasonId}/matches`);
-    const listCard = page.locator(`a[href="${url}"]`).filter({ visible: true });
+    const listCard = page.getByRole("article").filter({ has: page.locator(`a[href="${url}"]`) }).filter({ visible: true });
+    await expect(listCard).toHaveCount(1);
     await listCard.scrollIntoViewIfNeeded();
     await expect(listCard.getByText("FURIA", { exact: true })).toBeVisible();
     await expect(listCard.getByText("G2.Esports", { exact: true })).toBeVisible();

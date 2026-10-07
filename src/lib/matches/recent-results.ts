@@ -28,8 +28,8 @@ export function projectRecentMatchResults(
       const scoreFor = isA ? match.scoreA! : match.scoreB!;
       const scoreAgainst = isA ? match.scoreB! : match.scoreA!;
       const playedAt = match.completedAt ?? match.scheduledAt;
-      const opponentName = entryNames.get(opponentId);
-      if (!playedAt || !opponentName) return [];
+      const opponentName = opponentId === null ? undefined : entryNames.get(opponentId);
+      if (!playedAt || !opponentName || opponentId === null) return [];
       return [{ matchId: match.id, opponentId, opponentName, scoreFor, scoreAgainst, won: scoreFor > scoreAgainst, format: match.format, playedAt }];
     });
 }

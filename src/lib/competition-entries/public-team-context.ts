@@ -1,3 +1,4 @@
+import { requireCompetitionFields } from "@/lib/matches/competition-context";
 import "server-only";
 
 import { and, asc, eq, inArray, or } from "drizzle-orm";
@@ -201,7 +202,7 @@ async function loadMatchRows(seasonId: string, entryIds: readonly string[]) {
         scoreB: true,
       },
       orderBy: [asc(matches.completedAt), asc(matches.scheduledAt), asc(matches.id)],
-    });
+    }).then(rows => rows.map(requireCompetitionFields));
 }
 
 /** Load match rows for one or more public entries and present them per entry. */

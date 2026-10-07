@@ -8,7 +8,9 @@ import {
   sortAdminMatches,
 } from "@/lib/admin/matches/shared";
 import type { AdminMatchMapRecord } from "@/lib/admin/matches/types";
-import type { Match } from "@/db/schema";
+import type { Match as DbMatch } from "@/db/schema";
+import type { CompetitionMatch } from "@/lib/matches/competition-context";
+type Match = CompetitionMatch<DbMatch>;
 import type { StagePlan } from "@/types/season";
 
 function match(overrides: Partial<Match> = {}): Match {
@@ -37,6 +39,8 @@ function match(overrides: Partial<Match> = {}): Match {
     completedAt: null,
     videoUrl: "https://video.example/detail-only",
     mvpWinnerUserId: null,
+    executionContext: null,
+    resultDisposition: null,
     createdAt: new Date("2026-09-05T00:00:00.000Z"),
     updatedAt: new Date("2026-09-05T00:00:00.000Z"),
     ...overrides,

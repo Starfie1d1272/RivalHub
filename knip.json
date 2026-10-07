@@ -97,7 +97,9 @@
     "src/components/stats/players/PlayerWorkspace.tsx!",
     "src/components/stats/teams/TeamWorkspace.tsx!",
     "scripts/prepare-radar-assets.mjs!",
-    "scripts/db/public-live-browser-fixture.ts!"
+    "scripts/db/public-live-browser-fixture.ts!",
+    "src/lib/matches/creation.ts!",
+    "src/lib/matches/unassociated-result.ts!"
   ],
   "project": [
     "src/**/*.{js,mjs,cjs,jsx,ts,tsx,mts,cts}!",

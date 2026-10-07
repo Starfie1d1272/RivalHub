@@ -1,3 +1,4 @@
+import { requireCompetitionFields } from "./competition-context";
 import "server-only";
 
 import { and, asc, eq } from "drizzle-orm";
@@ -50,6 +51,6 @@ export async function loadQualificationSwissStageReadModel(seasonId: string) {
   return buildQualificationSwissReadModel({
     directEntryCount: run.directEntryCount,
     entrants,
-    matches: linkedMatches,
+    matches: linkedMatches.map(requireCompetitionFields),
   });
 }

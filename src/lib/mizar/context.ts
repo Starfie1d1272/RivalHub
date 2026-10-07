@@ -1,3 +1,4 @@
+import { assertCompetitionMatch } from "@/lib/matches/competition-context";
 import "server-only";
 import { createHash } from "node:crypto";
 import { and, eq, asc, gte, lte, isNull, or } from "drizzle-orm";
@@ -31,10 +32,19 @@ function matchContext(match: typeof matches.$inferSelect, season: Awaited<Return
   };
 }
 
+async function loadExecutionFactsInTx(tx: TxDb, matchId: string) {
+  const maps = await tx.select({ mapId: matchMaps.id, mapOrder: matchMaps.mapOrder, mapName: matchMaps.mapName, pickedByEntryId: matchMaps.pickedByEntryId, teamAStartSide: matchMaps.teamAStartSide, scoreA: matchMaps.scoreA, scoreB: matchMaps.scoreB, completedAt: matchMaps.completedAt }).from(matchMaps).where(eq(matchMaps.matchId, matchId)).orderBy(asc(matchMaps.mapOrder));
+  const veto = await tx.select({ stepOrder: matchVetoSteps.stepOrder, actionType: matchVetoSteps.actionType, mapName: matchVetoSteps.mapName, entryId: matchVetoSteps.entryId, side: matchVetoSteps.side }).from(matchVetoSteps).where(eq(matchVetoSteps.matchId, matchId)).orderBy(asc(matchVetoSteps.stepOrder));
+  const commentatorRows = await tx.select({ userId: users.id, displayName: users.displayName, perfectName: users.perfectName, personaName: steamProfiles.personaName, avatarUrl: steamProfiles.avatarUrl, liveStreamUrl: users.liveStreamUrl }).from(matchCommentators).innerJoin(users, eq(users.id, matchCommentators.userId)).leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64)).where(eq(matchCommentators.matchId, matchId)).orderBy(asc(users.id));
+  return { maps: maps.map(map => ({ ...map, completedAt: iso(map.completedAt) })), veto,
+    commentators: commentatorRows.map(row => ({ userId: row.userId, displayName: getPublicDisplayName(row), avatarUrl: row.avatarUrl, liveStreamUrl: row.liveStreamUrl })) };
+}
+
 /** Explicit provider DTO, independent of React/admin/internal persistence shape. */
 export async function loadMizarMatchDocumentInTx(tx: TxDb, matchId: string, competitionId: string) {
   const [match] = await tx.select().from(matches).where(and(eq(matches.id, matchId), eq(matches.seasonId, competitionId)));
   if (!match) throw new AppError(ErrorCode.NOT_FOUND, "比赛不存在。");
+  assertCompetitionMatch(match);
   const season = await loadCompetitionInTx(tx, competitionId);
   const players = await loadEffectiveMatchRoster(tx, [match.id], true);
   const entrant = async (entryId: string) => {
@@ -50,14 +60,11 @@ export async function loadMizarMatchDocumentInTx(tx: TxDb, matchId: string, comp
   };
   const a = await entrant(match.entryAId);
   const b = await entrant(match.entryBId);
-  const maps = await tx.select({ mapId: matchMaps.id, mapOrder: matchMaps.mapOrder, mapName: matchMaps.mapName, pickedByEntryId: matchMaps.pickedByEntryId, teamAStartSide: matchMaps.teamAStartSide, scoreA: matchMaps.scoreA, scoreB: matchMaps.scoreB, completedAt: matchMaps.completedAt }).from(matchMaps).where(eq(matchMaps.matchId, match.id)).orderBy(asc(matchMaps.mapOrder));
-  const veto = await tx.select({ stepOrder: matchVetoSteps.stepOrder, actionType: matchVetoSteps.actionType, mapName: matchVetoSteps.mapName, entryId: matchVetoSteps.entryId, side: matchVetoSteps.side }).from(matchVetoSteps).where(eq(matchVetoSteps.matchId, match.id)).orderBy(asc(matchVetoSteps.stepOrder));
-  const commentatorRows = await tx.select({ userId: users.id, displayName: users.displayName, perfectName: users.perfectName, personaName: steamProfiles.personaName, avatarUrl: steamProfiles.avatarUrl, liveStreamUrl: users.liveStreamUrl }).from(matchCommentators).innerJoin(users, eq(users.id, matchCommentators.userId)).leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64)).where(eq(matchCommentators.matchId, match.id)).orderBy(asc(users.id));
+  const execution = await loadExecutionFactsInTx(tx, match.id);
   const payload = {
     schemaVersion: "rivalhub.broadcast-manifest.v1" as const,
     match: { ...matchContext(match, season), competition: competition(season), mapPool: normalizeRegistrationConfig(season.registrationConfig).mapPool },
-    entrants: { a, b }, maps: maps.map(map => ({ ...map, completedAt: iso(map.completedAt) })), veto,
-    commentators: commentatorRows.map(row => ({ userId: row.userId, displayName: getPublicDisplayName(row), avatarUrl: row.avatarUrl, liveStreamUrl: row.liveStreamUrl })),
+    entrants: { a, b }, ...execution,
   };
   return { ...payload, revision: documentRevision(payload) };
 }
@@ -72,6 +79,7 @@ export async function loadMizarScheduleWindow(competitionId: string, from: Date,
     if (rows.length > 500) throw new AppError(ErrorCode.VALIDATION_FAILED, "赛程窗口过大，请缩小日期范围。");
     const result = [];
     for (const match of rows) {
+      assertCompetitionMatch(match);
       const entrants = await tx.select({ entryId: competitionEntries.id, name: competitionEntries.name, logoUrl: competitionEntries.logoUrl }).from(competitionEntries).where(or(eq(competitionEntries.id, match.entryAId), eq(competitionEntries.id, match.entryBId)));
       const { stageKey: _stageKey, entryRound: _entryRound, stakesLabel: _stakesLabel, ...context } = matchContext(match, season);
       void _stageKey; void _entryRound; void _stakesLabel;
@@ -80,4 +88,29 @@ export async function loadMizarScheduleWindow(competitionId: string, from: Date,
     const payload = { schemaVersion: "rivalhub.broadcast-schedule-window.v1" as const, competition: competition(season), from: from.toISOString(), to: to.toISOString(), matches: result };
     return { ...payload, revision: documentRevision(payload) };
   }, { isolationLevel: "repeatable read", accessMode: "read only" });
+}
+
+/** Internal provider adapter. A future transport must authorize this exact match before calling. */
+export async function loadUnassociatedMizarDocumentInTx(tx: TxDb, matchId: string) {
+  const [match] = await tx.select().from(matches).where(and(eq(matches.id, matchId), isNull(matches.seasonId)));
+  if (!match?.executionContext) throw new AppError(ErrorCode.NOT_FOUND, "独立比赛不存在。");
+  const execution = await loadExecutionFactsInTx(tx, match.id);
+  const context = match.executionContext;
+  const side = (position: "a" | "b") => ({
+    entryId: `${match.id}:${position}`,
+    ...context.sides[position],
+    roster: { rosterId: null, players: [] },
+  });
+  const payload = {
+    schemaVersion: "rivalhub.broadcast-manifest.v2" as const,
+    match: {
+      matchId: match.id, resultDisposition: match.resultDisposition, competition: null, status: match.status, format: match.format,
+      stage: null, stageKey: null, stageLabel: null, round: null, entryRound: null,
+      scheduledAt: iso(match.scheduledAt), startedAt: iso(match.startedAt), completedAt: iso(match.completedAt),
+      scoreA: match.scoreA, scoreB: match.scoreB, isForfeit: match.isForfeit,
+      mapPool: match.executionContext.mapPool,
+    },
+    entrants: { a: side("a"), b: side("b") }, ...execution,
+  };
+  return { ...payload, revision: documentRevision(payload) };
 }

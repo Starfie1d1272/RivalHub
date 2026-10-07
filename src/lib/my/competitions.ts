@@ -1,3 +1,4 @@
+import { requireCompetitionFields } from "@/lib/matches/competition-context";
 import "server-only";
 
 import { cache } from "react";
@@ -237,7 +238,7 @@ export async function loadMyCompetitionNextMatches(userId: string): Promise<Map<
     ))
     .orderBy(sql`case when ${matches.status} = 'in_progress' then 0 else 1 end`, asc(matches.scheduledAt), asc(matches.id));
 
-  const validMatches = upcoming.flatMap((match) => {
+  const validMatches = upcoming.map(requireCompetitionFields).flatMap((match) => {
     const ownA = entryContexts.get(match.entryAId);
     const ownB = entryContexts.get(match.entryBId);
     if ((ownA && ownB) || (!ownA && !ownB)) return [];

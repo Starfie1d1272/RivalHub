@@ -122,12 +122,16 @@ Rivals 的个人报名仍由 `season_registrations` 表达；投票由 `captain_
 
 ## Match facts
 
-`matches` 是比赛身份、状态和官方系列赛结果；`match_maps` 是实际进行地图及其回合比分。正常 BO1/BO3/BO5 都由 map-level 事实推导系列赛比分；弃赛只记录官方系列赛结果，不制造未进行地图。
+`matches` 拥有独立比赛身份、执行状态、赛制与系列赛结果；赛事关联是可选的组织上下文。赛事比赛保留 `seasonId`、双方 CompetitionEntry 与 stage，按原有赛事政策运行；无赛事比赛使用本场 `executionContext` 的双方名称、标志和地图池，不创建虚假的赛事、参赛报名或选手。关联字段必须完整存在或全部为空，由数据库约束保护；赛事比赛禁止同时携带 executionContext，独立比赛必须拥有该快照。独立比赛未结束时总比分和 resultDisposition 均为空，结束时必须明确 recorded、pending 或 omitted，并保持比分与结论一致；赛事历史行不要求补写独立比赛的结论字段。独立比赛的名称、图池在创建时写入本场快照，当前没有修改该快照的入口；赛事比赛仍沿用赛事配置与 BP 计划的既有权威来源，不用本次重构重解释历史规则。独立转播的 `${match.id}:a/b` 标识在同场内稳定，只是本场方位身份，消费端不得将其当作 CompetitionEntry 外键。
+
+`match_maps` 保存地图计划及实际回合比分。比赛执行核心不以名单、BP 或遥测为启动前提；赛事适配层仍在开赛事务中校验和冻结本届合法阵容。未知实际出场人员保持未知，不从预报名名单或空数据制造十人事实。
+
+执行结束与结果处置分开：无赛事比赛可以记录系列赛结果、待补结果（`pending`），或明确不提交（`omitted`）；后两者比分为空，不能解释为 0:0 或弃赛。首次结束固定 `completedAt`，结果补录或更正只更新 `updatedAt`。结束命令只接受首次结束或相同结论的幂等重试；待补总比分和结束后的实际单图分别通过补录命令进入同一结果约束。总比分可以没有单图，但不能与已知单图胜负、图序或提前结束相冲突。已有结论变化必须提交更正原因和所核对的版本；必要的已有单图修正与结论在一个事务中校验、写入，并审计前后事实。正式赛事仍由既有地图结果或弃赛流程提交结果、推进阶段；通用无结果结束入口拒绝赛事比赛。结果持久化由比赛 owner 负责，资格赛、Major 与淘汰赛推进由赛事适配层负责。
 
 BP、时间协商、实际阵容、玩家统计和赛后资料拥有各自明确事实。每场只能有一个待回应的时间提议；接受、超时、截止自动确认和管理员指定保留不同的排期来源。官方转播时段是独立的可选运营容量事实；排期提议可短暂占用名额，但转播名额不是自由约定比赛时间的前置条件。后台列表、standings、工作台摘要都只是这些事实的 projection，不成为新的结果或 roster owner。
 RivalHub ↔ Mizar 是单向机器接口，不是数据共享。赛事管理员在浏览器授权页为 Mizar 创建赛事级 installation credential；installation 保存授权用户 identity，界面操作者名称读取该用户当前 `display_name`，机器身份只由 installation ID 表达。Mizar 只能经 server-only provider 读取该赛事的 Tournament Context 与赛程窗口，得到的是明确的 provider DTO，而不是 Drizzle 行、后台私有 read model、凭据或内部诊断。`match_live_sessions` 表达单场单活跃数据源与递增 authority revision：换机接管、新 program generation、新 map epoch 或管理员人工接管都会解除当前地图的自动赛果授权，被替换的数据源即使凭据仍然有效也必须 fail closed。Mizar 的可靠事件只是候选；正式地图与系列赛结果仍由 canonical result owner 在事务内写入，`series_ended` 不能在没有正式地图结果时推进系列赛。公开实时画面只经 RivalHub 校验、投射为有硬上限的 public payload 并通过私有 Supabase Realtime Broadcast 投递，不写入 PostgreSQL；观众只持有单场、短寿命、receive-only 的 viewer token。
 
-本场默认首发只来自当前合法 EventRoster 明确标记的五名主力；队伍提交的合法首发覆盖默认值。`participant`、`admin_select` 与 `system_default` 均先作为 `submitted` 的有效名单保留各自来源；开赛 transition 在同一事务内重新校验当前 EventRoster、人数、资格和限制，并将有效名单确认为不可再修改的历史 MatchRoster，不依赖管理员另行确认。临近开赛的管理员调整必须记录真实操作人与事故事实。`matches` 的 `startedAt` 记录实际进入 `in_progress` 的时间，不从排期或 BP 完成时间推断。
+赛事比赛的默认首发只来自当前合法 EventRoster 明确标记的五名主力；队伍提交的合法首发覆盖默认值。`participant`、`admin_select` 与 `system_default` 均先作为 `submitted` 的有效名单保留各自来源；开赛 transition 在同一事务内重新校验当前 EventRoster、人数、资格和限制，并将有效名单确认为不可再修改的历史 MatchRoster，不依赖管理员另行确认。临近开赛的管理员调整必须记录真实操作人与事故事实。`matches` 的 `startedAt` 记录实际进入 `in_progress` 的时间，不从排期或 BP 完成时间推断。
 
 Demo Evidence 的不可变 payload 与 `match_demo_imports` workflow projection 由 Demo integration owner 管理。正常提交和存量 `/3` recheck 共享同一套 server-owned target、Steam identity、正式比分、QA、回合、summary、effective MatchRoster 和 evidence revision 校验；一张地图具备正式比分与完成时间后即可接收该图 Demo，整场系列赛仍可进行；已完成地图的 evidence revision 不因系列赛进入完成、弃权或取消状态而失效。participant payload 中的客户端 identity resolution 不是事实来源。通过校验的 source round facts、`match_player_stats` 与版本化 `match_demo_stat_projections` 由同一晋级 owner 在确认事务内物化，并按 Demo lineage 保留 supersede/content conflict；管理员确认只补足 gameplay identity 后触发同一存量 recheck，不另起一套验证或直接改写 payload。身份关联与已确认 Demo 的归属构成同一并发边界：所有确认/补建和 primary/alias/账号归并写入先取得 identity transaction gate，再持有各自业务行锁；撤销不能遗漏正在提交的确认结果。
 
@@ -224,7 +228,7 @@ Challenge coins are derived Pick’Em achievements, separate from player `tourna
 | affiliation / competitive qualification | `src/lib/qualification/` |
 | Team membership 与赛事 roster 分离 | teams / CompetitionEntry / roster owners |
 | Entry roster change 不静默改写 frozen EventRoster | CompetitionEntry + Major prestart owners |
-| 一场比赛阵容只能消费本届合法 EventRoster | match-roster owner + DB invariant |
+| 赛事比赛阵容只能消费本届合法 EventRoster | match-roster owner + DB invariant |
 | Major runtime 按 frozen StageRun facts 推进 | `src/lib/major/` |
 | official series score 与 map score 语义分离 | match result owner |
 | public business tables 默认 server-only | generated database access matrix + migrations |

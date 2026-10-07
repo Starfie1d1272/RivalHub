@@ -48,7 +48,7 @@ async function getPlayingSeasonNextStep(season: PublicSeason, userId: string) {
     ))
     .orderBy(sql`case when ${matches.status} = 'in_progress' then 0 else 1 end`, asc(matches.scheduledAt), asc(matches.id));
   const match = upcoming[0];
-  if (!match) return null;
+  if (!match || !match.entryAId || !match.entryBId) return null;
 
   const opponentId = entryIds.includes(match.entryAId) ? match.entryBId : match.entryAId;
   const opponent = await db.query.competitionEntries.findFirst({

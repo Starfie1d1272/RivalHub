@@ -1,3 +1,4 @@
+import { assertCompetitionMatch } from "./competition-context";
 import "server-only";
 
 import { writeAuditInTx } from "@/lib/audit/write";
@@ -27,11 +28,12 @@ export interface MatchTimeAutoAwardCronSummary {
 export async function runMatchTimeAutoAwardCron(
   now = new Date(),
 ): Promise<MatchTimeAutoAwardCronSummary> {
-  const dueLineups = await db.select().from(matches).where(and(eq(matches.status, "scheduled"), isNotNull(matches.scheduledAt), lte(matches.scheduledAt, new Date(now.getTime() + 2 * 60 * 60_000))));
+  const dueLineups = await db.select().from(matches).where(and(isNotNull(matches.seasonId), eq(matches.status, "scheduled"), isNotNull(matches.scheduledAt), lte(matches.scheduledAt, new Date(now.getTime() + 2 * 60 * 60_000))));
   for (const match of dueLineups) {
     try {
       await db.transaction(async tx => {
         const [locked] = await tx.select().from(matches).where(eq(matches.id, match.id)).for("update");
+        assertCompetitionMatch(locked);
         await materializeDefaultLineupsInTx(tx, locked, now);
       });
     } catch { /* Unavailable legal lineup remains a visible start blocker. */ }
@@ -137,6 +139,7 @@ async function autoAcceptSingleProposal(
   return db.transaction(async (tx) => {
     const [match] = await tx.select().from(matches).where(eq(matches.id, matchId)).for("update");
     if (!match) return { awarded: false, matchId };
+    assertCompetitionMatch(match);
     if (match.status !== "scheduled" || match.scheduledAt) {
       await tx
         .update(matchTimeProposals)
@@ -184,6 +187,7 @@ async function autoAcceptSingleProposal(
       },
     });
 
+    assertCompetitionMatch(match);
     const season = await tx.query.seasons.findFirst({
       where: eq(seasons.id, match.seasonId),
     });
@@ -199,10 +203,11 @@ async function autoAwardMatchTime(
 ): Promise<{ awarded: true; seasonSlug: string } | { awarded: false }> {
   return db.transaction(async (tx) => {
     const [match] = await tx.select().from(matches).where(eq(matches.id, matchId)).for("update");
-    if (!match || match.status !== "scheduled" || match.scheduledAt || !match.completionDeadline) {
+    if (!match || !match.seasonId || match.status !== "scheduled" || match.scheduledAt || !match.completionDeadline) {
       return { awarded: false };
     }
 
+    assertCompetitionMatch(match);
     const season = await tx.query.seasons.findFirst({
       where: eq(seasons.id, match.seasonId),
     });

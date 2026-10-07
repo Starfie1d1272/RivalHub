@@ -1,3 +1,4 @@
+import { requireCompetitionMatch } from "@/lib/matches/competition-context";
 import { randomUUID } from "node:crypto";
 import { and, eq, isNull } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
@@ -52,7 +53,7 @@ async function operatorContext(fixture: Fixture) {
   const [match] = await db.select().from(schema.matches).where(eq(schema.matches.id, fixture.matchId));
   const maps = await db.select().from(schema.matchMaps).where(eq(schema.matchMaps.matchId, fixture.matchId));
   const roster = await loadEffectiveMatchRoster(db, [fixture.matchId]);
-  return loadOperatorContext({ match: match!, maps, roster, imports: [], seasonName: "Fixture", stageName: null, isSwiss: false, teamAName: "A", teamBName: "B", vetoComplete: true });
+  return loadOperatorContext({ match: requireCompetitionMatch(match!), maps, roster, imports: [], seasonName: "Fixture", stageName: null, isSwiss: false, teamAName: "A", teamBName: "B", vetoComplete: true });
 }
 function manualCommand(fixture: Fixture, order = 1) {
   return { matchId: fixture.matchId, mapOrder: order, mapName: order === 1 ? "de_ancient" : "de_mirage", scoreA: 13, scoreB: 9, actorId: fixture.entryAId, pickedByEntryId: null, teamAStartSide: null };

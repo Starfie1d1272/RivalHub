@@ -1,3 +1,4 @@
+import { isCompetitionMatch } from "@/lib/matches/competition-context";
 import "server-only";
 
 import { and, count, desc, eq, inArray, ne, or } from "drizzle-orm";
@@ -62,7 +63,7 @@ async function loadStatsContext(tx: TxDb, scope: StatsEvidenceScope, options: { 
         scope.format ? eq(matches.format, scope.format) : undefined,
       )) : [];
   const selectedTeamId = options.teamId ?? scope.teamFilter;
-  const baseMatches = matchRows;
+  const baseMatches = matchRows.filter(isCompetitionMatch);
   const scopedMatches = baseMatches.filter((match) => !selectedTeamId || [match.entryAId, match.entryBId].includes(selectedTeamId));
   const matchesById = new Map(scopedMatches.map((match) => [match.id, match]));
   const matchIds = scopedMatches.map((match) => match.id);
@@ -577,7 +578,7 @@ export async function getTournamentPlayerDetail(scope: TournamentStatsScope & { 
 export async function getMatchPlayerDetail(matchId: string, playerId: string, mapName?: string) {
   return db.transaction(async (tx) => {
     const [match] = await tx.select({ seasonId: matches.seasonId }).from(matches).where(eq(matches.id, matchId));
-    if (!match) return null;
+    if (!match || !match.seasonId) return null;
     const detail = await loadTournamentPlayerDetail(tx, { seasonId: match.seasonId, playerId, mapFilter: mapName }, [matchId], { requireCurrentImports: true });
     return detail.performance ? detail : null;
   }, { isolationLevel: "repeatable read", accessMode: "read only" });

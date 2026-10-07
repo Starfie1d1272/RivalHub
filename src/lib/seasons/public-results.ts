@@ -1,3 +1,4 @@
+import { requireCompetitionFields } from "@/lib/matches/competition-context";
 import "server-only";
 import { and, asc, eq } from "drizzle-orm";
 import { db } from "@/db/client";
@@ -12,7 +13,7 @@ import type { PublicSeason } from "@/lib/data/public-seasons";
 
 /** Historical output uses actual completed matches and explicit final/honor facts. */
 export async function getPublicSeasonResults(season: PublicSeason) {
-  const [result, honorRows, entries, matchRows, runs] = await Promise.all([
+  const [result, honorRows, entries, rawMatchRows, runs] = await Promise.all([
     db.query.majorFinalResults.findFirst({ where: eq(majorFinalResults.seasonId, season.id) }),
     db.select({ id: tournamentHonors.id, label: tournamentHonors.label, type: tournamentHonors.type, state: tournamentHonors.state, entryId: tournamentHonors.entryId, userId: tournamentHonors.userId, displayName: users.displayName, perfectName: users.perfectName, personaName: steamProfiles.personaName })
       .from(tournamentHonors).leftJoin(users, eq(users.id, tournamentHonors.userId)).leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64)).where(eq(tournamentHonors.seasonId, season.id)),
@@ -21,6 +22,7 @@ export async function getPublicSeasonResults(season: PublicSeason) {
       .from(matches).where(and(eq(matches.seasonId, season.id), eq(matches.status, "finished"))).orderBy(asc(matches.completedAt)),
     season.competitionTemplate === "major" ? db.select({ id: majorStageRuns.id, stageKey: majorStageRuns.stageKey, ruleSnapshot: majorStageRuns.ruleSnapshot }).from(majorStageRuns).where(eq(majorStageRuns.seasonId, season.id)) : [],
   ]);
+  const matchRows = rawMatchRows.map(requireCompetitionFields);
   const names = new Map(entries.map((entry) => [entry.id, entry.name]));
   const stages = resolvePublicStagePlan(season, runs);
   const lastStage = stages.at(-1);

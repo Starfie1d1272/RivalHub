@@ -248,3 +248,26 @@ describe("preview qualification export/import contract", () => {
     });
   });
 });
+
+
+it("preserves independent match result invariants through a sanitized preview round-trip", async () => {
+  const pool = createLocalPool({ max: 1 });
+  const client = await pool.connect();
+  const id = randomUUID();
+  try {
+    await client.query("BEGIN");
+    const context = { version: 1, sides: { a: { name: "Private A", logoUrl: "https://private.invalid/a" }, b: { name: "Private B", logoUrl: null } }, mapPool: ["de_mirage"], extra: "do not export" };
+    await client.query("INSERT INTO matches (id, execution_context, status, result_disposition) VALUES ($1, $2::jsonb, 'finished', 'omitted')", [id, JSON.stringify(context)]);
+    const projected = (await client.query(exportQuery("matches"))).rows.filter((row) => row.id === id);
+    expect(projected).toHaveLength(1);
+    expect(projected[0]).toMatchObject({ season_id: null, result_disposition: "omitted", score_a: null, score_b: null, execution_context: { version: 1, sides: { a: { name: "Preview A", logoUrl: null }, b: { name: "Preview B", logoUrl: null } }, mapPool: ["de_mirage"] } });
+    expect(projected[0]?.execution_context).not.toHaveProperty("extra");
+    await client.query("DELETE FROM matches WHERE id = $1", [id]);
+    await client.query("INSERT INTO matches SELECT * FROM jsonb_populate_recordset(NULL::matches, $1::jsonb)", [JSON.stringify(projected)]);
+    expect((await client.query("SELECT result_disposition FROM matches WHERE id = $1", [id])).rows).toEqual([{ result_disposition: "omitted" }]);
+  } finally {
+    await client.query("ROLLBACK");
+    client.release();
+    await pool.end();
+  }
+});

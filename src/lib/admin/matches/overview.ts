@@ -1,3 +1,5 @@
+import { requireCompetitionMatch } from "@/lib/matches/competition-context";
+import type { CompetitionMatch } from "@/lib/matches/competition-context";
 import "server-only";
 
 import { asc, desc, eq, inArray } from "drizzle-orm";
@@ -31,10 +33,12 @@ import { loadQualificationSwissStageReadModel } from "@/lib/matches/qualificatio
 import { normalizeStagePlan } from "@/lib/seasons/compatibility";
 import { resolveMajorStagePlan } from "@/lib/major/run-snapshot";
 import { buildMajorRuntimeData } from "@/lib/admin/major-runtime";
-import type { Match } from "@/db/schema";
+import type { Match as DbMatch } from "@/db/schema";
 import type { AdminCommentaryEffectiveness, AdminMatchOverviewData } from "@/lib/admin/matches/types";
 import { buildBatchDeadlineGroups, projectAdminMatchSummary, sortAdminMatches } from "@/lib/admin/matches/shared";
 import { selectCurrentDemoImport } from "@/lib/demo-integration/read";
+
+type Match = CompetitionMatch<DbMatch>;
 
 async function loadDemoNeedsAttentionCounts(matchIds: readonly string[]): Promise<Map<string, number>> {
   if (matchIds.length === 0) return new Map();
@@ -140,7 +144,7 @@ export async function loadAdminMatchOverview({
   await requireSeasonAdmin(season.id);
 
   const isMajor = season.competitionTemplate === "major";
-  const [allTeams, allMatches, stageRunRows, finalResult, qualificationRun] = await Promise.all([
+  const [allTeams, allMatchesRaw, stageRunRows, finalResult, qualificationRun] = await Promise.all([
     db.query.competitionEntries.findMany({
       where: eq(competitionEntries.competitionId, season.id),
       orderBy: [asc(competitionEntries.formationOrder)],
@@ -162,6 +166,7 @@ export async function loadAdminMatchOverview({
       ? db.query.competitionQualificationRuns.findFirst({ where: eq(competitionQualificationRuns.seasonId, season.id) })
       : Promise.resolve(undefined),
   ]);
+  const allMatches = allMatchesRaw.map(requireCompetitionMatch);
 
   const stagePlan = isMajor
     ? resolveMajorStagePlan(normalizeStagePlan(season.stagePlan), stageRunRows)

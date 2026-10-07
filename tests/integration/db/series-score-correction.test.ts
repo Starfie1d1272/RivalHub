@@ -1,3 +1,4 @@
+import { assertCompetitionMatch } from "@/lib/matches/competition-context";
 import { randomUUID } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
@@ -36,8 +37,10 @@ describe("reviewed early series completion PostgreSQL", () => {
   it.each([true, false])("finishes BO3 symmetrically, preserving only actual-map tasks (%s)", async aWins => {
     const f = await fixture(aWins); const input = await confirmation(f.request); await apply(input);
     const match = (await db.query.matches.findFirst({ where: eq(schema.matches.id, f.matchId) }))!;
+    assertCompetitionMatch(match);
     expect(match).toMatchObject({ status: "finished", scoreA: aWins ? 2 : 0, scoreB: aWins ? 0 : 2, completedAt: end });
     expect(match.scoreA! > match.scoreB! ? match.entryAId : match.entryBId).toBe(aWins ? f.entryAId : f.entryBId);
+    assertCompetitionMatch(match);
     const maps = await db.query.matchMaps.findMany({ where: eq(schema.matchMaps.matchId, f.matchId) });
     expect(maps.find(row => row.id === f.mapThreeId)).toMatchObject({ scoreA: null, scoreB: null, completedAt: null });
     const context = await loadOperatorContext({ match, maps, imports: [], roster: await loadEffectiveMatchRoster(db, [match.id]), seasonName: "Fixture", stageName: null, isSwiss: false, teamAName: "A", teamBName: "B", vetoComplete: true });
@@ -84,6 +87,7 @@ describe("reviewed early series completion PostgreSQL", () => {
   it("keeps OCR/raw Evidence, marks stale Demo in canonical reads and excludes its statistics", async () => {
     const f = await fixture();
     const match = (await db.query.matches.findFirst({ where: eq(schema.matches.id, f.matchId) }))!;
+    assertCompetitionMatch(match);
     const maps = await db.query.matchMaps.findMany({ where: eq(schema.matchMaps.matchId, f.matchId) });
     const roster = await loadEffectiveMatchRoster(db, [match.id]);
     const pairingIntentId = randomUUID(), pairingId = randomUUID(), importId = randomUUID();

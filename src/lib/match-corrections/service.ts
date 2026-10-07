@@ -1,3 +1,4 @@
+import { assertCompetitionMatch } from "@/lib/matches/competition-context";
 import { playoffDescendants, type PlayoffManagedKey } from "@/lib/major/playoff-dependencies";
 import { and, eq, ne } from "drizzle-orm";
 import { writeAuditInTx } from "@/lib/audit/write";
@@ -277,6 +278,7 @@ export async function planResultCorrectionInTx(
 ): Promise<ResultCorrectionPlan> {
   const [match] = await tx.select().from(matches).where(eq(matches.id, args.matchId)).for("update");
   if (!match) throw new AppError(ErrorCode.NOT_FOUND, "比赛不存在。");
+  assertCompetitionMatch(match);
   if (match.status !== "finished") {
     throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "只能修正已结束的比赛结果。");
   }
@@ -470,7 +472,7 @@ export async function applyResultCorrectionInTx(
 ): Promise<AppliedResultCorrection> {
   const [source] = await tx.select({ seasonId: matches.seasonId }).from(matches)
     .where(eq(matches.id, args.matchId)).for("update");
-  if (!source) throw new AppError(ErrorCode.NOT_FOUND, "比赛不存在。");
+  if (!source || !source.seasonId) throw new AppError(ErrorCode.NOT_FOUND, "赛事比赛不存在。");
   await assertSeasonAllowsTournamentMutationInTx(tx, source.seasonId);
   const plan = await planResultCorrectionInTx(tx, { matchId: args.matchId, proposal: args.proposal });
 

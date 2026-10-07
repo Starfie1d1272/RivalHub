@@ -1,3 +1,4 @@
+import { assertCompetitionMatch, type CompetitionMatch } from "@/lib/matches/competition-context";
 import "server-only";
 
 import { and, eq, inArray } from "drizzle-orm";
@@ -15,7 +16,7 @@ import type { IntegrationIssue, RivalHubEvidenceSubmission } from "./contracts";
 import { dakSemanticProfileIssueMessage, isCurrentDakSemanticProfile } from "./semantic-profile";
 
 export interface CanonicalTarget {
-  match: typeof matches.$inferSelect;
+  match: CompetitionMatch<typeof matches.$inferSelect>;
   map: typeof matchMaps.$inferSelect;
   roster: EffectiveMatchRosterPlayer[];
 }
@@ -48,6 +49,7 @@ export async function loadCanonicalTarget(
     .where(and(eq(matches.id, target.matchId), eq(matches.seasonId, target.seasonId)))
     .for("update");
   if (!match) throw new AppError(ErrorCode.NOT_FOUND, "目标比赛不存在或不属于该赛季。");
+  assertCompetitionMatch(match);
 
   const [map] = await tx.select().from(matchMaps)
     .where(and(eq(matchMaps.id, target.matchMapId), eq(matchMaps.matchId, match.id)));

@@ -1,3 +1,4 @@
+import { requireCompetitionMatch } from "@/lib/matches/competition-context";
 import { randomUUID } from "node:crypto";
 import { Pool } from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
@@ -161,7 +162,7 @@ export async function createPredictionBrowserFixture(
     if (adminSetup) {
       await db.insert(schema.seasonAdminGrants).values({ userId, seasonId });
     } else {
-      const match = inserted[0]!;
+      const match = requireCompetitionMatch(inserted[0]!);
       const [market] = await db
         .insert(schema.predictionMarkets)
         .values({

@@ -1,3 +1,4 @@
+import { requireCompetitionMatch } from "@/lib/matches/competition-context";
 import "server-only";
 import { createHash } from "node:crypto";
 import { asc, eq } from "drizzle-orm";
@@ -37,11 +38,12 @@ export async function loadQualificationContext(
     .where(eq(competitionQualificationEntrants.runId, run.id))
     .orderBy(asc(competitionQualificationEntrants.preliminarySeed));
   assertRunSnapshot(run, entrants);
-  const official = await tx
+  const rawOfficial = await tx
     .select()
     .from(matches)
     .where(eq(matches.qualificationRunId, run.id))
     .orderBy(asc(matches.round), asc(matches.id));
+  const official = rawOfficial.map(requireCompetitionMatch);
   if (
     official.some(
       (m) =>

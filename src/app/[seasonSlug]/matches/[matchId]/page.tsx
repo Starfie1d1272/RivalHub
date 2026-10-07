@@ -1,3 +1,4 @@
+import { assertCompetitionMatch } from "@/lib/matches/competition-context";
 import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
 import { getPublicPlayerIdentityIds } from "@/lib/players/public-identity";
 import React, { Suspense } from "react";
@@ -82,6 +83,7 @@ export default async function MatchDetailPage({ params, searchParams }: MatchDet
   ]);
   if (!season) notFound();
   if (!match || match.seasonId !== season.id) notFound();
+  assertCompetitionMatch(match);
 
   const mapPool = normalizeRegistrationConfig(season.registrationConfig).mapPool;
 

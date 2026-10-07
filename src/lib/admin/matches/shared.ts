@@ -1,4 +1,5 @@
-import type { Match, MatchMap } from "@/db/schema";
+import type { CompetitionMatch } from "@/lib/matches/competition-context";
+import type { Match as DbMatch, MatchMap } from "@/db/schema";
 import type {
   AdminCompletedMap,
   AdminFinishedMap,
@@ -7,6 +8,8 @@ import type {
   AdminPendingMap,
 } from "@/lib/admin/matches/types";
 import type { StagePlan } from "@/types/season";
+
+type Match = CompetitionMatch<DbMatch>;
 
 const STATUS_SORT_ORDER: Record<string, number> = {
   in_progress: 0,

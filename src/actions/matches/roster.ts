@@ -5,7 +5,7 @@ import { writeAuditInTx } from "@/lib/audit/write";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
-    matchRosterPlayers,
+  matchRosterPlayers,
   matchRosters,
   seasons,
 } from "@/db/schema";
@@ -14,7 +14,6 @@ import { AppError, ErrorCode, ERROR_MESSAGES } from "@/lib/errors";
 import { requireAuth, requireSeasonAdmin, auditActorId } from "@/lib/auth/session";
 import { getMatchOrThrow, actionError } from "@/lib/action-utils";
 import { revalidateMatchPaths } from "@/lib/revalidation";
-import type { Match } from "@/db/schema";
 import {
   assertStartingLineupAllowedInTx,
   confirmMatchRosterInTx,
@@ -23,7 +22,7 @@ import {
 } from "@/lib/match-rosters/service";
 import { getEntryIdForRepresentative } from "./_shared";
 
-async function revalidateAfterRosterChange(match: Pick<Match, "seasonId" | "id">): Promise<void> {
+async function revalidateAfterRosterChange(match: { seasonId: string; id: string }): Promise<void> {
   const season = await db.query.seasons.findFirst({
     where: eq(seasons.id, match.seasonId),
   });

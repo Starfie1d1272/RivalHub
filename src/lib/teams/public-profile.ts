@@ -1,3 +1,4 @@
+import { requireCompetitionFields } from "@/lib/matches/competition-context";
 import "server-only";
 
 import { and, asc, eq, gt, inArray, isNull, ne, or } from "drizzle-orm";
@@ -207,7 +208,7 @@ export async function getPublicTeamProfileCore(
       avatarUrl,
     }));
   const entryIds = entries.map((entry) => entry.id);
-  const played = knownMatches ?? (entryIds.length
+  const rawPlayed = knownMatches ?? (entryIds.length
     ? await db
       .select({ entryAId: matches.entryAId, entryBId: matches.entryBId, scoreA: matches.scoreA, scoreB: matches.scoreB, completedAt: matches.completedAt })
       .from(matches)
@@ -216,6 +217,7 @@ export async function getPublicTeamProfileCore(
         or(inArray(matches.entryAId, entryIds), inArray(matches.entryBId, entryIds)),
       ))
     : []);
+  const played = rawPlayed.map(requireCompetitionFields);
   const completedAtByEntryId = new Map<string, Date>();
   for (const match of played) {
     if (!match.completedAt) continue;

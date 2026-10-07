@@ -46,7 +46,7 @@ export async function getPlatformStatsPage(raw: StatsSearch) {
   const vetoMaps = events.length ? await db.selectDistinct({ name: matchVetoSteps.mapName, seasonId: matches.seasonId }).from(matchVetoSteps)
     .innerJoin(matches, eq(matches.id, matchVetoSteps.matchId)).where(inArray(matches.seasonId, events.map((e) => e.id))) : [];
   maps.push(...vetoMaps);
-  const allowedMaps = [...new Set(maps.filter((m) => ids.includes(m.seasonId)).map((m) => m.name))].sort();
+  const allowedMaps = [...new Set(maps.filter((m) => m.seasonId !== null && ids.includes(m.seasonId)).map((m) => m.name))].sort();
   if ((raw.map && !/^de_[a-z0-9_]+$/.test(raw.map as string)) || (raw.map && query.tab !== "maps")
     || (query.map && !allowedMaps.includes(query.map)) || (query.mapFilter && !allowedMaps.includes(query.mapFilter))
     || (query.map && query.mapFilter && query.map !== query.mapFilter)) throw new AppError(ErrorCode.NOT_FOUND, "地图范围不可用。");

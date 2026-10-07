@@ -1,3 +1,4 @@
+import { requireCompetitionFields } from "@/lib/matches/competition-context";
 import "server-only";
 import { and, eq, inArray, isNotNull, or, ne } from "drizzle-orm";
 import { db } from "@/db/client";
@@ -97,7 +98,7 @@ export async function getPublicTeamMapProfile(
   const maps = matchIds.length
     ? await db.select({ matchId: matchMaps.matchId, mapName: matchMaps.mapName, scoreA: matchMaps.scoreA, scoreB: matchMaps.scoreB }).from(matchMaps).where(and(inArray(matchMaps.matchId, matchIds), isNotNull(matchMaps.completedAt)))
     : [];
-  const preview = knownPreview ?? aggregatePublicTeamMapProfile(ids, played, maps);
+  const preview = knownPreview ?? aggregatePublicTeamMapProfile(ids, played.map(row => requireCompetitionFields(row)), maps);
   return {
     ...preview,
     experience: experienceContext.experience,
@@ -139,5 +140,5 @@ export async function getBatchPublicTeamMapPreviews(
   const maps = matchIds.length > 0
     ? await db.select({ matchId: matchMaps.matchId, mapName: matchMaps.mapName, scoreA: matchMaps.scoreA, scoreB: matchMaps.scoreB }).from(matchMaps).where(and(inArray(matchMaps.matchId, matchIds), isNotNull(matchMaps.completedAt)))
     : [];
-  return aggregatePublicTeamMapPreviews(ids, played, maps);
+  return aggregatePublicTeamMapPreviews(ids, played.map(row => requireCompetitionFields(row)), maps);
 }

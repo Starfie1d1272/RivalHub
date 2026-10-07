@@ -44,7 +44,7 @@ describe("savePlayerStats", () => {
 
   it("fails closed before authorization or writes when the map has not finished", async () => {
     matchMapsFindFirstMock.mockResolvedValue({ id: "map-1", matchId: "match-1", scoreA: 13, scoreB: 9, completedAt: null });
-    matchesFindFirstMock.mockResolvedValue({ id: "match-1", seasonId: "season-1", status: "in_progress" });
+    matchesFindFirstMock.mockResolvedValue({ id: "match-1", seasonId: "season-1", stage: "final", entryAId: "entry-a", entryBId: "entry-b", status: "in_progress" });
 
     const result = await savePlayerStats("map-1", { rows: [] });
 
@@ -70,7 +70,7 @@ describe("operator scoreboard identity boundary", () => {
   it("rejects a well-formed user outside the match roster inside the transaction", async () => {
     const completedAt = new Date("2026-09-29T00:00:00.000Z");
     matchMapsFindFirstMock.mockResolvedValue({ id: "map-1", matchId: "match-1", scoreA: 13, scoreB: 9, completedAt });
-    matchesFindFirstMock.mockResolvedValue({ id: "match-1", seasonId: "season-1", entryAId: "entry-a", entryBId: "entry-b", status: "in_progress" });
+    matchesFindFirstMock.mockResolvedValue({ id: "match-1", seasonId: "season-1", stage: "final", entryAId: "entry-a", entryBId: "entry-b", status: "in_progress" });
     loadScoreboardPlayersMock.mockResolvedValue([]);
     const select = vi.fn()
       .mockReturnValueOnce({ from: () => ({ where: () => ({ for: async () => [{ id: "match-1" }] }) }) })
@@ -87,7 +87,7 @@ describe("operator scoreboard identity boundary", () => {
   it("lets OCR enrich only Rating/RWS/WE on a DAK-owned row", async () => {
     const completedAt = new Date("2026-09-29T00:00:00.000Z");
     matchMapsFindFirstMock.mockResolvedValue({ id: "map-1", matchId: "match-1", scoreA: 13, scoreB: 9, completedAt });
-    matchesFindFirstMock.mockResolvedValue({ id: "match-1", seasonId: "season-1", entryAId: "entry-a", entryBId: "entry-b", status: "in_progress" });
+    matchesFindFirstMock.mockResolvedValue({ id: "match-1", seasonId: "season-1", stage: "final", entryAId: "entry-a", entryBId: "entry-b", status: "in_progress" });
     requireSeasonAdminMock.mockResolvedValue({ userId: "admin", email: "admin@local.test" });
     loadScoreboardPlayersMock.mockResolvedValue([{ userId, perfectName: "Player" }]);
 
@@ -155,7 +155,7 @@ describe("operator scoreboard read boundary", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     matchMapsFindFirstMock.mockResolvedValue({ id: "map-1", matchId: "match-1" });
-    matchesFindFirstMock.mockResolvedValue({ id: "match-1", seasonId: "season-1" });
+    matchesFindFirstMock.mockResolvedValue({ id: "match-1", seasonId: "season-1", stage: "final", entryAId: "entry-a", entryBId: "entry-b" });
     requireSeasonAdminMock.mockResolvedValue({ userId: "admin" });
     loadOperatorScoreboardMock.mockResolvedValue([readRow]);
   });

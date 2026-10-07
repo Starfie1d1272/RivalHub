@@ -5,7 +5,9 @@ import React from "react";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { takeOverMatchMap } from "@/actions/match-operations";
-import type { Match } from "@/db/schema";
+import type { Match as DbMatch } from "@/db/schema";
+import type { CompetitionMatch } from "@/lib/matches/competition-context";
+type Match = CompetitionMatch<DbMatch>;
 import { buildPerfectRoomGuide, projectOperatorWorkflow, type OperatorMap } from "@/lib/admin/matches/operator-workflow";
 
 vi.mock("@/actions/match-operations", () => ({ takeOverMatchMap: vi.fn() }));
@@ -57,6 +59,8 @@ function data(status: Match["status"]) {
     completedAt: status === "finished" ? new Date("2026-09-05T04:00:00Z") : null,
     videoUrl: status === "finished" ? "https://video.example/match" : null,
     mvpWinnerUserId: null,
+    executionContext: null,
+    resultDisposition: null,
     createdAt: new Date("2026-09-05T00:00:00Z"),
     updatedAt: new Date("2026-09-05T00:00:00Z"),
   } satisfies Match;

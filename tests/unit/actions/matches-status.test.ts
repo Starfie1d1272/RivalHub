@@ -43,7 +43,7 @@ describe("updateMatchStatus season finalization", () => {
     vi.clearAllMocks();
     matchFindFirstMock.mockResolvedValue({
       id: "match-1",
-      seasonId: "season-1",
+      seasonId: "season-1", entryAId: "entry-a", entryBId: "entry-b", stage: "final",
       status: "scheduled",
     });
     seasonFindFirstMock.mockResolvedValue({ id: "season-1", slug: "rivals" });

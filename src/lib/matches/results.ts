@@ -1,60 +1,17 @@
 import "server-only";
-import { eq, and, isNull } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import type { TxDb } from "@/db/client";
 import { seasons, matches, matchMaps, matchVetoSessions } from "@/db/schema";
 import { writeAuditInTx } from "@/lib/audit/write";
 import { AppError, ErrorCode } from "@/lib/errors";
-import { lockMatchInTx } from "@/lib/match-rosters/service";
-import { advanceStageBracket, ensureResolvedBracketMatch, loadStageBracketState, saveStageBracketState, type ResolvedBracketMatch } from "@/lib/bracket";
-import { resolveMatchFormat } from "@/lib/match-transitions";
-import { normalizeRegistrationConfig, normalizeStagePlan } from "@/lib/seasons/compatibility";
+import { lockMatchInTx } from "./locking";
+import { normalizeRegistrationConfig } from "@/lib/seasons/compatibility";
 import { getMaxMaps } from "@/types/match";
-import { computeSeriesScoreAfterMap, validateMapScore, validateSeriesScore } from "./result-rules";
-import { maybeFinishSeason } from "@/lib/seasons/transitions";
-import { completeCompetitionQualificationIfReadyInTx } from "@/lib/competition-qualification/runtime";
+import { computeSeriesScoreAfterMap, validateMapScore, validateSeriesAgainstMaps } from "./result-rules";
+import { persistCompletedMatchInTx } from "./completion";
+import { finishCompetitionSeriesInTx } from "./competition-results";
 
-/** Persist provider-resolved nodes through the fail-closed bracket boundary. */
-async function insertResolvedBracketMatches(
-  tx: TxDb,
-  seasonId: string,
-  stageKey: string,
-  resolvedMatches: ResolvedBracketMatch[],
-  stagePlan: ReturnType<typeof normalizeStagePlan>,
-) {
-  for (const resolved of resolvedMatches) {
-    await ensureResolvedBracketMatch(tx, {
-      seasonId,
-      stageKey,
-      resolved,
-      format: resolveMatchFormat(stagePlan, stageKey, resolved.roundNumber, resolved.groupNumber),
-    });
-  }
-}
-
-
-/** Complete a validated series through the same lifecycle/progression owner.
- * Major stages keep their explicit round-finalization gate. */
-export async function finishCanonicalSeriesInTx(tx: TxDb, input: {
-  match: typeof matches.$inferSelect; scoreA: number; scoreB: number;
-  completedAt: Date; preserveMapPlans?: boolean;
-}) {
-  const locked = input.match;
-  validateSeriesScore(locked.format, input.scoreA, input.scoreB);
-  const [lockedSeason] = await tx.select().from(seasons).where(eq(seasons.id, locked.seasonId)).for("update");
-  if (!lockedSeason) throw new AppError(ErrorCode.SEASON_NOT_FOUND, "赛季不存在");
-  const bracketState = locked.bracketNodeId ? await loadStageBracketState(tx, locked.seasonId, locked.stage) : null;
-  if (!input.preserveMapPlans) {
-    await tx.delete(matchMaps).where(and(eq(matchMaps.matchId, locked.id), isNull(matchMaps.scoreA), isNull(matchMaps.scoreB)));
-  }
-  await tx.update(matches).set({ scoreA: input.scoreA, scoreB: input.scoreB, status: "finished", completedAt: input.completedAt, updatedAt: new Date() }).where(eq(matches.id, locked.id));
-  if (locked.qualificationRunId) await completeCompetitionQualificationIfReadyInTx(tx, locked.qualificationRunId);
-  if (bracketState && locked.bracketNodeId) {
-    const { updatedData, newResolvedMatches } = await advanceStageBracket(locked.stage, locked.bracketNodeId, { scoreA: input.scoreA, scoreB: input.scoreB }, bracketState);
-    await saveStageBracketState(tx, locked.seasonId, locked.stage, updatedData);
-    await insertResolvedBracketMatches(tx, locked.seasonId, locked.stage, newResolvedMatches, normalizeStagePlan(lockedSeason.stagePlan));
-  }
-  return maybeFinishSeason(tx, locked.seasonId);
-}
+export { finishCompetitionSeriesInTx as finishCanonicalSeriesInTx } from "./competition-results";
 
 export interface CanonicalMapResultCommand {
   matchId: string; mapOrder: number; mapName: string; scoreA: number; scoreB: number;
@@ -63,20 +20,34 @@ export interface CanonicalMapResultCommand {
 
 /** Shared by manual operator input and validated Mizar reliable candidates. */
 export async function recordCanonicalMapResultInTx(tx: TxDb, command: CanonicalMapResultCommand) {
+  return recordMapResultInTx(tx, command, false);
+}
+
+/** Late evidence for an ended independent match; never reopens execution. */
+export async function supplementUnassociatedMapResultInTx(tx: TxDb, command: CanonicalMapResultCommand) {
+  return recordMapResultInTx(tx, command, true);
+}
+
+async function recordMapResultInTx(tx: TxDb, command: CanonicalMapResultCommand, supplement: boolean) {
   const { matchId, mapOrder, mapName, scoreA, scoreB, pickedByEntryId, teamAStartSide, actorId } = command;
   validateMapScore(scoreA, scoreB);
       let finishedSlug: string | null = null;
       const locked = await lockMatchInTx(tx, matchId);
-      if (locked.status !== "in_progress") throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "比赛状态不允许录入地图结果");
-      const vetoSession = await tx.query.matchVetoSessions.findFirst({
-        where: eq(matchVetoSessions.matchId, matchId),
-        columns: { completedAt: true },
-      });
-      if (!vetoSession?.completedAt) throw new AppError(ErrorCode.VALIDATION_FAILED, "请先完成 BP 地图计划，再录入地图结果");
-      const [lockedSeason] = await tx.select().from(seasons).where(eq(seasons.id, locked.seasonId)).for("update");
-      if (!lockedSeason) throw new AppError(ErrorCode.SEASON_NOT_FOUND, "赛季不存在");
-      const lockedPool = normalizeRegistrationConfig(lockedSeason.registrationConfig).mapPool;
-      if (!lockedPool.includes(mapName)) throw new AppError(ErrorCode.MATCH_MAP_INVALID, "地图不在当前赛季图池中");
+      const lateEvidence = supplement && locked.seasonId === null && locked.status === "finished" && (locked.resultDisposition === "pending" || locked.resultDisposition === "recorded");
+      if (supplement ? !lateEvidence : locked.status !== "in_progress") throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "比赛状态不允许录入地图结果");
+      let lockedPool: readonly string[];
+      if (locked.seasonId !== null) {
+        const vetoSession = await tx.query.matchVetoSessions.findFirst({ where: eq(matchVetoSessions.matchId, matchId), columns: { completedAt: true } });
+        if (!vetoSession?.completedAt) throw new AppError(ErrorCode.VALIDATION_FAILED, "请先完成 BP 地图计划，再录入地图结果");
+        const [season] = await tx.select().from(seasons).where(eq(seasons.id, locked.seasonId)).for("update");
+        if (!season) throw new AppError(ErrorCode.SEASON_NOT_FOUND, "赛季不存在");
+        lockedPool = normalizeRegistrationConfig(season.registrationConfig).mapPool;
+      } else {
+        if (!locked.executionContext) throw new AppError(ErrorCode.VALIDATION_FAILED, "比赛缺少本场规则。");
+        if (pickedByEntryId !== null) throw new AppError(ErrorCode.VALIDATION_FAILED, "独立比赛不能引用赛事参赛队。");
+        lockedPool = locked.executionContext.mapPool;
+      }
+      if (!lockedPool.includes(mapName)) throw new AppError(ErrorCode.MATCH_MAP_INVALID, "地图不在本场图池中");
       const lockedMaxMaps = getMaxMaps(locked.format);
       if (mapOrder < 1 || mapOrder > lockedMaxMaps) throw new AppError(ErrorCode.VALIDATION_FAILED, `${locked.format.toUpperCase()} 图序号须在 1-${lockedMaxMaps} 之间`);
       // 事务内读快照
@@ -96,12 +67,20 @@ export async function recordCanonicalMapResultInTx(tx: TxDb, command: CanonicalM
         throw new AppError(ErrorCode.VALIDATION_FAILED, "地图比分数据不完整，无法继续录入");
       }
       if (existingRow && existingRow.scoreA !== null) {
+        if (lateEvidence && existingRow.scoreA === scoreA && existingRow.scoreB === scoreB && (teamAStartSide === null || teamAStartSide === existingRow.teamAStartSide)) return { seriesFinished: locked.resultDisposition === "recorded", finishedSlug, seasonId: locked.seasonId };
         throw new AppError(ErrorCode.VALIDATION_FAILED, `地图 ${mapName} 已录入比分`);
       }
 
       const seriesScore = computeSeriesScoreAfterMap(locked.format, existingMaps, scoreA, scoreB);
       const { mapWinsA, mapWinsB } = seriesScore;
-      const seriesFinished = seriesScore.seriesFinished;
+      const nextFacts = [...existingMaps.filter(map => map.id !== existingRow?.id), { mapOrder, scoreA, scoreB }];
+      const scoredOrders = nextFacts.filter(map => map.scoreA !== null && map.scoreB !== null).map(map => map.mapOrder).sort((a, b) => a - b);
+      const completePrefix = scoredOrders.every((order, index) => order === index + 1);
+      // A late map can arrive before an earlier map. Unknown games are not zero wins.
+      const seriesFinished = seriesScore.seriesFinished && (locked.seasonId !== null || completePrefix);
+
+      if (locked.seasonId === null && locked.resultDisposition === "recorded" && locked.scoreA !== null && locked.scoreB !== null) validateSeriesAgainstMaps(locked.format, locked.scoreA, locked.scoreB, [...existingMaps.filter(map => map.id !== existingRow?.id), { mapOrder, scoreA, scoreB }]);
+      if (seriesFinished && locked.seasonId === null && locked.resultDisposition !== "recorded") validateSeriesAgainstMaps(locked.format, mapWinsA, mapWinsB, [...existingMaps.filter(map => map.id !== existingRow?.id), { mapOrder, scoreA, scoreB }]);
 
       if (existingRow) {
         // BP 预占行：填入比分（pickedByEntryId / teamAStartSide 保留 BP 记录，除非调用方覆盖）
@@ -127,15 +106,18 @@ export async function recordCanonicalMapResultInTx(tx: TxDb, command: CanonicalM
         });
       }
 
-      if (seriesFinished) {
-        finishedSlug = await finishCanonicalSeriesInTx(tx, { match: locked, scoreA: mapWinsA, scoreB: mapWinsB, completedAt: new Date() });
+      if (seriesFinished && locked.resultDisposition !== "recorded") {
+        const completion = { match: locked, scoreA: mapWinsA, scoreB: mapWinsB, completedAt: new Date() };
+        if (locked.seasonId) finishedSlug = await finishCompetitionSeriesInTx(tx, completion);
+        else await persistCompletedMatchInTx(tx, completion);
       }
 
+      if (lateEvidence) await tx.update(matches).set({ updatedAt: new Date() }).where(eq(matches.id, matchId));
       await writeAuditInTx(tx, {
         seasonId: locked.seasonId,
         action: "match.record_map_result",
         actorId: actorId,
-        targetId: matchId,meta: { mapOrder, mapName, scoreA, scoreB, seriesFinished },
+        targetId: matchId,meta: { operation: supplement ? "supplement_map_result" : "record_map_result", mapOrder, mapName, scoreA, scoreB, seriesFinished, before: { disposition: locked.resultDisposition, scoreA: locked.scoreA, scoreB: locked.scoreB }, after: seriesFinished && locked.resultDisposition !== "recorded" ? { disposition: locked.seasonId === null ? "recorded" : locked.resultDisposition, scoreA: mapWinsA, scoreB: mapWinsB } : { disposition: locked.resultDisposition, scoreA: locked.scoreA, scoreB: locked.scoreB } },
       });
       return { seriesFinished, finishedSlug, seasonId: locked.seasonId };
 }

@@ -1,4 +1,4 @@
-import { pgTable, uuid, integer, text, timestamp, pgEnum, check, boolean, uniqueIndex, index, foreignKey } from "drizzle-orm/pg-core";
+import { pgTable, uuid, integer, text, timestamp, pgEnum, check, boolean, uniqueIndex, index, foreignKey, jsonb } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { majorStageRuns } from "./major-stage";
 import { seasons } from "./seasons";
@@ -18,12 +18,20 @@ export const matchOwnershipEnum = pgEnum("match_ownership", ["manual", "major_st
 
 export const matches = pgTable("matches", {
   id: uuid("id").primaryKey().defaultRandom(),
-  seasonId: uuid("season_id").notNull().references(() => seasons.id),
-  entryAId: uuid("entry_a_id").notNull().references(() => competitionEntries.id),
-  entryBId: uuid("entry_b_id").notNull().references(() => competitionEntries.id),
+  seasonId: uuid("season_id").references(() => seasons.id),
+  entryAId: uuid("entry_a_id").references(() => competitionEntries.id),
+  entryBId: uuid("entry_b_id").references(() => competitionEntries.id),
+
+  /** Self-contained sides and rules for matches with no competition association. */
+  executionContext: jsonb("execution_context").$type<{
+    version: 1;
+    sides: { a: { name: string; logoUrl: string | null }; b: { name: string; logoUrl: string | null } };
+    mapPool: string[];
+  }>(),
+  resultDisposition: text("result_disposition").$type<"pending" | "recorded" | "omitted">(),
 
   // ── 比赛元数据 ────────────────────────────────────────────────────────
-  stage: text("stage").notNull(),                                        // StageConfig.key
+  stage: text("stage"),                                        // StageConfig.key
   round: integer("round"),                                               // swiss round; null for round_robin / elim
   format: matchFormatEnum("format").notNull().default("bo1"),            // bo1 | bo3 | bo5
   entryRound: text("entry_round"),                                       // bracket entry round; null for non-elimination stages
@@ -54,6 +62,9 @@ export const matches = pgTable("matches", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
+  contextShape: check("matches_execution_context_shape", sql`(${t.seasonId} IS NOT NULL AND ${t.entryAId} IS NOT NULL AND ${t.entryBId} IS NOT NULL AND ${t.stage} IS NOT NULL AND ${t.executionContext} IS NULL) OR (${t.seasonId} IS NULL AND ${t.entryAId} IS NULL AND ${t.entryBId} IS NULL AND ${t.stage} IS NULL AND ${t.executionContext} IS NOT NULL AND ${t.majorStageRunId} IS NULL AND ${t.qualificationRunId} IS NULL AND ${t.bracketNodeId} IS NULL)`),
+  resultDispositionShape: check("matches_result_disposition_shape", sql`${t.resultDisposition} IS NULL OR (${t.resultDisposition} IN ('pending', 'recorded', 'omitted') AND ${t.status} = 'finished' AND ((${t.resultDisposition} = 'recorded' AND ${t.scoreA} IS NOT NULL AND ${t.scoreB} IS NOT NULL) OR (${t.resultDisposition} IN ('pending', 'omitted') AND ${t.scoreA} IS NULL AND ${t.scoreB} IS NULL)))`),
+  independentResultShape: check("matches_independent_result_shape", sql`${t.seasonId} IS NOT NULL OR ((${t.status} != 'finished' AND ${t.resultDisposition} IS NULL AND ${t.scoreA} IS NULL AND ${t.scoreB} IS NULL) OR (${t.status} = 'finished' AND ${t.resultDisposition} IS NOT NULL))`),
   // 双方不能是同一支队
   entriesAreDifferent: check("matches_entries_different", sql`${t.entryAId} != ${t.entryBId}`),
   entryASeasonScope: foreignKey({ columns: [t.entryAId, t.seasonId], foreignColumns: [competitionEntries.id, competitionEntries.competitionId], name: "matches_entry_a_season_scope_fk" }),

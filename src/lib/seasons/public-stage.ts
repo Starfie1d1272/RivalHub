@@ -75,6 +75,6 @@ export async function getPublicSeasonStagePresentation(
   return buildPublicStagePresentation(
     season,
     stageRuns,
-    matchStageRows.map((row) => row.stage),
+    matchStageRows.flatMap((row) => row.stage === null ? [] : [row.stage]),
   );
 }

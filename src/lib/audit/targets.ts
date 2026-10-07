@@ -184,13 +184,14 @@ async function resolveMatchLabels(
     id: matches.id,
     entryAId: matches.entryAId,
     entryBId: matches.entryBId,
+    executionContext: matches.executionContext,
   }).from(matches).where(inArray(matches.id, ids));
-  const entryIds = [...new Set(rows.flatMap((row) => [row.entryAId, row.entryBId]))];
+  const entryIds = [...new Set(rows.flatMap((row) => [row.entryAId, row.entryBId]).filter((id): id is string => id !== null))];
   const entryRows = await selectEntries(executor, entryIds);
   const entryNames = new Map(entryRows.map((row) => [row.id, row.name]));
   return new Map(rows.map((row) => [
     row.id,
-    `${entryNames.get(row.entryAId) ?? "未知队伍"} vs ${entryNames.get(row.entryBId) ?? "未知队伍"}`,
+    `${(row.entryAId ? entryNames.get(row.entryAId) : row.executionContext?.sides.a.name) ?? "未知队伍"} vs ${(row.entryBId ? entryNames.get(row.entryBId) : row.executionContext?.sides.b.name) ?? "未知队伍"}`,
   ]));
 }
 

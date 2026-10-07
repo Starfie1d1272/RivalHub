@@ -1,4 +1,5 @@
-import type { CompetitionEntry, Match, MatchMap, MatchRosterStatus, Season } from "@/db/schema";
+import type { CompetitionMatch } from "@/lib/matches/competition-context";
+import type { CompetitionEntry, Match as DbMatch, MatchMap, MatchRosterStatus, Season } from "@/db/schema";
 import type { MajorPlayoffRuntimeData, MajorSwissRuntimeData } from "@/lib/admin/major-runtime";
 import type { TeamStanding } from "@/lib/standings";
 import type { StageConfig, StagePlan } from "@/types/season";
@@ -6,6 +7,8 @@ import type { SwissStageReadModel } from "@/lib/matches/stage-read-model";
 import type { CompetitionQualificationRun } from "@/db/schema";
 import type { OperatorWorkflow, PerfectRoomGuideData } from "./operator-workflow";
 import type { AdminMatchCommentaryData } from "./commentary";
+
+type Match = CompetitionMatch<DbMatch>;
 
 export type OperatorLineupPlayer = { name: string; userId?: string; steam64: string | null; profileUrl: string | null };
 export type OperatorLineupDifference = { missing: OperatorLineupPlayer[]; unexpected: OperatorLineupPlayer[]; duplicated: OperatorLineupPlayer[] };

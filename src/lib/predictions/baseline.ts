@@ -1,3 +1,4 @@
+import { requireCompetitionMatch } from "@/lib/matches/competition-context";
 import "server-only";
 import { createHash } from "node:crypto";
 import { and, eq } from "drizzle-orm";
@@ -104,12 +105,13 @@ export async function loadBaseline(
       eq(majorTournamentEntrants.id, majorStageEntrants.tournamentEntrantId),
     )
     .where(eq(majorStageEntrants.seasonId, seasonId));
-  const official = await db
+  const rawOfficial = await db
     .select()
     .from(matches)
     .where(
       and(eq(matches.seasonId, seasonId), eq(matches.ownership, "major_stage")),
     );
+  const official = rawOfficial.map(requireCompetitionMatch);
   const baseline: Baseline = {
     version: SIMULATION_VERSION,
     seasonId,

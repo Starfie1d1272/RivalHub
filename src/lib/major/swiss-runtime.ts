@@ -1,3 +1,4 @@
+import { assertCompetitionMatch } from "@/lib/matches/competition-context";
 import { syncAutomaticPickEmInTx } from "@/lib/predictions/service";
 import { and, eq } from "drizzle-orm";
 import { writeAuditInTx } from "@/lib/audit/write";
@@ -51,6 +52,7 @@ function pairKey(entryAId: string, entryBId: string): string {
 }
 
 function completedFact(match: typeof matches.$inferSelect): MajorSwissMatchFact {
+  assertCompetitionMatch(match);
   if (match.round === null || match.round < 1 || match.round > 5) {
     throw new AppError(ErrorCode.INTERNAL_ERROR, "托管 Swiss 比赛缺少有效轮次。");
   }
@@ -130,6 +132,7 @@ export async function finalizeMajorSwissRoundInTransaction(
     { format: pairing.format, managedKey: `r${input.expectedRound}-${index + 1}` },
   ]));
   for (const match of currentMatches) {
+    assertCompetitionMatch(match);
     const expected = expectedByKey.get(pairKey(match.entryAId, match.entryBId));
     if (!expected || match.format !== expected.format || match.managedKey !== expected.managedKey) {
       throw new AppError(ErrorCode.VALIDATION_FAILED, `第 ${input.expectedRound} 轮存在不符合当前 Swiss 规则的托管比赛。`);

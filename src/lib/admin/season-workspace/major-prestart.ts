@@ -1,3 +1,4 @@
+import { requireCompetitionFields } from "@/lib/matches/competition-context";
 import "server-only";
 
 import { and, asc, eq, inArray, isNotNull } from "drizzle-orm";
@@ -268,7 +269,7 @@ export async function loadMajorPrestartPageData(season: Season): Promise<MajorPr
     };
 
   const [qualificationDraft] = await db.select().from(competitionQualificationDrafts).where(eq(competitionQualificationDrafts.seasonId, season.id));
-  const [state, entrantRows, rawRosterRows, seedRows, snapshot, stageRunRows, qualificationRun, qualificationEntrants, qualificationMatches, pendingReviews] = await Promise.all([
+  const [state, entrantRows, rawRosterRows, seedRows, snapshot, stageRunRows, qualificationRun, qualificationEntrants, rawQualificationMatches, pendingReviews] = await Promise.all([
     db.query.majorPrestartStates.findFirst({ where: eq(majorPrestartStates.seasonId, season.id) }),
     db.select({
       id: majorTournamentEntrants.id,
@@ -309,6 +310,7 @@ export async function loadMajorPrestartPageData(season: Season): Promise<MajorPr
       inArray(competitionEntries.registrationStatus, ["submitted", "changes_requested", "waitlisted"]),
     )),
   ]);
+  const qualificationMatches = rawQualificationMatches.map(requireCompetitionFields);
 
   const rosterRows: MajorRosterMemberRow[] = rawRosterRows.map(({ displayName, perfectName, personaName, email, ...member }) => ({
     ...member,
