@@ -5,6 +5,15 @@ const eslintConfig = [
   ...nextCoreWebVitals,
   ...nextTypescript,
   {
+    files: ["tests/e2e/**/*.ts"],
+    rules: {
+      "no-restricted-syntax": ["error", {
+        selector: "CallExpression[callee.type='MemberExpression'][callee.property.name='waitForTimeout']",
+        message: "Wait for an observable condition; fixed browser sleeps hide races.",
+      }],
+    },
+  },
+  {
     settings: {
       react: {
         version: "19.2",

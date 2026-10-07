@@ -109,6 +109,15 @@ jobs:
         if: ${{ always() && matrix.project == 'unit-react-jsdom' }}
         run: node scripts/ci/assert-no-flaky.mjs --project unit-react-jsdom
 
+      - name: Preserve machine-readable evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: timing-static-${{ matrix.task }}
+          path: ${{ runner.temp }}/rivalhub-timing-${{ github.job }}.jsonl
+          if-no-files-found: ignore
+          retention-days: 14
+
       - name: Write timing summary
         if: always()
         run: node scripts/ci/timing.mjs summary
@@ -179,6 +188,15 @@ jobs:
         env:
           RIVALHUB_TIMING_TEST_KIND: integration
         run: node scripts/ci/timing.mjs "postgres/integration body" -- pnpm test:integration:pg17
+      - name: Preserve machine-readable evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: timing-${{ github.job }}
+          path: ${{ runner.temp }}/rivalhub-timing-${{ github.job }}.jsonl
+          if-no-files-found: ignore
+          retention-days: 14
+
       - name: Write timing summary
         if: always()
         run: node scripts/ci/timing.mjs summary
@@ -262,6 +280,15 @@ jobs:
           path: .agent-tmp/system-artifacts
           if-no-files-found: ignore
           retention-days: 7
+      - name: Preserve machine-readable evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: timing-${{ github.job }}
+          path: ${{ runner.temp }}/rivalhub-timing-${{ github.job }}.jsonl
+          if-no-files-found: ignore
+          retention-days: 14
+
       - name: Write timing summary
         if: always()
         run: node scripts/ci/timing.mjs summary
@@ -318,6 +345,15 @@ jobs:
         env:
           RUN_STARTED_AT: ${{ needs.plan.outputs.run_started_at }}
         run: node scripts/ci/timing.mjs record --label "FULL wall time" --start-iso "$RUN_STARTED_AT"
+      - name: Preserve machine-readable evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: timing-${{ github.job }}
+          path: ${{ runner.temp }}/rivalhub-timing-${{ github.job }}.jsonl
+          if-no-files-found: ignore
+          retention-days: 14
+
       - name: Write timing summary
         if: always()
         run: node scripts/ci/timing.mjs summary

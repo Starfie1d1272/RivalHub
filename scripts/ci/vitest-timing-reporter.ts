@@ -13,6 +13,8 @@ export type ProjectRecord = {
   project: string;
   files: number;
   tests: number;
+  passed: number;
+  skipped: number;
   failed: number;
   flaky: number;
   flakyTests: FlakyTestRecord[];
@@ -50,6 +52,8 @@ export function projectRecordFor(project: string, modules: ReadonlyArray<TestMod
     project,
     files: modules.length,
     tests: tests.length,
+    passed: tests.filter(test => test.result().state === "passed").length,
+    skipped: tests.filter(test => test.result().state === "skipped").length,
     failed: tests.filter((test) => test.result().state === "failed").length,
     flaky: flakyTests.length,
     flakyTests,

@@ -6,6 +6,7 @@ export default defineConfig({
     name: "integration-postgres",
     environment: "node",
     globals: true,
+    reporters: ["default", "./scripts/ci/vitest-timing-reporter.ts"],
     include: ["tests/integration/db/**/*.test.ts"],
     pool: "forks",
     isolate: true,

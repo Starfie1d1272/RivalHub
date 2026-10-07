@@ -4,6 +4,16 @@ import { describe, expect, it, vi } from "vitest";
 import { state, pool, monitor, publications, snapshot, prepared, upload, reports, db, schema, POST, ingestMizarLive, ingestMizarReliable, RELIABLE_EVENT_SCHEMA_VERSION, revokeMizarInstallation, claimMizarSource, takeOverCurrentMap, loadMizarMatchDocumentInTx, recordCanonicalMapResultInTx } from "./harness/live-capacity";
 
 describe("LIVE correctness: real PostgreSQL and loopback HTTP faults", () => {
+  it.each(["timeout", "429", "stalled-body", "invalid-body"] as const)("releases ingress after %s and accepts a fresh frame", async fault => {
+    const f = await prepared();
+    await delay(1500);
+    state.mode = fault;
+    expect(await ingestMizarLive(f.installationId, f.seasonId, snapshot(f, 1), 1)).toEqual({ accepted: false });
+    await delay(1000);
+    state.mode = "fast";
+    expect(await ingestMizarLive(f.installationId, f.seasonId, snapshot(f, 2), 1)).toEqual({ accepted: true });
+  });
+
 it("rotates synchronous sources even while credential authentication waits on PostgreSQL", async () => {
     const fixtures = await Promise.all(Array.from({ length: 4 }, () => prepared()));
     await delay(1500); // Prior scenarios have stopped; expire their demand leases.
