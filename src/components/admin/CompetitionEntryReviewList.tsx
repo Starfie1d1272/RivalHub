@@ -20,6 +20,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { AdminPlayerContact } from "@/components/admin/AdminPlayerContact";
 import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
+import { TeamProfileLink } from "@/components/teams/TeamProfileLink";
 import type { QualificationFinding } from "@/lib/qualification/finding";
 import { presentTeamQualificationFindings, presentTeamRegistrationSummary } from "@/lib/registrations/admin-review-presentation";
 import { formatCST } from "@/lib/utils/date";
@@ -201,7 +202,7 @@ export function CompetitionEntryReviewList({
     const summary = presentTeamRegistrationSummary(entry);
     return <Panel key={entry.id} label={`报名审核 · ${entry.name}`} contentClassName="p-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div><div className="flex flex-wrap items-center gap-2"><h3 className="text-lg font-semibold">{entry.name}</h3><Badge variant="outline">{presentCompetitionEntryRegistration(entry.status).label}</Badge><Badge variant="outline">{entry.source === "linked_team" ? "队伍报名" : "赛事组队"}</Badge></div><p className="mt-2 text-sm text-[var(--color-fg-mid)]">负责人：{entry.representativeName} · 完美战队 ID（可选）：{entry.perfectTeamId ?? "未填写"}</p></div>
+        <div><div className="flex flex-wrap items-center gap-2"><h3 className="text-lg font-semibold">{entry.status === "approved" ? <TeamProfileLink seasonSlug={seasonSlug} entryId={entry.id}>{entry.name}</TeamProfileLink> : entry.name}</h3><Badge variant="outline">{presentCompetitionEntryRegistration(entry.status).label}</Badge><Badge variant="outline">{entry.source === "linked_team" ? "队伍报名" : "赛事组队"}</Badge></div><p className="mt-2 text-sm text-[var(--color-fg-mid)]">负责人：{entry.representativeName} · 完美战队 ID（可选）：{entry.perfectTeamId ?? "未填写"}</p></div>
         {(entry.status === "submitted" || entry.status === "waitlisted") && <div className="flex flex-wrap gap-2"><Button size="sm" disabled={pending} onClick={() => review(entry.id, "approved")}>批准</Button><Button size="sm" variant="outline" disabled={pending} onClick={() => review(entry.id, "waitlisted")}>候补</Button><Button size="sm" variant="outline" disabled={pending} onClick={() => review(entry.id, "changes_requested")}>要求补正</Button><Button size="sm" variant="destructive" disabled={pending} onClick={() => review(entry.id, "rejected")}>拒绝</Button></div>}
       </div>
       <dl className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4" aria-label={`${entry.name}报名状态摘要`}>

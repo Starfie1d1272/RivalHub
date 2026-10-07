@@ -1,5 +1,6 @@
 import React from "react";
 import Link from "next/link";
+import { TeamProfileLink } from "@/components/teams/TeamProfileLink";
 import { Button } from "@/components/ui/button";
 import { Panel, StatusPill } from "@/components/rivalhub";
 import { presentSeasonStatus } from "@/lib/seasons/presentation";
@@ -18,7 +19,7 @@ export function MyCompetitionCard({ context }: { context: MyCompetitionContext }
       <div className="space-y-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h3 className="text-lg font-semibold">{context.entryName}</h3>
+            <h3 className="text-lg font-semibold">{context.registration.state === "ready" ? <TeamProfileLink seasonSlug={context.season.slug} entryId={context.entryId}>{context.entryName}</TeamProfileLink> : context.entryName}</h3>
             <p className="mt-1 text-sm text-[var(--color-fg-mid)]">{ROLE_LABELS[context.viewerRole]}</p>
           </div>
           <StatusPill label={seasonStatus.label} tone={seasonStatus.tone} />

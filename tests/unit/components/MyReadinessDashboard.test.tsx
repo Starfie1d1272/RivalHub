@@ -89,6 +89,12 @@ describe("MyReadinessDashboard", () => {
     expect(screen.getByRole("link", { name: "Rival Five" })).toHaveAttribute("href", "/fall-2026/teams/entry-1");
   });
 
+  it("links only approved competition entries to public Team profiles", () => {
+    const approved = { ...context, registration: { label: "已通过", state: "ready" as const, detail: "报名已通过审核。", tone: "success" as const } };
+    render(<MyReadinessDashboard model={{ ...model, currentCompetitions: [approved] }} />);
+    expect(screen.getByRole("link", { name: "Rival Five" })).toHaveAttribute("href", "/fall-2026/teams/entry-1");
+  });
+
   it("renders sanctions and historical competitions", () => {
     const sanction = { id: "case-1", seasonId: "season-1", seasonName: "2026 秋季赛", seasonSlug: "fall-2026", effects: ["registration_block" as const, "roster_block" as const, "match_participation_block" as const], explanation: "公开说明", effectiveFrom: new Date("2026-08-01T00:00:00Z"), effectiveUntil: null };
     render(<MyReadinessDashboard model={{ ...model, sanctions: [sanction], readiness: { ...readiness, sanctions: [sanction] }, historyCompetitions: [{ ...context, entryId: "entry-history", season: { ...context.season, id: "season-history", name: "2025 秋季赛", status: "finished" }, primaryAction: { href: "/past", label: "赛事回顾" } }] }} />);
