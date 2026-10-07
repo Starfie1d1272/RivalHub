@@ -1,4 +1,5 @@
 import "server-only";
+import { requireCompetitionFields } from "@/lib/matches/competition-context";
 
 import { and, asc, eq, inArray } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
@@ -88,7 +89,7 @@ export async function readAdminMatchCommentary(
   const isSeasonAdmin = grants.some((grant) => grant.userId === currentUserId);
   const byMatchId: AdminMatchCommentaryData["byMatchId"] = {};
   const activeMatches: AdminCommentaryMatch[] = [];
-  for (const match of sortAdminMatches(matchRows)) {
+  for (const match of sortAdminMatches(matchRows.map(requireCompetitionFields))) {
     const commentators = commentatorsByMatch.get(match.id) ?? [];
     const isMine = commentators.some((person) => person.userId === currentUserId);
     const active = match.status === "scheduled" || match.status === "in_progress";

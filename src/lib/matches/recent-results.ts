@@ -29,7 +29,7 @@ export function projectRecentMatchResults(
       const scoreAgainst = isA ? match.scoreB! : match.scoreA!;
       const playedAt = match.completedAt ?? match.scheduledAt;
       const opponentName = opponentId === null ? undefined : entryNames.get(opponentId);
-      if (!playedAt || !opponentName) return [];
+      if (!playedAt || !opponentName || opponentId === null) return [];
       return [{ matchId: match.id, opponentId, opponentName, scoreFor, scoreAgainst, won: scoreFor > scoreAgainst, format: match.format, playedAt }];
     });
 }
