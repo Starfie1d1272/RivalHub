@@ -49,6 +49,7 @@ async function createFixture() {
 
   return {
     pool, database, seasonId, otherSeasonId, adminA, adminB, adminC, outsider, otherAdmin, superAdmin,
+    entryAId: entriesBySeason.get(seasonId)![0], entryBId: entriesBySeason.get(seasonId)![1],
     async createMatch(options: { season?: string; status?: "scheduled" | "in_progress" | "finished" | "cancelled"; scheduledAt?: string | null } = {}) {
       const id = randomUUID();
       const eventId = options.season ?? seasonId;
@@ -177,7 +178,7 @@ describe("match commentary PostgreSQL contract", () => {
       for (let index = 0; index < 6; index++) unclaimed.push(await fixture.createMatch({ scheduledAt: `2026-10-02T${String(index + 10).padStart(2, "0")}:00:00Z` }));
       const data = await readAdminMatchCommentary(fixture.database, { seasonId: fixture.seasonId, currentUserId: fixture.adminA });
       expect(data.currentMatches.map((match) => match.id)).toEqual([current]);
-      expect(data.nextMatch).toEqual({ id: next, teamAName: "Alpha", teamBName: "Beta", scheduledAt: new Date("2026-10-01T12:30:00Z"), status: "scheduled" });
+      expect(data.nextMatch).toEqual({ id: next, entryAId: fixture.entryAId, entryBId: fixture.entryBId, teamAName: "Alpha", teamBName: "Beta", scheduledAt: new Date("2026-10-01T12:30:00Z"), status: "scheduled" });
       expect(data.claimableMatches.map((match) => match.id)).toEqual([others, ...unclaimed]);
       expect(data.claimableCount).toBe(7);
       expect(data.byMatchId[full]?.canClaim).toBe(false);
