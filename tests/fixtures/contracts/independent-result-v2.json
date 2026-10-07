@@ -18,11 +18,7 @@
     "scoreA": 2,
     "scoreB": 1,
     "isForfeit": false,
-    "mapPool": [
-      "de_mirage",
-      "de_nuke",
-      "de_inferno"
-    ]
+    "mapPool": ["de_mirage", "de_nuke", "de_inferno"]
   },
   "entrants": {
     "a": {

@@ -547,6 +547,13 @@
       "when": 1791388842467,
       "tag": "0077_match_execution_context",
       "breakpoints": true
+    },
+    {
+      "idx": 78,
+      "version": "7",
+      "when": 1791395172932,
+      "tag": "0078_match_variant_invariants",
+      "breakpoints": true
     }
   ]
 }

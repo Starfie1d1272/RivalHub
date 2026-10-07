@@ -107,3 +107,29 @@ it('separates end, late evidence and reviewed corrections under the match lock',
     await expect(database.transaction(tx => concludeUnassociatedMatchInTx(tx, { matchId: official.matchId, actorId, conclusion: { kind: 'omitted' } }))).rejects.toThrow('赛事比赛');
   } finally { await pool.end(); }
 });
+
+
+it("enforces exclusive match variants and explicit independent result state in PostgreSQL", async () => {
+  const pool = new Pool({ connectionString: localDatabaseUrl() });
+  const database = drizzle(pool, { schema });
+  try {
+    const match = await database.transaction(tx => createUnassociatedMatchInTx(tx, input, "variant-test"));
+    for (const patch of [
+      { status: "finished" as const },
+      { scoreA: 1, scoreB: 0 },
+      { status: "in_progress" as const, resultDisposition: "pending" as const },
+      { status: "finished" as const, resultDisposition: "recorded" as const },
+      { status: "finished" as const, resultDisposition: "omitted" as const, scoreA: 1, scoreB: 0 },
+    ]) {
+      await expect(database.update(schema.matches).set(patch).where(eq(schema.matches.id, match.id))).rejects.toThrow();
+    }
+    for (const disposition of ["pending", "omitted"] as const) {
+      await database.update(schema.matches).set({ status: "finished", resultDisposition: disposition }).where(eq(schema.matches.id, match.id));
+    }
+    await database.update(schema.matches).set({ resultDisposition: "recorded", scoreA: 1, scoreB: 0 }).where(eq(schema.matches.id, match.id));
+    const fixture = await seedFixture({ unboundSource: true });
+    await expect(database.update(schema.matches).set({ executionContext: match.executionContext }).where(eq(schema.matches.id, fixture.matchId))).rejects.toThrow();
+    const [official] = await database.select().from(schema.matches).where(eq(schema.matches.id, fixture.matchId));
+    expect(official?.executionContext).toBeNull();
+  } finally { await pool.end(); }
+});

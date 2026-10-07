@@ -62,8 +62,9 @@ export const matches = pgTable("matches", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
-  contextShape: check("matches_execution_context_shape", sql`(${t.seasonId} IS NOT NULL AND ${t.entryAId} IS NOT NULL AND ${t.entryBId} IS NOT NULL AND ${t.stage} IS NOT NULL) OR (${t.seasonId} IS NULL AND ${t.entryAId} IS NULL AND ${t.entryBId} IS NULL AND ${t.stage} IS NULL AND ${t.executionContext} IS NOT NULL AND ${t.majorStageRunId} IS NULL AND ${t.qualificationRunId} IS NULL AND ${t.bracketNodeId} IS NULL)`),
+  contextShape: check("matches_execution_context_shape", sql`(${t.seasonId} IS NOT NULL AND ${t.entryAId} IS NOT NULL AND ${t.entryBId} IS NOT NULL AND ${t.stage} IS NOT NULL AND ${t.executionContext} IS NULL) OR (${t.seasonId} IS NULL AND ${t.entryAId} IS NULL AND ${t.entryBId} IS NULL AND ${t.stage} IS NULL AND ${t.executionContext} IS NOT NULL AND ${t.majorStageRunId} IS NULL AND ${t.qualificationRunId} IS NULL AND ${t.bracketNodeId} IS NULL)`),
   resultDispositionShape: check("matches_result_disposition_shape", sql`${t.resultDisposition} IS NULL OR (${t.resultDisposition} IN ('pending', 'recorded', 'omitted') AND ${t.status} = 'finished' AND ((${t.resultDisposition} = 'recorded' AND ${t.scoreA} IS NOT NULL AND ${t.scoreB} IS NOT NULL) OR (${t.resultDisposition} IN ('pending', 'omitted') AND ${t.scoreA} IS NULL AND ${t.scoreB} IS NULL)))`),
+  independentResultShape: check("matches_independent_result_shape", sql`${t.seasonId} IS NOT NULL OR ((${t.status} != 'finished' AND ${t.resultDisposition} IS NULL AND ${t.scoreA} IS NULL AND ${t.scoreB} IS NULL) OR (${t.status} = 'finished' AND ${t.resultDisposition} IS NOT NULL))`),
   // 双方不能是同一支队
   entriesAreDifferent: check("matches_entries_different", sql`${t.entryAId} != ${t.entryBId}`),
   entryASeasonScope: foreignKey({ columns: [t.entryAId, t.seasonId], foreignColumns: [competitionEntries.id, competitionEntries.competitionId], name: "matches_entry_a_season_scope_fk" }),
