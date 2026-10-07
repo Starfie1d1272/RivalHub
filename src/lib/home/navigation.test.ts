@@ -6,6 +6,11 @@ import {
   selectHomeNavTiers,
 } from "./navigation";
 
+const registrationWindow = {
+  registrationOpensAt: new Date("2000-08-01T00:00:00.000Z"),
+  registrationClosesAt: null,
+};
+
 function featuredSeason(overrides: Partial<{
   id: string;
   status: "draft" | "registration" | "voting" | "drafting" | "playing" | "finished" | "archived";
@@ -77,6 +82,7 @@ describe("featured season selector", () => {
 describe("home navigation helpers", () => {
   it("prioritizes registration when a solo season is registering", () => {
     const entries = buildHomeNavEntries({
+      ...registrationWindow,
       slug: "nju-rivals-2026",
       registrationMode: "solo",
       hasCaptainVoting: true,
@@ -102,6 +108,7 @@ describe("home navigation helpers", () => {
 
   it("keeps team registration discoverable when the season does not support draft-era capabilities", () => {
     const entries = buildHomeNavEntries({
+      ...registrationWindow,
       slug: "open-cup",
       registrationMode: "team",
       hasCaptainVoting: false,
@@ -121,23 +128,24 @@ describe("home navigation helpers", () => {
   });
 
   it("describes the active phase eyebrow", () => {
-    expect(buildHomeEyebrow("voting", "nju-rivals-2026")).toEqual({
+    expect(buildHomeEyebrow({ ...registrationWindow, status: "voting", slug: "nju-rivals-2026" })).toEqual({
       text: "● 队长投票中",
       color: "var(--color-warn)",
     });
 
-    expect(buildHomeEyebrow("finished", "nju-rivals-2026")).toEqual({
+    expect(buildHomeEyebrow({ ...registrationWindow, status: "finished", slug: "nju-rivals-2026" })).toEqual({
       text: "[ RIVALHUB / NJU RIVALS 2026 ]",
       color: "var(--color-accent)",
     });
-    expect(buildHomeEyebrow("registration", "nju-rivals-2026", null)).toEqual({
-      text: "● 报名即将开放",
+    expect(buildHomeEyebrow({ ...registrationWindow, status: "registration", slug: "nju-rivals-2026", registrationOpenedAt: null })).toEqual({
+      text: "● 即将开放",
       color: "var(--color-warn)",
     });
   });
 
   it("uses an explicit auth state for the account entry", () => {
     const season = {
+      ...registrationWindow,
       slug: "nju-rivals-2026",
       registrationMode: "solo" as const,
       hasCaptainVoting: true,
@@ -157,6 +165,7 @@ describe("home navigation helpers", () => {
 
   it("turns off proactive registration and labels finished entries as history", () => {
     const entries = buildHomeNavEntries({
+      ...registrationWindow,
       slug: "finished-season",
       registrationMode: "solo",
       hasCaptainVoting: true,

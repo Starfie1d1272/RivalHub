@@ -35,6 +35,8 @@
   background: var(--color-accent);
   color: var(--color-bg);
 }
+.mobileRounds button:focus-visible,
+.viewport:focus-visible,
 .viewSwitch button:focus-visible,
 .teamSide:focus-visible {
   outline: 2px solid var(--color-accent);
@@ -309,6 +311,7 @@
   color: var(--color-fg-mid);
 }
 .board[data-layout="compact"] .rounds {
+  min-width: min-content;
   grid-template-columns: repeat(var(--round-count), minmax(200px, 240px));
   gap: 24px;
   justify-content: center;
@@ -392,6 +395,12 @@
     padding: 8px 4px;
     gap: 4px;
     font-size: 11px;
+  }
+  .viewSwitch button svg {
+    display: none;
+  }
+  .viewSwitch button span {
+    white-space: nowrap;
   }
   .legend > span:nth-child(-n + 3) {
     display: none;

@@ -44,7 +44,7 @@ async function HomeContent() {
     );
   }
 
-  const eyebrow = buildHomeEyebrow(featured.status, featured.slug, featured.registrationOpenedAt);
+  const eyebrow = buildHomeEyebrow(featured);
   const { tier1Entry, tier2Entries, tier3Entries } = selectHomeNavTiers(
     buildHomeNavEntries(featured),
     featured.status

@@ -39,7 +39,6 @@ export function MatchCommentaryQueue({ data, seasonSlug }: { data: AdminMatchCom
         <CommentaryMatchLink match={match} seasonSlug={seasonSlug} />
         <div className="flex flex-wrap items-center gap-2 text-sm"><span>{presentMatchStatus(match.status, { scheduledAt: match.scheduledAt }).label} · 尚无解说</span>{data.byMatchId[match.id]?.canClaim && <ClaimMatchButton matchId={match.id} />}</div>
       </li>)}</ul> : <p className="text-sm text-[var(--color-fg-mid)]">当前没有待认领的比赛</p>}
-      {data.unclaimedCount > data.unclaimedMatches.length && <p className="text-xs text-[var(--color-fg-mid)]">共 {data.unclaimedCount} 场尚无解说，其余比赛可在下方赛程中认领。</p>}
     </section>
   </Panel>;
 }

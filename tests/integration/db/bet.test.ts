@@ -34,6 +34,80 @@ async function fixture(work:(f:{db:ReturnType<typeof drizzle<typeof schema>>;sea
 }
 const read=(db:ReturnType<typeof drizzle<typeof schema>>,seasonId:string,userId:string)=>db.transaction(tx=>betBoard(tx,seasonId,userId),{accessMode:"read only",isolationLevel:"repeatable read"});
 describe("BET transactional admission and settlement",()=>{
+  it("allows administrators while retaining current roster conflicts in both read and write paths", async () => fixture(async f => {
+    await f.db.update(schema.users).set({role:"super_admin"}).where(eq(schema.users.id,f.userId));
+    await f.db.insert(schema.seasonAdminGrants).values({seasonId:f.seasonId,userId:f.otherId});
+    const market=(await read(f.db,f.seasonId,f.userId)).markets.find(m=>m.type==="match_winner")!;
+    for (const userId of [f.userId,f.otherId]) {
+      expect((await read(f.db,f.seasonId,userId)).markets.find(m=>m.id===market.id)).toMatchObject({canStake:true,restriction:null});
+      await f.db.transaction(tx=>stakeBetInTx(tx,{seasonId:f.seasonId,userId,marketId:market.id,optionId:market.options[0]!.id,amount:"100",requestId:randomUUID()}));
+    }
+    const entry=await f.db.query.competitionEntries.findFirst({where:eq(schema.competitionEntries.id,f.entryIds[0]!)});
+    const [roster]=await f.db.insert(schema.eventRosters).values({entryId:f.entryIds[0]!,sourceRosterRevisionId:entry!.approvedRosterRevisionId,status:"confirmed",confirmedAt:new Date(),confirmedBy:"test"}).returning();
+    const [member]=await f.db.insert(schema.eventRosterMembers).values({eventRosterId:roster!.id,userId:f.userId}).returning();
+    expect((await read(f.db,f.seasonId,f.userId)).markets.find(m=>m.id===market.id)).toMatchObject({canStake:false,restriction:"相关队伍名单成员不能参与此盘口"});
+    await expect(f.db.transaction(tx=>stakeBetInTx(tx,{seasonId:f.seasonId,userId:f.userId,marketId:market.id,optionId:market.options[0]!.id,amount:"10",requestId:randomUUID()}))).rejects.toThrow(/名单成员/);
+    await f.db.update(schema.eventRosterMembers).set({isCurrent:false}).where(eq(schema.eventRosterMembers.id,member!.id));
+    expect((await read(f.db,f.seasonId,f.userId)).markets.find(m=>m.id===market.id)?.canStake).toBe(true);
+  }));
+
+  it("recovers pre-enable stage milestones, grants future stages once and never joins or catches up from GET", async () => fixture(async f => {
+    const {db,seasonId,userId}=f;
+    const reconcile=()=>db.transaction(async tx=>{await lockBetProgram(tx,seasonId);await reconcileBetInTx(tx,seasonId);});
+    const run=await db.query.majorStageRuns.findFirst({where:eq(schema.majorStageRuns.seasonId,seasonId)});
+    const milestones=await db.select().from(schema.betStageMilestones).where(eq(schema.betStageMilestones.seasonId,seasonId));
+    expect(milestones.map(m=>m.stageKey)).toEqual(["stage1"]); // StageRun was created before enable in fixture.
+    expect((await read(db,seasonId,userId)).balance).toBe("1000");
+    await db.transaction(tx=>joinBetInTx(tx,seasonId,userId));await reconcile();
+    expect((await read(db,seasonId,userId)).records.map(r=>r.label)).toEqual(["初始积分"]);
+    await db.insert(schema.majorStageRuns).values({seasonId,stageKey:"stage2",startedBy:"test",ruleSnapshot:run!.ruleSnapshot});
+    await reconcile();await reconcile();
+    expect((await read(db,seasonId,userId)).balance).toBe("1300");
+    expect((await read(db,seasonId,userId)).rank).toBeNull();
+    const late=randomUUID();await db.insert(schema.users).values({id:late,email:`${late}@example.test`,emailVerifiedAt:new Date(),emailVerificationSource:"admin_migration"});
+    const before=await read(db,seasonId,late);expect(before.joined).toBe(false);expect(before.records).toEqual([]);
+    expect(await db.query.betAccounts.findFirst({where:eq(schema.betAccounts.userId,late)})).toBeUndefined();
+    await db.transaction(tx=>joinBetInTx(tx,seasonId,late));await reconcile();
+    expect((await read(db,seasonId,late)).balance).toBe("1000");
+    await db.insert(schema.competitionQualificationRuns).values({seasonId,format:"short_swiss_2w2l",targetEntrantCount:1,candidateCount:2,directEntryCount:0,playInEntryCount:2,qualifierCount:1,configuredBy:"test"});
+    await reconcile();expect((await read(db,seasonId,userId)).balance).toBe("1300");
+    await db.insert(schema.majorStageRuns).values({seasonId,stageKey:"playoffs",startedBy:"test",ruleSnapshot:run!.ruleSnapshot});
+    await reconcile();await reconcile();
+    expect((await read(db,seasonId,userId)).balance).toBe("1600");
+    expect((await read(db,seasonId,late)).balance).toBe("1300");
+  }));
+
+  it("ranks current settled profit with competition ties and exposes only the viewer's safe history", async () => fixture(async f => {
+    const {db,seasonId,userId,otherId,matchId}=f;
+    const third=randomUUID();await db.insert(schema.users).values({id:third,email:`${third}@example.test`,displayName:"第三位",emailVerifiedAt:new Date(),emailVerificationSource:"admin_migration"});
+    await db.transaction(tx=>joinBetInTx(tx,seasonId,third));
+    const initial=await read(db,seasonId,userId);expect(initial.rank).toBeNull();expect(initial.leaderboard).toEqual([]);
+    const m=initial.markets.find(m=>m.type==="match_winner")!;
+    for (const [id,option,amount] of [[userId,0,"100"],[otherId,0,"100"],[third,1,"200"]] as const) {
+      await db.transaction(tx=>stakeBetInTx(tx,{seasonId,userId:id,marketId:m.id,optionId:m.options[option]!.id,amount,requestId:randomUUID()}));
+    }
+    expect((await read(db,seasonId,userId)).rank).toBeNull();
+    await db.update(schema.matches).set({status:"finished",scoreA:2,scoreB:0,completedAt:new Date()}).where(eq(schema.matches.id,matchId));
+    const reconcile=()=>db.transaction(async tx=>{await lockBetProgram(tx,seasonId);await reconcileBetInTx(tx,seasonId);});await reconcile();
+    const board=await read(db,seasonId,userId);
+    expect(board.leaderboard.map(r=>[r.userId,r.profit,r.rank,r.settledCount])).toEqual([[userId,"100",1,1],[otherId,"100",1,1],[third,"-200",3,1]]);
+    expect(board.rank).toBe(1);expect(board.records.map(r=>r.amount)).toEqual(["200","-100","1000"]);
+    expect(board.records.every(r=>Object.keys(r).sort().join(",")==="amount,context,createdAt,label")).toBe(true);
+    expect(board.leaderboard.every(r=>Object.keys(r).sort().join(",")==="name,profit,rank,settledCount,userId")).toBe(true);
+    const anonymous=await db.transaction(tx=>betBoard(tx,seasonId,null),{accessMode:"read only"});
+    expect(anonymous.records).toEqual([]);expect(anonymous.leaderboard).toEqual(board.leaderboard);
+    const run=await db.query.majorStageRuns.findFirst({where:eq(schema.majorStageRuns.seasonId,seasonId)});
+    await db.insert(schema.majorStageRuns).values({seasonId,stageKey:"stage2",startedBy:"test",ruleSnapshot:run!.ruleSnapshot});await reconcile();
+    expect((await read(db,seasonId,userId)).leaderboard).toEqual(board.leaderboard);
+    await db.update(schema.matches).set({scoreA:0,scoreB:2}).where(eq(schema.matches.id,matchId));await reconcile();
+    const corrected=await read(db,seasonId,userId);
+    expect(corrected.leaderboard.map(r=>[r.userId,r.profit,r.rank])).toEqual([[third,"200",1],[userId,"-100",2],[otherId,"-100",2]]);
+    expect(corrected.records.some(r=>r.label.includes("官方赛果更正") && r.amount==="-200")).toBe(true);
+    expect(corrected.records.some(r=>r.label==="结算" && r.amount==="0")).toBe(true);
+    await db.update(schema.matches).set({status:"in_progress",scoreA:null,scoreB:null,completedAt:null}).where(eq(schema.matches.id,matchId));await reconcile();
+    const pending=await read(db,seasonId,userId);expect(pending.rank).toBeNull();expect(pending.leaderboard).toEqual([]);
+  }));
+
   it("serializes official updates with BET operations without a market/program deadlock",async()=>fixture(async f=>{
     const market=(await read(f.db,f.seasonId,f.userId)).markets.find(m=>m.type==="match_winner")!;
     let official: Promise<unknown> | undefined;

@@ -19,6 +19,7 @@ export async function loadQualificationSwissStageReadModel(seasonId: string) {
     db.select({
       entryId: competitionQualificationEntrants.competitionEntryId,
       teamName: competitionEntries.name,
+      logoUrl: competitionEntries.logoUrl,
       preliminarySeed: competitionQualificationEntrants.preliminarySeed,
     }).from(competitionQualificationEntrants)
       .innerJoin(competitionEntries, eq(competitionEntries.id, competitionQualificationEntrants.competitionEntryId))

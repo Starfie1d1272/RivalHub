@@ -3,6 +3,8 @@ import React from "react";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { HomeSeasonPanel, shouldLoadRegistrationPositionCounts } from "@/components/home/HomeSeasonPanel";
+import { HomeHero } from "@/components/home/HomeHero";
+import { buildHomeEyebrow } from "@/lib/home/navigation";
 
 const baseSeason = {
   name: "NJU Major 2026",
@@ -25,6 +27,14 @@ const sharedProps = {
 };
 
 describe("HomeSeasonPanel registration mode", () => {
+  it("agrees with the homepage banner after registration has closed", () => {
+    const season = { ...baseSeason, registrationMode: "team" as const, registrationOpensAt: new Date("2000-01-01"), registrationOpenedAt: new Date("2000-01-01"), registrationClosesAt: new Date("2000-02-01") };
+    render(<><HomeHero season={season} eyebrow={buildHomeEyebrow(season)} /><HomeSeasonPanel {...sharedProps} season={season} /></>);
+    expect(screen.getByText("● 报名已截止")).toBeVisible();
+    expect(screen.getByText("报名已截止", { exact: true })).toBeVisible();
+    expect(screen.queryByText(/报名开放|报名中/)).not.toBeInTheDocument();
+  });
+
   it("keeps solo position quotas and loads their counts", () => {
     const season = { ...baseSeason, registrationMode: "solo" as const };
     render(<HomeSeasonPanel {...sharedProps} season={season} />);

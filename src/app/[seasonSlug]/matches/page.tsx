@@ -151,7 +151,7 @@ export default async function MatchesPage({ params, searchParams }: MatchesPageP
       {defaultStageKey && (
         <Panel contentClassName="p-6">
           <Tabs defaultValue={defaultStageKey} className="w-full">
-            <TabsList className="mb-6 max-w-full justify-start overflow-x-auto bg-[var(--color-panel)] border border-[var(--color-border)] p-1">
+            <TabsList className="mb-6 h-auto min-h-10 max-w-full justify-start overflow-x-auto overflow-y-hidden bg-[var(--color-panel)] border border-[var(--color-border)] p-1">
               {qualificationRun && <TabsTrigger
                 value="play-in"
                 className="data-[state=active]:bg-[var(--color-accent)] data-[state=active]:text-[var(--color-accent-fg)]"

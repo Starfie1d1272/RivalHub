@@ -131,7 +131,7 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
 
       {(matchCount > 0 || data.qualificationRun) && data.defaultStageKey && (
         <Tabs defaultValue={data.defaultStageKey}>
-          <TabsList className="max-w-full justify-start overflow-x-auto">
+          <TabsList className="h-auto min-h-10 max-w-full justify-start overflow-x-auto overflow-y-hidden">
             {data.stageViews.map(({ stage }) => (
               <TabsTrigger key={stage.key} value={stage.key}>{stage.name}</TabsTrigger>
             ))}

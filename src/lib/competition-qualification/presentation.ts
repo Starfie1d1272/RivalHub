@@ -6,6 +6,7 @@ import { generateShortSwissRoundPairings, projectShortSwissStage } from "./swiss
 export interface QualificationSwissEntrant {
   entryId: string;
   teamName: string;
+  logoUrl?: string | null;
   preliminarySeed: number;
 }
 
@@ -56,6 +57,7 @@ export function buildQualificationSwissReadModel(input: {
   let projection: SwissProjection;
   try {
     projection = projectShortSwissStage({ entrants, matches: facts, completedRound: 0 });
+    projections[0] = projection;
     for (let round = 1; round <= SHORT_SWISS_MAX_ROUNDS; round += 1) {
       const rows = matchRows.filter((match) => match.round === round);
       if (rows.length === 0) break;
@@ -83,6 +85,7 @@ export function buildQualificationSwissReadModel(input: {
     return null;
   }
 
+  const logoByEntryId = new Map(ordered.map(entrant => [entrant.entryId, entrant.logoUrl]));
   const nameByEntryId = new Map(ordered.map((entrant) => [entrant.entryId, entrant.teamName]));
   const rows: StageSwissMatchRow[] = matchRows.map((match) => ({
     matchId: match.id,
@@ -90,6 +93,8 @@ export function buildQualificationSwissReadModel(input: {
     entryBId: match.entryBId,
     teamAName: nameByEntryId.get(match.entryAId) ?? "未知队伍",
     teamBName: nameByEntryId.get(match.entryBId) ?? "未知队伍",
+    teamALogoUrl: logoByEntryId.get(match.entryAId) ?? null,
+    teamBLogoUrl: logoByEntryId.get(match.entryBId) ?? null,
     scoreA: match.scoreA,
     scoreB: match.scoreB,
     status: match.status,
@@ -130,6 +135,7 @@ export function buildQualificationSwissReadModel(input: {
     competitionEntries: projection.teams.map((team) => ({
       entryId: team.teamId,
       teamName: nameByEntryId.get(team.teamId) ?? "未知队伍",
+      logoUrl: logoByEntryId.get(team.teamId) ?? null,
       seed: team.initialSeed,
       wins: team.wins,
       losses: team.losses,

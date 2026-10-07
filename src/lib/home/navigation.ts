@@ -2,6 +2,8 @@ import { statsEntryHref } from "@/lib/stats/view-state";
 import type { RegistrationMode, SeasonStatus } from "@/types/season";
 import { getSeasonLifecycleGroup, isRegistrationActuallyOpen } from "@/lib/seasons/presentation";
 import { showStats } from "@/lib/utils/season";
+import { getRegistrationWindowState, type RegistrationWindowSeason } from "@/lib/registration/window";
+import { presentSeasonParticipationState } from "@/lib/seasons/presentation";
 
 export interface FeaturedSeasonInput {
   id: string;
@@ -10,7 +12,7 @@ export interface FeaturedSeasonInput {
   lastCompletedAt?: Date | string | null;
 }
 
-export interface HomeNavSeason {
+export interface HomeNavSeason extends RegistrationWindowSeason {
   slug: string;
   registrationMode: RegistrationMode;
   hasCaptainVoting: boolean;
@@ -82,15 +84,13 @@ function getTimestamp(value: Date | string | null | undefined): number {
 }
 
 export function buildHomeEyebrow(
-  status: SeasonStatus,
-  slug: string,
-  registrationOpenedAt?: Date | string | null,
+  season: RegistrationWindowSeason & { slug: string },
+  now: Date = new Date(),
 ): HomeEyebrow {
+  const { status, slug } = season;
   if (status === "registration") {
-    if (registrationOpenedAt == null) {
-      return { text: "● 报名即将开放", color: "var(--color-warn)" };
-    }
-    return { text: "● 报名开放", color: "var(--color-ok)" };
+    const participation = presentSeasonParticipationState(season, now);
+    return { text: `● ${participation.label}`, color: participation.tone === "success" ? "var(--color-ok)" : participation.tone === "warn" ? "var(--color-warn)" : "var(--color-fg-mid)" };
   }
   if (status === "voting") {
     return { text: "● 队长投票中", color: "var(--color-warn)" };
@@ -107,6 +107,7 @@ export function buildHomeEyebrow(
 export function buildHomeNavEntries(
   season: HomeNavSeason,
   auth?: HomeNavAuthState,
+  now: Date = new Date(),
 ): HomeNavEntry[] {
   const isHistorical = season.status === "finished" || season.status === "archived";
   const entries: (HomeNavEntry & { show: boolean })[] = [
@@ -116,7 +117,7 @@ export function buildHomeNavEntries(
       label: "报名",
       mono: "REGISTER",
       meta: season.registrationMode === "team" ? "创建或加入队伍" : "个人报名",
-      show: season.status === "registration" && isRegistrationActuallyOpen(season),
+      show: getRegistrationWindowState(season, now).canSubmit,
     },
     {
       key: "captains",

@@ -15,7 +15,7 @@ import { betStateLabel, formatPoints } from "@/lib/bet/presentation";
 import type { BetBoardDTO, BetMarketDTO } from "@/lib/bet/types";
 import { formatCSTDateTime } from "@/lib/utils/date";
 import { cn } from "@/lib/utils/cn";
-const filters=[{key:"open",label:"开放"},{key:"mine",label:"我的投入"},{key:"settled",label:"已结算"},{key:"event",label:"赛事"}] as const;
+const filters=[{key:"open",label:"开放"},{key:"mine",label:"我的投入"},{key:"settled",label:"已结算"},{key:"event",label:"赛事"},{key:"leaderboard",label:"排行榜"},{key:"records",label:"记录"}] as const;
 export function BetBoard({initial,slug,signedIn,view,matchFilter}:{initial:BetBoardDTO;slug:string;signedIn:boolean;view:string;matchFilter:string|null}) {
   const router=useRouter();const [snapshot,setSnapshot]=useState({origin:initial,value:initial});const data=snapshot.origin===initial?snapshot.value:initial;const [pending,startTransition]=useTransition();
   const [selected,setSelected]=useState<{market:BetMarketDTO;optionId:string}|null>(null);
@@ -34,9 +34,9 @@ export function BetBoard({initial,slug,signedIn,view,matchFilter}:{initial:BetBo
   return <div className="space-y-6">
     <PageHeader title="BET" actions={<>
       <div className="flex flex-wrap items-end gap-x-8 gap-y-4">
-        <Metric label="可用积分" value={data.joined?formatPoints(data.balance):"—"} accent help="使用赛事积分参与无抽水社区奖池。积分不能购买、交易、提现或兑换现实价值；只能追加原选项，不能换边或撤回。无胜方投入、全部投入均获胜或弃权时原额退款。预计回报随奖池变化。"/>
+        <Metric label="可用积分" value={data.joined?formatPoints(data.balance):"—"} accent help="首次领取 1,000 积分；加入后的 Main Event 新阶段各补给 300，不补历史阶段。管理员可以参与，但本人参赛队伍相关盘口不可参与。排名按净收益，不按余额；至少一次已结算参与才上榜。使用赛事积分参与无抽水社区奖池。积分不能购买、交易、转账、提现或兑换现实价值；只能追加原选项，不能换边或撤回。无胜方投入、全部投入均获胜或弃权时原额退款。预计回报随奖池变化。"/>
         <Metric label="净收益" value={data.joined?`${BigInt(data.profit)>BigInt(0)?"+":""}${formatPoints(data.profit)}`:"—"}/>
-        <Metric label="排名" value={data.rank?`#${data.rank}`:"—"}/>
+        <Link href={`/${slug}/bet?view=leaderboard`} aria-label="查看 BET 排行榜" className="rounded focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"><Metric label="排名" value={data.rank?`#${data.rank}`:"未上榜"}/></Link>
         {data.enabled && !data.joined && (signedIn?<Button onClick={join} disabled={pending}>领取 1,000 积分</Button>:<Button asChild><Link href="/login">登录参与</Link></Button>)}
       </div>
     </>}/>
@@ -47,7 +47,7 @@ export function BetBoard({initial,slug,signedIn,view,matchFilter}:{initial:BetBo
       <span className="ml-auto py-3 text-xs tabular-nums text-[var(--color-fg-dim)]">{visible.filter(m=>m.state==="open").length} 个开放盘口</span>
     </nav>
     {matchFilter && <Link href={`/${slug}/bet` as never} className="inline-block text-sm text-[var(--color-accent)]">查看全部比赛 →</Link>}
-    {!data.enabled?<Empty text="BET 尚未开放"/>:!visible.length?<Empty text={active==="mine"?"还没有投入记录":active==="settled"?"暂无已结算盘口":active==="event"?"等待正赛名单确认":"等待下一场对阵或地图"}/>:<div className={cn("grid min-w-0 items-start gap-5",!matchFilter&&"lg:grid-cols-2")}>
+    {!data.enabled?<Empty text="BET 尚未开放"/>:active==="leaderboard"?<BetLeaderboard rows={data.leaderboard}/>:active==="records"?<BetRecords rows={data.records} signedIn={signedIn}/>:!visible.length?<Empty text={active==="mine"?"还没有投入记录":active==="settled"?"暂无已结算盘口":active==="event"?"等待正赛名单确认":"等待下一场对阵或地图"}/>:<div className={cn("grid min-w-0 items-start gap-5",!matchFilter&&"lg:grid-cols-2")}>
       {[...new Set(visible.map(m=>m.matchId))].map(id=>id?<MatchCard key={id} match={data.matches.find(m=>m.id===id)!} markets={visible.filter(m=>m.matchId===id)} slug={slug} choose={choose}/>:<section key="event" className="space-y-5 lg:col-span-2">{visible.filter(m=>!m.matchId).map(m=><div key={m.id} className="border border-[var(--color-border)] bg-[var(--color-panel)] p-5"><MarketRow market={m} choose={choose}/></div>)}</section>)}
     </div>}
     <Dialog open={!!selected} onOpenChange={open=>{if(!open&&!pending)setSelected(null);}}><DialogContent size="sm" onInteractOutside={e=>{if(pending)e.preventDefault();}} onEscapeKeyDown={e=>{if(pending)e.preventDefault();}}>
@@ -93,4 +93,22 @@ function MarketRow({market:m,choose}:{market:BetMarketDTO;choose:(m:BetMarketDTO
     <div className="flex flex-wrap justify-between gap-2 text-xs text-[var(--color-fg-dim)]"><span>奖池 <span className="font-mono text-[var(--color-fg-mid)]">{formatPoints(m.pool)}</span> · {m.participants} 人</span>{m.mine&&<span className="text-[var(--color-fg-mid)]">已投 {formatPoints(m.mine.amount)}{m.mine.payout!==null&&<> → {formatPoints(m.mine.payout)} <span className="font-mono text-[var(--color-accent)]">{BigInt(m.mine.profit??"0")>BigInt(0)?"+":""}{formatPoints(m.mine.profit??"0")}</span></>}</span>}</div>
     {m.restriction && m.state==="open"&&<p className="text-xs text-[var(--color-fg-dim)]">{m.restriction}</p>}
   </section>;
+}
+
+function BetLeaderboard({ rows }: { rows: BetBoardDTO["leaderboard"] }) {
+  if (!rows.length) return <Empty text="尚无已结算参与，暂无排名" />;
+  return <div className="overflow-x-auto"><table className="w-full text-left text-sm"><caption className="sr-only">BET 净收益排行榜，同收益并列排名</caption>
+    <thead><tr className="border-b border-[var(--color-border)]">{["排名", "用户", "净收益", "已结算盘口"].map(label => <th key={label} className="px-2 py-3 whitespace-nowrap">{label}</th>)}</tr></thead>
+    <tbody>{rows.map(row => <tr key={row.userId} className="border-b border-[var(--color-border)]">
+      <td className="px-2 py-3 tabular-nums">#{row.rank}</td><td className="max-w-32 truncate px-2 py-3" title={row.name}>{row.name}</td>
+      <td className="px-2 py-3 tabular-nums">{BigInt(row.profit)>BigInt(0)?"+":""}{formatPoints(row.profit)}</td><td className="px-2 py-3 tabular-nums">{row.settledCount}</td>
+    </tr>)}</tbody></table></div>;
+}
+function BetRecords({ rows, signedIn }: { rows: BetBoardDTO["records"]; signedIn: boolean }) {
+  if (!signedIn) return <Empty text="登录后查看本人积分记录" />;
+  if (!rows.length) return <Empty text="暂无积分记录" />;
+  return <ol aria-label="本人积分记录" className="divide-y divide-[var(--color-border)]">{rows.map((row, index) => <li key={`${row.createdAt}-${index}`} className="flex items-start justify-between gap-4 py-4">
+    <div className="min-w-0 space-y-1"><p className="text-sm">{row.label}</p>{row.context && <p className="break-words text-xs text-[var(--color-fg-mid)]">{row.context}</p>}<time dateTime={row.createdAt} className="text-xs text-[var(--color-fg-dim)]">{formatCSTDateTime(row.createdAt)}</time></div>
+    <span className="shrink-0 font-mono tabular-nums">{BigInt(row.amount)>BigInt(0)?"+":""}{formatPoints(row.amount)}</span>
+  </li>)}</ol>;
 }

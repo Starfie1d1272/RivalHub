@@ -2,7 +2,7 @@ import { and, asc, eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { competitionEntries, majorStageEntrants, majorStageRuns, majorTournamentEntrants, matches } from "@/db/schema";
 import { parseMajorRunSnapshot } from "@/lib/major/run-snapshot";
-import { projectMajorSwissStage, projectMajorSwissStageByRound, type MajorSwissFinalizedRound, type MajorSwissMatchFact } from "@/lib/major/swiss";
+import { MAJOR_SWISS_MAX_ROUNDS, projectMajorSwissStage, projectMajorSwissStageByRound, type MajorSwissFinalizedRound, type MajorSwissMatchFact } from "@/lib/major/swiss";
 import type { SwissStatus } from "@/lib/swiss/types";
 
 export interface StageSwissMatchRow {
@@ -10,6 +10,8 @@ export interface StageSwissMatchRow {
   entryAId: string;
   entryBId: string;
   teamAName: string;
+  teamALogoUrl?: string | null;
+  teamBLogoUrl?: string | null;
   teamBName: string;
   scoreA: number | null;
   scoreB: number | null;
@@ -40,6 +42,7 @@ export interface SwissStageReadModel {
   competitionEntries: Array<{
     entryId: string;
     teamName: string;
+    logoUrl?: string | null;
     seed: number;
     wins: number;
     losses: number;
@@ -69,6 +72,7 @@ export async function loadMajorSwissStageReadModel(
     entryId: majorTournamentEntrants.competitionEntryId,
     seed: majorStageEntrants.stageSeed,
     teamName: competitionEntries.name,
+    logoUrl: competitionEntries.logoUrl,
   }).from(majorStageEntrants)
     .innerJoin(majorTournamentEntrants, eq(majorTournamentEntrants.id, majorStageEntrants.tournamentEntrantId))
     .innerJoin(competitionEntries, eq(competitionEntries.id, majorTournamentEntrants.competitionEntryId))
@@ -84,6 +88,7 @@ export async function loadMajorSwissStageReadModel(
     ),
     orderBy: [asc(matches.round), asc(matches.completedAt), asc(matches.scheduledAt), asc(matches.id)],
   });
+  const logoByEntryId = new Map(entrantRows.map(row => [row.entryId, row.logoUrl]));
   const nameByEntryId = new Map(entrantRows.map((row) => [row.entryId, row.teamName]));
   const finalizedRound = asFinalizedRound(stageRun.finalizedRound);
   const completedFacts: MajorSwissMatchFact[] = managedMatches
@@ -122,6 +127,8 @@ export async function loadMajorSwissStageReadModel(
       entryBId: match.entryBId,
       teamAName: nameByEntryId.get(match.entryAId) ?? "待定",
       teamBName: nameByEntryId.get(match.entryBId) ?? "待定",
+      teamALogoUrl: logoByEntryId.get(match.entryAId) ?? null,
+      teamBLogoUrl: logoByEntryId.get(match.entryBId) ?? null,
       scoreA: match.scoreA,
       scoreB: match.scoreB,
       status: match.status,
@@ -129,7 +136,7 @@ export async function loadMajorSwissStageReadModel(
       round: match.round!,
     }));
   const rounds: StageSwissRoundColumn[] = [];
-  for (let round = 1; round <= 5; round += 1) {
+  for (let round = 1; round <= MAJOR_SWISS_MAX_ROUNDS; round += 1) {
     const rows = matchRows.filter((match) => match.round === round);
     const beforeRound = round <= finalizedRound ? roundProjections[round - 1] : projection;
     const stateByEntryId = new Map(beforeRound?.teams.map((team) => [team.teamId, team]) ?? []);
@@ -161,6 +168,7 @@ export async function loadMajorSwissStageReadModel(
     competitionEntries: projection.teams.map((team) => ({
       entryId: team.teamId,
       teamName: nameByEntryId.get(team.teamId) ?? "未知队伍",
+      logoUrl: logoByEntryId.get(team.teamId) ?? null,
       seed: team.currentStageSeed,
       wins: team.wins,
       losses: team.losses,

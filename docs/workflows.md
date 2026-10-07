@@ -34,6 +34,7 @@ Major:  draft → registration → playing → finished → archived
 - 报名开放后，已经冻结的 policy/context 不随全局目录变化；运营 deadline 只在其允许的生命周期内调整。
 - draft 撤回/删除必须通过无既有业务事实的 guard；不能靠 UI 隐藏按钮代替 server validation。
 - 后台生命周期分组和首页 featured season 是 presentation projection，不创建全局 `currentSeason` 事实。
+- 报名曾实际开放不代表当前仍可提交；首页报名提示、报名入口与报名页统一消费 `registration/window` 的计划、实际开放及截止时间。报名截止不会自行推进赛事到投票、选秀或比赛阶段。
 
 ## ConversionPolicy lifecycle
 

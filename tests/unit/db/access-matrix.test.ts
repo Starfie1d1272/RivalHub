@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
@@ -73,6 +73,7 @@ const repairCursorMigration = readFileSync(join(process.cwd(), "drizzle/migratio
 const sessionMigration = readFileSync(join(root, "drizzle/migrations/0069_wealthy_violations.sql"), "utf8");
 const draftMigration = readFileSync(join(root, "drizzle/migrations/0072_petite_iron_man.sql"), "utf8");
 const migration = `${draftMigration}\n${sessionMigration}\n${repairCursorMigration}\n${statsProjectionMigration}\n${predictionMigration}\n${terminalMigration}\n${restrictionOverrideMigration}\n${conversionPolicyMigration}\n${seedRecommendationSnapshotMigration}\n${identityMigration}\n${schedulerMigration}\n${stageConvergenceMigration}\n${contractCleanupMigration}\n${operationsMigration}\n${demoIntegrationMigration}\n${steamIdentityMigration}\n${qualificationMigration}\n${vetoRoomMigration}\n${matchRuntimeEnumMigration}\n${matchRuntimeMigration}\n${mizarMigration}`;
+const betSecurityMigration = readFileSync(join(root, "drizzle/migrations/0076_slim_weapon_omega.sql"), "utf8");
 const scenarioCleanupMigration = readFileSync(join(root, "drizzle/migrations/0073_careless_pretty_boy.sql"), "utf8");
 const droppedTables = [...`${contractCleanupMigration}\n${scenarioCleanupMigration}`.matchAll(/DROP TABLE "([^"]+)"/g)].map((match) => match[1]);
 
@@ -89,14 +90,15 @@ function expectedFacts(): DatabaseAccessFacts[] {
 
 describe("database access matrix", () => {
   it("classifies every current public application table and keeps the generated document aligned", () => {
+    const latestSnapshot = readdirSync(join(root, "drizzle/migrations/meta")).filter(name => /^\d{4}_snapshot\.json$/.test(name)).sort().at(-1)!;
     const snapshot = JSON.parse(
-      readFileSync(join(root, "drizzle/migrations/meta/0073_snapshot.json"), "utf8"),
+      readFileSync(join(root, "drizzle/migrations/meta", latestSnapshot), "utf8"),
     ) as { tables: Record<string, unknown> };
     const snapshotTables = Object.keys(snapshot.tables)
       .map((table) => table.replace(/^public\./, ""))
       .sort();
 
-    expect(DATABASE_ACCESS_MATRIX).toHaveLength(112);
+    expect(DATABASE_ACCESS_MATRIX).toHaveLength(snapshotTables.length);
     expect(new Set(DATABASE_ACCESS_TABLES).size).toBe(DATABASE_ACCESS_TABLES.length);
     expect(snapshotTables).toEqual([...DATABASE_ACCESS_TABLES].sort());
     expect(renderDatabaseAccessMatrixMarkdown()).toBe(
@@ -105,9 +107,17 @@ describe("database access matrix", () => {
   });
 
   it("keeps the terminal migration and canonical contract deny-by-default", () => {
+    const betLoop = betSecurityMigration.match(/FOREACH tab IN ARRAY ARRAY\[([^\]]+)\] LOOP/)?.[1];
+    expect(betLoop).toBeDefined();
+    const betTables = [...betLoop!.matchAll(/'([^']+)'/g)].map(match => `bet_${match[1]}`);
+    expect(betTables.sort()).toEqual(DATABASE_ACCESS_TABLES.filter(table => table.startsWith("bet_")).sort());
+    expect(betSecurityMigration).toContain("ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY");
+    expect(betSecurityMigration).toContain("REVOKE ALL ON TABLE public.%I FROM anon, authenticated");
+    expect(betSecurityMigration).toContain("'bet_' || tab");
     const enabledTables = [...migration.matchAll(/ALTER TABLE "([^"]+)" ENABLE ROW LEVEL SECURITY;/g)]
       .map((match) => match[1])
       .filter((table) => !droppedTables.includes(table))
+      .concat(betTables)
       .sort();
 
     expect(enabledTables).toEqual([...DATABASE_ACCESS_TABLES].sort());
@@ -122,7 +132,7 @@ describe("database access matrix", () => {
     expect(publicationTables).toEqual(
       [...DATABASE_ACCESS_TABLES]
         .filter((table) =>
-          !table.startsWith("prediction_") && ![
+          !table.startsWith("prediction_") && !table.startsWith("bet_") && ![
             "application_sessions", "application_session_controls",
             "coverage_allocations", "coverage_holds", "match_lineup_incidents", "official_coverage_slots",
             "match_live_sessions", "mizar_installations", "mizar_pairing_intents", "mizar_reliable_receipts",
