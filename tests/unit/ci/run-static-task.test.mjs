@@ -2,6 +2,9 @@ import { describe, expect, it } from "vitest";
 import { commandFor } from "../../../scripts/ci/run-static-task.mjs";
 
 describe("affected static task commands", () => {
+  it("rejects an empty explicit selection", () => {
+    expect(() => commandFor("unit-explicit-unit-react-jsdom", "unit-react-jsdom")).toThrow("must not be empty");
+  });
   it("runs the executable architecture contract", () => {
     expect(commandFor("architecture")).toEqual(["architecture:check"]);
   });
@@ -34,7 +37,6 @@ describe("affected static task commands", () => {
       "run",
       "--project",
       "unit-domain-node",
-      "--passWithNoTests",
       "tests/unit/quality/e2e-contract.test.ts",
     ]);
   });

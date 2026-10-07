@@ -231,7 +231,7 @@ describe("changed-surface planner", () => {
 
     const e2eFixture = classifyChangedFiles([{ status: "M", paths: ["tests/e2e/fixtures.ts"] }], { draft: false });
     expect(e2eFixture.requiredJobs).toEqual(["static", "system"]);
-    expect(e2eFixture.e2eSpecs).toEqual([]); // full system suite fallback
+    expect(e2eFixture.e2eSpecs).toContain("tests/e2e/flows/major-entry.spec.ts");
   });
 
   it("fails closed to FULL for workflow, planner, toolchain, unknown, and rename/delete", () => {

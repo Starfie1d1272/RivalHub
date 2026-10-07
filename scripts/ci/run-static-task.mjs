@@ -47,7 +47,8 @@ export function commandFor(name, projectName, relatedSources = [], explicitTests
         return ["exec", "vitest", "related", "--project", projectName, "--run", "--passWithNoTests", ...relatedSources];
       }
       if (projectName && name === `unit-explicit-${projectName}`) {
-        return ["exec", "vitest", "run", "--project", projectName, "--passWithNoTests", ...explicitTests];
+        if (explicitTests.length === 0) throw new Error("explicit test selection must not be empty");
+        return ["exec", "vitest", "run", "--project", projectName, ...explicitTests];
       }
       if (projectName && name === fullTask) {
         return ["exec", "vitest", "run", "--project", projectName];

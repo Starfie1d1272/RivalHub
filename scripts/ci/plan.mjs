@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { appendFileSync, readFileSync } from "node:fs";
+import { appendFileSync, readFileSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -64,6 +64,10 @@ const LIVE_SURFACES = [
 ];
 const SYSTEM_FLOW_MAP = [
   {
+    prefixes: ["src/lib/mizar/", "src/components/matches/MatchLiveProvider", "src/components/matches/MatchRealtime", "src/components/matches/MatchListLiveScore", "src/components/matches/MatchRadar", "src/app/api/matches/"],
+    specs: ["tests/e2e/flows/public-match-live.spec.ts"],
+  },
+  {
     prefixes: ["src/actions/season-public-info.ts", "src/lib/season-public-info/", "src/components/admin/SeasonLogoEditor.tsx", "src/components/season/EventLogo.tsx"],
     specs: ["tests/e2e/flows/event-logo.spec.ts"],
   },
@@ -97,6 +101,13 @@ const SYSTEM_FLOW_MAP = [
     specs: [MOBILE_PUBLIC_EVENT_SEARCH_SPEC],
   },
 ];
+
+function browserSpecs(directory = "tests/e2e") {
+  return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+    const path = `${directory}/${entry.name}`;
+    return entry.isDirectory() ? browserSpecs(path) : /\.spec\.tsx?$/.test(path) ? [path] : [];
+  }).sort();
+}
 
 function systemSpecsForPath(path) {
   const specs = new Set();
@@ -147,6 +158,8 @@ export function classifyChangedFiles(entries, options = {}) {
     unitRelatedSources: new Map(STATIC_PROJECTS.map((project) => [project, new Set()])),
     unitExplicitTests: new Map(STATIC_PROJECTS.map((project) => [project, new Set()])),
     integrationSpecs: new Set(),
+    integrationFull: false,
+    e2eFull: false,
     e2eSpecs: new Set(),
   };
   let docsOnly = true;
@@ -163,6 +176,8 @@ export function classifyChangedFiles(entries, options = {}) {
     for (const capability of classification.capabilities) capabilities.add(capability);
     reasons.add(classification.reason);
     collectEvidence(path, classification, evidence);
+    if (classification.capabilities.includes("postgres") && !classification.integrationSpecs) evidence.integrationFull = true;
+    if (classification.capabilities.includes("system") && !classification.e2eSpecs && systemSpecsForPath(path).length === 0) evidence.e2eFull = true;
   }
 
   if (evidence.e2eSpecs.size > 0) {
@@ -189,8 +204,8 @@ export function classifyChangedFiles(entries, options = {}) {
       unitMode: staticMatrix.some((item) => item.mode === "related" || item.mode === "explicit") ? "affected" : "none",
       relatedSources: unique([...evidence.unitRelatedSources.values()].flatMap((paths) => [...paths])),
       explicitTests: unique([...evidence.unitExplicitTests.values()].flatMap((paths) => [...paths])),
-      integrationSpecs: [...evidence.integrationSpecs].sort(),
-      e2eSpecs: [...evidence.e2eSpecs].sort(),
+      integrationSpecs: evidence.integrationFull ? [] : [...evidence.integrationSpecs].sort(),
+      e2eSpecs: evidence.e2eFull ? browserSpecs() : [...evidence.e2eSpecs].sort(),
     },
   );
 }
@@ -388,10 +403,11 @@ function classifyScriptPath(path) {
 
 function collectEvidence(path, classification, evidence) {
   const isCode = CODE_EXTENSIONS.test(path);
-  const isTest = path.startsWith("tests/");
+  const isTest = /\.(?:test|spec)\.[cm]?[jt]sx?$/.test(path);
+  const isTestSupport = path.startsWith("tests/");
   const isScript = path.startsWith("scripts/");
   evidence.typeApp ||= path.startsWith("src/");
-  evidence.typeTests ||= isTest;
+  evidence.typeTests ||= isTest || isTestSupport;
   evidence.typeScripts ||= isScript;
   evidence.architecture ||= path.startsWith("src/") || path.startsWith("scripts/architecture/");
   if (isCode || LINT_EXTENSIONS.test(path)) evidence.lintPaths.add(path);
@@ -406,7 +422,10 @@ function collectEvidence(path, classification, evidence) {
 
   const project = unitProjectFor(path);
   if (project && isTest) evidence.unitExplicitTests.get(project).add(path);
-  if (project && isCode && !isTest) evidence.unitRelatedSources.get(project).add(path);
+  if (isCode && !isTest) {
+    // Consumers can belong to any project, regardless of the source folder.
+    for (const sources of evidence.unitRelatedSources.values()) sources.add(path);
+  }
   if (path.startsWith("src/")) {
     evidence.unitExplicitTests.get("unit-domain-node").add(GLOBAL_CONTRACTS.architecture.path);
     evidence.unitExplicitTests.get("unit-domain-node").add(GLOBAL_CONTRACTS.productLanguage.path);
@@ -418,6 +437,7 @@ function collectEvidence(path, classification, evidence) {
 }
 
 function unitProjectFor(path) {
+  if (path.endsWith(".tsx")) return "unit-react-jsdom";
   if (
     path.startsWith("src/app/")
     || path.startsWith("src/actions/")
