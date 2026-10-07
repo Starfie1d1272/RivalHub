@@ -232,11 +232,23 @@ jobs:
         run: node scripts/ci/timing.mjs "system/mizar contract" -- pnpm mizar:contract-check .mizar-checkout
       - name: CJK fonts for public match evidence
         if: needs.plan.outputs.live_evidence == 'true'
+        timeout-minutes: 5
         run: |
-          sudo apt-get update
-          mkdir -p .agent-tmp/evidence-fonts
+          mkdir -p .agent-tmp/evidence-fonts/apt-lists/partial
           cd .agent-tmp/evidence-fonts
-          apt-get download fonts-noto-cjk
+          # Isolate this download from the runner's unrelated/slow mirror indexes.
+          echo 'deb https://archive.ubuntu.com/ubuntu noble main universe' > font-sources.list
+          font_apt_options=(
+            -o "Dir::Etc::sourcelist=$PWD/font-sources.list"
+            -o 'Dir::Etc::sourceparts=-'
+            -o "Dir::State::lists=$PWD/apt-lists"
+            -o 'Acquire::Retries=2'
+            -o 'Acquire::http::Timeout=30'
+            -o 'Acquire::https::Timeout=30'
+            -o 'Acquire::Languages=none'
+          )
+          sudo apt-get "${font_apt_options[@]}" update
+          apt-get "${font_apt_options[@]}" download fonts-noto-cjk
           dpkg-deb -x fonts-noto-cjk_*.deb .
       - name: Browser runtime
         run: google-chrome --version
