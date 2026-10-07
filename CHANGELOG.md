@@ -1,5 +1,33 @@
 # Changelog
 
+## [2.15.1]
+
+### Added
+
+#### BET 排行榜与账户记录
+
+补齐按净收益计算的完整排行榜与本人积分记录。只有当前有效结算参与者上榜，同净收益并列排名；账户记录解释初始积分、阶段补给、投入、退款与赛果更正，公开榜不暴露他人流水。
+
+### Fixed
+
+#### Swiss 赛程与手机推演
+
+公开 Swiss 赛程复用赛事推演的晋级路径、紧凑对阵和轮次列表，保留正式比赛链接及赛果，未来轮次只展示战绩路径。修复 Play-in 首轮战绩分组、轮次无障碍名称、阶段标签纵向溢出及解说待认领列表截断。手机紧凑布局可完整访问首轮与最终结果，桌面保留自适应列宽。
+
+#### 首页报名状态
+
+首页报名提示与入口统一按实际报名窗口判断，截止后不再显示报名开放或继续推荐报名；报名截止不会擅自推进赛事生命周期。
+
+#### BET 参与与阶段补给
+
+管理员可参与不涉及本人参赛队伍的盘口，当前相关名单成员限制保持。阶段补给从真实 Main Event 阶段事实恢复，消除启用顺序依赖；晚加入不补历史阶段积分，重复协调不重复发放。
+
+### Changed
+
+#### BP 权益说明
+
+选择先禁图方时，现有问号按 BO1、BO3、BO5 解释整场禁选与选边权益，保留原有规则与简洁操作按钮。
+
 ## [2.15.0]
 
 ### Added
@@ -2706,6 +2734,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[2.15.1]: https://github.com/Starfie1d1272/RivalHub/compare/v2.15.0...v2.15.1
 [2.15.0]: https://github.com/Starfie1d1272/RivalHub/compare/v2.14.4...v2.15.0
 [2.14.4]: https://github.com/Starfie1d1272/RivalHub/compare/v2.14.3...v2.14.4
 [2.14.3]: https://github.com/Starfie1d1272/RivalHub/compare/v2.14.2...v2.14.3
