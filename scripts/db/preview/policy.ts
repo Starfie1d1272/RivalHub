@@ -1,6 +1,19 @@
 import { assertActiveChainPrefix, readExpectedMigrations, type ExpectedMigration, type Migration } from "../production-preflight";
 import { PreviewMirrorError } from "./diagnostics";
 
+/** Redacted text audit actor, not a user/FK or a login-capable persona. */
+const PREVIEW_REDACTED_ACTOR = "preview:redacted";
+
+export function sanitizedRequiredFields(table: string, row: Record<string, unknown>): Record<string, string | null> {
+  if (table === "competition_qualification_drafts") return { updated_by: PREVIEW_REDACTED_ACTOR };
+  if (table === "competition_qualification_runs") return {
+    configured_by: PREVIEW_REDACTED_ACTOR,
+    started_by: row.started_at === null ? null : PREVIEW_REDACTED_ACTOR,
+  };
+  if (table === "match_veto_appeals" || table === "post_event_adjudications") return { reason: "预览已脱敏" };
+  return {};
+}
+
 /** Reviewed export projections. No SELECT *, Auth rows, opaque dump or private bucket. */
 export const PREVIEW_COLUMNS: Record<string, string> = {
   users: "id status merged_into_user_id merged_at perfect_name display_name steam64 gameplay_style competition_history created_at updated_at",
@@ -318,7 +331,12 @@ export function exportQuery(table: string, source: PreviewPolicyInput = readExpe
   if (table === "season_registrations") expressions.push(`ARRAY[]::text[] AS screenshot_urls`);
   if (table === "team_memberships") expressions.push(`CASE WHEN "ended_at" IS NOT NULL THEN 'left'::team_membership_end_reason ELSE NULL END AS ended_reason`);
   if (table === "post_event_adjudications" || table === "tournament_honors") expressions.push(`id AS client_request_id`);
-  if (table === "post_event_adjudications") expressions.push(`'预览已脱敏' AS reason`);
+  if (table === "post_event_adjudications" || table === "match_veto_appeals") expressions.push(`'预览已脱敏' AS reason`);
+  if (table === "competition_qualification_drafts") expressions.push(`'${PREVIEW_REDACTED_ACTOR}'::text AS updated_by`);
+  if (table === "competition_qualification_runs") expressions.push(
+    `'${PREVIEW_REDACTED_ACTOR}'::text AS configured_by`,
+    `CASE WHEN "started_at" IS NULL THEN NULL ELSE '${PREVIEW_REDACTED_ACTOR}'::text END AS started_by`,
+  );
   // Only public, final facts; pending private review evidence is not a preview seed.
   const filter = table === "education_verifications" ? " WHERE status = 'approved'"
     : table === "announcements" ? " WHERE status = 'published'"
