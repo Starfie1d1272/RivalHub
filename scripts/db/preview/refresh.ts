@@ -119,7 +119,7 @@ type RefreshDataPhases = {
   migrateCurrent: (client: PoolClient) => Promise<void>;
 };
 
-export async function importSnapshot(client: PoolClient, snapshot: MirrorSnapshot): Promise<void> {
+export async function importSnapshot(client: Pick<PoolClient, "query">, snapshot: MirrorSnapshot): Promise<void> {
   await client.query("BEGIN");
   await client.query("SET LOCAL session_replication_role = 'replica'");
   const tables = await client.query<{ tablename: string }>("SELECT tablename FROM pg_tables WHERE schemaname='public' AND tablename <> $1", [MIRROR_STATE_TABLE]);

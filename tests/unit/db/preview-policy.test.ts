@@ -117,7 +117,13 @@ describe("sanitized mirror policy", () => {
     expect(beforeQualification.futureTables).toContain("competition_qualification_runs");
     expect(beforeQualification.tables.matches.exportedColumns).not.toContain("qualification_run_id");
     expect(beforeQualification.futureColumns.matches).toContain("qualification_run_id");
-    expect(exportQuery("competition_qualification_runs")).not.toContain('"configured_by"');
+    const query = exportQuery("competition_qualification_runs");
+    expect(query).not.toContain('"configured_by"');
+    expect(query).not.toContain('"started_by"');
+    expect(query).toContain("'preview:redacted'::text AS configured_by");
+    expect(query).toContain(`CASE WHEN "started_at" IS NULL THEN NULL ELSE 'preview:redacted'::text END AS started_by`);
+    expect(exportQuery("competition_qualification_drafts")).toContain("'preview:redacted'::text AS updated_by");
+    expect(exportQuery("competition_qualification_drafts")).not.toContain('"updated_by"');
   });
 
   it("exports roster currentness only for sources with the history migration", () => {

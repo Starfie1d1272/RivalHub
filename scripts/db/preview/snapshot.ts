@@ -10,6 +10,7 @@ import {
   assertReviewedColumns,
   exportQuery,
   previewPolicyFor,
+  sanitizedRequiredFields,
 } from "./policy";
 import { sourceDatabaseUrl } from "./environment";
 import { type PersonaCandidates } from "./personas";
@@ -276,15 +277,21 @@ function readSnapshotUnsafe(path: string): MirrorSnapshot {
   for (const [table, rows] of Object.entries(snapshot.tables)) {
     const tablePolicy = policy.tables[table];
     if (!tablePolicy) throw new Error("Snapshot contains a table outside the source policy.");
-    const allowed = new Set(tablePolicy.exportedColumns);
+    const allowed = new Set([...tablePolicy.exportedColumns, ...Object.keys(sanitizedRequiredFields(table, {}))]);
     if (table === "users") ["email", "role", "auth_id", "email_verified_at", "email_verification_source"].forEach((key) => allowed.add(key));
     if (table === "season_registrations") allowed.add("screenshot_urls");
     if (table === "team_memberships") allowed.add("ended_reason");
     if (["post_event_adjudications", "tournament_honors"].includes(table)) allowed.add("client_request_id");
-    if (table === "post_event_adjudications") allowed.add("reason");
     if (!Array.isArray(rows)) throw new Error("Invalid mirror rows.");
     for (const row of rows) {
       if (!row || Object.keys(row).some((key) => !allowed.has(key))) throw new Error(`Unexpected mirror field: ${table}`);
+      for (const [column, expected] of Object.entries(sanitizedRequiredFields(table, row))) {
+        if (row[column] !== expected || (table === "competition_qualification_runs" && !Object.hasOwn(row, "started_at"))) {
+          throw new PreviewMirrorError("PREVIEW_SNAPSHOT_INVALID", "Preview mirror required field failed sanitization.", {
+            context: { phase: "snapshot read", table, column },
+          });
+        }
+      }
       if (table === "users" && (row.email !== `${row.id}@preview.invalid` || row.role !== "user" || row.auth_id || row.email_verified_at)) throw new Error("Unsanitized mirror identity.");
       if (table === "season_registrations" && JSON.stringify(row.screenshot_urls) !== "[]") throw new Error("Private screenshot in mirror.");
       if (table === "team_memberships") assertSanitizedTeamMembership(row);

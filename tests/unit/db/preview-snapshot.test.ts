@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -63,6 +63,47 @@ describe("preview mirror snapshot membership privacy", () => {
       { ...BASE_MEMBERSHIP, status: "left", ended_at: "2026-02-01T00:00:00.000Z", ended_reason: endedReason },
     ], (path) => {
       expect(() => readSnapshot(path)).toThrow(/Preview mirror membership row failed sanitization/);
+    });
+  });
+});
+
+
+describe("preview qualification audit privacy", () => {
+  const cases = [
+    ["match_veto_appeals", { reason: "预览已脱敏" }],
+    ["post_event_adjudications", { reason: "预览已脱敏" }],
+    ["competition_qualification_drafts", { updated_by: "preview:redacted" }],
+    ["competition_qualification_runs", { configured_by: "preview:redacted", started_at: null, started_by: null }],
+    ["competition_qualification_runs", { configured_by: "preview:redacted", started_at: "2026-01-01T00:00:00Z", started_by: "preview:redacted" }],
+  ] as const;
+
+  it.each(cases)("accepts sanitized %s audit shape", (table, row) => {
+    withSnapshot([], (path) => {
+      const snapshot = JSON.parse(readFileSync(path, "utf8"));
+      snapshot.tables[table] = [row];
+      writeFileSync(path, JSON.stringify(snapshot));
+      expect(readSnapshot(path).tables[table]).toEqual([row]);
+    });
+  });
+
+  it.each([
+    ["match_veto_appeals", {}],
+    ["match_veto_appeals", { reason: "private appeal" }],
+    ["post_event_adjudications", { reason: "private reason" }],
+    ["competition_qualification_drafts", {}],
+    ["competition_qualification_drafts", { updated_by: null }],
+    ["competition_qualification_drafts", { updated_by: "private-admin-id" }],
+    ["competition_qualification_runs", { configured_by: "private-admin-id", started_at: null, started_by: null }],
+    ["competition_qualification_runs", { configured_by: "preview:redacted", started_at: null, started_by: "preview:redacted" }],
+    ["competition_qualification_runs", { configured_by: "preview:redacted", started_at: "2026-01-01T00:00:00Z", started_by: null }],
+    ["competition_qualification_runs", { configured_by: "preview:redacted", started_at: "2026-01-01T00:00:00Z", started_by: "private-admin-id" }],
+    ["competition_qualification_runs", { configured_by: "preview:redacted", started_by: "preview:redacted" }],
+  ])("rejects missing, private or inconsistent %s actors before reset", (table, row) => {
+    withSnapshot([], (path) => {
+      const snapshot = JSON.parse(readFileSync(path, "utf8"));
+      snapshot.tables[table as string] = [row];
+      writeFileSync(path, JSON.stringify(snapshot));
+      expect(() => readSnapshot(path)).toThrow(/required field failed sanitization/);
     });
   });
 });
