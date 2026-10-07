@@ -79,5 +79,14 @@ test("管理员预览并确认 30 队到 Major 24 的 Play-in 配置与首轮对
   expect([...new Set(matchPaths)]).toHaveLength(6);
 
   await page.reload();
-  await expect(page.getByText("第 1 轮对阵已生成")).toBeVisible();
+  await expect(page.getByRole("tab", { name: "PLAY-IN" })).toHaveAttribute(
+    "data-state",
+    "active",
+  );
+  await expect.poll(async () => {
+    const persistedPaths = await activeStagePanel
+      .locator(`a[href^="/admin/${scenario.slug}/matches/"]`)
+      .evaluateAll((links) => links.map((link) => link.getAttribute("href")).filter(Boolean));
+    return [...new Set(persistedPaths)].sort();
+  }).toEqual([...new Set(matchPaths)].sort());
 });
