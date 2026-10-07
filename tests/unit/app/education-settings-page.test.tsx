@@ -1,4 +1,6 @@
 /** @vitest-environment node */
+import { getTableColumns } from "drizzle-orm";
+import { educationVerifications, institutions } from "@/db/schema";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
@@ -17,8 +19,15 @@ describe("education settings client payload", () => {
       status: "rejected", reviewNote: "请补充材料", submittedAt: new Date("2026-10-01T00:00:00Z"),
       evidenceCode: "private-code-marker", evidenceObjectKey: "private-object-marker",
     };
+    const values = new Map<unknown, unknown>([
+      ...Object.entries(getTableColumns(educationVerifications)).map(([key, column]): [unknown, unknown] => [column, fact[key]]),
+      [institutions.name, fact.institution],
+      [institutions.moeInstitutionCode, fact.institutionCode],
+      [institutions.province, fact.province],
+    ]);
     select.mockImplementation((columns: Record<string, unknown>) => {
-      const row = Object.fromEntries(Object.keys(columns).map((key) => [key, fact[key]]));
+      // Resolve actual columns, so aliasing a private column cannot hide its value.
+      const row = Object.fromEntries(Object.entries(columns).map(([key, column]) => [key, values.get(column)]));
       const chain = { from: () => chain, innerJoin: () => chain, where: () => chain, orderBy: async () => [row] };
       return chain;
     });

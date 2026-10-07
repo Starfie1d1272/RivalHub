@@ -30,6 +30,8 @@ describe("populated canonical team identity migration", () => {
       await expect(client.query("INSERT INTO team_members VALUES ($1,$2,$3,$4,$5)", [randomUUID(), f.team, f.registration, f.season, f.user])).rejects.toMatchObject({ code: "23505" });
       await expect(client.query("UPDATE team_members SET season_id = $1", [f.otherSeason])).rejects.toMatchObject({ code: "23503" });
       await expect(client.query("UPDATE teams SET captain_user_id = NULL")).rejects.toMatchObject({ code: "23502" });
+      await expect(client.query("UPDATE teams SET captain_registration_id = NULL")).rejects.toMatchObject({ code: "23502" });
+      await expect(client.query("UPDATE team_members SET registration_id = NULL")).rejects.toMatchObject({ code: "23502" });
     });
   });
 
