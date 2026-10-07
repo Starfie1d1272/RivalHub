@@ -38,6 +38,8 @@ describe("scoped revalidation", () => {
       ["/major-2027/matches"],
       ["/admin/major-2027/matches"],
       ["/admin/major-2027/matches/match-1"],
+      ["/admin/major-2027/test-matches"],
+      ["/my/competitions"],
       ["/major-2027/matches/match-1"],
     ]);
   });
@@ -73,6 +75,8 @@ describe("scoped revalidation", () => {
       ["/major-2027/matches"],
       ["/admin/major-2027/matches"],
       ["/admin/major-2027/matches/match-1"],
+      ["/admin/major-2027/test-matches"],
+      ["/my/competitions"],
       ["/major-2027/matches/match-1"],
     ]);
     if (mode === "route") expect(revalidateTagMock).toHaveBeenCalledWith("public-season:major-2027", "max");
