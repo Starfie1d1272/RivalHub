@@ -4,6 +4,10 @@ import { resolve } from "path";
 const vitestCiRetry = process.env.GITHUB_ACTIONS === "true" ? 1 : 0;
 
 export default defineConfig({
+  // Next.js preserves JSX for its compiler; Vite 8 must lower it for tests.
+  oxc: {
+    jsx: { runtime: "automatic" },
+  },
   resolve: {
     alias: {
       "@": resolve(__dirname, "./src"),
