@@ -1,4 +1,5 @@
 import { spawnSync } from "node:child_process";
+import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
@@ -10,6 +11,14 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   const pnpm = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
 
   const args = commandFor(task, project, relatedSources, explicitTests, changedPaths);
+  if (task === `unit-explicit-${project}`) {
+    const discovery = spawnSync(process.execPath, ["node_modules/vitest/vitest.mjs", "list", "--project", project, "--filesOnly", ...explicitTests, "--json"], { encoding: "utf8", env: process.env });
+    if (discovery.error) throw discovery.error;
+    if (discovery.status !== 0) throw new Error(`explicit test discovery failed: ${discovery.stderr}`);
+    const discovered = new Set(JSON.parse(discovery.stdout).map(item => resolve(item.file)));
+    const missing = explicitTests.filter(path => !discovered.has(resolve(path)));
+    if (missing.length) throw new Error(`explicit tests were not discovered in ${project}: ${missing.join(", ")}`);
+  }
   const result = spawnSync(pnpm, args, {
     cwd: process.cwd(),
     env: process.env,

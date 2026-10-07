@@ -31,6 +31,16 @@ describe("affected evidence correctness", () => {
     expect(result.status).not.toBe(0);
   });
 
+  it("rejects a partially undiscovered explicit batch even when another test is valid", () => {
+    const result = spawnSync(process.execPath, ["scripts/ci/run-static-task.mjs"], {
+      encoding: "utf8",
+      env: { ...process.env, STATIC_TASK: "unit-explicit-unit-domain-node", STATIC_PROJECT: "unit-domain-node", STATIC_EXPLICIT_TESTS: JSON.stringify(["tests/unit/ci/plan.test.mjs", "tests/unit/app/admin-layout.test.tsx"]) },
+    });
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain("explicit tests were not discovered");
+    expect(result.stderr).toContain("admin-layout.test.tsx");
+  });
+
   it("adding an integration test cannot narrow a source change's PostgreSQL evidence", () => {
     const before = plan("src/actions/register.ts");
     const after = plan("src/actions/register.ts", "tests/integration/db/bet.test.ts");

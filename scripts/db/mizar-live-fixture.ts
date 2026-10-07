@@ -21,8 +21,6 @@ const command = process.argv[2];
 const seasonId = process.argv[3] ?? randomUUID();
 
 async function create() {
-  const staleSeasons = await db.select({ id: schema.seasons.id }).from(schema.seasons).where(eq(schema.seasons.name, "Live transport evidence"));
-  for (const stale of staleSeasons) await cleanup(stale.id);
   const userId = randomUUID(), entryA = randomUUID(), entryB = randomUUID();
   const matchId = randomUUID(), otherMatchId = randomUUID(), mapId = randomUUID();
   const installationId = randomUUID(), pairingIntentId = randomUUID();
