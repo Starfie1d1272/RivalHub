@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { validateSeriesAgainstMaps } from "@/lib/matches/result-rules";
 import { concludeMatchExecution, transitionMatchExecution } from "@/lib/matches/execution";
 
 const now = new Date("2026-10-07T12:00:00Z");
@@ -31,4 +32,17 @@ describe("competition-independent match execution", () => {
   it("does not turn cancellation into an unreported result", () => {
     expect(() => concludeMatchExecution({ ...match, status: "cancelled" }, { kind: "omitted" }, now)).toThrow();
   });
+});
+
+
+it('preserves execution end when resolving a late result', () => {
+  expect(concludeMatchExecution({ ...match, status: 'finished', completedAt: now }, { kind: 'recorded', scoreA: 2, scoreB: 1 }, new Date(now.getTime() + 7200000)).completedAt).toEqual(now);
+});
+it('accepts unknown maps but rejects conflicting winners and maps after the clinch', () => {
+  const win = (mapOrder: number) => ({ mapOrder, scoreA: 13, scoreB: 5 });
+  expect(() => validateSeriesAgainstMaps('bo3', 2, 1, [])).not.toThrow();
+  expect(() => validateSeriesAgainstMaps('bo3', 2, 1, [win(1)])).not.toThrow();
+  expect(() => validateSeriesAgainstMaps('bo3', 0, 2, [win(1)])).toThrow('冲突');
+  expect(() => validateSeriesAgainstMaps('bo3', 2, 1, [win(1), win(2)])).toThrow('冲突');
+  expect(() => validateSeriesAgainstMaps('bo3', 2, 0, [win(3)])).toThrow('冲突');
 });

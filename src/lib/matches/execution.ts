@@ -40,7 +40,7 @@ export function concludeMatchExecution(
   if (conclusion.kind === "recorded") validateSeriesScore(match.format, conclusion.scoreA, conclusion.scoreB);
   return {
     status: "finished" as const,
-    completedAt: now,
+    completedAt: match.status === "finished" ? match.completedAt : now,
     result: conclusion,
     scoreA: conclusion.kind === "recorded" ? conclusion.scoreA : null,
     scoreB: conclusion.kind === "recorded" ? conclusion.scoreB : null,

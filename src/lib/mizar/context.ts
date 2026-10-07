@@ -104,7 +104,7 @@ export async function loadUnassociatedMizarDocumentInTx(tx: TxDb, matchId: strin
   const payload = {
     schemaVersion: "rivalhub.broadcast-manifest.v2" as const,
     match: {
-      matchId: match.id, competition: null, status: match.status, format: match.format,
+      matchId: match.id, resultDisposition: match.resultDisposition, competition: null, status: match.status, format: match.format,
       stage: null, stageKey: null, stageLabel: null, round: null, entryRound: null,
       scheduledAt: iso(match.scheduledAt), startedAt: iso(match.startedAt), completedAt: iso(match.completedAt),
       scoreA: match.scoreA, scoreB: match.scoreB, isForfeit: match.isForfeit,
