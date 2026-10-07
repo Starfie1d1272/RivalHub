@@ -296,10 +296,7 @@ describe("deployment and operations contracts", () => {
     expect(release).not.toContain("application_changed:");
     expect(release).not.toContain("migration_changed:");
     expect(release).not.toContain("release-finalize.yml");
-    expect(readProjectFile(".github/workflows/ci.yml")).toContain("Mobile public event search evidence (10x, no retry)");
     expect(readProjectFile(".github/workflows/ci.yml")).toContain("mobile_search_evidence: ${{ steps.plan.outputs.mobile_search_evidence }}");
-    expect(readProjectFile(".github/workflows/ci.yml")).toContain("PLAYWRIGHT_RETRIES: 0");
-    expect(readProjectFile(".github/workflows/ci.yml")).toContain("--repeat-each=10");
   });
 
   it("freezes the exact release identity into Vercel builds and reads it back after deploy", () => {

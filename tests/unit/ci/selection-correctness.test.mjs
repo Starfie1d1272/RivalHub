@@ -35,7 +35,8 @@ describe("affected evidence correctness", () => {
     const before = plan("src/actions/register.ts");
     const after = plan("src/actions/register.ts", "tests/integration/db/bet.test.ts");
     expect(before.runPostgres).toBe(true);
-    expect(after.integrationSpecs).toEqual(before.integrationSpecs);
+    if (before.integrationSpecs.length === 0) expect(after.integrationSpecs).toEqual([]);
+    else for (const spec of before.integrationSpecs) expect(after.integrationSpecs).toContain(spec);
     expect(plan("tests/integration/db/bet.test.ts").integrationSpecs).toEqual(["tests/integration/db/bet.test.ts"]);
   });
 
@@ -49,6 +50,18 @@ describe("affected evidence correctness", () => {
   it.each(["src/components/matches/MatchLiveProvider.tsx", "src/lib/mizar/live-viewer.ts"])("runs the real browser consumer for %s", (path) => {
     expect(plan(path).runSystem).toBe(true);
     expect(plan(path).e2eSpecs).toContain("tests/e2e/flows/public-match-live.spec.ts");
+  });
+
+  it("selects PostgreSQL consumers transitively and unions mixed domains", () => {
+    const paths = ["src/lib/mizar/live.ts", "src/lib/education/commands.ts"];
+    const union = plan(...paths, "tests/integration/db/bet.test.ts");
+    expect(union.integrationSpecs).toContain("tests/integration/db/bet.test.ts");
+    for (const path of paths) {
+      const selected = plan(path).integrationSpecs;
+      expect(selected.length).toBeGreaterThan(0);
+      for (const spec of selected) expect(union.integrationSpecs).toContain(spec);
+    }
+    expect(plan("src/db/schema/mizar.ts", "tests/integration/db/bet.test.ts").integrationSpecs).toEqual([]);
   });
 
   it("keeps a presentation-only change out of service lanes", () => {

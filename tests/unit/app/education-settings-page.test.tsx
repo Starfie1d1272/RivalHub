@@ -2,7 +2,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
-const { panel, select } = vi.hoisted(() => ({ panel: vi.fn((_props: unknown) => null), select: vi.fn() }));
+const { panel, select } = vi.hoisted(() => ({ panel: vi.fn((props: unknown) => { void props; return null; }), select: vi.fn() }));
 vi.mock("@/components/settings/EducationVerificationPanel", () => ({ EducationVerificationPanel: panel }));
 vi.mock("@/lib/auth/session", () => ({ getUserSession: async () => ({ userId: "viewer" }) }));
 vi.mock("@/lib/identity/linking", () => ({ listVerifiedEmailIdentities: async () => [] }));

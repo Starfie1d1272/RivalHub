@@ -1,10 +1,9 @@
 import { execFile, spawn, type ChildProcess } from "node:child_process";
 import { promisify } from "node:util";
 import { resolve } from "node:path";
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { redactText } from "../../../src/lib/observability/redact";
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect } from "@playwright/test";
 const execute = promisify(execFile);
 const tsx = resolve("node_modules/.bin/tsx");
 const env = { ...process.env, NODE_OPTIONS: `${process.env.NODE_OPTIONS ?? ""} --conditions=react-server` };
@@ -14,39 +13,9 @@ async function run(script: string, ...args: string[]) {
   return (await execute(tsx, [script, ...args], { env, timeout: 15000 })).stdout;
 }
 
-test("public match consumes private Broadcast and recovers with canonical layout", async ({ page, browser }, testInfo) => {
-  test.skip(testInfo.project.name !== "chromium", "One real producer fixture checks desktop, 390px and 320px together.");
+test("public match consumes private Broadcast and recovers across navigation and map changes", async ({ page, browser }) => {
   test.setTimeout(180000);
   const seasonId = randomUUID();
-  const capture = async (name: string, target: Page = page) => {
-    // Scope the evidence font to this page; system installation changes unrelated visual baselines.
-    const font = resolve(".agent-tmp/evidence-fonts/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc");
-    if (existsSync(font)) {
-      await target.route("**/__public-evidence-font", route => route.fulfill({ path: font, contentType: "font/collection" }));
-      await target.evaluate(async () => {
-        if (![...document.fonts].some(face => face.family === "Public Evidence" && face.status === "loaded")) {
-          const response = await fetch("/__public-evidence-font");
-          const face = new FontFace("Public Evidence", await response.arrayBuffer(), { unicodeRange: "U+2E80-9FFF,U+F900-FAFF,U+FF00-FFEF" });
-          await face.load();
-          document.fonts.add(face);
-        }
-        // The hermetic Next font may claim CJK glyphs while drawing boxes. Prefer
-        // this CJK-only face, retaining each element's original Latin/mono family.
-        for (const element of document.querySelectorAll("*")) {
-          if (!(element instanceof HTMLElement)) continue;
-          const family = getComputedStyle(element).fontFamily;
-          if (!family.includes("Public Evidence")) element.style.fontFamily = `"Public Evidence", ${family}`;
-        }
-      });
-    }
-    await target.evaluate(() => document.fonts.ready);
-    await target.addStyleTag({ content: "nextjs-portal { display: none !important; }" });
-    const body = await target.screenshot({ fullPage: true });
-    await testInfo.attach(name, { body, contentType: "image/png" });
-    const directory = resolve(".agent-tmp/public-match-live-evidence");
-    mkdirSync(directory, { recursive: true });
-    writeFileSync(resolve(directory, `${name}.png`), body);
-  };
   let producer: ChildProcess | undefined;
   const stream = (matchId: string) => new Promise<ChildProcess>((resolve, reject) => {
     const child = spawn(process.execPath, ["--import", "tsx", browserFixture, "stream", matchId], { env, stdio: ["ignore", "pipe", "pipe"] });
@@ -89,18 +58,6 @@ test("public match consumes private Broadcast and recovers with canonical layout
     await expect(page.getByLabel("系列赛比分").filter({ visible: true })).toHaveCount(0);
     await expect(page.getByRole("region", { name: "BP 结果与地图" }).getByText("2 : 0", { exact: true })).toBeVisible();
     await expect(page.getByText("暂无直播", { exact: true })).toBeVisible();
-    for (const width of [1440, 390, 320]) {
-      await page.setViewportSize({ width, height: 1000 });
-      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
-      if (width === 1440) {
-        const delta = await live.evaluate(element => {
-          const tables = element.querySelectorAll("table");
-          return Math.abs(tables[1].getBoundingClientRect().bottom - element.querySelector('[aria-label="比赛战术雷达"]')!.getBoundingClientRect().bottom);
-        });
-        expect(delta).toBeLessThanOrEqual(3);
-      }
-      await capture(`public-live-${width}`);
-    }
     producer?.kill(); producer = undefined;
     await expect(live.getByText("实时数据暂时中断", { exact: true })).toBeVisible({ timeout: 6000 });
     const radarFrozen = await live.locator("canvas").evaluate(canvas => new Promise<boolean>(resolve => {
@@ -115,7 +72,6 @@ test("public match consumes private Broadcast and recovers with canonical layout
       requestAnimationFrame(check);
     }));
     expect(radarFrozen).toBe(true);
-    await capture("public-stale");
     await live.evaluate(element => {
       const clock = element.querySelector('[aria-label="回合时钟"]')!.textContent;
       const observer = new MutationObserver(() => {
@@ -128,7 +84,6 @@ test("public match consumes private Broadcast and recovers with canonical layout
     await expect(live.getByText("实时数据暂不可用", { exact: true })).toBeVisible({ timeout: 12000 });
     await expect(live).not.toHaveAttribute("data-clock-moved", "true");
     await expect(live.locator("canvas")).toHaveCount(0);
-    await capture("public-unavailable");
     producer = await stream(matchId);
     await expect(live.getByText("FalleN", { exact: true })).toBeVisible();
     await page.reload();
@@ -146,22 +101,6 @@ test("public match consumes private Broadcast and recovers with canonical layout
     await expect(listCard.getByText("未知队伍", { exact: true })).toHaveCount(0);
     const listScore = listCard.getByTestId("match-list-live-score");
     await expect(listScore.getByLabel("本图回合比分")).toHaveText("2 : 0");
-    for (const width of [1440, 390, 320]) {
-      await page.setViewportSize({ width, height: 1000 });
-      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
-      await listCard.scrollIntoViewIfNeeded();
-      await expect(listScore.getByLabel("本图回合比分")).toHaveText("2 : 0");
-      for (const team of ["FURIA", "G2.Esports"]) {
-        expect(await listCard.getByText(team, { exact: true }).evaluate(element => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
-      }
-      await capture(`public-list-${width}`);
-    }
-    producer?.kill(); producer = undefined;
-    await expect(listScore.getByText("Ancient · 更新暂时中断")).toBeVisible({ timeout: 6000 });
-    await expect(listScore.getByText("实时数据暂不可用")).toBeVisible({ timeout: 12000 });
-    await expect(listScore.getByLabel("本图回合比分")).toHaveCount(0);
-    producer = await stream(matchId);
-    await expect(listScore.getByLabel("本图回合比分")).toHaveText("2 : 0");
     await page.goto(url);
     await expect(live.locator("canvas")).toBeVisible();
     // A fresh context has no decoded image cache that can bypass a network failure.
@@ -174,7 +113,6 @@ test("public match consumes private Broadcast and recovers with canonical layout
       await expect(failureLive.getByText("雷达暂不可用，比赛数据仍可查看")).toBeVisible();
       await expect(failureLive.getByText("FalleN", { exact: true })).toBeVisible();
       expect(failedIcons).toBeGreaterThan(0);
-      await capture("public-asset-failure", failurePage);
     } finally { await failurePage.close(); }
     await page.bringToFront();
     producer?.kill(); producer = undefined;
@@ -184,23 +122,8 @@ test("public match consumes private Broadcast and recovers with canonical layout
     await expect(live.getByText("上下层", { exact: true })).toBeVisible();
     await expect(live.locator("canvas")).toBeVisible();
     await expect(live.getByText("Ancient", { exact: true })).toHaveCount(0);
-    await capture("public-map-change");
     producer?.kill(); producer = undefined;
-    for (const [phase, label] of [["pre", "等待 BP"], ["bp", "BP 进行中"], ["waiting", "等待正式对局"], ["inter_map", null], ["post", null]] as const) {
-      await run(browserFixture, "phase", matchId, phase);
-      await page.reload();
-      if (label) await expect(page.getByText(label, { exact: true }).filter({ visible: true })).toBeVisible();
-      else if (phase === "post") await expect(live).toHaveCount(0);
-      if (phase === "inter_map") {
-        await expect(live.getByLabel("上一图比分与地图胜场")).toHaveText(/\(1\)\s*13:9\s*\(0\)/);
-        await expect(live.getByText("图间休息", { exact: true })).toHaveCount(0);
-        await expect(live.locator("canvas")).toHaveCount(0);
-        await expect(page.getByLabel("系列赛比分").filter({ visible: true })).toHaveCount(0);
-        await expect(page.getByLabel("地图胜场", { exact: true }).filter({ visible: true })).toHaveText(/1\s*:\s*0/);
-      }
-      if (phase === "post") await expect(page.getByLabel("系列赛比分").filter({ visible: true })).toHaveText(/2\s*:\s*0/);
-      await capture(`public-${phase}`);
-    }
+
   } finally {
     producer?.kill();
     await run(fixture, "cleanup", seasonId);

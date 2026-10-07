@@ -66,20 +66,34 @@ pnpm exec vitest run --project unit-react-jsdom path/to/related.spec.tsx
 
 环境启动和单层复现见 [`operations/local-development.md`](./operations/local-development.md)。
 
-Vitest 的三个 project（domain Node、server Node、React jsdom）是独立 evidence owner。测试转换器显式使用 React automatic JSX runtime；应用 TypeScript 配置继续保留 JSX 供 Next.js 编译，测试不继承其 JSX preserve 行为。FULL static 会并行执行三个 project；affected static 将每个 source 交给全部 Vitest project 的 `related` 查找跨层消费者，而变更的 test 文件与 architecture/E2E 等 repository contract 以匹配实际扩展名的 project 和显式 test path 直接运行；显式清单为空或没有发现测试必须失败。source 的相关消费者为空可以通过，但不能伪装成执行了测试。混合 source/test 修改取证据并集，新增测试不得缩窄既有 PG 或共享 E2E harness 的验证范围。React/jsdom 的异步交互测试使用 `userEvent.setup()` 和 awaited interaction，并分别等待元素存在与可交互状态；只有时间推进本身是被测 contract 时才使用 fake timers。`unit-react-jsdom` 仅在 GitHub Actions 中配置一次 `retry`，本地默认保持 `0`；static matrix 在该 project 测试后执行 `scripts/ci/assert-no-flaky.mjs`，所以 retry-pass 仍会使 static job 失败。project 的 wall time 由外层 timing wrapper 记录，`vitest-timing-reporter.ts` 继续作为唯一 evidence producer，除 test count、failure/flaky count 和按文件排序的 diagnostic duration 外，为每个 flaky test 写入 project、file、full test name 与 retry count，不解析 console 文本伪造失败信息，也不把并发文件 duration 总和伪装成 project wall time。
+Vitest 的三个 project（domain Node、server Node、React jsdom）是独立 evidence owner。测试转换器显式使用 React automatic JSX runtime；应用 TypeScript 配置继续保留 JSX 供 Next.js 编译，测试不继承其 JSX preserve 行为。FULL static 会并行执行三个 project；affected static 将每个 source 交给全部 Vitest project 的 `related` 查找跨层消费者，而变更的 test 文件与产品语言契约 以匹配实际扩展名的 project 和显式 test path 直接运行；显式清单为空或没有发现测试必须失败。source 的相关消费者为空可以通过，但不能伪装成执行了测试。混合 source/test 修改取证据并集，新增测试不得缩窄既有 PG 或共享 E2E harness 的验证范围。React/jsdom 的异步交互测试使用 `userEvent.setup()` 和 awaited interaction，并分别等待元素存在与可交互状态；只有时间推进本身是被测 contract 时才使用 fake timers。`unit-react-jsdom` 仅在 GitHub Actions 中配置一次 `retry`，本地默认保持 `0`；static matrix 在该 project 测试后执行 `scripts/ci/assert-no-flaky.mjs`，所以 retry-pass 仍会使 static job 失败。project 的 wall time 由外层 timing wrapper 记录，`vitest-timing-reporter.ts` 继续作为唯一 evidence producer，除 test count、failure/flaky count 和按文件排序的 diagnostic duration 外，为每个 flaky test 写入 project、file、full test name 与 retry count，不解析 console 文本伪造失败信息，也不把并发文件 duration 总和伪装成 project wall time。
 
 对疑似 flake 的本地诊断可以显式运行 `pnpm exec vitest run --project unit-react-jsdom --retry 1 path/to/related.spec.tsx`；`repeats` 只作为聚焦诊断或手动/nightly 入口，不进入普通 PR 的 planner、required path 或 flaky allowlist。
 
 System failure/flaky 时 Playwright 生成 failure screenshot；artifact sanitizer 仅从 test-results 保留小型 PNG/JPEG，trace archive 与所有文本继续脱敏，成功 run 不上传大体积 artifacts。每条 stateful E2E 使用自己的 fixture profile 与 attempt namespace。
 
-Public event participant search 的 mobile-chrome 回归必须证明真实 debounce/router/server re-render 竞态已消除：CI 在 affected system lane 中聚焦运行 `tests/e2e/flows/public-event-experience.spec.ts` 10 次，使用 `PLAYWRIGHT_RETRIES=0`、`--repeat-each=10`，并要求 `flaky=0`；这是该 contract 的 authoritative evidence。修复应收敛在 `ListSearchField` / list-query owner，不得通过增加 timeout、`waitForTimeout`、重复 fill/click 或关闭 `failOnFlakyTests` 掩盖竞态；其它 `ListSearchField` consumer 仍需通过共享组件单测。
+公开搜索的 required evidence 是一次真实 debounce/router/RSC 与历史恢复闭环；`ListSearchField` 的输入规则由共享组件测试保护。`--repeat-each=10`、容量压测与截图不进入普通 PR 或 FULL required gate，显式实验也不得用 retry 隐藏失败。
+
+独立验收入口（先按 local-development 启动最小本地环境）：
+
+```bash
+pnpm test:e2e -- --config=playwright.acceptance.config.ts
+pnpm test:e2e -- --config=playwright.production.config.ts
+pnpm test:integration:pg17 -- --config=vitest.experiments.config.ts
+pnpm test:e2e -- --project=mobile-chrome --repeat-each=10 flows/public-event-experience.spec.ts
+```
+
+普通 Playwright config 只发现关键生命周期，project 根据实际保护职责分配用例，不先发现再运行时 skip。视觉、截图和状态组合验收由 acceptance config 显式发现；容量实验使用独立 Vitest config，共享真实 PostgreSQL/HTTP harness，日常 PG config 保留超时、锁竞争、公平轮转、故障恢复与权威 fencing 正确性。system 同时运行精简 production build/start smoke：真实 UI 登录、App Shell 导航、`aria-current` 和移动可达性。production 的 test-only auth route 仍关闭。
+
 ## Spectator prediction acceptance
 
-Pure tests exercise full Major simulation, upstream invalidation, exact slot judgement, bracket dependencies and integer pool conservation. PostgreSQL tests exercise submission versions, server locks, idempotency, concurrent ALL IN, append-only records, official settlement/reversal/debt, account merge blockers and public-data isolation. Major runtime regression is required when shared pairing helpers change. Browser acceptance uses real Local Supabase login, keyboard/click/drag slot assignment, local projection and undo, playoff dependencies, independent draft/submission state, PNG download and point transactions on desktop and mobile.
+Pure tests exercise full Major simulation, upstream invalidation, exact slot judgement, bracket dependencies and integer pool conservation. PostgreSQL tests exercise submission versions, server locks, idempotency, concurrent ALL IN, append-only records, official settlement/reversal/debt, account merge blockers and public-data isolation. Major runtime regression is required when shared pairing helpers change. Browser acceptance uses real Local Supabase login, keyboard/click/drag slot assignment, independent draft/submission state, real PNG download and point transactions on desktop and mobile.
 
 ## Maintenance rules
 
-- regression test 保护明确 contract，而不是只覆盖代码行。
+- 新增测试必须说明用户/业务/安全承诺、具体失败风险、为何现有证据不足以及为何选择该层。没有独立保护价值就不新增；不机械地为每个函数、组件或改动添加测试。
+- 同一规则由最低足够真实的层拥有；跨层测试只保护拼装链路，不能复制规则矩阵。源码字符串、内部变量、DOM 层级、CSS class 与第三方库转发通常不是产品契约；权限边界静态规则、实际资产/provenance 和公开 DTO 则有独立价值。
+- 合法产品变化先更新承诺再修改测试；重构不改变承诺却大量要求同步改断言时，先审查测试耦合。重复失败优先定位原因，不能以 skip、retry-pass、删负例换绿。
 - `null`、失败、并发、权限和 recovery 等重要负路径必须由对应层证明。
 - 不在文档复制测试数、表数或 migration 数。
 - 不能用“CI 绿”“已知 flaky”或视觉 demo 替代所需 evidence。
@@ -89,7 +103,7 @@ Pure tests exercise full Major simulation, upstream invalidation, exact slot jud
 
 `mizar-live-real-derived.json` retains the source Mizar commit and sanitized capture provenance. It was produced from Mizar's `real-live-rich` program and matching `dense-utility` radar fixture through `projectLiveSnapshotV1`; RivalHub tests must still run its wire parser, `projectPublicLive`, delivery reducer and the published `fromPublicRadar` adapter. The professional capture is a fixture, not evidence that an NJU match was played.
 
-`tests/e2e/flows/public-match-live.spec.ts` uses disposable Local Supabase facts, the existing private viewer endpoint and production ingest/public projection. Its dedicated producer only rewrites local match/context IDs and delivery timestamps; it sends the captured player/radar data at 1 Hz. The Chromium scenario checks all three viewport widths (1440/390/320), equal desktop panel bottoms, shared map-card/live scores, schedule-row live scores and stale/unavailable recovery, stale clock freezing, unavailable fallback, resumed delivery, navigation, icon failure, BP/waiting/inter-map/POST and attaches screenshots. It never publishes to a hosted Supabase project. Token expiry, rejected replay and foreground cleanup are deterministic lifecycle tests; exact age boundaries and authority/map resets are reducer tests. These checks do not certify a production deployment, real operator handover or sustained multi-viewer capacity.
+`tests/e2e/flows/public-match-live.spec.ts` uses disposable Local Supabase facts, the existing private viewer endpoint and production ingest/public projection. Its dedicated producer only rewrites local match/context IDs and delivery timestamps; it sends the captured player/radar data at 1 Hz. The Chromium scenario checks private channel delivery, shared live scores, stale clock freezing, unavailable fallback, resumed delivery, cross-match navigation, icon failure and map changes. State/phase matrices and exact age boundaries belong to deterministic component/reducer tests; multi-viewport screenshots belong to opt-in acceptance. It never publishes to a hosted Supabase project. Token expiry, rejected replay and foreground cleanup are deterministic lifecycle tests; exact age boundaries and authority/map resets are reducer tests. These checks do not certify a production deployment, real operator handover or sustained multi-viewer capacity.
 
 
 ### 无产品入口的比赛领域命令

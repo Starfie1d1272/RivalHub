@@ -12,7 +12,6 @@ test.use({ scenarioProfile: "major-entry" });
  * 创建 CompetitionEntry → 页面呈现与服务端 canonical 状态一致（待提交 + 报名检查），
  * 且 /my/competitions 与报名页读到同一份 Entry 状态。
  */
-test.skip(({ viewport }) => (viewport?.width ?? 0) < 800, "有状态的报名流程只在桌面项目执行一次，避免并发 project 在共享 fixture 状态上竞争。");
 
 test("队长可以登录、建立队伍并发起本届 Major 报名", async ({ page, scenario }) => {
   const captain = account(scenario, "captain");

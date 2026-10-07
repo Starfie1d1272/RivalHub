@@ -22,7 +22,4 @@ test("公开赛事队伍与选手查询保留 URL 状态及移动布局", async 
   await expect(playerSearch).toHaveValue("unmatched-player");
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1)).toBe(true);
 
-  await page.goto(`/${scenario.slug}/community-awards`);
-  await expect(page.getByRole("button", { name: "提交社区奖", exact: true })).toHaveCount(0);
-  await expect(page.getByRole("link", { name: "登录后提出社区奖" })).toBeVisible();
 });

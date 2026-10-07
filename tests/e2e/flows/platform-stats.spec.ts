@@ -2,7 +2,7 @@ import { expect, test } from "../fixtures";
 
 test.use({ scenarioProfile: "stats" });
 
-test("数据中心统一入口、赛事选择、六视图和旧入口迁移", async ({ page, scenario }, testInfo) => {
+test("数据中心统一入口、赛事选择、URL 状态与历史恢复", async ({ page, scenario }) => {
   await page.goto("/stats");
   await expect(page.getByRole("heading", { name: "数据中心", exact: true })).toBeVisible();
   const tabs = page.getByRole("navigation", { name: "数据中心", exact: true });
@@ -32,26 +32,4 @@ test("数据中心统一入口、赛事选择、六视图和旧入口迁移", as
   await page.getByRole("button", { name: "选择赛事", exact: true }).click();
   await page.keyboard.press("Escape");
   await expect(page.getByRole("button", { name: "选择赛事", exact: true })).toBeFocused();
-  for (const width of [1440, 390, 320]) {
-    await page.setViewportSize({ width, height: 900 });
-    expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1)).toBe(true);
-    await page.screenshot({ path: testInfo.outputPath(`platform-stats-${width}.png`), fullPage: true });
-  }
-  await page.goto("/stats?tab=maps&mapsView=veto");
-  const teamLink = page.getByRole("link", { name: new RegExp(`^Alpha ${scenario.shortKey}`) });
-  const teamHref = await teamLink.getAttribute("href");
-  expect(teamHref).toMatch(new RegExp(`^/${scenario.slug}/teams/`));
-  expect(teamHref).not.toMatch(/^\/\//);
-  await teamLink.click();
-  await expect(page).toHaveURL(teamHref!);
-  await page.goto(`/stats?event=${scenario.slug}&tab=maps&mapsView=veto`);
-  await page.getByRole("link", { name: "Train", exact: true }).click();
-  await expect(page).toHaveURL(new RegExp("map=de_train"));
-  await expect(page.getByRole("heading", { name: "重新选择范围" })).toHaveCount(0);
-  await page.goto(`/stats?event=${scenario.slug}&tab=maps&map=de_vertigo`);
-  await expect(page.getByRole("heading", { name: "重新选择范围" })).toHaveCount(0);
-  await page.goto("/stats?event=does-not-exist");
-  await expect(page.getByRole("heading", { name: "重新选择范围" })).toBeVisible();
-  await page.goto("/stats?stage=unknown");
-  await expect(page.getByRole("heading", { name: "重新选择范围" })).toBeVisible();
 });

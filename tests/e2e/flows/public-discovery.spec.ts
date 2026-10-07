@@ -1,7 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-test("移动端公开发现列表可操作共享筛选工具栏", async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name !== "mobile-chrome", "该验收专门覆盖移动端公开发现流程。");
+test("移动端公开发现列表可操作共享筛选工具栏", async ({ page }) => {
 
   await page.goto("/teams");
   await expect(page.getByRole("heading", { name: "队伍", exact: true })).toBeVisible();

@@ -7,7 +7,7 @@ describe("application seed", () => {
   it("rejects an undeclared target before importing application seed", () => {
     const env = { ...process.env };
     delete env.RIVALHUB_DB_TARGET;
-    delete env.DATABASE_URL;
+    env.DATABASE_URL = "postgresql://seed-test.invalid/unused";
     const result = spawnSync(process.execPath, ["--import", "tsx", "scripts/seed.ts"], { env, encoding: "utf8" });
     expect(result.status).not.toBe(0);
     expect(result.stderr).toContain("RIVALHUB_DB_TARGET");

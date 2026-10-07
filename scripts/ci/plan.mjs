@@ -3,6 +3,8 @@ import { appendFileSync, readFileSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
+import { postgresSpecsForSource } from "./postgres-selection.mjs";
+
 export const CAPABILITIES = ["static", "postgres", "system"];
 
 const STATIC_PROJECTS = ["unit-domain-node", "unit-server-node", "unit-react-jsdom"];
@@ -61,6 +63,11 @@ const LIVE_SURFACES = [
   "drizzle/migrations/0066_mizar_backend_contracts",
 ];
 const SYSTEM_FLOW_MAP = [
+  { prefixes: ["src/actions/bet.ts", "src/components/bet/BetBoard", "src/components/bet/BetOperations"], specs: ["tests/e2e/flows/bet.spec.ts"] },
+  { prefixes: ["src/actions/predictions.ts", "src/components/predictions/PickEm"], specs: ["tests/e2e/flows/predictions.spec.ts"] },
+  { prefixes: ["src/actions/competition-qualification.ts", "src/components/admin/MajorPrestartConsole"], specs: ["tests/e2e/flows/major-qualification.spec.ts"] },
+  { prefixes: ["src/components/matches/SeriesScoreCorrection"], specs: ["tests/e2e/flows/series-score-correction.spec.ts"] },
+  { prefixes: ["src/components/teams/TeamInvitationsSection"], specs: ["tests/e2e/flows/team-invitations.spec.ts"] },
   {
     prefixes: ["src/lib/mizar/", "src/components/matches/MatchLiveProvider", "src/components/matches/MatchRealtime", "src/components/matches/MatchListLiveScore", "src/components/matches/MatchRadar", "src/app/api/matches/"],
     specs: ["tests/e2e/flows/public-match-live.spec.ts"],
@@ -174,7 +181,11 @@ export function classifyChangedFiles(entries, options = {}) {
     for (const capability of classification.capabilities) capabilities.add(capability);
     reasons.add(classification.reason);
     collectEvidence(path, classification, evidence);
-    if (classification.capabilities.includes("postgres") && !classification.integrationSpecs) evidence.integrationFull = true;
+    if (classification.capabilities.includes("postgres") && !classification.integrationSpecs) {
+      const specs = postgresSpecsForSource(path);
+      if (specs === null) evidence.integrationFull = true;
+      else for (const spec of specs) evidence.integrationSpecs.add(spec);
+    }
     if (classification.capabilities.includes("system") && !classification.e2eSpecs && systemSpecsForPath(path).length === 0) evidence.e2eFull = true;
   }
 
@@ -311,6 +322,12 @@ function classifyPath(path) {
     return isIntegrationSpec(path)
       ? { capabilities: ["static", "postgres"], reason: `real PostgreSQL integration spec: ${path}`, integrationSpecs: [path] }
       : { capabilities: ["static", "postgres"], reason: `integration support surface；PostgreSQL 使用 full suite: ${path}` };
+  }
+  if (path.startsWith("tests/e2e/acceptance/") || path.startsWith("tests/e2e/visual/")) {
+    return { capabilities: ["static"], reason: `opt-in visual/acceptance surface: ${path}` };
+  }
+  if (path.startsWith("tests/e2e/production/")) {
+    return { capabilities: ["static", "system"], reason: `production browser smoke surface: ${path}` };
   }
   if (path.startsWith("tests/e2e/")) {
     return isE2ESpec(path)

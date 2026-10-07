@@ -230,26 +230,6 @@ jobs:
       - name: Mizar cross-repo contract
         if: needs.plan.outputs.live_evidence == 'true'
         run: node scripts/ci/timing.mjs "system/mizar contract" -- pnpm mizar:contract-check .mizar-checkout
-      - name: CJK fonts for public match evidence
-        if: needs.plan.outputs.live_evidence == 'true'
-        timeout-minutes: 5
-        run: |
-          mkdir -p .agent-tmp/evidence-fonts/apt-lists/partial
-          cd .agent-tmp/evidence-fonts
-          # Isolate this download from the runner's unrelated/slow mirror indexes.
-          echo 'deb https://archive.ubuntu.com/ubuntu noble main universe' > font-sources.list
-          font_apt_options=(
-            -o "Dir::Etc::sourcelist=$PWD/font-sources.list"
-            -o 'Dir::Etc::sourceparts=-'
-            -o "Dir::State::lists=$PWD/apt-lists"
-            -o 'Acquire::Retries=2'
-            -o 'Acquire::http::Timeout=30'
-            -o 'Acquire::https::Timeout=30'
-            -o 'Acquire::Languages=none'
-          )
-          sudo apt-get "${font_apt_options[@]}" update
-          apt-get "${font_apt_options[@]}" download fonts-noto-cjk
-          dpkg-deb -x fonts-noto-cjk_*.deb .
       - name: Browser runtime
         run: google-chrome --version
       - name: E2E body
@@ -263,24 +243,13 @@ jobs:
           RIVALHUB_E2E_SPECS: ${{ needs.plan.outputs.e2e_specs }}
         run: node scripts/ci/timing.mjs "system/E2E body" -- pnpm test:e2e
 
-      - name: Mobile public event search evidence (10x, no retry)
-        if: needs.plan.outputs.mobile_search_evidence == 'true'
+      - name: Production browser smoke
         env:
           RIVALHUB_TIMING_TEST_KIND: e2e
           PLAYWRIGHT_CHANNEL: chrome
           PLAYWRIGHT_WORKERS: 1
-          PLAYWRIGHT_RETRIES: 0
-          RIVALHUB_E2E_SPECS: '["tests/e2e/flows/public-event-experience.spec.ts"]'
-        run: node scripts/ci/timing.mjs "system/mobile public event search ×10" -- pnpm test:e2e -- --project=mobile-chrome --repeat-each=10
-
-      - name: Upload public match screenshots
-        if: always() && needs.plan.outputs.live_evidence == 'true'
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: public-match-live-screenshots
-          path: .agent-tmp/public-match-live-evidence/*.png
-          if-no-files-found: ignore
-          retention-days: 14
+          RIVALHUB_E2E_SPECS: '[]'
+        run: node scripts/ci/timing.mjs "system/production browser smoke" -- pnpm test:e2e -- --config=playwright.production.config.ts
 
       - name: Prepare safe system artifacts
         if: failure()

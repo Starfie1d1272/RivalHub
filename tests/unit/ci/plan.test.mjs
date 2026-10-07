@@ -18,7 +18,7 @@ describe("changed-surface planner", () => {
     ["PostgreSQL source + Changeset", ["src/db/schema/major-stage.ts", ".changeset/schema.md"], ["static", "postgres"], false],
     ["PostgreSQL-only integration", ["tests/integration/db/team-registration.test.ts"], ["static", "postgres"], false],
     ["system-dependent browser test", ["tests/e2e/flows/major-entry.spec.ts"], ["static", "system"], false],
-    ["E2E visual test", ["tests/e2e/visual/ui-system.spec.ts"], ["static", "system"], false],
+    ["E2E visual test", ["tests/e2e/visual/ui-system.spec.ts"], ["static"], false],
     ["package or lockfile", ["pnpm-lock.yaml"], ["static", "postgres", "system"], true],
     ["CI/toolchain configuration", [".github/workflows/ci.yml"], ["static", "postgres", "system"], true],
     ["migration", ["drizzle/migrations/0032_competitive_fact_states.sql"], ["postgres"], false],
