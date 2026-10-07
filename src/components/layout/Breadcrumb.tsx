@@ -14,13 +14,13 @@ export function Breadcrumb({ items }: BreadcrumbProps) {
   return (
     <nav
       aria-label="面包屑"
-      className="flex items-center gap-1.5 text-sm text-[var(--color-fg-dim)]"
+      className="flex flex-wrap items-center gap-1.5 text-sm text-[var(--color-fg-dim)]"
     >
       {items.map((item, idx) => {
         const isLast = idx === items.length - 1;
         return (
-          <span key={idx} className="flex items-center gap-1.5">
-            {idx > 0 && <ChevronRight size={14} className="opacity-60" />}
+          <span key={idx} className="flex min-w-0 items-center gap-1.5">
+            {idx > 0 && <ChevronRight size={14} className="shrink-0 opacity-60" />}
             {item.href && !isLast ? (
               <Link
                 href={item.href as never}
@@ -29,7 +29,7 @@ export function Breadcrumb({ items }: BreadcrumbProps) {
                 {item.label}
               </Link>
             ) : (
-              <span className={isLast ? "text-[var(--color-fg-mid)]" : ""}>
+              <span className={isLast ? "min-w-0 break-words text-[var(--color-fg-mid)]" : ""}>
                 {item.label}
               </span>
             )}

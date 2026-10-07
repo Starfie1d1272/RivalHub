@@ -3,6 +3,7 @@ import {
   buildHomeEyebrow,
   buildHomeNavEntries,
   selectFeaturedSeason,
+  selectActiveSeason,
   selectHomeNavTiers,
 } from "./navigation";
 
@@ -27,6 +28,24 @@ function featuredSeason(overrides: Partial<{
 }
 
 describe("featured season selector", () => {
+  it("does not use upcoming, draft or historical events as an active navigation shortcut", () => {
+    const inactive = (["draft", "registration", "finished", "archived"] as const)
+      .map((status) => featuredSeason({ id: status, status }));
+    expect(selectActiveSeason(inactive)).toBeUndefined();
+    const registration = featuredSeason({ id: "open", status: "registration", registrationOpenedAt: new Date("2026-01-01") });
+    expect(selectActiveSeason([...inactive, registration])?.id).toBe("open");
+  });
+
+  it("selects one active event using homepage priority regardless of catalog order", () => {
+    const active = [
+      featuredSeason({ id: "open", status: "registration", registrationOpenedAt: new Date("2026-02-01") }),
+      featuredSeason({ id: "playing", status: "playing" }),
+      featuredSeason({ id: "voting", status: "voting" }),
+    ];
+    expect(selectActiveSeason(active)?.id).toBe("playing");
+    expect(selectActiveSeason([...active].reverse())?.id).toBe("playing");
+  });
+
   it("prefers a published but not-yet-open season over an older finished season", () => {
     const finished = featuredSeason({
       id: "finished",

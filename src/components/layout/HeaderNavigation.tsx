@@ -9,6 +9,7 @@ import type { HeaderSeason } from "./Header.types";
 
 interface HeaderNavigationProps {
   seasons: Pick<HeaderSeason, "slug">[];
+  activeSeason?: Pick<HeaderSeason, "slug" | "name"> | null;
   mobile?: boolean;
 }
 
@@ -36,11 +37,13 @@ export function HeaderNavigationFallback({ mobile = false }: { mobile?: boolean 
   );
 }
 
-export function HeaderNavigation({ seasons, mobile = false }: HeaderNavigationProps) {
+export function HeaderNavigation({ seasons, activeSeason, mobile = false }: HeaderNavigationProps) {
   const pathname = usePathname();
   const within = (path: string) => pathname === path || pathname.startsWith(`${path}/`);
+  const withinActiveSeason = Boolean(activeSeason && within(`/${activeSeason.slug}`));
   const navLinks = [
-    { href: "/seasons", label: "赛事", active: within("/seasons") || seasons.some((season) => within(`/${season.slug}`)) },
+    { href: "/seasons", label: "赛事", active: within("/seasons") || (!withinActiveSeason && seasons.some((season) => within(`/${season.slug}`))) },
+    ...(activeSeason ? [{ href: `/${activeSeason.slug}`, label: activeSeason.name, active: withinActiveSeason }] : []),
     { href: "/teams", label: "队伍", active: within("/teams") },
     { href: "/stats", label: "数据中心", active: within("/stats") },
   ];
@@ -62,7 +65,7 @@ export function HeaderNavigation({ seasons, mobile = false }: HeaderNavigationPr
                 "rounded-sm",
               )}
         >
-          <span>{link.label}</span>
+          <span className={mobile ? "min-w-0 break-words" : "max-w-48 truncate"} title={link.label}>{link.label}</span>
 
         </Link>
       ))}

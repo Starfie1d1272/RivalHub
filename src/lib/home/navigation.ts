@@ -68,6 +68,11 @@ export function selectFeaturedSeason<T extends FeaturedSeasonInput>(
     .map((entry) => entry.season)[0];
 }
 
+/** A navigation shortcut only; never use it to infer a match's ownership. */
+export function selectActiveSeason<T extends FeaturedSeasonInput>(seasons: readonly T[]): T | undefined {
+  return selectFeaturedSeason(seasons.filter((season) => getSeasonLifecycleGroup(season) === "active"));
+}
+
 function getFeaturedSeasonPriority(season: FeaturedSeasonInput): number | null {
   if (season.status === "playing") return 0;
   if (season.status === "voting" || season.status === "drafting") return 1;
