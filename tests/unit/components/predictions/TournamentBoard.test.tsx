@@ -1,6 +1,7 @@
 import React from "react";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { renderToString } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { TournamentBoard } from "@/components/predictions/TournamentBoard";
 import type { SimStage } from "@/lib/predictions/types";
@@ -34,6 +35,21 @@ const stage: SimStage = {
   ],
 };
 describe("tournament presentation", () => {
+  it("disables server-rendered choices until hydration attaches their handlers", async () => {
+    const choose = vi.fn();
+    const board = <TournamentBoard stage={stage} teams={teams} editable onChoose={choose} />;
+    const container = document.createElement("div");
+    container.innerHTML = renderToString(board);
+    const buttons = container.querySelectorAll('[data-testid="sim-match-swiss-r1"] button');
+    expect(buttons).toHaveLength(2);
+    for (const button of buttons) expect(button).toBeDisabled();
+
+    render(board, { container, hydrate: true });
+    const choice = within(container).getByRole("button", { name: "Bravo 获胜" });
+    expect(choice).toBeEnabled();
+    await userEvent.setup().click(choice);
+    expect(choose).toHaveBeenCalledExactlyOnceWith(stage.matches[0], "Bravo");
+  });
   it("preserves choices across all layouts without treating preview winners as a selection", async () => {
     const user = userEvent.setup();
     const choose = vi.fn();
