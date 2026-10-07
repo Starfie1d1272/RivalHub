@@ -2,9 +2,10 @@ import { and, eq, or } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import type { TxDb } from "@/db/client";
 import { competitionEntries, competitionEntryParticipants, eventRosterMembers, eventRosters, seasonAdminGrants, seasonRegistrations, steamProfiles, users } from "@/db/schema";
+import { getPublicPlayerIdentityIds } from "@/lib/players/public-identity";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
 
-export type SeasonAwardCandidate = { id: string; name: string };
+export type SeasonAwardCandidate = { id: string; name: string; playerUserId: string | null };
 type CommunityAwardQueryable = Pick<TxDb, "select" | "selectDistinct">;
 export const PUBLIC_COMMUNITY_AWARD_STATUSES = ["approved", "awarded", "not_awarded", "cancelled"] as const;
 
@@ -26,5 +27,6 @@ export async function getSeasonAwardCandidates(executor: CommunityAwardQueryable
     .leftJoin(eventRosters, eq(eventRosterMembers.eventRosterId, eventRosters.id))
     .leftJoin(rosterEntries, eq(eventRosters.entryId, rosterEntries.id))
     .where(or(eq(seasonAdminGrants.seasonId, seasonId), eq(seasonRegistrations.seasonId, seasonId), eq(competitionEntries.competitionId, seasonId), eq(rosterEntries.competitionId, seasonId)));
-  return rows.map((row) => ({ id: row.id, name: getPublicDisplayName(row) }));
+  const playerIds = await getPublicPlayerIdentityIds(executor, rows.map(row => row.id));
+  return rows.map((row) => ({ id: row.id, name: getPublicDisplayName(row), playerUserId: playerIds.has(row.id) ? row.id : null }));
 }

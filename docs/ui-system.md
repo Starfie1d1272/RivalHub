@@ -67,7 +67,7 @@ Major 赛前工作区按报名收口、资格方案、资格赛、正赛名单�
 
 ### Entity navigation
 
-所有 public/admin surface 只要持有 canonical Team / Player identity，就提供对应公开资料页入口。Player 默认使用 `PlayerProfileLink`；Team 使用 `TeamProfileLink` 和唯一 resolver `teamProfileHref`。Player 进入 `/players/[userId]`；赛事 Team 使用 `seasonSlug + entryId` 进入 `/[seasonSlug]/teams/[entryId]`；长期 Team 使用 `slug` 进入 `/teams/[slug]`。同时持有两者时，赛事 surface 优先进入赛事 Team profile。赛事路由内可消费 `[seasonSlug]` 上下文；跨赛事的 Stats/career surface 必须显式传入 read-model owner 投影的 canonical destination，不根据 label 反查 identity。缺少 canonical identity 的 placeholder / legacy label 保持文本。
+所有 public/admin surface 只要持有 canonical Team / Player identity，就提供对应公开资料页入口。裸 `userId` 只证明 User 身份，不等于 Player；历史公开参赛记录（不限赛事），或已填写 Steam、完美昵称、打法/比赛经历、竞技档案、位置/地图偏好之一，可由统一 read model 确认长期 Player 身份；普通昵称、联系方式、直播间不构成 Player 身份。只有明确 Player DTO 或 read model 验证的选手身份才进入选手资料页。BET account user、解说与社区奖相关人员不能从 User role 推断 Player，未确认的身份保留公开姓名文本。社区奖由 read model 投影 `playerUserId` / `recipientTarget`，UI 不根据候选人、提交人或获奖者的裸 userId 构造 Player 链接。Player 默认使用 `PlayerProfileLink`；Team 使用 `TeamProfileLink` 和唯一 resolver `teamProfileHref`。Player 进入 `/players/[userId]`；赛事 Team 使用 `seasonSlug + entryId` 进入 `/[seasonSlug]/teams/[entryId]`；长期 Team 使用 `slug` 进入 `/teams/[slug]`。同时持有两者时，赛事 surface 优先进入赛事 Team profile。赛事路由内可消费 `[seasonSlug]` 上下文；跨赛事的 Stats/career surface 必须显式传入 read-model owner 投影的 canonical destination，不根据 label 反查 identity。缺少 canonical identity 的 placeholder / legacy label 保持文本。
 
 昵称、队名和 avatar/logo 构成自然 identity 命中区域。共享链接提供 inherit / dense / subtle 外观、可见 focus，以及可选事件隔离；dense secondary affordance 有明确 accessible name 和至少 24px 命中区域，在手机与锁定/read-only 状态下仍可访问资料。
 
@@ -140,7 +140,7 @@ BP 操作页与公开记录共用 BAN / PICK / SIDE / DECIDER 标签。当前操
 
 Major Play-in 管理使用正赛规模、候选与直通/晋级数等紧凑统计；配置确认前展示完整预排名与「路径」，每轮生成前展示队名和冻结预排名种子对阵，赛制定义通过 tooltip 提供。首页阶段 tracker 只标记 Main Event；Play-in 独立面板按 configured、in progress、completed 展示赛程待生成、当前 Round、晋级队数与正赛名单确认状态。Play-in 期间 REGISTER 完成、Main Event 阶段待开始且不设置当前 Main Event 阶段。赛程页把 PLAY-IN tab 与 Main Event 阶段分隔；Short Swiss summary 展示 Play-in 人数到晋级席位、赛制和当前轮次/结束状态；standings 按当前排名排序，Seed、P1…Pn 标签保持冻结预排名，列头使用 Seed / Team / W-L / BU ? / Status，并仅显示 R1–R3。
 
-社区奖公开页面以进行中、已结奖、未颁/取消及个人提交组织浏览。申报与证据表单由 CTA 打开，复用既有 action workflow；候选人与获奖者保持赛事相关人员语义，仅在获奖者确认具有本届选手公开身份时链接选手主页，非选手相关人员展示公开姓名，公开 DTO 与管理审核字段保持分离。
+社区奖公开页面以进行中、已结奖、未颁/取消及个人提交组织浏览。申报与证据表单由 CTA 打开，复用既有 action workflow；候选人与获奖者保持赛事相关人员语义，仅在相关人员确认具有长期选手公开身份（历史参赛或已填写选手资料）时链接选手主页，非选手相关人员展示公开姓名，公开 DTO 与管理审核字段保持分离。
 
 ### Public Match live composition
 

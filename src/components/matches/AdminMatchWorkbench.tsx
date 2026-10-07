@@ -141,11 +141,11 @@ export function AdminMatchWorkbench({
       <header className="space-y-3">
         <div className="flex items-center justify-between gap-4 flex-wrap">
           <div className="flex min-w-0 flex-wrap items-center gap-3 break-words">
-            <span className="text-lg font-semibold">{teamAName}</span>
+            <TeamProfileLink seasonSlug={season.slug} entryId={match.entryAId} className="text-lg font-semibold">{teamAName}</TeamProfileLink>
             <span className="text-[var(--color-fg-mid)]">
               {match.status === "finished" ? `${match.scoreA ?? 0} : ${match.scoreB ?? 0}` : "vs"}
             </span>
-            <span className="text-lg font-semibold">{teamBName}</span>
+            <TeamProfileLink seasonSlug={season.slug} entryId={match.entryBId} className="text-lg font-semibold">{teamBName}</TeamProfileLink>
           </div>
           <div className="flex items-center gap-2">
             <StatusPill {...presentMatchFormat(match.format)} />
@@ -243,7 +243,7 @@ export function AdminMatchWorkbench({
         <summary className="cursor-pointer text-sm font-medium">比分更正与系列恢复</summary>
         {finishedMaps.map(map => <div key={`${map.id}:${map.scoreA}:${map.scoreB}`} className="pt-2">
           <p className="mb-2 text-sm">{mapLabel(map.mapName)} · {map.scoreA} : {map.scoreB}</p>
-          <MapScoreCorrectInput matchId={match.id} matchInProgress={match.status === "in_progress"} mapId={map.id} mapName={map.mapName} scoreA={map.scoreA} scoreB={map.scoreB} teamAName={teamAName} teamBName={teamBName} />
+          <MapScoreCorrectInput entryAId={match.entryAId} entryBId={match.entryBId} seasonSlug={season.slug} matchId={match.id} matchInProgress={match.status === "in_progress"} mapId={map.id} mapName={map.mapName} scoreA={map.scoreA} scoreB={map.scoreB} teamAName={teamAName} teamBName={teamBName} />
         </div>)}
       </details>}
 
@@ -414,7 +414,7 @@ export function AdminMatchWorkbench({
               <p className="mt-1 text-xs leading-5 text-[var(--color-fg-mid)]">
                 更正整场结果前，请核对影响的后续赛程。
               </p>
-            <ResultCorrectionPanel
+            <ResultCorrectionPanel entryAId={match.entryAId} entryBId={match.entryBId} seasonSlug={season.slug}
               matchId={match.id}
               teamAName={teamAName}
               teamBName={teamBName}

@@ -145,10 +145,12 @@ export async function projectVetoRoomView(
       lineupBlocker: rows.length === 0 ? "请提交本场首发" : starterCount !== 5 ? `请补齐 5 名首发（当前 ${starterCount} 人）` : null,
       starters: rows.filter((row) => row.isStarter).map((row) => ({
         id: row.memberId,
+        userId: row.userId,
         name: getPublicDisplayName(row),
         isVetoRepresentative: row.isVetoRepresentative,
         isViewer: row.userId === viewerId,
       })),
+      vetoRepresentativeUserId: bpRepresentative?.userId ?? null,
       vetoRepresentativeMemberId: bpRepresentative?.memberId ?? null,
       vetoRepresentativeName: bpRepresentative ? getPublicDisplayName(bpRepresentative) : null,
       startRequested: entryId === core.match.entryAId
@@ -167,11 +169,12 @@ export async function projectVetoRoomView(
     const actionType = (step.actionType in VETO_ACTION_LABELS ? step.actionType : "decider") as keyof typeof VETO_ACTION_LABELS;
     const entryName = step.entryId ? entryById.get(step.entryId)?.name ?? "未知队伍" : null;
     const sourceLabel = step.source === "timeout" ? "超时自动选择" : step.source === "admin" ? "管理员调整" : null;
-    const description = actionType === "side_pick"
-      ? `${entryName ?? "队伍"} chose ${step.side?.toUpperCase() ?? "—"} on ${mapLabel(step.mapName)}`
+    const actionDescription = actionType === "side_pick"
+      ? `chose ${step.side?.toUpperCase() ?? "—"} on ${mapLabel(step.mapName)}`
       : actionType === "decider"
         ? `${mapLabel(step.mapName)} was left over`
-        : `${entryName ?? "队伍"} ${actionType === "ban" ? "removed" : "picked"} ${mapLabel(step.mapName)}`;
+        : `${actionType === "ban" ? "removed" : "picked"} ${mapLabel(step.mapName)}`;
+    const description = actionType === "decider" ? actionDescription : `${entryName ?? "队伍"} ${actionDescription}`;
     return {
       id: step.id,
       stepOrder: step.stepOrder,
@@ -179,7 +182,10 @@ export async function projectVetoRoomView(
       actionLabel: VETO_ACTION_LABELS[actionType],
       mapName: step.mapName,
       mapLabel: mapLabel(step.mapName),
+      entryId: step.entryId,
+      actionType,
       entryName,
+      actionDescription,
       sideLabel: step.side ? SIDE_LABELS[step.side] : null,
       sourceLabel,
       description,
@@ -194,6 +200,8 @@ export async function projectVetoRoomView(
     const selected = incident.selectedOptions.map((option) => entryById.get(option)?.name ?? (option === "ct" ? "CT 方" : option === "t" ? "T 方" : mapLabel(option)));
     return {
       id: incident.id,
+      entryId: incident.entryId,
+      selectedEntities: incident.selectedOptions.map(option => ({ entryId: entryById.has(option) ? option : null, label: entryById.get(option)?.name ?? (option === "ct" ? "CT 方" : option === "t" ? "T 方" : mapLabel(option)) })),
       entryName: incident.entryId ? entryById.get(incident.entryId)?.name ?? "未知队伍" : "系统",
       selected,
       sourceLabel: "超时自动选择",

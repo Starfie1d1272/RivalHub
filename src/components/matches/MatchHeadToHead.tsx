@@ -1,3 +1,4 @@
+import { TeamProfileLink } from "@/components/teams/TeamProfileLink";
 import Link from "next/link";
 import { Panel } from "@/components/rivalhub";
 import { formatCSTDateTime } from "@/lib/utils/date";
@@ -15,6 +16,8 @@ interface H2HMatch {
 }
 
 interface MatchHeadToHeadProps {
+  entryAId: string;
+  entryBId: string;
   teamAName: string;
   teamBName: string;
   teamAWins: number;
@@ -24,6 +27,8 @@ interface MatchHeadToHeadProps {
 }
 
 export function MatchHeadToHead({
+  entryAId,
+  entryBId,
   teamAName,
   teamBName,
   teamAWins,
@@ -39,9 +44,9 @@ export function MatchHeadToHead({
     <Panel label="历史交锋">
       {/* 汇总标题行 */}
       <div className="flex items-center justify-center gap-3 pb-4 mb-2 border-b border-[var(--color-border)]">
-        <span className="font-bold text-sm" style={{ color: "var(--color-accent)" }}>
+        <TeamProfileLink seasonSlug={seasonSlug} entryId={entryAId} className="font-bold text-sm" style={{ color: "var(--color-accent)" }}>
           {teamAName}
-        </span>
+        </TeamProfileLink>
         <span className="font-mono font-bold text-base" style={{ color: "var(--color-accent)" }}>
           {teamAWins} 胜
         </span>
@@ -49,9 +54,9 @@ export function MatchHeadToHead({
         <span className="font-mono font-bold text-base" style={{ color: "var(--color-accent-b)" }}>
           {teamBWins} 胜
         </span>
-        <span className="font-bold text-sm" style={{ color: "var(--color-accent-b)" }}>
+        <TeamProfileLink seasonSlug={seasonSlug} entryId={entryBId} className="font-bold text-sm" style={{ color: "var(--color-accent-b)" }}>
           {teamBName}
-        </span>
+        </TeamProfileLink>
       </div>
 
       {/* 比赛列表 */}

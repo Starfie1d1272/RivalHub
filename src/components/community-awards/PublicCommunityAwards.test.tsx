@@ -12,6 +12,7 @@ import { PublicCommunityAwards } from "./PublicCommunityAwards";
 const award = {
   id: "award-1",
   submittedByUserId: "user-1",
+  submitterPlayerUserId: null,
   name: "最佳解说",
   condition: "解说精彩",
   prize: "奖杯",

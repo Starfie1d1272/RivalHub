@@ -3,6 +3,7 @@ import type { Match } from "@/db/schema";
 export interface RecentMatchResult {
   matchId: string;
   opponentName: string;
+  opponentId: string;
   scoreFor: number;
   scoreAgainst: number;
   won: boolean;
@@ -29,6 +30,6 @@ export function projectRecentMatchResults(
       const playedAt = match.completedAt ?? match.scheduledAt;
       const opponentName = entryNames.get(opponentId);
       if (!playedAt || !opponentName) return [];
-      return [{ matchId: match.id, opponentName, scoreFor, scoreAgainst, won: scoreFor > scoreAgainst, format: match.format, playedAt }];
+      return [{ matchId: match.id, opponentId, opponentName, scoreFor, scoreAgainst, won: scoreFor > scoreAgainst, format: match.format, playedAt }];
     });
 }

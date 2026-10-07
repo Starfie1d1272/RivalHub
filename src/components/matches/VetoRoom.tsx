@@ -1,5 +1,8 @@
 "use client";
 
+import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
+import { TeamProfileLink } from "@/components/teams/TeamProfileLink";
+
 import Link from "next/link";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -250,7 +253,7 @@ export function VetoRoom({ initialRoom }: { initialRoom: VetoRoomView }) {
         <p className="font-mono text-xs uppercase tracking-[0.14em] text-[var(--color-fg-mid)]">{room.seasonName} · {match.stage}{match.round ? ` · 第 ${match.round} 轮` : ""}</p>
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-semibold text-[var(--color-fg)] sm:text-3xl">{room.entries[0]?.name} <span className="text-[var(--color-fg-dim)]">vs</span> {room.entries[1]?.name}</h1>
+            <h1 className="text-2xl font-semibold text-[var(--color-fg)] sm:text-3xl"><TeamProfileLink seasonSlug={room.seasonSlug} entryId={room.entries[0]?.id}>{room.entries[0]?.name}</TeamProfileLink> <span className="text-[var(--color-fg-dim)]">vs</span> <TeamProfileLink seasonSlug={room.seasonSlug} entryId={room.entries[1]?.id}>{room.entries[1]?.name}</TeamProfileLink></h1>
             <p className="mt-1 text-sm text-[var(--color-fg-mid)]">地图 BP · {match.format}</p>
           </div>
           <span className="rounded border border-[var(--color-border)] px-3 py-1.5 text-sm text-[var(--color-fg-mid)]" aria-live="polite">
@@ -272,12 +275,12 @@ export function VetoRoom({ initialRoom }: { initialRoom: VetoRoomView }) {
               {room.entries.map((entry) => (
                 <article key={entry.id} className="rounded border border-[var(--color-border)] p-3">
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <h2 className="font-semibold">{entry.name}</h2>
+                    <h2 className="font-semibold"><TeamProfileLink seasonSlug={room.seasonSlug} entryId={entry.id}>{entry.name}</TeamProfileLink></h2>
                     <span className="text-xs text-[var(--color-fg-mid)]">{entry.rosterStatusLabel}</span>
                   </div>
                   {entry.lineupBlocker && <p className="mt-2 text-xs text-[var(--color-warn)]">{entry.lineupBlocker}</p>}
-                  <p className="mt-2 text-sm text-[var(--color-fg-mid)]">BP 负责人：{entry.vetoRepresentativeName ?? "尚未指定"}</p>
-                  <details className="mt-2 text-xs text-[var(--color-fg-dim)]"><summary className="cursor-pointer">查看本场首发（{entry.starters.length} 人）</summary><p className="mt-2">{entry.starters.map((starter) => starter.name).join("、") || "待提交"}</p></details>
+                  <p className="mt-2 text-sm text-[var(--color-fg-mid)]">BP 负责人：{entry.vetoRepresentativeUserId ? <PlayerProfileLink userId={entry.vetoRepresentativeUserId}>{entry.vetoRepresentativeName}</PlayerProfileLink> : "尚未指定"}</p>
+                  <details className="mt-2 text-xs text-[var(--color-fg-dim)]"><summary className="cursor-pointer">查看本场首发（{entry.starters.length} 人）</summary><p className="mt-2">{entry.starters.length ? entry.starters.map((starter, index) => <React.Fragment key={starter.id}>{index > 0 ? "、" : null}<PlayerProfileLink userId={starter.userId}>{starter.name}</PlayerProfileLink></React.Fragment>) : "待提交"}</p></details>
                   {entry.mayClaimRepresentative && (
                     <Button className="mt-3" size="sm" variant="outline" disabled={pending} onClick={() => void mutate(claimVetoRepresentativeAction, { matchId: match.id, entryId: entry.id }, "已认领 BP 负责人。")}>认领 BP 负责人</Button>
                   )}
@@ -288,6 +291,7 @@ export function VetoRoom({ initialRoom }: { initialRoom: VetoRoomView }) {
                         <option value="">选择首发队员</option>
                         {entry.starters.map((starter) => <option key={starter.id} value={starter.id}>{starter.name}</option>)}
                       </select>
+                      {entry.starters.find(starter => starter.id === representatives[entry.id]) && <PlayerProfileLink userId={entry.starters.find(starter => starter.id === representatives[entry.id])!.userId} variant="dense" aria-label="查看所选负责人资料">↗</PlayerProfileLink>}
                       <Button size="sm" variant="outline" disabled={pending || !representatives[entry.id]} onClick={() => void mutate(updateVetoRepresentative, { matchId: match.id, entryId: entry.id, eventRosterMemberId: representatives[entry.id] }, "BP 负责人已更新。")}>保存负责人</Button>
                     </div></details>
                   )}
@@ -309,6 +313,7 @@ export function VetoRoom({ initialRoom }: { initialRoom: VetoRoomView }) {
                   <option value="">选择队伍</option>
                   {room.entries.map((entry) => <option key={entry.id} value={entry.id}>{entry.name}</option>)}
                 </select>
+                {manualPrivilege && <TeamProfileLink seasonSlug={room.seasonSlug} entryId={manualPrivilege} variant="dense" aria-label="查看优先权队伍资料">↗</TeamProfileLink>}
                 <Button size="sm" variant="outline" disabled={pending || !manualPrivilege} onClick={() => void mutate(setManualVetoPrivilege, { matchId: match.id, entryId: manualPrivilege }, "已指定决定禁图顺序的队伍。")}>确认队伍</Button>
               </div>
             )}
@@ -318,7 +323,7 @@ export function VetoRoom({ initialRoom }: { initialRoom: VetoRoomView }) {
               {matchCountdown && <p>{matchCountdown === "00:00" ? "BP 已开放" : `距离 BP 开放 ${matchCountdown}`}</p>}
               <p>确认截止时间：{timeLabel(turn.effectiveForceAt)}</p>
               {turn.previousMatchBlocker && <p className="text-[var(--color-warn)]">等待上一场比赛结束后开始 BP。</p>}
-              <p>{room.entries.map((entry) => `${entry.name}：${entry.startRequested ? "已就绪" : "等待确认"}`).join("；")}</p>
+              <p>{room.entries.map((entry, index) => <React.Fragment key={entry.id}>{index > 0 ? "；" : null}<TeamProfileLink seasonSlug={room.seasonSlug} entryId={entry.id}>{entry.name}</TeamProfileLink>：{entry.startRequested ? "已就绪" : "等待确认"}</React.Fragment>)}</p>
             </div>
           </div>
         </Panel>
@@ -334,7 +339,7 @@ export function VetoRoom({ initialRoom }: { initialRoom: VetoRoomView }) {
                 <ol className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3" aria-label="最终地图顺序与起始阵营">
                   {room.maps.map(map => <li key={map.id} className="rounded border border-[var(--color-border)] p-3">
                     <p className="font-semibold">Map {map.mapOrder} · {map.mapLabel}<HelpTooltip className="ml-1" label={`Map ${map.mapOrder} 起始方说明`} content="CT / T 表示各队在该图的起始阵营。" /></p>
-                    {map.teamAStartSide ? <div className="mt-2 space-y-1 text-sm text-[var(--color-fg-mid)]"><p>{room.entries[0]?.name} · {map.teamAStartSide.toUpperCase()}</p><p>{room.entries[1]?.name} · {map.teamAStartSide === "ct" ? "T" : "CT"}</p></div> : <p className="mt-2 text-sm text-[var(--color-fg-mid)]">{match.formatKey === "bo5" && map.mapOrder === 5 ? "刀赛决定起始阵营" : "起始阵营待确认"}</p>}
+                    {map.teamAStartSide ? <div className="mt-2 space-y-1 text-sm text-[var(--color-fg-mid)]"><p><TeamProfileLink seasonSlug={room.seasonSlug} entryId={room.entries[0]?.id}>{room.entries[0]?.name}</TeamProfileLink> · {map.teamAStartSide.toUpperCase()}</p><p><TeamProfileLink seasonSlug={room.seasonSlug} entryId={room.entries[1]?.id}>{room.entries[1]?.name}</TeamProfileLink> · {map.teamAStartSide === "ct" ? "T" : "CT"}</p></div> : <p className="mt-2 text-sm text-[var(--color-fg-mid)]">{match.formatKey === "bo5" && map.mapOrder === 5 ? "刀赛决定起始阵营" : "起始阵营待确认"}</p>}
                   </li>)}
                 </ol>
               </div>
@@ -343,7 +348,7 @@ export function VetoRoom({ initialRoom }: { initialRoom: VetoRoomView }) {
                 <div>
                   <p className="font-semibold text-[var(--color-fg)]">{turn.currentTurnLabel ?? "等待下一步"}{turn.currentTurnAction && <HelpTooltip className="ml-1" label="当前 BP 操作说明" content={vetoActionHelp(turn.currentTurnAction, match.formatKey)} />}</p>
                   <p className="mt-1 text-sm text-[var(--color-fg-mid)]">
-                    {currentEntry ? `${currentEntry.name}${currentEntry.vetoRoleLabel ? ` · ${currentEntry.vetoRoleLabel}` : ""}` : "系统处理"}
+                    {currentEntry ? <><TeamProfileLink seasonSlug={room.seasonSlug} entryId={currentEntry.id}>{currentEntry.name}</TeamProfileLink>{currentEntry.vetoRoleLabel ? ` · ${currentEntry.vetoRoleLabel}` : ""}</> : "系统处理"}
                     {turn.currentTurnMapLabel ? ` · ${turn.currentTurnMapLabel}` : ""}
                     {turn.currentTurnCount > 1 ? ` · 已完成 ${turn.currentTurnCompleted}/${turn.currentTurnCount}` : ""}
                   </p>
@@ -372,7 +377,7 @@ export function VetoRoom({ initialRoom }: { initialRoom: VetoRoomView }) {
               >
                 {turn.currentTurnAction === "role_select" && (
                   <div className="flex flex-wrap gap-2" aria-label="选择先禁图队伍">
-                    {room.entries.map((entry) => <Button key={entry.id} disabled={pending || remainingMs <= 0} onClick={() => sendCommand({ kind: "role_select", entryId: entry.id })}>由 {entry.name} 先禁图</Button>)}
+                    {room.entries.map((entry) => <div key={entry.id} className="flex items-center gap-1"><Button disabled={pending || remainingMs <= 0} onClick={() => sendCommand({ kind: "role_select", entryId: entry.id })}>由 {entry.name} 先禁图</Button><TeamProfileLink seasonSlug={room.seasonSlug} entryId={entry.id} variant="dense" aria-label={`查看 ${entry.name} 队伍资料`}>↗</TeamProfileLink></div>)}
                   </div>
                 )}
                 {(turn.currentTurnAction === "ban" || turn.currentTurnAction === "pick") && (
@@ -390,7 +395,7 @@ export function VetoRoom({ initialRoom }: { initialRoom: VetoRoomView }) {
             )}
 
             {!turn.completedAt && !turn.paused && match.statusKey !== "in_progress" && <p className="text-sm text-[var(--color-fg-mid)]">本场 BP 记录已保留，可随时查看。</p>}
-            {!turn.completedAt && !turn.paused && match.statusKey === "in_progress" && !room.permissions.canOperateCurrentTurn && <p className="text-sm text-[var(--color-fg-mid)]">等待{currentEntry?.name ?? "对应队伍"}完成本轮操作。</p>}
+            {!turn.completedAt && !turn.paused && match.statusKey === "in_progress" && !room.permissions.canOperateCurrentTurn && <p className="text-sm text-[var(--color-fg-mid)]">等待{currentEntry ? <TeamProfileLink seasonSlug={room.seasonSlug} entryId={currentEntry.id}>{currentEntry.name}</TeamProfileLink> : "对应队伍"}完成本轮操作。</p>}
           </div>
         </Panel>
       )}
@@ -399,10 +404,10 @@ export function VetoRoom({ initialRoom }: { initialRoom: VetoRoomView }) {
         {room.entries.map((entry) => (
           <Panel key={entry.id} label={entry.vetoRoleLabel ?? "队伍"}>
             <div className="space-y-3">
-              <h2 className="text-lg font-semibold">{entry.name}</h2>
-              <p className="text-sm text-[var(--color-fg-mid)]">BP 负责人：{entry.vetoRepresentativeName ?? "尚未指定"}</p>
+              <h2 className="text-lg font-semibold"><TeamProfileLink seasonSlug={room.seasonSlug} entryId={entry.id}>{entry.name}</TeamProfileLink></h2>
+              <p className="text-sm text-[var(--color-fg-mid)]">BP 负责人：{entry.vetoRepresentativeUserId ? <PlayerProfileLink userId={entry.vetoRepresentativeUserId}>{entry.vetoRepresentativeName}</PlayerProfileLink> : "尚未指定"}</p>
               <details className="text-sm text-[var(--color-fg-mid)]"><summary className="cursor-pointer">查看首发</summary><ul className="mt-2 space-y-1">
-                {entry.starters.map((starter) => <li key={starter.id}>{starter.name}{starter.isVetoRepresentative ? " · BP 负责人" : ""}</li>)}
+                {entry.starters.map((starter) => <li key={starter.id}><PlayerProfileLink userId={starter.userId}>{starter.name}</PlayerProfileLink>{starter.isVetoRepresentative ? " · BP 负责人" : ""}</li>)}
               </ul></details>
               {entry.lineupBlocker && <p className="text-xs text-[var(--color-warn)]">{entry.lineupBlocker}</p>}
             </div>
@@ -413,7 +418,7 @@ export function VetoRoom({ initialRoom }: { initialRoom: VetoRoomView }) {
       <Panel label="BP 记录">
         {room.steps.length === 0 ? <p className="text-sm text-[var(--color-fg-mid)]">尚无操作记录。</p> : (
           <ol className="space-y-2">
-            {room.steps.map((step) => <li key={step.id} className="flex flex-wrap items-center gap-x-2 rounded border border-[var(--color-border)] px-3 py-2 text-sm"><span className="w-6 text-right text-xs tabular-nums text-[var(--color-fg-dim)]">{step.stepOrder}.</span><span className="font-mono text-xs text-[var(--color-accent)]">{step.actionLabel}</span><span className="text-[var(--color-fg-mid)]">{step.description}</span>{step.sourceLabel && <span className="ml-auto text-xs text-[var(--color-fg-dim)]">{step.sourceLabel}</span>}</li>)}
+            {room.steps.map((step) => <li key={step.id} className="flex flex-wrap items-center gap-x-2 rounded border border-[var(--color-border)] px-3 py-2 text-sm"><span className="w-6 text-right text-xs tabular-nums text-[var(--color-fg-dim)]">{step.stepOrder}.</span><span className="font-mono text-xs text-[var(--color-accent)]">{step.actionLabel}</span><span className="text-[var(--color-fg-mid)]">{step.actionType !== "decider" && <><TeamProfileLink seasonSlug={room.seasonSlug} entryId={step.entryId}>{step.entryName ?? "队伍"}</TeamProfileLink>{" "}</>}{step.actionDescription}</span>{step.sourceLabel && <span className="ml-auto text-xs text-[var(--color-fg-dim)]">{step.sourceLabel}</span>}</li>)}
           </ol>
         )}
       </Panel>
@@ -423,7 +428,7 @@ export function VetoRoom({ initialRoom }: { initialRoom: VetoRoomView }) {
           <ol className="space-y-4">
             {room.incidents.map((incident) => (
               <li key={incident.id} className="space-y-2 rounded border border-[var(--color-border)] p-3">
-                <p className="text-sm"><strong>{incident.entryName}</strong> 超时，系统选择：{incident.selected.join("、")}</p>
+                <p className="text-sm"><TeamProfileLink seasonSlug={room.seasonSlug} entryId={incident.entryId} className="font-semibold">{incident.entryName}</TeamProfileLink> 超时，系统选择：{incident.selectedEntities.map((selected, index) => <React.Fragment key={index}>{index > 0 ? "、" : null}<TeamProfileLink seasonSlug={room.seasonSlug} entryId={selected.entryId}>{selected.label}</TeamProfileLink></React.Fragment>)}</p>
                 {incident.appeal ? (
                   <div className="rounded bg-[var(--color-panel-hi)] p-3 text-sm">
                     <p>{incident.appeal.statusLabel}</p>
@@ -494,7 +499,7 @@ export function VetoRoom({ initialRoom }: { initialRoom: VetoRoomView }) {
               </div>
             )}
           </div>
-          {room.permissions.isAdmin && turn.startedAt && <div className="mt-5 border-t border-[var(--color-border)] pt-4"><h2 className="mb-2 font-semibold">更换 BP 负责人</h2><div className="grid gap-3 sm:grid-cols-2">{room.entries.map((entry) => <div key={entry.id} className="flex flex-wrap items-center gap-2"><span className="text-sm">{entry.name}</span><select aria-label={`${entry.name} BP 负责人`} className="min-h-9 rounded border border-[var(--color-border)] bg-[var(--color-panel)] px-2 text-sm" value={representatives[entry.id] ?? ""} onChange={(event) => setRepresentatives((current) => ({ ...current, [entry.id]: event.target.value }))}><option value="">选择首发队员</option>{entry.starters.map((starter) => <option key={starter.id} value={starter.id}>{starter.name}</option>)}</select><Button size="sm" variant="outline" disabled={pending || !representatives[entry.id]} onClick={() => void mutate(updateVetoRepresentative, { matchId: match.id, entryId: entry.id, eventRosterMemberId: representatives[entry.id] }, "管理员已更换 BP 负责人。")}>保存</Button></div>)}</div></div>}
+          {room.permissions.isAdmin && turn.startedAt && <div className="mt-5 border-t border-[var(--color-border)] pt-4"><h2 className="mb-2 font-semibold">更换 BP 负责人</h2><div className="grid gap-3 sm:grid-cols-2">{room.entries.map((entry) => <div key={entry.id} className="flex flex-wrap items-center gap-2"><span className="text-sm"><TeamProfileLink seasonSlug={room.seasonSlug} entryId={entry.id}>{entry.name}</TeamProfileLink></span><select aria-label={`${entry.name} BP 负责人`} className="min-h-9 rounded border border-[var(--color-border)] bg-[var(--color-panel)] px-2 text-sm" value={representatives[entry.id] ?? ""} onChange={(event) => setRepresentatives((current) => ({ ...current, [entry.id]: event.target.value }))}><option value="">选择首发队员</option>{entry.starters.map((starter) => <option key={starter.id} value={starter.id}>{starter.name}</option>)}</select>{entry.starters.find(starter => starter.id === representatives[entry.id]) && <PlayerProfileLink userId={entry.starters.find(starter => starter.id === representatives[entry.id])!.userId} variant="dense" aria-label="查看所选负责人资料">↗</PlayerProfileLink>}<Button size="sm" variant="outline" disabled={pending || !representatives[entry.id]} onClick={() => void mutate(updateVetoRepresentative, { matchId: match.id, entryId: entry.id, eventRosterMemberId: representatives[entry.id] }, "管理员已更换 BP 负责人。")}>保存</Button></div>)}</div></div>}
         </Panel>
       )}
 

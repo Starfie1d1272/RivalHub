@@ -54,7 +54,8 @@ describe("AdminUserList", () => {
     render(<AdminUserList users={users} seasonMap={{ "season-1": "Major 2026" }} currentUserId="admin-1" />);
 
     expect(screen.getAllByText("超级管理员")).toHaveLength(2);
-    expect(screen.getByRole("link", { name: "赛事管理员" })).toHaveAttribute("href", "/players/admin-1");
+    expect(screen.getByText("赛事管理员", { exact: false })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "赛事管理员" })).not.toBeInTheDocument();
     expect(screen.getByText("全局")).toBeInTheDocument();
     expect(screen.getByText("Major 2026")).toBeInTheDocument();
     expect(screen.getByText("76561198000000001")).toBeInTheDocument();

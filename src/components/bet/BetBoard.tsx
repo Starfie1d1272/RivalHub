@@ -103,7 +103,7 @@ function BetLeaderboard({ rows }: { rows: BetBoardDTO["leaderboard"] }) {
   return <div className="overflow-x-auto"><table className="w-full text-left text-sm"><caption className="sr-only">BET 净收益排行榜，同收益并列排名</caption>
     <thead><tr className="border-b border-[var(--color-border)]">{["排名", "用户", "净收益", "已结算盘口"].map(label => <th key={label} className="px-2 py-3 whitespace-nowrap">{label}</th>)}</tr></thead>
     <tbody>{rows.map(row => <tr key={row.userId} className="border-b border-[var(--color-border)]">
-      <td className="px-2 py-3 tabular-nums">#{row.rank}</td><td className="max-w-32 truncate px-2 py-3" title={row.name}><PlayerProfileLink userId={row.userId}>{row.name}</PlayerProfileLink></td>
+      <td className="px-2 py-3 tabular-nums">#{row.rank}</td><td className="max-w-32 truncate px-2 py-3" title={row.name}>{row.playerUserId ? <PlayerProfileLink userId={row.playerUserId}>{row.name}</PlayerProfileLink> : row.name}</td>
       <td className="px-2 py-3 tabular-nums">{BigInt(row.profit)>BigInt(0)?"+":""}{formatPoints(row.profit)}</td><td className="px-2 py-3 tabular-nums">{row.settledCount}</td>
     </tr>)}</tbody></table></div>;
 }

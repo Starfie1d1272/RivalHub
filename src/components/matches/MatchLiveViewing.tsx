@@ -1,6 +1,6 @@
 "use client";
-
 import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
+
 import React, { useState } from "react";
 import { Panel } from "@/components/rivalhub";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,7 @@ import type { MatchStatus } from "@/types/match";
 
 type Commentator = {
   userId: string;
+  playerUserId?: string | null;
   liveStreamUrl: string | null;
   displayName: string | null;
   perfectName: string | null;
@@ -80,7 +81,7 @@ export function MatchLiveViewing({
               }`}
             >
               {getPublicDisplayName(commentator)}
-            </button><PlayerProfileLink userId={commentator.userId} variant="dense" aria-label={`查看 ${getPublicDisplayName(commentator)} 解说资料`}>↗</PlayerProfileLink></div>
+            </button>{commentator.playerUserId && <PlayerProfileLink userId={commentator.playerUserId} variant="dense" aria-label={`查看 ${getPublicDisplayName(commentator)} 选手资料`}>↗</PlayerProfileLink>}</div>
           ))}
         </div>
       )}
@@ -98,7 +99,7 @@ export function MatchLiveViewing({
               />
             ) : (
               <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center">
-                <p className="text-sm text-[var(--color-fg-mid)]">解说 · <PlayerProfileLink userId={activeCommentator.userId}>{getPublicDisplayName(activeCommentator)}</PlayerProfileLink></p>
+                <p className="text-sm text-[var(--color-fg-mid)]">解说 · {activeCommentator.playerUserId ? <PlayerProfileLink userId={activeCommentator.playerUserId}>{getPublicDisplayName(activeCommentator)}</PlayerProfileLink> : getPublicDisplayName(activeCommentator)}</p>
                 <div className="flex flex-wrap items-center justify-center gap-3">
                   <Button
                     onClick={() =>
@@ -144,7 +145,7 @@ export function MatchLiveViewing({
             </a>
           </Button>
           <span className="text-sm text-[var(--color-fg-mid)]">
-            解说 · <PlayerProfileLink userId={activeCommentator.userId}>{getPublicDisplayName(activeCommentator)}</PlayerProfileLink>
+            解说 · {activeCommentator.playerUserId ? <PlayerProfileLink userId={activeCommentator.playerUserId}>{getPublicDisplayName(activeCommentator)}</PlayerProfileLink> : getPublicDisplayName(activeCommentator)}
           </span>
           {bilibiliRoomId && (
             <span className="text-xs text-[var(--color-fg-dim)]">

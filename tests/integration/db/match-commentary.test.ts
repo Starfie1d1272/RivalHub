@@ -182,8 +182,8 @@ describe("match commentary PostgreSQL contract", () => {
       expect(data.claimableCount).toBe(7);
       expect(data.byMatchId[full]?.canClaim).toBe(false);
       expect(data.byMatchId[foreign]).toBeUndefined();
-      expect(data.byMatchId[current]).toEqual({ commentators: [{ userId: fixture.adminA, name: "解说1" }], isMine: true, canClaim: false });
-      expect(data.byMatchId[others]).toEqual({ commentators: [{ userId: fixture.adminB, name: "解说2" }], isMine: false, canClaim: true });
+      expect(data.byMatchId[current]).toEqual({ commentators: [{ userId: fixture.adminA, name: "解说1", playerUserId: null }], isMine: true, canClaim: false });
+      expect(data.byMatchId[others]).toEqual({ commentators: [{ userId: fixture.adminB, name: "解说2", playerUserId: null }], isMine: false, canClaim: true });
       expect(data.byMatchId[finished]?.canClaim).toBe(false);
       expect(data.byMatchId[cancelled]?.canClaim).toBe(false);
       expect(JSON.stringify(data)).not.toContain("@local.test");

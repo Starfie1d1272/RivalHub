@@ -8,9 +8,9 @@ describe("recent match results", () => {
       { id: "new", entryAId: "c", entryBId: "a", scoreA: 0, scoreB: 2, completedAt: new Date("2026-02-01"), scheduledAt: null, format: "bo3" },
       { id: "unfinished", entryAId: "a", entryBId: "c", scoreA: null, scoreB: null, completedAt: null, scheduledAt: new Date("2026-03-01"), format: "bo3" },
     ], new Map([["b", "队伍 B"], ["c", "队伍 C"]]));
-    expect(results.map(({ matchId, opponentName, scoreFor, scoreAgainst, won }) => ({ matchId, opponentName, scoreFor, scoreAgainst, won }))).toEqual([
-      { matchId: "new", opponentName: "队伍 C", scoreFor: 2, scoreAgainst: 0, won: true },
-      { matchId: "old", opponentName: "队伍 B", scoreFor: 2, scoreAgainst: 0, won: true },
+    expect(results.map(({ matchId, opponentId, opponentName, scoreFor, scoreAgainst, won }) => ({ matchId, opponentId, opponentName, scoreFor, scoreAgainst, won }))).toEqual([
+      { matchId: "new", opponentId: "c", opponentName: "队伍 C", scoreFor: 2, scoreAgainst: 0, won: true },
+      { matchId: "old", opponentId: "b", opponentName: "队伍 B", scoreFor: 2, scoreAgainst: 0, won: true },
     ]);
   });
 });

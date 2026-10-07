@@ -178,7 +178,7 @@ describe("VetoInputDialog load state and responsive contract", () => {
     await openDialog(user);
 
     await waitFor(() => expect(screen.getByText("已加载已保存的 BP，可直接编辑。")).toBeInTheDocument());
-    const sideLabel = screen.getByText(`→ ${longTeamName}选边`);
+    const sideLabel = screen.getByText((_, element) => element?.tagName === "SPAN" && element.textContent === `→ ${longTeamName}选边`);
     expect(sideLabel).toHaveClass("min-w-0", "flex-1", "break-words");
     expect(sideLabel.parentElement).toHaveClass("min-w-0", "flex-wrap");
   });

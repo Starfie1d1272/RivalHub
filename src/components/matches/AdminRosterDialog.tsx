@@ -379,7 +379,7 @@ export function AdminRosterDialog({
       <DialogContent size="lg">
         <DialogHeader>
           <DialogTitle>
-            名单管理 · {teamAName} vs {teamBName}
+            名单管理 · <TeamProfileLink entryId={entryAId}>{teamAName}</TeamProfileLink> vs <TeamProfileLink entryId={entryBId}>{teamBName}</TeamProfileLink>
           </DialogTitle>
           <DialogDescription>为双方选择并确认本场 5 名首发选手。</DialogDescription>
         </DialogHeader>

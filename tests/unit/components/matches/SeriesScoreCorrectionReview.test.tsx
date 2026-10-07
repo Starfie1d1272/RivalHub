@@ -24,7 +24,7 @@ describe("Workbench early-series recovery", () => {
   it("shows an explicit secondary recovery entry, previews impact and requires reason plus confirmation", async () => {
     const user = userEvent.setup(); render(<MapScoreCorrectInput {...props} />); await editAndPreview(user);
     await user.click(await screen.findByRole("button", { name: "进入系列赛果更正" }));
-    expect(screen.getByText("当前：Alpha 1 : 1 Beta")).toBeInTheDocument(); expect(screen.getByText("更正后：Alpha 2 : 0 Beta")).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "更正系列赛果" })).toHaveTextContent("当前：Alpha 1 : 1 Beta"); expect(screen.getByRole("region", { name: "更正系列赛果" })).toHaveTextContent("更正后：Alpha 2 : 0 Beta");
     expect(screen.getByText("比赛状态：进行中 → 已结束")).toBeInTheDocument(); expect(screen.getByText("Map 3：未进行，更正后不再需要")).toBeInTheDocument();
     const button = screen.getByRole("button", { name: "确认更正系列赛果" }); expect(button).toBeDisabled();
     expect(screen.getByLabelText("整场更正原因")).toHaveValue("核对 Perfect 最终比分");

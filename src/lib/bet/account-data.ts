@@ -1,3 +1,4 @@
+import { getPublicPlayerIdentityIds } from "@/lib/players/public-identity";
 import "server-only";
 import { and, eq, asc, desc, sql, ne } from "drizzle-orm";
 import type { TxDb } from "@/db/client";
@@ -25,9 +26,10 @@ export async function readBetAccounts(tx: TxDb, seasonId: string, accountId: str
   const mine = rows.find(row => row.accountId === accountId);
   const eligible = rows.filter(row => (row.settledCount ?? 0) > 0);
   let rank = 0;
+  const playerIds = await getPublicPlayerIdentityIds(tx, eligible.map(row => row.userId));
   const leaderboard: BetBoardDTO["leaderboard"] = eligible.map((row, index) => {
     if (index === 0 || row.profit !== eligible[index - 1]!.profit) rank = index + 1;
-    return { userId: row.userId, name: getPublicDisplayName(row), profit: row.profit, settledCount: row.settledCount!, rank };
+    return { userId: row.userId, playerUserId: playerIds.has(row.userId) ? row.userId : null, name: getPublicDisplayName(row), profit: row.profit, settledCount: row.settledCount!, rank };
   });
   // Only the authenticated viewer's account is read; raw source keys never leave this owner.
   const ledgerRows = accountId ? await tx.select({ createdAt: betLedger.createdAt, amount: betLedger.amount, kind: betLedger.kind, source: betLedger.source,

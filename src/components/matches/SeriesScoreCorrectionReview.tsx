@@ -1,4 +1,5 @@
 "use client";
+import { TeamProfileLink } from "@/components/teams/TeamProfileLink";
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
@@ -8,7 +9,8 @@ import { Input } from "@/components/ui/input";
 import { confirmSeriesMapCorrection } from "@/actions/matches/series-correction";
 import type { SeriesCorrectionPreview, SeriesCorrectionRequest } from "@/lib/matches/series-score-correction";
 
-export function SeriesScoreCorrectionReview({ preview, request, initialReason, teamAName, teamBName, onCancel, onDone }: {
+export function SeriesScoreCorrectionReview({ entryAId, entryBId, seasonSlug, preview, request, initialReason, teamAName, teamBName, onCancel, onDone }: {
+  entryAId?: string; entryBId?: string; seasonSlug?: string;
   preview: SeriesCorrectionPreview; request: SeriesCorrectionRequest; initialReason: string;
   teamAName: string; teamBName: string; onCancel: () => void; onDone: () => void;
 }) {
@@ -24,8 +26,8 @@ export function SeriesScoreCorrectionReview({ preview, request, initialReason, t
   </div>;
   return <section aria-label="更正系列赛果" className="space-y-3 rounded border border-[var(--color-border)] p-3">
     <h3 className="font-semibold">更正系列赛果</h3>
-    <p>当前：{teamAName} {preview.currentA} : {preview.currentB} {teamBName}</p>
-    <p>更正后：{teamAName} {preview.scoreA} : {preview.scoreB} {teamBName}</p>
+    <p>当前：<TeamProfileLink seasonSlug={seasonSlug} entryId={entryAId}>{teamAName}</TeamProfileLink> {preview.currentA} : {preview.currentB} <TeamProfileLink seasonSlug={seasonSlug} entryId={entryBId}>{teamBName}</TeamProfileLink></p>
+    <p>更正后：<TeamProfileLink seasonSlug={seasonSlug} entryId={entryAId}>{teamAName}</TeamProfileLink> {preview.scoreA} : {preview.scoreB} <TeamProfileLink seasonSlug={seasonSlug} entryId={entryBId}>{teamBName}</TeamProfileLink></p>
     <p>Map {preview.correctedMapOrder}：{preview.oldA} : {preview.oldB} → {preview.newA} : {preview.newB}</p>
     <p>比赛状态：进行中 → 已结束</p>
     <ul className="list-inside list-disc">{preview.maps.map(map => <li key={map.order}>Map {map.order}：{map.label}</li>)}</ul>
