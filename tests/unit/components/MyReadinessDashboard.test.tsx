@@ -85,7 +85,7 @@ describe("MyReadinessDashboard", () => {
   });
 
   it("links the event Team from an upcoming match", () => {
-    render(<MyReadinessDashboard model={{ ...model, upcomingMatches: [{ seasonId: "season-1", seasonSlug: "fall-2026", entryId: "entry-1", seasonName: "2026 秋季赛", entryName: "Rival Five", task: { href: "/fall-2026/matches/m1", title: "下一场比赛", detail: "对手待定" } }] }} />);
+    render(<MyReadinessDashboard model={{ ...model, upcomingMatches: [{ seasonId: "season-1", seasonSlug: "fall-2026", entryId: "entry-1", seasonName: "2026 秋季赛", entryName: "Rival Five", task: { href: "/fall-2026/matches/m1", title: "你的下一场", detail: "对手待定" } }] }} />);
     expect(screen.getByRole("link", { name: "Rival Five" })).toHaveAttribute("href", "/fall-2026/teams/entry-1");
   });
 
