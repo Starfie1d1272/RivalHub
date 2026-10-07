@@ -74,6 +74,16 @@ describe("affected evidence correctness", () => {
     expect(plan("src/db/schema/mizar.ts", "tests/integration/db/bet.test.ts").integrationSpecs).toEqual([]);
   });
 
+  it("discovers correctness in required PostgreSQL and capacity only in the experiment entry", () => {
+    const files = config => JSON.parse(execFileSync(process.execPath, ["node_modules/vitest/vitest.mjs", "list", "--config", config, "--filesOnly", "--json"], { encoding: "utf8" })).map(item => item.file);
+    const core = files("vitest.integration.config.ts");
+    expect(core.some(file => file.endsWith("/mizar-live-correctness.test.ts"))).toBe(true);
+    expect(core.some(file => file.includes("/experiments/"))).toBe(false);
+    const experiments = files("vitest.experiments.config.ts");
+    expect(experiments).toHaveLength(1);
+    expect(experiments[0]).toContain("/experiments/mizar-live-capacity.test.ts");
+  });
+
   it("keeps a presentation-only change out of service lanes", () => {
     expect(plan("src/components/layout/Footer.tsx").requiredJobs).toEqual(["static"]);
   });
