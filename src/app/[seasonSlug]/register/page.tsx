@@ -132,12 +132,12 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
 
   if (isTeamRegistration(season)) {
     const [captainedTeams, participantContext, [approvedCount], currentTeamRows] = await Promise.all([
-      db.select({ id: teams.id, name: teams.name }).from(teams)
+      db.select({ id: teams.id, slug: teams.slug, name: teams.name }).from(teams)
         .where(and(eq(teams.status, "active"), eq(teams.captainUserId, userSession.userId)))
         .orderBy(teams.name),
       loadCompetitionEntryParticipantContext({ competitionId: season.id, userId: userSession.userId }),
       db.select({ value: count() }).from(competitionEntries).where(and(eq(competitionEntries.competitionId, season.id), publicCompetitionEntryCondition())),
-      db.select({ id: teams.id, name: teams.name }).from(teamMemberships).innerJoin(teams, eq(teams.id, teamMemberships.teamId)).where(and(eq(teamMemberships.userId, userSession.userId), isNull(teamMemberships.endedAt), eq(teams.status, "active"))).limit(1),
+      db.select({ id: teams.id, slug: teams.slug, name: teams.name }).from(teamMemberships).innerJoin(teams, eq(teams.id, teamMemberships.teamId)).where(and(eq(teamMemberships.userId, userSession.userId), isNull(teamMemberships.endedAt), eq(teams.status, "active"))).limit(1),
     ]);
     const entry = participantContext.primaryEntry;
     let entryView: Parameters<typeof CompetitionEntryFlow>[0]["entry"] = null;
@@ -275,6 +275,7 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
             registrationWindowPhase={registrationWindow.phase}
             rosterChangeClosesAtLabel={season.rosterChangeClosesAt ? formatCST(season.rosterChangeClosesAt) : null}
             competitionId={season.id}
+            seasonSlug={seasonSlug}
             competitionName={season.name}
             currentUserId={userSession.userId}
             minRoster={season.minTeamSize}

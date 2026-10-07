@@ -79,8 +79,14 @@ describe("MyReadinessDashboard", () => {
   it("keeps member team identity and event participation separate", () => {
     render(<MyReadinessDashboard model={{ ...model, currentTeam: { id: "team-1", slug: "rival-five", name: "Rival Five", logoUrl: null, description: null, captainUserId: "captain-1", viewerRole: "member" } }} />);
     expect(screen.getByText((_content, element) => element?.textContent === "你是成员；队伍成员变更不会改写已经提交、审核通过或冻结的赛事名单。")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Rival Five" })).toHaveAttribute("href", "/teams/rival-five");
     expect(screen.getByRole("link", { name: "查看我的队伍" })).toHaveAttribute("href", "/my/teams");
     expect(screen.getByText(/参赛确认：已确认参赛/)).toBeInTheDocument();
+  });
+
+  it("links the event Team from an upcoming match", () => {
+    render(<MyReadinessDashboard model={{ ...model, upcomingMatches: [{ seasonId: "season-1", seasonSlug: "fall-2026", entryId: "entry-1", seasonName: "2026 秋季赛", entryName: "Rival Five", task: { href: "/fall-2026/matches/m1", title: "下一场比赛", detail: "对手待定" } }] }} />);
+    expect(screen.getByRole("link", { name: "Rival Five" })).toHaveAttribute("href", "/fall-2026/teams/entry-1");
   });
 
   it("renders sanctions and historical competitions", () => {
