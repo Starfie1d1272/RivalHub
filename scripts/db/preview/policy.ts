@@ -57,7 +57,7 @@ export const PREVIEW_COLUMNS: Record<string, string> = {
   draft_state: "id season_id current_round current_entry_id round_deadline is_active updated_at",
   dak_pairing_intents: "id poll_token_hash status authorized_by_user_id expires_at authorized_at delivered_at created_at",
   dak_pairings: "id pairing_intent_id user_id token_hash scopes season_ids status revoked_at last_used_at created_at",
-  matches: "id season_id entry_a_id entry_b_id stage round format entry_round score_a score_b status is_forfeit bracket_node_id ownership major_stage_run_id qualification_run_id managed_key scheduled_at started_at gameplay_started_at completion_deadline completed_at mvp_winner_user_id created_at updated_at",
+  matches: "id season_id entry_a_id entry_b_id execution_context result_disposition stage round format entry_round score_a score_b status is_forfeit bracket_node_id ownership major_stage_run_id qualification_run_id managed_key scheduled_at started_at gameplay_started_at completion_deadline completed_at mvp_winner_user_id created_at updated_at",
   match_maps: "id match_id map_order map_name picked_by_entry_id team_a_start_side score_a score_b started_at completed_at created_at",
   match_demo_imports: "id season_id match_id match_map_id stage_key stage_run_id demo_sha256 payload_sha256 contract_version semantic_profile analysis_version evidence_revision status payload submitted_by_pairing_id idempotency_key supersedes_import_id issues submitted_at confirmed_at created_at",
   match_demo_stat_projections: "import_id projection_version payload_sha256 demo_sha256 semantic_profile analysis_version evidence_revision identity_bindings facts created_at",
@@ -179,6 +179,8 @@ export const PREVIEW_SCHEMA_LIFECYCLE: readonly PreviewSchemaLifecycleTable[] = 
       { name: "qualification_run_id", introducedAt: "0056_competition-qualification-playin" },
       { name: "started_at", introducedAt: "0065_match_runtime_foundation" },
       { name: "gameplay_started_at", introducedAt: "0076_slim_weapon_omega" },
+      { name: "execution_context", introducedAt: "0077_match_execution_context" },
+      { name: "result_disposition", introducedAt: "0077_match_execution_context" },
     ],
   },
   { table: "match_maps", columns: [{ name: "started_at", introducedAt: "0075_lowly_sersi" }] },
@@ -326,7 +328,16 @@ export function exportQuery(table: string, source: PreviewPolicyInput = readExpe
   const policy = resolvePolicy(source);
   const tablePolicy = policy.tables[table];
   if (!tablePolicy) throw new PreviewMirrorError("FUTURE_MIRROR_TABLE", "Table is not permitted in mirror export.", { context: { table } });
-  const expressions = tablePolicy.exportedColumns.map(quoteIdentifier);
+  const expressions = tablePolicy.exportedColumns.map((column) => {
+    // Keep the independent variant valid without copying arbitrary side labels, URLs or JSON keys.
+    if (table === "matches" && column === "execution_context") return `CASE WHEN execution_context IS NULL THEN NULL ELSE jsonb_build_object(
+      'version', 1, 'sides', jsonb_build_object(
+        'a', jsonb_build_object('name', 'Preview A', 'logoUrl', NULL),
+        'b', jsonb_build_object('name', 'Preview B', 'logoUrl', NULL)
+      ), 'mapPool', execution_context->'mapPool'
+    ) END AS execution_context`;
+    return quoteIdentifier(column);
+  });
   if (table === "users") expressions.push(`id::text || '@preview.invalid' AS email`, `'user' AS role`);
   if (table === "season_registrations") expressions.push(`ARRAY[]::text[] AS screenshot_urls`);
   if (table === "team_memberships") expressions.push(`CASE WHEN "ended_at" IS NOT NULL THEN 'left'::team_membership_end_reason ELSE NULL END AS ended_reason`);

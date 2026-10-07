@@ -90,3 +90,8 @@ Pure tests exercise full Major simulation, upstream invalidation, exact slot jud
 `mizar-live-real-derived.json` retains the source Mizar commit and sanitized capture provenance. It was produced from Mizar's `real-live-rich` program and matching `dense-utility` radar fixture through `projectLiveSnapshotV1`; RivalHub tests must still run its wire parser, `projectPublicLive`, delivery reducer and the published `fromPublicRadar` adapter. The professional capture is a fixture, not evidence that an NJU match was played.
 
 `tests/e2e/flows/public-match-live.spec.ts` uses disposable Local Supabase facts, the existing private viewer endpoint and production ingest/public projection. Its dedicated producer only rewrites local match/context IDs and delivery timestamps; it sends the captured player/radar data at 1 Hz. The Chromium scenario checks all three viewport widths (1440/390/320), equal desktop panel bottoms, shared map-card/live scores, schedule-row live scores and stale/unavailable recovery, stale clock freezing, unavailable fallback, resumed delivery, navigation, icon failure, BP/waiting/inter-map/POST and attaches screenshots. It never publishes to a hosted Supabase project. Token expiry, rejected replay and foreground cleanup are deterministic lifecycle tests; exact age boundaries and authority/map resets are reducer tests. These checks do not certify a production deployment, real operator handover or sustained multi-viewer capacity.
+
+
+### 无产品入口的比赛领域命令
+
+独立比赛创建与结束/补录/更正命令是本轮明确交付的内部领域入口，线上授权与约战 UI 尚未接入。`knip.json` 将 `src/lib/matches/creation.ts`、`src/lib/matches/unassociated-result.ts` 声明为生产领域检查根，使 production 模式继续检查它们的依赖；不为通过检查添加无授权的路由或虚假调用。命令行为由真实数据库集成回归验证，后续接入产品调用后移除这两条显式根。
