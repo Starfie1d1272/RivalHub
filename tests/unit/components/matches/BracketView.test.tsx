@@ -72,7 +72,7 @@ describe("BracketView", () => {
 
     render(<BracketView data={bracketData} />);
 
-    
+
 
     await waitFor(() => expect(renderBracket).toHaveBeenCalledTimes(1));
     expect(renderBracket).toHaveBeenCalledWith(
@@ -153,11 +153,11 @@ describe("BracketView", () => {
 
     const container = document.querySelector("#bracket-container") as HTMLElement;
 
-    
-    
-    
-    
-    
+
+
+
+
+
     expect(container.style.getPropertyValue("--border-selected-color")).toBe("#ff6b1a");
   });
 });

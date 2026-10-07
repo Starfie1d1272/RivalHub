@@ -87,7 +87,7 @@ describe("SeasonSubNav", () => {
     );
   });
 
-  
+
 
   it("does not keep the overview tab active on nested workspace routes", () => {
     pathnameMock.mockReturnValue("/admin/nju-major-2026/matches/match-1");
@@ -107,7 +107,7 @@ describe("SeasonSubNav", () => {
     pathnameMock.mockReturnValue("/admin/nju-major-2026/draft");
     renderNav();
 
-    
+
     expect(screen.getByRole("link", { name: "赛事总览" })).not.toHaveAttribute("aria-current");
     expect(screen.queryByRole("link", { name: "选秀控制" })).not.toBeInTheDocument();
   });

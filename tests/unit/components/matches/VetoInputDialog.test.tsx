@@ -154,7 +154,7 @@ describe("VetoInputDialog load state and responsive contract", () => {
         await waitFor(() => expect(screen.getAllByTestId("veto-step")).toHaveLength(7));
 
         const body = screen.getByTestId("veto-load-state");
-        
+
         const saveButton = screen.getByRole("button", { name: "保存 BP" });
         expect(body).not.toContainElement(saveButton);
         expect(screen.getByRole("dialog")).toContainElement(saveButton);

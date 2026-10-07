@@ -34,7 +34,7 @@ describe("StatsDataTable client state", () => {
     expect(screen.getByRole("row", { name: "Low 1" })).toBeInTheDocument();
     expect(screen.getByText("第 2 / 3 页")).toBeInTheDocument();
   });
-  
+
 
   it("omits pagination chrome for a single page", () => {
     render(<StatsDataTable rows={rows} columns={columns} rowKey={(row) => row.name} />);
@@ -42,9 +42,9 @@ describe("StatsDataTable client state", () => {
     expect(screen.queryByText(/共 3 条/)).not.toBeInTheDocument();
   });
 
-  
 
-  
+
+
 
   it("keeps limited samples below ranked rows in both sort directions and uses a separate baseline", () => {
     interface RankedRow { name: string; rating: number; rounds: number }
@@ -97,6 +97,6 @@ describe("StatsDataTable client state", () => {
     expect(screen.getByRole("tooltip").closest("table")).toBeNull();
   });
 
-  
+
 
 });

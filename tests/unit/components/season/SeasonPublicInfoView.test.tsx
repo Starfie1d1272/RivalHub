@@ -24,7 +24,7 @@ describe("SeasonPublicInfoView", () => {
     const html = renderToStaticMarkup(<SeasonPublicInfoView info={info} />);
 
     // Responsive 2-column grid class on desktop / 1-column on mobile
-    
+
 
     // All 5 groups are rendered
     expect(html).toContain("选手群 1");

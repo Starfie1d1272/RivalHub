@@ -145,9 +145,9 @@ describe("TeamPublicProfile", () => {
     expect(screen.getByRole("link", { name: /队伍主页 · Rival Team/ })).toHaveAttribute("href", "/teams/rival-team");
     expect(screen.getAllByText("本届比赛")).not.toHaveLength(0);
     expect(screen.getByText("对阵 Opponent")).toBeInTheDocument();
-    
-    
-    
+
+
+
     expect(screen.getByText("对阵 Future Opponent")).toBeInTheDocument();
     expect(screen.queryByText("0 : 0")).not.toBeInTheDocument();
   });

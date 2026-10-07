@@ -109,7 +109,7 @@ describe("Team share invitation page", () => {
     Object.assign(row, overrides);
     const html = await renderPage(row);
 
-    
+
     expect(html).toContain(title);
     expect(html).toContain(sub);
     expect(html).not.toContain("<button");

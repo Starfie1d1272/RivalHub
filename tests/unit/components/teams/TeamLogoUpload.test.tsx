@@ -92,6 +92,6 @@ describe("TeamLogoUpload", () => {
     expect(control).toHaveAttribute("type", "button");
     control.focus();
     expect(control).toHaveFocus();
-    
+
   });
 });

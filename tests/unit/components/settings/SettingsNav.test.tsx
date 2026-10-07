@@ -11,7 +11,7 @@ describe("SettingsNav", () => {
     render(<SettingsNav />);
     expect(screen.getByRole("link", { name: /参赛资料/ })).toHaveAttribute("href", "/settings");
     expect(screen.getByRole("link", { name: /教育身份/ })).toHaveAttribute("href", "/settings/education");
-    
+
     expect(screen.getByRole("link", { name: /账号与安全/ })).toHaveAttribute("href", "/settings/security");
     expect(screen.getByText("登录密码、已验证邮箱与账号归并")).toBeInTheDocument();
     expect(screen.queryByText(/verified email/)).not.toBeInTheDocument();

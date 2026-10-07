@@ -81,8 +81,8 @@ describe("audit log pages", () => {
     const html = renderToStaticMarkup(page);
 
     expect(html).toContain('data-layout-variant="wide"');
-    
-    
+
+
     expect(html).toContain('data-testid="audit-log-table"');
   });
 
