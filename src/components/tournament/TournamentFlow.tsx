@@ -76,7 +76,7 @@ export function TournamentFlow({ rounds, view, setView, renderRound, finalResult
               className={styles.round}
               data-mobile-active={mobileRound === round}
             >
-              <h3 className={styles.roundTitle}>
+              <h3 className={styles.roundTitle} aria-label={`第 ${round} 轮`}>
                 {view === "list" && <ArrowDown size={18} />}
                 <span>ROUND {round}</span>
                 {view === "list" && <ArrowDown size={18} />}

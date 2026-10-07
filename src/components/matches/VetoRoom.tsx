@@ -5,7 +5,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Button } from "@/components/ui/button";
 import { Panel } from "@/components/rivalhub";
 import { HelpTooltip } from "@/components/rivalhub/HelpTooltip";
-import { VETO_ACTION_HELP } from "@/lib/matches/veto-presentation";
+import { vetoActionHelp } from "@/lib/matches/veto-presentation";
 import { InlineConfirm } from "@/components/rivalhub/InlineConfirm";
 import { useVisiblePolling } from "@/components/use-visible-polling";
 import type { VetoRoomView } from "@/lib/matches/veto-room/read-model";
@@ -341,7 +341,7 @@ export function VetoRoom({ initialRoom }: { initialRoom: VetoRoomView }) {
             ) : matchClosed ? <p className="text-sm text-[var(--color-fg-mid)]">本场比赛{match.statusLabel}。以下保留已完成的 BP 记录。</p> : (
               <div className="flex flex-wrap items-center justify-between gap-3 rounded border border-[var(--color-border)] bg-[var(--color-panel-hi)] p-4">
                 <div>
-                  <p className="font-semibold text-[var(--color-fg)]">{turn.currentTurnLabel ?? "等待下一步"}{turn.currentTurnAction && <HelpTooltip className="ml-1" label="当前 BP 操作说明" content={VETO_ACTION_HELP[turn.currentTurnAction]} />}</p>
+                  <p className="font-semibold text-[var(--color-fg)]">{turn.currentTurnLabel ?? "等待下一步"}{turn.currentTurnAction && <HelpTooltip className="ml-1" label="当前 BP 操作说明" content={vetoActionHelp(turn.currentTurnAction, match.formatKey)} />}</p>
                   <p className="mt-1 text-sm text-[var(--color-fg-mid)]">
                     {currentEntry ? `${currentEntry.name}${currentEntry.vetoRoleLabel ? ` · ${currentEntry.vetoRoleLabel}` : ""}` : "系统处理"}
                     {turn.currentTurnMapLabel ? ` · ${turn.currentTurnMapLabel}` : ""}

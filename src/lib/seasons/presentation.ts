@@ -155,9 +155,9 @@ function getTimestamp(value: Date | string | null | undefined): number {
 
 /** Public participation label for a published Season; lifecycle status stays
  * separate so non-registration phases continue to use their canonical label. */
-export function presentSeasonParticipationState(season: RegistrationWindowSeason): StatusPresentation {
+export function presentSeasonParticipationState(season: RegistrationWindowSeason, now: Date = new Date()): StatusPresentation {
   if (season.status !== "registration") return presentSeasonStatus(season.status);
-  switch (getRegistrationWindowState(season).phase) {
+  switch (getRegistrationWindowState(season, now).phase) {
     case "unscheduled": return { label: "报名时间待定", tone: "neutral" };
     case "upcoming": return { label: "即将开放", tone: "warn" };
     case "open": return { label: "报名中", tone: "success" };

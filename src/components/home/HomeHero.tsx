@@ -4,11 +4,11 @@ import Link from "next/link";
 import type { RegistrationMode, SeasonStatus } from "@/types/season";
 import { APP_BRAND } from "@/lib/branding";
 import type { HomeEyebrow } from "@/lib/home/navigation";
-import { isRegistrationActuallyOpen } from "@/lib/seasons/presentation";
+import { getRegistrationWindowState, type RegistrationWindowSeason } from "@/lib/registration/window";
 import { Panel } from "@/components/rivalhub";
 import { Button } from "@/components/ui/button";
 
-interface HomeHeroSeason {
+interface HomeHeroSeason extends RegistrationWindowSeason {
   name: string;
   logoUrl?: string | null;
   slug: string;
@@ -23,7 +23,7 @@ interface HomeHeroProps {
 }
 
 export function HomeHero({ season, eyebrow }: HomeHeroProps) {
-  const registrationIsOpen = isRegistrationActuallyOpen(season);
+  const registrationIsOpen = getRegistrationWindowState(season).canSubmit;
 
   return (
     <Panel className="overflow-hidden relative" contentClassName="p-0">

@@ -58,6 +58,18 @@ Rivals 与 Major 共用账号、长期 Team、比赛和数据基础设施，同�
 
 ## 赛事运行
 
+### 按角色开始
+
+| 角色 | 入口与下一步 |
+| --- | --- |
+| 办赛方／赛事管理员 | 新建赛事由超级管理员操作；办赛方先联系平台运营取得赛事及对应管理授权。从赛事后台的赛前工作区完成配置、审核和冻结，再进入比赛工作台。见 [赛事生命周期](docs/workflows.md#season-lifecycle)、[Major 赛前流程](docs/workflows.md#major-prestart)。 |
+| 队长／队员 | 登录后从「我的」查看本人待办，再进入目标赛事报名。Major 由长期队伍队长创建本届报名、维护名单，成员逐一确认；个人报名赛事按本届报名入口办理。见 [账号与资料](docs/workflows.md#account-and-long-lived-profile)、[队伍报名与审核](docs/workflows.md#major-registration-and-review)、[Rivals 流程](docs/workflows.md#rivals)。 |
+| 裁判／解说 | 从赛事管理的比赛总览认领并进入自己的比赛，按 [裁判与管理员手册](docs/operations/major-referee-guide.md) 核对首发、BP、逐图赛果与赛后资料。Perfect 建房、房间内操作和现场协调由人执行；Mizar 设备与 OBS 节目制作在 Mizar 侧处理。 |
+
+资格或名单阻塞先按页面提示补正并联系本届管理员；赛果争议、回档和处罚由管理员保留原因与证据，按 [异常处理与赛后争议](docs/operations/major-referee-guide.md#赛后与争议) 升级赛委会。权限或平台故障交平台运营处理，公开反馈不要包含账号凭据或私密材料。
+
+手册描述已实现的操作路径；代码与隔离测试不等于 Perfect／Mizar／OBS 实机或生产验收，现场仍需赛前联调。下方本地开发入口只用于开发环境。
+
 从选秀、循环赛到双败淘汰，赛程和晋级关系都在 RivalHub 内推进；Major 则进一步覆盖 Team 报名、资格审核、Swiss 和 Playoffs。管理员可以在后台处理名单、比赛结果、更正和恢复等赛务工作。
 
 ![Rivals 双败淘汰赛](./docs/assets/screenshots/rivals-bracket.png)

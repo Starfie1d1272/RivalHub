@@ -275,6 +275,42 @@ test("完整推演导入提交，上游修改不会改写提交，刷新恢复�
   }
 });
 
+test("紧凑推演在窄屏能滚到结果并回到首轮", async ({ page, scenario }, info) => {
+  const user = scenario.accounts[0]!;
+  const fixture = await createPredictionBrowserFixture(user.userId);
+  try {
+    await signInProgrammatically(page, user, scenario, `/${fixture.slug}/predictions`);
+    await page.getByRole("button", { name: "紧凑对阵", exact: true }).click();
+    const flow = page.getByRole("region", { name: "Swiss 完整赛事推演" });
+    for (const width of [390, 320, 1440]) {
+      await page.setViewportSize({ width, height: 1000 });
+      await flow.evaluate(element => { element.scrollLeft = 0; });
+      const first = flow.getByRole("heading", { name: "第 1 轮", exact: true });
+      const startsInside = async () => {
+        const container = await flow.boundingBox();
+        const heading = await first.boundingBox();
+        return !!container && !!heading && heading.x >= container.x - 1 && heading.x + heading.width <= container.x + container.width + 1;
+      };
+      await expect.poll(startsInside).toBe(true);
+      await flow.evaluate(element => { element.scrollLeft = element.scrollWidth; });
+      const last = flow.getByRole("region", { name: "最终结果" });
+      await expect.poll(async () => {
+        const container = await flow.boundingBox();
+        const result = await last.boundingBox();
+        return !!container && !!result && result.x >= container.x - 1 && result.x + result.width <= container.x + container.width + 1;
+      }).toBe(true);
+      await flow.evaluate(element => { element.scrollLeft = 0; });
+      await expect.poll(startsInside).toBe(true);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
+      if (width === 320) await info.attach("compact-first-round-320", { body: await page.screenshot({ fullPage: true, style: "nextjs-portal { visibility: hidden; }" }), contentType: "image/png" });
+    }
+    await flow.getByTestId("sim-match-stage1-r1-1").getByRole("button").last().click();
+    await expect(flow.getByTestId("sim-match-stage1-r1-1")).toHaveAttribute("data-source", "assumption");
+  } finally {
+    await removePredictionBrowserFixture(fixture.seasonId);
+  }
+});
+
 test("Pick’Em 跟随官方排期，未排期可提交，实际开赛后关闭", async ({ page, scenario }) => {
   const user = scenario.accounts[0]!;
   const fixture = await createPredictionBrowserFixture(user.userId);

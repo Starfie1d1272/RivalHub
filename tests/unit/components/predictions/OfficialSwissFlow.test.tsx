@@ -12,6 +12,7 @@ function fixture(stageKey = "play-in"): SwissStageReadModel {
 describe("official Swiss adapter", () => {
   it("shows all six persisted matches and future record paths without inventing opponents, links or results", async () => {
     render(<StageSwissReadModel data={fixture()} seasonSlug="event" />);
+    expect(screen.getByRole("heading", { name: "第 1 轮" })).toBeVisible();
     expect(screen.getAllByRole("link")).toHaveLength(6);
     expect(screen.getByRole("link", {name: "Team 5 对 Team 11"})).toHaveAttribute("href", "/event/matches/m5");
     expect(screen.getByTestId("record-2-1–0")).toHaveTextContent("待定");
