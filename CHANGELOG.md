@@ -1,5 +1,29 @@
 # Changelog
 
+## [2.15.2]
+
+### Fixed
+
+#### 队伍与选手资料入口
+
+补齐 BET、预测、Pick’Em、排名、选秀、比赛分析、近期赛果、BP 房间与后台名单的资料入口，保留下注、选择和排名操作，锁定状态下仍可查看资料。赛事队伍进入对应赛事资料，长期队伍进入队伍主页。
+
+BET 用户、解说与社区奖相关人员具有历史公开参赛记录或已填写选手资料时可查看长期选手页，不限本届；仅普通昵称、联系方式或直播间不算选手资料。
+
+#### 第二名解说认领
+
+修复已有一名解说时第二名无法自助认领的问题；比赛总览展示可认领的比赛及解说 0/2、1/2 坑位状态。
+
+#### 赛事推演就绪状态
+
+修复客户端尚未就绪时推演按钮可点击却不记录选择的问题。
+
+### Changed
+
+#### 依赖维护
+
+升级 Next.js、OpenTelemetry 与界面组件至最新稳定版本，并同步更新兼容的传递依赖，保持 Node 24 稳定运行环境。
+
 ## [2.15.1]
 
 ### Added
@@ -2734,6 +2758,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[2.15.2]: https://github.com/Starfie1d1272/RivalHub/compare/v2.15.1...v2.15.2
 [2.15.1]: https://github.com/Starfie1d1272/RivalHub/compare/v2.15.0...v2.15.1
 [2.15.0]: https://github.com/Starfie1d1272/RivalHub/compare/v2.14.4...v2.15.0
 [2.14.4]: https://github.com/Starfie1d1272/RivalHub/compare/v2.14.3...v2.14.4
