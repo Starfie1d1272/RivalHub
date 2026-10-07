@@ -95,7 +95,7 @@ export async function readAdminMatchCommentary(
   return {
     currentMatches: activeMatches.filter((match) => match.status === "in_progress" && byMatchId[match.id]!.isMine),
     nextMatch: activeMatches.find((match) => match.status === "scheduled" && byMatchId[match.id]!.isMine) ?? null,
-    unclaimedMatches: unclaimed.slice(0, 5),
+    unclaimedMatches: unclaimed,
     unclaimedCount: unclaimed.length,
     byMatchId,
   };

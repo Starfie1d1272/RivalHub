@@ -35,6 +35,8 @@
   background: var(--color-accent);
   color: var(--color-bg);
 }
+.mobileRounds button:focus-visible,
+.viewport:focus-visible,
 .viewSwitch button:focus-visible,
 .teamSide:focus-visible {
   outline: 2px solid var(--color-accent);
@@ -311,7 +313,7 @@
 .board[data-layout="compact"] .rounds {
   grid-template-columns: repeat(var(--round-count), minmax(200px, 240px));
   gap: 24px;
-  justify-content: center;
+  justify-content: safe center;
 }
 .board[data-layout="list"] .rounds {
   display: flex;

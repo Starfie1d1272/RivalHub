@@ -300,3 +300,47 @@ test("Pick’Em 跟随官方排期，未排期可提交，实际开赛后关闭"
     await removePredictionBrowserFixture(fixture.seasonId);
   }
 });
+
+test("官方 Swiss 与推演共享布局，Play-in 六场与未来路径在桌面和手机均可访问", async ({ page, scenario }, info) => {
+  const user = scenario.accounts[0]!;
+  const fixture = await createPredictionBrowserFixture(user.userId);
+  const pool = new Pool({ connectionString: assertLocalDatabaseUrl(process.env.DATABASE_URL), ssl: false });
+  try {
+    const { generateShortSwissRoundPairings } = await import("../../../src/lib/competition-qualification/swiss");
+    const entries = (await pool.query<{id:string}>("SELECT id FROM competition_entries WHERE competition_id=$1 ORDER BY name LIMIT 12", [fixture.seasonId])).rows;
+    const run = (await pool.query<{id:string}>("INSERT INTO competition_qualification_runs (season_id,format,target_entrant_count,candidate_count,direct_entry_count,play_in_entry_count,qualifier_count,configured_by) VALUES ($1,'short_swiss_2w2l',6,12,0,12,6,'browser-fixture') RETURNING id", [fixture.seasonId])).rows[0]!;
+    for (const [index, entry] of entries.entries()) await pool.query("INSERT INTO competition_qualification_entrants (run_id,season_id,competition_entry_id,preliminary_seed) VALUES ($1,$2,$3,$4)", [run.id,fixture.seasonId,entry.id,index+1]);
+    const pairs = generateShortSwissRoundPairings({entrants:entries.map((entry,i)=>({teamId:entry.id,initialSeed:i+1})),matches:[],completedRound:0});
+    for (const pair of pairs) await pool.query("INSERT INTO matches (season_id,entry_a_id,entry_b_id,stage,format,round,qualification_run_id) VALUES ($1,$2,$3,'play-in','bo1',1,$4)", [fixture.seasonId,pair.higherSeedTeamId,pair.lowerSeedTeamId,run.id]);
+    await signInProgrammatically(page,user,scenario,`/${fixture.slug}/matches`);
+    await page.goto(`/${fixture.slug}/matches`);
+    await page.getByRole("tab", {name:"PLAY-IN",exact:true}).click();
+    const flow = page.getByRole("region", {name:"Swiss 官方赛程"});
+    await expect(flow.getByRole("link")).toHaveCount(6);
+    await expect(flow.getByTestId("record-2-1–0")).toContainText("待定");
+    const widths = info.project.name === "mobile-chrome" ? [390,320] : [1440,1680,1920];
+    for (const width of widths) {
+      await page.setViewportSize({width,height:1000});
+      expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth+1)).toBe(true);
+      const tabs=page.getByRole("tablist").first();
+      expect(await tabs.evaluate(element=>getComputedStyle(element).overflowY)).toBe("hidden");
+      await info.attach(`swiss-${width}`, {body:await page.screenshot({fullPage:true,animations:"disabled",style:"nextjs-portal { visibility: hidden; }"}),contentType:"image/png"});
+    }
+    await page.getByRole("button",{name:"轮次列表",exact:true}).click();
+    if (info.project.name === "mobile-chrome") {
+      await page.getByRole("button",{name:"展示第 3 轮"}).press("Enter");
+      await expect(flow.getByTestId("record-3-1–1")).toBeVisible();
+      await page.getByRole("button",{name:"结果",exact:true}).press("Enter");
+      await expect(flow.getByRole("region",{name:"最终结果"})).toBeVisible();
+    }
+    await page.getByRole("tab").filter({hasText:/Stage 1|阶段一|第一阶段/}).first().click();
+    await expect(flow.getByRole("link")).toHaveCount(8);
+    await expect(flow.getByRole("region",{name:"最终结果"})).toContainText("3–0");
+  } finally {
+    await pool.query("DELETE FROM matches WHERE season_id=$1 AND qualification_run_id IS NOT NULL", [fixture.seasonId]);
+    await pool.query("DELETE FROM competition_qualification_entrants WHERE season_id=$1", [fixture.seasonId]);
+    await pool.query("DELETE FROM competition_qualification_runs WHERE season_id=$1", [fixture.seasonId]);
+    await pool.end();
+    await removePredictionBrowserFixture(fixture.seasonId);
+  }
+});

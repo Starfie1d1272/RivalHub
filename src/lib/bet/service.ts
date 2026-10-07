@@ -2,7 +2,8 @@ import "server-only";
 import { createHash } from "node:crypto";
 import { and, eq, desc, asc, sql } from "drizzle-orm";
 import { db, type DB, type TxDb } from "@/db/client";
-import { betPrograms as programs, betAccounts as accounts, betMarkets as markets, betOptions as options, betStakes as stakes, betLedger as ledger, betSettlements as settlements, betStageMilestones as milestones, users, matches, matchMaps, matchVetoSessions, seasonAdminGrants } from "@/db/schema";
+import { betPrograms as programs, betAccounts as accounts, betMarkets as markets, betOptions as options, betStakes as stakes, betLedger as ledger, betSettlements as settlements, betStageMilestones as milestones, users, matches, matchMaps, matchVetoSessions, majorStageRuns } from "@/db/schema";
+import { betRosterRestriction } from "./admission";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { writeAuditInTx } from "@/lib/audit/write";
 import { assertSeasonAllowsTournamentMutationInTx } from "@/lib/postevent/guard";
@@ -116,9 +117,16 @@ export async function reconcileBetInTx(tx: TxDb,seasonId: string) {
       for(const [accountId,amount] of payouts) await writeLedger(tx,{seasonId,accountId,amount,profit:amount-rows.filter(s=>s.accountId===accountId).reduce((n,s)=>n+s.amount,BigInt(0)),kind:"settlement",source:`settlement/${batch!.id}`});
     }
   }
-  const accountsAll=await tx.select().from(accounts).where(eq(accounts.seasonId,seasonId));
-  const launches=await tx.select().from(milestones).where(eq(milestones.seasonId,seasonId));
-  for(const launch of launches) for(const a of accountsAll.filter(a=>a.joinedAt<launch.openedAt)) await writeLedger(tx,{seasonId,accountId:a.id,amount:BET_POLICY.stagePoints,kind:"stage",source:`stage/${launch.stageKey}`});
+  // Recover canonical launches even when the StageRun predates BET activation.
+  // Keep database timestamp precision and the immutable first launch per stage key.
+  await tx.insert(milestones).select(tx.select({seasonId: majorStageRuns.seasonId, stageKey: majorStageRuns.stageKey, openedAt: sql<Date>`min(${majorStageRuns.startedAt})`.as("opened_at")})
+    .from(majorStageRuns).where(eq(majorStageRuns.seasonId, seasonId)).groupBy(majorStageRuns.seasonId, majorStageRuns.stageKey))
+    .onConflictDoNothing();
+  await tx.execute(sql`insert into ${ledger} (season_id, account_id, amount, kind, source)
+    select ${accounts.seasonId}, ${accounts.id}, ${BET_POLICY.stagePoints.toString()}::bigint, 'stage', 'stage/' || ${milestones.stageKey}
+    from ${accounts} join ${milestones} on ${milestones.seasonId} = ${accounts.seasonId}
+    where ${accounts.seasonId} = ${seasonId} and ${accounts.joinedAt} < ${milestones.openedAt}
+    on conflict (account_id, source) do nothing`);
   await tx.update(programs).set({dirty:false,updatedAt:now}).where(eq(programs.seasonId,seasonId));
   return f;
 }
@@ -128,7 +136,7 @@ export async function joinBetInTx(tx:TxDb,seasonId:string,userId:string) {
   if(account) await writeLedger(tx,{seasonId,accountId:account.id,amount:BET_POLICY.initialPoints,kind:"initial",source:"initial"});
 }
 export async function stakeBetInTx(tx:TxDb,input:{seasonId:string;userId:string;marketId:string;optionId:string;amount:string;requestId:string}) {
-  const user=await activeUser(tx,input.userId); await assertSeasonAllowsTournamentMutationInTx(tx,input.seasonId);
+  await activeUser(tx,input.userId); await assertSeasonAllowsTournamentMutationInTx(tx,input.seasonId);
   const target=await tx.query.betMarkets.findFirst({where:and(eq(markets.id,input.marketId),eq(markets.seasonId,input.seasonId))});
   if(!target) invalid("盘口不存在");
   // Official mutation lock order: user → lifecycle → match → map/veto → Bet program.
@@ -148,8 +156,8 @@ export async function stakeBetInTx(tx:TxDb,input:{seasonId:string;userId:string;
   const facts=await loadBetFacts(tx,input.seasonId);
   const market=await tx.query.betMarkets.findFirst({where:eq(markets.id,target.id)});
   if(program.paused || !market || market.lockedAt || marketIsLocked(betFactInput(market,facts)) || resolveBetFact(betFactInput(market,facts)).state!=="pending") invalid("盘口已锁定或暂停投入");
-  const admin=await tx.query.seasonAdminGrants.findFirst({where:and(eq(seasonAdminGrants.seasonId,input.seasonId),eq(seasonAdminGrants.userId,input.userId))});
-  if(user.role==="super_admin" || admin || facts.roster.some(r=>r.userId===input.userId && market.subject.entryIds.includes(r.entryId))) throw new AppError(ErrorCode.FORBIDDEN,"赛事管理员和相关队伍名单成员不能参与此盘口");
+  const restriction = betRosterRestriction(input.userId, market.subject.entryIds, facts.roster);
+  if (restriction) throw new AppError(ErrorCode.FORBIDDEN, restriction);
   const option=await tx.query.betOptions.findFirst({where:and(eq(options.id,input.optionId),eq(options.marketId,market.id))});
   if(!option) invalid("所选选项不属于此盘口");
   const previous=await tx.select().from(stakes).where(and(eq(stakes.marketId,market.id),eq(stakes.accountId,account.id)));

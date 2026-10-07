@@ -31,7 +31,7 @@ import { TournamentBoard } from "./TournamentBoard";
 import { PickEmRecord } from "./PickEmRecord";
 import { exportPredictionImage } from "./share-image";
 import { usePredictionConfirmation } from "./usePredictionConfirmation";
-import styles from "./tournament.module.css";
+import styles from "@/components/tournament/tournament.module.css";
 
 function defaultStage(context: SimulationContext) {
   const stages = orderedPredictionStages(context.baseline.stages);

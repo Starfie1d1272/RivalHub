@@ -154,7 +154,7 @@ describe("match commentary PostgreSQL contract", () => {
     }
   });
 
-  it("projects only this season's actual assignments, sorted next match, and bounded unclaimed matches", async () => {
+  it("projects only this season's actual assignments, sorted next match, and all active unclaimed matches", async () => {
     const fixture = await createFixture();
     const { claimMatchCommentaryInTx, addMatchCommentatorInTx } = await import("@/lib/postmatch/service");
     const { readAdminMatchCommentary } = await import("@/lib/admin/matches/commentary");
@@ -176,7 +176,7 @@ describe("match commentary PostgreSQL contract", () => {
       const data = await readAdminMatchCommentary(fixture.database, { seasonId: fixture.seasonId, currentUserId: fixture.adminA });
       expect(data.currentMatches.map((match) => match.id)).toEqual([current]);
       expect(data.nextMatch).toEqual({ id: next, teamAName: "Alpha", teamBName: "Beta", scheduledAt: new Date("2026-10-01T12:30:00Z"), status: "scheduled" });
-      expect(data.unclaimedMatches.map((match) => match.id)).toEqual(unclaimed.slice(0, 5));
+      expect(data.unclaimedMatches.map((match) => match.id)).toEqual(unclaimed);
       expect(data.unclaimedCount).toBe(6);
       expect(data.byMatchId[foreign]).toBeUndefined();
       expect(data.byMatchId[current]).toEqual({ commentators: [{ userId: fixture.adminA, name: "解说1" }], isMine: true, canClaim: false });

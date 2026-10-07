@@ -3,7 +3,7 @@ import React from "react";
 import { TeamLogo } from "@/components/teams/TeamLogo";
 import { SIMULATION_SOURCE_LABELS } from "@/lib/predictions/presentation";
 import type { Baseline, SimMatch } from "@/lib/predictions/types";
-import styles from "./tournament.module.css";
+import styles from "@/components/tournament/tournament.module.css";
 export function SimulationMatchCard({
   match,
   stageKey,
