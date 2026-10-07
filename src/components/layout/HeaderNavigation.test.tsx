@@ -13,10 +13,10 @@ describe("fixed platform navigation", () => {
     const { rerender } = render(<HeaderNavigation seasons={seasons} activeSeason={activeSeason} mobile={mobile} />);
     expect(screen.getAllByRole("link").map((link) => link.getAttribute("href"))).toEqual(["/seasons", "/current", "/teams", "/stats"]);
     expect(screen.getByRole("link", { name: activeSeason.name })).toHaveAttribute("aria-current", "page");
-    expect(screen.getByRole("link", { name: "赛事", exact: true })).not.toHaveAttribute("aria-current");
+    expect(screen.getByRole("link", { name: "赛事" })).not.toHaveAttribute("aria-current");
     state.pathname = "/historical/matches";
     rerender(<HeaderNavigation seasons={seasons} activeSeason={activeSeason} mobile={mobile} />);
-    expect(screen.getByRole("link", { name: "赛事", exact: true })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("link", { name: "赛事" })).toHaveAttribute("aria-current", "page");
     expect(screen.getByRole("link", { name: activeSeason.name })).not.toHaveAttribute("aria-current");
     state.pathname = "/current-other";
     rerender(<HeaderNavigation seasons={seasons} activeSeason={activeSeason} mobile={mobile} />);
