@@ -1,4 +1,5 @@
 "use client";
+import { TeamProfileLink } from "@/components/teams/TeamProfileLink";
 import React, { useState } from "react";
 import {
   PLAYOFF_PICK_KEYS,
@@ -182,6 +183,7 @@ export function PickEditor({
                             {name(id)}
                           </span>
                         </button>
+                        {id && <TeamProfileLink entryId={id} variant="dense" aria-label={`查看 ${name(id)} 队伍资料`}>↗</TeamProfileLink>}
                         {id && !locked && (
                           <button
                             type="button"
@@ -205,8 +207,7 @@ export function PickEditor({
                 </legend>
                 <div className="grid grid-cols-4 gap-1" aria-label="可选队伍">
                   {teamIds.map((id) => (
-                    <button
-                      key={id}
+                    <div key={id} className="min-w-0"><button
                       type="button"
                       draggable
                       aria-label={`选择 ${name(id)}`}
@@ -227,7 +228,7 @@ export function PickEditor({
                       {chosen.includes(id) && (
                         <span className="sr-only">已选 · 可移动</span>
                       )}
-                    </button>
+                    </button><TeamProfileLink entryId={id} variant="dense" aria-label={`查看 ${name(id)} 队伍资料`}>↗</TeamProfileLink></div>
                   ))}
                 </div>
               </fieldset>
@@ -274,8 +275,7 @@ export function PickEditor({
                             {[0, 1].map((side) => {
                               const id = options[side] ?? "";
                               return (
-                                <button
-                                  key={side}
+                                <div key={side} className="flex items-center"><button
                                   type="button"
                                   disabled={locked || !id}
                                   aria-pressed={
@@ -294,7 +294,7 @@ export function PickEditor({
                                     {id ? name(id) : "上游胜者"}
                                   </span>
                                   {id && pick.bracket[index] === id && " ✓"}
-                                </button>
+                                </button>{id && <TeamProfileLink entryId={id} variant="dense" aria-label={`查看 ${name(id)} 队伍资料`}>↗</TeamProfileLink>}</div>
                               );
                             })}
                           </div>

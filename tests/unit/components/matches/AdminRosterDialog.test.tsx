@@ -14,6 +14,7 @@ import type { RosterData } from "@/lib/admin/matches/types";
 import { ok } from "@/types/action";
 
 vi.mock("next/navigation", () => ({
+  useParams: () => ({ seasonSlug: "major" }),
   useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
 }));
 
@@ -32,7 +33,7 @@ const mockedAdminSelect = vi.mocked(adminSelectMatchRoster);
 const mockedConfirm = vi.mocked(confirmMatchRoster);
 
 function member(id: string) {
-  return { id, personaName: id, displayName: null, perfectName: null, primaryPosition: "rifler", isCurrent: true };
+  return { id, userId: `user-${id}`, personaName: id, displayName: null, perfectName: null, primaryPosition: "rifler", isCurrent: true };
 }
 
 const MEMBERS_A = ["a1", "a2", "a3", "a4", "a5", "a6"].map(member);
@@ -87,8 +88,8 @@ describe("AdminRosterDialog — explicit two-step lineup selection", () => {
 
     // Review state lists the exact five players before any action fires.
     expect(screen.getByText(/请核对将保存的首发五人/)).toBeInTheDocument();
-    expect(screen.getByText(/首发 1\. a1/)).toBeInTheDocument();
-    expect(screen.getByText(/首发 5\. a5/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "a1" }).closest("li")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "a5" }).closest("li")).toBeInTheDocument();
     expect(mockedAdminSelect).not.toHaveBeenCalled();
 
     await user.click(screen.getByRole("button", { name: "确认保存" }));

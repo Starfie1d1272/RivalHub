@@ -1,5 +1,6 @@
 "use client";
 
+import { TeamProfileLink } from "@/components/teams/TeamProfileLink";
 import React, { useId, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -58,7 +59,7 @@ function ParticipantReview({ importId, participant }: { importId: string; partic
     <fieldset disabled={isPending} className="min-w-0 space-y-3 rounded border border-[var(--color-border)] p-3 text-sm">
       <legend className="px-1 font-medium">Demo 选手 · {participant.demoName}</legend>
       <p className="break-all font-mono text-xs">Steam64：{participant.observedSteam64}</p>
-      <p>队伍：{participant.teamName}</p>
+      <p>队伍：<TeamProfileLink entryId={participant.entryId}>{participant.teamName}</TeamProfileLink></p>
       {participant.observedSteamProfile && (
         <div className="flex flex-wrap items-center gap-2 rounded bg-[var(--color-bg-soft)] px-3 py-2 text-xs">
           <span className="text-[var(--color-fg-mid)]">Steam 官方当前资料：</span>

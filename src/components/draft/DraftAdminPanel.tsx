@@ -1,5 +1,6 @@
 "use client";
 
+import { TeamProfileLink } from "@/components/teams/TeamProfileLink";
 import { useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -169,8 +170,7 @@ export function DraftAdminPanel({
             <div>
               <span className="text-[var(--color-fg-dim)]">当前队伍：</span>
               <span className="text-[var(--color-fg)] ml-1">
-                {data.teams.find((t) => t.entryId === state.currentEntryId)?.teamName ??
-                  "无"}
+                <TeamProfileLink entryId={state.currentEntryId}>{data.teams.find((t) => t.entryId === state.currentEntryId)?.teamName ?? "无"}</TeamProfileLink>
               </span>
             </div>
             <div>

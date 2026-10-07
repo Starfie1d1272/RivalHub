@@ -1,5 +1,6 @@
 "use client";
 
+import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
 import React, { useState, useEffect, useMemo, useOptimistic, useTransition } from "react";
 import Link from "next/link";
 import type { Route } from "next";
@@ -141,9 +142,9 @@ export function MatchMvpVote({
           <div className="flex items-center justify-center gap-2 text-xl font-bold text-[var(--color-accent)]">
             {mvpStats && <PlayerAvatar name={mvp?.playerName ?? "MVP"} avatarUrl={mvpStats.avatarUrl} size="md" />}
             {mvp?.playerUserId ? (
-              <Link href={`/players/${mvp.playerUserId}`} className="hover:underline">
+              <PlayerProfileLink userId={mvp.playerUserId} className="hover:underline">
                 {mvp?.playerName ?? (awaitingSettlement ? "等待结果确认" : "暂无 MVP 结果")}
-              </Link>
+              </PlayerProfileLink>
             ) : (
               mvp?.playerName ?? (awaitingSettlement ? "等待结果确认" : "暂无 MVP 结果")
             )}
@@ -197,9 +198,9 @@ export function MatchMvpVote({
                       return candidate ? <PlayerAvatar name={v.playerName} avatarUrl={candidate.avatarUrl} size="sm" /> : null;
                     })()}
                     {v.playerUserId ? (
-                      <Link href={`/players/${v.playerUserId}`} className="truncate hover:text-[var(--color-accent)] transition-colors">
+                      <PlayerProfileLink userId={v.playerUserId} className="truncate hover:text-[var(--color-accent)] transition-colors">
                         {v.playerName}
-                      </Link>
+                      </PlayerProfileLink>
                     ) : (
                       v.playerName
                     )}

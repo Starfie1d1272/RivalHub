@@ -1,8 +1,9 @@
 "use client";
 
+import { TeamProfileLink } from "@/components/teams/TeamProfileLink";
+import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
 import React from "react";
 import { useMatchLive } from "./MatchLiveProvider";
-import Link from "next/link";
 import { HelpTooltip } from "@/components/rivalhub/HelpTooltip";
 import { MatchRadar } from "./MatchRadar";
 import { visibleLiveSnapshot, liveFreshness, liveClockSeconds, type LiveViewerState } from "@/lib/mizar/live-viewer-state";
@@ -74,15 +75,15 @@ function LiveTeamTable({ snapshot, side }: { snapshot: PublicLiveMatchProjection
   const players = snapshot.players.filter(player => player.side === side).sort((a, b) => Number(labels.get(a.sourcePlayerId)) - Number(labels.get(b.sourcePlayerId)));
   return <div className="flex min-w-0 flex-col overflow-hidden bg-[var(--color-panel-low)] border border-[var(--color-border)]">
     <div className="flex items-center justify-between gap-3 bg-[var(--color-panel-hi)] px-3 py-2">
-      <div className="flex min-w-0 items-center gap-2"><span className={`font-mono text-xs font-bold ${side === "CT" ? "text-[var(--color-info)]" : "text-[var(--color-warn)]"}`}>{side}</span><h3 className="truncate text-sm font-semibold">{team.name}</h3></div>
+      <div className="flex min-w-0 items-center gap-2"><span className={`font-mono text-xs font-bold ${side === "CT" ? "text-[var(--color-info)]" : "text-[var(--color-warn)]"}`}>{side}</span><h3 className="truncate text-sm font-semibold"><TeamProfileLink entryId={team.entryId}>{team.name}</TeamProfileLink></h3></div>
       <span className="font-mono text-xl font-bold tabular-nums" aria-label={`${team.name} 本图比分`}>{score ?? "—"}</span>
     </div>
     <div className="flex-1 overflow-x-auto">
       <table className="h-full w-full min-w-[400px] text-xs tabular-nums">
-        <caption className="sr-only">{team.name} 选手基础数据</caption>
+        <caption className="sr-only"><TeamProfileLink entryId={team.entryId}>{team.name}</TeamProfileLink> 选手基础数据</caption>
         <thead className="text-right text-[var(--color-fg-dim)]"><tr><th className="px-2 py-1.5 text-left font-normal">Player <HelpTooltip label="实时数据说明" content="编号对应雷达中的选手。HP 为生命值，Armor 为护甲，Money 为剩余金钱；K / D / A 依次为击杀、死亡、助攻，ADR 为当前地图平均每回合伤害。" /></th>{["HP", "Armor", "Money", "K / D / A", "ADR"].map(label => <th key={label} className="whitespace-nowrap px-2 py-1.5 font-normal">{label}</th>)}</tr></thead>
         <tbody>{players.map(player => <tr key={player.sourcePlayerId} className={`border-t border-[var(--color-border)] ${player.lifeState === "dead" ? "text-[var(--color-fg-dim)]" : "text-[var(--color-fg)]"}`}>
-          <th scope="row" className="max-w-32 px-2 py-1.5 text-left font-medium"><div className="flex items-center gap-2"><span className="w-7 shrink-0 font-mono text-[10px] text-[var(--color-fg-dim)]" aria-label="雷达编号">{labels.get(player.sourcePlayerId)}</span><span className="truncate">{player.canonicalPlayerId ? <Link href={`/players/${player.canonicalPlayerId}`} className="hover:underline">{player.displayName ?? "未知选手"}</Link> : player.displayName ?? "未知选手"}</span></div><span className="sr-only">{player.lifeState === "alive" ? "存活" : player.lifeState === "dead" ? "阵亡" : "状态未知"}</span></th>
+          <th scope="row" className="max-w-32 px-2 py-1.5 text-left font-medium"><div className="flex items-center gap-2"><span className="w-7 shrink-0 font-mono text-[10px] text-[var(--color-fg-dim)]" aria-label="雷达编号">{labels.get(player.sourcePlayerId)}</span><span className="truncate">{player.canonicalPlayerId ? <PlayerProfileLink userId={player.canonicalPlayerId} className="hover:underline">{player.displayName ?? "未知选手"}</PlayerProfileLink> : player.displayName ?? "未知选手"}</span></div><span className="sr-only">{player.lifeState === "alive" ? "存活" : player.lifeState === "dead" ? "阵亡" : "状态未知"}</span></th>
           <td className="px-2 py-1.5 text-right">{player.health ?? "—"}</td><td className="px-2 py-1.5 text-right">{player.armor ?? "—"}</td><td className="px-2 py-1.5 text-right">{player.money?.toLocaleString("en-US") ?? "—"}</td>
           <td className="whitespace-nowrap px-2 py-1.5 text-right">{player.stats.kills ?? "—"} / {player.stats.deaths ?? "—"} / {player.stats.assists ?? "—"}</td><td className="px-2 py-1.5 text-right">{player.stats.liveAdr?.toFixed(1) ?? "—"}</td>
         </tr>)}</tbody>

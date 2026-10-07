@@ -1,8 +1,8 @@
 "use client";
+import { TeamProfileLink } from "@/components/teams/TeamProfileLink";
 import React from "react";
 
 import { useMemo, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { MetricFamilyTabs } from "@/components/stats/MetricFamilyTabs";
 import { MetricValue } from "@/components/stats/MetricValue";
@@ -58,7 +58,7 @@ function teamColumns(family: Family, seasonSlug: string, links?: Record<string, 
     className: "w-[28%]",
     sortable: true,
     sortValue: (row) => row.name,
-    render: (row) => <span className="block truncate" title={row.name}><Link href={(links?.[row.entryId] ?? `/${seasonSlug}/teams/${row.entryId}`) as never} className="font-medium hover:text-[var(--color-accent)]">{row.name}</Link></span>,
+    render: (row) => <span className="block truncate" title={row.name}><TeamProfileLink profileHref={links?.[row.entryId] ?? `/${seasonSlug}/teams/${row.entryId}`} className="font-medium hover:text-[var(--color-accent)]">{row.name}</TeamProfileLink></span>,
   };
   const detailSample: StatsDataColumn<TeamDirectoryRow>[] = [
     { key: "detailMaps", label: "Maps", numeric: true, className: "w-[9%]", sortable: true, sortValue: (row) => row.analytics?.mapCount ?? null, render: (row) => row.analytics?.mapCount ?? 0 },

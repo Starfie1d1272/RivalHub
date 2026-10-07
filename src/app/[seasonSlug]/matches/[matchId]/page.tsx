@@ -190,7 +190,7 @@ export default async function MatchDetailPage({ params, searchParams }: MatchDet
   let isCaptainA = false;
   let isCaptainB = false;
   let isSeasonAdmin = false;
-  let captainTeamMembers: { id: string; personaName: string | null; avatarUrl: string | null; displayName: string | null; perfectName: string | null; primaryPosition: string }[] = [];
+  let captainTeamMembers: { userId: string; id: string; personaName: string | null; avatarUrl: string | null; displayName: string | null; perfectName: string | null; primaryPosition: string }[] = [];
 
   if (userSession?.userId) {
     try {
@@ -209,6 +209,7 @@ export default async function MatchDetailPage({ params, searchParams }: MatchDet
         .filter((m) => m.teamId === captainTeamId && m.isCurrent)
         .map((r) => ({
           id: r.id,
+          userId: r.userId,
           personaName: r.personaName ?? null,
           avatarUrl: r.avatarUrl,
           displayName: r.displayName ?? null,
@@ -435,7 +436,7 @@ export default async function MatchDetailPage({ params, searchParams }: MatchDet
           <section className="space-y-3">
             <h2 className="text-lg font-semibold text-[var(--color-fg)]">本场阵容</h2>
             <Panel contentClassName="p-4">
-              <MatchRosterView
+              <MatchRosterView entryAId={match.entryAId} entryBId={match.entryBId}
                 teamAName={teamA?.name ?? "队伍 A"}
                 teamARoster={teamARoster}
                 teamBName={teamB?.name ?? "队伍 B"}
@@ -635,7 +636,7 @@ export default async function MatchDetailPage({ params, searchParams }: MatchDet
           <section className="space-y-3">
             <h2 className="text-lg font-semibold text-[var(--color-fg)]">本场阵容</h2>
             <Panel contentClassName="p-4">
-              <MatchRosterView
+              <MatchRosterView entryAId={match.entryAId} entryBId={match.entryBId}
                 teamAName={teamA?.name ?? "队伍 A"}
                 teamARoster={teamARoster}
                 teamBName={teamB?.name ?? "队伍 B"}

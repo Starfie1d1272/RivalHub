@@ -10,7 +10,7 @@ import { buildPerfectRoomGuide, projectOperatorWorkflow, type OperatorMap } from
 
 vi.mock("@/actions/match-operations", () => ({ takeOverMatchMap: vi.fn() }));
 vi.mock("next/link", () => ({ default: ({ children, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement>) => <a {...props}>{children}</a> }));
-vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
+vi.mock("next/navigation", () => ({ useParams: () => ({ seasonSlug: "major" }), useRouter: () => ({ refresh: vi.fn() }) }));
 vi.mock("@/components/matches/ClaimMatchButton", () => ({ ClaimMatchButton: () => <button>我来解说</button> }));
 vi.mock("@/components/rivalhub", () => ({ Panel: ({ children }: { children: React.ReactNode }) => <div>{children}</div>, StatusPill: () => <span /> }));
 vi.mock("@/components/ui/separator", () => ({ Separator: () => <hr /> }));
@@ -69,8 +69,8 @@ function data(status: Match["status"]) {
     teamAName: "Alpha",
     teamBName: "Beta",
     mapPool: ["de_inferno"],
-    teamAMembers: ["a1", "a2", "a3", "a4", "a5"].map((id) => ({ id, entryId: "entry-a", personaName: id, displayName: null, perfectName: null, primaryPosition: "rifler", isCurrent: true })),
-    teamBMembers: ["b1", "b2", "b3", "b4", "b5"].map((id) => ({ id, entryId: "entry-b", personaName: id, displayName: null, perfectName: null, primaryPosition: "rifler", isCurrent: true })),
+    teamAMembers: ["a1", "a2", "a3", "a4", "a5"].map((id) => ({ id, userId: `user-${id}`, entryId: "entry-a", personaName: id, displayName: null, perfectName: null, primaryPosition: "rifler", isCurrent: true })),
+    teamBMembers: ["b1", "b2", "b3", "b4", "b5"].map((id) => ({ id, userId: `user-${id}`, entryId: "entry-b", personaName: id, displayName: null, perfectName: null, primaryPosition: "rifler", isCurrent: true })),
     teamARoster: roster,
     teamBRoster: { ...roster, rosterId: "roster-b", starters: ["b1", "b2", "b3", "b4", "b5"] },
     teamAPreflight: { valid: true, blockers: [] },
@@ -113,7 +113,7 @@ describe("AdminMatchWorkbench", () => {
   it("keeps finished roster visibility, post-match/OCR and recovery actions together", () => {
     render(<AdminMatchWorkbench {...data("finished")} />);
 
-    expect(screen.getByText("首发：a1、a2、a3、a4、a5")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "a1" }).closest("p")).toHaveTextContent("首发：a1、a2、a3、a4、a5");
     expect(screen.getByRole("heading", { name: "赛后资料" })).toBeInTheDocument();
     expect(screen.getByTestId("ocr-panel")).toBeInTheDocument();
     expect(screen.getByTestId("result-correction")).toBeInTheDocument();

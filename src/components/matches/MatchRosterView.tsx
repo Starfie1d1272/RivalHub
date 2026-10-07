@@ -1,5 +1,6 @@
+import { TeamProfileLink } from "@/components/teams/TeamProfileLink";
+import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
 import React from "react";
-import Link from "next/link";
 import { PosChip } from "@/components/rivalhub/PosChip";
 import { positionLabel } from "@/lib/validators/registration";
 import { PlayerAvatar } from "@/components/players/PlayerAvatar";
@@ -17,13 +18,15 @@ interface RosterPlayer {
 }
 
 interface MatchRosterViewProps {
+  entryAId?: string;
+  entryBId?: string;
   teamAName: string;
   teamARoster: RosterPlayer[] | null;
   teamBName: string;
   teamBRoster: RosterPlayer[] | null;
 }
 
-function RosterColumn({ teamName, roster }: { teamName: string; roster: RosterPlayer[] | null }) {
+function RosterColumn({ teamName, roster, entryId }: { entryId?: string; teamName: string; roster: RosterPlayer[] | null }) {
   const starters = roster?.filter((p) => p.isStarter) ?? [];
   const subs = roster?.filter((p) => !p.isStarter) ?? [];
 
@@ -33,7 +36,7 @@ function RosterColumn({ teamName, roster }: { teamName: string; roster: RosterPl
         className="mb-3 text-sm font-semibold"
         style={{ color: "var(--color-fg-mid)" }}
       >
-        {teamName}
+        <TeamProfileLink entryId={entryId}>{teamName}</TeamProfileLink>
       </div>
       {roster && roster.length > 0 ? (
         <div className="space-y-1">
@@ -44,10 +47,10 @@ function RosterColumn({ teamName, roster }: { teamName: string; roster: RosterPl
               style={{ color: "var(--color-fg)" }}
             >
               {p.userId ? (
-                <Link href={`/players/${p.userId}`} className="flex max-w-full min-w-0 items-center gap-2 hover:text-[var(--color-accent)] transition-colors">
+                <PlayerProfileLink userId={p.userId} className="flex max-w-full min-w-0 items-center gap-2 hover:text-[var(--color-accent)] transition-colors">
                   <PlayerAvatar name={getPublicDisplayName(p)} avatarUrl={p.avatarUrl} size="sm" />
                   <span className="truncate">{getPublicDisplayName(p)}</span>
-                </Link>
+                </PlayerProfileLink>
               ) : (
                 <span className="flex max-w-full min-w-0 items-center gap-2">
                   <PlayerAvatar name={getPublicDisplayName(p)} avatarUrl={p.avatarUrl} size="sm" />
@@ -66,10 +69,10 @@ function RosterColumn({ teamName, roster }: { teamName: string; roster: RosterPl
                 <span key={i} className="inline-flex items-center gap-1 align-middle">
                   {i > 0 && "、"}
                   {p.userId ? (
-                    <Link href={`/players/${p.userId}`} className="hover:text-[var(--color-accent)] transition-colors">
+                    <PlayerProfileLink userId={p.userId} className="hover:text-[var(--color-accent)] transition-colors">
                       <PlayerAvatar name={getPublicDisplayName(p)} avatarUrl={p.avatarUrl} size="sm" />
                       <span className="truncate">{getPublicDisplayName(p)}</span>
-                    </Link>
+                    </PlayerProfileLink>
                   ) : (
                     <>
                       <PlayerAvatar name={getPublicDisplayName(p)} avatarUrl={p.avatarUrl} size="sm" />
@@ -91,6 +94,7 @@ function RosterColumn({ teamName, roster }: { teamName: string; roster: RosterPl
 }
 
 export function MatchRosterView({
+  entryAId, entryBId,
   teamAName,
   teamARoster,
   teamBName,
@@ -98,8 +102,8 @@ export function MatchRosterView({
 }: MatchRosterViewProps) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-      <RosterColumn teamName={teamAName} roster={teamARoster} />
-      <RosterColumn teamName={teamBName} roster={teamBRoster} />
+      <RosterColumn entryId={entryAId} teamName={teamAName} roster={teamARoster} />
+      <RosterColumn entryId={entryBId} teamName={teamBName} roster={teamBRoster} />
     </div>
   );
 }

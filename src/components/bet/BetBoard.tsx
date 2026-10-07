@@ -1,4 +1,7 @@
 "use client";
+import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
+import { BetOptionProfile } from "./BetOptionProfile";
+import { TeamProfileLink } from "@/components/teams/TeamProfileLink";
 import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -48,10 +51,10 @@ export function BetBoard({initial,slug,signedIn,view,matchFilter}:{initial:BetBo
     </nav>
     {matchFilter && <Link href={`/${slug}/bet` as never} className="inline-block text-sm text-[var(--color-accent)]">查看全部比赛 →</Link>}
     {!data.enabled?<Empty text="BET 尚未开放"/>:active==="leaderboard"?<BetLeaderboard rows={data.leaderboard}/>:active==="records"?<BetRecords rows={data.records} signedIn={signedIn}/>:!visible.length?<Empty text={active==="mine"?"还没有投入记录":active==="settled"?"暂无已结算盘口":active==="event"?"等待正赛名单确认":"等待下一场对阵或地图"}/>:<div className={cn("grid min-w-0 items-start gap-5",!matchFilter&&"lg:grid-cols-2")}>
-      {[...new Set(visible.map(m=>m.matchId))].map(id=>id?<MatchCard key={id} match={data.matches.find(m=>m.id===id)!} markets={visible.filter(m=>m.matchId===id)} slug={slug} choose={choose}/>:<section key="event" className="space-y-5 lg:col-span-2">{visible.filter(m=>!m.matchId).map(m=><div key={m.id} className="border border-[var(--color-border)] bg-[var(--color-panel)] p-5"><MarketRow market={m} choose={choose}/></div>)}</section>)}
+      {[...new Set(visible.map(m=>m.matchId))].map(id=>id?<MatchCard key={id} match={data.matches.find(m=>m.id===id)!} markets={visible.filter(m=>m.matchId===id)} slug={slug} choose={choose}/>:<section key="event" className="space-y-5 lg:col-span-2">{visible.filter(m=>!m.matchId).map(m=><div key={m.id} className="border border-[var(--color-border)] bg-[var(--color-panel)] p-5"><MarketRow market={m} slug={slug} choose={choose}/></div>)}</section>)}
     </div>}
     <Dialog open={!!selected} onOpenChange={open=>{if(!open&&!pending)setSelected(null);}}><DialogContent size="sm" onInteractOutside={e=>{if(pending)e.preventDefault();}} onEscapeKeyDown={e=>{if(pending)e.preventDefault();}}>
-      <DialogHeader><DialogTitle>{selected?.market.title}</DialogTitle><DialogDescription>{selectedOption?.label}</DialogDescription></DialogHeader>
+      <DialogHeader><DialogTitle>{selected?.market.title}</DialogTitle><DialogDescription>{selectedOption?.label}{selectedOption && <BetOptionProfile option={selectedOption} slug={slug}/>}</DialogDescription></DialogHeader>
       <DialogBody className="space-y-5">
         <div className="flex justify-between text-sm"><span className="text-[var(--color-fg-mid)]">可用积分</span><span className="font-mono">{formatPoints(data.balance)}</span></div>
         <div className="space-y-2"><Label htmlFor="bet-amount">投入积分</Label><Input id="bet-amount" inputMode="numeric" value={allIn?data.balance:amount} disabled={pending} onChange={e=>{setAmount(e.target.value);setAllIn(false);setAllConfirmed(false);}} autoFocus/></div>
@@ -71,12 +74,12 @@ function MatchCard({match,markets,slug,choose}:{match:BetBoardDTO["matches"][num
   const [group,setGroup]=useState<string|null>(null);const shown=group && groups.includes(group as BetMarketDTO["group"])?group:defaultGroup;
   return <article className="min-w-0 overflow-hidden border border-[var(--color-border)] bg-[var(--color-panel)]">
     <div className="flex flex-wrap items-center gap-2 border-b border-[var(--color-border)] px-4 py-3 text-xs text-[var(--color-fg-mid)]"><span className="font-mono tracking-wider">{match.stage} · {match.format}</span><span className="ml-auto">{match.scheduledAt?formatCSTDateTime(match.scheduledAt):"待排期"}</span><Link aria-label={`查看 ${match.a} 对 ${match.b} 比赛`} className="text-[var(--color-fg-dim)] hover:text-[var(--color-accent)]" href={`/${slug}/matches/${match.id}` as never}><ArrowUpRight size={16}/></Link></div>
-    <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 p-5"><div className="flex min-w-0 flex-col items-center gap-2 text-center"><TeamLogo logoUrl={match.logoA} teamName={match.a}/><h2 className="w-full truncate text-base font-semibold" title={match.a}>{match.a}</h2></div><span className="font-mono text-sm text-[var(--color-fg-dim)]">VS</span><div className="flex min-w-0 flex-col items-center gap-2 text-center"><TeamLogo logoUrl={match.logoB} teamName={match.b}/><h2 className="w-full truncate text-base font-semibold" title={match.b}>{match.b}</h2></div></div>
+    <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 p-5"><TeamProfileLink seasonSlug={slug} entryId={match.entryAId} className="flex min-w-0 flex-col items-center gap-2 text-center"><TeamLogo logoUrl={match.logoA} teamName={match.a}/><h2 className="w-full truncate text-base font-semibold" title={match.a}>{match.a}</h2></TeamProfileLink><span className="font-mono text-sm text-[var(--color-fg-dim)]">VS</span><TeamProfileLink seasonSlug={slug} entryId={match.entryBId} className="flex min-w-0 flex-col items-center gap-2 text-center"><TeamLogo logoUrl={match.logoB} teamName={match.b}/><h2 className="w-full truncate text-base font-semibold" title={match.b}>{match.b}</h2></TeamProfileLink></div>
     <div className="flex gap-4 border-b border-[var(--color-border)] px-5" role="tablist" aria-label="盘口类别">{groups.map(g=><button key={g} type="button" role="tab" aria-selected={shown===g} onClick={()=>setGroup(g)} className={cn("border-b-2 py-2 text-sm focus-visible:outline focus-visible:outline-[var(--color-accent)]",shown===g?"border-[var(--color-accent)] text-[var(--color-fg)]":"border-transparent text-[var(--color-fg-mid)]")}>{g}{markets.some(m=>m.group===g&&m.state==="open")&&<span className="ml-1.5 text-[var(--color-accent)]">·</span>}</button>)}</div>
-    <div className="divide-y divide-[var(--color-border)] px-5" role="tabpanel">{markets.filter(m=>m.group===shown).map(m=><div key={m.id} className="py-4"><MarketRow market={m} choose={choose}/></div>)}</div>
+    <div className="divide-y divide-[var(--color-border)] px-5" role="tabpanel">{markets.filter(m=>m.group===shown).map(m=><div key={m.id} className="py-4"><MarketRow market={m} slug={slug} choose={choose}/></div>)}</div>
   </article>;
 }
-function MarketRow({market:m,choose}:{market:BetMarketDTO;choose:(m:BetMarketDTO,o:string)=>void}) {
+function MarketRow({market:m,choose,slug}:{slug:string;market:BetMarketDTO;choose:(m:BetMarketDTO,o:string)=>void}) {
   const [search,setSearch]=useState("");
   const options=m.options.filter(o=>o.label.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()));
   return <section aria-label={m.title} className="space-y-3">
@@ -84,10 +87,10 @@ function MarketRow({market:m,choose}:{market:BetMarketDTO;choose:(m:BetMarketDTO
     {m.options.length>16 && <Input aria-label={`搜索${m.title}选项`} placeholder="搜索队伍或选手" value={search} onChange={e=>setSearch(e.target.value)}/>}
     <div className={cn("grid gap-2",m.options.length>16&&"max-h-96 overflow-y-auto",m.options.length>6?"grid-cols-2 sm:grid-cols-4":m.options.length>2?"grid-cols-2 sm:grid-cols-4":"grid-cols-2")}>{options.map(o=>{
       const own=m.mine?.optionId===o.id;const can=m.canStake && (!m.mine || own);
-      return <button key={o.id} type="button" disabled={!can} onClick={()=>choose(m,o.id)} className={cn("relative min-w-0 overflow-hidden border p-3 text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)] disabled:cursor-default",own||o.winner?"border-[var(--color-accent)] bg-[var(--color-panel-hi)]":"border-[var(--color-border)] bg-[var(--color-panel-low)]",can&&"hover:border-[var(--color-accent)]")}>
+      return <div key={o.id} className="flex min-w-0 items-center gap-1"><button type="button" disabled={!can} onClick={()=>choose(m,o.id)} className={cn("relative flex-1 min-w-0 overflow-hidden border p-3 text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)] disabled:cursor-default",own||o.winner?"border-[var(--color-accent)] bg-[var(--color-panel-hi)]":"border-[var(--color-border)] bg-[var(--color-panel-low)]",can&&"hover:border-[var(--color-accent)]")}>
         <span aria-hidden className="absolute bottom-0 left-0 h-0.5 bg-[var(--color-accent)] opacity-50" style={{width:`${o.percent}%`}}/>
         <span className="flex items-center gap-1 text-sm"><span className="truncate" title={o.label}>{o.label}</span>{(own||o.winner)&&<Check size={12} className="shrink-0 text-[var(--color-accent)]"/>}</span><span className="mt-1 flex flex-wrap justify-between gap-1 text-xs font-mono tabular-nums text-[var(--color-fg-mid)]"><span>{o.percent.toFixed(0)}%</span><span>{formatPoints(o.pool)}</span></span>
-      </button>;
+      </button><BetOptionProfile option={o} slug={slug}/></div>;
     })}</div>
     {!options.length && <p className="text-sm text-[var(--color-fg-mid)]">没有匹配的选项</p>}
     <div className="flex flex-wrap justify-between gap-2 text-xs text-[var(--color-fg-dim)]"><span>奖池 <span className="font-mono text-[var(--color-fg-mid)]">{formatPoints(m.pool)}</span> · {m.participants} 人</span>{m.mine&&<span className="text-[var(--color-fg-mid)]">已投 {formatPoints(m.mine.amount)}{m.mine.payout!==null&&<> → {formatPoints(m.mine.payout)} <span className="font-mono text-[var(--color-accent)]">{BigInt(m.mine.profit??"0")>BigInt(0)?"+":""}{formatPoints(m.mine.profit??"0")}</span></>}</span>}</div>
@@ -100,7 +103,7 @@ function BetLeaderboard({ rows }: { rows: BetBoardDTO["leaderboard"] }) {
   return <div className="overflow-x-auto"><table className="w-full text-left text-sm"><caption className="sr-only">BET 净收益排行榜，同收益并列排名</caption>
     <thead><tr className="border-b border-[var(--color-border)]">{["排名", "用户", "净收益", "已结算盘口"].map(label => <th key={label} className="px-2 py-3 whitespace-nowrap">{label}</th>)}</tr></thead>
     <tbody>{rows.map(row => <tr key={row.userId} className="border-b border-[var(--color-border)]">
-      <td className="px-2 py-3 tabular-nums">#{row.rank}</td><td className="max-w-32 truncate px-2 py-3" title={row.name}>{row.name}</td>
+      <td className="px-2 py-3 tabular-nums">#{row.rank}</td><td className="max-w-32 truncate px-2 py-3" title={row.name}><PlayerProfileLink userId={row.userId}>{row.name}</PlayerProfileLink></td>
       <td className="px-2 py-3 tabular-nums">{BigInt(row.profit)>BigInt(0)?"+":""}{formatPoints(row.profit)}</td><td className="px-2 py-3 tabular-nums">{row.settledCount}</td>
     </tr>)}</tbody></table></div>;
 }

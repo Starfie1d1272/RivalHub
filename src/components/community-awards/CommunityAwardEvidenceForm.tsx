@@ -1,5 +1,6 @@
 "use client";
 
+import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 
@@ -37,6 +38,7 @@ export function CommunityAwardEvidenceForm({ awardId, candidates, matches }: { a
 
   return (
     <div className="grid gap-2">
+      {form.candidateUserId && <PlayerProfileLink userId={form.candidateUserId}>查看候选选手 ↗</PlayerProfileLink>}
       <Select value={form.candidateUserId} onValueChange={(candidateUserId) => setForm({ ...form, candidateUserId })}>
         <SelectTrigger aria-label="选择候选人"><SelectValue placeholder="候选人（选填）" /></SelectTrigger>
         <SelectContent>{candidates.map((candidate) => <SelectItem key={candidate.id} value={candidate.id}>{candidate.name}</SelectItem>)}</SelectContent>

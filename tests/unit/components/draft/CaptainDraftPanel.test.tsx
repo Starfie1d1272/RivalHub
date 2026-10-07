@@ -10,7 +10,7 @@ import { pickPlayer } from "@/actions/draft";
 
 const refreshMock = vi.fn();
 
-vi.mock("next/navigation", () => ({
+vi.mock("next/navigation", () => ({ useParams: () => ({ seasonSlug: "major" }),
   useRouter: () => ({ refresh: refreshMock }),
 }));
 

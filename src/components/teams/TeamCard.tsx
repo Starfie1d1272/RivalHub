@@ -1,6 +1,7 @@
+import { TeamProfileLink } from "@/components/teams/TeamProfileLink";
+import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
 import React from "react";
 import { PlayerAvatar } from "@/components/players/PlayerAvatar";
-import Link from "next/link";
 import { Panel } from "@/components/rivalhub";
 import { TeamLogo } from "@/components/teams/TeamLogo";
 import { mapLabel } from "@/lib/maps";
@@ -69,7 +70,7 @@ export function TeamCard({
     <Panel className="h-full hover:border-[var(--color-border-hi)] transition-colors">
       <div className="space-y-4">
         <div className="flex items-start justify-between gap-3">
-          <Link href={`/${seasonSlug}/teams/${entryId}`} className="group flex min-w-0 items-center gap-3">
+          <TeamProfileLink seasonSlug={seasonSlug} entryId={entryId} className="group flex min-w-0 items-center gap-3">
             <TeamLogo logoUrl={logoUrl ?? null} teamName={teamName} />
             <div className="min-w-0">
               {eyebrow && <span className="text-xs text-[var(--color-fg-mid)]">{eyebrow}</span>}
@@ -77,7 +78,7 @@ export function TeamCard({
                 {teamName}
               </h3>
             </div>
-          </Link>
+          </TeamProfileLink>
 
           {record && (
             <div className="shrink-0 text-right">
@@ -98,7 +99,7 @@ export function TeamCard({
 
         {stages && stages.length > 0 && <p className="text-xs text-[var(--color-fg-mid)]">已参赛 · {stages.join(" / ")}</p>}
         {placement && <p className="text-sm font-semibold text-[var(--color-accent)]">{placement}</p>}
-        {maps && <div className="text-xs text-[var(--color-fg-mid)]"><p className="mb-1">本届正式地图表现</p>{maps.length ? <div className="flex flex-wrap gap-3">{maps.slice(0, 3).map((map) => <span key={map.mapName}>{mapLabel(map.mapName)} · {map.wins} 胜 {map.played - map.wins} 负</span>)}</div> : <Link href={`/${seasonSlug}/teams/${entryId}`}>暂无队伍样本 · 查看阵容地图经验 →</Link>}</div>}
+        {maps && <div className="text-xs text-[var(--color-fg-mid)]"><p className="mb-1">本届正式地图表现</p>{maps.length ? <div className="flex flex-wrap gap-3">{maps.slice(0, 3).map((map) => <span key={map.mapName}>{mapLabel(map.mapName)} · {map.wins} 胜 {map.played - map.wins} 负</span>)}</div> : <TeamProfileLink seasonSlug={seasonSlug} entryId={entryId}>暂无队伍样本 · 查看阵容地图经验 →</TeamProfileLink>}</div>}
 
         {summary && <div className="grid grid-cols-3 gap-2">
           <SummaryStat label="地图" value={summary?.maps ?? "—"} />
@@ -112,9 +113,9 @@ export function TeamCard({
               <div className="flex items-center gap-2 min-w-0">
                 <PlayerAvatar name={p.name} avatarUrl={p.avatarUrl} size="sm" />
                 {p.userId ? (
-                  <Link href={`/players/${p.userId}`} className="text-sm text-[var(--color-fg)] hover:text-[var(--color-accent)] transition-colors truncate">
+                  <PlayerProfileLink userId={p.userId} className="text-sm text-[var(--color-fg)] hover:text-[var(--color-accent)] transition-colors truncate">
                     {p.name}
-                  </Link>
+                  </PlayerProfileLink>
                 ) : (
                   <span className="text-sm text-[var(--color-fg)] truncate">{p.name}</span>
                 )}
@@ -129,9 +130,9 @@ export function TeamCard({
               <span key={p.name} className="inline-flex items-center gap-1 text-xs text-[var(--color-fg-mid)]">
                 <PlayerAvatar name={p.name} avatarUrl={p.avatarUrl} size="sm" />
                 {p.userId ? (
-                  <Link href={`/players/${p.userId}`} className="hover:text-[var(--color-accent)] transition-colors">
+                  <PlayerProfileLink userId={p.userId} className="hover:text-[var(--color-accent)] transition-colors">
                     {p.name}
-                  </Link>
+                  </PlayerProfileLink>
                 ) : (
                   p.name
                 )}

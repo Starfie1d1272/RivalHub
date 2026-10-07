@@ -58,7 +58,7 @@ async function TeamDirectoryContent({ searchParams }: { searchParams: Promise<Te
         ? directory.hasAnyTeams
           ? <EmptyState title="没有找到符合条件的队伍" sub="请调整搜索或筛选条件后重试。" />
           : <EmptyState title="还没有公开队伍" sub="创建队伍后，它会出现在这里。" />
-        : <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{directory.rows.map((team) => <TeamDirectoryCard key={team.id} slug={team.slug} name={team.name} logoUrl={team.logoUrl} description={team.description} hasOpenRecruitment={team.hasOpenRecruitment} status={team.status} captainName={team.captainName} memberCount={team.memberCount} />)}</div>}
+        : <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{directory.rows.map((team) => <TeamDirectoryCard key={team.id} slug={team.slug} name={team.name} logoUrl={team.logoUrl} description={team.description} hasOpenRecruitment={team.hasOpenRecruitment} status={team.status} captainUserId={team.captainUserId} captainName={team.captainName} memberCount={team.memberCount} />)}</div>}
     </PageLayout>
   );
 }

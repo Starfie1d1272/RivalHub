@@ -31,6 +31,15 @@ test("观众完成选队提交、草稿隔离、图片导出", async ({
       page.getByRole("button", { name: /加入 Pick’Em/ }),
     ).toHaveCount(0);
     const mobile = info.project.name === "mobile-chrome";
+    const identityCard = page.getByTestId("sim-match-stage1-r1-1");
+    await expect(identityCard.locator("a a, button a, a button, button button")).toHaveCount(0);
+    const profile = identityCard.getByRole("link").first();
+    await expect(profile).toHaveAttribute("href", new RegExp(`^/${fixture.slug}/teams/`));
+    await profile.focus(); await profile.press("Enter");
+    await expect(page).toHaveURL(new RegExp(`/${fixture.slug}/teams/`));
+    await page.goBack();
+    await expect(identityCard).toHaveAttribute("data-source", "preview");
+
     if (mobile)
       await page
         .getByRole("button", { name: "我的预测单", exact: true })

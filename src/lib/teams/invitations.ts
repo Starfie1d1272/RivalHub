@@ -43,7 +43,7 @@ function pendingDirectInvitationWhere(userId: string, now: Date) {
 /** 供本人入口复用的有效 direct invitation 读取 owner。 */
 export async function getPendingDirectTeamInvitations(userId: string, now = new Date()) {
   return db
-    .select({ id: teamInvitations.id, teamId: teams.id, teamName: teams.name, expiresAt: teamInvitations.expiresAt })
+    .select({ id: teamInvitations.id, teamId: teams.id, teamName: teams.name, teamSlug: teams.slug, expiresAt: teamInvitations.expiresAt })
     .from(teamInvitations)
     .innerJoin(teams, eq(teams.id, teamInvitations.teamId))
     .where(pendingDirectInvitationWhere(userId, now));

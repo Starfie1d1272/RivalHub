@@ -1,5 +1,6 @@
+import { TeamProfileLink } from "@/components/teams/TeamProfileLink";
+import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
 import React from "react";
-import Link from "next/link";
 import { cn } from "@/lib/utils/cn";
 import { Panel } from "@/components/rivalhub";
 import { formatStat, type StatMetric } from "@/lib/stats";
@@ -64,13 +65,13 @@ function PlayerRow({ player }: PlayerRowProps) {
     <tr className="border-b border-[var(--color-border)] last:border-0">
       <td className="min-w-0 py-1.5 pl-3 pr-1">
         {player.userId ? (
-          <Link
-            href={`/players/${player.userId}`}
+          <PlayerProfileLink
+            userId={player.userId}
             className="block truncate text-sm font-medium hover:text-[var(--color-accent)] transition-colors"
             title={player.perfectName}
           >
             {player.perfectName}
-          </Link>
+          </PlayerProfileLink>
         ) : (
           <span className="block truncate text-sm text-[var(--color-fg)]" title={player.perfectName}>{player.perfectName}</span>
         )}
@@ -101,13 +102,14 @@ function PlayerRow({ player }: PlayerRowProps) {
 }
 
 interface TeamBlockProps {
+  entryId: string;
   teamName: string;
   borderColor: string;
   bgColor: string;
   players: SummaryPlayer[];
 }
 
-function TeamBlock({ teamName, borderColor, bgColor, players }: TeamBlockProps) {
+function TeamBlock({ entryId, teamName, borderColor, bgColor, players }: TeamBlockProps) {
   if (players.length === 0) return null;
   return (
     <div className="rounded-sm overflow-hidden" style={{ backgroundColor: bgColor }}>
@@ -115,7 +117,7 @@ function TeamBlock({ teamName, borderColor, bgColor, players }: TeamBlockProps) 
         className="px-3 py-2 text-[11px] font-bold tracking-widest uppercase"
         style={{ borderLeft: `3px solid ${borderColor}` }}
       >
-        {teamName}
+        <TeamProfileLink entryId={entryId}>{teamName}</TeamProfileLink>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full min-w-[760px] table-fixed">
@@ -160,12 +162,14 @@ export function MatchSummaryStats({
   const content = (
     <React.Fragment>
       <TeamBlock
+        entryId={entryAId}
         teamName={teamAName}
         borderColor="var(--color-accent)"
         bgColor="color-mix(in srgb, var(--color-accent) 4%, transparent)"
         players={teamAPlayers}
       />
       <TeamBlock
+        entryId={entryBId}
         teamName={teamBName}
         borderColor="var(--color-accent-b)"
         bgColor="color-mix(in srgb, var(--color-accent-b) 4%, transparent)"

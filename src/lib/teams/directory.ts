@@ -18,6 +18,7 @@ export interface TeamDirectoryRow {
   description: string | null;
   hasOpenRecruitment: boolean;
   status: "active" | "disbanded";
+  captainUserId: string | null;
   captainName: string;
   memberCount: number;
 }
@@ -81,6 +82,7 @@ export async function getTeamDirectory(query: TeamDirectoryQuery): Promise<TeamD
       description: teams.description,
       hasOpenRecruitment,
       status: teams.status,
+      captainUserId: users.id,
       captainDisplayName: users.displayName,
       captainPersonaName: steamProfiles.personaName,
       captainPerfectName: users.perfectName,

@@ -1,4 +1,5 @@
 "use client";
+import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
 import React from "react";
 
 import Link from "next/link";
@@ -33,7 +34,7 @@ export function PublicCommunityAwards({ seasonId, awards, currentUserId, candida
         <StatusPill label={award.status === "approved" ? "征集候选证据" : award.status === "awarded" ? "已结奖" : award.status === "not_awarded" ? "本届不颁" : award.status === "withdrawn" ? "已撤回" : "已取消"} tone="neutral" />
         <p className="text-sm">{award.condition}</p><p className="text-sm text-[var(--color-fg-mid)]">奖品 · {award.prize}</p>
         {award.outcomeNote && <p className="text-sm">{award.outcomeNote}</p>}
-        <details className="text-sm"><summary className="cursor-pointer text-[var(--color-fg-mid)]">奖项说明</summary><p className="mt-2">发起人 · {award.submitterName}</p>{award.supplementaryNote && <p>{award.supplementaryNote}</p>}{award.publicNote && <p>{award.publicNote}</p>}</details>
+        <details className="text-sm"><summary className="cursor-pointer text-[var(--color-fg-mid)]">奖项说明</summary><p className="mt-2">发起人 · <PlayerProfileLink userId={award.submittedByUserId}>{award.submitterName}</PlayerProfileLink></p>{award.supplementaryNote && <p>{award.supplementaryNote}</p>}{award.publicNote && <p>{award.publicNote}</p>}</details>
         {award.status === "approved" && currentUserId && <Dialog><DialogTrigger asChild><Button size="sm" variant="outline">提交候选证据</Button></DialogTrigger><DialogContent><DialogHeader><DialogTitle>{award.name} · 候选证据</DialogTitle><DialogDescription>候选人可为本届赛事相关人员。</DialogDescription></DialogHeader><DialogBody><CommunityAwardEvidenceForm awardId={award.id} candidates={candidates} matches={matches} /></DialogBody></DialogContent></Dialog>}
       </Panel>)}</div></section>;
     })}

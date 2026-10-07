@@ -1,5 +1,6 @@
 "use client";
 
+import { TeamIdentityLinks } from "../TeamIdentityLinks";
 import { useState } from "react";
 import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
 import { MetricFamilyTabs } from "@/components/stats/MetricFamilyTabs";
@@ -70,7 +71,7 @@ export function PlayerWorkspace({ detail, compact = false, hideMaps = false }: {
   const playerName = player?.player.displayName ?? detail.scoreboard[0]?.perfectName ?? "未知选手";
 
   const teamColumns: StatsDataColumn<(typeof detail.scoreboard)[number]>[] = [
-    { key: "team", label: "Team", render: (row) => row.teamName ?? "—" },
+    { key: "team", label: "Team", render: (row) => <TeamIdentityLinks ids={row.teamIds ?? (row.teamId ? [row.teamId] : [])} names={new Map(Object.entries(detail.teamNames))} links={detail.teamLinks} fallback={row.teamName}/> },
     { key: "maps", label: "Maps", numeric: true, sortable: true, sortValue: (row) => row.maps, render: (row) => row.maps },
     { key: "rounds", label: "Rounds", numeric: true, sortable: true, sortValue: (row) => row.rounds, render: (row) => row.rounds ?? "—" },
     { key: "rating", label: "Rating", metric: "rating", numeric: true, sortable: true, sortValue: (row) => row.avgRating, render: (row) => <MetricValue metric="rating" value={row.avgRating} /> },

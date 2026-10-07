@@ -538,6 +538,8 @@ async function loadTournamentPlayerDetail(
   const rounds = completedMaps.reduce((sum, map) => sum + map.scoreA! + map.scoreB!, 0);
   return {
     playerId: scope.playerId,
+    teamLinks: Object.fromEntries(loaded.entryRows.map(row => [row.id, `/${row.eventSlug}/teams/${row.id}`])),
+    teamNames: Object.fromEntries(loaded.entryRows.map(row => [row.id, row.name])),
     scoreboard,
     scoreboardMaps,
     performance: detail,

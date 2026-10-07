@@ -1,6 +1,7 @@
+import { TeamProfileLink } from "@/components/teams/TeamProfileLink";
+import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
 import React from "react";
 import { PlayerAvatar } from "@/components/players/PlayerAvatar";
-import Link from "next/link";
 import { Panel, PosChip } from "@/components/rivalhub";
 import { DirectoryMetric } from "@/components/players/DirectoryMetric";
 import { positionLabel } from "@/lib/validators/registration";
@@ -34,12 +35,12 @@ export function PlayerDirectoryRow({ player, seasonSlug }: { player: PlayerDirec
         <div className="min-w-0 space-y-2">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
             <PlayerAvatar name={player.displayName} avatarUrl={player.avatarUrl} size="sm" />
-            <Link
-              href={`/players/${player.userId}`}
+            <PlayerProfileLink
+              userId={player.userId}
               className="truncate text-sm font-semibold text-[var(--color-fg)] hover:text-[var(--color-accent)] transition-colors sm:text-base"
             >
               {player.displayName}
-            </Link>
+            </PlayerProfileLink>
             <PosChip pos={positionLabel(player.primaryPosition)} />
             {player.secondaryPosition && (
               <span className="text-[11px] text-[var(--color-fg-dim)]">
@@ -47,7 +48,7 @@ export function PlayerDirectoryRow({ player, seasonSlug }: { player: PlayerDirec
               </span>
             )}
             <span className="text-xs text-[var(--color-fg-mid)]">
-              {player.teamId && seasonSlug ? <Link href={`/${seasonSlug}/teams/${player.teamId}`}>{player.teamName}</Link> : player.teamName ?? "待分配队伍"}
+              {player.teamId && seasonSlug ? <TeamProfileLink seasonSlug={seasonSlug} entryId={player.teamId}>{player.teamName}</TeamProfileLink> : player.teamName ?? "待分配队伍"}
             </span>
           </div>
         </div>

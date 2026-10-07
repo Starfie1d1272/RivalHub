@@ -107,6 +107,7 @@ export default async function DraftCaptainPage({ params }: DraftCaptainPageProps
         entryId={captainTeam.entryId}
         teamName={captainTeam.teamName}
         currentTeamName={currentTeamName}
+        currentEntryId={data.state.currentEntryId}
         currentRound={data.state.currentRound}
         roundDeadline={data.state.roundDeadline}
         isDraftActive={data.state.isActive}

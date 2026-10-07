@@ -1,7 +1,8 @@
 "use client";
 
+import { TeamProfileLink } from "@/components/teams/TeamProfileLink";
+import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
 import React, { useMemo, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Check, ChevronDown, ChevronRight, Clock, Loader2, Search, Zap } from "lucide-react";
 import { pickPlayer } from "@/actions/draft";
@@ -25,6 +26,7 @@ interface CaptainDraftPanelProps {
   entryId: string;
   teamName: string;
   currentTeamName: string | null;
+  currentEntryId?: string | null;
   currentRound: number | null;
   roundDeadline: string | null;
   isDraftActive: boolean;
@@ -33,7 +35,7 @@ interface CaptainDraftPanelProps {
   players: CaptainDraftPlayer[];
   seasonPositions: string[];
   /** Already picked members for roster summary */
-  rosterMembers: { personaName: string | null; avatarUrl: string | null; perfectName: string | null; displayName: string | null; primaryPosition: string }[];
+  rosterMembers: { userId: string; personaName: string | null; avatarUrl: string | null; perfectName: string | null; displayName: string | null; primaryPosition: string }[];
   captainPosition: string;
   readonly?: boolean;
 }
@@ -42,7 +44,7 @@ export function CaptainDraftPanel({
   seasonId,
   entryId,
   teamName,
-  currentTeamName,
+  currentTeamName, currentEntryId,
   currentRound,
   roundDeadline,
   isDraftActive,
@@ -139,12 +141,12 @@ export function CaptainDraftPanel({
         <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-panel)] p-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h2 className="text-lg font-semibold text-[var(--color-fg)]">{teamName}</h2>
+              <h2 className="text-lg font-semibold text-[var(--color-fg)]"><TeamProfileLink entryId={entryId}>{teamName}</TeamProfileLink></h2>
               <p className="mt-1 text-sm text-[var(--color-fg-mid)]">
                 {isCurrentCaptainTurn
                   ? `第 ${currentRound ?? "-"} 轮，轮到你选择`
                   : currentTeamName
-                    ? `等待 ${currentTeamName} 选择`
+                    ? <>等待 <TeamProfileLink entryId={currentEntryId}>{currentTeamName}</TeamProfileLink> 选择</>
                     : "等待选秀状态更新"}
               </p>
             </div>
@@ -211,7 +213,7 @@ export function CaptainDraftPanel({
                   <div key={i} className="flex items-center gap-2 text-xs text-[var(--color-fg)]">
                     <PlayerAvatar name={getPublicDisplayName(member)} avatarUrl={member.avatarUrl} size="sm" />
                     <PosChip pos={positionLabel(member.primaryPosition)} small />
-                    <span>{getPublicDisplayName(member)}</span>
+                    <PlayerProfileLink userId={member.userId}>{getPublicDisplayName(member)}</PlayerProfileLink>
                   </div>
                 ))}
               </div>
@@ -227,7 +229,7 @@ export function CaptainDraftPanel({
             <div className="flex items-center gap-2">
               <Zap className="size-3.5 shrink-0" aria-hidden="true" style={{ color: "var(--color-warn)" }} />
               <span>
-                超时自动选人：<strong>{getPublicDisplayName(autoPickCandidate)}</strong>（{positionLabel(autoPickCandidate.primaryPosition)}，{autoPickCandidate.peakRank}）
+                超时自动选人：<PlayerProfileLink userId={autoPickCandidate.userId}>{getPublicDisplayName(autoPickCandidate)}</PlayerProfileLink>（{positionLabel(autoPickCandidate.primaryPosition)}，{autoPickCandidate.peakRank}）
               </span>
             </div>
             <p className="mt-1.5 pl-5.5 text-[10px] leading-relaxed" style={{ color: "color-mix(in srgb, var(--color-warn) 70%, var(--color-fg-mid))" }}>
@@ -329,12 +331,12 @@ export function CaptainDraftPanel({
                     </div>
 
                     {/* Name (clickable) */}
-                    <Link
-                      href={`/players/${player.userId}`}
+                    <PlayerProfileLink
+                      userId={player.userId}
                       className="min-w-0 truncate text-sm font-medium text-[var(--color-fg)] hover:text-[var(--color-accent)]"
                     >
                       {displayedName}
-                    </Link>
+                    </PlayerProfileLink>
 
                     {/* Primary position */}
                     <PosChip pos={positionLabel(player.primaryPosition)} small />
@@ -415,12 +417,12 @@ export function CaptainDraftPanel({
                           </span>
                         )}
                       </div>
-                      <Link
-                        href={`/players/${player.userId}`}
+                      <PlayerProfileLink
+                        userId={player.userId}
                         className="min-w-0 truncate text-sm font-medium text-[var(--color-fg)] hover:text-[var(--color-accent)]"
                       >
                         {displayedName}
-                      </Link>
+                      </PlayerProfileLink>
                       <PosChip pos={positionLabel(player.primaryPosition)} small />
                       <span className="text-xs text-[var(--color-fg-dim)]">
                         副选 {positionLabel(player.secondaryPosition)}

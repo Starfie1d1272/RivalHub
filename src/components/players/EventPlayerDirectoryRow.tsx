@@ -1,6 +1,7 @@
+import { TeamProfileLink } from "@/components/teams/TeamProfileLink";
+import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
 import React from "react";
 import { PlayerAvatar } from "@/components/players/PlayerAvatar";
-import Link from "next/link";
 import { Panel } from "@/components/rivalhub";
 import { DirectoryMetric } from "@/components/players/DirectoryMetric";
 import { formatStat } from "@/lib/stats";
@@ -31,22 +32,22 @@ export function EventPlayerDirectoryRow({
         <div className="min-w-0 space-y-2">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
             <PlayerAvatar name={player.name} avatarUrl={player.avatarUrl} size="sm" />
-            <Link
-              href={`/players/${player.userId}`}
+            <PlayerProfileLink
+              userId={player.userId}
               className="truncate text-sm font-semibold text-[var(--color-fg)] hover:text-[var(--color-accent)] transition-colors sm:text-base"
             >
               {player.name}
-            </Link>
+            </PlayerProfileLink>
             <span className="border border-[var(--color-border)] px-1.5 py-0.5 text-[11px] text-[var(--color-fg-mid)]">
               {player.isStarter ? "首发" : "替补"}
             </span>
           </div>
-          <Link
-            href={`/${seasonSlug}/teams/${player.entryId}`}
+          <TeamProfileLink
+            seasonSlug={seasonSlug} entryId={player.entryId}
             className="text-xs text-[var(--color-fg-mid)] hover:text-[var(--color-accent)] transition-colors"
           >
             {player.entryName}
-          </Link>
+          </TeamProfileLink>
         </div>
 
         {player.stats ? (

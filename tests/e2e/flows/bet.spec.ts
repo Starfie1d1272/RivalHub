@@ -36,10 +36,19 @@ test("BET 完成投入、追加、ALL IN 确认与锁盘，桌面和手机无横
     await expect(page.getByRole("link",{name:"竞猜平台",exact:true})).toBeVisible();
     await page.getByRole("button",{name:"领取 1,000 积分"}).click();await expect(page.getByRole("button",{name:"领取 1,000 积分"})).toHaveCount(0);
     const card=page.locator("article").filter({has:page.locator(`a[href="/${fixture.slug}/matches/${matches[0]!.id}"]`)});const winner=card.getByRole("region",{name:"比赛胜者"});
+    const profile = winner.getByRole("link", { name: `查看 ${options[0]!.label} 资料` });
+    await expect(profile).toHaveAttribute("href", `/${fixture.slug}/teams/${options[0]!.key}`);
+    await expect(card.locator(`a[href="/${fixture.slug}/teams/${matches[0]!.entryAId}"]`)).toBeVisible();
+    await expect(card.locator("a a, button a, a button, button button")).toHaveCount(0);
+    await profile.click();
+    await expect(page).toHaveURL(new RegExp(`/teams/${options[0]!.key}$`));
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await page.goBack();
     // section has an accessible label and corresponding implicit region role.
     await winner.locator("button:not([aria-label])").first().click();
     const screenshotDir=resolve(".agent-tmp/bet/screenshots");mkdirSync(screenshotDir,{recursive:true});
     await page.addStyleTag({content:"nextjs-portal{display:none!important}"});
+    await expect(page.getByRole("dialog").getByRole("link", { name: `查看 ${options[0]!.label} 资料` })).toHaveAttribute("href", `/${fixture.slug}/teams/${options[0]!.key}`);
     await page.getByLabel("投入积分",{exact:true}).fill("200");
     await page.getByRole("dialog").screenshot({path:resolve(screenshotDir,`${info.project.name}-stake.png`),animations:"disabled"});
     await page.getByRole("button",{name:"确认投入",exact:true}).click();await expect(page.getByRole("dialog")).toHaveCount(0);

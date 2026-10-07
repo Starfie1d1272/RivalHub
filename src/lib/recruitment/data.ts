@@ -48,6 +48,7 @@ export interface TeamRecruitmentCardData extends PublicRecruitmentIntent {
   teamSlug: string;
   teamName: string;
   logoUrl: string | null;
+  captainUserId: string;
   captainName: string;
   memberCount: number;
   targetMinRoster: number | null;
@@ -61,7 +62,7 @@ export interface PlayerLftCardData extends PublicRecruitmentIntent {
   competitiveRoles: Cs2Position[];
   mapPreferences: MapPreferenceDraft[];
   mapPreferenceContextLabel: string;
-  currentTeamName: string | null;
+  currentTeamSlug: string | null; currentTeamName: string | null;
   competitiveSummary: PublicCompetitiveProfilePlatform[];
 }
 
@@ -140,6 +141,7 @@ export async function getRecruitmentLobbyData(filters: RecruitmentFilters, viewe
       teamSlug: teams.slug,
       teamName: teams.name,
       logoUrl: teams.logoUrl,
+      captainUserId: users.id,
       captainDisplayName: users.displayName,
       captainPersonaName: steamProfiles.personaName,
       captainPerfectName: users.perfectName,
@@ -164,6 +166,7 @@ export async function getRecruitmentLobbyData(filters: RecruitmentFilters, viewe
       perfectName: users.perfectName,
       avatarUrl: steamProfiles.avatarUrl,
       currentTeamId: currentPlayerTeam.id,
+      currentTeamSlug: currentPlayerTeam.slug,
       currentTeamName: currentPlayerTeam.name,
     }).from(recruitmentIntents)
       .innerJoin(users, and(eq(users.id, recruitmentIntents.userId), eq(users.status, "active")))
@@ -266,7 +269,7 @@ export async function getPublicPlayerLft(userId: string): Promise<PublicRecruitm
 export async function getTeamRecruitmentWorkspace(teamId: string, viewerUserId: string): Promise<{
   recruitment: (PublicRecruitmentIntent & { status: "open" | "closed"; isPubliclyActive: boolean }) | null;
   targetSeasons: Array<{ id: string; name: string }>;
-  interests: Array<{ userId: string; name: string; positions: Cs2Position[]; currentTeamName: string | null; qq: string | null }>;
+  interests: Array<{ userId: string; name: string; positions: Cs2Position[]; currentTeamSlug: string | null; currentTeamName: string | null; qq: string | null }>;
 }> {
   const now = new Date();
   const [intents, targetSeasons] = await Promise.all([
@@ -279,7 +282,7 @@ export async function getTeamRecruitmentWorkspace(teamId: string, viewerUserId: 
   const intent = rawIntent ? { id: rawIntent.id, positions: rawIntent.positions as Cs2Position[], targetSeasonId: rawIntent.targetSeasonId, targetSeasonName: rawIntent.targetSeasonName, note: rawIntent.note, status: rawIntent.status, expiresAt: rawIntent.expiresAt, updatedAt: rawIntent.updatedAt, isPubliclyActive } : null;
   if (!intent || !isPubliclyActive) return { recruitment: intent, targetSeasons, interests: [] };
   const currentTeam = alias(teams, "interest_current_team");
-  const interestRows = await db.select({ userId: users.id, displayName: users.displayName, personaName: steamProfiles.personaName, perfectName: users.perfectName, qq: users.qq, currentTeamName: currentTeam.name }).from(recruitmentInterests)
+  const interestRows = await db.select({ userId: users.id, displayName: users.displayName, personaName: steamProfiles.personaName, perfectName: users.perfectName, qq: users.qq, currentTeamSlug: currentTeam.slug, currentTeamName: currentTeam.name }).from(recruitmentInterests)
     .innerJoin(recruitmentIntents, eq(recruitmentIntents.id, recruitmentInterests.recruitmentIntentId))
     .innerJoin(teams, eq(teams.id, recruitmentIntents.teamId))
     .innerJoin(users, eq(users.id, recruitmentInterests.userId))
