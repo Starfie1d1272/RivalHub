@@ -87,7 +87,7 @@ read model 保留已有 public-safe canonical identity：BET option entity 由 m
 
 ### Platform data center
 
-全站固定入口为「赛事 / 队伍 / 数据中心」，桌面、移动与 fallback 复用相同目的地。赛事内部页面归属「赛事」，路径匹配遵守 segment 边界。公共导航与 viewer/session Suspense island 保持隔离；不在 Header 展开赛事名称。赛事 breadcrumb 附近的有界赛事选择器只切换到赛事首页，保留赛事内部业务导航。
+全站固定入口为「赛事 / 队伍 / 数据中心」，桌面、移动与 fallback 复用相同目的地。公共数据加载后，在「赛事」之后增加最多一个活跃赛事名称入口，复用生命周期分组与首页优先级；无活跃赛事时不以历史赛事补位。桌面长名称有界截断，移动菜单允许换行。活跃赛事内部页面高亮该入口，其它赛事页面高亮「赛事」，路径匹配遵守 segment 边界。公共导航与 viewer/session Suspense island 保持隔离。赛事页保留「首页 → 赛事 → 本届名称」breadcrumb 与内部业务导航，不再重复显示赛事名称选择框；切换其它赛事通过「赛事」目录完成。导航默认项不作为比赛归属或授权依据。
 
 `/stats` 使用平台主题与 `PageLayout wide`，默认全部公开赛事，包括 archived 历史。赛事是可搜索的上下文筛选，不是统计页面归属；选择器只接收 public-safe 摘要，确认选项才导航，支持键盘、焦点返回与内部滚动。阶段只用于单届；赛制与地图属于共享 scope。Overview / Players / Teams / Maps / Weapons / Records 是固定六个内容 tab。旧公开赛事统计入口永久迁移到 canonical URL；授权 draft preview 继续隔离在薄适配入口中。
 

@@ -6,6 +6,23 @@ const state = vi.hoisted(() => ({ pathname: "/stats" }));
 vi.mock("next/navigation", () => ({ usePathname: () => state.pathname }));
 vi.mock("next/link", () => ({ default: ({ href, children, ...props }: React.ComponentProps<"a">) => <a href={href} {...props}>{children}</a> }));
 describe("fixed platform navigation", () => {
+  it.each([false, true])("shows the active event and highlights only its destination (mobile=%s)", (mobile) => {
+    const activeSeason = { slug: "current", name: "2026 NJU Major 炸鸡杯" };
+    const seasons = [activeSeason, { slug: "historical" }];
+    state.pathname = "/current/matches";
+    const { rerender } = render(<HeaderNavigation seasons={seasons} activeSeason={activeSeason} mobile={mobile} />);
+    expect(screen.getAllByRole("link").map((link) => link.getAttribute("href"))).toEqual(["/seasons", "/current", "/teams", "/stats"]);
+    expect(screen.getByRole("link", { name: activeSeason.name })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("link", { name: "赛事", exact: true })).not.toHaveAttribute("aria-current");
+    state.pathname = "/historical/matches";
+    rerender(<HeaderNavigation seasons={seasons} activeSeason={activeSeason} mobile={mobile} />);
+    expect(screen.getByRole("link", { name: "赛事", exact: true })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("link", { name: activeSeason.name })).not.toHaveAttribute("aria-current");
+    state.pathname = "/current-other";
+    rerender(<HeaderNavigation seasons={seasons} activeSeason={activeSeason} mobile={mobile} />);
+    expect(screen.getAllByRole("link").filter((link) => link.hasAttribute("aria-current"))).toHaveLength(0);
+    state.pathname = "/stats";
+  });
   it.each([0, 2, 20, 100])("has three destinations with %i events, including mobile/fallback", (count) => {
     const seasons = Array.from({ length: count }, (_, i) => ({ slug: `event-${i}`, name: "中文长名称".repeat(10), status: "archived" as const, registrationOpensAt: null, registrationOpenedAt: null, registrationClosesAt: null }));
     const { rerender } = render(<HeaderNavigation seasons={seasons} />);

@@ -2,7 +2,6 @@ import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { Breadcrumb } from "@/components/layout/Breadcrumb";
-import { SeasonEventSelector } from "@/components/layout/SeasonEventSelector";
 import { SeasonNav } from "@/components/layout/SeasonNav";
 import { hexToRgbString } from "@/lib/utils/color";
 import { normalizeStagePlan } from "@/lib/seasons/compatibility";
@@ -10,7 +9,6 @@ import { showStats } from "@/lib/utils/season";
 import {
   getPublicOrAuthorizedDraftSeason,
   getPublicSeasonBySlug,
-  getPublicSeasonCatalog,
 } from "@/lib/data/public-seasons";
 import { SeasonInformationFeedbackLauncher } from "@/components/operations/GlobalInformationFeedbackLauncher";
 
@@ -53,10 +51,10 @@ async function SeasonLayoutContent({ children, params }: SeasonLayoutProps) {
         <Breadcrumb
           items={[
             { label: "首页", href: "/" },
+            { label: "赛事", href: "/seasons" },
             { label: season.name },
           ]}
         />
-        <SeasonEventSelector value={seasonSlug} currentName={season.name} events={(await getPublicSeasonCatalog()).map(({ slug, name, status }) => ({ slug, name, status }))} />
       </div>
       <SeasonNav
         slug={season.slug}
