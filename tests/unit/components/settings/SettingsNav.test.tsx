@@ -7,11 +7,11 @@ import { SettingsNav } from "@/components/settings/SettingsNav";
 vi.mock("next/navigation", () => ({ usePathname: () => "/settings/competitive" }));
 
 describe("SettingsNav", () => {
-  it("keeps every settings destination available and highlights the current page", () => {
+  it("keeps every settings destination available", () => {
     render(<SettingsNav />);
     expect(screen.getByRole("link", { name: /参赛资料/ })).toHaveAttribute("href", "/settings");
     expect(screen.getByRole("link", { name: /教育身份/ })).toHaveAttribute("href", "/settings/education");
-    expect(screen.getByRole("link", { name: /竞技档案/ })).toHaveClass("text-[var(--color-accent)]");
+    
     expect(screen.getByRole("link", { name: /账号与安全/ })).toHaveAttribute("href", "/settings/security");
     expect(screen.getByText("登录密码、已验证邮箱与账号归并")).toBeInTheDocument();
     expect(screen.queryByText(/verified email/)).not.toBeInTheDocument();

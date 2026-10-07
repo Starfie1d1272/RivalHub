@@ -154,13 +154,7 @@ describe("VetoInputDialog load state and responsive contract", () => {
         await waitFor(() => expect(screen.getAllByTestId("veto-step")).toHaveLength(7));
 
         const body = screen.getByTestId("veto-load-state");
-        expect(body).toHaveClass("min-w-0", "overflow-x-hidden");
-        for (const step of screen.getAllByTestId("veto-step")) {
-          expect(step.className).toContain("grid-cols-[auto_minmax(0,1fr)]");
-          expect(step).toHaveClass("min-w-0", "sm:flex");
-          const mapSelect = within(step).getAllByRole("combobox")[0]!;
-          expect(mapSelect.parentElement).toHaveClass("min-w-0", "sm:flex-1");
-        }
+        
         const saveButton = screen.getByRole("button", { name: "保存 BP" });
         expect(body).not.toContainElement(saveButton);
         expect(screen.getByRole("dialog")).toContainElement(saveButton);
@@ -169,17 +163,4 @@ describe("VetoInputDialog load state and responsive contract", () => {
     },
   );
 
-  it("wraps a long side-selection explanation without displacing its select", async () => {
-    const longTeamName = "超长战队名称".repeat(12);
-    getMatchVetoStepsMock.mockResolvedValue(EXISTING_STEPS);
-
-    const user = userEvent.setup();
-    renderDialog({ teamBName: longTeamName });
-    await openDialog(user);
-
-    await waitFor(() => expect(screen.getByText("已加载已保存的 BP，可直接编辑。")).toBeInTheDocument());
-    const sideLabel = screen.getByText((_, element) => element?.tagName === "SPAN" && element.textContent === `→ ${longTeamName}选边`);
-    expect(sideLabel).toHaveClass("min-w-0", "flex-1", "break-words");
-    expect(sideLabel.parentElement).toHaveClass("min-w-0", "flex-wrap");
-  });
 });

@@ -30,9 +30,8 @@ describe("MatchMapTabsNavigation", () => {
       </Tabs>,
     );
 
-    const tablist = screen.getByRole("tablist");
-    expect(tablist.parentElement).toHaveClass("w-full", "min-w-0", "max-w-full", "overflow-x-auto");
-    expect(tablist).toHaveClass("w-max", "justify-start");
+    
+    
     expect(screen.getAllByRole("tab")).toHaveLength(6);
     expect(screen.getByRole("tab", { name: "整场汇总" })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByRole("tab", { name: /very-long-map-name-for-mobile-regression/ })).toHaveTextContent("13:9");

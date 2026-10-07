@@ -30,14 +30,14 @@ describe("affected static task commands", () => {
       "unit-explicit-unit-domain-node",
       "unit-domain-node",
       [],
-      ["tests/unit/quality/e2e-contract.test.ts"],
+      ["tests/unit/quality/product-language.test.ts"],
     )).toEqual([
       "exec",
       "vitest",
       "run",
       "--project",
       "unit-domain-node",
-      "tests/unit/quality/e2e-contract.test.ts",
+      "tests/unit/quality/product-language.test.ts",
     ]);
   });
 

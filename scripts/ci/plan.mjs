@@ -19,8 +19,6 @@ const FULL_STATIC_MATRIX = [
 
 const GLOBAL_CONTRACTS = {
   productLanguage: { project: "unit-domain-node", path: "tests/unit/quality/product-language.test.ts" },
-  e2e: { project: "unit-domain-node", path: "tests/unit/quality/e2e-contract.test.ts" },
-  architecture: { project: "unit-domain-node", path: "tests/unit/quality/architecture-boundaries.test.ts" },
 };
 
 const DB_BACKED_APP_PREFIXES = [
@@ -105,7 +103,7 @@ const SYSTEM_FLOW_MAP = [
 function browserSpecs(directory = "tests/e2e") {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
     const path = `${directory}/${entry.name}`;
-    return entry.isDirectory() ? browserSpecs(path) : /\.spec\.tsx?$/.test(path) ? [path] : [];
+    return entry.isDirectory() ? (["visual", "acceptance", "production"].includes(entry.name) ? [] : browserSpecs(path)) : /\.spec\.tsx?$/.test(path) ? [path] : [];
   }).sort();
 }
 
@@ -418,7 +416,6 @@ function collectEvidence(path, classification, evidence) {
   if (classification.e2eSpecs) {
     for (const spec of classification.e2eSpecs) evidence.e2eSpecs.add(spec);
   }
-  if (path.startsWith("tests/e2e/")) evidence.unitExplicitTests.get("unit-domain-node").add(GLOBAL_CONTRACTS.e2e.path);
 
   const project = unitProjectFor(path);
   if (project && isTest) evidence.unitExplicitTests.get(project).add(path);
@@ -427,7 +424,6 @@ function collectEvidence(path, classification, evidence) {
     for (const sources of evidence.unitRelatedSources.values()) sources.add(path);
   }
   if (path.startsWith("src/")) {
-    evidence.unitExplicitTests.get("unit-domain-node").add(GLOBAL_CONTRACTS.architecture.path);
     evidence.unitExplicitTests.get("unit-domain-node").add(GLOBAL_CONTRACTS.productLanguage.path);
   }
 

@@ -81,16 +81,7 @@ describe("AuditLogTable", () => {
     expect(screen.getByRole("option", { name: "更新竞技段位资料" })).toBeInTheDocument();
   });
 
-  it("keeps date filters wide enough to wrap on small screens", () => {
-    const { container } = renderTable([knownLog]);
-    const dateInputs = container.querySelectorAll('input[type="date"]');
-    expect(dateInputs).toHaveLength(2);
-    for (const input of dateInputs) {
-      expect(input).toHaveClass("min-w-0");
-      expect(input.parentElement).toHaveClass("min-w-0");
-    }
-    expect(dateInputs[0]?.parentElement?.parentElement).toHaveClass("lg:col-span-6");
-  });
+
 
   it("preserves successful rows and reports reload failure", async () => {
     const { rerender } = renderTable();

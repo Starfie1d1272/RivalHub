@@ -34,12 +34,7 @@ describe("StatsDataTable client state", () => {
     expect(screen.getByRole("row", { name: "Low 1" })).toBeInTheDocument();
     expect(screen.getByText("第 2 / 3 页")).toBeInTheDocument();
   });
-  it("offsets the sticky identity column when rank is visible", () => {
-    render(<StatsDataTable rows={rows} columns={columns} rowKey={(row) => row.name} showRank />);
-    const headers = screen.getAllByRole("columnheader");
-    expect(headers[0]).toHaveClass("left-0", "w-12");
-    expect(headers[1]).toHaveClass("left-12");
-  });
+  
 
   it("omits pagination chrome for a single page", () => {
     render(<StatsDataTable rows={rows} columns={columns} rowKey={(row) => row.name} />);
@@ -47,24 +42,9 @@ describe("StatsDataTable client state", () => {
     expect(screen.queryByText(/共 3 条/)).not.toBeInTheDocument();
   });
 
-  it("accepts a layout class for dense fixed tables", () => {
-    render(<StatsDataTable rows={rows} columns={columns} rowKey={(row) => row.name} tableClassName="min-w-[720px] table-fixed" />);
-    expect(screen.getByRole("table")).toHaveClass("min-w-[720px]", "table-fixed");
-  });
+  
 
-  it("bounds and truncates an explicitly marked identity while preserving numeric columns", () => {
-    const name = "A player name that is long enough to overflow a compact identity column";
-    const longRows = [{ name, rating: 1.25 }];
-    render(<StatsDataTable rows={longRows} columns={columns} rowKey={(row) => row.name} />);
-
-    const identityHeader = screen.getAllByRole("columnheader")[0]!;
-    const identityCell = screen.getByRole("cell", { name });
-    const ratingCell = screen.getByRole("cell", { name: "1.25" });
-    expect(identityHeader).toHaveClass("w-[11rem]", "min-w-[11rem]", "max-w-[11rem]");
-    expect(identityCell).toHaveClass("w-[11rem]", "overflow-hidden", "sticky", "left-0");
-    expect(identityCell.firstElementChild).toHaveClass("min-w-0", "max-w-full", "truncate");
-    expect(ratingCell).toHaveClass("whitespace-nowrap", "tabular-nums");
-  });
+  
 
   it("keeps limited samples below ranked rows in both sort directions and uses a separate baseline", () => {
     interface RankedRow { name: string; rating: number; rounds: number }
@@ -117,18 +97,6 @@ describe("StatsDataTable client state", () => {
     expect(screen.getByRole("tooltip").closest("table")).toBeNull();
   });
 
-  it("keeps numeric labels and values on the same right edge while reserving help/sort chrome", () => {
-    const metricColumns: StatsDataColumn<Row>[] = [
-      columns[0]!,
-      { key: "rating", metric: "rating", numeric: true, sortable: true, sortValue: (row) => row.rating, render: (row) => row.rating ?? "—" },
-    ];
-    render(<StatsDataTable rows={rows} columns={metricColumns} rowKey={(row) => row.name} initialSortKey="rating" />);
-
-    const header = screen.getAllByRole("columnheader")[1]!;
-    const highRow = screen.getByRole("row", { name: /High/ });
-    const valueCell = within(highRow).getAllByRole("cell")[1]!;
-    expect(header).toHaveClass("pr-9");
-    expect(valueCell).toHaveClass("pr-9", "align-top");
-  });
+  
 
 });

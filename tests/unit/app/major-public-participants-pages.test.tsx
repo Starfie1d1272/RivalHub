@@ -1,3 +1,4 @@
+/** @vitest-environment node */
 vi.mock("@/lib/seasons/public-stage", () => ({ getPublicSeasonStagePresentation: vi.fn().mockResolvedValue({ stagePlan: [], labels: {}, initializedStageKeys: [], currentStageKey: null, currentStageLabel: null }) }));
 import * as React from "react";
 import { renderToStaticMarkup } from "react-dom/server";

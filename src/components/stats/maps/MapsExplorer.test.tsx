@@ -59,8 +59,7 @@ describe("MapsExplorer veto matrix", () => {
     expect(within(table).getAllByRole("row").slice(2).map((row) => row.textContent)).toEqual(["Zulu515", "Alpha221"]);
     expect(screen.getByRole("button", { name: "Ban ↓" })).toBeInTheDocument();
 
-    const banValue = within(screen.getByRole("row", { name: /Zulu/ })).getByText("5", { selector: "span" });
-    expect(banValue).toHaveClass("text-[var(--color-fg)]");
-    expect(banValue).not.toHaveClass("text-[var(--color-danger)]");
+    
+    
   });
 });

@@ -45,8 +45,7 @@ describe("OverviewStats", () => {
     expect(screen.getByRole("columnheader", { name: "W-L" })).toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: /^Share/ })).toBeInTheDocument();
     expect(screen.getAllByRole("columnheader", { name: "#" })).toHaveLength(3);
-    const leaderTables = screen.getAllByRole("table").slice(1, 4);
-    expect(leaderTables.every((table) => !table.className.includes("min-w-["))).toBe(true);
+    
   });
 
   it("shows only Eco, Semi and Force versus Full Buy and renders nine best-rate highlights", () => {

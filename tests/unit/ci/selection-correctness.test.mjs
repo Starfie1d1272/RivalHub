@@ -41,7 +41,7 @@ describe("affected evidence correctness", () => {
 
   it("adding an E2E cannot narrow shared harness evidence", () => {
     const before = plan("tests/e2e/fixtures.ts");
-    const after = plan("tests/e2e/fixtures.ts", "tests/e2e/flows/home.spec.ts");
+    const after = plan("tests/e2e/fixtures.ts", "tests/e2e/flows/bet.spec.ts");
     expect(before.e2eSpecs.length).toBeGreaterThan(1);
     expect(after.e2eSpecs).toEqual(before.e2eSpecs);
   });
