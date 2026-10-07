@@ -11,7 +11,7 @@ export function MatchCommentaryStatus({ matchId, assignment }: { matchId: string
   return <div className="flex flex-wrap items-center gap-2 text-sm">
     <span>{assignment.commentators.length === 0 ? "尚无解说" : <>解说：{assignment.commentators.map((person, index) => <React.Fragment key={person.userId}>{index > 0 ? "、" : null}<PlayerProfileLink userId={person.userId}>{person.name}</PlayerProfileLink></React.Fragment>)}</>}</span>
     {assignment.isMine && <span className="text-[var(--color-accent)]">你已认领本场解说</span>}
-    {assignment.commentators.length === 0 && assignment.canClaim && <ClaimMatchButton matchId={matchId} />}
+    {assignment.canClaim && <ClaimMatchButton matchId={matchId} />}
   </div>;
 }
 
@@ -33,11 +33,11 @@ export function MatchCommentaryQueue({ data, seasonSlug }: { data: AdminMatchCom
       {data.nextMatch ? <CommentaryMatchLink match={data.nextMatch} seasonSlug={seasonSlug} />
         : <p className="text-sm text-[var(--color-fg-mid)]">当前没有已认领的下一场</p>}
     </section>
-    <section className="space-y-2 border-t border-[var(--color-border)] pt-3" aria-labelledby="unclaimed-commentary">
-      <h2 id="unclaimed-commentary" className="font-semibold">尚无解说的比赛</h2>
-      {data.unclaimedMatches.length > 0 ? <ul className="divide-y divide-[var(--color-border)]">{data.unclaimedMatches.map((match) => <li key={match.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
+    <section className="space-y-2 border-t border-[var(--color-border)] pt-3" aria-labelledby="claimable-commentary">
+      <h2 id="claimable-commentary" className="font-semibold">可认领的比赛</h2>
+      {data.claimableMatches.length > 0 ? <ul className="divide-y divide-[var(--color-border)]">{data.claimableMatches.map((match) => <li key={match.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
         <CommentaryMatchLink match={match} seasonSlug={seasonSlug} />
-        <div className="flex flex-wrap items-center gap-2 text-sm"><span>{presentMatchStatus(match.status, { scheduledAt: match.scheduledAt }).label} · 尚无解说</span>{data.byMatchId[match.id]?.canClaim && <ClaimMatchButton matchId={match.id} />}</div>
+        <div className="flex flex-wrap items-center gap-2 text-sm"><span>{presentMatchStatus(match.status, { scheduledAt: match.scheduledAt }).label} · 解说 {data.byMatchId[match.id]?.commentators.length ?? 0}/2</span>{data.byMatchId[match.id]?.canClaim && <ClaimMatchButton matchId={match.id} />}</div>
       </li>)}</ul> : <p className="text-sm text-[var(--color-fg-mid)]">当前没有待认领的比赛</p>}
     </section>
   </Panel>;

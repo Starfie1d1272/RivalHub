@@ -88,7 +88,7 @@ describe("AdminMatchesPage overview boundary", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.stubGlobal("React", React);
-    loadCommentaryMock.mockResolvedValue({ currentMatches: [], nextMatch: null, unclaimedMatches: [], unclaimedCount: 0, byMatchId: { "match-1": { commentators: [], isMine: false, canClaim: true } } });
+    loadCommentaryMock.mockResolvedValue({ currentMatches: [], nextMatch: null, claimableMatches: [], claimableCount: 0, byMatchId: { "match-1": { commentators: [], isMine: false, canClaim: true } } });
   });
 
   it("passes only summary data to the list row and leaves detail for the workbench", async () => {

@@ -8,7 +8,7 @@ vi.mock("@/components/rivalhub", () => ({ Panel: ({ children }: { children: Reac
 vi.mock("@/components/matches/ClaimMatchButton", () => ({ ClaimMatchButton: ({ matchId }: { matchId: string }) => <button data-match-id={matchId}>认领本场解说</button> }));
 import { MatchCommentaryQueue, MatchCommentaryStatus } from "@/components/matches/MatchCommentaryQueue";
 
-const empty: AdminMatchCommentaryData = { currentMatches: [], nextMatch: null, unclaimedMatches: [], unclaimedCount: 0, byMatchId: {} };
+const empty: AdminMatchCommentaryData = { currentMatches: [], nextMatch: null, claimableMatches: [], claimableCount: 0, byMatchId: {} };
 
 describe("personal commentary queue", () => {
   it("keeps missing assignment as a normal empty state", () => {
@@ -19,14 +19,14 @@ describe("personal commentary queue", () => {
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
 
-  it("links current, upcoming and unclaimed matches to their real workbenches", () => {
+  it("links current, upcoming and claimable matches to their real workbenches", () => {
     const upcoming = { id: "next", teamAName: "Alpha", teamBName: "Beta", scheduledAt: new Date("2026-10-01T12:30:00Z"), status: "scheduled" as const };
     render(<MatchCommentaryQueue seasonSlug="major" data={{
       ...empty,
       currentMatches: [{ ...upcoming, id: "current", status: "in_progress" }],
       nextMatch: upcoming,
-      unclaimedMatches: [{ ...upcoming, id: "unclaimed", scheduledAt: null }],
-      unclaimedCount: 1,
+      claimableMatches: [{ ...upcoming, id: "unclaimed", scheduledAt: null }],
+      claimableCount: 1,
       byMatchId: { unclaimed: { commentators: [], isMine: false, canClaim: true } },
     }} />);
     const current = screen.getByRole("region", { name: "我的当前比赛" });
@@ -35,6 +35,34 @@ describe("personal commentary queue", () => {
     expect(within(next).getByRole("link")).toHaveAttribute("href", "/admin/major/matches/next");
     expect(within(next).getByRole("link")).toHaveTextContent("20:30");
     expect(screen.getByRole("button", { name: "认领本场解说" })).toHaveAttribute("data-match-id", "unclaimed");
+    expect(screen.getByRole("region", { name: "可认领的比赛" })).toHaveTextContent("解说 0/2");
+  });
+
+  it("keeps a one-commentator match discoverable with its remaining slot and claim action", () => {
+    render(<MatchCommentaryQueue seasonSlug="major" data={{
+      ...empty,
+      claimableMatches: [{ id: "partial", teamAName: "Alpha", teamBName: "Beta", scheduledAt: null, status: "scheduled" }],
+      claimableCount: 1,
+      byMatchId: { partial: { commentators: [{ userId: "other", name: "解说甲" }], isMine: false, canClaim: true } },
+    }} />);
+    const queue = screen.getByRole("region", { name: "可认领的比赛" });
+    expect(within(queue).getByRole("link")).toHaveAttribute("href", "/admin/major/matches/partial");
+    expect(queue).toHaveTextContent("解说 1/2");
+    expect(within(queue).getByRole("button", { name: "认领本场解说" })).toHaveAttribute("data-match-id", "partial");
+  });
+
+  it("offers the second slot when another commentator has claimed and the server allows claiming", () => {
+    render(<MatchCommentaryStatus matchId="partial" assignment={{ commentators: [{ userId: "other", name: "解说甲" }], isMine: false, canClaim: true }} />);
+    expect(screen.getByRole("link", { name: "解说甲" })).toHaveAttribute("href", "/players/other");
+    expect(screen.getByRole("button", { name: "认领本场解说" })).toHaveAttribute("data-match-id", "partial");
+    expect(screen.queryByText("你已认领本场解说")).not.toBeInTheDocument();
+  });
+
+  it("shows both commentators with no claim action when the roster is full", () => {
+    render(<MatchCommentaryStatus matchId="full" assignment={{ commentators: [{ userId: "a", name: "解说甲" }, { userId: "b", name: "解说乙" }], isMine: false, canClaim: false }} />);
+    expect(screen.getByText("解说：", { exact: false })).toHaveTextContent("解说：解说甲、解说乙");
+    expect(screen.getByRole("link", { name: "解说乙" })).toHaveAttribute("href", "/players/b");
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
 
   it("displays actual commentators and does not present an occupied slot as unclaimed", () => {

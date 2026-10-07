@@ -154,7 +154,7 @@ describe("match commentary PostgreSQL contract", () => {
     }
   });
 
-  it("projects only this season's actual assignments, sorted next match, and all active unclaimed matches", async () => {
+  it("projects only this season's actual assignments, sorted next match, and all matches the viewer can claim", async () => {
     const fixture = await createFixture();
     const { claimMatchCommentaryInTx, addMatchCommentatorInTx } = await import("@/lib/postmatch/service");
     const { readAdminMatchCommentary } = await import("@/lib/admin/matches/commentary");
@@ -167,17 +167,20 @@ describe("match commentary PostgreSQL contract", () => {
       const cancelled = await fixture.createMatch({ status: "cancelled" });
       const foreign = await fixture.createMatch({ season: fixture.otherSeasonId, scheduledAt: "2026-10-01T11:00:00Z" });
       const others = await fixture.createMatch({ scheduledAt: "2026-10-01T11:30:00Z" });
+      const full = await fixture.createMatch({ scheduledAt: "2026-10-01T11:45:00Z" });
       for (const matchId of [current, next, later, unscheduled]) await fixture.database.transaction((tx) => claimMatchCommentaryInTx(tx, { matchId, userId: fixture.adminA }));
       await fixture.database.transaction((tx) => addMatchCommentatorInTx(tx, { matchId: finished, userId: fixture.adminA, actorId: fixture.adminA }));
       await fixture.database.transaction((tx) => claimMatchCommentaryInTx(tx, { matchId: others, userId: fixture.adminB }));
+      for (const userId of [fixture.adminB, fixture.adminC]) await fixture.database.transaction((tx) => claimMatchCommentaryInTx(tx, { matchId: full, userId }));
       await fixture.database.transaction((tx) => claimMatchCommentaryInTx(tx, { matchId: foreign, userId: fixture.otherAdmin }));
       const unclaimed: string[] = [];
       for (let index = 0; index < 6; index++) unclaimed.push(await fixture.createMatch({ scheduledAt: `2026-10-02T${String(index + 10).padStart(2, "0")}:00:00Z` }));
       const data = await readAdminMatchCommentary(fixture.database, { seasonId: fixture.seasonId, currentUserId: fixture.adminA });
       expect(data.currentMatches.map((match) => match.id)).toEqual([current]);
       expect(data.nextMatch).toEqual({ id: next, teamAName: "Alpha", teamBName: "Beta", scheduledAt: new Date("2026-10-01T12:30:00Z"), status: "scheduled" });
-      expect(data.unclaimedMatches.map((match) => match.id)).toEqual(unclaimed);
-      expect(data.unclaimedCount).toBe(6);
+      expect(data.claimableMatches.map((match) => match.id)).toEqual([others, ...unclaimed]);
+      expect(data.claimableCount).toBe(7);
+      expect(data.byMatchId[full]?.canClaim).toBe(false);
       expect(data.byMatchId[foreign]).toBeUndefined();
       expect(data.byMatchId[current]).toEqual({ commentators: [{ userId: fixture.adminA, name: "解说1" }], isMine: true, canClaim: false });
       expect(data.byMatchId[others]).toEqual({ commentators: [{ userId: fixture.adminB, name: "解说2" }], isMine: false, canClaim: true });
@@ -188,8 +191,12 @@ describe("match commentary PostgreSQL contract", () => {
       const excluded = await readAdminMatchCommentary(fixture.database, { seasonId: fixture.seasonId, currentUserId: fixture.adminA, excludeMatchId: next });
       expect(excluded.nextMatch?.id).toBe(later);
       expect(excluded.byMatchId[next]?.isMine).toBe(true);
+      const excludedClaimable = await readAdminMatchCommentary(fixture.database, { seasonId: fixture.seasonId, currentUserId: fixture.adminA, excludeMatchId: others });
+      expect(excludedClaimable.claimableMatches.map((match) => match.id)).toEqual(unclaimed);
+      expect(excludedClaimable.byMatchId[others]?.canClaim).toBe(true);
       const superView = await readAdminMatchCommentary(fixture.database, { seasonId: fixture.seasonId, currentUserId: fixture.superAdmin });
       expect(Object.values(superView.byMatchId).every((assignment) => !assignment.canClaim)).toBe(true);
+      expect(superView.claimableMatches).toEqual([]);
     } finally {
       await fixture.close();
     }

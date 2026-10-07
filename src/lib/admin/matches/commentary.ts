@@ -25,8 +25,8 @@ export interface AdminCommentaryMatch {
 export interface AdminMatchCommentaryData {
   currentMatches: AdminCommentaryMatch[];
   nextMatch: AdminCommentaryMatch | null;
-  unclaimedMatches: AdminCommentaryMatch[];
-  unclaimedCount: number;
+  claimableMatches: AdminCommentaryMatch[];
+  claimableCount: number;
   byMatchId: Record<string, AdminMatchCommentaryAssignment>;
 }
 
@@ -91,12 +91,12 @@ export async function readAdminMatchCommentary(
       activeMatches.push({ id: match.id, teamAName: match.teamAName, teamBName: match.teamBName, status: match.status, scheduledAt: match.scheduledAt });
     }
   }
-  const unclaimed = activeMatches.filter((match) => byMatchId[match.id]!.commentators.length === 0);
+  const claimable = activeMatches.filter((match) => byMatchId[match.id]!.canClaim);
   return {
     currentMatches: activeMatches.filter((match) => match.status === "in_progress" && byMatchId[match.id]!.isMine),
     nextMatch: activeMatches.find((match) => match.status === "scheduled" && byMatchId[match.id]!.isMine) ?? null,
-    unclaimedMatches: unclaimed,
-    unclaimedCount: unclaimed.length,
+    claimableMatches: claimable,
+    claimableCount: claimable.length,
     byMatchId,
   };
 }
