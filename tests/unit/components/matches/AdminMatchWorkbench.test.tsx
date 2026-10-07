@@ -82,7 +82,7 @@ function data(status: Match["status"]) {
     postMatch: { commentators: [{ userId: "operator", name: "解说", hasLiveStream: false }], seasonAdmins: [], submittedAt: null, submittedByUserId: null, videoUrl: null, completionLabel: "待整理", canSubmit: status === "finished" },
     operator: { workflow: projectOperatorWorkflow({ status, isForfeit: false, vetoComplete: status !== "scheduled", observedGameplayMapId: null,
       maps: status === "finished" ? [{ id: "map-1", order: 1, name: "de_inferno", startSide: "t", completedAt: "2026-09-05T04:00:00Z", scoreboardComplete: false, demoLabel: "待上传", demoNeedsAttention: false }] : [] }), roomGuide: null },
-    commentary: { currentMatches: [], nextMatch: null, unclaimedMatches: [], unclaimedCount: 0, byMatchId: {} },
+    commentary: { currentMatches: [], nextMatch: null, claimableMatches: [], claimableCount: 0, byMatchId: {} },
   };
 }
 
