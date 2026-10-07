@@ -333,7 +333,7 @@ test("官方 Swiss 与推演共享布局，Play-in 六场与未来路径在桌�
       await page.getByRole("button",{name:"结果",exact:true}).press("Enter");
       await expect(flow.getByRole("region",{name:"最终结果"})).toBeVisible();
     }
-    await page.getByRole("tab").filter({hasText:/Stage 1|阶段一|第一阶段/}).first().click();
+    await page.getByRole("tab").filter({hasText:/stage\s*1|阶段一|第一阶段/i}).first().click();
     await expect(flow.getByRole("link")).toHaveCount(8);
     await expect(flow.getByRole("region",{name:"最终结果"})).toContainText("3–0");
   } finally {

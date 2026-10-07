@@ -42,7 +42,8 @@ describe("BET transactional admission and settlement",()=>{
       expect((await read(f.db,f.seasonId,userId)).markets.find(m=>m.id===market.id)).toMatchObject({canStake:true,restriction:null});
       await f.db.transaction(tx=>stakeBetInTx(tx,{seasonId:f.seasonId,userId,marketId:market.id,optionId:market.options[0]!.id,amount:"100",requestId:randomUUID()}));
     }
-    const [roster]=await f.db.insert(schema.eventRosters).values({entryId:f.entryIds[0]!,status:"confirmed",confirmedAt:new Date(),confirmedBy:"test"}).returning();
+    const entry=await f.db.query.competitionEntries.findFirst({where:eq(schema.competitionEntries.id,f.entryIds[0]!)});
+    const [roster]=await f.db.insert(schema.eventRosters).values({entryId:f.entryIds[0]!,sourceRosterRevisionId:entry!.approvedRosterRevisionId,status:"confirmed",confirmedAt:new Date(),confirmedBy:"test"}).returning();
     const [member]=await f.db.insert(schema.eventRosterMembers).values({eventRosterId:roster!.id,userId:f.userId}).returning();
     expect((await read(f.db,f.seasonId,f.userId)).markets.find(m=>m.id===market.id)).toMatchObject({canStake:false,restriction:"相关队伍名单成员不能参与此盘口"});
     await expect(f.db.transaction(tx=>stakeBetInTx(tx,{seasonId:f.seasonId,userId:f.userId,marketId:market.id,optionId:market.options[0]!.id,amount:"10",requestId:randomUUID()}))).rejects.toThrow(/名单成员/);
