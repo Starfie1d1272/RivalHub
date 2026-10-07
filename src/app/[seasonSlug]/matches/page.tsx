@@ -1,3 +1,4 @@
+import { officialMatchCondition } from "@/lib/matches/scope";
 import { requireCompetitionMatch } from "@/lib/matches/competition-context";
 import { loadPublicMatchContexts } from "@/lib/matches/public-phase";
 import { MatchContextRefresh } from "@/components/matches/MatchContextRefresh";
@@ -45,7 +46,7 @@ export default async function MatchesPage({ params, searchParams }: MatchesPageP
       orderBy: [asc(competitionEntries.formationOrder)],
     }),
     db.query.matches.findMany({
-      where: eq(matches.seasonId, season.id),
+      where: and(officialMatchCondition(), eq(matches.seasonId, season.id)),
       orderBy: [asc(matches.completedAt), asc(matches.scheduledAt), asc(matches.id)],
     }),
     db.query.majorFinalResults.findFirst({ where: eq(majorFinalResults.seasonId, season.id) }),

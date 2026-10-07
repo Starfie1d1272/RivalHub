@@ -1,3 +1,4 @@
+import { officialMatchCondition } from "@/lib/matches/scope";
 import { requireCompetitionFields } from "@/lib/matches/competition-context";
 import "server-only";
 
@@ -303,7 +304,7 @@ export async function loadMajorPrestartPageData(season: Season): Promise<MajorPr
       .innerJoin(competitionEntries, eq(competitionEntries.id, competitionQualificationEntrants.competitionEntryId))
       .where(eq(competitionQualificationEntrants.seasonId, season.id))
       .orderBy(asc(competitionQualificationEntrants.preliminarySeed)),
-    db.select().from(matches).where(and(eq(matches.seasonId, season.id), eq(matches.stage, "play-in"), isNotNull(matches.qualificationRunId)))
+    db.select().from(matches).where(and(officialMatchCondition(), and(eq(matches.seasonId, season.id), eq(matches.stage, "play-in"), isNotNull(matches.qualificationRunId))))
       .orderBy(asc(matches.round), asc(matches.id)),
     db.select({ id: competitionEntries.id }).from(competitionEntries).where(and(
       eq(competitionEntries.competitionId, season.id),

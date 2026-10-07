@@ -1,3 +1,4 @@
+import { officialMatchCondition } from "@/lib/matches/scope";
 import { requireCompetitionFields } from "@/lib/matches/competition-context";
 import "server-only";
 
@@ -228,14 +229,14 @@ export async function loadMyCompetitionNextMatches(userId: string): Promise<Map<
       scheduledAt: matches.scheduledAt,
     })
     .from(matches)
-    .where(and(
+    .where(and(officialMatchCondition(), and(
       inArray(matches.seasonId, seasonIds),
       inArray(matches.status, ["scheduled", "in_progress"]),
       or(
         inArray(matches.entryAId, entryIds),
         inArray(matches.entryBId, entryIds),
       ),
-    ))
+    )))
     .orderBy(sql`case when ${matches.status} = 'in_progress' then 0 else 1 end`, asc(matches.scheduledAt), asc(matches.id));
 
   const validMatches = upcoming.map(requireCompetitionFields).flatMap((match) => {

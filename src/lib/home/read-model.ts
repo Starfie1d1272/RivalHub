@@ -1,3 +1,4 @@
+import { officialMatchCondition } from "@/lib/matches/scope";
 import "server-only";
 
 import { alias } from "drizzle-orm/pg-core";
@@ -128,10 +129,10 @@ export async function getPublicHomeProjection(
             .from(matches)
             .leftJoin(competitionEntries, eq(competitionEntries.id, matches.entryAId))
             .leftJoin(opponentEntry, eq(opponentEntry.id, matches.entryBId))
-            .where(and(
+            .where(and(officialMatchCondition(), and(
               eq(matches.seasonId, featured.id),
               or(eq(matches.status, "in_progress"), eq(matches.status, "scheduled")),
-            ))
+            )))
             .orderBy(matches.scheduledAt)
             .limit(2)
         : Promise.resolve([] as {

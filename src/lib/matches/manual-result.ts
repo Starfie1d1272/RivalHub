@@ -4,11 +4,13 @@ import type { TxDb } from "@/db/client";
 import { matchLiveSessions, matchMaps } from "@/db/schema";
 import { lockMatchInTx } from "@/lib/match-rosters/service";
 import { AppError, ErrorCode } from "@/lib/errors";
-import { recordCanonicalMapResultInTx, type CanonicalMapResultCommand } from "./results";
+import { recordCanonicalMapResultInTx, supplementUnassociatedMapResultInTx, type CanonicalMapResultCommand } from "./results";
 
 /** Manual entry uses the same match → source lock order as reliable ingress. */
 export async function recordManualMapResultInTx(tx: TxDb, command: CanonicalMapResultCommand) {
-  await lockMatchInTx(tx, command.matchId);
+  const match = await lockMatchInTx(tx, command.matchId);
+  // Execution has ended; a source can no longer author live canonical results.
+  if (match.testConfig && match.status === "finished") return supplementUnassociatedMapResultInTx(tx, command);
   const [source] = await tx.select().from(matchLiveSessions).where(and(eq(matchLiveSessions.matchId, command.matchId), isNull(matchLiveSessions.closedAt))).for("update");
   if (source) {
     const [map] = await tx.select().from(matchMaps).where(and(eq(matchMaps.matchId, command.matchId), eq(matchMaps.mapOrder, command.mapOrder)));

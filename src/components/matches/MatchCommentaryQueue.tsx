@@ -18,6 +18,7 @@ export function MatchCommentaryStatus({ matchId, assignment }: { matchId: string
 
 export function CommentaryMatchLink({ match, seasonSlug }: { match: AdminCommentaryMatch; seasonSlug: string }) {
   return <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+    {match.isTest && <span className="text-xs text-[var(--color-fg-mid)]">测试赛</span>}
     <TeamProfileLink seasonSlug={seasonSlug} entryId={match.entryAId}>{match.teamAName}</TeamProfileLink>
     <span className="text-[var(--color-fg-mid)]">vs</span>
     <TeamProfileLink seasonSlug={seasonSlug} entryId={match.entryBId}>{match.teamBName}</TeamProfileLink>

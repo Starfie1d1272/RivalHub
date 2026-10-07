@@ -23,10 +23,10 @@ function competition(season: Awaited<ReturnType<typeof loadCompetitionInTx>>) {
 function matchContext(match: typeof matches.$inferSelect, season: Awaited<ReturnType<typeof loadCompetitionInTx>>) {
   const stage = normalizeStagePlan(season.stagePlan).find(stage => stage.key === match.stage);
   return {
-    matchId: match.id, status: match.status, format: match.format,
-    stage: match.stage, stageKey: match.stage, stageLabel: match.qualificationRunId ? "PLAY-IN" : stage?.name ?? null,
+    matchId: match.id, status: match.status, format: match.format, isTest: Boolean(match.testConfig), resultDisposition: match.resultDisposition,
+    stage: match.stage, stageKey: match.stage, stageLabel: match.testConfig ? "测试赛" : match.qualificationRunId ? "PLAY-IN" : stage?.name ?? null,
     round: match.round, roundLabel: match.round === null ? null : `Round ${match.round}`,
-    entryRound: match.entryRound, matchLabel: null, stakesLabel: null,
+    entryRound: match.entryRound, matchLabel: match.testConfig ? "测试赛" : null, stakesLabel: null,
     scheduledAt: iso(match.scheduledAt), startedAt: iso(match.startedAt), completedAt: iso(match.completedAt),
     scoreA: match.scoreA, scoreB: match.scoreB, isForfeit: match.isForfeit,
   };
@@ -63,7 +63,7 @@ export async function loadMizarMatchDocumentInTx(tx: TxDb, matchId: string, comp
   const execution = await loadExecutionFactsInTx(tx, match.id);
   const payload = {
     schemaVersion: "rivalhub.broadcast-manifest.v1" as const,
-    match: { ...matchContext(match, season), competition: competition(season), mapPool: normalizeRegistrationConfig(season.registrationConfig).mapPool },
+    match: { ...matchContext(match, season), competition: competition(season), mapPool: match.testConfig?.mapPool ?? normalizeRegistrationConfig(season.registrationConfig).mapPool },
     entrants: { a, b }, ...execution,
   };
   return { ...payload, revision: documentRevision(payload) };

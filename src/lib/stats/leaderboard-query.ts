@@ -21,6 +21,7 @@ export interface StatsLeaderboardOptions {
   groupByTeam?: boolean;
   requireCurrentImports?: boolean;
   requireRosterMatch?: boolean;
+  includeTestMatch?: boolean;
 }
 
 export async function getStatsLeaderboard(
@@ -94,6 +95,7 @@ export async function getStatsLeaderboard(
       ON lineup.match_id = m.id AND lineup.user_id = mps.user_id
     LEFT JOIN competition_entries entrant ON entrant.id = lineup.entry_id
     WHERE true
+      ${options.includeTestMatch ? sql`` : sql`AND m.test_config IS NULL`}
       ${seasonFilter}
       ${matchFilter}
       AND mps.verified_by_admin IS NOT NULL

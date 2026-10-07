@@ -39,7 +39,7 @@ function match(overrides: Partial<Match> = {}): Match {
     completedAt: null,
     videoUrl: "https://video.example/detail-only",
     mvpWinnerUserId: null,
-    executionContext: null,
+    executionContext: null, testConfig: null,
     resultDisposition: null,
     createdAt: new Date("2026-09-05T00:00:00.000Z"),
     updatedAt: new Date("2026-09-05T00:00:00.000Z"),

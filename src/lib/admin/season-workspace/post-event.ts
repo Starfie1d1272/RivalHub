@@ -1,3 +1,4 @@
+import { officialMatchCondition } from "@/lib/matches/scope";
 import "server-only";
 
 import { and, asc, count, eq } from "drizzle-orm";
@@ -11,7 +12,7 @@ import type { PostEventPageData } from "./types";
 export async function loadPostEventPageData(season: Season): Promise<PostEventPageData> {
   if (season.competitionTemplate !== "major") {
     const [matchCountRows, honorCountRows, activeAdjudicationCountRows] = await Promise.all([
-      db.select({ count: count() }).from(matches).where(eq(matches.seasonId, season.id)),
+      db.select({ count: count() }).from(matches).where(and(officialMatchCondition(), eq(matches.seasonId, season.id))),
       db.select({ count: count() }).from(tournamentHonors).where(eq(tournamentHonors.seasonId, season.id)),
       db.select({ count: count() }).from(postEventAdjudications)
         .where(and(eq(postEventAdjudications.seasonId, season.id), eq(postEventAdjudications.status, "active"))),
@@ -44,7 +45,7 @@ export async function loadPostEventPageData(season: Season): Promise<PostEventPa
       .from(tournamentHonors).where(eq(tournamentHonors.seasonId, season.id)).orderBy(asc(tournamentHonors.createdAt)),
     db.select({ id: postEventAdjudications.id, status: postEventAdjudications.status, kind: postEventAdjudications.kind, target: postEventAdjudications.target, impacts: postEventAdjudications.impacts, targetEntryId: postEventAdjudications.targetEntryId, targetUserId: postEventAdjudications.targetUserId, targetMatchId: postEventAdjudications.targetMatchId, reason: postEventAdjudications.reason, explanation: postEventAdjudications.publicExplanation, createdAt: postEventAdjudications.createdAt })
       .from(postEventAdjudications).where(eq(postEventAdjudications.seasonId, season.id)).orderBy(asc(postEventAdjudications.createdAt)),
-    db.select({ count: count() }).from(matches).where(eq(matches.seasonId, season.id)),
+    db.select({ count: count() }).from(matches).where(and(officialMatchCondition(), eq(matches.seasonId, season.id))),
   ]);
   let placementGroups: ReturnType<typeof parseMajorFinalPlacementGroups> | null = null;
   if (finalResult) {

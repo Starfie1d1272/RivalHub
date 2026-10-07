@@ -1,3 +1,4 @@
+import { officialMatchCondition } from "@/lib/matches/scope";
 import "server-only";
 
 import { and, asc, desc, eq, inArray, isNull, max, ne } from "drizzle-orm";
@@ -117,7 +118,7 @@ export async function getPublicPlayerProfileReadModel(
   const registrationCompletionRows = registrations.length > 0
     ? await db.select({ seasonId: matches.seasonId, lastCompletedAt: max(matches.completedAt) })
       .from(matches)
-      .where(and(inArray(matches.seasonId, [...new Set(registrations.map((registration) => registration.seasonId))]), eq(matches.status, "finished")))
+      .where(and(officialMatchCondition(), and(inArray(matches.seasonId, [...new Set(registrations.map((registration) => registration.seasonId))]), eq(matches.status, "finished"))))
       .groupBy(matches.seasonId)
     : [];
   const completionBySeasonId = new Map(registrationCompletionRows.map((row) => [row.seasonId, row.lastCompletedAt]));

@@ -38,6 +38,10 @@ export async function finishCompetitionSeriesInTx(tx: TxDb, input: {
 }) {
   const locked = input.match;
   assertCompetitionMatch(locked);
+  if (locked.testConfig) {
+    await persistCompletedMatchInTx(tx, input);
+    return null;
+  }
   const [lockedSeason] = await tx.select().from(seasons).where(eq(seasons.id, locked.seasonId)).for("update");
   if (!lockedSeason) throw new AppError(ErrorCode.SEASON_NOT_FOUND, "赛季不存在");
   const bracketState = locked.bracketNodeId ? await loadStageBracketState(tx, locked.seasonId, locked.stage) : null;

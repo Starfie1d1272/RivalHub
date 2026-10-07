@@ -1,3 +1,4 @@
+import { officialMatchCondition } from "@/lib/matches/scope";
 import { and, asc, eq, inArray, isNotNull, or } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import type { DB } from "@/db/client";
@@ -53,7 +54,7 @@ type CommunityAwardBoardData = {
 };
 
 async function getMatchOptions(executor: CommunityAwardQueryable, seasonId: string, stagePlan: StagePlan) {
-  const rawMatchRows = await executor.select({ id: matches.id, stage: matches.stage, round: matches.round, entryRound: matches.entryRound, aName: competitionEntries.name, bId: matches.entryBId }).from(matches).innerJoin(competitionEntries, eq(matches.entryAId, competitionEntries.id)).where(eq(matches.seasonId, seasonId));
+  const rawMatchRows = await executor.select({ id: matches.id, stage: matches.stage, round: matches.round, entryRound: matches.entryRound, aName: competitionEntries.name, bId: matches.entryBId }).from(matches).innerJoin(competitionEntries, eq(matches.entryAId, competitionEntries.id)).where(and(officialMatchCondition(), eq(matches.seasonId, seasonId)));
   const matchRows = rawMatchRows.flatMap(row => row.stage === null || row.bId === null ? [] : [{ ...row, stage: row.stage, bId: row.bId }]);
   const bIds = [...new Set(matchRows.map((row) => row.bId))];
   const bRows = bIds.length ? await executor.select({ id: competitionEntries.id, name: competitionEntries.name }).from(competitionEntries).where(inArray(competitionEntries.id, bIds)) : [];

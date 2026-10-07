@@ -1,8 +1,9 @@
+import { officialMatchCondition } from "@/lib/matches/scope";
 import { requireCompetitionMatch } from "@/lib/matches/competition-context";
 import type { CompetitionMatch } from "@/lib/matches/competition-context";
 import "server-only";
 
-import { asc, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
   competitionEntries,
@@ -150,7 +151,7 @@ export async function loadAdminMatchOverview({
       orderBy: [asc(competitionEntries.formationOrder)],
     }),
     db.query.matches.findMany({
-      where: eq(matches.seasonId, season.id),
+      where: and(officialMatchCondition(), eq(matches.seasonId, season.id)),
       orderBy: [asc(matches.createdAt)],
     }),
     isMajor

@@ -3,6 +3,8 @@ import { MyCompetitionCard } from "@/components/my/MyCompetitionCard";
 import { EmptyState, PageHeader, Section, SectionHeader } from "@/components/rivalhub";
 import { groupMyCompetitionContexts, loadMyCompetitionContexts } from "@/lib/my/competitions";
 import { getUserSession } from "@/lib/auth/session";
+import { loadTestMatches } from "@/lib/matches/test-matches";
+import { TestMatchList } from "@/components/matches/TestMatchList";
 
 // This page is entirely viewer-specific and intentionally request-bound.
 export const instant = false;
@@ -15,5 +17,6 @@ export default async function MyCompetitionsPage() {
   const session = await getUserSession();
   if (!session) redirect("/login?next=/my/competitions");
   const grouped = groupMyCompetitionContexts(await loadMyCompetitionContexts(session.userId));
-  return <div className="space-y-8"><PageHeader title="我的赛事" description="按赛季查看你负责或参与的赛事，以及当前报名、参赛确认和比赛状态。" /><CompetitionGroup title="当前参与" description="未结束赛季按赛季创建时间倒序展示。" contexts={grouped.current} /><CompetitionGroup title="历史赛事" description="已结束和已归档赛季按赛季创建时间倒序展示。" contexts={grouped.history} /></div>;
+  const testMatches = await loadTestMatches({ viewerId: session.userId });
+  return <div className="space-y-8"><PageHeader title="我的赛事" description="按赛季查看你负责或参与的赛事，以及当前报名、参赛确认和比赛状态。" />{testMatches.length > 0 && <Section><SectionHeader title="我的测试赛" description="双方队长和指定 BP 操作人的比赛入口。" /><TestMatchList matches={testMatches} /></Section>}<CompetitionGroup title="当前参与" description="未结束赛季按赛季创建时间倒序展示。" contexts={grouped.current} /><CompetitionGroup title="历史赛事" description="已结束和已归档赛季按赛季创建时间倒序展示。" contexts={grouped.history} /></div>;
 }

@@ -1,3 +1,5 @@
+import { createTestMatchInTx } from "@/lib/matches/test-matches";
+import { concludeUnassociatedMatchInTx } from "@/lib/matches/unassociated-result";
 import { assertCompetitionMatch, requireCompetitionMatch } from "@/lib/matches/competition-context";
 import { randomUUID } from "node:crypto";
 import { and, eq, inArray } from "drizzle-orm";
@@ -403,6 +405,14 @@ async function exerciseThirtyToTwentyFourAcceptance(): Promise<void> {
   try {
     fixture = await prepareAcceptanceFixture(pool);
     const preliminaryOrderEntryIds = fixture.entries.map((entry) => entry.entryId);
+    // A rehearsal uses approved Play-in eligibility, without creating a qualification node.
+    const rehearsal = await database.transaction(tx => createTestMatchInTx(tx, {
+      seasonId: fixture!.seasonId, entryAId: fixture!.entries[18].entryId, entryBId: fixture!.entries[19].entryId,
+      format: "bo3", privilegedSide: "a", scheduledAt: null,
+    }, ACTOR));
+    for (const entry of fixture.entries.slice(18, 20)) await persistAndConfirmLineup(database, rehearsal.matchId, entry.entryId);
+    await database.transaction(tx => applyMatchStatusTransitionInTx(tx, { matchId: rehearsal.matchId, nextStatus: "in_progress", actorId: ACTOR }));
+    await database.transaction(tx => concludeUnassociatedMatchInTx(tx, { matchId: rehearsal.matchId, actorId: ACTOR, conclusion: { kind: "omitted" } }));
     await database.transaction(tx => saveCompetitionQualificationDraftInTx(tx, {
       seasonId: fixture!.seasonId, actorId: ACTOR, format: "short_swiss_2w2l", order: fixture!.entries.map(entry => entry.entryId), expectedVersion: null,
     }));
@@ -414,6 +424,8 @@ async function exerciseThirtyToTwentyFourAcceptance(): Promise<void> {
       preliminaryOrderEntryIds,
     }));
     expect(configured).toMatchObject({ directEntryCount: 18, playInEntryCount: 12, qualifierCount: 6 });
+
+
 
     const initialPrediction = await database.transaction((tx) => predictionBoard(tx, fixture!.seasonId, null, "sim"));
     expect(initialPrediction.enabled).toBe(false);

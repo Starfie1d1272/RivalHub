@@ -1,3 +1,4 @@
+import { officialMatchCondition } from "@/lib/matches/scope";
 import "server-only";
 import { and, asc, eq, inArray, or, sql } from "drizzle-orm";
 import { presentPersonalMatchTask } from "@/lib/matches/presentation";
@@ -41,11 +42,11 @@ async function getPlayingSeasonNextStep(season: PublicSeason, userId: string) {
       scheduledAt: matches.scheduledAt,
     })
     .from(matches)
-    .where(and(
+    .where(and(officialMatchCondition(), and(
       eq(matches.seasonId, season.id),
       inArray(matches.status, ["scheduled", "in_progress"]),
       or(inArray(matches.entryAId, entryIds), inArray(matches.entryBId, entryIds)),
-    ))
+    )))
     .orderBy(sql`case when ${matches.status} = 'in_progress' then 0 else 1 end`, asc(matches.scheduledAt), asc(matches.id));
   const match = upcoming[0];
   if (!match || !match.entryAId || !match.entryBId) return null;

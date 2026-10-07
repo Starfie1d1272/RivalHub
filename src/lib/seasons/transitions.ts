@@ -1,3 +1,4 @@
+import { officialMatchCondition } from "@/lib/matches/scope";
 import "server-only";
 
 import { writeAuditInTx } from "@/lib/audit/write";
@@ -93,10 +94,10 @@ export async function maybeFinishSeason(
     .select({ count: count() })
     .from(matches)
     .where(
-      and(
+      and(officialMatchCondition(), and(
         eq(matches.seasonId, seasonId),
         not(inArray(matches.status, ["finished", "cancelled"])),
-      ),
+      )),
     );
 
   if (Number(pendingMatch?.count ?? 0) > 0) return null;

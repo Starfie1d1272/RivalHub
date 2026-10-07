@@ -13,6 +13,7 @@ import { classifyDownstreamManagedMatches, loadFrozenRunFacts } from "./service"
  * materialization; downstream row locks serialize their starts/results. */
 export async function planSeriesCompletionProgressionInTx(tx: TxDb, match: Match) {
   assertCompetitionMatch(match);
+  if (match.testConfig) return { mode: "manual" as const, downstream: [], blockers: [], ownerFacts: { testMatchId: match.id } };
   const blockers: string[] = [];
   const season = await tx.query.seasons.findFirst({ where: eq(seasons.id, match.seasonId) });
   const allMatches = await tx.select().from(matches).where(eq(matches.seasonId, match.seasonId)).orderBy(asc(matches.id));
