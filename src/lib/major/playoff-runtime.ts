@@ -1,3 +1,4 @@
+import { assertCompetitionMatch } from "@/lib/matches/competition-context";
 import { syncAutomaticPickEmInTx } from "@/lib/predictions/service";
 import { and, eq, inArray } from "drizzle-orm";
 import { writeAuditInTx } from "@/lib/audit/write";
@@ -36,6 +37,7 @@ export interface MajorPlayoffFinalizationResult {
 
 
 function swissFact(match: typeof matches.$inferSelect): MajorSwissMatchFact {
+  assertCompetitionMatch(match);
   if (match.round === null || match.round < 1 || match.round > 5 || match.status !== "finished" || match.completedAt === null || match.scoreA === null || match.scoreB === null) {
     throw majorAppError(ErrorCode.VALIDATION_FAILED, "incompleteSwissResults");
   }
@@ -46,6 +48,7 @@ function swissFact(match: typeof matches.$inferSelect): MajorSwissMatchFact {
 }
 
 function playoffFact(match: typeof matches.$inferSelect): MajorPlayoffMatchFact {
+  assertCompetitionMatch(match);
   if (match.entryRound !== "quarterfinal" && match.entryRound !== "semifinal" && match.entryRound !== "third_place" && match.entryRound !== "final") {
     throw new AppError(ErrorCode.INTERNAL_ERROR, "托管淘汰赛比赛缺少有效轮次身份。");
   }

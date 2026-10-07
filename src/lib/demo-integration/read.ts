@@ -1,3 +1,4 @@
+import { requireCompetitionMatch } from "@/lib/matches/competition-context";
 import { canConfirmMapScoreboard } from "@/lib/matches/map-scoreboard";
 import "server-only";
 
@@ -219,7 +220,7 @@ export async function readRivalHubEvents(
     };
   }
 
-  const [rosterRows, matchRows] = await Promise.all([
+  const [rosterRows, matchRowsRaw] = await Promise.all([
     db.select({
       entryId: competitionEntries.id,
       eventRosterId: eventRosters.id,
@@ -239,6 +240,7 @@ export async function readRivalHubEvents(
       .where(and(inArray(competitionEntries.competitionId, seasonIds), inArray(eventRosters.status, ["confirmed", "frozen"]), eq(eventRosterMembers.isCurrent, true))),
     db.select().from(matches).where(and(inArray(matches.seasonId, seasonIds), or(inArray(matches.entryAId, entryIds), inArray(matches.entryBId, entryIds)))),
   ]);
+  const matchRows = matchRowsRaw.map(requireCompetitionMatch);
   const matchIds = matchRows.map((match) => match.id);
   const mapRows = matchIds.length > 0
     ? await db.select().from(matchMaps).where(inArray(matchMaps.matchId, matchIds)).orderBy(asc(matchMaps.mapOrder))

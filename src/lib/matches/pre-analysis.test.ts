@@ -6,6 +6,7 @@ import { projectMatchPreAnalysis } from "./pre-analysis";
 
 const match = (id: string, entryAId: string, entryBId: string, scoreA: number, scoreB: number, date: string) => ({
   id,
+  seasonId: "season-1",
   entryAId,
   entryBId,
   scoreA,

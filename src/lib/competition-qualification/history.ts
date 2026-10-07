@@ -1,3 +1,4 @@
+import { assertCompetitionMatch, requireCompetitionMatch } from "@/lib/matches/competition-context";
 import type {
   matches,
   competitionQualificationRuns,
@@ -30,6 +31,7 @@ export function playInSwissEntrants(
 }
 
 export function winnerFromMatch(match: typeof matches.$inferSelect): string {
+  assertCompetitionMatch(match);
   if (
     match.scoreA === null ||
     match.scoreB === null ||
@@ -47,7 +49,7 @@ export function swissFactsFromMatches(
   rows: readonly (typeof matches.$inferSelect)[],
   throughRound: number,
 ): SwissCompletedMatch[] {
-  return rows
+  return rows.map(requireCompetitionMatch)
     .filter(
       (match) =>
         match.round !== null &&

@@ -1,3 +1,4 @@
+import { isCompetitionMatch } from "./competition-context";
 import type { CompetitionEntry } from "@/db/schema/competition-entries";
 import type { Match } from "@/db/schema/matches";
 import { resolveStrictHistoricalRoundRobinEntryIds } from "@/lib/matches/historical-round-robin";
@@ -17,7 +18,8 @@ export function calculateStageRoundRobinStandings(input: {
   roundScoresByMatchId: ReadonlyMap<string, readonly MatchRoundScore[]>;
   stageEntrantIds?: readonly string[];
 }): TeamStanding[] {
-  const { stage, stageMatches, entries, roundScoresByMatchId, stageEntrantIds } = input;
+  const { stage, entries, roundScoresByMatchId, stageEntrantIds } = input;
+  const stageMatches = input.stageMatches.filter(isCompetitionMatch);
   if (stage.type !== "round_robin" || stageMatches.length === 0) return [];
 
   const entryIds = stageEntrantIds && stageEntrantIds.length > 0

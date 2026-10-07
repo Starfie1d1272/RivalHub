@@ -1,3 +1,4 @@
+import { assertCompetitionMatch } from "@/lib/matches/competition-context";
 import "server-only";
 import { asc, eq, inArray } from "drizzle-orm";
 import type { TxDb } from "@/db/client";
@@ -11,6 +12,7 @@ import { classifyDownstreamManagedMatches, loadFrozenRunFacts } from "./service"
  * downstream facts are blocked, never erased. Season lock serializes stage
  * materialization; downstream row locks serialize their starts/results. */
 export async function planSeriesCompletionProgressionInTx(tx: TxDb, match: Match) {
+  assertCompetitionMatch(match);
   const blockers: string[] = [];
   const season = await tx.query.seasons.findFirst({ where: eq(seasons.id, match.seasonId) });
   const allMatches = await tx.select().from(matches).where(eq(matches.seasonId, match.seasonId)).orderBy(asc(matches.id));

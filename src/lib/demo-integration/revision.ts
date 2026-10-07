@@ -1,3 +1,4 @@
+import { assertCompetitionMatch } from "@/lib/matches/competition-context";
 import "server-only";
 
 import { createHash } from "node:crypto";
@@ -52,6 +53,7 @@ export function buildEvidenceRevisionForTarget(input: {
   map: Pick<MatchMap, "id" | "mapOrder" | "mapName" | "scoreA" | "scoreB" | "completedAt">;
   roster: readonly Pick<EffectiveMatchRosterPlayer, "entryId" | "eventRosterMemberId" | "userId" | "steam64" | "isStarter">[];
 }): string {
+  assertCompetitionMatch(input.match);
   return buildEvidenceRevision({
     seasonId: input.match.seasonId,
     stageKey: input.match.stage,

@@ -114,7 +114,7 @@ describe("runMatchTimeAutoAwardCron", () => {
     matchFindManyMock.mockResolvedValue([{ id: "match-1" }]);
     txMatchFindFirstMock.mockResolvedValue([{
       id: "match-1",
-      seasonId: "season-1",
+      seasonId: "season-1", entryAId: "entry-a", entryBId: "entry-b", stage: "final",
       status: "scheduled",
       scheduledAt: null,
       completionDeadline: new Date("2026-05-15T12:00:00.000Z"),
@@ -161,7 +161,7 @@ describe("runMatchTimeAutoAwardCron", () => {
     matchFindManyMock.mockResolvedValue([{ id: "match-1" }]);
     txMatchFindFirstMock.mockResolvedValue([{
       id: "match-1",
-      seasonId: "season-1",
+      seasonId: "season-1", entryAId: "entry-a", entryBId: "entry-b", stage: "final",
       status: "scheduled",
       scheduledAt: null,
       completionDeadline: new Date("2026-05-15T12:00:00.000Z"),

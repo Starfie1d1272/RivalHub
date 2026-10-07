@@ -1,3 +1,4 @@
+import { assertCompetitionMatch } from "@/lib/matches/competition-context";
 import { and, eq } from "drizzle-orm";
 import { writeAuditInTx } from "@/lib/audit/write";
 
@@ -23,6 +24,7 @@ async function assertRosterEditableInTx(tx: TxDb, matchId: string) {
   if (await lockSubmissionInTx(tx, matchId)) throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "赛后资料已提交；请先撤销提交后再修改解说名单。");
 }
 async function addCommentatorToLockedMatchInTx(tx: TxDb, match: Match, args: { userId: string; actorId: string }) {
+  assertCompetitionMatch(match);
   await assertRosterEditableInTx(tx, match.id);
   if (match.status === "cancelled") throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "已取消比赛不能登记解说。");
   await assertSeasonAdminInTx(tx, match.seasonId, args.userId);

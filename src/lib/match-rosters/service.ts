@@ -10,13 +10,11 @@ import {
   eventRosters,
   institutions,
   majorStageRuns,
-  matchCommentators,
   matchLineupIncidents,
   matchRosterPlayers,
   matchRosters,
-  matches,
   seasons,
-  type Match,
+  type Match as DbMatch,
 } from "@/db/schema";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { frozenStageRunAffiliationRules } from "@/lib/major/frozen-affiliation-rules";
@@ -24,13 +22,15 @@ import { parseMajorRunSnapshot } from "@/lib/major/run-snapshot";
 import { evaluateExternalStrengthRule, getPlayerStrengthBreakdown, type PlayerStrengthInput } from "@/lib/major/player-strength";
 import { unresolvedQualificationFindings } from "@/lib/competition-entries/restriction-overrides";
 import type { FrozenRestrictionOverrideSnapshot } from "@/lib/major/run-snapshot";
-import { assertMatchTransition } from "@/lib/match-transitions";
+import { lockCompetitionMatchInTx as lockMatchInTx } from "@/lib/matches/locking";
+import type { CompetitionMatch } from "@/lib/matches/competition-context";
 import { loadActiveSanctionsInTx } from "@/lib/discipline/service";
-import { assertSeasonAllowsTournamentMutationInTx } from "@/lib/postevent/guard";
 import { assertSinglePrestartEntryCoherenceInTx } from "@/lib/event-rosters/coherence";
 import type { CompetitiveProfileConfig, InstitutionAffiliationRule } from "@/types/season";
 import { evaluateStartingLineup, type LineupMemberFact } from "./lineup";
 import { resolveMatchLineupPolicy, type MatchLineupPolicy } from "./policy";
+
+type Match = CompetitionMatch<DbMatch>;
 
 /**
  * G1 transactional services behind every explicit lineup action:
@@ -130,17 +130,7 @@ function frozenCompetitiveFacts(ruleSnapshot: unknown): Map<string, PlayerStreng
   return result;
 }
 
-/** Row-lock the match so status transitions and roster mutations serialize. */
-export async function lockMatchInTx(tx: TxDb, matchId: string): Promise<Match> {
-  const [locked] = await tx
-    .select()
-    .from(matches)
-    .where(eq(matches.id, matchId))
-    .for("update");
-  if (!locked) throw new AppError(ErrorCode.NOT_FOUND, "比赛不存在。");
-  await assertSeasonAllowsTournamentMutationInTx(tx, locked.seasonId);
-  return locked;
-}
+export { lockCompetitionMatchInTx as lockMatchInTx } from "@/lib/matches/locking";
 
 function assertScheduledOrThrow(match: Pick<Match, "status">): void {
   if (match.status !== "scheduled") {
@@ -607,74 +597,13 @@ export interface StartLineupSummary extends PersistedRosterSummary {
   status: "confirmed";
 }
 
-export interface MatchTransitionOutcome {
-  from: Match["status"];
-  to: "in_progress" | "cancelled";
-  lineups: StartLineupSummary[] | null;
-}
-
-/**
- * The complete production body of a match status transition, shared by the
- * Server Action wrapper and the local integration suite:
- * row-lock → re-checked state machine gate → (start) both lineups validated and confirmed
- * lineup gate → status write → audit (match.start / match.status_update).
- */
-export async function applyMatchStatusTransitionInTx(
-  tx: TxDb,
-  args: { matchId: string; nextStatus: "in_progress" | "cancelled"; actorId: string; now?: Date },
-): Promise<MatchTransitionOutcome> {
-  const locked = await lockMatchInTx(tx, args.matchId);
-  if (locked.qualificationRunId && args.nextStatus === "cancelled") {
-    throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "Play-in 比赛不能取消，请使用弃赛判负录入正式赛果。");
-  }
-  assertMatchTransition(locked.status, args.nextStatus);
-  const now = args.now ?? new Date();
-  if (args.nextStatus === "in_progress") await materializeDefaultLineupsInTx(tx, locked, now, true);
-  const lineups =
-    args.nextStatus === "in_progress"
-      ? await freezeEffectiveLineupsForStartInTx(tx, locked, now, args.actorId)
-      : null;
-  const clearedCommentators =
-    args.nextStatus === "cancelled"
-      ? await tx.delete(matchCommentators).where(eq(matchCommentators.matchId, locked.id)).returning({ userId: matchCommentators.userId })
-      : [];
-
-  await tx
-    .update(matches)
-    .set({ status: args.nextStatus, ...(args.nextStatus === "in_progress" && locked.startedAt === null ? { startedAt: now } : {}), updatedAt: now })
-    .where(eq(matches.id, args.matchId));
-
-  await writeAuditInTx(tx, {
-    seasonId: locked.seasonId,
-    action: args.nextStatus === "in_progress" ? "match.start" : "match.status_update",
-    actorId: args.actorId,
-    targetId: args.matchId,meta: {
-      from: locked.status,
-      to: args.nextStatus,
-      ...(lineups
-        ? {
-            lineups: lineups.map((summary) => ({
-              entryId: summary.entryId,
-              rosterId: summary.rosterId,
-              starterIds: summary.starterIds,
-              substituteIds: summary.substituteIds,
-            })),
-          }
-        : {}),
-      ...(clearedCommentators.length > 0
-        ? { clearedCommentatorUserIds: clearedCommentators.map((commentator) => commentator.userId) }
-        : {}),
-    },
-  });
-
-  return { from: locked.status, to: args.nextStatus, lineups };
-}
+export { applyMatchStatusTransitionInTx, type MatchTransitionOutcome } from "@/lib/matches/lifecycle";
 
 /**
  * Start gate: fresh validation turns each effective submitted lineup into a
  * confirmed historical lineup in the same transaction as the Match start.
  */
-async function freezeEffectiveLineupsForStartInTx(
+export async function freezeEffectiveLineupsForStartInTx(
   tx: TxDb,
   match: Match,
   now: Date,

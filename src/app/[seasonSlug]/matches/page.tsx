@@ -1,3 +1,4 @@
+import { requireCompetitionMatch } from "@/lib/matches/competition-context";
 import { loadPublicMatchContexts } from "@/lib/matches/public-phase";
 import { MatchContextRefresh } from "@/components/matches/MatchContextRefresh";
 import { publicCompetitionEntryCondition } from "@/lib/competition-entries/public-visibility";
@@ -38,7 +39,7 @@ export default async function MatchesPage({ params, searchParams }: MatchesPageP
   const season = await getPublicOrAuthorizedDraftSeason(seasonSlug);
   if (!season) notFound();
 
-  const [allTeams, allMatches, finalResult, stagePresentation, qualificationRun] = await Promise.all([
+  const [allTeams, allMatchesRaw, finalResult, stagePresentation, qualificationRun] = await Promise.all([
     db.query.competitionEntries.findMany({
       where: and(eq(competitionEntries.competitionId, season.id), publicCompetitionEntryCondition()),
       orderBy: [asc(competitionEntries.formationOrder)],
@@ -51,6 +52,7 @@ export default async function MatchesPage({ params, searchParams }: MatchesPageP
     getPublicSeasonStagePresentation(season),
     db.query.competitionQualificationRuns.findFirst({ where: eq(competitionQualificationRuns.seasonId, season.id) }),
   ]);
+  const allMatches = allMatchesRaw.map(requireCompetitionMatch);
 
   const liveContexts = await loadPublicMatchContexts(allMatches);
   const teamMap = new Map(allTeams.map((team) => [team.id, team.name]));

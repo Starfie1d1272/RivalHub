@@ -39,7 +39,7 @@ function makeRoundMatches() {
   ];
   return [...r1.map((pair, index) => ({ id: `r1-${index + 1}`, entryAId: pair[0]!, entryBId: pair[1]!, round: 1, scoreA: 1, scoreB: 0 })),
     ...r2.map((pair, index) => ({ id: `r2-${index + 1}`, entryAId: pair[0]!, entryBId: pair[1]!, round: 2, scoreA: 1, scoreB: 0 }))]
-    .map((match) => ({ ...match, status: "finished", completedAt: new Date(), format: "bo1", createdAt: new Date() }));
+    .map((match) => ({ ...match, seasonId: "season-1", stage: "stage1", status: "finished", completedAt: new Date(), format: "bo1", createdAt: new Date() }));
 }
 
 describe("Major Swiss stage read model", () => {

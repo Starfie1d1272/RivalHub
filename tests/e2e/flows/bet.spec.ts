@@ -1,3 +1,4 @@
+import { requireCompetitionMatch } from "@/lib/matches/competition-context";
 import { Pool } from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { eq } from "drizzle-orm";
@@ -15,7 +16,7 @@ test("BET 完成投入、追加、ALL IN 确认与锁盘，桌面和手机无横
   const pool=new Pool({connectionString:assertLocalDatabaseUrl(process.env.DATABASE_URL),ssl:false});const db=drizzle(pool,{schema});
   try {
     await db.insert(schema.users).values({id:other.userId,email:`bet-${other.userId}@example.test`,displayName:"观众乙",emailVerifiedAt:new Date(),emailVerificationSource:"admin_migration"});
-    const matches=await db.select().from(schema.matches).where(eq(schema.matches.seasonId,fixture.seasonId));
+    const matches=await db.select().from(schema.matches).where(eq(schema.matches.seasonId,fixture.seasonId)).then(rows => rows.map(requireCompetitionMatch));
     await db.update(schema.matches).set({format:"bo3"}).where(eq(schema.matches.id,matches[0]!.id));
     await db.insert(schema.seasonAdminGrants).values({seasonId:fixture.seasonId,userId:user.userId});
     await signInProgrammatically(page,user,scenario,`/admin/${fixture.slug}/bet`);

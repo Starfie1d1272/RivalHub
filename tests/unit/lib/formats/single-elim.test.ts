@@ -85,6 +85,7 @@ describe("singleElimExecutor", () => {
 
   it("derives qualifiers from the canonical final match", async () => {
     mockMatchFindMany.mockResolvedValue([{
+      seasonId: "season-1", stage: "final",
       entryAId: "winner",
       entryBId: "loser",
       scoreA: 2,

@@ -1,3 +1,4 @@
+import { assertCompetitionMatch, requireCompetitionMatch } from "@/lib/matches/competition-context";
 import { randomUUID } from "node:crypto";
 import { and, eq, inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
@@ -220,6 +221,7 @@ async function persistAndConfirmLineup(database: Database, matchId: string, entr
   return database.transaction(async (tx) => {
     const [match] = await tx.select().from(schema.matches).where(eq(schema.matches.id, matchId));
     if (!match) throw new Error(`acceptance match missing: ${matchId}`);
+    assertCompetitionMatch(match);
     const members = await tx.select({ id: schema.eventRosterMembers.id, userId: schema.eventRosterMembers.userId })
       .from(schema.eventRosterMembers)
       .innerJoin(schema.eventRosters, eq(schema.eventRosters.id, schema.eventRosterMembers.eventRosterId))
@@ -368,7 +370,7 @@ async function exerciseDraftConcurrencyAndEligibility(format: "direct_bo3" | "sh
     }));
     for (const [index, entry] of probes.entries()) {
       const linked = await database.select().from(schema.matches).where(eq(schema.matches.qualificationRunId, configured.runId));
-      const match = linked.find(row => row.entryAId === entry.entryId || row.entryBId === entry.entryId)!;
+      const match = requireCompetitionMatch(linked.find(row => row.entryAId === entry.entryId || row.entryBId === entry.entryId)!);
       const members = await database.select({ id: schema.eventRosterMembers.id, userId: schema.eventRosterMembers.userId }).from(schema.eventRosterMembers)
         .innerJoin(schema.eventRosters, eq(schema.eventRosters.id, schema.eventRosterMembers.eventRosterId)).where(eq(schema.eventRosters.entryId, entry.entryId));
       const ids = (users: string[]) => users.map(userId => members.find(member => member.userId === userId)!.id);
@@ -496,7 +498,7 @@ async function exerciseThirtyToTwentyFourAcceptance(): Promise<void> {
       }));
       expect(retried).toMatchObject({ round, matchCount: expectedMatchCount, created: false });
       const roundMatches = await database.select().from(schema.matches)
-        .where(and(eq(schema.matches.qualificationRunId, runId), eq(schema.matches.round, round)));
+        .where(and(eq(schema.matches.qualificationRunId, runId), eq(schema.matches.round, round))).then(rows => rows.map(requireCompetitionMatch));
       expect(roundMatches).toHaveLength(expectedMatchCount);
       expect(roundMatches.every((match) => match.stage === "play-in" && match.ownership === "manual" && match.majorStageRunId === null)).toBe(true);
       if (round === 1) {
@@ -796,7 +798,7 @@ async function exerciseShortSwissCorrectionRecovery(): Promise<void> {
       expectedPairings: roundTwoPreview.matchups.map(({ higherSeedTeamId, lowerSeedTeamId }) => ({ higherSeedTeamId, lowerSeedTeamId })),
     }));
     const originalRoundTwoRows = await database.select().from(schema.matches)
-      .where(and(eq(schema.matches.qualificationRunId, runId), eq(schema.matches.round, 2)));
+      .where(and(eq(schema.matches.qualificationRunId, runId), eq(schema.matches.round, 2))).then(rows => rows.map(requireCompetitionMatch));
     await persistAndConfirmLineup(database, originalRoundTwoRows[0]!.id, originalRoundTwoRows[0]!.entryAId);
 
     const sourceMatch = roundOneMatches[0]!;

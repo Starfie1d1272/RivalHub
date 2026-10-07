@@ -1,3 +1,4 @@
+import { requireCompetitionMatch } from "./competition-context";
 import { and, eq, or } from "drizzle-orm";
 import { db } from "@/db/client";
 import { matches } from "@/db/schema";
@@ -9,5 +10,5 @@ export function getSeasonFinishedMatches(seasonId: string, teamId: string) {
       eq(matches.status, "finished"),
       or(eq(matches.entryAId, teamId), eq(matches.entryBId, teamId)),
     ),
-  });
+  }).then(rows => rows.map(requireCompetitionMatch));
 }

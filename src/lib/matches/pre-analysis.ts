@@ -1,3 +1,4 @@
+import { isCompetitionMatch } from "./competition-context";
 import "server-only";
 
 import { db } from "@/db/client";
@@ -66,7 +67,7 @@ export function projectMatchPreAnalysis(input: {
     };
   });
 
-  const h2hMatches = input.matchesA
+  const h2hMatches = input.matchesA.filter(isCompetitionMatch)
     .filter((match) => (match.entryAId === input.entryBId || match.entryBId === input.entryBId) && match.scoreA !== null && match.scoreB !== null)
     .sort((a, b) => ((b.completedAt ?? b.scheduledAt)?.getTime() ?? 0) - ((a.completedAt ?? a.scheduledAt)?.getTime() ?? 0))
     .slice(0, 10)

@@ -1,3 +1,4 @@
+import { assertCompetitionMatch } from "@/lib/matches/competition-context";
 import { syncAutomaticPickEmInTx } from "@/lib/predictions/service";
 import { and, eq } from "drizzle-orm";
 import { writeAuditInTx } from "@/lib/audit/write";
@@ -40,6 +41,7 @@ export interface MajorStageTransitionResult {
 }
 
 function completedFact(match: typeof matches.$inferSelect): MajorSwissMatchFact {
+  assertCompetitionMatch(match);
   if (match.round === null || match.round < 1 || match.round > 5 || match.status !== "finished" ||
     match.completedAt === null || match.scoreA === null || match.scoreB === null) {
     throw majorAppError(ErrorCode.VALIDATION_FAILED, "incompleteSwissResults");

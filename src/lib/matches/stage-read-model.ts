@@ -1,3 +1,4 @@
+import { requireCompetitionMatch } from "./competition-context";
 import { and, asc, eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { competitionEntries, majorStageEntrants, majorStageRuns, majorTournamentEntrants, matches } from "@/db/schema";
@@ -79,7 +80,7 @@ export async function loadMajorSwissStageReadModel(
     .where(eq(majorStageEntrants.stageRunId, stageRun.id))
     .orderBy(asc(majorStageEntrants.stageSeed));
 
-  const managedMatches = await db.query.matches.findMany({
+  const managedMatchesRaw = await db.query.matches.findMany({
     where: and(
       eq(matches.seasonId, seasonId),
       eq(matches.stage, stageKey),
@@ -88,6 +89,7 @@ export async function loadMajorSwissStageReadModel(
     ),
     orderBy: [asc(matches.round), asc(matches.completedAt), asc(matches.scheduledAt), asc(matches.id)],
   });
+  const managedMatches = managedMatchesRaw.map(requireCompetitionMatch);
   const logoByEntryId = new Map(entrantRows.map(row => [row.entryId, row.logoUrl]));
   const nameByEntryId = new Map(entrantRows.map((row) => [row.entryId, row.teamName]));
   const finalizedRound = asFinalizedRound(stageRun.finalizedRound);

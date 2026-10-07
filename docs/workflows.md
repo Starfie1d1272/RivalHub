@@ -149,9 +149,11 @@ scheduled → in_progress → finished
 scheduled / in_progress → cancelled
 ```
 
-forfeit 是 `finished` 的结果形态，不是额外比赛状态。
+forfeit 是赛事比赛 `finished` 的结果形态，不是额外比赛状态。比赛执行核心由 `matches/lifecycle` 和 `matches/execution` 拥有；赛事开赛政策由 `matches/competition-policy` 接入。无赛事比赛可以在没有预报选手、BP 和数据源时启动，结束时选择已记录、待补或不提交结果；赛事比赛继续走下述完整赛事流程，不得通过无结果结束绕过晋级约束。
 
-采用 #713 的 2026-09-25 lifecycle contract：在线 Veto Session 在 Match 通过共享 status transition 从 `scheduled` 进入 `in_progress` 时开始；计划开赛时间只用于开放协调窗口，不单独启动比赛。BP 步骤完成仅表示地图计划完成，不推进或结束 Match。进入 Veto 前，本场首发取队伍已提交的合法阵容；若未提交，则在计划开赛前两小时从 EventRoster 的五名当前主力生成默认阵容，提前开始 Veto 时同事务生成。实际开赛时再次核对并定格双方首发，不要求管理员单独确认。Qualification run 的 BP privileged entry 从该 run 的冻结 `competition_qualification_entrants.preliminary_seed` 推导，数字较小者为 higher seed；Major StageRun 使用冻结阶段种子。只有 `majorStageRunId` 与 `qualificationRunId` 都为空的 manual Match 才由赛季管理员显式指定 privileged entry。 BP 公开 projection 按观众、首发、负责人和管理员权限呈现，管理员可返回工作台，由工作台按当前阶段展示建房等赛务任务。完成页消费正式 match_maps 汇总地图顺序与起始阵营，内部 participant/system 来源保持审计事实，页面只说明超时自动选择及管理员调整。取消后停止操作倒计时和自动边界推进，保留历史记录和既有技术申诉权限，申诉表单按需展开；恢复先手选择后为实际操作方重新生成完整操作时限。
+无赛事创建与结束目前是事务领域入口，调用方负责授权；不提供约战产品入口。RivalHub 可生成无赛事比赛的 v2 转播文档，Mizar 可以导入、保存和投影；现有 installation、赛程窗口和实时回传仍以赛事授权为边界。
+
+赛事比赛的在线 Veto Session 在 Match 通过共享 status transition 从 `scheduled` 进入 `in_progress` 时开始；计划开赛时间只用于开放协调窗口，不单独启动比赛。BP 步骤完成仅表示地图计划完成，不推进或结束 Match。进入 Veto 前，本场首发取队伍已提交的合法阵容；若未提交，则在计划开赛前两小时从 EventRoster 的五名当前主力生成默认阵容，提前开始 Veto 时同事务生成。实际开赛时再次核对并定格双方首发，不要求管理员单独确认。Qualification run 的 BP privileged entry 从该 run 的冻结 `competition_qualification_entrants.preliminary_seed` 推导，数字较小者为 higher seed；Major StageRun 使用冻结阶段种子。只有 `majorStageRunId` 与 `qualificationRunId` 都为空的 manual Match 才由赛季管理员显式指定 privileged entry。 BP 公开 projection 按观众、首发、负责人和管理员权限呈现，管理员可返回工作台，由工作台按当前阶段展示建房等赛务任务。完成页消费正式 match_maps 汇总地图顺序与起始阵营，内部 participant/system 来源保持审计事实，页面只说明超时自动选择及管理员调整。取消后停止操作倒计时和自动边界推进，保留历史记录和既有技术申诉权限，申诉表单按需展开；恢复先手选择后为实际操作方重新生成完整操作时限。
 
 Qualification-owned Play-in 比赛不允许进入 `cancelled`，以免冻结资格赛轮次；需要裁决时使用正式弃赛判负，写入可投影的胜者结果。资格赛比赛也不能通过通用 delete 路径单独删除。
 

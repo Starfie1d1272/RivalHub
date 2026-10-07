@@ -1,3 +1,4 @@
+import { assertCompetitionMatch, type CompetitionMatch } from "../competition-context";
 import "server-only";
 
 import { randomInt } from "node:crypto";
@@ -44,7 +45,7 @@ const TIMEOUT_SETTLEMENT_MS = 2_000;
 const MAX_RECONCILE_TURNS = 16;
 const SYSTEM_ACTOR_ID = "veto-system";
 
-type VetoMatch = Pick<DbMatch,
+type VetoMatch = Pick<CompetitionMatch<DbMatch>,
   | "id"
   | "seasonId"
   | "stage"
@@ -686,6 +687,7 @@ export async function readVetoRoomSnapshot(matchId: string): Promise<VetoRoomCor
   return db.transaction(async (tx) => {
     const match = await tx.query.matches.findFirst({ where: eq(matches.id, matchId) });
     if (!match) throw new AppError(ErrorCode.MATCH_NOT_FOUND, "比赛不存在。");
+    assertCompetitionMatch(match);
     const session = await getSessionForReadInTx(tx, match);
     return loadCoreSnapshotInTx(tx, match, session);
   });

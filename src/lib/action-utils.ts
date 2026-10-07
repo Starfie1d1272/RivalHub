@@ -1,3 +1,4 @@
+import { assertCompetitionMatch } from "@/lib/matches/competition-context";
 import "server-only";
 
 import { fail } from "@/types/action";
@@ -43,5 +44,6 @@ export async function getSeasonOrThrow(seasonId: string) {
 export async function getMatchOrThrow(matchId: string) {
   const match = await db.query.matches.findFirst({ where: eq(matches.id, matchId) });
   if (!match) throw new AppError(ErrorCode.MATCH_NOT_FOUND, ERROR_MESSAGES.MATCH_NOT_FOUND);
+  assertCompetitionMatch(match);
   return match;
 }

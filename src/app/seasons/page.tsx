@@ -1,3 +1,4 @@
+import { requireCompetitionFields } from "@/lib/matches/competition-context";
 import { EventLogo } from "@/components/season/EventLogo";
 import { getMajorPublicParticipantOverview } from "@/lib/major/public-participants";
 import { getPublicSeasonResults } from "@/lib/seasons/public-results";
@@ -33,13 +34,14 @@ async function SeasonsContent() {
 
   const grouped = groupSeasonsByLifecycle(allSeasons);
   const activeSeasonIds = allSeasons.filter((season) => ["voting", "drafting", "playing"].includes(season.status)).map((season) => season.id);
-  const activeMatchRows = activeSeasonIds.length
+  const rawActiveMatchRows = activeSeasonIds.length
     ? await db
       .select({ seasonId: matches.seasonId, stage: matches.stage, status: matches.status, scheduledAt: matches.scheduledAt })
       .from(matches)
       .where(and(inArray(matches.seasonId, activeSeasonIds), inArray(matches.status, ["scheduled", "in_progress"])))
       .orderBy(asc(matches.scheduledAt), asc(matches.id))
     : [];
+  const activeMatchRows = rawActiveMatchRows.map(requireCompetitionFields);
   const nextMatchBySeason = new Map<string, typeof activeMatchRows[number]>();
   for (const row of activeMatchRows) {
     const current = nextMatchBySeason.get(row.seasonId);

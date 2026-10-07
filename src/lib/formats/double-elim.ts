@@ -1,3 +1,4 @@
+import { assertCompetitionMatch } from "@/lib/matches/competition-context";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { matches } from "@/db/schema";
@@ -42,6 +43,7 @@ export const doubleElimExecutor: StageExecutor = {
     if (finalMatch.scoreA === null || finalMatch.scoreB === null || finalMatch.scoreA === finalMatch.scoreB) {
       return [];
     }
+    assertCompetitionMatch(finalMatch);
     const winnerId = finalMatch.scoreA > finalMatch.scoreB ? finalMatch.entryAId : finalMatch.entryBId;
     const loserId = finalMatch.scoreA > finalMatch.scoreB ? finalMatch.entryBId : finalMatch.entryAId;
     const result: QualifiedTeam[] = [{ teamId: winnerId, placement: "1st" }];

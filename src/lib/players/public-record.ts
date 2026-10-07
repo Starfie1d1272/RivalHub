@@ -1,3 +1,4 @@
+import { requireCompetitionFields } from "@/lib/matches/competition-context";
 import "server-only";
 import { and, eq, inArray, ne } from "drizzle-orm";
 import { db, type DB, type TxDb } from "@/db/client";
@@ -37,13 +38,13 @@ export async function getPublicPlayerRecord(
   userId: string,
   options: { seasonId?: string; matchIds?: readonly string[]; database?: DB | TxDb } = {},
 ) {
-  const appearances = await loadPublicAppearances(userId, options, options.database ?? db);
+  const appearances = (await loadPublicAppearances(userId, options, options.database ?? db)).map(requireCompetitionFields);
   return summarizeAppearances(appearances);
 }
 
 /** Per-event canonical records for the public Player career timeline. */
 export async function getPublicPlayerRecords(userId: string, database: DB | TxDb = db) {
-  const appearances = await loadPublicAppearances(userId, {}, database);
+  const appearances = (await loadPublicAppearances(userId, {}, database)).map(requireCompetitionFields);
   const grouped = new Map<string, PublicAppearance[]>();
   for (const row of appearances) {
     const rows = grouped.get(row.seasonId) ?? [];

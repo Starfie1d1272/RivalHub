@@ -1,8 +1,9 @@
+import type { CompetitionMatch } from "@/lib/matches/competition-context";
 import "server-only";
 
 import { and, eq, inArray, isNull } from "drizzle-orm";
 import { db } from "@/db/client";
-import { competitionQualificationRuns, matchLiveSessions, matchPlayerStats as playerStats, type Match, type MatchMap } from "@/db/schema";
+import { competitionQualificationRuns, matchLiveSessions, matchPlayerStats as playerStats, type Match as DbMatch, type MatchMap } from "@/db/schema";
 import type { EffectiveMatchRosterPlayer } from "@/lib/match-rosters/effective";
 import { canConfirmMapScoreboard } from "@/lib/matches/map-scoreboard";
 import { loadMajorSwissStageReadModel } from "@/lib/matches/stage-read-model";
@@ -14,6 +15,8 @@ import { isCompleteScoreboard } from "@/lib/matches/scoreboard-completeness";
 import { mapLabel } from "@/lib/maps";
 import { loadOperatorEvidence } from "./operator-evidence";
 import { buildPerfectRoomGuide, projectOperatorWorkflow } from "./operator-workflow";
+
+type Match = CompetitionMatch<DbMatch>;
 
 /** Called only after the workbench has authorized this match's season. */
 export async function loadOperatorContext(input: {

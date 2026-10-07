@@ -1,3 +1,4 @@
+import { assertCompetitionMatch } from "./competition-context";
 import "server-only";
 
 import { and, eq, inArray } from "drizzle-orm";
@@ -31,6 +32,7 @@ export async function loadMatchScoreboard(
   maps: readonly MatchMap[],
   userIdToTeamId: Map<string, string>,
 ) {
+  assertCompetitionMatch(match);
   const completed = maps.filter(canConfirmMapScoreboard);
   if (completed.length === 0) return { completed, confirmedMapIds: new Set<string>(), mapPlayers: new Map<string, MatchScoreboardPlayer[]>(), detailedPlayers: [], detailedPlayerIds: new Set<string>(), detailedMapIds: new Set<string>(), mvpCandidates: [], summaryPlayers: [] };
   const rows = await db.select().from(matchPlayerStats).where(and(

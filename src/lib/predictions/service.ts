@@ -1,3 +1,4 @@
+import { assertCompetitionMatch } from "@/lib/matches/competition-context";
 import "server-only";
 import { writeAuditInTx } from "@/lib/audit/write";
 import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
@@ -722,6 +723,7 @@ export async function openPredictionMarketInTx(
   if (deadline <= now) invalid("比赛计划开赛时间已到，不能延后开放");
 
   const m = official[0]!;
+  assertCompetitionMatch(m);
   if (m.entryRound === "third_place") invalid("本届不开放季军赛积分池");
   const [created] = await tx
     .insert(markets)

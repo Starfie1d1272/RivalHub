@@ -1,4 +1,5 @@
 "use server";
+import { assertCompetitionMatch } from "@/lib/matches/competition-context";
 
 import { writeAuditInTx } from "@/lib/audit/write";
 
@@ -67,6 +68,7 @@ export async function extractStatsFromScreenshot(
       where: eq(matches.id, map.matchId),
     });
     if (!match) throw new AppError(ErrorCode.NOT_FOUND, "比赛记录不存在");
+    assertCompetitionMatch(match);
     await requireSeasonAdmin(match.seasonId);
 
     const seasonPlayers = await loadScoreboardPlayers(db, match.id, [match.entryAId, match.entryBId]);
@@ -133,6 +135,7 @@ export async function savePlayerStats(
       where: eq(matches.id, map.matchId),
     });
     if (!match) throw new AppError(ErrorCode.NOT_FOUND, "比赛记录不存在");
+    assertCompetitionMatch(match);
     if (!canConfirmMapScoreboard(map)) {
       throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "只有已结束的地图可以确认选手数据。");
     }
@@ -261,6 +264,7 @@ export async function getPlayerStatsByMap(mapId: string): Promise<OperatorScoreb
     if (!map) return [];
     const match = await db.query.matches.findFirst({ where: eq(matches.id, map.matchId) });
     if (!match) return [];
+    assertCompetitionMatch(match);
     await requireSeasonAdmin(match.seasonId);
     return await loadOperatorScoreboard(db, mapId);
   } catch (error) {
@@ -281,6 +285,7 @@ export async function getMatchPlayerOptions(mapId: string): Promise<PlayerOption
     if (!map) return [];
     const match = await db.query.matches.findFirst({ where: eq(matches.id, map.matchId) });
     if (!match) return [];
+    assertCompetitionMatch(match);
     await requireSeasonAdmin(match.seasonId);
 
     const seasonPlayers = await loadScoreboardPlayers(db, match.id, [match.entryAId, match.entryBId]);
@@ -417,6 +422,7 @@ export async function deletePlayerStatsByMap(mapId: string): Promise<ActionResul
     if (!map) throw new AppError(ErrorCode.NOT_FOUND, "地图记录不存在");
     const match = await db.query.matches.findFirst({ where: eq(matches.id, map.matchId) });
     if (!match) throw new AppError(ErrorCode.NOT_FOUND, "比赛记录不存在");
+    assertCompetitionMatch(match);
     const session = await requireSeasonAdmin(match.seasonId);
 
     await db.transaction(async (tx) => {

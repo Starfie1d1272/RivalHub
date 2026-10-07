@@ -1,3 +1,4 @@
+import { assertCompetitionMatch } from "@/lib/matches/competition-context";
 import "server-only";
 import { readBilibiliStatus, BROADCAST_STATUS_LABEL } from "@/lib/production/bilibili";
 import { readUploaderDownloads } from "@/lib/production/uploader";
@@ -111,6 +112,7 @@ export async function loadAdminMatchWorkbench({
     where: and(eq(matches.id, matchId), eq(matches.seasonId, season.id)),
   });
   if (!match || match.seasonId !== season.id) return null;
+  assertCompetitionMatch(match);
   const admin = await requireSeasonAdmin(season.id);
 
   const entryIds = [match.entryAId, match.entryBId];

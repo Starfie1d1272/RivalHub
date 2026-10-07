@@ -1,3 +1,4 @@
+import { requireCompetitionMatch } from "@/lib/matches/competition-context";
 import "server-only";
 import { and, eq, inArray, isNotNull, asc } from "drizzle-orm";
 import type { TxDb } from "@/db/client";
@@ -8,7 +9,7 @@ import type { EventFact, VetoFact } from "./domain";
 export async function loadBetFacts(tx: TxDb,seasonId: string) {
   const season = await tx.query.seasons.findFirst({where:eq(seasons.id,seasonId)});
   if (!season) throw new AppError(ErrorCode.NOT_FOUND,"赛事不存在");
-  const officialRows = await tx.select().from(matches).where(eq(matches.seasonId,seasonId)).orderBy(asc(matches.createdAt)).then(rows=>rows.map(m=>({...m,operationalStartedAt:m.startedAt,startedAt:m.gameplayStartedAt})));
+  const officialRows = await tx.select().from(matches).where(eq(matches.seasonId,seasonId)).orderBy(asc(matches.createdAt)).then(rows=>rows.map(requireCompetitionMatch).map(m=>({...m,operationalStartedAt:m.startedAt,startedAt:m.gameplayStartedAt})));
   const maps = await tx.select({map:matchMaps}).from(matchMaps).innerJoin(matches,eq(matches.id,matchMaps.matchId)).where(eq(matches.seasonId,seasonId)).then(rows=>rows.map(r=>r.map));
   // Canonical map facts also prove gameplay when the separate start marker is absent.
   const official = officialRows.map(m => ({...m,startedAt:m.startedAt ?? maps

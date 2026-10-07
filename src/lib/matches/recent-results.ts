@@ -27,7 +27,7 @@ export function projectRecentMatchResults(
       const scoreFor = isA ? match.scoreA! : match.scoreB!;
       const scoreAgainst = isA ? match.scoreB! : match.scoreA!;
       const playedAt = match.completedAt ?? match.scheduledAt;
-      const opponentName = entryNames.get(opponentId);
+      const opponentName = opponentId === null ? undefined : entryNames.get(opponentId);
       if (!playedAt || !opponentName) return [];
       return [{ matchId: match.id, opponentName, scoreFor, scoreAgainst, won: scoreFor > scoreAgainst, format: match.format, playedAt }];
     });

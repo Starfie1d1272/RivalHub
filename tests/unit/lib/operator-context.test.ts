@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { Match, MatchMap } from "@/db/schema";
+import type { Match as DbMatch, MatchMap } from "@/db/schema";
+import type { CompetitionMatch } from "@/lib/matches/competition-context";
+type Match = CompetitionMatch<DbMatch>;
 import type { EffectiveMatchRosterPlayer } from "@/lib/match-rosters/effective";
 
 const mocks = vi.hoisted(() => ({ select: vi.fn(), live: vi.fn(), major: vi.fn(), qualification: vi.fn(), run: vi.fn() }));

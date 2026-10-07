@@ -50,6 +50,7 @@ export function calculateStandings(
   }
 
   for (const m of finishedMatches) {
+    if (m.entryAId === null || m.entryBId === null) continue;
     const a = stats.get(m.entryAId);
     const b = stats.get(m.entryBId);
     if (!a || !b || m.scoreA === null || m.scoreB === null) continue;

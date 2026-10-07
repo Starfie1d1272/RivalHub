@@ -379,7 +379,7 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
                       </div>
                       <div className="shrink-0 flex flex-col items-end gap-0.5">
                         <span className="font-mono text-[10px] text-[var(--color-fg-dim)] uppercase tracking-wider">
-                          {match.stage === "play-in" ? "PLAY-IN" : stageLabelByKey.get(match.stage) ?? "比赛阶段"}
+                          {match.stage === "play-in" ? "PLAY-IN" : (match.stage === null ? undefined : stageLabelByKey.get(match.stage)) ?? "比赛阶段"}
                         </span>
                         <MatchStatusBadge status={match.status as MatchStatus} scheduledAt={match.scheduledAt} />
                         {match.scheduledAt && <span className="font-mono text-[10px] text-[var(--color-fg-dim)]">{formatCSTDateTime(match.scheduledAt)}</span>}
