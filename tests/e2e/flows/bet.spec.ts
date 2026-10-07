@@ -1,6 +1,6 @@
 import { Pool } from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
-import { eq } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 import { mkdirSync } from "node:fs";
 import { resolve } from "node:path";
 import { test,expect,signInProgrammatically } from "../fixtures";
@@ -27,7 +27,7 @@ test("BET 完成投入、追加、ALL IN 确认与锁盘，桌面和手机无横
     const [account]=await db.insert(schema.betAccounts).values({seasonId:fixture.seasonId,userId:other.userId}).returning();
     const allMarkets=await db.select().from(schema.betMarkets).where(eq(schema.betMarkets.matchId,matches[0]!.id));
     const market=allMarkets.find(m=>m.type==="match_winner")!;
-    const options=await db.select().from(schema.betOptions).where(eq(schema.betOptions.marketId,market.id));
+    const options=await db.select().from(schema.betOptions).where(eq(schema.betOptions.marketId,market.id)).orderBy(asc(schema.betOptions.position));
     const [stake]=await db.insert(schema.betStakes).values({seasonId:fixture.seasonId,accountId:account!.id,marketId:market.id,optionId:options[1]!.id,amount:BigInt(300),requestId:randomUUID()}).returning();
     await db.insert(schema.betLedger).values([{seasonId:fixture.seasonId,accountId:account!.id,amount:BigInt(1000),kind:"initial",source:"initial"},{seasonId:fixture.seasonId,accountId:account!.id,amount:BigInt(-300),kind:"stake",source:`stake/${stake!.id}`}]);
     await page.goto(`/${fixture.slug}/bet?match=${matches[0]!.id}`);
@@ -38,7 +38,7 @@ test("BET 完成投入、追加、ALL IN 确认与锁盘，桌面和手机无横
     const card=page.locator("article").filter({has:page.locator(`a[href="/${fixture.slug}/matches/${matches[0]!.id}"]`)});const winner=card.getByRole("region",{name:"比赛胜者"});
     const profile = winner.getByRole("link", { name: `查看 ${options[0]!.label} 资料` });
     await expect(profile).toHaveAttribute("href", `/${fixture.slug}/teams/${options[0]!.key}`);
-    await expect(card.locator(`a[href="/${fixture.slug}/teams/${matches[0]!.entryAId}"]`)).toBeVisible();
+    await expect(card.locator(`a[href="/${fixture.slug}/teams/${matches[0]!.entryAId}"]`).filter({ has: page.getByRole("heading") })).toBeVisible();
     await expect(card.locator("a a, button a, a button, button button")).toHaveCount(0);
     await profile.click();
     await expect(page).toHaveURL(new RegExp(`/teams/${options[0]!.key}$`));
