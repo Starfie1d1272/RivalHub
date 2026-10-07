@@ -34,12 +34,13 @@ export function PlayerDirectoryRow({ player, seasonSlug }: { player: PlayerDirec
       <div className="grid gap-3 lg:grid-cols-[minmax(0,1.15fr)_auto] lg:items-center">
         <div className="min-w-0 space-y-2">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-            <PlayerAvatar name={player.displayName} avatarUrl={player.avatarUrl} size="sm" />
             <PlayerProfileLink
               userId={player.userId}
-              className="truncate text-sm font-semibold text-[var(--color-fg)] hover:text-[var(--color-accent)] transition-colors sm:text-base"
+              aria-label={player.displayName}
+              className="inline-flex min-w-0 items-center gap-2 text-sm font-semibold text-[var(--color-fg)] hover:text-[var(--color-accent)] transition-colors sm:text-base"
             >
-              {player.displayName}
+              <PlayerAvatar name={player.displayName} avatarUrl={player.avatarUrl} size="sm" />
+              <span className="truncate">{player.displayName}</span>
             </PlayerProfileLink>
             <PosChip pos={positionLabel(player.primaryPosition)} />
             {player.secondaryPosition && (

@@ -23,5 +23,10 @@ describe("TeamDraftGrid", () => {
 
     expect(screen.getAllByRole("img", { name: "Captain" })).toHaveLength(2);
     expect(screen.getAllByRole("img", { name: "Neo" })).toHaveLength(2);
+    for (const name of ["Captain", "Neo"]) {
+      for (const avatar of screen.getAllByRole("img", { name })) {
+        expect(avatar.closest("a")).toHaveAttribute("href", name === "Captain" ? "/players/captain-user" : "/players/member-user");
+      }
+    }
   });
 });

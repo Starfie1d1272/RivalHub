@@ -85,9 +85,8 @@ export function TeamDraftGrid({
                   {/* 队长行 */}
                   <div className="flex items-center justify-between py-1">
                     <span className="flex min-w-0 items-center gap-2 text-xs text-[var(--color-fg-mid)]">
-                      <PlayerAvatar name={getPublicDisplayName(team.captain)} avatarUrl={team.captain.avatarUrl} size="sm" />
                       <span className="text-[var(--color-fg-dim)]">队长 </span>
-                      {team.captain.userId ? <PlayerProfileLink userId={team.captain.userId}>{getPublicDisplayName(team.captain)}</PlayerProfileLink> : getPublicDisplayName(team.captain)}
+                      {team.captain.userId ? <PlayerProfileLink userId={team.captain.userId} aria-label={getPublicDisplayName(team.captain)} className="inline-flex min-w-0 items-center gap-2"><PlayerAvatar name={getPublicDisplayName(team.captain)} avatarUrl={team.captain.avatarUrl} size="sm" /><span>{getPublicDisplayName(team.captain)}</span></PlayerProfileLink> : <><PlayerAvatar name={getPublicDisplayName(team.captain)} avatarUrl={team.captain.avatarUrl} size="sm" />{getPublicDisplayName(team.captain)}</>}
                     </span>
                     <span className="font-mono text-[10px] text-[var(--color-fg-dim)] uppercase">
                       {positionLabel(team.captain.primaryPosition)}
@@ -100,8 +99,7 @@ export function TeamDraftGrid({
                       className="flex items-center justify-between py-1"
                     >
                       <span className="flex min-w-0 items-center gap-2 text-xs text-[var(--color-fg)]">
-                        <PlayerAvatar name={getPublicDisplayName(m)} avatarUrl={m.avatarUrl} size="sm" />
-                        <PlayerProfileLink userId={m.userId}>{getPublicDisplayName(m)}</PlayerProfileLink>
+                        <PlayerProfileLink userId={m.userId} aria-label={getPublicDisplayName(m)} className="inline-flex min-w-0 items-center gap-2"><PlayerAvatar name={getPublicDisplayName(m)} avatarUrl={m.avatarUrl} size="sm" /><span>{getPublicDisplayName(m)}</span></PlayerProfileLink>
                         {m.autoPicked && (
                           <span className="text-[var(--color-warn)] ml-0.5">⚡</span>
                         )}
@@ -167,8 +165,7 @@ export function TeamDraftGrid({
               <div className="text-xs mb-1">
                 <span className="text-[var(--color-fg-dim)]">队长 </span>
                 <span className="inline-flex items-center gap-2 text-[var(--color-fg)] font-medium">
-                  <PlayerAvatar name={getPublicDisplayName(team.captain)} avatarUrl={team.captain.avatarUrl} size="sm" />
-                  {team.captain.userId ? <PlayerProfileLink userId={team.captain.userId}>{getPublicDisplayName(team.captain)}</PlayerProfileLink> : getPublicDisplayName(team.captain)}
+                  {team.captain.userId ? <PlayerProfileLink userId={team.captain.userId} aria-label={getPublicDisplayName(team.captain)} className="inline-flex min-w-0 items-center gap-2"><PlayerAvatar name={getPublicDisplayName(team.captain)} avatarUrl={team.captain.avatarUrl} size="sm" /><span>{getPublicDisplayName(team.captain)}</span></PlayerProfileLink> : <><PlayerAvatar name={getPublicDisplayName(team.captain)} avatarUrl={team.captain.avatarUrl} size="sm" />{getPublicDisplayName(team.captain)}</>}
                 </span>
                 <span className="text-[var(--color-fg-dim)] ml-1">
                   {positionLabel(team.captain.primaryPosition)}
@@ -182,8 +179,7 @@ export function TeamDraftGrid({
                     R{m.pickRound}P{m.pickNumber}{" "}
                   </span>
                   <span className="inline-flex items-center gap-2 text-[var(--color-fg)]">
-                    <PlayerAvatar name={getPublicDisplayName(m)} avatarUrl={m.avatarUrl} size="sm" />
-                    <PlayerProfileLink userId={m.userId}>{getPublicDisplayName(m)}</PlayerProfileLink>
+                    <PlayerProfileLink userId={m.userId} aria-label={getPublicDisplayName(m)} className="inline-flex min-w-0 items-center gap-2"><PlayerAvatar name={getPublicDisplayName(m)} avatarUrl={m.avatarUrl} size="sm" /><span>{getPublicDisplayName(m)}</span></PlayerProfileLink>
                   </span>
                   <span className="text-[var(--color-fg-dim)] ml-1">
                     {positionLabel(m.primaryPosition)}

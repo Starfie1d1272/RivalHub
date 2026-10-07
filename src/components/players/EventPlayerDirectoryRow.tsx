@@ -31,12 +31,13 @@ export function EventPlayerDirectoryRow({
       <div className="grid gap-3 lg:grid-cols-[minmax(0,1.15fr)_auto] lg:items-center">
         <div className="min-w-0 space-y-2">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-            <PlayerAvatar name={player.name} avatarUrl={player.avatarUrl} size="sm" />
             <PlayerProfileLink
               userId={player.userId}
-              className="truncate text-sm font-semibold text-[var(--color-fg)] hover:text-[var(--color-accent)] transition-colors sm:text-base"
+              aria-label={player.name}
+              className="inline-flex min-w-0 items-center gap-2 text-sm font-semibold text-[var(--color-fg)] hover:text-[var(--color-accent)] transition-colors sm:text-base"
             >
-              {player.name}
+              <PlayerAvatar name={player.name} avatarUrl={player.avatarUrl} size="sm" />
+              <span className="truncate">{player.name}</span>
             </PlayerProfileLink>
             <span className="border border-[var(--color-border)] px-1.5 py-0.5 text-[11px] text-[var(--color-fg-mid)]">
               {player.isStarter ? "首发" : "替补"}
