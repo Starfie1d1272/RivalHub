@@ -254,4 +254,7 @@ afterAll(async () => {
   await monitor.end();
   await pool.end();
 });
-export { state, measured, pool, monitor, publications, snapshot, prepared, upload, summary, reports, baseline, db, schema, POST, ingestMizarLive, ingestMizarReliable, RELIABLE_EVENT_SCHEMA_VERSION, revokeMizarInstallation, claimMizarSource, takeOverCurrentMap, loadMizarMatchDocumentInTx, recordCanonicalMapResultInTx };
+export { state, measured, pool, monitor, publications, snapshot, prepared, upload, summary, reports, baseline };
+// Export a concrete harness value. Vitest's import rewriting must not turn
+// imported production bindings into undefined indirect re-exports.
+export const api = { db, schema, POST, ingestMizarLive, ingestMizarReliable, RELIABLE_EVENT_SCHEMA_VERSION, revokeMizarInstallation, claimMizarSource, takeOverCurrentMap, loadMizarMatchDocumentInTx, recordCanonicalMapResultInTx };

@@ -2,7 +2,8 @@ import { randomUUID } from "node:crypto";
 import { setTimeout as delay } from "node:timers/promises";
 import { eq } from "drizzle-orm";
 import { describe, expect, it, vi } from "vitest";
-import { state, measured, pool, monitor, publications, prepared, upload, summary, reports, baseline, db, schema } from "../integration/db/harness/live-capacity";
+import { api, state, measured, pool, monitor, publications, prepared, upload, summary, reports, baseline } from "../integration/db/harness/live-capacity";
+const { db, schema } = api;
 
 describe("LIVE capacity: explicit multi-source measurements", () => {
 for (const scenario of [
