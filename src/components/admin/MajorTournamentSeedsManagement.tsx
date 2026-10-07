@@ -1,5 +1,6 @@
 "use client";
 
+import { TeamProfileLink } from "@/components/teams/TeamProfileLink";
 import { useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { confirmMajorTournamentSeeds, saveMajorTournamentSeeds } from "@/actions/major-prestart";
@@ -78,7 +79,7 @@ export function MajorTournamentSeedsManagement({ data, management }: { data: Maj
         {data.recommendationStatus === "missing" ? "冻结正式名单后才会生成系统参考。" : "系统参考与当前冻结名单不一致，已停止用于最终种子。"}
       </p>}
       <MajorRankingWorkspace mode="final" teams={rankingTeams} order={order} onOrderChange={confirmed ? undefined : setOrder} platform={recommendation?.platform ?? management.strengthPreview.platform} cohortBoundaries={cohortBoundaries} />
-      <section aria-labelledby="major-first-round-preview-title"><h3 id="major-first-round-preview-title" className="font-medium text-[var(--color-fg)]">{data.firstSwissStageName} 首轮预览</h3>{data.firstRound ? <ol className="mt-2 grid gap-2 text-sm md:grid-cols-2">{data.firstRound.map((pairing) => <li key={`${pairing.higherSeed}-${pairing.lowerSeed}`} className="border border-[var(--color-border)] px-3 py-2">#{pairing.higherSeed} {teamById.get(data.seeds.find((seed) => seed.tournamentSeed === pairing.higherSeed)?.teamId ?? "")?.teamName} vs #{pairing.lowerSeed} {teamById.get(data.seeds.find((seed) => seed.tournamentSeed === pairing.lowerSeed)?.teamId ?? "")?.teamName} · {pairing.format.toUpperCase()}</li>)}</ol> : <p className="mt-1 text-sm text-[var(--color-fg-mid)]">需先保存完整种子才能构造预览。</p>}<p className="mt-2 text-sm text-[var(--color-fg-mid)]">保存种子前不会创建比赛。</p></section>
+      <section aria-labelledby="major-first-round-preview-title"><h3 id="major-first-round-preview-title" className="font-medium text-[var(--color-fg)]">{data.firstSwissStageName} 首轮预览</h3>{data.firstRound ? <ol className="mt-2 grid gap-2 text-sm md:grid-cols-2">{data.firstRound.map((pairing) => <li key={`${pairing.higherSeed}-${pairing.lowerSeed}`} className="border border-[var(--color-border)] px-3 py-2">#{pairing.higherSeed} <TeamProfileLink entryId={data.seeds.find((seed) => seed.tournamentSeed === pairing.higherSeed)?.teamId}>{teamById.get(data.seeds.find((seed) => seed.tournamentSeed === pairing.higherSeed)?.teamId ?? "")?.teamName}</TeamProfileLink> vs #{pairing.lowerSeed} <TeamProfileLink entryId={data.seeds.find((seed) => seed.tournamentSeed === pairing.lowerSeed)?.teamId}>{teamById.get(data.seeds.find((seed) => seed.tournamentSeed === pairing.lowerSeed)?.teamId ?? "")?.teamName}</TeamProfileLink> · {pairing.format.toUpperCase()}</li>)}</ol> : <p className="mt-1 text-sm text-[var(--color-fg-mid)]">需先保存完整种子才能构造预览。</p>}<p className="mt-2 text-sm text-[var(--color-fg-mid)]">保存种子前不会创建比赛。</p></section>
     </div>}
   </Panel>;
 }

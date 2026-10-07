@@ -1,3 +1,4 @@
+import { TeamProfileLink } from "@/components/teams/TeamProfileLink";
 import Link from "next/link";
 import React from "react";
 import { cn } from "@/lib/utils/cn";
@@ -40,11 +41,11 @@ export function AdminMatchRow({
     >
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-3">
-          <span className="font-semibold">{teamAName}</span>
+          <TeamProfileLink seasonSlug={seasonSlug} entryId={match.entryAId} className="font-semibold">{teamAName}</TeamProfileLink>
           <span className="text-[var(--color-fg-mid)]">
             {match.status === "finished" ? `${match.scoreA ?? 0} : ${match.scoreB ?? 0}` : "vs"}
           </span>
-          <span className="font-semibold">{teamBName}</span>
+          <TeamProfileLink seasonSlug={seasonSlug} entryId={match.entryBId} className="font-semibold">{teamBName}</TeamProfileLink>
         </div>
         <div className="flex items-center gap-2">
           <StatusPill {...presentMatchFormat(match.format)} />

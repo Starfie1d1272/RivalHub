@@ -1,5 +1,6 @@
 "use client";
 
+import { TeamProfileLink } from "@/components/teams/TeamProfileLink";
 import { useEffect, useState, type CSSProperties, type DragEvent } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogBody } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -66,12 +67,12 @@ function PlayerCell({ member, selected, onSelect }: { member: RankingMember; sel
     ["前", member.presentation.referenceSeasonPeak], ["史", member.presentation.historicalPeak],
   ] as const;
   const flagged = member.presentation.blockers.length > 0 || facts.some(([, fact]) => fact?.estimatedFromUnranked);
-  return <button type="button" onClick={onSelect} aria-pressed={selected} aria-label={`${member.label}，${member.isPrimaryStarter ? "主力" : "替补"}，查看实力证据`}
+  return <span className="inline-flex max-w-full items-center"><button type="button" onClick={onSelect} aria-pressed={selected} aria-label={`${member.label}，${member.isPrimaryStarter ? "主力" : "替补"}，查看实力证据`}
     className={`inline-flex max-w-full items-center gap-1 whitespace-nowrap rounded px-0.5 focus-visible:outline-2 focus-visible:outline-[var(--color-accent)] ${selected ? "bg-[var(--color-accent)]/15 outline outline-[var(--color-accent)]" : ""}`} title={member.label}>
     <span className="max-w-[10em] truncate font-medium text-[var(--color-fg)]">{member.label}</span>
     <span aria-label="综合段位" className={`rounded px-0.5 tabular-nums ${rankTone(composite)}`}>{compactRank(composite)}</span>
     {flagged && <span aria-label="资料需关注" className="text-[var(--color-warn)]">·</span>}
-  </button>;
+  </button><PlayerProfileLink userId={member.userId} variant="dense" aria-label={`查看 ${member.label} 选手资料`}>↗</PlayerProfileLink></span>;
 }
 
 function PlayerEvidence({ member, platform }: { member: RankingMember; platform: string | null }) {
@@ -180,7 +181,7 @@ export function MajorRankingWorkspace({ mode, teams, order, onOrderChange, platf
             </td>
             {mode !== "reference" && <td className="sticky left-20 z-10 border-b border-[var(--color-border)] bg-[var(--color-bg)] px-1 py-[var(--matrix-pad-y)] align-middle tabular-nums">{team.systemRank === null ? "—" : `#${team.systemRank}`}{team.tieState === "tied" ? " 并列" : team.systemRank !== null && team.systemRank !== rank ? <span className="ml-1 text-[var(--color-fg-mid)]" aria-label={`人工${team.systemRank > rank ? "上调" : "下调"}${Math.abs(team.systemRank - rank)}位`}>{team.systemRank > rank ? "↑" : "↓"}{Math.abs(team.systemRank - rank)}</span> : ""}</td>}
             <td className={`sticky z-10 border-b border-[var(--color-border)] bg-[var(--color-bg)] px-[var(--matrix-pad-x)] py-[var(--matrix-pad-y)] align-middle ${mode === "reference" ? "left-20" : "left-36"}`} style={{ minWidth: "var(--matrix-team-width)" }}>
-              <strong className="inline-block max-w-36 truncate align-middle" title={team.teamName}>{team.teamName}</strong>
+              <strong className="inline-block max-w-36 truncate align-middle" title={team.teamName}><TeamProfileLink entryId={team.entryId}>{team.teamName}</TeamProfileLink></strong>
 
               {boundary && <span className="sr-only">{boundary.label}</span>}
               {rank === (boundaryAfter ?? -1) + 1 && <span className="sr-only">{boundaryLabel ?? "Play-in"}</span>}

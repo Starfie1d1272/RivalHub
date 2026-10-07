@@ -1,5 +1,6 @@
 "use client";
 
+import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
 import { useTransition, useState } from "react";
 import { CheckCircle2, ShieldCheck, AlertTriangle } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -78,7 +79,7 @@ export function CaptainConfirmPanel({
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       <Badge variant="default">#{index + 1}</Badge>
-                      <h3 className="font-semibold">{candidate.displayName}</h3>
+                      <h3 className="font-semibold"><PlayerProfileLink userId={candidate.userId}>{candidate.displayName}</PlayerProfileLink></h3>
                     </div>
                     <p className="mt-1 text-sm text-[var(--color-fg-mid)]">
                       {positionLabel(candidate.primaryPosition)} · Peak {candidate.peakRating} ·
@@ -173,7 +174,7 @@ export function CaptainConfirmPanel({
                 {seeds.map((s, i) => (
                   <span key={s.id}>
                     {i > 0 && "、"}
-                    {s.displayName}
+                    <PlayerProfileLink userId={s.userId}>{s.displayName}</PlayerProfileLink>
                   </span>
                 ))}
               </p>

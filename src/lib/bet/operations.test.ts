@@ -4,11 +4,11 @@ import type { BetBoardDTO, BetMarketDTO } from "./types";
 
 const market = (id: string, matchId: string | null, state: BetMarketDTO["state"] = "open", group: BetMarketDTO["group"] = "比赛"): BetMarketDTO => ({
   id, matchId, state, group, type: "match_winner", title: "比赛胜者", context: "", help: "", pool: "0", participants: 0,
-  canStake: false, restriction: null, mine: null, options: [{ id: "choice", label: "银河", pool: "0", percent: 0, winner: false }],
+  canStake: false, restriction: null, mine: null, options: [{ entity: null, id: "choice", label: "银河", pool: "0", percent: 0, winner: false }],
 });
 const data: BetBoardDTO = {
   seasonId: "season", enabled: true, paused: false, joined: false, balance: "0", debt: "0", profit: "0", rank: null,
-  matches: Array.from({ length: 12 }, (_, i) => ({ id: `m${i}`, a: `队伍 ${i}`, b: "新星", logoA: null, logoB: null, stage: i === 0 ? "PLAY-IN" : "阶段一", format: "BO3", scheduledAt: null })),
+  matches: Array.from({ length: 12 }, (_, i) => ({ id: `m${i}`, entryAId: `a${i}`, entryBId: `b${i}`, a: `队伍 ${i}`, b: "新星", logoA: null, logoB: null, stage: i === 0 ? "PLAY-IN" : "阶段一", format: "BO3", scheduledAt: null })),
   leaderboard: [], records: [],
   markets: [market("event", null, "locked", "赛事"), ...Array.from({ length: 12 }, (_, i) => market(`market${i}`, `m${i}`)), market("bp", "m0", "locked", "BP")],
 };

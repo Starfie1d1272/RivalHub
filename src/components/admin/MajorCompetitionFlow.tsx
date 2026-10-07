@@ -1,5 +1,6 @@
 "use client";
 
+import { TeamProfileLink } from "@/components/teams/TeamProfileLink";
 import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
@@ -277,7 +278,7 @@ export function MajorCompetitionFlow({ data, phase }: { data: ManagementData; ph
                   const direct = index < (plan?.directEntryCount ?? 0);
                   return <tr key={entryId} className={`border-t border-[var(--color-border)] ${index === (plan?.directEntryCount ?? 0) ? "border-t-2 border-t-[var(--color-accent)]" : ""}`}>
                     <td className="px-3 py-2 tabular-nums">P{index + 1}</td>
-                    <td className="px-3 py-2">{candidate.name}</td>
+                    <td className="px-3 py-2"><TeamProfileLink entryId={entryId} seasonSlug={data.seasonSlug}>{candidate.name}</TeamProfileLink></td>
                     <td className="px-3 py-2">{direct ? "直通正赛" : "Play-in"}</td>
                     <td className="px-3 py-2">{strength?.recommendationRank === null || !strength ? "—" : `#${strength.recommendationRank}`}</td>
                   </tr>;

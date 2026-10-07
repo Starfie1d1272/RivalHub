@@ -298,7 +298,8 @@ describe("identity flow UI", () => {
   it("uses the canonical identity in the review title while retaining email as explicit account detail", () => {
     render(<EducationVerificationReviewQueue emptyState="no-pending" rows={[{ id: "55555555-5555-4555-8555-555555555555", userId: "player-2", email: "private@example.test", displayName: "玩家甲", institution: "南京大学", code: "4132010284", academicStatus: "enrolled", evidenceLabel: "学信网学历材料", chsiEvidenceCode: null, manualEvidenceAvailable: false, status: "pending", submittedAt: new Date().toISOString(), reviewNote: null }]} />);
 
-    expect(screen.getByRole("link", { name: "玩家甲" })).toHaveAttribute("href", "/players/player-2");
+    expect(screen.getByText("玩家甲", { exact: false })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "玩家甲" })).not.toBeInTheDocument();
     expect(screen.getByText("账号：private@example.test")).toBeInTheDocument();
   });
 

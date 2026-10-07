@@ -13,7 +13,7 @@ describe("official Swiss adapter", () => {
   it("shows all six persisted matches and future record paths without inventing opponents, links or results", async () => {
     render(<StageSwissReadModel data={fixture()} seasonSlug="event" />);
     expect(screen.getByRole("heading", { name: "第 1 轮" })).toBeVisible();
-    expect(screen.getAllByRole("link")).toHaveLength(6);
+    expect(new Set(screen.getAllByRole("link").map(link => link.getAttribute("href")).filter(href => href?.includes("/matches/"))).size).toBe(6);
     expect(screen.getByRole("link", {name: "Team 5 对 Team 11"})).toHaveAttribute("href", "/event/matches/m5");
     expect(screen.getByTestId("record-2-1–0")).toHaveTextContent("待定");
     expect(screen.getByTestId("record-2-0–1")).toHaveTextContent("待定");
@@ -25,7 +25,7 @@ describe("official Swiss adapter", () => {
     await userEvent.setup().click(screen.getByRole("button", {name: "轮次列表"}));
     await userEvent.setup().click(screen.getByRole("button", {name: "展示第 3 轮"}));
     expect(screen.getByRole("button", {name: "展示第 3 轮"})).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getAllByRole("link")).toHaveLength(6);
+    expect(new Set(screen.getAllByRole("link").map(link => link.getAttribute("href")).filter(href => href?.includes("/matches/"))).size).toBe(6);
   });
   it.each(["stage1", "stage2"])("uses canonical 3W3L exits and official outcomes for %s", stageKey => {
     const data = fixture(stageKey); data.competitionEntries[0] = {...data.competitionEntries[0]!, wins: 3, status: "advanced"};

@@ -10,7 +10,7 @@ vi.mock("@/db/client", () => ({ db: { select: () => ({ from: () => ({ where: () 
 import { VetoView } from "./VetoView";
 describe("BP language", () => {
   it("keeps action badges, HLTV-style sentences and correct side ownership", async () => {
-    const html = renderToStaticMarkup(await VetoView({ matchId: "match", teamAName: "Þór", teamBName: "DUSTY", entryAId: "a", entryBId: "b" }));
+    const html = renderToStaticMarkup(await VetoView({ matchId: "match", seasonSlug: "major", teamAName: "Þór", teamBName: "DUSTY", entryAId: "a", entryBId: "b" }));
     const node = document.createElement("div"); node.innerHTML = html;
     const rows = [...node.querySelectorAll("li")].map(row => row.textContent!.replace(/\s+/g, " "));
     expect(rows[0]).toContain("BANÞór removed Inferno");
@@ -20,5 +20,8 @@ describe("BP language", () => {
     expect(rows[2]).not.toContain("DUSTY picked");
     expect(rows[3]).toContain("SIDEDUSTY chose CT on Nuke");
     expect(html).not.toContain("成为决胜图");
+    expect(node.querySelectorAll('a[href="/major/teams/a"]').length).toBeGreaterThan(0);
+    expect(node.querySelectorAll('a[href="/major/teams/b"]').length).toBeGreaterThan(0);
+    expect(node.querySelector("a a, button a, a button")).toBeNull();
   });
 });

@@ -4,6 +4,7 @@ import { MyCompetitionCard } from "@/components/my/MyCompetitionCard";
 import { PageHeader, Panel, Section, SectionHeader, StatusBanner, StatusPill } from "@/components/rivalhub";
 import { Button } from "@/components/ui/button";
 import { TeamLogo } from "@/components/teams/TeamLogo";
+import { TeamProfileLink } from "@/components/teams/TeamProfileLink";
 import {
   SANCTION_EFFECT_LABELS,
   presentMyReadinessResponsibility,
@@ -46,7 +47,7 @@ function CompetitiveCard({ profile }: { profile: MyReadinessModel["competitivePr
 function TeamSummary({ model }: { model: MyWorkspaceModel }) {
   if (!model.currentTeam) return <ReadinessCard item={model.readiness.team} />;
   const team = model.currentTeam;
-  return <Panel label="当前队伍" contentClassName="p-5"><div className="flex flex-col gap-4 sm:flex-row sm:items-center"><TeamLogo logoUrl={team.logoUrl} teamName={team.name} size="lg" /><div className="min-w-0 flex-1 space-y-2"><div><h3 className="text-lg font-semibold">{team.name}</h3><p className="text-sm text-[var(--color-fg-mid)]">你是{team.viewerRole === "captain" ? "队长" : "成员"}；队伍成员变更不会改写已经提交、审核通过或冻结的赛事名单。</p></div><Button size="sm" variant="outline" asChild><Link href="/my/teams">{team.viewerRole === "captain" ? "管理我的队伍" : "查看我的队伍"}</Link></Button></div></div></Panel>;
+  return <Panel label="当前队伍" contentClassName="p-5"><div className="flex flex-col gap-4 sm:flex-row sm:items-center"><TeamLogo logoUrl={team.logoUrl} teamName={team.name} size="lg" /><div className="min-w-0 flex-1 space-y-2"><div><h3 className="text-lg font-semibold"><TeamProfileLink slug={team.slug}>{team.name}</TeamProfileLink></h3><p className="text-sm text-[var(--color-fg-mid)]">你是{team.viewerRole === "captain" ? "队长" : "成员"}；队伍成员变更不会改写已经提交、审核通过或冻结的赛事名单。</p></div><Button size="sm" variant="outline" asChild><Link href="/my/teams">{team.viewerRole === "captain" ? "管理我的队伍" : "查看我的队伍"}</Link></Button></div></div></Panel>;
 }
 
 function SanctionCard({ sanction }: { sanction: MyWorkspaceModel["sanctions"][number] }) {
@@ -64,7 +65,7 @@ export function MyReadinessDashboard({ model }: { model: MyWorkspaceModel }) {
       {model.tasks.length > 0 ? <div className="grid gap-4 md:grid-cols-2">{model.tasks.map((item) => <ReadinessCard key={item.id} item={item} />)}</div> : <StatusBanner tone="success" title="当前没有待处理事项" sub="赛事审核、正式参赛名单和单场出场仍以各自的实时事实为准。" />}
     </Section>
 
-    {model.upcomingMatches.length > 0 && <Section><SectionHeader title="接下来" description="当前比赛只取已确认或已冻结赛事名单中的比赛事实。" /><div className="grid gap-4 md:grid-cols-2">{model.upcomingMatches.map((match) => <Panel key={`${match.seasonId}-${match.task.href}`} label={match.seasonName} contentClassName="p-5"><div className="space-y-3"><div><p className="font-semibold">{match.entryName}</p><p className="mt-1 text-sm text-[var(--color-fg-mid)]">{match.task.title} · {match.task.detail}</p></div><Button size="sm" variant="outline" asChild><Link href={match.task.href as never}>查看比赛</Link></Button></div></Panel>)}</div></Section>}
+    {model.upcomingMatches.length > 0 && <Section><SectionHeader title="接下来" description="当前比赛只取已确认或已冻结赛事名单中的比赛事实。" /><div className="grid gap-4 md:grid-cols-2">{model.upcomingMatches.map((match) => <Panel key={`${match.seasonId}-${match.task.href}`} label={match.seasonName} contentClassName="p-5"><div className="space-y-3"><div><p className="font-semibold"><TeamProfileLink seasonSlug={match.seasonSlug} entryId={match.entryId}>{match.entryName}</TeamProfileLink></p><p className="mt-1 text-sm text-[var(--color-fg-mid)]">{match.task.title} · {match.task.detail}</p></div><Button size="sm" variant="outline" asChild><Link href={match.task.href as never}>查看比赛</Link></Button></div></Panel>)}</div></Section>}
 
     <Section><SectionHeader title="当前参与" description="队伍关系与本届赛事身份分别展示。" /><TeamSummary model={model} />{model.currentCompetitions.length > 0 ? <div className="grid gap-4 xl:grid-cols-2">{model.currentCompetitions.map((context) => <MyCompetitionCard key={context.entryId} context={context} />)}</div> : <Panel contentClassName="p-5"><p className="text-sm text-[var(--color-fg-mid)]">当前没有负责或参与中的赛事。</p></Panel>}</Section>
 

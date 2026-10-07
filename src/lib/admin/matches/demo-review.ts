@@ -77,7 +77,7 @@ export async function loadAdminDemoReview(
           : retirable ? "conflict-retirable" : "conflict-nonretirable"
         : confirmable ? "confirmable" : "blocked";
       participants.push({
-        observedSteam64: participant.steamId64, demoName: participant.nameSnapshot,
+        entryId, observedSteam64: participant.steamId64, demoName: participant.nameSnapshot,
         teamName: entryNames.get(entryId) ?? "未知队伍", state,
         currentPlayer: detail ? { userId: detail.userId, name: detail.name } : null,
         retirableIdentityId: retirable ? identity.identityId : null,

@@ -1,3 +1,4 @@
+import { TeamProfileLink } from "@/components/teams/TeamProfileLink";
 import React from "react";
 import Link from "next/link";
 import { LongLivedTeamWorkspace } from "@/components/teams/LongLivedTeamWorkspace";
@@ -20,7 +21,7 @@ const HISTORY_STATUS_LABELS: Record<MyTeamHistory["status"], string> = {
 function HistorySection({ history, excludeTeamId }: { history: MyTeamHistory[]; excludeTeamId?: string }) {
   const entries = excludeTeamId ? history.filter((row) => row.teamId !== excludeTeamId || row.endedAt !== null) : history;
   if (entries.length === 0) return null;
-  return <Section><SectionHeader title="成员历史" description="队伍成员关系按加入时间记录；赛事名单不会随之改写。" /><Panel contentClassName="p-5"><div className="space-y-2">{entries.map((row) => <Link key={row.id} href={`/teams/${row.teamSlug}`} className="flex flex-wrap justify-between gap-2 border-b border-[var(--color-border)] py-2 text-sm last:border-b-0"><span>{row.teamName} · {HISTORY_STATUS_LABELS[row.status]}</span><span className="text-[var(--color-fg-mid)]">{formatCSTShortDate(row.startedAt)} — {row.endedAt ? formatCSTShortDate(row.endedAt) : "至今"}</span></Link>)}</div></Panel></Section>;
+  return <Section><SectionHeader title="成员历史" description="队伍成员关系按加入时间记录；赛事名单不会随之改写。" /><Panel contentClassName="p-5"><div className="space-y-2">{entries.map((row) => <TeamProfileLink key={row.id} slug={row.teamSlug} className="flex flex-wrap justify-between gap-2 border-b border-[var(--color-border)] py-2 text-sm last:border-b-0"><span>{row.teamName} · {HISTORY_STATUS_LABELS[row.status]}</span><span className="text-[var(--color-fg-mid)]">{formatCSTShortDate(row.startedAt)} — {row.endedAt ? formatCSTShortDate(row.endedAt) : "至今"}</span></TeamProfileLink>)}</div></Panel></Section>;
 }
 
 function CompetitionSection({ contexts, title, description }: { contexts: MyCompetitionContext[]; title: string; description: string }) {

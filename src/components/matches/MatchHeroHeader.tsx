@@ -1,3 +1,4 @@
+import { TeamProfileLink } from "@/components/teams/TeamProfileLink";
 import React from "react";
 import Link from "next/link";
 import { MatchStatusBadge } from "@/components/matches/MatchStatusBadge";
@@ -67,8 +68,8 @@ export function MatchHeroHeader({
       >
         <div className="flex items-center gap-4 justify-end">
           <div className="text-right min-w-0">
-            <Link
-              href={`/${seasonSlug}/teams/${match.entryAId}`}
+            <TeamProfileLink
+              seasonSlug={seasonSlug} entryId={match.entryAId}
               className="font-bold text-lg sm:text-[28px] hover:text-[var(--color-accent)] transition-colors"
               style={{
                 fontFamily: "var(--font-display)",
@@ -77,7 +78,7 @@ export function MatchHeroHeader({
               }}
             >
               {teamA?.name ?? "未知队伍"}
-            </Link>
+            </TeamProfileLink>
           </div>
           {teamA && (
             <div className="w-12 h-12 sm:w-16 sm:h-16 shrink-0">
@@ -145,8 +146,8 @@ export function MatchHeroHeader({
             </div>
           )}
           <div className="min-w-0">
-            <Link
-              href={`/${seasonSlug}/teams/${match.entryBId}`}
+            <TeamProfileLink
+              seasonSlug={seasonSlug} entryId={match.entryBId}
               className="font-bold text-lg sm:text-[28px] hover:text-[var(--color-accent)] transition-colors"
               style={{
                 fontFamily: "var(--font-display)",
@@ -155,7 +156,7 @@ export function MatchHeroHeader({
               }}
             >
               {teamB?.name ?? "未知队伍"}
-            </Link>
+            </TeamProfileLink>
           </div>
         </div>
       </div>

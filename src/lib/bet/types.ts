@@ -5,17 +5,18 @@ export type BetSubject =
   | { kind: "match"; entryIds: [string, string]; runId: string; format: "bo1" | "bo3" | "bo5"; mapPool: string[] }
   | { kind: "map"; entryIds: [string, string]; runId: string; format: "bo1" | "bo3" | "bo5"; mapId: string; mapOrder: number; mapName: string };
 export type BetState = "open" | "locked" | "settled" | "refunded";
+export type BetOptionEntity = { kind: "team"; entryId: string } | { kind: "player"; userId: string } | null;
 export interface BetMarketDTO {
   id: string; matchId: string | null; type: MarketType; title: string; help: string; group: "赛事" | "比赛" | "BP" | "单图";
   context: string; state: BetState; pool: string; participants: number; canStake: boolean; restriction: string | null;
-  options: { id: string; label: string; pool: string; percent: number; winner: boolean }[];
+  options: { id: string; label: string; entity: BetOptionEntity; pool: string; percent: number; winner: boolean }[];
   mine: { optionId: string; amount: string; payout: string | null; profit: string | null } | null;
 }
 export interface BetBoardDTO {
   seasonId: string; enabled: boolean; paused: boolean; joined: boolean;
   balance: string; debt: string; profit: string; rank: number | null;
-  leaderboard: { userId: string; name: string; profit: string; settledCount: number; rank: number }[];
+  leaderboard: { userId: string; playerUserId: string | null; name: string; profit: string; settledCount: number; rank: number }[];
   records: { createdAt: string; amount: string; label: string; context: string | null }[];
   markets: BetMarketDTO[];
-  matches: { id: string; a: string; b: string; logoA: string | null; logoB: string | null; stage: string; format: string; scheduledAt: string | null }[];
+  matches: { id: string; entryAId: string; entryBId: string; a: string; b: string; logoA: string | null; logoB: string | null; stage: string; format: string; scheduledAt: string | null }[];
 }

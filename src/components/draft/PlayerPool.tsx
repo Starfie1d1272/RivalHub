@@ -1,9 +1,9 @@
 "use client";
 
+import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
 import React from "react";
 import { PlayerAvatar } from "@/components/players/PlayerAvatar";
 import { useMemo, useState } from "react";
-import Link from "next/link";
 import type { PublicDraftPlayer } from "@/lib/draft/data";
 import { positionLabel } from "@/lib/validators/registration";
 import { MapPreferenceChips } from "@/components/rivalhub/MapPreferenceChips";
@@ -113,12 +113,12 @@ export function PlayerPool({ players, seasonPositions }: PlayerPoolProps) {
                 >
                   {p.peakRank}
                 </span>
-                <Link
-                  href={`/players/${p.userId}`}
+                <PlayerProfileLink
+                  userId={p.userId}
                   className="min-w-0 truncate text-sm font-medium text-[var(--color-fg)] hover:text-[var(--color-accent)]"
                 >
                   {displayedName}
-                </Link>
+                </PlayerProfileLink>
                 <PosChip pos={positionLabel(p.primaryPosition)} small />
                 <span className="shrink-0 text-[10px] text-[var(--color-fg-dim)]">
                   副{positionLabel(p.secondaryPosition)}
@@ -149,12 +149,12 @@ export function PlayerPool({ players, seasonPositions }: PlayerPoolProps) {
                   >
                     {p.peakRank}
                   </span>
-                  <Link
-                    href={`/players/${p.userId}`}
+                  <PlayerProfileLink
+                    userId={p.userId}
                     className="min-w-0 truncate text-sm font-medium text-[var(--color-fg)] hover:text-[var(--color-accent)]"
                   >
                     {displayedName}
-                  </Link>
+                  </PlayerProfileLink>
                   <PosChip pos={positionLabel(p.primaryPosition)} small />
                   <span className="shrink-0 text-[10px] text-[var(--color-fg-dim)]">
                     副{positionLabel(p.secondaryPosition)}

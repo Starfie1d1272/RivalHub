@@ -91,9 +91,13 @@ describe("BET transactional admission and settlement",()=>{
     const reconcile=()=>db.transaction(async tx=>{await lockBetProgram(tx,seasonId);await reconcileBetInTx(tx,seasonId);});await reconcile();
     const board=await read(db,seasonId,userId);
     expect(board.leaderboard.map(r=>[r.userId,r.profit,r.rank,r.settledCount])).toEqual([[userId,"100",1,1],[otherId,"100",1,1],[third,"-200",3,1]]);
+    expect(board.leaderboard.every(row => row.playerUserId === null)).toBe(true);
+    await db.update(schema.users).set({ gameplayStyle: "已填写选手打法" }).where(eq(schema.users.id, otherId));
+    expect((await read(db, seasonId, userId)).leaderboard.find(row => row.userId === otherId)?.playerUserId).toBe(otherId);
+    await db.update(schema.users).set({ gameplayStyle: null }).where(eq(schema.users.id, otherId));
     expect(board.rank).toBe(1);expect(board.records.map(r=>r.amount)).toEqual(["200","-100","1000"]);
     expect(board.records.every(r=>Object.keys(r).sort().join(",")==="amount,context,createdAt,label")).toBe(true);
-    expect(board.leaderboard.every(r=>Object.keys(r).sort().join(",")==="name,profit,rank,settledCount,userId")).toBe(true);
+    expect(board.leaderboard.every(r=>Object.keys(r).sort().join(",")==="name,playerUserId,profit,rank,settledCount,userId")).toBe(true);
     const anonymous=await db.transaction(tx=>betBoard(tx,seasonId,null),{accessMode:"read only"});
     expect(anonymous.records).toEqual([]);expect(anonymous.leaderboard).toEqual(board.leaderboard);
     const run=await db.query.majorStageRuns.findFirst({where:eq(schema.majorStageRuns.seasonId,seasonId)});

@@ -12,7 +12,7 @@ import { TeamRecruitmentSection } from "@/components/recruitment/TeamRecruitment
 import type { Cs2Position } from "@/lib/config/cs2-positions";
 
 type Membership = { id: string; userId: string; name: string; qq: string | null; status: "active" | "benched" | "left" };
-type Invitation = { id: string; teamId: string; teamName: string; email?: string | null; expiresAt: string };
+type Invitation = { id: string; teamId: string; teamName: string; teamSlug?: string; email?: string | null; expiresAt: string };
 type GeneratedShareLink = { url: string; expiresAt: string };
 type Team = { id: string; slug: string; name: string; logoUrl: string | null; description: string | null; captainUserId: string };
 type Recruitment = { id: string; positions: Cs2Position[]; targetSeasonId: string | null; targetSeasonName: string | null; note: string | null; status: "open" | "closed"; expiresAt: string; isPubliclyActive: boolean } | null;

@@ -1,5 +1,7 @@
 "use client";
 
+import { TeamProfileLink } from "@/components/teams/TeamProfileLink";
+
 import React from "react";
 import { HelpTooltip } from "@/components/rivalhub/HelpTooltip";
 import { useMatchLive } from "./MatchLiveProvider";
@@ -18,8 +20,9 @@ export interface PublicSeriesMap {
   scoreB: number | null;
   completedAt: string | null;
 }
-export function MatchMapSequence({ maps, currentMapId, entryAId, teamAName, teamBName, finished, entryBId, phase = "awaiting_gameplay", seriesProgress }: {
+export function MatchMapSequence({ maps, currentMapId, seasonSlug, entryAId, teamAName, teamBName, finished, entryBId, phase = "awaiting_gameplay", seriesProgress }: {
   maps: PublicSeriesMap[];
+  seasonSlug?: string;
   currentMapId: string | null;
   entryAId: string;
   entryBId?: string;
@@ -44,7 +47,7 @@ export function MatchMapSequence({ maps, currentMapId, entryAId, teamAName, team
         <div className="flex items-center justify-between gap-2 text-xs text-[var(--color-fg-mid)]"><span className="font-mono">MAP {map.mapOrder}</span><span>{completed ? "已结束" : finished ? "未进行" : current ? snapshot ? stale ? "更新暂时中断" : "进行中" : phase === "inter_map" ? "下一张地图" : "当前地图" : "待进行"}</span></div>
         <div className="mt-2 flex items-center justify-between gap-3"><span className="font-semibold text-[var(--color-fg)]">{mapLabel(map.mapName)}</span><span className="font-mono font-bold tabular-nums text-[var(--color-fg)]">{completed ? `${map.scoreA} : ${map.scoreB}` : current && liveScore ? `${liveScore.scoreA ?? "—"} : ${liveScore.scoreB ?? "—"}` : "—"}</span></div>
         {current && liveScore && <p className="sr-only">本图回合</p>}
-        <p className="mt-1 truncate text-xs text-[var(--color-fg-mid)]">{map.pickedByEntryId ? `${map.pickedByEntryId === entryAId ? teamAName : teamBName} · PICK` : "DECIDER"}</p>
+        <p className="mt-1 truncate text-xs text-[var(--color-fg-mid)]">{map.pickedByEntryId ? <><TeamProfileLink seasonSlug={seasonSlug} entryId={map.pickedByEntryId}>{map.pickedByEntryId === entryAId ? teamAName : map.pickedByEntryId === entryBId ? teamBName : "队伍"}</TeamProfileLink> · PICK</> : "DECIDER"}</p>
       </li>;
     })}</ol>
   </section>;

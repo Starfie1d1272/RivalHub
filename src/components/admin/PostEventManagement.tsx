@@ -1,5 +1,7 @@
 "use client";
 
+import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
+import { TeamProfileLink } from "@/components/teams/TeamProfileLink";
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -91,7 +93,7 @@ export function PostEventManagement({ data }: { data: PostEventManagementData })
   return <div className="grid gap-4">
     <Panel label="最终结果 · 确认" >
       {!data.finalResult ? <p className="text-sm text-[var(--color-fg-mid)]">尚未形成正式最终结果；无法确认、授予基于结果的荣誉或归档。</p> : <div className="space-y-3 text-sm">
-        <p>当前状态：<strong>{data.finalResult.status === "confirmed" ? "已确认" : "待确认"}</strong>。冠军：{teamName.get(data.finalResult.championEntryId) ?? data.finalResult.championEntryId}。</p>
+        <p>当前状态：<strong>{data.finalResult.status === "confirmed" ? "已确认" : "待确认"}</strong>。冠军：<TeamProfileLink entryId={data.finalResult.championEntryId}>{teamName.get(data.finalResult.championEntryId) ?? "队伍"}</TeamProfileLink>。</p>
         <p className="text-[var(--color-fg-mid)]">最终名次已根据赛事结果生成；确认不会重新计算比赛或修改名次。</p>
         {data.finalResult.status === "pending_confirmation" && <>
           <label className="flex items-start gap-2 border border-[var(--color-border)] p-3">
@@ -116,6 +118,7 @@ export function PostEventManagement({ data }: { data: PostEventManagementData })
         </div>}
         {data.finalResult?.status === "confirmed" && placementOptions.length > 0 && <div className="grid gap-2 border border-[var(--color-border)] p-3 md:grid-cols-[1fr_auto]">
           <Select value={placementChoice} onValueChange={setPlacementChoice}><SelectTrigger><SelectValue placeholder="选择官方名次范围与队伍" /></SelectTrigger><SelectContent>{placementOptions.map((option) => <SelectItem key={option.key} value={option.key}>{option.from}–{option.to} · {teamName.get(option.entryId) ?? option.entryId}</SelectItem>)}</SelectContent></Select>
+          {placementChoice && <TeamProfileLink entryId={placementOptions.find(option => option.key === placementChoice)?.entryId}>查看队伍 ↗</TeamProfileLink>}
           <Button variant="outline" disabled={!placementChoice || isPending} onClick={() => {
             const selected = placementOptions.find((option) => option.key === placementChoice);
             if (!selected) return;
@@ -125,6 +128,7 @@ export function PostEventManagement({ data }: { data: PostEventManagementData })
         <div className="grid gap-2 border border-[var(--color-border)] p-3 md:grid-cols-[1fr_1fr_auto]">
           <Input placeholder="手动奖项名称" value={manualLabel} onChange={(event) => setManualLabel(event.target.value)} />
           <Select value={manualTeamId} onValueChange={setManualTeamId}><SelectTrigger><SelectValue placeholder="选择获奖队伍" /></SelectTrigger><SelectContent>{data.teams.map((team) => <SelectItem key={team.id} value={team.id}>{team.name}</SelectItem>)}</SelectContent></Select>
+          {manualTeamId && <TeamProfileLink entryId={manualTeamId}>查看 {teamName.get(manualTeamId)} ↗</TeamProfileLink>}
           <Button disabled={!manualLabel.trim() || !manualTeamId || isPending} onClick={() => run(async () => {
             const result = await grantTournamentHonor({ seasonId: data.seasonId, clientRequestId: requestId(), type: "manual_award", label: manualLabel.trim(), basis: "manual", entryId: manualTeamId, honorKey: safeManualKey(manualLabel) });
             if (result.success) { toast.success("手动奖项已授予。"); setManualLabel(""); setManualTeamId(""); }
@@ -132,7 +136,7 @@ export function PostEventManagement({ data }: { data: PostEventManagementData })
           })}>授予手动奖项</Button>
         </div>
         {data.honors.length === 0 ? <StatusBanner tone="info" title="尚无奖项" sub="确认赛事结果后，管理员可授予赛事奖项。" /> : <ul className="space-y-2">{data.honors.map((honor) => <li key={honor.id} className="flex flex-wrap items-center justify-between gap-2 border border-[var(--color-border)] p-3">
-          <span>{honor.label} · {HONOR_STATE_LABELS[honor.state] ?? "状态待确认"} · {honor.entryId ? teamName.get(honor.entryId) ?? "队伍待确认" : honor.userId ?? "未授予"}{honor.placementFrom ? ` · ${honor.placementFrom}–${honor.placementTo}` : ""}</span>
+          <span>{honor.label} · {HONOR_STATE_LABELS[honor.state] ?? "状态待确认"} · {honor.entryId ? <TeamProfileLink entryId={honor.entryId}>{teamName.get(honor.entryId) ?? "队伍待确认"}</TeamProfileLink> : honor.userId ? <PlayerProfileLink userId={honor.userId}>查看选手</PlayerProfileLink> : "未授予"}{honor.placementFrom ? ` · ${honor.placementFrom}–${honor.placementTo}` : ""}</span>
           {honor.state === "valid" && <Button variant="destructive" size="sm" disabled={isPending} onClick={() => setConfirming({ kind: "honor", id: honor.id })}>撤销</Button>}
           {confirming?.kind === "honor" && confirming.id === honor.id && <div className="w-full"><InlineConfirm danger confirmLabel="确认撤销" title="撤销此荣誉？" sub="不会自动授予任何其他队伍（包括亚军）。" onCancel={() => setConfirming(null)} onConfirm={() => { setConfirming(null); run(async () => revokeTournamentHonor({ honorId: honor.id, reason: "管理员赛后撤销" })); }} /></div>}
         </li>)}</ul>}
@@ -144,6 +148,7 @@ export function PostEventManagement({ data }: { data: PostEventManagementData })
         <p className="text-[var(--color-fg-mid)]">裁决会明确记录对象和影响范围；不会自动修改历史比赛、最终名次或奖项。</p>
         <div className="grid gap-3 border border-[var(--color-border)] p-3">
           <Select value={adjudicationTeamId} onValueChange={setAdjudicationTeamId}><SelectTrigger><SelectValue placeholder="选择被裁决队伍" /></SelectTrigger><SelectContent>{data.teams.map((team) => <SelectItem key={team.id} value={team.id}>{team.name}</SelectItem>)}</SelectContent></Select>
+          {adjudicationTeamId && <TeamProfileLink entryId={adjudicationTeamId}>查看 {teamName.get(adjudicationTeamId)} ↗</TeamProfileLink>}
           <Input placeholder="裁决依据" value={reason} onChange={(event) => setReason(event.target.value)} />
           <Input placeholder="公开说明" value={explanation} onChange={(event) => setExplanation(event.target.value)} />
           <Textarea placeholder="内部说明（仅管理员可见）" value={internalEvidence} onChange={(event) => setInternalEvidence(event.target.value)} />
@@ -154,7 +159,7 @@ export function PostEventManagement({ data }: { data: PostEventManagementData })
           })}>创建队伍裁决</Button>
         </div>
         {data.adjudications.length === 0 ? <StatusBanner tone="info" title="尚无赛后裁决" sub="裁决需明确目标、影响范围与理由，不会自动改写历史比赛。" /> : <ul className="space-y-2">{data.adjudications.map((item) => <li key={item.id} className="flex flex-wrap items-center justify-between gap-2 border border-[var(--color-border)] p-3">
-          <span>{ADJUDICATION_KIND_LABELS[item.kind] ?? "赛后裁决"} · {ADJUDICATION_STATUS_LABELS[item.status] ?? "状态待确认"} · {item.target === "entry" ? teamName.get(item.targetEntryId ?? "") ?? "队伍待确认" : "相关对象"}<br /><span className="text-[var(--color-fg-mid)]">{item.explanation}</span></span>
+          <span>{ADJUDICATION_KIND_LABELS[item.kind] ?? "赛后裁决"} · {ADJUDICATION_STATUS_LABELS[item.status] ?? "状态待确认"} · {item.target === "entry" ? <TeamProfileLink entryId={item.targetEntryId}>{teamName.get(item.targetEntryId ?? "") ?? "队伍待确认"}</TeamProfileLink> : "相关对象"}<br /><span className="text-[var(--color-fg-mid)]">{item.explanation}</span></span>
           {item.status === "active" && <Button variant="destructive" size="sm" disabled={isPending} onClick={() => setConfirming({ kind: "adjudication", id: item.id })}>撤销</Button>}
           {confirming?.kind === "adjudication" && confirming.id === item.id && <div className="w-full"><InlineConfirm danger confirmLabel="确认撤销" title="撤销此赛后裁决？" sub="只改变裁决自身状态，不会回写历史比赛、名次或荣誉。" onCancel={() => setConfirming(null)} onConfirm={() => { setConfirming(null); run(async () => revokePostEventAdjudication({ adjudicationId: item.id, reason: "管理员赛后撤销" })); }} /></div>}
         </li>)}</ul>}

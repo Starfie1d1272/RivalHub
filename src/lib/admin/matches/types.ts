@@ -11,6 +11,7 @@ export type OperatorLineupPlayer = { name: string; userId?: string; steam64: str
 export type OperatorLineupDifference = { missing: OperatorLineupPlayer[]; unexpected: OperatorLineupPlayer[]; duplicated: OperatorLineupPlayer[] };
 
 export interface TeamMemberData {
+  userId: string;
   id: string;
   entryId: string;
   personaName: string | null;
@@ -74,6 +75,7 @@ export interface AdminDemoReviewCandidate {
 }
 
 export interface AdminDemoReviewParticipant {
+  entryId: string;
   observedSteam64: string;
   demoName: string;
   teamName: string;

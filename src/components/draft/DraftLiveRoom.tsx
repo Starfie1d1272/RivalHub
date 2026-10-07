@@ -1,5 +1,7 @@
 "use client";
 
+import { TeamProfileLink } from "@/components/teams/TeamProfileLink";
+import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRoutePolling } from "@/components/use-visible-polling";
 import { DRAFT_TOTAL_ROUNDS } from "@/types/draft";
@@ -16,6 +18,8 @@ interface DraftLiveRoomProps {
 }
 
 interface PickNotification {
+  userId: string;
+  entryId: string;
   teamName: string;
   playerName: string;
 }
@@ -37,12 +41,12 @@ export function DraftLiveRoom({
   const removeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const showPickNotification = useCallback(
-    (payload: { personaName?: string | null; displayName?: string | null; perfectName?: string | null; team_id?: string }) => {
+    (payload: { personaName?: string | null; displayName?: string | null; perfectName?: string | null; userId: string; team_id: string }) => {
       const teamName =
         teams.find((t) => t.entryId === payload.team_id)?.teamName ?? "未知队伍";
       const playerName = getPublicDisplayName(payload);
 
-      setNotification({ teamName, playerName });
+      setNotification({ teamName, playerName, userId: payload.userId, entryId: payload.team_id });
       setNotificationVisible(true);
 
       if (fadeTimerRef.current) clearTimeout(fadeTimerRef.current);
@@ -80,6 +84,7 @@ export function DraftLiveRoom({
             displayName: latestPick.displayName,
             perfectName: latestPick.perfectName,
             team_id: latestPick.entryId,
+            userId: latestPick.userId,
           });
         });
       }
@@ -108,7 +113,7 @@ export function DraftLiveRoom({
           role="status"
           aria-live="polite"
         >
-          {"🎯"} {notification.teamName} 选择了 {notification.playerName}
+          {"🎯"} <TeamProfileLink entryId={notification.entryId}>{notification.teamName}</TeamProfileLink> 选择了 <PlayerProfileLink userId={notification.userId}>{notification.playerName}</PlayerProfileLink>
         </div>
       )}
 
@@ -135,7 +140,7 @@ export function DraftLiveRoom({
               <div className="text-sm">
                 <span className="text-[var(--color-fg-mid)]">当前 </span>
                 <span className="text-[var(--color-accent)] font-semibold">
-                  {pickingTeam.teamName}
+                  <TeamProfileLink entryId={pickingTeam.entryId}>{pickingTeam.teamName}</TeamProfileLink>
                 </span>
               </div>
             )}
@@ -182,7 +187,7 @@ export function DraftLiveRoom({
                     : "text-[var(--color-fg-mid)]"
                 }`}
               >
-                {t?.teamName ?? tid.slice(0, 6)}
+                <TeamProfileLink entryId={tid}>{t?.teamName ?? "队伍"}</TeamProfileLink>
               </span>
             );
           })}
@@ -208,7 +213,7 @@ export function DraftLiveRoom({
                     R{pick.round}P{pick.pickNumber}{" "}
                   </span>
                   <span className="text-[var(--color-fg)]">
-                    {getPublicDisplayName(pick)}
+                    <TeamProfileLink entryId={pick.entryId}>{team?.teamName ?? "队伍"}</TeamProfileLink> · <PlayerProfileLink userId={pick.userId}>{getPublicDisplayName(pick)}</PlayerProfileLink>
                   </span>
                   {pick.autoPicked && (
                     <span className="text-[var(--color-warn)] ml-0.5">{"⚡"}</span>

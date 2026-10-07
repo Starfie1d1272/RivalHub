@@ -31,6 +31,15 @@ test("观众完成选队提交、草稿隔离、图片导出", async ({
       page.getByRole("button", { name: /加入 Pick’Em/ }),
     ).toHaveCount(0);
     const mobile = info.project.name === "mobile-chrome";
+    const identityCard = page.getByTestId("sim-match-stage1-r1-1");
+    await expect(identityCard.locator("a a, button a, a button, button button")).toHaveCount(0);
+    const profile = identityCard.getByRole("link").first();
+    await expect(profile).toHaveAttribute("href", new RegExp(`^/${fixture.slug}/teams/`));
+    await profile.focus(); await profile.press("Enter");
+    await expect(page).toHaveURL(new RegExp(`/${fixture.slug}/teams/`));
+    await page.goBack();
+    await expect(identityCard).toHaveAttribute("data-source", "preview");
+
     if (mobile)
       await page
         .getByRole("button", { name: "我的预测单", exact: true })
@@ -353,7 +362,11 @@ test("官方 Swiss 与推演共享布局，Play-in 六场与未来路径在桌�
     await page.goto(`/${fixture.slug}/matches`);
     await page.getByRole("tab", {name:"PLAY-IN",exact:true}).click();
     const flow = page.getByRole("region", {name:"Swiss 官方赛程"});
-    await expect(flow.getByRole("link")).toHaveCount(6);
+    const matchLinks = flow.locator(`a[href^="/${fixture.slug}/matches/"]`);
+    const teamLinks = flow.locator(`a[href^="/${fixture.slug}/teams/"]`);
+    await expect.poll(async () => new Set(await matchLinks.evaluateAll(links => links.map(link => link.getAttribute("href")))).size).toBe(6);
+    await expect(teamLinks).toHaveCount(12);
+    await expect(flow.locator("a a, button a, a button, button button")).toHaveCount(0);
     await expect(flow.getByTestId("record-2-1–0")).toContainText("待定");
     const widths = info.project.name === "mobile-chrome" ? [390,320] : [1440,1680,1920];
     for (const width of widths) {
@@ -371,7 +384,8 @@ test("官方 Swiss 与推演共享布局，Play-in 六场与未来路径在桌�
       await expect(flow.getByRole("region",{name:"最终结果"})).toBeVisible();
     }
     await page.getByRole("tab").filter({hasText:/stage\s*1|阶段一|第一阶段/i}).first().click();
-    await expect(flow.getByRole("link")).toHaveCount(8);
+    await expect.poll(async () => new Set(await matchLinks.evaluateAll(links => links.map(link => link.getAttribute("href")))).size).toBe(8);
+    await expect(teamLinks).toHaveCount(16);
     await expect(flow.getByRole("region",{name:"最终结果"})).toContainText("3–0");
   } finally {
     await pool.query("DELETE FROM matches WHERE season_id=$1 AND qualification_run_id IS NOT NULL", [fixture.seasonId]);

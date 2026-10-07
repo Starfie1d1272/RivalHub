@@ -12,7 +12,7 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: refreshMock }) 
 const season = { status: "registration" as const, registrationOpensAt: new Date("2026-01-01"), registrationOpenedAt: new Date("2026-01-01"), registrationClosesAt: new Date("2027-01-01") };
 function props(size = 5): Parameters<typeof CompetitionEntryFlow>[0] {
   const roster = Array.from({ length: size }, (_, i) => ({ membershipId: `m${i}`, userId: `u${i}`, participantId: `p${i}`, label: `选手${i}`, status: "active" as const, roles: [], primaryRole: null, confirmation: "confirmed" as const, primary: i < 5 }));
-  return { competitionId: "event", competitionName: "Major", currentUserId: "u0", minRoster: 5, maxRoster: 9, starterCount: 5, requiresCompetitiveProfile: false, requiresTeamLogo: true, canManageEntryTeamProfile: true, approvedTeamCount: 0, registrationWindowCanSubmit: true, registrationWindowPhase: "open", rosterChangeClosesAtLabel: "2026-09-27 20:00", captainedTeams: [], invitationConflict: null, capabilities: getCompetitionEntryCapabilities({ season, entry: { status: "draft", hasApprovedRoster: false }, revision: { status: "draft", origin: "initial" }, rosterFrozen: false }), entry: { id: "entry", name: "队伍", status: "draft", logoUrl: "/logo.png", teamLogoUrl: null, representativeUserId: "u0", reviewReason: null, qualificationFindings: [], roster, candidates: roster } };
+  return { competitionId: "event", seasonSlug: "major", competitionName: "Major", currentUserId: "u0", minRoster: 5, maxRoster: 9, starterCount: 5, requiresCompetitiveProfile: false, requiresTeamLogo: true, canManageEntryTeamProfile: true, approvedTeamCount: 0, registrationWindowCanSubmit: true, registrationWindowPhase: "open", rosterChangeClosesAtLabel: "2026-09-27 20:00", captainedTeams: [], invitationConflict: null, capabilities: getCompetitionEntryCapabilities({ season, entry: { status: "draft", hasApprovedRoster: false }, revision: { status: "draft", origin: "initial" }, rosterFrozen: false }), entry: { id: "entry", name: "队伍", status: "draft", logoUrl: "/logo.png", teamLogoUrl: null, representativeUserId: "u0", reviewReason: null, qualificationFindings: [], roster, candidates: roster } };
 }
 describe("CompetitionEntryFlow", () => {
   beforeEach(() => {
@@ -23,6 +23,17 @@ describe("CompetitionEntryFlow", () => {
     vi.useRealTimers();
     Object.defineProperty(document, "visibilityState", { configurable: true, value: "visible" });
   });
+  it("keeps valid Team and Player destinations reachable without exposing unapproved event profiles", () => {
+    const p = props();
+    const first = render(<CompetitionEntryFlow {...p} />);
+    expect(screen.queryByRole("link", { name: "查看 队伍 队伍资料" })).not.toBeInTheDocument();
+    expect(screen.getAllByRole("link", { name: "选手0" })[0]).toHaveAttribute("href", "/players/u0");
+    first.unmount();
+    p.entry!.status = "approved";
+    render(<CompetitionEntryFlow {...p} />);
+    expect(screen.getByRole("link", { name: "查看 队伍 队伍资料" })).toHaveAttribute("href", "/major/teams/entry");
+  });
+
   it("refreshes readiness manually and only auto-refreshes after 30 seconds away", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-09-26T10:00:00-07:00"));
@@ -262,19 +273,20 @@ describe("CompetitionEntryFlow", () => {
     expect(screen.queryByRole("button", { name: "退出本届赛事" })).not.toBeInTheDocument();
   });
   it("preserves recruitment context and the normal creation path", () => {
-    const p = props(); p.entry = null; p.captainedTeams = [{ id: "team", name: "队伍" }]; p.capabilities.canStartRegistration = true;
+    const p = props(); p.entry = null; p.captainedTeams = [{ id: "team", slug: "team", name: "队伍" }]; p.capabilities.canStartRegistration = true;
     render(<CompetitionEntryFlow {...p} />);
     expect(screen.getByRole("link", { name: "查看招募中的队伍" })).toHaveAttribute("href", "/teams/recruitment?view=teams&event=event");
+    expect(screen.getByRole("link", { name: "查看 队伍 队伍资料" })).toHaveAttribute("href", "/teams/team");
     expect(screen.getByRole("button", { name: "开始报名" })).toBeEnabled();
   });
   it("uses the configured capacity for the non-blocking registration reminder", () => {
-    const p = props(); p.entry = null; p.approvedTeamCount = 33; p.majorEntrantCapacity = 32; p.captainedTeams = [{ id: "team", name: "队伍" }]; p.capabilities.canStartRegistration = true;
+    const p = props(); p.entry = null; p.approvedTeamCount = 33; p.majorEntrantCapacity = 32; p.captainedTeams = [{ id: "team", slug: "team", name: "队伍" }]; p.capabilities.canStartRegistration = true;
     render(<CompetitionEntryFlow {...p} />);
     expect(screen.getByText(/已有 33 支队伍通过报名审核，仍可继续报名；若最终超过 32 支，将按本届公告安排处理/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "开始报名" })).toBeEnabled();
   });
   it("shows the 24-team entrant capacity without promising an in-app qualifier", () => {
-    const p = props(); p.entry = null; p.approvedTeamCount = 24; p.majorEntrantCapacity = 24; p.captainedTeams = [{ id: "team", name: "队伍" }]; p.capabilities.canStartRegistration = true;
+    const p = props(); p.entry = null; p.approvedTeamCount = 24; p.majorEntrantCapacity = 24; p.captainedTeams = [{ id: "team", slug: "team", name: "队伍" }]; p.capabilities.canStartRegistration = true;
     render(<CompetitionEntryFlow {...p} />);
     expect(screen.getByText(/本届正赛容量为 24 队，仍可继续报名，最终名单由赛事管理员确认/)).toBeInTheDocument();
     expect(screen.queryByText(/资格赛|自动筛选/)).not.toBeInTheDocument();
