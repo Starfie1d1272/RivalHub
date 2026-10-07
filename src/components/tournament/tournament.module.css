@@ -311,8 +311,7 @@
   color: var(--color-fg-mid);
 }
 .board[data-layout="compact"] .rounds {
-  width: max-content;
-  min-width: 100%;
+  min-width: min-content;
   grid-template-columns: repeat(var(--round-count), minmax(200px, 240px));
   gap: 24px;
   justify-content: center;

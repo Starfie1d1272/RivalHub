@@ -284,6 +284,7 @@ test("紧凑推演在窄屏能滚到结果并回到首轮", async ({ page, scena
     const flow = page.getByRole("region", { name: "Swiss 完整赛事推演" });
     for (const width of [390, 320, 1440]) {
       await page.setViewportSize({ width, height: 1000 });
+      if (width === 1440) expect(await flow.evaluate(element => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
       await flow.evaluate(element => { element.scrollLeft = 0; });
       const first = flow.getByRole("heading", { name: "第 1 轮", exact: true });
       const startsInside = async () => {
