@@ -395,6 +395,12 @@
     gap: 4px;
     font-size: 11px;
   }
+  .viewSwitch button svg {
+    display: none;
+  }
+  .viewSwitch button span {
+    white-space: nowrap;
+  }
   .legend > span:nth-child(-n + 3) {
     display: none;
   }
