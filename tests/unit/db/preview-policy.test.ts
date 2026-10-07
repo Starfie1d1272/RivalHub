@@ -39,6 +39,22 @@ describe("sanitized mirror policy", () => {
     expect(older.futureColumns.match_maps).toContain("started_at");
   });
 
+  it("preserves test identity without exporting private eligibility evidence", () => {
+    const expected = readExpectedMigrations();
+    const index = expected.findIndex(({ tag }) => tag === "0079_test-matches");
+    expect(index).toBeGreaterThan(0);
+    const older = previewPolicyFor(expected.slice(0, index));
+    expect(older.tables.matches.exportedColumns).not.toContain("test_config");
+    expect(exportQuery("matches", older)).not.toContain("test_config");
+    const query = exportQuery("matches");
+    expect(query).toContain("CASE WHEN test_config IS NULL THEN NULL ELSE jsonb_build_object(");
+    expect(query).toContain("'mapPool', test_config->'mapPool'");
+    expect(query).toContain("'operatorAId', test_config->'operatorAId'");
+    expect(query).toContain("'operatorBId', test_config->'operatorBId'");
+    expect(query).not.toContain("eligibility");
+    expect(query).not.toContain('"test_config"');
+  });
+
   it("projects a fixed end reason without selecting the private source field", () => {
     const query = exportQuery("team_memberships");
 
