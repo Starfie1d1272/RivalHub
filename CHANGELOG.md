@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.15.6]
+
+### Fixed
+
+- 修复队长在尚未提交本场阵容时看不到首发选择入口的问题。赛前可从「你的赛务」选择首发及 BP 负责人，已提交阵容仍可通过原入口查看或调整。
+
 ## [2.15.5]
 
 ### Fixed
@@ -2798,6 +2804,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[2.15.6]: https://github.com/Starfie1d1272/RivalHub/compare/v2.15.5...v2.15.6
 [2.15.5]: https://github.com/Starfie1d1272/RivalHub/compare/v2.15.4...v2.15.5
 [2.15.4]: https://github.com/Starfie1d1272/RivalHub/compare/v2.15.3...v2.15.4
 [2.15.3]: https://github.com/Starfie1d1272/RivalHub/compare/v2.15.2...v2.15.3
