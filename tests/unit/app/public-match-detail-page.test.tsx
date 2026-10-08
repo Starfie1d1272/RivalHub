@@ -4,6 +4,9 @@
 import React from "react";
 vi.mock("next/server", () => ({ connection: vi.fn(async () => {}) }));
 import { renderToStaticMarkup } from "react-dom/server";
+import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { AppError, ErrorCode } from "@/lib/errors";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
@@ -190,6 +193,32 @@ describe("Public Match Detail Page (PRE / POST)", () => {
   });
 
   describe("PRE Spectator Experience", () => {
+    // Form tests cover lineup submission; this protects the previously missing
+    // page-to-dialog entry for either captain before a MatchRoster exists.
+    it.each(["user-cap-a", "user-cap-b"])("lets captain %s open the first lineup form", async (userId) => {
+      getUserSessionMock.mockResolvedValue({ userId });
+      requireSeasonAdminMock.mockRejectedValue(new AppError(ErrorCode.FORBIDDEN, "not an admin"));
+      findFirstMatchMock.mockResolvedValue({
+        id: "match-first-lineup", seasonId: "season-1", entryAId: "entry-a", entryBId: "entry-b",
+        status: "scheduled", format: "bo3", stage: "group", scheduledAt: null,
+      });
+      findManyMapsMock.mockResolvedValue([]);
+      loadMatchPreAnalysisMock.mockResolvedValue({
+        mapProfileRows: [], recentResultsA: [], recentResultsB: [], h2hMatches: [], h2hWinsA: 0, h2hWinsB: 0,
+      });
+      const user = userEvent.setup();
+      render(await MatchDetailPage({
+        params: Promise.resolve({ seasonSlug: "spring-2026", matchId: "match-first-lineup" }),
+        searchParams: Promise.resolve({}),
+      }));
+
+      await user.click(screen.getByRole("button", { name: "选择本场首发" }));
+
+      expect(await screen.findByRole("dialog", { name: "选择本场首发" })).toBeInTheDocument();
+      expect(screen.getByText("已选 0/5 名首发")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "提交名单" })).toBeDisabled();
+    });
+
     it("renders scheduled match with roster, map profile, recent results, prediction, H2H and Veto Room entry", async () => {
       findFirstMatchMock.mockResolvedValue({
         id: "match-scheduled",
