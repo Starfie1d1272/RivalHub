@@ -120,4 +120,7 @@ Pure tests exercise full Major simulation, upstream invalidation, exact slot jud
 
 依赖缓存使用包含 lockfile、workspace 和 runtime manifest 的稳定键；命中后不 prune/re-upload。缓存 miss 仍执行 frozen-lockfile 安装，不跳过依赖校验。
 
-Supabase 仅缓存不可变容器镜像，缓存键绑定 lockfile 与服务配置；每次仍创建全新数据库、重放迁移并重新执行健康检查。缓存不含容器 volume、业务数据、账号或服务凭证。
+
+LIVE 浏览器只保留一条匿名测试赛的真实 Broadcast、断流恢复、跨场导航与换图链路。正式赛/测试赛及赛事阶段的 token 准入矩阵由 `tests/integration/db/test-matches.test.ts` 调用真实 `issueLiveViewerToken` 查询 PostgreSQL 承接；provider contract 保留正式赛与跨场凭据的真实 Realtime 隔离。
+
+CI 使用固定 Supabase CLI 版本提供的官方 slim 镜像（对应相同上游服务版本），每次新建数据库、重放迁移并执行健康检查与 provider contract；不保存数据库或 Docker image tar 缓存。大镜像 tar 的远端加载实测比正常拉取更慢，已移除。

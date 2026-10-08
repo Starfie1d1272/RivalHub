@@ -25,13 +25,13 @@ const stream = (matchId: string) => new Promise<ChildProcess>((resolve, reject) 
     child.once("error", error => { clearTimeout(deadline); reject(error); });
   });
 
-test("public match consumes private Broadcast and recovers across navigation and map changes", async ({ page }) => {
+test("public test match consumes private Broadcast and recovers across navigation and map changes", async ({ page }) => {
   test.setTimeout(180000);
   const seasonId = randomUUID();
   let producer: ChildProcess | undefined;
 
   try {
-    const output = await run(fixture, "create", seasonId);
+    const output = await run(fixture, "create-test", seasonId);
     const line = output.split("\n").find(value => value.startsWith("LIVE_FIXTURE "));
     if (!line) throw new Error("Local live fixture did not return context");
     const { matchId, otherMatchId } = JSON.parse(line.slice("LIVE_FIXTURE ".length)) as { matchId: string; otherMatchId: string };
@@ -57,6 +57,7 @@ test("public match consumes private Broadcast and recovers across navigation and
       page.goto(url),
     ]);
     expect(tokenResponse.status()).toBe(200);
+    await expect(page.getByText("测试赛 · 不计入正式赛程与统计", { exact: true })).toBeVisible();
     const live = page.getByTestId("match-realtime").filter({ visible: true });
     await expect(live.getByText("FalleN", { exact: true })).toBeVisible();
     await expect(live.locator("canvas")).toBeVisible();
@@ -97,44 +98,6 @@ test("public match consumes private Broadcast and recovers across navigation and
     await expect(live.getByText("Ancient", { exact: true })).toHaveCount(0);
     producer?.kill(); producer = undefined;
 
-  } finally {
-    producer?.kill();
-    await run(fixture, "cleanup", seasonId);
-  }
-});
-
-
-test("registration test match streams LIVE to an anonymous browser with match-scoped authorization", async ({ page }) => {
-  test.setTimeout(90000);
-  const seasonId = randomUUID();
-  let producer: ChildProcess | undefined;
-  try {
-    const output = await run(fixture, "create-test", seasonId);
-    const line = output.split("\n").find(value => value.startsWith("LIVE_FIXTURE "));
-    if (!line) throw new Error("Local live fixture did not return context");
-    const { matchId, otherMatchId } = JSON.parse(line.slice("LIVE_FIXTURE ".length)) as { matchId: string; otherMatchId: string };
-    await run(browserFixture, "prepare", matchId);
-    const denied = await page.request.get(`/api/matches/${otherMatchId}/live-viewer`);
-    expect(denied.status()).toBe(400);
-    expect(await denied.json()).toEqual({ error: "比赛实时数据不可用。" });
-    const response = await page.request.get(`/api/matches/${matchId}/live-viewer`);
-    expect(response.status()).toBe(200);
-    const credential = await response.json();
-    expect(credential.topic).toBe(`match-live:${matchId}`);
-    expect(JSON.parse(Buffer.from(credential.token.split(".")[1], "base64url").toString())).toMatchObject({ matchId, scope: "live-viewer" });
-    producer = await stream(matchId);
-    await page.goto(`/${seasonId}/matches/${matchId}`, { timeout: 30000 });
-    const live = page.getByTestId("match-realtime").filter({ visible: true });
-    await expect(page.getByText("测试赛 · 不计入正式赛程与统计", { exact: true })).toBeVisible();
-    await expect(live.getByText("FalleN", { exact: true })).toBeVisible();
-    await expect(live.locator("canvas")).toBeVisible();
-    await page.reload();
-    await expect(live.getByText("FalleN", { exact: true })).toBeVisible();
-    producer.kill(); producer = undefined;
-    await run(browserFixture, "phase", matchId, "post");
-    const ended = await page.request.get(`/api/matches/${matchId}/live-viewer`);
-    expect(ended.status()).toBe(400);
-    expect(await ended.json()).toEqual({ error: "比赛实时数据不可用。" });
   } finally {
     producer?.kill();
     await run(fixture, "cleanup", seasonId);

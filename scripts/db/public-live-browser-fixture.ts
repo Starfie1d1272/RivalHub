@@ -4,14 +4,14 @@ import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { and, eq, isNull } from "drizzle-orm";
 import { db } from "../../src/db/client";
-import { matches, matchMaps, matchLiveSessions, matchVetoSessions, competitionEntries, seasons } from "../../src/db/schema";
+import { matches, matchMaps, matchLiveSessions, competitionEntries, seasons } from "../../src/db/schema";
 import { ingestMizarLive } from "../../src/lib/mizar/live";
 import { parseLiveSnapshotV1 } from "../../src/lib/mizar/protocol";
 import { assertDeclaredDatabaseTarget } from "./local-environment";
 async function main() {
 assertDeclaredDatabaseTarget(process.env);
 if (process.env.RIVALHUB_DB_TARGET !== "local") throw new Error("Local browser evidence only");
-const [command, matchId, phase] = process.argv.slice(2);
+const [command, matchId] = process.argv.slice(2);
 const match = await db.query.matches.findFirst({ where: eq(matches.id, matchId) });
 if (!match) throw new Error("Missing local fixture match");
 assertCompetitionMatch(match);
@@ -60,15 +60,6 @@ if (command === "prepare") {
     if (!ready) { console.log("PUBLIC_LIVE_READY"); ready = true; }
     await new Promise(resolve => setTimeout(resolve, 1000));
   }
-} else if (command === "phase") {
-  if (!["pre", "bp", "waiting", "gameplay", "inter_map", "post"].includes(phase)) throw new Error("Unknown phase");
-  if (phase === "pre") await db.delete(matchMaps).where(eq(matchMaps.matchId, matchId));
-  else if (phase !== "bp") await ensureMaps();
-  await db.update(matches).set({ status: phase === "post" ? "finished" : phase === "pre" ? "scheduled" : "in_progress", scoreA: phase === "post" ? 2 : null, scoreB: phase === "post" ? 0 : null, completedAt: phase === "post" ? new Date() : null }).where(eq(matches.id, match.id));
-  await db.update(matchVetoSessions).set({ startedAt: phase === "pre" ? null : new Date(), completedAt: ["pre", "bp"].includes(phase) ? null : new Date() }).where(eq(matchVetoSessions.matchId, match.id));
-  await db.update(matchLiveSessions).set({ mapExecutionPhase: phase === "gameplay" ? "gameplay" : "waiting" }).where(eq(matchLiveSessions.id, source.id));
-  await db.update(matchMaps).set({ completedAt: ["inter_map", "post"].includes(phase) ? new Date() : null, scoreA: ["inter_map", "post"].includes(phase) ? 13 : null, scoreB: ["inter_map", "post"].includes(phase) ? 9 : null }).where(eq(matchMaps.id, source.currentMapId!));
-  if (phase === "post") await db.update(matchMaps).set({ completedAt: new Date(), scoreA: 13, scoreB: 9 }).where(and(eq(matchMaps.matchId, matchId), eq(matchMaps.mapOrder, 2)));
 } else throw new Error("Unknown command");
 process.exit(0);
 }
