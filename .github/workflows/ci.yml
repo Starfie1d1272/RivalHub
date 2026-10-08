@@ -272,11 +272,13 @@ jobs:
           path: ${{ runner.temp }}/supabase-images.tar
           key: ${{ runner.os }}-${{ runner.arch }}-supabase-images-v3-${{ hashFiles('pnpm-lock.yaml', 'supabase/config.toml') }}
       - name: Load Supabase images
+        continue-on-error: true # A cache is optional; normal pull/start remains authoritative.
         if: steps.supabase-images.outputs.cache-hit == 'true'
         run: node scripts/ci/timing.mjs "system/image load" -- docker image load --input "$RUNNER_TEMP/supabase-images.tar"
       - name: Supabase startup
         run: node scripts/ci/timing.mjs "system/Supabase startup" -- pnpm db:local:start-services
       - name: Cache immutable Supabase images
+        continue-on-error: true # Export failure must not suppress actual service/test evidence.
         if: steps.supabase-images.outputs.cache-hit != 'true'
         run: |
           mapfile -t images < <(docker image ls --digests --format '{{.Repository}} {{.Tag}} {{.Digest}}' | awk '$1 ~ /(^|\/)supabase\// { if ($2 != "<none>") print $1 ":" $2; else if ($3 != "<none>") print $1 "@" $3 }' | sort -u)
