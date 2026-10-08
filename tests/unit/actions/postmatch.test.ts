@@ -6,6 +6,7 @@ const transactionMock = vi.hoisted(() => vi.fn());
 const requireSeasonAdminMock = vi.hoisted(() => vi.fn());
 const auditActorIdMock = vi.hoisted(() => vi.fn());
 const setMatchVideoUrlInTxMock = vi.hoisted(() => vi.fn());
+const cancelMatchCommentaryInTxMock = vi.hoisted(() => vi.fn());
 const claimMatchCommentaryInTxMock = vi.hoisted(() => vi.fn());
 const revalidateMatchPathsMock = vi.hoisted(() => vi.fn());
 
@@ -26,6 +27,7 @@ vi.mock("@/lib/auth/session", () => ({
 
 vi.mock("@/lib/postmatch/service", () => ({
   addMatchCommentatorInTx: vi.fn(),
+  cancelMatchCommentaryInTx: cancelMatchCommentaryInTxMock,
   claimMatchCommentaryInTx: claimMatchCommentaryInTxMock,
   removeMatchCommentatorInTx: vi.fn(),
   revokePostMatchSubmissionInTx: vi.fn(),
@@ -37,7 +39,7 @@ vi.mock("@/lib/revalidation", () => ({
   revalidateMatchPaths: revalidateMatchPathsMock,
 }));
 
-import { claimMatchCommentary, updateMatchVideoUrl } from "@/actions/postmatch";
+import { cancelMatchCommentary, claimMatchCommentary, updateMatchVideoUrl } from "@/actions/postmatch";
 import { AppError, ErrorCode } from "@/lib/errors";
 
 describe("post-match action revalidation", () => {
@@ -51,6 +53,26 @@ describe("post-match action revalidation", () => {
     auditActorIdMock.mockReturnValue("admin-1");
     setMatchVideoUrlInTxMock.mockResolvedValue(undefined);
     transactionMock.mockImplementation(async (callback: (tx: unknown) => unknown) => callback({}));
+  });
+
+
+  it("cancels only as the session user, rejects forged identities and preserves authorization failures", async () => {
+    expect(await cancelMatchCommentary({ matchId })).toEqual({ success: true, data: undefined });
+    expect(cancelMatchCommentaryInTxMock).toHaveBeenCalledExactlyOnceWith({}, { matchId, userId: "admin-1" });
+    expect(revalidateMatchPathsMock).toHaveBeenCalledWith("major", matchId);
+    vi.clearAllMocks();
+    for (const input of [{ matchId, userId: matchId }, { matchId, seasonId: matchId }, { matchId: "invalid" }]) {
+      expect(await cancelMatchCommentary(input)).toMatchObject({ success: false, error: { code: "VALIDATION_FAILED" } });
+    }
+    for (const code of [ErrorCode.UNAUTHORIZED, ErrorCode.FORBIDDEN]) {
+      requireSeasonAdminMock.mockRejectedValueOnce(new AppError(code, "无权操作。"));
+      expect(await cancelMatchCommentary({ matchId })).toMatchObject({ success: false, error: { code } });
+    }
+    expect(transactionMock).not.toHaveBeenCalled();
+    expect(revalidateMatchPathsMock).not.toHaveBeenCalled();
+    cancelMatchCommentaryInTxMock.mockRejectedValueOnce(new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "请联系管理员。"));
+    expect(await cancelMatchCommentary({ matchId })).toMatchObject({ success: false, error: { code: "MATCH_INVALID_TRANSITION" } });
+    expect(revalidateMatchPathsMock).not.toHaveBeenCalled();
   });
 
   it("refreshes the canonical overview and workbench paths after a video update", async () => {
