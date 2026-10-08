@@ -91,7 +91,7 @@ PostgreSQL harness 按稳定 `VITEST_POOL_ID` 为并发槽位分配独立数据�
 
 ## Spectator prediction acceptance
 
-Pure tests exercise full Major simulation, upstream invalidation, exact slot judgement, bracket dependencies and integer pool conservation. PostgreSQL tests exercise submission versions, server locks, idempotency, concurrent ALL IN, append-only records, official settlement/reversal/debt, account merge blockers and public-data isolation. Major runtime regression is required when shared pairing helpers change. Required browsers protect submission, independent draft restoration, real PNG download and point transactions through Local Supabase on desktop and mobile. Visual state combinations use the explicit acceptance entry; they do not repeat the pairing or settlement rule matrix.
+Pure tests exercise full Major simulation, upstream invalidation, exact slot judgement, bracket dependencies and integer pool conservation. PostgreSQL tests exercise submission versions, server locks, idempotency, concurrent ALL IN, append-only records, official settlement/reversal/debt, account merge blockers and public-data isolation. Major runtime regression is required when shared pairing helpers change. Required browsers protect submission, independent draft restoration, real PNG download and point transactions through Local Supabase on mobile; shared flows are not repeated on desktop. Production App Shell navigation still covers both viewports. Visual state combinations use the explicit acceptance entry; they do not repeat the pairing or settlement rule matrix.
 
 ## Maintenance rules
 

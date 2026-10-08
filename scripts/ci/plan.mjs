@@ -544,8 +544,13 @@ export function systemMatrixFor(plan, liveEvidence) {
     { task: "provider", live: liveEvidence, specs: [] },
     { task: "production", live: false, specs: [] },
   ];
-  const shards = Array.from({ length: Math.min(4, specs.length) }, () => []);
-  specs.forEach((spec, index) => shards[index % shards.length].push(spec));
+  const liveSpec = "tests/e2e/flows/public-match-live.spec.ts";
+  // The real stale/recovery window is the longest indivisible browser flow.
+  // Keep its runner free of unrelated route compilation and fixture work.
+  if (specs.includes(liveSpec)) matrix.push({ task: "browser-live", live: true, specs: [liveSpec] });
+  const ordinary = specs.filter(spec => spec !== liveSpec);
+  const shards = Array.from({ length: Math.min(4, ordinary.length) }, () => []);
+  ordinary.forEach((spec, index) => shards[index % shards.length].push(spec));
   return [...matrix, ...shards.map((specs, index) => ({
     task: `browser-${index + 1}`, specs,
     live: specs.includes("tests/e2e/flows/public-match-live.spec.ts"),
