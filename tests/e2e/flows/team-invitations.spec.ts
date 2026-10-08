@@ -38,7 +38,8 @@ test("未入队用户可以从 /my 和 /teams 发现并处理 direct invitation"
     await inviteePage.getByRole("link", { name: "处理队伍邀请", exact: true }).first().click();
     await expect(inviteePage).toHaveURL(/\/my\/teams$/);
     await expect(pendingInvitations).toBeVisible();
-    await expect(inviteePage.getByText(teamName, { exact: true })).toBeVisible();
+    // Client navigation retains hidden route DOM; target the visible invitation link.
+    await expect(inviteePage.getByRole("link", { name: teamName, exact: true })).toBeVisible();
     await inviteePage.getByRole("button", { name: "接受", exact: true }).click();
     await expect(inviteePage.getByText("队伍身份", { exact: true })).toBeVisible();
     await expect(inviteePage.getByRole("button", { name: "退出队伍", exact: true })).toBeVisible();
