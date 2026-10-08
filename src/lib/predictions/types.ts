@@ -70,6 +70,8 @@ interface Choice {
 }
 export type Choices = Record<string, Choice>;
 export interface SimMatch {
+  /** Persisted match on this worldline; absent for hypothetical pairings. */
+  officialMatchId?: string;
   key: string;
   round: number;
   a: string;

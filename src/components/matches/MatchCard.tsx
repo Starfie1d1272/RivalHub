@@ -68,9 +68,9 @@ export function MatchCard({
         </Link>
         <span className={`font-semibold truncate min-w-0 flex-1 text-[var(--color-fg)] text-sm sm:text-base ${showLiveScore ? "col-start-1 row-start-2 lg:col-start-3 lg:row-start-1" : ""}`}><TeamProfileLink entryId={entryBId} seasonSlug={seasonSlug}>{teamBName}</TeamProfileLink></span>
       </div>
-      <Link href={`/${seasonSlug}/matches/${matchId}`} className="flex items-center gap-2 shrink-0 flex-wrap lg:w-64 lg:justify-end">
+      <Link href={`/${seasonSlug}/matches/${matchId}`} className="flex items-center gap-2 shrink-0 flex-wrap lg:flex-nowrap lg:min-w-80 lg:w-max lg:justify-end">
         {timeText && (
-          <span className="text-xs text-[var(--color-fg-mid)]">{timeText}</span>
+          <span className="whitespace-nowrap text-xs text-[var(--color-fg-mid)]">{timeText}</span>
         )}
         <Badge variant="outline" className="text-xs text-[var(--color-fg-mid)]">
           {stageLabel}

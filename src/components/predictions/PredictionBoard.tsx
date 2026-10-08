@@ -402,6 +402,7 @@ export function PredictionBoard({
                   <TournamentBoard
                     key={`${context.kind}/${stage.key}`}
                     stage={stage}
+                    seasonSlug={slug}
                     teams={base.teams}
                     editable
                     onChoose={choose}

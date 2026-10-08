@@ -66,13 +66,11 @@ function Harness({
 }
 
 describe("independent Pick’Em slots and bracket", () => {
-  it("keeps locked bracket profiles reachable without altering winner state", () => {
+  it("keeps locked picks read-only without extra navigation targets", () => {
     const change = vi.fn();
     const { container } = render(<PickEditor data={data} contest={{ ...contest, locked: true }} pick={{ bracket: ["t1"] }} onChange={change} onSave={vi.fn()} onExport={vi.fn()} busy={false}/>);
-    const profile = screen.getAllByRole("link", { name: "查看 队1 队伍资料" })[0]!;
-    profile.addEventListener("click", event => event.preventDefault());
-    fireEvent.click(profile);
-    expect(profile).toHaveAttribute("href", "/major/teams/t1");
+    expect(screen.queryByRole("link")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "八强 1：队1" }));
     expect(change).not.toHaveBeenCalled();
     expect(screen.getByRole("button", { name: "八强 1：队1" })).toHaveAttribute("aria-pressed", "true");
     expect(container.querySelector("button a, a a, a button")).toBeNull();
