@@ -63,6 +63,7 @@ async function createFixture() {
         await client.query("BEGIN");
         await client.query("SET LOCAL session_replication_role = replica");
         await client.query("DELETE FROM audit_logs WHERE season_id = ANY($1::uuid[])", [[seasonId, otherSeasonId]]);
+        await client.query("DELETE FROM post_match_reports WHERE match_id IN (SELECT id FROM matches WHERE season_id = ANY($1::uuid[]))", [[seasonId, otherSeasonId]]);
         await client.query("DELETE FROM match_commentators WHERE match_id IN (SELECT id FROM matches WHERE season_id = ANY($1::uuid[]))", [[seasonId, otherSeasonId]]);
         await client.query("DELETE FROM match_live_sessions WHERE match_id IN (SELECT id FROM matches WHERE season_id = ANY($1::uuid[]))", [[seasonId, otherSeasonId]]);
         await client.query("DELETE FROM match_veto_sessions WHERE match_id IN (SELECT id FROM matches WHERE season_id = ANY($1::uuid[]))", [[seasonId, otherSeasonId]]);
@@ -98,7 +99,7 @@ describe("match commentary PostgreSQL contract", () => {
       for (const userId of [f.adminA, f.adminB]) await f.database.transaction(tx => claim(tx, { matchId, userId }));
       const view = await readAdminMatchCommentary(f.database, { seasonId: f.seasonId, currentUserId: f.adminA });
       expect(view.byMatchId[matchId]?.canCancel).toBe(true);
-      for (const userId of [f.outsider, f.otherAdmin, f.superAdmin]) await expect(f.database.transaction(tx => cancel(tx, { matchId, userId }))).rejects.toMatchObject({ code: "FORBIDDEN" });
+      for (const userId of [f.outsider, f.otherAdmin]) await expect(f.database.transaction(tx => cancel(tx, { matchId, userId }))).rejects.toMatchObject({ code: "FORBIDDEN" });
       const results = await Promise.all([0, 1].map(() => f.database.transaction(tx => cancel(tx, { matchId, userId: f.adminA }))));
       expect(results.map(r => r.removed).sort()).toEqual([false, true]);
       expect((await f.pool.query("SELECT user_id FROM match_commentators WHERE match_id=$1", [matchId])).rows).toEqual([{ user_id: f.adminB }]);
@@ -155,13 +156,66 @@ describe("match commentary PostgreSQL contract", () => {
     }
   });
 
-  it("requires the actual claimant's grant for the match season and rejects terminal matches", async () => {
+  // Reproduces the reported global-admin account without a season grant through real read/write owners.
+  it("shows global admins all open slots and permits their own claim/cancel without creating season grants", async () => {
+    const f = await createFixture();
+    const { claimMatchCommentaryInTx: claim, cancelMatchCommentaryInTx: cancel } = await import("@/lib/postmatch/service");
+    const { readAdminMatchCommentary } = await import("@/lib/admin/matches/commentary");
+    try {
+      const empty = await f.createMatch();
+      const partial = await f.createMatch({ scheduledAt: "2026-10-11T12:00:00Z" });
+      const full = await f.createMatch();
+      await f.database.transaction(tx => claim(tx, { matchId: partial, userId: f.adminB }));
+      for (const userId of [f.adminA, f.adminB]) await f.database.transaction(tx => claim(tx, { matchId: full, userId }));
+      const read = () => readAdminMatchCommentary(f.database, { seasonId: f.seasonId, currentUserId: f.superAdmin });
+      const before = await read();
+      expect(before.claimableMatches.map(m => m.id)).toEqual([partial, empty]);
+      for (const matchId of [empty, partial]) await f.database.transaction(tx => claim(tx, { matchId, userId: f.superAdmin }));
+      const assigned = await read();
+      expect(assigned.claimableMatches).toEqual([]);
+      expect(assigned.nextMatch?.id).toBe(partial);
+      expect(assigned.byMatchId[partial]).toMatchObject({ isMine: true, canClaim: false, canCancel: true });
+      await f.database.transaction(tx => cancel(tx, { matchId: partial, userId: f.superAdmin }));
+      expect((await f.pool.query("SELECT user_id FROM match_commentators WHERE match_id=$1", [partial])).rows).toEqual([{ user_id: f.adminB }]);
+      expect((await read()).claimableMatches.map(m => m.id)).toEqual([partial]);
+      expect((await f.pool.query("SELECT actor_id FROM audit_logs WHERE target_id=$1 AND action='postmatch.commentator.cancel'", [partial])).rows).toEqual([{ actor_id: f.superAdmin }]);
+      expect((await f.pool.query("SELECT season_id FROM season_admin_grants WHERE user_id=$1", [f.superAdmin])).rows).toEqual([]);
+
+      // Current DB authorization wins after demotion, even for an existing assignment.
+      await f.pool.query("UPDATE users SET role='user' WHERE id=$1", [f.superAdmin]);
+      expect((await read()).claimableMatches).toEqual([]);
+      await expect(f.database.transaction(tx => claim(tx, { matchId: partial, userId: f.superAdmin }))).rejects.toMatchObject({ code: "FORBIDDEN" });
+      await expect(f.database.transaction(tx => cancel(tx, { matchId: empty, userId: f.superAdmin }))).rejects.toMatchObject({ code: "FORBIDDEN" });
+      expect((await f.pool.query("SELECT user_id FROM match_commentators WHERE match_id=$1", [empty])).rows).toEqual([{ user_id: f.superAdmin }]);
+    } finally { await f.close(); }
+  });
+
+  // Direct probes protect the new trigger eligibility rule independently of application checks.
+  it("allows global admins in the DB constraint while retaining cross-season, capacity and submitted-roster guards", async () => {
+    const f = await createFixture();
+    try {
+      const matchId = await f.createMatch();
+      const insert = (userId: string) => f.pool.query("INSERT INTO match_commentators(match_id,user_id,added_by_user_id) VALUES($1,$2,$3)", [matchId, userId, f.superAdmin]);
+      for (const userId of [f.outsider, f.otherAdmin]) await expect(insert(userId)).rejects.toMatchObject({ code: "23514" });
+      await insert(f.superAdmin);
+      await insert(f.adminA);
+      await expect(insert(f.adminB)).rejects.toMatchObject({ code: "23514" });
+      await f.pool.query("UPDATE matches SET status='finished' WHERE id=$1", [matchId]);
+      await f.pool.query("INSERT INTO post_match_reports(match_id,submitted_by_user_id) VALUES($1,$2)", [matchId, f.superAdmin]);
+      await expect(f.pool.query("DELETE FROM match_commentators WHERE match_id=$1 AND user_id=$2", [matchId, f.superAdmin])).rejects.toMatchObject({ code: "23514" });
+      await f.pool.query("DELETE FROM post_match_reports WHERE match_id=$1", [matchId]);
+      await f.pool.query("UPDATE matches SET status='cancelled' WHERE id=$1", [matchId]);
+      await expect(insert(f.adminB)).rejects.toMatchObject({ code: "23514" });
+    } finally { await f.close(); }
+  });
+
+  it("requires the actual claimant's season authority and rejects terminal matches", async () => {
     const fixture = await createFixture();
     const { claimMatchCommentaryInTx, addMatchCommentatorInTx } = await import("@/lib/postmatch/service");
-    const { database, adminA, adminB, outsider, otherAdmin, superAdmin } = fixture;
+    const { database, adminA, adminB, outsider, otherAdmin } = fixture;
     try {
       const matchId = await fixture.createMatch();
-      for (const userId of [outsider, otherAdmin, superAdmin]) {
+      for (const userId of [outsider, otherAdmin]) {
         await expect(database.transaction((tx) => claimMatchCommentaryInTx(tx, { matchId, userId }))).rejects.toMatchObject({ code: "FORBIDDEN" });
       }
       const foreignMatch = await fixture.createMatch({ season: fixture.otherSeasonId });
@@ -267,8 +321,10 @@ describe("match commentary PostgreSQL contract", () => {
       expect(excludedClaimable.claimableMatches.map((match) => match.id)).toEqual(unclaimed);
       expect(excludedClaimable.byMatchId[others]?.canClaim).toBe(true);
       const superView = await readAdminMatchCommentary(fixture.database, { seasonId: fixture.seasonId, currentUserId: fixture.superAdmin });
-      expect(Object.values(superView.byMatchId).every((assignment) => !assignment.canClaim)).toBe(true);
-      expect(superView.claimableMatches).toEqual([]);
+      expect(new Set(superView.claimableMatches.map(match => match.id))).toEqual(new Set([current, next, later, unscheduled, others, ...unclaimed]));
+      expect(superView.byMatchId[full]?.canClaim).toBe(false);
+      expect(superView.byMatchId[finished]?.canClaim).toBe(false);
+      expect(superView.byMatchId[cancelled]?.canClaim).toBe(false);
     } finally {
       await fixture.close();
     }

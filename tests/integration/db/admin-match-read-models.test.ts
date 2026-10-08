@@ -259,6 +259,16 @@ describe("admin match read models PostgreSQL integration", () => {
         }),
       ]);
 
+      // Global-admin caster candidates and their completed commentary stay visible without a season grant.
+      await pool.query("UPDATE users SET role='super_admin' WHERE id=$1", [ids.admin]);
+      await pool.query("DELETE FROM season_admin_grants WHERE user_id=$1", [ids.admin]);
+      const globalWorkbench = await loadAdminMatchWorkbench({ seasonSlug: seasonASlug, matchId: ids.matchA });
+      expect(globalWorkbench?.postMatch?.seasonAdmins).toContainEqual(expect.objectContaining({ userId: ids.admin, name: "赛事管理员" }));
+      const globalOverview = await loadAdminMatchOverview({ seasonSlug: seasonASlug });
+      expect(globalOverview?.commentaryEffectiveness).toEqual([
+        expect.objectContaining({ admin: expect.objectContaining({ userId: ids.admin }), matches: [expect.objectContaining({ id: ids.matchA })] }),
+      ]);
+
       // A historical score without a canonical completion time cannot open OCR.
       await pool.query("UPDATE match_maps SET completed_at = NULL WHERE id = $1", [ids.mapA]);
       const missingCompletion = await loadAdminMatchWorkbench({ seasonSlug: seasonASlug, matchId: ids.matchA });

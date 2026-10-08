@@ -4,7 +4,7 @@ import { users } from "./users";
 
 /**
  * Actual commentators for a match. A migration trigger keeps this scoped to a
- * current season_admin grant. Once a submission fact exists the roster is
+ * current season_admin grant or global super_admin role. Once a submission fact exists the roster is
  * frozen until an administrator explicitly reopens it.
  */
 export const matchCommentators = pgTable("match_commentators", {

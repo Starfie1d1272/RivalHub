@@ -17,12 +17,12 @@ import {
   matchVetoSessions,
   matches,
   postMatchReports,
-  seasonAdminGrants,
   seasonRegistrations,
   seasons,
   steamProfiles,
   users,
 } from "@/db/schema";
+import { commentaryAdminEligibility } from "@/lib/postmatch/eligibility";
 import { requireSeasonAdmin } from "@/lib/auth/session";
 import { getStartingLineupPreflightInTx } from "@/lib/match-rosters/service";
 import { mapLabel } from "@/lib/maps";
@@ -189,10 +189,9 @@ export async function loadAdminMatchWorkbench({
             personaName: steamProfiles.personaName,
             liveStreamUrl: users.liveStreamUrl,
           })
-          .from(seasonAdminGrants)
-          .innerJoin(users, eq(seasonAdminGrants.userId, users.id))
+          .from(users)
           .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
-          .where(eq(seasonAdminGrants.seasonId, season.id))
+          .where(commentaryAdminEligibility(season.id))
       : Promise.resolve([]),
     loadEffectiveMatchRoster(db, [match.id]),
     db.query.matchVetoSessions.findFirst({
