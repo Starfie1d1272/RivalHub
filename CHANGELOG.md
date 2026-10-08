@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.15.8]
+
+### Fixed
+
+- 中文字体改为本地按需加载，避免远端字体响应引发页面编译失败；保留 Noto Sans SC 字体及现有字重。
+- 修复超级管理员看到空的解说待认领队列且无法认领的问题：超级管理员无需额外赛事授权即可认领、取消自己的认领或登记为解说，空位列表与数据库资格校验保持一致。
+
 ## [2.15.7]
 
 ### Added
@@ -2814,6 +2821,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[2.15.8]: https://github.com/Starfie1d1272/RivalHub/compare/v2.15.7...v2.15.8
 [2.15.7]: https://github.com/Starfie1d1272/RivalHub/compare/v2.15.6...v2.15.7
 [2.15.6]: https://github.com/Starfie1d1272/RivalHub/compare/v2.15.5...v2.15.6
 [2.15.5]: https://github.com/Starfie1d1272/RivalHub/compare/v2.15.4...v2.15.5
