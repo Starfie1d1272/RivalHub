@@ -30,14 +30,14 @@ describe("entity profile navigation", () => {
     expect(click).toHaveBeenCalledOnce(); expect(primary).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("link")); expect(primary).not.toHaveBeenCalled();
   });
-  it("simulation profile stays reachable when locked and does not choose a winner", async () => {
+  it("simulation match stays reachable when locked and does not choose a winner", async () => {
     const user = userEvent.setup(), choose = vi.fn();
-    const { container } = render(<SimulationMatchCard stageKey="stage1" match={{ key:"m",round:1,record:null,a:"a",b:"b",winner:"a",source:"preview",format:"bo1",scoreA:null,scoreB:null }} teams={new Map([["a", { teamId:"a",name:"Alpha",logoUrl:null,tournamentSeed:1 }]])} seeds={new Map()} busy={false} editable={false} onChoose={choose}/>);
+    const { container } = render(<SimulationMatchCard seasonSlug="major" stageKey="stage1" match={{ officialMatchId:"m",key:"m",round:1,record:null,a:"a",b:"b",winner:"a",source:"preview",format:"bo1",scoreA:null,scoreB:null }} teams={new Map([["a", { teamId:"a",name:"Alpha",logoUrl:null,tournamentSeed:1 }]])} seeds={new Map()} busy={false} editable={false} onChoose={choose}/>);
     assertLegal(container);
-    const link = screen.getByRole("link", { name: "查看 Alpha 队伍资料" });
+    const link = screen.getByRole("link", { name: "查看 Alpha 对 队伍 比赛" });
     link.addEventListener("click", e => e.preventDefault());
     await user.click(link); expect(choose).not.toHaveBeenCalled();
-    expect(link).toHaveAttribute("href", "/major/teams/a");
+    expect(link).toHaveAttribute("href", "/major/matches/m");
   });
   it("match navigation and both team destinations remain independent", () => {
     const { container } = render(<MatchCard matchId="m" seasonSlug="major" entryAId="a" entryBId="b" teamAName="Alpha" teamBName="Beta" scoreA={13} scoreB={9} stageLabel="Final" format="bo1" status="finished"/>);
