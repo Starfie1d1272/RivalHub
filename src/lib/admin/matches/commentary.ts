@@ -4,10 +4,11 @@ import { requireCompetitionFields } from "@/lib/matches/competition-context";
 import { and, asc, eq, inArray, isNull } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db, type DB, type TxDb } from "@/db/client";
-import { competitionEntries, matchCommentators, matchLiveSessions, matchVetoSessions, matches, seasonAdminGrants, steamProfiles, users } from "@/db/schema";
+import { competitionEntries, matchCommentators, matchLiveSessions, matchVetoSessions, matches, steamProfiles, users } from "@/db/schema";
 import { requireSeasonAdmin } from "@/lib/auth/session";
 import { getDisplayName } from "@/lib/identity/display-name";
 import { getPublicPlayerIdentityIds } from "@/lib/players/public-identity";
+import { commentaryAdminEligibility } from "@/lib/postmatch/eligibility";
 import { commentaryCancellationBlocker } from "@/lib/postmatch/commentary-policy";
 import { sortAdminMatches } from "./shared";
 
@@ -51,7 +52,7 @@ export async function readAdminMatchCommentary(
 ): Promise<AdminMatchCommentaryData> {
   const teamA = alias(competitionEntries, "commentary_team_a");
   const teamB = alias(competitionEntries, "commentary_team_b");
-  const [matchRows, grants] = await Promise.all([
+  const [matchRows, eligibleUsers] = await Promise.all([
     database.select({
       id: matches.id,
       testConfig: matches.testConfig,
@@ -71,8 +72,8 @@ export async function readAdminMatchCommentary(
       .innerJoin(teamB, eq(teamB.id, matches.entryBId))
       .where(eq(matches.seasonId, seasonId))
       .orderBy(asc(matches.id)),
-    database.select({ userId: seasonAdminGrants.userId }).from(seasonAdminGrants)
-      .where(and(eq(seasonAdminGrants.seasonId, seasonId), eq(seasonAdminGrants.userId, currentUserId))),
+    database.select({ userId: users.id }).from(users)
+      .where(and(eq(users.id, currentUserId), commentaryAdminEligibility(seasonId))),
   ]);
   const commentatorRows = matchRows.length === 0 ? [] : await database.select({
     matchId: matchCommentators.matchId,
@@ -94,8 +95,7 @@ export async function readAdminMatchCommentary(
     commentatorsByMatch.set(row.matchId, commentators);
   }
 
-  // Super-admin access alone does not make someone an eligible actual caster.
-  const isSeasonAdmin = grants.some((grant) => grant.userId === currentUserId);
+  const canCommentate = eligibleUsers.length > 0;
   const byMatchId: AdminMatchCommentaryData["byMatchId"] = {};
   const activeMatches: AdminCommentaryMatch[] = [];
   for (const match of sortAdminMatches(matchRows.map(requireCompetitionFields))) {
@@ -103,7 +103,7 @@ export async function readAdminMatchCommentary(
     const isMine = commentators.some((person) => person.userId === currentUserId);
     const active = match.status === "scheduled" || match.status === "in_progress";
     const cancellationBlockedReason = isMine ? commentaryCancellationBlocker(match) : null;
-    byMatchId[match.id] = { commentators, isMine, canClaim: isSeasonAdmin && active && !isMine && commentators.length < 2, canCancel: isSeasonAdmin && isMine && cancellationBlockedReason === null, cancellationBlockedReason };
+    byMatchId[match.id] = { commentators, isMine, canClaim: canCommentate && active && !isMine && commentators.length < 2, canCancel: canCommentate && isMine && cancellationBlockedReason === null, cancellationBlockedReason };
     if ((match.status === "scheduled" || match.status === "in_progress") && match.id !== excludeMatchId) {
       activeMatches.push({ id: match.id, isTest: Boolean(match.testConfig), entryAId: match.entryAId, entryBId: match.entryBId, teamAName: match.teamAName, teamBName: match.teamBName, status: match.status, scheduledAt: match.scheduledAt });
     }

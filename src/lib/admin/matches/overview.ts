@@ -15,11 +15,11 @@ import {
   matchMaps,
   matches,
   postMatchReports,
-  seasonAdminGrants,
   seasons,
   steamProfiles,
   users,
 } from "@/db/schema";
+import { commentaryAdminEligibility } from "@/lib/postmatch/eligibility";
 import { requireSeasonAdmin } from "@/lib/auth/session";
 import { getMatchMapRoundScores } from "@/lib/data/standings";
 import { getDisplayName } from "@/lib/identity/display-name";
@@ -98,10 +98,9 @@ async function loadCommentaryEffectiveness(
         personaName: steamProfiles.personaName,
         liveStreamUrl: users.liveStreamUrl,
       })
-      .from(seasonAdminGrants)
-      .innerJoin(users, eq(seasonAdminGrants.userId, users.id))
+      .from(users)
       .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
-      .where(eq(seasonAdminGrants.seasonId, seasonId)),
+      .where(commentaryAdminEligibility(seasonId)),
   ]);
 
   const matchIdsByCommentator = new Map<string, Set<string>>();

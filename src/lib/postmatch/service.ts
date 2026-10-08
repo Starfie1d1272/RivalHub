@@ -1,3 +1,4 @@
+import { commentaryAdminEligibility } from "./eligibility";
 import { commentaryCancellationBlocker } from "./commentary-policy";
 import { assertCompetitionMatch } from "@/lib/matches/competition-context";
 import { and, eq, isNull } from "drizzle-orm";
@@ -5,7 +6,7 @@ import { writeAuditInTx } from "@/lib/audit/write";
 
 import type { TxDb } from "@/db/client";
 import type { Match } from "@/db/schema";
-import { matchCommentators, matchLiveSessions, matchVetoSessions, matches, postMatchReports, seasonAdminGrants } from "@/db/schema";
+import { matchCommentators, matchLiveSessions, matchVetoSessions, matches, postMatchReports, users } from "@/db/schema";
 import { AppError, ErrorCode } from "@/lib/errors";
 
 async function lockMatchInTx(tx: TxDb, matchId: string) {
@@ -17,8 +18,8 @@ async function lockSubmissionInTx(tx: TxDb, matchId: string) {
   const [submission] = await tx.select().from(postMatchReports).where(eq(postMatchReports.matchId, matchId)).for("update");
   return submission ?? null;
 }
-async function assertSeasonAdminInTx(tx: TxDb, seasonId: string, userId: string, message = "解说必须是该赛事的管理员。") {
-  const [grant] = await tx.select({ userId: seasonAdminGrants.userId }).from(seasonAdminGrants).where(and(eq(seasonAdminGrants.seasonId, seasonId), eq(seasonAdminGrants.userId, userId)));
+async function assertCommentatorEligibleInTx(tx: TxDb, seasonId: string, userId: string, message = "解说必须是该赛事的管理员。") {
+  const [grant] = await tx.select({ userId: users.id }).from(users).where(and(eq(users.id, userId), commentaryAdminEligibility(seasonId))).limit(1);
   if (!grant) throw new AppError(ErrorCode.FORBIDDEN, message);
 }
 async function assertRosterEditableInTx(tx: TxDb, matchId: string) {
@@ -28,7 +29,7 @@ async function addCommentatorToLockedMatchInTx(tx: TxDb, match: Match, args: { u
   assertCompetitionMatch(match);
   await assertRosterEditableInTx(tx, match.id);
   if (match.status === "cancelled") throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "已取消比赛不能登记解说。");
-  await assertSeasonAdminInTx(tx, match.seasonId, args.userId);
+  await assertCommentatorEligibleInTx(tx, match.seasonId, args.userId);
   const current = await tx.select({ userId: matchCommentators.userId }).from(matchCommentators).where(eq(matchCommentators.matchId, match.id));
   // The DB's BEFORE INSERT capacity trigger also runs before ON CONFLICT.
   // A repeated claim must therefore stop here, including when both slots are full.
@@ -53,7 +54,7 @@ export async function claimMatchCommentaryInTx(tx: TxDb, args: { matchId: string
 export async function cancelMatchCommentaryInTx(tx: TxDb, args: { matchId: string; userId: string }) {
   const match = await lockMatchInTx(tx, args.matchId);
   assertCompetitionMatch(match);
-  await assertSeasonAdminInTx(tx, match.seasonId, args.userId);
+  await assertCommentatorEligibleInTx(tx, match.seasonId, args.userId);
   const [veto] = await tx.select({ startedAt: matchVetoSessions.startedAt }).from(matchVetoSessions).where(eq(matchVetoSessions.matchId, match.id));
   const [source] = await tx.select({ id: matchLiveSessions.id }).from(matchLiveSessions).where(and(eq(matchLiveSessions.matchId, match.id), isNull(matchLiveSessions.closedAt)));
   const blocker = commentaryCancellationBlocker({ status: match.status, vetoStartedAt: veto?.startedAt ?? null, activeSourceId: source?.id ?? null });

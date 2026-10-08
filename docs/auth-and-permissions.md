@@ -36,6 +36,8 @@ Fresh deployment 的 owner bootstrap 只通过 `RIVALHUB_OWNER_EMAIL`：当尚�
 | 创建/配置赛事、管理全局用户/机构/邀请码 | — | — | ✓ |
 | 查询全局 audit | — | — | ✓ |
 
+解说自助认领和取消使用同一赛事管理资格：本届 season grant 或全局 `super_admin` 均可；超级管理员无需额外的本届授权。解说名单的数据库约束同步校验当前角色/授权，每场最多两人，已提交名单仍需先撤销提交才能更改。
+
 客户端隐藏按钮不构成授权。所有 privileged mutation 必须在服务端重新鉴权，并在适用时写 audit。
 
 Server Action 返回赛事范围的读取 DTO 时，也必须在 action 自身解析赛事公开状态或草稿授权，并确认目标资源属于该赛事；页面 Route 的访问检查不能替代 action 边界的校验。
