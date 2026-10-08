@@ -95,6 +95,7 @@ Pure tests exercise full Major simulation, upstream invalidation, exact slot jud
 - 同一规则由最低足够真实的层拥有；跨层测试只保护拼装链路，不能复制规则矩阵。源码字符串、内部变量、DOM 层级、CSS class 与第三方库转发通常不是产品契约；权限边界静态规则、实际资产/provenance 和公开 DTO 则有独立价值。
 - 合法产品变化先更新承诺再修改测试；重构不改变承诺却大量要求同步改断言时，先审查测试耦合。重复失败优先定位原因，不能以 skip、retry-pass、删负例换绿。
 - `null`、失败、并发、权限和 recovery 等重要负路径必须由对应层证明。
+- 清理测试时按独立承诺逐项处置，不能把静态扫描或全绿描述为逐断言审查完成。删除写法断言后若只剩固定文案或对象形状检查，继续评估整项删除；测试名称必须准确描述剩余保护。工作流安全门禁与应用/工具源码写法分开审查；前者保留，后者优先使用现有行为证据。
 - 不在文档复制测试数、表数或 migration 数。
 - 不能用“CI 绿”“已知 flaky”或视觉 demo 替代所需 evidence。
 - canonical domain rule 尽量在其 owner 附近测试；跨层 E2E 只证明组合行为。

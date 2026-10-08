@@ -43,17 +43,10 @@ async function openDialog(user: ReturnType<typeof userEvent.setup>) {
   await user.click(screen.getByRole("button", { name: "管理名单" }));
 }
 
-/** Checks five member checkboxes within one team section. */
+/** Choose named players without depending on checkbox order or label nesting. */
 async function pickFiveStarters(user: ReturnType<typeof userEvent.setup>, prefix: string) {
-  const checkboxes = screen.getAllByRole("checkbox");
-  // Checkbox order follows member order per team section; team A first.
-  const scoped = checkboxes.filter((box) => {
-    const label = box.closest("label")?.textContent ?? "";
-    return label.startsWith(prefix);
-  });
-  expect(scoped.length).toBe(6);
-  for (const box of scoped.slice(0, 5)) {
-    await user.click(box);
+  for (let index = 1; index <= 5; index += 1) {
+    await user.click(screen.getByRole("checkbox", { name: new RegExp(`^${prefix}${index}(?![0-9])`) }));
   }
 }
 
@@ -88,8 +81,8 @@ describe("AdminRosterDialog — explicit two-step lineup selection", () => {
 
     // Review state lists the exact five players before any action fires.
     expect(screen.getByText(/请核对将保存的首发五人/)).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "a1" }).closest("li")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "a5" }).closest("li")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "a1" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "a5" })).toBeInTheDocument();
     expect(mockedAdminSelect).not.toHaveBeenCalled();
 
     await user.click(screen.getByRole("button", { name: "确认保存" }));

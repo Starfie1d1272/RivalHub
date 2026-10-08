@@ -6,7 +6,7 @@ import { SeasonPublicInfoView } from "@/components/season/SeasonPublicInfoView";
 import type { PublicSeasonInfo } from "@/lib/season-public-info/presentation";
 
 describe("SeasonPublicInfoView", () => {
-  it("renders 5 community groups within responsive grid layout", () => {
+  it("renders public community groups and their available join actions", () => {
     const info: PublicSeasonInfo = {
       rules: { label: "赛事规程", href: "/rules" },
       groups: [
@@ -22,9 +22,6 @@ describe("SeasonPublicInfoView", () => {
     };
 
     const html = renderToStaticMarkup(<SeasonPublicInfoView info={info} />);
-
-    // Responsive 2-column grid class on desktop / 1-column on mobile
-
 
     // All 5 groups are rendered
     expect(html).toContain("选手群 1");
@@ -43,7 +40,7 @@ describe("SeasonPublicInfoView", () => {
     const info: PublicSeasonInfo = {
       rules: { label: "赛事规程", href: "/rules" },
       groups: [
-        { id: "g-closed", label: "历史预选群", audience: null, status: "closed", groupNumber: null, qrImageUrl: null, joinUrl: null, note: "该群已关闭" },
+        { id: "g-closed", label: "历史预选群", audience: null, status: "closed", groupNumber: "private-group-number", qrImageUrl: "https://private.invalid/qr.png", joinUrl: "https://private.invalid/join", note: "该群已关闭" },
       ],
       contacts: [],
     };
@@ -55,5 +52,7 @@ describe("SeasonPublicInfoView", () => {
     expect(html).not.toContain("复制群号");
     expect(html).not.toContain("加入群聊");
     expect(html).not.toContain("查看二维码");
+    expect(html).not.toContain("private-group-number");
+    expect(html).not.toContain("private.invalid");
   });
 });

@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 import React from "react";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { MapPreferencesForm } from "@/components/settings/MapPreferencesForm";
@@ -46,9 +46,11 @@ describe("MapPreferencesForm", () => {
   it("keeps a missing map visibly unfilled instead of assigning a level", () => {
     render(<MapPreferencesForm initialPreferences={[]} />);
 
-    const cache = screen.getByText("Cache").closest("div.grid");
-    expect(cache).not.toBeNull();
-    expect(within(cache as HTMLElement).getByRole("button", { name: "未填写" })).toHaveAttribute("aria-pressed", "true");
-    expect(within(cache as HTMLElement).getByRole("button", { name: "不会" })).toHaveAttribute("aria-pressed", "false");
+    for (const button of screen.getAllByRole("button", { name: "未填写" })) {
+      expect(button).toHaveAttribute("aria-pressed", "true");
+    }
+    for (const button of screen.getAllByRole("button", { name: "不会" })) {
+      expect(button).toHaveAttribute("aria-pressed", "false");
+    }
   });
 });
