@@ -12,7 +12,7 @@ import {
 } from "../../../src/lib/identity/gameplay-steam";
 import { inspectSteamProfileCoverage } from "../../../scripts/db/steam-profile-coverage";
 import { upsertSteamProfile } from "../../../src/lib/steam-profiles";
-import { createLocalPool } from "./harness/database";
+import { createLocalPool, testSteam64 } from "./harness/database";
 
 describe("Steam identity foundation", () => {
   it("keeps a changed primary as a revocable historical gameplay identity", async () => {
@@ -110,9 +110,11 @@ describe("Steam identity foundation", () => {
     const database = drizzle(client, { schema });
     const userId = randomUUID();
     const canonicalUserId = randomUUID();
-    const steam64 = "76561198000000011";
+    const steam64 = testSteam64(userId);
 
     try {
+      // Production coverage uses a consistent snapshot; unrelated suites may commit users concurrently.
+      await client.query("BEGIN ISOLATION LEVEL REPEATABLE READ");
       const baseline = await inspectSteamProfileCoverage(client);
       await database.insert(schema.users).values({ id: canonicalUserId, email: `${canonicalUserId}@steam-profile.local` });
       await database.insert(schema.users).values({
@@ -147,9 +149,7 @@ describe("Steam identity foundation", () => {
         avatarUrl: null,
       });
     } finally {
-      await database.delete(schema.steamProfiles).where(eq(schema.steamProfiles.steam64, steam64));
-      await database.delete(schema.users).where(eq(schema.users.id, userId));
-      await database.delete(schema.users).where(eq(schema.users.id, canonicalUserId));
+      await client.query("ROLLBACK");
       client.release();
       await pool.end();
     }

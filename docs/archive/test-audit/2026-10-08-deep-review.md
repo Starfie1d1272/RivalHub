@@ -1,6 +1,6 @@
 # 全仓测试减债复核结论（2026-10-08）
 
-本次逐文件复核已完成：台账 615 条记录，559 个现存文件已审查、56 个历史路径已移除、0 个待审。每个现存 test/spec 文件均在 [file-review.csv](2026-10-08-file-review.csv) 记录当前内容 SHA-256、处置理由与相关生产证据 owner；owner 列可以列出多个实际源码/工作流入口，迁移链使用目录入口。文件已审查不等于必须删除，也不等于永远不能再清理。
+本次逐文件复核已完成：台账 616 条记录，560 个现存文件已审查、56 个历史路径已移除、0 个待审。每个现存 test/spec 文件均在 [file-review.csv](2026-10-08-file-review.csv) 记录当前内容 SHA-256、处置理由与相关生产证据 owner；owner 列可以列出多个实际源码/工作流入口，迁移链使用目录入口。文件已审查不等于必须删除，也不等于永远不能再清理。
 
 PR #839 已合并；本次后续工作全部在下一版本 Draft PR [#841](https://github.com/Starfie1d1272/RivalHub/pull/841)，不自动合并。已同步最新 main `279ce1bb`（v2.15.4），包括测试赛 #840 与 #843/#844 修复；#839 squash `4e44e8469c75203658f7ee525c360fc86a4ed924` 仅作为历史统计基线。
 
@@ -11,9 +11,9 @@ PR #839 已合并；本次后续工作全部在下一版本 Draft PR [#841](http
 | 原始全仓审计清单 | 591 | 75,446 |
 | #839 合并后历史基线 | 577 | 73,646 |
 | 当前 main（279ce1bb） | 581 | 74,045 |
-| 本 PR 最终复核（含新测试赛） | 559 | 69,463 |
+| 本 PR 最终复核（含新测试赛与隔离回归） | 560 | 69,489 |
 
-相对原审计净减 5,983 行（约 7.9%），已包含审计期间 main 新增功能的测试；本 PR 相对当前 main 净减 4,582 行（约 6.2%）。同步 main 前曾累计净减 6,388 行，新功能增量不能算作清理回退。不同基线不能混用。统计仅包含 `.test` / `.spec` 源文件，不把报告、CSV、测试 helper 和产品代码删行计入测试减债。56 个移除路径包含删除、合并和迁移，因此不等于净少 56 个文件。
+相对原审计净减 5,957 行（约 7.9%），已包含审计期间 main 新增功能的测试；本 PR 相对当前 main 净减 4,556 行（约 6.2%）。同步 main 前曾累计净减 6,388 行，新功能增量不能算作清理回退。不同基线不能混用。统计仅包含 `.test` / `.spec` 源文件，不把报告、CSV、测试 helper 和产品代码删行计入测试减债。56 个移除路径包含删除、合并和迁移，因此不等于净少 56 个文件。
 
 没有证据支持直接删除 50%。剩余大文件中有真实数据库的事务回滚、外键/名单冻结、并发幂等、赛果纠错与身份安全，还有 24/32 两种赛事生命周期。65536 个结果组合由独立 oracle 验证 Swiss 不重赛、同战绩与参与者完整性；100 次模拟检查完整五轮业务不变量，不是重复稳定性实验。这些证据不能用 mock 的全绿代替。后续仍可压缩 fixture/setup，但仅缩短写法不一定降低 CI 耗时。
 
@@ -85,18 +85,24 @@ PR #839 已合并；本次后续工作全部在下一版本 Draft PR [#841](http
 
 测试赛浏览器生命周期明确归属 desktop project，同一用例检查手机 viewport；删除 main 新增的 runtime mobile skip。补齐 Action、领域 owner、表单与管理页面到 test-matches browser 的 planner 映射，以混合新增 PG spec 正例证明原 system 保障不会缩窄，并保留无关 UI 不触发 system 的负例。
 
+## 远端完整验证暴露的隔离缺口
+
+CI #3009 的 PostgreSQL 实际执行 85 文件、253 用例，252 通过、1 失败、0 跳过，Vitest 75.24s；Steam coverage 的 baseline + 1 检查收到并发新增的 10 个用户。根因是 setup 用按文件递增的 VITEST_WORKER_ID 取模分库，并行槽位可能碰撞；改为 Vitest 的稳定 VITEST_POOL_ID，一槽一库且无效/缺失配置直接拒绝共享 fallback。新回归在旧 setup 下 4/4 失败，在修复后 4/4 通过。
+
+Steam coverage 的真实 SQL 检查仍覆盖缺失、缓存补齐、merged 用户排除；改为与 protected production verify 一致的 REPEATABLE READ snapshot，并通过 rollback 清理，仅 fixture 的 Steam64 使用独立身份。没有缩减检查或用 retry 隐藏失败。三 worker 完整 PostgreSQL 再验证分库修复；最终执行见下表。
+
 ## 最终验证
 
 最终完整执行数据以本次 JSON 为准；历史 commit 的绿色证据不替代新 head。
 
 | 层级 | 实际文件 | 实际用例 | 失败 / 跳过 | 耗时 |
 | --- | ---: | ---: | --- | --- |
-| 当前 main 完整单元 | 455 | 2,598 / 2,598 | 0 / 0 | JSON 起止 177.262s |
-| 当前 main 完整 PostgreSQL | 85 | 253 / 253 | 0 / 0 | JSON 起止 152.896s |
+| 最终完整单元 | 456 | 2,602 / 2,602 | 0 / 0 | JSON 起止 154.582s |
+| 最终完整 PostgreSQL（三 worker） | 85 | 253 / 253 | 0 / 0 | JSON 起止 112.598s |
 | 当前 main 测试赛 DB 定向 | 1 | 5 / 5 | 0 / 0 | JSON 起止 6.933s |
 | live fencing 定向 | 1 | 10 / 10 | 0 / 0 | JSON 起止 25.674s |
 
-全仓 app/tests/scripts type-check、architecture check、仓库 ESLint（排除未跟踪 .agent-tmp 工具）与 diff whitespace 通过。单元 discovery 455 文件与实际执行 455 文件一致；PG 全部 85 文件与 JSON 实际清单一致，没有遗漏。同步 main 前的完整执行为单元 453/2588（167.24s）、PG 84/247（87.442s）；当前 main 新增功能及并行执行带来的耗时差异不能解释为性能退化或提升。初次完整 PG 为 246/247，固定等待竞争测试失败；改为真实 HTTP barrier + DB waiter 后定向及完整通过。单元/初次 PG 同时运行，耗时不能与此前独立运行直接比较，未声称性能比例提升。
+全仓 app/tests/scripts type-check、architecture check、仓库 ESLint（排除未跟踪 .agent-tmp 工具）与 diff whitespace 通过。单元 discovery 456 文件与实际执行 456 文件一致；PG 全部 85 文件与 JSON 实际清单一致，没有遗漏。同步 main 前的完整执行为单元 453/2588（167.24s）、PG 84/247（87.442s）；当前 main 新增功能及并行执行带来的耗时差异不能解释为性能退化或提升。初次完整 PG 为 246/247，固定等待竞争测试失败；改为真实 HTTP barrier + DB waiter 后定向及完整通过。单元/初次 PG 同时运行，耗时不能与此前独立运行直接比较，未声称性能比例提升。
 
 affected 实际验证：captains、draft operations、match representative 与 roster Action 源码单独变化时自动选中新的真实 PostgreSQL owner；混合新增 identity suite 后原选中项仍全部保留。schema 变化保持完整 PostgreSQL（空 spec 列表代表 FULL），Mizar 变化保持 PostgreSQL + system。完整执行报告中的实际文件清单与当前 unit/PG 源文件比对，避免“应运行但静默跳过”。
 
