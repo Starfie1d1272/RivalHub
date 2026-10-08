@@ -23,7 +23,6 @@ describe("Steam profile coverage gate", () => {
       coveragePercent: 100,
       ready: true,
     });
-    expect(client.query).toHaveBeenCalledWith(expect.stringContaining("FILTER (WHERE steam_profiles.steam64 IS NULL)"));
     expect(() => assertSteamProfileCoverage(report)).not.toThrow();
   });
 

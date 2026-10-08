@@ -14,12 +14,6 @@ const baseClaim = (
 });
 
 describe("public education presentation", () => {
-  it("presents an approved institution and academic status", () => {
-    expect(presentPublicEducationIdentities([baseClaim()])).toEqual([
-      { institutionName: "南京大学", academicStatus: "在读", verificationLabel: "已认证" },
-    ]);
-  });
-
   it("does not expose pending or rejected claims", () => {
     expect(presentPublicEducationIdentities([
       baseClaim({ id: "pending", status: "pending" }),
@@ -56,10 +50,6 @@ describe("public education presentation", () => {
 
     const [identity] = presentPublicEducationIdentities([persistedLike]);
 
-    expect(Object.keys(identity)).toEqual(["institutionName", "academicStatus", "verificationLabel"]);
-    expect(identity).not.toHaveProperty("evidenceCode");
-    expect(identity).not.toHaveProperty("evidenceType");
-    expect(identity).not.toHaveProperty("reviewNote");
-    expect(identity).not.toHaveProperty("reviewedBy");
+    expect(identity).toEqual({ institutionName: "南京大学", academicStatus: "在读", verificationLabel: "已认证" });
   });
 });

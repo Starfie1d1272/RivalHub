@@ -28,12 +28,12 @@ describe("public entry routes", () => {
     mocks.season.mockResolvedValue({ id: "season", name: "Major", registrationMode: "team", status: "registration" });
     mocks.select.mockImplementation(emptyChain); mocks.matches.mockResolvedValue([]); mocks.eventRoster.mockResolvedValue(null); mocks.session.mockResolvedValue(null);
   });
-  it.each(["draft", "submitted", "changes_requested", "waitlisted", "rejected", "withdrawn"])("filters %s even for a known detail id", async (status) => {
+  it("returns notFound for a known id outside the approved public set", async () => {
     mocks.entry.mockImplementation(({ where }) => {
       const query = new PgDialect().sqlToQuery(where);
       expect(query.params).toContain("approved");
       expect(query.params).toContain("known-id");
-      return query.params.includes(status) ? { id: "known-id", name: "PRIVATE ROSTER" } : undefined;
+      return undefined;
     });
     await expect(DetailPage({ params: Promise.resolve({ seasonSlug: "major", entryId: "known-id" }) })).rejects.toThrow("NOT_FOUND");
     expect(mocks.select).not.toHaveBeenCalled();
@@ -48,20 +48,4 @@ describe("public entry routes", () => {
     expect(html).toContain("正赛候选池"); expect(html).toContain("Approved 32");
   });
 
-  it("does not repeat Rivals formation order on public team cards", async () => {
-    mocks.season.mockResolvedValue({ id: "season", name: "Rivals", competitionTemplate: "rivals", registrationMode: "solo", status: "draft" });
-    mocks.entries.mockResolvedValue([{
-      id: "team-2",
-      name: "Drafted Team",
-      registrationStatus: "approved",
-      formationOrder: 2,
-      logoUrl: null,
-      representativeUserId: "user",
-    }]);
-
-    const html = renderToStaticMarkup(await ListPage({ params: Promise.resolve({ seasonSlug: "rivals" }) }));
-
-    expect(html).not.toContain("选秀第 2 顺位");
-    expect(html).not.toContain("Draft #2");
-  });
 });

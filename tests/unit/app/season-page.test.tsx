@@ -98,7 +98,6 @@ describe("season page navigation", () => {
     const html = renderToStaticMarkup(page);
 
     expect(html).toMatch(/href="\/2026-nju-major\/teams"[\s\S]*队伍/);
-    expect(html).not.toContain("/competitionEntries");
   });
 
   it.each([
@@ -129,7 +128,6 @@ describe("season page navigation", () => {
       expect(html).toMatch(/href="\/2026-nju-major\/register"[\s\S]*报名/);
     } else {
       expect(html).not.toContain("/2026-nju-major/register");
-      expect(html).not.toContain("立即报名");
     }
   });
   it("renders compact season information entry when only rules exist without announcement, groups, or contacts", async () => {
@@ -145,10 +143,7 @@ describe("season page navigation", () => {
     });
     const html = renderToStaticMarkup(page);
 
-    expect(html).toContain("赛事信息");
-    expect(html).toContain("赛事规则");
     expect(html).toContain('href="/2026-nju-major/info"');
-    expect(html).not.toContain("最新公告");
   });
 });
 vi.mock("@/lib/seasons/public-next-step", () => ({ getSeasonPersonalNextStep: vi.fn().mockResolvedValue(null) }));

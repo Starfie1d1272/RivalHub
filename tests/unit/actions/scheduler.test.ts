@@ -21,7 +21,6 @@ vi.mock("@/lib/auth/session", () => ({
   auditActorId: auditActorIdMock,
 }));
 vi.mock("@/db/client", () => ({ db: { insert: insertMock } }));
-vi.mock("@/db/schema", () => ({ auditLogs: {} }));
 vi.mock("@/lib/scheduler/execution", () => ({
   executeScheduledJobManually: executeScheduledJobManuallyMock,
 }));
@@ -29,6 +28,8 @@ vi.mock("@/lib/scheduler/runners", () => ({
   runSchedulerJobByKey: runSchedulerJobByKeyMock,
 }));
 vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
+
+import { AppError, ErrorCode } from "@/lib/errors";
 
 import { runSchedulerJobManually } from "@/actions/scheduler";
 
@@ -43,6 +44,19 @@ describe("manual scheduler action", () => {
       await runner();
       return { source: "super-admin-manual", skipped: false, businessTransitions: 2, jobKey };
     });
+  });
+
+  it("rejects unauthorized manual execution before audit, runner, or cache mutation", async () => {
+    requireSuperAdminMock.mockRejectedValue(new AppError(ErrorCode.FORBIDDEN, "权限不足"));
+
+    expect(await runSchedulerJobManually({ jobKey: "draft-timeout" })).toMatchObject({
+      success: false,
+      error: { code: ErrorCode.FORBIDDEN },
+    });
+    expect(insertMock).not.toHaveBeenCalled();
+    expect(executeScheduledJobManuallyMock).not.toHaveBeenCalled();
+    expect(runSchedulerJobByKeyMock).not.toHaveBeenCalled();
+    expect(revalidatePathMock).not.toHaveBeenCalled();
   });
 
   it("requires super-admin, writes low-sensitivity audit, and runs the shared runner directly", async () => {

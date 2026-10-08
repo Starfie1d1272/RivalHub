@@ -6,7 +6,7 @@ const { selectMock } = vi.hoisted(() => ({ selectMock: vi.fn() }));
 vi.mock("@/db/client", () => ({ db: { select: selectMock } }));
 vi.mock("@/lib/observability/server", () => ({ logEvent: vi.fn(), captureException: vi.fn() }));
 
-import { issueLiveViewerToken, matchLiveTopic } from "@/lib/mizar/live";
+import { issueLiveViewerToken } from "@/lib/mizar/live";
 import { GET } from "@/app/api/matches/[matchId]/live-viewer/route";
 import { AppError, ErrorCode } from "@/lib/errors";
 
@@ -33,7 +33,6 @@ describe("Mizar public live viewer token", () => {
     });
 
     const credential = await issueLiveViewerToken(matchId);
-    expect(credential.topic).toBe(matchLiveTopic(matchId));
     expect(credential.topic).toBe(`match-live:${matchId}`);
 
     const payload = decodePayload(credential.token);

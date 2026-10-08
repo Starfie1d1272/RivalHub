@@ -10,6 +10,7 @@ import {
   resolveGameplayUserBySteam64,
   retireGameplaySteamIdentityInTx,
 } from "../../../src/lib/identity/gameplay-steam";
+import { inspectSteamProfileCoverage } from "../../../scripts/db/steam-profile-coverage";
 import { upsertSteamProfile } from "../../../src/lib/steam-profiles";
 import { createLocalPool } from "./harness/database";
 
@@ -108,20 +109,28 @@ describe("Steam identity foundation", () => {
     const client = await pool.connect();
     const database = drizzle(client, { schema });
     const userId = randomUUID();
+    const canonicalUserId = randomUUID();
     const steam64 = "76561198000000011";
 
     try {
+      const baseline = await inspectSteamProfileCoverage(client);
+      await database.insert(schema.users).values({ id: canonicalUserId, email: `${canonicalUserId}@steam-profile.local` });
       await database.insert(schema.users).values({
         id: userId,
         email: `${userId}@steam-profile.local`,
         steam64,
       });
+      expect(await inspectSteamProfileCoverage(client)).toMatchObject({ activePrimaryUsers: baseline.activePrimaryUsers + 1, missingProfiles: baseline.missingProfiles + 1 });
       await database.insert(schema.steamProfiles).values({
         steam64,
         personaName: "Old official name",
         profileUrl: "https://steamcommunity.com/profiles/old",
         avatarUrl: "https://avatars.steamstatic.com/old.jpg",
       });
+
+      expect(await inspectSteamProfileCoverage(client)).toMatchObject({ activePrimaryUsers: baseline.activePrimaryUsers + 1, cachedProfiles: baseline.cachedProfiles + 1, missingProfiles: baseline.missingProfiles });
+      await database.update(schema.users).set({ status: "merged", mergedIntoUserId: canonicalUserId, mergedAt: new Date() }).where(eq(schema.users.id, userId));
+      expect(await inspectSteamProfileCoverage(client)).toEqual(baseline);
 
       await upsertSteamProfile(database, {
         steam64,
@@ -140,6 +149,7 @@ describe("Steam identity foundation", () => {
     } finally {
       await database.delete(schema.steamProfiles).where(eq(schema.steamProfiles.steam64, steam64));
       await database.delete(schema.users).where(eq(schema.users.id, userId));
+      await database.delete(schema.users).where(eq(schema.users.id, canonicalUserId));
       client.release();
       await pool.end();
     }

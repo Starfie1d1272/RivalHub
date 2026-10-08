@@ -83,3 +83,21 @@
 - 测试 type-check 与修改文件 ESLint 通过。一次显式 public-query 运行指定错误 project，零发现时退出失败；按所属 project 重跑 2/2 通过，没有用 skip 掩盖失败。
 
 继续审查剩余数据库、Action、页面、CI 和浏览器文件；同一 Draft PR 保持不合并。
+
+
+## 查询、页面与调度边界复核检查点（2026-10-08）
+
+上一提交 `ddaf942d` 的 CI `37717671985` 已全部成功，包括 PostgreSQL、system browser、production smoke 与 draft-gate；artifact 下载在本环境返回 HTTP 403，因此不伪造该远端 run 的实际测试数量或主体耗时。下面数量来自本地 JSON 报告。
+
+当前逐文件台账为 447 个已复核、53 个历史文件已移除、110 个待复核。当前 557 个 test/spec 源文件、70,637 行；相对上一提交净减 375 行，相对原审计净减 4,809 行（约 6.4%）。全仓复核仍在继续，未把 pending 判为保留。
+
+- 删除假的参与者 count/join 数量测试，迁到实际 Major fixture：未建立正式名单为零、当前/approved 过滤、merged 用户排除及 solo approved 计数。
+- 删除转播排期的假更新表列表测试，新增真实 PostgreSQL 的原分配保留、满容量拒绝、结算替换与十五分钟到期释放；affected import graph 实际选择新 suite。
+- Steam coverage SQL 字符串改为真实 active-primary/cache/merged 三个状态的 coverage readback；MVP SQL 聚合写法由已有真实身份/平票聚合 owner 保护。
+- 页面删除共享头像、日期、标题、旧字段/文案不存在及固定布局断言；保留鉴权、错误状态、真实 loader 作用域和导航。三份 SSR suite 移除冲突的 jsdom pragma。
+- 调度、match operation 删除伪 schema/复制 validation schema；新增手动调度未授权时零审计、零执行、零缓存副作用。公开 DTO 用完整值校验替代 Object.keys 顺序与重复字段断言。
+- 时间 helper 删除 Date 构造转发和普通格式重复，固定时钟保留倒计时舍入、包含截止及 Date/string CST 跨日行为。浏览器仅删重复固定文案，仍保留全套关键 lifecycle 和真实键盘/Storage/Broadcast 链路。
+
+完整本地单元：456 文件、2,626/2,626，0 失败/跳过，JSON 起止约 111.447 秒。完整 PostgreSQL：83 文件、247/247，0 失败/跳过，主体约 91.643 秒。测试 type-check、修改文件 ESLint 与 whitespace 检查通过。初次页面定向执行 26/27，新增社区奖 loader 调用断言写错参数签名；按实际作用域修正后 3/3 并完整单元通过。初次 type-check 发现新 AppError fixture 缺 message；补齐后 type-check 与调度 2/2 通过，没有新增 skip/retry。
+
+源码写法与跨层重复的后续处理、剩余迁移/事务审查以及最终 head CI 仍需继续完成。同一个 Draft PR 保持不合并。

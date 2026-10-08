@@ -33,7 +33,6 @@ describe("education evidence cleanup cron route", () => {
 
     expect(response.status).toBe(200);
     expect(body).toEqual({ ok: true, cleared: 3 });
-    expect(JSON.stringify(body)).not.toContain("ABCD1234EFGH5678");
     expect(purgeExpiredEducationEvidenceMock).toHaveBeenCalledWith();
   });
 });

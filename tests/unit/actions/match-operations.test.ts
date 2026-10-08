@@ -4,7 +4,10 @@ const takeover = vi.hoisted(() => vi.fn());
 const revoke = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/auth/session", () => ({ requireSeasonAdmin: admin, auditActorId: () => "actor" }));
 vi.mock("@/lib/action-utils", () => ({ getMatchOrThrow: async () => ({ seasonId: "22222222-2222-4222-8222-222222222222" }), getSeasonOrThrow: async () => ({slug:"season"}), actionError: () => ({ success:false }) }));
-vi.mock("@/lib/mizar/source", async () => { const { z } = await import("zod"); return { takeOverCurrentMap: takeover, manualMapTakeoverSchema: z.strictObject({ sessionId:z.uuid(), mapEpoch:z.number().int().nonnegative(), mapId:z.uuid(), recoverMapBinding:z.boolean().optional(), operatorReport:z.strictObject({reason:z.string().trim().min(1).max(500),programSourceGeneration:z.number().int().nonnegative(),lastReliableSeq:z.number().int().min(-1),currentMapId:z.uuid().nullable()}).optional() }) }; });
+vi.mock("@/lib/mizar/source", async (importOriginal) => ({
+  ...await importOriginal<typeof import("@/lib/mizar/source")>(),
+  takeOverCurrentMap: takeover,
+}));
 vi.mock("@/lib/mizar/installation", () => ({ revokeMizarInstallation: revoke }));
 vi.mock("@/lib/revalidation", () => ({ revalidateMatchPaths:vi.fn() }));
 vi.mock("next/cache", () => ({ revalidatePath:vi.fn() }));

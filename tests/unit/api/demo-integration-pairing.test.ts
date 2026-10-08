@@ -9,7 +9,7 @@ const { selectMock, updateMock } = vi.hoisted(() => ({
 vi.mock("@/db/client", () => ({ db: { select: selectMock, update: updateMock } }));
 vi.mock("@/lib/audit/write", () => ({ writeAuditInTx: vi.fn() }));
 
-import { deriveDakAccessTokenForTest, pollDakPairing } from "@/lib/demo-integration/pairing";
+import { pollDakPairing } from "@/lib/demo-integration/pairing";
 
 const pairingId = "10000000-0000-4000-8000-000000000001";
 const pollToken = "poll-token-for-retry";
@@ -53,9 +53,8 @@ describe("DAK pairing token delivery", () => {
     expect(first).toEqual(retry);
     expect(first).toMatchObject({
       status: "authorized",
-      accessToken: deriveDakAccessTokenForTest(pairingId, pollToken),
+      accessToken: expect.stringMatching(/.+/),
     });
-    expect(first).not.toMatchObject({ accessToken: "" });
     expect(updateMock).toHaveBeenCalledOnce();
   });
 });

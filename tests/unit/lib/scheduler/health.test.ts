@@ -9,9 +9,6 @@ const { insertMock, captureExceptionMock, logEventMock } = vi.hoisted(() => ({
 vi.mock("@/db/client", () => ({
   db: { insert: insertMock },
 }));
-vi.mock("@/db/schema", () => ({
-  scheduledJobHealth: { jobKey: "job_key" },
-}));
 vi.mock("@/lib/observability/server", () => ({
   captureException: captureExceptionMock,
   logEvent: logEventMock,

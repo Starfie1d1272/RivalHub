@@ -32,7 +32,7 @@ const candidates = [
 ];
 
 describe("selectAutoPickCandidate", () => {
-  it("selects the highest ranked player at an empty position first, then falls back to any eligible position", () => {
+  it("prefers an empty position over stronger candidates in occupied positions", () => {
     const selected = selectAutoPickCandidate(candidates, { awper: 2, igl: 1 });
 
     // anchor has 0 members (not in positionCounts), so it's picked in round 1

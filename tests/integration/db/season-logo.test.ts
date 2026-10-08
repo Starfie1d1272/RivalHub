@@ -30,7 +30,6 @@ describe("canonical event logo and provider freshness", () => {
     expect(before.match.match.competition.logoUrl).toBeNull();
     expect(before.schedule.competition.logoUrl).toBeNull();
     expect(before.public?.logoUrl).toBeNull();
-    expect(await read()).toEqual(before);
     await expect(db.transaction(tx => replaceSeasonLogoInTx(tx, { ...ctx, seasonIds: [] }, f.seasonId, "https://example.com/denied.png"))).rejects.toMatchObject({ code: "FORBIDDEN" });
     expect(await read()).toEqual(before);
     let previous = before;
@@ -43,7 +42,6 @@ describe("canonical event logo and provider freshness", () => {
       expect(next.public?.logoUrl).toBe(logoUrl);
       expect(next.match.revision).not.toBe(previous.match.revision);
       expect(next.schedule.revision).not.toBe(previous.schedule.revision);
-      expect(await read()).toEqual(next);
       previous = next;
     }
     expect(previous).toEqual(before); // updatedAt does not perturb document hashes.

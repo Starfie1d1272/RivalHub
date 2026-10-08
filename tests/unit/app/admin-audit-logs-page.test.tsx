@@ -58,7 +58,6 @@ describe("audit log pages", () => {
 
     expect(html).toContain("无法加载操作日志");
     expect(html).toContain("INTERNAL_ERROR");
-    expect(html).not.toContain("暂无日志记录");
     expect(html).not.toContain("audit-log-table");
   });
 
@@ -73,16 +72,13 @@ describe("audit log pages", () => {
 
     expect(html).toContain("无法加载赛季筛选项");
     expect(html).toContain("赛季筛选加载失败。");
-    expect(html).not.toContain("暂无日志记录");
   });
 
-  it("uses a wide global admin page and preserves the success DTO", async () => {
-    const page = await AdminLogsPage({ searchParams: Promise.resolve({}) });
+  it("passes URL filters to the audit query and renders its successful result", async () => {
+    const page = await AdminLogsPage({ searchParams: Promise.resolve({ page: "2", actor: "admin-1", seasonId: "season-1" }) });
     const html = renderToStaticMarkup(page);
 
-    expect(html).toContain('data-layout-variant="wide"');
-
-
+    expect(fetchAuditLogsMock).toHaveBeenCalledWith(expect.objectContaining({ page: 2, pageSize: 50, actorId: "admin-1", seasonId: "season-1" }));
     expect(html).toContain('data-testid="audit-log-table"');
   });
 
@@ -97,6 +93,5 @@ describe("audit log pages", () => {
 
     expect(html).toContain("无法加载赛事操作日志");
     expect(html).toContain("赛事日志暂不可用。");
-    expect(html).not.toContain("暂无日志记录");
   });
 });

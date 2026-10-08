@@ -76,73 +76,17 @@ describe("admin dashboard", () => {
     expect(selectMock).not.toHaveBeenCalled();
   });
 
-  it("renders a lifecycle directory card with a workspace CTA", async () => {
+  it.each(["playing", "finished"])("keeps a workspace entry for %s seasons", async (status) => {
     requireAdminMock.mockResolvedValue({
       role: "super_admin",
       seasonIds: [],
     });
-    mockSeasonRows([makeSeason()]);
+    mockSeasonRows([makeSeason({ status })]);
 
     const html = await renderPage();
 
     expect(html).toContain('href="/admin/nju-major-2026">NJU Major 2026');
-    expect(html).toContain("进行中");
     expect(html).toContain('href="/admin/nju-major-2026">进入赛事工作区 →');
-  });
-
-  it("does not duplicate season operations in the global directory", async () => {
-    requireAdminMock.mockResolvedValue({
-      role: "super_admin",
-      seasonIds: [],
-    });
-    mockSeasonRows([makeSeason()]);
-
-    const html = await renderPage();
-
-    expect(html).not.toContain('href="/admin/nju-major-2026/matches"');
-    expect(html).not.toContain('href="/admin/nju-major-2026/registrations"');
-    expect(html).not.toContain('href="/admin/nju-major-2026/draft"');
-    expect(html).not.toContain('href="/admin/nju-major-2026/captains"');
-    expect(html).not.toContain('href="/admin/nju-major-2026/settings"');
-  });
-
-  it("groups seasons by the canonical lifecycle presentation", async () => {
-    requireAdminMock.mockResolvedValue({
-      role: "super_admin",
-      seasonIds: [],
-    });
-    mockSeasonRows([
-      makeSeason({ id: "active", name: "进行中赛事", status: "playing" }),
-      makeSeason({ id: "upcoming", name: "待开放赛事", status: "registration", registrationOpenedAt: null }),
-      makeSeason({ id: "draft", name: "草稿赛事", status: "draft" }),
-      makeSeason({ id: "recent", name: "最近赛事", status: "finished" }),
-      makeSeason({ id: "archived", name: "归档赛事", status: "archived" }),
-    ]);
-
-    const html = await renderPage();
-
-    expect(html).toContain("进行中");
-    expect(html).toContain("即将开始");
-    expect(html).toContain("草稿");
-    expect(html).toContain("最近结束");
-    expect(html).toContain("已归档");
-    expect(html).toContain("已发布 · 报名未开放");
-  });
-
-  it("keeps the workspace entry for a finished season without season operations", async () => {
-    requireAdminMock.mockResolvedValue({
-      role: "super_admin",
-      seasonIds: [],
-    });
-    mockSeasonRows([makeSeason({ status: "finished" })]);
-
-    const html = await renderPage();
-
-    expect(html).toContain('href="/admin/nju-major-2026">进入赛事工作区 →');
-    expect(html).not.toContain('href="/admin/nju-major-2026/matches"');
-    expect(html).not.toContain('href="/admin/nju-major-2026/registrations"');
-    expect(html).not.toContain('href="/admin/nju-major-2026/settings"');
-    expect(html).toContain("最近结束");
   });
 
   it("hides new-season actions from a season admin", async () => {

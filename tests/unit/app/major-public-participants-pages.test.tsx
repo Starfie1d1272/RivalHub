@@ -118,32 +118,23 @@ describe("Major public participant pages", () => {
     expect(mocks.summary).toHaveBeenCalledWith(season);
     expect(html).toContain("正式参赛队");
     expect(html).toContain("正式队伍");
-    expect(html).not.toContain("CompetitionEntry");
-    expect(html).not.toContain("Draft #");
   });
 
-  it("keeps the detail route on TeamPublicProfile while hiding seed and lifecycle presentation", async () => {
+  it("loads the event roster for the requested detail route", async () => {
     const html = renderToStaticMarkup(await DetailPage({ params: Promise.resolve({ seasonSlug: "nju-major", entryId: "entry-1" }) }));
 
     expect(mocks.team).toHaveBeenCalledWith(season, "entry-1");
     expect(html).toContain("当前参赛名单");
-    expect(html).not.toContain("种子待确认");
-    expect(html).not.toContain("名单已确认");
-    expect(html).not.toContain("EventRoster");
   });
 
-  it("renders Major players from event members without legacy registration fields", async () => {
+  it("renders Major event members with their team navigation and unavailable statistics", async () => {
     const html = renderToStaticMarkup(await PlayersPage({
       params: Promise.resolve({ seasonSlug: "nju-major" }),
       searchParams: Promise.resolve({}),
     }));
 
-    expect(html).toContain("选手");
     expect(html).toContain("选手甲");
     expect(html).toContain("/nju-major/teams/entry-1");
     expect(html).toContain("暂无本届正式比赛数据");
-    expect(html).toContain("cdn.test");
-    expect(html).not.toContain("Peak Rank");
-    expect(html).not.toContain("registrationId");
   });
 });

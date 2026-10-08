@@ -1,7 +1,4 @@
 /** @vitest-environment node */
-/**
- * @vitest-environment jsdom
- */
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -73,6 +70,7 @@ describe("community awards route capability guard", () => {
     await expect(PublicCommunityAwardsPage({ params: Promise.resolve({ seasonSlug: "season-1" }) })).rejects.toThrow("NEXT_NOT_FOUND");
 
     expect(notFoundMock).toHaveBeenCalled();
+    expect(publicDataMock).not.toHaveBeenCalled();
   });
 
   it("404s the admin route before authorizing or loading data when disabled", async () => {
@@ -90,6 +88,7 @@ describe("community awards route capability guard", () => {
 
     const page = await PublicCommunityAwardsPage({ params: Promise.resolve({ seasonSlug: "season-1" }) });
 
-    expect(renderToStaticMarkup(page)).toContain("社区奖 · Season 1");
+    renderToStaticMarkup(page);
+    expect(publicDataMock).toHaveBeenCalledWith(expect.anything(), { seasonId: "season-1", currentUserId: null, stagePlan: [] });
   });
 });
