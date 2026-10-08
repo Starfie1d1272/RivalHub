@@ -368,6 +368,7 @@ export const AUDIT_ACTION_DEFINITIONS = {
   "competition_entry.changes_requested": { label: "要求修改参赛队报名", category: "entry" },
   "competition_entry.waitlisted": { label: "参赛队列入候补", category: "entry" },
   "competition_entry.approved": { label: "通过参赛队报名", category: "entry" },
+  "competition_entry.sync_event_roster": { label: "同步已批准赛事名单", category: "entry" },
   "competition_entry.rejected": { label: "驳回参赛队报名", category: "entry" },
   "competition_entry.withdrawn": { label: "参赛队退出赛事", category: "entry" },
   "competition_entry.representative.transfer": { label: "转移参赛队代表", category: "entry" },

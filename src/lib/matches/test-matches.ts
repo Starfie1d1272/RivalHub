@@ -1,4 +1,5 @@
 import "server-only";
+import { prepareApprovedEventRosterInTx } from "@/lib/event-rosters/prepare-approved";
 import { assertPrestartEntryCoherenceInTx } from "@/lib/event-rosters/coherence";
 import { buildRosterEligibilityInTx, freezeQualificationPolicy, type QualificationRosterEligibility } from "@/lib/competition-qualification/eligibility";
 import { z } from "zod";
@@ -18,6 +19,12 @@ export const testMatchInput = z.object({
   scheduledAt: z.iso.datetime().nullable(),
 }).strict();
 
+export async function loadTestMatchEntries(seasonId: string, executor: Pick<TxDb, "select"> = db) {
+  return executor.select({ id: competitionEntries.id, name: competitionEntries.name }).from(competitionEntries)
+    .where(and(eq(competitionEntries.competitionId, seasonId), eq(competitionEntries.registrationStatus, "approved")))
+    .orderBy(asc(competitionEntries.name));
+}
+
 /** Caller authorizes the event. The test marker is immutable and cannot own a tournament node. */
 export async function createTestMatchInTx(tx: TxDb, input: z.infer<typeof testMatchInput>, actorId: string) {
   const values = testMatchInput.parse(input);
@@ -30,11 +37,14 @@ export async function createTestMatchInTx(tx: TxDb, input: z.infer<typeof testMa
     .where(and(eq(competitionEntries.competitionId, season.id), inArray(competitionEntries.id, [values.entryAId, values.entryBId]), eq(competitionEntries.registrationStatus, "approved")))
     .orderBy(asc(competitionEntries.id)).for("update");
   if (entries.length !== 2 || entries.some(entry => !entry.approvedRosterRevisionId)) throw new AppError(ErrorCode.VALIDATION_FAILED, "双方必须是本届已批准名单的队伍。");
+  for (const entry of entries) await prepareApprovedEventRosterInTx(tx, {
+    seasonId: season.id, entryId: entry.id, actorId,
+  });
   const eligibilityByEntry = new Map<string, QualificationRosterEligibility>();
   const coherent = await assertPrestartEntryCoherenceInTx(tx, season.id, entries.map(entry => ({ competitionEntryId: entry.id })));
   for (const row of coherent) {
     if (!["confirmed", "frozen"].includes(row.eventRoster.status)) {
-      throw new AppError(ErrorCode.VALIDATION_FAILED, `请先通过正式名单入口确认「${row.entry.name}」的名单，再创建测试赛。`);
+      throw new AppError(ErrorCode.VALIDATION_FAILED, `「${row.entry.name}」的比赛用名单未能准备完成，请核对当前获批名单。`);
     }
   }
   const policy = season.competitionTemplate === "major" ? await freezeQualificationPolicy(season) : null;

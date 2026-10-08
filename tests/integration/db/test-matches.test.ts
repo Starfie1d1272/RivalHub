@@ -63,7 +63,7 @@ async function playBp(f: Awaited<ReturnType<typeof create>>) {
 
 describe("event test matches", () => {
   afterEach(() => vi.unstubAllEnvs());
-  it("never confirms or resynchronizes formal rosters while creating tests", async () => {
+  it("keeps prepared rosters unchanged and refuses to resynchronize during active matches", async () => {
     const f = await create();
     const rosterRows = () => db.select().from(schema.eventRosters).where(inArray(schema.eventRosters.entryId, [f.entryAId, f.entryBId])).orderBy(schema.eventRosters.id);
     const before = await rosterRows();
@@ -71,14 +71,14 @@ describe("event test matches", () => {
     await db.transaction(tx => createTestMatchInTx(tx, f.input, f.captainA));
     expect(await rosterRows()).toEqual(before);
     expect(await db.select().from(schema.eventRosterMembers).where(inArray(schema.eventRosterMembers.eventRosterId, before.map(r => r.id))).orderBy(schema.eventRosterMembers.id)).toEqual(membersBefore);
-    // The creation path must reject rather than silently confirm or repair a formal roster.
+    // Preparing rosters cannot disturb an ongoing match, including test matches.
     await db.update(schema.eventRosters).set({ status: "preparing", confirmedAt: null, confirmedBy: null }).where(eq(schema.eventRosters.entryId, f.entryAId));
     const preparing = await rosterRows();
-    await expect(db.transaction(tx => createTestMatchInTx(tx, f.input, f.captainA))).rejects.toThrow("正式名单入口");
+    await expect(db.transaction(tx => createTestMatchInTx(tx, f.input, f.captainA))).rejects.toThrow("进行中的比赛");
     expect(await rosterRows()).toEqual(preparing);
     await db.update(schema.eventRosters).set({ sourceRosterRevisionId: null }).where(eq(schema.eventRosters.entryId, f.entryAId));
     const stale = await rosterRows();
-    await expect(db.transaction(tx => createTestMatchInTx(tx, f.input, f.captainA))).rejects.toThrow("同步");
+    await expect(db.transaction(tx => createTestMatchInTx(tx, f.input, f.captainA))).rejects.toThrow("进行中的比赛");
     expect(await rosterRows()).toEqual(stale);
   });
   it("allows only active tests before playing and retains ordinary LIVE gates", async () => {

@@ -52,8 +52,8 @@ function invariant(message: string): AppError {
  * change cannot slip in between this check and the caller's freeze.
  *
  * `requireEventRosterSync: false` is reserved for the explicit resync owners
- * (Major final selection and approved Entry re-approval, plus the existing
- * repair action): it still validates Entry approval and revision integrity —
+ * (Major final selection, approved Entry re-approval, test-match roster preparation
+ * and the existing repair action): it still validates Entry approval and revision integrity —
  * and still locks the event roster — but skips the sourceRosterRevisionId
  * equality the caller is about to re-establish.
  */
