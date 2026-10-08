@@ -1,3 +1,4 @@
+import { officialMatchCondition } from "@/lib/matches/scope";
 import { requireCompetitionFields } from "@/lib/matches/competition-context";
 import { EventLogo } from "@/components/season/EventLogo";
 import { getMajorPublicParticipantOverview } from "@/lib/major/public-participants";
@@ -38,7 +39,7 @@ async function SeasonsContent() {
     ? await db
       .select({ seasonId: matches.seasonId, stage: matches.stage, status: matches.status, scheduledAt: matches.scheduledAt })
       .from(matches)
-      .where(and(inArray(matches.seasonId, activeSeasonIds), inArray(matches.status, ["scheduled", "in_progress"])))
+      .where(and(officialMatchCondition(), and(inArray(matches.seasonId, activeSeasonIds), inArray(matches.status, ["scheduled", "in_progress"]))))
       .orderBy(asc(matches.scheduledAt), asc(matches.id))
     : [];
   const activeMatchRows = rawActiveMatchRows.map(requireCompetitionFields);

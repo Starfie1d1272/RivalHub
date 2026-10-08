@@ -1,3 +1,5 @@
+import type { Metadata } from "next";
+import { connection } from "next/server";
 import { assertCompetitionMatch } from "@/lib/matches/competition-context";
 import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
 import { getPublicPlayerIdentityIds } from "@/lib/players/public-identity";
@@ -73,7 +75,15 @@ interface MatchDetailPageProps {
   searchParams: Promise<{ statsPlayer?: string; statsMap?: string }>;
 }
 
+export async function generateMetadata({ params }: MatchDetailPageProps): Promise<Metadata> {
+  await connection();
+  const { matchId } = await params;
+  const match = await db.query.matches.findFirst({ where: eq(matches.id, matchId), columns: { testConfig: true } });
+  return match?.testConfig ? { robots: { index: false, follow: false } } : {};
+}
+
 export default async function MatchDetailPage({ params, searchParams }: MatchDetailPageProps) {
+  await connection();
   const { seasonSlug, matchId } = await params;
   const statsQuery = await searchParams;
 
@@ -85,7 +95,7 @@ export default async function MatchDetailPage({ params, searchParams }: MatchDet
   if (!match || match.seasonId !== season.id) notFound();
   assertCompetitionMatch(match);
 
-  const mapPool = normalizeRegistrationConfig(season.registrationConfig).mapPool;
+  const mapPool = match.testConfig?.mapPool ?? normalizeRegistrationConfig(season.registrationConfig).mapPool;
 
   const [teamA, teamB, maps] = await Promise.all([
     db.query.competitionEntries.findFirst({ where: eq(competitionEntries.id, match.entryAId) }),
@@ -317,6 +327,7 @@ export default async function MatchDetailPage({ params, searchParams }: MatchDet
 
   return (
     <PageLayout variant="wide" className="space-y-8">
+      {match.testConfig && <p className="text-sm text-[var(--color-fg-mid)]">测试赛 · 不计入正式赛程与统计</p>}
       <MatchContextRefresh enabled={match.status === "scheduled" || match.status === "in_progress"} />
       <MatchHeroHeader
         seasonSlug={seasonSlug}
@@ -425,7 +436,7 @@ export default async function MatchDetailPage({ params, searchParams }: MatchDet
             />
           )}
       </div>}
-      {season.competitionTemplate === "major" && <Suspense fallback={null}><MatchBetLink seasonId={season.id} matchId={match.id} slug={seasonSlug} /></Suspense>}
+      {!match.testConfig && season.competitionTemplate === "major" && <Suspense fallback={null}><MatchBetLink seasonId={season.id} matchId={match.id} slug={seasonSlug} /></Suspense>}
       <MatchLiveProvider matchId={match.id} enabled={afterVeto}>
       {(afterVeto || isFinished) && maps.length > 0 && <MatchMapSequence seasonSlug={seasonSlug}
         maps={maps.map(map => ({ id: map.id, mapOrder: map.mapOrder, mapName: map.mapName, pickedByEntryId: map.pickedByEntryId, scoreA: map.scoreA, scoreB: map.scoreB, completedAt: map.completedAt?.toISOString() ?? null }))}

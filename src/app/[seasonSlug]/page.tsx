@@ -1,3 +1,4 @@
+import { officialMatchCondition } from "@/lib/matches/scope";
 import { statsEntryHref } from "@/lib/stats/view-state";
 import { EventLogo } from "@/components/season/EventLogo";
 import { MatchStatusBadge } from "@/components/matches/MatchStatusBadge";
@@ -93,10 +94,10 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
         .leftJoin(teamA, eq(matches.entryAId, teamA.id))
         .leftJoin(teamB, eq(matches.entryBId, teamB.id))
         .where(
-          and(
+          and(officialMatchCondition(), and(
             eq(matches.seasonId, season.id),
             or(eq(matches.status, "scheduled"), eq(matches.status, "in_progress"))
-          )
+          ))
         )
         .orderBy(matches.scheduledAt)
         .limit(4)
@@ -113,7 +114,7 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
       db.select({
         total: count(),
         finished: sql<number>`count(*) filter (where ${matches.status} = 'finished')`,
-      }).from(matches).where(eq(matches.seasonId, season.id)),
+      }).from(matches).where(and(officialMatchCondition(), eq(matches.seasonId, season.id))),
       upcomingMatchesQuery ?? Promise.resolve([] as { id: string; status: string; scheduledAt: Date | null; stage: string; teamAName: string | null; teamBName: string | null }[]),
       season.status === "playing" ? getStandings(season.id) : Promise.resolve([]),
       isMajor
@@ -124,7 +125,7 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
         : Promise.resolve([] as { value: number }[]),
     ]);
   const qualificationMatches = qualificationRun
-    ? await db.select({ status: matches.status, round: matches.round }).from(matches).where(eq(matches.qualificationRunId, qualificationRun.id))
+    ? await db.select({ status: matches.status, round: matches.round }).from(matches).where(and(officialMatchCondition(), eq(matches.qualificationRunId, qualificationRun.id)))
     : [];
   const mainEventStarted = Boolean(stagePresentation.currentStageKey) || initializedStages.has(stagePlan[0]?.key ?? "");
   const qualificationBeforeMainStart = Boolean(qualificationRun) && !mainEventStarted;

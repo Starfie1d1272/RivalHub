@@ -23,7 +23,7 @@ export interface Fixture {
   steam64: string[];
 }
 
-export async function seedFixture(options: { matchStatus?: "scheduled" | "in_progress"; freezeEventRoster?: boolean; unboundSource?: boolean } = {}): Promise<Fixture> {
+export async function seedFixture(options: { isTest?: boolean; matchStatus?: "scheduled" | "in_progress"; freezeEventRoster?: boolean; unboundSource?: boolean } = {}): Promise<Fixture> {
   const seasonId = randomUUID();
   const entryAId = randomUUID();
   const entryBId = randomUUID();
@@ -100,7 +100,8 @@ export async function seedFixture(options: { matchStatus?: "scheduled" | "in_pro
       seasonId,
       entryAId,
       entryBId,
-      stage: "fixture-stage",
+      stage: options.isTest ? "test" : "fixture-stage",
+      ...(options.isTest ? { testConfig: { mapPool: ["de_ancient", "de_mirage", "de_nuke", "de_dust2", "de_inferno", "de_anubis", "de_train"], operatorAId: userIds[0]!, operatorBId: userIds[5]! } } : {}),
       format: "bo3",
       status: options.matchStatus ?? "in_progress",
       scheduledAt: new Date("2026-09-28T01:00:00.000Z"),

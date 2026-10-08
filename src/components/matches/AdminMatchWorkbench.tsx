@@ -143,7 +143,7 @@ export function AdminMatchWorkbench({
           <div className="flex min-w-0 flex-wrap items-center gap-3 break-words">
             <TeamProfileLink seasonSlug={season.slug} entryId={match.entryAId} className="text-lg font-semibold">{teamAName}</TeamProfileLink>
             <span className="text-[var(--color-fg-mid)]">
-              {match.status === "finished" ? `${match.scoreA ?? 0} : ${match.scoreB ?? 0}` : "vs"}
+              {match.status === "finished" ? `${match.scoreA ?? "—"} : ${match.scoreB ?? "—"}` : "vs"}
             </span>
             <TeamProfileLink seasonSlug={season.slug} entryId={match.entryBId} className="text-lg font-semibold">{teamBName}</TeamProfileLink>
           </div>
@@ -186,7 +186,7 @@ export function AdminMatchWorkbench({
         {broadcasts.length > 0 && <aside aria-label="转播状态" className="space-y-1 text-sm">{broadcasts.map((row, i) => <p key={i}>B站直播：{row.name} · {row.label}</p>)}</aside>}
         {officialMapStart && <OfficialMapStart seasonId={season.id} matchId={match.id} mapId={officialMapStart.mapId} mapName={officialMapStart.mapName} />}
         <OperatorTaskControls elapsed={operator.workflow.elapsed} />
-        {match.status === "in_progress" && vetoCompletedAt && operator.workflow.manualResultAllowed && <details id="manual-result" className="space-y-3 pt-3" open={operator.workflow.sourceMode === "manual_map" || operator.workflow.phase === "gameplay"}>
+        {vetoCompletedAt && ((match.status === "in_progress" && operator.workflow.manualResultAllowed) || (match.testConfig && match.status === "finished" && match.resultDisposition !== "omitted" && pendingMaps.length > 0)) && <details id="manual-result" className="space-y-3 pt-3" open={operator.workflow.sourceMode === "manual_map" || operator.workflow.phase === "gameplay"}>
           <summary className="cursor-pointer text-sm font-medium">比赛结束后录入本图比分</summary>
                 <MapByMapInput
                   matchId={match.id}
@@ -414,12 +414,12 @@ export function AdminMatchWorkbench({
               <p className="mt-1 text-xs leading-5 text-[var(--color-fg-mid)]">
                 更正整场结果前，请核对影响的后续赛程。
               </p>
-            <ResultCorrectionPanel entryAId={match.entryAId} entryBId={match.entryBId} seasonSlug={season.slug}
+            {!match.testConfig && <ResultCorrectionPanel entryAId={match.entryAId} entryBId={match.entryBId} seasonSlug={season.slug}
               matchId={match.id}
               teamAName={teamAName}
               teamBName={teamBName}
               format={match.format}
-            />
+            />}
             <CompletedAtInput
               matchId={match.id}
               initialValue={toCSTDateTimeInput(match.completedAt)}

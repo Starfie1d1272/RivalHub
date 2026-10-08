@@ -1,3 +1,4 @@
+import { officialMatchCondition } from "@/lib/matches/scope";
 import { requireCompetitionMatch } from "@/lib/matches/competition-context";
 import "server-only";
 import { and, eq, inArray, isNotNull, asc } from "drizzle-orm";
@@ -9,15 +10,15 @@ import type { EventFact, VetoFact } from "./domain";
 export async function loadBetFacts(tx: TxDb,seasonId: string) {
   const season = await tx.query.seasons.findFirst({where:eq(seasons.id,seasonId)});
   if (!season) throw new AppError(ErrorCode.NOT_FOUND,"赛事不存在");
-  const officialRows = await tx.select().from(matches).where(eq(matches.seasonId,seasonId)).orderBy(asc(matches.createdAt)).then(rows=>rows.map(requireCompetitionMatch).map(m=>({...m,operationalStartedAt:m.startedAt,startedAt:m.gameplayStartedAt})));
-  const maps = await tx.select({map:matchMaps}).from(matchMaps).innerJoin(matches,eq(matches.id,matchMaps.matchId)).where(eq(matches.seasonId,seasonId)).then(rows=>rows.map(r=>r.map));
+  const officialRows = await tx.select().from(matches).where(and(officialMatchCondition(), eq(matches.seasonId,seasonId))).orderBy(asc(matches.createdAt)).then(rows=>rows.map(requireCompetitionMatch).map(m=>({...m,operationalStartedAt:m.startedAt,startedAt:m.gameplayStartedAt})));
+  const maps = await tx.select({map:matchMaps}).from(matchMaps).innerJoin(matches,eq(matches.id,matchMaps.matchId)).where(and(officialMatchCondition(), eq(matches.seasonId,seasonId))).then(rows=>rows.map(r=>r.map));
   // Canonical map facts also prove gameplay when the separate start marker is absent.
   const official = officialRows.map(m => ({...m,startedAt:m.startedAt ?? maps
     .filter(map=>map.matchId===m.id && (map.startedAt || map.completedAt))
     .map(map=>map.startedAt ?? map.completedAt!)
     .sort((a,b)=>a.getTime()-b.getTime())[0] ?? null}));
-  const vetos = await tx.select().from(matchVetoSessions).innerJoin(matches,eq(matches.id,matchVetoSessions.matchId)).where(eq(matches.seasonId,seasonId)).then(rows=>rows.map(r=>r.match_veto_sessions));
-  const appeals = await tx.select({matchId:matchVetoTimeoutIncidents.matchId}).from(matchVetoAppeals).innerJoin(matchVetoTimeoutIncidents,eq(matchVetoTimeoutIncidents.id,matchVetoAppeals.timeoutIncidentId)).innerJoin(matches,eq(matches.id,matchVetoTimeoutIncidents.matchId)).where(and(eq(matches.seasonId,seasonId),eq(matchVetoAppeals.status,"pending")));
+  const vetos = await tx.select().from(matchVetoSessions).innerJoin(matches,eq(matches.id,matchVetoSessions.matchId)).where(and(officialMatchCondition(), eq(matches.seasonId,seasonId))).then(rows=>rows.map(r=>r.match_veto_sessions));
+  const appeals = await tx.select({matchId:matchVetoTimeoutIncidents.matchId}).from(matchVetoAppeals).innerJoin(matchVetoTimeoutIncidents,eq(matchVetoTimeoutIncidents.id,matchVetoAppeals.timeoutIncidentId)).innerJoin(matches,eq(matches.id,matchVetoTimeoutIncidents.matchId)).where(and(officialMatchCondition(), and(eq(matches.seasonId,seasonId),eq(matchVetoAppeals.status,"pending"))));
   const vetoByMatch = new Map<string,VetoFact>(vetos.map(v=>[v.matchId,{...v,pendingAppeal:appeals.some(a=>a.matchId===v.matchId)}]));
   const entries = await tx.select({id:competitionEntries.id,name:competitionEntries.name,logoUrl:competitionEntries.logoUrl}).from(competitionEntries).where(eq(competitionEntries.competitionId,seasonId));
   const prestart = await tx.query.majorPrestartStates.findFirst({where:eq(majorPrestartStates.seasonId,seasonId)});

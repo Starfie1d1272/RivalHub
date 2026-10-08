@@ -302,7 +302,7 @@ export async function readRivalHubEvents(
       const seasonEntryIds = new Set(seasonEntries.map((entry) => entry.id));
       const seasonMatches = matchRows.filter((match) => match.seasonId === season.id && seasonEntryIds.has(match.entryAId) && seasonEntryIds.has(match.entryBId));
       const stagePlan = normalizeStagePlan(season.stagePlan);
-      const { views: stageViews } = buildStageViews(stagePlan, seasonMatches);
+      const { views: stageViews } = buildStageViews(stagePlan, seasonMatches.filter(match => !match.testConfig));
       const [roundScoresByMatchId, bracketDataByStage, swissReadModels] = await Promise.all([
         getMatchMapRoundScores(seasonMatches.filter((match) => match.status === "finished").map((match) => match.id)),
         loadStageBracketViews(db, season.id),
@@ -356,6 +356,7 @@ export async function readRivalHubEvents(
       }));
       const stages = stageProjectionBySeasonId.get(season.id) ?? normalizeStagePlan(season.stagePlan).map((stage) => projectStage(stage));
       const mapPool = normalizeRegistrationConfig(season.registrationConfig).mapPool;
+      if (seasonMatches.some(match => match.testConfig)) stages.push({ key: "test", name: "测试赛", type: "round_robin", teamCount: seasonEntries.length, advanceCount: 0, matchFormat: null, finalFormat: null });
       const series: RivalHubRemoteSeries[] = seasonMatches.map((match) => {
         const entryA = entryById.get(match.entryAId)!;
         const entryB = entryById.get(match.entryBId)!;
@@ -420,7 +421,7 @@ export async function readRivalHubEvents(
           teamARecordBefore: null,
           teamBRecordBefore: null,
           maps: mapRecords,
-          veto: projectVeto(match, entryA.name, entryB.name, mapPool, vetoByMatch.get(match.id) ?? []),
+          veto: projectVeto(match, entryA.name, entryB.name, match.testConfig?.mapPool ?? mapPool, vetoByMatch.get(match.id) ?? []),
         };
       });
       return {

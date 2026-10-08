@@ -37,6 +37,7 @@ export function SeasonSubNav({
       active: pathname === `${root}/captains` || pathname.startsWith(`${root}/captains/`) || pathname === `${root}/draft` || pathname.startsWith(`${root}/draft/`),
     },
     ...(hasMatches ? [{ label: "比赛", href: `${root}/matches` }] : []),
+    { label: "测试赛", href: `${root}/test-matches` },
     ...(hasCommunityAwards ? [{ label: "社区奖", href: `${root}/community-awards` }] : []),
     ...(hasBet ? [{ label: "竞猜平台", href: `${root}/bet` }] : []),
     { label: "赛后", href: `${root}/post-event` },

@@ -279,6 +279,7 @@ export async function planResultCorrectionInTx(
   const [match] = await tx.select().from(matches).where(eq(matches.id, args.matchId)).for("update");
   if (!match) throw new AppError(ErrorCode.NOT_FOUND, "比赛不存在。");
   assertCompetitionMatch(match);
+  if (match.testConfig) throw new AppError(ErrorCode.VALIDATION_FAILED, "测试赛请使用本场结果更正入口。");
   if (match.status !== "finished") {
     throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "只能修正已结束的比赛结果。");
   }

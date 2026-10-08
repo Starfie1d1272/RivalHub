@@ -1,3 +1,4 @@
+import { officialMatchCondition } from "@/lib/matches/scope";
 import { and, eq } from "drizzle-orm";
 import { writeAuditInTx } from "@/lib/audit/write";
 
@@ -77,7 +78,7 @@ async function assertEntryBelongsToSeasonInTx(tx: TxDb, seasonId: string, entryI
 
 async function assertMatchBelongsToSeasonInTx(tx: TxDb, seasonId: string, matchId: string): Promise<void> {
   const [match] = await tx.select({ id: matches.id }).from(matches)
-    .where(and(eq(matches.id, matchId), eq(matches.seasonId, seasonId)));
+    .where(and(officialMatchCondition(), and(eq(matches.id, matchId), eq(matches.seasonId, seasonId))));
   if (!match) throw new AppError(ErrorCode.VALIDATION_FAILED, "目标比赛不属于当前赛事。");
 }
 

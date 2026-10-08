@@ -292,7 +292,7 @@ export async function loadAdminMatchWorkbench({
   const teamBName = entryName.get(match.entryBId) ?? "未知队伍";
   const [operator, commentary] = await Promise.all([
     loadOperatorContext({ match, maps: mapRecords, imports: demoImportRows, roster: effectiveRosterRows,
-      seasonName: season.name, stageName: stage?.name ?? null, isSwiss: stage?.type === "swiss",
+      seasonName: season.name, stageName: match.testConfig ? "测试赛" : stage?.name ?? null, isSwiss: stage?.type === "swiss",
       teamAName, teamBName, vetoComplete: Boolean(vetoSession?.completedAt) }),
     readAdminMatchCommentary(db, { seasonId: season.id, currentUserId: admin.userId, excludeMatchId: match.id }),
   ]);
@@ -305,11 +305,11 @@ export async function loadAdminMatchWorkbench({
     broadcasts, uploaderDownloads,
     completion: projectOperatorCompletion({ status: match.status, isForfeit: match.isForfeit, maps: operator.workflow.completedMaps, commentatorCount: commentatorRows.length, submitted: Boolean(submittedAt), hasVideo: Boolean(match.videoUrl) }),
     season: { id: season.id, slug: season.slug, name: season.name },
-    stageName: stage?.name ?? null,
+    stageName: match.testConfig ? "测试赛" : stage?.name ?? null,
     match,
     teamAName,
     teamBName,
-    mapPool: normalizeRegistrationConfig(season.registrationConfig).mapPool,
+    mapPool: match.testConfig?.mapPool ?? normalizeRegistrationConfig(season.registrationConfig).mapPool,
     teamAMembers: membersByEntry.get(match.entryAId) ?? [],
     teamBMembers: membersByEntry.get(match.entryBId) ?? [],
     teamARoster: projectRoster(rostersByEntry.get(match.entryAId)),

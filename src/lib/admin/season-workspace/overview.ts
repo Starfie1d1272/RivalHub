@@ -1,3 +1,4 @@
+import { officialMatchCondition } from "@/lib/matches/scope";
 import "server-only";
 
 import { and, count, eq, isNotNull } from "drizzle-orm";
@@ -108,12 +109,12 @@ export async function loadSeasonWorkspaceOverview(seasonSlug: string): Promise<S
 
   const [registrationRows, matchCountRows, scheduledMatchRows, matchRosterRows, activeAdjudicationRows, formedTeamCount, majorFacts] = await Promise.all([
     loadRegistrationCounts(season),
-    db.select({ count: count() }).from(matches).where(eq(matches.seasonId, season.id)),
+    db.select({ count: count() }).from(matches).where(and(officialMatchCondition(), eq(matches.seasonId, season.id))),
     db.select({ id: matches.id }).from(matches)
-      .where(and(eq(matches.seasonId, season.id), eq(matches.status, "scheduled"), isNotNull(matches.scheduledAt))),
+      .where(and(officialMatchCondition(), and(eq(matches.seasonId, season.id), eq(matches.status, "scheduled"), isNotNull(matches.scheduledAt)))),
     db.select({ matchId: matchRosters.matchId, status: matchRosters.status }).from(matchRosters)
       .innerJoin(matches, eq(matchRosters.matchId, matches.id))
-      .where(and(eq(matches.seasonId, season.id), eq(matches.status, "scheduled"), isNotNull(matches.scheduledAt))),
+      .where(and(officialMatchCondition(), and(eq(matches.seasonId, season.id), eq(matches.status, "scheduled"), isNotNull(matches.scheduledAt)))),
     db.select({ count: count() }).from(postEventAdjudications)
       .where(and(eq(postEventAdjudications.seasonId, season.id), eq(postEventAdjudications.status, "active"))),
     season.registrationMode === "solo" ? loadFormedTeamCount(season) : Promise.resolve(null),

@@ -164,14 +164,14 @@ async function lockCurrentEventRosterForLineupInTx(
     .from(eventRosters)
     .where(eq(eventRosters.entryId, entryId))
     .for("update");
-  const allowedStatuses = match.qualificationRunId
+  const allowedStatuses = match.qualificationRunId || match.testConfig
     ? ["confirmed", "frozen"]
     : ["frozen"];
   if (!roster || !allowedStatuses.includes(roster.status)) {
     throw new AppError(ErrorCode.VALIDATION_FAILED, "本队正式名单状态已变化，请刷新后重新提交阵容。");
   }
 
-  if (match.qualificationRunId) {
+  if (match.qualificationRunId || match.testConfig) {
     await assertSinglePrestartEntryCoherenceInTx(tx, match.seasonId, { competitionEntryId: entryId });
   }
 }
@@ -252,7 +252,7 @@ async function loadTeamLineupContextInTx(
   let externalStrengthGapEnabled = false;
   let frozenRestrictionOverrides: readonly FrozenRestrictionOverrideSnapshot[] = [];
   const [season] = await tx
-    .select({ starterCount: seasons.starterCount })
+    .select({ starterCount: seasons.starterCount, competitionTemplate: seasons.competitionTemplate })
     .from(seasons)
     .where(eq(seasons.id, match.seasonId));
   if (!season) throw new AppError(ErrorCode.INTERNAL_ERROR, "比赛所属赛季不存在。");
@@ -306,7 +306,7 @@ async function loadTeamLineupContextInTx(
     }
   }
 
-  if (match.qualificationRunId) {
+  if (match.qualificationRunId || (match.testConfig && season.competitionTemplate === "major")) {
     const coherent = await assertSinglePrestartEntryCoherenceInTx(tx, match.seasonId, { competitionEntryId: entryId });
     if (coherent.eventRoster.status !== "confirmed" && coherent.eventRoster.status !== "frozen") {
       throw new AppError(ErrorCode.INTERNAL_ERROR, "Play-in 队伍缺少已确认的赛事名单，无法校验本场阵容。");
@@ -315,11 +315,11 @@ async function loadTeamLineupContextInTx(
     frozenRosterUserIds = roster.ids;
     verificationsByUser = roster.verificationsByUser;
     frozenRosterRevisionId = roster.rosterRevisionId;
-    const [run] = await tx.select().from(competitionQualificationRuns).where(and(eq(competitionQualificationRuns.id, match.qualificationRunId), eq(competitionQualificationRuns.seasonId, match.seasonId)));
-    const snapshot = coherent.eventRoster.eligibilitySnapshot;
-    if (!run?.eligibilityPolicy || !snapshot || snapshot.version !== 1 || snapshot.entryId !== entryId || snapshot.rosterRevisionId !== roster.rosterRevisionId ||
-        JSON.stringify(snapshot.policy) !== JSON.stringify(run.eligibilityPolicy)) {
-      throw new AppError(ErrorCode.VALIDATION_FAILED, "Play-in 资格快照缺失或名单版本已变化，请先同步已批准名单。");
+    const run = match.qualificationRunId ? (await tx.select().from(competitionQualificationRuns).where(and(eq(competitionQualificationRuns.id, match.qualificationRunId), eq(competitionQualificationRuns.seasonId, match.seasonId))))[0] : null;
+    const snapshot = match.testConfig ? match.testConfig.eligibility?.[entryId === match.entryAId ? "a" : "b"] : coherent.eventRoster.eligibilitySnapshot;
+    if (!snapshot || snapshot.version !== 1 || snapshot.entryId !== entryId || snapshot.rosterRevisionId !== roster.rosterRevisionId ||
+        (match.qualificationRunId && (!run?.eligibilityPolicy || JSON.stringify(snapshot.policy) !== JSON.stringify(run.eligibilityPolicy)))) {
+      throw new AppError(ErrorCode.VALIDATION_FAILED, match.testConfig ? "测试赛资格快照与当前名单不一致，请按最新名单重新创建测试赛。" : "Play-in 资格快照缺失或名单版本已变化，请先同步已批准名单。");
     }
     rules = snapshot.policy.affiliationRules;
     competitiveProfile = snapshot.policy.competitiveProfile;
@@ -329,7 +329,7 @@ async function loadTeamLineupContextInTx(
     policy = { starterCount: snapshot.policy.starterCount, maxSubstitutes: snapshot.policy.maxSubstitutes };
   }
 
-  const acceptedRosterStatuses = match.qualificationRunId ? ["confirmed", "frozen"] as const : ["frozen"] as const;
+  const acceptedRosterStatuses = match.qualificationRunId || match.testConfig ? ["confirmed", "frozen"] as const : ["frozen"] as const;
   const memberRows = await tx
     .select({ id: eventRosterMembers.id, userId: eventRosterMembers.userId })
     .from(eventRosterMembers)

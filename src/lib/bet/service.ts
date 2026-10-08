@@ -1,3 +1,4 @@
+import { officialMatchCondition } from "@/lib/matches/scope";
 import "server-only";
 import { createHash } from "node:crypto";
 import { and, eq, desc, asc, sql } from "drizzle-orm";
@@ -140,7 +141,7 @@ export async function stakeBetInTx(tx:TxDb,input:{seasonId:string;userId:string;
   const target=await tx.query.betMarkets.findFirst({where:and(eq(markets.id,input.marketId),eq(markets.seasonId,input.seasonId))});
   if(!target) invalid("盘口不存在");
   // Official mutation lock order: user → lifecycle → match → map/veto → Bet program.
-  const matchRows=await tx.select().from(matches).where(target.matchId?eq(matches.id,target.matchId):eq(matches.seasonId,input.seasonId)).orderBy(asc(matches.id)).for("share");
+  const matchRows=await tx.select().from(matches).where(and(officialMatchCondition(), target.matchId?eq(matches.id,target.matchId):eq(matches.seasonId,input.seasonId))).orderBy(asc(matches.id)).for("share");
   for(const m of matchRows) {
     await tx.select({id:matchMaps.id}).from(matchMaps).where(eq(matchMaps.matchId,m.id)).orderBy(asc(matchMaps.id)).for("share");
     await tx.select({id:matchVetoSessions.matchId}).from(matchVetoSessions).where(eq(matchVetoSessions.matchId,m.id)).for("share");

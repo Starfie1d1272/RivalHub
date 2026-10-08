@@ -1,5 +1,8 @@
 "use server";
 
+import { officialMatchCondition } from "@/lib/matches/scope";
+
+
 import { writeAuditInTx } from "@/lib/audit/write";
 
 import { eq, and, count, asc, sql } from "drizzle-orm";
@@ -37,7 +40,7 @@ export async function generateSchedule(
       const [season] = await tx.select().from(seasons).where(eq(seasons.id, seasonId));
       if (!season) throw new AppError(ErrorCode.SEASON_NOT_FOUND, "赛季不存在");
       if (season.status !== "playing") throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "只有在赛季进行中才能生成赛程");
-      const [{ value: existingCount }] = await tx.select({ value: count() }).from(matches).where(eq(matches.seasonId, seasonId));
+      const [{ value: existingCount }] = await tx.select({ value: count() }).from(matches).where(and(officialMatchCondition(), eq(matches.seasonId, seasonId)));
       if (existingCount > 0) throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "赛程已生成，不可重复生成");
       const seasonTeams = await tx.query.competitionEntries.findMany({ where: eq(competitionEntries.competitionId, seasonId), orderBy: [asc(competitionEntries.formationOrder)] });
       if (seasonTeams.length < 2) throw new AppError(ErrorCode.VALIDATION_FAILED, "队伍数量不足，无法生成赛程");
@@ -159,7 +162,7 @@ export async function initializeStage(
     const [{ value: existingStageMatches }] = await db
       .select({ value: count() })
       .from(matches)
-      .where(and(eq(matches.seasonId, seasonId), eq(matches.stage, stage.key)));
+      .where(and(officialMatchCondition(), and(eq(matches.seasonId, seasonId), eq(matches.stage, stage.key))));
 
     if (existingStageMatches > 0) {
       throw new AppError(ErrorCode.SEASON_INVALID_STATUS, `${stage.name} 已生成，不可重复生成`);

@@ -1,3 +1,4 @@
+import { officialMatchCondition } from "@/lib/matches/scope";
 import { requireCompetitionFields } from "@/lib/matches/competition-context";
 import "server-only";
 import { and, eq, inArray, isNotNull, or, ne } from "drizzle-orm";
@@ -90,7 +91,7 @@ export async function getPublicTeamMapProfile(
 ) {
   const ids = [...new Set(entryIds)];
   const [played, experienceContext, preferences] = await Promise.all([
-    !knownPreview && ids.length ? db.select({ id: matches.id, stage: matches.stage, entryAId: matches.entryAId, entryBId: matches.entryBId }).from(matches).innerJoin(seasons, eq(seasons.id, matches.seasonId)).where(and(eq(matches.status, "finished"), ne(seasons.status, "draft"), or(inArray(matches.entryAId, ids), inArray(matches.entryBId, ids)))) : [],
+    !knownPreview && ids.length ? db.select({ id: matches.id, stage: matches.stage, entryAId: matches.entryAId, entryBId: matches.entryBId }).from(matches).innerJoin(seasons, eq(seasons.id, matches.seasonId)).where(and(officialMatchCondition(), and(eq(matches.status, "finished"), ne(seasons.status, "draft"), or(inArray(matches.entryAId, ids), inArray(matches.entryBId, ids))))) : [],
     getPublicPlayerMapExperienceContext(memberIds),
     memberIds.length ? db.select({ userId: users.id, displayName: users.displayName, perfectName: users.perfectName, personaName: steamProfiles.personaName, preferences: userMapPreferences.mapPreferences }).from(userMapPreferences).innerJoin(users, eq(users.id, userMapPreferences.userId)).leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64)).where(inArray(users.id, [...new Set(memberIds)])) : [],
   ]);
@@ -129,11 +130,11 @@ export async function getBatchPublicTeamMapPreviews(
     .from(matches)
     .innerJoin(seasons, eq(seasons.id, matches.seasonId))
     .where(
-      and(
+      and(officialMatchCondition(), and(
         eq(matches.status, "finished"),
         ne(seasons.status, "draft"),
         or(inArray(matches.entryAId, ids), inArray(matches.entryBId, ids)),
-      ),
+      )),
     );
 
   const matchIds = [...new Set(played.map((m) => m.id))];

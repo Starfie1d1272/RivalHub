@@ -21,6 +21,7 @@ interface MatchHeroMatch {
   stage: string;
   format: keyof typeof MATCH_FORMAT_LABELS;
   status: "scheduled" | "in_progress" | "finished" | "cancelled" | string;
+  resultDisposition?: "recorded" | "pending" | "omitted" | null;
   scoreA: number | null;
   scoreB: number | null;
   scheduledAt: Date | null;
@@ -161,6 +162,8 @@ export function MatchHeroHeader({
         </div>
       </div>
 
+      {isFinished && match.resultDisposition === "pending" && <p className="text-center text-sm text-[var(--color-fg-mid)]">结果待补</p>}
+      {isFinished && match.resultDisposition === "omitted" && <p className="text-center text-sm text-[var(--color-fg-mid)]">未提交结果</p>}
       <div className="text-center text-xs text-[var(--color-fg-dim)]">
         {isFinished
           ? match.completedAt

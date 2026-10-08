@@ -482,8 +482,8 @@ describe("Mizar live snapshot ingest boundary", () => {
     };
   }
 
-  it("validates the active source and only then reaches the Broadcast transport", async () => {
-    const fixture = await seedFixture();
+  it.each([false, true])("validates the active source and only then reaches the Broadcast transport (test=%s)", async isTest => {
+    const fixture = await seedFixture({ isTest });
     const previousUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const previousKey = process.env.SUPABASE_SECRET_KEY;
     process.env.NEXT_PUBLIC_SUPABASE_URL = "http://127.0.0.1:1";

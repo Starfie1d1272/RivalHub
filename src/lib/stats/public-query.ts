@@ -47,7 +47,7 @@ export async function getVerifiedPlayerStatsBySeason(
       ${roundWeightedAvg("mps.adr")} AS avg_adr,
       ${ratioOfSums("mps.kills", "mps.deaths")} AS avg_kd
     FROM match_player_stats mps
-    JOIN matches m ON m.id = mps.match_id
+    JOIN matches m ON m.id = mps.match_id AND m.test_config IS NULL
     JOIN match_maps mm ON mm.id = mps.map_id
     WHERE m.season_id = ${seasonId}
       AND m.status = 'finished'
@@ -85,7 +85,7 @@ export async function getPublicPlayerMapExperienceContext(userIds: readonly stri
       ${simpleAvg("mps.rating_pro")} AS rating, ${roundWeightedAvg("mps.adr")} AS adr,
       ${ratioOfSums("mps.kills", "mps.deaths")} AS kd
     FROM match_player_stats mps
-    JOIN matches m ON m.id = mps.match_id
+    JOIN matches m ON m.id = mps.match_id AND m.test_config IS NULL
     JOIN match_maps mm ON mm.id = mps.map_id
     JOIN seasons s ON s.id = m.season_id
     WHERE m.status = 'finished' AND s.status <> 'draft'

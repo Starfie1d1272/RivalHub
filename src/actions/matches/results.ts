@@ -86,7 +86,7 @@ export async function updateMatchStatus(
         actorId: auditActorId(session),
       });
 
-      if (nextStatus === "cancelled") {
+      if (nextStatus === "cancelled" && !match.testConfig) {
         finishedSlug = await maybeFinishSeason(tx, match.seasonId);
       }
     }));
@@ -125,12 +125,12 @@ export async function recordMapResult(
     const match = await getMatchOrThrow(matchId);
     const session = await requireSeasonAdmin(match.seasonId);
 
-    if (match.status !== "in_progress") {
+    if (match.status !== "in_progress" && !(match.testConfig && match.status === "finished" && ["pending", "recorded"].includes(match.resultDisposition ?? ""))) {
       throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "比赛状态不允许录入地图结果");
     }
 
     const season = await getSeasonOrThrow(match.seasonId);
-    const mapPool = normalizeRegistrationConfig(season.registrationConfig).mapPool;
+    const mapPool = match.testConfig?.mapPool ?? normalizeRegistrationConfig(season.registrationConfig).mapPool;
     if (!mapPool.includes(mapName)) {
       throw new AppError(ErrorCode.MATCH_MAP_INVALID, "地图不在当前赛季图池中");
     }
@@ -501,6 +501,7 @@ export async function forfeitMatch(
           scoreB: lockedScoreB,
           status: "finished",
           isForfeit: true,
+          ...(locked.testConfig ? { resultDisposition: "recorded" as const } : {}),
           completedAt: new Date(),
           updatedAt: new Date(),
         })
@@ -527,7 +528,7 @@ export async function forfeitMatch(
         );
       }
 
-      finishedSlug = await maybeFinishSeason(tx, match.seasonId);
+      finishedSlug = match.testConfig ? null : await maybeFinishSeason(tx, match.seasonId);
 
       await writeAuditInTx(tx, {
         seasonId: match.seasonId,
