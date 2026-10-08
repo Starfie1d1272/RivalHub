@@ -58,6 +58,11 @@ describe("competition templates", () => {
     const b = createCompetitionTemplate("major");
     expect(a).toEqual(b);
     expect(a).not.toBe(b);
+    const originalTotal = b.registrationConfig.maxTotal;
+    a.registrationConfig.maxTotal = 1;
+    a.stagePlan[0].teamCount = 2;
+    expect(b.stagePlan[0].teamCount).toBe(16);
+    expect(b.registrationConfig.maxTotal).toBe(originalTotal);
     a.stagePlan.pop();
     a.positions.pop();
     expect(b.stagePlan).toHaveLength(4);

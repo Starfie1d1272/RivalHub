@@ -16,6 +16,8 @@ describe("historical season compatibility", () => {
   });
 
   it("fills partial historical registration config with the legacy d60c9 behavior", () => {
+    expect(normalizeRegistrationConfig({ rankThreshold: { currentMin: null, peakMin: null } }).rankThreshold)
+      .toEqual({ currentMin: null, peakMin: null });
     expect(normalizeRegistrationConfig({ rankThreshold: { currentMin: null } })).toEqual({
       allowedPlayerTypes: ["enrolled", "graduated"],
       rankThreshold: { currentMin: null, peakMin: "A+" },
@@ -32,6 +34,11 @@ describe("historical season compatibility", () => {
     expect(config.maxExternalMembers).toBe(0);
     expect(config.requireTeamLogo).toBe(false);
     expect(config.requireCompetitiveProfile).toBe(false);
+  });
+
+  it("preserves explicit logo requirements", () => {
+    expect(normalizeTeamRegistrationConfig({ requireTeamLogo: true }).requireTeamLogo).toBe(true);
+    expect(normalizeTeamRegistrationConfig({ requireTeamLogo: false }).requireTeamLogo).toBe(false);
   });
 
   it("keeps missing sourceSelection on the legacy primary-first path", () => {

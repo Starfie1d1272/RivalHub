@@ -27,7 +27,10 @@ describe("AdminPlayerContact", () => {
     expect(screen.queryByText("player@example.test")).not.toBeVisible();
     fireEvent.click(screen.getByText("联系"));
     expect(screen.getByText("player@example.test")).toBeVisible();
-    expect(screen.getByRole("link", { name: "打开主页 ↗" })).toHaveAttribute("href", "https://steamcommunity.com/id/player");
+    const profile = screen.getByRole("link", { name: "打开主页 ↗" });
+    expect(profile).toHaveAttribute("href", "https://steamcommunity.com/id/player");
+    expect(profile).toHaveAttribute("target", "_blank");
+    expect(profile).toHaveAttribute("rel", "noopener noreferrer");
 
     fireEvent.click(screen.getByRole("button", { name: "复制QQ" }));
     await waitFor(() => expect(navigator.clipboard.writeText).toHaveBeenCalledWith("12345678"));
@@ -40,6 +43,7 @@ describe("AdminPlayerContact", () => {
 
     expect(screen.getByText("暂无可用联系方式")).toBeVisible();
     expect(screen.queryByRole("button", { name: /复制/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "打开主页 ↗" })).not.toBeInTheDocument();
     expect(toastErrorMock).not.toHaveBeenCalled();
   });
 });

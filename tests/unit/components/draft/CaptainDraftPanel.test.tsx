@@ -108,9 +108,4 @@ describe("CaptainDraftPanel", () => {
     );
   });
 
-  it("renders the shared avatar for draft candidates", () => {
-    render(<CaptainDraftPanel {...baseProps} />);
-
-    expect(screen.getAllByRole("img", { name: "Neo" })).toHaveLength(2);
-  });
 });

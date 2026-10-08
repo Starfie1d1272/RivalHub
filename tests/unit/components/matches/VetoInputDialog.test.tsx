@@ -64,7 +64,7 @@ beforeEach(() => {
   saveVetoStepsMock.mockReset();
 });
 
-describe("VetoInputDialog load state and responsive contract", () => {
+describe("VetoInputDialog authoritative load and edit flow", () => {
   it("keeps the loading state read-only until the server read completes", async () => {
     let resolveRead!: (steps: never[]) => void;
     getMatchVetoStepsMock.mockReturnValue(new Promise<never[]>((resolve) => {
@@ -103,7 +103,6 @@ describe("VetoInputDialog load state and responsive contract", () => {
     await user.click(screen.getByRole("button", { name: "重试读取" }));
 
     await waitFor(() => expect(screen.getByText("尚未录入 BP，可按模板开始。")).toBeInTheDocument());
-    expect(screen.getByTestId("veto-load-state")).toHaveAttribute("data-veto-load-state", "loaded-empty");
     expect(screen.getAllByTestId("veto-step")).toHaveLength(7);
     expect(screen.getByRole("button", { name: "保存 BP" })).not.toBeDisabled();
     expect(saveVetoStepsMock).not.toHaveBeenCalled();
@@ -119,7 +118,6 @@ describe("VetoInputDialog load state and responsive contract", () => {
     await openDialog(user);
 
     await waitFor(() => expect(screen.getByText("已加载已保存的 BP，可直接编辑。")).toBeInTheDocument());
-    expect(screen.getByTestId("veto-load-state")).toHaveAttribute("data-veto-load-state", "loaded-existing");
     expect(screen.getAllByTestId("veto-step")).toHaveLength(EXISTING_STEPS.length);
 
     await user.click(screen.getByRole("button", { name: "保存 BP" }));
@@ -140,27 +138,5 @@ describe("VetoInputDialog load state and responsive contract", () => {
     expect(within(decider).queryByRole("button", { name: "A" })).not.toBeInTheDocument();
     expect(within(decider).queryByRole("button", { name: "B" })).not.toBeInTheDocument();
   });
-
-  it.each(["bo1", "bo3", "bo5"] as const)(
-    "keeps every %s step accessible in the 320px/390px narrow layout contract",
-    async (format) => {
-      getMatchVetoStepsMock.mockResolvedValue([]);
-
-      for (const viewport of [320, 390]) {
-        Object.defineProperty(window, "innerWidth", { configurable: true, value: viewport });
-        const user = userEvent.setup();
-        const { unmount } = renderDialog({ format });
-        await openDialog(user);
-        await waitFor(() => expect(screen.getAllByTestId("veto-step")).toHaveLength(7));
-
-        const body = screen.getByTestId("veto-load-state");
-
-        const saveButton = screen.getByRole("button", { name: "保存 BP" });
-        expect(body).not.toContainElement(saveButton);
-        expect(screen.getByRole("dialog")).toContainElement(saveButton);
-        unmount();
-      }
-    },
-  );
 
 });

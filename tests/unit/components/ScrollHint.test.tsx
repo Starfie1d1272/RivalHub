@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 import React from "react";
-import { act, fireEvent, render } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ScrollHint } from "@/components/rivalhub/ScrollHint";
 
@@ -27,10 +27,10 @@ class ResizeObserverMock {
 function renderScrollHint() {
   const result = render(
     <ScrollHint>
-      <div style={{ width: "800px" }}>横向内容</div>
+      <div>横向内容</div>
     </ScrollHint>,
   );
-  const scrollContainer = result.container.querySelector(".overflow-x-auto");
+  const scrollContainer = screen.getByText("横向内容").parentElement;
   if (!(scrollContainer instanceof HTMLDivElement)) throw new Error("ScrollHint 缺少 scroll container。");
 
   return { ...result, scrollContainer };

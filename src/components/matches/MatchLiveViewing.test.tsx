@@ -3,7 +3,7 @@ import React from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { getBilibiliEmbedUrl, MatchLiveViewing, parseBilibiliLiveRoomId } from "./MatchLiveViewing";
+import { MatchLiveViewing, parseBilibiliLiveRoomId } from "./MatchLiveViewing";
 
 const commentators = [
   { userId: "commentator", displayName: "解说甲", perfectName: null, personaName: null, liveStreamUrl: "https://live.example/room" },
@@ -54,7 +54,10 @@ describe("match live viewing", () => {
       fireEvent.click(screen.getByRole("button", { name: "加载站内播放器" }));
 
       const frame = screen.getByTitle("Bilibili 直播播放器");
-      expect(frame).toHaveAttribute("src", getBilibiliEmbedUrl("123456"));
+      const source = new URL(frame.getAttribute("src")!);
+      expect(source.origin).toBe("https://www.bilibili.com");
+      expect(source.pathname).toBe("/blackboard/live/live-activity-player.html");
+      expect(source.searchParams.get("cid")).toBe("123456");
       expect(frame).toHaveAttribute("allow", "autoplay; fullscreen");
     });
 

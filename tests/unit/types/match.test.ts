@@ -40,9 +40,9 @@ describe("getWinner", () => {
   });
 
   it("未结束比赛返回 null", () => {
-    expect(getWinner(makeMatch({ status: "scheduled" }))).toBeNull();
-    expect(getWinner(makeMatch({ status: "in_progress" }))).toBeNull();
-    expect(getWinner(makeMatch({ status: "cancelled" }))).toBeNull();
+    expect(getWinner(makeMatch({ status: "scheduled", scoreA: 2, scoreB: 0 }))).toBeNull();
+    expect(getWinner(makeMatch({ status: "in_progress", scoreA: 2, scoreB: 0 }))).toBeNull();
+    expect(getWinner(makeMatch({ status: "cancelled", scoreA: 2, scoreB: 0 }))).toBeNull();
   });
 
   it("finished 但无分数返回 null", () => {

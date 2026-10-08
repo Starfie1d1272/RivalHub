@@ -1,6 +1,6 @@
 # 测试减债后续审查：重复 owner、真实持久化与发布/UI 约束
 
-基线为 PR #839 squash 合并提交 `4e44e8469c75203658f7ee525c360fc86a4ed924`。这是下一版本的独立审查批次，不是对剩余 415 文件逐断言审查完成的声明。
+基线为 PR #839 squash 合并提交 `4e44e8469c75203658f7ee525c360fc86a4ed924`。本 PR 供下一版本审查；逐文件进度、内容 hash 和处置理由以 [file-review.csv](2026-10-08-file-review.csv) 为准。`pending` 不表示保留结论，只有完成逐断言核对才标记 `reviewed`；全量绿灯不能替代审查。
 
 ## 本批处置与证据 owner
 
@@ -43,10 +43,8 @@
 | `getPickNumber` 与 `types/draft.test.ts` | 删除仅测试调用的死函数和 8 项测试；旧奇偶顺序与当前 draft owner 不同。实际规则、持久化操作与 UI 不依赖它；当前 draft rule tests 保留。 |
 | `HeaderClient.test.ts`、`MatchRosterView.test.tsx`、SeasonForm 四个标题/说明案例 | 删除固定导航对象文案、共享头像是否渲染与表单纯说明矩阵；保留导航实际路由与 aria-current、公开身份可见性、头像 owner、表单提交/确认/冻结控件行为。 |
 | template / education 分层重复 | 删除重复 Major preset / custom draft / capability overlay；转移唯一的空 custom stage 与深层 clone 检查到原 owner。CHSI 正反例只由 validation owner 持有，email domain spoof 负例迁至同处；education eligibility 仍验证实际高校资格和历史选取。 |
-
 | 页面层后续复核 | 删除 Overview 固定标题/列数量、空数据只检查排序按钮、九处共享帮助按钮清单；canonical 154 回合断言合入 coverage 场景，保留 economy 真实分母过滤与聚合、自定义 tooltip 交互。删除队伍主页四组固定区块顺序与详情页 BP/MVP 固定顺序；保留 disclosure、名单快照、弃赛/统计失败降级。Admin roster 改按五名选手的实际链接验证，移除 p 祖先耦合；audit raw action 不曝光仍保留，移除 pre 标签约束。 |
 | PR metadata / scheduler / OCR | 删除 metadata 工作流整段文本快照；真正的 title 正反例与 required pr-title job 保留。删除 scheduler checkout 固定 SHA 副本，保留不可变 action pin 和真实 CLI / shell 编排行为。OCR 缺失与零值语义归入 OCR owner，避免 production adapter suite 夹带另一领域。 |
-
 | registration / automatic transitions / time auto-award | 删除 7 项规则表形状快照，改为调用真实 validator 验证 9 种允许迁移在 7 个赛季阶段的正反例及全部未定义迁移。原 pending→finished 的 try/catch-only 断言可能静默通过，改为必须抛错。删除自动完赛两份相同 count=0 fixture 的重复案例，修正其名称；库级 transition/cron 测试移出 Actions project。time-auto-award 删除 Drizzle/表结构副本 mock，保留 mock DB 边界并使用真实 SQL expression/schema。 |
 
 该批测试层选择曾以 `unit-domain-node` 显式运行旧 actions 路径，因零发现而失败；改为实际 project 运行通过，随后将纯 Veto sequence suite 移到领域层。新 PostgreSQL fixture 起初有 nullable audit actor / 参数类型假设错误，修正 fixture 后才获得 production 漏洞反例；没有跳过失败案例。
@@ -71,3 +69,17 @@
 - 状态迁移深审：4 文件 19/19，0 失败/跳过；测试 type-check、修改文件 ESLint 与 whitespace 检查通过。所有后续 commit 仍在同一个 Draft PR，最终 head 的完整 CI 是最终证据。
 
 剩余工作流门禁仍有字符串/步骤名耦合，recovery orchestration 还有源码顺序断言。这些保护写入授权、备份一致性和发布阻断，必须先补充可执行编排或结构化工作流证据再替换，不能为了删行直接取消。其余清单仍需逐项审查，不能把本批保留项或全量绿灯外推到所有未深读文件。
+
+## 全仓逐文件复核中间检查点（2026-10-08）
+
+逐文件台账 `2026-10-08-file-review.csv` 记录文件 hash、处置理由与状态。截至此检查点：293 个已复核、51 个历史文件已移除、265 个待复核。已复核不等于必须删除；待复核也不等于可以保留。全仓审计尚未结束。
+
+当前 test/spec 源文件 558 个、71,012 行；相对上一检查点 `dcc572d0` 净减 868 行，相对原审计 75,446 行净减 4,434 行（约 5.9%）。数量包含新增的纯领域 owner 文件，不包含台账和报告。删除比例不是验收指标。
+
+本批清理组件固定文案、共享头像重复检查、原生/第三方 DOM 结构、CSS 变量与伪窄屏测试；纯 URL 更新、比赛启动门禁与统计格式化迁到 Node 领域层。保留确认后才执行的操作、失败降级、名单冻结、权限与真实键盘交互。反馈常量快照改由真实 PostgreSQL 验证去重 60 秒、登录用户 30 秒冷却、匿名 20 条窗口的内外边界与审核生命周期。统计 SQL 字符串检查改由真实名单匹配、空有效导入集合、进行中系列的已完成地图、未完成地图与失效来源正反例覆盖。
+
+- 修改完成后完整单元执行：458 文件，2,657/2,657，0 失败、0 跳过；JSON 起止时间约 103.484 秒。
+- 本批定向真实 PostgreSQL：反馈 1 文件 3/3；统计导入及 postmatch 2 文件 4/4，0 失败、0 跳过。完整 PostgreSQL、浏览器与新 commit CI 尚待新 head 验证，不能沿用 `dcc572d0` 的绿色证据。
+- 测试 type-check 与修改文件 ESLint 通过。一次显式 public-query 运行指定错误 project，零发现时退出失败；按所属 project 重跑 2/2 通过，没有用 skip 掩盖失败。
+
+继续审查剩余数据库、Action、页面、CI 和浏览器文件；同一 Draft PR 保持不合并。

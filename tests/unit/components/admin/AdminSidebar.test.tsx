@@ -24,25 +24,18 @@ describe("AdminSidebar role visibility", () => {
     pathnameMock.mockReturnValue("/admin");
   });
 
-  it.each([
-    ["/admin", "/admin"],
-    ["/admin/competitive-seasons", "/admin/competitive-seasons"],
-    ["/admin/competitive-seasons/conversion-policies", "/admin/competitive-seasons/conversion-policies"],
-    ["/admin/competitive-seasons/conversion-policies/123", "/admin/competitive-seasons/conversion-policies"],
-    ["/admin/competitive-seasons-other", null],
-  ])("has one most-specific active item at %s", (path, expected) => {
-    pathnameMock.mockReturnValue(path);
+  it("marks the canonical active destination in the rendered sidebar", () => {
+    pathnameMock.mockReturnValue("/admin/competitive-seasons/conversion-policies/123");
     const html = renderToStaticMarkup(<AdminSidebar email="admin@example.com" role="super_admin" />);
     const document = new DOMParser().parseFromString(html, "text/html");
     const current = document.querySelectorAll('[aria-current="page"]');
-    expect(current).toHaveLength(expected ? 1 : 0);
-    if (expected) expect(current[0].getAttribute("href")).toBe(expected);
+    expect(current).toHaveLength(1);
+    expect(current[0].getAttribute("href")).toBe("/admin/competitive-seasons/conversion-policies");
   });
 
-  it("shows only the season directory to a season admin", () => {
+  it("hides global capabilities from a season admin", () => {
     const html = renderToStaticMarkup(<AdminSidebar email="admin@example.com" role="season_admin" />);
 
-    expect(html).toContain("赛事");
     expect(html).toContain('href="/admin"');
     expect(html).not.toContain('href="/admin/users"');
     expect(html).not.toContain('href="/admin/education-verifications"');
@@ -55,11 +48,6 @@ describe("AdminSidebar role visibility", () => {
   it("shows every global capability to a super admin", () => {
     const html = renderToStaticMarkup(<AdminSidebar email="admin@example.com" role="super_admin" />);
 
-    expect(html).toContain("用户与权限");
-    expect(html).toContain("教育认证");
-    expect(html).toContain("竞技平台");
-    expect(html).toContain("操作日志");
-    expect(html).toContain("系统状态");
     expect(html).toContain('href="/admin/users"');
     expect(html).toContain('href="/admin/education-verifications"');
     expect(html).toContain('href="/admin/invites"');

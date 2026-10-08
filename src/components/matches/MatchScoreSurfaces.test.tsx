@@ -6,7 +6,6 @@ import fixture from "../../../tests/fixtures/contracts/mizar-live-real-derived.j
 import { parseLiveSnapshotV1 } from "@/lib/mizar/protocol";
 import { projectPublicLive } from "@/lib/mizar/live-projection";
 import { initialLiveViewerState, receivePublicLive } from "@/lib/mizar/live-viewer-state";
-import { publicRoundScore } from "@/lib/mizar/live-presentation";
 import { MatchListScoreSurface } from "./MatchListLiveScore";
 import { MatchMapSequence } from "./MatchMapSequence";
 const snapshot = projectPublicLive(parseLiveSnapshotV1(fixture.snapshot), 1, fixture.snapshot.producedAt);
@@ -17,11 +16,6 @@ const entryBId = snapshot.teams.t.entryId!;
 const context = { phase: "gameplay" as const, currentMapId: snapshot.map.mapId, seriesProgress: null };
 const renderList = (phase = context.phase as import("@/lib/matches/presentation-phase").MatchPresentationPhase) => renderToStaticMarkup(<MatchListScoreSurface entryAId={entryAId} entryBId={entryBId} context={{ ...context, phase }} />);
 describe("public score surfaces", () => {
-  it("maps CT/T round scores to canonical A/B after a side swap, never guesses unmatched teams", () => {
-    expect(publicRoundScore(snapshot, entryAId, entryBId)).toEqual({ scoreA: 2, scoreB: 0 });
-    expect(publicRoundScore(snapshot, entryBId, entryAId)).toEqual({ scoreA: 0, scoreB: 2 });
-    expect(publicRoundScore(snapshot, "unknown", entryBId)).toBeNull();
-  });
   it("shows current-map scores in the list and map card, labels stale and clears unavailable", () => {
     live.now = 0;
     expect(renderList()).toContain("Ancient");

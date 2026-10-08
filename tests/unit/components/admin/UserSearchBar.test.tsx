@@ -47,7 +47,7 @@ describe("AdminUsersListWorkspace", () => {
     expect(screen.getByRole("button", { name: "清除筛选" })).toBeInTheDocument();
   });
 
-  it("owns education, team, and activity filters in the URL", () => {
+  it("owns the education filter in the URL", () => {
     renderUsersWorkspace();
 
     fireEvent.change(screen.getByRole("combobox", { name: "教育认证" }), { target: { value: "approved" } });

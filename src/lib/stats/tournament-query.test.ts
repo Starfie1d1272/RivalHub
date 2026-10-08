@@ -1,27 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { collectTournamentPerformanceMapProjection, buildTournamentPerformanceAnalyticsFromProjections } from "@cs2dak/tournament";
+import { collectTournamentPerformanceMapProjection } from "@cs2dak/tournament";
 import normal from "../../../tests/fixtures/demo-evidence/normal-map-v1.json";
 import overtime from "../../../tests/fixtures/demo-evidence/overtime-map-v1.json";
 import { parseRivalHubDemoEvidenceV1 } from "@/lib/demo-evidence/contract";
 import { adaptStatsEvidence } from "./evidence-adapter";
-import { buildCompetitionEntryPerformanceProjection, buildLongTeamPerformanceProjection, scopePerformanceFactsToTeam } from "./tournament-query";
-
-describe("team performance fact scoping", () => {
-  it("keeps a transferred player's advanced facts only for the represented team", () => {
-    const evidence = parseRivalHubDemoEvidenceV1(normal);
-    const bindings = new Map(evidence.participants.map((row, index) => [row.steamId64, {
-      userId: `player-${index}`,
-      entryId: row.observedTeamKey === "teamA" ? evidence.target.entryAId : evidence.target.entryBId,
-    }]));
-    const facts = adaptStatsEvidence(evidence, bindings);
-    const scoped = scopePerformanceFactsToTeam(collectTournamentPerformanceMapProjection(facts.performance), evidence.target.entryAId);
-    const result = buildTournamentPerformanceAnalyticsFromProjections([scoped]);
-    expect(result.players).toHaveLength(5);
-    expect(result.players.every((row) => row.teamEntityKeys.every((team) => team === evidence.target.entryAId))).toBe(true);
-
-  });
-});
-
+import { buildCompetitionEntryPerformanceProjection, buildLongTeamPerformanceProjection } from "./tournament-query";
 
 describe("long-team transferred-player projection", () => {
   it("keeps advanced player metrics only from rounds represented for the linked team", () => {

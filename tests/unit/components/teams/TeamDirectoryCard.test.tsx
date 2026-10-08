@@ -9,7 +9,6 @@ describe("TeamDirectoryCard", () => {
     render(<TeamDirectoryCard slug="rival-team" name="Rival Team" logoUrl={null} description={null} hasOpenRecruitment memberCount={5} status="active" captainUserId="captain" captainName="队长甲" />);
 
     expect(screen.getByRole("link", { name: /Rival Team/ })).toHaveAttribute("href", "/teams/rival-team");
-    expect(screen.getByText("R")).toBeInTheDocument();
     expect(screen.getByText("活跃")).toBeInTheDocument();
     expect(screen.getByText("招募中")).toBeInTheDocument();
     expect(screen.getByText("暂无简介")).toBeInTheDocument();

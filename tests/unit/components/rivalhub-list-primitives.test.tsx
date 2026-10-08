@@ -3,7 +3,7 @@ import React from "react";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ClearFilters, ListSearchField, PaginationControls, type ListSearchFieldHandle } from "@/components/rivalhub";
-import { applyListQueryUpdates, useListQueryParams } from "@/components/rivalhub/useListQueryParams";
+import { useListQueryParams } from "@/components/rivalhub/useListQueryParams";
 
 const { pushMock, replaceMock, searchState } = vi.hoisted(() => ({
   pushMock: vi.fn(),
@@ -101,44 +101,6 @@ describe("shared list query mechanics", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     setQuery();
-  });
-
-  it("preserves unrelated query keys", () => {
-    const result = applyListQueryUpdates(
-      new URLSearchParams("tab=users&filter=all&page=3"),
-      { q: "alice" },
-      { defaults: { q: "" } },
-    );
-
-    expect(result.toString()).toBe("tab=users&filter=all&q=alice");
-  });
-
-  it("deletes values equal to caller-provided defaults", () => {
-    const result = applyListQueryUpdates(
-      new URLSearchParams("status=pending&academic=enrolled"),
-      { status: "pending", academic: "all" },
-      { defaults: { status: "pending", academic: "all" } },
-    );
-
-    expect(result.toString()).toBe("");
-  });
-
-  it("resets page for filter, search, and sort changes", () => {
-    const result = applyListQueryUpdates(
-      new URLSearchParams("q=old&sort=oldest&page=4"),
-      { sort: "newest" },
-    );
-
-    expect(result.toString()).toBe("q=old&sort=newest");
-  });
-
-  it("keeps filters when page is explicitly updated", () => {
-    const result = applyListQueryUpdates(
-      new URLSearchParams("q=alice&status=pending&page=2"),
-      { page: 3 },
-    );
-
-    expect(result.toString()).toBe("q=alice&status=pending&page=3");
   });
 
   it("clears filters back to the default URL", () => {

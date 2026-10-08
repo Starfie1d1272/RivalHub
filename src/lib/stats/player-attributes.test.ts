@@ -183,7 +183,9 @@ describe("player attributes", () => {
     const profile = projectPlayerAttributeProfile(target, compiled);
 
     expect(profile).toEqual(buildPlayerAttributeProfile(target, population()));
-    expect(profile.attributes.find((row) => row.key === "firepower")).toMatchObject({ status: "qualified", rankedCount: 4 });
+    const firepower = profile.attributes.find((row) => row.key === "firepower")!;
+    expect(firepower).toMatchObject({ status: "qualified", rankedCount: 4 });
+    expect(firepower.rank).not.toBeNull();
     projectPlayerAttributeProfile(makePlayer({ id: "another", awpKills: 0 }), compiled);
     expect(JSON.stringify(compiled)).toBe(saved);
     expect(JSON.stringify(compiled)).not.toContain("teamEntityKeys");
@@ -225,15 +227,6 @@ describe("player attributes", () => {
     expect(sniping.status).toBe("qualified");
   });
 
-  it("gives qualified samples an official attribute rank", () => {
-    const target = makePlayer({ id: "qualified", rounds: 140, kills: 95, damagePerRound: 88, awpKills: 20 });
-    const profile = buildPlayerAttributeProfile(target, population());
-    const firepower = profile.attributes.find((row) => row.key === "firepower")!;
-
-    expect(firepower.status).toBe("qualified");
-    expect(firepower.rank).not.toBeNull();
-    expect(firepower.rankedCount).toBeGreaterThan(0);
-  });
   it("scores explanatory detail metrics without changing the attribute formula", () => {
     const target = makePlayer({ id: "detail", rounds: 140, kills: 95, damagePerRound: 88, awpKills: 20 });
     const profile = buildPlayerAttributeProfile(target, population());
@@ -247,13 +240,6 @@ describe("player attributes", () => {
     expect(threePlus.weight).toBeNull();
     expect(threePlus.score).not.toBeNull();
     expect(firepower.formula).toContain("KPR 45%");
-  });
-
-  it("keeps canonical attribute labels in English", () => {
-    const profile = buildPlayerAttributeProfile(makePlayer({ id: "labels" }), population());
-
-    expect(profile.attributes.find((row) => row.key === "entrying")?.label).toBe("Entrying");
-    expect(profile.attributes.find((row) => row.key === "opening")?.label).toBe("Opening");
   });
 
 });

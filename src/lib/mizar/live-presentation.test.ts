@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import fixture from "../../../tests/fixtures/contracts/mizar-live-real-derived.json";
 import { parseLiveSnapshotV1 } from "./protocol";
 import { projectPublicLive } from "./live-projection";
-import { publicPlayerLabels, presentBomb } from "./live-presentation";
+import { publicPlayerLabels, presentBomb, publicRoundScore } from "./live-presentation";
 import { fromPublicRadar } from "@mizar-hud/radar-view";
 const snapshot = projectPublicLive(parseLiveSnapshotV1(fixture.snapshot), 1, fixture.snapshot.producedAt);
 describe("public player labels", () => {
@@ -31,5 +31,13 @@ describe("public player labels", () => {
     const bomb = snapshot.bomb!;
     expect(presentBomb({ ...bomb, state: "carried", action: null })).toBeNull();
     expect(presentBomb({ ...bomb, state: "planted", action: null })).toBe("C4 已安放");
+  });
+});
+
+describe("public round score", () => {
+  it("maps CT/T round scores to canonical A/B after a side swap, never guesses unmatched teams", () => {
+    expect(publicRoundScore(snapshot, snapshot.teams.ct.entryId!, snapshot.teams.t.entryId!)).toEqual({ scoreA: 2, scoreB: 0 });
+    expect(publicRoundScore(snapshot, snapshot.teams.t.entryId!, snapshot.teams.ct.entryId!)).toEqual({ scoreA: 0, scoreB: 2 });
+    expect(publicRoundScore(snapshot, "unknown", snapshot.teams.t.entryId!)).toBeNull();
   });
 });

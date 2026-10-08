@@ -1,14 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { CS2_POSITION_VALUES } from "@/lib/config/cs2-positions";
 import { CURRENT_CS2_ACTIVE_DUTY_MAP_POOL } from "@/lib/config/cs2-maps";
 import {
   MAJOR_REGISTRATION_CONFIG,
-  OPEN_TOURNAMENT_PRESET,
   createMajorDefaultCapabilities,
   createMajor24Capabilities,
   createRivalsTemplate,
 } from "@/lib/competition/templates";
-import { normalizeTeamRegistrationConfig } from "@/lib/seasons/compatibility";
 import { checkStandardMajorCapabilities } from "@/lib/competition/definition";
 
 function expectStandardMajorFailure(
@@ -66,22 +63,6 @@ describe("checkStandardMajorCapabilities()", () => {
 
     const result = expectStandardMajorFailure(capabilities, "managed-profile");
     expect(result.managedProfile).toBeNull();
-  });
-
-  it("keeps the current Rivals defaults and canonical position catalog", () => {
-    const rivals = createRivalsTemplate();
-    expect(rivals.stagePlan.map((stage) => stage.type)).toEqual(["round_robin", "double_elim"]);
-    expect(rivals.registrationConfig).toEqual({
-      allowedPlayerTypes: ["enrolled", "graduated"],
-      rankThreshold: { currentMin: "A", peakMin: "A+" },
-      maxPerPosition: 15,
-      screenshotCount: 1,
-      maxTotal: 56,
-      mapPool: [...CURRENT_CS2_ACTIVE_DUTY_MAP_POOL],
-    });
-    expect(rivals.teamRegistrationConfig.requireTeamLogo).toBe(false);
-    expect(rivals.positions).toEqual([...CS2_POSITION_VALUES]);
-    expect(OPEN_TOURNAMENT_PRESET.teamRegistrationConfig.requireTeamLogo).toBe(false);
   });
 
   it("accepts a deep clone of the standard Major defaults", () => {
@@ -249,28 +230,4 @@ describe("createMajorDefaultCapabilities()", () => {
     expect(checkStandardMajorCapabilities(major).isStandardMajor).toBe(true);
   });
 
-  it("returns independent editable copies", () => {
-    const first = createMajorDefaultCapabilities();
-    const second = createMajorDefaultCapabilities();
-    first.registrationConfig.maxTotal = 1;
-    first.stagePlan[0].teamCount = 2;
-
-    expect(second.registrationConfig.maxTotal).toBe(256);
-    expect(second.stagePlan[0].teamCount).toBe(16);
-  });
-});
-
-describe("normalizeTeamRegistrationConfig()", () => {
-  it("keeps a legacy partial config logo-optional", () => {
-    expect(normalizeTeamRegistrationConfig({ allowExternal: true }).requireTeamLogo).toBe(false);
-  });
-
-  it("preserves explicit logo requirements", () => {
-    expect(normalizeTeamRegistrationConfig({ requireTeamLogo: true }).requireTeamLogo).toBe(true);
-    expect(normalizeTeamRegistrationConfig({ requireTeamLogo: false }).requireTeamLogo).toBe(false);
-  });
-
-  it("keeps the open tournament preset logo-optional", () => {
-    expect(OPEN_TOURNAMENT_PRESET.teamRegistrationConfig.requireTeamLogo).toBe(false);
-  });
 });

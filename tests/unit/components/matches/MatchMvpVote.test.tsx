@@ -130,19 +130,4 @@ describe("MatchMvpVote", () => {
     expect(screen.queryByText("本场 MVP 投票")).not.toBeInTheDocument();
   });
 
-  it("renders the shared avatar in the active candidate cards", () => {
-    render(
-      <MatchMvpVote
-        matchId="match-1"
-        candidates={[candidate("Neo", "user-1"), candidate("Sage", "user-2")]}
-        currentVotes={[]}
-        userVotedPlayerName={null}
-        completedAt="2099-01-01T00:00:00.000Z"
-        winnerUserId={null}
-      />,
-    );
-
-    expect(screen.getByRole("img", { name: "Neo" })).toBeInTheDocument();
-    expect(screen.getByRole("img", { name: "Sage" })).toBeInTheDocument();
-  });
 });

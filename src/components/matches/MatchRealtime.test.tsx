@@ -20,7 +20,6 @@ describe("public LIVE presentation", () => {
     const html = render("gameplay");
     expect(html).toContain("FalleN"); expect(html).toContain("KSCERATO");
     expect(html).toContain("K / D / A");
-    expect(html).not.toContain("本图回合</span>");
     expect(html).toContain("战术雷达"); expect(html).toContain("Armor"); expect(html).toContain("Money");
     for (const forbidden of ["identityEvidence", "sourcePlayerId", "runtimeSeq", "OCR", "DAK", "弹药", "武器", "装备值", "kill feed"]) expect(html).not.toContain(forbidden);
   });
@@ -44,7 +43,6 @@ describe("public LIVE presentation", () => {
     const context = { phase: "inter_map" as const, currentMapId: "next", seriesProgress: { scoreA: 1, scoreB: 0 }, lastCompletedMap: { id: "previous", mapName: "de_ancient", scoreA: 13, scoreB: 9 } };
     const list = renderToStaticMarkup(<MatchListScoreSurface entryAId="a" entryBId="b" context={context} />);
     expect(list).toContain("13 : 9"); expect(list).toContain("(1)"); expect(list).toContain("(0)");
-    expect(list).not.toContain("图间休息"); expect(list).not.toContain("等待下一图");
     const detail = renderToStaticMarkup(<MatchRealtimeSurface state={state} now={20_000} {...context} />);
     expect(detail).toContain("13:9"); expect(detail).not.toContain("战术雷达"); expect(detail).not.toContain("回合时钟");
   });

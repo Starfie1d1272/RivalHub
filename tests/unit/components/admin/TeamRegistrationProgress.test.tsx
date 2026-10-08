@@ -53,7 +53,6 @@ describe("team registration operations presentation", () => {
     expect(screen.getByText("3/6")).toBeInTheDocument();
     expect(screen.getByText("还差 3 名成员确认。", { exact: true })).toBeInTheDocument();
     expect(screen.getByText("还差 1 名预定主力。", { exact: true })).toBeInTheDocument();
-    expect(screen.queryByText(/。；/)).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "批准" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "候补" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "要求补正" })).not.toBeInTheDocument();

@@ -249,140 +249,58 @@ describe("operations real PostgreSQL lifecycle & abuse hardening", () => {
     }
   });
 
-  it("enforces feedback triage lifecycle and abuse prevention contracts", async () => {
+  it("enforces feedback triage and the actual deduplication/cooldown window boundaries", async () => {
     const pool = createLocalPool({ max: 2 });
     const client = await pool.connect();
     const database = drizzle(client, { schema });
     const actorId = randomUUID();
     const userId = randomUUID();
     const seasonId = randomUUID();
-    const feedbackReleaseVersion = `ops-test-${seasonId}`;
-
+    const releaseVersion = `ops-test-${seasonId}`;
     try {
       await database.insert(users).values([
-        {
-          id: actorId,
-          email: `admin-${actorId}@test.local`,
-          role: "super_admin",
-        },
-        {
-          id: userId,
-          email: `user-${userId}@test.local`,
-          role: "user",
-        },
+        { id: actorId, email: `admin-${actorId}@test.local`, role: "super_admin" },
+        { id: userId, email: `user-${userId}@test.local`, role: "user" },
       ]);
+      await database.insert(seasons).values({ id: seasonId, slug: `ops-fb-${seasonId.slice(0, 8)}`, name: "Feedback Season", kind: "major", status: "playing", stagePlan: [] });
+      // Fake only the application clock; PostgreSQL and network timers remain real.
+      vi.useFakeTimers({ toFake: ["Date"] });
+      const now = Date.now();
+      const submit = (body: string, actorUserId: string | null = null, scope: string | null = null) =>
+        database.transaction((tx) => submitFeedbackInTx(tx, { actorUserId, seasonId: scope, category: "problem", body, pathname: "/test", releaseVersion }));
+      const age = (id: string, elapsedMs: number) => database.update(feedbackReports)
+        .set({ createdAt: new Date(now - elapsedMs) }).where(eq(feedbackReports.id, id));
 
-      await database.insert(seasons).values({
-        id: seasonId,
-        slug: `ops-fb-${seasonId.slice(0, 8)}`,
-        name: "Feedback Season",
-        kind: "major",
-        status: "playing",
-        stagePlan: [],
-      });
+      const body = `Duplicate issue ${randomUUID()}`;
+      const first = await submit(body);
+      await age(first.id!, 59_999);
+      await expect(submit(body)).rejects.toThrow(/相同反馈刚刚已经提交过了/);
+      await age(first.id!, 60_001);
+      await expect(submit(body)).resolves.toMatchObject({ accepted: true });
 
-      // 1. Behavior: 60s duplicate body reject.
-      const duplicateBody = "Duplicate issue content across requests";
-      await database.transaction((tx) =>
-        submitFeedbackInTx(tx, {
-          actorUserId: null,
-          category: "feature_suggestion",
-          body: duplicateBody,
-          pathname: "/test",
-          seasonId: null,
-          releaseVersion: feedbackReleaseVersion,
-        })
-      );
+      const authenticated = await submit(`First authenticated ${randomUUID()}`, userId);
+      await age(authenticated.id!, 29_999);
+      await expect(submit(`Inside cooldown ${randomUUID()}`, userId)).rejects.toThrow(/反馈提交较频繁/);
+      await age(authenticated.id!, 30_001);
+      await expect(submit(`Outside cooldown ${randomUUID()}`, userId)).resolves.toMatchObject({ accepted: true });
 
-      // Immediately submitting the same body must reject with duplicate error
-      await expect(
-        database.transaction((tx) =>
-          submitFeedbackInTx(tx, {
-            actorUserId: null,
-            category: "feature_suggestion",
-            body: duplicateBody,
-            pathname: "/test",
-            seasonId: null,
-            releaseVersion: feedbackReleaseVersion,
-          })
-        )
-      ).rejects.toThrowError(/相同反馈刚刚已经提交过了/);
-
-      // 2. Behavior: Authenticated 30s cooldown reject.
-      await database.transaction((tx) =>
-        submitFeedbackInTx(tx, {
-          actorUserId: userId,
-          category: "other",
-          body: `User first submission ${randomUUID()}`,
-          pathname: "/test",
-          seasonId: null,
-          releaseVersion: feedbackReleaseVersion,
-        })
-      );
-
-      await expect(
-        database.transaction((tx) =>
-          submitFeedbackInTx(tx, {
-            actorUserId: userId,
-            category: "other",
-            body: `User second submission within cooldown ${randomUUID()}`,
-            pathname: "/test",
-            seasonId: null,
-            releaseVersion: feedbackReleaseVersion,
-          })
-        )
-      ).rejects.toThrowError(/反馈提交较频繁/);
-
-      // 3. Status triage lifecycle: new -> triaged -> resolved.
-      const triageSubject = await database.transaction((tx) =>
-        submitFeedbackInTx(tx, {
-          actorUserId: null,
-          category: "problem",
-          body: "Specific issue for triage lifecycle test",
-          pathname: "/seasons/test",
-          seasonId,
-          releaseVersion: feedbackReleaseVersion,
-        })
-      );
-
-      expect(triageSubject.id).toBeDefined();
-      const [insertedRow] = await database.select().from(feedbackReports).where(eq(feedbackReports.id, triageSubject.id!));
-      expect(insertedRow.status).toBe("new");
-
-      const triaged = await database.transaction((tx) =>
-        setFeedbackStatusInTx(tx, { id: triageSubject.id!, status: "triaged", actorId })
-      );
-      expect(triaged.status).toBe("triaged");
-
-      const resolved = await database.transaction((tx) =>
-        setFeedbackStatusInTx(tx, { id: triageSubject.id!, status: "resolved", actorId })
-      );
-      expect(resolved.status).toBe("resolved");
-
-      // 4. Behavior: the anonymous coarse limit rejects the 21st row in one minute.
-      // Two anonymous rows already exist above, so add 18 more before probing the boundary.
-      for (let i = 0; i < 18; i++) {
-        await database.transaction((tx) => submitFeedbackInTx(tx, {
-          actorUserId: null,
-          category: "problem",
-          body: `Unique problem body #${i} ${randomUUID()}`,
-          pathname: "/test",
-          seasonId: null,
-          releaseVersion: feedbackReleaseVersion,
-        }));
+      const triage = await submit(`Issue to triage ${randomUUID()}`, null, seasonId);
+      const [stored] = await database.select().from(feedbackReports).where(eq(feedbackReports.id, triage.id!));
+      expect(stored.status).toBe("new");
+      for (const status of ["triaged", "resolved"] as const) {
+        const changed = await database.transaction((tx) => setFeedbackStatusInTx(tx, { id: triage.id!, status, actorId }));
+        expect(changed.status).toBe(status);
       }
-      await expect(
-        database.transaction((tx) => submitFeedbackInTx(tx, {
-          actorUserId: null,
-          category: "problem",
-          body: `21st problem body ${randomUUID()}`,
-          pathname: "/test",
-          seasonId: null,
-          releaseVersion: feedbackReleaseVersion,
-        })),
-      ).rejects.toThrowError(/反馈较多，请稍后再试/);
+
+      // Two recent anonymous rows exist: the accepted duplicate and the triage subject.
+      for (let i = 0; i < 18; i++) await submit(`Anonymous ${i} ${randomUUID()}`);
+      await expect(submit(`Limit reached ${randomUUID()}`)).rejects.toThrow(/反馈较多，请稍后再试/);
+      await age(triage.id!, 60_001);
+      await expect(submit(`Expired row frees capacity ${randomUUID()}`)).resolves.toMatchObject({ accepted: true });
+      await expect(submit(`Capacity exhausted again ${randomUUID()}`)).rejects.toThrow(/反馈较多，请稍后再试/);
     } finally {
-      await database.delete(feedbackReports).where(eq(feedbackReports.releaseVersion, feedbackReleaseVersion));
+      vi.useRealTimers();
+      await database.delete(feedbackReports).where(eq(feedbackReports.releaseVersion, releaseVersion));
       await database.delete(auditLogs).where(eq(auditLogs.actorId, actorId));
       await database.delete(seasons).where(eq(seasons.id, seasonId));
       await database.delete(users).where(eq(users.id, actorId));

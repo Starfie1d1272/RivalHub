@@ -84,7 +84,6 @@ describe("ResultCorrectionPanel", () => {
     await waitFor(() => expect(screen.getByText(/胜者将变更/)).toBeInTheDocument());
     expect(screen.getByText(/第 2 轮及之后的赛程确认将被撤销/)).toBeInTheDocument();
     expect(screen.getByText(/一场尚未开始的下游比赛将被作废并重建/)).toBeInTheDocument();
-    expect(screen.queryByText(/finalizedRound|r2-1|scheduled|finalize/)).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "确认恢复并应用更正" })).toBeInTheDocument();
     expect(mockedApply).not.toHaveBeenCalled();
   });

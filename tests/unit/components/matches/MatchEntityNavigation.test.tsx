@@ -22,8 +22,9 @@ describe("match identity navigation", () => {
   });
   it("links map-analysis and H2H identities to the current event", () => {
     render(<><MatchMapProfile {...identity} rows={[]} /><MatchHeadToHead {...identity} teamAWins={1} teamBWins={0} matches={[{ matchId: "past", scheduledAt: null, completedAt: new Date(), stage: "final", format: "bo3", scoreA: 2, scoreB: 0, teamAWon: true }]} /></>);
-    expect(screen.getAllByRole("link", { name: "Alpha" })).toHaveLength(2);
-    expect(screen.getAllByRole("link", { name: "Beta" })).toHaveLength(2);
+    for (const [name, id] of [["Alpha", "a"], ["Beta", "b"]]) {
+      for (const link of screen.getAllByRole("link", { name })) expect(link).toHaveAttribute("href", `/event/teams/${id}`);
+    }
   });
   it("keeps team profile clicks separate from the destructive forfeit action", async () => {
     const { container } = render(<ForfeitButton {...identity} matchId="match" />);

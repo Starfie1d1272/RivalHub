@@ -16,7 +16,7 @@ describe("announcement presentation", () => {
     expect(selected?.id).toBe("season");
   });
 
-  it("selects latest publication with stable updated/id tie breaks", () => {
+  it("selects the latest publication", () => {
     const selected = selectLatestAnnouncement([
       { ...base, id: "older" },
       { ...base, id: "newer", publishedAt: new Date("2026-09-11T00:00:00Z") },

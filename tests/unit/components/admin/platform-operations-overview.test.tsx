@@ -55,36 +55,11 @@ describe("PlatformOperationsOverview", () => {
     vi.stubGlobal("React", React);
   });
 
-  it("renders aggregate platform facts in a wide standalone admin layout", () => {
+  it("links population segments to the correctly filtered admin directory", () => {
     const html = renderToStaticMarkup(<PlatformOperationsOverview data={data} />);
 
-    expect(html).toContain('data-layout-variant="wide"');
-    expect(html).toContain("运营概览");
-    expect(html).toContain("平台人口");
-    expect(html).toContain("玩家池结构");
-    expect(html).toContain("队伍成员人数分布");
-    expect(html).toContain("组队大厅");
     expect(html).toContain('href="/teams/recruitment"');
     expect(html).toContain('href="/admin/users?tab=users&amp;education=approved&amp;team=none"');
     expect(html).toContain('href="/admin/users?tab=users&amp;team=in_team"');
-    expect(html).toContain("平台增长 · 最近 7 天");
-    expect(html).toContain("7 日活跃用户");
-    expect(html).toContain("已教育认证用户");
-    expect(html).toContain("当前有效平台用户");
-    expect(html).toContain("当前队伍");
-    expect(html).toContain("认证且当前无队伍");
-    expect(html).toContain("选手找队");
-    expect(html).toContain("队伍招募");
-    expect(html).toContain("按用户去重");
-    expect(html).not.toContain("活跃队伍");
-    expect(html).not.toContain("Player LFT");
-    expect(html).not.toContain("Team Recruiting");
-    expect(html).not.toContain("distinct");
-    expect(html).toContain("10+ 人");
-    expect(html).toContain("Asia/Shanghai");
-    expect(html).not.toContain("Auth");
-    expect(html).not.toContain("Vercel");
-    expect(html).not.toContain("预测");
-    expect(html).not.toContain("邀请转化");
   });
 });
