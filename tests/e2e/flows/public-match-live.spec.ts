@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import { randomUUID } from "node:crypto";
 import { redactText } from "../../../src/lib/observability/redact";
 import { test, expect } from "@playwright/test";
+import { assertPageResponse, navigateAndWaitForResponse } from "../helpers/page-health";
 const execute = promisify(execFile);
 const tsx = resolve("node_modules/.bin/tsx");
 const env = { ...process.env, NODE_OPTIONS: `${process.env.NODE_OPTIONS ?? ""} --conditions=react-server` };
@@ -50,12 +51,8 @@ test("public test match consumes private Broadcast and recovers across navigatio
         if (event === "phx_join" && topic === `realtime:match-live:${matchId}`) viewerJoins++;
       });
     });
-    // Observe the initial credential while the first route compiles. Its deadline
-    // must cover navigation; a 10s request timer raced the cold Next compile.
-    const [tokenResponse] = await Promise.all([
-      page.waitForResponse(response => response.url().endsWith(`/api/matches/${matchId}/live-viewer`), { timeout: 30000 }),
-      page.goto(url),
-    ]);
+    const tokenResponse = await navigateAndWaitForResponse(page, url,
+      response => response.url().endsWith(`/api/matches/${matchId}/live-viewer`));
     expect(tokenResponse.status()).toBe(200);
     await expect(page.getByText("测试赛 · 不计入正式赛程与统计", { exact: true })).toBeVisible();
     const live = page.getByTestId("match-realtime").filter({ visible: true });
@@ -83,16 +80,16 @@ test("public test match consumes private Broadcast and recovers across navigatio
     // MatchRealtime.test.tsx; retain one real disconnect/recovery here.
     producer = await stream(matchId);
     await expect(live.getByText("FalleN", { exact: true })).toBeVisible();
-    await page.reload();
+    await assertPageResponse(await page.reload());
     await expect(live.locator("canvas")).toBeVisible();
-    await page.goto(`/${seasonId}/matches/${otherMatchId}`);
+    await assertPageResponse(await page.goto(`/${seasonId}/matches/${otherMatchId}`));
     await expect(page.getByText("FalleN", { exact: true })).toHaveCount(0);
-    await page.goto(url);
+    await assertPageResponse(await page.goto(url));
     await expect(live.locator("canvas")).toBeVisible();
     producer?.kill(); producer = undefined;
     await run(browserFixture, "switch-map", matchId);
     producer = await stream(matchId);
-    await page.reload();
+    await assertPageResponse(await page.reload());
     await expect(live.getByText("上下层", { exact: true })).toBeVisible();
     await expect(live.locator("canvas")).toBeVisible();
     await expect(live.getByText("Ancient", { exact: true })).toHaveCount(0);

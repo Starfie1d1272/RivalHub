@@ -45,7 +45,8 @@ export default defineConfig({
   ],
   webServer: {
     command: process.env.CI ? "pnpm dev:local > .agent-tmp/next-server.log 2>&1" : "pnpm dev:local",
-    // Static readiness avoids compiling an unrelated homepage in every shard.
+    // Process readiness only: LIVE checks its actual document and page errors
+    // before waiting for a token, without compiling an unrelated homepage.
     url: "http://localhost:3000/favicon.ico",
     reuseExistingServer: !process.env.CI,
     timeout: 120 * 1000,
