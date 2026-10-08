@@ -1,5 +1,20 @@
 @import "tailwindcss";
 
+/* Match next/font's existing Noto fallback metrics; the variable font is
+   self-hosted in Unicode subsets and is never preloaded as a whole CJK font. */
+@font-face {
+  font-family: "Noto Sans SC Fallback";
+  src: local("Arial");
+  ascent-override: 110.73%;
+  descent-override: 27.49%;
+  line-gap-override: 0%;
+  size-adjust: 104.76%;
+}
+
+:root {
+  --font-noto-sans-sc: "Noto Sans SC Variable", "Noto Sans SC Fallback";
+}
+
 @theme {
   /* shadcn/Tailwind bridge: aliases only; semantic values live below. */
   --color-background: var(--color-bg);

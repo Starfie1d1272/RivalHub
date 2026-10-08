@@ -20,6 +20,10 @@ presentation owner 对有限集合使用穷举映射（新增状态必须同时�
 
 地图偏好与地图池编辑器用「当前地图池」「当前地图池熟练度」「当前地图池（默认候选）」描述当前轮换；选定赛事时使用「目标赛事图池熟练度」。普通参赛者和管理员文案不显示内部术语 `Active Duty`。
 
+## 字体
+
+拉丁文字和等宽字体沿用 Geist、JetBrains Mono；中文使用 Noto Sans SC 的本地 Fontsource variable 包，400/500/600/700 字重与既有 fallback 度量保持一致。包由 lockfile 固定，WOFF2 按 Unicode 分片、`font-display: swap` 按需加载；不预加载整套中文字库，不在中文字体编译时依赖 Google Fonts 响应。
+
 ## Tokens and primitives
 
 视觉 token 的唯一数值来源是 `src/app/globals.css`；Tailwind/shadcn 名称只做 bridge，不为单页建立第二套色板、圆角或 spacing scale。

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import { Geist, JetBrains_Mono, Noto_Sans_SC } from "next/font/google";
+import { Geist, JetBrains_Mono } from "next/font/google";
+import "@fontsource-variable/noto-sans-sc/wght.css";
 import "./globals.css";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
@@ -22,12 +23,6 @@ const geist = Geist({
 const jetbrainsMono = JetBrains_Mono({
   variable: "--font-mono",
   subsets: ["latin"],
-});
-
-const notoSansSC = Noto_Sans_SC({
-  variable: "--font-noto-sans-sc",
-  weight: ["400", "500", "600", "700"],
-  preload: false,
 });
 
 export const metadata: Metadata = {
@@ -57,7 +52,7 @@ export default function RootLayout({
       <head>
         <link rel="stylesheet" href="/brackets-viewer.min.css" />
       </head>
-      <body className={`${geist.variable} ${jetbrainsMono.variable} ${notoSansSC.variable} antialiased min-h-screen flex flex-col`}>
+      <body className={`${geist.variable} ${jetbrainsMono.variable} antialiased min-h-screen flex flex-col`}>
         <OperationsProvider>
           <Suspense fallback={null}><PreviewMirrorBanner /></Suspense>
           <Header />
