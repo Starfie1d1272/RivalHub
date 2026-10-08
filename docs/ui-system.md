@@ -31,6 +31,7 @@ presentation owner 对有限集合使用穷举映射（新增状态必须同时�
 | `PageLayout` | 页面 gutter 与 `narrow/standard/wide/workbench` 宽度语义 |
 | `PageHeader` / `Section` | 语义标题与页面阅读层级 |
 | `Panel` | 同一业务区块的 surface；内容布局与外层几何分离 |
+| `SelectContent` | 弹层不超过当前可用视口高度；长列表由内部 Viewport 承担滚轮、触摸与键盘滚动，关闭后恢复背景页面操作 |
 | `DialogContent/Body/Footer` | viewport、滚动、focus、操作区与尺寸 contract |
 | `StatusBanner` / `StatusPill` / `Checklist` | 状态解释、紧凑状态与 readiness |
 | `EmptyState` / `ErrorState` / `Skeleton` | empty/error/loading 的明确三态 |
