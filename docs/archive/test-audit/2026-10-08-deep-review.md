@@ -12,6 +12,7 @@
 | `src/lib/formats/round-robin.test.ts` | 删除 | 仅检查三个函数是否存在；TypeScript 接口及实际 executor 行为提供证据 |
 | `tests/unit/lib/formats/{double-elim,round-robin}.test.ts` | 删除两份相同完成规则矩阵；保留各自晋级行为 | 三个 executor 的完成判断均委托 `_shared.isStageComplete`；规则下沉至 `stage-completion.test.ts`，保留非空且无 active 比赛的正反例，使用真实 Drizzle 而非空操作符 mock |
 | `tests/unit/components/{layout/Footer,admin/MapPoolEditor,settings/PrivacyContent}.test.tsx` | 删除 | 仅固定标题/翻译/历史错字，Footer 名称仍声称布局但没有布局断言；这些不证明隐私权限或实际 UI 布局。公开数据隔离测试保留 |
+| `tests/unit/actions/seasons.test.ts`、`tests/unit/seasons/edit.test.ts` | 删除 6 项重复编辑规则，归属冻结负例下沉到 planner；增加统一授权拒绝矩阵 | slug/config 冻结与 metadata 规则由 `edit.test.ts` 拥有；打开时间 replay 的实际持久化由 `season-registration-correctness.test.ts` 拥有。Action 保留错误转换、Date payload、审计与 revalidation。9 个 privileged 入口拒绝权限后不得读写 DB 或刷新缓存；补齐原测试全部把授权 mock 为成功的证据缺口 |
 | `tests/unit/components/matches/AdminRosterDialog.test.tsx` | 改为按可访问名称选择选手，删除 `li` 祖先断言 | 保留五人 payload、显式确认后才提交、已确认禁止重复操作、历史选手移出后不可重新选择 |
 | `tests/unit/components/{players/PlayerAvatar,teams/TeamLogo}.test.tsx` | 删除原生 `img` DOM 结构检查 | 保留可访问 fallback、失败后回退、URL 更新恢复及直连资源行为 |
 | `tests/unit/components/players/PlayerProfileLink.test.tsx` | 修正名称 | 实际保护 URL identity 编码，不再声称已验证 focus 外观 |
@@ -30,11 +31,13 @@
 ## 验证与限制
 
 - 本批所有产品代码、migration、PostgreSQL/E2E spec 与 CI 选择器均未修改；没有新增 skip/retry 或实验替代 required 用例。
-- 基线全部 test/spec 源文件 577 个、73,646 行；本批代码清理后 574 个、73,326 行，净减 320 行（不含本报告）。
-- 全量单元执行 476 文件、2,800 测试，全部通过，0 失败/跳过，wall time 109.00 秒。基线最新 #839 CI 为 479 文件、2,815 测试；两次环境不同，不据此声称 wall time 性能提升。
+- 基线全部 test/spec 源文件 577 个、73,646 行；本批代码清理后 574 个、73,267 行，净减 379 行（不含本报告）。
+- 首两个 commit 全量单元执行 476 文件、2,800 测试，全部通过，0 失败/跳过，wall time 109.00 秒。基线最新 #839 CI 为 479 文件、2,815 测试；两次环境不同，不据此声称 wall time 性能提升。
 - 发布/恢复/preview 定向执行 109/109；共享 format 9/9；最终名单 5/5；地图偏好 2/2；公开赛事信息/DTO 7/7；最后发布契约 14/14 全部通过。测试 type-check、修改文件 ESLint 与 diff whitespace 检查通过。
 - 第一次 UI 定向执行 26/27，名单选择器误假设昵称后有空白；修正为名称前缀及数字边界后 5/5 通过。失败保留在本地验证记录中，不通过跳过掩盖。
 - 顺序 helper 单独执行 1 个有效顺序和 4 个缺失/逆序反例，全部符合预期。
+- 后续赛季规则去重与授权边界执行 5 文件、78/78 测试，0 失败/跳过；type-check 与修改文件 ESLint 通过。当前预期全量单元为 2,804 项，新增权限负例用于补缺口，不追求测试数量下降。
+- 首两个 commit 的 FULL CI `37709534614`：单元 2,800/2,800，PG 80 文件 238/238，0 失败/跳过/flaky；所有 job 与 draft-gate 通过。后续 commit 的 CI 是另一份 evidence，不能沿用旧 head 的成功。
 - 本地 PostgreSQL 与 browser 未重跑；本批不将 #839 的真实环境执行伪称为新 commit 的验证。Draft CI 的实际选择与结果由 PR Actions 提供。
 
 剩余工作流门禁仍有字符串/步骤名耦合，recovery orchestration 还有源码顺序断言。这些保护写入授权、备份一致性和发布阻断，必须先补充可执行编排或结构化工作流证据再替换，不能为了删行直接取消。其余清单仍需逐项审查，不能把本批保留项或全量绿灯外推到所有未深读文件。

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { ErrorCode } from "@/lib/errors";
+import { AppError, ErrorCode } from "@/lib/errors";
 import { expectAuditLog, findAuditEntry, resetAuditTracking, mockUserSession } from "tests/helpers";
 
 // ── UUID 常量 ─────────────────────────────────────────────────────────────────
@@ -136,6 +136,10 @@ import {
   openSeasonRegistration,
   publishSeason,
   deleteSeason,
+  revertSeasonToDraft,
+  revertSeasonToRegistration,
+  forceFinishSeason,
+  archiveSeason,
 } from "@/actions/seasons";
 
 // ── 共用数据 ────────────────────────────────────────────────────────────────
@@ -288,26 +292,6 @@ describe("updateSeason", () => {
     requireSuperAdminMock.mockResolvedValue(superAdminSession);
   });
 
-  it("draft 状态赛季正常更新", async () => {
-    seasonsFindFirstMock.mockResolvedValue(draftSeason());
-
-    const result = await updateSeason({ ...VALID_INPUT, id: SEASON_ID });
-
-    expect(result.success).toBe(true);
-    if (result.success) {
-      expect(result.data.slug).toBe("test-2026");
-    }
-
-    expect(updateSetCalls.length).toBeGreaterThanOrEqual(1);
-
-    expectAuditLog(insertValuesCalls, "season.update", {
-      targetId: SEASON_ID,
-      targetType: "season",
-    });
-
-    expect(revalidatePathMock).toHaveBeenCalledWith("/admin");
-  });
-
   it("赛季不存在返回 fail（SEASON_NOT_FOUND）", async () => {
     seasonsFindFirstMock.mockResolvedValue(undefined);
 
@@ -329,6 +313,7 @@ describe("updateSeason", () => {
     expect(result).toMatchObject({ success: true, data: { slug: "different-slug" } });
     expect(updateSetCalls).toContainEqual(expect.objectContaining({ slug: "different-slug" }));
     expect(revalidatePathMock).toHaveBeenCalledWith("/admin/different-slug/settings");
+    expectAuditLog(insertValuesCalls, "season.update", { targetId: SEASON_ID, targetType: "season" });
   });
 
   it("草稿可以关闭社区奖并将其作为公开规则写入", async () => {
@@ -340,28 +325,6 @@ describe("updateSeason", () => {
     expect(updateSetCalls).toContainEqual(expect.objectContaining({ hasCommunityAwards: false }));
     const entry = findAuditEntry(insertValuesCalls, "season.update") as { meta: { metadataOnly: boolean } } | undefined;
     expect(entry?.meta.metadataOnly).toBe(false);
-  });
-
-  it("已发布状态下修改 slug 返回 SEASON_INVALID_STATUS", async () => {
-    seasonsFindFirstMock.mockResolvedValue(nonDraftSeason("registration"));
-
-    const result = await updateSeason({ ...VALID_INPUT, id: SEASON_ID, slug: "different-slug" });
-
-    expect(result).toMatchObject({ success: false, error: { code: ErrorCode.SEASON_INVALID_STATUS } });
-    expect(updateSetCalls).toHaveLength(0);
-  });
-
-  it("已发布状态下修改 registrationConfig 返回 SEASON_INVALID_STATUS", async () => {
-    seasonsFindFirstMock.mockResolvedValue(nonDraftSeason("registration"));
-
-    const result = await updateSeason({
-      ...VALID_INPUT,
-      id: SEASON_ID,
-      registrationConfig: { ...VALID_INPUT.registrationConfig, screenshotCount: 3 },
-    });
-
-    expect(result).toMatchObject({ success: false, error: { code: ErrorCode.SEASON_INVALID_STATUS } });
-    expect(updateSetCalls).toHaveLength(0);
   });
 
   it("更新 action 只写入 planner 生成的 Date 字段", async () => {
@@ -418,45 +381,6 @@ describe("updateSeason", () => {
     expect(updateSetCalls).toHaveLength(0);
   });
 
-  it("已发布状态下相同的核心配置仍可保存 metadata", async () => {
-    seasonsFindFirstMock.mockResolvedValue(nonDraftSeason("registration"));
-
-    const result = await updateSeason({ ...VALID_INPUT, id: SEASON_ID, name: "Updated Season Name" });
-
-    expect(result.success).toBe(true);
-    if (result.success) {
-      expect(result.data.slug).toBe("test-2026");
-    }
-    expect(updateSetCalls.length).toBeGreaterThanOrEqual(1);
-  });
-
-  it("报名已开放后忽略恶意 open time replay 仍允许保存合法 deadline", async () => {
-    const openedAt = new Date("2026-09-08T08:00:03.838Z");
-    seasonsFindFirstMock.mockResolvedValue(nonDraftSeason("registration", {
-      registrationOpensAt: openedAt,
-      registrationOpenedAt: openedAt,
-      registrationClosesAt: new Date("2026-09-15T08:00:00.000Z"),
-      rosterChangeClosesAt: new Date("2026-10-08T08:00:00.000Z"),
-    }));
-
-    const result = await updateSeason({
-      ...VALID_INPUT,
-      id: SEASON_ID,
-      // This malicious value is after the submitted deadline. The update
-      // planner must validate against the persisted frozen opening instead.
-      registrationOpensAt: "2026-09-20T16:00",
-      registrationClosesAt: "2026-09-18T16:00",
-      rosterChangeClosesAt: "2026-10-08T16:00",
-    });
-
-    expect(result).toMatchObject({ success: true });
-    const update = updateSetCalls.find((value) => value && typeof value === "object" && "registrationClosesAt" in value) as Record<string, unknown>;
-    expect(update).toEqual(expect.objectContaining({
-      registrationClosesAt: new Date("2026-09-18T08:00:00.000Z"),
-    }));
-    expect(update).not.toHaveProperty("registrationOpensAt");
-  });
-
   it("非 draft 状态下修改核心配置返回 fail", async () => {
     seasonsFindFirstMock.mockResolvedValue(nonDraftSeason("registration"));
 
@@ -466,20 +390,6 @@ describe("updateSeason", () => {
     if (!result.success) {
       expect(result.error.code).toBe(ErrorCode.SEASON_INVALID_STATUS);
     }
-  });
-
-  it("非 draft 状态下不能改写高校归属规则", async () => {
-    seasonsFindFirstMock.mockResolvedValue(draftSeason({ status: "registration",
-      affiliationRules: [{ institutionCode: "4132010284", eligibleAcademicStatuses: ["enrolled", "graduated"], minRosterMembers: 3, minStartingMembers: 3 }],
-    }));
-
-    const result = await updateSeason({
-      ...VALID_INPUT,
-      id: SEASON_ID,
-      affiliationRules: [{ institutionCode: "4132010284", eligibleAcademicStatuses: ["enrolled", "graduated"], minRosterMembers: 2, minStartingMembers: 3 }],
-    });
-
-    expect(result).toMatchObject({ success: false, error: { code: ErrorCode.SEASON_INVALID_STATUS } });
   });
 
 });
@@ -660,5 +570,33 @@ describe("deleteSeason", () => {
     }
 
     expect(findAuditEntry(insertValuesCalls, "season.deleted")).toBeUndefined();
+  });
+});
+
+describe("season mutation authorization boundary", () => {
+  it.each([
+    ["create", () => createSeason(VALID_INPUT)],
+    ["update", () => updateSeason({ ...VALID_INPUT, id: SEASON_ID })],
+    ["publish", () => publishSeason(SEASON_ID)],
+    ["delete", () => deleteSeason(SEASON_ID)],
+    ["open registration", () => openSeasonRegistration(SEASON_ID)],
+    ["revert draft", () => revertSeasonToDraft(SEASON_ID)],
+    ["revert registration", () => revertSeasonToRegistration(SEASON_ID)],
+    ["finish", () => forceFinishSeason(SEASON_ID)],
+    ["archive", () => archiveSeason(SEASON_ID)],
+  ] as const)("rejects %s before reads, writes, audit or revalidation", async (_operation, mutate) => {
+    vi.clearAllMocks();
+    resetAuditTracking(insertValuesCalls, updateSetCalls);
+    requireSuperAdminMock.mockRejectedValue(new AppError(ErrorCode.FORBIDDEN, "forbidden"));
+
+    await expect(mutate()).resolves.toMatchObject({ success: false, error: { code: ErrorCode.FORBIDDEN } });
+    expect(dbTransactionMock).not.toHaveBeenCalled();
+    expect(seasonsFindFirstMock).not.toHaveBeenCalled();
+    expect(dbSelectMock).not.toHaveBeenCalled();
+    expect(dbInsertMock).not.toHaveBeenCalled();
+    expect(dbUpdateMock).not.toHaveBeenCalled();
+    expect(dbDeleteMock).not.toHaveBeenCalled();
+    expect(insertValuesCalls).toEqual([]);
+    expect(revalidatePathMock).not.toHaveBeenCalled();
   });
 });

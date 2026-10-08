@@ -251,9 +251,12 @@ describe("planSeasonUpdate template identity", () => {
     expect(set).not.toHaveProperty("registrationConfig");
   });
 
-  it("a non-draft core change is refused", () => {
+  it.each([
+    { maxTeamSize: 12 },
+    { affiliationRules: MAJOR_TEMPLATE.affiliationRules.map((rule) => ({ ...rule, minRosterMembers: rule.minRosterMembers + 1 })) },
+  ])("refuses a published core delta: %j", (delta) => {
     const row = seasonRow({ status: "registration" });
-    const parsed = parseInput({ maxTeamSize: 12 });
+    const parsed = parseInput(delta);
     expect(() => planSeasonUpdate(row, parsed)).toThrowError(/只有 draft 状态可修改核心赛季配置/);
   });
 
