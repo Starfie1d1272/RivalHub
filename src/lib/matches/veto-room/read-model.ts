@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, eq, or, sql } from "drizzle-orm";
+import { and, eq, inArray, or, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
   competitionEntries,
@@ -111,16 +111,21 @@ export async function projectVetoRoomView(
     rows.push(row);
     rosterByEntry.set(row.entryId, rows);
   }
+  const operatorRows = core.match.testConfig ? await db.select({ userId: users.id, displayName: users.displayName, perfectName: users.perfectName, personaName: steamProfiles.personaName })
+    .from(users).leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
+    .where(inArray(users.id, [core.match.testConfig.operatorAId, core.match.testConfig.operatorBId])) : [];
   const isAdmin = authorization?.role === "super_admin" || Boolean(authorization?.seasonIds.includes(core.match.seasonId));
-  const viewerEntryId = getEntryIdForViewer(viewerId, entryRows, rosterRows);
+  const viewerEntryId = core.match.testConfig?.operatorAId === viewerId ? core.match.entryAId : core.match.testConfig?.operatorBId === viewerId ? core.match.entryBId : getEntryIdForViewer(viewerId, entryRows, rosterRows);
   const currentTurnEntry = core.currentTurn?.actorEntryId ?? null;
   const mapPool = core.session.mapPoolSnapshot
-    ?? normalizeRegistrationConfig(context.registrationConfig).mapPool;
+    ?? core.match.testConfig?.mapPool ?? normalizeRegistrationConfig(context.registrationConfig).mapPool;
 
   const entries = [core.match.entryAId, core.match.entryBId].map((entryId) => {
     const entry = entryById.get(entryId);
     const rows = rosterByEntry.get(entryId) ?? [];
-    const bpRepresentative = rows.find((row) => row.isVetoRepresentative && row.isStarter) ?? null;
+    const configuredOperatorId = core.match.testConfig ? (entryId === core.match.entryAId ? core.match.testConfig.operatorAId : core.match.testConfig.operatorBId) : null;
+    const operator = operatorRows.find(row => row.userId === configuredOperatorId);
+    const bpRepresentative = core.match.testConfig ? (operator ? { ...operator, memberId: rows.find(row => row.userId === operator.userId)?.memberId ?? null } : null) : rows.find((row) => row.isVetoRepresentative && row.isStarter) ?? null;
     const starterCount = rows.filter(row => row.isStarter).length;
     const lineupConfirmed = starterCount === 5;
     const currentViewerStarter = rows.some((row) => row.userId === viewerId && row.isStarter);

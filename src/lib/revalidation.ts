@@ -122,5 +122,7 @@ export function revalidateMatchPaths(
 ) {
   revalidateSeasonPaths(slug, ["matches", "adminMatches"], options);
   revalidatePath(`/admin/${slug}/matches/${matchId}`);
+  revalidatePath(`/admin/${slug}/test-matches`);
+  revalidatePath("/my/competitions");
   revalidatePath(`/${slug}/matches/${matchId}`);
 }

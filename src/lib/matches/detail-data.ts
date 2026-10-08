@@ -1,3 +1,4 @@
+import { officialMatchCondition } from "./scope";
 import { requireCompetitionMatch } from "./competition-context";
 import { and, eq, or } from "drizzle-orm";
 import { db } from "@/db/client";
@@ -5,7 +6,7 @@ import { matches } from "@/db/schema";
 
 export function getSeasonFinishedMatches(seasonId: string, teamId: string) {
   return db.query.matches.findMany({
-    where: and(
+    where: and(officialMatchCondition(),
       eq(matches.seasonId, seasonId),
       eq(matches.status, "finished"),
       or(eq(matches.entryAId, teamId), eq(matches.entryBId, teamId)),

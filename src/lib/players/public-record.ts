@@ -1,3 +1,4 @@
+import { officialMatchCondition } from "@/lib/matches/scope";
 import { requireCompetitionFields } from "@/lib/matches/competition-context";
 import "server-only";
 import { and, eq, inArray, ne } from "drizzle-orm";
@@ -17,7 +18,7 @@ async function loadPublicAppearances(
     .innerJoin(eventRosterMembers, eq(eventRosterMembers.id, matchRosterPlayers.eventRosterMemberId))
     .innerJoin(eventRosters, eq(eventRosters.id, eventRosterMembers.eventRosterId))
     .innerJoin(matches, eq(matches.id, matchRosters.matchId)).innerJoin(seasons, eq(seasons.id, matches.seasonId))
-    .where(and(eq(eventRosterMembers.userId, userId), inArray(eventRosters.status, ["confirmed", "frozen"]), eq(matchRosterPlayers.isStarter, true), inArray(matchRosters.status, ["submitted", "confirmed"]), eq(matches.status, "finished"), ne(seasons.status, "draft"), options.seasonId ? eq(matches.seasonId, options.seasonId) : undefined, options.matchIds ? inArray(matches.id, [...options.matchIds]) : undefined));
+    .where(and(officialMatchCondition(), and(eq(eventRosterMembers.userId, userId), inArray(eventRosters.status, ["confirmed", "frozen"]), eq(matchRosterPlayers.isStarter, true), inArray(matchRosters.status, ["submitted", "confirmed"]), eq(matches.status, "finished"), ne(seasons.status, "draft"), options.seasonId ? eq(matches.seasonId, options.seasonId) : undefined, options.matchIds ? inArray(matches.id, [...options.matchIds]) : undefined)));
 }
 
 function summarizeAppearances(appearances: readonly PublicAppearance[]) {

@@ -57,7 +57,7 @@ export const PREVIEW_COLUMNS: Record<string, string> = {
   draft_state: "id season_id current_round current_entry_id round_deadline is_active updated_at",
   dak_pairing_intents: "id poll_token_hash status authorized_by_user_id expires_at authorized_at delivered_at created_at",
   dak_pairings: "id pairing_intent_id user_id token_hash scopes season_ids status revoked_at last_used_at created_at",
-  matches: "id season_id entry_a_id entry_b_id execution_context result_disposition stage round format entry_round score_a score_b status is_forfeit bracket_node_id ownership major_stage_run_id qualification_run_id managed_key scheduled_at started_at gameplay_started_at completion_deadline completed_at mvp_winner_user_id created_at updated_at",
+  matches: "id season_id entry_a_id entry_b_id execution_context result_disposition test_config stage round format entry_round score_a score_b status is_forfeit bracket_node_id ownership major_stage_run_id qualification_run_id managed_key scheduled_at started_at gameplay_started_at completion_deadline completed_at mvp_winner_user_id created_at updated_at",
   match_maps: "id match_id map_order map_name picked_by_entry_id team_a_start_side score_a score_b started_at completed_at created_at",
   match_demo_imports: "id season_id match_id match_map_id stage_key stage_run_id demo_sha256 payload_sha256 contract_version semantic_profile analysis_version evidence_revision status payload submitted_by_pairing_id idempotency_key supersedes_import_id issues submitted_at confirmed_at created_at",
   match_demo_stat_projections: "import_id projection_version payload_sha256 demo_sha256 semantic_profile analysis_version evidence_revision identity_bindings facts created_at",
@@ -181,6 +181,7 @@ export const PREVIEW_SCHEMA_LIFECYCLE: readonly PreviewSchemaLifecycleTable[] = 
       { name: "gameplay_started_at", introducedAt: "0076_slim_weapon_omega" },
       { name: "execution_context", introducedAt: "0077_match_execution_context" },
       { name: "result_disposition", introducedAt: "0077_match_execution_context" },
+      { name: "test_config", introducedAt: "0079_test-matches" },
     ],
   },
   { table: "match_maps", columns: [{ name: "started_at", introducedAt: "0075_lowly_sersi" }] },
@@ -336,6 +337,11 @@ export function exportQuery(table: string, source: PreviewPolicyInput = readExpe
         'b', jsonb_build_object('name', 'Preview B', 'logoUrl', NULL)
       ), 'mapPool', execution_context->'mapPool'
     ) END AS execution_context`;
+    // Preserve test identity and operation routing, never copy private eligibility/override evidence.
+    if (table === "matches" && column === "test_config") return `CASE WHEN test_config IS NULL THEN NULL ELSE jsonb_build_object(
+      'mapPool', test_config->'mapPool',
+      'operatorAId', test_config->'operatorAId', 'operatorBId', test_config->'operatorBId'
+    ) END AS test_config`;
     return quoteIdentifier(column);
   });
   if (table === "users") expressions.push(`id::text || '@preview.invalid' AS email`, `'user' AS role`);

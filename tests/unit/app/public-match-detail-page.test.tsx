@@ -2,6 +2,7 @@
  * @vitest-environment jsdom
  */
 import React from "react";
+vi.mock("next/server", () => ({ connection: vi.fn(async () => {}) }));
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 

@@ -1,3 +1,4 @@
+import { officialMatchCondition } from "@/lib/matches/scope";
 import "server-only";
 
 import { cacheLife, cacheTag } from "next/cache";
@@ -100,7 +101,7 @@ export async function getPublicSeasonCatalog(): Promise<PublicSeasonWithCompleti
   const completionRows = await db
     .select({ seasonId: matches.seasonId, lastCompletedAt: max(matches.completedAt) })
     .from(matches)
-    .where(and(inArray(matches.seasonId, rows.map((row) => row.id)), eq(matches.status, "finished")))
+    .where(and(officialMatchCondition(), and(inArray(matches.seasonId, rows.map((row) => row.id)), eq(matches.status, "finished"))))
     .groupBy(matches.seasonId);
   const lastCompletedAtBySeasonId = new Map(completionRows.map((row) => [row.seasonId, row.lastCompletedAt]));
   return rows.map((row) => ({ ...row, lastCompletedAt: lastCompletedAtBySeasonId.get(row.id) ?? null }));

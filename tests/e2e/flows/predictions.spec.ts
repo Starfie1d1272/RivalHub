@@ -30,10 +30,11 @@ test("观众完成选队提交、草稿隔离、图片导出", async ({
     const mobile = info.project.name === "mobile-chrome";
     const identityCard = page.getByTestId("sim-match-stage1-r1-1");
     await expect(identityCard.locator("a a, button a, a button, button button")).toHaveCount(0);
-    const profile = identityCard.getByRole("link").first();
-    await expect(profile).toHaveAttribute("href", new RegExp(`^/${fixture.slug}/teams/`));
-    await profile.focus(); await profile.press("Enter");
-    await expect(page).toHaveURL(new RegExp(`/${fixture.slug}/teams/`));
+    const matchLink = identityCard.getByRole("link", { name: /查看 .* 比赛/ });
+    await expect(identityCard.getByRole("link")).toHaveCount(1);
+    await expect(matchLink).toHaveAttribute("href", new RegExp(`^/${fixture.slug}/matches/`));
+    await matchLink.focus(); await matchLink.press("Enter");
+    await expect(page).toHaveURL(new RegExp(`/${fixture.slug}/matches/`));
     await page.goBack();
     await expect(identityCard).toHaveAttribute("data-source", "preview");
 

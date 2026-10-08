@@ -58,6 +58,15 @@ export async function freezeQualificationRosterInTx(tx: TxDb, input: {
   if (!policy || policy.version !== 1) throw new AppError(ErrorCode.VALIDATION_FAILED, "Play-in 缺少已锁定的资格规则，请在首轮生成前重置配置。");
   const [roster] = await tx.select({ snapshot: eventRosters.eligibilitySnapshot }).from(eventRosters).where(eq(eventRosters.id, input.eventRosterId));
   if (roster?.snapshot?.rosterRevisionId === input.rosterRevisionId && roster.snapshot.entryId === input.entryId) return;
+  const snapshot = await buildRosterEligibilityInTx(tx, { ...input, policy });
+  await tx.update(eventRosters).set({ eligibilitySnapshot: snapshot }).where(eq(eventRosters.id, input.eventRosterId));
+}
+
+/** Shared frozen roster facts for qualification and event rehearsals. */
+export async function buildRosterEligibilityInTx(tx: TxDb, input: {
+  season: Season; entryId: string; rosterRevisionId: string; eventRosterId: string; policy: QualificationEligibilityPolicy;
+}): Promise<QualificationRosterEligibility> {
+  const { policy } = input;
   const members = await tx.select({ userId: eventRosterMembers.userId }).from(eventRosterMembers)
     .where(and(eq(eventRosterMembers.eventRosterId, input.eventRosterId), eq(eventRosterMembers.isCurrent, true)));
   const facts = policy.competitiveProfile ? await loadParticipantQualificationFacts(members.map(member => member.userId), {
@@ -69,7 +78,7 @@ export async function freezeQualificationRosterInTx(tx: TxDb, input: {
   const overrides = await loadActiveRestrictionOverridesInTx(tx, {
     competitionId: input.season.id, entryIds: [input.entryId], rosterRevisionIds: [input.rosterRevisionId],
   });
-  const snapshot: QualificationRosterEligibility = {
+  return {
     version: 1, entryId: input.entryId, rosterRevisionId: input.rosterRevisionId, policy,
     competitiveFacts: policy.competitiveProfile ? members.map(member => toPlayerStrengthInput(facts.get(member.userId)!, policy.competitiveProfile)) : [],
     restrictionOverrides: overrides.map(override => ({
@@ -77,7 +86,6 @@ export async function freezeQualificationRosterInTx(tx: TxDb, input: {
       findingSnapshot: override.findingSnapshot, reason: override.reason, grantedBy: override.grantedBy, grantedAt: override.grantedAt.toISOString(),
     })),
   };
-  await tx.update(eventRosters).set({ eligibilitySnapshot: snapshot }).where(eq(eventRosters.id, input.eventRosterId));
 }
 
 export async function clearQualificationRosterSnapshotsInTx(tx: TxDb, entryIds: string[]): Promise<void> {

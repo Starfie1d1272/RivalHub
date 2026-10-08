@@ -1,3 +1,4 @@
+import { officialMatchCondition } from "@/lib/matches/scope";
 import { and, eq } from "drizzle-orm";
 import { writeAuditInTx } from "@/lib/audit/write";
 
@@ -143,7 +144,7 @@ export async function addCommunityAwardEvidenceInTx(
   const award = await lockAwardInTx(tx, args.awardId);
   if (award.status !== "approved") throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "只有已公开的社区奖可以提交候选证据。 ");
   if (args.matchId) {
-    const [match] = await tx.select({ id: matches.id }).from(matches).where(and(eq(matches.id, args.matchId), eq(matches.seasonId, award.seasonId)));
+    const [match] = await tx.select({ id: matches.id }).from(matches).where(and(officialMatchCondition(), and(eq(matches.id, args.matchId), eq(matches.seasonId, award.seasonId))));
     if (!match) throw new AppError(ErrorCode.VALIDATION_FAILED, "证据比赛不属于当前赛事。 ");
   }
   if (args.candidateUserId) {

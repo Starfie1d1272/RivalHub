@@ -52,7 +52,7 @@ function match(id: string, entryAId: string, entryBId: string, scoreA: number, s
     completedAt: new Date("2026-01-01T00:00:00.000Z"),
     videoUrl: null,
     mvpWinnerUserId: null,
-    executionContext: null,
+    executionContext: null, testConfig: null,
     resultDisposition: null,
     createdAt: new Date("2026-01-01T00:00:00.000Z"),
     updatedAt: new Date("2026-01-01T00:00:00.000Z"),

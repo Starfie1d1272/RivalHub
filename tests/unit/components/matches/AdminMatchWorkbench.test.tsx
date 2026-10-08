@@ -59,7 +59,7 @@ function data(status: Match["status"]) {
     completedAt: status === "finished" ? new Date("2026-09-05T04:00:00Z") : null,
     videoUrl: status === "finished" ? "https://video.example/match" : null,
     mvpWinnerUserId: null,
-    executionContext: null,
+    executionContext: null, testConfig: null,
     resultDisposition: null,
     createdAt: new Date("2026-09-05T00:00:00Z"),
     updatedAt: new Date("2026-09-05T00:00:00Z"),

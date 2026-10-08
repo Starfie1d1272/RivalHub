@@ -39,6 +39,16 @@ describe("sanitized mirror policy", () => {
     expect(older.futureColumns.match_maps).toContain("started_at");
   });
 
+  it("preserves test identity without exporting private eligibility evidence", () => {
+    const expected = readExpectedMigrations();
+    const index = expected.findIndex(({ tag }) => tag === "0079_test-matches");
+    expect(index).toBeGreaterThan(0);
+    const older = previewPolicyFor(expected.slice(0, index));
+    expect(older.tables.matches.exportedColumns).not.toContain("test_config");
+    expect(exportQuery("matches", older)).not.toContain("test_config");
+
+  });
+
   it("fails closed on an unknown source column or unreviewed table", () => {
     expect(() => assertReviewedColumns("community_groups", [...PREVIEW_COLUMNS.community_groups.split(" "), "invite_token"])).toThrow();
     expect(() => assertReviewedColumns("private_unknown", ["id"])).toThrow();

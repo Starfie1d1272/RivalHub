@@ -11,7 +11,7 @@ import { validateMapScore, validateSeriesAgainstMaps } from "./result-rules";
 type Command = { matchId: string; actorId: string; conclusion: MatchConclusion; now?: Date };
 const resultFact = (match: Match) => ({ disposition: match.resultDisposition, scoreA: match.scoreA, scoreB: match.scoreB });
 function assertIndependent(match: Match) {
-  if (match.seasonId !== null) throw new AppError(ErrorCode.VALIDATION_FAILED, "赛事比赛必须使用正式赛果流程。");
+  if (match.seasonId !== null && !match.testConfig) throw new AppError(ErrorCode.VALIDATION_FAILED, "正式赛事比赛必须使用正式赛果流程。");
 }
 function sameResult(match: Match, conclusion: MatchConclusion) {
   return match.resultDisposition === conclusion.kind && match.scoreA === (conclusion.kind === "recorded" ? conclusion.scoreA : null) && match.scoreB === (conclusion.kind === "recorded" ? conclusion.scoreB : null);
@@ -23,7 +23,7 @@ async function persistConclusion(tx: TxDb, match: Match, input: Command, operati
   const conclusion = concludeMatchExecution(match, input.conclusion, now);
   if (match.status === "finished" && sameResult(match, input.conclusion)) return conclusion;
   await tx.update(matches).set({ status: conclusion.status, scoreA: conclusion.scoreA, scoreB: conclusion.scoreB, completedAt: conclusion.completedAt, resultDisposition: conclusion.result.kind, updatedAt: now }).where(eq(matches.id, match.id));
-  await writeAuditInTx(tx, { action: "match.status_update", actorId: input.actorId, targetId: match.id, meta: { operation, reason, from: match.status, to: "finished", before: resultFact(match), after: { disposition: conclusion.result.kind, scoreA: conclusion.scoreA, scoreB: conclusion.scoreB } } });
+  await writeAuditInTx(tx, { seasonId: match.seasonId, action: "match.status_update", actorId: input.actorId, targetId: match.id, meta: { operation, reason, from: match.status, to: "finished", before: resultFact(match), after: { disposition: conclusion.result.kind, scoreA: conclusion.scoreA, scoreB: conclusion.scoreB } } });
   return conclusion;
 }
 
@@ -63,7 +63,7 @@ export async function correctUnassociatedResultInTx(tx: TxDb, input: Command & {
   const result = await persistConclusion(tx, match, input, "correct_result", input.reason.trim());
   if (corrections.length) {
     await tx.update(matches).set({ updatedAt: input.now ?? new Date() }).where(eq(matches.id, match.id));
-    await writeAuditInTx(tx, { action: "match.status_update", actorId: input.actorId, targetId: match.id, meta: { operation: "correct_map_evidence", reason: input.reason.trim(), before: maps.filter(map => corrections.some(c => c.mapId === map.id)).map(map => ({ mapId: map.id, scoreA: map.scoreA, scoreB: map.scoreB })), after: corrections } });
+    await writeAuditInTx(tx, { seasonId: match.seasonId, action: "match.status_update", actorId: input.actorId, targetId: match.id, meta: { operation: "correct_map_evidence", reason: input.reason.trim(), before: maps.filter(map => corrections.some(c => c.mapId === map.id)).map(map => ({ mapId: map.id, scoreA: map.scoreA, scoreB: map.scoreB })), after: corrections } });
   }
   return result;
 }

@@ -2,7 +2,7 @@ import { assertCompetitionMatch, type CompetitionMatch } from "../competition-co
 import "server-only";
 
 import { randomInt } from "node:crypto";
-import { and, asc, eq, gte, inArray, isNotNull, ne, or } from "drizzle-orm";
+import { and, asc, eq, gte, inArray, isNotNull, isNull, ne, or } from "drizzle-orm";
 import { sql } from "drizzle-orm";
 import type { TxDb } from "@/db/client";
 import { db } from "@/db/client";
@@ -48,6 +48,7 @@ const SYSTEM_ACTOR_ID = "veto-system";
 type VetoMatch = Pick<CompetitionMatch<DbMatch>,
   | "id"
   | "seasonId"
+  | "testConfig"
   | "stage"
   | "round"
   | "entryAId"
@@ -246,14 +247,15 @@ function roleSelectSuccessorDuration(
   return next.durationSeconds;
 }
 
-async function getRepresentativeUserIdInTx(tx: TxDb, matchId: string, entryId: string): Promise<string | null> {
+async function getRepresentativeUserIdInTx(tx: TxDb, match: VetoMatch, entryId: string): Promise<string | null> {
+  if (match.testConfig) return entryId === match.entryAId ? match.testConfig.operatorAId : entryId === match.entryBId ? match.testConfig.operatorBId : null;
   const [row] = await tx
     .select({ userId: eventRosterMembers.userId })
     .from(matchRosters)
     .innerJoin(matchRosterPlayers, eq(matchRosterPlayers.rosterId, matchRosters.id))
     .innerJoin(eventRosterMembers, eq(eventRosterMembers.id, matchRosterPlayers.eventRosterMemberId))
     .where(and(
-      eq(matchRosters.matchId, matchId),
+      eq(matchRosters.matchId, match.id),
       eq(matchRosters.entryId, entryId),
       eq(matchRosterPlayers.isVetoRepresentative, true),
       eq(matchRosterPlayers.isStarter, true),
@@ -297,6 +299,7 @@ async function loadStartTimingInTx(
     .where(and(
       eq(matches.seasonId, match.seasonId),
       ne(matches.id, match.id),
+      match.testConfig ? isNotNull(matches.testConfig) : isNull(matches.testConfig),
       eq(matches.status, "in_progress"),
       previousMatchPredicate,
     ))
@@ -310,6 +313,7 @@ async function loadStartTimingInTx(
     .where(and(
       eq(matches.seasonId, match.seasonId),
       ne(matches.id, match.id),
+      match.testConfig ? isNotNull(matches.testConfig) : isNull(matches.testConfig),
       eq(matches.status, "finished"),
       previousMatchPredicate,
       isNotNull(matches.completedAt),
@@ -328,6 +332,7 @@ async function loadStartTimingInTx(
 }
 
 async function getMapPoolInTx(tx: TxDb, match: VetoMatch): Promise<string[]> {
+  if (match.testConfig) return [...match.testConfig.mapPool];
   const [season] = await tx
     .select({ registrationConfig: seasons.registrationConfig })
     .from(seasons)
@@ -359,8 +364,8 @@ async function tryStartSessionInTx(
   actorId: string,
 ): Promise<VetoSession> {
   if (session.startedAt || match.status !== "scheduled" || session.privilegedEntryId === null) return session;
-  const entryARep = await getRepresentativeUserIdInTx(tx, match.id, match.entryAId);
-  const entryBRep = await getRepresentativeUserIdInTx(tx, match.id, match.entryBId);
+  const entryARep = await getRepresentativeUserIdInTx(tx, match, match.entryAId);
+  const entryBRep = await getRepresentativeUserIdInTx(tx, match, match.entryBId);
   const entryACaptain = await getEntryRepresentativeUserIdInTx(tx, match.entryAId);
   const entryBCaptain = await getEntryRepresentativeUserIdInTx(tx, match.entryBId);
   const timing = await loadStartTimingInTx(tx, match);
@@ -558,7 +563,7 @@ async function reconcileVetoSessionInTx(
 
     const deadlineAt = deadline;
     const incidentResolvedAt = now;
-    const representativeUserId = timeoutEntryId ? await getRepresentativeUserIdInTx(tx, match.id, timeoutEntryId) : null;
+    const representativeUserId = timeoutEntryId ? await getRepresentativeUserIdInTx(tx, match, timeoutEntryId) : null;
     await tx.insert(matchVetoTimeoutIncidents).values({
       matchId: match.id,
       turnKey: turn.key,
@@ -782,7 +787,13 @@ async function changeRepresentativeInTx(
     if (representativeUserId !== input.actorId) throw new AppError(ErrorCode.FORBIDDEN, "只有本队赛事负责人可以指定 BP 负责人。");
   }
 
-  if (player.isVetoRepresentative) return "idempotent";
+  if (match.testConfig) {
+    const operatorKey = input.entryId === match.entryAId ? "operatorAId" : "operatorBId";
+    const otherOperator = input.entryId === match.entryAId ? match.testConfig.operatorBId : match.testConfig.operatorAId;
+    if (player.userId === otherOperator) throw new AppError(ErrorCode.VALIDATION_FAILED, "双方 BP 操作人不能相同。");
+    await tx.update(matches).set({ testConfig: { ...match.testConfig, [operatorKey]: player.userId }, updatedAt: new Date() }).where(eq(matches.id, match.id));
+  }
+  if (player.isVetoRepresentative && !match.testConfig) return "idempotent";
   await tx.update(matchRosterPlayers)
     .set({ isVetoRepresentative: false })
     .where(and(eq(matchRosterPlayers.rosterId, roster.id), eq(matchRosterPlayers.isVetoRepresentative, true)));
@@ -888,7 +899,7 @@ export async function requestVetoStart(input: {
     if (input.entryId !== match.entryAId && input.entryId !== match.entryBId) throw new AppError(ErrorCode.VALIDATION_FAILED, "请求队伍不属于本场比赛。");
     if (!await hasConfirmedLineupsInTx(tx, match)) throw new AppError(ErrorCode.VALIDATION_FAILED, "双方本场首发就绪后才能开始 BP。");
 
-    const bpRepresentativeId = await getRepresentativeUserIdInTx(tx, match.id, input.entryId);
+    const bpRepresentativeId = await getRepresentativeUserIdInTx(tx, match, input.entryId);
     const entryRepresentativeId = await getEntryRepresentativeUserIdInTx(tx, input.entryId);
     const timing = await loadStartTimingInTx(tx, match);
     const isBpRepresentative = bpRepresentativeId === input.actorId;
@@ -972,7 +983,7 @@ export async function submitVetoCommand(input: {
       throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "当前 BP 房间不可操作。");
     }
     if (turn?.actorEntryId === null || !turn) throw new AppError(ErrorCode.FORBIDDEN, "当前没有可操作的 BP 回合。");
-    const activeRepresentative = await getRepresentativeUserIdInTx(tx, match.id, turn.actorEntryId);
+    const activeRepresentative = await getRepresentativeUserIdInTx(tx, match, turn.actorEntryId);
     if (activeRepresentative !== input.actorId) throw new AppError(ErrorCode.FORBIDDEN, "只有当前队伍指定的 BP 负责人可以操作。");
 
     if (input.command.kind === "role_select") {

@@ -117,6 +117,7 @@ export function simulateMajor(
             invalidated.add(child);
       }
       return {
+        officialMatchId: official?.id,
         key,
         round,
         a,

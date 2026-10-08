@@ -29,6 +29,13 @@ export const matches = pgTable("matches", {
     mapPool: string[];
   }>(),
   resultDisposition: text("result_disposition").$type<"pending" | "recorded" | "omitted">(),
+  /** Test execution uses event participants/policies but never contributes official facts. */
+  testConfig: jsonb("test_config").$type<{
+    mapPool: string[];
+    operatorAId: string;
+    operatorBId: string;
+    eligibility?: { a: import("@/lib/competition-qualification/eligibility").QualificationRosterEligibility; b: import("@/lib/competition-qualification/eligibility").QualificationRosterEligibility };
+  }>(),
 
   // ── 比赛元数据 ────────────────────────────────────────────────────────
   stage: text("stage"),                                        // StageConfig.key
@@ -62,6 +69,7 @@ export const matches = pgTable("matches", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
+  testShape: check("matches_test_shape", sql`${t.testConfig} IS NULL OR (${t.seasonId} IS NOT NULL AND ${t.stage} = 'test' AND ${t.ownership} = 'manual' AND ${t.majorStageRunId} IS NULL AND ${t.qualificationRunId} IS NULL AND ${t.bracketNodeId} IS NULL AND ${t.managedKey} IS NULL AND jsonb_typeof(${t.testConfig}) = 'object' AND jsonb_typeof(${t.testConfig}->'mapPool') = 'array' AND jsonb_array_length(${t.testConfig}->'mapPool') = 7 AND jsonb_typeof(${t.testConfig}->'operatorAId') = 'string' AND jsonb_typeof(${t.testConfig}->'operatorBId') = 'string' AND ${t.testConfig}->>'operatorAId' <> ${t.testConfig}->>'operatorBId') IS TRUE`),
   contextShape: check("matches_execution_context_shape", sql`(${t.seasonId} IS NOT NULL AND ${t.entryAId} IS NOT NULL AND ${t.entryBId} IS NOT NULL AND ${t.stage} IS NOT NULL AND ${t.executionContext} IS NULL) OR (${t.seasonId} IS NULL AND ${t.entryAId} IS NULL AND ${t.entryBId} IS NULL AND ${t.stage} IS NULL AND ${t.executionContext} IS NOT NULL AND ${t.majorStageRunId} IS NULL AND ${t.qualificationRunId} IS NULL AND ${t.bracketNodeId} IS NULL)`),
   resultDispositionShape: check("matches_result_disposition_shape", sql`${t.resultDisposition} IS NULL OR (${t.resultDisposition} IN ('pending', 'recorded', 'omitted') AND ${t.status} = 'finished' AND ((${t.resultDisposition} = 'recorded' AND ${t.scoreA} IS NOT NULL AND ${t.scoreB} IS NOT NULL) OR (${t.resultDisposition} IN ('pending', 'omitted') AND ${t.scoreA} IS NULL AND ${t.scoreB} IS NULL)))`),
   independentResultShape: check("matches_independent_result_shape", sql`${t.seasonId} IS NOT NULL OR ((${t.status} != 'finished' AND ${t.resultDisposition} IS NULL AND ${t.scoreA} IS NULL AND ${t.scoreB} IS NULL) OR (${t.status} = 'finished' AND ${t.resultDisposition} IS NOT NULL))`),

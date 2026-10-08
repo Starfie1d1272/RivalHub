@@ -10,11 +10,11 @@ export async function persistCompletedMatchInTx(tx: TxDb, input: {
   match: typeof matches.$inferSelect; scoreA: number; scoreB: number;
   completedAt: Date; preserveMapPlans?: boolean;
 }) {
-  if (input.match.seasonId === null) {
+  if (input.match.seasonId === null || input.match.testConfig) {
     const facts = await tx.select().from(matchMaps).where(eq(matchMaps.matchId, input.match.id));
     validateSeriesAgainstMaps(input.match.format, input.scoreA, input.scoreB, facts);
   }
   const conclusion = concludeMatchExecution(input.match, { kind: "recorded", scoreA: input.scoreA, scoreB: input.scoreB }, input.completedAt);
   if (!input.preserveMapPlans) await tx.delete(matchMaps).where(and(eq(matchMaps.matchId, input.match.id), isNull(matchMaps.scoreA), isNull(matchMaps.scoreB)));
-  await tx.update(matches).set({ ...(input.match.seasonId === null ? { resultDisposition: "recorded" as const } : {}), status: conclusion.status, scoreA: conclusion.scoreA, scoreB: conclusion.scoreB, completedAt: conclusion.completedAt, updatedAt: new Date() }).where(eq(matches.id, input.match.id));
+  await tx.update(matches).set({ ...(input.match.seasonId === null || input.match.testConfig ? { resultDisposition: "recorded" as const } : {}), status: conclusion.status, scoreA: conclusion.scoreA, scoreB: conclusion.scoreB, completedAt: conclusion.completedAt, updatedAt: new Date() }).where(eq(matches.id, input.match.id));
 }

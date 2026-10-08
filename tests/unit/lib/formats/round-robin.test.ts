@@ -35,6 +35,7 @@ vi.mock("drizzle-orm", () => ({
   and: vi.fn(),
   inArray: vi.fn(),
   isNotNull: vi.fn(),
+  isNull: vi.fn(),
   count: vi.fn(),
   sql: vi.fn((strings: TemplateStringsArray) => strings.join("")),
 }));

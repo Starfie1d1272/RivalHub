@@ -1,3 +1,4 @@
+import { officialMatchCondition } from "@/lib/matches/scope";
 import { isCompetitionMatch } from "@/lib/matches/competition-context";
 import "server-only";
 
@@ -37,7 +38,7 @@ export interface PlayerStatsEventOption {
 
 export type StatsLabels = { teams: Record<string, string>; players: Record<string, string> };
 
-async function loadStatsContext(tx: TxDb, scope: StatsEvidenceScope, options: { mapName?: string; teamId?: string; matchIds?: readonly string[] } = {}) {
+async function loadStatsContext(tx: TxDb, scope: StatsEvidenceScope, options: { mapName?: string; teamId?: string; matchIds?: readonly string[]; includeTestMatch?: boolean } = {}) {
   const selectedMapRows = options.mapName && options.matchIds?.length !== 0
     ? await tx.select({ match: matches, map: matchMaps }).from(matchMaps).innerJoin(matches, eq(matches.id, matchMaps.matchId)).where(and(
       scope.seasonId ? eq(matches.seasonId, scope.seasonId) : scope.seasonIds ? inArray(matches.seasonId, scope.seasonIds) : undefined,
@@ -63,7 +64,7 @@ async function loadStatsContext(tx: TxDb, scope: StatsEvidenceScope, options: { 
         scope.format ? eq(matches.format, scope.format) : undefined,
       )) : [];
   const selectedTeamId = options.teamId ?? scope.teamFilter;
-  const baseMatches = matchRows.filter(isCompetitionMatch);
+  const baseMatches = matchRows.filter(isCompetitionMatch).filter(match => options.includeTestMatch || !match.testConfig);
   const scopedMatches = baseMatches.filter((match) => !selectedTeamId || [match.entryAId, match.entryBId].includes(selectedTeamId));
   const matchesById = new Map(scopedMatches.map((match) => [match.id, match]));
   const matchIds = scopedMatches.map((match) => match.id);
@@ -165,7 +166,7 @@ export async function getCurrentStatsSelectionInTx(tx: TxDb, scope: { seasonId?:
   const candidates = await tx.selectDistinct({ id: matches.id }).from(matches)
     .innerJoin(seasons, eq(seasons.id, matches.seasonId))
     .innerJoin(matchPlayerStats, eq(matchPlayerStats.matchId, matches.id))
-    .where(and(eq(matches.status, "finished"), ne(seasons.status, "draft"),
+    .where(and(officialMatchCondition(), eq(matches.status, "finished"), ne(seasons.status, "draft"),
       scope.seasonId ? eq(matches.seasonId, scope.seasonId) : undefined,
       scope.userIds ? inArray(matchPlayerStats.userId, [...scope.userIds]) : undefined));
   const context = await loadStatsContext(tx, {}, { matchIds: candidates.map((row) => row.id) });
@@ -173,7 +174,7 @@ export async function getCurrentStatsSelectionInTx(tx: TxDb, scope: { seasonId?:
   return { currentImportIds: refs.map(({ current }) => current.id), roster: context.roster, matchIds: context.matchIds };
 }
 
-async function loadStatsEvidence(tx: TxDb, scope: StatsEvidenceScope, options: { mapName?: string; teamId?: string; matchIds?: readonly string[] } = {}) {
+async function loadStatsEvidence(tx: TxDb, scope: StatsEvidenceScope, options: { mapName?: string; teamId?: string; matchIds?: readonly string[]; includeTestMatch?: boolean } = {}) {
   const context = await loadStatsContext(tx, scope, options);
   const refs = await loadCurrentProjectionRefs(tx, context);
   const importIds = refs.map(({ current }) => current.id);
@@ -313,7 +314,7 @@ async function loadScopedVetoRows(
     mapName: matchVetoSteps.mapName,
     action: matchVetoSteps.actionType,
     entryId: matchVetoSteps.entryId,
-  }).from(matchVetoSteps).innerJoin(matches, eq(matches.id, matchVetoSteps.matchId)).where(and(
+  }).from(matchVetoSteps).innerJoin(matches, eq(matches.id, matchVetoSteps.matchId)).where(and(officialMatchCondition(),
     scope.seasonId ? eq(matches.seasonId, scope.seasonId) : scope.seasonIds ? inArray(matches.seasonId, scope.seasonIds) : undefined,
     eq(matches.status, "finished"),
     scope.stage ? eq(matches.stage, scope.stage) : undefined,
@@ -329,7 +330,7 @@ async function loadVetoData(tx: TxDb, scope: StatsEvidenceScope, entries: Array<
     isForfeit: matches.isForfeit,
     entryAId: matches.entryAId,
     entryBId: matches.entryBId,
-  }).from(matches).where(and(
+  }).from(matches).where(and(officialMatchCondition(),
     scope.seasonId ? eq(matches.seasonId, scope.seasonId) : scope.seasonIds ? inArray(matches.seasonId, scope.seasonIds) : undefined,
     scope.stage ? eq(matches.stage, scope.stage) : undefined,
     scope.format ? eq(matches.format, scope.format) : undefined,
@@ -516,11 +517,11 @@ async function loadTournamentPlayerDetail(
   tx: TxDb,
   scope: StatsEvidenceScope & { playerId: string },
   matchIds: readonly string[],
-  options: { requireCurrentImports?: boolean } = {},
+  options: { requireCurrentImports?: boolean; includeTestMatch?: boolean } = {},
 ) {
-  const loaded = await loadStatsEvidence(tx, scope, { matchIds });
-  const scoreboard = await getStatsLeaderboard(scope, loaded.selected.map((row) => row.importId), loaded.roster, tx, { userId: scope.playerId, groupByTeam: false, requireCurrentImports: options.requireCurrentImports });
-  const scoreboardMaps = await getStatsLeaderboard(scope, loaded.selected.map((row) => row.importId), loaded.roster, tx, { userId: scope.playerId, groupByMap: true, groupByTeam: false, requireCurrentImports: options.requireCurrentImports });
+  const loaded = await loadStatsEvidence(tx, scope, { matchIds, includeTestMatch: options.includeTestMatch });
+  const scoreboard = await getStatsLeaderboard(scope, loaded.selected.map((row) => row.importId), loaded.roster, tx, { userId: scope.playerId, groupByTeam: false, requireCurrentImports: options.requireCurrentImports, includeTestMatch: options.includeTestMatch });
+  const scoreboardMaps = await getStatsLeaderboard(scope, loaded.selected.map((row) => row.importId), loaded.roster, tx, { userId: scope.playerId, groupByMap: true, groupByTeam: false, requireCurrentImports: options.requireCurrentImports, includeTestMatch: options.includeTestMatch });
   const performance = buildTournamentPerformanceAnalytics(loaded.selected.map((row) => row.facts.performance), { labels: loaded.labels });
   const detail = indexStatsRows(performance.players, (row) => row.player.entityKey).get(scope.playerId) ?? null;
   const maps = aggregateEvidenceByMap(loaded.selected, loaded.labels, { indexPlayers: true }).map((row) => ({
@@ -529,7 +530,7 @@ async function loadTournamentPlayerDetail(
   }));
   const results = buildTournamentResults(loaded.matches, loaded.scopedMaps, loaded.entries);
   const record = await getPublicPlayerRecord(scope.playerId, { seasonId: scope.seasonId, matchIds, database: tx });
-  const [mvpRow] = matchIds.length ? await tx.select({ count: count() }).from(matches).where(and(
+  const [mvpRow] = matchIds.length ? await tx.select({ count: count() }).from(matches).where(and(officialMatchCondition(),
     eq(matches.mvpWinnerUserId, scope.playerId),
     eq(matches.status, "finished"),
     scope.seasonId ? eq(matches.seasonId, scope.seasonId) : scope.seasonIds ? inArray(matches.seasonId, scope.seasonIds) : undefined,
@@ -579,7 +580,7 @@ export async function getMatchPlayerDetail(matchId: string, playerId: string, ma
   return db.transaction(async (tx) => {
     const [match] = await tx.select({ seasonId: matches.seasonId }).from(matches).where(eq(matches.id, matchId));
     if (!match || !match.seasonId) return null;
-    const detail = await loadTournamentPlayerDetail(tx, { seasonId: match.seasonId, playerId, mapFilter: mapName }, [matchId], { requireCurrentImports: true });
+    const detail = await loadTournamentPlayerDetail(tx, { seasonId: match.seasonId, playerId, mapFilter: mapName }, [matchId], { requireCurrentImports: true, includeTestMatch: true });
     return detail.performance ? detail : null;
   }, { isolationLevel: "repeatable read", accessMode: "read only" });
 }
@@ -714,7 +715,7 @@ export async function getLongTeamCareerDetail(teamId: string, database: DB = db)
       coverage: { detailedMaps: 0, completedMaps: 0, maps: [] },
     };
 
-    const appearanceMatches = await tx.select({ id: matches.id }).from(matches).where(and(
+    const appearanceMatches = await tx.select({ id: matches.id }).from(matches).where(and(officialMatchCondition(),
       eq(matches.status, "finished"),
       or(inArray(matches.entryAId, [...linkedEntryIds]), inArray(matches.entryBId, [...linkedEntryIds])),
     ));

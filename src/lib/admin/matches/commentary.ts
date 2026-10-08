@@ -20,6 +20,7 @@ export interface AdminCommentaryMatch {
   id: string;
   entryAId: string;
   entryBId: string;
+  isTest?: boolean;
   teamAName: string;
   teamBName: string;
   scheduledAt: Date | null;
@@ -50,6 +51,7 @@ export async function readAdminMatchCommentary(
   const [matchRows, grants] = await Promise.all([
     database.select({
       id: matches.id,
+      testConfig: matches.testConfig,
       entryAId: matches.entryAId,
       entryBId: matches.entryBId,
       teamAName: teamA.name,
@@ -95,7 +97,7 @@ export async function readAdminMatchCommentary(
     const active = match.status === "scheduled" || match.status === "in_progress";
     byMatchId[match.id] = { commentators, isMine, canClaim: isSeasonAdmin && active && !isMine && commentators.length < 2 };
     if ((match.status === "scheduled" || match.status === "in_progress") && match.id !== excludeMatchId) {
-      activeMatches.push({ id: match.id, entryAId: match.entryAId, entryBId: match.entryBId, teamAName: match.teamAName, teamBName: match.teamBName, status: match.status, scheduledAt: match.scheduledAt });
+      activeMatches.push({ id: match.id, isTest: Boolean(match.testConfig), entryAId: match.entryAId, entryBId: match.entryBId, teamAName: match.teamAName, teamBName: match.teamBName, status: match.status, scheduledAt: match.scheduledAt });
     }
   }
   const claimable = activeMatches.filter((match) => byMatchId[match.id]!.canClaim);

@@ -1,3 +1,4 @@
+import { officialMatchCondition } from "@/lib/matches/scope";
 import { requireCompetitionFields } from "@/lib/matches/competition-context";
 import "server-only";
 
@@ -212,10 +213,10 @@ export async function getPublicTeamProfileCore(
     ? await db
       .select({ entryAId: matches.entryAId, entryBId: matches.entryBId, scoreA: matches.scoreA, scoreB: matches.scoreB, completedAt: matches.completedAt })
       .from(matches)
-      .where(and(
+      .where(and(officialMatchCondition(), and(
         eq(matches.status, "finished"),
         or(inArray(matches.entryAId, entryIds), inArray(matches.entryBId, entryIds)),
-      ))
+      )))
     : []);
   const played = rawPlayed.map(requireCompetitionFields);
   const completedAtByEntryId = new Map<string, Date>();

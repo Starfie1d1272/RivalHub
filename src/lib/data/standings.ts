@@ -1,3 +1,4 @@
+import { officialMatchCondition } from "@/lib/matches/scope";
 import { publicCompetitionEntryCondition } from "@/lib/competition-entries/public-visibility";
 import "server-only";
 import { and, eq, asc, inArray, isNotNull } from "drizzle-orm";
@@ -31,7 +32,7 @@ export async function getStandings(seasonId: string): Promise<TeamStanding[]> {
       orderBy: [asc(competitionEntries.formationOrder)],
     }),
     db.query.matches.findMany({
-      where: and(eq(matches.seasonId, seasonId), eq(matches.status, "finished")),
+      where: and(officialMatchCondition(), and(eq(matches.seasonId, seasonId), eq(matches.status, "finished"))),
       orderBy: [asc(matches.completedAt), asc(matches.id)],
     }),
   ]);
