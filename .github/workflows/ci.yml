@@ -279,7 +279,7 @@ jobs:
       - name: Cache immutable Supabase images
         if: steps.supabase-images.outputs.cache-hit != 'true'
         run: |
-          mapfile -t images < <(docker image ls --filter 'reference=ghcr.io/supabase/*' --quiet | sort -u)
+          mapfile -t images < <(docker image ls --filter 'reference=ghcr.io/supabase/*' --filter 'reference=ghcr.io/supabase/cli/*' --quiet | sort -u)
           test "${#images[@]}" -gt 0
           node scripts/ci/timing.mjs "system/image export" -- docker image save --output "$RUNNER_TEMP/supabase-images.tar" "${images[@]}"
       - name: System bootstrap
