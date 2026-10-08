@@ -1,11 +1,10 @@
+/** @vitest-environment node */
 /**
  * @vitest-environment jsdom
  */
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 
 const {
   getPublicOrAuthorizedDraftSeasonMock,
@@ -457,21 +456,6 @@ describe("Public Match Detail Page (PRE / POST)", () => {
       expect(getMatchPlayerDetailMock).toHaveBeenCalledOnce();
     });
 
-    it("never imports or renders StatsOCRPanel on the public spectator route", () => {
-      const pageSource = readFileSync(
-        resolve(process.cwd(), "src/app/[seasonSlug]/matches/[matchId]/page.tsx"),
-        "utf8",
-      );
 
-      expect(pageSource).not.toContain("StatsOCRPanel");
-      expect(pageSource).not.toContain("savePlayerStats");
-      expect(pageSource).not.toContain("deletePlayerStatsByMap");
-      expect(pageSource).not.toContain("clearOperatorScoreboardInTx");
-      expect(pageSource).not.toContain("dakImportId");
-      expect(pageSource).not.toContain("verifiedByAdmin");
-      expect(pageSource).toContain("MatchRealtime");
-      expect(pageSource).not.toContain("runtime-presentation");
-      expect(pageSource).not.toContain("cs2-radar-assets");
-    });
   });
 });

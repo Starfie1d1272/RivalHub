@@ -43,7 +43,7 @@ describe("HeaderClient mobile navigation", () => {
 
     const mobileMenu = document.getElementById("rivalhub-mobile-navigation");
     expect(mobileMenu).not.toBeNull();
-    expect(mobileMenu).toHaveClass("col-span-full", "min-w-0");
+
     expect(screen.getByRole("button", { name: "收起菜单" })).toHaveAttribute("aria-expanded", "true");
   });
 

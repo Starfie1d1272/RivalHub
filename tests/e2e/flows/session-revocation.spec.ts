@@ -4,7 +4,6 @@ import { assertLocalHttpUrl } from "../../../scripts/db/local-environment";
 import { requireSupabaseSecretKey } from "../../../src/lib/runtime/supabase-keys";
 
 test.use({ scenarioProfile: "auth" });
-test.beforeEach(async ({}, testInfo) => { test.skip(testInfo.project.name !== "chromium", "会话语义在两个独立桌面 browser context 验证。"); });
 
 test("logout rejects a saved cookie while another login survives; changing password revokes both", async ({ page, browser, scenario }) => {
   const account = scenario.accounts[0]!;

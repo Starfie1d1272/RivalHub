@@ -1,3 +1,4 @@
+/** @vitest-environment node */
 import { renderToStaticMarkup } from "react-dom/server";
 import * as React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";

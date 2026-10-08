@@ -7,6 +7,7 @@ const retries = configuredRetries === undefined
 
 export default defineConfig({
   testDir: "./tests/e2e",
+  testIgnore: ["**/visual/**", "**/acceptance/**", "**/production/**"],
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries,
@@ -25,6 +26,7 @@ export default defineConfig({
   projects: [
     {
       name: "chromium",
+      testIgnore: ["**/visual/**", "**/acceptance/**", "**/production/**", "**/public-discovery.spec.ts"],
       use: {
         ...devices["Desktop Chrome"],
         channel: process.env.PLAYWRIGHT_CHANNEL === "chrome" ? "chrome" : undefined,
@@ -32,6 +34,7 @@ export default defineConfig({
     },
     {
       name: "mobile-chrome",
+      testIgnore: ["**/visual/**", "**/acceptance/**", "**/production/**", "**/education-manual-fallback.spec.ts", "**/team-invitations.spec.ts", "**/major-entry.spec.ts", "**/public-match-live.spec.ts", "**/event-logo.spec.ts", "**/major-qualification.spec.ts", "**/series-score-correction.spec.ts", "**/session-revocation.spec.ts"],
       use: {
         ...devices["Pixel 5"],
         channel: process.env.PLAYWRIGHT_CHANNEL === "chrome" ? "chrome" : undefined,

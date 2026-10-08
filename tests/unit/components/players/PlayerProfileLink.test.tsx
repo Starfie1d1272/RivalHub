@@ -11,6 +11,6 @@ describe("PlayerProfileLink", () => {
 
     const link = screen.getByRole("link", { name: "选手甲" });
     expect(link).toHaveAttribute("href", "/players/player%2F1");
-    expect(link.className).toContain("focus-visible:ring-2");
+
   });
 });

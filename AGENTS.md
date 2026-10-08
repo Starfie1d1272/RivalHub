@@ -29,6 +29,8 @@ RivalHub 是基于 Next.js App Router、TypeScript、Drizzle/PostgreSQL、Supaba
 
 ## Validation
 
+新增测试先说明独立保护价值、具体失败风险、现有证据缺口与最低足够层；不为每个函数、组件或实现细节机械添加测试。安全、权限、业务不变量、事务、并发与真实 DB/provider 契约必须保留。源码写法、CSS class、重复跨层规则和第三方库转发不作为默认测试目标。
+
 按风险选择 [`docs/testing.md`](docs/testing.md) 中的最小 evidence。日常优先使用与 changed surface 匹配的 `pnpm type-check:*`、定向 Vitest 和文件级 ESLint；`pnpm type-check`、`pnpm lint`、`pnpm test`、`pnpm db:check`、`pnpm knip`、`pnpm knip --production`、`pnpm verify` 是按风险选择的 broad host-only 或最终检查，不是每次迭代默认全跑。提交前检查完整 diff、未跟踪文件、敏感信息和临时产物。
 
 默认开发与交付流程是 Draft → Ready：开发阶段使用 Draft PR，push 后由 Evidence Planner 运行与 changed surface 匹配的 affected evidence 并产生 `draft-gate`；本地只执行匹配改动的 host-only 快速检查，不为每次迭代默认启动 PostgreSQL、Local Supabase 或 browser 重型环境。准备交付时将 PR 标记为 Ready for review；Ready PR 使用同一个 Evidence Planner 运行匹配改动风险的 affected evidence 并产生 required 的 `ci-gate`（不因 Ready 状态机械升级为 FULL）。只有最新 required checks 全绿后才能 merge；新 push 会使旧 commit 的 evidence 失效。

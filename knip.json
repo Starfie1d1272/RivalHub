@@ -99,7 +99,10 @@
     "scripts/prepare-radar-assets.mjs!",
     "scripts/db/public-live-browser-fixture.ts!",
     "src/lib/matches/creation.ts!",
-    "src/lib/matches/unassociated-result.ts!"
+    "src/lib/matches/unassociated-result.ts!",
+    "playwright.acceptance.config.ts!",
+    "playwright.production.config.ts!",
+    "vitest.experiments.config.ts!"
   ],
   "project": [
     "src/**/*.{js,mjs,cjs,jsx,ts,tsx,mts,cts}!",
@@ -107,14 +110,17 @@
     "tests/**/*.{js,mjs,cjs,jsx,ts,tsx,mts,cts}",
     "*.{js,mjs,cjs,jsx,ts,tsx,mts,cts}!"
   ],
-  "ignoreBinaries": ["openssl"],
+  "ignoreBinaries": [
+    "openssl"
+  ],
   "ignoreDependencies": [
     "supabase"
   ],
   "vitest": {
     "config": [
       "vitest.config.ts",
-      "vitest.integration.config.ts"
+      "vitest.integration.config.ts",
+      "vitest.experiments.config.ts"
     ]
   }
 }

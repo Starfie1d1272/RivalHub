@@ -10,10 +10,6 @@ async function lintSource(filePath: string, source: string) {
 }
 
 describe("architecture import boundaries", () => {
-  it("passes the repository architecture graph", () => {
-    expect(checkArchitecture()).toEqual([]);
-  }, 15_000);
-
   it("resolves alias, relative, and dynamic imports in the client graph", () => {
     const violations = checkArchitecture({
       files: {

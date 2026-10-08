@@ -34,7 +34,7 @@ describe("CompetitiveRolesForm", () => {
       expect(positionButton(label)).toHaveAttribute("aria-pressed", "false");
     }
     expect(screen.queryByText(/Support|Lurker|Entry/)).not.toBeInTheDocument();
-    expect(screen.getByRole("group", { name: "常用位置" })).toHaveClass("flex", "flex-wrap");
+
   });
 
   it("supports keyboard focus and keeps the 1–3 selection limit", async () => {
@@ -43,7 +43,7 @@ describe("CompetitiveRolesForm", () => {
 
     await user.tab();
     expect(positionButton("IGL（指挥）")).toHaveFocus();
-    expect(positionButton("IGL（指挥）")).toHaveClass("focus-visible:ring-2");
+
 
     await user.click(positionButton("IGL（指挥）"));
     await user.click(positionButton("AWPer（狙击手）"));

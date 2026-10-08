@@ -1,4 +1,5 @@
-/** @vitest-environment jsdom */
+/** @vitest-environment node */
+
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -80,8 +81,8 @@ describe("audit log pages", () => {
     const html = renderToStaticMarkup(page);
 
     expect(html).toContain('data-layout-variant="wide"');
-    expect(html).toContain("max-w-7xl");
-    expect(html).not.toContain("max-w-4xl");
+
+
     expect(html).toContain('data-testid="audit-log-table"');
   });
 

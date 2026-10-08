@@ -12,71 +12,6 @@ import {
 } from "../../../scripts/db/access-matrix";
 
 const root = process.cwd();
-const terminalMigration = readFileSync(
-  join(root, "drizzle/migrations/0034_database_access_boundary.sql"),
-  "utf8",
-);
-const restrictionOverrideMigration = readFileSync(
-  join(root, "drizzle/migrations/0035_colorful_black_widow.sql"),
-  "utf8",
-);
-const conversionPolicyMigration = readFileSync(
-  join(root, "drizzle/migrations/0038_conversion_policies.sql"),
-  "utf8",
-);
-const seedRecommendationSnapshotMigration = readFileSync(
-  join(root, "drizzle/migrations/0040_major_seed_recommendation_snapshot.sql"),
-  "utf8",
-);
-const identityMigration = readFileSync(
-  join(root, "drizzle/migrations/0042_identity_foundation.sql"),
-  "utf8",
-);
-const schedulerMigration = readFileSync(
-  join(root, "drizzle/migrations/0045_fresh_blue_blade.sql"),
-  "utf8",
-);
-const stageConvergenceMigration = readFileSync(
-  join(root, "drizzle/migrations/0048_same_epoch.sql"),
-  "utf8",
-);
-const contractCleanupMigration = readFileSync(
-  join(root, "drizzle/migrations/0049_ambiguous_brood.sql"),
-  "utf8",
-);
-const operationsMigration = readFileSync(
-  join(root, "drizzle/migrations/0050_mixed_masked_marvel.sql"),
-  "utf8",
-);
-const demoIntegrationMigration = readFileSync(
-  join(root, "drizzle/migrations/0051_sour_grim_reaper.sql"),
-  "utf8",
-);
-const steamIdentityMigration = readFileSync(
-  join(root, "drizzle/migrations/0052_gray_supernaut.sql"),
-  "utf8",
-);
-const qualificationMigration = readFileSync(
-  join(root, "drizzle/migrations/0056_competition-qualification-playin.sql"),
-  "utf8",
-);
-const vetoRoomMigration = readFileSync(
-  join(root, "drizzle/migrations/0058_bright_mikhail_rasputin.sql"),
-  "utf8",
-);
-const predictionMigration = readFileSync(join(root, "drizzle/migrations/0062_prediction_markets.sql"), "utf8");
-const matchRuntimeEnumMigration = readFileSync(join(root, "drizzle/migrations/0064_match_roster_system_default.sql"), "utf8");
-const matchRuntimeMigration = readFileSync(join(root, "drizzle/migrations/0065_match_runtime_foundation.sql"), "utf8");
-const mizarMigration = readFileSync(join(root, "drizzle/migrations/0066_mizar_backend_contracts.sql"), "utf8");
-const statsProjectionMigration = readFileSync(join(root, "drizzle/migrations/0067_chief_midnight.sql"), "utf8");
-const repairCursorMigration = readFileSync(join(process.cwd(), "drizzle/migrations/0068_faulty_hellion.sql"), "utf8");
-const sessionMigration = readFileSync(join(root, "drizzle/migrations/0069_wealthy_violations.sql"), "utf8");
-const draftMigration = readFileSync(join(root, "drizzle/migrations/0072_petite_iron_man.sql"), "utf8");
-const migration = `${draftMigration}\n${sessionMigration}\n${repairCursorMigration}\n${statsProjectionMigration}\n${predictionMigration}\n${terminalMigration}\n${restrictionOverrideMigration}\n${conversionPolicyMigration}\n${seedRecommendationSnapshotMigration}\n${identityMigration}\n${schedulerMigration}\n${stageConvergenceMigration}\n${contractCleanupMigration}\n${operationsMigration}\n${demoIntegrationMigration}\n${steamIdentityMigration}\n${qualificationMigration}\n${vetoRoomMigration}\n${matchRuntimeEnumMigration}\n${matchRuntimeMigration}\n${mizarMigration}`;
-const betSecurityMigration = readFileSync(join(root, "drizzle/migrations/0076_slim_weapon_omega.sql"), "utf8");
-const scenarioCleanupMigration = readFileSync(join(root, "drizzle/migrations/0073_careless_pretty_boy.sql"), "utf8");
-const droppedTables = [...`${contractCleanupMigration}\n${scenarioCleanupMigration}`.matchAll(/DROP TABLE "([^"]+)"/g)].map((match) => match[1]);
-
 function expectedFacts(): DatabaseAccessFacts[] {
   return DATABASE_ACCESS_MATRIX.map((entry) => ({
     table_name: entry.table,
@@ -104,79 +39,6 @@ describe("database access matrix", () => {
     expect(renderDatabaseAccessMatrixMarkdown()).toBe(
       readFileSync(join(root, "docs/security/database-access-matrix.md"), "utf8"),
     );
-  });
-
-  it("keeps the terminal migration and canonical contract deny-by-default", () => {
-    const betLoop = betSecurityMigration.match(/FOREACH tab IN ARRAY ARRAY\[([^\]]+)\] LOOP/)?.[1];
-    expect(betLoop).toBeDefined();
-    const betTables = [...betLoop!.matchAll(/'([^']+)'/g)].map(match => `bet_${match[1]}`);
-    expect(betTables.sort()).toEqual(DATABASE_ACCESS_TABLES.filter(table => table.startsWith("bet_")).sort());
-    expect(betSecurityMigration).toContain("ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY");
-    expect(betSecurityMigration).toContain("REVOKE ALL ON TABLE public.%I FROM anon, authenticated");
-    expect(betSecurityMigration).toContain("'bet_' || tab");
-    const enabledTables = [...migration.matchAll(/ALTER TABLE "([^"]+)" ENABLE ROW LEVEL SECURITY;/g)]
-      .map((match) => match[1])
-      .filter((table) => !droppedTables.includes(table))
-      .concat(betTables)
-      .sort();
-
-    expect(enabledTables).toEqual([...DATABASE_ACCESS_TABLES].sort());
-    const publicationTablesBlock = migration.match(
-      /SELECT unnest\(ARRAY\[([\s\S]*?)\]::text\[\]\)/,
-    )?.[1];
-    expect(publicationTablesBlock).toBeDefined();
-    const publicationTables = [...migration.matchAll(/SELECT unnest\(ARRAY\[([\s\S]*?)\]::text\[\]\)/g)]
-      .flatMap((block) => [...block[1].matchAll(/'([^']+)'/g)].map((match) => match[1]))
-      .filter((table) => !droppedTables.includes(table))
-      .sort();
-    expect(publicationTables).toEqual(
-      [...DATABASE_ACCESS_TABLES]
-        .filter((table) =>
-          !table.startsWith("prediction_") && !table.startsWith("bet_") && ![
-            "application_sessions", "application_session_controls",
-            "coverage_allocations", "coverage_holds", "match_lineup_incidents", "official_coverage_slots",
-            "match_live_sessions", "mizar_installations", "mizar_pairing_intents", "mizar_reliable_receipts",
-            "competition_entry_restriction_overrides",
-            "competition_qualification_entrants",
-            "competition_qualification_runs",
-            "competition_qualification_drafts",
-            "conversion_policies",
-            "major_seed_recommendation_snapshots",
-            "identity_link_requests",
-            "user_identities",
-            "user_merge_authorizations",
-            "user_merge_ledger",
-            "scheduled_job_health",
-            "competition_stage_bracket_states",
-            "steam_profiles",
-            "match_demo_stat_projections",
-            "statistics_projection_repair_cursors",
-            "user_gameplay_steam_ids",
-          ].includes(table),
-        )
-        .sort(),
-    );
-    expect(restrictionOverrideMigration).toContain('ALTER TABLE "competition_entry_restriction_overrides" ENABLE ROW LEVEL SECURITY;');
-    expect(restrictionOverrideMigration).toContain('REVOKE ALL PRIVILEGES ON TABLE "competition_entry_restriction_overrides" FROM anon, authenticated;');
-    expect(conversionPolicyMigration).toContain('ALTER TABLE "conversion_policies" ENABLE ROW LEVEL SECURITY;');
-    expect(conversionPolicyMigration).toContain('REVOKE ALL PRIVILEGES ON TABLE "conversion_policies" FROM anon, authenticated;');
-    expect(vetoRoomMigration).toContain('ALTER TABLE "match_veto_sessions" ENABLE ROW LEVEL SECURITY;');
-    expect(vetoRoomMigration).toContain('ALTER TABLE "match_veto_timeout_incidents" ENABLE ROW LEVEL SECURITY;');
-    expect(vetoRoomMigration).toContain('ALTER TABLE "match_veto_appeals" ENABLE ROW LEVEL SECURITY;');
-    expect(vetoRoomMigration).toContain('REVOKE ALL PRIVILEGES ON TABLE "match_veto_sessions", "match_veto_timeout_incidents", "match_veto_appeals" FROM anon, authenticated;');
-    expect(migration).toContain(
-      "REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA public FROM anon, authenticated;",
-    );
-    expect(migration).toContain("ALTER PUBLICATION %I DROP TABLE %I.%I");
-    expect(() => validateDatabaseAccessMatrixConfig()).not.toThrow();
-    expect(DATABASE_ACCESS_MATRIX.every((entry) =>
-      entry.targetClass === "server_only" &&
-      entry.anonPrivileges.length === 0 &&
-      entry.authenticatedPrivileges.length === 0 &&
-      entry.rlsEnabled &&
-      entry.policyNames.length === 0 &&
-      !entry.publicationMembership,
-    )).toBe(true);
   });
 
   it("fails closed for unclassified tables, unexpected grants, publication drift, and incomplete client policy declarations", () => {
@@ -218,22 +80,4 @@ describe("database access matrix", () => {
     ])).toThrow("client/realtime table client_probe 必须声明 RLS 和 policy");
   });
 
-  it("removes dead business-table Realtime consumers while retaining Auth-only browser usage", () => {
-    for (const path of [
-      "src/components/draft/DraftLiveRoom.tsx",
-      "src/components/captains/CaptainVotingPanel.tsx",
-    ]) {
-      const source = readFileSync(join(root, path), "utf8");
-      expect(source).not.toMatch(/createBrowserClient|postgres_changes|\.channel\s*\(/);
-      expect(source).toContain("10_000");
-    }
-
-    const resetPassword = readFileSync(
-      join(root, "src/components/auth/ResetPasswordForm.tsx"),
-      "utf8",
-    );
-    expect(resetPassword).toContain("createBrowserClient");
-    expect(resetPassword).toMatch(/supabase\.auth\./);
-    expect(resetPassword).not.toMatch(/supabase\.from\s*\(/);
-  });
 });

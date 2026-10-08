@@ -34,7 +34,6 @@ describe("MajorStrengthStarterSummary", () => {
     expect(screen.getByText("当前赛季候选：钻石S · 2 星")).toBeInTheDocument();
     expect(screen.getByText("历史 Rating 1000")).toBeInTheDocument();
     expect(screen.queryByText(/综合|历史\/前一赛季\/近期参考/)).not.toBeInTheDocument();
-    const badge = screen.getAllByText("采用 5E 等效")[0];
-    expect(badge).toHaveClass("inline-flex", "whitespace-nowrap", "shrink-0");
+
   });
 });

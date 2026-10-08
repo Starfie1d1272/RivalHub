@@ -18,7 +18,7 @@ describe("changed-surface planner", () => {
     ["PostgreSQL source + Changeset", ["src/db/schema/major-stage.ts", ".changeset/schema.md"], ["static", "postgres"], false],
     ["PostgreSQL-only integration", ["tests/integration/db/team-registration.test.ts"], ["static", "postgres"], false],
     ["system-dependent browser test", ["tests/e2e/flows/major-entry.spec.ts"], ["static", "system"], false],
-    ["E2E visual test", ["tests/e2e/visual/ui-system.spec.ts"], ["static", "system"], false],
+    ["E2E visual test", ["tests/e2e/visual/ui-system.spec.ts"], ["static"], false],
     ["package or lockfile", ["pnpm-lock.yaml"], ["static", "postgres", "system"], true],
     ["CI/toolchain configuration", [".github/workflows/ci.yml"], ["static", "postgres", "system"], true],
     ["migration", ["drizzle/migrations/0032_competitive_fact_states.sql"], ["postgres"], false],
@@ -231,7 +231,7 @@ describe("changed-surface planner", () => {
 
     const e2eFixture = classifyChangedFiles([{ status: "M", paths: ["tests/e2e/fixtures.ts"] }], { draft: false });
     expect(e2eFixture.requiredJobs).toEqual(["static", "system"]);
-    expect(e2eFixture.e2eSpecs).toEqual([]); // full system suite fallback
+    expect(e2eFixture.e2eSpecs).toContain("tests/e2e/flows/major-entry.spec.ts");
   });
 
   it("fails closed to FULL for workflow, planner, toolchain, unknown, and rename/delete", () => {
@@ -284,13 +284,10 @@ describe("changed-surface planner", () => {
     expect(sourceChange.staticMatrix).toEqual(expect.arrayContaining([
       expect.objectContaining({ task: "architecture" }),
       expect.objectContaining({ task: "unit-related-unit-domain-node", relatedSources: ["src/lib/major/opening.ts"] }),
-      expect.objectContaining({ task: "unit-explicit-unit-domain-node", explicitTests: ["tests/unit/quality/architecture-boundaries.test.ts", "tests/unit/quality/product-language.test.ts"] }),
+      expect.objectContaining({ task: "unit-explicit-unit-domain-node", explicitTests: ["tests/unit/quality/product-language.test.ts"] }),
     ]));
 
-    const e2eChange = classifyChangedFiles([{ status: "M", paths: ["tests/e2e/flows/major-entry.spec.ts"] }], { draft: true });
-    expect(e2eChange.staticMatrix).toEqual(expect.arrayContaining([
-      expect.objectContaining({ task: "unit-explicit-unit-domain-node", explicitTests: ["tests/unit/quality/e2e-contract.test.ts"] }),
-    ]));
+
   });
 
   it("does not send generated migration metadata to eslint", () => {

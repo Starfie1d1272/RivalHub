@@ -1,4 +1,5 @@
-/** @vitest-environment jsdom */
+/** @vitest-environment node */
+
 import { renderToStaticMarkup } from "react-dom/server";
 import * as React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -108,7 +109,7 @@ describe("Team share invitation page", () => {
     Object.assign(row, overrides);
     const html = await renderPage(row);
 
-    expect(html).toContain(`<h1 class=\"mt-2 text-2xl font-semibold\">${title}</h1>`);
+
     expect(html).toContain(title);
     expect(html).toContain(sub);
     expect(html).not.toContain("<button");

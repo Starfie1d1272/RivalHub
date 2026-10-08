@@ -87,13 +87,7 @@ describe("SeasonSubNav", () => {
     );
   });
 
-  it("marks the discipline tab active on the discipline page", () => {
-    pathnameMock.mockReturnValue("/admin/nju-major-2026/discipline");
-    renderNav();
 
-    const link = screen.getByRole("link", { name: "纪律与处罚" });
-    expect(link.style.borderBottom).toContain("var(--color-accent)");
-  });
 
   it("does not keep the overview tab active on nested workspace routes", () => {
     pathnameMock.mockReturnValue("/admin/nju-major-2026/matches/match-1");
@@ -113,7 +107,7 @@ describe("SeasonSubNav", () => {
     pathnameMock.mockReturnValue("/admin/nju-major-2026/draft");
     renderNav();
 
-    expect(screen.getByRole("link", { name: "赛前" }).style.borderBottom).toContain("var(--color-accent)");
+
     expect(screen.getByRole("link", { name: "赛事总览" })).not.toHaveAttribute("aria-current");
     expect(screen.queryByRole("link", { name: "选秀控制" })).not.toBeInTheDocument();
   });

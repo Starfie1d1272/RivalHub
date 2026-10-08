@@ -7,7 +7,14 @@
     "src/**/*.tsx",
     "vitest.config.ts",
     "vitest.integration.config.ts",
-    "playwright.config.ts"
+    "playwright.config.ts",
+    "vitest.experiments.config.ts",
+    "playwright.acceptance.config.ts",
+    "playwright.production.config.ts"
   ],
-  "exclude": ["node_modules", ".next", "scripts"]
+  "exclude": [
+    "node_modules",
+    ".next",
+    "scripts"
+  ]
 }

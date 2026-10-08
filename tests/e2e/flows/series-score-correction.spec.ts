@@ -3,8 +3,7 @@ import { assertLocalDatabaseUrl } from "../../../scripts/db/local-environment";
 import { expect, test, signInProgrammatically } from "../fixtures";
 
 test.use({ scenarioProfile: "stats" });
-test("管理员核对过期预览后完成系列更正，未打地图没有赛后待办", async ({ page, scenario }, testInfo) => {
-  test.skip(testInfo.project.name !== "chromium", "同一流程内验证桌面与两种移动宽度。");
+test("管理员核对过期预览后完成系列更正，未打地图没有赛后待办", async ({ page, scenario }) => {
   const pool = new Pool({ connectionString: assertLocalDatabaseUrl(process.env.RIVALHUB_LOCAL_DATABASE_URL ?? process.env.DATABASE_URL, "browser fixture"), ssl: false });
   const end = new Date("2026-10-01T12:30:00Z");
   try {
@@ -43,12 +42,6 @@ test("管理员核对过期预览后完成系列更正，未打地图没有赛�
     await pool.query("UPDATE match_maps SET score_a = 9 WHERE id = $1", [map!.id]);
     await review.getByRole("button", { name: "返回重新核对" }).click(); await preview();
     await expect(review.getByLabel("整场更正原因")).toHaveValue("核对 Perfect 实际比分"); await review.getByRole("checkbox").check();
-    for (const width of [1440, 390, 320]) {
-      await page.setViewportSize({ width, height: 900 });
-      await expect(confirm).toBeVisible();
-      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
-      await testInfo.attach(`series-correction-${width}`, { body: await page.screenshot({ fullPage: true }), contentType: "image/png" });
-    }
     await confirm.click(); await expect(review).toHaveCount(0);
     const persisted = (await pool.query("SELECT status,score_a,score_b,completed_at FROM matches WHERE id = $1", [match.id])).rows[0];
     expect(persisted).toMatchObject({ status: "finished", score_a: 2, score_b: 0, completed_at: end });

@@ -149,7 +149,7 @@ describe("VetoRoom", () => {
     })));
     expect(await screen.findByRole("status")).toHaveTextContent("操作已记录。");
     expect(screen.getByRole("heading", { name: /Alpha vs Beta/ })).toBeInTheDocument();
-    expect(screen.getByTestId("veto-primary-actions")).toHaveClass("sticky", "md:static");
+
   });
 
   it("announces the last ten seconds and reconciles once after the deadline settlement", async () => {

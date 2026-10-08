@@ -1,7 +1,9 @@
 import { execFileSync } from "node:child_process";
-import { appendFileSync, readFileSync } from "node:fs";
+import { appendFileSync, readFileSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+
+import { postgresSpecsForSource } from "./postgres-selection.mjs";
 
 export const CAPABILITIES = ["static", "postgres", "system"];
 
@@ -19,8 +21,6 @@ const FULL_STATIC_MATRIX = [
 
 const GLOBAL_CONTRACTS = {
   productLanguage: { project: "unit-domain-node", path: "tests/unit/quality/product-language.test.ts" },
-  e2e: { project: "unit-domain-node", path: "tests/unit/quality/e2e-contract.test.ts" },
-  architecture: { project: "unit-domain-node", path: "tests/unit/quality/architecture-boundaries.test.ts" },
 };
 
 const DB_BACKED_APP_PREFIXES = [
@@ -63,6 +63,15 @@ const LIVE_SURFACES = [
   "drizzle/migrations/0066_mizar_backend_contracts",
 ];
 const SYSTEM_FLOW_MAP = [
+  { prefixes: ["src/actions/bet.ts", "src/components/bet/BetBoard", "src/components/bet/BetOperations"], specs: ["tests/e2e/flows/bet.spec.ts"] },
+  { prefixes: ["src/actions/predictions.ts", "src/components/predictions/PickEm", "src/components/predictions/PredictionBoard.tsx", "src/components/predictions/PickEditor.tsx"], specs: ["tests/e2e/flows/predictions.spec.ts"] },
+  { prefixes: ["src/actions/competition-qualification.ts", "src/components/admin/MajorPrestartConsole", "src/components/admin/MajorCompetitionFlow.tsx"], specs: ["tests/e2e/flows/major-qualification.spec.ts"] },
+  { prefixes: ["src/components/matches/SeriesScoreCorrection"], specs: ["tests/e2e/flows/series-score-correction.spec.ts"] },
+  { prefixes: ["src/components/teams/TeamInvitationsSection"], specs: ["tests/e2e/flows/team-invitations.spec.ts"] },
+  {
+    prefixes: ["src/lib/mizar/", "src/components/matches/MatchLiveProvider", "src/components/matches/MatchRealtime", "src/components/matches/MatchListLiveScore", "src/components/matches/MatchRadar", "src/app/api/matches/"],
+    specs: ["tests/e2e/flows/public-match-live.spec.ts"],
+  },
   {
     prefixes: ["src/actions/season-public-info.ts", "src/lib/season-public-info/", "src/components/admin/SeasonLogoEditor.tsx", "src/components/season/EventLogo.tsx"],
     specs: ["tests/e2e/flows/event-logo.spec.ts"],
@@ -79,6 +88,8 @@ const SYSTEM_FLOW_MAP = [
       "src/actions/session-management.ts",
       "src/lib/auth/",
       "src/lib/session/",
+      "src/components/auth/LoginForm.tsx",
+      "src/components/auth/TurnstileWidget.tsx",
     ],
     specs: ["tests/e2e/flows/major-entry.spec.ts", "tests/e2e/flows/session-revocation.spec.ts"],
   },
@@ -97,6 +108,13 @@ const SYSTEM_FLOW_MAP = [
     specs: [MOBILE_PUBLIC_EVENT_SEARCH_SPEC],
   },
 ];
+
+function browserSpecs(directory = "tests/e2e") {
+  return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+    const path = `${directory}/${entry.name}`;
+    return entry.isDirectory() ? (["visual", "acceptance", "production"].includes(entry.name) ? [] : browserSpecs(path)) : /\.spec\.tsx?$/.test(path) ? [path] : [];
+  }).sort();
+}
 
 function systemSpecsForPath(path) {
   const specs = new Set();
@@ -147,6 +165,8 @@ export function classifyChangedFiles(entries, options = {}) {
     unitRelatedSources: new Map(STATIC_PROJECTS.map((project) => [project, new Set()])),
     unitExplicitTests: new Map(STATIC_PROJECTS.map((project) => [project, new Set()])),
     integrationSpecs: new Set(),
+    integrationFull: false,
+    e2eFull: false,
     e2eSpecs: new Set(),
   };
   let docsOnly = true;
@@ -163,6 +183,12 @@ export function classifyChangedFiles(entries, options = {}) {
     for (const capability of classification.capabilities) capabilities.add(capability);
     reasons.add(classification.reason);
     collectEvidence(path, classification, evidence);
+    if (classification.capabilities.includes("postgres") && !classification.integrationSpecs) {
+      const specs = postgresSpecsForSource(path);
+      if (specs === null) evidence.integrationFull = true;
+      else for (const spec of specs) evidence.integrationSpecs.add(spec);
+    }
+    if (classification.capabilities.includes("system") && !classification.e2eSpecs && systemSpecsForPath(path).length === 0) evidence.e2eFull = true;
   }
 
   if (evidence.e2eSpecs.size > 0) {
@@ -189,8 +215,8 @@ export function classifyChangedFiles(entries, options = {}) {
       unitMode: staticMatrix.some((item) => item.mode === "related" || item.mode === "explicit") ? "affected" : "none",
       relatedSources: unique([...evidence.unitRelatedSources.values()].flatMap((paths) => [...paths])),
       explicitTests: unique([...evidence.unitExplicitTests.values()].flatMap((paths) => [...paths])),
-      integrationSpecs: [...evidence.integrationSpecs].sort(),
-      e2eSpecs: [...evidence.e2eSpecs].sort(),
+      integrationSpecs: evidence.integrationFull ? [] : [...evidence.integrationSpecs].sort(),
+      e2eSpecs: evidence.e2eFull ? browserSpecs() : [...evidence.e2eSpecs].sort(),
     },
   );
 }
@@ -299,6 +325,12 @@ function classifyPath(path) {
       ? { capabilities: ["static", "postgres"], reason: `real PostgreSQL integration spec: ${path}`, integrationSpecs: [path] }
       : { capabilities: ["static", "postgres"], reason: `integration support surface；PostgreSQL 使用 full suite: ${path}` };
   }
+  if (path.startsWith("tests/e2e/acceptance/") || path.startsWith("tests/e2e/visual/")) {
+    return { capabilities: ["static"], reason: `opt-in visual/acceptance surface: ${path}` };
+  }
+  if (path.startsWith("tests/e2e/production/")) {
+    return { capabilities: ["static", "system"], reason: `production browser smoke surface: ${path}` };
+  }
   if (path.startsWith("tests/e2e/")) {
     return isE2ESpec(path)
       ? { capabilities: ["static", "system"], reason: `browser and Local Supabase E2E spec: ${path}`, e2eSpecs: [path] }
@@ -388,10 +420,11 @@ function classifyScriptPath(path) {
 
 function collectEvidence(path, classification, evidence) {
   const isCode = CODE_EXTENSIONS.test(path);
-  const isTest = path.startsWith("tests/");
+  const isTest = /\.(?:test|spec)\.[cm]?[jt]sx?$/.test(path);
+  const isTestSupport = path.startsWith("tests/");
   const isScript = path.startsWith("scripts/");
   evidence.typeApp ||= path.startsWith("src/");
-  evidence.typeTests ||= isTest;
+  evidence.typeTests ||= isTest || isTestSupport;
   evidence.typeScripts ||= isScript;
   evidence.architecture ||= path.startsWith("src/") || path.startsWith("scripts/architecture/");
   if (isCode || LINT_EXTENSIONS.test(path)) evidence.lintPaths.add(path);
@@ -402,13 +435,14 @@ function collectEvidence(path, classification, evidence) {
   if (classification.e2eSpecs) {
     for (const spec of classification.e2eSpecs) evidence.e2eSpecs.add(spec);
   }
-  if (path.startsWith("tests/e2e/")) evidence.unitExplicitTests.get("unit-domain-node").add(GLOBAL_CONTRACTS.e2e.path);
 
   const project = unitProjectFor(path);
   if (project && isTest) evidence.unitExplicitTests.get(project).add(path);
-  if (project && isCode && !isTest) evidence.unitRelatedSources.get(project).add(path);
+  if (isCode && !isTest) {
+    // Consumers can belong to any project, regardless of the source folder.
+    for (const sources of evidence.unitRelatedSources.values()) sources.add(path);
+  }
   if (path.startsWith("src/")) {
-    evidence.unitExplicitTests.get("unit-domain-node").add(GLOBAL_CONTRACTS.architecture.path);
     evidence.unitExplicitTests.get("unit-domain-node").add(GLOBAL_CONTRACTS.productLanguage.path);
   }
 
@@ -418,6 +452,7 @@ function collectEvidence(path, classification, evidence) {
 }
 
 function unitProjectFor(path) {
+  if (path.endsWith(".tsx")) return "unit-react-jsdom";
   if (
     path.startsWith("src/app/")
     || path.startsWith("src/actions/")

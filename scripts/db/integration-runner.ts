@@ -53,9 +53,11 @@ async function main(): Promise<void> {
     );
 
     const vitestStartedAt = Date.now();
+    const testArgs = normalizeArgs(process.argv.slice(2));
+    const hasConfig = testArgs.some((arg) => arg === "--config" || arg === "-c" || arg.startsWith("--config="));
     const result = spawnSync(
       vitestBin,
-      ["run", "--config=vitest.integration.config.ts", ...normalizeArgs(process.argv.slice(2))],
+      ["run", ...(hasConfig ? [] : ["--config=vitest.integration.config.ts"]), ...testArgs],
       {
         cwd: projectRoot,
         env: {
