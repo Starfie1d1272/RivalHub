@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Panel } from "@/components/rivalhub";
 import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
 import { TeamProfileLink } from "@/components/teams/TeamProfileLink";
+import { CancelCommentaryButton } from "./CancelCommentaryButton";
 import { ClaimMatchButton } from "./ClaimMatchButton";
 import type { AdminCommentaryMatch, AdminMatchCommentaryAssignment, AdminMatchCommentaryData } from "@/lib/admin/matches/commentary";
 import { formatCSTDateTime } from "@/lib/utils/date";
@@ -12,6 +13,8 @@ export function MatchCommentaryStatus({ matchId, assignment }: { matchId: string
   return <div className="flex flex-wrap items-center gap-2 text-sm">
     <span>{assignment.commentators.length === 0 ? "尚无解说" : <>解说：{assignment.commentators.map((person, index) => <React.Fragment key={person.userId}>{index > 0 ? "、" : null}{person.playerUserId ? <PlayerProfileLink userId={person.playerUserId}>{person.name}</PlayerProfileLink> : person.name}</React.Fragment>)}</>}</span>
     {assignment.isMine && <span className="text-[var(--color-accent)]">你已认领本场解说</span>}
+    {assignment.canCancel && <CancelCommentaryButton key={matchId} matchId={matchId} />}
+    {assignment.cancellationBlockedReason && <span className="text-[var(--color-fg-mid)]">{assignment.cancellationBlockedReason}</span>}
     {assignment.canClaim && <ClaimMatchButton matchId={matchId} />}
   </div>;
 }
@@ -37,7 +40,7 @@ export function MatchCommentaryQueue({ data, seasonSlug }: { data: AdminMatchCom
     </section>
     <section className="space-y-2 border-t border-[var(--color-border)] pt-3" aria-labelledby="my-next-commentary">
       <h2 id="my-next-commentary" className="font-semibold">我的下一场</h2>
-      {data.nextMatch ? <CommentaryMatchLink match={data.nextMatch} seasonSlug={seasonSlug} />
+      {data.nextMatch ? <><CommentaryMatchLink match={data.nextMatch} seasonSlug={seasonSlug} /><MatchCommentaryStatus matchId={data.nextMatch.id} assignment={data.byMatchId[data.nextMatch.id]!} /></>
         : <p className="text-sm text-[var(--color-fg-mid)]">当前没有已认领的下一场</p>}
     </section>
     <section className="space-y-2 border-t border-[var(--color-border)] pt-3" aria-labelledby="claimable-commentary">

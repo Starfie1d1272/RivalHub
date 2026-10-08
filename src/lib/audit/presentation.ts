@@ -450,6 +450,7 @@ export const AUDIT_ACTION_DEFINITIONS = {
   "postevent.honor.revoke": { label: "撤销赛事荣誉", category: "postevent" },
 
   "postmatch.commentator.add": { label: "登记比赛解说", category: "postmatch" },
+  "postmatch.commentator.cancel": { label: "取消解说认领", category: "postmatch" },
   "postmatch.commentator.remove": { label: "移除比赛解说", category: "postmatch" },
   "postmatch.video.update": { label: "更新比赛录像", category: "postmatch" },
   "postmatch.report.submit": { label: "提交赛后资料", category: "postmatch" },

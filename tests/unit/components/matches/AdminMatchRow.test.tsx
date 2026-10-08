@@ -36,7 +36,7 @@ describe("AdminMatchRow start gate presentation", () => {
         teamAName="Alpha"
         teamBName="Beta"
         seasonSlug="local-major"
-        commentary={{ commentators: [], isMine: false, canClaim: true }}
+        commentary={{ commentators: [], isMine: false, canCancel: false, cancellationBlockedReason: null, canClaim: true }}
       />,
     );
 

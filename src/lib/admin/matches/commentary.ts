@@ -1,19 +1,22 @@
 import "server-only";
 import { requireCompetitionFields } from "@/lib/matches/competition-context";
 
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db, type DB, type TxDb } from "@/db/client";
-import { competitionEntries, matchCommentators, matches, seasonAdminGrants, steamProfiles, users } from "@/db/schema";
+import { competitionEntries, matchCommentators, matchLiveSessions, matchVetoSessions, matches, seasonAdminGrants, steamProfiles, users } from "@/db/schema";
 import { requireSeasonAdmin } from "@/lib/auth/session";
 import { getDisplayName } from "@/lib/identity/display-name";
 import { getPublicPlayerIdentityIds } from "@/lib/players/public-identity";
+import { commentaryCancellationBlocker } from "@/lib/postmatch/commentary-policy";
 import { sortAdminMatches } from "./shared";
 
 export interface AdminMatchCommentaryAssignment {
   commentators: { userId: string; name: string; playerUserId: string | null }[];
   isMine: boolean;
   canClaim: boolean;
+  canCancel: boolean;
+  cancellationBlockedReason: string | null;
 }
 
 export interface AdminCommentaryMatch {
@@ -59,7 +62,11 @@ export async function readAdminMatchCommentary(
       status: matches.status,
       scheduledAt: matches.scheduledAt,
       completedAt: matches.completedAt,
+      vetoStartedAt: matchVetoSessions.startedAt,
+      activeSourceId: matchLiveSessions.id,
     }).from(matches)
+      .leftJoin(matchVetoSessions, eq(matchVetoSessions.matchId, matches.id))
+      .leftJoin(matchLiveSessions, and(eq(matchLiveSessions.matchId, matches.id), isNull(matchLiveSessions.closedAt)))
       .innerJoin(teamA, eq(teamA.id, matches.entryAId))
       .innerJoin(teamB, eq(teamB.id, matches.entryBId))
       .where(eq(matches.seasonId, seasonId))
@@ -95,7 +102,8 @@ export async function readAdminMatchCommentary(
     const commentators = commentatorsByMatch.get(match.id) ?? [];
     const isMine = commentators.some((person) => person.userId === currentUserId);
     const active = match.status === "scheduled" || match.status === "in_progress";
-    byMatchId[match.id] = { commentators, isMine, canClaim: isSeasonAdmin && active && !isMine && commentators.length < 2 };
+    const cancellationBlockedReason = isMine ? commentaryCancellationBlocker(match) : null;
+    byMatchId[match.id] = { commentators, isMine, canClaim: isSeasonAdmin && active && !isMine && commentators.length < 2, canCancel: isSeasonAdmin && isMine && cancellationBlockedReason === null, cancellationBlockedReason };
     if ((match.status === "scheduled" || match.status === "in_progress") && match.id !== excludeMatchId) {
       activeMatches.push({ id: match.id, isTest: Boolean(match.testConfig), entryAId: match.entryAId, entryBId: match.entryBId, teamAName: match.teamAName, teamBName: match.teamBName, status: match.status, scheduledAt: match.scheduledAt });
     }

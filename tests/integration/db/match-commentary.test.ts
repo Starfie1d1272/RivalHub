@@ -64,6 +64,10 @@ async function createFixture() {
         await client.query("SET LOCAL session_replication_role = replica");
         await client.query("DELETE FROM audit_logs WHERE season_id = ANY($1::uuid[])", [[seasonId, otherSeasonId]]);
         await client.query("DELETE FROM match_commentators WHERE match_id IN (SELECT id FROM matches WHERE season_id = ANY($1::uuid[]))", [[seasonId, otherSeasonId]]);
+        await client.query("DELETE FROM match_live_sessions WHERE match_id IN (SELECT id FROM matches WHERE season_id = ANY($1::uuid[]))", [[seasonId, otherSeasonId]]);
+        await client.query("DELETE FROM match_veto_sessions WHERE match_id IN (SELECT id FROM matches WHERE season_id = ANY($1::uuid[]))", [[seasonId, otherSeasonId]]);
+        await client.query("DELETE FROM mizar_installations WHERE competition_id = ANY($1::uuid[])", [[seasonId, otherSeasonId]]);
+        await client.query("DELETE FROM mizar_pairing_intents WHERE competition_id = ANY($1::uuid[])", [[seasonId, otherSeasonId]]);
         await client.query("DELETE FROM matches WHERE season_id = ANY($1::uuid[])", [[seasonId, otherSeasonId]]);
         await client.query("DELETE FROM competition_entry_roster_revisions WHERE entry_id = ANY($1::uuid[])", [entryIds]);
         await client.query("DELETE FROM competition_entry_representative_changes WHERE entry_id = ANY($1::uuid[])", [entryIds]);
@@ -84,6 +88,73 @@ async function createFixture() {
 }
 
 describe("match commentary PostgreSQL contract", () => {
+  // Persistence evidence: mocks cannot prove isolation, rollback, freed capacity or lock ordering.
+  it.each([null, "2026-10-09T12:00:00Z"])("releases only the caller's slot, once, and allows a replacement (schedule %s)", async (scheduledAt) => {
+    const f = await createFixture();
+    const { claimMatchCommentaryInTx: claim, cancelMatchCommentaryInTx: cancel } = await import("@/lib/postmatch/service");
+    const { readAdminMatchCommentary } = await import("@/lib/admin/matches/commentary");
+    try {
+      const matchId = await f.createMatch({ scheduledAt });
+      for (const userId of [f.adminA, f.adminB]) await f.database.transaction(tx => claim(tx, { matchId, userId }));
+      const view = await readAdminMatchCommentary(f.database, { seasonId: f.seasonId, currentUserId: f.adminA });
+      expect(view.byMatchId[matchId]?.canCancel).toBe(true);
+      for (const userId of [f.outsider, f.otherAdmin, f.superAdmin]) await expect(f.database.transaction(tx => cancel(tx, { matchId, userId }))).rejects.toMatchObject({ code: "FORBIDDEN" });
+      const results = await Promise.all([0, 1].map(() => f.database.transaction(tx => cancel(tx, { matchId, userId: f.adminA }))));
+      expect(results.map(r => r.removed).sort()).toEqual([false, true]);
+      expect((await f.pool.query("SELECT user_id FROM match_commentators WHERE match_id=$1", [matchId])).rows).toEqual([{ user_id: f.adminB }]);
+      expect((await f.pool.query("SELECT actor_id,meta->>'commentatorUserId' AS commentator FROM audit_logs WHERE target_id=$1 AND action='postmatch.commentator.cancel'", [matchId])).rows).toEqual([{ actor_id: f.adminA, commentator: f.adminA }]);
+      const released = await readAdminMatchCommentary(f.database, { seasonId: f.seasonId, currentUserId: f.adminC });
+      expect(released.byMatchId[matchId]?.canClaim).toBe(true);
+      await f.database.transaction(tx => claim(tx, { matchId, userId: f.adminC }));
+      expect((await f.pool.query("SELECT user_id FROM match_commentators WHERE match_id=$1 ORDER BY user_id", [matchId])).rows.map(r => r.user_id)).toEqual([f.adminB, f.adminC].sort());
+    } finally { await f.close(); }
+  });
+
+  it.each(["in_progress", "finished", "cancelled", "bp", "production"] as const)("retains assignments and audit when cancellation races with %s", async (boundary) => {
+    const f = await createFixture();
+    const { claimMatchCommentaryInTx: claim, cancelMatchCommentaryInTx: cancel } = await import("@/lib/postmatch/service");
+    const { readAdminMatchCommentary } = await import("@/lib/admin/matches/commentary");
+    const client = await f.pool.connect();
+    try {
+      const matchId = await f.createMatch();
+      for (const userId of [f.adminA, f.adminB]) await f.database.transaction(tx => claim(tx, { matchId, userId }));
+      await client.query("BEGIN");
+      await client.query("SELECT id FROM matches WHERE id=$1 FOR UPDATE", [matchId]);
+      if (boundary === "bp") {
+        await client.query("INSERT INTO match_veto_sessions(match_id,started_at) VALUES($1,now())", [matchId]);
+      } else if (boundary === "production") {
+        const pairing = randomUUID(), installation = randomUUID();
+        await client.query("INSERT INTO mizar_pairing_intents(id,poll_token_hash,status,competition_id,authorized_by_user_id,authorized_at,expires_at) VALUES($1,$1::text,'authorized',$2,$3,now(),now()+interval '1 hour')", [pairing, f.seasonId, f.adminA]);
+        await client.query("INSERT INTO mizar_installations(id,competition_id,pairing_intent_id,authorized_by_user_id,credential_hash) VALUES($1,$2,$3,$4,$1::text)", [installation, f.seasonId, pairing, f.adminA]);
+        await client.query("INSERT INTO match_live_sessions(match_id,installation_id,producer_instance_id,live_session_id,context_revision,authority_revision,program_source_generation,map_epoch) VALUES($1,$2,'producer','session','context',1,0,0)", [matchId, installation]);
+      } else {
+        await client.query("UPDATE matches SET status=$2,score_a=1,score_b=0,completed_at=CASE WHEN $2='finished' THEN now() ELSE NULL END WHERE id=$1", [matchId, boundary]);
+      }
+      const { rows: [{ pid }] } = await client.query<{ pid: number }>("SELECT pg_backend_pid() AS pid");
+      const cancellation = f.database.transaction(tx => cancel(tx, { matchId, userId: f.adminA }));
+      const rejected = expect(cancellation).rejects.toMatchObject({ code: "MATCH_INVALID_TRANSITION" });
+      await expect.poll(async () => {
+        const result = await f.pool.query("SELECT 1 FROM pg_stat_activity WHERE $1 = ANY(pg_blocking_pids(pid))", [pid]);
+        return result.rowCount;
+      }, { timeout: 2000, interval: 10 }).toBe(1);
+      await client.query("COMMIT");
+      await rejected;
+      expect((await f.pool.query("SELECT user_id FROM match_commentators WHERE match_id=$1", [matchId])).rows).toHaveLength(2);
+      expect((await f.pool.query("SELECT id FROM audit_logs WHERE target_id=$1 AND action='postmatch.commentator.cancel'", [matchId])).rows).toHaveLength(0);
+      const view = await readAdminMatchCommentary(f.database, { seasonId: f.seasonId, currentUserId: f.adminA });
+      expect(view.byMatchId[matchId]?.canCancel).toBe(false);
+      expect(view.byMatchId[matchId]?.cancellationBlockedReason).toBeTruthy();
+      if (boundary === "production") {
+        await f.pool.query("UPDATE match_live_sessions SET closed_at=now(),close_reason='released' WHERE match_id=$1", [matchId]);
+        await expect(f.database.transaction(tx => cancel(tx, { matchId, userId: f.adminA }))).resolves.toMatchObject({ removed: true });
+      }
+    } finally {
+      await client.query("ROLLBACK");
+      client.release();
+      await f.close();
+    }
+  });
+
   it("requires the actual claimant's grant for the match season and rejects terminal matches", async () => {
     const fixture = await createFixture();
     const { claimMatchCommentaryInTx, addMatchCommentatorInTx } = await import("@/lib/postmatch/service");
@@ -183,8 +254,8 @@ describe("match commentary PostgreSQL contract", () => {
       expect(data.claimableCount).toBe(7);
       expect(data.byMatchId[full]?.canClaim).toBe(false);
       expect(data.byMatchId[foreign]).toBeUndefined();
-      expect(data.byMatchId[current]).toEqual({ commentators: [{ userId: fixture.adminA, name: "解说1", playerUserId: null }], isMine: true, canClaim: false });
-      expect(data.byMatchId[others]).toEqual({ commentators: [{ userId: fixture.adminB, name: "解说2", playerUserId: null }], isMine: false, canClaim: true });
+      expect(data.byMatchId[current]).toEqual({ commentators: [{ userId: fixture.adminA, name: "解说1", playerUserId: null }], isMine: true, canClaim: false, canCancel: false, cancellationBlockedReason: "BP 或比赛已开始，请联系管理员调整解说安排。" });
+      expect(data.byMatchId[others]).toEqual({ commentators: [{ userId: fixture.adminB, name: "解说2", playerUserId: null }], isMine: false, canClaim: true, canCancel: false, cancellationBlockedReason: null });
       expect(data.byMatchId[finished]?.canClaim).toBe(false);
       expect(data.byMatchId[cancelled]?.canClaim).toBe(false);
       expect(JSON.stringify(data)).not.toContain("@local.test");

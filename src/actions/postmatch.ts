@@ -5,7 +5,7 @@ import { db } from "@/db/client";
 import { matches, seasons } from "@/db/schema";
 import { actionError, failValidation } from "@/lib/action-utils";
 import { auditActorId, requireSeasonAdmin } from "@/lib/auth/session";
-import { addMatchCommentatorInTx, claimMatchCommentaryInTx, removeMatchCommentatorInTx, revokePostMatchSubmissionInTx, setMatchVideoUrlInTx, submitPostMatchReportInTx } from "@/lib/postmatch/service";
+import { addMatchCommentatorInTx, cancelMatchCommentaryInTx, claimMatchCommentaryInTx, removeMatchCommentatorInTx, revokePostMatchSubmissionInTx, setMatchVideoUrlInTx, submitPostMatchReportInTx } from "@/lib/postmatch/service";
 import { ok, type ActionResult } from "@/types/action";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { isHttpUrl } from "@/lib/external-url";
@@ -21,6 +21,18 @@ export async function claimMatchCommentary(input: unknown): Promise<ActionResult
   try {
     const { match, season, admin } = await matchAndAdminOrThrow(parsed.data.matchId);
     await db.transaction((tx) => claimMatchCommentaryInTx(tx, { matchId: match.id, userId: admin.userId }));
+    revalidateMatchPaths(season.slug, match.id);
+    return ok(undefined);
+  } catch (error) {
+    return actionError("postmatch", error);
+  }
+}
+export async function cancelMatchCommentary(input: unknown): Promise<ActionResult<void>> {
+  const parsed = z.object({ matchId: uuid }).strict().safeParse(input);
+  if (!parsed.success) return failValidation("取消认领参数无效。");
+  try {
+    const { match, season, admin } = await matchAndAdminOrThrow(parsed.data.matchId);
+    await db.transaction((tx) => cancelMatchCommentaryInTx(tx, { matchId: match.id, userId: admin.userId }));
     revalidateMatchPaths(season.slug, match.id);
     return ok(undefined);
   } catch (error) {
