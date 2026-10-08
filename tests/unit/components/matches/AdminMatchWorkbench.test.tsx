@@ -117,7 +117,9 @@ describe("AdminMatchWorkbench", () => {
   it("keeps finished roster visibility, post-match/OCR and recovery actions together", () => {
     render(<AdminMatchWorkbench {...data("finished")} />);
 
-    expect(screen.getByRole("link", { name: "a1" }).closest("p")).toHaveTextContent("首发：a1、a2、a3、a4、a5");
+    for (const name of ["a1", "a2", "a3", "a4", "a5"]) {
+      expect(screen.getByRole("link", { name })).toHaveAttribute("href", `/players/user-${name}`);
+    }
     expect(screen.getByRole("heading", { name: "赛后资料" })).toBeInTheDocument();
     expect(screen.getByTestId("ocr-panel")).toBeInTheDocument();
     expect(screen.getByTestId("result-correction")).toBeInTheDocument();

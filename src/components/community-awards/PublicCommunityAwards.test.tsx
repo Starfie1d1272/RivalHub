@@ -3,7 +3,6 @@ import React from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-vi.mock("./CommunityAwardsBoard", () => ({ CommunityAwardsBoard: () => <div data-testid="legacy-board" /> }));
 vi.mock("./CommunityAwardSubmissionForm", () => ({ CommunityAwardSubmissionForm: () => <div data-testid="submission-form" /> }));
 vi.mock("./CommunityAwardEvidenceForm", () => ({ CommunityAwardEvidenceForm: () => <div data-testid="evidence-form" /> }));
 
@@ -28,12 +27,11 @@ const award = {
 };
 
 describe("PublicCommunityAwards", () => {
-  it("uses focused public forms in dialogs instead of nesting the legacy board", () => {
+  it("opens award submission and candidate evidence in separate dialogs", () => {
     render(<PublicCommunityAwards seasonId="season-1" awards={[award]} currentUserId="user-1" candidates={[]} matches={[]} />);
 
     fireEvent.click(screen.getByRole("button", { name: "提出社区奖" }));
     expect(screen.getByTestId("submission-form")).toBeInTheDocument();
-    expect(screen.queryByTestId("legacy-board")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Close" }));
     fireEvent.click(screen.getByRole("button", { name: "提交候选证据" }));

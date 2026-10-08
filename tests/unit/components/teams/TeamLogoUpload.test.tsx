@@ -3,6 +3,7 @@
  */
 import React from "react";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { TeamLogoUpload } from "@/components/teams/TeamLogoUpload";
 
@@ -55,11 +56,10 @@ describe("TeamLogoUpload", () => {
       expect(uploadTeamLogoMock).toHaveBeenCalledWith("team-1", expect.any(FormData));
       expect(onUploaded).toHaveBeenCalledWith("https://storage.test/teams/team-1/logo.png");
       expect(screen.getByRole("img", { name: "队伍图标：Rival Team" })).toHaveAttribute("src", "https://storage.test/teams/team-1/logo.png");
-      expect(screen.getByRole("img", { name: "队伍图标：Rival Team" })).toHaveAttribute("data-unoptimized", "true");
     });
   });
 
-  it("opens the file picker from the editable logo control", () => {
+  it("opens the file picker through keyboard activation of the editable logo control", async () => {
     render(
       <TeamLogoUpload
         teamId="team-1"
@@ -72,26 +72,11 @@ describe("TeamLogoUpload", () => {
     const input = document.querySelector<HTMLInputElement>('input[type="file"]');
     const click = vi.fn();
     Object.defineProperty(input, "click", { configurable: true, value: click });
-    fireEvent.click(screen.getByRole("button", { name: "更换队伍图标" }));
+    const control = screen.getByRole("button", { name: "更换队伍图标" });
+    control.focus();
+    await userEvent.setup().keyboard("{Enter}");
 
     expect(click).toHaveBeenCalledOnce();
   });
 
-  it("uses a focusable button for keyboard-accessible logo editing", () => {
-    render(
-      <TeamLogoUpload
-        teamId="team-1"
-        currentLogoUrl={null}
-        teamName="Rival Team"
-        canEdit
-      />,
-    );
-
-    const control = screen.getByRole("button", { name: "更换队伍图标" });
-    expect(control.tagName).toBe("BUTTON");
-    expect(control).toHaveAttribute("type", "button");
-    control.focus();
-    expect(control).toHaveFocus();
-
-  });
 });

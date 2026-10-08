@@ -10,6 +10,7 @@ import { redactText } from "../../src/lib/observability/redact";
 import { createPerfectWorldRankOrder } from "../../src/lib/config/perfect-world";
 import { teamNameSchema } from "../../src/lib/config/team-config";
 import { assertDeclaredDatabaseTarget, assertLocalDatabaseUrl, assertLocalHttpUrl } from "./local-environment";
+import { testSteam64 } from "../../tests/integration/db/harness/database";
 import {
   deleteCompetitivePlatformCatalog,
   seedCompetitivePlatformCatalog,
@@ -355,7 +356,7 @@ async function insertFixture(client: PoolClient, scenario: ScenarioDefinition, a
         [account.userId, authIds.get(account.email), account.email, "Browser admin"],
       );
     } else {
-      const steam64 = ready ? `7656119800000${String(index + 1).padStart(4, "0")}` : null;
+      const steam64 = ready ? testSteam64(account.userId) : null;
       await client.query(
         `INSERT INTO users (id, auth_id, email, email_verified_at, display_name, perfect_name, steam64, qq)
          VALUES ($1, $2, $3, now(), $4, $5, $6, $7)`,
@@ -476,7 +477,7 @@ function qualificationCandidateUsers(scenario: ScenarioDefinition): Array<{ key:
 
 async function insertQualificationCandidateUsers(client: PoolClient, scenario: ScenarioDefinition): Promise<void> {
   const rows = qualificationCandidateUsers(scenario).map((candidate, index) => {
-    const steam64 = `765611980${String(index + 1).padStart(8, "0")}`;
+    const steam64 = testSteam64(candidate.userId);
     return [candidate.userId, candidate.email, `Player${index + 1}`, `Player${index + 1}`, steam64, `743${String(index + 1).padStart(7, "0")}`];
   });
   const { sql: valuesSql, values } = parameterizedValues(rows, ["uuid", "text", "text", "text", "text", "text"]);

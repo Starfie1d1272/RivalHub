@@ -21,17 +21,15 @@ describe("TeamLogo", () => {
   });
 
   it("uses a stable initial fallback when the logo is missing", () => {
-    const { container } = render(<TeamLogo logoUrl={null} teamName="Rival Team" />);
+    render(<TeamLogo logoUrl={null} teamName="Rival Team" />);
 
     expect(screen.getByRole("img", { name: "队伍图标：Rival Team" })).toHaveTextContent("R");
-    expect(container.querySelector("img")).toBeNull();
   });
 
   it("replaces a failed remote image with the same stable fallback", () => {
-    const { container } = render(<TeamLogo logoUrl="https://storage.test/team.png" teamName="Rival Team" />);
+    render(<TeamLogo logoUrl="https://storage.test/team.png" teamName="Rival Team" />);
     fireEvent.error(screen.getByRole("img", { name: "队伍图标：Rival Team" }));
 
     expect(screen.getByRole("img", { name: "队伍图标：Rival Team" })).toHaveTextContent("R");
-    expect(container.querySelector("img")).toBeNull();
   });
 });

@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import { TeamDraftGrid } from "./TeamDraftGrid";
 
 describe("TeamDraftGrid", () => {
-  it("renders shared avatars for captains and drafted members", () => {
+  it("links captains and drafted members to their player profiles", () => {
     render(
       <TeamDraftGrid
         currentEntryId="entry-1"
@@ -21,11 +21,9 @@ describe("TeamDraftGrid", () => {
       />,
     );
 
-    expect(screen.getAllByRole("img", { name: "Captain" })).toHaveLength(2);
-    expect(screen.getAllByRole("img", { name: "Neo" })).toHaveLength(2);
     for (const name of ["Captain", "Neo"]) {
-      for (const avatar of screen.getAllByRole("img", { name })) {
-        expect(avatar.closest("a")).toHaveAttribute("href", name === "Captain" ? "/players/captain-user" : "/players/member-user");
+      for (const link of screen.getAllByRole("link", { name })) {
+        expect(link).toHaveAttribute("href", name === "Captain" ? "/players/captain-user" : "/players/member-user");
       }
     }
   });

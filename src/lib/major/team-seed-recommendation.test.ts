@@ -224,7 +224,7 @@ describe("seed recommendation snapshot contract", () => {
     });
   });
 
-  it("remains ready and idempotent after a PostgreSQL jsonb key-order round trip", () => {
+  it("remains ready and idempotent when object keys are reordered", () => {
     const frozenTeams = [{
       identity: {
         entrantId: "entrant-1",

@@ -258,4 +258,7 @@ async function main() {
     process.exitCode = 1;
   }
 }
-void main();
+// All verification and fixture cleanup is awaited by main. Supabase's transport
+// leaves idle disconnect/HTTP timers behind even after removeAllChannels(); a
+// completed one-shot CLI must not keep the CI runner alive for their lifetime.
+void main().then(() => process.exit(process.exitCode ?? 0));

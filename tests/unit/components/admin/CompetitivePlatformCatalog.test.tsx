@@ -32,7 +32,8 @@ describe("CompetitivePlatformCatalog", () => {
     vi.clearAllMocks();
   });
 
-  it("shows the official Rating, chronology roles and low-to-high rank controls", async () => {
+  it("confirms the selected current season while keeping official Rating immutable", async () => {
+    vi.mocked(setCurrentCompetitivePlatformSeason).mockResolvedValue({ success: true, data: undefined });
     const user = userEvent.setup();
     render(<CompetitivePlatformCatalog platforms={[{
       key: "perfect_world", displayName: "完美世界竞技平台", ratingLabel: "Rating Pro",
@@ -53,6 +54,9 @@ describe("CompetitivePlatformCatalog", () => {
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     expect(screen.getByText("切换当前赛季")).toBeInTheDocument();
     expect(screen.getByText(/平台官方竞技评分：Rating Pro（由产品定义，不可在后台修改）/)).toBeInTheDocument();
+    expect(setCurrentCompetitivePlatformSeason).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "确认切换" }));
+    await waitFor(() => expect(setCurrentCompetitivePlatformSeason).toHaveBeenCalledWith({ id: "s23" }));
   });
 
   it("routes built-in catalog mutations through the shared actions without exposing platform creation", async () => {
@@ -88,22 +92,6 @@ describe("CompetitivePlatformCatalog", () => {
     expect(deleteCompetitivePlatformRank).toHaveBeenCalledWith({ id: "rank-c" });
   });
 
-  it("opens a compact season dialog with the name as the primary input and a generated key preview", async () => {
-    const user = userEvent.setup();
-    render(<CompetitivePlatformCatalog platforms={[{
-      key: "perfect_world", displayName: "完美世界竞技平台", ratingLabel: "Rating Pro",
-      ranks: [], seasons: [],
-    }]} />);
-    await user.click(screen.getByRole("button", { name: "+ 新增赛季" }));
-    expect(screen.getByRole("dialog")).toBeInTheDocument();
-    expect(screen.getByLabelText("赛季名称")).toBeInTheDocument();
-    expect(screen.queryByLabelText("稳定标识（创建后不可修改）")).not.toBeInTheDocument();
-
-    await user.type(screen.getByLabelText("赛季名称"), "2025 S4");
-    expect(screen.getByText("2025-s4")).toBeInTheDocument();
-    expect(screen.getByText("稳定标识：2025-s4")).toBeInTheDocument();
-  });
-
   it("allows an advanced stable-key override without letting later name changes overwrite it", async () => {
     const user = userEvent.setup();
     render(<CompetitivePlatformCatalog platforms={[{
@@ -114,6 +102,7 @@ describe("CompetitivePlatformCatalog", () => {
     await user.type(screen.getByLabelText("赛季名称"), "2025 S4");
     await user.click(screen.getByRole("button", { name: "高级设置" }));
 
+    expect(screen.getByText("稳定标识：2025-s4")).toBeInTheDocument();
     const stableKeyInput = screen.getByLabelText("稳定标识（创建后不可修改）");
     expect(stableKeyInput).toHaveValue("2025-s4");
     await user.clear(stableKeyInput);

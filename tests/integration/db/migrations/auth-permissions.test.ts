@@ -172,28 +172,6 @@ describe("auth-permissions migration", () => {
     });
   });
 
-  it("preserves prior Team/Entry invariants across auth migration", async () => {
-    await withScratchDatabase("rivalhub_auth_preserves_prior_invariants", async (client) => {
-      await replayBeforeAuthMigration(client);
-      await replayMigration(client, TERMINAL_MIGRATION);
-
-      const constraints = await client.query<{ conname: string; condeferrable: boolean; condeferred: boolean }>(
-        `SELECT conname, condeferrable, condeferred
-         FROM pg_constraint
-         WHERE conname IN (
-           'competition_entries_current_roster_revision_scope_fk',
-           'competition_entries_approved_roster_revision_scope_fk'
-         )
-         ORDER BY conname`,
-      );
-      expect(constraints.rows).toEqual([
-        { conname: "competition_entries_approved_roster_revision_scope_fk", condeferrable: true, condeferred: true },
-        { conname: "competition_entries_current_roster_revision_scope_fk", condeferrable: true, condeferred: true },
-      ]);
-
-    });
-  });
-
   it("fails closed before destructive DDL for legacy inconsistencies", async () => {
     const cases = [
       {

@@ -55,10 +55,9 @@ describe("MyReadinessDashboard", () => {
     expect(screen.getByRole("link", { name: "处理确认参赛" })).toHaveAttribute("href", "/settings/确认参赛");
   });
 
-  it("does not show an admin-only waiting item as a user task", () => {
+  it("shows an empty task state when the read model has no tasks", () => {
     render(<MyReadinessDashboard model={{ ...model, tasks: [] }} />);
     expect(screen.getByText("当前没有待处理事项")).toBeInTheDocument();
-    expect(screen.queryByText(/等待赛事管理员处理/)).not.toBeInTheDocument();
   });
 
   it("renders shared responsibility without duplicating the owner phrase", () => {

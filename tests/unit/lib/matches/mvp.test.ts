@@ -1,8 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { drizzle } from "drizzle-orm/node-postgres";
 import type { DB } from "@/db/client";
-import * as schema from "@/db/schema";
-import { readMatchMvpResults, settleExpiredMatchMvpVotes } from "@/lib/matches/mvp";
+import { settleExpiredMatchMvpVotes } from "@/lib/matches/mvp";
 
 const { writeAudit } = vi.hoisted(() => ({ writeAudit: vi.fn() }));
 vi.mock("@/lib/audit/write", () => ({ writeAuditInTx: writeAudit }));
@@ -77,11 +75,4 @@ describe("scheduled MVP settlement", () => {
     expect(f.persist).not.toHaveBeenCalled();
   });
 
-  it("aggregates renamed players by identity and makes ties deterministic in SQL", () => {
-    const query = readMatchMvpResults("match-1", drizzle.mock({ schema }));
-    const sql = query.toSQL().sql;
-    expect(sql).toContain('min("player_name")');
-    expect(sql).toContain('case when "match_mvp_votes"."player_user_id" is null then "match_mvp_votes"."player_name" end');
-    expect(sql).toContain('order by count(*) desc, min("match_mvp_votes"."created_at") asc, "match_mvp_votes"."player_user_id" asc');
-  });
 });

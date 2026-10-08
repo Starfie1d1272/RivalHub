@@ -1,11 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { mockCreateStageBracket, mockEnsureResolvedBracketMatch, mockSaveStageBracketState, mockInsert, mockInsertValues, mockMatchFindMany } = vi.hoisted(() => ({
+const { mockCreateStageBracket, mockEnsureResolvedBracketMatch, mockSaveStageBracketState, mockMatchFindMany } = vi.hoisted(() => ({
   mockCreateStageBracket: vi.fn(),
   mockEnsureResolvedBracketMatch: vi.fn(),
   mockSaveStageBracketState: vi.fn(),
-  mockInsert: vi.fn(),
-  mockInsertValues: vi.fn(),
   mockMatchFindMany: vi.fn(),
 }));
 
@@ -17,13 +15,10 @@ vi.mock("@/lib/bracket", () => ({
 
 vi.mock("@/db/client", () => ({
   db: {
-    insert: mockInsert,
     query: { matches: { findMany: mockMatchFindMany } },
   },
 }));
 
-vi.mock("@/db/schema", () => ({ matches: {} }));
-vi.mock("drizzle-orm", () => ({ and: vi.fn(), eq: vi.fn() }));
 
 import { singleElimExecutor } from "@/lib/formats/single-elim";
 import type { CompetitionEntry } from "@/db/schema/competition-entries";
@@ -47,8 +42,6 @@ const config = {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mockInsertValues.mockResolvedValue(undefined);
-  mockInsert.mockReturnValue({ values: mockInsertValues });
   mockSaveStageBracketState.mockResolvedValue(undefined);
   mockMatchFindMany.mockResolvedValue([]);
 });

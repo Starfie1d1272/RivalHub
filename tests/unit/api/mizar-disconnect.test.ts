@@ -25,7 +25,6 @@ import {
   authenticateMizar,
   deriveMizarCredentialForTest,
   hashCredential,
-  revokeMizarInstallation,
 } from "@/lib/mizar/installation";
 import { GET, POST } from "@/app/api/mizar/[operation]/route";
 
@@ -110,86 +109,6 @@ describe("Mizar self-revoke / disconnect endpoint and lifecycle", () => {
       });
 
       await expect(authenticateMizar(`Bearer ${credential}`, { allowRevoked: true })).rejects.toThrow("制播设备凭据无效。");
-    });
-  });
-
-  describe("revokeMizarInstallation idempotency and audit", () => {
-    it("revokes active installation, closes active live sessions, and writes audit fact", async () => {
-      const row = {
-        id: installationId,
-        competitionId,
-        authorizedByUserId,
-        revokedAt: null as Date | null,
-      };
-
-      const txSelectMock = vi.fn().mockReturnValue({
-        from: () => ({
-          where: () => ({
-            for: async () => [row],
-          }),
-        }),
-      });
-      const txUpdateMock = vi.fn().mockReturnValue({
-        set: (values: Record<string, unknown>) => ({
-          where: async () => {
-            Object.assign(row, values);
-            return [];
-          },
-        }),
-      });
-
-      transactionMock.mockImplementation(async (callback: (tx: unknown) => Promise<unknown>) => {
-        return await callback({
-          select: txSelectMock,
-          update: txUpdateMock,
-        });
-      });
-
-      const outcome = await revokeMizarInstallation(installationId, competitionId, authorizedByUserId);
-      expect(outcome).toEqual({ revoked: true, alreadyRevoked: false });
-      expect(row.revokedAt).toBeInstanceOf(Date);
-      expect(txUpdateMock).toHaveBeenCalledTimes(2); // mizarInstallations + matchLiveSessions
-      expect(writeAuditInTxMock).toHaveBeenCalledWith(
-        expect.anything(),
-        expect.objectContaining({
-          action: "mizar.installation.revoke",
-          actorId: authorizedByUserId,
-          targetId: installationId,
-          seasonId: competitionId,
-        }),
-      );
-    });
-
-    it("is strictly idempotent when installation is already revoked", async () => {
-      const past = new Date("2026-09-01T00:00:00Z");
-      const row = {
-        id: installationId,
-        competitionId,
-        authorizedByUserId,
-        revokedAt: past,
-      };
-
-      const txSelectMock = vi.fn().mockReturnValue({
-        from: () => ({
-          where: () => ({
-            for: async () => [row],
-          }),
-        }),
-      });
-      const txUpdateMock = vi.fn();
-
-      transactionMock.mockImplementation(async (callback: (tx: unknown) => Promise<unknown>) => {
-        return await callback({
-          select: txSelectMock,
-          update: txUpdateMock,
-        });
-      });
-
-      const outcome = await revokeMizarInstallation(installationId, competitionId, authorizedByUserId);
-      expect(outcome).toEqual({ revoked: true, alreadyRevoked: true });
-      expect(row.revokedAt).toBe(past); // unchanged
-      expect(txUpdateMock).not.toHaveBeenCalled();
-      expect(writeAuditInTxMock).not.toHaveBeenCalled();
     });
   });
 

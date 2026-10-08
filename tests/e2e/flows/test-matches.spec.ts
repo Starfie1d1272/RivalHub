@@ -3,9 +3,8 @@ import { assertLocalDatabaseUrl } from "../../../scripts/db/local-environment";
 import { expect, test, signInProgrammatically } from "../fixtures";
 
 test.use({ scenarioProfile: "stats" });
-test("管理员创建测试赛，匿名链接可看且不出现在正式赛程", async ({ page, browser, scenario }, testInfo) => {
+test("管理员创建测试赛，匿名链接可看且不出现在正式赛程", async ({ page, browser, scenario }) => {
   test.setTimeout(60000);
-  test.skip(testInfo.project.name !== "chromium", "单一场景内检查桌面和手机宽度。");
   const pool = new Pool({ connectionString: assertLocalDatabaseUrl(process.env.RIVALHUB_LOCAL_DATABASE_URL, "test matches browser"), ssl: false });
   const anonymous = await browser.newContext();
   try {
@@ -39,9 +38,8 @@ test("管理员创建测试赛，匿名链接可看且不出现在正式赛程",
 // jsdom cannot prove layout clipping, wheel/touch scrolling or Radix's modal scroll lock.
 test.describe("长选队列表", () => {
   test.use({ scenarioProfile: "major-qualification", hasTouch: true });
-  test("桌面滚轮和手机触摸可滚动选队，选择及取消后恢复页面操作", async ({ page, scenario }, testInfo) => {
+  test("桌面滚轮和手机触摸可滚动选队，选择及取消后恢复页面操作", async ({ page, scenario }) => {
     test.setTimeout(60000);
-    test.skip(testInfo.project.name !== "chromium", "同一场景验证桌面和触摸输入。");
     await signInProgrammatically(page, scenario.accounts.find(a => a.key === "admin")!, scenario, `/admin/${scenario.slug}/test-matches`);
     for (const size of [{ width: 1280, height: 720 }, { width: 390, height: 844 }]) {
       await page.setViewportSize(size);

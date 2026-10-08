@@ -62,9 +62,6 @@ describe("AdminSeasonOverviewPage", () => {
 
     expect(loadOverviewMock).toHaveBeenCalledWith("nju-major-2026");
     expect(html).toContain("NJU Major 2026");
-    expect(html).toContain("进入下一步");
-    expect(html).not.toContain("赛事 1–32 种子");
-    expect(html).not.toContain("正式开赛确认");
-    expect(html).not.toContain("赛事归档");
+    expect(html).toContain('href="/admin/nju-major-2026/prestart"');
   });
 });

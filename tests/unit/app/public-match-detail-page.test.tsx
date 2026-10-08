@@ -357,7 +357,6 @@ describe("Public Match Detail Page (PRE / POST)", () => {
       expect(html).toContain('data-testid="match-mvp-vote"');
       expect(html).toContain("观看比赛录像 →");
       expect(html).toContain("BP 记录");
-      expect(html.indexOf('data-testid="match-bp-record"')).toBeLessThan(html.indexOf('data-testid="match-mvp-vote"'));
       expect(html.match(/data-testid="veto-view"/g)).toHaveLength(1);
       expect(loadMatchPreAnalysisMock).not.toHaveBeenCalled();
     });

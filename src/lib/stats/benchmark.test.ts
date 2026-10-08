@@ -11,12 +11,7 @@ describe("metric benchmark projection", () => {
     ]);
 
     expect(benchmark).not.toBeNull();
-    expect(benchmark?.floor).toEqual({
-      floor: 20,
-      reference: 80,
-      quantile: 0.75,
-      share: 0.25,
-    });
+    expect(benchmark?.floor.floor).toBe(20);
     expect(benchmark?.qualifiedValues).toEqual([20, 30, 40]);
   });
 

@@ -36,24 +36,6 @@ describe("stage-scoped bracket adapter", () => {
     }));
   });
 
-  it("projects provider state for the viewer without changing its stage identity", async () => {
-    const { data } = await createStageBracket(
-      { key: "playoff", name: "Playoff", type: "single_elim" },
-      makeTeams(4),
-    );
-    const serialized = serializeStageBracket(data);
-    expect(serialized.stage).toHaveLength(1);
-    expect(serialized.match.length).toBeGreaterThan(0);
-    expect(serialized.match[0]).toEqual(expect.objectContaining({
-      id: expect.any(Number),
-      stage_id: serialized.stage[0]!.id,
-      round_id: expect.any(Number),
-      group_id: expect.any(Number),
-      number: expect.any(Number),
-      status: expect.any(Number),
-    }));
-  });
-
   it("projects single-elimination edges from provider topology", async () => {
     const { data } = await createStageBracket(
       { key: "playoff", name: "Playoff", type: "single_elim" },

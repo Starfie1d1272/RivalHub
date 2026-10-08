@@ -170,7 +170,9 @@ it("holds authority fencing through send while revoke, handover and manual resul
     for (const change of ["revoke", "handover", "manual"] as const) {
       const f = await prepared();
       if (change === "manual") await db.update(schema.matchLiveSessions).set({ continuityHealth: "stale", autoCanonicalizationArmed: false }).where(eq(schema.matchLiveSessions.id, f.sessionId));
-      state.mode = "slow";
+      state.mode = "fast";
+      let releaseSend!: () => void;
+      state.sendBarrier = new Promise<void>((resolve) => { releaseSend = resolve; });
       const before = publications.length;
       const live = ingestMizarLive(
         f.installationId,
@@ -222,18 +224,29 @@ it("holds authority fencing through send while revoke, handover and manual resul
         }
         committed = true;
       })();
-      await delay(80);
-      expect(committed).toBe(false);
-      const waits = await monitor.query(
-        "SELECT count(*)::int n FROM pg_stat_activity WHERE datname=current_database() AND wait_event_type='Lock'",
-      );
-      expect(waits.rows[0].n).toBeGreaterThan(0);
+      let lockWaiters = 0;
+      try {
+        // Hold the real HTTP response until PostgreSQL observes the contender.
+        // A fixed sleep can sample before it acquires a connection under load.
+        await expect.poll(async () => {
+          const waits = await monitor.query(
+            "SELECT count(*)::int n FROM pg_stat_activity WHERE datname=current_database() AND wait_event_type='Lock'",
+          );
+          lockWaiters = waits.rows[0].n;
+          return lockWaiters;
+        }, { timeout: 1000, interval: 5 }).toBeGreaterThan(0);
+        expect(committed).toBe(false);
+      } finally {
+        releaseSend();
+        delete state.sendBarrier;
+        await Promise.allSettled([live, mutate]);
+      }
       await live;
       await mutate;
       reports.push({
         change,
         mutationMs: performance.now() - start,
-        observedLockWaiters: waits.rows[0].n,
+        observedLockWaiters: lockWaiters,
       });
       if (change !== "manual")
         await expect(

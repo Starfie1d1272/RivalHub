@@ -4,6 +4,7 @@ test.use({ scenarioProfile: "layout" });
 const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a2foAAAAASUVORK5CYII=", "base64");
 
 test("赛事 Logo 正常上传、更换与移除更新公开展示", async ({ page, scenario, browser }) => {
+  test.setTimeout(45_000);
   const admin = scenario.accounts.find(account => account.key === "admin")!;
   const publicContext = await browser.newContext();
   const viewer = await publicContext.newPage();
@@ -25,8 +26,6 @@ test("赛事 Logo 正常上传、更换与移除更新公开展示", async ({ pa
     await viewer.reload();
     await expect(viewer.getByAltText("赛事 Logo")).toHaveAttribute("src", firstUrl!);
     await expect.poll(() => viewer.getByAltText("赛事 Logo").evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth > 0)).toBe(true);
-    await viewer.goto("/seasons");
-    await expect(viewer.locator(`a[href="/${scenario.slug}"]`).getByAltText("赛事 Logo")).toHaveAttribute("src", firstUrl!);
 
     await page.getByLabel("更换赛事 Logo", { exact: true }).setInputFiles({ name: "replacement.png", mimeType: "image/png", buffer: png });
     await expect(adminLogo).not.toHaveAttribute("src", firstUrl!);

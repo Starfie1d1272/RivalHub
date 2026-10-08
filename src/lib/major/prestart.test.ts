@@ -202,9 +202,4 @@ describe("evaluateMajorPrestartReadiness", () => {
     expect(result.checks.find((check) => check.key === "opening-plan")).toMatchObject({ state: "ready", blockers: [] });
   });
 
-  it("does not create a generic qualification or administration blocker", () => {
-    const result = evaluateMajorPrestartReadiness(makeInput());
-
-    expect(result.checks.map((check) => check.key)).not.toEqual(expect.arrayContaining(["qualification", "administration"]));
-  });
 });

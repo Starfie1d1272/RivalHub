@@ -47,7 +47,6 @@ describe("bounded LIVE admission metadata", () => {
       releases.forEach(release => release?.());
     }
     const perSource = sources.map((source, i) => ({ source, accepted: counts[i], maxStarvationMs: Math.max(gaps[i], 10000 - last[i]) }));
-    console.info(JSON.stringify({ synchronousAdmission: perSource }));
     expect(counts).toEqual([10, 10, 10, 10]);
     expect(perSource.every(row => row.maxStarvationMs <= 1000)).toBe(true);
   });
@@ -69,7 +68,6 @@ describe("bounded LIVE admission metadata", () => {
       expect(running.length).toBeLessThanOrEqual(2);
     }
     running.forEach(row => row.release());
-    console.info(JSON.stringify({ duration, counts, gaps }));
     expect(counts.every(count => count >= 7)).toBe(true);
     expect(gaps.every(gap => gap <= 2 * Math.ceil(duration / 500) * 500)).toBe(true);
   });

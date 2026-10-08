@@ -33,6 +33,5 @@ describe("TeamProfileSection", () => {
     expect(screen.getByRole("button", { name: "保存资料" })).toBeInTheDocument();
     expect(screen.getByLabelText("队伍名称")).not.toBeDisabled();
     expect(screen.getByLabelText("简介")).not.toBeDisabled();
-    expect(screen.queryByRole("switch")).not.toBeInTheDocument();
   });
 });

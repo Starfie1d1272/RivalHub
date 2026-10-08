@@ -9,16 +9,6 @@ const { selectMock, insertMock, executeMock, lookupMock, revalidateMock } = vi.h
 }));
 
 vi.mock("@/db/client", () => ({ db: { select: selectMock, insert: insertMock, execute: executeMock } }));
-vi.mock("@/db/schema", () => ({
-  users: { id: "users.id", steam64: "users.steam64", status: "users.status" },
-  steamProfiles: {
-    steam64: "steam_profiles.steam64",
-    personaName: "steam_profiles.persona_name",
-    profileUrl: "steam_profiles.profile_url",
-    avatarUrl: "steam_profiles.avatar_url",
-  },
-}));
-vi.mock("drizzle-orm", () => ({ and: vi.fn(), eq: vi.fn(), inArray: vi.fn(), isNotNull: vi.fn(), sql: vi.fn(() => "sql") }));
 vi.mock("@/lib/steam", () => ({ getSteamPlayerSummaries: lookupMock }));
 vi.mock("@/lib/revalidation", () => ({ revalidatePublicPlayerTag: revalidateMock }));
 
@@ -175,12 +165,15 @@ describe("loadOrFetchSteamProfiles cache owner", () => {
     await expect(loadOrFetchSteamProfiles(writeDb as never, [a])).rejects.toThrow("database write failed");
   });
 
-  it("does not query observed or historical steam64 during 6h periodic refresh", async () => {
+  it("does not call the provider or mutate cache when no primary users need refresh", async () => {
     selectMock.mockReset();
     selectMock
       .mockReturnValueOnce(selectResult([]));
 
     await refreshSteamProfiles();
     expect(selectMock).toHaveBeenCalledTimes(1);
+    expect(lookupMock).not.toHaveBeenCalled();
+    expect(insertMock).not.toHaveBeenCalled();
+    expect(revalidateMock).not.toHaveBeenCalled();
   });
 });

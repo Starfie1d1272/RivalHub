@@ -7,7 +7,7 @@ import { assertLocalDatabaseUrl } from "../../../scripts/db/local-environment";
 import { createPredictionBrowserFixture,removePredictionBrowserFixture } from "../helpers/prediction-fixture";
 import * as schema from "@/db/schema";
 test.use({scenarioProfile:"auth"});test.setTimeout(120000);
-test("BET 完成投入、追加、ALL IN 确认与锁盘，桌面和手机无横向溢出",async({page,scenario})=>{
+test("BET 投入在刷新后保留，ALL IN 需确认且开赛后锁盘",async({page,scenario})=>{
   const user=scenario.accounts[0]!;
   const fixture=await createPredictionBrowserFixture(user.userId);
   const pool=new Pool({connectionString:assertLocalDatabaseUrl(process.env.DATABASE_URL),ssl:false});const db=drizzle(pool,{schema});

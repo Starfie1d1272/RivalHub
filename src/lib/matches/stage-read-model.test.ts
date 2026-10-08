@@ -12,20 +12,6 @@ vi.mock("@/db/client", () => ({
   },
 }));
 
-vi.mock("@/db/schema", () => ({
-  competitionEntries: { id: {}, name: {} },
-  majorStageEntrants: { stageSeed: {}, tournamentEntrantId: {}, stageRunId: {} },
-  majorStageRuns: { seasonId: {}, stageKey: {} },
-  majorTournamentEntrants: { id: {}, competitionEntryId: {} },
-  matches: { seasonId: {}, stage: {}, majorStageRunId: {}, ownership: {}, round: {}, createdAt: {} },
-}));
-
-vi.mock("drizzle-orm", () => ({
-  and: vi.fn(),
-  asc: vi.fn(),
-  eq: vi.fn(),
-}));
-
 import { loadMajorSwissStageReadModel } from "./stage-read-model";
 
 function makeRoundMatches() {

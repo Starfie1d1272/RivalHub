@@ -1,9 +1,6 @@
 /** @vitest-environment node */
 vi.mock("@/lib/admin/matches/resources", () => ({ loadMatchResources: vi.fn().mockResolvedValue({ installations: [], downloads: null }) }));
 vi.mock("@/components/matches/MatchResources", () => ({ MatchResources: () => <div>赛事运营资源</div> }));
-/**
- * @vitest-environment jsdom
- */
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";

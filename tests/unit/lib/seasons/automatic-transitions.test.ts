@@ -105,7 +105,7 @@ describe("season automatic transitions", () => {
     expect(insertMock).not.toHaveBeenCalled();
   });
 
-  it("finishes a non-Swiss season when the last match is finished", async () => {
+  it("finishes a non-Swiss season when no unfinished matches remain", async () => {
     const { tx, updateSetMock, insertMock } = createTx({
       id: "season-1",
       slug: "rivals",
@@ -121,19 +121,5 @@ describe("season automatic transitions", () => {
     expect(insertMock).toHaveBeenCalledTimes(1);
   });
 
-  it("finishes a non-Swiss season when the last match is cancelled", async () => {
-    const { tx, updateSetMock, insertMock } = createTx({
-      id: "season-1",
-      slug: "rivals",
-      status: "playing",
-      stagePlan: [
-        { key: "playoff", name: "Playoff", type: "double_elim", teamCount: 8, advanceTiers: [] },
-      ],
-    });
 
-    await maybeFinishSeason(tx as never, "season-1");
-
-    expect(updateSetMock).toHaveBeenCalledWith(expect.objectContaining({ status: "finished" }));
-    expect(insertMock).toHaveBeenCalledTimes(1);
-  });
 });

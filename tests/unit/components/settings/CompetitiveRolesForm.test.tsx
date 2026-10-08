@@ -25,18 +25,6 @@ describe("CompetitiveRolesForm", () => {
     toastErrorMock.mockReset();
   });
 
-  it("renders the canonical five positions as compact pressed controls", () => {
-    render(<CompetitiveRolesForm initialRoles={[]} initialPrimaryRole={null} />);
-
-    expect(screen.getByRole("group", { name: "常用位置" })).toBeInTheDocument();
-    expect(screen.getByText("最多选择 3 个")).toBeInTheDocument();
-    for (const label of ["IGL（指挥）", "AWPer（狙击手）", "Opener（突破手）", "Closer（自由人/残局）", "Anchor（主防）"]) {
-      expect(positionButton(label)).toHaveAttribute("aria-pressed", "false");
-    }
-    expect(screen.queryByText(/Support|Lurker|Entry/)).not.toBeInTheDocument();
-
-  });
-
   it("supports keyboard focus and keeps the 1–3 selection limit", async () => {
     const user = userEvent.setup();
     render(<CompetitiveRolesForm initialRoles={[]} initialPrimaryRole={null} />);

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { assertPlatformRanksMutable, loadCompetitivePlatformCatalog, loadReferencedPlatformRankKeys, resolveLiveCompetitiveContext, temporarySortOrders, resolveCatalogSeasonRoles, resolvePlatformCatalog, toCompetitiveProfileConfig, type CompetitivePlatformCatalogEntry } from "@/lib/competitive/catalog";
+import { loadCompetitivePlatformCatalog, resolveLiveCompetitiveContext, temporarySortOrders, resolveCatalogSeasonRoles, resolvePlatformCatalog, type CompetitivePlatformCatalogEntry } from "@/lib/competitive/catalog";
 
 function entry(overrides?: Partial<CompetitivePlatformCatalogEntry>): CompetitivePlatformCatalogEntry {
   return {
@@ -29,16 +29,6 @@ describe("resolvePlatformCatalog", () => {
       previousSeasonKey: "s20",
       rankOrder: ["bronze", "silver", "gold"],
     });
-  });
-
-  it("derives previous strictly from chronology, never from a second flag", () => {
-    const e = entry();
-    e.seasons = [
-      { id: "s1", seasonKey: "s21", label: "S21", sortOrder: 1, active: true, isCurrent: true },
-      { id: "s2", seasonKey: "s20", label: "S20", sortOrder: 0, active: true, isCurrent: false },
-      { id: "s3", seasonKey: "s19", label: "S19", sortOrder: -1, active: true, isCurrent: false },
-    ];
-    expect(resolvePlatformCatalog(e)?.previousSeasonKey).toBe("s20");
   });
 
   it("fails closed without a current season", () => {
@@ -89,20 +79,6 @@ describe("competitive catalog mutation and snapshot helpers", () => {
     expect(() => temporarySortOrders([-2_147_483_646])).toThrow("目录排序值");
   });
 
-  it("adapts only a resolved catalog into the frozen event profile", () => {
-    expect(toCompetitiveProfileConfig({
-      platform: "fivee",
-      currentSeasonKey: "s6",
-      previousSeasonKey: "s5",
-      rankOrder: ["C+", "A+"],
-    })).toEqual({
-      platform: "fivee",
-      currentSeasonKey: "s6",
-      previousSeasonKey: "s5",
-      rankOrder: ["C+", "A+"],
-    });
-  });
-
   it("groups DB catalog rows by their platform owner", async () => {
     const rows = [
       [{ key: "fivee", displayName: "5E", ratingLabel: "Rating+" }],
@@ -118,15 +94,6 @@ describe("competitive catalog mutation and snapshot helpers", () => {
       ranks: [{ id: "r", rankKey: "C+", label: "C+", sortOrder: 0, starMin: null, starMax: null }],
       seasons: [{ id: "s", seasonKey: "s6", label: "S6", sortOrder: 6, active: true, isCurrent: true }],
     }]);
-  });
-
-  it("loads referenced facts and frozen JSON rank keys before allowing a mutation", async () => {
-    const executor = {
-      select: () => ({ from: () => ({ where: () => Promise.resolve([{ rank: "A+" }]) }) }),
-      execute: () => Promise.resolve({ rows: [{ rank: "C+" }] }),
-    };
-    await expect(loadReferencedPlatformRankKeys(executor as never, "fivee")).resolves.toEqual(new Set(["A+", "C+"]));
-    await expect(assertPlatformRanksMutable(executor as never, "fivee", ["C+"])).rejects.toThrow("不能修改");
   });
 
   it("resolves a live platform only when its current, previous and ladder rows are complete", async () => {

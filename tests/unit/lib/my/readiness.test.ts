@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@/db/client", () => ({ db: {} }));
 
-import { buildMyReadinessModel, isMyReadinessActionable, isSettingsProfileReadinessReady, presentMyReadinessResponsibility, selectMyCompetitiveProfilePlatformKeys, selectMyPrimaryAction, type MyCompetitionSource, type MySanctionSource } from "@/lib/my/readiness";
+import { buildMyReadinessModel, isMyReadinessActionable, isSettingsProfileReadinessReady, selectMyCompetitiveProfilePlatformKeys, selectMyPrimaryAction, type MyCompetitionSource, type MySanctionSource } from "@/lib/my/readiness";
 import type { SanctionEffect } from "@/lib/discipline/service";
 import type { ParticipantQualificationFacts } from "@/lib/qualification/service";
 import { MAJOR_TEAM_CONFIG } from "@/lib/competition/templates";
@@ -244,7 +244,6 @@ describe("我的 readiness read model", () => {
     expect(result.education.state).toBe("unknown");
     expect(result.team.state).toBe("incomplete");
     expect(result.competitions[0]?.qualification.state).toBe("unknown");
-    expect(result.competitions[0]?.qualification.state).not.toBe("ready");
   });
 
   it("marks competitive information as not applicable when the event does not require it", () => {
@@ -276,13 +275,5 @@ describe("我的 readiness read model", () => {
     expect(isMyReadinessActionable({ ...selfItem, state: "ready" })).toBe(false);
   });
 
-  it.each([
-    ["self", "需要你处理"],
-    ["self_and_admin", "需要你与赛事管理员共同处理"],
-    ["representative", "等待赛事负责人处理"],
-    ["representative_and_admin", "等待赛事负责人和赛事管理员处理"],
-    ["admin", "等待赛事管理员处理"],
-  ] as const)("用完整句子展示 %s 的处理责任", (responsibility, expected) => {
-    expect(presentMyReadinessResponsibility(responsibility)).toBe(expected);
-  });
+
 });

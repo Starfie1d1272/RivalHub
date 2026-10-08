@@ -58,8 +58,6 @@ describe("CompetitiveProfileForm", () => {
 
     expect(screen.getByText(/完美世界竞技平台 · 竞技资料/)).toBeInTheDocument();
     expect(screen.getByText(/未录入表示尚未声明；未定级是有效事实/)).toBeInTheDocument();
-    expect(screen.getByText("竞技资料")).toBeInTheDocument();
-    expect(screen.getByText("历史最高")).toBeInTheDocument();
     expect(sectionByHeading("历史最高").getByText("历史最高达成赛季（可选）")).toBeInTheDocument();
     expect(sectionByHeading("近期赛季").getByText("当前赛季 · 2026S2")).toBeInTheDocument();
     expect(sectionByHeading("近期赛季").getByText("上一赛季 · 2026S1")).toBeInTheDocument();
@@ -125,13 +123,10 @@ describe("CompetitiveProfileForm", () => {
     expect(older.getByText("黄金S · 12★ · Rating Pro 1500")).toBeInTheDocument();
     expect(older.getByText("未定级 · Rating Pro 1800")).toBeInTheDocument();
     expect(older.queryByText("历史赛季 · 2025S2")).toBeNull();
-    expect(screen.getAllByText("资料状态")).toHaveLength(2);
     await user.click(screen.getByRole("button", { name: "编辑 历史赛季 · 2025S4" }));
-    expect(screen.getAllByText("资料状态")).toHaveLength(3);
     expect(older.getByRole("button", { name: "收起 历史赛季 · 2025S4" })).toBeInTheDocument();
 
     await user.click(older.getByRole("button", { name: "收起 历史赛季 · 2025S4" }));
-    expect(screen.getAllByText("资料状态")).toHaveLength(2);
     expect(older.getByRole("button", { name: "编辑 历史赛季 · 2025S4" })).toBeInTheDocument();
     await user.click(older.getByRole("button", { name: "查看全部历史赛季（1）" }));
     expect(older.getByText("历史赛季 · 2025S2")).toBeInTheDocument();
@@ -152,17 +147,14 @@ describe("CompetitiveProfileForm", () => {
 
     const older = sectionByHeading("更早历史资料");
     await user.click(older.getByRole("button", { name: "编辑 历史赛季 · 2025S4" }));
-    expect(screen.getAllByText("资料状态")).toHaveLength(3);
     expect(older.getByRole("button", { name: "编辑 历史赛季 · 2025S3" })).toBeInTheDocument();
 
     await user.click(older.getByRole("button", { name: "编辑 历史赛季 · 2025S3" }));
-    expect(screen.getAllByText("资料状态")).toHaveLength(3);
     expect(older.getByRole("button", { name: "编辑 历史赛季 · 2025S4" })).toBeInTheDocument();
     expect(older.queryByRole("button", { name: "收起 历史赛季 · 2025S4" })).toBeNull();
     expect(older.getByRole("button", { name: "收起 历史赛季 · 2025S3" })).toBeInTheDocument();
 
     await user.click(older.getByRole("button", { name: "收起 历史赛季 · 2025S3" }));
-    expect(screen.getAllByText("资料状态")).toHaveLength(2);
     expect(older.getByRole("button", { name: "编辑 历史赛季 · 2025S3" })).toBeInTheDocument();
   });
 

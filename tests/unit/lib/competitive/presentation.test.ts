@@ -63,18 +63,6 @@ describe("public competitive profile presentation", () => {
     ]);
   });
 
-  it("does not expose stable platform, season or rank keys", () => {
-    const summary = presentPublicCompetitiveSummary(catalog, [
-      { id: "history", platform: "perfect_world", kind: "historical_peak", platformSeasonKey: null, rank: "gold_s", rating: "1.17", stars: 10 },
-      { id: "current", platform: "perfect_world", kind: "season_peak", platformSeasonKey: "2026s2", rank: "gold_s", rating: "1.17", stars: 10 },
-    ]);
-    const publicResult = JSON.stringify(summary);
-
-    expect(publicResult).not.toContain("perfect_world");
-    expect(publicResult).not.toContain("2026s2");
-    expect(publicResult).not.toContain("gold_s");
-  });
-
   it("uses catalog display labels, preserves stars and never exposes stored keys", () => {
     const profile = presentPublicCompetitiveProfile(catalog, [
       { id: "history", platform: "perfect_world", kind: "historical_peak", platformSeasonKey: null, rank: "gold_s", rating: "1.17", stars: 10 },

@@ -26,14 +26,11 @@ function data(overrides: Partial<MajorPrestartManagementData> = {}): MajorPresta
 }
 
 describe("Major roster presentation", () => {
-  it("shows every nickname in one row with compact evidence", () => {
+  it("exposes starter and substitute evidence controls", () => {
     render(<MajorLiveRanking data={data()} />);
     expect(screen.getByRole("row", { name: /Team One/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /starter，主力/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /substitute，替补/ })).toBeInTheDocument();
-    expect(screen.queryByText("今")).not.toBeInTheDocument();
-    expect(screen.queryByText("前")).not.toBeInTheDocument();
-    expect(screen.queryByText(/weightedRank|teamSeedStrength/)).not.toBeInTheDocument();
   });
   it("keeps final lock unavailable while entrants are incomplete", () => {
     render(<MajorPrestartManagement data={data()} />);

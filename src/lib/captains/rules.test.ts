@@ -1,92 +1,6 @@
-import { describe, it, expect } from "vitest";
-import {
-  selectCaptainSeeds,
-  compareCaptainSeedCandidates,
-  validateCaptainVote,
-  CAPTAIN_TEAM_COUNT,
-  MAX_CAPTAIN_VOTES,
-} from "@/lib/captains/rules";
+import { describe, expect, it } from "vitest";
+import { MAX_CAPTAIN_VOTES, selectCaptainSeeds, validateCaptainVote, type ValidateCaptainVoteInput } from "@/lib/captains/rules";
 import { ErrorCode } from "@/lib/errors";
-import type {
-  CaptainSeedCandidate,
-  ValidateCaptainVoteInput,
-} from "@/lib/captains/rules";
-
-function candidate(overrides: {
-  registrationId?: string;
-  voteCount?: number;
-  peakRating?: number;
-  createdAt?: Date;
-}): CaptainSeedCandidate {
-  return {
-    registrationId: overrides.registrationId ?? "r1",
-    voteCount: overrides.voteCount ?? 0,
-    peakRating: overrides.peakRating ?? 1.0,
-    createdAt: overrides.createdAt ?? new Date("2025-01-01"),
-  };
-}
-
-describe("selectCaptainSeeds", () => {
-  it("returns top CAPTAIN_TEAM_COUNT candidates", () => {
-    expect(CAPTAIN_TEAM_COUNT).toBe(8);
-  });
-
-  it("selects top candidates by voteCount, then peakRating, then createdAt", () => {
-    const candidates = [
-      candidate({ registrationId: "low", voteCount: 1 }),
-      candidate({
-        registrationId: "high",
-        voteCount: 10,
-        peakRating: 2.0,
-        createdAt: new Date("2025-06-01"),
-      }),
-      candidate({
-        registrationId: "mid",
-        voteCount: 5,
-        peakRating: 1.5,
-        createdAt: new Date("2025-03-01"),
-      }),
-    ];
-
-    const selected = selectCaptainSeeds(candidates);
-    expect(selected.map((c) => c.registrationId)).toEqual([
-      "high",
-      "mid",
-      "low",
-    ]);
-  });
-});
-
-describe("compareCaptainSeedCandidates", () => {
-  it("ranks higher voteCount first", () => {
-    const a = candidate({ registrationId: "a", voteCount: 5 });
-    const b = candidate({ registrationId: "b", voteCount: 3 });
-    expect(compareCaptainSeedCandidates(a, b)).toBeLessThan(0);
-    expect(compareCaptainSeedCandidates(b, a)).toBeGreaterThan(0);
-  });
-
-  it("breaks ties with peakRating", () => {
-    const a = candidate({ registrationId: "a", voteCount: 5, peakRating: 2.5 });
-    const b = candidate({ registrationId: "b", voteCount: 5, peakRating: 2.0 });
-    expect(compareCaptainSeedCandidates(a, b)).toBeLessThan(0);
-  });
-
-  it("breaks further ties with createdAt (earlier first)", () => {
-    const a = candidate({
-      registrationId: "a",
-      voteCount: 5,
-      peakRating: 2.0,
-      createdAt: new Date("2025-01-01"),
-    });
-    const b = candidate({
-      registrationId: "b",
-      voteCount: 5,
-      peakRating: 2.0,
-      createdAt: new Date("2025-06-01"),
-    });
-    expect(compareCaptainSeedCandidates(a, b)).toBeLessThan(0);
-  });
-});
 
 describe("validateCaptainVote", () => {
   const validSeason = {
@@ -203,3 +117,44 @@ describe("validateCaptainVote", () => {
     ).toBe(ErrorCode.CAPTAIN_NOT_ELIGIBLE);
   });
 });
+
+describe("captain seeding", () => {
+  it("selects eight captain seeds by votes, then rating, then registration time", () => {
+    const seeds = selectCaptainSeeds([
+      seed("low", 2, 2600, "2026-01-01"),
+      seed("high", 4, 2200, "2026-01-02"),
+      seed("rating-tie-break", 4, 2800, "2026-01-03"),
+      seed("early-tie-break", 4, 2800, "2026-01-01"),
+      seed("fifth", 1, 3000, "2026-01-01"),
+      seed("sixth", 1, 2500, "2026-01-01"),
+      seed("seventh", 0, 2900, "2026-01-01"),
+      seed("eighth", 0, 2400, "2026-01-01"),
+      seed("ninth", 0, 1200, "2026-01-01"),
+    ]);
+
+    expect(seeds.map((s) => s.registrationId)).toEqual([
+      "early-tie-break",
+      "rating-tie-break",
+      "high",
+      "low",
+      "fifth",
+      "sixth",
+      "seventh",
+      "eighth",
+    ]);
+  });
+});
+
+function seed(
+  registrationId: string,
+  voteCount: number,
+  peakRating: number,
+  createdAt: string,
+) {
+  return {
+    registrationId,
+    voteCount,
+    peakRating,
+    createdAt: new Date(createdAt),
+  };
+}

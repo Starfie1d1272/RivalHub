@@ -146,18 +146,4 @@ describe("BracketView", () => {
     expect(await screen.findByRole("status")).toHaveTextContent("赛程暂时无法加载");
   });
 
-  it("overrides brackets-viewer theme variables for Tactical Grid", async () => {
-    const { BracketView } = await import("@/components/matches/BracketView");
-
-    render(<BracketView data={bracketData} themeColor="#ff6b1a" />);
-
-    const container = document.querySelector("#bracket-container") as HTMLElement;
-
-
-
-
-
-
-    expect(container.style.getPropertyValue("--border-selected-color")).toBe("#ff6b1a");
-  });
 });

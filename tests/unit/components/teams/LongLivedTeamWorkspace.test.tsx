@@ -40,6 +40,7 @@ describe("LongLivedTeamWorkspace", () => {
   it("shows the single-use share-link contract and expiry after generation", async () => {
     render(<LongLivedTeamWorkspace team={{ id: "team-1", slug: "rival-team", name: "Rival Team", logoUrl: null, description: null, captainUserId: "user-1" }} memberships={[]} incomingInvitations={[]} outgoingInvitations={[]} recruitment={null} targetSeasons={[]} recruitmentInterests={[]} />);
 
+    expect(screen.getByRole("button", { name: "更换队伍图标" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "生成单次邀请链接" }));
 
     await waitFor(() => expect(createShareInvitationMock).toHaveBeenCalledWith({ teamId: "team-1" }));
@@ -47,12 +48,6 @@ describe("LongLivedTeamWorkspace", () => {
     expect(screen.getByText("到期时间：2026/09/10 15:00。")).toBeInTheDocument();
     expect(screen.getByText("接受一次后失效；可由队长撤销。")).toBeInTheDocument();
     expect((screen.getByRole("textbox", { name: "单次邀请链接" }) as HTMLInputElement).value).toContain("/team-invites/");
-  });
-
-  it("passes the existing logo and captain edit capability into the profile section", () => {
-    render(<LongLivedTeamWorkspace team={{ id: "team-1", slug: "rival-team", name: "Rival Team", logoUrl: "https://example.com/logo.png", description: null, captainUserId: "user-1" }} memberships={[]} incomingInvitations={[]} outgoingInvitations={[]} recruitment={null} targetSeasons={[]} recruitmentInterests={[]} />);
-
-    expect(screen.getByRole("button", { name: "更换队伍图标" })).toBeInTheDocument();
   });
 
   it("shows private contacts and profile links for current members", () => {

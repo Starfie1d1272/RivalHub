@@ -13,12 +13,9 @@ vi.mock("@/db/client", () => ({
   },
 }));
 
-vi.mock("@/lib/action-utils", () => ({
+vi.mock("@/lib/action-utils", async (importOriginal) => ({
+  ...await importOriginal<typeof import("@/lib/action-utils")>(),
   getMatchOrThrow: matchMock,
-  actionError: (_operation: string, error: unknown) => ({
-    success: false,
-    error: { message: error instanceof Error ? error.message : "unexpected error" },
-  }),
 }));
 
 vi.mock("@/lib/data/public-seasons", () => ({

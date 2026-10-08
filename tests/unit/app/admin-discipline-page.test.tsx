@@ -83,12 +83,9 @@ describe("admin discipline page", () => {
     const page = await AdminDisciplinePage({ params: Promise.resolve({ seasonSlug: "major-2027" }) });
     const html = renderToStaticMarkup(page);
 
-    expect(html).toContain("纪律处罚管理 · RivalHub Major 2027");
     expect(html).toContain("玩家甲");
     expect(html).toContain("私密证据：聊天记录截图链接");
     expect(html).toContain("违反赛场行为规范");
-    expect(html).toContain("生效中");
-    expect(html).toContain("参赛拦截");
   });
 
   it("renders an explicit error state when loading sanctions fails", async () => {

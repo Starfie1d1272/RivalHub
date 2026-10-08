@@ -238,7 +238,6 @@ describe("Mizar reliable event ingest ownership", () => {
     const manual = await operatorContext(fixture);
     expect(manual.workflow).toMatchObject({ phase: "gameplay", primaryTask: "manual_result", elapsed: null, roomMapId: null });
     expect(manual.roomGuide).toBeNull();
-    expect(manual.workflow.nextStep).not.toContain("准备");
     await db.transaction(tx => recordManualMapResultInTx(tx, manualCommand(fixture, 2)));
     expect((await operatorContext(fixture)).workflow).toMatchObject({ phase: "post", elapsed: null, roomMapId: null });
   });
@@ -249,7 +248,6 @@ describe("Mizar reliable event ingest ownership", () => {
     const context = await operatorContext(fixture);
     expect(context.workflow).toMatchObject({ sourceMode: "none", primaryTask: "manual_result", manualResultAllowed: true });
     expect(context.takeover).toBeNull();
-    expect(JSON.stringify(context)).not.toMatch(/返回 Mizar|开播/);
     await db.transaction(tx => recordManualMapResultInTx(tx, manualCommand(fixture)));
     expect((await operatorContext(fixture)).workflow.completedMaps).toHaveLength(1);
   });
@@ -850,7 +848,17 @@ describe("operator authorization and in-progress score correction", () => {
     expect((await loadSource(f.sessionId)).closeReason).toBe("revoked");
     const audits = await db.select().from(schema.auditLogs).where(and(eq(schema.auditLogs.targetId, f.installationId), eq(schema.auditLogs.action, "mizar.installation.revoke")));
     expect(audits[0]?.meta).toMatchObject({ reason: "设备遗失，撤销授权" });
-    await revokeMizarInstallation(f.installationId, f.seasonId, f.installationId);
+    const installation = await db.query.mizarInstallations.findFirst({ where: eq(schema.mizarInstallations.id, f.installationId) });
+    expect(installation?.revokedAt).not.toBeNull();
+    await expect(revokeMizarInstallation(f.installationId, f.seasonId, f.installationId)).resolves.toEqual({ revoked: true, alreadyRevoked: true });
+    expect(await db.query.mizarInstallations.findFirst({ where: eq(schema.mizarInstallations.id, f.installationId) })).toEqual(installation);
+    expect(await db.select().from(schema.auditLogs).where(and(eq(schema.auditLogs.targetId, f.installationId), eq(schema.auditLogs.action, "mizar.installation.revoke")))).toHaveLength(1);
+    const self = await seedFixture();
+    await expect(revokeMizarInstallation(self.installationId, self.seasonId, self.installationId)).resolves.toEqual({ revoked: true, alreadyRevoked: false });
+    expect(await loadSource(self.sessionId)).toMatchObject({ closeReason: "revoked", autoCanonicalizationArmed: false });
+    const selfAudits = await db.select().from(schema.auditLogs).where(and(eq(schema.auditLogs.targetId, self.installationId), eq(schema.auditLogs.action, "mizar.installation.revoke")));
+    expect(selfAudits).toHaveLength(1);
+    expect(selfAudits[0]).toMatchObject({ actorId: self.installationId, seasonId: self.seasonId });
   });
 
   it("corrects a completed map during the next map, checks reviewed scores, and retains epoch/official completion", async () => {

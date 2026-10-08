@@ -106,6 +106,7 @@ describe("SeasonSubNav", () => {
   it("keeps the prestart tab active for retained captain and draft URLs", () => {
     pathnameMock.mockReturnValue("/admin/nju-major-2026/draft");
     renderNav();
+    expect(screen.getByRole("link", { name: "赛前" })).toHaveAttribute("aria-current", "page");
 
 
     expect(screen.getByRole("link", { name: "赛事总览" })).not.toHaveAttribute("aria-current");

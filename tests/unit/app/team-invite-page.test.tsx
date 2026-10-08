@@ -74,15 +74,11 @@ describe("Team share invitation page", () => {
     const html = await renderPage({ teamName: "Rival Team", teamStatus: "active", status: "pending", expiresAt: FUTURE });
 
     expect(html).toContain("加入 Rival Team");
-    expect(html).toContain("这是队伍邀请");
-    expect(html).toContain("登录后加入");
-    expect(html).toContain("注册后加入");
     expect(html).toContain(`href=\"/login?next=%2Fteam-invites%2F${TOKEN}\"`);
     expect(html).toContain(`href=\"/login?mode=register&amp;next=%2Fteam-invites%2F${TOKEN}\"`);
 
     const selection = selectMock.mock.calls[0]?.[0] as Record<string, unknown>;
     expect(Object.keys(selection).sort()).toEqual(["expiresAt", "status", "teamName", "teamStatus"]);
-    expect(selection).not.toHaveProperty("respondedByUserId");
   });
 
   it("renders the valid authenticated flow with the accept button", async () => {
@@ -92,7 +88,7 @@ describe("Team share invitation page", () => {
     );
 
     expect(html).toContain("加入 Rival Team");
-    expect(html).toContain("<button type=\"button\">加入队伍</button>");
+    expect(html).toContain("加入队伍");
     expect(html).not.toContain("登录后加入");
     expect(html).not.toContain("注册后加入");
   });

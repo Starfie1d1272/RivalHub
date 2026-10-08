@@ -23,7 +23,7 @@ describe("fixed platform navigation", () => {
     expect(screen.getAllByRole("link").filter((link) => link.hasAttribute("aria-current"))).toHaveLength(0);
     state.pathname = "/stats";
   });
-  it.each([0, 2, 20, 100])("has three destinations with %i events, including mobile/fallback", (count) => {
+  it.each([0, 100])("has three destinations with %i events, including mobile/fallback", (count) => {
     const seasons = Array.from({ length: count }, (_, i) => ({ slug: `event-${i}`, name: "中文长名称".repeat(10), status: "archived" as const, registrationOpensAt: null, registrationOpenedAt: null, registrationClosesAt: null }));
     const { rerender } = render(<HeaderNavigation seasons={seasons} />);
     expect(screen.getAllByRole("link").map((l) => l.getAttribute("href"))).toEqual(["/seasons", "/teams", "/stats"]);
@@ -31,7 +31,7 @@ describe("fixed platform navigation", () => {
     rerender(<HeaderNavigation seasons={seasons} mobile />);
     expect(screen.getAllByRole("link")).toHaveLength(3);
     rerender(<HeaderNavigationFallback mobile />);
-    expect(screen.getAllByRole("link").map((l) => l.textContent)).toEqual(["赛事", "队伍", "数据中心"]);
+    expect(screen.getAllByRole("link").map((l) => l.getAttribute("href"))).toEqual(["/seasons", "/teams", "/stats"]);
   });
   it("matches path boundaries and highlights event pages as events", () => {
     state.pathname = "/event-one/matches";

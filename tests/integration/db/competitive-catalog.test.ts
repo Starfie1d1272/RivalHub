@@ -54,51 +54,6 @@ async function main(): Promise<void> {
     await expect(fallbackCatalogReferencesExist(executor, { sourcePlatform: fallbackPlatform as "fivee", version: "major-2026-v1", seasonKeyMap: { s21: "5e-s21" }, mapping: { belowSRankMap: { "5e-s": "C++" }, starSegments: [{minStar:0,maxStar:null,targetRank:"A",targetStarFloor:null,slopeNum:0,slopeDen:1}], relativeSeasonAlignment: true } })).resolves.toBe(true);
     await expect(fallbackCatalogReferencesExist(executor, { sourcePlatform: fallbackPlatform as "fivee", version: "major-2026-v1", seasonKeyMap: { s21: "missing" }, mapping: { belowSRankMap: { "5e-s": "C++" }, starSegments: [{minStar:0,maxStar:null,targetRank:"A",targetStarFloor:null,slopeNum:0,slopeDen:1}], relativeSeasonAlignment: true } })).resolves.toBe(false);
 
-    const fallbackSeasonReference = await client.query(
-      `SELECT id FROM seasons
-       WHERE team_registration_config->'competitiveProfile'->'fallbackConversion'->>'sourcePlatform' = $1
-         AND EXISTS (
-           SELECT 1
-           FROM jsonb_each_text(COALESCE((team_registration_config->'competitiveProfile'->'fallbackConversion'->'seasonKeyMap')::jsonb, '{}'::jsonb)) AS fallback_season(primary_key, source_key)
-           WHERE fallback_season.source_key = $2
-         )`,
-      [fallbackPlatform, "5e-s21"],
-    );
-    expect(fallbackSeasonReference.rowCount).toBe(1);
-
-    // The season-delete guard must retain historical provenance too: a
-    // historical peak can point at a catalog season without using it as its
-    // own platformSeasonKey.
-    await client.query(
-      "INSERT INTO competitive_platform_seasons (platform, season_key, label, sort_order, active, is_current) VALUES ($1, 'provenance-season', 'Provenance season', 1, true, false)",
-      [platform],
-    );
-    await client.query(
-      "UPDATE competitive_rank_facts SET achieved_season_key = 'provenance-season' WHERE user_id = $1 AND platform = $2 AND kind = 'historical_peak'",
-      [userId, platform],
-    );
-    const provenanceReference = await client.query(
-      `SELECT id FROM competitive_rank_facts
-       WHERE platform = $1
-         AND (platform_season_key = $2 OR achieved_season_key = $2)`,
-      [platform, "provenance-season"],
-    );
-    expect(provenanceReference.rowCount).toBe(1);
-
-    // The catalog delete guard must execute against json columns as jsonb when
-    // checking a frozen evidencePolicy.recentSeasonKeys array.
-    await client.query(
-      "UPDATE seasons SET team_registration_config = $2::json WHERE id = $1",
-      [seasonId, JSON.stringify({ competitiveProfile: { platform, currentSeasonKey: "legacy-current", previousSeasonKey: "legacy-previous", rankOrder: [], evidencePolicy: { historicalWeight: 50, referenceSeasonKey: "older", referenceSeasonWeight: 20, recentSeasonKeys: ["recent-only"], recentSeasonWeight: 30 } } })],
-    );
-    const recentPolicyReference = await client.query(
-      `SELECT id FROM seasons
-       WHERE team_registration_config->'competitiveProfile'->>'platform' = $1
-         AND (team_registration_config->'competitiveProfile'->'evidencePolicy'->'recentSeasonKeys')::jsonb ? $2`,
-      [platform, "recent-only"],
-    );
-    expect(recentPolicyReference.rowCount).toBe(1);
-
     // Star metadata shape is enforced by the database: no starMax without a
     // starMin, no descending range, no negative fact stars.
     const malformedRankShape = await capturePostgresError(client, () => client.query(

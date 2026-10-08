@@ -8,7 +8,7 @@ export default defineConfig({
   projects: core.projects?.map(project => ({ ...project, testIgnore: [] })),
   webServer: {
     command: "pnpm build:local && pnpm exec next start",
-    url: "http://localhost:3000",
+    url: "http://localhost:3000/favicon.ico",
     reuseExistingServer: false,
     timeout: 180_000,
   },

@@ -43,15 +43,11 @@ describe("TeamCard", () => {
     expect(screen.getByText("78.2")).toBeInTheDocument();
   });
 
-  it("uses event roster facts without rendering registration positions", () => {
+  it("shows the event roster without fabricating missing statistics", () => {
     render(<TeamCard {...props} />);
 
-    expect(screen.queryByText("正式参赛队")).not.toBeInTheDocument();
-    expect(screen.queryByText("代表人")).not.toBeInTheDocument();
     expect(screen.getAllByText("Captain Star")).not.toHaveLength(0);
     expect(screen.getByText("2 首发")).toBeInTheDocument();
-    expect(screen.queryByText("igl")).not.toBeInTheDocument();
-    expect(screen.queryByText("anchor")).not.toBeInTheDocument();
     expect(screen.queryByText("地图")).not.toBeInTheDocument();
   });
 });

@@ -13,7 +13,7 @@ export default defineConfig({
   retries,
   failOnFlakyTests: !!process.env.CI,
   workers: process.env.CI ? Number(process.env.PLAYWRIGHT_WORKERS ?? 1) : undefined,
-  reporter: "html",
+  reporter: process.env.CI ? [["list"], ["html", { open: "never" }]] : "html",
   use: {
     baseURL: process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3000",
     trace: "on-first-retry",
@@ -26,7 +26,9 @@ export default defineConfig({
   projects: [
     {
       name: "chromium",
-      testIgnore: ["**/visual/**", "**/acceptance/**", "**/production/**", "**/public-discovery.spec.ts"],
+      // Shared flows run once, on the viewport exercising their distinct risk:
+      // touch submission/download and narrow public search on mobile.
+      testIgnore: ["**/visual/**", "**/acceptance/**", "**/production/**", "**/public-discovery.spec.ts", "**/bet.spec.ts", "**/predictions.spec.ts", "**/public-event-experience.spec.ts"],
       use: {
         ...devices["Desktop Chrome"],
         channel: process.env.PLAYWRIGHT_CHANNEL === "chrome" ? "chrome" : undefined,
@@ -34,7 +36,7 @@ export default defineConfig({
     },
     {
       name: "mobile-chrome",
-      testIgnore: ["**/visual/**", "**/acceptance/**", "**/production/**", "**/education-manual-fallback.spec.ts", "**/team-invitations.spec.ts", "**/major-entry.spec.ts", "**/public-match-live.spec.ts", "**/event-logo.spec.ts", "**/major-qualification.spec.ts", "**/series-score-correction.spec.ts", "**/session-revocation.spec.ts"],
+      testIgnore: ["**/visual/**", "**/acceptance/**", "**/production/**", "**/education-manual-fallback.spec.ts", "**/team-invitations.spec.ts", "**/major-entry.spec.ts", "**/public-match-live.spec.ts", "**/event-logo.spec.ts", "**/major-qualification.spec.ts", "**/series-score-correction.spec.ts", "**/session-revocation.spec.ts", "**/test-matches.spec.ts", "**/platform-stats.spec.ts"],
       use: {
         ...devices["Pixel 5"],
         channel: process.env.PLAYWRIGHT_CHANNEL === "chrome" ? "chrome" : undefined,
@@ -43,7 +45,8 @@ export default defineConfig({
   ],
   webServer: {
     command: process.env.CI ? "pnpm dev:local > .agent-tmp/next-server.log 2>&1" : "pnpm dev:local",
-    url: "http://localhost:3000",
+    // Static readiness avoids compiling an unrelated homepage in every shard.
+    url: "http://localhost:3000/favicon.ico",
     reuseExistingServer: !process.env.CI,
     timeout: 120 * 1000,
   },

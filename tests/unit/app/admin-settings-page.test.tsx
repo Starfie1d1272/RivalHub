@@ -52,16 +52,15 @@ describe("global system status access boundary", () => {
     expect(userFindFirstMock).not.toHaveBeenCalled();
   });
 
-  it("labels the retained environment page as system status", async () => {
+  it("loads scheduler health after super-admin access is granted", async () => {
     resolveAdminPageAccessMock.mockResolvedValue({
       userId: "admin-1",
       email: "admin@example.com",
     });
     userFindFirstMock.mockResolvedValue(null);
 
-    const html = renderToStaticMarkup(await AdminSettingsPage());
+    renderToStaticMarkup(await AdminSettingsPage());
 
-    expect(html).toContain("系统状态");
-    expect(html).toContain("环境变量状态");
+    expect(schedulerHealthMock).toHaveBeenCalledOnce();
   });
 });

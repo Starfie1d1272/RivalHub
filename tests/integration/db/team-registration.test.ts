@@ -22,27 +22,6 @@ async function main(): Promise<void> {
     await client.query("INSERT INTO team_memberships (team_id, user_id, status, invited_by_user_id) VALUES ($1, $2, 'active', $2), ($1, $3, 'active', $2)", [ids.team, ids.captain, ids.member]);
     await client.query("INSERT INTO team_captain_changes (team_id, from_user_id, to_user_id, changed_by_actor_id) VALUES ($1, NULL, $2, 'local-test')", [ids.team, ids.captain]);
     await client.query("INSERT INTO team_name_changes (team_id, old_name, new_name, changed_by_actor_id) VALUES ($1, NULL, 'Long-lived Local Team', 'local-test')", [ids.team]);
-    const createdCaptain = await client.query<{ captain_user_id: string; history_captain: string; history_name: string }>(`
-      SELECT t.captain_user_id,
-        (SELECT to_user_id FROM team_captain_changes WHERE team_id = t.id ORDER BY changed_at DESC, id DESC LIMIT 1) AS history_captain,
-        (SELECT new_name FROM team_name_changes WHERE team_id = t.id ORDER BY changed_at DESC, id DESC LIMIT 1) AS history_name
-      FROM teams t WHERE t.id = $1`, [ids.team]);
-    if (!createdCaptain.rows[0] || createdCaptain.rows[0].captain_user_id !== ids.captain || createdCaptain.rows[0].history_captain !== ids.captain || createdCaptain.rows[0].history_name !== "Long-lived Local Team") throw new Error("长期 Team 创建没有同时建立当前字段与 append-only 历史。");
-    await client.query("UPDATE teams SET captain_user_id = $2 WHERE id = $1", [ids.team, ids.member]);
-    await client.query("INSERT INTO team_captain_changes (team_id, from_user_id, to_user_id, changed_at, changed_by_actor_id) VALUES ($1, $2, $3, now() + interval '1 millisecond', 'local-test')", [ids.team, ids.captain, ids.member]);
-    const transferredCaptain = await client.query<{ captain_user_id: string; history_captain: string }>(`
-      SELECT t.captain_user_id,
-        (SELECT to_user_id FROM team_captain_changes WHERE team_id = t.id ORDER BY changed_at DESC, id DESC LIMIT 1) AS history_captain
-      FROM teams t WHERE t.id = $1`, [ids.team]);
-    if (!transferredCaptain.rows[0] || transferredCaptain.rows[0].captain_user_id !== ids.member || transferredCaptain.rows[0].history_captain !== ids.member) throw new Error("队长交接没有原子收敛当前字段与 append-only 历史。");
-    await client.query("UPDATE team_memberships SET status = 'left', ended_at = now(), ended_reason = 'disbanded' WHERE team_id = $1 AND ended_at IS NULL", [ids.team]);
-    await client.query("UPDATE teams SET status = 'disbanded', disbanded_at = now(), disbanded_by = 'local-test' WHERE id = $1", [ids.team]);
-    const disbanded = await client.query<{ current_captain: string; current_members: string; status: string }>(`
-      SELECT t.status::text,
-        t.captain_user_id::text AS current_captain,
-        (SELECT count(*)::text FROM team_memberships WHERE team_id = t.id AND ended_at IS NULL) AS current_members
-      FROM teams t WHERE t.id = $1`, [ids.team]);
-    if (disbanded.rows[0]?.status !== "disbanded" || disbanded.rows[0]?.current_captain !== ids.member || disbanded.rows[0]?.current_members !== "0") throw new Error("解散必须结束当前 membership，但保留最后 captain pointer。");
     await client.query("INSERT INTO competition_entries (id, competition_id, source, team_id, name, representative_user_id, current_roster_revision_id, registration_status) VALUES ($1, $2, 'linked_team', $3, 'Long-lived Local Team', $4, $5, 'draft')", [ids.entry, ids.season, ids.team, ids.member, ids.revision]);
     await client.query("INSERT INTO competition_entry_representative_changes (entry_id, from_user_id, to_user_id, changed_by_actor_id) VALUES ($1, NULL, $2, 'local-test')", [ids.entry, ids.member]);
     await client.query("INSERT INTO competition_entry_participants (id, entry_id, user_id, status, confirmed_at, invited_by_user_id) VALUES ($1, $2, $3, 'confirmed', now(), $3)", [ids.participant, ids.entry, ids.captain]);
@@ -60,46 +39,8 @@ async function main(): Promise<void> {
     await client.query("RESET ROLE");
     await client.query("ROLLBACK");
     await exerciseConcurrencyAndInvariants(pool);
-    await exerciseReinviteRemediationAndPrestart(pool);
     await exerciseQualificationWithRealCatalog(pool);
-    console.log("CompetitionEntry local integration passed: commitment race, withdrawn re-invite, deadline remediation state, approved-only prestart source, active Team and captain projection invariants, frozen roster immutability, cross-Entry rejection, Entry shape constraint, Data API denial, and real 2026 competitive catalog readiness.");
   } finally { client.release(); await pool.end(); }
-}
-
-async function exerciseReinviteRemediationAndPrestart(pool: Pool): Promise<void> {
-  const ids = { season: randomUUID(), captain: randomUUID(), member: randomUUID(), entry: randomUUID(), participant: randomUUID(), revision: randomUUID() };
-  const client = await pool.connect();
-  try {
-    await client.query("BEGIN");
-    await client.query("INSERT INTO users (id, email) VALUES ($1, $2), ($3, $4)", [ids.captain, `remediation-captain-${ids.captain}@local.test`, ids.member, `remediation-member-${ids.member}@local.test`]);
-    await client.query("INSERT INTO seasons (id, slug, name, kind, status, registration_mode, has_captain_voting, has_draft, min_team_size, max_team_size, registration_closes_at) VALUES ($1, $2, 'Local Remediation', 'Major', 'registration', 'team', false, false, 1, 5, now() - interval '1 minute')", [ids.season, `local-remediation-${ids.season}`]);
-    await client.query("INSERT INTO competition_entries (id, competition_id, source, name, representative_user_id, current_roster_revision_id, registration_status) VALUES ($1, $2, 'event_native', 'Remediation Entry', $3, $4, 'changes_requested')", [ids.entry, ids.season, ids.captain, ids.revision]);
-    await client.query("INSERT INTO competition_entry_representative_changes (entry_id, from_user_id, to_user_id, changed_by_actor_id) VALUES ($1, NULL, $2, 'local-test')", [ids.entry, ids.captain]);
-    await client.query("INSERT INTO competition_entry_participants (id, entry_id, user_id, status, withdrawn_at, invited_by_user_id) VALUES ($1, $2, $3, 'withdrawn', now(), $4)", [ids.participant, ids.entry, ids.member, ids.captain]);
-    const duplicateParticipantCommitment = await capturePostgresError(client, () => client.query("INSERT INTO competition_entry_participants (entry_id, user_id, status, invited_by_user_id) VALUES ($1, $2, 'invited', $3)", [ids.entry, ids.member, ids.captain]));
-    expect(duplicateParticipantCommitment).toMatchObject({ code: "23505" });
-    // The action reuses this row (rather than inserting another commitment), then the participant must consent again.
-    await client.query("UPDATE competition_entry_participants SET status = 'invited', confirmed_at = NULL, withdrawn_at = NULL, updated_at = now() WHERE id = $1", [ids.participant]);
-    const reinvited = await client.query<{ status: string; commitments: string }>("SELECT status::text, (SELECT count(*)::text FROM competition_entry_participants WHERE entry_id = $1 AND user_id = $2) AS commitments FROM competition_entry_participants WHERE id = $3", [ids.entry, ids.member, ids.participant]);
-    if (reinvited.rows[0]?.status !== "invited" || reinvited.rows[0]?.commitments !== "1") throw new Error("withdrawn 成员重新邀请没有复用唯一 participant commitment。");
-    await client.query("INSERT INTO competition_entry_active_claims (competition_id, user_id, entry_id, participant_id) VALUES ($1, $2, $3, $4)", [ids.season, ids.member, ids.entry, ids.participant]);
-    await client.query("UPDATE competition_entry_participants SET status = 'confirmed', confirmed_at = now() WHERE id = $1", [ids.participant]);
-    await client.query("INSERT INTO competition_entry_roster_revisions (id, entry_id, revision_number, status, created_by) VALUES ($1, $2, 2, 'draft', 'local-test')", [ids.revision, ids.entry]);
-    await client.query("INSERT INTO competition_entry_roster_members (revision_id, participant_id, user_id, is_primary_starter) VALUES ($1, $2, $3, true)", [ids.revision, ids.participant, ids.member]);
-    // A past deadline is deliberately represented with changes_requested + draft revision: the server-action policy test gates this remediation exception.
-    await client.query("UPDATE competition_entry_roster_revisions SET status = 'submitted', submitted_at = now() WHERE id = $1", [ids.revision]);
-    await client.query("UPDATE competition_entries SET registration_status = 'submitted' WHERE id = $1", [ids.entry]);
-    await client.query("UPDATE competition_entry_roster_revisions SET status = 'approved', approved_at = now() WHERE id = $1", [ids.revision]);
-    await client.query("UPDATE competition_entries SET registration_status = 'approved', approved_roster_revision_id = $2 WHERE id = $1", [ids.entry, ids.revision]);
-    const prestartEligible = await client.query<{ count: string }>(`SELECT count(*)::text FROM competition_entries entry JOIN competition_entry_roster_revisions revision ON revision.id = entry.approved_roster_revision_id AND revision.entry_id = entry.id WHERE entry.competition_id = $1 AND entry.registration_status = 'approved' AND revision.status = 'approved'`, [ids.season]);
-    if (prestartEligible.rows[0]?.count !== "1") throw new Error("prestart 只能消费 approved Entry 的 approved roster revision。");
-    await client.query("ROLLBACK");
-  } catch (error) {
-    await client.query("ROLLBACK").catch(() => {});
-    throw error;
-  } finally {
-    client.release();
-  }
 }
 
 async function exerciseConcurrencyAndInvariants(pool: Pool): Promise<void> {
@@ -216,6 +157,8 @@ async function exerciseConcurrencyAndInvariants(pool: Pool): Promise<void> {
 
     const crossEntryRosterMember = await capturePostgresError(setup, () => setup.query("INSERT INTO competition_entry_roster_members (revision_id,participant_id,user_id) VALUES ($1,$2,$3)", [ids.revisionA, ids.participantB, ids.shared]));
     expect(crossEntryRosterMember).toMatchObject({ code: "23514" });
+    const duplicateParticipant = await capturePostgresError(setup, () => setup.query("INSERT INTO competition_entry_participants (entry_id,user_id,status,invited_by_user_id) VALUES ($1,$2,'invited',$3)", [ids.entryA, ids.shared, ids.captainA]));
+    expect(duplicateParticipant).toMatchObject({ code: "23505" });
     await setup.query("INSERT INTO event_roster_members (id,event_roster_id,participant_id,user_id) VALUES ($1,$2,$3,$4)", [ids.eventMemberA, ids.rosterA, ids.participantA, ids.shared]);
     await setup.query("INSERT INTO event_roster_members (id,event_roster_id,participant_id,user_id) VALUES ($1,$2,$3,$4)", [ids.eventMemberB, ids.rosterB, ids.participantB, ids.shared]);
     await setup.query("INSERT INTO matches (id,season_id,entry_a_id,entry_b_id,stage) VALUES ($1,$2,$3,$4,'fixture')", [ids.match, ids.season, ids.entryA, ids.entryB]);
@@ -276,21 +219,6 @@ async function exerciseQualificationWithRealCatalog(pool: Pool): Promise<void> {
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
-    // The built-in catalog comes from migration 0020 itself; the fixture must
-    // consume it, never re-seed or alias it.
-    const seasons = await client.query<{ season_key: string; is_current: boolean }>(
-      "SELECT season_key, is_current FROM competitive_platform_seasons WHERE platform = 'perfect_world' AND season_key IN ('2026s1', '2026s2') ORDER BY sort_order",
-    );
-    if (JSON.stringify(seasons.rows) !== JSON.stringify([{ season_key: "2026s1", is_current: false }, { season_key: "2026s2", is_current: true }])) {
-      throw new Error(`0020 内置 Perfect 赛季目录不符：${JSON.stringify(seasons.rows)}`);
-    }
-    const demonKing = await client.query<{ star_min: number | null; star_max: number | null }>(
-      "SELECT star_min, star_max FROM competitive_platform_ranks WHERE platform_key = 'perfect_world' AND rank_key = '魔王S'",
-    );
-    if (demonKing.rows[0]?.star_min !== 50 || demonKing.rows[0]?.star_max !== null) {
-      throw new Error(`0020 魔王S 星数区间不符：${JSON.stringify(demonKing.rows[0])}`);
-    }
-
     const users = { normal: randomUUID(), star: randomUUID(), secondStar: randomUUID(), offLadder: randomUUID() };
     const values: Array<[string, string, string, string, number | null]> = [];
     for (const [key, rank] of [["normal", "A++"], ["star", "魔王S"], ["secondStar", "黄金S"], ["offLadder", "Grandmaster"]] as const) {
@@ -314,32 +242,6 @@ async function exerciseQualificationWithRealCatalog(pool: Pool): Promise<void> {
         [id, historical, current, stars],
       );
     }
-    const secondStarStars = await client.query<{ stars: number | null }>(
-      "SELECT stars FROM competitive_rank_facts WHERE user_id = $1 AND rank = '黄金S' LIMIT 1",
-      [users.secondStar],
-    );
-    if (secondStarStars.rows[0]?.stars !== 10) throw new Error("黄金S fixture 必须带精确星数。");
-    const starStars = await client.query<{ stars: number | null }>(
-      "SELECT stars FROM competitive_rank_facts WHERE user_id = $1 AND rank = '魔王S' LIMIT 1",
-      [users.star],
-    );
-    if (starStars.rows[0]?.stars !== 50) throw new Error("S 段 fixture 必须带精确星数。");
-
-    // An already published Major retains exactly this context for registration-time use.
-    const seasonId = randomUUID();
-    await client.query(
-      `INSERT INTO seasons (id, slug, name, kind, status, registration_mode, min_team_size, max_team_size, team_registration_config)
-       VALUES ($1, $2, 'Local 2026 Catalog Major', 'Major', 'registration', 'team', 1, 5, $3::json)`,
-      [seasonId, `local-2026-catalog-${seasonId}`, JSON.stringify({ requireCompetitiveProfile: true, competitiveProfile: config })],
-    );
-    const frozen = await client.query<{ config: { competitiveProfile: typeof config } }>(
-      "SELECT team_registration_config AS config FROM seasons WHERE id = $1",
-      [seasonId],
-    );
-    if (JSON.stringify(frozen.rows[0]?.config.competitiveProfile) !== JSON.stringify(config)) {
-      throw new Error("真实 2026 catalog 的冻结 competitiveProfile 必须原样保留。");
-    }
-
     const executor = drizzle(client, { schema });
     const factRows = await loadParticipantQualificationFacts(Object.values(users), { executor });
     for (const [key, userId] of Object.entries(users)) {

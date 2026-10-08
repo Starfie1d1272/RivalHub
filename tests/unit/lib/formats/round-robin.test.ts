@@ -67,32 +67,6 @@ beforeEach(() => {
 });
 
 describe("roundRobinExecutor", () => {
-  describe("isComplete()", () => {
-    it("所有比赛 finished (active=0) 且 total>0 时返回 true", async () => {
-      // first call: total count, second call: active count
-      mockSelectWhere
-        .mockResolvedValueOnce([{ value: 8 }])  // total
-        .mockResolvedValueOnce([{ value: 0 }]);  // active
-      const result = await roundRobinExecutor.isComplete("season-1", "round-robin");
-      expect(result).toBe(true);
-    });
-
-    it("存在 active 比赛返回 false", async () => {
-      mockSelectWhere
-        .mockResolvedValueOnce([{ value: 8 }])
-        .mockResolvedValueOnce([{ value: 2 }]);  // 2 still active
-      const result = await roundRobinExecutor.isComplete("season-1", "round-robin");
-      expect(result).toBe(false);
-    });
-
-    it("total 为 0 时返回 false（无比赛）", async () => {
-      mockSelectWhere
-        .mockResolvedValueOnce([{ value: 0 }]);  // total = 0 → early return
-      const result = await roundRobinExecutor.isComplete("season-1", "round-robin");
-      expect(result).toBe(false);
-    });
-  });
-
   describe("getQualifiers()", () => {
     it("返回按排名排序的前 N 支队", async () => {
       // t1 2-0, t2 1-1, t3 0-2

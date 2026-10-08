@@ -155,6 +155,15 @@ if (args[0] === "summary") {
   const end = args.includes("--end-ms") ? Number(parseFlag(args, "--end-ms")) : Date.now();
   const hasValidStart = Number.isFinite(start) && Number.isFinite(end);
   record(label, hasValidStart ? end - start : 0, hasValidStart ? {} : { unavailableStart: true });
+  if (args.includes("--budget-ms")) {
+    const budget = Number(parseFlag(args, "--budget-ms"));
+    if (!Number.isFinite(budget) || budget <= 0 || !hasValidStart || end < start) {
+      throw new Error("Wall-time budget requires a valid start, end and positive budget.");
+    }
+    if (end - start > budget) {
+      throw new Error(`Required evidence exceeded wall-time budget: ${Math.round(end - start)}ms > ${budget}ms.`);
+    }
+  }
 } else {
   const separator = args.indexOf("--");
   if (separator < 1 || !args[separator + 1]) {

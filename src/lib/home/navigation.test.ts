@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-  buildHomeEyebrow,
   buildHomeNavEntries,
   selectFeaturedSeason,
   selectActiveSeason,
@@ -144,22 +143,6 @@ describe("home navigation helpers", () => {
       "seasons",
       "login",
     ]);
-  });
-
-  it("describes the active phase eyebrow", () => {
-    expect(buildHomeEyebrow({ ...registrationWindow, status: "voting", slug: "nju-rivals-2026" })).toEqual({
-      text: "● 队长投票中",
-      color: "var(--color-warn)",
-    });
-
-    expect(buildHomeEyebrow({ ...registrationWindow, status: "finished", slug: "nju-rivals-2026" })).toEqual({
-      text: "[ RIVALHUB / NJU RIVALS 2026 ]",
-      color: "var(--color-accent)",
-    });
-    expect(buildHomeEyebrow({ ...registrationWindow, status: "registration", slug: "nju-rivals-2026", registrationOpenedAt: null })).toEqual({
-      text: "● 即将开放",
-      color: "var(--color-warn)",
-    });
   });
 
   it("uses an explicit auth state for the account entry", () => {

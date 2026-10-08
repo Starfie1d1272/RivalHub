@@ -63,6 +63,7 @@ const LIVE_SURFACES = [
   "drizzle/migrations/0066_mizar_backend_contracts",
 ];
 const SYSTEM_FLOW_MAP = [
+  { prefixes: ["src/actions/test-matches.ts", "src/lib/matches/test-matches.ts", "src/components/matches/TestMatch", "src/app/admin/[seasonSlug]/test-matches/"], specs: ["tests/e2e/flows/test-matches.spec.ts"] },
   { prefixes: ["src/actions/bet.ts", "src/components/bet/BetBoard", "src/components/bet/BetOperations"], specs: ["tests/e2e/flows/bet.spec.ts"] },
   { prefixes: ["src/actions/predictions.ts", "src/components/predictions/PickEm", "src/components/predictions/PredictionBoard.tsx", "src/components/predictions/PickEditor.tsx"], specs: ["tests/e2e/flows/predictions.spec.ts"] },
   { prefixes: ["src/actions/competition-qualification.ts", "src/components/admin/MajorPrestartConsole", "src/components/admin/MajorCompetitionFlow.tsx"], specs: ["tests/e2e/flows/major-qualification.spec.ts"] },
@@ -141,7 +142,10 @@ export function classifyChangedFiles(entries, options = {}) {
   );
   const result = (...args) => {
     const plan = resultFor(...args);
-    return { ...plan, gateName, mobileSearchEvidence, liveEvidence: plan.full || liveSurfaceChanged };
+    const liveEvidence = plan.full || liveSurfaceChanged || plan.e2eSpecs.includes("tests/e2e/flows/public-match-live.spec.ts");
+    return { ...plan, gateName, mobileSearchEvidence, liveEvidence,
+      systemMatrix: systemMatrixFor(plan, liveEvidence),
+    };
   };
   if (forceFull) {
     return result(CAPABILITIES, true, "受保护分支、merge queue、schedule 或手动运行，强制 full gate");
@@ -530,6 +534,29 @@ function resultFor(requiredJobs, full, reason, evidence = {}) {
   };
 }
 
+// Each matrix runner owns its entire local stack. Partition the selected set,
+// never rediscover FULL in an empty shard. Provider and production checks each
+// run once, independently of browser shards.
+export function systemMatrixFor(plan, liveEvidence) {
+  if (!plan.runSystem) return [];
+  const specs = plan.full ? browserSpecs() : [...new Set(plan.e2eSpecs)].sort();
+  const matrix = [
+    { task: "provider", live: liveEvidence, specs: [] },
+    { task: "production", live: false, specs: [] },
+  ];
+  const liveSpec = "tests/e2e/flows/public-match-live.spec.ts";
+  // The real stale/recovery window is the longest indivisible browser flow.
+  // Keep its runner free of unrelated route compilation and fixture work.
+  if (specs.includes(liveSpec)) matrix.push({ task: "browser-live", live: true, specs: [liveSpec] });
+  const ordinary = specs.filter(spec => spec !== liveSpec);
+  const shards = Array.from({ length: Math.min(7, ordinary.length) }, () => []);
+  ordinary.forEach((spec, index) => shards[index % shards.length].push(spec));
+  return [...matrix, ...shards.map((specs, index) => ({
+    task: `browser-${index + 1}`, specs,
+    live: specs.includes("tests/e2e/flows/public-match-live.spec.ts"),
+  }))];
+}
+
 function isE2ESpec(path) {
   return E2E_SPEC_FILE.test(path);
 }
@@ -581,6 +608,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   output("run_system", String(plan.runSystem));
   output("required_jobs", JSON.stringify(plan.requiredJobs));
   output("static_matrix", JSON.stringify(plan.staticMatrix));
+  output("system_matrix", JSON.stringify(plan.systemMatrix));
   output("unit_mode", plan.unitMode);
   output("related_sources", JSON.stringify(plan.relatedSources));
   output("explicit_tests", JSON.stringify(plan.explicitTests));

@@ -3,6 +3,7 @@ import {
   computeSeriesScoreAfterMap,
   validateMapScore,
   validateSeriesScore,
+  validateSeriesAgainstMaps,
 } from "@/lib/matches/result-rules";
 
 describe("match result rules", () => {
@@ -20,6 +21,7 @@ describe("match result rules", () => {
     it("rejects draws and negative scores", () => {
       expect(() => validateSeriesScore("bo1", 1, 1)).toThrow("系列赛不能平局");
       expect(() => validateSeriesScore("bo3", -1, 0)).toThrow("比分必须为非负整数");
+      expect(() => validateSeriesScore("bo1", 1.5, 1)).toThrow("比分必须为非负整数");
     });
 
     it("requires the winner to reach exact BO3/BO5 win threshold", () => {
@@ -89,4 +91,13 @@ describe("match result rules", () => {
       ).toEqual({ mapWinsA: 3, mapWinsB: 2, seriesFinished: true });
     });
   });
+});
+
+it('accepts unknown maps but rejects conflicting winners and maps after the clinch', () => {
+  const win = (mapOrder: number) => ({ mapOrder, scoreA: 13, scoreB: 5 });
+  expect(() => validateSeriesAgainstMaps('bo3', 2, 1, [])).not.toThrow();
+  expect(() => validateSeriesAgainstMaps('bo3', 2, 1, [win(1)])).not.toThrow();
+  expect(() => validateSeriesAgainstMaps('bo3', 0, 2, [win(1)])).toThrow('冲突');
+  expect(() => validateSeriesAgainstMaps('bo3', 2, 1, [win(1), win(2)])).toThrow('冲突');
+  expect(() => validateSeriesAgainstMaps('bo3', 2, 0, [win(3)])).toThrow('冲突');
 });

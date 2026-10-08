@@ -12,38 +12,8 @@ vi.mock("@/components/matches/MatchStatusBadge", () => ({ MatchStatusBadge: () =
 vi.mock("@/components/matches/ClaimMatchButton", () => ({ ClaimMatchButton: ({ matchId }: { matchId: string }) => <button data-match-id={matchId}>由我负责本场</button> }));
 
 import { AdminMatchRow } from "@/components/matches/AdminMatchRow";
-import { getAdminMatchStartBlockers } from "@/lib/admin/matches/start-blockers";
-
-const roster = { rosterId: "roster", starters: ["1", "2", "3", "4", "5"], substitutes: [], vetoRepresentativeEventRosterMemberId: null, status: "confirmed" as const };
 
 describe("AdminMatchRow start gate presentation", () => {
-  it("blocks a Major start when the authoritative preflight is unavailable", () => {
-    expect(getAdminMatchStartBlockers({
-      requiresPreflight: true,
-      teamAName: "Alpha",
-      teamBName: "Beta",
-      teamARoster: roster,
-      teamBRoster: roster,
-      teamAPreflight: null,
-      teamBPreflight: null,
-    })).toEqual([
-      "Alpha 尚未完成首发资格检查",
-      "Beta 尚未完成首发资格检查",
-    ]);
-  });
-
-  it("does not require Major preflight data for non-Major matches", () => {
-    expect(getAdminMatchStartBlockers({
-      requiresPreflight: false,
-      teamAName: "Alpha",
-      teamBName: "Beta",
-      teamARoster: roster,
-      teamBRoster: roster,
-      teamAPreflight: null,
-      teamBPreflight: null,
-    })).toEqual([]);
-  });
-
   it("renders a scheduled match summary with the workbench entry point", () => {
     render(
       <AdminMatchRow

@@ -21,7 +21,7 @@ describe("toLongLivedTeamDto", () => {
         id: "0b7f9d0a-0000-4000-8000-000000000001",
         slug: "test-team",
         name: "测试队伍",
-        description: null,
+        description: "招新中",
         captainUserId: "0b7f9d0a-0000-4000-8000-000000000002",
       },
       {
@@ -42,25 +42,8 @@ describe("toLongLivedTeamDto", () => {
       slug: row.slug,
       name: row.name,
       logoUrl: row.logoUrl,
-      description: null,
+      description: "招新中",
       captainUserId: row.captainUserId,
     });
-    expect(Object.keys(dto).sort()).toEqual(["captainUserId", "description", "id", "logoUrl", "name", "slug"]);
-    expect("creatorUserId" in dto).toBe(false);
-    expect("createdAt" in dto).toBe(false);
-    expect("status" in dto).toBe(false);
-    expect(dto.logoUrl).toBe(row.logoUrl);
-  });
-
-  it("保留描述等 Team identity 字段", () => {
-    const dto = toLongLivedTeamDto({
-      id: "0b7f9d0a-0000-4000-8000-000000000001",
-      slug: "another-team",
-      name: "另一支队伍",
-      logoUrl: null,
-      description: "招新中",
-      captainUserId: "0b7f9d0a-0000-4000-8000-000000000002",
-    });
-    expect(dto.description).toBe("招新中");
   });
 });

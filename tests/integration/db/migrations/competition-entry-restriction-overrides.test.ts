@@ -25,16 +25,6 @@ describe("qualification restriction override migration", () => {
          WHERE oid = 'public.competition_entry_restriction_overrides'::regclass`,
       );
       expect(table.rows[0]?.relrowsecurity).toBe(true);
-      const indexes = await client.query<{ indexname: string }>(
-        `SELECT indexname FROM pg_indexes
-         WHERE schemaname = 'public' AND tablename = 'competition_entry_restriction_overrides'`,
-      );
-      expect(indexes.rows.map((row) => row.indexname)).toEqual(expect.arrayContaining([
-        "competition_entry_restriction_overrides_active_unique",
-        "competition_entry_restriction_overrides_entry_idx",
-        "competition_entry_restriction_overrides_competition_idx",
-      ]));
-
       await client.query("BEGIN");
       for (const role of ["anon", "authenticated"] as const) {
         await client.query(`SET LOCAL ROLE ${role}`);

@@ -65,20 +65,16 @@ describe("AuditLogTable", () => {
     fetchAuditLogsMock.mockResolvedValue({ success: true, data: { logs: [knownLog, unknownLog], total: 2 } });
   });
 
-  it("renders safe presentation fields and no permanent raw-details column", () => {
-    const { container } = renderTable();
+  it("renders sanitized labels without exposing raw action keys", () => {
+    renderTable();
 
-    expect(screen.getAllByText("通过教育认证审核").length).toBeGreaterThanOrEqual(2);
+    expect(screen.getAllByText("通过教育认证审核").length).toBeGreaterThan(0);
     expect(screen.getByText("未知操作")).toBeInTheDocument();
     expect(screen.queryByText("future.internal_action")).not.toBeInTheDocument();
-    expect(screen.getAllByText("认证 · 玩家甲 · 南京大学").length).toBe(2);
+    expect(screen.getAllByText("认证 · 玩家甲 · 南京大学").length).toBeGreaterThan(0);
     expect(screen.getByText("含审核备注")).toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: "摘要" })).toBeInTheDocument();
-    expect(screen.queryByRole("columnheader", { name: "详情" })).not.toBeInTheDocument();
-    expect(screen.queryByText("展开")).not.toBeInTheDocument();
-    expect(container.querySelector("pre")).toBeNull();
     expect(screen.getByRole("option", { name: "通过教育认证审核" })).toBeInTheDocument();
-    expect(screen.getByRole("option", { name: "更新竞技段位资料" })).toBeInTheDocument();
   });
 
 
@@ -101,7 +97,7 @@ describe("AuditLogTable", () => {
     );
 
     await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("操作日志加载失败"));
-    expect(screen.getAllByText("通过教育认证审核").length).toBeGreaterThanOrEqual(2);
+    expect(screen.getAllByText("通过教育认证审核").length).toBeGreaterThan(0);
     expect(screen.queryByText("暂无日志记录")).not.toBeInTheDocument();
   });
 

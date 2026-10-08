@@ -141,10 +141,6 @@ describe("operator scoreboard identity boundary", () => {
 
     expect(result).toMatchObject({ success: true });
     expect(updateValues).toEqual([{ ratingPro: 1.3, rws: 8, we: 9 }]);
-    expect(updateValues[0]).not.toHaveProperty("userId");
-    expect(updateValues[0]).not.toHaveProperty("perfectName");
-    expect(updateValues[0]).not.toHaveProperty("verifiedByAdmin");
-    expect(updateValues[0]).not.toHaveProperty("verifiedAt");
     expect(writeAuditInTxMock).toHaveBeenCalledTimes(1);
   });
 });

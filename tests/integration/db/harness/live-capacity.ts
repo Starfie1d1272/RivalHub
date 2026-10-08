@@ -67,11 +67,12 @@ const fixtureWire = JSON.parse(
 const pool = (db as typeof db & { $client: ReturnType<typeof createLocalPool> })
   .$client;
 const monitor = createLocalPool({ max: 1 });
-const state: { mode: "fast" | "slow" | "timeout" | "disconnect" | "429" | "invalid-body" | "stalled-body" ; sent: number; bytes: number; activeHttp: number; maxHttp: number } = { mode: "fast", sent: 0, bytes: 0, activeHttp: 0, maxHttp: 0 };
+const state: { mode: "fast" | "slow" | "timeout" | "disconnect" | "429" | "invalid-body" | "stalled-body" ; sendBarrier?: Promise<void>; sent: number; bytes: number; activeHttp: number; maxHttp: number } = { mode: "fast", sent: 0, bytes: 0, activeHttp: 0, maxHttp: 0 };
 const publications: Array<{ at: number; payload: Record<string, unknown> }> =
   [];
 const server = createServer(async (req, res) => {
   const current = state.mode;
+  const sendBarrier = state.sendBarrier;
   let body = "";
   for await (const chunk of req) body += chunk.toString();
   state.sent++;
@@ -95,6 +96,7 @@ const server = createServer(async (req, res) => {
     res.end('slow"}');
     return;
   }
+  if (sendBarrier) await sendBarrier;
   await delay(current === "slow" ? 700 : current === "timeout" ? 2600 : 5);
   res.writeHead(current === "429" || current === "invalid-body" ? 429 : 202, {
     "Content-Type": "application/json",

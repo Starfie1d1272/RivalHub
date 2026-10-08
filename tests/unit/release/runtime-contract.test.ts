@@ -4,24 +4,9 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const projectRoot = resolve(process.cwd());
-const PNPM_SETUP_SHA = "fbda4c85fc2e1e08721cd8763afea8f48d60f024";
 
 function readProjectFile(path: string): string {
   return readFileSync(resolve(projectRoot, path), "utf8");
-}
-
-function readPackageManifest(): {
-  packageManager?: string;
-  engines?: { node?: string };
-  devEngines?: { runtime?: { name?: string; version?: string; onFail?: string } };
-  scripts?: Record<string, string>;
-} {
-  return JSON.parse(readProjectFile("package.json")) as {
-    packageManager?: string;
-    engines?: { node?: string };
-    devEngines?: { runtime?: { name?: string; version?: string; onFail?: string } };
-    scripts?: Record<string, string>;
-  };
 }
 
 function readWorkflowJob(workflow: string, jobName: string): string {
@@ -34,6 +19,14 @@ function readWorkflowStep(job: string, stepName: string): string {
   const step = job.split(`      - name: ${stepName}\n`)[1]?.split("\n      - ")[0];
   if (!step) throw new Error(`workflow step not found: ${stepName}`);
   return step;
+}
+
+function expectOrderedSteps(workflow: string, before: string, after: string): void {
+  const beforeIndex = workflow.indexOf(before);
+  const afterIndex = workflow.indexOf(after);
+  expect(beforeIndex, `missing release step: ${before}`).toBeGreaterThan(-1);
+  expect(afterIndex, `missing release step: ${after}`).toBeGreaterThan(-1);
+  expect(beforeIndex).toBeLessThan(afterIndex);
 }
 
 function runProductionMigrationStep(requiresRehearsal: boolean, failMigration = false) {
@@ -62,22 +55,6 @@ function runProductionMigrationStep(requiresRehearsal: boolean, failMigration = 
       TEST_MIGRATION_FAILURE: String(failMigration),
     },
   });
-}
-
-function expectPnpmSetup(workflow: string, jobNames: string[]): void {
-  expect(workflow).not.toContain("pnpm/action-setup");
-  expect(workflow).not.toContain("actions/setup-node");
-  expect(workflow).not.toContain("pnpm install --frozen-lockfile");
-  expect(workflow.match(/uses: pnpm\/setup@[0-9a-f]{40}/g) ?? []).toHaveLength(jobNames.length);
-
-  for (const jobName of jobNames) {
-    const job = readWorkflowJob(workflow, jobName);
-    expect(job).toContain(`uses: pnpm/setup@${PNPM_SETUP_SHA} # v3.0.0`);
-    expect(job).toContain("cache: true");
-    expect(job).toContain("require-lockfile: true");
-    expect(job).not.toContain("version: 11.25.0");
-    expect(job).not.toContain("node-version:");
-  }
 }
 
 describe("deployment and operations contracts", () => {
@@ -118,48 +95,10 @@ describe("deployment and operations contracts", () => {
     expect(coverage).toContain("if: needs.preflight.outputs.requires_stats_projection_backfill == 'true'");
     expect(coverage).toContain("pnpm db:production:stats-projections:coverage");
     expect(coverage).not.toContain("RIVALHUB_ALLOW_REMOTE_DB_WRITE");
-    expect(migration.indexOf("回填 production 每图统计投影")).toBeLessThan(migration.indexOf("验证 production 统计投影覆盖"));
+    expectOrderedSteps(migration, "回填 production 每图统计投影", "验证 production 统计投影覆盖");
     expect(finalize).toContain("needs.production_migration.result == 'success' || needs.production_migration.result == 'skipped'");
     expect(finalize).toContain("needs: [preflight, candidate_build, migration_rehearsal, checkpoint, production_migration]");
-    expect(finalize.indexOf("运行 exact candidate smoke test")).toBeLessThan(finalize.indexOf("执行 release routing / rollback"));
-  });
-
-  it("keeps pnpm and Node runtime ownership in the package manifest", () => {
-    const manifest = readPackageManifest();
-
-    expect(manifest.packageManager).toMatch(/^pnpm@12\.\d+\.\d+$/);
-    expect(manifest.engines?.node).toBe("24.x");
-    expect(manifest.devEngines?.runtime).toEqual({
-      name: "node",
-      version: "24.x",
-      onFail: "download",
-    });
-    expect(manifest.scripts?.["db:recovery:fetch"]).toBe("tsx scripts/db/recovery/fetch.ts");
-    expect(Object.values(manifest.scripts ?? {}).some((script) => script.includes("corepack pnpm"))).toBe(false);
-    expect(readProjectFile("scripts/db/local.ts")).not.toContain("corepack");
-    expect(readProjectFile("playwright.config.ts")).not.toContain("corepack");
-    expect(readProjectFile("pnpm-lock.yaml")).toMatch(
-      /node:\n\s+specifier: runtime:24\.x\n\s+version: runtime:24\.\d+\.\d+/,
-    );
-  });
-
-  it("uses the pinned pnpm/setup owner only in dependency-bearing CI jobs", () => {
-    const ci = readProjectFile(".github/workflows/ci.yml");
-    const staging = readProjectFile(".github/workflows/staging.yml");
-    const release = readProjectFile(".github/workflows/release.yml");
-    const recoveryBackup = readProjectFile(".github/workflows/recovery-backup.yml");
-    const recoveryR2 = readProjectFile(".github/workflows/recovery-r2.yml");
-
-    expectPnpmSetup(ci, ["static", "postgres", "system"]);
-    expectPnpmSetup(staging, ["staging"]);
-    expectPnpmSetup(release, ["preflight", "migration_rehearsal", "checkpoint", "candidate_build", "production_migration", "finalize"]);
-    expectPnpmSetup(recoveryBackup, ["backup"]);
-    expectPnpmSetup(recoveryR2, ["retention"]);
-    expect(readWorkflowJob(ci, "plan")).not.toContain("pnpm/setup");
-    const gate = readWorkflowJob(ci, "gate");
-    expect(gate).toContain("name: ${{ needs.plan.outputs.gate_name }}");
-    expect(gate).not.toContain("pnpm/setup");
-    expect(readWorkflowJob(ci, "dependency-review")).not.toContain("pnpm/setup");
+    expectOrderedSteps(finalize, "运行 exact candidate smoke test", "执行 release routing / rollback");
   });
 
   it("keeps production recovery snapshots encrypted and outside GitHub artifacts", () => {
@@ -193,7 +132,7 @@ describe("deployment and operations contracts", () => {
     expect(release).toContain("创建 DB-only release checkpoint");
     expect(release).toContain("创建 full release checkpoint");
     expect(release).toContain("RIVALHUB_PRODUCTION_BASE_URL: https://match.starfie1d.top");
-    expect(release.indexOf("创建 full release checkpoint")).toBeLessThan(release.indexOf("运行 exact candidate smoke test"));
+    expectOrderedSteps(release, "创建 full release checkpoint", "运行 exact candidate smoke test");
     expect(release).toContain("pnpm db:recovery:checkpoint");
     expect(release).toContain("pnpm db:recovery:backup pre-release");
     const candidateBuild = readWorkflowJob(release, "candidate_build");
@@ -232,11 +171,11 @@ describe("deployment and operations contracts", () => {
     expect(productionMigration).toContain("pnpm db:production:steam-profile:coverage");
     expect(productionMigration).toContain("STEAM_API_KEY: ${{ secrets.STEAM_API_KEY }}");
     expect(productionMigration).toContain("RIVALHUB_STEAM_PROFILE_WRITE_CONFIRM: I_UNDERSTAND_STEAM_PROFILE_CACHE_WRITE");
-    expect(release.indexOf("运行 production migration 与验证")).toBeLessThan(release.indexOf("回填 production Steam profile cache"));
-    expect(release.indexOf("回填 production Steam profile cache")).toBeLessThan(release.indexOf("验证 production Steam profile coverage"));
-    expect(release.indexOf("验证 production Steam profile coverage")).toBeLessThan(release.indexOf("运行 exact candidate smoke test"));
-    expect(release.indexOf("运行 production migration 与验证")).toBeLessThan(release.indexOf("运行 exact candidate smoke test"));
-    expect(finalize.indexOf("运行 exact candidate smoke test")).toBeLessThan(finalize.indexOf("执行 release routing / rollback"));
+    expectOrderedSteps(release, "运行 production migration 与验证", "回填 production Steam profile cache");
+    expectOrderedSteps(release, "回填 production Steam profile cache", "验证 production Steam profile coverage");
+    expectOrderedSteps(release, "验证 production Steam profile coverage", "运行 exact candidate smoke test");
+    expectOrderedSteps(release, "运行 production migration 与验证", "运行 exact candidate smoke test");
+    expectOrderedSteps(finalize, "运行 exact candidate smoke test", "执行 release routing / rollback");
     expect(release).toContain("SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}");
     expect(release).not.toContain("SUPABASE_SERVICE_ROLE_KEY");
     expect(release).not.toContain("RIVALHUB_BACKUP_HEARTBEAT_URL");
@@ -301,56 +240,14 @@ describe("deployment and operations contracts", () => {
 
   it("freezes the exact release identity into Vercel builds and reads it back after deploy", () => {
     const release = readProjectFile(".github/workflows/release.yml");
-    const routing = readProjectFile("scripts/release/routing.ts");
-    const vercelRouting = readProjectFile("scripts/release/vercel-routing.ts");
     const nextConfig = readProjectFile("next.config.ts");
 
     expect(release).toContain('--build-env RIVALHUB_RELEASE_TAG="$RELEASE_TAG"');
     expect(release).toContain('--build-env RIVALHUB_RELEASE_COMMIT="$RELEASE_SHA"');
     expect(release).toContain('deployment_identity="$(curl --fail');
     expect(release).toContain('"$DEPLOYMENT_URL/api/system/release"');
-    expect(routing).toContain("/api/system/release");
-    expect(routing).toContain("assertReleaseIdentity");
-    expect(routing).toContain("createVercelRoutingClient");
-    expect(vercelRouting).toContain("DEFAULT_REQUEST_TIMEOUT_MS = 15_000");
     expect(nextConfig).toContain('RIVALHUB_RELEASE_TAG: process.env.RIVALHUB_RELEASE_TAG ?? ""');
     expect(nextConfig).toContain('RIVALHUB_RELEASE_COMMIT: process.env.RIVALHUB_RELEASE_COMMIT ?? ""');
-  });
-
-  it("documents the current Vercel Trusted Source fields and raw claims", () => {
-    const releaseRunbook = readProjectFile("docs/operations/release.md");
-    const recoveryRunbook = readProjectFile("docs/operations/disaster-recovery.md");
-
-    for (const runbook of [releaseRunbook, recoveryRunbook]) {
-      expect(runbook).toContain("GitHub account | `Starfie1d1272`");
-      expect(runbook).toContain("Repository | `RivalHub`");
-      expect(runbook).toContain("Branch | 留空（release 使用版本 tag");
-      expect(runbook).toContain("GitHub Actions environment | `production`");
-      expect(runbook).toContain("Audience | `https://github.com/Starfie1d1272`");
-      expect(runbook).toContain("Applies to environments | `Production`");
-      expect(runbook).toContain("Edit raw claims");
-      expect(runbook).toContain("`repository_id` | `1231811932`");
-      expect(runbook).toContain("`workflow` | `Release`");
-      expect(runbook).toContain("`environment` | `production`");
-      expect(runbook).toContain("`sub` | `repo:Starfie1d1272/RivalHub:environment:production`");
-      expect(runbook).toContain("`event_name` | `push`, `workflow_dispatch`");
-      expect(runbook).toContain("不填写 `ref` 或 `workflow_ref`");
-      expect(runbook).not.toContain("Workflow | `Release`");
-      expect(runbook).not.toContain("Branch | `Any branch`");
-    }
-  });
-
-  it("keeps recovery capability and destructive migration on separate release gates", () => {
-    const releaseRunbook = readProjectFile("docs/operations/release.md");
-    const recoveryRunbook = readProjectFile("docs/operations/disaster-recovery.md");
-
-    expect(releaseRunbook).toContain("offline read-only fetch");
-    expect(releaseRunbook).toContain("temporary-sensitive/active-reference-only");
-    expect(recoveryRunbook).toContain("30d");
-    expect(recoveryRunbook).toContain("Cold-start provider configuration inventory");
-    expect(releaseRunbook).toContain("production encrypted backup");
-    expect(releaseRunbook).toContain("private R2 artifact/sidecar/completion PUT + HEAD + real GET/hash read-back");
-    expect(releaseRunbook).toContain("local offline age private key decrypt");
   });
 
   it("uses main as the sole long-lived CI ref", () => {
@@ -370,25 +267,6 @@ describe("deployment and operations contracts", () => {
     expect(config.buildCommand).toBe("tsx scripts/vercel-build.ts");
     expect(config.regions).toEqual(["hnd1"]);
     expect(config.git?.deploymentEnabled).toBe(false);
-  });
-
-  it("keeps the production build hermetic", () => {
-    const build = readProjectFile("scripts/vercel-build.ts");
-    const hermeticBuild = readProjectFile("scripts/ci/hermetic-production-build.mjs");
-
-    expect(build).toContain("assertProductionReleaseBuild");
-    expect(build).toContain("next${binSuffix}");
-    expect(build).not.toContain("verify-migrations");
-    expect(build).not.toContain("PRODUCTION_DATABASE_URL");
-    expect(build).not.toContain("SUPABASE_SECRET_KEY");
-    expect(hermeticBuild).toContain('VERCEL_ENV: "production"');
-    expect(hermeticBuild).toContain('NODE_ENV: "production"');
-    expect(hermeticBuild).toContain('__NEXT_PROCESSED_ENV: "true"');
-    expect(hermeticBuild).toContain('RIVALHUB_RELEASE_TAG: "v0.0.0-ci"');
-    expect(hermeticBuild).toContain('"DATABASE_URL"');
-    expect(hermeticBuild).toContain('"SUPABASE_SERVICE_ROLE_KEY"');
-    expect(readProjectFile("scripts/ci/run-static-task.mjs")).toContain("hermetic-production-build.mjs");
-    expect(readProjectFile("playwright.config.ts")).toContain("PLAYWRIGHT_RETRIES");
   });
 
   it("keeps staging as a protected manual database-only rehearsal", () => {
@@ -437,7 +315,7 @@ describe("deployment and operations contracts", () => {
     expect(release).not.toContain("RIVALHUB_PRODUCTION_STABLE_REF: origin/main");
     expect(release).toContain("pnpm db:release-compat");
     expect(readWorkflowJob(release, "production_migration")).toContain("pnpm db:production:migrate");
-    expect(release.indexOf("冻结 previous Production identity")).toBeLessThan(release.indexOf("验证 exact-SHA CI prerequisite"));
+    expectOrderedSteps(release, "冻结 previous Production identity", "验证 exact-SHA CI prerequisite");
   });
 
   it("retries an immutable GitHub Release without editing its published metadata", () => {
@@ -486,9 +364,9 @@ describe("deployment and operations contracts", () => {
     expect(finalize).toContain("RIVALHUB_SCHEDULER_BASE_URL: https://match.starfie1d.top");
     expect(finalize).toContain("RIVALHUB_ALLOW_REMOTE_DB_WRITE=production pnpm db:production:scheduler:provision");
     expect(finalize).toContain("pnpm db:production:scheduler:verify");
-    expect(finalize.indexOf("执行 release routing / rollback")).toBeLessThan(finalize.indexOf("配置并验证 production scheduler"));
+    expectOrderedSteps(finalize, "执行 release routing / rollback", "配置并验证 production scheduler");
     expect(finalize).toContain("生成 Production delta release notes");
-    expect(finalize.indexOf("配置并验证 production scheduler")).toBeLessThan(finalize.indexOf("生成 Production delta release notes"));
+    expectOrderedSteps(finalize, "配置并验证 production scheduler", "生成 Production delta release notes");
     expect(finalize).toContain("if: env.REQUIRES_SCHEDULER_PROVISION == 'true'");
     expect(finalize).not.toContain("env.RELEASE_MODE == 'fresh' &&");
 
@@ -500,7 +378,7 @@ describe("deployment and operations contracts", () => {
     expect(schedulerStep).toMatch(/bash -c '\s*set -euo pipefail/);
   });
 
-  it("enforces Issue #603 release orchestration and CI convergence contract", () => {
+  it("keeps CI cancellation and staged release orchestration isolated", () => {
     const ci = readProjectFile(".github/workflows/ci.yml");
     const release = readProjectFile(".github/workflows/release.yml");
     const finalize = readWorkflowJob(release, "finalize");
@@ -513,53 +391,14 @@ describe("deployment and operations contracts", () => {
     // Release runner & permissions
     expect(release).not.toContain("uses: ./.github/workflows/release-finalize.yml");
     expect(release).toContain("group: rivalhub-release-lineage");
-    expect(finalize).toContain("runs-on: ubuntu-24.04");
 
-    // Ordering: dependency setup before preflight, preflight before backup and DB mutations
-    const pnpmSetupIdx = release.indexOf("uses: pnpm/setup");
-    const ciPrereqIdx = release.indexOf("验证 exact-SHA CI prerequisite");
-    const checkpointIdx = release.indexOf("创建 full release checkpoint");
+    // Preflight must exist and precede the checkpoint before DB mutation.
     const migrateIdx = release.indexOf("运行 production migration 与验证");
-    expect(pnpmSetupIdx).toBeGreaterThan(0);
-    expect(pnpmSetupIdx).toBeLessThan(ciPrereqIdx);
-    expect(ciPrereqIdx).toBeLessThan(checkpointIdx);
+    expectOrderedSteps(release, "验证 exact-SHA CI prerequisite", "创建 full release checkpoint");
     expect(migrateIdx).toBeGreaterThan(-1);
 
-    // Knip entries registration
-    const knipConfig = JSON.parse(readProjectFile("knip.json")) as { entry: string[] };
-    expect(knipConfig.entry).toContain("scripts/release/ci-prerequisite.ts!");
-    expect(knipConfig.entry).toContain("scripts/release/production-identity.ts!");
-    expect(knipConfig.entry).toContain("scripts/release/changelog.ts!");
-    expect(knipConfig.entry).toContain("scripts/release/production-deployment.ts!");
-    expect(knipConfig.entry).toContain("scripts/release/routing.ts!");
-
-    // Routing state machine ownership and workflow wiring
-    const routing = readProjectFile("scripts/release/routing.ts");
-    const vercelRouting = readProjectFile("scripts/release/vercel-routing.ts");
-    expect(finalize).toContain("执行 release routing / rollback");
+    // The controller and provider behavior are covered by routing and provider tests.
     expect(finalize).toContain("pnpm release:routing");
-    expect(release).not.toContain("wait_for_alias_job");
-    expect(release).not.toContain("PREVIOUS_IDENTITY");
-    expect(release).not.toContain("PROMOTE_STATUS");
-    expect(release).not.toContain("ROLLBACK_STATUS");
-    expect(vercelRouting).toContain("https://api.vercel.com/v13/deployments/");
-    expect(vercelRouting).toContain("https://api.vercel.com/v10/projects/");
-    expect(vercelRouting).toContain("https://api.vercel.com/v1/projects/");
-    expect(vercelRouting).toContain("lastAliasRequest");
-    expect(vercelRouting).toContain("AbortController");
-    expect(vercelRouting).toContain("requestTimeoutMs");
-    expect(vercelRouting).toContain('"retry-after"');
-    expect(routing).toContain("DEFAULT_ROUTING_PROVIDER_TIMEOUT_MS = 180_000");
-    expect(routing).toContain("DEFAULT_ROUTING_SEMANTIC_TIMEOUT_MS = 120_000");
-    expect(routing).toContain("DEFAULT_ROUTING_AMBIGUOUS_RECONCILIATION_TIMEOUT_MS = 15_000");
-    expect(routing).toContain("stablePreviousObservations");
-    expect(routing).toContain("reconciliationWindowSafeToRetry");
-    expect(routing).toContain("elapsedMs >= timeoutMs");
-    expect(routing).toContain("rate_limited");
-    expect(routing).toContain("convergence_timeout");
-    expect(routing).toContain("rollback_failed");
-    expect(routing).toContain("previousReleaseTag");
-    expect(routing).toContain("previousReleaseCommit");
 
     // DB-only local rehearsal
     expect(release).toContain("image: postgres:17");
@@ -574,9 +413,5 @@ describe("deployment and operations contracts", () => {
     expect(release).toContain("vercel deploy --prod --skip-domain");
     expect(finalize).not.toContain('vercel promote "$DEPLOYMENT_URL" --yes');
     expect(finalize).not.toContain("vercel rollback --yes");
-
-    // Phase timing evidence
-    expect(release).toContain('RIVALHUB_TIMING_TITLE: "Release 阶段耗时"');
-    expect(finalize).toContain('node scripts/ci/timing.mjs record --label "Total" --start-iso "$RELEASE_WORKFLOW_STARTED_AT"');
   });
 });

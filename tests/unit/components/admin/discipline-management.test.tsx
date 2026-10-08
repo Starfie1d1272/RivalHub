@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import React from "react";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { DisciplineManagement, type DisciplineSanctionRow } from "@/components/admin/DisciplineManagement";
 
@@ -124,12 +124,16 @@ describe("DisciplineManagement", () => {
   });
 
   it("does not search until the query reaches the minimum length", async () => {
-    renderDisciplineManagement({ sanctions: [], total: 0, totalPages: 0, hasAnyRecords: false });
-
-    fireEvent.change(screen.getByLabelText(/搜索被处罚用户/), { target: { value: "甲" } });
-    await new Promise((resolve) => setTimeout(resolve, 400));
-    expect(searchSanctionSubjectsMock).not.toHaveBeenCalled();
-    expect(screen.getByRole("option", { name: "— 选择用户 —" })).toBeInTheDocument();
+    vi.useFakeTimers();
+    try {
+      renderDisciplineManagement({ sanctions: [], total: 0, totalPages: 0, hasAnyRecords: false });
+      fireEvent.change(screen.getByLabelText(/搜索被处罚用户/), { target: { value: "甲" } });
+      await act(async () => { await vi.advanceTimersByTimeAsync(400); });
+      expect(searchSanctionSubjectsMock).not.toHaveBeenCalled();
+      expect(screen.getByRole("option", { name: "— 选择用户 —" })).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("searches subjects on demand and surfaces search errors", async () => {

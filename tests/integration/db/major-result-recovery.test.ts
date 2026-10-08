@@ -869,21 +869,6 @@ async function main(): Promise<void> {
       }
 
       // G. 后续阶段 StageRun 已建立 → 本阶段胜者更正被拒绝。
-      const stageTransitionClient = await pool.connect();
-      try {
-        await stageTransitionClient.query(
-          `INSERT INTO major_stage_runs (season_id, stage_key, rule_snapshot, started_by)
-           SELECT r.season_id, 'stage2',
-                  jsonb_set(r.rule_snapshot, '{stage}', '{"key":"stage2","type":"swiss","teamCount":16,"matchFormat":"bo1"}'::jsonb),
-                  'local-admin'
-           FROM major_stage_runs r WHERE r.id = $1`,
-          [run.runId],
-        );
-      } finally {
-        stageTransitionClient.release();
-      }
-      fixtures.at(-1)!.stageKeysWithRuns.push({ stageKey: "stage2", runId: "(via-insert)" });
-
       // 用独立 fixture 再验证一次完整阻断路径（不依赖主 fixture 内部顺序）。
       {
         const staged = await prepareFixture(pool, "post-transition");

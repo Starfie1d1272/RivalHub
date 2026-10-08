@@ -3,8 +3,8 @@
 // 排名规则（优先级从高到低）：
 //   1. 胜场数（wins）
 //   2. 净胜回合数（netRounds = Σ(己方rounds - 对方rounds)）
-//   3. 总胜回合数（totalRoundsWon）
-//   4. 相互战绩（head-to-head胜负）
+//   3. 相互战绩（head-to-head胜负）
+//   4. 总胜回合数（totalRoundsWon）
 //   5. 抽签（原始 draftOrder）
 //
 // matches.scoreA/scoreB 始终是系列赛比分；排名中的回合项只消费

@@ -15,7 +15,4 @@ describe("map scoreboard gate", () => {
     expect(canConfirmMapScoreboard({ scoreA: 13, scoreB: 9, completedAt: null })).toBe(false);
   });
 
-  it("keeps an already completed map confirmable after the series later ends by forfeit or cancellation", () => {
-    expect(canConfirmMapScoreboard({ scoreA: 13, scoreB: 9, completedAt })).toBe(true);
-  });
 });

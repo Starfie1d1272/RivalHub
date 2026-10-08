@@ -24,7 +24,7 @@ describe("ClaimTeamInviteButton", () => {
     acceptTeamInvitationMock.mockResolvedValue({ success: true, data: { slug: "rival-team", teamId: "team-1" } });
   });
 
-  it("uses ordinary Team copy for the action and toast", async () => {
+  it("accepts the invitation token and navigates to the returned Team", async () => {
     render(<ClaimTeamInviteButton token={"a".repeat(32)} />);
 
     expect(screen.getByRole("button", { name: "加入队伍" })).toBeInTheDocument();
@@ -35,6 +35,5 @@ describe("ClaimTeamInviteButton", () => {
       expect(successMock).toHaveBeenCalledWith("已加入队伍");
       expect(pushMock).toHaveBeenCalledWith("/teams/rival-team");
     });
-    expect(screen.queryByText(/长期 Team/)).not.toBeInTheDocument();
   });
 });

@@ -44,6 +44,8 @@ PR CI 保留 `static`、`postgres`、`system` 三条 capability lane，按 L0–
 
 CI 只负责选择和阻断 evidence，不成为业务测试语义的第二 owner。
 
+速度验收按 workflow 开始到全部必需门禁完成的 wall time 计算，包含排队、planner、安装、环境启动与 cleanup：普通修改争取 60 秒，数据库、真实系统与 FULL 回归由门禁强制执行 180 秒上限。删行数、测试数下降或调低 timeout 都不能代替真实 CI 成功记录。system 的 provider、production smoke 与受影响 browser 分片并行，gate 等待所有分片；每个 runner 拥有独立服务，场景内部使用独立账号与赛事。LIVE 单独分片，其余动态发现的 spec 最多分成七片；LIVE 保留真实断流、恢复、跨场导航和换图，精确的 stale/unavailable 时间边界由 `src/components/matches/MatchRealtime.test.tsx` 覆盖，不在浏览器重复等待；删除重复列表跳转及第三方雷达图标下载故障的浏览器实验。
+
 ## Staging and production
 
 Staging 是受保护的远程 migration/schema rehearsal，不是每个 PR 的必经环境。仅当存在远程状态、锁、兼容性或 local 无法证明的风险时使用，见 [`operations/staging.md`](./operations/staging.md)。
@@ -83,18 +85,22 @@ pnpm test:integration:pg17 -- --config=vitest.experiments.config.ts
 pnpm test:e2e -- --project=mobile-chrome --repeat-each=10 flows/public-event-experience.spec.ts
 ```
 
-普通 Playwright config 只发现关键生命周期，project 根据实际保护职责分配用例，不先发现再运行时 skip。视觉、截图和状态组合验收由 acceptance config 显式发现；容量实验使用独立 Vitest config，共享真实 PostgreSQL/HTTP harness，日常 PG config 保留超时、锁竞争、公平轮转、故障恢复与权威 fencing 正确性。system 同时运行精简 production build/start smoke：真实 UI 登录、App Shell 导航、`aria-current` 和移动可达性。production 的 test-only auth route 仍关闭。
+普通 Playwright config 只发现关键生命周期，project 根据实际保护职责分配用例，不先发现再运行时 skip。测试赛创建链路由 desktop project 拥有，同一用例内验证手机 viewport 的可达性。视觉、截图和状态组合验收由 acceptance config 显式发现；容量实验使用独立 Vitest config，共享真实 PostgreSQL/HTTP harness，日常 PG config 保留超时、锁竞争、公平轮转、故障恢复与权威 fencing 正确性。system 同时运行精简 production build/start smoke：真实 UI 登录、App Shell 导航、`aria-current` 和移动可达性。production 的 test-only auth route 仍关闭。
+
+PostgreSQL harness 按稳定 `VITEST_POOL_ID` 为并发槽位分配独立数据库；不得用按文件递增的 worker ID 取模，无对应槽位必须失败。全库计数/覆盖率比较使用一致性 snapshot，fixture 写入不得依赖其他 suite 的状态。
 
 ## Spectator prediction acceptance
 
-Pure tests exercise full Major simulation, upstream invalidation, exact slot judgement, bracket dependencies and integer pool conservation. PostgreSQL tests exercise submission versions, server locks, idempotency, concurrent ALL IN, append-only records, official settlement/reversal/debt, account merge blockers and public-data isolation. Major runtime regression is required when shared pairing helpers change. Required browsers protect submission, independent draft restoration, real PNG download and point transactions through Local Supabase on desktop and mobile. Visual state combinations use the explicit acceptance entry; they do not repeat the pairing or settlement rule matrix.
+Pure tests exercise full Major simulation, upstream invalidation, exact slot judgement, bracket dependencies and integer pool conservation. PostgreSQL tests exercise submission versions, server locks, idempotency, concurrent ALL IN, append-only records, official settlement/reversal/debt, account merge blockers and public-data isolation. Major runtime regression is required when shared pairing helpers change. Required browsers protect submission, independent draft restoration, real PNG download and point transactions through Local Supabase on mobile; shared flows are not repeated on desktop. Production App Shell navigation still covers both viewports. Visual state combinations use the explicit acceptance entry; they do not repeat the pairing or settlement rule matrix.
 
 ## Maintenance rules
 
 - 新增测试必须说明用户/业务/安全承诺、具体失败风险、为何现有证据不足以及为何选择该层。没有独立保护价值就不新增；不机械地为每个函数、组件或改动添加测试。
 - 同一规则由最低足够真实的层拥有；跨层测试只保护拼装链路，不能复制规则矩阵。源码字符串、内部变量、DOM 层级、CSS class 与第三方库转发通常不是产品契约；权限边界静态规则、实际资产/provenance 和公开 DTO 则有独立价值。
+- 数据库业务查询测试必须执行实际 query/service/Action owner，再检查持久化结果和拒绝后的事实不变；在测试内复制一份生产 SQL 不证明生产入口正确。纯数据库 CHECK/FK/RLS 的探针仍直接验证数据库契约。
 - 合法产品变化先更新承诺再修改测试；重构不改变承诺却大量要求同步改断言时，先审查测试耦合。重复失败优先定位原因，不能以 skip、retry-pass、删负例换绿。
 - `null`、失败、并发、权限和 recovery 等重要负路径必须由对应层证明。
+- 清理测试时按独立承诺逐项处置，不能把静态扫描或全绿描述为逐断言审查完成。删除写法断言后若只剩固定文案或对象形状检查，继续评估整项删除；测试名称必须准确描述剩余保护。工作流安全门禁与应用/工具源码写法分开审查；前者保留，后者优先使用现有行为证据。
 - 不在文档复制测试数、表数或 migration 数。
 - 不能用“CI 绿”“已知 flaky”或视觉 demo 替代所需 evidence。
 - canonical domain rule 尽量在其 owner 附近测试；跨层 E2E 只证明组合行为。
@@ -109,3 +115,12 @@ Pure tests exercise full Major simulation, upstream invalidation, exact slot jud
 ### 无产品入口的比赛领域命令
 
 独立比赛创建与结束/补录/更正命令是本轮明确交付的内部领域入口，线上授权与约战 UI 尚未接入。`knip.json` 将 `src/lib/matches/creation.ts`、`src/lib/matches/unassociated-result.ts` 声明为生产领域检查根，使 production 模式继续检查它们的依赖；不为通过检查添加无授权的路由或虚假调用。命令行为由真实数据库集成回归验证，后续接入产品调用后移除这两条显式根。
+
+浏览器用已有 `/favicon.ico` 探测 Next 就绪，首页本身由 production smoke 验证。production 与 LIVE runner 仅启动 Auth、SQL（LIVE 另含 Realtime），provider 与上传路径仍启用 Storage/PostgREST。
+
+依赖缓存使用包含 lockfile、workspace 和 runtime manifest 的稳定键；命中后不 prune/re-upload。缓存 miss 仍执行 frozen-lockfile 安装，不跳过依赖校验。
+
+
+LIVE 浏览器只保留一条匿名测试赛的真实 Broadcast、断流恢复、跨场导航与换图链路。正式赛/测试赛及赛事阶段的 token 准入矩阵由 `tests/integration/db/test-matches.test.ts` 调用真实 `issueLiveViewerToken` 查询 PostgreSQL 承接；provider contract 保留正式赛与跨场凭据的真实 Realtime 隔离。
+
+CI 使用固定 Supabase CLI 版本提供的官方 slim 镜像（对应相同上游服务版本），每次新建数据库、重放迁移并执行健康检查与 provider contract；不保存数据库或 Docker image tar 缓存。大镜像 tar 的远端加载实测比正常拉取更慢，已移除。

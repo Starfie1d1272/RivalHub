@@ -96,25 +96,13 @@ describe("InviteManager", () => {
     expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
   });
 
-  it("shows a global high-privilege warning when super_admin is selected", async () => {
-    const user = userEvent.setup();
-    renderInviteManager();
-
-    await user.selectOptions(screen.getByLabelText("角色", { selector: "#inv-role" }), "super_admin");
-
-    expect(screen.getByRole("alert")).toHaveTextContent(
-      "超级管理员拥有跨赛事管理、教育认证审核及全局管理能力",
-    );
-    expect(screen.getByRole("alert")).toHaveTextContent(
-      "日常赛务请使用“赛季管理员”",
-    );
-  });
-
   it("confirms super_admin with the current use count and expiry before creating", async () => {
     const user = userEvent.setup();
     renderInviteManager();
 
     await user.selectOptions(screen.getByLabelText("角色", { selector: "#inv-role" }), "super_admin");
+    expect(screen.getByRole("alert")).toHaveTextContent("超级管理员拥有跨赛事管理、教育认证审核及全局管理能力");
+    expect(screen.getByRole("alert")).toHaveTextContent("日常赛务请使用“赛季管理员”");
     await user.clear(screen.getByLabelText("次数"));
     await user.type(screen.getByLabelText("次数"), "3");
     await user.type(screen.getByLabelText("有效期（小时）"), "48");

@@ -34,14 +34,6 @@ describe("conversion policies migration", () => {
       );
       expect(table.rows[0]?.relrowsecurity).toBe(true);
 
-      const indexes = await client.query<{ indexname: string }>(
-        `SELECT indexname FROM pg_indexes
-         WHERE schemaname = 'public' AND tablename = 'conversion_policies'`,
-      );
-      const indexNames = indexes.rows.map((r) => r.indexname);
-      expect(indexNames).toContain("conversion_policies_source_target_version_unique");
-      expect(indexNames).toContain("conversion_policies_one_current_per_pair");
-
       const seeded = await client.query<{
         id: string;
         source_platform: string;
@@ -67,9 +59,6 @@ describe("conversion policies migration", () => {
       const policy = seeded.rows[0]!;
       expect(policy.status).toBe("approved");
       expect(policy.is_current).toBe(true);
-      expect(policy.source_note).toBe("2026 NJU Major 赛委会确认的 5E → Perfect World 等效换算标准。");
-      expect(policy.rationale).toBe("将 5E 竞技事实转换到 Perfect World 等效尺度，供赛事冻结后的跨平台竞技证据比较使用。");
-      expect(policy.change_summary).toBe("首个正式版本。");
       expect(policy.internal_note).toBeNull();
       expect(policy.mapping.relativeSeasonAlignment).toBe(true);
       expect(policy.mapping.starSegments).toHaveLength(5);

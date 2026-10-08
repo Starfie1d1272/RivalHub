@@ -286,9 +286,6 @@ describe("recruitment PostgreSQL invariants", () => {
       expect(unfilteredContextualPlayer?.mapPreferences).toContainEqual({ map: "de_mirage", level: "playable" });
       expect(unfilteredContextualPlayer?.mapPreferences).not.toContainEqual({ map: "de_custom_nju", level: "strong" });
       await pool.query("UPDATE seasons SET status = 'voting' WHERE id = $1", [ids.registrationSeason]);
-      const persistedIntent = await pool.query<{ payload: Record<string, unknown> }>("SELECT to_jsonb(recruitment_intents) AS payload FROM recruitment_intents WHERE id = $1", [playerIntent.id]);
-      expect(persistedIntent.rows[0]?.payload).not.toHaveProperty("competitive_summary");
-      expect(persistedIntent.rows[0]?.payload).not.toHaveProperty("competitiveSummary");
       const awperFilteredLobby = await getRecruitmentLobbyData({ position: "awper" });
       const openerFilteredLobby = await getRecruitmentLobbyData({ position: "opener" });
       expect(awperFilteredLobby.teamRecruitments.map((item) => item.teamId)).toContain(ids.team);

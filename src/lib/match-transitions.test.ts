@@ -1,41 +1,24 @@
 import { describe, it, expect } from "vitest";
-import { assertMatchTransition, resolveMatchFormat } from "@/lib/match-transitions";
-import { AppError } from "@/lib/errors";
+import { assertMatchTransition, resolveMatchFormat, type MatchStatus } from "@/lib/match-transitions";
+import { AppError, ErrorCode } from "@/lib/errors";
 import type { StagePlan } from "@/types/season";
 
 describe("assertMatchTransition", () => {
-  it("allows scheduled → in_progress", () => {
-    expect(() => assertMatchTransition("scheduled", "in_progress")).not.toThrow();
+  const allowed: Array<[MatchStatus, MatchStatus]> = [
+    ["scheduled", "in_progress"], ["scheduled", "cancelled"], ["scheduled", "finished"],
+    ["in_progress", "finished"], ["in_progress", "cancelled"],
+  ];
+
+  it("allows the declared lifecycle transitions through the executable guard", () => {
+    for (const [from, to] of allowed) expect(() => assertMatchTransition(from, to)).not.toThrow();
   });
 
-  it("allows scheduled → cancelled", () => {
-    expect(() => assertMatchTransition("scheduled", "cancelled")).not.toThrow();
-  });
-
-  it("allows in_progress → finished", () => {
-    expect(() => assertMatchTransition("in_progress", "finished")).not.toThrow();
-  });
-
-  it("allows in_progress → cancelled", () => {
-    expect(() => assertMatchTransition("in_progress", "cancelled")).not.toThrow();
-  });
-
-  it("rejects finished → in_progress", () => {
-    expect(() => assertMatchTransition("finished", "in_progress")).toThrow(AppError);
-  });
-
-  it("rejects finished → scheduled", () => {
-    expect(() => assertMatchTransition("finished", "scheduled")).toThrow(AppError);
-  });
-
-  it("rejects cancelled → anything", () => {
-    expect(() => assertMatchTransition("cancelled", "scheduled")).toThrow(AppError);
-    expect(() => assertMatchTransition("cancelled", "in_progress")).toThrow(AppError);
-    expect(() => assertMatchTransition("cancelled", "finished")).toThrow(AppError);
-  });
-
-  it("allows scheduled → finished (forfeit)", () => {
-    expect(() => assertMatchTransition("scheduled", "finished")).not.toThrow();
+  const statuses: MatchStatus[] = ["scheduled", "in_progress", "finished", "cancelled"];
+  const forbidden = statuses.flatMap(from => statuses.map(to => [from, to] as [MatchStatus, MatchStatus]))
+    .filter(([from, to]) => !allowed.some(([a, b]) => a === from && b === to));
+  it.each(forbidden)("rejects %s → %s with the domain error", (from, to) => {
+    expect(() => assertMatchTransition(from, to)).toThrow(AppError);
+    expect(() => assertMatchTransition(from, to)).toThrow(expect.objectContaining({ code: ErrorCode.MATCH_INVALID_TRANSITION }));
   });
 });
 
@@ -109,5 +92,17 @@ describe("resolveMatchFormat", () => {
 
   it("defaults to bo3 for unknown stage", () => {
     expect(resolveMatchFormat(basePlan, "unknown", 1)).toBe("bo3");
+  });
+});
+
+describe("single elimination configuration boundaries", () => {
+  it("rounds six entrants up to an eight-slot bracket before applying the final format", () => {
+    const plan = [{ key: "playoff", matchFormat: "bo3", teamCount: 6, type: "single_elim", finalFormat: "bo5" }] as StagePlan;
+    expect(resolveMatchFormat(plan, "playoff", 2)).toBe("bo3");
+    expect(resolveMatchFormat(plan, "playoff", 3)).toBe("bo5");
+  });
+  it("keeps the stage format when no final override is declared", () => {
+    const plan = [{ key: "playoff", matchFormat: "bo3", teamCount: 8, type: "single_elim" }] as StagePlan;
+    expect(resolveMatchFormat(plan, "playoff", 3)).toBe("bo3");
   });
 });

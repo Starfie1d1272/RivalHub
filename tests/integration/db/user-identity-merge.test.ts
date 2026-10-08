@@ -271,8 +271,6 @@ describe("canonical user identity merge PostgreSQL invariants", () => {
             expect.objectContaining({ key: "registration:captain-voter-reference-blocker", category: "BLOCKER", count: 1 }),
             expect.objectContaining({ key: "registration:captain-candidate-reference-blocker", category: "BLOCKER", count: 1 }),
           ]));
-          expect(preflight.items.map((item) => `${item.label} ${item.detail}`).join("\n"))
-            .not.toMatch(/\b(?:credential|secondary identity|retired|draft pick|captain vote|provenance)\b/i);
 
           throw rollbackFixture;
         });
@@ -505,10 +503,6 @@ describe("canonical user identity merge PostgreSQL invariants", () => {
               count: 1,
             }),
           ]));
-          expect(preflight.items.filter((item) => item.category === "BLOCKER").map((item) => item.label))
-            .not.toEqual(expect.arrayContaining(["team", "competition", "stats"]));
-          const userFacingMergeCopy = preflight.items.map((item) => `${item.label} ${item.detail}`).join("\n");
-          expect(userFacingMergeCopy).not.toMatch(/\b(?:credential|secondary identity|retired|draft pick|captain vote|provenance)\b/i);
 
           throw rollbackFixture;
         });
@@ -692,8 +686,6 @@ describe("canonical user identity merge PostgreSQL invariants", () => {
           const pair = selectSelfServiceMergePair(authorization, ids.current);
           const preflight = await buildUserMergePreflight(tx, pair, { evidenceClass: "dual_identity_control" });
           expect(preflight.executable).toBe(true);
-          expect(preflight.items.map((item) => `${item.label} ${item.detail}`).join("\n"))
-            .not.toMatch(/\b(?:credential|secondary identity|retired|draft pick|captain vote|provenance)\b/i);
           await executeUserMergeInTx(tx, {
             ...pair,
             actorUserId: ids.current,

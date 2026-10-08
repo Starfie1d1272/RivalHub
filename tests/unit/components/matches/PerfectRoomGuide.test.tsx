@@ -12,7 +12,6 @@ describe("PerfectRoomGuide", () => {
     Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
     const guide = buildPerfectRoomGuide({ seasonName: "Major", roundLabel: "Stage2", description: "2-2", teamAName: "Alpha", teamBName: "Beta", map: { order: 3, name: "de_nuke", startSide: null } });
     render(<PerfectRoomGuide guide={guide} />);
-    expect(screen.getAllByRole("button")).toHaveLength(6);
     fireEvent.click(screen.getByRole("button", { name: "复制轮次" }));
     await waitFor(() => expect(writeText).toHaveBeenCalledWith("Stage2"));
     fireEvent.click(screen.getByRole("button", { name: "复制比赛短描述" }));

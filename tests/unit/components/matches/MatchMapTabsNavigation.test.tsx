@@ -16,7 +16,7 @@ const bo5Maps: MatchMapTab[] = [
 ];
 
 describe("MatchMapTabsNavigation", () => {
-  it("keeps a BO5 tab row locally scrollable with the selected state visible", () => {
+  it("selects a BO5 map while preserving score and pick facts", () => {
     render(
       <Tabs defaultValue="summary">
         <MatchMapTabsNavigation
@@ -38,11 +38,9 @@ describe("MatchMapTabsNavigation", () => {
     expect(screen.getByRole("tab", { name: /very-long-map-name-for-mobile-regression/ })).toHaveTextContent("PICK");
     expect(screen.getByRole("tab", { name: /Ancient/ })).toHaveTextContent("—");
 
-    expect(screen.getAllByTitle("Alpha University Prime 选图")).toHaveLength(2);
 
     const finalMapTab = screen.getByRole("tab", { name: /Nuke/ });
     fireEvent.mouseDown(finalMapTab, { button: 0, ctrlKey: false });
     expect(finalMapTab).toHaveAttribute("aria-selected", "true");
-    expect(finalMapTab).toHaveAttribute("data-state", "active");
   });
 });

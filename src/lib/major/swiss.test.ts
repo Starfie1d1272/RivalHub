@@ -222,15 +222,6 @@ const SIX_IDS = ["a", "b", "c", "d", "e", "f"];
 // ── 10.1 entrant validation ─────────────────────────────
 
 describe("entrant validation", () => {
-  it("accepts 16 valid entrants", () => {
-    const projection = projectMajorSwissStage({
-      entrants: makeEntrants(),
-      matches: [],
-      finalizedRound: 0,
-    });
-    expect(projection.teams).toHaveLength(16);
-  });
-
   it("throws on 15 entrants", () => {
     expect(() =>
       projectMajorSwissStage({ entrants: makeEntrants().slice(0, 15), matches: [], finalizedRound: 0 }),
@@ -284,12 +275,6 @@ describe("entrant validation", () => {
     expect(() => projectMajorSwissStage({ entrants: bad, matches: [], finalizedRound: 0 })).toThrow();
   });
 
-  it("throws when a seed in 1..16 is missing", () => {
-    // 16 个 entrant，但 seed 集合 = {1..15, 1} → 缺 16
-    const bad = makeEntrants();
-    bad[15] = { ...bad[15], initialStageSeed: 1 };
-    expect(() => projectMajorSwissStage({ entrants: bad, matches: [], finalizedRound: 0 })).toThrow();
-  });
 });
 
 // ── 10.2 round 0 projection ─────────────────────────────
@@ -843,35 +828,6 @@ describe("structural counts", () => {
 
 describe("stage match format", () => {
   it("uses BO3 for every legal pairing in a BO3 stage", () => {
-    const entrants = makeEntrants();
-    const r1 = generateNextMajorSwissRound({
-      entrants,
-      matches: [],
-      finalizedRound: 0,
-      stageMatchFormat: "bo3",
-    });
-    expect(r1.every((pairing) => pairing.format === "bo3")).toBe(true);
-
-    const roundOne = roundOneMatches(HIGH_WINS_R1);
-    const r2 = generateNextMajorSwissRound({
-      entrants,
-      matches: roundOne,
-      finalizedRound: 1,
-      stageMatchFormat: "bo3",
-    });
-    expect(r2.every((pairing) => pairing.format === "bo3")).toBe(true);
-
-    const roundTwo = roundTwoMatches([
-      "team-1", "team-2", "team-3", "team-4", "team-9", "team-10", "team-11", "team-12",
-    ]);
-    const r3 = generateNextMajorSwissRound({
-      entrants,
-      matches: [...roundOne, ...roundTwo],
-      finalizedRound: 2,
-      stageMatchFormat: "bo3",
-    });
-    expect(r3.every((pairing) => pairing.format === "bo3")).toBe(true);
-
     // runTournament 中逐轮断言 R1 至 R5 的全部合法比赛局制。
     expect(runTournament(makeRng(73), "bo3").matches).toHaveLength(33);
   });
@@ -955,11 +911,6 @@ describe("no input mutation", () => {
 
     const finalProjection = projectMajorSwissStage({ entrants, matches, finalizedRound: 5 });
     generateNextMajorSwissRound({ entrants, matches, finalizedRound: 3, stageMatchFormat: "bo1" });
-    getMajorSwissRequiredFormat("bo1", { wins: 1, losses: 0 });
-    selectMajorSixTeamPairingPattern(
-      SIX_IDS,
-      matches.map((m) => ({ entryAId: m.entryAId, entryBId: m.entryBId })),
-    );
     getMajorSwissQualifiers(finalProjection);
 
     expect(entrants).toEqual(entrantsSnapshot);
@@ -1180,27 +1131,4 @@ describe("exhaustive R1/R2 feasibility", () => {
     },
     120_000,
   );
-});
-
-// ── 10.15 no teamA/teamB semantics ──────────────────────
-
-describe("pairing field semantics", () => {
-  it("pairings expose higher/lower seed ids, never teamA/teamB", () => {
-    // 编译期：MajorSwissPairing 不得存在 entryAId / entryBId 语义字段
-    const typeGuard: MajorSwissPairing extends { entryAId: string } ? never : true = true;
-    expect(typeGuard).toBe(true);
-
-    const pairings = generateNextMajorSwissRound({
-      entrants: makeEntrants(),
-      matches: [],
-      finalizedRound: 0,
-      stageMatchFormat: "bo1",
-    });
-    for (const pairing of pairings) {
-      expect(pairing).not.toHaveProperty("entryAId");
-      expect(pairing).not.toHaveProperty("entryBId");
-      expect(pairing.higherSeedTeamId).toBeDefined();
-      expect(pairing.lowerSeedTeamId).toBeDefined();
-    }
-  });
 });

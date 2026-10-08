@@ -5,7 +5,7 @@
  * duplicating the ladder.
  */
 import { describe, expect, it } from "vitest";
-import { BUILT_IN_COMPETITIVE_PLATFORMS, BUILT_IN_COMPETITIVE_PLATFORM_KEYS, isBuiltInCompetitivePlatformKey, isBuiltInStarRank } from "@/lib/competitive/builtins";
+import { BUILT_IN_COMPETITIVE_PLATFORMS, isBuiltInCompetitivePlatformKey, isBuiltInStarRank } from "@/lib/competitive/builtins";
 
 function expectContiguousLadder(ranks: Array<{ sortOrder: number }>): void {
   ranks.forEach((rank, index) => expect(rank.sortOrder).toBe(index));
@@ -13,7 +13,6 @@ function expectContiguousLadder(ranks: Array<{ sortOrder: number }>): void {
 
 describe("built-in competitive platform definitions", () => {
   it("ships exactly the two confirmed 2.0 platform identities", () => {
-    expect(BUILT_IN_COMPETITIVE_PLATFORM_KEYS).toEqual(["perfect_world", "fivee"]);
     expect(isBuiltInCompetitivePlatformKey("perfect_world")).toBe(true);
     expect(isBuiltInCompetitivePlatformKey("fivee")).toBe(true);
     expect(isBuiltInCompetitivePlatformKey("faceit")).toBe(false);
@@ -28,8 +27,6 @@ describe("built-in competitive platform definitions", () => {
 
   it("pins Perfect World on Rating Pro with the shared ladder and S-tier star ranges", () => {
     const perfect = BUILT_IN_COMPETITIVE_PLATFORMS.perfect_world;
-    expect(perfect.displayName).toBe("完美世界竞技平台");
-    expect(perfect.ratingLabel).toBe("Rating Pro");
     expect(perfect.ranks.map((rank) => rank.rankKey)).toEqual([
       "D", "C", "C+", "C++", "B", "B+", "B++", "A", "A+", "A++", "青铜S", "黄金S", "钻石S", "魔王S",
     ]);
@@ -45,8 +42,6 @@ describe("built-in competitive platform definitions", () => {
 
   it("pins 5E on Rating+ and shares the Perfect below-S foundation", () => {
     const fivee = BUILT_IN_COMPETITIVE_PLATFORMS.fivee;
-    expect(fivee.displayName).toBe("5E");
-    expect(fivee.ratingLabel).toBe("Rating+");
     expect(fivee.ranks.map((rank) => rank.rankKey)).toEqual([
       "D", "C", "C+", "C++", "B", "B+", "B++", "A", "A+", "A++", "S", "SS", "SSS",
     ]);

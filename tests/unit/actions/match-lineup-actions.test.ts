@@ -50,20 +50,9 @@ vi.mock("@/lib/auth/session", () => ({
   auditActorId: vi.fn((session: { email?: string }) => session.email ?? "actor"),
 }));
 
-vi.mock("@/lib/action-utils", () => ({
+vi.mock("@/lib/action-utils", async (importOriginal) => ({
+  ...await importOriginal<typeof import("@/lib/action-utils")>(),
   getMatchOrThrow: vi.fn(),
-  actionError: vi.fn(
-    (_scope: string, e: unknown): { success: false; error: { code: string; message: string } } => ({
-      success: false,
-      error: {
-        code:
-          typeof e === "object" && e !== null && "code" in e
-            ? String((e as { code: unknown }).code)
-            : ErrorCode.INTERNAL_ERROR,
-        message: e instanceof Error ? e.message : String(e),
-      },
-    }),
-  ),
 }));
 
 vi.mock("@/lib/revalidation", () => ({

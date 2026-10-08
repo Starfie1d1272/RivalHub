@@ -11,7 +11,6 @@ const sourceFile = resolve(process.cwd(), "tests/unit/components/identity-flow.t
 const guardPath = resolve(process.cwd(), "scripts/ci/assert-no-flaky.mjs");
 const timingPath = resolve(process.cwd(), "scripts/ci/timing.mjs");
 const workflowPath = resolve(process.cwd(), ".github/workflows/ci.yml");
-const vitestConfigPath = resolve(process.cwd(), "vitest.config.ts");
 
 let tempDirectory: string;
 let stateFile: string;
@@ -178,15 +177,20 @@ describe("Vitest flaky evidence", () => {
     expect(summary).toContain("identity flow UI \\| resend");
   });
 
-  it("keeps the retry and guard scoped to the React Vitest project", () => {
-    const workflow = readFileSync(workflowPath, "utf8");
-    const vitestConfig = readFileSync(vitestConfigPath, "utf8");
+  it.each(["true", "false"])("scopes retries to React when GITHUB_ACTIONS=%s", async (githubActions) => {
+    vi.stubEnv("GITHUB_ACTIONS", githubActions);
+    vi.resetModules();
+    const { default: config } = await import("../../../vitest.config");
+    expect(config.test?.isolate).toBe(true);
+    const projects = config.test?.projects as Array<{ test: { name: string; pool?: string; retry?: number } }>;
+    expect(projects.find((entry) => entry.test.name === project)?.test).toMatchObject({
+      pool: "forks", retry: githubActions === "true" ? 1 : 0,
+    });
+    expect(projects.filter((entry) => entry.test.name !== project).every((entry) => !entry.test.retry)).toBe(true);
+  });
 
-    expect(vitestConfig).toContain('const vitestCiRetry = process.env.GITHUB_ACTIONS === "true" ? 1 : 0;');
-    expect(vitestConfig).toContain("pool: \"forks\"");
-    expect(vitestConfig).toContain("isolate: true");
-    expect(vitestConfig).toContain("retry: vitestCiRetry");
-    expect(vitestConfig.match(/retry:/g)).toHaveLength(1);
+  it("wires flaky evidence into the React CI gate without required repeat experiments", () => {
+    const workflow = readFileSync(workflowPath, "utf8");
     expect(workflow).toContain("RIVALHUB_VITEST_PROJECT: ${{ matrix.project || '' }}");
     expect(workflow).toContain("if: ${{ always() && matrix.project == 'unit-react-jsdom' }}");
     expect(workflow).toContain("node scripts/ci/assert-no-flaky.mjs --project unit-react-jsdom");

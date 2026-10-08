@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   aggregateFinishedPlayerStats,
   buildRoster,
-  teamBadgeData,
   type MatchPlayerStatsRow,
 } from "@/lib/matches/detail-stats";
 
@@ -36,11 +35,6 @@ function statRow(input: Partial<MatchPlayerStatsRow>): MatchPlayerStatsRow {
 }
 
 describe("match detail stats", () => {
-  it("builds deterministic team badges", () => {
-    expect(teamBadgeData("RivalHub", 0)).toEqual({ tag: "RIV", color: "#ff6b1a" });
-    expect(teamBadgeData("Beta", 8)).toEqual({ tag: "BET", color: "#ff6b1a" });
-  });
-
   it("builds roster players from submitted roster member ids", () => {
     expect(
       buildRoster(

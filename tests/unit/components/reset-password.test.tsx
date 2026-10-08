@@ -15,9 +15,7 @@ const { toastErrorMock, updateUserMock } = vi.hoisted(() => ({
 
 vi.mock("sonner", () => ({ toast: { error: toastErrorMock, success: vi.fn() } }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
-vi.mock("@/lib/auth/supabase", () => ({
-  createBrowserClient: () => ({ auth: { updateUser: updateUserMock } }),
-}));
+
 
 describe("ResetPasswordForm", () => {
   beforeEach(() => {
@@ -25,14 +23,7 @@ describe("ResetPasswordForm", () => {
     vi.clearAllMocks();
   });
 
-  it("shows the password policy and confirmation field", () => {
-    render(<ResetPasswordForm />);
-
-    expect(screen.getByLabelText("确认新密码")).toBeInTheDocument();
-    expect(screen.getByText(/至少 6 位，并包含大写字母、小写字母、数字和特殊字符/)).toBeInTheDocument();
-  });
-
-  it("rejects a weak replacement password before calling Supabase", () => {
+  it("rejects a weak replacement password before calling the server action", () => {
     render(<ResetPasswordForm />);
     fireEvent.change(screen.getByLabelText("新密码"), { target: { value: "abcdef" } });
     fireEvent.change(screen.getByLabelText("确认新密码"), { target: { value: "abcdef" } });

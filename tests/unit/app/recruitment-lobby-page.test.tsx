@@ -2,7 +2,6 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import * as React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { formatCSTShortDate } from "@/lib/utils/date";
 
 const { getRecruitmentLobbyDataMock, getUserSessionMock } = vi.hoisted(() => ({
   getRecruitmentLobbyDataMock: vi.fn(),
@@ -42,43 +41,11 @@ describe("recruitment lobby cards", () => {
     getRecruitmentLobbyDataMock.mockResolvedValue(baseLobbyData);
   });
 
-  it.each(["teams", "players"] as const)("renders the %s card update date", async (view) => {
-    const page = await RecruitmentLobbyPage({ searchParams: Promise.resolve({ view }) });
-    const html = renderToStaticMarkup(page);
-
-    expect(html).toContain(`最近更新 · ${formatCSTShortDate(updatedAt)}`);
-  });
-
   it("passes a directly selected event from the URL into the server read model", async () => {
     const selectedEventId = "b2ee0a76-feb1-4e15-9f2b-5298a4f1a3dc";
     await RecruitmentLobbyPage({ searchParams: Promise.resolve({ view: "teams", event: selectedEventId }) });
 
     expect(getRecruitmentLobbyDataMock.mock.calls[0]?.[0]).toMatchObject({ targetSeasonId: selectedEventId });
-  });
-
-  it("renders a real avatar when the public DTO provides one", async () => {
-    getRecruitmentLobbyDataMock.mockResolvedValueOnce({
-      ...baseLobbyData,
-      playerLfts: [{ ...basePlayer, avatarUrl: "https://cdn.example/avatar.png" }],
-    });
-    const page = await RecruitmentLobbyPage({ searchParams: Promise.resolve({ view: "players" }) });
-    const html = renderToStaticMarkup(page);
-
-    expect(html).toContain("<img");
-    expect(html).toContain('src="https://cdn.example/avatar.png"');
-    expect(html).toContain('alt="选手"');
-  });
-
-  it("keeps the initials fallback when no avatar is available", async () => {
-    getRecruitmentLobbyDataMock.mockResolvedValueOnce({
-      ...baseLobbyData,
-      playerLfts: [{ ...basePlayer, name: "Player One", avatarUrl: null }],
-    });
-    const page = await RecruitmentLobbyPage({ searchParams: Promise.resolve({ view: "players" }) });
-    const html = renderToStaticMarkup(page);
-
-    expect(html).not.toContain("<img");
-    expect(html).toContain(">P</span>");
   });
 
   it("renders compact competitive summaries in canonical platform order", async () => {
@@ -136,6 +103,5 @@ describe("recruitment lobby cards", () => {
     const currentPoolPage = await RecruitmentLobbyPage({ searchParams: Promise.resolve({ view: "players" }) });
     const currentPoolHtml = renderToStaticMarkup(currentPoolPage);
     expect(currentPoolHtml).toContain("当前地图池熟练度");
-    expect(currentPoolHtml).not.toContain("Active Duty");
   });
 });

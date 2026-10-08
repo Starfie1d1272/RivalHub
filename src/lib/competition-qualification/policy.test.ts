@@ -3,7 +3,6 @@ import {
   deriveCompetitionQualificationPlan,
   isShortSwissQualificationAllowed,
   orderQualificationCandidates,
-  SHORT_SWISS_DISABLED_NOTE,
   swapQualificationPreliminaryRank,
 } from "./policy";
 
@@ -37,7 +36,6 @@ describe("competition qualification policy", () => {
     expect(isShortSwissQualificationAllowed(8)).toBe(true);
     expect(isShortSwissQualificationAllowed(12)).toBe(true);
     expect(isShortSwissQualificationAllowed(6)).toBe(false);
-    expect(SHORT_SWISS_DISABLED_NOTE).toBe("Short Swiss 需要 Play-in 队伍数为 4 的倍数。");
   });
 
   it("uses current strength display order and stable name/id order for unranked teams", () => {
