@@ -16,8 +16,6 @@ const {
 
 vi.mock("@/lib/steam-profiles", () => ({ refreshSteamProfiles: vi.fn().mockResolvedValue({ processed: 2, updated: 1, unresolved: 0 }) }));
 vi.mock("@/db/client", () => ({ db: {} }));
-vi.mock("@/db/schema", () => ({ seasons: { status: "seasons.status" } }));
-vi.mock("drizzle-orm", () => ({ eq: vi.fn() }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/lib/seasons/transitions", () => ({ maybeAdvanceFromRegistration: vi.fn() }));
 vi.mock("@/lib/draft/operations", () => ({ runDraftTimeoutCron: vi.fn() }));

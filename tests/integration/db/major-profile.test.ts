@@ -22,11 +22,6 @@ async function main(): Promise<void> {
       `INSERT INTO users (id, email, perfect_name) VALUES ($1, $2, $3)`,
       [ids.legacy, `profile-legacy-${ids.legacy}@local.test`, "Legacy Nick"],
     );
-    const identity = await client.query<{ perfect_name: string | null }>(
-      `SELECT perfect_name FROM users WHERE id = $1`,
-      [ids.legacy],
-    );
-    expect(identity.rows[0]).toEqual({ perfect_name: "Legacy Nick" });
 
     await client.query(
       `INSERT INTO competitive_platforms (key, display_name, rating_label) VALUES ('perfect_world', '完美世界竞技平台', 'Rating Pro')
@@ -132,7 +127,6 @@ async function main(): Promise<void> {
     }
 
     await client.query("ROLLBACK");
-    console.log("Major profile Local PostgreSQL integration suite passed.");
   } catch (error) {
     await client.query("ROLLBACK").catch(() => {});
     throw error;

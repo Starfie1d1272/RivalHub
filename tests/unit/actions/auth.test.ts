@@ -16,7 +16,6 @@ const {
   resendMock,
   signUpMock,
   revalidatePathMock,
-  normalizeEmailMock,
   dbInsertMock,
   dbTransactionMock,
   bootstrapConfiguredOwnerInTxMock,
@@ -32,7 +31,6 @@ const {
     resendMock: vi.fn(),
     signUpMock: vi.fn(),
     revalidatePathMock: vi.fn(),
-    normalizeEmailMock: vi.fn((email: string) => email),
     dbInsertMock: vi.fn(),
     dbTransactionMock: vi.fn(),
     bootstrapConfiguredOwnerInTxMock: vi.fn(),
@@ -70,9 +68,6 @@ vi.mock("next/cache", () => ({
   revalidatePath: revalidatePathMock,
 }));
 
-vi.mock("@/lib/utils/email", () => ({
-  normalizeEmail: normalizeEmailMock,
-}));
 
 vi.mock("@/lib/auth/owner-bootstrap", () => ({
   bootstrapConfiguredOwnerInTx: bootstrapConfiguredOwnerInTxMock,
@@ -111,7 +106,6 @@ describe("loginWithPassword", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     dbTransactionMock.mockImplementation((callback: (tx: unknown) => unknown) => callback({ insert: dbInsertMock }));
-    normalizeEmailMock.mockImplementation((e: string) => e);
     bootstrapConfiguredOwnerInTxMock.mockImplementation((_: unknown, user: unknown) => user);
     resolveOrCreateCanonicalUserInTxMock.mockResolvedValue(MOCK_USER_ROW);
     delete process.env.RIVALHUB_OWNER_EMAIL;
@@ -231,7 +225,6 @@ describe("signUp", () => {
   beforeEach(() => {
     process.env.NEXT_PUBLIC_APP_URL = "http://127.0.0.1:3000";
     vi.clearAllMocks();
-    normalizeEmailMock.mockImplementation((e: string) => e);
   });
 
   it("空邮箱返回 VALIDATION_FAILED", async () => {
@@ -403,19 +396,6 @@ describe("signUp", () => {
     expect(createUserSessionMock).not.toHaveBeenCalled();
   });
 
-  it("repeated signup 的 obfuscated user 也不写入 public.users.auth_id", async () => {
-    signUpMock.mockResolvedValue({
-      data: { user: { id: "obfuscated-auth-id" } },
-      error: null,
-    });
-
-    const result = await signUp(VALID_EMAIL, VALID_PASSWORD, VALID_PASSWORD);
-
-    expect(result).toEqual({ success: true, data: { email: VALID_EMAIL } });
-    expect(dbInsertMock).not.toHaveBeenCalled();
-    expect(createUserSessionMock).not.toHaveBeenCalled();
-  });
-
   it("Auth 成功但没有 user payload 时仍不猜测 identity，进入统一结果", async () => {
     signUpMock.mockResolvedValue({ data: { user: null }, error: null });
 
@@ -432,7 +412,6 @@ describe("resendSignupConfirmation", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     process.env.NEXT_PUBLIC_APP_URL = "https://match.starfie1d.top";
-    normalizeEmailMock.mockImplementation((e: string) => e.trim().toLowerCase());
   });
 
   it("成功时使用带 flow 参数的确认页 URL", async () => {
@@ -485,7 +464,6 @@ describe("sendPasswordResetEmail", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     process.env.NEXT_PUBLIC_APP_URL = "https://match.starfie1d.top/";
-    normalizeEmailMock.mockImplementation((e: string) => e.trim().toLowerCase());
   });
 
   it("成功请求使用规范化的 reset redirect URL", async () => {

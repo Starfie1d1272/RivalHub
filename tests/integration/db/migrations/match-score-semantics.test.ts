@@ -317,6 +317,12 @@ describe("match score semantics migration", () => {
       await replayBefore(client, target);
       const fixture = await insertScoreFixture(client);
 
+      const playerStatId = randomUUID();
+      await client.query(
+        "INSERT INTO match_player_stats (id, match_id, map_id, perfect_name) VALUES ($1, $2, $3, 'Migration Player')",
+        [playerStatId, fixture.legacyNormalMatchId, fixture.legacyNormalMapId],
+      );
+
       await assertMigrationFailedClosed(client, fixture, target);
       await client.query("DELETE FROM match_maps WHERE match_id IN ($1, $2)", [fixture.conflictMatchId, fixture.multipleMapsMatchId]);
       await client.query("DELETE FROM matches WHERE id IN ($1, $2)", [fixture.conflictMatchId, fixture.multipleMapsMatchId]);
@@ -336,11 +342,6 @@ describe("match score semantics migration", () => {
       expect(normalMap.rows[0]?.score_b).toBe(8);
       expect(normalMap.rows[0]?.completed_at.toISOString()).toBe("2026-08-01T10:00:00.000Z");
 
-      const playerStatId = randomUUID();
-      await client.query(
-        "INSERT INTO match_player_stats (id, match_id, map_id, perfect_name) VALUES ($1, $2, $3, 'Migration Player')",
-        [playerStatId, fixture.legacyNormalMatchId, fixture.legacyNormalMapId],
-      );
       const preservedStat = await client.query<{ id: string; map_id: string }>(
         "SELECT id, map_id FROM match_player_stats WHERE id = $1",
         [playerStatId],

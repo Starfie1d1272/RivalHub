@@ -1,12 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { eqMock, openSeasonRegistrationInTxMock } = vi.hoisted(() => ({
-  eqMock: vi.fn(() => "season-filter"),
+const { openSeasonRegistrationInTxMock } = vi.hoisted(() => ({
   openSeasonRegistrationInTxMock: vi.fn(),
 }));
 
-vi.mock("drizzle-orm", () => ({ eq: eqMock }));
-vi.mock("@/db/schema", () => ({ seasons: { id: "seasons.id" } }));
 vi.mock("@/lib/seasons/lifecycle", () => ({
   openSeasonRegistrationInTx: openSeasonRegistrationInTxMock,
 }));

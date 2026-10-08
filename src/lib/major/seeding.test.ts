@@ -116,9 +116,10 @@ describe("seedMajorStageOneEntrants", () => {
   });
 
   it("does not mutate its input", () => {
-    const snapshot = structuredClone(STAGE_ONE_TEAMS);
-    seedMajorStageOneEntrants(shuffle(STAGE_ONE_TEAMS, makeRng(3)));
-    expect(STAGE_ONE_TEAMS).toEqual(snapshot);
+    const input = shuffle(STAGE_ONE_TEAMS, makeRng(3));
+    const snapshot = structuredClone(input);
+    seedMajorStageOneEntrants(input);
+    expect(input).toEqual(snapshot);
   });
 });
 
@@ -250,13 +251,12 @@ describe("seedMajorLaterStageEntrants", () => {
   });
 
   it("does not mutate its inputs", () => {
-    const directSnapshot = structuredClone(DIRECT);
-    const advancingSnapshot = structuredClone(ADVANCING);
-    seedMajorLaterStageEntrants({
+    const input = {
       directEntrants: shuffle(DIRECT, makeRng(5)),
       advancingEntrants: shuffle(ADVANCING, makeRng(6)),
-    });
-    expect(DIRECT).toEqual(directSnapshot);
-    expect(ADVANCING).toEqual(advancingSnapshot);
+    };
+    const snapshot = structuredClone(input);
+    seedMajorLaterStageEntrants(input);
+    expect(input).toEqual(snapshot);
   });
 });

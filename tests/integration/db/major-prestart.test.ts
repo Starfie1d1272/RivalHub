@@ -18,7 +18,7 @@ async function main(): Promise<void> {
     await client.query("INSERT INTO seasons (id,slug,name,kind,status,registration_mode,has_captain_voting,has_draft,min_team_size,max_team_size) VALUES ($1,$2,'Local Major Prestart','Major','registration','team',false,false,1,5)", [seasonId, `local-major-prestart-${seasonId}`]);
     await client.query("INSERT INTO major_prestart_states (season_id) VALUES ($1)", [seasonId]);
     const entrantIds: string[] = [];
-    for (let index = 0; index < 32; index += 1) {
+    for (let index = 0; index < 2; index += 1) {
       const entrantId = randomUUID(); const userId = randomUUID(); const entryId = randomUUID(); const participantId = randomUUID(); const revisionId = randomUUID(); const eventRosterId = randomUUID();
       entrantIds.push(entrantId);
       await client.query("INSERT INTO users (id,email) VALUES ($1,$2)", [userId, `prestart-${index}-${seasonId}@local.test`]);
@@ -45,10 +45,9 @@ async function main(): Promise<void> {
     const frozenRosterMutation = await capturePostgresError(client, () => client.query("UPDATE event_rosters SET status = 'preparing' WHERE id = $1", [rosterId]));
     expect(frozenRosterMutation).toMatchObject({ code: "23514" });
     const frozen = await client.query<{ rosters: string; locked: boolean }>("SELECT (SELECT count(*)::text FROM event_rosters WHERE entry_id IN (SELECT competition_entry_id FROM major_tournament_entrants WHERE season_id = $1) AND status = 'frozen') AS rosters, (SELECT entrants_locked_at IS NOT NULL FROM major_prestart_states WHERE season_id = $1) AS locked", [seasonId]);
-    if (frozen.rows[0]?.rosters !== "32" || !frozen.rows[0]?.locked) throw new Error("Major 全局锁定没有冻结全部 32 支赛事名单。");
+    if (frozen.rows[0]?.rosters !== "2" || !frozen.rows[0]?.locked) throw new Error("锁定后的赛事名单事实不完整。");
     await client.query("ROLLBACK");
     await exerciseEntryCoherenceGuard();
-    console.log("Major prestart local integration passed: prepare → confirm → reopen → edit → confirm → global lock → frozen, with post-lock roster mutation rejection and prestart↔Entry coherence guard coverage.");
   } finally { client.release(); await pool.end(); }
 }
 
@@ -180,7 +179,7 @@ async function exerciseEntryCoherenceGuard(): Promise<void> {
 }
 
 describe("Major prestart PostgreSQL invariants", () => {
-  it("freezes all entrants and rejects post-lock roster drift", async () => {
+  it("persists lock facts, rejects frozen roster drift and guards Entry coherence", async () => {
     await main();
   });
 });

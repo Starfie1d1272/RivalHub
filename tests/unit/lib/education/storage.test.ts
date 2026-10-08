@@ -1,12 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ErrorCode } from "@/lib/errors";
 
-const { createServiceClientMock, fromMock, uploadMock, removeMock, signedUrlMock, logEventMock } = vi.hoisted(() => ({
+const { createServiceClientMock, fromMock, uploadMock, removeMock, signedUrlMock, publicUrlMock, logEventMock } = vi.hoisted(() => ({
   createServiceClientMock: vi.fn(),
   fromMock: vi.fn(),
   uploadMock: vi.fn(),
   removeMock: vi.fn(),
   signedUrlMock: vi.fn(),
+  publicUrlMock: vi.fn(),
   logEventMock: vi.fn(),
 }));
 
@@ -19,7 +20,7 @@ describe("education evidence Storage adapter", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     createServiceClientMock.mockReturnValue({ storage: { from: fromMock } });
-    fromMock.mockReturnValue({ upload: uploadMock, remove: removeMock, createSignedUrl: signedUrlMock });
+    fromMock.mockReturnValue({ upload: uploadMock, remove: removeMock, createSignedUrl: signedUrlMock, getPublicUrl: publicUrlMock });
     uploadMock.mockResolvedValue({ error: null });
     removeMock.mockResolvedValue({ error: null });
     signedUrlMock.mockResolvedValue({ data: { signedUrl: "https://storage.test/signed" }, error: null });
@@ -32,7 +33,7 @@ describe("education evidence Storage adapter", () => {
 
     expect(fromMock).toHaveBeenCalledWith("education-evidence");
     expect(uploadMock).toHaveBeenCalledWith("verification/object.png", file, { upsert: false, contentType: "image/png" });
-    expect(JSON.stringify(fromMock.mock.results)).not.toContain("getPublicUrl");
+    expect(publicUrlMock).not.toHaveBeenCalled();
   });
 
   it("converts provider failures into safe errors without logging the key or raw response", async () => {

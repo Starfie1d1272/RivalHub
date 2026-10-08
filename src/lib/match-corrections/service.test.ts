@@ -146,13 +146,11 @@ describe("validateResultCorrectionProposal", () => {
     expect(result.winnerTeamId).toBe(TEAM_B);
   });
 
-  it("rejects negative and non-integer scores", () => {
-    expect(() => validateResultCorrectionProposal(baseMatch(), { scoreA: -1, scoreB: 1 })).toThrow(AppError);
-    expect(() => validateResultCorrectionProposal(baseMatch(), { scoreA: 1.5, scoreB: 1 })).toThrow(AppError);
-  });
-
-  it("rejects ties", () => {
-    expect(() => validateResultCorrectionProposal(baseMatch(), { scoreA: 1, scoreB: 1 })).toThrow(/平局/);
+  it("rejects invalid scores before the forfeit path can bypass normal series validation", () => {
+    const forfeited = { ...baseMatch(), isForfeit: true };
+    for (const [scoreA, scoreB] of [[-1, 1], [1.5, 1], [1, 1]]) {
+      expect(() => validateResultCorrectionProposal(forfeited, { scoreA, scoreB })).toThrow(AppError);
+    }
   });
 
   it("enforces exact series thresholds for non-forfeit corrections", () => {

@@ -119,7 +119,7 @@ describe("updateProfile Steam identity boundary", () => {
     expect(transactionMock).not.toHaveBeenCalled();
   });
 
-  it("allows removing the current Steam64 without leaving a legacy avatar field", async () => {
+  it("removes the primary Steam64 without requesting or overwriting provider profiles", async () => {
     const result = await updateProfile({ ...validInput, steam64: "" });
 
     expect(result).toMatchObject({ success: true });
@@ -132,21 +132,14 @@ describe("updateProfile Steam identity boundary", () => {
     expect(upsertProfileMock).not.toHaveBeenCalled();
   });
 
-  it("trims the player-entered display and Perfect names", async () => {
-    await updateProfile(validInput);
-
-    expect(updateMock.mock.results[0]?.value.set).toHaveBeenCalledWith(expect.objectContaining({
-      perfectName: "Perfect Nick",
-      displayName: "Test User",
-    }));
-  });
-
   it("turns blank optional identity fields into null", async () => {
-    await updateProfile({ ...validInput, perfectName: "  ", liveStreamUrl: "  " });
+    await updateProfile({ ...validInput, perfectName: "  ", liveStreamUrl: "  ", gameplayStyle: "  ", competitionHistory: "  " });
 
     expect(updateMock.mock.results[0]?.value.set).toHaveBeenCalledWith(expect.objectContaining({
       perfectName: null,
       liveStreamUrl: null,
+      gameplayStyle: null,
+      competitionHistory: null,
     }));
   });
 
@@ -173,15 +166,6 @@ describe("updateProfile Steam identity boundary", () => {
     expect(updateMock.mock.results[0]?.value.set).toHaveBeenCalledWith(expect.objectContaining({
       gameplayStyle: "稳健控图",
       competitionHistory: "参加过校赛",
-    }));
-  });
-
-  it("clears blank long-lived player-declared profile fields", async () => {
-    await updateProfile({ ...validInput, gameplayStyle: "  ", competitionHistory: "  " });
-
-    expect(updateMock.mock.results[0]?.value.set).toHaveBeenCalledWith(expect.objectContaining({
-      gameplayStyle: null,
-      competitionHistory: null,
     }));
   });
 

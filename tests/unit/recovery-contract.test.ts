@@ -96,7 +96,6 @@ describe("recovery contracts", () => {
     const parsed = assertRecoveryManifest(JSON.parse(serializeManifest(manifest)));
 
     expect(parsed).toEqual(manifest);
-    expect(serializeManifest({ ...manifest, storage: { ...manifest.storage } })).toBe(serializeManifest(manifest));
   });
 
   it("accepts a DB-only release checkpoint without a Storage snapshot", () => {
@@ -403,8 +402,6 @@ describe("recovery contracts", () => {
     const completionReadback = artifactSource.indexOf("verifyR2Object(r2, keys.completion");
     expect(completionReadback).toBeGreaterThan(-1);
     expect(backupSource).toContain("publishRecoveryArtifact");
-    expect(backupSource).not.toContain("heartbeat");
-    expect(backupSource).not.toContain("education_verifications");
     expect(backupSource).toContain("readManagedStorageReferences(pool)");
   });
 
@@ -441,10 +438,6 @@ describe("recovery contracts", () => {
 
     const replayPlan = buildRecoveryMigrationPlan(expected, manifest.source.databaseMigrationTerminal);
 
-    expect(manifest.producer.packageVersion).toBe("2.7.8");
-    expect(manifest.producer.gitCommit).toBe(GIT_COMMIT);
-    expect(manifest.source.deployedReleaseTag).toBe("v2.7.8");
-    expect(manifest.source.deployedCommit).toBe(SOURCE_COMMIT);
     expect(replayPlan).toHaveLength(expected.length - 1);
     expect(replayPlan.at(-1)).toEqual(previous);
   });

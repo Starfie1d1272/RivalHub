@@ -14,7 +14,6 @@ import { startMajorInTransaction } from "../../../src/lib/major/start";
 import { finalizeMajorSwissRoundInTransaction } from "../../../src/lib/major/swiss-runtime";
 import { transitionMajorSwissStageInTransaction } from "../../../src/lib/major/stage-transition";
 import { finalizeMajorPlayoffRoundInTransaction, startMajorPlayoffInTransaction } from "../../../src/lib/major/playoff-runtime";
-import { projectMajorSwissStage, type MajorSwissMatchFact } from "../../../src/lib/major/swiss";
 import { AppError, ErrorCode } from "../../../src/lib/errors";
 import { createMajor24Capabilities, createMajorDefaultCapabilities } from "../../../src/lib/competition/templates";
 import type { CompetitiveProfileConfig } from "../../../src/types/season";
@@ -99,35 +98,6 @@ interface MajorFixture {
   seasonId: string;
   userIds: string[];
   cleanupCatalogSeasons?: Array<{ platform: string; seasonKeys: readonly string[] }>;
-}
-
-interface GoldenSwissEvidenceRow {
-  currentSeed: number;
-  initialStageSeed: number;
-  tournamentSeed: number;
-  team: string;
-  record: string;
-  difficultyScore: number;
-  status: string;
-}
-
-interface GoldenPlayoffEvidenceRow {
-  round: string;
-  format: string;
-  teamA: string;
-  teamB: string;
-  score: string;
-  status: string;
-}
-
-interface GoldenFinalEvidence {
-  status: string;
-  seasonStatus: string;
-  champion: string;
-  placementGroups: Array<{ from: number; to: number; teams: string[] }>;
-  thirdPlace: string;
-  honors: string;
-  postArchiveAdjudication: string;
 }
 
 async function prepareReadyMajor(
@@ -505,132 +475,6 @@ async function finishSwissRound(pool: Pool, stageRunId: string, round: number): 
   }
 }
 
-async function readSwissEvidence(pool: Pool, stageRunId: string): Promise<GoldenSwissEvidenceRow[]> {
-  const entrants = await pool.query<{ competition_entry_id: string; entry_name: string; stage_seed: number; tournament_seed: number }>(`
-    SELECT entrant.competition_entry_id, en.name AS entry_name, e.stage_seed, seed.seed AS tournament_seed
-    FROM major_stage_entrants e
-    INNER JOIN major_tournament_entrants entrant ON entrant.id = e.tournament_entrant_id
-    INNER JOIN major_tournament_seeds seed ON seed.tournament_entrant_id = entrant.id AND seed.season_id = e.season_id
-    INNER JOIN competition_entries en ON en.id = entrant.competition_entry_id
-    WHERE e.stage_run_id = $1
-    ORDER BY e.stage_seed
-  `, [stageRunId]);
-  const matches = await pool.query<{
-    id: string;
-    round: number | null;
-    entry_a_id: string;
-    entry_b_id: string;
-    score_a: number | null;
-    score_b: number | null;
-    status: string;
-    completed_at: Date | null;
-  }>(`
-    SELECT id, round, entry_a_id, entry_b_id, score_a, score_b, status, completed_at
-    FROM matches
-    WHERE major_stage_run_id = $1 AND ownership = 'major_stage'
-    ORDER BY round, managed_key
-  `, [stageRunId]);
-  if (entrants.rows.length !== 16) throw new Error("Golden evidence 缺少 16 个 StageRun entrant 表项。 ");
-  const facts: MajorSwissMatchFact[] = matches.rows.map((match) => {
-    if (match.round === null || match.round < 1 || match.round > 5 || match.status !== "finished" || match.completed_at === null || match.score_a === null || match.score_b === null || match.score_a === match.score_b) {
-      throw new Error("Golden evidence 发现未完成或无胜者的 Swiss 比赛。 ");
-    }
-    return {
-      matchId: match.id,
-      round: match.round as 1 | 2 | 3 | 4 | 5,
-      entryAId: match.entry_a_id,
-      entryBId: match.entry_b_id,
-      winnerId: match.score_a > match.score_b ? match.entry_a_id : match.entry_b_id,
-    };
-  });
-  const projection = projectMajorSwissStage({
-    entrants: entrants.rows.map((entrant) => ({ teamId: entrant.competition_entry_id, initialStageSeed: entrant.stage_seed })),
-    matches: facts,
-    finalizedRound: 5,
-  });
-  const metadata = new Map(entrants.rows.map((entrant) => [entrant.competition_entry_id, entrant]));
-  return projection.teams.map((team) => {
-    const entrant = metadata.get(team.teamId);
-    if (!entrant) throw new Error("Golden evidence 的 Swiss 投影引用了未知 Entry。 ");
-    return {
-      currentSeed: team.currentStageSeed,
-      initialStageSeed: team.initialStageSeed,
-      tournamentSeed: entrant.tournament_seed,
-      team: entrant.entry_name,
-      record: `${team.wins}-${team.losses}`,
-      difficultyScore: team.difficultyScore,
-      status: team.status,
-    };
-  });
-}
-
-async function readPlayoffEvidence(pool: Pool, stageRunId: string): Promise<GoldenPlayoffEvidenceRow[]> {
-  const result = await pool.query<{
-    entry_round: string | null;
-    format: string;
-    team_a: string;
-    team_b: string;
-    score_a: number | null;
-    score_b: number | null;
-    status: string;
-  }>(`
-    SELECT m.entry_round, m.format, ta.name AS team_a, tb.name AS team_b, m.score_a, m.score_b, m.status
-    FROM matches m
-    INNER JOIN competition_entries ta ON ta.id = m.entry_a_id
-    INNER JOIN competition_entries tb ON tb.id = m.entry_b_id
-    WHERE m.major_stage_run_id = $1 AND m.ownership = 'major_stage'
-    ORDER BY CASE m.entry_round WHEN 'quarterfinal' THEN 1 WHEN 'semifinal' THEN 2 WHEN 'third_place' THEN 3 WHEN 'final' THEN 4 ELSE 5 END, m.managed_key
-  `, [stageRunId]);
-  return result.rows.map((match) => ({
-    round: match.entry_round ?? "unknown",
-    format: match.format,
-    teamA: match.team_a,
-    teamB: match.team_b,
-    score: match.score_a === null || match.score_b === null ? "—" : `${match.score_a}:${match.score_b}`,
-    status: match.status,
-  }));
-}
-
-async function readFinalEvidence(pool: Pool, seasonId: string, playoffRunId: string): Promise<GoldenFinalEvidence> {
-  const result = await pool.query<{
-    status: string;
-    champion: string;
-    season_status: string;
-    placement_groups: unknown;
-  }>(`
-    SELECT r.status, champion.name AS champion, s.status AS season_status, r.placement_groups
-    FROM major_final_results r
-    INNER JOIN competition_entries champion ON champion.id = r.champion_entry_id
-    INNER JOIN seasons s ON s.id = r.season_id
-    WHERE r.season_id = $1 AND r.playoff_stage_run_id = $2
-  `, [seasonId, playoffRunId]);
-  const row = result.rows[0];
-  if (!row || !Array.isArray(row.placement_groups)) throw new Error("Golden evidence 缺少正式名次结果。 ");
-  const entryRows = await pool.query<{ id: string; name: string }>("SELECT id, name FROM competition_entries WHERE competition_id = $1", [seasonId]);
-  const entryNames = new Map(entryRows.rows.map((entry) => [entry.id, entry.name]));
-  const placementGroups = row.placement_groups.map((group) => {
-    if (typeof group !== "object" || group === null) {
-      throw new Error("Golden evidence 的 placement group 结构无效。 ");
-    }
-    const candidate = group as { from?: unknown; to?: unknown; entryIds?: unknown };
-    if (!Array.isArray(candidate.entryIds)) throw new Error("Golden evidence 的 placement group 结构无效。 ");
-    const from = Number(candidate.from);
-    const to = Number(candidate.to);
-    const teams = candidate.entryIds.map((entryId: unknown) => entryNames.get(String(entryId)) ?? `unknown:${String(entryId)}`);
-    return { from, to, teams };
-  });
-  const third = placementGroups.find((group) => group.from === 3 && group.to === 3)?.teams.join(", ") ?? "—";
-  return {
-    status: row.status,
-    seasonStatus: row.season_status,
-    champion: row.champion,
-    placementGroups,
-    thirdPlace: third,
-    honors: "champion revoked; runner_up valid; no auto-promotion",
-    postArchiveAdjudication: "allowed",
-  };
-}
-
 async function exerciseSwissRuntime(
   database: ReturnType<typeof drizzle<typeof schema>>,
   pool: Pool,
@@ -896,21 +740,7 @@ async function exercisePlayoffRuntime(
     throw new Error("淘汰赛没有持久化八场比赛、冠军、3–4 名次区间与待确认正式结果。 ");
   }
   await exerciseFinalLifecycle(database, pool, seasonId, playoffRunId);
-  const stageRuns = await pool.query<{ id: string; stage_key: string }>(
-    "SELECT id, stage_key FROM major_stage_runs WHERE season_id = $1 AND stage_key IN ('stage1', 'stage2', 'stage3') ORDER BY stage_key",
-    [seasonId],
-  );
-  const swissStages: Record<string, GoldenSwissEvidenceRow[]> = {};
-  for (const stageRun of stageRuns.rows) swissStages[stageRun.stage_key] = await readSwissEvidence(pool, stageRun.id);
-  const finalEvidence = await readFinalEvidence(pool, seasonId, playoffRunId);
-  console.log(JSON.stringify({
-    season: "local-golden-major-2026-08-retry",
-    teams: 32,
-    players: 160,
-    swissStages,
-    playoff: await readPlayoffEvidence(pool, playoffRunId),
-    final: finalEvidence,
-  }, null, 2));
+
 }
 
 async function exerciseFinalLifecycle(

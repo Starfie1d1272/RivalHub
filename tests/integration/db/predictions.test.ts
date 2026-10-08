@@ -752,13 +752,6 @@ it("binds stakes to their market options, freezes options and reads started stag
       optionId: second.options[0]!.id, amount: BigInt(10), requestId: randomUUID(),
     })).rejects.toThrow();
     await expect(f.db.update(schema.predictionMarketOptions).set({ label: "changed" }).where(eq(schema.predictionMarketOptions.id, first.options[0]!.id))).rejects.toThrow();
-    const [multi] = await f.db.insert(schema.predictionMarkets).values({
-      seasonId: f.seasonId, matchId: first.matchId, stageKey: first.stageKey,
-      resolver: "future_confirmed_fact", title: "Three outcomes contract fixture", subject: first.subject,
-      deadline: first.deadline,
-    }).returning();
-    await f.db.insert(schema.predictionMarketOptions).values(["one", "two", "three"].map((key, position) => ({ marketId: multi!.id, key, label: key, position })));
-    expect(await f.db.select().from(schema.predictionMarketOptions).where(eq(schema.predictionMarketOptions.marketId, multi!.id))).toHaveLength(3);
     const before = await loadBaseline(f.db, f.seasonId);
     await f.db.update(schema.seasons).set({ stagePlan: [] }).where(eq(schema.seasons.id, f.seasonId));
     const after = await loadBaseline(f.db, f.seasonId);

@@ -1,6 +1,34 @@
-# 测试减债后续审查：重复 owner、真实持久化与发布/UI 约束
+# 全仓测试减债复核结论（2026-10-08）
 
-基线为 PR #839 squash 合并提交 `4e44e8469c75203658f7ee525c360fc86a4ed924`。本 PR 供下一版本审查；逐文件进度、内容 hash 和处置理由以 [file-review.csv](2026-10-08-file-review.csv) 为准。`pending` 不表示保留结论，只有完成逐断言核对才标记 `reviewed`；全量绿灯不能替代审查。
+本次逐文件复核已完成：台账 611 条记录，555 个现存文件已审查、56 个历史路径已移除、0 个待审。每个现存 test/spec 文件均在 [file-review.csv](2026-10-08-file-review.csv) 记录当前内容 SHA-256、处置理由与相关生产证据 owner；owner 列可以列出多个实际源码/工作流入口，迁移链使用目录入口。文件已审查不等于必须删除，也不等于永远不能再清理。
+
+PR #839 已合并；本次后续工作全部在下一版本 Draft PR [#841](https://github.com/Starfie1d1272/RivalHub/pull/841)，不自动合并。PR 基线为 #839 squash `4e44e8469c75203658f7ee525c360fc86a4ed924`。
+
+## 数量与结论
+
+| 统计口径 | test/spec 源文件 | 源码行数 |
+| --- | ---: | ---: |
+| 原始全仓审计清单 | 591 | 75,446 |
+| #839 合并后、本 PR 基线 | 577 | 73,646 |
+| 本 PR 最终复核 | 555 | 69,058 |
+
+相对原审计净减 6,388 行（约 8.5%）；本 PR 相对合并基线净减 4,588 行（约 6.2%）。两份基线不同，不能混用。统计仅包含 `.test` / `.spec` 源文件，不把报告、CSV、测试 helper 和产品代码删行计入测试减债。56 个移除路径包含删除、合并和迁移，因此不等于净少 56 个文件。
+
+没有证据支持直接删除 50%。剩余大文件中有真实数据库的事务回滚、外键/名单冻结、并发幂等、赛果纠错与身份安全，还有 24/32 两种赛事生命周期。65536 个结果组合由独立 oracle 验证 Swiss 不重赛、同战绩与参与者完整性；100 次模拟检查完整五轮业务不变量，不是重复稳定性实验。这些证据不能用 mock 的全绿代替。后续仍可压缩 fixture/setup，但仅缩短写法不一定降低 CI 耗时。
+
+## 最后完成的清理
+
+| 范围 | 最终处置与保障 |
+| --- | --- |
+| captain / draft identity 两份 573 行 mock suite | 删除，统一为 `rivals-formation-identity.test.ts` 调用真实 confirmCaptains、pickPlayer 和代表身份查询；保留 8 支 Entry 形成顺序、注册来源、名单/代表 provenance、跨赛季/非本场拒绝、未授权零写入与幂等审计。 |
+| Major roster safety | 删除测试内复制的过期生产事务，调用真实 submit/adminSelect/confirm Actions。原复制体遗漏 BP 代表字段；真实 Action 与真实 DB 现在一起接受验证。首发资格、冻结名单、数据库 scope trigger、重提交、审计、并发开赛全部保留。 |
+| 注册与认证 | 移除 normalizeEmail、compactUndefined 和 registration schema 的同源 mock。注册 happy fixture 改为真实允许的输入，invalid QQ 经真实 schema 拒绝；合并重复 Steam 投影场景。防枚举、验证码、identity/session 隔离与日志脱敏保留。 |
+| 审计/public payload/readiness/preview | 删除复制的 action 清单、源码标签字符串、完整 DTO 后重复字段检查、固定下一步文案。已删除 audit mock tombstone suite，将实际清理后标签负例纳入 DB owner；公开数据不泄密、未知字段 fail closed、真实 preview mirror 保留。 |
+| 迁移测试 | 删除约束/索引名字清单和已由当前真实写入约束保护的 FK metadata 检查；保留 RLS、唯一性、非法写入与历史数据兼容。map-score migration 原“保留统计”在迁移后才插入统计，现改为迁移前插入、迁移后读取。 |
+| Mizar 安装撤销 | 删除只数 mock 更新调用的会话关闭测试；实际 PG 验证 revokedAt、live session closeReason、arming 清理、重试状态不变及单条 audit。容量实验仍与正确性分开，未回到 required gate。 |
+| team registration / predictions / recovery | 删除手工 UPDATE 状态冒充生命周期、复制的资格查询、普通 SQL JSON/插入读取往返、无断言的 stage2 注入；唯一 participant 约束负例合入现有 DB scope 场景。真实竞争报名、资金守恒/债务、纠错恢复和冻结拒绝保留。 |
+| Major lifecycle | 删除仅用于 console 证据表的 SQL/投影与固定荣誉结论；保留真实 24/32 全流程、三阶段比赛/audit 数量、官方名次精确覆盖、归档门禁和故障注入回滚。 |
+| CI/release/recovery guard | Vitest 配置源码字符串改为实际配置导入，验证 CI/local 重试与隔离；删除重复 FULL 矩阵、旧 release commit fixture 和固定日志措辞。发布权限、恢复目标隔离、备份窗口顺序和 rollback/ambiguous outcome 仍保留。 |
 
 ## 本批处置与证据 owner
 
@@ -49,55 +77,25 @@
 
 该批测试层选择曾以 `unit-domain-node` 显式运行旧 actions 路径，因零发现而失败；改为实际 project 运行通过，随后将纯 Veto sequence suite 移到领域层。新 PostgreSQL fixture 起初有 nullable audit actor / 参数类型假设错误，修正 fixture 后才获得 production 漏洞反例；没有跳过失败案例。
 
-## 验证与限制
 
-- 首三个 commit 没有产品行为变化；后续深审修复竞技目录跨平台冻结来源赛季的删除漏洞，移除仅测试调用的旧 `getPickNumber`。没有 migration、E2E spec 或 CI 选择器修改，没有新增 skip/retry。
-- 基线全部 test/spec 源文件 577 个、73,646 行；当前清理后 565 个、71,880 行，净减 1,766 行（不含本报告）。
-- 首两个 commit 全量单元执行 476 文件、2,800 测试，全部通过，0 失败/跳过，wall time 109.00 秒。基线最新 #839 CI 为 479 文件、2,815 测试；两次环境不同，不据此声称 wall time 性能提升。
-- 发布/恢复/preview 定向执行 109/109；共享 format 9/9；最终名单 5/5；地图偏好 2/2；公开赛事信息/DTO 7/7；最后发布契约 14/14 全部通过。测试 type-check、修改文件 ESLint 与 diff whitespace 检查通过。
-- 第一次 UI 定向执行 26/27，名单选择器误假设昵称后有空白；修正为名称前缀及数字边界后 5/5 通过。失败保留在本地验证记录中，不通过跳过掩盖。
-- 顺序 helper 单独执行 1 个有效顺序和 4 个缺失/逆序反例，全部符合预期。
-- 后续赛季规则去重与授权边界执行 5 文件、78/78 测试，0 失败/跳过；type-check 与修改文件 ESLint 通过。第三个 commit 全量单元为 2,804 项，新增权限负例用于补缺口，不追求测试数量下降。
-- 首两个 commit 的 FULL CI `37709534614`：单元 2,800/2,800，PG 80 文件 238/238，0 失败/跳过/flaky；所有 job 与 draft-gate 通过。后续 commit 的 CI 是另一份 evidence，不能沿用旧 head 的成功。
-- 第三个 commit `25b37c7f` FULL CI `37710651643`：单元 2,804/2,804；PG 238/238（103.503 秒）；browser 18/18（166.689 秒）；production smoke 2/2（21.917 秒）；0 失败/跳过/flaky。后续深审修改需要重新验证，不能沿用该 head 的结果。
+## 最终验证
 
-- 本次深审全量单元：466 文件、2,714/2,714，0 失败/跳过，wall time 113.27 秒；app/tests type-check 与修改文件 ESLint 通过。真实 PostgreSQL 定向验证：目录 2 文件 3/3、比分更正 1 文件 6/6，0 失败/跳过。affected import graph 对目录 Action 自动选中新 suite，对比分更正保留既有 series suite 并增加新 suite；全量 PostgreSQL 与新 head CI 另行验证。
+最终完整执行数据以本次 JSON 为准；历史 commit 的绿色证据不替代新 head。
 
-- `faa4d70e` 本地完整 PostgreSQL：82 文件、246/246，0 失败/跳过，测试主体 83.828 秒；比旧 head 增加的 8 项真实数据库证据全部执行。后续 UI/source 收敛定向 5 文件 37/37 与 scheduler/title/OCR/provider 4 文件 42/42 全部通过；最新 CI 单独记录于 PR，不能沿用旧 head。
-- 积分榜顶部注释与执行顺序冲突，按 CHANGELOG 1.20.0 的已发布规则修正为 H2H 先于总胜回合；不修改排序行为或历史赛季规则页面。
+| 层级 | 实际文件 | 实际用例 | 失败 / 跳过 | 耗时 |
+| --- | ---: | ---: | --- | --- |
+| 完整单元 | 453 | 2,588 / 2,588 | 0 / 0 | CLI wall 167.24s |
+| 完整 PostgreSQL（修复后） | 84 | 247 / 247 | 0 / 0 | JSON 起止 87.442s |
+| live fencing 定向 | 1 | 10 / 10 | 0 / 0 | JSON 起止 25.674s |
 
-- 状态迁移深审：4 文件 19/19，0 失败/跳过；测试 type-check、修改文件 ESLint 与 whitespace 检查通过。所有后续 commit 仍在同一个 Draft PR，最终 head 的完整 CI 是最终证据。
+全仓 app/tests/scripts type-check、全仓 ESLint 与 diff whitespace 通过。单元 discovery 453 文件与实际执行 453 文件一致；PG 全部 84 文件与 JSON 实际清单一致，没有遗漏。初次完整 PG 为 246/247，固定等待竞争测试失败；改为真实 HTTP barrier + DB waiter 后定向及完整通过。单元/初次 PG 同时运行，耗时不能与此前独立运行直接比较，未声称性能比例提升。
 
-剩余工作流门禁仍有字符串/步骤名耦合，recovery orchestration 还有源码顺序断言。这些保护写入授权、备份一致性和发布阻断，必须先补充可执行编排或结构化工作流证据再替换，不能为了删行直接取消。其余清单仍需逐项审查，不能把本批保留项或全量绿灯外推到所有未深读文件。
+affected 实际验证：captains、draft operations、match representative 与 roster Action 源码单独变化时自动选中新的真实 PostgreSQL owner；混合新增 identity suite 后原选中项仍全部保留。schema 变化保持完整 PostgreSQL（空 spec 列表代表 FULL），Mizar 变化保持 PostgreSQL + system。完整执行报告中的实际文件清单与当前 unit/PG 源文件比对，避免“应运行但静默跳过”。
 
-## 全仓逐文件复核中间检查点（2026-10-08）
+本次完整测试过程中未修改测试源码；完成后仅清理空白。没有新增 skip/retry 或缩小 timeout/并发证据。定向调试曾因新 identity fixture SQL 参数同时被推断为 uuid/text 而失败，修正独立参数后通过；初次 whitespace 检查发现空白瑕疵，修正后通过。此前 UI selector/project 零发现和 fixture 调试失败均在对应阶段记录，未用跳过掩盖。
 
-逐文件台账 `2026-10-08-file-review.csv` 记录文件 hash、处置理由与状态。截至此检查点：293 个已复核、51 个历史文件已移除、265 个待复核。已复核不等于必须删除；待复核也不等于可以保留。全仓审计尚未结束。
+## 保留项的边界
 
-当前 test/spec 源文件 558 个、71,012 行；相对上一检查点 `dcc572d0` 净减 868 行，相对原审计 75,446 行净减 4,434 行（约 5.9%）。数量包含新增的纯领域 owner 文件，不包含台账和报告。删除比例不是验收指标。
+部分 release/recovery/preview 工作流仍有源码步骤顺序或结构 wiring 断言，保护生产写入授权、迁移失败阻断、恢复目标隔离与备份一致性。逐项审查后保留这些实际安全证据；进一步替换需要可执行编排或结构化 workflow harness，不能仅为了达到删行比例撤掉门禁。
 
-本批清理组件固定文案、共享头像重复检查、原生/第三方 DOM 结构、CSS 变量与伪窄屏测试；纯 URL 更新、比赛启动门禁与统计格式化迁到 Node 领域层。保留确认后才执行的操作、失败降级、名单冻结、权限与真实键盘交互。反馈常量快照改由真实 PostgreSQL 验证去重 60 秒、登录用户 30 秒冷却、匿名 20 条窗口的内外边界与审核生命周期。统计 SQL 字符串检查改由真实名单匹配、空有效导入集合、进行中系列的已完成地图、未完成地图与失效来源正反例覆盖。
-
-- 修改完成后完整单元执行：458 文件，2,657/2,657，0 失败、0 跳过；JSON 起止时间约 103.484 秒。
-- 本批定向真实 PostgreSQL：反馈 1 文件 3/3；统计导入及 postmatch 2 文件 4/4，0 失败、0 跳过。完整 PostgreSQL、浏览器与新 commit CI 尚待新 head 验证，不能沿用 `dcc572d0` 的绿色证据。
-- 测试 type-check 与修改文件 ESLint 通过。一次显式 public-query 运行指定错误 project，零发现时退出失败；按所属 project 重跑 2/2 通过，没有用 skip 掩盖失败。
-
-继续审查剩余数据库、Action、页面、CI 和浏览器文件；同一 Draft PR 保持不合并。
-
-
-## 查询、页面与调度边界复核检查点（2026-10-08）
-
-上一提交 `ddaf942d` 的 CI `37717671985` 已全部成功，包括 PostgreSQL、system browser、production smoke 与 draft-gate；artifact 下载在本环境返回 HTTP 403，因此不伪造该远端 run 的实际测试数量或主体耗时。下面数量来自本地 JSON 报告。
-
-当前逐文件台账为 447 个已复核、53 个历史文件已移除、110 个待复核。当前 557 个 test/spec 源文件、70,637 行；相对上一提交净减 375 行，相对原审计净减 4,809 行（约 6.4%）。全仓复核仍在继续，未把 pending 判为保留。
-
-- 删除假的参与者 count/join 数量测试，迁到实际 Major fixture：未建立正式名单为零、当前/approved 过滤、merged 用户排除及 solo approved 计数。
-- 删除转播排期的假更新表列表测试，新增真实 PostgreSQL 的原分配保留、满容量拒绝、结算替换与十五分钟到期释放；affected import graph 实际选择新 suite。
-- Steam coverage SQL 字符串改为真实 active-primary/cache/merged 三个状态的 coverage readback；MVP SQL 聚合写法由已有真实身份/平票聚合 owner 保护。
-- 页面删除共享头像、日期、标题、旧字段/文案不存在及固定布局断言；保留鉴权、错误状态、真实 loader 作用域和导航。三份 SSR suite 移除冲突的 jsdom pragma。
-- 调度、match operation 删除伪 schema/复制 validation schema；新增手动调度未授权时零审计、零执行、零缓存副作用。公开 DTO 用完整值校验替代 Object.keys 顺序与重复字段断言。
-- 时间 helper 删除 Date 构造转发和普通格式重复，固定时钟保留倒计时舍入、包含截止及 Date/string CST 跨日行为。浏览器仅删重复固定文案，仍保留全套关键 lifecycle 和真实键盘/Storage/Broadcast 链路。
-
-完整本地单元：456 文件、2,626/2,626，0 失败/跳过，JSON 起止约 111.447 秒。完整 PostgreSQL：83 文件、247/247，0 失败/跳过，主体约 91.643 秒。测试 type-check、修改文件 ESLint 与 whitespace 检查通过。初次页面定向执行 26/27，新增社区奖 loader 调用断言写错参数签名；按实际作用域修正后 3/3 并完整单元通过。初次 type-check 发现新 AppError fixture 缺 message；补齐后 type-check 与调度 2/2 通过，没有新增 skip/retry。
-
-源码写法与跨层重复的后续处理、剩余迁移/事务审查以及最终 head CI 仍需继续完成。同一个 Draft PR 保持不合并。
+视觉/截图/容量与重复稳定性实验保持独立可显式执行；不要求它们在普通 required CI 执行，也不把它们算作本次完整 unit/PG 的跳过。关键浏览器生命周期和精简 production browser smoke 由最新 head CI 验证。

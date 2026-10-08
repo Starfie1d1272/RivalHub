@@ -21,7 +21,6 @@ const {
   insertValuesCalls,
   getRegistrationWindowStateMock,
   getUserSessionMock,
-  buildRegistrationSchemaMock,
   assertSteam64AvailableMock,
   changePrimarySteam64InTxMock,
   getSteamProfileForPrimaryMock,
@@ -43,7 +42,6 @@ const {
     insertValuesCalls,
     getRegistrationWindowStateMock: vi.fn(),
     getUserSessionMock: vi.fn(),
-    buildRegistrationSchemaMock: vi.fn(),
     assertSteam64AvailableMock: vi.fn(),
     changePrimarySteam64InTxMock: vi.fn(),
     getSteamProfileForPrimaryMock: vi.fn(),
@@ -76,22 +74,6 @@ vi.mock("@/lib/registration/window", () => ({
 
 vi.mock("@/lib/auth/session", () => ({
   getUserSession: getUserSessionMock,
-}));
-
-vi.mock("@/lib/validators/registration", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/validators/registration")>();
-  return {
-    ...actual,
-    buildRegistrationSchema: buildRegistrationSchemaMock,
-  };
-});
-
-vi.mock("@/lib/utils/email", () => ({
-  normalizeEmail: (email: string) => email.trim().toLowerCase(),
-}));
-
-vi.mock("@/lib/utils/object", () => ({
-  compactUndefined: (obj: Record<string, unknown>) => obj,
 }));
 
 vi.mock("@/lib/identity/write-lock", () => ({ lockGameplayIdentityWriteInTx: vi.fn().mockResolvedValue(undefined) }));
@@ -139,33 +121,18 @@ const VALID_INPUT = {
   seasonId: SEASON_ID,
   email: "player@example.com",
   studentId: "220000001",
-  playerType: "undergraduate",
+  playerType: "enrolled",
   qq: "12345678",
   perfectName: "TestPlayer",
   steam64: "76561198000000001",
   primaryPosition: "opener",
   secondaryPosition: "closer",
-  peakRank: "黄金",
-  peakRankSeason: "S1 2026",
-  peakRating: 1.5,
-  currentSeasonPeakRank: "黄金",
-  currentRating: 1.4,
-  screenshotUrls: ["https://njubox.example.com/ss1"],
-  mapPreferences: [],
-  gameplayStyle: "积极型",
-  competitionHistory: "参加过校赛",
-  willingToBeCaptain: false,
-  antiCheatPledge: true as const,
-};
-
-const VALID_SCHEMA_INPUT = {
-  ...VALID_INPUT,
-  playerType: "enrolled",
   peakRank: "A+",
   peakRankSeason: "S1 2026",
   peakRating: 1.5,
   currentSeasonPeakRank: "A",
   currentRating: 1.4,
+  screenshotUrls: ["https://njubox.example.com/ss1"],
   mapPreferences: [
     { map: "de_mirage", level: "strong" },
     { map: "de_inferno", level: "proficient" },
@@ -175,6 +142,10 @@ const VALID_SCHEMA_INPUT = {
     { map: "de_anubis", level: "basic" },
     { map: "de_cache", level: "none" },
   ],
+  gameplayStyle: "积极型",
+  competitionHistory: "参加过校赛",
+  willingToBeCaptain: false,
+  antiCheatPledge: true as const,
 };
 
 // ── 工具：mock db.select 链式调用返回 [{count: N}] ──────────────────────────
@@ -197,29 +168,11 @@ function mockUpdateReturning(rows: unknown[]) {
   });
 }
 
-// ── 工具：mock buildRegistrationSchema 返回 safeParse 成功 ──────────────────
-function mockSchemaSuccess(data = VALID_INPUT) {
-  buildRegistrationSchemaMock.mockReturnValue({
-    safeParse: vi.fn().mockReturnValue({ success: true, data }),
-  });
-}
-
-// ── 工具：mock buildRegistrationSchema 返回 safeParse 失败 ──────────────────
-function mockSchemaFail(fieldErrors: Record<string, string[]>) {
-  buildRegistrationSchemaMock.mockReturnValue({
-    safeParse: vi.fn().mockReturnValue({
-      success: false,
-      error: { flatten: () => ({ fieldErrors }) },
-    }),
-  });
-}
-
 // ── 工具：setup 公共 happy-path 前置 mock（season + window + session）────────
 function setupHappyPathBase() {
   seasonFindFirstMock.mockResolvedValue(SEASON);
   getRegistrationWindowStateMock.mockReturnValue({ canSubmit: true });
   getUserSessionMock.mockResolvedValue(SESSION);
-  mockSchemaSuccess();
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -299,7 +252,6 @@ describe("submitRegistration()", () => {
     seasonFindFirstMock.mockResolvedValue(SEASON);
     getRegistrationWindowStateMock.mockReturnValue({ canSubmit: true });
     getUserSessionMock.mockResolvedValue(null);
-    mockSchemaSuccess();
 
     const result = await submitRegistration(VALID_INPUT as never);
     expect(result.success).toBe(false);
@@ -312,9 +264,8 @@ describe("submitRegistration()", () => {
     seasonFindFirstMock.mockResolvedValue(SEASON);
     getRegistrationWindowStateMock.mockReturnValue({ canSubmit: true });
     getUserSessionMock.mockResolvedValue(SESSION);
-    mockSchemaFail({ qq: ["请输入有效的 QQ 号（5-12 位数字）"] });
 
-    const result = await submitRegistration(VALID_INPUT as never);
+    const result = await submitRegistration({ ...VALID_INPUT, qq: "invalid" } as never);
     expect(result.success).toBe(false);
     if (!result.success) {
       expect(result.error.code).toBe(ErrorCode.VALIDATION_FAILED);
@@ -326,7 +277,6 @@ describe("submitRegistration()", () => {
     seasonFindFirstMock.mockResolvedValue(SEASON);
     getRegistrationWindowStateMock.mockReturnValue({ canSubmit: true });
     getUserSessionMock.mockResolvedValue({ ...SESSION, email: "other@example.com" });
-    mockSchemaSuccess();
 
     const result = await submitRegistration(VALID_INPUT as never);
     expect(result.success).toBe(false);
@@ -440,6 +390,8 @@ describe("submitRegistration()", () => {
     // audit_log action + fields
     expectAuditLog(insertValuesCalls, "registration.submit", { actorId: USER_ID, targetId: NEW_REG_ID });
 
+    expect(getSteamProfileForPrimaryMock).toHaveBeenCalledWith(expect.anything(), USER.steam64, VALID_INPUT.steam64);
+    expect(upsertSteamProfileMock).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ steam64: VALID_INPUT.steam64 }));
     expect(transactionMock).toHaveBeenCalledTimes(1);
     expect(updateMock.mock.results[0]?.value.set).toHaveBeenCalledWith(expect.objectContaining({
       gameplayStyle: VALID_INPUT.gameplayStyle,
@@ -453,56 +405,6 @@ describe("submitRegistration()", () => {
     expect(revalidatePathMock).toHaveBeenCalledWith(`/${SEASON.slug}/register`);
   });
 
-  it("在写入报名链前持久化官方 Steam 资料投影", async () => {
-    const { buildRegistrationSchema: realBuildRegistrationSchema } =
-      await vi.importActual<typeof import("@/lib/validators/registration")>(
-        "@/lib/validators/registration",
-      );
-    setupHappyPathBase();
-    buildRegistrationSchemaMock.mockImplementation((config, positions) =>
-      realBuildRegistrationSchema(config, positions),
-    );
-    userFindFirstMock.mockResolvedValue(USER);
-    registrationFindFirstMock.mockResolvedValue(null);
-
-    mockSelectCount(0);
-    mockSelectCount(0);
-
-    const userUpdateSetSpy = vi.fn().mockReturnValue({
-      where: vi.fn().mockReturnValue({
-        returning: vi.fn().mockResolvedValue([{ ...USER, steam64: VALID_SCHEMA_INPUT.steam64 }]),
-      }),
-    });
-    updateMock.mockReturnValueOnce({ set: userUpdateSetSpy });
-
-    const NEW_REG_ID = "44444444-4444-4444-4444-444444444444";
-    insertMock
-      .mockReturnValueOnce({
-        values: vi.fn().mockReturnValue({
-          returning: vi.fn().mockResolvedValue([{ id: NEW_REG_ID }]),
-        }),
-      })
-      .mockReturnValueOnce({
-        values: vi.fn((vals: unknown) => {
-          insertValuesCalls.push(vals);
-          return Promise.resolve();
-        }),
-      });
-
-    deleteMock.mockReturnValueOnce({
-      where: vi.fn().mockResolvedValue(undefined),
-    });
-
-    const result = await submitRegistration(VALID_SCHEMA_INPUT as never);
-
-    expect(result.success).toBe(true);
-    expect(getSteamProfileForPrimaryMock).toHaveBeenCalledWith(expect.anything(), USER.steam64, VALID_SCHEMA_INPUT.steam64);
-    expect(upsertSteamProfileMock).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ steam64: VALID_SCHEMA_INPUT.steam64 }));
-    expect(userUpdateSetSpy).toHaveBeenCalledWith(expect.objectContaining({
-      qq: VALID_SCHEMA_INPUT.qq,
-      studentId: VALID_SCHEMA_INPUT.studentId,
-    }));
-  });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────

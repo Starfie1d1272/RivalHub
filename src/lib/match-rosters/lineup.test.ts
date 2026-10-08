@@ -214,13 +214,7 @@ describe("evaluateStartingLineup — Major frozen roster & affiliation rules", (
     });
     expect(result.valid).toBe(false);
     expect(result.blockers.some((b) => b.includes("失去本届比赛资格"))).toBe(true);
-    // Later-rejected members no longer count toward the affiliation minimum,
-    // which independently produces its own blocker.
-    expect(
-      result.blockers.some(
-        (b) => b.includes("南京大学成员 3 人") || b.includes("南京大学成员 2 人"),
-      ),
-    ).toBe(false);
+    expect(result.affiliatedStarterCounts.get("4132010284")).toBe(3);
   });
 
   it("counts graduated NJU members when the frozen rule allows graduated", () => {

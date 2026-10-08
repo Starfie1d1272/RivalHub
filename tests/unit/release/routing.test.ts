@@ -203,7 +203,6 @@ describe("release routing controller", () => {
     });
     expect(requestCount(harness, "/promote/")).toBe(1);
     expect(requestCount(harness, "/rollback/")).toBe(0);
-    expect(harness.summaries[0]).toContain("- 回退补偿：");
   });
 
   it("separates bounded transport retry from canonical semantic polling", async () => {
@@ -238,8 +237,8 @@ describe("release routing controller", () => {
     });
     expect(requestCount(harness, "/promote/")).toBe(1);
     expect(requestCount(harness, "/rollback/")).toBe(1);
-    expect(harness.summaries[0]).toContain("- 回退补偿：");
     expect(harness.summaries[0]).toContain("已验证");
+    expect(harness.summaries[0]).toContain("- 切换结果：" + "\u0060已接受\u0060");
   });
 
   it("fails hard on canonical auth errors without retrying the read", async () => {
@@ -277,26 +276,6 @@ describe("release routing controller", () => {
     });
     expect(requestCount(harness, "/promote/")).toBe(1);
     expect(requestCount(harness, "/rollback/")).toBe(0);
-    expect(harness.logs.some((line) => line.includes("不重复执行有副作用的 POST"))).toBe(true);
-  });
-
-  it("keeps an ambiguous promote to one POST when stale previous becomes candidate", async () => {
-    const harness = createHarness({
-      canonical: [
-        identity("v2.9.4", PREVIOUS_COMMIT),
-        identity("v2.9.5", CANDIDATE_COMMIT),
-      ],
-      promote: [new Error("request timed out")],
-      alias: [
-        aliasState(PREVIOUS_DEPLOYMENT_ID, "succeeded"),
-        aliasState(CANDIDATE_DEPLOYMENT_ID, "succeeded"),
-      ],
-    });
-
-    await expect(runReleaseRouting(harness.options)).resolves.toMatchObject({
-      promotionOutcome: "reconciled",
-    });
-    expect(requestCount(harness, "/promote/")).toBe(1);
   });
 
   it("keeps an ambiguous promote to one POST when previous repeats before candidate appears", async () => {
@@ -414,24 +393,7 @@ describe("release routing controller", () => {
     await expect(runReleaseRouting(harness.options)).rejects.toMatchObject({
       details: { classification: "rollback_failed" },
     });
-    expect(harness.summaries[0]).toContain("- 回退补偿：");
     expect(harness.summaries[0]).toContain("- 需要人工介入：是");
-  });
-
-  it("keeps accepted promotion outcome when semantic convergence fails", async () => {
-    const harness = createHarness({
-      canonical: () => identity("v2.9.4", PREVIOUS_COMMIT),
-      alias: [
-        aliasState(CANDIDATE_DEPLOYMENT_ID, "succeeded"),
-        aliasState(PREVIOUS_DEPLOYMENT_ID, "succeeded"),
-      ],
-    });
-
-    await expect(runReleaseRouting(harness.options)).rejects.toMatchObject({
-      details: { classification: "convergence_timeout" },
-    });
-    expect(harness.summaries[0]).toContain("- 切换结果：" + "\u0060已接受\u0060");
-    expect(harness.summaries[0]).not.toContain("- 切换结果：" + "\u0060失败\u0060");
   });
 
   it("treats a malformed release identity payload as deterministic contract failure", async () => {

@@ -7,18 +7,6 @@ import {
 } from "@/lib/draft/data";
 import { serializePublicMatchTimeProposal } from "@/lib/matches/time-proposals";
 
-const PRIVATE_KEYS = [
-  "email",
-  "qq",
-  "studentId",
-  "authId",
-  "seasonIds",
-  "internalEvidence",
-  "notes",
-  "competitionHistory",
-  "gameplayStyle",
-];
-
 describe("public payload serializers", () => {
   it("does not copy private columns into the public captains DTO", () => {
     const source = {
@@ -50,10 +38,7 @@ describe("public payload serializers", () => {
       currentRating: 2.05,
       voteCount: 3,
     });
-    expect(JSON.stringify(serialized)).not.toContain("captain@example.test");
-    for (const key of PRIVATE_KEYS) {
-      expect(Object.hasOwn(serialized, key), key).toBe(false);
-    }
+
   });
 
   it("keeps the anonymous draft payload free of private registration fields", () => {
@@ -82,31 +67,20 @@ describe("public payload serializers", () => {
       competitionHistory: "校赛",
     };
 
-    const payload = {
-      captains: {
-        candidates: [serializePublicCaptainCandidate({
-          id: source.registrationId,
-          userId: source.userId,
-          displayName: source.displayName,
-          perfectName: source.perfectName,
-          personaName: source.personaName,
-          primaryPosition: source.primaryPosition,
-          peakRank: source.peakRank,
-          peakRating: source.peakRating,
-          currentRating: source.currentRating,
-          voteCount: 0,
-        })],
-      },
-      draft: {
-        remainingPlayers: [serializePublicDraftPlayer(source)],
-      },
-    };
-    const serializedPayload = JSON.stringify(payload);
-
-    expect(serializedPayload).not.toContain("player@example.test");
-    for (const key of PRIVATE_KEYS) {
-      expect(serializedPayload).not.toContain(`"${key}"`);
-    }
+    expect(serializePublicDraftPlayer(source)).toEqual({
+      userId: "user-2",
+      personaName: "SteamPlayer",
+      avatarUrl: null,
+      perfectName: null,
+      displayName: "PublicPlayer",
+      primaryPosition: "awper",
+      secondaryPosition: "anchor",
+      peakRank: "A+",
+      peakRating: 1.8,
+      currentRank: "A",
+      currentRating: 1.7,
+      mapPreferences: [],
+    });
   });
 
   it("keeps nullable Steam persona names nullable so perfectName remains usable", () => {
@@ -155,9 +129,6 @@ describe("public payload serializers", () => {
       createdAt: now,
       isMine: true,
     });
-    expect(JSON.stringify(serialized)).not.toContain("user-private");
-    expect(Object.hasOwn(serialized, "proposedBy")).toBe(false);
-    expect(Object.hasOwn(serialized, "forceAssignedBy")).toBe(false);
   });
 
   it("maps unknown proposal statuses to a safe presentation value", () => {

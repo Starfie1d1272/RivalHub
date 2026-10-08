@@ -13,22 +13,6 @@ describe("education evidence object-key migration contract", () => {
       if (!institution.rows[0]) throw new Error("Local fixture 需要高校目录记录。");
       await pool.query("INSERT INTO users (id, email) VALUES ($1, $2)", [userId, `education-object-key-${userId}@local.test`]);
 
-      const constraints = await pool.query<{ name: string }>(
-        `SELECT conname AS name FROM pg_constraint
-         WHERE conrelid = 'public.education_verifications'::regclass
-           AND conname IN (
-             'education_verifications_evidence_object_type_shape_check',
-             'education_verifications_manual_evidence_code_shape_check',
-             'education_verifications_manual_pending_object_shape_check'
-           )
-         ORDER BY conname`,
-      );
-      expect(constraints.rows.map((row) => row.name)).toEqual([
-        "education_verifications_evidence_object_type_shape_check",
-        "education_verifications_manual_evidence_code_shape_check",
-        "education_verifications_manual_pending_object_shape_check",
-      ]);
-
       const institutionId = institution.rows[0].id;
       await pool.query(
         `INSERT INTO education_verifications

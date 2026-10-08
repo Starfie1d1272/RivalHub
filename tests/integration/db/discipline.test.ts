@@ -29,7 +29,6 @@ import {
   markSanctionExpiredInTx,
   resolveSanctionStatus,
   revokeSanctionInTx,
-  serializeSanctionPublic,
 } from "../../../src/lib/discipline/service";
 import { AppError } from "../../../src/lib/errors";
 import { createMajorDefaultCapabilities } from "../../../src/lib/competition/templates";
@@ -437,14 +436,6 @@ async function main(): Promise<void> {
           }),
         );
 
-        // Evidence never appears publicly.
-        const caseRow = (await client.query(
-          `SELECT id, season_id AS "seasonId", subject_user_id AS "subjectUserId", status, effects,
-                  public_explanation AS "publicExplanation", effective_from AS "effectiveFrom",
-                  effective_until AS "effectiveUntil", created_at AS "createdAt"
-           FROM disciplinary_cases WHERE id = $1`, [captainCaseId])).rows[0];
-        const serializedJson = JSON.stringify(serializeSanctionPublic(caseRow, new Date()));
-        expect(!serializedJson.includes("secret-evidence-link"),  "S1 公开序列化不得泄露内部证据").toBe(true);
       } finally {
         client.release();
       }

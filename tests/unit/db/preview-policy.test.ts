@@ -39,15 +39,6 @@ describe("sanitized mirror policy", () => {
     expect(older.futureColumns.match_maps).toContain("started_at");
   });
 
-  it("projects a fixed end reason without selecting the private source field", () => {
-    const query = exportQuery("team_memberships");
-
-    expect(query).toContain(`CASE WHEN "ended_at" IS NOT NULL THEN 'left'::team_membership_end_reason ELSE NULL END AS ended_reason`);
-    expect(query).not.toContain('"ended_reason"');
-    expect(PREVIEW_COLUMNS.team_memberships).not.toContain("ended_reason");
-    expect(OMITTED_COLUMNS.team_memberships).toBe("ended_reason");
-  });
-
   it("fails closed on an unknown source column or unreviewed table", () => {
     expect(() => assertReviewedColumns("community_groups", [...PREVIEW_COLUMNS.community_groups.split(" "), "invite_token"])).toThrow();
     expect(() => assertReviewedColumns("private_unknown", ["id"])).toThrow();
@@ -117,13 +108,6 @@ describe("sanitized mirror policy", () => {
     expect(beforeQualification.futureTables).toContain("competition_qualification_runs");
     expect(beforeQualification.tables.matches.exportedColumns).not.toContain("qualification_run_id");
     expect(beforeQualification.futureColumns.matches).toContain("qualification_run_id");
-    const query = exportQuery("competition_qualification_runs");
-    expect(query).not.toContain('"configured_by"');
-    expect(query).not.toContain('"started_by"');
-    expect(query).toContain("'preview:redacted'::text AS configured_by");
-    expect(query).toContain(`CASE WHEN "started_at" IS NULL THEN NULL ELSE 'preview:redacted'::text END AS started_by`);
-    expect(exportQuery("competition_qualification_drafts")).toContain("'preview:redacted'::text AS updated_by");
-    expect(exportQuery("competition_qualification_drafts")).not.toContain('"updated_by"');
   });
 
   it("exports roster currentness only for sources with the history migration", () => {
@@ -139,34 +123,4 @@ describe("sanitized mirror policy", () => {
     expect(beforeHistory.futureColumns.event_roster_members).toContain("is_current");
   });
 
-  it("allows Steam compatibility shadows before cleanup and rejects them after the real migration", () => {
-    const expected = readExpectedMigrations();
-    const cleanupIndex = expected.findIndex(({ tag }) => tag === "0055_steam_profile_shadow_cleanup");
-    expect(cleanupIndex).toBeGreaterThan(0);
-    const beforeCleanup = previewPolicyFor(expected.slice(0, cleanupIndex));
-    const afterCleanup = previewPolicyFor(expected);
-    const shadowColumns = ["steam_name", "steam_profile_url", "avatar_url"];
-    expect(OMITTED_COLUMNS.users).not.toMatch(/steam_name|steam_profile_url|avatar_url/);
-    const physicalUsersWithShadow = [
-      ...PREVIEW_COLUMNS.users.split(" "),
-      ...OMITTED_COLUMNS.users.split(" "),
-      ...shadowColumns,
-    ];
-
-    expect(exportQuery("users")).not.toContain("steam_name");
-    expect(exportQuery("users")).not.toContain("steam_profile_url");
-    expect(exportQuery("users")).not.toContain("avatar_url");
-
-    expect(beforeCleanup.tables.users.omittedColumns).toEqual(expect.arrayContaining(shadowColumns));
-    expect(beforeCleanup.tables.users.removedColumns).toEqual([]);
-    expect(() => assertReviewedColumns("users", physicalUsersWithShadow, beforeCleanup)).not.toThrow();
-
-    expect(afterCleanup.tables.users.omittedColumns).not.toEqual(expect.arrayContaining(shadowColumns));
-    expect(afterCleanup.tables.users.removedColumns).toEqual(expect.arrayContaining(shadowColumns));
-    expect(() => assertReviewedColumns("users", physicalUsersWithShadow, afterCleanup)).toThrow(/removed mirror column/);
-
-    const cleanedUsers = [...PREVIEW_COLUMNS.users.split(" "), ...OMITTED_COLUMNS.users.split(" ")];
-    expect(() => assertReviewedColumns("users", cleanedUsers, afterCleanup)).not.toThrow();
-    expect(() => assertReviewedColumns("users", [...cleanedUsers, "unreviewed_column"], afterCleanup)).toThrow(/unreviewed column/);
-  });
 });

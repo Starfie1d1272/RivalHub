@@ -10,7 +10,7 @@ vi.mock("@/lib/auth/session", () => ({
 import { fetchAuditLogs } from "@/actions/audit";
 
 describe("audit presentation PostgreSQL readback", () => {
-  it("resolves actor and allowlisted context names while preserving immutable facts", async () => {
+  it("resolves names and deleted targets while preserving private immutable facts", async () => {
     const pool = createLocalPool();
     const alice = randomUUID();
     const bob = randomUUID();
@@ -22,6 +22,7 @@ describe("audit presentation PostgreSQL readback", () => {
       { id: randomUUID(), action: "user_identity.merge", actor: "release:private-deployment", type: "user", meta: { mergedUserId: alice, summary: { AUTOMATIC: 4, PRESERVE: 2 }, evidenceClass: "private evidence" } },
       { id: randomUUID(), action: "match.demo.needs_attention", actor: "dak:private-pairing", type: "match_demo_import", meta: { mapOrder: 2, playerCount: 10, issueCount: 2, token: "private token" } },
       { id: randomUUID(), action: "match.import_demo", actor: "future:private-token", type: "match_map", meta: null },
+      { id: randomUUID(), action: "match.delete", actor: "system", type: "match", meta: null },
     ];
     try {
       await pool.query("INSERT INTO users (id, email, display_name) VALUES ($1, $2, 'Alice'), ($3, $4, 'Bob')", [alice, `${alice}@local.test`, bob, `${bob}@local.test`]);
@@ -38,6 +39,7 @@ describe("audit presentation PostgreSQL readback", () => {
       expect(views.get(rows[3]!.id)).toMatchObject({ actorLabel: "发布流程", summary: "合并来源：Alice · 合并记录 4 · 保留历史记录 2" });
       expect(views.get(rows[4]!.id)).toMatchObject({ actorLabel: "DAK Studio", targetTypeLabel: "Demo 数据", targetLabel: "记录未找到", summary: "第 2 图 · 选手 10 · 待处理问题 2" });
       expect(views.get(rows[5]!.id)).toMatchObject({ actorLabel: "未知来源", actionLabel: "导入 Demo 数据", targetTypeLabel: "比赛地图" });
+      expect(views.get(rows[6]!.id)).toMatchObject({ actionLabel: "删除比赛", targetTypeLabel: "比赛", targetLabel: "已删除 / 历史目标" });
       const presentation = JSON.stringify(rows.map((row) => views.get(row.id)));
       for (const secret of [alice, bob, missing, "private", "local.test"]) expect(presentation).not.toContain(secret);
       const stored = await pool.query("SELECT actor_id, target_id, meta FROM audit_logs WHERE id = $1", [rows[4]!.id]);

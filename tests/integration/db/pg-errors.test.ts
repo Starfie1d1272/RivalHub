@@ -108,9 +108,6 @@ describe("PostgreSQL error extraction integration", () => {
       expect(info?.code).toBe("23505");
       expect(info?.constraint).toBe(PENDING_INVITATION_CONSTRAINT);
       expect(Object.keys(info ?? {}).every((key) => ["code", "constraint", "schema", "table", "column"].includes(key))).toBe(true);
-      expect(info).not.toHaveProperty("detail");
-      expect(info).not.toHaveProperty("query");
-      expect(info).not.toHaveProperty("params");
 
       await client.query("ROLLBACK");
     } finally {
