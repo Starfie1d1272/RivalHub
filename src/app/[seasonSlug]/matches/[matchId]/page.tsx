@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { connection } from "next/server";
 import { assertCompetitionMatch } from "@/lib/matches/competition-context";
 import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
 import { getPublicPlayerIdentityIds } from "@/lib/players/public-identity";
@@ -75,12 +76,14 @@ interface MatchDetailPageProps {
 }
 
 export async function generateMetadata({ params }: MatchDetailPageProps): Promise<Metadata> {
+  await connection();
   const { matchId } = await params;
   const match = await db.query.matches.findFirst({ where: eq(matches.id, matchId), columns: { testConfig: true } });
   return match?.testConfig ? { robots: { index: false, follow: false } } : {};
 }
 
 export default async function MatchDetailPage({ params, searchParams }: MatchDetailPageProps) {
+  await connection();
   const { seasonSlug, matchId } = await params;
   const statsQuery = await searchParams;
 

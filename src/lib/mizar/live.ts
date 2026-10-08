@@ -1,6 +1,6 @@
 import "server-only";
 import { createHmac } from "node:crypto";
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import { matches, matchLiveSessions, seasons } from "@/db/schema";
 import { createServiceClient } from "@/lib/auth/supabase-server";
@@ -71,7 +71,10 @@ export async function issueLiveViewerToken(matchId: string) {
   const [match] = await db.select({ id: matches.id }).from(matches).innerJoin(seasons, eq(seasons.id, matches.seasonId)).where(and(
     eq(matches.id, matchId),
     eq(matches.status, "in_progress"),
-    eq(seasons.status, "playing"),
+    or(eq(seasons.status, "playing"), and(
+      isNotNull(matches.testConfig),
+      inArray(seasons.status, ["registration", "voting", "drafting"]),
+    )),
   ));
   if (!match) throw new AppError(ErrorCode.NOT_FOUND, "比赛实时数据不可用。");
   const secret = process.env.SUPABASE_JWT_SECRET;

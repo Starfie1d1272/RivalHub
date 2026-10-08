@@ -20,20 +20,23 @@ const apiUrl = assertLocalHttpUrl(process.env.NEXT_PUBLIC_SUPABASE_URL, "Supabas
 const command = process.argv[2];
 const seasonId = process.argv[3] ?? randomUUID();
 
-async function create() {
+async function create(isTest = false) {
+  const operatorBId = randomUUID();
   const userId = randomUUID(), entryA = randomUUID(), entryB = randomUUID();
   const matchId = randomUUID(), otherMatchId = randomUUID(), mapId = randomUUID();
   const installationId = randomUUID(), pairingIntentId = randomUUID();
   await db.transaction(async tx => {
     await tx.insert(schema.users).values({ id: userId, email: `${userId}@live.local` });
-    await tx.insert(schema.seasons).values({ id: seasonId, slug: seasonId, name: "Live transport evidence", kind: "custom", status: "playing" });
+    if (isTest) await tx.insert(schema.users).values({ id: operatorBId, email: `${operatorBId}@live.local` });
+    await tx.insert(schema.seasons).values({ id: seasonId, slug: seasonId, name: "Live transport evidence", kind: "custom", status: isTest ? "registration" : "playing" });
     for (const [id, name] of [[entryA, "Live Team A"], [entryB, "Live Team B"]]) {
       const revisionId = randomUUID();
-      await tx.insert(schema.competitionEntries).values({ id, competitionId: seasonId, source: "event_native", name, representativeUserId: userId, currentRosterRevisionId: revisionId, reviewReason: "private-review-marker", perfectTeamId: "private-perfect-marker" });
+      const representativeUserId = isTest && id === entryB ? operatorBId : userId;
+      await tx.insert(schema.competitionEntries).values({ id, competitionId: seasonId, source: "event_native", name, representativeUserId, currentRosterRevisionId: revisionId, reviewReason: "private-review-marker", perfectTeamId: "private-perfect-marker" });
       await tx.insert(schema.competitionEntryRosterRevisions).values({ id: revisionId, entryId: id, revisionNumber: 1, createdBy: userId });
-      await tx.insert(schema.competitionEntryRepresentativeChanges).values({ entryId: id, fromUserId: null, toUserId: userId, changedByActorId: "live-transport-fixture" });
+      await tx.insert(schema.competitionEntryRepresentativeChanges).values({ entryId: id, fromUserId: null, toUserId: representativeUserId, changedByActorId: "live-transport-fixture" });
     }
-    await tx.insert(schema.matches).values([matchId, otherMatchId].map(id => ({ id, seasonId, entryAId: entryA, entryBId: entryB, stage: "test", format: "bo3" as const, status: "in_progress" as const, startedAt: new Date() })));
+    await tx.insert(schema.matches).values([matchId, otherMatchId].map(id => ({ id, seasonId, entryAId: entryA, entryBId: entryB, stage: "test", testConfig: isTest && id === matchId ? { operatorAId: userId, operatorBId, mapPool: ["de_ancient", "de_nuke", "de_mirage", "de_inferno", "de_dust2", "de_overpass", "de_train"] } : null, format: "bo3" as const, status: "in_progress" as const, startedAt: new Date() })));
     await tx.insert(schema.matchMaps).values({ id: mapId, matchId, mapOrder: 1, mapName: "de_nuke" });
     await tx.insert(schema.matchVetoSessions).values({ matchId, startedAt: new Date(), completedAt: new Date() });
     await tx.insert(schema.mizarPairingIntents).values({ id: pairingIntentId, pollTokenHash: randomUUID(), status: "authorized", competitionId: seasonId, authorizedByUserId: userId, authorizedAt: new Date(), expiresAt: new Date(Date.now() + 600_000) });
@@ -241,7 +244,7 @@ async function main() {
   try {
     let result: unknown;
     if (command === "worker") await runWorker();
-    else if (command === "create") result = await create();
+    else if (command === "create" || command === "create-test") result = await create(command === "create-test");
     else if (command === "publish") {
       try { result = await publish(Number(process.argv[4]), Number(process.argv[5])); }
       catch (error) { if (error instanceof Error && "code" in error && error.code === "FORBIDDEN") result = { rejected: true }; else throw error; }

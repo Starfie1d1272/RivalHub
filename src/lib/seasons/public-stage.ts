@@ -1,7 +1,7 @@
-import { officialMatchCondition } from "@/lib/matches/scope";
+import { loadOfficialMatchStages } from "@/lib/matches/read-official";
 import "server-only";
 
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { majorStageRuns, matches } from "@/db/schema";
 import { resolveMajorStagePlan } from "@/lib/major/run-snapshot";
@@ -67,10 +67,7 @@ export async function getPublicSeasonStagePresentation(
         .from(majorStageRuns)
         .where(eq(majorStageRuns.seasonId, season.id))
       : Promise.resolve([] as { stageKey: string; ruleSnapshot: unknown }[]),
-    db
-      .selectDistinct({ stage: matches.stage })
-      .from(matches)
-      .where(and(officialMatchCondition(), eq(matches.seasonId, season.id))),
+    loadOfficialMatchStages(eq(matches.seasonId, season.id)),
   ]);
 
   return buildPublicStagePresentation(

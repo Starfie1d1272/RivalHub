@@ -171,7 +171,7 @@ async function lockCurrentEventRosterForLineupInTx(
     throw new AppError(ErrorCode.VALIDATION_FAILED, "本队正式名单状态已变化，请刷新后重新提交阵容。");
   }
 
-  if (match.qualificationRunId) {
+  if (match.qualificationRunId || match.testConfig) {
     await assertSinglePrestartEntryCoherenceInTx(tx, match.seasonId, { competitionEntryId: entryId });
   }
 }

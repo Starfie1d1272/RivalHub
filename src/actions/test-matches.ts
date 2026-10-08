@@ -43,16 +43,16 @@ const conclusionSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("recorded"), scoreA: z.number().int().min(0).max(3), scoreB: z.number().int().min(0).max(3) }).strict(),
   z.object({ kind: z.literal("pending") }).strict(), z.object({ kind: z.literal("omitted") }).strict(),
 ]);
-export async function concludeTestMatch(matchId: string, input: unknown, correction?: { expectedUpdatedAt: string; reason: string }) {
+export async function concludeTestMatch(matchId: string, input: unknown, correction?: { expectedUpdatedAt: string; reason: string; maps?: { mapId: string; scoreA: number; scoreB: number }[] }) {
   try {
     z.uuid().parse(matchId);
     const match = await getMatchOrThrow(matchId);
     const admin = await requireSeasonAdmin(match.seasonId);
     if (!match.testConfig) throw new AppError(ErrorCode.FORBIDDEN, "此入口仅用于测试赛。");
     const conclusion = conclusionSchema.parse(input);
-    const review = correction ? z.object({ expectedUpdatedAt: z.iso.datetime(), reason: z.string().trim().min(1).max(1000) }).strict().parse(correction) : null;
+    const review = correction ? z.object({ expectedUpdatedAt: z.iso.datetime(), reason: z.string().trim().min(1).max(1000), maps: z.array(z.object({ mapId: z.uuid(), scoreA: z.number().int().min(0), scoreB: z.number().int().min(0) }).strict()).max(5).optional() }).strict().parse(correction) : null;
     await db.transaction(tx => review
-      ? correctUnassociatedResultInTx(tx, { matchId, actorId: admin.userId, conclusion, expectedUpdatedAt: new Date(review.expectedUpdatedAt), reason: review.reason })
+      ? correctUnassociatedResultInTx(tx, { matchId, actorId: admin.userId, conclusion, expectedUpdatedAt: new Date(review.expectedUpdatedAt), reason: review.reason, maps: review.maps })
       : match.status === "finished"
       ? supplementUnassociatedResultInTx(tx, { matchId, actorId: admin.userId, conclusion })
       : concludeUnassociatedMatchInTx(tx, { matchId, actorId: admin.userId, conclusion }));

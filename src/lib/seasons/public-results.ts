@@ -1,4 +1,4 @@
-import { officialMatchCondition } from "@/lib/matches/scope";
+import { loadOfficialMatchRows } from "@/lib/matches/read-official";
 import { requireCompetitionFields } from "@/lib/matches/competition-context";
 import "server-only";
 import { and, asc, eq } from "drizzle-orm";
@@ -19,8 +19,7 @@ export async function getPublicSeasonResults(season: PublicSeason) {
     db.select({ id: tournamentHonors.id, label: tournamentHonors.label, type: tournamentHonors.type, state: tournamentHonors.state, entryId: tournamentHonors.entryId, userId: tournamentHonors.userId, displayName: users.displayName, perfectName: users.perfectName, personaName: steamProfiles.personaName })
       .from(tournamentHonors).leftJoin(users, eq(users.id, tournamentHonors.userId)).leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64)).where(eq(tournamentHonors.seasonId, season.id)),
     db.select({ id: competitionEntries.id, name: competitionEntries.name }).from(competitionEntries).where(and(eq(competitionEntries.competitionId, season.id), publicCompetitionEntryCondition())),
-    db.select({ id: matches.id, entryAId: matches.entryAId, entryBId: matches.entryBId, scoreA: matches.scoreA, scoreB: matches.scoreB, stage: matches.stage, entryRound: matches.entryRound, ownership: matches.ownership, majorStageRunId: matches.majorStageRunId, bracketNodeId: matches.bracketNodeId, completedAt: matches.completedAt })
-      .from(matches).where(and(officialMatchCondition(), and(eq(matches.seasonId, season.id), eq(matches.status, "finished")))).orderBy(asc(matches.completedAt)),
+    loadOfficialMatchRows(and(eq(matches.seasonId, season.id), eq(matches.status, "finished"))!).orderBy(asc(matches.completedAt)),
     season.competitionTemplate === "major" ? db.select({ id: majorStageRuns.id, stageKey: majorStageRuns.stageKey, ruleSnapshot: majorStageRuns.ruleSnapshot }).from(majorStageRuns).where(eq(majorStageRuns.seasonId, season.id)) : [],
   ]);
   const matchRows = rawMatchRows.map(requireCompetitionFields);

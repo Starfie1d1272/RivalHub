@@ -1,12 +1,11 @@
 import "server-only";
 import { assertPrestartEntryCoherenceInTx } from "@/lib/event-rosters/coherence";
-import { syncApprovedRosterToEventRosterInTx } from "@/lib/event-rosters/owner";
 import { buildRosterEligibilityInTx, freezeQualificationPolicy, type QualificationRosterEligibility } from "@/lib/competition-qualification/eligibility";
 import { z } from "zod";
 import { and, asc, desc, eq, inArray, isNotNull, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db, type TxDb } from "@/db/client";
-import { competitionEntries, eventRosters, matches, matchVetoSessions, seasons, users } from "@/db/schema";
+import { competitionEntries, matches, matchVetoSessions, seasons, users } from "@/db/schema";
 import { writeAuditInTx } from "@/lib/audit/write";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { normalizeRegistrationConfig } from "@/lib/seasons/compatibility";
@@ -32,15 +31,14 @@ export async function createTestMatchInTx(tx: TxDb, input: z.infer<typeof testMa
     .orderBy(asc(competitionEntries.id)).for("update");
   if (entries.length !== 2 || entries.some(entry => !entry.approvedRosterRevisionId)) throw new AppError(ErrorCode.VALIDATION_FAILED, "双方必须是本届已批准名单的队伍。");
   const eligibilityByEntry = new Map<string, QualificationRosterEligibility>();
-  for (const entry of entries) {
-    await tx.insert(eventRosters).values({ entryId: entry.id, sourceRosterRevisionId: entry.approvedRosterRevisionId!, status: "preparing" }).onConflictDoNothing({ target: eventRosters.entryId });
+  const coherent = await assertPrestartEntryCoherenceInTx(tx, season.id, entries.map(entry => ({ competitionEntryId: entry.id })));
+  for (const row of coherent) {
+    if (!["confirmed", "frozen"].includes(row.eventRoster.status)) {
+      throw new AppError(ErrorCode.VALIDATION_FAILED, `请先通过正式名单入口确认「${row.entry.name}」的名单，再创建测试赛。`);
+    }
   }
-  const coherent = await assertPrestartEntryCoherenceInTx(tx, season.id, entries.map(entry => ({ competitionEntryId: entry.id })), { requireEventRosterSync: false });
   const policy = season.competitionTemplate === "major" ? await freezeQualificationPolicy(season) : null;
   for (const row of coherent) {
-    if (policy || !["confirmed", "frozen"].includes(row.eventRoster.status) || row.eventRoster.sourceRosterRevisionId !== row.approvedRevision.id) {
-      await syncApprovedRosterToEventRosterInTx(tx, { season, coherent: row, actorId });
-    }
     if (policy) eligibilityByEntry.set(row.entry.id, await buildRosterEligibilityInTx(tx, {
       season, entryId: row.entry.id, rosterRevisionId: row.approvedRevision.id, eventRosterId: row.eventRoster.id, policy,
     }));
