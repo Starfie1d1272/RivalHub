@@ -142,7 +142,10 @@ export function classifyChangedFiles(entries, options = {}) {
   );
   const result = (...args) => {
     const plan = resultFor(...args);
-    return { ...plan, gateName, mobileSearchEvidence, liveEvidence: plan.full || liveSurfaceChanged };
+    const liveEvidence = plan.full || liveSurfaceChanged || plan.e2eSpecs.includes("tests/e2e/flows/public-match-live.spec.ts");
+    return { ...plan, gateName, mobileSearchEvidence, liveEvidence,
+      systemMatrix: systemMatrixFor(plan, liveEvidence),
+    };
   };
   if (forceFull) {
     return result(CAPABILITIES, true, "受保护分支、merge queue、schedule 或手动运行，强制 full gate");
@@ -531,6 +534,24 @@ function resultFor(requiredJobs, full, reason, evidence = {}) {
   };
 }
 
+// Each matrix runner owns its entire local stack. Partition the selected set,
+// never rediscover FULL in an empty shard. Provider and production checks each
+// run once, independently of browser shards.
+export function systemMatrixFor(plan, liveEvidence) {
+  if (!plan.runSystem) return [];
+  const specs = plan.full ? browserSpecs() : [...new Set(plan.e2eSpecs)].sort();
+  const matrix = [
+    { task: "provider", live: liveEvidence, specs: [] },
+    { task: "production", live: false, specs: [] },
+  ];
+  const shards = Array.from({ length: Math.min(4, specs.length) }, () => []);
+  specs.forEach((spec, index) => shards[index % shards.length].push(spec));
+  return [...matrix, ...shards.map((specs, index) => ({
+    task: `browser-${index + 1}`, specs,
+    live: specs.includes("tests/e2e/flows/public-match-live.spec.ts"),
+  }))];
+}
+
 function isE2ESpec(path) {
   return E2E_SPEC_FILE.test(path);
 }
@@ -582,6 +603,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   output("run_system", String(plan.runSystem));
   output("required_jobs", JSON.stringify(plan.requiredJobs));
   output("static_matrix", JSON.stringify(plan.staticMatrix));
+  output("system_matrix", JSON.stringify(plan.systemMatrix));
   output("unit_mode", plan.unitMode);
   output("related_sources", JSON.stringify(plan.relatedSources));
   output("explicit_tests", JSON.stringify(plan.explicitTests));

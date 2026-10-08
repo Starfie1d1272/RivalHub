@@ -27,6 +27,9 @@ jobs:
   plan:
     name: plan
     runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      actions: read
     outputs:
       run_started_at: ${{ steps.timing-start.outputs.run_started_at }}
       full: ${{ steps.plan.outputs.full }}
@@ -35,6 +38,7 @@ jobs:
       run_system: ${{ steps.plan.outputs.run_system }}
       required_jobs: ${{ steps.plan.outputs.required_jobs }}
       static_matrix: ${{ steps.plan.outputs.static_matrix }}
+      system_matrix: ${{ steps.plan.outputs.system_matrix }}
       unit_mode: ${{ steps.plan.outputs.unit_mode }}
       related_sources: ${{ steps.plan.outputs.related_sources }}
       explicit_tests: ${{ steps.plan.outputs.explicit_tests }}
@@ -49,7 +53,12 @@ jobs:
     steps:
       - name: Capture workflow timing start
         id: timing-start
-        run: echo "run_started_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          started=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" --jq .run_started_at)
+          test -n "$started" && test "$started" != null
+          echo "run_started_at=$started" >> "$GITHUB_OUTPUT"
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -213,12 +222,16 @@ jobs:
           fail-on-severity: moderate
 
   system:
-    name: system
+    name: system / ${{ matrix.task }}
     if: needs.plan.outputs.run_system == 'true'
     needs: plan
     runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.plan.outputs.system_matrix) }}
     env:
-      RIVALHUB_LIVE_EVIDENCE: ${{ needs.plan.outputs.live_evidence == 'true' && '1' || '0' }}
+      RIVALHUB_LIVE_EVIDENCE: ${{ matrix.live && '1' || '0' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -237,35 +250,35 @@ jobs:
       - name: System bootstrap
         run: node scripts/ci/timing.mjs "system/bootstrap" -- pnpm db:local:bootstrap-services
       - name: Provider contract
+        if: matrix.task == 'provider'
         run: node scripts/ci/timing.mjs "system/provider verify" -- pnpm db:local:verify-supabase
       - name: Checkout Mizar
-        if: needs.plan.outputs.live_evidence == 'true'
+        if: matrix.task == 'provider' && matrix.live
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: Starfie1d1272/Mizar
           ref: e52c455fb4caea0284dc5f6d0d8ec52bb8159364 # Mizar #118, published radar-view 0.1.0
           path: .mizar-checkout
       - name: Mizar cross-repo contract
-        if: needs.plan.outputs.live_evidence == 'true'
+        if: matrix.task == 'provider' && matrix.live
         run: node scripts/ci/timing.mjs "system/mizar contract" -- pnpm mizar:contract-check .mizar-checkout
       - name: Browser runtime
         run: google-chrome --version
       - name: E2E body
-        # A system run is also used for non-browser evidence (Supabase Realtime, Mizar
-        # cross-repo contract). Only an affected spec selection or a FULL gate runs browsers.
-        if: needs.plan.outputs.e2e_specs != '[]' || needs.plan.outputs.full == 'true'
+        if: startsWith(matrix.task, 'browser-')
         env:
           RIVALHUB_TIMING_TEST_KIND: e2e
           PLAYWRIGHT_CHANNEL: chrome
-          PLAYWRIGHT_WORKERS: 1
-          RIVALHUB_E2E_SPECS: ${{ needs.plan.outputs.e2e_specs }}
+          PLAYWRIGHT_WORKERS: 2
+          RIVALHUB_E2E_SPECS: ${{ toJSON(matrix.specs) }}
         run: node scripts/ci/timing.mjs "system/E2E body" -- pnpm test:e2e
 
       - name: Production browser smoke
+        if: matrix.task == 'production'
         env:
           RIVALHUB_TIMING_TEST_KIND: e2e
           PLAYWRIGHT_CHANNEL: chrome
-          PLAYWRIGHT_WORKERS: 1
+          PLAYWRIGHT_WORKERS: 2
           RIVALHUB_E2E_SPECS: '[]'
         run: node scripts/ci/timing.mjs "system/production browser smoke" -- pnpm test:e2e -- --config=playwright.production.config.ts
 
@@ -276,7 +289,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: system-failure-evidence
+          name: system-failure-evidence-${{ matrix.task }}
           path: .agent-tmp/system-artifacts
           if-no-files-found: ignore
           retention-days: 7
@@ -284,7 +297,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: timing-${{ github.job }}
+          name: timing-${{ github.job }}-${{ matrix.task }}
           path: ${{ runner.temp }}/rivalhub-timing-${{ github.job }}.jsonl
           if-no-files-found: ignore
           retention-days: 14
@@ -340,11 +353,11 @@ jobs:
           REQUIRED_JOBS: ${{ needs.plan.outputs.required_jobs }}
           GATE_NAME: ${{ needs.plan.outputs.gate_name }}
 
-      - name: Record FULL wall time
+      - name: Record required gate wall time
         if: always()
         env:
           RUN_STARTED_AT: ${{ needs.plan.outputs.run_started_at }}
-        run: node scripts/ci/timing.mjs record --label "FULL wall time" --start-iso "$RUN_STARTED_AT"
+        run: node scripts/ci/timing.mjs record --label "required gate wall time" --start-iso "$RUN_STARTED_AT"
       - name: Preserve machine-readable evidence
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

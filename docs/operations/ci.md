@@ -51,7 +51,7 @@ Release 的 migration rehearsal 使用同一套 plain `postgres:17` service、`p
 - affected 关键 browser E2E 与 production build/start App Shell smoke。
 
 浏览器 lane 使用 runner 已有 Chrome，不需要在每个 run 重新安装 Playwright browser。
-同一个 system job 只启动一次 Supabase：`start-services → bootstrap-services → verify-supabase → test:e2e`。E2E 每个 test attempt 创建独立的 DB/Auth scenario；除 `major-entry` 的 canonical UI 登录外，production smoke 使用真实 UI 登录；其它 dev 已登录流程通过受保护的 test-only route 调用同一个 `loginWithPassword`，不会伪造应用 cookie。
+system matrix 将 provider contract、production smoke 和最多四个 browser 分片并行执行；每个 runner 只启动自己的最小 Supabase，只有 provider 的 LIVE evidence 与含 LIVE spec 的分片启动 Realtime。受影响 spec 集合按文件精确分割，空集合不创建 browser job；provider 与 production 各执行一次，统一 gate 等待整个 matrix 成功。每个 browser runner 使用两个 worker；E2E 每个 test attempt 创建独立的 DB/Auth scenario，清理仅限该场景。`major-entry` 与 production smoke 使用真实 UI 登录；其它 dev 已登录流程通过受保护的 test-only route 调用同一个 `loginWithPassword`，不会伪造应用 cookie。
 
 CI 会把 bootstrap、各 capability lane、Vitest project、真实 PG integration、E2E body 与 FULL wall time 写入 GitHub Step Summary；其中 Vitest flaky evidence 会列出 project、file、full test name、首次失败、retry 通过和 retry count。system 失败或 retry/flaky 时保留 trace、screenshot、HTML report、脱敏 Next 日志和 scenario/attempt manifest；成功 run 不上传这些大体积 artifact。Playwright 在 CI 使用一次 retry，并以 `failOnFlakyTests` 阻断“首次失败、重试成功”的假绿；Vitest 使用同一原则，但由显式 flaky guard 保留 static job 的失败语义。
 

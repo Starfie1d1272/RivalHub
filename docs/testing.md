@@ -44,6 +44,8 @@ PR CI 保留 `static`、`postgres`、`system` 三条 capability lane，按 L0–
 
 CI 只负责选择和阻断 evidence，不成为业务测试语义的第二 owner。
 
+速度验收按 workflow 开始到全部必需门禁完成的 wall time 计算，包含排队、planner、安装、环境启动与 cleanup：普通修改争取 60 秒，数据库、真实系统与 FULL 回归以 180 秒为上限目标。删行数、测试数下降或调低 timeout 都不能代替真实 CI 成功记录。system 的 provider、production smoke 与受影响 browser 分片并行，gate 等待所有分片；每个 runner 拥有独立服务，场景内部使用独立账号与赛事。
+
 ## Staging and production
 
 Staging 是受保护的远程 migration/schema rehearsal，不是每个 PR 的必经环境。仅当存在远程状态、锁、兼容性或 local 无法证明的风险时使用，见 [`operations/staging.md`](./operations/staging.md)。

@@ -1,7 +1,20 @@
 import { describe, expect, it } from "vitest";
-import { classifyChangedFiles, isReleaseMetadataOnly, parseNameStatus } from "../../../scripts/ci/plan.mjs";
+import { classifyChangedFiles, isReleaseMetadataOnly, parseNameStatus, systemMatrixFor } from "../../../scripts/ci/plan.mjs";
 
 describe("changed-surface planner", () => {
+  // Missing/duplicated shards can turn a green aggregate into false evidence.
+  it("partitions affected browser evidence exactly once and enables Realtime for a directly changed LIVE spec", () => {
+    const live = "tests/e2e/flows/public-match-live.spec.ts";
+    const specs = [live, "tests/e2e/flows/bet.spec.ts", "tests/e2e/flows/major-entry.spec.ts"];
+    const plan = classifyChangedFiles(specs.map(path => ({ status: "M", paths: [path] })));
+    const browsers = plan.systemMatrix.filter(row => row.task.startsWith("browser-"));
+    expect(browsers.flatMap(row => row.specs).sort()).toEqual([...specs].sort());
+    expect(browsers.every(row => row.specs.length > 0)).toBe(true);
+    expect(browsers.find(row => row.specs.includes(live)).live).toBe(true);
+    expect(plan.systemMatrix.find(row => row.task === "provider").live).toBe(true);
+    expect(systemMatrixFor({ runSystem: false }, false)).toEqual([]);
+    expect(systemMatrixFor({ runSystem: true, full: false, e2eSpecs: [] }, false).map(row => row.task)).toEqual(["provider", "production"]);
+  });
   it.each(["src/actions/test-matches.ts", "src/lib/matches/test-matches.ts", "src/components/matches/TestMatchForm.tsx", "src/app/admin/[seasonSlug]/test-matches/page.tsx"])("retains the test-match browser lifecycle for %s, including mixed additions", (path) => {
     const entry = { status: "M", paths: [path] };
     const baseline = classifyChangedFiles([entry]);
