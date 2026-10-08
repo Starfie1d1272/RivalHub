@@ -124,11 +124,11 @@ describe("match commentary PostgreSQL contract", () => {
         await client.query("INSERT INTO match_veto_sessions(match_id,started_at) VALUES($1,now())", [matchId]);
       } else if (boundary === "production") {
         const pairing = randomUUID(), installation = randomUUID();
-        await client.query("INSERT INTO mizar_pairing_intents(id,poll_token_hash,status,competition_id,authorized_by_user_id,authorized_at,expires_at) VALUES($1,$1::text,'authorized',$2,$3,now(),now()+interval '1 hour')", [pairing, f.seasonId, f.adminA]);
-        await client.query("INSERT INTO mizar_installations(id,competition_id,pairing_intent_id,authorized_by_user_id,credential_hash) VALUES($1,$2,$3,$4,$1::text)", [installation, f.seasonId, pairing, f.adminA]);
+        await client.query("INSERT INTO mizar_pairing_intents(id,poll_token_hash,status,competition_id,authorized_by_user_id,authorized_at,expires_at) VALUES($1::uuid,$1::text,'authorized',$2,$3,now(),now()+interval '1 hour')", [pairing, f.seasonId, f.adminA]);
+        await client.query("INSERT INTO mizar_installations(id,competition_id,pairing_intent_id,authorized_by_user_id,credential_hash) VALUES($1::uuid,$2,$3,$4,$1::text)", [installation, f.seasonId, pairing, f.adminA]);
         await client.query("INSERT INTO match_live_sessions(match_id,installation_id,producer_instance_id,live_session_id,context_revision,authority_revision,program_source_generation,map_epoch) VALUES($1,$2,'producer','session','context',1,0,0)", [matchId, installation]);
       } else {
-        await client.query("UPDATE matches SET status=$2,score_a=1,score_b=0,completed_at=CASE WHEN $2='finished' THEN now() ELSE NULL END WHERE id=$1", [matchId, boundary]);
+        await client.query("UPDATE matches SET status=$2::match_status,score_a=1,score_b=0,completed_at=CASE WHEN $2::match_status='finished' THEN now() ELSE NULL END WHERE id=$1", [matchId, boundary]);
       }
       const { rows: [{ pid }] } = await client.query<{ pid: number }>("SELECT pg_backend_pid() AS pid");
       const cancellation = f.database.transaction(tx => cancel(tx, { matchId, userId: f.adminA }));
