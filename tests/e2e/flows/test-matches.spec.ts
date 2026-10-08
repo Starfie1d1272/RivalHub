@@ -3,9 +3,8 @@ import { assertLocalDatabaseUrl } from "../../../scripts/db/local-environment";
 import { expect, test, signInProgrammatically } from "../fixtures";
 
 test.use({ scenarioProfile: "stats" });
-test("管理员创建测试赛，匿名链接可看且不出现在正式赛程", async ({ page, browser, scenario }, testInfo) => {
+test("管理员创建测试赛，匿名链接可看且不出现在正式赛程", async ({ page, browser, scenario }) => {
   test.setTimeout(60000);
-  test.skip(testInfo.project.name !== "chromium", "单一场景内检查桌面和手机宽度。");
   const pool = new Pool({ connectionString: assertLocalDatabaseUrl(process.env.RIVALHUB_LOCAL_DATABASE_URL, "test matches browser"), ssl: false });
   const anonymous = await browser.newContext();
   try {

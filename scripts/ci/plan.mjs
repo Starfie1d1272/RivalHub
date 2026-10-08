@@ -63,6 +63,7 @@ const LIVE_SURFACES = [
   "drizzle/migrations/0066_mizar_backend_contracts",
 ];
 const SYSTEM_FLOW_MAP = [
+  { prefixes: ["src/actions/test-matches.ts", "src/lib/matches/test-matches.ts", "src/components/matches/TestMatch", "src/app/admin/[seasonSlug]/test-matches/"], specs: ["tests/e2e/flows/test-matches.spec.ts"] },
   { prefixes: ["src/actions/bet.ts", "src/components/bet/BetBoard", "src/components/bet/BetOperations"], specs: ["tests/e2e/flows/bet.spec.ts"] },
   { prefixes: ["src/actions/predictions.ts", "src/components/predictions/PickEm", "src/components/predictions/PredictionBoard.tsx", "src/components/predictions/PickEditor.tsx"], specs: ["tests/e2e/flows/predictions.spec.ts"] },
   { prefixes: ["src/actions/competition-qualification.ts", "src/components/admin/MajorPrestartConsole", "src/components/admin/MajorCompetitionFlow.tsx"], specs: ["tests/e2e/flows/major-qualification.spec.ts"] },

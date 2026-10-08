@@ -2,6 +2,16 @@ import { describe, expect, it } from "vitest";
 import { classifyChangedFiles, isReleaseMetadataOnly, parseNameStatus } from "../../../scripts/ci/plan.mjs";
 
 describe("changed-surface planner", () => {
+  it.each(["src/actions/test-matches.ts", "src/lib/matches/test-matches.ts", "src/components/matches/TestMatchForm.tsx", "src/app/admin/[seasonSlug]/test-matches/page.tsx"])("retains the test-match browser lifecycle for %s, including mixed additions", (path) => {
+    const entry = { status: "M", paths: [path] };
+    const baseline = classifyChangedFiles([entry]);
+    expect(baseline.runSystem).toBe(true);
+    expect(baseline.e2eSpecs).toContain("tests/e2e/flows/test-matches.spec.ts");
+    const mixed = classifyChangedFiles([entry, { status: "A", paths: ["tests/integration/db/test-matches.test.ts"] }]);
+    expect(mixed.e2eSpecs).toEqual(baseline.e2eSpecs);
+    for (const job of baseline.requiredJobs) expect(mixed.requiredJobs).toContain(job);
+    expect(classifyChangedFiles([{ status: "M", paths: ["src/components/layout/Footer.tsx"] }]).runSystem).toBe(false);
+  });
   it("requires event-logo browser and actual Mizar compatibility evidence for canonical branding writes", () => {
     const plan = classifyChangedFiles([{ status: "M", paths: ["src/actions/season-public-info.ts"] }], { draft: false });
     expect(plan.runSystem).toBe(true);

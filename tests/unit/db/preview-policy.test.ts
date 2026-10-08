@@ -3,7 +3,6 @@ import { readExpectedMigrations } from "../../../scripts/db/production-preflight
 import {
   assertReviewedColumns,
   exportQuery,
-  OMITTED_COLUMNS,
   EXCLUDED_TABLES,
   PREVIEW_COLUMNS,
   previewPolicyFor,

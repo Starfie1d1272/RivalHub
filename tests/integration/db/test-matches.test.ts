@@ -1,3 +1,4 @@
+import { exportQuery } from "../../../scripts/db/preview/policy";
 import { getPublicSeasonResults } from "@/lib/seasons/public-results";
 import { getPublicSeasonStagePresentation } from "@/lib/seasons/public-stage";
 import { issueLiveViewerToken } from "@/lib/mizar/live";
@@ -10,7 +11,7 @@ import { getMatchPlayerDetail, getTournamentPlayerDetail } from "@/lib/stats/tou
 import { loadBetFacts } from "@/lib/bet/facts";
 import { getPublicPlayerRecord } from "@/lib/players/public-record";
 import { randomUUID } from "node:crypto";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { db } from "@/db/client";
 import * as schema from "@/db/schema";
@@ -123,6 +124,10 @@ describe("event test matches", () => {
   it("runs captain lineups and designated two-sided BP, exports real maps, and completes without event progression", async () => {
     const f = await create();
     expect(f.match.testConfig).toMatchObject({ operatorAId: f.operatorA, operatorBId: f.captainB });
+    const mirror = await db.execute(sql`${sql.raw(exportQuery("matches"))} WHERE id = ${f.match.id}`);
+    expect(mirror.rows[0]?.test_config).toEqual({
+      mapPool: f.match.testConfig!.mapPool, operatorAId: f.operatorA, operatorBId: f.captainB,
+    });
     expect((await loadTestMatches({ viewerId: f.operatorA })).some(m => m.id === f.match.id)).toBe(true);
     expect(await db.select().from(schema.matches).where(and(eq(schema.matches.id, f.match.id), officialMatchCondition()))).toEqual([]);
     const season = (await db.query.seasons.findFirst({ where: eq(schema.seasons.id, f.seasonId) }))!;

@@ -83,7 +83,7 @@ pnpm test:integration:pg17 -- --config=vitest.experiments.config.ts
 pnpm test:e2e -- --project=mobile-chrome --repeat-each=10 flows/public-event-experience.spec.ts
 ```
 
-普通 Playwright config 只发现关键生命周期，project 根据实际保护职责分配用例，不先发现再运行时 skip。视觉、截图和状态组合验收由 acceptance config 显式发现；容量实验使用独立 Vitest config，共享真实 PostgreSQL/HTTP harness，日常 PG config 保留超时、锁竞争、公平轮转、故障恢复与权威 fencing 正确性。system 同时运行精简 production build/start smoke：真实 UI 登录、App Shell 导航、`aria-current` 和移动可达性。production 的 test-only auth route 仍关闭。
+普通 Playwright config 只发现关键生命周期，project 根据实际保护职责分配用例，不先发现再运行时 skip。测试赛创建链路由 desktop project 拥有，同一用例内验证手机 viewport 的可达性。视觉、截图和状态组合验收由 acceptance config 显式发现；容量实验使用独立 Vitest config，共享真实 PostgreSQL/HTTP harness，日常 PG config 保留超时、锁竞争、公平轮转、故障恢复与权威 fencing 正确性。system 同时运行精简 production build/start smoke：真实 UI 登录、App Shell 导航、`aria-current` 和移动可达性。production 的 test-only auth route 仍关闭。
 
 ## Spectator prediction acceptance
 
