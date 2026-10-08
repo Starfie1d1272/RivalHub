@@ -74,18 +74,8 @@ test("public match consumes private Broadcast and recovers across navigation and
       requestAnimationFrame(check);
     }));
     expect(radarFrozen).toBe(true);
-    await live.evaluate(element => {
-      const clock = element.querySelector('[aria-label="回合时钟"]')!.textContent;
-      const observer = new MutationObserver(() => {
-        const current = element.querySelector('[aria-label="回合时钟"]');
-        if (!current) observer.disconnect();
-        else if (current.textContent !== clock) (element as HTMLElement).dataset.clockMoved = "true";
-      });
-      observer.observe(element, { subtree: true, characterData: true, childList: true });
-    });
-    await expect(live.getByText("实时数据暂不可用", { exact: true })).toBeVisible({ timeout: 12000 });
-    await expect(live).not.toHaveAttribute("data-clock-moved", "true");
-    await expect(live.locator("canvas")).toHaveCount(0);
+    // Exact stale/unavailable time boundaries and frozen clock are covered by
+    // MatchRealtime.test.tsx; retain one real disconnect/recovery here.
     producer = await stream(matchId);
     await expect(live.getByText("FalleN", { exact: true })).toBeVisible();
     await page.reload();

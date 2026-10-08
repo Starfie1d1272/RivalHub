@@ -44,7 +44,7 @@ PR CI 保留 `static`、`postgres`、`system` 三条 capability lane，按 L0–
 
 CI 只负责选择和阻断 evidence，不成为业务测试语义的第二 owner。
 
-速度验收按 workflow 开始到全部必需门禁完成的 wall time 计算，包含排队、planner、安装、环境启动与 cleanup：普通修改争取 60 秒，数据库、真实系统与 FULL 回归由门禁强制执行 180 秒上限。删行数、测试数下降或调低 timeout 都不能代替真实 CI 成功记录。system 的 provider、production smoke 与受影响 browser 分片并行，gate 等待所有分片；每个 runner 拥有独立服务，场景内部使用独立账号与赛事。LIVE 单独分片，其余动态发现的 spec 最多分成七片；LIVE 保留真实断流、恢复、跨场导航和换图，删除重复列表跳转及第三方雷达图标下载故障的浏览器实验。
+速度验收按 workflow 开始到全部必需门禁完成的 wall time 计算，包含排队、planner、安装、环境启动与 cleanup：普通修改争取 60 秒，数据库、真实系统与 FULL 回归由门禁强制执行 180 秒上限。删行数、测试数下降或调低 timeout 都不能代替真实 CI 成功记录。system 的 provider、production smoke 与受影响 browser 分片并行，gate 等待所有分片；每个 runner 拥有独立服务，场景内部使用独立账号与赛事。LIVE 单独分片，其余动态发现的 spec 最多分成七片；LIVE 保留真实断流、恢复、跨场导航和换图，精确的 stale/unavailable 时间边界由 `src/components/matches/MatchRealtime.test.tsx` 覆盖，不在浏览器重复等待；删除重复列表跳转及第三方雷达图标下载故障的浏览器实验。
 
 ## Staging and production
 
@@ -115,3 +115,5 @@ Pure tests exercise full Major simulation, upstream invalidation, exact slot jud
 ### 无产品入口的比赛领域命令
 
 独立比赛创建与结束/补录/更正命令是本轮明确交付的内部领域入口，线上授权与约战 UI 尚未接入。`knip.json` 将 `src/lib/matches/creation.ts`、`src/lib/matches/unassociated-result.ts` 声明为生产领域检查根，使 production 模式继续检查它们的依赖；不为通过检查添加无授权的路由或虚假调用。命令行为由真实数据库集成回归验证，后续接入产品调用后移除这两条显式根。
+
+浏览器用已有 `/favicon.ico` 探测 Next 就绪，首页本身由 production smoke 验证。production 与 LIVE runner 仅启动 Auth、SQL（LIVE 另含 Realtime），provider 与上传路径仍启用 Storage/PostgREST。

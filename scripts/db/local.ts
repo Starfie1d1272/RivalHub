@@ -184,9 +184,14 @@ function startLocalStack(): void {
 function startLocalServices(): void {
   ensureDockerReady();
   ensureLoopbackDockerNetwork();
-  const excludes = process.env.RIVALHUB_LIVE_EVIDENCE === "1"
+  let excludes = process.env.RIVALHUB_LIVE_EVIDENCE === "1"
     ? MINIMAL_SUPABASE_EXCLUDES.replace("realtime,", "")
     : MINIMAL_SUPABASE_EXCLUDES;
+  // These browser lanes use Auth + SQL (+ Realtime), never Storage or Data API.
+  // Provider and upload lanes keep the complete service contract.
+  if (process.env.RIVALHUB_LOCAL_SERVICE_PROFILE === "auth") {
+    excludes += ",storage-api,postgrest";
+  }
   runQuiet(
     supabaseBin,
     ["start", "--exclude", excludes, "--network-id", DOCKER_NETWORK, "--yes"],
