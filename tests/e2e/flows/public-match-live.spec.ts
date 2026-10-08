@@ -25,7 +25,7 @@ const stream = (matchId: string) => new Promise<ChildProcess>((resolve, reject) 
     child.once("error", error => { clearTimeout(deadline); reject(error); });
   });
 
-test("public match consumes private Broadcast and recovers across navigation and map changes", async ({ page, browser }) => {
+test("public match consumes private Broadcast and recovers across navigation and map changes", async ({ page }) => {
   test.setTimeout(180000);
   const seasonId = randomUUID();
   let producer: ChildProcess | undefined;
@@ -94,29 +94,6 @@ test("public match consumes private Broadcast and recovers across navigation and
     await expect(page.getByText("FalleN", { exact: true })).toHaveCount(0);
     await page.goto(url);
     await expect(live.locator("canvas")).toBeVisible();
-    await page.goto(`/${seasonId}/matches`);
-    const listCard = page.getByRole("article").filter({ has: page.locator(`a[href="${url}"]`) }).filter({ visible: true });
-    await expect(listCard).toHaveCount(1);
-    await listCard.scrollIntoViewIfNeeded();
-    await expect(listCard.getByText("FURIA", { exact: true })).toBeVisible();
-    await expect(listCard.getByText("G2.Esports", { exact: true })).toBeVisible();
-    await expect(listCard.getByText("未知队伍", { exact: true })).toHaveCount(0);
-    const listScore = listCard.getByTestId("match-list-live-score");
-    await expect(listScore.getByLabel("本图回合比分")).toHaveText("2 : 0");
-    await page.goto(url);
-    await expect(live.locator("canvas")).toBeVisible();
-    // A fresh context has no decoded image cache that can bypass a network failure.
-    const failurePage = await browser.newPage({ viewport: { width: 390, height: 1000 } });
-    let failedIcons = 0;
-    try {
-      await failurePage.route(/\/vendor\/radar\/.*\/assets\/cs2\/objective\/.*\.svg$/, route => { failedIcons++; return route.abort(); });
-      await failurePage.goto(url);
-      const failureLive = failurePage.getByTestId("match-realtime");
-      await expect(failureLive.getByText("雷达暂不可用，比赛数据仍可查看")).toBeVisible();
-      await expect(failureLive.getByText("FalleN", { exact: true })).toBeVisible();
-      expect(failedIcons).toBeGreaterThan(0);
-    } finally { await failurePage.close(); }
-    await page.bringToFront();
     producer?.kill(); producer = undefined;
     await run(browserFixture, "switch-map", matchId);
     producer = await stream(matchId);

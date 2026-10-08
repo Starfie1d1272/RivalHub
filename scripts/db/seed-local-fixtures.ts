@@ -2,6 +2,7 @@ import { db } from "../../src/db/client-runtime";
 import { seasons } from "../../src/db/schema";
 import { createMajorDefaultCapabilities } from "../../src/lib/competition/templates";
 import { assertDeclaredDatabaseTarget } from "./local-environment";
+import type { Pool } from "pg";
 
 async function main(): Promise<void> {
   assertDeclaredDatabaseTarget(process.env);
@@ -10,17 +11,23 @@ async function main(): Promise<void> {
   }
 
   const capabilities = createMajorDefaultCapabilities();
-  await db
-    .insert(seasons)
-    .values({
-      slug: "local-major-2027",
-      name: "Local Major 2027",
-      kind: "Major",
-      status: "draft",
-      themeColor: "#f97316",
-      ...capabilities,
-    })
-    .onConflictDoNothing({ target: seasons.slug });
+  const pool = (db as typeof db & { $client: Pool }).$client;
+  try {
+    await db
+      .insert(seasons)
+      .values({
+        slug: "local-major-2027",
+        name: "Local Major 2027",
+        kind: "Major",
+        status: "draft",
+        themeColor: "#f97316",
+        ...capabilities,
+      })
+      .onConflictDoNothing({ target: seasons.slug });
+  } finally {
+    // One-shot seeding must not wait for the application's idle pool timeout.
+    await pool.end();
+  }
 }
 
 main()

@@ -370,3 +370,8 @@ jobs:
       - name: Write timing summary
         if: always()
         run: node scripts/ci/timing.mjs summary
+
+      - name: Enforce required gate latency budget
+        env:
+          RUN_STARTED_AT: ${{ needs.plan.outputs.run_started_at }}
+        run: node scripts/ci/timing.mjs record --label "required gate latency budget" --start-iso "$RUN_STARTED_AT" --budget-ms 180000
