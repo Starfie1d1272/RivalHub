@@ -22,6 +22,7 @@ env:
   NEXT_TELEMETRY_DISABLED: 1
   CI: true
   RIVALHUB_TIMING: 1
+  PNPM_CONFIG_STORE_DIR: ${{ github.workspace }}/.agent-tmp/pnpm-store
 
 jobs:
   plan:
@@ -94,9 +95,15 @@ jobs:
       - name: Start bootstrap/install timing
         run: echo "RIVALHUB_BOOTSTRAP_STARTED_MS=$(date +%s%3N)" >> "$GITHUB_ENV"
 
+      # Stable keys avoid pnpm/setup uploading the same store after every job.
+      - uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          path: ${{ env.PNPM_CONFIG_STORE_DIR }}
+          key: ${{ runner.os }}-${{ runner.arch }}-pnpm-store-v1-${{ hashFiles('pnpm-lock.yaml', 'pnpm-workspace.yaml', 'package.json', '.npmrc') }}
+          restore-keys: ${{ runner.os }}-${{ runner.arch }}-pnpm-store-v1-
       - uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024 # v3.0.0
         with:
-          cache: true
+          cache: false
           require-lockfile: true
 
       - name: Record bootstrap/install timing
@@ -168,9 +175,15 @@ jobs:
       - name: Start bootstrap/install timing
         run: echo "RIVALHUB_BOOTSTRAP_STARTED_MS=$(date +%s%3N)" >> "$GITHUB_ENV"
 
+      # Stable keys avoid pnpm/setup uploading the same store after every job.
+      - uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          path: ${{ env.PNPM_CONFIG_STORE_DIR }}
+          key: ${{ runner.os }}-${{ runner.arch }}-pnpm-store-v1-${{ hashFiles('pnpm-lock.yaml', 'pnpm-workspace.yaml', 'package.json', '.npmrc') }}
+          restore-keys: ${{ runner.os }}-${{ runner.arch }}-pnpm-store-v1-
       - uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024 # v3.0.0
         with:
-          cache: true
+          cache: false
           require-lockfile: true
       - name: Record bootstrap/install timing
         if: always()
@@ -239,9 +252,15 @@ jobs:
       - name: Start bootstrap/install timing
         run: echo "RIVALHUB_BOOTSTRAP_STARTED_MS=$(date +%s%3N)" >> "$GITHUB_ENV"
 
+      # Stable keys avoid pnpm/setup uploading the same store after every job.
+      - uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          path: ${{ env.PNPM_CONFIG_STORE_DIR }}
+          key: ${{ runner.os }}-${{ runner.arch }}-pnpm-store-v1-${{ hashFiles('pnpm-lock.yaml', 'pnpm-workspace.yaml', 'package.json', '.npmrc') }}
+          restore-keys: ${{ runner.os }}-${{ runner.arch }}-pnpm-store-v1-
       - uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024 # v3.0.0
         with:
-          cache: true
+          cache: false
           require-lockfile: true
       - name: Record bootstrap/install timing
         if: always()

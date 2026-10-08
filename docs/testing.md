@@ -117,3 +117,5 @@ Pure tests exercise full Major simulation, upstream invalidation, exact slot jud
 独立比赛创建与结束/补录/更正命令是本轮明确交付的内部领域入口，线上授权与约战 UI 尚未接入。`knip.json` 将 `src/lib/matches/creation.ts`、`src/lib/matches/unassociated-result.ts` 声明为生产领域检查根，使 production 模式继续检查它们的依赖；不为通过检查添加无授权的路由或虚假调用。命令行为由真实数据库集成回归验证，后续接入产品调用后移除这两条显式根。
 
 浏览器用已有 `/favicon.ico` 探测 Next 就绪，首页本身由 production smoke 验证。production 与 LIVE runner 仅启动 Auth、SQL（LIVE 另含 Realtime），provider 与上传路径仍启用 Storage/PostgREST。
+
+依赖缓存使用包含 lockfile、workspace 和 runtime manifest 的稳定键；命中后不 prune/re-upload。缓存 miss 仍执行 frozen-lockfile 安装，不跳过依赖校验。

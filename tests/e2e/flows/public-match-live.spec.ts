@@ -50,9 +50,13 @@ test("public match consumes private Broadcast and recovers across navigation and
         if (event === "phx_join" && topic === `realtime:match-live:${matchId}`) viewerJoins++;
       });
     });
-    const tokenResponse = page.waitForResponse(response => response.url().endsWith(`/api/matches/${matchId}/live-viewer`), { timeout: 10000 });
-    await page.goto(url);
-    expect((await tokenResponse).status()).toBe(200);
+    // Observe the initial credential while the first route compiles. Its deadline
+    // must cover navigation; a 10s request timer raced the cold Next compile.
+    const [tokenResponse] = await Promise.all([
+      page.waitForResponse(response => response.url().endsWith(`/api/matches/${matchId}/live-viewer`), { timeout: 30000 }),
+      page.goto(url),
+    ]);
+    expect(tokenResponse.status()).toBe(200);
     const live = page.getByTestId("match-realtime").filter({ visible: true });
     await expect(live.getByText("FalleN", { exact: true })).toBeVisible();
     await expect(live.locator("canvas")).toBeVisible();
