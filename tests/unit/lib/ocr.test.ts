@@ -70,6 +70,11 @@ describe("ocrResponseSchema (宽松)", () => {
 });
 
 describe("playerRowLenientSchema", () => {
+  it("keeps blank OCR values missing and real zero intact", () => {
+    const row = playerRowLenientSchema.parse({ perfectName: "Player", kills: "", deaths: " ", assists: "0" });
+    expect(row).toMatchObject({ kills: null, deaths: null, assists: 0 });
+  });
+
   it("字符串数值自动转换", () => {
     const r = playerRowLenientSchema.safeParse({
       perfectName: "x", kills: "15", adr: "85.5",

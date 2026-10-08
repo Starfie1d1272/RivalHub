@@ -1,7 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { readBilibiliStatus } from "@/lib/production/bilibili";
 import { readUploaderDownloads } from "@/lib/production/uploader";
-import { playerRowLenientSchema } from "@/lib/ocr/types";
 afterEach(() => vi.unstubAllGlobals());
 describe("best effort production adapters", () => {
  it("does not call a provider for absent or unrelated URLs", async () => {
@@ -20,8 +19,5 @@ describe("best effort production adapters", () => {
   vi.stubGlobal("fetch",vi.fn().mockResolvedValue({ok:true,json:async()=>({schemaVersion:"cs2-demo-analysis-kit/uploader-distribution-1",assets:{windows:{urls:["https://evil.test/app"]},macos:{urls:["https://evil.test/app"]}}})}));
   expect(await readUploaderDownloads()).toBeNull();
  });
- it("keeps blank OCR values missing and real zero intact", () => {
-  const row = playerRowLenientSchema.parse({ perfectName:"Player", kills:"", deaths:" ", assists:"0" });
-  expect(row).toMatchObject({ kills:null, deaths:null, assists:0 });
- });
+
 });

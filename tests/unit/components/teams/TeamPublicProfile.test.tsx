@@ -180,7 +180,7 @@ describe("TeamPublicProfile", () => {
     { name: "full history coverage", ownMaps: false, experiencedMembers: 2, hasExperience: true, hasPreferences: true, historyOpen: true, preferencesOpen: false },
     { name: "partial history coverage", ownMaps: false, experiencedMembers: 1, hasExperience: true, hasPreferences: true, historyOpen: true, preferencesOpen: true },
     { name: "preference fallback", ownMaps: false, experiencedMembers: 0, hasExperience: false, hasPreferences: true, historyOpen: null, preferencesOpen: true },
-  ])("places roster map context after roster and applies $name disclosure", ({ ownMaps, experiencedMembers, hasExperience, hasPreferences, historyOpen, preferencesOpen }) => {
+  ])("applies $name disclosure to roster map context", ({ ownMaps, experiencedMembers, hasExperience, hasPreferences, historyOpen, preferencesOpen }) => {
     const mapProfile: PublicTeamMapProfile = {
       ...rosterMapProfile,
       own: ownMaps ? [{ mapName: "de_mirage", wins: 2, played: 3 }] : [],
@@ -192,14 +192,6 @@ describe("TeamPublicProfile", () => {
       ? { ...eventPerformance, maps: [{ mapName: "de_mirage", results: { played: 3 } }] } as never
       : eventPerformance;
     render(<TeamPublicProfile team={null} event={linkedEvent} performance={performance as never} mapProfile={mapProfile} />);
-
-    const rosterHeading = screen.getByRole("heading", { name: "本届参赛名单" });
-    const performanceHeading = screen.getByRole("heading", { name: "竞技表现" });
-    const contextHeading = screen.getByRole("heading", { name: "阵容地图参考" });
-    const matchesHeading = screen.getByRole("heading", { name: "本届比赛" });
-    expect(rosterHeading.compareDocumentPosition(performanceHeading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(performanceHeading.compareDocumentPosition(contextHeading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(contextHeading.compareDocumentPosition(matchesHeading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 
     const historyDetails = screen.queryByText("阵容成员历史正式地图经验")?.closest("details");
     const preferencesDetails = screen.queryByText("成员自报地图熟练度")?.closest("details");

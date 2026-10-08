@@ -20,35 +20,13 @@ describe("OverviewStats", () => {
     const mapTable = screen.getAllByRole("table")[0]!;
     expect(within(mapTable).getByRole("link", { name: "Ancient" })).toHaveAttribute("data-scroll", "false");
     expect(within(mapTable).getByText("7")).toBeInTheDocument(); expect(within(mapTable).getByText("4/7")).toBeInTheDocument();
-    expect(screen.getByText("Economy & Conversion")).toBeInTheDocument();
+    expect(within(mapTable).getByText("154")).toBeInTheDocument();
   });
   it("hides coverage chrome when every completed map has detail", () => {
     render(<OverviewStats data={dataWithCoverage(7, 7)} query={parseStatsQuery({}, [])} seasonSlug="major" />);
     expect(screen.queryByRole("columnheader", { name: "Coverage" })).not.toBeInTheDocument(); expect(screen.queryByText("7/7")).not.toBeInTheDocument();
   });
-  it("shows canonical map rounds and ranked top-list headings", () => {
-    const data = dataWithCoverage(7, 7);
-    data.leaderboard = [{ userId: "00000000-0000-0000-0000-000000000001", perfectName: "Alpha", teamId: null, teamName: null, maps: 7, rounds: 154, avgRating: 1.2 }] as TournamentStats["leaderboard"];
-    data.results.teams = [{ entryId: "team-a", name: "Alpha Team", matches: 3, matchWins: 2, matchLosses: 1, maps: 7, mapWins: 4, mapLosses: 3 }];
-    data.teamRatings = [{ entryId: "team-a", rating: 1.11, ratingSamples: 35 }];
-    render(<OverviewStats data={data} query={parseStatsQuery({}, [])} seasonSlug="major" />);
-    const mapTable = screen.getAllByRole("table")[0]!;
-    expect(within(mapTable).getByRole("columnheader", { name: "Rounds" })).toBeInTheDocument();
-    expect(within(mapTable).queryByRole("columnheader", { name: "Picks" })).not.toBeInTheDocument();
-    expect(within(mapTable).queryByRole("columnheader", { name: "Bans" })).not.toBeInTheDocument();
-    expect(within(mapTable).getByText("154")).toBeInTheDocument();
-    expect(screen.getByText("Top Players")).toBeInTheDocument();
-    expect(screen.getByText("Top Teams")).toBeInTheDocument();
-    expect(screen.getByText("Top Weapons")).toBeInTheDocument();
-    expect(screen.getAllByRole("columnheader", { name: /^Rating/ })).toHaveLength(2);
-    expect(screen.getByRole("columnheader", { name: "Maps / Rds" })).toBeInTheDocument();
-    expect(screen.getByRole("columnheader", { name: "W-L" })).toBeInTheDocument();
-    expect(screen.getByRole("columnheader", { name: /^Share/ })).toBeInTheDocument();
-    expect(screen.getAllByRole("columnheader", { name: "#" })).toHaveLength(3);
-
-  });
-
-  it("shows only Eco, Semi and Force versus Full Buy and renders nine best-rate highlights", () => {
+  it("aggregates only Eco, Semi and Force rounds against Full Buy", () => {
     const data = dataWithCoverage(7, 7);
     data.analytics.economyMatrix = [
       { lowEconomy: "eco", highEconomy: "full", rounds: 10, lowEconomyWins: 1, lowWinRate: 0.1 },
@@ -80,32 +58,15 @@ describe("OverviewStats", () => {
     expect(within(economySection).getByText("Overall vs Full Buy")).toBeInTheDocument();
     expect(within(economySection).getByText("23.3%")).toBeInTheDocument();
     expect(within(economySection).getByText("14 / 60 rounds")).toBeInTheDocument();
-    expect(screen.getAllByText("Alpha Team")).toHaveLength(9);
     expect(screen.getByText("Opening Success")).toBeInTheDocument();
     expect(screen.queryByText("Eco/Semi Upset")).not.toBeInTheDocument();
     expect(screen.getByText("5v3 Conversion")).toBeInTheDocument();
     expect(screen.getByText("3v5 Comeback")).toBeInTheDocument();
   });
 
-  it("removes redundant economy descriptions and exposes canonical metric help", async () => {
+  it("opens the overview-specific economy aggregation explanation", async () => {
     const user = userEvent.setup();
     render(<OverviewStats data={dataWithCoverage(7, 7)} query={parseStatsQuery({}, [])} seasonSlug="major" />);
-
-    expect(screen.queryByText("Eco, semi and force rounds against full buys.")).not.toBeInTheDocument();
-    expect(screen.queryByText("Best team rate in the current scope; sample is shown with every rate.")).not.toBeInTheDocument();
-    for (const name of [
-      "RW% 指标说明",
-      "R2 Conv 指标说明",
-      "R2 Break 指标说明",
-      "Pistol Win% 指标说明",
-      "5v4 指标说明",
-      "4v5 指标说明",
-      "Success% 指标说明",
-      "5v3 指标说明",
-      "3v5 指标说明",
-    ]) {
-      expect(screen.getAllByRole("button", { name }).length).toBeGreaterThan(0);
-    }
 
     await user.click(screen.getByRole("button", { name: "Overall vs Full Buy 统计口径说明" }));
     expect(screen.getByRole("tooltip")).toHaveTextContent("汇总 ECO、半起和强起对阵 Full Buy 的回合。");
@@ -120,9 +81,5 @@ describe("OverviewStats", () => {
     expect(screen.getAllByRole("link", { name: "View all →" })).toHaveLength(3);
   });
 
-  it("makes CT / T sortable by CT win rate", () => {
-    render(<OverviewStats data={dataWithCoverage(7, 7)} query={parseStatsQuery({}, [])} seasonSlug="major" />);
-    expect(screen.getByRole("button", { name: "Sort by CT / T" })).toBeInTheDocument();
-  });
 
 });

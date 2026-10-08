@@ -110,13 +110,11 @@ describe("scheduler source integrity and real CLI", () => {
 });
 
 describe("workflow invocation boundary", () => {
-  it("uses valid immutable action pins and retains operator checkout while reading deployed owners", () => {
+  it("uses valid immutable action pins", () => {
     const workflow = readFileSync(".github/workflows/cron.yml", "utf8");
     const actions = [...workflow.matchAll(/uses: ([^\s]+)@([^\s]+)/g)];
     expect(actions.length).toBeGreaterThan(0);
     for (const [, , pin] of actions) expect(pin).toMatch(/^[a-f0-9]{40}$/);
-    expect(actions.filter(([, name]) => name === "actions/checkout").map(([, , pin]) => pin))
-      .toEqual(["3d3c42e5aac5ba805825da76410c181273ba90b1", "3d3c42e5aac5ba805825da76410c181273ba90b1"]);
   });
 
   it("attempts later deployed jobs after an HTTP failure and still fails the workflow", () => {

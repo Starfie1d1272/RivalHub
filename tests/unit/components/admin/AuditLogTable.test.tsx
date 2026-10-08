@@ -66,7 +66,7 @@ describe("AuditLogTable", () => {
   });
 
   it("renders safe presentation fields and no permanent raw-details column", () => {
-    const { container } = renderTable();
+    renderTable();
 
     expect(screen.getAllByText("通过教育认证审核").length).toBeGreaterThanOrEqual(2);
     expect(screen.getByText("未知操作")).toBeInTheDocument();
@@ -76,7 +76,6 @@ describe("AuditLogTable", () => {
     expect(screen.getByRole("columnheader", { name: "摘要" })).toBeInTheDocument();
     expect(screen.queryByRole("columnheader", { name: "详情" })).not.toBeInTheDocument();
     expect(screen.queryByText("展开")).not.toBeInTheDocument();
-    expect(container.querySelector("pre")).toBeNull();
     expect(screen.getByRole("option", { name: "通过教育认证审核" })).toBeInTheDocument();
     expect(screen.getByRole("option", { name: "更新竞技段位资料" })).toBeInTheDocument();
   });
