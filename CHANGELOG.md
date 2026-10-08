@@ -1,5 +1,15 @@
 # Changelog
 
+## [2.15.7]
+
+### Added
+
+- 支持解说在 BP 和制作准备开始前取消自己的认领并释放名额，保留其他解说安排与操作记录；已进入 BP、比赛或 Mizar 制作准备时提示联系管理员。
+
+### Fixed
+
+- 修复竞技赛季目录删除检查：已被赛事冻结换算规则引用的来源平台赛季不可删除，即使赛事使用了不同的主平台。
+
 ## [2.15.6]
 
 ### Fixed
@@ -2804,6 +2814,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[2.15.7]: https://github.com/Starfie1d1272/RivalHub/compare/v2.15.6...v2.15.7
 [2.15.6]: https://github.com/Starfie1d1272/RivalHub/compare/v2.15.5...v2.15.6
 [2.15.5]: https://github.com/Starfie1d1272/RivalHub/compare/v2.15.4...v2.15.5
 [2.15.4]: https://github.com/Starfie1d1272/RivalHub/compare/v2.15.3...v2.15.4
