@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.15.4]
+
+### Fixed
+
+- 修复桌面赛程日期较长时状态标签换行的问题。
+- 预测对阵改为每场一个比赛详情入口，避免遮挡胜者和比分；无对应真实比赛的模拟对阵不显示跳转。移除 Pick’Em 选队格子中的重复队伍跳转，保留选队、清空和锁定操作。
+- 测试赛可选择本届全部已批准队伍，包括直通正赛队伍；创建时自动复用已批准名单准备比赛数据，无需额外同步或确认，也无需等待 Play-in 完成，不改变正式参赛路径。
+
 ## [2.15.3]
 
 ### Added
@@ -2784,6 +2792,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[2.15.4]: https://github.com/Starfie1d1272/RivalHub/compare/v2.15.3...v2.15.4
 [2.15.3]: https://github.com/Starfie1d1272/RivalHub/compare/v2.15.2...v2.15.3
 [2.15.2]: https://github.com/Starfie1d1272/RivalHub/compare/v2.15.1...v2.15.2
 [2.15.1]: https://github.com/Starfie1d1272/RivalHub/compare/v2.15.0...v2.15.1
