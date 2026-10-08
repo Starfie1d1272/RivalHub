@@ -5,6 +5,7 @@ import { relative, resolve } from "node:path";
 import { promisify } from "node:util";
 import { expect, test as base, type Page, type TestInfo } from "@playwright/test";
 import { redactText } from "../../src/lib/observability/redact";
+import { assertPageResponse } from "./helpers/page-health";
 
 const execFileAsync = promisify(execFile);
 const projectRoot = process.cwd();
@@ -99,7 +100,9 @@ export async function signInProgrammatically(
     data: { email: account.email, password: scenario.password },
   });
   if (!response.ok()) throw new Error(`E2E programmatic auth failed for scenario ${scenario.scenarioId}.`);
-  await page.goto(next);
+  // Product locators establish UI readiness; unrelated subresources must not
+  // hold up an authenticated navigation. Still fail immediately on HTTP errors.
+  await assertPageResponse(await page.goto(next, { waitUntil: "domcontentloaded" }));
   await expect(page).toHaveURL((url) => url.pathname === next);
 }
 

@@ -16,7 +16,6 @@ test("未入队用户可以从 /my 和 /teams 发现并处理 direct invitation"
     const teamName = scenario.invitationTeam.name;
     await expect(captainWorkspace).toBeVisible();
 
-    await signInProgrammatically(inviteePage, invitee, scenario, "/my/teams");
     const pendingInvitations = inviteePage.getByText("待处理邀请", { exact: true });
     await page.getByPlaceholder("已注册邮箱").fill(invitee.email);
     await page.getByRole("button", { name: "直接邀请", exact: true }).click();
@@ -26,16 +25,21 @@ test("未入队用户可以从 /my 和 /teams 发现并处理 direct invitation"
     await expect(page.getByText("单次邀请链接 · 7 天有效", { exact: true })).toBeVisible();
     await expect(page.getByText(/^到期时间：/)).toBeVisible();
 
-    await inviteePage.goto("/my");
+    // First visit follows creation: the earlier pre-invitation /my/teams load
+    // proved nothing and repeated layout/hydration before the actual journey.
+    await signInProgrammatically(inviteePage, invitee, scenario, "/my");
     await expect(inviteePage.getByText(/你有 \d+ 个待处理的队伍邀请/).first()).toBeVisible();
     await expect(inviteePage.getByRole("link", { name: "处理队伍邀请", exact: true }).first()).toHaveAttribute("href", "/my/teams");
 
-    await inviteePage.goto("/teams");
+    await inviteePage.getByRole("banner").getByRole("link", { name: "队伍", exact: true }).click();
+    await expect(inviteePage).toHaveURL(/\/teams$/);
     await expect(inviteePage.getByRole("link", { name: "处理队伍邀请", exact: true }).first()).toHaveAttribute("href", "/my/teams");
 
-    await inviteePage.goto("/my/teams");
+    await inviteePage.getByRole("link", { name: "处理队伍邀请", exact: true }).first().click();
+    await expect(inviteePage).toHaveURL(/\/my\/teams$/);
     await expect(pendingInvitations).toBeVisible();
-    await expect(inviteePage.getByText(teamName, { exact: true })).toBeVisible();
+    // Client navigation retains hidden route DOM; target the visible invitation link.
+    await expect(inviteePage.getByRole("link", { name: teamName, exact: true })).toBeVisible();
     await inviteePage.getByRole("button", { name: "接受", exact: true }).click();
     await expect(inviteePage.getByText("队伍身份", { exact: true })).toBeVisible();
     await expect(inviteePage.getByRole("button", { name: "退出队伍", exact: true })).toBeVisible();
