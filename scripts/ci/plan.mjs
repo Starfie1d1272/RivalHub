@@ -64,8 +64,8 @@ const LIVE_SURFACES = [
 ];
 const SYSTEM_FLOW_MAP = [
   { prefixes: ["src/actions/bet.ts", "src/components/bet/BetBoard", "src/components/bet/BetOperations"], specs: ["tests/e2e/flows/bet.spec.ts"] },
-  { prefixes: ["src/actions/predictions.ts", "src/components/predictions/PickEm"], specs: ["tests/e2e/flows/predictions.spec.ts"] },
-  { prefixes: ["src/actions/competition-qualification.ts", "src/components/admin/MajorPrestartConsole"], specs: ["tests/e2e/flows/major-qualification.spec.ts"] },
+  { prefixes: ["src/actions/predictions.ts", "src/components/predictions/PickEm", "src/components/predictions/PredictionBoard.tsx", "src/components/predictions/PickEditor.tsx"], specs: ["tests/e2e/flows/predictions.spec.ts"] },
+  { prefixes: ["src/actions/competition-qualification.ts", "src/components/admin/MajorPrestartConsole", "src/components/admin/MajorCompetitionFlow.tsx"], specs: ["tests/e2e/flows/major-qualification.spec.ts"] },
   { prefixes: ["src/components/matches/SeriesScoreCorrection"], specs: ["tests/e2e/flows/series-score-correction.spec.ts"] },
   { prefixes: ["src/components/teams/TeamInvitationsSection"], specs: ["tests/e2e/flows/team-invitations.spec.ts"] },
   {
@@ -88,6 +88,8 @@ const SYSTEM_FLOW_MAP = [
       "src/actions/session-management.ts",
       "src/lib/auth/",
       "src/lib/session/",
+      "src/components/auth/LoginForm.tsx",
+      "src/components/auth/TurnstileWidget.tsx",
     ],
     specs: ["tests/e2e/flows/major-entry.spec.ts", "tests/e2e/flows/session-revocation.spec.ts"],
   },

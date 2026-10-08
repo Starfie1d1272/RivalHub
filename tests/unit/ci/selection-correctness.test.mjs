@@ -27,14 +27,14 @@ describe("affected evidence correctness", () => {
   it("rejects an explicit test routed to a project that cannot discover it", () => {
     const result = spawnSync(process.execPath, [
       "node_modules/vitest/vitest.mjs", "run", "--project=unit-server-node", "tests/unit/app/admin-layout.test.tsx",
-    ], { encoding: "utf8" });
+    ], { encoding: "utf8", env: { ...process.env, RIVALHUB_TIMING: "0" } });
     expect(result.status).not.toBe(0);
   });
 
   it("rejects a partially undiscovered explicit batch even when another test is valid", () => {
     const result = spawnSync(process.execPath, ["scripts/ci/run-static-task.mjs"], {
       encoding: "utf8",
-      env: { ...process.env, STATIC_TASK: "unit-explicit-unit-domain-node", STATIC_PROJECT: "unit-domain-node", STATIC_EXPLICIT_TESTS: JSON.stringify(["tests/unit/ci/plan.test.mjs", "tests/unit/app/admin-layout.test.tsx"]) },
+      env: { ...process.env, RIVALHUB_TIMING: "0", STATIC_TASK: "unit-explicit-unit-domain-node", STATIC_PROJECT: "unit-domain-node", STATIC_EXPLICIT_TESTS: JSON.stringify(["tests/unit/ci/plan.test.mjs", "tests/unit/app/admin-layout.test.tsx"]) },
     });
     expect(result.status).not.toBe(0);
     expect(result.stderr).toContain("explicit tests were not discovered");
@@ -62,6 +62,21 @@ describe("affected evidence correctness", () => {
     expect(plan(path).e2eSpecs).toContain("tests/e2e/flows/public-match-live.spec.ts");
   });
 
+  it.each([
+    ["src/components/auth/LoginForm.tsx", ["tests/e2e/flows/major-entry.spec.ts", "tests/e2e/flows/session-revocation.spec.ts"]],
+    ["src/components/auth/TurnstileWidget.tsx", ["tests/e2e/flows/major-entry.spec.ts", "tests/e2e/flows/session-revocation.spec.ts"]],
+    ["src/components/predictions/PredictionBoard.tsx", ["tests/e2e/flows/predictions.spec.ts"]],
+    ["src/components/predictions/PickEditor.tsx", ["tests/e2e/flows/predictions.spec.ts"]],
+    ["src/components/admin/MajorCompetitionFlow.tsx", ["tests/e2e/flows/major-qualification.spec.ts"]],
+  ])("selects the user flow owned by %s even through a Server Action", (path, specs) => {
+    const selection = plan(path);
+    expect(selection.full).toBe(false);
+    expect(selection.runSystem).toBe(true);
+    expect(selection.e2eSpecs).toEqual(specs);
+    const mixed = plan(path, "tests/e2e/flows/event-logo.spec.ts");
+    expect(mixed.e2eSpecs).toEqual([...specs, "tests/e2e/flows/event-logo.spec.ts"].sort());
+  });
+
   it("selects PostgreSQL consumers transitively and unions mixed domains", () => {
     const paths = ["src/lib/mizar/live.ts", "src/lib/education/commands.ts"];
     const union = plan(...paths, "tests/integration/db/bet.test.ts");
@@ -84,7 +99,7 @@ describe("affected evidence correctness", () => {
     expect(experiments[0]).toContain("/experiments/mizar-live-capacity.test.ts");
   });
 
-  it("keeps a presentation-only change out of service lanes", () => {
-    expect(plan("src/components/layout/Footer.tsx").requiredJobs).toEqual(["static"]);
+  it.each(["src/components/layout/Footer.tsx", "src/components/ui/button.tsx", "src/app/globals.css"])("keeps presentation-only %s out of service lanes", (path) => {
+    expect(plan(path).requiredJobs).toEqual(["static"]);
   });
 });
