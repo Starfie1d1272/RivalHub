@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.15.5]
+
+### Fixed
+
+- 修复公共选项框长列表超出屏幕、无法上下滚动的问题。队伍等选项较多时，桌面和手机均可在列表内部滚动并选择，关闭后恢复页面操作。
+
 ## [2.15.4]
 
 ### Fixed
@@ -2792,6 +2798,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[2.15.5]: https://github.com/Starfie1d1272/RivalHub/compare/v2.15.4...v2.15.5
 [2.15.4]: https://github.com/Starfie1d1272/RivalHub/compare/v2.15.3...v2.15.4
 [2.15.3]: https://github.com/Starfie1d1272/RivalHub/compare/v2.15.2...v2.15.3
 [2.15.2]: https://github.com/Starfie1d1272/RivalHub/compare/v2.15.1...v2.15.2
