@@ -1,10 +1,11 @@
+import { commentaryCancellationBlocker } from "./commentary-policy";
 import { assertCompetitionMatch } from "@/lib/matches/competition-context";
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { writeAuditInTx } from "@/lib/audit/write";
 
 import type { TxDb } from "@/db/client";
 import type { Match } from "@/db/schema";
-import { matchCommentators, matches, postMatchReports, seasonAdminGrants } from "@/db/schema";
+import { matchCommentators, matchLiveSessions, matchVetoSessions, matches, postMatchReports, seasonAdminGrants } from "@/db/schema";
 import { AppError, ErrorCode } from "@/lib/errors";
 
 async function lockMatchInTx(tx: TxDb, matchId: string) {
@@ -47,6 +48,20 @@ export async function claimMatchCommentaryInTx(tx: TxDb, args: { matchId: string
     throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "只有待开赛或进行中的比赛可以认领。");
   }
   return addCommentatorToLockedMatchInTx(tx, match, { userId: args.userId, actorId: args.userId });
+}
+/** The authenticated actor can release only their own assignment. */
+export async function cancelMatchCommentaryInTx(tx: TxDb, args: { matchId: string; userId: string }) {
+  const match = await lockMatchInTx(tx, args.matchId);
+  assertCompetitionMatch(match);
+  await assertSeasonAdminInTx(tx, match.seasonId, args.userId);
+  const [veto] = await tx.select({ startedAt: matchVetoSessions.startedAt }).from(matchVetoSessions).where(eq(matchVetoSessions.matchId, match.id));
+  const [source] = await tx.select({ id: matchLiveSessions.id }).from(matchLiveSessions).where(and(eq(matchLiveSessions.matchId, match.id), isNull(matchLiveSessions.closedAt)));
+  const blocker = commentaryCancellationBlocker({ status: match.status, vetoStartedAt: veto?.startedAt ?? null, activeSourceId: source?.id ?? null });
+  if (blocker) throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, blocker);
+  await assertRosterEditableInTx(tx, match.id);
+  const [removed] = await tx.delete(matchCommentators).where(and(eq(matchCommentators.matchId, match.id), eq(matchCommentators.userId, args.userId))).returning({ userId: matchCommentators.userId });
+  if (removed) await writeAuditInTx(tx, { seasonId: match.seasonId, action: "postmatch.commentator.cancel", actorId: args.userId, targetId: match.id, meta: { commentatorUserId: args.userId } });
+  return { seasonId: match.seasonId, removed: Boolean(removed) };
 }
 export async function removeMatchCommentatorInTx(tx: TxDb, args: { matchId: string; userId: string; actorId: string }) {
   const match = await lockMatchInTx(tx, args.matchId);
