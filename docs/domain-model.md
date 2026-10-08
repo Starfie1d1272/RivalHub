@@ -124,7 +124,7 @@ Rivals 的个人报名仍由 `season_registrations` 表达；投票由 `captain_
 
 `matches` 拥有独立比赛身份、执行状态、赛制与系列赛结果；赛事关联是可选的组织上下文。赛事比赛保留 `seasonId`、双方 CompetitionEntry 与 stage，按原有赛事政策运行；无赛事比赛使用本场 `executionContext` 的双方名称、标志和地图池，不创建虚假的赛事、参赛报名或选手。关联字段必须完整存在或全部为空，由数据库约束保护；赛事比赛禁止同时携带 executionContext，独立比赛必须拥有该快照。独立比赛未结束时总比分和 resultDisposition 均为空，结束时必须明确 recorded、pending 或 omitted，并保持比分与结论一致；赛事历史行不要求补写独立比赛的结论字段。独立比赛的名称、图池在创建时写入本场快照，当前没有修改该快照的入口；赛事比赛仍沿用赛事配置与 BP 计划的既有权威来源，不用本次重构重解释历史规则。独立转播的 `${match.id}:a/b` 标识在同场内稳定，只是本场方位身份，消费端不得将其当作 CompetitionEntry 外键。
 
-测试赛是具有赛事上下文、用途固定为演练的 Match。`testConfig` 非空表示测试，保存创建时七图图池及双方指定 BP 操作账号；赛事、双方、图池、资格快照和测试用途不可改，且不得关联 QualificationRun、StageRun 或 bracket node。它使用真实 CompetitionEntry / EventRoster / MatchRoster 和现有名单资格、冻结、BP、解说及机器授权流程；创建只读取与批准版本一致的已确认名单，禁止同步、补建、确认或修改正式 EventRoster；名单同步仍由正式名单 owner 负责；Major 测试赛从本届规则与当前名单冻结本场资格快照，不依赖 QualificationRun 或 StageRun。管理员可指定现有 BP 账号，默认队长；名单仍由队长通过原流程选择。测试标记不构成另一套执行状态机。
+测试赛是具有赛事上下文、用途固定为演练的 Match。`testConfig` 非空表示测试，保存创建时七图图池及双方指定 BP 操作账号；赛事、双方、图池、资格快照和测试用途不可改，且不得关联 QualificationRun、StageRun 或 bracket node。它使用真实 CompetitionEntry / EventRoster / MatchRoster 和现有名单资格、冻结、BP、解说及机器授权流程；创建时通过正式名单 owner 自动准备与当前批准版本一致的比赛用 EventRoster，保留人数、成员确认、教育资格、冻结与进行中比赛保护；管理员无需二次确认。准备名单不创建或变更 Qualification/Main Event 参赛节点；Major 测试赛从本届规则与当前名单冻结本场资格快照，不依赖 QualificationRun 或 StageRun。管理员可指定现有 BP 账号，默认队长；名单仍由队长通过原流程选择。测试标记不构成另一套执行状态机。
 
 测试赛结束采用 recorded / pending / omitted 及同一补录、更正约束。正式发现入口、赛事推进、奖项候选、竞猜事实及平台/队伍/选手累计统计排除测试；正式结果与阶段读取通过 `loadOfficialMatchRows` / `loadOfficialMatchStages` 默认限定范围，需独立投影的联表与聚合复用 `officialMatchCondition`；本场详情和已授权 Mizar / DAK 读取保留地图、真实数据和赛后证据。公共详情不要求登录，链接可转发；后台与双方队长/操作人的个人入口列出测试，公开赛事列表不列出并设置 noindex。它是未公开列出的比赛，不是保密资料。
 

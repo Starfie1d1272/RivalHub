@@ -32,6 +32,7 @@ export function TestMatchForm({ seasonId, entries }: { seasonId: string; entries
       router.refresh();
     });
   }}>
+    <p className="text-sm text-[var(--color-fg-mid)]">可选择本届所有已批准队伍，包括直通正赛队伍；无需参加 Play-in。</p>
     <div className="grid gap-4 sm:grid-cols-2">
       <Choice label="队伍 A" value={entryAId} onChange={setA} options={entries} />
       <Choice label="队伍 B" value={entryBId} onChange={setB} options={entries.filter(entry => entry.id !== entryAId)} />

@@ -1,6 +1,4 @@
-import { assertPrestartEntryCoherenceInTx } from "@/lib/event-rosters/coherence";
-import { syncApprovedRosterToEventRosterInTx } from "@/lib/event-rosters/owner";
-import { createTestMatchInTx } from "@/lib/matches/test-matches";
+import { loadTestMatchEntries, createTestMatchInTx } from "@/lib/matches/test-matches";
 import { concludeUnassociatedMatchInTx } from "@/lib/matches/unassociated-result";
 import { assertCompetitionMatch, requireCompetitionMatch } from "@/lib/matches/competition-context";
 import { randomUUID } from "node:crypto";
@@ -407,22 +405,16 @@ async function exerciseThirtyToTwentyFourAcceptance(): Promise<void> {
   try {
     fixture = await prepareAcceptanceFixture(pool);
     const preliminaryOrderEntryIds = fixture.entries.map((entry) => entry.entryId);
-    // Explicit formal roster confirmation precedes rehearsal; test creation must only read it.
-    await database.transaction(async tx => {
-      const [season] = await tx.select().from(schema.seasons).where(eq(schema.seasons.id, fixture!.seasonId));
-      const entries = await tx.select().from(schema.competitionEntries).where(inArray(schema.competitionEntries.id, fixture!.entries.slice(18, 20).map(e => e.entryId)));
-      for (const entry of entries) await tx.insert(schema.eventRosters).values({ entryId: entry.id, sourceRosterRevisionId: entry.approvedRosterRevisionId! });
-      const coherent = await assertPrestartEntryCoherenceInTx(tx, season.id, entries.map(entry => ({ competitionEntryId: entry.id })));
-      for (const row of coherent) await syncApprovedRosterToEventRosterInTx(tx, { season, coherent: row, actorId: ACTOR });
-    });
-    const formalRosterBefore = await pool.query("SELECT to_jsonb(r) AS roster, (SELECT jsonb_agg(to_jsonb(m) ORDER BY m.id) FROM event_roster_members m WHERE m.event_roster_id=r.id) AS members FROM event_rosters r WHERE r.entry_id=ANY($1::uuid[]) ORDER BY r.id", [fixture.entries.slice(18, 20).map(e => e.entryId)]);
-    // A rehearsal uses approved Play-in eligibility, without creating a qualification node.
+    // Direct entrants rehearse from approved registrations without any roster-preparation step.
+    expect(await loadTestMatchEntries(fixture.seasonId, database)).toHaveLength(30);
+    expect(await database.select().from(schema.eventRosters).where(inArray(schema.eventRosters.entryId, fixture.entries.slice(0, 2).map(e => e.entryId)))).toHaveLength(0);
     const rehearsal = await database.transaction(tx => createTestMatchInTx(tx, {
-      seasonId: fixture!.seasonId, entryAId: fixture!.entries[18].entryId, entryBId: fixture!.entries[19].entryId,
+      seasonId: fixture!.seasonId, entryAId: fixture!.entries[0].entryId, entryBId: fixture!.entries[1].entryId,
       format: "bo3", privilegedSide: "a", scheduledAt: null,
     }, ACTOR));
-    expect((await pool.query("SELECT to_jsonb(r) AS roster, (SELECT jsonb_agg(to_jsonb(m) ORDER BY m.id) FROM event_roster_members m WHERE m.event_roster_id=r.id) AS members FROM event_rosters r WHERE r.entry_id=ANY($1::uuid[]) ORDER BY r.id", [fixture.entries.slice(18, 20).map(e => e.entryId)])).rows).toEqual(formalRosterBefore.rows);
-    for (const entry of fixture.entries.slice(18, 20)) await persistAndConfirmLineup(database, rehearsal.matchId, entry.entryId);
+    expect(await database.select().from(schema.competitionQualificationRuns).where(eq(schema.competitionQualificationRuns.seasonId, fixture.seasonId))).toHaveLength(0);
+    expect(await database.select().from(schema.majorTournamentEntrants).where(eq(schema.majorTournamentEntrants.seasonId, fixture.seasonId))).toHaveLength(0);
+    for (const entry of fixture.entries.slice(0, 2)) await persistAndConfirmLineup(database, rehearsal.matchId, entry.entryId);
     await database.transaction(tx => applyMatchStatusTransitionInTx(tx, { matchId: rehearsal.matchId, nextStatus: "in_progress", actorId: ACTOR }));
     await database.transaction(tx => concludeUnassociatedMatchInTx(tx, { matchId: rehearsal.matchId, actorId: ACTOR, conclusion: { kind: "omitted" } }));
     await database.transaction(tx => saveCompetitionQualificationDraftInTx(tx, {
