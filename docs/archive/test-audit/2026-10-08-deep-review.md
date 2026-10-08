@@ -47,12 +47,14 @@
 | 页面层后续复核 | 删除 Overview 固定标题/列数量、空数据只检查排序按钮、九处共享帮助按钮清单；canonical 154 回合断言合入 coverage 场景，保留 economy 真实分母过滤与聚合、自定义 tooltip 交互。删除队伍主页四组固定区块顺序与详情页 BP/MVP 固定顺序；保留 disclosure、名单快照、弃赛/统计失败降级。Admin roster 改按五名选手的实际链接验证，移除 p 祖先耦合；audit raw action 不曝光仍保留，移除 pre 标签约束。 |
 | PR metadata / scheduler / OCR | 删除 metadata 工作流整段文本快照；真正的 title 正反例与 required pr-title job 保留。删除 scheduler checkout 固定 SHA 副本，保留不可变 action pin 和真实 CLI / shell 编排行为。OCR 缺失与零值语义归入 OCR owner，避免 production adapter suite 夹带另一领域。 |
 
+| registration / automatic transitions / time auto-award | 删除 7 项规则表形状快照，改为调用真实 validator 验证 9 种允许迁移在 7 个赛季阶段的正反例及全部未定义迁移。原 pending→finished 的 try/catch-only 断言可能静默通过，改为必须抛错。删除自动完赛两份相同 count=0 fixture 的重复案例，修正其名称；库级 transition/cron 测试移出 Actions project。time-auto-award 删除 Drizzle/表结构副本 mock，保留 mock DB 边界并使用真实 SQL expression/schema。 |
+
 该批测试层选择曾以 `unit-domain-node` 显式运行旧 actions 路径，因零发现而失败；改为实际 project 运行通过，随后将纯 Veto sequence suite 移到领域层。新 PostgreSQL fixture 起初有 nullable audit actor / 参数类型假设错误，修正 fixture 后才获得 production 漏洞反例；没有跳过失败案例。
 
 ## 验证与限制
 
 - 首三个 commit 没有产品行为变化；后续深审修复竞技目录跨平台冻结来源赛季的删除漏洞，移除仅测试调用的旧 `getPickNumber`。没有 migration、E2E spec 或 CI 选择器修改，没有新增 skip/retry。
-- 基线全部 test/spec 源文件 577 个、73,646 行；当前清理后 565 个、71,980 行，净减 1,666 行（不含本报告）。
+- 基线全部 test/spec 源文件 577 个、73,646 行；当前清理后 565 个、71,880 行，净减 1,766 行（不含本报告）。
 - 首两个 commit 全量单元执行 476 文件、2,800 测试，全部通过，0 失败/跳过，wall time 109.00 秒。基线最新 #839 CI 为 479 文件、2,815 测试；两次环境不同，不据此声称 wall time 性能提升。
 - 发布/恢复/preview 定向执行 109/109；共享 format 9/9；最终名单 5/5；地图偏好 2/2；公开赛事信息/DTO 7/7；最后发布契约 14/14 全部通过。测试 type-check、修改文件 ESLint 与 diff whitespace 检查通过。
 - 第一次 UI 定向执行 26/27，名单选择器误假设昵称后有空白；修正为名称前缀及数字边界后 5/5 通过。失败保留在本地验证记录中，不通过跳过掩盖。
@@ -63,7 +65,9 @@
 
 - 本次深审全量单元：466 文件、2,714/2,714，0 失败/跳过，wall time 113.27 秒；app/tests type-check 与修改文件 ESLint 通过。真实 PostgreSQL 定向验证：目录 2 文件 3/3、比分更正 1 文件 6/6，0 失败/跳过。affected import graph 对目录 Action 自动选中新 suite，对比分更正保留既有 series suite 并增加新 suite；全量 PostgreSQL 与新 head CI 另行验证。
 
-- `faa4d70e` 本地完整 PostgreSQL：82 文件、246/246，0 失败/跳过，测试主体 83.828 秒；比旧 head 增加的 8 项真实数据库证据全部执行。后续 UI/source 收敛定向 5 文件 37/37 与 scheduler/title/OCR/provider 4 文件全部通过；最新 CI 单独记录于 PR，不能沿用旧 head。
+- `faa4d70e` 本地完整 PostgreSQL：82 文件、246/246，0 失败/跳过，测试主体 83.828 秒；比旧 head 增加的 8 项真实数据库证据全部执行。后续 UI/source 收敛定向 5 文件 37/37 与 scheduler/title/OCR/provider 4 文件 42/42 全部通过；最新 CI 单独记录于 PR，不能沿用旧 head。
 - 积分榜顶部注释与执行顺序冲突，按 CHANGELOG 1.20.0 的已发布规则修正为 H2H 先于总胜回合；不修改排序行为或历史赛季规则页面。
+
+- 状态迁移深审：4 文件 19/19，0 失败/跳过；测试 type-check、修改文件 ESLint 与 whitespace 检查通过。所有后续 commit 仍在同一个 Draft PR，最终 head 的完整 CI 是最终证据。
 
 剩余工作流门禁仍有字符串/步骤名耦合，recovery orchestration 还有源码顺序断言。这些保护写入授权、备份一致性和发布阻断，必须先补充可执行编排或结构化工作流证据再替换，不能为了删行直接取消。其余清单仍需逐项审查，不能把本批保留项或全量绿灯外推到所有未深读文件。

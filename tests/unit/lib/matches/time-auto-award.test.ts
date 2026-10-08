@@ -57,33 +57,6 @@ vi.mock("@/db/client", () => {
 
 vi.mock("@/lib/matches/coverage", () => ({ allocateHeldCoverageInTx: vi.fn() }));
 
-vi.mock("@/db/schema", () => ({
-  matches: {
-    id: "matches.id",
-    status: "matches.status",
-    scheduledAt: "matches.scheduledAt",
-    completionDeadline: "matches.completionDeadline",
-  },
-  matchTimeProposals: {
-    id: "match_time_proposals.id",
-    matchId: "match_time_proposals.matchId",
-    status: "match_time_proposals.status",
-    createdAt: "match_time_proposals.createdAt",
-  },
-  auditLogs: {},
-  seasons: { id: "seasons.id" },
-}));
-
-vi.mock("drizzle-orm", () => ({
-  and: vi.fn((...args: unknown[]) => ({ op: "and", args })),
-  asc: vi.fn((column: unknown) => ({ op: "asc", column })),
-  eq: vi.fn((left: unknown, right: unknown) => ({ op: "eq", left, right })),
-  isNotNull: vi.fn((column: unknown) => ({ op: "isNotNull", column })),
-  isNull: vi.fn((column: unknown) => ({ op: "isNull", column })),
-  lte: vi.fn((left: unknown, right: unknown) => ({ op: "lte", left, right })),
-  sql: vi.fn((strings: TemplateStringsArray) => strings.join("")),
-}));
-
 import { runMatchTimeAutoAwardCron } from "@/lib/matches/time-auto-award";
 
 describe("runMatchTimeAutoAwardCron", () => {
