@@ -21,11 +21,13 @@ const clientReady = () => true;
 const serverReady = () => false;
 export function TournamentBoard({
   stage,
+  seasonSlug,
   teams,
   editable,
   onChoose,
 }: {
   stage: SimStage;
+  seasonSlug?: string;
   teams: Baseline["teams"];
   editable: boolean;
   onChoose: (match: SimMatch, winner: string) => void;
@@ -54,6 +56,7 @@ export function TournamentBoard({
       key={m.key}
       match={m}
       stageKey={stage.key}
+      seasonSlug={seasonSlug}
       teams={teamMap}
       seeds={seeds}
       compact={view === "compact"}

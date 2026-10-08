@@ -52,6 +52,7 @@ export function simulateQualification(
       const winner = selected ? choice.winner : (official?.winner ?? a);
       if (winner !== official?.winner) officialPath = false;
       return {
+        officialMatchId: official?.id,
         key,
         round,
         a,

@@ -52,6 +52,21 @@ function complete(base: Baseline) {
   throw new Error("simulation failed to converge");
 }
 describe("Major spectator simulation and independent Pick'Em", () => {
+  it("retains persisted match identity for unplayed and locally chosen matches", () => {
+    const base = baseline();
+    const first = simulateMajor(base, {}, true)[0]!.matches[0]!;
+    base.matches = [{
+      ...first, id: "scheduled-match", stageKey: "stage1", winner: null,
+      scoreA: null, scoreB: null, format: "bo1", status: "scheduled", scheduledAt: null,
+    }];
+    expect(simulateMajor(base, {}, true)[0]!.matches[0]).toMatchObject({
+      officialMatchId: "scheduled-match", source: "preview",
+    });
+    const choices = replaceSimulationChoice(base, {}, "stage1", first, first.b);
+    const stage = simulateMajor(base, choices, true)[0]!;
+    expect(stage.matches[0]).toMatchObject({ officialMatchId: "scheduled-match", source: "assumption" });
+    expect(stage.matches.filter(m => m.round > 1).every(m => !m.officialMatchId)).toBe(true);
+  });
   it("keeps all coin tiers attainable in each supported event profile", () => {
     for (const plan of [MAJOR_24_STAGE_PLAN, MAJOR_STAGE_PLAN]) {
       const stages = projectPredictionStages(plan);
@@ -176,6 +191,8 @@ describe("Major spectator simulation and independent Pick'Em", () => {
       "official",
     );
     expect(result.matches.find((m) => m.key === "sf-1")?.winner).toBeNull();
+    expect(result.matches.find((m) => m.key === "sf-1")?.officialMatchId).toBeUndefined();
+    expect(result.matches.find((m) => m.key === "sf-2")?.officialMatchId).toBe("playoffsf-2");
   });
   it("rejects mismatched current engine versions", () => {
     expect(() => simulateMajor({ ...baseline(), version: 0 }, {})).toThrow(

@@ -1,5 +1,4 @@
 "use client";
-import { TeamProfileLink } from "@/components/teams/TeamProfileLink";
 import React, { useState } from "react";
 import {
   PLAYOFF_PICK_KEYS,
@@ -179,11 +178,10 @@ export function PickEditor({
                               ＋
                             </span>
                           )}
-                          <span className="line-clamp-2 break-words">
+                          <span className="line-clamp-2 break-words" title={id ? name(id) : undefined}>
                             {name(id)}
                           </span>
                         </button>
-                        {id && <TeamProfileLink entryId={id} variant="dense" aria-label={`查看 ${name(id)} 队伍资料`}>↗</TeamProfileLink>}
                         {id && !locked && (
                           <button
                             type="button"
@@ -224,11 +222,11 @@ export function PickEditor({
                       className={`flex min-h-14 min-w-0 flex-col items-center gap-1 border p-1 text-[11px] focus-visible:outline-2 focus-visible:outline-[var(--color-accent)] ${selectedTeam === id ? "border-[var(--color-accent)]" : chosen.includes(id) ? "border-transparent opacity-40" : "border-transparent"}`}
                     >
                       {logo(id, "h-7 w-7")}
-                      <span className="line-clamp-2">{name(id)}</span>
+                      <span className="line-clamp-2" title={name(id)}>{name(id)}</span>
                       {chosen.includes(id) && (
                         <span className="sr-only">已选 · 可移动</span>
                       )}
-                    </button><TeamProfileLink entryId={id} variant="dense" aria-label={`查看 ${name(id)} 队伍资料`}>↗</TeamProfileLink></div>
+                    </button></div>
                   ))}
                 </div>
               </fieldset>
@@ -290,11 +288,11 @@ export function PickEditor({
                                   ) : (
                                     <span className="w-8 text-center">—</span>
                                   )}
-                                  <span className="min-w-0 break-words">
+                                  <span className="min-w-0 break-words" title={id ? name(id) : undefined}>
                                     {id ? name(id) : "上游胜者"}
                                   </span>
                                   {id && pick.bracket[index] === id && " ✓"}
-                                </button>{id && <TeamProfileLink entryId={id} variant="dense" aria-label={`查看 ${name(id)} 队伍资料`}>↗</TeamProfileLink>}</div>
+                                </button></div>
                               );
                             })}
                           </div>

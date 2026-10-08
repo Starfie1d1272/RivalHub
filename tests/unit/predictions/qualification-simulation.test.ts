@@ -154,6 +154,7 @@ describe("local Qualification worldlines", () => {
     });
     const original = structuredClone(c);
     expect(simulateContext(c, {})[0]!.matches[0]).toMatchObject({
+      officialMatchId: "m",
       winner: first.b,
       source: "official",
       scoreA: 9,
@@ -161,6 +162,7 @@ describe("local Qualification worldlines", () => {
     });
     const next = replaceContextChoice(c, {}, "play-in", first, first.a);
     expect(simulateContext(c, next)[0]!.matches[0]).toMatchObject({
+      officialMatchId: "m",
       winner: first.a,
       source: "assumption",
       scoreA: null,
@@ -168,6 +170,7 @@ describe("local Qualification worldlines", () => {
     });
     expect(c).toEqual(original);
     expect(simulateContext(c, {})[0]!.matches[0]!.winner).toBe(first.b);
+    expect(simulateContext(c, next)[0]!.matches.filter(m => m.round > 1).every(m => !m.officialMatchId)).toBe(true);
   });
 });
 

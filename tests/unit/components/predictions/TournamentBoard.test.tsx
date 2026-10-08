@@ -35,6 +35,26 @@ const stage: SimStage = {
   ],
 };
 describe("tournament presentation", () => {
+  it("links each persisted match once in every layout without choosing a winner", async () => {
+    const user = userEvent.setup();
+    const choose = vi.fn();
+    const persisted = { ...stage, matches: [{ ...stage.matches[0]!, officialMatchId: "match-1" }] };
+    render(<TournamentBoard stage={persisted} seasonSlug="major" teams={teams} editable onChoose={choose} />);
+    for (const layout of ["紧凑对阵", "轮次列表", "晋级路径"]) {
+      await user.click(screen.getByRole("button", { name: layout }));
+      const card = screen.getByTestId("sim-match-swiss-r1");
+      const links = within(card).getAllByRole("link");
+      expect(links).toHaveLength(1);
+      const link = within(card).getByRole("link", { name: "查看 Alpha 对 Bravo 比赛" });
+      expect(link).toHaveAttribute("href", "/major/matches/match-1");
+      link.addEventListener("click", event => event.preventDefault());
+      await user.click(link);
+      expect(choose).not.toHaveBeenCalled();
+      await user.click(within(card).getByRole("button", { name: "Bravo 获胜" }));
+      expect(choose).toHaveBeenCalledExactlyOnceWith(persisted.matches[0], "Bravo");
+      choose.mockClear();
+    }
+  });
   it("disables server-rendered choices until hydration attaches their handlers", async () => {
     const choose = vi.fn();
     const board = <TournamentBoard stage={stage} teams={teams} editable onChoose={choose} />;
@@ -72,6 +92,7 @@ describe("tournament presentation", () => {
         "data-source",
         "preview",
       );
+      expect(within(screen.getByTestId("sim-match-swiss-r1")).queryByRole("link")).toBeNull();
     }
     expect(choose).toHaveBeenCalledTimes(3);
   });
