@@ -270,7 +270,7 @@ jobs:
         uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
         with:
           path: ${{ runner.temp }}/supabase-images.tar
-          key: ${{ runner.os }}-${{ runner.arch }}-supabase-images-v1-${{ hashFiles('pnpm-lock.yaml', 'supabase/config.toml') }}
+          key: ${{ runner.os }}-${{ runner.arch }}-supabase-images-v2-${{ hashFiles('pnpm-lock.yaml', 'supabase/config.toml') }}
       - name: Load Supabase images
         if: steps.supabase-images.outputs.cache-hit == 'true'
         run: node scripts/ci/timing.mjs "system/image load" -- docker image load --input "$RUNNER_TEMP/supabase-images.tar"
@@ -279,7 +279,7 @@ jobs:
       - name: Cache immutable Supabase images
         if: steps.supabase-images.outputs.cache-hit != 'true'
         run: |
-          mapfile -t images < <(docker image ls --filter 'reference=ghcr.io/supabase/*' --filter 'reference=ghcr.io/supabase/cli/*' --quiet | sort -u)
+          mapfile -t images < <(docker image ls --format '{{.Repository}} {{.ID}}' | awk '$1 ~ /(^|\/)supabase\// { print $2 }' | sort -u)
           test "${#images[@]}" -gt 0
           node scripts/ci/timing.mjs "system/image export" -- docker image save --output "$RUNNER_TEMP/supabase-images.tar" "${images[@]}"
       - name: System bootstrap
