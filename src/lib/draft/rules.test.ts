@@ -134,3 +134,15 @@ describe("computeTeamPositionCounts", () => {
     expect(result.get("t2")?.get("igl")).toBe(1);
   });
 });
+
+describe("draft rule boundaries", () => {
+  it("preserves its input and advances within an even round", () => {
+    const before = structuredClone(teams);
+    getSnakeOrder(teams, 1);
+    expect(teams).toEqual(before);
+    expect(getNextEntryId(teams, "t3", 2)).toEqual({ entryId: "t4", nextRound: 2 });
+  });
+  it("counts an empty roster without manufacturing positions", () => {
+    expect(computeTeamPositionCounts([])).toEqual(new Map());
+  });
+});

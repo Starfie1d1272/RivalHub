@@ -86,3 +86,13 @@ describe("calculateStandings", () => {
     expect(result[1].seed).toBe(2);
   });
 });
+
+describe("standings rule priority", () => {
+  it("ranks wins before a larger map-round advantage", () => {
+    const teams = [t("t1", "A", 1), t("t2", "B", 2), t("t3", "C", 3)];
+    const matches = [m("m1", "t1", "t2", 1, 0), m("m2", "t1", "t3", 1, 0), m("m3", "t2", "t3", 1, 0)];
+    const result = calculateStandings(teams, matches, mapScores(["m1", 13, 11], ["m2", 13, 10], ["m3", 13, 1]));
+    expect(result.map(row => row.teamId)).toEqual(["t1", "t2", "t3"]);
+    expect(result[0]!.netRounds).toBeLessThan(result[1]!.netRounds);
+  });
+});

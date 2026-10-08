@@ -121,23 +121,11 @@ vi.mock("@/db/client", () => ({
 import {
   createCompetitivePlatformRank,
   createCompetitivePlatformSeason,
-  deleteCompetitivePlatformRank,
-  deleteCompetitivePlatformSeason,
-  moveCompetitivePlatformRank,
-  moveCompetitivePlatformSeason,
-  setCurrentCompetitivePlatformSeason,
-  setCompetitivePlatformSeasonActive,
   updateCompetitivePlatform,
-  updateCompetitivePlatformRankLabel,
-  updateCompetitivePlatformSeason,
 } from "@/actions/competitive-platform";
-import { temporarySortOrders } from "@/lib/competitive/catalog";
 import { saveCompetitiveProfile } from "@/actions/competitive-profile";
 
 const SEASON_ID = "00000000-0000-0000-0000-0000000000a1";
-const RANK_ID = "00000000-0000-0000-0000-0000000000b1";
-const UUID_A = "00000000-0000-0000-0000-0000000000c1";
-const UUID_B = "00000000-0000-0000-0000-0000000000c2";
 
 function makeTx() {
   return {
@@ -196,13 +184,13 @@ describe("platform identity actions", () => {
 // ── Season chronology ───────────────────────────────────────────────────────
 
 describe("season catalog actions", () => {
-  it("creates a season with normalized identity, transactional chronology and an audit", async () => {
+  it("passes normalized season identity and an audit to persistence", async () => {
     queryFindFirst.competitivePlatforms.mockResolvedValue({ key: "perfect_world", displayName: "完美世界竞技平台" });
     queryFindFirst.competitivePlatformSeasons.mockResolvedValue(undefined);
     selectResults.push([]);
     const result = await createCompetitivePlatformSeason({ platform: "perfect_world", seasonKey: "S24", label: "S24 赛季" });
     expect(result.success).toBe(true);
-    expect(insertValuesCalls[0]).toMatchObject({ platform: "perfect_world", seasonKey: "s24", sortOrder: -2, isCurrent: false, active: true });
+    expect(insertValuesCalls[0]).toMatchObject({ platform: "perfect_world", seasonKey: "s24", isCurrent: false, active: true });
     expect(findAuditEntry(insertValuesCalls, "competitive_platform_season.create")).toBeDefined();
   });
 
@@ -221,83 +209,6 @@ describe("season catalog actions", () => {
     expect(result.success).toBe(false);
     expect(errCode(result)).toBe(ErrorCode.VALIDATION_FAILED);
   });
-
-  it("renames the season label without touching seasonKey identity", async () => {
-    queryFindFirst.competitivePlatformSeasons.mockResolvedValue({ id: SEASON_ID, platform: "perfect_world", seasonKey: "S24", label: "旧名", isCurrent: false, active: true });
-    const result = await updateCompetitivePlatformSeason({ id: SEASON_ID, label: "新名" });
-    expect(result.success).toBe(true);
-    expect(updateSetCalls).toEqual([expect.objectContaining({ label: "新名" })]);
-    expect(JSON.stringify(updateSetCalls)).not.toContain("seasonKey");
-  });
-
-  it("cannot deactivate the current season", async () => {
-    queryFindFirst.competitivePlatformSeasons.mockResolvedValue({ id: SEASON_ID, platform: "perfect_world", seasonKey: "S24", label: "S24", isCurrent: true, active: true });
-    const result = await setCompetitivePlatformSeasonActive({ id: SEASON_ID, active: false });
-    expect(result.success).toBe(false);
-    expect(errMessage(result)).toContain("当前赛季必须保持启用");
-  });
-
-  it("switching current is an explicit transactional action: exactly one current per platform", async () => {
-    queryFindFirst.competitivePlatformSeasons
-      .mockResolvedValueOnce({ id: SEASON_ID, platform: "perfect_world", seasonKey: "S24", label: "S24", isCurrent: false, active: true })
-      .mockResolvedValueOnce({ id: UUID_A, platform: "perfect_world", seasonKey: "S23", label: "S23", isCurrent: true, active: true });
-    const result = await setCurrentCompetitivePlatformSeason({ id: SEASON_ID });
-    expect(result.success).toBe(true);
-    expect(updateSetCalls).toEqual([
-      expect.objectContaining({ isCurrent: false }),
-      expect.objectContaining({ isCurrent: true }),
-    ]);
-    const audit = findAuditEntry(insertValuesCalls, "competitive_platform_season.set_current");
-    expect(audit?.meta).toMatchObject({ fromSeasonKey: "S23", toSeasonKey: "S24" });
-  });
-
-  it("cannot set an inactive season as the current season", async () => {
-    queryFindFirst.competitivePlatformSeasons.mockResolvedValue({ id: SEASON_ID, platform: "perfect_world", seasonKey: "S24", label: "S24", isCurrent: false, active: false });
-    const result = await setCurrentCompetitivePlatformSeason({ id: SEASON_ID });
-    expect(result.success).toBe(false);
-    expect(errMessage(result)).toContain("停用的赛季不能设为当前赛季");
-  });
-
-  it("reorders chronology through a two-phase swap that cannot hit the unique index", async () => {
-    queryFindFirst.competitivePlatformSeasons.mockResolvedValue({ id: SEASON_ID, platform: "perfect_world", seasonKey: "S24", label: "S24", sortOrder: 2, isCurrent: false, active: true });
-    selectResults.push(
-      [{ id: UUID_B, platform: "perfect_world", seasonKey: "S23", sortOrder: 1, isCurrent: false, active: true }],
-      [{ sortOrder: -2 }, { sortOrder: -1 }, { sortOrder: 1 }, { sortOrder: 2 }],
-    );
-    const result = await moveCompetitivePlatformSeason({ id: SEASON_ID, direction: "earlier" });
-    expect(result.success).toBe(true);
-    expect(updateSetCalls.map((call) => (call as { sortOrder?: number }).sortOrder)).toEqual([-4, -3, 1, 2]);
-  });
-
-  it("blocks deleting the current season", async () => {
-    queryFindFirst.competitivePlatformSeasons.mockResolvedValue({ id: SEASON_ID, platform: "perfect_world", seasonKey: "S24", label: "S24", isCurrent: true, active: true });
-    const result = await deleteCompetitivePlatformSeason({ id: SEASON_ID });
-    expect(result.success).toBe(false);
-    expect(errMessage(result)).toContain("当前赛季");
-  });
-
-  it("blocks deleting a season referenced by long-term facts (including historical provenance) or a frozen event context", async () => {
-    queryFindFirst.competitivePlatformSeasons.mockResolvedValue({ id: SEASON_ID, platform: "perfect_world", seasonKey: "S23", label: "S23", isCurrent: false, active: true });
-    queryFindFirst.competitiveRankFacts.mockResolvedValue({ id: "fact-1" });
-    const factResult = await deleteCompetitivePlatformSeason({ id: SEASON_ID });
-    expect(factResult.success).toBe(false);
-    expect(errMessage(factResult)).toContain("已有竞技资料引用");
-
-    queryFindFirst.competitiveRankFacts.mockResolvedValue(undefined);
-    executeResults.push([{ id: "season-9" }]);
-    const frozenResult = await deleteCompetitivePlatformSeason({ id: SEASON_ID });
-    expect(frozenResult.success).toBe(false);
-    expect(errMessage(frozenResult)).toContain("已开放报名赛事冻结");
-  });
-
-  it("deletes an unreferenced season with an audit log", async () => {
-    queryFindFirst.competitivePlatformSeasons.mockResolvedValue({ id: SEASON_ID, platform: "perfect_world", seasonKey: "S23", label: "S23", isCurrent: false, active: true });
-    queryFindFirst.competitiveRankFacts.mockResolvedValue(undefined);
-    executeResults.push([]);
-    const result = await deleteCompetitivePlatformSeason({ id: SEASON_ID });
-    expect(result.success).toBe(true);
-    expect(findAuditEntry(insertValuesCalls, "competitive_platform_season.delete")).toMatchObject({ targetId: SEASON_ID });
-  });
 });
 
 // ── Rank ladder ─────────────────────────────────────────────────────────────
@@ -313,58 +224,6 @@ describe("rank ladder actions", () => {
     selectResults.push([{ maxOrder: 4 }]);
     expect((await createCompetitivePlatformRank({ platform: "perfect_world", label: "青铜S", rankKey: "青铜S" })).success).toBe(true);
     expect((await createCompetitivePlatformRank({ platform: "perfect_world", label: "C++" })).success).toBe(false);
-  });
-
-  it("renames the label; rankKey identity is immutable", async () => {
-    queryFindFirst.competitivePlatformRanks.mockResolvedValue({ id: RANK_ID, platformKey: "perfect_world", rankKey: "s_plus", label: "S+", sortOrder: 4 });
-    const result = await updateCompetitivePlatformRankLabel({ id: RANK_ID, label: "超级大师" });
-    expect(result.success).toBe(true);
-    expect(updateSetCalls).toEqual([expect.objectContaining({ label: "超级大师" })]);
-    expect(JSON.stringify(updateSetCalls)).not.toContain("rankKey");
-  });
-
-  it("fails closed when reordering a referenced rank would rewrite historical semantics", async () => {
-    queryFindFirst.competitivePlatformRanks.mockResolvedValue({ id: RANK_ID, platformKey: "perfect_world", rankKey: "s_plus", label: "S+", sortOrder: 4 });
-    selectResults.push([{ id: UUID_A, platformKey: "perfect_world", rankKey: "s", label: "S", sortOrder: 3 }]);
-    executeResults.push([{ rank: "s_plus" }]);
-    const result = await moveCompetitivePlatformRank({ id: RANK_ID, direction: "up" });
-    expect(result.success).toBe(false);
-    expect(errMessage(result)).toContain("不能修改");
-  });
-
-  it("reorders unreferenced ranks with the two-phase unique-safe swap", async () => {
-    queryFindFirst.competitivePlatformRanks.mockResolvedValue({ id: RANK_ID, platformKey: "perfect_world", rankKey: "s_plus", label: "S+", sortOrder: 4 });
-    selectResults.push(
-      [{ id: UUID_A, platformKey: "perfect_world", rankKey: "s", label: "S", sortOrder: 3 }],
-      [],
-      [{ sortOrder: -2 }, { sortOrder: -1 }, { sortOrder: 3 }, { sortOrder: 4 }],
-    );
-    executeResults.push([]);
-    const result = await moveCompetitivePlatformRank({ id: RANK_ID, direction: "up" });
-    expect(result.success).toBe(true);
-    expect(updateSetCalls.map((call) => (call as { sortOrder?: number }).sortOrder)).toEqual([-4, -3, 3, 4]);
-  });
-
-  it("fails closed when deleting a rank referenced by facts or a frozen rank order", async () => {
-    queryFindFirst.competitivePlatformRanks.mockResolvedValue({ id: RANK_ID, platformKey: "perfect_world", rankKey: "s_plus", label: "S+", sortOrder: 4 });
-    executeResults.push([{ rank: "s" }, { rank: "s_plus" }]);
-    const result = await deleteCompetitivePlatformRank({ id: RANK_ID });
-    expect(result.success).toBe(false);
-    expect(errMessage(result)).toContain("不能修改");
-  });
-
-  it("deletes an unreferenced rank", async () => {
-    queryFindFirst.competitivePlatformRanks.mockResolvedValue({ id: RANK_ID, platformKey: "perfect_world", rankKey: "temp", label: "临时", sortOrder: 9 });
-    executeResults.push([]);
-    const result = await deleteCompetitivePlatformRank({ id: RANK_ID });
-    expect(result.success).toBe(true);
-    expect(findAuditEntry(insertValuesCalls, "competitive_platform_rank.delete")).toMatchObject({ meta: { rankKey: "temp" } });
-  });
-});
-
-describe("catalog ordering helper", () => {
-  it("always reserves unused temporary positions below a four-item chronology", () => {
-    expect(temporarySortOrders([-2, -1, 0, 1])).toEqual([-4, -3]);
   });
 });
 

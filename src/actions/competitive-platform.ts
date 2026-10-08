@@ -226,21 +226,22 @@ export async function deleteCompetitivePlatformSeason(input: unknown): Promise<A
       if (reference) throw new AppError(ErrorCode.VALIDATION_FAILED, "已有竞技资料引用该平台赛季，不能删除。");
       const frozen = await tx.execute(sql`
         SELECT id FROM seasons
-        WHERE team_registration_config->'competitiveProfile'->>'platform' = ${row.platform}
+        WHERE (
+          team_registration_config->'competitiveProfile'->>'platform' = ${row.platform}
           AND (
             team_registration_config->'competitiveProfile'->>'currentSeasonKey' = ${row.seasonKey}
             OR team_registration_config->'competitiveProfile'->>'previousSeasonKey' = ${row.seasonKey}
             OR team_registration_config->'competitiveProfile'->'evidencePolicy'->>'referenceSeasonKey' = ${row.seasonKey}
             OR (team_registration_config->'competitiveProfile'->'evidencePolicy'->'recentSeasonKeys')::jsonb ? ${row.seasonKey}
-            OR (
-              team_registration_config->'competitiveProfile'->'fallbackConversion'->>'sourcePlatform' = ${row.platform}
-              AND EXISTS (
-                SELECT 1
-                FROM jsonb_each_text(COALESCE((team_registration_config->'competitiveProfile'->'fallbackConversion'->'seasonKeyMap')::jsonb, '{}'::jsonb)) AS fallback_season(primary_key, source_key)
-                WHERE fallback_season.source_key = ${row.seasonKey}
-              )
-            )
           )
+        ) OR (
+          team_registration_config->'competitiveProfile'->'fallbackConversion'->>'sourcePlatform' = ${row.platform}
+          AND EXISTS (
+            SELECT 1
+            FROM jsonb_each_text(COALESCE((team_registration_config->'competitiveProfile'->'fallbackConversion'->'seasonKeyMap')::jsonb, '{}'::jsonb)) AS fallback_season(primary_key, source_key)
+            WHERE fallback_season.source_key = ${row.seasonKey}
+          )
+        )
         LIMIT 1
       `);
       if (frozen.rows.length > 0) throw new AppError(ErrorCode.VALIDATION_FAILED, "已有已开放报名赛事冻结的竞技上下文引用该平台赛季，不能删除。");

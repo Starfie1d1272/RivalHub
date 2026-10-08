@@ -43,7 +43,7 @@ CompetitivePlatform
 └─ CompetitiveRankFact (user fact)
 ```
 
-- platform 拥有稳定 key 和 rank ladder；season 只表达时间目录，不拥有另一份段位顺序。
+- platform 拥有稳定 key 和 rank ladder；season 只表达时间目录，不拥有另一份段位顺序。 删除目录项必须保留长期事实与赛事冻结引用；换算规则的来源平台赛季同样受保护，不能仅检查赛事主平台。
 - 当前竞技平台身份、ladder 与 canonical Rating 属于产品定义的内置 domain；新增平台、改变段位体系或重新定义 canonical Rating 需要显式产品/迁移变更，不能由管理员临时创建另一套语义。
 - `rank`、`stars`、`rating` 是不同事实：rank 是稳定段位身份，stars 是星段位内部精确值，rating 是平台定义的 performance rating。
 - `saveCompetitiveProfileInTx()` 是竞技资料保存 owner：catalog/ladder 校验后，同一事务将明确达成赛季的 historical peak 与 season peak 规范化为一致的 rank/stars/Rating；缺失行自动补齐，已有差异必须明确修正两条记录。逐赛季更高的段位/星数自动提升历史最高并更新达成赛季；Rating 不参与高低判断，同等最高保留已有达成赛季，新最高相同则按 catalog chronology 最早赛季确定。不确定达成赛季保持独立，不推断日期。保存与安全修复共用 user row lock，audit 与事实原子提交，不改 frozen event facts。

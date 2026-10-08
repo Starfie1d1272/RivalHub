@@ -265,6 +265,7 @@ describe("buildRegistrationSchema 段位门槛配置化", () => {
       peakRank: "B",
     });
     expect(r.success).toBe(false);
+    expect(schema.safeParse({ ...validInput(), currentSeasonPeakRank: "B", peakRank: "A+" }).success).toBe(true);
   });
 });
 
@@ -282,5 +283,19 @@ describe("buildRegistrationSchema playerType 过滤", () => {
       const r = schema.safeParse({ ...validInput(), playerType: "graduated" });
       expect(r.success).toBe(false);
     }
+  });
+});
+
+describe("event-owned registration map pool", () => {
+  it("rejects a map outside the configured pool", () => {
+    const input = validInput();
+    input.mapPreferences[6]!.map = "de_outside_event";
+    expect(buildRegistrationSchema(null, positions).safeParse(input).success).toBe(false);
+  });
+  it("accepts custom event maps instead of imposing a global pool", () => {
+    const schema = buildRegistrationSchema({ mapPool: ["de_custom_nju", "de_cache", "de_mirage"] }, positions);
+    expect(schema.safeParse({ ...validInput(), mapPreferences: [
+      { map: "de_custom_nju", level: "strong" }, { map: "de_cache", level: "proficient" }, { map: "de_mirage", level: "playable" },
+    ] }).success).toBe(true);
   });
 });

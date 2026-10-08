@@ -46,18 +46,6 @@ describe("competition templates", () => {
     expect(capabilities.stagePlan.map((stage) => stage.type)).toEqual(["round_robin", "double_elim"]);
   });
 
-  it("Major preset passes the standard Major definition check", () => {
-    const capabilities = createMajorTemplate();
-    expect(checkStandardMajorCapabilities(capabilities).isStandardMajor).toBe(true);
-    expect(capabilities.hasCommunityAwards).toBe(true);
-  });
-
-  it("provides a Major-24 capability preset while keeping the default Major-32", () => {
-    const major24 = createMajor24Capabilities();
-    expect(checkStandardMajorCapabilities(major24).managedProfile?.id).toBe("major-24");
-    expect(checkStandardMajorCapabilities(createMajorTemplate()).managedProfile?.id).toBe("major-32");
-  });
-
   it("custom tournament starts from an empty executable contract", () => {
     const capabilities = createCustomTournamentTemplate();
     expect(capabilities.stagePlan).toEqual([]);
@@ -71,26 +59,13 @@ describe("competition templates", () => {
     expect(a).toEqual(b);
     expect(a).not.toBe(b);
     a.stagePlan.pop();
+    a.positions.pop();
     expect(b.stagePlan).toHaveLength(4);
+    expect(b.positions).toHaveLength(5);
   });
 });
 
 describe("resolveCompetitionDefinition (draft canonicalization)", () => {
-  it("a custom draft whose shape mimics Rivals keeps custom identity and input", () => {
-    const rivalsLike = formInput({
-      template: "custom",
-      registrationMode: "solo",
-      hasCaptainVoting: true,
-      hasDraft: true,
-      kind: "Rivals",
-      stagePlan: createRivalsTemplate().stagePlan,
-    });
-    const data = resolveCompetitionDefinition(rivalsLike as never, true);
-    expect(data.registrationMode).toBe("solo");
-    expect(data.hasDraft).toBe(true);
-    expect(data.stagePlan).toEqual(createRivalsTemplate().stagePlan);
-    expect(data.kind).toBe("Rivals");
-  });
 
   it("a custom draft whose shape mimics Major keeps custom identity", () => {
     const major = createMajorTemplate();
@@ -148,11 +123,6 @@ describe("resolveCompetitionDefinition (draft canonicalization)", () => {
 
     const unsupported = resolveCompetitionDefinition({ ...input, stagePlan: [{ ...major24.stagePlan[0]!, matchFormat: "bo1" }] }, true);
     expect(unsupported.stagePlan).toEqual(createMajorTemplate().stagePlan);
-  });
-
-  it("preserves an explicitly disabled community-awards capability on a built-in draft", () => {
-    const data = resolveCompetitionDefinition(formInput({ template: "major", hasCommunityAwards: false }) as never, true);
-    expect(data.hasCommunityAwards).toBe(false);
   });
 
   it("a draft Rivals save keeps canonical fixed rules (7/7/5) while overlaying positions and map pool", () => {

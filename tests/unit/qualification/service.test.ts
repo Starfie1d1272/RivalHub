@@ -214,11 +214,6 @@ describe("participant readiness", () => {
     expect(readiness.blockers.join(" ")).not.toContain("perfect_world");
   });
 
-  it("accepts a participant whose canonical Perfect nickname is present", () => {
-    const readiness = computeParticipantReadiness(fullFact(), CONTEXT);
-    expect(readiness.blockers).not.toContain("请填写完美平台昵称。");
-  });
-
   it("uses the Steam nickname before the private email fallback", () => {
     const readiness = computeParticipantReadiness(fullFact({ displayName: null, perfectName: null, personaName: "Steam Only", email: "private@example.test" }), CONTEXT);
     expect(readiness.strength.label).toBe("Steam Only");

@@ -4,6 +4,7 @@ import {
   EDUCATION_EVIDENCE_MAX_BYTES,
   detectEducationEvidenceImage,
   normalizeChsiEvidenceCode,
+  emailDomain,
   validateEducationEvidenceFile,
 } from "./validation";
 
@@ -40,5 +41,12 @@ describe("manual education evidence image contract", () => {
     await expect(validateEducationEvidenceFile(new File([png], "notice.pdf", { type: "application/pdf" }))).rejects.toMatchObject({ code: ErrorCode.VALIDATION_FAILED });
     await expect(validateEducationEvidenceFile(new File([png], "notice.jpg", { type: "image/jpeg" }))).rejects.toMatchObject({ code: ErrorCode.VALIDATION_FAILED });
     expect(detectEducationEvidenceImage(new Uint8Array([0x3c, 0x68, 0x74, 0x6d, 0x6c]))).toBeNull();
+  });
+});
+
+describe("institutional email domain boundary", () => {
+  it("keeps a suffix-spoofed domain distinct from the institutional domain", () => {
+    expect(emailDomain("a@smail.nju.edu.cn")).toBe("smail.nju.edu.cn");
+    expect(emailDomain("a@smail.nju.edu.cn.attacker.com")).toBe("smail.nju.edu.cn.attacker.com");
   });
 });

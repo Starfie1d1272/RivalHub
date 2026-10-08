@@ -35,6 +35,7 @@ describe("custom competition definition validation", () => {
       { ...baseStage, type: "swiss", key: "swiss-1", name: "瑞士轮" },
     ]));
     expect(issues.some((issue) => issue.message.includes("自定义赛事当前支持循环赛、单败淘汰和双败淘汰"))).toBe(true);
+    expect(validateCompetitionDefinition(capabilities([]))).toContainEqual(expect.objectContaining({ path: "stagePlan" }));
   });
 
   it("refuses grouped round-robin because the executor only runs one group", () => {

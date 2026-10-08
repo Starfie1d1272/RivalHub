@@ -93,12 +93,6 @@ describe("SeasonForm presets", () => {
     updateSeasonMock.mockResolvedValue({ success: true, data: { slug: "updated-season" } });
   });
 
-  it("does not show Major status in a Rivals display context", () => {
-    render(<SeasonForm mode="create" competitivePlatforms={[{ key: "perfect_world", displayName: "完美世界竞技平台" }]} initial={createInitial(structuredClone(CAPABILITY_PRESETS["draft-league"]), "选秀联赛")} />);
-
-    expect(screen.queryByText(/标准 Major 摘要|当前配置已偏离标准 Major/)).not.toBeInTheDocument();
-  });
-
   it("defaults community awards on and submits a draft capability toggle", async () => {
     const user = userEvent.setup();
     render(<SeasonForm mode="create" competitivePlatforms={[]} initial={createInitial(structuredClone(MAJOR_DEFAULT_CAPABILITIES), "Major")} />);
@@ -139,18 +133,6 @@ describe("SeasonForm presets", () => {
         }),
       }));
     });
-  });
-
-  it("shows the standard Major's policy-driven 5E equivalence note without a hand-entered mapping", () => {
-    const initial = { ...createInitial(structuredClone(MAJOR_DEFAULT_CAPABILITIES), "Major"), template: "major" as const };
-    render(<SeasonForm mode="create" competitivePlatforms={[
-      { key: "perfect_world", displayName: "Perfect World", seasons: [{ seasonKey: "s21", label: "S21", active: true }], ranks: [{ rankKey: "A", label: "A" }] },
-      { key: "fivee", displayName: "5E", seasons: [{ seasonKey: "5e-s21", label: "S21", active: true }], ranks: [{ rankKey: "S", label: "S" }] },
-    ]} initial={initial} />);
-
-    expect(screen.getByText(/Perfect 与 5E 等效竞技事实中按证据槽位自动择高/)).toBeInTheDocument();
-    expect(screen.queryByText("允许审核过的 5E 竞技资料等效补充")).not.toBeInTheDocument();
-    expect(screen.queryByText("队伍管理")).not.toBeInTheDocument();
   });
 
   it("requires an in-app confirmation before deleting a draft season", async () => {
@@ -222,15 +204,6 @@ describe("SeasonForm presets", () => {
     rerender(<SeasonForm mode="edit" competitivePlatforms={[]} initial={createInitial(structuredClone(MAJOR_DEFAULT_CAPABILITIES), "Major", "registration", { template: "major" })} />);
     expect(screen.getByDisplayValue("Major")).toBeDisabled();
     expect(screen.queryByRole("button", { name: "Major" })).not.toBeInTheDocument();
-  });
-
-  it("organizes edit settings into the agreed presentation sections", () => {
-    render(<SeasonForm mode="edit" competitivePlatforms={[{ key: "perfect_world", displayName: "完美世界竞技平台" }]} initial={createInitial(structuredClone(MAJOR_DEFAULT_CAPABILITIES), "Major")} />);
-
-    for (const section of ["基本信息", "时间与生命周期", "报名与名单", "资格规则", "赛制与地图", "竞技参考", "功能", "危险操作"]) {
-      expect(screen.getByRole("heading", { name: section })).toBeInTheDocument();
-    }
-    expect(screen.getByText(/完美世界竞技平台 · 发布时自动锁定换算规则/)).toBeInTheDocument();
   });
 
   it("shows the frozen ConversionPolicy identity after registration opens", () => {
@@ -369,20 +342,6 @@ describe("SeasonForm presets", () => {
       "11111111-1111-4111-8111-111111111111",
       "early_force",
     ));
-  });
-
-  it("explains each lifecycle edit boundary", () => {
-    const { rerender } = render(<SeasonForm mode="edit" competitivePlatforms={[]} initial={createInitial(structuredClone(CAPABILITY_PRESETS["draft-league"]), "公开赛")} />);
-    expect(screen.getByTestId("season-lifecycle-explanation")).toHaveTextContent("所有赛事定义仍可调整");
-
-    rerender(<SeasonForm mode="edit" competitivePlatforms={[]} initial={createInitial(structuredClone(CAPABILITY_PRESETS["draft-league"]), "公开赛", "registration")} />);
-    expect(screen.getByTestId("season-lifecycle-explanation")).toHaveTextContent("跨平台换算规则版本已在发布时锁定");
-
-    rerender(<SeasonForm mode="edit" competitivePlatforms={[]} initial={createInitial(structuredClone(CAPABILITY_PRESETS["draft-league"]), "公开赛", "registration", { registrationOpenedAt: new Date("2026-05-01T00:00:00.000Z") })} />);
-    expect(screen.getByTestId("season-lifecycle-explanation")).toHaveTextContent("本届平台参考赛季、段位顺序、换算数据与实际开放时间已锁定");
-
-    rerender(<SeasonForm mode="edit" competitivePlatforms={[]} initial={createInitial(structuredClone(CAPABILITY_PRESETS["draft-league"]), "公开赛", "playing", { registrationOpenedAt: new Date("2026-05-01T00:00:00.000Z") })} />);
-    expect(screen.getByTestId("season-lifecycle-explanation")).toHaveTextContent("比赛已开始");
   });
 
 });

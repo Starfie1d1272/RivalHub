@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { evaluateRosterEducationEligibility, resolveSeasonEducationVerification } from "./eligibility";
-import { emailDomain, normalizeChsiEvidenceCode } from "./validation";
 
 const njuRule = [{ institutionCode: "4132010284", eligibleAcademicStatuses: ["enrolled", "graduated"] as const, minRosterMembers: 3, minStartingMembers: 3 }];
 const member = (userId: string, options: { verified?: boolean; code?: string; status?: "pending" | "approved" | "rejected" } = {}) => ({ userId, label: `玩家${userId}`, emailVerifiedAt: options.verified === false ? null : new Date(), verification: options.status === "pending" || options.status === "rejected" ? { id: `${userId}-verification`, institutionCode: options.code ?? "4132010284", institutionName: "南京大学", academicStatus: "enrolled" as const, status: options.status } : { id: `${userId}-verification`, institutionCode: options.code ?? "4132010284", institutionName: "南京大学", academicStatus: "enrolled" as const, status: "approved" as const } });
@@ -38,13 +37,5 @@ describe("education eligibility", () => {
     ], njuRule);
     expect(result.selectedVerification?.id).toBe("newer");
     expect(result.eligibilityState).toBe("unmatched");
-  });
-
-  it("uses canonical CHSI evidence codes and exact email domain parsing", () => {
-    expect(normalizeChsiEvidenceCode("abcd-1234 efgh-5678")).toBe("ABCD1234EFGH5678");
-    expect(normalizeChsiEvidenceCode("https://www.chsi.com.cn/x?y=1")).toBeNull();
-    expect(normalizeChsiEvidenceCode("not-a-code")).toBeNull();
-    expect(emailDomain("a@smail.nju.edu.cn")).toBe("smail.nju.edu.cn");
-    expect(emailDomain("a@smail.nju.edu.cn.attacker.com")).toBe("smail.nju.edu.cn.attacker.com");
   });
 });
