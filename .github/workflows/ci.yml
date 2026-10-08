@@ -265,8 +265,23 @@ jobs:
       - name: Record bootstrap/install timing
         if: always()
         run: node scripts/ci/timing.mjs record --label "bootstrap/install" --start-ms "$RIVALHUB_BOOTSTRAP_STARTED_MS"
+      - name: Restore Supabase images
+        id: supabase-images
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          path: ${{ runner.temp }}/supabase-images.tar
+          key: ${{ runner.os }}-${{ runner.arch }}-supabase-images-v1-${{ hashFiles('pnpm-lock.yaml', 'supabase/config.toml') }}
+      - name: Load Supabase images
+        if: steps.supabase-images.outputs.cache-hit == 'true'
+        run: node scripts/ci/timing.mjs "system/image load" -- docker image load --input "$RUNNER_TEMP/supabase-images.tar"
       - name: Supabase startup
         run: node scripts/ci/timing.mjs "system/Supabase startup" -- pnpm db:local:start-services
+      - name: Cache immutable Supabase images
+        if: steps.supabase-images.outputs.cache-hit != 'true'
+        run: |
+          mapfile -t images < <(docker image ls --filter 'reference=ghcr.io/supabase/*' --quiet | sort -u)
+          test "${#images[@]}" -gt 0
+          node scripts/ci/timing.mjs "system/image export" -- docker image save --output "$RUNNER_TEMP/supabase-images.tar" "${images[@]}"
       - name: System bootstrap
         run: node scripts/ci/timing.mjs "system/bootstrap" -- pnpm db:local:bootstrap-services
       - name: Provider contract

@@ -119,3 +119,5 @@ Pure tests exercise full Major simulation, upstream invalidation, exact slot jud
 浏览器用已有 `/favicon.ico` 探测 Next 就绪，首页本身由 production smoke 验证。production 与 LIVE runner 仅启动 Auth、SQL（LIVE 另含 Realtime），provider 与上传路径仍启用 Storage/PostgREST。
 
 依赖缓存使用包含 lockfile、workspace 和 runtime manifest 的稳定键；命中后不 prune/re-upload。缓存 miss 仍执行 frozen-lockfile 安装，不跳过依赖校验。
+
+Supabase 仅缓存不可变容器镜像，缓存键绑定 lockfile 与服务配置；每次仍创建全新数据库、重放迁移并重新执行健康检查。缓存不含容器 volume、业务数据、账号或服务凭证。
