@@ -373,14 +373,14 @@ export default async function MatchDetailPage({ params, searchParams }: MatchDet
                 </DialogContent>
               </Dialog>
             )}
-            {(isCaptainA || isCaptainB) && captainRoster && (
+            {(isCaptainA || isCaptainB) && (
               <Dialog>
                 <DialogTrigger className="min-h-10 rounded border border-[var(--color-border)] px-3 text-sm">
-                  调整本场首发
+                  {captainRoster ? "调整本场首发" : "选择本场首发"}
                 </DialogTrigger>
                 <DialogContent size="lg">
                   <DialogHeader>
-                    <DialogTitle>调整本场首发</DialogTitle>
+                    <DialogTitle>{captainRoster ? "调整本场首发" : "选择本场首发"}</DialogTitle>
                   </DialogHeader>
                   <DialogBody>
                     <MatchRosterForm
