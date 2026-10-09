@@ -36,7 +36,7 @@ export function TestMatchConclusion({ matchId, finished, disposition, updatedAt,
       </div>)}
     </fieldset>}
     {correction && <label className="block text-sm">更正原因<Input value={reason} onChange={event => setReason(event.target.value)} placeholder="说明本次结果更正的原因" className="mt-1" /></label>}
-    <div className="flex flex-wrap gap-2"><Button disabled={pending} variant="outline" onClick={() => setKind("recorded")}>{correction ? "保存结果更正" : "提交总比分"}</Button>{!finished && <Button disabled={pending} variant="outline" onClick={() => setKind("pending")}>结束，结果待补</Button>}<Button disabled={pending} variant="outline" onClick={() => setKind("omitted")}>不提交结果</Button></div>
+    <div className="flex flex-wrap gap-2"><Button disabled={pending} variant="outline" onClick={() => setKind("recorded")}>{correction ? "保存结果更正" : "提交总比分"}</Button>{!finished && <Button disabled={pending} variant="outline" onClick={() => setKind("pending")}>结束，结果待补</Button>}{!finished && <Button disabled={pending} variant="outline" onClick={() => setKind("omitted")}>不提交结果</Button>}</div>
     {kind && !pending && <InlineConfirm title={kind === "recorded" ? `确认测试赛结果 ${scoreA}:${scoreB}？` : kind === "pending" ? "确认结束比赛，稍后补录结果？" : "确认结束比赛且不提交结果？"}
       sub="保留本场 BP、已上传数据和操作记录。结果不会计入正式赛事。"
       onCancel={() => setKind(null)} onConfirm={() => startTransition(async () => {
