@@ -139,7 +139,9 @@ describe("VetoRoom", () => {
     const user = userEvent.setup();
     render(<VetoRoom initialRoom={room} />);
 
-    await user.click(screen.getByRole("button", { name: "Ancient" }));
+    await user.click(screen.getByRole("button", { name: "禁用 Ancient" }));
+    expect(actionMocks.performVetoRoomCommand).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "确认禁用 Ancient" }));
 
     await waitFor(() => expect(actionMocks.performVetoRoomCommand).toHaveBeenCalledWith(expect.objectContaining({
       matchId: room.match.id,
@@ -344,8 +346,84 @@ describe("VetoRoom", () => {
  it("keeps common BP terms concise and explains the current action on demand", async () => {
     const user = userEvent.setup();
     render(<VetoRoom initialRoom={roomFixture()} />);
-    expect(screen.getByText("BAN", { exact: true })).toBeInTheDocument();
+    expect(screen.getByText("当前阶段：禁用地图", { exact: true })).toBeInTheDocument();
     expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "当前 BP 操作说明" }));
     expect(screen.getByRole("tooltip")).toHaveTextContent("禁用地图，将其移出本场可选地图池。");
  });
+
+describe("captain operation clarity", () => {
+  beforeEach(() => vi.clearAllMocks());
+  it("names and confirms a pick with the unchanged command protocol", async () => {
+    const room = roomFixture();
+    room.session.currentTurnAction = "pick";
+    room.session.currentTurnLabel = "PICK";
+    room.session.currentTurnKey = "pick-map-1";
+    actionMocks.performVetoRoomCommand.mockResolvedValue(ok({ outcome: "applied", room }));
+    render(<VetoRoom initialRoom={room} />);
+    expect(screen.getByText("当前阶段：选取地图")).toBeInTheDocument();
+    expect(screen.getByText("轮到你方操作")).toBeInTheDocument();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "选取 Ancient" }));
+    expect(actionMocks.performVetoRoomCommand).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "确认选取 Ancient" })).toHaveFocus();
+    await user.keyboard("{Enter}");
+    await waitFor(() => expect(actionMocks.performVetoRoomCommand).toHaveBeenCalledWith(expect.objectContaining({
+      expectedRevision: room.session.revision, expectedTurnKey: "pick-map-1",
+      command: { kind: "step", actionType: "pick", mapName: "de_ancient" },
+    })));
+  });
+  it("discards an unconfirmed map choice when a refreshed revision advances the turn", async () => {
+    const room = roomFixture();
+    const next = structuredClone(room);
+    next.session.revision += 1;
+    next.session.currentTurnAction = "pick";
+    next.session.currentTurnKey = "pick-map-1";
+    actionMocks.readVetoRoom.mockResolvedValue(ok(next));
+    render(<VetoRoom initialRoom={room} />);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "禁用 Ancient" }));
+    await user.click(screen.getByRole("button", { name: "更新 BP 信息" }));
+    expect(await screen.findByText("当前阶段：选取地图")).toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: "确认禁用地图" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "确认选取 Ancient" })).not.toBeInTheDocument();
+    expect(actionMocks.performVetoRoomCommand).not.toHaveBeenCalled();
+  });
+  it("makes waiting for the other team explicit and exposes no map command", () => {
+    const room = roomFixture();
+    room.permissions.canOperateCurrentTurn = false;
+    room.session.currentTurnEntryId = room.entries[1]!.id;
+    render(<VetoRoom initialRoom={room} />);
+    expect(screen.getByText("等待Beta操作，你当前不可操作")).toBeInTheDocument();
+    expect(screen.queryByTestId("veto-primary-actions")).not.toBeInTheDocument();
+  });
+  it("names side selection and retains its CT/T action", async () => {
+    const room = roomFixture();
+    room.session.currentTurnAction = "side_pick";
+    room.session.currentTurnKey = "side-map-1";
+    actionMocks.performVetoRoomCommand.mockResolvedValue(ok({ outcome: "applied", room }));
+    render(<VetoRoom initialRoom={room} />);
+    expect(screen.getByText("当前阶段：选择起始方")).toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole("button", { name: "CT 开局" }));
+    expect(actionMocks.performVetoRoomCommand).toHaveBeenCalledWith(expect.objectContaining({ command: { kind: "step", actionType: "side_pick", side: "ct" } }));
+  });
+  it("disables map choices when the existing deadline has elapsed", () => {
+    const room = roomFixture();
+    room.session.turnDeadlineAt = new Date(Date.now() - 1000).toISOString();
+    render(<VetoRoom initialRoom={room} />);
+    expect(screen.getByRole("button", { name: "禁用 Ancient" })).toBeDisabled();
+    expect(screen.getByText("本轮已到时，等待状态更新")).toBeInTheDocument();
+    expect(actionMocks.performVetoRoomCommand).not.toHaveBeenCalled();
+  });
+  it("returns keyboard focus to the selected map when confirmation is cancelled", async () => {
+    render(<VetoRoom initialRoom={roomFixture()} />);
+    const user = userEvent.setup();
+    const choice = screen.getByRole("button", { name: "禁用 Ancient" });
+    choice.focus();
+    await user.keyboard("{Enter}");
+    expect(screen.getByRole("button", { name: "确认禁用 Ancient" })).toHaveFocus();
+    await user.click(screen.getByRole("button", { name: /^取消$/ }));
+    expect(choice).toHaveFocus();
+    expect(actionMocks.performVetoRoomCommand).not.toHaveBeenCalled();
+  });
+});
