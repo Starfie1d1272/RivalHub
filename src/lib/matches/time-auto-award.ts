@@ -3,19 +3,13 @@ import "server-only";
 
 import { writeAuditInTx } from "@/lib/audit/write";
 
-import { and, eq, isNotNull, isNull, lte } from "drizzle-orm";
+import { and, eq, isNotNull, lte } from "drizzle-orm";
 import { db } from "@/db/client";
 import { matchTimeProposals, matches, seasons } from "@/db/schema";
-import {
-  TIME_CONFIRMATION_BUFFER_HOURS,
-  getTimeConfirmationCutoff,
-  getTimeBufferHoursForStage,
-} from "@/lib/matches/time-rules";
+import { PROPOSAL_RESPONSE_HOURS, canAutoAcceptProposal } from "@/lib/matches/time-rules";
 
-import { allocateHeldCoverageInTx } from "./coverage";
+import { allocateHeldCoverageInTx, releaseMatchCoverageHoldInTx } from "./coverage";
 import { materializeDefaultLineupsInTx } from "@/lib/match-rosters/service";
-
-const PROPOSAL_AUTO_ACCEPT_HOURS = 24;
 
 export interface MatchTimeAutoAwardCronSummary {
   processed: number;
@@ -40,51 +34,7 @@ export async function runMatchTimeAutoAwardCron(
   }
   const proposalTimeoutResult = await autoAcceptExpiredProposals(now);
 
-  const cutoffThreshold = new Date(
-    now.getTime() + TIME_CONFIRMATION_BUFFER_HOURS * 60 * 60 * 1000,
-  );
-
-  const candidateMatches = await db.query.matches.findMany({
-    where: and(
-      eq(matches.status, "scheduled"),
-      isNull(matches.scheduledAt),
-      isNotNull(matches.completionDeadline),
-      lte(matches.completionDeadline, cutoffThreshold),
-    ),
-  });
-
-  const settled = await Promise.allSettled(
-    candidateMatches.map(async (match) => {
-      const result = await autoAwardMatchTime(match.id, now);
-      return { matchId: match.id, result };
-    }),
-  );
-
-  let awarded = proposalTimeoutResult.awarded;
-  let skipped = proposalTimeoutResult.skipped;
-  let failed = proposalTimeoutResult.failed;
-  const affectedMatches = [...proposalTimeoutResult.affectedMatches];
-  for (const item of settled) {
-    if (item.status === "rejected") {
-      failed += 1;
-      continue;
-    }
-    const { matchId, result } = item.value;
-    if (result.awarded) {
-      awarded += 1;
-      affectedMatches.push({ seasonSlug: result.seasonSlug, matchId });
-    } else {
-      skipped += 1;
-    }
-  }
-
-  return {
-    processed: candidateMatches.length + proposalTimeoutResult.processed,
-    awarded,
-    skipped,
-    failed,
-    affectedMatches,
-  };
+  return proposalTimeoutResult;
 }
 
 async function autoAcceptExpiredProposals(
@@ -97,7 +47,7 @@ async function autoAcceptExpiredProposals(
   affectedMatches: Array<{ seasonSlug: string; matchId: string }>;
 }> {
   const expiredBefore = new Date(
-    now.getTime() - PROPOSAL_AUTO_ACCEPT_HOURS * 60 * 60 * 1000,
+    now.getTime() - PROPOSAL_RESPONSE_HOURS * 60 * 60 * 1000,
   );
 
   const expiredProposals = await db.query.matchTimeProposals.findMany({
@@ -140,14 +90,6 @@ async function autoAcceptSingleProposal(
     const [match] = await tx.select().from(matches).where(eq(matches.id, matchId)).for("update");
     if (!match) return { awarded: false, matchId };
     assertCompetitionMatch(match);
-    if (match.status !== "scheduled" || match.scheduledAt) {
-      await tx
-        .update(matchTimeProposals)
-        .set({ status: "expired", updatedAt: now })
-        .where(eq(matchTimeProposals.id, proposalId));
-      return { awarded: false, matchId };
-    }
-
     const proposal = await tx.query.matchTimeProposals.findFirst({
       where: and(
         eq(matchTimeProposals.id, proposalId),
@@ -155,6 +97,17 @@ async function autoAcceptSingleProposal(
       ),
     });
     if (!proposal) return { awarded: false, matchId };
+    // Read pending under the same match lock as every participant/admin mutation.
+    if (match.status !== "scheduled" || proposal.proposedTime <= now ||
+        (match.completionDeadline && proposal.proposedTime > match.completionDeadline)) {
+      await tx.update(matchTimeProposals).set({ status: "expired", updatedAt: now })
+        .where(and(eq(matchTimeProposals.id, proposalId), eq(matchTimeProposals.status, "pending")));
+      await releaseMatchCoverageHoldInTx(tx, matchId, now);
+      return { awarded: false, matchId };
+    }
+    // An existing schedule stays valid. A delayed cron may also have missed
+    // the safe notice window; either case still requires explicit consent.
+    if (!canAutoAcceptProposal(match, proposal, now)) return { awarded: false, matchId };
 
     await tx
       .update(matchTimeProposals)
@@ -194,70 +147,5 @@ async function autoAcceptSingleProposal(
     return season
       ? { awarded: true, matchId, seasonSlug: season.slug }
       : { awarded: false, matchId };
-  });
-}
-
-async function autoAwardMatchTime(
-  matchId: string,
-  now: Date,
-): Promise<{ awarded: true; seasonSlug: string } | { awarded: false }> {
-  return db.transaction(async (tx) => {
-    const [match] = await tx.select().from(matches).where(eq(matches.id, matchId)).for("update");
-    if (!match || !match.seasonId || match.status !== "scheduled" || match.scheduledAt || !match.completionDeadline) {
-      return { awarded: false };
-    }
-
-    assertCompetitionMatch(match);
-    const season = await tx.query.seasons.findFirst({
-      where: eq(seasons.id, match.seasonId),
-    });
-    const bufferHours = getTimeBufferHoursForStage(season?.stagePlan, match.stage);
-    const cutoff = getTimeConfirmationCutoff(match.completionDeadline, bufferHours);
-    if (!cutoff || now.getTime() < cutoff.getTime()) {
-      return { awarded: false };
-    }
-
-    const proposal = await tx.query.matchTimeProposals.findFirst({
-      where: and(
-        eq(matchTimeProposals.matchId, match.id),
-        eq(matchTimeProposals.status, "pending"),
-      ),
-      orderBy: (tps, { asc }) => [asc(tps.createdAt)],
-    });
-    if (!proposal || !season) {
-      return { awarded: false };
-    }
-
-    await allocateHeldCoverageInTx(tx, matchId, proposal.proposedTime, now);
-    await tx
-      .update(matches)
-      .set({ scheduledAt: proposal.proposedTime, updatedAt: now })
-      .where(eq(matches.id, match.id));
-    await tx
-      .update(matchTimeProposals)
-      .set({ status: "expired", updatedAt: now })
-      .where(
-        and(
-          eq(matchTimeProposals.matchId, match.id),
-          eq(matchTimeProposals.status, "pending"),
-        ),
-      );
-    await tx
-      .update(matchTimeProposals)
-      .set({ status: "accepted", resolution: "auto_cutoff", responseAt: now, updatedAt: now })
-      .where(eq(matchTimeProposals.id, proposal.id));
-
-    await writeAuditInTx(tx, {
-      seasonId: match.seasonId,
-      action: "match.auto_award_time",
-      actorId: "system",
-      targetId: match.id,meta: {
-        proposalId: proposal.id,
-        proposedBy: proposal.proposedBy,
-        scheduledAt: proposal.proposedTime.toISOString(),
-      },
-    });
-
-    return { awarded: true, seasonSlug: season.slug };
   });
 }

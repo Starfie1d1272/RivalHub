@@ -11,9 +11,7 @@ import { requireAuth, requireSeasonAdmin } from "@/lib/auth/session";
 import { getMatchOrThrow, getSeasonOrThrow, actionError } from "@/lib/action-utils";
 import { revalidateMatchPaths } from "@/lib/revalidation";
 import {
-  assertBeforeTimeConfirmationCutoff,
   assertProposedTimeFitsDeadline,
-  getTimeBufferHoursForStage,
 } from "@/lib/matches/time-rules";
 import { getEntryIdForRepresentative } from "./_shared";
 import { holdCoverageInTx, allocateHeldCoverageInTx, releaseMatchCoverageHoldInTx, releaseMatchCoverageInTx } from "@/lib/matches/coverage";
@@ -33,11 +31,9 @@ export async function proposeMatchTime(
     const match = await getMatchOrThrow(matchId);
 
     if (match.status !== "scheduled") {
-      throw new AppError(ErrorCode.VALIDATION_FAILED, "只能在 scheduled 状态下提议时间");
+      throw new AppError(ErrorCode.VALIDATION_FAILED, "只能为尚未开始的比赛提议时间");
     }
     const season = await getSeasonOrThrow(match.seasonId);
-    const bufferHours = getTimeBufferHoursForStage(season.stagePlan, match.stage);
-    assertBeforeTimeConfirmationCutoff(match.completionDeadline, bufferHours);
     assertProposedTimeFitsDeadline(proposedTime, match.completionDeadline);
 
     if (!(await getEntryIdForRepresentative(session.userId, match))) {
@@ -47,8 +43,12 @@ export async function proposeMatchTime(
     const proposal = await db.transaction(async tx => {
       const locked = await lockMatchInTx(tx, matchId);
       if (locked.status !== "scheduled") throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "比赛已经开始，不能更改时间。");
-      const [currentSeason] = await tx.select().from(seasons).where(eq(seasons.id, locked.seasonId));
-      assertBeforeTimeConfirmationCutoff(locked.completionDeadline, getTimeBufferHoursForStage(currentSeason?.stagePlan, locked.stage));
+      const [representative] = await tx.select({ id: competitionEntries.id }).from(competitionEntries).where(and(
+        eq(competitionEntries.competitionId, locked.seasonId),
+        eq(competitionEntries.representativeUserId, session.userId),
+        or(eq(competitionEntries.id, locked.entryAId), eq(competitionEntries.id, locked.entryBId)),
+      ));
+      if (!representative) throw new AppError(ErrorCode.FORBIDDEN, "只有本届队长可以提议时间");
       assertProposedTimeFitsDeadline(proposedTime, locked.completionDeadline);
       await tx.update(matchTimeProposals).set({ status: "expired", updatedAt: new Date() }).where(and(eq(matchTimeProposals.matchId, matchId), eq(matchTimeProposals.status, "pending")));
       if (coverageSlotId) await holdCoverageInTx(tx, locked, coverageSlotId, proposedTime);
@@ -89,8 +89,6 @@ export async function respondToTimeProposal(
       if (proposal.status !== "pending") throw new AppError(ErrorCode.VALIDATION_FAILED, "提议已失效");
       const [season] = await tx.select().from(seasons).where(eq(seasons.id, match.seasonId));
       if (!season) throw new AppError(ErrorCode.SEASON_NOT_FOUND, "赛季不存在");
-      const bufferHours = getTimeBufferHoursForStage(season.stagePlan, match.stage);
-      assertBeforeTimeConfirmationCutoff(match.completionDeadline, bufferHours);
       if (action === "accept") assertProposedTimeFitsDeadline(proposal.proposedTime, match.completionDeadline);
       if (proposal.proposedBy === session.userId) throw new AppError(ErrorCode.FORBIDDEN, "不能回应自己的提议");
       const [captain] = await tx.select({ id: competitionEntries.id }).from(competitionEntries).where(and(

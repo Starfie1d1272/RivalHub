@@ -13,6 +13,7 @@ import {
   eventRosterMembers,
   eventRosters,
   matches,
+  matchTimeProposals,
   seasons,
 } from "@/db/schema";
 import {
@@ -25,6 +26,7 @@ import {
   type CompetitionEntryParticipantStatus,
   type CompetitionEntryRegistrationStatus,
 } from "@/lib/competition-entries/presentation";
+import { projectMatchScheduling } from "@/lib/matches/time-rules";
 import { presentPersonalMatchTask, type PersonalMatchTask } from "@/lib/matches/presentation";
 import { normalizeTeamRegistrationConfig } from "@/lib/seasons/compatibility";
 import type { SeasonStatus } from "@/types/season";
@@ -62,6 +64,9 @@ export interface MyCompetitionNextMatch {
   opponentName: string;
   scheduledAt: Date | null;
   status: "scheduled" | "in_progress";
+  scheduling?: ReturnType<typeof projectMatchScheduling>;
+  isRepresentative?: boolean;
+  pendingIsMine?: boolean;
 }
 
 export interface MyCompetitionContext {
@@ -203,15 +208,23 @@ export async function loadMyCompetitionNextMatches(userId: string): Promise<Map<
     .innerJoin(eventRosters, eq(eventRosters.id, eventRosterMembers.eventRosterId))
     .innerJoin(competitionEntries, eq(competitionEntries.id, eventRosters.entryId))
     .innerJoin(seasons, eq(seasons.id, competitionEntries.competitionId))
+    .innerJoin(competitionEntryParticipants, eq(competitionEntryParticipants.id, eventRosterMembers.participantId))
     .where(and(
       eq(eventRosterMembers.userId, userId),
       eq(eventRosterMembers.isCurrent, true),
-      eq(seasons.status, "playing"),
+      inArray(seasons.status, ["registration", "voting", "drafting", "playing"]),
+      eq(competitionEntryParticipants.status, "confirmed"),
       inArray(eventRosters.status, ["confirmed", "frozen"]),
     ));
 
+  const representatives = await db.select({
+    entryId: competitionEntries.id, seasonId: seasons.id, seasonSlug: seasons.slug,
+  }).from(competitionEntries).innerJoin(seasons, eq(seasons.id, competitionEntries.competitionId))
+    .where(and(eq(competitionEntries.representativeUserId, userId),
+      inArray(seasons.status, ["registration", "voting", "drafting", "playing"])));
+  const representativeIds = new Set(representatives.map(row => row.entryId));
   const entryContexts = new Map<string, { seasonId: string; seasonSlug: string }>();
-  for (const row of rosterRows) {
+  for (const row of [...rosterRows, ...representatives]) {
     entryContexts.set(row.entryId, { seasonId: row.seasonId, seasonSlug: row.seasonSlug });
   }
   if (entryContexts.size === 0) return new Map();
@@ -227,6 +240,7 @@ export async function loadMyCompetitionNextMatches(userId: string): Promise<Map<
       entryAId: matches.entryAId,
       entryBId: matches.entryBId,
       scheduledAt: matches.scheduledAt,
+      completionDeadline: matches.completionDeadline,
     })
     .from(matches)
     .where(and(officialMatchCondition(), and(
@@ -260,6 +274,11 @@ export async function loadMyCompetitionNextMatches(userId: string): Promise<Map<
     .from(competitionEntries)
     .where(inArray(competitionEntries.id, opponentIds));
   const opponentNames = new Map(opponents.map((opponent) => [opponent.id, opponent.name]));
+  const proposalRows = await db.select().from(matchTimeProposals).where(and(
+    inArray(matchTimeProposals.matchId, validMatches.map(({ match }) => match.id)),
+    eq(matchTimeProposals.status, "pending"),
+  ));
+  const proposals = new Map(proposalRows.map(row => [row.matchId, row]));
   const result = new Map<string, MyCompetitionNextMatch>();
   for (const candidate of validMatches) {
     if (result.has(candidate.ownEntryId)) continue;
@@ -272,6 +291,9 @@ export async function loadMyCompetitionNextMatches(userId: string): Promise<Map<
       opponentName,
       scheduledAt: candidate.match.scheduledAt,
       status: candidate.match.status === "in_progress" ? "in_progress" : "scheduled",
+      scheduling: projectMatchScheduling(candidate.match, proposals.get(candidate.match.id) ?? null),
+      isRepresentative: representativeIds.has(candidate.ownEntryId),
+      pendingIsMine: proposals.get(candidate.match.id)?.proposedBy === userId,
     });
   }
   return result;
@@ -301,12 +323,17 @@ export function projectMyCompetitionContext(
         opponentName: nextMatch.opponentName,
         scheduledAt: nextMatch.scheduledAt,
         status: nextMatch.status,
+        scheduling: nextMatch.scheduling,
+        isRepresentative: nextMatch.isRepresentative,
+        pendingIsMine: nextMatch.pendingIsMine,
       })
     : undefined;
 
   let primaryAction: MyCompetitionAction;
   if (source.seasonStatus === "finished" || source.seasonStatus === "archived") {
     primaryAction = { href: seasonHref, label: "赛事回顾" };
+  } else if (matchTask) {
+    primaryAction = { href: matchTask.href, label: matchTask.title };
   } else if (source.seasonStatus === "registration" && isRepresentative && source.registrationStatus === "draft") {
     primaryAction = { href: registrationHref, label: "继续报名" };
   } else if (source.seasonStatus === "registration" && isRepresentative && source.registrationStatus === "changes_requested") {
@@ -316,8 +343,6 @@ export function projectMyCompetitionContext(
     };
   } else if (source.seasonStatus === "registration" && viewerRole === "participant" && source.participantStatus === "invited") {
     primaryAction = { href: registrationHref, label: "确认是否参赛" };
-  } else if (source.seasonStatus === "playing" && matchTask) {
-    primaryAction = { href: matchTask.href, label: matchTask.title };
   } else if (source.seasonStatus === "playing") {
     primaryAction = { href: seasonHref, label: "查看赛事" };
   } else if (viewerRole === "team_member") {

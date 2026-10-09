@@ -1,43 +1,46 @@
 import { AppError, ErrorCode } from "@/lib/errors";
-import { getStageByKey } from "@/lib/seasons/compatibility";
-import type { StagePlan } from "@/types/season";
 
-export const TIME_CONFIRMATION_BUFFER_HOURS = 24;
+export const PROPOSAL_RESPONSE_HOURS = 24;
+export const AUTO_ACCEPT_NOTICE_HOURS = 2;
+const HOUR_MS = 60 * 60_000;
 
-/**
- * 根据比赛所属阶段返回协商缓冲小时数。
- * 排位赛通常给较长窗口（默认 24h 缓冲，方便补打），正赛阶段窗口紧，取消缓冲。
- */
-export function getTimeBufferHoursForStage(
-  stagePlan: StagePlan | null | undefined,
-  stageKey: string,
-): number {
-  const stage = getStageByKey(stagePlan, stageKey);
-  if (!stage) return TIME_CONFIRMATION_BUFFER_HOURS;
-  if (stage.type === "double_elim" || stage.type === "single_elim") return 0;
-  return TIME_CONFIRMATION_BUFFER_HOURS;
+export interface SchedulingFacts {
+  status: string;
+  scheduledAt: Date | null;
+  completionDeadline: Date | null;
+}
+export interface PendingTimeProposal {
+  createdAt: Date;
+  proposedTime: Date;
 }
 
-export function getTimeConfirmationCutoff(
-  completionDeadline: Date | null,
-  bufferHours: number = TIME_CONFIRMATION_BUFFER_HOURS,
+/** Runtime safety shared by the worker and read-only scheduling projections. */
+export function getProposalAutoAcceptAt(
+  match: SchedulingFacts,
+  proposal: PendingTimeProposal,
 ): Date | null {
-  if (!completionDeadline) return null;
-  return new Date(completionDeadline.getTime() - bufferHours * 60 * 60 * 1000);
+  if (match.status !== "scheduled" || match.scheduledAt) return null;
+  const dueAt = new Date(proposal.createdAt.getTime() + PROPOSAL_RESPONSE_HOURS * HOUR_MS);
+  if (proposal.proposedTime.getTime() < dueAt.getTime() + AUTO_ACCEPT_NOTICE_HOURS * HOUR_MS) return null;
+  if (match.completionDeadline && proposal.proposedTime > match.completionDeadline) return null;
+  return dueAt;
 }
 
-export function assertBeforeTimeConfirmationCutoff(
-  completionDeadline: Date | null,
-  bufferHours: number = TIME_CONFIRMATION_BUFFER_HOURS,
-  now = new Date(),
-): void {
-  const cutoff = getTimeConfirmationCutoff(completionDeadline, bufferHours);
-  if (cutoff && now.getTime() >= cutoff.getTime()) {
-    throw new AppError(
-      ErrorCode.VALIDATION_FAILED,
-      "时间协商已截止，请联系管理员指定比赛时间",
-    );
-  }
+export function canAutoAcceptProposal(match: SchedulingFacts, proposal: PendingTimeProposal, now: Date): boolean {
+  const dueAt = getProposalAutoAcceptAt(match, proposal);
+  return dueAt !== null && now >= dueAt &&
+    proposal.proposedTime.getTime() >= now.getTime() + AUTO_ACCEPT_NOTICE_HOURS * HOUR_MS;
+}
+
+export function projectMatchScheduling(match: SchedulingFacts, pending: PendingTimeProposal | null, now = new Date()) {
+  const active = match.status === "scheduled";
+  const validPending = active && pending && pending.proposedTime > now &&
+    (!match.completionDeadline || pending.proposedTime <= match.completionDeadline) ? pending : null;
+  return {
+    state: !active ? "inactive" : validPending ? (match.scheduledAt ? "reschedule_pending" : "pending") : match.scheduledAt ? "confirmed" : "unproposed",
+    pending: validPending,
+    autoAcceptAt: validPending ? getProposalAutoAcceptAt(match, validPending) : null,
+  } as const;
 }
 
 export function assertProposedTimeFitsDeadline(

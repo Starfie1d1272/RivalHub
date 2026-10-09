@@ -2,6 +2,26 @@ import type { StatusPresentation } from "@/lib/presentation";
 import type { MatchFormat, MatchStatus } from "@/types/match";
 import { isHttpUrl } from "@/lib/external-url";
 
+import type { StagePlan } from "@/types/season";
+import { MATCH_STAGE_LABELS } from "@/types/match";
+import type { projectMatchScheduling } from "./time-rules";
+import { formatCST } from "@/lib/utils/date";
+
+export function presentMatchStage(stage: string, stagePlan?: StagePlan | null): string {
+  return stage === "play-in" ? "PLAY-IN" : stagePlan?.find(item => item.key === stage)?.name ?? MATCH_STAGE_LABELS[stage] ?? "比赛阶段";
+}
+
+export function presentSchedulingAction(state: ReturnType<typeof projectMatchScheduling>["state"], pendingIsMine = false): string {
+  switch (state) {
+    case "unproposed": return "发起比赛时间提议";
+    case "pending": return pendingIsMine ? "等待对方回应" : "确认比赛时间";
+    case "reschedule_pending": return pendingIsMine ? "改期待对方回应" : "回应改期提议";
+    case "confirmed": return "赛前准备";
+    case "inactive": return "查看比赛";
+  }
+}
+
+
 const MATCH_STATUS_PRESENTATIONS: Record<MatchStatus, StatusPresentation> = {
   scheduled: { label: "待进行", tone: "neutral" },
   in_progress: { label: "进行中", tone: "accent" },
@@ -22,7 +42,7 @@ export function presentMatchStatus(status: MatchStatus, options?: { isForfeit?: 
 }
 
 export interface PersonalMatchTask {
-  title: "你的当前比赛" | "你的下一场";
+  title: string;
   detail: string;
   href: string;
 }
@@ -33,11 +53,17 @@ export function presentPersonalMatchTask(input: {
   opponentName: string;
   scheduledAt: Date | null;
   status?: "scheduled" | "in_progress";
+  scheduling?: ReturnType<typeof projectMatchScheduling>;
+  isRepresentative?: boolean;
+  pendingIsMine?: boolean;
 }): PersonalMatchTask {
+  const scheduling = input.scheduling;
+  const scheduleDetail = scheduling?.state === "reschedule_pending" ? "改期待回应" :
+    input.scheduledAt ? formatCST(input.scheduledAt) : presentMatchStatus(input.status ?? "scheduled", { scheduledAt: input.scheduledAt }).label;
   return {
-    title: input.status === "in_progress" ? "你的当前比赛" : "你的下一场",
-    detail: `对阵 ${input.opponentName} · ${presentMatchStatus(input.status ?? "scheduled", { scheduledAt: input.scheduledAt }).label}`,
-    href: `/${input.seasonSlug}/matches/${input.matchId}`,
+    title: input.status === "in_progress" ? "你的当前比赛" : input.isRepresentative && scheduling ? presentSchedulingAction(scheduling.state, input.pendingIsMine) : "你的下一场",
+    detail: `对阵 ${input.opponentName} · ${scheduling ? [scheduling.state === "reschedule_pending" && input.scheduledAt ? formatCST(input.scheduledAt) : null, scheduleDetail].filter(Boolean).join(" · ") : presentMatchStatus(input.status ?? "scheduled", { scheduledAt: input.scheduledAt }).label}`,
+    href: `/${input.seasonSlug}/matches/${input.matchId}${input.isRepresentative && input.status !== "in_progress" ? "?scheduling=1" : ""}`,
   };
 }
 

@@ -10,22 +10,7 @@ import { Label } from "@/components/ui/label";
 import { formatCST, parseCSTInput, toCSTDateTimeInput } from "@/lib/utils/date";
 import type { MatchTimeProposalView } from "@/lib/matches/time-proposals";
 
-const PROPOSAL_AUTO_ACCEPT_HOURS = 24;
-
-/** 推荐有解说覆盖的时间段（按 Asia/Shanghai 当地时间）。 */
-const CASTER_SLOTS: readonly { start: number; end: number }[] = [
-  { start: 14, end: 17 }, // 14:00 – 17:00
-  { start: 19, end: 22 }, // 19:00 – 22:00
-];
-
-/** 判断给定时间（北京时间起点）是否落在推荐解说时段内。 */
-function isWithinCasterSlot(date: Date | null): boolean {
-  if (!date || Number.isNaN(date.getTime())) return false;
-  // 用东八区小时数判断；Date 内部是 UTC，加偏移得到 CST 小时。
-  const cstHour = (date.getUTCHours() + 8) % 24;
-  return CASTER_SLOTS.some((slot) => cstHour >= slot.start && cstHour < slot.end);
-}
-
+import { projectMatchScheduling } from "@/lib/matches/time-rules";
 interface MatchTimeNegotiationProps {
   matchId: string;
   isCaptainA: boolean;
@@ -35,8 +20,6 @@ interface MatchTimeNegotiationProps {
   currentCompletionDeadline: Date | null;
   initialProposals: MatchTimeProposalView[];
   hasSubmittedRoster: boolean;
-  /** 协商缓冲小时数，排位赛默认 24，正赛 0。决定 confirmationCutoff = completionDeadline - bufferHours。 */
-  bufferHours?: number;
 }
 
 export function MatchTimeNegotiation({
@@ -48,10 +31,7 @@ export function MatchTimeNegotiation({
   currentCompletionDeadline,
   initialProposals,
   hasSubmittedRoster = false,
-  bufferHours = 24,
 }: MatchTimeNegotiationProps) {
-  // 0 缓冲（=与最晚完成时间一致）目前仅正赛使用，沿用作为是否显示解说时段提示的判据。
-  const isPlayoff = bufferHours === 0;
   const [isPending, startTransition] = useTransition();
   const [now, setNow] = useState(() => Date.now());
   const [proposedTime, setProposedTime] = useState("");
@@ -64,7 +44,7 @@ export function MatchTimeNegotiation({
     ? new Date(currentCompletionDeadline)
     : null;
   const confirmationCutoffTime = completionDeadline
-    ? completionDeadline.getTime() - bufferHours * 60 * 60 * 1000
+    ? completionDeadline.getTime()
     : null;
   const confirmationCutoff = confirmationCutoffTime === null
     ? null
@@ -88,12 +68,12 @@ export function MatchTimeNegotiation({
     };
   }, [confirmationCutoffTime, pendingProposals.length]);
 
-  // 检测被系统自动采纳的提议
-  const autoAcceptedProposal = initialProposals.find((p) => {
-    if (p.status !== "accepted" || !p.responseAt) return false;
-    const elapsed = new Date(p.responseAt).getTime() - new Date(p.createdAt).getTime();
-    return elapsed >= PROPOSAL_AUTO_ACCEPT_HOURS * 60 * 60 * 1000 - 1800_000; // 23.5h+
-  });
+  const autoAcceptedProposal = initialProposals.find(p =>
+    p.status === "accepted" && (p.resolution === "auto_timeout" || p.resolution === "auto_cutoff") &&
+    currentScheduledAt && new Date(p.proposedTime).getTime() === new Date(currentScheduledAt).getTime());
+  const selectedTime = proposedTime ? parseCSTInput(proposedTime) : null;
+  const shortNotice = (time: Date | null) => time && time.getTime() > now && time.getTime() < now + 2 * 60 * 60_000;
+  const shortNoticeHint = "若需使用非预定主力，请先提交双方本场首发和 BP 负责人再确认时间；如未提交，系统将尝试采用已审核的预定主力。排期确认后临时换人须联系管理员。";
 
   const handlePropose = () => {
     if (!proposedTime) return;
@@ -143,9 +123,9 @@ export function MatchTimeNegotiation({
     <div className="space-y-4">
       {isCaptain && !hasSubmittedRoster && (
         <div className="rounded border p-3" style={{ borderColor: "var(--color-warn-edge)", background: "var(--color-warn-soft)" }}>
-          <p className="text-sm text-[var(--color-fg)]">请先提交赛前名单</p>
+          <p className="text-sm text-[var(--color-fg)]">请尽早提交本场首发及 BP 负责人</p>
           <p className="text-xs text-[var(--color-fg-dim)] mt-1">
-            在确认比赛时间之前，请先在「提交名单」中选择 5 名首发队员。裁判在正式开赛时会检查队员信息，队员不正确将无法进行比赛。
+            可先协商比赛时间；请尽量在开赛两小时前提交首发及 BP 负责人，否则系统将尝试从本届合法的预定主力自动生成。名单不符合资格时需联系管理员处理。
           </p>
         </div>
       )}
@@ -163,7 +143,7 @@ export function MatchTimeNegotiation({
         <div className="rounded border p-3 text-sm" style={{ borderColor: "var(--color-ok-edge)", background: "var(--color-ok-soft)" }}>
           <p className="font-medium text-[var(--color-fg)]">比赛时间已自动设定</p>
           <p className="text-xs text-[var(--color-fg-dim)] mt-0.5">
-            对方 24 小时内未回应，比赛时间已按提议自动采纳为 {formatCST(autoAcceptedProposal.proposedTime)}。
+            {autoAcceptedProposal.resolution === "auto_timeout" ? "对方完整 24 小时未回应，系统自动采纳" : "按当时的截止政策自动确定"}为 {formatCST(autoAcceptedProposal.proposedTime)}。
           </p>
         </div>
       )}
@@ -176,13 +156,12 @@ export function MatchTimeNegotiation({
           </p>
           {pendingProposals.map((proposal) => {
             const isMyProposal = proposal.isMine;
-            const autoAcceptAt = new Date(
-              new Date(proposal.createdAt).getTime() + PROPOSAL_AUTO_ACCEPT_HOURS * 60 * 60 * 1000,
-            );
-            const hoursLeft = Math.max(
-              0,
-              Math.round((autoAcceptAt.getTime() - now) / (60 * 60 * 1000) * 10) / 10,
-            );
+            const scheduling = projectMatchScheduling({
+              status: "scheduled", scheduledAt: currentScheduledAt ? new Date(currentScheduledAt) : null, completionDeadline,
+            }, { createdAt: new Date(proposal.createdAt), proposedTime: new Date(proposal.proposedTime) }, new Date(now));
+            const autoAcceptAt = scheduling.autoAcceptAt;
+            const canStillAutoAccept = autoAcceptAt && new Date(proposal.proposedTime).getTime() >= now + 2 * 60 * 60_000;
+            const hoursLeft = autoAcceptAt ? Math.max(0, Math.round((autoAcceptAt.getTime() - now) / 3_600_000 * 10) / 10) : 0;
 
             return (
               <div
@@ -200,20 +179,21 @@ export function MatchTimeNegotiation({
                     </p>
                     <p className="text-xs text-[var(--color-fg-dim)] mt-0.5">
                       提议于 {formatCST(proposal.createdAt)}
-                      {hoursLeft > 0
-                        ? ` · ${hoursLeft}h 后自动采纳`
-                        : " · 即将自动采纳"}
+                      {currentScheduledAt ? " · 改期须对方明确接受，原定时间继续有效" :
+                        canStillAutoAccept ? (hoursLeft > 0 ? ` · ${hoursLeft}h 后具备自动采纳资格` : " · 等待系统安全校验后自动采纳") :
+                        scheduling.pending ? " · 需双方明确确认或联系管理员" : " · 提议时间已失效，请重新提议"}
                     </p>
                   </div>
                 </div>
 
+                {!proposal.isMine && shortNotice(new Date(proposal.proposedTime)) && <p className="mt-2 text-xs text-[var(--color-warn)]">{shortNoticeHint}</p>}
                 {/* 对方的提议才能接受/拒绝 */}
                 {!isMyProposal && isCaptain && (
                   <div className="mt-2 flex gap-2 flex-wrap">
                     <Button
                       size="sm"
                       onClick={() => handleRespond(proposal.id, "accept")}
-                      disabled={isPending || isNegotiationClosed}
+                      disabled={isPending || isNegotiationClosed || !scheduling.pending}
                     >
                       接受
                     </Button>
@@ -272,13 +252,7 @@ export function MatchTimeNegotiation({
               提议
             </Button>
           </div>
-          {isPlayoff &&
-            proposedTime &&
-            !isWithinCasterSlot(parseCSTInput(proposedTime)) && (
-              <p className="text-xs text-[var(--color-warn)]">
-                所选时间在推荐解说时段外，比赛可正常进行，但不保证有官方解说。
-              </p>
-            )}
+          {shortNotice(selectedTime) && <p className="text-xs text-[var(--color-warn)]">{shortNoticeHint}</p>}
         </div>
       )}
 
@@ -289,18 +263,11 @@ export function MatchTimeNegotiation({
         </div>
         <div>
           协商截止时间：
-          {confirmationCutoff
-            ? `${formatCST(confirmationCutoff)}${bufferHours > 0 ? `（最晚完成时间前 ${bufferHours} 小时）` : "（与最晚完成时间一致）"}`
-            : "设置最晚完成时间后自动生成"}
+          {confirmationCutoff ? formatCST(confirmationCutoff) : "未设置；计划开赛须为未来时间"}
         </div>
-        <div>
-          单条提议超时：对方 24 小时未回应将自动采纳
-        </div>
-        {isPlayoff && (
-          <div className="mt-1 text-[var(--color-fg)]">
-            推荐解说时段：每天 14:00–17:00 / 19:00–22:00（有官方解说覆盖）；可在此之外协商时间，但不保证解说。
-          </div>
-        )}
+        <div>首次排期：完整 24 小时未回应，且自动采纳时距开赛至少 2 小时，才可自动采纳。</div>
+        <div>双方可随时确认合法的未来时间；改期须明确接受，原定时间继续有效。</div>
+        <div>解说安排请查看本场已登记解说；排期不保证官方解说覆盖。</div>
         {isNegotiationClosed && (
           <div className="mt-1 text-[var(--color-danger)]">
             队长时间协商已截止，请联系管理员指定比赛时间。

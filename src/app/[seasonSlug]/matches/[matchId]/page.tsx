@@ -47,7 +47,8 @@ import { MatchSummaryStats, type SummaryPlayer } from "@/components/matches/Matc
 import { PlayerStatsTable } from "@/components/matches/PlayerStatsTable";
 import { getMatchMvpResults } from "@/actions/player-stats";
 import { getMatchTimeProposalViews } from "@/lib/matches/time-proposals";
-import { getTimeBufferHoursForStage } from "@/lib/matches/time-rules";
+import { projectMatchScheduling } from "@/lib/matches/time-rules";
+import { presentMatchStage, presentSchedulingAction } from "@/lib/matches/presentation";
 import { getMatchRoster } from "@/actions/matches/roster";
 import { getUserSession, requireSeasonAdmin } from "@/lib/auth/session";
 import { isExpectedAuthFailure } from "@/lib/errors";
@@ -72,7 +73,7 @@ import { PlayerWorkspace } from "@/components/stats/players/PlayerWorkspace";
 
 interface MatchDetailPageProps {
   params: Promise<{ seasonSlug: string; matchId: string }>;
-  searchParams: Promise<{ statsPlayer?: string; statsMap?: string }>;
+  searchParams: Promise<{ statsPlayer?: string; statsMap?: string; scheduling?: string }>;
 }
 
 export async function generateMetadata({ params }: MatchDetailPageProps): Promise<Metadata> {
@@ -331,6 +332,7 @@ export default async function MatchDetailPage({ params, searchParams }: MatchDet
       <MatchContextRefresh enabled={match.status === "scheduled" || match.status === "in_progress"} />
       <MatchHeroHeader
         seasonSlug={seasonSlug}
+        stageName={presentMatchStage(match.stage, season.stagePlan)}
         match={match}
         teamA={teamA}
         teamB={teamB}
@@ -345,9 +347,9 @@ export default async function MatchDetailPage({ params, searchParams }: MatchDet
           </div>
           <div className="flex flex-wrap gap-2 border-t border-[var(--color-border)] pt-3">
             {(isCaptainA || isCaptainB || isSeasonAdmin) && (
-              <Dialog>
+              <Dialog defaultOpen={statsQuery.scheduling === "1"}>
                 <DialogTrigger className="min-h-10 rounded border border-[var(--color-border)] px-3 text-sm">
-                  约定比赛时间
+                  {presentSchedulingAction(projectMatchScheduling(match, timeProposals.find(p => p.status === "pending") ?? null).state, timeProposals.find(p => p.status === "pending")?.isMine)}
                 </DialogTrigger>
                 <DialogContent size="lg">
                   <DialogHeader>
@@ -362,8 +364,7 @@ export default async function MatchDetailPage({ params, searchParams }: MatchDet
                       currentScheduledAt={match.scheduledAt}
                       currentCompletionDeadline={match.completionDeadline}
                       initialProposals={timeProposals}
-                      hasSubmittedRoster={captainRoster?.status === "submitted"}
-                      bufferHours={getTimeBufferHoursForStage(season.stagePlan, match.stage)}
+                      hasSubmittedRoster={captainRoster?.status === "submitted" || captainRoster?.status === "confirmed"}
                     />
                     <div className="mt-6">
                       <h3 className="mb-2 text-sm font-medium">协商历史</h3>
@@ -482,7 +483,7 @@ export default async function MatchDetailPage({ params, searchParams }: MatchDet
           )}
 
           {h2hMatches.length > 0 && (
-            <MatchHeadToHead entryAId={match.entryAId} entryBId={match.entryBId}
+            <MatchHeadToHead stagePlan={season.stagePlan} entryAId={match.entryAId} entryBId={match.entryBId}
               teamAName={teamA?.name ?? "队伍 A"}
               teamBName={teamB?.name ?? "队伍 B"}
               teamAWins={h2hWinsA}
