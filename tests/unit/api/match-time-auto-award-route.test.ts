@@ -33,6 +33,6 @@ describe("match time auto-award cron route", () => {
 
     expect(response.status).toBe(200);
     expect(body).toEqual({ ok: true, processed: 1, awarded: 1, skipped: 0, failed: 0 });
-    expect(runMatchTimeAutoAwardCronMock).toHaveBeenCalledWith(expect.any(Date));
+    expect(runMatchTimeAutoAwardCronMock).toHaveBeenCalledWith();
   });
 });

@@ -1,6 +1,8 @@
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq, or } from "drizzle-orm";
 import { db } from "@/db/client";
 import { matchTimeProposals } from "@/db/schema/match-time-proposals";
+import { competitionEntries, matches } from "@/db/schema";
+import { proposingEntryId } from "./time-proposal-side";
 
 export const MATCH_TIME_PROPOSAL_STATUSES = ["pending", "accepted", "rejected", "expired"] as const;
 export type MatchTimeProposalStatus = (typeof MATCH_TIME_PROPOSAL_STATUSES)[number] | "unknown";
@@ -38,6 +40,7 @@ export interface MatchTimeProposalView extends PublicMatchTimeProposal {
 interface MatchTimeProposalSource extends Omit<PublicMatchTimeProposal, "status"> {
   status: string;
   proposedBy: string;
+  proposedByEntryId?: string | null;
 }
 
 function loadMatchTimeProposalRows(matchId: string): Promise<MatchTimeProposalSource[]> {
@@ -51,8 +54,10 @@ function loadMatchTimeProposalRows(matchId: string): Promise<MatchTimeProposalSo
       rejectReason: matchTimeProposals.rejectReason,
       createdAt: matchTimeProposals.createdAt,
       proposedBy: matchTimeProposals.proposedBy,
+      proposedByEntryId: proposingEntryId(),
     })
     .from(matchTimeProposals)
+    .innerJoin(matches, eq(matches.id, matchTimeProposals.matchId))
     .where(eq(matchTimeProposals.matchId, matchId))
     .orderBy(desc(matchTimeProposals.createdAt));
 }
@@ -63,13 +68,17 @@ export async function getMatchTimeProposalViews(
   viewerUserId?: string,
 ): Promise<MatchTimeProposalView[]> {
   const rows = await loadMatchTimeProposalRows(matchId);
-  return rows.map((row) => serializePublicMatchTimeProposal(row, viewerUserId));
+  const [viewerEntry] = viewerUserId ? await db.select({ id: competitionEntries.id }).from(competitionEntries)
+    .innerJoin(matches, and(eq(matches.id, matchId), or(eq(competitionEntries.id, matches.entryAId), eq(competitionEntries.id, matches.entryBId))))
+    .where(eq(competitionEntries.representativeUserId, viewerUserId)) : [];
+  return rows.map((row) => serializePublicMatchTimeProposal(row, viewerUserId, viewerEntry?.id));
 }
 
 /** Explicit serializer used by regression tests and future public callers. */
 export function serializePublicMatchTimeProposal(
   row: MatchTimeProposalSource,
   viewerUserId?: string,
+  viewerEntryId?: string,
 ): MatchTimeProposalView {
   return {
     id: row.id,
@@ -79,6 +88,6 @@ export function serializePublicMatchTimeProposal(
     resolution: row.resolution ?? null,
     rejectReason: row.rejectReason,
     createdAt: row.createdAt,
-    isMine: Boolean(viewerUserId && viewerUserId === row.proposedBy),
+    isMine: Boolean((viewerEntryId && viewerEntryId === row.proposedByEntryId) || (viewerUserId && viewerUserId === row.proposedBy)),
   };
 }

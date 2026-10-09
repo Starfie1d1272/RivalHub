@@ -4,24 +4,122 @@
  * Only auth transport and cache invalidation are substituted.
  */
 import { randomUUID } from "node:crypto";
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq, ne } from "drizzle-orm";
 import { expect, it, vi } from "vitest";
 import { db } from "@/db/client";
 import * as schema from "@/db/schema";
 import { seedFixture } from "./harness/mizar";
 import { runMatchTimeAutoAwardCron } from "@/lib/matches/time-auto-award";
 import { loadMyCompetitionContexts, loadMyCompetitionNextMatches } from "@/lib/my/competitions";
+import { transferCompetitionEntryRepresentativeInTx } from "@/lib/competition-entries/commands";
+import { getMatchTimeProposalViews } from "@/lib/matches/time-proposals";
+import { loadAdminMatchOperations } from "@/lib/admin/matches/operations";
+import { createLocalPool } from "./harness/database";
 
 const auth = vi.hoisted(() => ({ userId: "" }));
 vi.mock("@/lib/auth/session", () => ({
   requireAuth: async () => ({ userId: auth.userId }),
   getUserSession: async () => ({ userId: auth.userId }),
+  requireSeasonAdmin: async () => ({ userId: auth.userId }),
 }));
 vi.mock("@/lib/revalidation", () => ({ revalidateMatchPaths: vi.fn() }));
 import { proposeMatchTime, respondToTimeProposal } from "@/actions/matches/scheduling";
 import { getSeasonPersonalNextStep } from "@/lib/seasons/public-next-step";
 
 const hour = 3_600_000;
+
+it.each(["match", "coverage"])("rechecks notice and rolls back resources after actually waiting for the %s lock", async (lock) => {
+  const fixture = await seedFixture({ matchStatus: "scheduled" });
+  await db.update(schema.matches).set({ scheduledAt: null }).where(eq(schema.matches.id, fixture.matchId));
+  const a = (await db.query.competitionEntries.findFirst({ where: eq(schema.competitionEntries.id, fixture.entryAId) }))!;
+  let current = new Date();
+  const [proposal] = await db.insert(schema.matchTimeProposals).values({ matchId: fixture.matchId, proposedBy: a.representativeUserId,
+    createdAt: new Date(current.getTime() - 25 * hour), proposedTime: new Date(current.getTime() + 2 * hour + 1_000),
+  }).returning();
+  const [slot] = await db.insert(schema.officialCoverageSlots).values({ seasonId: fixture.seasonId, startsAt: current,
+    endsAt: new Date(current.getTime() + 4 * hour), capacity: 1,
+  }).returning();
+  const [hold] = await db.insert(schema.coverageHolds).values({ slotId: slot.id, matchId: fixture.matchId,
+    proposedScheduledAt: proposal.proposedTime, expiresAt: new Date(current.getTime() + hour),
+  }).returning();
+  const pool = createLocalPool({ max: 2 });
+  const blocker = await pool.connect();
+  let work: ReturnType<typeof runMatchTimeAutoAwardCron> | undefined;
+  try {
+    await blocker.query("BEGIN");
+    const pid = (await blocker.query("SELECT pg_backend_pid() AS pid")).rows[0].pid;
+    await blocker.query(lock === "match" ? "SELECT id FROM matches WHERE id = $1 FOR UPDATE" : "SELECT id FROM official_coverage_slots WHERE id = $1 FOR UPDATE", [lock === "match" ? fixture.matchId : slot.id]);
+    work = runMatchTimeAutoAwardCron(() => current);
+    await vi.waitFor(async () => {
+      const blocked = await pool.query("SELECT EXISTS (SELECT 1 FROM pg_stat_activity WHERE $1 = ANY(pg_blocking_pids(pid))) AS blocked", [pid]);
+      expect(blocked.rows[0].blocked).toBe(true);
+    });
+    current = new Date(current.getTime() + 2_000);
+    await blocker.query("COMMIT");
+    await work;
+    expect((await db.query.matches.findFirst({ where: eq(schema.matches.id, fixture.matchId) }))?.scheduledAt).toBeNull();
+    expect(await db.query.matchTimeProposals.findFirst({ where: eq(schema.matchTimeProposals.id, proposal.id) })).toMatchObject({ status: "pending", resolution: null });
+    expect(await db.query.auditLogs.findMany({ where: and(eq(schema.auditLogs.targetId, fixture.matchId), eq(schema.auditLogs.action, "match.auto_accept_proposal_timeout")) })).toHaveLength(0);
+    expect((await db.query.coverageHolds.findFirst({ where: eq(schema.coverageHolds.id, hold.id) }))?.releasedAt).toBeNull();
+    expect(await db.query.coverageAllocations.findMany({ where: eq(schema.coverageAllocations.matchId, fixture.matchId) })).toHaveLength(0);
+  } finally {
+    await blocker.query("ROLLBACK");
+    blocker.release();
+    await work;
+    await pool.end();
+  }
+});
+
+it.each([
+  { reschedule: false, legacy: false }, { reschedule: true, legacy: false },
+  { reschedule: false, legacy: true }, { reschedule: true, legacy: true },
+])("keeps proposal ownership after handover across commands and projections ($reschedule, legacy=$legacy)", async ({ reschedule, legacy }) => {
+  const fixture = await seedFixture({ matchStatus: "scheduled" });
+  const originalTime = reschedule ? new Date(Date.now() + 3 * hour) : null;
+  await db.update(schema.matches).set({ scheduledAt: originalTime }).where(eq(schema.matches.id, fixture.matchId));
+  const a = (await db.query.competitionEntries.findFirst({ where: eq(schema.competitionEntries.id, fixture.entryAId) }))!;
+  const b = (await db.query.competitionEntries.findFirst({ where: eq(schema.competitionEntries.id, fixture.entryBId) }))!;
+  const successor = (await db.query.competitionEntryParticipants.findFirst({ where: and(eq(schema.competitionEntryParticipants.entryId, a.id), ne(schema.competitionEntryParticipants.userId, a.representativeUserId)) }))!;
+  auth.userId = a.representativeUserId;
+  const result = await proposeMatchTime(fixture.matchId, new Date(Date.now() + hour));
+  if (!result.success) throw new Error(result.error.message);
+  if (legacy) await db.update(schema.matchTimeProposals).set({ proposedByEntryId: null }).where(eq(schema.matchTimeProposals.id, result.data.proposalId));
+  await db.transaction(tx => transferCompetitionEntryRepresentativeInTx(tx, { entryId: a.id, userId: a.representativeUserId, toUserId: successor.userId, actorId: a.representativeUserId }));
+  if (!legacy) {
+    // The explicit side must remain authoritative even at a timestamp tie with
+    // a later handover; mutable representatives and time ordering cannot own it.
+    const change = (await db.select().from(schema.competitionEntryRepresentativeChanges).where(eq(schema.competitionEntryRepresentativeChanges.entryId, a.id)).orderBy(desc(schema.competitionEntryRepresentativeChanges.changedAt)).limit(1))[0]!;
+    await db.update(schema.matchTimeProposals).set({ createdAt: change.changedAt }).where(eq(schema.matchTimeProposals.id, result.data.proposalId));
+  }
+  auth.userId = successor.userId;
+  expect((await respondToTimeProposal(result.data.proposalId, "accept")).success).toBe(false);
+  expect((await respondToTimeProposal(result.data.proposalId, "reject", "本队不能拒绝")).success).toBe(false);
+  expect((await db.query.matches.findFirst({ where: eq(schema.matches.id, fixture.matchId) }))?.scheduledAt).toEqual(originalTime);
+  expect((await getMatchTimeProposalViews(fixture.matchId, successor.userId))[0]?.isMine).toBe(true);
+  expect((await loadMyCompetitionNextMatches(successor.userId)).get(a.id)?.pendingIsMine).toBe(true);
+  const operations = await loadAdminMatchOperations(fixture.seasonId, { currentMatches: [], nextMatch: null, claimableMatches: [], claimableCount: 0, byMatchId: {} });
+  expect(operations[0]?.awaitingEntryIds).toEqual([b.id]);
+  auth.userId = a.representativeUserId;
+  expect((await proposeMatchTime(fixture.matchId, new Date(Date.now() + hour))).success).toBe(false);
+  auth.userId = b.representativeUserId;
+  expect((await respondToTimeProposal(result.data.proposalId, "accept")).success).toBe(true);
+});
+
+it("rejects legacy proposals with no provable side without changing the schedule or audit", async () => {
+  const fixture = await seedFixture({ matchStatus: "scheduled" });
+  const entries = await db.select().from(schema.competitionEntries).where(eq(schema.competitionEntries.competitionId, fixture.seasonId));
+  const a = entries.find(entry => entry.id === fixture.entryAId)!;
+  const b = entries.find(entry => entry.id === fixture.entryBId)!;
+  const before = (await db.query.matches.findFirst({ where: eq(schema.matches.id, fixture.matchId) }))!;
+  const [proposal] = await db.insert(schema.matchTimeProposals).values({ matchId: fixture.matchId, proposedBy: a.representativeUserId,
+    createdAt: new Date(0), proposedTime: new Date(Date.now() + hour),
+  }).returning();
+  auth.userId = b.representativeUserId;
+  expect(await respondToTimeProposal(proposal.id, "accept")).toMatchObject({ success: false, error: { code: "FORBIDDEN" } });
+  expect(await db.query.matches.findFirst({ where: eq(schema.matches.id, fixture.matchId) })).toEqual(before);
+  expect((await db.query.matchTimeProposals.findFirst({ where: eq(schema.matchTimeProposals.id, proposal.id) }))?.status).toBe("pending");
+  expect(await db.query.auditLogs.findMany({ where: eq(schema.auditLogs.targetId, proposal.id) })).toHaveLength(0);
+});
 
 it("requires a full response window and safe runtime notice, preserves reschedules, and is idempotent under concurrency", async () => {
   const fixture = await seedFixture({ matchStatus: "scheduled" });
@@ -47,7 +145,7 @@ it("requires a full response window and safe runtime notice, preserves reschedul
   const outside = await scenario(25 * hour, 3 * hour, null, new Date(now.getTime() + hour));
   const reschedule = await scenario(25 * hour, 3 * hour, new Date(now.getTime() + hour));
   // Old deadline-24h path would have accepted early, despite incomplete response time.
-  await Promise.all([runMatchTimeAutoAwardCron(now), runMatchTimeAutoAwardCron(now)]);
+  await Promise.all([runMatchTimeAutoAwardCron(() => now), runMatchTimeAutoAwardCron(() => now)]);
   for (const item of [early, short, delayed, past, outside]) {
     expect((await db.query.matches.findFirst({ where: eq(schema.matches.id, item.match.id) }))?.scheduledAt).toBeNull();
   }

@@ -27,6 +27,7 @@ import {
   type CompetitionEntryRegistrationStatus,
 } from "@/lib/competition-entries/presentation";
 import { projectMatchScheduling } from "@/lib/matches/time-rules";
+import { proposingEntryId } from "@/lib/matches/time-proposal-side";
 import { presentPersonalMatchTask, type PersonalMatchTask } from "@/lib/matches/presentation";
 import { normalizeTeamRegistrationConfig } from "@/lib/seasons/compatibility";
 import type { SeasonStatus } from "@/types/season";
@@ -274,7 +275,9 @@ export async function loadMyCompetitionNextMatches(userId: string): Promise<Map<
     .from(competitionEntries)
     .where(inArray(competitionEntries.id, opponentIds));
   const opponentNames = new Map(opponents.map((opponent) => [opponent.id, opponent.name]));
-  const proposalRows = await db.select().from(matchTimeProposals).where(and(
+  const proposalRows = await db.select({ matchId: matchTimeProposals.matchId, proposedByEntryId: proposingEntryId(),
+    createdAt: matchTimeProposals.createdAt, proposedTime: matchTimeProposals.proposedTime,
+  }).from(matchTimeProposals).innerJoin(matches, eq(matches.id, matchTimeProposals.matchId)).where(and(
     inArray(matchTimeProposals.matchId, validMatches.map(({ match }) => match.id)),
     eq(matchTimeProposals.status, "pending"),
   ));
@@ -293,7 +296,7 @@ export async function loadMyCompetitionNextMatches(userId: string): Promise<Map<
       status: candidate.match.status === "in_progress" ? "in_progress" : "scheduled",
       scheduling: projectMatchScheduling(candidate.match, proposals.get(candidate.match.id) ?? null),
       isRepresentative: representativeIds.has(candidate.ownEntryId),
-      pendingIsMine: proposals.get(candidate.match.id)?.proposedBy === userId,
+      pendingIsMine: proposals.get(candidate.match.id)?.proposedByEntryId === candidate.ownEntryId,
     });
   }
   return result;

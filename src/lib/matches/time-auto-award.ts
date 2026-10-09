@@ -3,7 +3,7 @@ import "server-only";
 
 import { writeAuditInTx } from "@/lib/audit/write";
 
-import { and, eq, isNotNull, lte } from "drizzle-orm";
+import { and, eq, isNotNull, isNull, lte } from "drizzle-orm";
 import { db } from "@/db/client";
 import { matchTimeProposals, matches, seasons } from "@/db/schema";
 import { PROPOSAL_RESPONSE_HOURS, canAutoAcceptProposal } from "@/lib/matches/time-rules";
@@ -20,25 +20,26 @@ export interface MatchTimeAutoAwardCronSummary {
 }
 
 export async function runMatchTimeAutoAwardCron(
-  now = new Date(),
+  clock: () => Date = () => new Date(),
 ): Promise<MatchTimeAutoAwardCronSummary> {
-  const dueLineups = await db.select().from(matches).where(and(isNotNull(matches.seasonId), eq(matches.status, "scheduled"), isNotNull(matches.scheduledAt), lte(matches.scheduledAt, new Date(now.getTime() + 2 * 60 * 60_000))));
+  const now = clock();
+  const dueLineups = await db.select().from(matches).where(and(isNotNull(matches.seasonId), isNull(matches.testConfig), eq(matches.status, "scheduled"), isNotNull(matches.scheduledAt), lte(matches.scheduledAt, new Date(now.getTime() + 2 * 60 * 60_000))));
   for (const match of dueLineups) {
     try {
       await db.transaction(async tx => {
         const [locked] = await tx.select().from(matches).where(eq(matches.id, match.id)).for("update");
         assertCompetitionMatch(locked);
-        await materializeDefaultLineupsInTx(tx, locked, now);
+        await materializeDefaultLineupsInTx(tx, locked, clock());
       });
     } catch { /* Unavailable legal lineup remains a visible start blocker. */ }
   }
-  const proposalTimeoutResult = await autoAcceptExpiredProposals(now);
+  const proposalTimeoutResult = await autoAcceptExpiredProposals(clock);
 
   return proposalTimeoutResult;
 }
 
 async function autoAcceptExpiredProposals(
-  now: Date,
+  clock: () => Date,
 ): Promise<{
   processed: number;
   awarded: number;
@@ -47,7 +48,7 @@ async function autoAcceptExpiredProposals(
   affectedMatches: Array<{ seasonSlug: string; matchId: string }>;
 }> {
   const expiredBefore = new Date(
-    now.getTime() - PROPOSAL_RESPONSE_HOURS * 60 * 60 * 1000,
+    clock().getTime() - PROPOSAL_RESPONSE_HOURS * 60 * 60 * 1000,
   );
 
   const expiredProposals = await db.query.matchTimeProposals.findMany({
@@ -58,7 +59,7 @@ async function autoAcceptExpiredProposals(
   });
 
   const settled = await Promise.allSettled(
-    expiredProposals.map((p) => autoAcceptSingleProposal(p.id, p.matchId, now)),
+    expiredProposals.map((p) => autoAcceptSingleProposal(p.id, p.matchId, clock)),
   );
 
   let awarded = 0;
@@ -81,12 +82,14 @@ async function autoAcceptExpiredProposals(
   return { processed: expiredProposals.length, awarded, skipped, failed, affectedMatches };
 }
 
+class AutoAcceptWindowElapsed extends Error {}
+
 async function autoAcceptSingleProposal(
   proposalId: string,
   matchId: string,
-  now: Date,
+  clock: () => Date,
 ): Promise<{ awarded: false; matchId: string } | { awarded: true; matchId: string; seasonSlug: string }> {
-  return db.transaction(async (tx) => {
+  return db.transaction<{ awarded: false; matchId: string } | { awarded: true; matchId: string; seasonSlug: string }>(async (tx) => {
     const [match] = await tx.select().from(matches).where(eq(matches.id, matchId)).for("update");
     if (!match) return { awarded: false, matchId };
     assertCompetitionMatch(match);
@@ -97,6 +100,7 @@ async function autoAcceptSingleProposal(
       ),
     });
     if (!proposal) return { awarded: false, matchId };
+    let now = clock();
     // Read pending under the same match lock as every participant/admin mutation.
     if (match.status !== "scheduled" || proposal.proposedTime <= now ||
         (match.completionDeadline && proposal.proposedTime > match.completionDeadline)) {
@@ -108,6 +112,12 @@ async function autoAcceptSingleProposal(
     // An existing schedule stays valid. A delayed cron may also have missed
     // the safe notice window; either case still requires explicit consent.
     if (!canAutoAcceptProposal(match, proposal, now)) return { awarded: false, matchId };
+
+    await allocateHeldCoverageInTx(tx, matchId, proposal.proposedTime, now);
+    // Coverage may wait on another match's slot lock too. Roll back any resource
+    // changes if the notice window elapsed while waiting for that lock.
+    now = clock();
+    if (!canAutoAcceptProposal(match, proposal, now)) throw new AutoAcceptWindowElapsed();
 
     await tx
       .update(matchTimeProposals)
@@ -122,7 +132,6 @@ async function autoAcceptSingleProposal(
           eq(matchTimeProposals.status, "pending"),
         ),
       );
-    await allocateHeldCoverageInTx(tx, matchId, proposal.proposedTime, now);
     await tx
       .update(matches)
       .set({ scheduledAt: proposal.proposedTime, updatedAt: now })
@@ -147,5 +156,8 @@ async function autoAcceptSingleProposal(
     return season
       ? { awarded: true, matchId, seasonSlug: season.slug }
       : { awarded: false, matchId };
+  }).catch(error => {
+    if (error instanceof AutoAcceptWindowElapsed) return { awarded: false as const, matchId };
+    throw error;
   });
 }

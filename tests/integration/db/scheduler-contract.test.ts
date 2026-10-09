@@ -3,6 +3,33 @@ import { withScratchDatabase } from "./harness/migration-replay";
 import { createLocalPool } from "./harness/database";
 
 describe("installed scheduler boundary", () => {
+  it("dispatches missing T-2h lineups without an old pending proposal or cutoff", async () => {
+    const pool = createLocalPool({ max: 1 });
+    try {
+      const definition = (await pool.query("SELECT pg_get_functiondef('public.scheduler_job_is_due(text)'::regprocedure) AS sql")).rows[0].sql;
+      await withScratchDatabase("lineup_due", async client => {
+        await client.query("CREATE TABLE matches (id int, status text, season_id int, test_config json, scheduled_at timestamptz, completion_deadline timestamptz, entry_a_id int, entry_b_id int); CREATE TABLE match_time_proposals (status text, created_at timestamptz); CREATE TABLE match_rosters (match_id int, entry_id int)");
+        await client.query(definition);
+        const due = async () => (await client.query("SELECT public.scheduler_job_is_due('match-time-auto-award') AS due")).rows[0].due;
+        await client.query("INSERT INTO matches VALUES (1, 'scheduled', 1, NULL, now() + interval '1 hour', NULL, 1, 2)");
+        expect(await due()).toBe(true);
+        await client.query("INSERT INTO match_rosters VALUES (1, 1)");
+        expect(await due()).toBe(true);
+        await client.query("INSERT INTO match_rosters VALUES (1, 2)");
+        expect(await due()).toBe(false);
+        await client.query("DELETE FROM match_rosters; UPDATE matches SET scheduled_at = now() + interval '3 hours'");
+        expect(await due()).toBe(false);
+        await client.query("UPDATE matches SET scheduled_at = NULL, completion_deadline = now() + interval '1 hour'");
+        expect(await due()).toBe(false);
+        await client.query("UPDATE matches SET scheduled_at = now() + interval '1 hour', test_config = '{}'::json");
+        expect(await due()).toBe(false);
+        await client.query("UPDATE matches SET test_config = NULL, status = 'finished'");
+        expect(await due()).toBe(false);
+        await client.query("INSERT INTO match_time_proposals VALUES ('pending', now() - interval '25 hours')");
+        expect(await due()).toBe(true);
+      });
+    } finally { await pool.end(); }
+  });
   it("keeps repair dispatch available and denies public role execution", async () => {
     const pool = createLocalPool({ max: 1 });
     try {
