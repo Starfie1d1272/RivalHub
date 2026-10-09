@@ -115,6 +115,7 @@ describe("public payload serializers", () => {
         rejectReason: null,
         createdAt: now,
         proposedBy: "user-private",
+        proposedByEntryId: "entry-private",
       },
       "user-private",
     );

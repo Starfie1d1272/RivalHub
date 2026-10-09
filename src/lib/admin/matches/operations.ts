@@ -10,6 +10,7 @@ import { requireCompetitionFields } from "@/lib/matches/competition-context";
 import { officialMatchCondition } from "@/lib/matches/scope";
 import { projectMatchScheduling } from "@/lib/matches/time-rules";
 import type { AdminMatchCommentaryData } from "./commentary";
+import { proposingEntryId } from "@/lib/matches/time-proposal-side";
 
 export interface AdminMatchOperationsRow {
   id: string;
@@ -46,7 +47,7 @@ export async function loadAdminMatchOperations(seasonId: string, commentary: Adm
       .leftJoin(users, eq(users.id, competitionEntries.representativeUserId))
       .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
       .where(and(eq(competitionEntries.competitionId, seasonId), inArray(competitionEntries.id, entryIds))),
-    db.select({ matchId: matchTimeProposals.matchId, proposedBy: matchTimeProposals.proposedBy,
+    db.select({ matchId: matchTimeProposals.matchId, proposedByEntryId: proposingEntryId(),
       createdAt: matchTimeProposals.createdAt, proposedTime: matchTimeProposals.proposedTime,
     }).from(matchTimeProposals).innerJoin(matches, eq(matches.id, matchTimeProposals.matchId))
       .where(and(officialMatchCondition(), eq(matches.seasonId, seasonId), inArray(matchTimeProposals.matchId, officialIds), eq(matchTimeProposals.status, "pending")))
@@ -74,7 +75,7 @@ export async function loadAdminMatchOperations(seasonId: string, commentary: Adm
       scheduledAt: row.scheduledAt, completionDeadline: row.completionDeadline, scheduling,
       responseDueAt: scheduling.pending ? new Date(scheduling.pending.createdAt.getTime() + PROPOSAL_RESPONSE_HOURS * 60 * 60_000) : null,
       teams: [teamsById.get(entryAId), teamsById.get(entryBId)].filter((team): team is NonNullable<typeof team> => Boolean(team)),
-      awaitingEntryIds: scheduling.state === "unproposed" ? [entryAId, entryBId] : scheduling.pending && proposal ? [entryAId, entryBId].filter(id => teamsById.get(id)?.representative?.userId !== proposal.proposedBy) : [],
+      awaitingEntryIds: scheduling.state === "unproposed" ? [entryAId, entryBId] : scheduling.pending && proposal ? [entryAId, entryBId].filter(id => id !== proposal.proposedByEntryId) : [],
       commentators, conflicts,
     };
   });

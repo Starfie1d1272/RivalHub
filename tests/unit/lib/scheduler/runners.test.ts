@@ -99,7 +99,7 @@ describe("scheduler match time auto-award runner", () => {
 
     const result = await runMatchTimeAutoAwardJob();
 
-    expect(runMatchTimeAutoAwardCronMock).toHaveBeenCalledWith(expect.any(Date));
+    expect(runMatchTimeAutoAwardCronMock).toHaveBeenCalledWith();
     expect(revalidateMatchPathsMock).toHaveBeenNthCalledWith(1, "spring", "match-1", { mode: "route" });
     expect(revalidateMatchPathsMock).toHaveBeenNthCalledWith(2, "spring", "match-2", { mode: "route" });
     expect(result).toEqual({

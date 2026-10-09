@@ -77,7 +77,7 @@ export async function runDraftTimeoutJob() {
 }
 
 export async function runMatchTimeAutoAwardJob() {
-  const result = await runMatchTimeAutoAwardCron(new Date());
+  const result = await runMatchTimeAutoAwardCron();
   const { affectedMatches, ...summary } = result;
   for (const { seasonSlug, matchId } of affectedMatches) {
     revalidateMatchPaths(seasonSlug, matchId, { mode: "route" });

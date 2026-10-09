@@ -2,7 +2,7 @@
 
 import { writeAuditInTx } from "@/lib/audit/write";
 
-import { and, eq, or } from "drizzle-orm";
+import { and, eq, or, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import { competitionEntries, matchTimeProposals, matches, seasons } from "@/db/schema";
 import { ok, type ActionResult } from "@/types/action";
@@ -16,6 +16,7 @@ import {
 import { getEntryIdForRepresentative } from "./_shared";
 import { holdCoverageInTx, allocateHeldCoverageInTx, releaseMatchCoverageHoldInTx, releaseMatchCoverageInTx } from "@/lib/matches/coverage";
 import { lockMatchInTx } from "@/lib/match-rosters/service";
+import { proposingEntryId } from "@/lib/matches/time-proposal-side";
 
 /**
  * 队长提议比赛时间。
@@ -47,13 +48,17 @@ export async function proposeMatchTime(
         eq(competitionEntries.competitionId, locked.seasonId),
         eq(competitionEntries.representativeUserId, session.userId),
         or(eq(competitionEntries.id, locked.entryAId), eq(competitionEntries.id, locked.entryBId)),
-      ));
+      )).for("update");
       if (!representative) throw new AppError(ErrorCode.FORBIDDEN, "只有本届队长可以提议时间");
       assertProposedTimeFitsDeadline(proposedTime, locked.completionDeadline);
       await tx.update(matchTimeProposals).set({ status: "expired", updatedAt: new Date() }).where(and(eq(matchTimeProposals.matchId, matchId), eq(matchTimeProposals.status, "pending")));
       if (coverageSlotId) await holdCoverageInTx(tx, locked, coverageSlotId, proposedTime);
       else await releaseMatchCoverageHoldInTx(tx, matchId);
-      const [created] = await tx.insert(matchTimeProposals).values({ matchId, proposedBy: session.userId, proposedTime }).returning({ id: matchTimeProposals.id });
+      assertProposedTimeFitsDeadline(proposedTime, locked.completionDeadline);
+      const [created] = await tx.insert(matchTimeProposals).values({ matchId, proposedBy: session.userId, proposedByEntryId: representative.id, proposedTime,
+        // The full response window starts after authorization/resource waits.
+        createdAt: sql`clock_timestamp()`,
+      }).returning({ id: matchTimeProposals.id });
       await writeAuditInTx(tx, { seasonId: match.seasonId, action: "match.propose_time", actorId: session.userId, targetId: matchId, meta: { proposalId: created.id, proposedTime: proposedTime.toISOString() } });
       return created;
     });
@@ -95,8 +100,13 @@ export async function respondToTimeProposal(
         eq(competitionEntries.representativeUserId, session.userId),
         eq(competitionEntries.competitionId, match.seasonId),
         or(eq(competitionEntries.id, match.entryAId), eq(competitionEntries.id, match.entryBId)),
-      ));
+      )).for("update");
       if (!captain) throw new AppError(ErrorCode.FORBIDDEN, "只有对方队长可以回应");
+      const [side] = await tx.select({ entryId: proposingEntryId() }).from(matchTimeProposals)
+        .innerJoin(matches, eq(matches.id, matchTimeProposals.matchId)).where(eq(matchTimeProposals.id, proposal.id));
+      if (!side?.entryId || side.entryId === captain.id) throw new AppError(ErrorCode.FORBIDDEN, "只有提议方的对手队长可以回应；无法确认来源的旧提议请重新发起。");
+      // Authorization may wait for a representative handover; validate time again.
+      if (action === "accept") assertProposedTimeFitsDeadline(proposal.proposedTime, match.completionDeadline);
       const updates: Record<string, unknown> = {
         status: action === "accept" ? "accepted" : "rejected",
         resolution: action === "accept" ? "participant_accept" : null,
@@ -116,6 +126,7 @@ export async function respondToTimeProposal(
 
       if (action === "accept") {
         await allocateHeldCoverageInTx(tx, match.id, proposal.proposedTime);
+        assertProposedTimeFitsDeadline(proposal.proposedTime, match.completionDeadline);
         await tx
           .update(matches)
           .set({ scheduledAt: proposal.proposedTime, updatedAt: new Date() })
