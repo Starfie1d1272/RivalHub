@@ -322,6 +322,10 @@ export default async function MatchDetailPage({ params, searchParams }: MatchDet
     if (slice) winnerPerformance = { playerId: winnerId, rounds: slice.sample.rounds, kast: slice.kast, trade: slice.trade.tradeKillsPerRound, utility: slice.utility.utilityDamagePerRound, flashAssist: slice.utility.flashAssistsPerRound };
   }
 
+  const pendingTimeProposal = timeProposals.find(proposal => proposal.status === "pending") ?? null;
+  const scheduling = projectMatchScheduling(match, pendingTimeProposal);
+  const schedulingAction = scheduling.state === "confirmed" ? "查看比赛时间" :
+    presentSchedulingAction(scheduling.state, pendingTimeProposal?.isMine);
   const showSummaryTab = summaryPlayers.length > 0;
   const visibleMaps = maps;
   const defaultTab = showSummaryTab ? "summary" : (visibleMaps[0]?.id ?? "");
@@ -349,7 +353,7 @@ export default async function MatchDetailPage({ params, searchParams }: MatchDet
             {(isCaptainA || isCaptainB || isSeasonAdmin) && (
               <Dialog defaultOpen={statsQuery.scheduling === "1"}>
                 <DialogTrigger className="min-h-10 rounded border border-[var(--color-border)] px-3 text-sm">
-                  {presentSchedulingAction(projectMatchScheduling(match, timeProposals.find(p => p.status === "pending") ?? null).state, timeProposals.find(p => p.status === "pending")?.isMine)}
+                  {schedulingAction}
                 </DialogTrigger>
                 <DialogContent size="lg">
                   <DialogHeader>

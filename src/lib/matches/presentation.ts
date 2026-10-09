@@ -63,7 +63,7 @@ export function presentPersonalMatchTask(input: {
   return {
     title: input.status === "in_progress" ? "你的当前比赛" : input.isRepresentative && scheduling ? presentSchedulingAction(scheduling.state, input.pendingIsMine) : "你的下一场",
     detail: `对阵 ${input.opponentName} · ${scheduling ? [scheduling.state === "reschedule_pending" && input.scheduledAt ? formatCST(input.scheduledAt) : null, scheduleDetail].filter(Boolean).join(" · ") : presentMatchStatus(input.status ?? "scheduled", { scheduledAt: input.scheduledAt }).label}`,
-    href: `/${input.seasonSlug}/matches/${input.matchId}${input.isRepresentative && input.status !== "in_progress" ? "?scheduling=1" : ""}`,
+    href: `/${input.seasonSlug}/matches/${input.matchId}${input.isRepresentative && input.status !== "in_progress" && scheduling?.state !== "confirmed" ? "?scheduling=1" : ""}`,
   };
 }
 
