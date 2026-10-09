@@ -68,9 +68,11 @@ export function MatchTimeNegotiation({
     };
   }, [confirmationCutoffTime, pendingProposals.length]);
 
-  const autoAcceptedProposal = initialProposals.find(p =>
-    p.status === "accepted" && (p.resolution === "auto_timeout" || p.resolution === "auto_cutoff") &&
-    currentScheduledAt && new Date(p.proposedTime).getTime() === new Date(currentScheduledAt).getTime());
+  const currentAcceptedProposal = initialProposals.find(p =>
+    p.status === "accepted" && currentScheduledAt &&
+    new Date(p.proposedTime).getTime() === new Date(currentScheduledAt).getTime());
+  const autoAcceptedProposal = currentAcceptedProposal?.resolution === "auto_timeout" || currentAcceptedProposal?.resolution === "auto_cutoff"
+    ? currentAcceptedProposal : null;
   const selectedTime = proposedTime ? parseCSTInput(proposedTime) : null;
   const shortNotice = (time: Date | null) => time && time.getTime() > now && time.getTime() < now + 2 * 60 * 60_000;
   const shortNoticeHint = "若需使用非预定主力，请先提交双方本场首发和 BP 负责人再确认时间；如未提交，系统将尝试采用已审核的预定主力。排期确认后临时换人须联系管理员。";
@@ -160,7 +162,7 @@ export function MatchTimeNegotiation({
               status: "scheduled", scheduledAt: currentScheduledAt ? new Date(currentScheduledAt) : null, completionDeadline,
             }, { createdAt: new Date(proposal.createdAt), proposedTime: new Date(proposal.proposedTime) }, new Date(now));
             const autoAcceptAt = scheduling.autoAcceptAt;
-            const canStillAutoAccept = autoAcceptAt && new Date(proposal.proposedTime).getTime() >= now + 2 * 60 * 60_000;
+            const canStillAutoAccept = Boolean(autoAcceptAt);
             const hoursLeft = autoAcceptAt ? Math.max(0, Math.round((autoAcceptAt.getTime() - now) / 3_600_000 * 10) / 10) : 0;
 
             return (
