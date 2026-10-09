@@ -1,3 +1,4 @@
+import { presentMatchStage } from "@/lib/matches/presentation";
 import { TeamProfileLink } from "@/components/teams/TeamProfileLink";
 import React from "react";
 import Link from "next/link";
@@ -5,7 +6,7 @@ import { MatchStatusBadge } from "@/components/matches/MatchStatusBadge";
 import { PosChip } from "@/components/rivalhub";
 import { TeamLogoImage } from "@/components/teams/TeamLogoImage";
 import { formatCSTDateTime } from "@/lib/utils/date";
-import { MATCH_FORMAT_LABELS, MATCH_STAGE_LABELS } from "@/types/match";
+import { MATCH_FORMAT_LABELS } from "@/types/match";
 import { teamBadgeData } from "@/lib/matches/detail-stats";
 
 interface MatchHeroTeam {
@@ -31,6 +32,7 @@ interface MatchHeroMatch {
 }
 
 interface MatchHeroHeaderProps {
+  stageName?: string;
   seasonSlug: string;
   match: MatchHeroMatch;
   teamA: MatchHeroTeam | null | undefined;
@@ -40,6 +42,7 @@ interface MatchHeroHeaderProps {
 
 export function MatchHeroHeader({
   seasonSlug,
+  stageName,
   match,
   teamA,
   teamB,
@@ -126,7 +129,7 @@ export function MatchHeroHeader({
             </div>
           )}
           <div className="mt-2 flex items-center justify-center gap-2 flex-wrap">
-            <PosChip pos={MATCH_STAGE_LABELS[match.stage] ?? "比赛阶段"} />
+            <PosChip pos={stageName ?? presentMatchStage(match.stage)} />
             <PosChip pos={MATCH_FORMAT_LABELS[match.format] ?? match.format} />
             <MatchStatusBadge status={match.status as "scheduled" | "in_progress" | "finished" | "cancelled"} isForfeit={match.isForfeit} scheduledAt={match.scheduledAt} />
           </div>

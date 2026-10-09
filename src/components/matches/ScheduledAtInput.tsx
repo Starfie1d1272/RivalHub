@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
+import { parseCSTInput, toCSTDateTimeInput } from "@/lib/utils/date";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { updateMatchCompletionDeadline, updateMatchScheduledAt } from "@/actions/matches";
@@ -12,26 +13,18 @@ interface ScheduledAtInputProps {
   currentCompletionDeadline: Date | null;
 }
 
-function toLocalDatetimeValue(date: Date | null): string {
-  if (!date) return "";
-  // datetime-local 需要 "YYYY-MM-DDTHH:mm" 格式，转本地时间
-  const d = new Date(date);
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
-
 export function ScheduledAtInput({
   matchId,
   currentScheduledAt,
   currentCompletionDeadline,
 }: ScheduledAtInputProps) {
-  const [value, setValue] = useState(toLocalDatetimeValue(currentScheduledAt));
-  const [deadlineValue, setDeadlineValue] = useState(toLocalDatetimeValue(currentCompletionDeadline));
+  const [value, setValue] = useState(toCSTDateTimeInput(currentScheduledAt) ?? "");
+  const [deadlineValue, setDeadlineValue] = useState(toCSTDateTimeInput(currentCompletionDeadline) ?? "");
   const [isPending, startTransition] = useTransition();
 
   function handleSave() {
-    const date = value ? new Date(value) : null;
-    if (value && isNaN(date!.getTime())) {
+    const date = value ? parseCSTInput(value) : null;
+    if (value && !date) {
       toast.error("请输入有效的时间");
       return;
     }
@@ -58,8 +51,8 @@ export function ScheduledAtInput({
   }
 
   function handleSaveDeadline() {
-    const date = deadlineValue ? new Date(deadlineValue) : null;
-    if (deadlineValue && isNaN(date!.getTime())) {
+    const date = deadlineValue ? parseCSTInput(deadlineValue) : null;
+    if (deadlineValue && !date) {
       toast.error("请输入有效的最晚完成时间");
       return;
     }
@@ -123,7 +116,7 @@ export function ScheduledAtInput({
           </Button>
         )}
         <span className="text-xs text-[var(--color-fg-dim)]">
-          队长协商截止：排位赛 = 此时间前 24 小时；正赛 = 即此时间
+          队长可协商至此时间；计划开赛须为未来时间且不晚于此时间。首次提议满 24 小时、距开赛至少 2 小时才可自动采纳。
         </span>
       </div>
     </div>

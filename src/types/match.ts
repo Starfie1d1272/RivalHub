@@ -44,6 +44,7 @@ export interface MatchMap {
 }
 
 export const MATCH_STAGE_LABELS: Record<string, string> = {
+  "play-in": "PLAY-IN",
   qualifier: "排位赛",
   stage1: "STAGE1",
   stage2: "STAGE2",

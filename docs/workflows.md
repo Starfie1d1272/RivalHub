@@ -144,6 +144,11 @@ create StageRun with frozen rules/entrants
 
 ## Match
 
+个人赛务从本人有权参与的实际官方比赛派生，不要求 Season 已进入 playing；报名期 Qualification 已生成的 PLAY-IN 与正赛复用同一任务投影。当届负责人使用 CompetitionEntry 身份，普通成员使用当前合法名单及确认事实。个人工作区和赛事首页链接到同一比赛详情协商入口。
+
+计划开赛须为未来时间且不超过 completionDeadline，不按阶段提前关闭双方协商。首次 pending 提议完整 24 小时未回应，运行时仍距开赛至少两小时，才自动采纳；已有排期的改期必须对方明确接受，原定时间继续有效。双方主动同意的短通知排期不受自动采纳门槛限制。建议在 T−2h 前提交首发和 BP 负责人；临时约赛优先先交名单再确认时间，这只是建议，不是协商前置条件。到 T−2h 或未排期直接准备 BP 时仍使用既有合法预定主力兜底，失败显示真实阻塞；确认短时排期后更换阵容走既有管理员晚改名单流程。
+
+
 ```text
 scheduled → in_progress → finished
 scheduled / in_progress → cancelled

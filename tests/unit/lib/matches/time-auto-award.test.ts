@@ -1,156 +1,32 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-
-const {
-  matchFindManyMock,
-  proposalFindManyMock,
-  txMatchFindFirstMock,
-  txProposalFindFirstMock,
-  txSeasonFindFirstMock,
-  transactionMock,
-  updateMock,
-  insertMock,
-  updateSetCalls,
-  insertValuesCalls,
-} = vi.hoisted(() => {
-  const updateSetCalls: unknown[] = [];
-  const insertValuesCalls: unknown[] = [];
-  return {
-    matchFindManyMock: vi.fn(),
-    proposalFindManyMock: vi.fn(),
-    txMatchFindFirstMock: vi.fn(),
-    txProposalFindFirstMock: vi.fn(),
-    txSeasonFindFirstMock: vi.fn(),
-    transactionMock: vi.fn(),
-    updateMock: vi.fn(),
-    insertMock: vi.fn(),
-    updateSetCalls,
-    insertValuesCalls,
-  };
-});
-
-vi.mock("@/db/client", () => {
-  const tx = {
-    query: {
-      matchTimeProposals: { findFirst: txProposalFindFirstMock },
-      seasons: { findFirst: txSeasonFindFirstMock },
-    },
-    select: vi.fn().mockReturnValue({
-      from: vi.fn().mockReturnThis(),
-      where: vi.fn().mockReturnThis(),
-      for: txMatchFindFirstMock,
-    }),
-    update: updateMock,
-    insert: insertMock,
-  };
-
-  return {
-    db: {
-      select: vi.fn().mockReturnValue({ from: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue([]) }) }),
-      query: {
-        matches: { findMany: matchFindManyMock },
-        matchTimeProposals: { findMany: proposalFindManyMock },
-      },
-      transaction: transactionMock.mockImplementation((callback) => callback(tx)),
-    },
-  };
-});
-
-vi.mock("@/lib/matches/coverage", () => ({ allocateHeldCoverageInTx: vi.fn() }));
-
+/** Scheduling transitions/locks are proven by match-time-scheduling.test.ts in
+ * PostgreSQL. This unit protects worker failure accounting for scheduler health. */
+import { beforeEach, expect, it, vi } from "vitest";
+const { proposals, transaction } = vi.hoisted(() => ({
+  proposals: vi.fn(), transaction: vi.fn(),
+}));
+vi.mock("@/db/client", () => ({
+  db: {
+    select: vi.fn(() => ({ from: vi.fn(() => ({ where: vi.fn(async () => []) })) })),
+    query: { matchTimeProposals: { findMany: proposals } },
+    transaction,
+  },
+}));
 import { runMatchTimeAutoAwardCron } from "@/lib/matches/time-auto-award";
-
-describe("runMatchTimeAutoAwardCron", () => {
-  const now = new Date("2026-05-14T12:00:00.000Z");
-  const proposedTime = new Date("2026-05-15T08:00:00.000Z");
-
-  beforeEach(() => {
-    vi.clearAllMocks();
-    updateSetCalls.length = 0;
-    insertValuesCalls.length = 0;
-    // 默认没有超时提议，不影响现有测试断言
-    proposalFindManyMock.mockResolvedValue([]);
-    updateMock.mockImplementation(() => ({
-      set: vi.fn((values) => {
-        updateSetCalls.push(values);
-        return { where: vi.fn().mockResolvedValue(undefined) };
-      }),
-    }));
-    insertMock.mockImplementation(() => ({
-      values: vi.fn((values) => {
-        insertValuesCalls.push(values);
-        return Promise.resolve();
-      }),
-    }));
+beforeEach(() => { vi.clearAllMocks(); });
+it("reports an empty timeout queue without creating work", async () => {
+  proposals.mockResolvedValue([]);
+  expect(await runMatchTimeAutoAwardCron()).toEqual({
+    processed: 0, awarded: 0, skipped: 0, failed: 0, affectedMatches: [],
   });
-
-  it("awards the earliest pending proposal after the negotiation cutoff", async () => {
-    matchFindManyMock.mockResolvedValue([{ id: "match-1" }]);
-    txMatchFindFirstMock.mockResolvedValue([{
-      id: "match-1",
-      seasonId: "season-1", entryAId: "entry-a", entryBId: "entry-b", stage: "final",
-      status: "scheduled",
-      scheduledAt: null,
-      completionDeadline: new Date("2026-05-15T12:00:00.000Z"),
-    }]);
-    txProposalFindFirstMock.mockResolvedValue({
-      id: "proposal-1",
-      proposedBy: "user-1",
-      proposedTime,
-    });
-    txSeasonFindFirstMock.mockResolvedValue({ slug: "spring" });
-
-    const result = await runMatchTimeAutoAwardCron(now);
-
-    expect(result).toEqual({
-      processed: 1,
-      awarded: 1,
-      skipped: 0,
-      failed: 0,
-      affectedMatches: [{ seasonSlug: "spring", matchId: "match-1" }],
-    });
-    expect(updateSetCalls).toContainEqual({ scheduledAt: proposedTime, updatedAt: now });
-    expect(updateSetCalls).toContainEqual({ status: "expired", updatedAt: now });
-    expect(updateSetCalls).toContainEqual({
-      status: "accepted",
-      resolution: "auto_cutoff",
-      responseAt: now,
-      updatedAt: now,
-    });
-    expect(insertValuesCalls).toContainEqual({
-      seasonId: "season-1",
-      action: "match.auto_award_time",
-      actorId: "system",
-      targetId: "match-1",
-      targetType: "match",
-      meta: {
-        proposalId: "proposal-1",
-        proposedBy: "user-1",
-        scheduledAt: proposedTime.toISOString(),
-      },
-    });
-  });
-
-  it("skips matches without pending proposals", async () => {
-    matchFindManyMock.mockResolvedValue([{ id: "match-1" }]);
-    txMatchFindFirstMock.mockResolvedValue([{
-      id: "match-1",
-      seasonId: "season-1", entryAId: "entry-a", entryBId: "entry-b", stage: "final",
-      status: "scheduled",
-      scheduledAt: null,
-      completionDeadline: new Date("2026-05-15T12:00:00.000Z"),
-    }]);
-    txProposalFindFirstMock.mockResolvedValue(null);
-
-    const result = await runMatchTimeAutoAwardCron(now);
-
-    expect(result).toEqual({
-      processed: 1,
-      awarded: 0,
-      skipped: 1,
-      failed: 0,
-      affectedMatches: [],
-    });
-    expect(updateSetCalls).toEqual([]);
-    expect(insertValuesCalls).toEqual([]);
+  expect(transaction).not.toHaveBeenCalled();
+});
+it("keeps one failed proposal visible to scheduler health while accounting for other outcomes", async () => {
+  proposals.mockResolvedValue([{ id: "failed", matchId: "one" }, { id: "skipped", matchId: "two" }, { id: "awarded", matchId: "three" }]);
+  transaction.mockRejectedValueOnce(new Error("database unavailable"))
+    .mockResolvedValueOnce({ awarded: false, matchId: "two" })
+    .mockResolvedValueOnce({ awarded: true, matchId: "three", seasonSlug: "season" });
+  expect(await runMatchTimeAutoAwardCron()).toEqual({
+    processed: 3, awarded: 1, skipped: 1, failed: 1,
+    affectedMatches: [{ seasonSlug: "season", matchId: "three" }],
   });
 });

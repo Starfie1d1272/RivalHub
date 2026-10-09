@@ -1,8 +1,10 @@
+import { presentMatchStage } from "@/lib/matches/presentation";
+import type { StagePlan } from "@/types/season";
 import { TeamProfileLink } from "@/components/teams/TeamProfileLink";
 import Link from "next/link";
 import { Panel } from "@/components/rivalhub";
 import { formatCSTDateTime } from "@/lib/utils/date";
-import { MATCH_STAGE_LABELS, MATCH_FORMAT_LABELS } from "@/types/match";
+import { MATCH_FORMAT_LABELS } from "@/types/match";
 
 interface H2HMatch {
   matchId: string;
@@ -24,6 +26,7 @@ interface MatchHeadToHeadProps {
   teamBWins: number;
   matches: H2HMatch[];
   seasonSlug: string;
+  stagePlan?: StagePlan | null;
 }
 
 export function MatchHeadToHead({
@@ -35,6 +38,7 @@ export function MatchHeadToHead({
   teamBWins,
   matches,
   seasonSlug,
+  stagePlan,
 }: MatchHeadToHeadProps) {
   if (matches.length === 0) return null;
 
@@ -63,7 +67,7 @@ export function MatchHeadToHead({
       <div className="space-y-1">
         {displayed.map((m) => {
           const displayTime = m.completedAt ?? m.scheduledAt;
-          const stageLabel = MATCH_STAGE_LABELS[m.stage] ?? m.stage;
+          const stageLabel = presentMatchStage(m.stage, stagePlan);
           const formatLabel = MATCH_FORMAT_LABELS[m.format as keyof typeof MATCH_FORMAT_LABELS] ?? m.format.toUpperCase();
 
           return (

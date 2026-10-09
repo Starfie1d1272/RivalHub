@@ -31,7 +31,7 @@ async function revalidateAfterRosterChange(match: { seasonId: string; id: string
 
 /**
  * 队长提交本场首发阵容；具体人数由事务内的 canonical policy 判定。
- * 仅允许比赛尚未开始（scheduled）时提交；名单通过管理员确认后才能用于开赛。
+ * 仅允许比赛尚未开始（scheduled）时提交；有效名单在开赛事务中重新校验并冻结，无需管理员逐场确认。
  */
 export async function submitMatchRoster(
   matchId: string,

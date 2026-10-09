@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-  assertBeforeTimeConfirmationCutoff,
   assertProposedTimeFitsDeadline,
 } from "@/lib/matches/time-rules";
 
@@ -10,7 +9,6 @@ describe("validateTimeProposal", () => {
     const completionDeadline = new Date("2026-01-05T10:00:00Z");
     const proposedTime = new Date("2026-01-03T10:00:00Z");
 
-    expect(() => assertBeforeTimeConfirmationCutoff(completionDeadline, 24, now)).not.toThrow();
     expect(() => assertProposedTimeFitsDeadline(proposedTime, completionDeadline, now)).not.toThrow();
   });
 
