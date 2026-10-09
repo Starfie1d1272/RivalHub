@@ -26,3 +26,12 @@ const ROLE_HELP: Record<MatchFormat, string> = {
 export function vetoActionHelp(action: keyof typeof VETO_ACTION_HELP, format: MatchFormat): string {
   return action === "role_select" ? `${VETO_ACTION_HELP.role_select}${ROLE_HELP[format]}` : VETO_ACTION_HELP[action];
 }
+
+/** Captain operation labels; historical record labels remain stable. */
+export const VETO_PHASE_LABELS = {
+  role_select: "选择先禁图队伍",
+  ban: "禁用地图",
+  pick: "选取地图",
+  side_pick: "选择起始方",
+  decider: "确定决胜图",
+} as const;
