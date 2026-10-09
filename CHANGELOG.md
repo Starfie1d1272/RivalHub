@@ -1,5 +1,26 @@
 # Changelog
 
+## [2.15.9]
+
+### Added
+
+- 管理员比赛总览增加排期赛务待办、当前赛事负责人联系与催办复制、解说覆盖和同刻撞档提示；隔离测试赛统计，联系方式仅供有权限的管理员使用。
+
+### Changed
+
+- 队长 BP 页面明确禁用与选取阶段、行动队伍和本轮次数，以语义颜色及动作文字区分按钮，提交前确认当前地图动作；轮次变化后清除旧选择。
+
+### Fixed
+
+- 修复报名期 PLAY-IN 队长的个人赛务入口；首次排期等待完整 24 小时回应且自动采纳时至少保留两小时，双方可明确确认短通知约赛；改期保留原定时间并等待双方确认。
+- 修复负责人交接后可回应本队时间提议的问题，统一个人入口、比赛详情和后台待办的提议方归属；历史提议无法确认归属时拒绝代为确认。
+- 自动排期在比赛和转播资源锁等待后重新校验两小时余量，防止过期或已回收的转播预留重复分配；恢复已确认比赛赛前两小时自动准备合法首发的调度唤醒。
+- 已结束测试赛隐藏重复的“不提交结果”操作，保留首次结束、待补结果与后续比分更正。
+
+### Migration
+
+- 新增可空的时间提议参赛方关联，保留历史提议且不回填；更新调度到期判定。迁移由受保护的 Release 流程执行。
+
 ## [2.15.8]
 
 ### Fixed
@@ -2821,6 +2842,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[2.15.9]: https://github.com/Starfie1d1272/RivalHub/compare/v2.15.8...v2.15.9
 [2.15.8]: https://github.com/Starfie1d1272/RivalHub/compare/v2.15.7...v2.15.8
 [2.15.7]: https://github.com/Starfie1d1272/RivalHub/compare/v2.15.6...v2.15.7
 [2.15.6]: https://github.com/Starfie1d1272/RivalHub/compare/v2.15.5...v2.15.6
