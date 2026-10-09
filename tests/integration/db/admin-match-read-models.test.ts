@@ -10,6 +10,8 @@ vi.mock("@/lib/auth/session", () => ({
   requireSeasonAdmin: requireSeasonAdminMock,
 }));
 
+import { loadAdminMatchOperations } from "@/lib/admin/matches/operations";
+import { loadAdminMatchCommentary } from "@/lib/admin/matches/commentary";
 import { loadAdminMatchOverview } from "@/lib/admin/matches/overview";
 import { loadAdminMatchWorkbench } from "@/lib/admin/matches/workbench";
 
@@ -36,6 +38,8 @@ describe("admin match read models PostgreSQL integration", () => {
       memberB: randomUUID(),
       matchA: randomUUID(),
       matchB: randomUUID(),
+      operationMatch: randomUUID(),
+      testMatch: randomUUID(),
       rosterA: randomUUID(),
       rosterB: randomUUID(),
       mapA: randomUUID(),
@@ -269,6 +273,38 @@ describe("admin match read models PostgreSQL integration", () => {
         expect.objectContaining({ admin: expect.objectContaining({ userId: ids.admin }), matches: [expect.objectContaining({ id: ids.matchA })] }),
       ]);
 
+      // Operations use the current entry representative, omit formal test counts,
+      // and reuse persisted scheduling semantics instead of lifecycle labels.
+      await pool.query("UPDATE users SET qq='998877' WHERE id=$1", [ids.admin]);
+      await pool.query(`INSERT INTO matches (id, season_id, entry_a_id, entry_b_id, stage, format, status)
+        VALUES ($1,$2,$3,$4,'play-in','bo1','scheduled')`, [ids.operationMatch, ids.seasonA, ids.entryA, ids.entryB]);
+      const start = new Date(Date.now() + 30 * 60 * 60_000);
+      let ops = await loadAdminMatchOperations(ids.seasonA, await loadAdminMatchCommentary(ids.seasonA));
+      expect(ops).toHaveLength(1);
+      expect(ops[0]).toMatchObject({ id: ids.operationMatch, scheduling: { state: 'unproposed' }, awaitingEntryIds: [ids.entryA, ids.entryB] });
+      expect(ops[0]?.teams[0]?.representative).toMatchObject({ userId: ids.admin, qq: '998877' });
+      expect(ops[0]).not.toHaveProperty('email');
+      await pool.query(`INSERT INTO match_time_proposals (match_id,proposed_by,proposed_time,created_at)
+        VALUES ($1,$2,$3,now()-interval '25 hours')`, [ids.operationMatch,ids.admin,start]);
+      ops = await loadAdminMatchOperations(ids.seasonA, await loadAdminMatchCommentary(ids.seasonA));
+      expect(ops[0]?.scheduling.state).toBe('pending');
+      expect(ops[0]?.scheduling.autoAcceptAt).not.toBeNull();
+      await pool.query("UPDATE matches SET scheduled_at=$2 WHERE id=$1",[ids.operationMatch,start]);
+      await pool.query(`INSERT INTO matches (id,season_id,entry_a_id,entry_b_id,stage,format,status,scheduled_at,test_config)
+        VALUES ($1,$2,$3,$4,'test','bo1','scheduled',$5,$6::json)`,[ids.testMatch,ids.seasonA,ids.entryA,ids.entryB,start,JSON.stringify({mapPool:['de_inferno','de_mirage','de_nuke','de_ancient','de_anubis','de_dust2','de_train'],operatorAId:ids.playerA,operatorBId:ids.playerB})]);
+      await pool.query("INSERT INTO match_commentators (match_id,user_id,added_by_user_id) VALUES ($1,$3,$3),($2,$3,$3)",[ids.operationMatch,ids.testMatch,ids.admin]);
+      ops = await loadAdminMatchOperations(ids.seasonA, await loadAdminMatchCommentary(ids.seasonA));
+      expect(ops).toHaveLength(1);
+      expect(ops[0]?.scheduling).toMatchObject({ state:'reschedule_pending',autoAcceptAt:null });
+      expect(ops[0]?.conflicts).toEqual([expect.objectContaining({userId:ids.admin,matchId:ids.testMatch,isTest:true})]);
+      await pool.query("UPDATE matches SET scheduled_at=scheduled_at+interval '1 minute' WHERE id=$1",[ids.testMatch]);
+      expect((await loadAdminMatchOperations(ids.seasonA,await loadAdminMatchCommentary(ids.seasonA)))[0]?.conflicts).toEqual([]);
+      const authorizedCommentary = await loadAdminMatchCommentary(ids.seasonA);
+      requireSeasonAdminMock.mockRejectedValueOnce(new Error('forbidden'));
+      await expect(loadAdminMatchOperations(ids.seasonA, authorizedCommentary)).rejects.toThrow('forbidden');
+      await pool.query("DELETE FROM match_time_proposals WHERE match_id=$1",[ids.operationMatch]);
+      expect((await loadAdminMatchOperations(ids.seasonA,await loadAdminMatchCommentary(ids.seasonA)))[0]?.scheduling.state).toBe('confirmed');
+
       // A historical score without a canonical completion time cannot open OCR.
       await pool.query("UPDATE match_maps SET completed_at = NULL WHERE id = $1", [ids.mapA]);
       const missingCompletion = await loadAdminMatchWorkbench({ seasonSlug: seasonASlug, matchId: ids.matchA });
@@ -285,7 +321,9 @@ describe("admin match read models PostgreSQL integration", () => {
         await cleanupClient.query("DELETE FROM match_rosters WHERE id IN ($1, $2)", [ids.rosterA, ids.rosterB]);
         await cleanupClient.query("DELETE FROM match_player_stats WHERE match_id IN ($1, $2)", [ids.matchA, ids.matchB]);
         await cleanupClient.query("DELETE FROM match_maps WHERE id = $1", [ids.mapA]);
-        await cleanupClient.query("DELETE FROM matches WHERE id IN ($1, $2)", [ids.matchA, ids.matchB]);
+        await cleanupClient.query("DELETE FROM match_time_proposals WHERE match_id=$1", [ids.operationMatch]);
+        await cleanupClient.query("DELETE FROM match_commentators WHERE match_id IN ($1,$2)", [ids.operationMatch,ids.testMatch]);
+        await cleanupClient.query("DELETE FROM matches WHERE id IN ($1, $2, $3, $4)", [ids.matchA, ids.matchB,ids.operationMatch,ids.testMatch]);
         await cleanupClient.query("DELETE FROM event_roster_members WHERE id IN ($1, $2)", [ids.memberA, ids.memberB]);
         await cleanupClient.query("DELETE FROM event_rosters WHERE id IN ($1, $2)", [ids.eventRosterA, ids.eventRosterB]);
         await cleanupClient.query("DELETE FROM competition_entry_representative_changes WHERE entry_id IN ($1, $2, $3, $4)", [ids.entryA, ids.entryB, ids.entryC, ids.entryD]);

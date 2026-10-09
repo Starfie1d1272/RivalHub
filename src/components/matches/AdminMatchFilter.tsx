@@ -26,7 +26,7 @@ interface AdminMatchFilterProps {
 
 const STATUS_OPTIONS = [
   { value: "all", label: "全部状态" },
-  { value: "scheduled", label: "已排期" },
+  { value: "scheduled", label: "待进行" },
   { value: "in_progress", label: "进行中" },
   { value: "finished", label: "已完成" },
   { value: "cancelled", label: "已取消" },
