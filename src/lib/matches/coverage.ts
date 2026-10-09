@@ -37,13 +37,18 @@ export async function releaseMatchCoverageInTx(tx: TxDb, matchId: string, now = 
 }
 
 /** Settling a new official time replaces the previous allocation; an expired/missing hold means no coverage for the new time. */
-export async function allocateHeldCoverageInTx(tx: TxDb, matchId: string, scheduledAt: Date, now = new Date()) {
+export async function allocateHeldCoverageInTx(tx: TxDb, matchId: string, scheduledAt: Date, clock: () => Date = () => new Date()) {
   const [hold] = await tx.select().from(coverageHolds).where(and(eq(coverageHolds.matchId, matchId), isNull(coverageHolds.releasedAt)));
-  await releaseMatchCoverageAllocationInTx(tx, matchId, now);
+  await releaseMatchCoverageAllocationInTx(tx, matchId, clock());
   if (!hold) return;
   await tx.select({ id: officialCoverageSlots.id }).from(officialCoverageSlots).where(eq(officialCoverageSlots.id, hold.slotId)).for("update");
-  if (hold.expiresAt > now && hold.proposedScheduledAt.getTime() === scheduledAt.getTime()) {
-    await tx.insert(coverageAllocations).values({ slotId: hold.slotId, matchId, scheduledAt });
+  // Another match may have reclaimed this expired hold while we waited. The
+  // slot lock protects the fresh read and conversion, not the earlier snapshot.
+  const [currentHold] = await tx.select().from(coverageHolds).where(and(eq(coverageHolds.id, hold.id), isNull(coverageHolds.releasedAt)));
+  if (!currentHold) return;
+  const now = clock();
+  if (currentHold.expiresAt > now && currentHold.proposedScheduledAt.getTime() === scheduledAt.getTime()) {
+    await tx.insert(coverageAllocations).values({ slotId: currentHold.slotId, matchId, scheduledAt });
   }
-  await tx.update(coverageHolds).set({ releasedAt: now }).where(eq(coverageHolds.id, hold.id));
+  await tx.update(coverageHolds).set({ releasedAt: now }).where(eq(coverageHolds.id, currentHold.id));
 }

@@ -113,7 +113,7 @@ async function autoAcceptSingleProposal(
     // the safe notice window; either case still requires explicit consent.
     if (!canAutoAcceptProposal(match, proposal, now)) return { awarded: false, matchId };
 
-    await allocateHeldCoverageInTx(tx, matchId, proposal.proposedTime, now);
+    await allocateHeldCoverageInTx(tx, matchId, proposal.proposedTime, clock);
     // Coverage may wait on another match's slot lock too. Roll back any resource
     // changes if the notice window elapsed while waiting for that lock.
     now = clock();
