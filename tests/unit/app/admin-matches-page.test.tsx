@@ -1,3 +1,4 @@
+vi.mock("@/lib/admin/matches/operations", () => ({ loadAdminMatchOperations: vi.fn().mockResolvedValue([]) }));
 /** @vitest-environment node */
 vi.mock("@/lib/admin/matches/resources", () => ({ loadMatchResources: vi.fn().mockResolvedValue({ installations: [], downloads: null }) }));
 vi.mock("@/components/matches/MatchResources", () => ({ MatchResources: () => <div>赛事运营资源</div> }));

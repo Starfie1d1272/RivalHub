@@ -1,3 +1,5 @@
+import { loadAdminMatchOperations } from "@/lib/admin/matches/operations";
+import { AdminMatchOperations } from "@/components/matches/AdminMatchOperations";
 import { loadMatchResources } from "@/lib/admin/matches/resources";
 import { MatchResources } from "@/components/matches/MatchResources";
 import Link from "next/link";
@@ -31,6 +33,7 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
   if (!data) notFound();
   const [commentary, resources] = await Promise.all([loadAdminMatchCommentary(data.season.id), loadMatchResources(data.season.id)]);
 
+  const operations = await loadAdminMatchOperations(data.season.id, commentary);
   const matchCount = data.matches.length;
   const teamNameById = new Map(data.teams.map((team) => [team.id, team.name]));
 
@@ -58,6 +61,7 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
         )}
       />
 
+      <AdminMatchOperations rows={operations} seasonSlug={seasonSlug} stage={filters.stage} team={filters.team} stageNames={Object.fromEntries(data.stagePlan.map(s => [s.key, s.name]))} />
       <MatchCommentaryQueue data={commentary} seasonSlug={seasonSlug} />
       <MatchResources seasonId={data.season.id} data={resources} />
 
