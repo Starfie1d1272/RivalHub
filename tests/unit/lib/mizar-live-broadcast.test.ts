@@ -28,6 +28,20 @@ describe("LIVE broadcast failure evidence", () => {
     const adapter = createLiveBroadcastFetch();
     await expect(adapter.fetch("http://127.0.0.1", {})).rejects.toThrow();
     expect(adapter.evidence()).toEqual({ httpStatus: undefined, reason });
+    expect(adapter.exception()).toEqual({ name, code: undefined });
     expect(JSON.stringify(adapter.evidence())).not.toContain("sensitive-value");
+  });
+  it("retains transport cause code before SDK wrapping without retaining raw error data", async () => {
+    const cause = Object.assign(new Error("https://private.example/path?token=sensitive-value"), { code: "UND_ERR_SOCKET" });
+    cause.cause = cause;
+    vi.stubGlobal("fetch", vi.fn(async () => { throw new TypeError("Bearer sensitive-value", { cause }); }));
+    const adapter = createLiveBroadcastFetch();
+    const client = createClient("http://127.0.0.1:54321", "unit-key", { auth: { persistSession: false }, global: { fetch: adapter.fetch } });
+    const channel = client.channel("match-live:unit", { config: { private: true } });
+    await client.realtime.setAuth("unit-token");
+    await expect(channel.httpSend("snapshot", { safe: true }, { timeout: 20 })).rejects.toThrow();
+    expect(adapter.exception()).toEqual({ name: "TypeError", code: "UND_ERR_SOCKET" });
+    expect(JSON.stringify(adapter.exception())).not.toMatch(/sensitive-value|private.example|Bearer|stack/);
+    await client.removeChannel(channel);
   });
 });

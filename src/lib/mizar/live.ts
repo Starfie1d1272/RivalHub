@@ -10,7 +10,7 @@ import { assertInstallationInTx } from "./installation";
 import { parseLiveSnapshotV1 } from "./protocol";
 import { projectPublicLive } from "./live-projection";
 import { admitLiveDelivery } from "./live-admission";
-import { createLiveBroadcastFetch } from "./live-broadcast";
+import { createLiveBroadcastFetch, liveBroadcastException } from "./live-broadcast";
 
 // One producer cadence interval; requests delayed beyond it are disposable.
 const LIVE_FRAME_BUDGET_MS = 500;
@@ -52,8 +52,8 @@ export async function ingestMizarLive(installationId: string, competitionId: str
         const result = await channel.httpSend("snapshot", payload, { timeout: 2000 });
         if (!result.success) throw new Error("broadcast_unavailable");
         return { accepted: true };
-      } catch {
-        logEvent({ level: "warn", event: "mizar.live.broadcast_unavailable", scope: "match", operation: "broadcast", retryable: false, durationMs: performance.now() - startedAt, safeContext: { provider: "supabase", stage, ...broadcast.evidence() } });
+      } catch (error) {
+        logEvent({ level: "warn", event: "mizar.live.broadcast_unavailable", scope: "match", operation: "broadcast", errorClass: "dependency", exception: broadcast.exception() ?? liveBroadcastException(error), retryable: false, durationMs: performance.now() - startedAt, safeContext: { provider: "supabase", stage, ...broadcast.evidence() } });
         return { accepted: false, reason: "broadcast_unavailable" };
       }
     });
