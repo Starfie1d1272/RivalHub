@@ -27,6 +27,13 @@ const sharedProps = {
 };
 
 describe("HomeSeasonPanel registration mode", () => {
+  it("shows real qualification match links while the event still registers", () => {
+    render(<HomeSeasonPanel {...sharedProps} season={{ ...baseSeason, registrationMode: "team" }} liveAndUpcomingMatches={[
+      { id: "qualifier-1", status: "scheduled", scheduledAt: null, format: "bo3", teamAName: "Alpha", teamBName: "Beta" },
+    ]} />);
+    expect(screen.getByRole("link", { name: /Alpha.*Beta/ })).toHaveAttribute("href", `/${baseSeason.slug}/matches/qualifier-1`);
+    expect(screen.getByRole("link", { name: /查看赛程/ })).toHaveAttribute("href", `/${baseSeason.slug}/matches`);
+  });
   it("agrees with the homepage banner after registration has closed", () => {
     const season = { ...baseSeason, registrationMode: "team" as const, registrationOpensAt: new Date("2000-01-01"), registrationOpenedAt: new Date("2000-01-01"), registrationClosesAt: new Date("2000-02-01") };
     render(<><HomeHero season={season} eyebrow={buildHomeEyebrow(season)} /><HomeSeasonPanel {...sharedProps} season={season} /></>);

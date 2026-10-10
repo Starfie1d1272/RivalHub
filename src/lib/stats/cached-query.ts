@@ -8,7 +8,8 @@ import { PUBLIC_STATS_TAG } from "@/lib/cache/tags";
 import { CS2_MAP_CATALOG } from "@/lib/config/cs2-maps";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { traceOperation } from "@/lib/observability/server";
-import { normalizeStagePlan } from "@/lib/seasons/compatibility";
+import { getPublicSeasonStagePresentation, type PublicStageSeason } from "@/lib/seasons/public-stage";
+import { isOfficialStageKey } from "@/lib/seasons/official-stages";
 import {
   getLongTeamCareerDetail,
   getMatchPlayerDetail,
@@ -27,7 +28,7 @@ type MapScope = Parameters<typeof getTournamentMapDetail>[0];
 
 /** Kept outside the cached scope: withdrawing an event must close access immediately. */
 async function requirePublicSeason(seasonId: string) {
-  const [season] = await db.select({ id: seasons.id, stagePlan: seasons.stagePlan }).from(seasons)
+  const [season] = await db.select({ id: seasons.id, stagePlan: seasons.stagePlan, competitionTemplate: seasons.competitionTemplate }).from(seasons)
     .where(and(eq(seasons.id, seasonId), ne(seasons.status, "draft"))).limit(1);
   if (!season) throw new AppError(ErrorCode.NOT_FOUND, "赛事不存在或尚未公开。");
   return season;
@@ -37,10 +38,13 @@ const knownMaps = new Set<string>(CS2_MAP_CATALOG.map(({ key }) => key));
 // All unknown map filters represent the same empty sample, without unbounded cache keys.
 const EMPTY_MAP_FILTER = "__unknown_map__";
 
-function normalizeScope(scope: TournamentStatsScope, stagePlan: Parameters<typeof normalizeStagePlan>[0]): TournamentStatsScope {
+async function normalizeScope(scope: TournamentStatsScope, season: PublicStageSeason): Promise<TournamentStatsScope> {
+  if (scope.stage && !isOfficialStageKey((await getPublicSeasonStagePresentation(season)).officialStages, scope.stage)) {
+    throw new AppError(ErrorCode.NOT_FOUND, "统计阶段不可用。");
+  }
   return {
     seasonId: scope.seasonId,
-    stage: scope.stage && normalizeStagePlan(stagePlan).some(({ key }) => key === scope.stage) ? scope.stage : undefined,
+    stage: scope.stage,
     format: scope.format,
     mapFilter: scope.mapFilter ? knownMaps.has(scope.mapFilter) ? scope.mapFilter : EMPTY_MAP_FILTER : undefined,
     teamFilter: scope.teamFilter?.toLowerCase() || undefined,
@@ -81,21 +85,21 @@ export async function getPublicTournamentStats(scope: TournamentStatsScope, visi
   if (visibility === "draft") return getTournamentStats(scope);
   const season = await requirePublicSeason(scope.seasonId);
   if (scope.teamFilter) await requirePublicEntry(scope.seasonId, scope.teamFilter);
-  return cachedTournamentStats(normalizeScope(scope, season.stagePlan));
+  return cachedTournamentStats(await normalizeScope(scope, season));
 }
 
 export async function getPublicTournamentTeamDetail(scope: TeamScope, visibility: Visibility) {
   if (visibility === "draft") return getTournamentTeamDetail(scope);
   const season = await requirePublicSeason(scope.seasonId);
   await requirePublicEntry(scope.seasonId, scope.teamId);
-  return cachedTournamentTeam({ ...normalizeScope(scope, season.stagePlan), teamId: scope.teamId });
+  return cachedTournamentTeam({ ...await normalizeScope(scope, season), teamId: scope.teamId });
 }
 
 export async function getPublicTournamentMapDetail(scope: MapScope, visibility: Visibility) {
   if (visibility === "draft") return getTournamentMapDetail(scope);
   const season = await requirePublicSeason(scope.seasonId);
   if (!knownMaps.has(scope.map)) throw new AppError(ErrorCode.NOT_FOUND, "地图不存在。");
-  const { seasonId, stage, format } = normalizeScope(scope, season.stagePlan);
+  const { seasonId, stage, format } = await normalizeScope(scope, season);
   return cachedTournamentMap({ seasonId, stage, format, map: scope.map });
 }
 

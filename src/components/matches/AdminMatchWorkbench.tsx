@@ -1,3 +1,5 @@
+import { MatchDownloads } from "@/components/matches/MatchDownloads";
+import { requiresCompetitionLineupPreflight } from "@/lib/match-rosters/policy";
 import { TeamProfileLink } from "@/components/teams/TeamProfileLink";
 import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
 import { OfficialMapStart } from "@/components/bet/OfficialMapStart";
@@ -111,7 +113,7 @@ export function AdminMatchWorkbench({
   operator,
   commentary,
 }: AdminMatchWorkbenchProps) {
-  const requiresPreflight = match.ownership === "major_stage";
+  const requiresPreflight = requiresCompetitionLineupPreflight(match);
   const startBlockers = getAdminMatchStartBlockers({
     requiresPreflight,
     teamAName,
@@ -234,7 +236,7 @@ export function AdminMatchWorkbench({
           {operator.workflow.isPostMatch && <div className="space-y-2 rounded border border-[var(--color-border)] p-3 text-sm">
             <p>去 Perfect 下载本场已完成地图的 Demo，再使用 RivalHub Demo Uploader 上传。上传后刷新当前任务，检查每图同步结果。</p>
             <p>原始 .dem 在本地解析，仅同步分析结果。</p>
-            {uploaderDownloads ? <div className="flex flex-wrap gap-4">{(["windows", "macos"] as const).map(platform => <a key={platform} className="text-[var(--color-accent)] underline underline-offset-4" href={uploaderDownloads[platform]}>{platform === "windows" ? "Windows" : "macOS"} · 获取 Demo Uploader</a>)}</div> : <a className="text-[var(--color-accent)] underline underline-offset-4" href="https://github.com/Starfie1d1272/cs2-demo-analysis-kit/releases/latest" target="_blank" rel="noreferrer">获取 RivalHub Demo Uploader ↗</a>}
+            <MatchDownloads downloads={uploaderDownloads ?? null} />
           </div>}
         </section>
       )}

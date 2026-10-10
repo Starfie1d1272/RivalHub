@@ -5,7 +5,7 @@ import { db } from "@/db/client";
 import { competitionEntries, matchMaps, matchVetoSteps, matches, seasons } from "@/db/schema";
 import { PUBLIC_STATS_TAG } from "@/lib/cache/tags";
 import { AppError, ErrorCode } from "@/lib/errors";
-import { normalizeStagePlan } from "@/lib/seasons/compatibility";
+import { getPublicSeasonStagePresentation } from "@/lib/seasons/public-stage";
 import { traceOperation } from "@/lib/observability/server";
 import { STATISTICS_PROJECTION_VERSION } from "./projection-version";
 import { INSIGHT_RULES_VERSION } from "./insights";
@@ -16,7 +16,7 @@ import { parseStatsQuery, type StatsSearch } from "./view-state";
 
 /** Fresh public membership is part of the cache key, including historical archived events. */
 export async function getFreshStatsEvents() {
-  return db.select({ id: seasons.id, slug: seasons.slug, name: seasons.name, status: seasons.status, stagePlan: seasons.stagePlan })
+  return db.select({ id: seasons.id, slug: seasons.slug, name: seasons.name, status: seasons.status, stagePlan: seasons.stagePlan, competitionTemplate: seasons.competitionTemplate })
     .from(seasons).where(ne(seasons.status, "draft")).orderBy(seasons.id);
 }
 async function cachedPlatformStats(scope: PlatformStatsScope, versions: string) {
@@ -32,7 +32,7 @@ export async function getPlatformStatsPage(raw: StatsSearch) {
   if (requestedEvent !== undefined && (typeof requestedEvent !== "string" || !/^[a-z0-9][a-z0-9-]{0,127}$/.test(requestedEvent))) throw new AppError(ErrorCode.NOT_FOUND, "统计范围不可用。");
   const event = events.find((e) => e.slug === requestedEvent);
   if (requestedEvent && !event) throw new AppError(ErrorCode.NOT_FOUND, "统计范围不可用。");
-  const stages = event ? normalizeStagePlan(event.stagePlan).map(({ key, name }) => ({ key, name })) : [];
+  const stages = event ? (await getPublicSeasonStagePresentation(event)).officialStages.map(({ key, name }) => ({ key, name })) : [];
   for (const key of ["stage", "format", "mapFilter", "map", "teamFilter"]) {
     const value = raw[key];
     if (value !== undefined && (typeof value !== "string" || value.length > 128)) throw new AppError(ErrorCode.NOT_FOUND, "统计范围不可用。");

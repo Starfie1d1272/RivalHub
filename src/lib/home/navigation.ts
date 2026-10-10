@@ -10,9 +10,11 @@ export interface FeaturedSeasonInput {
   status: SeasonStatus;
   registrationOpenedAt?: Date | string | null;
   lastCompletedAt?: Date | string | null;
+  hasOfficialMatches?: boolean;
 }
 
 export interface HomeNavSeason extends RegistrationWindowSeason {
+  hasOfficialMatches?: boolean;
   slug: string;
   registrationMode: RegistrationMode;
   hasCaptainVoting: boolean;
@@ -74,6 +76,7 @@ export function selectActiveSeason<T extends FeaturedSeasonInput>(seasons: reado
 }
 
 function getFeaturedSeasonPriority(season: FeaturedSeasonInput): number | null {
+  if (season.hasOfficialMatches && !["draft", "finished", "archived"].includes(season.status)) return 0;
   if (season.status === "playing") return 0;
   if (season.status === "voting" || season.status === "drafting") return 1;
   if (season.status === "registration") return isRegistrationActuallyOpen(season) ? 2 : 3;

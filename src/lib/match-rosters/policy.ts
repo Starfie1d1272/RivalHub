@@ -7,6 +7,11 @@ export interface MatchLineupPolicy {
   maxSubstitutes: number;
 }
 
+/** Public preparation uses the same runtime identity as the lineup validator. */
+export function requiresCompetitionLineupPreflight(match: Pick<Match, "ownership" | "qualificationRunId">): boolean {
+  return match.ownership === "major_stage" || match.qualificationRunId != null;
+}
+
 function validStarterCount(value: number): boolean {
   return Number.isInteger(value) && value > 0;
 }

@@ -25,11 +25,12 @@ import { calculateStageRoundRobinStandings } from "@/lib/matches/stage-standings
 import { buildStageViews } from "@/lib/matches/stage-views";
 import { loadEffectiveMatchRoster } from "@/lib/match-rosters/effective";
 import { normalizeRegistrationConfig, normalizeStagePlan } from "@/lib/seasons/compatibility";
+import { getPublicSeasonStagePresentation } from "@/lib/seasons/public-stage";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
 import { pairingCanReadSeason } from "./pairing";
 import { demoImportMetadataSelection, type DemoImportMetadata } from "./metadata";
 import { buildEvidenceRevisionForTarget, sha256Json } from "./revision";
-import { projectStage } from "./stage-projection";
+import { projectStage, projectOfficialStage } from "./stage-projection";
 import { dakSemanticProfileIssueMessage, isCurrentDakSemanticProfile } from "./semantic-profile";
 import type {
   IntegrationIssue,
@@ -301,7 +302,8 @@ export async function readRivalHubEvents(
       const seasonEntries = entries.filter((entry) => entry.competitionId === season.id);
       const seasonEntryIds = new Set(seasonEntries.map((entry) => entry.id));
       const seasonMatches = matchRows.filter((match) => match.seasonId === season.id && seasonEntryIds.has(match.entryAId) && seasonEntryIds.has(match.entryBId));
-      const stagePlan = normalizeStagePlan(season.stagePlan);
+      const presentation = await getPublicSeasonStagePresentation(season);
+      const stagePlan = presentation.officialStages.flatMap((stage) => stage.config ? [stage.config] : []);
       const { views: stageViews } = buildStageViews(stagePlan, seasonMatches.filter(match => !match.testConfig));
       const [roundScoresByMatchId, bracketDataByStage, swissReadModels] = await Promise.all([
         getMatchMapRoundScores(seasonMatches.filter((match) => match.status === "finished").map((match) => match.id)),
@@ -313,7 +315,7 @@ export async function readRivalHubEvents(
       const swissReadModelByStage = new Map(
         swissReadModels.filter((entry): entry is readonly [string, NonNullable<typeof entry[1]>] => entry[1] !== null),
       );
-      return [season.id, stageViews.map(({ stage, matches: stageMatches }) => {
+      const projectedMainStages = stageViews.map(({ stage, matches: stageMatches }) => {
         const bracketData = bracketDataByStage.get(stage.key);
         const standings = stage.type === "round_robin"
           ? calculateStageRoundRobinStandings({
@@ -329,7 +331,10 @@ export async function readRivalHubEvents(
           swissReadModel: swissReadModelByStage.get(stage.key),
           bracketNodes: bracketData ? projectStageBracketNodes(bracketData) : undefined,
         });
-      })] as const;
+      });
+      const extraStages = presentation.officialStages.filter((stage) => stage.config === null)
+        .flatMap((stage) => { const projected = projectOfficialStage(stage); return projected ? [projected] : []; });
+      return [season.id, [...extraStages, ...projectedMainStages]] as const;
     })),
   );
 
@@ -354,7 +359,7 @@ export async function readRivalHubEvents(
           isStarter: row.isStarter,
         })).filter((row): row is RivalHubRemotePlayer => row != null),
       }));
-      const stages = stageProjectionBySeasonId.get(season.id) ?? normalizeStagePlan(season.stagePlan).map((stage) => projectStage(stage));
+      const stages = [...(stageProjectionBySeasonId.get(season.id) ?? normalizeStagePlan(season.stagePlan).map((stage) => projectStage(stage)))];
       const mapPool = normalizeRegistrationConfig(season.registrationConfig).mapPool;
       if (seasonMatches.some(match => match.testConfig)) stages.push({ key: "test", name: "测试赛", type: "round_robin", teamCount: seasonEntries.length, advanceCount: 0, matchFormat: null, finalFormat: null });
       const series: RivalHubRemoteSeries[] = seasonMatches.map((match) => {

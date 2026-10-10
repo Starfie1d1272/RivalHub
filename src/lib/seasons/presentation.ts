@@ -8,6 +8,7 @@ export type SeasonLifecycleGroup = "active" | "upcoming" | "draft" | "recent" | 
 
 export interface SeasonLifecycleInput {
   status: SeasonStatus;
+  hasOfficialMatches?: boolean;
   registrationOpenedAt?: Date | string | null;
   lastCompletedAt?: Date | string | null;
 }
@@ -79,7 +80,7 @@ export function getSeasonLifecycleGroup(season: SeasonLifecycleInput): SeasonLif
   if (season.status === "archived") return "archived";
   if (season.status === "finished") return "recent";
   if (season.status === "draft") return "draft";
-  if (season.status === "registration" && !isRegistrationActuallyOpen(season)) {
+  if (season.status === "registration" && !season.hasOfficialMatches && !isRegistrationActuallyOpen(season)) {
     return "upcoming";
   }
   return "active";
@@ -94,6 +95,7 @@ export function presentSeasonLifecycle(season: SeasonLifecycleInput): StatusPres
 /** Compact status text for directory cards; keep the pre-open distinction
  * visible instead of collapsing it into the generic published label. */
 export function presentSeasonLifecycleSummary(season: SeasonLifecycleInput): string {
+  if (season.status === "registration" && season.hasOfficialMatches) return "正式赛程已公布";
   if (season.status === "registration" && !isRegistrationActuallyOpen(season)) {
     return "已发布 · 报名未开放";
   }
@@ -105,6 +107,7 @@ export function presentSeasonDirectoryActivity(
   season: Pick<SeasonLifecycleInput, "status">,
   nextStageName?: string | null,
 ): string | null {
+  if (nextStageName && !["draft", "finished", "archived"].includes(season.status)) return `赛程进行中 · ${nextStageName}`;
   switch (season.status) {
     case "voting":
       return "队长投票正在进行";

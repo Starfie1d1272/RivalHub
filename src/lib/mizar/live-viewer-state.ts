@@ -17,6 +17,7 @@ const publicLiveSchema = z.strictObject({
 
 export type LiveFreshness = "fresh" | "stale" | "unavailable";
 export interface LiveViewerState {
+  connection: "connecting" | "subscribed" | "unavailable";
   snapshot: PublicLiveMatchProjection | null;
   /** Retained across reconnect/unavailable to reject delayed and duplicate delivery. */
   watermark: PublicLiveMatchProjection | null;
@@ -24,14 +25,14 @@ export interface LiveViewerState {
   revision: number;
   acceptedFrames: number;
 }
-export const initialLiveViewerState = (): LiveViewerState => ({ snapshot: null, watermark: null, receivedAt: null, revision: 0, acceptedFrames: 0 });
+export const initialLiveViewerState = (): LiveViewerState => ({ connection: "connecting", snapshot: null, watermark: null, receivedAt: null, revision: 0, acceptedFrames: 0 });
 export function liveFreshness(state: LiveViewerState, now: number): LiveFreshness {
   if (!state.snapshot || state.receivedAt === null) return "unavailable";
   const age = Math.max(0, now - state.receivedAt);
   return age <= 3000 ? "fresh" : age <= 10000 ? "stale" : "unavailable";
 }
 export function resetLiveViewer(state: LiveViewerState): LiveViewerState {
-  return { ...state, snapshot: null, receivedAt: null, revision: state.revision + 1 };
+  return { ...state, connection: "connecting", snapshot: null, receivedAt: null, revision: state.revision + 1 };
 }
 export function liveBoundary(snapshot: PublicLiveMatchProjection): string {
   return JSON.stringify([snapshot.matchId, snapshot.delivery.authorityRevision, snapshot.delivery.generation, snapshot.delivery.epoch, snapshot.map.mapId, snapshot.map.name]);
@@ -62,7 +63,7 @@ export function receivePublicLive(state: LiveViewerState, input: unknown, matchI
     if (sameCursor && (Date.parse(next.receivedAt) <= Date.parse(previous.receivedAt) || Date.parse(next.producedAt) <= Date.parse(previous.producedAt))) return state;
   }
   const changed = previous !== null && liveBoundary(previous) !== liveBoundary(next);
-  return { snapshot: next, watermark: next, receivedAt: now, revision: state.revision + Number(changed), acceptedFrames: state.acceptedFrames + 1 };
+  return { connection: "subscribed", snapshot: next, watermark: next, receivedAt: now, revision: state.revision + Number(changed), acceptedFrames: state.acceptedFrames + 1 };
 }
 
 /** Stop at the exact freshness boundary, independent of delayed timer callbacks. */

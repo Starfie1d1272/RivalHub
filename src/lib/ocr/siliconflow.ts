@@ -1,8 +1,10 @@
 import "server-only";
 
 import { playerRowLenientSchema, type ScoreboardOCRResult, type OCRProvider, type PlayerRowOCR } from "./types";
+import { OCRFailure } from "./errors";
+import { extractOCRDiagnostics } from "./diagnostics";
 import { providerFetch } from "@/lib/observability/fetch";
-import { captureException, logEvent, traceOperation } from "@/lib/observability/server";
+import { logEvent, traceOperation } from "@/lib/observability/server";
 
 const DEFAULT_API_URL = "https://api.siliconflow.cn/v1/chat/completions";
 const DEFAULT_MODEL = "Qwen/Qwen3-VL-8B-Instruct";
@@ -19,7 +21,7 @@ function extractPlayersArray(parsed: unknown): unknown[] {
   if (Array.isArray(parsed)) return parsed;
 
   if (!parsed || typeof parsed !== "object") {
-    throw new Error("OCR 结果格式校验失败：模型返回格式异常，请重试");
+    throw new OCRFailure("upstream", "shape", "invalid_result_shape");
   }
 
   const obj = parsed as Record<string, unknown>;
@@ -31,7 +33,7 @@ function extractPlayersArray(parsed: unknown): unknown[] {
     return (data as Record<string, unknown>).players as unknown[];
   }
 
-  throw new Error("OCR 结果格式校验失败：未找到 players 数组，请确认截图清晰可读");
+  throw new OCRFailure("upstream", "shape", "missing_players");
 }
 
 function extractJson(text: string): unknown {
@@ -45,8 +47,10 @@ function extractJson(text: string): unknown {
     return JSON.parse(cleaned);
   } catch {
     const match = cleaned.match(/\{[\s\S]*\}/);
-    if (!match) throw new Error("模型没有返回可解析 JSON");
-    return JSON.parse(match[0]);
+    if (!match) throw new OCRFailure("upstream", "json_parse", "invalid_model_json");
+    try { return JSON.parse(match[0]); } catch {
+      throw new OCRFailure("upstream", "json_parse", "invalid_model_json");
+    }
   }
 }
 
@@ -57,6 +61,41 @@ interface CallParams {
   base64Image: string;
   mimeType: string;
   withResponseFormat: boolean;
+  requestId: string;
+}
+
+async function readFailureReason(response: Response, sensitiveValues: readonly string[]) {
+  // Inspect a bounded error body and retain only sanitized scalar reasons.
+  // Request bodies, headers and image data never enter this projection.
+  const reader = response.body?.getReader();
+  let text = "";
+  if (reader) {
+    const chunks: Uint8Array[] = [];
+    let length = 0;
+    try {
+      while (length < 8192) {
+        const next = await reader.read();
+        if (next.done) break;
+        const chunk = next.value.subarray(0, 8192 - length);
+        chunks.push(chunk);
+        length += chunk.length;
+      }
+      text = Buffer.concat(chunks).toString("utf8");
+    } catch { /* HTTP status remains authoritative if the body cannot be read. */ }
+    finally { await reader.cancel().catch(() => undefined); }
+  }
+  let parsed: unknown;
+  try { parsed = JSON.parse(text); } catch { /* Do not retain unstructured bodies. */ }
+  const error = parsed && typeof parsed === "object" && "error" in parsed ? (parsed as { error: unknown }).error : parsed;
+  const diagnostics = error && typeof error === "object" ? extractOCRDiagnostics(error, sensitiveValues) : [];
+  const reason = response.status === 401 ? "invalid_credentials"
+    : response.status === 403 ? "permission_denied"
+      : response.status === 429 ? /quota|balance|credit|额度|余额/i.test(text) ? "quota_exceeded" : "rate_limited"
+        : response.status >= 500 ? "upstream_failure"
+          : response.status === 400 && /response_format/i.test(text) && /unsupported|not supported|does not support|not support|不支持/i.test(text) ? "response_format_rejected"
+            : response.status === 400 && /invalid[_ ]image|image[_ ](?:decode|parse)|(?:invalid|unable to (?:decode|parse)|cannot (?:decode|parse)).{0,40}image|图片.{0,20}(?:无效|解析失败)/i.test(text) ? "invalid_image"
+              : "request_rejected";
+  return { reason, diagnostics };
 }
 
 async function callAPI(params: CallParams) {
@@ -92,9 +131,9 @@ async function callAPI(params: CallParams) {
     provider: "siliconflow",
     attributes: { "rivalhub.workflow": "ocr" },
   }, async () => {
-    let response: Response;
+    let phase: "request" | "response" = "request";
     try {
-      response = await providerFetch("siliconflow")(params.apiUrl, {
+      const response = await providerFetch("siliconflow")(params.apiUrl, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -103,78 +142,57 @@ async function callAPI(params: CallParams) {
         body: JSON.stringify(body),
         signal: controller.signal,
       });
+      phase = "response";
+      if (!response.ok) {
+        const { reason, diagnostics } = await readFailureReason(response, [params.apiKey, params.base64Image]);
+        const kind = response.status === 401 || response.status === 403 ? "authentication"
+          : response.status === 429 ? "rate_limit"
+            : reason === "invalid_image" ? "image" : "upstream";
+        throw new OCRFailure(kind, "response", reason, response.status, {
+          requestId: params.requestId,
+          diagnostics,
+          cause: new Error(`siliconflow.http.${response.status}.${reason}`),
+        });
+      }
+
+      let json: unknown;
+      try { json = await response.json(); } catch {
+        if (controller.signal.aborted) throw new OCRFailure("timeout", "response", "response_timeout", undefined, { requestId: params.requestId });
+        throw new OCRFailure("upstream", "json_parse", "invalid_response_json", response.status, { requestId: params.requestId });
+      }
+      const content = getResponseContent(json);
+      if (!content) throw new OCRFailure("upstream", "response", "empty_response", response.status, { requestId: params.requestId });
+      return { content, httpStatus: response.status };
     } catch (error) {
-      captureException("provider.siliconflow.request_failure", error, {
-        scope: "provider",
-        operation: "ocr.chat_completion",
-        provider: "siliconflow",
-        errorClass: "dependency",
-        retryable: true,
-        safeContext: { responseFormat: params.withResponseFormat, phase: "request" },
+      if (error instanceof OCRFailure) throw error;
+      const timedOut = controller.signal.aborted;
+      throw new OCRFailure(timedOut ? "timeout" : "network", phase, timedOut ? "request_timeout" : "network_failure", undefined, {
+        requestId: params.requestId,
+        // Preserve the real transport cause only after bounded projection and redaction.
+        diagnostics: extractOCRDiagnostics(error, [params.apiKey, params.base64Image]),
       });
-      return { ok: false, status: 0 } as const;
     } finally {
+      // The deadline includes reading the response body, not only HTTP headers.
       clearTimeout(timer);
     }
-
-    if (!response.ok) {
-      await response.text().catch(() => undefined);
-      logEvent({
-        level: "error",
-        event: "provider.siliconflow.http_failure",
-        scope: "provider",
-        operation: "ocr.chat_completion",
-        errorClass: "dependency",
-        retryable: response.status >= 500 || response.status === 429,
-        safeContext: {
-          provider: "siliconflow",
-          httpStatus: response.status,
-          responseFormat: params.withResponseFormat,
-        },
-      });
-      return { ok: false, status: response.status } as const;
-    }
-
-    let json: unknown;
-    try {
-      json = await response.json();
-    } catch (error) {
-      captureException("provider.siliconflow.response_parse_failure", error, {
-        scope: "provider",
-        operation: "ocr.chat_completion",
-        provider: "siliconflow",
-        errorClass: "dependency",
-        retryable: true,
-        safeContext: { phase: "json_parse" },
-      });
-      throw new Error("SiliconFlow API 返回格式异常");
-    }
-
-    const content = getResponseContent(json);
-    if (!content) {
-      logEvent({
-        level: "error",
-        event: "provider.siliconflow.empty_response",
-        scope: "provider",
-        operation: "ocr.chat_completion",
-        errorClass: "dependency",
-        retryable: true,
-        safeContext: { phase: "content", responseFormat: params.withResponseFormat },
-      });
-      throw new Error("SiliconFlow API 返回为空");
-    }
-    return { ok: true, content } as const;
   });
 }
 
 async function extract(base64Image: string, mimeType: string): Promise<ScoreboardOCRResult> {
   const apiKey = process.env.SILICONFLOW_API_KEY;
-  if (!apiKey) {
-    throw new Error("SILICONFLOW_API_KEY 未配置");
+  if (!apiKey?.trim()) {
+    throw new OCRFailure("configuration", "configuration", "missing_credentials");
   }
 
   const apiUrl = process.env.SILICONFLOW_API_URL || DEFAULT_API_URL;
   const model = process.env.SILICONFLOW_MODEL || DEFAULT_MODEL;
+  try {
+    const url = new URL(apiUrl);
+    if (url.protocol !== "https:" || url.username || url.password) throw new Error();
+  } catch {
+    throw new OCRFailure("configuration", "configuration", "invalid_endpoint");
+  }
+  const requestId = crypto.randomUUID();
 
   return traceOperation("provider.siliconflow.ocr", {
     scope: "provider",
@@ -187,43 +205,39 @@ async function extract(base64Image: string, mimeType: string): Promise<Scoreboar
       event: "provider.siliconflow.request_started",
       scope: "provider",
       operation: "ocr.extract",
-      safeContext: { provider: "siliconflow", imageBytes: base64Image.length, mimeType, model },
+      requestId,
+      safeContext: { provider: "siliconflow", imageBytes: base64Image.length, mimeType },
     });
 
-    const callParams: CallParams = { apiUrl, apiKey, model, base64Image, mimeType, withResponseFormat: true };
+    const callParams: CallParams = { apiUrl, apiKey, model, base64Image, mimeType, withResponseFormat: true, requestId };
 
-    let result = await callAPI(callParams);
-
-    if (!result.ok && result.status === 400) {
+    let result;
+    try {
+      result = await callAPI(callParams);
+    } catch (error) {
+      if (!(error instanceof OCRFailure) || error.httpStatus !== 400 || error.reason !== "response_format_rejected") throw error;
       logEvent({
         level: "info",
         event: "provider.siliconflow.response_format_fallback",
         scope: "provider",
         operation: "ocr.extract",
+        requestId,
         errorClass: "expected",
-        safeContext: { provider: "siliconflow", httpStatus: 400, reason: "response_format_rejected" },
+        safeContext: { provider: "siliconflow", httpStatus: 400, reason: error.reason },
       });
       callParams.withResponseFormat = false;
-      result = await callAPI(callParams);
-    }
-
-    if (!result.ok) {
-      throw new Error(result.status > 0 ? `SiliconFlow API 错误（HTTP ${result.status}）` : "SiliconFlow API 请求失败");
+      try { result = await callAPI(callParams); } catch (fallbackError) {
+        if (!(fallbackError instanceof OCRFailure)) throw fallbackError;
+        throw new OCRFailure(fallbackError.kind, fallbackError.phase, fallbackError.reason, fallbackError.httpStatus, {
+          diagnostics: [...error.diagnostics.slice(0, 2), ...fallbackError.diagnostics],
+          requestId, cause: new Error(`siliconflow.http.${fallbackError.httpStatus ?? 0}.${fallbackError.reason}`, { cause: error }),
+        });
+      }
     }
 
     let parsed: unknown;
-    try {
-      parsed = extractJson(result.content);
-    } catch (error) {
-      captureException("provider.siliconflow.response_invalid", error, {
-        scope: "provider",
-        operation: "ocr.parse",
-        provider: "siliconflow",
-        errorClass: "dependency",
-        retryable: true,
-        safeContext: { phase: "json_parse" },
-      });
-      throw error;
+    try { parsed = extractJson(result.content); } catch {
+      throw new OCRFailure("upstream", "json_parse", "invalid_model_json", result.httpStatus, { requestId });
     }
 
     const parsedCount = Array.isArray(parsed)
@@ -236,26 +250,17 @@ async function extract(base64Image: string, mimeType: string): Promise<Scoreboar
       event: "provider.siliconflow.response_received",
       scope: "provider",
       operation: "ocr.parse",
+      requestId,
       safeContext: { provider: "siliconflow", count: parsedCount, responseFormat: callParams.withResponseFormat },
     });
 
     let rawPlayers: unknown[];
-    try {
-      rawPlayers = extractPlayersArray(parsed) as unknown[];
-    } catch (error) {
-      captureException("provider.siliconflow.response_shape_invalid", error, {
-        scope: "provider",
-        operation: "ocr.parse",
-        provider: "siliconflow",
-        errorClass: "dependency",
-        retryable: true,
-        safeContext: { phase: "shape" },
-      });
-      throw error;
+    try { rawPlayers = extractPlayersArray(parsed); } catch (error) {
+      throw new OCRFailure("upstream", "shape", error instanceof OCRFailure ? error.reason : "invalid_result_shape", result.httpStatus, { requestId });
     }
 
     if (rawPlayers.length === 0) {
-      throw new Error("OCR 结果格式校验失败：players 数组为空");
+      throw new OCRFailure("upstream", "shape", "empty_players", result.httpStatus, { requestId });
     }
     if (rawPlayers.length > 20) rawPlayers = rawPlayers.slice(0, 20);
 
@@ -269,6 +274,7 @@ async function extract(base64Image: string, mimeType: string): Promise<Scoreboar
           event: "provider.siliconflow.row_rejected",
           scope: "provider",
           operation: "ocr.validate",
+          requestId,
           errorClass: "expected",
           safeContext: { provider: "siliconflow", rowIndex: idx + 1, reason: "invalid_player_row" },
         });
@@ -283,11 +289,12 @@ async function extract(base64Image: string, mimeType: string): Promise<Scoreboar
       event: "provider.siliconflow.result",
       scope: "provider",
       operation: "ocr.validate",
+      requestId,
       safeContext: { provider: "siliconflow", count: validPlayers.length, status: "completed" },
     });
 
     if (validPlayers.length === 0) {
-      throw new Error("OCR 结果格式校验失败：没有可用的玩家数据行");
+      throw new OCRFailure("upstream", "shape", "invalid_player_rows", result.httpStatus, { requestId });
     }
 
     return { players: validPlayers };
