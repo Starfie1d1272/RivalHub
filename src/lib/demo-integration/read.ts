@@ -303,7 +303,7 @@ export async function readRivalHubEvents(
       const seasonEntryIds = new Set(seasonEntries.map((entry) => entry.id));
       const seasonMatches = matchRows.filter((match) => match.seasonId === season.id && seasonEntryIds.has(match.entryAId) && seasonEntryIds.has(match.entryBId));
       const presentation = await getPublicSeasonStagePresentation(season);
-      const stagePlan = presentation.stagePlan;
+      const stagePlan = presentation.officialStages.flatMap((stage) => stage.config ? [stage.config] : []);
       const { views: stageViews } = buildStageViews(stagePlan, seasonMatches.filter(match => !match.testConfig));
       const [roundScoresByMatchId, bracketDataByStage, swissReadModels] = await Promise.all([
         getMatchMapRoundScores(seasonMatches.filter((match) => match.status === "finished").map((match) => match.id)),
@@ -332,7 +332,7 @@ export async function readRivalHubEvents(
           bracketNodes: bracketData ? projectStageBracketNodes(bracketData) : undefined,
         });
       });
-      const extraStages = presentation.officialStages.filter((stage) => stage.source !== "main")
+      const extraStages = presentation.officialStages.filter((stage) => stage.config === null)
         .flatMap((stage) => { const projected = projectOfficialStage(stage); return projected ? [projected] : []; });
       return [season.id, [...extraStages, ...projectedMainStages]] as const;
     })),

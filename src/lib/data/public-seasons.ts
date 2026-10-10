@@ -77,7 +77,8 @@ const publicSeasonColumns = {
   registrationClosesAt: seasons.registrationClosesAt,
   rosterChangeClosesAt: seasons.rosterChangeClosesAt,
   endAt: seasons.endAt,
-  hasOfficialMatches: sql<boolean>`exists (select 1 from ${matches} where ${matches.seasonId} = ${seasons.id} and ${officialMatchCondition()})`,
+  // Keep the predicate nested: single-table selections strip qualifiers from direct SQL column chunks.
+  hasOfficialMatches: sql<boolean>`exists (select 1 from ${matches} where ${and(eq(matches.seasonId, seasons.id), officialMatchCondition())})`,
 } as const;
 
 /**

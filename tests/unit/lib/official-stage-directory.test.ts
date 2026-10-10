@@ -37,6 +37,15 @@ describe("official stage directory and consumer scope", () => {
     expect(projectOfficialStage(buildOfficialStageDirectory([], null, ["orphan"])[0]!)).toBeNull();
   });
 
+  it("keeps legacy configured match stages while frozen main rules win for overlapping keys", () => {
+    const legacy = { ...mainPlan[0]!, key: "old-group", name: "历史小组", type: "round_robin" as const };
+    const mutable = { ...mainPlan[0]!, name: "Mutable", matchFormat: "bo5" as const };
+    const directory = buildOfficialStageDirectory(mainPlan, null, ["old-group", "stage-1"], [legacy, mutable]);
+    expect(directory.find((stage) => stage.key === "stage-1")?.config?.matchFormat).toBe("bo1");
+    expect(projectOfficialStage(directory.find((stage) => stage.key === "old-group")!)).toMatchObject({ key: "old-group", name: "历史小组", type: "round_robin" });
+    expect(buildOfficialStageDirectory(mainPlan, null, [], [legacy]).map((stage) => stage.key)).not.toContain("old-group");
+  });
+
   it("opens stats and discovery from official facts, excluding unpublished events and test-only samples", () => {
     expect(showStats({ status: "registration", hasOfficialMatches: true })).toBe(true);
     expect(showStats({ status: "registration", hasOfficialMatches: false })).toBe(false);

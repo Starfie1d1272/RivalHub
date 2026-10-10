@@ -86,9 +86,8 @@ describe("event test matches", () => {
     expect(event.series.find((series) => series.id === f.matchId)?.stageKey).toBe("play-in");
   });
   it("keeps test-only registration events out of official discovery and stats navigation", async () => {
-    const f = await create();
+    const f = await seedFixture({ isTest: true });
     await db.update(schema.seasons).set({ status: "registration" }).where(eq(schema.seasons.id, f.seasonId));
-    await db.update(schema.matches).set({ stage: "test", testConfig: f.match.testConfig }).where(eq(schema.matches.id, f.matchId));
     const season = await getPublicSeasonBySlug(f.seasonId);
     expect(season).toMatchObject({ status: "registration", hasOfficialMatches: false });
     expect(showStats(season!)).toBe(false);

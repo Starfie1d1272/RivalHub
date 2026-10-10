@@ -41,7 +41,7 @@ export function buildPublicStagePresentation(
   qualification: QualificationStageFact | null = null,
 ): PublicStagePresentation {
   const stagePlan = resolvePublicStagePlan(season, stageRuns);
-  const officialStages = buildOfficialStageDirectory(stagePlan, qualification, initializedStageKeys);
+  const officialStages = buildOfficialStageDirectory(stagePlan, qualification, initializedStageKeys, normalizeStagePlan(season.stagePlan));
   const initialized = new Set(initializedStageKeys);
   const runKeys = new Set(stageRuns.map((run) => run.stageKey));
   const latestRun = [...stageRuns].filter((run) => run.startedAt).sort((a, b) => b.startedAt!.getTime() - a.startedAt!.getTime())[0];
