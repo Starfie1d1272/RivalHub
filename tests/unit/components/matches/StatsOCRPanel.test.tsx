@@ -1,4 +1,5 @@
 import React from "react";
+import userEvent from "@testing-library/user-event";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { StatsOCRPanel } from "@/components/matches/StatsOCRPanel";
@@ -50,5 +51,41 @@ describe("operator scoreboard editing", () => {
     fireEvent.click(await screen.findByRole("button", { name: /清除/ }));
     fireEvent.click(await screen.findByRole("button", { name: "确认" }));
     await waitFor(() => expect(refresh).toHaveBeenCalledOnce());
+  });
+});
+
+// The UI must preserve a server-classified failure and link its configuration
+// advice. The provider tests own status mapping; this tests only the user flow.
+describe("OCR failure recovery", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    actions.getPlayerStatsByMap.mockResolvedValue([]);
+    actions.getMatchPlayerOptions.mockResolvedValue([]);
+  });
+
+  it("shows the 401 reason, reference and configuration entry after reading a PNG", async () => {
+    const user = userEvent.setup();
+    const requestId = "10000000-0000-4000-8000-000000000001";
+    actions.extractStatsFromScreenshot.mockResolvedValue({ success: false, error: { code: "OCR_UNAVAILABLE", message: "OCR 上游鉴权失败，请联系超级管理员检查环境绑定、凭据和上游账号权限。（HTTP 401）", meta: { requestId, configurationRequired: true } } });
+    render(<StatsOCRPanel mapId="map" mapName="Nuke" />);
+    const input = await screen.findByLabelText("记分板截图");
+    await user.upload(input, new File([new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10])], "fixture.png", { type: "image/png" }));
+    await user.click(await screen.findByRole("button", { name: "OCR 识别截图" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("鉴权失败");
+    expect(screen.getByRole("alert")).toHaveTextContent(`排查编号：${requestId}`);
+    expect(screen.getByRole("link", { name: /OCR 配置检查指引/ })).toHaveAttribute("href", "/admin/settings#ocr-configuration");
+    expect(actions.extractStatsFromScreenshot).toHaveBeenCalledWith(expect.objectContaining({ mimeType: "image/png", base64Image: "iVBORw0KGgo=" }));
+    expect(screen.getByRole("alert")).not.toHaveTextContent("截图格式");
+  });
+
+  it("offers network recovery without displaying raw client exceptions", async () => {
+    const user = userEvent.setup();
+    actions.extractStatsFromScreenshot.mockRejectedValue(new Error("private transport payload"));
+    render(<StatsOCRPanel mapId="map" mapName="Nuke" />);
+    await user.upload(await screen.findByLabelText("记分板截图"), new File(["fixture"], "fixture.png", { type: "image/png" }));
+    await user.click(await screen.findByRole("button", { name: "OCR 识别截图" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("检查网络连接");
+    expect(screen.getByRole("alert")).not.toHaveTextContent("private transport");
+    expect(screen.queryByRole("link", { name: /OCR 配置检查指引/ })).not.toBeInTheDocument();
   });
 });
