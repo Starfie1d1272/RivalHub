@@ -14,6 +14,7 @@ import { loadPublicMatchPhase } from "@/lib/matches/public-phase";
 import { MatchLiveViewing } from "@/components/matches/MatchLiveViewing";
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import { Button } from "@/components/ui/button";
 import { eq, and, inArray, or } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
@@ -111,6 +112,7 @@ export default async function MatchDetailPage({ params, searchParams }: MatchDet
   const phase = publicContext.phase;
   const afterVeto = phase === "awaiting_gameplay" || phase === "gameplay" || phase === "inter_map";
   const isFinished = match.status === "finished";
+  const replayUrl = isFinished && match.videoUrl && isHttpUrl(match.videoUrl) ? match.videoUrl : null;
   const hasCompletedMaps = maps.some(canConfirmMapScoreboard);
 
   // Keep scouting available throughout an unfinished match, including loss of live data.
@@ -448,7 +450,17 @@ export default async function MatchDetailPage({ params, searchParams }: MatchDet
         currentMapId={publicContext.currentMapId} entryAId={match.entryAId} entryBId={match.entryBId} phase={phase} seriesProgress={isFinished && match.scoreA !== null && match.scoreB !== null ? { scoreA: match.scoreA, scoreB: match.scoreB } : publicContext.seriesProgress}
         teamAName={teamA?.name ?? "队伍 A"} teamBName={teamB?.name ?? "队伍 B"} finished={isFinished}
       />}
-      {(afterVeto || isFinished) && maps.length > 0 && <details className="text-sm" data-testid="match-bp-record"><summary className="cursor-pointer text-[var(--color-fg-mid)]">BP 记录</summary><div className="mt-3"><VetoView seasonSlug={seasonSlug} matchId={match.id} teamAName={teamA?.name ?? "队伍 A"} teamBName={teamB?.name ?? "队伍 B"} entryAId={match.entryAId} entryBId={match.entryBId} /></div></details>}
+      {(afterVeto || isFinished) && (maps.length > 0 || replayUrl) && (
+        <div className="flex flex-wrap items-start gap-3">
+          {maps.length > 0 && <details className="min-w-0 flex-1 basis-64 text-sm" data-testid="match-bp-record">
+            <summary className="flex min-h-11 w-fit cursor-pointer items-center rounded-sm border border-[var(--color-border)] px-4 text-[var(--color-fg-mid)] hover:border-[var(--color-border-hover)]">BP 记录</summary>
+            <div className="mt-3"><VetoView seasonSlug={seasonSlug} matchId={match.id} teamAName={teamA?.name ?? "队伍 A"} teamBName={teamB?.name ?? "队伍 B"} entryAId={match.entryAId} entryBId={match.entryBId} /></div>
+          </details>}
+          {replayUrl && <Button asChild className="min-h-11 shrink-0">
+            <a href={replayUrl} target="_blank" rel="noopener noreferrer">观看回放 ↗</a>
+          </Button>}
+        </div>
+      )}
       <MatchLiveViewing status={match.status} commentators={publicCommentators} showEmpty={afterVeto} />
       {afterVeto && <MatchRealtime matchId={match.id} phase={phase} currentMapId={publicContext.currentMapId} lastCompletedMap={publicContext.lastCompletedMap} seriesProgress={publicContext.seriesProgress} />}
 
@@ -670,15 +682,10 @@ export default async function MatchDetailPage({ params, searchParams }: MatchDet
         </>
       )}
 
-      {/* 赛后录像与解说 */}
-      {isFinished && (commentatorRows.length > 0 || (match.videoUrl && isHttpUrl(match.videoUrl))) && (
-        <Panel label="录像与解说" contentClassName="space-y-2 p-4">
-          {commentatorRows.length > 0 && <p className="text-sm">解说：{publicCommentators.map((person, index) => <React.Fragment key={person.userId}>{index > 0 ? "、" : null}{person.playerUserId ? <PlayerProfileLink userId={person.playerUserId}>{getPublicDisplayName(person)}</PlayerProfileLink> : getPublicDisplayName(person)}</React.Fragment>)}</p>}
-          {match.videoUrl && isHttpUrl(match.videoUrl) && (
-            <a href={match.videoUrl} target="_blank" rel="noopener noreferrer" className="inline-block text-sm text-[var(--color-accent)] hover:underline">
-              观看比赛录像 →
-            </a>
-          )}
+      {/* 赛后解说名单；回放入口与 BP 记录同处顶部操作区。 */}
+      {isFinished && commentatorRows.length > 0 && (
+        <Panel label="解说" contentClassName="space-y-2 p-4">
+          <p className="text-sm">解说：{publicCommentators.map((person, index) => <React.Fragment key={person.userId}>{index > 0 ? "、" : null}{person.playerUserId ? <PlayerProfileLink userId={person.playerUserId}>{getPublicDisplayName(person)}</PlayerProfileLink> : getPublicDisplayName(person)}</React.Fragment>)}</p>
         </Panel>
       )}
     </PageLayout>
