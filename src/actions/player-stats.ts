@@ -108,7 +108,14 @@ export async function extractStatsFromScreenshot(
         errorClass: e.kind === "image" ? "expected" : "dependency",
         errorCode: `ocr.${e.kind}`,
         retryable: e.retryable,
-        safeContext: { phase: e.phase, reason: e.reason, httpStatus: e.httpStatus, errorCodes: e.errorChain },
+        safeContext: {
+          phase: e.phase, reason: e.reason, httpStatus: e.httpStatus,
+          // Aligned, bounded arrays preserve each sanitized cause through the
+          // existing observability allowlist, exclusively in server diagnostics.
+          errorCodes: e.diagnostics.length ? e.diagnostics.map(item => item.code) : e.errorChain,
+          errorName: e.diagnostics.map(item => item.name),
+          errorMessage: e.diagnostics.map(item => item.message),
+        },
       });
       return fail(presentOCRFailure(e));
     }

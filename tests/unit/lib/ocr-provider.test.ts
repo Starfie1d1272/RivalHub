@@ -39,11 +39,38 @@ describe("OCR provider failure contract", () => {
     expect(JSON.stringify({ error, exception: extractSafeException(error), context: sanitizeSafeContext({ errorCodes: (error as OCRFailure).errorChain }) })).not.toMatch(/arbitrary private|synthetic-test-credential/);
   });
 
-  it("keeps network cause codes while discarding raw messages and URLs", async () => {
-    fetchMock.mockRejectedValue(new TypeError("private data https://provider.invalid?key=synthetic-test-credential", { cause: Object.assign(new Error("private account"), { code: "ENOTFOUND" }) }));
+  it("keeps real network name/code/cause while redacting credentials and URL details", async () => {
+    fetchMock.mockRejectedValue(new TypeError("DNS lookup failed at https://user:secretpass@provider.invalid/v1?key=synthetic-test-credential", { cause: Object.assign(new Error("Resolver refused the host"), { code: "EUNRECOGNIZED_RESOLVER" }) }));
     const error = await extract().catch(error => error as OCRFailure);
-    expect(error).toMatchObject({ kind: "network", phase: "request", reason: "network_failure", errorChain: ["ocr.request.network_failure", "ENOTFOUND"] });
-    expect(JSON.stringify(error)).not.toMatch(/private|synthetic-test-credential/);
+    if (!(error instanceof OCRFailure)) throw new Error("expected OCR failure");
+    expect(error).toMatchObject({ kind: "network", phase: "request", reason: "network_failure", diagnostics: [
+      { name: "TypeError", code: "", message: expect.stringContaining("DNS lookup failed") },
+      { name: "Error", code: "EUNRECOGNIZED_RESOLVER", message: "Resolver refused the host" },
+    ] });
+    const serialized = JSON.stringify(error);
+    expect(serialized).toContain("https://provider.invalid/");
+    expect(serialized).not.toMatch(/secretpass|synthetic-test-credential|user:/);
+    expect(presentOCRFailure(error).meta).not.toHaveProperty("diagnostics");
+  });
+
+  it("retains unknown structured provider code/message only in sanitized server diagnostics", async () => {
+    fetchMock.mockResolvedValue(Response.json({ error: {
+      code: "EUNKNOWN_MODEL_ROUTE",
+      message: `Region does not serve this model. Bearer unrelated-provider-token https://owner:password@provider.invalid/v1?api_key=other-credential image=${png}`,
+      request: { Authorization: "must-never-enter-diagnostics", base64Image: png },
+      cause: { code: 50123, message: "Model route is unavailable for this region" },
+    } }, { status: 400 }));
+    const error = await extract().catch(error => error as OCRFailure);
+    if (!(error instanceof OCRFailure)) throw new Error("expected OCR failure");
+    expect(error.diagnostics).toEqual([
+      { name: "ProviderError", code: "EUNKNOWN_MODEL_ROUTE", message: expect.stringContaining("Region does not serve this model") },
+      { name: "ProviderError", code: "50123", message: "Model route is unavailable for this region" },
+    ]);
+    const safeContext = sanitizeSafeContext({ errorCodes: error.diagnostics.map(item => item.code), errorMessage: error.diagnostics.map(item => item.message), errorName: error.diagnostics.map(item => item.name) });
+    expect(safeContext).toMatchObject({ errorCodes: ["EUNKNOWN_MODEL_ROUTE", "50123"], errorMessage: [expect.stringContaining("Region does not serve"), "Model route is unavailable for this region"] });
+    const serialized = JSON.stringify({ error, safeContext, public: presentOCRFailure(error) });
+    for (const secret of ["unrelated-provider-token", "owner:", "password@", "other-credential", "must-never-enter-diagnostics", png]) expect(serialized).not.toContain(secret);
+    expect(JSON.stringify(presentOCRFailure(error))).not.toMatch(/EUNKNOWN_MODEL_ROUTE|Region does not/);
   });
 
   it("distinguishes request timeout from network failures", async () => {

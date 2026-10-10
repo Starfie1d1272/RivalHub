@@ -56,12 +56,12 @@ describe("OCR Action error projection", () => {
   afterEach(() => vi.unstubAllEnvs());
 
   it("returns accurate 401 advice and a shared log reference without provider payload", async () => {
-    providerFetchMock.mockResolvedValue(new Response("private user payload synthetic-credential", { status: 401 }));
+    providerFetchMock.mockResolvedValue(Response.json({ error: { code: "EACCOUNT_BINDING", message: "Account binding is inactive. Bearer synthetic-credential" } }, { status: 401 }));
     const result = await extractStatsFromScreenshot(input);
     expect(result).toMatchObject({ success: false, error: { code: ErrorCode.OCR_UNAVAILABLE, message: expect.stringContaining("鉴权失败"), meta: { configurationRequired: true, requestId: expect.any(String) } } });
     if (result.success) throw new Error("expected OCR failure");
-    expect(captureMock).toHaveBeenCalledWith("provider.siliconflow.ocr_failure", expect.any(Error), expect.objectContaining({ requestId: result.error.meta?.requestId, errorClass: "dependency", safeContext: expect.objectContaining({ httpStatus: 401, reason: "invalid_credentials", phase: "response", errorCodes: expect.any(Array) }) }));
-    expect(JSON.stringify(result)).not.toMatch(/private user|synthetic-credential|截图格式/);
+    expect(captureMock).toHaveBeenCalledWith("provider.siliconflow.ocr_failure", expect.any(Error), expect.objectContaining({ requestId: result.error.meta?.requestId, errorClass: "dependency", safeContext: expect.objectContaining({ httpStatus: 401, reason: "invalid_credentials", phase: "response", errorCodes: ["EACCOUNT_BINDING"], errorMessage: ["Account binding is inactive. Bearer [REDACTED]"], errorName: ["ProviderError"] }) }));
+    expect(JSON.stringify(result)).not.toMatch(/Account binding|synthetic-credential|截图格式/);
   });
 
   it("authorizes before a provider call and preserves permission denial", async () => {

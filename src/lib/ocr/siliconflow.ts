@@ -2,6 +2,7 @@ import "server-only";
 
 import { playerRowLenientSchema, type ScoreboardOCRResult, type OCRProvider, type PlayerRowOCR } from "./types";
 import { OCRFailure } from "./errors";
+import { extractOCRDiagnostics } from "./diagnostics";
 import { providerFetch } from "@/lib/observability/fetch";
 import { logEvent, traceOperation } from "@/lib/observability/server";
 
@@ -63,20 +64,9 @@ interface CallParams {
   requestId: string;
 }
 
-function safeTransportCause(error: unknown): Error {
-  // Keep an allowlisted transport cause, never its arbitrary message/URL.
-  let code: unknown;
-  try {
-    const source = error as { code?: unknown; cause?: { code?: unknown } } | null;
-    code = source?.cause?.code ?? source?.code;
-  } catch { /* Untrusted exception getters must not mask the original failure. */ }
-  const allowed = ["ECONNREFUSED", "ECONNRESET", "ENOTFOUND", "ETIMEDOUT", "EAI_AGAIN", "UND_ERR_CONNECT_TIMEOUT"];
-  return new Error(typeof code === "string" && allowed.includes(code) ? code : "transport_failure");
-}
-
-async function readFailureReason(response: Response): Promise<string> {
-  // Inspect a bounded body solely to select fixed diagnostic codes. Never retain
-  // arbitrary provider messages, codes, headers, request bodies or image data.
+async function readFailureReason(response: Response, sensitiveValues: readonly string[]) {
+  // Inspect a bounded error body and retain only sanitized scalar reasons.
+  // Request bodies, headers and image data never enter this projection.
   const reader = response.body?.getReader();
   let text = "";
   if (reader) {
@@ -94,15 +84,18 @@ async function readFailureReason(response: Response): Promise<string> {
     } catch { /* HTTP status remains authoritative if the body cannot be read. */ }
     finally { await reader.cancel().catch(() => undefined); }
   }
-  if (response.status === 401) return "invalid_credentials";
-  if (response.status === 403) return "permission_denied";
-  if (response.status === 429) return /quota|balance|credit|额度|余额/i.test(text) ? "quota_exceeded" : "rate_limited";
-  if (response.status >= 500) return "upstream_failure";
-  if (response.status === 400) {
-    if (/response_format/i.test(text) && /unsupported|not supported|does not support|not support|不支持/i.test(text)) return "response_format_rejected";
-    if (/invalid[_ ]image|image[_ ](?:decode|parse)|(?:invalid|unable to (?:decode|parse)|cannot (?:decode|parse)).{0,40}image|图片.{0,20}(?:无效|解析失败)/i.test(text)) return "invalid_image";
-  }
-  return "request_rejected";
+  let parsed: unknown;
+  try { parsed = JSON.parse(text); } catch { /* Do not retain unstructured bodies. */ }
+  const error = parsed && typeof parsed === "object" && "error" in parsed ? (parsed as { error: unknown }).error : parsed;
+  const diagnostics = error && typeof error === "object" ? extractOCRDiagnostics(error, sensitiveValues) : [];
+  const reason = response.status === 401 ? "invalid_credentials"
+    : response.status === 403 ? "permission_denied"
+      : response.status === 429 ? /quota|balance|credit|额度|余额/i.test(text) ? "quota_exceeded" : "rate_limited"
+        : response.status >= 500 ? "upstream_failure"
+          : response.status === 400 && /response_format/i.test(text) && /unsupported|not supported|does not support|not support|不支持/i.test(text) ? "response_format_rejected"
+            : response.status === 400 && /invalid[_ ]image|image[_ ](?:decode|parse)|(?:invalid|unable to (?:decode|parse)|cannot (?:decode|parse)).{0,40}image|图片.{0,20}(?:无效|解析失败)/i.test(text) ? "invalid_image"
+              : "request_rejected";
+  return { reason, diagnostics };
 }
 
 async function callAPI(params: CallParams) {
@@ -151,12 +144,13 @@ async function callAPI(params: CallParams) {
       });
       phase = "response";
       if (!response.ok) {
-        const reason = await readFailureReason(response);
+        const { reason, diagnostics } = await readFailureReason(response, [params.apiKey, params.base64Image]);
         const kind = response.status === 401 || response.status === 403 ? "authentication"
           : response.status === 429 ? "rate_limit"
             : reason === "invalid_image" ? "image" : "upstream";
         throw new OCRFailure(kind, "response", reason, response.status, {
           requestId: params.requestId,
+          diagnostics,
           cause: new Error(`siliconflow.http.${response.status}.${reason}`),
         });
       }
@@ -174,8 +168,8 @@ async function callAPI(params: CallParams) {
       const timedOut = controller.signal.aborted;
       throw new OCRFailure(timedOut ? "timeout" : "network", phase, timedOut ? "request_timeout" : "network_failure", undefined, {
         requestId: params.requestId,
-        // Provider exceptions can contain URLs, credentials or user data.
-        cause: safeTransportCause(error),
+        // Preserve the real transport cause only after bounded projection and redaction.
+        diagnostics: extractOCRDiagnostics(error, [params.apiKey, params.base64Image]),
       });
     } finally {
       // The deadline includes reading the response body, not only HTTP headers.
@@ -235,6 +229,7 @@ async function extract(base64Image: string, mimeType: string): Promise<Scoreboar
       try { result = await callAPI(callParams); } catch (fallbackError) {
         if (!(fallbackError instanceof OCRFailure)) throw fallbackError;
         throw new OCRFailure(fallbackError.kind, fallbackError.phase, fallbackError.reason, fallbackError.httpStatus, {
+          diagnostics: [...error.diagnostics.slice(0, 2), ...fallbackError.diagnostics],
           requestId, cause: new Error(`siliconflow.http.${fallbackError.httpStatus ?? 0}.${fallbackError.reason}`, { cause: error }),
         });
       }

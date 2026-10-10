@@ -3,6 +3,7 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import { ErrorCode } from "@/lib/errors";
 import type { ActionError } from "@/types/action";
+import type { OCRDiagnostic } from "./diagnostics";
 
 type OCRFailureKind = "configuration" | "authentication" | "rate_limit" | "network" | "timeout" | "upstream" | "image";
 type OCRPhase = "configuration" | "image" | "request" | "response" | "json_parse" | "shape";
@@ -22,18 +23,20 @@ export class OCRFailure extends Error {
   readonly requestId: string;
   readonly retryable: boolean;
   readonly errorChain: string[];
+  readonly diagnostics: readonly OCRDiagnostic[];
 
   constructor(
     readonly kind: OCRFailureKind,
     readonly phase: OCRPhase,
     readonly reason: string,
     readonly httpStatus?: number,
-    options?: { requestId?: string; cause?: Error },
+    options?: { requestId?: string; cause?: Error; diagnostics?: readonly OCRDiagnostic[] },
   ) {
     super(`ocr.${phase}.${reason}`, { cause: options?.cause });
     this.name = "OCRFailure";
     this.requestId = options?.requestId ?? randomUUID();
     this.retryable = ["rate_limit", "network", "timeout", "upstream"].includes(kind);
+    this.diagnostics = (options?.diagnostics ?? []).slice(0, 8);
     this.errorChain = [this.message];
     let cause = options?.cause;
     while (cause && this.errorChain.length < 4) {
