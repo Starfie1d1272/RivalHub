@@ -32,19 +32,19 @@ describe("authorized operator context", () => {
     const result = await loadOperatorContext(input);
     expect(mocks.qualification).toHaveBeenCalledWith("season");
     expect(mocks.major).not.toHaveBeenCalled();
-    expect(result.roomGuide?.copyFields.slice(0, 2)).toEqual([{ label: "轮次", value: "Play-in · Short Swiss" }, { label: "比赛短描述", value: "0-0" }]);
+    expect(result.roomGuide?.fields.filter(field => field.copyable).slice(0, 2).map(({ label, value }) => ({ label, value }))).toEqual([{ label: "轮次", value: "Play-in · Short Swiss" }, { label: "比赛短描述", value: "0-0" }]);
   });
 
 
   it("uses canonical Direct BO3 qualification instead of requiring a Swiss record", async () => {
     mocks.run.mockResolvedValue({ format: "direct_bo3" });
     const result = await loadOperatorContext(input);
-    expect(result.roomGuide?.copyFields.slice(0, 2)).toEqual([{ label: "轮次", value: "Play-in" }, { label: "比赛短描述", value: "第 1 轮" }]);
+    expect(result.roomGuide?.fields.filter(field => field.copyable).slice(0, 2).map(({ label, value }) => ({ label, value }))).toEqual([{ label: "轮次", value: "Play-in" }, { label: "比赛短描述", value: "第 1 轮" }]);
   });
 
   it("leaves unknown stage and Swiss record uncopyable rather than inventing room data", async () => {
     const result = await loadOperatorContext(input);
-    expect(result.roomGuide?.copyFields.slice(0, 2).every(field => field.value === null)).toBe(true);
+    expect(result.roomGuide?.fields.filter(field => field.copyable).slice(0, 2).map(({ label, value }) => ({ label, value })).every(field => field.value === null)).toBe(true);
   });
 
   it("binds scoreboard completion to ten effective starters and only offers canonical completed maps", async () => {
