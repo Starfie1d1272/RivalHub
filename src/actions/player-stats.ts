@@ -22,6 +22,7 @@ import { readMatchMvpResults } from "@/lib/matches/mvp";
 import { MVP_DEADLINE_MS } from "@/lib/utils/date";
 import { extractScoreboardFromBase64 } from "@/lib/ocr";
 import type { PlayerRowOCR } from "@/lib/ocr";
+import { OCRFailure, presentOCRFailure } from "@/lib/ocr/errors";
 import { requireSeasonAdmin, auditActorId, requireAuth } from "@/lib/auth/session";
 import { revalidatePath } from "next/cache";
 import { updatePublicStatsTag } from "@/lib/revalidation";
@@ -98,6 +99,26 @@ export async function extractStatsFromScreenshot(
 
     return ok({ drafts, playerOptions });
   } catch (e) {
+    if (e instanceof OCRFailure) {
+      captureException("provider.siliconflow.ocr_failure", e, {
+        scope: "provider",
+        operation: "ocr.extract",
+        provider: "siliconflow",
+        requestId: e.requestId,
+        errorClass: e.kind === "image" ? "expected" : "dependency",
+        errorCode: `ocr.${e.kind}`,
+        retryable: e.retryable,
+        safeContext: {
+          phase: e.phase, reason: e.reason, httpStatus: e.httpStatus,
+          // Aligned, bounded arrays preserve each sanitized cause through the
+          // existing observability allowlist, exclusively in server diagnostics.
+          errorCodes: e.diagnostics.length ? e.diagnostics.map(item => item.code) : e.errorChain,
+          errorName: e.diagnostics.map(item => item.name),
+          errorMessage: e.diagnostics.map(item => item.message),
+        },
+      });
+      return fail(presentOCRFailure(e));
+    }
     if (e instanceof AppError) {
       return fail({ code: e.code, message: e.code === ErrorCode.INTERNAL_ERROR ? ERROR_MESSAGES.INTERNAL_ERROR : e.presentation?.message ?? e.message });
     }
@@ -106,7 +127,7 @@ export async function extractStatsFromScreenshot(
       operation: "extractStatsFromScreenshot",
       errorClass: "application",
     });
-    return fail({ code: ErrorCode.INTERNAL_ERROR, message: "OCR 识别失败，请检查截图格式后重试" });
+    return fail({ code: ErrorCode.INTERNAL_ERROR, message: ERROR_MESSAGES.INTERNAL_ERROR });
   }
 }
 

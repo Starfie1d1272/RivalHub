@@ -9,7 +9,7 @@ describe("LIVE correctness: real PostgreSQL and loopback HTTP faults", () => {
     const f = await prepared();
     await delay(1500);
     state.mode = fault;
-    expect(await ingestMizarLive(f.installationId, f.seasonId, snapshot(f, 1), 1)).toEqual({ accepted: false });
+    expect(await ingestMizarLive(f.installationId, f.seasonId, snapshot(f, 1), 1)).toEqual({ accepted: false, reason: "broadcast_unavailable" });
     await delay(1000);
     state.mode = "fast";
     expect(await ingestMizarLive(f.installationId, f.seasonId, snapshot(f, 2), 1)).toEqual({ accepted: true });
@@ -90,7 +90,7 @@ it("serves four staggered 2 Hz sources and preserves unchanged 1 Hz heartbeats a
     state.mode = "disconnect";
     expect(
       await ingestMizarLive(f.installationId, f.seasonId, snapshot(f, 5), 1),
-    ).toEqual({ accepted: false });
+    ).toEqual({ accepted: false, reason: "broadcast_unavailable" });
     await delay(1000);
     state.mode = "fast";
     expect(
@@ -121,7 +121,7 @@ it(
         );
         expect(
           await ingestMizarLive(f.installationId, f.seasonId, snapshot(f), 1),
-        ).toEqual({ accepted: false });
+        ).toEqual({ accepted: false, reason: "contended" });
         await client.query("ROLLBACK");
         for (const [table, id] of [
           ["mizar_installations", f.installationId],
@@ -135,7 +135,7 @@ it(
           const start = performance.now();
           expect(
             await ingestMizarLive(f.installationId, f.seasonId, snapshot(f), 1),
-          ).toEqual({ accepted: false });
+          ).toEqual({ accepted: false, reason: "contended" });
           expect(performance.now() - start).toBeLessThan(500);
           await client.query("ROLLBACK");
         }
@@ -161,7 +161,7 @@ it(
       const work = upload(f, 1);
       await delay(550);
       for (const client of clients) client.release();
-      expect(await (await work).json()).toEqual({ accepted: false });
+      expect(await (await work).json()).toEqual({ accepted: false, reason: "frame_expired" });
       expect(publications.length).toBe(before);
     },
   );
