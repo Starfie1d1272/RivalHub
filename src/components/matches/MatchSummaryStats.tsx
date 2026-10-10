@@ -3,6 +3,7 @@ import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
 import React from "react";
 import { cn } from "@/lib/utils/cn";
 import { Panel } from "@/components/rivalhub";
+import { getMatchPlayerDisplayName } from "@/lib/identity/display-name";
 import { formatStat, type StatMetric } from "@/lib/stats";
 
 export interface SummaryPlayer {
@@ -56,9 +57,11 @@ function byRatingDesc(a: SummaryPlayer, b: SummaryPlayer): number {
 
 interface PlayerRowProps {
   player: SummaryPlayer;
+  teamName: string;
 }
 
-function PlayerRow({ player }: PlayerRowProps) {
+function PlayerRow({ player, teamName }: PlayerRowProps) {
+  const displayName = getMatchPlayerDisplayName(player.perfectName, teamName);
   const ratingHigh = player.ratingPro != null && player.ratingPro >= 1.2;
 
   return (
@@ -70,10 +73,10 @@ function PlayerRow({ player }: PlayerRowProps) {
             className="block truncate text-sm font-medium hover:text-[var(--color-accent)] transition-colors"
             title={player.perfectName}
           >
-            {player.perfectName}
+            {displayName}
           </PlayerProfileLink>
         ) : (
-          <span className="block truncate text-sm text-[var(--color-fg)]" title={player.perfectName}>{player.perfectName}</span>
+          <span className="block truncate text-sm text-[var(--color-fg)]" title={player.perfectName}>{displayName}</span>
         )}
       </td>
       {COLS.map((col) => {
@@ -139,7 +142,7 @@ function TeamBlock({ entryId, teamName, borderColor, bgColor, players }: TeamBlo
           </thead>
           <tbody>
             {players.map((p) => (
-              <PlayerRow key={p.userId ?? p.perfectName} player={p} />
+              <PlayerRow key={p.userId ?? p.perfectName} player={p} teamName={teamName} />
             ))}
           </tbody>
         </table>

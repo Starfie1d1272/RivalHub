@@ -39,6 +39,7 @@ describe("private viewer lifecycle", () => {
     const options = h.factory.mock.calls[0] as unknown as [string, string, () => Promise<string>];
     expect(await options[2]()).toBe("viewer");
     h.clients[0].status("SUBSCRIBED");
+    expect(h.states.at(-1)?.connection).toBe("subscribed");
     await vi.advanceTimersByTimeAsync(270000);
     expect(h.fetcher).toHaveBeenCalledTimes(2);
     expect(h.clients[0].removeAllChannels).toHaveBeenCalledOnce();
@@ -54,10 +55,13 @@ describe("private viewer lifecycle", () => {
     expect(h.states.at(-1)?.snapshot).toEqual(payload);
     h.clients[0].status("CHANNEL_ERROR");
     expect(h.states.at(-1)?.snapshot).toBeNull();
+    expect(h.states.at(-1)?.connection).toBe("unavailable");
     await vi.advanceTimersByTimeAsync(1000);
     h.clients[0].deliver({ payload });
+    h.clients[1].status("SUBSCRIBED");
     h.clients[1].deliver({ payload });
     expect(h.states.at(-1)?.snapshot).toBeNull();
+    expect(h.states.at(-1)?.connection).toBe("subscribed");
     h.stop();
     const count = h.states.length;
     h.clients[1].deliver({ payload });

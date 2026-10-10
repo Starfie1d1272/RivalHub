@@ -108,6 +108,8 @@ Span name、`rivalhub.*`、`db.*`、HTTP method/status 和 provider 等属性必
 
 教育 evidence 的 Storage provider 失败只记录不含 object key、原始文件名、signed URL、图片、CHSI code 或 provider raw response 的 dependency 事件；上传后的数据库/audit 失败由既有 Server Action observability 记录安全分类，并 best-effort 删除刚上传对象。retention 删除失败直接交给既有 scheduler execution owner 重试，不在教育 retention 内重复 capture 或建立第二个日志 owner。
 
+OCR 失败由 `src/lib/ocr/` 分类为配置、上游鉴权、限流/额度、网络、超时、上游结果或图片错误。Action 的 `provider.siliconflow.ocr_failure` 事件保留 HTTP 状态、失败阶段与固定提示分类；HTTP 错误体最多检查 8 KiB，仅投影结构化 `code/message`，传输异常只投影 `name/code/message/cause`。未知结构化原因不会丢成固定分类：每条原因经过 canonical redaction，并移除 URL 凭据/路径/query、令牌模式及确切请求凭据/图片回显；每段最多 160 字符、cause 最多六层，降级前后最多八条。服务端通过既有 allowlist 的 `errorCodes/errorName/errorMessage` 同索引数组保存脱敏错误链，不保存原始 body、header、stack、截图或模型输出，也不将诊断自由文本返回浏览器。UI 的排查编号与事件 `requestId` 一致；正常请求和响应格式降级使用同一编号。鉴权/配置失败指向 `/admin/settings#ocr-configuration`，由超级管理员在 Vercel 环境绑定及 SiliconFlow 控制台检查；“已配置”只证明存在，不能证明凭据、权限或余额有效。
+
 Audit 查询回答“谁在什么时候改变了什么业务事实”；runtime observability 回答“请求如何执行、在哪里失败、是否可关联”。两者可以用 request/trace 时间窗口对照，但不得合并成一个存储或 serializer。
 
 ## 新增事件或 span

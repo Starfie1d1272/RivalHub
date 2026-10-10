@@ -25,7 +25,7 @@ const ENV_VARS = [
   {
     key: "SILICONFLOW_API_KEY",
     label: "SiliconFlow OCR API Key",
-    description: "用于玩家数据截图 OCR 识别。在 SiliconFlow 平台申请。",
+    description: "用于玩家数据截图 OCR 识别。已配置只表示存在，凭据有效性与账号权限尚未核验。",
     required: false,
   },
 ] as const;
@@ -85,6 +85,15 @@ export default async function AdminSettingsPage() {
                 </div>
               );
             })}
+          </Panel>
+        </section>
+
+        <section id="ocr-configuration" className="space-y-4">
+          <h2 className="text-base font-semibold text-[var(--color-fg)]">OCR 配置检查</h2>
+          <Panel contentClassName="space-y-3 p-4 text-sm text-[var(--color-fg-mid)]">
+            <p>遇到鉴权失败，请由配置负责人在 Vercel 项目的 Settings → Environment Variables 检查 SILICONFLOW_API_KEY 是否绑定到发生错误的环境及当前部署；本页不验证密钥有效性。</p>
+            <p>同时检查 SILICONFLOW_API_URL 的服务地址与 SILICONFLOW_MODEL 的模型配置，并在 SiliconFlow 控制台核对凭据是否有效、账号权限、模型访问权限及余额。不要在截图、日志或工单中提交密钥。</p>
+            <p>使用 OCR 提示中的排查编号查询 Runtime Logs，结合 HTTP 状态、失败阶段和脱敏原因定位问题。配置存在不能证明上游鉴权成功。</p>
           </Panel>
         </section>
 

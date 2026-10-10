@@ -70,6 +70,8 @@ Major 赛前工作区按报名收口、资格方案、资格赛、正赛名单�
 
 人物主标签必须消费 canonical identity formatter：公开 surface 使用 `displayName → official Steam personaName → perfectName → 未知用户`；内部/operator surface 使用 `displayName → official Steam personaName → perfectName → email local-part → 未知用户`。`users` 中不存在可进入 canonical resolver 的手填 Steam 昵称；官方 personaName 只来自按 Steam64 键控的服务端缓存投影。完整邮箱只有在账号、联系、核验、归并或 disambiguation 本身就是当前任务时，才作为明确标注的 detail 展示，不能冒充人物主标签。Major 排名默认只显示选手 identity + 综合段位，完整历史、参考赛季、近期/当前段位、星数、Rating 与来源证据按需下钻；内部强度标量、axis 参数和并列组编号不进入普通 UI。
 
+比赛结果的单图与整场统计表保留赛后昵称事实，并由 `getMatchPlayerDisplayName` 统一裁去所属队伍的完整开头前缀（含明确 `[队名]` / `【队名】` 包裹）及空白或明确分隔符。未知队伍、简称、无分隔边界、队名只在中间或裁剪后为空时保留原文；原始昵称继续作为悬停标题，选手链接按原身份解析，不更改个人主页、证据、统计匹配或导出。
+
 ### Entity navigation
 
 所有 public/admin surface 只要持有 canonical Team / Player identity，就提供对应公开资料页入口。裸 `userId` 只证明 User 身份，不等于 Player；历史公开参赛记录（不限赛事），或已填写 Steam、完美昵称、打法/比赛经历、竞技档案、位置/地图偏好之一，可由统一 read model 确认长期 Player 身份；普通昵称、联系方式、直播间不构成 Player 身份。只有明确 Player DTO 或 read model 验证的选手身份才进入选手资料页。BET account user、解说与社区奖相关人员不能从 User role 推断 Player，未确认的身份保留公开姓名文本。社区奖由 read model 投影 `playerUserId` / `recipientTarget`，UI 不根据候选人、提交人或获奖者的裸 userId 构造 Player 链接。Player 默认使用 `PlayerProfileLink`；Team 使用 `TeamProfileLink` 和唯一 resolver `teamProfileHref`。Player 进入 `/players/[userId]`；赛事 Team 使用 `seasonSlug + entryId` 进入 `/[seasonSlug]/teams/[entryId]`；长期 Team 使用 `slug` 进入 `/teams/[slug]`。同时持有两者时，赛事 surface 优先进入赛事 Team profile。赛事路由内可消费 `[seasonSlug]` 上下文；跨赛事的 Stats/career surface 必须显式传入 read-model owner 投影的 canonical destination，不根据 label 反查 identity。缺少 canonical identity 的 placeholder / legacy label 保持文本。
