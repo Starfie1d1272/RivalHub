@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 
 import React, { useState, useRef, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
@@ -84,7 +85,12 @@ export function StatsOCRPanel({ mapId, mapName }: Props) {
   const [playerOptions, setPlayerOptions] = useState<PlayerOption[]>([]);
   const [extracting, setExtracting] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setErrorMessage] = useState<string | null>(null);
+  const [ocrDetails, setOCRDetails] = useState<{ requestId?: string; configurationRequired: boolean } | null>(null);
+  function setError(message: string | null) {
+    setErrorMessage(message);
+    setOCRDetails(null);
+  }
   // viewMode=true：只读展示；false：编辑录入
   const [viewMode, setViewMode] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
@@ -129,14 +135,21 @@ export function StatsOCRPanel({ mapId, mapName }: Props) {
 
     setError(null);
     setExtracting(true);
+    let imageRead = false;
 
     try {
       const base64 = await fileToBase64(file);
+      imageRead = true;
       const mimeType = file.type as "image/jpeg" | "image/png" | "image/webp";
       const result = await extractStatsFromScreenshot({ mapId, base64Image: base64, mimeType });
 
       if (!result.success) {
         setError(result.error.message);
+        const requestId = result.error.meta?.requestId;
+        setOCRDetails({
+          requestId: typeof requestId === "string" && /^[0-9a-f-]{36}$/i.test(requestId) ? requestId : undefined,
+          configurationRequired: result.error.meta?.configurationRequired === true,
+        });
         return;
       }
 
@@ -145,8 +158,8 @@ export function StatsOCRPanel({ mapId, mapName }: Props) {
         return prior ? { ...prior, ratingPro: row.ratingPro ?? prior.ratingPro, rws: row.rws ?? prior.rws, we: row.we ?? prior.we } : row;
       }).concat(canonicalDrafts.filter(saved => saved.gameplayLocked && !result.data.drafts.some(row => row.userId ? row.userId === saved.userId : row.perfectName === saved.perfectName))));
       setPlayerOptions(result.data.playerOptions);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "OCR 请求失败，请检查网络连接后重试");
+    } catch {
+      setError(imageRead ? "OCR 请求未完成，请检查网络连接后重试。" : "截图文件读取失败，请重新选择图片后重试。");
     } finally {
       setExtracting(false);
     }
@@ -329,6 +342,7 @@ export function StatsOCRPanel({ mapId, mapName }: Props) {
             <input
               ref={fileRef}
               type="file"
+              aria-label="记分板截图"
               accept="image/jpeg,image/png,image/webp"
               className="text-sm"
             />
@@ -346,7 +360,11 @@ export function StatsOCRPanel({ mapId, mapName }: Props) {
           </div>
 
           {error && (
-            <p className="text-sm text-[var(--color-danger)]">{error}</p>
+            <div role="alert" className="space-y-1 text-sm text-[var(--color-danger)]">
+              <p>{error}</p>
+              {ocrDetails?.requestId && <p className="text-xs">排查编号：{ocrDetails.requestId}</p>}
+              {ocrDetails?.configurationRequired && <Link href="/admin/settings#ocr-configuration" className="underline underline-offset-4">查看 OCR 配置检查指引（超级管理员）</Link>}
+            </div>
           )}
 
           {drafts.length > 0 ? (

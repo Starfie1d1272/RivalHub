@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const matchMapsFindFirstMock = vi.hoisted(() => vi.fn());
 const matchesFindFirstMock = vi.hoisted(() => vi.fn());
@@ -6,7 +6,10 @@ const transactionMock = vi.hoisted(() => vi.fn());
 const loadScoreboardPlayersMock = vi.hoisted(() => vi.fn());
 const loadOperatorScoreboardMock = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/matches/operator-scoreboard", () => ({ loadScoreboardPlayers: loadScoreboardPlayersMock, clearOperatorScoreboardInTx: vi.fn(), loadOperatorScoreboard: loadOperatorScoreboardMock }));
-vi.mock("@/lib/observability/server", () => ({ captureException: vi.fn() }));
+const captureMock = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/observability/server", () => ({ captureException: captureMock, logEvent: vi.fn(), traceOperation: (_name: string, _options: unknown, work: () => unknown) => work() }));
+const providerFetchMock = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/observability/fetch", () => ({ providerFetch: () => providerFetchMock }));
 const updatePublicStatsTagMock = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/revalidation", () => ({ updatePublicStatsTag: updatePublicStatsTagMock }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
@@ -33,8 +36,41 @@ vi.mock("@/lib/auth/session", () => ({
   requireAuth: vi.fn(),
 }));
 
-import { getPlayerStatsByMap, savePlayerStats } from "@/actions/player-stats";
+import { extractStatsFromScreenshot, getPlayerStatsByMap, savePlayerStats } from "@/actions/player-stats";
 import { ErrorCode } from "@/lib/errors";
+
+// Protect the real provider → Action DTO assembly; the provider owns the full
+// status matrix, while this boundary must preserve safe correlation and auth.
+describe("OCR Action error projection", () => {
+  const input = { mapId: "map-1", base64Image: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aX1EAAAAASUVORK5CYII=", mimeType: "image/png" as const };
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.stubEnv("SILICONFLOW_API_KEY", "synthetic-credential");
+    vi.stubEnv("SILICONFLOW_API_URL", "https://provider.invalid/v1/chat/completions");
+    vi.stubEnv("OCR_PROVIDER", "siliconflow");
+    matchMapsFindFirstMock.mockResolvedValue({ id: "map-1", matchId: "match-1" });
+    matchesFindFirstMock.mockResolvedValue({ id: "match-1", seasonId: "season-1", stage: "final", entryAId: "entry-a", entryBId: "entry-b" });
+    requireSeasonAdminMock.mockResolvedValue({ userId: "admin" });
+    loadScoreboardPlayersMock.mockResolvedValue([]);
+  });
+  afterEach(() => vi.unstubAllEnvs());
+
+  it("returns accurate 401 advice and a shared log reference without provider payload", async () => {
+    providerFetchMock.mockResolvedValue(Response.json({ error: { code: "EACCOUNT_BINDING", message: "Account binding is inactive. Bearer synthetic-credential" } }, { status: 401 }));
+    const result = await extractStatsFromScreenshot(input);
+    expect(result).toMatchObject({ success: false, error: { code: ErrorCode.OCR_UNAVAILABLE, message: expect.stringContaining("鉴权失败"), meta: { configurationRequired: true, requestId: expect.any(String) } } });
+    if (result.success) throw new Error("expected OCR failure");
+    expect(captureMock).toHaveBeenCalledWith("provider.siliconflow.ocr_failure", expect.any(Error), expect.objectContaining({ requestId: result.error.meta?.requestId, errorClass: "dependency", safeContext: expect.objectContaining({ httpStatus: 401, reason: "invalid_credentials", phase: "response", errorCodes: ["EACCOUNT_BINDING"], errorMessage: ["Account binding is inactive. Bearer [REDACTED]"], errorName: ["ProviderError"] }) }));
+    expect(JSON.stringify(result)).not.toMatch(/Account binding|synthetic-credential|截图格式/);
+  });
+
+  it("authorizes before a provider call and preserves permission denial", async () => {
+    const { AppError } = await import("@/lib/errors");
+    requireSeasonAdminMock.mockRejectedValueOnce(new AppError(ErrorCode.FORBIDDEN, "无管理权限"));
+    expect(await extractStatsFromScreenshot(input)).toMatchObject({ success: false, error: { code: ErrorCode.FORBIDDEN } });
+    expect(providerFetchMock).not.toHaveBeenCalled();
+  });
+});
 
 describe("savePlayerStats", () => {
   beforeEach(() => {
