@@ -104,6 +104,36 @@ describe("event test matches", () => {
     await db.update(schema.seasons).set({ status: "playing" }).where(eq(schema.seasons.id, f.seasonId));
     expect((await issueLiveViewerToken(f.matchId)).topic).toBe(`match-live:${f.matchId}`);
   });
+  // Existing tests covered rehearsals/playing only. This real query regression
+  // protects anonymous qualification scope and its lifecycle, not a mock policy.
+  it("admits only an active official registration Play-in and keeps its token match-scoped", async () => {
+    vi.stubEnv("SUPABASE_JWT_SECRET", "integration-viewer-signing-key-only");
+    const f = await seedFixture();
+    await db.update(schema.seasons).set({ status: "registration" }).where(eq(schema.seasons.id, f.seasonId));
+    await db.update(schema.matches).set({ stage: "play-in", ownership: "manual", majorStageRunId: null, managedKey: null, bracketNodeId: null }).where(eq(schema.matches.id, f.matchId));
+    await expect(issueLiveViewerToken(f.matchId)).rejects.toMatchObject({ code: "NOT_FOUND" });
+    const [run] = await db.insert(schema.competitionQualificationRuns).values({ seasonId: f.seasonId, format: "direct_bo3", targetEntrantCount: 2, candidateCount: 4, directEntryCount: 0, playInEntryCount: 4, qualifierCount: 2, configuredBy: "integration-test" }).returning();
+    await db.update(schema.matches).set({ qualificationRunId: run.id }).where(eq(schema.matches.id, f.matchId));
+    await expect(issueLiveViewerToken(f.matchId)).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await db.update(schema.competitionQualificationRuns).set({ startedAt: new Date(), startedBy: "integration-test" }).where(eq(schema.competitionQualificationRuns.id, run.id));
+    const credential = await issueLiveViewerToken(f.matchId);
+    const claims = JSON.parse(Buffer.from(credential.token.split(".")[1], "base64url").toString());
+    expect(claims).toMatchObject({ scope: "live-viewer", matchId: f.matchId, role: "authenticated" });
+    expect(claims.exp - claims.iat).toBe(300);
+    expect(credential.topic).toBe(`match-live:${f.matchId}`);
+    for (const status of ["scheduled", "finished", "cancelled"] as const) {
+      await db.update(schema.matches).set({ status }).where(eq(schema.matches.id, f.matchId));
+      await expect(issueLiveViewerToken(f.matchId)).rejects.toMatchObject({ code: "NOT_FOUND" });
+    }
+    await db.update(schema.matches).set({ status: "in_progress" }).where(eq(schema.matches.id, f.matchId));
+    for (const status of ["draft", "voting", "drafting", "finished", "archived"] as const) {
+      await db.update(schema.seasons).set({ status }).where(eq(schema.seasons.id, f.seasonId));
+      await expect(issueLiveViewerToken(f.matchId)).rejects.toMatchObject({ code: "NOT_FOUND" });
+    }
+    await db.update(schema.seasons).set({ status: "registration" }).where(eq(schema.seasons.id, f.seasonId));
+    await db.update(schema.competitionQualificationRuns).set({ completedAt: new Date() }).where(eq(schema.competitionQualificationRuns.id, run.id));
+    await expect(issueLiveViewerToken(f.matchId)).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
   it("atomically corrects maps and series with audit and a stable execution end", async () => {
     const f = await create();
     await playBp(f);

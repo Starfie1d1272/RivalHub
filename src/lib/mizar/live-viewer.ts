@@ -31,10 +31,12 @@ export function connectLiveViewer(matchId: string, onState: (state: LiveViewerSt
     if (old) { void old.removeAllChannels(); old.realtime.disconnect(); }
   };
   const reset = () => { state = resetLiveViewer(state); onState(state); };
+  const connection = (value: LiveViewerState["connection"]) => { state = { ...state, connection: value }; onState(state); };
   const schedule = (delay: number) => { clearTimeout(timer); timer = setTimeout(() => { void join(); }, delay); };
   async function join() {
     clear();
-    if (stopped || !environment.visible() || !environment.url || !environment.key) return;
+    if (stopped || !environment.visible()) return;
+    if (!environment.url || !environment.key) { connection("unavailable"); return; }
     reset();
     const current = generation;
     const controller = new AbortController();
@@ -62,12 +64,12 @@ export function connectLiveViewer(matchId: string, onState: (state: LiveViewerSt
         })
         .subscribe((status) => {
           if (stopped || current !== generation) return;
-          if (status === "SUBSCRIBED") { retry = 1000; schedule(Math.max(1000, ttl - 30000)); }
-          else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") { clear(); reset(); schedule(retry); retry = Math.min(retry * 2, 30000); }
+          if (status === "SUBSCRIBED") { connection("subscribed"); retry = 1000; schedule(Math.max(1000, ttl - 30000)); }
+          else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") { clear(); reset(); connection("unavailable"); schedule(retry); retry = Math.min(retry * 2, 30000); }
         });
 
     } catch {
-      if (!stopped && current === generation) { schedule(retry); retry = Math.min(retry * 2, 30000); }
+      if (!stopped && current === generation) { connection("unavailable"); schedule(retry); retry = Math.min(retry * 2, 30000); }
     } finally { clearTimeout(timeout); }
   }
   const unsubscribe = environment.onResume(() => { clear(); reset(); if (environment.visible()) void join(); });

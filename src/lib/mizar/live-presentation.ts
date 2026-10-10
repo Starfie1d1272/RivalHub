@@ -32,3 +32,9 @@ export function publicPlayerLabels(players: PublicLiveMatchProjection["players"]
   return new Map([...players].sort((a, b) => a.sourcePlayerId.localeCompare(b.sourcePlayerId))
     .map((player, index) => [player.sourcePlayerId, String(index + 1)]));
 }
+
+/** Subscription failure differs from a connected viewer waiting for a fresh frame. */
+export function presentLiveConnection(connection: import("./live-viewer-state").LiveViewerState["connection"]): string {
+  const labels = { connecting: "正在连接实时数据", subscribed: "等待实时数据", unavailable: "实时连接暂不可用" };
+  return labels[connection];
+}

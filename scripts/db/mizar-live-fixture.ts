@@ -87,6 +87,7 @@ async function cleanup(targetSeasonId = seasonId) {
     await tx.execute(sql`DELETE FROM match_veto_sessions WHERE match_id IN (SELECT id FROM matches WHERE season_id = ${targetSeasonId})`);
     await tx.execute(sql`DELETE FROM match_maps WHERE match_id IN (SELECT id FROM matches WHERE season_id = ${targetSeasonId})`);
     await tx.delete(schema.matches).where(eq(schema.matches.seasonId, targetSeasonId));
+    await tx.delete(schema.competitionQualificationRuns).where(eq(schema.competitionQualificationRuns.seasonId, targetSeasonId));
     await tx.delete(schema.auditLogs).where(eq(schema.auditLogs.seasonId, targetSeasonId));
     await tx.delete(schema.mizarInstallations).where(eq(schema.mizarInstallations.competitionId, targetSeasonId));
     await tx.delete(schema.mizarPairingIntents).where(eq(schema.mizarPairingIntents.competitionId, targetSeasonId));
@@ -131,6 +132,11 @@ async function verify() {
   const document = await db.transaction(tx => loadMizarMatchDocumentInTx(tx, ids.matchId, seasonId));
   const publicJson = JSON.stringify(document);
   if (["private-review-marker", "private-perfect-marker", "@live.local", "credentialHash", "installationId"].some(value => publicJson.includes(value))) throw new Error("Provider DTO leaked private facts");
+  // Real private Realtime fanout for the registration Play-in query, using only
+  // disposable local facts. Ordinary playing admission is covered by PG tests.
+  const [qualification] = await db.insert(schema.competitionQualificationRuns).values({ seasonId, format: "direct_bo3", targetEntrantCount: 2, candidateCount: 4, directEntryCount: 0, playInEntryCount: 4, qualifierCount: 2, configuredBy: "live-transport-fixture", startedAt: new Date(), startedBy: "live-transport-fixture" }).returning();
+  await db.update(schema.matches).set({ stage: "play-in", qualificationRunId: qualification.id }).where(eq(schema.matches.id, ids.matchId));
+  await db.update(schema.seasons).set({ status: "registration" }).where(eq(schema.seasons.id, seasonId));
   const credential = await issueLiveViewerToken(ids.matchId);
   const viewer = createClient(apiUrl, requireSupabasePublicKey(process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY, process.env.NEXT_PUBLIC_SUPABASE_URL), { accessToken: async () => credential.token });
   await viewer.realtime.setAuth(credential.token);

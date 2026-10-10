@@ -7,7 +7,7 @@ import { useMatchLive } from "./MatchLiveProvider";
 import { HelpTooltip } from "@/components/rivalhub/HelpTooltip";
 import { MatchRadar } from "./MatchRadar";
 import { visibleLiveSnapshot, liveFreshness, liveClockSeconds, type LiveViewerState } from "@/lib/mizar/live-viewer-state";
-import { presentBomb, presentLivePhase, formatLiveClock, publicPlayerLabels } from "@/lib/mizar/live-presentation";
+import { presentBomb, presentLivePhase, formatLiveClock, publicPlayerLabels, presentLiveConnection } from "@/lib/mizar/live-presentation";
 import { mapLabel } from "@/lib/maps";
 import type { PublicMatchContext } from "@/lib/matches/public-context";
 import type { PublicLiveMatchProjection } from "@/lib/mizar/live-projection";
@@ -45,7 +45,7 @@ export function MatchRealtimeSurface({ state, now, phase, currentMapId, lastComp
     <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--color-border)] pb-3">
       <h2 className="text-lg font-semibold">比赛数据</h2>
       {completed ? <span className="font-mono tabular-nums" aria-label="上一图比分与地图胜场"><span className="text-sm text-[var(--color-fg-dim)]">({seriesProgress?.scoreA ?? "—"})</span> <span className="text-xl font-bold">{completed.scoreA}:{completed.scoreB}</span> <span className="text-sm text-[var(--color-fg-dim)]">({seriesProgress?.scoreB ?? "—"})</span></span> : <span role="status" className={`text-sm ${showLive && freshness === "fresh" ? "text-[var(--color-ok)]" : "text-[var(--color-fg-dim)]"}`}>
-        {showLive ? freshness === "fresh" ? "● 实时" : "实时数据暂时中断" : phase === "awaiting_gameplay" ? "等待正式对局" : phase === "inter_map" ? "图间休息" : "实时数据暂不可用"}
+        {showLive ? freshness === "fresh" ? "● 实时" : "实时数据暂时中断" : phase === "awaiting_gameplay" ? "等待正式对局" : phase === "inter_map" ? "图间休息" : presentLiveConnection(state.connection)}
       </span>}
     </div>
     {showLive ? <>
