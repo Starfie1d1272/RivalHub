@@ -22,6 +22,13 @@ const blockedReadiness = {
 };
 
 describe("season workspace selectors", () => {
+  it("surfaces qualification match work during registration without replacing the lifecycle", () => {
+    expect(selectSeasonWorkspaceNextAction(
+      { slug: "qualifier", status: "registration", registrationOpenedAt: null },
+      { ...baseSummary, matchCount: 4, scheduledMatchesWithoutConfirmedLineups: 2, pendingApplications: 1 },
+      blockedReadiness,
+    )).toMatchObject({ href: "/admin/qualifier/matches", detail: "2 场已排期比赛等待名单确认。" });
+  });
   it("projects solo registrations separately from team entries", () => {
     expect(projectRegistrationSummary("solo", [
       { status: "pending", count: 8 },

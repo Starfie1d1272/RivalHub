@@ -2,6 +2,7 @@ import type { BracketNodeProjection } from "@/lib/bracket";
 import type { MajorSwissStageReadModel } from "@/lib/matches/stage-read-model";
 import type { TeamStanding } from "@/lib/standings";
 import type { StageConfig } from "@/types/season";
+import type { OfficialStage } from "@/lib/seasons/official-stages";
 import type { RivalHubRemoteStage, RivalHubRemoteStanding } from "./contracts";
 
 export interface StageProjectionContext {
@@ -74,6 +75,20 @@ export function projectStage(
     finalFormat: stage.finalFormat ?? null,
     ...(stageStandings && stageStandings.length > 0 ? { standings: stageStandings } : {}),
     ...(bracketNodes ? { bracketNodes } : {}),
+  };
+}
+
+/** Existing v1 consumers accept known formats only. Never invent rules for
+ * an orphan historical key; contract evolution is separate from this fix. */
+export function projectOfficialStage(stage: OfficialStage): RivalHubRemoteStage | null {
+  if (stage.config) return projectStage(stage.config);
+  if (!stage.qualification) return null;
+  return {
+    key: stage.key, name: stage.name,
+    type: stage.qualification.format === "short_swiss_2w2l" ? "swiss" : "single_elim",
+    teamCount: stage.qualification.playInEntryCount,
+    advanceCount: stage.qualification.qualifierCount,
+    matchFormat: stage.qualification.format === "short_swiss_2w2l" ? "bo1" : "bo3", finalFormat: null,
   };
 }
 

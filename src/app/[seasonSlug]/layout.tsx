@@ -4,7 +4,7 @@ import type { Metadata } from "next";
 import { Breadcrumb } from "@/components/layout/Breadcrumb";
 import { SeasonNav } from "@/components/layout/SeasonNav";
 import { hexToRgbString } from "@/lib/utils/color";
-import { normalizeStagePlan } from "@/lib/seasons/compatibility";
+import { getPublicSeasonStagePresentation } from "@/lib/seasons/public-stage";
 import { showStats } from "@/lib/utils/season";
 import {
   getPublicOrAuthorizedDraftSeason,
@@ -38,6 +38,7 @@ async function SeasonLayoutContent({ children, params }: SeasonLayoutProps) {
   const season = await getPublicOrAuthorizedDraftSeason(seasonSlug);
 
   if (!season) notFound();
+  const stagePresentation = await getPublicSeasonStagePresentation(season);
 
   return (
     <div
@@ -62,7 +63,7 @@ async function SeasonLayoutContent({ children, params }: SeasonLayoutProps) {
         hasCaptainVoting={season.hasCaptainVoting}
         hasDraft={season.hasDraft}
         hasCommunityAwards={season.hasCommunityAwards}
-        hasMatches={normalizeStagePlan(season.stagePlan).length > 0}
+        hasMatches={stagePresentation.officialStages.length > 0}
         hasStats={showStats(season)}
         hasPredictions={season.competitionTemplate === "major"}
       />

@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({ rows: [] as unknown[][], stats: vi.fn(), tag: vi.fn(), life: vi.fn() }));
+vi.mock("@/lib/seasons/public-stage", () => ({ getPublicSeasonStagePresentation: async () => ({ officialStages: [{ key: "play-in", name: "Play-in" }] }) }));
 vi.mock("@/db/client", () => {
   const select = () => {
     const rows = mocks.rows.shift() ?? [];
@@ -22,6 +23,17 @@ const events = [
 ];
 beforeEach(() => { vi.clearAllMocks(); mocks.rows = []; mocks.stats.mockResolvedValue({ records: [{ pages: 2 }] }); });
 describe("platform scope and cache boundary", () => {
+  it("keeps qualification as an exact event scope even during registration", async () => {
+    mocks.rows = [[{ ...events[0], status: "registration" }], [], []];
+    const result = await getPlatformStatsPage({ event: "current", stage: "play-in" });
+    expect(result.stages).toEqual([{ key: "play-in", name: "Play-in" }]);
+    expect(mocks.stats).toHaveBeenCalledWith(expect.objectContaining({ seasonId: "a", stage: "play-in" }));
+  });
+  it("rejects an unknown event stage without querying a broader sample", async () => {
+    mocks.rows = [events];
+    await expect(getPlatformStatsPage({ event: "current", stage: "typo" })).rejects.toMatchObject({ code: "NOT_FOUND" });
+    expect(mocks.stats).not.toHaveBeenCalled();
+  });
   it("keys the aggregate with fresh public IDs including archived events and shares the existing invalidation tag", async () => {
     mocks.rows = [events, [{ name: "de_oldmap", seasonId: "b" }]];
     const result = await getPlatformStatsPage({ mapFilter: "de_oldmap" });

@@ -173,6 +173,8 @@ Managed Major 的唯一 profile owner 从保存的 StagePlan 识别 Major-24 或
 
 Qualification 的 season-scoped 预排名草稿由 `competition_qualification_drafts` 保存完整 order、format、目标容量、operator/time/version；audit 保存每次差异。草稿不创建 run 或比赛。最终确认必须消费最新已保存版本，并验证候选集合与容量未变化。确认后候选、赛制和预排名均不可直接修改；首轮生成前只能显式 reset 返回草稿。
 
+正式赛事可以包含多个正式阶段。`seasons/public-stage` 的正式阶段目录汇总 frozen Main StagePlan、Qualification run 和历史正式比赛 stage identity，供公开赛程、Stats 范围和 DAK 展示复用；它不是赛制或 transition owner，不把 Play-in 写回 Main StagePlan。正式比赛存在性从排除 testConfig 的比赛事实取得，不以 season.status=playing 代替。Stats 的未知阶段明确拒绝，不能静默扩大统计范围；历史未知 key 保留身份、不猜测赛制。DAK v1 只接受已知赛制，缺少 run/config 的历史孤立 key 保持既有 transport，不生成虚构阶段规则，后续契约扩展独立处理。Major 首页不使用跨阶段循环赛积分榜。
+
 Qualification 是独立于 Major StagePlan 的预赛运行事实：`competition_qualification_runs` 冻结赛制配置、容量关系、资格 policy 与生命周期，`competition_qualification_entrants` 冻结候选集合和预排名；带 `qualification_run_id` 的 `play-in` Match 保持 manual ownership，不关联 Major StageRun、managed key 或 bracket node。Play-in 首发从当前已批准 revision 同步的 confirmed/frozen EventRoster 读取资格快照：同步时采用 run 的 frozen policy，冻结竞技事实和对应 Entry/revision 的 override；比赛 gate 不重新解释可变个人档案。更新批准名单后显式同步新的 revision，旧事实不可跨 revision 生效。缺少快照的旧 run fail closed，首轮前须重置配置。
 
 正赛候选由冻结的直通队和已完成 Qualification 的晋级队共同派生，不能由管理员替换或补足。Swiss core 只从 canonical 比赛事实投影 W/L、对手、BU、状态与排名；轮次是否完整、是否必须同战绩配对以及是否允许 bye 由 Major 或 Qualification policy 验证，不由通用 projection 固定。Short Swiss 的 Qualification policy 是 2 胜晋级、2 负淘汰，最多三轮。
