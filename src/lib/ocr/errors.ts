@@ -18,7 +18,12 @@ const MESSAGES: Record<OCRFailureKind, string> = {
   image: "截图无法读取，请选择有效的 JPEG、PNG 或 WebP 图片（不超过 10MB）后重试。",
 };
 
-/** Only fixed reason codes and synthetic causes may enter this error chain. */
+/**
+ * reason/cause/errorChain contain fixed classification codes and synthetic errors.
+ * diagnostics separately preserve real provider/transport name, code, message and
+ * cause projections after bounded extraction and redaction; retain those reasons.
+ * Neither raw exceptions nor provider responses belong in this object.
+ */
 export class OCRFailure extends Error {
   readonly requestId: string;
   readonly retryable: boolean;
