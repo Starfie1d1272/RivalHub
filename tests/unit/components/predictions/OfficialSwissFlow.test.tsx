@@ -14,10 +14,11 @@ describe("official Swiss adapter", () => {
     render(<StageSwissReadModel data={fixture()} seasonSlug="event" />);
     expect(screen.getByRole("heading", { name: "第 1 轮" })).toBeVisible();
     expect(new Set(screen.getAllByRole("link").map(link => link.getAttribute("href")).filter(href => href?.includes("/matches/"))).size).toBe(6);
-    expect(screen.getByRole("link", {name: "Team 5 对 Team 11"})).toHaveAttribute("href", "/event/matches/m5");
+    expect(screen.getByRole("link", {name: "查看 Team 5 对 Team 11 比赛"})).toHaveAttribute("href", "/event/matches/m5");
     expect(screen.getByTestId("record-2-1–0")).toHaveTextContent("待定");
     expect(screen.getByTestId("record-2-0–1")).toHaveTextContent("待定");
     expect(screen.getByTestId("record-3-1–1")).toHaveTextContent("待定");
+    expect(screen.queryByRole("table")).not.toBeInTheDocument();
     expect(screen.queryByText("暂无对阵")).not.toBeInTheDocument();
     const results = within(screen.getByRole("region", {name: "最终结果"}));
     for (const record of ["2–0", "2–1", "0–2", "1–2"]) expect(results.getByText(record)).toBeVisible();
@@ -26,6 +27,21 @@ describe("official Swiss adapter", () => {
     await userEvent.setup().click(screen.getByRole("button", {name: "展示第 3 轮"}));
     expect(screen.getByRole("button", {name: "展示第 3 轮"})).toHaveAttribute("aria-pressed", "true");
     expect(new Set(screen.getAllByRole("link").map(link => link.getAttribute("href")).filter(href => href?.includes("/matches/"))).size).toBe(6);
+  });
+  it("keeps a finished match score and independent keyboard navigation while its round is active", async () => {
+    const data = fixture();
+    Object.assign(data.rounds[0]!.groups[0]!.matchups[0]!, { status: "finished", scoreA: 1, scoreB: 0 });
+    render(<StageSwissReadModel data={data} seasonSlug="event" />);
+    const matchLink = screen.getByRole("link", { name: "查看 Team 0 对 Team 6 比赛" });
+    expect(matchLink).toHaveAttribute("href", "/event/matches/m0");
+    expect(screen.getByRole("link", { name: "Team 0 对 Team 6" })).toHaveTextContent("1");
+    expect(screen.getByRole("link", { name: "Team 0 对 Team 6 · 比分" })).toHaveTextContent("0");
+    expect(screen.getByRole("link", { name: "队伍图标：Team 0 Team 0" })).toHaveAttribute("href", "/event/teams/e0");
+    screen.getByRole("link", { name: "队伍图标：Team 6 Team 6" }).focus();
+    const user = userEvent.setup();
+    await user.tab();
+    await user.tab();
+    expect(matchLink).toHaveFocus();
   });
   it.each(["stage1", "stage2"])("uses canonical 3W3L exits and official outcomes for %s", stageKey => {
     const data = fixture(stageKey); data.competitionEntries[0] = {...data.competitionEntries[0]!, wins: 3, status: "advanced"};

@@ -1,7 +1,5 @@
-import { TeamProfileLink } from "@/components/teams/TeamProfileLink";
 import React from "react";
 import { OfficialSwissFlow } from "./OfficialSwissFlow";
-import { HelpTooltip } from "@/components/rivalhub/HelpTooltip";
 import type { SwissStageReadModel } from "@/lib/matches/stage-read-model";
 
 interface StageSwissReadModelProps {
@@ -25,30 +23,6 @@ export function StageSwissReadModel({ data, seasonSlug }: StageSwissReadModelPro
         </p>
       </div>
       <OfficialSwissFlow data={data} seasonSlug={seasonSlug} />
-      <div className="overflow-x-auto rounded border border-[var(--color-border)]">
-        <table className="w-full min-w-[640px] text-sm">
-          <thead className="bg-[var(--color-panel-hi)] text-left text-xs text-[var(--color-fg-mid)]">
-            <tr>
-              <th className="px-3 py-2">{isQualification ? "Seed" : "种子"}</th>
-              <th className="px-3 py-2">{isQualification ? "Team" : "队伍"}</th>
-              <th className="px-3 py-2">{isQualification ? "W-L" : "战绩"}</th>
-              <th className="px-3 py-2"><span className="inline-flex items-center gap-1">BU<HelpTooltip label="Buchholz 说明" content="BU（Buchholz）为所有对手当前胜场减负场之和；同战绩队伍按 BU 从高到低排名，并据此确定下一轮组内配对顺序，配对仍需满足不重赛约束。" /></span></th>
-              <th className="px-3 py-2">{isQualification ? "Status" : "状态"}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.competitionEntries.map((entry) => (
-              <tr key={entry.entryId} className="border-t border-[var(--color-border)]">
-                <td className="px-3 py-2 tabular-nums">{data.seedPrefix ?? ""}{entry.seed}</td>
-                <td className="px-3 py-2"><TeamProfileLink entryId={entry.entryId} seasonSlug={seasonSlug}>{entry.teamName}</TeamProfileLink></td>
-                <td className="px-3 py-2 tabular-nums">{entry.wins}:{entry.losses}</td>
-                <td className="px-3 py-2 tabular-nums">{entry.difficultyScore}</td>
-                <td className="px-3 py-2">{entry.status === "advanced" ? "晋级" : entry.status === "eliminated" ? "淘汰" : "进行中"}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
     </section>
   );
 }

@@ -2,6 +2,7 @@
 import { TeamProfileLink } from "@/components/teams/TeamProfileLink";
 import React, { useState } from "react";
 import Link from "next/link";
+import { ArrowUpRight } from "lucide-react";
 import { TeamLogo } from "@/components/teams/TeamLogo";
 import { TournamentFlow, type TournamentView } from "@/components/tournament/TournamentFlow";
 import { SwissRecordGroup, TournamentResult, swissResultRecords } from "@/components/tournament/SwissPrimitives";
@@ -46,7 +47,7 @@ export function OfficialSwissFlow({ data, seasonSlug }: { data: SwissStageReadMo
 }
 function OfficialMatch({ match, slug }: { match: StageSwissMatchRow; slug: string }) {
   return <div
-    className={`${styles.match} ${styles.compactMatch} block focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]`}>
+    className={`${styles.match} ${styles.compactMatch}`}>
     {([{ id: match.entryAId, name: match.teamAName, logo: match.teamALogoUrl, score: match.scoreA, other: match.scoreB },
       { id: match.entryBId, name: match.teamBName, logo: match.teamBLogoUrl, score: match.scoreB, other: match.scoreA }]).map((team, i) =>
       <div key={i} className={styles.teamSide} data-winning={match.status === "finished" && team.score !== null && team.other !== null && team.score > team.other}>
@@ -54,5 +55,9 @@ function OfficialMatch({ match, slug }: { match: StageSwissMatchRow; slug: strin
         <span className={styles.teamName} title={team.name}>{team.name}</span></TeamProfileLink>
         <Link href={`/${slug}/matches/${match.matchId}`} aria-label={`${match.teamAName} 对 ${match.teamBName}${i === 0 ? "" : " · 比分"}`} className={styles.rowScore}>{team.score ?? "—"}</Link>
       </div>)}
+    <Link href={`/${slug}/matches/${match.matchId}`} className={styles.matchLink}
+      aria-label={`查看 ${match.teamAName} 对 ${match.teamBName} 比赛`} title="查看比赛">
+      <ArrowUpRight size={14} aria-hidden="true" />
+    </Link>
   </div>;
 }
