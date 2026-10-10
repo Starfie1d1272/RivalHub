@@ -21,6 +21,7 @@ export const ErrorCode = {
   VALIDATION_FAILED: "VALIDATION_FAILED",
   NOT_FOUND: "NOT_FOUND",
   INTERNAL_ERROR: "INTERNAL_ERROR",
+  OCR_UNAVAILABLE: "OCR_UNAVAILABLE",
   EMAIL_NOT_CONFIRMED: "EMAIL_NOT_CONFIRMED",
   EMAIL_SEND_RATE_LIMITED: "EMAIL_SEND_RATE_LIMITED",
 
@@ -120,6 +121,7 @@ export const ERROR_MESSAGES: Record<ErrorCode, string> = {
   VALIDATION_FAILED: "输入校验失败",
   NOT_FOUND: "目标不存在",
   INTERNAL_ERROR: "服务器内部错误，请稍后重试",
+  OCR_UNAVAILABLE: "OCR 服务暂时不可用，请稍后重试或联系管理员",
   EMAIL_NOT_CONFIRMED: "邮箱尚未验证，请先完成邮箱验证",
   EMAIL_SEND_RATE_LIMITED: "邮件发送过于频繁，请稍后再试",
 
