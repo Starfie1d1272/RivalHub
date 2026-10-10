@@ -24,7 +24,7 @@ export function buildOfficialStageDirectory(
   historicalPlan: StagePlan = [],
 ): OfficialStage[] {
   const stages: OfficialStage[] = mainPlan.map((config) => ({ key: config.key, name: config.name, source: "main", config, qualification: null }));
-  if (qualification || officialMatchStageKeys.includes("play-in")) {
+  if (qualification) {
     // Qualification identity takes precedence over an accidental mutable plan alias.
     const alias = stages.findIndex((stage) => stage.key === "play-in");
     if (alias >= 0) stages.splice(alias, 1);
@@ -36,7 +36,7 @@ export function buildOfficialStageDirectory(
       // Compatibility for an existing configured match stage outside the frozen main plan.
       // A mutable alias can never replace a key already supplied by the frozen plan.
       const config = historicalPlan.find((stage) => stage.key === key) ?? null;
-      stages.push({ key, name: config?.name ?? key, source: "historical", config, qualification: null });
+      stages.push({ key, name: config?.name ?? (key === "play-in" ? "Play-in" : key), source: "historical", config, qualification: null });
       keys.add(key);
     }
   }

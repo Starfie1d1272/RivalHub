@@ -46,6 +46,13 @@ describe("official stage directory and consumer scope", () => {
     expect(buildOfficialStageDirectory(mainPlan, null, [], [legacy]).map((stage) => stage.key)).not.toContain("old-group");
   });
 
+  it("does not turn a configured legacy play-in key into a qualification runtime without a run", () => {
+    const configured = { ...mainPlan[0]!, key: "play-in", name: "Legacy Play-in", type: "round_robin" as const };
+    const [stage] = buildOfficialStageDirectory([configured], null, ["play-in"]);
+    expect(stage).toMatchObject({ source: "main", qualification: null });
+    expect(projectOfficialStage(stage!)).toMatchObject({ key: "play-in", name: "Legacy Play-in", type: "round_robin" });
+  });
+
   it("opens stats and discovery from official facts, excluding unpublished events and test-only samples", () => {
     expect(showStats({ status: "registration", hasOfficialMatches: true })).toBe(true);
     expect(showStats({ status: "registration", hasOfficialMatches: false })).toBe(false);
