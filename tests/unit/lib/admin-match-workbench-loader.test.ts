@@ -9,6 +9,8 @@ const {
   postMatchFindFirstMock,
   requireSeasonAdminMock,
   selectMock,
+  preflightMock,
+  transactionMock,
 } = vi.hoisted(() => ({
   seasonFindFirstMock: vi.fn(),
   matchFindFirstMock: vi.fn(),
@@ -18,6 +20,8 @@ const {
   postMatchFindFirstMock: vi.fn(),
   requireSeasonAdminMock: vi.fn(),
   selectMock: vi.fn(),
+  preflightMock: vi.fn(),
+  transactionMock: vi.fn(),
 }));
 
 vi.mock("@/db/client", () => ({
@@ -30,12 +34,17 @@ vi.mock("@/db/client", () => ({
       matchVetoSessions: { findFirst: vetoSessionFindFirstMock },
       postMatchReports: { findFirst: postMatchFindFirstMock },
       matchLiveSessions: { findFirst: vi.fn().mockResolvedValue(undefined) },
+      competitionQualificationRuns: { findFirst: vi.fn().mockResolvedValue(undefined) },
     },
     select: selectMock,
+    transaction: transactionMock,
   },
 }));
+vi.mock("@/lib/match-rosters/service", () => ({ getStartingLineupPreflightInTx: preflightMock }));
 vi.mock("@/lib/auth/session", () => ({ requireSeasonAdmin: requireSeasonAdminMock }));
 
+import { matchRosters } from "@/db/schema";
+import { AppError, ErrorCode } from "@/lib/errors";
 import { loadAdminMatchWorkbench } from "@/lib/admin/matches/workbench";
 
 function selectBuilder<T>(result: T) {
@@ -98,6 +107,27 @@ describe("loadAdminMatchWorkbench", () => {
     postMatchFindFirstMock.mockResolvedValue(undefined);
     requireSeasonAdminMock.mockResolvedValue({ userId: "admin-1" });
     selectMock.mockImplementation(() => selectBuilder([]));
+  });
+
+  it("shows qualification snapshot validation as a preparation blocker for manual Play-in", async () => {
+    matchFindFirstMock.mockResolvedValue({ ...match, stage: "play-in", qualificationRunId: "run-1" });
+    const rosterRows = [
+      { id: "roster-a", entryId: "entry-a", status: "submitted", source: "participant", submittedAt: null, confirmedAt: null },
+      { id: "roster-b", entryId: "entry-b", status: "submitted", source: "participant", submittedAt: null, confirmedAt: null },
+    ];
+    selectMock.mockImplementation(() => {
+      let rows: unknown[] = [];
+      const builder = { from: (table: unknown) => { rows = table === matchRosters ? rosterRows : []; return builder; },
+        innerJoin: () => builder, leftJoin: () => builder, where: () => builder, orderBy: () => builder, limit: () => builder,
+        then: (resolve: (value: unknown[]) => unknown) => Promise.resolve(rows).then(resolve) };
+      return builder;
+    });
+    transactionMock.mockImplementation((run: (tx: unknown) => unknown) => run({}));
+    preflightMock.mockRejectedValue(new AppError(ErrorCode.VALIDATION_FAILED, "Play-in 资格快照缺失或名单版本已变化，请先同步已批准名单。"));
+    const result = await loadAdminMatchWorkbench({ seasonSlug: "major", matchId: "match-1" });
+    expect(preflightMock).toHaveBeenCalledTimes(2);
+    expect(result?.teamAPreflight).toMatchObject({ valid: false, blockers: [expect.stringContaining("请先同步")] });
+    expect(result?.teamBPreflight).toMatchObject({ valid: false });
   });
 
   it("authorizes a valid scoped match before loading detail facts", async () => {

@@ -25,6 +25,8 @@ import {
 import { commentaryAdminEligibility } from "@/lib/postmatch/eligibility";
 import { requireSeasonAdmin } from "@/lib/auth/session";
 import { getStartingLineupPreflightInTx } from "@/lib/match-rosters/service";
+import { requiresCompetitionLineupPreflight } from "@/lib/match-rosters/policy";
+import { ErrorCode, isAppErrorCode } from "@/lib/errors";
 import { mapLabel } from "@/lib/maps";
 import { getDisplayName } from "@/lib/identity/display-name";
 import { getPostMatchCompletion, POST_MATCH_COMPLETION_LABEL } from "@/lib/postmatch/service";
@@ -225,17 +227,22 @@ export async function loadAdminMatchWorkbench({
   const rostersByEntry = new Map(rosterRows.map((roster) => [roster.entryId, roster]));
   let teamAPreflight = null;
   let teamBPreflight = null;
-  if (match.status === "scheduled" && match.ownership === "major_stage") {
+  if (match.status === "scheduled" && requiresCompetitionLineupPreflight(match)) {
     const preflightRows = await Promise.all(entryIds.map(async (entryId) => {
       const roster = rostersByEntry.get(entryId);
       if (!roster) return { entryId, preflight: null };
-      const result = await db.transaction((tx) => getStartingLineupPreflightInTx(tx, {
-        match,
-        entryId,
-        starterIds: roster.players.filter((player) => player.isStarter).map((player) => player.eventRosterMemberId),
-        substituteIds: roster.players.filter((player) => !player.isStarter).map((player) => player.eventRosterMemberId),
-      }));
-      return { entryId, preflight: { valid: result.valid, blockers: result.blockers } };
+      try {
+        const result = await db.transaction((tx) => getStartingLineupPreflightInTx(tx, {
+          match,
+          entryId,
+          starterIds: roster.players.filter((player) => player.isStarter).map((player) => player.eventRosterMemberId),
+          substituteIds: roster.players.filter((player) => !player.isStarter).map((player) => player.eventRosterMemberId),
+        }));
+        return { entryId, preflight: { valid: result.valid, blockers: result.blockers } };
+      } catch (error) {
+        if (!isAppErrorCode(error, ErrorCode.VALIDATION_FAILED)) throw error;
+        return { entryId, preflight: { valid: false, blockers: [error.message] } };
+      }
     }));
     teamAPreflight = preflightRows.find((row) => row.entryId === match.entryAId)?.preflight ?? null;
     teamBPreflight = preflightRows.find((row) => row.entryId === match.entryBId)?.preflight ?? null;

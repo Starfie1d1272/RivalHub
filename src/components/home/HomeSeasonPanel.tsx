@@ -64,7 +64,7 @@ export function HomeSeasonPanel({
   playerCount,
 }: HomeSeasonPanelProps) {
   const registrationSchedule = presentRegistrationSchedule(season);
-  if (isRegistrationActuallyOpen(season)) {
+  if (isRegistrationActuallyOpen(season) && liveAndUpcomingMatches.length === 0) {
     return (
       <Panel label="REGISTRATION">
         <div className="grid gap-3.5">
@@ -112,7 +112,7 @@ export function HomeSeasonPanel({
     );
   }
 
-  if (season.status === "voting") {
+  if (season.status === "voting" && liveAndUpcomingMatches.length === 0) {
     return (
       <Panel label="VOTING · TOP 3">
         <div className="grid gap-3">
@@ -139,11 +139,11 @@ export function HomeSeasonPanel({
     );
   }
 
-  if (season.status === "drafting") {
+  if (season.status === "drafting" && liveAndUpcomingMatches.length === 0) {
     return <Panel label="DRAFT"><SeasonPanelTitle season={season} /><p className="my-4 text-sm text-[var(--color-fg-mid)]">关注选人进度与正在形成的赛事阵容。</p><Button asChild><Link href={`/${season.slug}/draft`}>查看选秀 →</Link></Button></Panel>;
   }
 
-  if (season.status === "playing") {
+  if (season.status === "playing" || liveAndUpcomingMatches.length > 0) {
     return (
       <Panel label="MATCHES">
         <div className="grid gap-3.5">

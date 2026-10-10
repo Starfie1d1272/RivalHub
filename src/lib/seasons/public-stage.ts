@@ -3,7 +3,8 @@ import "server-only";
 
 import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
-import { majorStageRuns, matches } from "@/db/schema";
+import { competitionQualificationRuns, majorStageRuns, matches } from "@/db/schema";
+import { buildOfficialStageDirectory, type OfficialStage, type QualificationStageFact } from "./official-stages";
 import { resolveMajorStagePlan } from "@/lib/major/run-snapshot";
 import { normalizeStagePlan } from "@/lib/seasons/compatibility";
 import { presentStageMarker } from "@/lib/seasons/presentation";
@@ -14,6 +15,7 @@ export type PublicStageSeason = Pick<PublicSeason, "id" | "competitionTemplate" 
 
 export interface PublicStagePresentation {
   stagePlan: StagePlan;
+  officialStages: OfficialStage[];
   labels: Readonly<Record<string, string>>;
   initializedStageKeys: readonly string[];
   currentStageKey: string | null;
@@ -36,8 +38,10 @@ export function buildPublicStagePresentation(
   season: PublicStageSeason,
   stageRuns: readonly { stageKey: string; ruleSnapshot: unknown; startedAt?: Date }[] = [],
   initializedStageKeys: readonly string[] = [],
+  qualification: QualificationStageFact | null = null,
 ): PublicStagePresentation {
   const stagePlan = resolvePublicStagePlan(season, stageRuns);
+  const officialStages = buildOfficialStageDirectory(stagePlan, qualification, initializedStageKeys);
   const initialized = new Set(initializedStageKeys);
   const runKeys = new Set(stageRuns.map((run) => run.stageKey));
   const latestRun = [...stageRuns].filter((run) => run.startedAt).sort((a, b) => b.startedAt!.getTime() - a.startedAt!.getTime())[0];
@@ -48,19 +52,20 @@ export function buildPublicStagePresentation(
   ) ?? null;
   return {
     stagePlan,
+    officialStages,
     labels: Object.fromEntries(
-      stagePlan.map((stage) => [stage.key, presentStageMarker(stage, season.competitionTemplate)]),
+      officialStages.map((stage) => [stage.key, stage.config ? presentStageMarker(stage.config, season.competitionTemplate) : stage.name]),
     ),
     initializedStageKeys: [...initializedStageKeys],
-    currentStageKey: currentStage?.key ?? null,
-    currentStageLabel: currentStage ? presentStageMarker(currentStage, season.competitionTemplate) : null,
+    currentStageKey: currentStage?.key ?? (qualification?.startedAt || initialized.has("play-in") ? "play-in" : null),
+    currentStageLabel: currentStage ? presentStageMarker(currentStage, season.competitionTemplate) : qualification?.startedAt || initialized.has("play-in") ? "Play-in" : null,
   };
 }
 
 export async function getPublicSeasonStagePresentation(
   season: PublicStageSeason,
 ): Promise<PublicStagePresentation> {
-  const [stageRuns, matchStageRows] = await Promise.all([
+  const [stageRuns, matchStageRows, qualificationRows] = await Promise.all([
     season.competitionTemplate === "major"
       ? db
         .select({ stageKey: majorStageRuns.stageKey, ruleSnapshot: majorStageRuns.ruleSnapshot, startedAt: majorStageRuns.startedAt })
@@ -68,11 +73,16 @@ export async function getPublicSeasonStagePresentation(
         .where(eq(majorStageRuns.seasonId, season.id))
       : Promise.resolve([] as { stageKey: string; ruleSnapshot: unknown }[]),
     loadOfficialMatchStages(eq(matches.seasonId, season.id)),
+    db.select({ format: competitionQualificationRuns.format, playInEntryCount: competitionQualificationRuns.playInEntryCount,
+      qualifierCount: competitionQualificationRuns.qualifierCount, startedAt: competitionQualificationRuns.startedAt,
+      completedAt: competitionQualificationRuns.completedAt }).from(competitionQualificationRuns)
+      .where(eq(competitionQualificationRuns.seasonId, season.id)).limit(1),
   ]);
 
   return buildPublicStagePresentation(
     season,
     stageRuns,
     matchStageRows.flatMap((row) => row.stage === null ? [] : [row.stage]),
+    qualificationRows[0] ?? null,
   );
 }

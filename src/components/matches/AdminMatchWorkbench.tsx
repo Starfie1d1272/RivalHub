@@ -1,4 +1,5 @@
 import { MatchDownloads } from "@/components/matches/MatchDownloads";
+import { requiresCompetitionLineupPreflight } from "@/lib/match-rosters/policy";
 import { TeamProfileLink } from "@/components/teams/TeamProfileLink";
 import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
 import { OfficialMapStart } from "@/components/bet/OfficialMapStart";
@@ -112,7 +113,7 @@ export function AdminMatchWorkbench({
   operator,
   commentary,
 }: AdminMatchWorkbenchProps) {
-  const requiresPreflight = match.ownership === "major_stage";
+  const requiresPreflight = requiresCompetitionLineupPreflight(match);
   const startBlockers = getAdminMatchStartBlockers({
     requiresPreflight,
     teamAName,

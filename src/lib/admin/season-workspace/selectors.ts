@@ -57,7 +57,7 @@ export function selectSeasonWorkspaceNextAction(
     };
   }
 
-  if (season.status === "playing") {
+  if (season.status === "playing" || summary.matchCount > 0) {
     if (summary.scheduledMatchesWithoutConfirmedLineups > 0 || summary.matchCount > 0) {
       return {
         label: "查看比赛工作区",

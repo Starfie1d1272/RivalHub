@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { PageHeader, PageLayout } from "@/components/rivalhub";
 import { TournamentStatsView } from "@/components/stats/TournamentStats";
 import { getPublicOrAuthorizedDraftSeason, getPublicSeasonBySlug } from "@/lib/data/public-seasons";
-import { normalizeStagePlan } from "@/lib/seasons/compatibility";
+import { getPublicSeasonStagePresentation } from "@/lib/seasons/public-stage";
 import { getPublicTournamentMapDetail, getPublicTournamentStats } from "@/lib/stats/cached-query";
 import { publicStatsView } from "@/lib/stats/public-view";
 import { parseStatsQuery, statsHref, type StatsSearch } from "@/lib/stats/view-state";
@@ -22,8 +22,9 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
   const season = await getPublicOrAuthorizedDraftSeason(seasonSlug);
   if (!season) notFound();
 
-  const stages = normalizeStagePlan(season.stagePlan).map(({ key, name }) => ({ key, name }));
+  const stages = (await getPublicSeasonStagePresentation(season)).officialStages.map(({ key, name }) => ({ key, name }));
   const query = parseStatsQuery(await searchParams, stages.map((stage) => stage.key));
+  if (query.stage === "__invalid__") notFound();
   if (season.status !== "draft") permanentRedirect(statsHref(seasonSlug, query));
   query.preview = true;
   const scope = { seasonId: season.id, stage: query.stage || undefined, format: query.format || undefined };

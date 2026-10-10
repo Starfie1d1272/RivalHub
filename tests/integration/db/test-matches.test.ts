@@ -1,6 +1,8 @@
 import { exportQuery } from "../../../scripts/db/preview/policy";
 import { getPublicSeasonResults } from "@/lib/seasons/public-results";
 import { getPublicSeasonStagePresentation } from "@/lib/seasons/public-stage";
+import { getPublicSeasonBySlug } from "@/lib/data/public-seasons";
+import { showStats } from "@/lib/utils/season";
 import { issueLiveViewerToken } from "@/lib/mizar/live";
 import evidenceFixture from "../../fixtures/demo-evidence/normal-map-v1.json";
 import { parseRivalHubDemoEvidenceV1 } from "@/lib/demo-evidence/contract";
@@ -25,6 +27,8 @@ import { recordCanonicalMapResultInTx, supplementUnassociatedMapResultInTx } fro
 import { correctUnassociatedResultInTx, concludeUnassociatedMatchInTx, supplementUnassociatedResultInTx } from "@/lib/matches/unassociated-result";
 import { loadMizarMatchDocumentInTx } from "@/lib/mizar/context";
 import { readRivalHubEvents } from "@/lib/demo-integration/read";
+
+vi.mock("next/cache", () => ({ cacheTag: vi.fn(), cacheLife: vi.fn(), revalidatePath: vi.fn(), revalidateTag: vi.fn(), updateTag: vi.fn() }));
 
 async function create() {
   const f = await seedFixture();
@@ -64,6 +68,32 @@ async function playBp(f: Awaited<ReturnType<typeof create>>) {
 
 describe("event test matches", () => {
   afterEach(() => vi.unstubAllEnvs());
+  // Protect the real SQL membership projection and DAK consumer contract;
+  // pure directory tests alone cannot detect test leakage or missing DB joins.
+  it("discovers an official registration Play-in and supplies its DAK stage", async () => {
+    const f = await seedFixture();
+    await db.update(schema.seasons).set({ status: "registration" }).where(eq(schema.seasons.id, f.seasonId));
+    const [run] = await db.insert(schema.competitionQualificationRuns).values({ seasonId: f.seasonId, format: "short_swiss_2w2l", targetEntrantCount: 2, candidateCount: 4, directEntryCount: 0, playInEntryCount: 4, qualifierCount: 2, configuredBy: "integration-test", startedAt: new Date(), startedBy: "integration-test" }).returning();
+    await db.update(schema.matches).set({ stage: "play-in", format: "bo1", qualificationRunId: run.id }).where(eq(schema.matches.id, f.matchId));
+    const season = await getPublicSeasonBySlug(f.seasonId);
+    expect(season).toMatchObject({ status: "registration", hasOfficialMatches: true });
+    expect(showStats(season!)).toBe(true);
+    const view = await getPublicSeasonStagePresentation(season!);
+    expect(view.currentStageKey).toBe("play-in");
+    expect(view.officialStages).toEqual(expect.arrayContaining([expect.objectContaining({ key: "play-in", source: "qualification" })]));
+    const event = (await readRivalHubEvents({ seasonIds: [f.seasonId] })).events[0]!;
+    expect(event.stages).toEqual(expect.arrayContaining([expect.objectContaining({ key: "play-in", type: "swiss", matchFormat: "bo1", teamCount: 4, advanceCount: 2 })]));
+    expect(event.series.find((series) => series.id === f.matchId)?.stageKey).toBe("play-in");
+  });
+  it("keeps test-only registration events out of official discovery and stats navigation", async () => {
+    const f = await create();
+    await db.update(schema.seasons).set({ status: "registration" }).where(eq(schema.seasons.id, f.seasonId));
+    await db.update(schema.matches).set({ stage: "test", testConfig: f.match.testConfig }).where(eq(schema.matches.id, f.matchId));
+    const season = await getPublicSeasonBySlug(f.seasonId);
+    expect(season).toMatchObject({ status: "registration", hasOfficialMatches: false });
+    expect(showStats(season!)).toBe(false);
+    expect((await getPublicSeasonStagePresentation(season!)).initializedStageKeys).not.toContain("test");
+  });
   it("keeps prepared rosters unchanged and refuses to resynchronize during active matches", async () => {
     const f = await create();
     const rosterRows = () => db.select().from(schema.eventRosters).where(inArray(schema.eventRosters.entryId, [f.entryAId, f.entryBId])).orderBy(schema.eventRosters.id);
