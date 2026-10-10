@@ -13,6 +13,7 @@ export interface OperatorMap {
   demoLabel: string;
   demoNeedsAttention: boolean;
   demoComplete?: boolean;
+  demoReviewAnchor?: string;
 }
 
 export interface PerfectRoomGuideData {
@@ -167,4 +168,23 @@ export function projectOperatorCompletion(input: {
     data: (played.length > 0 || input.isForfeit) && played.every(map => map.scoreboardComplete && map.demoComplete) ? "已齐备" : "待补齐 OCR / Demo",
     production: input.commentatorCount === 0 ? "暂无解说认领" : input.submitted && input.hasVideo ? "已完成" : "待确认解说名单 / 补充录像",
   };
+}
+
+/** Task destinations adapt the same completion facts used by the single-match workbench. */
+export function projectOperatorPostMatchTasks(input: Parameters<typeof projectOperatorCompletion>[0]) {
+  if (input.status !== "finished") return [];
+  const completion = projectOperatorCompletion(input);
+  const tasks: { label: string; anchor: string }[] = [];
+  if (completion.data !== "已齐备") {
+    for (const map of input.maps.filter(map => map.completedAt !== null).sort((a, b) => a.order - b.order)) {
+      if (!map.scoreboardComplete) tasks.push({ label: `Map ${map.order} · 补齐计分板`, anchor: `scoreboard-${map.id}` });
+      if (!map.demoComplete) tasks.push({ label: `Map ${map.order} · Demo ${map.demoLabel}`, anchor: map.demoReviewAnchor ?? `scoreboard-${map.id}` });
+    }
+    if (!input.maps.some(map => map.completedAt !== null)) tasks.push({ label: "核对已完成比赛的地图记录", anchor: "match-workbench-finished-maps" });
+  }
+  if (completion.production === "待确认解说名单 / 补充录像") {
+    if (!input.submitted) tasks.push({ label: "确认解说名单", anchor: "match-workbench-finished-postmatch" });
+    if (!input.hasVideo) tasks.push({ label: "登记解说回放", anchor: "match-workbench-finished-postmatch" });
+  }
+  return tasks;
 }

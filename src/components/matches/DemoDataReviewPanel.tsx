@@ -174,7 +174,7 @@ function MapReview({ review }: { review: AdminDemoReviewMap }) {
     });
   }
   return (
-    <section className="min-w-0 space-y-4 rounded border border-[var(--color-border)] p-4">
+    <section id={`demo-review-${review.matchMapId}`} className="min-w-0 space-y-4 rounded border border-[var(--color-border)] p-4">
       <header>
         <h3 className="font-medium">第 {review.mapOrder} 图 · {review.mapName}</h3>
         <p className="mt-2 text-sm leading-6 text-[var(--color-warn)]">{review.message}</p>

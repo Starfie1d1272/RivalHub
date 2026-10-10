@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Match as DbMatch, MatchMap } from "@/db/schema";
 import type { CompetitionMatch } from "@/lib/matches/competition-context";
 type Match = CompetitionMatch<DbMatch>;
+import type { DemoImportMetadata } from "@/lib/demo-integration/metadata";
+import { CURRENT_DAK_SEMANTIC_PROFILE } from "@/lib/demo-integration/semantic-profile";
 import type { EffectiveMatchRosterPlayer } from "@/lib/match-rosters/effective";
 
 const mocks = vi.hoisted(() => ({ select: vi.fn(), live: vi.fn(), major: vi.fn(), qualification: vi.fn(), run: vi.fn() }));
@@ -66,4 +68,16 @@ describe("authorized operator context", () => {
     mocks.live.mockResolvedValue({ ...source, mapExecutionPhase: "gameplay" });
     expect((await loadOperatorContext(input)).workflow.phase).toBe("gameplay");
   });
+});
+
+it.each([
+  ["pending", "处理中", false],
+  ["needs_attention", "待审核", false],
+  ["rejected", "导入失败 / 已驳回", false],
+  ["confirmed", "已同步", true],
+] as const)("distinguishes Demo %s without inventing another completion rule", async (status, label, complete) => {
+  const imports = [{ matchMapId: "map", status, semanticProfile: CURRENT_DAK_SEMANTIC_PROFILE, evidenceRevision: "current" }] as DemoImportMetadata[];
+  const result = await loadOperatorContext({ ...input, match: { ...match, status: "finished" }, maps: [{ ...map, scoreA: 13, scoreB: 5, completedAt: new Date("2026-10-01T13:00:00Z") }], imports });
+  expect(result.workflow.completedMaps[0]).toMatchObject({ demoLabel: label, demoComplete: complete });
+  expect(result.workflow.completedMaps[0]?.demoReviewAnchor).toBe(status === "needs_attention" ? "demo-review-map" : undefined);
 });

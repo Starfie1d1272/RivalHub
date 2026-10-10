@@ -1,3 +1,4 @@
+vi.mock("@/lib/admin/matches/postmatch-tasks", () => ({ loadAdminPostMatchTasks: vi.fn().mockResolvedValue([]) }));
 vi.mock("@/lib/admin/matches/operations", () => ({ loadAdminMatchOperations: vi.fn().mockResolvedValue([]) }));
 /** @vitest-environment node */
 vi.mock("@/lib/admin/matches/resources", () => ({ loadMatchResources: vi.fn().mockResolvedValue({ installations: [], downloads: null }) }));
