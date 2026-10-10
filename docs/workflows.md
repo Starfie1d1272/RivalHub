@@ -241,7 +241,7 @@ BET has independent public/admin entrypoints and a fixed points policy. Its mark
 
 单场工作台复用 canonical phase facts，将当前任务、source mode、health 和 review reasons 分开投影。真实身份/阵容/连续性/赛果冲突优先处理，无 Mizar 是正常人工路径；AUTO 已核验时展示「Map N · 地图名进行中」，解说认领另行展示；认领不等于已经开播或正在解说。准备房间时先展示 Perfect 指引，手动录分收在「比赛结束后录入本图比分」，显式接管后展开。服务端人工命令与可靠事件共用比赛锁及结果 owner；人工接管校验预期 source session、地图与 epoch，已有正式赛果只能走更正流程，下一图健康开始后重新自动 armed。持久化 health 表示已完成的核验，不表示当前仍在传输；工作台使用同场、同 authority / generation / epoch / map 的 receive-only LIVE 订阅显示正在接收、暂未更新或尚未收到数据，不以低频 reliable-event 时间冒充心跳。客户端失鲜只改变提示，不授权写入。管理员已确认采集故障时，可填写原因并二次确认备用录分；服务端在 match→source 锁内重验 session、epoch、generation、lastReliableSeq、原地图绑定、BP 完成及正式第一张未完成地图，将原因和核对序列写入接管审计。并发重复确认幂等，状态变化要求刷新重核。
 
-官方完赛不等待 OCR/DAK 或制作资料。实际完成地图分别检查完整计分板与 Demo 同步，未打 decider 和无实际地图弃赛不生成任务；解说与录像按实际认领单独检查；暂无解说认领时显示认领状态，收起解说资料项；比赛统计和 Demo 仍逐图检查。Bilibili 状态采用低频服务端缓存查询，失败显示「无法确认」。Uploader 下载消费 DAK 的稳定 manifest，失败时保留官方 Release fallback。
+官方完赛不等待 OCR/DAK 或制作资料。实际完成地图分别检查完整计分板与 Demo 同步，未打 decider 和无实际地图弃赛不生成任务；解说与录像按实际认领单独检查；暂无解说认领时显示认领状态，收起解说资料项；比赛统计和 Demo 仍逐图检查。Bilibili 状态采用低频服务端缓存查询，失败显示「无法确认」。设备与赛后下载区并列提供 Mizar 现场制播与 DAK Uploader 赛后分析入口。Mizar 使用官方公开下载目录与发布页；Uploader 消费 DAK 的稳定 manifest，有有效安装包条目时优先推荐 Windows 安装包，同时保留完整 ZIP 备用，旧清单继续使用 ZIP，macOS 保持原入口。ZIP 应完整解压并保留目录结构。清单失败时保留官方 Release fallback。
 
 异常面板优先展示差异、修复位置与完成条件。管理员先检查 Perfect 房间和 Mizar 当前比赛/采集来源，正确的本图开始证据重新核验后恢复自动记录；备用手动录分收起，确认时说明本图范围和采集仍需处理。当前 source session / map epoch 的最近未采纳上报按有界查询读取；地图冲突优先选择实际错图报告，阵容报告保存当时首发与采集玩家的缺少、额外、重复差异。页面通过既有 Steam profile 缓存与批量缺失查询显示 Steam 昵称及主页链接，昵称暂缺时显示待识别玩家；Steam64 继续承担内部匹配。比赛 identity 协议目前只有总体状态和 reason，具体队伍对应差异依赖生产端扩展；admin 私有证据与公开 projection 分离。
 
