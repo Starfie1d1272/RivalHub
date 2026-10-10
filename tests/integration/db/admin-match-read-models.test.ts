@@ -10,6 +10,7 @@ vi.mock("@/lib/auth/session", () => ({
   requireSeasonAdmin: requireSeasonAdminMock,
 }));
 
+import { loadAdminPostMatchTasks } from "@/lib/admin/matches/postmatch-tasks";
 import { loadAdminMatchOperations } from "@/lib/admin/matches/operations";
 import { loadAdminMatchCommentary } from "@/lib/admin/matches/commentary";
 import { loadAdminMatchOverview } from "@/lib/admin/matches/overview";
@@ -263,6 +264,28 @@ describe("admin match read models PostgreSQL integration", () => {
         }),
       ]);
 
+      // Real scoped query + shared projection: claimed first; no claim never hides map gaps.
+      let postTasks = await loadAdminPostMatchTasks(ids.seasonA);
+      expect(postTasks).toEqual([expect.objectContaining({ id: ids.matchA, isMine: true, tasks: [
+        { label: "Map 1 · 补齐计分板", anchor: `scoreboard-${ids.mapA}` },
+        { label: "Map 1 · Demo 待上传", anchor: `scoreboard-${ids.mapA}` },
+      ] })]);
+      expect(await loadAdminPostMatchTasks(ids.seasonB)).toEqual([]);
+      await pool.query("UPDATE matches SET video_url=NULL WHERE id=$1", [ids.matchA]);
+      postTasks = await loadAdminPostMatchTasks(ids.seasonA);
+      expect(postTasks[0]?.tasks).toContainEqual({ label: "登记解说回放", anchor: "match-workbench-finished-postmatch" });
+      await pool.query("DELETE FROM post_match_reports WHERE match_id=$1", [ids.matchA]);
+      await pool.query("DELETE FROM match_commentators WHERE match_id=$1", [ids.matchA]);
+      expect((await loadAdminPostMatchTasks(ids.seasonA))[0]).toMatchObject({ isMine: false, tasks: [
+        { label: "Map 1 · 补齐计分板", anchor: `scoreboard-${ids.mapA}` },
+        { label: "Map 1 · Demo 待上传", anchor: `scoreboard-${ids.mapA}` },
+      ] });
+      requireSeasonAdminMock.mockRejectedValueOnce(new Error("forbidden"));
+      await expect(loadAdminPostMatchTasks(ids.seasonB)).rejects.toThrow("forbidden");
+      await pool.query("INSERT INTO match_commentators (match_id,user_id,added_by_user_id) VALUES ($1,$2,$2)", [ids.matchA,ids.admin]);
+      await pool.query("INSERT INTO post_match_reports (match_id,submitted_by_user_id) VALUES ($1,$2)", [ids.matchA,ids.admin]);
+      await pool.query("UPDATE matches SET video_url='https://video.example/read-model' WHERE id=$1", [ids.matchA]);
+
       // Global-admin caster candidates and their completed commentary stay visible without a season grant.
       await pool.query("UPDATE users SET role='super_admin' WHERE id=$1", [ids.admin]);
       await pool.query("DELETE FROM season_admin_grants WHERE user_id=$1", [ids.admin]);
@@ -306,6 +329,13 @@ describe("admin match read models PostgreSQL integration", () => {
       expect((await loadAdminMatchOperations(ids.seasonA,await loadAdminMatchCommentary(ids.seasonA)))[0]?.scheduling.state).toBe('confirmed');
 
       // A historical score without a canonical completion time cannot open OCR.
+      await pool.query("UPDATE matches SET status='finished',score_a=1,score_b=0,completed_at=now() WHERE id=$1", [ids.testMatch]);
+      expect((await loadAdminPostMatchTasks(ids.seasonA)).map(row => row.id)).not.toContain(ids.testMatch);
+      await pool.query("UPDATE matches SET status='finished',is_forfeit=true,score_a=1,score_b=0,completed_at=now() WHERE id=$1", [ids.operationMatch]);
+      expect((await loadAdminPostMatchTasks(ids.seasonA)).find(row => row.id === ids.operationMatch)?.tasks.every(task => !task.label.includes("地图记录"))).not.toBe(false);
+      await pool.query("UPDATE matches SET status='cancelled' WHERE id=$1", [ids.matchA]);
+      expect((await loadAdminPostMatchTasks(ids.seasonA)).map(row => row.id)).not.toContain(ids.matchA);
+
       await pool.query("UPDATE match_maps SET completed_at = NULL WHERE id = $1", [ids.mapA]);
       const missingCompletion = await loadAdminMatchWorkbench({ seasonSlug: seasonASlug, matchId: ids.matchA });
       expect(missingCompletion?.operator.workflow.completedMaps).toEqual([]);

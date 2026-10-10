@@ -1,3 +1,5 @@
+import { loadAdminPostMatchTasks } from "@/lib/admin/matches/postmatch-tasks";
+import { AdminPostMatchTasks } from "@/components/matches/AdminPostMatchTasks";
 import { loadAdminMatchOperations } from "@/lib/admin/matches/operations";
 import { AdminMatchOperations } from "@/components/matches/AdminMatchOperations";
 import { loadMatchResources } from "@/lib/admin/matches/resources";
@@ -31,7 +33,7 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
   const filters = await searchParams;
   const data = await loadAdminMatchOverview({ seasonSlug, ...filters });
   if (!data) notFound();
-  const [commentary, resources] = await Promise.all([loadAdminMatchCommentary(data.season.id), loadMatchResources(data.season.id)]);
+  const [commentary, resources, postMatchTasks] = await Promise.all([loadAdminMatchCommentary(data.season.id), loadMatchResources(data.season.id), loadAdminPostMatchTasks(data.season.id)]);
 
   const operations = await loadAdminMatchOperations(data.season.id, commentary);
   const matchCount = data.matches.length;
@@ -61,6 +63,7 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
         )}
       />
 
+      <AdminPostMatchTasks rows={postMatchTasks} seasonSlug={seasonSlug} stage={filters.stage} team={filters.team} stageNames={Object.fromEntries(data.stagePlan.map(s => [s.key, s.name]))} />
       <AdminMatchOperations rows={operations} seasonSlug={seasonSlug} stage={filters.stage} team={filters.team} stageNames={Object.fromEntries(data.stagePlan.map(s => [s.key, s.name]))} />
       <MatchCommentaryQueue data={commentary} seasonSlug={seasonSlug} />
       <MatchResources seasonId={data.season.id} data={resources} />

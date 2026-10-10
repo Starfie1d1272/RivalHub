@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildPerfectRoomGuide, formatOperatorElapsed, projectOperatorWorkflow, type OperatorMap } from "@/lib/admin/matches/operator-workflow";
+import { buildPerfectRoomGuide, formatOperatorElapsed, projectOperatorWorkflow, projectOperatorPostMatchTasks, type OperatorMap } from "@/lib/admin/matches/operator-workflow";
 
 const completedAt = "2026-10-01T13:00:00.000Z";
 const map = (order: number, completed = false, scoreboardComplete = false): OperatorMap => ({
@@ -105,4 +105,21 @@ it("keeps the next official room and OCR available after manual completion with 
   expect(result.title).toBe("Map 1 已记录 · 准备 Map 2");
   expect(result.nextStep).not.toContain("在本图结束后提交比分");
   expect(project([map(1, true)], { status: "finished", source: { ...healthy, continuityHealth: "execution_conflict", manualTakeoverMapEpoch: 1 } }).nextStep).toContain("赛后资料");
+});
+
+// Protects actionable gaps for unclaimed games without duplicating scoreboard or Demo validation.
+it("exposes unfinished post-match work independently of assignment and omits completed or unplayed work", () => {
+  const base = { status: "finished" as const, isForfeit: false, maps: [map(1, true), map(2)], commentatorCount: 0, submitted: false, hasVideo: false };
+  expect(projectOperatorPostMatchTasks(base)).toEqual([
+    { label: "Map 1 · 补齐计分板", anchor: "scoreboard-map-1" },
+    { label: "Map 1 · Demo 待上传", anchor: "scoreboard-map-1" },
+  ]);
+  expect(projectOperatorPostMatchTasks({ ...base, maps: [{ ...map(1, true, true), demoComplete: true }, map(2)] })).toEqual([]);
+  expect(projectOperatorPostMatchTasks({ ...base, maps: [], isForfeit: true })).toEqual([]);
+  expect(projectOperatorPostMatchTasks({ ...base, maps: [] })).toEqual([{ label: "核对已完成比赛的地图记录", anchor: "match-workbench-finished-maps" }]);
+  expect(projectOperatorPostMatchTasks({ ...base, status: "cancelled" })).toEqual([]);
+  expect(projectOperatorPostMatchTasks({ ...base, commentatorCount: 1 }).slice(-2)).toEqual([
+    { label: "确认解说名单", anchor: "match-workbench-finished-postmatch" },
+    { label: "登记解说回放", anchor: "match-workbench-finished-postmatch" },
+  ]);
 });

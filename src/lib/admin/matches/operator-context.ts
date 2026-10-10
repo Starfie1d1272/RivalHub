@@ -5,14 +5,11 @@ import { and, eq, inArray, isNull } from "drizzle-orm";
 import { db } from "@/db/client";
 import { competitionQualificationRuns, matchLiveSessions, matchPlayerStats as playerStats, type Match as DbMatch, type MatchMap } from "@/db/schema";
 import type { EffectiveMatchRosterPlayer } from "@/lib/match-rosters/effective";
-import { canConfirmMapScoreboard } from "@/lib/matches/map-scoreboard";
 import { loadMajorSwissStageReadModel } from "@/lib/matches/stage-read-model";
 import { loadQualificationSwissStageReadModel } from "@/lib/matches/qualification-stage-read-model";
-import { projectDemoStatus, selectCurrentDemoImport } from "@/lib/demo-integration/read";
 import type { DemoImportMetadata } from "@/lib/demo-integration/metadata";
-import { buildEvidenceRevisionForTarget } from "@/lib/demo-integration/revision";
-import { isCompleteScoreboard } from "@/lib/matches/scoreboard-completeness";
 import { mapLabel } from "@/lib/maps";
+import { projectOperatorMaps } from "./operator-maps";
 import { loadOperatorEvidence } from "./operator-evidence";
 import { buildPerfectRoomGuide, projectOperatorWorkflow } from "./operator-workflow";
 
@@ -44,24 +41,7 @@ export async function loadOperatorContext(input: {
         ? loadMajorSwissStageReadModel(match.seasonId, match.stage) : Promise.resolve(null),
     match.qualificationRunId ? db.query.competitionQualificationRuns.findFirst({ where: and(eq(competitionQualificationRuns.id, match.qualificationRunId), eq(competitionQualificationRuns.seasonId, match.seasonId)), columns: { format: true } }) : Promise.resolve(null),
   ]);
-  const participants = roster.filter(player => player.isStarter);
-  const operatorMaps = maps.map(map => {
-    const imports = input.imports.filter(row => row.matchMapId === map.id);
-    // Surface an incompatible latest import too; it is not a missing upload.
-    const latest = selectCurrentDemoImport(imports) ?? imports.find(row => row.status !== "superseded");
-    const revision = buildEvidenceRevisionForTarget({ match, map, roster });
-    const latestConfirmed = imports.find(row => row.status === "confirmed");
-    const confirmedIsStale = latestConfirmed != null && latestConfirmed.evidenceRevision !== revision;
-    const demoStatus = confirmedIsStale ? "needs_attention" : projectDemoStatus(match, map, latest, revision);
-    return {
-      id: map.id, order: map.mapOrder, name: map.mapName, startSide: map.teamAStartSide,
-      completedAt: canConfirmMapScoreboard(map) ? map.completedAt!.toISOString() : null,
-      scoreboardComplete: isCompleteScoreboard({ matchId: match.id, mapId: map.id, scoreA: map.scoreA, scoreB: map.scoreB, participants }, scoreboards.filter(row => row.mapId === map.id)),
-      demoLabel: demoStatus === "synced" ? "已同步" : demoStatus === "demo_processing" ? "处理中" : demoStatus === "needs_attention" ? "需要处理" : "待上传",
-      demoNeedsAttention: demoStatus === "needs_attention",
-      demoComplete: demoStatus === "synced",
-    };
-  });
+  const operatorMaps = projectOperatorMaps({ match, maps, imports: input.imports, roster, scoreboards });
   const workflow = projectOperatorWorkflow({
     source: liveSession,
     scheduledAt: match.scheduledAt?.toISOString(), startedAt: match.startedAt?.toISOString(), completedAt: match.completedAt?.toISOString(),
