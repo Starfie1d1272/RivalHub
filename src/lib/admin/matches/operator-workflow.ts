@@ -18,8 +18,7 @@ export interface OperatorMap {
 export interface PerfectRoomGuideData {
   mapOrder: number;
   mapName: string;
-  copyFields: { label: string; value: string | null }[];
-  instructions: { label: string; value: string }[];
+  fields: { label: string; value: string | null; copyable?: boolean }[];
 }
 
 /** A/B stays Team 1/2 for the entire series, independent of the chosen side. */
@@ -34,24 +33,23 @@ export function buildPerfectRoomGuide(input: {
   return {
     mapOrder: input.map.order,
     mapName: mapLabel(input.map.name),
-    copyFields: [
-      { label: "轮次", value: input.roundLabel },
-      { label: "比赛短描述", value: input.description },
-      { label: "队伍 1", value: input.teamAName },
-      { label: "队伍 2", value: input.teamBName },
-      { label: "GOTV 线路 2 延迟", value: "120" },
-      { label: "GOTV Password", value: "1" },
-    ],
-    instructions: [
+    fields: [
       { label: "比赛归属", value: `选择 ${input.seasonName}` },
+      { label: "轮次", value: input.roundLabel, copyable: true },
+      { label: "比赛短描述", value: input.description, copyable: true },
       { label: "游戏模式", value: "普通模式" },
+      { label: "队伍 1", value: input.teamAName, copyable: true },
+      { label: "队伍 1 教练 64 位 ID", value: "留空" },
+      { label: "队伍 2", value: input.teamBName, copyable: true },
+      { label: "队伍 2 教练 64 位 ID", value: "留空" },
       { label: "选图模式", value: mapLabel(input.map.name) },
       { label: "服务器", value: "上海大区" },
       { label: "观察者", value: "任意观察者" },
       { label: "GOTV 线路 1 延迟", value: "留空（默认 0s）" },
+      { label: "GOTV 线路 2 延迟", value: "120", copyable: true },
+      { label: "GOTV Password", value: "1", copyable: true },
       { label: "选边方式", value: input.map.startSide === "ct" ? "TEAM 1 CT / TEAM 2 T" : input.map.startSide === "t" ? "TEAM 1 T / TEAM 2 CT" : "起始边尚未确定，请先核对 BP 选边" },
       { label: "测试赛", value: "保持关闭" },
-      { label: "教练 64 位 ID", value: "留空" },
     ],
   };
 }

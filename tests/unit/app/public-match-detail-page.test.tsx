@@ -355,10 +355,26 @@ describe("Public Match Detail Page (PRE / POST)", () => {
       expect(html).toContain('data-testid="match-summary-stats"');
       expect(html).toContain('data-testid="player-workspace"');
       expect(html).toContain('data-testid="match-mvp-vote"');
-      expect(html).toContain("观看比赛录像 →");
+      expect(html).toContain("观看回放 ↗");
+      const document = new DOMParser().parseFromString(html, "text/html");
+      const replay = document.querySelector('a[href="https://vod.example/match-finished-bo3"]');
+      const bp = document.querySelector('[data-testid="match-bp-record"]');
+      expect(replay?.parentElement).toBe(bp?.parentElement);
+      expect(replay?.getAttribute("rel")).toBe("noopener noreferrer");
       expect(html).toContain("BP 记录");
       expect(html.match(/data-testid="veto-view"/g)).toHaveLength(1);
       expect(loadMatchPreAnalysisMock).not.toHaveBeenCalled();
+    });
+
+    // The page composition owns absence/safe-link behavior; no new VOD model.
+    it.each([null, "javascript:alert(1)"])("does not render an invalid replay action (%s)", async videoUrl => {
+      findFirstMatchMock.mockResolvedValue({ id: "finished", seasonId: "season-1", entryAId: "entry-a", entryBId: "entry-b", status: "finished", format: "bo1", stage: "playoff", scoreA: 1, scoreB: 0, videoUrl });
+      findManyMapsMock.mockResolvedValue([{ id: "map-1", mapOrder: 1, mapName: "de_nuke", scoreA: 13, scoreB: 9, completedAt: new Date() }]);
+      loadMatchScoreboardMock.mockResolvedValue({ completed: [], confirmedMapIds: new Set(), mapPlayers: new Map(), detailedPlayers: [], detailedPlayerIds: new Set(), detailedMapIds: new Set(), mvpCandidates: [], summaryPlayers: [] });
+      getMatchMvpResultsMock.mockResolvedValue([]);
+      const html = renderToStaticMarkup(await MatchDetailPage({ params: Promise.resolve({ seasonSlug: "spring-2026", matchId: "finished" }), searchParams: Promise.resolve({}) }));
+      expect(html).not.toContain("观看回放");
+      expect(html).toContain("BP 记录");
     });
 
     it("reads MVP whole-match metrics through the public cache even when a different map/player is selected", async () => {

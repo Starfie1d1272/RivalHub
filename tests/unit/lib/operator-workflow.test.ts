@@ -47,14 +47,14 @@ describe("Perfect guide", () => {
   it("offers precisely the six distinct copy fields, with fixed A/B and side-only changes", () => {
     const input = { seasonName: "Major", roundLabel: "Stage1", description: "2-1", teamAName: "Alpha", teamBName: "Beta", map: map(2) };
     const guide = buildPerfectRoomGuide(input);
-    expect(guide.copyFields).toEqual([
+    expect(guide.fields.filter(field => field.copyable).map(({ label, value }) => ({ label, value }))).toEqual([
       { label: "轮次", value: "Stage1" }, { label: "比赛短描述", value: "2-1" },
       { label: "队伍 1", value: "Alpha" }, { label: "队伍 2", value: "Beta" },
       { label: "GOTV 线路 2 延迟", value: "120" }, { label: "GOTV Password", value: "1" },
     ]);
-    expect(buildPerfectRoomGuide({ ...input, map: { ...map(3), startSide: "t" } }).copyFields).toEqual(guide.copyFields);
-    expect(guide.instructions.find(row => row.label === "选边方式")?.value).toBe("TEAM 1 CT / TEAM 2 T");
-    expect(buildPerfectRoomGuide({ ...input, map: { ...map(3), startSide: null } }).instructions.find(row => row.label === "选边方式")?.value).toContain("尚未确定");
+    expect(buildPerfectRoomGuide({ ...input, map: { ...map(3), startSide: "t" } }).fields.filter(field => field.copyable).map(({ label, value }) => ({ label, value }))).toEqual(guide.fields.filter(field => field.copyable).map(({ label, value }) => ({ label, value })));
+    expect(guide.fields.find(row => row.label === "选边方式")?.value).toBe("TEAM 1 CT / TEAM 2 T");
+    expect(buildPerfectRoomGuide({ ...input, map: { ...map(3), startSide: null } }).fields.find(row => row.label === "选边方式")?.value).toContain("尚未确定");
   });
 });
 
