@@ -2,7 +2,7 @@ import "server-only";
 import { createHmac } from "node:crypto";
 import { and, eq, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
 import { db } from "@/db/client";
-import { matches, matchLiveSessions, seasons } from "@/db/schema";
+import { matches, matchLiveSessions, seasons, competitionQualificationRuns } from "@/db/schema";
 import { createServiceClient } from "@/lib/auth/supabase-server";
 import { logEvent } from "@/lib/observability/server";
 import { AppError, ErrorCode } from "@/lib/errors";
@@ -10,7 +10,7 @@ import { assertInstallationInTx } from "./installation";
 import { parseLiveSnapshotV1 } from "./protocol";
 import { projectPublicLive } from "./live-projection";
 import { admitLiveDelivery } from "./live-admission";
-import { liveBroadcastFetch } from "./live-broadcast";
+import { createLiveBroadcastFetch, liveBroadcastException } from "./live-broadcast";
 
 // One producer cadence interval; requests delayed beyond it are disposable.
 const LIVE_FRAME_BUDGET_MS = 500;
@@ -25,11 +25,11 @@ export async function ingestMizarLive(installationId: string, competitionId: str
   try {
     return await db.transaction(async tx => {
       // No stale frame may sit in the shared pool and later become fresh again.
-      if (performance.now() - receivedAt > LIVE_FRAME_BUDGET_MS) return { accepted: false };
+      if (performance.now() - receivedAt > LIVE_FRAME_BUDGET_MS) return { accepted: false, reason: "frame_expired" };
       await tx.execute(sql`SET LOCAL lock_timeout = '25ms'`);
       await tx.execute(sql`SET LOCAL statement_timeout = '1000ms'`);
       const gate = await tx.execute<{ acquired: boolean }>(sql`SELECT pg_try_advisory_xact_lock(hashtextextended(${'mizar-live:' + snapshot.matchId}, 0)) AS acquired`);
-      if (!gate.rows[0]?.acquired) return { accepted: false };
+      if (!gate.rows[0]?.acquired) return { accepted: false, reason: "contended" };
       await assertInstallationInTx(tx, installationId, competitionId);
       const [match] = await tx.select().from(matches).where(and(eq(matches.id, snapshot.matchId), eq(matches.seasonId, competitionId))).for("share");
       const [source] = await tx.select().from(matchLiveSessions).where(and(eq(matchLiveSessions.matchId, snapshot.matchId), isNull(matchLiveSessions.closedAt))).for("share");
@@ -37,20 +37,24 @@ export async function ingestMizarLive(installationId: string, competitionId: str
         throw new AppError(ErrorCode.FORBIDDEN, "实时数据源或本场首发校验未通过。");
       }
       if (![match.entryAId, match.entryBId].includes(snapshot.teams.ct.entryId ?? "") || ![match.entryAId, match.entryBId].includes(snapshot.teams.t.entryId ?? "") || snapshot.teams.ct.entryId === snapshot.teams.t.entryId) throw new AppError(ErrorCode.VALIDATION_FAILED, "实时队伍不匹配。");
-      if (performance.now() - receivedAt > LIVE_FRAME_BUDGET_MS) return { accepted: false };
+      if (performance.now() - receivedAt > LIVE_FRAME_BUDGET_MS) return { accepted: false, reason: "frame_expired" };
       const payload = projectPublicLive(snapshot, authorityRevision, new Date().toISOString());
-      if (!admitLiveDelivery(snapshot, authorityRevision)) return { accepted: false };
-      const client = createServiceClient({ fetch: liveBroadcastFetch });
+      if (!admitLiveDelivery(snapshot, authorityRevision)) return { accepted: false, reason: "delivery_dropped" };
+      const broadcast = createLiveBroadcastFetch();
+      const client = createServiceClient({ fetch: broadcast.fetch });
       const channel = client.channel(matchLiveTopic(match.id), { config: { private: true } });
       cleanup = () => client.removeChannel(channel);
+      const startedAt = performance.now();
+      let stage = "auth";
       try {
         await client.realtime.setAuth();
+        stage = "send";
         const result = await channel.httpSend("snapshot", payload, { timeout: 2000 });
         if (!result.success) throw new Error("broadcast_unavailable");
         return { accepted: true };
-      } catch {
-        logEvent({ level: "warn", event: "mizar.live.broadcast_unavailable", scope: "match", operation: "broadcast", retryable: true, safeContext: { provider: "supabase" } });
-        return { accepted: false };
+      } catch (error) {
+        logEvent({ level: "warn", event: "mizar.live.broadcast_unavailable", scope: "match", operation: "broadcast", errorClass: "dependency", exception: broadcast.exception() ?? liveBroadcastException(error), retryable: false, durationMs: performance.now() - startedAt, safeContext: { provider: "supabase", stage, ...broadcast.evidence() } });
+        return { accepted: false, reason: "broadcast_unavailable" };
       }
     });
   } catch (error) {
@@ -58,7 +62,7 @@ export async function ingestMizarLive(installationId: string, competitionId: str
     // ambiguous connection failures (the shared DB retry owner is unchanged).
     const cause = error instanceof Error && error.cause ? error.cause : error;
     const code = cause && typeof cause === "object" && "code" in cause ? cause.code : undefined;
-    if (code === "55P03" || code === "57014") return { accepted: false };
+    if (code === "55P03" || code === "57014") return { accepted: false, reason: "contended" };
     throw error;
   } finally {
     // Channel never subscribes. Disposal cannot hold DB/authority locks; send did.
@@ -72,6 +76,11 @@ export async function issueLiveViewerToken(matchId: string) {
     eq(matches.id, matchId),
     eq(matches.status, "in_progress"),
     or(eq(seasons.status, "playing"), and(
+      eq(seasons.status, "registration"),
+      isNull(matches.testConfig),
+      // The composite FK and qualification shape constraint own official scope.
+      sql`EXISTS (SELECT 1 FROM ${competitionQualificationRuns} WHERE ${competitionQualificationRuns.id} = ${matches.qualificationRunId} AND ${competitionQualificationRuns.seasonId} = ${matches.seasonId} AND ${competitionQualificationRuns.startedAt} IS NOT NULL AND ${competitionQualificationRuns.completedAt} IS NULL)`,
+    ), and(
       isNotNull(matches.testConfig),
       inArray(seasons.status, ["registration", "voting", "drafting"]),
     )),

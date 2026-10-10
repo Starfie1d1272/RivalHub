@@ -16,6 +16,12 @@ const snapshot = projectPublicLive(parseLiveSnapshotV1(fixture.snapshot), 1, fix
 const state = receivePublicLive(initialLiveViewerState(), snapshot, snapshot.matchId, 0);
 const render = (phase: "awaiting_gameplay" | "gameplay" | "inter_map", now = 0, currentMapId = snapshot.map.mapId) => renderToStaticMarkup(<MatchRealtimeSurface state={state} now={now} phase={phase} currentMapId={currentMapId} />);
 describe("public LIVE presentation", () => {
+  it("distinguishes subscription failure from a connected viewer waiting for frames", () => {
+    const waiting = initialLiveViewerState();
+    const props = { phase: "gameplay" as const, currentMapId: snapshot.map.mapId, now: 0 };
+    expect(renderToStaticMarkup(<MatchRealtimeSurface {...props} state={{ ...waiting, connection: "unavailable" }} />)).toContain("实时连接暂不可用");
+    expect(renderToStaticMarkup(<MatchRealtimeSurface {...props} state={{ ...waiting, connection: "subscribed" }} />)).toContain("等待实时数据");
+  });
   it("renders real public projection stats and SSR-safe radar without provenance or expanded equipment table", () => {
     const html = render("gameplay");
     expect(html).toContain("FalleN"); expect(html).toContain("KSCERATO");

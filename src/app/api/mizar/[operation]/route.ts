@@ -32,7 +32,7 @@ export async function POST(request: Request, context: Context) {
     const { operation } = await context.params;
     if (operation === "live") {
       releaseIngress = await admitLiveIngress();
-      if (!releaseIngress) return Response.json({ accepted: false }, { status: 429, headers: { "Cache-Control": "no-store", "Retry-After": "1" } });
+      if (!releaseIngress) return Response.json({ accepted: false, reason: "capacity" }, { status: 429, headers: { "Cache-Control": "no-store", "Retry-After": "1" } });
       const credentialHash = readMizarCredentialHash(request.headers.get("authorization"));
       const input = await readBoundedMizarJson(request, 262_144, 2000);
       const { matchId } = z.object({ matchId: z.uuid() }).parse(input);
@@ -41,7 +41,7 @@ export async function POST(request: Request, context: Context) {
       releaseLive = tryAdmitLiveRequest(`${credentialHash}:${matchId}`);
       releaseIngress();
       releaseIngress = null;
-      if (!releaseLive) return Response.json({ accepted: false }, { status: 429, headers: { "Cache-Control": "no-store", "Retry-After": "1" } });
+      if (!releaseLive) return Response.json({ accepted: false, reason: "capacity" }, { status: 429, headers: { "Cache-Control": "no-store", "Retry-After": "1" } });
       const installation = await authenticateMizar(request.headers.get("authorization"));
       const revision = z.coerce.number().int().positive().parse(request.headers.get("x-rivalhub-authority"));
       return Response.json(await ingestMizarLive(installation.id, installation.competitionId, input, revision, receivedAt));
