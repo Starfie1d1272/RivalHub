@@ -21,3 +21,31 @@ describe("best effort production adapters", () => {
  });
 
 });
+
+// Protect installer rollout compatibility and the existing trusted-download boundary.
+describe("Uploader installer rollout", () => {
+ const base = "https://dakupdate.starfie1d.top/releases/v1.2.3/";
+ const windows = base + "uploader.zip", macos = base + "uploader.dmg";
+ const installer = { name: "Uploader-Setup.exe", urls: [base + "Uploader-Setup.exe"], size: 123, sha256: "a".repeat(64) };
+ function serve(windowsInstaller?: unknown) {
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => ({
+   schemaVersion: "cs2-demo-analysis-kit/uploader-distribution-1",
+   assets: { windows: { urls: [windows] }, macos: { urls: [macos] }, windowsInstaller },
+  }) }));
+ }
+ it("keeps old manifests and macOS downloads intact", async () => {
+  serve(); expect(await readUploaderDownloads()).toEqual({ windows, macos });
+ });
+ it("prefers the published installer while retaining the full ZIP", async () => {
+  serve(installer); expect(await readUploaderDownloads()).toEqual({ windows: installer.urls[0], windowsZip: windows, macos });
+ });
+ it.each([
+  { ...installer, urls: ["https://evil.test/Setup.exe"] },
+  { ...installer, urls: ["http://dakupdate.starfie1d.top/releases/Setup.exe"] },
+  { ...installer, urls: ["https://user:password@dakupdate.starfie1d.top/releases/Setup.exe"] },
+  { ...installer, urls: ["https://dakupdate.starfie1d.top/other/Setup.exe"] },
+  { ...installer, size: 0 }, { ...installer, sha256: "invalid" }, { urls: installer.urls }, null,
+ ])("falls back to ZIP for an invalid optional installer %#", async invalid => {
+  serve(invalid); expect(await readUploaderDownloads()).toEqual({ windows, macos });
+ });
+});
