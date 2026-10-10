@@ -47,6 +47,7 @@ function chain<T>(value: T) {
   const result = {
     from: () => result,
     where: () => result,
+    limit: () => result,
     then: (resolve: (resolved: T) => unknown, reject?: (reason: unknown) => unknown) =>
       Promise.resolve(value).then(resolve, reject),
   };
@@ -87,7 +88,7 @@ describe("season page navigation", () => {
     getLatestSeasonAnnouncementMock.mockResolvedValue(null);
     getPublicSeasonInfoMock.mockResolvedValue({ rules: { label: "赛事规则", href: "/rules" }, groups: [], contacts: [] });
     selectDistinctMock.mockReturnValue(chain([]));
-    selectMock.mockImplementation((fields) => chain(fields.stageKey ? [] : [{ total: 0, finished: 0 }]));
+    selectMock.mockImplementation((fields) => chain(fields.stageKey || fields.format ? [] : [{ total: 0, finished: 0 }]));
     qualificationFindFirstMock.mockResolvedValue(undefined);
   });
 

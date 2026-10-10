@@ -17,7 +17,7 @@ export function isTeamRegistration(season: Pick<Season, "registrationMode">): bo
 
 // ── 展示工具 ──────────────────────────────────────────────────────────────
 
-/** 是否展示数据统计入口（赛季 playing 或 finished 时有比赛数据可看） */
-export function showStats(season: Pick<Season, "status">): boolean {
-  return season.status === "playing" || season.status === "finished" || season.status === "archived";
+/** Formal match facts include qualification while the event is still registering. */
+export function showStats(season: Pick<Season, "status"> & { hasOfficialMatches?: boolean }): boolean {
+  return season.status !== "draft" && (season.hasOfficialMatches === true || season.status === "playing" || season.status === "finished" || season.status === "archived");
 }

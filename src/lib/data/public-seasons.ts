@@ -2,7 +2,7 @@ import { officialMatchCondition } from "@/lib/matches/scope";
 import "server-only";
 
 import { cacheLife, cacheTag } from "next/cache";
-import { and, desc, eq, inArray, max, ne } from "drizzle-orm";
+import { and, desc, eq, inArray, max, ne, sql } from "drizzle-orm";
 
 import { db } from "@/db/client";
 import { matches, seasons } from "@/db/schema";
@@ -44,7 +44,7 @@ export type PublicSeason = Pick<
   | "registrationClosesAt"
   | "rosterChangeClosesAt"
   | "endAt"
->;
+> & { hasOfficialMatches?: boolean };
 
 export type PublicSeasonWithCompletion = PublicSeason & {
   /** Latest canonical completed match fact; never derived from ingestion time. */
@@ -77,6 +77,8 @@ const publicSeasonColumns = {
   registrationClosesAt: seasons.registrationClosesAt,
   rosterChangeClosesAt: seasons.rosterChangeClosesAt,
   endAt: seasons.endAt,
+  // Keep the predicate nested: single-table selections strip qualifiers from direct SQL column chunks.
+  hasOfficialMatches: sql<boolean>`exists (select 1 from ${matches} where ${and(eq(matches.seasonId, seasons.id), officialMatchCondition())})`,
 } as const;
 
 /**

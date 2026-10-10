@@ -34,7 +34,7 @@ async function SeasonsContent() {
   const allSeasons = await getPublicSeasonCatalog();
 
   const grouped = groupSeasonsByLifecycle(allSeasons);
-  const activeSeasonIds = allSeasons.filter((season) => ["voting", "drafting", "playing"].includes(season.status)).map((season) => season.id);
+  const activeSeasonIds = allSeasons.filter((season) => season.hasOfficialMatches && !["finished", "archived"].includes(season.status)).map((season) => season.id);
   const rawActiveMatchRows = activeSeasonIds.length
     ? await db
       .select({ seasonId: matches.seasonId, stage: matches.stage, status: matches.status, scheduledAt: matches.scheduledAt })

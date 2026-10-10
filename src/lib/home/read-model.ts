@@ -117,7 +117,7 @@ export async function getPublicHomeProjection(
             .orderBy(desc(count()))
             .limit(3)
         : Promise.resolve([] as { displayName: string | null; perfectName: string | null; personaName: string | null; voteCount: number }[]),
-      featured.status === "playing"
+      featured.hasOfficialMatches
         ? db.select({
             id: matches.id,
             status: matches.status,

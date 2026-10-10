@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resolveMatchLineupPolicy } from "@/lib/match-rosters/policy";
+import { resolveMatchLineupPolicy, requiresCompetitionLineupPreflight } from "@/lib/match-rosters/policy";
 
 const v4Snapshot = {
   version: 4,
@@ -12,6 +12,13 @@ const v4Snapshot = {
 };
 
 describe("resolveMatchLineupPolicy", () => {
+  it.each([
+    ["major_stage", null, true],
+    ["manual", "qualification-run", true],
+    ["manual", null, false],
+  ] as const)("uses runtime identity for preparation: %s, %s", (ownership, qualificationRunId, expected) => {
+    expect(requiresCompetitionLineupPreflight({ ownership, qualificationRunId })).toBe(expected);
+  });
   it("reads Major starter count only from the frozen StageRun snapshot", () => {
     expect(resolveMatchLineupPolicy({
       ownership: "major_stage",

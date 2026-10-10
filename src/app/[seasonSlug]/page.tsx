@@ -72,7 +72,7 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
   const stagePresentation = await getPublicSeasonStagePresentation(season);
   const stagePlan = stagePresentation.stagePlan;
   const stageLabelByKey = new Map(Object.entries(stagePresentation.labels));
-  const hasMatches = stagePlan.length > 0;
+  const hasMatches = stagePresentation.officialStages.length > 0;
 
   const initializedStages = new Set(stagePresentation.initializedStageKeys);
 
@@ -80,7 +80,7 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
   const teamA = alias(competitionEntries, "team_a");
   const teamB = alias(competitionEntries, "team_b");
 
-  const upcomingMatchesQuery = season.status === "playing"
+  const upcomingMatchesQuery = season.hasOfficialMatches && !["finished", "archived"].includes(season.status)
     ? db
         .select({
           id: matches.id,
@@ -116,7 +116,7 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
         finished: sql<number>`count(*) filter (where ${matches.status} = 'finished')`,
       }).from(matches).where(and(officialMatchCondition(), eq(matches.seasonId, season.id))),
       upcomingMatchesQuery ?? Promise.resolve([] as { id: string; status: string; scheduledAt: Date | null; stage: string; teamAName: string | null; teamBName: string | null }[]),
-      season.status === "playing" ? getStandings(season.id) : Promise.resolve([]),
+      season.status === "playing" && !isMajor ? getStandings(season.id) : Promise.resolve([]),
       isMajor
         ? db.query.competitionQualificationRuns.findFirst({ where: eq(competitionQualificationRuns.seasonId, season.id) })
         : Promise.resolve(undefined),
@@ -127,7 +127,7 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
   const qualificationMatches = qualificationRun
     ? await db.select({ status: matches.status, round: matches.round }).from(matches).where(and(officialMatchCondition(), eq(matches.qualificationRunId, qualificationRun.id)))
     : [];
-  const mainEventStarted = Boolean(stagePresentation.currentStageKey) || initializedStages.has(stagePlan[0]?.key ?? "");
+  const mainEventStarted = stagePlan.some((stage) => stage.key === stagePresentation.currentStageKey || initializedStages.has(stage.key));
   const qualificationBeforeMainStart = Boolean(qualificationRun) && !mainEventStarted;
   const publicTeamCount = majorParticipantOverview?.teamCount ?? Number(teamCountRow?.value ?? 0);
   const publicPlayerCount = majorParticipantOverview?.playerCount ?? participantSummary?.count ?? 0;
@@ -380,7 +380,7 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
                       </div>
                       <div className="shrink-0 flex flex-col items-end gap-0.5">
                         <span className="font-mono text-[10px] text-[var(--color-fg-dim)] uppercase tracking-wider">
-                          {match.stage === "play-in" ? "PLAY-IN" : (match.stage === null ? undefined : stageLabelByKey.get(match.stage)) ?? "比赛阶段"}
+                          {(match.stage === null ? undefined : stageLabelByKey.get(match.stage)) ?? "比赛阶段"}
                         </span>
                         <MatchStatusBadge status={match.status as MatchStatus} scheduledAt={match.scheduledAt} />
                         {match.scheduledAt && <span className="font-mono text-[10px] text-[var(--color-fg-dim)]">{formatCSTDateTime(match.scheduledAt)}</span>}
