@@ -97,7 +97,7 @@ interface Sbom {
 }
 
 /** SBOM must contain all identities and all submitted package edges, not merely return HTTP 200. */
-export function verifySbom(graph: DependencyGraph, sbom: Sbom): { packages: number; edges: number } {
+export function verifySbom(graph: DependencyGraph, sbom: Sbom): { packages: number; edges: number; directRoots: number } {
   const identity = (value: string) => decodeURIComponent(value).replace(/^pkg:\/npm\//, "pkg:npm/");
   const ids = new Map<string, string>();
   for (const entry of sbom.packages) {
@@ -107,15 +107,25 @@ export function verifySbom(graph: DependencyGraph, sbom: Sbom): { packages: numb
   const available = new Set(ids.values());
   const edges = new Set(sbom.relationships.filter(row => row.relationshipType === "DEPENDS_ON")
     .map(row => `${ids.get(row.spdxElementId)}\n${ids.get(row.relatedSpdxElement)}`));
+  const roots = new Set(sbom.relationships.filter(row => row.relationshipType === "DESCRIBES").map(row => row.relatedSpdxElement));
+  const direct = new Set(sbom.relationships.filter(row => row.relationshipType === "DEPENDS_ON" && roots.has(row.spdxElementId))
+    .map(row => ids.get(row.relatedSpdxElement)).filter((purl): purl is string => purl !== undefined));
   const missing: string[] = [];
   let edgeCount = 0;
+  let directRoots = 0;
   for (const row of Object.values(graph.resolved)) {
     if (!available.has(identity(row.package_url))) missing.push(row.package_url);
+    if (row.relationship === "direct") {
+      directRoots++;
+      if (!direct.has(identity(row.package_url))) missing.push(`missing direct-root: ${row.package_url}`);
+    } else if (direct.has(identity(row.package_url))) {
+      missing.push(`indirect classified as direct-root: ${row.package_url}`);
+    }
     for (const child of row.dependencies) {
       edgeCount++;
       if (!edges.has(`${identity(row.package_url)}\n${identity(child)}`)) missing.push(`${row.package_url} -> ${child}`);
     }
   }
-  if (missing.length) throw new Error(`SBOM read-back missing ${missing.length} identities/edges; examples: ${missing.slice(0, 8).join(", ")}`);
-  return { packages: Object.keys(graph.resolved).length, edges: edgeCount };
+  if (missing.length) throw new Error(`SBOM read-back mismatch in ${missing.length} identities/edges/roots; examples: ${missing.slice(0, 8).join(", ")}`);
+  return { packages: Object.keys(graph.resolved).length, edges: edgeCount, directRoots };
 }

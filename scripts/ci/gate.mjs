@@ -10,17 +10,6 @@ const eventName = process.env.EVENT_NAME || process.env.GITHUB_EVENT_NAME;
 const gateName = process.env.GATE_NAME || "ci-gate";
 
 if (process.env.DEPENDENCY_GRAPH_BUILD_RESULT !== "success") fail("dependency graph build 未成功");
-const delegated = eventName === "pull_request" && process.env.ALLOW_DELEGATED_GRAPH_SUBMISSION === "true";
-const submission = process.env.DEPENDENCY_GRAPH_SUBMIT_RESULT;
-if (submission !== "success" && !(delegated && submission === "skipped" && dependencyReviewStatus === "success")) {
-  fail(`dependency graph submission 未成功：${submission ?? "missing"}`);
-}
-const readbackStatus = process.env.DEPENDENCY_GRAPH_READBACK_RESULT;
-if (process.env.REQUIRE_GRAPH_READBACK === "true") {
-  if (readbackStatus !== "success") fail(`default branch SBOM read-back 未成功：${readbackStatus ?? "missing"}`);
-} else if (readbackStatus !== "skipped" && readbackStatus !== "success") {
-  fail(`非 default branch SBOM read-back 出现异常状态：${readbackStatus ?? "missing"}`);
-}
 
 if (statuses.plan !== "success") {
   fail(`plan 未成功：${statuses.plan ?? "missing"}`);

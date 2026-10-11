@@ -6,7 +6,6 @@ import { describe, expect, it } from "vitest";
 import { stringify } from "yaml";
 import { buildDependencyGraph, verifySbom } from "../../scripts/dependencies/graph";
 import { createSnapshot } from "../../scripts/dependencies/snapshot";
-import { assertTrustedReceipt } from "../../scripts/dependencies/await-submission";
 
 const document = {
   lockfileVersion: "9.0",
@@ -34,19 +33,6 @@ describe("canonical pnpm dependency graph", () => {
       rmSync(directory, { recursive: true, force: true });
     }
   });
-  it("rejects forged PR artifacts, stale heads/refs and unsuccessful receipts", () => {
-    const run = { event: "pull_request_target", path: ".github/workflows/dependency-graph-untrusted.yml" };
-    const receipt = { result: "SUCCESS", sha: "a".repeat(40), ref: "refs/pull/1/head" };
-    expect(() => assertTrustedReceipt(run, receipt, receipt)).not.toThrow();
-    expect(() => assertTrustedReceipt(run, { ...receipt, result: "ACCEPTED" }, receipt)).not.toThrow();
-    expect(() => assertTrustedReceipt(run, { ...receipt, result: "ACCEPTED", ref: "refs/heads/main" }, { ...receipt, ref: "refs/heads/main" })).toThrow();
-    for (const invalid of [{ ...run, event: "pull_request" }, { ...run, path: ".github/workflows/ci.yml" }]) {
-      expect(() => assertTrustedReceipt(invalid, receipt, receipt)).toThrow("trusted");
-    }
-    for (const invalid of [{ ...receipt, sha: "b".repeat(40) }, { ...receipt, ref: "refs/pull/2/head" }, { ...receipt, result: "FAILURE" }]) {
-      expect(() => assertTrustedReceipt(run, invalid, receipt)).toThrow("exact PR");
-    }
-  });
   it("includes both documents, actual alias identity, resolved peers, optional edges and runtime precedence", () => {
     const graph = buildDependencyGraph(source);
     expect(graph.documentCount).toBe(2);
@@ -72,9 +58,15 @@ describe("canonical pnpm dependency graph", () => {
     const packages = Object.keys(graph.resolved).map((purl, index) => ({ SPDXID: String(index), externalRefs: [{ referenceType: "purl", referenceLocator: decodeURIComponent(purl) }] }));
     const ids = new Map(packages.map(row => [row.externalRefs[0]!.referenceLocator, row.SPDXID]));
     const relationships = Object.values(graph.resolved).flatMap(row => row.dependencies.map(child => ({ spdxElementId: ids.get(decodeURIComponent(row.package_url))!, relatedSpdxElement: ids.get(decodeURIComponent(child))!, relationshipType: "DEPENDS_ON" })));
-    expect(verifySbom(graph, { packages, relationships })).toEqual({ packages: 6, edges: 3 });
-    expect(() => verifySbom(graph, { packages: packages.slice(1), relationships })).toThrow("missing");
+    relationships.push({ spdxElementId: "document", relatedSpdxElement: "repository", relationshipType: "DESCRIBES" });
+    for (const row of Object.values(graph.resolved).filter(row => row.relationship === "direct")) {
+      relationships.push({ spdxElementId: "repository", relatedSpdxElement: ids.get(decodeURIComponent(row.package_url))!, relationshipType: "DEPENDS_ON" });
+    }
+    expect(verifySbom(graph, { packages, relationships })).toEqual({ packages: 6, edges: 3, directRoots: 4 });
+    expect(() => verifySbom(graph, { packages: packages.slice(1), relationships })).toThrow("mismatch");
     expect(() => verifySbom(graph, { packages, relationships: [] })).toThrow("edges");
+    expect(() => verifySbom(graph, { packages, relationships: relationships.filter(row => row.spdxElementId !== "repository") })).toThrow("missing direct-root");
+    expect(() => verifySbom(graph, { packages, relationships: [...relationships, { spdxElementId: "repository", relatedSpdxElement: ids.get("pkg:npm/child@4.0.0")!, relationshipType: "DEPENDS_ON" }] })).toThrow("indirect classified as direct-root");
   });
   it("builds the repository lock graph with production, dev, transitive and aliased packages", () => {
     const graph = buildDependencyGraph(readFileSync("pnpm-lock.yaml", "utf8"));

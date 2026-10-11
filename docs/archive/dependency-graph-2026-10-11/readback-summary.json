@@ -125,5 +125,8 @@
       "scope": "development",
       "dependencies": []
     }
-  }
+  },
+  "verifiedDirectRoots": 69,
+  "prDirectRoots": 70,
+  "scopeEvidence": "SPDX export omits runtime/development labels; verified in exact snapshot payload and traversal tests"
 }

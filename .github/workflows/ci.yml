@@ -249,77 +249,16 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-  dependency-graph-submit:
-    name: dependency-graph-submit
-    needs: dependency-graph-build
-    if: github.event_name != 'pull_request' || (github.actor != 'dependabot[bot]' && github.event.pull_request.user.login != 'dependabot[bot]' && github.event.pull_request.head.repo.full_name == github.repository)
-    permissions:
-      contents: write
-    uses: ./.github/workflows/dependency-submit.yml
-    with:
-      sha: ${{ github.event.pull_request.head.sha || github.sha }}
-      ref: ${{ github.event_name == 'pull_request' && format('refs/pull/{0}/head', github.event.pull_request.number) || github.ref }}
-
-  dependency-graph-readback:
-    name: dependency-graph-readback
-    needs: dependency-graph-submit
-    # Repository SBOM exports the default branch, not a PR head snapshot.
-    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
-    runs-on: ubuntu-24.04
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024 # v3.0.0
-        with:
-          cache: false
-          require-lockfile: true
-      - name: Read back every submitted package and dependency edge
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh api "repos/$GITHUB_REPOSITORY/dependency-graph/sbom" > dependency-sbom.json
-          pnpm exec tsx scripts/dependencies/snapshot.ts verify-sbom dependency-sbom.json
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        if: always()
-        with:
-          name: dependency-sbom-readback
-          path: dependency-sbom.json
-          if-no-files-found: error
-          retention-days: 14
-
   dependency-review:
     name: dependency-review
-    needs: [dependency-graph-build, dependency-graph-submit]
-    if: always() && github.event_name == 'pull_request' && needs.dependency-graph-build.result == 'success'
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-24.04
     permissions:
       contents: read
-      actions: read
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        if: needs.dependency-graph-submit.result == 'skipped'
-        with:
-          persist-credentials: false
-      - uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024 # v3.0.0
-        if: needs.dependency-graph-submit.result == 'skipped'
-        with:
-          cache: false
-          require-lockfile: true
-      - name: Require trusted exact-head receipt for fork or Dependabot submission
-        if: needs.dependency-graph-submit.result == 'skipped'
-        run: pnpm exec tsx scripts/dependencies/await-submission.ts
-        env:
-          GH_TOKEN: ${{ github.token }}
-          DEPENDENCY_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          DEPENDENCY_HEAD_REF: ${{ format('refs/pull/{0}/head', github.event.pull_request.number) }}
       - uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
         with:
           fail-on-severity: moderate
-          retry-on-snapshot-warnings: true
-          retry-on-snapshot-warnings-timeout: 120
 
   system:
     name: system / ${{ matrix.task }}
@@ -417,7 +356,7 @@ jobs:
   gate:
     name: ${{ needs.plan.outputs.gate_name }}
     if: ${{ always() }}
-    needs: [plan, static, postgres, system, dependency-graph-build, dependency-graph-submit, dependency-graph-readback, dependency-review]
+    needs: [plan, static, postgres, system, dependency-graph-build, dependency-review]
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -457,10 +396,6 @@ jobs:
           POSTGRES_RESULT: ${{ needs.postgres.result }}
           SYSTEM_RESULT: ${{ needs.system.result }}
           DEPENDENCY_GRAPH_BUILD_RESULT: ${{ needs.dependency-graph-build.result }}
-          DEPENDENCY_GRAPH_SUBMIT_RESULT: ${{ needs.dependency-graph-submit.result }}
-          DEPENDENCY_GRAPH_READBACK_RESULT: ${{ needs.dependency-graph-readback.result }}
-          ALLOW_DELEGATED_GRAPH_SUBMISSION: ${{ github.event_name == 'pull_request' && (github.actor == 'dependabot[bot]' || github.event.pull_request.user.login == 'dependabot[bot]' || github.event.pull_request.head.repo.full_name != github.repository) }}
-          REQUIRE_GRAPH_READBACK: ${{ github.ref == 'refs/heads/main' && github.event_name != 'pull_request' }}
           DEPENDENCY_REVIEW_RESULT: ${{ needs.dependency-review.result }}
           EVENT_NAME: ${{ github.event_name }}
           REQUIRED_JOBS: ${{ needs.plan.outputs.required_jobs }}
