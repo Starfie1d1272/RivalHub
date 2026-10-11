@@ -17,6 +17,8 @@ import { normalizeRegistrationConfig } from "@/lib/seasons/compatibility";
 import catalogContract from "./catalog-contract.json";
 import { BET_CATALOG_VERSION, BET_POLICY, roundLineTwice, seriesLineTwice } from "./policy";
 import type { BetSubject, MarketType } from "./types";
+import type { BetReliefClaimDTO } from "./relief";
+import { betReliefDay, readBetRelief } from "./relief-data";
 function invalid(message: string): never {throw new AppError(ErrorCode.VALIDATION_FAILED,message);}
 const digest = (value: unknown) => createHash("sha256").update(JSON.stringify(value)).digest("hex").slice(0,24);
 export async function lockBetProgram(tx: TxDb,seasonId: string) {
@@ -154,6 +156,24 @@ export async function joinBetInTx(tx:TxDb,seasonId:string,userId:string) {
   await activeUser(tx,userId); await assertSeasonAllowsTournamentMutationInTx(tx,seasonId); await lockBetProgram(tx,seasonId);
   const [account]=await tx.insert(accounts).values({seasonId,userId}).onConflictDoNothing().returning();
   if(account) await writeLedger(tx,{seasonId,accountId:account.id,amount:BET_POLICY.initialPoints,kind:"initial",source:"initial"});
+}
+/** Same serialization owner as stake, stage grants, refunds and correction/debt. */
+export async function claimBetReliefInTx(tx: TxDb, input: {seasonId: string; userId: string; day: string}): Promise<BetReliefClaimDTO> {
+  await activeUser(tx, input.userId);
+  await assertSeasonAllowsTournamentMutationInTx(tx, input.seasonId);
+  const program = await lockBetProgram(tx, input.seasonId);
+  const day = await betReliefDay(tx);
+  if (input.day !== day) invalid("日期已更新，请刷新后领取低保");
+  const eligibility = await readBetRelief(tx, input.seasonId, input.userId, day);
+  if (program.paused || eligibility.reason === "season_closed") invalid("赛事已结束或暂停领取");
+  const account = await tx.query.betAccounts.findFirst({where: and(eq(accounts.seasonId, input.seasonId), eq(accounts.userId, input.userId))});
+  if (!account) invalid("请先领取本届积分");
+  const source = `relief/${day}`;
+  const replay = await tx.query.betLedger.findFirst({where: and(eq(ledger.accountId, account.id), eq(ledger.source, source))});
+  if (replay) return {day, amount: replay.amount.toString(), replayed: true, eligibility};
+  if (!eligibility.canClaim) invalid(eligibility.reason === "debt" ? "待抵扣差额不能领取低保" : eligibility.reason === "limit_reached" ? "本届低保额度已用尽" : "余额不足10积分时才可领取低保");
+  await writeLedger(tx, {seasonId: input.seasonId, accountId: account.id, amount: BigInt(eligibility.amount), profit: BigInt(0), kind: "relief", source});
+  return {day, amount: eligibility.amount, replayed: false, eligibility: await readBetRelief(tx, input.seasonId, input.userId, day)};
 }
 export async function stakeBetInTx(tx:TxDb,input:{seasonId:string;userId:string;marketId:string;optionId:string;amount:string;requestId:string}) {
   await activeUser(tx,input.userId); await assertSeasonAllowsTournamentMutationInTx(tx,input.seasonId);
