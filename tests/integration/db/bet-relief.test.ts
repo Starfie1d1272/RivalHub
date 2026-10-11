@@ -1,10 +1,13 @@
 import { randomUUID } from "node:crypto";
 import { and, eq, sql } from "drizzle-orm";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import * as schema from "@/db/schema";
 import { claimBetReliefInTx, stakeBetInTx, lockBetProgram, reconcileBetInTx, operateBetInTx, joinBetInTx } from "@/lib/bet/service";
 import { readBetRelief, betReliefDay } from "@/lib/bet/relief-data";
 import { fixture, read } from "./harness/bet-fixture";
+// Exercise the future publisher1 against real PG; production has no mutable override.
+vi.mock("@/lib/bet/ledger-contract.json", () => ({ default: { readerVersion: 1, publisherVersion: 1 } }));
+
 type F = Parameters<Parameters<typeof fixture>[0]>[0];
 const eligibility = (f:F, userId=f.userId) => f.db.transaction(tx=>readBetRelief(tx,f.seasonId,userId),{accessMode:"read only",isolationLevel:"repeatable read"});
 const claim = async (f:F, day?:string) => f.db.transaction(tx=>claimBetReliefInTx(tx,{seasonId:f.seasonId,userId:f.userId,day:day!}));
