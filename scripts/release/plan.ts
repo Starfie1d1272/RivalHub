@@ -82,6 +82,8 @@ export function buildReleasePlan(options: BuildReleasePlanOptions = {}): Release
     throw new Error("previous Production commit 不在 candidate 的 main 提交链上；release plan 拒绝猜测 baseline。");
   }
 
+  assertBetCatalogUpgrade(cwd, previousReleaseCommit, releaseSha);
+
   const entries = options.entries ?? readChangedEntries(cwd, previousReleaseCommit, releaseSha);
   const changedPaths = unique(entries.flatMap((entry) => entry.paths));
   const migrationPaths = unique(changedPaths.filter((path) => path.startsWith("drizzle/migrations/")));
@@ -142,6 +144,29 @@ export function isReleaseSchedulerPath(path: string): boolean {
     return RELEASE_SCHEDULER_PATHS.has(path);
   }
   return AMBIGUOUS_SCHEDULER_PATH_PREFIXES.some((prefix) => path.startsWith(prefix));
+}
+
+const BET_CATALOG_CONTRACT_PATH = "src/lib/bet/catalog-contract.json";
+
+/** New financial subjects require the actual previous Production reader, not main ancestry. */
+function assertBetCatalogUpgrade(cwd: string, previous: string, candidate: string): void {
+  const read = (revision: string): { readerVersion: number; publisherVersion: number } => {
+    const present = execFileSync("git", ["ls-tree", "--name-only", revision, "--", BET_CATALOG_CONTRACT_PATH], {
+      cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"],
+    }).trim();
+    if (!present) return { readerVersion: 1, publisherVersion: 1 };
+    const value = JSON.parse(readGitFile(cwd, revision, BET_CATALOG_CONTRACT_PATH)) as Record<string, unknown>;
+    const { readerVersion, publisherVersion } = value ?? {};
+    if (!Number.isInteger(readerVersion) || !Number.isInteger(publisherVersion)
+      || Number(readerVersion) < 1 || Number(publisherVersion) < 1 || Number(readerVersion) < Number(publisherVersion)) {
+      throw new Error(`BET catalog contract 无效：${revision}；release plan 拒绝继续。`);
+    }
+    return { readerVersion: Number(readerVersion), publisherVersion: Number(publisherVersion) };
+  };
+  const before = read(previous), after = read(candidate);
+  if (after.publisherVersion > before.readerVersion || after.readerVersion < before.publisherVersion) {
+    throw new Error(`BET catalog compatibility gate：previous Production reader/publisher v${before.readerVersion}/v${before.publisherVersion} 与 candidate reader/publisher v${after.readerVersion}/v${after.publisherVersion} 不兼容；必须先独立发布兼容读取版本，不能合并为一次发布或降级到不兼容版本。`);
+  }
 }
 
 function readReleaseTimeStorageMutationCapability(

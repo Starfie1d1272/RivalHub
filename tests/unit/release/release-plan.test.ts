@@ -178,3 +178,26 @@ describe("release plan", () => {
     expect(unknownOwnerPath.schedulerChanged).toBe(true);
   });
 });
+
+// A main ancestry check cannot prove the reader was actually shipped before publication.
+it("gates new BET subjects on frozen previous Production, including skipped/combined releases",()=>{
+  const dir=mkdtempSync(join(tmpdir(),"rivalhub-bet-upgrade-"));
+  const git=(args:string[])=>execFileSync("git",args,{cwd:dir,encoding:"utf8",stdio:["ignore","pipe","pipe"]}).trim();
+  const commit=(message:string)=>{git(["add","."]);git(["commit","--quiet","-m",message]);return git(["rev-parse","HEAD"]);};
+  const contract=(readerVersion:number,publisherVersion:number)=>writeFileSync(join(dir,"src/lib/bet/catalog-contract.json"),JSON.stringify({readerVersion,publisherVersion}));
+  try {
+    git(["init","--quiet"]);git(["config","user.email","bet-upgrade@example.invalid"]);git(["config","user.name","BET Upgrade Test"]);
+    mkdirSync(join(dir,"src/lib/bet"),{recursive:true});writeFileSync(join(dir,"package.json"),'{}');
+    const legacy=commit("legacy");
+    contract(2,1);const compatibility=commit("compatibility reader only");
+    contract(2,2);const publication=commit("new publisher");
+    const build=(previousReleaseCommit:string,releaseSha:string)=>buildReleasePlan({cwd:dir,previousReleaseCommit,releaseSha});
+    expect(()=>build(legacy,compatibility)).not.toThrow();
+    expect(()=>build(legacy,publication)).toThrow(/必须先独立发布兼容读取版本/);
+    expect(()=>build(compatibility,publication)).not.toThrow();
+    contract(1,1);const downgrade=commit("incompatible reader downgrade");
+    expect(()=>build(publication,downgrade)).toThrow(/compatibility gate/);
+    contract(1,2);const malformed=commit("invalid contract");
+    expect(()=>build(compatibility,malformed)).toThrow(/contract 无效/);
+  } finally {rmSync(dir,{recursive:true,force:true});}
+});

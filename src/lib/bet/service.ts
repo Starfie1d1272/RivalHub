@@ -1,3 +1,4 @@
+import { computeSeriesProgress } from "@/lib/matches/result-rules";
 import { officialMatchCondition } from "@/lib/matches/scope";
 import "server-only";
 import { createHash } from "node:crypto";
@@ -11,7 +12,7 @@ import { assertSeasonAllowsTournamentMutationInTx } from "@/lib/postevent/guard"
 import { distributePool } from "./pool";
 import { resolveMarketOptions } from "./resolution";
 import { loadBetFacts, type BetFacts } from "./facts";
-import { marketIsLocked, resolveBetFact } from "./domain";
+import { marketIsLocked, resolveBetFact, subjectMatches } from "./domain";
 import { normalizeRegistrationConfig } from "@/lib/seasons/compatibility";
 import { BET_POLICY, roundLineTwice, seriesLineTwice } from "./policy";
 import type { BetSubject, MarketType } from "./types";
@@ -42,6 +43,7 @@ async function createMarket(tx: TxDb,seasonId: string,matchId: string|null,type:
 async function publishMarkets(tx: TxDb,f: BetFacts) {
   const seasonId=f.season.id;
   const program=await tx.query.betPrograms.findFirst({where:eq(programs.seasonId,seasonId)});
+  const existing=await tx.select().from(markets).where(and(eq(markets.seasonId,seasonId),eq(markets.type,"total_rounds")));
   if (!f.event.started && f.event.entryIds.length) {
     const subject: BetSubject={kind:"event",entryIds:f.event.entryIds,playerIds:f.event.playerIds};
     await createMarket(tx,seasonId,null,"champion",{...subject,playerIds:[]},f.event.entryIds.map(id=>({key:id,label:f.entries.find(e=>e.id===id)?.name??"队伍"})));
@@ -75,14 +77,13 @@ async function publishMarkets(tx: TxDb,f: BetFacts) {
     const maps=f.maps.filter(x=>x.matchId===m.id).sort((a,b)=>a.mapOrder-b.mapOrder);
     const map=maps.find(x=>!x.completedAt);
     if (!map || map.startedAt || (map.mapOrder===1 && m.startedAt) || maps.filter(x=>x.mapOrder<map.mapOrder).some(x=>!x.completedAt)) continue;
-    const target=m.format==="bo1"?1:m.format==="bo3"?2:3;
-    const winsA=maps.filter(x=>x.completedAt && x.scoreA!==null && x.scoreB!==null && x.scoreA>x.scoreB).length;
-    const winsB=maps.filter(x=>x.completedAt && x.scoreA!==null && x.scoreB!==null && x.scoreB>x.scoreA).length;
-    if (winsA>=target || winsB>=target) continue;
+    if (computeSeriesProgress(m.format,maps.filter(x=>x.completedAt)).seriesFinished) continue;
     const mapSubject: BetSubject={kind:"map",entryIds:subject.entryIds,runId:subject.runId,format:m.format,mapId:map.id,mapOrder:map.mapOrder,mapName:map.mapName};
     if (m.format!=="bo1") await createMarket(tx,seasonId,m.id,"map_winner",mapSubject,teams);
     const history=f.maps.filter(x=>x.completedAt && x.scoreA!==null && x.scoreB!==null && x.id!==map.id).sort((a,b)=>b.completedAt!.getTime()-a.completedAt!.getTime());
     const recent=history.filter(x=>x.mapName===map.mapName && f.official.some(match=>match.id===x.matchId && [match.entryAId,match.entryBId].some(id=>subject.entryIds.includes(id)))).slice(0,20);
+    // A compatible older publisher must never duplicate a newer slot pool.
+    if (existing.some(market=>market.matchId===m.id && market.subject.kind==="map_slot" && market.subject.mapOrder===map.mapOrder && subjectMatches(market.subject,m,maps,veto))) continue;
     await createMarket(tx,seasonId,m.id,"total_rounds",mapSubject,[{key:"over",label:"大"},{key:"under",label:"小"}],roundLineTwice(recent.map(x=>x.scoreA!+x.scoreB!),history.slice(0,60).map(x=>x.scoreA!+x.scoreB!)));
   }
 }
