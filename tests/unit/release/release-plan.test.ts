@@ -195,6 +195,18 @@ it("gates new BET subjects on frozen previous Production, including skipped/comb
     expect(()=>build(legacy,compatibility)).not.toThrow();
     expect(()=>build(legacy,publication)).toThrow(/必须先独立发布兼容读取版本/);
     expect(()=>build(compatibility,publication)).not.toThrow();
+    // Relief's global v3 switch cannot authorize BO3 publication.
+    contract(3,2);const reliefReader=commit("relief reader only");
+    const capability=(readerVersion:number,publisherVersion:number)=>writeFileSync(join(dir,"src/lib/bet/catalog-contract.json"),JSON.stringify({readerVersion:3,publisherVersion:3,capabilities:{bo3BpPresence:{readerVersion,publisherVersion}}}));
+    capability(1,0);const presenceReader=commit("relief publisher plus BO3 reader only");
+    capability(1,1);const presencePublisher=commit("BO3 presence publisher");
+    expect(()=>build(reliefReader,presenceReader)).not.toThrow();
+    expect(()=>build(reliefReader,presencePublisher)).toThrow(/capability bo3BpPresence compatibility gate/);
+    expect(()=>build(presenceReader,presencePublisher)).not.toThrow();
+    contract(3,3);const presenceDowngrade=commit("drop presence capability");
+    expect(()=>build(presencePublisher,presenceDowngrade)).toThrow(/capability bo3BpPresence compatibility gate/);
+    capability(0,1);const invalidCapability=commit("invalid BO3 capability");
+    expect(()=>build(presenceReader,invalidCapability)).toThrow(/capability bo3BpPresence 无效/);
     contract(1,1);const downgrade=commit("incompatible reader downgrade");
     expect(()=>build(publication,downgrade)).toThrow(/compatibility gate/);
     contract(1,2);const malformed=commit("invalid contract");
