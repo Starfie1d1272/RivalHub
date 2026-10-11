@@ -19,6 +19,7 @@ import { BET_CATALOG_VERSION, BET_POLICY, roundLineTwice, seriesLineTwice } from
 import type { BetSubject, MarketType } from "./types";
 import type { BetReliefClaimDTO } from "./relief";
 import { betReliefDay, readBetRelief } from "./relief-data";
+import { canPublishBetRelief } from "./ledger-publication";
 function invalid(message: string): never {throw new AppError(ErrorCode.VALIDATION_FAILED,message);}
 const digest = (value: unknown) => createHash("sha256").update(JSON.stringify(value)).digest("hex").slice(0,24);
 export async function lockBetProgram(tx: TxDb,seasonId: string) {
@@ -160,6 +161,7 @@ export async function joinBetInTx(tx:TxDb,seasonId:string,userId:string) {
 }
 /** Same serialization owner as stake, stage grants, refunds and correction/debt. */
 export async function claimBetReliefInTx(tx: TxDb, input: {seasonId: string; userId: string; day: string}): Promise<BetReliefClaimDTO> {
+  if (!canPublishBetRelief()) invalid("低保领取尚未开放");
   await activeUser(tx, input.userId);
   await assertSeasonAllowsTournamentMutationInTx(tx, input.seasonId);
   const program = await lockBetProgram(tx, input.seasonId);
