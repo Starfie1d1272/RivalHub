@@ -19,7 +19,13 @@ Sanitized preview mirror 不复制观众的草稿、提交和积分账本，也�
 
 `src/lib/bet/` 是新 BET 的唯一盘口、投入、积分和结算 owner。`bet_*` 表与 Pick’Em 项目独立；旧 `prediction_*` 金融表和兼容入口保留历史及 N/N+1 兼容，不被新 BET 页面或操作消费。管理员启用后自动生成满足条件的盘口，可暂停/恢复投入、永久提前锁盘、填写原因作废退款，官方更新待处理时可重试。后台以比赛／赛事盘摘要为入口，支持队伍、选手、地图或盘口搜索，以及状态、类别、阶段筛选；展开一组后查看奖池和参与人数，执行带目标信息的锁盘／原因退款。筛选与整组分页通过 URL 恢复。答案只来自官方事实；后台不提供赔率、选项、截止日期、答案或余额编辑。
 
-固定政策提供初始积分和后续正赛阶段补给，具体数值由代码 policy 拥有。领取和补给幂等，阶段首次开放 milestone 在恢复重建后保留，晚加入者不领取历史补给。Pick’Em 不向 BET 钱包发放积分。管理员可按普通账户规则参与；当前 confirmed/frozen 名单成员仅禁止参与涉及本人队伍的盘口，赛事盘按其实际涵盖名单判断。首次账户必须显式领取，GET 不开户；reconciliation 从 canonical MajorStageRuns 补齐缺失 milestone，数据库严格比较 joinedAt < openedAt，启用顺序和重试不改变晚加入规则。排行榜仅计入当前有效已结算参与，按 ledger 净收益并列排名；同分依次按结算数、加入时间、账户稳定标识排序。记录视图只呈现本人流水，以自然语言解释退款和官方更正，不公开内部标识。暂停不阻止自动结算，恢复不重开已锁盘口。
+固定政策提供初始积分和后续正赛阶段补给，具体数值由代码 policy 拥有。领取和补给幂等，阶段首次开放 milestone 在恢复重建后保留，晚加入者不领取历史补给。Pick’Em 不向 BET 钱包发放积分。管理员可按普通账户规则参与；当前 confirmed/frozen 名单成员仅禁止参与涉及本人队伍的盘口，赛事盘按其实际涵盖名单判断。首次账户必须显式领取，GET 不开户；reconciliation 从 canonical MajorStageRuns 补齐缺失 milestone，数据库严格比较 joinedAt < openedAt，启用顺序和重试不改变晚加入规则。排行榜仅计入当前有效已结算参与，按 ledger 净收益并列排名；同分依次按结算数、加入时间、账户稳定标识排序。记录视图只呈现本人流水，以自然语言解释补给、退款和官方更正，不公开内部标识。暂停不阻止自动结算，恢复不重开已锁盘口。
+
+低保仅允许已加入本届 BET 的 active、邮箱已验证账户主动领取；原始账面余额为负时拒绝，不把 debt 当成零。余额不足目标时只补差额，受北京时间日一次和本届累计上限约束，具体金额由 `BET_RELIEF_POLICY` 拥有。累计只消费 relief grant，profit 固定为零；初始、阶段、退款及结算继续沿原账本规则。仅已启用且未暂停、未结束/归档的赛事可领。所有读取均不开户、不结算、不发积分。
+
+钱包使用 `getBetRelief({seasonId})` 获取 `BetReliefDTO`：`day` 是数据库北京时间日键，`reason/canClaim/amount/granted/remaining` 表达当前资格与额度，积分以十进制字符串传输。本人明确点击后调用 `claimBetRelief({seasonId, day})`，不接受客户端 userId、amount 或历史日期；成功返回 `BetReliefClaimDTO` 的实际金额、是否重放和最新资格。钱包刷新两份快照时以 claim 重新验证的结果为准。跨零点旧 day 请求必须刷新，同日重放只返回原 receipt，不重复发放。规则说明放入原位小问号，默认只展示紧凑入口/状态，免费预测不依赖此操作。
+
+claim 按 user → season lifecycle → BET program 的既有锁序取锁，在金融锁取得后使用数据库 wall clock 生成日键，再于同一事务计算 raw ledger balance、仅 relief 的累计、每日 source 幂等并追加 grant。该 program 锁与下注、结算、退款、更正及阶段补给共享。低保属于已有私有金融账本数据类别，按原 owner 的授权、长期审计及备份/恢复语义保留，不新增公开个人参与明细。
 
 | 盘口 | 开放 | 永久锁盘 | 结算 |
 | --- | --- | --- | --- |
@@ -43,4 +49,6 @@ BET catalog 的 reader-first 发布门禁由 Release Plan 消费 candidate 与 f
 
 BO3 三图积分市场的兼容 reader 支持 `veto_present`：冻结七张不同地图的 match subject，每账户选择一张；完整合法 BP 的三张无序地图全部作为中奖选项，不依赖第三图实际进行。BP 未完成、结果集合缺失/重复/不在冻结地图池或有待处理申诉时保持 pending；取消、弃权或 subject 更正沿现有规则退款。结果更正追加 reversal/settlement，已锁盘不重开；仅地图顺序变化不改变中奖集合。选项支持率仍以该选项投入 / 全池投入计算，三张中奖图不会各分一个奖池。
 
-此 reader 使用独立的 `capabilities.bo3BpPresence` 声明 reader1/publisher0；全局 reader/publisher 与目录 generation 保持不变，不创建 `veto_present`。缺失能力声明的旧版本视为 0/0；Release Plan 对每个能力单独验证 frozen previous Production reader 与 candidate publisher，并禁止回退到不兼容 reader。低保等其他功能推进全局 publisher 不会授权 BO3 创建；后续 BO3 publisher 必须只读取专属开关，不能使用全局 `>=3`。后续 publisher 必须另行交付并在 BO3 reader1 已正式上线后发布：只对未来尚无 BP 市场的合法 BO3 窗口生成新类型；任何已创建的旧首图/决胜图池（即使无人投入、已锁或已结算）保留条款与入口，不转换、不补重复三图池。BO5 保持图序市场。新的 publisher 需推进 BO3 专属 publisher 至1并独立推进目录 generation，并通过追加 migration 同步 `scheduler_job_is_due` 的 BET 版本门槛，验证旧 worker 消费 dirty 后的恢复；按 Release Plan 完成 PG17 rehearsal、N/N+1 兼容与条件 checkpoint。页面的所选选项独胜收益估算不能直接用于三赢家市场，须在 publisher 启用前由展示 owner 完成对应验收；不能将两次发布合并。
+此 reader 使用独立的 `capabilities.bo3BpPresence` 声明 reader1/publisher0；全局 reader/publisher 与目录 generation 保持不变，不创建 `veto_present`。缺失能力声明的旧版本视为 0/0；Release Plan 对每个能力单独验证 frozen previous Production reader 与 candidate publisher，并禁止回退到不兼容 reader。其他功能推进全局 publisher 不会授权 BO3 创建；后续 BO3 publisher 必须只读取专属开关，不能使用全局 `>=3`。后续 publisher 必须另行交付并在 BO3 reader1 已正式上线后发布：只对未来尚无 BP 市场的合法 BO3 窗口生成新类型；任何已创建的旧首图/决胜图池（即使无人投入、已锁或已结算）保留条款与入口，不转换、不补重复三图池。BO5 保持图序市场。新的 publisher 需推进 BO3 专属 publisher 至1并独立推进目录 generation，并通过追加 migration 同步 `scheduler_job_is_due` 的 BET 版本门槛，验证旧 worker 消费 dirty 后的恢复；按 Release Plan 完成 PG17 rehearsal、N/N+1 兼容与条件 checkpoint。页面的所选选项独胜收益估算不能直接用于三赢家市场，须在 publisher 启用前由展示 owner 完成对应验收；不能将两次发布合并。
+
+金融 ledger kind 使用独立 `ledger-contract.json` 维度，缺失声明视为 reader/publisher 0。ledger v1 reader 将 relief 显示为低保补给，未知 kind 显示为积分变动，余额/净收益继续消费 amount/profit。低保 producer 必须等待 ledger reader1/publisher0 独立上线后才能启用 publisher1；市场全局或 `bo3BpPresence` reader 的发布不授权新 ledger kind，低保 reader 也不授权新市场。

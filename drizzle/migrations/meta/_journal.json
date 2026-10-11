@@ -596,6 +596,20 @@
       "when": 1791727806446,
       "tag": "0084_veto-appeal-gameplay-close",
       "breakpoints": true
+    },
+    {
+      "idx": 85,
+      "version": "7",
+      "when": 1791746029754,
+      "tag": "0085_free-predictions",
+      "breakpoints": true
+    },
+    {
+      "idx": 86,
+      "version": "7",
+      "when": 1791747322730,
+      "tag": "0086_bet-relief",
+      "breakpoints": true
     }
   ]
 }
