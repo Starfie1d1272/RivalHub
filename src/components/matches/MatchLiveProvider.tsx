@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { subscribeBrowserLiveViewer } from "@/lib/mizar/live-viewer-subscriptions";
 import { initialLiveViewerState } from "@/lib/mizar/live-viewer-state";
+import { browserPreviousLiveViewStore } from "@/lib/mizar/live-previous-view";
 
 const empty = { state: initialLiveViewerState(), now: 0 };
 const MatchLiveContext = createContext(empty);
@@ -13,7 +14,7 @@ function Connection({ matchId, enabled, children }: { matchId: string; enabled: 
   const [state, setState] = useState(initialLiveViewerState);
   const [now, setNow] = useState(0);
   useEffect(() => {
-    if (!enabled) return;
+    if (!enabled) { browserPreviousLiveViewStore()?.clear(matchId); return; }
     return subscribeBrowserLiveViewer(matchId, state => {
       setState(state);
       setNow(performance.now());

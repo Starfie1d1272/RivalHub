@@ -133,6 +133,24 @@ describe("event test matches", () => {
     await db.update(schema.seasons).set({ status: "playing" }).where(eq(schema.seasons.id, f.seasonId));
     expect((await issueLiveViewerToken(f.matchId)).topic).toBe(`match-live:${f.matchId}`);
   });
+  it("reads cache qualification and the current source/map boundary from the same public viewer query", async () => {
+    vi.stubEnv("SUPABASE_JWT_SECRET", "integration-viewer-signing-key-only");
+    const f = await seedFixture();
+    await db.update(schema.matchMaps).set({ startedAt: new Date() }).where(eq(schema.matchMaps.id, f.mapOneId));
+    const partition = "opaque-cache-partition";
+    const first = (await issueLiveViewerToken(f.matchId, partition)).cacheContext;
+    expect(first).toMatchObject({ seasonId: f.seasonId, matchId: f.matchId, boundary: { authorityRevision: f.authorityRevision, mapId: f.mapOneId } });
+    const [source] = await db.select().from(schema.matchLiveSessions).where(eq(schema.matchLiveSessions.matchId, f.matchId));
+    await db.update(schema.matchLiveSessions).set({ authorityRevision: source!.authorityRevision + 1 }).where(eq(schema.matchLiveSessions.id, source!.id));
+    expect((await issueLiveViewerToken(f.matchId, partition)).cacheContext!.revision).not.toBe(first!.revision);
+    await db.update(schema.matchLiveSessions).set({ manualTakeoverMapEpoch: source!.mapEpoch }).where(eq(schema.matchLiveSessions.id, source!.id));
+    expect((await issueLiveViewerToken(f.matchId, partition)).cacheContext).toBeNull();
+    await db.update(schema.matchLiveSessions).set({ manualTakeoverMapEpoch: null }).where(eq(schema.matchLiveSessions.id, source!.id));
+    await db.update(schema.matchMaps).set({ completedAt: new Date(), scoreA: 13, scoreB: 5 }).where(eq(schema.matchMaps.id, f.mapOneId));
+    expect((await issueLiveViewerToken(f.matchId, partition)).cacheContext).toBeNull();
+    await db.update(schema.matches).set({ status: "finished" }).where(eq(schema.matches.id, f.matchId));
+    await expect(issueLiveViewerToken(f.matchId, partition)).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
   // Existing tests covered rehearsals/playing only. This real query regression
   // protects anonymous qualification scope and its lifecycle, not a mock policy.
   it("admits only an active official registration Play-in and keeps its token match-scoped", async () => {

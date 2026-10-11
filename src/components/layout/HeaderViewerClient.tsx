@@ -17,6 +17,7 @@ import {
 import type { HeaderSession } from "./Header.types";
 import { useHeaderAvatarFailure } from "./HeaderAvatarFailureContext";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
+import { clearPreviousLiveViews } from "@/lib/mizar/live-viewer-cache-reset";
 
 export function getAccountNavigationLinks(userId: string, needsProfile: boolean) {
   return [
@@ -50,6 +51,7 @@ export function HeaderViewerClient({
   async function handleLogout() {
     const result = await logoutUser();
     if (result.success) {
+      clearPreviousLiveViews();
       toast.success("已退出登录");
       router.push("/");
     } else {

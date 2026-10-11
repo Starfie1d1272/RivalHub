@@ -80,8 +80,21 @@ test("public test match consumes private Broadcast and recovers across navigatio
     // MatchRealtime.test.tsx; retain one real disconnect/recovery here.
     producer = await stream(matchId);
     await expect(live.getByText("FalleN", { exact: true })).toBeVisible();
+    producer?.kill(); producer = undefined;
     await assertPageResponse(await page.reload());
+    const previous = live.getByTestId("previous-live-view");
+    await expect(previous.getByText("FalleN", { exact: true })).toBeVisible();
+    await expect(live.getByText(/上次画面/)).toBeVisible();
+    await expect(live.locator("canvas")).toHaveCount(0);
+    if (process.env.RIVALHUB_LIVE_SCREENSHOTS_DIR) {
+      await page.screenshot({ path: resolve(process.env.RIVALHUB_LIVE_SCREENSHOTS_DIR, "desktop-previous.png"), fullPage: true });
+      await page.setViewportSize({ width: 390, height: 844 });
+      await page.screenshot({ path: resolve(process.env.RIVALHUB_LIVE_SCREENSHOTS_DIR, "narrow-previous.png"), fullPage: true });
+      await page.setViewportSize({ width: 1280, height: 720 });
+    }
+    producer = await stream(matchId);
     await expect(live.locator("canvas")).toBeVisible();
+    await expect(previous).toHaveCount(0);
     await assertPageResponse(await page.goto(`/${seasonId}/matches/${otherMatchId}`));
     await expect(page.getByText("FalleN", { exact: true })).toHaveCount(0);
     await assertPageResponse(await page.goto(url));
