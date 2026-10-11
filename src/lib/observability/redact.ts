@@ -37,6 +37,7 @@ const SAFE_CONTEXT_KEYS = new Set([
   "host",
   "httpStatus",
   "imageBytes",
+  "importId",
   "jobKey",
   "kind",
   "method",

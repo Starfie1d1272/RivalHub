@@ -57,7 +57,7 @@ Quality 保持轻量：继续区分 `null != 0`、missing 与 empty，并保留 
 
 接收端必须先兼容，再启用 producer 发送。Base V1 / semantic profile 不变；producerVersion 用 `cs2dak-rivalhub-evidence/0.2.0` 标识新输出。完整 payload 仍参与现有稳定序列化的 idempotency key / payloadSha256，诊断不从 hash 中剔除。相同输入重试得到相同身份；带诊断的新 payload 与旧 payload 是同 Demo 的不同 artifact，经既有同 Demo lineage promotion 保留 predecessor，不能复用旧 idempotency key，不能改写历史 payload/hash。attempt、requestId、runtime cause、当前时间不得进入此扩展，canonical gameplay facts 的身份与内容不受它影响。
 
-管理员工作台只为每图当前 confirmed / needs-attention artifact 读取证据并投影有界质量详情；确认后的警告仍可查看，确认/拒绝动作继续只用于待处理记录。旧版摘要明确显示“详情未提供”，不能依据数量补造历史 warning 或把 richKills 降级当成 warning 原因。诊断原文不进入公开统计 DTO；公开页沿用必要的能力/数据可用性说明。此兼容变更不重算或回填任何历史数据。
+管理员工作台只为每图当前 confirmed / needs-attention artifact 读取证据并投影有界质量详情；确认后的警告仍可查看，确认/拒绝动作继续只用于待处理记录。敏感片段被替换后保留其余说明；运行日志/堆栈需要整条抑制时明确说明，保留安全 code/path。旧版摘要明确显示“详情未提供”，不能依据数量补造历史 warning 或把 richKills 降级当成 warning 原因。读取/完整性校验失败由既有服务端 observability 记录原异常的安全投影、importId、读取阶段与关联编号，界面只显示安全提示和关联编号；这些运行诊断不进入 Evidence 或其 hash。诊断原文不进入公开统计 DTO；公开页沿用必要的能力/数据可用性说明。此兼容变更不重算或回填任何历史数据。
 
 OCR 与 DAK 不进入通用 per-metric provenance framework，而按 source group 明确 ownership：DAK/Demo 拥有 rounds、KDA、damage、HS、KAST、opening、trade、clutch、utility、weapon、team conversions 等；Scoreboard/OCR 拥有 Rating Pro、RWS、WE 等外部 scoreboard 字段。官方单图结果完成后即可接收该图的 operator-confirmed scoreboard 与 DAK Evidence，即使系列赛仍在进行中；地图结果变化会使对应 Evidence revision 失效，而系列赛完成、弃权或取消不会单独使已确认单图失效。两条写入路径不得清空对方拥有的数据。
 

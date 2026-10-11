@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { parseRivalHubDemoEvidenceV1 } from "@/lib/demo-evidence/contract";
 import { DAK_DIAGNOSTICS_EXTENSION, validateDakDiagnostics, type DakDiagnostics } from "@/lib/demo-evidence/diagnostics";
 import { sha256Json } from "@/lib/demo-integration/revision";
@@ -100,6 +100,30 @@ describe("DAK deterministic diagnostics boundary", () => {
     expect(projected.capability).toContain("部分可用");
   });
 
+  it.each([
+    "Token coverage is 1/2 because playerStats/kills includes 1 attempt count.",
+    "Expected 2 player economy rows, found 1.",
+    "Frozen playerStats deaths disagrees for [player] (playerIndex=2): expected=1, actual=2.",
+    "Expected 2 rows from [redacted] but found 1.",
+  ])("retains safe issue explanations and partially redacted reasons: %s", (message) => {
+    const { evidence, diagnostics } = withDiagnostics();
+    diagnostics.qa.issues[0]!.message = message;
+    const parsed = parseRivalHubDemoEvidenceV1(evidence);
+    expect(parsed.extensions[DAK_DIAGNOSTICS_EXTENSION]?.qa.issues[0]?.message).toBe(message);
+    const projected = projectAdminDemoQuality(stored(parsed), { mapOrder: 1, mapName: "de_ancient" });
+    expect(projected.issues[0]?.message).toContain(message);
+    if (message.includes("[redacted]")) expect(projected.issues[0]?.message).toContain("敏感片段已脱敏");
+  });
+
+  it("explains raw diagnostic suppression while preserving the safe code and location", () => {
+    const { evidence, diagnostics } = withDiagnostics();
+    diagnostics.qa.issues[0]!.message = "[redacted: raw diagnostic]";
+    const parsed = parseRivalHubDemoEvidenceV1(evidence);
+    const projected = projectAdminDemoQuality(stored(parsed), { mapOrder: 1, mapName: "de_ancient" });
+    expect(projected.issues[0]).toMatchObject({ code: "future.check", path: "kills[0]" });
+    expect(projected.issues[0]?.message).toContain("运行日志或堆栈，已抑制");
+  });
+
   it("binds deterministic diagnostics to payload identity while preserving gameplay facts", () => {
     const { evidence } = withDiagnostics();
     const legacy = structuredClone(evidence);
@@ -139,5 +163,30 @@ describe("DAK deterministic diagnostics boundary", () => {
     evidence.quality.qa = original.quality.qa;
     Object.assign(diagnostics.qa.issues[0]!, { cause: "runtime" });
     expect(() => parseRivalHubDemoEvidenceV1(evidence)).toThrow();
+  });
+
+  it("correlates unreadable stored evidence with the safe original server exception", () => {
+    const { evidence } = withDiagnostics();
+    const row = stored(evidence);
+    row.id = "10000000-0000-4000-8000-000000000009";
+    row.payloadSha256 = "0".repeat(64);
+    const write = vi.spyOn(process.stderr, "write").mockReturnValue(true);
+    try {
+      const projected = projectAdminDemoQuality(row, { mapOrder: 1, mapName: "de_ancient" });
+      const event = JSON.parse(String(write.mock.calls[0]![0]));
+      expect(event).toMatchObject({ event: "demo.quality.read_failure", operation: "read-stored-quality",
+        safeContext: { importId: row.id, stage: "read-stored-evidence" },
+        exception: { cause: { message: "Stored Demo integrity mismatch: payloadSha256" } } });
+      expect(projected.notice).toContain(event.requestId);
+      expect(projected.notice).not.toContain("payloadSha256");
+      expect(evidence.extensions[DAK_DIAGNOSTICS_EXTENSION]).not.toHaveProperty("requestId");
+
+      write.mockClear();
+      row.payload = { ...evidence, source: { ...evidence.source, demoSha256: "Bearer synthetic-private-value" } };
+      projectAdminDemoQuality(row, { mapOrder: 1, mapName: "de_ancient" });
+      const malformedEvent = String(write.mock.calls[0]![0]);
+      expect(malformedEvent).toContain("ZodError");
+      expect(malformedEvent).not.toContain("synthetic-private-value");
+    } finally { write.mockRestore(); }
   });
 });
