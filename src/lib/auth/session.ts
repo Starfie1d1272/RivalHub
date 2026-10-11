@@ -5,6 +5,7 @@ import { cookies } from "next/headers";
 import { connection } from "next/server";
 import { eq } from "drizzle-orm";
 import { cache } from "react";
+import { createHmac } from "node:crypto";
 
 import { db } from "@/db/client";
 import { seasonAdminGrants, users } from "@/db/schema";
@@ -23,6 +24,17 @@ export interface CurrentUserAuthorization extends UserSession {
 }
 
 type SessionPayload = Partial<UserSession> & { sessionId?: string } & Record<string, unknown>;
+const USER_SESSION_COOKIE_NAME = "rivalhub-session";
+
+/** Cache partition only, never authentication. The cookie/identity never leaves this owner. */
+export async function getOpaqueSessionCachePartition(): Promise<string | null> {
+  const secret = process.env.ADMIN_SESSION_SECRET;
+  if (!secret || secret.length < 32) return null;
+  const value = (await cookies()).get(USER_SESSION_COOKIE_NAME)?.value;
+  if (value && value.length > 16384) return null;
+  if (value && !await getUserSession()) return null;
+  return createHmac("sha256", secret).update("public-live-cache:v1:").update(value ?? "anonymous").digest("hex");
+}
 
 function userSessionOptions() {
   const password = process.env.ADMIN_SESSION_SECRET;
@@ -32,7 +44,7 @@ function userSessionOptions() {
 
   return {
     password,
-    cookieName: "rivalhub-session",
+    cookieName: USER_SESSION_COOKIE_NAME,
     ttl: SESSION_MAX_AGE_SECONDS,
     cookieOptions: {
       secure: process.env.NODE_ENV === "production",

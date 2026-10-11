@@ -6,7 +6,7 @@ import React from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
-import { logoutUser } from "@/actions/auth";
+import { logoutAndClearPreviousViews } from "@/components/auth/logout";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -48,7 +48,7 @@ export function HeaderViewerClient({
   const userLabel = getPublicDisplayName({ displayName, perfectName, personaName });
 
   async function handleLogout() {
-    const result = await logoutUser();
+    const result = await logoutAndClearPreviousViews();
     if (result.success) {
       toast.success("已退出登录");
       router.push("/");

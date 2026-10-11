@@ -28,6 +28,7 @@ import {
   createUserSession,
   destroyUserSession,
   getUserSession,
+  getOpaqueSessionCachePartition,
   requireAdmin,
   requireAuth,
   requireSeasonAdmin,
@@ -57,6 +58,21 @@ function mockCurrentAuthorization(role: "user" | "super_admin", seasonIds: strin
 }
 
 describe("auth session guards", () => {
+  it("partitions only valid sessions without exposing a cookie or identity", async () => {
+    process.env.ADMIN_SESSION_SECRET = "opaque-cache-partition-secret-minimum-32";
+    cookiesMock.mockResolvedValue({ get: () => undefined });
+    const anonymous = await getOpaqueSessionCachePartition();
+    cookiesMock.mockResolvedValue({ get: () => ({ value: "sealed-session-a" }) });
+    getIronSessionMock.mockResolvedValue(session(identity));
+    readApplicationSessionMock.mockResolvedValue(identity);
+    const loggedIn = await getOpaqueSessionCachePartition();
+    expect(loggedIn).toMatch(/^[a-f0-9]{64}$/); expect(loggedIn).not.toBe(anonymous);
+    expect(loggedIn).not.toContain(identity.userId);
+    cookiesMock.mockResolvedValue({ get: () => ({ value: "sealed-session-b" }) });
+    expect(await getOpaqueSessionCachePartition()).not.toBe(loggedIn);
+    readApplicationSessionMock.mockResolvedValue(null);
+    expect(await getOpaqueSessionCachePartition()).toBeNull();
+  });
   beforeEach(() => {
     process.env.ADMIN_SESSION_SECRET = "local-test-session-secret-that-is-long-enough";
     vi.clearAllMocks();
