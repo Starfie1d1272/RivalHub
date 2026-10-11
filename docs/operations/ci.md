@@ -43,6 +43,8 @@ Vitest 的 React/jsdom project 只在 GitHub Actions 使用一次 diagnostic ret
 
 CI 不使用 mock 来替代 constraint、transaction、locking 或并发证据。affected PG 从真实测试的传递依赖计算消费者（含动态 import 与 vi.mock 引用），混合修改取并集；schema、migration、harness 或未知消费者回退 FULL。容量测量由独立 experiments config 运行，不进入 required PG suite。
 
+FULL PostgreSQL 固定使用两个 runner，以 Vitest 原生 `1/2`、`2/2` 按文件分片完整 integration 集合；affected PG 仍使用一个 `1/1` runner 与原选择集合。两个 FULL runner 各自启动真实 `postgres:17`，执行 migration risk/release compatibility、active-chain replay、seed/fixture/schema verification，并为原有三个并发 worker 克隆独立数据库；不共享数据库或事务。matrix 禁用 fail-fast、最多并发两个 runner，保留每片 timing/test-count evidence；任一片失败或取消使 `postgres` 聚合失败，gate 等待全部分片，180 秒起点与预算不变。
+
 Release 的 migration rehearsal 使用同一套 plain `postgres:17` service、`preparePg17Database()` 和 active migration replay owner；它不启动 Local Supabase。CI PostgreSQL lane、Release workflow 与本地 `db:local:migrate` 共享 `scripts/db/migration-replay.ts`，避免出现第二套只在发布时运行的 migration runner。
 
 ### system

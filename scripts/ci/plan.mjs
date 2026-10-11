@@ -142,6 +142,8 @@ export function classifyChangedFiles(entries, options = {}) {
     const liveEvidence = plan.full || liveSurfaceChanged || plan.e2eSpecs.includes("tests/e2e/flows/public-match-live.spec.ts");
     return { ...plan, gateName, mobileSearchEvidence, liveEvidence,
       systemMatrix: systemMatrixFor(plan, liveEvidence),
+      // Only FULL adds a second PG runner; affected selection stays on one.
+      postgresMatrix: plan.runPostgres ? (plan.full ? [{ shard: "1/2" }, { shard: "2/2" }] : [{ shard: "1/1" }]) : [],
     };
   };
   if (forceFull) {
@@ -606,6 +608,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   output("required_jobs", JSON.stringify(plan.requiredJobs));
   output("static_matrix", JSON.stringify(plan.staticMatrix));
   output("system_matrix", JSON.stringify(plan.systemMatrix));
+  output("postgres_matrix", JSON.stringify(plan.postgresMatrix));
   output("unit_mode", plan.unitMode);
   output("related_sources", JSON.stringify(plan.relatedSources));
   output("explicit_tests", JSON.stringify(plan.explicitTests));
