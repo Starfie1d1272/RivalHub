@@ -40,7 +40,7 @@ describe("audit presentation PostgreSQL readback", () => {
       // A colliding human UUID must not override a proven machine action, or
       // turn unrelated/out-of-scope human facts into machine operations.
       await pool.query("INSERT INTO users (id, email, display_name) VALUES ($1, $2, '设备授权者'), ($3, $4, '同 ID 用户')", [authorizer, `${authorizer}@private.test`, installation, `${installation}@private.test`]);
-      await pool.query("INSERT INTO seasons (id, slug, name, kind) VALUES ($1, $1::text, '机器测试赛事', 'custom'), ($2, $2::text, '另一赛事', 'custom')", [season, otherSeason]);
+      await pool.query("INSERT INTO seasons (id, slug, name, kind) VALUES ($1, $2, '机器测试赛事', 'custom'), ($3, $4, '另一赛事', 'custom')", [season, `audit-machine-${season}`, otherSeason, `audit-machine-${otherSeason}`]);
       await pool.query("INSERT INTO mizar_pairing_intents (id, poll_token_hash, expires_at, status, competition_id, authorized_by_user_id, authorized_at) VALUES ($1, $2, now() + interval '1 day', 'authorized', $3, $4, now())", [mizarIntent, `mizar-${secret}`, season, authorizer]);
       await pool.query("INSERT INTO mizar_installations (id, competition_id, pairing_intent_id, authorized_by_user_id, credential_hash, revoked_at) VALUES ($1, $2, $3, $4, $5, now())", [installation, season, mizarIntent, authorizer, secret]);
       await pool.query("INSERT INTO dak_pairing_intents (id, poll_token_hash, expires_at, status, authorized_by_user_id, authorized_at) VALUES ($1, $2, now() + interval '1 day', 'authorized', $3, now())", [dakIntent, `dak-${secret}`, authorizer]);
