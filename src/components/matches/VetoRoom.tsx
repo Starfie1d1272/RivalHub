@@ -438,12 +438,13 @@ export function VetoRoom({ initialRoom }: { initialRoom: VetoRoomView }) {
                     {incident.appeal.resolutionNote && <p className="mt-1 text-[var(--color-fg-mid)]">处理说明：{incident.appeal.resolutionNote}</p>}
                     {incident.appeal.mayResolve && (
                       <div className="mt-3 space-y-2">
-                        <label className="block text-xs text-[var(--color-fg-mid)]" htmlFor={`resolve-note-${incident.id}`}>裁定说明</label>
+                        <label className="block text-xs text-[var(--color-fg-mid)]" htmlFor={`resolve-note-${incident.id}`}>{room.permissions.canRewind ? "裁定说明" : "处理说明"}</label>
                         <Textarea id={`resolve-note-${incident.id}`} className="min-h-20 w-full rounded border border-[var(--color-border)] bg-[var(--color-panel)] p-2 text-sm" value={resolutionNote} onChange={(event) => setResolutionNote(event.target.value)} maxLength={500} placeholder="至少 3 个字" aria-describedby={`resolve-note-${incident.id}-help`} />
                         <p id={`resolve-note-${incident.id}-help`} className="text-xs text-[var(--color-fg-dim)]">3–500 字，不含首尾空格</p>
+                        {!room.permissions.canRewind && <p className="text-xs text-[var(--color-fg-mid)]">比赛已结束，仅记录处理说明并结束申诉，不恢复 BP。</p>}
                         <div className="flex flex-wrap gap-2">
-                          <Button size="sm" disabled={pending || resolutionNote.trim().length < 3} onClick={() => void mutate(resolveVetoRoomAppeal, { matchId: match.id, appealId: incident.appeal!.id, resolutionScope: "platform_or_organizer", resolutionNote }, "已接受申诉并恢复到对应回合。")}>平台/组织问题：接受并恢复</Button>
-                          <Button size="sm" variant="outline" disabled={pending || resolutionNote.trim().length < 3} onClick={() => void mutate(resolveVetoRoomAppeal, { matchId: match.id, appealId: incident.appeal!.id, resolutionScope: "participant_or_unverified", resolutionNote }, "申诉已驳回。")}>队伍/未验证原因：驳回</Button>
+                          {room.permissions.canRewind && <Button size="sm" disabled={pending || resolutionNote.trim().length < 3} onClick={() => void mutate(resolveVetoRoomAppeal, { matchId: match.id, appealId: incident.appeal!.id, resolutionScope: "platform_or_organizer", resolutionNote }, "已接受申诉并恢复到对应回合。")}>平台/组织问题：接受并恢复</Button>}
+                          <Button size="sm" variant="outline" disabled={pending || resolutionNote.trim().length < 3} onClick={() => void mutate(resolveVetoRoomAppeal, { matchId: match.id, appealId: incident.appeal!.id, resolutionScope: "participant_or_unverified", resolutionNote }, "申诉已处理，未恢复 BP。")}>{room.permissions.canRewind ? "队伍/未验证原因：驳回" : "结束申诉（不恢复 BP）"}</Button>
                         </div>
                       </div>
                     )}

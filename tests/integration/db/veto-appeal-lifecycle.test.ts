@@ -7,7 +7,8 @@ import * as schema from "@/db/schema";
 import { lockMatchInTx } from "@/lib/matches/locking";
 import { startCanonicalMapInTx } from "@/lib/matches/map-start";
 import { recordCanonicalMapResultInTx } from "@/lib/matches/results";
-import { reconcileVetoRoom, rewindVetoRoom, submitVetoAppeal } from "@/lib/matches/veto-room/service";
+import { readVetoRoomSnapshot, reconcileVetoRoom, resolveVetoAppeal, rewindVetoRoom, submitVetoAppeal } from "@/lib/matches/veto-room/service";
+import { projectVetoRoomView } from "@/lib/matches/veto-room/read-model";
 import { VETO_APPEAL_CLOSURE_NOTE } from "@/lib/matches/veto-room/appeal-lifecycle";
 import { seedFixture, NOW } from "./harness/mizar";
 import { createLocalPool } from "./harness/database";
@@ -36,6 +37,28 @@ async function appeals(f: Awaited<ReturnType<typeof fixture>>) {
 }
 
 describe("BP appeal gameplay lifecycle", () => {
+  it.each(["cancelled", "finished"] as const)("keeps a non-restoring admin resolution for an unplayed %s match", async status => {
+    const f = await fixture();
+    await submit(f);
+    const originalMaps = await db.select().from(schema.matchMaps).where(eq(schema.matchMaps.matchId, f.matchId));
+    await db.update(schema.matches).set({ status, isForfeit: status === "finished", ...(status === "finished" ? { scoreA: 2, scoreB: 0 } : {}) }).where(eq(schema.matches.id, f.matchId));
+    expect(await reconcileVetoRoom(f.matchId)).toBe("idempotent");
+    const snapshot = await readVetoRoomSnapshot(f.matchId);
+    const adminView = await projectVetoRoomView(snapshot, f.actorId, { userId: f.actorId, email: "admin@local.test", role: "super_admin", seasonIds: [] });
+    expect(adminView.incidents[0]!.appeal).toMatchObject({ statusLabel: "待裁定", mayResolve: true });
+    expect(adminView.permissions.canRewind).toBe(false);
+    const participantView = await projectVetoRoomView(snapshot, f.actorId, { userId: f.actorId, email: "participant@local.test", role: "user", seasonIds: [] });
+    expect(participantView.incidents[0]!.appeal!.mayResolve).toBe(false);
+    expect(participantView.incidents[0]!.mayAppeal).toBe(false);
+    const appeal = (await appeals(f))[0]!;
+    await expect(resolveVetoAppeal({ matchId: f.matchId, appealId: appeal.id, actorId: f.actorId, resolutionScope: "platform_or_organizer", resolutionNote: "不能恢复已结束比赛" })).rejects.toThrow("不能恢复");
+    expect((await appeals(f))[0]!.status).toBe("pending");
+    await resolveVetoAppeal({ matchId: f.matchId, appealId: appeal.id, actorId: f.actorId, resolutionScope: "participant_or_unverified", resolutionNote: "比赛未正式开赛已结束，记录处理说明，不恢复 BP" });
+    expect((await appeals(f))[0]).toMatchObject({ status: "rejected", resolvedBy: f.actorId, resolutionScope: "participant_or_unverified" });
+    expect(await db.select().from(schema.matchMaps).where(eq(schema.matchMaps.matchId, f.matchId))).toEqual(originalMaps);
+    expect(await db.select().from(schema.auditLogs).where(and(eq(schema.auditLogs.targetId, f.matchId), eq(schema.auditLogs.action, "match.veto.appeal_close")))).toHaveLength(0);
+  });
+
   it("keeps the BP-complete recovery window open, closes atomically on actual start and preserves history", async () => {
     const f = await fixture();
     await submit(f);

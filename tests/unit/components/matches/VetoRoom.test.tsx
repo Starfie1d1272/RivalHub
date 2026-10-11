@@ -131,6 +131,23 @@ describe("VetoRoom", () => {
     vi.clearAllMocks();
   });
 
+  it.each(["cancelled", "finished"] as const)("lets an administrator end an unplayed %s appeal without a restore option", async status => {
+    const room = roomFixture();
+    room.match.statusKey = status;
+    room.permissions.isAdmin = true;
+    room.permissions.canOperateCurrentTurn = false;
+    room.permissions.canRewind = false;
+    room.incidents = [{ id: "incident", entryId: room.entries[0]!.id, entryName: "Alpha", selectedEntities: [], selected: [], sourceLabel: "超时自动选择", appeal: { id: "appeal", statusLabel: "待裁定", reason: "申请核对超时记录", resolutionNote: null, mayResolve: true }, mayAppeal: false }];
+    actionMocks.readVetoRoom.mockResolvedValue(ok(room));
+    actionMocks.resolveVetoRoomAppeal.mockResolvedValue(ok({ outcome: "applied", room }));
+    const user = userEvent.setup();
+    render(<VetoRoom initialRoom={room} />);
+    expect(screen.queryByRole("button", { name: "平台/组织问题：接受并恢复" })).not.toBeInTheDocument();
+    await user.type(screen.getByLabelText("处理说明"), "比赛已结束，申诉责任尚未核实，不恢复 BP");
+    await user.click(screen.getByRole("button", { name: "结束申诉（不恢复 BP）" }));
+    expect(actionMocks.resolveVetoRoomAppeal).toHaveBeenCalledWith(expect.objectContaining({ appealId: "appeal", resolutionScope: "participant_or_unverified" }));
+  });
+
   it("guides a prepared representative to stay until the opponent confirms and watch the turn timer", () => {
     const room = roomFixture();
     room.match.statusKey = "scheduled";

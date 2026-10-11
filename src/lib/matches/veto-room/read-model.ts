@@ -199,8 +199,8 @@ export async function projectVetoRoomView(
     };
   });
 
-  const recoveryClosed = core.match.status === "finished" || core.match.status === "cancelled"
-    || await hasVetoGameplayInTx(db, core.match.id);
+  const gameplayStarted = await hasVetoGameplayInTx(db, core.match.id);
+  const recoveryClosed = core.match.status === "finished" || core.match.status === "cancelled" || gameplayStarted;
   const appealsByIncident = new Map(core.appeals.map((appeal) => [appeal.timeoutIncidentId, appeal]));
   const incidents = core.incidents.map((incident) => {
     const appeal = appealsByIncident.get(incident.id);
@@ -219,7 +219,7 @@ export async function projectVetoRoomView(
         statusLabel: APPEAL_STATUS_LABELS[appeal.status],
         reason: canSeeReason ? appeal.reason : null,
         resolutionNote: canSeeReason ? appeal.resolutionNote : null,
-        mayResolve: isAdmin && !recoveryClosed && appeal.status === "pending",
+        mayResolve: isAdmin && !gameplayStarted && appeal.status === "pending",
       } : null,
       mayAppeal: Boolean(!recoveryClosed && viewerId && !appeal && (
         incident.representativeUserId === viewerId || entryRepresentativeId === viewerId
