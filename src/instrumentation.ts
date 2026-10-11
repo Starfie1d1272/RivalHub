@@ -1,4 +1,5 @@
 import type { Instrumentation } from "next";
+import { extractErrorDigest } from "@/lib/observability/error-digest";
 
 export async function register(): Promise<void> {
   if (process.env.NEXT_RUNTIME === "edge") {
@@ -20,6 +21,7 @@ export const onRequestError: Instrumentation.onRequestError = async (error, requ
     route: requestContext.route,
     requestId: requestContext.requestId,
     safeContext: {
+      errorDigest: extractErrorDigest(error),
       routeType: context.routeType,
       routerKind: context.routerKind,
       renderSource: context.renderSource,

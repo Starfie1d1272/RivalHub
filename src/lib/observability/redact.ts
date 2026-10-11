@@ -1,3 +1,4 @@
+import { safeErrorDigest } from "./error-digest";
 import { extractPgError, type PgErrorInfo } from "@/db/errors";
 
 export interface SafeException {
@@ -28,6 +29,7 @@ const SAFE_CONTEXT_KEYS = new Set([
   "count",
   "durationMs",
   "errorClass",
+  "errorDigest",
   "errorCodes",
   "errorMessage",
   "errorName",
@@ -170,7 +172,7 @@ export function sanitizeSafeContext(context: Record<string, unknown> | undefined
   let count = 0;
   for (const [key, value] of Object.entries(context)) {
     if (count >= MAX_CONTEXT_KEYS || !SAFE_CONTEXT_KEYS.has(key)) continue;
-    const safeValue = sanitizeContextValue(value);
+    const safeValue = key === "errorDigest" ? safeErrorDigest(value) : sanitizeContextValue(value);
     if (safeValue !== undefined) {
       result[key] = safeValue;
       count += 1;

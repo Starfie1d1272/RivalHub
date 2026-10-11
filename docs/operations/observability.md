@@ -96,9 +96,10 @@ Span name、`rivalhub.*`、`db.*`、HTTP method/status 和 provider 等属性必
 
 1. `event` + `environment=production`：判断是 `application`、`database`、`dependency`、`security` 还是 `invariant`。
 2. `requestId`：串起一次 route/action、DB retry 与 provider 失败。
-3. `traceId`：打开请求树，查看 route → critical operation → provider/DB child span；`spanId` 用于精确定位单个 operation。
-4. `deployment` / `release`：确认错误是否只出现在新 deployment；必要时与上一 release 对比。
-5. `route` + `status`：确认 5xx 是否集中在某个 route，而不是把 validation/duplicate 结果计入错误率。
+3. `safeContext.errorDigest`：Next server render 错误的安全十进制 hash（1–20 位），与客户端显示的「排查编号」一致；同一事件保留服务端 `requestId`，先按 digest + 时间/route 查找事件，再按 requestId/traceId 关联请求。digest 不是唯一请求 ID，不截断、转换或自造编号，缺失或不合法时不显示。原始原因只进入既有服务端脱敏 exception，不返回错误页面。
+4. `traceId`：打开请求树，查看 route → critical operation → provider/DB child span；`spanId` 用于精确定位单个 operation。
+5. `deployment` / `release`：确认错误是否只出现在新 deployment；必要时与上一 release 对比。
+6. `route` + `status`：确认 5xx 是否集中在某个 route，而不是把 validation/duplicate 结果计入错误率。
 
 排障顺序：
 
