@@ -46,7 +46,7 @@ export async function readBetAccounts(tx: TxDb, seasonId: string, accountId: str
       : row.kind === "reversal" ? "官方赛果更正，撤销原结算" : row.state === "refunded" ? "退款：盘口作废或奖池不满足分配条件" : "结算";
     const market = row.market;
     const context = market ? [market.subject.kind === "event" ? "赛事" : market.subject.entryIds.map(id => facts.entries.find(entry => entry.id === id)?.name ?? "队伍").join(" vs "),
-      marketPresentation(market.type, market.line).title, market.subject.kind === "map" ? `图 ${market.subject.mapOrder}` : null].filter(Boolean).join(" · ") : null;
+      marketPresentation(market.type, market.line).title, market.subject.kind === "map" || market.subject.kind === "map_slot" ? `第${market.subject.mapOrder}图` : null].filter(Boolean).join(" · ") : null;
     return { createdAt: row.createdAt.toISOString(), amount: row.amount.toString(), label, context };
   });
   return { balance: BigInt(mine?.balance ?? "0"), profit: mine?.profit ?? "0", rank: leaderboard.find(row => row.userId === mine?.userId)?.rank ?? null, leaderboard, records };

@@ -1,4 +1,4 @@
-import type { MarketType, BetState } from "./types";
+import type { MarketType, BetState, BetSubject } from "./types";
 const catalog: Record<MarketType, { title: string; group: "赛事" | "比赛" | "BP" | "单图"; help: string }> = {
   champion: { title: "冠军", group: "赛事", help: "正赛冠军正式确认后结算；正赛第一场 BP 或比赛开始时锁盘。" },
   top_fragger: { title: "赛事击杀王", group: "赛事", help: "按正赛所有正式地图的已确认 Demo 总击杀计算；包含加时，并列第一共同获胜。全部地图统计确认后结算。" },
@@ -9,7 +9,7 @@ const catalog: Record<MarketType, { title: string; group: "赛事" | "比赛" | 
   veto_first: { title: "BP · 首图", group: "BP", help: "预测第一张比赛地图；BP 开始时锁盘，完整 BP 无待处理申诉时结算。" },
   veto_decider: { title: "BP · 决胜图", group: "BP", help: "预测 BP 留下的最后一张地图，无论最终是否进行；BP 开始时锁盘。" },
   map_winner: { title: "单图胜者", group: "单图", help: "上一图结束后开放，本图实际开始时锁盘；正式单图结果确认后结算。" },
-  total_rounds: { title: "总回合", group: "单图", help: "包含加时。大：双方最终回合数之和高于分界线；小：低于分界线。分界线开盘时固定。" },
+  total_rounds: { title: "总回合", group: "单图", help: "本图实际开始或系列赛已决时锁盘，未进行则在正式结束后退款。包含加时。大：双方最终回合数之和高于分界线；小：低于分界线。分界线开盘时固定。" },
 };
 export function marketPresentation(type: MarketType, lineTwice: number | null) {
   const row = catalog[type];
@@ -17,3 +17,11 @@ export function marketPresentation(type: MarketType, lineTwice: number | null) {
 }
 export const betStateLabel: Record<BetState,string> = { open:"开放",locked:"已锁盘",settled:"已结算",refunded:"已退款" };
 export function formatPoints(value: string): string { return BigInt(value).toLocaleString("zh-CN"); }
+
+/** Slot map names are display metadata; legacy map names remain frozen. */
+export function marketContext(subject: BetSubject, maps: readonly { mapOrder: number; mapName: string }[]): string {
+  if (subject.kind === "event") return "MAIN EVENT";
+  if (subject.kind !== "map" && subject.kind !== "map_slot") return "";
+  const name = subject.kind === "map" ? subject.mapName : maps.find(m=>m.mapOrder===subject.mapOrder)?.mapName;
+  return `第${subject.mapOrder}图 · ${name ? name.replace(/^de_/,"").replace(/^./,c=>c.toUpperCase()) : "地图待定"}`;
+}

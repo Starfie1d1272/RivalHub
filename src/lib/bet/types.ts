@@ -3,7 +3,8 @@ export type MarketType = typeof MARKET_TYPES[number];
 export type BetSubject =
   | { kind: "event"; entryIds: string[]; playerIds: string[] }
   | { kind: "match"; entryIds: [string, string]; runId: string; format: "bo1" | "bo3" | "bo5"; mapPool: string[] }
-  | { kind: "map"; entryIds: [string, string]; runId: string; format: "bo1" | "bo3" | "bo5"; mapId: string; mapOrder: number; mapName: string };
+  | { kind: "map"; entryIds: [string, string]; runId: string; format: "bo1" | "bo3" | "bo5"; mapId: string; mapOrder: number; mapName: string }
+  | { kind: "map_slot"; entryIds: [string, string]; runId: string; format: "bo1" | "bo3" | "bo5"; mapOrder: number };
 export type BetState = "open" | "locked" | "settled" | "refunded";
 export type BetOptionEntity = { kind: "team"; entryId: string } | { kind: "player"; userId: string } | null;
 export interface BetMarketDTO {

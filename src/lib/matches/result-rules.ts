@@ -56,23 +56,22 @@ export function computeSeriesScoreAfterMap(
   scoreA: number,
   scoreB: number,
 ): { mapWinsA: number; mapWinsB: number; seriesFinished: boolean } {
-  const maxWins = getWinThreshold(format);
-  const scoredMaps = existingMaps.filter((m) => m.scoreA !== null && m.scoreB !== null);
-  const allMaps = [...scoredMaps, { scoreA, scoreB }];
-  let mapWinsA = 0;
-  let mapWinsB = 0;
+  return computeSeriesProgress(format, [...existingMaps, { scoreA, scoreB }]);
+}
 
-  for (const m of allMaps) {
-    if (m.scoreA === null || m.scoreB === null) continue;
-    if (m.scoreA > m.scoreB) mapWinsA++;
-    else mapWinsB++;
+/** Project confirmed map wins; callers decide which maps are official/confirmed. */
+export function computeSeriesProgress(
+  format: MatchFormat,
+  maps: readonly { scoreA: number | null; scoreB: number | null }[],
+): { mapWinsA: number; mapWinsB: number; seriesFinished: boolean } {
+  let mapWinsA = 0, mapWinsB = 0;
+  for (const map of maps) {
+    if (map.scoreA === null || map.scoreB === null) continue;
+    if (map.scoreA > map.scoreB) mapWinsA++;
+    else if (map.scoreB > map.scoreA) mapWinsB++;
   }
-
-  return {
-    mapWinsA,
-    mapWinsB,
-    seriesFinished: mapWinsA >= maxWins || mapWinsB >= maxWins,
-  };
+  const maxWins = getWinThreshold(format);
+  return { mapWinsA, mapWinsB, seriesFinished: mapWinsA >= maxWins || mapWinsB >= maxWins };
 }
 
 
