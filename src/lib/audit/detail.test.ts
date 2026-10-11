@@ -8,7 +8,7 @@ describe("audit detail safe projection", () => {
   it("retains historical gaps and explains revoke without reconstructing current data", () => {
     const detail = describeAuditDetail("postmatch.report.revoke", { currentVideoUrl: "https://private.test", token: "private-token" }, new Map());
     expect(detail.fields.every(field => field.value === "未记录")).toBe(true);
-    expect(detail.description).toContain("比分、Demo、录像和解说名单保留");
+    expect(detail.description).toContain("比分、Demo、统计和录像保留");
     expect(JSON.stringify(detail)).not.toContain("private");
   });
 

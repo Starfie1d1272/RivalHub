@@ -5,6 +5,7 @@ import { TeamProfileLink } from "@/components/teams/TeamProfileLink";
 
 import Link from "next/link";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Panel } from "@/components/rivalhub";
 import { HelpTooltip } from "@/components/rivalhub/HelpTooltip";
@@ -438,7 +439,8 @@ export function VetoRoom({ initialRoom }: { initialRoom: VetoRoomView }) {
                     {incident.appeal.mayResolve && (
                       <div className="mt-3 space-y-2">
                         <label className="block text-xs text-[var(--color-fg-mid)]" htmlFor={`resolve-note-${incident.id}`}>裁定说明</label>
-                        <textarea id={`resolve-note-${incident.id}`} className="min-h-20 w-full rounded border border-[var(--color-border)] bg-[var(--color-panel)] p-2 text-sm" value={resolutionNote} onChange={(event) => setResolutionNote(event.target.value)} />
+                        <Textarea id={`resolve-note-${incident.id}`} className="min-h-20 w-full rounded border border-[var(--color-border)] bg-[var(--color-panel)] p-2 text-sm" value={resolutionNote} onChange={(event) => setResolutionNote(event.target.value)} maxLength={500} placeholder="至少 3 个字" aria-describedby={`resolve-note-${incident.id}-help`} />
+                        <p id={`resolve-note-${incident.id}-help`} className="text-xs text-[var(--color-fg-dim)]">3–500 字，不含首尾空格</p>
                         <div className="flex flex-wrap gap-2">
                           <Button size="sm" disabled={pending || resolutionNote.trim().length < 3} onClick={() => void mutate(resolveVetoRoomAppeal, { matchId: match.id, appealId: incident.appeal!.id, resolutionScope: "platform_or_organizer", resolutionNote }, "已接受申诉并恢复到对应回合。")}>平台/组织问题：接受并恢复</Button>
                           <Button size="sm" variant="outline" disabled={pending || resolutionNote.trim().length < 3} onClick={() => void mutate(resolveVetoRoomAppeal, { matchId: match.id, appealId: incident.appeal!.id, resolutionScope: "participant_or_unverified", resolutionNote }, "申诉已驳回。")}>队伍/未验证原因：驳回</Button>
@@ -450,7 +452,8 @@ export function VetoRoom({ initialRoom }: { initialRoom: VetoRoomView }) {
                   <details className="space-y-2">
                     <summary className="cursor-pointer text-sm text-[var(--color-accent)]">对本条超时提出申诉</summary>
                     <label htmlFor={`appeal-${incident.id}`} className="text-xs text-[var(--color-fg-mid)]">申诉原因</label>
-                    <textarea id={`appeal-${incident.id}`} className="min-h-20 w-full rounded border border-[var(--color-border)] bg-[var(--color-panel)] p-2 text-sm" value={appealReasons[incident.id] ?? ""} onChange={(event) => setAppealReasons((current) => ({ ...current, [incident.id]: event.target.value }))} />
+                    <Textarea id={`appeal-${incident.id}`} className="min-h-20 w-full rounded border border-[var(--color-border)] bg-[var(--color-panel)] p-2 text-sm" value={appealReasons[incident.id] ?? ""} onChange={(event) => setAppealReasons((current) => ({ ...current, [incident.id]: event.target.value }))} maxLength={500} placeholder="至少 3 个字" aria-describedby={`appeal-${incident.id}-help`} />
+                    <p id={`appeal-${incident.id}-help`} className="text-xs text-[var(--color-fg-dim)]">3–500 字，不含首尾空格</p>
                     <Button size="sm" variant="outline" disabled={pending || (appealReasons[incident.id] ?? "").trim().length < 3} onClick={() => void mutate(submitVetoRoomAppeal, { matchId: match.id, incidentId: incident.id, reason: appealReasons[incident.id] }, "申诉已提交。")}>提交申诉</Button>
                   </details>
                 ) : null}
@@ -467,7 +470,8 @@ export function VetoRoom({ initialRoom }: { initialRoom: VetoRoomView }) {
               <h2 className="font-semibold">暂停或继续</h2>
               {room.permissions.canPause && <>
                 <label htmlFor="veto-pause-reason" className="text-xs text-[var(--color-fg-mid)]">暂停原因</label>
-                <textarea id="veto-pause-reason" className="min-h-20 w-full rounded border border-[var(--color-border)] bg-[var(--color-panel)] p-2 text-sm" value={pauseReason} onChange={(event) => setPauseReason(event.target.value)} />
+                <Textarea id="veto-pause-reason" className="min-h-20 w-full rounded border border-[var(--color-border)] bg-[var(--color-panel)] p-2 text-sm" value={pauseReason} onChange={(event) => setPauseReason(event.target.value)} maxLength={500} placeholder="至少 3 个字" aria-describedby="veto-pause-reason-help" />
+                <p id="veto-pause-reason-help" className="text-xs text-[var(--color-fg-dim)]">3–500 字，不含首尾空格</p>
                 <Button variant="outline" disabled={pending || pauseReason.trim().length < 3} onClick={() => void mutate(pauseVetoRoomAction, { matchId: match.id, reason: pauseReason }, "BP 已暂停。")}>暂停 BP</Button>
               </>}
               {room.permissions.canResume && <Button disabled={pending} onClick={() => void mutate(resumeVetoRoomAction, { matchId: match.id }, "BP 已继续。")}>继续 BP</Button>}
@@ -480,7 +484,8 @@ export function VetoRoom({ initialRoom }: { initialRoom: VetoRoomView }) {
                   {rewindOptions.map((option) => <option key={option.key} value={option.key}>{option.label}</option>)}
                 </select>
                 <label htmlFor="veto-rewind-reason" className="text-xs text-[var(--color-fg-mid)]">恢复原因</label>
-                <textarea id="veto-rewind-reason" className="min-h-20 w-full rounded border border-[var(--color-border)] bg-[var(--color-panel)] p-2 text-sm" value={rewindReason} onChange={(event) => setRewindReason(event.target.value)} />
+                <Textarea id="veto-rewind-reason" className="min-h-20 w-full rounded border border-[var(--color-border)] bg-[var(--color-panel)] p-2 text-sm" value={rewindReason} onChange={(event) => setRewindReason(event.target.value)} maxLength={500} placeholder="至少 3 个字" aria-describedby="veto-rewind-reason-help" />
+                <p id="veto-rewind-reason-help" className="text-xs text-[var(--color-fg-dim)]">3–500 字，不含首尾空格</p>
                 {!confirmRewind ? (
                   <Button variant="outline" disabled={pending || rewindReason.trim().length < 3} onClick={() => setConfirmRewind(true)}>恢复 BP 步骤</Button>
                 ) : (

@@ -443,6 +443,11 @@ export default async function MatchDetailPage({ params, searchParams }: MatchDet
             />
           )}
       </div>}
+      {(isSeasonAdmin || isCaptainA || isCaptainB) && afterVeto && !isFinished && (
+        <Link prefetch={false} className="inline-flex min-h-10 w-fit items-center rounded border border-[var(--color-border)] px-3 text-sm" href={`/${seasonSlug}/matches/${match.id}/veto`}>
+          进入 BP 房间
+        </Link>
+      )}
       {!match.testConfig && season.competitionTemplate === "major" && <Suspense fallback={null}><MatchBetLink seasonId={season.id} matchId={match.id} slug={seasonSlug} teamA={{ entryId: match.entryAId, name: teamA?.name ?? "队伍 A" }} teamB={{ entryId: match.entryBId, name: teamB?.name ?? "队伍 B" }} /></Suspense>}
       <MatchLiveProvider matchId={match.id} enabled={afterVeto}>
       {(afterVeto || isFinished) && maps.length > 0 && <MatchMapSequence seasonSlug={seasonSlug}

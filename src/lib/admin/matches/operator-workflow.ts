@@ -2,6 +2,7 @@ import type { MatchStatus, Side } from "@/types/match";
 import { projectMatchPresentationPhase, type MatchPresentationPhase } from "@/lib/matches/presentation-phase";
 import { projectOperatorSource, type OperatorSourceFacts, type AdminPrimaryTask, type SourceMode, type SourceHealth, type ReviewReason } from "./source-state";
 import { mapLabel } from "@/lib/maps";
+import { projectPostMatchCompletion, POST_MATCH_COMPLETION_LABEL } from "@/lib/postmatch/completion";
 
 export interface OperatorMap {
   id: string;
@@ -160,13 +161,13 @@ export function formatOperatorElapsed(since: string, now: number): string {
 /** Official result, map data and applicable production records have separate owners. */
 export function projectOperatorCompletion(input: {
   status: MatchStatus; isForfeit: boolean; maps: readonly OperatorMap[];
-  commentatorCount: number; submitted: boolean; hasVideo: boolean;
+  commentatorCount: number; submitted: boolean; hasVideo: boolean; reopened?: boolean;
 }) {
   const played = input.maps.filter(map => map.completedAt !== null);
   return {
     official: input.status === "finished" ? "已完赛" : "未完赛",
     data: (played.length > 0 || input.isForfeit) && played.every(map => map.scoreboardComplete && map.demoComplete) ? "已齐备" : "待补齐 OCR / Demo",
-    production: input.commentatorCount === 0 ? "暂无解说认领" : input.submitted && input.hasVideo ? "已完成" : "待确认解说名单 / 补充录像",
+    production: input.commentatorCount === 0 ? "暂无解说认领" : POST_MATCH_COMPLETION_LABEL[projectPostMatchCompletion(input)],
   };
 }
 
@@ -182,8 +183,8 @@ export function projectOperatorPostMatchTasks(input: Parameters<typeof projectOp
     }
     if (!input.maps.some(map => map.completedAt !== null)) tasks.push({ label: "核对已完成比赛的地图记录", anchor: "match-workbench-finished-maps" });
   }
-  if (completion.production === "待确认解说名单 / 补充录像") {
-    if (!input.submitted) tasks.push({ label: "确认解说名单", anchor: "match-workbench-finished-postmatch" });
+  if (input.commentatorCount > 0) {
+    if (input.reopened && !input.submitted) tasks.push({ label: "确认更正后的解说名单", anchor: "match-workbench-finished-postmatch" });
     if (!input.hasVideo) tasks.push({ label: "登记解说回放", anchor: "match-workbench-finished-postmatch" });
   }
   return tasks;

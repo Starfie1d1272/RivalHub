@@ -20,17 +20,30 @@ it("keeps submitted video editing available and requires explicit reopening conf
   render(<PostMatchRecordPanel matchId="match-1" data={{
     commentators: [{ userId: "admin-1", name: "解说甲", hasLiveStream: false }],
     seasonAdmins: [], submittedAt: new Date(), submittedByUserId: "admin-1",
-    videoUrl: "https://video.example/match", completionLabel: "已完成", canSubmit: true,
+    videoUrl: "https://video.example/match", completionLabel: "已完成", canSubmit: true, rosterReopened: false, canConfirm: true,
   }} />);
   await user.click(screen.getByRole("button", { name: "保存录像" }));
   await waitFor(() => expect(actions.video).toHaveBeenCalledWith({ matchId: "match-1", videoUrl: "https://video.example/match" }));
-  await user.click(screen.getByRole("button", { name: "撤销提交 / 重新开放整理" }));
+  await user.click(screen.getByRole("button", { name: "更正解说名单" }));
   expect(actions.revoke).not.toHaveBeenCalled();
-  expect(screen.getByLabelText("撤销原因（选填）")).toBeVisible();
-  expect(screen.getByText(/已有比分、Demo、录像链接和解说名单均保留/)).toBeVisible();
+  expect(screen.getByLabelText("更正原因（选填）")).toBeVisible();
+  expect(screen.getByText(/比分、Demo、统计和录像均保留/)).toBeVisible();
   await user.click(screen.getByRole("button", { name: "取消" }));
   expect(actions.revoke).not.toHaveBeenCalled();
-  await user.click(screen.getByRole("button", { name: "撤销提交 / 重新开放整理" }));
-  await user.click(screen.getByRole("button", { name: "撤销提交" }));
+  await user.click(screen.getByRole("button", { name: "更正解说名单" }));
+  await user.click(screen.getByRole("button", { name: "重开名单" }));
   await waitFor(() => expect(actions.revoke).toHaveBeenCalledExactlyOnceWith({ matchId: "match-1", reason: "" }));
+});
+
+it("defaults to the registered roster without a repeated submission and preserves correction permissions", () => {
+  const data = { commentators: [{ userId: "admin-1", name: "解说甲", hasLiveStream: false }],
+    seasonAdmins: [], submittedAt: null, submittedByUserId: null, videoUrl: "https://video.example/match",
+    completionLabel: "已完成", canSubmit: true, rosterReopened: false, canConfirm: false };
+  const { rerender } = render(<PostMatchRecordPanel matchId="match-1" data={data} />);
+  expect(screen.queryByRole("button", { name: "确认名单更正" })).toBeNull();
+  expect(screen.getByRole("button", { name: "更正解说名单" })).toBeVisible();
+  expect(screen.queryByRole("button", { name: "×" })).toBeNull();
+  rerender(<PostMatchRecordPanel matchId="match-1" data={{ ...data, rosterReopened: true, completionLabel: "待更正解说名单" }} />);
+  expect(screen.getByRole("button", { name: "确认名单更正" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "×" })).toBeVisible();
 });

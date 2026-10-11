@@ -9,7 +9,9 @@ describe("post-match presentation", () => {
     expect(getPublicLiveCommentators("finished", commentators)).toEqual([]);
   });
   it("derives completion without any payment state", () => {
-    expect(getPostMatchCompletion(null, null)).toBe("pending_collection");
+    expect(getPostMatchCompletion(null, null)).toBe("waiting_video");
+    expect(getPostMatchCompletion(null, "https://video.example/match")).toBe("completed");
+    expect(getPostMatchCompletion(null, "https://video.example/match", true)).toBe("pending_collection");
     expect(getPostMatchCompletion(new Date(), null)).toBe("waiting_video");
     expect(getPostMatchCompletion(new Date(), "https://video.example/match")).toBe("completed");
   });
