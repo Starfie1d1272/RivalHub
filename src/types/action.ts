@@ -12,6 +12,8 @@ import type { ErrorCode } from "@/lib/errors";
 export interface ActionError {
   code: ErrorCode;
   message: string;
+  /** 可提供给管理员的安全排查编号；与服务端事件一致。 */
+  requestId?: string;
   /** 字段级错误，用于表单展示（key = 字段名） */
   fieldErrors?: Record<string, string>;
   /** 调试用元数据 */

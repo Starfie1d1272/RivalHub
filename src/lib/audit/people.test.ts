@@ -9,7 +9,7 @@ describe("audit people presentation", () => {
   it.each([
     [alice, "Alice"], ["legacy@example.test", "老用户"],
     ["missing@example.test", "未知用户"], [null, "系统"], ["system", "系统"],
-    ["system:timeout", "系统"], ["dak:private-pairing-id", "DAK Studio"],
+    ["system:timeout", "系统"], ["veto-system", "系统"], ["dak:private-pairing-id", "DAK Studio"],
     ["release:private-deployment-token", "发布流程"], ["future:private-token", "未知来源"],
     ["constructor", "未知来源"],
   ])("labels actor %s without exposing machine or email identifiers", (id, label) => {
@@ -19,6 +19,8 @@ describe("audit people presentation", () => {
   it("looks up only UUIDs from the action-specific reference allowlist", () => {
     const meta = { fromUserId: alice, toUserId: bob, subjectUserId: alice, token: bob, email: "private@example.test" };
     expect([...getAuditContextUserReferences("team.captain.transfer", meta)]).toEqual([["fromUserId", alice], ["toUserId", bob]]);
+    expect([...getAuditContextUserReferences("postmatch.report.revoke", { submittedByUserId: alice, token: bob })]).toEqual([["submittedByUserId", alice]]);
+    expect([...getAuditContextUserReferences("postmatch.commentator.remove", { commentatorUserId: bob, token: alice })]).toEqual([["commentatorUserId", bob]]);
     expect([...getAuditContextUserReferences("sanction.issue", meta)]).toEqual([["subjectUserId", alice]]);
     for (const action of ["future.action", "constructor"]) expect(getAuditContextUserReferences(action, meta).size).toBe(0);
     for (const value of [null, [], { fromUserId: "secret-token", toUserId: "private@example.test" }]) {

@@ -126,7 +126,7 @@ Prediction mutations serialize by canonical user → season lifecycle guard → 
 
 - Supabase Auth 管理邮箱凭据；应用 session 只保存身份，当前角色和 season grants 每次从数据库读取。
 - 业务表默认 server-only；Data API/RLS terminal contract 见生成式 [`security/database-access-matrix.md`](./security/database-access-matrix.md)。新增 direct browser Data API 或 Realtime surface 必须同时定义最小 GRANT/RLS、consumer、一致性语义和正反例测试。
-- 管理 mutation 产生 `audit_logs` 业务审计；runtime logs/traces 由 `src/lib/observability/` 独立拥有。
+- 管理 mutation 产生 `audit_logs` 业务审计；runtime logs/traces 由 `src/lib/observability/` 独立拥有。审计列表与详情共用服务端安全投影，只展示 action allowlist 中的字段，不返回 raw meta、设备凭据或内部标识。详情入口重新验证全局/本届管理员身份，并将赛事范围纳入查询；全局列表标注赛事。机器来源通过对应赛事的 Mizar installation 或 DAK pairing 解析，授权身份与设备执行身份分开显示，不推断当次设备操作人；已删除、历史或未支持目标使用明确状态。
 - 业务关键 scheduler 由 shared registry、Supabase primary dispatch、现有 Cron endpoint runner 和有界 health projection 组成；数据库 dispatch 只负责唤醒，不复制 domain transition。GitHub watchdog、participant opening recovery 和 super-admin break-glass 都复用同一 execution/domain owner。
 - local / preview / staging / production 的写权限严格分离，见 [`deployment.md`](./deployment.md)。
 - 时间持久化使用 UTC；产品展示按约定时区转换。

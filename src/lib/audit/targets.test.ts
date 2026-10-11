@@ -7,6 +7,8 @@ import {
   type AuditDatabaseExecutor,
 } from "@/lib/audit/targets";
 import {
+  mizarInstallations,
+  dakPairings,
   competitivePlatforms,
   competitivePlatformSeasons,
   competitionEntries,
@@ -53,6 +55,36 @@ function fakeExecutor(responses: Map<unknown, unknown[]>) {
 }
 
 describe("audit target resolver", () => {
+  it("batches machine targets, separates authorization context and omits credential data", async () => {
+    const { executor, selectedTables } = fakeExecutor(new Map<unknown, unknown[]>([
+      [mizarInstallations, [{ id: "installation", competitionId: "season", authorizedByUserId: "authorizer", revokedAt: new Date(), credentialHash: "secret-hash" }]],
+      [dakPairings, [{ id: "pairing", userId: "authorizer", status: "active", tokenHash: "secret-token" }]],
+      [users, [{ id: "authorizer", email: "private@example.test", displayName: null, personaName: null, perfectName: null }]],
+      [seasons, [{ id: "season", name: "春季赛" }]],
+    ]));
+    const targets = await resolveAuditTargets(Array.from({ length: 20 }, () => [
+      { targetType: "mizar_installation", targetId: "installation" },
+      { targetType: "dak_pairing", targetId: "pairing" },
+    ]).flat(), executor);
+    expect(targets["mizar_installation:installation"]).toMatchObject({ label: "Mizar · 春季赛 · 已撤销", context: "设备授权者：未知用户", status: "resolved" });
+    expect(targets["dak_pairing:pairing"]).toMatchObject({ label: "DAK Studio · 使用中", context: "设备授权者：未知用户", status: "resolved" });
+    expect(selectedTables.filter(table => table === mizarInstallations)).toHaveLength(1);
+    expect(selectedTables.filter(table => table === dakPairings)).toHaveLength(1);
+    expect(JSON.stringify(Object.values(targets))).not.toMatch(/secret|private|authorizer|credentialHash|tokenHash/);
+  });
+
+  it("distinguishes unsupported, missing and historical targets", async () => {
+    const { executor } = fakeExecutor(new Map());
+    const result = await resolveAuditTargets([
+      { targetType: "future_secret", targetId: "private-id" },
+      { targetType: "mizar_installation", targetId: "missing" },
+      { action: "season_public_info.group.delete", targetType: "community_group", targetId: "deleted" },
+    ], executor);
+    expect(result["future_secret:private-id"]).toMatchObject({ status: "unsupported", found: false });
+    expect(result["mizar_installation:missing"]).toMatchObject({ status: "missing", found: false });
+    expect(result["community_group:deleted"]).toMatchObject({ status: "tombstone", found: false });
+  });
+
   it("resolves legacy and current targets through canonical owners", async () => {
     const userId = "user-1";
     const seasonId = "season-1";
@@ -146,7 +178,7 @@ describe("audit target resolver", () => {
       .toEqual({ targetType: "match_map", targetId: "map-1", lifecycle: "stable" });
     const { executor } = fakeExecutor(new Map());
     const targets = await resolveAuditTargets([{ action: "match.demo.needs_attention", targetType: "match_demo_import", targetId: "private-import-id" }], executor);
-    expect(targets[auditTargetKey("match_demo_import", "private-import-id")]).toEqual({ typeLabel: "Demo 数据", label: "记录未找到", found: false });
+    expect(targets[auditTargetKey("match_demo_import", "private-import-id")]).toEqual({ typeLabel: "Demo 数据", label: "记录未找到", found: false, status: "missing" });
   });
 
   it("projects legacy recruitment interest removals onto their stable intent", async () => {

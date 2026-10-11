@@ -104,7 +104,7 @@ describe("Team invitation unique-constraint mapping", () => {
 
     const result = await inviteTeamMember({ teamId: TEAM_ID, email: INVITEE_EMAIL });
 
-    expect(result).toEqual({ success: false, error: { code: ErrorCode.INTERNAL_ERROR, message: "服务器内部错误，请稍后重试" } });
+    expect(result).toEqual({ success: false, error: { code: ErrorCode.INTERNAL_ERROR, message: expect.stringContaining("服务器内部错误，请稍后重试"), requestId: expect.any(String) } });
     expect(stderrWriteMock).toHaveBeenCalledOnce();
   });
 
@@ -121,6 +121,6 @@ describe("Team invitation unique-constraint mapping", () => {
 
     const result = await inviteTeamMemberByUserId({ teamId: TEAM_ID, userId: INVITEE_ID });
 
-    expect(result).toEqual({ success: false, error: { code: ErrorCode.INTERNAL_ERROR, message: "服务器内部错误，请稍后重试" } });
+    expect(result).toEqual({ success: false, error: { code: ErrorCode.INTERNAL_ERROR, message: expect.stringContaining("服务器内部错误，请稍后重试"), requestId: expect.any(String) } });
   });
 });

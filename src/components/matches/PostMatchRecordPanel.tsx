@@ -3,12 +3,16 @@ import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { addMatchCommentator, removeMatchCommentator, revokePostMatchSubmission, submitPostMatchReport, updateMatchVideoUrl } from "@/actions/postmatch";
 import { Button } from "@/components/ui/button";
+import { InlineConfirm } from "@/components/rivalhub/InlineConfirm";
+import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import type { AdminPostMatchRecordData } from "@/lib/admin/matches/types";
 
 export type PostMatchRecordData = AdminPostMatchRecordData;
 export function PostMatchRecordPanel({ matchId, data }: { matchId: string; data: PostMatchRecordData }) {
   const [isPending, startTransition] = useTransition();
+  const [confirmRevoke, setConfirmRevoke] = useState(false);
+  const [reason, setReason] = useState("");
   const [videoUrl, setVideoUrl] = useState(data.videoUrl ?? "");
   const run = (work: () => Promise<{ success: boolean; error?: { message: string } }>, success: string) => startTransition(async () => { const result = await work(); if (result.success) toast.success(success); else toast.error(result.error?.message ?? "操作失败。"); });
   const frozen = Boolean(data.submittedAt);
@@ -18,6 +22,20 @@ export function PostMatchRecordPanel({ matchId, data }: { matchId: string; data:
     <div className="flex flex-wrap gap-2">{data.commentators.map((person) => <span key={person.userId} className="inline-flex items-center gap-1 rounded border border-[var(--color-border)] px-2 py-1 text-xs">{person.name}<em className="not-italic text-[var(--color-fg-dim)]">{person.hasLiveStream ? "已设置直播间" : "未设置直播间"}</em>{!frozen && <button type="button" className="ml-1 text-[var(--color-danger)]" onClick={() => run(() => removeMatchCommentator({ matchId, userId: person.userId }), "已移除解说。")} disabled={isPending}>×</button>}</span>)}</div>
     {!frozen && data.commentators.length < 2 && <div className="flex flex-wrap gap-2">{data.seasonAdmins.filter((person) => !data.commentators.some((commentator) => commentator.userId === person.userId)).map((person) => <Button key={person.userId} type="button" size="sm" variant="outline" disabled={isPending} onClick={() => run(() => addMatchCommentator({ matchId, userId: person.userId }), "已登记实际解说。")}>添加 {person.name}（{person.hasLiveStream ? "已设置直播间" : "未设置直播间"}）</Button>)}</div>}
     {data.canSubmit && data.commentators.length > 0 && <div className="flex flex-wrap gap-2"><Input className="max-w-sm" type="url" placeholder="比赛录像链接（可在提交后补充）" value={videoUrl} onChange={(event) => setVideoUrl(event.target.value)} /><Button type="button" size="sm" variant="outline" disabled={isPending} onClick={() => run(() => updateMatchVideoUrl({ matchId, videoUrl }), "录像链接已保存。")}>保存录像</Button></div>}
-    {data.canSubmit && data.commentators.length > 0 && (frozen ? <Button type="button" size="sm" variant="outline" disabled={isPending} onClick={() => run(() => revokePostMatchSubmission({ matchId }), "已撤销提交，可以重新编辑解说名单。")}>撤销提交 / 重新编辑</Button> : <Button type="button" size="sm" disabled={isPending || data.commentators.length === 0} onClick={() => run(() => submitPostMatchReport({ matchId }), "赛后资料已提交。")}>确认解说名单</Button>)}
+    {data.canSubmit && data.commentators.length > 0 && (frozen ? <Button type="button" size="sm" variant="outline" disabled={isPending} onClick={() => setConfirmRevoke(true)}>撤销提交 / 重新开放整理</Button> : <Button type="button" size="sm" disabled={isPending || data.commentators.length === 0} onClick={() => run(() => submitPostMatchReport({ matchId }), "赛后资料已提交。")}>确认解说名单</Button>)}
+    {frozen && confirmRevoke && <div className="space-y-2">
+      <label className="block space-y-1 text-sm">撤销原因（选填）<Textarea maxLength={500} value={reason} disabled={isPending} onChange={(event) => setReason(event.target.value)} /></label>
+      {isPending ? <p role="status" className="text-sm">正在撤销提交…</p> : <InlineConfirm
+        title="撤销提交并重新开放整理？"
+        sub="完成状态将回到待整理，解说名单可重新编辑，本场暂不计入解说有效场次。已有比分、Demo、录像链接和解说名单均保留。"
+        confirmLabel="撤销提交"
+        onCancel={() => { setConfirmRevoke(false); setReason(""); }}
+        onConfirm={() => run(async () => {
+          const result = await revokePostMatchSubmission({ matchId, reason });
+          if (result.success) { setConfirmRevoke(false); setReason(""); }
+          return result;
+        }, "已撤销提交并重新开放整理。")}
+      />}
+    </div>}
   </section>;
 }

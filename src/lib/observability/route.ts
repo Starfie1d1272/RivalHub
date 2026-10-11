@@ -1,13 +1,14 @@
 import "server-only";
 
 import { after } from "next/server";
-import { createRequestContext, withObservabilityContext } from "@/lib/observability/context";
+import { createRequestContext, withObservabilityContext, type RequestContext } from "@/lib/observability/context";
 import { flushObservability, logEvent, traceOperation } from "@/lib/observability/server";
 
 export async function withRouteObservability<T extends Response>(
   request: Request,
   route: string,
-  handler: () => Promise<T>,
+  handler: (requestContext: RequestContext) => Promise<T>,
+  options: { captureServerErrorResponse?: boolean } = {},
 ): Promise<T> {
   const requestContext = createRequestContext(request, route);
   return withObservabilityContext(requestContext, () => traceOperation(
@@ -23,9 +24,9 @@ export async function withRouteObservability<T extends Response>(
     },
     async (span) => {
       try {
-        const response = await handler();
+        const response = await handler(requestContext);
         span.setAttribute("http.response.status_code", response.status);
-        if (response.status >= 500) {
+        if (response.status >= 500 && options.captureServerErrorResponse !== false) {
           logEvent({
             level: "error",
             event: "http.response.server_error",

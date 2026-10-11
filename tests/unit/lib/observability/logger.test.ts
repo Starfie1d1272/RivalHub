@@ -3,6 +3,16 @@ import { captureException, logEvent } from "@/lib/observability/logger";
 import { AppError, ErrorCode } from "@/lib/errors";
 
 describe("structured observability events", () => {
+  it("keeps the safe cause chain in the emitted event and sanitizes direct log input", () => {
+    const write = vi.spyOn(process.stderr, "write").mockReturnValue(true);
+    try {
+      const event = captureException("action.unexpected_error", new Error("outer", { cause: Object.assign(new Error("network unavailable https://private.test/secret"), { code: "ECONNRESET" }) }), { scope: "action", operation: "save" });
+      expect(event?.exception?.cause).toMatchObject({ code: "ECONNRESET", message: "network unavailable https://private.test/[REDACTED_URL_DETAILS]" });
+      expect(JSON.parse(String(write.mock.calls[0][0])).exception.cause.code).toBe("ECONNRESET");
+      const direct = logEvent({ level: "error", event: "test.failure", scope: "test", operation: "test", exception: { message: "outer", cause: { message: "token=private" } } });
+      expect(JSON.stringify(direct)).not.toContain("private");
+    } finally { write.mockRestore(); }
+  });
   it("contains correlation and deployment fields while keeping context bounded", () => {
     vi.stubEnv("NODE_ENV", "production");
     vi.stubEnv("VERCEL_ENV", "preview");

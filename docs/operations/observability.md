@@ -52,6 +52,8 @@ BETTER_STACK_INGESTING_HOST=<server-only Better Stack OTLP ingest host>
 
 预期业务结果必须继续通过 `ActionResult` 返回。例如权限不足、重复报名、验证码拒绝、重复邀请和 rate limit 都不是 exception capture 告警；可以按需记录为 `expected` 事件，但不应制造 5xx 噪音。
 
+非预期 Server Action 失败返回统一安全提示及可检索的 `requestId`；写入可能已完成，提示先刷新核对结果，避免盲目重试。Mizar HTTP 边界通过 `mizar.request.failure` 记录 auth/read/validate/domain/revalidation 阶段和同一关联编号；预期 4xx 不作为异常告警，非预期失败返回 500，并在安全响应与 `X-Request-Id` 中提供编号。
+
 PostgreSQL 分类必须复用 `src/db/errors.ts` 的 `extractPgError()`。日志只允许 SQLSTATE、constraint/schema/table/column 等分类 metadata，不能读取或输出 raw query、params、detail 或完整 Drizzle error。
 
 ## 脱敏 contract
@@ -64,7 +66,7 @@ PostgreSQL 分类必须复用 `src/db/errors.ts` 的 `extractPgError()`。日志
 - SQL 文本、参数数组、raw provider response、完整 Drizzle error；
 - 无界 `JSON.stringify()`、循环对象和会触发 getter 的任意异常对象。
 
-`extractSafeException()` 只沿 bounded、cycle-safe、getter-safe 的 `cause` 链读取 name/message/code/stack 及 PostgreSQL 分类字段。`sanitizeSafeContext()` 先执行 allowlist，再执行字符串、数组和长度边界。这个边界在 Development、test、Preview 和 Production 相同，不能依赖环境隐藏泄漏。
+`extractSafeException()` 沿最多八层、cycle-safe、getter-safe 的 `cause` 链保存脱敏 name/message/code；普通异常只保留一个根 stack，PostgreSQL 异常始终只保留分类 metadata，不能借内层 cause 泄露 SQL。`sanitizeSafeContext()` 先执行 allowlist，再执行字符串、数组和长度边界。这个边界在 Development、test、Preview 和 Production 相同，不能依赖环境隐藏泄漏。
 
 第三方 URL 可能包含 key 或 token。provider request 使用 `providerFetch()` 标记 `opentelemetry.ignore` 并关闭 context propagation；fetch instrumentation 只对内部 deployment allowlist 传播 trace，避免把凭证 query 或 provider 请求作为可传播链路。
 

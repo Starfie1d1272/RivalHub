@@ -3,6 +3,8 @@ import type { TxDb } from "@/db/client";
 import { db } from "@/db/client";
 import {
   adminInvites,
+  mizarInstallations,
+  dakPairings,
   announcements,
   communityGroups,
   communityAwardEvidence,
@@ -39,7 +41,7 @@ import {
   steamProfiles,
   userGameplaySteamIds,
 } from "@/db/schema";
-import { getDisplayName } from "@/lib/identity/display-name";
+import { getPublicDisplayName } from "@/lib/identity/display-name";
 import { mapLabel } from "@/lib/maps";
 import {
   AUDIT_EVENT_REGISTRY,
@@ -69,6 +71,8 @@ export interface AuditTargetPresentation {
   typeLabel: string;
   label: string;
   found: boolean;
+  status: "resolved" | "missing" | "tombstone" | "unsupported";
+  context?: string;
 }
 
 export function auditTargetKey(targetType: string, targetId: string): string {
@@ -121,7 +125,6 @@ export function groupAuditTargets(refs: readonly AuditTargetRef[]): Map<string, 
 
 type AuditUserRow = {
   id: string;
-  email: string;
   personaName: string | null;
   displayName: string | null;
   perfectName: string | null;
@@ -131,7 +134,6 @@ async function selectUsers(executor: AuditDatabaseExecutor, ids: readonly string
   if (ids.length === 0) return [];
   return executor.select({
     id: users.id,
-    email: users.email,
     personaName: steamProfiles.personaName,
     displayName: users.displayName,
     perfectName: users.perfectName,
@@ -172,6 +174,7 @@ function setTarget(
     typeLabel: getAuditTargetTypeLabel(targetType),
     label,
     found: true,
+    status: "resolved",
   };
 }
 
@@ -195,6 +198,17 @@ async function resolveMatchLabels(
   ]));
 }
 
+const RESOLVABLE_TARGET_TYPES = new Set([
+  "admin_invite", "announcement", "captain_vote", "community_award", "community_award_evidence",
+  "community_group", "competition_entry", "competitive_platform", "competitive_platform_rank",
+  "competitive_platform_season", "dak_pairing", "disciplinary_case", "draft_pick", "draft_state",
+  "education_verification", "feedback_report", "major_final_result", "major_prestart_entrant",
+  "major_prestart_state", "major_stage_run", "major_tournament_entrant", "match", "match_demo_import",
+  "match_map", "match_roster", "match_time_proposal", "mizar_installation", "post_event_adjudication",
+  "recruitment_intent", "recruitment_interest", "registration", "season", "season_contact",
+  "season_public_info", "team", "team_application", "tournament_honor", "user", "user_gameplay_steam_id",
+]);
+
 export async function resolveAuditTargets(
   refs: readonly AuditTargetRef[],
   executor: AuditDatabaseExecutor = db,
@@ -216,16 +230,44 @@ export async function resolveAuditTargets(
     const { targetType, targetId } = ref;
       result[auditTargetKey(targetType, targetId)] = {
         typeLabel: getAuditTargetTypeLabel(targetType),
-        label: getAuditTargetFallbackLabel(targetId, ref.lifecycle),
+        label: RESOLVABLE_TARGET_TYPES.has(targetType) ? getAuditTargetFallbackLabel(targetId, ref.lifecycle) : "暂不支持解析此类目标",
         found: false,
+        status: !RESOLVABLE_TARGET_TYPES.has(targetType) ? "unsupported" : ref.lifecycle === "tombstone" ? "tombstone" : "missing",
       };
   }
 
   const grouped = targetGroups;
+  const installationIds = grouped.get("mizar_installation") ?? [];
+  if (installationIds.length) {
+    const rows = await executor.select({
+      id: mizarInstallations.id,
+      competitionId: mizarInstallations.competitionId,
+      authorizedByUserId: mizarInstallations.authorizedByUserId,
+      revokedAt: mizarInstallations.revokedAt,
+    }).from(mizarInstallations).where(inArray(mizarInstallations.id, installationIds));
+    const seasonNames = new Map((await selectSeasons(executor, [...new Set(rows.map(row => row.competitionId))])).map(row => [row.id, row.name]));
+    const names = new Map((await selectUsers(executor, [...new Set(rows.map(row => row.authorizedByUserId))])).map(row => [row.id, getPublicDisplayName(row)]));
+    for (const row of rows) {
+      setTarget(result, "mizar_installation", row.id, `Mizar · ${seasonNames.get(row.competitionId) ?? "未知赛事"} · ${row.revokedAt ? "已撤销" : "使用中"}`);
+      result[auditTargetKey("mizar_installation", row.id)].context = `设备授权者：${names.get(row.authorizedByUserId) ?? "未知用户"}`;
+    }
+  }
+
+  const pairingIds = grouped.get("dak_pairing") ?? [];
+  if (pairingIds.length) {
+    const rows = await executor.select({ id: dakPairings.id, userId: dakPairings.userId, status: dakPairings.status })
+      .from(dakPairings).where(inArray(dakPairings.id, pairingIds));
+    const names = new Map((await selectUsers(executor, [...new Set(rows.map(row => row.userId))])).map(row => [row.id, getPublicDisplayName(row)]));
+    for (const row of rows) {
+      setTarget(result, "dak_pairing", row.id, `DAK Studio · ${row.status === "revoked" ? "已撤销" : "使用中"}`);
+      result[auditTargetKey("dak_pairing", row.id)].context = `设备授权者：${names.get(row.userId) ?? "未知用户"}`;
+    }
+  }
+
   const userIds = grouped.get("user") ?? [];
   if (userIds.length) {
     const rows = await selectUsers(executor, userIds);
-    for (const row of rows) setTarget(result, "user", row.id, getDisplayName(row));
+    for (const row of rows) setTarget(result, "user", row.id, getPublicDisplayName(row));
   }
 
   const seasonIds = grouped.get("season") ?? [];
@@ -296,7 +338,7 @@ export async function resolveAuditTargets(
     const rows = await executor.select({ id: seasonRegistrations.id, userId: seasonRegistrations.userId })
       .from(seasonRegistrations).where(inArray(seasonRegistrations.id, registrationIds));
     const ownerRows = await selectUsers(executor, [...new Set(rows.map((row) => row.userId))]);
-    const owners = new Map(ownerRows.map((row) => [row.id, getDisplayName(row)]));
+    const owners = new Map(ownerRows.map((row) => [row.id, getPublicDisplayName(row)]));
     for (const row of rows) {
       if ((grouped.get("registration") ?? []).includes(row.id)) {
         setTarget(result, "registration", row.id, `报名 · ${owners.get(row.userId) ?? "未知用户"}`);
@@ -353,7 +395,7 @@ export async function resolveAuditTargets(
       steam64: userGameplaySteamIds.steam64,
       status: userGameplaySteamIds.status,
     }).from(userGameplaySteamIds).where(inArray(userGameplaySteamIds.id, gameplayIdentityIds));
-    const names = new Map((await selectUsers(executor, [...new Set(rows.map((row) => row.userId))])).map((row) => [row.id, getDisplayName(row)]));
+    const names = new Map((await selectUsers(executor, [...new Set(rows.map((row) => row.userId))])).map((row) => [row.id, getPublicDisplayName(row)]));
     for (const row of rows) {
       setTarget(result, "user_gameplay_steam_id", row.id, `${names.get(row.userId) ?? "未知选手"} · Steam64 ${row.steam64} · ${row.status === "active" ? "使用中" : "已撤销"}`);
     }
@@ -390,7 +432,7 @@ export async function resolveAuditTargets(
     const entries = new Map((await selectEntries(executor, [...new Set(rows.map((row) => row.entryId))])).map((row) => [row.id, row.name]));
     const registrations = await executor.select({ id: seasonRegistrations.id, userId: seasonRegistrations.userId })
       .from(seasonRegistrations).where(inArray(seasonRegistrations.id, [...new Set(rows.map((row) => row.registrationId))]));
-    const owners = new Map((await selectUsers(executor, [...new Set(registrations.map((row) => row.userId))])).map((row) => [row.id, getDisplayName(row)]));
+    const owners = new Map((await selectUsers(executor, [...new Set(registrations.map((row) => row.userId))])).map((row) => [row.id, getPublicDisplayName(row)]));
     const registrationOwners = new Map(registrations.map((row) => [row.id, owners.get(row.userId) ?? "未知用户"]));
     for (const row of rows) setTarget(result, "draft_pick", row.id, `${registrationOwners.get(row.registrationId) ?? "未知用户"} → ${entries.get(row.entryId) ?? "未知队伍"}`);
   }
@@ -399,7 +441,7 @@ export async function resolveAuditTargets(
   if (educationIds.length) {
     const rows = await executor.select({ id: educationVerifications.id, userId: educationVerifications.userId, institutionId: educationVerifications.institutionId })
       .from(educationVerifications).where(inArray(educationVerifications.id, educationIds));
-    const ownerNames = new Map((await selectUsers(executor, [...new Set(rows.map((row) => row.userId))])).map((row) => [row.id, getDisplayName(row)]));
+    const ownerNames = new Map((await selectUsers(executor, [...new Set(rows.map((row) => row.userId))])).map((row) => [row.id, getPublicDisplayName(row)]));
     const institutionNames = new Map((await executor.select({ id: institutions.id, name: institutions.name }).from(institutions).where(inArray(institutions.id, [...new Set(rows.map((row) => row.institutionId))]))).map((row) => [row.id, row.name]));
     for (const row of rows) {
       setTarget(result, "education_verification", row.id, `认证 · ${ownerNames.get(row.userId) ?? "未知用户"} · ${institutionNames.get(row.institutionId) ?? "未知院校"}`);
@@ -433,7 +475,7 @@ export async function resolveAuditTargets(
   if (disciplineIds.length) {
     const rows = await executor.select({ id: disciplinaryCases.id, subjectUserId: disciplinaryCases.subjectUserId })
       .from(disciplinaryCases).where(inArray(disciplinaryCases.id, disciplineIds));
-    const names = new Map((await selectUsers(executor, [...new Set(rows.map((row) => row.subjectUserId))])).map((row) => [row.id, getDisplayName(row)]));
+    const names = new Map((await selectUsers(executor, [...new Set(rows.map((row) => row.subjectUserId))])).map((row) => [row.id, getPublicDisplayName(row)]));
     for (const row of rows) setTarget(result, "disciplinary_case", row.id, `处罚对象 · ${names.get(row.subjectUserId) ?? "未知用户"}`);
   }
 
@@ -514,7 +556,7 @@ export async function resolveAuditTargets(
       .from(tournamentHonors).where(inArray(tournamentHonors.id, honorIds));
     const seasonNames = new Map((await selectSeasons(executor, [...new Set(rows.map((row) => row.seasonId))])).map((row) => [row.id, row.name]));
     const entries = new Map((await selectEntries(executor, [...new Set(rows.flatMap((row) => row.entryId ? [row.entryId] : []))])).map((row) => [row.id, row.name]));
-    const names = new Map((await selectUsers(executor, [...new Set(rows.flatMap((row) => row.userId ? [row.userId] : []))])).map((row) => [row.id, getDisplayName(row)]));
+    const names = new Map((await selectUsers(executor, [...new Set(rows.flatMap((row) => row.userId ? [row.userId] : []))])).map((row) => [row.id, getPublicDisplayName(row)]));
     for (const row of rows) {
       const recipient = row.entryId ? entries.get(row.entryId) : row.userId ? names.get(row.userId) : undefined;
       setTarget(result, "tournament_honor", row.id, `赛事荣誉 · ${compactLabel(row.label)}${recipient ? ` · ${recipient}` : ""} · ${seasonNames.get(row.seasonId) ?? "未知赛季"}`);
@@ -526,7 +568,7 @@ export async function resolveAuditTargets(
     const rows = await executor.select({ id: recruitmentIntents.id, kind: recruitmentIntents.kind, teamId: recruitmentIntents.teamId, userId: recruitmentIntents.userId })
       .from(recruitmentIntents).where(inArray(recruitmentIntents.id, intentIds));
     const teamsById = new Map((await executor.select({ id: teams.id, name: teams.name }).from(teams).where(inArray(teams.id, [...new Set(rows.flatMap((row) => row.teamId ? [row.teamId] : []))]))).map((row) => [row.id, row.name]));
-    const usersById = new Map((await selectUsers(executor, [...new Set(rows.flatMap((row) => row.userId ? [row.userId] : []))])).map((row) => [row.id, getDisplayName(row)]));
+    const usersById = new Map((await selectUsers(executor, [...new Set(rows.flatMap((row) => row.userId ? [row.userId] : []))])).map((row) => [row.id, getPublicDisplayName(row)]));
     for (const row of rows) {
       const owner = row.kind === "team_recruiting" ? teamsById.get(row.teamId ?? "") : usersById.get(row.userId ?? "");
       setTarget(result, "recruitment_intent", row.id, `招募意向 · ${owner ?? "未知用户"}`);
@@ -537,7 +579,7 @@ export async function resolveAuditTargets(
   if (interestIds.length) {
     const rows = await executor.select({ id: recruitmentInterests.id, userId: recruitmentInterests.userId })
       .from(recruitmentInterests).where(inArray(recruitmentInterests.id, interestIds));
-    const usersById = new Map((await selectUsers(executor, [...new Set(rows.map((row) => row.userId))])).map((row) => [row.id, getDisplayName(row)]));
+    const usersById = new Map((await selectUsers(executor, [...new Set(rows.map((row) => row.userId))])).map((row) => [row.id, getPublicDisplayName(row)]));
     for (const row of rows) setTarget(result, "recruitment_interest", row.id, `申请人 · ${usersById.get(row.userId) ?? "未知用户"}`);
   }
 

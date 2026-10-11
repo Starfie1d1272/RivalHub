@@ -2,6 +2,35 @@ import { describe, expect, it } from "vitest";
 import { extractSafeException, redactText, sanitizeSafeContext } from "@/lib/observability/redact";
 
 describe("observability redaction", () => {
+  // Security contract: inner causes add diagnostic value without introducing
+  // unbounded data, URL secrets, or a second path around PostgreSQL redaction.
+  it("retains each bounded cause, removes secret URLs, and tolerates hostile getters", () => {
+    const inner = { name: "NetworkError", code: "ECONNRESET", message: "failed https://user:pass@example.test/private-material?signature=opaque#secret" };
+    Object.defineProperty(inner, "stack", { get: () => { throw new Error("do not read inner stack"); } });
+    const outer = { name: "Error", message: "operation failed", cause: inner };
+    const safe = extractSafeException(outer);
+    expect(safe).toMatchObject({ message: "operation failed", cause: { name: "NetworkError", code: "ECONNRESET", message: "failed https://example.test/[REDACTED_URL_DETAILS]" } });
+    expect(JSON.stringify(safe)).not.toMatch(/pass|private-material|opaque|secret/);
+    const cycle: { message: string; cause?: unknown } = { message: "x".repeat(10_000) };
+    cycle.cause = cycle;
+    expect(extractSafeException(cycle).cause).toBeUndefined();
+    let chain: unknown = cycle;
+    for (let i = 0; i < 20; i++) chain = { message: "x".repeat(10_000), cause: chain };
+    const bounded = extractSafeException(chain);
+    let count = 0;
+    for (let item: typeof bounded | undefined = bounded; item; item = item.cause) {
+      count++;
+      expect(item.message?.length).toBeLessThanOrEqual(600);
+    }
+    expect(count).toBe(8);
+    const hostile = Object.defineProperty({}, "cause", { get: () => { throw new Error("private"); } });
+    expect(() => extractSafeException(hostile)).not.toThrow();
+  });
+
+  it("suppresses every wrapper message when a nested cause is PostgreSQL", () => {
+    const error = { message: "private bound value", cause: { code: "23505", constraint: "users_email_unique", message: "private params", params: ["private"] } };
+    expect(extractSafeException(error)).toEqual({ name: "PostgreSQLError", code: "23505", constraint: "users_email_unique" });
+  });
   it("redacts opaque Supabase secrets from text and exception codes", () => {
     expect(redactText("provider failed sb_secret_abc123_X-y")).not.toContain("abc123_X-y");
     expect(extractSafeException({ code: "sb_secret_abc123_X-y" }).code).toBeUndefined();

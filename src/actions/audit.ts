@@ -1,20 +1,15 @@
 "use server";
 
-import { and, count, desc, eq, gte, inArray, like, lt, or } from "drizzle-orm";
+import { and, count, desc, eq, gte, like, lt } from "drizzle-orm";
+import { z } from "zod";
 import { db } from "@/db/client";
-import { auditLogs, seasons, steamProfiles, users } from "@/db/schema";
-import { actionError } from "@/lib/action-utils";
+import { auditLogs, seasons } from "@/db/schema";
+import { actionError, failValidation } from "@/lib/action-utils";
+import { AppError, ErrorCode } from "@/lib/errors";
 import { requireSeasonAdmin, requireSuperAdmin } from "@/lib/auth/session";
-import { getPublicDisplayName } from "@/lib/identity/display-name";
 import { escapeLikePattern } from "@/lib/db/search";
-import {
-  getAuditActionPresentation,
-  getAuditTargetTypeLabel,
-  summarizeAuditMeta,
-  type AuditLogView,
-} from "@/lib/audit/presentation";
-import { auditTargetKey, normalizeAuditTarget, resolveAuditTargets } from "@/lib/audit/targets";
-import { getAuditActorLabel, getAuditContextUserReferences, isAuditUserEmail, isAuditUserId, summarizeAuditPeople } from "@/lib/audit/people";
+import type { AuditLogView } from "@/lib/audit/presentation";
+import { readAuditLogDetail, readAuditLogViews } from "@/lib/audit/read";
 import { ok } from "@/types/action";
 
 function parseCSTDateStart(value: string) {
@@ -88,65 +83,30 @@ export async function fetchAuditLogs(filters: AuditLogFilters = {}) {
       db.select({ count: count() }).from(auditLogs).where(where),
     ]);
 
-    const actorIds = [...new Set(rows.map((row) => row.actorId).filter((id): id is string => id != null))];
-    const contextUserIds = rows.flatMap((row) => [...getAuditContextUserReferences(row.action, row.meta).values()]);
-    const userNameMap = new Map<string, string>();
-    if (actorIds.length || contextUserIds.length) {
-      const uuidIds = [...new Set([...actorIds.filter(isAuditUserId), ...contextUserIds])];
-      const emailIds = actorIds.filter(isAuditUserEmail);
-      const clauses = [];
-      if (uuidIds.length) clauses.push(inArray(users.id, uuidIds));
-      if (emailIds.length) clauses.push(inArray(users.email, emailIds));
-      if (clauses.length) {
-        const actorUsers = await db.select({
-          id: users.id,
-          email: users.email,
-          personaName: steamProfiles.personaName,
-          displayName: users.displayName,
-          perfectName: users.perfectName,
-        }).from(users).leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64)).where(or(...clauses));
-        for (const user of actorUsers) {
-          const name = getPublicDisplayName(user);
-          userNameMap.set(user.id, name);
-          if (user.email) userNameMap.set(user.email, name);
-        }
-      }
-    }
-
-    const targetRefs = rows.map((row) => ({
-      action: row.action,
-      meta: row.meta,
-      targetType: row.targetType,
-      targetId: row.targetId,
-    }));
-    const normalizedTargets = targetRefs.map(normalizeAuditTarget);
-    const targetMap = await resolveAuditTargets(targetRefs);
-
-    const logs: AuditLogView[] = rows.map((row, index) => {
-      const action = getAuditActionPresentation(row.action);
-      const normalizedTarget = normalizedTargets[index];
-      const target = normalizedTarget?.targetType && normalizedTarget.targetId
-        ? targetMap[auditTargetKey(normalizedTarget.targetType, normalizedTarget.targetId)]
-        : undefined;
-      const peopleSummary = summarizeAuditPeople(row.action, row.meta, userNameMap);
-      const metaSummary = summarizeAuditMeta(row.action, row.meta);
-      return {
-        id: row.id,
-        createdAt: row.createdAt.toISOString(),
-        actionKey: row.action,
-        actionLabel: action.label,
-        categoryLabel: action.categoryLabel,
-        categoryColor: action.categoryColor,
-        actorLabel: getAuditActorLabel(row.actorId, userNameMap),
-        targetTypeLabel: target?.typeLabel ?? getAuditTargetTypeLabel(normalizedTarget?.targetType),
-        targetLabel: target?.label ?? "未指定目标",
-        summary: [peopleSummary, metaSummary === "已记录" && peopleSummary ? null : metaSummary].filter(Boolean).join(" · ") || null,
-      };
-    });
+    const logs = await readAuditLogViews(rows);
 
     return ok<AuditLogsData>({ logs, total: Number(totalRow?.count ?? 0) });
   } catch (e) {
     return actionError("fetchAuditLogs", e);
+  }
+}
+
+/** Re-authorize every detail request; list visibility is never an access grant. */
+export async function fetchAuditLogDetail(input: unknown) {
+  const parsed = z.object({ id: z.uuid(), seasonScopeId: z.uuid().optional() }).safeParse(input);
+  if (!parsed.success) return failValidation("日志参数无效，请重新打开日志。");
+  try {
+    const { id, seasonScopeId } = parsed.data;
+    if (seasonScopeId) await requireSeasonAdmin(seasonScopeId);
+    else await requireSuperAdmin();
+    const [row] = await db.select().from(auditLogs).where(and(
+      eq(auditLogs.id, id),
+      ...(seasonScopeId ? [eq(auditLogs.seasonId, seasonScopeId)] : []),
+    )).limit(1);
+    if (!row) throw new AppError(ErrorCode.NOT_FOUND, "未找到可访问的日志记录。");
+    return ok(await readAuditLogDetail(row));
+  } catch (error) {
+    return actionError("fetchAuditLogDetail", error);
   }
 }
 

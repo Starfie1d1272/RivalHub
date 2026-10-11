@@ -75,7 +75,15 @@ export async function setMatchVideoUrlInTx(tx: TxDb, args: { matchId: string; vi
   const match = await lockMatchInTx(tx, args.matchId);
   if (match.status !== "finished") throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "只有已结束比赛可以记录录像链接。");
   await tx.update(matches).set({ videoUrl: args.videoUrl, updatedAt: new Date() }).where(eq(matches.id, match.id));
-  await writeAuditInTx(tx, { seasonId: match.seasonId, action: "postmatch.video.update", actorId: args.actorId, targetId: match.id,meta: { hasVideoUrl: Boolean(args.videoUrl) } });
+  await writeAuditInTx(tx, {
+    seasonId: match.seasonId, action: "postmatch.video.update", actorId: args.actorId, targetId: match.id,
+    meta: {
+      hasVideoUrl: Boolean(args.videoUrl),
+      before: { hasVideoUrl: Boolean(match.videoUrl) },
+      after: { hasVideoUrl: Boolean(args.videoUrl) },
+      videoChange: match.videoUrl === args.videoUrl ? "unchanged" : !args.videoUrl ? "cleared" : !match.videoUrl ? "added" : "replaced",
+    },
+  });
   return { seasonId: match.seasonId };
 }
 export async function submitPostMatchReportInTx(tx: TxDb, args: { matchId: string; actorId: string }) {
@@ -85,15 +93,31 @@ export async function submitPostMatchReportInTx(tx: TxDb, args: { matchId: strin
   if (!commentator) throw new AppError(ErrorCode.FORBIDDEN, "只有本场已登记的解说可以提交赛后资料。");
   if (await lockSubmissionInTx(tx, match.id)) throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "本场赛后资料已经提交。");
   await tx.insert(postMatchReports).values({ matchId: match.id, submittedByUserId: args.actorId });
-  await writeAuditInTx(tx, { seasonId: match.seasonId, action: "postmatch.report.submit", actorId: args.actorId, targetId: match.id,meta: { submittedByUserId: args.actorId } });
+  await writeAuditInTx(tx, {
+    seasonId: match.seasonId, action: "postmatch.report.submit", actorId: args.actorId, targetId: match.id,
+    meta: {
+      submittedByUserId: args.actorId,
+      before: { submitted: false, hasVideoUrl: Boolean(match.videoUrl) },
+      after: { submitted: true, hasVideoUrl: Boolean(match.videoUrl) },
+    },
+  });
   return { seasonId: match.seasonId };
 }
-export async function revokePostMatchSubmissionInTx(tx: TxDb, args: { matchId: string; actorId: string }) {
+export async function revokePostMatchSubmissionInTx(tx: TxDb, args: { matchId: string; actorId: string; reason?: string }) {
   const match = await lockMatchInTx(tx, args.matchId);
   const submission = await lockSubmissionInTx(tx, match.id);
   if (!submission) throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "本场尚未提交赛后资料。");
   await tx.delete(postMatchReports).where(eq(postMatchReports.matchId, match.id));
-  await writeAuditInTx(tx, { seasonId: match.seasonId, action: "postmatch.report.revoke", actorId: args.actorId, targetId: match.id,meta: { submittedByUserId: submission.submittedByUserId } });
+  await writeAuditInTx(tx, {
+    seasonId: match.seasonId, action: "postmatch.report.revoke", actorId: args.actorId, targetId: match.id,
+    meta: {
+      submittedByUserId: submission.submittedByUserId,
+      originalSubmittedAt: submission.submittedAt.toISOString(),
+      before: { submitted: true, hasVideoUrl: Boolean(match.videoUrl) },
+      after: { submitted: false, hasVideoUrl: Boolean(match.videoUrl) },
+      ...(args.reason?.trim() ? { reason: args.reason.trim() } : {}),
+    },
+  });
   return { seasonId: match.seasonId };
 }
 export type PostMatchCompletion = "pending_collection" | "waiting_video" | "completed";

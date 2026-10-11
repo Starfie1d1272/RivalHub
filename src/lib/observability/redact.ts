@@ -9,6 +9,7 @@ export interface SafeException {
   table?: string;
   column?: string;
   stack?: string;
+  cause?: SafeException;
 }
 
 const MAX_CAUSE_DEPTH = 8;
@@ -89,6 +90,13 @@ export function redactText(value: string, maxLength = MAX_TEXT_LENGTH): string {
   let safe = value.replace(/\bsb_secret_[A-Za-z0-9_-]+/g, "[REDACTED_KEY]").replace(/[\u0000-\u001f\u007f]/g, " ").trim();
   if (SQL_TEXT_PATTERN.test(safe)) return "[REDACTED]";
   safe = safe
+    // URLs can carry credentials in their authority, path, query, or fragment.
+    .replace(/\b[a-z][a-z0-9+.-]*:\/\/[^\s<>"']+/gi, (url) => {
+      try {
+        const parsed = new URL(url);
+        return /^https?:$/.test(parsed.protocol) ? `${parsed.origin}/[REDACTED_URL_DETAILS]` : "[REDACTED_URL]";
+      } catch { return "[REDACTED_URL]"; }
+    })
     .replace(/data:[^,;\s]+;base64,[A-Za-z0-9+/=]+/gi, "data:[REDACTED]")
     .replace(/\b(?:Bearer|Basic)\s+[A-Za-z0-9._~+/=-]+/gi, (match) => `${match.split(/\s+/, 1)[0]} [REDACTED]`)
     .replace(/([?&](?:password|passwd|secret|token|token_hash|api[_-]?key|key|code)=[^&#\s]*)/gi, (match) => {
@@ -127,21 +135,27 @@ export function extractSafeException(error: unknown, pgInfo: PgErrorInfo | null 
   const seen = new Set<ErrorObject>();
   let current: unknown = error;
   const result: SafeException = {};
+  let previous: SafeException | undefined;
 
   for (let depth = 0; depth < MAX_CAUSE_DEPTH && isObject(current); depth += 1) {
     if (seen.has(current)) break;
     seen.add(current);
 
-    if (!result.name) result.name = redactText(readString(current, "name") ?? "Error", 120);
-    if (!result.code) result.code = safeCode(readString(current, "code"));
-    if (!result.message) {
-      const message = readString(current, "message");
-      if (message) result.message = redactText(message);
-    }
-    if (!result.stack) {
+    const entry: SafeException = depth === 0 ? result : {};
+    entry.name = redactText(readString(current, "name") ?? "Error", 120);
+    const code = safeCode(readString(current, "code"));
+    if (code) entry.code = code;
+    // Existing adapters consume the first available code as a summary.
+    if (!result.code && code) result.code = code;
+    const message = readString(current, "message");
+    if (message) entry.message = redactText(message);
+    // One stack is sufficient; bound the entire diagnostic, not eight stacks.
+    if (depth === 0) {
       const stack = readString(current, "stack");
-      if (stack) result.stack = redactText(stack, MAX_STACK_LENGTH);
+      if (stack) entry.stack = redactText(stack, MAX_STACK_LENGTH);
     }
+    if (previous) previous.cause = entry;
+    previous = entry;
 
     current = readProperty(current, "cause");
   }

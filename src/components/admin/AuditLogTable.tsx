@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useRef, useState, useTransition } from "react";
+import { AuditLogDetailDialog } from "./AuditLogDetailDialog";
 import { fetchAuditLogs, type AuditLogFilters } from "@/actions/audit";
 import { ClearFilters, ListSearchField, ListToolbar, PaginationControls, ResultSummary, type ListSearchFieldHandle, useListQueryParams } from "@/components/rivalhub";
 import { formatCST } from "@/lib/utils/date";
@@ -215,7 +216,6 @@ export function AuditLogTable({ initialLogs, initialTotal, seasons, routeBase = 
               </tr>
             )}
             {logs.map((log) => {
-              const action = getAuditActionPresentation(log.actionKey);
               return (
                 <tr key={log.id} className="group" style={{ borderBottom: "1px solid var(--color-border)" }}>
                   <td className="whitespace-nowrap px-3 py-2" style={{ color: "var(--color-fg-mid)" }}>{formatCST(log.createdAt)}</td>
@@ -226,9 +226,8 @@ export function AuditLogTable({ initialLogs, initialTotal, seasons, routeBase = 
                     >
                       {log.categoryLabel}
                     </span>
-                    <span title={action.known ? undefined : `内部键：${log.actionKey}`} style={{ color: "var(--color-fg)" }}>
-                      {log.actionLabel}
-                    </span>
+                    <AuditLogDetailDialog log={log} seasonScopeId={seasonScopeId} />
+                    {log.seasonLabel && !seasonScopeId && <span className="mt-1 block text-[var(--color-fg-dim)]">{log.seasonLabel}</span>}
                   </td>
                   <td className="max-w-[180px] break-words px-3 py-2" style={{ color: "var(--color-fg-mid)" }}>{log.actorLabel}</td>
                   <td className="break-words px-3 py-2" style={{ color: "var(--color-fg-mid)" }}>
