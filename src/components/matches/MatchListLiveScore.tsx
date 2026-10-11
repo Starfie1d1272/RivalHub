@@ -17,7 +17,7 @@ export function MatchListLiveScore(props: Props) {
     return () => observer.disconnect();
   }, []);
   return <span ref={ref} className="block min-w-20 text-center" data-testid="match-list-live-score">
-    <MatchLiveProvider matchId={props.matchId} enabled={visible && props.context.phase === "gameplay"}><MatchListScoreSurface {...props} /></MatchLiveProvider>
+    <MatchLiveProvider matchId={props.matchId} enabled={visible} eligible={props.context.phase === "gameplay"}><MatchListScoreSurface {...props} /></MatchLiveProvider>
   </span>;
 }
 export function MatchListScoreSurface({ entryAId, entryBId, context }: Omit<Props, "matchId">) {

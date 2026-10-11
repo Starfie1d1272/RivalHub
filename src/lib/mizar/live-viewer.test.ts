@@ -65,6 +65,19 @@ describe("previous view is never a LIVE baseline", () => {
     expect(cache.entries.size).toBe(0); expect(h.states.at(-1)?.previousView).toBeNull();
     h.stop();
   });
+  it("clears cache and source proof during the shared receiver's five-second idle retention", async () => {
+    const cache = cached();
+    const h = setup(true, { ...cache, cacheContext: cache.context, matchId: cache.frame.matchId });
+    await vi.advanceTimersByTimeAsync(0);
+    const oldClient = h.clients[0];
+    h.stop(); h.identityChange();
+    expect(cache.entries.size).toBe(0);
+    expect(cache.previousViews.remember(cache.frame, performance.now())).toBeNull();
+    oldClient.deliver({ payload: cache.frame });
+    expect(cache.entries.size).toBe(0);
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(oldClient.removeAllChannels).toHaveBeenCalled();
+  });
   it("keeps a recorded view on transport loss, then purges it on a revoked public scope", async () => {
     const cache = cached();
     const h = setup(false, { ...cache, cacheContext: cache.context, matchId: cache.frame.matchId });

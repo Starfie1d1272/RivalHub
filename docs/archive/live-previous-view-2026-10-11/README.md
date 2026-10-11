@@ -7,3 +7,5 @@ RIVALHUB_ALLOW_LOCAL_CONTAINERS=1 RIVALHUB_LIVE_EVIDENCE=1 RIVALHUB_LOCAL_SERVIC
 ```
 
 [桌面 1280px](desktop-previous.png) 与 [窄屏 390px](narrow-previous.png) 使用合成测试赛公开资料。自审：显示「上次画面 · 等待实时数据」和原 UTC 收帧时间；没有运行时钟或雷达；窄屏内容无页面横向溢出，表格保留自身横向滚动。开发指示器不属于正式产品。截图不证明生产已上线、并发承载或真实 Mizar 接管；缓存边界和计时由确定性测试覆盖。
+
+独立审查修正另以本地正式公开赛执行真实 Next Link「详情 → 赛程列表 → 详情 → 刷新」，列表行初始不可见不清 proof；同场仅一次 channel join，往返后持久化更晚合法帧，停止 producer 后刷新仍先取得新 viewer proof 再回显。退出统一经客户端 Auth helper，失败不清理；共享 receiver 五秒保留期的身份重置由确定性 transport 回归覆盖。
