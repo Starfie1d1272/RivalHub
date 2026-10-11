@@ -7,6 +7,9 @@ import { hasConfirmableParticipantIdentityIssue, validateCanonicalTarget, type C
 import { loadGameplayIdentityReviewDetails } from "@/lib/identity/gameplay-steam";
 import { getDisplayName } from "@/lib/identity/display-name";
 import { loadOrFetchSteamProfiles } from "@/lib/steam-profiles";
+import { ensureRequestId } from "@/lib/observability/context";
+import { captureException } from "@/lib/observability/server";
+import { redactText } from "@/lib/observability/redact";
 import type { AdminDemoReviewMap, AdminDemoReviewParticipant } from "./types";
 
 const ISSUE_TEXT: Record<string, string> = {
@@ -32,6 +35,29 @@ const ISSUE_TEXT: Record<string, string> = {
   UNSUPPORTED_SEMANTIC_PROFILE: "这份 Demo 数据版本不支持当前确认流程。",
 };
 
+// Never expose stored free-text messages or payloads. Identifiers are bounded
+// contract tokens; current and historical findings stay distinguishable.
+function diagnosticToken(value: string | undefined, limit: number): string | undefined {
+  return value && value.length <= limit && /^[A-Za-z0-9_.\[\]-]+$/.test(value)
+    && redactText(value, limit) === value ? value : undefined;
+}
+function projectDiagnostics(issues: readonly { code: string; path?: string }[], source: "current" | "stored") {
+  return issues.map(issue => ({
+    source,
+    code: diagnosticToken(issue.code, 100) ?? "UNSAFE_ISSUE_CODE",
+    path: diagnosticToken(issue.path, 200),
+    message: Object.hasOwn(ISSUE_TEXT, issue.code) ? ISSUE_TEXT[issue.code]! : "未识别的检查项；请向管理员提供问题编号与字段。",
+  }));
+}
+function logReadFailure(error: unknown, phase: string, importId: string) {
+  const requestId = ensureRequestId();
+  captureException("demo.review.read_failed", error, {
+    scope: "admin.demo", operation: "read-review", errorCode: "DEMO_REVIEW_READ_FAILED",
+    requestId, safeContext: { phase, importId },
+  });
+  return requestId;
+}
+
 /** Presentation only: current validation determines actions; mutations recheck under locks. */
 export async function loadAdminDemoReview(
   tx: TxDb,
@@ -44,14 +70,19 @@ export async function loadAdminDemoReview(
   let evidence;
   try {
     evidence = readStoredEvidence(row);
-  } catch {
-    return { ...base, invalidPayload: true, message: "这份 Demo 数据无法重新读取，请核对或拒绝。", resolvedCount: 0, blockingIssues: [], participants: [] };
+  } catch (error) {
+    const requestId = logReadFailure(error, "stored-evidence-read", row.id);
+    return { ...base, invalidPayload: true, message: `这份 Demo 数据无法重新读取，请核对或拒绝。排查编号：${requestId}`, resolvedCount: 0, blockingIssues: [], participants: [] };
   }
+  let phase = "canonical-validation";
   try {
     const validation = await validateCanonicalTarget(tx, evidence, target);
+    phase = "identity-review-details";
     const details = await loadGameplayIdentityReviewDetails(tx, validation.resolutions);
     const observedSteam64s = evidence.participants.map((participant) => participant.steamId64);
+    phase = "steam-profile-read";
     const officialProfiles = await loadOrFetchSteamProfiles(tx, observedSteam64s);
+    phase = "review-projection";
     const participants: AdminDemoReviewParticipant[] = [];
     let resolvedCount = 0;
     for (const participant of evidence.participants) {
@@ -121,9 +152,11 @@ export async function loadAdminDemoReview(
         ].filter(Boolean).join("；")}`
       : "请按下方检查结果处理这份 Demo。";
     return { ...base, invalidPayload: false, message, resolvedCount, blockingIssues: blockingIssues.length > 0 ? blockingIssues
-      : participants.length === 0 ? ["选手已匹配，请核对其余待处理项，再确认同步统计。"] : [], participants };
-  } catch {
-    return { ...base, invalidPayload: false, message: "当前无法核对选手身份，请联系平台管理员检查赛事身份资料后重试。",
+      : participants.length === 0 ? ["选手已匹配，请核对其余待处理项，再确认同步统计。"] : [], participants,
+      diagnostics: [...projectDiagnostics(validation.issues, "current"), ...projectDiagnostics(row.issues, "stored")] };
+  } catch (error) {
+    const requestId = logReadFailure(error, phase, row.id);
+    return { ...base, invalidPayload: false, message: `当前无法核对选手身份，请联系平台管理员检查赛事身份资料后重试。排查编号：${requestId}`,
       resolvedCount: 0, blockingIssues: [], participants: [] };
   }
 }

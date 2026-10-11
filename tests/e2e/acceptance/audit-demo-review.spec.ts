@@ -48,7 +48,7 @@ test("真实后台审计与赛后资料在窄屏保留可读内容和操作", as
     for (const width of [1440,390,320]) {
       await page.setViewportSize({ width, height: width===1440 ? 1000 : 844 });
       await page.goto(`/admin/${scenario.slug}/logs`);
-      const trigger = page.getByRole("button", { name: /查看.*赛后.*详情/ }).first();
+      const trigger = page.getByRole("button", { name: /查看.*解说名单详情/ }).first();
       await expect(trigger).toBeVisible();
       const badge = page.getByRole("button", {name:"Collapse issues badge", includeHidden:true});
       if (await badge.count()) await badge.dispatchEvent("click");
@@ -71,14 +71,14 @@ test("真实后台审计与赛后资料在窄屏保留可读内容和操作", as
       await expect(trigger).toBeFocused();
       writeFileSync(`${output}/measurements.json`,JSON.stringify(measurements,null,2));
       await page.goto(`/admin/${scenario.slug}/matches/${match.id}`);
-      const revoke = page.getByRole("button", { name:"撤销提交 / 重新开放整理" });
+      const revoke = page.getByRole("button", { name:"更正解说名单" });
       await expect(revoke).toBeVisible();
       await revoke.click();
-      await page.getByLabel("撤销原因（选填）").fill(meta.reason);
-      await page.getByRole("button",{name:"撤销提交",exact:true}).scrollIntoViewIfNeeded();
+      await page.getByLabel("更正原因（选填）").fill(meta.reason);
+      await page.getByRole("button",{name:"重开名单",exact:true}).scrollIntoViewIfNeeded();
       if (width < 600) {
-        const explanation = await page.getByText("撤销提交并重新开放整理？", { exact: true }).locator("..").boundingBox();
-        const confirm = await page.getByRole("button", { name: "撤销提交", exact: true }).boundingBox();
+        const explanation = await page.getByText("重开解说名单？", { exact: true }).locator("..").boundingBox();
+        const confirm = await page.getByRole("button", { name: "重开名单", exact: true }).boundingBox();
         expect(explanation).not.toBeNull();
         expect(confirm).not.toBeNull();
         expect(confirm!.y).toBeGreaterThanOrEqual(explanation!.y + explanation!.height);
@@ -87,6 +87,17 @@ test("真实后台审计与赛后资料在窄屏保留可读内容和操作", as
       await postmatch.evaluate(el=>window.scrollTo({top:el.getBoundingClientRect().top+window.scrollY-80}));
       await postmatch.screenshot({ animations: "disabled",path:`${output}/postmatch-revoke-${width}.png`});
       await page.getByRole("button",{name:"取消",exact:true}).click();
+      const scoreboard = page.locator("details").filter({has:page.locator("summary",{hasText:/Map 1 ·/})}).first();
+      await scoreboard.evaluate(el => (el as HTMLDetailsElement).open = true);
+      const choose = scoreboard.getByRole("button",{name:"选择截图",exact:true});
+      await expect(choose).toBeVisible();
+      await expect(scoreboard.getByRole("button",{name:"OCR 识别截图",exact:true})).toBeDisabled();
+      await scoreboard.screenshot({animations:"disabled",path:`${output}/ocr-empty-${width}.png`});
+      await scoreboard.getByLabel("记分板截图").setInputFiles({name:"Cache-计分板截图.png",mimeType:"image/png",buffer:Buffer.from("local selection fixture")});
+      await expect(scoreboard.getByRole("button",{name:"更换截图",exact:true})).toBeVisible();
+      await expect(scoreboard.getByText("Cache-计分板截图.png",{exact:true})).toBeVisible();
+      await expect(scoreboard.getByRole("button",{name:"OCR 识别截图",exact:true})).toBeEnabled();
+      await scoreboard.screenshot({animations:"disabled",path:`${output}/ocr-selected-${width}.png`});
       const qa = page.locator("details").filter({has:page.locator("summary",{hasText:/第 1 图.*QA 检查/})}).first();
       await qa.scrollIntoViewIfNeeded();
       await page.screenshot({ animations: "disabled",path:`${output}/demo-quality-collapsed-${width}.png`});
@@ -103,6 +114,27 @@ test("真实后台审计与赛后资料在窄屏保留可读内容和操作", as
       expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
       measurements.push({scenario:`workbench-${width}`, ...await page.evaluate(()=>({client:document.documentElement.clientWidth,scroll:document.documentElement.scrollWidth, overflowing:[...document.querySelectorAll("main *")].filter(el=>el.getBoundingClientRect().right>innerWidth+1).slice(0,12).map(el=>({tag:el.tagName,text:el.textContent?.slice(0,80),width:el.getBoundingClientRect().width}))}))});
     }
+    // Unknown historical findings remain inspectable without becoming current blockers.
+    await pool.query("UPDATE match_demo_imports SET status='needs_attention',issues=$2::jsonb WHERE season_id=$1",[scenario.seasonId,JSON.stringify([
+      {code:"FUTURE_CHECK_ALPHA",path:"target.mapName",message:"private diagnostic text"},
+      {code:"FUTURE_CHECK_BETA",path:"sourceFacts.rounds[0]",message:"private diagnostic text"},
+    ])]);
+    for (const width of [1440,390,320]) {
+      await page.setViewportSize({width,height:width===1440?1000:844});
+      await page.goto(`/admin/${scenario.slug}/matches/${match.id}`);
+      const review = page.locator("section[id^='demo-review-']").first();
+      const diagnostics = review.locator("details").filter({has:page.locator("summary",{hasText:/检查详情（/})});
+      await expect(diagnostics).toBeVisible();
+      await expect(diagnostics).not.toHaveAttribute("open");
+      await diagnostics.locator(":scope > summary").click();
+      await expect(diagnostics.getByText("上传时记录 · FUTURE_CHECK_ALPHA · target.mapName",{exact:true})).toBeVisible();
+      await expect(diagnostics.getByText("上传时记录 · FUTURE_CHECK_BETA · sourceFacts.rounds[0]",{exact:true})).toBeVisible();
+      await expect(review).not.toContainText("private diagnostic text");
+      await review.screenshot({animations:"disabled",path:`${output}/demo-review-diagnostics-${width}.png`});
+      await diagnostics.screenshot({animations:"disabled",path:`${output}/demo-review-details-${width}.png`});
+      expect(await diagnostics.evaluate(el=>el.scrollWidth)).toBeLessThanOrEqual(await diagnostics.evaluate(el=>el.clientWidth));
+      expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+    }
     await page.setViewportSize({width:390,height:844});
     await page.goto(`/admin/${scenario.slug}/logs`);
 
@@ -115,7 +147,7 @@ test("真实后台审计与赛后资料在窄屏保留可读内容和操作", as
         await route.fulfill({response,body});
       }else await route.continue();
     });
-    const errorTrigger=page.getByRole("button",{name:/查看.*赛后.*详情/}).first();
+    const errorTrigger=page.getByRole("button",{name:/查看.*解说名单详情/}).first();
     await expect(errorTrigger).toBeVisible();
     const badge=page.getByRole("button",{name:"Collapse issues badge",includeHidden:true});
     if(await badge.count()) await badge.dispatchEvent("click");

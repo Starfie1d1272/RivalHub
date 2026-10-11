@@ -43,6 +43,8 @@ export interface AdminPostMatchRecordData {
   seasonAdmins: { userId: string; name: string; hasLiveStream: boolean }[];
   submittedAt: Date | null;
   submittedByUserId: string | null;
+  rosterReopened: boolean;
+  canConfirm: boolean;
   videoUrl: string | null;
   completionLabel: string;
   canSubmit: boolean;
@@ -104,6 +106,7 @@ export interface AdminDemoReviewMap {
   message: string;
   resolvedCount: number;
   blockingIssues: string[];
+  diagnostics?: { source: "current" | "stored"; code: string; path?: string; message: string }[];
   participants: AdminDemoReviewParticipant[];
 }
 

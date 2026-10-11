@@ -453,8 +453,8 @@ export const AUDIT_ACTION_DEFINITIONS = {
   "postmatch.commentator.cancel": { label: "取消解说认领", category: "postmatch" },
   "postmatch.commentator.remove": { label: "移除比赛解说", category: "postmatch" },
   "postmatch.video.update": { label: "更新比赛录像", category: "postmatch" },
-  "postmatch.report.submit": { label: "提交赛后资料", category: "postmatch" },
-  "postmatch.report.revoke": { label: "撤销赛后资料", category: "postmatch" },
+  "postmatch.report.submit": { label: "确认解说名单", category: "postmatch" },
+  "postmatch.report.revoke": { label: "重开解说名单", category: "postmatch" },
 
   "community_award.submit": { label: "提交社区奖", category: "community" },
   "community_award.revise": { label: "重新提交社区奖", category: "community" },
@@ -713,7 +713,7 @@ export function summarizeAuditMeta(action: string, meta: unknown): string | null
   if (!isRecord(meta)) return null;
 
   const parts: string[] = [];
-  if (action === "postmatch.report.revoke") parts.push("重新开放整理");
+  if (action === "postmatch.report.revoke") parts.push("开放名单更正");
   if (action === "postmatch.video.update" && typeof meta.videoChange === "string") {
     const change = Object.hasOwn(VIDEO_CHANGE_LABELS, meta.videoChange) ? VIDEO_CHANGE_LABELS[meta.videoChange] : undefined;
     if (change) parts.push(change);

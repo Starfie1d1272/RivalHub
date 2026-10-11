@@ -37,6 +37,7 @@ vi.mock("@/db/client", () => ({
       competitionQualificationRuns: { findFirst: vi.fn().mockResolvedValue(undefined) },
     },
     select: selectMock,
+    selectDistinct: selectMock,
     transaction: transactionMock,
   },
 }));
