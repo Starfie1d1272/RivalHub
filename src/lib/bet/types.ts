@@ -1,4 +1,4 @@
-export const MARKET_TYPES = ["champion", "top_fragger", "match_winner", "exact_score", "total_maps", "veto_map", "veto_first", "veto_decider", "map_winner", "total_rounds"] as const;
+export const MARKET_TYPES = ["champion", "top_fragger", "match_winner", "exact_score", "total_maps", "veto_map", "veto_first", "veto_decider", "veto_present", "map_winner", "total_rounds"] as const;
 export type MarketType = typeof MARKET_TYPES[number];
 export type BetSubject =
   | { kind: "event"; entryIds: string[]; playerIds: string[] }

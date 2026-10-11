@@ -195,6 +195,13 @@ it("gates new BET subjects on frozen previous Production, including skipped/comb
     expect(()=>build(legacy,compatibility)).not.toThrow();
     expect(()=>build(legacy,publication)).toThrow(/必须先独立发布兼容读取版本/);
     expect(()=>build(compatibility,publication)).not.toThrow();
+    contract(3,2);const presenceReader=commit("BO3 presence reader only");
+    contract(3,3);const presencePublisher=commit("BO3 presence publisher");
+    expect(()=>build(publication,presenceReader)).not.toThrow();
+    expect(()=>build(publication,presencePublisher)).toThrow(/必须先独立发布兼容读取版本/);
+    expect(()=>build(presenceReader,presencePublisher)).not.toThrow();
+    contract(2,2);const presenceDowngrade=commit("drop presence reader");
+    expect(()=>build(presencePublisher,presenceDowngrade)).toThrow(/compatibility gate/);
     contract(1,1);const downgrade=commit("incompatible reader downgrade");
     expect(()=>build(publication,downgrade)).toThrow(/compatibility gate/);
     contract(1,2);const malformed=commit("invalid contract");
