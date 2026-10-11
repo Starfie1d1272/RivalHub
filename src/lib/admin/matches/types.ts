@@ -7,6 +7,7 @@ import type { SwissStageReadModel } from "@/lib/matches/stage-read-model";
 import type { CompetitionQualificationRun } from "@/db/schema";
 import type { OperatorWorkflow, PerfectRoomGuideData } from "./operator-workflow";
 import type { AdminMatchCommentaryData } from "./commentary";
+import type { AdminDemoQuality } from "./demo-quality";
 
 type Match = CompetitionMatch<DbMatch>;
 
@@ -177,6 +178,7 @@ export interface AdminMatchWorkbenchData {
   officialMapStart?: { mapId: string; mapName: string } | null;
   postMatch: AdminPostMatchRecordData | null;
   demoReviews?: AdminDemoReviewMap[];
+  demoQuality?: AdminDemoQuality[];
   operator: {
     liveScope?: { authorityRevision: number; generation: number; epoch: number; mapId: string | null } | null;
     problemRecovery?: { sessionId: string; mapEpoch: number; mapId: string; recoverMapBinding: boolean; mapLabel: string; reportContext: { programSourceGeneration: number; lastReliableSeq: number; currentMapId: string | null } } | null;

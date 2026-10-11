@@ -110,6 +110,7 @@ export function AdminMatchWorkbench({
   officialMapStart,
   postMatch,
   demoReviews = [],
+  demoQuality = [],
   operator,
   commentary,
 }: AdminMatchWorkbenchProps) {
@@ -249,7 +250,7 @@ export function AdminMatchWorkbench({
         </div>)}
       </details>}
 
-      {match.status !== "cancelled" && <DemoDataReviewPanel reviews={demoReviews} />}
+      {match.status !== "cancelled" && <DemoDataReviewPanel reviews={demoReviews} quality={demoQuality} />}
 
       <details id="match-lineups" className="space-y-4 rounded border border-[var(--color-border)] p-4" open={match.status === "scheduled"}>
         <summary className="cursor-pointer font-semibold">首发、BP 与赛程管理</summary>

@@ -9,6 +9,7 @@ import { describe, expect, it } from "vitest";
 import * as schema from "../../../src/db/schema";
 import { clearOperatorScoreboardInTx, loadOperatorScoreboard, loadScoreboardPlayers } from "../../../src/lib/matches/operator-scoreboard";
 import { loadAdminDemoReview } from "../../../src/lib/admin/matches/demo-review";
+import { projectAdminDemoQuality } from "../../../src/lib/admin/matches/demo-quality";
 import { loadCanonicalTarget } from "../../../src/lib/demo-integration/validation";
 import { ErrorCode } from "../../../src/lib/errors";
 import { parseRivalHubDemoEvidenceV1 } from "../../../src/lib/demo-evidence/contract";
@@ -1465,6 +1466,38 @@ describe("DAK evidence submit persistence", () => {
       expect(operatorAfterClear.every(row => row.gameplayLocked)).toBe(true);
       expect(operatorAfterClear.every(row => row.ratingPro === null && row.rws === null && row.we === null)).toBe(true);
       expect(operatorAfterClear.map(row => [row.perfectName, row.kills, row.deaths, row.adr]).sort((a, b) => String(a[0]).localeCompare(String(b[0])))).toEqual(dakGameplayBeforeClear);
+
+      // Receiver-first extension: actual persistence + same-Demo lineage, without
+      // rewriting the legacy artifact/hash or changing any gameplay facts.
+      const oldCareer = (await database.select().from(schema.matchDemoImports)
+        .where(eq(schema.matchDemoImports.id, secondEventImport.importId!)))[0]!;
+      const diagnosticEvidence = structuredClone(secondEventEvidence);
+      diagnosticEvidence.source.producerVersion = "cs2dak-rivalhub-evidence/0.2.0";
+      diagnosticEvidence.quality.qa = { ok: true, issueCount: 1, warningCount: 1, errorCount: 0 };
+      diagnosticEvidence.quality.capabilities.richKills = "partial";
+      diagnosticEvidence.extensions["cs2dak/diagnostics"] = {
+        version: 1,
+        qa: { issues: [{ severity: "warning", code: "future.coverage", path: "kills", message: "Source coverage is incomplete." }], omittedIssueCount: 0 },
+        richKills: { eventCount: diagnosticEvidence.sourceFacts.kills.length, flagsEventCount: diagnosticEvidence.sourceFacts.kills.length,
+          namedActiveWeaponEventCount: 0, reason: "no_named_active_weapon" },
+      };
+      const diagnosticArgs = { input: diagnosticEvidence, pairingId: ids.pairing,
+        pairingScope: { seasonIds: careerSeasonScope }, idempotencyKey: "dak-quality-diagnostics-1" };
+      await expect(submitRivalHubEvidence({ ...diagnosticArgs, idempotencyKey: "dak-career-second-event-1" })).rejects.toMatchObject({ code: ErrorCode.VALIDATION_FAILED });
+      const diagnosticResult = await submitRivalHubEvidence(diagnosticArgs);
+      expect(diagnosticResult).toMatchObject({ status: "synced", issues: [] });
+      expect(diagnosticResult.importId).not.toBe(oldCareer.id);
+      expect(await submitRivalHubEvidence(diagnosticArgs)).toEqual(diagnosticResult);
+      const careerImports = await database.select().from(schema.matchDemoImports).where(eq(schema.matchDemoImports.matchMapId, ids.careerMap));
+      const currentCareer = careerImports.find(row => row.id === diagnosticResult.importId)!;
+      expect(currentCareer).toMatchObject({ status: "confirmed", supersedesImportId: oldCareer.id, payload: diagnosticEvidence, payloadSha256: sha256Json(diagnosticEvidence) });
+      expect(careerImports.find(row => row.id === oldCareer.id)).toMatchObject({ status: "superseded", payload: oldCareer.payload, payloadSha256: oldCareer.payloadSha256 });
+      expect(diagnosticEvidence.sourceFacts).toEqual(secondEventEvidence.sourceFacts);
+      expect(diagnosticEvidence.semanticFacts).toEqual(secondEventEvidence.semanticFacts);
+      expect(diagnosticEvidence.summaries).toEqual(secondEventEvidence.summaries);
+      const quality = projectAdminDemoQuality(currentCareer, { mapOrder: 1, mapName: "de_nuke" });
+      expect(quality).toMatchObject({ summary: "QA 检查通过：0 条错误，1 条警告。", issues: [{ code: "future.coverage", path: "kills", label: "警告", message: "Source coverage is incomplete." }] });
+      expect(quality.capabilityReason).toContain("未观察到可识别的当前武器");
     } finally {
       await client.query("ROLLBACK").catch(() => {});
       await client.query("BEGIN").catch(() => {});

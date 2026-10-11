@@ -126,7 +126,9 @@ describe("Demo metadata PostgreSQL egress boundary", () => {
       const workbench = await loadAdminMatchWorkbench({ seasonSlug: slug, matchId: ids.match });
       expect(workbench?.demoReviews?.map((row) => row.importId).sort()).toEqual([related, other, invalid].sort());
       expect(payloadReads()).toHaveLength(1);
-      expect(payloadReads()[0]?.params).toEqual([related, other, invalid]);
+      expect(payloadReads()[0]?.params).toEqual([confirmed, related, other, invalid]);
+      expect(workbench?.demoQuality?.map((row) => row.importId)).toEqual([confirmed, related, other, invalid]);
+      expect(workbench?.demoQuality?.every((row) => !("payload" in row))).toBe(true);
 
       observation.queries.length = 0;
       const lineage = await db.transaction((tx) => resolveDemoImportLineageInTx(tx, {

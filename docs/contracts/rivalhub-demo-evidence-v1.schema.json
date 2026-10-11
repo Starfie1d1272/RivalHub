@@ -1267,12 +1267,135 @@
       "additionalProperties": false
     },
     "extensions": {
-      "type": "object",
-      "propertyNames": {
-        "type": "string",
-        "pattern": "^[a-z0-9-]+\\/[a-z0-9-]+$"
-      },
-      "additionalProperties": {}
+      "allOf": [
+        {
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "pattern": "^[a-z0-9-]+\\/[a-z0-9-]+$"
+          },
+          "additionalProperties": {}
+        },
+        {
+          "type": "object",
+          "properties": {
+            "cs2dak/diagnostics": {
+              "type": "object",
+              "properties": {
+                "version": {
+                  "type": "number",
+                  "const": 1
+                },
+                "qa": {
+                  "type": "object",
+                  "properties": {
+                    "issues": {
+                      "maxItems": 64,
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "code": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 96,
+                            "pattern": "^[A-Za-z][A-Za-z0-9_.-]*$"
+                          },
+                          "severity": {
+                            "type": "string",
+                            "enum": [
+                              "error",
+                              "warning"
+                            ]
+                          },
+                          "path": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 128,
+                                "pattern": "^[A-Za-z][A-Za-z0-9_]*(?:\\.[A-Za-z][A-Za-z0-9_]*|\\[\\d+\\])*$"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "message": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 320
+                          }
+                        },
+                        "required": [
+                          "code",
+                          "severity",
+                          "path",
+                          "message"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "omittedIssueCount": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "issues",
+                    "omittedIssueCount"
+                  ],
+                  "additionalProperties": false
+                },
+                "richKills": {
+                  "type": "object",
+                  "properties": {
+                    "eventCount": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "flagsEventCount": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "namedActiveWeaponEventCount": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "reason": {
+                      "type": "string",
+                      "enum": [
+                        "no_kill_events",
+                        "flags_and_named_active_weapon",
+                        "no_named_active_weapon",
+                        "no_rich_kill_flags"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "eventCount",
+                    "flagsEventCount",
+                    "namedActiveWeaponEventCount",
+                    "reason"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "version",
+                "qa",
+                "richKills"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": {}
+        }
+      ]
     }
   },
   "required": [

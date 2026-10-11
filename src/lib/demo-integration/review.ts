@@ -59,21 +59,27 @@ export function readStoredEvidence(row: typeof matchDemoImports.$inferSelect) {
   let evidence: ReturnType<typeof parseRivalHubDemoEvidenceV1>;
   try {
     evidence = parseRivalHubDemoEvidenceV1(row.payload);
-  } catch {
-    throw new AppError(ErrorCode.VALIDATION_FAILED, INVALID_STORED_PAYLOAD_MESSAGE);
+  } catch (cause) {
+    const error = new AppError(ErrorCode.VALIDATION_FAILED, INVALID_STORED_PAYLOAD_MESSAGE);
+    error.cause = cause;
+    throw error;
   }
-  if (
-    sha256Json(evidence) !== row.payloadSha256
-    || evidence.source.demoSha256 !== row.demoSha256
-    || evidence.target.seasonId !== row.seasonId
-    || evidence.target.matchId !== row.matchId
-    || evidence.target.matchMapId !== row.matchMapId
-    || evidence.contract.contractVersion !== row.contractVersion
-    || evidence.contract.semanticProfile !== row.semanticProfile
-    || evidence.contract.analysisVersion !== row.analysisVersion
-    || evidence.target.evidenceRevision !== row.evidenceRevision
-  ) {
-    throw new AppError(ErrorCode.VALIDATION_FAILED, INVALID_STORED_PAYLOAD_MESSAGE);
+  const mismatches = [
+    ["payloadSha256", sha256Json(evidence) !== row.payloadSha256],
+    ["demoSha256", evidence.source.demoSha256 !== row.demoSha256],
+    ["seasonId", evidence.target.seasonId !== row.seasonId],
+    ["matchId", evidence.target.matchId !== row.matchId],
+    ["matchMapId", evidence.target.matchMapId !== row.matchMapId],
+    ["contractVersion", evidence.contract.contractVersion !== row.contractVersion],
+    ["semanticProfile", evidence.contract.semanticProfile !== row.semanticProfile],
+    ["analysisVersion", evidence.contract.analysisVersion !== row.analysisVersion],
+    ["evidenceRevision", evidence.target.evidenceRevision !== row.evidenceRevision],
+  ] as const;
+  const mismatchFields = mismatches.filter(([, differs]) => differs).map(([field]) => field);
+  if (mismatchFields.length > 0) {
+    const error = new AppError(ErrorCode.VALIDATION_FAILED, INVALID_STORED_PAYLOAD_MESSAGE);
+    error.cause = new Error(`Stored Demo integrity mismatch: ${mismatchFields.join(", ")}`);
+    throw error;
   }
   return evidence;
 }

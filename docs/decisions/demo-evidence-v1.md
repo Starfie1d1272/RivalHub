@@ -51,6 +51,14 @@ analysisVersion  = actual DAK analysis software version
 
 Quality 保持轻量：继续区分 `null != 0`、missing 与 empty，并保留 QA / availability。核心 Demo/Stats 明显不完整或 QA 失败时，整份 Evidence 不进入正常 confirm；可选高级 capability 缺失时，仅不展示对应统计，不为极端 partial case 建设通用 completeness framework。
 
+`extensions["cs2dak/diagnostics"]` 是可选的版本化确定性诊断（`version: 1`）。QA 最多携带 64 条 `{severity, code, path, message}`，超出部分保留 `omittedIssueCount`，条数与既有 QA 摘要校验一致。code 最长 96 字符，path 是最长 128 字符的逻辑字段定位或 null，message 最长 320 字符；凭据、URL、个人路径、玩家昵称、原始日志不属于此 DTO。producer 在输出前脱敏，receiver 严格拒绝未脱敏或越界的已知扩展，不在摘要计算前悄悄改写输入。安全且未知的未来 QA code 保留；文案表不决定证据留存。其它命名空间扩展保持原有兼容性，新增扩展的内部对象拒绝未知字段与不支持版本。
+
+能力原因只解释 Core 的既有判断，不重新检测 gameplay：`richKills` 携带 eventCount、flagsEventCount、namedActiveWeaponEventCount，以及 Core 给出的 reason。合法空事件为 available；扩展标记与可识别当前武器分别有观察时为 available，只有扩展标记为 partial，未观察到扩展标记为 missing。观察计数不意味着每条击杀都具备全部信息。QA 警告、QA 错误、能力降级是独立维度，警告本身不代表上传失败；既有确认安全校验不变。
+
+接收端必须先兼容，再启用 producer 发送。Base V1 / semantic profile 不变；producerVersion 用 `cs2dak-rivalhub-evidence/0.2.0` 标识新输出。完整 payload 仍参与现有稳定序列化的 idempotency key / payloadSha256，诊断不从 hash 中剔除。相同输入重试得到相同身份；带诊断的新 payload 与旧 payload 是同 Demo 的不同 artifact，经既有同 Demo lineage promotion 保留 predecessor，不能复用旧 idempotency key，不能改写历史 payload/hash。attempt、requestId、runtime cause、当前时间不得进入此扩展，canonical gameplay facts 的身份与内容不受它影响。
+
+管理员工作台只为每图当前 confirmed / needs-attention artifact 读取证据并投影有界质量详情；确认后的警告仍可查看，确认/拒绝动作继续只用于待处理记录。敏感片段被替换后保留其余说明；运行日志/堆栈需要整条抑制时明确说明，保留安全 code/path。旧版摘要明确显示“详情未提供”，不能依据数量补造历史 warning 或把 richKills 降级当成 warning 原因。读取/完整性校验失败由既有服务端 observability 记录原异常的安全投影、importId、读取阶段与关联编号，界面只显示安全提示和关联编号；这些运行诊断不进入 Evidence 或其 hash。诊断原文不进入公开统计 DTO；公开页沿用必要的能力/数据可用性说明。此兼容变更不重算或回填任何历史数据。
+
 OCR 与 DAK 不进入通用 per-metric provenance framework，而按 source group 明确 ownership：DAK/Demo 拥有 rounds、KDA、damage、HS、KAST、opening、trade、clutch、utility、weapon、team conversions 等；Scoreboard/OCR 拥有 Rating Pro、RWS、WE 等外部 scoreboard 字段。官方单图结果完成后即可接收该图的 operator-confirmed scoreboard 与 DAK Evidence，即使系列赛仍在进行中；地图结果变化会使对应 Evidence revision 失效，而系列赛完成、弃权或取消不会单独使已确认单图失效。两条写入路径不得清空对方拥有的数据。
 
 Evidence artifact 本身 immutable；pending / confirmed / rejected / stale / superseded 属于 RivalHub import/review decision。`dak-stable/3` 是当前唯一可 promotion 的 profile；同一 Demo 从 `/2` 迁移到 `/3` 时保持 `evidenceRevision` 不变，使用新的 payload/idempotency identity。Promotion owner 在同一事务内锁定整张 map 的 import lineage，选择 canonical predecessor、把同一 Demo 的其它 active source 一并置为 `superseded`，并由新 import 的 `supersedesImportId` 保留历史 parent；不同 Demo 的 confirmed content 必须保持显式冲突，不能被 lineage cleanup 静默替换。`/1` 与 `/2` 的既有 Evidence 只读保留，read model 只选择当前 profile 的 active import，不因迟到的历史 profile row 回退。Schema V1 允许 additive optional field/capability/extension；删除字段、改变类型/单位/既有语义属于 breaking change。跨仓兼容以 machine-readable contract 与 golden JSON fixtures 验证，不重新通过共享裸 TypeScript runtime package 耦合两个仓库。
