@@ -18,7 +18,9 @@ test("BET 投入在刷新后保留，ALL IN 需确认且开赛后锁盘",async({
     await signInProgrammatically(page,user,scenario,`/admin/${fixture.slug}/bet`);
     await page.goto(`/admin/${fixture.slug}/bet`);
     await page.getByRole("button",{name:"启用 BET",exact:true}).click();
-    await page.getByRole("button",{name:"启用 BET",exact:true}).last().click();
+    await expect(page.getByRole("region",{name:"BET 操作确认",exact:true})).toBeVisible();
+    await page.getByRole("region",{name:"BET 操作确认",exact:true}).getByRole("button",{name:"启用 BET",exact:true}).click();
+    await expect(page.getByRole("region",{name:"BET 操作确认",exact:true})).toHaveCount(0);
     await expect(page.getByRole("button",{name:"暂停投入",exact:true})).toBeVisible();
     // Keep the administrator grant: administrators may participate in unrelated markets.
     const allMarkets=await db.select().from(schema.betMarkets).where(eq(schema.betMarkets.matchId,matches[0]!.id));
@@ -42,7 +44,7 @@ test("BET 投入在刷新后保留，ALL IN 需确认且开赛后锁盘",async({
     await expect(winner).toContainText("已投 200");
     // Browser evidence protects the public slot DTO → existing selection/confirmation path.
     // Pool identity, terms, refund and locking matrices belong to PostgreSQL/domain tests.
-    await card.getByRole("tab",{name:"单图"}).click();
+    await expect(card.getByRole("region", {name:"地图", exact:true})).toBeVisible();
     const rounds=card.getByRole("region",{name:/^总回合/});
     await expect(rounds).toHaveCount(3);
     const first=rounds.filter({hasText:"第1图 · 地图待定"});
@@ -51,10 +53,10 @@ test("BET 投入在刷新后保留，ALL IN 需确认且开赛后锁盘",async({
     await page.getByLabel("投入积分",{exact:true}).fill("100");
     await page.getByRole("button",{name:"确认投入",exact:true}).click();await expect(page.getByRole("dialog")).toHaveCount(0);
     await expect(first).toContainText("已投 100");
-    await page.reload();await card.getByRole("tab",{name:"单图"}).click();
+    await page.reload();await expect(card.getByRole("region", {name:"地图", exact:true})).toBeVisible();
     await expect(first).toContainText("已投 100");
     if(process.env.RIVALHUB_BET_SCREENSHOTS==="1") {
-      for(const [name,width,height] of [["desktop",1440,1000],["narrow",320,900]] as const) {
+      for(const [name,width,height] of [["desktop",1440,1000],["mobile",390,900],["narrow",320,900]] as const) {
         await page.setViewportSize({width,height});
         await page.evaluate(()=>window.scrollTo(0,0));
         await expect(page.locator("[data-sonner-toast]")).toHaveCount(0);
@@ -63,13 +65,13 @@ test("BET 投入在刷新后保留，ALL IN 需确认且开赛后锁盘",async({
       }
     }
     const maps=await db.insert(schema.matchMaps).values(["de_inferno","de_nuke","de_mirage"].map((mapName,i)=>({matchId:matches[0]!.id,mapOrder:i+1,mapName}))).returning();
-    await page.reload();await card.getByRole("tab",{name:"单图"}).click();
+    await page.reload();await expect(card.getByRole("region", {name:"地图", exact:true})).toBeVisible();
     await expect(rounds.filter({hasText:"第1图 · Inferno"})).toContainText("已投 100");
     await db.update(schema.matchMaps).set({startedAt:new Date()}).where(eq(schema.matchMaps.id,maps[0]!.id));
-    await page.reload();await card.getByRole("tab",{name:"单图"}).click();
+    await page.reload();await expect(card.getByRole("region", {name:"地图", exact:true})).toBeVisible();
     await expect(rounds.filter({hasText:"第1图 · Inferno"}).getByRole("button",{name:/^大/})).toBeDisabled();
     await expect(rounds.filter({hasText:"第2图 · Nuke"}).getByRole("button",{name:/^大/})).toBeEnabled();
     await db.update(schema.matches).set({gameplayStartedAt:new Date()}).where(eq(schema.matches.id,matches[0]!.id));
-    await page.reload();await card.getByRole("tab",{name:"比赛"}).click();await expect(winner.locator("button:not([aria-label])").first()).toBeDisabled();await expect(winner).toContainText("已锁盘");
+    await page.reload();await expect(card.getByRole("region", {name:"赛果", exact:true})).toBeVisible();await expect(winner.locator("button:not([aria-label])").first()).toBeDisabled();await expect(winner).toContainText("已锁盘");
   }finally {await removePredictionBrowserFixture(fixture.seasonId);await pool.end();}
 });
