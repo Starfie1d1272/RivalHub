@@ -34,7 +34,7 @@ function ParticipantReview({ importId, participant }: { importId: string; partic
         const relatedMessages = [
           related.confirmed > 0 ? `另外自动确认了 ${related.confirmed} 张受同一身份影响的 Demo。` : "",
           related.remaining > 0 ? `另有 ${related.remaining} 张相关 Demo 重新检查后仍需处理。` : "",
-          related.failed > 0 ? `另有 ${related.failed} 张自动重新检查失败，可使用“按当前资料重新检查”重试。` : "",
+          related.failed > 0 ? `另有 ${related.failed} 张自动重新检查失败，请刷新核对后使用“按当前资料重新检查”或赛事批量重检；无需重新上传或重复确认身份。${related.requestId ? `排查编号：${related.requestId}` : ""}` : "",
         ].filter(Boolean);
         toast.success([baseMessage, ...relatedMessages].join(" "));
         setSelectedId("");
@@ -126,9 +126,9 @@ function SeasonRecheckControl({ importId }: { importId: string }) {
     startTransition(async () => {
       const result = await recheckSeasonStoredDemoImports({ importId });
       if (result.success) {
-        const { attempted, confirmed, remaining, failed } = result.data;
+        const { attempted, confirmed, remaining, failed, requestId } = result.data;
         toast.success(
-          `本赛事待处理 Demo 已重新检查：共 ${attempted} 张，确认 ${confirmed} 张，仍需处理 ${remaining} 张${failed > 0 ? `，失败 ${failed} 张` : ""}。`,
+          `本赛事待处理 Demo 已重新检查：共 ${attempted} 张，确认 ${confirmed} 张，仍需处理 ${remaining} 张${failed > 0 ? `，失败 ${failed} 张。请刷新核对后重检剩余待处理 Demo，已确认的数据不会重复处理；无需重新上传或重复确认身份${requestId ? `。排查编号：${requestId}` : ""}` : ""}。`,
         );
         router.refresh();
       } else toast.error(result.error.message);

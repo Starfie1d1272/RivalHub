@@ -4,6 +4,8 @@ import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db/client";
 import { matchDemoImports, matches, seasons, userGameplaySteamIds } from "@/db/schema";
+import { classifyError } from "@/lib/observability/errors";
+import { ensureRequestId } from "@/lib/observability/context";
 import { captureException } from "@/lib/observability/server";
 import { actionError, failValidation } from "@/lib/action-utils";
 import { auditActorId, requireSeasonAdmin } from "@/lib/auth/session";
@@ -20,6 +22,19 @@ import {
 } from "@/lib/demo-integration/revalidation";
 import { revalidateMatchPaths } from "@/lib/revalidation";
 import { ok, type ActionResult } from "@/types/action";
+
+// Preserve the canonical boundary's cause projection and request id while the
+// Demo owner supplies recovery tied to its existing pending-only controls.
+function demoRecheckError(scope: string, error: unknown, phase: string): ActionResult<never> {
+  const result = actionError(scope, error, phase);
+  if (result.success || result.error.code !== ErrorCode.INTERNAL_ERROR) return result;
+  const recovery = phase === "revalidation"
+    ? "检查结果已保存，但页面刷新失败。请先刷新核对身份与 Demo 状态，不要重新上传或重复确认；如无法查看，请联系管理员。"
+    : classifyError(error).retryable
+      ? "未能完成 Demo 检查。请先刷新核对状态，稍后使用“按当前资料重新检查”或“重新检查本赛事全部待处理 Demo”；不要重新上传同一份数据。如仍失败，请联系管理员。"
+      : "未能完成 Demo 检查。请先刷新核对状态，并联系管理员排查系统故障；恢复后使用“按当前资料重新检查”或“重新检查本赛事全部待处理 Demo”，不要重新上传同一份数据。";
+  return { ...result, error: { ...result.error, message: `${recovery}排查编号：${result.error.requestId}` } };
+}
 
 const uuid = z.guid();
 const steam64 = z.string().regex(/^\d{17}$/, "Steam64 ID 格式无效。");
@@ -38,6 +53,7 @@ type ConfirmStoredDemoParticipantIdentityActionData = Awaited<ReturnType<typeof 
     confirmed: number;
     remaining: number;
     failed: number;
+    requestId?: string;
   };
 };
 
@@ -63,10 +79,11 @@ export async function confirmStoredDemoParticipantIdentity(
         excludeImportId: row.id,
       });
     } catch (error) {
+      const requestId = ensureRequestId();
       captureException("demo.recheck.failure", error, {
-        scope: "demo", operation: "recheck.related", safeContext: { phase: "candidate_selection" },
+        scope: "demo", operation: "recheck.related", requestId, safeContext: { phase: "candidate_selection" },
       });
-      relatedRechecks = { attempted: 0, confirmed: 0, remaining: 0, failed: 1, affectedMatchIds: [] };
+      relatedRechecks = { attempted: 0, confirmed: 0, remaining: 0, failed: 1, affectedMatchIds: [], requestId };
     }
     revalidateMatchPaths(season.slug, row.matchId);
     for (const matchId of relatedRechecks.affectedMatchIds) revalidateMatchPaths(season.slug, matchId);
@@ -77,6 +94,7 @@ export async function confirmStoredDemoParticipantIdentity(
         confirmed: relatedRechecks.confirmed,
         remaining: relatedRechecks.remaining,
         failed: relatedRechecks.failed,
+        ...(relatedRechecks.requestId ? { requestId: relatedRechecks.requestId } : {}),
       },
     });
   } catch (error) {
@@ -90,17 +108,20 @@ export async function recheckSeasonStoredDemoImports(
 ): Promise<ActionResult<Awaited<ReturnType<typeof revalidateSeasonNeedsAttentionImports>>>> {
   const parsed = z.object({ importId: uuid }).safeParse(input);
   if (!parsed.success) return failValidation("批量重新检查 Demo 数据的参数无效。");
+  let phase = "read";
   try {
     const { row, season } = await loadImportContext(parsed.data.importId);
     const admin = await requireSeasonAdmin(row.seasonId);
+    phase = "recheck";
     const result = await revalidateSeasonNeedsAttentionImports({
       seasonId: row.seasonId,
       actorId: auditActorId(admin),
     });
+    phase = "revalidation";
     for (const matchId of result.affectedMatchIds) revalidateMatchPaths(season.slug, matchId);
     return ok(result);
   } catch (error) {
-    return actionError("recheckSeasonStoredDemoImports", error);
+    return demoRecheckError("recheckSeasonStoredDemoImports", error, phase);
   }
 }
 
@@ -110,19 +131,22 @@ export async function recheckStoredDemoImport(
 ): Promise<ActionResult<Awaited<ReturnType<typeof revalidateStoredDemoImportInTx>>>> {
   const parsed = z.object({ importId: uuid }).safeParse(input);
   if (!parsed.success) return failValidation("重新检查 Demo 数据的参数无效。");
+  let phase = "read";
   try {
     const { row, season } = await loadImportContext(parsed.data.importId);
     const admin = await requireSeasonAdmin(row.seasonId);
     const actorId = auditActorId(admin);
+    phase = "recheck";
     const result = await db.transaction((tx) => revalidateStoredDemoImportInTx(tx, {
       importId: row.id,
       actorId,
       verifiedBy: `admin:${actorId}`,
     }));
+    phase = "revalidation";
     revalidateMatchPaths(season.slug, row.matchId);
     return ok(result);
   } catch (error) {
-    return actionError("recheckStoredDemoImport", error);
+    return demoRecheckError("recheckStoredDemoImport", error, phase);
   }
 }
 

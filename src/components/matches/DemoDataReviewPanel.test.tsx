@@ -83,6 +83,37 @@ describe("DemoDataReviewPanel", () => {
       : "已按当前资料重新检查，仍有问题需要处理。");
   });
 
+  it("can retry the same stored import after a failed read without replaying identity or upload", async () => {
+    mocks.recheck.mockResolvedValueOnce({ success: false, error: { code: "INTERNAL_ERROR", requestId: "recheck-request", message: "读取失败，请稍后按当前资料重新检查；不要重新上传。排查编号：recheck-request" } });
+    const user = userEvent.setup();
+    render(<DemoDataReviewPanel reviews={[review()]} />);
+    const button = screen.getByRole("button", { name: "按当前资料重新检查" });
+    await user.click(button);
+    await waitFor(() => expect(mocks.error).toHaveBeenCalledWith(expect.stringContaining("recheck-request")));
+    expect(mocks.refresh).not.toHaveBeenCalled();
+    expect(mocks.success).not.toHaveBeenCalled();
+    await waitFor(() => expect(button).toBeEnabled());
+    await user.click(button);
+    await waitFor(() => expect(mocks.refresh).toHaveBeenCalledOnce());
+    expect(mocks.recheck.mock.calls).toEqual([[{ importId: "import-a" }], [{ importId: "import-a" }]]);
+    expect(mocks.confirm).not.toHaveBeenCalled();
+    expect(mocks.reject).not.toHaveBeenCalled();
+  });
+
+  it("preserves partial batch success and offers the existing pending-only retry", async () => {
+    mocks.recheckSeason.mockResolvedValueOnce({ success: true, data: { attempted: 2, confirmed: 1, remaining: 0, failed: 1, requestId: "batch-request" } });
+    const user = userEvent.setup();
+    render(<DemoDataReviewPanel reviews={[review()]} />);
+    const button = screen.getByRole("button", { name: "重新检查本赛事全部待处理 Demo" });
+    await user.click(button);
+    await waitFor(() => expect(mocks.success).toHaveBeenCalledWith(expect.stringContaining("batch-request")));
+    expect(mocks.success).toHaveBeenCalledWith(expect.stringContaining("已确认的数据不会重复处理"));
+    await waitFor(() => expect(button).toBeEnabled());
+    await user.click(button);
+    await waitFor(() => expect(mocks.recheckSeason).toHaveBeenCalledTimes(2));
+    expect(mocks.confirm).not.toHaveBeenCalled();
+  });
+
   it("shows an actual-lineup mismatch without Steam identity controls", () => {
     render(<DemoDataReviewPanel reviews={[review({
       message: "需要处理：1 名选手实际出场与本场记录首发不一致",

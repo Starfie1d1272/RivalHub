@@ -212,6 +212,34 @@ describe("Demo identity action authorization", () => {
     expect(revalidateMatchPathsMock).toHaveBeenCalledWith("own-season", MATCH_ID);
   });
 
+  it("keeps a failed stored recheck actionable and correlates the original cause", async () => {
+    const write = vi.spyOn(process.stderr, "write").mockReturnValue(true);
+    recheckMock.mockRejectedValue(new Error("Failed query: private SQL", { cause: { code: "57014", detail: "private payload" } }));
+    const result = await recheckStoredDemoImport({ importId: IMPORT_ID });
+    expect(result).toMatchObject({ success: false, error: { code: ErrorCode.INTERNAL_ERROR, requestId: expect.any(String) } });
+    if (result.success) throw new Error("Expected failed recheck");
+    expect(result.error.message).toContain("按当前资料重新检查");
+    expect(result.error.message).toContain("不要重新上传");
+    expect(revalidateMatchPathsMock).not.toHaveBeenCalled();
+    const event = JSON.parse(String(write.mock.calls[0][0]));
+    expect(event).toMatchObject({ requestId: result.error.requestId, exception: { code: "57014" }, safeContext: { phase: "recheck" } });
+    expect(JSON.stringify({ result, event })).not.toMatch(/private SQL|private payload/);
+  });
+
+  it("does not recommend repeating a committed recheck when refresh invalidation fails", async () => {
+    const write = vi.spyOn(process.stderr, "write").mockReturnValue(true);
+    revalidateMatchPathsMock.mockImplementationOnce(() => { throw new Error("synthetic cache failure"); });
+    const result = await recheckStoredDemoImport({ importId: IMPORT_ID });
+    expect(result.success).toBe(false);
+    if (result.success) throw new Error("Expected cache failure");
+    expect(result.error.message).toContain("已保存");
+    expect(result.error.message).toContain("不要重新上传或重复确认");
+    const event = JSON.parse(String(write.mock.calls[0][0]));
+    expect(event.safeContext.phase).toBe("revalidation");
+    expect(event.requestId).toBe(result.error.requestId);
+    expect(recheckMock).toHaveBeenCalledOnce();
+  });
+
   it("allows reject only after the own-season admin check", async () => {
     const result = await rejectStoredDemoImport({ importId: IMPORT_ID });
 

@@ -1,11 +1,13 @@
 import { readFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { resolve } from "node:path";
-import type { PoolClient } from "pg";
+import { Client, type PoolClient } from "pg";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { buildTournamentAnalytics, buildTournamentPerformanceAnalytics } from "@cs2dak/tournament";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { extractPgError } from "../../../src/db/errors";
+import { actionError } from "../../../src/lib/action-utils";
 import * as schema from "../../../src/db/schema";
 import { clearOperatorScoreboardInTx, loadOperatorScoreboard, loadScoreboardPlayers } from "../../../src/lib/matches/operator-scoreboard";
 import { loadAdminDemoReview } from "../../../src/lib/admin/matches/demo-review";
@@ -15,7 +17,7 @@ import { ErrorCode } from "../../../src/lib/errors";
 import { parseRivalHubDemoEvidenceV1 } from "../../../src/lib/demo-evidence/contract";
 import type { RivalHubEvidenceSubmission } from "../../../src/lib/demo-integration/contracts";
 import { lockDemoImportLineageInTx } from "../../../src/lib/demo-integration/promotion";
-import { revalidateStoredDemoImportInTx } from "../../../src/lib/demo-integration/revalidation";
+import { revalidateSeasonNeedsAttentionImports, revalidateStoredDemoImportInTx } from "../../../src/lib/demo-integration/revalidation";
 import { readRivalHubEvents } from "../../../src/lib/demo-integration/read";
 import { buildEvidenceRevision, sha256Json } from "../../../src/lib/demo-integration/revision";
 import {
@@ -1043,6 +1045,115 @@ describe("DAK evidence submit persistence", () => {
       expect(await database.select().from(schema.userGameplaySteamIds)
         .where(eq(schema.userGameplaySteamIds.userId, userIds[0]!))).toEqual(aliasesBeforeWrongParticipant);
 
+      // Protect the original target-read cause, atomic identity + promotion and
+      // immutable facts. SQL errors abort PG; a coding error does not. Neither
+      // may be persisted as a business issue. Existing happy paths cannot prove it.
+      const recheckSnapshot = async () => ({
+        imports: await database.select().from(schema.matchDemoImports).where(eq(schema.matchDemoImports.matchMapId, ids.map)).orderBy(schema.matchDemoImports.id),
+        rounds: await database.select().from(schema.matchRoundFacts).innerJoin(schema.matchDemoImports, eq(schema.matchRoundFacts.importId, schema.matchDemoImports.id)).where(eq(schema.matchDemoImports.matchMapId, ids.map)).orderBy(schema.matchRoundFacts.id),
+        stats: await database.select().from(schema.matchPlayerStats).where(eq(schema.matchPlayerStats.mapId, ids.map)).orderBy(schema.matchPlayerStats.id),
+        projections: await database.select().from(schema.matchDemoStatProjections).innerJoin(schema.matchDemoImports, eq(schema.matchDemoStatProjections.importId, schema.matchDemoImports.id)).where(eq(schema.matchDemoImports.matchMapId, ids.map)).orderBy(schema.matchDemoStatProjections.importId),
+        identities: await database.select().from(schema.userGameplaySteamIds).where(inArray(schema.userGameplaySteamIds.userId, userIds)).orderBy(schema.userGameplaySteamIds.id),
+        audits: await database.select().from(schema.auditLogs).where(eq(schema.auditLogs.seasonId, ids.season)).orderBy(schema.auditLogs.id),
+        matches: await database.select().from(schema.matches).where(eq(schema.matches.id, ids.match)),
+        maps: await database.select().from(schema.matchMaps).where(eq(schema.matchMaps.id, ids.map)),
+      });
+      const beforeFault = await recheckSnapshot();
+      for (const fault of ["coding", "sql", "timeout", "identity-after-write"] as const) {
+        const originalQuery = client.query;
+        let matchReads = 0;
+        let injected = false;
+        const codingCause = new TypeError("synthetic target reader failure token=private");
+        client.query = ((...args: unknown[]) => {
+          const query = args[0];
+          const text = typeof query === "string" ? query : (query as { text?: string })?.text;
+          if (text?.includes('from "matches"') && ++matchReads === (fault === "identity-after-write" ? 3 : 1)) {
+            injected = true;
+            if (fault === "coding") return Promise.reject(codingCause);
+            // Execute real PostgreSQL failures through the actual driver. No
+            // production SQL or error object is replaced with a mock SQLSTATE.
+            return Reflect.apply(originalQuery, client, [fault === "timeout" ? "SELECT pg_sleep(0.1)" : "SELECT 1 / 0"]);
+          }
+          return Reflect.apply(originalQuery, client, args);
+        }) as typeof client.query;
+        let caught: unknown;
+        try {
+          await database.transaction(async (tx) => {
+            if (fault === "timeout") await tx.execute(sql`SET LOCAL statement_timeout = '10ms'`);
+            return fault === "identity-after-write"
+              ? confirmStoredDemoParticipantIdentityInTx(tx, { importId: needsIdentity.importId!, observedSteam64: alternateSteam64, eventRosterMemberId: eventMemberIds[0]!, actorId: userIds[0]! })
+              : revalidateStoredDemoImportInTx(tx, { importId: needsIdentity.importId!, actorId: userIds[0]! });
+          });
+        } catch (error) { caught = error; }
+        finally { client.query = originalQuery; }
+        expect(injected, fault).toBe(true);
+        const afterFault = await recheckSnapshot();
+        expect(afterFault.imports.map(row => row.issues.map(issue => issue.code)), fault).toEqual(beforeFault.imports.map(row => row.issues.map(issue => issue.code)));
+        expect(caught, fault).toBeDefined();
+        if (fault === "coding") expect((caught as Error).cause).toBe(codingCause);
+        else expect(extractPgError(caught)?.code, fault).toBe(fault === "timeout" ? "57014" : "22012");
+        expect(sha256Json(afterFault), fault).toBe(sha256Json(beforeFault));
+        const write = vi.spyOn(process.stderr, "write").mockReturnValue(true);
+        try {
+          const response = actionError("recheckStoredDemoImport", caught, "recheck");
+          expect(response).toMatchObject({ success: false, error: { code: ErrorCode.INTERNAL_ERROR, requestId: expect.any(String) } });
+          const event = JSON.parse(String(write.mock.calls[0][0]));
+          expect(event.requestId).toBe(!response.success && response.error.requestId);
+          if (fault !== "coding") expect(event.exception.code).toBe(fault === "timeout" ? "57014" : "22012");
+          expect(JSON.stringify(event)).not.toMatch(/SELECT|pg_sleep|token=private/);
+        } finally { write.mockRestore(); }
+        expect((await readReview()).participants[0]?.state).toBe("confirmable");
+      }
+
+      // Exercise the real fanout owner and its independent transaction, using
+      // the provider driver shared by its pool (not a mocked transaction result).
+      const originalPoolQuery = Client.prototype.query;
+      const batchWrite = vi.spyOn(process.stderr, "write").mockReturnValue(true);
+      let batchInjected = false;
+      const batchQuery = vi.spyOn(Client.prototype, "query").mockImplementation(function (this: Client, ...args: unknown[]) {
+        const query = args[0] as { text?: string; values?: unknown[] };
+        const bindings = query?.values ?? args[1];
+        if (query?.text?.includes('from "match_maps"') && Array.isArray(bindings) && bindings.includes(ids.map)) {
+          batchInjected = true;
+          return Reflect.apply(originalPoolQuery, this, ["SELECT 1 / 0"]);
+        }
+        return Reflect.apply(originalPoolQuery, this, args);
+      });
+      try {
+        const batch = await revalidateSeasonNeedsAttentionImports({ seasonId: ids.season, actorId: userIds[0]! });
+        expect(batchInjected).toBe(true);
+        expect(batch).toMatchObject({ attempted: 1, confirmed: 0, remaining: 0, failed: 1, affectedMatchIds: [], requestId: expect.any(String) });
+        const event = JSON.parse(String(batchWrite.mock.calls[0][0]));
+        expect(event).toMatchObject({ event: "demo.recheck.failure", requestId: batch.requestId, exception: { code: "22012" } });
+        expect(JSON.stringify(event)).not.toMatch(/SELECT|payload|token=private/);
+      } finally { batchQuery.mockRestore(); batchWrite.mockRestore(); }
+      expect(sha256Json(await recheckSnapshot())).toBe(sha256Json(beforeFault));
+      const recoveredBatch = await revalidateSeasonNeedsAttentionImports({ seasonId: ids.season, actorId: userIds[0]! });
+      expect(recoveredBatch).toMatchObject({ attempted: 1, confirmed: 0, remaining: 1, failed: 0, affectedMatchIds: [ids.match] });
+      expect((await readReview()).participants[0]?.state).toBe("confirmable");
+
+      // An explicit empty target lookup still becomes a business finding. Run
+      // the real SELECT with a false predicate, then roll back this probe only.
+      const queryBeforeMissing = client.query;
+      const probeRollback = new Error("rollback expected unavailable-target probe");
+      let missingInjected = false;
+      client.query = ((...args: unknown[]) => {
+        const query = args[0] as { text?: string };
+        if (query?.text?.includes('from "matches"')) {
+          missingInjected = true;
+          return Reflect.apply(queryBeforeMissing, client, [{ ...query, text: query.text.replace(' for update', ' and false for update') }, ...args.slice(1)]);
+        }
+        return Reflect.apply(queryBeforeMissing, client, args);
+      }) as typeof client.query;
+      try {
+        await expect(database.transaction(async (tx) => {
+          const result = await revalidateStoredDemoImportInTx(tx, { importId: needsIdentity.importId!, actorId: userIds[0]! });
+          expect(result).toMatchObject({ status: "needs_attention", issues: [{ code: "STORED_TARGET_INVALID" }] });
+          expect(missingInjected).toBe(true);
+          throw probeRollback;
+        })).rejects.toBe(probeRollback);
+      } finally { client.query = queryBeforeMissing; }
+
       const confirmedByIdentity = await database.transaction((tx) => confirmStoredDemoParticipantIdentityInTx(tx, {
         importId: needsIdentity.importId!,
         observedSteam64: alternateSteam64,
@@ -1064,7 +1175,7 @@ describe("DAK evidence submit persistence", () => {
       expect(await database.select().from(schema.auditLogs).where(and(
         eq(schema.auditLogs.targetId, needsIdentity.importId),
         eq(schema.auditLogs.action, "match.demo.recheck"),
-      ))).toHaveLength(1);
+      ))).toHaveLength(2); // recovered batch + identity confirmation
 
       const idempotentAliasImportId = randomUUID();
       const idempotentAliasEvidence = parseRivalHubDemoEvidenceV1({

@@ -13,6 +13,7 @@ import { redactText } from "@/lib/observability/redact";
 import type { AdminDemoReviewMap, AdminDemoReviewParticipant } from "./types";
 
 const ISSUE_TEXT: Record<string, string> = {
+  STORED_TARGET_INVALID: "Demo 对应的赛事比赛或地图已不可用，请核对目标资料；不要重新上传同一份数据。",
   SCORE_MISMATCH: "Demo 回合比分与正式比分不一致，请核对本图赛果。",
   SUMMARY_SCORE_MISMATCH: "Demo 汇总比分与正式比分不一致，请核对本图赛果。",
   DAK_QA_FAILED: "请在 Uploader 查看 DAK 检查结果，处理后重新解析并同步。",
