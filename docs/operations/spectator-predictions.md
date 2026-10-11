@@ -39,4 +39,6 @@ BO1 不生成重复的单图胜者；总回合仍独立开放。BO3/BO5 的单�
 
 验证入口为 `tests/integration/db/bet.test.ts` 与 `tests/e2e/flows/bet.spec.ts`，只使用隔离本地数据库与真实浏览器登录。
 
-BET catalog 的 reader-first 发布门禁由 Release Plan 消费 candidate 与 frozen previous Production commit 的 `src/lib/bet/catalog-contract.json`。目录版本同时涵盖 subject 和金融 ledger kind。v3 reader 将 relief 显示为低保补给、未知 kind 显示为积分变动，余额/净收益仍消费 amount/profit，不按 kind 猜测结算。新增 subject 或 ledger kind 的 publisher version 不得超过 previous Production reader version；必须先独立发布兼容读取版本，再启用新 subject，不能把两阶段合并为一次发布。兼容 v1 publisher 遇到同图序的新池时不重复开池；它与新 worker 复用同一金融结算 owner。
+BET catalog 的 reader-first 发布门禁由 Release Plan 消费 candidate 与 frozen previous Production commit 的 `src/lib/bet/catalog-contract.json`。金融 ledger kind 使用独立 `ledger-contract.json` 维度，缺失声明视为 reader/publisher 0。ledger v1 reader 将 relief 显示为低保补给、未知 kind 显示为积分变动，余额/净收益仍消费 amount/profit，不按 kind 猜测结算。catalog subject 与 ledger 各自的 publisher version 不得超过 previous Production reader version；必须先独立发布兼容读取版本，再启用新 subject，不能把两阶段合并为一次发布。兼容 v1 publisher 遇到同图序的新池时不重复开池；它与新 worker 复用同一金融结算 owner。
+
+ledger reader/publisher 与 catalog 版本分别验证；市场 reader 的发布不授权新 ledger kind，低保 reader 的发布也不授权新市场。新 relief producer 必须等待 ledger reader1/publisher0 独立上线后才能启用 publisher1。
