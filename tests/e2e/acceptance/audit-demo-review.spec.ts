@@ -48,7 +48,7 @@ test("真实后台审计与赛后资料在窄屏保留可读内容和操作", as
     for (const width of [1440,390,320]) {
       await page.setViewportSize({ width, height: width===1440 ? 1000 : 844 });
       await page.goto(`/admin/${scenario.slug}/logs`);
-      const trigger = page.getByRole("button", { name: /查看.*赛后.*详情/ }).first();
+      const trigger = page.getByRole("button", { name: /查看.*解说名单详情/ }).first();
       await expect(trigger).toBeVisible();
       const badge = page.getByRole("button", {name:"Collapse issues badge", includeHidden:true});
       if (await badge.count()) await badge.dispatchEvent("click");
@@ -71,14 +71,14 @@ test("真实后台审计与赛后资料在窄屏保留可读内容和操作", as
       await expect(trigger).toBeFocused();
       writeFileSync(`${output}/measurements.json`,JSON.stringify(measurements,null,2));
       await page.goto(`/admin/${scenario.slug}/matches/${match.id}`);
-      const revoke = page.getByRole("button", { name:"撤销提交 / 重新开放整理" });
+      const revoke = page.getByRole("button", { name:"更正解说名单" });
       await expect(revoke).toBeVisible();
       await revoke.click();
-      await page.getByLabel("撤销原因（选填）").fill(meta.reason);
-      await page.getByRole("button",{name:"撤销提交",exact:true}).scrollIntoViewIfNeeded();
+      await page.getByLabel("更正原因（选填）").fill(meta.reason);
+      await page.getByRole("button",{name:"重开名单",exact:true}).scrollIntoViewIfNeeded();
       if (width < 600) {
-        const explanation = await page.getByText("撤销提交并重新开放整理？", { exact: true }).locator("..").boundingBox();
-        const confirm = await page.getByRole("button", { name: "撤销提交", exact: true }).boundingBox();
+        const explanation = await page.getByText("重开解说名单？", { exact: true }).locator("..").boundingBox();
+        const confirm = await page.getByRole("button", { name: "重开名单", exact: true }).boundingBox();
         expect(explanation).not.toBeNull();
         expect(confirm).not.toBeNull();
         expect(confirm!.y).toBeGreaterThanOrEqual(explanation!.y + explanation!.height);
@@ -87,6 +87,17 @@ test("真实后台审计与赛后资料在窄屏保留可读内容和操作", as
       await postmatch.evaluate(el=>window.scrollTo({top:el.getBoundingClientRect().top+window.scrollY-80}));
       await postmatch.screenshot({ animations: "disabled",path:`${output}/postmatch-revoke-${width}.png`});
       await page.getByRole("button",{name:"取消",exact:true}).click();
+      const scoreboard = page.locator("details").filter({has:page.locator("summary",{hasText:/Map 1 ·/})}).first();
+      await scoreboard.evaluate(el => (el as HTMLDetailsElement).open = true);
+      const choose = scoreboard.getByRole("button",{name:"选择截图",exact:true});
+      await expect(choose).toBeVisible();
+      await expect(scoreboard.getByRole("button",{name:"OCR 识别截图",exact:true})).toBeDisabled();
+      await scoreboard.screenshot({animations:"disabled",path:`${output}/ocr-empty-${width}.png`});
+      await scoreboard.getByLabel("记分板截图").setInputFiles({name:"Cache-计分板截图.png",mimeType:"image/png",buffer:Buffer.from("local selection fixture")});
+      await expect(scoreboard.getByRole("button",{name:"更换截图",exact:true})).toBeVisible();
+      await expect(scoreboard.getByText("Cache-计分板截图.png",{exact:true})).toBeVisible();
+      await expect(scoreboard.getByRole("button",{name:"OCR 识别截图",exact:true})).toBeEnabled();
+      await scoreboard.screenshot({animations:"disabled",path:`${output}/ocr-selected-${width}.png`});
       const qa = page.locator("details").filter({has:page.locator("summary",{hasText:/第 1 图.*QA 检查/})}).first();
       await qa.scrollIntoViewIfNeeded();
       await page.screenshot({ animations: "disabled",path:`${output}/demo-quality-collapsed-${width}.png`});
@@ -136,7 +147,7 @@ test("真实后台审计与赛后资料在窄屏保留可读内容和操作", as
         await route.fulfill({response,body});
       }else await route.continue();
     });
-    const errorTrigger=page.getByRole("button",{name:/查看.*赛后.*详情/}).first();
+    const errorTrigger=page.getByRole("button",{name:/查看.*解说名单详情/}).first();
     await expect(errorTrigger).toBeVisible();
     const badge=page.getByRole("button",{name:"Collapse issues badge",includeHidden:true});
     if(await badge.count()) await badge.dispatchEvent("click");

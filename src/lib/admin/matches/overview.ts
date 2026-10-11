@@ -2,6 +2,7 @@ import { officialMatchCondition } from "@/lib/matches/scope";
 import { requireCompetitionMatch } from "@/lib/matches/competition-context";
 import type { CompetitionMatch } from "@/lib/matches/competition-context";
 import "server-only";
+import { readReopenedPostMatchIds } from "@/lib/postmatch/read";
 
 import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
@@ -14,7 +15,6 @@ import {
   matchDemoImports,
   matchMaps,
   matches,
-  postMatchReports,
   seasons,
   steamProfiles,
   users,
@@ -82,13 +82,11 @@ async function loadCommentaryEffectiveness(
     .map((match) => match.id);
   if (candidateMatchIds.length === 0) return [];
 
-  const [commentatorRows, seasonAdminRows] = await Promise.all([
-    // Only existence of the report and assignment facts is needed here; the
-    // full post-match graph remains scoped to the match workbench.
+  const [allCommentatorRows, seasonAdminRows, reopenedIds] = await Promise.all([
+    // Registered commentators are the default; explicit reopening excludes the match.
     db
       .select({ matchId: matchCommentators.matchId, userId: matchCommentators.userId })
       .from(matchCommentators)
-      .innerJoin(postMatchReports, eq(postMatchReports.matchId, matchCommentators.matchId))
       .where(inArray(matchCommentators.matchId, candidateMatchIds)),
     db
       .select({
@@ -101,7 +99,9 @@ async function loadCommentaryEffectiveness(
       .from(users)
       .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
       .where(commentaryAdminEligibility(seasonId)),
+    readReopenedPostMatchIds(db, candidateMatchIds),
   ]);
+  const commentatorRows = allCommentatorRows.filter(row => !reopenedIds.has(row.matchId));
 
   const matchIdsByCommentator = new Map<string, Set<string>>();
   for (const row of commentatorRows) {

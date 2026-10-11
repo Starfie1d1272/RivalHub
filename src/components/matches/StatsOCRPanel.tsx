@@ -80,6 +80,7 @@ type NumFieldKey = typeof NUM_FIELDS[number]["key"];
 export function StatsOCRPanel({ mapId, mapName }: Props) {
   const router = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [drafts, setDrafts] = useState<DraftRow[]>([]);
   const [canonicalDrafts, setCanonicalDrafts] = useState<DraftRow[]>([]);
   const [playerOptions, setPlayerOptions] = useState<PlayerOption[]>([]);
@@ -123,7 +124,7 @@ export function StatsOCRPanel({ mapId, mapName }: Props) {
   }
 
   async function handleExtract() {
-    const file = fileRef.current?.files?.[0];
+    const file = selectedFile;
     if (!file) {
       setError("请先选择截图文件");
       return;
@@ -344,12 +345,25 @@ export function StatsOCRPanel({ mapId, mapName }: Props) {
               type="file"
               aria-label="记分板截图"
               accept="image/jpeg,image/png,image/webp"
-              className="text-sm"
+              className="sr-only"
+              tabIndex={-1}
+              onChange={(event) => {
+                const file = event.currentTarget.files?.[0];
+                if (file) { setSelectedFile(file); setError(null); }
+                // Cancellation preserves the selected File; clearing the control permits same-file retry.
+                event.currentTarget.value = "";
+              }}
             />
+            <Button type="button" size="sm" variant={selectedFile ? "outline" : "default"}
+              disabled={extracting} onClick={() => fileRef.current?.click()}>
+              {selectedFile ? "更换截图" : "选择截图"}
+            </Button>
+            {selectedFile && <span className="max-w-48 truncate text-sm text-[var(--color-fg-mid)]" title={selectedFile.name}>{selectedFile.name}</span>}
             <Button
               size="sm"
+              variant={selectedFile ? "default" : "outline"}
               onClick={handleExtract}
-              disabled={extracting}
+              disabled={extracting || !selectedFile}
             >
               {extracting ? "识别中…" : "OCR 识别截图"}
             </Button>
@@ -487,7 +501,7 @@ export function StatsOCRPanel({ mapId, mapName }: Props) {
             </>
           ) : (
             <p className="text-sm text-[var(--color-fg-mid)] py-4">
-              暂无数据。点击「OCR 识别截图」自动提取，或点击「添加行」手动录入。
+              暂无数据。选择截图并识别，或添加行手动录入。
             </p>
           )}
         </>

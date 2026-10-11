@@ -29,7 +29,8 @@ import { requiresCompetitionLineupPreflight } from "@/lib/match-rosters/policy";
 import { ErrorCode, isAppErrorCode } from "@/lib/errors";
 import { mapLabel } from "@/lib/maps";
 import { getDisplayName } from "@/lib/identity/display-name";
-import { getPostMatchCompletion, POST_MATCH_COMPLETION_LABEL } from "@/lib/postmatch/service";
+import { getPostMatchCompletion, POST_MATCH_COMPLETION_LABEL } from "@/lib/postmatch/completion";
+import { readReopenedPostMatchIds } from "@/lib/postmatch/read";
 import { normalizeRegistrationConfig, normalizeStagePlan } from "@/lib/seasons/compatibility";
 import { loadEffectiveMatchRoster } from "@/lib/match-rosters/effective";
 import { demoImportMetadataSelection } from "@/lib/demo-integration/metadata";
@@ -126,7 +127,7 @@ export async function loadAdminMatchWorkbench({
   });
   if (entries.length !== 2) return null;
 
-  const [memberRows, rosterRows, mapRecords, commentatorRows, submission, seasonAdminRows, effectiveRosterRows, vetoSession] = await Promise.all([
+  const [memberRows, rosterRows, mapRecords, commentatorRows, submission, seasonAdminRows, effectiveRosterRows, reopenedIds, vetoSession] = await Promise.all([
     db
       .select({
         id: eventRosterMembers.id,
@@ -197,6 +198,7 @@ export async function loadAdminMatchWorkbench({
           .where(commentaryAdminEligibility(season.id))
       : Promise.resolve([]),
     loadEffectiveMatchRoster(db, [match.id]),
+    readReopenedPostMatchIds(db, [match.id]),
     db.query.matchVetoSessions.findFirst({
       where: eq(matchVetoSessions.matchId, match.id),
       columns: { completedAt: true },
@@ -278,6 +280,7 @@ export async function loadAdminMatchWorkbench({
     )));
   }
   const submittedAt = submission?.submittedAt ?? null;
+  const rosterReopened = reopenedIds.has(match.id) && !submission;
   const postMatch = match.status === "cancelled"
     ? null
     : {
@@ -293,8 +296,10 @@ export async function loadAdminMatchWorkbench({
         })),
         submittedAt,
         submittedByUserId: submission?.submittedByUserId ?? null,
+        rosterReopened,
+        canConfirm: commentatorRows.some(row => row.userId === admin.userId),
         videoUrl: match.videoUrl,
-        completionLabel: commentatorRows.length ? POST_MATCH_COMPLETION_LABEL[getPostMatchCompletion(submittedAt, match.videoUrl)] : "未登记解说，无需提交名单或录像",
+        completionLabel: commentatorRows.length ? POST_MATCH_COMPLETION_LABEL[getPostMatchCompletion(submittedAt, match.videoUrl, rosterReopened)] : "未登记解说，无需提交名单或录像",
         canSubmit: match.status === "finished",
       };
 
@@ -314,7 +319,7 @@ export async function loadAdminMatchWorkbench({
   ]);
   return {
     broadcasts, uploaderDownloads,
-    completion: projectOperatorCompletion({ status: match.status, isForfeit: match.isForfeit, maps: operator.workflow.completedMaps, commentatorCount: commentatorRows.length, submitted: Boolean(submittedAt), hasVideo: Boolean(match.videoUrl) }),
+    completion: projectOperatorCompletion({ status: match.status, isForfeit: match.isForfeit, maps: operator.workflow.completedMaps, commentatorCount: commentatorRows.length, submitted: Boolean(submittedAt), reopened: rosterReopened, hasVideo: Boolean(match.videoUrl) }),
     season: { id: season.id, slug: season.slug, name: season.name },
     stageName: match.testConfig ? "测试赛" : stage?.name ?? null,
     match,
