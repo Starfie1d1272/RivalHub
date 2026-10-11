@@ -1,0 +1,36 @@
+{
+  "productionSha": "c9b29ba0ab064dbd00b625daaa1ce600886a7c14",
+  "mainBaseline": "b188b57f192b52dbf05c2193337aa8541e526d22",
+  "deployment": "dpl_5CkcNgQWSfwTYhaa6QTRcKZ79r73",
+  "versions": {
+    "next": "16.4.0",
+    "iron-session": "9.0.1",
+    "iron-webcrypto": "2.0.0"
+  },
+  "naturalSharedStack": {
+    "timestamp": "2026-10-11T17:02:44.879Z",
+    "requestId": "jdk4n-1791738164735-14d9900c3e37",
+    "route": "/teams"
+  },
+  "actual200WithDiagnostic": {
+    "timestamp": "2026-10-11T17:08:56.025Z",
+    "requestId": "8vzpt-1791738535443-3e80ba81ee9a",
+    "route": "/teams",
+    "status": 200,
+    "bytes": 179235,
+    "cache": "HIT",
+    "diagnostic": "new Date()"
+  },
+  "readonlySeasons": {
+    "requestId": "4fnpd-1791738536503-e6caec3d5994",
+    "route": "/seasons",
+    "status": 200,
+    "bytes": 48248,
+    "recentLogQuery": "no logs found"
+  },
+  "raw24hCountsVerified": false,
+  "cpuOrCostMeasured": false,
+  "newRegressionTests": 6,
+  "existingAuthTests": 13,
+  "existingPasswordTests": 8
+}

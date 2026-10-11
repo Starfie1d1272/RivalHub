@@ -10,6 +10,7 @@ const { cookiesMock, getIronSessionMock, selectMock, readApplicationSessionMock 
 }));
 
 vi.mock("next/headers", () => ({ cookies: cookiesMock }));
+vi.mock("next/server", () => ({ connection: vi.fn(async () => undefined) }));
 vi.mock("iron-session", () => ({ getIronSession: getIronSessionMock }));
 vi.mock("@/db/client", () => ({ db: { select: selectMock, transaction: (fn: (tx: unknown) => unknown) => fn({}) } }));
 
