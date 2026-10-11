@@ -240,8 +240,8 @@ jobs:
       - name: Generate complete locked dependency snapshot
         run: pnpm exec tsx scripts/dependencies/snapshot.ts generate dependency-snapshot.json
         env:
-          GITHUB_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
-          GITHUB_REF: ${{ github.event_name == 'pull_request' && format('refs/pull/{0}/head', github.event.pull_request.number) || github.ref }}
+          RIVALHUB_DEPENDENCY_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          RIVALHUB_DEPENDENCY_REF: ${{ github.event_name == 'pull_request' && format('refs/pull/{0}/head', github.event.pull_request.number) || github.ref }}
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: dependency-snapshot
@@ -252,39 +252,13 @@ jobs:
   dependency-graph-submit:
     name: dependency-graph-submit
     needs: dependency-graph-build
-    # Fork code never receives a write token. Maintainers must bring such changes
-    # onto a trusted repository branch before the complete review gate can pass.
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: ubuntu-24.04
+    if: github.event_name != 'pull_request' || (github.actor != 'dependabot[bot]' && github.event.pull_request.user.login != 'dependabot[bot]' && github.event.pull_request.head.repo.full_name == github.repository)
     permissions:
       contents: write
-    steps:
-      # No checkout, npm install, lifecycle script or PR executable runs here.
-      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
-        with:
-          name: dependency-snapshot
-      - name: Bind artifact to this exact source and submit dependency metadata
-        env:
-          GH_TOKEN: ${{ github.token }}
-          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
-          EXPECTED_REF: ${{ github.event_name == 'pull_request' && format('refs/pull/{0}/head', github.event.pull_request.number) || github.ref }}
-        run: |
-          jq -e --arg sha "$EXPECTED_SHA" --arg ref "$EXPECTED_REF" '
-            .version == 0 and .sha == $sha and .ref == $ref and
-            .job.correlator == (if $ref == "refs/heads/main" then "rivalhub-pnpm-lockfile" else "rivalhub-pnpm-lockfile-" + $ref end) and
-            .detector.name == "rivalhub-pnpm-lockfile" and
-            (.manifests | keys) == ["pnpm-lock.yaml"] and
-            .manifests["pnpm-lock.yaml"].file.source_location == "pnpm-lock.yaml" and
-            (.manifests["pnpm-lock.yaml"].resolved | length) > 0
-          ' dependency-snapshot.json > /dev/null
-          gh api --method POST "repos/$GITHUB_REPOSITORY/dependency-graph/snapshots" --input dependency-snapshot.json > dependency-submission.json
-          jq -e '.result == "SUCCESS"' dependency-submission.json
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: dependency-submission
-          path: dependency-submission.json
-          if-no-files-found: error
-          retention-days: 14
+    uses: ./.github/workflows/dependency-submit.yml
+    with:
+      sha: ${{ github.event.pull_request.head.sha || github.sha }}
+      ref: ${{ github.event_name == 'pull_request' && format('refs/pull/{0}/head', github.event.pull_request.number) || github.ref }}
 
   dependency-graph-readback:
     name: dependency-graph-readback
@@ -318,12 +292,29 @@ jobs:
 
   dependency-review:
     name: dependency-review
-    needs: dependency-graph-submit
-    if: github.event_name == 'pull_request'
+    needs: [dependency-graph-build, dependency-graph-submit]
+    if: always() && github.event_name == 'pull_request' && needs.dependency-graph-build.result == 'success'
     runs-on: ubuntu-24.04
     permissions:
       contents: read
+      actions: read
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: needs.dependency-graph-submit.result == 'skipped'
+        with:
+          persist-credentials: false
+      - uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024 # v3.0.0
+        if: needs.dependency-graph-submit.result == 'skipped'
+        with:
+          cache: false
+          require-lockfile: true
+      - name: Require trusted exact-head receipt for fork or Dependabot submission
+        if: needs.dependency-graph-submit.result == 'skipped'
+        run: pnpm exec tsx scripts/dependencies/await-submission.ts
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DEPENDENCY_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          DEPENDENCY_HEAD_REF: ${{ format('refs/pull/{0}/head', github.event.pull_request.number) }}
       - uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
         with:
           fail-on-severity: moderate
@@ -468,6 +459,7 @@ jobs:
           DEPENDENCY_GRAPH_BUILD_RESULT: ${{ needs.dependency-graph-build.result }}
           DEPENDENCY_GRAPH_SUBMIT_RESULT: ${{ needs.dependency-graph-submit.result }}
           DEPENDENCY_GRAPH_READBACK_RESULT: ${{ needs.dependency-graph-readback.result }}
+          ALLOW_DELEGATED_GRAPH_SUBMISSION: ${{ github.event_name == 'pull_request' && (github.actor == 'dependabot[bot]' || github.event.pull_request.user.login == 'dependabot[bot]' || github.event.pull_request.head.repo.full_name != github.repository) }}
           REQUIRE_GRAPH_READBACK: ${{ github.ref == 'refs/heads/main' && github.event_name != 'pull_request' }}
           DEPENDENCY_REVIEW_RESULT: ${{ needs.dependency-review.result }}
           EVENT_NAME: ${{ github.event_name }}

@@ -24,8 +24,10 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
   if (!outputPath) throw new Error("Usage: snapshot.ts generate <snapshot.json> [lockfile] | verify-sbom <sbom.json> [lockfile]");
   const source = readFileSync(lockPath, "utf8");
   if (command === "generate") {
-    const sha = process.env.GITHUB_SHA ?? execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
-    const ref = process.env.GITHUB_REF ?? `refs/heads/${execFileSync("git", ["branch", "--show-current"], { encoding: "utf8" }).trim()}`;
+    // GitHub runner reserves GITHUB_* and can restore its merge identity before
+    // a command starts. Explicit source identity must use task-owned variables.
+    const sha = process.env.RIVALHUB_DEPENDENCY_SHA ?? process.env.GITHUB_SHA ?? execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
+    const ref = process.env.RIVALHUB_DEPENDENCY_REF ?? process.env.GITHUB_REF ?? `refs/heads/${execFileSync("git", ["branch", "--show-current"], { encoding: "utf8" }).trim()}`;
     const snapshot = createSnapshot(source, { sha, ref, jobId: process.env.GITHUB_RUN_ID ?? "local", scanned: new Date().toISOString(),
       runUrl: process.env.GITHUB_RUN_ID ? `https://github.com/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}` : undefined });
     writeFileSync(outputPath, `${JSON.stringify(snapshot, null, 2)}\n`);

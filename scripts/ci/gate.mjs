@@ -9,8 +9,11 @@ const dependencyReviewStatus = process.env.DEPENDENCY_REVIEW_RESULT;
 const eventName = process.env.EVENT_NAME || process.env.GITHUB_EVENT_NAME;
 const gateName = process.env.GATE_NAME || "ci-gate";
 
-for (const key of ["DEPENDENCY_GRAPH_BUILD_RESULT", "DEPENDENCY_GRAPH_SUBMIT_RESULT"]) {
-  if (process.env[key] !== "success") fail(`${key} 未成功：${process.env[key] ?? "missing"}`);
+if (process.env.DEPENDENCY_GRAPH_BUILD_RESULT !== "success") fail("dependency graph build 未成功");
+const delegated = eventName === "pull_request" && process.env.ALLOW_DELEGATED_GRAPH_SUBMISSION === "true";
+const submission = process.env.DEPENDENCY_GRAPH_SUBMIT_RESULT;
+if (submission !== "success" && !(delegated && submission === "skipped" && dependencyReviewStatus === "success")) {
+  fail(`dependency graph submission 未成功：${submission ?? "missing"}`);
 }
 const readbackStatus = process.env.DEPENDENCY_GRAPH_READBACK_RESULT;
 if (process.env.REQUIRE_GRAPH_READBACK === "true") {

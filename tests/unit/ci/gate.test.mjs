@@ -18,6 +18,7 @@ function runGate(overrides) {
       DEPENDENCY_GRAPH_SUBMIT_RESULT: "success",
       DEPENDENCY_GRAPH_READBACK_RESULT: "skipped",
       REQUIRE_GRAPH_READBACK: "false",
+      ALLOW_DELEGATED_GRAPH_SUBMISSION: "false",
       EVENT_NAME: "push",
       REQUIRED_JOBS: "[]",
       ...overrides,
@@ -36,6 +37,14 @@ describe("ci-gate", () => {
     for (const status of ["skipped", "failure", undefined]) {
       expect(runGate({ REQUIRE_GRAPH_READBACK: "true", DEPENDENCY_GRAPH_READBACK_RESULT: status }).status).not.toBe(0);
     }
+  });
+
+  it("accepts delegated fork/Dependabot submission only after the receipt-gated dependency review succeeds", () => {
+    expect(runGate({ EVENT_NAME: "pull_request", ALLOW_DELEGATED_GRAPH_SUBMISSION: "true", DEPENDENCY_GRAPH_SUBMIT_RESULT: "skipped", DEPENDENCY_REVIEW_RESULT: "success" }).status).toBe(0);
+    for (const status of ["skipped", "failure", undefined]) {
+      expect(runGate({ EVENT_NAME: "pull_request", ALLOW_DELEGATED_GRAPH_SUBMISSION: "true", DEPENDENCY_GRAPH_SUBMIT_RESULT: "skipped", DEPENDENCY_REVIEW_RESULT: status }).status).not.toBe(0);
+    }
+    expect(runGate({ ALLOW_DELEGATED_GRAPH_SUBMISSION: "true", DEPENDENCY_GRAPH_SUBMIT_RESULT: "skipped" }).status).not.toBe(0);
   });
   it("accepts planner-declared skipped evidence", () => {
     const result = runGate({ REQUIRED_JOBS: '["static"]', STATIC_RESULT: "success" });

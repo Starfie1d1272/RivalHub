@@ -1,8 +1,12 @@
-import { readFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { stringify } from "yaml";
 import { buildDependencyGraph, verifySbom } from "../../scripts/dependencies/graph";
 import { createSnapshot } from "../../scripts/dependencies/snapshot";
+import { assertTrustedReceipt } from "../../scripts/dependencies/await-submission";
 
 const document = {
   lockfileVersion: "9.0",
@@ -15,6 +19,32 @@ const bootstrap = { lockfileVersion: "9.0", importers: { ".": { packageManagerDe
 const source = `---\n${stringify(bootstrap)}---\n${stringify(document)}`;
 
 describe("canonical pnpm dependency graph", () => {
+  it("CLI binds PR artifacts to explicit source variables despite GitHub's reserved merge identity", () => {
+    const directory = mkdtempSync(join(tmpdir(), "rivalhub-graph-cli-"));
+    try {
+      const lock = join(directory, "lock.yaml");
+      const output = join(directory, "snapshot.json");
+      writeFileSync(lock, source);
+      execFileSync(process.execPath, ["--import", "tsx", "scripts/dependencies/snapshot.ts", "generate", output, lock], {
+        env: { ...process.env, GITHUB_SHA: "b".repeat(40), GITHUB_REF: "refs/pull/1/merge", RIVALHUB_DEPENDENCY_SHA: "a".repeat(40), RIVALHUB_DEPENDENCY_REF: "refs/pull/1/head" },
+        stdio: "pipe",
+      });
+      expect(JSON.parse(readFileSync(output, "utf8"))).toMatchObject({ sha: "a".repeat(40), ref: "refs/pull/1/head" });
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+  it("rejects forged PR artifacts, stale heads/refs and unsuccessful receipts", () => {
+    const run = { event: "pull_request_target", path: ".github/workflows/dependency-graph-untrusted.yml" };
+    const receipt = { result: "SUCCESS", sha: "a".repeat(40), ref: "refs/pull/1/head" };
+    expect(() => assertTrustedReceipt(run, receipt, receipt)).not.toThrow();
+    for (const invalid of [{ ...run, event: "pull_request" }, { ...run, path: ".github/workflows/ci.yml" }]) {
+      expect(() => assertTrustedReceipt(invalid, receipt, receipt)).toThrow("trusted");
+    }
+    for (const invalid of [{ ...receipt, sha: "b".repeat(40) }, { ...receipt, ref: "refs/pull/2/head" }, { ...receipt, result: "FAILURE" }]) {
+      expect(() => assertTrustedReceipt(run, invalid, receipt)).toThrow("exact PR");
+    }
+  });
   it("includes both documents, actual alias identity, resolved peers, optional edges and runtime precedence", () => {
     const graph = buildDependencyGraph(source);
     expect(graph.documentCount).toBe(2);
