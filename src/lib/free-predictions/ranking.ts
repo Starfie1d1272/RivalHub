@@ -1,7 +1,8 @@
 import "server-only";
-import { eq, inArray, sql } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import type { TxDb } from "@/db/client";
-import { users, steamProfiles, betAccounts, betLedger } from "@/db/schema";
+import { users, steamProfiles } from "@/db/schema";
+import { readBetRankingParticipants } from "@/lib/bet/ranking-participants";
 import { readBetAccounts } from "@/lib/bet/account-data";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
 import { getPublicPlayerIdentityIds } from "@/lib/players/public-identity";
@@ -14,8 +15,7 @@ export async function readFreePredictionRanking(tx: TxDb, seasonId: string, sort
   const {facts,rows} = await loadFreePredictionPopulation(tx,seasonId);
   const financial = (await readBetAccounts(tx,seasonId,undefined,facts)).leaderboard;
   // Canonical account totals keep joined-but-unjudged participants distinct from absence.
-  const accounts = await tx.select({userId:betAccounts.userId,profit:sql<string>`coalesce(sum(${betLedger.profit}),0)::text`})
-    .from(betAccounts).leftJoin(betLedger,eq(betLedger.accountId,betAccounts.id)).where(eq(betAccounts.seasonId,seasonId)).groupBy(betAccounts.userId);
+  const accounts = await readBetRankingParticipants(tx,seasonId);
   const results = new Map<string,{hits:number;judged:number}>();
   for (const row of rows.filter(r=>r.kind === "result")) {
     const grade = gradePrediction("result",row.selection,choiceFact(row,facts));
