@@ -104,6 +104,7 @@ export interface AdminDemoReviewMap {
   message: string;
   resolvedCount: number;
   blockingIssues: string[];
+  diagnostics?: { source: "current" | "stored"; code: string; path?: string; message: string }[];
   participants: AdminDemoReviewParticipant[];
 }
 

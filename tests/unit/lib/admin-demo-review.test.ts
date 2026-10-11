@@ -3,7 +3,9 @@ import type { TxDb } from "@/db/client";
 import type { matchDemoImports } from "@/db/schema";
 import type { CanonicalTarget } from "@/lib/demo-integration/validation";
 import type { GameplayIdentityReviewDetail } from "@/lib/identity/gameplay-steam";
-const mocks = vi.hoisted(() => ({ read: vi.fn(), validate: vi.fn(), details: vi.fn(), profiles: vi.fn() }));
+const mocks = vi.hoisted(() => ({ read: vi.fn(), validate: vi.fn(), details: vi.fn(), profiles: vi.fn(), capture: vi.fn() }));
+vi.mock("@/lib/observability/context", () => ({ ensureRequestId: () => "review-request-123" }));
+vi.mock("@/lib/observability/server", () => ({ captureException: mocks.capture }));
 vi.mock("@/lib/demo-integration/review", () => ({ readStoredEvidence: mocks.read }));
 vi.mock("@/lib/demo-integration/validation", async (original) => ({ ...await original<object>(), validateCanonicalTarget: mocks.validate }));
 vi.mock("@/lib/identity/gameplay-steam", () => ({ loadGameplayIdentityReviewDetails: mocks.details }));
@@ -78,13 +80,40 @@ describe("admin Demo review projection", () => {
   });
   it("keeps invalid evidence visible and does not load identity controls", async () => {
     mocks.read.mockImplementation(() => { throw new Error("invalid"); });
-    expect(await load()).toMatchObject({ invalidPayload: true, participants: [], message: "这份 Demo 数据无法重新读取，请核对或拒绝。" });
+    expect(await load()).toMatchObject({ invalidPayload: true, participants: [], message: "这份 Demo 数据无法重新读取，请核对或拒绝。排查编号：review-request-123" });
     expect(mocks.validate).not.toHaveBeenCalled();
   });
   it("fails closed when canonical resolution fails", async () => {
-    mocks.validate.mockRejectedValue(new Error("dirty cross-user identity"));
-    expect(await load()).toMatchObject({ participants: [], resolvedCount: 0 });
+    const cause = new Error("private inner failure");
+    const error = new Error("dirty cross-user identity", {cause});
+    mocks.validate.mockRejectedValue(error);
+    const result = await load();
+    expect(result).toMatchObject({ participants: [], resolvedCount: 0 });
+    expect(result.message).toContain("review-request-123");
+    expect(JSON.stringify(result)).not.toContain("private inner failure");
+    expect(mocks.capture).toHaveBeenCalledWith("demo.review.read_failed", error, expect.objectContaining({requestId:"review-request-123",errorCode:"DEMO_REVIEW_READ_FAILED",safeContext:{phase:"canonical-validation",importId:"import"}}));
     expect(mocks.details).not.toHaveBeenCalled();
+  });
+
+  it("preserves distinct unknown current and historical diagnostics without changing blockers or identity controls", async () => {
+    mocks.validate.mockResolvedValue({issues:[unresolved,{code:"FUTURE_CHECK_A",path:"target.mapName",message:"private details"},{code:"FUTURE_CHECK_B",path:"sourceFacts.rounds[0]",message:"private details"}],resolutions:new Map()});
+    const result = await loadAdminDemoReview({} as TxDb, {...row,issues:[...row.issues,{code:"STORED_FUTURE_CHECK",path:"target.stageKey",message:"private stored details"}]},target,new Map());
+    expect(result.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({source:"current",code:"FUTURE_CHECK_A",path:"target.mapName"}),
+      expect.objectContaining({source:"current",code:"FUTURE_CHECK_B",path:"sourceFacts.rounds[0]"}),
+      expect.objectContaining({source:"stored",code:"PARTICIPANT_NOT_IN_ROSTER"}),
+      expect.objectContaining({source:"stored",code:"STORED_FUTURE_CHECK",path:"target.stageKey"}),
+    ]));
+    expect(result.blockingIssues).toHaveLength(1);
+    expect(result.participants[0]).toMatchObject({state:"confirmable",candidates:[{eventRosterMemberId:"member"}]});
+    expect(JSON.stringify(result)).not.toContain("private details");
+    expect(JSON.stringify(result)).not.toContain("private stored details");
+  });
+  it("does not project unbounded or unsafe diagnostic tokens", async () => {
+    mocks.validate.mockResolvedValue({issues:[{code:"x".repeat(101),path:"https://private.example/token=secret",message:"secret"}],resolutions:new Map()});
+    const result = await load();
+    expect(result.diagnostics?.[0]).toMatchObject({code:"UNSAFE_ISSUE_CODE",path:undefined});
+    expect(JSON.stringify(result)).not.toContain("private.example");
   });
 
   it("projects observed official Steam profile when available without altering validation", async () => {

@@ -30,6 +30,19 @@ beforeEach(() => {
 });
 
 describe("DemoDataReviewPanel", () => {
+  it("keeps current and stored diagnostic codes in folded details without changing review controls", async () => {
+    const user = userEvent.setup();
+    render(<DemoDataReviewPanel reviews={[review({diagnostics:[
+      {source:"current",code:"FUTURE_CHECK_A",path:"target.mapName",message:"未识别的检查项"},
+      {source:"stored",code:"FUTURE_CHECK_B",path:"sourceFacts.rounds[0]",message:"未识别的检查项"},
+    ]})]} />);
+    expect(screen.getByText("检查详情（2 条）").closest("details")).not.toHaveAttribute("open");
+    await user.click(screen.getByText("检查详情（2 条）"));
+    expect(screen.getByText("当前检查 · FUTURE_CHECK_A · target.mapName")).toBeVisible();
+    expect(screen.getByText("上传时记录 · FUTURE_CHECK_B · sourceFacts.rounds[0]")).toBeVisible();
+    expect(screen.getByRole("button",{name:"按当前资料重新检查"})).toBeEnabled();
+    expect(mocks.confirm).not.toHaveBeenCalled();
+  });
   it("lets confirmed Demo warnings be inspected without presenting failure actions", async () => {
     const user = userEvent.setup();
     render(<DemoDataReviewPanel quality={[{
