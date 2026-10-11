@@ -304,6 +304,7 @@ export const AUDIT_ACTION_DEFINITIONS = {
   "match.veto.resume": { label: "恢复 BP 房间", category: "match" },
   "match.veto.appeal_submit": { label: "提交 BP 技术申诉", category: "match" },
   "match.veto.appeal_resolve": { label: "裁定 BP 技术申诉", category: "match" },
+  "match.veto.appeal_close": { label: "正式开赛后结束 BP 技术申诉", category: "match" },
   "match.veto.rewind": { label: "恢复 BP 操作步骤", category: "match" },
   "match.veto.admin_reassign": { label: "管理员更换 BP 负责人", category: "match" },
   "match.propose_time": { label: "提议比赛时间", category: "match" },

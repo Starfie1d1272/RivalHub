@@ -131,6 +131,19 @@ describe("VetoRoom", () => {
     vi.clearAllMocks();
   });
 
+  it("guides a prepared representative to stay until the opponent confirms and watch the turn timer", () => {
+    const room = roomFixture();
+    room.match.statusKey = "scheduled";
+    room.session.startedAt = null;
+    room.session.currentTurnKey = null;
+    room.entries[0]!.mayRequestStart = true;
+    room.entries[1]!.startRequested = false;
+    actionMocks.readVetoRoom.mockResolvedValue(ok(room));
+    render(<VetoRoom initialRoom={room} />);
+    expect(screen.getByRole("button", { name: "已确认开始" })).toBeDisabled();
+    expect(screen.getByText(/请留在本页；双方确认后会自动开始 BP/)).toBeInTheDocument();
+  });
+
   it("submits a map choice with the current revision and then uses the returned room snapshot", async () => {
     const room = roomFixture();
     actionMocks.performVetoRoomCommand.mockResolvedValue(ok({ outcome: "applied", room }));

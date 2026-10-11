@@ -300,7 +300,7 @@ export function VetoRoom({ initialRoom }: { initialRoom: VetoRoomView }) {
                   {entry.mayRequestStart && (
                     <div className="mt-3 flex flex-wrap items-center gap-2">
                       <Button size="sm" disabled={pending || Boolean(entry.startRequested)} onClick={() => void mutate(requestVetoRoomStart, { matchId: match.id, entryId: entry.id, expectedRevision: turn.revision, expectedTurnKey: turn.currentTurnKey }, "已确认开始请求。")}>{entry.startRequested ? "已确认开始" : "确认开始 BP"}</Button>
-                      {entry.startRequested && <span className="text-xs text-[var(--color-ok)]">已就绪</span>}
+                      {entry.startRequested && <p className="text-xs leading-relaxed text-[var(--color-ok)]">已就绪。请留在本页；双方确认后会自动开始 BP，轮到你时请在倒计时内完成操作。</p>}
                     </div>
                   )}
                 </article>
@@ -435,7 +435,7 @@ export function VetoRoom({ initialRoom }: { initialRoom: VetoRoomView }) {
                   <div className="rounded bg-[var(--color-panel-hi)] p-3 text-sm">
                     <p>{incident.appeal.statusLabel}</p>
                     {incident.appeal.reason && <p className="mt-1 text-[var(--color-fg-mid)]">申诉：{incident.appeal.reason}</p>}
-                    {incident.appeal.resolutionNote && <p className="mt-1 text-[var(--color-fg-mid)]">裁定：{incident.appeal.resolutionNote}</p>}
+                    {incident.appeal.resolutionNote && <p className="mt-1 text-[var(--color-fg-mid)]">处理说明：{incident.appeal.resolutionNote}</p>}
                     {incident.appeal.mayResolve && (
                       <div className="mt-3 space-y-2">
                         <label className="block text-xs text-[var(--color-fg-mid)]" htmlFor={`resolve-note-${incident.id}`}>裁定说明</label>

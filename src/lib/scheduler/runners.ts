@@ -5,14 +5,14 @@ import { refreshSteamProfiles } from "@/lib/steam-profiles";
 import { and, eq, isNotNull, isNull, or, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/db/client";
-import { matchVetoSessions, matches, seasons } from "@/db/schema";
+import { matchVetoSessions, matchVetoAppeals, matchVetoTimeoutIncidents, matchMaps, matches, seasons } from "@/db/schema";
 import { maybeAdvanceFromRegistration } from "@/lib/seasons/transitions";
 import { runDraftTimeoutCron } from "@/lib/draft/operations";
 import { runMatchTimeAutoAwardCron } from "@/lib/matches/time-auto-award";
 import { purgeExpiredEducationEvidence } from "@/lib/education/retention";
 import { ensureRegistrationOpenForParticipantInTx } from "@/lib/seasons/registration-recovery";
 import { revalidateMatchPaths, revalidatePublicSeasonTags, revalidatePublicStatsTag, revalidateSeasonPaths } from "@/lib/revalidation";
-import { readVetoRoomCore } from "@/lib/matches/veto-room/service";
+import { reconcileVetoRoom } from "@/lib/matches/veto-room/service";
 import { settleExpiredMatchMvpVotes } from "@/lib/matches/mvp";
 import { reconcileMissingStatisticsProjections } from "@/lib/stats/projection-backfill";
 import type { SchedulerJobKey } from "./definitions";
@@ -128,12 +128,18 @@ export async function runMatchVetoTimeoutJob() {
           sql`${matches.scheduledAt} <= clock_timestamp() + interval '15 minutes'`,
         ),
       ),
+      sql`EXISTS (SELECT 1 FROM ${matchVetoAppeals} appeal
+        JOIN ${matchVetoTimeoutIncidents} incident ON incident.id = appeal.timeout_incident_id
+        WHERE incident.match_id = ${matches.id} AND appeal.status = 'pending')
+        AND (${matches.gameplayStartedAt} IS NOT NULL OR EXISTS (
+          SELECT 1 FROM ${matchMaps} played_map WHERE played_map.match_id = ${matches.id}
+          AND (played_map.started_at IS NOT NULL OR played_map.score_a IS NOT NULL OR played_map.score_b IS NOT NULL OR played_map.completed_at IS NOT NULL)))`,
     ));
 
   let changed = 0;
   for (const candidate of candidates) {
-    const snapshot = await readVetoRoomCore(candidate.matchId);
-    if (snapshot.session.revision > candidate.revision) {
+    const outcome = await reconcileVetoRoom(candidate.matchId);
+    if (outcome === "applied") {
       changed += 1;
       revalidateMatchPaths(candidate.seasonSlug, candidate.matchId, { mode: "route" });
     }
