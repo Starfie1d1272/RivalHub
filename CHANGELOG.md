@@ -1,5 +1,22 @@
 # Changelog
 
+## [2.15.11]
+
+### Changed
+
+- BP 完成后保留管理员与队长的房间入口，明确恢复、暂停和申诉的原因要求；计分板截图使用中文选择、更换按钮，展示所选文件并在选择后启用 OCR，取消选择保留原截图。
+- 赛后默认沿用已登记解说名单，按已有地图数据与录像判断资料齐备；保留显式名单更正与审计，显式重开后仍需重新确认。
+
+### Fixed
+
+- Demo 待办按实际首发一致判断资料齐备，避免名单包含替补时比赛总览和单场工作台误报需要处理。
+- Demo 审核保留当前及上传时的安全检查编号和字段；读取失败显示与脱敏服务端日志一致的排查编号。
+- 系列赛已确认胜场达到获胜条件后立即锁定剩余图竞猜，比分更正不重开已锁盘口；未打地图仍等待正式比赛结束退款。继续沿用现有盘口开放方式。
+
+### Migration
+
+- 更新竞猜官方事实的锁盘规则，由受保护 Release 流程执行；迁移不重写已有盘口条款或积分流水。
+
 ## [2.15.10]
 
 ### Added
@@ -2859,6 +2876,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[2.15.11]: https://github.com/Starfie1d1272/RivalHub/compare/v2.15.10...v2.15.11
 [2.15.10]: https://github.com/Starfie1d1272/RivalHub/compare/v2.15.9...v2.15.10
 [2.15.9]: https://github.com/Starfie1d1272/RivalHub/compare/v2.15.8...v2.15.9
 [2.15.8]: https://github.com/Starfie1d1272/RivalHub/compare/v2.15.7...v2.15.8
