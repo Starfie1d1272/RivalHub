@@ -443,7 +443,7 @@ export default async function MatchDetailPage({ params, searchParams }: MatchDet
             />
           )}
       </div>}
-      {!match.testConfig && season.competitionTemplate === "major" && <Suspense fallback={null}><MatchBetLink seasonId={season.id} matchId={match.id} slug={seasonSlug} /></Suspense>}
+      {!match.testConfig && season.competitionTemplate === "major" && <Suspense fallback={null}><MatchBetLink seasonId={season.id} matchId={match.id} slug={seasonSlug} teamA={{ entryId: match.entryAId, name: teamA?.name ?? "队伍 A" }} teamB={{ entryId: match.entryBId, name: teamB?.name ?? "队伍 B" }} /></Suspense>}
       <MatchLiveProvider matchId={match.id} enabled={afterVeto}>
       {(afterVeto || isFinished) && maps.length > 0 && <MatchMapSequence seasonSlug={seasonSlug}
         maps={maps.map(map => ({ id: map.id, mapOrder: map.mapOrder, mapName: map.mapName, pickedByEntryId: map.pickedByEntryId, scoreA: map.scoreA, scoreB: map.scoreB, completedAt: map.completedAt?.toISOString() ?? null }))}
