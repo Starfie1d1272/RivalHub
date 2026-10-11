@@ -5,6 +5,7 @@ import type { TxDb } from "@/db/client";
 import { betAccounts, betLedger, betSettlements, betMarkets, betStakes, users, steamProfiles } from "@/db/schema";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
 import { marketPresentation } from "./presentation";
+import { betLedgerLabel } from "./ledger-presentation";
 import type { BetFacts } from "./facts";
 import type { BetBoardDTO } from "./types";
 export async function readBetAccounts(tx: TxDb, seasonId: string, accountId: string | undefined, facts: BetFacts) {
@@ -42,8 +43,7 @@ export async function readBetAccounts(tx: TxDb, seasonId: string, accountId: str
     .orderBy(desc(betLedger.createdAt), desc(betLedger.id)) : [];
   const records: BetBoardDTO["records"] = ledgerRows.map(row => {
     const stage = row.kind === "stage" ? facts.season.stagePlan.find(stage => row.source === `stage/${stage.key}`)?.name ?? "正赛阶段" : null;
-    const label = row.kind === "initial" ? "初始积分" : row.kind === "stage" ? `${stage} 补给` : row.kind === "stake" ? "投入"
-      : row.kind === "reversal" ? "官方赛果更正，撤销原结算" : row.state === "refunded" ? "退款：盘口作废或奖池不满足分配条件" : "结算";
+    const label = betLedgerLabel(row.kind, stage, row.state);
     const market = row.market;
     const context = market ? [market.subject.kind === "event" ? "赛事" : market.subject.entryIds.map(id => facts.entries.find(entry => entry.id === id)?.name ?? "队伍").join(" vs "),
       marketPresentation(market.type, market.line).title, market.subject.kind === "map" || market.subject.kind === "map_slot" ? `第${market.subject.mapOrder}图` : null].filter(Boolean).join(" · ") : null;
