@@ -30,6 +30,25 @@ beforeEach(() => {
 });
 
 describe("DemoDataReviewPanel", () => {
+  it("lets confirmed Demo warnings be inspected without presenting failure actions", async () => {
+    const user = userEvent.setup();
+    render(<DemoDataReviewPanel quality={[{
+      importId: "confirmed", matchMapId: "map", mapOrder: 1, mapName: "de_ancient",
+      summary: "QA 检查通过：0 条错误，4 条警告。", notice: "详情已截断，另有 3 条未传送；总数仍以摘要为准。",
+      issues: [{ label: "警告", code: "future.warning", path: "kills[0]", message: "Source coverage is incomplete." }],
+      capability: "高级击杀信息：部分可用", capabilityReason: "已观察到扩展击杀标记，但未观察到可识别的当前武器。", coverage: null,
+    }]} />);
+    expect(screen.queryByRole("button", { name: "按当前资料重新检查" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "拒绝这份 Demo 数据" })).not.toBeInTheDocument();
+    expect(screen.getByText(/警告是数据检查提示，不等于上传失败/)).toBeVisible();
+    await user.click(screen.getByText(/第 1 图 · de_ancient · QA 检查通过/));
+    expect(screen.getByText("高级击杀信息：部分可用")).toBeVisible();
+    expect(screen.getByText(/详情已截断/)).toBeVisible();
+    await user.click(screen.getByText("QA 技术详情（1 条）"));
+    expect(screen.getByText("future.warning · kills[0]")).toBeVisible();
+    expect(screen.getByText("警告：Source coverage is incomplete.")).toBeVisible();
+  });
+
   it("rechecks all current pending Demo imports in the season from one operator action", async () => {
     const user = userEvent.setup();
     render(<DemoDataReviewPanel reviews={[review()]} />);

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { DAK_DIAGNOSTICS_EXTENSION, dakDiagnosticsSchema, validateDakDiagnostics } from "./diagnostics";
 
 const uuidSchema = z.guid();
 const steamId64Schema = z.string().regex(/^\d{17}$/, "Steam64 必须是 17 位数字");
@@ -210,7 +211,9 @@ export const rivalHubDemoEvidenceV1Schema = z.object({
       ctWins: countSchema,
     }).strict()).length(2),
   }).strict(),
-  extensions: z.record(z.string().regex(/^[a-z0-9-]+\/[a-z0-9-]+$/), z.unknown()),
+  extensions: z.record(z.string().regex(/^[a-z0-9-]+\/[a-z0-9-]+$/), z.unknown()).and(
+    z.object({ [DAK_DIAGNOSTICS_EXTENSION]: dakDiagnosticsSchema.optional() }).catchall(z.unknown()),
+  ),
 }).strict();
 
 export type RivalHubDemoEvidenceV1 = z.infer<typeof rivalHubDemoEvidenceV1Schema>;
@@ -218,6 +221,8 @@ export type RivalHubDemoEvidenceV1 = z.infer<typeof rivalHubDemoEvidenceV1Schema
 /** Parses the wire payload and checks relationships that JSON Schema cannot express. */
 export function parseRivalHubDemoEvidenceV1(input: unknown): RivalHubDemoEvidenceV1 {
   const evidence = rivalHubDemoEvidenceV1Schema.parse(input);
+  const diagnostics = evidence.extensions[DAK_DIAGNOSTICS_EXTENSION];
+  if (diagnostics) validateDakDiagnostics(diagnostics, evidence.quality, evidence.sourceFacts.kills.length);
   const participantBySteam = new Map<string, RivalHubDemoEvidenceV1["participants"][number]>();
   for (const participant of evidence.participants) {
     if (participantBySteam.has(participant.steamId64)) throw new Error("participants 不能重复 Steam64");

@@ -35,6 +35,7 @@ import { loadEffectiveMatchRoster } from "@/lib/match-rosters/effective";
 import { demoImportMetadataSelection } from "@/lib/demo-integration/metadata";
 import { selectCurrentDemoImport } from "@/lib/demo-integration/read";
 import { loadAdminDemoReview } from "./demo-review";
+import { projectAdminDemoQuality } from "./demo-quality";
 import type { AdminDemoReviewMap, AdminMatchWorkbenchData, RosterData, TeamMemberData } from "@/lib/admin/matches/types";
 import { mapCompletedMaps, mapFinishedMaps, mapPendingMaps } from "@/lib/admin/matches/shared";
 import { projectOperatorCompletion } from "./operator-workflow";
@@ -254,17 +255,21 @@ export async function loadAdminMatchWorkbench({
   for (const map of mapRecords) {
     const rows = demoImportRows.filter((row) => row.matchMapId === map.id);
     const current = selectCurrentDemoImport(rows);
-    if (current?.status === "needs_attention") reviewImportIds.push(current.id);
+    if (current?.status === "needs_attention" || current?.status === "confirmed") reviewImportIds.push(current.id);
   }
-  // Only the selected current review artifacts need their original Evidence.
+  // Read only the selected current artifacts; quality warnings also matter after confirmation.
   const reviewImports = reviewImportIds.length
     ? await db.select().from(matchDemoImports).where(inArray(matchDemoImports.id, reviewImportIds))
     : [];
   const currentImportByMap = new Map(reviewImports.map((row) => [row.matchMapId, row]));
   const demoReviews: AdminDemoReviewMap[] = [];
+  const demoQuality = mapRecords.flatMap((map) => {
+    const row = currentImportByMap.get(map.id);
+    return row ? [projectAdminDemoQuality(row, { mapOrder: map.mapOrder, mapName: map.mapName })] : [];
+  });
   for (const map of mapRecords) {
     const row = currentImportByMap.get(map.id);
-    if (row) demoReviews.push(await db.transaction((tx) => loadAdminDemoReview(
+    if (row?.status === "needs_attention") demoReviews.push(await db.transaction((tx) => loadAdminDemoReview(
       tx,
       row,
       { match, map, roster: effectiveRosterRows },
@@ -329,6 +334,7 @@ export async function loadAdminMatchWorkbench({
     vetoCompletedAt: vetoSession?.completedAt ?? null,
     postMatch,
     demoReviews,
+    demoQuality,
     operator,
     commentary,
   };

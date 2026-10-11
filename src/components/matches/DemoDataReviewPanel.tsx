@@ -11,6 +11,7 @@ import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import type { AdminDemoReviewMap, AdminDemoReviewParticipant } from "@/lib/admin/matches/types";
+import type { AdminDemoQuality } from "@/lib/admin/matches/demo-quality";
 
 function ParticipantReview({ importId, participant }: { importId: string; participant: AdminDemoReviewParticipant }) {
   const id = useId();
@@ -193,12 +194,35 @@ function MapReview({ review }: { review: AdminDemoReviewMap }) {
   );
 }
 
-export function DemoDataReviewPanel({ reviews = [] }: { reviews?: AdminDemoReviewMap[] }) {
-  if (reviews.length === 0) return null;
+export function DemoDataReviewPanel({ reviews = [], quality = [] }: { reviews?: AdminDemoReviewMap[]; quality?: AdminDemoQuality[] }) {
+  if (reviews.length === 0 && quality.length === 0) return null;
   return (
-    <Panel label="Demo 数据需要处理" contentClassName="space-y-5 p-4">
+    <>
+    {reviews.length > 0 && <Panel label="Demo 数据需要处理" contentClassName="space-y-5 p-4">
       <SeasonRecheckControl importId={reviews[0]!.importId} />
       {reviews.map((review) => <MapReview key={review.importId} review={review} />)}
-    </Panel>
+    </Panel>}
+    {quality.length > 0 && <Panel label="Demo 数据质量" contentClassName="space-y-4 p-4">
+      <p className="text-sm leading-6 text-[var(--color-fg-mid)]">警告是数据检查提示，不等于上传失败；QA 错误会阻止自动确认。高级能力降级说明可用信息受限，与 QA 警告分别核对。</p>
+      {quality.map((item) => <details key={item.importId} className="rounded border border-[var(--color-border)] p-3 text-sm">
+        <summary className="cursor-pointer">第 {item.mapOrder} 图 · {item.mapName} · {item.summary}</summary>
+        <div className="mt-3 space-y-2 leading-6">
+          {item.notice && <p>{item.notice}</p>}
+          {item.capability && <p>{item.capability}</p>}
+          {item.capabilityReason && <p>{item.capabilityReason}</p>}
+          {item.coverage && <p>{item.coverage}</p>}
+          {item.issues.length > 0 && <details>
+            <summary className="cursor-pointer">QA 技术详情（{item.issues.length} 条）</summary>
+            <ul className="mt-2 list-disc space-y-2 pl-5">
+              {item.issues.map((issue, index) => <li key={index} className="break-words">
+                <span>{issue.label}：{issue.message}</span>
+                <p className="break-all font-mono text-xs text-[var(--color-fg-mid)]">{issue.code}{issue.path ? ` · ${issue.path}` : ""}</p>
+              </li>)}
+            </ul>
+          </details>}
+        </div>
+      </details>)}
+    </Panel>}
+    </>
   );
 }
