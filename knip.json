@@ -102,7 +102,8 @@
     "src/lib/matches/unassociated-result.ts!",
     "playwright.acceptance.config.ts!",
     "playwright.production.config.ts!",
-    "vitest.experiments.config.ts!"
+    "vitest.experiments.config.ts!",
+    "scripts/dependencies/snapshot.ts!"
   ],
   "project": [
     "src/**/*.{js,mjs,cjs,jsx,ts,tsx,mts,cts}!",

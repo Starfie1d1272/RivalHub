@@ -9,6 +9,8 @@ const dependencyReviewStatus = process.env.DEPENDENCY_REVIEW_RESULT;
 const eventName = process.env.EVENT_NAME || process.env.GITHUB_EVENT_NAME;
 const gateName = process.env.GATE_NAME || "ci-gate";
 
+if (process.env.DEPENDENCY_GRAPH_BUILD_RESULT !== "success") fail("dependency graph build 未成功");
+
 if (statuses.plan !== "success") {
   fail(`plan 未成功：${statuses.plan ?? "missing"}`);
 }

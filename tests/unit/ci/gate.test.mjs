@@ -14,6 +14,7 @@ function runGate(overrides) {
       POSTGRES_RESULT: "skipped",
       SYSTEM_RESULT: "skipped",
       DEPENDENCY_REVIEW_RESULT: "skipped",
+      DEPENDENCY_GRAPH_BUILD_RESULT: "success",
       EVENT_NAME: "push",
       REQUIRED_JOBS: "[]",
       ...overrides,
@@ -22,6 +23,12 @@ function runGate(overrides) {
 }
 
 describe("ci-gate", () => {
+  it("requires a complete read-only graph build", () => {
+    for (const status of ["failure", "cancelled", "skipped", undefined]) {
+      expect(runGate({ DEPENDENCY_GRAPH_BUILD_RESULT: status }).status).not.toBe(0);
+    }
+  });
+
   it("accepts planner-declared skipped evidence", () => {
     const result = runGate({ REQUIRED_JOBS: '["static"]', STATIC_RESULT: "success" });
     expect(result.status).toBe(0);
