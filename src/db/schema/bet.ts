@@ -45,9 +45,9 @@ export const betSettlements = pgTable("bet_settlements", {
 export const betLedger = pgTable("bet_ledger",{
   id:uuid("id").primaryKey().defaultRandom(),seasonId:uuid("season_id").notNull(),accountId:uuid("account_id").notNull(),
   amount:bigint("amount",{mode:"bigint"}).notNull(),profit:bigint("profit",{mode:"bigint"}).notNull().default(sql`0`),
-  kind:text("kind").$type<"initial"|"stage"|"stake"|"settlement"|"reversal">().notNull(),source:text("source").notNull(),
+  kind:text("kind").$type<"initial"|"stage"|"relief"|"stake"|"settlement"|"reversal">().notNull(),source:text("source").notNull(),
   createdAt:time("created_at").notNull().default(sql`clock_timestamp()`),
-},t=>[unique().on(t.accountId,t.source),foreignKey({columns:[t.accountId,t.seasonId],foreignColumns:[betAccounts.id,betAccounts.seasonId]}),index("bet_ledger_account_idx").on(t.seasonId,t.accountId),check("bet_ledger_kind",sql`${t.kind} IN ('initial','stage','stake','settlement','reversal')`)]);
+},t=>[unique().on(t.accountId,t.source),foreignKey({columns:[t.accountId,t.seasonId],foreignColumns:[betAccounts.id,betAccounts.seasonId]}),index("bet_ledger_account_idx").on(t.seasonId,t.accountId),check("bet_relief_grant",sql`${t.kind} <> 'relief' OR (${t.amount} BETWEEN 1 AND 10 AND ${t.profit} = 0 AND ${t.source} ~ '^relief/[0-9]{4}-[0-9]{2}-[0-9]{2}$')`),check("bet_ledger_kind",sql`${t.kind} IN ('initial','stage','relief','stake','settlement','reversal')`)]);
 export const betStageMilestones = pgTable("bet_stage_milestones",{
   seasonId:uuid("season_id").notNull().references(()=>betPrograms.seasonId),stageKey:text("stage_key").notNull(),openedAt:time("opened_at").notNull(),
 },t=>[unique().on(t.seasonId,t.stageKey)]);

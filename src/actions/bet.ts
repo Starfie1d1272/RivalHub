@@ -10,10 +10,11 @@ import { actionError, failValidation } from "@/lib/action-utils";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { ok } from "@/types/action";
 import { betBoard } from "@/lib/bet/data";
-import { joinBetInTx, stakeBetInTx, operateBetInTx } from "@/lib/bet/service";
+import { joinBetInTx, stakeBetInTx, operateBetInTx, claimBetReliefInTx } from "@/lib/bet/service";
 import { lockMatchInTx } from "@/lib/match-rosters/service";
 import { startCanonicalMapInTx } from "@/lib/matches/map-start";
 import { assertSeasonAllowsTournamentMutationInTx } from "@/lib/postevent/guard";
+import { readBetRelief } from "@/lib/bet/relief-data";
 const scope=z.object({seasonId:z.guid()});
 async function publicSeason(seasonId:string) {
   const season=await db.query.seasons.findFirst({where:eq(seasons.id,seasonId)});
@@ -38,4 +39,26 @@ export async function operateBet(input:unknown) {
 export async function startOfficialMap(input:unknown) {
   const p=scope.extend({matchId:z.guid(),mapId:z.guid()}).safeParse(input);if(!p.success)return failValidation("请检查当前地图");
   try {const admin=await requireSeasonAdmin(p.data.seasonId);const season=await publicSeason(p.data.seasonId);await db.transaction(async tx=>{await assertSeasonAllowsTournamentMutationInTx(tx,p.data.seasonId);const match=await lockMatchInTx(tx,p.data.matchId);if(match.seasonId!==p.data.seasonId)throw new AppError(ErrorCode.FORBIDDEN,"比赛不属于当前赛事");await startCanonicalMapInTx(tx,match.id,p.data.mapId,auditActorId(admin));});refresh(season.slug);revalidatePath(`/admin/${season.slug}/matches/${p.data.matchId}`);return ok(undefined);}catch(e){return actionError("bet.map_start",e);}
+}
+
+/** Wallet contract; reads never mutate financial facts. */
+export async function getBetRelief(input: unknown) {
+  const parsed = scope.strict().safeParse(input);
+  if (!parsed.success) return failValidation("赛事参数无效");
+  try {
+    await publicSeason(parsed.data.seasonId);
+    const user = await getUserSession();
+    return ok(await db.transaction(tx => readBetRelief(tx, parsed.data.seasonId, user?.userId ?? null), {accessMode: "read only", isolationLevel: "repeatable read"}));
+  } catch (error) { return actionError("bet.relief.read", error); }
+}
+export async function claimBetRelief(input: unknown) {
+  const parsed = scope.extend({day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/)}).strict().safeParse(input);
+  if (!parsed.success) return failValidation("请刷新钱包后领取低保");
+  try {
+    const user = await requireAuth();
+    const season = await publicSeason(parsed.data.seasonId);
+    const receipt = await db.transaction(tx => claimBetReliefInTx(tx, {...parsed.data, userId: user.userId}));
+    refresh(season.slug);
+    return ok(receipt);
+  } catch (error) { return actionError("bet.relief.claim", error); }
 }
