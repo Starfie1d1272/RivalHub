@@ -44,6 +44,8 @@ async function createMarket(tx: TxDb,seasonId: string,matchId: string|null,type:
 async function publishMarkets(tx: TxDb,f: BetFacts) {
   const seasonId=f.season.id;
   const program=await tx.query.betPrograms.findFirst({where:eq(programs.seasonId,seasonId)});
+  // A compatible v2 publisher must not add ordered pools beside a v3 pool.
+  const present=await tx.select().from(markets).where(and(eq(markets.seasonId,seasonId),eq(markets.type,"veto_present")));
   const existing=await tx.select().from(markets).where(and(eq(markets.seasonId,seasonId),eq(markets.type,"total_rounds")));
   if (!f.event.started && f.event.entryIds.length) {
     const subject: BetSubject={kind:"event",entryIds:f.event.entryIds,playerIds:f.event.playerIds};
@@ -67,7 +69,7 @@ async function publishMarkets(tx: TxDb,f: BetFacts) {
         await createMarket(tx,seasonId,m.id,"total_maps",subject,[{key:"over",label:"大"},{key:"under",label:"小"}],seriesLineTwice(m.format));
       }
       const pool=veto?.mapPoolSnapshot??normalizeRegistrationConfig(f.season.registrationConfig).mapPool;
-      if (!veto?.startedAt && pool.length>=Number(m.format.slice(2))) {
+      if (!veto?.startedAt && pool.length>=Number(m.format.slice(2)) && !present.some(market=>market.matchId===m.id && subjectMatches(market.subject,m,f.maps.filter(map=>map.matchId===m.id),veto))) {
         const bpSubject={...subject,mapPool:[...pool].sort()};
         const choices=pool.map(name=>({key:name,label:name.replace(/^de_/,"").replace(/^./,c=>c.toUpperCase())}));
         await createMarket(tx,seasonId,m.id,m.format==="bo1"?"veto_map":"veto_first",bpSubject,choices);
