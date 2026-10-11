@@ -30,6 +30,22 @@ function fakeExecutor() {
 }
 
 describe("canonical audit machine actors", () => {
+  it("keeps namespaced machine identities distinct from users and limits authorization attribution", async () => {
+    const { executor, tables } = fakeExecutor();
+    const refs: AuditActorRef[] = [
+      { actorId: `mizar:${installationId}`, action: "match.map.start", seasonId: "season-a" },
+      { actorId: `mizar:${installationId}`, action: "future.machine.action", seasonId: "season-b" },
+      { actorId: `mizar:${pairingId}`, action: "match.map.start", seasonId: "season-a" },
+      { actorId: "mizar:private-credential", action: "match.map.start", seasonId: "season-a" },
+    ];
+    const actors = await resolveAuditActors(refs, new Map([[installationId, "同 ID 用户"]]), executor);
+    expect(actors.get(auditActorKey(refs[0]))).toEqual({ label: "Mizar", kind: "machine", authorizedByLabel: "授权者甲" });
+    for (const ref of refs.slice(1, 3)) expect(actors.get(auditActorKey(ref))).toEqual({ label: "Mizar", kind: "machine" });
+    expect(actors.get(auditActorKey(refs[3]))).toEqual({ label: "未知来源", kind: "unknown" });
+    expect(tables).toEqual([mizarInstallations]);
+    expect(JSON.stringify([...actors.values()])).not.toMatch(/private|10000000/);
+  });
+
   it("resolves shared Mizar actions in scope without claiming its authorizer operated the device", async () => {
     const { executor, tables, projections } = fakeExecutor();
     const refs: AuditActorRef[] = ["match.start", "match.map.start", "match.record_map_result", "mizar.reliable.accept", "mizar.installation.revoke"].map(action => ({ actorId: installationId, action, seasonId: "season-a" }));

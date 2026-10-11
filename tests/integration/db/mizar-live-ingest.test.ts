@@ -271,6 +271,10 @@ describe("Mizar reliable event ingest ownership", () => {
     expect([match!.scoreA, match!.scoreB]).toEqual([null, null]);
     expect(match!.status).toBe("in_progress");
 
+    const resultAudits = await db.select({ actorId: schema.auditLogs.actorId }).from(schema.auditLogs)
+      .where(and(eq(schema.auditLogs.targetId, fixture.matchId), eq(schema.auditLogs.action, "match.record_map_result")));
+    expect(resultAudits).toEqual([{ actorId: `mizar:${fixture.installationId}` }]);
+
     const source = await loadSource(fixture.sessionId);
     expect(source.lastReliableSeq).toBe(1);
     expect(source.mapExecutionPhase).toBe("inter_map");
@@ -858,7 +862,7 @@ describe("operator authorization and in-progress score correction", () => {
     expect(await loadSource(self.sessionId)).toMatchObject({ closeReason: "revoked", autoCanonicalizationArmed: false });
     const selfAudits = await db.select().from(schema.auditLogs).where(and(eq(schema.auditLogs.targetId, self.installationId), eq(schema.auditLogs.action, "mizar.installation.revoke")));
     expect(selfAudits).toHaveLength(1);
-    expect(selfAudits[0]).toMatchObject({ actorId: self.installationId, seasonId: self.seasonId });
+    expect(selfAudits[0]).toMatchObject({ actorId: `mizar:${self.installationId}`, seasonId: self.seasonId });
   });
 
   it("corrects a completed map during the next map, checks reviewed scores, and retains epoch/official completion", async () => {
