@@ -1,4 +1,4 @@
-import { assertCompetitionMatch, type CompetitionMatch } from "@/lib/matches/competition-context";
+import { isCompetitionMatch, type CompetitionMatch } from "@/lib/matches/competition-context";
 import "server-only";
 
 import { and, eq, inArray } from "drizzle-orm";
@@ -41,6 +41,9 @@ export function integrationIssue(code: string, message: string, path?: string): 
   return path ? { code, path, message } : { code, message };
 }
 
+/** An explicit unavailable target, never an arbitrary dependent reader failure. */
+export class CanonicalTargetUnavailableError extends AppError {}
+
 export async function loadCanonicalTarget(
   tx: TxDb,
   target: Pick<RivalHubEvidenceSubmission["target"], "seasonId" | "matchId" | "matchMapId">,
@@ -48,12 +51,12 @@ export async function loadCanonicalTarget(
   const [match] = await tx.select().from(matches)
     .where(and(eq(matches.id, target.matchId), eq(matches.seasonId, target.seasonId)))
     .for("update");
-  if (!match) throw new AppError(ErrorCode.NOT_FOUND, "目标比赛不存在或不属于该赛季。");
-  assertCompetitionMatch(match);
+  if (!match) throw new CanonicalTargetUnavailableError(ErrorCode.NOT_FOUND, "目标比赛不存在或不属于该赛季。");
+  if (!isCompetitionMatch(match)) throw new CanonicalTargetUnavailableError(ErrorCode.VALIDATION_FAILED, "该操作需要赛事比赛。");
 
   const [map] = await tx.select().from(matchMaps)
     .where(and(eq(matchMaps.id, target.matchMapId), eq(matchMaps.matchId, match.id)));
-  if (!map) throw new AppError(ErrorCode.NOT_FOUND, "目标地图不存在或不属于该比赛。");
+  if (!map) throw new CanonicalTargetUnavailableError(ErrorCode.NOT_FOUND, "目标地图不存在或不属于该比赛。");
 
   const roster = await loadEffectiveMatchRoster(tx, [match.id]);
   return { match, map, roster };

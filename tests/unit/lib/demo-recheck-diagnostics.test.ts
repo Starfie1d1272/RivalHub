@@ -16,11 +16,13 @@ describe("related Demo recheck diagnostics", () => {
     ] }) }) });
     mocks.transaction.mockResolvedValueOnce({ status: "confirmed", importId: "private-import-1", issues: [] })
       .mockRejectedValueOnce(new Error("Failed query: select private", { cause: { code: "40001", detail: "raw personal data" } }));
-    expect(await revalidateSeasonNeedsAttentionImports({ seasonId: "private-season", actorId: "private-actor" }))
-      .toEqual({ attempted: 2, confirmed: 1, remaining: 0, failed: 1, affectedMatchIds: ["match-1"] });
+    const summary = await revalidateSeasonNeedsAttentionImports({ seasonId: "private-season", actorId: "private-actor" });
+    expect(summary)
+      .toEqual({ attempted: 2, confirmed: 1, remaining: 0, failed: 1, affectedMatchIds: ["match-1"], requestId: expect.any(String) });
     expect(write).toHaveBeenCalledOnce();
     const event = JSON.parse(String(write.mock.calls[0][0]));
-    expect(event).toMatchObject({ event: "demo.recheck.failure", errorClass: "database", exception: { code: "40001" }, safeContext: { phase: "recheck" } });
+    expect(event.requestId).toBe(summary.requestId);
+    expect(event).toMatchObject({ retryable: true, event: "demo.recheck.failure", errorClass: "database", exception: { code: "40001" }, safeContext: { phase: "recheck" } });
     expect(JSON.stringify(event)).not.toMatch(/select private|raw personal|private-import|private-season|private-actor/);
   });
 });

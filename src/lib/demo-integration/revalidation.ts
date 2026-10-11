@@ -1,4 +1,5 @@
 import "server-only";
+import { ensureRequestId } from "@/lib/observability/context";
 import { captureException } from "@/lib/observability/server";
 
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
@@ -12,7 +13,7 @@ import { DEMO_CONTENT_CONFLICT_MESSAGE, lockDemoImportLineageInTx, promoteDemoIm
 import { buildEvidenceRevisionForTarget, sha256Json } from "./revision";
 import { selectCurrentDemoImport } from "./read";
 import { isCurrentDakSemanticProfile } from "./semantic-profile";
-import { integrationIssue, loadCanonicalTarget, validateCanonicalTarget, type CanonicalTarget } from "./validation";
+import { CanonicalTargetUnavailableError, integrationIssue, loadCanonicalTarget, validateCanonicalTarget, type CanonicalTarget } from "./validation";
 
 const INVALID_STORED_PAYLOAD_MESSAGE = "这份 Demo 数据无法重新读取，请核对或拒绝。";
 
@@ -106,8 +107,12 @@ async function revalidateStoredDemoImportRowInTx(
   let target: CanonicalTarget;
   try {
     target = await loadCanonicalTarget(tx, stored.evidence.target);
-  } catch {
-    return writeRecheckIssue(tx, row, [integrationIssue("STORED_TARGET_INVALID", INVALID_STORED_PAYLOAD_MESSAGE)], undefined, input.actorId);
+  } catch (error) {
+    // Continuing on an aborted PG transaction hides the first SQLSTATE. A
+    // non-PG failure could even persist a false business issue. Let the owner
+    // transaction roll back; only explicit unavailable targets are findings.
+    if (!(error instanceof CanonicalTargetUnavailableError)) throw error;
+    return writeRecheckIssue(tx, row, [integrationIssue("STORED_TARGET_INVALID", "Demo 对应的赛事比赛或地图已不可用，请核对目标资料；不要重新上传同一份数据。")], undefined, input.actorId);
   }
 
   const validation = await validateCanonicalTarget(tx, stored.evidence, target);
@@ -149,6 +154,7 @@ export interface RelatedDemoRevalidationSummary {
   remaining: number;
   failed: number;
   affectedMatchIds: string[];
+  requestId?: string;
 }
 
 type RecheckCandidate = Pick<typeof matchDemoImports.$inferSelect, "id" | "matchId" | "matchMapId" | "semanticProfile" | "status">;
@@ -190,6 +196,7 @@ async function revalidateCandidateRows(
   let confirmed = 0;
   let remaining = 0;
   let failed = 0;
+  let requestId: string | undefined;
   const affectedMatchIds = new Set<string>();
 
   for (const row of rows) {
@@ -211,8 +218,9 @@ async function revalidateCandidateRows(
       if (result.status === "confirmed") confirmed++;
       else remaining++;
     } catch (error) {
+      requestId ??= ensureRequestId();
       captureException("demo.recheck.failure", error, {
-        scope: "demo", operation: "recheck.related", safeContext: { phase: "recheck" },
+        scope: "demo", operation: "recheck.related", requestId, safeContext: { phase: "recheck" },
       });
       attempted++;
       failed++;
@@ -225,6 +233,7 @@ async function revalidateCandidateRows(
     remaining,
     failed,
     affectedMatchIds: [...affectedMatchIds],
+    ...(requestId ? { requestId } : {}),
   };
 }
 
