@@ -40,6 +40,7 @@ jobs:
       required_jobs: ${{ steps.plan.outputs.required_jobs }}
       static_matrix: ${{ steps.plan.outputs.static_matrix }}
       system_matrix: ${{ steps.plan.outputs.system_matrix }}
+      postgres_matrix: ${{ steps.plan.outputs.postgres_matrix }}
       unit_mode: ${{ steps.plan.outputs.unit_mode }}
       related_sources: ${{ steps.plan.outputs.related_sources }}
       explicit_tests: ${{ steps.plan.outputs.explicit_tests }}
@@ -139,10 +140,15 @@ jobs:
         run: node scripts/ci/timing.mjs summary
 
   postgres:
-    name: postgres
+    name: postgres / ${{ matrix.shard }}
     if: needs.plan.outputs.run_postgres == 'true'
     needs: plan
     runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        include: ${{ fromJSON(needs.plan.outputs.postgres_matrix) }}
     services:
       postgres:
         image: postgres:17
@@ -167,6 +173,7 @@ jobs:
       RIVALHUB_INTEGRATION_WORKERS: 3
       RIVALHUB_TIMING: 1
       RIVALHUB_INTEGRATION_SPECS: ${{ needs.plan.outputs.integration_specs }}
+      RIVALHUB_INTEGRATION_SHARD: ${{ matrix.shard }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -214,7 +221,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: timing-${{ github.job }}
+          name: timing-${{ github.job }}-${{ strategy.job-index }}
           path: ${{ runner.temp }}/rivalhub-timing-${{ github.job }}.jsonl
           if-no-files-found: ignore
           retention-days: 14
