@@ -91,6 +91,7 @@ describe("scheduler match time auto-award runner", () => {
       awarded: 2,
       skipped: 1,
       failed: 0,
+      lineups: { created: 2, blocked: 1, failed: 0 }, lineupFailures: [], lineupRequestId: "lineup-request",
       affectedMatches: [
         { seasonSlug: "spring", matchId: "match-1" },
         { seasonSlug: "spring", matchId: "match-2" },
@@ -103,8 +104,18 @@ describe("scheduler match time auto-award runner", () => {
     expect(revalidateMatchPathsMock).toHaveBeenNthCalledWith(1, "spring", "match-1", { mode: "route" });
     expect(revalidateMatchPathsMock).toHaveBeenNthCalledWith(2, "spring", "match-2", { mode: "route" });
     expect(result).toEqual({
-      result: { processed: 3, awarded: 2, skipped: 1, failed: 0 },
-      businessTransitions: 2,
+      result: { processed: 3, awarded: 2, skipped: 1, failed: 0, lineups: { created: 2, blocked: 1, failed: 0 } },
+      businessTransitions: 4,
     });
   });
+});
+
+it("invalidates committed matches then rejects a lineup batch with its original cause", async () => {
+  revalidateMatchPathsMock.mockClear();
+  const cause = new Error("PG unavailable");
+  runMatchTimeAutoAwardCronMock.mockResolvedValue({ processed: 0, awarded: 0, skipped: 0, failed: 0,
+    lineups: { created: 2, blocked: 0, failed: 1 }, lineupFailures: [cause], lineupRequestId: "lineup-request",
+    affectedMatches: [{ seasonSlug: "spring", matchId: "successful-match" }] });
+  await expect(runMatchTimeAutoAwardJob()).rejects.toMatchObject({ cause, requestId: "lineup-request" });
+  expect(revalidateMatchPathsMock).toHaveBeenCalledExactlyOnceWith("spring", "successful-match", { mode: "route" });
 });

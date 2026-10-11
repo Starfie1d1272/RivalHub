@@ -9,6 +9,7 @@ import { matchVetoSessions, matchVetoAppeals, matchVetoTimeoutIncidents, matchMa
 import { maybeAdvanceFromRegistration } from "@/lib/seasons/transitions";
 import { runDraftTimeoutCron } from "@/lib/draft/operations";
 import { runMatchTimeAutoAwardCron } from "@/lib/matches/time-auto-award";
+import { DefaultLineupMaterializationError } from "@/lib/matches/default-lineup-error";
 import { purgeExpiredEducationEvidence } from "@/lib/education/retention";
 import { ensureRegistrationOpenForParticipantInTx } from "@/lib/seasons/registration-recovery";
 import { revalidateMatchPaths, revalidatePublicSeasonTags, revalidatePublicStatsTag, revalidateSeasonPaths } from "@/lib/revalidation";
@@ -78,13 +79,15 @@ export async function runDraftTimeoutJob() {
 
 export async function runMatchTimeAutoAwardJob() {
   const result = await runMatchTimeAutoAwardCron();
-  const { affectedMatches, ...summary } = result;
+  const { affectedMatches, lineupFailures, lineupRequestId, ...summary } = result;
   for (const { seasonSlug, matchId } of affectedMatches) {
     revalidateMatchPaths(seasonSlug, matchId, { mode: "route" });
   }
+  // Refresh every committed success before surfacing a partial batch failure.
+  if (lineupFailures.length) throw new DefaultLineupMaterializationError(lineupFailures[0], lineupRequestId);
   return {
     result: summary,
-    businessTransitions: result.awarded,
+    businessTransitions: result.awarded + result.lineups.created,
   } satisfies SchedulerRunnerResult<typeof summary>;
 }
 

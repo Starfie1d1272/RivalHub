@@ -10,7 +10,10 @@ import { auditActorId, requireSuperAdmin } from "@/lib/auth/session";
 import { executeScheduledJobManually } from "@/lib/scheduler/execution";
 import { getSchedulerJobDefinition, SCHEDULER_JOB_KEYS, type SchedulerJobKey } from "@/lib/scheduler/definitions";
 import { runSchedulerJobByKey } from "@/lib/scheduler/runners";
-import { ok, type ActionResult } from "@/types/action";
+import { fail, ok, type ActionResult } from "@/types/action";
+import { DefaultLineupMaterializationError, DEFAULT_LINEUP_RECOVERY_MESSAGE } from "@/lib/matches/default-lineup-error";
+import { captureException } from "@/lib/observability/server";
+import { ErrorCode } from "@/lib/errors";
 
 const jobKeySchema = z.enum(SCHEDULER_JOB_KEYS);
 
@@ -35,6 +38,11 @@ export async function runSchedulerJobManually(input: unknown): Promise<ActionRes
     revalidatePath("/admin/settings");
     return ok({ jobKey, businessTransitions: result.businessTransitions });
   } catch (error) {
+    if (error instanceof DefaultLineupMaterializationError) {
+      captureException("action.unexpected_error", error, { scope: "action", operation: "runSchedulerJobManually", requestId: error.requestId });
+      revalidatePath("/admin/settings");
+      return fail({ code: ErrorCode.INTERNAL_ERROR, requestId: error.requestId, message: `${DEFAULT_LINEUP_RECOVERY_MESSAGE} 排查编号：${error.requestId}` });
+    }
     return actionError("runSchedulerJobManually", error);
   }
 }

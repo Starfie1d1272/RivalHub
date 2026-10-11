@@ -32,6 +32,7 @@ vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
 import { AppError, ErrorCode } from "@/lib/errors";
 
 import { runSchedulerJobManually } from "@/actions/scheduler";
+import { DefaultLineupMaterializationError } from "@/lib/matches/default-lineup-error";
 
 describe("manual scheduler action", () => {
   beforeEach(() => {
@@ -77,4 +78,18 @@ describe("manual scheduler action", () => {
     expect(runSchedulerJobByKeyMock).toHaveBeenCalledWith("draft-timeout");
     expect(revalidatePathMock).toHaveBeenCalledWith("/admin/settings");
   });
+
+  // The manual recovery surface must give a correlated, actionable safe response.
+  it("returns the lineup incident ID and recovery path without exposing the cause", async () => {
+    executeScheduledJobManuallyMock.mockRejectedValue(new DefaultLineupMaterializationError(new Error("private SQL marker"), "lineup-incident"));
+    const result = await runSchedulerJobManually({ jobKey: "match-time-auto-award" });
+    expect(result).toMatchObject({ success: false, error: { code: "INTERNAL_ERROR", requestId: "lineup-incident" } });
+    if (result.success) throw new Error("expected failure");
+    expect(result.error.message).toContain("比赛工作台");
+    expect(result.error.message).toContain("恢复后");
+    expect(result.error.message).toContain("lineup-incident");
+    expect(result.error.message).not.toContain("private SQL marker");
+    expect(revalidatePathMock).toHaveBeenCalledWith("/admin/settings");
+  });
+
 });
