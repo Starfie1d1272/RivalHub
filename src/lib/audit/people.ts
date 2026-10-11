@@ -1,6 +1,16 @@
-/** Read-side identity semantics. Machine identifiers are never human labels. */
+/** Shared audit identity semantics. Machine identifiers are never human labels. */
 export function isAuditUserId(value: unknown): value is string {
   return typeof value === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+}
+
+/** New Mizar facts carry an explicit machine namespace; legacy UUIDs remain read-compatible. */
+export function mizarAuditActorId(installationId: string): string {
+  return `mizar:${installationId}`;
+}
+
+export function readMizarAuditInstallationId(actorId: string | null): string | null {
+  const id = actorId?.startsWith("mizar:") ? actorId.slice(6) : null;
+  return isAuditUserId(id) ? id : null;
 }
 
 export function isAuditUserEmail(value: string): boolean {
@@ -9,6 +19,7 @@ export function isAuditUserEmail(value: string): boolean {
 
 export function getAuditActorLabel(actorId: string | null, names: ReadonlyMap<string, string>): string {
   if (!actorId || actorId === "system" || actorId === "veto-system" || actorId.startsWith("system:")) return "系统";
+  if (readMizarAuditInstallationId(actorId)) return "Mizar";
   if (actorId.startsWith("dak:")) return "DAK Studio";
   if (actorId.startsWith("release:")) return "发布流程";
   if (isAuditUserId(actorId) || isAuditUserEmail(actorId)) return names.get(actorId) ?? "未知用户";

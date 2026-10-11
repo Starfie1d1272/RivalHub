@@ -1,4 +1,5 @@
 import "server-only";
+import { mizarAuditActorId } from "@/lib/audit/people";
 import { randomBytes } from "node:crypto";
 import { and, eq, isNull } from "drizzle-orm";
 import { db, type TxDb } from "@/db/client";
@@ -132,7 +133,7 @@ export async function revokeMizarInstallation(installationId: string, competitio
     const now = new Date();
     await tx.update(mizarInstallations).set({ revokedAt: now }).where(eq(mizarInstallations.id, installationId));
     await tx.update(matchLiveSessions).set({ closedAt: now, closeReason: "revoked", autoCanonicalizationArmed: false }).where(and(eq(matchLiveSessions.installationId, installationId), isNull(matchLiveSessions.closedAt)));
-    await writeAuditInTx(tx, { seasonId: competitionId, actorId, action: "mizar.installation.revoke", targetId: installationId, meta: { authorizedByUserId: installation.authorizedByUserId, reason: reason.trim() } });
+    await writeAuditInTx(tx, { seasonId: competitionId, actorId: actorId === installation.id ? mizarAuditActorId(installation.id) : actorId, action: "mizar.installation.revoke", targetId: installationId, meta: { authorizedByUserId: installation.authorizedByUserId, reason: reason.trim() } });
     return { revoked: true, alreadyRevoked: false };
   });
 }

@@ -35,6 +35,9 @@ describe("audit presentation PostgreSQL readback", () => {
       { id: randomUUID(), action: "mizar.installation.revoke", actor: authorizer, season, type: "mizar_installation", target: installation },
       { id: randomUUID(), action: "admin.dak.pair", actor: authorizer, season: null, type: "dak_pairing", target: pairing },
       { id: randomUUID(), action: "mizar.installation.revoke", actor: installation, season, type: "mizar_installation", target: installation },
+      { id: randomUUID(), action: "match.map.start", actor: `mizar:${installation}`, season, type: "match", target: missing },
+      { id: randomUUID(), action: "match.map.start", actor: `mizar:${installation}`, season: otherSeason, type: "match", target: missing },
+      { id: randomUUID(), action: "match.map.start", actor: `mizar:${missing}`, season, type: "match", target: missing },
     ];
     try {
       // A colliding human UUID must not override a proven machine action, or
@@ -63,6 +66,8 @@ describe("audit presentation PostgreSQL readback", () => {
       expect(details[6]).toMatchObject({ actorLabel: "设备授权者", targetLabel: "Mizar · 机器测试赛事 · 已撤销", targetContext: "设备授权者：设备授权者" });
       expect(details[7]).toMatchObject({ actorLabel: "设备授权者", targetLabel: "DAK Studio · 使用中", targetContext: "设备授权者：设备授权者" });
       expect(details[8]).toMatchObject({ actorLabel: "Mizar", authorizedByLabel: "设备授权者", targetLabel: "Mizar · 机器测试赛事 · 已撤销" });
+      expect(details[9]).toMatchObject({ actorLabel: "Mizar", authorizedByLabel: "设备授权者" });
+      for (const detail of details.slice(10)) expect(detail).toMatchObject({ actorLabel: "Mizar", authorizedByLabel: null });
       const serialized = JSON.stringify(details);
       for (const privateValue of [secret, authorizer, installation, pairing, mizarIntent, dakIntent, "private.test", "credential", "tokenHash", '"meta"']) expect(serialized).not.toContain(privateValue);
       const stored = await pool.query("SELECT actor_id, target_id, meta FROM audit_logs WHERE id = $1", [rows[0]!.id]);
