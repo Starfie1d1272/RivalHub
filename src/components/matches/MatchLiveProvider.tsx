@@ -1,7 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useEffect, useState } from "react";
-import { connectLiveViewer, browserViewerEnvironment } from "@/lib/mizar/live-viewer";
+import { subscribeBrowserLiveViewer } from "@/lib/mizar/live-viewer-subscriptions";
 import { initialLiveViewerState } from "@/lib/mizar/live-viewer-state";
 
 const empty = { state: initialLiveViewerState(), now: 0 };
@@ -14,7 +14,10 @@ function Connection({ matchId, enabled, children }: { matchId: string; enabled: 
   const [now, setNow] = useState(0);
   useEffect(() => {
     if (!enabled) return;
-    return connectLiveViewer(matchId, setState, browserViewerEnvironment());
+    return subscribeBrowserLiveViewer(matchId, state => {
+      setState(state);
+      setNow(performance.now());
+    });
   }, [matchId, enabled]);
   useEffect(() => {
     if (!enabled) return;
