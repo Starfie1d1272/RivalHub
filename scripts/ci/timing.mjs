@@ -12,6 +12,9 @@ function ensureStateDirectory() {
 }
 
 function appendRecord(record) {
+  // The outer wrapper captures nested timing stdout and owns persistence.
+  // Otherwise inner wrappers write each metric before the outer parser repeats it.
+  if (env.RIVALHUB_TIMING_STDOUT_ONLY === "1") return;
   ensureStateDirectory();
   appendFileSync(stateFile, `${JSON.stringify(record)}\n`, "utf8");
 }
@@ -55,7 +58,9 @@ function parseTestCounts(output, kind) {
 async function runCommand(label, command, args) {
   const started = performance.now();
   let output = "";
-  const child = spawn(command, args, { cwd: process.cwd(), env, stdio: ["inherit", "pipe", "pipe"] });
+  const child = spawn(command, args, {
+    cwd: process.cwd(), env: { ...env, RIVALHUB_TIMING_STDOUT_ONLY: "1" }, stdio: ["inherit", "pipe", "pipe"],
+  });
   child.stdout.on("data", (chunk) => {
     const text = String(chunk);
     output += text;

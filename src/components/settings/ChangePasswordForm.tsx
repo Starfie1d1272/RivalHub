@@ -14,6 +14,7 @@ export function ChangePasswordForm() {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isPending, startTransition] = useTransition();
+  const [recoveryGuidance, setRecoveryGuidance] = useState<string | null>(null);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -33,6 +34,7 @@ export function ChangePasswordForm() {
         setNewPassword("");
         setConfirmPassword("");
       } else {
+        if (result.error.code === "PASSWORD_UPDATE_OUTCOME_UNKNOWN") setRecoveryGuidance(result.error.message);
         toast.error(result.error.message);
       }
     });
@@ -69,7 +71,8 @@ export function ChangePasswordForm() {
         required
         minLength={MIN_PASSWORD_LENGTH}
       />
-      <Button type="submit" variant="outline" className="w-full" disabled={isPending}>
+      {recoveryGuidance && <p role="alert" className="text-sm text-[var(--color-danger)]">{recoveryGuidance}</p>}
+      <Button type="submit" variant="outline" className="w-full" disabled={isPending || recoveryGuidance !== null}>
         {isPending ? "更新中…" : "更新密码"}
       </Button>
     </form>

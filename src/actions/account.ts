@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/db/client";
 import { users } from "@/db/schema";
 import { beginAuthentication } from "@/lib/auth/session-registry";
+import { signInFailure } from "@/lib/auth/sign-in-error";
 import { mutatePassword } from "@/lib/auth/password-mutation";
 import { createPublicAuthClient, createServiceClient } from "@/lib/auth/supabase-server";
 import { destroyUserSession, requireAuth } from "@/lib/auth/session";
@@ -37,7 +38,7 @@ export async function changeUserPassword(
     ]);
 
     if (signInError) {
-      return fail({ code: ErrorCode.UNAUTHORIZED, message: "原密码错误" });
+      return signInFailure(signInError, "auth.verify_password");
     }
     if (!userRow?.authId || signInData.user?.id !== userRow.authId) {
       throw new AppError(ErrorCode.NOT_FOUND, "用户不存在");

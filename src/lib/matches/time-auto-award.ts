@@ -10,12 +10,20 @@ import { PROPOSAL_RESPONSE_HOURS, canAutoAcceptProposal } from "@/lib/matches/ti
 
 import { allocateHeldCoverageInTx, releaseMatchCoverageHoldInTx } from "./coverage";
 import { materializeDefaultLineupsInTx } from "@/lib/match-rosters/service";
+import { AppError, ErrorCode } from "@/lib/errors";
+import { captureException } from "@/lib/observability/server";
+import { ensureRequestId } from "@/lib/observability/context";
+import { CommittedDefaultLineupsError } from "./default-lineup-error";
 
 export interface MatchTimeAutoAwardCronSummary {
   processed: number;
   awarded: number;
   skipped: number;
   failed: number;
+  lineups: { created: number; blocked: number; failed: number };
+  /** Internal causes; the scheduler runner must remove these from its DTO. */
+  lineupFailures: unknown[];
+  lineupRequestId: string;
   affectedMatches: Array<{ seasonSlug: string; matchId: string }>;
 }
 
@@ -23,19 +31,51 @@ export async function runMatchTimeAutoAwardCron(
   clock: () => Date = () => new Date(),
 ): Promise<MatchTimeAutoAwardCronSummary> {
   const now = clock();
+  const lineupRequestId = ensureRequestId();
+  const lineups = { created: 0, blocked: 0, failed: 0 };
+  const lineupFailures: unknown[] = [];
+  const affectedMatches: MatchTimeAutoAwardCronSummary["affectedMatches"] = [];
   const dueLineups = await db.select().from(matches).where(and(isNotNull(matches.seasonId), isNull(matches.testConfig), eq(matches.status, "scheduled"), isNotNull(matches.scheduledAt), lte(matches.scheduledAt, new Date(now.getTime() + 2 * 60 * 60_000))));
   for (const match of dueLineups) {
     try {
-      await db.transaction(async tx => {
+      const outcome = await db.transaction(async tx => {
         const [locked] = await tx.select().from(matches).where(eq(matches.id, match.id)).for("update");
         assertCompetitionMatch(locked);
-        await materializeDefaultLineupsInTx(tx, locked, clock());
+        const created = await materializeDefaultLineupsInTx(tx, locked, clock());
+        if (!created) return null;
+        const season = await tx.query.seasons.findFirst({ where: eq(seasons.id, locked.seasonId) });
+        if (!season) throw new AppError(ErrorCode.INTERNAL_ERROR, "比赛所属赛季不存在。");
+        return { created, seasonSlug: season.slug, matchId: locked.id };
       });
-    } catch { /* Unavailable legal lineup remains a visible start blocker. */ }
+      if (outcome) {
+        lineups.created += outcome.created;
+        affectedMatches.push({ seasonSlug: outcome.seasonSlug, matchId: outcome.matchId });
+      }
+    } catch (error) {
+      // Only the eligibility owner's explicit business rejection is waiting.
+      // PG, missing frozen facts and programming errors remain system failures.
+      if (error instanceof AppError && error.code === ErrorCode.VALIDATION_FAILED) {
+        lineups.blocked += 1;
+        continue;
+      }
+      lineups.failed += 1;
+      lineupFailures.push(error);
+      captureException("match.default_lineup.failure", error, {
+        scope: "match", operation: "default_lineup.materialize",
+        requestId: lineupRequestId,
+        safeContext: { phase: "materialization" },
+      });
+    }
   }
-  const proposalTimeoutResult = await autoAcceptExpiredProposals(clock);
+  const proposalTimeoutResult = await autoAcceptExpiredProposals(clock).catch(error => {
+    // These transactions have already committed. A later read failure must
+    // not discard their cache invalidation targets or replay their writes.
+    if (affectedMatches.length) throw new CommittedDefaultLineupsError(error, lineupRequestId, affectedMatches);
+    throw error;
+  });
 
-  return proposalTimeoutResult;
+  return { ...proposalTimeoutResult, lineups, lineupFailures, lineupRequestId,
+    affectedMatches: [...affectedMatches, ...proposalTimeoutResult.affectedMatches] };
 }
 
 async function autoAcceptExpiredProposals(

@@ -6,6 +6,8 @@ import type { DB, TxDb } from "@/db/client";
 import { applicationSessionControls as controls, applicationSessions as sessions, users } from "@/db/schema";
 import { AppError, ErrorCode } from "@/lib/errors";
 
+import { PasswordMutationError } from "./password-error";
+
 export const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 30;
 /** Captured on the DB clock BEFORE provider verification; never accepted from the browser. */
 export async function beginAuthentication(database: Pick<DB, "execute">): Promise<string> {
@@ -25,7 +27,8 @@ export async function assertFreshAuthenticationInTx(tx: TxDb, userId: string, st
     stale: sql<boolean>`${controls.revokedBefore} >= ${startedAt}::timestamptz`,
     pending: controls.passwordMutationId,
   }).from(controls).where(eq(controls.userId, userId));
-  if (!control || control.stale || control.pending) {
+  if (control?.pending) throw new PasswordMutationError("pending", undefined);
+  if (!control || control.stale) {
     throw new AppError(ErrorCode.UNAUTHORIZED, "账号安全状态已改变，请重新登录或稍后重试。");
   }
 }
