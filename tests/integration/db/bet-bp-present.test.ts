@@ -9,7 +9,7 @@ type Fixture = Parameters<Parameters<typeof fixture>[0]>[0];
 const reconcile=(f:Fixture)=>f.db.transaction(async tx=>{await lockBetProgram(tx,f.seasonId);await reconcileBetInTx(tx,f.seasonId);});
 const pool=["de_ancient","de_anubis","de_dust2","de_inferno","de_mirage","de_nuke","de_overpass"];
 async function seed(f:Fixture) {
-  // Synthetic catalog-v3 data only: production publisher remains disabled.
+  // Synthetic BO3-presence data only: production publisher remains disabled.
   const original=await f.db.query.matches.findFirst({where:eq(schema.matches.id,f.matchId)});
   const [match]=await f.db.insert(schema.matches).values({seasonId:f.seasonId,entryAId:f.entryIds[0]!,entryBId:f.entryIds[1]!,stage:"stage1",majorStageRunId:original!.majorStageRunId,ownership:"major_stage",managedKey:randomUUID(),format:"bo3"}).returning();
   const [market]=await f.db.insert(schema.betMarkets).values({seasonId:f.seasonId,matchId:match!.id,type:"veto_present",marketKey:`synthetic/${randomUUID()}`,subject:{kind:"match",entryIds:[f.entryIds[0]!,f.entryIds[1]!],runId:original!.majorStageRunId!,format:"bo3",mapPool:pool}}).returning();
@@ -27,7 +27,7 @@ async function ledger(f:Fixture) {
 // The PG layer protects frozen financial facts, correction reversals and admission
 // serialization, which pure multiwinner arithmetic cannot prove.
 describe("BO3 presence compatible reader with v2 publisher",()=>{
-  it("does not publish v3 and preserves opened legacy terms alongside synthetic v3",async()=>fixture(async f=>{
+  it("does not publish presence markets and preserves opened legacy terms alongside synthetic presence markets",async()=>fixture(async f=>{
     const before=await f.db.select().from(schema.betMarkets).where(eq(schema.betMarkets.matchId,f.matchId));
     expect(before.filter(m=>m.type==="veto_present")).toEqual([]);
     const legacy=before.find(m=>m.type==="veto_first")!;

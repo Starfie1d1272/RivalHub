@@ -1,4 +1,10 @@
 {
-  "readerVersion": 3,
-  "publisherVersion": 2
+  "readerVersion": 2,
+  "publisherVersion": 2,
+  "capabilities": {
+    "bo3BpPresence": {
+      "readerVersion": 1,
+      "publisherVersion": 0
+    }
+  }
 }
