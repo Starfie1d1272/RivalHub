@@ -71,7 +71,8 @@ export function buildEvidenceRevisionForTarget(input: {
       ? "finished" : input.match.status,
     entryAId: input.match.entryAId,
     entryBId: input.match.entryBId,
-    roster: input.roster.map((member) => ({
+    // Evidence binds the actual lineup; catalog/workbench reads may also include reserves.
+    roster: input.roster.filter((member) => member.isStarter).map((member) => ({
       entryId: member.entryId,
       eventRosterMemberId: member.eventRosterMemberId,
       userId: member.userId,
