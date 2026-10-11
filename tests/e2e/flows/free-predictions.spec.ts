@@ -72,7 +72,7 @@ test("免费预测独立于BET，零余额可改选，BP与赛果消费各自官
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
       await page.screenshot({ path: `.agent-tmp/911/real-actions-${width}.png`, fullPage: true, style: "nextjs-portal, [data-sonner-toaster] {visibility:hidden;}" });
     }
-    if (process.env.RIVALHUB_RELIEF_BROWSER === "1") {
+    {
       const before = await db.select().from(schema.betLedger).where(eq(schema.betLedger.seasonId, fixture.seasonId));
       expect(before.filter(row => row.kind === "relief")).toHaveLength(0);
       await page.reload();

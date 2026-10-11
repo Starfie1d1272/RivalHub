@@ -8,7 +8,7 @@
 
 ```sh
 RIVALHUB_ALLOW_LOCAL_CONTAINERS=1 pnpm db:local:migrate
-RIVALHUB_ALLOW_LOCAL_CONTAINERS=1 RIVALHUB_BET_SCREENSHOTS=1 RIVALHUB_RELIEF_BROWSER=1 pnpm test:e2e -- --project=mobile-chrome flows/free-predictions.spec.ts --reporter=list --workers=1
+RIVALHUB_ALLOW_LOCAL_CONTAINERS=1 RIVALHUB_BET_SCREENSHOTS=1 pnpm test:e2e -- --project=mobile-chrome flows/free-predictions.spec.ts --reporter=list --workers=1
 ```
 
 最终 Action 流程通过（20.3 秒）：详情预测/BET空分母显示暂无而非50/50；BET停用时免费赛果/BP独立提交和取消改选；初始1000沿用原入口，ALL IN投入与免费选择不同队伍；余额0改选并确认正式读取；服务端GET不发低保，显式点击+10、同日刷新不重复、隔离账本只有一条amount10/profit0；BP与赛果各自官方开始信号拒绝缓存旧状态并回读锁定；完成后命中、取消后作废、本人历史保留；净收益/命中次数/命中率三排序同表三列。
