@@ -259,3 +259,7 @@ Player careers start from canonical users and effective starter appearances in f
 `src/lib/matches/presentation-phase.ts` owns `MatchPhaseFacts`, `MatchPresentationPhase` and the pure `projectMatchPresentationPhase` function. Inputs are canonical lifecycle timestamps/status, Veto progress, ordered official map completion facts, and a validated current gameplay observation. The phase is never persisted. Public in-progress series progress is a read-only projection of confirmed Map results through `computeSeriesScoreAfterMap`. `matches.scoreA/scoreB` continue to store final series scores only; a displayed inter-map 1:0 must not be persisted into those fields. `in_progress` alone does not prove gameplay; completed series take precedence over an unused decider or late observation.
 
 Public and admin server read models explicitly adapt their own authorized facts to this small contract. Public DTOs may expose the derived phase, but never import/serialize the admin workbench DTO, source authority, review reasons, credentials or private operational records. Admin task, source mode/health and review reasons remain independent admin projections. Freshness comes from live/source evidence, never the age of a low-frequency reliable event.
+
+## 免费赛果与 BP 预测
+
+`src/lib/free-predictions/` 拥有独立免费选择和幂等修订；不属于 BET 金融账本、自由推演 Prediction 或 Pick’Em。截止捕获 Match/Map 游戏开始与 Veto BP 开始的永久事实，回退不重开；判定只消费 canonical 官方结果，BP 全集合命中独立于赛果排行。公开仅匿名支持率、个人公开成绩与会话本人的选择。详见 [免费预测契约](decisions/free-predictions.md)。

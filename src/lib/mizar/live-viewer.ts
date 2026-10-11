@@ -1,6 +1,8 @@
 import { requireSupabasePublicKey } from "@/lib/runtime/supabase-keys";
 import { createLiveViewerClient } from "@/lib/auth/supabase";
 import { initialLiveViewerState, receivePublicLive, resetLiveViewer, type LiveViewerState } from "./live-viewer-state";
+import { browserPreviousLiveViewStore, type PreviousLiveViewStore } from "./live-previous-view";
+import { LIVE_VIEW_CACHE_RESET_EVENT } from "./live-viewer-cache-reset";
 
 export interface ViewerEnvironment {
   url: string;
@@ -10,6 +12,8 @@ export interface ViewerEnvironment {
   now: () => number;
   visible: () => boolean;
   onResume: (callback: () => void) => () => void;
+  previousViews?: PreviousLiveViewStore;
+  onIdentityChange?: (callback: () => void) => () => void;
 }
 
 /** One disposable receive-only client per mounted Match. Never shares the Auth client. */
@@ -42,15 +46,27 @@ export function connectLiveViewer(matchId: string, onState: (state: LiveViewerSt
     const controller = new AbortController();
     request = controller;
     const timeout = setTimeout(() => controller.abort(), 10000);
+    const requestStartedAt = environment.now();
     try {
       const response = await environment.fetch(`/api/matches/${encodeURIComponent(matchId)}/live-viewer`, { cache: "no-store", signal: controller.signal });
-      if (!response.ok) throw new Error("viewer_unavailable");
+      if (stopped || current !== generation) return;
+      if (!response.ok) {
+        if ([401, 403, 404].includes(response.status)) {
+          environment.previousViews?.clear(matchId);
+          state = { ...state, previousView: null }; onState(state);
+        }
+        throw new Error("viewer_unavailable");
+      }
       const data: unknown = await response.json();
       if (stopped || current !== generation) return;
       if (!data || typeof data !== "object" || !("token" in data) || typeof data.token !== "string" || !("topic" in data) || typeof data.topic !== "string" || !("expiresAt" in data) || typeof data.expiresAt !== "number") throw new Error("invalid_viewer");
       const { token, topic, expiresAt } = data;
       const ttl = expiresAt - Date.now();
       if (ttl <= 0 || ttl > 330000) throw new Error("expired_viewer");
+      if (environment.previousViews) {
+        state = { ...state, previousView: environment.previousViews.authorize("cacheContext" in data ? data.cacheContext : null, matchId, environment.now(), environment.now() - requestStartedAt) };
+        onState(state);
+      }
       client = environment.createClient(environment.url, environment.key, async () => token);
       await client.realtime.setAuth(token);
       if (stopped || current !== generation) return;
@@ -60,7 +76,11 @@ export function connectLiveViewer(matchId: string, onState: (state: LiveViewerSt
         .on("broadcast", { event: "snapshot" }, ({ payload }: { payload: unknown }) => {
           if (stopped || current !== generation || !environment.visible()) return;
           const next = receivePublicLive(state, payload, matchId, environment.now());
-          if (next !== state) { state = next; onState(state); }
+          if (next !== state) {
+            state = environment.previousViews && next.snapshot
+              ? { ...next, previousView: environment.previousViews.remember(next.snapshot, environment.now()) } : next;
+            onState(state);
+          }
         })
         .subscribe((status) => {
           if (stopped || current !== generation) return;
@@ -73,8 +93,13 @@ export function connectLiveViewer(matchId: string, onState: (state: LiveViewerSt
     } finally { clearTimeout(timeout); }
   }
   const unsubscribe = environment.onResume(() => { clear(); reset(); if (environment.visible()) void join(); });
+  const unsubscribeIdentity = environment.onIdentityChange?.(() => {
+    environment.previousViews?.clearAll();
+    state = { ...state, previousView: null };
+    clear(); reset(); if (environment.visible()) void join();
+  });
   void join();
-  return () => { stopped = true; clear(); unsubscribe(); };
+  return () => { stopped = true; clear(); environment.previousViews?.forget(matchId); unsubscribe(); unsubscribeIdentity?.(); };
 }
 
 export function browserViewerEnvironment(): ViewerEnvironment {
@@ -83,6 +108,11 @@ export function browserViewerEnvironment(): ViewerEnvironment {
     key: process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
       ? requireSupabasePublicKey(process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY, process.env.NEXT_PUBLIC_SUPABASE_URL) : "",
     fetch: window.fetch.bind(window), createClient: createLiveViewerClient, now: () => performance.now(),
+    previousViews: browserPreviousLiveViewStore(),
+    onIdentityChange(callback) {
+      window.addEventListener(LIVE_VIEW_CACHE_RESET_EVENT, callback);
+      return () => window.removeEventListener(LIVE_VIEW_CACHE_RESET_EVENT, callback);
+    },
     visible: () => document.visibilityState !== "hidden" && navigator.onLine,
     onResume(callback) {
       document.addEventListener("visibilitychange", callback);
