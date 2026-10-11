@@ -8,7 +8,9 @@ it.each([0, 7])("persists nested command timings once and preserves exit %s", (s
   const directory = mkdtempSync(join(tmpdir(), "ci-nested-timing-"));
   const state = join(directory, "timing.jsonl");
   const summary = join(directory, "summary.md");
-  const env = { ...process.env, RIVALHUB_TIMING_FILE: state, GITHUB_STEP_SUMMARY: summary };
+  // Vitest itself can run inside the workflow wrapper. This isolated fixture
+  // starts a new root wrapper, rather than inheriting its parent's stdout mode.
+  const env = { ...process.env, RIVALHUB_TIMING_STDOUT_ONLY: "0", RIVALHUB_TIMING_FILE: state, GITHUB_STEP_SUMMARY: summary };
   try {
     const result = spawnSync(process.execPath, ["scripts/ci/timing.mjs", "static/checks", "--",
       process.execPath, "scripts/ci/timing.mjs", "static/type-app", "--", process.execPath, "-e",
