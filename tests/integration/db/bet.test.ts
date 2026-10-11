@@ -8,6 +8,7 @@ import { createMajorDefaultCapabilities } from "@/lib/competition/templates";
 import { makeMajorRunSnapshotV4 } from "@/lib/major/run-snapshot";
 import { operateBetInTx,joinBetInTx,stakeBetInTx,betBalance,lockBetProgram,reconcileBetInTx } from "@/lib/bet/service";
 import { betBoard } from "@/lib/bet/data";
+import { readMatchSupport } from "@/lib/bet/match-support";
 import { localDatabaseUrl } from "./harness/database";
 import { withScratchDatabase,migrationFiles,replayMigration } from "./harness/migration-replay";
 async function fixture(work:(f:{db:ReturnType<typeof drizzle<typeof schema>>;seasonId:string;userId:string;otherId:string;matchId:string;entryIds:string[]})=>Promise<void>) {
@@ -34,6 +35,29 @@ async function fixture(work:(f:{db:ReturnType<typeof drizzle<typeof schema>>;sea
 }
 const read=(db:ReturnType<typeof drizzle<typeof schema>>,seasonId:string,userId:string)=>db.transaction(tx=>betBoard(tx,seasonId,userId),{accessMode:"read only",isolationLevel:"repeatable read"});
 describe("BET transactional admission and settlement",()=>{
+  // Real SQL protects per-team sums and lifecycle retention; component fixtures cannot.
+  it("reads match support from stake amounts across scheduled, live and settled states", async () => fixture(async f => {
+    const support = () => readMatchSupport(f.db, f.seasonId, f.matchId);
+    const expected = (a: string, b: string) => expect.arrayContaining([
+      { entryId: f.entryIds[0], amount: a }, { entryId: f.entryIds[1], amount: b },
+    ]);
+    expect(await readMatchSupport(f.db, randomUUID(), f.matchId)).toBeNull();
+    expect(await readMatchSupport(f.db, f.seasonId, randomUUID())).toBeNull();
+    expect(await support()).toEqual(expected("0", "0"));
+    const market = (await read(f.db, f.seasonId, f.userId)).markets.find(m => m.type === "match_winner")!;
+    for (const [userId, option, amount] of [[f.userId, 0, "100"], [f.userId, 0, "50"], [f.otherId, 1, "300"]] as const) {
+      await f.db.transaction(tx => stakeBetInTx(tx, { seasonId: f.seasonId, userId, marketId: market.id, optionId: market.options[option]!.id, amount, requestId: randomUUID() }));
+    }
+    expect(await support()).toEqual(expected("150", "300"));
+    await f.db.update(schema.matches).set({status:"in_progress"}).where(eq(schema.matches.id, f.matchId));
+    await f.db.transaction(async tx => { await lockBetProgram(tx, f.seasonId); await reconcileBetInTx(tx, f.seasonId); });
+    expect(await support()).toEqual(expected("150", "300"));
+    await f.db.update(schema.matches).set({status:"finished",scoreA:2,scoreB:0,completedAt:new Date()}).where(eq(schema.matches.id, f.matchId));
+    await f.db.transaction(async tx => { await lockBetProgram(tx, f.seasonId); await reconcileBetInTx(tx, f.seasonId); });
+    expect((await read(f.db, f.seasonId, f.userId)).markets.find(m => m.id === market.id)?.state).toBe("settled");
+    expect(await support()).toEqual(expected("150", "300"));
+  }));
+
   it("allows administrators while retaining current roster conflicts in both read and write paths", async () => fixture(async f => {
     await f.db.update(schema.users).set({role:"super_admin"}).where(eq(schema.users.id,f.userId));
     await f.db.insert(schema.seasonAdminGrants).values({seasonId:f.seasonId,userId:f.otherId});
