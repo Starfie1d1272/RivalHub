@@ -4,6 +4,7 @@ import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db/client";
 import { matchDemoImports, matches, seasons, userGameplaySteamIds } from "@/db/schema";
+import { captureException } from "@/lib/observability/server";
 import { actionError, failValidation } from "@/lib/action-utils";
 import { auditActorId, requireSeasonAdmin } from "@/lib/auth/session";
 import { AppError, ErrorCode } from "@/lib/errors";
@@ -61,7 +62,10 @@ export async function confirmStoredDemoParticipantIdentity(
         actorId,
         excludeImportId: row.id,
       });
-    } catch {
+    } catch (error) {
+      captureException("demo.recheck.failure", error, {
+        scope: "demo", operation: "recheck.related", safeContext: { phase: "candidate_selection" },
+      });
       relatedRechecks = { attempted: 0, confirmed: 0, remaining: 0, failed: 1, affectedMatchIds: [] };
     }
     revalidateMatchPaths(season.slug, row.matchId);

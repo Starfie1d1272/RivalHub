@@ -1,4 +1,5 @@
 import "server-only";
+import { captureException } from "@/lib/observability/server";
 
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { db, type TxDb } from "@/db/client";
@@ -209,7 +210,10 @@ async function revalidateCandidateRows(
       affectedMatchIds.add(row.matchId);
       if (result.status === "confirmed") confirmed++;
       else remaining++;
-    } catch {
+    } catch (error) {
+      captureException("demo.recheck.failure", error, {
+        scope: "demo", operation: "recheck.related", safeContext: { phase: "recheck" },
+      });
       attempted++;
       failed++;
     }
