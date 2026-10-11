@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AppError, ErrorCode } from "@/lib/errors";
 
 const {
@@ -72,6 +72,8 @@ import {
   retireGameplaySteamIdentity,
 } from "@/actions/demo-integration";
 
+afterEach(() => vi.restoreAllMocks());
+
 const IMPORT_ID = "11111111-1111-4111-8111-111111111111";
 const MEMBER_ID = "22222222-2222-4222-8222-222222222222";
 const IDENTITY_ID = "33333333-3333-4333-8333-333333333333";
@@ -140,7 +142,8 @@ describe("Demo identity action authorization", () => {
   });
 
   it("keeps a successful identity confirmation successful when related fan-out recheck fails", async () => {
-    fanoutMock.mockRejectedValue(new Error("temporary recheck failure"));
+    const write = vi.spyOn(process.stderr, "write").mockReturnValue(true);
+    fanoutMock.mockRejectedValue(new Error("temporary recheck failure", { cause: Object.assign(new Error("reset token=private"), { code: "ECONNRESET" }) }));
 
     const result = await confirmStoredDemoParticipantIdentity({
       importId: IMPORT_ID,
@@ -155,6 +158,10 @@ describe("Demo identity action authorization", () => {
         relatedRechecks: { attempted: 0, confirmed: 0, remaining: 0, failed: 1 },
       },
     });
+    expect(write).toHaveBeenCalledOnce();
+    const event = JSON.parse(String(write.mock.calls[0][0]));
+    expect(event).toMatchObject({ event: "demo.recheck.failure", safeContext: { phase: "candidate_selection" }, exception: { cause: { code: "ECONNRESET" } } });
+    expect(JSON.stringify(event)).not.toContain("token=private");
   });
 
   it("rejects a caller without the import's season grant before mutation", async () => {
