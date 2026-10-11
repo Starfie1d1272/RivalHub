@@ -1,16 +1,32 @@
 import "server-only";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import type { TxDb } from "@/db/client";
-import { freePredictionChoices as choices, freePredictionLocks as locks } from "@/db/schema";
+import { freePredictionChoices as choices, freePredictionLocks as locks, users } from "@/db/schema";
+import { resolveCanonicalUserId } from "@/lib/identity/canonical";
 import { loadBetFacts, type BetFacts } from "@/lib/bet/facts";
 import { marketIsLocked, subjectMatches } from "@/lib/bet/domain";
 import { normalizeRegistrationConfig } from "@/lib/seasons/compatibility";
-import { predictionInput, gradePrediction } from "./domain";
+import { predictionInput, gradePrediction, freePredictionRestriction } from "./domain";
 import type { FreePredictionMatchDTO, FreePredictionSubject } from "./types";
 export async function loadFreePredictionPopulation(tx: TxDb, seasonId: string) {
   const facts = await loadBetFacts(tx,seasonId);
   const rows = await tx.select().from(choices).where(eq(choices.seasonId,seasonId));
-  return { facts, rows };
+  // Original attribution/revisions stay immutable across identity merge. Project one
+  // current vote per canonical person, retaining the selected account's choice.
+  const identities = rows.length ? await tx.select({id:users.id,status:users.status}).from(users).where(inArray(users.id,[...new Set(rows.map(r=>r.userId))])) : [];
+  const canonicalIds = new Map<string,string>();
+  for (const identity of identities) {
+    const id = identity.status === "active" ? identity.id : await resolveCanonicalUserId(tx,identity.id);
+    if (id) canonicalIds.set(identity.id,id);
+  }
+  const effective = new Map<string,{row:typeof choices.$inferSelect; direct:boolean}>();
+  for (const row of rows) {
+    const userId = canonicalIds.get(row.userId); if (!userId) continue;
+    const key = `${userId}/${row.matchId}/${row.kind}`; const direct=row.userId===userId;
+    const previous=effective.get(key);
+    if (!previous || (direct && !previous.direct) || (direct===previous.direct && row.updatedAt>previous.row.updatedAt)) effective.set(key,{row:{...row,userId},direct});
+  }
+  return { facts, rows:[...effective.values()].map(v=>v.row) };
 }
 export function choiceFact(row: typeof choices.$inferSelect, f: BetFacts) {
   return predictionInput(row.subject,{match:f.official.find(m=>m.id===row.matchId),maps:f.maps.filter(m=>m.matchId===row.matchId),veto:f.vetoByMatch.get(row.matchId),event:f.event});
@@ -20,7 +36,6 @@ export async function readFreePredictionBoard(tx: TxDb, seasonId: string, userId
   const {facts:f,rows} = await loadFreePredictionPopulation(tx,seasonId);
   const fences = await tx.select().from(locks).where(eq(locks.seasonId,seasonId));
   const user = userId ? await tx.query.users.findFirst({where:(u,{eq})=>eq(u.id,userId),columns:{status:true,emailVerifiedAt:true}}) : undefined;
-  const canUse = !!user && user.status === "active" && !!user.emailVerifiedAt && ["playing","drafting"].includes(f.season.status);
   const result: FreePredictionMatchDTO[] = [];
   for (const m of f.official) {
     if (!m.majorStageRunId && !m.qualificationRunId) continue;
@@ -37,10 +52,13 @@ export async function readFreePredictionBoard(tx: TxDb, seasonId: string, userId
     const myBp = rows.find(r=>r.matchId===m.id && r.kind === "bp" && r.userId===userId);
     const resultLocked = !!fence?.resultLockedAt || marketIsLocked(fact);
     const bpLocked = !!fence?.bpLockedAt || marketIsLocked({...fact,type:"veto_map"});
-    result.push({matchId:m.id,a:f.entries.find(e=>e.id===m.entryAId)?.name??"队伍",b:f.entries.find(e=>e.id===m.entryBId)?.name??"队伍",logoA:f.entries.find(e=>e.id===m.entryAId)?.logoUrl??null,logoB:f.entries.find(e=>e.id===m.entryBId)?.logoUrl??null,stage:m.qualificationRunId?"PLAY-IN":f.season.stagePlan.find(s=>s.key===m.stage)?.name??"正赛",scheduledAt:m.scheduledAt?.toISOString()??null,entryIds:subject.entryIds,format:m.format,mapPool,
-      result:{locked:resultLocked,canSubmit:canUse&&!resultLocked,mine:myResult?.selection[0]??null,grade:myResult?gradePrediction("result",myResult.selection,choiceFact(myResult,f)):null,
+    const eligibility={status:m.status,isForfeit:m.isForfeit,seasonStatus:f.season.status,signedIn:!!userId,active:user?.status==="active",verified:!!user?.emailVerifiedAt};
+    const resultRestriction=freePredictionRestriction({...eligibility,locked:resultLocked,validMapPool:true});
+    const bpRestriction=freePredictionRestriction({...eligibility,locked:bpLocked,validMapPool:mapPool.length>=Number(m.format.slice(2))});
+    result.push({matchId:m.id,status:m.status,isForfeit:m.isForfeit,a:f.entries.find(e=>e.id===m.entryAId)?.name??"队伍",b:f.entries.find(e=>e.id===m.entryBId)?.name??"队伍",logoA:f.entries.find(e=>e.id===m.entryAId)?.logoUrl??null,logoB:f.entries.find(e=>e.id===m.entryBId)?.logoUrl??null,stage:m.qualificationRunId?"PLAY-IN":f.season.stagePlan.find(s=>s.key===m.stage)?.name??"正赛",scheduledAt:m.scheduledAt?.toISOString()??null,entryIds:subject.entryIds,format:m.format,mapPool,
+      result:{locked:resultLocked,canSubmit:!resultRestriction,restriction:resultRestriction,mine:myResult?.selection[0]??null,grade:myResult?gradePrediction("result",myResult.selection,choiceFact(myResult,f)):null,
         support:{total:votes.length,counts,percentages:votes.length?[counts[0]*100/votes.length,counts[1]*100/votes.length]:null}},
-      bp:{locked:bpLocked,canSubmit:canUse&&!bpLocked&&mapPool.length>=Number(m.format.slice(2)),mine:myBp?.selection??null,grade:myBp?gradePrediction("bp",myBp.selection,choiceFact(myBp,f)):null,
+      bp:{locked:bpLocked,canSubmit:!bpRestriction,restriction:bpRestriction,mine:myBp?.selection??null,grade:myBp?gradePrediction("bp",myBp.selection,choiceFact(myBp,f)):null,
         support:{total:bp.length,maps:mapPool.map(name=>({name,count:bp.filter(r=>r.selection.includes(name)).length}))}}});
   }
   return {seasonId,matches:result};

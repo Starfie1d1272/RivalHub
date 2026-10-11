@@ -95,4 +95,13 @@ describe("free predictions real PostgreSQL",()=>{
     })).rejects.toThrow();
   }));
 
+  it("canonical aliases retain private audit while projecting one vote and the selected account choice",async()=>fixture(async f=>{
+    for(const [userId,entryId] of [[f.userId,f.entryIds[0]!],[f.otherId,f.entryIds[1]!]]) await f.db.transaction(tx=>submitFreePredictionInTx(tx,{seasonId:f.seasonId,matchId:f.matchId,userId:userId!,kind:"result",selection:[entryId!],requestId:randomUUID()}));
+    await f.db.update(schema.users).set({status:"merged",mergedIntoUserId:f.otherId,mergedAt:new Date()}).where(eq(schema.users.id,f.userId));
+    const board=await f.db.transaction(tx=>readFreePredictionBoard(tx,f.seasonId,f.otherId));
+    expect(board.matches[0]!.result).toMatchObject({mine:f.entryIds[1],support:{total:1,counts:[0,1]}});
+    expect(await f.db.select().from(schema.freePredictionChoices)).toHaveLength(2);
+    expect(JSON.stringify(board)).not.toContain(f.userId);
+  }));
+
 });
