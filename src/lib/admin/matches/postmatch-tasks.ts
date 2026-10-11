@@ -1,4 +1,5 @@
 import "server-only";
+import { readReopenedPostMatchIds } from "@/lib/postmatch/read";
 import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { db, type DB, type TxDb } from "@/db/client";
 import { competitionEntries, matchCommentators, matchDemoImports, matchMaps, matchPlayerStats, matches, postMatchReports } from "@/db/schema";
@@ -32,7 +33,7 @@ export async function readAdminPostMatchTasks(database: DB | TxDb, seasonId: str
     .orderBy(desc(matches.completedAt), asc(matches.id));
   if (matchRows.length === 0) return [];
   const ids = matchRows.map(match => match.id);
-  const [maps, roster, imports, scoreboards, commentators, reports, entries] = await Promise.all([
+  const [maps, roster, imports, scoreboards, commentators, reports, entries, reopenedIds] = await Promise.all([
     database.select().from(matchMaps).where(inArray(matchMaps.matchId, ids)).orderBy(asc(matchMaps.mapOrder)),
     loadEffectiveMatchRoster(database, ids, true),
     database.select(demoImportMetadataSelection).from(matchDemoImports).where(and(eq(matchDemoImports.seasonId, seasonId), inArray(matchDemoImports.matchId, ids))).orderBy(desc(matchDemoImports.createdAt)),
@@ -40,6 +41,7 @@ export async function readAdminPostMatchTasks(database: DB | TxDb, seasonId: str
     database.select({ matchId: matchCommentators.matchId, userId: matchCommentators.userId }).from(matchCommentators).where(inArray(matchCommentators.matchId, ids)),
     database.select({ matchId: postMatchReports.matchId }).from(postMatchReports).where(inArray(postMatchReports.matchId, ids)),
     database.select({ id: competitionEntries.id, name: competitionEntries.name }).from(competitionEntries).where(and(eq(competitionEntries.competitionId, seasonId), inArray(competitionEntries.id, [...new Set(matchRows.flatMap(match => [match.entryAId, match.entryBId]).filter((id): id is string => id !== null))]))),
+    readReopenedPostMatchIds(database, ids),
   ]);
   const groupByMatch = <T extends { matchId: string }>(rows: readonly T[]) => {
     const grouped = new Map<string, T[]>();
@@ -63,7 +65,7 @@ export async function readAdminPostMatchTasks(database: DB | TxDb, seasonId: str
       roster: rosterByMatch.get(match.id) ?? [], imports: importsByMatch.get(match.id) ?? [],
       scoreboards: scoresByMatch.get(match.id) ?? [] });
     const tasks = projectOperatorPostMatchTasks({ status: match.status, isForfeit: match.isForfeit, maps: operatorMaps,
-      commentatorCount: people.length, submitted: submitted.has(match.id), hasVideo: Boolean(match.videoUrl) });
+      commentatorCount: people.length, submitted: submitted.has(match.id), reopened: reopenedIds.has(match.id), hasVideo: Boolean(match.videoUrl) });
     if (tasks.length === 0 || !match.entryAId || !match.entryBId) return [];
     return [{ id: match.id, stage: match.stage ?? "", entryAId: match.entryAId, entryBId: match.entryBId,
       teamAName: names.get(match.entryAId) ?? "未知队伍", teamBName: names.get(match.entryBId) ?? "未知队伍",

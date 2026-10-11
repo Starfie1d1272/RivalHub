@@ -63,6 +63,32 @@ describe("OCR failure recovery", () => {
     actions.getMatchPlayerOptions.mockResolvedValue([]);
   });
 
+  it("offers keyboard selection, preserves a cancelled selection and restores replacement after errors", async () => {
+    const user = userEvent.setup();
+    actions.extractStatsFromScreenshot.mockResolvedValue({ success: false, error: { code: "OCR_UNAVAILABLE", message: "识别暂不可用" } });
+    render(<StatsOCRPanel mapId="map" mapName="Cache" />);
+    const input = await screen.findByLabelText("记分板截图");
+    const choose = screen.getByRole("button", { name: "选择截图" });
+    expect(screen.getByRole("button", { name: "OCR 识别截图" })).toBeDisabled();
+    const open = vi.spyOn(input, "click");
+    choose.focus();
+    await user.keyboard("{Enter}");
+    expect(open).toHaveBeenCalledOnce();
+    await user.upload(input, new File(["first"], "第一张.png", { type: "image/png" }));
+    expect(screen.getByText("第一张.png")).toBeVisible();
+    fireEvent.change(input, { target: { files: [] } });
+    expect(screen.getByText("第一张.png")).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "OCR 识别截图" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("识别暂不可用");
+    await user.upload(input, new File(["second"], "第二张.png", { type: "image/png" }));
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.getByText("第二张.png")).toBeVisible();
+    expect(screen.getByRole("button", { name: "OCR 识别截图" })).toBeEnabled();
+    await user.click(screen.getByRole("button", { name: "OCR 识别截图" }));
+    await waitFor(() => expect(actions.extractStatsFromScreenshot).toHaveBeenCalledTimes(2));
+    expect(actions.extractStatsFromScreenshot.mock.calls[1][0].base64Image).toBe("c2Vjb25k");
+  });
+
   it("shows the 401 reason, reference and configuration entry after reading a PNG", async () => {
     const user = userEvent.setup();
     const requestId = "10000000-0000-4000-8000-000000000001";
