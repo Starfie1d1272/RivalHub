@@ -53,6 +53,19 @@ export function resolveBetFact(input: MarketFactInput): MarketResolutionFact {
   }
   const match = input.match!;
   if (match.isForfeit || match.status === "cancelled") return voidFact;
+  if (input.type === "veto_present") {
+    // The frozen pool and BO define this market's terms; never infer them from play count.
+    if (input.subject.kind !== "match" || match.format !== "bo3" ||
+      input.subject.mapPool.length !== 7 || new Set(input.subject.mapPool).size !== 7) return voidFact;
+    if (!input.veto?.completedAt || input.veto.pendingAppeal) return pending;
+    const pool = input.subject.mapPool;
+    const maps = input.maps.slice().sort((a,b)=>a.mapOrder-b.mapOrder);
+    if (maps.length !== 3 || maps.some((m,i)=>m.mapOrder !== i+1) ||
+      new Set(maps.map(m=>m.mapName)).size !== 3 ||
+      maps.some(m=>!pool.includes(m.mapName))) return pending;
+    const names = maps.map(m=>m.mapName).sort();
+    return confirmed(names,names);
+  }
   if (input.type.startsWith("veto_")) {
     if (!input.veto?.completedAt || input.veto.pendingAppeal) return pending;
     const order = input.type === "veto_decider" ? Number(match.format.slice(2)) : 1;
