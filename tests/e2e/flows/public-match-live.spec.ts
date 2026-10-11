@@ -26,13 +26,13 @@ const stream = (matchId: string) => new Promise<ChildProcess>((resolve, reject) 
     child.once("error", error => { clearTimeout(deadline); reject(error); });
   });
 
-test("public test match consumes private Broadcast and recovers across navigation and map changes", async ({ page }) => {
+test("public match consumes private Broadcast and recovers across navigation and map changes", async ({ page }) => {
   test.setTimeout(180000);
   const seasonId = randomUUID();
   let producer: ChildProcess | undefined;
 
   try {
-    const output = await run(fixture, "create-test", seasonId);
+    const output = await run(fixture, "create", seasonId);
     const line = output.split("\n").find(value => value.startsWith("LIVE_FIXTURE "));
     if (!line) throw new Error("Local live fixture did not return context");
     const { matchId, otherMatchId } = JSON.parse(line.slice("LIVE_FIXTURE ".length)) as { matchId: string; otherMatchId: string };
@@ -54,7 +54,6 @@ test("public test match consumes private Broadcast and recovers across navigatio
     const tokenResponse = await navigateAndWaitForResponse(page, url,
       response => response.url().endsWith(`/api/matches/${matchId}/live-viewer`));
     expect(tokenResponse.status()).toBe(200);
-    await expect(page.getByText("测试赛 · 不计入正式赛程与统计", { exact: true })).toBeVisible();
     const live = page.getByTestId("match-realtime").filter({ visible: true });
     await expect(live.getByText("FalleN", { exact: true })).toBeVisible();
     await expect(live.locator("canvas")).toBeVisible();
@@ -80,8 +79,39 @@ test("public test match consumes private Broadcast and recovers across navigatio
     // MatchRealtime.test.tsx; retain one real disconnect/recovery here.
     producer = await stream(matchId);
     await expect(live.getByText("FalleN", { exact: true })).toBeVisible();
-    await assertPageResponse(await page.reload());
+    // Real Next Link navigation mounts the list row initially outside its
+    // visibility subscription. This must not revoke the shared cache proof.
+    const storedSequence = () => page.evaluate(matchId => {
+      const key = Object.keys(sessionStorage).find(key => key.startsWith("rivalhub:previous-live:v1:"));
+      return key ? JSON.parse(sessionStorage.getItem(key)!).find((entry: { matchId: string }) => entry.matchId === matchId)?.snapshot?.delivery?.sequence ?? 0 : 0;
+    }, matchId);
+    const beforeListSequence = await storedSequence();
+    expect(beforeListSequence).toBeGreaterThan(0);
+    await page.getByRole("link", { name: "← 返回赛程总览" }).click();
+    await expect(page).toHaveURL(new RegExp(`/${seasonId}/matches$`));
+    const matchLink = page.locator(`a[href="${url}"]`).filter({ has: page.getByTestId("match-list-live-score") });
+    await expect(matchLink.getByLabel("本图回合比分")).toBeVisible();
+    await matchLink.click();
     await expect(live.locator("canvas")).toBeVisible();
+    // Wait for the running receiver to persist a later legitimate frame;
+    // restoring an old entry alone would conceal a deleted shared proof.
+    expect(viewerJoins).toBe(1);
+    await expect.poll(storedSequence).toBeGreaterThan(beforeListSequence);
+    producer?.kill(); producer = undefined;
+    await assertPageResponse(await page.reload());
+    const previous = live.getByTestId("previous-live-view");
+    await expect(previous.getByText("FalleN", { exact: true })).toBeVisible();
+    await expect(live.getByText(/上次画面/)).toBeVisible();
+    await expect(live.locator("canvas")).toHaveCount(0);
+    if (process.env.RIVALHUB_LIVE_SCREENSHOTS_DIR) {
+      await page.screenshot({ path: resolve(process.env.RIVALHUB_LIVE_SCREENSHOTS_DIR, "desktop-previous.png"), fullPage: true });
+      await page.setViewportSize({ width: 390, height: 844 });
+      await page.screenshot({ path: resolve(process.env.RIVALHUB_LIVE_SCREENSHOTS_DIR, "narrow-previous.png"), fullPage: true });
+      await page.setViewportSize({ width: 1280, height: 720 });
+    }
+    producer = await stream(matchId);
+    await expect(live.locator("canvas")).toBeVisible();
+    await expect(previous).toHaveCount(0);
     await assertPageResponse(await page.goto(`/${seasonId}/matches/${otherMatchId}`));
     await expect(page.getByText("FalleN", { exact: true })).toHaveCount(0);
     await assertPageResponse(await page.goto(url));

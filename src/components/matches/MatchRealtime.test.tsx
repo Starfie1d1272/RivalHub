@@ -16,6 +16,18 @@ const snapshot = projectPublicLive(parseLiveSnapshotV1(fixture.snapshot), 1, fix
 const state = receivePublicLive(initialLiveViewerState(), snapshot, snapshot.matchId, 0);
 const render = (phase: "awaiting_gameplay" | "gameplay" | "inter_map", now = 0, currentMapId = snapshot.map.mapId) => renderToStaticMarkup(<MatchRealtimeSurface state={state} now={now} phase={phase} currentMapId={currentMapId} />);
 describe("public LIVE presentation", () => {
+  it("renders a verified previous table as recorded data, never LIVE, clock or animated radar", () => {
+    const cached = { ...initialLiveViewerState(), previousView: { snapshot, expiresAt: 30000 } };
+    const props = { phase: "gameplay" as const, currentMapId: snapshot.map.mapId, now: 1000 };
+    const html = renderToStaticMarkup(<MatchRealtimeSurface {...props} state={cached} />);
+    expect(html).toContain("上次画面"); expect(html).toContain("正在连接实时数据"); expect(html).toContain("FalleN");
+    expect(html).not.toContain("● 实时"); expect(html).not.toContain("战术雷达"); expect(html).not.toContain("回合时钟");
+    expect(renderToStaticMarkup(<MatchRealtimeSurface {...props} now={30000} state={cached} />)).not.toContain("FalleN");
+    expect(renderToStaticMarkup(<MatchRealtimeSurface {...props} phase="inter_map" state={cached} />)).not.toContain("FalleN");
+    expect(renderToStaticMarkup(<MatchRealtimeSurface {...props} currentMapId="other" state={cached} />)).not.toContain("FalleN");
+    const live = { ...state, previousView: cached.previousView };
+    expect(renderToStaticMarkup(<MatchRealtimeSurface {...props} now={0} state={live} />)).not.toContain("上次画面");
+  });
   it("distinguishes subscription failure from a connected viewer waiting for frames", () => {
     const waiting = initialLiveViewerState();
     const props = { phase: "gameplay" as const, currentMapId: snapshot.map.mapId, now: 0 };

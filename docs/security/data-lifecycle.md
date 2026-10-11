@@ -26,6 +26,7 @@
 | 业务 audit；[write owner](../../src/lib/audit/write.ts) | PostgreSQL 保存谁改变哪些业务事实 | private，按全局/赛事权限投影；不展开 raw meta，不补造未知历史 |
 | Runtime telemetry；[observability](../operations/observability.md) | Vercel/Better Stack 保存脱敏日志、trace、运行诊断 | private，运维授权；不成为业务审计，不复制到 application DB |
 | Cache/projection/scheduler health；[统计](../operations/statistics-projections.md)、[scheduler](../deployment.md) | PostgreSQL/runtime cache 保存可重建统计、Steam profile cache、有界当前健康 | 仍按 DTO 输出；freshness/失效不等于物理删除，projection 不是 source fact |
+| 浏览器上一帧；[previous view owner](../../src/lib/mizar/live-previous-view.ts) | 同标签页 sessionStorage 暂存最多两场匿名公开计分表，减少连接期间的空白 | 仅 public display values 与 opaque revision；不存 token、cookie、用户/source 身份、雷达或运行时钟，不是正式赛果或事件 replay |
 | 公开运营图片；[Storage registry](../../scripts/db/recovery/storage-policy.ts) | public Storage 保存队标、赛事 Logo/群二维码 | 对象为 public，上传权限与内部 inventory 仍 server-only |
 | 环境/provider secret；[部署](../deployment.md) | Vercel/GitHub protected configuration、Vault、provider 拥有运行凭据 | secret，不导出值到文档/PR/log/普通应用备份；DB 内 verifier hash 按上述设备/身份类别另行保护 |
 
@@ -44,6 +45,7 @@
 | 业务 audit | 当前无统一自动 purge，维护正式追溯 | 低敏写入与安全投影不使历史 raw/private meta 公开；未来脱敏需定义责任追溯、tombstone、授权关系 |
 | Runtime telemetry | provider-managed，按当前 project/source/plan 核验 | provider 管理过期；仓库采样率不能推出保留期，ingest secret presence 不能证明查询权限。实际配置/owner/核验时间留在执行 Issue |
 | Cache/projection/心跳 | 原 owner freshness、invalidation、reducer version | 由 canonical facts 重建；恢复旧缓存不能绕过身份/资格/处罚/撤销校验。心跳无独立历史 purge，不能宣传已到期物理删除 |
+| 浏览器上一帧 | 原服务端收帧时间后 30 秒；恢复前必须取得 fresh viewer proof，未知资格、上下文/地图/登录变化清除 | owner 在期限安排标签页清理，读端始终拒绝超期；浏览器冻结时物理清理可能延后。登录/退出清除，不进入 application DB、备份或灾难恢复输入；恢复不会刷新原时间 |
 | 公开 Storage assets | durable，按队伍/赛事使用目的保留，无统一 TTL | 对应上传 owner 管理替换/删除，恢复 registry 为 always，不与临时敏感材料套同一规则 |
 
 ## Backup 与恢复

@@ -24,6 +24,7 @@ export interface LiveViewerState {
   receivedAt: number | null;
   revision: number;
   acceptedFrames: number;
+  previousView?: { snapshot: PublicLiveMatchProjection; expiresAt: number } | null;
 }
 export const initialLiveViewerState = (): LiveViewerState => ({ connection: "connecting", snapshot: null, watermark: null, receivedAt: null, revision: 0, acceptedFrames: 0 });
 export function liveFreshness(state: LiveViewerState, now: number): LiveFreshness {
@@ -39,17 +40,23 @@ export function liveBoundary(snapshot: PublicLiveMatchProjection): string {
 }
 
 /** Untrusted Broadcast input, latest-wins without a replay/baseline store. */
-export function receivePublicLive(state: LiveViewerState, input: unknown, matchId: string, now: number): LiveViewerState {
+export function parsePublicLiveProjection(input: unknown, matchId: string): PublicLiveMatchProjection | null {
   let serialized: string;
-  try { serialized = JSON.stringify(input); } catch { return state; }
-  if (!serialized || new TextEncoder().encode(serialized).length > PUBLIC_LIVE_MAX_BYTES) return state;
+  try { serialized = JSON.stringify(input); } catch { return null; }
+  if (!serialized || new TextEncoder().encode(serialized).length > PUBLIC_LIVE_MAX_BYTES) return null;
   const parsed = publicLiveSchema.safeParse(input);
-  if (!parsed.success) return state;
+  if (!parsed.success) return null;
   const next = parsed.data;
-  if (next.matchId !== matchId || !next.capability.telemetryFresh || !next.capability.contextFresh || next.capability.identity !== "matched" || !next.capability.lineupComplete || !next.capability.canonicalTeams) return state;
-  if (next.radar && (!next.capability.radarCurrent || next.radar.mapName !== next.map.name)) return state;
-  if (next.roundHistory && next.series.currentMapOrder !== null && next.roundHistory.mapOrder !== next.series.currentMapOrder) return state;
-  if (Date.parse(next.producedAt) > Date.parse(next.receivedAt) + 30000 || Date.parse(next.receivedAt) - Date.parse(next.producedAt) > 10000) return state;
+  if (next.matchId !== matchId || !next.capability.telemetryFresh || !next.capability.contextFresh || next.capability.identity !== "matched" || !next.capability.lineupComplete || !next.capability.canonicalTeams) return null;
+  if (next.radar && (!next.capability.radarCurrent || next.radar.mapName !== next.map.name)) return null;
+  if (next.roundHistory && next.series.currentMapOrder !== null && next.roundHistory.mapOrder !== next.series.currentMapOrder) return null;
+  if (Date.parse(next.producedAt) > Date.parse(next.receivedAt) + 30000 || Date.parse(next.receivedAt) - Date.parse(next.producedAt) > 10000) return null;
+  return next;
+}
+
+export function receivePublicLive(state: LiveViewerState, input: unknown, matchId: string, now: number): LiveViewerState {
+  const next = parsePublicLiveProjection(input, matchId);
+  if (!next) return state;
   const previous = state.watermark;
   if (previous) {
     // Each outer boundary owns the inner counters; a newer authority may reset all of them.

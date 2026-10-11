@@ -12,6 +12,10 @@ import { AppError, ErrorCode } from "@/lib/errors";
 
 const matchId = "40000000-0000-4000-8000-000000000001";
 const secret = "local-test-supabase-jwt-secret-32-chars-min";
+function query(rows: unknown[]) {
+  const builder = { from: () => builder, innerJoin: () => builder, leftJoin: () => builder, where: async () => rows };
+  selectMock.mockReturnValue(builder);
+}
 
 function decodePayload(token: string): Record<string, unknown> {
   const [header, payload, signature] = token.split(".");
@@ -28,9 +32,7 @@ describe("Mizar public live viewer token", () => {
 
   it("issues a five-minute, match-scoped, receive-only viewer JWT for a playing season", async () => {
     process.env.SUPABASE_JWT_SECRET = secret;
-    selectMock.mockReturnValue({
-      from: () => ({ innerJoin: () => ({ where: async () => [{ id: matchId }] }) }),
-    });
+    query([{ id: matchId }]);
 
     const credential = await issueLiveViewerToken(matchId);
     expect(credential.topic).toBe(`match-live:${matchId}`);
@@ -47,12 +49,12 @@ describe("Mizar public live viewer token", () => {
 
   it("fails closed when the match is not publicly live", async () => {
     process.env.SUPABASE_JWT_SECRET = secret;
-    selectMock.mockReturnValue({ from: () => ({ innerJoin: () => ({ where: async () => [] }) }) });
+    query([]);
     await expect(issueLiveViewerToken(matchId)).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND });
   });
 
   it("fails closed when no server-only signing secret is configured", async () => {
-    selectMock.mockReturnValue({ from: () => ({ innerJoin: () => ({ where: async () => [{ id: matchId }] }) }) });
+    query([{ id: matchId }]);
     await expect(issueLiveViewerToken(matchId)).rejects.toMatchObject({ code: ErrorCode.INTERNAL_ERROR });
     await expect(issueLiveViewerToken(matchId)).rejects.toBeInstanceOf(AppError);
   });
@@ -61,5 +63,29 @@ describe("Mizar public live viewer token", () => {
     const response = await GET(new Request("http://localhost:3000/api/matches/not-a-uuid/live-viewer"), { params: Promise.resolve({ matchId: "not-a-uuid" }) });
     expect(response.status).toBe(400);
     expect(response.headers.get("Cache-Control")).toBe("no-store");
+  });
+
+  it("adds only a current healthy public cache context, partitioned by login and source boundary", async () => {
+    process.env.SUPABASE_JWT_SECRET = secret;
+    const row = { id: matchId, seasonId: "40000000-0000-4000-8000-000000000002", updatedAt: new Date(),
+      manualTakeoverEpoch: null as number | null, contextRevision: "private-context", authorityRevision: 1, generation: 2, epoch: 3,
+      mapId: "40000000-0000-4000-8000-000000000003", mapStartedAt: new Date(), mapCompletedAt: null as Date | null, phase: "gameplay", identity: "healthy", lineup: "healthy" };
+    query([row]);
+    const first = (await issueLiveViewerToken(matchId, "opaque-session-partition-a")).cacheContext!;
+    expect(first).toMatchObject({ schemaVersion: "rivalhub.previous-live.v1", seasonId: row.seasonId, matchId, boundary: { authorityRevision: 1, generation: 2, epoch: 3, mapId: row.mapId } });
+    expect(first.revision).toMatch(/^[a-f0-9]{64}$/);
+    expect(JSON.stringify(first)).not.toContain("private-context");
+    expect(JSON.stringify(first)).not.toContain("opaque-session-partition-a");
+    expect((await issueLiveViewerToken(matchId, "opaque-session-partition-b")).cacheContext!.revision).not.toBe(first.revision);
+    row.epoch++;
+    expect((await issueLiveViewerToken(matchId, "opaque-session-partition-a")).cacheContext!.revision).not.toBe(first.revision);
+    row.manualTakeoverEpoch = row.epoch;
+    expect((await issueLiveViewerToken(matchId, "opaque-session-partition-a")).cacheContext).toBeNull();
+    row.manualTakeoverEpoch = null;
+    row.identity = "unknown";
+    expect((await issueLiveViewerToken(matchId, "opaque-session-partition-a")).cacheContext).toBeNull();
+    expect((await issueLiveViewerToken(matchId)).cacheContext).toBeNull();
+    row.identity = "healthy"; row.mapCompletedAt = new Date();
+    expect((await issueLiveViewerToken(matchId, "opaque-session-partition-a")).cacheContext).toBeNull();
   });
 });
