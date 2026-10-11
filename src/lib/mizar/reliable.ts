@@ -1,4 +1,5 @@
 import "server-only";
+import { mizarAuditActorId } from "@/lib/audit/people";
 import { and, eq, isNull, asc } from "drizzle-orm";
 import { db } from "@/db/client";
 import { matches, matchMaps, matchLiveSessions, mizarReliableReceipts, mizarInstallations, matchVetoSessions } from "@/db/schema";
@@ -61,8 +62,8 @@ export async function ingestMizarReliable(installationId: string, competitionId:
         if (!event.evidence.telemetryFresh || !event.evidence.contextFresh) updates.continuityHealth = "stale";
         outcome = "needs_attention";
       } else {
-        await applyMatchStatusTransitionInTx(tx, { matchId: match.id, nextStatus: "in_progress", actorId: installationId, now });
-        await writeAuditInTx(tx, { seasonId: competitionId, actorId: installationId, action: "match.start.reality_warning", targetId: match.id, meta: { sessionId: source.id } });
+        await applyMatchStatusTransitionInTx(tx, { matchId: match.id, nextStatus: "in_progress", actorId: mizarAuditActorId(installationId), now });
+        await writeAuditInTx(tx, { seasonId: competitionId, actorId: mizarAuditActorId(installationId), action: "match.start.reality_warning", targetId: match.id, meta: { sessionId: source.id } });
         updates.identityHealth = "healthy";
         updates.lineupHealth = "healthy";
         updates.continuityHealth = "healthy";
@@ -85,7 +86,7 @@ export async function ingestMizarReliable(installationId: string, competitionId:
       if (validMap && (!executionConflict || mayArm)) {
         updates.currentMapId = map!.id;
         if (fresh && lineupValid && match.status === "in_progress") {
-          await startCanonicalMapInTx(tx,match.id,map!.id,installationId);
+          await startCanonicalMapInTx(tx,match.id,map!.id,mizarAuditActorId(installationId));
           updates.mapExecutionPhase = "gameplay";
         }
       }
@@ -104,7 +105,7 @@ export async function ingestMizarReliable(installationId: string, competitionId:
         outcome = "needs_attention";
       } else {
         // A/B are producer-owned CompetitionEntry-relative candidates. CT/T are evidence only.
-        await recordCanonicalMapResultInTx(tx, { matchId: match.id, mapOrder: map!.mapOrder, mapName: map!.mapName, scoreA: event.payload.scoreA, scoreB: event.payload.scoreB, pickedByEntryId: null, teamAStartSide: null, actorId: installationId });
+        await recordCanonicalMapResultInTx(tx, { matchId: match.id, mapOrder: map!.mapOrder, mapName: map!.mapName, scoreA: event.payload.scoreA, scoreB: event.payload.scoreB, pickedByEntryId: null, teamAStartSide: null, actorId: mizarAuditActorId(installationId) });
         updates.mapExecutionPhase = "inter_map";
         outcome = "canonicalized";
       }
@@ -122,13 +123,13 @@ export async function ingestMizarReliable(installationId: string, competitionId:
       duplicated: [...new Set(observed.filter((id, index) => observed.indexOf(id) !== index))],
     } : null;
     if (source.continuityHealth === "execution_conflict" && outcome === "armed") {
-      await writeAuditInTx(tx, { seasonId: competitionId, actorId: installationId, action: "mizar.map.revalidated", targetId: match.id,
+      await writeAuditInTx(tx, { seasonId: competitionId, actorId: mizarAuditActorId(installationId), action: "mizar.map.revalidated", targetId: match.id,
         meta: { sessionId: source.id, mapEpoch: source.mapEpoch, mapId: updates.currentMapId, programSourceGeneration: source.programSourceGeneration, runtimeSeq: event.cursor.runtimeSeq } });
     }
     await tx.update(matchLiveSessions).set(updates).where(eq(matchLiveSessions.id, source.id));
     await tx.update(mizarInstallations).set({ lastSeenAt: now }).where(eq(mizarInstallations.id, installationId));
     await tx.insert(mizarReliableReceipts).values({ sessionId: source.id, idempotencyKey: event.idempotencyKey, eventHash, kind: event.kind, outcome });
-    await writeAuditInTx(tx, { seasonId: competitionId, actorId: installationId, action: "mizar.reliable.accept", targetId: match.id, meta: { kind: event.kind, outcome, lineupDifference, ...(event.kind === "identity_mismatch" || event.kind === "lineup_mismatch" ? { reason: event.payload.reason } : {}), sessionId: source.id, mapEpoch: source.mapEpoch, currentMapId: source.currentMapId, receivedMapId: event.mapId, receivedMapName: event.mapName, continuityHealth: updates.continuityHealth ?? source.continuityHealth, ...(event.kind === "map_ended" ? event.payload : {}) } });
+    await writeAuditInTx(tx, { seasonId: competitionId, actorId: mizarAuditActorId(installationId), action: "mizar.reliable.accept", targetId: match.id, meta: { kind: event.kind, outcome, lineupDifference, ...(event.kind === "identity_mismatch" || event.kind === "lineup_mismatch" ? { reason: event.payload.reason } : {}), sessionId: source.id, mapEpoch: source.mapEpoch, currentMapId: source.currentMapId, receivedMapId: event.mapId, receivedMapName: event.mapName, continuityHealth: updates.continuityHealth ?? source.continuityHealth, ...(event.kind === "map_ended" ? event.payload : {}) } });
     return { outcome, duplicate: false };
   });
 }

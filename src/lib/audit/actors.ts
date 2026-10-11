@@ -2,7 +2,7 @@ import { eq, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
 import { dakPairings, mizarInstallations, steamProfiles, users } from "@/db/schema";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
-import { getAuditActorLabel, isAuditUserEmail, isAuditUserId } from "./people";
+import { getAuditActorLabel, isAuditUserEmail, isAuditUserId, readMizarAuditInstallationId } from "./people";
 import type { AuditDatabaseExecutor } from "./targets";
 
 export interface AuditActorRef {
@@ -34,9 +34,11 @@ export async function resolveAuditActors(
   names: ReadonlyMap<string, string>,
   executor: AuditDatabaseExecutor = db,
 ): Promise<Map<string, AuditActorPresentation>> {
-  const installationIds = [...new Set(refs.flatMap(ref =>
-    isAuditUserId(ref.actorId) && (MIZAR_MACHINE_ACTIONS.has(ref.action) || MIZAR_SHARED_ACTIONS.has(ref.action))
-      ? [ref.actorId] : []))];
+  const installationIds = [...new Set(refs.flatMap(ref => {
+    const typedId = readMizarAuditInstallationId(ref.actorId);
+    const legacyId = isAuditUserId(ref.actorId) && (MIZAR_MACHINE_ACTIONS.has(ref.action) || MIZAR_SHARED_ACTIONS.has(ref.action)) ? ref.actorId : null;
+    return typedId ? [typedId] : legacyId ? [legacyId] : [];
+  }))];
   const pairingIds = [...new Set(refs.flatMap(ref => {
     const id = ref.actorId?.startsWith("dak:") ? ref.actorId.slice(4) : null;
     return isAuditUserId(id) ? [id] : [];
@@ -63,12 +65,13 @@ export async function resolveAuditActors(
     let actor: AuditActorPresentation = {
       label: getAuditActorLabel(id, names),
       kind: !id || id === "system" || id === "veto-system" || id.startsWith("system:") ? "system"
-        : id.startsWith("dak:") || id.startsWith("release:") ? "machine"
+        : readMizarAuditInstallationId(id) || id.startsWith("dak:") || id.startsWith("release:") ? "machine"
           : isAuditUserId(id) || isAuditUserEmail(id) ? "user" : "unknown",
     };
-    const installation = id ? installationById.get(id) : undefined;
+    const typedInstallationId = readMizarAuditInstallationId(id);
+    const installation = id ? installationById.get(typedInstallationId ?? id) : undefined;
     if (installation && ref.seasonId === installation.competitionId
-      && (MIZAR_MACHINE_ACTIONS.has(ref.action) || MIZAR_SHARED_ACTIONS.has(ref.action))) {
+      && (typedInstallationId || MIZAR_MACHINE_ACTIONS.has(ref.action) || MIZAR_SHARED_ACTIONS.has(ref.action))) {
       actor = { label: "Mizar", kind: "machine", authorizedByLabel: getPublicDisplayName(installation) };
     } else if (isAuditUserId(id) && MIZAR_MACHINE_ACTIONS.has(ref.action)) {
       actor = { label: "Mizar", kind: "machine" };

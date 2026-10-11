@@ -1,4 +1,5 @@
 import "server-only";
+import { mizarAuditActorId } from "@/lib/audit/people";
 import { and, eq, isNull, desc, asc } from "drizzle-orm";
 import { z } from "zod";
 import { db, type TxDb } from "@/db/client";
@@ -53,7 +54,7 @@ export async function claimMizarSource(installationId: string, competitionId: st
     if (active) await tx.update(matchLiveSessions).set({ closedAt: now, closeReason: "handover", autoCanonicalizationArmed: false }).where(eq(matchLiveSessions.id, active.id));
     const [binding] = await tx.insert(matchLiveSessions).values({ matchId: match.id, installationId, producerInstanceId: input.producerInstanceId, liveSessionId: input.liveSessionId, authorityRevision: (latest?.revision ?? 0) + 1, programSourceGeneration: input.programSourceGeneration, mapEpoch: input.mapEpoch, contextRevision: input.contextRevision, identityHealth: "unknown", lineupHealth: lineupValid ? "healthy" : "unknown", continuityHealth: "unknown", autoCanonicalizationArmed: false }).returning();
     await tx.update(mizarInstallations).set({ lastSeenAt: now }).where(eq(mizarInstallations.id, installationId));
-    await writeAuditInTx(tx, { seasonId: competitionId, actorId: installationId, action: "mizar.source.claim", targetId: match.id, meta: { installationId, authorityRevision: binding.authorityRevision, previousInstallationId: active?.installationId ?? null } });
+    await writeAuditInTx(tx, { seasonId: competitionId, actorId: mizarAuditActorId(installationId), action: "mizar.source.claim", targetId: match.id, meta: { installationId, authorityRevision: binding.authorityRevision, previousInstallationId: active?.installationId ?? null } });
     return { claimed: true, authorityRevision: binding.authorityRevision };
   });
 }
@@ -85,7 +86,7 @@ export async function releaseMizarSource(
     await tx.update(matchLiveSessions).set({ closedAt: new Date(), closeReason: "released", autoCanonicalizationArmed: false }).where(eq(matchLiveSessions.id, source.id));
     await writeAuditInTx(tx, {
       seasonId: competitionId,
-      actorId: installationId,
+      actorId: mizarAuditActorId(installationId),
       action: "mizar.source.release",
       targetId: input.matchId,
       meta: { authorityRevision, producerInstanceId: input.producerInstanceId, liveSessionId: input.liveSessionId },
