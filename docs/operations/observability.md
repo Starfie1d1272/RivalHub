@@ -145,6 +145,8 @@ return traceOperation("competition_entry.submit", {
 
 不要为正常成功路径逐条记录日志，不要复制领域 transition/错误分类，不要在 component 中配置外部 sink。Client Component 只有在存在明确 fallback 时才可输出固定、非敏感的浏览器诊断，不能输出 raw exception/payload 或用空 catch 静默吞错。新增 safeContext key 时必须同时补 redaction 单测，并检查它不会成为 ID、body、query 或 secret 的旁路。
 
+后台统计修复的候选查询与单图重建失败由 `stats.projection_repair.failure` 保留脱敏原始 cause，并以 `phase=candidate_selection/rebuild` 区分阶段。Demo 关联重检的单项失败与候选载入失败由 `demo.recheck.failure` 保存原因，以 `phase=recheck/candidate_selection` 区分；保留既有 failed 数量和 partial success，已提交身份确认不因后续 fanout 故障被伪装为失败。事件不附加账号、赛事、地图或 artifact 标识，复用活动 trace 与存在的请求 context；scheduler 最终摘要仍报告整批健康失败。不同层级的 DB/item/summary 事件不是唯一 incident 数，按 trace/request 关联，不重复相加成失败次数。
+
 Scheduler 的 `scheduled_job_health` 只保存有界 current projection，不是 runtime log 或 execution ledger。primary trigger、primary endpoint start/success、watchdog fallback/manual success、最近业务推进和最近失败分别由 shared scheduler owner 更新；fresh watchdog no-op 不写 projection。失败只保存稳定 source/code/classification，不保存 raw error、URL、Authorization 或 Vault secret。`jobKey`、`source` 等 safeContext 仍必须经过 allowlist。
 
 ## 告警原则

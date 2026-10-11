@@ -1,4 +1,5 @@
 import "server-only";
+import { captureException } from "@/lib/observability/server";
 
 import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, ne, sql } from "drizzle-orm";
 import type { DB, TxDb } from "@/db/client";
@@ -198,7 +199,10 @@ export async function reconcileMissingStatisticsProjections(database: DB, option
     let matchMapId: string | null;
     try {
       matchMapId = await claimNextProjectionRepairMap(database);
-    } catch {
+    } catch (error) {
+      captureException("stats.projection_repair.failure", error, {
+        scope: "stats", operation: "projection.repair", safeContext: { phase: "candidate_selection" },
+      });
       // Preserve prior committed transitions so the scheduler invalidates them
       // before reporting a later candidate-selection dependency failure.
       report.failed++;
@@ -216,7 +220,10 @@ export async function reconcileMissingStatisticsProjections(database: DB, option
       if (outcome === "rebuilt") report.rebuilt++;
       else if (outcome === "invalid") report.invalid++;
       else report.skipped++;
-    } catch {
+    } catch (error) {
+      captureException("stats.projection_repair.failure", error, {
+        scope: "stats", operation: "projection.repair", safeContext: { phase: "rebuild" },
+      });
       report.failed++;
     }
   }
