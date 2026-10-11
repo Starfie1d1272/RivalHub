@@ -1,5 +1,15 @@
 # Changelog
 
+## [2.15.12]
+
+### Changed
+
+- BO1、BO3、BO5 的单图总回合大分/小分积分预测在赛前即可按第几图参与；BP 后补地图名并保留原盘口、分界线和投入。实际开图锁盘，未打地图等待正式结束退款，已有盘口沿用原条款。
+
+### Migration
+
+- 增加竞猜目录版本并更新待处理判定，既有项目也会通过正常流程补齐合法赛前窗口；迁移不改用户余额、投入、已有盘口条款或结算历史。
+
 ## [2.15.11]
 
 ### Changed
@@ -2876,6 +2886,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[2.15.12]: https://github.com/Starfie1d1272/RivalHub/compare/v2.15.11...v2.15.12
 [2.15.11]: https://github.com/Starfie1d1272/RivalHub/compare/v2.15.10...v2.15.11
 [2.15.10]: https://github.com/Starfie1d1272/RivalHub/compare/v2.15.9...v2.15.10
 [2.15.9]: https://github.com/Starfie1d1272/RivalHub/compare/v2.15.8...v2.15.9
