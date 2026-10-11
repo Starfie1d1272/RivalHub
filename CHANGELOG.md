@@ -1,5 +1,22 @@
 # Changelog
 
+## [2.15.10]
+
+### Added
+
+- 补齐赛后计分板、Demo 与回放待办，优先展示本人负责的比赛。
+- 比赛积分支持率以双方百分比和双色比例条展示，更直观地呈现双方支持情况。
+
+### Changed
+
+- 整理完美建房指引，突出赛后回放与工具下载入口。
+- 改善昵称展示、OCR 错误反馈、操作记录与 Demo 质量说明。
+
+### Fixed
+
+- 完善 Play-in 实时数据、赛程统计及比赛入口。
+- 优化后台窄屏和长内容布局。
+
 ## [2.15.9]
 
 ### Added
@@ -2842,6 +2859,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[2.15.10]: https://github.com/Starfie1d1272/RivalHub/compare/v2.15.9...v2.15.10
 [2.15.9]: https://github.com/Starfie1d1272/RivalHub/compare/v2.15.8...v2.15.9
 [2.15.8]: https://github.com/Starfie1d1272/RivalHub/compare/v2.15.7...v2.15.8
 [2.15.7]: https://github.com/Starfie1d1272/RivalHub/compare/v2.15.6...v2.15.7
