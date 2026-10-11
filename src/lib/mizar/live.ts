@@ -2,7 +2,7 @@ import "server-only";
 import { createHmac } from "node:crypto";
 import { and, eq, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
 import { db } from "@/db/client";
-import { matches, matchLiveSessions, seasons, competitionQualificationRuns } from "@/db/schema";
+import { matches, matchMaps, matchLiveSessions, seasons, competitionQualificationRuns } from "@/db/schema";
 import { createServiceClient } from "@/lib/auth/supabase-server";
 import { logEvent } from "@/lib/observability/server";
 import { AppError, ErrorCode } from "@/lib/errors";
@@ -71,8 +71,17 @@ export async function ingestMizarLive(installationId: string, competitionId: str
 }
 
 /** Scope-limited five-minute JWT. No Auth user or producer credential is created. */
-export async function issueLiveViewerToken(matchId: string) {
-  const [match] = await db.select({ id: matches.id }).from(matches).innerJoin(seasons, eq(seasons.id, matches.seasonId)).where(and(
+export async function issueLiveViewerToken(matchId: string, cachePartition: string | null = null) {
+  const [match] = await db.select({ id: matches.id, seasonId: matches.seasonId, updatedAt: matches.updatedAt,
+    contextRevision: matchLiveSessions.contextRevision, authorityRevision: matchLiveSessions.authorityRevision,
+    generation: matchLiveSessions.programSourceGeneration, epoch: matchLiveSessions.mapEpoch,
+    manualTakeoverEpoch: matchLiveSessions.manualTakeoverMapEpoch,
+    mapId: matchLiveSessions.currentMapId, phase: matchLiveSessions.mapExecutionPhase,
+    mapStartedAt: matchMaps.startedAt, mapCompletedAt: matchMaps.completedAt,
+    identity: matchLiveSessions.identityHealth, lineup: matchLiveSessions.lineupHealth,
+  }).from(matches).innerJoin(seasons, eq(seasons.id, matches.seasonId))
+    .leftJoin(matchLiveSessions, and(eq(matchLiveSessions.matchId, matches.id), isNull(matchLiveSessions.closedAt)))
+    .leftJoin(matchMaps, and(eq(matchMaps.id, matchLiveSessions.currentMapId), eq(matchMaps.matchId, matches.id))).where(and(
     eq(matches.id, matchId),
     eq(matches.status, "in_progress"),
     or(eq(seasons.status, "playing"), and(
@@ -91,5 +100,17 @@ export async function issueLiveViewerToken(matchId: string) {
   const now = Math.floor(Date.now() / 1000);
   const encode = (value: unknown) => Buffer.from(JSON.stringify(value)).toString("base64url");
   const unsigned = `${encode({ alg: "HS256", typ: "JWT" })}.${encode({ role: "authenticated", scope: "live-viewer", matchId, iat: now, exp: now + 300, iss: "rivalhub", aud: "authenticated" })}`;
-  return { token: `${unsigned}.${createHmac("sha256", secret).update(unsigned).digest("base64url")}`, topic: matchLiveTopic(matchId), expiresAt: (now + 300) * 1000 };
+  const cacheContext = cachePartition && match.contextRevision && match.mapId && match.phase === "gameplay"
+    && match.mapStartedAt && !match.mapCompletedAt && match.manualTakeoverEpoch !== match.epoch
+    && match.identity === "healthy" && match.lineup === "healthy" && match.authorityRevision !== null
+    && match.generation !== null && match.epoch !== null
+    ? { schemaVersion: "rivalhub.previous-live.v1" as const, seasonId: match.seasonId, matchId,
+      revision: createHmac("sha256", secret).update(JSON.stringify([
+        "previous-live:v1", cachePartition, match.seasonId, matchId, match.updatedAt,
+        match.contextRevision, match.authorityRevision, match.generation, match.epoch, match.mapId,
+      ])).digest("hex"),
+      boundary: { authorityRevision: match.authorityRevision, generation: match.generation, epoch: match.epoch, mapId: match.mapId },
+      checkedAt: Date.now(),
+    } : null;
+  return { token: `${unsigned}.${createHmac("sha256", secret).update(unsigned).digest("base64url")}`, topic: matchLiveTopic(matchId), expiresAt: (now + 300) * 1000, cacheContext };
 }

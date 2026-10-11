@@ -3,8 +3,9 @@ import { act, render, screen } from "@testing-library/react";
 import { expect, it, vi } from "vitest";
 import { initialLiveViewerState, type LiveViewerState } from "@/lib/mizar/live-viewer-state";
 import { MatchLiveProvider, useMatchLive } from "./MatchLiveProvider";
-const mocks = vi.hoisted(() => ({ connect: vi.fn(), stop: vi.fn() }));
+const mocks = vi.hoisted(() => ({ connect: vi.fn(), stop: vi.fn(), clear: vi.fn() }));
 vi.mock("@/lib/mizar/live-viewer-subscriptions", () => ({ subscribeBrowserLiveViewer: mocks.connect }));
+vi.mock("@/lib/mizar/live-previous-view", () => ({ browserPreviousLiveViewStore: () => ({ clear: mocks.clear }) }));
 function Consumer() { return <span>frame {useMatchLive().state.acceptedFrames}</span>; }
 it("shares one receiver across consumers and disposes it on match/visibility changes", () => {
   let receive: (state: LiveViewerState) => void = () => {};
@@ -51,4 +52,19 @@ it("uses the current monotonic time for the first state delivered on re-entry", 
   const view = render(<MatchLiveProvider matchId="reentry"><Age /></MatchLiveProvider>);
   expect(screen.getByText("age 9000")).toBeVisible();
   view.unmount(); clock.mockRestore();
+});
+
+it("releases an invisible consumer without revoking shared proof, but clears an ineligible match", () => {
+  mocks.clear.mockClear(); mocks.connect.mockClear(); mocks.stop.mockClear();
+  mocks.connect.mockReturnValue(mocks.stop);
+  const content = (enabled: boolean, eligible: boolean) => <MatchLiveProvider matchId="visibility" enabled={enabled} eligible={eligible}><Consumer /></MatchLiveProvider>;
+  const view = render(content(false, true));
+  expect(mocks.clear).not.toHaveBeenCalled(); expect(mocks.connect).not.toHaveBeenCalled();
+  view.rerender(content(true, true));
+  expect(mocks.connect).toHaveBeenCalledTimes(1);
+  view.rerender(content(false, true));
+  expect(mocks.stop).toHaveBeenCalledTimes(1); expect(mocks.clear).not.toHaveBeenCalled();
+  view.rerender(content(true, false));
+  expect(mocks.clear).toHaveBeenCalledWith("visibility"); expect(mocks.connect).toHaveBeenCalledTimes(1);
+  view.unmount();
 });

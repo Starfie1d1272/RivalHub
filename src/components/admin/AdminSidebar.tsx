@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useTransition } from "react";
 import { toast } from "sonner";
-import { logoutUser } from "@/actions/auth";
+import { logoutAndClearPreviousViews } from "@/components/auth/logout";
 import { getAdminNavigation, getActiveAdminNavigationHref, type AdminRole } from "@/lib/admin/navigation";
 
 export function AdminSidebar({ email, role }: { email: string; role: AdminRole }) {
@@ -17,7 +17,8 @@ export function AdminSidebar({ email, role }: { email: string; role: AdminRole }
 
   function handleLogout() {
     startTransition(async () => {
-      await logoutUser();
+      const result = await logoutAndClearPreviousViews();
+      if (!result.success) { toast.error(result.error.message); return; }
       toast.success("已退出登录");
       router.push("/login");
     });
