@@ -217,7 +217,7 @@ describe("BET transactional admission and settlement",()=>{
     expect((await f.db.execute(sql`select public.scheduler_job_is_due('reconcile-predictions') as due`)).rows[0]!.due).toBe(true);
     expect(await runBetReconciliationJob(f.db)).toBe(1);
     expect((await read(f.db,f.seasonId,f.userId)).markets.filter(m=>m.matchId===match!.id && m.type==="total_rounds" && m.canStake)).toHaveLength(3);
-    expect(await f.db.query.betPrograms.findFirst({where:eq(schema.betPrograms.seasonId,f.seasonId)})).toMatchObject({dirty:false,catalogVersion:2});
+    expect(await f.db.query.betPrograms.findFirst({where:eq(schema.betPrograms.seasonId,f.seasonId)})).toMatchObject({dirty:false,catalogVersion:3});
     expect((await f.db.execute(sql`select public.scheduler_job_is_due('reconcile-predictions') as due`)).rows[0]!.due).toBe(false);
     expect(await runBetReconciliationJob(f.db)).toBe(0);
   }));
@@ -318,7 +318,7 @@ describe("BET transactional admission and settlement",()=>{
   it("opens automatically without PickEm, ignores schedule, permanently locks at gameplay and conserves pool across correction",async()=>fixture(async f=>{
     const {db,seasonId,userId,otherId,matchId}=f;
     expect(await db.select().from(schema.predictionPrograms)).toHaveLength(0);
-    const board=await read(db,seasonId,userId);expect(board.markets.filter(m=>m.matchId===matchId)).toHaveLength(8);
+    const board=await read(db,seasonId,userId);expect(board.markets.filter(m=>m.matchId===matchId)).toHaveLength(7);
     const m=board.markets.find(m=>m.type==="match_winner")!;
     const args={seasonId,userId,marketId:m.id,optionId:m.options[0]!.id,amount:"200",requestId:randomUUID()};
     await db.transaction(tx=>stakeBetInTx(tx,args));await db.transaction(tx=>stakeBetInTx(tx,args));
