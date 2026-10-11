@@ -47,9 +47,10 @@ async function createMarket(tx: TxDb,seasonId: string,matchId: string|null,type:
 async function publishMarkets(tx: TxDb,f: BetFacts) {
   const seasonId=f.season.id;
   const program=await tx.query.betPrograms.findFirst({where:eq(programs.seasonId,seasonId)});
-  // A match that adopted presence BP never falls back to ordered pools,
-  // including after its frozen subject is corrected or permanently voided.
-  const present=await tx.select().from(markets).where(and(eq(markets.seasonId,seasonId),eq(markets.type,"veto_present")));
+  // Every existing BP pool freezes its terms, including empty or terminal history.
+  // Presence adoption also prevents rollback to ordered rules after subject correction.
+  const bpMarkets=await tx.select().from(markets).where(eq(markets.seasonId,seasonId)).then(rows=>rows.filter(m=>m.type.startsWith("veto_")));
+  const publishesPresence=(catalogContract.capabilities?.bo3BpPresence?.publisherVersion ?? 0) >= 1;
   const existing=await tx.select().from(markets).where(and(eq(markets.seasonId,seasonId),eq(markets.type,"total_rounds")));
   if (!f.event.started && f.event.entryIds.length) {
     const subject: BetSubject={kind:"event",entryIds:f.event.entryIds,playerIds:f.event.playerIds};
@@ -73,11 +74,17 @@ async function publishMarkets(tx: TxDb,f: BetFacts) {
         await createMarket(tx,seasonId,m.id,"total_maps",subject,[{key:"over",label:"大"},{key:"under",label:"小"}],seriesLineTwice(m.format));
       }
       const pool=veto?.mapPoolSnapshot??normalizeRegistrationConfig(f.season.registrationConfig).mapPool;
-      if (!veto?.startedAt && pool.length>=Number(m.format.slice(2)) && !present.some(market=>market.matchId===m.id)) {
+      if (!veto?.startedAt && pool.length>=Number(m.format.slice(2)) && !bpMarkets.some(market=>market.type==="veto_present" && market.matchId===m.id)) {
         const bpSubject={...subject,mapPool:[...pool].sort()};
         const choices=pool.map(name=>({key:name,label:name.replace(/^de_/,"").replace(/^./,c=>c.toUpperCase())}));
-        await createMarket(tx,seasonId,m.id,m.format==="bo1"?"veto_map":"veto_first",bpSubject,choices);
-        if(m.format!=="bo1") await createMarket(tx,seasonId,m.id,"veto_decider",bpSubject,choices);
+        if (m.format==="bo3" && publishesPresence) {
+          // Never convert or supplement an old BP pool, even after identity corrections.
+          if (pool.length===7 && new Set(pool).size===7 && !bpMarkets.some(market=>market.matchId===m.id))
+            await createMarket(tx,seasonId,m.id,"veto_present",bpSubject,choices);
+        } else {
+          await createMarket(tx,seasonId,m.id,m.format==="bo1"?"veto_map":"veto_first",bpSubject,choices);
+          if(m.format!=="bo1") await createMarket(tx,seasonId,m.id,"veto_decider",bpSubject,choices);
+        }
       }
     }
     const maps=f.maps.filter(x=>x.matchId===m.id).sort((a,b)=>a.mapOrder-b.mapOrder);
