@@ -1,5 +1,25 @@
 # Changelog
 
+## [2.15.10]
+
+### Added
+
+- 比赛总览顶部集中展示计分板、Demo 和解说回放待办，优先显示本人负责的比赛，也可直接处理未认领比赛的数据缺口。
+- 赛事下载区提供 Mizar 制播工具和 DAK Demo Uploader，优先推荐可用的 Windows 安装包，保留完整 ZIP 与 macOS 下载。
+
+### Changed
+
+- 完美建房指引增加后台入口，按建房表单顺序排列可复制字段与核对项；赛后“观看回放”按钮移至顶部 BP 记录旁。
+- 正式瑞士轮对阵卡补充明确的比赛入口，移除重复战绩表；单图与整场统计昵称去除明确的所属队名前缀，保留原始身份。
+
+### Fixed
+
+- 修复报名阶段 Play-in 实时数据订阅，区分连接失败与等待新数据；统一正式阶段的赛程、统计、筛选和 DAK 同步入口，补齐首发准备提示，移除 Major 首页跨阶段混算的积分榜。
+- OCR 识别失败按鉴权、限流、网络、超时、上游结果和图片问题给出提示，提供排查编号及配置检查入口，避免将上游故障误报为截图格式错误。
+- 审计正确识别系统、Mizar 和 DAK 来源及目标，并可按权限查看详情；明确撤销赛后提交会重新开放整理、保留比分与 Demo 等资料，新操作记录前后状态和录像变更类别。非预期错误提供排查编号。
+- Demo 已确认记录可展开查看 QA 警告和高级击杀能力降级原因；历史未提供的详情明确提示未记录。
+- 修复窄屏审计操作列、撤销确认说明和长队名的拥挤或溢出问题。
+
 ## [2.15.9]
 
 ### Added
@@ -2842,6 +2862,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[2.15.10]: https://github.com/Starfie1d1272/RivalHub/compare/v2.15.9...v2.15.10
 [2.15.9]: https://github.com/Starfie1d1272/RivalHub/compare/v2.15.8...v2.15.9
 [2.15.8]: https://github.com/Starfie1d1272/RivalHub/compare/v2.15.7...v2.15.8
 [2.15.7]: https://github.com/Starfie1d1272/RivalHub/compare/v2.15.6...v2.15.7
