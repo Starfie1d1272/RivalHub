@@ -223,8 +223,102 @@ jobs:
         if: always()
         run: node scripts/ci/timing.mjs summary
 
+  dependency-graph-build:
+    name: dependency-graph-build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024 # v3.0.0
+        with:
+          cache: false
+          require-lockfile: true
+      - name: Generate complete locked dependency snapshot
+        run: pnpm exec tsx scripts/dependencies/snapshot.ts generate dependency-snapshot.json
+        env:
+          GITHUB_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          GITHUB_REF: ${{ github.event_name == 'pull_request' && format('refs/pull/{0}/head', github.event.pull_request.number) || github.ref }}
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: dependency-snapshot
+          path: dependency-snapshot.json
+          if-no-files-found: error
+          retention-days: 14
+
+  dependency-graph-submit:
+    name: dependency-graph-submit
+    needs: dependency-graph-build
+    # Fork code never receives a write token. Maintainers must bring such changes
+    # onto a trusted repository branch before the complete review gate can pass.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      # No checkout, npm install, lifecycle script or PR executable runs here.
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: dependency-snapshot
+      - name: Bind artifact to this exact source and submit dependency metadata
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          EXPECTED_REF: ${{ github.event_name == 'pull_request' && format('refs/pull/{0}/head', github.event.pull_request.number) || github.ref }}
+        run: |
+          jq -e --arg sha "$EXPECTED_SHA" --arg ref "$EXPECTED_REF" '
+            .version == 0 and .sha == $sha and .ref == $ref and
+            .job.correlator == (if $ref == "refs/heads/main" then "rivalhub-pnpm-lockfile" else "rivalhub-pnpm-lockfile-" + $ref end) and
+            .detector.name == "rivalhub-pnpm-lockfile" and
+            (.manifests | keys) == ["pnpm-lock.yaml"] and
+            .manifests["pnpm-lock.yaml"].file.source_location == "pnpm-lock.yaml" and
+            (.manifests["pnpm-lock.yaml"].resolved | length) > 0
+          ' dependency-snapshot.json > /dev/null
+          gh api --method POST "repos/$GITHUB_REPOSITORY/dependency-graph/snapshots" --input dependency-snapshot.json > dependency-submission.json
+          jq -e '.result == "SUCCESS"' dependency-submission.json
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: dependency-submission
+          path: dependency-submission.json
+          if-no-files-found: error
+          retention-days: 14
+
+  dependency-graph-readback:
+    name: dependency-graph-readback
+    needs: dependency-graph-submit
+    # Repository SBOM exports the default branch, not a PR head snapshot.
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024 # v3.0.0
+        with:
+          cache: false
+          require-lockfile: true
+      - name: Read back every submitted package and dependency edge
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/dependency-graph/sbom" > dependency-sbom.json
+          pnpm exec tsx scripts/dependencies/snapshot.ts verify-sbom dependency-sbom.json
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: dependency-sbom-readback
+          path: dependency-sbom.json
+          if-no-files-found: error
+          retention-days: 14
+
   dependency-review:
     name: dependency-review
+    needs: dependency-graph-submit
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-24.04
     permissions:
@@ -233,6 +327,8 @@ jobs:
       - uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
         with:
           fail-on-severity: moderate
+          retry-on-snapshot-warnings: true
+          retry-on-snapshot-warnings-timeout: 120
 
   system:
     name: system / ${{ matrix.task }}
@@ -330,7 +426,7 @@ jobs:
   gate:
     name: ${{ needs.plan.outputs.gate_name }}
     if: ${{ always() }}
-    needs: [plan, static, postgres, system, dependency-review]
+    needs: [plan, static, postgres, system, dependency-graph-build, dependency-graph-submit, dependency-graph-readback, dependency-review]
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -369,6 +465,10 @@ jobs:
           STATIC_RESULT: ${{ needs.static.result }}
           POSTGRES_RESULT: ${{ needs.postgres.result }}
           SYSTEM_RESULT: ${{ needs.system.result }}
+          DEPENDENCY_GRAPH_BUILD_RESULT: ${{ needs.dependency-graph-build.result }}
+          DEPENDENCY_GRAPH_SUBMIT_RESULT: ${{ needs.dependency-graph-submit.result }}
+          DEPENDENCY_GRAPH_READBACK_RESULT: ${{ needs.dependency-graph-readback.result }}
+          REQUIRE_GRAPH_READBACK: ${{ github.ref == 'refs/heads/main' && github.event_name != 'pull_request' }}
           DEPENDENCY_REVIEW_RESULT: ${{ needs.dependency-review.result }}
           EVENT_NAME: ${{ github.event_name }}
           REQUIRED_JOBS: ${{ needs.plan.outputs.required_jobs }}

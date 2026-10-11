@@ -14,6 +14,10 @@ function runGate(overrides) {
       POSTGRES_RESULT: "skipped",
       SYSTEM_RESULT: "skipped",
       DEPENDENCY_REVIEW_RESULT: "skipped",
+      DEPENDENCY_GRAPH_BUILD_RESULT: "success",
+      DEPENDENCY_GRAPH_SUBMIT_RESULT: "success",
+      DEPENDENCY_GRAPH_READBACK_RESULT: "skipped",
+      REQUIRE_GRAPH_READBACK: "false",
       EVENT_NAME: "push",
       REQUIRED_JOBS: "[]",
       ...overrides,
@@ -22,6 +26,17 @@ function runGate(overrides) {
 }
 
 describe("ci-gate", () => {
+  it("requires complete graph submission and default-branch read-back, never allowing a skipped submission", () => {
+    for (const key of ["DEPENDENCY_GRAPH_BUILD_RESULT", "DEPENDENCY_GRAPH_SUBMIT_RESULT"]) {
+      for (const status of ["failure", "cancelled", "skipped", undefined]) {
+        expect(runGate({ [key]: status }).status).not.toBe(0);
+      }
+    }
+    expect(runGate({ REQUIRE_GRAPH_READBACK: "true", DEPENDENCY_GRAPH_READBACK_RESULT: "success" }).status).toBe(0);
+    for (const status of ["skipped", "failure", undefined]) {
+      expect(runGate({ REQUIRE_GRAPH_READBACK: "true", DEPENDENCY_GRAPH_READBACK_RESULT: status }).status).not.toBe(0);
+    }
+  });
   it("accepts planner-declared skipped evidence", () => {
     const result = runGate({ REQUIRED_JOBS: '["static"]', STATIC_RESULT: "success" });
     expect(result.status).toBe(0);

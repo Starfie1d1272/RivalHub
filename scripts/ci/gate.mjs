@@ -9,6 +9,16 @@ const dependencyReviewStatus = process.env.DEPENDENCY_REVIEW_RESULT;
 const eventName = process.env.EVENT_NAME || process.env.GITHUB_EVENT_NAME;
 const gateName = process.env.GATE_NAME || "ci-gate";
 
+for (const key of ["DEPENDENCY_GRAPH_BUILD_RESULT", "DEPENDENCY_GRAPH_SUBMIT_RESULT"]) {
+  if (process.env[key] !== "success") fail(`${key} 未成功：${process.env[key] ?? "missing"}`);
+}
+const readbackStatus = process.env.DEPENDENCY_GRAPH_READBACK_RESULT;
+if (process.env.REQUIRE_GRAPH_READBACK === "true") {
+  if (readbackStatus !== "success") fail(`default branch SBOM read-back 未成功：${readbackStatus ?? "missing"}`);
+} else if (readbackStatus !== "skipped" && readbackStatus !== "success") {
+  fail(`非 default branch SBOM read-back 出现异常状态：${readbackStatus ?? "missing"}`);
+}
+
 if (statuses.plan !== "success") {
   fail(`plan 未成功：${statuses.plan ?? "missing"}`);
 }
