@@ -8,7 +8,8 @@ export function assertTrustedReceipt(run: { event: string; path: string }, recei
   if (run.event !== "pull_request_target" || run.path !== ".github/workflows/dependency-graph-untrusted.yml") {
     throw new Error("Dependency receipt was not produced by the trusted default-branch workflow");
   }
-  if (receipt.result !== "SUCCESS" || receipt.sha !== expected.sha || receipt.ref !== expected.ref) {
+  const accepted = receipt.result === "SUCCESS" || (receipt.result === "ACCEPTED" && expected.ref.startsWith("refs/pull/"));
+  if (!accepted || receipt.sha !== expected.sha || receipt.ref !== expected.ref) {
     throw new Error("Dependency receipt does not match the exact PR head/ref");
   }
 }

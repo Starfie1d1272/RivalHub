@@ -38,6 +38,8 @@ describe("canonical pnpm dependency graph", () => {
     const run = { event: "pull_request_target", path: ".github/workflows/dependency-graph-untrusted.yml" };
     const receipt = { result: "SUCCESS", sha: "a".repeat(40), ref: "refs/pull/1/head" };
     expect(() => assertTrustedReceipt(run, receipt, receipt)).not.toThrow();
+    expect(() => assertTrustedReceipt(run, { ...receipt, result: "ACCEPTED" }, receipt)).not.toThrow();
+    expect(() => assertTrustedReceipt(run, { ...receipt, result: "ACCEPTED", ref: "refs/heads/main" }, { ...receipt, ref: "refs/heads/main" })).toThrow();
     for (const invalid of [{ ...run, event: "pull_request" }, { ...run, path: ".github/workflows/ci.yml" }]) {
       expect(() => assertTrustedReceipt(invalid, receipt, receipt)).toThrow("trusted");
     }
