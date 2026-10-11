@@ -47,16 +47,19 @@ describe("DAK handled failure recovery", () => {
     expect(mocks.after).toHaveBeenCalledOnce();
   });
 
-  it("reports post-commit uncertainty without replaying the submitted evidence", async () => {
+  it("directs post-commit failure to saved results without inviting retransmission", async () => {
     mocks.revalidate.mockImplementation(() => { throw new Error("cache failed"); });
     const response = await POST(request());
     const body = await response.json();
     expect(response.status).toBe(500);
-    expect(body.error.message).toContain("数据可能已保存");
-    expect(body.error.message).toContain("避免重复上传");
+    expect(body.error.message).toBe("已收到提交，请先查看保存结果并核对导入状态，不要重新上传；如无法查看，请联系管理员。排查编号：req-dak-recovery");
+    expect(body.error.message).not.toContain("重试");
+    expect(response.headers.get("X-Request-Id")).toBe("req-dak-recovery");
     expect(mocks.submit).toHaveBeenCalledOnce();
     expect(events()).toHaveLength(1);
-    expect(events()[0].safeContext.phase).toBe("revalidation");
+    expect(events()[0]).toMatchObject({
+      requestId: "req-dak-recovery", safeContext: { phase: "revalidation" }, exception: { message: "cache failed" },
+    });
   });
 
   it.each([ErrorCode.UNAUTHORIZED, ErrorCode.FORBIDDEN, ErrorCode.VALIDATION_FAILED])("keeps %s quiet and preserves the expected response", async (code) => {

@@ -82,11 +82,11 @@ export function integrationError(request: Request, error: unknown, diagnostics?:
     errorCode: classification.errorCode ?? ErrorCode.INTERNAL_ERROR,
     safeContext: { phase: diagnostics?.phase ?? "domain", httpStatus: status },
   });
-  const hint = diagnostics?.phase === "revalidation"
-    ? "数据可能已保存，请先刷新核对导入状态，避免重复上传。"
-    : "请先刷新核对操作结果；如仍有问题，请联系管理员。";
+  const message = diagnostics?.phase === "revalidation"
+    ? "已收到提交，请先查看保存结果并核对导入状态，不要重新上传；如无法查看，请联系管理员。"
+    : `${ERROR_MESSAGES.INTERNAL_ERROR}。请先刷新核对操作结果；如仍有问题，请联系管理员。`;
   // Keep the published error wire shape: strict desktop parsers accept code/message.
   return integrationJson(request, {
-    error: { code: ErrorCode.INTERNAL_ERROR, message: `${ERROR_MESSAGES.INTERNAL_ERROR}。${hint}排查编号：${requestId}` },
+    error: { code: ErrorCode.INTERNAL_ERROR, message: `${message}排查编号：${requestId}` },
   }, { status, headers: { "X-Request-Id": requestId } });
 }
