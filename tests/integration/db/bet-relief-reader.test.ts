@@ -1,12 +1,17 @@
 import { randomUUID } from "node:crypto";
 import { and, eq } from "drizzle-orm";
-import { expect, it } from "vitest";
+import { expect, it, vi } from "vitest";
 import * as schema from "@/db/schema";
 import { claimBetReliefInTx, stakeBetInTx } from "@/lib/bet/service";
 import { readBetRelief } from "@/lib/bet/relief-data";
 import { fixture, read } from "./harness/bet-fixture";
 
-// The default immutable publisher0 must block the real owner, including direct calls
+// Model the historical reader-only build by lowering only its immutable JSON
+// publication contract. This never enables a disabled producer and never mocks
+// the guard or financial owner; the enabled suite uses the actual publisher1.
+vi.mock("@/lib/bet/ledger-contract.json", () => ({ default: { readerVersion: 1, publisherVersion: 0 } }));
+
+// The historical immutable publisher0 must block the real owner, including direct calls
 // and historical replay, without losing the reader. Mocks cannot prove persistence.
 it("publisher0 refuses direct and replay claims without account or ledger changes; reader1 retains relief", async () => fixture(async f => {
   const board = await read(f.db, f.seasonId, f.userId);

@@ -1,14 +1,17 @@
 import { randomUUID } from "node:crypto";
 import { eq, sql } from "drizzle-orm";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import * as schema from "@/db/schema";
 import { lockBetProgram, reconcileBetInTx, stakeBetInTx } from "@/lib/bet/service";
 import { fixture, read } from "./harness/bet-fixture";
 
+// Model the historical BO3 reader-only build; this only lowers publication
+// permission. PG transactions and the publication/settlement owners remain real.
+vi.mock("@/lib/bet/catalog-contract.json",()=>({default:{readerVersion:2,publisherVersion:2,capabilities:{bo3BpPresence:{readerVersion:1,publisherVersion:0}}}}));
+
 // Persisted N+1 financial facts are intentionally seeded before the actual N
-// worker runs. In the reader-only release this is the real backward worker;
-// future publishers must preserve the same invariant. No capability or service
-// is mocked or enabled.
+// backward worker runs. Only its historical build metadata is substituted;
+// no financial owner is mocked and no disabled producer is enabled.
 // A changed identity must refund old terms, never revert this match to ordered BP.
 describe("BO3 presence backward worker compatibility",()=>{
   for(const correction of ["entries","run","pool"] as const) it(`retains new BP rules after ${correction} correction with the canonical worker`,async()=>fixture(async f=>{
