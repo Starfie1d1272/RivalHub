@@ -9,7 +9,7 @@ import { assertLocalDatabaseUrl } from "../../../scripts/db/local-environment";
 import * as schema from "@/db/schema";
 
 test.use({ scenarioProfile: "auth" });
-test.setTimeout(240000);
+test.setTimeout(180000);
 
 // Domain/PG tests own scoring, serialization and pool conservation. This browser
 // owns independent free/BET action wiring, stale locks and zero-wallet access.
@@ -19,6 +19,7 @@ test("免费预测独立于BET，零余额可改选，BP与赛果消费各自官
   const pool = new Pool({ connectionString: assertLocalDatabaseUrl(process.env.DATABASE_URL), ssl: false });
   const db = drizzle(pool, { schema });
   try {
+    await page.clock.install();
     const match = await db.query.matches.findFirst({ where: eq(schema.matches.seasonId, fixture.seasonId) });
     const url = `/${fixture.slug}/bet?match=${match!.id}`;
     await signInProgrammatically(page, user, scenario, `/${fixture.slug}/bet`);
@@ -71,6 +72,24 @@ test("免费预测独立于BET，零余额可改选，BP与赛果消费各自官
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
       await page.screenshot({ path: `.agent-tmp/911/real-actions-${width}.png`, fullPage: true, style: "nextjs-portal, [data-sonner-toaster] {visibility:hidden;}" });
     }
+    if (process.env.RIVALHUB_RELIEF_BROWSER === "1") {
+      const before = await db.select().from(schema.betLedger).where(eq(schema.betLedger.seasonId, fixture.seasonId));
+      expect(before.filter(row => row.kind === "relief")).toHaveLength(0);
+      await page.reload();
+      const claim = page.getByRole("button", { name: "领取低保 +10", exact: true });
+      await expect(claim).toBeEnabled();
+      expect((await db.select().from(schema.betLedger).where(eq(schema.betLedger.seasonId, fixture.seasonId))).filter(row => row.kind === "relief")).toHaveLength(0);
+      await claim.click();
+      await expect(page.getByText("今日已领低保", { exact: true })).toBeVisible();
+      await expect(claim).toHaveCount(0);
+      await page.reload();
+      await expect(page.getByText("今日已领低保", { exact: true })).toBeVisible();
+      const grants = (await db.select().from(schema.betLedger).where(eq(schema.betLedger.seasonId, fixture.seasonId))).filter(row => row.kind === "relief");
+      expect(grants).toHaveLength(1); expect(grants[0]!.amount).toBe(BigInt(10)); expect(grants[0]!.profit).toBe(BigInt(0));
+    }
+    // Freeze browser polling so the stale-view rejection is deterministic;
+    // server Actions and the official isolated PG clock remain real.
+    await page.clock.pauseAt(new Date(Date.now() + 10_000));
     await db.insert(schema.matchVetoSessions).values({ matchId: match!.id, startedAt: new Date() });
     // Submit from the cached open view; the Action must reject and fresh-read lock it.
     await bp.locator("button[aria-pressed]").last().click();
@@ -82,6 +101,7 @@ test("免费预测独立于BET，零余额可改选，BP与赛果消费各自官
     await choices.last().click(); await free.getByRole("button", { name: "更新预测", exact: true }).click();
     await expect(free.getByRole("alert")).toBeVisible();
     await expect(choices.first()).toBeDisabled();
+    await page.clock.resume();
     await page.reload(); await expect(choices.first()).toBeDisabled();
     await db.update(schema.matches).set({ status: "finished", scoreA: 1, scoreB: 0 }).where(eq(schema.matches.id, match!.id));
     await page.goto(`/${fixture.slug}/bet?view=settled`);
