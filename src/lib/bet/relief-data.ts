@@ -3,6 +3,7 @@ import { and, eq, sql } from "drizzle-orm";
 import type { TxDb } from "@/db/client";
 import { betAccounts, betLedger, betPrograms, seasons, users } from "@/db/schema";
 import { projectBetRelief, type BetReliefDTO } from "./relief";
+import { canPublishBetRelief } from "./ledger-publication";
 /** Call after the program lock for writes: transaction-start time can precede midnight. */
 export async function betReliefDay(tx: TxDb): Promise<string> {
   const result = await tx.execute(sql`select to_char(clock_timestamp() at time zone 'Asia/Shanghai', 'YYYY-MM-DD') as day`);
@@ -20,7 +21,8 @@ export async function readBetRelief(tx: TxDb, seasonId: string, userId: string |
     granted: sql<string>`coalesce(sum(${betLedger.amount}) filter (where ${betLedger.kind} = 'relief'), 0)::text`,
     claimedToday: sql<boolean>`coalesce(bool_or(${betLedger.kind} = 'relief' and ${betLedger.source} = ${`relief/${currentDay}`}), false)`,
   }).from(betLedger).where(and(eq(betLedger.accountId, account.id), eq(betLedger.seasonId, seasonId))) : [];
-  return projectBetRelief({day: currentDay, loggedIn: !!userId, activeVerified: !!user && user.status === "active" && !!user.emailVerifiedAt,
+  const eligibility = projectBetRelief({day: currentDay, loggedIn: !!userId, activeVerified: !!user && user.status === "active" && !!user.emailVerifiedAt,
     enabled: !!program, paused: program?.paused ?? false, seasonOpen: !!season && season.competitionTemplate === "major" && !["finished", "archived"].includes(season.status),
     joined: !!account, balance: BigInt(totals?.balance ?? "0"), granted: BigInt(totals?.granted ?? "0"), claimedToday: totals?.claimedToday ?? false});
+  return canPublishBetRelief() ? eligibility : { ...eligibility, canClaim: false, amount: "0", reason: "publication_unavailable" };
 }

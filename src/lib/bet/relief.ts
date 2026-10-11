@@ -1,6 +1,6 @@
 /** No clock or persistence: both the read model and locked claim use this policy. */
 export const BET_RELIEF_POLICY = { target: BigInt(10), seasonLimit: BigInt(100) } as const;
-export type BetReliefReason = "eligible" | "login_required" | "account_invalid" | "disabled" | "paused" | "season_closed" | "join_required" | "debt" | "claimed_today" | "limit_reached" | "balance_sufficient";
+export type BetReliefReason = "publication_unavailable" | "eligible" | "login_required" | "account_invalid" | "disabled" | "paused" | "season_closed" | "join_required" | "debt" | "claimed_today" | "limit_reached" | "balance_sufficient";
 export interface BetReliefDTO {
   day: string;
   reason: BetReliefReason;

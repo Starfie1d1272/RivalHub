@@ -77,15 +77,11 @@ test("免费预测独立于BET，零余额可改选，BP与赛果消费各自官
       expect(before.filter(row => row.kind === "relief")).toHaveLength(0);
       await page.reload();
       const claim = page.getByRole("button", { name: "领取低保 +10", exact: true });
-      await expect(claim).toBeEnabled();
-      expect((await db.select().from(schema.betLedger).where(eq(schema.betLedger.seasonId, fixture.seasonId))).filter(row => row.kind === "relief")).toHaveLength(0);
-      await claim.click();
-      await expect(page.getByText("今日已领低保", { exact: true }).filter({ visible: true })).toBeVisible();
+      // Reader release returns a nonclaimable DTO; real publisher1 issuance,
+      // serialization, debt and cap regressions remain in bet-relief.test.ts.
       await expect(claim).toHaveCount(0);
-      await page.reload();
-      await expect(page.getByText("今日已领低保", { exact: true }).filter({ visible: true })).toBeVisible();
-      const grants = (await db.select().from(schema.betLedger).where(eq(schema.betLedger.seasonId, fixture.seasonId))).filter(row => row.kind === "relief");
-      expect(grants).toHaveLength(1); expect(grants[0]!.amount).toBe(BigInt(10)); expect(grants[0]!.profit).toBe(BigInt(0));
+      await expect(choices.first()).toBeEnabled();
+      expect(await db.select().from(schema.betLedger).where(eq(schema.betLedger.seasonId, fixture.seasonId))).toEqual(before);
     }
     // Freeze browser polling so the stale-view rejection is deterministic;
     // server Actions and the official isolated PG clock remain real.
