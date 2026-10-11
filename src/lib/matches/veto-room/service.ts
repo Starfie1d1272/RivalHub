@@ -1278,6 +1278,9 @@ export async function resolveVetoAppeal(input: {
       .for("update");
     const now = await databaseNow(tx);
     if (!joined || joined.appeal.status !== "pending") throw new AppError(ErrorCode.NOT_FOUND, "待处理申诉不存在。");
+    if (await hasVetoGameplayInTx(tx, match.id)) {
+      throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "正式对局已开始，不能裁定或恢复 BP 技术申诉；如需赛务处理，请联系赛事管理员。");
+    }
     const note = input.resolutionNote.trim();
     if (note.length < 3 || note.length > 500) throw new AppError(ErrorCode.VALIDATION_FAILED, "请填写 3 至 500 字的裁定说明。");
     const accepted = input.resolutionScope === "platform_or_organizer";
