@@ -1,5 +1,10 @@
 "use client";
 import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
+import { FreePrediction } from "./FreePrediction";
+import { PredictionLeaderboard } from "./PredictionLeaderboard";
+import { BetRelief } from "./BetRelief";
+import type { FreePredictionModel, FreePredictionControls, PredictionRankingModel, PredictionRankingSort } from "./presentation-contract";
+import type { ComponentProps } from "react";
 import { BetOptionProfile } from "./BetOptionProfile";
 import { TeamProfileLink } from "@/components/teams/TeamProfileLink";
 import { useEffect, useState, useTransition } from "react";
@@ -19,12 +24,14 @@ import type { BetBoardDTO, BetMarketDTO } from "@/lib/bet/types";
 import { formatCSTDateTime } from "@/lib/utils/date";
 import { cn } from "@/lib/utils/cn";
 const filters=[{key:"open",label:"开放"},{key:"mine",label:"我的投入"},{key:"settled",label:"已结算"},{key:"event",label:"赛事"},{key:"leaderboard",label:"排行榜"},{key:"records",label:"记录"}] as const;
-export function BetBoard({initial,slug,signedIn,view,matchFilter}:{initial:BetBoardDTO;slug:string;signedIn:boolean;view:string;matchFilter:string|null}) {
+export function BetBoard({initial,slug,signedIn,view,matchFilter,predictions,predictionControls,rankings,relief,predictionMatchRows}:{initial:BetBoardDTO;slug:string;signedIn:boolean;view:string;matchFilter:string|null;predictions?:FreePredictionModel[];predictionControls?:FreePredictionControls;rankings?:Record<PredictionRankingSort,PredictionRankingModel>;relief?:Omit<ComponentProps<typeof BetRelief>,"onClaimed">;predictionMatchRows?:BetBoardDTO["matches"]}) {
   const router=useRouter();const [snapshot,setSnapshot]=useState({origin:initial,value:initial});const data=snapshot.origin===initial?snapshot.value:initial;const [pending,startTransition]=useTransition();
   const [selected,setSelected]=useState<{market:BetMarketDTO;optionId:string}|null>(null);
   const [amount,setAmount]=useState("");const [allIn,setAllIn]=useState(false);const [allConfirmed,setAllConfirmed]=useState(false);
   const [requestId,setRequestId]=useState("");const [error,setError]=useState<string|null>(null);
   useEffect(()=>{let alive=true;const refresh=async()=>{if(document.visibilityState!=="visible")return;const r=await getBetBoard({seasonId:initial.seasonId});if(alive&&r.success)setSnapshot({origin:initial,value:r.data});};const timer=setInterval(()=>void refresh(),15000);return()=>{alive=false;clearInterval(timer);};},[initial]);
+  const matches = [...data.matches, ...(predictionMatchRows ?? []).filter(match => !data.matches.some(row => row.id === match.id))];
+  const predictionMatches = predictions && predictionControls ? matches.filter(match => (!matchFilter || match.id === matchFilter) && predictions.some(panel => panel.matchId === match.id)) : [];
   const active=filters.some(f=>f.key===view)?view:"open";
   const visible=data.markets.filter(m=>(!matchFilter||m.matchId===matchFilter) && (active==="event"?m.matchId===null:active==="mine"?!!m.mine:active==="settled"?["settled","refunded"].includes(m.state):m.matchId!==null && ["open","locked"].includes(m.state)));
   function choose(market:BetMarketDTO,optionId:string){setSelected({market,optionId});setAmount("");setAllIn(false);setAllConfirmed(false);setRequestId(crypto.randomUUID());setError(null);}
@@ -40,6 +47,7 @@ export function BetBoard({initial,slug,signedIn,view,matchFilter}:{initial:BetBo
         <Metric label="可用积分" value={data.joined?formatPoints(data.balance):"—"} accent help="首次领取 1,000 积分；加入后的 Main Event 新阶段各补给 300，不补历史阶段。管理员可以参与，但本人参赛队伍相关盘口不可参与。排名按净收益，不按余额；至少一次已结算参与才上榜。使用赛事积分参与无抽水社区奖池。积分不能购买、交易、转账、提现或兑换现实价值；只能追加原选项，不能换边或撤回。无胜方投入、全部投入均获胜或弃权时原额退款。预计回报随奖池变化。"/>
         <Metric label="净收益" value={data.joined?`${BigInt(data.profit)>BigInt(0)?"+":""}${formatPoints(data.profit)}`:"—"}/>
         <Link href={`/${slug}/bet?view=leaderboard`} aria-label="查看 BET 排行榜" className="rounded focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"><Metric label="排名" value={data.rank?`#${data.rank}`:"未上榜"}/></Link>
+        {data.joined && relief && <BetRelief {...relief} onClaimed={()=>router.refresh()}/>}
         {data.enabled && !data.joined && (signedIn?<Button onClick={join} disabled={pending}>领取 1,000 积分</Button>:<Button asChild><Link href="/login">登录参与</Link></Button>)}
       </div>
     </>}/>
@@ -50,8 +58,11 @@ export function BetBoard({initial,slug,signedIn,view,matchFilter}:{initial:BetBo
       <span className="ml-auto py-3 text-xs tabular-nums text-[var(--color-fg-dim)]">{visible.filter(m=>m.state==="open").length} 个开放盘口</span>
     </nav>
     {matchFilter && <Link href={`/${slug}/bet` as never} className="inline-block text-sm text-[var(--color-accent)]">查看全部比赛 →</Link>}
-    {!data.enabled?<Empty text="BET 尚未开放"/>:active==="leaderboard"?<BetLeaderboard rows={data.leaderboard}/>:active==="records"?<BetRecords rows={data.records} signedIn={signedIn}/>:!visible.length?<Empty text={active==="mine"?"还没有投入记录":active==="settled"?"暂无已结算盘口":active==="event"?"等待正赛名单确认":"等待下一场对阵或地图"}/>:<div className={cn("grid min-w-0 items-start gap-5",!matchFilter&&"lg:grid-cols-2")}>
-      {[...new Set(visible.map(m=>m.matchId))].map(id=>id?<MatchCard key={id} match={data.matches.find(m=>m.id===id)!} markets={visible.filter(m=>m.matchId===id)} slug={slug} choose={choose}/>:<section key="event" className="space-y-5 lg:col-span-2">{visible.filter(m=>!m.matchId).map(m=><div key={m.id} className="border border-[var(--color-border)] bg-[var(--color-panel)] p-5"><MarketRow market={m} slug={slug} choose={choose}/></div>)}</section>)}
+    {active==="leaderboard"?(rankings?<PredictionLeaderboard rankings={rankings}/>:<BetLeaderboard rows={data.leaderboard}/>):active==="records"?<BetRecords rows={data.records} signedIn={signedIn}/>:!visible.length&&!(active==="open"&&predictionMatches.length)?<Empty text={!data.enabled?"BET 尚未开放":active==="mine"?"还没有投入记录":active==="settled"?"暂无已结算盘口":active==="event"?"等待正赛名单确认":"等待下一场对阵或地图"}/>:<div className={cn("grid min-w-0 items-start gap-5",!matchFilter&&"lg:grid-cols-2")}>
+      {[...new Set([...visible.map(m=>m.matchId), ...(active==="open"?predictionMatches.map(match=>match.id):[])])].map(id=>{
+        const match = matches.find(m=>m.id===id);
+        return id&&match?<MatchCard key={id} match={match} markets={visible.filter(m=>m.matchId===id)} slug={slug} choose={choose} signedIn={signedIn} predictions={predictions?.filter(panel=>panel.matchId===id)} predictionControls={predictionControls}/>:!id?<section key="event" className="space-y-5 lg:col-span-2">{visible.filter(m=>!m.matchId).map(m=><div key={m.id} className="border border-[var(--color-border)] bg-[var(--color-panel)] p-5"><MarketRow market={m} slug={slug} choose={choose}/></div>)}</section>:null;
+      })}
     </div>}
     <Dialog open={!!selected} onOpenChange={open=>{if(!open&&!pending)setSelected(null);}}><DialogContent size="sm" onInteractOutside={e=>{if(pending)e.preventDefault();}} onEscapeKeyDown={e=>{if(pending)e.preventDefault();}}>
       <DialogHeader><DialogTitle>{selected?.market.title}</DialogTitle><DialogDescription>{current?.context && <span>{current.context} · </span>}{selectedOption?.label}{selectedOption && <BetOptionProfile option={selectedOption} slug={slug}/>}</DialogDescription></DialogHeader>
@@ -69,14 +80,26 @@ export function BetBoard({initial,slug,signedIn,view,matchFilter}:{initial:BetBo
 }
 function Metric({label,value,accent=false,help}:{label:string;value:string;accent?:boolean;help?:string}){return <div><p className="mb-1 text-xs text-[var(--color-fg-mid)]"><span className="relative inline-block">{label}{help&&<HelpTooltip className="absolute -right-3 top-0" label="BET 积分规则" content={help}/>}</span></p><p className={cn("font-mono text-2xl font-semibold tabular-nums",accent&&"text-[var(--color-accent)]")}>{value}</p></div>;}
 function Empty({text}:{text:string}){return <div className="border border-dashed border-[var(--color-border)] py-16 text-center text-sm text-[var(--color-fg-mid)]">{text}</div>;}
-function MatchCard({match,markets,slug,choose}:{match:BetBoardDTO["matches"][number];markets:BetMarketDTO[];slug:string;choose:(m:BetMarketDTO,o:string)=>void}) {
-  const groups=[...new Set(markets.map(m=>m.group))];const defaultGroup=markets.find(m=>m.state==="open")?.group??groups[0]!;
-  const [group,setGroup]=useState<string|null>(null);const shown=group && groups.includes(group as BetMarketDTO["group"])?group:defaultGroup;
+function MatchCard({match,markets,slug,choose,signedIn,predictions,predictionControls}:{match:BetBoardDTO["matches"][number];markets:BetMarketDTO[];slug:string;choose:(m:BetMarketDTO,o:string)=>void;signedIn:boolean;predictions?:FreePredictionModel[];predictionControls?:FreePredictionControls}) {
+  const resultMarkets = markets.filter(m=>m.group==="比赛");
+  const mapMarkets = markets.filter(m=>m.group==="BP"||m.group==="单图");
+  const winner = predictions?.find(panel=>panel.kind==="winner");
+  const bp = predictions?.find(panel=>panel.kind==="bp");
   return <article className="min-w-0 overflow-hidden border border-[var(--color-border)] bg-[var(--color-panel)]">
     <div className="flex flex-wrap items-center gap-2 border-b border-[var(--color-border)] px-4 py-3 text-xs text-[var(--color-fg-mid)]"><span className="font-mono tracking-wider">{match.stage} · {match.format}</span><span className="ml-auto">{match.scheduledAt?formatCSTDateTime(match.scheduledAt):"待排期"}</span><Link aria-label={`查看 ${match.a} 对 ${match.b} 比赛`} className="text-[var(--color-fg-dim)] hover:text-[var(--color-accent)]" href={`/${slug}/matches/${match.id}` as never}><ArrowUpRight size={16}/></Link></div>
     <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 p-5"><TeamProfileLink seasonSlug={slug} entryId={match.entryAId} className="flex min-w-0 flex-col items-center gap-2 text-center"><TeamLogo logoUrl={match.logoA} teamName={match.a}/><h2 className="w-full truncate text-base font-semibold" title={match.a}>{match.a}</h2></TeamProfileLink><span className="font-mono text-sm text-[var(--color-fg-dim)]">VS</span><TeamProfileLink seasonSlug={slug} entryId={match.entryBId} className="flex min-w-0 flex-col items-center gap-2 text-center"><TeamLogo logoUrl={match.logoB} teamName={match.b}/><h2 className="w-full truncate text-base font-semibold" title={match.b}>{match.b}</h2></TeamProfileLink></div>
-    <div className="flex gap-4 border-b border-[var(--color-border)] px-5" role="tablist" aria-label="盘口类别">{groups.map(g=><button key={g} type="button" role="tab" aria-selected={shown===g} onClick={()=>setGroup(g)} className={cn("border-b-2 py-2 text-sm focus-visible:outline focus-visible:outline-[var(--color-accent)]",shown===g?"border-[var(--color-accent)] text-[var(--color-fg)]":"border-transparent text-[var(--color-fg-mid)]")}>{g}{markets.some(m=>m.group===g&&m.state==="open")&&<span className="ml-1.5 text-[var(--color-accent)]">·</span>}</button>)}</div>
-    <div className="divide-y divide-[var(--color-border)] px-5" role="tabpanel">{markets.filter(m=>m.group===shown).map(m=><div key={m.id} className="py-4"><MarketRow market={m} slug={slug} choose={choose}/></div>)}</div>
+    {(resultMarkets.length>0||winner) && <section aria-label="赛果" className="space-y-4 border-t border-[var(--color-border)] p-4 sm:p-5">
+      <h2 className="text-sm font-semibold">赛果</h2>
+      {winner&&predictionControls&&<FreePrediction key={`${match.id}-winner`} model={winner} signedIn={signedIn} controls={predictionControls}/>}
+      {resultMarkets.filter(m=>m.type==="match_winner").map(m=><div key={m.id} className="border-t border-[var(--color-border)] pt-4"><MarketRow market={m} slug={slug} choose={choose}/></div>)}
+      {resultMarkets.some(m=>m.type!=="match_winner")&&<details className="border-t border-[var(--color-border)] pt-3"><summary className="cursor-pointer text-sm text-[var(--color-fg-mid)] focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]">更多赛果 BET · 精确比分 / 总图数</summary><div className="space-y-4 pt-4">{resultMarkets.filter(m=>m.type!=="match_winner").map(m=><MarketRow key={m.id} market={m} slug={slug} choose={choose}/>)}</div></details>}
+    </section>}
+    {(mapMarkets.length>0||bp) && <section aria-label="地图" className="space-y-4 border-t border-[var(--color-border)] p-4 sm:p-5">
+      <h2 className="text-sm font-semibold">地图</h2>
+      {bp&&predictionControls&&<FreePrediction key={`${match.id}-bp`} model={bp} signedIn={signedIn} controls={predictionControls}/>}
+      {mapMarkets.filter(m=>m.type==="total_rounds").map(m=><div key={m.id} className="border-t border-[var(--color-border)] pt-4"><MarketRow market={m} slug={slug} choose={choose}/></div>)}
+      {mapMarkets.filter(m=>m.type!=="total_rounds").map(m=><div key={m.id} className="border-t border-[var(--color-border)] pt-4"><MarketRow market={m} slug={slug} choose={choose}/></div>)}
+    </section>}
   </article>;
 }
 function MarketRow({market:m,choose,slug}:{slug:string;market:BetMarketDTO;choose:(m:BetMarketDTO,o:string)=>void}) {
