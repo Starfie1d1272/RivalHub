@@ -12,6 +12,7 @@
 | 核心领域实体与事实 ownership | [`domain-model.md`](./domain-model.md) |
 | 账号、报名、赛事与比赛生命周期 | [`workflows.md`](./workflows.md) |
 | 鉴权、权限、Data API | [`auth-and-permissions.md`](./auth-and-permissions.md) |
+| 数据分类、保留、删除与恢复语义 | [`security/data-lifecycle.md`](./security/data-lifecycle.md) |
 | 测试证据与 CI | [`testing.md`](./testing.md)、[`operations/ci.md`](./operations/ci.md) |
 | 本地开发、migration、staging、release | [`operations/`](./operations/) |
 | Production 灾难恢复、备份与 Restore 演练 | [`operations/disaster-recovery.md`](./operations/disaster-recovery.md) |

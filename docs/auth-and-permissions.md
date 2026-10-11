@@ -1,6 +1,7 @@
 # 鉴权、权限与 Data API
 
 本文件只描述安全 contract。精确输入、错误码和 transaction 以 auth code/tests 为准；表级访问事实见生成式 [`security/database-access-matrix.md`](./security/database-access-matrix.md)。
+数据分类、保留、删除与备份恢复边界由 [`security/data-lifecycle.md`](./security/data-lifecycle.md) 统一定义；失去登录或授权资格不等于个人数据已物理删除。
 
 ## Account path
 

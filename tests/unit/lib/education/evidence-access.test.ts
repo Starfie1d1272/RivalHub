@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AppError, ErrorCode } from "@/lib/errors";
 
 const {
@@ -23,8 +23,26 @@ describe("manual education evidence access", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     requireSuperAdminMock.mockResolvedValue({ userId: "admin-1", role: "super_admin", seasonIds: [] });
-    verificationFindFirstMock.mockResolvedValue({ evidenceType: "manual_other", evidenceObjectKey: `${VERIFICATION_ID}/object.png` });
+    verificationFindFirstMock.mockResolvedValue({ evidenceType: "manual_other", evidenceObjectKey: `${VERIFICATION_ID}/object.png`, status: "pending", reviewedAt: null });
     signedUrlMock.mockResolvedValue("https://storage.test/signed");
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it.each(["approved", "rejected"])("blocks %s evidence exactly at the expiry boundary without contacting Storage", async status => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-11T12:00:00Z"));
+    verificationFindFirstMock.mockResolvedValue({ evidenceType: "manual_other", evidenceObjectKey: "private-object", status, reviewedAt: new Date("2026-10-04T12:00:00Z") });
+    await expect(getManualEducationEvidenceSignedUrl({ id: VERIFICATION_ID })).rejects.toThrow("已过保留期");
+    expect(signedUrlMock).not.toHaveBeenCalled();
+  });
+
+  it("allows completed evidence one millisecond before expiry and keeps pending evidence available", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-11T12:00:00Z"));
+    verificationFindFirstMock.mockResolvedValue({ evidenceType: "manual_other", evidenceObjectKey: "private-object", status: "approved", reviewedAt: new Date("2026-10-04T12:00:00.001Z") });
+    await expect(getManualEducationEvidenceSignedUrl({ id: VERIFICATION_ID })).resolves.toBe("https://storage.test/signed");
+    verificationFindFirstMock.mockResolvedValue({ evidenceType: "manual_other", evidenceObjectKey: "pending-object", status: "pending", reviewedAt: null });
+    await expect(getManualEducationEvidenceSignedUrl({ id: VERIFICATION_ID })).resolves.toBe("https://storage.test/signed");
   });
 
   it("requires super-admin authorization before looking up or signing manual evidence", async () => {

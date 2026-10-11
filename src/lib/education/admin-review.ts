@@ -1,10 +1,11 @@
 import "server-only";
 
-import { and, asc, count, countDistinct, desc, eq, ilike, or, sql } from "drizzle-orm";
+import { and, asc, count, countDistinct, desc, eq, gt, ilike, isNull, or, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import { educationVerifications, institutions, steamProfiles, users } from "@/db/schema";
 import { escapeLikePattern } from "@/lib/db/search";
 import { getDisplayName } from "@/lib/identity/display-name";
+import { educationEvidenceReviewCutoff, isEducationEvidenceExpired } from "./retention-policy";
 import {
   EDUCATION_REVIEW_DEFAULTS,
   EDUCATION_REVIEW_PAGE_SIZE,
@@ -63,6 +64,7 @@ export function normalizeEducationReviewQuery(input: EducationReviewSearchParams
 }
 
 export async function getEducationReviewQueue(query: EducationReviewQuery): Promise<EducationReviewQueue> {
+  const now = new Date();
   const conditions = [eq(users.status, "active")];
   if (query.q) {
     const pattern = `%${escapeLikePattern(query.q)}%`;
@@ -72,7 +74,14 @@ export async function getEducationReviewQueue(query: EducationReviewQuery): Prom
       ilike(steamProfiles.personaName, pattern),
       ilike(users.email, pattern),
       ilike(institutions.name, pattern),
-      ilike(educationVerifications.evidenceCode, pattern),
+      and(
+        or(
+          eq(educationVerifications.status, "pending"),
+          isNull(educationVerifications.reviewedAt),
+          gt(educationVerifications.reviewedAt, educationEvidenceReviewCutoff(now)),
+        ),
+        ilike(educationVerifications.evidenceCode, pattern),
+      ),
     )!);
   }
   if (query.status !== "all") conditions.push(eq(educationVerifications.status, query.status));
@@ -134,6 +143,7 @@ export async function getEducationReviewQueue(query: EducationReviewQuery): Prom
     evidenceObjectKey: educationVerifications.evidenceObjectKey,
     status: educationVerifications.status,
     submittedAt: educationVerifications.submittedAt,
+    reviewedAt: educationVerifications.reviewedAt,
     reviewNote: educationVerifications.reviewNote,
   })
     .from(educationVerifications)
@@ -146,12 +156,12 @@ export async function getEducationReviewQueue(query: EducationReviewQuery): Prom
     .offset((page - 1) * EDUCATION_REVIEW_PAGE_SIZE);
 
   return {
-    rows: rows.map(({ perfectName, personaName, evidenceType, evidenceCode, evidenceObjectKey, ...row }) => ({
+    rows: rows.map(({ perfectName, personaName, evidenceType, evidenceCode, evidenceObjectKey, reviewedAt, ...row }) => ({
       ...row,
       displayName: getDisplayName({ ...row, perfectName, personaName }),
       evidenceLabel: educationEvidenceLabel(evidenceType),
-      chsiEvidenceCode: isChsiEvidenceType(evidenceType) ? evidenceCode : null,
-      manualEvidenceAvailable: evidenceType === "manual_other" && Boolean(evidenceObjectKey),
+      chsiEvidenceCode: !isEducationEvidenceExpired({ status: row.status, reviewedAt }, now) && isChsiEvidenceType(evidenceType) ? evidenceCode : null,
+      manualEvidenceAvailable: !isEducationEvidenceExpired({ status: row.status, reviewedAt }, now) && evidenceType === "manual_other" && Boolean(evidenceObjectKey),
       submittedAt: row.submittedAt.toISOString(),
     })),
     total,

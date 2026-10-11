@@ -88,9 +88,9 @@ export function EducationVerificationReviewQueue({ rows, emptyState }: Education
                     >查看材料</a>
                   </Button>
                 ) : row.status !== "pending" && row.evidenceLabel === "录取通知书材料" ? (
-                  <p className="text-sm text-[var(--color-fg-mid)]">录取通知书材料：已按保留策略清理</p>
+                  <p className="text-sm text-[var(--color-fg-mid)]">录取通知书材料：已过保留期或已清理</p>
                 ) : row.status !== "pending" && isChsiEvidenceLabel(row.evidenceLabel) ? (
-                  <p className="text-sm text-[var(--color-fg-mid)]">在线验证码：已按保留策略清理</p>
+                  <p className="text-sm text-[var(--color-fg-mid)]">在线验证码：已过保留期或已清理</p>
                 ) : null}
                 {row.reviewNote && <p className="text-sm text-[var(--color-fg-mid)]">审核备注：{row.reviewNote}</p>}
                 {row.status === "pending" && (

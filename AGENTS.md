@@ -18,6 +18,7 @@ RivalHub 是基于 Next.js App Router、TypeScript、Drizzle/PostgreSQL、Supaba
 - DB、secret、privileged SDK 与 persistence owner 保持 server-only。新增 direct Supabase Data API/Realtime surface 必须同时定义 consumer、GRANT/RLS、一致性语义和正反例测试。
 - active Drizzle migration chain 是唯一 schema evolution path；local/staging/production 严格隔离，禁止 `db:push` 或手工 remote patch 建立第二条路径。
 - privileged mutation 保留 audit fact；runtime logs/traces 由 `src/lib/observability/` 独立拥有，见 [`docs/operations/observability.md`](docs/operations/observability.md)。
+- 新增或扩大长期/敏感持久化数据时，同变更定义 owner、目的、可见性、保留/删除与 backup/restore 语义；已有类别引用 [`docs/security/data-lifecycle.md`](docs/security/data-lifecycle.md) 与原领域 owner。
 - third-party runtime 通过 canonical adapter 接入；例如 `brackets-manager` 只能经 `@/lib/bracket`。
 - frozen event/runtime facts 不从 mutable profile、catalog 或 presentation 重新解释。
 
