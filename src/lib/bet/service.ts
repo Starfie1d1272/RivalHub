@@ -11,7 +11,7 @@ import { assertSeasonAllowsTournamentMutationInTx } from "@/lib/postevent/guard"
 import { distributePool } from "./pool";
 import { resolveMarketOptions } from "./resolution";
 import { loadBetFacts, type BetFacts } from "./facts";
-import { marketIsLocked, resolveBetFact } from "./domain";
+import { marketIsLocked, resolveBetFact, subjectMatches } from "./domain";
 import { normalizeRegistrationConfig } from "@/lib/seasons/compatibility";
 import { BET_POLICY, roundLineTwice, seriesLineTwice } from "./policy";
 import type { BetSubject, MarketType } from "./types";
@@ -42,6 +42,7 @@ async function createMarket(tx: TxDb,seasonId: string,matchId: string|null,type:
 async function publishMarkets(tx: TxDb,f: BetFacts) {
   const seasonId=f.season.id;
   const program=await tx.query.betPrograms.findFirst({where:eq(programs.seasonId,seasonId)});
+  const existing=await tx.select().from(markets).where(and(eq(markets.seasonId,seasonId),eq(markets.type,"total_rounds")));
   if (!f.event.started && f.event.entryIds.length) {
     const subject: BetSubject={kind:"event",entryIds:f.event.entryIds,playerIds:f.event.playerIds};
     await createMarket(tx,seasonId,null,"champion",{...subject,playerIds:[]},f.event.entryIds.map(id=>({key:id,label:f.entries.find(e=>e.id===id)?.name??"队伍"})));
@@ -71,8 +72,22 @@ async function publishMarkets(tx: TxDb,f: BetFacts) {
         if(m.format!=="bo1") await createMarket(tx,seasonId,m.id,"veto_decider",bpSubject,choices);
       }
     }
-    if (!veto?.completedAt || veto.pendingAppeal) continue;
     const maps=f.maps.filter(x=>x.matchId===m.id).sort((a,b)=>a.mapOrder-b.mapOrder);
+    const history=f.maps.filter(x=>x.completedAt && x.scoreA!==null && x.scoreB!==null).sort((a,b)=>b.completedAt!.getTime()-a.completedAt!.getTime());
+    for (let mapOrder=1;mapOrder<=Number(m.format.slice(2));mapOrder++) {
+      const slot: BetSubject={kind:"map_slot",entryIds:subject.entryIds,runId:subject.runId,format:m.format,mapOrder};
+      const input={type:"total_rounds" as const,subject:slot,line:null,voidedAt:null,match:m,maps,veto,event:f.event};
+      if (marketIsLocked(input) || (legacyStart && mapOrder===1)) continue;
+      // Preserve every legacy pool (including terminal history) for this match/slot.
+      // A map name/ID correction does not authorize replacing its invested terms.
+      if (existing.some(market => market.matchId===m.id && market.subject.kind==="map" && market.subject.mapOrder===mapOrder && subjectMatches({
+        kind:"map_slot",entryIds:market.subject.entryIds,runId:market.subject.runId,format:market.subject.format,mapOrder:market.subject.mapOrder,
+      },m,maps,veto))) continue;
+      const map=maps.find(x=>x.mapOrder===mapOrder);
+      const recent=map?history.filter(x=>x.id!==map.id && x.mapName===map.mapName && f.official.some(match=>match.id===x.matchId && [match.entryAId,match.entryBId].some(id=>subject.entryIds.includes(id)))).slice(0,20):[];
+      await createMarket(tx,seasonId,m.id,"total_rounds",slot,[{key:"over",label:"大"},{key:"under",label:"小"}],roundLineTwice(recent.map(x=>x.scoreA!+x.scoreB!),history.slice(0,60).map(x=>x.scoreA!+x.scoreB!)));
+    }
+    if (!veto?.completedAt || veto.pendingAppeal) continue;
     const map=maps.find(x=>!x.completedAt);
     if (!map || map.startedAt || (map.mapOrder===1 && m.startedAt) || maps.filter(x=>x.mapOrder<map.mapOrder).some(x=>!x.completedAt)) continue;
     const target=m.format==="bo1"?1:m.format==="bo3"?2:3;
@@ -81,9 +96,6 @@ async function publishMarkets(tx: TxDb,f: BetFacts) {
     if (winsA>=target || winsB>=target) continue;
     const mapSubject: BetSubject={kind:"map",entryIds:subject.entryIds,runId:subject.runId,format:m.format,mapId:map.id,mapOrder:map.mapOrder,mapName:map.mapName};
     if (m.format!=="bo1") await createMarket(tx,seasonId,m.id,"map_winner",mapSubject,teams);
-    const history=f.maps.filter(x=>x.completedAt && x.scoreA!==null && x.scoreB!==null && x.id!==map.id).sort((a,b)=>b.completedAt!.getTime()-a.completedAt!.getTime());
-    const recent=history.filter(x=>x.mapName===map.mapName && f.official.some(match=>match.id===x.matchId && [match.entryAId,match.entryBId].some(id=>subject.entryIds.includes(id)))).slice(0,20);
-    await createMarket(tx,seasonId,m.id,"total_rounds",mapSubject,[{key:"over",label:"大"},{key:"under",label:"小"}],roundLineTwice(recent.map(x=>x.scoreA!+x.scoreB!),history.slice(0,60).map(x=>x.scoreA!+x.scoreB!)));
   }
 }
 /** Caller holds only Bet program lock; official rows are read, never locked by workers. */

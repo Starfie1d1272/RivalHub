@@ -8,7 +8,7 @@ import { readBetAccounts } from "./account-data";
 import { loadBetFacts } from "./facts";
 import { betFactInput } from "./service";
 import { marketIsLocked, resolveBetFact } from "./domain";
-import { marketPresentation } from "./presentation";
+import { marketPresentation, marketContext } from "./presentation";
 import type { BetBoardDTO, BetState } from "./types";
 /** Read-only repeatable-read snapshot. Never create markets or settle from GET. */
 export async function betBoard(tx:TxDb,seasonId:string,userId:string|null):Promise<BetBoardDTO> {
@@ -42,7 +42,7 @@ export async function betBoard(tx:TxDb,seasonId:string,userId:string|null):Promi
     const payout=latest && invested && account && latest.state!=="pending"?myPayouts.find(row=>row.source===`settlement/${latest.id}`):null;
     const restriction=user && (user.status!=="active" || !user.emailVerifiedAt)?"请先完成邮箱验证":betRosterRestriction(userId, market.subject.entryIds, f.roster);
     const presentation=marketPresentation(market.type,market.line);
-    result.markets.push({id:market.id,matchId:market.matchId,type:market.type,...presentation,context:market.subject.kind==="map"?`图${market.subject.mapOrder} · ${market.subject.mapName.replace(/^de_/,"").replace(/^./,c=>c.toUpperCase())}`:market.subject.kind==="event"?"MAIN EVENT":"",state,pool:total.toString(),participants:counts.find(c=>c.marketId===market.id)?.count??0,canStake:!!account && !!program && !program.paused && state==="open" && !restriction && !["finished","archived"].includes(f.season.status),restriction,options:choices.map(o=>{const amount=BigInt(pool.find(p=>p.marketId===market.id && p.optionId===o.id)?.amount??"0");return {id:o.id,label:o.label,entity:betOptionEntity(market.type,market.subject,o.key),pool:amount.toString(),percent:total?Number(amount*BigInt(10000)/total)/100:0,winner:latest?.winningOptionIds.includes(o.id)??false};}),mine:invested?{optionId:invested.optionId,amount:invested.amount,payout:payout?.amount.toString()??null,profit:payout?.profit.toString()??null}:null});
+    result.markets.push({id:market.id,matchId:market.matchId,type:market.type,...presentation,context:marketContext(market.subject,input.maps),state,pool:total.toString(),participants:counts.find(c=>c.marketId===market.id)?.count??0,canStake:!!account && !!program && !program.paused && state==="open" && !restriction && !["finished","archived"].includes(f.season.status),restriction,options:choices.map(o=>{const amount=BigInt(pool.find(p=>p.marketId===market.id && p.optionId===o.id)?.amount??"0");return {id:o.id,label:o.label,entity:betOptionEntity(market.type,market.subject,o.key),pool:amount.toString(),percent:total?Number(amount*BigInt(10000)/total)/100:0,winner:latest?.winningOptionIds.includes(o.id)??false};}),mine:invested?{optionId:invested.optionId,amount:invested.amount,payout:payout?.amount.toString()??null,profit:payout?.profit.toString()??null}:null});
   }
   return result;
 }

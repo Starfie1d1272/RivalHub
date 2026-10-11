@@ -14,6 +14,7 @@ export function subjectMatches(subject: BetSubject,match: MatchFact | undefined,
   if (subject.kind === "event") return true;
   if (!match || subject.entryIds[0] !== match.entryAId || subject.entryIds[1] !== match.entryBId || subject.runId !== (match.majorStageRunId ?? match.qualificationRunId) || subject.format !== match.format) return false;
   if (subject.kind === "map") return maps.some(m=>m.id===subject.mapId && m.mapName===subject.mapName && m.mapOrder===subject.mapOrder);
+  if (subject.kind === "map_slot") return Number.isInteger(subject.mapOrder) && subject.mapOrder >= 1 && subject.mapOrder <= Number(subject.format.slice(2));
   if (subject.mapPool.length && veto?.mapPoolSnapshot && !sameIds(subject.mapPool,veto.mapPoolSnapshot)) return false;
   return true;
 }
@@ -23,6 +24,10 @@ export function marketIsLocked(input: MarketFactInput): boolean {
   const match = input.match!;
   if (match.isForfeit || ["finished","cancelled"].includes(match.status)) return true;
   if (input.type.startsWith("veto_")) return !!input.veto?.startedAt || !!match.startedAt || match.status === "finished";
+  if (input.subject.kind === "map_slot") {
+    const order = input.subject.mapOrder;
+    return input.maps.some(m=>m.mapOrder >= order && (m.startedAt || m.completedAt)) || (order === 1 && !!match.startedAt);
+  }
   if (input.subject.kind === "map") {
     const id = input.subject.mapId;
     const selected = input.maps.find(m=>m.id===id);
@@ -51,9 +56,9 @@ export function resolveBetFact(input: MarketFactInput): MarketResolutionFact {
     const map = input.maps.find(m=>m.mapOrder===order);
     return map ? confirmed([map.mapName],{order,name:map.mapName}) : pending;
   }
-  if (input.subject.kind === "map") {
-    const id = input.subject.mapId;
-    const map = input.maps.find(m=>m.id===id);
+  if (input.subject.kind === "map" || input.subject.kind === "map_slot") {
+    const subject = input.subject;
+    const map = subject.kind === "map" ? input.maps.find(m=>m.id===subject.mapId) : input.maps.find(m=>m.mapOrder===subject.mapOrder);
     if (!map?.completedAt || map.scoreA === null || map.scoreB === null || map.scoreA === map.scoreB) return match.status === "finished" ? voidFact : pending;
     return input.type === "map_winner"
       ? confirmed([map.scoreA > map.scoreB ? match.entryAId : match.entryBId],{a:map.scoreA,b:map.scoreB})

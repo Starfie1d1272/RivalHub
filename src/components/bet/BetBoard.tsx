@@ -54,7 +54,7 @@ export function BetBoard({initial,slug,signedIn,view,matchFilter}:{initial:BetBo
       {[...new Set(visible.map(m=>m.matchId))].map(id=>id?<MatchCard key={id} match={data.matches.find(m=>m.id===id)!} markets={visible.filter(m=>m.matchId===id)} slug={slug} choose={choose}/>:<section key="event" className="space-y-5 lg:col-span-2">{visible.filter(m=>!m.matchId).map(m=><div key={m.id} className="border border-[var(--color-border)] bg-[var(--color-panel)] p-5"><MarketRow market={m} slug={slug} choose={choose}/></div>)}</section>)}
     </div>}
     <Dialog open={!!selected} onOpenChange={open=>{if(!open&&!pending)setSelected(null);}}><DialogContent size="sm" onInteractOutside={e=>{if(pending)e.preventDefault();}} onEscapeKeyDown={e=>{if(pending)e.preventDefault();}}>
-      <DialogHeader><DialogTitle>{selected?.market.title}</DialogTitle><DialogDescription>{selectedOption?.label}{selectedOption && <BetOptionProfile option={selectedOption} slug={slug}/>}</DialogDescription></DialogHeader>
+      <DialogHeader><DialogTitle>{selected?.market.title}</DialogTitle><DialogDescription>{current?.context && <span>{current.context} · </span>}{selectedOption?.label}{selectedOption && <BetOptionProfile option={selectedOption} slug={slug}/>}</DialogDescription></DialogHeader>
       <DialogBody className="space-y-5">
         <div className="flex justify-between text-sm"><span className="text-[var(--color-fg-mid)]">可用积分</span><span className="font-mono">{formatPoints(data.balance)}</span></div>
         <div className="space-y-2"><Label htmlFor="bet-amount">投入积分</Label><Input id="bet-amount" inputMode="numeric" value={allIn?data.balance:amount} disabled={pending} onChange={e=>{setAmount(e.target.value);setAllIn(false);setAllConfirmed(false);}} autoFocus/></div>

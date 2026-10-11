@@ -203,18 +203,26 @@ describe("BET transactional admission and settlement",()=>{
     const [run]=await f.db.insert(schema.competitionQualificationRuns).values({seasonId:f.seasonId,format:"short_swiss_2w2l",targetEntrantCount:1,candidateCount:2,directEntryCount:0,playInEntryCount:2,qualifierCount:1,configuredBy:"test"}).returning();
     const [match]=await f.db.insert(schema.matches).values({seasonId:f.seasonId,entryAId:f.entryIds[0]!,entryBId:f.entryIds[1]!,stage:"play-in",qualificationRunId:run!.id,format:"bo1"}).returning();
     await f.db.transaction(async tx=>{await lockBetProgram(tx,f.seasonId);await reconcileBetInTx(tx,f.seasonId);});
-    expect((await read(f.db,f.seasonId,f.userId)).markets.filter(m=>m.matchId===match!.id).map(m=>m.type).sort()).toEqual(["match_winner","veto_map"]);
+    expect((await read(f.db,f.seasonId,f.userId)).markets.filter(m=>m.matchId===match!.id).map(m=>m.type).sort()).toEqual(["match_winner","total_rounds","veto_map"]);
+    const prematch=(await read(f.db,f.seasonId,f.userId)).markets.find(m=>m.matchId===match!.id && m.type==="total_rounds")!;
+    expect(prematch).toMatchObject({context:"第1图 · 地图待定",canStake:true});
+    await f.db.transaction(tx=>stakeBetInTx(tx,{seasonId:f.seasonId,userId:f.userId,marketId:prematch.id,optionId:prematch.options[1]!.id,amount:"100",requestId:randomUUID()}));
     await f.db.insert(schema.matchVetoSessions).values({matchId:match!.id,startedAt:new Date(),completedAt:new Date(),mapPoolSnapshot:["de_inferno"]});
     await f.db.insert(schema.matchMaps).values({matchId:match!.id,mapOrder:1,mapName:"de_inferno"});
     await f.db.transaction(async tx=>{await lockBetProgram(tx,f.seasonId);await reconcileBetInTx(tx,f.seasonId);});
     const types=(await read(f.db,f.seasonId,f.userId)).markets.filter(m=>m.matchId===match!.id).map(m=>m.type);
     expect(types).toContain("total_rounds");expect(types).not.toContain("map_winner");
+    expect(types.filter(t=>t==="total_rounds")).toHaveLength(1);
+    await f.db.update(schema.matches).set({status:"cancelled"}).where(eq(schema.matches.id,match!.id));
+    await f.db.transaction(async tx=>{await lockBetProgram(tx,f.seasonId);await reconcileBetInTx(tx,f.seasonId);});
+    expect((await read(f.db,f.seasonId,f.userId)).markets.find(m=>m.id===prematch.id)).toMatchObject({state:"refunded",mine:{amount:"100",payout:"100"}});
   }));
-  it("opens maps in sequence, locks on the exact map, freezes the line and never opens unplayed decider",async()=>fixture(async f=>{
+  it("opens map winners in sequence while prematch totals lock independently and refund an unplayed decider",async()=>fixture(async f=>{
     await f.db.insert(schema.matchVetoSessions).values({matchId:f.matchId,startedAt:new Date(),completedAt:new Date(),mapPoolSnapshot:["de_inferno","de_nuke","de_mirage"]});
     const maps=await f.db.insert(schema.matchMaps).values(["de_inferno","de_nuke","de_mirage"].map((mapName,i)=>({matchId:f.matchId,mapOrder:i+1,mapName}))).returning();
     const reconcile=()=>f.db.transaction(async tx=>{await lockBetProgram(tx,f.seasonId);await reconcileBetInTx(tx,f.seasonId);});await reconcile();
-    const board=await read(f.db,f.seasonId,f.userId);const rounds=board.markets.find(m=>m.type==="total_rounds")!;
+    const board=await read(f.db,f.seasonId,f.userId);const rounds=board.markets.find(m=>m.type==="total_rounds" && m.context.startsWith("第1图"))!;
+    expect(board.markets.filter(m=>m.type==="total_rounds")).toHaveLength(3);
     expect(board.markets.filter(m=>m.type==="map_winner")).toHaveLength(1);
     await expect(f.db.update(schema.betMarkets).set({line:45}).where(eq(schema.betMarkets.id,rounds.id))).rejects.toThrow();
     await f.db.update(schema.matchMaps).set({startedAt:new Date()}).where(eq(schema.matchMaps.id,maps[0]!.id));
@@ -225,12 +233,106 @@ describe("BET transactional admission and settlement",()=>{
     await f.db.update(schema.matchMaps).set({startedAt:new Date(),completedAt:new Date(),scoreA:13,scoreB:9}).where(eq(schema.matchMaps.id,maps[1]!.id));
     await f.db.update(schema.matches).set({status:"finished",scoreA:2,scoreB:0}).where(eq(schema.matches.id,f.matchId));await reconcile();
     expect((await read(f.db,f.seasonId,f.userId)).markets.filter(m=>m.type==="map_winner")).toHaveLength(2);
+    expect((await read(f.db,f.seasonId,f.userId)).markets.find(m=>m.type==="total_rounds" && m.context.startsWith("第3图"))?.state).toBe("refunded");
+  }));
+
+  it("publishes all five BO5 totals before BP without reopening earlier format history",async()=>fixture(async f=>{
+    const before=await f.db.select().from(schema.betMarkets).where(and(eq(schema.betMarkets.matchId,f.matchId),eq(schema.betMarkets.type,"total_rounds")));
+    await f.db.update(schema.matches).set({format:"bo5"}).where(eq(schema.matches.id,f.matchId));
+    await f.db.transaction(async tx=>{await lockBetProgram(tx,f.seasonId);await reconcileBetInTx(tx,f.seasonId);});
+    const board=await read(f.db,f.seasonId,f.userId);
+    expect(before.every(m=>board.markets.find(row=>row.id===m.id)?.state==="refunded")).toBe(true);
+    const open=board.markets.filter(m=>m.type==="total_rounds" && m.state==="open");
+    expect(open.map(m=>m.context).sort()).toEqual([1,2,3,4,5].map(i=>`第${i}图 · 地图待定`));
+    expect(open.every(m=>m.canStake)).toBe(true);
+  }));
+
+  // Protect financial identity/terms across BP and real concurrent worker publication.
+  // Pure domain tests cannot prove unique pools, immutable options or ledger refunds.
+  it("accepts every BO3 slot before BP, freezes invested terms across BP/reschedule and refunds unused stakes once",async()=>fixture(async f=>{
+    const {db,seasonId,userId,matchId}=f;
+    const reconcile=()=>db.transaction(async tx=>{await lockBetProgram(tx,seasonId);await reconcileBetInTx(tx,seasonId);});
+    const before=await db.select().from(schema.betMarkets).where(and(eq(schema.betMarkets.matchId,matchId),eq(schema.betMarkets.type,"total_rounds")));
+    expect(before.map(m=>m.subject.kind==="map_slot"?m.subject.mapOrder:0).sort()).toEqual([1,2,3]);
+    const board=await read(db,seasonId,userId);
+    expect(board.markets.filter(m=>m.type==="total_rounds").every(m=>m.canStake && m.context.includes("地图待定"))).toBe(true);
+    const third=board.markets.find(m=>m.context.startsWith("第3图"))!;
+    await db.transaction(tx=>stakeBetInTx(tx,{seasonId,userId,marketId:third.id,optionId:third.options[0]!.id,amount:"200",requestId:randomUUID()}));
+    await db.update(schema.matches).set({scheduledAt:new Date(Date.now()+86400000),status:"in_progress",startedAt:new Date()}).where(eq(schema.matches.id,matchId));
+    await db.insert(schema.matchVetoSessions).values({matchId,startedAt:new Date(),completedAt:new Date(),mapPoolSnapshot:["de_inferno","de_nuke","de_mirage"]});
+    const maps=await db.insert(schema.matchMaps).values(["de_inferno","de_nuke","de_mirage"].map((mapName,i)=>({matchId,mapOrder:i+1,mapName}))).returning();
+    await Promise.all([reconcile(),reconcile()]);
+    expect(await db.select().from(schema.betMarkets).where(and(eq(schema.betMarkets.matchId,matchId),eq(schema.betMarkets.type,"total_rounds")))).toEqual(before);
+    expect((await read(db,seasonId,userId)).markets.find(m=>m.id===third.id)).toMatchObject({context:"第3图 · Mirage",canStake:true,pool:"200",mine:{amount:"200"}});
+    await db.update(schema.matchMaps).set({mapName:"de_ancient"}).where(eq(schema.matchMaps.id,maps[2]!.id));await reconcile();
+    expect((await read(db,seasonId,userId)).markets.find(m=>m.id===third.id)).toMatchObject({context:"第3图 · Ancient",pool:"200"});
+    await db.update(schema.matchMaps).set({startedAt:new Date(),completedAt:new Date(),scoreA:13,scoreB:7}).where(eq(schema.matchMaps.id,maps[0]!.id));
+    const lock=(await db.query.betMarkets.findFirst({where:eq(schema.betMarkets.id,before.find(m=>m.subject.kind==="map_slot" && m.subject.mapOrder===1)!.id)}))!.lockedAt;
+    expect(lock).not.toBeNull(); // SQL outbox, before any reconciliation.
+    expect((await read(db,seasonId,userId)).markets.find(m=>m.id===third.id)?.canStake).toBe(true);
+    await db.update(schema.matchMaps).set({startedAt:new Date(),completedAt:new Date(),scoreA:13,scoreB:9}).where(eq(schema.matchMaps.id,maps[1]!.id));
+    await db.update(schema.matches).set({status:"finished",scoreA:2,scoreB:0}).where(eq(schema.matches.id,matchId));
+    await Promise.all([reconcile(),reconcile()]);
+    const after=await read(db,seasonId,userId);expect(after.balance).toBe("1000");
+    expect(after.markets.find(m=>m.id===third.id)).toMatchObject({state:"refunded",mine:{amount:"200",payout:"200"}});
+    expect(after.records.filter(r=>r.label.includes("退款"))).toHaveLength(1);
+    expect(after.records.find(r=>r.amount==="-200")?.context).toContain("第3图");
+  }));
+
+  it("serializes a prematch slot stake behind its real map-start transaction",async()=>fixture(async f=>{
+    const {db,seasonId,userId,matchId}=f;
+    const market=(await read(db,seasonId,userId)).markets.find(m=>m.context.startsWith("第2图"))!;
+    const [map]=await db.insert(schema.matchMaps).values({matchId,mapOrder:2,mapName:"de_nuke"}).returning();
+    let admission:Promise<unknown>|undefined;
+    await db.transaction(async writer=>{
+      await writer.update(schema.matchMaps).set({startedAt:new Date()}).where(eq(schema.matchMaps.id,map!.id));
+      let reportPid!:(pid:number)=>void;const ready=new Promise<number>(resolve=>{reportPid=resolve;});
+      admission=db.transaction(async tx=>{
+        reportPid(Number((await tx.execute(sql`select pg_backend_pid() as pid`)).rows[0]!.pid));
+        return stakeBetInTx(tx,{seasonId,userId,marketId:market.id,optionId:market.options[0]!.id,amount:"100",requestId:randomUUID()});
+      }).then(()=>null,error=>error);
+      const pid=await ready;
+      await expect.poll(async()=>Boolean((await db.execute(sql`select cardinality(pg_blocking_pids(${pid})) > 0 as blocked`)).rows[0]!.blocked)).toBe(true);
+    });
+    expect(await admission).toMatchObject({message:expect.stringMatching(/锁定/)});
+    expect((await read(db,seasonId,userId)).balance).toBe("1000");
+    expect(await db.select().from(schema.betStakes).where(eq(schema.betStakes.marketId,market.id))).toHaveLength(0);
+    expect((await db.query.betMarkets.findFirst({where:eq(schema.betMarkets.id,market.id)}))?.lockedAt).not.toBeNull();
+  }));
+
+  it("keeps existing open, locked and settled legacy pools without creating duplicate slots",async()=>fixture(async f=>{
+    const {db,seasonId,userId}=f;
+    const original=await db.query.matches.findFirst({where:eq(schema.matches.id,f.matchId)});
+    const [match]=await db.insert(schema.matches).values({seasonId,entryAId:f.entryIds[0]!,entryBId:f.entryIds[1]!,majorStageRunId:original!.majorStageRunId,stage:"stage1",ownership:"major_stage",managedKey:"legacy-pools",format:"bo3"}).returning();
+    const maps=await db.insert(schema.matchMaps).values(["de_inferno","de_nuke","de_mirage"].map((mapName,i)=>({matchId:match!.id,mapOrder:i+1,mapName}))).returning();
+    const legacy:(typeof schema.betMarkets.$inferSelect)[]=[];
+    for(const [i,map] of maps.entries()) {
+      const [market]=await db.insert(schema.betMarkets).values({seasonId,matchId:match!.id,marketKey:`legacy/${i}`,type:"total_rounds",line:45,subject:{kind:"map",entryIds:[f.entryIds[0]!,f.entryIds[1]!],runId:original!.majorStageRunId!,format:"bo3",mapId:map.id,mapOrder:map.mapOrder,mapName:map.mapName},lockedAt:i===1?new Date():null}).returning();
+      await db.insert(schema.betOptions).values([{marketId:market!.id,key:"over",label:"大",position:0},{marketId:market!.id,key:"under",label:"小",position:1}]);legacy.push(market!);
+    }
+    for(const [index,viewer,key] of [[0,userId,"over"],[2,userId,"over"],[2,f.otherId,"under"]] as const) {
+      const option=await db.query.betOptions.findFirst({where:and(eq(schema.betOptions.marketId,legacy[index]!.id),eq(schema.betOptions.key,key))});
+      await db.transaction(tx=>stakeBetInTx(tx,{seasonId,userId:viewer,marketId:legacy[index]!.id,optionId:option!.id,amount:"100",requestId:randomUUID()}));
+    }
+    await db.transaction(async tx=>{await lockBetProgram(tx,seasonId);await reconcileBetInTx(tx,seasonId);});
+    expect(await db.select().from(schema.betMarkets).where(and(eq(schema.betMarkets.matchId,match!.id),eq(schema.betMarkets.type,"total_rounds")))).toEqual(legacy);
+    await db.update(schema.matchMaps).set({completedAt:new Date(),scoreA:13,scoreB:7}).where(eq(schema.matchMaps.id,maps[2]!.id));
+    await db.transaction(async tx=>{await lockBetProgram(tx,seasonId);await reconcileBetInTx(tx,seasonId);});
+    const before=await db.select().from(schema.betMarkets).where(and(eq(schema.betMarkets.matchId,match!.id),eq(schema.betMarkets.type,"total_rounds")));
+    const settlements=await db.select().from(schema.betSettlements).where(eq(schema.betSettlements.marketId,legacy[2]!.id));
+    expect(settlements.at(-1)?.state).toBe("settled");
+    await db.update(schema.matches).set({scheduledAt:new Date(Date.now()+86400000)}).where(eq(schema.matches.id,match!.id));
+    await db.transaction(async tx=>{await lockBetProgram(tx,seasonId);await reconcileBetInTx(tx,seasonId);});
+    expect(await db.select().from(schema.betMarkets).where(and(eq(schema.betMarkets.matchId,match!.id),eq(schema.betMarkets.type,"total_rounds")))).toEqual(before);
+    expect(before).toHaveLength(3);expect(before.every(m=>m.subject.kind==="map" && m.line===45)).toBe(true);
+    expect(await db.select().from(schema.betSettlements).where(eq(schema.betSettlements.marketId,legacy[2]!.id))).toEqual(settlements);
+    expect((await read(db,seasonId,userId)).markets.filter(m=>m.matchId===match!.id && m.type==="total_rounds")).toHaveLength(3);
   }));
 
   it("opens automatically without PickEm, ignores schedule, permanently locks at gameplay and conserves pool across correction",async()=>fixture(async f=>{
     const {db,seasonId,userId,otherId,matchId}=f;
     expect(await db.select().from(schema.predictionPrograms)).toHaveLength(0);
-    const board=await read(db,seasonId,userId);expect(board.markets.filter(m=>m.matchId===matchId)).toHaveLength(5);
+    const board=await read(db,seasonId,userId);expect(board.markets.filter(m=>m.matchId===matchId)).toHaveLength(8);
     const m=board.markets.find(m=>m.type==="match_winner")!;
     const args={seasonId,userId,marketId:m.id,optionId:m.options[0]!.id,amount:"200",requestId:randomUUID()};
     await db.transaction(tx=>stakeBetInTx(tx,args));await db.transaction(tx=>stakeBetInTx(tx,args));
@@ -253,7 +355,7 @@ describe("BET transactional admission and settlement",()=>{
     expect((await db.execute(sql`select has_table_privilege('authenticated','bet_stakes','INSERT') as allowed`)).rows[0]?.allowed).toBe(false);
   }));
   it("serializes concurrent ALL IN, validates replay payload, and refunds a forfeit",async()=>fixture(async f=>{
-    const m=(await read(f.db,f.seasonId,f.userId)).markets.find(m=>m.type==="match_winner")!;
+    const m=(await read(f.db,f.seasonId,f.userId)).markets.find(m=>m.type==="total_rounds" && m.context.startsWith("第3图"))!;
     const args={seasonId:f.seasonId,userId:f.userId,marketId:m.id,optionId:m.options[0]!.id,amount:"all",requestId:randomUUID()};
     const results=await Promise.allSettled([f.db.transaction(tx=>stakeBetInTx(tx,args)),f.db.transaction(tx=>stakeBetInTx(tx,{...args,requestId:randomUUID()}))]);
     expect(results.filter(r=>r.status==="fulfilled")).toHaveLength(1);
