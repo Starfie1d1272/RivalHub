@@ -15,7 +15,9 @@ it("keeps ledger reader-first independent of a shipped BP/catalog reader", () =>
   try {
     git(["init","--quiet"]);git(["config","user.email","ledger-upgrade@example.invalid"]);git(["config","user.name","Ledger Upgrade Test"]);
     mkdirSync(join(dir,"src/lib/bet"),{recursive:true});writeFileSync(join(dir,"package.json"),"{}");
-    contract("catalog",3,2);const bpReader=commit("BP reader only, no relief capability");
+    contract("catalog",2,2);
+    const bpContract = (publisherVersion:number) => writeFileSync(join(dir,"src/lib/bet/catalog-contract.json"),JSON.stringify({readerVersion:2,publisherVersion:2,capabilities:{bo3BpPresence:{readerVersion:1,publisherVersion}}}));
+    bpContract(0);const bpReader=commit("BP reader only, no relief capability");
     contract("ledger",1,0);const reliefReader=commit("relief reader only");
     contract("ledger",1,1);const reliefPublisher=commit("relief publication");
     expect(()=>build(bpReader,reliefReader)).not.toThrow();
@@ -23,9 +25,12 @@ it("keeps ledger reader-first independent of a shipped BP/catalog reader", () =>
     expect(()=>build(reliefReader,reliefPublisher)).not.toThrow();
     rmSync(join(dir,"src/lib/bet/ledger-contract.json"));const removedReader=commit("unsafe ledger capability removal");
     expect(()=>build(reliefPublisher,removedReader)).toThrow(/BET ledger compatibility gate/);
-    contract("ledger",1,1);contract("catalog",3,3);const bpPublisher=commit("BP publication");
+    contract("ledger",1,1);bpContract(1);const bpPublisher=commit("BP publication");
     expect(()=>build(bpReader,bpPublisher)).toThrow(/BET ledger compatibility gate/);
     expect(()=>build(reliefReader,bpPublisher)).not.toThrow();
+    contract("ledger",1,0);contract("catalog",2,2);const onlyReliefReader=commit("relief reader without BP capability");
+    bpContract(1);const unpreparedBpPublisher=commit("unprepared BP publication");
+    expect(()=>build(onlyReliefReader,unpreparedBpPublisher)).toThrow(/capability bo3BpPresence compatibility gate/);
     contract("ledger",0,1);const invalid=commit("malformed ledger capability");
     expect(()=>build(reliefReader,invalid)).toThrow(/BET ledger contract 无效/);
   } finally {rmSync(dir,{recursive:true,force:true});}
