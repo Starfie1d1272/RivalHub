@@ -2,7 +2,7 @@ import { computeSeriesProgress } from "@/lib/matches/result-rules";
 import { officialMatchCondition } from "@/lib/matches/scope";
 import "server-only";
 import { createHash } from "node:crypto";
-import { and, eq, desc, asc, sql } from "drizzle-orm";
+import { and, eq, desc, asc, sql, or, lt } from "drizzle-orm";
 import { db, type DB, type TxDb } from "@/db/client";
 import { betPrograms as programs, betAccounts as accounts, betMarkets as markets, betOptions as options, betStakes as stakes, betLedger as ledger, betSettlements as settlements, betStageMilestones as milestones, users, matches, matchMaps, matchVetoSessions, majorStageRuns } from "@/db/schema";
 import { betRosterRestriction } from "./admission";
@@ -14,7 +14,8 @@ import { resolveMarketOptions } from "./resolution";
 import { loadBetFacts, type BetFacts } from "./facts";
 import { marketIsLocked, resolveBetFact, subjectMatches } from "./domain";
 import { normalizeRegistrationConfig } from "@/lib/seasons/compatibility";
-import { BET_POLICY, roundLineTwice, seriesLineTwice } from "./policy";
+import catalogContract from "./catalog-contract.json";
+import { BET_CATALOG_VERSION, BET_POLICY, roundLineTwice, seriesLineTwice } from "./policy";
 import type { BetSubject, MarketType } from "./types";
 function invalid(message: string): never {throw new AppError(ErrorCode.VALIDATION_FAILED,message);}
 const digest = (value: unknown) => createHash("sha256").update(JSON.stringify(value)).digest("hex").slice(0,24);
@@ -73,18 +74,33 @@ async function publishMarkets(tx: TxDb,f: BetFacts) {
         if(m.format!=="bo1") await createMarket(tx,seasonId,m.id,"veto_decider",bpSubject,choices);
       }
     }
-    if (!veto?.completedAt || veto.pendingAppeal) continue;
     const maps=f.maps.filter(x=>x.matchId===m.id).sort((a,b)=>a.mapOrder-b.mapOrder);
+    const history=f.maps.filter(x=>x.completedAt && x.scoreA!==null && x.scoreB!==null).sort((a,b)=>b.completedAt!.getTime()-a.completedAt!.getTime());
+    if (catalogContract.publisherVersion >= 2) for (let mapOrder=1;mapOrder<=Number(m.format.slice(2));mapOrder++) {
+      const slot: BetSubject={kind:"map_slot",entryIds:subject.entryIds,runId:subject.runId,format:m.format,mapOrder};
+      const input={type:"total_rounds" as const,subject:slot,line:null,voidedAt:null,match:m,maps,veto,event:f.event};
+      if (marketIsLocked(input) || (legacyStart && mapOrder===1)) continue;
+      // Preserve every legacy pool (including terminal history) for this match/slot.
+      // A map name/ID correction does not authorize replacing its invested terms.
+      if (existing.some(market => market.matchId===m.id && market.subject.kind==="map" && market.subject.mapOrder===mapOrder && subjectMatches({
+        kind:"map_slot",entryIds:market.subject.entryIds,runId:market.subject.runId,format:market.subject.format,mapOrder:market.subject.mapOrder,
+      },m,maps,veto))) continue;
+      const map=maps.find(x=>x.mapOrder===mapOrder);
+      const recent=map?history.filter(x=>x.id!==map.id && x.mapName===map.mapName && f.official.some(match=>match.id===x.matchId && [match.entryAId,match.entryBId].some(id=>subject.entryIds.includes(id)))).slice(0,20):[];
+      await createMarket(tx,seasonId,m.id,"total_rounds",slot,[{key:"over",label:"大"},{key:"under",label:"小"}],roundLineTwice(recent.map(x=>x.scoreA!+x.scoreB!),history.slice(0,60).map(x=>x.scoreA!+x.scoreB!)));
+    }
+    if (!veto?.completedAt || veto.pendingAppeal) continue;
     const map=maps.find(x=>!x.completedAt);
     if (!map || map.startedAt || (map.mapOrder===1 && m.startedAt) || maps.filter(x=>x.mapOrder<map.mapOrder).some(x=>!x.completedAt)) continue;
     if (computeSeriesProgress(m.format,maps.filter(x=>x.completedAt)).seriesFinished) continue;
     const mapSubject: BetSubject={kind:"map",entryIds:subject.entryIds,runId:subject.runId,format:m.format,mapId:map.id,mapOrder:map.mapOrder,mapName:map.mapName};
     if (m.format!=="bo1") await createMarket(tx,seasonId,m.id,"map_winner",mapSubject,teams);
-    const history=f.maps.filter(x=>x.completedAt && x.scoreA!==null && x.scoreB!==null && x.id!==map.id).sort((a,b)=>b.completedAt!.getTime()-a.completedAt!.getTime());
-    const recent=history.filter(x=>x.mapName===map.mapName && f.official.some(match=>match.id===x.matchId && [match.entryAId,match.entryBId].some(id=>subject.entryIds.includes(id)))).slice(0,20);
+    if (catalogContract.publisherVersion >= 2) continue;
+    const legacyHistory=f.maps.filter(x=>x.completedAt && x.scoreA!==null && x.scoreB!==null && x.id!==map.id).sort((a,b)=>b.completedAt!.getTime()-a.completedAt!.getTime());
+    const recent=legacyHistory.filter(x=>x.mapName===map.mapName && f.official.some(match=>match.id===x.matchId && [match.entryAId,match.entryBId].some(id=>subject.entryIds.includes(id)))).slice(0,20);
     // A compatible older publisher must never duplicate a newer slot pool.
     if (existing.some(market=>market.matchId===m.id && market.subject.kind==="map_slot" && market.subject.mapOrder===map.mapOrder && subjectMatches(market.subject,m,maps,veto))) continue;
-    await createMarket(tx,seasonId,m.id,"total_rounds",mapSubject,[{key:"over",label:"大"},{key:"under",label:"小"}],roundLineTwice(recent.map(x=>x.scoreA!+x.scoreB!),history.slice(0,60).map(x=>x.scoreA!+x.scoreB!)));
+    await createMarket(tx,seasonId,m.id,"total_rounds",mapSubject,[{key:"over",label:"大"},{key:"under",label:"小"}],roundLineTwice(recent.map(x=>x.scoreA!+x.scoreB!),legacyHistory.slice(0,60).map(x=>x.scoreA!+x.scoreB!)));
   }
 }
 /** Caller holds only Bet program lock; official rows are read, never locked by workers. */
@@ -129,7 +145,7 @@ export async function reconcileBetInTx(tx: TxDb,seasonId: string) {
     from ${accounts} join ${milestones} on ${milestones.seasonId} = ${accounts.seasonId}
     where ${accounts.seasonId} = ${seasonId} and ${accounts.joinedAt} < ${milestones.openedAt}
     on conflict (account_id, source) do nothing`);
-  await tx.update(programs).set({dirty:false,updatedAt:now}).where(eq(programs.seasonId,seasonId));
+  await tx.update(programs).set({dirty:false,catalogVersion:BET_CATALOG_VERSION,updatedAt:now}).where(eq(programs.seasonId,seasonId));
   return f;
 }
 export async function joinBetInTx(tx:TxDb,seasonId:string,userId:string) {
@@ -187,7 +203,7 @@ export async function operateBetInTx(tx:TxDb,input:{seasonId:string;actorId:stri
   await reconcileBetInTx(tx,input.seasonId);
 }
 export async function runBetReconciliationJob(database:DB=db) {
-  const due=await database.select().from(programs).where(eq(programs.dirty,true)).orderBy(asc(programs.updatedAt)).limit(10);
+  const due=await database.select().from(programs).where(or(eq(programs.dirty,true),lt(programs.catalogVersion,BET_CATALOG_VERSION))).orderBy(asc(programs.updatedAt)).limit(10);
   for(const program of due) await database.transaction(async tx=>{await lockBetProgram(tx,program.seasonId);await reconcileBetInTx(tx,program.seasonId);});
   return due.length;
 }
