@@ -1,39 +1,11 @@
 import { randomUUID } from "node:crypto";
-import { Pool } from "pg";
-import { drizzle } from "drizzle-orm/node-postgres";
 import { eq,and,sql } from "drizzle-orm";
 import { describe,it,expect } from "vitest";
 import * as schema from "@/db/schema";
-import { createMajorDefaultCapabilities } from "@/lib/competition/templates";
-import { makeMajorRunSnapshotV4 } from "@/lib/major/run-snapshot";
 import { operateBetInTx,joinBetInTx,stakeBetInTx,betBalance,lockBetProgram,reconcileBetInTx,runBetReconciliationJob } from "@/lib/bet/service";
 import { betBoard } from "@/lib/bet/data";
 import { readMatchSupport } from "@/lib/bet/match-support";
-import { localDatabaseUrl } from "./harness/database";
-import { withScratchDatabase,migrationFiles,replayMigration } from "./harness/migration-replay";
-async function fixture(work:(f:{db:ReturnType<typeof drizzle<typeof schema>>;seasonId:string;userId:string;otherId:string;matchId:string;entryIds:string[]})=>Promise<void>) {
-  await withScratchDatabase("bet_test",async client=>{
-    for(const file of migrationFiles(name=>/^\d{4}_.*\.sql$/.test(name)))await replayMigration(client,file);
-    const url=new URL(localDatabaseUrl());url.pathname=`/${(await client.query("select current_database() as name")).rows[0].name}`;
-    const pool=new Pool({connectionString:url.toString(),ssl:false,max:6});const db=drizzle(pool,{schema});
-    const seasonId=randomUUID(),userId=randomUUID(),otherId=randomUUID();
-    try {
-      await db.insert(schema.users).values([userId,otherId].map(id=>({id,email:`${id}@example.test`,displayName:"观众",emailVerifiedAt:new Date(),emailVerificationSource:"admin_migration" as const})));
-      const cap=createMajorDefaultCapabilities();await db.insert(schema.seasons).values({...cap,id:seasonId,slug:`bet-${seasonId}`,name:"BET 测试",kind:"Major",competitionTemplate:"major",status:"playing"});
-      const entryIds:string[]=[];
-      for(const name of ["银河","新星"]) {
-        const entryId=randomUUID(),revisionId=randomUUID();entryIds.push(entryId);
-        await db.transaction(async tx=>{await tx.insert(schema.competitionEntries).values({id:entryId,competitionId:seasonId,source:"event_native",name,representativeUserId:userId,currentRosterRevisionId:revisionId,approvedRosterRevisionId:revisionId,registrationStatus:"approved"});await tx.insert(schema.competitionEntryRepresentativeChanges).values({entryId,toUserId:userId,changedByActorId:"test"});await tx.insert(schema.competitionEntryRosterRevisions).values({id:revisionId,entryId,revisionNumber:1,status:"approved",createdBy:"test",approvedAt:new Date()});});
-      }
-      const [run]=await db.insert(schema.majorStageRuns).values({seasonId,stageKey:"stage1",startedBy:"test",ruleSnapshot:makeMajorRunSnapshotV4({stagePlan:cap.stagePlan.map(s=>({...s,matchFormat:s.matchFormat!,finalFormat:s.finalFormat??null})),rosterRules:{minTeamSize:5,maxTeamSize:9,starterCount:5},affiliationRules:[],competitiveProfile:null,frozenCompetitiveFacts:[]})}).returning();
-      const [match]=await db.insert(schema.matches).values({seasonId,entryAId:entryIds[0]!,entryBId:entryIds[1]!,stage:"stage1",majorStageRunId:run!.id,ownership:"major_stage",managedKey:"1:0",round:1,format:"bo3",scheduledAt:new Date(Date.now()-600000)}).returning();
-      await db.transaction(tx=>operateBetInTx(tx,{seasonId,actorId:userId,operation:"enable"}));
-      await db.transaction(tx=>joinBetInTx(tx,seasonId,userId));await db.transaction(tx=>joinBetInTx(tx,seasonId,otherId));
-      await work({db,seasonId,userId,otherId,matchId:match!.id,entryIds});
-    }finally{await pool.end();}
-  });
-}
-const read=(db:ReturnType<typeof drizzle<typeof schema>>,seasonId:string,userId:string)=>db.transaction(tx=>betBoard(tx,seasonId,userId),{accessMode:"read only",isolationLevel:"repeatable read"});
+import { fixture,read } from "./harness/bet-fixture";
 describe("BET transactional admission and settlement",()=>{
   // Real SQL protects per-team sums and lifecycle retention; component fixtures cannot.
   it("reads match support from stake amounts across scheduled, live and settled states", async () => fixture(async f => {
@@ -382,4 +354,21 @@ describe("BET transactional admission and settlement",()=>{
     expect((await read(f.db,f.seasonId,f.userId)).balance).toBe("1000");
     expect((await read(f.db,f.seasonId,f.userId)).markets.find(x=>x.id===m.id)?.state).toBe("refunded");
   }));
+  // Existing start/finish tests atomically finalized the series, missing this lag window.
+  it("the v2 publisher closes the prematch decider at clinch and never backfills an already decided series",async()=>fixture(async f=>{
+    const third=(await f.db.select().from(schema.betMarkets)).find(m=>m.matchId===f.matchId && m.type==="total_rounds" && m.subject.kind==="map_slot" && m.subject.mapOrder===3)!;
+    expect(third).toBeDefined();
+    await f.db.update(schema.matches).set({status:"in_progress",gameplayStartedAt:new Date()}).where(eq(schema.matches.id,f.matchId));
+    await f.db.insert(schema.matchMaps).values([1,2].map(mapOrder=>({matchId:f.matchId,mapOrder,mapName:mapOrder===1?"de_nuke":"de_inferno",completedAt:new Date(),scoreA:13,scoreB:7})));
+    expect((await read(f.db,f.seasonId,f.userId)).markets.find(m=>m.id===third.id)).toMatchObject({state:"locked",canStake:false});
+    const match=await f.db.query.matches.findFirst({where:eq(schema.matches.id,f.matchId)});
+    const id=randomUUID();await f.db.insert(schema.matches).values({...match!,id,managedKey:"3:0"});
+    await f.db.insert(schema.matchMaps).values([1,2].map(mapOrder=>({matchId:id,mapOrder,mapName:mapOrder===1?"de_nuke":"de_inferno",completedAt:new Date(),scoreA:7,scoreB:13})));
+    await f.db.transaction(async tx=>{await lockBetProgram(tx,f.seasonId);await reconcileBetInTx(tx,f.seasonId);});
+    const all=await f.db.select().from(schema.betMarkets);
+    expect(all.filter(m=>m.matchId===id && m.type==="total_rounds")).toHaveLength(0);
+    expect(await f.db.query.betSettlements.findFirst({where:eq(schema.betSettlements.marketId,third.id)})).toMatchObject({state:"pending"});
+    expect((await f.db.query.betMarkets.findFirst({where:eq(schema.betMarkets.id,third.id)}))!.voidedAt).toBeNull();
+  }));
+
 });

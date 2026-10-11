@@ -9,7 +9,7 @@ const catalog: Record<MarketType, { title: string; group: "赛事" | "比赛" | 
   veto_first: { title: "BP · 首图", group: "BP", help: "预测第一张比赛地图；BP 开始时锁盘，完整 BP 无待处理申诉时结算。" },
   veto_decider: { title: "BP · 决胜图", group: "BP", help: "预测 BP 留下的最后一张地图，无论最终是否进行；BP 开始时锁盘。" },
   map_winner: { title: "单图胜者", group: "单图", help: "上一图结束后开放，本图实际开始时锁盘；正式单图结果确认后结算。" },
-  total_rounds: { title: "总回合", group: "单图", help: "赛前按第几图开放，BP 后显示地图名；本图实际开始时锁盘，未进行则退款。包含加时。大：双方最终回合数之和高于分界线；小：低于分界线。分界线开盘时固定。" },
+  total_rounds: { title: "总回合", group: "单图", help: "赛前按第几图开放，BP 后显示地图名；本图实际开始或系列赛已决时锁盘，未进行则在正式结束后退款。包含加时。大：双方最终回合数之和高于分界线；小：低于分界线。分界线开盘时固定。" },
 };
 export function marketPresentation(type: MarketType, lineTwice: number | null) {
   const row = catalog[type];

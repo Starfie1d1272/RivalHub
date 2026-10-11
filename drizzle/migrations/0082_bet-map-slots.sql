@@ -42,6 +42,17 @@ BEGIN
       UPDATE bet_markets SET locked_at=COALESCE(locked_at,clock_timestamp()) WHERE season_id=sid AND subject->>'kind'='event';
     END IF;
   END IF;
+  -- Lock remaining map pools at confirmed clinch even before match.finished.
+  -- Corrections may change winners/refunds, but never erase a financial lock.
+  IF TG_TABLE_NAME='match_maps' AND EXISTS (
+    SELECT 1 FROM match_maps mm WHERE mm.match_id=mid AND mm.completed_at IS NOT NULL
+    GROUP BY mm.match_id HAVING
+      count(*) FILTER (WHERE mm.score_a > mm.score_b) >= CASE matchrow.format WHEN 'bo1' THEN 1 WHEN 'bo3' THEN 2 ELSE 3 END
+      OR count(*) FILTER (WHERE mm.score_b > mm.score_a) >= CASE matchrow.format WHEN 'bo1' THEN 1 WHEN 'bo3' THEN 2 ELSE 3 END
+  ) THEN
+    UPDATE bet_markets SET locked_at=COALESCE(locked_at,clock_timestamp())
+      WHERE match_id=mid AND subject->>'kind' IN ('map','map_slot');
+  END IF;
   IF TG_TABLE_NAME='matches' AND rowdata->>'gameplay_started_at' IS NOT NULL AND rowdata->>'major_stage_run_id' IS NOT NULL THEN
     UPDATE bet_markets SET locked_at=COALESCE(locked_at,clock_timestamp()) WHERE season_id=sid AND subject->>'kind'='event';
   END IF;

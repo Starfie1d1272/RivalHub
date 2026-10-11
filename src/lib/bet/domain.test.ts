@@ -39,3 +39,21 @@ describe("prematch total-round slots",()=>{
     expect(resolveBetFact({...input,subject:{...subject,mapOrder:4}}).state).toBe("void");
   });
 });
+
+// Delayed series finalization must close admission without inventing an early refund.
+describe("confirmed series clinch before finalization",()=>{
+  for (const [format,target] of [["bo3",2],["bo5",3]] as const) {
+    it(`${format}: locks an unused slot at either team's clinch, keeps result pending`,()=>{
+      const order=target+1;
+      const subject={kind:"map_slot" as const,entryIds:["a","b"] as [string,string],runId:"q",format,mapOrder:order};
+      for (const winningSide of ["a","b"]) {
+        const maps=Array.from({length:target},(_,i)=>({id:`map${i+1}`,matchId:"m",mapOrder:i+1,mapName:"de_nuke",startedAt:null,completedAt:new Date(),scoreA:winningSide==="a"?13:7,scoreB:winningSide==="b"?13:7}));
+        const input:MarketFactInput={...base,type:"total_rounds",subject,line:43,match:{...base.match!,format},maps};
+        expect(marketIsLocked(input)).toBe(true);
+        expect(resolveBetFact(input).state).toBe("pending");
+        expect(marketIsLocked({...input,maps:maps.slice(0,-1)})).toBe(false);
+        expect(resolveBetFact({...input,match:{...input.match!,status:"finished"}}).state).toBe("void");
+      }
+    });
+  }
+});

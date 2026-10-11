@@ -1,3 +1,4 @@
+import { computeSeriesProgress } from "@/lib/matches/result-rules";
 import type { BetSubject, MarketType } from "./types";
 import type { MarketResolutionFact } from "./resolution";
 export interface MatchFact {
@@ -15,6 +16,7 @@ export function subjectMatches(subject: BetSubject,match: MatchFact | undefined,
   if (!match || subject.entryIds[0] !== match.entryAId || subject.entryIds[1] !== match.entryBId || subject.runId !== (match.majorStageRunId ?? match.qualificationRunId) || subject.format !== match.format) return false;
   if (subject.kind === "map") return maps.some(m=>m.id===subject.mapId && m.mapName===subject.mapName && m.mapOrder===subject.mapOrder);
   if (subject.kind === "map_slot") return Number.isInteger(subject.mapOrder) && subject.mapOrder >= 1 && subject.mapOrder <= Number(subject.format.slice(2));
+  if (subject.kind !== "match") return false;
   if (subject.mapPool.length && veto?.mapPoolSnapshot && !sameIds(subject.mapPool,veto.mapPoolSnapshot)) return false;
   return true;
 }
@@ -24,6 +26,7 @@ export function marketIsLocked(input: MarketFactInput): boolean {
   const match = input.match!;
   if (match.isForfeit || ["finished","cancelled"].includes(match.status)) return true;
   if (input.type.startsWith("veto_")) return !!input.veto?.startedAt || !!match.startedAt || match.status === "finished";
+  if ((input.subject.kind === "map" || input.subject.kind === "map_slot") && computeSeriesProgress(match.format,input.maps.filter(m=>m.completedAt)).seriesFinished) return true;
   if (input.subject.kind === "map_slot") {
     const order = input.subject.mapOrder;
     return input.maps.some(m=>m.mapOrder >= order && (m.startedAt || m.completedAt)) || (order === 1 && !!match.startedAt);

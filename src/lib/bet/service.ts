@@ -1,3 +1,4 @@
+import { computeSeriesProgress } from "@/lib/matches/result-rules";
 import { officialMatchCondition } from "@/lib/matches/scope";
 import "server-only";
 import { createHash } from "node:crypto";
@@ -13,6 +14,7 @@ import { resolveMarketOptions } from "./resolution";
 import { loadBetFacts, type BetFacts } from "./facts";
 import { marketIsLocked, resolveBetFact, subjectMatches } from "./domain";
 import { normalizeRegistrationConfig } from "@/lib/seasons/compatibility";
+import catalogContract from "./catalog-contract.json";
 import { BET_CATALOG_VERSION, BET_POLICY, roundLineTwice, seriesLineTwice } from "./policy";
 import type { BetSubject, MarketType } from "./types";
 function invalid(message: string): never {throw new AppError(ErrorCode.VALIDATION_FAILED,message);}
@@ -74,7 +76,7 @@ async function publishMarkets(tx: TxDb,f: BetFacts) {
     }
     const maps=f.maps.filter(x=>x.matchId===m.id).sort((a,b)=>a.mapOrder-b.mapOrder);
     const history=f.maps.filter(x=>x.completedAt && x.scoreA!==null && x.scoreB!==null).sort((a,b)=>b.completedAt!.getTime()-a.completedAt!.getTime());
-    for (let mapOrder=1;mapOrder<=Number(m.format.slice(2));mapOrder++) {
+    if (catalogContract.publisherVersion >= 2) for (let mapOrder=1;mapOrder<=Number(m.format.slice(2));mapOrder++) {
       const slot: BetSubject={kind:"map_slot",entryIds:subject.entryIds,runId:subject.runId,format:m.format,mapOrder};
       const input={type:"total_rounds" as const,subject:slot,line:null,voidedAt:null,match:m,maps,veto,event:f.event};
       if (marketIsLocked(input) || (legacyStart && mapOrder===1)) continue;
@@ -90,12 +92,15 @@ async function publishMarkets(tx: TxDb,f: BetFacts) {
     if (!veto?.completedAt || veto.pendingAppeal) continue;
     const map=maps.find(x=>!x.completedAt);
     if (!map || map.startedAt || (map.mapOrder===1 && m.startedAt) || maps.filter(x=>x.mapOrder<map.mapOrder).some(x=>!x.completedAt)) continue;
-    const target=m.format==="bo1"?1:m.format==="bo3"?2:3;
-    const winsA=maps.filter(x=>x.completedAt && x.scoreA!==null && x.scoreB!==null && x.scoreA>x.scoreB).length;
-    const winsB=maps.filter(x=>x.completedAt && x.scoreA!==null && x.scoreB!==null && x.scoreB>x.scoreA).length;
-    if (winsA>=target || winsB>=target) continue;
+    if (computeSeriesProgress(m.format,maps.filter(x=>x.completedAt)).seriesFinished) continue;
     const mapSubject: BetSubject={kind:"map",entryIds:subject.entryIds,runId:subject.runId,format:m.format,mapId:map.id,mapOrder:map.mapOrder,mapName:map.mapName};
     if (m.format!=="bo1") await createMarket(tx,seasonId,m.id,"map_winner",mapSubject,teams);
+    if (catalogContract.publisherVersion >= 2) continue;
+    const legacyHistory=f.maps.filter(x=>x.completedAt && x.scoreA!==null && x.scoreB!==null && x.id!==map.id).sort((a,b)=>b.completedAt!.getTime()-a.completedAt!.getTime());
+    const recent=legacyHistory.filter(x=>x.mapName===map.mapName && f.official.some(match=>match.id===x.matchId && [match.entryAId,match.entryBId].some(id=>subject.entryIds.includes(id)))).slice(0,20);
+    // A compatible older publisher must never duplicate a newer slot pool.
+    if (existing.some(market=>market.matchId===m.id && market.subject.kind==="map_slot" && market.subject.mapOrder===map.mapOrder && subjectMatches(market.subject,m,maps,veto))) continue;
+    await createMarket(tx,seasonId,m.id,"total_rounds",mapSubject,[{key:"over",label:"大"},{key:"under",label:"小"}],roundLineTwice(recent.map(x=>x.scoreA!+x.scoreB!),legacyHistory.slice(0,60).map(x=>x.scoreA!+x.scoreB!)));
   }
 }
 /** Caller holds only Bet program lock; official rows are read, never locked by workers. */
