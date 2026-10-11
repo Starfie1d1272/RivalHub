@@ -582,6 +582,13 @@
       "when": 1791708896427,
       "tag": "0082_bet-map-slots",
       "breakpoints": true
+    },
+    {
+      "idx": 83,
+      "version": "7",
+      "when": 1791709572877,
+      "tag": "0083_bet-catalog-version",
+      "breakpoints": true
     }
   ]
 }

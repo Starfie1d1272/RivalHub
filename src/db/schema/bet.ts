@@ -8,6 +8,7 @@ export const betPrograms = pgTable("bet_programs", {
   seasonId: uuid("season_id").primaryKey().references(() => seasons.id),
   paused: boolean("paused").notNull().default(false),
   dirty: boolean("dirty").notNull().default(true),
+  catalogVersion: integer("catalog_version").notNull().default(1),
   updatedAt: time("updated_at").notNull().default(sql`clock_timestamp()`),
   createdAt: time("created_at").notNull().default(sql`clock_timestamp()`),
 });

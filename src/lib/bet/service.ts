@@ -1,7 +1,7 @@
 import { officialMatchCondition } from "@/lib/matches/scope";
 import "server-only";
 import { createHash } from "node:crypto";
-import { and, eq, desc, asc, sql } from "drizzle-orm";
+import { and, eq, desc, asc, sql, or, lt } from "drizzle-orm";
 import { db, type DB, type TxDb } from "@/db/client";
 import { betPrograms as programs, betAccounts as accounts, betMarkets as markets, betOptions as options, betStakes as stakes, betLedger as ledger, betSettlements as settlements, betStageMilestones as milestones, users, matches, matchMaps, matchVetoSessions, majorStageRuns } from "@/db/schema";
 import { betRosterRestriction } from "./admission";
@@ -13,7 +13,7 @@ import { resolveMarketOptions } from "./resolution";
 import { loadBetFacts, type BetFacts } from "./facts";
 import { marketIsLocked, resolveBetFact, subjectMatches } from "./domain";
 import { normalizeRegistrationConfig } from "@/lib/seasons/compatibility";
-import { BET_POLICY, roundLineTwice, seriesLineTwice } from "./policy";
+import { BET_CATALOG_VERSION, BET_POLICY, roundLineTwice, seriesLineTwice } from "./policy";
 import type { BetSubject, MarketType } from "./types";
 function invalid(message: string): never {throw new AppError(ErrorCode.VALIDATION_FAILED,message);}
 const digest = (value: unknown) => createHash("sha256").update(JSON.stringify(value)).digest("hex").slice(0,24);
@@ -140,7 +140,7 @@ export async function reconcileBetInTx(tx: TxDb,seasonId: string) {
     from ${accounts} join ${milestones} on ${milestones.seasonId} = ${accounts.seasonId}
     where ${accounts.seasonId} = ${seasonId} and ${accounts.joinedAt} < ${milestones.openedAt}
     on conflict (account_id, source) do nothing`);
-  await tx.update(programs).set({dirty:false,updatedAt:now}).where(eq(programs.seasonId,seasonId));
+  await tx.update(programs).set({dirty:false,catalogVersion:BET_CATALOG_VERSION,updatedAt:now}).where(eq(programs.seasonId,seasonId));
   return f;
 }
 export async function joinBetInTx(tx:TxDb,seasonId:string,userId:string) {
@@ -198,7 +198,7 @@ export async function operateBetInTx(tx:TxDb,input:{seasonId:string;actorId:stri
   await reconcileBetInTx(tx,input.seasonId);
 }
 export async function runBetReconciliationJob(database:DB=db) {
-  const due=await database.select().from(programs).where(eq(programs.dirty,true)).orderBy(asc(programs.updatedAt)).limit(10);
+  const due=await database.select().from(programs).where(or(eq(programs.dirty,true),lt(programs.catalogVersion,BET_CATALOG_VERSION))).orderBy(asc(programs.updatedAt)).limit(10);
   for(const program of due) await database.transaction(async tx=>{await lockBetProgram(tx,program.seasonId);await reconcileBetInTx(tx,program.seasonId);});
   return due.length;
 }
