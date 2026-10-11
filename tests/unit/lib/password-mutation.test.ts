@@ -4,6 +4,7 @@ vi.mock("@/db/client", () => ({ db: { transaction } }));
 vi.mock("@/lib/auth/session-registry", () => ({ beginPasswordMutationInTx: begin, finishPasswordMutationInTx: finish }));
 vi.mock("@/lib/audit/write", () => ({ writeAuditInTx: audit }));
 import { mutatePassword } from "@/lib/auth/password-mutation";
+import { PasswordMutationError, passwordFailureCause } from "@/lib/auth/password-error";
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -33,14 +34,24 @@ describe("password provider / registry coordination", () => {
     expect(finish).toHaveBeenCalledOnce();
     expect(audit).toHaveBeenCalledWith("tx", expect.objectContaining({ action: "user.password_update_failed" }));
   });
-  it.each([undefined, 0, 408, 503])("keeps the durable block on ambiguous HTTP %s", async (status) => {
-    await expect(mutatePassword("user", "proof", "user.change_password", async () => ({ error: { status } }))).rejects.toThrow(/无法确认/);
+  it.each([undefined, 0, 408, 503, "422"])("keeps the durable block on ambiguous HTTP %s", async (status) => {
+    const cause = { status, code: "unexpected_failure" };
+    await expect(mutatePassword("user", "proof", "user.change_password", async () => ({ error: cause }))).rejects.toMatchObject({ code: "PASSWORD_UPDATE_OUTCOME_UNKNOWN", cause });
     expect(finish).not.toHaveBeenCalled();
     expect(audit).toHaveBeenCalledTimes(1);
     expect(audit).toHaveBeenCalledWith("tx", expect.objectContaining({ action: "user.password_update_started" }));
   });
   it("retains the block on transport exceptions", async () => {
-    await expect(mutatePassword("user", "proof", "user.change_password", async () => { throw new Error("timeout"); })).rejects.toThrow();
+    const cause = new Error("timeout");
+    await expect(mutatePassword("user", "proof", "user.change_password", async () => { throw cause; })).rejects.toMatchObject({ cause });
     expect(finish).not.toHaveBeenCalled();
+  });
+  it("projects nested transport causes without provider body or executable getters", () => {
+    const cause = Object.assign(new Error("raw credential body"), { code: "ETIMEDOUT" });
+    const outer = new PasswordMutationError("unknown", new TypeError("raw token", { cause }));
+    expect(passwordFailureCause(outer.cause)).toEqual({ name: "TypeError", cause: { name: "Error", code: "ETIMEDOUT" } });
+    const cyclic = { name: "secret-name", code: "secret-code", get message() { throw new Error("never read body"); }, cause: {} };
+    cyclic.cause = cyclic;
+    expect(JSON.stringify(passwordFailureCause(cyclic))).not.toMatch(/secret|body/);
   });
 });

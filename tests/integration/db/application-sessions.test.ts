@@ -1,6 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { drizzle } from "drizzle-orm/node-postgres";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import type { DB } from "../../../src/db/client";
+const mutationDatabase = vi.hoisted(() => ({ current: undefined as DB | undefined }));
+vi.mock("@/db/client", () => ({ db: { transaction: (run: Parameters<DB["transaction"]>[0]) => mutationDatabase.current!.transaction(run) } }));
+import { mutatePassword } from "../../../src/lib/auth/password-mutation";
 import * as schema from "../../../src/db/schema";
 import {
   beginAuthentication, beginPasswordMutationInTx, finishPasswordMutationInTx,
@@ -19,6 +23,35 @@ async function fixture() {
 }
 
 describe("application session PostgreSQL lifecycle", () => {
+  // Existing registry tests never ran the password provider coordination owner.
+  // Protect the committed fence and exact mutation reconciliation on real PG;
+  // provider outcome is synthetic, no Auth account/password is created.
+  it("real password owner retains unknown-outcome fence until exact-owner reconciliation", async () => {
+    const f = await fixture();
+    mutationDatabase.current = f.database;
+    try {
+      const proof = await beginAuthentication(f.database);
+      const old = await f.database.transaction(tx => issueApplicationSessionInTx(tx, f.userId, proof));
+      const cause = Object.assign(new Error("synthetic transport timeout"), { code: "ETIMEDOUT" });
+      await expect(mutatePassword(f.userId, proof, "user.reset_password", async () => { throw cause; })).rejects.toMatchObject({ code: "PASSWORD_UPDATE_OUTCOME_UNKNOWN", cause });
+      expect(await readApplicationSession(f.database, old, f.userId)).toBeNull();
+      const pending = (await f.pool.query("SELECT password_mutation_id FROM application_session_controls WHERE user_id=$1", [f.userId])).rows[0].password_mutation_id;
+      expect(pending).toBeTruthy();
+      const during = await beginAuthentication(f.database);
+      await expect(f.database.transaction(tx => issueApplicationSessionInTx(tx, f.userId, during))).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+      await expect(f.database.transaction(tx => finishPasswordMutationInTx(tx, f.userId, randomUUID()))).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+      expect((await f.pool.query("SELECT action FROM audit_logs WHERE actor_id=$1", [f.userId])).rows).toEqual([{ action: "user.password_update_started" }]);
+      // Internal owner reachability, NOT a deployed admin recovery entrypoint.
+      await f.database.transaction(tx => finishPasswordMutationInTx(tx, f.userId, pending));
+      await expect(f.database.transaction(tx => issueApplicationSessionInTx(tx, f.userId, during))).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+      const after = await beginAuthentication(f.database);
+      expect(await f.database.transaction(tx => issueApplicationSessionInTx(tx, f.userId, after))).toBeTruthy();
+    } finally {
+      mutationDatabase.current = undefined;
+      await f.pool.query("DELETE FROM audit_logs WHERE actor_id=$1", [f.userId]);
+      await f.cleanup();
+    }
+  });
   it("rejects stale authentication before credential synchronization can recreate identity rows", async () => {
     const f = await fixture();
     try {

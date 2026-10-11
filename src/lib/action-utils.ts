@@ -7,6 +7,7 @@ import { AppError, ErrorCode, ERROR_MESSAGES } from "@/lib/errors";
 import { captureException } from "@/lib/observability/server";
 import { ensureRequestId } from "@/lib/observability/context";
 import { classifyError } from "@/lib/observability/errors";
+import { PasswordMutationError, passwordFailureCause, passwordFailureStatus } from "@/lib/auth/password-error";
 import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { seasons, matches } from "@/db/schema";
@@ -19,6 +20,17 @@ export function failValidation(message: string): ActionResult<never> {
 }
 
 export function actionError(scope: string, e: unknown, phase = "action"): ActionResult<never> {
+  if (e instanceof PasswordMutationError) {
+    const requestId = ensureRequestId();
+    captureException("auth.password_update.failure", {
+      name: "PasswordMutationError", code: e.code, cause: passwordFailureCause(e.cause),
+    }, {
+      scope: "provider", operation: scope, errorClass: e.outcome === "unknown" ? "dependency" : "expected", errorCode: e.code,
+      retryable: e.outcome === "rejected", requestId,
+      safeContext: { provider: "supabase-auth", outcome: e.outcome, phase, httpStatus: passwordFailureStatus(e.cause) },
+    });
+    return fail({ code: e.code, requestId, message: `${e.message}排查编号：${requestId}` });
+  }
   if (e instanceof AppError) {
     if (e.code === ErrorCode.INTERNAL_ERROR) {
       const requestId = ensureRequestId();

@@ -2,7 +2,7 @@ import "server-only";
 import { db } from "@/db/client";
 import { beginPasswordMutationInTx, finishPasswordMutationInTx } from "./session-registry";
 import { writeAuditInTx } from "@/lib/audit/write";
-import { AppError, ErrorCode } from "@/lib/errors";
+import { PasswordMutationError, passwordFailureStatus } from "./password-error";
 
 /** Provider and DB cannot commit atomically: persist a deny fence before the remote call. */
 export async function mutatePassword(
@@ -20,13 +20,13 @@ export async function mutatePassword(
   let result: { error: unknown };
   try {
     result = await update();
-  } catch {
-    throw new AppError(ErrorCode.INTERNAL_ERROR, "密码更新结果暂时无法确认，登录已暂停，请联系管理员核实。");
+  } catch (cause) {
+    throw new PasswordMutationError("unknown", cause);
   }
   if (result.error) {
-    const status = typeof result.error === "object" && "status" in result.error ? Number(result.error.status) : 0;
-    if (!Number.isInteger(status) || status < 400 || status >= 500 || status === 408) {
-      throw new AppError(ErrorCode.INTERNAL_ERROR, "密码更新结果暂时无法确认，登录已暂停，请联系管理员核实。 ");
+    const status = passwordFailureStatus(result.error);
+    if (status === undefined || status < 400 || status >= 500 || status === 408) {
+      throw new PasswordMutationError("unknown", result.error);
     }
   }
   await db.transaction(async (tx) => {
@@ -36,5 +36,5 @@ export async function mutatePassword(
       actorId: userId, targetId: userId,
     });
   });
-  if (result.error) throw new AppError(ErrorCode.INTERNAL_ERROR, "密码更新失败，旧登录已退出，请重新登录后重试。");
+  if (result.error) throw new PasswordMutationError("rejected", result.error);
 }

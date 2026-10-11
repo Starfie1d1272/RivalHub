@@ -13,6 +13,7 @@ export function ResetPasswordForm() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isPending, startTransition] = useTransition();
+  const [recoveryGuidance, setRecoveryGuidance] = useState<string | null>(null);
   const router = useRouter();
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -29,6 +30,7 @@ export function ResetPasswordForm() {
       const { data } = await supabase.auth.getSession();
       const result = await resetUserPassword(data.session?.access_token ?? "", password);
       if (!result.success) {
+        if (result.error.code === "PASSWORD_UPDATE_OUTCOME_UNKNOWN") setRecoveryGuidance(result.error.message);
         toast.error(result.error.message);
       } else {
         await supabase.auth.signOut({ scope: "local" });
@@ -44,7 +46,8 @@ export function ResetPasswordForm() {
       <Field id="password" label="新密码" type="password" placeholder={`至少 ${MIN_PASSWORD_LENGTH} 位，含大小写/数字/特殊字符`} value={password} onChange={setPassword} required minLength={MIN_PASSWORD_LENGTH} autoComplete="new-password" />
       <Field id="confirm-password" label="确认新密码" type="password" placeholder="再次输入密码" value={confirmPassword} onChange={setConfirmPassword} required minLength={MIN_PASSWORD_LENGTH} autoComplete="new-password" />
       <p className="text-xs text-[var(--color-fg-mid)]">{PASSWORD_POLICY_MESSAGE}。</p>
-      <Button type="submit" className="w-full" disabled={isPending}>{isPending ? "设置中…" : "设置新密码"}</Button>
+      {recoveryGuidance && <p role="alert" className="text-sm text-[var(--color-danger)]">{recoveryGuidance}</p>}
+      <Button type="submit" className="w-full" disabled={isPending || recoveryGuidance !== null}>{isPending ? "设置中…" : "设置新密码"}</Button>
     </form>
   );
 }

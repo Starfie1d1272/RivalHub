@@ -122,6 +122,22 @@ describe("loginWithPassword", () => {
     expect(JSON.stringify(write.mock.calls)).not.toMatch(/raw-private-provider-body|token=secret|test@example.com/);
   });
 
+  // Protect attribution and request correlation where the SDK returns failures.
+  it.each([429, 0, undefined, 401, 600, "429"])("SDK status %s never claims invalid credentials", async (status) => {
+    const write = vi.spyOn(status === 429 ? process.stdout : process.stderr, "write").mockReturnValue(true);
+    signInWithPasswordMock.mockResolvedValue({ data: { user: null }, error: { status, message: `${VALID_EMAIL} ${VALID_PASSWORD} raw-provider-body` } });
+    const result = await loginWithPassword(VALID_EMAIL, VALID_PASSWORD);
+    expect(result).toMatchObject({ success: false, error: { code: ErrorCode.INTERNAL_ERROR, requestId: expect.any(String) } });
+    if (result.success) throw new Error("expected provider failure");
+    expect(result.error.message).toContain(status === 429 ? "等待几分钟" : "暂时无法完成账号验证");
+    expect(result.error.message).toContain(result.error.requestId);
+    expect(createUserSessionMock).not.toHaveBeenCalled();
+    expect(resolveOrCreateCanonicalUserInTxMock).not.toHaveBeenCalled();
+    const log = JSON.parse(String(write.mock.calls[0][0]));
+    expect(log).toMatchObject({ requestId: result.error.requestId, errorClass: status === 429 ? "expected" : "dependency" });
+    expect(JSON.stringify([log, result])).not.toMatch(/raw-provider-body|Aa1!xx|test@example.com/);
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     dbTransactionMock.mockImplementation((callback: (tx: unknown) => unknown) => callback({ insert: dbInsertMock }));

@@ -52,7 +52,7 @@ BETTER_STACK_INGESTING_HOST=<server-only Better Stack OTLP ingest host>
 
 预期业务结果必须继续通过 `ActionResult` 返回。例如权限不足、重复报名、验证码拒绝、重复邀请和 rate limit 都不是 exception capture 告警；可以按需记录为 `expected` 事件，但不应制造 5xx 噪音。
 
-非预期 Server Action 失败返回统一安全提示及可检索的 `requestId`；写入可能已完成，提示先刷新核对结果，避免盲目重试。Mizar HTTP 边界通过 `mizar.request.failure` 记录 auth/read/validate/domain/revalidation 阶段和同一关联编号；预期 4xx 不作为异常告警，非预期失败返回 500，并在安全响应与 `X-Request-Id` 中提供编号。
+非预期 Server Action 失败返回统一安全提示及可检索的 `requestId`；写入可能已完成，默认提示先刷新核对结果，避免盲目重试。密码更新由 `PasswordMutationError` 提供固定恢复指引：明确拒绝提示重新登录，结果未知保留 deny fence，返回 `PASSWORD_UPDATE_OUTCOME_UNKNOWN`，提示停止提交并联系平台管理员核查；密码表单持续展示指引与编号，不跳转成功页。`auth.password_update.failure` 与 UI 使用同一个 requestId，unknown 的 retryable=false。原始 cause 只留在服务端异常对象；该凭据边界的日志仅投影有界、允许的异常名称/错误代码/cause 链及整数 HTTP 状态，永不读取或输出 provider message、stack、body、邮箱、密码或 token。登录 429 是 expected 限流，0/未知失败是 dependency；只有官方 `invalid_credentials` 才归为无效凭据。管理员核查步骤见 [`auth-password-reconciliation.md`](auth-password-reconciliation.md)。Mizar HTTP 边界通过 `mizar.request.failure` 记录 auth/read/validate/domain/revalidation 阶段和同一关联编号；预期 4xx 不作为异常告警，非预期失败返回 500，并在安全响应与 `X-Request-Id` 中提供编号。
 
 DAK HTTP 五入口通过 `withIntegrationRequest()` 复用请求 trace、固定路由与 `after()` flush；handled 500 只由 `dak.request.failure` capture 一次，保留原始异常的脱敏 cause/SQLSTATE 与 auth/read/validate/domain/revalidation 阶段。既有 `error.code/message` 协议不增添字段，安全提示及 `X-Request-Id` 使用同一编号；导入后失效失败明确提示已收到提交，先查看保存结果并核对导入状态、不要重新上传；该已知状态不附加通用“稍后重试”前缀。预期 401/403/404/422 不产生 exception 告警，成功响应不变。
 
