@@ -15,6 +15,7 @@
 | 高校目录与认证结论；[education](../../src/db/schema/education.ts) | PostgreSQL 保存目录来源、认证结论与审核历史 | 目录和允许公开的身份结论为 public；审核备注等为 private |
 | 教育核验材料；[retention policy](../../src/lib/education/retention-policy.ts)、[Storage](../../src/lib/education/storage.ts) | PostgreSQL 保存 CHSI code/private object reference；private Storage 保存人工材料 | sensitive；材料签名入口仅超级管理员。code、object key、文件、signed URL 不入 public DTO/log |
 | 纪律、申诉与裁决；[discipline](../../src/db/schema/discipline.ts)、[BP](../../src/db/schema/match-veto-room.ts) | PostgreSQL 保存正式处理、理由与证据范围 | 允许公示的说明/结果为 public；内部证据、申诉理由按 self / 赛事管理员授权 |
+| 免费赛果与 BP；[免费预测 owner](../decisions/free-predictions.md) | PostgreSQL 保存当前选择、私有修订与永久截止事实；成绩消费当前正式事实投影 | 选择/revision 为 self/server-only；匿名支持率与公开成绩为 public DTO，浏览器 Data API 拒绝 |
 | 积分参与与结算账本；[BET](../../src/db/schema/bet.ts)、[预测](../operations/spectator-predictions.md) | PostgreSQL 保存参与条款、锁定、幂等与余额守恒证据 | 市场 DTO 可 public；账号参与、私有账本按原 owner 授权 |
 | Demo/OCR 与出场身份；[Demo](../../src/lib/demo-integration/submit.ts)、[gameplay identity](../../src/db/schema/gameplay-identity.ts) | PostgreSQL 保存上传数据、待核对身份、正式统计与 provenance | 原 payload/诊断为 private/sensitive；public 统计消费 canonical projection；OCR request 不成为日志附件 |
 | Mizar/DAK 配对与设备；[Mizar](../../src/db/schema/mizar.ts)、[pairing](../../src/lib/integrations/pairing-security.ts) | PostgreSQL 保存授权、verifier/poll hash、有效期、撤销关系与可靠事件 receipts | verifier 为 secret，设备关系为 private/server-only；机器/授权人 DTO 不输出 credential；raw secret 不写 audit/log |

@@ -9,13 +9,10 @@ export const CAPABILITIES = ["static", "postgres", "system"];
 
 const STATIC_PROJECTS = ["unit-domain-node", "unit-server-node", "unit-react-jsdom"];
 const FULL_STATIC_MATRIX = [
-  { task: "type-app", changedPaths: [] },
-  { task: "type-tests", changedPaths: [] },
-  { task: "type-scripts", changedPaths: [] },
-  { task: "lint", changedPaths: [] },
-  { task: "architecture", changedPaths: [] },
+  // Short checks share one runner instead of competing with long PG/browser
+  // shards for six separate runner allocations. Affected planning is unchanged.
+  { task: "checks", changedPaths: [] },
   ...STATIC_PROJECTS.map((project) => ({ task: taskNameForProject(project), project, mode: "full", changedPaths: [] })),
-  { task: "dead-code", changedPaths: [] },
   { task: "build", changedPaths: [] },
 ];
 

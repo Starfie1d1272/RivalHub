@@ -27,6 +27,8 @@ plan ─→ static ─────┐
 - dead-code / dependency hygiene；
 - production build。
 
+FULL 将 app/tests/scripts 类型、ESLint、architecture 与两种 knip 检查交给一个 `checks` runner 依次执行，逐项记录原命令的 wall time，任何失败、信号或启动错误都使该 runner 失败；早期失败后仍收集其它独立检查。三个 Vitest project 和 production build 保持独立并行 runner。此分组减少 FULL 的短任务 runner 分配与重复依赖安装；普通 affected static 的选择和并行方式不变。
+
 Vitest 的 React/jsdom project 只在 GitHub Actions 使用一次 diagnostic retry，本地默认不 retry。每个 static matrix task 完成后，React project 由 `scripts/ci/assert-no-flaky.mjs` 读取 `vitest-timing-reporter.ts` 产出的 machine-readable evidence；首次失败、retry 通过会被标记为 flaky 并让 static job 非零退出。其它 Vitest project 不继承该 retry，普通 PR 也不传入 `repeats`。
 
 ### postgres
@@ -51,7 +53,7 @@ Release 的 migration rehearsal 使用同一套 plain `postgres:17` service、`p
 - affected 关键 browser E2E 与 production build/start App Shell smoke。
 
 浏览器 lane 使用 runner 已有 Chrome，不需要在每个 run 重新安装 Playwright browser。
-system matrix 将 provider contract、production smoke 和一个独立 LIVE browser 分片与最多四个其它 browser 分片并行执行；每个 runner 只启动自己的最小 Supabase，只有 provider 的 LIVE evidence 与含 LIVE spec 的分片启动 Realtime。受影响 spec 集合按文件精确分割，空集合不创建 browser job；provider 与 production 各执行一次，统一 gate 等待整个 matrix 成功。每个 browser runner 使用两个 worker；E2E 每个 test attempt 创建独立的 DB/Auth scenario，清理仅限该场景。`major-entry` 与 production smoke 使用真实 UI 登录；其它 dev 已登录流程通过受保护的 test-only route 调用同一个 `loginWithPassword`，不会伪造应用 cookie。
+system matrix 将 provider contract、production smoke 和一个独立 LIVE browser 分片与最多七个其它 browser 分片并行执行；每个 runner 只启动自己的最小 Supabase，只有 provider 的 LIVE evidence 与含 LIVE spec 的分片启动 Realtime。受影响 spec 集合按文件精确分割，空集合不创建 browser job；provider 与 production 各执行一次，统一 gate 等待整个 matrix 成功。每个 browser runner 使用两个 worker；E2E 每个 test attempt 创建独立的 DB/Auth scenario，清理仅限该场景。`major-entry` 与 production smoke 使用真实 UI 登录；其它 dev 已登录流程通过受保护的 test-only route 调用同一个 `loginWithPassword`，不会伪造应用 cookie。
 
 CI 会把 bootstrap、各 capability lane、Vitest project、真实 PG integration、E2E body 与 FULL wall time 写入 GitHub Step Summary；其中 Vitest flaky evidence 会列出 project、file、full test name、首次失败、retry 通过和 retry count。system 失败或 retry/flaky 时保留 trace、screenshot、HTML report、脱敏 Next 日志和 scenario/attempt manifest；成功 run 不上传这些大体积 artifact。Playwright 在 CI 使用一次 retry，并以 `failOnFlakyTests` 阻断“首次失败、重试成功”的假绿；Vitest 使用同一原则，但由显式 flaky guard 保留 static job 的失败语义。
 

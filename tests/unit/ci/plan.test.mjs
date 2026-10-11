@@ -2,6 +2,15 @@ import { describe, expect, it } from "vitest";
 import { classifyChangedFiles, isReleaseMetadataOnly, parseNameStatus, systemMatrixFor } from "../../../scripts/ci/plan.mjs";
 
 describe("changed-surface planner", () => {
+  it("groups only FULL short checks while retaining all unit/build lanes and affected selection", () => {
+    const full = classifyChangedFiles([{ status: "M", paths: [".github/workflows/ci.yml"] }], { draft: false });
+    expect(full.staticMatrix.map(row => row.task)).toEqual(["checks", "unit-domain", "unit-server", "unit-react", "build"]);
+    expect(full.staticMatrix.filter(row => row.project).map(row => row.project)).toEqual(["unit-domain-node", "unit-server-node", "unit-react-jsdom"]);
+    expect(full.requiredJobs).toEqual(["static", "postgres", "system"]);
+    const affected = classifyChangedFiles([{ status: "M", paths: ["src/components/layout/Footer.tsx"] }], { draft: false });
+    expect(affected.staticMatrix.some(row => row.task === "type-app")).toBe(true);
+    expect(affected.staticMatrix.some(row => row.task === "checks")).toBe(false);
+  });
   // Missing/duplicated shards can turn a green aggregate into false evidence.
   it("partitions affected browser evidence exactly once and enables Realtime for a directly changed LIVE spec", () => {
     const live = "tests/e2e/flows/public-match-live.spec.ts";

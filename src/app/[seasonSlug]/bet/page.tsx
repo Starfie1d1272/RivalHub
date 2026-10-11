@@ -6,7 +6,11 @@ import { db } from "@/db/client";
 import { getPublicOrAuthorizedDraftSeason } from "@/lib/data/public-seasons";
 import { getUserSession } from "@/lib/auth/session";
 import { betBoard } from "@/lib/bet/data";
-import { BetBoard } from "@/components/bet/BetBoard";
+import { UnifiedBetBoard } from "@/components/bet/UnifiedBetBoard";
+import { freeRankingModel } from "@/components/bet/free-prediction-presentation";
+import { readBetRelief } from "@/lib/bet/relief-data";
+import { readFreePredictionBoard } from "@/lib/free-predictions/data";
+import { readFreePredictionRanking } from "@/lib/free-predictions/ranking";
 export default function BetPage(props:{params:Promise<{seasonSlug:string}>;searchParams:Promise<{view?:string;match?:string}>}) {
   return <Suspense fallback={<PageLayout variant="wide"><p role="status">正在加载 BET…</p></PageLayout>}><BetContent {...props}/></Suspense>;
 }
@@ -15,6 +19,16 @@ async function BetContent({params,searchParams}:{params:Promise<{seasonSlug:stri
   const {seasonSlug}=await params;const season=await getPublicOrAuthorizedDraftSeason(seasonSlug);
   if(!season || season.competitionTemplate!=="major")notFound();
   const user=await getUserSession();const query=await searchParams;
-  const data=await db.transaction(tx=>betBoard(tx,season.id,user?.userId??null),{accessMode:"read only",isolationLevel:"repeatable read"});
-  return <PageLayout variant={query.match ? "standard" : "wide"}><BetBoard initial={data} slug={seasonSlug} signedIn={!!user} view={query.view??"open"} matchFilter={query.match??null}/></PageLayout>;
+  const data=await db.transaction(async tx=>{
+    const bet=await betBoard(tx,season.id,user?.userId??null);
+    const free=await readFreePredictionBoard(tx,season.id,user?.userId??null);
+    const rankings=query.view==="leaderboard"?{
+      profit:freeRankingModel(await readFreePredictionRanking(tx,season.id,"profit")),
+      hits:freeRankingModel(await readFreePredictionRanking(tx,season.id,"hits")),
+      accuracy:freeRankingModel(await readFreePredictionRanking(tx,season.id,"accuracy")),
+    }:undefined;
+    const relief=await readBetRelief(tx,season.id,user?.userId??null);
+    return {bet,free,rankings,relief};
+  },{accessMode:"read only",isolationLevel:"repeatable read"});
+  return <PageLayout variant={query.match ? "standard" : "wide"}><UnifiedBetBoard initial={data.bet} freeMatches={data.free.matches} reliefModel={data.relief} rankings={data.rankings} slug={seasonSlug} signedIn={!!user} view={query.view??"open"} matchFilter={query.match??null}/></PageLayout>;
 }

@@ -2,6 +2,23 @@ import { spawnSync } from "node:child_process";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
+const FULL_CHECK_TASKS = ["type-app", "type-tests", "type-scripts", "lint", "architecture", "dead-code"];
+
+// Continue collecting independent evidence after a failure, and preserve every
+// failed/error/signal result in the aggregate. This does not run unit/build tasks.
+export function runFullChecks(runTask) {
+  let failed = false;
+  for (const task of FULL_CHECK_TASKS) {
+    try {
+      if (runTask(task) !== 0) failed = true;
+    } catch (error) {
+      console.error(error instanceof Error ? error.message : String(error));
+      failed = true;
+    }
+  }
+  return failed ? 1 : 0;
+}
+
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const task = required(process.env.STATIC_TASK, "STATIC_TASK");
   const project = process.env.STATIC_PROJECT?.trim();
@@ -10,6 +27,17 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   const explicitTests = parseJsonArray(process.env.STATIC_EXPLICIT_TESTS, "STATIC_EXPLICIT_TESTS");
   const pnpm = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
 
+  if (task === "checks") {
+    const status = runFullChecks((check) => {
+      const result = spawnSync(process.execPath, ["scripts/ci/timing.mjs", `static/${check}`, "--", pnpm, ...commandFor(check)], {
+        cwd: process.cwd(), env: process.env, stdio: "inherit",
+      });
+      if (result.error) throw result.error;
+      if (result.signal) throw new Error(`static/${check} 被信号 ${result.signal} 终止。`);
+      return result.status ?? 1;
+    });
+    process.exit(status);
+  }
   const args = commandFor(task, project, relatedSources, explicitTests, changedPaths);
   if (task === `unit-explicit-${project}`) {
     const discovery = spawnSync(process.execPath, ["node_modules/vitest/vitest.mjs", "list", "--project", project, "--filesOnly", ...explicitTests, "--json"], { encoding: "utf8", env: process.env });

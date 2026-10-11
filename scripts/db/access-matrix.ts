@@ -69,6 +69,10 @@ function serverOnly(
  * adding a table without adding an explicit classification fails closed.
  */
 export const DATABASE_ACCESS_MATRIX: readonly DatabaseAccessEntry[] = [
+  serverOnly("free_prediction_choices", "免费预测", "私有选择与锁定审计", "src/lib/free-predictions/", "服务端授权选择与匿名聚合，不开放 Data API。"),
+  serverOnly("free_prediction_requests", "免费预测", "私有选择与锁定审计", "src/lib/free-predictions/", "服务端授权选择与匿名聚合，不开放 Data API。"),
+  serverOnly("free_prediction_locks", "免费预测", "私有选择与锁定审计", "src/lib/free-predictions/", "服务端授权选择与匿名聚合，不开放 Data API。"),
+
   serverOnly("application_sessions", "账号认证", "服务端会话注册表", "src/lib/auth/session-registry.ts", "只经 cookie 加注册表校验，不开放 Data API。"),
   serverOnly("application_session_controls", "账号认证", "撤销边界与密码更新阻断状态", "src/lib/auth/session-registry.ts", "跨请求撤销与并发颁发边界，只允许服务端操作。"),
   serverOnly("statistics_projection_repair_cursors", "赛事统计", "后台修复进度", "src/lib/stats/projection-backfill.ts", "后台有界扫描游标，不是统计或发布验收事实。"),
