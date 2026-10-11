@@ -27,20 +27,20 @@ import {
   getPlayerStatsByMap,
   getMatchPlayerOptions,
   deletePlayerStatsByMap,
-  type PlayerStatsDraft,
   type PlayerOption,
 } from "@/actions/player-stats";
 import { isStatOutOfRange } from "@/lib/config/stat-ranges";
 import { InlineConfirm } from "@/components/rivalhub";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils/cn";
+import { assignScreenshotPlayer, mergeScreenshotDrafts, type ScoreboardDraft } from "./stats-ocr-drafts";
 
 interface Props {
   mapId: string;
   mapName: string;
 }
 
-type DraftRow = PlayerStatsDraft & { gameplayLocked?: boolean };
+type DraftRow = ScoreboardDraft;
 const OPERATOR_FIELDS = new Set<string>(["ratingPro", "rws", "we"]);
 function savedDrafts(rows: Awaited<ReturnType<typeof getPlayerStatsByMap>>): DraftRow[] {
   return rows.map(row => ({
@@ -154,10 +154,8 @@ export function StatsOCRPanel({ mapId, mapName }: Props) {
         return;
       }
 
-      setDrafts(result.data.drafts.map(row => {
-        const prior = canonicalDrafts.find(saved => saved.gameplayLocked && (row.userId ? saved.userId === row.userId : saved.perfectName === row.perfectName));
-        return prior ? { ...prior, ratingPro: row.ratingPro ?? prior.ratingPro, rws: row.rws ?? prior.rws, we: row.we ?? prior.we } : row;
-      }).concat(canonicalDrafts.filter(saved => saved.gameplayLocked && !result.data.drafts.some(row => row.userId ? row.userId === saved.userId : row.perfectName === saved.perfectName))));
+      setDrafts(mergeScreenshotDrafts(result.data.drafts, canonicalDrafts));
+      setViewMode(false);
       setPlayerOptions(result.data.playerOptions);
     } catch {
       setError(imageRead ? "OCR 请求未完成，请检查网络连接后重试。" : "截图文件读取失败，请重新选择图片后重试。");
@@ -179,17 +177,7 @@ export function StatsOCRPanel({ mapId, mapName }: Props) {
     const selectedPlayer = userId !== "__none__"
       ? playerOptions.find((p) => p.userId === userId)
       : null;
-    setDrafts((prev) =>
-      prev.map((row, i) =>
-        i === idx
-          ? {
-              ...row,
-              userId: userId === "__none__" ? null : userId,
-              ...(selectedPlayer ? { perfectName: selectedPlayer.perfectName } : {}),
-            }
-          : row,
-      ),
-    );
+    setDrafts(prev => assignScreenshotPlayer(prev, idx, selectedPlayer ?? null));
   }
 
   function handleDeleteRow(idx: number) {
@@ -232,6 +220,8 @@ export function StatsOCRPanel({ mapId, mapName }: Props) {
       ),
     [drafts],
   );
+
+  const missingOperatorFields = canonicalDrafts.some(row => row.ratingPro === null || row.rws === null || row.we === null);
 
   const errorCount = useMemo(() => {
     let count = 0;
@@ -306,13 +296,57 @@ export function StatsOCRPanel({ mapId, mapName }: Props) {
         )}
       </div>
 
+      {(!viewMode || missingOperatorFields) && (
+        <div className="flex gap-2 items-center flex-wrap">
+          <input
+            ref={fileRef}
+            type="file"
+            aria-label="记分板截图"
+            accept="image/jpeg,image/png,image/webp"
+            className="sr-only"
+            tabIndex={-1}
+            onChange={(event) => {
+              const file = event.currentTarget.files?.[0];
+              if (file) { setSelectedFile(file); setError(null); }
+              // Cancellation preserves the selected File; clearing the control permits same-file retry.
+              event.currentTarget.value = "";
+            }}
+          />
+          <Button type="button" size="sm" variant={selectedFile ? "outline" : "default"}
+            disabled={extracting} onClick={() => fileRef.current?.click()}>
+            {selectedFile ? "更换截图" : viewMode ? "补传计分板截图" : "选择截图"}
+          </Button>
+          {selectedFile && <span className="max-w-48 truncate text-sm text-[var(--color-fg-mid)]" title={selectedFile.name}>{selectedFile.name}</span>}
+          <Button
+            size="sm"
+            variant={selectedFile ? "default" : "outline"}
+            onClick={handleExtract}
+            disabled={extracting || !selectedFile}
+          >
+            {extracting ? "识别中…" : "OCR 识别截图"}
+          </Button>
+          {drafts.some(row => row.gameplayLocked) && <p className="text-xs text-[var(--color-fg-mid)]">Demo 已确认的选手只能修正 Rating / RWS / WE。</p>}
+          {!viewMode && <Button size="sm" variant="outline" onClick={handleAddRow}>
+            添加行
+          </Button>}
+        </div>
+      )}
+
+      {error && (
+        <div role="alert" className="space-y-1 text-sm text-[var(--color-danger)]">
+          <p>{error}</p>
+          {ocrDetails?.requestId && <p className="text-xs">排查编号：{ocrDetails.requestId}</p>}
+          {ocrDetails?.configurationRequired && <Link href="/admin/settings#ocr-configuration" className="underline underline-offset-4">查看 OCR 配置检查指引（超级管理员）</Link>}
+        </div>
+      )}
+
       {/* ── 只读视图 ── */}
       {viewMode && drafts.length > 0 && (
         <div className="overflow-x-auto rounded border">
           <Table className="text-xs">
             <TableHeader>
               <TableRow>
-                <TableHead className="w-36">昵称</TableHead>
+                <TableHead className="w-36 min-w-36">昵称</TableHead>
                 {NUM_FIELDS.map((f) => (
                   <TableHead key={f.key} className="w-16 text-center">
                     {f.label}
@@ -323,7 +357,7 @@ export function StatsOCRPanel({ mapId, mapName }: Props) {
             <TableBody>
               {drafts.map((row, idx) => (
                 <TableRow key={idx}>
-                  <TableCell className="font-medium">{row.perfectName as string}</TableCell>
+                  <TableCell className="font-medium"><span className="block max-w-36 truncate" title={row.perfectName}>{row.perfectName}</span></TableCell>
                   {NUM_FIELDS.map((f) => (
                     <TableCell key={f.key} className="text-center tabular-nums">
                       {(row[f.key] as number | null) ?? "—"}
@@ -339,47 +373,7 @@ export function StatsOCRPanel({ mapId, mapName }: Props) {
       {/* ── 编辑视图 ── */}
       {!viewMode && (
         <>
-          <div className="flex gap-2 items-center flex-wrap">
-            <input
-              ref={fileRef}
-              type="file"
-              aria-label="记分板截图"
-              accept="image/jpeg,image/png,image/webp"
-              className="sr-only"
-              tabIndex={-1}
-              onChange={(event) => {
-                const file = event.currentTarget.files?.[0];
-                if (file) { setSelectedFile(file); setError(null); }
-                // Cancellation preserves the selected File; clearing the control permits same-file retry.
-                event.currentTarget.value = "";
-              }}
-            />
-            <Button type="button" size="sm" variant={selectedFile ? "outline" : "default"}
-              disabled={extracting} onClick={() => fileRef.current?.click()}>
-              {selectedFile ? "更换截图" : "选择截图"}
-            </Button>
-            {selectedFile && <span className="max-w-48 truncate text-sm text-[var(--color-fg-mid)]" title={selectedFile.name}>{selectedFile.name}</span>}
-            <Button
-              size="sm"
-              variant={selectedFile ? "default" : "outline"}
-              onClick={handleExtract}
-              disabled={extracting || !selectedFile}
-            >
-              {extracting ? "识别中…" : "OCR 识别截图"}
-            </Button>
-            {drafts.some(row => row.gameplayLocked) && <p className="text-xs text-[var(--color-fg-mid)]">Demo 已确认的选手只能修正 Rating / RWS / WE。</p>}
-            <Button size="sm" variant="outline" onClick={handleAddRow}>
-              添加行
-            </Button>
-          </div>
 
-          {error && (
-            <div role="alert" className="space-y-1 text-sm text-[var(--color-danger)]">
-              <p>{error}</p>
-              {ocrDetails?.requestId && <p className="text-xs">排查编号：{ocrDetails.requestId}</p>}
-              {ocrDetails?.configurationRequired && <Link href="/admin/settings#ocr-configuration" className="underline underline-offset-4">查看 OCR 配置检查指引（超级管理员）</Link>}
-            </div>
-          )}
 
           {drafts.length > 0 ? (
             <>
@@ -387,8 +381,8 @@ export function StatsOCRPanel({ mapId, mapName }: Props) {
                 <Table className="text-xs">
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="w-36">昵称</TableHead>
-                      <TableHead className="w-40">匹配用户</TableHead>
+                      <TableHead className="w-36 min-w-36">昵称</TableHead>
+                      <TableHead className="w-56 min-w-56">匹配用户</TableHead>
                       {NUM_FIELDS.map((f) => (
                         <TableHead key={f.key} className="w-16 text-center">
                           {f.label}
@@ -404,11 +398,11 @@ export function StatsOCRPanel({ mapId, mapName }: Props) {
                           <span className={cn(
                             "block text-xs px-2 py-1 truncate max-w-[9rem]",
                             !(row.perfectName as string) && "text-[var(--color-fg-dim)] italic",
-                          )}>
+                          )} title={row.perfectName}>
                             {(row.perfectName as string) || "—"}
                           </span>
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="min-w-56">
                           <Select
                             disabled={row.gameplayLocked}
                             value={row.userId ?? "__none__"}
@@ -417,20 +411,21 @@ export function StatsOCRPanel({ mapId, mapName }: Props) {
                             <SelectTrigger className={cn(
                               "h-7 text-xs",
                               row.userId === null && "border-[var(--color-danger)] text-[var(--color-danger)]",
-                            )}>
+                            )} title={row.perfectName}>
                               <SelectValue placeholder="未匹配" />
                             </SelectTrigger>
-                            <SelectContent>
+                            <SelectContent className="max-w-[calc(100vw-2rem)]">
                               <SelectItem value="__none__">— 未匹配 —</SelectItem>
                               {playerOptions
-                                .filter((p) => !assignedUserIdsByRow[idx].has(p.userId))
+                                .filter((p) => !assignedUserIdsByRow[idx].has(p.userId) || (row.userId === null && drafts.some(target => target.userId === p.userId && target.gameplayLocked)))
                                 .map((p) => (
-                                  <SelectItem key={p.userId} value={p.userId}>
-                                    {p.perfectName}
+                                  <SelectItem key={p.userId} value={p.userId} className="whitespace-normal break-words">
+                                    {p.perfectName}{assignedUserIdsByRow[idx].has(p.userId) ? "（合并截图指标）" : ""}
                                   </SelectItem>
                                 ))}
                             </SelectContent>
                           </Select>
+                          {row.userId === null && <p className="mt-1 text-xs text-[var(--color-fg-mid)]">选已有选手会合并截图指标，保留比赛数据。</p>}
                         </TableCell>
                         {NUM_FIELDS.map((f) => (
                           <TableCell key={f.key} className="text-center p-1">
@@ -491,7 +486,7 @@ export function StatsOCRPanel({ mapId, mapName }: Props) {
                   <Button
                     size="sm"
                     variant="ghost"
-                    onClick={() => setViewMode(true)}
+                    onClick={() => { setDrafts(canonicalDrafts); setSelectedFile(null); setError(null); setViewMode(canonicalDrafts.length > 0); }}
                     disabled={saving}
                   >
                     取消
