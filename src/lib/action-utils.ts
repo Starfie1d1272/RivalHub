@@ -5,6 +5,8 @@ import { fail } from "@/types/action";
 import type { ActionResult } from "@/types/action";
 import { AppError, ErrorCode, ERROR_MESSAGES } from "@/lib/errors";
 import { captureException } from "@/lib/observability/server";
+import { ensureRequestId } from "@/lib/observability/context";
+import { classifyError } from "@/lib/observability/errors";
 import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { seasons, matches } from "@/db/schema";
@@ -16,21 +18,29 @@ export function failValidation(message: string): ActionResult<never> {
   return fail({ code: ErrorCode.VALIDATION_FAILED, message });
 }
 
-export function actionError(scope: string, e: unknown): ActionResult<never> {
+export function actionError(scope: string, e: unknown, phase = "action"): ActionResult<never> {
   if (e instanceof AppError) {
     if (e.code === ErrorCode.INTERNAL_ERROR) {
+      const requestId = ensureRequestId();
       captureException("action.internal_error", e, {
         scope: "action",
         operation: scope,
         errorClass: "application",
         errorCode: e.code,
+        requestId,
+        safeContext: { phase },
       });
-      return fail({ code: e.code, message: ERROR_MESSAGES.INTERNAL_ERROR });
+      return fail({ code: e.code, requestId, message: internalErrorMessage(requestId) });
     }
     return fail({ code: e.code, message: e.presentation?.message ?? e.message });
   }
-  captureException("action.unexpected_error", e, { scope: "action", operation: scope });
-  return fail({ code: ErrorCode.INTERNAL_ERROR, message: ERROR_MESSAGES.INTERNAL_ERROR });
+  const requestId = ensureRequestId();
+  captureException("action.unexpected_error", e, { scope: "action", operation: scope, requestId, errorCode: classifyError(e).errorCode ?? ErrorCode.INTERNAL_ERROR, safeContext: { phase } });
+  return fail({ code: ErrorCode.INTERNAL_ERROR, requestId, message: internalErrorMessage(requestId) });
+}
+
+function internalErrorMessage(requestId: string): string {
+  return `${ERROR_MESSAGES.INTERNAL_ERROR}。请先刷新确认操作结果；如仍有问题，请向管理员提供排查编号：${requestId}`;
 }
 
 // ── DB query helpers ──

@@ -5,6 +5,7 @@ const seasonsFindFirstMock = vi.hoisted(() => vi.fn());
 const transactionMock = vi.hoisted(() => vi.fn());
 const requireSeasonAdminMock = vi.hoisted(() => vi.fn());
 const auditActorIdMock = vi.hoisted(() => vi.fn());
+const revokePostMatchSubmissionInTxMock = vi.hoisted(() => vi.fn());
 const setMatchVideoUrlInTxMock = vi.hoisted(() => vi.fn());
 const cancelMatchCommentaryInTxMock = vi.hoisted(() => vi.fn());
 const claimMatchCommentaryInTxMock = vi.hoisted(() => vi.fn());
@@ -30,7 +31,7 @@ vi.mock("@/lib/postmatch/service", () => ({
   cancelMatchCommentaryInTx: cancelMatchCommentaryInTxMock,
   claimMatchCommentaryInTx: claimMatchCommentaryInTxMock,
   removeMatchCommentatorInTx: vi.fn(),
-  revokePostMatchSubmissionInTx: vi.fn(),
+  revokePostMatchSubmissionInTx: revokePostMatchSubmissionInTxMock,
   setMatchVideoUrlInTx: setMatchVideoUrlInTxMock,
   submitPostMatchReportInTx: vi.fn(),
 }));
@@ -39,7 +40,7 @@ vi.mock("@/lib/revalidation", () => ({
   revalidateMatchPaths: revalidateMatchPathsMock,
 }));
 
-import { cancelMatchCommentary, claimMatchCommentary, updateMatchVideoUrl } from "@/actions/postmatch";
+import { revokePostMatchSubmission, cancelMatchCommentary, claimMatchCommentary, updateMatchVideoUrl } from "@/actions/postmatch";
 import { AppError, ErrorCode } from "@/lib/errors";
 
 describe("post-match action revalidation", () => {
@@ -72,6 +73,27 @@ describe("post-match action revalidation", () => {
     expect(revalidateMatchPathsMock).not.toHaveBeenCalled();
     cancelMatchCommentaryInTxMock.mockRejectedValueOnce(new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "请联系管理员。"));
     expect(await cancelMatchCommentary({ matchId })).toMatchObject({ success: false, error: { code: "MATCH_INVALID_TRANSITION" } });
+    expect(revalidateMatchPathsMock).not.toHaveBeenCalled();
+  });
+
+  it("reopens with an optional bounded reason and the authenticated audit actor", async () => {
+    for (const reason of [undefined, "", "  核对解说名单  "]) {
+      expect(await revokePostMatchSubmission({ matchId, reason })).toMatchObject({ success: true });
+      expect(revokePostMatchSubmissionInTxMock).toHaveBeenLastCalledWith({}, { matchId, reason: reason?.trim(), actorId: "admin-1" });
+    }
+    expect(revalidateMatchPathsMock).toHaveBeenCalledWith("major", matchId);
+    vi.clearAllMocks();
+    for (const input of [{ matchId, reason: "字".repeat(501) }, { matchId, actorId: "forged" }, { matchId: "invalid" }]) {
+      expect(await revokePostMatchSubmission(input)).toMatchObject({ success: false, error: { code: "VALIDATION_FAILED" } });
+    }
+    for (const code of [ErrorCode.UNAUTHORIZED, ErrorCode.FORBIDDEN]) {
+      requireSeasonAdminMock.mockRejectedValueOnce(new AppError(code, "无权撤销。"));
+      expect(await revokePostMatchSubmission({ matchId })).toMatchObject({ success: false, error: { code } });
+    }
+    expect(transactionMock).not.toHaveBeenCalled();
+    expect(revalidateMatchPathsMock).not.toHaveBeenCalled();
+    revokePostMatchSubmissionInTxMock.mockRejectedValueOnce(new AppError(ErrorCode.SEASON_INVALID_STATUS, "本场尚未提交赛后资料。"));
+    expect(await revokePostMatchSubmission({ matchId })).toMatchObject({ success: false, error: { code: "SEASON_INVALID_STATUS" } });
     expect(revalidateMatchPathsMock).not.toHaveBeenCalled();
   });
 

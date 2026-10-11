@@ -322,7 +322,7 @@ describe("Mizar pairing unit tests", () => {
       expect(resValidation.status).toBe(400);
 
       const resInternal = mizarHttpError(new AppError(ErrorCode.INTERNAL_ERROR, "敏感内部异常"));
-      expect(resInternal.status).toBe(400);
+      expect(resInternal.status).toBe(500);
     });
   });
 });

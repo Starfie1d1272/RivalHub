@@ -31,11 +31,7 @@ vi.mock("@/lib/mizar/context", () => ({ loadMizarMatchDocument: vi.fn(), loadMiz
 vi.mock("@/lib/mizar/source", () => ({ claimMizarSource: vi.fn(), releaseMizarSource: vi.fn(), sourceClaimSchema: {}, sourceReleaseSchema: {} }));
 vi.mock("@/lib/mizar/reliable", () => ({ ingestMizarReliable: mocks.reliable }));
 vi.mock("@/lib/mizar/live", () => ({ ingestMizarLive: vi.fn() }));
-vi.mock("@/lib/mizar/http", () => ({
-  readBoundedMizarJson: (request: Request) => request.json(),
-  mizarContextResponse: vi.fn(),
-  mizarHttpError: (error: Error) => Response.json({ error: error.message }, { status: 500 }),
-}));
+vi.mock("next/server", () => ({ after: vi.fn() }));
 
 import { POST as submitEvidence } from "@/app/api/integrations/dak/evidence/route";
 import { POST as ingestReliable } from "@/app/api/mizar/[operation]/route";

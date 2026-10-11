@@ -8,7 +8,7 @@ export function isAuditUserEmail(value: string): boolean {
 }
 
 export function getAuditActorLabel(actorId: string | null, names: ReadonlyMap<string, string>): string {
-  if (!actorId || actorId === "system" || actorId.startsWith("system:")) return "系统";
+  if (!actorId || actorId === "system" || actorId === "veto-system" || actorId.startsWith("system:")) return "系统";
   if (actorId.startsWith("dak:")) return "DAK Studio";
   if (actorId.startsWith("release:")) return "发布流程";
   if (isAuditUserId(actorId) || isAuditUserEmail(actorId)) return names.get(actorId) ?? "未知用户";
@@ -18,6 +18,11 @@ export function getAuditActorLabel(actorId: string | null, names: ReadonlyMap<st
 const CONTEXT_USER_FIELDS: Readonly<Record<string, readonly string[]>> = {
   "team.captain.transfer": ["fromUserId", "toUserId"],
   "competition_entry.representative.transfer": ["fromUserId", "toUserId"],
+  "postmatch.report.submit": ["submittedByUserId"],
+  "postmatch.report.revoke": ["submittedByUserId"],
+  "postmatch.commentator.add": ["commentatorUserId"],
+  "postmatch.commentator.cancel": ["commentatorUserId"],
+  "postmatch.commentator.remove": ["commentatorUserId"],
   "sanction.issue": ["subjectUserId"],
   "user_identity.merge": ["mergedUserId"],
 };
@@ -41,6 +46,11 @@ export function summarizeAuditPeople(action: string, meta: unknown, names: Reado
   switch (action) {
     case "team.captain.transfer": return `队长：${name("fromUserId")} → ${name("toUserId")}`;
     case "competition_entry.representative.transfer": return `赛事代表：${name("fromUserId")} → ${name("toUserId")}`;
+    case "postmatch.report.submit":
+    case "postmatch.report.revoke": return `资料提交者：${name("submittedByUserId")}`;
+    case "postmatch.commentator.add":
+    case "postmatch.commentator.cancel":
+    case "postmatch.commentator.remove": return `解说：${name("commentatorUserId")}`;
     case "sanction.issue": return `处罚对象：${name("subjectUserId")}`;
     case "user_identity.merge": return `合并来源：${name("mergedUserId")}`;
     default: return null;

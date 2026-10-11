@@ -55,10 +55,10 @@ it("releases ingress after malicious bodies and rejects expired waiters without 
     const slow = Promise.all([post(stalled()), post(stalled())]);
     await started;
     expect((await upload(f, 1)).status).toBe(429);
-    expect((await slow).map(response => response.status)).toEqual([400, 400]);
+    expect((await slow).map(response => response.status)).toEqual([408, 408]);
     expect(cancelled).toBe(2);
     expect((await post("{" )).status).toBe(400);
-    expect((await post("x".repeat(262145))).status).toBe(400);
+    expect((await post("x".repeat(262145))).status).toBe(413);
     expect(publications.length).toBe(before);
     state.mode = "fast";
     expect((await (await upload(f, 2)).json()).accepted).toBe(true);

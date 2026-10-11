@@ -301,7 +301,7 @@ describe("castVote()", () => {
 
       const result = await castVote(CAST_INPUT);
 
-      expect(result).toEqual({ success: false, error: { code: ErrorCode.INTERNAL_ERROR, message: "服务器内部错误，请稍后重试" } });
+      expect(result).toEqual({ success: false, error: { code: ErrorCode.INTERNAL_ERROR, message: expect.stringContaining("服务器内部错误，请稍后重试"), requestId: expect.any(String) } });
       expect(stderrWriteMock).toHaveBeenCalledOnce();
     } finally {
       stderrWriteMock.mockRestore();
