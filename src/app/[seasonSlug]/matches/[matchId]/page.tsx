@@ -240,6 +240,9 @@ export default async function MatchDetailPage({ params, searchParams }: MatchDet
   }
 
   const captainRoster = isCaptainA ? rosterA : isCaptainB ? rosterB : null;
+  const canParticipateInVeto = isSeasonAdmin || isCaptainA || isCaptainB || Boolean(userSession && [rosterA, rosterB].some(roster =>
+    roster?.players.some(player => player.isVetoRepresentative && player.isStarter && allTeamMembers.some(member => member.id === player.eventRosterMemberId && member.userId === userSession.userId)),
+  ));
   const teamARoster: RosterPlayer[] | null = rosterA
     ? buildRoster(rosterA, allTeamMembers, match.entryAId)
     : null;
@@ -427,7 +430,7 @@ export default async function MatchDetailPage({ params, searchParams }: MatchDet
                   className="inline-flex min-h-10 items-center rounded border border-[var(--color-border)] px-4 text-sm font-medium hover:border-[var(--color-border-hover)]"
                   href={`/${seasonSlug}/matches/${match.id}/veto`}
                 >
-                  查看 BP 进度
+                  {canParticipateInVeto ? "进行 BP" : "查看 BP 进度"}
                 </Link>
               </div>
             </Panel>

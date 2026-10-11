@@ -589,6 +589,13 @@
       "when": 1791709572877,
       "tag": "0083_bet-catalog-version",
       "breakpoints": true
+    },
+    {
+      "idx": 84,
+      "version": "7",
+      "when": 1791727806446,
+      "tag": "0084_veto-appeal-gameplay-close",
+      "breakpoints": true
     }
   ]
 }

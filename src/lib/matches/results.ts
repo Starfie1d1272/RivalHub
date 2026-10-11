@@ -10,6 +10,7 @@ import { getMaxMaps } from "@/types/match";
 import { computeSeriesScoreAfterMap, validateMapScore, validateSeriesAgainstMaps } from "./result-rules";
 import { persistCompletedMatchInTx } from "./completion";
 import { finishCompetitionSeriesInTx } from "./competition-results";
+import { closeVetoAppealsAfterGameplayInTx } from "./veto-room/appeal-lifecycle";
 
 export { finishCompetitionSeriesInTx as finishCanonicalSeriesInTx } from "./competition-results";
 
@@ -107,6 +108,7 @@ async function recordMapResultInTx(tx: TxDb, command: CanonicalMapResultCommand,
         });
       }
 
+      await closeVetoAppealsAfterGameplayInTx(tx, matchId);
       if (seriesFinished && locked.resultDisposition !== "recorded") {
         const completion = { match: locked, scoreA: mapWinsA, scoreB: mapWinsB, completedAt: new Date() };
         if (locked.seasonId) finishedSlug = await finishCompetitionSeriesInTx(tx, completion);
