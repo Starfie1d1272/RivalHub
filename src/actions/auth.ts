@@ -22,6 +22,7 @@ import {
 } from "@/lib/auth/session";
 import { claimAdminInviteInTx } from "@/lib/auth/admin-invites";
 import { providerFetch } from "@/lib/observability/fetch";
+import { ensureRequestId } from "@/lib/observability/context";
 import { captureException, logEvent, traceOperation } from "@/lib/observability/server";
 
 export async function loginWithPassword(
@@ -46,6 +47,7 @@ export async function loginWithPassword(
     }, () => supabase.auth.signInWithPassword({ email: normalizedEmail, password }));
 
     if (error) {
+      if (isAuthServerFailure(error.status)) return authServerFailure("auth.sign_in", error.status);
       if (authErrorCode(error) === "email_not_confirmed") {
         return fail({
           code: ErrorCode.EMAIL_NOT_CONFIRMED,
@@ -163,6 +165,7 @@ export async function signUp(
     }));
 
     if (error) {
+      if (isAuthServerFailure(error.status)) return authServerFailure("auth.sign_up", error.status);
       if (authErrorCode(error) === "over_email_send_rate_limit") {
         return emailSendFailure(error, "验证邮件");
       }
@@ -260,6 +263,25 @@ export async function sendPasswordResetEmail(email: string): Promise<ActionResul
   } catch (e) {
     return actionError("sendPasswordResetEmail", e);
   }
+}
+
+function isAuthServerFailure(status: unknown): status is number {
+  return typeof status === "number" && Number.isInteger(status) && status >= 500 && status <= 599;
+}
+
+/** SDK-returned 5xx are dependency failures, never proof of invalid identity. */
+function authServerFailure(operation: "auth.sign_in" | "auth.sign_up", status: number): ActionResult<never> {
+  const requestId = ensureRequestId();
+  // Preserve authoritative HTTP status, not the provider body that may echo PII.
+  logEvent({
+    level: "error", event: "auth.provider.server_failure", scope: "provider", operation,
+    errorClass: "dependency", errorCode: "AUTH_PROVIDER_SERVER_ERROR", retryable: true, requestId,
+    safeContext: { provider: "supabase-auth", httpStatus: status },
+  });
+  const message = operation === "auth.sign_up"
+    ? "账号服务暂时不可用，注册结果无法确认，请先检查验证邮件；如未收到，请稍后重试或联系管理员。"
+    : "账号服务暂时不可用，请稍后重试；如仍有问题，请联系管理员。";
+  return fail({ code: ErrorCode.INTERNAL_ERROR, requestId, message: `${message}排查编号：${requestId}` });
 }
 
 function authErrorCode(error: unknown): string | null {

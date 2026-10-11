@@ -1,5 +1,5 @@
 vi.mock("@/lib/auth/session-registry", () => ({ beginAuthentication: vi.fn(async () => "2026-10-03 00:00:00+00") }));
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { ErrorCode } from "@/lib/errors";
@@ -100,9 +100,28 @@ const MOCK_USER_ROW = {
   role: "user" as const,
 };
 
+afterEach(() => vi.restoreAllMocks());
+
 // ── loginWithPassword ─────────────────────────────────────────────────────
 
 describe("loginWithPassword", () => {
+  // Existing tests protected invalid credentials/confirmation, but did not
+  // distinguish an SDK-returned provider outage from an account rejection.
+  it.each([500, 503])("provider %i returns a correlated outage without establishing identity", async (status) => {
+    const write = vi.spyOn(process.stderr, "write").mockReturnValue(true);
+    signInWithPasswordMock.mockResolvedValue({ data: { user: null }, error: { status, message: "raw-private-provider-body token=secret" } });
+    const result = await loginWithPassword(VALID_EMAIL, VALID_PASSWORD);
+    expect(result).toMatchObject({ success: false, error: { code: ErrorCode.INTERNAL_ERROR, requestId: expect.any(String) } });
+    if (result.success) throw new Error("expected outage");
+    expect(result.error.message).toContain("账号服务暂时不可用");
+    expect(result.error.message).toContain(result.error.requestId);
+    expect(resolveOrCreateCanonicalUserInTxMock).not.toHaveBeenCalled();
+    expect(createUserSessionMock).not.toHaveBeenCalled();
+    expect(write).toHaveBeenCalledOnce();
+    expect(JSON.parse(String(write.mock.calls[0][0]))).toMatchObject({ event: "auth.provider.server_failure", errorClass: "dependency", requestId: result.error.requestId, safeContext: { provider: "supabase-auth", httpStatus: status } });
+    expect(JSON.stringify(write.mock.calls)).not.toMatch(/raw-private-provider-body|token=secret|test@example.com/);
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     dbTransactionMock.mockImplementation((callback: (tx: unknown) => unknown) => callback({ insert: dbInsertMock }));
@@ -136,10 +155,11 @@ describe("loginWithPassword", () => {
     }
   });
 
-  it("Supabase signInWithPassword 失败返回 UNAUTHORIZED", async () => {
+  it("invalid credentials remain an expected rejection without outage telemetry", async () => {
+    const write = vi.spyOn(process.stderr, "write").mockReturnValue(true);
     signInWithPasswordMock.mockResolvedValue({
       data: null,
-      error: { message: "Invalid credentials" },
+      error: { status: 400, code: "invalid_credentials", message: "Invalid credentials" },
     });
 
     const result = await loginWithPassword(VALID_EMAIL, VALID_PASSWORD);
@@ -147,6 +167,7 @@ describe("loginWithPassword", () => {
     if (!result.success) {
       expect(result.error.code).toBe(ErrorCode.UNAUTHORIZED);
     }
+    expect(write).not.toHaveBeenCalled();
   });
 
   it("未确认邮箱返回可继续验证的提示", async () => {
@@ -222,6 +243,18 @@ describe("loginWithPassword", () => {
 // ── signUp ────────────────────────────────────────────────────────────────
 
 describe("signUp", () => {
+  it("provider 503 does not masquerade as a signup validation failure", async () => {
+    const write = vi.spyOn(process.stderr, "write").mockReturnValue(true);
+    signUpMock.mockResolvedValue({ data: { user: null }, error: { status: 503, message: "raw-private-signup-error" } });
+    const result = await signUp(VALID_EMAIL, VALID_PASSWORD, VALID_PASSWORD);
+    expect(result).toMatchObject({ success: false, error: { code: ErrorCode.INTERNAL_ERROR } });
+    if (result.success) throw new Error("expected outage");
+    expect(result.error.message).toContain("注册结果无法确认，请先检查验证邮件");
+    expect(write).toHaveBeenCalledOnce();
+    expect(JSON.parse(String(write.mock.calls[0][0]))).toMatchObject({ operation: "auth.sign_up", errorClass: "dependency", safeContext: { httpStatus: 503 } });
+    expect(JSON.stringify(result)).not.toContain("raw-private-signup-error");
+  });
+
   beforeEach(() => {
     process.env.NEXT_PUBLIC_APP_URL = "http://127.0.0.1:3000";
     vi.clearAllMocks();
