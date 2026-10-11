@@ -13,6 +13,7 @@ import { materializeDefaultLineupsInTx } from "@/lib/match-rosters/service";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { captureException } from "@/lib/observability/server";
 import { ensureRequestId } from "@/lib/observability/context";
+import { CommittedDefaultLineupsError } from "./default-lineup-error";
 
 export interface MatchTimeAutoAwardCronSummary {
   processed: number;
@@ -66,7 +67,12 @@ export async function runMatchTimeAutoAwardCron(
       });
     }
   }
-  const proposalTimeoutResult = await autoAcceptExpiredProposals(clock);
+  const proposalTimeoutResult = await autoAcceptExpiredProposals(clock).catch(error => {
+    // These transactions have already committed. A later read failure must
+    // not discard their cache invalidation targets or replay their writes.
+    if (affectedMatches.length) throw new CommittedDefaultLineupsError(error, lineupRequestId, affectedMatches);
+    throw error;
+  });
 
   return { ...proposalTimeoutResult, lineups, lineupFailures, lineupRequestId,
     affectedMatches: [...affectedMatches, ...proposalTimeoutResult.affectedMatches] };

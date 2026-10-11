@@ -18,8 +18,8 @@
 
 ## 本地验证
 
-- 真实 PostgreSQL：新恢复文件 2/2；`major-roster-safety.test.ts` 1/1（内含 canonical roster/qualification/确认/冻结不变量）；`match-time-scheduling.test.ts` 9/9（锁等待、重复授予、权限与排期）。
-- 定向 unit/component：worker 3、runner 8、manual action 3、scheduler execution 6、cron route 2、panel interaction 1，共 23 项。
+- 真实 PostgreSQL：新恢复文件 3/3；`major-roster-safety.test.ts` 1/1（内含 canonical roster/qualification/确认/冻结不变量）；`match-time-scheduling.test.ts` 9/9（锁等待、重复授予、权限与排期）。
+- 定向 unit/component：worker 4、runner 9、manual action 4、scheduler execution 6、cron route 2、panel interaction 1，共 26 项。
 - `pnpm type-check:app`、`pnpm type-check:tests`、changed-file ESLint、`pnpm architecture:check` 与 diff whitespace 检查。
 
 真实 PG 命令：
@@ -29,3 +29,10 @@ RIVALHUB_ALLOW_LOCAL_CONTAINERS=1 RIVALHUB_INTEGRATION_WORKERS=1 pnpm test:integ
 ```
 
 合法资格拒绝只沿 owner 的 `VALIDATION_FAILED` 分类；`INTERNAL_ERROR`、PG 与其他异常仍是系统失败。后台未更改 qualification snapshot、成员、首发选择规则、确认事实、赛果或既有时间授予规则。每个失败项保留安全事件；public cron 摘要移除异常数组和内部关联字段。部分成功先刷新目标页，再报告批次失败，不在当前调用中自动重放失败事务。
+
+
+## 独立复审 P2：提交后提议查询失败
+
+父线程在 `9cbe81fd` 指出首发事务提交后，提议候选 SELECT 失败会丢失已提交比赛的失效目标；重复运行跳过已有名单，不能补回第一次失效。修后内部 `CommittedDefaultLineupsError` 携带原 cause、关联编号与已提交目标，runner 先失效这些目标再报告原故障；人工提示明确首发已保存、先核对首发及排期。
+
+新增真实 PG 回归在最后一队补齐 audit INSERT 时，将隔离 worker DB 的提议表重命名；首发事务真实提交后，紧接着的实际候选 SELECT 抛42P01。失败调用已经触发目标页面失效，名单和audit保持已提交；action日志保存42P01、同一响应编号及 `phase=proposal_read_after_lineups`，不输出SQL或表名。随后通过真实owner确认首发，恢复提议表，再成功运行任务；该次零推进、没有再触发该比赛失效，confirmed roster/player rows、首发audit和比赛facts不变，真实工作台读取双方五名首发。这条证据同时证明失效必须发生在第一次失败调用，而不是靠后续成功重跑补救。

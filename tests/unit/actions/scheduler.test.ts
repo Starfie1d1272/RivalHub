@@ -32,7 +32,7 @@ vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
 import { AppError, ErrorCode } from "@/lib/errors";
 
 import { runSchedulerJobManually } from "@/actions/scheduler";
-import { DefaultLineupMaterializationError } from "@/lib/matches/default-lineup-error";
+import { CommittedDefaultLineupsError, DefaultLineupMaterializationError } from "@/lib/matches/default-lineup-error";
 
 describe("manual scheduler action", () => {
   beforeEach(() => {
@@ -89,6 +89,19 @@ describe("manual scheduler action", () => {
     expect(result.error.message).toContain("恢复后");
     expect(result.error.message).toContain("lineup-incident");
     expect(result.error.message).not.toContain("private SQL marker");
+    expect(revalidatePathMock).toHaveBeenCalledWith("/admin/settings");
+  });
+
+  it("explains saved lineups and preserves the post-commit incident ID", async () => {
+    executeScheduledJobManuallyMock.mockRejectedValueOnce(new CommittedDefaultLineupsError(
+      new Error("private proposal query"), "postcommit-incident", [{ seasonSlug: "spring", matchId: "saved" }],
+    ));
+    const result = await runSchedulerJobManually({ jobKey: "match-time-auto-award" });
+    expect(result).toMatchObject({ success: false, error: { code: "INTERNAL_ERROR", requestId: "postcommit-incident" } });
+    if (result.success) throw new Error("expected failure");
+    expect(result.error.message).toContain("首发已保存");
+    expect(result.error.message).toContain("核对首发和排期");
+    expect(result.error.message).not.toContain("private proposal query");
     expect(revalidatePathMock).toHaveBeenCalledWith("/admin/settings");
   });
 

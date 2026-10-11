@@ -132,3 +132,65 @@ it("leaves an incomplete declared default lineup waiting without inventing a fif
     expect(await db.query.matches.findFirst({ where: eq(schema.matches.id, match.id) })).toEqual(match);
   } finally { capture.mockRestore(); }
 });
+
+it("refreshes committed lineups despite a real later proposal SELECT failure, then preserves confirmed lineups on recovery", async () => {
+  const fixture = await seedFixture({ matchStatus: "scheduled", freezeEventRoster: true });
+  auth.userId = (await db.query.competitionEntries.findFirst({ where: eq(schema.competitionEntries.id, fixture.entryAId) }))!.representativeUserId;
+  const [match] = await db.insert(schema.matches).values({ seasonId: fixture.seasonId,
+    entryAId: fixture.entryAId, entryBId: fixture.entryBId, stage: "fixture-postcommit",
+    status: "scheduled", scheduledAt: new Date(Date.now() + 60_000) }).returning();
+  const pool = createLocalPool();
+  const name = `postcommit_${randomUUID().replaceAll("-", "")}`;
+  const capture = vi.spyOn(observability, "captureException");
+  vi.mocked(revalidateMatchPaths).mockClear();
+  try {
+    // Rename only in the final lineup audit INSERT: that transaction commits
+    // both lineups first, and the next real proposal query fails with 42P01.
+    // This worker DB is disposable and isolated from other integration files.
+    await pool.query(`CREATE FUNCTION ${name}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN
+      IF NEW.action='match.roster.system_default' AND NEW.meta->>'matchId'='${match.id}'
+        AND NEW.meta->>'entryId'='${fixture.entryBId}' THEN
+        ALTER TABLE public.match_time_proposals RENAME TO ${name};
+      END IF; RETURN NEW; END $$`);
+    await pool.query(`CREATE TRIGGER ${name} AFTER INSERT ON audit_logs FOR EACH ROW EXECUTE FUNCTION ${name}()`);
+    const failed = await runSchedulerJobManually({ jobKey: "match-time-auto-award" });
+    expect(failed).toMatchObject({ success: false, error: { code: "INTERNAL_ERROR", requestId: expect.any(String) } });
+    if (failed.success) throw new Error("expected post-commit failure");
+    expect(failed.error.message).toContain("首发已保存");
+    expect(failed.error.message).toContain("恢复后");
+    expect(failed.error.message).not.toContain("match_time_proposals");
+    const failure = capture.mock.calls.findLast(([event]) => event === "action.unexpected_error")!;
+    expect(extractPgError(failure[1])?.code).toBe("42P01");
+    const logged = capture.mock.results[capture.mock.calls.indexOf(failure)]!.value as StructuredEvent;
+    expect(logged).toMatchObject({ errorCode: "42P01", requestId: failed.error.requestId, safeContext: { phase: "proposal_read_after_lineups" } });
+    expect(JSON.stringify(logged)).not.toMatch(/match_time_proposals|SELECT|params/);
+    expect(revalidateMatchPaths).toHaveBeenCalledWith(fixture.seasonId, match.id, { mode: "route" });
+    const rosters = await db.select().from(schema.matchRosters).where(eq(schema.matchRosters.matchId, match.id));
+    expect(rosters).toHaveLength(2);
+    for (const roster of rosters) await db.transaction(tx => confirmMatchRosterInTx(tx, { rosterId: roster.id, actorId: auth.userId }));
+    const confirmed = await db.select().from(schema.matchRosters).where(eq(schema.matchRosters.matchId, match.id));
+    const players = await db.select().from(schema.matchRosterPlayers).where(inArray(schema.matchRosterPlayers.rosterId, confirmed.map(row => row.id)));
+    const audit = await db.select().from(schema.auditLogs).where(eq(schema.auditLogs.seasonId, fixture.seasonId));
+    await pool.query(`ALTER TABLE public.${name} RENAME TO match_time_proposals`);
+    await pool.query(`DROP TRIGGER ${name} ON audit_logs`);
+    vi.mocked(revalidateMatchPaths).mockClear();
+    expect(await runSchedulerJobManually({ jobKey: "match-time-auto-award" })).toMatchObject({ success: true, data: { businessTransitions: 0 } });
+    // A successful rerun skips existing rosters, so it cannot repair an earlier
+    // lost invalidation. The failing run above must have refreshed the target.
+    expect(revalidateMatchPaths).not.toHaveBeenCalled();
+    expect(await db.select().from(schema.matchRosters).where(eq(schema.matchRosters.matchId, match.id))).toEqual(confirmed);
+    expect(await db.select().from(schema.matchRosterPlayers).where(inArray(schema.matchRosterPlayers.rosterId, confirmed.map(row => row.id)))).toEqual(players);
+    expect((await db.select().from(schema.auditLogs).where(eq(schema.auditLogs.seasonId, fixture.seasonId))).filter(row => row.action !== "scheduler.manual_trigger")).toEqual(audit.filter(row => row.action !== "scheduler.manual_trigger"));
+    expect(await db.query.matches.findFirst({ where: eq(schema.matches.id, match.id) })).toEqual(match);
+    const page = await loadAdminMatchWorkbench({ seasonSlug: fixture.seasonId, matchId: match.id });
+    expect(page?.teamARoster?.starters).toHaveLength(5);
+    expect(page?.teamBRoster?.starters).toHaveLength(5);
+  } finally {
+    await pool.query(`DROP TRIGGER IF EXISTS ${name} ON audit_logs`);
+    if ((await pool.query("SELECT to_regclass($1) AS present", [`public.${name}`])).rows[0].present) {
+      await pool.query(`ALTER TABLE public.${name} RENAME TO match_time_proposals`);
+    }
+    await pool.query(`DROP FUNCTION IF EXISTS ${name}()`);
+    await pool.end(); capture.mockRestore();
+  }
+});

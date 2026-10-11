@@ -50,3 +50,15 @@ it("keeps eligibility rejection quiet but retains internal and PG failures", asy
     expect.objectContaining({ requestId: result.lineupRequestId }));
   capture.mockRestore();
 });
+
+it("preserves committed invalidation targets and the later proposal read cause", async () => {
+  dueLineups.mockResolvedValue([{ id: "committed" }]);
+  transaction.mockResolvedValueOnce({ created: 2, seasonSlug: "spring", matchId: "committed" });
+  const cause = new Error("proposal read unavailable", { cause: { code: "42P01" } });
+  proposals.mockRejectedValueOnce(cause);
+  await expect(runMatchTimeAutoAwardCron()).rejects.toMatchObject({
+    name: "CommittedDefaultLineupsError", cause,
+    affectedMatches: [{ seasonSlug: "spring", matchId: "committed" }],
+    requestId: expect.any(String),
+  });
+});

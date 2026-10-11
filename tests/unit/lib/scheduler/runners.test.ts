@@ -119,3 +119,12 @@ it("invalidates committed matches then rejects a lineup batch with its original 
   await expect(runMatchTimeAutoAwardJob()).rejects.toMatchObject({ cause, requestId: "lineup-request" });
   expect(revalidateMatchPathsMock).toHaveBeenCalledExactlyOnceWith("spring", "successful-match", { mode: "route" });
 });
+
+import { CommittedDefaultLineupsError } from "@/lib/matches/default-lineup-error";
+it("refreshes saved lineups before propagating a later proposal query failure", async () => {
+  revalidateMatchPathsMock.mockClear();
+  const failure = new CommittedDefaultLineupsError(new Error("proposal query failed"), "postcommit-request", [{ seasonSlug: "spring", matchId: "saved" }]);
+  runMatchTimeAutoAwardCronMock.mockRejectedValueOnce(failure);
+  await expect(runMatchTimeAutoAwardJob()).rejects.toBe(failure);
+  expect(revalidateMatchPathsMock).toHaveBeenCalledExactlyOnceWith("spring", "saved", { mode: "route" });
+});

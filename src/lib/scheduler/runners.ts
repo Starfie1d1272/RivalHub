@@ -9,7 +9,7 @@ import { matchVetoSessions, matchVetoAppeals, matchVetoTimeoutIncidents, matchMa
 import { maybeAdvanceFromRegistration } from "@/lib/seasons/transitions";
 import { runDraftTimeoutCron } from "@/lib/draft/operations";
 import { runMatchTimeAutoAwardCron } from "@/lib/matches/time-auto-award";
-import { DefaultLineupMaterializationError } from "@/lib/matches/default-lineup-error";
+import { CommittedDefaultLineupsError, DefaultLineupMaterializationError } from "@/lib/matches/default-lineup-error";
 import { purgeExpiredEducationEvidence } from "@/lib/education/retention";
 import { ensureRegistrationOpenForParticipantInTx } from "@/lib/seasons/registration-recovery";
 import { revalidateMatchPaths, revalidatePublicSeasonTags, revalidatePublicStatsTag, revalidateSeasonPaths } from "@/lib/revalidation";
@@ -78,7 +78,14 @@ export async function runDraftTimeoutJob() {
 }
 
 export async function runMatchTimeAutoAwardJob() {
-  const result = await runMatchTimeAutoAwardCron();
+  const result = await runMatchTimeAutoAwardCron().catch(error => {
+    if (error instanceof CommittedDefaultLineupsError) {
+      for (const { seasonSlug, matchId } of error.affectedMatches) {
+        revalidateMatchPaths(seasonSlug, matchId, { mode: "route" });
+      }
+    }
+    throw error;
+  });
   const { affectedMatches, lineupFailures, lineupRequestId, ...summary } = result;
   for (const { seasonSlug, matchId } of affectedMatches) {
     revalidateMatchPaths(seasonSlug, matchId, { mode: "route" });
