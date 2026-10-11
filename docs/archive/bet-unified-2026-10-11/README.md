@@ -11,7 +11,7 @@ RIVALHUB_ALLOW_LOCAL_CONTAINERS=1 pnpm db:local:migrate
 RIVALHUB_ALLOW_LOCAL_CONTAINERS=1 RIVALHUB_BET_SCREENSHOTS=1 pnpm test:e2e -- --project=mobile-chrome flows/free-predictions.spec.ts --reporter=list --workers=1
 ```
 
-最终 Action 流程通过（20.3 秒）：详情预测/BET空分母显示暂无而非50/50；BET停用时免费赛果/BP独立提交和取消改选；初始1000沿用原入口，ALL IN投入与免费选择不同队伍；余额0改选并确认正式读取；服务端GET不发低保，显式点击+10、同日刷新不重复、隔离账本只有一条amount10/profit0；BP与赛果各自官方开始信号拒绝缓存旧状态并回读锁定；完成后命中、取消后作废、本人历史保留；净收益/命中次数/命中率三排序同表三列。
+最终依赖组合默认 Action 流程通过（19.8 秒；截图轮20.3秒）：详情预测/BET空分母显示暂无而非50/50；BET停用时免费赛果/BP独立提交和取消改选；初始1000沿用原入口，ALL IN投入与免费选择不同队伍；余额0改选并确认正式读取；服务端GET不发低保，显式点击+10、同日刷新不重复、隔离账本只有一条amount10/profit0；BP与赛果各自官方开始信号拒绝缓存旧状态并回读锁定；完成后命中、取消后作废、本人历史保留；净收益/命中次数/命中率三排序同表三列。
 
 缓存拒绝阶段仅暂停浏览器轮询时钟，让旧视图可重复复现；服务器Action和PG时钟保持真实。导航前恢复浏览器时钟。截图前等提交完成并回到页顶，只隐藏开发工具和短暂toast。
 

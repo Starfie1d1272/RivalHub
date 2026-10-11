@@ -8,7 +8,7 @@ import { createPredictionBrowserFixture, removePredictionBrowserFixture } from "
 import { assertLocalDatabaseUrl } from "../../../scripts/db/local-environment";
 import * as schema from "@/db/schema";
 
-test.use({ scenarioProfile: "auth" });
+test.use({ scenarioProfile: "auth", actionTimeout: 15000 });
 test.setTimeout(180000);
 
 // Domain/PG tests own scoring, serialization and pool conservation. This browser
@@ -80,10 +80,10 @@ test("免费预测独立于BET，零余额可改选，BP与赛果消费各自官
       await expect(claim).toBeEnabled();
       expect((await db.select().from(schema.betLedger).where(eq(schema.betLedger.seasonId, fixture.seasonId))).filter(row => row.kind === "relief")).toHaveLength(0);
       await claim.click();
-      await expect(page.getByText("今日已领低保", { exact: true })).toBeVisible();
+      await expect(page.getByText("今日已领低保", { exact: true }).filter({ visible: true })).toBeVisible();
       await expect(claim).toHaveCount(0);
       await page.reload();
-      await expect(page.getByText("今日已领低保", { exact: true })).toBeVisible();
+      await expect(page.getByText("今日已领低保", { exact: true }).filter({ visible: true })).toBeVisible();
       const grants = (await db.select().from(schema.betLedger).where(eq(schema.betLedger.seasonId, fixture.seasonId))).filter(row => row.kind === "relief");
       expect(grants).toHaveLength(1); expect(grants[0]!.amount).toBe(BigInt(10)); expect(grants[0]!.profit).toBe(BigInt(0));
     }
@@ -96,11 +96,13 @@ test("免费预测独立于BET，零余额可改选，BP与赛果消费各自官
     await bp.locator("button[aria-pressed]").last().click();
     await bp.getByRole("button", { name: "更新预测", exact: true }).click();
     await expect(bp.getByRole("alert")).toBeVisible();
+    await expect(bp.getByText("已锁定", { exact: true })).toBeVisible();
     await expect(bp.locator("button[aria-pressed]").first()).toBeDisabled();
     await expect(choices.first()).toBeEnabled();
     await db.update(schema.matches).set({ gameplayStartedAt: new Date() }).where(eq(schema.matches.id, match!.id));
     await choices.last().click(); await free.getByRole("button", { name: "更新预测", exact: true }).click();
     await expect(free.getByRole("alert")).toBeVisible();
+    await expect(free.getByText("已锁定", { exact: true })).toBeVisible();
     await expect(choices.first()).toBeDisabled();
     await page.clock.resume();
     await page.reload(); await expect(choices.first()).toBeDisabled();
