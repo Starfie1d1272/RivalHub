@@ -1,7 +1,7 @@
 import React from "react";
 import userEvent from "@testing-library/user-event";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { StatsOCRPanel } from "@/components/matches/StatsOCRPanel";
 
 const actions = vi.hoisted(() => ({ getPlayerStatsByMap: vi.fn(), getMatchPlayerOptions: vi.fn(), savePlayerStats: vi.fn(), deletePlayerStatsByMap: vi.fn(), extractStatsFromScreenshot: vi.fn() }));
@@ -11,6 +11,8 @@ vi.mock("@/actions/player-stats", () => actions);
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 const row = { userId: "user", perfectName: "Demo Player", gameplayLocked: true, kills: 20, deaths: 10, assists: 5, hsPercent: 50, firstKills: 2, multiKills: 1, clutches: 0, adr: 80, ratingPro: 1.2, rws: 7, we: 8 };
+
+beforeAll(() => Object.assign(window.HTMLElement.prototype, { hasPointerCapture: () => false, releasePointerCapture: () => {}, scrollIntoView: () => {} }));
 
 describe("operator scoreboard editing", () => {
   beforeEach(() => {
@@ -51,6 +53,33 @@ describe("operator scoreboard editing", () => {
     fireEvent.click(await screen.findByRole("button", { name: /清除/ }));
     fireEvent.click(await screen.findByRole("button", { name: "确认" }));
     await waitFor(() => expect(refresh).toHaveBeenCalledOnce());
+  });
+
+  it("merges three unresolved screenshot rows into occupied Demo players and discards cancelled edits", async () => {
+    const user = userEvent.setup();
+    const saved = Array.from({ length: 10 }, (_, i) => ({ ...row, userId: `u${i}`, perfectName: `队伍很长的名称 选手${i}`, ratingPro: null, rws: null, we: null }));
+    const options = saved.map(p => ({ userId: p.userId, perfectName: p.perfectName }));
+    actions.getPlayerStatsByMap.mockResolvedValue(saved);
+    actions.getMatchPlayerOptions.mockResolvedValue(options);
+    actions.extractStatsFromScreenshot.mockResolvedValue({ success: true, data: { playerOptions: options, drafts: saved.map((p, i) => ({ ...p, gameplayLocked: undefined, userId: i < 7 ? p.userId : null, perfectName: `截图选手${i}`, ratingPro: 1.5, rws: 12, we: 9, kills: 999 })) } });
+    render(<StatsOCRPanel mapId="map" mapName="Nuke" />);
+    expect(await screen.findByRole("button", { name: "补传计分板截图" })).toBeEnabled();
+    await user.upload(screen.getByLabelText("记分板截图"), new File(["image"], "截图.png", { type: "image/png" }));
+    await user.click(screen.getByRole("button", { name: "OCR 识别截图" }));
+    expect(await screen.findAllByRole("combobox")).toHaveLength(13);
+    for (let i = 7; i < 10; i++) {
+      await user.click(screen.getAllByRole("combobox")[7]!);
+      await user.click(await screen.findByRole("option", { name: new RegExp(`选手${i}（合并截图指标）`) }));
+    }
+    expect(screen.getAllByRole("combobox")).toHaveLength(10);
+    expect(screen.getByRole("button", { name: "确认保存" })).toBeEnabled();
+    expect(screen.getByLabelText(`${saved[7]!.perfectName} K`)).toHaveValue(20);
+    expect(screen.getByLabelText(`${saved[7]!.perfectName} Rating`)).toHaveValue(1.5);
+    await user.click(screen.getByRole("button", { name: "取消" }));
+    expect(actions.savePlayerStats).not.toHaveBeenCalled();
+    expect(actions.deletePlayerStatsByMap).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "重新录入" }));
+    expect(screen.getByLabelText(`${saved[7]!.perfectName} Rating`)).toHaveValue(null);
   });
 });
 
