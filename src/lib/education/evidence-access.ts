@@ -7,6 +7,7 @@ import { educationVerifications } from "@/db/schema";
 import { requireSuperAdmin } from "@/lib/auth/session";
 import { educationEvidenceStorage } from "@/lib/education/storage";
 import { AppError, ErrorCode } from "@/lib/errors";
+import { isEducationEvidenceExpired } from "./retention-policy";
 
 /** Resolve a short-lived URL for a super-admin to review a live manual evidence object. */
 export async function getManualEducationEvidenceSignedUrl(input: unknown): Promise<string> {
@@ -16,11 +17,14 @@ export async function getManualEducationEvidenceSignedUrl(input: unknown): Promi
   await requireSuperAdmin();
   const verification = await db.query.educationVerifications.findFirst({
     where: eq(educationVerifications.id, parsed.data.id),
-    columns: { evidenceType: true, evidenceObjectKey: true },
+    columns: { evidenceType: true, evidenceObjectKey: true, status: true, reviewedAt: true },
   });
   if (!verification) throw new AppError(ErrorCode.NOT_FOUND, "教育认证记录不存在。 ");
   if (verification.evidenceType !== "manual_other" || !verification.evidenceObjectKey) {
     throw new AppError(ErrorCode.VALIDATION_FAILED, "录取通知书材料当前不可查看。 ");
+  }
+  if (isEducationEvidenceExpired(verification)) {
+    throw new AppError(ErrorCode.VALIDATION_FAILED, "教育材料已过保留期，不能再查看；审核结论仍保留。如需核对认证结果，请查看教育认证记录。");
   }
   return educationEvidenceStorage.createSignedUrl(verification.evidenceObjectKey);
 }

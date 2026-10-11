@@ -1,4 +1,4 @@
-import { EDUCATION_EVIDENCE_RETENTION_MS } from "./retention-policy";
+import { educationEvidenceReviewCutoff } from "./retention-policy";
 
 interface ExpiredManualEducationEvidence {
   id: string;
@@ -21,7 +21,7 @@ export async function purgeExpiredEducationEvidence(
   store: EducationRetentionStore,
   now = new Date(),
 ): Promise<number> {
-  const reviewedBefore = new Date(now.getTime() - EDUCATION_EVIDENCE_RETENTION_MS);
+  const reviewedBefore = educationEvidenceReviewCutoff(now);
   const manualRows = await store.findExpiredManualEvidence(reviewedBefore);
 
   let manualCleared = 0;

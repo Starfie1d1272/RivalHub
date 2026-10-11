@@ -277,7 +277,7 @@ describe("identity flow UI", () => {
   it("shows cleared CHSI evidence as a retention-policy state", () => {
     render(<EducationVerificationReviewQueue emptyState="no-results" rows={[{ id: "22222222-2222-4222-8222-222222222222", userId: "player-3", email: "player@example.test", displayName: null, institution: "南京大学", code: "4132010284", academicStatus: "graduated", evidenceLabel: "学信网学历材料", chsiEvidenceCode: null, manualEvidenceAvailable: false, status: "approved", submittedAt: new Date().toISOString(), reviewNote: null }]} />);
 
-    expect(screen.getByText("在线验证码：已按保留策略清理")).toBeInTheDocument();
+    expect(screen.getByText("在线验证码：已过保留期或已清理")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "复制验证码" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /在学信网核验/ })).not.toBeInTheDocument();
   });
@@ -295,7 +295,7 @@ describe("identity flow UI", () => {
   it("shows cleared manual evidence as a retention-policy state", () => {
     render(<EducationVerificationReviewQueue emptyState="no-results" rows={[{ id: "44444444-4444-4444-8444-444444444444", userId: "player-5", email: "player@example.test", displayName: null, institution: "南京大学", code: "4132010284", academicStatus: "enrolled", evidenceLabel: "录取通知书材料", chsiEvidenceCode: null, manualEvidenceAvailable: false, status: "approved", submittedAt: new Date().toISOString(), reviewNote: null }]} />);
 
-    expect(screen.getByText("录取通知书材料：已按保留策略清理")).toBeInTheDocument();
+    expect(screen.getByText("录取通知书材料：已过保留期或已清理")).toBeInTheDocument();
   });
 
   it("distinguishes empty history, default pending, and active-filter states", () => {
