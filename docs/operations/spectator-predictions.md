@@ -39,4 +39,8 @@ BO1 不生成重复的单图胜者；总回合仍独立开放。BO3/BO5 的单�
 
 验证入口为 `tests/integration/db/bet.test.ts` 与 `tests/e2e/flows/bet.spec.ts`，只使用隔离本地数据库与真实浏览器登录。
 
-BET catalog 的 reader-first 发布门禁由 Release Plan 消费 candidate 与 frozen previous Production commit 的 `src/lib/bet/catalog-contract.json`。新增 subject 的 publisher version 不得超过 previous Production reader version；必须先独立发布兼容读取版本，再启用新 subject，不能把两阶段合并为一次发布。兼容 v1 publisher 遇到同图序的新池时不重复开池；它与新 worker 复用同一金融结算 owner。
+BET catalog 的 reader-first 发布门禁由 Release Plan 消费 candidate 与 frozen previous Production commit 的 `src/lib/bet/catalog-contract.json`。新增 subject 的 publisher version 不得超过 previous Production reader version；必须先独立发布兼容读取版本，再启用新 subject，不能把两阶段合并为一次发布。兼容 v1 publisher 遇到同图序的新池时不重复开池；兼容 v2 publisher 遇到相同官方 subject 的 BO3 `veto_present` 时不补开首图/决胜图池。它们与新 worker 复用同一金融结算 owner。
+
+BO3 三图积分市场的兼容 reader 支持 `veto_present`：冻结七张不同地图的 match subject，每账户选择一张；完整合法 BP 的三张无序地图全部作为中奖选项，不依赖第三图实际进行。BP 未完成、结果集合缺失/重复/不在冻结地图池或有待处理申诉时保持 pending；取消、弃权或 subject 更正沿现有规则退款。结果更正追加 reversal/settlement，已锁盘不重开；仅地图顺序变化不改变中奖集合。选项支持率仍以该选项投入 / 全池投入计算，三张中奖图不会各分一个奖池。
+
+此 reader 使用独立的 `capabilities.bo3BpPresence` 声明 reader1/publisher0；全局 reader/publisher 与目录 generation 保持不变，不创建 `veto_present`。缺失能力声明的旧版本视为 0/0；Release Plan 对每个能力单独验证 frozen previous Production reader 与 candidate publisher，并禁止回退到不兼容 reader。低保等其他功能推进全局 publisher 不会授权 BO3 创建；后续 BO3 publisher 必须只读取专属开关，不能使用全局 `>=3`。后续 publisher 必须另行交付并在 BO3 reader1 已正式上线后发布：只对未来尚无 BP 市场的合法 BO3 窗口生成新类型；任何已创建的旧首图/决胜图池（即使无人投入、已锁或已结算）保留条款与入口，不转换、不补重复三图池。BO5 保持图序市场。新的 publisher 需推进 BO3 专属 publisher 至1并独立推进目录 generation，并通过追加 migration 同步 `scheduler_job_is_due` 的 BET 版本门槛，验证旧 worker 消费 dirty 后的恢复；按 Release Plan 完成 PG17 rehearsal、N/N+1 兼容与条件 checkpoint。页面的所选选项独胜收益估算不能直接用于三赢家市场，须在 publisher 启用前由展示 owner 完成对应验收；不能将两次发布合并。
