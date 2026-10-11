@@ -44,7 +44,8 @@ export function createLiveViewerSubscriptions(environment: ViewerEnvironment) {
   };
 }
 
-// Browser module memory only. No JWT/snapshot in localStorage, RSC or a server cache.
+// Browser module memory only. The separate, verified previous-view store never
+// restores a JWT, Auth identity or live watermark into this receiver.
 // All consumers receive the same anonymous, single-match public projection; this
 // client never holds a signed-in user's Supabase Auth identity or operator data.
 let browserSubscriptions: ReturnType<typeof createLiveViewerSubscriptions> | undefined;
