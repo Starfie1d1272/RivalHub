@@ -29,12 +29,18 @@ export async function mutatePassword(
       throw new PasswordMutationError("unknown", result.error);
     }
   }
-  await db.transaction(async (tx) => {
-    await finishPasswordMutationInTx(tx, userId, mutationId);
-    await writeAuditInTx(tx, {
-      seasonId: null, action: result.error ? "user.password_update_failed" : action,
-      actorId: userId, targetId: userId,
+  try {
+    await db.transaction(async (tx) => {
+      await finishPasswordMutationInTx(tx, userId, mutationId);
+      await writeAuditInTx(tx, {
+        seasonId: null, action: result.error ? "user.password_update_failed" : action,
+        actorId: userId, targetId: userId,
+      });
     });
-  });
+  } catch (cause) {
+    // A rollback keeps the fence; a lost COMMIT acknowledgement is ambiguous.
+    // Never retry Auth, clear the fence, or report the known provider result as unknown.
+    throw new PasswordMutationError("finalization_unknown", cause, result.error ? "rejected" : "succeeded");
+  }
   if (result.error) throw new PasswordMutationError("rejected", result.error);
 }

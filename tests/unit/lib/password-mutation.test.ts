@@ -46,6 +46,20 @@ describe("password provider / registry coordination", () => {
     await expect(mutatePassword("user", "proof", "user.change_password", async () => { throw cause; })).rejects.toMatchObject({ cause });
     expect(finish).not.toHaveBeenCalled();
   });
+  // A final DB error must preserve the known provider result and DB cause,
+  // rather than generic refresh/retry advice. PG owns actual rollback evidence.
+  it.each([null, { status: 422 }])("retains finalization cause after provider result %j", async (error) => {
+    const cause = Object.assign(new Error("private-query-body"), { code: "40001" });
+    transaction.mockImplementationOnce(async (callback: (tx: unknown) => unknown) => callback("tx"));
+    transaction.mockRejectedValueOnce(cause);
+    const update = vi.fn(async () => ({ error }));
+    await expect(mutatePassword("user", "proof", "user.reset_password", update)).rejects.toMatchObject({
+      outcome: "finalization_unknown", providerOutcome: error ? "rejected" : "succeeded", cause,
+      code: "PASSWORD_UPDATE_OUTCOME_UNKNOWN",
+    });
+    expect(update).toHaveBeenCalledOnce();
+    expect(passwordFailureCause(cause)).toEqual({ name: "Error", code: "40001" });
+  });
   it("projects nested transport causes without provider body or executable getters", () => {
     const cause = Object.assign(new Error("raw credential body"), { code: "ETIMEDOUT" });
     const outer = new PasswordMutationError("unknown", new TypeError("raw token", { cause }));

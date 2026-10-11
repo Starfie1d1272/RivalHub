@@ -25,9 +25,9 @@ export function actionError(scope: string, e: unknown, phase = "action"): Action
     captureException("auth.password_update.failure", {
       name: "PasswordMutationError", code: e.code, cause: passwordFailureCause(e.cause),
     }, {
-      scope: "provider", operation: scope, errorClass: e.outcome === "unknown" ? "dependency" : "expected", errorCode: e.code,
+      scope: e.outcome === "finalization_unknown" ? "database" : "provider", operation: scope, errorClass: e.outcome === "finalization_unknown" ? "database" : e.outcome === "unknown" ? "dependency" : "expected", errorCode: e.code,
       retryable: e.outcome === "rejected", requestId,
-      safeContext: { provider: "supabase-auth", outcome: e.outcome, phase, httpStatus: passwordFailureStatus(e.cause) },
+      safeContext: { provider: "supabase-auth", outcome: e.outcome, stage: e.providerOutcome, phase: e.outcome === "finalization_unknown" ? "finalize" : phase, httpStatus: passwordFailureStatus(e.cause) },
     });
     return fail({ code: e.code, requestId, message: `${e.message}排查编号：${requestId}` });
   }

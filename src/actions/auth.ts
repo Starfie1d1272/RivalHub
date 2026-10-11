@@ -22,7 +22,7 @@ import {
 } from "@/lib/auth/session";
 import { claimAdminInviteInTx } from "@/lib/auth/admin-invites";
 import { providerFetch } from "@/lib/observability/fetch";
-import { ensureRequestId } from "@/lib/observability/context";
+import { signInFailure, authErrorCode, authServerFailure, isAuthServerFailure } from "@/lib/auth/sign-in-error";
 import { captureException, logEvent, traceOperation } from "@/lib/observability/server";
 
 export async function loginWithPassword(
@@ -46,22 +46,7 @@ export async function loginWithPassword(
       provider: "supabase-auth",
     }, () => supabase.auth.signInWithPassword({ email: normalizedEmail, password }));
 
-    if (error) {
-      if (isAuthServerFailure(error.status)) return authServerFailure("auth.sign_in", error.status);
-      if (error.status === 429 || authErrorCode(error) === "over_request_rate_limit") {
-        return loginProviderFailure(error.status, true);
-      }
-      if (authErrorCode(error) === "email_not_confirmed") {
-        return fail({
-          code: ErrorCode.EMAIL_NOT_CONFIRMED,
-          message: "邮箱尚未验证，请先完成邮箱验证；若未收到邮件，请检查垃圾邮件或重新发送。",
-        });
-      }
-      if (authErrorCode(error) === "invalid_credentials") {
-        return fail({ code: ErrorCode.UNAUTHORIZED, message: "邮箱或密码错误" });
-      }
-      return loginProviderFailure(error.status, false);
-    }
+    if (error) return signInFailure(error, "auth.sign_in");
 
     const userRow = await db.transaction(async (tx) => {
       const canonicalUser = await resolveOrCreateCanonicalUserInTx(tx, {
@@ -269,45 +254,6 @@ export async function sendPasswordResetEmail(email: string): Promise<ActionResul
   } catch (e) {
     return actionError("sendPasswordResetEmail", e);
   }
-}
-
-function isAuthServerFailure(status: unknown): status is number {
-  return typeof status === "number" && Number.isInteger(status) && status >= 500 && status <= 599;
-}
-
-function loginProviderFailure(status: unknown, rateLimited: boolean): ActionResult<never> {
-  const requestId = ensureRequestId();
-  logEvent({
-    level: rateLimited ? "info" : "error",
-    event: rateLimited ? "auth.provider.rate_limited" : "auth.provider.login_unavailable",
-    scope: "provider", operation: "auth.sign_in",
-    errorClass: rateLimited ? "expected" : "dependency", retryable: true, requestId,
-    safeContext: { provider: "supabase-auth", ...(typeof status === "number" && Number.isInteger(status) && status >= 0 && status <= 599 ? { httpStatus: status } : {}) },
-  });
-  const message = rateLimited
-    ? "登录请求过于频繁，请等待几分钟后再试；如仍有问题，请联系平台管理员。"
-    : "暂时无法完成账号验证，请稍后重试；如仍有问题，请联系平台管理员。";
-  return fail({ code: ErrorCode.INTERNAL_ERROR, requestId, message: `${message}排查编号：${requestId}` });
-}
-
-/** SDK-returned 5xx are dependency failures, never proof of invalid identity. */
-function authServerFailure(operation: "auth.sign_in" | "auth.sign_up", status: number): ActionResult<never> {
-  const requestId = ensureRequestId();
-  // Preserve authoritative HTTP status, not the provider body that may echo PII.
-  logEvent({
-    level: "error", event: "auth.provider.server_failure", scope: "provider", operation,
-    errorClass: "dependency", errorCode: "AUTH_PROVIDER_SERVER_ERROR", retryable: true, requestId,
-    safeContext: { provider: "supabase-auth", httpStatus: status },
-  });
-  const message = operation === "auth.sign_up"
-    ? "账号服务暂时不可用，注册结果无法确认，请先检查验证邮件；如未收到，请稍后重试或联系管理员。"
-    : "账号服务暂时不可用，请稍后重试；如仍有问题，请联系管理员。";
-  return fail({ code: ErrorCode.INTERNAL_ERROR, requestId, message: `${message}排查编号：${requestId}` });
-}
-
-function authErrorCode(error: unknown): string | null {
-  if (typeof error !== "object" || error === null || !("code" in error)) return null;
-  return typeof error.code === "string" ? error.code : null;
 }
 
 function emailSendFailure(error: unknown, emailKind: "验证邮件" | "重置邮件"): ActionResult<never> {

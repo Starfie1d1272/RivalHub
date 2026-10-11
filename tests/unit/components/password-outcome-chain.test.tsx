@@ -31,6 +31,7 @@ vi.mock("next/cache", () => ({ revalidatePath: vi.fn(), updateTag: vi.fn() }));
 vi.mock("sonner", () => ({ toast: { error: mocks.toastError, success: mocks.toastSuccess } }));
 import { ResetPasswordForm } from "@/components/auth/ResetPasswordForm";
 import { ChangePasswordForm } from "@/components/settings/ChangePasswordForm";
+import { PasswordMutationError } from "@/lib/auth/password-error";
 import { LoginForm } from "@/components/auth/LoginForm";
 
 beforeEach(() => {
@@ -70,6 +71,38 @@ describe("password unknown outcome reaches the real UI", () => {
     expect(mocks.createSession).not.toHaveBeenCalled();
     await user.click(submit);
     expect(mocks.signIn).toHaveBeenCalledTimes(2);
+    write.mockRestore();
+  });
+  // Protect actionError -> form guidance and disabled resubmission for final
+  // DB failures; unit/PG tests own classification and durable state matrices.
+  it.each(["reset", "change", "reload"])("%s retains finalization/pending guidance", async (flow) => {
+    const write = vi.spyOn(flow === "reload" ? process.stdout : process.stderr, "write").mockReturnValue(true);
+    mocks.update.mockResolvedValue({ error: null });
+    if (flow === "reload") mocks.begin.mockRejectedValueOnce(new PasswordMutationError("pending", undefined));
+    else mocks.finish.mockRejectedValueOnce(Object.assign(new Error("raw-private-body Recovered-Password7!"), { code: "40001" }));
+    const user = userEvent.setup();
+    render(flow === "change" ? <ChangePasswordForm /> : <ResetPasswordForm />);
+    if (flow === "change") await user.type(screen.getByLabelText("原密码"), "Original-Password8!");
+    await user.type(screen.getByLabelText("新密码"), "Recovered-Password7!");
+    await user.type(screen.getByLabelText("确认新密码"), "Recovered-Password7!");
+    const submit = screen.getByRole("button", { name: flow === "change" ? "更新密码" : "设置新密码" });
+    await user.click(submit);
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(flow === "reload" ? "此前密码操作仍待核查" : "账号服务已确认密码更新成功");
+    expect(alert).toHaveTextContent("停止提交");
+    expect(alert).toHaveTextContent("平台管理员");
+    expect(alert).not.toHaveTextContent("刷新确认操作结果");
+    expect(submit).toBeDisabled();
+    await user.click(submit);
+    expect(mocks.update).toHaveBeenCalledTimes(flow === "reload" ? 0 : 1);
+    expect(mocks.destroy).not.toHaveBeenCalled();
+    expect(mocks.toastSuccess).not.toHaveBeenCalled();
+    expect(mocks.replace).not.toHaveBeenCalled();
+    const log = JSON.parse(String(write.mock.calls[0][0]));
+    expect(log).toMatchObject({ retryable: false, safeContext: { outcome: flow === "reload" ? "pending" : "finalization_unknown" } });
+    if (flow !== "reload") expect(log).toMatchObject({ errorClass: "database", safeContext: { phase: "finalize", stage: "succeeded" }, exception: { code: "40001" } });
+    expect(alert).toHaveTextContent(log.requestId);
+    expect(JSON.stringify([log, alert.textContent])).not.toMatch(/raw-private-body|Recovered-Password7!/);
     write.mockRestore();
   });
   it.each(["reset", "change"])("%s preserves admin guidance, correlation and the pending fence", async (flow) => {
