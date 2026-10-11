@@ -158,7 +158,7 @@ describe("Mizar self-revoke / disconnect endpoint and lifecycle", () => {
         expect.anything(),
         expect.objectContaining({
           action: "mizar.installation.revoke",
-          actorId: installationId,
+          actorId: `mizar:${installationId}`,
           targetId: installationId,
           seasonId: competitionId,
         }),
