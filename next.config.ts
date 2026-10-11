@@ -35,6 +35,14 @@ const nextConfig: NextConfig = {
     tsconfigPath: "tsconfig.app.json",
   },
   experimental: {
+    // Canonical CI uses disposable runners without a compiler-cache restore.
+    // Keep Next's defaults for developers and the protected release build.
+    ...(process.env.RIVALHUB_EPHEMERAL_COMPILER === "1"
+      ? {
+          turbopackFileSystemCacheForDev: false,
+          turbopackFileSystemCacheForBuild: false,
+        }
+      : {}),
     serverActions: {
       bodySizeLimit: "10mb",
     },
