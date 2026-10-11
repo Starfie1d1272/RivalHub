@@ -1,4 +1,5 @@
 import React from "react";
+import { safeErrorDigest } from "@/lib/observability/error-digest";
 import { Button } from "@/components/ui/button";
 
 interface ErrorStateProps {
@@ -6,6 +7,8 @@ interface ErrorStateProps {
   title?: string;
   sub?: string;
   onRetry?: () => void;
+  retryLabel?: string;
+  errorDigest?: string;
 }
 
 export function ErrorState({
@@ -13,7 +16,10 @@ export function ErrorState({
   title = "出错了",
   sub,
   onRetry,
+  retryLabel = "重试",
+  errorDigest,
 }: ErrorStateProps) {
+  const diagnosticId = safeErrorDigest(errorDigest);
   return (
     <div className="py-10 px-6 text-center">
       <div
@@ -45,10 +51,15 @@ export function ErrorState({
           {sub}
         </p>
       )}
+      {diagnosticId && (
+        <p className="mt-3 break-all text-sm text-[var(--color-fg-secondary)]">
+          排查编号：<code>{diagnosticId}</code>
+        </p>
+      )}
       {onRetry && (
         <div className="mt-4.5 flex justify-center gap-2">
           <Button type="button" onClick={onRetry}>
-            ↻ 重试
+            ↻ {retryLabel}
           </Button>
         </div>
       )}

@@ -1,5 +1,25 @@
 "use client";
-import { PageLayout } from "@/components/rivalhub";
-export default function StatsError({ reset }: { reset: () => void }) {
-  return <PageLayout variant="wide" role="alert" className="space-y-3"><p>请重试加载统计数据。</p><button type="button" onClick={reset} className="underline">重试</button></PageLayout>;
+
+import { ErrorState } from "@/components/rivalhub/ErrorState";
+import { PageLayout } from "@/components/rivalhub/Layout";
+import { extractErrorDigest } from "@/lib/observability/error-digest";
+
+export default function StatsError({
+  error,
+  reset,
+}: {
+  error: Error & { digest?: string };
+  reset: () => void;
+}) {
+  return (
+    <PageLayout variant="wide" role="alert">
+      <ErrorState
+        title="加载统计数据失败"
+        sub="请重新加载页面。若刚提交过操作，请先确认操作结果，再决定是否重新提交；仍无法加载时，请向管理员提供页面地址、出错时间和排查编号（如有）。"
+        errorDigest={extractErrorDigest(error)}
+        onRetry={reset}
+        retryLabel="重新加载"
+      />
+    </PageLayout>
+  );
 }
