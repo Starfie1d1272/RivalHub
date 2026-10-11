@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { resolve } from "node:path";
 import { Client, type PoolClient } from "pg";
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray, ne, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { buildTournamentAnalytics, buildTournamentPerformanceAnalytics } from "@cs2dak/tournament";
 import { describe, expect, it, vi } from "vitest";
@@ -19,7 +19,7 @@ import type { RivalHubEvidenceSubmission } from "../../../src/lib/demo-integrati
 import { lockDemoImportLineageInTx } from "../../../src/lib/demo-integration/promotion";
 import { revalidateSeasonNeedsAttentionImports, revalidateStoredDemoImportInTx } from "../../../src/lib/demo-integration/revalidation";
 import { readRivalHubEvents } from "../../../src/lib/demo-integration/read";
-import { buildEvidenceRevision, sha256Json } from "../../../src/lib/demo-integration/revision";
+import { buildEvidenceRevision, buildEvidenceRevisionForTarget, sha256Json } from "../../../src/lib/demo-integration/revision";
 import {
   confirmStoredDemoParticipantIdentityInTx,
   GAMEPLAY_STEAM_CONFLICT_MESSAGE,
@@ -103,6 +103,11 @@ describe("DAK evidence submit persistence", () => {
       eventRosterB: randomUUID(),
       match: randomUUID(),
       map: randomUUID(),
+      mixedMatch: randomUUID(),
+      mixedRosterA: randomUUID(),
+      mixedRosterB: randomUUID(),
+      mixedMap: randomUUID(),
+      mixedImport: randomUUID(),
       rosterA: randomUUID(),
       rosterB: randomUUID(),
       pairingIntent: randomUUID(),
@@ -1054,7 +1059,7 @@ describe("DAK evidence submit persistence", () => {
         stats: await database.select().from(schema.matchPlayerStats).where(eq(schema.matchPlayerStats.mapId, ids.map)).orderBy(schema.matchPlayerStats.id),
         projections: await database.select().from(schema.matchDemoStatProjections).innerJoin(schema.matchDemoImports, eq(schema.matchDemoStatProjections.importId, schema.matchDemoImports.id)).where(eq(schema.matchDemoImports.matchMapId, ids.map)).orderBy(schema.matchDemoStatProjections.importId),
         identities: await database.select().from(schema.userGameplaySteamIds).where(inArray(schema.userGameplaySteamIds.userId, userIds)).orderBy(schema.userGameplaySteamIds.id),
-        audits: await database.select().from(schema.auditLogs).where(eq(schema.auditLogs.seasonId, ids.season)).orderBy(schema.auditLogs.id),
+        audits: await database.select().from(schema.auditLogs).where(and(eq(schema.auditLogs.seasonId, ids.season), ne(schema.auditLogs.targetId, ids.mixedImport))).orderBy(schema.auditLogs.id),
         matches: await database.select().from(schema.matches).where(eq(schema.matches.id, ids.match)),
         maps: await database.select().from(schema.matchMaps).where(eq(schema.matchMaps.id, ids.map)),
       });
@@ -1105,14 +1110,60 @@ describe("DAK evidence submit persistence", () => {
         expect((await readReview()).participants[0]?.state).toBe("confirmable");
       }
 
+      // Same invocation: a newer, valid map confirms before the existing
+      // pending map fails. Seed stored evidence, not a mocked owner result.
+      await database.insert(schema.matches).values({ id: ids.mixedMatch, seasonId: ids.season,
+        entryAId: ids.entryA, entryBId: ids.entryB, stage: "fixture-stage", format: "bo1",
+        scoreA: 1, scoreB: 0, status: "finished", completedAt: now });
+      await database.insert(schema.matchRosters).values([
+        { id: ids.mixedRosterA, matchId: ids.mixedMatch, entryId: ids.entryA, source: "admin_select", status: "submitted" },
+        { id: ids.mixedRosterB, matchId: ids.mixedMatch, entryId: ids.entryB, source: "admin_select", status: "submitted" },
+      ]);
+      await database.insert(schema.matchRosterPlayers).values(eventMemberIds.map((eventRosterMemberId, index) => ({
+        rosterId: index < 5 ? ids.mixedRosterA : ids.mixedRosterB, eventRosterMemberId, isStarter: true,
+      })));
+      await database.insert(schema.matchMaps).values({ id: ids.mixedMap, matchId: ids.mixedMatch,
+        mapOrder: 1, mapName: "de_ancient", scoreA: 13, scoreB: 9, completedAt: now });
+      const mixedTarget = await database.transaction(tx => loadCanonicalTarget(tx, {
+        seasonId: ids.season, matchId: ids.mixedMatch, matchMapId: ids.mixedMap,
+      }));
+      const mixedEvidence = structuredClone(evidenceNPlusOne);
+      mixedEvidence.target = { ...mixedEvidence.target, matchId: ids.mixedMatch, matchMapId: ids.mixedMap,
+        evidenceRevision: buildEvidenceRevisionForTarget(mixedTarget) };
+      await database.insert(schema.matchDemoImports).values({
+        id: ids.mixedImport, seasonId: ids.season, matchId: ids.mixedMatch, matchMapId: ids.mixedMap,
+        stageKey: mixedEvidence.target.stageKey, stageRunId: mixedEvidence.target.stageRunId ?? null,
+        demoSha256: mixedEvidence.source.demoSha256, payloadSha256: sha256Json(mixedEvidence),
+        contractVersion: mixedEvidence.contract.contractVersion, semanticProfile: mixedEvidence.contract.semanticProfile,
+        analysisVersion: mixedEvidence.contract.analysisVersion, evidenceRevision: mixedEvidence.target.evidenceRevision,
+        status: "needs_attention", payload: mixedEvidence, submittedByPairingId: ids.pairing,
+        idempotencyKey: "dak-mixed-batch-success", issues: [], createdAt: new Date(Date.now() + 1_000),
+      });
+      const mixedSuccessSnapshot = async () => ({
+        imports: await database.select().from(schema.matchDemoImports).where(eq(schema.matchDemoImports.id, ids.mixedImport)),
+        rounds: await database.select().from(schema.matchRoundFacts).where(eq(schema.matchRoundFacts.importId, ids.mixedImport)).orderBy(schema.matchRoundFacts.roundSeq),
+        stats: await database.select().from(schema.matchPlayerStats).where(eq(schema.matchPlayerStats.mapId, ids.mixedMap)).orderBy(schema.matchPlayerStats.id),
+        projections: await database.select().from(schema.matchDemoStatProjections).where(eq(schema.matchDemoStatProjections.importId, ids.mixedImport)).orderBy(schema.matchDemoStatProjections.projectionVersion),
+        audits: await database.select().from(schema.auditLogs).where(eq(schema.auditLogs.targetId, ids.mixedImport)).orderBy(schema.auditLogs.id),
+      });
+      const beforeMixedSuccess = await mixedSuccessSnapshot();
+      expect(beforeMixedSuccess.imports[0]?.status).toBe("needs_attention");
+      expect(beforeMixedSuccess.rounds).toHaveLength(0);
+      expect(beforeMixedSuccess.projections).toHaveLength(0);
+
       // Exercise the real fanout owner and its independent transaction, using
       // the provider driver shared by its pool (not a mocked transaction result).
       const originalPoolQuery = Client.prototype.query;
       const batchWrite = vi.spyOn(process.stderr, "write").mockReturnValue(true);
       let batchInjected = false;
+      const batchTargetReads: string[] = [];
       const batchQuery = vi.spyOn(Client.prototype, "query").mockImplementation(function (this: Client, ...args: unknown[]) {
         const query = args[0] as { text?: string; values?: unknown[] };
         const bindings = query?.values ?? args[1];
+        if (query?.text?.includes('from "match_maps"') && Array.isArray(bindings)) {
+          if (bindings.includes(ids.mixedMap)) batchTargetReads.push(ids.mixedMap);
+          if (bindings.includes(ids.map)) batchTargetReads.push(ids.map);
+        }
         if (query?.text?.includes('from "match_maps"') && Array.isArray(bindings) && bindings.includes(ids.map)) {
           batchInjected = true;
           return Reflect.apply(originalPoolQuery, this, ["SELECT 1 / 0"]);
@@ -1122,15 +1173,44 @@ describe("DAK evidence submit persistence", () => {
       try {
         const batch = await revalidateSeasonNeedsAttentionImports({ seasonId: ids.season, actorId: userIds[0]! });
         expect(batchInjected).toBe(true);
-        expect(batch).toMatchObject({ attempted: 1, confirmed: 0, remaining: 0, failed: 1, affectedMatchIds: [], requestId: expect.any(String) });
+        expect(batchTargetReads[0]).toBe(ids.mixedMap);
+        expect(batchTargetReads).toContain(ids.map);
+        expect(batch).toMatchObject({ attempted: 2, confirmed: 1, remaining: 0, failed: 1, affectedMatchIds: [ids.mixedMatch], requestId: expect.any(String) });
         const event = JSON.parse(String(batchWrite.mock.calls[0][0]));
         expect(event).toMatchObject({ event: "demo.recheck.failure", requestId: batch.requestId, exception: { code: "22012" } });
         expect(JSON.stringify(event)).not.toMatch(/SELECT|payload|token=private/);
       } finally { batchQuery.mockRestore(); batchWrite.mockRestore(); }
       expect(sha256Json(await recheckSnapshot())).toBe(sha256Json(beforeFault));
+      const confirmedMixed = await mixedSuccessSnapshot();
+      expect(confirmedMixed.imports).toHaveLength(1);
+      expect(confirmedMixed.imports[0]).toMatchObject({ status: "confirmed", payload: mixedEvidence,
+        payloadSha256: sha256Json(mixedEvidence), issues: [] });
+      expect(confirmedMixed.rounds).toHaveLength(mixedEvidence.sourceFacts.rounds.length);
+      expect(confirmedMixed.stats).toHaveLength(10);
+      expect(confirmedMixed.stats.every(row => row.dakImportId === ids.mixedImport)).toBe(true);
+      expect(confirmedMixed.projections).toHaveLength(1);
+      expect(confirmedMixed.projections[0]?.identityBindings).toHaveLength(10);
+      expect(confirmedMixed.audits).toHaveLength(1);
+      expect(confirmedMixed.audits[0]?.action).toBe("match.demo.recheck");
       const recoveredBatch = await revalidateSeasonNeedsAttentionImports({ seasonId: ids.season, actorId: userIds[0]! });
       expect(recoveredBatch).toMatchObject({ attempted: 1, confirmed: 0, remaining: 1, failed: 0, affectedMatchIds: [ids.match] });
       expect((await readReview()).participants[0]?.state).toBe("confirmable");
+      // attempted=1 proves that the next real selection excludes the now
+      // confirmed map; all of its committed rows and audit stay byte-identical.
+      expect(sha256Json(await mixedSuccessSnapshot())).toBe(sha256Json(confirmedMixed));
+      await database.transaction(async tx => {
+        // Local fixture teardown only; preserve the original scenario's corpus.
+        await tx.execute(sql`SET LOCAL session_replication_role = replica`);
+        await tx.delete(schema.matchRoundFacts).where(eq(schema.matchRoundFacts.importId, ids.mixedImport));
+        await tx.delete(schema.matchDemoStatProjections).where(eq(schema.matchDemoStatProjections.importId, ids.mixedImport));
+        await tx.delete(schema.matchPlayerStats).where(eq(schema.matchPlayerStats.mapId, ids.mixedMap));
+        await tx.delete(schema.auditLogs).where(eq(schema.auditLogs.targetId, ids.mixedImport));
+        await tx.delete(schema.matchDemoImports).where(eq(schema.matchDemoImports.id, ids.mixedImport));
+        await tx.delete(schema.matchMaps).where(eq(schema.matchMaps.id, ids.mixedMap));
+        await tx.delete(schema.matchRosterPlayers).where(inArray(schema.matchRosterPlayers.rosterId, [ids.mixedRosterA, ids.mixedRosterB]));
+        await tx.delete(schema.matchRosters).where(eq(schema.matchRosters.matchId, ids.mixedMatch));
+        await tx.delete(schema.matches).where(eq(schema.matches.id, ids.mixedMatch));
+      });
 
       // An explicit empty target lookup still becomes a business finding. Run
       // the real SELECT with a false predicate, then roll back this probe only.
@@ -1616,7 +1696,14 @@ describe("DAK evidence submit persistence", () => {
       // triggers, matching the repository's other integration cleanups.
       await client.query("SET LOCAL session_replication_role = replica").catch(() => {});
       // replica disables FK cascades, so remove every projection version before imports.
-      await client.query("DELETE FROM match_demo_stat_projections WHERE import_id IN (SELECT id FROM match_demo_imports WHERE match_map_id = ANY($1::uuid[]))", [[ids.map, ids.careerMap]]).catch(() => {});
+      await client.query("DELETE FROM match_demo_stat_projections WHERE import_id IN (SELECT id FROM match_demo_imports WHERE match_map_id = ANY($1::uuid[]))", [[ids.map, ids.careerMap, ids.mixedMap]]).catch(() => {});
+      await client.query("DELETE FROM match_round_facts WHERE import_id = $1", [ids.mixedImport]).catch(() => {});
+      await client.query("DELETE FROM match_player_stats WHERE map_id = $1", [ids.mixedMap]).catch(() => {});
+      await client.query("DELETE FROM match_demo_imports WHERE id = $1", [ids.mixedImport]).catch(() => {});
+      await client.query("DELETE FROM match_maps WHERE id = $1", [ids.mixedMap]).catch(() => {});
+      await client.query("DELETE FROM match_roster_players WHERE roster_id IN ($1, $2)", [ids.mixedRosterA, ids.mixedRosterB]).catch(() => {});
+      await client.query("DELETE FROM match_rosters WHERE match_id = $1", [ids.mixedMatch]).catch(() => {});
+      await client.query("DELETE FROM matches WHERE id = $1", [ids.mixedMatch]).catch(() => {});
       await client.query("DELETE FROM match_round_facts WHERE import_id IN (SELECT id FROM match_demo_imports WHERE match_map_id = $1)", [ids.map]).catch(() => {});
       await client.query("DELETE FROM match_player_stats WHERE map_id = $1", [ids.map]).catch(() => {});
       await client.query("DELETE FROM match_demo_imports WHERE match_map_id = $1", [ids.map]).catch(() => {});
