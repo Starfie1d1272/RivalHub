@@ -32,10 +32,10 @@ export function freePredictionRestriction(input: {
   if(input.isForfeit) return {code:"forfeit",message:"弃权比赛不计预测成绩"};
   if(input.status === "finished") return {code:"finished",message:"比赛已结束"};
   if(!["playing","drafting"].includes(input.seasonStatus)) return {code:"season_closed",message:"赛事当前不可预测"};
+  if(input.locked) return {code:"started",message:"预测已截止"};
   if(!input.signedIn) return {code:"sign_in",message:"登录后免费预测"};
   if(!input.active) return {code:"account_inactive",message:"账号当前不可使用"};
   if(!input.verified) return {code:"verify_email",message:"请先完成邮箱验证"};
   if(!input.validMapPool) return {code:"invalid_map_pool",message:"官方地图池暂不可用"};
-  if(input.locked) return {code:"started",message:"预测已截止"};
   return null;
 }
