@@ -54,6 +54,8 @@ BETTER_STACK_INGESTING_HOST=<server-only Better Stack OTLP ingest host>
 
 非预期 Server Action 失败返回统一安全提示及可检索的 `requestId`；写入可能已完成，提示先刷新核对结果，避免盲目重试。Mizar HTTP 边界通过 `mizar.request.failure` 记录 auth/read/validate/domain/revalidation 阶段和同一关联编号；预期 4xx 不作为异常告警，非预期失败返回 500，并在安全响应与 `X-Request-Id` 中提供编号。
 
+DAK HTTP 五入口通过 `withIntegrationRequest()` 复用请求 trace、固定路由与 `after()` flush；handled 500 只由 `dak.request.failure` capture 一次，保留原始异常的脱敏 cause/SQLSTATE 与 auth/read/validate/domain/revalidation 阶段。既有 `error.code/message` 协议不增添字段，安全提示及 `X-Request-Id` 使用同一编号；导入后失效失败提示数据可能已保存，先刷新核对导入状态，避免重复上传。预期 401/403/404/422 不产生 exception 告警，成功响应不变。
+
 PostgreSQL 分类必须复用 `src/db/errors.ts` 的 `extractPgError()`。日志只允许 SQLSTATE、constraint/schema/table/column 等分类 metadata，不能读取或输出 raw query、params、detail 或完整 Drizzle error。
 
 ## 脱敏 contract

@@ -15,11 +15,6 @@ vi.mock("@/lib/demo-integration/submit", () => ({ submitRivalHubEvidence: mocks.
 vi.mock("@/lib/demo-integration/pairing", () => ({
   authenticateDakRequest: async () => ({ pairing: { id: "pairing", seasonIds: ["season"] } }),
 }));
-vi.mock("@/lib/demo-integration/http", () => ({
-  integrationJson: (_request: Request, body: unknown) => Response.json(body),
-  integrationError: (_request: Request, error: Error) => Response.json({ error: error.message }, { status: 500 }),
-  integrationOptions: () => new Response(null, { status: 204 }),
-}));
 vi.mock("@/db/client", () => ({
   db: { select: () => ({ from: () => ({ where: async () => [{ slug: "season" }] }) }) },
 }));

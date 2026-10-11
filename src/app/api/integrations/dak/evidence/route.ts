@@ -1,6 +1,6 @@
 import { authenticateDakRequest } from "@/lib/demo-integration/pairing";
 import { submitRivalHubEvidence } from "@/lib/demo-integration/submit";
-import { integrationError, integrationJson, integrationOptions } from "@/lib/demo-integration/http";
+import { withIntegrationRequest, integrationJson, integrationOptions } from "@/lib/demo-integration/http";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { revalidatePublicStatsTag } from "@/lib/revalidation";
 
@@ -11,16 +11,19 @@ export async function OPTIONS(request: Request): Promise<Response> {
 }
 
 export async function POST(request: Request): Promise<Response> {
-  try {
+  return withIntegrationRequest(request, "/api/integrations/dak/evidence", "evidence.submit", async (diagnostics) => {
     const principal = await authenticateDakRequest(request, "demo:submit");
+    diagnostics.phase = "read";
     const body = await request.text();
     if (new TextEncoder().encode(body).byteLength > MAX_BODY_BYTES) throw new AppError(ErrorCode.VALIDATION_FAILED, "Demo Evidence 请求体超过 5 MB 限制。");
+    diagnostics.phase = "validate";
     let input: unknown;
     try {
       input = JSON.parse(body);
     } catch {
       throw new AppError(ErrorCode.VALIDATION_FAILED, "Demo Evidence 必须是 JSON。");
     }
+    diagnostics.phase = "domain";
     const result = await submitRivalHubEvidence({
       input,
       pairingId: principal.pairing.id,
@@ -29,9 +32,8 @@ export async function POST(request: Request): Promise<Response> {
     });
     // A newer needs_attention import also changes which lineage is current and
     // can remove an older confirmed sample from public statistics.
+    diagnostics.phase = "revalidation";
     revalidatePublicStatsTag();
     return integrationJson(request, result);
-  } catch (error) {
-    return integrationError(request, error);
-  }
+  });
 }

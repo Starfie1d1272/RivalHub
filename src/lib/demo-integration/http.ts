@@ -1,4 +1,30 @@
+import "server-only";
+
+import { ensureRequestId } from "@/lib/observability/context";
+import { withRouteObservability } from "@/lib/observability/route";
+import { captureException } from "@/lib/observability/server";
+import { classifyError } from "@/lib/observability/errors";
 import { AppError, ErrorCode, ERROR_MESSAGES } from "@/lib/errors";
+
+type IntegrationPhase = "auth" | "read" | "validate" | "domain" | "revalidation";
+interface IntegrationDiagnostics { operation: string; phase: IntegrationPhase; requestId: string; route: string }
+
+/** Capture handled failures once, inside the shared request/flush boundary. */
+export function withIntegrationRequest(
+  request: Request,
+  route: string,
+  operation: string,
+  handler: (diagnostics: IntegrationDiagnostics) => Promise<Response>,
+): Promise<Response> {
+  return withRouteObservability(request, route, async (requestContext) => {
+    const diagnostics: IntegrationDiagnostics = { operation, phase: "auth", requestId: ensureRequestId(requestContext.requestId), route };
+    try {
+      return await handler(diagnostics);
+    } catch (error) {
+      return integrationError(request, error, diagnostics);
+    }
+  }, { captureServerErrorResponse: false });
+}
 
 const ALLOWED_METHODS = "GET, POST, DELETE, OPTIONS";
 const ALLOWED_HEADERS = "Authorization, Content-Type, Idempotency-Key";
@@ -36,21 +62,31 @@ export function integrationOptions(request: Request): Response {
   return new Response(null, { status: 204, headers: integrationHeaders(request) });
 }
 
-export function integrationError(request: Request, error: unknown): Response {
+export function integrationError(request: Request, error: unknown, diagnostics?: IntegrationDiagnostics): Response {
   const appError = error instanceof AppError ? error : null;
   const status = appError?.code === ErrorCode.UNAUTHORIZED ? 401
     : appError?.code === ErrorCode.FORBIDDEN ? 403
       : appError?.code === ErrorCode.NOT_FOUND ? 404
         : appError?.code === ErrorCode.VALIDATION_FAILED ? 422
           : 500;
+  if (status < 500) {
+    return integrationJson(request, {
+      error: { code: appError!.code, message: appError!.presentation?.message ?? appError!.message },
+    }, { status });
+  }
+  const requestId = ensureRequestId(diagnostics?.requestId);
+  const classification = classifyError(error);
+  captureException("dak.request.failure", error, {
+    scope: "dak", operation: diagnostics?.operation ?? "request", requestId, route: diagnostics?.route,
+    errorClass: classification.errorClass === "expected" ? "application" : classification.errorClass,
+    errorCode: classification.errorCode ?? ErrorCode.INTERNAL_ERROR,
+    safeContext: { phase: diagnostics?.phase ?? "domain", httpStatus: status },
+  });
+  const hint = diagnostics?.phase === "revalidation"
+    ? "数据可能已保存，请先刷新核对导入状态，避免重复上传。"
+    : "请先刷新核对操作结果；如仍有问题，请联系管理员。";
+  // Keep the published error wire shape: strict desktop parsers accept code/message.
   return integrationJson(request, {
-    error: {
-      code: appError?.code ?? ErrorCode.INTERNAL_ERROR,
-      message: appError
-        ? appError.code === ErrorCode.INTERNAL_ERROR
-          ? ERROR_MESSAGES.INTERNAL_ERROR
-          : appError.presentation?.message ?? appError.message
-        : "RivalHub 集成请求失败，请稍后重试。",
-    },
-  }, { status });
+    error: { code: ErrorCode.INTERNAL_ERROR, message: `${ERROR_MESSAGES.INTERNAL_ERROR}。${hint}排查编号：${requestId}` },
+  }, { status, headers: { "X-Request-Id": requestId } });
 }
