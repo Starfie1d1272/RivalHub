@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { db } from "@/db/client";
 import { operateBetInTx } from "@/lib/bet/service";
-import { assertLocalDatabaseUrl } from "../../../scripts/db/local-environment";
+import { assertLocalDatabaseUrl } from "./local-environment";
 
 // Browser setup uses the canonical financial operation only on a disposable event.
 assertLocalDatabaseUrl(process.env.DATABASE_URL);

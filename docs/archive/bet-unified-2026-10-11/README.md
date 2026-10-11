@@ -2,7 +2,7 @@
 
 2026-10-11，真实 Chromium + 本地隔离 PostgreSQL + 正式 Server Actions。使用 `prediction-browser-*` 临时合成赛事、虚构 Browser 用户和测试队伍；测试完成清理，不读取或修改生产下注/积分。没有新增产品页面、替代生产 API 或执行生产迁移。
 
-组合依赖：免费 owner `587e7c53`（含公开 status/isForfeit/restriction）；低保 owner `e66ca22a` 的正式 active 0086；UI PR #923。组合 worktree 仅供本地验证，依赖合 main 由父协调；catalog/ledger 发布门禁冲突不在 UI 分支处理。
+组合依赖：免费 owner `6155570d`（含公开 status/isForfeit/restriction）；低保 owner `e50e915d` 的正式 active 0086；UI PR #923。组合 worktree 仅供本地验证，依赖合 main 由父协调；最终组合已消费 owner 解决后的三维发布门禁，UI 分支未修改发布规则。
 
 命令：
 

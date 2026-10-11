@@ -44,7 +44,7 @@ test("免费预测独立于BET，零余额可改选，BP与赛果消费各自官
     await expect(bp).toContainText("已提交");
     await page.reload(); await expect(choices.first()).toHaveAttribute("aria-pressed", "true");
 
-    execFileSync(resolve("node_modules/.bin/tsx"), ["scripts/db/run-server-cli.ts", "tests/e2e/helpers/bet-program-fixture.ts", fixture.seasonId, user.userId], { env: process.env, timeout: 60000 });
+    execFileSync(resolve("node_modules/.bin/tsx"), ["scripts/db/run-server-cli.ts", "scripts/db/bet-browser-fixture.ts", fixture.seasonId, user.userId], { env: process.env, timeout: 60000 });
     await page.reload();
     await page.getByRole("button", { name: "领取 1,000 积分", exact: true }).click();
     await expect(page.getByRole("button", { name: "领取 1,000 积分", exact: true })).toHaveCount(0);
@@ -89,7 +89,8 @@ test("免费预测独立于BET，零余额可改选，BP与赛果消费各自官
     }
     // Freeze browser polling so the stale-view rejection is deterministic;
     // server Actions and the official isolated PG clock remain real.
-    await page.clock.pauseAt(new Date(Date.now() + 10_000));
+    await page.clock.pauseAt(new Date(Date.now() + 1_000));
+    await page.waitForLoadState("networkidle");
     await db.insert(schema.matchVetoSessions).values({ matchId: match!.id, startedAt: new Date() });
     // Submit from the cached open view; the Action must reject and fresh-read lock it.
     await bp.locator("button[aria-pressed]").last().click();
