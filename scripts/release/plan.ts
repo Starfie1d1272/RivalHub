@@ -150,22 +150,44 @@ const BET_CATALOG_CONTRACT_PATH = "src/lib/bet/catalog-contract.json";
 
 /** New financial subjects require the actual previous Production reader, not main ancestry. */
 function assertBetCatalogUpgrade(cwd: string, previous: string, candidate: string): void {
-  const read = (revision: string): { readerVersion: number; publisherVersion: number } => {
+  type Version = { readerVersion: number; publisherVersion: number };
+  type Contract = Version & { capabilities: Record<string, Version> };
+  const read = (revision: string): Contract => {
     const present = execFileSync("git", ["ls-tree", "--name-only", revision, "--", BET_CATALOG_CONTRACT_PATH], {
       cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"],
     }).trim();
-    if (!present) return { readerVersion: 1, publisherVersion: 1 };
+    if (!present) return { readerVersion: 1, publisherVersion: 1, capabilities: {} };
     const value = JSON.parse(readGitFile(cwd, revision, BET_CATALOG_CONTRACT_PATH)) as Record<string, unknown>;
     const { readerVersion, publisherVersion } = value ?? {};
     if (!Number.isInteger(readerVersion) || !Number.isInteger(publisherVersion)
       || Number(readerVersion) < 1 || Number(publisherVersion) < 1 || Number(readerVersion) < Number(publisherVersion)) {
       throw new Error(`BET catalog contract 无效：${revision}；release plan 拒绝继续。`);
     }
-    return { readerVersion: Number(readerVersion), publisherVersion: Number(publisherVersion) };
+    const capabilities = Object.create(null) as Record<string, Version>;
+    const declared = value.capabilities;
+    if (declared !== undefined && (!declared || typeof declared !== "object" || Array.isArray(declared)))
+      throw new Error(`BET catalog capabilities 无效：${revision}；release plan 拒绝继续。`);
+    for (const [name, raw] of Object.entries(declared ?? {})) {
+      const version = raw as Partial<Version> | null;
+      if (!version || typeof version !== "object" || Array.isArray(version) ||
+        !Number.isInteger(version.readerVersion) || !Number.isInteger(version.publisherVersion) ||
+        Number(version.publisherVersion) < 0 || Number(version.readerVersion) < Number(version.publisherVersion))
+        throw new Error(`BET catalog capability ${name} 无效：${revision}；release plan 拒绝继续。`);
+      capabilities[name] = {readerVersion:Number(version.readerVersion),publisherVersion:Number(version.publisherVersion)};
+    }
+    return { readerVersion: Number(readerVersion), publisherVersion: Number(publisherVersion), capabilities };
   };
   const before = read(previous), after = read(candidate);
   if (after.publisherVersion > before.readerVersion || after.readerVersion < before.publisherVersion) {
     throw new Error(`BET catalog compatibility gate：previous Production reader/publisher v${before.readerVersion}/v${before.publisherVersion} 与 candidate reader/publisher v${after.readerVersion}/v${after.publisherVersion} 不兼容；必须先独立发布兼容读取版本，不能合并为一次发布或降级到不兼容版本。`);
+  }
+  // Independent financial features must not accidentally share a global publisher switch.
+  // Missing declarations mean no reading/publication capability, including rollback targets.
+  for (const name of new Set([...Object.keys(before.capabilities), ...Object.keys(after.capabilities)])) {
+    const oldVersion = before.capabilities[name] ?? {readerVersion:0,publisherVersion:0};
+    const newVersion = after.capabilities[name] ?? {readerVersion:0,publisherVersion:0};
+    if (newVersion.publisherVersion > oldVersion.readerVersion || newVersion.readerVersion < oldVersion.publisherVersion)
+      throw new Error(`BET catalog capability ${name} compatibility gate：必须先独立发布兼容读取版本，不能合并为一次发布或降级到不兼容版本。`);
   }
 }
 

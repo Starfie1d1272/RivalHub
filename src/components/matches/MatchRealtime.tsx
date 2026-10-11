@@ -38,6 +38,9 @@ export function MatchRealtimeSurface({ state, now, phase, currentMapId, lastComp
 }) {
   const freshness = liveFreshness(state, now);
   const snapshot = visibleLiveSnapshot(state, now, phase, currentMapId);
+  const previous = !snapshot && phase === "gameplay" && state.previousView
+    && now < state.previousView.expiresAt && state.previousView.snapshot.map.mapId === currentMapId
+    ? state.previousView.snapshot : null;
   const showLive = snapshot !== null;
   const completed = phase === "inter_map" ? lastCompletedMap : null;
   const bomb = showLive ? presentBomb(snapshot.bomb) : null;
@@ -45,7 +48,7 @@ export function MatchRealtimeSurface({ state, now, phase, currentMapId, lastComp
     <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--color-border)] pb-3">
       <h2 className="text-lg font-semibold">比赛数据</h2>
       {completed ? <span className="font-mono tabular-nums" aria-label="上一图比分与地图胜场"><span className="text-sm text-[var(--color-fg-dim)]">({seriesProgress?.scoreA ?? "—"})</span> <span className="text-xl font-bold">{completed.scoreA}:{completed.scoreB}</span> <span className="text-sm text-[var(--color-fg-dim)]">({seriesProgress?.scoreB ?? "—"})</span></span> : <span role="status" className={`text-sm ${showLive && freshness === "fresh" ? "text-[var(--color-ok)]" : "text-[var(--color-fg-dim)]"}`}>
-        {showLive ? freshness === "fresh" ? "● 实时" : "实时数据暂时中断" : phase === "awaiting_gameplay" ? "等待正式对局" : phase === "inter_map" ? "图间休息" : presentLiveConnection(state.connection)}
+        {showLive ? freshness === "fresh" ? "● 实时" : "实时数据暂时中断" : previous ? `上次画面 · ${presentLiveConnection(state.connection)}` : phase === "awaiting_gameplay" ? "等待正式对局" : phase === "inter_map" ? "图间休息" : presentLiveConnection(state.connection)}
       </span>}
     </div>
     {showLive ? <>
@@ -62,7 +65,10 @@ export function MatchRealtimeSurface({ state, now, phase, currentMapId, lastComp
         <MatchRadar snapshot={snapshot} freshness={freshness} revision={state.revision} sequence={state.acceptedFrames} assetBaseUrl={assetBaseUrl} />
       </div>
       <RoundHistory snapshot={snapshot} />
-    </> : completed ? null : <div className="border-l-2 border-[var(--color-border)] py-2 pl-4 text-sm leading-6 text-[var(--color-fg-mid)]">
+    </> : previous ? <div className="space-y-3" data-testid="previous-live-view">
+      <p className="text-xs text-[var(--color-fg-dim)]">{mapLabel(previous.map.name ?? "")} · 上次接收 {new Date(previous.receivedAt).toISOString().slice(11, 19)} UTC。以下数据暂未更新，连接恢复后自动替换。</p>
+      <div className="grid min-w-0 gap-5 lg:grid-cols-2"><LiveTeamTable snapshot={previous} side="CT" /><LiveTeamTable snapshot={previous} side="T" /></div>
+    </div> : completed ? null : <div className="border-l-2 border-[var(--color-border)] py-2 pl-4 text-sm leading-6 text-[var(--color-fg-mid)]">
       {phase === "awaiting_gameplay" ? "地图已确定。比赛开始后，在这里查看选手数据与战术雷达。" : phase === "inter_map" ? "本图已结束，可查看已确认的地图结果。下一图开始后继续更新。" : "请先查看已确认的地图与比赛结果，实时数据恢复后将自动更新。"}
     </div>}
   </section>;

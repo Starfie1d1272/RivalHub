@@ -9,6 +9,7 @@ import { loginWithPassword, resendSignupConfirmation, signUp } from "@/actions/a
 import { TurnstileWidget, type TurnstileFailure } from "@/components/auth/TurnstileWidget";
 import { EMAIL_RESEND_COOLDOWN_SECONDS, isPasswordPolicySatisfied, MIN_PASSWORD_LENGTH, PASSWORD_POLICY_MESSAGE } from "@/lib/config/auth-config";
 import { safeLocalRedirect } from "@/lib/auth/redirect";
+import { clearPreviousLiveViews } from "@/lib/mizar/live-viewer-cache-reset";
 
 type Mode = "login" | "register";
 
@@ -69,6 +70,7 @@ export function LoginForm({ initialMode = "login", redirectTo = "/" }: { initial
           setAwaitingEmail(email.trim());
           setResendAvailableAt(Date.now() + EMAIL_RESEND_COOLDOWN_SECONDS * 1_000);
         } else {
+          clearPreviousLiveViews();
           window.location.href = redirectRef.current;
         }
       } else {
