@@ -25,6 +25,7 @@ export function SchedulerHealthPanel({ jobs }: { jobs: SchedulerHealthView[] }) 
         router.refresh();
       } else {
         toast.error(result.error.message);
+        router.refresh();
       }
     });
   }
@@ -52,6 +53,7 @@ export function SchedulerHealthPanel({ jobs }: { jobs: SchedulerHealthView[] }) 
             <div><dt className="inline">最近人工运行：</dt><dd className="inline">{formatHealthTime(job.manualSucceededAt)}</dd></div>
             {job.failureAt && <div className="sm:col-span-2"><dt className="inline text-[var(--color-warn)]">最近失败：</dt><dd className="inline">{formatHealthTime(job.failureAt)}</dd></div>}
           </dl>
+          {job.jobKey === "match-time-auto-award" && <p className="text-xs text-[var(--color-fg-mid)]">默认首发补齐故障时，先在比赛工作台核对已保存首发，按排查编号检查服务；恢复后可运行一次。名单资格未满足时，按比赛工作台提示处理。</p>}
           {confirming === job.jobKey && <InlineConfirm title={`运行“${job.label}”？`} sub="这会立即执行该定时任务，并可能更新对应系统状态，仅用于故障恢复。" confirmLabel="确认运行" onCancel={() => setConfirming(null)} onConfirm={() => run(job.jobKey)} />}
         </Panel>
       ))}

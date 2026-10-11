@@ -147,6 +147,8 @@ return traceOperation("competition_entry.submit", {
 
 后台统计修复的候选查询与单图重建失败由 `stats.projection_repair.failure` 保留脱敏原始 cause，并以 `phase=candidate_selection/rebuild` 区分阶段。Demo 关联重检的单项失败与候选载入失败由 `demo.recheck.failure` 保存原因，以 `phase=recheck/candidate_selection` 区分；保留既有 failed 数量和 partial success，已提交身份确认不因后续 fanout 故障被伪装为失败。事件不附加账号、赛事、地图或 artifact 标识，复用活动 trace 与存在的请求 context；scheduler 最终摘要仍报告整批健康失败。不同层级的 DB/item/summary 事件不是唯一 incident 数，按 trace/request 关联，不重复相加成失败次数。
 
+默认首发后台补齐仅将名单资格 owner 的 `VALIDATION_FAILED` 视为正常等待；数据库、冻结事实缺失与其他系统异常由 `match.default_lineup.failure` 保留脱敏 cause/SQLSTATE 和排查编号。批次继续处理其他比赛及时间提议，先刷新已提交比赛，再将补齐系统失败交给 scheduler 健康 owner；后续提议读取失败也必须携带已提交比赛列表，由 runner 在报告原始故障前刷新；人工提示明确首发已保存，先核对首发与排期，不能指望重复运行修补丢失的页面失效。异常对象及内部目标列表不进入公开摘要。管理员先在比赛工作台核对已保存首发，超级管理员按编号排查服务，恢复后从 `/admin/settings` 定时任务健康的既有人工入口运行一次。仍未满足名单资格时按工作台提示处理；补齐复用原事务、资格 owner 和已有名单跳过规则，不能据故障自行造名单或绕过资格。
+
 Scheduler 的 `scheduled_job_health` 只保存有界 current projection，不是 runtime log 或 execution ledger。primary trigger、primary endpoint start/success、watchdog fallback/manual success、最近业务推进和最近失败分别由 shared scheduler owner 更新；fresh watchdog no-op 不写 projection。失败只保存稳定 source/code/classification，不保存 raw error、URL、Authorization 或 Vault secret。`jobKey`、`source` 等 safeContext 仍必须经过 allowlist。
 
 ## 告警原则

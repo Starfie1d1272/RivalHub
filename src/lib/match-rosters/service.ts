@@ -656,9 +656,10 @@ export async function freezeEffectiveLineupsForStartInTx(
 }
 
 /** Materialize only declared current primary starters; no membership-order fallback. */
-export async function materializeDefaultLineupsInTx(tx: TxDb, match: Match, now = new Date(), force = false): Promise<void> {
-  if (match.status !== "scheduled") return;
-  if (!force && (!match.scheduledAt || now.getTime() < match.scheduledAt.getTime() - 2 * 60 * 60_000)) return;
+export async function materializeDefaultLineupsInTx(tx: TxDb, match: Match, now = new Date(), force = false): Promise<number> {
+  if (match.status !== "scheduled") return 0;
+  if (!force && (!match.scheduledAt || now.getTime() < match.scheduledAt.getTime() - 2 * 60 * 60_000)) return 0;
+  let created = 0;
   for (const entryId of [match.entryAId, match.entryBId]) {
     const [existing] = await tx.select({ id: matchRosters.id }).from(matchRosters).where(and(eq(matchRosters.matchId, match.id), eq(matchRosters.entryId, entryId)));
     if (existing) continue;
@@ -670,5 +671,7 @@ export async function materializeDefaultLineupsInTx(tx: TxDb, match: Match, now 
     const [entry] = await tx.select({ representative: competitionEntries.representativeUserId }).from(competitionEntries).where(eq(competitionEntries.id, entryId));
     const summary = await persistMatchRosterInTx(tx, { match, entryId, source: "system_default", submittedBy: null, starterIds, vetoRepresentativeEventRosterMemberId: members.find(member => member.primary && member.userId === entry?.representative)?.id ?? null });
     await writeAuditInTx(tx, { seasonId: match.seasonId, action: "match.roster.system_default", actorId: "system", targetId: summary.rosterId, meta: { matchId: match.id, entryId, starterIds } });
+    created += 1;
   }
+  return created;
 }

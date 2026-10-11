@@ -10,7 +10,7 @@
 
 `domain / persistence / enum value` → `typed presentation owner` → `human-readable product text` → `UI`
 
-presentation owner 对有限集合使用穷举映射（新增状态必须同时补齐用户文案）；对外部或历史数据中的未知值使用明确、安全的人类可读兜底，不得把原始 key 作为 fallback。UI 不直接渲染 `status`、`kind`、`type`、`source`、`mode`、`state` 或 `domain` 等机器语义字段，也不通过 `LABEL[value] ?? value` 或 `|| value` 绕过展示边界。预期业务错误同样由领域 owner 维护稳定的错误 key、结构化参数和用户文案；内部诊断与产品提示分离，`INTERNAL_ERROR` 对外始终只返回通用提示。
+presentation owner 对有限集合使用穷举映射（新增状态必须同时补齐用户文案）；对外部或历史数据中的未知值使用明确、安全的人类可读兜底，不得把原始 key 作为 fallback。UI 不直接渲染 `status`、`kind`、`type`、`source`、`mode`、`state` 或 `domain` 等机器语义字段，也不通过 `LABEL[value] ?? value` 或 `|| value` 绕过展示边界。预期业务错误同样由领域 owner 维护稳定的错误 key、结构化参数和用户文案；内部诊断与产品提示分离，`INTERNAL_ERROR` 对外只返回固定安全提示与排查编号；已知故障可以附既有、可操作的核对与恢复指引，不透传原始诊断。
 
 后台恢复与影响清单同样遵循这条边界：domain/service 只返回结构化事实，server action 只下发 presentation-safe projection；比赛托管 key、原始状态、阶段 key、确认游标和诊断字段留在服务端，不进入普通 operator UI。
 
