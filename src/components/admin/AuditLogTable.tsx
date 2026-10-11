@@ -199,7 +199,10 @@ export function AuditLogTable({ initialLogs, initialTotal, seasons, routeBase = 
       </div>
 
       <div className="min-w-0 overflow-x-auto rounded-sm" style={{ border: "1px solid var(--color-border)" }}>
-        <table className="w-full min-w-[760px] text-xs" style={{ fontFamily: "var(--font-mono)" }}>
+        <table className="w-full min-w-[900px] table-fixed text-xs" style={{ fontFamily: "var(--font-mono)" }}>
+          <colgroup>
+            <col className="w-[160px]" /><col className="w-[180px]" /><col className="w-[140px]" /><col className="w-[28%]" /><col />
+          </colgroup>
           <thead>
             <tr style={{ background: "var(--color-panel)", borderBottom: "1px solid var(--color-border)" }}>
               <th className="whitespace-nowrap px-3 py-2 text-left font-medium" style={{ color: "var(--color-fg-mid)" }}>时间</th>
@@ -221,7 +224,7 @@ export function AuditLogTable({ initialLogs, initialTotal, seasons, routeBase = 
                   <td className="whitespace-nowrap px-3 py-2" style={{ color: "var(--color-fg-mid)" }}>{formatCST(log.createdAt)}</td>
                   <td className="break-words px-3 py-2">
                     <span
-                      className="mr-1.5 inline-block rounded px-1.5 py-0.5 text-[10px] font-medium"
+                      className="mr-1.5 inline-block whitespace-nowrap rounded px-1.5 py-0.5 text-[10px] font-medium"
                       style={{ background: log.categoryColor, color: "var(--color-bg)", opacity: 0.9 }}
                     >
                       {log.categoryLabel}

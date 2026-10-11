@@ -22,15 +22,14 @@ export function InlineConfirm({
   const c = danger ? "var(--color-danger)" : "var(--color-warn)";
   return (
     <div
-      className="grid gap-3 items-center rounded-sm border px-4 py-3"
+      className="flex flex-wrap items-center gap-3 rounded-sm border px-4 py-3"
       style={{
-        gridTemplateColumns: "1fr auto",
         background: `color-mix(in srgb, ${c} 5%, transparent)`,
         borderColor: `color-mix(in srgb, ${c} 33%, transparent)`,
         borderLeft: `3px solid ${c}`,
       }}
     >
-      <div>
+      <div className="min-w-0 flex-[1_1_16rem] break-words">
         <div
           className="font-semibold"
           style={{
@@ -47,7 +46,7 @@ export function InlineConfirm({
           </p>
         )}
       </div>
-      <div className="flex gap-1.5">
+      <div className="ml-auto flex flex-wrap gap-1.5">
         <Button type="button" variant="ghost" size="sm" onClick={onCancel}>
           取消
         </Button>

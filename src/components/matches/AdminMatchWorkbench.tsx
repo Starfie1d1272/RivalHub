@@ -144,11 +144,11 @@ export function AdminMatchWorkbench({
       <header className="space-y-3">
         <div className="flex items-center justify-between gap-4 flex-wrap">
           <div className="flex min-w-0 flex-wrap items-center gap-3 break-words">
-            <TeamProfileLink seasonSlug={season.slug} entryId={match.entryAId} className="text-lg font-semibold">{teamAName}</TeamProfileLink>
+            <TeamProfileLink seasonSlug={season.slug} entryId={match.entryAId} className="min-w-0 max-w-full text-lg font-semibold [overflow-wrap:anywhere]">{teamAName}</TeamProfileLink>
             <span className="text-[var(--color-fg-mid)]">
               {match.status === "finished" ? `${match.scoreA ?? "—"} : ${match.scoreB ?? "—"}` : "vs"}
             </span>
-            <TeamProfileLink seasonSlug={season.slug} entryId={match.entryBId} className="text-lg font-semibold">{teamBName}</TeamProfileLink>
+            <TeamProfileLink seasonSlug={season.slug} entryId={match.entryBId} className="min-w-0 max-w-full text-lg font-semibold [overflow-wrap:anywhere]">{teamBName}</TeamProfileLink>
           </div>
           <div className="flex items-center gap-2">
             <StatusPill {...presentMatchFormat(match.format)} />
@@ -160,7 +160,7 @@ export function AdminMatchWorkbench({
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[var(--color-fg-mid)]">
-          <span>{matchLabel}</span>
+          <span className="min-w-0 max-w-full [overflow-wrap:anywhere]">{matchLabel}</span>
           <span>排期：{match.scheduledAt ? formatCSTDateTime(match.scheduledAt) : "尚未排期"}</span>
           {match.completionDeadline && <span>截止：{formatCSTDateTime(match.completionDeadline)}</span>}
         </div>

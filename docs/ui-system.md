@@ -39,7 +39,7 @@ presentation owner 对有限集合使用穷举映射（新增状态必须同时�
 | `DialogContent/Body/Footer` | viewport、滚动、focus、操作区与尺寸 contract |
 | `StatusBanner` / `StatusPill` / `Checklist` | 状态解释、紧凑状态与 readiness |
 | `EmptyState` / `ErrorState` / `Skeleton` | empty/error/loading 的明确三态 |
-| `InlineConfirm` | 高影响 mutation 的影响说明与二次确认 |
+| `InlineConfirm` | 高影响 mutation 的影响说明与二次确认；可用宽度不足时操作区换到说明下方，不挤窄说明列 |
 
 ### Page geometry ownership
 
