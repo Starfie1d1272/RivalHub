@@ -211,7 +211,7 @@ describe("match commentary PostgreSQL contract", () => {
 
   it("requires the actual claimant's season authority and rejects terminal matches", async () => {
     const fixture = await createFixture();
-    const { claimMatchCommentaryInTx, addMatchCommentatorInTx } = await import("@/lib/postmatch/service");
+    const { claimMatchCommentaryInTx, addMatchCommentatorInTx, revokePostMatchSubmissionInTx } = await import("@/lib/postmatch/service");
     const { database, adminA, adminB, outsider, otherAdmin } = fixture;
     try {
       const matchId = await fixture.createMatch();
@@ -228,6 +228,8 @@ describe("match commentary PostgreSQL contract", () => {
         await expect(database.transaction((tx) => claimMatchCommentaryInTx(tx, { matchId: terminalMatch, userId: adminA }))).rejects.toMatchObject({ code: "MATCH_INVALID_TRANSITION" });
       }
       const lateRecord = await fixture.createMatch({ status: "finished" });
+      await expect(database.transaction((tx) => addMatchCommentatorInTx(tx, { matchId: lateRecord, userId: adminA, actorId: adminB }))).rejects.toMatchObject({ code: "SEASON_INVALID_STATUS" });
+      await database.transaction((tx) => revokePostMatchSubmissionInTx(tx, { matchId: lateRecord, actorId: adminB }));
       await expect(database.transaction((tx) => addMatchCommentatorInTx(tx, { matchId: lateRecord, userId: adminA, actorId: adminB }))).resolves.toMatchObject({ added: true });
       const audit = await fixture.pool.query("SELECT actor_id, meta->>'commentatorUserId' AS commentator FROM audit_logs WHERE target_id=$1 AND action='postmatch.commentator.add' ORDER BY created_at", [matchId]);
       expect(audit.rows).toEqual([{ actor_id: adminA, commentator: adminA }, { actor_id: adminA, commentator: adminB }]);
@@ -289,13 +291,14 @@ describe("match commentary PostgreSQL contract", () => {
       const later = await fixture.createMatch({ scheduledAt: "2026-10-01T13:00:00Z" });
       const next = await fixture.createMatch({ scheduledAt: "2026-10-01T12:30:00Z" });
       const unscheduled = await fixture.createMatch();
-      const finished = await fixture.createMatch({ status: "finished" });
+      const finished = await fixture.createMatch();
       const cancelled = await fixture.createMatch({ status: "cancelled" });
       const foreign = await fixture.createMatch({ season: fixture.otherSeasonId, scheduledAt: "2026-10-01T11:00:00Z" });
       const others = await fixture.createMatch({ scheduledAt: "2026-10-01T11:30:00Z" });
       const full = await fixture.createMatch({ scheduledAt: "2026-10-01T11:45:00Z" });
       for (const matchId of [current, next, later, unscheduled]) await fixture.database.transaction((tx) => claimMatchCommentaryInTx(tx, { matchId, userId: fixture.adminA }));
       await fixture.database.transaction((tx) => addMatchCommentatorInTx(tx, { matchId: finished, userId: fixture.adminA, actorId: fixture.adminA }));
+      await fixture.pool.query("UPDATE matches SET status='finished' WHERE id=$1", [finished]);
       await fixture.database.transaction((tx) => claimMatchCommentaryInTx(tx, { matchId: others, userId: fixture.adminB }));
       for (const userId of [fixture.adminB, fixture.adminC]) await fixture.database.transaction((tx) => claimMatchCommentaryInTx(tx, { matchId: full, userId }));
       await fixture.database.transaction((tx) => claimMatchCommentaryInTx(tx, { matchId: foreign, userId: fixture.otherAdmin }));
