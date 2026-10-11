@@ -15,7 +15,7 @@ const starters = Array.from({ length: 10 }, (_, i) => ({ matchId: match.id,
   eventRosterMemberId: `member-${i}`, userId: `player-${i}`, steam64: `7656119800000000${i}`,
   displayName: null, personaName: null, perfectName: `player-${i}`, isStarter: true })) satisfies EffectiveMatchRosterPlayer[];
 const reserves = [0, 1].map(i => ({ ...starters[i * 5], eventRosterMemberId: `reserve-${i}`,
-  userId: `reserve-${i}`, isStarter: false }));
+  userId: `reserve-${i}`, perfectName: `reserve-${i}`, steam64: `7656119800000001${i}`, isStarter: false }));
 const scoreboards = starters.map(player => ({ matchId: match.id, mapId: map.id,
   userId: player.userId, perfectName: player.perfectName, kills: 10, deaths: 10, assists: 0,
   hsPercent: 0, firstKills: 0, multiKills: 0, clutches: 0, adr: 50, ratingPro: 1, rws: 0, we: 0 }));
