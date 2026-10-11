@@ -80,6 +80,10 @@ function safeRequestPath(value: string): string | undefined {
   }
 }
 
+export function ensureRequestId(requestId = getObservabilityContext().requestId): string {
+  return normalizeRequestId(requestId) ?? createRequestId();
+}
+
 function createRequestId(): string {
   if (typeof globalThis.crypto?.randomUUID === "function") return globalThis.crypto.randomUUID();
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 14)}`;

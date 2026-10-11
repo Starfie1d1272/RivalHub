@@ -42,4 +42,10 @@ export async function cancelMatchCommentary(input: unknown): Promise<ActionResul
 export async function removeMatchCommentator(input: unknown) { const p = z.object({ matchId: uuid, userId: uuid }).safeParse(input); return p.success ? run(p.data.matchId, async (actorId) => { await db.transaction((tx) => removeMatchCommentatorInTx(tx, { ...p.data, actorId })); }) : failValidation("解说参数无效。"); }
 export async function updateMatchVideoUrl(input: unknown) { const p = z.object({ matchId: uuid, videoUrl: z.union([url, z.literal(""), z.null()]).optional() }).safeParse(input); return p.success ? run(p.data.matchId, async (actorId) => { await db.transaction((tx) => setMatchVideoUrlInTx(tx, { matchId: p.data.matchId, videoUrl: p.data.videoUrl || null, actorId })); }) : failValidation("录像链接无效。"); }
 export async function submitPostMatchReport(input: unknown) { const p = z.object({ matchId: uuid }).safeParse(input); return p.success ? run(p.data.matchId, async (actorId) => { await db.transaction((tx) => submitPostMatchReportInTx(tx, { matchId: p.data.matchId, actorId })); }) : failValidation("赛后提交参数无效。"); }
-export async function revokePostMatchSubmission(input: unknown) { const p = z.object({ matchId: uuid }).safeParse(input); return p.success ? run(p.data.matchId, async (actorId) => { await db.transaction((tx) => revokePostMatchSubmissionInTx(tx, { matchId: p.data.matchId, actorId })); }) : failValidation("撤销提交参数无效。"); }
+export async function revokePostMatchSubmission(input: unknown) {
+  const parsed = z.object({ matchId: uuid, reason: z.string().trim().max(500).optional() }).strict().safeParse(input);
+  if (!parsed.success) return failValidation("撤销提交参数无效，原因最多 500 字。");
+  return run(parsed.data.matchId, async (actorId) => {
+    await db.transaction((tx) => revokePostMatchSubmissionInTx(tx, { ...parsed.data, actorId }));
+  });
+}

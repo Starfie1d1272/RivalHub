@@ -9,7 +9,7 @@ describe("postmatch PostgreSQL invariants", () => {
   it("limits commentators, freezes a submitted roster, and derives completion from video", async () => {
     const databaseUrl = localDatabaseUrl(); process.env.DATABASE_URL = process.env.DATABASE_URL ?? databaseUrl;
     const schema = await import("../../../src/db/schema");
-    const { addMatchCommentatorInTx, revokePostMatchSubmissionInTx, submitPostMatchReportInTx, setMatchVideoUrlInTx, getPostMatchCompletion } = await import("../../../src/lib/postmatch/service");
+    const { addMatchCommentatorInTx, removeMatchCommentatorInTx, revokePostMatchSubmissionInTx, submitPostMatchReportInTx, setMatchVideoUrlInTx, getPostMatchCompletion } = await import("../../../src/lib/postmatch/service");
     const { applyMatchStatusTransitionInTx } = await import("../../../src/lib/match-rosters/service");
     const { addCommunityAwardEvidenceInTx, requestCommunityAwardSupplementInTx, resolveCommunityAwardInTx, reviewCommunityAwardInTx, reviseCommunityAwardInTx, submitCommunityAwardInTx, withdrawCommunityAwardInTx } = await import("../../../src/lib/community-awards/service");
     const { isPublicCommunityAward } = await import("../../../src/lib/community-awards/read-model");
@@ -53,9 +53,36 @@ describe("postmatch PostgreSQL invariants", () => {
       await pool.query("UPDATE matches SET status='finished' WHERE id=$1", [matchId]);
       const frozen = await pool.query("DELETE FROM match_commentators WHERE match_id=$1 AND user_id=$2", [matchId, adminA]).then(() => undefined, (error: { code?: string }) => error); expect(frozen?.code).toBe("23514");
       await db.transaction((tx) => setMatchVideoUrlInTx(tx, { matchId, videoUrl: "https://video.example/match", actorId: adminA })); expect(getPostMatchCompletion(new Date(), "https://video.example/match")).toBe("completed");
-      await db.transaction((tx) => revokePostMatchSubmissionInTx(tx, { matchId, actorId: adminA }));
       await pool.query("INSERT INTO match_maps (id,match_id,map_order,map_name,score_a,score_b) VALUES ($1,$2,1,'de_inferno',13,10)", [statsMapId, matchId]);
       await pool.query("INSERT INTO match_player_stats (match_id,map_id,perfect_name,user_id,kills,deaths,adr,rating_pro,verified_by_admin,verified_at) VALUES ($1,$2,'解说甲',$3,20,10,80,1.2,$4,now())", [matchId, statsMapId, adminA, adminA]);
+      const originalSubmission = (await pool.query("SELECT submitted_by_user_id, submitted_at FROM post_match_reports WHERE match_id=$1", [matchId])).rows[0];
+      const originalSubmitAudit = (await pool.query("SELECT id, meta FROM audit_logs WHERE target_id=$1 AND action='postmatch.report.submit'", [matchId])).rows;
+      expect(originalSubmitAudit[0].meta).toMatchObject({ before: { submitted: false, hasVideoUrl: false }, after: { submitted: true, hasVideoUrl: false } });
+      await expect(db.transaction(async (tx) => {
+        await revokePostMatchSubmissionInTx(tx, { matchId, actorId: adminA });
+        throw new Error("rollback revoke");
+      })).rejects.toThrow("rollback revoke");
+      expect((await pool.query("SELECT submitted_by_user_id, submitted_at FROM post_match_reports WHERE match_id=$1", [matchId])).rows).toEqual([originalSubmission]);
+      expect((await pool.query("SELECT id FROM audit_logs WHERE target_id=$1 AND action='postmatch.report.revoke'", [matchId])).rows).toHaveLength(0);
+      await db.transaction((tx) => revokePostMatchSubmissionInTx(tx, { matchId, actorId: adminA, reason: "核对名单" }));
+      expect((await pool.query("SELECT * FROM post_match_reports WHERE match_id=$1", [matchId])).rows).toHaveLength(0);
+      expect((await pool.query("SELECT score_a,score_b,video_url FROM matches WHERE id=$1", [matchId])).rows[0]).toEqual({ score_a: 1, score_b: 0, video_url: "https://video.example/match" });
+      expect((await pool.query("SELECT user_id FROM match_commentators WHERE match_id=$1", [matchId])).rows).toHaveLength(2);
+      expect((await pool.query("SELECT id FROM match_maps WHERE id=$1", [statsMapId])).rows).toHaveLength(1);
+      expect((await pool.query("SELECT user_id FROM match_player_stats WHERE map_id=$1", [statsMapId])).rows).toHaveLength(1);
+      expect(getPostMatchCompletion(null, "https://video.example/match")).toBe("pending_collection");
+      const revokeAudit = (await pool.query("SELECT meta FROM audit_logs WHERE target_id=$1 AND action='postmatch.report.revoke'", [matchId])).rows[0].meta;
+      expect(revokeAudit).toEqual({ submittedByUserId: adminB, originalSubmittedAt: originalSubmission.submitted_at.toISOString(), before: { submitted: true, hasVideoUrl: true }, after: { submitted: false, hasVideoUrl: true }, reason: "核对名单" });
+      expect((await pool.query("SELECT id, meta FROM audit_logs WHERE target_id=$1 AND action='postmatch.report.submit'", [matchId])).rows).toEqual(originalSubmitAudit);
+      await db.transaction((tx) => removeMatchCommentatorInTx(tx, { matchId, userId: adminB, actorId: adminA }));
+      await db.transaction((tx) => submitPostMatchReportInTx(tx, { matchId, actorId: adminA }));
+      await db.transaction((tx) => revokePostMatchSubmissionInTx(tx, { matchId, actorId: adminA }));
+      for (const [videoUrl, videoChange] of [["https://video.example/match", "unchanged"], ["https://video.example/replacement?token=private", "replaced"], [null, "cleared"], ["https://video.example/match", "added"]] as const) {
+        await db.transaction((tx) => setMatchVideoUrlInTx(tx, { matchId, videoUrl, actorId: adminA }));
+        const videoAudit = (await pool.query("SELECT meta FROM audit_logs WHERE target_id=$1 AND action='postmatch.video.update' ORDER BY created_at DESC LIMIT 1", [matchId])).rows[0].meta;
+        expect(videoAudit.videoChange).toBe(videoChange);
+        expect(JSON.stringify(videoAudit)).not.toContain("https://");
+      }
       const { getVerifiedPlayerStatsBySeason } = await import("../../../src/lib/stats/public-query");
       expect((await getVerifiedPlayerStatsBySeason(seasonId, [adminA])).has(adminA)).toBe(false);
       await pool.query("UPDATE match_maps SET completed_at=now() WHERE id=$1", [statsMapId]);

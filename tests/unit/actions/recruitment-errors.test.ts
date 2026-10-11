@@ -69,7 +69,7 @@ describe("Recruitment interest error mapping", () => {
 
     const result = await expressRecruitmentInterest({ recruitmentIntentId: INTENT_ID });
 
-    expect(result).toEqual({ success: false, error: { code: ErrorCode.INTERNAL_ERROR, message: "服务器内部错误，请稍后重试" } });
+    expect(result).toEqual({ success: false, error: { code: ErrorCode.INTERNAL_ERROR, message: expect.stringContaining("服务器内部错误，请稍后重试"), requestId: expect.any(String) } });
     expect(stderrWriteMock).toHaveBeenCalledOnce();
   });
 });

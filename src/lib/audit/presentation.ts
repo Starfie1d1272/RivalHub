@@ -529,6 +529,15 @@ export interface AuditLogView {
   targetTypeLabel: string;
   targetLabel: string;
   summary: string | null;
+  seasonLabel?: string;
+}
+
+export interface AuditLogDetail extends AuditLogView {
+  description: string | null;
+  authorizedByLabel: string | null;
+  targetContext: string | null;
+  targetHref: string | null;
+  fields: Array<{ label: string; value: string }>;
 }
 
 export function getAuditActionPresentation(action: string | null | undefined): AuditActionPresentation {
@@ -578,6 +587,7 @@ const TARGET_TYPE_LABELS: Readonly<Record<string, string>> = {
   match_demo_import: "Demo 数据",
   user_gameplay_steam_id: "选手 Steam 身份",
   mizar_installation: "制播设备",
+  dak_pairing: "DAK Studio 连接",
   match_time_proposal: "比赛时间提议",
   institution: "院校目录",
   education_verification: "教育认证",
@@ -703,6 +713,11 @@ export function summarizeAuditMeta(action: string, meta: unknown): string | null
   if (!isRecord(meta)) return null;
 
   const parts: string[] = [];
+  if (action === "postmatch.report.revoke") parts.push("重新开放整理");
+  if (action === "postmatch.video.update" && typeof meta.videoChange === "string") {
+    const change = Object.hasOwn(VIDEO_CHANGE_LABELS, meta.videoChange) ? VIDEO_CHANGE_LABELS[meta.videoChange] : undefined;
+    if (change) parts.push(change);
+  }
   const scoreA = numberValue(meta, "scoreA");
   const scoreB = numberValue(meta, "scoreB");
   if (scoreA !== null && scoreB !== null && action.startsWith("match.")) {
@@ -772,3 +787,10 @@ export function summarizeAuditMeta(action: string, meta: unknown): string | null
   if (parts.length > 0) return parts.join(" · ");
   return Object.keys(meta).length > 0 ? "已记录" : null;
 }
+
+export const VIDEO_CHANGE_LABELS: Readonly<Record<string, string>> = {
+  added: "新增录像链接",
+  replaced: "替换录像链接",
+  cleared: "清除录像链接",
+  unchanged: "录像链接未变化",
+};

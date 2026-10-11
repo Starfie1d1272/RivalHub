@@ -2,7 +2,7 @@ import { logs, SeverityNumber } from "@opentelemetry/api-logs";
 import { context as traceContext, SpanStatusCode, trace } from "@opentelemetry/api";
 import { getObservabilityContext, normalizeRequestId, normalizeRoute } from "@/lib/observability/context";
 import { classifyError, type ErrorClass, type ErrorClassificationOverrides } from "@/lib/observability/errors";
-import { extractSafeException, redactText, safeCode, sanitizeSafeContext, type SafeException } from "@/lib/observability/redact";
+import { extractSafeException, redactText, sanitizeSafeContext, type SafeException } from "@/lib/observability/redact";
 import { markSpanErrored } from "./tracing";
 
 type LogLevel = "debug" | "info" | "warn" | "error" | "fatal";
@@ -246,14 +246,5 @@ function safeIdentifier(value: string, fallback: string): string {
 
 function sanitizeException(exception: SafeException | undefined): SafeException | undefined {
   if (!exception) return undefined;
-  const safe: SafeException = {};
-  if (exception.name) safe.name = redactText(exception.name, 120);
-  if (exception.message) safe.message = redactText(exception.message);
-  if (exception.code) safe.code = safeCode(exception.code);
-  if (exception.constraint) safe.constraint = redactText(exception.constraint, 160);
-  if (exception.schema) safe.schema = redactText(exception.schema, 160);
-  if (exception.table) safe.table = redactText(exception.table, 160);
-  if (exception.column) safe.column = redactText(exception.column, 160);
-  if (exception.stack) safe.stack = redactText(exception.stack, 4_000);
-  return safe;
+  return extractSafeException(exception);
 }
