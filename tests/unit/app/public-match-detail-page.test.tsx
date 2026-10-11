@@ -212,6 +212,8 @@ describe("Public Match Detail Page (PRE / POST)", () => {
         searchParams: Promise.resolve({}),
       }));
 
+      expect(screen.getByRole("link", { name: "进行 BP" })).toHaveAttribute("href", "/spring-2026/matches/match-first-lineup/veto");
+
       await user.click(screen.getByRole("button", { name: "选择本场首发" }));
 
       expect(await screen.findByRole("dialog", { name: "选择本场首发" })).toBeInTheDocument();

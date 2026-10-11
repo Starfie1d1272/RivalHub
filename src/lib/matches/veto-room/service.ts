@@ -29,6 +29,7 @@ import { writeAuditInTx } from "@/lib/audit/write";
 import { logEvent } from "@/lib/observability/server";
 import { AppError, ErrorCode } from "@/lib/errors";
 import type { Side, VetoActionType } from "@/types/match";
+import { closeVetoAppealsAfterGameplayInTx, hasVetoGameplayInTx } from "./appeal-lifecycle";
 import {
   chooseVetoOptions,
   deriveHigherSeedEntry,
@@ -679,6 +680,7 @@ async function loadCoreSnapshotInTx(
 export async function readVetoRoomCore(matchId: string): Promise<VetoRoomCoreSnapshot> {
   return db.transaction(async (tx) => {
     const match = await lockMatchInTx(tx, matchId);
+    await closeVetoAppealsAfterGameplayInTx(tx, matchId);
     await materializeDefaultLineupsInTx(tx, match);
     const session = await getSessionForUpdateInTx(tx, match);
     const reconcileNow = await databaseNow(tx);
@@ -702,14 +704,15 @@ export async function readVetoRoomSnapshot(matchId: string): Promise<VetoRoomCor
 export async function reconcileVetoRoom(matchId: string): Promise<VetoMutationOutcome> {
   return db.transaction(async (tx) => {
     const match = await lockMatchInTx(tx, matchId);
+    const appealsClosed = await closeVetoAppealsAfterGameplayInTx(tx, matchId);
     await materializeDefaultLineupsInTx(tx, match);
     const [session] = await tx.select().from(matchVetoSessions)
       .where(eq(matchVetoSessions.matchId, match.id))
       .for("update");
-    if (!session) return "idempotent";
+    if (!session) return appealsClosed ? "applied" : "idempotent";
     const now = await databaseNow(tx);
     const reconciled = await reconcileVetoSessionInTx(tx, match, session, now);
-    return reconciled.revision === session.revision ? "idempotent" : "applied";
+    return !appealsClosed && reconciled.revision === session.revision ? "idempotent" : "applied";
   });
 }
 
@@ -1145,6 +1148,9 @@ export async function submitVetoAppeal(input: {
 }): Promise<void> {
   await db.transaction(async (tx) => {
     const match = await lockMatchInTx(tx, input.matchId);
+    if (match.status === "finished" || match.status === "cancelled" || await hasVetoGameplayInTx(tx, match.id)) {
+      throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "正式对局已开始或比赛已结束，不能再申请恢复 BP；如需赛务处理，请联系赛事管理员并提供超时记录。");
+    }
     await materializeDefaultLineupsInTx(tx, match);
     const [incident] = await tx.select().from(matchVetoTimeoutIncidents)
       .where(and(eq(matchVetoTimeoutIncidents.id, input.incidentId), eq(matchVetoTimeoutIncidents.matchId, match.id)))
@@ -1192,8 +1198,8 @@ async function rewindVetoInTx(input: {
     throw new AppError(ErrorCode.VALIDATION_FAILED, "指定的 BP 回合不存在。");
   }
   const maps = await tx.select().from(matchMaps).where(eq(matchMaps.matchId, match.id));
-  if (maps.some((row) => row.scoreA !== null || row.scoreB !== null || row.completedAt !== null)) {
-    throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "已有正式地图比分或 gameplay 结果，BP 房间不能恢复。");
+  if (await hasVetoGameplayInTx(tx, match.id)) {
+    throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "正式对局已开始或已有地图赛果，不能恢复 BP；如需赛务处理，请联系赛事管理员。");
   }
   const steps = await readStepsInTx(tx, match.id);
   const turnOrder = ["choose-veto-team-a", ...getVetoTurnDefinitions(match.format).map((turn) => turn.key)];

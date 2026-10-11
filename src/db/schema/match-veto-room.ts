@@ -15,7 +15,7 @@ import { matches } from "./matches";
 import { competitionEntries } from "./competition-entries";
 import { users } from "./users";
 
-export const matchVetoAppealStatusEnum = pgEnum("match_veto_appeal_status", ["pending", "accepted", "rejected"]);
+export const matchVetoAppealStatusEnum = pgEnum("match_veto_appeal_status", ["pending", "accepted", "rejected", "closed"]);
 export const matchVetoResolutionScopeEnum = pgEnum("match_veto_resolution_scope", [
   "platform_or_organizer",
   "participant_or_unverified",
@@ -92,7 +92,8 @@ export const matchVetoAppeals = pgTable("match_veto_appeals", {
   resolutionShape: check(
     "match_veto_appeals_resolution_shape_check",
     sql`(${t.status} = 'pending' AND ${t.resolutionScope} IS NULL AND ${t.resolvedBy} IS NULL AND ${t.resolvedAt} IS NULL)
-      OR (${t.status} <> 'pending' AND ${t.resolutionScope} IS NOT NULL AND ${t.resolvedBy} IS NOT NULL AND ${t.resolvedAt} IS NOT NULL)`,
+      OR (${t.status} IN ('accepted', 'rejected') AND ${t.resolutionScope} IS NOT NULL AND ${t.resolvedBy} IS NOT NULL AND ${t.resolvedAt} IS NOT NULL)
+      OR (${t.status}::text = 'closed' AND ${t.resolutionScope} IS NULL AND ${t.resolvedBy} IS NULL AND ${t.resolvedAt} IS NOT NULL AND ${t.resolutionNote} IS NOT NULL)`,
   ),
   onePendingAppeal: uniqueIndex("match_veto_appeals_one_pending_per_incident")
     .on(t.timeoutIncidentId)
