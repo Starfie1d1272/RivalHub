@@ -57,7 +57,7 @@ function ParticipantReview({ importId, participant }: { importId: string; partic
   }
 
   return (
-    <fieldset disabled={isPending} className="min-w-0 space-y-3 rounded border border-[var(--color-border)] p-3 text-sm">
+    <fieldset disabled={isPending} className="min-w-0 space-y-3 rounded border border-[var(--color-border)] p-3 text-sm [overflow-wrap:anywhere]">
       <legend className="px-1 font-medium">Demo 选手 · {participant.demoName}</legend>
       <p className="break-all font-mono text-xs">Steam64：{participant.observedSteam64}</p>
       <p>队伍：<TeamProfileLink entryId={participant.entryId}>{participant.teamName}</TeamProfileLink></p>
@@ -183,6 +183,13 @@ function MapReview({ review }: { review: AdminDemoReviewMap }) {
       {!review.invalidPayload && review.participants.map((participant) => <ParticipantReview key={`${participant.observedSteam64}:${participant.state}`} importId={review.importId} participant={participant} />)}
       {review.resolvedCount > 0 && <p className="text-sm text-[var(--color-fg-mid)]">{review.resolvedCount} 名选手身份已正常匹配</p>}
       {review.blockingIssues.length > 0 && <ul className="list-disc space-y-1 pl-5 text-sm leading-6">{review.blockingIssues.map((issue) => <li key={issue}>{issue}</li>)}</ul>}
+      {!!review.diagnostics?.length && <details className="text-sm leading-6">
+        <summary className="cursor-pointer">检查详情（{review.diagnostics.length} 条）</summary>
+        <ul className="mt-2 space-y-2 [overflow-wrap:anywhere]">{review.diagnostics.map((issue, index) => <li key={`${issue.source}:${index}`}>
+          <p className="text-[var(--color-fg-mid)]">{issue.source === "current" ? "当前检查" : "上传时记录"} · {issue.code}{issue.path ? ` · ${issue.path}` : ""}</p>
+          <p>{issue.message}</p>
+        </li>)}</ul>
+      </details>}
       <fieldset disabled={isPending} className="space-y-3 border-t border-[var(--color-border)] pt-3">
         <div className="flex flex-wrap gap-2">
           <Button type="button" variant="secondary" size="sm" disabled={isPending} onClick={recheck}>按当前资料重新检查</Button>

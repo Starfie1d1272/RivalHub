@@ -114,6 +114,27 @@ test("真实后台审计与赛后资料在窄屏保留可读内容和操作", as
       expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
       measurements.push({scenario:`workbench-${width}`, ...await page.evaluate(()=>({client:document.documentElement.clientWidth,scroll:document.documentElement.scrollWidth, overflowing:[...document.querySelectorAll("main *")].filter(el=>el.getBoundingClientRect().right>innerWidth+1).slice(0,12).map(el=>({tag:el.tagName,text:el.textContent?.slice(0,80),width:el.getBoundingClientRect().width}))}))});
     }
+    // Unknown historical findings remain inspectable without becoming current blockers.
+    await pool.query("UPDATE match_demo_imports SET status='needs_attention',issues=$2::jsonb WHERE season_id=$1",[scenario.seasonId,JSON.stringify([
+      {code:"FUTURE_CHECK_ALPHA",path:"target.mapName",message:"private diagnostic text"},
+      {code:"FUTURE_CHECK_BETA",path:"sourceFacts.rounds[0]",message:"private diagnostic text"},
+    ])]);
+    for (const width of [1440,390,320]) {
+      await page.setViewportSize({width,height:width===1440?1000:844});
+      await page.goto(`/admin/${scenario.slug}/matches/${match.id}`);
+      const review = page.locator("section[id^='demo-review-']").first();
+      const diagnostics = review.locator("details").filter({has:page.locator("summary",{hasText:/检查详情（/})});
+      await expect(diagnostics).toBeVisible();
+      await expect(diagnostics).not.toHaveAttribute("open");
+      await diagnostics.locator(":scope > summary").click();
+      await expect(diagnostics.getByText("上传时记录 · FUTURE_CHECK_ALPHA · target.mapName",{exact:true})).toBeVisible();
+      await expect(diagnostics.getByText("上传时记录 · FUTURE_CHECK_BETA · sourceFacts.rounds[0]",{exact:true})).toBeVisible();
+      await expect(review).not.toContainText("private diagnostic text");
+      await review.screenshot({animations:"disabled",path:`${output}/demo-review-diagnostics-${width}.png`});
+      await diagnostics.screenshot({animations:"disabled",path:`${output}/demo-review-details-${width}.png`});
+      expect(await diagnostics.evaluate(el=>el.scrollWidth)).toBeLessThanOrEqual(await diagnostics.evaluate(el=>el.clientWidth));
+      expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+    }
     await page.setViewportSize({width:390,height:844});
     await page.goto(`/admin/${scenario.slug}/logs`);
 
