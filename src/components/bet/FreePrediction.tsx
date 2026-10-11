@@ -62,10 +62,12 @@ export function FreePrediction({ model, signedIn, controls }: {
     <div className={cn("grid gap-2", current.options.length > 2 ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-2")}>
       {current.options.map(option => {
         const selected = keys.includes(option.key);
+        const correct = current.result?.answer.includes(option.key);
         const percent = option.count !== null && current.participants > 0 ? option.count / current.participants * 100 : null;
         return <button key={option.key} type="button" aria-pressed={selected} disabled={pending || !signedIn || !current.canSubmit || !selected && keys.length >= current.requiredChoices && current.requiredChoices > 1} onClick={() => choose(option.key)} className={cn("min-w-0 border p-3 text-left text-sm focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]", selected ? "border-[var(--color-accent)] bg-[var(--color-panel-hi)]" : "border-[var(--color-border)] bg-[var(--color-panel-low)]")}>
           <span className="flex min-w-0 items-center gap-1"><span className="truncate" title={option.label}>{option.label}</span>{selected && <Check size={12} className="shrink-0 text-[var(--color-accent)]"/>}</span>
           {current.kind === "winner" && <span className="mt-1 block font-mono text-xs tabular-nums text-[var(--color-fg-mid)]">{percent === null ? "—" : `${percent.toFixed(1)}%`} · {option.count ?? "—"} 人</span>}
+          {correct && <span className="mt-1 block text-xs text-[var(--color-accent)]">正确结果</span>}
         </button>;
       })}
     </div>

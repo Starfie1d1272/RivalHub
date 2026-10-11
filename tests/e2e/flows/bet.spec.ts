@@ -18,7 +18,9 @@ test("BET 投入在刷新后保留，ALL IN 需确认且开赛后锁盘",async({
     await signInProgrammatically(page,user,scenario,`/admin/${fixture.slug}/bet`);
     await page.goto(`/admin/${fixture.slug}/bet`);
     await page.getByRole("button",{name:"启用 BET",exact:true}).click();
-    await page.getByRole("button",{name:"启用 BET",exact:true}).last().click();
+    await expect(page.getByRole("region",{name:"BET 操作确认",exact:true})).toBeVisible();
+    await page.getByRole("region",{name:"BET 操作确认",exact:true}).getByRole("button",{name:"启用 BET",exact:true}).click();
+    await expect(page.getByRole("region",{name:"BET 操作确认",exact:true})).toHaveCount(0);
     await expect(page.getByRole("button",{name:"暂停投入",exact:true})).toBeVisible();
     // Keep the administrator grant: administrators may participate in unrelated markets.
     const allMarkets=await db.select().from(schema.betMarkets).where(eq(schema.betMarkets.matchId,matches[0]!.id));

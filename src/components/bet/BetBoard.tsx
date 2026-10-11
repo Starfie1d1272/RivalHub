@@ -24,15 +24,15 @@ import type { BetBoardDTO, BetMarketDTO } from "@/lib/bet/types";
 import { formatCSTDateTime } from "@/lib/utils/date";
 import { cn } from "@/lib/utils/cn";
 const filters=[{key:"open",label:"开放"},{key:"mine",label:"我的投入"},{key:"settled",label:"已结算"},{key:"event",label:"赛事"},{key:"leaderboard",label:"排行榜"},{key:"records",label:"记录"}] as const;
-export function BetBoard({initial,slug,signedIn,view,matchFilter,predictions,predictionControls,rankings,relief,predictionMatchRows}:{initial:BetBoardDTO;slug:string;signedIn:boolean;view:string;matchFilter:string|null;predictions?:FreePredictionModel[];predictionControls?:FreePredictionControls;rankings?:Record<PredictionRankingSort,PredictionRankingModel>;relief?:Omit<ComponentProps<typeof BetRelief>,"onClaimed">;predictionMatchRows?:BetBoardDTO["matches"]}) {
+export function BetBoard({initial,slug,signedIn,view,matchFilter,predictions,predictionControls,rankings,relief,predictionMatchRows,rankingRefreshAction}:{initial:BetBoardDTO;slug:string;signedIn:boolean;view:string;matchFilter:string|null;predictions?:FreePredictionModel[];predictionControls?:FreePredictionControls;rankings?:Record<PredictionRankingSort,PredictionRankingModel>;relief?:Omit<ComponentProps<typeof BetRelief>,"onClaimed">;predictionMatchRows?:BetBoardDTO["matches"];rankingRefreshAction?:ComponentProps<typeof PredictionLeaderboard>["refreshAction"]}) {
   const router=useRouter();const [snapshot,setSnapshot]=useState({origin:initial,value:initial});const data=snapshot.origin===initial?snapshot.value:initial;const [pending,startTransition]=useTransition();
   const [selected,setSelected]=useState<{market:BetMarketDTO;optionId:string}|null>(null);
   const [amount,setAmount]=useState("");const [allIn,setAllIn]=useState(false);const [allConfirmed,setAllConfirmed]=useState(false);
   const [requestId,setRequestId]=useState("");const [error,setError]=useState<string|null>(null);
   useEffect(()=>{let alive=true;const refresh=async()=>{if(document.visibilityState!=="visible")return;const r=await getBetBoard({seasonId:initial.seasonId});if(alive&&r.success)setSnapshot({origin:initial,value:r.data});};const timer=setInterval(()=>void refresh(),15000);return()=>{alive=false;clearInterval(timer);};},[initial]);
   const matches = [...data.matches, ...(predictionMatchRows ?? []).filter(match => !data.matches.some(row => row.id === match.id))];
-  const predictionMatches = predictions && predictionControls ? matches.filter(match => (!matchFilter || match.id === matchFilter) && predictions.some(panel => panel.matchId === match.id)) : [];
   const active=filters.some(f=>f.key===view)?view:"open";
+  const predictionMatches = predictions && predictionControls ? matches.filter(match => (!matchFilter || match.id === matchFilter) && predictions.some(panel => panel.matchId === match.id && (active === "mine" ? panel.own.length > 0 : active === "settled" ? panel.officialStatus === "finished" || panel.officialStatus === "cancelled" || panel.status === "void" : active === "open" && (Boolean(matchFilter) || panel.officialStatus !== "finished" && panel.officialStatus !== "cancelled" && panel.status !== "void")))) : [];
   const visible=data.markets.filter(m=>(!matchFilter||m.matchId===matchFilter) && (active==="event"?m.matchId===null:active==="mine"?!!m.mine:active==="settled"?["settled","refunded"].includes(m.state):m.matchId!==null && ["open","locked"].includes(m.state)));
   function choose(market:BetMarketDTO,optionId:string){setSelected({market,optionId});setAmount("");setAllIn(false);setAllConfirmed(false);setRequestId(crypto.randomUUID());setError(null);}
   function join(){startTransition(async()=>{const r=await mutateBet({operation:"join",seasonId:data.seasonId});if(!r.success)toast.error(r.error.message);else router.refresh();});}
@@ -40,14 +40,15 @@ export function BetBoard({initial,slug,signedIn,view,matchFilter,predictions,pre
   const current=data.markets.find(m=>m.id===selected?.market.id);
   const selectedOption=current?.options.find(o=>o.id===selected?.optionId);
   const amountValue=allIn?BigInt(data.balance):/^[1-9]\d*$/.test(amount)?BigInt(amount):BigInt(0);
-  const estimate=selectedOption && amountValue>BigInt(0)?(BigInt(current!.pool)+amountValue)*amountValue/(BigInt(selectedOption.pool)+amountValue):null;
+  const canEstimate=current && ["champion","top_fragger","match_winner","exact_score","total_maps","veto_map","veto_first","veto_decider","map_winner","total_rounds"].includes(current.type);
+  const estimate=canEstimate && selectedOption && amountValue>BigInt(0)?(BigInt(current!.pool)+amountValue)*amountValue/(BigInt(selectedOption.pool)+amountValue):null;
   return <div className="space-y-6">
     <PageHeader title="BET" actions={<>
       <div className="flex flex-wrap items-end gap-x-8 gap-y-4">
         <Metric label="可用积分" value={data.joined?formatPoints(data.balance):"—"} accent help="首次领取 1,000 积分；加入后的 Main Event 新阶段各补给 300，不补历史阶段。管理员可以参与，但本人参赛队伍相关盘口不可参与。排名按净收益，不按余额；至少一次已结算参与才上榜。使用赛事积分参与无抽水社区奖池。积分不能购买、交易、转账、提现或兑换现实价值；只能追加原选项，不能换边或撤回。无胜方投入、全部投入均获胜或弃权时原额退款。预计回报随奖池变化。"/>
         <Metric label="净收益" value={data.joined?`${BigInt(data.profit)>BigInt(0)?"+":""}${formatPoints(data.profit)}`:"—"}/>
         <Link href={`/${slug}/bet?view=leaderboard`} aria-label="查看 BET 排行榜" className="rounded focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"><Metric label="排名" value={data.rank?`#${data.rank}`:"未上榜"}/></Link>
-        {data.joined && relief && <BetRelief {...relief} onClaimed={()=>router.refresh()}/>}
+        {data.joined && relief && <BetRelief {...relief} onClaimed={()=>{router.refresh();void getBetBoard({seasonId:data.seasonId}).then(fresh=>{if(fresh.success)setSnapshot({origin:initial,value:fresh.data});}).catch(()=>toast.error("钱包状态更新失败，请刷新后查看。"));}}/>}
         {data.enabled && !data.joined && (signedIn?<Button onClick={join} disabled={pending}>领取 1,000 积分</Button>:<Button asChild><Link href="/login">登录参与</Link></Button>)}
       </div>
     </>}/>
@@ -58,8 +59,8 @@ export function BetBoard({initial,slug,signedIn,view,matchFilter,predictions,pre
       <span className="ml-auto py-3 text-xs tabular-nums text-[var(--color-fg-dim)]">{visible.filter(m=>m.state==="open").length} 个开放盘口</span>
     </nav>
     {matchFilter && <Link href={`/${slug}/bet` as never} className="inline-block text-sm text-[var(--color-accent)]">查看全部比赛 →</Link>}
-    {active==="leaderboard"?(rankings?<PredictionLeaderboard rankings={rankings}/>:<BetLeaderboard rows={data.leaderboard}/>):active==="records"?<BetRecords rows={data.records} signedIn={signedIn}/>:!visible.length&&!(active==="open"&&predictionMatches.length)?<Empty text={!data.enabled?"BET 尚未开放":active==="mine"?"还没有投入记录":active==="settled"?"暂无已结算盘口":active==="event"?"等待正赛名单确认":"等待下一场对阵或地图"}/>:<div className={cn("grid min-w-0 items-start gap-5",!matchFilter&&"lg:grid-cols-2")}>
-      {[...new Set([...visible.map(m=>m.matchId), ...(active==="open"?predictionMatches.map(match=>match.id):[])])].map(id=>{
+    {active==="leaderboard"?(rankings?<PredictionLeaderboard rankings={rankings} refreshAction={rankingRefreshAction}/>:<BetLeaderboard rows={data.leaderboard}/>):active==="records"?<BetRecords rows={data.records} signedIn={signedIn}/>:!visible.length&&!predictionMatches.length?<Empty text={!data.enabled?"BET 尚未开放":active==="mine"?"还没有投入记录":active==="settled"?"暂无已结算盘口":active==="event"?"等待正赛名单确认":"等待下一场对阵或地图"}/>:<div className={cn("grid min-w-0 items-start gap-5",!matchFilter&&"lg:grid-cols-2")}>
+      {[...new Set([...visible.map(m=>m.matchId), ...predictionMatches.map(match=>match.id)])].map(id=>{
         const match = matches.find(m=>m.id===id);
         return id&&match?<MatchCard key={id} match={match} markets={visible.filter(m=>m.matchId===id)} slug={slug} choose={choose} signedIn={signedIn} predictions={predictions?.filter(panel=>panel.matchId===id)} predictionControls={predictionControls}/>:!id?<section key="event" className="space-y-5 lg:col-span-2">{visible.filter(m=>!m.matchId).map(m=><div key={m.id} className="border border-[var(--color-border)] bg-[var(--color-panel)] p-5"><MarketRow market={m} slug={slug} choose={choose}/></div>)}</section>:null;
       })}
@@ -70,7 +71,7 @@ export function BetBoard({initial,slug,signedIn,view,matchFilter,predictions,pre
         <div className="flex justify-between text-sm"><span className="text-[var(--color-fg-mid)]">可用积分</span><span className="font-mono">{formatPoints(data.balance)}</span></div>
         <div className="space-y-2"><Label htmlFor="bet-amount">投入积分</Label><Input id="bet-amount" inputMode="numeric" value={allIn?data.balance:amount} disabled={pending} onChange={e=>{setAmount(e.target.value);setAllIn(false);setAllConfirmed(false);}} autoFocus/></div>
         <div className="grid grid-cols-4 gap-2">{[10,25,50,100].map(percent=><Button key={percent} size="sm" variant={percent===100&&allIn?"default":"outline"} disabled={pending} onClick={()=>{setAmount((BigInt(data.balance)*BigInt(percent)/BigInt(100)).toString());setAllIn(percent===100);setAllConfirmed(false);}}>{percent===100?"ALL IN":`${percent}%`}</Button>)}</div>
-        <div className="flex items-center justify-between border-t border-[var(--color-border)] pt-4 text-sm"><span>预计返还 <HelpTooltip label="预计返还说明" content="包含本金，按本次投入后的当前奖池及所选选项独胜估算；最终返还取决于锁盘时奖池，并列胜者共同分配。"/></span><span className="font-mono text-[var(--color-accent)]">{estimate?`≈ ${formatPoints(estimate.toString())}`:"—"}</span></div>
+        <div className="flex items-center justify-between border-t border-[var(--color-border)] pt-4 text-sm"><span>预计返还 <HelpTooltip label="预计返还说明" content={canEstimate?"包含本金，按本次投入后的当前奖池及所选选项独胜估算；最终返还取决于锁盘时奖池，并列胜者共同分配。":"此盘口不提供独胜估算，最终返还由锁盘奖池及有效中奖选项共同决定。"}/></span><span className="font-mono text-[var(--color-accent)]">{estimate?`≈ ${formatPoints(estimate.toString())}`:"—"}</span></div>
         {allIn && <Label className="flex items-start gap-2 text-sm leading-5"><input type="checkbox" checked={allConfirmed} disabled={pending} onChange={e=>setAllConfirmed(e.target.checked)}/>确认投入全部可用积分，不能撤回</Label>}
         {current && !current.canStake && <p role="status" className="text-sm text-[var(--color-warn)]">盘口已锁定或暂停投入</p>}
         {error && <p role="alert" className="text-sm text-[var(--color-danger)]">{error}</p>}

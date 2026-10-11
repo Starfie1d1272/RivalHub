@@ -3,6 +3,7 @@ import type { ActionResult } from "@/types/action";
 /** Presentation inputs only. Canonical owners provide permissions and judgement. */
 export interface FreePredictionModel {
   matchId: string;
+  officialStatus?: "scheduled" | "in_progress" | "finished" | "cancelled";
   kind: "winner" | "bp";
   requiredChoices: number;
   options: { key: string; label: string; count: number | null }[];
@@ -11,7 +12,7 @@ export interface FreePredictionModel {
   canSubmit: boolean;
   status: "open" | "locked" | "judged" | "void" | "unavailable";
   reason: string | null;
-  result: { hit: boolean; matched: number; total: number } | null;
+  result: { hit: boolean; matched: number; total: number; answer: string[] } | null;
 }
 
 export interface FreePredictionControls {
@@ -27,17 +28,11 @@ export interface PredictionRankingRow {
   profit: string | null;
   hits: number | null;
   decided: number | null;
+  accuracy: number | null;
   rank: number | null;
 }
 export interface PredictionRankingModel {
   rows: PredictionRankingRow[];
   rankedCount: number;
   floor: number | null;
-}
-
-export interface BetReliefModel {
-  canClaim: boolean;
-  amount: string;
-  status: "eligible" | "claimed_today" | "exhausted" | "unavailable";
-  reason: string | null;
 }
