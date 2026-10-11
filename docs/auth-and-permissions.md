@@ -51,7 +51,7 @@ Server Action 返回赛事范围的读取 DTO 时，也必须在 action 自身�
 
 ## Session
 
-`rivalhub-session` 保存最小身份信息和随机 session id；每个请求必须同时命中未过期的 `application_sessions` 注册记录及 active user。有效期 30 天，旧版本没有 session id 的 cookie 一律要求重新登录。读取不沿 merged alias 继承身份；当前邮箱、role 和 season grants 从数据库读取，权限撤销仍独立于登录撤销生效。React cache 只复用当前请求的认证快照，不跨请求缓存。
+`rivalhub-session` 保存最小身份信息和随机 session id；每个请求必须同时命中未过期的 `application_sessions` 注册记录及 active user。有效期 30 天，旧版本没有 session id 的 cookie 一律要求重新登录。读取不沿 merged alias 继承身份；当前邮箱、role 和 season grants 从数据库读取，权限撤销仍独立于登录撤销生效。React cache 只复用当前请求的认证快照，不跨请求缓存。canonical `getUserSession` 在 cookie 解密前等待 `connection()`：启用 Partial Prefetching 时 `cookies()` 可在 session App Shell 预渲染中解析，但解密的过期时钟及后续认证状态必须在真实请求阶段运行。公开壳与 public cache 继续独立；不缓存 session 过期结论，也不依赖父 layout 的等待来约束并行渲染的子页面。
 
 | 操作 | 会话结果 |
 | --- | --- |

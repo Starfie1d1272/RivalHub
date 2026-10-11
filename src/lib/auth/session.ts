@@ -2,6 +2,7 @@ import "server-only";
 
 import { getIronSession } from "iron-session";
 import { cookies } from "next/headers";
+import { connection } from "next/server";
 import { eq } from "drizzle-orm";
 import { cache } from "react";
 
@@ -45,6 +46,9 @@ function userSessionOptions() {
 // React cache memoizes this only for the current server render/request. It is
 // intentionally not Next's persistent or cross-request cache.
 export const getUserSession = cache(async (): Promise<UserSession | null> => {
+  // Partial prefetching can resolve cookies during a runtime shell prerender.
+  // Session unsealing reads the clock for expiry, so it needs a real request.
+  await connection();
   const session = await getIronSession<SessionPayload>(await cookies(), userSessionOptions());
   if (!session.userId || !session.sessionId || !/^[0-9a-f-]{36}$/i.test(session.sessionId)) return null;
   return readApplicationSession(db, session.sessionId, session.userId);
