@@ -1,12 +1,14 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { createLiveViewerClient } from "@/lib/auth/supabase";
 import { connectLiveViewer, type ViewerEnvironment } from "./live-viewer";
+import { createLiveViewerSubscriptions } from "./live-viewer-subscriptions";
+import { liveFreshness } from "./live-viewer-state";
 import type { LiveViewerState } from "./live-viewer-state";
 import { projectPublicLive } from "./live-projection";
 import { parseLiveSnapshotV1 } from "./protocol";
 import fixture from "../../../tests/fixtures/contracts/mizar-live-real-derived.json";
 
-function setup() {
+function setup(shared = false) {
   vi.useFakeTimers();
   const clients: { status: (value: string) => void; deliver: (input: { payload: unknown }) => void; removeAllChannels: ReturnType<typeof vi.fn>; realtime: { disconnect: ReturnType<typeof vi.fn>; setAuth: ReturnType<typeof vi.fn> }; channel: ReturnType<typeof vi.fn> }[] = [];
   let resume = () => {};
@@ -26,8 +28,9 @@ function setup() {
     visible: () => visible, onResume: callback => { resume = callback; return removeListener; },
   };
   const states: LiveViewerState[] = [];
-  const stop = connectLiveViewer(fixture.snapshot.matchId, state => states.push(state), environment);
-  return { clients, states, stop, factory, fetcher, removeListener, hide: () => { visible = false; resume(); }, show: () => { visible = true; resume(); } };
+  const subscribe = createLiveViewerSubscriptions(environment);
+  const stop = shared ? subscribe(fixture.snapshot.matchId, state => states.push(state)) : connectLiveViewer(fixture.snapshot.matchId, state => states.push(state), environment);
+  return { clients, states, stop, subscribe, factory, fetcher, removeListener, hide: () => { visible = false; resume(); }, show: () => { visible = true; resume(); } };
 }
 afterEach(() => vi.useRealTimers());
 describe("private viewer lifecycle", () => {
@@ -84,5 +87,97 @@ describe("private viewer lifecycle", () => {
     expect(h.fetcher).toHaveBeenCalledTimes(2);
     h.stop(); await vi.advanceTimersByTimeAsync(60000);
     expect(h.fetcher).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("browser-local active receiver reuse", () => {
+  const frame = () => {
+    const wire = parseLiveSnapshotV1(fixture.snapshot);
+    return projectPublicLive(wire, 1, wire.producedAt);
+  };
+  it("shares an in-flight token request and disposes only after the last consumer leaves", async () => {
+    const h = setup(true);
+    const states: LiveViewerState[] = [];
+    const stop = h.subscribe(fixture.snapshot.matchId, state => states.push(state));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(h.fetcher).toHaveBeenCalledOnce();
+    h.clients[0].status("SUBSCRIBED"); h.clients[0].deliver({ payload: frame() });
+    expect(states.at(-1)?.snapshot).not.toBeNull();
+    h.stop(); h.stop();
+    await vi.advanceTimersByTimeAsync(6000);
+    expect(h.clients[0].realtime.disconnect).not.toHaveBeenCalled();
+    stop(); await vi.advanceTimersByTimeAsync(5000);
+    expect(h.clients[0].realtime.disconnect).toHaveBeenCalledOnce();
+  });
+  it("re-entry observes the running receiver, without resetting freshness or replaying an old heartbeat", async () => {
+    const h = setup(true); await vi.advanceTimersByTimeAsync(0);
+    h.clients[0].status("SUBSCRIBED"); h.clients[0].deliver({ payload: frame() });
+    const receivedAt = h.states.at(-1)!.receivedAt;
+    h.stop(); await vi.advanceTimersByTimeAsync(4000);
+    const states: LiveViewerState[] = [];
+    const stop = h.subscribe(fixture.snapshot.matchId, state => states.push(state));
+    expect(h.fetcher).toHaveBeenCalledOnce();
+    expect(states.at(-1)!.receivedAt).toBe(receivedAt);
+    expect(liveFreshness(states.at(-1)!, performance.now())).toBe("stale");
+    h.clients[0].deliver({ payload: frame() });
+    expect(states.at(-1)!.receivedAt).toBe(receivedAt);
+    await vi.advanceTimersByTimeAsync(6100);
+    expect(liveFreshness(states.at(-1)!, performance.now())).toBe("unavailable");
+    stop(); await vi.advanceTimersByTimeAsync(5000);
+  });
+  it("keeps receiving during the brief navigation gap, then removes all state after idle disposal", async () => {
+    const h = setup(true); await vi.advanceTimersByTimeAsync(0);
+    h.clients[0].status("SUBSCRIBED"); h.clients[0].deliver({ payload: frame() });
+    h.stop(); await vi.advanceTimersByTimeAsync(1000);
+    const next = frame(); next.delivery.sequence++;
+    h.clients[0].deliver({ payload: next });
+    const states: LiveViewerState[] = [];
+    const stop = h.subscribe(fixture.snapshot.matchId, state => states.push(state));
+    expect(states.at(-1)?.snapshot?.delivery.sequence).toBe(next.delivery.sequence);
+    expect(liveFreshness(states.at(-1)!, performance.now())).toBe("fresh");
+    stop(); await vi.advanceTimersByTimeAsync(5000);
+    const final: LiveViewerState[] = [];
+    const stopAgain = h.subscribe(fixture.snapshot.matchId, state => final.push(state));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(h.fetcher).toHaveBeenCalledTimes(2);
+    expect(final.at(-1)?.snapshot).toBeNull();
+    stopAgain(); await vi.advanceTimersByTimeAsync(5000);
+  });
+  it("isolates matches and receiver environments and clears frames on a real reconnect", async () => {
+    const h = setup(true); await vi.advanceTimersByTimeAsync(0);
+    h.clients[0].status("SUBSCRIBED"); h.clients[0].deliver({ payload: frame() });
+    const states: LiveViewerState[] = [];
+    const stop = h.subscribe("00000000-0000-4000-8000-000000000002", state => states.push(state));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(h.fetcher).toHaveBeenCalledTimes(2);
+    expect(states.at(-1)?.snapshot).toBeNull();
+    h.clients[1].deliver({ payload: frame() });
+    expect(states.at(-1)?.snapshot).toBeNull();
+    h.clients[0].status("CHANNEL_ERROR");
+    const reentry: LiveViewerState[] = [];
+    const stopReentry = h.subscribe(fixture.snapshot.matchId, state => reentry.push(state));
+    expect(reentry.at(-1)?.snapshot).toBeNull();
+    const other = setup(true); await vi.advanceTimersByTimeAsync(0);
+    expect(other.fetcher).toHaveBeenCalledOnce();
+    expect(other.states.at(-1)?.snapshot).toBeNull();
+    h.stop(); stop(); stopReentry(); other.stop(); await vi.advanceTimersByTimeAsync(5000);
+  });
+  it("foreground recovery and token renewal wait for a newly received heartbeat even on re-entry", async () => {
+    const h = setup(true); await vi.advanceTimersByTimeAsync(0);
+    h.clients[0].status("SUBSCRIBED"); h.clients[0].deliver({ payload: frame() });
+    h.stop(); h.hide();
+    const states: LiveViewerState[] = [];
+    const stop = h.subscribe(fixture.snapshot.matchId, state => states.push(state));
+    expect(states.at(-1)?.snapshot).toBeNull();
+    h.show(); await vi.advanceTimersByTimeAsync(0);
+    h.clients[1].status("SUBSCRIBED"); h.clients[1].deliver({ payload: frame() });
+    expect(states.at(-1)?.snapshot).toBeNull();
+    const next = frame(); next.delivery.sequence++;
+    h.clients[1].deliver({ payload: next });
+    expect(states.at(-1)?.snapshot).not.toBeNull();
+    await vi.advanceTimersByTimeAsync(270000);
+    expect(states.at(-1)?.snapshot).toBeNull();
+    expect(h.fetcher).toHaveBeenCalledTimes(3);
+    stop(); await vi.advanceTimersByTimeAsync(5000);
   });
 });
