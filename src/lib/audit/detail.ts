@@ -17,6 +17,7 @@ function state(value: unknown): string {
   const snapshot = record(value);
   if (typeof snapshot.hasVideoUrl !== "boolean") return "未记录";
   const video = snapshot.hasVideoUrl ? "已关联录像" : "未关联录像";
+  if (typeof snapshot.rosterReopened === "boolean") return `${snapshot.rosterReopened ? "名单待更正" : "沿用已登记名单"} · ${video}`;
   return typeof snapshot.submitted === "boolean" ? `${snapshot.submitted ? "已提交" : "待整理"} · ${video}` : video;
 }
 
@@ -32,8 +33,8 @@ export function describeAuditDetail(action: string, meta: unknown, names: Readon
     const submitter = isAuditUserId(values.submittedByUserId) ? names.get(values.submittedByUserId) ?? "未知用户" : "未记录";
     fields.push({ label: action === "postmatch.report.revoke" ? "原提交人" : "提交人", value: submitter });
     description = action === "postmatch.report.revoke"
-      ? "撤销的是赛后整理的提交标记。本场回到待整理，解说名单可继续修改；已记录的比分、Demo、录像和解说名单保留。解说有效场次按当前提交状态统计。"
-      : "记录本场赛后整理已提交，并冻结解说名单；录像仍可单独更新。";
+      ? "开放实际解说名单更正。本场暂不计入有效解说场次；比分、Demo、统计和录像保留。"
+      : "记录实际解说名单已确认；录像仍可单独更新。";
   }
   if (action === "postmatch.report.revoke") {
     const originalAt = typeof values.originalSubmittedAt === "string" && /^\d{4}-\d{2}-\d{2}T/.test(values.originalSubmittedAt)

@@ -118,8 +118,15 @@ it("exposes unfinished post-match work independently of assignment and omits com
   expect(projectOperatorPostMatchTasks({ ...base, maps: [], isForfeit: true })).toEqual([]);
   expect(projectOperatorPostMatchTasks({ ...base, maps: [] })).toEqual([{ label: "核对已完成比赛的地图记录", anchor: "match-workbench-finished-maps" }]);
   expect(projectOperatorPostMatchTasks({ ...base, status: "cancelled" })).toEqual([]);
-  expect(projectOperatorPostMatchTasks({ ...base, commentatorCount: 1 }).slice(-2)).toEqual([
-    { label: "确认解说名单", anchor: "match-workbench-finished-postmatch" },
+  expect(projectOperatorPostMatchTasks({ ...base, commentatorCount: 1, reopened: true }).slice(-2)).toEqual([
+    { label: "确认更正后的解说名单", anchor: "match-workbench-finished-postmatch" },
     { label: "登记解说回放", anchor: "match-workbench-finished-postmatch" },
   ]);
+});
+
+// A default roster needs no repeat submission; an explicit reopen remains actionable.
+it("automatically finishes existing data and video without clearing a roster correction request", () => {
+  const base = { status: "finished" as const, isForfeit: false, maps: [{ ...map(1, true, true), demoComplete: true }], commentatorCount: 1, submitted: false, hasVideo: true };
+  expect(projectOperatorPostMatchTasks(base)).toEqual([]);
+  expect(projectOperatorPostMatchTasks({ ...base, reopened: true })).toEqual([{ label: "确认更正后的解说名单", anchor: "match-workbench-finished-postmatch" }]);
 });

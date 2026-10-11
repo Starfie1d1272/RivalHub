@@ -8,6 +8,7 @@ import type { TxDb } from "@/db/client";
 import type { Match } from "@/db/schema";
 import { matchCommentators, matchLiveSessions, matchVetoSessions, matches, postMatchReports, users } from "@/db/schema";
 import { AppError, ErrorCode } from "@/lib/errors";
+import { readReopenedPostMatchIds } from "./read";
 
 async function lockMatchInTx(tx: TxDb, matchId: string) {
   const [match] = await tx.select().from(matches).where(eq(matches.id, matchId)).for("update");
@@ -22,12 +23,13 @@ async function assertCommentatorEligibleInTx(tx: TxDb, seasonId: string, userId:
   const [grant] = await tx.select({ userId: users.id }).from(users).where(and(eq(users.id, userId), commentaryAdminEligibility(seasonId))).limit(1);
   if (!grant) throw new AppError(ErrorCode.FORBIDDEN, message);
 }
-async function assertRosterEditableInTx(tx: TxDb, matchId: string) {
-  if (await lockSubmissionInTx(tx, matchId)) throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "赛后资料已提交；请先撤销提交后再修改解说名单。");
+async function assertRosterEditableInTx(tx: TxDb, match: Match) {
+  if (await lockSubmissionInTx(tx, match.id) || (match.status === "finished" && !(await readReopenedPostMatchIds(tx, [match.id])).has(match.id)))
+    throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "请先重开解说名单，再修改实际解说。");
 }
 async function addCommentatorToLockedMatchInTx(tx: TxDb, match: Match, args: { userId: string; actorId: string }) {
   assertCompetitionMatch(match);
-  await assertRosterEditableInTx(tx, match.id);
+  await assertRosterEditableInTx(tx, match);
   if (match.status === "cancelled") throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "已取消比赛不能登记解说。");
   await assertCommentatorEligibleInTx(tx, match.seasonId, args.userId);
   const current = await tx.select({ userId: matchCommentators.userId }).from(matchCommentators).where(eq(matchCommentators.matchId, match.id));
@@ -59,14 +61,14 @@ export async function cancelMatchCommentaryInTx(tx: TxDb, args: { matchId: strin
   const [source] = await tx.select({ id: matchLiveSessions.id }).from(matchLiveSessions).where(and(eq(matchLiveSessions.matchId, match.id), isNull(matchLiveSessions.closedAt)));
   const blocker = commentaryCancellationBlocker({ status: match.status, vetoStartedAt: veto?.startedAt ?? null, activeSourceId: source?.id ?? null });
   if (blocker) throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, blocker);
-  await assertRosterEditableInTx(tx, match.id);
+  await assertRosterEditableInTx(tx, match);
   const [removed] = await tx.delete(matchCommentators).where(and(eq(matchCommentators.matchId, match.id), eq(matchCommentators.userId, args.userId))).returning({ userId: matchCommentators.userId });
   if (removed) await writeAuditInTx(tx, { seasonId: match.seasonId, action: "postmatch.commentator.cancel", actorId: args.userId, targetId: match.id, meta: { commentatorUserId: args.userId } });
   return { seasonId: match.seasonId, removed: Boolean(removed) };
 }
 export async function removeMatchCommentatorInTx(tx: TxDb, args: { matchId: string; userId: string; actorId: string }) {
   const match = await lockMatchInTx(tx, args.matchId);
-  await assertRosterEditableInTx(tx, match.id);
+  await assertRosterEditableInTx(tx, match);
   const [removed] = await tx.delete(matchCommentators).where(and(eq(matchCommentators.matchId, match.id), eq(matchCommentators.userId, args.userId))).returning({ userId: matchCommentators.userId });
   if (removed) await writeAuditInTx(tx, { seasonId: match.seasonId, action: "postmatch.commentator.remove", actorId: args.actorId, targetId: match.id,meta: { commentatorUserId: args.userId } });
   return { seasonId: match.seasonId, removed: Boolean(removed) };
@@ -74,13 +76,14 @@ export async function removeMatchCommentatorInTx(tx: TxDb, args: { matchId: stri
 export async function setMatchVideoUrlInTx(tx: TxDb, args: { matchId: string; videoUrl: string | null; actorId: string }) {
   const match = await lockMatchInTx(tx, args.matchId);
   if (match.status !== "finished") throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "只有已结束比赛可以记录录像链接。");
+  const rosterReopened = (await readReopenedPostMatchIds(tx, [match.id])).has(match.id);
   await tx.update(matches).set({ videoUrl: args.videoUrl, updatedAt: new Date() }).where(eq(matches.id, match.id));
   await writeAuditInTx(tx, {
     seasonId: match.seasonId, action: "postmatch.video.update", actorId: args.actorId, targetId: match.id,
     meta: {
       hasVideoUrl: Boolean(args.videoUrl),
-      before: { hasVideoUrl: Boolean(match.videoUrl) },
-      after: { hasVideoUrl: Boolean(args.videoUrl) },
+      before: { hasVideoUrl: Boolean(match.videoUrl), rosterReopened },
+      after: { hasVideoUrl: Boolean(args.videoUrl), rosterReopened },
       videoChange: match.videoUrl === args.videoUrl ? "unchanged" : !args.videoUrl ? "cleared" : !match.videoUrl ? "added" : "replaced",
     },
   });
@@ -106,7 +109,16 @@ export async function submitPostMatchReportInTx(tx: TxDb, args: { matchId: strin
 export async function revokePostMatchSubmissionInTx(tx: TxDb, args: { matchId: string; actorId: string; reason?: string }) {
   const match = await lockMatchInTx(tx, args.matchId);
   const submission = await lockSubmissionInTx(tx, match.id);
-  if (!submission) throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "本场尚未提交赛后资料。");
+  if (!submission) {
+    if (match.status !== "finished") throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "比赛结束后才能更正实际解说名单。");
+    if ((await readReopenedPostMatchIds(tx, [match.id])).has(match.id))
+      throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "本场解说名单已经开放更正。");
+    await writeAuditInTx(tx, { seasonId: match.seasonId, action: "postmatch.report.revoke", actorId: args.actorId,
+      targetId: match.id, meta: { before: { submitted: false, hasVideoUrl: Boolean(match.videoUrl), rosterReopened: false },
+        after: { submitted: false, hasVideoUrl: Boolean(match.videoUrl), rosterReopened: true },
+        ...(args.reason?.trim() ? { reason: args.reason.trim() } : {}) } });
+    return { seasonId: match.seasonId };
+  }
   await tx.delete(postMatchReports).where(eq(postMatchReports.matchId, match.id));
   await writeAuditInTx(tx, {
     seasonId: match.seasonId, action: "postmatch.report.revoke", actorId: args.actorId, targetId: match.id,
@@ -120,8 +132,6 @@ export async function revokePostMatchSubmissionInTx(tx: TxDb, args: { matchId: s
   });
   return { seasonId: match.seasonId };
 }
-export type PostMatchCompletion = "pending_collection" | "waiting_video" | "completed";
-export function getPostMatchCompletion(submittedAt: Date | null, videoUrl: string | null): PostMatchCompletion { return !submittedAt ? "pending_collection" : videoUrl ? "completed" : "waiting_video"; }
-export const POST_MATCH_COMPLETION_LABEL: Record<PostMatchCompletion, string> = { pending_collection: "待整理", waiting_video: "等待录像", completed: "已完成" };
+export { getPostMatchCompletion, POST_MATCH_COMPLETION_LABEL, type PostMatchCompletion } from "./completion";
 
 export { getPublicLiveCommentators } from "@/lib/matches/presentation";
