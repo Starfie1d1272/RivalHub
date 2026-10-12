@@ -5,6 +5,8 @@ import { TeamLogoImage } from "@/components/teams/TeamLogoImage";
 vi.mock("next/image", async () => {
   const { forwardRef } = await import("react");
   return { default: forwardRef<HTMLImageElement, { src: string; alt: string; onError: () => void }>(function MockImage({ src, alt, onError }, ref) {
+    // Exercise browser image errors while mocking the Next image wrapper.
+    // eslint-disable-next-line @next/next/no-img-element
     return <img ref={ref} src={src} alt={alt} onError={onError} />;
   }) };
 });
