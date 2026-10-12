@@ -73,6 +73,21 @@ describe("BET transactional admission and settlement",()=>{
     expect((await read(db,seasonId,late)).balance).toBe("1300");
   }));
 
+  it("projects initial grant eligibility from the real join gates without requiring an unpaused market", async () => fixture(async f => {
+    const late=randomUUID();await f.db.insert(schema.users).values({id:late,email:`${late}@example.test`});
+    expect((await read(f.db,f.seasonId,late)).joinEligibility).toMatchObject({canJoin:false,reason:expect.stringContaining("邮箱验证")});
+    await f.db.update(schema.users).set({emailVerifiedAt:new Date(),emailVerificationSource:"admin_migration"}).where(eq(schema.users.id,late));
+    await f.db.update(schema.betPrograms).set({paused:true}).where(eq(schema.betPrograms.seasonId,f.seasonId));
+    expect((await read(f.db,f.seasonId,late)).joinEligibility).toEqual({canJoin:true,reason:null});
+    expect(await f.db.query.betAccounts.findFirst({where:eq(schema.betAccounts.userId,late)})).toBeUndefined();
+    await f.db.transaction(tx=>joinBetInTx(tx,f.seasonId,late));
+    expect(await read(f.db,f.seasonId,late)).toMatchObject({joined:true,balance:"1000",joinEligibility:{canJoin:false}});
+    const archived=randomUUID();await f.db.insert(schema.users).values({id:archived,email:`${archived}@example.test`,emailVerifiedAt:new Date(),emailVerificationSource:"admin_migration"});
+    await f.db.update(schema.seasons).set({status:"archived"}).where(eq(schema.seasons.id,f.seasonId));
+    expect((await read(f.db,f.seasonId,archived)).joinEligibility).toMatchObject({canJoin:false,reason:expect.stringContaining("归档")});
+    await expect(f.db.transaction(tx=>joinBetInTx(tx,f.seasonId,archived))).rejects.toThrow(/归档/);
+  }));
+
   it("ranks current settled profit with competition ties and exposes only the viewer's safe history", async () => fixture(async f => {
     const {db,seasonId,userId,otherId,matchId}=f;
     const third=randomUUID();await db.insert(schema.users).values({id:third,email:`${third}@example.test`,displayName:"第三位",emailVerifiedAt:new Date(),emailVerificationSource:"admin_migration"});
