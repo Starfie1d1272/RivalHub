@@ -154,3 +154,19 @@ it("restores the validated clicked option, request identity and map focus after 
   expect(screen.getByRole("tab",{name:/地图/})).toHaveAttribute("aria-selected","true");
   expect(screen.getByRole("button",{name:/Ancient/})).toHaveFocus();
 });
+
+
+it("restores the stake opener after a successful submission finishes its slow wallet refresh",async()=>{
+  const user=userEvent.setup();let finish!:(value:Awaited<ReturnType<typeof getBetBoard>>)=>void;
+  vi.mocked(mutateBet).mockResolvedValueOnce({success:true,data:{amount:"10"}});
+  vi.mocked(getBetBoard).mockImplementationOnce(()=>new Promise(resolve=>{finish=resolve;}));
+  render(<BetBoard initial={initial} slug="test" signedIn view="open" matchFilter={null}/>);
+  const entry=screen.getByRole("button",{name:/Ancient/});
+  await user.click(entry);await user.type(screen.getByLabelText("投入积分"),"10");
+  await user.click(screen.getByRole("button",{name:"确认投入"}));
+  await waitFor(()=>expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  expect(entry).toBeDisabled();
+  await act(async()=>finish({success:true,data:initial}));
+  await waitFor(()=>expect(entry).toBeEnabled());
+  expect(entry).toHaveFocus();
+});
