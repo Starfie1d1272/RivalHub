@@ -20,6 +20,7 @@ export { shouldLoadRegistrationPositionCounts } from "@/lib/home/presentation";
 
 interface HomePanelSeason {
   name: string;
+  hasOfficialMatches?: boolean;
   slug: string;
   status: SeasonStatus;
   registrationMode: RegistrationMode;
@@ -64,7 +65,7 @@ export function HomeSeasonPanel({
   playerCount,
 }: HomeSeasonPanelProps) {
   const registrationSchedule = presentRegistrationSchedule(season);
-  if (isRegistrationActuallyOpen(season) && liveAndUpcomingMatches.length === 0) {
+  if (isRegistrationActuallyOpen(season) && !season.hasOfficialMatches && liveAndUpcomingMatches.length === 0) {
     return (
       <Panel label="REGISTRATION">
         <div className="grid gap-3.5">
@@ -145,9 +146,8 @@ export function HomeSeasonPanel({
 
   if (season.status === "playing" || liveAndUpcomingMatches.length > 0) {
     return (
-      <Panel label="MATCHES">
+      <Panel label="近期比赛">
         <div className="grid gap-3.5">
-          <SeasonPanelTitle season={season} />
           <div className="grid gap-2 py-3 border-y border-[var(--color-border)]">
             {liveAndUpcomingMatches.length > 0 ? (
               liveAndUpcomingMatches.map((match) => (
@@ -159,7 +159,6 @@ export function HomeSeasonPanel({
               </div>
             )}
           </div>
-          <PanelStats teamCount={teamCount} playerCount={playerCount} status={season.status} registrationMode={season.registrationMode} />
           <Button className="w-full" asChild>
             <Link href={`/${season.slug}/matches`} className="w-full">
               查看赛程 →

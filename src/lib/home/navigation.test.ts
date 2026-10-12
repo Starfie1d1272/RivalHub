@@ -114,11 +114,12 @@ describe("home navigation helpers", () => {
     expect(tiers.tier2Entries.map((entry) => entry.key)).toEqual([
       "captains",
       "draft",
-      "teams",
       "matches",
     ]);
     expect(tiers.tier3Entries.map((entry) => entry.key)).toEqual([
+      "teams",
       "players",
+      "info",
       "seasons",
       "login",
     ]);
@@ -137,9 +138,10 @@ describe("home navigation helpers", () => {
 
     expect(entries.map((entry) => entry.key)).toEqual([
       "register",
-      "teams",
       "matches",
+      "teams",
       "players",
+      "info",
       "seasons",
       "login",
     ]);

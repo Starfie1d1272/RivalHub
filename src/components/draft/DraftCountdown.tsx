@@ -9,7 +9,7 @@ interface DraftCountdownProps {
 }
 
 export function DraftCountdown({ deadline, isActive }: DraftCountdownProps) {
-  const [now, setNow] = useState(() => Date.now());
+  const [now, setNow] = useState(0);
 
   useEffect(() => {
     if (!deadline || !isActive) return;
@@ -17,7 +17,7 @@ export function DraftCountdown({ deadline, isActive }: DraftCountdownProps) {
     return () => clearInterval(timer);
   }, [deadline, isActive]);
 
-  if (!deadline) {
+  if (!deadline || now === 0) {
     return (
       <span className="text-sm text-[var(--color-fg-dim)] tabular">
         --:--

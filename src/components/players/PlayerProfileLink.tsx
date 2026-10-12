@@ -1,4 +1,5 @@
 "use client";
+import { useStatsProfileHref } from "@/components/stats/StatsNavigationContext";
 import Link from "next/link";
 import { type AnchorHTMLAttributes, type ReactNode } from "react";
 import { cn } from "@/lib/utils/cn";
@@ -12,7 +13,8 @@ export interface PlayerProfileLinkProps extends Omit<AnchorHTMLAttributes<HTMLAn
 
 /** Public identity navigation; render beside, never inside, a primary control. */
 export function PlayerProfileLink({ userId, children, className, variant = "inherit", stopPropagation = false, onClick, onKeyDown, ...props }: PlayerProfileLinkProps) {
-  return <Link href={`/players/${encodeURIComponent(userId)}`} className={cn(
+  const href = useStatsProfileHref(`/players/${encodeURIComponent(userId)}`);
+  return <Link href={href as import("next").Route} className={cn(
     "transition-colors hover:text-[var(--color-accent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-border-focus)] focus-visible:ring-offset-2",
     variant === "dense" && "inline-flex min-h-6 min-w-6 items-center justify-center",
     variant === "subtle" && "text-[var(--color-fg-mid)]",

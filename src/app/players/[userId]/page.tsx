@@ -1,3 +1,4 @@
+import { StatsReturnLink } from "@/components/stats/StatsNavigationContext";
 import { TeamProfileLink } from "@/components/teams/TeamProfileLink";
 import { statsEntryHref } from "@/lib/stats/view-state";
 import { Suspense, type ReactNode } from "react";
@@ -115,6 +116,7 @@ export async function PlayerPageContent({ params, searchParams }: PlayerPageProp
 
   return (
     <PageLayout variant="standard" className="space-y-12">
+      <StatsReturnLink />
       <section className="border-b border-[var(--color-border)] pb-8">
         <div className="flex flex-col gap-6 sm:flex-row sm:items-start">
           <PlayerAvatar name={getPublicDisplayName(user)} avatarUrl={user.avatarUrl} size="lg" />

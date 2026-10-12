@@ -1,4 +1,5 @@
 /** @vitest-environment jsdom */
+import Link from "next/link";
 import React from "react";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
@@ -6,16 +7,16 @@ import { SeasonNav } from "./SeasonNav";
 
 vi.mock("next/navigation", () => ({ usePathname: () => "/spring/teams" }));
 const capabilities = { hasCaptainVoting: true, hasDraft: true, hasCommunityAwards: true, hasMatches: true, hasStats: true };
-const optionalLinks = ["队长投票", "选秀", "社区奖", "赛程", "数据统计"];
+const optionalLinks = ["队长投票", "选秀", "社区奖", "赛程", "数据"];
 
 describe("SeasonNav", () => {
   it("exposes registration and enabled event capabilities", () => {
-    render(<SeasonNav slug="spring" status="registration" {...capabilities} />);
+    render(<SeasonNav slug="spring" status="registration" {...capabilities} participationAction={<Link href="/spring/register">报名</Link>} />);
     expect(screen.getByRole("link", { name: "报名" })).toHaveAttribute("href", "/spring/register");
     for (const [name, path] of [["队长投票", "captains"], ["选秀", "draft"], ["社区奖", "community-awards"], ["赛程", "matches"]]) {
       expect(screen.getByRole("link", { name })).toHaveAttribute("href", `/spring/${path}`);
     }
-    expect(screen.getByRole("link", { name: "数据统计" })).toHaveAttribute("href", "/stats?event=spring");
+    expect(screen.getByRole("link", { name: "数据" })).toHaveAttribute("href", "/stats?event=spring");
   });
 
   it("hides registration in the historical view while retaining enabled capabilities", () => {

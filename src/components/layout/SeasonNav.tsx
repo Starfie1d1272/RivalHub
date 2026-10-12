@@ -1,6 +1,7 @@
 "use client";
 
-import { statsEntryHref } from "@/lib/stats/view-state";
+import { seasonEntries } from "@/lib/seasons/entries";
+import { pageAlignmentFrame } from "@/components/rivalhub/Layout";
 import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -17,11 +18,7 @@ interface SeasonNavProps {
   hasMatches: boolean;
   hasStats: boolean;
   hasPredictions?: boolean;
-}
-
-interface NavItem {
-  label: string;
-  href: string;
+  participationAction?: React.ReactNode;
 }
 
 export function SeasonNav({
@@ -33,38 +30,24 @@ export function SeasonNav({
   hasMatches,
   hasStats,
   hasPredictions,
+  participationAction,
 }: SeasonNavProps) {
   const pathname = usePathname();
-  const isHistorical = status === "finished" || status === "archived";
-
-  const items: NavItem[] = [
-    { label: "赛事首页", href: `/${slug}` },
-    ...(!isHistorical ? [{ label: "报名", href: `/${slug}/register` }] : []),
-    ...(hasCaptainVoting ? [{ label: "队长投票", href: `/${slug}/captains` }] : []),
-    ...(hasDraft ? [{ label: "选秀", href: `/${slug}/draft` }] : []),
-    { label: "队伍", href: `/${slug}/teams` },
-    { label: "选手", href: `/${slug}/players` },
-    ...(hasMatches ? [{ label: "赛程", href: `/${slug}/matches` }] : []),
-    ...(hasCommunityAwards ? [{ label: "社区奖", href: `/${slug}/community-awards` }] : []),
-    ...(hasPredictions ? [{ label: "观赛预测", href: `/${slug}/predictions` }, { label: "竞猜平台", href: `/${slug}/bet` }] : []),
-    ...(hasStats ? [{ label: "数据统计", href: statsEntryHref(slug, {}, status === "draft") }] : []),
-  ];
+  const items = seasonEntries({ slug, status, hasCaptainVoting, hasDraft, hasCommunityAwards, hasMatches, hasStats, hasPredictions }).filter(entry => entry.canRead);
 
   return (
     <nav className="border-b border-[var(--color-border)]">
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <ScrollHint>
+      <div className={`${pageAlignmentFrame()} flex min-w-0 items-center gap-4`}>
+        <div className="min-w-0 flex-1"><ScrollHint>
         <ul className="flex gap-1">
-          {items.map(({ label, href }) => {
-            const isHome = href === `/${slug}`;
-            const isActive = isHome
-              ? pathname === `/${slug}`
-              : pathname.startsWith(href);
+          {items.map(({ label, href, matches }) => {
+            const isActive = matches(pathname);
 
             return (
               <li key={href} className="shrink-0">
                 <Link
                   href={href as never}
+                  aria-current={isActive ? "page" : undefined}
                   className={cn(
                     "inline-block px-3 py-3 text-sm font-medium border-b-2 transition-colors",
                     isActive
@@ -78,7 +61,8 @@ export function SeasonNav({
             );
           })}
         </ul>
-        </ScrollHint>
+        </ScrollHint></div>
+        {participationAction && <div className="shrink-0">{participationAction}</div>}
       </div>
     </nav>
   );

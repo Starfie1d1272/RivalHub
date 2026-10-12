@@ -1,4 +1,5 @@
 "use client";
+import { StatsExplorerTable } from "@/components/stats/StatsExplorerTable";
 import { TeamProfileLink } from "@/components/teams/TeamProfileLink";
 import React from "react";
 
@@ -7,7 +8,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { MetricFamilyTabs } from "@/components/stats/MetricFamilyTabs";
 import { StatsSideSplit } from "@/components/stats/StatsSideSplit";
-import { StatsDataTable, type StatsDataColumn } from "@/components/stats/StatsDataTable";
+import { type StatsDataColumn } from "@/components/stats/StatsDataTable";
 import type { TournamentStats } from "@/lib/stats/tournament-query";
 import { navigateStatsScope, statsHref, type StatsQuery } from "@/lib/stats/view-state";
 import { compareStatsValues, type StatsSortDirection, type StatsSortValue } from "@/lib/stats/sorting";
@@ -261,7 +262,7 @@ export function MapsExplorer({ data, query, seasonSlug }: { data: TournamentStat
             {partialCoverage && <span>Coverage {data.coverage.detailedMaps}/{data.coverage.completedMaps}</span>}
             <span>{rows.length} map{rows.length === 1 ? "" : "s"}</span>
           </div>
-          <StatsDataTable
+          <StatsExplorerTable
             rows={rows}
             columns={poolColumns}
             rowKey={(row) => row.mapName}

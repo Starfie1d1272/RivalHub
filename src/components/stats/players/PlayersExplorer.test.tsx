@@ -6,7 +6,7 @@ import { buildTournamentResults } from "@/lib/stats/results";
 import { parseStatsQuery } from "@/lib/stats/view-state";
 import type { TournamentStats } from "@/lib/stats/tournament-query";
 import { PlayersExplorer } from "./PlayersExplorer";
-vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn(), replace: vi.fn() }), useSearchParams: () => new URLSearchParams() }));
 vi.mock("@/components/players/PlayerProfileLink", () => ({ PlayerProfileLink: ({ children }: { children: React.ReactNode }) => <span>{children}</span> }));
 it("filters merged user rows by their actual entries without recalculating the aggregate", () => {
   const labels = { teams: {}, players: {} };

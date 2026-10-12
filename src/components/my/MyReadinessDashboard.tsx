@@ -57,12 +57,12 @@ function SanctionCard({ sanction }: { sanction: MyWorkspaceModel["sanctions"][nu
 export function MyReadinessDashboard({ model }: { model: MyWorkspaceModel }) {
   const blockedSanctions = model.sanctions.length > 0;
   const readiness = model.readiness;
-  return <div className="space-y-8">
+  return <div className="space-y-6">
     <PageHeader eyebrow="MY RIVALHUB" title="我的参赛" description={`你好，${model.displayName}。这里先列出需要你处理的事项，再汇总当前队伍、赛事进度与参赛资料；资料齐全不等于某届赛事一定可报名或出场。`} />
 
     <Section>
       <SectionHeader title="需要你处理" description={model.tasks.length > 0 ? "优先处理会改变你当前参赛路径的事项。" : "目前没有需要你处理的参赛事项。"} />
-      {model.tasks.length > 0 ? <div className="grid gap-4 md:grid-cols-2">{model.tasks.map((item) => <ReadinessCard key={item.id} item={item} />)}</div> : <StatusBanner tone="success" title="当前没有待处理事项" sub="赛事审核、正式参赛名单和单场出场仍以各自的实时事实为准。" />}
+      {model.tasks.length > 0 ? <div className="grid gap-3 md:grid-cols-2">{model.tasks.map((item) => <ReadinessCard key={item.id} item={item} />)}</div> : <StatusBanner tone="success" title="当前没有待处理事项" sub="赛事审核、正式参赛名单和单场出场仍以各自的实时事实为准。" />}
     </Section>
 
     {model.upcomingMatches.length > 0 && <Section><SectionHeader title="接下来" description="当前比赛只取已确认或已冻结赛事名单中的比赛事实。" /><div className="grid gap-4 md:grid-cols-2">{model.upcomingMatches.map((match) => <Panel key={`${match.seasonId}-${match.task.href}`} label={match.seasonName} contentClassName="p-5"><div className="space-y-3"><div><p className="font-semibold"><TeamProfileLink seasonSlug={match.seasonSlug} entryId={match.entryId}>{match.entryName}</TeamProfileLink></p><p className="mt-1 text-sm text-[var(--color-fg-mid)]">{match.task.title} · {match.task.detail}</p></div><Button size="sm" variant="outline" asChild><Link href={match.task.href as never}>查看比赛</Link></Button></div></Panel>)}</div></Section>}

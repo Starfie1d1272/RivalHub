@@ -10,7 +10,7 @@ describe("stats URL scope", () => {
       tab: "players", stage: "swiss", format: "bo3", mapFilter: "de_ancient", teamFilter: teamId,
       player: playerId, sort: "adr", dir: "asc", view: "impact", page: "5", side: "ct", q: "x",
     }, ["swiss"]);
-    expect(parsed).toEqual({ tab: "players", stage: "swiss", format: "bo3", mapFilter: "de_ancient", teamFilter: teamId, player: "", team: "", map: "", mapsView: "pool" });
+    expect(parsed).toEqual({ tab: "players", stage: "swiss", format: "bo3", mapFilter: "de_ancient", teamFilter: teamId, player: "", team: "", map: "", mapsView: "pool", sort: "adr", direction: "desc", page: 5, family: "", q: "x" });
   });
 
   it("clears entity scope on tab and stage changes while preserving global format", () => {

@@ -51,10 +51,14 @@ presentation owner 对有限集合使用穷举映射（新增状态必须同时�
 
 - narrow：auth、single action、confirmation、长文阅读、单列长表单和小型纵向状态页；目标是阅读 measure 与任务聚焦。
 - standard：entity/detail page 和中等复杂度 workflow；纵向内容为主，但需要正常的数据、卡片和指标横向空间。
-- wide：directory、card grid、searchable/filterable list、standalone admin list、data browsing 和多区域 workspace。
-- workbench：高密度 operator canvas 与 season-admin 多任务工作区；父级拥有最大可用页面宽度，子页面不再对整页重新加 max-w-*。
+- wide：最大外框 1440px；首页、赛事总览、directory、card grid 和多区域 detail。
+- workbench：最大外框 1760px；数据 explorer、选秀阵容墙、队长工作区、推演 canvas 与 season-admin。父级拥有最大可用页面宽度，子页面不再对整页重新加 max-w-*。
 
 选择 variant 时先看页面的信息架构和交互密度，不按历史 max-w-* 机械套用。inner max-w-* 只服务真实的阅读或表单 measure；如果它包住整个 list、grid、operator workspace 或多区块 detail page，它实际上又在决定 page sizing，应回到 PageLayout 语义重新审查。
+
+全站沿用深色橙色竞技品牌。首页采用单一赛事主视觉与有主次的内容编排；分析、表单和操作背景保持安静，网格只进入展示层。控件、普通 surface 和展示面的圆角由共享语义 token 拥有。赛事主题覆盖 accent / rgb / soft / edge / focus / on-accent 完整色族，按钮文字按颜色亮度选择可读前景。导航 alignment frame 复用 `pageAlignmentFrame`。
+
+赛事入口由 `src/lib/seasons/entries.ts` 维护轻量 presentation metadata；能力门禁继续消费实际配置与既有 read model，入口不承担授权或 transition。Rivals 投票和选秀在历史中保持原目的地；Major 的预测与竞猜、赛事推演保持分别可发现。
 
 颜色不能单独承担 success/warning/danger；状态同时使用文字、图标或结构表达。10–11px mono 只用于 code、marker、ticker 和 compact metadata，不承担正文解释。
 
@@ -96,7 +100,11 @@ read model 保留已有 public-safe canonical identity：BET option entity 由 m
 
 全站固定入口为「赛事 / 队伍 / 数据中心」，桌面、移动与 fallback 复用相同目的地。公共数据加载后，在「赛事」之后增加最多一个活跃赛事名称入口，复用生命周期分组与首页优先级；无活跃赛事时不以历史赛事补位。桌面长名称有界截断，移动菜单允许换行。活跃赛事内部页面高亮该入口，其它赛事页面高亮「赛事」，路径匹配遵守 segment 边界。公共导航与 viewer/session Suspense island 保持隔离。赛事页保留「首页 → 赛事 → 本届名称」breadcrumb 与内部业务导航，不再重复显示赛事名称选择框；切换其它赛事通过「赛事」目录完成。导航默认项不作为比赛归属或授权依据。
 
-`/stats` 使用平台主题与 `PageLayout wide`，默认全部公开赛事，包括 archived 历史。赛事是可搜索的上下文筛选，不是统计页面归属；选择器只接收 public-safe 摘要，确认选项才导航，支持键盘、焦点返回与内部滚动。阶段只用于单届；赛制与地图属于共享 scope。Overview / Players / Teams / Maps / Weapons / Records 是固定六个内容 tab。旧公开赛事统计入口永久迁移到 canonical URL；授权 draft preview 继续隔离在薄适配入口中。
+`/stats` 使用平台主题与 `PageLayout workbench`，默认全部公开赛事，包括 archived 历史。赛事是可搜索的上下文筛选，不是统计页面归属；选择器只接收 public-safe 摘要，确认选项才导航，支持键盘、焦点返回与内部滚动。阶段只用于单届；赛制与地图属于共享 scope。Overview / Players / Teams / Maps / Weapons / Records 是固定六个内容 tab。旧公开赛事统计入口永久迁移到 canonical URL；授权 draft preview 继续隔离在薄适配入口中。
+
+单届统计上下文提供“返回本届赛事 / 查看赛程”。主 explorer 的已支持排序、方向、分页、指标 family 和搜索记录在 URL；列的可排序能力仍在表格边界校验，嵌入表保留本地状态。大型独立表使用单一有界滚动区和吸顶表头；身份列固定，当前排序列仅轻量强调。从统计进入资料时通过上下文携带本站 `/stats` 返回地址，返回校验拒绝外部或其它路由。
+
+公开选秀只有一套真实状态主区：preview 保持只读并刷新状态，active / paused 受控刷新，complete / archive 停止轮询。阵容墙按真实队伍与已选轮次展示；archive 不呈现 LIVE、倒计时或待选空池。队长工作区默认露出本队阵容，详情阅读与实际选入是两个独立动作。
 
 Players Opening 在 FD/100r 后显示 Traded FD%；Utility 在 Blind/Flash 后显示 Net Blind/Flash。两列沿用排序、dynamic qualification、样本与 tooltip contract，次级列在窄屏隐藏，净值保留负数。搜索与队伍展示过滤不改变指标资格总体。
 

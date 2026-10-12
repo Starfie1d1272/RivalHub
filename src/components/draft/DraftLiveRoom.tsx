@@ -15,6 +15,7 @@ interface DraftLiveRoomProps {
   data: PublicDraftData;
   seasonPositions: string[];
   readonly?: boolean;
+  mode?: "preview" | "live" | "archive";
 }
 
 interface PickNotification {
@@ -28,11 +29,14 @@ export function DraftLiveRoom({
   data,
   seasonPositions,
   readonly: isReadonly,
+  mode,
 }: DraftLiveRoomProps) {
   const { state, teams, snakeOrder, remainingPlayers, completedPicks, totalPicks, maxPicks } =
     data;
 
-  const isLive = state?.isActive ?? false;
+  const isComplete = maxPicks > 0 && totalPicks >= maxPicks;
+  const isArchive = mode === "archive" || (mode === undefined && Boolean(isReadonly));
+  const isLive = !isArchive && !isComplete && (state?.isActive ?? false);
 
   // Pick notification state
   const [notification, setNotification] = useState<PickNotification | null>(null);
@@ -68,8 +72,7 @@ export function DraftLiveRoom({
     };
   }, []);
 
-  const isComplete = maxPicks > 0 && totalPicks >= maxPicks;
-  useRoutePolling(isReadonly || isComplete ? null : isLive ? 10_000 : 30_000);
+  useRoutePolling(isArchive || isComplete ? null : isLive ? 10_000 : 30_000);
 
   // Watch for new picks via completedPicks changes
   const prevPickCountRef = useRef(completedPicks.length);
@@ -96,15 +99,15 @@ export function DraftLiveRoom({
   }, [completedPicks, showPickNotification]);
 
   // 确定当前选秀队
-  const pickingEntryId = isLive ? state?.currentEntryId ?? null : null;
+  const pickingEntryId = !isArchive && !isComplete ? state?.currentEntryId ?? null : null;
   const pickingTeam = teams.find((t) => t.entryId === pickingEntryId);
 
   return (
     <div className="space-y-6">
       {/* Pick notification banner —— 仅直播模式 */}
-      {!isReadonly && notification && (
+      {!isArchive && notification && (
         <div
-          className="fixed top-0 left-0 right-0 z-50 flex items-center justify-center px-4 py-3 text-sm font-medium text-[var(--color-accent-fg)] transition-opacity duration-300"
+          className="flex items-center justify-center rounded-md px-4 py-3 text-sm font-medium text-[var(--color-accent-fg)] transition-opacity duration-200"
           style={{
             background: "var(--color-accent)",
             opacity: notificationVisible ? 1 : 0,
@@ -117,46 +120,11 @@ export function DraftLiveRoom({
         </div>
       )}
 
-      {/* 顶部状态栏 —— 仅直播模式 */}
-      {!isReadonly && (
-        <div className="flex flex-wrap items-center justify-between gap-3 p-4 rounded-lg border border-[var(--color-border)] bg-[var(--color-panel)]">
-          <div className="flex items-center gap-4 flex-wrap">
-            <div className="text-sm">
-              <span className="text-[var(--color-fg-mid)]">进度 </span>
-              <span className="text-[var(--color-fg)] font-semibold tabular">
-                {totalPicks} / {maxPicks}
-              </span>
-            </div>
-            {state && (
-              <div className="text-sm">
-                <span className="text-[var(--color-fg-mid)]">第 </span>
-                <span className="text-[var(--color-fg)] font-semibold tabular">
-                  {state.currentRound}
-                </span>
-                <span className="text-[var(--color-fg-mid)]"> / {DRAFT_TOTAL_ROUNDS} 轮</span>
-              </div>
-            )}
-            {pickingTeam && isLive && (
-              <div className="text-sm">
-                <span className="text-[var(--color-fg-mid)]">当前 </span>
-                <span className="text-[var(--color-accent)] font-semibold">
-                  <TeamProfileLink entryId={pickingTeam.entryId}>{pickingTeam.teamName}</TeamProfileLink>
-                </span>
-              </div>
-            )}
-          </div>
-
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-[var(--color-fg-dim)]">
-              {isLive ? "倒计时" : "已暂停"}
-            </span>
-            <DraftCountdown
-              deadline={state?.roundDeadline ?? null}
-              isActive={isLive}
-            />
-          </div>
-        </div>
-      )}
+      {!isArchive && <section aria-label="选秀状态" className="grid gap-5 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-panel)] p-5 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-center">
+        <div><p className="mb-2 text-xs text-[var(--color-fg-mid)]">{isComplete ? "选秀已完成" : !state ? "等待开始" : isLive ? "正在选择" : "选秀暂停"}</p><h2 className="text-2xl font-semibold">{pickingTeam ? <TeamProfileLink entryId={pickingTeam.entryId}>{pickingTeam.teamName}</TeamProfileLink> : isComplete ? "最终阵容已就位" : "队伍阵容预览"}</h2>{pickingTeam?.captain.userId && <p className="mt-1 text-sm text-[var(--color-fg-mid)]">队长 <PlayerProfileLink userId={pickingTeam.captain.userId}>{getPublicDisplayName(pickingTeam.captain)}</PlayerProfileLink></p>}</div>
+        <div className="flex gap-8"><div><p className="mb-2 text-xs text-[var(--color-fg-mid)]">已选 / 总计</p><p className="font-mono text-2xl tabular-nums">{totalPicks}<span className="text-base text-[var(--color-fg-mid)]"> / {maxPicks}</span></p></div>{state && <div><p className="mb-2 text-xs text-[var(--color-fg-mid)]">轮次</p><p className="font-mono text-2xl">{state.currentRound}<span className="text-base text-[var(--color-fg-mid)]"> / {DRAFT_TOTAL_ROUNDS}</span></p></div>}</div>
+        {isLive && <div><p className="mb-2 text-xs text-[var(--color-fg-mid)]">剩余时间</p><DraftCountdown deadline={state?.roundDeadline ?? null} isActive /></div>}
+      </section>}
 
       {/* 队伍网格 */}
       <section>
@@ -168,11 +136,13 @@ export function DraftLiveRoom({
           currentEntryId={pickingEntryId}
           totalRounds={DRAFT_TOTAL_ROUNDS}
           currentRound={state?.currentRound ?? 1}
+          archive={isArchive || isComplete}
+          isActive={isLive}
         />
       </section>
 
       {/* 蛇形顺序指示 —— 仅直播模式 */}
-      {!isReadonly && isLive && snakeOrder.length > 0 && (
+      {!isArchive && isLive && snakeOrder.length > 0 && (
         <div className="flex items-center gap-1.5 text-xs text-[var(--color-fg-dim)] overflow-x-auto">
           <span>蛇形顺序：</span>
           {snakeOrder.map((tid) => {
@@ -226,12 +196,12 @@ export function DraftLiveRoom({
       )}
 
       {/* 选手池 */}
-      <section>
+      {!isArchive && !isComplete && <section>
         <h2 className="text-sm font-semibold text-[var(--color-fg-mid)] mb-3 uppercase tracking-wider">
           {isReadonly ? "选手池" : "剩余选手池"} ({remainingPlayers.length})
         </h2>
         <PlayerPool players={remainingPlayers} seasonPositions={seasonPositions} />
-      </section>
+      </section>}
     </div>
   );
 }

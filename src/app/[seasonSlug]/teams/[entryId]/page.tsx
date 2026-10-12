@@ -1,3 +1,6 @@
+import { connection } from "next/server";
+import { Suspense } from "react";
+import { StatsReturnLink } from "@/components/stats/StatsNavigationContext";
 import { getPublicSeasonResults } from "@/lib/seasons/public-results";
 import { notFound } from "next/navigation";
 
@@ -10,7 +13,11 @@ import { getMajorPublicParticipantTeam } from "@/lib/major/public-participants";
 import { getPublicTeamProfile } from "@/lib/teams/public-profile";
 import { getPublicCompetitionEntryPerformanceReadModel } from "@/lib/teams/profile-read-model";
 
-export default async function CompetitionEntryDetailPage({ params }: { params: Promise<{ seasonSlug: string; entryId: string }> }) {
+export default function CompetitionEntryDetailPage(props: { params: Promise<{ seasonSlug: string; entryId: string }> }) {
+  return <Suspense fallback={<PageLayout variant="standard"><p role="status">正在加载…</p></PageLayout>}><CompetitionEntryDetailPageContent {...props} /></Suspense>;
+}
+async function CompetitionEntryDetailPageContent({ params }: { params: Promise<{ seasonSlug: string; entryId: string }> }) {
+  await connection();
   const { seasonSlug, entryId } = await params;
   const season = await getPublicOrAuthorizedDraftSeason(seasonSlug);
   if (!season) notFound();
@@ -30,6 +37,7 @@ export default async function CompetitionEntryDetailPage({ params }: { params: P
   ]);
   return (
     <PageLayout as="div" variant="standard" className="space-y-8">
+      <StatsReturnLink />
       <TeamPublicProfile team={team} event={event} mapProfile={performanceModel.mapProfile} performance={performanceModel.performance} results={results} statsUnavailable={performanceModel.statsUnavailable} />
     </PageLayout>
   );

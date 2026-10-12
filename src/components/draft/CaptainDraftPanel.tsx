@@ -12,7 +12,7 @@ import { canPickPosition } from "@/lib/draft/rules";
 import { positionLabel } from "@/lib/validators/registration";
 import { MapPreferenceChips } from "@/components/rivalhub/MapPreferenceChips";
 import { PosChip } from "@/components/rivalhub/PosChip";
-import { PlayerInfoPopover } from "./PlayerInfoPopover";
+import { useRoutePolling } from "@/components/use-visible-polling";
 import { PlayerAvatar } from "@/components/players/PlayerAvatar";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
 import { sortByRank } from "@/lib/utils/rank";
@@ -61,7 +61,10 @@ export function CaptainDraftPanel({
   const [search, setSearch] = useState("");
   const [pendingRegistrationId, setPendingRegistrationId] = useState<string | null>(null);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
-  const [rosterOpen, setRosterOpen] = useState(false);
+  const [rosterOpen, setRosterOpen] = useState(true);
+  const [inspectedId, setInspectedId] = useState<string | null>(null);
+  const inspected = players.find(player => player.registrationId === inspectedId) ?? null;
+  useRoutePolling(isReadonly ? null : 10_000, pendingRegistrationId !== null);
 
   const grouped = useMemo(() => {
     const map = new Map<string, CaptainDraftPlayer[]>();
@@ -135,10 +138,10 @@ export function CaptainDraftPanel({
   }
 
   return (
-    <div className="space-y-5">
+    <div className="grid items-start gap-5 md:grid-cols-[240px_minmax(0,1fr)] xl:grid-cols-[240px_minmax(0,1fr)_300px]">
       {/* Header */}
       {!isReadonly && (
-        <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-panel)] p-4">
+        <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-panel)] p-4 md:col-span-2 xl:col-span-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h2 className="text-lg font-semibold text-[var(--color-fg)]"><TeamProfileLink entryId={entryId}>{teamName}</TeamProfileLink></h2>
@@ -173,7 +176,7 @@ export function CaptainDraftPanel({
 
       {/* Roster Summary (collapsible) */}
       {!isReadonly && (
-        <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-panel)] overflow-hidden">
+        <div className="min-w-0 rounded-lg border border-[var(--color-border)] bg-[var(--color-panel)] overflow-hidden md:sticky md:top-20">
           <button
             type="button"
             onClick={() => setRosterOpen(!rosterOpen)}
@@ -186,8 +189,8 @@ export function CaptainDraftPanel({
             )}
             我的阵容（{rosterMembers.length + 1} 人）
           </button>
-          {rosterOpen && (
-            <div className="border-t border-[var(--color-border)] px-4 py-3 space-y-3">
+          {(
+            <div className={`border-t border-[var(--color-border)] px-4 py-3 space-y-3 ${rosterOpen ? "" : "hidden md:block"}`}>
               {/* Position occupation */}
               <div className="flex flex-wrap gap-2 text-xs text-[var(--color-fg-mid)]">
                 {seasonPositions.map((pos) => {
@@ -222,7 +225,7 @@ export function CaptainDraftPanel({
         </div>
       )}
 
-      <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-panel)] p-4">
+      <div className="min-w-0 rounded-lg border border-[var(--color-border)] bg-[var(--color-panel)] p-4">
         {/* Auto-pick candidate hint */}
         {!isReadonly && autoPickCandidate && isCurrentCaptainTurn && (
           <div className="mb-4 rounded-sm border px-3 py-2 text-xs" style={{ borderColor: "var(--color-warn-edge)", background: "var(--color-warn-soft)", color: "var(--color-warn)" }}>
@@ -362,11 +365,7 @@ export function CaptainDraftPanel({
                       <MapPreferenceChips preferences={player.mapPreferences} compact minLevel="playable" />
                     </div>
 
-                    <PlayerInfoPopover
-                      gameplayStyle={player.gameplayStyle}
-                      notes={player.notes}
-                      competitionHistory={player.competitionHistory}
-                    />
+                    <Button size="sm" variant="ghost" onClick={() => setInspectedId(player.registrationId)} aria-pressed={inspectedId === player.registrationId}>详情</Button>
 
                     {/* Pick button */}
                     {!isReadonly && (
@@ -442,11 +441,7 @@ export function CaptainDraftPanel({
                         <div className="min-w-0">
                           <MapPreferenceChips preferences={player.mapPreferences} compact minLevel="playable" />
                         </div>
-                        <PlayerInfoPopover
-                          gameplayStyle={player.gameplayStyle}
-                          notes={player.notes}
-                          competitionHistory={player.competitionHistory}
-                        />
+                        <Button size="sm" variant="ghost" onClick={() => setInspectedId(player.registrationId)}>详情</Button>
                       </div>
                       {!isReadonly && (
                         <Button
@@ -473,6 +468,9 @@ export function CaptainDraftPanel({
           </div>
         )}
       </div>
+      <aside className="min-w-0 rounded-lg border border-[var(--color-border)] bg-[var(--color-panel)] p-5 md:col-start-2 xl:col-start-3 xl:row-start-2 xl:sticky xl:top-20" aria-label="选手详情">
+        {inspected ? <><p className="text-xs text-[var(--color-fg-mid)]">选手详情</p><h2 className="mt-3 text-xl font-semibold"><PlayerProfileLink userId={inspected.userId}>{getPublicDisplayName(inspected)}</PlayerProfileLink></h2><p className="mt-2 text-sm text-[var(--color-fg-mid)]">{positionLabel(inspected.primaryPosition)} · 副选 {positionLabel(inspected.secondaryPosition)}</p><dl className="my-5 grid grid-cols-2 gap-4 text-sm"><div><dt className="text-[var(--color-fg-mid)]">最高段位</dt><dd className="mt-1 font-mono">{inspected.peakRank}</dd></div><div><dt className="text-[var(--color-fg-mid)]">Peak Rating</dt><dd className="mt-1 font-mono">{inspected.peakRating}</dd></div></dl><p className="text-sm leading-6">{inspected.gameplayStyle || "暂无打法说明"}</p>{inspected.competitionHistory && <p className="mt-4 text-sm leading-6 text-[var(--color-fg-mid)]">{inspected.competitionHistory}</p>}{inspected.notes && <p className="mt-4 text-sm leading-6 text-[var(--color-fg-mid)]">{inspected.notes}</p>}<Button className="mt-5" disabled={!canSubmit || !canPickPosition(positionCounts[inspected.primaryPosition] ?? 0)} onClick={() => handlePick(inspected)}>选入本队</Button></> : <><h2 className="font-semibold">选手详情</h2><p className="mt-3 text-sm leading-6 text-[var(--color-fg-mid)]">选择候选列表中的“详情”查看打法与经历。点击“选入”才会提交。</p></>}
+      </aside>
     </div>
   );
 }

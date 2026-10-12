@@ -1,3 +1,5 @@
+import { connection } from "next/server";
+import { Suspense } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Route } from "next";
@@ -21,7 +23,11 @@ export async function generateMetadata({ params }: DraftCaptainPageProps): Promi
   return { title: `队长选人 · ${seasonSlug}` };
 }
 
-export default async function DraftCaptainPage({ params }: DraftCaptainPageProps) {
+export default function DraftCaptainPage(props: DraftCaptainPageProps) {
+ return <Suspense fallback={<PageLayout variant="workbench"><p role="status">正在加载队长工作区…</p></PageLayout>}><CaptainContent {...props} /></Suspense>;
+}
+async function CaptainContent({ params }: DraftCaptainPageProps) {
+  await connection();
   const { seasonSlug } = await params;
   const season = await getPublicOrAuthorizedDraftSeason(seasonSlug);
   if (!season) notFound();
@@ -47,7 +53,7 @@ export default async function DraftCaptainPage({ params }: DraftCaptainPageProps
       <UnavailablePanel
         title={`队长选人 · ${season.name}`}
         message="请先登录队长账号后再进入选人面板。"
-        href="/login"
+        href={`/login?next=${encodeURIComponent(`/${seasonSlug}/draft/captain`)}` as Route}
         action="登录"
       />
     );
@@ -94,8 +100,8 @@ export default async function DraftCaptainPage({ params }: DraftCaptainPageProps
   const positionCounts = computePositionCounts(captainTeamSlot);
 
   return (
-    <PageLayout variant="standard">
-      <div className="mb-8">
+    <PageLayout variant="workbench">
+      <div className="mb-5">
         <h1 className="text-3xl font-bold">队长选人 · {season.name}</h1>
         <p className="mt-2 text-sm text-[var(--color-fg-mid)]">
           只在轮到本队时开放选择；重复操作不会产生重复选人结果。
