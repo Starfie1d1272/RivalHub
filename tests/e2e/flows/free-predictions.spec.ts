@@ -52,10 +52,12 @@ test("免费预测独立于BET，零余额可改选，BP与赛果消费各自官
 
     execFileSync(resolve("node_modules/.bin/tsx"), ["scripts/db/run-server-cli.ts", "scripts/db/bet-browser-fixture.ts", fixture.seasonId, user.userId], { env: process.env, timeout: 60000 });
     await page.reload();
-    await page.getByRole("button", { name: "领取 1,000 积分", exact: true }).click();
-    await expect(page.getByRole("button", { name: "领取 1,000 积分", exact: true })).toHaveCount(0);
     const bet = card.getByRole("region", { name: "比赛胜者", exact: true });
     await bet.locator("button:not([aria-label])").last().click();
+    const participation=page.getByRole("dialog");
+    await expect(participation.getByLabel("投入积分",{exact:true})).toHaveCount(0);
+    await participation.getByRole("button",{name:"领取 1,000 积分",exact:true}).click();
+    await expect(participation.getByLabel("投入积分",{exact:true})).toBeEnabled();
     await page.getByRole("button", { name: "ALL IN", exact: true }).click();
     await expect(page.getByRole("button", { name: "确认投入", exact: true })).toBeDisabled();
     await page.getByLabel("确认投入全部可用积分，不能撤回").check();

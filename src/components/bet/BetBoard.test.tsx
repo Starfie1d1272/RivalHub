@@ -7,7 +7,8 @@ import { BetBoard } from "./BetBoard";
 import { marketPresentation } from "@/lib/bet/presentation";
 import type { BetBoardDTO, BetMarketDTO } from "@/lib/bet/types";
 
-vi.mock("next/navigation",()=>({useRouter:()=>({refresh:vi.fn()})}));
+const navigation=vi.hoisted(()=>({push:vi.fn(),refresh:vi.fn()}));
+vi.mock("next/navigation",()=>({useRouter:()=>navigation}));
 vi.mock("@/actions/bet",()=>({getBetBoard:vi.fn(),mutateBet:vi.fn()}));
 const names=["Ancient","Anubis","Dust2","Inferno","Mirage","Nuke","Overpass"];
 const market:BetMarketDTO={id:"presence",matchId:"match",type:"veto_present",...marketPresentation("veto_present",null),context:"",state:"open",pool:"100",participants:2,canStake:true,restriction:null,mine:null,options:names.map((label,i)=>({id:`o${i}`,label,entity:null,pool:i===0?"10":i===1?"90":"0",percent:i===0?10:i===1?90:0,winner:false}))};
@@ -105,7 +106,10 @@ it("claims initial points inside the dialog and retains both the BET target and 
   render(<BetBoard initial={{...initial,joined:false,balance:"0",joinEligibility:{canJoin:true,reason:null},markets:[{...winner,canStake:false}]}} slug="test" signedIn view="open" matchFilter={null} predictions={[model]} predictionControls={{submitAction:vi.fn(),refreshAction:async()=>({success:true,data:model})}}/>);
   await user.click(within(screen.getByRole("tabpanel",{name:"赛果"})).getByRole("button",{name:"甲"}));
   const dialog=within(screen.getByRole("dialog"));const free=within(screen.getByRole("region",{name:"免费赛果预测"}));
-  await user.click(free.getByRole("button",{name:/乙/}));await user.click(dialog.getByRole("button",{name:"领取 1,000 积分"}));
+  await user.click(free.getByRole("button",{name:/乙/}));
+  expect(dialog.queryByLabelText("投入积分")).not.toBeInTheDocument();
+  expect(dialog.queryByRole("button",{name:"确认投入"})).not.toBeInTheDocument();
+  await user.click(dialog.getByRole("button",{name:"领取 1,000 积分"}));
   expect(await dialog.findByText("1,000")).toBeVisible();
   expect(free.getByRole("button",{name:/乙/})).toHaveAttribute("aria-pressed","true");
   expect(dialog.getByRole("heading",{name:/积分竞猜.*甲/})).toBeVisible();
@@ -122,4 +126,31 @@ it("shows a failed header claim even when no participation dialog is open",async
   expect(await screen.findByRole("alert")).toHaveTextContent("领取结果暂未确认，请刷新后查看。");
   expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   expect(screen.getByRole("button",{name:"领取 1,000 积分"})).toBeEnabled();
+});
+
+
+it("sends an anonymous option directly to login with a safe return selection",async()=>{
+  const user=userEvent.setup();
+  render(<BetBoard initial={{...initial,joined:false,balance:"0"}} slug="test" signedIn={false} view="open" matchFilter={null}/>);
+  await user.click(screen.getByRole("button",{name:/Ancient/}));
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  const login=new URL(navigation.push.mock.calls.at(-1)![0],"http://rivalhub.local");
+  expect(login.pathname).toBe("/login");
+  expect(login.searchParams.get("next")).toBe("/test/bet?match=match&market=presence&option=o0&view=open");
+});
+
+it("restores the validated clicked option, request identity and map focus after login",async()=>{
+  const user=userEvent.setup();
+  vi.mocked(mutateBet).mockResolvedValueOnce({success:false,error:{code:ErrorCode.INTERNAL_ERROR,message:"投入未完成"}});
+  render(<BetBoard initial={initial} slug="test" signedIn view="open" matchFilter="match" returnSelection={{market:"presence",option:"o0"}}/>);
+  expect(screen.getByRole("dialog")).toBeVisible();
+  expect(within(screen.getByRole("dialog")).getByRole("heading",{name:/积分竞猜.*Ancient/})).toBeVisible();
+  await user.type(screen.getByLabelText("投入积分"),"10");
+  await user.click(screen.getByRole("button",{name:"确认投入"}));
+  expect(await screen.findByRole("alert")).toHaveTextContent("投入未完成");
+  expect(vi.mocked(mutateBet).mock.calls.at(-1)![0]).toMatchObject({operation:"stake",marketId:"presence",optionId:"o0",requestId:expect.stringMatching(/^[0-9a-f]{8}-[0-9a-f-]{27}$/)});
+  await waitFor(()=>expect(screen.getByRole("button",{name:"取消"})).toBeEnabled());
+  await user.keyboard("{Escape}");
+  expect(screen.getByRole("tab",{name:/地图/})).toHaveAttribute("aria-selected","true");
+  expect(screen.getByRole("button",{name:/Ancient/})).toHaveFocus();
 });
