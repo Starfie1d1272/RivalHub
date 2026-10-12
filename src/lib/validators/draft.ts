@@ -1,16 +1,12 @@
 import { z } from "zod";
 
-export const startDraftSchema = z.object({
+const draftSeasonSchema = z.object({
   seasonId: z.guid("赛季 ID 格式不正确"),
 });
 
-export const pauseDraftSchema = z.object({
-  seasonId: z.guid("赛季 ID 格式不正确"),
-});
-
-export const resumeDraftSchema = z.object({
-  seasonId: z.guid("赛季 ID 格式不正确"),
-});
+export const startDraftSchema = draftSeasonSchema;
+export const pauseDraftSchema = draftSeasonSchema;
+export const resumeDraftSchema = draftSeasonSchema;
 
 export const pickPlayerSchema = z.object({
   seasonId: z.guid("赛季 ID 格式不正确"),
@@ -19,9 +15,7 @@ export const pickPlayerSchema = z.object({
   clientRequestId: z.guid("请求 ID 格式不正确"),
 });
 
-export const skipDraftTurnSchema = z.object({
-  seasonId: z.guid("赛季 ID 格式不正确"),
-});
+export const skipDraftTurnSchema = draftSeasonSchema;
 
 export type StartDraftInput = z.infer<typeof startDraftSchema>;
 export type PauseDraftInput = z.infer<typeof pauseDraftSchema>;

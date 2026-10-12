@@ -1,6 +1,6 @@
 # components/captains
 
-Phase 6 队长投票 UI 组件。
+Rivals 队长投票与管理员确认 UI。领域流程见 [`docs/workflows.md`](../../../docs/workflows.md#rivals)。
 
 | 组件 | 说明 |
 |---|---|
@@ -9,6 +9,6 @@ Phase 6 队长投票 UI 组件。
 
 ## 当前约束
 
-- Phase 6 仍沿用现有报名记录身份输入，公共页面通过报名身份选择器调用 `castVote` / `retractVote`。
-- 后续接入完整用户 session 后，应从登录态推导 `voterRegistrationId`，移除公共选择器。
+- 公开页面从登录态和本届已审核报名记录推导 `currentVoter`，只加载该报名记录的已投票；没有公共报名身份选择器。
+- `castVote` / `retractVote` 在服务端重新验证报名记录归属当前登录用户；Client 传入的 `voterRegistrationId` 不能代替授权。
 - 排序规则与 Server Action 共用 `src/lib/captains/rules.ts`：票数降序、历史最高 Rating 降序、报名时间升序。
