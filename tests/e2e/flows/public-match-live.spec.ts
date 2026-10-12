@@ -75,8 +75,7 @@ test("public match consumes private Broadcast and recovers across navigation and
       requestAnimationFrame(check);
     }));
     expect(radarFrozen).toBe(true);
-    // Exact stale/unavailable time boundaries and frozen clock are covered by
-    // MatchRealtime.test.tsx; retain one real disconnect/recovery here.
+    // Retain one real disconnect/recovery; this does not prove exact age boundaries.
     producer = await stream(matchId);
     await expect(live.getByText("FalleN", { exact: true })).toBeVisible();
     // Real Next Link navigation mounts the list row initially outside its

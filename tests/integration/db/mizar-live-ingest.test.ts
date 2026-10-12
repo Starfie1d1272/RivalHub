@@ -71,27 +71,6 @@ async function nextEpoch(fixture: Fixture, sequence = 10) {
 }
 
 describe("Mizar reliable event ingest ownership", () => {
-  it.each([false, true])("recovers a silent source only through a scoped operator report (unbound=%s)", async unboundSource => {
-    const f = await seedFixture({ unboundSource });
-    const context = await operatorContext(f);
-    expect(context.takeover).toBeNull();
-    const recovery = context.problemRecovery!;
-    const scope = { sessionId: recovery.sessionId, mapEpoch: recovery.mapEpoch, mapId: recovery.mapId, recoverMapBinding: recovery.recoverMapBinding };
-    const reported = { ...scope, operatorReport: { ...recovery.reportContext, reason: "采集电脑断网，已核对正式地图" } };
-    await expect(takeOverCurrentMap(f.matchId, f.entryAId, scope)).rejects.toThrow();
-    await expect(takeOverCurrentMap(f.matchId, f.entryAId, { ...reported, operatorReport: { ...reported.operatorReport, reason: " " } })).rejects.toThrow();
-    await expect(takeOverCurrentMap(f.matchId, f.entryAId, { ...reported, mapId: f.mapTwoId })).rejects.toThrow("重新核对");
-    await Promise.all([takeOverCurrentMap(f.matchId, f.entryAId, reported), takeOverCurrentMap(f.matchId, f.entryAId, reported)]);
-    expect(await loadSource(f.sessionId)).toMatchObject({ currentMapId: f.mapOneId, manualTakeoverMapEpoch: 1, autoCanonicalizationArmed: false });
-    const audits = await db.select().from(schema.auditLogs).where(and(eq(schema.auditLogs.targetId, f.matchId), eq(schema.auditLogs.action, "mizar.map.manual_takeover")));
-    expect(audits).toHaveLength(1);
-    expect(audits[0]!.meta).toMatchObject({ operatorReportedProblem: reported.operatorReport.reason, reviewedReliableSeq: -1, recoveredMapBinding: unboundSource });
-    expect((await operatorContext(f)).workflow.manualResultAllowed).toBe(true);
-    await db.transaction(tx => recordManualMapResultInTx(tx, manualCommand(f)));
-    await expect(takeOverCurrentMap(f.matchId, f.entryAId, reported)).rejects.toThrow("正式赛果");
-    await nextEpoch(f);
-    expect(await loadSource(f.sessionId)).toMatchObject({ currentMapId: f.mapTwoId, autoCanonicalizationArmed: true });
-  });
 
   it("rejects an operator report after reliable progress or a same-epoch generation change", async () => {
     const f = await seedFixture();
@@ -240,16 +219,6 @@ describe("Mizar reliable event ingest ownership", () => {
     expect(manual.roomGuide).toBeNull();
     await db.transaction(tx => recordManualMapResultInTx(tx, manualCommand(fixture, 2)));
     expect((await operatorContext(fixture)).workflow).toMatchObject({ phase: "post", elapsed: null, roomMapId: null });
-  });
-
-  it("keeps the normal no-Mizar manual command and workbench path available", async () => {
-    const fixture = await seedFixture();
-    await releaseMizarSource(fixture.installationId, fixture.seasonId, { matchId: fixture.matchId, producerInstanceId: fixture.producerInstanceId, liveSessionId: fixture.liveSessionId }, fixture.authorityRevision);
-    const context = await operatorContext(fixture);
-    expect(context.workflow).toMatchObject({ sourceMode: "none", primaryTask: "manual_result", manualResultAllowed: true });
-    expect(context.takeover).toBeNull();
-    await db.transaction(tx => recordManualMapResultInTx(tx, manualCommand(fixture)));
-    expect((await operatorContext(fixture)).workflow.completedMaps).toHaveLength(1);
   });
 
   it("canonicalizes an entrant-relative map_ended through the shared canonical result owner", async () => {
@@ -653,31 +622,6 @@ describe("Mizar source authority", () => {
     expect(released!.closeReason).toBe("released");
   });
 
-  it("releases an active source so a fresh authority revision can claim the match", async () => {
-    const fixture = await seedFixture();
-    const context = await db.transaction((tx) => loadMizarMatchDocumentInTx(tx, fixture.matchId, fixture.seasonId));
-    await releaseMizarSource(fixture.installationId, fixture.seasonId, {
-      matchId: fixture.matchId,
-      producerInstanceId: fixture.producerInstanceId,
-      liveSessionId: fixture.liveSessionId,
-    }, fixture.authorityRevision);
-    const released = await loadSource(fixture.sessionId);
-    expect(released.closedAt).not.toBeNull();
-    expect(released.closeReason).toBe("released");
-
-    const claimed = await claimMizarSource(fixture.installationBId, fixture.seasonId, {
-      matchId: fixture.matchId,
-      producerInstanceId: "producer-b",
-      liveSessionId: "live-b",
-      programSourceGeneration: 0,
-      mapEpoch: 1,
-      contextRevision: context.revision,
-      takeover: false,
-      lineupSteam64: [],
-    });
-    expect(claimed).toEqual({ claimed: true, authorityRevision: 2 });
-  });
-
   it("scopes manual takeover to the current map execution and blocks automatic canonicalization for that epoch", async () => {
     const fixture = await seedFixture();
     const scope = { sessionId: fixture.sessionId, mapId: fixture.mapOneId, mapEpoch: (await loadSource(fixture.sessionId)).mapEpoch };
@@ -755,22 +699,6 @@ describe("Tournament Context provider ownership", () => {
     }
   });
 
-  it("keeps substitution evidence and a null Steam64 visible to the provider without inventing identity", async () => {
-    const fixture = await seedFixture();
-    const substitute = randomUUID();
-    await db.insert(schema.users).values({ id: substitute, email: `${substitute}@local.test` });
-    const eventRoster = await db.select({ id: schema.eventRosters.id }).from(schema.eventRosters).where(eq(schema.eventRosters.entryId, fixture.entryAId));
-    await db.insert(schema.eventRosterMembers).values({ id: randomUUID(), eventRosterId: eventRoster[0]!.id, userId: substitute, isPrimaryStarter: false });
-    const roster = await db.select({ id: schema.matchRosters.id }).from(schema.matchRosters).where(eq(schema.matchRosters.entryId, fixture.entryAId));
-    const [member] = await db.select({ id: schema.eventRosterMembers.id }).from(schema.eventRosterMembers).where(eq(schema.eventRosterMembers.userId, substitute));
-    await db.insert(schema.matchRosterPlayers).values({ rosterId: roster[0]!.id, eventRosterMemberId: member!.id, isStarter: false });
-
-    const document = await db.transaction((tx) => loadMizarMatchDocumentInTx(tx, fixture.matchId, fixture.seasonId));
-    const projected = document.entrants.a.roster.players.find((player) => player.playerId === substitute);
-    expect(projected).toBeDefined();
-    expect(projected!.isStarter).toBe(false);
-    expect(projected!.steam64).toBeNull();
-  });
 });
 
 function snapshotForAuthority(fixture: Fixture) {

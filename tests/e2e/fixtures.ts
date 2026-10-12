@@ -100,8 +100,8 @@ export async function signInProgrammatically(
     data: { email: account.email, password: scenario.password },
   });
   if (!response.ok()) throw new Error(`E2E programmatic auth failed for scenario ${scenario.scenarioId}.`);
-  // Product locators establish UI readiness; unrelated subresources must not
-  // hold up an authenticated navigation. Still fail immediately on HTTP errors.
+  // Reject HTTP failures; the predicate URL assertion also waits for document
+  // load. This is not proof of hydration; callers assert actual product UI.
   await assertPageResponse(await page.goto(next, { waitUntil: "domcontentloaded" }));
   await expect(page).toHaveURL((url) => url.pathname === next);
 }

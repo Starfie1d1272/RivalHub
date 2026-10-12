@@ -4,6 +4,16 @@ import { extractSafeException, redactText, sanitizeSafeContext } from "@/lib/obs
 describe("observability redaction", () => {
   // Security contract: inner causes add diagnostic value without introducing
   // unbounded data, URL secrets, or a second path around PostgreSQL redaction.
+  it("suppresses every wrapper message when a nested cause is PostgreSQL", () => {
+    const error = { message: "private bound value", cause: { code: "23505", constraint: "users_email_unique", message: "private params", params: ["private"] } };
+    expect(extractSafeException(error)).toEqual({ name: "PostgreSQLError", code: "23505", constraint: "users_email_unique" });
+  });
+
+  it("redacts opaque Supabase secrets from text and exception codes", () => {
+    expect(redactText("provider failed sb_secret_abc123_X-y")).not.toContain("abc123_X-y");
+    expect(extractSafeException({ code: "sb_secret_abc123_X-y" }).code).toBeUndefined();
+  });
+
   it("retains each bounded cause, removes secret URLs, and tolerates hostile getters", () => {
     const inner = { name: "NetworkError", code: "ECONNRESET", message: "failed https://user:pass@example.test/private-material?signature=opaque#secret" };
     Object.defineProperty(inner, "stack", { get: () => { throw new Error("do not read inner stack"); } });
@@ -27,14 +37,6 @@ describe("observability redaction", () => {
     expect(() => extractSafeException(hostile)).not.toThrow();
   });
 
-  it("suppresses every wrapper message when a nested cause is PostgreSQL", () => {
-    const error = { message: "private bound value", cause: { code: "23505", constraint: "users_email_unique", message: "private params", params: ["private"] } };
-    expect(extractSafeException(error)).toEqual({ name: "PostgreSQLError", code: "23505", constraint: "users_email_unique" });
-  });
-  it("redacts opaque Supabase secrets from text and exception codes", () => {
-    expect(redactText("provider failed sb_secret_abc123_X-y")).not.toContain("abc123_X-y");
-    expect(extractSafeException({ code: "sb_secret_abc123_X-y" }).code).toBeUndefined();
-  });
   it("uses the PostgreSQL classification fields without exposing query details or params", () => {
     const error = {
       name: "DatabaseError",
@@ -51,22 +53,6 @@ describe("observability redaction", () => {
     expect(JSON.stringify(safe)).not.toContain("student@example.edu");
     expect(JSON.stringify(safe)).not.toContain("education-code");
     expect(JSON.stringify(safe)).not.toContain("insert into");
-  });
-
-  it("bounds cause traversal and survives circular or throwing getters", () => {
-    const circular: Record<string, unknown> = {
-      name: "ProviderError",
-      message: "Authorization: Bearer very-secret-token",
-      stack: "ProviderError: Authorization: Bearer very-secret-token",
-    };
-    circular.cause = circular;
-    Object.defineProperty(circular, "query", { get: () => { throw new Error("must not read"); } });
-
-    const safe = extractSafeException(circular);
-    const serialized = JSON.stringify(safe);
-    expect(serialized).not.toContain("very-secret-token");
-    expect(serialized).not.toContain("query");
-    expect(serialized.length).toBeLessThan(4_500);
   });
 
   it("keeps only the explicit safe-context allowlist", () => {

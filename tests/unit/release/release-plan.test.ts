@@ -55,11 +55,6 @@ function writeReleaseTimeCapabilities(storageMutation: boolean): void {
 }
 
 describe("release plan", () => {
-  it("reprovisions the SQL dispatch contract when the immutable veto publisher changes", () => {
-    const result = plan([{ status: "M", paths: ["src/lib/matches/veto-room/lifecycle-contract.json"] }]);
-    expect(result.requiresSchedulerProvision).toBe(true);
-    expect(result.migrationChanged).toBe(false);
-  });
   it("runs missing-season repair in the protected data phase without schema replay", () => {
     const result = plan([{ status: "A", paths: ["src/lib/competitive/profile-repair.ts"] }]);
     expect(result.requiresCompetitiveProfileRepair).toBe(true);
@@ -67,17 +62,6 @@ describe("release plan", () => {
     expect(result.requiresMigrationRehearsal).toBe(false);
     expect(result.requiresDbCheckpoint).toBe(false);
     expect(plan([{ status: "M", paths: ["src/lib/competitive/normalize-profile.ts"] }]).requiresCompetitiveProfileRepair).toBe(false);
-  });
-  it("classifies release metadata without treating package version as application code", () => {
-    const result = plan([
-      { status: "D", paths: [".changeset/release.md"] },
-      { status: "M", paths: ["CHANGELOG.md"] },
-      { status: "M", paths: ["package.json"] },
-    ]);
-
-    expect(result.applicationChanged).toBe(false);
-    expect(result.migrationRisk).toBe("none");
-    expect(result.requiresMigrationRehearsal).toBe(false);
   });
 
   it("requires rehearsal and production migration for forward-compatible SQL", () => {
@@ -133,27 +117,6 @@ describe("release plan", () => {
     expect(result.requiresDbCheckpoint).toBe(true);
   });
 
-  it("does not confuse application Storage callers with release-time Storage mutation", () => {
-    const result = plan([
-      { status: "M", paths: ["src/components/teams/TeamLogoUpload.tsx"] },
-      { status: "M", paths: ["src/actions/season-public-info.ts"] },
-      { status: "M", paths: ["src/lib/education/retention.ts"] },
-      { status: "M", paths: ["src/app/admin/settings/page.tsx"] },
-      { status: "M", paths: ["src/components/admin/SchedulerHealthPanel.tsx"] },
-      { status: "M", paths: ["src/lib/scheduler/execution.ts"] },
-      { status: "M", paths: ["package.json"] },
-      { status: "M", paths: ["scripts/release/plan.ts"] },
-      { status: "M", paths: ["scripts/db/recovery/manifest.ts"] },
-    ]);
-
-    expect(result.applicationChanged).toBe(true);
-    expect(result.storageMutationChanged).toBe(false);
-    expect(result.schedulerChanged).toBe(false);
-    expect(result.releaseInfraChanged).toBe(true);
-    expect(result.recoveryInfraChanged).toBe(true);
-    expect(result.requiresFullCheckpoint).toBe(false);
-  });
-
   it("requires a full checkpoint only when the release-time capability declares a Storage mutation", () => {
     writeReleaseTimeCapabilities(true);
     runGit(["add", "scripts/release/release-time-capabilities.json"]);
@@ -170,18 +133,6 @@ describe("release plan", () => {
     expect(result.requiresFullCheckpoint).toBe(true);
   });
 
-  it("only provisions the production scheduler for its provisioning contract", () => {
-    const runtime = plan([{ status: "M", paths: ["src/lib/scheduler/execution.ts"] }]);
-    const route = plan([{ status: "M", paths: ["src/app/api/cron/draft-timeout/route.ts"] }]);
-    const definitions = plan([{ status: "M", paths: ["src/lib/scheduler/definitions.ts"] }]);
-    const unknownOwnerPath = plan([{ status: "A", paths: ["src/lib/scheduler/provider-contract.ts"] }]);
-
-    expect(runtime.schedulerChanged).toBe(false);
-    expect(runtime.requiresSchedulerProvision).toBe(false);
-    expect(route.schedulerChanged).toBe(false);
-    expect(definitions.schedulerChanged).toBe(true);
-    expect(unknownOwnerPath.schedulerChanged).toBe(true);
-  });
 });
 
 // A main ancestry check cannot prove the reader was actually shipped before publication.

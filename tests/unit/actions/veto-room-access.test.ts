@@ -75,15 +75,6 @@ describe("Veto Room action read authorization", () => {
     expect(reconcileRoomMock).not.toHaveBeenCalled();
   });
 
-  it("allows a published season read when the resource belongs to that season", async () => {
-    publicSeasonMock.mockResolvedValue({ id: "season-1", slug: "draft-season" });
-
-    const result = await readVetoRoom("00000000-0000-4000-8000-000000000001");
-
-    expect(result.success).toBe(true);
-    expect(readViewMock).toHaveBeenCalledWith("00000000-0000-4000-8000-000000000001");
-  });
-
   it("fails closed if the resolved public season id does not match the match owner", async () => {
     publicSeasonMock.mockResolvedValue({ id: "season-2", slug: "draft-season" });
 

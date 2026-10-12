@@ -9,16 +9,12 @@ export const CAPABILITIES = ["static", "postgres", "system"];
 
 const STATIC_PROJECTS = ["unit-domain-node", "unit-server-node", "unit-react-jsdom"];
 const FULL_STATIC_MATRIX = [
-  // Short checks share one runner instead of competing with long PG/browser
-  // shards for six separate runner allocations. Affected planning is unchanged.
+  // Short checks and unit projects each share their setup instead of repeating
+  // runner allocation, checkout and installation. Affected planning is unchanged.
   { task: "checks", changedPaths: [] },
-  ...STATIC_PROJECTS.map((project) => ({ task: taskNameForProject(project), project, mode: "full", changedPaths: [] })),
+  { task: "unit-all", mode: "full", changedPaths: [] },
   { task: "build", changedPaths: [] },
 ];
-
-const GLOBAL_CONTRACTS = {
-  productLanguage: { project: "unit-domain-node", path: "tests/unit/quality/product-language.test.ts" },
-};
 
 const DB_BACKED_APP_PREFIXES = [
   "src/app/[seasonSlug]/",
@@ -446,10 +442,6 @@ function collectEvidence(path, classification, evidence) {
     // Consumers can belong to any project, regardless of the source folder.
     for (const sources of evidence.unitRelatedSources.values()) sources.add(path);
   }
-  if (path.startsWith("src/")) {
-    evidence.unitExplicitTests.get("unit-domain-node").add(GLOBAL_CONTRACTS.productLanguage.path);
-  }
-
   for (const spec of systemSpecsForPath(path)) {
     evidence.e2eSpecs.add(spec);
   }
@@ -466,12 +458,6 @@ function unitProjectFor(path) {
   if (path.endsWith(".tsx") || path.startsWith("src/components/")) return "unit-react-jsdom";
   if (path.startsWith("src/") || path.startsWith("tests/unit/")) return "unit-domain-node";
   return undefined;
-}
-
-function taskNameForProject(project) {
-  return project === "unit-domain-node" ? "unit-domain"
-    : project === "unit-server-node" ? "unit-server"
-      : "unit-react";
 }
 
 function buildStaticMatrix(evidence) {

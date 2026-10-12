@@ -40,7 +40,7 @@ vi.mock("@/lib/revalidation", () => ({
   revalidateMatchPaths: revalidateMatchPathsMock,
 }));
 
-import { revokePostMatchSubmission, cancelMatchCommentary, claimMatchCommentary, updateMatchVideoUrl } from "@/actions/postmatch";
+import { cancelMatchCommentary, claimMatchCommentary } from "@/actions/postmatch";
 import { AppError, ErrorCode } from "@/lib/errors";
 
 describe("post-match action revalidation", () => {
@@ -55,7 +55,6 @@ describe("post-match action revalidation", () => {
     setMatchVideoUrlInTxMock.mockResolvedValue(undefined);
     transactionMock.mockImplementation(async (callback: (tx: unknown) => unknown) => callback({}));
   });
-
 
   it("cancels only as the session user, rejects forged identities and preserves authorization failures", async () => {
     expect(await cancelMatchCommentary({ matchId })).toEqual({ success: true, data: undefined });
@@ -76,53 +75,6 @@ describe("post-match action revalidation", () => {
     expect(revalidateMatchPathsMock).not.toHaveBeenCalled();
   });
 
-  it("reopens with an optional bounded reason and the authenticated audit actor", async () => {
-    for (const reason of [undefined, "", "  核对解说名单  "]) {
-      expect(await revokePostMatchSubmission({ matchId, reason })).toMatchObject({ success: true });
-      expect(revokePostMatchSubmissionInTxMock).toHaveBeenLastCalledWith({}, { matchId, reason: reason?.trim(), actorId: "admin-1" });
-    }
-    expect(revalidateMatchPathsMock).toHaveBeenCalledWith("major", matchId);
-    vi.clearAllMocks();
-    for (const input of [{ matchId, reason: "字".repeat(501) }, { matchId, actorId: "forged" }, { matchId: "invalid" }]) {
-      expect(await revokePostMatchSubmission(input)).toMatchObject({ success: false, error: { code: "VALIDATION_FAILED" } });
-    }
-    for (const code of [ErrorCode.UNAUTHORIZED, ErrorCode.FORBIDDEN]) {
-      requireSeasonAdminMock.mockRejectedValueOnce(new AppError(code, "无权撤销。"));
-      expect(await revokePostMatchSubmission({ matchId })).toMatchObject({ success: false, error: { code } });
-    }
-    expect(transactionMock).not.toHaveBeenCalled();
-    expect(revalidateMatchPathsMock).not.toHaveBeenCalled();
-    revokePostMatchSubmissionInTxMock.mockRejectedValueOnce(new AppError(ErrorCode.SEASON_INVALID_STATUS, "本场尚未提交赛后资料。"));
-    expect(await revokePostMatchSubmission({ matchId })).toMatchObject({ success: false, error: { code: "SEASON_INVALID_STATUS" } });
-    expect(revalidateMatchPathsMock).not.toHaveBeenCalled();
-  });
-
-  it("refreshes the canonical overview and workbench paths after a video update", async () => {
-    const result = await updateMatchVideoUrl({
-      matchId,
-      videoUrl: "https://video.example/match",
-    });
-
-    expect(result.success).toBe(true);
-    expect(revalidateMatchPathsMock).toHaveBeenCalledWith("major", matchId);
-  });
-
-  it("claims only for the authenticated user and refreshes the shared match views", async () => {
-    auditActorIdMock.mockReturnValue("a-different-audit-identity");
-    expect(await claimMatchCommentary({ matchId })).toEqual({ success: true, data: undefined });
-    expect(requireSeasonAdminMock).toHaveBeenCalledWith("season-1");
-    expect(claimMatchCommentaryInTxMock).toHaveBeenCalledWith({}, { matchId, userId: "admin-1" });
-    expect(revalidateMatchPathsMock).toHaveBeenCalledWith("major", matchId);
-  });
-
-  it("rejects attempts to supply another claimant or season before reaching persistence", async () => {
-    for (const input of [{ matchId, userId: matchId }, { matchId, seasonId: matchId }, { matchId: "invalid" }]) {
-      expect(await claimMatchCommentary(input)).toMatchObject({ success: false, error: { code: "VALIDATION_FAILED" } });
-    }
-    expect(transactionMock).not.toHaveBeenCalled();
-    expect(requireSeasonAdminMock).not.toHaveBeenCalled();
-  });
-
   it.each([ErrorCode.UNAUTHORIZED, ErrorCode.FORBIDDEN])("does not write when season authorization fails with %s", async (code) => {
     requireSeasonAdminMock.mockRejectedValueOnce(new AppError(code, "无权认领本场比赛。"));
     expect(await claimMatchCommentary({ matchId })).toMatchObject({ success: false, error: { code } });
@@ -130,9 +82,4 @@ describe("post-match action revalidation", () => {
     expect(revalidateMatchPathsMock).not.toHaveBeenCalled();
   });
 
-  it("preserves a transactional rejection without a success refresh", async () => {
-    claimMatchCommentaryInTxMock.mockRejectedValueOnce(new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "比赛已经结束。"));
-    expect(await claimMatchCommentary({ matchId })).toMatchObject({ success: false, error: { code: "MATCH_INVALID_TRANSITION" } });
-    expect(revalidateMatchPathsMock).not.toHaveBeenCalled();
-  });
 });

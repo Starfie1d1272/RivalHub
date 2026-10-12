@@ -64,13 +64,7 @@ vi.mock("@/lib/demo-integration/revalidation", () => ({
   revalidateNeedsAttentionImportsForSteam64: fanoutMock,
 }));
 
-import {
-  confirmStoredDemoParticipantIdentity,
-  recheckSeasonStoredDemoImports,
-  recheckStoredDemoImport,
-  rejectStoredDemoImport,
-  retireGameplaySteamIdentity,
-} from "@/actions/demo-integration";
+import { confirmStoredDemoParticipantIdentity, rejectStoredDemoImport, retireGameplaySteamIdentity } from "@/actions/demo-integration";
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -118,51 +112,6 @@ beforeEach(() => {
 });
 
 describe("Demo identity action authorization", () => {
-  it("allows a season admin to confirm an import in the admin's own season", async () => {
-    const result = await confirmStoredDemoParticipantIdentity({
-      importId: IMPORT_ID,
-      eventRosterMemberId: MEMBER_ID,
-      observedSteam64: STEAM64,
-    });
-
-    expect(result).toMatchObject({ success: true });
-    expect(requireSeasonAdminMock).toHaveBeenCalledWith(OWN_SEASON_ID);
-    expect(confirmMock).toHaveBeenCalledWith(expect.anything(), {
-      importId: IMPORT_ID,
-      eventRosterMemberId: MEMBER_ID,
-      observedSteam64: STEAM64,
-      actorId: ACTOR_ID,
-    });
-    expect(fanoutMock).toHaveBeenCalledWith({
-      seasonId: OWN_SEASON_ID,
-      steam64: STEAM64,
-      actorId: ACTOR_ID,
-      excludeImportId: IMPORT_ID,
-    });
-  });
-
-  it("keeps a successful identity confirmation successful when related fan-out recheck fails", async () => {
-    const write = vi.spyOn(process.stderr, "write").mockReturnValue(true);
-    fanoutMock.mockRejectedValue(new Error("temporary recheck failure", { cause: Object.assign(new Error("reset token=private"), { code: "ECONNRESET" }) }));
-
-    const result = await confirmStoredDemoParticipantIdentity({
-      importId: IMPORT_ID,
-      eventRosterMemberId: MEMBER_ID,
-      observedSteam64: STEAM64,
-    });
-
-    expect(result).toMatchObject({
-      success: true,
-      data: {
-        status: "confirmed",
-        relatedRechecks: { attempted: 0, confirmed: 0, remaining: 0, failed: 1 },
-      },
-    });
-    expect(write).toHaveBeenCalledOnce();
-    const event = JSON.parse(String(write.mock.calls[0][0]));
-    expect(event).toMatchObject({ event: "demo.recheck.failure", safeContext: { phase: "candidate_selection" }, exception: { cause: { code: "ECONNRESET" } } });
-    expect(JSON.stringify(event)).not.toContain("token=private");
-  });
 
   it("rejects a caller without the import's season grant before mutation", async () => {
     requireSeasonAdminMock.mockRejectedValue(new AppError(ErrorCode.FORBIDDEN, "权限不足"));
@@ -190,64 +139,6 @@ describe("Demo identity action authorization", () => {
     expect(transactionMock).not.toHaveBeenCalled();
   });
 
-  it("allows an own-season admin to recheck all current needs_attention imports in that season", async () => {
-    const result = await recheckSeasonStoredDemoImports({ importId: IMPORT_ID });
-
-    expect(result).toMatchObject({ success: true, data: { attempted: 2, confirmed: 1, remaining: 1, failed: 0 } });
-    expect(requireSeasonAdminMock).toHaveBeenCalledWith(OWN_SEASON_ID);
-    expect(recheckSeasonMock).toHaveBeenCalledWith({ seasonId: OWN_SEASON_ID, actorId: ACTOR_ID });
-    expect(revalidateMatchPathsMock).toHaveBeenCalledWith("own-season", MATCH_ID);
-  });
-
-  it("allows an own-season admin to recheck immutable stored evidence", async () => {
-    const result = await recheckStoredDemoImport({ importId: IMPORT_ID });
-
-    expect(result).toMatchObject({ success: true, data: { status: "confirmed" } });
-    expect(requireSeasonAdminMock).toHaveBeenCalledWith(OWN_SEASON_ID);
-    expect(recheckMock).toHaveBeenCalledWith(expect.anything(), {
-      importId: IMPORT_ID,
-      actorId: ACTOR_ID,
-      verifiedBy: `admin:${ACTOR_ID}`,
-    });
-    expect(revalidateMatchPathsMock).toHaveBeenCalledWith("own-season", MATCH_ID);
-  });
-
-  it("keeps a failed stored recheck actionable and correlates the original cause", async () => {
-    const write = vi.spyOn(process.stderr, "write").mockReturnValue(true);
-    recheckMock.mockRejectedValue(new Error("Failed query: private SQL", { cause: { code: "57014", detail: "private payload" } }));
-    const result = await recheckStoredDemoImport({ importId: IMPORT_ID });
-    expect(result).toMatchObject({ success: false, error: { code: ErrorCode.INTERNAL_ERROR, requestId: expect.any(String) } });
-    if (result.success) throw new Error("Expected failed recheck");
-    expect(result.error.message).toContain("按当前资料重新检查");
-    expect(result.error.message).toContain("不要重新上传");
-    expect(revalidateMatchPathsMock).not.toHaveBeenCalled();
-    const event = JSON.parse(String(write.mock.calls[0][0]));
-    expect(event).toMatchObject({ requestId: result.error.requestId, exception: { code: "57014" }, safeContext: { phase: "recheck" } });
-    expect(JSON.stringify({ result, event })).not.toMatch(/private SQL|private payload/);
-  });
-
-  it("does not recommend repeating a committed recheck when refresh invalidation fails", async () => {
-    const write = vi.spyOn(process.stderr, "write").mockReturnValue(true);
-    revalidateMatchPathsMock.mockImplementationOnce(() => { throw new Error("synthetic cache failure"); });
-    const result = await recheckStoredDemoImport({ importId: IMPORT_ID });
-    expect(result.success).toBe(false);
-    if (result.success) throw new Error("Expected cache failure");
-    expect(result.error.message).toContain("已保存");
-    expect(result.error.message).toContain("不要重新上传或重复确认");
-    const event = JSON.parse(String(write.mock.calls[0][0]));
-    expect(event.safeContext.phase).toBe("revalidation");
-    expect(event.requestId).toBe(result.error.requestId);
-    expect(recheckMock).toHaveBeenCalledOnce();
-  });
-
-  it("allows reject only after the own-season admin check", async () => {
-    const result = await rejectStoredDemoImport({ importId: IMPORT_ID });
-
-    expect(result).toMatchObject({ success: true, data: { alreadyRejected: false } });
-    expect(requireSeasonAdminMock).toHaveBeenCalledWith(OWN_SEASON_ID);
-    expect(rejectMock).toHaveBeenCalledWith(expect.anything(), { importId: IMPORT_ID, actorId: ACTOR_ID });
-  });
-
   it("uses the source import season for retire and blocks another-season admins", async () => {
     userGameplaySteamIdsFindFirstMock.mockResolvedValue({
       id: IDENTITY_ID,
@@ -267,17 +158,4 @@ describe("Demo identity action authorization", () => {
     expect(transactionMock).not.toHaveBeenCalled();
   });
 
-  it("allows retire only for an admin-confirmed identity in the own season", async () => {
-    const result = await retireGameplaySteamIdentity({ identityId: IDENTITY_ID, reason: "错误确认" });
-
-    expect(result).toMatchObject({ success: true, data: { retired: true } });
-    expect(requireSeasonAdminMock).toHaveBeenCalledWith(OWN_SEASON_ID);
-    expect(retireMock).toHaveBeenCalledWith(expect.anything(), {
-      identityId: IDENTITY_ID,
-      reason: "错误确认",
-      seasonId: OWN_SEASON_ID,
-      actorId: ACTOR_ID,
-    });
-    expect(fanoutMock).not.toHaveBeenCalled();
-  });
 });

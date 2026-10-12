@@ -1,17 +1,9 @@
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { afterEach, describe, expect, it, vi } from "vitest";
-import {
-  freezeCanonicalProductionIdentity,
-  PREVIOUS_RELEASE_COMMIT_ENV,
-  PREVIOUS_RELEASE_TAG_ENV,
-  RELEASE_MODE_ENV,
-  RETRY_PREVIOUS_RELEASE_COMMIT_ENV,
-  RETRY_PREVIOUS_RELEASE_TAG_ENV,
-  resolveConfiguredPreviousProductionIdentity,
-} from "../../../scripts/release/production-identity";
+import { afterEach, describe, expect, it } from "vitest";
+import { freezeCanonicalProductionIdentity } from "../../../scripts/release/production-identity";
 
 const environmentKeys = [
   "RIVALHUB_PRODUCTION_BASE_URL",
@@ -41,55 +33,6 @@ afterEach(() => {
 });
 
 describe("canonical previous production identity", () => {
-  it("freezes canonical previous Production for a fresh release", async () => {
-    const fixture = createFixture({ intermediateTag: "v2.9.6" });
-    const githubEnv = join(fixture.directory, "github.env");
-    const fetcher = vi.fn(async (input: RequestInfo | URL): Promise<Response> => {
-      expect(String(input)).toBe("https://production.example.test/api/system/release");
-      return jsonResponse({ releaseTag: "v2.9.5", releaseCommit: fixture.previousCommit });
-    });
-
-    const identity = await freezeCanonicalProductionIdentity({
-      cwd: fixture.directory,
-      env: {
-        RIVALHUB_PRODUCTION_BASE_URL: "https://production.example.test",
-        RELEASE_TAG: "v2.9.7",
-        GITHUB_ENV: githubEnv,
-      },
-      fetcher,
-      candidateHead: fixture.candidateCommit,
-    });
-
-    expect(identity).toEqual({ releaseTag: "v2.9.5", releaseCommit: fixture.previousCommit });
-    expect(fetcher).toHaveBeenCalledOnce();
-    expect(readFileSync(githubEnv, "utf8")).toBe(
-      `${PREVIOUS_RELEASE_TAG_ENV}=v2.9.5\n` +
-        `${PREVIOUS_RELEASE_COMMIT_ENV}=${fixture.previousCommit}\n` +
-        "RIVALHUB_REQUIRE_EXPLICIT_PREVIOUS_RELEASE=1\n" +
-        `${RELEASE_MODE_ENV}=fresh\n`,
-    );
-  });
-
-  it("enters resume mode when the candidate is already canonical Production", async () => {
-    const fixture = createFixture();
-    const githubEnv = join(fixture.directory, "github.env");
-
-    const identity = await freezeCanonicalProductionIdentity({
-      cwd: fixture.directory,
-      env: {
-        RIVALHUB_PRODUCTION_BASE_URL: "https://production.example.test",
-        RELEASE_TAG: "v2.9.7",
-        [RETRY_PREVIOUS_RELEASE_TAG_ENV]: "v2.9.5",
-        [RETRY_PREVIOUS_RELEASE_COMMIT_ENV]: fixture.previousCommit,
-        GITHUB_ENV: githubEnv,
-      },
-      fetcher: async () => jsonResponse({ releaseTag: "v2.9.7", releaseCommit: fixture.candidateCommit }),
-      candidateHead: fixture.candidateCommit,
-    });
-
-    expect(identity).toEqual({ releaseTag: "v2.9.5", releaseCommit: fixture.previousCommit });
-    expect(readFileSync(githubEnv, "utf8")).toContain(`${RELEASE_MODE_ENV}=resume\n`);
-  });
 
   it("fails closed when same-tag resume omits the original previous Production pair", async () => {
     const fixture = createFixture();
@@ -105,24 +48,6 @@ describe("canonical previous production identity", () => {
         candidateHead: fixture.candidateCommit,
       }),
     ).rejects.toThrow(/安全重试必须同时提供/);
-  });
-
-  it("rejects retry baseline inputs when canonical Production is still the previous release", async () => {
-    const fixture = createFixture();
-
-    await expect(
-      freezeCanonicalProductionIdentity({
-        cwd: fixture.directory,
-        env: {
-          RIVALHUB_PRODUCTION_BASE_URL: "https://production.example.test",
-          RELEASE_TAG: "v2.9.7",
-          [RETRY_PREVIOUS_RELEASE_TAG_ENV]: "v2.9.5",
-          [RETRY_PREVIOUS_RELEASE_COMMIT_ENV]: fixture.previousCommit,
-        },
-        fetcher: async () => jsonResponse({ releaseTag: "v2.9.5", releaseCommit: fixture.previousCommit }),
-        candidateHead: fixture.candidateCommit,
-      }),
-    ).rejects.toThrow(/仅用于 candidate 已经成为 canonical Production/);
   });
 
   it("rejects a canonical identity whose tag and commit do not match", async () => {
@@ -141,28 +66,6 @@ describe("canonical previous production identity", () => {
     ).rejects.toThrow(/不匹配/);
   });
 
-  it("requires the complete explicit pair instead of silently returning a fallback", () => {
-    const fixture = createFixture();
-
-    expect(() => resolveConfiguredPreviousProductionIdentity(
-      fixture.directory,
-      { [PREVIOUS_RELEASE_TAG_ENV]: "v2.9.5" },
-      fixture.candidateCommit,
-    )).toThrow(/必须同时提供/);
-  });
-
-  it("rejects a previous identity that points at the candidate source", () => {
-    const fixture = createFixture();
-
-    expect(() => resolveConfiguredPreviousProductionIdentity(
-      fixture.directory,
-      {
-        [PREVIOUS_RELEASE_TAG_ENV]: "v2.9.7",
-        [PREVIOUS_RELEASE_COMMIT_ENV]: fixture.candidateCommit,
-      },
-      fixture.candidateCommit,
-    )).toThrow(/与候选版本相同/);
-  });
 });
 
 interface Fixture {

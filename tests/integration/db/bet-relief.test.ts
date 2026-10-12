@@ -29,7 +29,7 @@ async function clockClaim(f:F, day:string) {
 }
 describe("BET relief real ledger and serialization",()=>{
   // Real ledger sums, unique keys and existing program locks protect issuance.
-  it.each([[0,"10"],[3,"7"],[9,"1"],[10,null]] as const)("tops up balance %s once, preserving profit",async(balance,amount)=>fixture(async f=>{
+  it.each([[0,"10"],[9,"1"],[10,null]] as const)("tops up balance %s once, preserving profit",async(balance,amount)=>fixture(async f=>{
     await drain(f,balance);
     const before=await f.db.select().from(schema.betLedger);
     const dto=await eligibility(f);

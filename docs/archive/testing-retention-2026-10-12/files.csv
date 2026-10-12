@@ -1,0 +1,626 @@
+file,before_expanded_cases,after_expanded_cases,disposition,reason_and_remaining_evidence
+src/components/auth/logout.test.tsx,1,0,deleted,保留身份撤销并发、应用 Session、关键 action 拒绝及浏览器恢复；其它细矩阵无精确替代。
+src/components/bet/BetBoard.test.tsx,16,0,deleted,金额、资格、锁定、并发、结算和兼容由保留 BET PG/数学测试保护；删除的展示断言无精确替代。
+src/components/bet/FreePrediction.test.tsx,5,0,deleted,金额、资格、锁定、并发、结算和兼容由保留 BET PG/数学测试保护；删除的展示断言无精确替代。
+src/components/bet/MatchSupport.test.tsx,8,0,deleted,金额、资格、锁定、并发、结算和兼容由保留 BET PG/数学测试保护；删除的展示断言无精确替代。
+src/components/bet/PredictionLeaderboard.test.tsx,1,0,deleted,金额、资格、锁定、并发、结算和兼容由保留 BET PG/数学测试保护；删除的展示断言无精确替代。
+src/components/bet/UnifiedBetBoard.test.tsx,2,0,deleted,金额、资格、锁定、并发、结算和兼容由保留 BET PG/数学测试保护；删除的展示断言无精确替代。
+src/components/community-awards/CommunityAwardsIdentity.test.tsx,2,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+src/components/community-awards/PublicCommunityAwards.test.tsx,1,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+src/components/draft/TeamDraftGrid.test.tsx,1,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+src/components/layout/EventSelector.test.tsx,3,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+src/components/layout/HeaderNavigation.test.tsx,5,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+src/components/layout/SeasonNav.test.tsx,3,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+src/components/matches/DemoDataReviewPanel.test.tsx,17,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+src/components/matches/MatchLiveProvider.test.tsx,4,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+src/components/matches/MatchLiveViewing.test.tsx,9,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+src/components/matches/MatchRealtime.test.tsx,8,0,deleted,保留真实 ingest/authority、provider、浏览器及令牌/撤权/证明；已退役 reducer、时间、显示矩阵无精确替代。
+src/components/matches/MatchScoreSurfaces.test.tsx,2,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+src/components/matches/MatchSummaryStats.test.tsx,2,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+src/components/matches/PostMatchRecordPanel.test.tsx,2,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+src/components/matches/PreMatchContext.test.tsx,2,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+src/components/matches/VetoView.test.tsx,1,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+src/components/players/MajorPlayerDirectoryRow.test.tsx,2,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+src/components/players/PlayerDirectoryRow.test.tsx,2,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+src/components/register/registration-form-utils.test.ts,3,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+src/components/stats/MetricValue.test.tsx,4,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+src/components/stats/StatsDataTable.test.tsx,5,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+src/components/stats/StatsEventSelector.test.tsx,2,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+src/components/stats/StatsShell.test.tsx,3,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+src/components/stats/maps/MapsExplorer.test.tsx,2,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+src/components/stats/overview/Insights.test.tsx,1,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+src/components/stats/overview/OverviewStats.test.tsx,5,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+src/components/stats/players/PlayersExplorer.test.tsx,1,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+src/components/teams/TeamCard.test.tsx,2,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+src/components/teams/TeamProfileLink.test.tsx,4,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+src/lib/admin/matches/operator-maps.test.ts,2,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+src/lib/admin/matches/start-blockers.test.ts,2,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+src/lib/admin/navigation.test.ts,7,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+src/lib/admin/season-workspace/prestart-phase.test.ts,5,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+src/lib/admin/season-workspace/ranking-order.test.ts,2,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+src/lib/admin/season-workspace/strength.test.ts,1,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+src/lib/announcements/commands.test.ts,3,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+src/lib/announcements/presentation.test.ts,5,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+src/lib/audit/actors.test.ts,5,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+src/lib/audit/detail.test.ts,7,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+src/lib/audit/people.test.ts,13,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+src/lib/audit/presentation.test.ts,7,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+src/lib/audit/targets.test.ts,10,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+src/lib/bet/admission.test.ts,1,0,deleted,金额、资格、锁定、并发、结算和兼容由保留 BET PG/数学测试保护；删除的展示断言无精确替代。
+src/lib/bet/bp-present.test.ts,3,0,deleted,金额、资格、锁定、并发、结算和兼容由保留 BET PG/数学测试保护；删除的展示断言无精确替代。
+src/lib/bet/domain.test.ts,12,0,deleted,金额、资格、锁定、并发、结算和兼容由保留 BET PG/数学测试保护；删除的展示断言无精确替代。
+src/lib/bet/ledger-presentation.test.ts,1,0,deleted,金额、资格、锁定、并发、结算和兼容由保留 BET PG/数学测试保护；删除的展示断言无精确替代。
+src/lib/bet/operations.test.ts,3,0,deleted,金额、资格、锁定、并发、结算和兼容由保留 BET PG/数学测试保护；删除的展示断言无精确替代。
+src/lib/bet/option-entity.test.ts,2,0,deleted,金额、资格、锁定、并发、结算和兼容由保留 BET PG/数学测试保护；删除的展示断言无精确替代。
+src/lib/bet/relief.test.ts,6,0,deleted,金额、资格、锁定、并发、结算和兼容由保留 BET PG/数学测试保护；删除的展示断言无精确替代。
+src/lib/captains/rules.test.ts,11,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+src/lib/community-awards/read-model.test.ts,1,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+src/lib/competition-entries/capabilities.test.ts,14,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+src/lib/competition-entries/perfect-team-id.test.ts,2,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+src/lib/competition-entries/presentation.test.ts,6,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+src/lib/competition-entries/readiness.test.ts,1,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+src/lib/competition-entries/remediation.test.ts,4,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+src/lib/competition-entries/restriction-overrides.test.ts,5,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+src/lib/competition-qualification/policy.test.ts,5,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+src/lib/competition-qualification/presentation.test.ts,2,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+src/lib/competitive/conversion-policy.test.ts,15,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+src/lib/competitive/normalize-profile.test.ts,9,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+src/lib/competitive/presentation.test.ts,2,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+src/lib/demo-integration/revision.test.ts,2,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+src/lib/discipline/service.test.ts,9,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+src/lib/draft/rules.test.ts,20,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+src/lib/education/eligibility.test.ts,4,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+src/lib/education/validation.test.ts,6,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+src/lib/external-url.test.ts,17,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+src/lib/feedback/presentation.test.ts,1,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+src/lib/feedback/validation.test.ts,2,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+src/lib/free-predictions/domain.test.ts,3,0,deleted,保留 PG 提交、锁、隐私、结算和浏览器任务；已退役模拟、判槽和排行细矩阵无精确替代。
+src/lib/home/navigation.test.ts,9,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+src/lib/identity/display-name.test.ts,16,0,deleted,保留身份撤销并发、应用 Session、关键 action 拒绝及浏览器恢复；其它细矩阵无精确替代。
+src/lib/list-query.test.ts,4,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+src/lib/major/composite-rank.test.ts,6,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+src/lib/major/frozen-affiliation-rules.test.ts,2,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+src/lib/major/golden-major.test.ts,5,2,pruned,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+src/lib/major/opening.test.ts,5,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+src/lib/major/placement.test.ts,4,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+src/lib/major/player-strength.test.ts,21,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+src/lib/major/playoff.test.ts,9,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+src/lib/major/prestart-presentation.test.ts,2,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+src/lib/major/prestart.test.ts,17,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+src/lib/major/public-participants.test.ts,3,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+src/lib/major/roster-window.test.ts,3,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+src/lib/major/run-snapshot.test.ts,5,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+src/lib/major/seeding.test.ts,20,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+src/lib/major/swiss-runtime.test.ts,2,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+src/lib/major/swiss.test.ts,62,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+src/lib/major/team-seed-recommendation.test.ts,14,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+src/lib/maps.test.ts,5,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+src/lib/match-corrections/presentation.test.ts,2,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+src/lib/match-corrections/service.test.ts,21,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+src/lib/match-rosters/lineup.test.ts,13,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+src/lib/match-rosters/policy.test.ts,5,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+src/lib/match-transitions.test.ts,22,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+src/lib/matches/detail-stats.test.ts,3,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+src/lib/matches/map-scoreboard.test.ts,2,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+src/lib/matches/operator-scoreboard.test.ts,1,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+src/lib/matches/pre-analysis.test.ts,1,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+src/lib/matches/presentation-phase.test.ts,2,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+src/lib/matches/presentation.test.ts,2,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+src/lib/matches/public-phase.test.ts,2,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+src/lib/matches/recent-results.test.ts,1,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+src/lib/matches/result-rules.test.ts,11,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+src/lib/matches/scoreboard-completeness.test.ts,13,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+src/lib/matches/scoreboard-ownership.test.ts,2,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+src/lib/matches/series-correction-rules.test.ts,6,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+src/lib/matches/stage-read-model.test.ts,1,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+src/lib/matches/stage-views.test.ts,5,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+src/lib/matches/veto-room/domain.test.ts,9,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+src/lib/mizar/live-presentation.test.ts,5,0,deleted,保留真实 ingest/authority、provider、浏览器及令牌/撤权/证明；已退役 reducer、时间、显示矩阵无精确替代。
+src/lib/mizar/live-previous-view.test.ts,6,2,pruned,保留真实 ingest/authority、provider、浏览器及令牌/撤权/证明；已退役 reducer、时间、显示矩阵无精确替代。
+src/lib/mizar/live-viewer-state.test.ts,7,0,deleted,保留真实 ingest/authority、provider、浏览器及令牌/撤权/证明；已退役 reducer、时间、显示矩阵无精确替代。
+src/lib/mizar/live-viewer.test.ts,12,2,pruned,保留真实 ingest/authority、provider、浏览器及令牌/撤权/证明；已退役 reducer、时间、显示矩阵无精确替代。
+src/lib/players/directory-order.test.ts,3,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+src/lib/players/directory-query.test.ts,3,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+src/lib/players/performance-view-state.test.ts,3,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+src/lib/postmatch/service.test.ts,2,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+src/lib/qualification/finding.test.ts,4,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+src/lib/registration-transitions.test.ts,10,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+src/lib/season-public-info/presentation.test.ts,5,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+src/lib/seasons/presentation.test.ts,14,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+src/lib/seasons/public-next-step.test.ts,3,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+src/lib/seasons/public-stage.test.ts,3,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+src/lib/seasons/slug.test.ts,1,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+src/lib/standings.test.ts,5,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+src/lib/stats/aggregate.test.ts,4,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+src/lib/stats/availability.test.ts,2,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+src/lib/stats/benchmark.test.ts,5,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+src/lib/stats/cached-query.test.ts,7,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+src/lib/stats/dak-projection.test.ts,5,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+src/lib/stats/evidence-adapter.test.ts,3,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+src/lib/stats/format.test.ts,4,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+src/lib/stats/insights.test.ts,20,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+src/lib/stats/player-attributes.test.ts,5,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+src/lib/stats/public-view.test.ts,2,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+src/lib/stats/ranking.test.ts,8,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+src/lib/stats/record-facts.test.ts,3,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+src/lib/stats/records.test.ts,4,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+src/lib/stats/results.test.ts,2,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+src/lib/stats/sorting.test.ts,2,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+src/lib/stats/team-rating.test.ts,2,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+src/lib/stats/tournament-query.test.ts,2,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+src/lib/stats/veto-sample.test.ts,3,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+src/lib/stats/view-state.test.ts,9,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+src/lib/swiss/core.test.ts,5,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+src/lib/utils/stats.test.ts,2,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+src/lib/validators/map-preferences.test.ts,9,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+src/lib/validators/match-scheduling.test.ts,3,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/e2e/acceptance/audit-demo-review.spec.ts,2,0,deleted,退役非 required 视觉/容量实验；需要时临时验证，不声称性能或截图状态仍受保护。
+tests/e2e/acceptance/match-operations.spec.ts,2,0,deleted,退役非 required 视觉/容量实验；需要时临时验证，不声称性能或截图状态仍受保护。
+tests/e2e/acceptance/page-layout.spec.ts,2,0,deleted,退役非 required 视觉/容量实验；需要时临时验证，不声称性能或截图状态仍受保护。
+tests/e2e/acceptance/prediction-states.spec.ts,2,0,deleted,退役非 required 视觉/容量实验；需要时临时验证，不声称性能或截图状态仍受保护。
+tests/e2e/flows/bet.spec.ts,1,1,retained,保留原有效断言。
+tests/e2e/flows/education-manual-fallback.spec.ts,1,1,retained,保留原有效断言。
+tests/e2e/flows/event-logo.spec.ts,1,1,retained,保留原有效断言。
+tests/e2e/flows/free-predictions.spec.ts,1,1,retained,保留原有效断言。
+tests/e2e/flows/major-entry.spec.ts,1,1,retained,保留原有效断言。
+tests/e2e/flows/major-qualification.spec.ts,1,1,retained,保留原有效断言。
+tests/e2e/flows/platform-stats.spec.ts,1,1,retained,保留原有效断言。
+tests/e2e/flows/predictions.spec.ts,1,1,retained,保留原有效断言。
+tests/e2e/flows/public-discovery.spec.ts,1,1,retained,保留原有效断言。
+tests/e2e/flows/public-event-experience.spec.ts,1,1,retained,保留原有效断言。
+tests/e2e/flows/public-match-live.spec.ts,1,1,retained,保留原有效断言。
+tests/e2e/flows/series-score-correction.spec.ts,1,1,retained,保留原有效断言。
+tests/e2e/flows/session-revocation.spec.ts,2,2,retained,保留原有效断言。
+tests/e2e/flows/team-invitations.spec.ts,1,1,retained,保留原有效断言。
+tests/e2e/flows/test-matches.spec.ts,2,2,retained,保留原有效断言。
+tests/e2e/production/workspace-nav.spec.ts,2,2,retained,保留原有效断言。
+tests/e2e/visual/ui-system.spec.ts,6,0,deleted,退役非 required 视觉/容量实验；需要时临时验证，不声称性能或截图状态仍受保护。
+tests/experiments/mizar-live-capacity.test.ts,12,0,deleted,退役非 required 视觉/容量实验；需要时临时验证，不声称性能或截图状态仍受保护。
+tests/integration/db/admin-high-value-read-models.test.ts,1,0,deleted,退役后台列表 count/pagination 的独立只读组合 oracle；无等价替代，保留 admin-match 的跨赛事保护。
+tests/integration/db/admin-match-read-models.test.ts,1,1,retained,保留原有效断言。
+tests/integration/db/admin-platform-operations.test.ts,1,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/integration/db/admin-season-workspace-overview.test.ts,1,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/integration/db/admin-team-registration-review.test.ts,1,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/integration/db/application-sessions.test.ts,9,9,retained,保留原有效断言。
+tests/integration/db/audit-presentation.test.ts,2,2,retained,保留原有效断言。
+tests/integration/db/bet-bp-present.test.ts,12,12,retained,保留原有效断言。
+tests/integration/db/bet-bp-reader-compat.test.ts,3,3,retained,保留原有效断言。
+tests/integration/db/bet-relief-reader.test.ts,1,1,retained,保留原有效断言。
+tests/integration/db/bet-relief.test.ts,11,10,pruned,真实 PG 的具体代表性删减及剩余 oracle 见 postgres-risk-review.md；逐用例原因见 cases.csv，未以同路径执行宣称等价。
+tests/integration/db/bet-slot-compat.test.ts,3,3,retained,保留原有效断言。
+tests/integration/db/bet.test.ts,19,17,pruned,金额、资格、锁定、并发、结算和兼容由保留 BET PG/数学测试保护；删除的展示断言无精确替代。
+tests/integration/db/canonical-migration-runner.test.ts,1,1,retained,保留原有效断言。
+tests/integration/db/competition-entry-participant-context.test.ts,2,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/integration/db/competition-entry-qualification-override.test.ts,1,1,retained,保留原有效断言。
+tests/integration/db/competition-entry-roster-change.test.ts,2,2,retained,保留原有效断言。
+tests/integration/db/competition-qualification-acceptance.test.ts,5,5,retained,保留原有效断言。
+tests/integration/db/competitive-catalog-actions.test.ts,2,2,retained,保留原有效断言。
+tests/integration/db/competitive-catalog.test.ts,1,1,retained,保留原有效断言。
+tests/integration/db/competitive-profile-normalization.test.ts,2,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/integration/db/conversion-policy-admin.test.ts,1,1,retained,保留原有效断言。
+tests/integration/db/coverage-scheduling.test.ts,3,3,retained,保留原有效断言。
+tests/integration/db/default-lineup-recovery.test.ts,3,3,retained,保留原有效断言。
+tests/integration/db/demo-import-egress.test.ts,1,1,retained,保留原有效断言。
+tests/integration/db/demo-integration-read.test.ts,1,1,retained,保留原有效断言。
+tests/integration/db/demo-integration-submit.test.ts,2,2,retained,保留原有效断言。
+tests/integration/db/discipline.test.ts,1,1,retained,保留原有效断言。
+tests/integration/db/education-admin-review.test.ts,3,1,pruned,真实 PG 的具体代表性删减及剩余 oracle 见 postgres-risk-review.md；逐用例原因见 cases.csv，未以同路径执行宣称等价。
+tests/integration/db/education-evidence-retention.test.ts,1,1,retained,保留原有效断言。
+tests/integration/db/education-manual-retention.test.ts,2,2,retained,保留原有效断言。
+tests/integration/db/education-manual-submission.test.ts,2,2,retained,保留原有效断言。
+tests/integration/db/education-verification-submission.test.ts,2,2,retained,保留原有效断言。
+tests/integration/db/free-predictions-play-in.test.ts,3,3,retained,保留原有效断言。
+tests/integration/db/free-predictions.test.ts,11,7,pruned,保留 PG 提交、锁、隐私、结算和浏览器任务；已退役模拟、判槽和排行细矩阵无精确替代。
+tests/integration/db/identity-revocation-race.test.ts,12,12,retained,保留原有效断言。
+tests/integration/db/invite-concurrency.test.ts,1,1,retained,保留原有效断言。
+tests/integration/db/major-prestart-selection.test.ts,5,5,retained,保留原有效断言。
+tests/integration/db/major-prestart.test.ts,1,1,retained,保留原有效断言。
+tests/integration/db/major-profile.test.ts,1,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/integration/db/major-public-participants.test.ts,1,1,retained,保留原有效断言。
+tests/integration/db/major-result-recovery.test.ts,1,1,retained,保留原有效断言。
+tests/integration/db/major-roster-safety.test.ts,1,1,retained,保留原有效断言。
+tests/integration/db/major-start.test.ts,7,7,retained,保留原有效断言。
+tests/integration/db/map-score-correction.test.ts,6,6,retained,保留原有效断言。
+tests/integration/db/match-commentary.test.ts,13,10,pruned,真实 PG 的具体代表性删减及剩余 oracle 见 postgres-risk-review.md；逐用例原因见 cases.csv，未以同路径执行宣称等价。
+tests/integration/db/match-execution.test.ts,4,4,retained,保留原有效断言。
+tests/integration/db/match-score-semantics.test.ts,1,1,retained,保留原有效断言。
+tests/integration/db/match-time-scheduling.test.ts,9,9,retained,保留原有效断言。
+tests/integration/db/migrations/auth-id-reconciliation.test.ts,4,4,retained,保留原有效断言。
+tests/integration/db/migrations/auth-permissions.test.ts,2,2,retained,保留原有效断言。
+tests/integration/db/migrations/canonical-team-identity.test.ts,7,7,retained,保留原有效断言。
+tests/integration/db/migrations/community-awards-capability.test.ts,1,1,retained,保留原有效断言。
+tests/integration/db/migrations/competition-entry-restriction-overrides.test.ts,1,0,deleted,重复同一终态 migration replay/access matrix/RLS/anon-auth SELECT；保留 database-access-boundary 与真实 revision-scoped waiver/audit。
+tests/integration/db/migrations/competition-entry-terminal.test.ts,1,1,retained,保留原有效断言。
+tests/integration/db/migrations/competitive-catalog.test.ts,1,1,retained,保留原有效断言。
+tests/integration/db/migrations/conversion-policies.test.ts,1,1,retained,保留原有效断言。
+tests/integration/db/migrations/database-access-boundary.test.ts,1,1,retained,保留原有效断言。
+tests/integration/db/migrations/education-evidence-code.test.ts,1,1,retained,保留原有效断言。
+tests/integration/db/migrations/education-evidence-object-key.test.ts,1,1,retained,保留原有效断言。
+tests/integration/db/migrations/match-score-semantics.test.ts,1,1,retained,保留原有效断言。
+tests/integration/db/migrations/participant-profile-semantics.test.ts,2,2,retained,保留原有效断言。
+tests/integration/db/migrations/player-declared-profile.test.ts,1,1,retained,保留原有效断言。
+tests/integration/db/migrations/private-live-policy-bootstrap.test.ts,1,1,retained,保留原有效断言。
+tests/integration/db/migrations/recovery-restore-seed-collision.test.ts,1,1,retained,保留原有效断言。
+tests/integration/db/migrations/stage-runtime-contract-cleanup.test.ts,8,8,retained,保留原有效断言。
+tests/integration/db/migrations/supabase-storage-origin.test.ts,1,1,retained,保留原有效断言。
+tests/integration/db/mizar-live-correctness.test.ts,10,10,retained,保留原有效断言。
+tests/integration/db/mizar-live-ingest.test.ts,36,31,pruned,保留真实 ingest/authority、provider、浏览器及令牌/撤权/证明；已退役 reducer、时间、显示矩阵无精确替代。
+tests/integration/db/mvp-aggregation.test.ts,1,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/integration/db/my-readiness.test.ts,1,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+tests/integration/db/operations-hardening.test.ts,3,3,retained,保留原有效断言。
+tests/integration/db/pg-errors.test.ts,2,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/integration/db/player-stats-canonical.test.ts,1,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+tests/integration/db/postevent.test.ts,1,1,retained,保留原有效断言。
+tests/integration/db/postmatch-community-awards.test.ts,2,2,retained,保留原有效断言。
+tests/integration/db/predictions.test.ts,8,8,retained,保留原有效断言。
+tests/integration/db/preview-mirror.test.ts,4,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/integration/db/preview-reset.test.ts,2,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/integration/db/query-outcome.test.ts,1,1,retained,保留原有效断言。
+tests/integration/db/recruitment.test.ts,1,1,retained,保留原有效断言。
+tests/integration/db/registration-opening.test.ts,2,2,retained,保留原有效断言。
+tests/integration/db/rivals-formation-identity.test.ts,1,1,retained,保留原有效断言。
+tests/integration/db/scheduler-contract.test.ts,3,3,retained,保留原有效断言。
+tests/integration/db/season-governance.test.ts,1,1,retained,保留原有效断言。
+tests/integration/db/season-logo.test.ts,1,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/integration/db/season-registration-correctness.test.ts,2,2,retained,保留原有效断言。
+tests/integration/db/series-score-correction.test.ts,18,17,pruned,真实 PG 的具体代表性删减及剩余 oracle 见 postgres-risk-review.md；逐用例原因见 cases.csv，未以同路径执行宣称等价。
+tests/integration/db/steam-identity-foundation.test.ts,2,2,retained,保留原有效断言。
+tests/integration/db/team-directory.test.ts,1,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+tests/integration/db/team-invitation.test.ts,1,1,retained,保留原有效断言。
+tests/integration/db/team-registration.test.ts,1,1,retained,保留原有效断言。
+tests/integration/db/test-matches.test.ts,9,7,pruned,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/integration/db/user-identity-merge.test.ts,8,8,retained,保留原有效断言。
+tests/integration/db/veto-appeal-lifecycle.test.ts,8,8,retained,保留原有效断言。
+tests/integration/db/veto-lifecycle-reader.test.ts,5,5,retained,保留原有效断言。
+tests/unit/SchedulerHealthPanel.test.tsx,1,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/actions/account-password.test.ts,13,1,pruned,保留身份撤销并发、应用 Session、关键 action 拒绝及浏览器恢复；其它细矩阵无精确替代。
+tests/unit/actions/account-profile.test.ts,10,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/actions/action-diagnostics.test.ts,3,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/actions/admin.test.ts,10,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/actions/auth-confirmation.test.ts,5,0,deleted,保留身份撤销并发、应用 Session、关键 action 拒绝及浏览器恢复；其它细矩阵无精确替代。
+tests/unit/actions/auth-reverification.test.ts,1,0,deleted,保留身份撤销并发、应用 Session、关键 action 拒绝及浏览器恢复；其它细矩阵无精确替代。
+tests/unit/actions/auth.test.ts,38,0,deleted,保留身份撤销并发、应用 Session、关键 action 拒绝及浏览器恢复；其它细矩阵无精确替代。
+tests/unit/actions/bet-relief.test.ts,4,2,pruned,金额、资格、锁定、并发、结算和兼容由保留 BET PG/数学测试保护；删除的展示断言无精确替代。
+tests/unit/actions/captains.test.ts,10,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/actions/community-awards.test.ts,1,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/actions/competition-entries.test.ts,8,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/actions/competitive-platform.test.ts,17,1,pruned,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/actions/conversion-policies.test.ts,5,5,retained,保留原有效断言。
+tests/unit/actions/demo-integration.test.ts,11,3,pruned,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/actions/discipline.test.ts,6,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/actions/education-manual-evidence.test.ts,1,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/actions/education-verification-ownership.test.ts,6,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/actions/education-verifications.test.ts,4,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/actions/feedback.test.ts,3,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/actions/identity.test.ts,4,0,deleted,保留身份撤销并发、应用 Session、关键 action 拒绝及浏览器恢复；其它细矩阵无精确替代。
+tests/unit/actions/major-prestart.test.ts,3,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/actions/match-lineup-actions.test.ts,9,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/actions/match-operations.test.ts,5,1,pruned,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/actions/matches-status.test.ts,2,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/actions/mvp-vote.test.ts,3,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/actions/password-recovery.test.ts,4,4,retained,保留原有效断言。
+tests/unit/actions/player-stats.test.ts,9,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+tests/unit/actions/postmatch.test.ts,8,3,pruned,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/actions/recruitment-errors.test.ts,2,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/actions/register.test.ts,19,2,pruned,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/actions/scheduler.test.ts,4,1,pruned,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/actions/season-logo.test.ts,6,1,pruned,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/actions/seasons.test.ts,28,9,pruned,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/actions/session-management.test.ts,3,0,deleted,保留身份撤销并发、应用 Session、关键 action 拒绝及浏览器恢复；其它细矩阵无精确替代。
+tests/unit/actions/team-invitation-errors.test.ts,4,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/actions/teams.test.ts,9,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/actions/test-matches.test.ts,2,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/actions/veto-room-access.test.ts,4,3,pruned,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/api/cleanup-education-evidence-route.test.ts,2,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/api/dak-error-recovery.test.ts,7,0,deleted,保留 gate 必需结果、migration risk、恢复与部署安全拒绝；写法与诊断矩阵退役，无精确替代。
+tests/unit/api/demo-integration-events-contract.test.ts,4,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/api/demo-integration-events-route.test.ts,5,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/api/demo-integration-pairing.test.ts,1,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/api/demo-integration-submit.test.ts,2,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/api/draft-timeout-route.test.ts,2,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/api/match-time-auto-award-route.test.ts,2,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/api/mizar-diagnostics.test.ts,7,0,deleted,保留真实 ingest/authority、provider、浏览器及令牌/撤权/证明；已退役 reducer、时间、显示矩阵无精确替代。
+tests/unit/api/mizar-disconnect.test.ts,9,0,deleted,保留真实 ingest/authority、provider、浏览器及令牌/撤权/证明；已退役 reducer、时间、显示矩阵无精确替代。
+tests/unit/api/mizar-live-viewer.test.ts,5,0,deleted,保留真实 ingest/authority、provider、浏览器及令牌/撤权/证明；已退役 reducer、时间、显示矩阵无精确替代。
+tests/unit/api/mizar-pairing.test.ts,13,0,deleted,保留真实 ingest/authority、provider、浏览器及令牌/撤权/证明；已退役 reducer、时间、显示矩阵无精确替代。
+tests/unit/api/public-statistics-invalidation.test.ts,5,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/api/system-release-route.test.ts,3,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/app/admin-audit-logs-page.test.tsx,4,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/app/admin-discipline-page.test.tsx,7,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/app/admin-education-evidence-route.test.ts,2,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/app/admin-layout.test.tsx,3,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/app/admin-match-workbench-page.test.tsx,2,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/app/admin-matches-page.test.tsx,3,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/app/admin-operations-page.test.tsx,2,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/app/admin-page.test.tsx,6,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/app/admin-post-event-page.test.tsx,2,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/app/admin-prestart-page.test.tsx,2,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/app/admin-registrations-page.test.tsx,1,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/app/admin-season-workspace-page.test.tsx,1,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/app/admin-settings-page.test.tsx,2,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/app/auth-callback.test.ts,5,0,deleted,保留身份撤销并发、应用 Session、关键 action 拒绝及浏览器恢复；其它细矩阵无精确替代。
+tests/unit/app/auth-confirmation-page.test.tsx,4,0,deleted,保留身份撤销并发、应用 Session、关键 action 拒绝及浏览器恢复；其它细矩阵无精确替代。
+tests/unit/app/community-awards-pages.test.tsx,3,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/app/education-settings-page.test.tsx,1,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/app/login-page.test.tsx,3,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/app/major-public-participants-pages.test.tsx,3,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/app/player-page.test.tsx,4,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/app/public-entry-pages.test.tsx,2,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/app/public-match-detail-page.test.tsx,11,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/app/recruitment-lobby-page.test.tsx,3,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/app/register-page.test.tsx,3,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/app/request-error-digest.test.ts,2,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/app/rules-page.test.ts,2,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/app/season-page.test.tsx,6,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/app/settings-page.test.tsx,1,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/app/team-invite-page.test.tsx,10,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/ci/gate.test.mjs,6,3,pruned,保留 gate 必需结果、migration risk、恢复与部署安全拒绝；写法与诊断矩阵退役，无精确替代。
+tests/unit/ci/plan.test.mjs,51,2,pruned,保留 gate 必需结果、migration risk、恢复与部署安全拒绝；写法与诊断矩阵退役，无精确替代。
+tests/unit/ci/postgres-shards.test.mjs,5,0,deleted,保留 gate 必需结果、migration risk、恢复与部署安全拒绝；写法与诊断矩阵退役，无精确替代。
+tests/unit/ci/preview-mirror-contract.test.mjs,1,0,deleted,保留 gate 必需结果、migration risk、恢复与部署安全拒绝；写法与诊断矩阵退役，无精确替代。
+tests/unit/ci/run-static-task.test.mjs,9,0,deleted,保留 gate 必需结果、migration risk、恢复与部署安全拒绝；写法与诊断矩阵退役，无精确替代。
+tests/unit/ci/selection-correctness.test.mjs,19,0,deleted,保留 gate 必需结果、migration risk、恢复与部署安全拒绝；写法与诊断矩阵退役，无精确替代。
+tests/unit/ci/system-artifacts-security.test.mjs,4,3,pruned,恢复无标签现代Supabase secret脱敏独有保护；保留3条，剩余退役边界见cases.csv。
+tests/unit/ci/timing-budget.test.mjs,6,0,deleted,保留 gate 必需结果、migration risk、恢复与部署安全拒绝；写法与诊断矩阵退役，无精确替代。
+tests/unit/ci/validate-pr-title.test.mjs,10,0,deleted,保留 gate 必需结果、migration risk、恢复与部署安全拒绝；写法与诊断矩阵退役，无精确替代。
+tests/unit/ci/vitest-flaky-guard.test.ts,10,0,deleted,保留 gate 必需结果、migration risk、恢复与部署安全拒绝；写法与诊断矩阵退役，无精确替代。
+tests/unit/competition-match-policy.test.ts,3,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/competition/definition.test.ts,7,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/competition/templates.test.ts,10,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/components/MarkdownDocument.test.tsx,2,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+tests/unit/components/MyReadinessDashboard.test.tsx,7,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+tests/unit/components/ScrollHint.test.tsx,5,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+tests/unit/components/admin/AdminExceptionSummary.test.tsx,2,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+tests/unit/components/admin/AdminPlayerContact.test.tsx,2,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+tests/unit/components/admin/AdminSidebar.test.tsx,3,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+tests/unit/components/admin/AdminUserList.test.tsx,2,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+tests/unit/components/admin/AuditLogDetailDialog.test.tsx,4,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+tests/unit/components/admin/AuditLogTable.test.tsx,4,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+tests/unit/components/admin/CompetitivePlatformCatalog.test.tsx,7,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+tests/unit/components/admin/ConversionPolicyManager.test.tsx,2,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+tests/unit/components/admin/EducationReviewWorkspace.test.tsx,1,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+tests/unit/components/admin/InviteManager.test.tsx,4,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+tests/unit/components/admin/MajorCompetitionFlow.test.tsx,3,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+tests/unit/components/admin/MajorPrestartConsole.test.tsx,3,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+tests/unit/components/admin/MajorPrestartManagement.test.tsx,2,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+tests/unit/components/admin/MajorRankingWorkspace.test.tsx,5,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+tests/unit/components/admin/MajorStartManagement.test.tsx,2,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+tests/unit/components/admin/MajorStrengthStarterSummary.test.tsx,1,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+tests/unit/components/admin/MajorTournamentSeedsManagement.test.tsx,2,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+tests/unit/components/admin/SeasonForm.test.tsx,16,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+tests/unit/components/admin/SeasonLogoEditor.test.tsx,2,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+tests/unit/components/admin/StagePlanEditor.test.tsx,1,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+tests/unit/components/admin/TeamRegistrationProgress.test.tsx,4,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+tests/unit/components/admin/UserSearchBar.test.tsx,4,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+tests/unit/components/admin/discipline-management.test.tsx,11,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+tests/unit/components/admin/platform-operations-overview.test.tsx,1,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+tests/unit/components/admin/season-prestart-capability-panel.test.tsx,2,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+tests/unit/components/admin/season-sub-nav.test.tsx,7,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+tests/unit/components/admin/season-workspace-overview.test.tsx,2,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+tests/unit/components/draft/CaptainDraftPanel.test.tsx,3,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+tests/unit/components/draft/PlayerPool.test.tsx,1,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+tests/unit/components/error-boundaries.test.tsx,5,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+tests/unit/components/home/HomeSeasonPanel.test.tsx,4,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+tests/unit/components/identity-flow.test.tsx,18,0,deleted,保留身份撤销并发、应用 Session、关键 action 拒绝及浏览器恢复；其它细矩阵无精确替代。
+tests/unit/components/layout/HeaderClient.test.tsx,3,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+tests/unit/components/matches/AdminMatchOperations.test.tsx,1,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+tests/unit/components/matches/AdminMatchRow.test.tsx,1,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+tests/unit/components/matches/AdminMatchWorkbench.test.tsx,11,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+tests/unit/components/matches/AdminPostMatchTasks.test.tsx,2,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+tests/unit/components/matches/AdminRosterDialog.test.tsx,5,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+tests/unit/components/matches/BracketView.test.tsx,4,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+tests/unit/components/matches/CancelCommentaryButton.test.tsx,2,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+tests/unit/components/matches/ClaimMatchButton.test.tsx,2,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+tests/unit/components/matches/MatchCommentaryQueue.test.tsx,7,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+tests/unit/components/matches/MatchDownloads.test.tsx,2,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+tests/unit/components/matches/MatchEntityNavigation.test.tsx,3,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+tests/unit/components/matches/MatchMapTabsNavigation.test.tsx,1,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+tests/unit/components/matches/MatchMvpVote.test.tsx,7,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+tests/unit/components/matches/MatchRosterForm.test.tsx,6,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+tests/unit/components/matches/MatchTimeNegotiation.test.tsx,2,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+tests/unit/components/matches/OperatorIssuePanel.test.tsx,1,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+tests/unit/components/matches/OperatorLiveStatus.test.tsx,1,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+tests/unit/components/matches/PerfectRoomGuide.test.tsx,1,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+tests/unit/components/matches/PlayerStatsTable.test.tsx,2,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+tests/unit/components/matches/PreMatchOperatorChecklist.test.tsx,2,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+tests/unit/components/matches/ResultCorrectionPanel.test.tsx,7,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+tests/unit/components/matches/SeriesScoreCorrectionReview.test.tsx,4,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+tests/unit/components/matches/StatsOCRPanel.test.tsx,8,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+tests/unit/components/matches/TestMatchConclusion.test.tsx,7,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+tests/unit/components/matches/VetoInputDialog.test.tsx,4,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+tests/unit/components/matches/VetoRoom.test.tsx,22,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+tests/unit/components/matches/stats-ocr-drafts.test.ts,4,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+tests/unit/components/my/MyTeamWorkspace.test.tsx,3,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+tests/unit/components/my/MyWorkspaceNav.test.tsx,2,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+tests/unit/components/my/NoTeamWorkspace.test.tsx,2,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+tests/unit/components/operations/InformationFeedbackLauncher.test.tsx,2,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+tests/unit/components/password-outcome-chain.test.tsx,7,4,pruned,保留身份撤销并发、应用 Session、关键 action 拒绝及浏览器恢复；其它细矩阵无精确替代。
+tests/unit/components/players/PlayerAvatar.test.tsx,3,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+tests/unit/components/players/PlayerProfileLink.test.tsx,1,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+tests/unit/components/predictions/OfficialSwissFlow.test.tsx,4,0,deleted,保留 PG 提交、锁、隐私、结算和浏览器任务；已退役模拟、判槽和排行细矩阵无精确替代。
+tests/unit/components/predictions/PickEditor.test.tsx,4,0,deleted,保留 PG 提交、锁、隐私、结算和浏览器任务；已退役模拟、判槽和排行细矩阵无精确替代。
+tests/unit/components/predictions/PickEmRecord.test.tsx,1,0,deleted,保留 PG 提交、锁、隐私、结算和浏览器任务；已退役模拟、判槽和排行细矩阵无精确替代。
+tests/unit/components/predictions/TournamentBoard.test.tsx,4,0,deleted,保留 PG 提交、锁、隐私、结算和浏览器任务；已退役模拟、判槽和排行细矩阵无精确替代。
+tests/unit/components/recruitment/TeamRecruitmentSection.test.tsx,2,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+tests/unit/components/register/ClaimTeamInviteButton.test.tsx,1,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+tests/unit/components/register/CompetitionEntryFlow.test.tsx,26,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+tests/unit/components/register/RegistrationForm.test.tsx,2,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+tests/unit/components/reset-password.test.tsx,1,0,deleted,保留身份撤销并发、应用 Session、关键 action 拒绝及浏览器恢复；其它细矩阵无精确替代。
+tests/unit/components/rivalhub-foundation.test.tsx,2,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+tests/unit/components/rivalhub-list-primitives.test.tsx,13,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+tests/unit/components/rivalhub-list-search-hydration.test.tsx,1,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+tests/unit/components/season/SeasonPublicInfoView.test.tsx,2,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+tests/unit/components/settings/CompetitiveProfileForm.test.tsx,9,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+tests/unit/components/settings/CompetitiveRolesForm.test.tsx,3,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+tests/unit/components/settings/MapPreferencesForm.test.tsx,2,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+tests/unit/components/settings/ProfileForm.test.tsx,1,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+tests/unit/components/settings/SettingsNav.test.tsx,1,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+tests/unit/components/teams/LongLivedTeamWorkspace.test.tsx,2,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+tests/unit/components/teams/TeamDirectoryCard.test.tsx,2,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+tests/unit/components/teams/TeamLogo.test.tsx,3,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+tests/unit/components/teams/TeamLogoUpload.test.tsx,2,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+tests/unit/components/teams/TeamProfileSection.test.tsx,1,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+tests/unit/components/teams/TeamPublicProfile.test.tsx,10,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+tests/unit/components/turnstile-widget.test.tsx,3,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+tests/unit/components/use-visible-polling.test.tsx,3,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+tests/unit/db/access-matrix.test.ts,2,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/db/client-runtime.test.ts,7,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/db/errors.test.ts,6,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/db/integration-worker-isolation.test.ts,4,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/db/local-environment.test.ts,15,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/db/major-browser-fixture-contract.test.ts,2,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/db/migration-risk.test.ts,23,2,pruned,保留 gate 必需结果、migration risk、恢复与部署安全拒绝；写法与诊断矩阵退役，无精确替代。
+tests/unit/db/postgres-connection.test.ts,8,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/db/preview-diagnostics.test.ts,2,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/db/preview-environment.test.ts,2,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/db/preview-personas.test.ts,3,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/db/preview-policy.test.ts,10,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/db/preview-refresh.test.ts,4,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/db/preview-snapshot.test.ts,19,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/db/production-environment.test.ts,3,3,retained,保留原有效断言。
+tests/unit/db/production-preflight.test.ts,7,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/db/production-steam-profile-backfill-arguments.test.ts,2,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/db/release-compat.test.ts,28,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/db/remote.test.ts,4,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/db/scheduler-contract.test.ts,4,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/db/seed.test.ts,2,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/db/staging-environment.test.ts,3,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/db/stats-projections-cli.test.ts,3,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+tests/unit/db/steam-profile-coverage.test.ts,2,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/db/verify-migrations.test.ts,6,0,deleted,保留 gate 必需结果、migration risk、恢复与部署安全拒绝；写法与诊断矩阵退役，无精确替代。
+tests/unit/dependency-graph.test.ts,10,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/lib/admin-demo-review.test.ts,15,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/lib/admin-high-value-lists.test.ts,3,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/lib/admin-major-runtime.test.ts,2,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/lib/admin-match-commentary.test.ts,2,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/lib/admin-match-read-models.test.ts,4,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+tests/unit/lib/admin-match-workbench-loader.test.ts,5,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/lib/admin-platform-operations.test.ts,3,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/lib/admin-season-workspace-selectors.test.ts,4,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/lib/audit-write.test.ts,2,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/lib/auth-owner-bootstrap.test.ts,4,0,deleted,保留身份撤销并发、应用 Session、关键 action 拒绝及浏览器恢复；其它细矩阵无精确替代。
+tests/unit/lib/auth-redirect.test.ts,7,0,deleted,保留身份撤销并发、应用 Session、关键 action 拒绝及浏览器恢复；其它细矩阵无精确替代。
+tests/unit/lib/auth-session-compatibility.test.ts,1,0,deleted,保留身份撤销并发、应用 Session、关键 action 拒绝及浏览器恢复；其它细矩阵无精确替代。
+tests/unit/lib/auth-session-prerender.test.ts,6,0,deleted,保留身份撤销并发、应用 Session、关键 action 拒绝及浏览器恢复；其它细矩阵无精确替代。
+tests/unit/lib/auth-session.test.ts,14,0,deleted,保留身份撤销并发、应用 Session、关键 action 拒绝及浏览器恢复；其它细矩阵无精确替代。
+tests/unit/lib/auth-supabase.test.ts,4,0,deleted,保留身份撤销并发、应用 Session、关键 action 拒绝及浏览器恢复；其它细矩阵无精确替代。
+tests/unit/lib/bracket.test.ts,5,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/lib/competition-entries/public-team-context.test.ts,1,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/lib/competition-entry-presentation.test.ts,1,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/lib/competitive/builtins.test.ts,3,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/lib/competitive/catalog.test.ts,11,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/lib/competitive/presentation.test.ts,7,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/lib/date.test.ts,11,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/lib/demo-evidence-contract.test.ts,6,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/lib/demo-evidence-diagnostics.test.ts,30,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/lib/demo-evidence-revision.test.ts,1,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/lib/demo-evidence-suicide-weapon-breakdown.test.ts,5,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/lib/demo-integration-http.test.ts,2,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/lib/demo-integration-semantic-profile.test.ts,2,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/lib/demo-integration-validation.test.ts,5,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/lib/demo-recheck-diagnostics.test.ts,1,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/lib/draft-auto-pick.test.ts,2,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/lib/draft-validator.test.ts,2,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/lib/education-admin-review.test.ts,2,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/lib/education/evidence-access.test.ts,6,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/lib/education/presentation.test.ts,4,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/lib/education/storage.test.ts,4,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/lib/errors.test.ts,4,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/lib/formats/double-elim.test.ts,2,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+tests/unit/lib/formats/round-robin.test.ts,2,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+tests/unit/lib/formats/single-elim.test.ts,2,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+tests/unit/lib/formats/stage-completion.test.ts,3,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+tests/unit/lib/home-registration.test.ts,2,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/lib/matches/mvp.test.ts,6,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/lib/matches/time-auto-award.test.ts,4,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/lib/matches/veto-sequence.test.ts,6,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/lib/mizar-live-admission.test.ts,10,0,deleted,保留真实 ingest/authority、provider、浏览器及令牌/撤权/证明；已退役 reducer、时间、显示矩阵无精确替代。
+tests/unit/lib/mizar-live-body.test.ts,2,0,deleted,保留真实 ingest/authority、provider、浏览器及令牌/撤权/证明；已退役 reducer、时间、显示矩阵无精确替代。
+tests/unit/lib/mizar-live-broadcast.test.ts,10,0,deleted,保留真实 ingest/authority、provider、浏览器及令牌/撤权/证明；已退役 reducer、时间、显示矩阵无精确替代。
+tests/unit/lib/mizar-live-contract.test.ts,7,0,deleted,保留真实 ingest/authority、provider、浏览器及令牌/撤权/证明；已退役 reducer、时间、显示矩阵无精确替代。
+tests/unit/lib/my/competitions.test.ts,10,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/lib/my/readiness.test.ts,26,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+tests/unit/lib/my/team-workspace.test.ts,1,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/lib/observability/config.test.ts,4,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/lib/observability/context.test.ts,2,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/lib/observability/error-digest.test.ts,2,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/lib/observability/errors.test.ts,4,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/lib/observability/fetch.test.ts,1,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/lib/observability/flush.test.ts,2,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/lib/observability/instrumentation.test.ts,4,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/lib/observability/logger.test.ts,4,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/lib/observability/redact.test.ts,9,8,pruned,恢复内层PG包装消息抑制与现代Supabase secret文本/code脱敏两条独有安全保护；保留8条，剩余退役边界见cases.csv。
+tests/unit/lib/observability/route.test.ts,1,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/lib/observability/sampling.test.ts,15,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/lib/observability/span-sanitizer.test.ts,1,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/lib/observability/tracing.test.ts,6,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/lib/ocr-diagnostics.test.ts,2,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/lib/ocr-provider.test.ts,17,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/lib/ocr.test.ts,12,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/lib/official-stage-directory.test.ts,7,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+tests/unit/lib/operator-context.test.ts,9,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/lib/operator-workflow.test.ts,20,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/lib/password-mutation.test.ts,12,0,deleted,保留身份撤销并发、应用 Session、关键 action 拒绝及浏览器恢复；其它细矩阵无精确替代。
+tests/unit/lib/platform-stats-query.test.ts,14,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+tests/unit/lib/player-profile-stats.test.ts,2,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+tests/unit/lib/preview-runtime.test.ts,2,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/lib/production-status.test.ts,16,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/lib/public-payload.test.ts,5,3,pruned,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/lib/public-players.test.ts,4,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/lib/public-seasons.test.ts,4,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/lib/public-stage-projection.test.ts,2,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/lib/public-stats-query.test.ts,2,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+tests/unit/lib/recruitment-contract.test.ts,6,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/lib/recruitment-discovery.test.ts,9,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/lib/recruitment-target-policy.test.ts,9,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/lib/registration-window.test.ts,9,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/lib/revalidation.test.ts,8,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/lib/scheduler/definitions.test.ts,2,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/lib/scheduler/execution.test.ts,6,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/lib/scheduler/health.test.ts,3,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/lib/scheduler/runners.test.ts,9,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/lib/seasons/automatic-transitions.test.ts,5,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/lib/seasons/registration-recovery.test.ts,3,0,deleted,保留 gate 必需结果、migration risk、恢复与部署安全拒绝；写法与诊断矩阵退役，无精确替代。
+tests/unit/lib/stage-projection.test.ts,2,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/lib/stage-standings.test.ts,2,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/lib/stats-cache-stage-scope.test.ts,4,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+tests/unit/lib/stats-projection-repair-diagnostics.test.ts,2,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+tests/unit/lib/steam-profiles.test.ts,8,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/lib/steam.test.ts,10,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/lib/supabase-keys.test.ts,2,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/lib/team-profile-stats.test.ts,1,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+tests/unit/lib/team-profile-viewer.test.ts,2,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/lib/teams-directory.test.ts,2,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
+tests/unit/lib/teams/workspace.test.ts,5,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/matches-execution.test.ts,6,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/predictions/qualification-simulation.test.ts,5,0,deleted,保留 PG 提交、锁、隐私、结算和浏览器任务；已退役模拟、判槽和排行细矩阵无精确替代。
+tests/unit/predictions/rules.test.ts,19,7,pruned,保留 PG 提交、锁、隐私、结算和浏览器任务；已退役模拟、判槽和排行细矩阵无精确替代。
+tests/unit/qualification/service.test.ts,35,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/quality/architecture-boundaries.test.ts,13,1,pruned,保留 gate 必需结果、migration risk、恢复与部署安全拒绝；写法与诊断矩阵退役，无精确替代。
+tests/unit/quality/product-language.test.ts,7,0,deleted,保留 gate 必需结果、migration risk、恢复与部署安全拒绝；写法与诊断矩阵退役，无精确替代。
+tests/unit/quality/radar-assets-contract.test.ts,2,0,deleted,保留 gate 必需结果、migration risk、恢复与部署安全拒绝；写法与诊断矩阵退役，无精确替代。
+tests/unit/recovery-contract.test.ts,26,8,pruned,保留 gate 必需结果、migration risk、恢复与部署安全拒绝；写法与诊断矩阵退役，无精确替代。
+tests/unit/recovery-r2.test.ts,10,0,deleted,保留 gate 必需结果、migration risk、恢复与部署安全拒绝；写法与诊断矩阵退役，无精确替代。
+tests/unit/recovery-storage.test.ts,7,0,deleted,保留 gate 必需结果、migration risk、恢复与部署安全拒绝；写法与诊断矩阵退役，无精确替代。
+tests/unit/release/bet-ledger-release.test.ts,1,1,retained,保留原有效断言。
+tests/unit/release/changelog.test.ts,3,0,deleted,保留 gate 必需结果、migration risk、恢复与部署安全拒绝；写法与诊断矩阵退役，无精确替代。
+tests/unit/release/ci-prerequisite.test.ts,12,3,pruned,保留 gate 必需结果、migration risk、恢复与部署安全拒绝；写法与诊断矩阵退役，无精确替代。
+tests/unit/release/production-deployment.test.ts,3,0,deleted,保留 gate 必需结果、migration risk、恢复与部署安全拒绝；写法与诊断矩阵退役，无精确替代。
+tests/unit/release/production-identity.test.ts,7,2,pruned,保留身份撤销并发、应用 Session、关键 action 拒绝及浏览器恢复；其它细矩阵无精确替代。
+tests/unit/release/release-plan.test.ts,12,8,pruned,保留 gate 必需结果、migration risk、恢复与部署安全拒绝；写法与诊断矩阵退役，无精确替代。
+tests/unit/release/routing.test.ts,17,3,pruned,保留 gate 必需结果、migration risk、恢复与部署安全拒绝；写法与诊断矩阵退役，无精确替代。
+tests/unit/release/runtime-contract.test.ts,14,0,deleted,保留 gate 必需结果、migration risk、恢复与部署安全拒绝；写法与诊断矩阵退役，无精确替代。
+tests/unit/release/veto-lifecycle-release.test.ts,1,1,retained,保留原有效断言。
+tests/unit/scripts/page-health.test.ts,5,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/scripts/scheduler-watchdog-plan.test.ts,14,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/seasons/compatibility.test.ts,8,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/seasons/edit.test.ts,26,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/seasons/lifecycle-competitive-freeze.test.ts,16,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/seasons/presentation.test.ts,1,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/types/match.test.ts,8,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/types/standard-major.test.ts,21,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/validators/draft.test.ts,5,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/validators/registration.test.ts,27,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/validators/vote.test.ts,6,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+src/components/bet/BetOperations.test.tsx,0,1,upstream-retained,主分支 #943 新增测试，完整保留；不计为本批删除或新增测试。
+src/components/my/NoTeamWorkspace.test.tsx,0,1,upstream-retained,主分支 #945 新增测试，完整保留；不计为本批删除或新增测试。

@@ -3,6 +3,20 @@ import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
 const FULL_CHECK_TASKS = ["type-app", "type-tests", "type-scripts", "lint", "architecture", "dead-code"];
+const FULL_UNIT_PROJECTS = ["unit-domain-node", "unit-server-node", "unit-react-jsdom"];
+
+export function runFullUnitProjects(runProject) {
+  let failed = false;
+  for (const project of FULL_UNIT_PROJECTS) {
+    try {
+      if (runProject(project) !== 0) failed = true;
+    } catch (error) {
+      console.error(error instanceof Error ? error.message : String(error));
+      failed = true;
+    }
+  }
+  return failed ? 1 : 0;
+}
 
 // Continue collecting independent evidence after a failure, and preserve every
 // failed/error/signal result in the aggregate. This does not run unit/build tasks.
@@ -26,6 +40,20 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   const relatedSources = parseJsonArray(process.env.STATIC_RELATED_SOURCES, "STATIC_RELATED_SOURCES");
   const explicitTests = parseJsonArray(process.env.STATIC_EXPLICIT_TESTS, "STATIC_EXPLICIT_TESTS");
   const pnpm = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
+
+  if (task === "unit-all") {
+    const status = runFullUnitProjects((unitProject) => {
+      const result = spawnSync(process.execPath, ["scripts/ci/timing.mjs", `static/${unitProject}`, "--", pnpm, "exec", "vitest", "run", "--project", unitProject], {
+        cwd: process.cwd(),
+        env: { ...process.env, RIVALHUB_VITEST_PROJECT: unitProject, RIVALHUB_TIMING_TEST_KIND: "unit" },
+        stdio: "inherit",
+      });
+      if (result.error) throw result.error;
+      if (result.signal) throw new Error(`static/${unitProject} 被信号 ${result.signal} 终止。`);
+      return result.status ?? 1;
+    });
+    process.exit(status);
+  }
 
   if (task === "checks") {
     const status = runFullChecks((check) => {
