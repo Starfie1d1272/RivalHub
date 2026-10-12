@@ -16,7 +16,6 @@ test("BET 投入在刷新后保留，ALL IN 需确认且开赛后锁盘",async({
     await db.update(schema.matches).set({format:"bo3"}).where(eq(schema.matches.id,matches[0]!.id));
     await db.insert(schema.seasonAdminGrants).values({seasonId:fixture.seasonId,userId:user.userId});
     await signInProgrammatically(page,user,scenario,`/admin/${fixture.slug}/bet`);
-    await page.goto(`/admin/${fixture.slug}/bet`,{waitUntil:"domcontentloaded"});
     await page.getByRole("button",{name:"启用 BET",exact:true}).click();
     await expect(page.getByRole("region",{name:"BET 操作确认",exact:true})).toBeVisible();
     await page.getByRole("region",{name:"BET 操作确认",exact:true}).getByRole("button",{name:"启用 BET",exact:true}).click();

@@ -1,4 +1,5 @@
 import { expect, test, type E2EFixtureCredentials } from "../fixtures";
+import { assertPageResponse } from "../helpers/page-health";
 
 test.use({ scenarioProfile: "major-entry" });
 
@@ -17,17 +18,20 @@ test("队长可以登录、建立队伍并发起本届 Major 报名", async ({ p
   const captain = account(scenario, "captain");
 
   // Auth boundary：未登录访问“我的队伍”必须被送回登录页，而不是泄露页面内容。
-  await page.goto("/my/teams");
+  // Load the login form's scripts before filling its controlled inputs;
+  // hydration must not overwrite credentials entered into the server HTML.
+  await assertPageResponse(await page.goto("/my/teams", { waitUntil: "load" }));
   await expect(page).toHaveURL(/\/login/);
   await expect(page.getByText("邮箱地址")).toBeVisible();
 
   // 真实 Supabase Auth 登录。“登录”同时命中模式切换 tab 与提交按钮，这里锁定 submit 按钮。
   await page.getByLabel("邮箱地址").fill(captain.email);
   await page.getByLabel("密码", { exact: true }).fill(scenario.password);
+  await expect(page.getByLabel("邮箱地址")).toHaveValue(captain.email);
+  await expect(page.getByLabel("密码", { exact: true })).toHaveValue(scenario.password);
   await page.locator('button[type="submit"]').click();
-  await page.waitForURL((url) => url.pathname === "/my/teams");
+  await page.waitForURL((url) => url.pathname === "/my/teams", { waitUntil: "domcontentloaded" });
   await expect(page.getByRole("heading", { name: "我的队伍", exact: true })).toBeVisible();
-  await page.goto("/my/teams");
 
   // 每个 scenario 从无 Team 的确定初始状态开始，创建动作必须发生。
   const createTeamButton = page.getByRole("button", { name: "创建队伍" });
@@ -40,12 +44,13 @@ test("队长可以登录、建立队伍并发起本届 Major 报名", async ({ p
   await expect(workspace).toBeVisible();
 
   // 每个 scenario 的报名页都没有既有 Entry，创建动作必须发生。
-  await page.goto(`/${scenario.slug}/register`);
+  await assertPageResponse(await page.goto(`/${scenario.slug}/register`, { waitUntil: "domcontentloaded" }));
   const startEntryButton = page.getByRole("button", { name: "开始报名" });
   const entryChecklist = page.getByText("3 · 报名检查");
   await expect(startEntryButton).toBeVisible();
-  await page.getByRole("combobox").click();
-  await page.getByRole("option").first().click();
+  // This scenario owns one team, which the form selects by default.
+  await expect(page.getByRole("combobox")).toHaveText(`E2E 队伍 ${scenario.shortKey}`);
+  await expect(startEntryButton).toBeEnabled();
   await startEntryButton.click();
   await expect(page.getByText("报名记录已创建")).toBeVisible();
 
@@ -54,7 +59,7 @@ test("队长可以登录、建立队伍并发起本届 Major 报名", async ({ p
   await expect(page.getByText(/· 待提交/)).toBeVisible();
 
   // “我的赛事”与报名页读到同一份 CompetitionEntry 状态（按赛季展示，取卡片）。
-  await page.goto("/my/competitions");
+  await assertPageResponse(await page.goto("/my/competitions", { waitUntil: "domcontentloaded" }));
   await expect(page.getByRole("heading", { name: "当前参与", exact: true })).toBeVisible();
   await expect(page.getByText(scenario.seasonName).first()).toBeVisible();
   await expect(page.getByText(/报名：待提交/)).toBeVisible();
