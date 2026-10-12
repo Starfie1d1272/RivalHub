@@ -1,13 +1,13 @@
 import "server-only";
 import { and, eq, sql } from "drizzle-orm";
 import type { TxDb } from "@/db/client";
-import { users, freePredictionChoices as choices, freePredictionRequests as requests, freePredictionLocks as locks } from "@/db/schema";
+import { users, competitionQualificationRuns, freePredictionChoices as choices, freePredictionRequests as requests, freePredictionLocks as locks } from "@/db/schema";
 import { lockMatchInTx } from "@/lib/matches/locking";
 import { loadBetFacts } from "@/lib/bet/facts";
 import { marketIsLocked, sameIds } from "@/lib/bet/domain";
 import { normalizeRegistrationConfig } from "@/lib/seasons/compatibility";
 import { AppError, ErrorCode } from "@/lib/errors";
-import { predictionInput } from "./domain";
+import { predictionInput, freePredictionCompetitionIsOpen } from "./domain";
 import type { FreePredictionKind, FreePredictionSubject } from "./types";
 export interface SubmitFreePrediction { seasonId: string; matchId: string; userId: string; kind: FreePredictionKind; selection: string[]; requestId: string }
 function invalid(message: string): never { throw new AppError(ErrorCode.VALIDATION_FAILED, message); }
@@ -19,7 +19,10 @@ export async function submitFreePredictionInTx(tx: TxDb, input: SubmitFreePredic
   if (!user || user.status !== "active" || !user.emailVerifiedAt) throw new AppError(ErrorCode.FORBIDDEN,"请先完成邮箱验证");
   const f = await loadBetFacts(tx,input.seasonId);
   const official = f.official.find(m => m.id === input.matchId);
-  if (!official || !["playing","drafting"].includes(f.season.status) || (!official.majorStageRunId && !official.qualificationRunId)) invalid("比赛不可预测");
+  const qualificationRun = official?.qualificationRunId ? await tx.query.competitionQualificationRuns.findFirst({
+    where: and(eq(competitionQualificationRuns.id, official.qualificationRunId), eq(competitionQualificationRuns.seasonId, input.seasonId)),
+  }) : undefined;
+  if (!official || !freePredictionCompetitionIsOpen(f.season, official, qualificationRun)) invalid("比赛不可预测");
   const selection = [...input.selection].sort();
   if (input.kind !== "result" && input.kind !== "bp") invalid("预测类型无效");
   const [receipt] = await tx.select({receipt:requests,choice:choices}).from(requests).innerJoin(choices,eq(choices.id,requests.choiceId))
