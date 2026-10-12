@@ -1,12 +1,12 @@
 import { Pool } from "pg";
 import { assertLocalDatabaseUrl } from "../../../scripts/db/local-environment";
-import { createBrowserContext, expect, test, signInProgrammatically } from "../fixtures";
+import { expect, test, signInProgrammatically } from "../fixtures";
 
 test.use({ scenarioProfile: "stats" });
 test("管理员创建测试赛，匿名链接可看且不出现在正式赛程", async ({ page, browser, scenario }) => {
   test.setTimeout(60000);
   const pool = new Pool({ connectionString: assertLocalDatabaseUrl(process.env.RIVALHUB_LOCAL_DATABASE_URL, "test matches browser"), ssl: false });
-  const anonymous = await createBrowserContext(browser);
+  const anonymous = await browser.newContext();
   try {
     const entries = await pool.query<{ id: string; name: string; representative_user_id: string; current_roster_revision_id: string }>("SELECT id,name,representative_user_id,current_roster_revision_id FROM competition_entries WHERE competition_id=$1 ORDER BY name", [scenario.seasonId]);
     await pool.query("UPDATE seasons SET competition_template='custom' WHERE id=$1", [scenario.seasonId]);

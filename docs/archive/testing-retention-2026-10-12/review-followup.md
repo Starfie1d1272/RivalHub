@@ -1,5 +1,7 @@
 # Request changes 的证据与修正
 
+这是实验与失败历史记录；中间的readiness/遥测routing尝试已撤回，最终现状见“实验撤回与最终验收边界”，不得将中间对照当作当前实现或稳定性承诺。
+
 ## 独有预测 oracle
 
 只恢复原用例 `replaces upstream choices, discards later rounds/stages, and leaves the input unchanged` 及其原 `complete` fixture helper，不恢复旧模拟器矩阵。正常实现通过；隔离 worktree 中将 `replaceSimulationChoice` 的空 `next` 改为预载旧 `choices`，该用例在“所有保留 key 都属于 stage1/r1”断言失败。探针先通过正常实现再注入，随后还原生产源码。没有把旧矩阵藏入新参数化/巨型 it：恢复的是原有单项 oracle，101 个 unit 是实际运行展开计数。
@@ -39,3 +41,9 @@ Routing会关闭浏览器HTTP cache，这一环境差异必须承认；Next rout
 清除本仓.next/dev、两worker、retries=0的最终Logo/公开查询对照：Logo26.6s、公开查询23.7s，wrapper30.0s，全部原业务断言通过。trace记录默认与额外公开context的遥测请求均被阻断，原失败保留。邀请分片在恢复load与相同遥测隔离后的冷两worker、零retry对照：invitation14.0s、qualification25.7s，wrapper38.0s，原断言全通过。最终head完整CI结果记录在PR，不沿用旧head成功。
 
 本地LIVE首次验证在producer启动即遇真实Supabase Broadcast上游HTTP500，尚未进入页面消费；没有mock或放行500。显式启用LIVE的local services报告ready后仍在首个Broadcast上游HTTP500失败，尚未进入页面消费。producer/API/timeout没有修改，不能称本地LIVE全绿；该环境缺口与最新head独立CI结果一并保留。
+
+## 实验撤回与最终验收边界
+
+08082a5b 的完整CI中，Major首次Team创建后的workspace断言失败（16.3s，retry6.4s通过），与此前32s导航预算问题不同；series-score-correction在首次导航/重试更正入口超时，free predictions首次180s导航超时、retry才通过。不能称已修复或全绿，也不能证明是产品回归。延迟脚本的临时诊断能观察到SSR创建按钮enabled且点击前无action POST，但未完成有效的恢复后成功对照，不能把它说成CI根因已被证明；临时spec已删除。
+
+这些harness实验（新的route readiness、pathname-only等待、全context遥测routing）没有证明可交付可靠性，已全部撤回至独审确认过的9e85647c浏览器harness；修正了原认证helper误导注释，实际load行为与该基线相同。保留唯一已证必要的预测oracle、最新软目标口径、全部原浏览器/业务/负例及失败记录。没有新增prod代码、941修复、timeout/retry扩大或删除失败测试。最终新head重新取完整CI证据，不借旧绿，不反复重跑赌绿。Major及其它dev/browser稳定性仍是明确的验证限制，若新head失败就按精确位置交付阻塞，不把无限harness修补扩入本批。

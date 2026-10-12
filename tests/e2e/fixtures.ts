@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { relative, resolve } from "node:path";
 import { promisify } from "node:util";
-import { expect, test as base, type Browser, type BrowserContext, type Page, type TestInfo } from "@playwright/test";
+import { expect, test as base, type Page, type TestInfo } from "@playwright/test";
 import { redactText } from "../../src/lib/observability/redact";
 import { assertPageResponse } from "./helpers/page-health";
 
@@ -52,10 +52,6 @@ type E2EAttemptRecord = {
 };
 
 export const test = base.extend<{ scenario: E2EFixtureCredentials; scenarioProfile: E2EFixtureProfile }>({
-  context: async ({ context }, applyFixture) => {
-    await prepareBrowserContext(context);
-    await applyFixture(context);
-  },
   scenarioProfile: ["major-entry", { option: true }],
   scenario: async ({ scenarioProfile }, applyFixture, testInfo) => {
     const scenarioId = buildScenarioId(testInfo);
@@ -94,26 +90,6 @@ export const test = base.extend<{ scenario: E2EFixtureCredentials; scenarioProfi
 
 export { expect };
 
-async function prepareBrowserContext(context: BrowserContext): Promise<void> {
-  // External dev telemetry has no task oracle and can stall document load on
-  // sandbox TLS/proxy failures. App, Auth, Storage and Realtime remain real.
-  await context.route("https://va.vercel-scripts.com/**", route => route.abort("blockedbyclient"));
-}
-
-export async function createBrowserContext(
-  browser: Browser,
-  options?: Parameters<Browser["newContext"]>[0],
-): Promise<BrowserContext> {
-  const context = await browser.newContext(options);
-  try {
-    await prepareBrowserContext(context);
-    return context;
-  } catch (error) {
-    await context.close().catch(() => {});
-    throw error;
-  }
-}
-
 export async function signInProgrammatically(
   page: Page,
   account: E2EFixtureCredentials["accounts"][number],
@@ -124,9 +100,8 @@ export async function signInProgrammatically(
     data: { email: account.email, password: scenario.password },
   });
   if (!response.ok()) throw new Error(`E2E programmatic auth failed for scenario ${scenario.scenarioId}.`);
-  // Reject HTTP failures, then wait for the destination and document load.
-  // DOMContentLoaded alone can expose SSR controls before client handlers;
-  // each caller still checks its actual product UI and persisted transitions.
+  // Reject HTTP failures; the predicate URL assertion also waits for document
+  // load. This is not proof of hydration; callers assert actual product UI.
   await assertPageResponse(await page.goto(next, { waitUntil: "domcontentloaded" }));
   await expect(page).toHaveURL((url) => url.pathname === next);
 }

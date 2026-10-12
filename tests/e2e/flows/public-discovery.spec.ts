@@ -1,4 +1,4 @@
-import { expect, test } from "../fixtures";
+import { expect, test } from "@playwright/test";
 
 test("移动端公开发现列表可操作共享筛选工具栏", async ({ page }) => {
 

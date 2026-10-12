@@ -1,4 +1,4 @@
-import { createBrowserContext, expect, signInProgrammatically, test } from "../fixtures";
+import { expect, signInProgrammatically, test } from "../fixtures";
 
 test.use({ scenarioProfile: "team-invite" });
 
@@ -9,7 +9,7 @@ test("未入队用户可以从 /my 和 /teams 发现并处理 direct invitation"
   if (!captain || !invitee) throw new Error(`E2E scenario ${scenario.scenarioId} 缺少邀请流程账号。`);
 
   await signInProgrammatically(page, captain, scenario, "/my/teams");
-  const inviteeContext = await createBrowserContext(browser);
+  const inviteeContext = await browser.newContext();
   try {
     const inviteePage = await inviteeContext.newPage();
     const captainWorkspace = page.getByText("队伍资料", { exact: true });

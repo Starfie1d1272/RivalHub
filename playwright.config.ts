@@ -4,12 +4,6 @@ const configuredRetries = process.env.PLAYWRIGHT_RETRIES;
 const retries = configuredRetries === undefined
   ? (process.env.CI ? 1 : 0)
   : Number(configuredRetries);
-const selectedSpecs: string[] = [
-  ...JSON.parse(process.env.RIVALHUB_E2E_SPECS ?? "[]"),
-  ...process.argv.filter(arg => /\.spec\.[cm]?[jt]sx?$/.test(arg)),
-];
-const needsTeamWorkspace = selectedSpecs.length === 0
-  || selectedSpecs.some(path => ["major-entry.spec.ts", "team-invitations.spec.ts"].includes(path.split(/[\\/]/).at(-1) ?? ""));
 
 export default defineConfig({
   testDir: "./tests/e2e",
@@ -51,10 +45,9 @@ export default defineConfig({
   ],
   webServer: {
     command: process.env.CI ? "pnpm dev:local > .agent-tmp/next-server.log 2>&1" : "pnpm dev:local",
-    // Compile the selected entry/invitation workspace during preparation. The
-    // browser still proves the auth boundary and every real mutation.
-    // Other selected flows retain process readiness; LIVE checks its document.
-    url: `http://localhost:3000${needsTeamWorkspace ? "/my/teams" : "/favicon.ico"}`,
+    // Process readiness only: LIVE checks its actual document and page errors
+    // before waiting for a token, without compiling an unrelated homepage.
+    url: "http://localhost:3000/favicon.ico",
     reuseExistingServer: !process.env.CI,
     timeout: 120 * 1000,
   },

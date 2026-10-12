@@ -1,4 +1,4 @@
-import { createBrowserContext, expect, signInProgrammatically, test } from "../fixtures";
+import { expect, signInProgrammatically, test } from "../fixtures";
 
 test.use({ scenarioProfile: "education" });
 
@@ -29,7 +29,7 @@ test("新生可以提交录取通知书并由 super admin 查看后审核", asyn
   await page.getByRole("button", { name: "提交录取通知书" }).click();
   await expect(page.getByText("教育认证已提交，等待管理员审核。", { exact: true })).toBeVisible();
 
-  const adminContext = await createBrowserContext(browser);
+  const adminContext = await browser.newContext();
   try {
     const adminPage = await adminContext.newPage();
     await signInProgrammatically(adminPage, admin, scenario, "/admin");

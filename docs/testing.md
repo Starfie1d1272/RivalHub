@@ -72,7 +72,7 @@ Vitest 的三个 project（domain Node、server Node、React jsdom）是独立 e
 
 对疑似 flake 的本地诊断可以显式运行 `pnpm exec vitest run --project unit-react-jsdom --retry 1 path/to/related.spec.tsx`；`repeats` 只作为聚焦诊断或手动/nightly 入口，不进入普通 PR 的 planner、required path 或 flaky allowlist。
 
-System failure/flaky 时 Playwright 生成 failure screenshot；artifact sanitizer 仅从 test-results 保留小型 PNG/JPEG，trace archive 与所有文本继续脱敏，成功 run 不上传大体积 artifacts。每条 stateful E2E 使用自己的 fixture profile 与 attempt namespace。测试 context 仅阻断外部开发遥测域 va.vercel-scripts.com；应用/Auth/Storage/Realtime 保持真实，默认和显式多角色 context 由共享 fixture 准备。Routing 会关闭浏览器 HTTP cache，不能把这些测试说成浏览器 HTTP cache 或生产遥测可用性证据。真实服务器/RSC cache、Logo URL 更换/公开 read-back/旧对象删除和 LIVE sessionStorage/receiver proof 仍由原业务断言验证。认证导航保留 document load，之后用实际 UI/持久化结果验证；单一 pathname/SSR 可见不证明交互 handler 已就绪。
+System failure/flaky 时 Playwright 生成 failure screenshot；artifact sanitizer 仅从 test-results 保留小型 PNG/JPEG，trace archive 与所有文本继续脱敏，成功 run 不上传大体积 artifacts。每条 stateful E2E 使用自己的 fixture profile 与 attempt namespace。认证 helper 的 predicate URL 断言仍会等待 document load；SSR可见与load不证明hydration，真实UI/持久化结果由后续断言验证。外部遥测/资源加载和dev编译仍可能影响浏览器耗时，不将一次CI成功视作稳定性证明。
 
 公开搜索的 required evidence 是一次真实 debounce/router/RSC 与历史恢复闭环。它不穷举共享输入组件的全部状态。`--repeat-each=10`、容量压测与截图不进入普通 PR 或 FULL required gate，也不得用 retry 隐藏失败。
 
@@ -107,7 +107,7 @@ Pure tests retain integer pool conservation, the first-match deadline, and one u
 
 独立比赛创建与结束/补录/更正命令是本轮明确交付的内部领域入口，线上授权与约战 UI 尚未接入。`knip.json` 将 `src/lib/matches/creation.ts`、`src/lib/matches/unassociated-result.ts` 声明为生产领域检查根，使 production 模式继续检查它们的依赖；不为通过检查添加无授权的路由或虚假调用。命令行为由真实数据库集成回归验证，后续接入产品调用后移除这两条显式根。
 
-选中 Major entry 或 Team invitation 的 runner 在既有 webServer preparation 阶段等待匿名 `/my/teams` → login 路由可用，让共享队伍工作区的首次 dev 路由编译先于 30 秒真实用户用例；浏览器仍重新验证 auth boundary 与全部 mutation/read-back。该准备耗时仍计入 browser wrapper 和 FULL 180 秒预算。其它显式选中的 flow 用已有 `/favicon.ico` 探测进程可用；这不证明根布局已编译。LIVE 在实际比赛页导航时先验证 document 状态并监听页面编译/运行异常，失败直接报告 HTTP 状态或异常及服务端诊断附件，不等待观众令牌超时。首页本身由 production smoke 验证。production 与 LIVE runner 仅启动 Auth、SQL（LIVE 另含 Realtime），provider 与上传路径仍启用 Storage/PostgREST。
+浏览器使用原 `/favicon.ico` 探测Next进程可用，不证明根布局或业务路由已编译。LIVE 在实际比赛页导航时先验证 document 状态并监听页面编译/运行异常，失败直接报告 HTTP 状态或异常及服务端诊断附件，不等待观众令牌超时。首页本身由 production smoke 验证。production 与 LIVE runner 仅启动 Auth、SQL（LIVE 另含 Realtime），provider 与上传路径仍启用 Storage/PostgREST。
 
 依赖缓存使用包含 lockfile、workspace 和 runtime manifest 的稳定键；命中后不 prune/re-upload。缓存 miss 仍执行 frozen-lockfile 安装，不跳过依赖校验。
 
