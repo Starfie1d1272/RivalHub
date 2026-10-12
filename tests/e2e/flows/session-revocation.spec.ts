@@ -1,5 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
-import { expect, signInProgrammatically, test } from "../fixtures";
+import { createBrowserContext, expect, signInProgrammatically, test } from "../fixtures";
 import { assertLocalHttpUrl } from "../../../scripts/db/local-environment";
 import { requireSupabaseSecretKey } from "../../../src/lib/runtime/supabase-keys";
 
@@ -7,7 +7,7 @@ test.use({ scenarioProfile: "auth" });
 
 test("logout rejects a saved cookie while another login survives; changing password revokes both", async ({ page, browser, scenario }) => {
   const account = scenario.accounts[0]!;
-  const otherContext = await browser.newContext({ baseURL: process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3000" });
+  const otherContext = await createBrowserContext(browser, { baseURL: process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3000" });
   const other = await otherContext.newPage();
   try {
     await signInProgrammatically(page, account, scenario, "/settings/security");
@@ -39,7 +39,7 @@ test("logout rejects a saved cookie while another login survives; changing passw
 
 test("provider recovery through the real browser form revokes both prior application sessions", async ({ page, browser, scenario }) => {
   const account = scenario.accounts[0]!;
-  const otherContext = await browser.newContext({ baseURL: process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3000" });
+  const otherContext = await createBrowserContext(browser, { baseURL: process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3000" });
   const other = await otherContext.newPage();
   try {
     await signInProgrammatically(page, account, scenario, "/settings/security");

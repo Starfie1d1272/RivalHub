@@ -1,4 +1,4 @@
-import { expect, test, signInProgrammatically } from "../fixtures";
+import { createBrowserContext, expect, test, signInProgrammatically } from "../fixtures";
 
 test.use({ scenarioProfile: "layout" });
 const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a2foAAAAASUVORK5CYII=", "base64");
@@ -6,7 +6,7 @@ const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
 test("赛事 Logo 正常上传、更换与移除更新公开展示", async ({ page, scenario, browser }) => {
   test.setTimeout(45_000);
   const admin = scenario.accounts.find(account => account.key === "admin")!;
-  const publicContext = await browser.newContext();
+  const publicContext = await createBrowserContext(browser);
   const viewer = await publicContext.newPage();
   try {
     // Prime the public cache with the historical null state before mutation.

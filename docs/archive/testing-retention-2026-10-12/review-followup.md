@@ -28,6 +28,14 @@
 
 `81d4f46a` 的CI中，browser-6是team-invitations与major-qualification共同使用两worker。首次invitation在31.4s超时、retry在12.3s通过，failOnFlakyTests正确阻断，没有沿用旧head全绿。截图显示captain已经发出邀请、invitee位于待处理列表，同时Next仍Compiling；不足以精确判定接受动作回归。Major readiness选择没有影响该分片（此前仍favicon）。本地相同两worker/retries=0、清除.next/dev的对照两项通过（invitation23.9s，qualification31.8s，wrapper35.8s），说明CI失败有首次编译/执行预算因素，但不声称仅一次本地成功证明已稳定。
 
-选中invitation也使用同一匿名/my/teams server preparation，不删除任何邀请/接纳/权限断言。另修正已有`signInProgrammatically`的URL predicate断言：安装的Playwright1.63实现会额外调用默认load的waitForURL，与其原注释“非关键subresource不得阻塞”不一致。改为poll实际pathname并保持同一目标值，所有调用者继续以实际业务locator建立UI证据，不使用networkidle、固定sleep或扩大timeout。冷两worker对照与最新head CI另记录结果；不以自动retry-pass换绿。
+选中invitation也使用同一匿名/my/teams server preparation，不删除任何邀请/接纳/权限断言。曾尝试将已有helper的predicate URL matcher（隐含load）改为只poll pathname；该版本冷两worker零retry通过16.7/26.1s、wrapper37.6s，仍不足以证明其它SSR控件可交互。后续0ce12884的CI中event-logo首次SVG变更未出现客户端校验提示、retry才通过，故撤回这项等待语义调整，恢复原document load并修正误导注释。SVG负例、应用脚本加载与业务locator检查均保留，不夹带941产品修复。
 
-新准备/URL等待语义的冷两worker、retries=0对照：invitation16.7s、qualification26.1s，wrapper37.6s。与control wrapper35.8s相比没有宣称总耗时改善；准备成本仍完整计入。两项全部原断言通过，原失败记录保留。
+## 浏览器环境的遥测边界
+
+恢复load后的本地冷对照里，Logo业务断言完成但context.close触达既有45s预算，公开players导航在load期间耗尽既有30s；浏览器日志记录外部va.vercel-scripts.com开发遥测脚本TLS -202/加载失败。只在测试BrowserContext中用[Playwright公开的routing API](https://playwright.dev/docs/network#abort-requests)阻断这一非业务遥测域；默认context和显式多角色context共用同一准备owner。没有使用过时Chrome DNS标志、ignoreHTTPSErrors、networkidle、fixed sleep或更宽timeout，没有阻断应用/真实Auth/Storage/Realtime请求，也没有生产源码变化。
+
+Routing会关闭浏览器HTTP cache，这一环境差异必须承认；Next router/RSC及服务器cache不由此替代。Logo的真实URL更换、公开read-back及旧对象删除仍逐项断言；生产遥测可用性和浏览器HTTP cache不属于本轮证明。独立LIVE继续真实Broadcast/缓存proof任务，sessionStorage与receiver生命周期并未mock。
+
+清除本仓.next/dev、两worker、retries=0的最终Logo/公开查询对照：Logo26.6s、公开查询23.7s，wrapper30.0s，全部原业务断言通过。trace记录默认与额外公开context的遥测请求均被阻断，原失败保留。邀请分片在恢复load与相同遥测隔离后的冷两worker、零retry对照：invitation14.0s、qualification25.7s，wrapper38.0s，原断言全通过。最终head完整CI结果记录在PR，不沿用旧head成功。
+
+本地LIVE首次验证在producer启动即遇真实Supabase Broadcast上游HTTP500，尚未进入页面消费；没有mock或放行500。显式启用LIVE的local services报告ready后仍在首个Broadcast上游HTTP500失败，尚未进入页面消费。producer/API/timeout没有修改，不能称本地LIVE全绿；该环境缺口与最新head独立CI结果一并保留。

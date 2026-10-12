@@ -3,7 +3,7 @@ import { promisify } from "node:util";
 import { resolve } from "node:path";
 import { randomUUID } from "node:crypto";
 import { redactText } from "../../../src/lib/observability/redact";
-import { test, expect } from "@playwright/test";
+import { test, expect } from "../fixtures";
 import { assertPageResponse, navigateAndWaitForResponse } from "../helpers/page-health";
 const execute = promisify(execFile);
 const tsx = resolve("node_modules/.bin/tsx");
