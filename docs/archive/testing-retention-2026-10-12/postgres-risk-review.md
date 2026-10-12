@@ -37,11 +37,11 @@
 - 系列更正的 active source、历史 gameplay、正式 map result、OCR row 四个 blocker 来自不同持久化 owner，不能只留一种“Map 3 有事实”。两条 BET publisher/reader compatibility 来自不同部署版本和市场 generation，不由最新正常路径替代。
 - 同一 Auth helper 在不同 server action 入口被调用，不证明每个入口仍鉴权。保留的九种 season action / 五种 conversion action 拒绝仍是独立入口 oracle；直接调用 SQL domain owner 不替代 HTTP/action auth boundary。
 
-## 当前可支持的保留集合与差额
+## 当前保留集合与后续真实重复审查
 
-本轮逐风险审查可支持的保守集合为 **101 unit + 309 PG + 19 core/production browser = 429**；完整基线 3,381 的 10% 上限为 338，仍差 **91**。集合精确到文件/展开用例在 cases.csv。这是本轮有证据支持的保留集，不是数学意义的全局最小值。没有把“同路径执行/CI 全绿”当作 oracle 等价证明。
+当前 **101 unit + 309 PG + 19 core/production browser = 429**，精确到文件/展开用例在cases.csv。用户已明确精简比例不是硬性要求；当前集合不以比例阻塞验收，也不以比例推动退役独有保护。这不是全局最小集合的数学证明。
 
-压到 338 还需净减少 91 项。此前将所有超额项概括成不可再删的独立用例并不充分；独审还给出了候选，必须逐项区分真正重复、关闭的未来 producer 和主动接受的覆盖损失，不能因风险类别默认全留，也不能隐瞒损失。当前还未取得独审 15 项的精确名称/分类，不能宣称已审完该清单。可继续独立审查针对重复具体断言，而不是默认保留整个风险类别；发现新重复时再按本表说明替代 owner/断言。
+独审候选必须区分真正重复、关闭的未来producer，以及主动接受的覆盖损失：2项优先重复、4项当前关闭的未来producer、9项有明确损失，不能统称重复。精确清单尚未取到，留作下一步基于证据的维护成本审查，不是当前交付的数量门槛。此前将所有超额项概括成不可再删的独立用例也不充分，后续继续按具体owner/oracle识别真实重复。
 
 ## 原保留文件与 oracle 索引
 

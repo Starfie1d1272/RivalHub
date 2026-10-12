@@ -103,7 +103,9 @@ export async function signInProgrammatically(
   // Product locators establish UI readiness; unrelated subresources must not
   // hold up an authenticated navigation. Still fail immediately on HTTP errors.
   await assertPageResponse(await page.goto(next, { waitUntil: "domcontentloaded" }));
-  await expect(page).toHaveURL((url) => url.pathname === next);
+  // Playwright's predicate URL matcher also waits for load. The destination
+  // pathname is the contract here; each caller asserts its actual product UI.
+  await expect.poll(() => new URL(page.url()).pathname).toBe(next);
 }
 
 function buildScenarioId(testInfo: TestInfo): string {

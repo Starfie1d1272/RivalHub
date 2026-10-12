@@ -22,4 +22,12 @@
 
 ## 精简候选的未完成部分
 
-独审说明15项中只有2项优先重复、4项当前关闭的未来producer、9项存在明确覆盖损失。当前工具没有直接读取独审会话 `01a130a1-3b95-7178-8f62-6c68d9b0c09c` 的入口，GitHub reviews未提供清单，personal-context返回当前会话不可用，已请求转发。未取得精确清单前不按猜测称为重复或删除。当前计数 **429 > 338，差91**；不能宣称10%目标已经完成，也不能把所有剩余场景论证为数学最小集合。
+独审说明15项中只有2项优先重复、4项当前关闭的未来producer、9项存在明确覆盖损失。当前工具没有直接读取独审会话 `01a130a1-3b95-7178-8f62-6c68d9b0c09c` 的入口，GitHub reviews未提供清单，personal-context返回当前会话不可用，已请求转发。未取得精确清单前不按猜测称为重复或删除。当前计数429/3,381，12.689%；用户最新明确10%不是硬性要求，不再以数量作为验收阻塞，也不为比例削弱独有保护。候选留作真实重复/维护成本审查，不宣称所有剩余场景不可再删。
+
+## 后续 CI 暴露的 invitation 分片
+
+`81d4f46a` 的CI中，browser-6是team-invitations与major-qualification共同使用两worker。首次invitation在31.4s超时、retry在12.3s通过，failOnFlakyTests正确阻断，没有沿用旧head全绿。截图显示captain已经发出邀请、invitee位于待处理列表，同时Next仍Compiling；不足以精确判定接受动作回归。Major readiness选择没有影响该分片（此前仍favicon）。本地相同两worker/retries=0、清除.next/dev的对照两项通过（invitation23.9s，qualification31.8s，wrapper35.8s），说明CI失败有首次编译/执行预算因素，但不声称仅一次本地成功证明已稳定。
+
+选中invitation也使用同一匿名/my/teams server preparation，不删除任何邀请/接纳/权限断言。另修正已有`signInProgrammatically`的URL predicate断言：安装的Playwright1.63实现会额外调用默认load的waitForURL，与其原注释“非关键subresource不得阻塞”不一致。改为poll实际pathname并保持同一目标值，所有调用者继续以实际业务locator建立UI证据，不使用networkidle、固定sleep或扩大timeout。冷两worker对照与最新head CI另记录结果；不以自动retry-pass换绿。
+
+新准备/URL等待语义的冷两worker、retries=0对照：invitation16.7s、qualification26.1s，wrapper37.6s。与control wrapper35.8s相比没有宣称总耗时改善；准备成本仍完整计入。两项全部原断言通过，原失败记录保留。

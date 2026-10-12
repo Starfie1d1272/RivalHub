@@ -8,8 +8,8 @@ const selectedSpecs: string[] = [
   ...JSON.parse(process.env.RIVALHUB_E2E_SPECS ?? "[]"),
   ...process.argv.filter(arg => /\.spec\.[cm]?[jt]sx?$/.test(arg)),
 ];
-const includesMajorEntry = selectedSpecs.length === 0
-  || selectedSpecs.some(path => path.split(/[\\/]/).at(-1) === "major-entry.spec.ts");
+const needsTeamWorkspace = selectedSpecs.length === 0
+  || selectedSpecs.some(path => ["major-entry.spec.ts", "team-invitations.spec.ts"].includes(path.split(/[\\/]/).at(-1) ?? ""));
 
 export default defineConfig({
   testDir: "./tests/e2e",
@@ -51,10 +51,10 @@ export default defineConfig({
   ],
   webServer: {
     command: process.env.CI ? "pnpm dev:local > .agent-tmp/next-server.log 2>&1" : "pnpm dev:local",
-    // Compile the Major entry auth workspace during server preparation. The
-    // browser still proves the anonymous redirect and every real mutation.
+    // Compile the selected entry/invitation workspace during preparation. The
+    // browser still proves the auth boundary and every real mutation.
     // Other selected flows retain process readiness; LIVE checks its document.
-    url: `http://localhost:3000${includesMajorEntry ? "/my/teams" : "/favicon.ico"}`,
+    url: `http://localhost:3000${needsTeamWorkspace ? "/my/teams" : "/favicon.ico"}`,
     reuseExistingServer: !process.env.CI,
     timeout: 120 * 1000,
   },
