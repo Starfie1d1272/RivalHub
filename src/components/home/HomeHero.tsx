@@ -20,7 +20,7 @@ export function HomeHero({ season, eyebrow, primary, stageLabel, teamCount, play
       <div className="max-w-[760px]">
         <p className="mb-6 font-mono text-xs tracking-[0.18em] text-[var(--color-accent)]">RIVALHUB / COMPETE TOGETHER</p>
         <p className="mb-4 flex items-center gap-2 text-sm font-medium text-[var(--color-fg-mid)]"><span aria-hidden className="size-1.5 rounded-full bg-[var(--color-accent)]" />{stageLabel ?? eyebrow.text.replace(/^●\s*/, "")}</p>
-        <h1 className="max-w-[18ch] text-[clamp(36px,4.5vw,72px)] font-bold leading-[1.06] tracking-tight text-[var(--color-fg)] [overflow-wrap:anywhere]">{season.name}</h1>
+        <h1 className="max-w-[18ch] text-balance text-[clamp(36px,4.5vw,72px)] font-bold leading-[1.06] tracking-tight text-[var(--color-fg)] [overflow-wrap:anywhere]">{season.name}</h1>
         <div className="mt-8 flex flex-wrap items-center gap-3">
           {primary && <Button size="lg" asChild><Link href={primary.href as never}>{(["finished", "archived"].includes(season.status) ? "赛事回顾" : primary.label)} <span aria-hidden>↗</span></Link></Button>}
           <Button size="lg" variant="outline" asChild><Link href={`/${season.slug}`}>赛事总览</Link></Button>
