@@ -45,6 +45,7 @@ const METADATA_PATHS = new Set(["CHANGELOG.md", "package.json"]);
 const SOURCE_ROOTS = ["src/", "public/", "styles/"];
 const RELEASE_TIME_CAPABILITIES_PATH = "scripts/release/release-time-capabilities.json";
 const RELEASE_SCHEDULER_PATHS = new Set([
+  "src/lib/matches/veto-room/lifecycle-contract.json",
   "src/lib/scheduler/definitions.ts",
   "src/lib/cron-auth.ts",
   "scripts/db/scheduler.ts",

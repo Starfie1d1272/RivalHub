@@ -2,6 +2,7 @@ import { postgresConnection } from "../../src/db/postgres-connection";
 import { Pool } from "pg";
 import { pathToFileURL } from "node:url";
 import { buildProductionEnvironment } from "./production-environment";
+import vetoLifecycleContract from "../../src/lib/matches/veto-room/lifecycle-contract.json";
 import {
   SCHEDULER_JOB_DEFINITIONS,
   schedulerJobName,
@@ -193,6 +194,9 @@ async function verifyPrimaryDispatch(pool: Pool): Promise<void> {
 }
 
 export function dispatchCommand(definition: SchedulerJobDefinition): string {
+  if (definition.key === "resolve-match-veto-timeouts") {
+    return `SELECT public.dispatch_rivalhub_scheduler_job('${definition.key}', ${vetoLifecycleContract.publisherVersion >= 1});`;
+  }
   return `SELECT public.dispatch_rivalhub_scheduler_job('${definition.key}');`;
 }
 

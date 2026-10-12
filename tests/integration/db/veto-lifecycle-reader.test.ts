@@ -13,6 +13,9 @@ import { canPublishVetoAppealClosure } from "@/lib/matches/veto-room/lifecycle-p
 import { projectVetoRoomView } from "@/lib/matches/veto-room/read-model";
 import { readVetoRoomCore, readVetoRoomSnapshot, reconcileVetoRoom, resolveVetoAppeal, rewindVetoRoom, submitVetoAppeal } from "@/lib/matches/veto-room/service";
 import { runMatchVetoTimeoutJob } from "@/lib/scheduler/runners";
+import { createLocalPool } from "./harness/database";
+import { dispatchCommand } from "../../../scripts/db/scheduler";
+import { getSchedulerJobDefinition } from "@/lib/scheduler/definitions";
 import { seedFixture, NOW } from "./harness/mizar";
 
 // Real default build + PG locks/facts: publication cannot authorize recovery,
@@ -32,6 +35,37 @@ const start = (f: F) => db.transaction(async tx => { await lockMatchInTx(tx, f.m
 const view = async (f: F) => projectVetoRoomView(await readVetoRoomSnapshot(f.matchId), f.actorId, { userId: f.actorId, email: "synthetic@local.test", role: "super_admin", seasonIds: [] });
 
 describe("veto lifecycle shipped reader1/publisher0", () => {
+  it.each(["timeout", "start"] as const)("still admits ordinary %s dispatch with the closure producer disabled", async kind => {
+    const f = await fixture();
+    const pool = createLocalPool();
+    try {
+      if (kind === "timeout") {
+        await db.update(schema.matchVetoSessions).set({ completedAt: null, turnStartedAt: NOW, turnDeadlineAt: new Date(Date.now() - 60_000) }).where(eq(schema.matchVetoSessions.matchId, f.matchId));
+      } else {
+        await db.update(schema.matches).set({ status: "scheduled", scheduledAt: NOW }).where(eq(schema.matches.id, f.matchId));
+        await db.update(schema.matchVetoSessions).set({ startedAt: null, completedAt: null, entryAStartRequestedAt: NOW, entryAStartRequestedBy: f.actorId }).where(eq(schema.matchVetoSessions.matchId, f.matchId));
+      }
+      expect((await pool.query("SELECT public.scheduler_job_is_due('resolve-match-veto-timeouts', false) AS due")).rows[0].due).toBe(true);
+      // Real dispatch must reach enqueue. Provider-enabled local DBs can enqueue;
+      // plain PG17 reaches its real missing-provider error. Roll back so a test
+      // never commits an HTTP request using any preexisting local Vault config.
+      const client = await pool.connect();
+      try {
+        await client.query("BEGIN");
+        try {
+          expect((await client.query(dispatchCommand(getSchedulerJobDefinition("resolve-match-veto-timeouts")!))).rows[0].dispatch_rivalhub_scheduler_job).not.toBeNull();
+        } catch (error) {
+          expect(["0A000", "22023"]).toContain((error as { code: string }).code);
+          expect((error as Error).message).toMatch(/^scheduler (vault|credentials|HTTP extension) (is|are) unavailable$/);
+        }
+      } finally { await client.query("ROLLBACK"); client.release(); }
+    } finally {
+      await db.update(schema.matchVetoSessions).set({ startedAt: NOW, completedAt: NOW, turnStartedAt: null, turnDeadlineAt: null, entryAStartRequestedAt: null, entryAStartRequestedBy: null }).where(eq(schema.matchVetoSessions.matchId, f.matchId));
+      await db.update(schema.matches).set({ status: "in_progress" }).where(eq(schema.matches.id, f.matchId));
+      await pool.end();
+    }
+  });
+
   it("starts normally without publishing closed, but all recovery/adjudication owners independently reject gameplay", async () => {
     expect(canPublishVetoAppealClosure()).toBe(false);
     const f = await fixture(); await submit(f);
@@ -42,6 +76,17 @@ describe("veto lifecycle shipped reader1/publisher0", () => {
     expect(maps.find(m => m.id === f.mapOneId)!.startedAt).not.toBeNull();
     await readVetoRoomCore(f.matchId); await reconcileVetoRoom(f.matchId);
     expect(await runMatchVetoTimeoutJob()).toMatchObject({ result: { processed: 0, changed: 0 } });
+    const pool = createLocalPool();
+    try {
+      expect((await pool.query("SELECT public.scheduler_job_is_due('resolve-match-veto-timeouts') AS due")).rows[0].due).toBe(false);
+      expect((await pool.query("SELECT public.scheduler_job_is_due('resolve-match-veto-timeouts', false) AS due")).rows[0].due).toBe(false);
+      const command = dispatchCommand(getSchedulerJobDefinition("resolve-match-veto-timeouts")!);
+      for (let tick = 0; tick < 3; tick++) expect((await pool.query(command)).rows[0].dispatch_rivalhub_scheduler_job).toBeNull();
+      const health = (await pool.query("SELECT last_primary_triggered_at, last_primary_dispatch_requested_at, last_primary_endpoint_succeeded_at FROM scheduled_job_health WHERE job_key='resolve-match-veto-timeouts'")).rows[0];
+      expect(health.last_primary_triggered_at).not.toBeNull();
+      expect(health.last_primary_dispatch_requested_at).toBeNull();
+      expect(health.last_primary_endpoint_succeeded_at).toBeNull();
+    } finally { await pool.end(); }
     expect(await rows(f)).toEqual(original);
     const room = await view(f);
     expect(room.permissions.canRewind).toBe(false);

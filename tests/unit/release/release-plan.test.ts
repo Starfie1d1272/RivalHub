@@ -55,6 +55,11 @@ function writeReleaseTimeCapabilities(storageMutation: boolean): void {
 }
 
 describe("release plan", () => {
+  it("reprovisions the SQL dispatch contract when the immutable veto publisher changes", () => {
+    const result = plan([{ status: "M", paths: ["src/lib/matches/veto-room/lifecycle-contract.json"] }]);
+    expect(result.requiresSchedulerProvision).toBe(true);
+    expect(result.migrationChanged).toBe(false);
+  });
   it("runs missing-season repair in the protected data phase without schema replay", () => {
     const result = plan([{ status: "A", paths: ["src/lib/competitive/profile-repair.ts"] }]);
     expect(result.requiresCompetitiveProfileRepair).toBe(true);

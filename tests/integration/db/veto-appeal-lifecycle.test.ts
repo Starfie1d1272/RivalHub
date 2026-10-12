@@ -15,6 +15,9 @@ import { VETO_APPEAL_CLOSURE_NOTE } from "@/lib/matches/veto-room/appeal-lifecyc
 import { seedFixture, NOW } from "./harness/mizar";
 import { createLocalPool } from "./harness/database";
 import { runMatchVetoTimeoutJob } from "@/lib/scheduler/runners";
+import { canPublishVetoAppealClosure } from "@/lib/matches/veto-room/lifecycle-publication";
+import { dispatchCommand } from "../../../scripts/db/scheduler";
+import { getSchedulerJobDefinition } from "@/lib/scheduler/definitions";
 
 // Real match locks, enum/check constraints, scheduler SQL and outbox behavior
 // cannot be proven by a resolver mock or a UI test.
@@ -89,17 +92,24 @@ describe("BP appeal gameplay lifecycle", () => {
   });
 
   it("recovers existing pending records from canonical gameplay facts and disables the scheduler due signal afterward", async () => {
+    // A worker can contain earlier reader0 history. Drain it through the real
+    // future producer before asserting this fixture's global due transition.
+    await runMatchVetoTimeoutJob();
     const f = await fixture();
     await submit(f);
     const pool = createLocalPool();
     try {
-      expect((await pool.query("SELECT public.scheduler_job_is_due('resolve-match-veto-timeouts') AS due")).rows[0].due).toBe(false);
+      const due = async () => (await pool.query("SELECT public.scheduler_job_is_due('resolve-match-veto-timeouts', $1::boolean) AS due", [canPublishVetoAppealClosure()])).rows[0].due;
+      expect(await due()).toBe(false);
       await db.update(schema.matchMaps).set({ startedAt: NOW }).where(eq(schema.matchMaps.id, f.mapOneId));
-      expect((await pool.query("SELECT public.scheduler_job_is_due('resolve-match-veto-timeouts') AS due")).rows[0].due).toBe(true);
+      expect(await due()).toBe(true);
       expect(await runMatchVetoTimeoutJob()).toMatchObject({ result: { changed: 1 }, businessTransitions: 1 });
       expect(await reconcileVetoRoom(f.matchId)).toBe("idempotent");
       expect((await appeals(f))[0]!.status).toBe("closed");
-      expect((await pool.query("SELECT public.scheduler_job_is_due('resolve-match-veto-timeouts') AS due")).rows[0].due).toBe(false);
+      expect(await due()).toBe(false);
+      const command = dispatchCommand(getSchedulerJobDefinition("resolve-match-veto-timeouts")!);
+      expect(command).toContain(", true)");
+      expect((await pool.query(command)).rows[0].dispatch_rivalhub_scheduler_job).toBeNull();
     } finally { await pool.end(); }
   });
 
