@@ -24,7 +24,7 @@ it("disables the server form and submits the first hydrated input without losing
   const form = within(container);
   const name = form.getByLabelText("队伍名称");
   const description = form.getByLabelText("简介");
-  const create = form.getByRole("button", { name: "创建队伍", exact: true });
+  const create = form.getByRole("button", { name: /^创建队伍$/ });
   expect(name).toBeDisabled();
   expect(description).toBeDisabled();
   expect(create).toBeDisabled();
