@@ -176,7 +176,7 @@ tests/e2e/flows/test-matches.spec.ts,2,2,retained,保留原有效断言。
 tests/e2e/production/workspace-nav.spec.ts,2,2,retained,保留原有效断言。
 tests/e2e/visual/ui-system.spec.ts,6,0,deleted,退役非 required 视觉/容量实验；需要时临时验证，不声称性能或截图状态仍受保护。
 tests/experiments/mizar-live-capacity.test.ts,12,0,deleted,退役非 required 视觉/容量实验；需要时临时验证，不声称性能或截图状态仍受保护。
-tests/integration/db/admin-high-value-read-models.test.ts,1,1,retained,保留原有效断言。
+tests/integration/db/admin-high-value-read-models.test.ts,1,0,deleted,退役后台列表 count/pagination 的独立只读组合 oracle；无等价替代，保留 admin-match 的跨赛事保护。
 tests/integration/db/admin-match-read-models.test.ts,1,1,retained,保留原有效断言。
 tests/integration/db/admin-platform-operations.test.ts,1,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
 tests/integration/db/admin-season-workspace-overview.test.ts,1,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
@@ -186,7 +186,7 @@ tests/integration/db/audit-presentation.test.ts,2,2,retained,保留原有效断�
 tests/integration/db/bet-bp-present.test.ts,12,12,retained,保留原有效断言。
 tests/integration/db/bet-bp-reader-compat.test.ts,3,3,retained,保留原有效断言。
 tests/integration/db/bet-relief-reader.test.ts,1,1,retained,保留原有效断言。
-tests/integration/db/bet-relief.test.ts,11,11,retained,保留原有效断言。
+tests/integration/db/bet-relief.test.ts,11,10,pruned,真实 PG 的具体代表性删减及剩余 oracle 见 postgres-risk-review.md；逐用例原因见 cases.csv，未以同路径执行宣称等价。
 tests/integration/db/bet-slot-compat.test.ts,3,3,retained,保留原有效断言。
 tests/integration/db/bet.test.ts,19,17,pruned,金额、资格、锁定、并发、结算和兼容由保留 BET PG/数学测试保护；删除的展示断言无精确替代。
 tests/integration/db/canonical-migration-runner.test.ts,1,1,retained,保留原有效断言。
@@ -204,7 +204,7 @@ tests/integration/db/demo-import-egress.test.ts,1,1,retained,保留原有效断�
 tests/integration/db/demo-integration-read.test.ts,1,1,retained,保留原有效断言。
 tests/integration/db/demo-integration-submit.test.ts,2,2,retained,保留原有效断言。
 tests/integration/db/discipline.test.ts,1,1,retained,保留原有效断言。
-tests/integration/db/education-admin-review.test.ts,3,3,retained,保留原有效断言。
+tests/integration/db/education-admin-review.test.ts,3,1,pruned,真实 PG 的具体代表性删减及剩余 oracle 见 postgres-risk-review.md；逐用例原因见 cases.csv，未以同路径执行宣称等价。
 tests/integration/db/education-evidence-retention.test.ts,1,1,retained,保留原有效断言。
 tests/integration/db/education-manual-retention.test.ts,2,2,retained,保留原有效断言。
 tests/integration/db/education-manual-submission.test.ts,2,2,retained,保留原有效断言。
@@ -221,7 +221,7 @@ tests/integration/db/major-result-recovery.test.ts,1,1,retained,保留原有效�
 tests/integration/db/major-roster-safety.test.ts,1,1,retained,保留原有效断言。
 tests/integration/db/major-start.test.ts,7,7,retained,保留原有效断言。
 tests/integration/db/map-score-correction.test.ts,6,6,retained,保留原有效断言。
-tests/integration/db/match-commentary.test.ts,13,13,retained,保留原有效断言。
+tests/integration/db/match-commentary.test.ts,13,10,pruned,真实 PG 的具体代表性删减及剩余 oracle 见 postgres-risk-review.md；逐用例原因见 cases.csv，未以同路径执行宣称等价。
 tests/integration/db/match-execution.test.ts,4,4,retained,保留原有效断言。
 tests/integration/db/match-score-semantics.test.ts,1,1,retained,保留原有效断言。
 tests/integration/db/match-time-scheduling.test.ts,9,9,retained,保留原有效断言。
@@ -229,7 +229,7 @@ tests/integration/db/migrations/auth-id-reconciliation.test.ts,4,4,retained,保�
 tests/integration/db/migrations/auth-permissions.test.ts,2,2,retained,保留原有效断言。
 tests/integration/db/migrations/canonical-team-identity.test.ts,7,7,retained,保留原有效断言。
 tests/integration/db/migrations/community-awards-capability.test.ts,1,1,retained,保留原有效断言。
-tests/integration/db/migrations/competition-entry-restriction-overrides.test.ts,1,1,retained,保留原有效断言。
+tests/integration/db/migrations/competition-entry-restriction-overrides.test.ts,1,0,deleted,重复同一终态 migration replay/access matrix/RLS/anon-auth SELECT；保留 database-access-boundary 与真实 revision-scoped waiver/audit。
 tests/integration/db/migrations/competition-entry-terminal.test.ts,1,1,retained,保留原有效断言。
 tests/integration/db/migrations/competitive-catalog.test.ts,1,1,retained,保留原有效断言。
 tests/integration/db/migrations/conversion-policies.test.ts,1,1,retained,保留原有效断言。
@@ -263,7 +263,7 @@ tests/integration/db/scheduler-contract.test.ts,3,3,retained,保留原有效断�
 tests/integration/db/season-governance.test.ts,1,1,retained,保留原有效断言。
 tests/integration/db/season-logo.test.ts,1,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
 tests/integration/db/season-registration-correctness.test.ts,2,2,retained,保留原有效断言。
-tests/integration/db/series-score-correction.test.ts,18,18,retained,保留原有效断言。
+tests/integration/db/series-score-correction.test.ts,18,17,pruned,真实 PG 的具体代表性删减及剩余 oracle 见 postgres-risk-review.md；逐用例原因见 cases.csv，未以同路径执行宣称等价。
 tests/integration/db/steam-identity-foundation.test.ts,2,2,retained,保留原有效断言。
 tests/integration/db/team-directory.test.ts,1,0,deleted,退役细粒度 UI/只读投影/格式与实现矩阵；真实任务继续验证组合行为，不替代每项旧断言。
 tests/integration/db/team-invitation.test.ts,1,1,retained,保留原有效断言。

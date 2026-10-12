@@ -8,19 +8,19 @@
 
 | 层级 | 原有效用例 | 保留 | 原本地 wall time | 精简后 |
 | --- | ---: | ---: | ---: | ---: |
-| unit/component | 2,984 | 100 | 137.104 s | 8.309 s |
-| real PostgreSQL | 352 | 318 | 215.775 s | 182.570 s |
+| unit/component | 2,984 | 100 | 137.104 s | 8.326 s |
+| real PostgreSQL | 352 | 309 | 215.775 s | 177.017 s |
 | core browser | 17 | 17 | 未比较 | 未比较 |
 | production smoke | 2 | 2 | 未比较 | 未比较 |
 | optional acceptance | 14 | 0 | 未比较 | 退役 |
 | capacity experiment | 12 | 0 | 未执行 | 退役 |
-| 完整 collection | **3,381** | **437（12.925%）** | 不相加 | 不相加 |
+| 完整 collection | **3,381** | **428（12.659%）** | 不相加 | 不相加 |
 
-测试文件 623 → 131；物理测试源行 76,417 → 27,504。**未达到最多 10%**：完整 collection 的整数上限为 338，还需减少 99 个。本轮不能证明进一步删除仍保护相同迁移、结算、权限和并发边界；这不是“437 是理论最小集合”的论断。日常 required 原集合为 3,355（不含 acceptance/capacity）。
+测试文件 623 → 129；物理测试源行 76,417 → 26,921。**未达到最多 10%**：完整 collection 的整数上限为 338，还需减少 90 个。本轮不能证明进一步删除仍保护相同迁移、结算、权限和并发边界；这不是“428 是理论最小集合”的论断。日常 required 原集合为 3,355（不含 acceptance/capacity）。
 
 Vitest 数量来自实际成功运行的 JSON reporter；Playwright 来自实际 project 展开的 collection。容量通过 `vitest list --no-static-parse` 展开收集，未执行容量基准。静态定义不作为有效测试数：前期误计的 3,327、3,372 均不是验收基线。没有把用例塞进新循环、巨型 `it` 或参数矩阵；未增加 skip/todo 或放宽 timeout/retry，原已有参数矩阵及流程多断言保留原结构。
 
-本地 unit 与 PG baseline/final 是相同 workspace/toolchain 的单次实测，取 reporter `startTime` 到最后文件 `endTime`。缓存、负载和 runner 不完全相同，不声称稳定加速；PG 不包含容器启动、迁移准备和 cleanup。这些层级时长不能相加冒充 CI wall time。浏览器集合未变，没有据此宣称更快；最终 GitHub run 和 required gate 证据记录在 PR。
+本地 unit 与 PG baseline/final 是相同 workspace/toolchain 的单次实测，取 reporter `startTime` 到最后文件 `endTime`。缓存、负载和 runner 不完全相同，不声称稳定加速；PG 不包含容器启动、迁移准备和 cleanup。这些层级时长不能相加冒充 CI wall time。浏览器集合未变，没有据此宣称更快；最终 GitHub run 和 required gate 证据记录在 PR；两个旧 head 的失败结果也保留，不改变 180 s 起点/预算。
 
 ## 删除选择与证据边界
 
@@ -47,9 +47,11 @@ Vitest 数量来自实际成功运行的 JSON reporter；Playwright 来自实际
 
 ## 验证与交付
 
-先完整运行原 unit（2,984/2,984）与 PG（352/352），再精简；未因产品测试失败删测试。精简时出现 empty describe 收集错误，修复 suite 结构后重跑，不是产品失败的删测规避。最终 unit 100/100、PG 318/318；test/script typecheck、ESLint、architecture、Knip 与 GitHub required checks 以实际结果验收。Knip 暴露更多仅被旧测试引用的 production exports，这是待审查线索，未顺手删产品 API。
+先完整运行原 unit（2,984/2,984）与 PG（352/352），再精简；未因产品测试失败删测试。精简时出现 empty describe 收集错误，修复 suite 结构后重跑，不是产品失败的删测规避。最终 unit 100/100、PG 309/309；test/script typecheck、ESLint、architecture、Knip 与 GitHub required checks 以实际结果验收。Knip 暴露更多仅被旧测试引用的 production exports，这是待审查线索，未顺手删产品 API。
 
-既有 BET 管理按钮 hydration 前首击丢失问题在 [#941](https://github.com/Starfie1d1272/RivalHub/issues/941) 独立跟踪。本轮不修产品，不声称 #940 或精简已消除 hydration race 或稳定满足 browser budget。无 shipped behavior 变化，不需 Changeset。不自行合并、不发布、不操作 hosted database。
+既有 BET 管理按钮 hydration 前首击丢失问题在 [#941](https://github.com/Starfie1d1272/RivalHub/issues/941) 独立跟踪。本轮不修产品，不声称 #940 或精简已消除 hydration race 或稳定满足 browser budget。后续 318 PG 的具体分类、9 个代表性/重复删减和保守集合差额见 [PG 风险审查](./postgres-risk-review.md)；两次旧 head CI 的 step/queue/bootstrap 拆分和可修复冗余见 [CI 审查](./ci-review.md)。
+
+无 shipped behavior 变化，不需 Changeset。不自行合并、不发布、不操作 hosted database。
 
 ## 下一批和架构讨论
 

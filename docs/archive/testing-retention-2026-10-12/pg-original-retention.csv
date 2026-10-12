@@ -1,0 +1,319 @@
+file,expanded_test_name,disposition,reason_and_remaining_evidence
+tests/integration/db/admin-high-value-read-models.test.ts,"PR3 admin operational list read models uses PostgreSQL counts, claim aggregation, resolved status, and bounded pages",retained,保留原有效断言。
+tests/integration/db/admin-match-read-models.test.ts,admin match read models PostgreSQL integration keeps match detail season-scoped and preserves lightweight overview facts,retained,保留原有效断言。
+tests/integration/db/application-sessions.test.ts,application session PostgreSQL lifecycle provider succeeded + final audit failure preserves fence across new requests,retained,保留原有效断言。
+tests/integration/db/application-sessions.test.ts,application session PostgreSQL lifecycle provider rejected + final audit failure preserves fence across new requests,retained,保留原有效断言。
+tests/integration/db/application-sessions.test.ts,application session PostgreSQL lifecycle does not assert a retained fence when a real final commit succeeded but acknowledgement was lost,retained,保留原有效断言。
+tests/integration/db/application-sessions.test.ts,application session PostgreSQL lifecycle real password owner retains unknown-outcome fence until exact-owner reconciliation,retained,保留原有效断言。
+tests/integration/db/application-sessions.test.ts,application session PostgreSQL lifecycle rejects stale authentication before credential synchronization can recreate identity rows,retained,保留原有效断言。
+tests/integration/db/application-sessions.test.ts,application session PostgreSQL lifecycle revokes every session when a secondary credential is withdrawn,retained,保留原有效断言。
+tests/integration/db/application-sessions.test.ts,application session PostgreSQL lifecycle revokes only the logged-out session; expiry and all-session revocation reject saved ids,retained,保留原有效断言。
+tests/integration/db/application-sessions.test.ts,application session PostgreSQL lifecycle serializes an in-flight issuance behind committed revocation and rejects its older proof,retained,保留原有效断言。
+tests/integration/db/application-sessions.test.ts,application session PostgreSQL lifecycle blocks issuance throughout password mutation and fences proofs started during the provider call,retained,保留原有效断言。
+tests/integration/db/audit-presentation.test.ts,audit presentation PostgreSQL readback resolves machine relations and reauthorizes scoped details without exposing stored secrets,retained,保留原有效断言。
+tests/integration/db/audit-presentation.test.ts,audit presentation PostgreSQL readback resolves names and deleted targets while preserving private immutable facts,retained,保留原有效断言。
+tests/integration/db/bet-bp-present.test.ts,BO3 presence production publisher publishes one seven-choice pool only for new unopened BO3 matches,retained,保留原有效断言。
+tests/integration/db/bet-bp-present.test.ts,BO3 presence production publisher preserves open invested legacy BP terms,retained,保留原有效断言。
+tests/integration/db/bet-bp-present.test.ts,BO3 presence production publisher preserves terminal empty legacy BP terms,retained,保留原有效断言。
+tests/integration/db/bet-bp-present.test.ts,BO3 presence production publisher recovers generation 3 after an older worker consumed dirty,retained,保留原有效断言。
+tests/integration/db/bet-bp-present.test.ts,BO3 presence production publisher does not open a BO3 pool for started BP facts,retained,保留原有效断言。
+tests/integration/db/bet-bp-present.test.ts,BO3 presence production publisher does not open a BO3 pool for six BP facts,retained,保留原有效断言。
+tests/integration/db/bet-bp-present.test.ts,BO3 presence production publisher does not open a BO3 pool for duplicate BP facts,retained,保留原有效断言。
+tests/integration/db/bet-bp-present.test.ts,"BO3 presence production publisher conserves a shared pool across three winners, correction, pending rollback and cancellation",retained,保留原有效断言。
+tests/integration/db/bet-bp-present.test.ts,BO3 presence production publisher keeps BO5 ordered publication and refunds an empty published pool without ledger writes,retained,保留原有效断言。
+tests/integration/db/bet-bp-present.test.ts,BO3 presence production publisher refunds all winners without creating points,retained,保留原有效断言。
+tests/integration/db/bet-bp-present.test.ts,BO3 presence production publisher refunds no winners without creating points,retained,保留原有效断言。
+tests/integration/db/bet-bp-present.test.ts,BO3 presence production publisher serializes stake behind official BP start and retains the trigger lock,retained,保留原有效断言。
+tests/integration/db/bet-bp-reader-compat.test.ts,BO3 presence backward worker compatibility retains new BP rules after entries correction with the canonical worker,retained,保留原有效断言。
+tests/integration/db/bet-bp-reader-compat.test.ts,BO3 presence backward worker compatibility retains new BP rules after run correction with the canonical worker,retained,保留原有效断言。
+tests/integration/db/bet-bp-reader-compat.test.ts,BO3 presence backward worker compatibility retains new BP rules after pool correction with the canonical worker,retained,保留原有效断言。
+tests/integration/db/bet-relief-reader.test.ts,publisher0 refuses direct and replay claims without account or ledger changes; reader1 retains relief,retained,保留原有效断言。
+tests/integration/db/bet-relief.test.ts,"BET relief real ledger and serialization tops up balance 0 once, preserving profit",retained,保留原有效断言。
+tests/integration/db/bet-relief.test.ts,"BET relief real ledger and serialization tops up balance 3 once, preserving profit",retained,保留原有效断言。
+tests/integration/db/bet-relief.test.ts,"BET relief real ledger and serialization tops up balance 9 once, preserving profit",retained,保留原有效断言。
+tests/integration/db/bet-relief.test.ts,"BET relief real ledger and serialization tops up balance 10 once, preserving profit",retained,保留原有效断言。
+tests/integration/db/bet-relief.test.ts,"BET relief real ledger and serialization uses the post-lock database Beijing day, rejects midnight replays and limits only relief",retained,保留原有效断言。
+tests/integration/db/bet-relief.test.ts,"BET relief real ledger and serialization reads the clock after a real program-lock wait across Beijing midnight, then grants a new day",retained,保留原有效断言。
+tests/integration/db/bet-relief.test.ts,"BET relief real ledger and serialization refuses unjoined, invalid, paused and closed accounts without creating or changing them",retained,保留原有效断言。
+tests/integration/db/bet-relief.test.ts,BET relief real ledger and serialization serializes a claim against ALL IN and stage supply without double issuance,retained,保留原有效断言。
+tests/integration/db/bet-relief.test.ts,BET relief real ledger and serialization serializes a fresh claim and stage grant: claim_first,retained,保留原有效断言。
+tests/integration/db/bet-relief.test.ts,BET relief real ledger and serialization serializes a fresh claim and stage grant: stage_first,retained,保留原有效断言。
+tests/integration/db/bet-relief.test.ts,BET relief real ledger and serialization preserves correction debt and refunds it before allowing relief,retained,保留原有效断言。
+tests/integration/db/bet-slot-compat.test.ts,"BET reader-first catalog upgrade v1 publisher does not create slots, reads/stakes v2 slots, settles by map not series and never duplicates their pool",retained,保留原有效断言。
+tests/integration/db/bet-slot-compat.test.ts,"BET reader-first catalog upgrade outbox closes the unplayed slot at committed 2-0, keeps funds pending through correction and refunds only at finalization",retained,保留原有效断言。
+tests/integration/db/bet-slot-compat.test.ts,BET reader-first catalog upgrade a concurrent stake waits for the official clinch transaction and rejects after commit,retained,保留原有效断言。
+tests/integration/db/bet.test.ts,BET transactional admission and settlement allows administrators while retaining current roster conflicts in both read and write paths,retained,保留原有效断言。
+tests/integration/db/bet.test.ts,"BET transactional admission and settlement recovers pre-enable stage milestones, grants future stages once and never joins or catches up from GET",retained,保留原有效断言。
+tests/integration/db/bet.test.ts,BET transactional admission and settlement ranks current settled profit with competition ties and exposes only the viewer's safe history,retained,保留原有效断言。
+tests/integration/db/bet.test.ts,BET transactional admission and settlement serializes official updates with BET operations without a market/program deadlock,retained,保留原有效断言。
+tests/integration/db/bet.test.ts,BET transactional admission and settlement locks series admission from a canonical map result even without a separate start marker,retained,保留原有效断言。
+tests/integration/db/bet.test.ts,BET transactional admission and settlement refunds an already locked market without changing the database lock precision,retained,保留原有效断言。
+tests/integration/db/bet.test.ts,BET transactional admission and settlement does not backfill pre-game markets for legacy gameplay and preserves deleted match refunds,retained,保留原有效断言。
+tests/integration/db/bet.test.ts,BET transactional admission and settlement opens BO1 Play-in without a PickEm program and offers no duplicate map winner,retained,保留原有效断言。
+tests/integration/db/bet.test.ts,BET transactional admission and settlement opens map winners in sequence while prematch totals lock independently and refund an unplayed decider,retained,保留原有效断言。
+tests/integration/db/bet.test.ts,BET transactional admission and settlement recovers a new catalog even if an older worker consumed dirty before promotion,retained,保留原有效断言。
+tests/integration/db/bet.test.ts,BET transactional admission and settlement publishes all five BO5 totals before BP without reopening earlier format history,retained,保留原有效断言。
+tests/integration/db/bet.test.ts,"BET transactional admission and settlement accepts every BO3 slot before BP, freezes invested terms across BP/reschedule and refunds unused stakes once",retained,保留原有效断言。
+tests/integration/db/bet.test.ts,BET transactional admission and settlement serializes a prematch slot stake behind its real map-start transaction,retained,保留原有效断言。
+tests/integration/db/bet.test.ts,"BET transactional admission and settlement keeps existing open, locked and settled legacy pools without creating duplicate slots",retained,保留原有效断言。
+tests/integration/db/bet.test.ts,"BET transactional admission and settlement opens automatically without PickEm, ignores schedule, permanently locks at gameplay and conserves pool across correction",retained,保留原有效断言。
+tests/integration/db/bet.test.ts,"BET transactional admission and settlement serializes concurrent ALL IN, validates replay payload, and refunds a forfeit",retained,保留原有效断言。
+tests/integration/db/bet.test.ts,BET transactional admission and settlement the v2 publisher closes the prematch decider at clinch and never backfills an already decided series,retained,保留原有效断言。
+tests/integration/db/canonical-migration-runner.test.ts,"canonical migration CLI commits enum additions, resumes the exact ledger and preserves SQL hashes",retained,保留原有效断言。
+tests/integration/db/competition-entry-qualification-override.test.ts,competition entry qualification restriction overrides PostgreSQL only releases the current waivable finding and keeps revision/audit history durable,retained,保留原有效断言。
+tests/integration/db/competition-entry-roster-change.test.ts,"approved competition-entry roster changes lets an approved participant withdraw into the existing self-roster-change draft, releases the claim, and keeps Team membership independent",retained,保留原有效断言。
+tests/integration/db/competition-entry-roster-change.test.ts,"approved competition-entry roster changes lets the representative remove a confirmed member only from the new draft, releases the claim, and preserves history",retained,保留原有效断言。
+tests/integration/db/competition-qualification-acceptance.test.ts,Issue 743 qualification PostgreSQL acceptance takes 30 approved candidates through Short Swiss and locks 18 direct plus 6 qualifiers,retained,保留原有效断言。
+tests/integration/db/competition-qualification-acceptance.test.ts,Issue 743 qualification PostgreSQL acceptance recovers a wrong Swiss winner only before downstream matches progress,retained,保留原有效断言。
+tests/integration/db/competition-qualification-acceptance.test.ts,Issue 743 qualification PostgreSQL acceptance completes Direct BO3 to six qualifiers and reprojects a corrected winner,retained,保留原有效断言。
+tests/integration/db/competition-qualification-acceptance.test.ts,"Qualification draft and lineup gate direct_bo3: shared draft concurrency, affiliation, frozen strength and revision-bound override",retained,保留原有效断言。
+tests/integration/db/competition-qualification-acceptance.test.ts,"Qualification draft and lineup gate short_swiss_2w2l: shared draft concurrency, affiliation, frozen strength and revision-bound override",retained,保留原有效断言。
+tests/integration/db/competitive-catalog-actions.test.ts,competitive catalog actions against PostgreSQL swaps unique orders and current pointers while preserving identity and atomic audit,retained,保留原有效断言。
+tests/integration/db/competitive-catalog-actions.test.ts,"competitive catalog actions against PostgreSQL blocks actual deletion for provenance and every frozen season reference, including a different primary platform",retained,保留原有效断言。
+tests/integration/db/competitive-catalog.test.ts,competitive catalog PostgreSQL invariants preserves frozen references and database CHECK constraints,retained,保留原有效断言。
+tests/integration/db/conversion-policy-admin.test.ts,conversion policy admin lifecycle enforces the lifecycle in real PostgreSQL and preserves event references across current switches,retained,保留原有效断言。
+tests/integration/db/coverage-scheduling.test.ts,does not allocate an expired hold after waiting for its slot (reclaimed=true),retained,保留原有效断言。
+tests/integration/db/coverage-scheduling.test.ts,does not allocate an expired hold after waiting for its slot (reclaimed=false),retained,保留原有效断言。
+tests/integration/db/coverage-scheduling.test.ts,"preserves confirmed coverage during a proposal, enforces capacity, and replaces it only on settlement",retained,保留原有效断言。
+tests/integration/db/default-lineup-recovery.test.ts,"distinguishes legitimate waiting, PG failure, manual recovery and repeated runs without rewriting confirmed facts",retained,保留原有效断言。
+tests/integration/db/default-lineup-recovery.test.ts,leaves an incomplete declared default lineup waiting without inventing a fifth starter or alerting,retained,保留原有效断言。
+tests/integration/db/default-lineup-recovery.test.ts,"refreshes committed lineups despite a real later proposal SELECT failure, then preserves confirmed lineups on recovery",retained,保留原有效断言。
+tests/integration/db/demo-import-egress.test.ts,"Demo metadata PostgreSQL egress boundary keeps catalog, counts and lineage payload-free and reads only selected review/recheck artifacts",retained,保留原有效断言。
+tests/integration/db/demo-integration-read.test.ts,DAK stage projection PostgreSQL integration keeps standings stage-local and reads Swiss/bracket facts from canonical owners,retained,保留原有效断言。
+tests/integration/db/demo-integration-submit.test.ts,DAK evidence submit persistence serializes mutable Demo workflows on the same map before row locks,retained,保留原有效断言。
+tests/integration/db/demo-integration-submit.test.ts,DAK evidence submit persistence adopts a submitted 10-player roster despite OCR scoreboard drift and preserves OCR-owned stats,retained,保留原有效断言。
+tests/integration/db/discipline.test.ts,discipline eligibility PostgreSQL invariants keeps sanctions scoped to eligibility without changing team facts,retained,保留原有效断言。
+tests/integration/db/education-admin-review.test.ts,"education review queue PostgreSQL read model withholds expired evidence and its search matches before physical cleanup, preserving review history",retained,保留原有效断言。
+tests/integration/db/education-admin-review.test.ts,"education review queue PostgreSQL read model filters, sorts, paginates, and stops matching evidence after retention cleanup",retained,保留原有效断言。
+tests/integration/db/education-admin-review.test.ts,education review queue PostgreSQL read model builds active-data facets and a distinct latest-approved identity overview,retained,保留原有效断言。
+tests/integration/db/education-evidence-retention.test.ts,education evidence retention command clears only eligible evidence at the seven-day boundary and is idempotent,retained,保留原有效断言。
+tests/integration/db/education-manual-retention.test.ts,manual education evidence retention deletes eligible objects before clearing their database refs and preserves history,retained,保留原有效断言。
+tests/integration/db/education-manual-retention.test.ts,manual education evidence retention retains the database key after a delete failure and retries it later,retained,保留原有效断言。
+tests/integration/db/education-manual-submission.test.ts,"manual education verification PostgreSQL workflow serializes concurrent submissions, allows rejected resubmission, and stops after approval",retained,保留原有效断言。
+tests/integration/db/education-manual-submission.test.ts,manual education verification PostgreSQL workflow compensates a successfully uploaded object when the transaction cannot commit,retained,保留原有效断言。
+tests/integration/db/education-verification-submission.test.ts,education verification submission PostgreSQL invariants keeps same-school claims idempotent and serializes concurrent normalized codes,retained,保留原有效断言。
+tests/integration/db/education-verification-submission.test.ts,education verification submission PostgreSQL invariants requires an exact active auto-verify student mapping and always creates an enrolled claim,retained,保留原有效断言。
+tests/integration/db/free-predictions-play-in.test.ts,free Play-in predictions opens result and BP for a started registration Play-in without BET,retained,保留原有效断言。
+tests/integration/db/free-predictions-play-in.test.ts,free Play-in predictions rejects unstarted/completed Play-in and closed seasons in both read and write paths,retained,保留原有效断言。
+tests/integration/db/free-predictions-play-in.test.ts,free Play-in predictions keeps Play-in BP permanently closed after session removal while result stays open,retained,保留原有效断言。
+tests/integration/db/free-predictions.test.ts,free predictions real PostgreSQL a cancelled match refund keeps BET qualification independent and counts no free result,retained,保留原有效断言。
+tests/integration/db/free-predictions.test.ts,"free predictions real PostgreSQL works without BET/join for own teams; replaces choices, retries without restoring, and hides others",retained,保留原有效断言。
+tests/integration/db/free-predictions.test.ts,free predictions real PostgreSQL serializes start ahead of a waiting submission and keeps gameplay locked after rollback,retained,保留原有效断言。
+tests/integration/db/free-predictions.test.ts,"free predictions real PostgreSQL BP uses the complete unordered three-map set, excludes partial hits from ranking, never reopens",retained,保留原有效断言。
+tests/integration/db/free-predictions.test.ts,free predictions real PostgreSQL BP start races with submission and survives a cleared session,retained,保留原有效断言。
+tests/integration/db/free-predictions.test.ts,free predictions real PostgreSQL paused BET and an exhausted joined wallet do not affect free choices; Data API remains denied,retained,保留原有效断言。
+tests/integration/db/free-predictions.test.ts,free predictions real PostgreSQL canonical aliases retain private audit while projecting one vote and the selected account choice,retained,保留原有效断言。
+tests/integration/db/identity-revocation-race.test.ts,secondary credential revocation versus login on independent PostgreSQL connections rejects before-revocation proof after waiting for revocation commit,retained,保留原有效断言。
+tests/integration/db/identity-revocation-race.test.ts,secondary credential revocation versus login on independent PostgreSQL connections rejects during-revocation proof after waiting for revocation commit,retained,保留原有效断言。
+tests/integration/db/identity-revocation-race.test.ts,secondary credential revocation versus login on independent PostgreSQL connections allows login if the revocation rolls back,retained,保留原有效断言。
+tests/integration/db/identity-revocation-race.test.ts,secondary credential revocation versus login on independent PostgreSQL connections rejects a proof started after committed revocation,retained,保留原有效断言。
+tests/integration/db/identity-revocation-race.test.ts,"secondary credential revocation versus login on independent PostgreSQL connections allows normal login, and later revocation invalidates its session",retained,保留原有效断言。
+tests/integration/db/identity-revocation-race.test.ts,"secondary credential revocation versus login on independent PostgreSQL connections serializes revocation behind a login that commits first, then invalidates the issued session",retained,保留原有效断言。
+tests/integration/db/identity-revocation-race.test.ts,"secondary credential revocation versus login on independent PostgreSQL connections allows explicit relinking with a previous provider subject, but cancels pre-revoke requests",retained,保留原有效断言。
+tests/integration/db/identity-revocation-race.test.ts,"secondary credential revocation versus login on independent PostgreSQL connections allows explicit relinking with a new provider subject, but cancels pre-revoke requests",retained,保留原有效断言。
+tests/integration/db/identity-revocation-race.test.ts,secondary credential revocation versus login on independent PostgreSQL connections preserves new-account creation and serializes duplicate login requests,retained,保留原有效断言。
+tests/integration/db/identity-revocation-race.test.ts,secondary credential revocation versus login on independent PostgreSQL connections serializes link and revoke with revoke holding the user lock first,retained,保留原有效断言。
+tests/integration/db/identity-revocation-race.test.ts,secondary credential revocation versus login on independent PostgreSQL connections serializes link and revoke with link holding the user lock first,retained,保留原有效断言。
+tests/integration/db/identity-revocation-race.test.ts,secondary credential revocation versus login on independent PostgreSQL connections distinguishes a new provider subject from a withdrawn one when the email is reused,retained,保留原有效断言。
+tests/integration/db/invite-concurrency.test.ts,"admin invite claim command serializes concurrent claims, records one grant, and rejects duplicates",retained,保留原有效断言。
+tests/integration/db/major-prestart-selection.test.ts,"Major prestart final Entry selection materializes the approved roster, keeps selection atomic, reconciles new approvals, and fails closed after freeze",retained,保留原有效断言。
+tests/integration/db/major-prestart-selection.test.ts,Major prestart final Entry selection locks exactly the canonical capacity in PostgreSQL and is idempotent,retained,保留原有效断言。
+tests/integration/db/major-prestart-selection.test.ts,Major prestart final Entry selection rolls back the entire unified freeze when there is missing strength evidence,retained,保留原有效断言。
+tests/integration/db/major-prestart-selection.test.ts,Major prestart final Entry selection rolls back the entire unified freeze when there is invalid rank mapping,retained,保留原有效断言。
+tests/integration/db/major-prestart-selection.test.ts,Major prestart final Entry selection rolls back the entire unified freeze when there is not exactly five primary starters,retained,保留原有效断言。
+tests/integration/db/major-prestart.test.ts,"Major prestart PostgreSQL invariants persists lock facts, rejects frozen roster drift and guards Entry coherence",retained,保留原有效断言。
+tests/integration/db/major-public-participants.test.ts,Major public participant read model PostgreSQL integration switches candidate/current/frozen facts and fails closed for partial seeds,retained,保留原有效断言。
+tests/integration/db/major-result-recovery.test.ts,Major result recovery PostgreSQL invariants rebuilds only safe downstream facts and fails closed otherwise,retained,保留原有效断言。
+tests/integration/db/major-roster-safety.test.ts,"Major roster safety PostgreSQL invariants keeps starting lineups canonical, confirmed, and idempotent",retained,保留原有效断言。
+tests/integration/db/major-start.test.ts,Major lifecycle PostgreSQL invariants serializes prestart roster and Entry remediation,retained,保留原有效断言。
+tests/integration/db/major-start.test.ts,Major lifecycle PostgreSQL invariants closes self-service roster changes at rosterChangeClosesAt,retained,保留原有效断言。
+tests/integration/db/major-start.test.ts,Major lifecycle PostgreSQL invariants starts Stage 1 once and freezes canonical runtime facts,retained,保留原有效断言。
+tests/integration/db/major-start.test.ts,Major lifecycle PostgreSQL invariants freezes strongest-equivalent evidence through StageRun into a live match,retained,保留原有效断言。
+tests/integration/db/major-start.test.ts,Major lifecycle PostgreSQL invariants advances three Swiss StageRuns and finalizes the playoff,retained,保留原有效断言。
+tests/integration/db/major-start.test.ts,Major lifecycle PostgreSQL invariants runs the full Major-24 lifecycle through final placement confirmation,retained,保留原有效断言。
+tests/integration/db/major-start.test.ts,"Major lifecycle PostgreSQL invariants fails closed for stale roster, qualification, and rollback boundaries",retained,保留原有效断言。
+tests/integration/db/map-score-correction.test.ts,map-score correction PostgreSQL contract BO3 same winner,retained,保留原有效断言。
+tests/integration/db/map-score-correction.test.ts,map-score correction PostgreSQL contract illegal MR12,retained,保留原有效断言。
+tests/integration/db/map-score-correction.test.ts,map-score correction PostgreSQL contract BO3 winner reversal,retained,保留原有效断言。
+tests/integration/db/map-score-correction.test.ts,map-score correction PostgreSQL contract BO3 becomes unresolved,retained,保留原有效断言。
+tests/integration/db/map-score-correction.test.ts,map-score correction PostgreSQL contract BO1 remains map-count 1:0,retained,保留原有效断言。
+tests/integration/db/map-score-correction.test.ts,map-score correction PostgreSQL contract BO1 winner reversal,retained,保留原有效断言。
+tests/integration/db/match-commentary.test.ts,"match commentary PostgreSQL contract releases only the caller's slot, once, and allows a replacement (schedule null)",retained,保留原有效断言。
+tests/integration/db/match-commentary.test.ts,"match commentary PostgreSQL contract releases only the caller's slot, once, and allows a replacement (schedule 2026-10-09T12:00:00Z)",retained,保留原有效断言。
+tests/integration/db/match-commentary.test.ts,match commentary PostgreSQL contract retains assignments and audit when cancellation races with in_progress,retained,保留原有效断言。
+tests/integration/db/match-commentary.test.ts,match commentary PostgreSQL contract retains assignments and audit when cancellation races with finished,retained,保留原有效断言。
+tests/integration/db/match-commentary.test.ts,match commentary PostgreSQL contract retains assignments and audit when cancellation races with cancelled,retained,保留原有效断言。
+tests/integration/db/match-commentary.test.ts,match commentary PostgreSQL contract retains assignments and audit when cancellation races with bp,retained,保留原有效断言。
+tests/integration/db/match-commentary.test.ts,match commentary PostgreSQL contract retains assignments and audit when cancellation races with production,retained,保留原有效断言。
+tests/integration/db/match-commentary.test.ts,match commentary PostgreSQL contract shows global admins all open slots and permits their own claim/cancel without creating season grants,retained,保留原有效断言。
+tests/integration/db/match-commentary.test.ts,"match commentary PostgreSQL contract allows global admins in the DB constraint while retaining cross-season, capacity and submitted-roster guards",retained,保留原有效断言。
+tests/integration/db/match-commentary.test.ts,match commentary PostgreSQL contract requires the actual claimant's season authority and rejects terminal matches,retained,保留原有效断言。
+tests/integration/db/match-commentary.test.ts,"match commentary PostgreSQL contract serializes competing claims, keeps the two-person limit, and repeats a full-roster claim without a new audit",retained,保留原有效断言。
+tests/integration/db/match-commentary.test.ts,match commentary PostgreSQL contract rechecks the latest match status after acquiring its row lock,retained,保留原有效断言。
+tests/integration/db/match-commentary.test.ts,"match commentary PostgreSQL contract projects only this season's actual assignments, sorted next match, and all matches the viewer can claim",retained,保留原有效断言。
+tests/integration/db/match-execution.test.ts,"independent match execution persistence creates, starts and finishes without an event, teams, roster, BP or telemetry",retained,保留原有效断言。
+tests/integration/db/match-execution.test.ts,independent match execution persistence records an actual map result without requiring declared players or online BP,retained,保留原有效断言。
+tests/integration/db/match-execution.test.ts,"separates end, late evidence and reviewed corrections under the match lock",retained,保留原有效断言。
+tests/integration/db/match-execution.test.ts,enforces exclusive match variants and explicit independent result state in PostgreSQL,retained,保留原有效断言。
+tests/integration/db/match-score-semantics.test.ts,match score persistence semantics PostgreSQL integration uses map facts for BO1/BO3/BO5 results and never creates forfeit maps,retained,保留原有效断言。
+tests/integration/db/match-time-scheduling.test.ts,rechecks notice and rolls back resources after actually waiting for the match lock,retained,保留原有效断言。
+tests/integration/db/match-time-scheduling.test.ts,rechecks notice and rolls back resources after actually waiting for the coverage lock,retained,保留原有效断言。
+tests/integration/db/match-time-scheduling.test.ts,"keeps proposal ownership after handover across commands and projections (false, legacy=false)",retained,保留原有效断言。
+tests/integration/db/match-time-scheduling.test.ts,"keeps proposal ownership after handover across commands and projections (true, legacy=false)",retained,保留原有效断言。
+tests/integration/db/match-time-scheduling.test.ts,"keeps proposal ownership after handover across commands and projections (false, legacy=true)",retained,保留原有效断言。
+tests/integration/db/match-time-scheduling.test.ts,"keeps proposal ownership after handover across commands and projections (true, legacy=true)",retained,保留原有效断言。
+tests/integration/db/match-time-scheduling.test.ts,rejects legacy proposals with no provable side without changing the schedule or audit,retained,保留原有效断言。
+tests/integration/db/match-time-scheduling.test.ts,"requires a full response window and safe runtime notice, preserves reschedules, and is idempotent under concurrency",retained,保留原有效断言。
+tests/integration/db/match-time-scheduling.test.ts,"allows short-notice mutual consent without a lineup, protects permissions and discovers registration Play-in tasks",retained,保留原有效断言。
+tests/integration/db/migrations/auth-id-reconciliation.test.ts,"auth identity reconciliation migration repairs a uniquely normalized email match, preserves valid mappings, and is idempotent",retained,保留原有效断言。
+tests/integration/db/migrations/auth-id-reconciliation.test.ts,auth identity reconciliation migration fails closed for an unmatched normalized email before changing the row,retained,保留原有效断言。
+tests/integration/db/migrations/auth-id-reconciliation.test.ts,auth identity reconciliation migration fails closed for an ambiguous normalized email match,retained,保留原有效断言。
+tests/integration/db/migrations/auth-id-reconciliation.test.ts,auth identity reconciliation migration fails closed when multiple dangling rows resolve to one Auth target,retained,保留原有效断言。
+tests/integration/db/migrations/auth-permissions.test.ts,auth-permissions migration backfills scoped grants and invite claims before removing legacy facts,retained,保留原有效断言。
+tests/integration/db/migrations/auth-permissions.test.ts,auth-permissions migration fails closed before destructive DDL for legacy inconsistencies,retained,保留原有效断言。
+tests/integration/db/migrations/canonical-team-identity.test.ts,"populated canonical team identity migration backfills identity and installs real uniqueness, FK and NOT NULL constraints",retained,保留原有效断言。
+tests/integration/db/migrations/canonical-team-identity.test.ts,populated canonical team identity migration fails closed and preserves legacy facts for captain-provenance,retained,保留原有效断言。
+tests/integration/db/migrations/canonical-team-identity.test.ts,populated canonical team identity migration fails closed and preserves legacy facts for member-provenance,retained,保留原有效断言。
+tests/integration/db/migrations/canonical-team-identity.test.ts,populated canonical team identity migration fails closed and preserves legacy facts for duplicate,retained,保留原有效断言。
+tests/integration/db/migrations/canonical-team-identity.test.ts,populated canonical team identity migration fails closed and preserves legacy facts for missing-captain,retained,保留原有效断言。
+tests/integration/db/migrations/canonical-team-identity.test.ts,populated canonical team identity migration fails closed and preserves legacy facts for missing-member,retained,保留原有效断言。
+tests/integration/db/migrations/canonical-team-identity.test.ts,populated canonical team identity migration fails closed and preserves legacy facts for orphan-team,retained,保留原有效断言。
+tests/integration/db/migrations/community-awards-capability.test.ts,community awards capability migration backfills existing seasons and defaults new seasons to enabled,retained,保留原有效断言。
+tests/integration/db/migrations/competition-entry-restriction-overrides.test.ts,qualification restriction override migration creates a revision-scoped server-only ledger with deny-by-default access,retained,保留原有效断言。
+tests/integration/db/migrations/competition-entry-terminal.test.ts,competition entry migration replay preserves historical rows while materializing terminal identities,retained,保留原有效断言。
+tests/integration/db/migrations/competitive-catalog.test.ts,competitive catalog migration replay fails closed on conflicts and preserves historical facts,retained,保留原有效断言。
+tests/integration/db/migrations/conversion-policies.test.ts,"conversion policies migration creates server-only conversion_policies table with RLS, denies anon/authenticated access, and seeds lead-approved 2026.09 policy",retained,保留原有效断言。
+tests/integration/db/migrations/database-access-boundary.test.ts,"database access boundary migration replays the terminal contract, keeps the trusted server path, and denies anon/authenticated CRUD",retained,保留原有效断言。
+tests/integration/db/migrations/education-evidence-code.test.ts,education evidence-code migration backfills only vcode and fails closed before discarding an unextractable legacy URL,retained,保留原有效断言。
+tests/integration/db/migrations/education-evidence-object-key.test.ts,education evidence object-key migration contract replays the active shape constraints and keeps the retention shape valid,retained,保留原有效断言。
+tests/integration/db/migrations/match-score-semantics.test.ts,"match score semantics migration backfills legacy BO1 facts, rejects malformed data before writing, and replays idempotently",retained,保留原有效断言。
+tests/integration/db/migrations/participant-profile-semantics.test.ts,participant profile semantics migration preserves canonical facts while removing duplicate Perfect identity and role taxonomy,retained,保留原有效断言。
+tests/integration/db/migrations/participant-profile-semantics.test.ts,participant profile semantics migration fails closed before destructive DDL when a legacy role has no canonical meaning,retained,保留原有效断言。
+tests/integration/db/migrations/player-declared-profile.test.ts,player-declared profile migration backfills one deterministic approved snapshot without overwriting profile values or history,retained,保留原有效断言。
+tests/integration/db/migrations/private-live-policy-bootstrap.test.ts,"hosted Realtime receive policy bootstrap is repeatable and permits only scoped Broadcast reads, never viewer writes",retained,保留原有效断言。
+tests/integration/db/migrations/recovery-restore-seed-collision.test.ts,recovery restore seed collision and auth invariant regression prevents duplicate key collision via generic pre-data-import preparation and enforces auth invariant,retained,保留原有效断言。
+tests/integration/db/migrations/stage-runtime-contract-cleanup.test.ts,Release N+1 stage runtime contract cleanup preserves the canonical backfill and physically drops both legacy relations,retained,保留原有效断言。
+tests/integration/db/migrations/stage-runtime-contract-cleanup.test.ts,Release N+1 stage runtime contract cleanup fails closed and keeps both relations when two participant rivalhubEntryId mappings are swapped,retained,保留原有效断言。
+tests/integration/db/migrations/stage-runtime-contract-cleanup.test.ts,Release N+1 stage runtime contract cleanup fails closed and keeps both relations when 14 managed matches exist but a bracket node id is tampered,retained,保留原有效断言。
+tests/integration/db/migrations/stage-runtime-contract-cleanup.test.ts,Release N+1 stage runtime contract cleanup fails closed and keeps both relations when a participant rivalhubEntryId points to another competition,retained,保留原有效断言。
+tests/integration/db/migrations/stage-runtime-contract-cleanup.test.ts,Release N+1 stage runtime contract cleanup fails closed and keeps both relations when canonical updated_at does not match legacy updated_at,retained,保留原有效断言。
+tests/integration/db/migrations/stage-runtime-contract-cleanup.test.ts,Release N+1 stage runtime contract cleanup fails closed and keeps both relations when an unknown legacy bracket row exists,retained,保留原有效断言。
+tests/integration/db/migrations/stage-runtime-contract-cleanup.test.ts,Release N+1 stage runtime contract cleanup fails closed and keeps both relations when Swiss projection data remains,retained,保留原有效断言。
+tests/integration/db/migrations/stage-runtime-contract-cleanup.test.ts,Release N+1 stage runtime contract cleanup fails closed and keeps both relations when an external database dependency blocks DROP,retained,保留原有效断言。
+tests/integration/db/migrations/supabase-storage-origin.test.ts,Supabase organization Storage origin migration preserves paths and external origins while relocating public asset URLs,retained,保留原有效断言。
+tests/integration/db/mizar-live-correctness.test.ts,LIVE correctness: real PostgreSQL and loopback HTTP faults releases ingress after timeout and accepts a fresh frame,retained,保留原有效断言。
+tests/integration/db/mizar-live-correctness.test.ts,LIVE correctness: real PostgreSQL and loopback HTTP faults releases ingress after 429 and accepts a fresh frame,retained,保留原有效断言。
+tests/integration/db/mizar-live-correctness.test.ts,LIVE correctness: real PostgreSQL and loopback HTTP faults releases ingress after stalled-body and accepts a fresh frame,retained,保留原有效断言。
+tests/integration/db/mizar-live-correctness.test.ts,LIVE correctness: real PostgreSQL and loopback HTTP faults releases ingress after invalid-body and accepts a fresh frame,retained,保留原有效断言。
+tests/integration/db/mizar-live-correctness.test.ts,LIVE correctness: real PostgreSQL and loopback HTTP faults rotates synchronous sources even while credential authentication waits on PostgreSQL,retained,保留原有效断言。
+tests/integration/db/mizar-live-correctness.test.ts,LIVE correctness: real PostgreSQL and loopback HTTP faults releases ingress after malicious bodies and rejects expired waiters without publication,retained,保留原有效断言。
+tests/integration/db/mizar-live-correctness.test.ts,LIVE correctness: real PostgreSQL and loopback HTTP faults serves four staggered 2 Hz sources and preserves unchanged 1 Hz heartbeats after disconnect,retained,保留原有效断言。
+tests/integration/db/mizar-live-correctness.test.ts,LIVE correctness: real PostgreSQL and loopback HTTP faults drops on cross-connection LIVE contention and held authority rows without creating a backlog,retained,保留原有效断言。
+tests/integration/db/mizar-live-correctness.test.ts,LIVE correctness: real PostgreSQL and loopback HTTP faults does not send requests that waited behind unrelated database work,retained,保留原有效断言。
+tests/integration/db/mizar-live-correctness.test.ts,"LIVE correctness: real PostgreSQL and loopback HTTP faults holds authority fencing through send while revoke, handover and manual results contend",retained,保留原有效断言。
+tests/integration/db/mizar-live-ingest.test.ts,Mizar reliable event ingest ownership rejects an operator report after reliable progress or a same-epoch generation change,retained,保留原有效断言。
+tests/integration/db/mizar-live-ingest.test.ts,Mizar reliable event ingest ownership persists wrong mapId map_ended as REVIEW and completes through explicit takeover,retained,保留原有效断言。
+tests/integration/db/mizar-live-ingest.test.ts,Mizar reliable event ingest ownership persists wrong mapName map_ended as REVIEW and completes through explicit takeover,retained,保留原有效断言。
+tests/integration/db/mizar-live-ingest.test.ts,Mizar reliable event ingest ownership preserves a trusted execution after invalid map_started,retained,保留原有效断言。
+tests/integration/db/mizar-live-ingest.test.ts,Mizar reliable event ingest ownership recovers an unbound invalid start only by explicitly confirming the canonical pending map,retained,保留原有效断言。
+tests/integration/db/mizar-live-ingest.test.ts,Mizar reliable event ingest ownership restores a lost binding after same-epoch source generation change while already manually taken over,retained,保留原有效断言。
+tests/integration/db/mizar-live-ingest.test.ts,Mizar reliable event ingest ownership does not revive inter-map tasks after gameplay becomes stale and is manually taken over,retained,保留原有效断言。
+tests/integration/db/mizar-live-ingest.test.ts,Mizar reliable event ingest ownership canonicalizes an entrant-relative map_ended through the shared canonical result owner,retained,保留原有效断言。
+tests/integration/db/mizar-live-ingest.test.ts,Mizar reliable event ingest ownership keeps duplicate delivery idempotent and rejects conflicting content for one idempotency key,retained,保留原有效断言。
+tests/integration/db/mizar-live-ingest.test.ts,"Mizar reliable event ingest ownership fails closed on stale sequence, stale generation, stale epoch, wrong scope and unknown installation",retained,保留原有效断言。
+tests/integration/db/mizar-live-ingest.test.ts,Mizar reliable event ingest ownership disarms auto canonicalization on generation and epoch changes,retained,保留原有效断言。
+tests/integration/db/mizar-live-ingest.test.ts,Mizar reliable event ingest ownership never lets series_ended advance a series whose canonical map results are missing,retained,保留原有效断言。
+tests/integration/db/mizar-live-ingest.test.ts,Mizar reliable event ingest ownership marks identity and lineup mismatches as needs_attention and disarms the source,retained,保留原有效断言。
+tests/integration/db/mizar-live-ingest.test.ts,Mizar reliable event ingest ownership records match_started as a reality primitive only when identity and lineup evidence agree,retained,保留原有效断言。
+tests/integration/db/mizar-live-ingest.test.ts,Mizar reliable event ingest ownership rejects a reliable event whose arming map no longer matches the canonical map plan,retained,保留原有效断言。
+tests/integration/db/mizar-live-ingest.test.ts,Mizar live snapshot ingest boundary validates the active source and only then reaches the Broadcast transport (test=false),retained,保留原有效断言。
+tests/integration/db/mizar-live-ingest.test.ts,Mizar live snapshot ingest boundary validates the active source and only then reaches the Broadcast transport (test=true),retained,保留原有效断言。
+tests/integration/db/mizar-live-ingest.test.ts,"Mizar live snapshot ingest boundary fails closed for stale sequence, stale epoch, stale generation and wrong scope",retained,保留原有效断言。
+tests/integration/db/mizar-live-ingest.test.ts,"Mizar live snapshot ingest boundary fails closed when identity, lineup, telemetry or context health is not proven",retained,保留原有效断言。
+tests/integration/db/mizar-live-ingest.test.ts,Mizar live snapshot ingest boundary fails closed for a revoked installation even with a valid credential shape,retained,保留原有效断言。
+tests/integration/db/mizar-live-ingest.test.ts,Mizar source authority keeps one authoritative source per match and fails the previous source closed after takeover,retained,保留原有效断言。
+tests/integration/db/mizar-live-ingest.test.ts,Mizar source authority fails an old producer release closed after same-installation takeover and keeps exact retries idempotent,retained,保留原有效断言。
+tests/integration/db/mizar-live-ingest.test.ts,Mizar source authority scopes manual takeover to the current map execution and blocks automatic canonicalization for that epoch,retained,保留原有效断言。
+tests/integration/db/mizar-live-ingest.test.ts,Mizar source authority separates explicit stale evidence from identity conflict and rearms only a healthy next epoch,retained,保留原有效断言。
+tests/integration/db/mizar-live-ingest.test.ts,Mizar source authority rejects manual results while AUTO owns the current execution,retained,保留原有效断言。
+tests/integration/db/mizar-live-ingest.test.ts,Tournament Context provider ownership projects public-safe facts with the canonical event logoUrl and no private lineage,retained,保留原有效断言。
+tests/integration/db/mizar-live-ingest.test.ts,"operator repair before manual fallback revalidates a correct newer start after wrong room (unbound=false), protects late/duplicate results and rearms next map",retained,保留原有效断言。
+tests/integration/db/mizar-live-ingest.test.ts,"operator repair before manual fallback revalidates a correct newer start after wrong room (unbound=true), protects late/duplicate results and rearms next map",retained,保留原有效断言。
+tests/integration/db/mizar-live-ingest.test.ts,operator repair before manual fallback keeps an explicit manual choice during correct same-epoch observations and exposes the observed player differences,retained,保留原有效断言。
+tests/integration/db/mizar-live-ingest.test.ts,operator authorization and in-progress score correction restricts peer revocation while allowing audited super-admin intervention and self disconnect,retained,保留原有效断言。
+tests/integration/db/mizar-live-ingest.test.ts,"operator authorization and in-progress score correction corrects a completed map during the next map, checks reviewed scores, and retains epoch/official completion",retained,保留原有效断言。
+tests/integration/db/operations-hardening.test.ts,operations real PostgreSQL lifecycle & abuse hardening enforces announcement draft -> publish -> public visibility and withdraw lifecycle,retained,保留原有效断言。
+tests/integration/db/operations-hardening.test.ts,operations real PostgreSQL lifecycle & abuse hardening enforces season public info permissions and closed group projection,retained,保留原有效断言。
+tests/integration/db/operations-hardening.test.ts,operations real PostgreSQL lifecycle & abuse hardening enforces feedback triage and the actual deduplication/cooldown window boundaries,retained,保留原有效断言。
+tests/integration/db/postevent.test.ts,"post-event PostgreSQL invariants keeps confirmation, adjudication, honors, audits, and archive boundaries atomic",retained,保留原有效断言。
+tests/integration/db/postmatch-community-awards.test.ts,"postmatch PostgreSQL invariants limits commentators, freezes a submitted roster, and derives completion from video",retained,保留原有效断言。
+tests/integration/db/postmatch-community-awards.test.ts,postmatch PostgreSQL invariants fails closed for every community-awards mutation when the season capability is disabled,retained,保留原有效断言。
+tests/integration/db/predictions.test.ts,spectator prediction PostgreSQL contracts submits against the frozen 24-team profile and settles BO3 winner pools,retained,保留原有效断言。
+tests/integration/db/predictions.test.ts,spectator prediction PostgreSQL contracts reads scoped spectator projections without taking reconciliation locks or writing due work,retained,保留原有效断言。
+tests/integration/db/predictions.test.ts,spectator prediction PostgreSQL contracts shares due-work detection across primary dispatch and deadline reconciliation without idle batch starvation,retained,保留原有效断言。
+tests/integration/db/predictions.test.ts,"spectator prediction PostgreSQL contracts keeps versioned submissions separate, blocks late requests, permanently locks on early start and protects identity/history",retained,保留原有效断言。
+tests/integration/db/predictions.test.ts,"spectator prediction PostgreSQL contracts serializes simultaneous ALL IN, retries once, conserves settlement and reverses spent winnings into debt",retained,保留原有效断言。
+tests/integration/db/predictions.test.ts,spectator prediction PostgreSQL contracts judges a complete official Swiss stage and preserves results while simulation remains independent,retained,保留原有效断言。
+tests/integration/db/predictions.test.ts,"binds stakes to their market options, freezes options and reads started stages from runtime",retained,保留原有效断言。
+tests/integration/db/predictions.test.ts,"accepts unscheduled picks, follows postponements while open and latches elapsed deadlines atomically",retained,保留原有效断言。
+tests/integration/db/query-outcome.test.ts,"preserves a committed write after response loss, SQL constraints, and transaction rollback",retained,保留原有效断言。
+tests/integration/db/recruitment.test.ts,recruitment PostgreSQL invariants keeps intent ownership separate from membership and closes LFT only through the canonical invite path,retained,保留原有效断言。
+tests/integration/db/registration-opening.test.ts,"registration opening PostgreSQL uses the approved set for list, count and known-id lookup while private reads retain every status",retained,保留原有效断言。
+tests/integration/db/registration-opening.test.ts,"registration opening PostgreSQL lets a captain fill a missing entry logo by saving, without rewriting an existing event logo",retained,保留原有效断言。
+tests/integration/db/rivals-formation-identity.test.ts,forms canonical captain Entries and commits a draft pick without losing identity provenance,retained,保留原有效断言。
+tests/integration/db/scheduler-contract.test.ts,installed scheduler boundary dispatches missing T-2h lineups without an old pending proposal or cutoff,retained,保留原有效断言。
+tests/integration/db/scheduler-contract.test.ts,installed scheduler boundary keeps repair dispatch available and denies public role execution,retained,保留原有效断言。
+tests/integration/db/scheduler-contract.test.ts,"installed scheduler boundary only settles finished, overdue MVP matches with canonical votes",retained,保留原有效断言。
+tests/integration/db/season-governance.test.ts,season governance PostgreSQL invariants serializes terminal transitions and preserves competitive freeze,retained,保留原有效断言。
+tests/integration/db/season-registration-correctness.test.ts,"season registration correctness PostgreSQL separates due schedule catch-up, unscheduled immediate open, and early force-open",retained,保留原有效断言。
+tests/integration/db/season-registration-correctness.test.ts,season registration correctness PostgreSQL persists a legal deadline update through a lossy frozen opening replay,retained,保留原有效断言。
+tests/integration/db/series-score-correction.test.ts,"reviewed early series completion PostgreSQL finishes BO3 symmetrically, preserving only actual-map tasks (true)",retained,保留原有效断言。
+tests/integration/db/series-score-correction.test.ts,"reviewed early series completion PostgreSQL finishes BO3 symmetrically, preserving only actual-map tasks (false)",retained,保留原有效断言。
+tests/integration/db/series-score-correction.test.ts,reviewed early series completion PostgreSQL serializes duplicate confirmations without replaying completion or audit,retained,保留原有效断言。
+tests/integration/db/series-score-correction.test.ts,reviewed early series completion PostgreSQL blocks Map 3 facts (active) without deleting them,retained,保留原有效断言。
+tests/integration/db/series-score-correction.test.ts,reviewed early series completion PostgreSQL blocks Map 3 facts (historical) without deleting them,retained,保留原有效断言。
+tests/integration/db/series-score-correction.test.ts,reviewed early series completion PostgreSQL blocks Map 3 facts (result) without deleting them,retained,保留原有效断言。
+tests/integration/db/series-score-correction.test.ts,reviewed early series completion PostgreSQL blocks Map 3 facts (ocr) without deleting them,retained,保留原有效断言。
+tests/integration/db/series-score-correction.test.ts,reviewed early series completion PostgreSQL refuses stale preview (score),retained,保留原有效断言。
+tests/integration/db/series-score-correction.test.ts,reviewed early series completion PostgreSQL refuses stale preview (completed-at),retained,保留原有效断言。
+tests/integration/db/series-score-correction.test.ts,reviewed early series completion PostgreSQL refuses stale preview (source),retained,保留原有效断言。
+tests/integration/db/series-score-correction.test.ts,reviewed early series completion PostgreSQL refuses stale preview (later-map),retained,保留原有效断言。
+tests/integration/db/series-score-correction.test.ts,reviewed early series completion PostgreSQL refuses stale preview (same-round),retained,保留原有效断言。
+tests/integration/db/series-score-correction.test.ts,reviewed early series completion PostgreSQL requires reason and explicit acknowledgement; ordinary correction still fails closed,retained,保留原有效断言。
+tests/integration/db/series-score-correction.test.ts,"reviewed early series completion PostgreSQL keeps OCR/raw Evidence, marks stale Demo in canonical reads and excludes its statistics",retained,保留原有效断言。
+tests/integration/db/series-score-correction.test.ts,reviewed early series completion PostgreSQL advances the canonical bracket once and materializes the winner-dependent final,retained,保留原有效断言。
+tests/integration/db/series-score-correction.test.ts,"reviewed early series completion PostgreSQL shows and blocks an already-started downstream final, preserving its facts",retained,保留原有效断言。
+tests/integration/db/series-score-correction.test.ts,reviewed early series completion PostgreSQL keeps swiss stage advancement on its canonical round owner,retained,保留原有效断言。
+tests/integration/db/series-score-correction.test.ts,reviewed early series completion PostgreSQL keeps single_elim stage advancement on its canonical round owner,retained,保留原有效断言。
+tests/integration/db/steam-identity-foundation.test.ts,Steam identity foundation keeps a changed primary as a revocable historical gameplay identity,retained,保留原有效断言。
+tests/integration/db/steam-identity-foundation.test.ts,Steam identity foundation uses excluded values on cache conflict to update official profile,retained,保留原有效断言。
+tests/integration/db/team-invitation.test.ts,team invitation PostgreSQL invariants expires stale invitations and keeps acceptance idempotent,retained,保留原有效断言。
+tests/integration/db/team-registration.test.ts,"team registration PostgreSQL invariants keeps commitment, roster, qualification, and privacy boundaries intact",retained,保留原有效断言。
+tests/integration/db/test-matches.test.ts,event test matches keeps prepared rosters unchanged and refuses to resynchronize during active matches,retained,保留原有效断言。
+tests/integration/db/test-matches.test.ts,event test matches allows only active tests before playing and retains ordinary LIVE gates,retained,保留原有效断言。
+tests/integration/db/test-matches.test.ts,event test matches reads cache qualification and the current source/map boundary from the same public viewer query,retained,保留原有效断言。
+tests/integration/db/test-matches.test.ts,event test matches admits only an active official registration Play-in and keeps its token match-scoped,retained,保留原有效断言。
+tests/integration/db/test-matches.test.ts,event test matches atomically corrects maps and series with audit and a stable execution end,retained,保留原有效断言。
+tests/integration/db/test-matches.test.ts,"event test matches runs captain lineups and designated two-sided BP, exports real maps, and completes without event progression",retained,保留原有效断言。
+tests/integration/db/test-matches.test.ts,event test matches rejects invalid affiliation and purpose changes; late results preserve execution end and known facts,retained,保留原有效断言。
+tests/integration/db/user-identity-merge.test.ts,"canonical user identity merge PostgreSQL invariants keeps the selected profile intact, reparents person facts, retires loser competitive facts, and leaves a durable alias",retained,保留原有效断言。
+tests/integration/db/user-identity-merge.test.ts,canonical user identity merge PostgreSQL invariants reparents or deduplicates every season-registration foreign key without losing draft or vote history,retained,保留原有效断言。
+tests/integration/db/user-identity-merge.test.ts,"canonical user identity merge PostgreSQL invariants blocks unresolved registration references, incompatible draft picks, and generated self-votes in preflight",retained,保留原有效断言。
+tests/integration/db/user-identity-merge.test.ts,canonical user identity merge PostgreSQL invariants blocks captain vote-limit conflicts after registration remap without executing the merge,retained,保留原有效断言。
+tests/integration/db/user-identity-merge.test.ts,canonical user identity merge PostgreSQL invariants allows an approved entry duplicate when the merged participant is withdrawn and only the canonical user is on the approved roster,retained,保留原有效断言。
+tests/integration/db/user-identity-merge.test.ts,canonical user identity merge PostgreSQL invariants blocks true approved-roster duplicates with user-facing Chinese domain labels,retained,保留原有效断言。
+tests/integration/db/user-identity-merge.test.ts,canonical user identity merge PostgreSQL invariants preserves a historical EventRoster row while reparenting the current member during identity merge,retained,保留原有效断言。
+tests/integration/db/user-identity-merge.test.ts,canonical user identity merge PostgreSQL invariants turns an unverified historical counterparty identity into usable OTP proof before self-service merge,retained,保留原有效断言。
+tests/integration/db/veto-appeal-lifecycle.test.ts,BP appeal gameplay lifecycle keeps a non-restoring admin resolution for an unplayed cancelled match,retained,保留原有效断言。
+tests/integration/db/veto-appeal-lifecycle.test.ts,BP appeal gameplay lifecycle keeps a non-restoring admin resolution for an unplayed finished match,retained,保留原有效断言。
+tests/integration/db/veto-appeal-lifecycle.test.ts,"BP appeal gameplay lifecycle keeps the BP-complete recovery window open, closes atomically on actual start and preserves history",retained,保留原有效断言。
+tests/integration/db/veto-appeal-lifecycle.test.ts,BP appeal gameplay lifecycle closes when a formal result is the first evidence of gameplay,retained,保留原有效断言。
+tests/integration/db/veto-appeal-lifecycle.test.ts,BP appeal gameplay lifecycle recovers existing pending records from canonical gameplay facts and disables the scheduler due signal afterward,retained,保留原有效断言。
+tests/integration/db/veto-appeal-lifecycle.test.ts,BP appeal gameplay lifecycle serializes concurrent submission and actual start so no pending appeal survives,retained,保留原有效断言。
+tests/integration/db/veto-appeal-lifecycle.test.ts,BP appeal gameplay lifecycle rejects new recovery requests for finished matches without gameplay,retained,保留原有效断言。
+tests/integration/db/veto-appeal-lifecycle.test.ts,BP appeal gameplay lifecycle rejects new recovery requests for cancelled matches without gameplay,retained,保留原有效断言。
+tests/integration/db/veto-lifecycle-reader.test.ts,veto lifecycle shipped reader1/publisher0 still admits ordinary timeout dispatch with the closure producer disabled,retained,保留原有效断言。
+tests/integration/db/veto-lifecycle-reader.test.ts,veto lifecycle shipped reader1/publisher0 still admits ordinary start dispatch with the closure producer disabled,retained,保留原有效断言。
+tests/integration/db/veto-lifecycle-reader.test.ts,"veto lifecycle shipped reader1/publisher0 starts normally without publishing closed, but all recovery/adjudication owners independently reject gameplay",retained,保留原有效断言。
+tests/integration/db/veto-lifecycle-reader.test.ts,veto lifecycle shipped reader1/publisher0 reads a historical closed fact and preserves both it and prior human adjudication without enabling publication,retained,保留原有效断言。
+tests/integration/db/veto-lifecycle-reader.test.ts,veto lifecycle shipped reader1/publisher0 records the first formal result with legacy pending history intact and no active BP-recovery settlement hold,retained,保留原有效断言。

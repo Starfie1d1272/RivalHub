@@ -123,7 +123,7 @@ jobs:
         run: node scripts/ci/timing.mjs "static/${{ matrix.task }}" -- node scripts/ci/run-static-task.mjs
 
       - name: Assert no flaky Vitest tests
-        if: ${{ always() && matrix.project == 'unit-react-jsdom' }}
+        if: ${{ always() && (matrix.project == 'unit-react-jsdom' || matrix.task == 'unit-all') }}
         run: node scripts/ci/assert-no-flaky.mjs --project unit-react-jsdom
 
       - name: Preserve machine-readable evidence
@@ -316,8 +316,6 @@ jobs:
       - name: Mizar cross-repo contract
         if: matrix.task == 'provider' && matrix.live
         run: node scripts/ci/timing.mjs "system/mizar contract" -- pnpm mizar:contract-check .mizar-checkout
-      - name: Browser runtime
-        run: google-chrome --version
       - name: E2E body
         if: startsWith(matrix.task, 'browser-')
         env:

@@ -9,10 +9,10 @@ export const CAPABILITIES = ["static", "postgres", "system"];
 
 const STATIC_PROJECTS = ["unit-domain-node", "unit-server-node", "unit-react-jsdom"];
 const FULL_STATIC_MATRIX = [
-  // Short checks share one runner instead of competing with long PG/browser
-  // shards for six separate runner allocations. Affected planning is unchanged.
+  // Short checks and unit projects each share their setup instead of repeating
+  // runner allocation, checkout and installation. Affected planning is unchanged.
   { task: "checks", changedPaths: [] },
-  ...STATIC_PROJECTS.map((project) => ({ task: taskNameForProject(project), project, mode: "full", changedPaths: [] })),
+  { task: "unit-all", mode: "full", changedPaths: [] },
   { task: "build", changedPaths: [] },
 ];
 
@@ -458,12 +458,6 @@ function unitProjectFor(path) {
   if (path.endsWith(".tsx") || path.startsWith("src/components/")) return "unit-react-jsdom";
   if (path.startsWith("src/") || path.startsWith("tests/unit/")) return "unit-domain-node";
   return undefined;
-}
-
-function taskNameForProject(project) {
-  return project === "unit-domain-node" ? "unit-domain"
-    : project === "unit-server-node" ? "unit-server"
-      : "unit-react";
 }
 
 function buildStaticMatrix(evidence) {

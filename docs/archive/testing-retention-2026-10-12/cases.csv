@@ -948,7 +948,7 @@ tests/experiments/mizar-live-capacity.test.ts,LIVE capacity: explicit multi-sour
 tests/experiments/mizar-live-capacity.test.ts,LIVE capacity: explicit multi-source measurements > measures sixteen-slow with multiple matches at up to 2 Hz (burst explicitly abusive),deleted,退役非 required 视觉/容量实验；需要时临时验证，不声称性能或截图状态仍受保护。
 tests/experiments/mizar-live-capacity.test.ts,LIVE capacity: explicit multi-source measurements > keeps four synchronous matches from the same installation moving,deleted,退役非 required 视觉/容量实验；需要时临时验证，不声称性能或截图状态仍受保护。
 tests/experiments/mizar-live-capacity.test.ts,LIVE capacity: explicit multi-source measurements > prevents a single-source burst from monopolizing three healthy matches,deleted,退役非 required 视觉/容量实验；需要时临时验证，不声称性能或截图状态仍受保护。
-tests/integration/db/admin-high-value-read-models.test.ts,"PR3 admin operational list read models uses PostgreSQL counts, claim aggregation, resolved status, and bounded pages",retained,保留原有效断言。
+tests/integration/db/admin-high-value-read-models.test.ts,"PR3 admin operational list read models uses PostgreSQL counts, claim aggregation, resolved status, and bounded pages",deleted,退役后台列表 count/pagination 的独立只读组合 oracle；无等价替代，保留 admin-match 的跨赛事保护。
 tests/integration/db/admin-match-read-models.test.ts,admin match read models PostgreSQL integration keeps match detail season-scoped and preserves lightweight overview facts,retained,保留原有效断言。
 tests/integration/db/admin-platform-operations.test.ts,admin platform operations PostgreSQL read model keeps current counts separate and preserves historical growth events,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
 tests/integration/db/admin-season-workspace-overview.test.ts,admin season workspace overview PostgreSQL integration loads a Major overview through CompetitionEntry and EventRoster joins,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
@@ -981,7 +981,7 @@ tests/integration/db/bet-bp-reader-compat.test.ts,BO3 presence backward worker c
 tests/integration/db/bet-bp-reader-compat.test.ts,BO3 presence backward worker compatibility retains new BP rules after pool correction with the canonical worker,retained,保留原有效断言。
 tests/integration/db/bet-relief-reader.test.ts,publisher0 refuses direct and replay claims without account or ledger changes; reader1 retains relief,retained,保留原有效断言。
 tests/integration/db/bet-relief.test.ts,"BET relief real ledger and serialization tops up balance 0 once, preserving profit",retained,保留原有效断言。
-tests/integration/db/bet-relief.test.ts,"BET relief real ledger and serialization tops up balance 3 once, preserving profit",retained,保留原有效断言。
+tests/integration/db/bet-relief.test.ts,"BET relief real ledger and serialization tops up balance 3 once, preserving profit",deleted,同一补给算式的中间值；保留 0、9、10 三个边界及实际 ledger/concurrent replay/profit/source 检查。
 tests/integration/db/bet-relief.test.ts,"BET relief real ledger and serialization tops up balance 9 once, preserving profit",retained,保留原有效断言。
 tests/integration/db/bet-relief.test.ts,"BET relief real ledger and serialization tops up balance 10 once, preserving profit",retained,保留原有效断言。
 tests/integration/db/bet-relief.test.ts,"BET relief real ledger and serialization uses the post-lock database Beijing day, rejects midnight replays and limits only relief",retained,保留原有效断言。
@@ -1042,8 +1042,8 @@ tests/integration/db/demo-integration-submit.test.ts,DAK evidence submit persist
 tests/integration/db/demo-integration-submit.test.ts,DAK evidence submit persistence adopts a submitted 10-player roster despite OCR scoreboard drift and preserves OCR-owned stats,retained,保留原有效断言。
 tests/integration/db/discipline.test.ts,discipline eligibility PostgreSQL invariants keeps sanctions scoped to eligibility without changing team facts,retained,保留原有效断言。
 tests/integration/db/education-admin-review.test.ts,"education review queue PostgreSQL read model withholds expired evidence and its search matches before physical cleanup, preserving review history",retained,保留原有效断言。
-tests/integration/db/education-admin-review.test.ts,"education review queue PostgreSQL read model filters, sorts, paginates, and stops matching evidence after retention cleanup",retained,保留原有效断言。
-tests/integration/db/education-admin-review.test.ts,education review queue PostgreSQL read model builds active-data facets and a distinct latest-approved identity overview,retained,保留原有效断言。
+tests/integration/db/education-admin-review.test.ts,"education review queue PostgreSQL read model filters, sorts, paginates, and stops matching evidence after retention cleanup",deleted,退役排序/分页/facets；保留物理删除前隐藏过期证据、搜索不命中、object key 不外泄，以及 retention 失败/历史保护。
+tests/integration/db/education-admin-review.test.ts,education review queue PostgreSQL read model builds active-data facets and a distinct latest-approved identity overview,deleted,退役排序/分页/facets；保留物理删除前隐藏过期证据、搜索不命中、object key 不外泄，以及 retention 失败/历史保护。
 tests/integration/db/education-evidence-retention.test.ts,education evidence retention command clears only eligible evidence at the seven-day boundary and is idempotent,retained,保留原有效断言。
 tests/integration/db/education-manual-retention.test.ts,manual education evidence retention deletes eligible objects before clearing their database refs and preserves history,retained,保留原有效断言。
 tests/integration/db/education-manual-retention.test.ts,manual education evidence retention retains the database key after a delete failure and retries it later,retained,保留原有效断言。
@@ -1101,11 +1101,11 @@ tests/integration/db/map-score-correction.test.ts,map-score correction PostgreSQ
 tests/integration/db/map-score-correction.test.ts,map-score correction PostgreSQL contract BO3 becomes unresolved,retained,保留原有效断言。
 tests/integration/db/map-score-correction.test.ts,map-score correction PostgreSQL contract BO1 remains map-count 1:0,retained,保留原有效断言。
 tests/integration/db/map-score-correction.test.ts,map-score correction PostgreSQL contract BO1 winner reversal,retained,保留原有效断言。
-tests/integration/db/match-commentary.test.ts,"match commentary PostgreSQL contract releases only the caller's slot, once, and allows a replacement (schedule null)",retained,保留原有效断言。
+tests/integration/db/match-commentary.test.ts,"match commentary PostgreSQL contract releases only the caller's slot, once, and allows a replacement (schedule null)",deleted,保留同一取消 owner 的 dated 样本、in_progress 锁后重查和 BP/source guards；policy 不读 scheduledAt，terminal 状态有共同 non-scheduled fallback；退役 null 展示和两种 cancellation branch 各自的 oracle。
 tests/integration/db/match-commentary.test.ts,"match commentary PostgreSQL contract releases only the caller's slot, once, and allows a replacement (schedule 2026-10-09T12:00:00Z)",retained,保留原有效断言。
 tests/integration/db/match-commentary.test.ts,match commentary PostgreSQL contract retains assignments and audit when cancellation races with in_progress,retained,保留原有效断言。
-tests/integration/db/match-commentary.test.ts,match commentary PostgreSQL contract retains assignments and audit when cancellation races with finished,retained,保留原有效断言。
-tests/integration/db/match-commentary.test.ts,match commentary PostgreSQL contract retains assignments and audit when cancellation races with cancelled,retained,保留原有效断言。
+tests/integration/db/match-commentary.test.ts,match commentary PostgreSQL contract retains assignments and audit when cancellation races with finished,deleted,保留同一取消 owner 的 dated 样本、in_progress 锁后重查和 BP/source guards；policy 不读 scheduledAt，terminal 状态有共同 non-scheduled fallback；退役 null 展示和两种 cancellation branch 各自的 oracle。
+tests/integration/db/match-commentary.test.ts,match commentary PostgreSQL contract retains assignments and audit when cancellation races with cancelled,deleted,保留同一取消 owner 的 dated 样本、in_progress 锁后重查和 BP/source guards；policy 不读 scheduledAt，terminal 状态有共同 non-scheduled fallback；退役 null 展示和两种 cancellation branch 各自的 oracle。
 tests/integration/db/match-commentary.test.ts,match commentary PostgreSQL contract retains assignments and audit when cancellation races with bp,retained,保留原有效断言。
 tests/integration/db/match-commentary.test.ts,match commentary PostgreSQL contract retains assignments and audit when cancellation races with production,retained,保留原有效断言。
 tests/integration/db/match-commentary.test.ts,match commentary PostgreSQL contract shows global admins all open slots and permits their own claim/cancel without creating season grants,retained,保留原有效断言。
@@ -1142,7 +1142,7 @@ tests/integration/db/migrations/canonical-team-identity.test.ts,populated canoni
 tests/integration/db/migrations/canonical-team-identity.test.ts,populated canonical team identity migration fails closed and preserves legacy facts for missing-member,retained,保留原有效断言。
 tests/integration/db/migrations/canonical-team-identity.test.ts,populated canonical team identity migration fails closed and preserves legacy facts for orphan-team,retained,保留原有效断言。
 tests/integration/db/migrations/community-awards-capability.test.ts,community awards capability migration backfills existing seasons and defaults new seasons to enabled,retained,保留原有效断言。
-tests/integration/db/migrations/competition-entry-restriction-overrides.test.ts,qualification restriction override migration creates a revision-scoped server-only ledger with deny-by-default access,retained,保留原有效断言。
+tests/integration/db/migrations/competition-entry-restriction-overrides.test.ts,qualification restriction override migration creates a revision-scoped server-only ledger with deny-by-default access,deleted,重复同一终态 migration replay/access matrix/RLS/anon-auth SELECT；保留 database-access-boundary 与真实 revision-scoped waiver/audit。
 tests/integration/db/migrations/competition-entry-terminal.test.ts,competition entry migration replay preserves historical rows while materializing terminal identities,retained,保留原有效断言。
 tests/integration/db/migrations/competitive-catalog.test.ts,competitive catalog migration replay fails closed on conflicts and preserves historical facts,retained,保留原有效断言。
 tests/integration/db/migrations/conversion-policies.test.ts,"conversion policies migration creates server-only conversion_policies table with RLS, denies anon/authenticated access, and seeds lead-approved 2026.09 policy",retained,保留原有效断言。
@@ -1257,7 +1257,7 @@ tests/integration/db/series-score-correction.test.ts,reviewed early series compl
 tests/integration/db/series-score-correction.test.ts,reviewed early series completion PostgreSQL refuses stale preview (score),retained,保留原有效断言。
 tests/integration/db/series-score-correction.test.ts,reviewed early series completion PostgreSQL refuses stale preview (completed-at),retained,保留原有效断言。
 tests/integration/db/series-score-correction.test.ts,reviewed early series completion PostgreSQL refuses stale preview (source),retained,保留原有效断言。
-tests/integration/db/series-score-correction.test.ts,reviewed early series completion PostgreSQL refuses stale preview (later-map),retained,保留原有效断言。
+tests/integration/db/series-score-correction.test.ts,reviewed early series completion PostgreSQL refuses stale preview (later-map),deleted,同一完整 sessions hash 的 primitive 变体；保留 source/Date/score/progression revision 来源与真正 Map 3 active/history/result/OCR blockers；退役 currentMapId 单字段 hash oracle。
 tests/integration/db/series-score-correction.test.ts,reviewed early series completion PostgreSQL refuses stale preview (same-round),retained,保留原有效断言。
 tests/integration/db/series-score-correction.test.ts,reviewed early series completion PostgreSQL requires reason and explicit acknowledgement; ordinary correction still fails closed,retained,保留原有效断言。
 tests/integration/db/series-score-correction.test.ts,"reviewed early series completion PostgreSQL keeps OCR/raw Evidence, marks stale Demo in canonical reads and excludes its statistics",retained,保留原有效断言。

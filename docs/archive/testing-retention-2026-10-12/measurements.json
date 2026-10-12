@@ -5,14 +5,14 @@
     "before": 2984,
     "after": 100,
     "before_seconds": 137.104,
-    "after_seconds": 8.309,
+    "after_seconds": 8.326,
     "success": true
   },
   "postgres": {
     "before": 352,
-    "after": 318,
+    "after": 309,
     "before_seconds": 215.775,
-    "after_seconds": 182.57,
+    "after_seconds": 177.017,
     "success": true
   },
   "core_browser_collected_before_after": [
@@ -32,10 +32,10 @@
     0
   ],
   "test_files_before": 623,
-  "test_files_after": 131,
+  "test_files_after": 129,
   "physical_test_lines_before": 76417,
-  "physical_test_lines_after": 27504,
+  "physical_test_lines_after": 26921,
   "total_before": 3381,
-  "total_after": 437,
-  "retained_percentage": 12.925
+  "total_after": 428,
+  "retained_percentage": 12.659
 }
