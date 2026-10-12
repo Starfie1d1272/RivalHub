@@ -1,5 +1,5 @@
 import { ErrorCode } from "@/lib/errors";
-import { mutateBet } from "@/actions/bet";
+import { getBetBoard, mutateBet } from "@/actions/bet";
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
@@ -62,6 +62,7 @@ it("does not offer an additional stake on the opposite existing choice",async()=
   await user.click(screen.getByRole("button",{name:/Anubis/}));
   await user.type(screen.getByLabelText("投入积分"),"10");
   expect(screen.getByRole("button",{name:"确认投入"})).toBeDisabled();
+  expect(screen.getByRole("status")).toHaveTextContent("只能向该选项追加");
 });
 
 it("protects both sections while a BET submission is pending",async()=>{
@@ -92,4 +93,21 @@ it("uses the clicked team for BET even when a free-only participant changes thei
   expect(dialog.getByRole("heading",{name:/积分竞猜.*甲/})).toBeVisible();
   await user.type(screen.getByLabelText("投入积分"),"10");
   expect(screen.getByRole("button",{name:"确认投入"})).toBeEnabled();
+});
+
+
+it("claims initial points inside the dialog and retains both the BET target and free draft",async()=>{
+  const user=userEvent.setup();
+  const winner:BetMarketDTO={...market,type:"match_winner",...marketPresentation("match_winner",null),options:market.options.slice(0,2).map((o,i)=>({...o,label:i===0?"甲":"乙",entity:{kind:"team",entryId:i===0?"a":"b"}}))};
+  const model={matchId:"match",kind:"winner" as const,requiredChoices:1,options:[{key:"a",label:"甲",count:0},{key:"b",label:"乙",count:0}],own:[],participants:0,canSubmit:true,status:"open" as const,reason:null,result:null};
+  vi.mocked(mutateBet).mockResolvedValueOnce({success:true,data:{joined:true}});
+  vi.mocked(getBetBoard).mockResolvedValueOnce({success:true,data:{...initial,markets:[winner]}});
+  render(<BetBoard initial={{...initial,joined:false,balance:"0",joinEligibility:{canJoin:true,reason:null},markets:[{...winner,canStake:false}]}} slug="test" signedIn view="open" matchFilter={null} predictions={[model]} predictionControls={{submitAction:vi.fn(),refreshAction:async()=>({success:true,data:model})}}/>);
+  await user.click(within(screen.getByRole("tabpanel",{name:"赛果"})).getByRole("button",{name:"甲"}));
+  const dialog=within(screen.getByRole("dialog"));const free=within(screen.getByRole("region",{name:"免费赛果预测"}));
+  await user.click(free.getByRole("button",{name:/乙/}));await user.click(dialog.getByRole("button",{name:"领取 1,000 积分"}));
+  expect(await dialog.findByText("1,000")).toBeVisible();
+  expect(free.getByRole("button",{name:/乙/})).toHaveAttribute("aria-pressed","true");
+  expect(dialog.getByRole("heading",{name:/积分竞猜.*甲/})).toBeVisible();
+  await user.type(screen.getByLabelText("投入积分"),"100");expect(dialog.getByRole("button",{name:"确认投入"})).toBeEnabled();
 });

@@ -15,6 +15,7 @@ export interface BetMarketDTO {
 }
 export interface BetBoardDTO {
   seasonId: string; enabled: boolean; paused: boolean; joined: boolean;
+  joinEligibility?: { canJoin: boolean; reason: string | null };
   balance: string; debt: string; profit: string; rank: number | null;
   leaderboard: { userId: string; playerUserId: string | null; name: string; profit: string; settledCount: number; rank: number }[];
   records: { createdAt: string; amount: string; label: string; context: string | null }[];

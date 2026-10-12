@@ -54,9 +54,9 @@ export function MatchSupport({ slug, matchId, teamA, teamB, amounts, predictions
   </div>;
 }
 
-function SupportLine({ label, left, right, teamA, teamB, summary }: { label: string; left: number | null; right: number | null; teamA: string; teamB: string; summary: string }) {
-  return <div role="group" aria-label={label} className="space-y-1.5 pb-2">
-    <div className="flex flex-wrap justify-between gap-2 text-xs text-[var(--color-fg-mid)]"><span>{label} <HelpTooltip label="预测支持率说明" content="每用户每场一票，按有效免费赛果预测人数计算。只显示社区分布，不代表真实胜率；免费预测与积分 BET 可以选择不同队伍。"/></span><span>{summary}</span></div>
+export function SupportLine({ label, left, right, teamA, teamB, summary, help, compact=false }: { label: string; left: number | null; right: number | null; teamA: string; teamB: string; summary: string; help?: string; compact?: boolean }) {
+  return <div role="group" aria-label={label} className={compact?"space-y-1":"space-y-1.5 pb-2"}>
+    <div className="flex flex-wrap justify-between gap-2 text-xs text-[var(--color-fg-mid)]"><span>{label} <HelpTooltip label={help?`${label}说明`:"预测支持率说明"} content={help??"每用户每场一票，按有效免费赛果预测人数计算。只显示社区分布，不代表真实胜率；免费预测与积分 BET 可以选择不同队伍。"}/></span><span>{summary}</span></div>
     <div aria-label={left === null ? "暂无预测支持率" : `${teamA} ${left.toFixed(1)}%，${teamB} ${right!.toFixed(1)}%`} className="flex items-center gap-3 font-mono text-xs tabular-nums">
       <span className="text-[var(--color-accent)]">{left === null ? "—" : `${left.toFixed(1)}%`}</span>
       <div aria-hidden="true" className="flex h-1 min-w-0 flex-1 overflow-hidden bg-[var(--color-border)]">{left !== null && <><span className="h-full bg-[var(--color-accent)]" style={{ width: `${left}%` }}/><span className="h-full bg-[var(--color-accent-b)]" style={{ width: `${right}%` }}/></>}</div>
