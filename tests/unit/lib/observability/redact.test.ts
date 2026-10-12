@@ -4,6 +4,16 @@ import { extractSafeException, redactText, sanitizeSafeContext } from "@/lib/obs
 describe("observability redaction", () => {
   // Security contract: inner causes add diagnostic value without introducing
   // unbounded data, URL secrets, or a second path around PostgreSQL redaction.
+  it("suppresses every wrapper message when a nested cause is PostgreSQL", () => {
+    const error = { message: "private bound value", cause: { code: "23505", constraint: "users_email_unique", message: "private params", params: ["private"] } };
+    expect(extractSafeException(error)).toEqual({ name: "PostgreSQLError", code: "23505", constraint: "users_email_unique" });
+  });
+
+  it("redacts opaque Supabase secrets from text and exception codes", () => {
+    expect(redactText("provider failed sb_secret_abc123_X-y")).not.toContain("abc123_X-y");
+    expect(extractSafeException({ code: "sb_secret_abc123_X-y" }).code).toBeUndefined();
+  });
+
   it("retains each bounded cause, removes secret URLs, and tolerates hostile getters", () => {
     const inner = { name: "NetworkError", code: "ECONNRESET", message: "failed https://user:pass@example.test/private-material?signature=opaque#secret" };
     Object.defineProperty(inner, "stack", { get: () => { throw new Error("do not read inner stack"); } });

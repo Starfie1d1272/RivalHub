@@ -1843,7 +1843,7 @@ tests/unit/ci/selection-correctness.test.mjs,affected evidence correctness disco
 tests/unit/ci/selection-correctness.test.mjs,affected evidence correctness keeps presentation-only src/components/layout/Footer.tsx out of service lanes,deleted,保留 gate 必需结果、migration risk、恢复与部署安全拒绝；写法与诊断矩阵退役，无精确替代。
 tests/unit/ci/selection-correctness.test.mjs,affected evidence correctness keeps presentation-only src/components/ui/button.tsx out of service lanes,deleted,保留 gate 必需结果、migration risk、恢复与部署安全拒绝；写法与诊断矩阵退役，无精确替代。
 tests/unit/ci/selection-correctness.test.mjs,affected evidence correctness keeps presentation-only src/app/globals.css out of service lanes,deleted,保留 gate 必需结果、migration risk、恢复与部署安全拒绝；写法与诊断矩阵退役，无精确替代。
-tests/unit/ci/system-artifacts-security.test.mjs,system artifact sanitizer redacts opaque Supabase secrets without an env label,deleted,保留 gate 必需结果、migration risk、恢复与部署安全拒绝；写法与诊断矩阵退役，无精确替代。
+tests/unit/ci/system-artifacts-security.test.mjs,system artifact sanitizer redacts opaque Supabase secrets without an env label,retained,恢复独有安全保护：CI artifact无环境变量标签的现代Supabase secret不可泄露；fault变体被此原断言检出。
 tests/unit/ci/system-artifacts-security.test.mjs,system artifact sanitizer redacts credentials and drops binary or credential-bearing files,retained,保留原有效断言。
 tests/unit/ci/system-artifacts-security.test.mjs,system artifact sanitizer redacts storage URLs and environment-shaped secrets without changing safe text,deleted,保留 gate 必需结果、migration risk、恢复与部署安全拒绝；写法与诊断矩阵退役，无精确替代。
 tests/unit/ci/system-artifacts-security.test.mjs,system artifact sanitizer omits Playwright trace archives from the default failure bundle,retained,保留原有效断言。
@@ -2774,8 +2774,8 @@ tests/unit/lib/observability/logger.test.ts,structured observability events cont
 tests/unit/lib/observability/logger.test.ts,structured observability events logs expected outcomes as low-noise info without recording an exception,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
 tests/unit/lib/observability/logger.test.ts,structured observability events uses the deployment as a release marker for CLI deployments,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
 tests/unit/lib/observability/redact.test.ts,"observability redaction retains each bounded cause, removes secret URLs, and tolerates hostile getters",retained,保留原有效断言。
-tests/unit/lib/observability/redact.test.ts,observability redaction suppresses every wrapper message when a nested cause is PostgreSQL,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
-tests/unit/lib/observability/redact.test.ts,observability redaction redacts opaque Supabase secrets from text and exception codes,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/lib/observability/redact.test.ts,observability redaction suppresses every wrapper message when a nested cause is PostgreSQL,retained,恢复独有安全保护：内层PG错误必须抑制外层包装消息；fault变体仍通过旧8条，但被此原断言检出。
+tests/unit/lib/observability/redact.test.ts,observability redaction redacts opaque Supabase secrets from text and exception codes,retained,恢复独有安全保护：无标签的现代Supabase secret在应用日志文本/code中均不可泄露；fault变体被此原断言检出。
 tests/unit/lib/observability/redact.test.ts,observability redaction uses the PostgreSQL classification fields without exposing query details or params,retained,保留原有效断言。
 tests/unit/lib/observability/redact.test.ts,observability redaction bounds cause traversal and survives circular or throwing getters,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
 tests/unit/lib/observability/redact.test.ts,observability redaction keeps only the explicit safe-context allowlist,retained,保留原有效断言。

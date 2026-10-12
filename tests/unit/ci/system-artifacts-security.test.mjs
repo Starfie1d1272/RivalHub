@@ -3,9 +3,14 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { describe, expect, it } from "vitest";
-import { copySafeTree } from "../../../scripts/ci/system-artifact-sanitizer.mjs";
+import { copySafeTree, redact } from "../../../scripts/ci/system-artifact-sanitizer.mjs";
 
 describe("system artifact sanitizer", () => {
+  it("redacts opaque Supabase secrets without an env label", () => {
+    expect(redact("provider failed sb_secret_abc123_X-y")).not.toContain("abc123_X-y");
+    expect(redact("SUPABASE_SECRET_KEY=opaque-value")).not.toContain("opaque-value");
+  });
+
   it("redacts credentials and drops binary or credential-bearing files", () => {
     const source = mkdtempSync(join(tmpdir(), "rivalhub-artifact-source-"));
     const target = mkdtempSync(join(tmpdir(), "rivalhub-artifact-target-"));

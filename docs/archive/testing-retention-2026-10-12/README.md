@@ -8,15 +8,15 @@
 
 | 层级 | 原有效用例 | 保留 | 原本地 wall time | 精简后 |
 | --- | ---: | ---: | ---: | ---: |
-| unit/component | 2,984 | 103（含上游新增2） | 137.104 s | 14.297 s |
+| unit/component | 2,984 | 106（含上游新增2） | 137.104 s | 15.173 s |
 | real PostgreSQL | 352 | 309 | 215.775 s | 177.017 s |
 | core browser | 17 | 17 | 未比较 | 未比较 |
 | production smoke | 2 | 2 | 未比较 | 未比较 |
 | optional acceptance | 14 | 0 | 未比较 | 退役 |
 | capacity experiment | 12 | 0 | 未执行 | 退役 |
-| 完整 collection | **3,381** | **431（原基线保留429 + 上游新增2）** | 不相加 | 不相加 |
+| 完整 collection | **3,381** | **434（原基线保留432 + 上游新增2）** | 不相加 | 不相加 |
 
-测试文件原基线 623 → 129，加上 #943/#945 的两个新增文件，当前共131；物理测试源行以 measurements.json 为准。保留 **429/3,381（12.689%）** 是实际精简结果。用户明确比例只是目标，不是硬性门槛；验收优先独立保护、真实重复与维护成本，必要保护即使保留更多也可。不再以338个数量上限作为阻塞，不宣称当前集合是理论最小值。日常 required 原集合为3,355（不含acceptance/capacity）。
+测试文件原基线 623 → 129，加上 #943/#945 的两个新增文件，当前共131；物理测试源行以 measurements.json 为准。保留 **432/3,381（12.777%）** 是实际精简结果。用户明确比例只是目标，不是硬性门槛；验收优先独立保护、真实重复与维护成本，必要保护即使保留更多也可。不再以338个数量上限作为阻塞，不宣称当前集合是理论最小值。日常 required 原集合为3,355（不含acceptance/capacity）。
 
 Vitest 数量来自实际成功运行的 JSON reporter；Playwright 来自实际 project 展开的 collection。容量通过 `vitest list --no-static-parse` 展开收集，未执行容量基准。静态定义不作为有效测试数：前期误计的 3,327、3,372 均不是验收基线。没有把用例塞进新循环、巨型 `it` 或参数矩阵；未增加 skip/todo 或放宽 timeout/retry，原已有参数矩阵及流程多断言保留原结构。
 
@@ -29,6 +29,12 @@ Vitest 数量来自实际成功运行的 JSON reporter；Playwright 来自实际
 - 保留 Major-24/32 真实生命周期与纯 placements 完整性拒绝。保留一个 upstream-choice 失效及输入不可变的独有 oracle；全 profile/bracket/slot judgement、无关 playoff 分支等矩阵退役；普通预测浏览器任务不替代这些 oracle，相关规则变化需要聚焦验证。
 - LIVE 保留真实 ingest 的权限/source/generation/epoch/identity/lineup、幂等/canonical results，真实 private Broadcast/provider 和浏览器断流恢复，纯 token 续期/销毁、撤权清空和 proof/scope。精确时龄/reducer、storage-denial/two-match bound 等细矩阵退役，浏览器成功不替代它们。
 - 删除非 required visual/capacity suites、空 config、孤立测试 helper，以及 planner 的已删除 product-language 显式路径。没有复制旧测试为 archive 可执行代码；需要实验时按具体风险临时重建。其它 capability/gate、跨仓兼容、provider、migration replay 和 timeout 保持。
+
+## 安全脱敏保护恢复
+
+后续独立发版审查发现三条不能由现有测试替代的安全断言被误删，已从原基线原样恢复：内层 PostgreSQL 分类必须抑制全部包装消息；现代 Supabase secret 在应用日志文本/code 中脱敏；CI artifact 无标签 secret 脱敏。范围只有三个原 `it`（应用2、artifact1），不修改实现、不恢复旧矩阵。三个局部故障变体各自仍通过原保留的8条，却均由对应恢复断言检出；正确实现11/11通过，临时实现修改全部还原。
+
+同worktree两文件定向实测 1.095 → 0.954 s（8 → 11条，差值 -0.141 s）；只记录单次运行，不推断稳定性能。当前累计原基线保留432条，另继承上游2条共434；CSV纠正三条处置和原因，之前431条计数仍是 #942 合并时的历史事实。本恢复从 main `658d9cf3` 独立提出，交独审后再发版。
 
 ## 超额保留的具体边界
 
@@ -47,7 +53,7 @@ Vitest 数量来自实际成功运行的 JSON reporter；Playwright 来自实际
 
 ## 验证与交付
 
-先完整运行原 unit（2,984/2,984）与 PG（352/352），再精简；未因产品测试失败删测试。精简时出现 empty describe 收集错误，修复 suite 结构后重跑，不是产品失败的删测规避。最终 unit 103/103（含 #943/#945 新增2）、PG 309/309；test/script typecheck、ESLint、architecture、Knip 与 GitHub required checks 以实际结果验收。Knip 暴露更多仅被旧测试引用的 production exports，这是待审查线索，未顺手删产品 API。
+先完整运行原 unit（2,984/2,984）与 PG（352/352），再精简；未因产品测试失败删测试。精简时出现 empty describe 收集错误，修复 suite 结构后重跑，不是产品失败的删测规避。最终 unit 106/106（含 #943/#945 新增2）、PG 309/309；test/script typecheck、ESLint、architecture、Knip 与 GitHub required checks 以实际结果验收。Knip 暴露更多仅被旧测试引用的 production exports，这是待审查线索，未顺手删产品 API。
 
 既有 BET 管理按钮 hydration 前首击丢失问题在 [#941](https://github.com/Starfie1d1272/RivalHub/issues/941) 独立跟踪，已由 #943 合入主分支。本轮不修产品，不声称 #940 或精简已消除所有 hydration race 或稳定满足 browser budget。Major 原首轮空名称创建失败已由 #945 独立修复并获独审批准合入；清理分支仅继承修复，最终 Major 首轮证据以此分支新 head 完整 CI 为准。后续 318 PG 的具体分类、9 个代表性/重复删减和保守集合差额见 [PG 风险审查](./postgres-risk-review.md)；两次旧 head CI 的 step/queue/bootstrap 拆分和可修复冗余见 [CI 审查](./ci-review.md)。
 
@@ -63,4 +69,4 @@ Vitest 数量来自实际成功运行的 JSON reporter；Playwright 来自实际
 
 本次 Request changes 的故障注入、Major冷/缓存对照与未取得的精确候选清单见 [独审跟进](./review-followup.md)。
 
-同步主分支前提交 `0a80831563e52e4d67b5bdb1ce3d5d027207f78c` 的完整 CI [38300176410](https://github.com/Starfie1d1272/RivalHub/actions/runs/38300176410) 一次通过，workflow 163 s；它不能替代同步后最终 head 的验收。最终 head/check 证据以 PR #942 的最新 checks 为准。
+同步主分支前提交 `0a80831563e52e4d67b5bdb1ce3d5d027207f78c` 的完整 CI [38300176410](https://github.com/Starfie1d1272/RivalHub/actions/runs/38300176410) 一次通过，workflow 163 s；它不能替代同步后最终 head 的验收。#942 合并时的完整CI38305496485与main CI38306614454均通过；安全恢复的最新head/check证据以独立恢复PR为准，不能复用旧head证据。

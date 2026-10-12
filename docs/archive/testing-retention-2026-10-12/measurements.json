@@ -3,9 +3,9 @@
   "change_base_sha": "e78f0668bd9577de88eee6d744c287e8b56106ad",
   "unit": {
     "before": 2984,
-    "after": 103,
+    "after": 106,
     "before_seconds": 137.104,
-    "after_seconds": 14.297,
+    "after_seconds": 15.173,
     "success": true
   },
   "postgres": {
@@ -34,10 +34,21 @@
   "test_files_before": 623,
   "test_files_after": 131,
   "physical_test_lines_before": 76417,
-  "physical_test_lines_after": 27041,
+  "physical_test_lines_after": 27056,
   "total_before": 3381,
-  "total_after": 431,
+  "total_after": 434,
   "upstream_added_cases": 2,
-  "baseline_retained_cases": 429,
-  "retained_percentage": 12.689
+  "baseline_retained_cases": 432,
+  "retained_percentage": 12.777,
+  "security_restoration_base_sha": "658d9cf339b9875d257814b32bf4822752ce79b8",
+  "restored_original_security_cases": 3,
+  "security_restoration": {
+    "before_cases": 8,
+    "after_cases": 11,
+    "before_seconds": 1.095,
+    "after_seconds": 0.954,
+    "seconds_delta": -0.141,
+    "mutants_caught": 3,
+    "original_retained_passed_per_mutant": 8
+  }
 }
