@@ -1,6 +1,7 @@
 "use client";
 
 import { HelpTooltip } from "@/components/rivalhub/HelpTooltip";
+import { useClientReady } from "@/components/rivalhub/useClientReady";
 
 import { TeamProfileLink } from "@/components/teams/TeamProfileLink";
 import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
@@ -59,6 +60,7 @@ export function CaptainDraftPanel({
   readonly: isReadonly,
 }: CaptainDraftPanelProps) {
   const router = useRouter();
+  const interactive = useClientReady();
   const [filter, setFilter] = useState(FILTER_ALL);
   const [search, setSearch] = useState("");
   const [pendingRegistrationId, setPendingRegistrationId] = useState<string | null>(null);
@@ -109,7 +111,7 @@ export function CaptainDraftPanel({
     return players.find((p) => p.registrationId === candidate.registrationId) ?? null;
   }, [players, positionCounts, isDraftActive, isCurrentCaptainTurn]);
 
-  const canSubmit = isDraftActive && isCurrentCaptainTurn && pendingRegistrationId === null;
+  const canSubmit = interactive && isDraftActive && isCurrentCaptainTurn && pendingRegistrationId === null;
 
   async function handlePick(player: CaptainDraftPlayer) {
     if (!canSubmit || !canPickPosition(positionCounts[player.primaryPosition] ?? 0)) return;
@@ -181,6 +183,7 @@ export function CaptainDraftPanel({
         <div className="min-w-0 rounded-lg border border-[var(--color-border)] bg-[var(--color-panel)] overflow-hidden md:sticky md:top-20">
           <button
             type="button"
+            disabled={!interactive}
             onClick={() => setRosterOpen(!rosterOpen)}
             className="flex w-full items-center gap-2 px-4 py-3 text-sm font-medium text-[var(--color-fg)] hover:bg-[var(--color-panel-hi)] transition-colors"
           >
@@ -247,6 +250,7 @@ export function CaptainDraftPanel({
             <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-[var(--color-fg-dim)]" aria-hidden="true" />
             <input
               type="text"
+              disabled={!interactive}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="搜索选手名..."
@@ -258,6 +262,7 @@ export function CaptainDraftPanel({
               type="button"
               size="sm"
               variant={filter === FILTER_ALL ? "default" : "secondary"}
+              disabled={!interactive}
               onClick={() => setFilter(FILTER_ALL)}
             >
               全部 {players.length}
@@ -271,7 +276,7 @@ export function CaptainDraftPanel({
                   type="button"
                   size="sm"
                   variant={filter === position ? "default" : "secondary"}
-                  disabled={count === 0}
+                  disabled={!interactive || count === 0}
                   onClick={() => setFilter(filter === position ? FILTER_ALL : position)}
                 >
                   {positionLabel(position)} {teamCount}/2 · {count}
@@ -365,7 +370,7 @@ export function CaptainDraftPanel({
                       <MapPreferenceChips preferences={player.mapPreferences} compact minLevel="playable" />
                     </div>
 
-                    <Button size="sm" variant="ghost" onClick={() => setInspectedId(current => current === player.registrationId ? null : player.registrationId)} aria-expanded={inspectedId === player.registrationId} aria-controls={`draft-detail-${player.registrationId} draft-inspector`}>详情</Button>
+                    <Button size="sm" variant="ghost" disabled={!interactive} onClick={() => setInspectedId(current => current === player.registrationId ? null : player.registrationId)} aria-expanded={inspectedId === player.registrationId} aria-controls={`draft-detail-${player.registrationId} draft-inspector`}>{interactive ? "详情" : "准备中…"}</Button>
 
                     {/* Pick button */}
                     {!isReadonly && (
@@ -441,7 +446,7 @@ export function CaptainDraftPanel({
                         <div className="min-w-0">
                           <MapPreferenceChips preferences={player.mapPreferences} compact minLevel="playable" />
                         </div>
-                        <Button size="sm" variant="ghost" onClick={() => setInspectedId(current => current === player.registrationId ? null : player.registrationId)} aria-expanded={inspectedId === player.registrationId} aria-controls={`draft-detail-${player.registrationId} draft-inspector`}>详情</Button>
+                        <Button size="sm" variant="ghost" disabled={!interactive} onClick={() => setInspectedId(current => current === player.registrationId ? null : player.registrationId)} aria-expanded={inspectedId === player.registrationId} aria-controls={`draft-detail-${player.registrationId} draft-inspector`}>{interactive ? "详情" : "准备中…"}</Button>
                       </div>
                       {!isReadonly && (
                         <Button
