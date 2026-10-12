@@ -1,6 +1,6 @@
 # 长期测试精简首轮验收记录
 
-这是历史验收记录，不是产品规则或持续测试数量配额。产品实现、预测 UI、流程、迁移链和 production 数据未改变。基线冻结为 `4ac1ab3b5599bf61d6c553a506539d3f3b709dc0`；本分支从 PR #940 已合并的 `95bc1ea8f960171c0bfef65f63998f72daf86d8e` 出发。#940 已先独立交付，这里不重复提交。
+这是历史验收记录，不是产品规则或持续测试数量配额。产品实现、预测 UI、流程、迁移链和 production 数据未改变。基线冻结为 `4ac1ab3b5599bf61d6c553a506539d3f3b709dc0`；本分支从 PR #940 已合并的 `95bc1ea8f960171c0bfef65f63998f72daf86d8e` 出发。#940 已先独立交付，这里不重复提交。最终已同步主分支 `5cbddfd5`（#943）；其产品就绪修复与新增 BetOperations 测试完整继承，不属于本批清理改动。
 
 ## 计数及耗时
 
@@ -8,15 +8,15 @@
 
 | 层级 | 原有效用例 | 保留 | 原本地 wall time | 精简后 |
 | --- | ---: | ---: | ---: | ---: |
-| unit/component | 2,984 | 101 | 137.104 s | 13.947 s |
+| unit/component | 2,984 | 102（含上游新增1） | 137.104 s | 14.396 s |
 | real PostgreSQL | 352 | 309 | 215.775 s | 177.017 s |
 | core browser | 17 | 17 | 未比较 | 未比较 |
 | production smoke | 2 | 2 | 未比较 | 未比较 |
 | optional acceptance | 14 | 0 | 未比较 | 退役 |
 | capacity experiment | 12 | 0 | 未执行 | 退役 |
-| 完整 collection | **3,381** | **429（12.689%）** | 不相加 | 不相加 |
+| 完整 collection | **3,381** | **430（原基线保留429 + 上游新增1）** | 不相加 | 不相加 |
 
-测试文件 623 → 129；物理测试源行以 measurements.json 为准。保留 **429/3,381（12.689%）** 是实际精简结果。用户明确比例只是目标，不是硬性门槛；验收优先独立保护、真实重复与维护成本，必要保护即使保留更多也可。不再以338个数量上限作为阻塞，不宣称当前集合是理论最小值。日常 required 原集合为3,355（不含acceptance/capacity）。
+测试文件原基线 623 → 129，加上 #943 新增文件，当前共130；物理测试源行以 measurements.json 为准。保留 **429/3,381（12.689%）** 是实际精简结果。用户明确比例只是目标，不是硬性门槛；验收优先独立保护、真实重复与维护成本，必要保护即使保留更多也可。不再以338个数量上限作为阻塞，不宣称当前集合是理论最小值。日常 required 原集合为3,355（不含acceptance/capacity）。
 
 Vitest 数量来自实际成功运行的 JSON reporter；Playwright 来自实际 project 展开的 collection。容量通过 `vitest list --no-static-parse` 展开收集，未执行容量基准。静态定义不作为有效测试数：前期误计的 3,327、3,372 均不是验收基线。没有把用例塞进新循环、巨型 `it` 或参数矩阵；未增加 skip/todo 或放宽 timeout/retry，原已有参数矩阵及流程多断言保留原结构。
 
@@ -47,9 +47,9 @@ Vitest 数量来自实际成功运行的 JSON reporter；Playwright 来自实际
 
 ## 验证与交付
 
-先完整运行原 unit（2,984/2,984）与 PG（352/352），再精简；未因产品测试失败删测试。精简时出现 empty describe 收集错误，修复 suite 结构后重跑，不是产品失败的删测规避。最终 unit 101/101、PG 309/309；test/script typecheck、ESLint、architecture、Knip 与 GitHub required checks 以实际结果验收。Knip 暴露更多仅被旧测试引用的 production exports，这是待审查线索，未顺手删产品 API。
+先完整运行原 unit（2,984/2,984）与 PG（352/352），再精简；未因产品测试失败删测试。精简时出现 empty describe 收集错误，修复 suite 结构后重跑，不是产品失败的删测规避。最终 unit 102/102（含 #943 新增1）、PG 309/309；test/script typecheck、ESLint、architecture、Knip 与 GitHub required checks 以实际结果验收。Knip 暴露更多仅被旧测试引用的 production exports，这是待审查线索，未顺手删产品 API。
 
-既有 BET 管理按钮 hydration 前首击丢失问题在 [#941](https://github.com/Starfie1d1272/RivalHub/issues/941) 独立跟踪。本轮不修产品，不声称 #940 或精简已消除 hydration race 或稳定满足 browser budget。后续 318 PG 的具体分类、9 个代表性/重复删减和保守集合差额见 [PG 风险审查](./postgres-risk-review.md)；两次旧 head CI 的 step/queue/bootstrap 拆分和可修复冗余见 [CI 审查](./ci-review.md)。
+既有 BET 管理按钮 hydration 前首击丢失问题在 [#941](https://github.com/Starfie1d1272/RivalHub/issues/941) 独立跟踪，已由 #943 合入主分支。本轮不修产品，不声称 #940 或精简已消除 hydration race 或稳定满足 browser budget。后续 318 PG 的具体分类、9 个代表性/重复删减和保守集合差额见 [PG 风险审查](./postgres-risk-review.md)；两次旧 head CI 的 step/queue/bootstrap 拆分和可修复冗余见 [CI 审查](./ci-review.md)。
 
 无 shipped behavior 变化，不需 Changeset。不自行合并、不发布、不操作 hosted database。
 
@@ -62,3 +62,5 @@ Vitest 数量来自实际成功运行的 JSON reporter；Playwright 来自实际
 5. #941 修复单独开发和验收；独立审查不冻结正常开发。
 
 本次 Request changes 的故障注入、Major冷/缓存对照与未取得的精确候选清单见 [独审跟进](./review-followup.md)。
+
+同步主分支前提交 `0a80831563e52e4d67b5bdb1ce3d5d027207f78c` 的完整 CI [38300176410](https://github.com/Starfie1d1272/RivalHub/actions/runs/38300176410) 一次通过，workflow 163 s；它不能替代同步后最终 head 的验收。最终 head/check 证据以 PR #942 的最新 checks 为准。
