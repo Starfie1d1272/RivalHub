@@ -360,7 +360,7 @@ tests/unit/ci/postgres-shards.test.mjs,5,0,deleted,保留 gate 必需结果、mi
 tests/unit/ci/preview-mirror-contract.test.mjs,1,0,deleted,保留 gate 必需结果、migration risk、恢复与部署安全拒绝；写法与诊断矩阵退役，无精确替代。
 tests/unit/ci/run-static-task.test.mjs,9,0,deleted,保留 gate 必需结果、migration risk、恢复与部署安全拒绝；写法与诊断矩阵退役，无精确替代。
 tests/unit/ci/selection-correctness.test.mjs,19,0,deleted,保留 gate 必需结果、migration risk、恢复与部署安全拒绝；写法与诊断矩阵退役，无精确替代。
-tests/unit/ci/system-artifacts-security.test.mjs,4,2,pruned,保留 gate 必需结果、migration risk、恢复与部署安全拒绝；写法与诊断矩阵退役，无精确替代。
+tests/unit/ci/system-artifacts-security.test.mjs,4,3,pruned,恢复无标签现代Supabase secret脱敏独有保护；保留3条，剩余退役边界见cases.csv。
 tests/unit/ci/timing-budget.test.mjs,6,0,deleted,保留 gate 必需结果、migration risk、恢复与部署安全拒绝；写法与诊断矩阵退役，无精确替代。
 tests/unit/ci/validate-pr-title.test.mjs,10,0,deleted,保留 gate 必需结果、migration risk、恢复与部署安全拒绝；写法与诊断矩阵退役，无精确替代。
 tests/unit/ci/vitest-flaky-guard.test.ts,10,0,deleted,保留 gate 必需结果、migration risk、恢复与部署安全拒绝；写法与诊断矩阵退役，无精确替代。
@@ -549,7 +549,7 @@ tests/unit/lib/observability/fetch.test.ts,1,0,deleted,退役细粒度或 mock �
 tests/unit/lib/observability/flush.test.ts,2,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
 tests/unit/lib/observability/instrumentation.test.ts,4,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
 tests/unit/lib/observability/logger.test.ts,4,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
-tests/unit/lib/observability/redact.test.ts,9,6,pruned,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
+tests/unit/lib/observability/redact.test.ts,9,8,pruned,恢复内层PG包装消息抑制与现代Supabase secret文本/code脱敏两条独有安全保护；保留8条，剩余退役边界见cases.csv。
 tests/unit/lib/observability/route.test.ts,1,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
 tests/unit/lib/observability/sampling.test.ts,15,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
 tests/unit/lib/observability/span-sanitizer.test.ts,1,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
