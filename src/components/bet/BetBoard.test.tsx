@@ -1,4 +1,6 @@
-import { render, screen, within } from "@testing-library/react";
+import { ErrorCode } from "@/lib/errors";
+import { mutateBet } from "@/actions/bet";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { BetBoard } from "./BetBoard";
@@ -47,7 +49,32 @@ it("keeps forms behind one entry and allows free prediction with a paused empty 
   await user.click(free.getByRole("button",{name:"提交预测"}));
   expect(submitAction).toHaveBeenCalledWith(prediction,["b"]);
   expect(await screen.findByRole("alert")).toHaveTextContent("预测提交失败");
+  await waitFor(()=>expect(screen.getByRole("button",{name:"取消"})).toBeEnabled());
   await user.keyboard("{Escape}");
   expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   expect(entry).toHaveFocus();
+});
+
+
+it("does not offer an additional stake on the opposite existing choice",async()=>{
+  const user=userEvent.setup();
+  render(<BetBoard initial={{...initial,markets:[{...market,mine:{optionId:"o0",amount:"10",payout:null,profit:null}}]}} slug="test" signedIn view="open" matchFilter={null}/>);
+  await user.click(screen.getByRole("button",{name:/Anubis/}));
+  await user.type(screen.getByLabelText("投入积分"),"10");
+  expect(screen.getByRole("button",{name:"确认投入"})).toBeDisabled();
+});
+
+it("protects both sections while a BET submission is pending",async()=>{
+  const user=userEvent.setup();let finish!:(value:Awaited<ReturnType<typeof mutateBet>>)=>void;
+  vi.mocked(mutateBet).mockImplementationOnce(()=>new Promise(resolve=>{finish=resolve;}));
+  const winner:BetMarketDTO={...market,type:"match_winner",...marketPresentation("match_winner",null),options:market.options.slice(0,2)};
+  const model={matchId:"match",kind:"winner" as const,requiredChoices:1,options:[{key:"a",label:"甲",count:0},{key:"b",label:"乙",count:0}],own:[],participants:0,canSubmit:true,status:"open" as const,reason:null,result:null};
+  const submitAction=vi.fn();
+  render(<BetBoard initial={{...initial,markets:[winner]}} slug="test" signedIn view="open" matchFilter={null} predictions={[model]} predictionControls={{submitAction,refreshAction:async()=>({success:true,data:model})}}/>);
+  await user.click(screen.getByRole("button",{name:/Ancient/}));await user.type(screen.getByLabelText("投入积分"),"10");await user.click(screen.getByRole("button",{name:"确认投入"}));
+  expect(within(screen.getByRole("region",{name:"免费赛果预测"})).getByRole("button",{name:/乙/})).toBeDisabled();
+  expect(within(screen.getByRole("dialog")).getByRole("button",{name:/Anubis/})).toBeDisabled();
+  await user.keyboard("{Escape}");expect(screen.getByRole("dialog")).toBeInTheDocument();expect(submitAction).not.toHaveBeenCalled();
+  await act(async()=>finish({success:false,error:{code:ErrorCode.INTERNAL_ERROR,message:"投入失败，请重试。"}}));
+  expect(await screen.findByRole("alert")).toHaveTextContent("投入失败");
 });

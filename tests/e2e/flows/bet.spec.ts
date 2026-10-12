@@ -52,7 +52,7 @@ test("BET 投入在刷新后保留，ALL IN 需确认且开赛后锁盘",async({
     await expect(page.getByRole("dialog").getByRole("link", { name: `查看 ${options[0]!.label} 资料` })).toHaveAttribute("href", `/${fixture.slug}/teams/${options[0]!.key}`);
     await page.getByLabel("投入积分",{exact:true}).fill("200");
     await page.getByRole("button",{name:"确认投入",exact:true}).click();await expect(page.getByRole("dialog")).toHaveCount(0);
-    await expect(winner).toContainText("已投 200");await expect(winner.locator("button:not([aria-label])").nth(1)).toBeDisabled();
+    await expect(winner).toContainText("已投 200");await winner.locator("button:not([aria-label])").nth(1).click();await expect(page.getByRole("dialog").getByRole("region",{name:"比赛胜者"}).locator("button:not([aria-label])").nth(1)).toBeDisabled();await page.getByRole("button",{name:"取消",exact:true}).click();
     await winner.locator("button:not([aria-label])").first().click();await page.getByRole("button",{name:"ALL IN",exact:true}).click();await expect(page.getByRole("button",{name:"确认投入",exact:true})).toBeDisabled();
     await page.getByLabel("确认投入全部可用积分，不能撤回").check();await expect(page.getByRole("button",{name:"确认投入",exact:true})).toBeEnabled();
     await page.getByRole("button",{name:"取消",exact:true}).click();
@@ -86,10 +86,10 @@ test("BET 投入在刷新后保留，ALL IN 需确认且开赛后锁盘",async({
     await expect(rounds.filter({hasText:"第1图 · Inferno"})).toContainText("已投 100");
     await db.update(schema.matchMaps).set({startedAt:new Date()}).where(eq(schema.matchMaps.id,maps[0]!.id));
     await page.reload();await card.getByRole("tab",{name:/地图/}).click();await expect(card.getByRole("tabpanel", {name:"地图", exact:true})).toBeVisible();
-    await expect(presence.locator("button:not([aria-label])").first()).toBeDisabled();
-    await expect(rounds.filter({hasText:"第1图 · Inferno"}).getByRole("button",{name:/^大/})).toBeDisabled();
+    await presence.locator("button:not([aria-label])").first().click();await expect(page.getByRole("dialog").getByRole("region",{name:"BP · 本场三图",exact:true}).locator("button:not([aria-label])").first()).toBeDisabled();await page.getByRole("button",{name:"取消",exact:true}).click();
+    await rounds.filter({hasText:"第1图 · Inferno"}).getByRole("button",{name:/^大/}).click();await expect(page.getByRole("dialog").getByRole("button",{name:"确认投入",exact:true})).toBeDisabled();await page.getByRole("button",{name:"取消",exact:true}).click();
     await expect(rounds.filter({hasText:"第2图 · Nuke"}).getByRole("button",{name:/^大/})).toBeEnabled();
     await db.update(schema.matches).set({gameplayStartedAt:new Date()}).where(eq(schema.matches.id,matches[0]!.id));
-    await page.reload();await expect(card.getByRole("tabpanel", {name:"赛果", exact:true})).toBeVisible();await expect(winner.locator("button:not([aria-label])").first()).toBeDisabled();await expect(winner).toContainText("已锁盘");
+    await page.reload();await expect(card.getByRole("tabpanel", {name:"赛果", exact:true})).toBeVisible();await winner.locator("button:not([aria-label])").first().click();await expect(page.getByRole("dialog").getByRole("button",{name:"确认投入",exact:true})).toBeDisabled();await page.getByRole("button",{name:"取消",exact:true}).click();await expect(winner).toContainText("已锁盘");
   }finally {await removePredictionBrowserFixture(fixture.seasonId);await pool.end();}
 });
