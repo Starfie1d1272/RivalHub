@@ -1,5 +1,7 @@
 "use client";
 
+import { HelpTooltip } from "@/components/rivalhub/HelpTooltip";
+
 import { TeamProfileLink } from "@/components/teams/TeamProfileLink";
 import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
 import React, { useMemo, useState } from "react";
@@ -234,10 +236,8 @@ export function CaptainDraftPanel({
               <span>
                 超时自动选人：<PlayerProfileLink userId={autoPickCandidate.userId}>{getPublicDisplayName(autoPickCandidate)}</PlayerProfileLink>（{positionLabel(autoPickCandidate.primaryPosition)}，{autoPickCandidate.peakRank}）
               </span>
+              <HelpTooltip label="自动选人规则" content="依次比较历史最高段位、Peak Rating、当前段位和当前 Rating，优先补齐空位，每位置最多 2 人。" />
             </div>
-            <p className="mt-1.5 pl-5.5 text-[10px] leading-relaxed" style={{ color: "color-mix(in srgb, var(--color-warn) 70%, var(--color-fg-mid))" }}>
-              规则：历史最高段位 → 巅峰Rating → 当前段位 → 当前Rating；优先填空位，同位置不超过2人
-            </p>
           </div>
         )}
 
@@ -373,7 +373,7 @@ export function CaptainDraftPanel({
                         type="button"
                         size="sm"
                         disabled={disabled}
-                        aria-label={positionOpen ? `选择 ${displayedName}` : `${displayedName} 已满`}
+                        aria-label={positionOpen ? `选入 ${displayedName}` : `${displayedName} 已满`}
                         onClick={() => void handlePick(player)}
                         className="shrink-0"
                       >
@@ -382,7 +382,7 @@ export function CaptainDraftPanel({
                         ) : positionOpen ? (
                           <Check className="size-4" aria-hidden="true" />
                         ) : null}
-                        {positionOpen ? "选择" : "已满"}
+                        {positionOpen ? "选入" : "已满"}
                       </Button>
                     )}
                   </div>
@@ -448,7 +448,7 @@ export function CaptainDraftPanel({
                           type="button"
                           size="sm"
                           disabled={disabled}
-                          aria-label={positionOpen ? `选择 ${displayedName}` : `${displayedName} 已满`}
+                          aria-label={positionOpen ? `选入 ${displayedName}` : `${displayedName} 已满`}
                           onClick={() => void handlePick(player)}
                           className="shrink-0"
                         >
@@ -457,7 +457,7 @@ export function CaptainDraftPanel({
                           ) : positionOpen ? (
                             <Check className="size-4" aria-hidden="true" />
                           ) : null}
-                          {positionOpen ? "选择" : "已满"}
+                          {positionOpen ? "选入" : "已满"}
                         </Button>
                       )}
                     </div>
@@ -469,7 +469,7 @@ export function CaptainDraftPanel({
         )}
       </div>
       <aside className="min-w-0 rounded-lg border border-[var(--color-border)] bg-[var(--color-panel)] p-5 md:col-start-2 xl:col-start-3 xl:row-start-2 xl:sticky xl:top-20" aria-label="选手详情">
-        {inspected ? <><p className="text-xs text-[var(--color-fg-mid)]">选手详情</p><h2 className="mt-3 text-xl font-semibold"><PlayerProfileLink userId={inspected.userId}>{getPublicDisplayName(inspected)}</PlayerProfileLink></h2><p className="mt-2 text-sm text-[var(--color-fg-mid)]">{positionLabel(inspected.primaryPosition)} · 副选 {positionLabel(inspected.secondaryPosition)}</p><dl className="my-5 grid grid-cols-2 gap-4 text-sm"><div><dt className="text-[var(--color-fg-mid)]">最高段位</dt><dd className="mt-1 font-mono">{inspected.peakRank}</dd></div><div><dt className="text-[var(--color-fg-mid)]">Peak Rating</dt><dd className="mt-1 font-mono">{inspected.peakRating}</dd></div></dl><p className="text-sm leading-6">{inspected.gameplayStyle || "暂无打法说明"}</p>{inspected.competitionHistory && <p className="mt-4 text-sm leading-6 text-[var(--color-fg-mid)]">{inspected.competitionHistory}</p>}{inspected.notes && <p className="mt-4 text-sm leading-6 text-[var(--color-fg-mid)]">{inspected.notes}</p>}<Button className="mt-5" disabled={!canSubmit || !canPickPosition(positionCounts[inspected.primaryPosition] ?? 0)} onClick={() => handlePick(inspected)}>选入本队</Button></> : <><h2 className="font-semibold">选手详情</h2><p className="mt-3 text-sm leading-6 text-[var(--color-fg-mid)]">选择候选列表中的“详情”查看打法与经历。点击“选入”才会提交。</p></>}
+        {inspected ? <><p className="text-xs text-[var(--color-fg-mid)]">选手详情</p><h2 className="mt-3 text-xl font-semibold"><PlayerProfileLink userId={inspected.userId}>{getPublicDisplayName(inspected)}</PlayerProfileLink></h2><p className="mt-2 text-sm text-[var(--color-fg-mid)]">{positionLabel(inspected.primaryPosition)} · 副选 {positionLabel(inspected.secondaryPosition)}</p><dl className="my-5 grid grid-cols-2 gap-4 text-sm"><div><dt className="text-[var(--color-fg-mid)]">最高段位</dt><dd className="mt-1 font-mono">{inspected.peakRank}</dd></div><div><dt className="text-[var(--color-fg-mid)]">Peak Rating</dt><dd className="mt-1 font-mono">{inspected.peakRating}</dd></div></dl><p className="text-sm leading-6">{inspected.gameplayStyle || "暂无打法说明"}</p>{inspected.competitionHistory && <p className="mt-4 text-sm leading-6 text-[var(--color-fg-mid)]">{inspected.competitionHistory}</p>}{inspected.notes && <p className="mt-4 text-sm leading-6 text-[var(--color-fg-mid)]">{inspected.notes}</p>}<Button className="mt-5" disabled={!canSubmit || !canPickPosition(positionCounts[inspected.primaryPosition] ?? 0)} onClick={() => handlePick(inspected)}>选入本队</Button></> : <><h2 className="font-semibold">选手详情</h2><p className="mt-3 text-sm leading-6 text-[var(--color-fg-mid)]">选择选手查看。</p></>}
       </aside>
     </div>
   );

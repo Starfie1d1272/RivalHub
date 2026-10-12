@@ -57,7 +57,7 @@ describe("MyReadinessDashboard", () => {
 
   it("shows an empty task state when the read model has no tasks", () => {
     render(<MyReadinessDashboard model={{ ...model, tasks: [] }} />);
-    expect(screen.getByText("当前没有待处理事项")).toBeInTheDocument();
+    expect(screen.getByText("暂无待办")).toBeInTheDocument();
   });
 
   it("renders shared responsibility without duplicating the owner phrase", () => {
@@ -77,7 +77,7 @@ describe("MyReadinessDashboard", () => {
 
   it("keeps member team identity and event participation separate", () => {
     render(<MyReadinessDashboard model={{ ...model, currentTeam: { id: "team-1", slug: "rival-five", name: "Rival Five", logoUrl: null, description: null, captainUserId: "captain-1", viewerRole: "member" } }} />);
-    expect(screen.getByText((_content, element) => element?.textContent === "你是成员；队伍成员变更不会改写已经提交、审核通过或冻结的赛事名单。")).toBeInTheDocument();
+    expect(screen.getByText((_content, element) => element?.textContent === "你是成员。")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Rival Five" })).toHaveAttribute("href", "/teams/rival-five");
     expect(screen.getByRole("link", { name: "查看我的队伍" })).toHaveAttribute("href", "/my/teams");
     expect(screen.getByText(/参赛确认：已确认参赛/)).toBeInTheDocument();

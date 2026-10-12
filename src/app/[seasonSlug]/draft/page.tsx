@@ -26,9 +26,11 @@ async function DraftContent({ params }: DraftPageProps) {
     return <PageLayout variant="standard"><PageHeader title="选秀" description={season.hasDraft ? "选秀尚未开放" : "本届赛事未启用选秀"} /></PageLayout>;
   }
   const data = await getPublicDraftData(season.id);
+  const complete = data.maxPicks > 0 && data.totalPicks >= data.maxPicks;
+  const paused = Boolean(data.state && !data.state.isActive && !complete);
   const mode = archive ? "archive" : !data.state ? "preview" : "live";
   return <PageLayout variant="workbench" className="space-y-6">
-    <PageHeader title={archive ? "选秀回顾" : mode === "preview" ? "选秀预览" : "选秀直播间"} eyebrow={season.name} description={archive ? "最终阵容与完整选人记录" : mode === "preview" ? "队伍与选手池已公开，等待选秀开始。" : "阵容、轮次与选人进度实时更新"} actions={!archive && <Suspense fallback={null}><CaptainEntry seasonId={season.id} slug={seasonSlug} /></Suspense>} />
+    <PageHeader title={archive ? "选秀回顾" : complete ? "选秀完成" : mode === "preview" ? "选秀预览" : paused ? "选秀已暂停" : "选秀直播间"} eyebrow={season.name} description={archive ? "最终阵容与完整选人记录" : complete ? "完整阵容与选人记录" : mode === "preview" ? "浏览队伍与选手池" : paused ? "浏览阵容，等待选秀恢复" : "阵容与选人进度实时更新"} actions={!archive && !complete && <Suspense fallback={null}><CaptainEntry seasonId={season.id} slug={seasonSlug} /></Suspense>} />
     <DraftLiveRoom data={data} seasonPositions={season.positions} mode={mode} readonly={mode !== "live"} />
   </PageLayout>;
 }

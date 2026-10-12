@@ -77,7 +77,7 @@ describe("CaptainDraftPanel", () => {
     render(<CaptainDraftPanel {...baseProps} />);
 
     // 桌面端和移动端都会渲染按钮，取第一个
-    const [desktopBtn] = screen.getAllByRole("button", { name: /选择 Neo/ });
+    const [desktopBtn] = screen.getAllByRole("button", { name: /选入 Neo/ });
     await user.click(desktopBtn);
 
     expect(pickPlayerMock).toHaveBeenCalledWith({

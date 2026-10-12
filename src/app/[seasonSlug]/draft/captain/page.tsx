@@ -42,7 +42,7 @@ async function CaptainContent({ params }: DraftCaptainPageProps) {
         title={`队长选人 · ${season.name}`}
         message="当前不在选秀阶段，队长面板暂不可用。"
         href={`/${seasonSlug}/draft` as Route}
-        action="查看选秀直播间"
+        action="观看公开选秀"
       />
     );
   }
@@ -52,7 +52,7 @@ async function CaptainContent({ params }: DraftCaptainPageProps) {
     return (
       <UnavailablePanel
         title={`队长选人 · ${season.name}`}
-        message="请先登录队长账号后再进入选人面板。"
+        message="登录队长账号，进入选人。"
         href={`/login?next=${encodeURIComponent(`/${seasonSlug}/draft/captain`)}` as Route}
         action="登录"
       />
@@ -77,9 +77,9 @@ async function CaptainContent({ params }: DraftCaptainPageProps) {
     return (
       <UnavailablePanel
         title={`队长选人 · ${season.name}`}
-        message="当前账号不是本赛季队长，无法操作队长选人面板。"
+        message="请使用本届队长账号选人。"
         href={`/${seasonSlug}/draft` as Route}
-        action="查看选秀直播间"
+        action="观看公开选秀"
       />
     );
   }
@@ -89,7 +89,7 @@ async function CaptainContent({ params }: DraftCaptainPageProps) {
     return (
       <UnavailablePanel
         title={`队长选人 · ${season.name}`}
-        message="选秀尚未启动，等待管理员开启后再操作。"
+        message="等待选秀开启。"
       />
     );
   }
@@ -103,9 +103,6 @@ async function CaptainContent({ params }: DraftCaptainPageProps) {
     <PageLayout variant="workbench">
       <div className="mb-5">
         <h1 className="text-3xl font-bold">队长选人 · {season.name}</h1>
-        <p className="mt-2 text-sm text-[var(--color-fg-mid)]">
-          只在轮到本队时开放选择；重复操作不会产生重复选人结果。
-        </p>
       </div>
 
       <CaptainDraftPanel
