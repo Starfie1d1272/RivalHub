@@ -365,7 +365,7 @@ export function CaptainDraftPanel({
                       <MapPreferenceChips preferences={player.mapPreferences} compact minLevel="playable" />
                     </div>
 
-                    <Button size="sm" variant="ghost" onClick={() => setInspectedId(player.registrationId)} aria-pressed={inspectedId === player.registrationId}>详情</Button>
+                    <Button size="sm" variant="ghost" onClick={() => setInspectedId(current => current === player.registrationId ? null : player.registrationId)} aria-expanded={inspectedId === player.registrationId} aria-controls={`draft-detail-${player.registrationId} draft-inspector`}>详情</Button>
 
                     {/* Pick button */}
                     {!isReadonly && (
@@ -441,7 +441,7 @@ export function CaptainDraftPanel({
                         <div className="min-w-0">
                           <MapPreferenceChips preferences={player.mapPreferences} compact minLevel="playable" />
                         </div>
-                        <Button size="sm" variant="ghost" onClick={() => setInspectedId(player.registrationId)}>详情</Button>
+                        <Button size="sm" variant="ghost" onClick={() => setInspectedId(current => current === player.registrationId ? null : player.registrationId)} aria-expanded={inspectedId === player.registrationId} aria-controls={`draft-detail-${player.registrationId} draft-inspector`}>详情</Button>
                       </div>
                       {!isReadonly && (
                         <Button
@@ -462,15 +462,20 @@ export function CaptainDraftPanel({
                       )}
                     </div>
                   </div>
+                  {inspectedId === player.registrationId && <div id={`draft-detail-${player.registrationId}`} role="region" aria-label={`选手详情 · ${displayedName}`} className="mt-4 border-t border-[var(--color-border)] pt-4 xl:hidden"><DraftPlayerDetails player={player} canSelect={canSubmit && canPickPosition(positionCounts[player.primaryPosition] ?? 0)} onPick={isReadonly ? undefined : () => void handlePick(player)} /></div>}
                 </div>
               );
             })}
           </div>
         )}
       </div>
-      <aside className="min-w-0 rounded-lg border border-[var(--color-border)] bg-[var(--color-panel)] p-5 md:col-start-2 xl:col-start-3 xl:row-start-2 xl:sticky xl:top-20" aria-label="选手详情">
-        {inspected ? <><p className="text-xs text-[var(--color-fg-mid)]">选手详情</p><h2 className="mt-3 text-xl font-semibold"><PlayerProfileLink userId={inspected.userId}>{getPublicDisplayName(inspected)}</PlayerProfileLink></h2><p className="mt-2 text-sm text-[var(--color-fg-mid)]">{positionLabel(inspected.primaryPosition)} · 副选 {positionLabel(inspected.secondaryPosition)}</p><dl className="my-5 grid grid-cols-2 gap-4 text-sm"><div><dt className="text-[var(--color-fg-mid)]">最高段位</dt><dd className="mt-1 font-mono">{inspected.peakRank}</dd></div><div><dt className="text-[var(--color-fg-mid)]">Peak Rating</dt><dd className="mt-1 font-mono">{inspected.peakRating}</dd></div></dl><p className="text-sm leading-6">{inspected.gameplayStyle || "暂无打法说明"}</p>{inspected.competitionHistory && <p className="mt-4 text-sm leading-6 text-[var(--color-fg-mid)]">{inspected.competitionHistory}</p>}{inspected.notes && <p className="mt-4 text-sm leading-6 text-[var(--color-fg-mid)]">{inspected.notes}</p>}<Button className="mt-5" disabled={!canSubmit || !canPickPosition(positionCounts[inspected.primaryPosition] ?? 0)} onClick={() => handlePick(inspected)}>选入本队</Button></> : <><h2 className="font-semibold">选手详情</h2><p className="mt-3 text-sm leading-6 text-[var(--color-fg-mid)]">选择选手查看。</p></>}
+      <aside id="draft-inspector" className="hidden min-w-0 rounded-lg border border-[var(--color-border)] bg-[var(--color-panel)] p-5 md:col-start-2 xl:col-start-3 xl:row-start-2 xl:block xl:sticky xl:top-20" aria-label="选手详情">
+        {inspected ? <DraftPlayerDetails player={inspected} canSelect={canSubmit && canPickPosition(positionCounts[inspected.primaryPosition] ?? 0)} onPick={isReadonly ? undefined : () => void handlePick(inspected)} /> : <><h2 className="font-semibold">选手详情</h2><p className="mt-3 text-sm leading-6 text-[var(--color-fg-mid)]">选择选手查看。</p></>}
       </aside>
     </div>
   );
+}
+
+function DraftPlayerDetails({ player, canSelect, onPick }: { player: CaptainDraftPlayer; canSelect: boolean; onPick?: () => void }) {
+  return <><p className="text-xs text-[var(--color-fg-mid)]">选手详情</p><h2 className="mt-3 text-xl font-semibold"><PlayerProfileLink userId={player.userId}>{getPublicDisplayName(player)}</PlayerProfileLink></h2><p className="mt-2 text-sm text-[var(--color-fg-mid)]">{positionLabel(player.primaryPosition)} · 副选 {positionLabel(player.secondaryPosition)}</p><dl className="my-5 grid grid-cols-2 gap-4 text-sm"><div><dt className="text-[var(--color-fg-mid)]">最高段位</dt><dd className="mt-1 font-mono">{player.peakRank}</dd></div><div><dt className="text-[var(--color-fg-mid)]">Peak Rating</dt><dd className="mt-1 font-mono">{player.peakRating}</dd></div></dl><p className="text-sm leading-6">{player.gameplayStyle || "暂无打法说明"}</p>{player.competitionHistory && <p className="mt-4 text-sm leading-6 text-[var(--color-fg-mid)]">{player.competitionHistory}</p>}{player.notes && <p className="mt-4 text-sm leading-6 text-[var(--color-fg-mid)]">{player.notes}</p>}{onPick && <Button className="mt-5" disabled={!canSelect} onClick={onPick}>选入本队</Button>}</>;
 }

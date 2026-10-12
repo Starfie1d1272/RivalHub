@@ -89,7 +89,7 @@ export function CaptainVotingPanel({
         })}
       </div>}
     </section>
-    {isVotingOpen && <aside className="space-y-4 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-panel)] p-5 lg:sticky lg:top-20">
+    {isVotingOpen && <aside className="order-first space-y-4 lg:order-last rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-panel)] p-5 lg:sticky lg:top-20">
       <h2 className="text-lg font-semibold">我的投票</h2>
       {currentVoter ? <><p className="text-sm text-[var(--color-fg-mid)]">剩余 <strong className="font-mono text-2xl text-[var(--color-accent)]">{MAX_CAPTAIN_VOTES - votes.length}</strong> / {MAX_CAPTAIN_VOTES} 票</p><ul className="space-y-3 border-t border-[var(--color-border)] pt-4">{candidates.filter(candidate => votedCandidateIds.has(candidate.id)).map(candidate => <li key={candidate.id} className="flex items-center justify-between gap-2 text-sm"><PlayerProfileLink userId={candidate.userId}>{candidate.displayName}</PlayerProfileLink><Button size="sm" variant="ghost" disabled={isPending} onClick={() => handleRetract(candidate.id)}>撤回</Button></li>)}</ul>{votes.length === 0 && <p className="text-sm text-[var(--color-fg-mid)]">尚未投票</p>}</> : <p className="text-sm text-[var(--color-fg-mid)]">请先登录并通过报名审核后方可投票。</p>}
       <Button variant="outline" size="sm" onClick={() => router.refresh()}><RefreshCw size={14} />刷新票数</Button>

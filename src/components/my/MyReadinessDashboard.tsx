@@ -24,16 +24,19 @@ const STATE: Record<MyReadinessState, { label: string; tone: "success" | "warn" 
   not_applicable: { label: "不适用", tone: "info" },
 };
 
-function ReadinessCard({ item }: { item: MyReadinessItem }) {
+type TaskAction = { item: MyReadinessItem; context: string };
+
+function ReadinessCard({ item, context, relatedTasks }: { item: MyReadinessItem; context?: string; relatedTasks?: TaskAction[] }) {
   const state = STATE[item.state];
   const responsibility = item.responsibility;
   return (
     <div className="space-y-3 border border-[var(--color-border)] p-4">
+      {context && <p className="text-xs text-[var(--color-fg-mid)]">{context}</p>}
       <div className="flex flex-wrap items-start justify-between gap-2"><h3 className="font-semibold">{item.title}</h3><StatusPill label={state.label} tone={state.tone} /></div>
       <p className="text-sm leading-6 text-[var(--color-fg-mid)]">{item.detail}</p>
       <div className="flex flex-wrap items-center justify-between gap-3">
         {responsibility && <span className="text-xs text-[var(--color-fg-dim)]">{presentMyReadinessResponsibility(responsibility)}</span>}
-        <div className="flex flex-wrap gap-2"><Button size="sm" variant={item.secondaryCta ? "default" : "outline"} asChild><Link href={item.cta.href as never}>{item.cta.label}</Link></Button>{item.secondaryCta && <Button size="sm" variant="outline" asChild><Link href={item.secondaryCta.href as never}>{item.secondaryCta.label}</Link></Button>}</div>
+        <div className="flex flex-wrap gap-2">{relatedTasks ? relatedTasks.map(task => <Button key={task.item.id} size="sm" variant="outline" asChild><Link href={task.item.cta.href as never} aria-label={`${task.context} · ${task.item.cta.label}`}>{task.context} →</Link></Button>) : <><Button size="sm" variant={item.secondaryCta ? "default" : "outline"} asChild><Link href={item.cta.href as never}>{item.cta.label}</Link></Button>{item.secondaryCta && <Button size="sm" variant="outline" asChild><Link href={item.secondaryCta.href as never}>{item.secondaryCta.label}</Link></Button>}</>}</div>
       </div>
     </div>
   );
@@ -57,12 +60,22 @@ function SanctionCard({ sanction }: { sanction: MyWorkspaceModel["sanctions"][nu
 export function MyReadinessDashboard({ model }: { model: MyWorkspaceModel }) {
   const blockedSanctions = model.sanctions.length > 0;
   const readiness = model.readiness;
+  const taskGroups = new Map<string, TaskAction[]>();
+  for (const task of model.tasks) {
+    const competition = readiness.competitions.find(row => row.entry.id === task.id || row.qualification.id === task.id);
+    const context = competition ? `${competition.seasonName} · ${competition.name}` : "";
+    const key = task.id.startsWith("qualification-") && context && !task.secondaryCta
+      ? JSON.stringify([task.title, task.state, task.detail, task.responsibility]) : task.id;
+    const group = taskGroups.get(key) ?? [];
+    group.push({ item: task, context });
+    taskGroups.set(key, group);
+  }
   return <div className="space-y-6">
     <PageHeader eyebrow="MY RIVALHUB" title="我的参赛" />
 
     <Section>
       <SectionHeader title="需要你处理" />
-      {model.tasks.length > 0 ? <div className="grid gap-3 md:grid-cols-2">{model.tasks.map((item) => <ReadinessCard key={item.id} item={item} />)}</div> : <StatusBanner tone="success" title="暂无待办" />}
+      {taskGroups.size > 0 ? <div className={taskGroups.size > 1 ? "grid gap-3 md:grid-cols-2" : "grid gap-3"}>{[...taskGroups.entries()].map(([key, tasks]) => <ReadinessCard key={key} item={tasks[0]!.item} context={tasks.length === 1 ? tasks[0]!.context : undefined} relatedTasks={tasks.length > 1 ? tasks : undefined} />)}</div> : <StatusBanner tone="success" title="暂无待办" />}
     </Section>
 
     {model.upcomingMatches.length > 0 && <Section><SectionHeader title="接下来" /><div className="grid gap-4 md:grid-cols-2">{model.upcomingMatches.map((match) => <Panel key={`${match.seasonId}-${match.task.href}`} label={match.seasonName} contentClassName="p-5"><div className="space-y-3"><div><p className="font-semibold"><TeamProfileLink seasonSlug={match.seasonSlug} entryId={match.entryId}>{match.entryName}</TeamProfileLink></p><p className="mt-1 text-sm text-[var(--color-fg-mid)]">{match.task.title} · {match.task.detail}</p></div><Button size="sm" variant="outline" asChild><Link href={match.task.href as never}>查看比赛</Link></Button></div></Panel>)}</div></Section>}

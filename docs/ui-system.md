@@ -98,7 +98,7 @@ read model 保留已有 public-safe canonical identity：BET option entity 由 m
 
 无队伍时，创建队伍的名称、简介与提交按钮在客户端事件处理就绪前禁用，并显示简短准备状态；就绪后首次填写与提交保留输入，成功后回读真实队伍工作区。
 
-个人工作区使用真实导航链接和 `aria-current`，窄屏允许换行；父级 `PageLayout` 持有整页宽度与 gutter，子路由不重复创建页面壳。离开长期队伍的说明必须明确：该操作不会自动改写已经提交、审核通过或冻结的赛事名单。
+个人待办显示赛事与队伍上下文；相同竞技资料缺项只说明一次，每届赛事原操作入口分别保留。个人工作区使用真实导航链接和 `aria-current`，窄屏允许换行；父级 `PageLayout` 持有整页宽度与 gutter，子路由不重复创建页面壳。离开长期队伍的说明必须明确：该操作不会自动改写已经提交、审核通过或冻结的赛事名单。
 
 ### Platform data center
 
@@ -106,9 +106,9 @@ read model 保留已有 public-safe canonical identity：BET option entity 由 m
 
 `/stats` 使用平台主题与 `PageLayout workbench`，默认全部公开赛事，包括 archived 历史。赛事是可搜索的上下文筛选，不是统计页面归属；选择器只接收 public-safe 摘要，确认选项才导航，支持键盘、焦点返回与内部滚动。阶段只用于单届；赛制与地图属于共享 scope。Overview / Players / Teams / Maps / Weapons / Records 是固定六个内容 tab。旧公开赛事统计入口永久迁移到 canonical URL；授权 draft preview 继续隔离在薄适配入口中。
 
-单届统计上下文提供“返回本届赛事 / 查看赛程”。主 explorer 的已支持排序、方向、分页、指标 family 和搜索记录在 URL；列的可排序能力仍在表格边界校验，嵌入表保留本地状态。大型独立表使用单一有界滚动区和吸顶表头；身份列固定，当前排序列仅轻量强调。从统计进入资料时通过上下文携带本站 `/stats` 返回地址，返回校验拒绝外部或其它路由。
+单届统计上下文提供“返回本届赛事 / 查看赛程”。主 explorer 的已支持排序、方向、分页、指标 family 和搜索记录在 URL；列的可排序能力仍在表格边界校验，嵌入表保留本地状态。大型独立表使用单一有界滚动区和吸顶表头；身份列固定，窄屏收紧身份列以露出主指标，桌面维持阅读宽度；全部指标继续在表格局部横滚中可达。当前排序列仅轻量强调。从统计进入资料时通过上下文携带本站 `/stats` 返回地址，返回校验拒绝外部或其它路由。
 
-公开选秀只有一套真实状态主区：preview 保持只读并刷新状态，active / paused 受控刷新，complete / archive 停止轮询。阵容墙按真实队伍与已选轮次展示；archive 不呈现 LIVE、倒计时或待选空池。队长工作区默认露出本队阵容，详情阅读与实际选入是两个独立动作。
+公开选秀只有一套真实状态主区：preview 保持只读并刷新状态，active / paused 受控刷新，complete / archive 停止轮询。阵容墙按真实队伍与已选轮次展示；archive 不呈现 LIVE、倒计时或待选空池。队长工作区默认露出本队阵容，详情阅读与实际选入是两个独立动作。宽桌面详情在第三栏，窄屏在当前候选行就近展开；点击详情保留焦点，不提交选人。投票侧栏在窄屏先于候选列表显示。
 
 Players Opening 在 FD/100r 后显示 Traded FD%；Utility 在 Blind/Flash 后显示 Net Blind/Flash。两列沿用排序、dynamic qualification、样本与 tooltip contract，次级列在窄屏隐藏，净值保留负数。搜索与队伍展示过滤不改变指标资格总体。
 
