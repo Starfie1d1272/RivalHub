@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.17.1]
+
+### Fixed
+
+- 恢复预测比赛卡片的赛果／地图切换与队名共用入口；免费预测和积分竞猜在上下分区弹窗中独立操作，BO1 大小分保留清晰阈值和标准选项，历史盘口折叠查看。
+- 修复登录返回、初始积分领取后的选择保留与余额更新、提交忙碌状态和关闭焦点；人数与积分支持率采用不同分母的双色摘要。
+- 修复免费赛果命中次数榜误用命中率榜样本门槛：至少一场有效已判定预测即可参与命中次数排名，命中率榜继续保留赛事总体动态样本门槛。
+
 ## [2.17.0]
 
 ### Added
@@ -2944,6 +2952,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[2.17.1]: https://github.com/Starfie1d1272/RivalHub/compare/v2.17.0...v2.17.1
 [2.17.0]: https://github.com/Starfie1d1272/RivalHub/compare/v2.16.0...v2.17.0
 [2.16.0]: https://github.com/Starfie1d1272/RivalHub/compare/v2.15.12...v2.16.0
 [2.15.12]: https://github.com/Starfie1d1272/RivalHub/compare/v2.15.11...v2.15.12
