@@ -1,3 +1,4 @@
+import { safeStatsReturn } from "@/lib/stats/return-context";
 import { StatsReturnLink } from "@/components/stats/StatsNavigationContext";
 import { TeamProfileLink } from "@/components/teams/TeamProfileLink";
 import { statsEntryHref } from "@/lib/stats/view-state";
@@ -44,6 +45,7 @@ export default function PlayerPage({ params, searchParams }: PlayerPageProps) {
 
 export async function PlayerPageContent({ params, searchParams }: PlayerPageProps) {
   const [{ userId }, rawSearch] = await Promise.all([params, searchParams]);
+  const fromStats = safeStatsReturn(typeof rawSearch.fromStats === "string" ? rawSearch.fromStats : null);
   const canonicalUserId = await resolveCanonicalUserId(db, userId);
   if (!canonicalUserId) notFound();
   if (canonicalUserId !== userId) redirect(`/players/${canonicalUserId}`);
@@ -116,7 +118,7 @@ export async function PlayerPageContent({ params, searchParams }: PlayerPageProp
 
   return (
     <PageLayout variant="standard" className="space-y-12">
-      <StatsReturnLink />
+      <StatsReturnLink href={fromStats} />
       <section className="border-b border-[var(--color-border)] pb-8">
         <div className="flex flex-col gap-6 sm:flex-row sm:items-start">
           <PlayerAvatar name={getPublicDisplayName(user)} avatarUrl={user.avatarUrl} size="lg" />

@@ -102,11 +102,11 @@ describe("season page navigation", () => {
   });
 
   it.each([
-    ["pre-open registration", "registration", null, false],
-    ["open registration", "registration", new Date("2026-09-01T00:00:00.000Z"), true],
-    ["finished season", "finished", new Date("2026-09-01T00:00:00.000Z"), false],
-    ["archived season", "archived", new Date("2026-09-01T00:00:00.000Z"), false],
-  ] as const)("shows the registration shortcut only for %s", async (_label, status, registrationOpenedAt, shouldShow) => {
+    ["pre-open registration", "registration", null],
+    ["open registration", "registration", new Date("2026-09-01T00:00:00.000Z")],
+    ["finished season", "finished", new Date("2026-09-01T00:00:00.000Z")],
+    ["archived season", "archived", new Date("2026-09-01T00:00:00.000Z")],
+  ] as const)("keeps participation actions in the shared header for %s", async (_label, status, registrationOpenedAt) => {
     getPublicOrAuthorizedDraftSeasonMock.mockResolvedValue({
       id: "season-major",
       slug: "2026-nju-major",
@@ -125,11 +125,7 @@ describe("season page navigation", () => {
     });
     const html = renderToStaticMarkup(page);
 
-    if (shouldShow) {
-      expect(html).toMatch(/href="\/2026-nju-major\/register"[\s\S]*报名/);
-    } else {
-      expect(html).not.toContain("/2026-nju-major/register");
-    }
+    expect(html).not.toContain("/2026-nju-major/register");
   });
   it("renders compact season information entry when only rules exist without announcement, groups, or contacts", async () => {
     getLatestSeasonAnnouncementMock.mockResolvedValue(null);

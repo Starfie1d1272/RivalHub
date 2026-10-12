@@ -3,9 +3,9 @@ import { StatsExplorerTable } from "@/components/stats/StatsExplorerTable";
 import { TeamProfileLink } from "@/components/teams/TeamProfileLink";
 import React from "react";
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { MetricFamilyTabs } from "@/components/stats/MetricFamilyTabs";
 import { StatsSideSplit } from "@/components/stats/StatsSideSplit";
 import { type StatsDataColumn } from "@/components/stats/StatsDataTable";
@@ -114,19 +114,21 @@ function VetoMatrix({
   query: StatsQuery;
 }) {
   const columnCount = 2 + maps.length * 2;
-  const [sortKey, setSortKey] = useState<VetoSortKey>("team");
-  const [direction, setDirection] = useState<StatsSortDirection>("asc");
+  const params = useSearchParams();
+  const requested = params.get("sort") ?? "team";
+  const validKeys: VetoSortKey[] = ["team", "vetoes", ...maps.flatMap(map => [`pick:${map}` as const, `ban:${map}` as const])];
+  const sortKey = validKeys.includes(requested as VetoSortKey) ? requested as VetoSortKey : "team";
+  const direction: StatsSortDirection = params.get("direction") === "desc" ? "desc" : "asc";
   const sortedRows = useMemo(
     () => [...rows].sort((left, right) => compareStatsValues(vetoSortValue(left, sortKey), vetoSortValue(right, sortKey), direction)),
     [direction, rows, sortKey],
   );
 
   function sortBy(key: VetoSortKey) {
-    if (sortKey === key) setDirection((current) => current === "desc" ? "asc" : "desc");
-    else {
-      setSortKey(key);
-      setDirection(key === "team" ? "asc" : "desc");
-    }
+    const next = new URLSearchParams(params.toString());
+    next.set("sort", key);
+    next.set("direction", sortKey === key ? direction === "desc" ? "asc" : "desc" : key === "team" ? "asc" : "desc");
+    window.history.replaceState(null, "", `?${next}`);
   }
 
   function sortButton(key: VetoSortKey, label: string, align: "left" | "right" | "center" = "center") {
@@ -219,14 +221,17 @@ function VetoMatrix({
 
 export function MapsExplorer({ data, query, seasonSlug }: { data: TournamentStats; query: StatsQuery; seasonSlug: string }) {
   const router = useRouter();
-  const [search, setSearch] = useState("");
+  const params = useSearchParams();
+  const search = String(params.get("q") ?? "").slice(0, 128);
+  function setSearch(value: string) {
+    const next = new URLSearchParams(params.toString());
+    if (value) next.set("q", value); else next.delete("q");
+    window.history.replaceState(null, "", `?${next}`);
+  }
   const rows = rowsFor(data);
   const mapNames = useMemo(() => orderedMaps(data.options.maps), [data.options.maps]);
   const normalizedSearch = search.trim().toLocaleLowerCase();
-  const vetoRows = useMemo(
-    () => vetoRowsFor(data, mapNames).filter((row) => row.name.toLocaleLowerCase().includes(normalizedSearch)),
-    [data, mapNames, normalizedSearch],
-  );
+  const vetoRows = vetoRowsFor(data, mapNames).filter((row) => row.name.toLocaleLowerCase().includes(normalizedSearch));
   const partialCoverage = data.coverage.completedMaps > 0 && data.coverage.detailedMaps < data.coverage.completedMaps;
   const poolColumns: StatsDataColumn<MapDirectoryRow>[] = [
     { key: "map", label: "Map", className: "w-[28%]", render: (row) => <Link href={statsHref(seasonSlug, query, { map: row.mapName })} scroll={false} className="font-medium hover:text-[var(--color-accent)]">{mapLabel(row.mapName)}</Link> },

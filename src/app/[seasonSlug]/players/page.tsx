@@ -36,7 +36,7 @@ export async function generateMetadata({ params }: PlayersPageProps): Promise<Me
 export default function PlayersPage(props: PlayersPageProps) {
   return <Suspense fallback={<PageLayout variant="wide"><p role="status">正在加载…</p></PageLayout>}><PlayersPageContent {...props} /></Suspense>;
 }
-async function PlayersPageContent({ params, searchParams }: PlayersPageProps) {
+export async function PlayersPageContent({ params, searchParams }: PlayersPageProps) {
   await connection();
   const { seasonSlug } = await params;
   const rawQuery = await searchParams;

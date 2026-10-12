@@ -7,9 +7,7 @@ import { connection } from "next/server";
 import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { Breadcrumb } from "@/components/layout/Breadcrumb";
 import { SeasonNav } from "@/components/layout/SeasonNav";
-import { pageAlignmentFrame } from "@/components/rivalhub/Layout";
 import { seasonAccentStyle } from "@/lib/utils/color";
 import { getPublicSeasonStagePresentation } from "@/lib/seasons/public-stage";
 import { showStats } from "@/lib/utils/season";
@@ -55,17 +53,9 @@ async function SeasonLayoutContent({ children, params }: SeasonLayoutProps) {
         ...seasonAccentStyle(season.themeColor),
       } as React.CSSProperties : undefined}
     >
-      <div className={`${pageAlignmentFrame()} pt-5`}>
-        <Breadcrumb
-          items={[
-            { label: "首页", href: "/" },
-            { label: "赛事", href: "/seasons" },
-            { label: season.name },
-          ]}
-        />
-      </div>
       <SeasonNav
         slug={season.slug}
+        seasonName={season.name}
         status={season.status}
         hasCaptainVoting={season.hasCaptainVoting}
         hasDraft={season.hasDraft}
@@ -87,7 +77,7 @@ function SeasonLayoutFallback() {
   return <div className="min-h-[50vh]" aria-busy="true" />;
 }
 
-async function SeasonParticipationEntry({ season }: { season: PublicSeason }) {
+export async function SeasonParticipationEntry({ season }: { season: PublicSeason }) {
   await connection();
   const task = await getSeasonPersonalNextStep(season);
   const isHistorical = season.status === "finished" || season.status === "archived";

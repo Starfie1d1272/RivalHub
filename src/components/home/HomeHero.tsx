@@ -5,7 +5,7 @@ import type { PublicSeason } from "@/lib/data/public-seasons";
 import type { HomeEyebrow, HomeNavEntry } from "@/lib/home/navigation";
 
 export function HomeHero({ season, eyebrow, primary, stageLabel, teamCount, playerCount }: {
-  season: PublicSeason;
+  season: Pick<PublicSeason, "name" | "slug" | "status" | "registrationMode"> & Partial<Pick<PublicSeason, "logoUrl" | "hasCaptainVoting" | "hasDraft">>;
   eyebrow: HomeEyebrow;
   primary: HomeNavEntry | null;
   stageLabel: string | null;

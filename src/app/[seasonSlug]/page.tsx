@@ -1,3 +1,4 @@
+import { TeamProfileLink } from "@/components/teams/TeamProfileLink";
 import { seasonEntries } from "@/lib/seasons/entries";
 import { connection } from "next/server";
 import { officialMatchCondition } from "@/lib/matches/scope";
@@ -85,6 +86,8 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
     ? db
         .select({
           id: matches.id,
+          entryAId: matches.entryAId,
+          entryBId: matches.entryBId,
           status: matches.status,
           scheduledAt: matches.scheduledAt,
           stage: matches.stage,
@@ -116,7 +119,7 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
         total: count(),
         finished: sql<number>`count(*) filter (where ${matches.status} = 'finished')`,
       }).from(matches).where(and(officialMatchCondition(), eq(matches.seasonId, season.id))),
-      upcomingMatchesQuery ?? Promise.resolve([] as { id: string; status: string; scheduledAt: Date | null; stage: string; teamAName: string | null; teamBName: string | null }[]),
+      upcomingMatchesQuery ?? Promise.resolve([] as { id: string; entryAId: string | null; entryBId: string | null; status: string; scheduledAt: Date | null; stage: string; teamAName: string | null; teamBName: string | null }[]),
       season.status === "playing" && !isMajor ? getStandings(season.id) : Promise.resolve([]),
       isMajor
         ? db.query.competitionQualificationRuns.findFirst({ where: eq(competitionQualificationRuns.seasonId, season.id) })
@@ -313,7 +316,7 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
             >
               <div className="grid grid-cols-1 gap-2">
                 {upcomingMatches.map((match) => (
-                  <Link key={match.id} className="block min-w-0" href={`/${seasonSlug}/matches/${match.id}` as never}>
+                  <article key={match.id} className="min-w-0">
                     <div
                       className="flex items-center gap-2 p-2.5 rounded-sm transition-colors hover:bg-[var(--color-panel-hi)] hover:border-[var(--color-border-hi)]"
                       style={{
@@ -323,22 +326,22 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
                     >
                       <div className="flex items-center gap-2 flex-1 min-w-0">
                         <span className="text-sm font-semibold text-[var(--color-fg)] truncate flex-1 text-right">
-                          {match.teamAName ?? "TBD"}
+                          <TeamProfileLink seasonSlug={seasonSlug} entryId={match.entryAId}>{match.teamAName ?? "待定"}</TeamProfileLink>
                         </span>
                         <span className="font-mono text-xs text-[var(--color-fg-dim)] shrink-0">vs</span>
                         <span className="text-sm font-semibold text-[var(--color-fg)] truncate flex-1">
-                          {match.teamBName ?? "TBD"}
+                          <TeamProfileLink seasonSlug={seasonSlug} entryId={match.entryBId}>{match.teamBName ?? "待定"}</TeamProfileLink>
                         </span>
                       </div>
-                      <div className="shrink-0 flex flex-col items-end gap-0.5">
+                      <Link href={`/${seasonSlug}/matches/${match.id}`} aria-label={`查看 ${match.teamAName ?? "待定"} 对 ${match.teamBName ?? "待定"} 比赛`} className="shrink-0 flex flex-col items-end gap-0.5">
                         <span className="font-mono text-xs text-[var(--color-fg-dim)] uppercase tracking-wider">
                           {(match.stage === null ? undefined : stageLabelByKey.get(match.stage)) ?? "比赛阶段"}
                         </span>
                         <MatchStatusBadge status={match.status as MatchStatus} scheduledAt={match.scheduledAt} />
                         {match.scheduledAt && <span className="font-mono text-xs text-[var(--color-fg-dim)]">{formatCSTDateTime(match.scheduledAt)}</span>}
-                      </div>
+                      </Link>
                     </div>
-                  </Link>
+                  </article>
                 ))}
               </div>
             </Panel>

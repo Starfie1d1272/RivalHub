@@ -5,7 +5,7 @@ import type { TournamentStats } from "@/lib/stats/tournament-query";
 import { parseStatsQuery } from "@/lib/stats/view-state";
 import { MapsExplorer } from "./MapsExplorer";
 
-vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }), useSearchParams: () => new URLSearchParams(window.location.search) }));
 vi.mock("next/link", async () => {
   const React = await import("react");
   return {
@@ -48,7 +48,7 @@ describe("MapsExplorer veto matrix", () => {
     expect(screen.getByRole("link", { name: "Zulu" })).toHaveAttribute("href", "/major/teams/zulu");
   });
   it("uses neutral Pick/Ban values and sorts every leaf column with shared stats semantics", () => {
-    render(<MapsExplorer data={vetoData()} query={parseStatsQuery({ tab: "maps", mapsView: "veto" }, [])} seasonSlug="major" />);
+    const { rerender } = render(<MapsExplorer data={vetoData()} query={parseStatsQuery({ tab: "maps", mapsView: "veto" }, [])} seasonSlug="major" />);
 
     const table = screen.getByRole("table");
     const bodyRows = within(table).getAllByRole("row").slice(2);
@@ -56,6 +56,9 @@ describe("MapsExplorer veto matrix", () => {
 
     const banButton = screen.getByRole("button", { name: "Sort by Ban" });
     fireEvent.click(banButton);
+    expect(new URLSearchParams(window.location.search).get("sort")).toBe("ban:de_ancient");
+    // Next subscribes to native history; rerender that URL snapshot in the unit boundary.
+    rerender(<MapsExplorer data={vetoData()} query={parseStatsQuery({ tab: "maps", mapsView: "veto" }, [])} seasonSlug="major" />);
     expect(within(table).getAllByRole("row").slice(2).map((row) => row.textContent)).toEqual(["Zulu515", "Alpha221"]);
     expect(screen.getByRole("button", { name: "Ban ↓" })).toBeInTheDocument();
 

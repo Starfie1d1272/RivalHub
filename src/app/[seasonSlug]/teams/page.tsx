@@ -21,7 +21,7 @@ import { getMajorPublicParticipantSummary } from "@/lib/major/public-participant
 export default function CompetitionEntriesPage(props: { params: Promise<{ seasonSlug: string }>; searchParams?: Promise<{ q?: string }> }) {
   return <Suspense fallback={<PageLayout variant="wide"><p role="status">正在加载…</p></PageLayout>}><CompetitionEntriesPageContent {...props} /></Suspense>;
 }
-async function CompetitionEntriesPageContent({ params, searchParams }: { params: Promise<{ seasonSlug: string }>; searchParams?: Promise<{ q?: string }> }) {
+export async function CompetitionEntriesPageContent({ params, searchParams }: { params: Promise<{ seasonSlug: string }>; searchParams?: Promise<{ q?: string }> }) {
   await connection();
   const { seasonSlug } = await params;
   const { q } = parseParticipantDirectoryQuery(await searchParams);

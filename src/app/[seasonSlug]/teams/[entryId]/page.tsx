@@ -1,3 +1,5 @@
+import { safeStatsReturn } from "@/lib/stats/return-context";
+import type { StatsSearch } from "@/lib/stats/view-state";
 import { connection } from "next/server";
 import { Suspense } from "react";
 import { StatsReturnLink } from "@/components/stats/StatsNavigationContext";
@@ -13,12 +15,13 @@ import { getMajorPublicParticipantTeam } from "@/lib/major/public-participants";
 import { getPublicTeamProfile } from "@/lib/teams/public-profile";
 import { getPublicCompetitionEntryPerformanceReadModel } from "@/lib/teams/profile-read-model";
 
-export default function CompetitionEntryDetailPage(props: { params: Promise<{ seasonSlug: string; entryId: string }> }) {
+export default function CompetitionEntryDetailPage(props: { params: Promise<{ seasonSlug: string; entryId: string }>; searchParams?: Promise<StatsSearch> }) {
   return <Suspense fallback={<PageLayout variant="standard"><p role="status">正在加载…</p></PageLayout>}><CompetitionEntryDetailPageContent {...props} /></Suspense>;
 }
-async function CompetitionEntryDetailPageContent({ params }: { params: Promise<{ seasonSlug: string; entryId: string }> }) {
+export async function CompetitionEntryDetailPageContent({ params, searchParams }: { params: Promise<{ seasonSlug: string; entryId: string }>; searchParams?: Promise<StatsSearch> }) {
   await connection();
-  const { seasonSlug, entryId } = await params;
+  const [{ seasonSlug, entryId }, rawSearch] = await Promise.all([params, searchParams ?? Promise.resolve({} as StatsSearch)]);
+  const fromStats = safeStatsReturn(typeof rawSearch.fromStats === "string" ? rawSearch.fromStats : null);
   const season = await getPublicOrAuthorizedDraftSeason(seasonSlug);
   if (!season) notFound();
 
@@ -37,7 +40,7 @@ async function CompetitionEntryDetailPageContent({ params }: { params: Promise<{
   ]);
   return (
     <PageLayout as="div" variant="standard" className="space-y-8">
-      <StatsReturnLink />
+      <StatsReturnLink href={fromStats} />
       <TeamPublicProfile team={team} event={event} mapProfile={performanceModel.mapProfile} performance={performanceModel.performance} results={results} statsUnavailable={performanceModel.statsUnavailable} />
     </PageLayout>
   );

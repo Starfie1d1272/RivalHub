@@ -125,7 +125,7 @@ it("shows a failed header claim even when no participation dialog is open",async
   await user.click(screen.getByRole("button",{name:"领取 1,000 积分"}));
   expect(await screen.findByRole("alert")).toHaveTextContent("领取结果暂未确认，请刷新后查看。");
   expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-  expect(screen.getByRole("button",{name:"领取 1,000 积分"})).toBeEnabled();
+  await waitFor(() => expect(screen.getByRole("button",{name:"领取 1,000 积分"})).toBeEnabled());
 });
 
 

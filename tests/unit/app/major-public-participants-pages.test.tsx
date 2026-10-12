@@ -1,3 +1,4 @@
+vi.mock("next/server", () => ({ connection: vi.fn() }));
 /** @vitest-environment node */
 vi.mock("@/lib/seasons/public-stage", () => ({ getPublicSeasonStagePresentation: vi.fn().mockResolvedValue({ stagePlan: [], labels: {}, initializedStageKeys: [], currentStageKey: null, currentStageLabel: null }) }));
 import * as React from "react";
@@ -36,9 +37,9 @@ vi.mock("@/lib/teams/map-profile", () => ({
   getBatchPublicTeamMapPreviews: vi.fn().mockResolvedValue(new Map()),
 }));
 vi.mock("@/lib/seasons/public-results", () => ({ getPublicSeasonResults: vi.fn().mockResolvedValue({ champion: null, final: null, placements: [], honors: [], completedAt: null, finishedMatches: 0 }) }));
-import TeamsPage from "@/app/[seasonSlug]/teams/page";
-import PlayersPage from "@/app/[seasonSlug]/players/page";
-import DetailPage from "@/app/[seasonSlug]/teams/[entryId]/page";
+import { CompetitionEntriesPageContent as TeamsPage } from "@/app/[seasonSlug]/teams/page";
+import { PlayersPageContent as PlayersPage } from "@/app/[seasonSlug]/players/page";
+import { CompetitionEntryDetailPageContent as DetailPage } from "@/app/[seasonSlug]/teams/[entryId]/page";
 
 const season = {
   id: "season-1",

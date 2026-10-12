@@ -36,9 +36,8 @@ describe("HomeSeasonPanel registration mode", () => {
   });
   it("agrees with the homepage banner after registration has closed", () => {
     const season = { ...baseSeason, registrationMode: "team" as const, registrationOpensAt: new Date("2000-01-01"), registrationOpenedAt: new Date("2000-01-01"), registrationClosesAt: new Date("2000-02-01") };
-    render(<><HomeHero season={season} eyebrow={buildHomeEyebrow(season)} /><HomeSeasonPanel {...sharedProps} season={season} /></>);
-    expect(screen.getByText("● 报名已截止")).toBeVisible();
-    expect(screen.getByText("报名已截止", { exact: true })).toBeVisible();
+    render(<><HomeHero season={season} eyebrow={buildHomeEyebrow(season)} primary={null} stageLabel={null} teamCount={sharedProps.teamCount} playerCount={sharedProps.playerCount} /><HomeSeasonPanel {...sharedProps} season={season} /></>);
+    expect(screen.getAllByText("报名已截止", { exact: true })).toHaveLength(2);
     expect(screen.queryByText(/报名开放|报名中/)).not.toBeInTheDocument();
   });
 

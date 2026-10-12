@@ -36,7 +36,7 @@ export function parseStatsQuery(raw: StatsSearch, stages: readonly string[]): St
   const format: StatsMatchFormat = requestedFormat === "bo1" || requestedFormat === "bo3" || requestedFormat === "bo5" ? requestedFormat : "";
   return {
     tab,
-    sort: /^[a-zA-Z0-9_-]{1,40}$/.test(value("sort")) ? value("sort") : "",
+    sort: /^[a-zA-Z0-9_:-]{1,64}$/.test(value("sort")) ? value("sort") : "",
     direction: value("direction") === "asc" ? "asc" : "desc",
     page: /^[1-9][0-9]{0,3}$/.test(value("page")) ? Number(value("page")) : 1,
     family: ["overall", "opening", "teamplay", "utility", "clutch", "results", "rounds", "conversion"].includes(value("family")) ? value("family") : "",
