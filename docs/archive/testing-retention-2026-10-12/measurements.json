@@ -3,9 +3,9 @@
   "change_base_sha": "95bc1ea8f960171c0bfef65f63998f72daf86d8e",
   "unit": {
     "before": 2984,
-    "after": 100,
+    "after": 101,
     "before_seconds": 137.104,
-    "after_seconds": 8.326,
+    "after_seconds": 13.947,
     "success": true
   },
   "postgres": {
@@ -34,8 +34,8 @@
   "test_files_before": 623,
   "test_files_after": 129,
   "physical_test_lines_before": 76417,
-  "physical_test_lines_after": 26921,
+  "physical_test_lines_after": 26955,
   "total_before": 3381,
-  "total_after": 428,
-  "retained_percentage": 12.659
+  "total_after": 429,
+  "retained_percentage": 12.689
 }

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { simulateMajor, replaceSimulationChoice } from "@/lib/predictions/simulator";
 import { distributePool } from "@/lib/predictions/rules";
-import { SIMULATION_VERSION, type Baseline } from "@/lib/predictions/types";
+import { SIMULATION_VERSION, type Baseline, type Choices } from "@/lib/predictions/types";
 import { projectPredictionStages } from "@/lib/predictions/stage-projection";
 import { resolveMarketOptions } from "@/lib/predictions/market-resolution";
 import { MAJOR_STAGE_PLAN } from "@/lib/competition/templates";
@@ -23,6 +24,39 @@ function baseline(): Baseline {
     matches: [],
   };
 }
+function complete(base: Baseline) {
+  const choices: Choices = {};
+  for (let i = 0; i < 110; i++) {
+    const stages = simulateMajor(base, choices);
+    const stage = stages.find((s) => !s.complete);
+    if (!stage) return { stages, choices };
+    for (const m of stage.matches.filter((m) => !m.winner))
+      choices[`${stage.key}/${m.key}`] = { a: m.a, b: m.b, winner: m.a };
+  }
+  throw new Error("simulation failed to converge");
+}
+
+describe("Major spectator simulation and independent Pick'Em", () => {
+  it("replaces upstream choices, discards later rounds/stages, and leaves the input unchanged", () => {
+    const base = baseline();
+    const { stages, choices } = complete(base);
+    const frozen = JSON.stringify(choices);
+    const m = stages[0]!.matches[0]!;
+    const changed = replaceSimulationChoice(base, choices, "stage1", m, m.b);
+    expect(JSON.stringify(choices)).toBe(frozen);
+    expect(Object.keys(changed).every((k) => k.startsWith("stage1/r1-"))).toBe(
+      true,
+    );
+    expect(
+      simulateMajor(base, changed)[0]!.matches.find((f) => f.key === m.key)
+        ?.winner,
+    ).toBe(m.b);
+    expect(simulateMajor(base, {})[0]!.matches.every((f) => !f.winner)).toBe(
+      true,
+    );
+  });
+});
+
 describe("integer pool conservation", () => {
   it("conserves every point, resolves remainder by account id, and aggregates split stakes", () => {
     const positions = [

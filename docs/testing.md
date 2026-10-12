@@ -82,7 +82,7 @@ PostgreSQL harness 按稳定 `VITEST_POOL_ID` 为并发槽位分配独立数据�
 
 ## Spectator prediction acceptance
 
-Pure tests retain integer pool conservation and the first-match deadline. Real PostgreSQL retains submission versions, server locks, idempotency, concurrent ALL IN, append-only records, official settlement/reversal/debt, account merge blockers and public-data isolation. Major runtime regression is required when shared pairing helpers change. Required browsers protect submission, independent draft restoration, real PNG download and point transactions through Local Supabase on mobile; shared flows are not repeated on desktop. Production App Shell navigation covers both viewports. Prediction simulation upstream invalidation and exhaustive pure bracket/slot judgement matrices have no permanent oracle; changes to those rules need focused evidence, and ordinary browser success must not be described as replacing those assertions.
+Pure tests retain integer pool conservation, the first-match deadline, and one upstream-choice invalidation/input-immutability oracle. Real PostgreSQL retains submission versions, server locks, idempotency, concurrent ALL IN, append-only records, official settlement/reversal/debt, account merge blockers and public-data isolation. Major runtime regression is required when shared pairing helpers change. Required browsers protect submission, independent draft restoration, real PNG download and point transactions through Local Supabase on mobile; shared flows are not repeated on desktop. Production App Shell navigation covers both viewports. Exhaustive profile/bracket/slot judgement and unrelated-playoff-branch matrices have no permanent oracle; changes to those rules need focused evidence, and ordinary browser success must not be described as replacing those assertions.
 
 ## Maintenance rules
 
@@ -107,7 +107,7 @@ Pure tests retain integer pool conservation and the first-match deadline. Real P
 
 独立比赛创建与结束/补录/更正命令是本轮明确交付的内部领域入口，线上授权与约战 UI 尚未接入。`knip.json` 将 `src/lib/matches/creation.ts`、`src/lib/matches/unassociated-result.ts` 声明为生产领域检查根，使 production 模式继续检查它们的依赖；不为通过检查添加无授权的路由或虚假调用。命令行为由真实数据库集成回归验证，后续接入产品调用后移除这两条显式根。
 
-浏览器用已有 `/favicon.ico` 探测 Next 进程可用；这不证明根布局已编译。LIVE 在实际比赛页导航时先验证 document 状态并监听页面编译/运行异常，失败直接报告 HTTP 状态或异常及服务端诊断附件，不等待观众令牌超时。首页本身由 production smoke 验证。production 与 LIVE runner 仅启动 Auth、SQL（LIVE 另含 Realtime），provider 与上传路径仍启用 Storage/PostgREST。
+选中 Major entry 的 runner 在既有 webServer preparation 阶段等待匿名 `/my/teams` → login 路由可用，让首次 dev 路由编译先于 30 秒真实用户用例；浏览器仍重新验证 auth boundary 与全部 mutation/read-back。该准备耗时仍计入 browser wrapper 和 FULL 180 秒预算。其它显式选中的 flow 用已有 `/favicon.ico` 探测进程可用；这不证明根布局已编译。LIVE 在实际比赛页导航时先验证 document 状态并监听页面编译/运行异常，失败直接报告 HTTP 状态或异常及服务端诊断附件，不等待观众令牌超时。首页本身由 production smoke 验证。production 与 LIVE runner 仅启动 Auth、SQL（LIVE 另含 Realtime），provider 与上传路径仍启用 Storage/PostgREST。
 
 依赖缓存使用包含 lockfile、workspace 和 runtime manifest 的稳定键；命中后不 prune/re-upload。缓存 miss 仍执行 frozen-lockfile 安装，不跳过依赖校验。
 

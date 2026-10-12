@@ -594,7 +594,7 @@ tests/unit/lib/teams-directory.test.ts,2,0,deleted,退役细粒度 UI/只读投�
 tests/unit/lib/teams/workspace.test.ts,5,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
 tests/unit/matches-execution.test.ts,6,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
 tests/unit/predictions/qualification-simulation.test.ts,5,0,deleted,保留 PG 提交、锁、隐私、结算和浏览器任务；已退役模拟、判槽和排行细矩阵无精确替代。
-tests/unit/predictions/rules.test.ts,19,6,pruned,保留 PG 提交、锁、隐私、结算和浏览器任务；已退役模拟、判槽和排行细矩阵无精确替代。
+tests/unit/predictions/rules.test.ts,19,7,pruned,保留 PG 提交、锁、隐私、结算和浏览器任务；已退役模拟、判槽和排行细矩阵无精确替代。
 tests/unit/qualification/service.test.ts,35,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
 tests/unit/quality/architecture-boundaries.test.ts,13,1,pruned,保留 gate 必需结果、migration risk、恢复与部署安全拒绝；写法与诊断矩阵退役，无精确替代。
 tests/unit/quality/product-language.test.ts,7,0,deleted,保留 gate 必需结果、migration risk、恢复与部署安全拒绝；写法与诊断矩阵退役，无精确替代。

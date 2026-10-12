@@ -8,15 +8,15 @@
 
 | 层级 | 原有效用例 | 保留 | 原本地 wall time | 精简后 |
 | --- | ---: | ---: | ---: | ---: |
-| unit/component | 2,984 | 100 | 137.104 s | 8.326 s |
+| unit/component | 2,984 | 101 | 137.104 s | 13.947 s |
 | real PostgreSQL | 352 | 309 | 215.775 s | 177.017 s |
 | core browser | 17 | 17 | 未比较 | 未比较 |
 | production smoke | 2 | 2 | 未比较 | 未比较 |
 | optional acceptance | 14 | 0 | 未比较 | 退役 |
 | capacity experiment | 12 | 0 | 未执行 | 退役 |
-| 完整 collection | **3,381** | **428（12.659%）** | 不相加 | 不相加 |
+| 完整 collection | **3,381** | **429（12.689%）** | 不相加 | 不相加 |
 
-测试文件 623 → 129；物理测试源行 76,417 → 26,921。**未达到最多 10%**：完整 collection 的整数上限为 338，还需减少 90 个。本轮不能证明进一步删除仍保护相同迁移、结算、权限和并发边界；这不是“428 是理论最小集合”的论断。日常 required 原集合为 3,355（不含 acceptance/capacity）。
+测试文件 623 → 129；物理测试源行 76,417 → 26,955。**未达到最多 10%**：完整 collection 的整数上限为 338，还需减少 91 个。本轮不能证明进一步删除仍保护相同迁移、结算、权限和并发边界；这不是“429 是理论最小集合”的论断。日常 required 原集合为 3,355（不含 acceptance/capacity）。
 
 Vitest 数量来自实际成功运行的 JSON reporter；Playwright 来自实际 project 展开的 collection。容量通过 `vitest list --no-static-parse` 展开收集，未执行容量基准。静态定义不作为有效测试数：前期误计的 3,327、3,372 均不是验收基线。没有把用例塞进新循环、巨型 `it` 或参数矩阵；未增加 skip/todo 或放宽 timeout/retry，原已有参数矩阵及流程多断言保留原结构。
 
@@ -26,7 +26,7 @@ Vitest 数量来自实际成功运行的 JSON reporter；Playwright 来自实际
 
 - 删除源码字符串、内部实现、mock 转发、DOM/CSS、固定文案、formatter 和细粒度状态矩阵；保留公开 DTO、敏感信息脱敏和 server-only 架构拒绝契约。普通流程集中在真实 PG 和核心浏览器；经过同函数不表示逐断言等价，未精确替代的矩阵在 CSV 明示退役。
 - 保留 BET 账本、金额守恒、未知结果/幂等、锁定、退款/反转/债务、资格和旧 publisher/reader 兼容；保留身份撤销、Auth fence、Data API 拒绝、迁移恢复和遗留数据 fail-closed。
-- 保留 Major-24/32 真实生命周期与纯 placements 完整性拒绝。预测纯 simulator upstream invalidation、全 bracket/slot judgement 矩阵退役；普通预测浏览器任务不替代这些 oracle，相关规则变化需要聚焦验证。
+- 保留 Major-24/32 真实生命周期与纯 placements 完整性拒绝。保留一个 upstream-choice 失效及输入不可变的独有 oracle；全 profile/bracket/slot judgement、无关 playoff 分支等矩阵退役；普通预测浏览器任务不替代这些 oracle，相关规则变化需要聚焦验证。
 - LIVE 保留真实 ingest 的权限/source/generation/epoch/identity/lineup、幂等/canonical results，真实 private Broadcast/provider 和浏览器断流恢复，纯 token 续期/销毁、撤权清空和 proof/scope。精确时龄/reducer、storage-denial/two-match bound 等细矩阵退役，浏览器成功不替代它们。
 - 删除非 required visual/capacity suites、空 config、孤立测试 helper，以及 planner 的已删除 product-language 显式路径。没有复制旧测试为 archive 可执行代码；需要实验时按具体风险临时重建。其它 capability/gate、跨仓兼容、provider、migration replay 和 timeout 保持。
 
@@ -47,7 +47,7 @@ Vitest 数量来自实际成功运行的 JSON reporter；Playwright 来自实际
 
 ## 验证与交付
 
-先完整运行原 unit（2,984/2,984）与 PG（352/352），再精简；未因产品测试失败删测试。精简时出现 empty describe 收集错误，修复 suite 结构后重跑，不是产品失败的删测规避。最终 unit 100/100、PG 309/309；test/script typecheck、ESLint、architecture、Knip 与 GitHub required checks 以实际结果验收。Knip 暴露更多仅被旧测试引用的 production exports，这是待审查线索，未顺手删产品 API。
+先完整运行原 unit（2,984/2,984）与 PG（352/352），再精简；未因产品测试失败删测试。精简时出现 empty describe 收集错误，修复 suite 结构后重跑，不是产品失败的删测规避。最终 unit 101/101、PG 309/309；test/script typecheck、ESLint、architecture、Knip 与 GitHub required checks 以实际结果验收。Knip 暴露更多仅被旧测试引用的 production exports，这是待审查线索，未顺手删产品 API。
 
 既有 BET 管理按钮 hydration 前首击丢失问题在 [#941](https://github.com/Starfie1d1272/RivalHub/issues/941) 独立跟踪。本轮不修产品，不声称 #940 或精简已消除 hydration race 或稳定满足 browser budget。后续 318 PG 的具体分类、9 个代表性/重复删减和保守集合差额见 [PG 风险审查](./postgres-risk-review.md)；两次旧 head CI 的 step/queue/bootstrap 拆分和可修复冗余见 [CI 审查](./ci-review.md)。
 
@@ -60,3 +60,5 @@ Vitest 数量来自实际成功运行的 JSON reporter；Playwright 来自实际
 3. 讨论 release recovery 与 migration harness 是否可维护稳定 invariant 探针、减少历史 fixture。不是本轮实现：不改迁移 owner、不重构 transaction、不增加第二套事实来源。
 4. LIVE 细时龄/cache 与预测 simulator 的退役 oracle 在相关规则变动时补聚焦证据；讨论哪些应长期恢复，不能用全绿 CI 反推没有风险。
 5. #941 修复单独开发和验收；独立审查不冻结正常开发。
+
+本次 Request changes 的故障注入、Major冷/缓存对照与未取得的精确候选清单见 [独审跟进](./review-followup.md)。
