@@ -264,7 +264,11 @@ function qualificationState(
   if (readiness.ready) {
     return item(`qualification-${source.id}`, "个人竞技资料", "ready", "个人资料符合本届要求。", undefined, { href, label: "查看本届报名" });
   }
-  const fieldLabels: Record<string, string> = { historical_peak: "历史最高", reference_season_peak: "上赛季", recent_season_peak: "当前赛季" };
+  const fieldLabels: Record<string, string> = {
+    historical_peak: "历史最高",
+    reference_season_peak: config.competitiveProfile.evidencePolicy ? "前一完整赛季" : "上赛季",
+    recent_season_peak: config.competitiveProfile.evidencePolicy ? "近期赛季" : "当前赛季",
+  };
   const missingFields = [...new Set(readiness.findings.filter(finding => finding.code === "competitive_profile_incomplete").map(finding => fieldLabels[String(finding.metadata?.field)]).filter(Boolean))];
   const needsAdmin = readiness.findings.some(finding => finding.code === "competitive_context_unavailable");
   const needsSelf = readiness.findings.some(finding => finding.code !== "competitive_context_unavailable");
