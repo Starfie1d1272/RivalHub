@@ -46,8 +46,9 @@ test("队长可以登录、建立队伍并发起本届 Major 报名", async ({ p
   const startEntryButton = page.getByRole("button", { name: "开始报名" });
   const entryChecklist = page.getByText("3 · 报名检查");
   await expect(startEntryButton).toBeVisible();
-  await page.getByRole("combobox").click();
-  await page.getByRole("option").first().click();
+  // This scenario owns one team, which the form selects by default.
+  await expect(page.getByRole("combobox")).toHaveText(`E2E 队伍 ${scenario.shortKey}`);
+  await expect(startEntryButton).toBeEnabled();
   await startEntryButton.click();
   await expect(page.getByText("报名记录已创建")).toBeVisible();
 
