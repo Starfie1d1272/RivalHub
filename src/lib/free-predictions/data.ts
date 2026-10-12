@@ -1,12 +1,12 @@
 import "server-only";
 import { eq, inArray } from "drizzle-orm";
 import type { TxDb } from "@/db/client";
-import { freePredictionChoices as choices, freePredictionLocks as locks, users } from "@/db/schema";
+import { freePredictionChoices as choices, freePredictionLocks as locks, users, competitionQualificationRuns } from "@/db/schema";
 import { resolveCanonicalUserId } from "@/lib/identity/canonical";
 import { loadBetFacts, type BetFacts } from "@/lib/bet/facts";
 import { marketIsLocked, subjectMatches } from "@/lib/bet/domain";
 import { normalizeRegistrationConfig } from "@/lib/seasons/compatibility";
-import { predictionInput, gradePrediction, freePredictionRestriction } from "./domain";
+import { predictionInput, gradePrediction, freePredictionRestriction, freePredictionCompetitionIsOpen } from "./domain";
 import type { FreePredictionMatchDTO, FreePredictionSubject } from "./types";
 export async function loadFreePredictionPopulation(tx: TxDb, seasonId: string) {
   const facts = await loadBetFacts(tx,seasonId);
@@ -35,6 +35,7 @@ export function choiceFact(row: typeof choices.$inferSelect, f: BetFacts) {
 export async function readFreePredictionBoard(tx: TxDb, seasonId: string, userId: string | null): Promise<{seasonId:string;matches:FreePredictionMatchDTO[]}> {
   const {facts:f,rows} = await loadFreePredictionPopulation(tx,seasonId);
   const fences = await tx.select().from(locks).where(eq(locks.seasonId,seasonId));
+  const qualificationRuns = await tx.select().from(competitionQualificationRuns).where(eq(competitionQualificationRuns.seasonId, seasonId));
   const user = userId ? await tx.query.users.findFirst({where:(u,{eq})=>eq(u.id,userId),columns:{status:true,emailVerifiedAt:true}}) : undefined;
   const result: FreePredictionMatchDTO[] = [];
   for (const m of f.official) {
@@ -52,7 +53,8 @@ export async function readFreePredictionBoard(tx: TxDb, seasonId: string, userId
     const myBp = rows.find(r=>r.matchId===m.id && r.kind === "bp" && r.userId===userId);
     const resultLocked = !!fence?.resultLockedAt || marketIsLocked(fact);
     const bpLocked = !!fence?.bpLockedAt || marketIsLocked({...fact,type:"veto_map"});
-    const eligibility={status:m.status,isForfeit:m.isForfeit,seasonStatus:f.season.status,signedIn:!!userId,active:user?.status==="active",verified:!!user?.emailVerifiedAt};
+    const competitionOpen = freePredictionCompetitionIsOpen(f.season, m, qualificationRuns.find(run => run.id === m.qualificationRunId));
+    const eligibility={status:m.status,isForfeit:m.isForfeit,competitionOpen,signedIn:!!userId,active:user?.status==="active",verified:!!user?.emailVerifiedAt};
     const resultRestriction=freePredictionRestriction({...eligibility,locked:resultLocked,validMapPool:true});
     const bpRestriction=freePredictionRestriction({...eligibility,locked:bpLocked,validMapPool:mapPool.length>=Number(m.format.slice(2))});
     result.push({matchId:m.id,status:m.status,isForfeit:m.isForfeit,a:f.entries.find(e=>e.id===m.entryAId)?.name??"队伍",b:f.entries.find(e=>e.id===m.entryBId)?.name??"队伍",logoA:f.entries.find(e=>e.id===m.entryAId)?.logoUrl??null,logoB:f.entries.find(e=>e.id===m.entryBId)?.logoUrl??null,stage:m.qualificationRunId?"PLAY-IN":f.season.stagePlan.find(s=>s.key===m.stage)?.name??"正赛",scheduledAt:m.scheduledAt?.toISOString()??null,entryIds:subject.entryIds,format:m.format,mapPool,
