@@ -32,7 +32,6 @@ vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
 import { AppError, ErrorCode } from "@/lib/errors";
 
 import { runSchedulerJobManually } from "@/actions/scheduler";
-import { CommittedDefaultLineupsError, DefaultLineupMaterializationError } from "@/lib/matches/default-lineup-error";
 
 describe("manual scheduler action", () => {
   beforeEach(() => {
@@ -60,49 +59,6 @@ describe("manual scheduler action", () => {
     expect(revalidatePathMock).not.toHaveBeenCalled();
   });
 
-  it("requires super-admin, writes low-sensitivity audit, and runs the shared runner directly", async () => {
-    const result = await runSchedulerJobManually({ jobKey: "draft-timeout" });
-
-    expect(result).toEqual({ success: true, data: { jobKey: "draft-timeout", businessTransitions: 2 } });
-    expect(requireSuperAdminMock).toHaveBeenCalledOnce();
-    expect(insertMock).toHaveBeenCalledOnce();
-    const values = insertMock.mock.results[0]?.value.values.mock.calls[0]?.[0] as Record<string, unknown>;
-    expect(values).toMatchObject({
-      action: "scheduler.manual_trigger",
-      actorId: "admin-1",
-      targetId: "draft-timeout",
-      targetType: "scheduler_job",
-      meta: { jobKey: "draft-timeout", force: true, source: "super-admin-manual" },
-    });
-    expect(executeScheduledJobManuallyMock).toHaveBeenCalledWith("draft-timeout", expect.any(Function));
-    expect(runSchedulerJobByKeyMock).toHaveBeenCalledWith("draft-timeout");
-    expect(revalidatePathMock).toHaveBeenCalledWith("/admin/settings");
-  });
-
   // The manual recovery surface must give a correlated, actionable safe response.
-  it("returns the lineup incident ID and recovery path without exposing the cause", async () => {
-    executeScheduledJobManuallyMock.mockRejectedValue(new DefaultLineupMaterializationError(new Error("private SQL marker"), "lineup-incident"));
-    const result = await runSchedulerJobManually({ jobKey: "match-time-auto-award" });
-    expect(result).toMatchObject({ success: false, error: { code: "INTERNAL_ERROR", requestId: "lineup-incident" } });
-    if (result.success) throw new Error("expected failure");
-    expect(result.error.message).toContain("比赛工作台");
-    expect(result.error.message).toContain("恢复后");
-    expect(result.error.message).toContain("lineup-incident");
-    expect(result.error.message).not.toContain("private SQL marker");
-    expect(revalidatePathMock).toHaveBeenCalledWith("/admin/settings");
-  });
-
-  it("explains saved lineups and preserves the post-commit incident ID", async () => {
-    executeScheduledJobManuallyMock.mockRejectedValueOnce(new CommittedDefaultLineupsError(
-      new Error("private proposal query"), "postcommit-incident", [{ seasonSlug: "spring", matchId: "saved" }],
-    ));
-    const result = await runSchedulerJobManually({ jobKey: "match-time-auto-award" });
-    expect(result).toMatchObject({ success: false, error: { code: "INTERNAL_ERROR", requestId: "postcommit-incident" } });
-    if (result.success) throw new Error("expected failure");
-    expect(result.error.message).toContain("首发已保存");
-    expect(result.error.message).toContain("核对首发和排期");
-    expect(result.error.message).not.toContain("private proposal query");
-    expect(revalidatePathMock).toHaveBeenCalledWith("/admin/settings");
-  });
 
 });

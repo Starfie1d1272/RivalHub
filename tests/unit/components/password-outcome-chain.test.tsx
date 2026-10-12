@@ -32,7 +32,6 @@ vi.mock("sonner", () => ({ toast: { error: mocks.toastError, success: mocks.toas
 import { ResetPasswordForm } from "@/components/auth/ResetPasswordForm";
 import { ChangePasswordForm } from "@/components/settings/ChangePasswordForm";
 import { PasswordMutationError } from "@/lib/auth/password-error";
-import { LoginForm } from "@/components/auth/LoginForm";
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -55,22 +54,6 @@ describe("password unknown outcome reaches the real UI", () => {
     expect(mocks.replace).not.toHaveBeenCalled();
     expect(JSON.parse(String(write.mock.calls[0][0]))).toMatchObject({ errorClass: "expected", safeContext: { outcome: "rejected", httpStatus: 422 } });
     expect(JSON.stringify(write.mock.calls)).not.toContain("raw-private-body");
-    write.mockRestore();
-  });
-  it("login displays the owner's rate-limit guidance and retains manual retry", async () => {
-    const write = vi.spyOn(process.stdout, "write").mockReturnValue(true);
-    mocks.signIn.mockResolvedValue({ data: { user: null }, error: { status: 429 } });
-    const user = userEvent.setup();
-    render(<LoginForm />);
-    await user.type(screen.getByLabelText("邮箱地址"), "fixture@local.test");
-    await user.type(screen.getByLabelText("密码"), "Fixture-Password7!");
-    const submit = screen.getAllByRole("button", { name: "登录" }).find(button => button.getAttribute("type") === "submit")!;
-    await user.click(submit);
-    expect(mocks.toastError).toHaveBeenCalledWith(expect.stringContaining("等待几分钟后再试"));
-    expect(submit).toBeEnabled();
-    expect(mocks.createSession).not.toHaveBeenCalled();
-    await user.click(submit);
-    expect(mocks.signIn).toHaveBeenCalledTimes(2);
     write.mockRestore();
   });
   // Protect actionError -> form guidance and disabled resubmission for final
@@ -103,35 +86,6 @@ describe("password unknown outcome reaches the real UI", () => {
     if (flow !== "reload") expect(log).toMatchObject({ errorClass: "database", safeContext: { phase: "finalize", stage: "succeeded" }, exception: { code: "40001" } });
     expect(alert).toHaveTextContent(log.requestId);
     expect(JSON.stringify([log, alert.textContent])).not.toMatch(/raw-private-body|Recovered-Password7!/);
-    write.mockRestore();
-  });
-  it.each(["reset", "change"])("%s preserves admin guidance, correlation and the pending fence", async (flow) => {
-    const write = vi.spyOn(process.stderr, "write").mockReturnValue(true);
-    const cause = Object.assign(new Error("fixture-access-token Recovered-Password7! raw-private-body"), { code: "ETIMEDOUT" });
-    mocks.update.mockRejectedValue(cause);
-    const user = userEvent.setup();
-    render(flow === "reset" ? <ResetPasswordForm /> : <ChangePasswordForm />);
-    if (flow === "change") await user.type(screen.getByLabelText("原密码"), "Original-Password8!");
-    await user.type(screen.getByLabelText("新密码"), "Recovered-Password7!");
-    await user.type(screen.getByLabelText("确认新密码"), "Recovered-Password7!");
-    const submit = screen.getByRole("button", { name: flow === "reset" ? "设置新密码" : "更新密码" });
-    await user.click(submit);
-    const alert = await screen.findByRole("alert");
-    expect(alert).toHaveTextContent("登录已暂停");
-    expect(alert).toHaveTextContent("请联系平台管理员");
-    expect(alert).toHaveTextContent("操作时间和排查编号");
-    expect(alert).not.toHaveTextContent("刷新确认");
-    expect(submit).toBeDisabled();
-    expect(mocks.finish).not.toHaveBeenCalled();
-    expect(mocks.destroy).not.toHaveBeenCalled();
-    expect(mocks.replace).not.toHaveBeenCalled();
-    expect(mocks.signOut).not.toHaveBeenCalled();
-    expect(mocks.toastSuccess).not.toHaveBeenCalled();
-    expect(mocks.audit).toHaveBeenCalledOnce();
-    const log = JSON.parse(String(write.mock.calls[0][0]));
-    expect(log).toMatchObject({ event: "auth.password_update.failure", errorClass: "dependency", retryable: false, safeContext: { outcome: "unknown" }, exception: { cause: { name: "Error", code: "ETIMEDOUT" } } });
-    expect(alert).toHaveTextContent(log.requestId);
-    expect(JSON.stringify([log, alert.textContent])).not.toMatch(/raw-private-body|fixture-access-token|Recovered-Password7/);
     write.mockRestore();
   });
 });

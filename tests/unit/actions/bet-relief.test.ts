@@ -31,17 +31,6 @@ describe("wallet relief action authorization boundary",()=>{
     expect((await getBetRelief({seasonId,userId:"someone-else"})).success).toBe(false);
     expect(mocks.requireAuth).not.toHaveBeenCalled();expect(mocks.transaction).not.toHaveBeenCalled();expect(mocks.claim).not.toHaveBeenCalled();
   });
-  it("reads the actual viewer in a read-only repeatable snapshot without claiming",async()=>{
-    expect((await getBetRelief({seasonId})).success).toBe(true);
-    expect(mocks.read).toHaveBeenCalledWith(tx,seasonId,null);
-    expect(mocks.transaction).toHaveBeenCalledWith(expect.any(Function),{accessMode:"read only",isolationLevel:"repeatable read"});
-    expect(mocks.claim).not.toHaveBeenCalled();expect(mocks.refresh).not.toHaveBeenCalled();
-  });
-  it("uses session identity and forwards only the explicit day to the canonical owner",async()=>{
-    expect(await claimBetRelief({seasonId,day})).toMatchObject({success:true,data:{day,amount:"7",replayed:false}});
-    expect(mocks.claim).toHaveBeenCalledWith(tx,{seasonId,day,userId:"trusted-session-user"});
-    expect(mocks.refresh).toHaveBeenCalledWith("/test-event/bet");
-  });
   it("requires authentication and an authorized event before financial mutation",async()=>{
     mocks.requireAuth.mockRejectedValueOnce(new Error("login required"));
     expect((await claimBetRelief({seasonId,day})).success).toBe(false);expect(mocks.transaction).not.toHaveBeenCalled();

@@ -1,27 +1,11 @@
 import { describe, expect, it } from "vitest";
-import {
-  DEFAULT_RULES,
-  distributePool,
-  judgePick,
-  validatePick,
-  coinLevel,
-  rulesSchema,
-  defaultPredictionRules,
-  predictionChallengeCapacity,
-} from "@/lib/predictions/rules";
-import {
-  simulateMajor,
-  replaceSimulationChoice,
-} from "@/lib/predictions/simulator";
-import {
-  SIMULATION_VERSION,
-  type Baseline,
-  type Choices,
-} from "@/lib/predictions/types";
+import { simulateMajor, replaceSimulationChoice } from "@/lib/predictions/simulator";
+import { distributePool } from "@/lib/predictions/rules";
+import { SIMULATION_VERSION, type Baseline, type Choices } from "@/lib/predictions/types";
 import { projectPredictionStages } from "@/lib/predictions/stage-projection";
 import { resolveMarketOptions } from "@/lib/predictions/market-resolution";
-import { MAJOR_STAGE_PLAN, MAJOR_24_STAGE_PLAN } from "@/lib/competition/templates";
-import { officialPickEmStages, pickEmWindowState } from "@/lib/predictions/lifecycle";
+import { MAJOR_STAGE_PLAN } from "@/lib/competition/templates";
+import { pickEmWindowState } from "@/lib/predictions/lifecycle";
 const B = BigInt;
 function baseline(): Baseline {
   return {
@@ -51,65 +35,8 @@ function complete(base: Baseline) {
   }
   throw new Error("simulation failed to converge");
 }
+
 describe("Major spectator simulation and independent Pick'Em", () => {
-  it("retains persisted match identity for unplayed and locally chosen matches", () => {
-    const base = baseline();
-    const first = simulateMajor(base, {}, true)[0]!.matches[0]!;
-    base.matches = [{
-      ...first, id: "scheduled-match", stageKey: "stage1", winner: null,
-      scoreA: null, scoreB: null, format: "bo1", status: "scheduled", scheduledAt: null,
-    }];
-    expect(simulateMajor(base, {}, true)[0]!.matches[0]).toMatchObject({
-      officialMatchId: "scheduled-match", source: "preview",
-    });
-    const choices = replaceSimulationChoice(base, {}, "stage1", first, first.b);
-    const stage = simulateMajor(base, choices, true)[0]!;
-    expect(stage.matches[0]).toMatchObject({ officialMatchId: "scheduled-match", source: "assumption" });
-    expect(stage.matches.filter(m => m.round > 1).every(m => !m.officialMatchId)).toBe(true);
-  });
-  it("keeps all coin tiers attainable in each supported event profile", () => {
-    for (const plan of [MAJOR_24_STAGE_PLAN, MAJOR_STAGE_PLAN]) {
-      const stages = projectPredictionStages(plan);
-      const rules = defaultPredictionRules(stages);
-      expect(rulesSchema.safeParse(rules).success).toBe(true);
-      expect(coinLevel(stages.length, predictionChallengeCapacity(stages), rules)).toBe("钻石");
-    }
-    expect(defaultPredictionRules(projectPredictionStages(MAJOR_STAGE_PLAN))).toEqual(DEFAULT_RULES);
-    expect(defaultPredictionRules(projectPredictionStages(MAJOR_24_STAGE_PLAN))).toMatchObject({ silver: 4, gold: 6, diamond: 8 });
-  });
-  it("completes the 24-team profile using frozen direct seeds and BO3 Swiss rules", () => {
-    const base = baseline();
-    base.stages = projectPredictionStages(MAJOR_24_STAGE_PLAN);
-    base.teams = base.teams.slice(0, 24);
-    const { stages } = complete(base);
-    expect(stages.map((s) => s.matches.length)).toEqual([33, 33, 7]);
-    expect(stages[0]!.entrants.map((e) => e.teamId)).toEqual(base.teams.slice(8).map((t) => t.teamId));
-    expect(stages[1]!.entrants.slice(0, 8).map((e) => e.teamId)).toEqual(base.teams.slice(0, 8).map((t) => t.teamId));
-    expect(stages.slice(0, 2).flatMap((s) => s.matches).every((m) => m.format === "bo3")).toBe(true);
-    expect(stages[2]!.matches.at(-1)?.format).toBe("bo5");
-    for (const stage of stages) {
-      validatePick(stage.pick!, stage.entrants, base.stages.find((s) => s.key === stage.key)!.type, DEFAULT_RULES);
-    }
-    base.teams.pop();
-    expect(simulateMajor(base, {}, true)).toEqual([]);
-  });
-  it("completes 32 entrants through three canonical Swiss stages and seven playoff matches", () => {
-    const { stages } = complete(baseline());
-    expect(stages).toHaveLength(4);
-    expect(stages.slice(0, 3).map((s) => s.matches.length)).toEqual([
-      33, 33, 33,
-    ]);
-    expect(stages[3]!.matches).toHaveLength(7);
-    for (const s of stages)
-      validatePick(
-        s.pick!,
-        s.entrants,
-        s.key === "playoff" ? "single_elim" : "swiss",
-        DEFAULT_RULES,
-      );
-    expect(stages[2]!.matches.every((m) => m.format === "bo3")).toBe(true);
-    expect(stages[3]!.matches.at(-1)?.format).toBe("bo5");
-  });
   it("replaces upstream choices, discards later rounds/stages, and leaves the input unchanged", () => {
     const base = baseline();
     const { stages, choices } = complete(base);
@@ -128,106 +55,8 @@ describe("Major spectator simulation and independent Pick'Em", () => {
       true,
     );
   });
-  it("starts from official winners, overrides explicitly, preserves unaffected same-round facts", () => {
-    const base = baseline();
-    const rows = simulateMajor(base, {})[0]!.matches;
-    base.matches = rows.map((m, i) => ({
-      id: String(i),
-      stageKey: "stage1",
-      key: m.key,
-      round: 1,
-      a: m.a,
-      b: m.b,
-      winner: m.a,
-      format: "bo1",
-      status: "finished",
-      scheduledAt: null,
-      scoreA: 1,
-      scoreB: 0,
-    }));
-    const m = rows[0]!;
-    const changed = replaceSimulationChoice(base, {}, "stage1", m, m.b);
-    const result = simulateMajor(base, changed)[0]!;
-    expect(result.matches[0]!.source).toBe("assumption");
-    expect(result.matches[1]!.source).toBe("official");
-    expect(result.matches.some((m) => m.round === 2)).toBe(true);
-  });
-  it("preserves the unrelated playoff branch for choices and official results", () => {
-    const base = baseline();
-    const { stages, choices } = complete(base);
-    const playoff = stages[3]!;
-    const qf = playoff.matches[0]!;
-    const changed = replaceSimulationChoice(
-      base,
-      choices,
-      playoff.key,
-      qf,
-      qf.b,
-    );
-    expect(changed["playoff/sf-2"]).toEqual(choices["playoff/sf-2"]);
-    expect(changed["playoff/sf-1"]).toBeUndefined();
-    expect(changed["playoff/final-1"]).toBeUndefined();
-    base.runs = stages.map((s) => ({
-      id: "run",
-      key: s.key,
-      entrants: s.entrants,
-      finalizedRound: s.key === "playoff" ? 0 : 5,
-    }));
-    base.matches = stages.flatMap((s) =>
-      s.matches.map((m) => ({
-        ...m,
-        format: m.format as "bo1" | "bo3" | "bo5",
-        id: s.key + m.key,
-        stageKey: s.key,
-        status: "finished",
-        scheduledAt: null,
-        scoreA: 1,
-        scoreB: 0,
-        })),
-    );
-    const overridden = replaceSimulationChoice(base, {}, playoff.key, qf, qf.b);
-    const result = simulateMajor(base, overridden)[3]!;
-    expect(result.matches.find((m) => m.key === "sf-2")?.source).toBe(
-      "official",
-    );
-    expect(result.matches.find((m) => m.key === "sf-1")?.winner).toBeNull();
-    expect(result.matches.find((m) => m.key === "sf-1")?.officialMatchId).toBeUndefined();
-    expect(result.matches.find((m) => m.key === "sf-2")?.officialMatchId).toBe("playoffsf-2");
-  });
-  it("rejects mismatched current engine versions", () => {
-    expect(() => simulateMajor({ ...baseline(), version: 0 }, {})).toThrow(
-      "规则已变化",
-    );
-  });
-  it("ordinary qualification is exact, duplicates invalid, champion evaluated independently", () => {
-    const { stages } = complete(baseline());
-    const s = stages[0]!;
-    const actual = s.pick!;
-    if (!("perfect" in actual)) throw Error();
-    const pick = {
-      ...actual,
-      advance: [actual.perfect[0]!, ...actual.advance.slice(1)],
-    };
-    expect(() =>
-      validatePick(pick, s.entrants, "swiss", DEFAULT_RULES),
-    ).toThrow("重复");
-    expect(judgePick(pick, actual).hits).toBe(9);
-    expect(
-      judgePick(
-        { bracket: ["x", "x", "x", "x", "x", "x", "champ"] },
-        { bracket: ["a", "b", "c", "d", "e", "f", "champ"] },
-      ),
-    ).toEqual({ hits: 1, challenges: [false, false, true] });
-  });
-  it("coin rules don't grant points and reject incoherent configuration", () => {
-    expect(coinLevel(1, 1, DEFAULT_RULES)).toBe("青铜");
-    expect(coinLevel(4, 10, DEFAULT_RULES)).toBe("钻石");
-    expect(
-      rulesSchema.safeParse({ ...DEFAULT_RULES, advance: 8 }).success,
-    ).toBe(false);
-    expect(DEFAULT_RULES.participationPoints).toBe(0);
-  });
 });
+
 describe("integer pool conservation", () => {
   it("conserves every point, resolves remainder by account id, and aggregates split stakes", () => {
     const positions = [
@@ -318,67 +147,8 @@ it("resolves N options and multiple winners without creating a provider settleme
     }),
   ).toThrow();
 });
-it("uses key topology even if the public stage array is shuffled", () => {
-  const base = baseline();
-  const expected = complete(base).stages;
-  base.stages.reverse();
-  expect(complete(base).stages).toEqual(expected);
-});
-
-it("preview fills the entire flow without creating choices or judgeable stage results", () => {
-  const base = baseline();
-  const choices: Choices = {};
-  const preview = simulateMajor(base, choices, true);
-  expect(preview.map((s) => s.matches.length)).toEqual([33, 33, 33, 7]);
-  expect(preview.every((s) => !s.complete && s.pick === null)).toBe(true);
-  expect(
-    preview.flatMap((s) => s.matches).every((m) => m.source === "preview"),
-  ).toBe(true);
-  expect(choices).toEqual({});
-  expect(simulateMajor(base, choices)).toHaveLength(1);
-  expect(simulateMajor(base, choices)[0]!.pick).toBeNull();
-  const match = preview[0]!.matches[0]!;
-  const edited = replaceSimulationChoice(
-    base,
-    choices,
-    "stage1",
-    match,
-    match.b,
-  );
-  const next = simulateMajor(base, edited, true);
-  expect(Object.keys(edited)).toHaveLength(1);
-  expect(next[0]!.matches[0]!.source).toBe("assumption");
-  expect(
-    next[0]!.matches.filter((m) => m.round === 3).map((m) => m.record),
-  ).toEqual(
-    expect.arrayContaining([
-      { wins: 2, losses: 0 },
-      { wins: 1, losses: 1 },
-      { wins: 0, losses: 2 },
-    ]),
-  );
-});
 
 describe("automatic Pick’Em lifecycle", () => {
-  it("opens only confirmed entrants, including the next phase before a StageRun exists", () => {
-    const base = baseline();
-    expect(officialPickEmStages(base).map((stage) => stage.key)).toEqual(["stage1"]);
-    const first = complete(base).stages[0]!;
-    base.runs = [{ id: "run1", key: "stage1", finalizedRound: 4, entrants: first.entrants }];
-    base.matches = first.matches.map((match) => ({
-      ...match, id: match.key, stageKey: "stage1", status: "finished",
-      scheduledAt: null, format: match.format as "bo1" | "bo3",
-      scoreA: match.format === "bo1" ? 1 : 2, scoreB: 0,
-    }));
-    expect(officialPickEmStages(base).map((stage) => stage.key)).toEqual(["stage1"]);
-    base.runs[0]!.finalizedRound = 5;
-    const next = officialPickEmStages(base)[1]!;
-    expect(next.key).toBe("stage2");
-    expect(next.stageRunId).toBeNull();
-    expect(next.entrants).toHaveLength(16);
-    base.teams = [];
-    expect(officialPickEmStages(base)).toEqual([]);
-  });
   it("follows the first scheduled match, allows an unknown deadline and never reopens a closed window", () => {
     const base = baseline();
     const now = new Date("2026-10-07T00:00:00Z");

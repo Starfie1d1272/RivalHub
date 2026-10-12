@@ -1,0 +1,166 @@
+[
+  {
+    "attempt": 1,
+    "head": "2d89de06ac1c3699920ac749e2a8771478dcf61c",
+    "run_start": "2026-10-12T16:57:15Z",
+    "latency_budget_seconds": 257.118,
+    "pre_plan_job_creation_seconds": 89.0,
+    "plan_queue_or_provision_seconds": 2.0,
+    "plan_execution_seconds": 8.0,
+    "critical_job": "system / production",
+    "critical_job_created": "2026-10-12T16:58:54Z",
+    "critical_job_started": "2026-10-12T16:58:57Z",
+    "critical_queue_or_provision_seconds": 3.0,
+    "critical_execution_seconds": 146.0,
+    "critical_steps": [
+      {
+        "name": "Set up job",
+        "seconds": 3.0
+      },
+      {
+        "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+        "seconds": 4.0
+      },
+      {
+        "name": "Start bootstrap/install timing",
+        "seconds": 0.0
+      },
+      {
+        "name": "Run actions/cache@caa296126883cff596d87d8935842f9db880ef25",
+        "seconds": 6.0
+      },
+      {
+        "name": "Run pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024",
+        "seconds": 4.0
+      },
+      {
+        "name": "Record bootstrap/install timing",
+        "seconds": 0.0
+      },
+      {
+        "name": "Supabase startup",
+        "seconds": 54.0
+      },
+      {
+        "name": "System bootstrap",
+        "seconds": 6.0
+      },
+      {
+        "name": "Browser runtime",
+        "seconds": 6.0
+      },
+      {
+        "name": "Production browser smoke",
+        "seconds": 56.0
+      },
+      {
+        "name": "Preserve machine-readable evidence",
+        "seconds": 1.0
+      },
+      {
+        "name": "Write timing summary",
+        "seconds": 0.0
+      },
+      {
+        "name": "Post Run pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024",
+        "seconds": 0.0
+      },
+      {
+        "name": "Post Run actions/cache@caa296126883cff596d87d8935842f9db880ef25",
+        "seconds": 0.0
+      },
+      {
+        "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+        "seconds": 0.0
+      },
+      {
+        "name": "Complete job",
+        "seconds": 1.0
+      }
+    ],
+    "gate_queue_or_provision_seconds": 2.0,
+    "gate_execution_seconds": 10.0
+  },
+  {
+    "attempt": 2,
+    "head": "2d89de06ac1c3699920ac749e2a8771478dcf61c",
+    "run_start": "2026-10-12T17:02:38Z",
+    "latency_budget_seconds": 191.556,
+    "pre_plan_job_creation_seconds": 2.0,
+    "plan_queue_or_provision_seconds": 2.0,
+    "plan_execution_seconds": 6.0,
+    "critical_job": "system / browser-live",
+    "critical_job_created": "2026-10-12T17:02:49Z",
+    "critical_job_started": "2026-10-12T17:03:32Z",
+    "critical_queue_or_provision_seconds": 43.0,
+    "critical_execution_seconds": 127.0,
+    "critical_steps": [
+      {
+        "name": "Set up job",
+        "seconds": 2.0
+      },
+      {
+        "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+        "seconds": 3.0
+      },
+      {
+        "name": "Start bootstrap/install timing",
+        "seconds": 1.0
+      },
+      {
+        "name": "Run actions/cache@caa296126883cff596d87d8935842f9db880ef25",
+        "seconds": 5.0
+      },
+      {
+        "name": "Run pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024",
+        "seconds": 7.0
+      },
+      {
+        "name": "Record bootstrap/install timing",
+        "seconds": 0.0
+      },
+      {
+        "name": "Supabase startup",
+        "seconds": 46.0
+      },
+      {
+        "name": "System bootstrap",
+        "seconds": 6.0
+      },
+      {
+        "name": "Browser runtime",
+        "seconds": 2.0
+      },
+      {
+        "name": "E2E body",
+        "seconds": 49.0
+      },
+      {
+        "name": "Preserve machine-readable evidence",
+        "seconds": 1.0
+      },
+      {
+        "name": "Write timing summary",
+        "seconds": 0.0
+      },
+      {
+        "name": "Post Run pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024",
+        "seconds": 0.0
+      },
+      {
+        "name": "Post Run actions/cache@caa296126883cff596d87d8935842f9db880ef25",
+        "seconds": 0.0
+      },
+      {
+        "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+        "seconds": 1.0
+      },
+      {
+        "name": "Complete job",
+        "seconds": 0.0
+      }
+    ],
+    "gate_queue_or_provision_seconds": 2.0,
+    "gate_execution_seconds": 11.0
+  }
+]

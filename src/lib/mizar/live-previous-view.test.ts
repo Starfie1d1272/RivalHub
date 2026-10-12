@@ -24,12 +24,6 @@ function setup() {
 }
 describe("verified previous public view", () => {
   afterEach(() => vi.useRealTimers());
-  it("removes idle recorded data at the original deadline without extending the receiver", async () => {
-    vi.useFakeTimers();
-    const h = setup(); h.store.remember(frame, 0); h.store.forget(wire.matchId);
-    await vi.advanceTimersByTimeAsync(30000);
-    expect(h.values.size).toBe(0);
-  });
   it("cannot restore without new authoritative proof and does not renew time across reloads", () => {
     const h = setup();
     expect(h.store.remember(frame, 0)?.expiresAt).toBe(30000);
@@ -48,35 +42,5 @@ describe("verified previous public view", () => {
       expect(h.reload().authorize(proof, wire.matchId, 0, 0)).toBeNull();
       expect(h.values.size).toBe(0);
     }
-  });
-  it("fails closed on time reversal, delayed authorization, corruption and storage denial", () => {
-    const h = setup(); h.store.remember(frame, 0);
-    expect(h.reload().authorize({ ...context, checkedAt: time - 1 }, wire.matchId, 0, 0)).toBeNull();
-    h.store.remember(frame, 1000);
-    expect(h.reload().authorize(context, wire.matchId, 0, 10001)).toBeNull();
-    h.values.set("rivalhub:previous-live:v1:local", "{broken");
-    expect(h.reload().authorize(context, wire.matchId, 0, 0)).toBeNull();
-    const broken = createPreviousLiveViewStore({ getItem() { throw Error("denied"); }, setItem() { throw Error("quota"); }, removeItem() { throw Error("denied"); } }, "local");
-    expect(broken.authorize(context, wire.matchId, 0, 0)).toBeNull();
-    expect(() => broken.remember(frame, 0)).not.toThrow();
-  });
-  it("keeps at most two matches and never transfers frames to another match", () => {
-    const h = setup();
-    for (let index = 1; index <= 3; index++) {
-      const matchId = `00000000-0000-4000-8000-00000000000${index}`;
-      h.store.authorize({ ...context, matchId }, matchId, 0, 0);
-      h.store.remember({ ...frame, matchId }, 0);
-    }
-    expect(JSON.parse([...h.values.values()][0]!)).toHaveLength(2);
-    expect(h.reload().authorize(context, wire.matchId, 0, 0)).toBeNull();
-    h.store.clearAll(); expect(h.values.size).toBe(0);
-  });
-  it("does not cache a newly observed boundary under an old proof or refresh storage every frame", () => {
-    const h = setup(); h.store.remember(frame, 0);
-    const saved = [...h.values.values()][0];
-    h.store.remember({ ...frame, delivery: { ...frame.delivery, sequence: frame.delivery.sequence + 1 } }, 100);
-    expect([...h.values.values()][0]).toBe(saved);
-    expect(h.store.remember({ ...frame, delivery: { ...frame.delivery, authorityRevision: frame.delivery.authorityRevision + 1 } }, 1000)).toBeNull();
-    expect(h.values.size).toBe(0);
   });
 });

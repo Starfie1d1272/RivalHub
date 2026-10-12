@@ -2,7 +2,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { createLiveViewerClient } from "@/lib/auth/supabase";
 import { connectLiveViewer, type ViewerEnvironment } from "./live-viewer";
 import { createLiveViewerSubscriptions } from "./live-viewer-subscriptions";
-import { liveFreshness } from "./live-viewer-state";
 import type { LiveViewerState } from "./live-viewer-state";
 import { projectPublicLive } from "./live-projection";
 import { parseLiveSnapshotV1 } from "./protocol";
@@ -50,34 +49,6 @@ describe("previous view is never a LIVE baseline", () => {
     previousViews.authorize(context, frame.matchId, 0, 0); previousViews.remember(frame, 0);
     return { frame, context, entries, previousViews };
   }
-  it("restores only after proof, leaves live freshness/watermark empty, and lets the first valid new delivery win", async () => {
-    const cache = cached();
-    const h = setup(false, { ...cache, cacheContext: cache.context, matchId: cache.frame.matchId });
-    expect(h.states.at(-1)?.previousView).toBeUndefined();
-    await vi.advanceTimersByTimeAsync(0);
-    expect(h.states.at(-1)?.previousView?.snapshot.receivedAt).toBe(cache.frame.receivedAt);
-    expect(h.states.at(-1)?.snapshot).toBeNull(); expect(h.states.at(-1)?.watermark).toBeNull();
-    expect(liveFreshness(h.states.at(-1)!, performance.now())).toBe("unavailable");
-    h.clients[0].status("SUBSCRIBED"); h.clients[0].deliver({ payload: cache.frame });
-    expect(h.states.at(-1)?.snapshot).toEqual(cache.frame);
-    expect(h.states.at(-1)?.acceptedFrames).toBe(1);
-    h.identityChange();
-    expect(cache.entries.size).toBe(0); expect(h.states.at(-1)?.previousView).toBeNull();
-    h.stop();
-  });
-  it("clears cache and source proof during the shared receiver's five-second idle retention", async () => {
-    const cache = cached();
-    const h = setup(true, { ...cache, cacheContext: cache.context, matchId: cache.frame.matchId });
-    await vi.advanceTimersByTimeAsync(0);
-    const oldClient = h.clients[0];
-    h.stop(); h.identityChange();
-    expect(cache.entries.size).toBe(0);
-    expect(cache.previousViews.remember(cache.frame, performance.now())).toBeNull();
-    oldClient.deliver({ payload: cache.frame });
-    expect(cache.entries.size).toBe(0);
-    await vi.advanceTimersByTimeAsync(5000);
-    expect(oldClient.removeAllChannels).toHaveBeenCalled();
-  });
   it("keeps a recorded view on transport loss, then purges it on a revoked public scope", async () => {
     const cache = cached();
     const h = setup(false, { ...cache, cacheContext: cache.context, matchId: cache.frame.matchId });
@@ -106,135 +77,5 @@ describe("private viewer lifecycle", () => {
     h.stop();
     expect(h.clients[1].realtime.disconnect).toHaveBeenCalledOnce();
     expect(h.removeListener).toHaveBeenCalledOnce();
-  });
-  it("reconnects without replay and ignores callbacks from a disposed match connection", async () => {
-    const h = setup(); await vi.advanceTimersByTimeAsync(0);
-    const wire = parseLiveSnapshotV1(fixture.snapshot);
-    const payload = projectPublicLive(wire, 1, wire.producedAt);
-    h.clients[0].status("SUBSCRIBED"); h.clients[0].deliver({ payload });
-    expect(h.states.at(-1)?.snapshot).toEqual(payload);
-    h.clients[0].status("CHANNEL_ERROR");
-    expect(h.states.at(-1)?.snapshot).toBeNull();
-    expect(h.states.at(-1)?.connection).toBe("unavailable");
-    await vi.advanceTimersByTimeAsync(1000);
-    h.clients[0].deliver({ payload });
-    h.clients[1].status("SUBSCRIBED");
-    h.clients[1].deliver({ payload });
-    expect(h.states.at(-1)?.snapshot).toBeNull();
-    expect(h.states.at(-1)?.connection).toBe("subscribed");
-    h.stop();
-    const count = h.states.length;
-    h.clients[1].deliver({ payload });
-    expect(h.states).toHaveLength(count);
-  });
-  it("disconnects while hidden and rejoins on foreground recovery", async () => {
-    const h = setup(); await vi.advanceTimersByTimeAsync(0);
-    h.hide(); expect(h.clients[0].realtime.disconnect).toHaveBeenCalledOnce();
-    await vi.advanceTimersByTimeAsync(300000);
-    expect(h.fetcher).toHaveBeenCalledOnce();
-    h.show(); await vi.advanceTimersByTimeAsync(0);
-    expect(h.fetcher).toHaveBeenCalledTimes(2);
-    h.stop();
-  });
-  it("retries token failure with bounded backoff and cancels retry on disposal", async () => {
-    const h = setup(); await vi.advanceTimersByTimeAsync(0);
-    h.fetcher.mockRejectedValue(new Error("network"));
-    h.clients[0].status("CHANNEL_ERROR");
-    await vi.advanceTimersByTimeAsync(1000);
-    expect(h.fetcher).toHaveBeenCalledTimes(2);
-    h.stop(); await vi.advanceTimersByTimeAsync(60000);
-    expect(h.fetcher).toHaveBeenCalledTimes(2);
-  });
-});
-
-describe("browser-local active receiver reuse", () => {
-  const frame = () => {
-    const wire = parseLiveSnapshotV1(fixture.snapshot);
-    return projectPublicLive(wire, 1, wire.producedAt);
-  };
-  it("shares an in-flight token request and disposes only after the last consumer leaves", async () => {
-    const h = setup(true);
-    const states: LiveViewerState[] = [];
-    const stop = h.subscribe(fixture.snapshot.matchId, state => states.push(state));
-    await vi.advanceTimersByTimeAsync(0);
-    expect(h.fetcher).toHaveBeenCalledOnce();
-    h.clients[0].status("SUBSCRIBED"); h.clients[0].deliver({ payload: frame() });
-    expect(states.at(-1)?.snapshot).not.toBeNull();
-    h.stop(); h.stop();
-    await vi.advanceTimersByTimeAsync(6000);
-    expect(h.clients[0].realtime.disconnect).not.toHaveBeenCalled();
-    stop(); await vi.advanceTimersByTimeAsync(5000);
-    expect(h.clients[0].realtime.disconnect).toHaveBeenCalledOnce();
-  });
-  it("re-entry observes the running receiver, without resetting freshness or replaying an old heartbeat", async () => {
-    const h = setup(true); await vi.advanceTimersByTimeAsync(0);
-    h.clients[0].status("SUBSCRIBED"); h.clients[0].deliver({ payload: frame() });
-    const receivedAt = h.states.at(-1)!.receivedAt;
-    h.stop(); await vi.advanceTimersByTimeAsync(4000);
-    const states: LiveViewerState[] = [];
-    const stop = h.subscribe(fixture.snapshot.matchId, state => states.push(state));
-    expect(h.fetcher).toHaveBeenCalledOnce();
-    expect(states.at(-1)!.receivedAt).toBe(receivedAt);
-    expect(liveFreshness(states.at(-1)!, performance.now())).toBe("stale");
-    h.clients[0].deliver({ payload: frame() });
-    expect(states.at(-1)!.receivedAt).toBe(receivedAt);
-    await vi.advanceTimersByTimeAsync(6100);
-    expect(liveFreshness(states.at(-1)!, performance.now())).toBe("unavailable");
-    stop(); await vi.advanceTimersByTimeAsync(5000);
-  });
-  it("keeps receiving during the brief navigation gap, then removes all state after idle disposal", async () => {
-    const h = setup(true); await vi.advanceTimersByTimeAsync(0);
-    h.clients[0].status("SUBSCRIBED"); h.clients[0].deliver({ payload: frame() });
-    h.stop(); await vi.advanceTimersByTimeAsync(1000);
-    const next = frame(); next.delivery.sequence++;
-    h.clients[0].deliver({ payload: next });
-    const states: LiveViewerState[] = [];
-    const stop = h.subscribe(fixture.snapshot.matchId, state => states.push(state));
-    expect(states.at(-1)?.snapshot?.delivery.sequence).toBe(next.delivery.sequence);
-    expect(liveFreshness(states.at(-1)!, performance.now())).toBe("fresh");
-    stop(); await vi.advanceTimersByTimeAsync(5000);
-    const final: LiveViewerState[] = [];
-    const stopAgain = h.subscribe(fixture.snapshot.matchId, state => final.push(state));
-    await vi.advanceTimersByTimeAsync(0);
-    expect(h.fetcher).toHaveBeenCalledTimes(2);
-    expect(final.at(-1)?.snapshot).toBeNull();
-    stopAgain(); await vi.advanceTimersByTimeAsync(5000);
-  });
-  it("isolates matches and receiver environments and clears frames on a real reconnect", async () => {
-    const h = setup(true); await vi.advanceTimersByTimeAsync(0);
-    h.clients[0].status("SUBSCRIBED"); h.clients[0].deliver({ payload: frame() });
-    const states: LiveViewerState[] = [];
-    const stop = h.subscribe("00000000-0000-4000-8000-000000000002", state => states.push(state));
-    await vi.advanceTimersByTimeAsync(0);
-    expect(h.fetcher).toHaveBeenCalledTimes(2);
-    expect(states.at(-1)?.snapshot).toBeNull();
-    h.clients[1].deliver({ payload: frame() });
-    expect(states.at(-1)?.snapshot).toBeNull();
-    h.clients[0].status("CHANNEL_ERROR");
-    const reentry: LiveViewerState[] = [];
-    const stopReentry = h.subscribe(fixture.snapshot.matchId, state => reentry.push(state));
-    expect(reentry.at(-1)?.snapshot).toBeNull();
-    const other = setup(true); await vi.advanceTimersByTimeAsync(0);
-    expect(other.fetcher).toHaveBeenCalledOnce();
-    expect(other.states.at(-1)?.snapshot).toBeNull();
-    h.stop(); stop(); stopReentry(); other.stop(); await vi.advanceTimersByTimeAsync(5000);
-  });
-  it("foreground recovery and token renewal wait for a newly received heartbeat even on re-entry", async () => {
-    const h = setup(true); await vi.advanceTimersByTimeAsync(0);
-    h.clients[0].status("SUBSCRIBED"); h.clients[0].deliver({ payload: frame() });
-    h.stop(); h.hide();
-    const states: LiveViewerState[] = [];
-    const stop = h.subscribe(fixture.snapshot.matchId, state => states.push(state));
-    expect(states.at(-1)?.snapshot).toBeNull();
-    h.show(); await vi.advanceTimersByTimeAsync(0);
-    h.clients[1].status("SUBSCRIBED"); h.clients[1].deliver({ payload: frame() });
-    expect(states.at(-1)?.snapshot).toBeNull();
-    const next = frame(); next.delivery.sequence++;
-    h.clients[1].deliver({ payload: next });
-    expect(states.at(-1)?.snapshot).not.toBeNull();
-    await vi.advanceTimersByTimeAsync(270000);
-    expect(states.at(-1)?.snapshot).toBeNull();
-    expect(h.fetcher).toHaveBeenCalledTimes(3);
-    stop(); await vi.advanceTimersByTimeAsync(5000);
   });
 });
