@@ -1,11 +1,11 @@
 {
   "baseline_sha": "4ac1ab3b5599bf61d6c553a506539d3f3b709dc0",
-  "change_base_sha": "5cbddfd597afd07134ed427a4c1936eea5744a46",
+  "change_base_sha": "e78f0668bd9577de88eee6d744c287e8b56106ad",
   "unit": {
     "before": 2984,
-    "after": 102,
+    "after": 103,
     "before_seconds": 137.104,
-    "after_seconds": 14.396,
+    "after_seconds": 14.297,
     "success": true
   },
   "postgres": {
@@ -32,12 +32,12 @@
     0
   ],
   "test_files_before": 623,
-  "test_files_after": 130,
+  "test_files_after": 131,
   "physical_test_lines_before": 76417,
-  "physical_test_lines_after": 26999,
+  "physical_test_lines_after": 27041,
   "total_before": 3381,
-  "total_after": 430,
-  "upstream_added_cases": 1,
+  "total_after": 431,
+  "upstream_added_cases": 2,
   "baseline_retained_cases": 429,
   "retained_percentage": 12.689
 }

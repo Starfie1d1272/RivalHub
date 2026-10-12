@@ -623,3 +623,4 @@ tests/unit/validators/draft.test.ts,5,0,deleted,退役细粒度或 mock 行为�
 tests/unit/validators/registration.test.ts,27,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
 tests/unit/validators/vote.test.ts,6,0,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
 src/components/bet/BetOperations.test.tsx,0,1,upstream-retained,主分支 #943 新增测试，完整保留；不计为本批删除或新增测试。
+src/components/my/NoTeamWorkspace.test.tsx,0,1,upstream-retained,主分支 #945 新增测试，完整保留；不计为本批删除或新增测试。

@@ -3382,3 +3382,4 @@ tests/unit/validators/vote.test.ts,retractVoteSchema 接受合法撤销投票,de
 tests/unit/validators/vote.test.ts,confirmCaptainsSchema 接受合法 seasonId,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
 tests/unit/validators/vote.test.ts,confirmCaptainsSchema 拒绝非 UUID,deleted,退役细粒度或 mock 行为矩阵；保留对应真实核心流程，不能声称逐断言等价。
 src/components/bet/BetOperations.test.tsx,keeps the SSR entry disabled and handles the first hydrated click without submitting,upstream-retained,主分支 #943 新增测试，完整保留；不计为本批删除或新增测试。
+src/components/my/NoTeamWorkspace.test.tsx,disables the server form and submits the first hydrated input without losing its name,upstream-retained,主分支 #945 新增测试，完整保留；不计为本批删除或新增测试。
