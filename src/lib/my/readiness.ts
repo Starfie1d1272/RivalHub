@@ -264,7 +264,16 @@ function qualificationState(
   if (readiness.ready) {
     return item(`qualification-${source.id}`, "个人竞技资料", "ready", "个人资料符合本届要求。", undefined, { href, label: "查看本届报名" });
   }
-  return item(`qualification-${source.id}`, "个人竞技资料", "blocked", readiness.blockers.join(" "), "self", { href, label: "查看并补齐资料" });
+  const fieldLabels: Record<string, string> = { historical_peak: "历史最高", reference_season_peak: "上赛季", recent_season_peak: "当前赛季" };
+  const missingFields = [...new Set(readiness.findings.filter(finding => finding.code === "competitive_profile_incomplete").map(finding => fieldLabels[String(finding.metadata?.field)]).filter(Boolean))];
+  const needsAdmin = readiness.findings.some(finding => finding.code === "competitive_context_unavailable");
+  const needsSelf = readiness.findings.some(finding => finding.code !== "competitive_context_unavailable");
+  const detail = [
+    ...(missingFields.length ? [`补齐${missingFields.join("、")}的段位及 Rating。`] : []),
+    ...(needsAdmin ? ["赛事竞技资料要求待管理员确认。"] : []),
+    ...readiness.findings.filter(finding => finding.code !== "competitive_context_unavailable" && !(finding.code === "competitive_profile_incomplete" && fieldLabels[String(finding.metadata?.field)])).map(finding => finding.message),
+  ].join(" ");
+  return item(`qualification-${source.id}`, "个人竞技资料", "blocked", detail, needsAdmin ? needsSelf ? "self_and_admin" : "admin" : "self", { href, label: "查看并补齐资料" });
 }
 
 export function buildMyReadinessModel(input: {
