@@ -18,15 +18,17 @@ test("队长可以登录、建立队伍并发起本届 Major 报名", async ({ p
   const captain = account(scenario, "captain");
 
   // Auth boundary：未登录访问“我的队伍”必须被送回登录页，而不是泄露页面内容。
-  // Document readiness and business locators define this flow; unrelated
-  // subresources must not consume its budget while waiting for window.load.
-  await assertPageResponse(await page.goto("/my/teams", { waitUntil: "domcontentloaded" }));
+  // Load the login form's scripts before filling its controlled inputs;
+  // hydration must not overwrite credentials entered into the server HTML.
+  await assertPageResponse(await page.goto("/my/teams", { waitUntil: "load" }));
   await expect(page).toHaveURL(/\/login/);
   await expect(page.getByText("邮箱地址")).toBeVisible();
 
   // 真实 Supabase Auth 登录。“登录”同时命中模式切换 tab 与提交按钮，这里锁定 submit 按钮。
   await page.getByLabel("邮箱地址").fill(captain.email);
   await page.getByLabel("密码", { exact: true }).fill(scenario.password);
+  await expect(page.getByLabel("邮箱地址")).toHaveValue(captain.email);
+  await expect(page.getByLabel("密码", { exact: true })).toHaveValue(scenario.password);
   await page.locator('button[type="submit"]').click();
   await page.waitForURL((url) => url.pathname === "/my/teams", { waitUntil: "domcontentloaded" });
   await expect(page.getByRole("heading", { name: "我的队伍", exact: true })).toBeVisible();
