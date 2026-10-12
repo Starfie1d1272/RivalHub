@@ -1,5 +1,6 @@
--- Keep generation-2 workers from hiding unfinished generation-3 publication.
--- Existing scheduler privileges and every other due condition remain unchanged.
+-- Generation-2 workers must not hide unfinished BET generation-3 publication.
+-- Preserve 0087 ordinary timeout/start admission; its two-argument false gate and dispatch stay unchanged.
+-- Existing one-argument cron commands remain safe during reader-only rollout.
 CREATE OR REPLACE FUNCTION "public"."scheduler_job_is_due"(job_key text)
 RETURNS boolean
 LANGUAGE plpgsql
@@ -93,13 +94,6 @@ BEGIN
           AND veto_session.completed_at IS NULL
           AND (veto_session.entry_a_start_requested_at IS NOT NULL OR veto_session.entry_b_start_requested_at IS NOT NULL)
           AND (veto_match.scheduled_at IS NULL OR veto_match.scheduled_at <= clock_timestamp() + interval '15 minutes')
-        ) OR (
-          EXISTS (SELECT 1 FROM public.match_veto_appeals appeal
-            JOIN public.match_veto_timeout_incidents incident ON incident.id = appeal.timeout_incident_id
-            WHERE incident.match_id = veto_match.id AND appeal.status = 'pending')
-          AND (veto_match.gameplay_started_at IS NOT NULL OR EXISTS (
-            SELECT 1 FROM public.match_maps played_map WHERE played_map.match_id = veto_match.id
-            AND (played_map.started_at IS NOT NULL OR played_map.score_a IS NOT NULL OR played_map.score_b IS NOT NULL OR played_map.completed_at IS NOT NULL)))
         )
       );
     ELSE
