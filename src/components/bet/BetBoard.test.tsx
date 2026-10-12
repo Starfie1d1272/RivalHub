@@ -109,6 +109,7 @@ it("claims initial points inside the dialog and retains both the BET target and 
   expect(await dialog.findByText("1,000")).toBeVisible();
   expect(free.getByRole("button",{name:/乙/})).toHaveAttribute("aria-pressed","true");
   expect(dialog.getByRole("heading",{name:/积分竞猜.*甲/})).toBeVisible();
+  await waitFor(()=>expect(screen.getByLabelText("投入积分")).toBeEnabled());
   await user.type(screen.getByLabelText("投入积分"),"100");expect(dialog.getByRole("button",{name:"确认投入"})).toBeEnabled();
 });
 

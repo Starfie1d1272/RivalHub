@@ -31,7 +31,7 @@ test("BET 投入在刷新后保留，ALL IN 需确认且开赛后锁盘",async({
     await expect(page.getByRole("link",{name:"竞猜平台",exact:true})).toBeVisible();
     await page.getByRole("button",{name:"领取 1,000 积分"}).click();await expect(page.getByRole("button",{name:"领取 1,000 积分"})).toHaveCount(0);
     const card=page.locator("article").filter({has:page.locator(`a[href="/${fixture.slug}/matches/${matches[0]!.id}"]`)});const winner=card.getByRole("region",{name:"比赛胜者"});
-    async function openMaps(){await card.getByRole("tab",{name:/地图/}).click();const details=card.locator("details");if(await details.count()&&await details.getAttribute("open")===null)await details.locator("summary").click();}
+    async function openMaps(){await card.getByRole("tab",{name:/地图/}).click();await expect(card.getByRole("tabpanel",{name:"地图",exact:true})).toBeVisible();const details=card.locator("details");if(await details.count()&&await details.getAttribute("open")===null)await details.locator("summary").click();}
     // Real publisher → public DTO → selection/confirmation: seven choices share
     // one pool, and the three-winner market must never show a single-winner estimate.
     expect(allMarkets.filter(m=>m.type.startsWith("veto_")).map(m=>m.type)).toEqual(["veto_present"]);
@@ -42,7 +42,7 @@ test("BET 投入在刷新后保留，ALL IN 需确认且开赛后锁盘",async({
     await page.getByLabel("投入积分",{exact:true}).fill("10");
     await expect(page.getByRole("dialog")).not.toContainText("≈");
     const returnHelp=page.getByRole("dialog").getByRole("button",{name:"预计返还说明",exact:true});
-    await returnHelp.scrollIntoViewIfNeeded();await returnHelp.focus();
+    await returnHelp.scrollIntoViewIfNeeded();await returnHelp.click();
     await expect(page.getByRole("tooltip")).toContainText("三张有效地图共同中奖");
     await page.getByRole("button",{name:"确认投入",exact:true}).click();
     await expect(page.getByRole("dialog")).toHaveCount(0);
