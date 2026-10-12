@@ -144,7 +144,7 @@ function latestEducationState(fact: ParticipantQualificationFacts | null): MyRea
     return item("education", "教育认证", "unknown", "教育认证资料暂时无法确认。", "admin", { href: "/settings/education", label: "查看教育认证" });
   }
   if (fact.approvedEducation) {
-    return item("education", "教育认证", "ready", "已存在通过的教育认证。赛事仍会按当届规则核验。", undefined, { href: "/settings/education", label: "查看教育认证" });
+    return item("education", "教育认证", "ready", "教育认证已通过。", undefined, { href: "/settings/education", label: "查看教育认证" });
   }
   if (fact.educationHistory.some((entry) => entry.status === "pending")) {
     return item("education", "教育认证", "waiting", "教育材料正在等待审核。", "admin", { href: "/settings/education", label: "查看认证进度" });
@@ -173,7 +173,7 @@ function teamState(currentTeam: { id: string; name: string; role: "captain" | "m
         "team",
         "当前队伍",
         "waiting",
-        `你有 ${pendingDirectInvitationCount} 个待处理的队伍邀请。接受邀请即加入队伍，不需要再次申请或等待审核。`,
+        `${pendingDirectInvitationCount} 个队伍邀请待处理。`,
         "self",
         { href: "/my/teams", label: "处理队伍邀请" },
         { href: "/teams/recruitment?view=teams", label: "寻找队伍" },
@@ -183,13 +183,13 @@ function teamState(currentTeam: { id: string; name: string; role: "captain" | "m
       "team",
       "当前队伍",
       "incomplete",
-      "你还没有加入队伍。可以创建自己的队伍，或在组队大厅寻找正在招募的队伍；加入队伍不会自动参加任何赛事。",
+      "创建队伍，或寻找正在招募的队伍。",
       undefined,
       { href: "/my/teams#create-team", label: "创建队伍" },
       { href: "/teams/recruitment?view=teams", label: "寻找队伍" },
     );
   }
-  return item("team", "当前队伍", "ready", `${currentTeam.name} · ${currentTeam.role === "captain" ? "队长" : "成员"}。之后的队伍成员变更不会改写已报名赛事名单。`, undefined, { href: "/my/teams", label: currentTeam.role === "captain" ? "管理我的队伍" : "查看我的队伍" });
+  return item("team", "当前队伍", "ready", `${currentTeam.name} · ${currentTeam.role === "captain" ? "队长" : "成员"}。`, undefined, { href: "/my/teams", label: currentTeam.role === "captain" ? "管理我的队伍" : "查看我的队伍" });
 }
 
 function entryState(source: MyCompetitionSource, userId: string): MyReadinessItem {
@@ -255,14 +255,14 @@ function qualificationState(
   const href = `/${source.seasonSlug}/register`;
   const config = normalizeTeamRegistrationConfig(source.teamRegistrationConfig);
   if (!config.requireCompetitiveProfile) {
-    return item(`qualification-${source.id}`, "个人竞技资料", "not_applicable", "本届赛事不要求个人竞技资料；报名是否通过仍以赛事审核为准。", undefined, { href, label: "查看本届报名" });
+    return item(`qualification-${source.id}`, "个人竞技资料", "not_applicable", "本届免填个人竞技资料。", undefined, { href, label: "查看本届报名" });
   }
   if (!config.competitiveProfile || !fact) {
     return item(`qualification-${source.id}`, "个人竞技资料", "unknown", "本届赛事的竞技资料暂时无法确认。", "admin", { href, label: "查看本届报名" });
   }
   const readiness = computeParticipantReadiness(fact, config.competitiveProfile);
   if (readiness.ready) {
-    return item(`qualification-${source.id}`, "个人竞技资料", "ready", "个人资料符合本届赛事要求。报名审核、正式参赛名单与纪律限制仍会分别核验。", undefined, { href, label: "查看本届报名" });
+    return item(`qualification-${source.id}`, "个人竞技资料", "ready", "个人资料符合本届要求。", undefined, { href, label: "查看本届报名" });
   }
   return item(`qualification-${source.id}`, "个人竞技资料", "blocked", readiness.blockers.join(" "), "self", { href, label: "查看并补齐资料" });
 }
