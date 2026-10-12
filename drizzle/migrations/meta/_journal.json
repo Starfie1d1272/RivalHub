@@ -610,6 +610,13 @@
       "when": 1791747322730,
       "tag": "0086_bet-relief",
       "breakpoints": true
+    },
+    {
+      "idx": 87,
+      "version": "7",
+      "when": 1791770637593,
+      "tag": "0087_veto-lifecycle-scheduler-gate",
+      "breakpoints": true
     }
   ]
 }

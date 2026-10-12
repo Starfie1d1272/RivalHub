@@ -36,6 +36,9 @@ describe("installed scheduler boundary", () => {
       expect((await pool.query("SELECT public.scheduler_job_is_due('rebuild-statistics-projections') AS due")).rows).toEqual([{ due: true }]);
       await expect(pool.query("SELECT public.scheduler_job_is_due('unknown-test-job')")).rejects.toMatchObject({ code: "22023" });
       for (const role of ["anon", "authenticated"]) {
+        for (const name of ["scheduler_job_is_due", "dispatch_rivalhub_scheduler_job"]) {
+          expect((await pool.query("SELECT has_function_privilege($1, $2, 'EXECUTE') AS allowed", [role, `public.${name}(text,boolean)`])).rows).toEqual([{ allowed: false }]);
+        }
         for (const name of ["scheduler_job_is_due", "dispatch_rivalhub_scheduler_job", "enqueue_rivalhub_scheduler_job"]) {
           expect((await pool.query("SELECT has_function_privilege($1, $2, 'EXECUTE') AS allowed", [role, `public.${name}(text)`])).rows).toEqual([{ allowed: false }]);
         }

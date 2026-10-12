@@ -12,6 +12,7 @@ export type RoutingFailureClassification =
   | "convergence_timeout"
   | "ambiguous_side_effect"
   | "rollback_failed"
+  | "capability_incompatible"
   | "configuration";
 
 export interface RoutingFailureDetails {

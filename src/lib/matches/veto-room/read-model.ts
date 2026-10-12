@@ -216,7 +216,9 @@ export async function projectVetoRoomView(
       sourceLabel: "超时自动选择",
       appeal: appeal ? {
         id: appeal.id,
-        statusLabel: APPEAL_STATUS_LABELS[appeal.status],
+        statusLabel: gameplayStarted && appeal.status === "pending"
+          ? "恢复窗口已结束（原待处理记录保留）"
+          : APPEAL_STATUS_LABELS[appeal.status],
         reason: canSeeReason ? appeal.reason : null,
         resolutionNote: canSeeReason ? appeal.resolutionNote : null,
         mayResolve: isAdmin && !gameplayStarted && appeal.status === "pending",

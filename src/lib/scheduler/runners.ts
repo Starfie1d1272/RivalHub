@@ -1,4 +1,5 @@
 import "server-only";
+import { canPublishVetoAppealClosure } from "@/lib/matches/veto-room/lifecycle-publication";
 import { runPredictionReconciliationJob } from "@/lib/predictions/reconciliation";
 
 import { refreshSteamProfiles } from "@/lib/steam-profiles";
@@ -138,7 +139,7 @@ export async function runMatchVetoTimeoutJob() {
           sql`${matches.scheduledAt} <= clock_timestamp() + interval '15 minutes'`,
         ),
       ),
-      sql`EXISTS (SELECT 1 FROM ${matchVetoAppeals} appeal
+      sql`${canPublishVetoAppealClosure()} AND EXISTS (SELECT 1 FROM ${matchVetoAppeals} appeal
         JOIN ${matchVetoTimeoutIncidents} incident ON incident.id = appeal.timeout_incident_id
         WHERE incident.match_id = ${matches.id} AND appeal.status = 'pending')
         AND (${matches.gameplayStartedAt} IS NOT NULL OR EXISTS (

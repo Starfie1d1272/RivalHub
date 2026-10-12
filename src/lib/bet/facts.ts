@@ -1,5 +1,6 @@
 import { officialMatchCondition } from "@/lib/matches/scope";
 import { requireCompetitionMatch } from "@/lib/matches/competition-context";
+import { hasVetoGameplayInTx } from "@/lib/matches/veto-room/appeal-lifecycle";
 import "server-only";
 import { and, eq, inArray, isNotNull, asc } from "drizzle-orm";
 import type { TxDb } from "@/db/client";
@@ -19,7 +20,11 @@ export async function loadBetFacts(tx: TxDb,seasonId: string) {
     .sort((a,b)=>a.getTime()-b.getTime())[0] ?? null}));
   const vetos = await tx.select().from(matchVetoSessions).innerJoin(matches,eq(matches.id,matchVetoSessions.matchId)).where(and(officialMatchCondition(), eq(matches.seasonId,seasonId))).then(rows=>rows.map(r=>r.match_veto_sessions));
   const appeals = await tx.select({matchId:matchVetoTimeoutIncidents.matchId}).from(matchVetoAppeals).innerJoin(matchVetoTimeoutIncidents,eq(matchVetoTimeoutIncidents.id,matchVetoAppeals.timeoutIncidentId)).innerJoin(matches,eq(matches.id,matchVetoTimeoutIncidents.matchId)).where(and(officialMatchCondition(), and(eq(matches.seasonId,seasonId),eq(matchVetoAppeals.status,"pending"))));
-  const vetoByMatch = new Map<string,VetoFact>(vetos.map(v=>[v.matchId,{...v,pendingAppeal:appeals.some(a=>a.matchId===v.matchId)}]));
+  // Reader-only rollout retains pending history. Gameplay ends its BP recovery
+  // effect even before the closed producer is shipped; settlement must continue.
+  const recoverableAppeals = new Set((await Promise.all([...new Set(appeals.map(a=>a.matchId))]
+    .map(async matchId => await hasVetoGameplayInTx(tx, matchId) ? null : matchId))).filter(id=>id!==null));
+  const vetoByMatch = new Map<string,VetoFact>(vetos.map(v=>[v.matchId,{...v,pendingAppeal:recoverableAppeals.has(v.matchId)}]));
   const entries = await tx.select({id:competitionEntries.id,name:competitionEntries.name,logoUrl:competitionEntries.logoUrl}).from(competitionEntries).where(eq(competitionEntries.competitionId,seasonId));
   const prestart = await tx.query.majorPrestartStates.findFirst({where:eq(majorPrestartStates.seasonId,seasonId)});
   const entrants = prestart?.seedsConfirmedAt ? await tx.select({entryId:majorTournamentEntrants.competitionEntryId}).from(majorTournamentSeeds).innerJoin(majorTournamentEntrants,eq(majorTournamentEntrants.id,majorTournamentSeeds.tournamentEntrantId)).where(eq(majorTournamentSeeds.seasonId,seasonId)) : [];

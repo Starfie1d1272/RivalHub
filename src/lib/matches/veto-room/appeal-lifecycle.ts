@@ -3,6 +3,7 @@ import { and, eq, isNotNull, or, sql } from "drizzle-orm";
 import type { TxDb } from "@/db/client";
 import { matches, matchMaps, matchVetoAppeals, matchVetoTimeoutIncidents } from "@/db/schema";
 import { writeAuditInTx } from "@/lib/audit/write";
+import { canPublishVetoAppealClosure } from "./lifecycle-publication";
 
 export const VETO_APPEAL_CLOSURE_NOTE = "正式对局已开始，BP 恢复窗口已结束；原超时记录与申诉原因保留，超时责任未作裁定。如需进一步赛务处理，请联系赛事管理员并提供超时记录。";
 
@@ -19,6 +20,7 @@ export async function hasVetoGameplayInTx(tx: Pick<TxDb, "query" | "select">, ma
 
 /** Caller holds the canonical match lock, shared with appeal submission and resolution. */
 export async function closeVetoAppealsAfterGameplayInTx(tx: TxDb, matchId: string): Promise<boolean> {
+  if (!canPublishVetoAppealClosure()) return false;
   if (!await hasVetoGameplayInTx(tx, matchId)) return false;
   const pending = await tx.select({ id: matchVetoAppeals.id }).from(matchVetoAppeals)
     .innerJoin(matchVetoTimeoutIncidents, eq(matchVetoTimeoutIncidents.id, matchVetoAppeals.timeoutIncidentId))

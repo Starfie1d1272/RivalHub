@@ -14,7 +14,7 @@ describe("production scheduler contract", () => {
     for (const definition of SCHEDULER_JOB_DEFINITIONS) {
       expect(schedulerJobName(definition.key)).toBe(`rivalhub-${definition.key}`);
       expect(dispatchCommand(definition)).toBe(
-        `SELECT public.dispatch_rivalhub_scheduler_job('${definition.key}');`,
+        `SELECT public.dispatch_rivalhub_scheduler_job('${definition.key}'${definition.key === "resolve-match-veto-timeouts" ? ", false" : ""});`,
       );
     }
   });

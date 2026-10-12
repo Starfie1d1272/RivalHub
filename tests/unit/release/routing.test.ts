@@ -1,6 +1,11 @@
-import { describe, expect, it, vi } from "vitest";
+import { execFileSync } from "node:child_process";
+import { mkdirSync, mkdtempSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import {
   runReleaseRouting,
+  assertRoutingCapabilities,
   type ReleaseRoutingOptions,
 } from "../../../scripts/release/routing";
 
@@ -11,8 +16,64 @@ const ORG_ID = "team_test";
 const TOKEN = "project-scoped-test-token";
 const PREVIOUS_DEPLOYMENT_ID = "dpl_previous";
 const CANDIDATE_DEPLOYMENT_ID = "dpl_candidate";
-const PREVIOUS_COMMIT = "a".repeat(40);
-const CANDIDATE_COMMIT = "b".repeat(40);
+let PREVIOUS_COMMIT: string;
+let CANDIDATE_COMMIT: string;
+let sourceRoot: string;
+const git = (args: string[]) => execFileSync("git", args, { cwd: sourceRoot, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
+const commit = () => { git(["add", "."]); git(["commit", "--quiet", "-m", "routing capability fixture"]); return git(["rev-parse", "HEAD"]); };
+const lifecycleCommit = (readerVersion: number, publisherVersion: number) => {
+  mkdirSync(join(sourceRoot, "src/lib/matches/veto-room"), { recursive: true });
+  writeFileSync(join(sourceRoot, "src/lib/matches/veto-room/lifecycle-contract.json"), JSON.stringify({ readerVersion, publisherVersion }));
+  return commit();
+};
+beforeAll(() => {
+  sourceRoot = mkdtempSync(join(tmpdir(), "rivalhub-routing-contract-"));
+  git(["init", "--quiet"]); git(["config", "user.email", "routing@example.invalid"]); git(["config", "user.name", "Routing Contract Test"]);
+  writeFileSync(join(sourceRoot, "package.json"), '{}'); PREVIOUS_COMMIT = commit();
+  writeFileSync(join(sourceRoot, "package.json"), '{"version":"2"}'); CANDIDATE_COMMIT = commit();
+});
+afterAll(() => rmSync(sourceRoot, { recursive: true, force: true }));
+
+// Real Git contract reads guard mutations; provider responses only model routing.
+it("rejects a lifecycle publisher before any provider request and rejects the same unsafe compensation target", async () => {
+  const reader = lifecycleCommit(1, 0);
+  const publisher = lifecycleCommit(1, 1);
+  const harness = createHarness({ canonical: [identity("v2.9.4", PREVIOUS_COMMIT)] });
+  harness.options.releaseCommit = publisher;
+  await expect(runReleaseRouting(harness.options)).rejects.toMatchObject({
+    details: { stage: "preflight", classification: "capability_incompatible" },
+  });
+  expect(harness.calls).toEqual([]);
+  expect(() => assertRoutingCapabilities(sourceRoot, PREVIOUS_COMMIT, publisher, "compensation")).toThrow(/Veto lifecycle compatibility gate/);
+  expect(() => assertRoutingCapabilities(sourceRoot, reader, publisher, "compensation")).not.toThrow();
+});
+
+it("blocks failed-promotion compensation if the immutable rollback contract cannot be verified, retaining diagnostics", async () => {
+  const reader = lifecycleCommit(2, 0);
+  const publisher = lifecycleCommit(2, 1);
+  const objectPath = join(sourceRoot, ".git/objects", reader.slice(0, 2), reader.slice(2));
+  const unavailablePath = `${objectPath}.unavailable`;
+  let removed = false;
+  const harness = createHarness({
+    canonical: (index) => {
+      if (index === 0) return identity("v2.9.4", reader);
+      renameSync(objectPath, unavailablePath); removed = true;
+      return jsonResponse({}, 401);
+    },
+  });
+  harness.options.previousReleaseCommit = reader;
+  harness.options.releaseCommit = publisher;
+  try {
+    await expect(runReleaseRouting(harness.options)).rejects.toMatchObject({
+      details: { stage: "compensation", classification: "capability_incompatible", sideEffectMayHaveOccurred: true, expectedReleaseCommit: reader },
+    });
+    expect(harness.calls.filter(c => c.method === "POST" && c.url.includes("/promote/"))).toHaveLength(1);
+    expect(harness.calls.filter(c => c.method === "POST" && c.url.includes("/rollback/"))).toHaveLength(0);
+    expect(harness.summaries.at(-1)).toContain("已阻止");
+    expect(harness.summaries.at(-1)).toContain("需要人工介入");
+    expect(harness.summaries.at(-1)).toContain(reader);
+  } finally { if (removed) renameSync(unavailablePath, objectPath); }
+});
 
 type SequenceValue = unknown | Response | Error;
 
@@ -133,6 +194,7 @@ function createHarness(scenario: Scenario) {
   });
 
   const options: ReleaseRoutingOptions = {
+    sourceRoot,
     candidateDeploymentUrl: "https://" + CANDIDATE_HOST,
     releaseTag: "v2.9.5",
     releaseCommit: CANDIDATE_COMMIT,

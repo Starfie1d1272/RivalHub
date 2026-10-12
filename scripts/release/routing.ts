@@ -1,4 +1,5 @@
 import { appendFileSync } from "node:fs";
+import { assertReleaseCapabilities } from "./capability-contract";
 import { assertReleaseIdentity, RELEASE_TAG_PATTERN, type ReleaseIdentity } from "../../src/lib/release/identity";
 import {
   createRoutingHttpClient,
@@ -36,6 +37,8 @@ export type {
 } from "./vercel-routing";
 
 export interface ReleaseRoutingOptions {
+  /** Checkout containing the immutable candidate and frozen previous commits. */
+  sourceRoot?: string;
   candidateDeploymentUrl: string;
   releaseTag: string;
   releaseCommit: string;
@@ -75,6 +78,7 @@ export interface ReleaseRoutingSuccess {
 }
 
 interface RoutingConfig {
+  sourceRoot: string;
   candidateDeploymentUrl: string;
   candidateDeploymentHost: string;
   releaseTag: string;
@@ -110,7 +114,7 @@ interface RoutingSummaryState {
   previousIdentity?: ReleaseIdentity;
   promotion: "not_attempted" | "accepted" | "reconciled" | "retried" | "failed";
   canonical: "not_attempted" | "converged" | "failed";
-  rollback: "not_attempted" | "not_required" | "verified" | "failed";
+  rollback: "not_attempted" | "not_required" | "verified" | "failed" | "blocked";
   terminal?: RoutingFailureDetails;
 }
 
@@ -152,6 +156,7 @@ export async function runReleaseRouting(
   let canonicalConvergenceStarted = false;
 
   try {
+    assertRoutingCapabilities(context.sourceRoot, context.previousIdentity.releaseCommit, context.releaseCommit, "preflight");
     const observedPreviousIdentity = await readCanonicalIdentity(
       context,
       "preflight",
@@ -297,11 +302,15 @@ export async function runReleaseRouting(
           expectedReleaseTag: previousState.identity.releaseTag,
           expectedReleaseCommit: previousState.identity.releaseCommit,
         });
+        const incompatible = rollbackFailure.details.classification === "capability_incompatible";
+        if (incompatible) summary.rollback = "blocked";
         terminalFailure = routingError({
           stage: "compensation",
           operation: "rollback",
-          classification: "rollback_failed",
-          reason: "回退未能确认服务商路由与权威上一生产版本身份标识同时恢复；需要人工介入。",
+          classification: incompatible ? "capability_incompatible" : "rollback_failed",
+          reason: incompatible
+            ? `已阻止继续发送 rollback；候选可能已被 promote，需要人工介入。${rollbackFailure.details.reason ?? ""}`
+            : "回退未能确认服务商路由与权威上一生产版本身份标识同时恢复；需要人工介入。",
           httpStatus: rollbackFailure.details.httpStatus,
           providerJobStatus: rollbackFailure.details.providerJobStatus,
           expectedDeploymentId: previousState.deploymentId,
@@ -320,6 +329,27 @@ export async function runReleaseRouting(
     context.errorFn(terminalFailure.message);
     context.writeSummary(renderSummary(context, summary, Math.max(0, context.nowFn() - startedAt)));
     throw terminalFailure;
+  }
+}
+
+/** The same immutable gate guards promotion, retries and compensation. */
+export function assertRoutingCapabilities(
+  sourceRoot: string,
+  previousCommit: string,
+  candidateCommit: string,
+  stage: RoutingFailureDetails["stage"],
+): void {
+  try {
+    assertReleaseCapabilities(sourceRoot, previousCommit, candidateCommit);
+  } catch (error) {
+    throw routingError({
+      stage,
+      operation: "verify_application_capabilities",
+      classification: "capability_incompatible",
+      expectedReleaseCommit: previousCommit,
+      observedReleaseCommit: candidateCommit,
+      reason: error instanceof Error ? error.message : String(error),
+    }, error);
   }
 }
 
@@ -395,6 +425,7 @@ function normalizeOptions(options: ReleaseRoutingOptions): RoutingConfig {
   }
 
   return {
+    sourceRoot: options.sourceRoot ?? process.cwd(),
     candidateDeploymentUrl: candidate.url,
     candidateDeploymentHost: candidate.host,
     releaseTag,
@@ -607,6 +638,7 @@ async function mutateRouting(
 ): Promise<RoutingMutationResult> {
   const stage: RoutingFailureDetails["stage"] = kind === "promote" ? "promotion" : "compensation";
   for (let attempt = 1; attempt <= 2; attempt += 1) {
+    assertRoutingCapabilities(context.sourceRoot, context.previousIdentity.releaseCommit, context.releaseCommit, stage);
     try {
       const metadata: RequestMetadata = {
         stage,
@@ -1057,7 +1089,7 @@ function renderSummary(
   if (summary.terminal?.reason) {
     lines.push("- 诊断信息：" + summaryValue(summary.terminal.reason));
   }
-  if (summary.rollback === "failed") {
+  if (summary.rollback === "failed" || summary.rollback === "blocked") {
     lines.push("- 需要人工介入：是");
   }
   return lines.join("\n");
@@ -1091,6 +1123,8 @@ function displaySummaryStatus(value: string): string {
     convergence_timeout: "收敛超时",
     ambiguous_side_effect: "有副作用的结果不明",
     rollback_failed: "回退失败",
+    capability_incompatible: "应用能力不兼容或无法验证",
+    blocked: "已阻止",
     configuration: "配置错误",
     succeeded: "成功",
     pending: "处理中",
