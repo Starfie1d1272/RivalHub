@@ -106,6 +106,9 @@ export function buildHomeEyebrow(
   if (status === "voting") {
     return { text: "● 队长投票中", color: "var(--color-warn)" };
   }
+  if (status === "drafting") {
+    return { text: "● 选秀阶段", color: "var(--color-accent)" };
+  }
   if (status === "playing") {
     return { text: "● 比赛进行中", color: "var(--color-ok)" };
   }

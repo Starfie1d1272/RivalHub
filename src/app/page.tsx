@@ -1,3 +1,4 @@
+import { getPublicDraftData } from "@/lib/draft/data";
 import { getPublicSeasonStagePresentation } from "@/lib/seasons/public-stage";
 import Link from "next/link";
 import { SeasonResults } from "@/components/season/SeasonResults";
@@ -47,7 +48,10 @@ async function HomeContent() {
   }
 
   const eyebrow = buildHomeEyebrow(featured);
-  const stage = await getPublicSeasonStagePresentation(featured);
+  const [stage, draftData] = await Promise.all([
+    getPublicSeasonStagePresentation(featured),
+    featured.status === "drafting" && featured.hasDraft ? getPublicDraftData(featured.id) : Promise.resolve(null),
+  ]);
   const { tier1Entry, tier2Entries, tier3Entries } = selectHomeNavTiers(
     buildHomeNavEntries(featured),
     featured.status
@@ -68,6 +72,7 @@ async function HomeContent() {
           liveAndUpcomingMatches={projection.liveAndUpcomingMatches}
           teamCount={projection.teamCount}
           playerCount={projection.playerCount}
+          draftData={draftData ?? undefined}
         />}
         </div>
         <section className="flex flex-col justify-between gap-5 border-y border-[var(--color-border)] py-5"><div><p className="font-mono text-xs tracking-widest text-[var(--color-accent)]">FIND YOUR TEAM</p><h2 className="mt-3 text-2xl font-semibold">一起上场</h2><p className="mt-2 text-sm text-[var(--color-fg-mid)]">寻找队伍与队友，开启下一段赛事旅程。</p></div><Link href="/teams/recruitment" className="text-sm hover:text-[var(--color-accent)]">组队与招募 →</Link></section>
