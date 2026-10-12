@@ -73,8 +73,23 @@ it("protects both sections while a BET submission is pending",async()=>{
   render(<BetBoard initial={{...initial,markets:[winner]}} slug="test" signedIn view="open" matchFilter={null} predictions={[model]} predictionControls={{submitAction,refreshAction:async()=>({success:true,data:model})}}/>);
   await user.click(screen.getByRole("button",{name:/Ancient/}));await user.type(screen.getByLabelText("投入积分"),"10");await user.click(screen.getByRole("button",{name:"确认投入"}));
   expect(within(screen.getByRole("region",{name:"免费赛果预测"})).getByRole("button",{name:/乙/})).toBeDisabled();
-  expect(within(screen.getByRole("dialog")).getByRole("button",{name:/Anubis/})).toBeDisabled();
+  expect(within(screen.getByRole("dialog")).queryByRole("button",{name:/Anubis/})).not.toBeInTheDocument();
   await user.keyboard("{Escape}");expect(screen.getByRole("dialog")).toBeInTheDocument();expect(submitAction).not.toHaveBeenCalled();
   await act(async()=>finish({success:false,error:{code:ErrorCode.INTERNAL_ERROR,message:"投入失败，请重试。"}}));
   expect(await screen.findByRole("alert")).toHaveTextContent("投入失败");
+});
+
+it("uses the clicked team for BET even when a free-only participant changes their free choice",async()=>{
+  const user=userEvent.setup();
+  const winner:BetMarketDTO={...market,type:"match_winner",...marketPresentation("match_winner",null),options:market.options.slice(0,2).map((o,i)=>({...o,label:i===0?"甲":"乙",entity:{kind:"team",entryId:i===0?"a":"b"}}))};
+  const model={matchId:"match",kind:"winner" as const,requiredChoices:1,options:[{key:"a",label:"甲",count:1},{key:"b",label:"乙",count:0}],own:["a"],participants:1,canSubmit:true,status:"open" as const,reason:null,result:null};
+  render(<BetBoard initial={{...initial,markets:[{...winner,id:"historical",state:"refunded",canStake:false},winner]}} slug="test" signedIn view="mine" matchFilter={null} predictions={[model]} predictionControls={{submitAction:vi.fn(),refreshAction:async()=>({success:true,data:model})}}/>);
+  await user.click(within(screen.getByRole("tabpanel",{name:"赛果"})).getByRole("button",{name:"甲"}));
+  const dialog=within(screen.getByRole("dialog"));
+  expect(screen.queryByText("暂无对应积分盘口")).not.toBeInTheDocument();
+  expect(dialog.getByRole("heading",{name:/积分竞猜.*甲/})).toBeVisible();
+  await user.click(within(screen.getByRole("region",{name:"免费赛果预测"})).getByRole("button",{name:/乙/}));
+  expect(dialog.getByRole("heading",{name:/积分竞猜.*甲/})).toBeVisible();
+  await user.type(screen.getByLabelText("投入积分"),"10");
+  expect(screen.getByRole("button",{name:"确认投入"})).toBeEnabled();
 });

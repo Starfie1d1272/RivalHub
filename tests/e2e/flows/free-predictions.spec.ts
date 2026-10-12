@@ -33,8 +33,8 @@ test("免费预测独立于BET，零余额可改选，BP与赛果消费各自官
     const bp = page.getByRole("region", { name: "免费 BP 预测", exact: true });
     const choices = free.locator("button[aria-pressed]");
     const card=page.locator("article").first();
-    async function openFree(){await card.getByRole("tab",{name:/赛果/}).click();const row=card.getByRole("region",{name:"比赛胜者",exact:true});if(await row.count())await row.locator("button:not([aria-label])").first().click();else await card.getByRole("button",{name:"参与预测",exact:true}).click();}
-    async function openBp(){await card.getByRole("tab",{name:/地图/}).click();const button=card.getByRole("button",{name:"参与预测",exact:true});if(await button.count())await button.click();else await card.getByRole("region",{name:/BP/}).first().locator("button:not([aria-label])").first().click();}
+    async function openFree(){await card.getByRole("tab",{name:/赛果/}).click();const row=card.getByRole("region",{name:"比赛胜者",exact:true});if(await row.count())await row.locator("button:not([aria-label])").first().click();else await card.getByRole("tabpanel",{name:"赛果",exact:true}).locator("button:not([aria-label])").first().click();}
+    async function openBp(){await card.getByRole("tab",{name:/地图/}).click();const row=card.getByRole("region",{name:/BP/}).first();if(await row.count())await row.locator("button:not([aria-label])").first().click();else await card.getByRole("tabpanel",{name:"地图",exact:true}).locator("button:not([aria-label])").first().click();}
     async function close(){await page.getByRole("dialog").getByRole("button",{name:"取消",exact:true}).click();}
     await expect(free).toHaveCount(0);await openFree();
     await expect(choices.first()).toBeEnabled();
