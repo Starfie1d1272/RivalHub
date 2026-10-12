@@ -138,7 +138,7 @@ export function TeamDraftGrid({
         })}
       </div>
 
-      <div className="hidden gap-3 md:grid md:grid-cols-2 lg:grid-cols-4 min-[1800px]:grid-cols-8">
+      <div className="hidden gap-3 md:grid md:grid-cols-2 lg:grid-cols-4 min-[112.5rem]:grid-cols-8">
         {sorted.map(team => <section key={team.entryId} className={`min-w-0 overflow-hidden rounded-[var(--radius-md)] border ${team.entryId === currentEntryId ? "border-[var(--color-accent-edge)] bg-[var(--color-accent-soft)]" : "border-[var(--color-border)] bg-[var(--color-panel)]"}`}>
           <header className="flex items-center justify-between gap-2 border-b border-[var(--color-border)] px-3 py-3"><h3 className="min-w-0 truncate font-semibold"><TeamProfileLink entryId={team.entryId}>{team.teamName}</TeamProfileLink></h3><span className="font-mono text-xs text-[var(--color-fg-mid)]">{String(team.draftOrder).padStart(2, "0")}</span></header>
           <div className="space-y-2 px-3 py-3">
