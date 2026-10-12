@@ -1,15 +1,73 @@
 import { randomUUID } from "node:crypto";
 import { describe,it,expect } from "vitest";
-import { eq, sql } from "drizzle-orm";
+import { desc, eq, inArray, sql } from "drizzle-orm";
 import * as schema from "@/db/schema";
 import { fixture } from "./harness/free-prediction-fixture";
 import { submitFreePredictionInTx } from "@/lib/free-predictions/service";
 import { readFreePredictionBoard } from "@/lib/free-predictions/data";
 import { readFreePredictionRanking } from "@/lib/free-predictions/ranking";
-import { operateBetInTx, joinBetInTx } from "@/lib/bet/service";
+import { operateBetInTx, joinBetInTx, stakeBetInTx, lockBetProgram, reconcileBetInTx } from "@/lib/bet/service";
 import { normalizeRegistrationConfig } from "@/lib/seasons/compatibility";
 // Protect real row-lock serialization, persistent rollback fences, private DTOs and corrected scores.
 describe("free predictions real PostgreSQL",()=>{
+  // Execute the real read owner: the existing one-match correction case cannot
+  // detect hits inheriting a P75 floor above one, or losing eligibility on voiding.
+  it("ranks one judged result for hits while accuracy retains the full-event P75 floor",async()=>fixture(async f=>{
+    const highId=randomUUID(),missId=randomUUID(),pendingId=randomUUID();
+    await f.db.insert(schema.users).values([highId,missId,pendingId].map(id=>({id,email:`${id}@example.test`,displayName:"排行观众",emailVerifiedAt:new Date(),emailVerificationSource:"admin_migration" as const})));
+    const base=(await f.db.query.matches.findFirst({where:eq(schema.matches.id,f.matchId)}))!;
+    const extraIds=Array.from({length:15},()=>randomUUID());
+    await f.db.insert(schema.matches).values(extraIds.map((id,i)=>({...base,id,managedKey:`ranking:${i}`})));
+    const decidedIds=[f.matchId,...extraIds.slice(0,11)];
+    const [cancelledId,forfeitId,replacedId,pendingMatchId]=extraIds.slice(11) as [string,string,string,string];
+    const submit=(userId:string,matchId:string,selection=[f.entryIds[0]!])=>f.db.transaction(tx=>submitFreePredictionInTx(tx,{seasonId:f.seasonId,matchId,userId,kind:"result",selection,requestId:randomUUID()}));
+    for(const matchId of decidedIds) for(const userId of [f.otherId,highId]) await submit(userId,matchId);
+    await submit(f.userId,f.matchId);
+    await submit(missId,f.matchId,[f.entryIds[1]!]);
+    for(const matchId of [cancelledId,forfeitId,replacedId]) await submit(f.userId,matchId);
+    await submit(pendingId,pendingMatchId);
+    const season=(await f.db.query.seasons.findFirst({where:eq(schema.seasons.id,f.seasonId)}))!;
+    await f.db.transaction(tx=>submitFreePredictionInTx(tx,{seasonId:f.seasonId,matchId:f.matchId,userId:pendingId,kind:"bp",selection:normalizeRegistrationConfig(season.registrationConfig).mapPool.slice(0,3),requestId:randomUUID()}));
+    const read=(sort:"hits"|"accuracy"|"profit",ids?:string[])=>f.db.transaction(tx=>readFreePredictionRanking(tx,f.seasonId,sort,ids));
+    expect(await read("hits")).toMatchObject({dynamicFloor:null,rows:expect.arrayContaining([expect.objectContaining({userId:f.userId,hits:null,judged:null,accuracy:null,rank:null,group:"limited"})])});
+    await f.db.update(schema.matches).set({status:"finished",scoreA:2,scoreB:0,completedAt:new Date()}).where(inArray(schema.matches.id,[...decidedIds,forfeitId,replacedId]));
+    await f.db.update(schema.matches).set({status:"cancelled"}).where(eq(schema.matches.id,cancelledId));
+    await f.db.update(schema.matches).set({isForfeit:true}).where(eq(schema.matches.id,forfeitId));
+    await f.db.update(schema.matches).set({format:"bo1",scoreA:1}).where(eq(schema.matches.id,replacedId));
+    const hits=await read("hits"),accuracy=await read("accuracy");
+    expect(hits.dynamicFloor?.floor).toBe(1);
+    expect(accuracy.dynamicFloor).toMatchObject({floor:3,reference:12,quantile:0.75,share:0.25});
+    expect(hits.rows).toHaveLength(5);
+    for(const userId of [f.otherId,highId]) {
+      expect(hits.rows.find(r=>r.userId===userId)).toMatchObject({hits:12,judged:12,accuracy:1,rank:1,group:"ranked"});
+      expect(accuracy.rows.find(r=>r.userId===userId)).toMatchObject({rank:1,group:"ranked"});
+    }
+    expect(hits.rows.find(r=>r.userId===f.userId)).toMatchObject({hits:1,judged:1,accuracy:1,rank:3,group:"ranked"});
+    expect(hits.rows.find(r=>r.userId===missId)).toMatchObject({hits:0,judged:1,accuracy:0,rank:4,group:"ranked"});
+    for(const userId of [f.userId,missId]) expect(accuracy.rows.find(r=>r.userId===userId)).toMatchObject({judged:1,rank:null,group:"limited"});
+    expect(hits.rows.find(r=>r.userId===pendingId)).toMatchObject({hits:null,judged:null,accuracy:null,rank:null,group:"limited"});
+    for(const sort of ["hits","accuracy"] as const) {
+      const filtered=await read(sort,[f.userId]);
+      expect(filtered.dynamicFloor).toEqual((sort==="hits"?hits:accuracy).dynamicFloor);
+      expect(filtered.rows).toEqual((sort==="hits"?hits:accuracy).rows.filter(r=>r.userId===f.userId));
+    }
+    expect((await read("profit")).rows.every(r=>r.profit===null && r.rank===null && r.group==="limited")).toBe(true);
+    await f.db.update(schema.matches).set({isForfeit:true}).where(eq(schema.matches.id,f.matchId));
+    for(const sort of ["hits","accuracy"] as const) expect((await read(sort)).rows.find(r=>r.userId===f.userId)).toMatchObject({hits:null,judged:null,accuracy:null,rank:null,group:"limited"});
+  }));
+  it("a cancelled match refund keeps BET qualification independent and counts no free result",async()=>fixture(async f=>{
+    await f.db.transaction(tx=>operateBetInTx(tx,{seasonId:f.seasonId,actorId:f.userId,operation:"enable"}));
+    await f.db.transaction(tx=>joinBetInTx(tx,f.seasonId,f.otherId));
+    const market=(await f.db.query.betMarkets.findMany({where:eq(schema.betMarkets.matchId,f.matchId)})).find(m=>m.type==="match_winner")!;
+    const option=(await f.db.query.betOptions.findFirst({where:eq(schema.betOptions.marketId,market.id)}))!;
+    await f.db.transaction(tx=>stakeBetInTx(tx,{seasonId:f.seasonId,userId:f.otherId,marketId:market.id,optionId:option.id,amount:"100",requestId:randomUUID()}));
+    await f.db.transaction(tx=>submitFreePredictionInTx(tx,{seasonId:f.seasonId,matchId:f.matchId,userId:f.otherId,kind:"result",selection:[f.entryIds[0]!],requestId:randomUUID()}));
+    await f.db.update(schema.matches).set({status:"cancelled"}).where(eq(schema.matches.id,f.matchId));
+    await f.db.transaction(async tx=>{await lockBetProgram(tx,f.seasonId);await reconcileBetInTx(tx,f.seasonId);});
+    expect(await f.db.query.betSettlements.findFirst({where:eq(schema.betSettlements.marketId,market.id),orderBy:desc(schema.betSettlements.revision)})).toMatchObject({state:"refunded"});
+    for(const sort of ["hits","accuracy"] as const) expect(await f.db.transaction(tx=>readFreePredictionRanking(tx,f.seasonId,sort))).toMatchObject({dynamicFloor:null,rows:[expect.objectContaining({userId:f.otherId,profit:"0",hits:null,judged:null,accuracy:null,rank:null,group:"limited"})]});
+    expect((await f.db.transaction(tx=>readFreePredictionRanking(tx,f.seasonId,"profit"))).rows[0]).toMatchObject({userId:f.otherId,profit:"0",rank:1,group:"ranked",hits:null,judged:null});
+  }));
   it("works without BET/join for own teams; replaces choices, retries without restoring, and hides others",async()=>fixture(async f=>{
     const input={seasonId:f.seasonId,matchId:f.matchId,userId:f.userId,kind:"result" as const,selection:[f.entryIds[0]!],requestId:randomUUID()};
     await Promise.all([f.db.transaction(tx=>submitFreePredictionInTx(tx,input)),f.db.transaction(tx=>submitFreePredictionInTx(tx,input))]);
