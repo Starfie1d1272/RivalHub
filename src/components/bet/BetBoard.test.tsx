@@ -29,3 +29,25 @@ describe("BO3 presence investment presentation",()=>{
     expect(within(dialog).getByRole("button",{name:"确认投入"})).toBeEnabled();
   });
 });
+
+// These checks protect the removed inline forms and the shared entry boundary:
+// a financial restriction must never block an independent free prediction.
+it("keeps forms behind one entry and allows free prediction with a paused empty wallet",async()=>{
+  const user=userEvent.setup();
+  const winner:BetMarketDTO={...market,id:"winner",type:"match_winner",...marketPresentation("match_winner",null),canStake:false,options:market.options.slice(0,2)};
+  const prediction={matchId:"match",kind:"winner" as const,requiredChoices:1,options:[{key:"a",label:"甲",count:0},{key:"b",label:"乙",count:0}],own:[],participants:0,canSubmit:true,status:"open" as const,reason:null,result:null};
+  const submitAction=vi.fn().mockResolvedValue({success:false,error:{code:"INTERNAL_ERROR",message:"预测提交失败，请重试。"}});
+  render(<BetBoard initial={{...initial,balance:"0",paused:true,markets:[winner]}} slug="test" signedIn view="open" matchFilter={null} predictions={[prediction]} predictionControls={{submitAction,refreshAction:async()=>({success:true,data:prediction})}}/>);
+  expect(screen.queryByRole("region",{name:"免费赛果预测"})).not.toBeInTheDocument();
+  const entry=within(screen.getByRole("tabpanel",{name:/赛果/})).getByRole("button",{name:/Ancient/});
+  await user.click(entry);
+  const free=within(screen.getByRole("region",{name:"免费赛果预测"}));
+  await user.click(free.getByRole("button",{name:/乙/}));
+  expect(screen.getByRole("button",{name:"确认投入"})).toBeDisabled();
+  await user.click(free.getByRole("button",{name:"提交预测"}));
+  expect(submitAction).toHaveBeenCalledWith(prediction,["b"]);
+  expect(await screen.findByRole("alert")).toHaveTextContent("预测提交失败");
+  await user.keyboard("{Escape}");
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  expect(entry).toHaveFocus();
+});

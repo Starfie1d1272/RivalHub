@@ -1,5 +1,5 @@
 "use client";
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import { Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -13,10 +13,11 @@ function panelVersion(model: FreePredictionModel) {
 
 const labels = { open: "可预测", locked: "已锁定", judged: "已评判", void: "已作废", unavailable: "暂不可用" };
 
-export function FreePrediction({ model, signedIn, controls }: {
+export function FreePrediction({ model, signedIn, controls, onPendingChange }: {
   model: FreePredictionModel;
   signedIn: boolean;
   controls: FreePredictionControls;
+  onPendingChange?: (pending: boolean) => void;
 }) {
   const version = panelVersion(model);
   const [snapshot, setSnapshot] = useState<{ origin: string; source: FreePredictionModel; value: FreePredictionModel } | null>(null);
@@ -26,6 +27,7 @@ export function FreePrediction({ model, signedIn, controls }: {
   const [draft, setDraft] = useState<{ origin: string; keys: string[] } | null>(null);
   const keys = draft?.origin === panelVersion(current) ? draft.keys : current.own;
   const [pending, startTransition] = useTransition();
+  useEffect(() => { onPendingChange?.(pending); return () => onPendingChange?.(false); }, [pending, onPendingChange]);
   const [error, setError] = useState<string | null>(null);
   const changed = keys.length !== current.own.length || keys.some(key => !current.own.includes(key));
   const title = current.kind === "winner" ? "免费赛果预测" : "免费 BP 预测";

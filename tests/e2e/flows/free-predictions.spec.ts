@@ -32,6 +32,11 @@ test("免费预测独立于BET，零余额可改选，BP与赛果消费各自官
     const free = page.getByRole("region", { name: "免费赛果预测", exact: true });
     const bp = page.getByRole("region", { name: "免费 BP 预测", exact: true });
     const choices = free.locator("button[aria-pressed]");
+    const card=page.locator("article").first();
+    async function openFree(){await card.getByRole("tab",{name:/赛果/}).click();const row=card.getByRole("region",{name:"比赛胜者",exact:true});if(await row.count())await row.locator("button:not([aria-label])").first().click();else await card.getByRole("button",{name:"参与预测",exact:true}).click();}
+    async function openBp(){await card.getByRole("tab",{name:/地图/}).click();const button=card.getByRole("button",{name:"参与预测",exact:true});if(await button.count())await button.click();else await card.getByRole("region",{name:/BP/}).first().locator("button:not([aria-label])").first().click();}
+    async function close(){await page.getByRole("dialog").getByRole("button",{name:"取消",exact:true}).click();}
+    await expect(free).toHaveCount(0);await openFree();
     await expect(choices.first()).toBeEnabled();
     await choices.first().click();
     await free.getByRole("button", { name: "提交预测", exact: true }).click();
@@ -39,16 +44,17 @@ test("免费预测独立于BET，零余额可改选，BP与赛果消费各自官
     expect(await db.query.betAccounts.findFirst({ where: eq(schema.betAccounts.seasonId, fixture.seasonId) })).toBeUndefined();
     await choices.last().click(); await free.getByRole("button", { name: "取消改选", exact: true }).click();
     await expect(choices.first()).toHaveAttribute("aria-pressed", "true");
+    await close();await openBp();
     await bp.locator("button[aria-pressed]").first().click();
     await bp.getByRole("button", { name: "提交预测", exact: true }).click();
     await expect(bp).toContainText("已提交");
-    await page.reload(); await expect(choices.first()).toHaveAttribute("aria-pressed", "true");
+    await page.reload();await openFree(); await expect(choices.first()).toHaveAttribute("aria-pressed", "true");
 
     execFileSync(resolve("node_modules/.bin/tsx"), ["scripts/db/run-server-cli.ts", "scripts/db/bet-browser-fixture.ts", fixture.seasonId, user.userId], { env: process.env, timeout: 60000 });
     await page.reload();
     await page.getByRole("button", { name: "领取 1,000 积分", exact: true }).click();
     await expect(page.getByRole("button", { name: "领取 1,000 积分", exact: true })).toHaveCount(0);
-    const bet = page.getByRole("region", { name: "比赛胜者", exact: true });
+    const bet = card.getByRole("region", { name: "比赛胜者", exact: true });
     await bet.locator("button:not([aria-label])").last().click();
     await page.getByRole("button", { name: "ALL IN", exact: true }).click();
     await expect(page.getByRole("button", { name: "确认投入", exact: true })).toBeDisabled();
@@ -56,6 +62,7 @@ test("免费预测独立于BET，零余额可改选，BP与赛果消费各自官
     await page.getByRole("button", { name: "确认投入", exact: true }).click();
     await expect(page.getByRole("dialog")).toHaveCount(0);
     await expect(bet).toContainText("已投 1,000");
+    await openFree();
     await expect(choices.first()).toHaveAttribute("aria-pressed", "true");
     await expect(choices.last()).toBeEnabled();
     await choices.last().click(); await free.getByRole("button", { name: "更新预测", exact: true }).click();
@@ -64,7 +71,8 @@ test("免费预测独立于BET，零余额可改选，BP与赛果消费各自官
     await choices.first().click(); await free.getByRole("button", { name: "更新预测", exact: true }).click();
     await expect(free.getByRole("button", { name: "更新预测", exact: true })).toBeDisabled();
     await expect(choices.first()).toHaveAttribute("aria-pressed", "true");
-    await expect(page.getByRole("region", { name: /^总回合/ })).toBeVisible();
+    await close();
+    await expect(card).toContainText("总回合");
 
     if (process.env.RIVALHUB_BET_SCREENSHOTS === "1") for (const width of [320, 390, 1440]) {
       await page.setViewportSize({ width, height: 1000 });
@@ -84,7 +92,7 @@ test("免费预测独立于BET，零余额可改选，BP与赛果消费各自官
       // The pending label also removes the old selector; wait for the confirmed receipt before reload.
       await expect(page.getByText("今日已领低保", { exact: true })).toBeVisible();
       await expect(claim).toHaveCount(0);
-      await expect(choices.first()).toBeEnabled();
+      await openFree();await expect(choices.first()).toBeEnabled();await close();
       const relief=(await db.select().from(schema.betLedger).where(eq(schema.betLedger.seasonId, fixture.seasonId))).filter(row=>row.kind==="relief");
       expect(relief).toHaveLength(1);
       expect(relief[0]).toMatchObject({amount:BigInt(10),profit:BigInt(0)});
@@ -95,6 +103,7 @@ test("免费预测独立于BET，零余额可改选，BP与赛果消费各自官
     // server Actions and the official isolated PG clock remain real.
     await page.clock.pauseAt(new Date(Date.now() + 1_000));
     await page.waitForLoadState("networkidle");
+    await openBp();
     await db.insert(schema.matchVetoSessions).values({ matchId: match!.id, startedAt: new Date() });
     // Submit from the cached open view; the Action must reject and fresh-read lock it.
     await bp.locator("button[aria-pressed]").last().click();
@@ -102,6 +111,7 @@ test("免费预测独立于BET，零余额可改选，BP与赛果消费各自官
     await expect(bp.getByRole("alert")).toBeVisible();
     await expect(bp.getByText("已锁定", { exact: true })).toBeVisible();
     await expect(bp.locator("button[aria-pressed]").first()).toBeDisabled();
+    await close();await openFree();
     await expect(choices.first()).toBeEnabled();
     await db.update(schema.matches).set({ gameplayStartedAt: new Date() }).where(eq(schema.matches.id, match!.id));
     await choices.last().click(); await free.getByRole("button", { name: "更新预测", exact: true }).click();
@@ -109,9 +119,9 @@ test("免费预测独立于BET，零余额可改选，BP与赛果消费各自官
     await expect(free.getByText("已锁定", { exact: true })).toBeVisible();
     await expect(choices.first()).toBeDisabled();
     await page.clock.resume();
-    await page.reload(); await expect(choices.first()).toBeDisabled();
+    await page.reload();await openFree(); await expect(choices.first()).toBeDisabled();
     await db.update(schema.matches).set({ status: "finished", scoreA: 1, scoreB: 0 }).where(eq(schema.matches.id, match!.id));
-    await page.goto(`/${fixture.slug}/bet?view=settled`);
+    await page.goto(`/${fixture.slug}/bet?view=settled`);await openFree();
     await expect(free).toContainText("已命中");
     await page.goto(`/${fixture.slug}/bet?view=leaderboard`);
     const ranking = page.getByRole("region", { name: "竞猜排行榜", exact: true });
@@ -127,11 +137,11 @@ test("免费预测独立于BET，零余额可改选，BP与赛果消费各自官
       await page.screenshot({ path: ".agent-tmp/911/real-ranking-320.png", fullPage: true, style: "nextjs-portal, [data-sonner-toaster] {visibility:hidden;}" });
     }
     await db.update(schema.matches).set({ status: "cancelled" }).where(eq(schema.matches.id, match!.id));
-    await page.goto(`/${fixture.slug}/bet?view=settled`);
+    await page.goto(`/${fixture.slug}/bet?view=settled`);await openFree();
     await expect(free).toContainText("已作废");
     await expect(free).toContainText("比赛已取消");
     await expect(choices.first()).toBeDisabled();
-    await page.goto(`/${fixture.slug}/bet?view=mine`);
+    await page.goto(`/${fixture.slug}/bet?view=mine`);await openFree();
     await expect(free).toContainText("已作废");
   } finally {
     const predictions = await db.select({ id: schema.freePredictionChoices.id }).from(schema.freePredictionChoices).where(eq(schema.freePredictionChoices.seasonId, fixture.seasonId));
