@@ -142,8 +142,9 @@ export function classifyChangedFiles(entries, options = {}) {
     const liveEvidence = plan.full || liveSurfaceChanged || plan.e2eSpecs.includes("tests/e2e/flows/public-match-live.spec.ts");
     return { ...plan, gateName, mobileSearchEvidence, liveEvidence,
       systemMatrix: systemMatrixFor(plan, liveEvidence),
-      // Only FULL adds a second PG runner; affected selection stays on one.
-      postgresMatrix: plan.runPostgres ? (plan.full ? [{ shard: "1/2" }, { shard: "2/2" }] : [{ shard: "1/1" }]) : [],
+      // Empty PG selection executes the complete suite, including migration-only
+      // plans. Reuse both bounded shards; explicit affected filters stay on one.
+      postgresMatrix: plan.runPostgres ? (plan.integrationSpecs.length === 0 ? [{ shard: "1/2" }, { shard: "2/2" }] : [{ shard: "1/1" }]) : [],
     };
   };
   if (forceFull) {

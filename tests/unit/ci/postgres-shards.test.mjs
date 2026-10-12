@@ -44,6 +44,15 @@ describe("bounded PostgreSQL evidence", () => {
     expect(classifyChangedFiles([{ status: "M", paths: ["docs/testing.md"] }]).postgresMatrix).toEqual([]);
   });
 
+  it("shards a migration-selected complete PG suite without escalating unrelated static/system evidence", () => {
+    const migration = classifyChangedFiles([{ status: "A", paths: ["drizzle/migrations/0087_veto-lifecycle-scheduler-gate.sql"] }]);
+    expect(migration.full).toBe(false);
+    expect(migration.integrationSpecs).toEqual([]);
+    expect(migration.postgresMatrix).toEqual([{ shard: "1/2" }, { shard: "2/2" }]);
+    expect(integrationArgs([], { RIVALHUB_INTEGRATION_SPECS: "[]", RIVALHUB_INTEGRATION_SHARD: "1/2" })).toEqual(["--shard=1/2"]);
+    expect(integrationArgs([], { RIVALHUB_INTEGRATION_SPECS: "[]", RIVALHUB_INTEGRATION_SHARD: "2/2" })).toEqual(["--shard=2/2"]);
+  });
+
   it("rejects invalid or conflicting shard configuration", () => {
     for (const shard of ["", "0/2", "3/2", "1/3", "1/100"]) {
       expect(() => integrationArgs([], { RIVALHUB_INTEGRATION_SHARD: shard })).toThrow(/最多两个/);
