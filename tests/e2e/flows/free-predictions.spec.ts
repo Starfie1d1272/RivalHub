@@ -81,12 +81,15 @@ test("免费预测独立于BET，零余额可改选，BP与赛果消费各自官
       await expect(claim).toBeVisible();
       expect(await db.select().from(schema.betLedger).where(eq(schema.betLedger.seasonId, fixture.seasonId))).toEqual(before);
       await claim.click();
+      // The pending label also removes the old selector; wait for the confirmed receipt before reload.
+      await expect(page.getByText("今日已领低保", { exact: true })).toBeVisible();
       await expect(claim).toHaveCount(0);
       await expect(choices.first()).toBeEnabled();
-      await page.reload();await expect(claim).toHaveCount(0);
       const relief=(await db.select().from(schema.betLedger).where(eq(schema.betLedger.seasonId, fixture.seasonId))).filter(row=>row.kind==="relief");
       expect(relief).toHaveLength(1);
       expect(relief[0]).toMatchObject({amount:BigInt(10),profit:BigInt(0)});
+      await page.reload();await expect(claim).toHaveCount(0);
+      expect((await db.select().from(schema.betLedger).where(eq(schema.betLedger.seasonId, fixture.seasonId))).filter(row=>row.kind==="relief")).toEqual(relief);
     }
     // Freeze browser polling so the stale-view rejection is deterministic;
     // server Actions and the official isolated PG clock remain real.
