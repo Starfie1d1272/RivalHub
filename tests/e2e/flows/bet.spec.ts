@@ -40,7 +40,8 @@ test("BET 投入在刷新后保留，ALL IN 需确认且开赛后锁盘",async({
     await presence.locator("button:not([aria-label])").first().click();
     await page.getByLabel("投入积分",{exact:true}).fill("10");
     await expect(page.getByRole("dialog")).not.toContainText("≈");
-    await page.getByRole("dialog").getByRole("button",{name:"预计返还说明",exact:true}).focus();
+    const returnHelp=page.getByRole("dialog").getByRole("button",{name:"预计返还说明",exact:true});
+    await returnHelp.scrollIntoViewIfNeeded();await returnHelp.focus();
     await expect(page.getByRole("tooltip")).toContainText("三张有效地图共同中奖");
     await page.getByRole("button",{name:"确认投入",exact:true}).click();
     await expect(page.getByRole("dialog")).toHaveCount(0);
