@@ -85,9 +85,9 @@ export function BetBoard({initial,slug,signedIn,view,matchFilter,predictions,pre
       })}
     </div>}
     <Dialog open={!!selected||!!selectedPrediction} onOpenChange={open=>{if(!open&&!pending&&!freePending)closeParticipation();}}><DialogContent size="md" onOpenAutoFocus={event=>{event.preventDefault();if(!participationOpener.current)participationOpener.current=Array.from(boardRef.current?.querySelectorAll<HTMLButtonElement>("button")??[]).find(button=>(!!resumedOptionId&&button.dataset.betOption===resumedOptionId)||(!!resumedPrediction&&button.dataset.predictionKey===returnSelection?.choice&&button.dataset.predictionKind===resumedPrediction.kind))??boardRef.current?.querySelector<HTMLButtonElement>('[role="tab"][aria-selected="true"]')??null;participationTitle.current?.focus();}} onCloseAutoFocus={event=>{event.preventDefault();if(pending||freePending)restoreFocusAfterPending.current=true;else participationOpener.current?.focus();}} onInteractOutside={e=>{if(pending||freePending)e.preventDefault();}} onEscapeKeyDown={e=>{if(pending||freePending)e.preventDefault();}}>
-      <DialogHeader><DialogTitle ref={participationTitle} tabIndex={-1}>{selected?.market.title??(selectedPrediction?.kind==="winner"?"赛果预测":"地图预测")}</DialogTitle><DialogDescription>{current?.context && <span>{current.context} · </span>}{selectedOption?.label}</DialogDescription></DialogHeader>
+      <DialogHeader><DialogTitle ref={participationTitle} tabIndex={-1}>{selected?.market.title??(selectedPrediction?.kind==="winner"?"赛果预测":"地图预测")}</DialogTitle><DialogDescription>{current?.context && <span>{current.context} · </span>}{current&&selectedOption?optionDisplayLabel(current,selectedOption.label):selectedOption?.label}</DialogDescription></DialogHeader>
       <DialogBody className="space-y-5">{selectedPrediction&&predictionControls&&<div className="border-b border-[var(--color-border)] pb-4"><FreePrediction key={`${selectedPrediction.matchId}-${selectedPrediction.kind}`} model={selectedPrediction} signedIn={signedIn} controls={predictionControls} onPendingChange={setFreePending} disabled={pending||freePending}/></div>}
-        <h3 className="flex items-center gap-2 text-sm font-semibold">积分竞猜{selectedOption&&<> · {selectedOption.label}<BetOptionProfile option={selectedOption} slug={slug}/></>}</h3>
+        <h3 className="flex items-center gap-2 text-sm font-semibold">积分竞猜{selectedOption&&<> · {current?optionDisplayLabel(current,selectedOption.label):selectedOption.label}<BetOptionProfile option={selectedOption} slug={slug}/></>}</h3>
         {current&&selectedOption&&<p className="text-xs text-[var(--color-fg-dim)]">{betStateLabel[current.state]} · {selectedOption.percent.toFixed(0)}% · {formatPoints(selectedOption.pool)} 积分<HelpTooltip label={`${current.title}规则`} content={current.help}/></p>}
         {!current&&<p className="text-sm text-[var(--color-fg-dim)]">暂无对应积分盘口</p>}
         {current&&<>
@@ -134,7 +134,7 @@ function MatchCard({match,markets,slug,choose,predictions,openPrediction,initial
 
       {secondary.length>0&&<details key={shown} className="py-3"><summary className="cursor-pointer text-xs text-[var(--color-fg-mid)] focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]">{shown==="赛果"?"更多赛果竞猜":"逐图与历史盘口"} · {secondary.length}</summary><div className="space-y-4 pt-4">{secondary.map(m=><MarketRow key={m.id} busy={busy} market={m} slug={slug} choose={choose} explore/>)}</div></details>}
 
-      {match.format==="BO1"&&shown==="赛果"&&markets.filter(m=>m.type==="total_rounds").map(m=><div key={m.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2 text-xs"><span>{m.title}</span>{m.options.map(o=><button data-bet-option={o.id} disabled={busy} key={o.id} className="text-[var(--color-accent)] focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]" onClick={()=>choose(m,o.id)}>{o.label} →</button>)}</div>)}
+      {match.format==="BO1"&&shown==="赛果"&&markets.filter(m=>m.type==="total_rounds").map(m=><div key={m.id} className="py-4"><MarketRow busy={busy} market={m} slug={slug} choose={choose} explore/></div>)}
     </div>
   </article>;
 }
@@ -148,7 +148,7 @@ function MarketRow({market:m,choose,slug,explore=false,compact=false,busy=false}
       const own=m.mine?.optionId===o.id;const can=m.canStake && (!m.mine || own);
       return <div key={o.id} className="flex min-w-0 items-center gap-1"><button data-bet-option={o.id} type="button" disabled={busy||!can&&!explore} onClick={()=>choose(m,o.id)} className={cn(compact&&(index===0?"text-[var(--color-accent)]":"text-[var(--color-accent-b)]"),"relative flex-1 min-w-0 overflow-hidden border p-3 text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)] disabled:cursor-default",own||o.winner?"border-[var(--color-accent)] bg-[var(--color-panel-hi)]":"border-[var(--color-border)] bg-[var(--color-panel-low)]",can&&"hover:border-[var(--color-accent)]")}>
         <span aria-hidden className="absolute bottom-0 left-0 h-0.5 bg-[var(--color-accent)] opacity-50" style={{width:`${o.percent}%`}}/>
-        <span className="flex items-center gap-1 text-sm"><span className="truncate" title={o.label}>{o.label}</span>{(own||o.winner)&&<Check size={12} className="shrink-0 text-[var(--color-accent)]"/>}</span>{!compact&&<span className="mt-1 flex flex-wrap justify-between gap-1 text-xs font-mono tabular-nums text-[var(--color-fg-mid)]"><span>{o.percent.toFixed(0)}%</span><span>{formatPoints(o.pool)}</span></span>}
+        <span className="flex items-center gap-1 text-sm"><span className="truncate" title={optionDisplayLabel(m,o.label)}>{optionDisplayLabel(m,o.label)}</span>{(own||o.winner)&&<Check size={12} className="shrink-0 text-[var(--color-accent)]"/>}</span>{!compact&&<span className="mt-1 flex flex-wrap justify-between gap-1 text-xs font-mono tabular-nums text-[var(--color-fg-mid)]"><span>{o.percent.toFixed(0)}%</span><span>{formatPoints(o.pool)}</span></span>}
       </button><BetOptionProfile option={o} slug={slug}/></div>;
     })}</div>
     {!options.length && <p className="text-sm text-[var(--color-fg-mid)]">没有匹配的选项</p>}
@@ -178,3 +178,5 @@ function BetRecords({ rows, signedIn }: { rows: BetBoardDTO["records"]; signedIn
 
 function predictionOption(option:BetMarketDTO["options"][number],model:FreePredictionModel,key:string){return model.kind==="winner"?option.entity?.kind==="team"&&option.entity.entryId===key:option.label===model.options.find(p=>p.key===key)?.label;}
 function predictionMarket(markets:BetMarketDTO[],model:FreePredictionModel,key:string){const states=["open","locked","settled","refunded"];return markets.filter(m=>m.matchId===model.matchId&&(model.kind==="winner"?m.type==="match_winner":m.type.startsWith("veto_"))&&m.options.some(o=>predictionOption(o,model,key))).reverse().sort((a,b)=>states.indexOf(a.state)-states.indexOf(b.state))[0];}
+
+function optionDisplayLabel(market:BetMarketDTO,label:string){const threshold=market.type==="total_rounds"?market.title.match(/ · (\d+(?:\.\d+)?)$/)?.[1]:undefined;return threshold&&["大","小"].includes(label)?`${label==="大"?"大于":"小于"}${threshold}`:label;}

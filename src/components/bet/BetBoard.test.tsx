@@ -170,3 +170,23 @@ it("restores the stake opener after a successful submission finishes its slow wa
   await waitFor(()=>expect(entry).toBeEnabled());
   expect(entry).toHaveFocus();
 });
+
+
+it.each(["open","locked"] as const)("shows clear BO1 total-round options and the actual %s market state",async(state)=>{
+  const user=userEvent.setup();
+  const rounds:BetMarketDTO={...market,id:"rounds",type:"total_rounds",...marketPresentation("total_rounds",37),state,canStake:state==="open",options:[{...market.options[0]!,id:"over",label:"大"},{...market.options[1]!,id:"under",label:"小"}]};
+  const winner:BetMarketDTO={...market,id:"winner",type:"match_winner",...marketPresentation("match_winner",null),options:market.options.slice(0,2)};
+  render(<BetBoard initial={{...initial,matches:initial.matches.map(m=>({...m,format:"BO1"})),markets:[winner,rounds]}} slug="test" signedIn view="open" matchFilter={null}/>);
+  const panel=screen.getByRole("tabpanel",{name:"赛果"});
+  const row=within(panel).getByRole("region",{name:"总回合 · 18.5"});
+  expect(within(row).getByText(state==="open"?"开放":"已锁盘")).toBeVisible();
+  expect(within(row).getByText(/奖池/)).toHaveTextContent("100");
+  expect(within(row).getByRole("button",{name:/小于18.5/})).toBeVisible();
+  const over=within(row).getByRole("button",{name:/大于18.5/});
+  expect(over).toHaveTextContent("10%10");
+  await user.click(over);
+  expect(within(screen.getByRole("dialog")).getByRole("heading",{name:"积分竞猜 · 大于18.5"})).toBeVisible();
+  if(state==="open")await user.type(screen.getByLabelText("投入积分"),"10");
+  if(state==="locked")expect(screen.getByLabelText("投入积分")).toBeDisabled();
+  else expect(screen.getByRole("button",{name:"确认投入"})).toBeEnabled();
+});
