@@ -77,15 +77,9 @@ async function CaptainsContent({ params }: CaptainsPageProps) {
         </p>
         <h1 className="text-3xl font-semibold tracking-tight text-[var(--color-fg)]">{season.status === "voting" ? "队长投票" : "队长投票结果"}</h1>
         <p className="mt-2 text-sm text-[var(--color-fg-mid)]">
-          {season.status === "voting" ? "实时票数 · 审核通过后可投票" : "投票已结束，保留完整候选票数与选秀入口。"}
+          {season.status === "voting" ? "实时票数" : "查看票数与选秀回顾"}
         </p>
       </div>
-
-      {season.status === "voting" && (
-        <div className="rounded-sm border border-[var(--color-accent)]/30 bg-[var(--color-accent)]/5 p-4 text-sm text-[var(--color-fg-mid)]">
-          <p>选秀首轮从排位靠后的队伍开始，随后按蛇形顺序选人。</p>
-        </div>
-      )}
 
       <CaptainVotingPanel
         seasonName={season.name}
