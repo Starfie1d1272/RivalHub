@@ -45,7 +45,7 @@ describe("veto lifecycle shipped reader1/publisher0", () => {
     expect(await rows(f)).toEqual(original);
     const room = await view(f);
     expect(room.permissions.canRewind).toBe(false);
-    expect(room.incidents[0]).toMatchObject({ mayAppeal: false, appeal: { mayResolve: false } });
+    expect(room.incidents[0]).toMatchObject({ mayAppeal: false, appeal: { mayResolve: false, statusLabel: "恢复窗口已结束（原待处理记录保留）" } });
     for (const resolutionScope of ["platform_or_organizer", "participant_or_unverified"] as const) {
       await expect(resolveVetoAppeal({ matchId: f.matchId, appealId: original[0]!.id, actorId: f.actorId, resolutionScope, resolutionNote: "不能改写已结束的恢复窗口" })).rejects.toThrow("不能裁定或恢复");
     }
