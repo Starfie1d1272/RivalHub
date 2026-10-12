@@ -111,3 +111,14 @@ it("claims initial points inside the dialog and retains both the BET target and 
   expect(dialog.getByRole("heading",{name:/积分竞猜.*甲/})).toBeVisible();
   await user.type(screen.getByLabelText("投入积分"),"100");expect(dialog.getByRole("button",{name:"确认投入"})).toBeEnabled();
 });
+
+
+it("shows a failed header claim even when no participation dialog is open",async()=>{
+  const user=userEvent.setup();
+  vi.mocked(mutateBet).mockRejectedValueOnce(new Error("network unavailable"));
+  render(<BetBoard initial={{...initial,joined:false,balance:"0",joinEligibility:{canJoin:true,reason:null}}} slug="test" signedIn view="open" matchFilter={null}/>);
+  await user.click(screen.getByRole("button",{name:"领取 1,000 积分"}));
+  expect(await screen.findByRole("alert")).toHaveTextContent("领取结果暂未确认，请刷新后查看。");
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  expect(screen.getByRole("button",{name:"领取 1,000 积分"})).toBeEnabled();
+});

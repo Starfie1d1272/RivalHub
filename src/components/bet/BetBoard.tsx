@@ -62,6 +62,7 @@ export function BetBoard({initial,slug,signedIn,view,matchFilter,predictions,pre
         {data.enabled && !data.joined && (signedIn?data.joinEligibility?.canJoin?<Button onClick={join} disabled={pending||freePending}>领取 1,000 积分</Button>:<span className="text-xs text-[var(--color-fg-mid)]">{data.joinEligibility?.reason??"领取资格暂不可用，请刷新"}</span>:<Button asChild><Link href="/login">登录参与</Link></Button>)}
       </div>
     </>}/>
+    {error && !selected && !selectedPrediction && <p role="alert" className="text-sm text-[var(--color-danger)]">{error}</p>}
     {data.paused && <p role="status" className="border-l-2 border-[var(--color-warn)] pl-3 text-sm">投入已暂停，已有投入与结算记录保留。</p>}
     {BigInt(data.debt)>BigInt(0) && <p role="status" className="text-sm text-[var(--color-warn)]">待抵扣 {formatPoints(data.debt)} 积分 <HelpTooltip label="待抵扣积分说明" content="官方结果更正后产生的差额将从后续补给、退款与返还中优先抵扣。"/></p>}
     <nav aria-label="BET 筛选" className="flex flex-wrap items-center gap-1 border-b border-[var(--color-border)]">
