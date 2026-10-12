@@ -1,5 +1,16 @@
 # Changelog
 
+## [2.17.2]
+
+### Fixed
+
+- 修复 BET 管理确认与公开竞猜入口在页面尚未就绪时首击无响应；准备期间明确禁用，就绪后继续确认或登录。
+- 修复创建队伍时过早填写导致名称丢失的问题；输入与创建操作就绪后再开放。
+
+### Changed
+
+- 精简重复测试与 CI 启动，保留迁移、结算、权限和安全脱敏回归保护，并更新验证档案。
+
 ## [2.17.1]
 
 ### Fixed
@@ -2952,6 +2963,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[2.17.2]: https://github.com/Starfie1d1272/RivalHub/compare/v2.17.1...v2.17.2
 [2.17.1]: https://github.com/Starfie1d1272/RivalHub/compare/v2.17.0...v2.17.1
 [2.17.0]: https://github.com/Starfie1d1272/RivalHub/compare/v2.16.0...v2.17.0
 [2.16.0]: https://github.com/Starfie1d1272/RivalHub/compare/v2.15.12...v2.16.0
