@@ -32,7 +32,11 @@ export async function readFreePredictionRanking(tx: TxDb, seasonId: string, sort
     return {userId:identity.userId,playerUserId:playerIds.has(identity.userId)?identity.userId:null,name:getPublicDisplayName(identity),profit:bet?.profit??null,
       hits:score?.hits??null,judged:score?.judged??null,accuracy:score?score.hits/score.judged:null,rank:null,group:"limited"};
   });
-  const {dynamicFloor,ranked,limited} = partitionRankingPopulation(population,row=>row.accuracy,row=>row.judged,population);
+  const accuracyPopulation = partitionRankingPopulation(population,row=>row.accuracy,row=>row.judged,population);
+  // Hit totals need participation, not the accuracy leaderboard's sample floor.
+  const ranked = sort === "hits" ? population.filter(row=>(row.judged??0)>=1) : accuracyPopulation.ranked;
+  const limited = sort === "hits" ? population.filter(row=>(row.judged??0)<1) : accuracyPopulation.limited;
+  const dynamicFloor = sort === "hits" ? (ranked.length ? {floor:1,reference:1,quantile:1,share:1} : null) : accuracyPopulation.dynamicFloor;
   const eligible = sort === "profit" ? financial.map(b=>population.find(r=>r.userId===b.userId)!) : ranked;
   const rest = sort === "profit" ? population.filter(r=>!financial.some(b=>b.userId===r.userId)) : limited;
   const metricCompare = (a:FreePredictionRankingRowDTO,b:FreePredictionRankingRowDTO) => {
