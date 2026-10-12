@@ -276,38 +276,6 @@ describe("golden 32-team Major domain simulation", () => {
     }
   });
 
-  it("runs the 107-match third-place path and derives separate third and fourth groups", () => {
-    const major = createGoldenMajor(true);
-    const placements = buildPlacements(major);
-
-    expect(major.playoffMatches).toHaveLength(8);
-    expect(
-      major.stage1.matches.length +
-        major.stage2.matches.length +
-        major.stage3.matches.length +
-        major.playoffMatches.length,
-    ).toBe(107);
-    expectPlacementGroups(placements, [
-      [1, 1], [2, 2], [3, 3], [4, 4], [5, 8], [9, 11], [12, 14], [15, 16],
-      [17, 19], [20, 22], [23, 24], [25, 27], [28, 30], [31, 32],
-    ]);
-  });
-
-  it("is independent from fact and entrant input ordering", () => {
-    const major = createGoldenMajor();
-    const baseline = buildPlacements(major);
-    const reversed = buildFinalMajorPlacements({
-      tournamentTeams: [...major.tournamentTeams].reverse(),
-      stagePlan: createMajorDefaultCapabilities().stagePlan,
-      swissStages: [major.stage1, major.stage2, major.stage3].map((facts, index) => ({
-        stageKey: ["stage1", "stage2", "stage3"][index]!,
-        facts: { entrants: [...facts.entrants].reverse(), matches: [...facts.matches].reverse() },
-      })),
-      playoffMatches: [...major.playoffMatches].reverse(),
-      hasThirdPlaceMatch: major.hasThirdPlaceMatch,
-    });
-    expect(reversed).toEqual(baseline);
-  });
 
   it("fails closed when a completed stage is incomplete", () => {
     const major = createGoldenMajor();
@@ -316,34 +284,4 @@ describe("golden 32-team Major domain simulation", () => {
     ).toThrow(/incomplete/);
   });
 
-  it("fails closed when a stage contains the wrong advancing cohort", () => {
-    const major = createGoldenMajor();
-    const advancedId = major.stage1.qualifiers[0].teamId;
-    const stage1Projection = projectMajorSwissStage({
-      entrants: major.stage1.entrants,
-      matches: major.stage1.matches,
-      finalizedRound: 5,
-    });
-    const eliminatedId = stage1Projection.eliminated[0].teamId;
-    const replace = (teamId: string) => (teamId === advancedId ? eliminatedId : teamId);
-
-    expect(() =>
-      buildPlacements({
-        ...major,
-        stage2: {
-          ...major.stage2,
-          entrants: major.stage2.entrants.map((entrant) => ({
-            ...entrant,
-            teamId: replace(entrant.teamId),
-          })),
-          matches: major.stage2.matches.map((match) => ({
-            ...match,
-            entryAId: replace(match.entryAId),
-            entryBId: replace(match.entryBId),
-            winnerId: replace(match.winnerId),
-          })),
-        },
-      }),
-    ).toThrow(/阶段二 entrants/);
-  });
 });

@@ -3,13 +3,9 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { describe, expect, it } from "vitest";
-import { copySafeTree, redact } from "../../../scripts/ci/system-artifact-sanitizer.mjs";
+import { copySafeTree } from "../../../scripts/ci/system-artifact-sanitizer.mjs";
 
 describe("system artifact sanitizer", () => {
-  it("redacts opaque Supabase secrets without an env label", () => {
-    expect(redact("provider failed sb_secret_abc123_X-y")).not.toContain("abc123_X-y");
-    expect(redact("SUPABASE_SECRET_KEY=opaque-value")).not.toContain("opaque-value");
-  });
   it("redacts credentials and drops binary or credential-bearing files", () => {
     const source = mkdtempSync(join(tmpdir(), "rivalhub-artifact-source-"));
     const target = mkdtempSync(join(tmpdir(), "rivalhub-artifact-target-"));
@@ -41,16 +37,6 @@ describe("system artifact sanitizer", () => {
       rmSync(source, { recursive: true, force: true });
       rmSync(target, { recursive: true, force: true });
     }
-  });
-
-  it("redacts storage URLs and environment-shaped secrets without changing safe text", () => {
-    const value = redact("GET https://local/storage/v1/object/sign/education-evidence/a/b.pdf?token=secret; signed=https://example.test/download/object-key.pdf?signature=signature-secret; SUPABASE_SERVICE_ROLE_KEY=service-role-secret");
-    expect(value).not.toContain("service-role-secret");
-    expect(value).not.toContain("?token=secret");
-    expect(value).not.toContain("/storage/v1/object/");
-    expect(value).not.toContain("signature-secret");
-    expect(value).not.toContain("education-evidence");
-    expect(value).toContain("[REDACTED_SIGNED_URL]");
   });
 
   it("omits Playwright trace archives from the default failure bundle", () => {

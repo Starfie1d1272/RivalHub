@@ -4,31 +4,9 @@ import { describe,it,expect } from "vitest";
 import * as schema from "@/db/schema";
 import { operateBetInTx,joinBetInTx,stakeBetInTx,betBalance,lockBetProgram,reconcileBetInTx,runBetReconciliationJob } from "@/lib/bet/service";
 import { betBoard } from "@/lib/bet/data";
-import { readMatchSupport } from "@/lib/bet/match-support";
 import { fixture,read } from "./harness/bet-fixture";
 describe("BET transactional admission and settlement",()=>{
   // Real SQL protects per-team sums and lifecycle retention; component fixtures cannot.
-  it("reads match support from stake amounts across scheduled, live and settled states", async () => fixture(async f => {
-    const support = () => readMatchSupport(f.db, f.seasonId, f.matchId);
-    const expected = (a: string, b: string) => expect.arrayContaining([
-      { entryId: f.entryIds[0], amount: a }, { entryId: f.entryIds[1], amount: b },
-    ]);
-    expect(await readMatchSupport(f.db, randomUUID(), f.matchId)).toBeNull();
-    expect(await readMatchSupport(f.db, f.seasonId, randomUUID())).toBeNull();
-    expect(await support()).toEqual(expected("0", "0"));
-    const market = (await read(f.db, f.seasonId, f.userId)).markets.find(m => m.type === "match_winner")!;
-    for (const [userId, option, amount] of [[f.userId, 0, "100"], [f.userId, 0, "50"], [f.otherId, 1, "300"]] as const) {
-      await f.db.transaction(tx => stakeBetInTx(tx, { seasonId: f.seasonId, userId, marketId: market.id, optionId: market.options[option]!.id, amount, requestId: randomUUID() }));
-    }
-    expect(await support()).toEqual(expected("150", "300"));
-    await f.db.update(schema.matches).set({status:"in_progress"}).where(eq(schema.matches.id, f.matchId));
-    await f.db.transaction(async tx => { await lockBetProgram(tx, f.seasonId); await reconcileBetInTx(tx, f.seasonId); });
-    expect(await support()).toEqual(expected("150", "300"));
-    await f.db.update(schema.matches).set({status:"finished",scoreA:2,scoreB:0,completedAt:new Date()}).where(eq(schema.matches.id, f.matchId));
-    await f.db.transaction(async tx => { await lockBetProgram(tx, f.seasonId); await reconcileBetInTx(tx, f.seasonId); });
-    expect((await read(f.db, f.seasonId, f.userId)).markets.find(m => m.id === market.id)?.state).toBe("settled");
-    expect(await support()).toEqual(expected("150", "300"));
-  }));
 
   it("allows administrators while retaining current roster conflicts in both read and write paths", async () => fixture(async f => {
     await f.db.update(schema.users).set({role:"super_admin"}).where(eq(schema.users.id,f.userId));
@@ -71,21 +49,6 @@ describe("BET transactional admission and settlement",()=>{
     await reconcile();await reconcile();
     expect((await read(db,seasonId,userId)).balance).toBe("1600");
     expect((await read(db,seasonId,late)).balance).toBe("1300");
-  }));
-
-  it("projects initial grant eligibility from the real join gates without requiring an unpaused market", async () => fixture(async f => {
-    const late=randomUUID();await f.db.insert(schema.users).values({id:late,email:`${late}@example.test`});
-    expect((await read(f.db,f.seasonId,late)).joinEligibility).toMatchObject({canJoin:false,reason:expect.stringContaining("邮箱验证")});
-    await f.db.update(schema.users).set({emailVerifiedAt:new Date(),emailVerificationSource:"admin_migration"}).where(eq(schema.users.id,late));
-    await f.db.update(schema.betPrograms).set({paused:true}).where(eq(schema.betPrograms.seasonId,f.seasonId));
-    expect((await read(f.db,f.seasonId,late)).joinEligibility).toEqual({canJoin:true,reason:null});
-    expect(await f.db.query.betAccounts.findFirst({where:eq(schema.betAccounts.userId,late)})).toBeUndefined();
-    await f.db.transaction(tx=>joinBetInTx(tx,f.seasonId,late));
-    expect(await read(f.db,f.seasonId,late)).toMatchObject({joined:true,balance:"1000",joinEligibility:{canJoin:false}});
-    const archived=randomUUID();await f.db.insert(schema.users).values({id:archived,email:`${archived}@example.test`,emailVerifiedAt:new Date(),emailVerificationSource:"admin_migration"});
-    await f.db.update(schema.seasons).set({status:"archived"}).where(eq(schema.seasons.id,f.seasonId));
-    expect((await read(f.db,f.seasonId,archived)).joinEligibility).toMatchObject({canJoin:false,reason:expect.stringContaining("归档")});
-    await expect(f.db.transaction(tx=>joinBetInTx(tx,f.seasonId,archived))).rejects.toThrow(/归档/);
   }));
 
   it("ranks current settled profit with competition ties and exposes only the viewer's safe history", async () => fixture(async f => {

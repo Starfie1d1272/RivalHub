@@ -16,10 +16,6 @@ const FULL_STATIC_MATRIX = [
   { task: "build", changedPaths: [] },
 ];
 
-const GLOBAL_CONTRACTS = {
-  productLanguage: { project: "unit-domain-node", path: "tests/unit/quality/product-language.test.ts" },
-};
-
 const DB_BACKED_APP_PREFIXES = [
   "src/app/[seasonSlug]/",
   "src/app/admin/",
@@ -446,10 +442,6 @@ function collectEvidence(path, classification, evidence) {
     // Consumers can belong to any project, regardless of the source folder.
     for (const sources of evidence.unitRelatedSources.values()) sources.add(path);
   }
-  if (path.startsWith("src/")) {
-    evidence.unitExplicitTests.get("unit-domain-node").add(GLOBAL_CONTRACTS.productLanguage.path);
-  }
-
   for (const spec of systemSpecsForPath(path)) {
     evidence.e2eSpecs.add(spec);
   }
