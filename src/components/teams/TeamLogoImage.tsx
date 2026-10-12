@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { cn } from "@/lib/utils/cn";
 
@@ -27,6 +27,11 @@ export function TeamLogoImage({
   fallbackClassName,
 }: TeamLogoImageProps) {
   const [failedLogoUrl, setFailedLogoUrl] = useState<string | null>(null);
+  const imageRef = useRef<HTMLImageElement>(null);
+  useEffect(() => {
+    const image = imageRef.current;
+    if (logoUrl && image?.complete && image.naturalWidth === 0) setFailedLogoUrl(logoUrl);
+  }, [logoUrl]);
   const initial = teamName.trim()[0]?.toUpperCase() ?? "?";
   const resolvedLogoUrl = logoUrl && logoUrl !== failedLogoUrl ? logoUrl : null;
   const accessibleLabel = `队伍图标：${teamName}`;
@@ -46,6 +51,7 @@ export function TeamLogoImage({
   const onError = () => setFailedLogoUrl(resolvedLogoUrl);
   return fill ? (
     <Image
+      ref={imageRef}
       src={resolvedLogoUrl}
       alt={accessibleLabel}
       fill
@@ -56,6 +62,7 @@ export function TeamLogoImage({
     />
   ) : (
     <Image
+      ref={imageRef}
       src={resolvedLogoUrl}
       alt={accessibleLabel}
       width={width}
