@@ -224,7 +224,7 @@ function entryState(source: MyCompetitionSource, userId: string): MyReadinessIte
       `entry-${source.id}`,
       "当前报名状态",
       presentation.state,
-      `${presentation.label}：${presentation.detail}`,
+      presentation.detail,
       awaitingConfirmation ? "self" : undefined,
       { href, label: awaitingConfirmation ? "确认是否参赛" : "查看本届报名" },
     );
@@ -245,7 +245,7 @@ function entryState(source: MyCompetitionSource, userId: string): MyReadinessIte
           : source.registrationStatus === "draft"
             ? "self"
             : undefined;
-  return item(`entry-${source.id}`, "当前报名状态", presentation.state, `${presentation.label}：${presentation.detail}`, responsibility, cta);
+  return item(`entry-${source.id}`, "当前报名状态", presentation.state, presentation.detail, responsibility, cta);
 }
 
 function qualificationState(

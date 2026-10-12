@@ -43,7 +43,7 @@ export function presentCompetitionEntryRegistration(
 ): CompetitionEntryPresentation {
   switch (status) {
     case "approved":
-      return { label: "已通过", state: "ready", detail: "报名已通过审核。正式参赛名单与单场首发仍会分别确定。", tone: "success" };
+      return { label: "已通过", state: "ready", detail: "报名已通过审核。", tone: "success" };
     case "submitted":
       return { label: "待审核", state: "waiting", detail: "报名已提交，正在等待审核。", tone: "info" };
     case "waitlisted":
