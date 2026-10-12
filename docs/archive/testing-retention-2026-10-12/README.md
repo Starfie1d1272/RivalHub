@@ -55,11 +55,11 @@ Vitest 数量来自实际成功运行的 JSON reporter；Playwright 来自实际
 
 ## 下一批和架构讨论
 
-1. 对剩余集合独立逐 oracle 审查，先检查上述边界是否重复保护同一 canonical invariant；不能把多个 `it` 合成一个凑数。无法证明的保留，形成超出 10% 的明确例外。
+1. 对剩余集合独立逐 oracle 审查，先检查上述边界是否重复保护同一 canonical invariant；不能把多个 `it` 合成一个凑数。无法证明的保留，按独立风险与维护成本说明理由，不以比例作为门槛。
 2. 审查 Knip 暴露 exports 的运行/跨仓/运维消费者，确认 owner 后删除真死代码；测试引用消失本身不证明 API 已死。
 3. 讨论 release recovery 与 migration harness 是否可维护稳定 invariant 探针、减少历史 fixture。不是本轮实现：不改迁移 owner、不重构 transaction、不增加第二套事实来源。
 4. LIVE 细时龄/cache 与预测 simulator 的退役 oracle 在相关规则变动时补聚焦证据；讨论哪些应长期恢复，不能用全绿 CI 反推没有风险。
-5. #941 修复单独开发和验收；独立审查不冻结正常开发。
+5. #941 已由 #943 独立修复合入；继续将产品修复与测试清理分开验收，独立审查不冻结正常开发。
 
 本次 Request changes 的故障注入、Major冷/缓存对照与未取得的精确候选清单见 [独审跟进](./review-followup.md)。
 
