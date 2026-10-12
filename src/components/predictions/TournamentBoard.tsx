@@ -1,5 +1,6 @@
 "use client";
-import React, { useMemo, useState, useSyncExternalStore } from "react";
+import React, { useMemo, useState } from "react";
+import { useClientReady } from "@/components/rivalhub/useClientReady";
 import { HelpTooltip } from "@/components/rivalhub/HelpTooltip";
 import {
   MAJOR_SWISS_WIN_THRESHOLD,
@@ -16,9 +17,6 @@ type ResultGroup = {
   ids: string[];
   tone: "advance" | "eliminated" | "champion" | "runner-up" | "placement";
 };
-const subscribeToHydration = () => () => {};
-const clientReady = () => true;
-const serverReady = () => false;
 export function TournamentBoard({
   stage,
   seasonSlug,
@@ -33,7 +31,7 @@ export function TournamentBoard({
   onChoose: (match: SimMatch, winner: string) => void;
 }) {
   // SSR buttons must remain disabled until React can handle a user's choice.
-  const interactive = useSyncExternalStore(subscribeToHydration, clientReady, serverReady);
+  const interactive = useClientReady();
   const [view, setView] = useState<"flow" | "compact" | "list">("flow");
   const teamMap = useMemo(
     () => new Map(teams.map((t) => [t.teamId, t])),

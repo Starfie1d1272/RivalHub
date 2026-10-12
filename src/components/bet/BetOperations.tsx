@@ -1,5 +1,6 @@
 "use client";
 
+import { useClientReady } from "@/components/rivalhub/useClientReady";
 import { TeamProfileLink } from "@/components/teams/TeamProfileLink";
 import { useRef, useState, useTransition } from "react";
 import Link from "next/link";
@@ -27,6 +28,7 @@ type Operation = keyof typeof labels;
 export function BetOperations({ data, slug, pending, query }: {
   data: BetBoardDTO; slug: string; pending: boolean; query: BetOperationsQuery;
 }) {
+  const interactive = useClientReady();
   const router = useRouter();
   const [busy, startTransition] = useTransition();
   const [action, setAction] = useState<{ operation: Operation; marketId?: string } | null>(null);
@@ -63,11 +65,11 @@ export function BetOperations({ data, slug, pending, query }: {
       {action.operation === "void" && <div className="space-y-2"><Label htmlFor="bet-refund-reason">退款原因</Label><Input id="bet-refund-reason" placeholder="填写退款原因" value={reason} disabled={busy} onChange={e => setReason(e.target.value)} /></div>}
       <InlineConfirm title={`确认${labels[action.operation]}？`} sub={action.operation === "close" ? "此盘口将永久停止接受投入。" : action.operation === "void" ? "所有投入将原额返还，并保留流水和退款原因。" : action.operation === "resume" ? "只恢复仍开放的盘口；已锁盘口不会重开。" : action.operation === "retry" ? "从最新官方事实重新处理待结算与更正。" : "盘口生命周期与结算由赛事官方事实驱动。"} danger={action.operation === "void"} onCancel={() => { if (!busy) setAction(null); }} onConfirm={run} confirmLabel={busy ? "处理中…" : labels[action.operation]} />
     </section>;
-  return <div className="space-y-6">
-    <PageHeader title="BET" description={<>{!data.enabled ? "未启用" : data.paused ? "投入已暂停" : "运行中"} <HelpTooltip label="BET 运营规则" content="盘口随官方对阵、BP 与地图进度自动开放。积分初始补给为 1,000，后续正赛阶段补给为 300。锁盘永久生效；更正答案请修改官方赛果。" /></>} actions={<>
+  return <div className="space-y-6" aria-busy={!interactive || busy}>
+    <PageHeader title="BET" description={<>{!data.enabled ? "未启用" : data.paused ? "投入已暂停" : "运行中"} <HelpTooltip label="BET 运营规则" content="盘口随官方对阵、BP 与地图进度自动开放。积分初始补给为 1,000，后续正赛阶段补给为 300。锁盘永久生效；更正答案请修改官方赛果。" />{!interactive && <span role="status"> · 正在准备操作…</span>}</>} actions={<>
       <Button variant="outline" asChild><Link href={`/${slug}/bet` as never}>查看公开页面</Link></Button>
-      <Button disabled={busy} onClick={() => setAction({ operation: !data.enabled ? "enable" : data.paused ? "resume" : "pause" })}>{!data.enabled ? "启用 BET" : data.paused ? "恢复投入" : "暂停投入"}</Button>
-      {pending && data.enabled && <Button variant="outline" disabled={busy} onClick={() => setAction({ operation: "retry" })}>重试结算</Button>}
+      <Button disabled={!interactive || busy} onClick={() => setAction({ operation: !data.enabled ? "enable" : data.paused ? "resume" : "pause" })}>{!data.enabled ? "启用 BET" : data.paused ? "恢复投入" : "暂停投入"}</Button>
+      {pending && data.enabled && <Button variant="outline" disabled={!interactive || busy} onClick={() => setAction({ operation: "retry" })}>重试结算</Button>}
     </>} />
     <div className="flex flex-wrap gap-x-6 gap-y-3 text-sm">
       {STATES.map(state => <span key={state}>{betStateLabel[state]} <b className="ml-2 font-mono">{data.markets.filter(m => m.state === state).length}</b></span>)}
@@ -100,7 +102,7 @@ export function BetOperations({ data, slug, pending, query }: {
           <div className="divide-y divide-[var(--color-border)]">{group.markets.map(m => <section key={m.id} aria-label={`${group.title} · ${m.title}`} className="grid gap-3 p-4 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-center">
             <div className="min-w-0"><h3 className="text-sm font-semibold">{m.title}</h3>{m.context && <p className="mt-1 text-xs text-[var(--color-fg-dim)]">{m.context}</p>}<p className="mt-1 text-xs text-[var(--color-fg-mid)]">奖池 <span className="font-mono">{formatPoints(m.pool)}</span> · {m.participants} 人</p></div>
             <span className="text-xs text-[var(--color-fg-mid)]">{betStateLabel[m.state]}</span>
-            <div className="flex flex-wrap gap-2">{m.state === "open" && <Button size="sm" variant="outline" disabled={busy} onClick={() => request("close", m)}>锁盘</Button>}{m.state !== "refunded" && <Button size="sm" variant="ghost" disabled={busy} onClick={() => request("void", m)}>退款</Button>}</div>
+            <div className="flex flex-wrap gap-2">{m.state === "open" && <Button size="sm" variant="outline" disabled={!interactive || busy} onClick={() => request("close", m)}>锁盘</Button>}{m.state !== "refunded" && <Button size="sm" variant="ghost" disabled={!interactive || busy} onClick={() => request("void", m)}>退款</Button>}</div>
             {target?.id === m.id && <div className="sm:col-span-3">{confirmation}</div>}
           </section>)}</div>
         </div>
