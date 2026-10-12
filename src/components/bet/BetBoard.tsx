@@ -111,11 +111,15 @@ function Empty({text}:{text:string}){return <div className="border border-dashed
 function MatchCard({match,markets,slug,choose,predictions,openPrediction,initialGroup,busy}:{busy:boolean;initialGroup?:string;match:BetBoardDTO["matches"][number];markets:BetMarketDTO[];slug:string;choose:(m:BetMarketDTO,o:string)=>void;predictions?:FreePredictionModel[];openPrediction:(model:FreePredictionModel,key:string)=>void}) {
   const tabId=useId();const tabButtons=useRef<(HTMLButtonElement|null)[]>([]);
   const winner=predictions?.find(p=>p.kind==="winner");const bp=predictions?.find(p=>p.kind==="bp");
-  const groups=[...(markets.some(m=>m.group==="比赛")||winner?["赛果"]:[]),...(markets.some(m=>m.group!=="比赛"&&!(match.format==="BO1"&&m.type==="total_rounds"))||bp?["地图"]:[])];const defaultGroup=groups[0]??"赛果";
+  const groups=[...(markets.some(m=>m.group==="比赛"||match.format==="BO1"&&m.type==="total_rounds")||winner?["赛果"]:[]),...(markets.some(m=>m.group!=="比赛"&&!(match.format==="BO1"&&m.type==="total_rounds"))||bp?["地图"]:[])];const defaultGroup=groups[0]??"赛果";
   const [group,setGroup]=useState<string|null>(initialGroup??null);const shown=group && groups.includes(group)?group:defaultGroup;
   const categoryMarkets=markets.filter(m=>shown==="赛果"?m.group==="比赛":m.group!=="比赛"&&!(match.format==="BO1"&&m.type==="total_rounds"));
   const primary=categoryMarkets.find(m=>shown==="赛果"?m.type==="match_winner":m.type.startsWith("veto_"))??categoryMarkets[0];
-  const secondary=categoryMarkets.filter(m=>m.id!==primary?.id);
+  // Public DTO order is createdAt/id ascending; reverse preserves a deterministic
+  // newest-first fallback while an open/locked market takes priority over history.
+  const rounds=match.format==="BO1"&&shown==="赛果"?markets.filter(m=>m.type==="total_rounds").reverse():[];
+  const primaryRounds=rounds.find(m=>m.state==="open")??rounds.find(m=>m.state==="locked")??rounds[0];
+  const secondary=[...categoryMarkets.filter(m=>m.id!==primary?.id),...rounds.filter(m=>m.id!==primaryRounds?.id)];
   const votesA=winner?.options.find(o=>o.key===match.entryAId)?.count;const votesB=winner?.options.find(o=>o.key===match.entryBId)?.count;
   const hasVotes=Boolean(winner&&winner.participants>0&&votesA!==null&&votesA!==undefined&&votesB!==null&&votesB!==undefined&&votesA+votesB===winner.participants);
   const betA=primary?.options.find(o=>o.entity?.kind==="team"&&o.entity.entryId===match.entryAId);const betB=primary?.options.find(o=>o.entity?.kind==="team"&&o.entity.entryId===match.entryBId);
@@ -134,7 +138,7 @@ function MatchCard({match,markets,slug,choose,predictions,openPrediction,initial
 
       {secondary.length>0&&<details key={shown} className="py-3"><summary className="cursor-pointer text-xs text-[var(--color-fg-mid)] focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]">{shown==="赛果"?"更多赛果竞猜":"逐图与历史盘口"} · {secondary.length}</summary><div className="space-y-4 pt-4">{secondary.map(m=><MarketRow key={m.id} busy={busy} market={m} slug={slug} choose={choose} explore/>)}</div></details>}
 
-      {match.format==="BO1"&&shown==="赛果"&&markets.filter(m=>m.type==="total_rounds").map(m=><div key={m.id} className="py-4"><MarketRow busy={busy} market={m} slug={slug} choose={choose} explore/></div>)}
+      {primaryRounds&&<div className="py-4"><MarketRow busy={busy} market={primaryRounds} slug={slug} choose={choose} explore/></div>}
     </div>
   </article>;
 }

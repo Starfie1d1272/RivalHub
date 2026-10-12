@@ -190,3 +190,36 @@ it.each(["open","locked"] as const)("shows clear BO1 total-round options and the
   if(state==="locked")expect(screen.getByLabelText("投入积分")).toBeDisabled();
   else expect(screen.getByRole("button",{name:"确认投入"})).toBeEnabled();
 });
+
+
+it.each([["open","refunded"],["locked","refunded"],["open","locked"]] as const)("keeps the %s BO1 rounds market visible and folds a newer %s market",async(state,historicalState)=>{
+  const user=userEvent.setup();
+  const current:BetMarketDTO={...market,id:"current-rounds",type:"total_rounds",...marketPresentation("total_rounds",37),state,canStake:state==="open",mine:{optionId:"over",amount:"10",payout:null,profit:null},options:[{...market.options[0]!,id:"over",label:"大"},{...market.options[1]!,id:"under",label:"小"}]};
+  const historical:BetMarketDTO={...current,id:"historical-rounds",...marketPresentation("total_rounds",43),state:historicalState,canStake:false,mine:{optionId:"old-over",amount:"10",payout:historicalState==="refunded"?"10":null,profit:historicalState==="refunded"?"0":null},options:current.options.map(o=>({...o,id:`old-${o.id}`}))};
+  render(<BetBoard initial={{...initial,matches:initial.matches.map(m=>({...m,format:"BO1"})),markets:[current,historical]}} slug="test" signedIn view="mine" matchFilter={null}/>);
+  const panel=screen.getByRole("tabpanel",{name:"赛果"});
+  expect(within(panel).getByRole("region",{name:"总回合 · 18.5"})).toBeVisible();
+  expect(within(panel).getByRole("region",{name:"总回合 · 21.5"})).not.toBeVisible();
+  await user.click(within(panel).getByText("更多赛果竞猜 · 1"));
+  const history=within(panel).getByRole("region",{name:"总回合 · 21.5"});
+  expect(history).toBeVisible();
+  expect(within(history).getByText(historicalState==="refunded"?"已退款":"已锁盘")).toBeVisible();
+  await user.click(within(history).getByRole("button",{name:/大于21.5/}));
+  expect(within(screen.getByRole("dialog")).getByRole("heading",{name:"积分竞猜 · 大于21.5"})).toBeVisible();
+  expect(screen.getByRole("button",{name:"确认投入"})).toBeDisabled();
+});
+
+it("uses the newest BO1 history deterministically and keeps the older settled market accessible",async()=>{
+  const user=userEvent.setup();
+  const older:BetMarketDTO={...market,id:"older-rounds",type:"total_rounds",...marketPresentation("total_rounds",37),state:"settled",canStake:false,options:[{...market.options[0]!,label:"大"},{...market.options[1]!,label:"小"}]};
+  const newer:BetMarketDTO={...older,id:"newer-rounds",...marketPresentation("total_rounds",43),state:"refunded",options:older.options.map(o=>({...o,id:`new-${o.id}`}))};
+  render(<BetBoard initial={{...initial,matches:initial.matches.map(m=>({...m,format:"BO1"})),markets:[older,newer]}} slug="test" signedIn view="settled" matchFilter={null}/>);
+  const panel=screen.getByRole("tabpanel",{name:"赛果"});
+  expect(within(panel).getByRole("region",{name:"总回合 · 21.5"})).toBeVisible();
+  expect(within(panel).getByRole("region",{name:"总回合 · 18.5"})).not.toBeVisible();
+  await user.click(within(panel).getByText("更多赛果竞猜 · 1"));
+  const history=within(panel).getByRole("region",{name:"总回合 · 18.5"});
+  expect(history).toBeVisible();
+  await user.click(within(history).getByRole("button",{name:/小于18.5/}));
+  expect(within(screen.getByRole("dialog")).getByRole("heading",{name:"积分竞猜 · 小于18.5"})).toBeVisible();
+});
