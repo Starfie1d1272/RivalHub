@@ -1,5 +1,21 @@
 # Changelog
 
+## [2.17.0]
+
+### Added
+
+- 启用本人主动领取有限低保：已加入本届 BET 且非负余额不足 10 时只补至 10，北京时间每日最多一次、每届累计最多 100；发放不计净收益，不消除更正债务。
+- 未来尚未创建 BP 积分盘口的 BO3 使用一个七选一三图盘口，最终三张地图共同中奖；保留历史图序盘口及 BO5 规则，沿用共同奖池退款、永久锁盘与官方更正。
+
+### Changed
+
+- 在 v2.16.0 的兼容 reader 已实际上线后启用 ledger 与 BO3 两项 publisher；技术申诉生命周期继续保持兼容读取，不写新的关闭记录。
+
+### Migration
+
+- 0088 将竞猜目录待处理门槛推进至 catalog3，使已存在项目通过正常调度补齐合法新窗口；保留单参数普通待处理判断和双参数 false 的技术申诉安全边界。
+- 发布保留 PG17、N/N+1 兼容、条件加密 checkpoint、protected migrate/verify 与 scheduler 验证。新 producer 的生产部署及只读业务验收尚待本次 Release 完成；发布后回滚目标必须保留对应 reader。
+
 ## [2.16.0]
 
 ### Added
@@ -2928,6 +2944,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[2.17.0]: https://github.com/Starfie1d1272/RivalHub/compare/v2.16.0...v2.17.0
 [2.16.0]: https://github.com/Starfie1d1272/RivalHub/compare/v2.15.12...v2.16.0
 [2.15.12]: https://github.com/Starfie1d1272/RivalHub/compare/v2.15.11...v2.15.12
 [2.15.11]: https://github.com/Starfie1d1272/RivalHub/compare/v2.15.10...v2.15.11
