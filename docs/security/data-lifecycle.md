@@ -37,7 +37,7 @@
 | 正式赛事、冻结名单、赛果、奖项、裁决、积分账本 | 长期可追溯历史；改名、解绑、归档不是删除触发 | 正式更正/撤销由原 owner 与审计处理；不重写当时归属。账号删除后的匿名化范围尚需独立契约；见 [workflows](../workflows.md) |
 | 当前账号、联系方式、报名草稿、legacy 私有字段 | 当前无统一到期删除；account lifetime 不等于已实现删除产品 | identity/auth 处理凭据撤销、归并与会话失效，不代表旧个人数据物理清除；长期目的与删除范围尚需收口 |
 | 教育目录、认证结论、审核历史 | 保留审核事实，与证据分开 | 清理 code/object 不删除学校、已通过/驳回、审核时间与结论 |
-| Completed 教育核验材料 | `reviewedAt` 达 canonical 七天 cutoff 后到期；pending 不按提交时间推断到期，缺审核时间不补造 | 新列表/搜索/签名请求不再提供到期 evidence。[retention](../../src/lib/education/retention.ts) 删除对象成功后才清 DB key，CHSI code 清空；失败交既有 scheduler 重试。已签发短期 URL 仍受 adapter TTL/对象删除约束，读端不能撤销它；[访问单测](../../tests/unit/lib/education/evidence-access.test.ts)、[列表 DB](../../tests/integration/db/education-admin-review.test.ts)、[清理 DB](../../tests/integration/db/education-manual-retention.test.ts) |
+| Completed 教育核验材料 | `reviewedAt` 达 canonical 七天 cutoff 后到期；pending 不按提交时间推断到期，缺审核时间不补造 | 新列表/搜索/签名请求不再提供到期 evidence。[retention](../../src/lib/education/retention.ts) 删除对象成功后才清 DB key，CHSI code 清空；失败交既有 scheduler 重试。已签发短期 URL 仍受 adapter TTL/对象删除约束，读端不能撤销它；[签名入口](../../src/lib/education/evidence-access.ts)、[列表 DB](../../tests/integration/db/education-admin-review.test.ts)、[清理 DB](../../tests/integration/db/education-manual-retention.test.ts) |
 | Pending 教育审核/未完成身份请求 | 未定义放弃或长期 pending 的全量自动删除；有 expiresAt 的授权请求到期不可使用 | 失效不等于记录已删除；复用原 owner，不另建七天 scheduler，不按“旧”猜测放弃 |
 | Demo import/receipt/私有诊断 | 当前无统一固定 purge 期限；正式统计/身份 provenance 是另一种事实 | 原 artifact、导入诊断、正式统计的删除边界需独立决定；待核对身份不是 public cache |
 | 设备 verifier、配对/邀请、会话 | 原 owner expiresAt/撤销控制使用资格；session 有 canonical 有效期 | registry 注册时清该用户过期会话，退出/全撤销删除记录，durable fence 保留；设备撤销保留关系/audit。失效 intents/receipts 未有统一物理 purge |
@@ -76,7 +76,7 @@
 A 为已有 contract/自动证据；B 为 contract 已定但当前 provider 配置/自动核验不足；C 为保留/删除尚未定义；D 为可复现访问/恢复错误。未知不能写成已落实。
 
 - A：completed-review cutoff、对象先删后清引用、private Storage/授权签名；[education DB](../../tests/integration/db/education-evidence-retention.test.ts)。Browser Data API 继续由 [access matrix](../../scripts/db/access-matrix.ts) deny-by-default。
-- A：敏感对象 active-reference-only、未知 bucket 拒绝；[隔离恢复 tests](../../tests/unit/recovery-storage.test.ts)。R2 当前配置仍需原 verify 的真实 read-back。
+- A：敏感对象 active-reference-only、未知 bucket 拒绝；实现由 [对象恢复 owner](../../scripts/db/recovery/storage.ts) 与 [Storage policy](../../scripts/db/recovery/storage-policy.ts) 承接。实现引用不代表隔离恢复验收；已退役的访问/恢复单测及其覆盖缺口见 [测试清理记录](../archive/testing-retention-2026-10-12/files.csv)，不能声称逐断言等价替代。R2 当前配置仍需原 verify 的真实 read-back。
 - B：Vercel/Better Stack retention、Supabase physical backup/PITR plan 的当前配置，由执行 Issue 记录授权与低敏回读证据。
 - C：resolved feedback、abandoned pending evidence、草稿/旧联系方式、raw Demo/receipt 的物理删除期限；账号删除后的 provenance/官方历史匿名化范围。
 - C：旧备份中的账号/session/机器撤销与删除事件的恢复失效范围，需 recovery/auth owner 独立的可验收机制。
