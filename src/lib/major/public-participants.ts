@@ -322,14 +322,19 @@ async function loadMajorPublicParticipantState(
   const lifecycleEntryIds = options.entryId
     ? approvedEntryIds.filter((entryId) => entryId === options.entryId)
     : approvedEntryIds;
-  const eventMemberEntryIds = options.entryId
-    ? officialEntryIds.includes(options.entryId) ? [options.entryId] : []
-    : officialEntryIds;
+  // Match the roster source consumed below, including approved teams that were
+  // not selected and remain accessible through their individual detail pages.
+  const eventMemberEntryIds = lifecycle.officialSetComplete
+    ? lifecycleEntryIds.filter((entryId) => officialEntryIdSet.has(entryId))
+    : [];
+  const approvedMemberEntryIds = lifecycle.officialSetComplete
+    ? lifecycleEntryIds.filter((entryId) => !officialEntryIdSet.has(entryId))
+    : lifecycleEntryIds;
 
   // Roster membership is an event fact; a later user merge must not erase it from the public record.
   const [approvedRosterRows, eventRosterMembersRows, seedRows] = await Promise.all([
-    lifecycleEntryIds.length
-      ? approvedRosterQuery(lifecycleEntryIds)
+    approvedMemberEntryIds.length
+      ? approvedRosterQuery(approvedMemberEntryIds)
         .orderBy(asc(competitionEntries.id), asc(users.id))
       : Promise.resolve([] as RosterMemberRow[]),
     eventMemberEntryIds.length
