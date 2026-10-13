@@ -19,7 +19,7 @@ import { createAnnouncementInTx, updateAnnouncementInTx, setAnnouncementStatusIn
 import { getRelevantAttentionAnnouncement, listPublicAnnouncements } from "../../../src/lib/announcements/read-model";
 import { submitFeedbackInTx, setFeedbackStatusInTx } from "../../../src/lib/feedback/commands";
 import { createCommunityGroupInTx, createSeasonContactInTx, updateCommunityGroupInTx, upsertSeasonPublicInfoInTx } from "../../../src/lib/season-public-info/commands";
-import { getPublicSeasonInfo } from "../../../src/lib/season-public-info/read-model";
+import { getPublicSeasonInfo, getPublicSeasonInfoBySlug } from "../../../src/lib/season-public-info/read-model";
 import { createLocalPool } from "./harness/database";
 
 describe("operations real PostgreSQL lifecycle & abuse hardening", () => {
@@ -267,6 +267,13 @@ describe("operations real PostgreSQL lifecycle & abuse hardening", () => {
         joinUrl: null,
         qrImageUrl: null,
       });
+
+      // The ID read must not turn a deleted event into a default DTO, even
+      // for a previously authorized admin. Slug lookup keeps its null contract.
+      await database.delete(seasons).where(eq(seasons.id, seasonId));
+      viewer.mockResolvedValueOnce({ userId: actorId, role: "super_admin", seasonIds: [] });
+      await expect(getPublicSeasonInfo(seasonId)).rejects.toMatchObject({ code: "SEASON_NOT_FOUND" });
+      await expect(getPublicSeasonInfoBySlug(`ops-info-${seasonId.slice(0, 8)}`)).resolves.toBeNull();
     } finally {
       await database.delete(auditLogs).where(eq(auditLogs.actorId, actorId));
       await database.delete(seasons).where(eq(seasons.id, seasonId));

@@ -8,6 +8,7 @@ import { communityGroups, seasonContacts, seasonPublicInfo, seasons, type Commun
 import { toPublicSeasonInfo, type PublicSeasonInfo } from "./presentation";
 import { getCurrentUserAuthorization } from "@/lib/auth/session";
 import { getPublicOrAuthorizedDraftSeason } from "@/lib/data/public-seasons";
+import { AppError, ErrorCode, ERROR_MESSAGES } from "@/lib/errors";
 
 export type SeasonPublicInfoAdmin = {
   season: { id: string; slug: string; name: string; logoUrl: string | null };
@@ -20,7 +21,13 @@ export async function getPublicSeasonInfo(seasonId: string): Promise<PublicSeaso
   const publicInfo = await getCachedPublicSeasonInfo(seasonId);
   if (publicInfo) return publicInfo;
 
-  // Authorized draft previews remain fresh and never enter the shared cache.
+  // A cache miss may mean draft, a just-published event, or deletion. Only
+  // draft previews require authorization; a deleted event has no DTO.
+  const [season] = await db.select({ status: seasons.status }).from(seasons)
+    .where(eq(seasons.id, seasonId)).limit(1);
+  if (!season) throw new AppError(ErrorCode.SEASON_NOT_FOUND, ERROR_MESSAGES[ErrorCode.SEASON_NOT_FOUND]);
+  if (season.status !== "draft") return readSeasonInfo(seasonId);
+
   const viewer = await getCurrentUserAuthorization();
   if (!viewer || (viewer.role !== "super_admin" && !viewer.seasonIds.includes(seasonId))) {
     return toPublicSeasonInfo(null, [], []);
