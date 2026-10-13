@@ -1,10 +1,11 @@
 import { getParticipantSummary } from "../../../src/lib/participants/summary";
 import { randomUUID } from "node:crypto";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { Pool } from "pg";
 
 import { createMajorDefaultCapabilities } from "../../../src/lib/competition/templates";
 import {
+  getMajorPublicParticipantOverview,
   getMajorPublicParticipantProjection,
   getMajorPublicParticipantSummary,
   getMajorPublicParticipantTeam,
@@ -12,6 +13,30 @@ import {
 } from "../../../src/lib/major/public-participants";
 import { checkStandardMajorCapabilities } from "../../../src/lib/competition/definition";
 import { createLocalPool } from "./harness/database";
+
+const observation = vi.hoisted(() => ({ queries: [] as string[] }));
+vi.mock("@/db/client", async importOriginal => {
+  const actual = await importOriginal<typeof import("@/db/client")>();
+  const { drizzle } = await import("drizzle-orm/node-postgres");
+  const schema = await import("@/db/schema");
+  return { ...actual, db: drizzle((actual.db as typeof actual.db & { $client: Pool }).$client, {
+    schema, logger: { logQuery: query => observation.queries.push(query) },
+  }) };
+});
+
+// Preserve the detailed view's lifecycle/count semantics while enforcing a
+// count-only database response: directory cards must not fetch player payloads.
+async function expectOverviewMatches(season: MajorPublicParticipantSeason) {
+  const { teams: _teams, matchCount: _matches, finishedMatchCount: _finished, ...expected } = await getMajorPublicParticipantSummary(season);
+  void _teams; void _matches; void _finished;
+  observation.queries = [];
+  const actual = await getMajorPublicParticipantOverview(season);
+  expect(actual).toEqual(expected);
+  const rosterReads = observation.queries.filter(query => /from "(?:competition_entry_roster_members|event_roster_members)"/.test(query));
+  expect(rosterReads).toHaveLength(actual.teamCount ? 1 : 0);
+  for (const query of rosterReads) expect(query.split(" from ")[0]).toBe("select count(*)");
+  return actual;
+}
 
 const ACTOR = "major-public-participants-integration";
 
@@ -385,6 +410,8 @@ describe("Major public participant read model PostgreSQL integration", () => {
         SELECT user_id, $1, 'opener', 'closer', 'A', 'S1', 1, 'A', 1, 'fixture', status::registration_status
         FROM unnest($2::uuid[], $3::text[]) AS rows(user_id, status)`, [fixture.season.id, fixture.entries[0]!.userIds.slice(0, 4), ['pending', 'approved', 'rejected', 'waitlisted']]);
       expect(await getParticipantSummary({ id: fixture.season.id, registrationMode: 'solo' })).toEqual({ count: 1, hasPlayers: true });
+      await expectOverviewMatches({ ...fixture.season, id: randomUUID() });
+      await expectOverviewMatches(fixture.season);
       const candidate = await getMajorPublicParticipantSummary(fixture.season);
       expect(candidate.phase).toBe("approved_candidates");
       expect(candidate.teams).toHaveLength(33);
@@ -404,12 +431,15 @@ describe("Major public participant read model PostgreSQL integration", () => {
       expect(candidateDetail?.rosterLabel).toBe("已审核报名名单");
 
       await makeOfficialFacts(pool, fixture);
+      await expectOverviewMatches(fixture.season);
       expect(await getParticipantSummary(fixture.season)).toEqual({ count: 160, hasPlayers: true });
       expect(await getParticipantSummary({ id: randomUUID(), registrationMode: 'team' })).toEqual({ count: 0, hasPlayers: false });
       await pool.query('UPDATE event_roster_members SET is_current = false WHERE event_roster_id = $1 AND user_id = $2', [fixture.eventRosterIds[0], fixture.entries[0]!.userIds[1]]);
+      await expectOverviewMatches(fixture.season);
       expect(await getParticipantSummary(fixture.season)).toEqual({ count: 159, hasPlayers: true });
       await pool.query('UPDATE event_roster_members SET is_current = true WHERE event_roster_id = $1 AND user_id = $2', [fixture.eventRosterIds[0], fixture.entries[0]!.userIds[1]]);
       await pool.query("UPDATE competition_entries SET registration_status = 'draft' WHERE id = $1", [fixture.entries[0]!.entryId]);
+      expect((await expectOverviewMatches(fixture.season)).phase).toBe("approved_candidates");
       expect(await getParticipantSummary(fixture.season)).toEqual({ count: 155, hasPlayers: true });
       await pool.query("UPDATE competition_entries SET registration_status = 'approved' WHERE id = $1", [fixture.entries[0]!.entryId]);
       const final = await getMajorPublicParticipantSummary(fixture.season);
@@ -434,6 +464,7 @@ describe("Major public participant read model PostgreSQL integration", () => {
       await freezeOfficialFacts(pool, fixture);
       expect(await getParticipantSummary(fixture.season)).toEqual({ count: 159, hasPlayers: true });
       expect(await getParticipantSummary({ id: fixture.season.id, registrationMode: 'solo' })).toEqual({ count: 0, hasPlayers: false });
+      expect((await expectOverviewMatches(fixture.season)).playerCount).toBe(160);
       const frozen = await getMajorPublicParticipantSummary(fixture.season);
       expect(frozen.phase).toBe("rosters_frozen");
       expect(frozen.teams.every((team) => team.rosterLabel === "最终参赛名单")).toBe(true);
