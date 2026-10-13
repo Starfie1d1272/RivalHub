@@ -1,5 +1,16 @@
 # Changelog
 
+## [2.17.4]
+
+### Fixed
+
+- 减少公开选手属性基准读取的统计投影数据量，保留原有统计结果、身份校验与缓存更新时效。
+- 消除比赛排期弹窗与页面重复发起的自动刷新，继续按比赛页面现有频率同步提议和比赛状态。
+
+### Changed
+
+- Preview 镜像保留每日及手动刷新，仅在含数据库迁移的成功发布后额外刷新，减少纯应用发布产生的全量导出。
+
 ## [2.17.3]
 
 ### Fixed
@@ -2970,6 +2981,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[2.17.4]: https://github.com/Starfie1d1272/RivalHub/compare/v2.17.3...v2.17.4
 [2.17.3]: https://github.com/Starfie1d1272/RivalHub/compare/v2.17.2...v2.17.3
 [2.17.2]: https://github.com/Starfie1d1272/RivalHub/compare/v2.17.1...v2.17.2
 [2.17.1]: https://github.com/Starfie1d1272/RivalHub/compare/v2.17.0...v2.17.1
