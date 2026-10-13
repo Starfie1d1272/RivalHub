@@ -28,7 +28,7 @@ import {
 } from "../../../src/lib/demo-integration/review";
 import { dakStableScoreboardValues, submitRivalHubEvidence } from "../../../src/lib/demo-integration/submit";
 import { recordGameplaySteamIdentityInTx } from "../../../src/lib/identity/gameplay-steam";
-import { getCurrentStatsSelectionInTx, getPlayerCareerDetail, getTournamentMapDetail, getTournamentPlayerDetail, getTournamentStats } from "../../../src/lib/stats/tournament-query";
+import { getCurrentStatsSelectionInTx, getPlayerCareerDetail, getTournamentMapDetail, getTournamentPerformancePlayers, getTournamentPlayerDetail, getTournamentStats } from "../../../src/lib/stats/tournament-query";
 import { adaptStatsEvidence } from "../../../src/lib/stats/evidence-adapter";
 import { getStatsLeaderboard } from "../../../src/lib/stats/leaderboard-query";
 import { getVerifiedPlayerStatsBySeason } from "../../../src/lib/stats/public-query";
@@ -443,11 +443,13 @@ describe("DAK evidence submit persistence", () => {
       queryLog.length = 0;
       queryBindings.length = 0;
       expect((await getTournamentStats({ seasonId: ids.season }, observedDatabase)).coverage.detailedMaps).toBe(0);
+      expect(await getTournamentPerformancePlayers({ seasonId: ids.season }, observedDatabase)).toEqual([]);
       expect(queryLog.some((query) => /from "match_demo_imports"/i.test(query) && query.includes('"payload"'))).toBe(false);
       await database.insert(schema.matchDemoStatProjections).values({ ...projectionsAfterPromotion[0]!, projectionVersion: "retired-version" });
       queryLog.length = 0;
       queryBindings.length = 0;
       expect((await getTournamentStats({ seasonId: ids.season }, observedDatabase)).coverage.detailedMaps).toBe(0);
+      expect(await getTournamentPerformancePlayers({ seasonId: ids.season }, observedDatabase)).toEqual([]);
       expect(queryLog.some((query) => /from "match_demo_imports"/i.test(query) && query.includes('"payload"'))).toBe(false);
       await expect(database.transaction((tx) => backfillStatisticsProjectionForMapInTx(tx, ids.map, false))).resolves.toBe("missing");
       await expect(database.transaction((tx) => backfillStatisticsProjectionForMapInTx(tx, ids.map, true))).resolves.toBe("rebuilt");
@@ -556,6 +558,36 @@ describe("DAK evidence submit persistence", () => {
         maps: [{ mapName: "de_ancient", completedMaps: 1, detailedMaps: 1 }],
       });
       expect(stats.performance.players).toHaveLength(10);
+      // Protect benchmark parity and actual SQL payload reduction, not just the
+      // query spelling: replay the owner's emitted SQL against the same real rows.
+      const fullProjectionRows = await client.query({ text: projectionQuery!, values: queryBindings[queryLog.indexOf(projectionQuery!)]!, rowMode: "array" });
+      queryLog.length = 0;
+      queryBindings.length = 0;
+      expect(await getTournamentPerformancePlayers({ seasonId: ids.season }, observedDatabase)).toEqual(stats.performance.players);
+      const benchmarkQueries = queryLog.filter((query) => /from "match_demo_stat_projections"/i.test(query) && query.includes('"facts"'));
+      expect(benchmarkQueries).toHaveLength(1);
+      const benchmarkProjectionRows = await client.query({ text: benchmarkQueries[0]!, values: queryBindings[queryLog.indexOf(benchmarkQueries[0]!)]!, rowMode: "array" });
+      expect(benchmarkProjectionRows.rows).toHaveLength(fullProjectionRows.rows.length);
+      const benchmarkFacts = benchmarkProjectionRows.rows[0]![1];
+      expect(benchmarkFacts.performance).toEqual(fullProjectionRows.rows[0]![1].performance);
+      expect(benchmarkFacts.tournament).toEqual({ mapKey: ids.map, matchKey: ids.match });
+      expect(benchmarkFacts).not.toHaveProperty("records");
+      const fullBytes = Buffer.byteLength(JSON.stringify(fullProjectionRows.rows));
+      const benchmarkBytes = Buffer.byteLength(JSON.stringify(benchmarkProjectionRows.rows));
+      expect(benchmarkBytes).toBeLessThan(fullBytes);
+      expect(queryLog.some((query) => /from "match_demo_imports"/i.test(query) && query.includes('"payload"'))).toBe(false);
+      console.log(JSON.stringify({ scenario: "benchmark-projection-selection", factsQueriesBefore: 1, factsQueriesAfter: benchmarkQueries.length,
+        rowsBefore: fullProjectionRows.rows.length, rowsAfter: benchmarkProjectionRows.rows.length, fullBytes, benchmarkBytes,
+        measurement: "local PostgreSQL JSON result; not wire billing" }));
+      await database.update(schema.matchDemoStatProjections).set({
+        facts: { ...rebuiltProjection!.facts, tournament: { ...rebuiltProjection!.facts.tournament, matchKey: randomUUID() } },
+      }).where(eq(schema.matchDemoStatProjections.importId, importId));
+      try {
+        await expect(getTournamentPerformancePlayers({ seasonId: ids.season }, observedDatabase)).rejects.toThrow("Statistics projection target mismatch");
+      } finally {
+        await database.update(schema.matchDemoStatProjections).set({ facts: rebuiltProjection!.facts })
+          .where(eq(schema.matchDemoStatProjections.importId, importId));
+      }
       expect(stats.analytics.teams).toHaveLength(2);
       expect(stats.analytics.maps[0]?.mapName).toBe("de_ancient");
       expect(stats.leaderboard).toHaveLength(10);
