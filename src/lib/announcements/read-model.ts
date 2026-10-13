@@ -4,7 +4,7 @@ import { and, desc, eq, inArray, isNull, ne, or } from "drizzle-orm";
 import { cacheLife, cacheTag } from "next/cache";
 import { db } from "@/db/client";
 import { announcements, seasons, type Announcement } from "@/db/schema";
-import { PUBLIC_ANNOUNCEMENTS_TAG, PUBLIC_SEASON_CATALOG_TAG, publicAnnouncementsSeasonTag } from "@/lib/cache/tags";
+import { PUBLIC_ANNOUNCEMENTS_TAG, publicAnnouncementsSeasonTag } from "@/lib/cache/tags";
 import {
   selectAttentionAnnouncement,
   toPublicAnnouncement,
@@ -50,7 +50,7 @@ function toPublic(row: PublicRow): PublicAnnouncement {
 export async function listPublicAnnouncements(seasonId?: string): Promise<PublicAnnouncement[]> {
   "use cache: remote";
   cacheLife("minutes");
-  cacheTag(PUBLIC_ANNOUNCEMENTS_TAG, PUBLIC_SEASON_CATALOG_TAG, ...(seasonId ? [publicAnnouncementsSeasonTag(seasonId)] : []));
+  cacheTag(PUBLIC_ANNOUNCEMENTS_TAG, ...(seasonId ? [publicAnnouncementsSeasonTag(seasonId)] : []));
 
   const rows = await db
     .select({
@@ -82,7 +82,7 @@ export async function listPublicAnnouncements(seasonId?: string): Promise<Public
 export async function listAllPublicAnnouncements(): Promise<PublicAnnouncement[]> {
   "use cache: remote";
   cacheLife("minutes");
-  cacheTag(PUBLIC_ANNOUNCEMENTS_TAG, PUBLIC_SEASON_CATALOG_TAG);
+  cacheTag(PUBLIC_ANNOUNCEMENTS_TAG);
 
   const rows = await db
     .select({
@@ -163,7 +163,6 @@ async function getCachedAttentionCandidates(seasonId: string | null): Promise<Pu
   cacheLife("minutes");
   cacheTag(
     PUBLIC_ANNOUNCEMENTS_TAG,
-    PUBLIC_SEASON_CATALOG_TAG,
     ...(seasonId ? [publicAnnouncementsSeasonTag(seasonId)] : []),
   );
 

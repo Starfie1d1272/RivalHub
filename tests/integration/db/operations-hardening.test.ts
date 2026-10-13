@@ -5,13 +5,16 @@
 import { randomUUID } from "node:crypto";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { describe, expect, it, vi } from "vitest";
-vi.mock("next/cache", () => ({ cacheLife: vi.fn(), cacheTag: vi.fn() }));
+import { cacheTag, revalidateTag } from "next/cache";
+vi.mock("next/cache", () => ({ cacheLife: vi.fn(), cacheTag: vi.fn(), revalidateTag: vi.fn() }));
 // Authorization is outside the shared cache; SQL visibility uses real PostgreSQL.
 const { viewer } = vi.hoisted(() => ({ viewer: vi.fn().mockResolvedValue(null) }));
 vi.mock("../../../src/lib/auth/session", () => ({ getCurrentUserAuthorization: viewer }));
 import * as schema from "../../../src/db/schema";
 import { announcements, auditLogs, communityGroups, feedbackReports, seasons, users } from "../../../src/db/schema";
 import { eq } from "drizzle-orm";
+import { PUBLIC_ANNOUNCEMENTS_TAG, PUBLIC_SEASON_CATALOG_TAG, publicSeasonInfoTag } from "../../../src/lib/cache/tags";
+import { revalidatePublicSeasonTags } from "../../../src/lib/revalidation";
 import { createAnnouncementInTx, updateAnnouncementInTx, setAnnouncementStatusInTx } from "../../../src/lib/announcements/commands";
 import { getRelevantAttentionAnnouncement, listPublicAnnouncements } from "../../../src/lib/announcements/read-model";
 import { submitFeedbackInTx, setFeedbackStatusInTx } from "../../../src/lib/feedback/commands";
@@ -75,6 +78,8 @@ describe("operations real PostgreSQL lifecycle & abuse hardening", () => {
       expect(publicAfterPublish).toEqual(expect.arrayContaining([
         expect.objectContaining({ id: draft.id, title: "赛程调整通知（草稿）" }),
       ]));
+      expect(vi.mocked(cacheTag).mock.calls.some((tags) => tags.includes(PUBLIC_ANNOUNCEMENTS_TAG))).toBe(true);
+      expect(vi.mocked(cacheTag).mock.calls.some((tags) => tags.includes(PUBLIC_SEASON_CATALOG_TAG))).toBe(false);
 
       const [beforeEdit] = await database
         .select({ status: announcements.status, updatedAt: announcements.updatedAt })
@@ -224,6 +229,12 @@ describe("operations real PostgreSQL lifecycle & abuse hardening", () => {
       expect(publicInfo.contacts).toEqual(expect.arrayContaining([
         expect.objectContaining({ id: contact.id, value: "ops@example.com", href: "mailto:ops@example.com" }),
       ]));
+      expect(vi.mocked(cacheTag).mock.calls.some((tags) => tags.includes(publicSeasonInfoTag(seasonId)))).toBe(true);
+      expect(vi.mocked(cacheTag).mock.calls.some((tags) => tags.includes(PUBLIC_SEASON_CATALOG_TAG))).toBe(false);
+      vi.mocked(revalidateTag).mockClear();
+      revalidatePublicSeasonTags(`ops-info-${seasonId.slice(0, 8)}`, seasonId);
+      expect(vi.mocked(revalidateTag).mock.calls.some(([tag]) => tag === PUBLIC_SEASON_CATALOG_TAG)).toBe(true);
+      expect(vi.mocked(revalidateTag).mock.calls.some(([tag]) => tag === PUBLIC_ANNOUNCEMENTS_TAG || tag === publicSeasonInfoTag(seasonId))).toBe(false);
 
       // Anonymous draft reads cannot expose public-info configuration; authorized
       // previews use the uncached path and observe the actual DB facts.
