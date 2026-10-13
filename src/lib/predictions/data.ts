@@ -1,3 +1,6 @@
+import { withDisplayScores } from "@/lib/matches/display-score-data";
+import { matches as officialMatches } from "@/db/schema";
+import { inArray } from "drizzle-orm";
 import "server-only";
 import { and, desc, eq, sql } from "drizzle-orm";
 import type { TxDb } from "@/db/client";
@@ -44,6 +47,10 @@ export async function predictionBoard(
   const qualification = await loadQualificationContext(tx, seasonId, base.name);
   const contexts: SimulationContext[] = [{ kind: "major", baseline: base }];
   if (qualification) contexts.unshift(qualification);
+  const visibleIds = contexts.flatMap(context => context.baseline.matches.filter(match => match.format === "bo1" && match.status === "finished").map(match => match.id));
+  const scoreFacts = visibleIds.length ? await tx.select({ id: officialMatches.id, format: officialMatches.format, status: officialMatches.status, isForfeit: officialMatches.isForfeit, resultDisposition: officialMatches.resultDisposition, scoreA: officialMatches.scoreA, scoreB: officialMatches.scoreB }).from(officialMatches).where(inArray(officialMatches.id, visibleIds)) : [];
+  const displayById = new Map((await withDisplayScores(scoreFacts, tx)).map(match => [match.id, match.displayScore]));
+  for (const context of contexts) context.baseline.matches = context.baseline.matches.map(match => ({ ...match, displayScore: displayById.get(match.id) }));
   const defaultContext = qualification && !base.teams.length ? "qualification-short-swiss" as const : "major" as const;
   const records = view === "record" || view === "all";
   const poolsVisible = view === "points" || view === "all";

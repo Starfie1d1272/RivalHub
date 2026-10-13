@@ -1,3 +1,4 @@
+import { withDisplayScores } from "./display-score-data";
 import { requireCompetitionFields } from "./competition-context";
 import "server-only";
 
@@ -34,6 +35,8 @@ export async function loadQualificationSwissStageReadModel(seasonId: string) {
       entryAId: matches.entryAId,
       entryBId: matches.entryBId,
       round: matches.round,
+      isForfeit: matches.isForfeit,
+      resultDisposition: matches.resultDisposition,
       scoreA: matches.scoreA,
       scoreB: matches.scoreB,
       status: matches.status,
@@ -51,6 +54,6 @@ export async function loadQualificationSwissStageReadModel(seasonId: string) {
   return buildQualificationSwissReadModel({
     directEntryCount: run.directEntryCount,
     entrants,
-    matches: linkedMatches.map(requireCompetitionFields),
+    matches: await withDisplayScores(linkedMatches.map(requireCompetitionFields)),
   });
 }

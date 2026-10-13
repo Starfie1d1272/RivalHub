@@ -16,6 +16,7 @@ interface MatchCardProps {
   seasonSlug: string;
   teamAName: string;
   teamBName: string;
+  displayScore?: import("@/lib/matches/display-score").DisplayScore;
   scoreA: number | null;
   scoreB: number | null;
   stageLabel: string;
@@ -33,6 +34,7 @@ export function MatchCard({
   seasonSlug,
   teamAName,
   teamBName,
+  displayScore,
   scoreA,
   scoreB,
   stageLabel,
@@ -63,7 +65,7 @@ export function MatchCard({
         <span className={`font-semibold truncate min-w-0 flex-1 text-[var(--color-fg)] text-sm sm:text-base ${showLiveScore ? "col-start-1 row-start-1 lg:text-right" : "text-right"}`}><TeamProfileLink entryId={entryAId} seasonSlug={seasonSlug}>{teamAName}</TeamProfileLink></span>
         <Link href={`/${seasonSlug}/matches/${matchId}`} aria-label={`查看 ${teamAName} 对 ${teamBName} 比赛`} className={`text-center font-mono tabular-nums text-[var(--color-fg-mid)] text-sm shrink-0 ${showLiveScore ? "col-start-2 row-start-1 row-span-2 lg:row-span-1" : ""}`}>
           {status === "finished"
-            ? `${scoreA ?? "—"} : ${scoreB ?? "—"}`
+            ? `${(displayScore ? displayScore.scoreA : scoreA) ?? "—"} : ${(displayScore ? displayScore.scoreB : scoreB) ?? "—"}`
             : showLiveScore ? <MatchListLiveScore matchId={matchId} entryAId={entryAId} entryBId={entryBId} context={liveContext} /> : "vs"}
         </Link>
         <span className={`font-semibold truncate min-w-0 flex-1 text-[var(--color-fg)] text-sm sm:text-base ${showLiveScore ? "col-start-1 row-start-2 lg:col-start-3 lg:row-start-1" : ""}`}><TeamProfileLink entryId={entryBId} seasonSlug={seasonSlug}>{teamBName}</TeamProfileLink></span>

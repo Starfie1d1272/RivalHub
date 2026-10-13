@@ -252,7 +252,11 @@ describe("admin match read models PostgreSQL integration", () => {
       const overview = await loadAdminMatchOverview({ seasonSlug: seasonASlug });
       expect(overview).not.toBeNull();
       expect(overview?.matches).toHaveLength(1);
-      expect(overview?.matches[0]).toMatchObject({ id: ids.matchA, status: "finished", scoreA: 1, scoreB: 0 });
+      // The real batch reader exposes rounds only as a presentation DTO;
+      // official series facts stay 1:0 for rankings and settlements.
+      expect(overview?.matches[0]).toMatchObject({ id: ids.matchA, status: "finished", scoreA: 1, scoreB: 0,
+        displayScore: { scoreA: 13, scoreB: 8, kind: "rounds" } });
+      expect((await pool.query("SELECT score_a, score_b FROM matches WHERE id=$1", [ids.matchA])).rows[0]).toEqual({ score_a: 1, score_b: 0 });
       expect(overview?.matches[0]).not.toHaveProperty("videoUrl");
       expect(overview).not.toHaveProperty("mapPool");
       expect(overview?.swissRuntime).toBeNull();
